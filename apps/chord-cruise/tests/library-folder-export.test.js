@@ -26,6 +26,7 @@ assert(librarySource.includes('function listDiagramOptions(chord, options)'), 'l
 assert(librarySource.includes('columns: columns') && librarySource.includes('displayMode: mode') && librarySource.includes('monochrome: monochrome'), 'folder export receives columns, display mode, and monochrome state');
 assert(librarySource.includes("globalDisplaySize('chordNameSize')"), 'folder export reflects the global chord-name size');
 assert(librarySource.includes("globalDisplaySize('fretNumberSize')"), 'folder export reflects the global fret-number size');
+assert(librarySource.includes("libraryCardFretNumberScale(globalDisplaySize('fretNumberSize'), columns)"), 'live list and folder PNG share the fixed fret-number table');
 assert(librarySource.includes("globalDisplaySize('fretboardMarkerLabelSize')"), 'folder export reflects the global marker-label size');
 assert(librarySource.includes('exportSvgPng(exportSvg, filename)'), 'folder SVG uses the existing SVG-to-PNG delivery path');
 assert(exportSource.includes('function exportSvgPng(exportSvg, filename)'), 'the existing PNG converter exposes a composed-SVG entry point');

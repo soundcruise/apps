@@ -665,6 +665,7 @@ function orderOf(env) {
 (function libraryCardsUseGlobalDisplaySizesAndClampByColumn() {
     const env = loadLibrary(baseData());
     const scale = env.context.window.ChordCruise.ui.library.libraryCardTextScale;
+    const fretNumberScale = env.context.window.ChordCruise.ui.library.libraryCardFretNumberScale;
     assert.strictEqual(scale('xsmall', 1), 0.76);
     assert.strictEqual(scale('small', 1), 0.85);
     assert.strictEqual(scale('medium', 4), 1);
@@ -678,8 +679,26 @@ function orderOf(env) {
     assert.strictEqual(scale('xlarge', 4), 1.09);
     assert(scale('large', 4) > scale('medium', 4), '4-column large must remain visibly larger than medium');
     assert(scale('xlarge', 4) > scale('large', 4), '4-column xlarge must remain visibly larger than large');
+    const expectedFretNumberScales = {
+        1: [1.12, 1.25, 1.36, 1.48, 1.60],
+        2: [1.10, 1.22, 1.34, 1.46, 1.58],
+        3: [1.04, 1.15, 1.27, 1.39, 1.51],
+        4: [0.98, 1.09, 1.20, 1.31, 1.42]
+    };
+    const displaySizes = ['xsmall', 'small', 'medium', 'large', 'xlarge'];
+    [1, 2, 3, 4].forEach((columns) => {
+        const values = displaySizes.map((size) => fretNumberScale(size, columns));
+        assert.deepStrictEqual(values, expectedFretNumberScales[columns], 'list fret-number fixed table matches column ' + columns);
+        values.forEach((value, index) => {
+            assert(value >= 0.75 && value <= 1.6, 'list fret-number scale stays inside SVG normalization bounds');
+            if (index > 0) assert(value > values[index - 1], 'list fret-number sizes remain strictly increasing');
+        });
+        assert.strictEqual(fretNumberScale('small', columns), scale('xlarge', columns), 'small now matches the former xlarge visibility');
+    });
+    assert.strictEqual(fretNumberScale('invalid', 2), 1.34, 'invalid list fret-number size falls back to medium');
     assert(librarySource.includes("globalDisplaySize('chordNameSize')"), 'thumbnail title reads the global chord-name setting');
     assert(librarySource.includes("globalDisplaySize('fretNumberSize')"), 'thumbnail fret numbers read the global fret-number setting');
+    assert(librarySource.includes('libraryCardFretNumberScale(globalDisplaySize(\'fretNumberSize\'), columns)'), 'list and folder export use the fixed fret-number table');
     assert(librarySource.includes("globalDisplaySize('fretboardMarkerLabelSize')"), 'thumbnail marker labels read the global marker setting');
     assert(themeSource.includes('data-library-chord-name-size="xsmall"'), 'thumbnail title supports global xsmall');
     assert(themeSource.includes('data-library-chord-name-size="xlarge"'), 'thumbnail title supports global xlarge');

@@ -128,6 +128,21 @@
         return 1.12;
     }
 
+    // 一覧カード専用。13px基準の静的SVGへ渡す固定倍率を、設定値×列数で明示する。
+    // すべてnormalizeStaticTextScale()の許容範囲内に収め、サイズ順の逆転を防ぐ。
+    var LIBRARY_FRET_NUMBER_SCALES = {
+        xsmall: { 1: 1.12, 2: 1.10, 3: 1.04, 4: 0.98 },
+        small:  { 1: 1.25, 2: 1.22, 3: 1.15, 4: 1.09 },
+        medium: { 1: 1.36, 2: 1.34, 3: 1.27, 4: 1.20 },
+        large:  { 1: 1.48, 2: 1.46, 3: 1.39, 4: 1.31 },
+        xlarge: { 1: 1.60, 2: 1.58, 3: 1.51, 4: 1.42 }
+    };
+
+    function libraryCardFretNumberScale(size, columns) {
+        var normalizedSize = ['xsmall', 'small', 'medium', 'large', 'xlarge'].indexOf(size) !== -1 ? size : 'medium';
+        return LIBRARY_FRET_NUMBER_SCALES[normalizedSize][normalizeLibraryColumns(columns)];
+    }
+
     function libraryDisplayModeLabel(mode) {
         return { note: 'CDE', solfege: 'ドレミ', degree: '度数', finger: '運指' }[mode] || '運指';
     }
@@ -1485,7 +1500,7 @@
         diagramOptions.svgClass = 'cc-fb-svg cc-fb-static-svg cc-chordthumb-svg';
         diagramOptions.fretNumberScale = typeof opts.fretNumberScale === 'number'
             ? opts.fretNumberScale
-            : libraryCardTextScale(globalDisplaySize('fretNumberSize'), columns);
+            : libraryCardFretNumberScale(globalDisplaySize('fretNumberSize'), columns);
         diagramOptions.markerLabelScale = typeof opts.markerLabelScale === 'number'
             ? opts.markerLabelScale
             : libraryCardTextScale(globalDisplaySize('fretboardMarkerLabelSize'), columns);
@@ -2020,6 +2035,7 @@
         buildFolderSortRowsHtml: buildFolderSortRowsHtml,
         buildChordSortRowsHtml: buildChordSortRowsHtml,
         normalizeLibraryColumns: normalizeLibraryColumns,
-        libraryCardTextScale: libraryCardTextScale
+        libraryCardTextScale: libraryCardTextScale,
+        libraryCardFretNumberScale: libraryCardFretNumberScale
     };
 })();

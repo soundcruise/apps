@@ -322,6 +322,24 @@ assert(defaultTextScaleSvg.includes('font-size:13px'), 'static fret numbers rema
 assert(largeTextScaleSvg.includes('font-size:14.56px'), 'large fret-number scale applies to the 13px baseline');
 assert(smallTextScaleSvg.includes('font-size:11.05px'), 'small fret-number scale applies to the 13px baseline');
 assert(xlargeTextScaleSvg.includes('font-size:16.25px'), 'xlarge fret-number scale applies to the 13px baseline');
+var listFretNumberScaleRows = [
+    [1.12, 1.25, 1.36, 1.48, 1.60],
+    [1.10, 1.22, 1.34, 1.46, 1.58],
+    [1.04, 1.15, 1.27, 1.39, 1.51],
+    [0.98, 1.09, 1.20, 1.31, 1.42]
+];
+listFretNumberScaleRows.forEach(function (scales, columnIndex) {
+    var renderedSizes = scales.map(function (scale) {
+        var svg = fretboard.buildStaticSvg(Object.assign({}, textScaleOptions, { fretNumberScale: scale }));
+        var match = svg.match(/cc-fb-fret-number[^>]*font-size:([0-9.]+)px/);
+        assert(match, 'generated list SVG contains an inline fret-number size');
+        return Number(match[1]);
+    });
+    renderedSizes.forEach(function (size, sizeIndex) {
+        assert.strictEqual(size, Math.round(13 * scales[sizeIndex] * 100) / 100, 'generated SVG keeps the fixed list size');
+        if (sizeIndex > 0) assert(size > renderedSizes[sizeIndex - 1], 'generated SVG sizes increase at column ' + (columnIndex + 1));
+    });
+});
 assert(largeTextScaleSvg.includes('font-size:13.44px'), 'large marker-label scale preserves the existing per-label baseline');
 assert(smallTextScaleSvg.includes('font-size:12.75px'), 'small warning-label scale preserves the warning baseline');
 assert(xlargeTextScaleSvg.includes('font-size:15px'), 'xlarge marker-label scale preserves the existing per-label baseline');
