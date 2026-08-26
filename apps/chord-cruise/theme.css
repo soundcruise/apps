@@ -174,6 +174,26 @@ body {
     margin-top: 58px;
 }
 
+.cc-info-home-slot {
+    width: 100%;
+    display: flex;
+    justify-content: flex-start;
+    margin-top: 18px;
+}
+
+.cc-info-home-btn {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.05rem;
+    text-decoration: none;
+}
+
 .cc-action-card {
     width: 100%;
     min-height: 188px;
@@ -358,6 +378,378 @@ body {
     color: var(--cc-text);
     border-radius: var(--cc-radius-md);
     padding: 12px 20px;
+}
+
+/* インフォメーション関連ページ。アプリ本体の画面管理から独立して使用する。 */
+.cc-info-page,
+.cc-legal-page {
+    min-height: 100vh;
+    overflow: auto;
+}
+
+.cc-info-shell {
+    width: min(640px, 100%);
+    min-height: 100vh;
+    margin: 0 auto;
+    padding: max(32px, calc(env(safe-area-inset-top) + 24px)) 20px max(32px, calc(env(safe-area-inset-bottom) + 24px));
+}
+
+.cc-legal-page .cc-info-shell {
+    width: min(680px, 100%);
+    padding-bottom: max(40px, calc(env(safe-area-inset-bottom) + 32px));
+}
+
+.cc-info-card,
+.cc-legal-card {
+    width: 100%;
+    padding: 32px 24px;
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-lg);
+    background: linear-gradient(160deg, var(--cc-surface-raised), var(--cc-surface));
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.32);
+}
+
+.cc-info-nav,
+.cc-legal-nav {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.cc-info-nav {
+    justify-content: space-between;
+}
+
+.cc-legal-nav {
+    flex-wrap: wrap;
+}
+
+.cc-info-nav-link,
+.cc-legal-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 38px;
+    padding: 0 14px;
+    font-size: 0.86rem;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.cc-info-home-link {
+    width: 38px;
+    min-width: 38px;
+    padding: 0;
+    font-size: 1rem;
+}
+
+.cc-info-title,
+.cc-legal-card h1 {
+    margin: 0 0 18px;
+    color: var(--cc-text);
+    font-size: 1.7rem;
+    line-height: 1.2;
+    letter-spacing: 0;
+    text-align: center;
+}
+
+.cc-legal-card h1 {
+    margin-bottom: 8px;
+    text-align: left;
+}
+
+.cc-info-links-bottom {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.cc-info-link-card {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 12px 14px;
+    border: 1px solid var(--cc-border);
+    border-radius: var(--cc-radius-md);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--cc-text);
+    font-size: 0.88rem;
+    font-weight: 700;
+    line-height: 1.35;
+    text-align: center;
+    text-decoration: none;
+    transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+
+.cc-info-link-card[hidden] {
+    display: none;
+}
+
+.cc-info-pro-access-button {
+    border-color: var(--cc-gold);
+    background: linear-gradient(135deg, #fff2ac 0%, #bf953f 25%, #fcf6ba 50%, #b38728 75%, #fbf5b7 100%);
+    background-size: 200% auto;
+    color: #1a1a1a;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.6);
+    animation: ccInfoGoldSweep 4s ease-in-out infinite;
+}
+
+.cc-info-new-badge {
+    position: absolute;
+    top: -10px;
+    right: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 48px;
+    height: 26px;
+    padding: 0 10px;
+    border-radius: var(--cc-radius-pill);
+    background: linear-gradient(135deg, rgba(255, 214, 94, 0.96), rgba(255, 242, 186, 0.96));
+    color: #1b1608;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
+    animation: ccInfoNewBadgeFloat 1.9s ease-in-out infinite;
+    pointer-events: none;
+}
+
+.cc-info-new-badge[hidden] {
+    display: none;
+}
+
+.cc-info-usage-row {
+    margin-top: 22px;
+    text-align: center;
+}
+
+.cc-info-simple-link {
+    display: inline-block;
+    padding: 12px 10px;
+    color: var(--cc-gold-bright);
+    font-size: 0.96rem;
+    font-weight: 700;
+    line-height: 1.3;
+    text-underline-offset: 3px;
+}
+
+.cc-info-footer-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px 14px;
+    margin-top: 26px;
+    padding-top: 18px;
+    border-top: 1px solid var(--cc-border);
+    font-size: 0.72rem;
+    line-height: 1.5;
+}
+
+.cc-info-footer-links a {
+    color: var(--cc-text-muted);
+    text-decoration: none;
+}
+
+.cc-info-lead {
+    margin: 0 0 22px;
+    color: rgba(244, 241, 232, 0.82);
+    font-size: 0.92rem;
+    line-height: 1.85;
+}
+
+.cc-info-section,
+.cc-legal-card section {
+    margin-top: 22px;
+}
+
+.cc-info-section h2,
+.cc-legal-card h2 {
+    margin: 0 0 10px;
+    color: var(--cc-gold-bright);
+    font-size: 1.02rem;
+    line-height: 1.4;
+}
+
+.cc-info-section p,
+.cc-info-section li,
+.cc-legal-card p,
+.cc-legal-card li {
+    color: rgba(244, 241, 232, 0.78);
+    font-size: 0.9rem;
+    line-height: 1.8;
+}
+
+.cc-info-section p,
+.cc-legal-card p {
+    margin: 0;
+}
+
+.cc-info-section ol,
+.cc-info-section ul,
+.cc-legal-card ul {
+    margin: 0;
+    padding-left: 1.25em;
+}
+
+.cc-info-section ol {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.cc-legal-updated {
+    margin: 0 0 26px !important;
+    color: var(--cc-text-muted) !important;
+    font-size: 0.82rem !important;
+}
+
+.cc-legal-card a {
+    color: var(--cc-gold-bright);
+    text-underline-offset: 3px;
+}
+
+.cc-info-youtube-confirm {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(0, 0, 0, 0.58);
+}
+
+.cc-info-youtube-confirm[hidden] {
+    display: none;
+}
+
+.cc-info-youtube-confirm__dialog {
+    width: min(360px, 100%);
+    padding: 22px 20px 18px;
+    border: 1px solid var(--cc-border-strong);
+    border-radius: 18px;
+    background: var(--cc-surface-raised);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+    color: var(--cc-text);
+    text-align: center;
+}
+
+.cc-info-youtube-confirm__title {
+    margin: 0 0 10px;
+    color: var(--cc-text);
+    font-size: 1.18rem;
+    line-height: 1.25;
+}
+
+.cc-info-youtube-confirm__body {
+    margin: 0;
+    color: var(--cc-text-muted);
+    font-size: 0.88rem;
+    line-height: 1.65;
+}
+
+.cc-info-youtube-confirm__actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.cc-info-youtube-confirm__btn {
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1px solid var(--cc-border-strong);
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.cc-info-youtube-confirm__btn--cancel {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--cc-text);
+}
+
+.cc-info-youtube-confirm__btn--open {
+    border-color: rgba(255, 214, 94, 0.42);
+    background: linear-gradient(135deg, rgba(255, 214, 94, 0.92), rgba(255, 242, 186, 0.92));
+    color: #1b1608;
+}
+
+@keyframes ccInfoGoldSweep {
+    0%, 100% { background-position: 0% center; }
+    50% { background-position: 100% center; }
+}
+
+@keyframes ccInfoNewBadgeFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-4px); }
+}
+
+@media (hover: hover) {
+    .cc-info-link-card:hover {
+        transform: translateY(-1px);
+        background-color: rgba(255, 255, 255, 0.07);
+        border-color: var(--cc-border-strong);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .cc-info-pro-access-button,
+    .cc-info-new-badge {
+        animation: none;
+    }
+}
+
+@media (max-width: 480px) {
+    .cc-info-home-btn {
+        width: 42px;
+        height: 42px;
+        min-width: 42px;
+        min-height: 42px;
+        font-size: 1rem;
+    }
+
+    .cc-info-shell {
+        padding-left: 14px;
+        padding-right: 14px;
+    }
+
+    .cc-info-card,
+    .cc-legal-card {
+        padding: 26px 18px;
+        border-radius: 16px;
+    }
+
+    .cc-info-title,
+    .cc-legal-card h1 {
+        font-size: 1.45rem;
+    }
+
+    .cc-info-link-card {
+        padding: 10px 12px;
+        font-size: 0.82rem;
+    }
+
+    .cc-info-section p,
+    .cc-info-section li,
+    .cc-legal-card p,
+    .cc-legal-card li {
+        font-size: 0.86rem;
+    }
+
+    .cc-info-youtube-confirm {
+        padding: 18px;
+    }
+
+    .cc-info-youtube-confirm__actions {
+        grid-template-columns: 1fr;
+    }
 }
 
 /* コードを調べる画面 */

@@ -14,10 +14,10 @@
 - ディレクトリ: `apps/chord-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/chord-cruise/standard/`（旧URLの`https://soundcruise.jp/apps/chord-cruise/`は互換入口としてStandardへ遷移）
 - PRO版URL: `https://soundcruise.jp/apps/chord-cruise/pro_k7m4q9v2x8/`（`data-app-edition="Pro"`、`apps/shared/pro-gate.js`／`pro-gate.css`を利用）
-- 現在のバージョン: `0.38.1`（Pro書き出し・本棚表示改善）
+- 現在のバージョン: `0.38.2`（インフォメーション機能追加）
 - 正式Chord Cruise HEAD: `3455175d26ab03bc893e2c63b5a3ec99e6d7d2f4`
 
-## 現在のPro構成（v0.38.1）
+## 現在のPro構成（v0.38.2）
 
 - Standard入口: `apps/chord-cruise/standard/index.html`
 - 旧Standard入口: `apps/chord-cruise/index.html`（互換入口。PWA manifestを持たず`standard/`へ遷移）
@@ -234,22 +234,22 @@ StandardとProは同じcore／UI／保存schemaを共有し、入口とFeature A
 
 ## 7. インフォメーション / 利用規約 / プライバシー
 
-調査の結果、以下はすべて**現時点では未実装**。
-- インフォメーションページ: 未実装
-- 使い方ページ: 未実装
-- 説明動画リンク: 未実装
-- YouTube確認カード: 未実装
-- 利用規約: 未実装
-- プライバシーポリシー: 未実装
-- お問い合わせ導線: 未実装
+v0.38.2でChord Cruise専用の独立ページとして実装した。
 
-コード本文中にもこれらに関連する実装・準備コメントは見当たらなかった。今後追加する場合は、リズムクルーズの実装（`apps/rhythm-cruise/info.html` 等）を参考にできるが、着手前に方針をユーザーに確認すること。
+- Standard／Proトップの`.cc-home-actions`直後に丸い`i`導線を1個ずつ配置。
+- 共通ページ: `info.html`。Standardは`edition=standard`、Proは`edition=pro`を渡す。
+- 関連ページ: `usage.html`、`terms.html`、`privacy.html`。
+- 戻り先は`info-routing.js`が`chordCruiseEditionHome`と検証済みeditionから解決する。
+- 「PRO版の入手方法」はStandardだけに表示し、Pro・版判定不能時は非表示にする。
+- YouTubeチャンネル導線は、キャンセル／実行／Esc／背景タップ対応の確認カードを挟む。
+- Rhythm Cruiseの使い方動画2件はDOM自体を追加していない。
+- Chord本体のSPA画面管理、Pro gate、Feature Access、保存schema、CAGED、`apps/shared/`は変更していない。
 
 ---
 
 ## 8. バージョン更新ルール
 
-- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.38.1`）。
+- バージョン定数: `js/app.js` 内 `CHORD_CRUISE_APP_VERSION`（現在 `0.38.2`）。
 - `?v=` によるキャッシュ管理: Standard `standard/index.html` とPro `pro_k7m4q9v2x8/index.html` のscript／stylesheet参照を、更新時にそれぞれ確認する。
 - shared gateを変更する場合は、Pro HTMLの`pro-gate.js`／`pro-gate.css`参照も更新対象に含める。今回のP8-5ではversionとコード参照を変更しない。
 - 通常版/PRO版で更新箇所が分かれているか: core／UIは共有し、入口HTMLとPro gate参照だけが分かれる。version更新時はStandard/Pro双方のHTML参照を確認する。

@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>コードクルーズ | インフォメーション</title>
+<link rel="stylesheet" href="./theme.css?v=0.38.2">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="cc-info-page">
+<div class="cc-info-shell">
+    <main class="cc-info-card">
+        <div class="cc-info-nav">
+            <a class="cc-nav-btn cc-info-nav-link" href="./standard/index.html" data-cc-info-back>← 戻る</a>
+            <a class="cc-nav-btn cc-info-nav-link cc-info-home-link" href="./standard/index.html" data-cc-edition-home aria-label="ホーム画面" title="ホーム画面">🏠</a>
+        </div>
+
+        <h1 class="cc-info-title">インフォメーション</h1>
+
+        <div class="cc-info-links-bottom">
+            <a class="cc-info-link-card" href="https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ" target="_blank" rel="noopener noreferrer" data-cc-youtube-confirm>YouTube Chトップ</a>
+            <a class="cc-info-link-card cc-info-pro-access-button" id="cc-info-pro-access-link" href="./pro-access.html" hidden>
+                PRO版の入手方法
+                <span id="cc-info-pro-access-new-badge" class="cc-info-new-badge" aria-hidden="true" hidden>New</span>
+            </a>
+        </div>
+
+        <div class="cc-info-usage-row">
+            <a class="cc-info-simple-link" href="./usage.html?edition=standard" data-cc-edition-page="usage.html">基本的な使い方</a>
+        </div>
+
+        <nav class="cc-info-footer-links" aria-label="法務・お問い合わせ">
+            <a href="./terms.html?edition=standard" data-cc-edition-page="terms.html">利用規約</a>
+            <a href="./privacy.html?edition=standard" data-cc-edition-page="privacy.html">プライバシーポリシー</a>
+            <a href="mailto:soundcruise.inc@gmail.com">お問い合わせ</a>
+        </nav>
+    </main>
+</div>
+
+<div class="cc-info-youtube-confirm" id="cc-youtube-confirm" hidden>
+    <div class="cc-info-youtube-confirm__dialog" role="dialog" aria-modal="true" aria-labelledby="cc-youtube-confirm-title">
+        <h2 class="cc-info-youtube-confirm__title" id="cc-youtube-confirm-title">YouTubeを開きます</h2>
+        <p class="cc-info-youtube-confirm__body">アプリを離れて、YouTubeページを開きます。<br>よろしいですか？</p>
+        <div class="cc-info-youtube-confirm__actions">
+            <button type="button" class="cc-info-youtube-confirm__btn cc-info-youtube-confirm__btn--cancel" id="cc-youtube-confirm-cancel">キャンセル</button>
+            <button type="button" class="cc-info-youtube-confirm__btn cc-info-youtube-confirm__btn--open" id="cc-youtube-confirm-open">YouTubeを開く</button>
+        </div>
+    </div>
+</div>
+
+<script src="./info-routing.js?v=0.38.2"></script>
+</body>
+</html>

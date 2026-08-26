@@ -239,9 +239,9 @@
             <h1>コードクルーズ 開発概要</h1>
             <p>キーから探して、指板で確かめて、自分のコード本棚へ ── 開発中のコード学習アプリ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>0.38.1（Pro書き出し・本棚表示改善）</b></span>
+                <span>現在のバージョン<b>0.38.2（インフォメーション機能追加）</b></span>
                 <span>正式Chord Cruise HEAD<b>3455175d</b></span>
-                <span>最終更新日<b>2026年8月20日</b></span>
+                <span>最終更新日<b>2026年8月27日</b></span>
             </div>
             <p><b>v0.25.0 Phase G2-A:</b> Power5（C5）を既存Major CAGEDから3度だけ除外した派生FORMとして正式化しました。root／5度は高音側を含めて保持し、保存schema・migrationは変更していません。</p>
             <p><b>Phase G2-B（未commit）:</b> no5（C(no5)）を既存Major CAGEDから5度だけ除外した派生FORMとして候補追加しました。root／3度は高音側を含めて保持し、E型高音rootのmovable運指だけは実機確認前のため⚠️で表示します。保存schema・migration・versionは変更していません。</p>
@@ -330,7 +330,7 @@
                     <li>白黒指板は背景白・左右境界あり・ポジションマークなしとし、ミュート弦は先頭フレット列中央へ大きく表示します。</li>
                 </ul>
                 <div class="ov-warn-box" style="margin-top: 14px;">
-                    <p><b>現状ステータス:</b> インフォメーションページ・利用規約・プライバシーポリシー・Service Workerは未実装です。Standard／Proは個別manifestと各edition用アイコンによりPWAインストールに対応しています。</p>
+                    <p><b>現状ステータス:</b> v0.38.2で共通インフォメーション、基本的な使い方、利用規約、プライバシーポリシー、問い合わせ導線を追加しました。StandardだけにPRO版の入手方法を表示し、Pro・版判定不能時は非表示です。Service Workerは未実装です。Standard／Proは個別manifestと各edition用アイコンによりPWAインストールに対応しています。</p>
                 </div>
                 <div class="ov-warn-box" style="margin-top: 14px;">
                     <p><b>v0.21.6正式修正:</b> Exploreのコード選択時に表示していた下部詳細カード（構成音・度数・役割・雰囲気・よく行くコード）を生成しないようにしました。関連辞書・API・詳細行ビルダーは保持し、コード名、ダイアトニック一覧、3/4和音切替、CAGED、指板、保存導線、任意コード導線は維持しています。実機確認済みです。</p>
@@ -482,7 +482,7 @@
         </section>
 
         <div class="ov-footer">
-            コードクルーズ開発概要 ／ 最終更新日: 2026年8月20日 ／ 正式Chord Cruise HEAD: 3455175d<br>
+            コードクルーズ開発概要 ／ 最終更新日: 2026年8月27日 ／ 正式Chord Cruise HEAD: 3455175d<br>
             詳細な開発者向け資料は <code>apps/chord-cruise/ai-handoff/CHORD_CRUISE_OVERVIEW.md</code> を参照してください。
         </div>
     </div>
