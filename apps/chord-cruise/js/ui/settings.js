@@ -12,6 +12,7 @@
         'fretNumberHighlightMode',
         'highlightedFrets',
         'fretboardDisplayMode',
+        'degreeNotationFormal',
         'cagedTabAutoChange'
     ];
     var overlayEl = null;
@@ -153,6 +154,12 @@
             btn.classList.toggle('cc-segment-btn--active', selected);
             btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
         });
+        var degreeNotationToggle = document.getElementById('cc-settings-degree-notation-toggle');
+        if (degreeNotationToggle) {
+            var degreeNotationFormal = settings.degreeNotationFormal === true;
+            degreeNotationToggle.classList.toggle('cc-switch--on', degreeNotationFormal);
+            degreeNotationToggle.setAttribute('aria-checked', degreeNotationFormal ? 'true' : 'false');
+        }
         var cagedAutoChangeToggle = document.getElementById('cc-settings-caged-auto-change-toggle');
         if (cagedAutoChangeToggle) {
             var cagedTabAutoChange = settings.cagedTabAutoChange === true;
@@ -264,6 +271,23 @@
         return true;
     }
 
+    function setDegreeNotationFormal(value) {
+        var enabled = value === true;
+        if (!saveRightTopSettings({ degreeNotationFormal: enabled })) return false;
+        updateControls();
+        notifyFretboardChange();
+        return true;
+    }
+
+    function toggleDegreeNotationDescription() {
+        var detail = document.getElementById('cc-settings-degree-notation-note');
+        var toggle = document.getElementById('cc-settings-degree-notation-help-toggle');
+        if (!detail || !toggle) return;
+        var expanded = toggle.getAttribute('aria-expanded') !== 'true';
+        detail.hidden = !expanded;
+        toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    }
+
     function toggleCagedAutoChangeDescription() {
         var detail = document.getElementById('cc-settings-caged-auto-change-note');
         var toggle = document.getElementById('cc-settings-caged-auto-change-help-toggle');
@@ -313,7 +337,8 @@
         var expanded = button.getAttribute('aria-expanded') === 'true';
         detail.hidden = expanded;
         button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
-        button.textContent = expanded ? '＋ 説明' : '− 説明';
+        var isHelpToggle = button.classList && button.classList.contains('cc-settings-help-toggle');
+        if (!isHelpToggle) button.textContent = expanded ? '＋ 説明' : '− 説明';
     }
 
     function setResetConfirmationVisible(visible) {
@@ -383,7 +408,12 @@
         var openPc = theory.OPEN_STRINGS[6 - note.string];
         var pc = (openPc + note.fret) % 12;
         if (mode === 'solfege') return theory.solfegeName(pc, useFlats);
-        if (mode === 'degree') return theory.degreeLabels([note.interval])[0];
+        if (mode === 'degree') {
+            return theory.formatDegreeLabel(
+                theory.degreeLabels([note.interval])[0],
+                getSettings().degreeNotationFormal === true
+            );
+        }
         if (mode === 'finger') {
             if (note.finger === 'T') return '親';
             if (note.finger != null) return { 1: '人', 2: '中', 3: '薬', 4: '小' }[note.finger] || '';
@@ -505,6 +535,14 @@
                     setPreviewDisplayMode(previewDisplayMode.getAttribute('data-preview-display-mode'));
                     return;
                 }
+                if (event.target.closest('#cc-settings-degree-notation-toggle')) {
+                    setDegreeNotationFormal(getSettings().degreeNotationFormal !== true);
+                    return;
+                }
+                if (event.target.closest('#cc-settings-degree-notation-help-toggle')) {
+                    toggleDegreeNotationDescription();
+                    return;
+                }
                 if (event.target.closest('#cc-settings-caged-auto-change-toggle')) {
                     setCagedTabAutoChange(getSettings().cagedTabAutoChange !== true);
                     return;
@@ -583,6 +621,7 @@
         normalizeSize: normalizeSize,
         normalizeChordNameSize: normalizeChordNameSize,
         setPreviewDisplayMode: setPreviewDisplayMode,
+        setDegreeNotationFormal: setDegreeNotationFormal,
         setCagedTabAutoChange: setCagedTabAutoChange,
         normalizeHighlightMode: normalizeHighlightMode,
         normalizeHighlightedFrets: normalizeHighlightedFrets,

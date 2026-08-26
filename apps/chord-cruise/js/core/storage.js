@@ -64,6 +64,7 @@
         scaleType: 'major',
         chordToneMode: '3',
         fretboardDisplayMode: 'note',
+        degreeNotationFormal: false,
         cagedTabAutoChange: true,
         chordNameSize: 'medium',
         fretNumberSize: 'medium',
@@ -127,6 +128,7 @@
         }
         normalized.highlightedFrets = normalizeHighlightedFrets(normalized.highlightedFrets);
         normalized.highFretMode = normalized.highFretMode === true;
+        normalized.degreeNotationFormal = normalized.degreeNotationFormal === true;
         normalized.cagedTabAutoChange = normalized.cagedTabAutoChange === true;
         delete normalized.cagedFormLocked;
         if (typeof normalized.lastSaveFolderId !== 'string') {

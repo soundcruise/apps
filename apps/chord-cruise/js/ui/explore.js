@@ -675,7 +675,7 @@
                 if (mode === 'solfege') {
                     label = chordSolfegeName(idx, pc, useFlats, spelledNoteNames);
                 } else if (mode === 'degree') {
-                    label = chordDegreeLabel(chord, idx);
+                    label = displayDegreeLabel(chordDegreeLabel(chord, idx));
                 } else {
                     label = chordNoteName(chord, idx, pc, useFlats, spelledNoteNames);
                 }
@@ -759,6 +759,10 @@
             return chord.degreeLabelsList[noteIndex];
         }
         return getTheory().degreeLabelsForQuality(chord.qualityKey, chord.intervals)[noteIndex];
+    }
+
+    function displayDegreeLabel(label) {
+        return getTheory().formatDegreeLabel(label, getSettings().degreeNotationFormal === true);
     }
 
     /** CAGEDとoverlayを含む表示用音名を、root／degree基準で一度だけ計算する。 */
@@ -845,7 +849,7 @@
         if (mode === 'degree') {
             var intervalIndex = chord.intervals.indexOf(interval);
             var qualityLabels = theory.degreeLabelsForQuality(chord.qualityKey, chord.intervals);
-            return intervalIndex !== -1 ? qualityLabels[intervalIndex] : theory.degreeLabels([interval])[0];
+            return displayDegreeLabel(intervalIndex !== -1 ? qualityLabels[intervalIndex] : theory.degreeLabels([interval])[0]);
         }
         var noteIndex = chord.intervals.indexOf(interval);
         return chordNoteName(chord, noteIndex, pc, useFlats, spelledNoteNames);
@@ -902,9 +906,9 @@
         var spelled = bassSpelledNoteName(chord, overlay);
         if (mode === 'solfege') return theory.solfegeNameForSpelling(spelled) || theory.solfegeName(overlay.pc, window.ChordCruise.chordModel.bassUsesFlats(overlay.pc));
         if (mode === 'degree') {
-            return overlay.chordToneIndex !== null
+            return displayDegreeLabel(overlay.chordToneIndex !== null
                 ? chordDegreeLabel(chord, overlay.chordToneIndex)
-                : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval);
+                : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval));
         }
         return spelled;
     }
@@ -957,7 +961,7 @@
         if (mode === 'finger') return '';
         var noteIndex = chord.intervals.indexOf(overlay.interval);
         if (mode === 'solfege') return chordSolfegeName(noteIndex, overlay.pc, useFlats, spelledNoteNames);
-        if (mode === 'degree') return window.ChordCruise.chordModel.TENSION_LABELS[overlay.tension] || theory.degreeLabels([overlay.interval])[0];
+        if (mode === 'degree') return displayDegreeLabel(window.ChordCruise.chordModel.TENSION_LABELS[overlay.tension] || theory.degreeLabels([overlay.interval])[0]);
         return chordNoteName(chord, noteIndex, overlay.pc, useFlats, spelledNoteNames);
     }
 
@@ -1305,7 +1309,7 @@
             return chordNoteName(chord, idx, pc, useFlats, spelledNoteNames);
         });
         var degrees = chord.notePcs.map(function (pc, idx) {
-            return chordDegreeLabel(chord, idx);
+            return displayDegreeLabel(chordDegreeLabel(chord, idx));
         });
 
         detail.appendChild(buildDetailRow('構成音', noteNames));

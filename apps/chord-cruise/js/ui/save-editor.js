@@ -21,6 +21,11 @@
         return window.ChordCruise.theory;
     }
 
+    function displayDegreeLabel(label) {
+        var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+        return theory().formatDegreeLabel(label, settings && settings.degreeNotationFormal === true);
+    }
+
     function focusTrap() {
         return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
     }
@@ -351,7 +356,7 @@
             var qualityKey = theory().identifyQuality(draft.intervals);
             var intervalIndex = draft.intervals.indexOf(note.interval);
             var labels = theory().degreeLabelsForQuality(qualityKey, draft.intervals);
-            return intervalIndex !== -1 ? labels[intervalIndex] : theory().degreeLabels([note.interval])[0];
+            return displayDegreeLabel(intervalIndex !== -1 ? labels[intervalIndex] : theory().degreeLabels([note.interval])[0]);
         }
         var noteIndex = draft.intervals.indexOf(note.interval);
         if (spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]) {
@@ -566,7 +571,7 @@
         if (draft.displayMode === 'degree') {
             var index = draft.intervals.indexOf(note.interval);
             var labels = theory().degreeLabelsForQuality(theory().identifyQuality(draft.intervals), draft.intervals);
-            return index !== -1 ? labels[index] : window.ChordCruise.chordModel.bassDegreeLabel(note.interval);
+            return displayDegreeLabel(index !== -1 ? labels[index] : window.ChordCruise.chordModel.bassDegreeLabel(note.interval));
         }
         return spelled;
     }
@@ -603,7 +608,7 @@
         var noteIndex = draft.intervals.indexOf(note.interval);
         var spelled = spelledNoteNames && spelledNoteNames[noteIndex];
         if (draft.displayMode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(note.pc, draft.useFlats);
-        if (draft.displayMode === 'degree') return window.ChordCruise.chordModel.TENSION_LABELS[note.tension] || theory().degreeLabels([note.interval])[0];
+        if (draft.displayMode === 'degree') return displayDegreeLabel(window.ChordCruise.chordModel.TENSION_LABELS[note.tension] || theory().degreeLabels([note.interval])[0]);
         if (spelled) return spelled;
         return theory().noteName(note.pc, draft.useFlats);
     }

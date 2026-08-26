@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../theme.css?v=0.38.2">
+<link rel="stylesheet" href="../theme.css?v=0.38.3">
 </head>
 <body>
 <div id="cc-app" class="cc-app">
@@ -95,6 +95,7 @@
             <div class="cc-settings-item">
                 <div class="cc-settings-item-head">
                     <span class="cc-settings-item-label">コード名の大きさ</span>
+                    <button type="button" class="cc-settings-help-toggle" data-settings-description="chord-name" aria-expanded="false" aria-controls="cc-settings-description-chord-name" aria-label="コード名の大きさの説明">?</button>
                 </div>
                 <div class="cc-settings-choices cc-settings-choices--five" role="group" aria-label="コード名の大きさ">
                     <button type="button" class="cc-settings-choice" data-chord-name-size="xsmall" aria-pressed="false">特小</button>
@@ -103,12 +104,12 @@
                     <button type="button" class="cc-settings-choice" data-chord-name-size="large" aria-pressed="false">大</button>
                     <button type="button" class="cc-settings-choice" data-chord-name-size="xlarge" aria-pressed="false">特大</button>
                 </div>
-                <button type="button" class="cc-settings-description-toggle" data-settings-description="chord-name" aria-expanded="false" aria-controls="cc-settings-description-chord-name">＋ 説明</button>
                 <p class="cc-settings-note cc-settings-description" id="cc-settings-description-chord-name" hidden>指板カードとPNG書き出しのコード名に反映されます。</p>
             </div>
             <div class="cc-settings-item">
                 <div class="cc-settings-item-head">
                     <span class="cc-settings-item-label">フレット番号の大きさ</span>
+                    <button type="button" class="cc-settings-help-toggle" data-settings-description="fret-size" aria-expanded="false" aria-controls="cc-settings-description-fret-size" aria-label="フレット番号の大きさの説明">?</button>
                 </div>
                 <div class="cc-settings-choices cc-settings-choices--five" role="group" aria-label="フレット番号の大きさ">
                     <button type="button" class="cc-settings-choice" data-fret-number-size="xsmall" aria-pressed="false">特小</button>
@@ -117,12 +118,12 @@
                     <button type="button" class="cc-settings-choice" data-fret-number-size="large" aria-pressed="false">大</button>
                     <button type="button" class="cc-settings-choice" data-fret-number-size="xlarge" aria-pressed="false">特大</button>
                 </div>
-                <button type="button" class="cc-settings-description-toggle" data-settings-description="fret-size" aria-expanded="false" aria-controls="cc-settings-description-fret-size">＋ 説明</button>
                 <p class="cc-settings-note cc-settings-description" id="cc-settings-description-fret-size" hidden>指板下部に表示するフレット番号の文字サイズを選べます。</p>
             </div>
             <div class="cc-settings-item">
                 <div class="cc-settings-item-head">
                     <span class="cc-settings-item-label">丸内文字の大きさ</span>
+                    <button type="button" class="cc-settings-help-toggle" data-settings-description="marker-label-size" aria-expanded="false" aria-controls="cc-settings-description-marker-label-size" aria-label="丸内文字の大きさの説明">?</button>
                 </div>
                 <div class="cc-settings-choices cc-settings-choices--five" role="group" aria-label="丸内文字の大きさ">
                     <button type="button" class="cc-settings-choice" data-fretboard-marker-label-size="xsmall" aria-pressed="false">特小</button>
@@ -131,12 +132,12 @@
                     <button type="button" class="cc-settings-choice" data-fretboard-marker-label-size="large" aria-pressed="false">大</button>
                     <button type="button" class="cc-settings-choice" data-fretboard-marker-label-size="xlarge" aria-pressed="false">特大</button>
                 </div>
-                <button type="button" class="cc-settings-description-toggle" data-settings-description="marker-label-size" aria-expanded="false" aria-controls="cc-settings-description-marker-label-size">＋ 説明</button>
                 <p class="cc-settings-note cc-settings-description" id="cc-settings-description-marker-label-size" hidden>CDE・ドレミ・度数・運指・⚠と、PNG出力に適用します。</p>
             </div>
             <div class="cc-settings-item">
                 <div class="cc-settings-item-head">
                     <span class="cc-settings-item-label">強調するフレット番号</span>
+                    <button type="button" class="cc-settings-help-toggle" data-settings-description="fret-highlight" aria-expanded="false" aria-controls="cc-settings-description-fret-highlight" aria-label="強調するフレット番号の説明">?</button>
                 </div>
                 <div class="cc-settings-choices" role="group" aria-label="強調するフレット番号">
                     <button type="button" class="cc-settings-choice" data-fret-highlight-mode="all" aria-pressed="true">すべて</button>
@@ -146,8 +147,17 @@
                 <div id="cc-settings-custom-frets" class="cc-settings-custom-wrap" hidden>
                     <div id="cc-settings-custom-grid" class="cc-settings-custom-grid" role="group" aria-label="カスタムで強調するフレット番号"></div>
                 </div>
-                <button type="button" class="cc-settings-description-toggle" data-settings-description="fret-highlight" aria-expanded="false" aria-controls="cc-settings-description-fret-highlight">＋ 説明</button>
                 <p class="cc-settings-note cc-settings-description" id="cc-settings-description-fret-highlight" hidden>番号の明るさだけを変更します。カスタムでは0〜25Fから複数選べます。指板上のポジションドットは常に実フレット位置で表示されます。</p>
+            </div>
+            <div class="cc-settings-item">
+                <div class="cc-settings-item-head">
+                    <span class="cc-settings-item-label" id="cc-settings-degree-notation-label">度数の正式表記</span>
+                    <span class="cc-settings-inline-actions">
+                        <button type="button" class="cc-settings-help-toggle" id="cc-settings-degree-notation-help-toggle" aria-expanded="false" aria-controls="cc-settings-degree-notation-note" aria-label="度数の正式表記の説明">?</button>
+                        <button type="button" class="cc-switch" id="cc-settings-degree-notation-toggle" role="switch" aria-checked="false" aria-label="度数の正式表記を切り替え"><span class="cc-switch-knob" aria-hidden="true"></span></button>
+                    </span>
+                </div>
+                <p class="cc-settings-note" id="cc-settings-degree-notation-note" hidden>ONにすると、度数表示をP1・m3・M3などの正式な音程表記に切り替えます。</p>
             </div>
             <div class="cc-settings-preview" aria-labelledby="cc-settings-preview-title">
                 <div class="cc-settings-preview-head">
@@ -195,21 +205,21 @@
         </div>
     </div>
 </div>
-<script src="../js/core/feature-access.js?v=0.38.2"></script>
-<script src="../js/core/storage.js?v=0.38.2"></script>
-<script src="../js/core/music-theory.js?v=0.38.2"></script>
-<script src="../js/core/caged-forms.js?v=0.38.2"></script>
-<script src="../js/core/chord-model.js?v=0.38.2"></script>
-<script src="../js/core/chord-info.js?v=0.38.2"></script>
-<script src="../js/ui/fretboard.js?v=0.38.2"></script>
-<script src="../js/ui/toast.js?v=0.38.2"></script>
-<script src="../js/ui/focus-trap.js?v=0.38.2"></script>
-<script src="../js/ui/save-editor.js?v=0.38.2"></script>
-<script src="../js/ui/chord-builder.js?v=0.38.2"></script>
-<script src="../js/ui/chord-export.js?v=0.38.2"></script>
-<script src="../js/ui/library.js?v=0.38.2"></script>
-<script src="../js/ui/explore.js?v=0.38.2"></script>
-<script src="../js/ui/settings.js?v=0.38.2"></script>
-<script src="../js/app.js?v=0.38.2"></script>
+<script src="../js/core/feature-access.js?v=0.38.3"></script>
+<script src="../js/core/storage.js?v=0.38.3"></script>
+<script src="../js/core/music-theory.js?v=0.38.3"></script>
+<script src="../js/core/caged-forms.js?v=0.38.3"></script>
+<script src="../js/core/chord-model.js?v=0.38.3"></script>
+<script src="../js/core/chord-info.js?v=0.38.3"></script>
+<script src="../js/ui/fretboard.js?v=0.38.3"></script>
+<script src="../js/ui/toast.js?v=0.38.3"></script>
+<script src="../js/ui/focus-trap.js?v=0.38.3"></script>
+<script src="../js/ui/save-editor.js?v=0.38.3"></script>
+<script src="../js/ui/chord-builder.js?v=0.38.3"></script>
+<script src="../js/ui/chord-export.js?v=0.38.3"></script>
+<script src="../js/ui/library.js?v=0.38.3"></script>
+<script src="../js/ui/explore.js?v=0.38.3"></script>
+<script src="../js/ui/settings.js?v=0.38.3"></script>
+<script src="../js/app.js?v=0.38.3"></script>
 </body>
 </html>

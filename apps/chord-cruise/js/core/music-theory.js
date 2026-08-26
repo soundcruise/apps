@@ -293,6 +293,41 @@
         11: '7'
     };
 
+    // 既存の意味付き度数ラベルを、表示時だけ正式音程表記へ変換する。
+    // intervalだけでは♯4/A4と♭5/d5を区別できないため、完成済みラベルを入力にする。
+    var FORMAL_DEGREE_LABELS = {
+        '1': 'P1',
+        '♭2': 'm2',
+        '2': 'M2',
+        '♭3': 'm3',
+        '3': 'M3',
+        '4': 'P4',
+        '♯4': 'A4',
+        '♭5': 'd5',
+        '5': 'P5',
+        '♯5': 'A5',
+        '♭6': 'm6',
+        '6': 'M6',
+        '♭♭7': 'd7',
+        '♭7': 'm7',
+        '7': 'M7',
+        '♭9': 'm9',
+        '9': 'M9',
+        '♯9': 'A9',
+        '11': 'P11',
+        '♯11': 'A11',
+        '♭13': 'm13',
+        '13': 'M13'
+    };
+
+    function formatDegreeLabel(degreeLabel, formal) {
+        if (formal !== true) return degreeLabel;
+        var label = String(degreeLabel == null ? '' : degreeLabel);
+        return Object.prototype.hasOwnProperty.call(FORMAL_DEGREE_LABELS, label)
+            ? FORMAL_DEGREE_LABELS[label]
+            : degreeLabel;
+    }
+
     function keyUsesFlats(tonicPc, mode) {
         var tonics = mode === 'minor' ? FLAT_MINOR_TONICS : FLAT_MAJOR_TONICS;
         return tonics.indexOf(tonicPc) !== -1;
@@ -642,6 +677,7 @@
         getDiatonicChords: getDiatonicChords,
         degreeLabels: degreeLabels,
         degreeLabelsForQuality: degreeLabelsForQuality,
+        formatDegreeLabel: formatDegreeLabel,
         getQualityComplexity: getQualityComplexity,
         isAdvancedQuality: isAdvancedQuality
     };

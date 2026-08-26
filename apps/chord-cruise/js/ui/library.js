@@ -26,6 +26,10 @@
 
     function storage() { return window.ChordCruise.storage; }
     function theory() { return window.ChordCruise.theory; }
+    function displayDegreeLabel(label) {
+        var settings = window.ChordCruise.state && window.ChordCruise.state.settings;
+        return theory().formatDegreeLabel(label, settings && settings.degreeNotationFormal === true);
+    }
     function featureAccess() { return window.ChordCruise.featureAccess; }
     function canExport() {
         var access = featureAccess();
@@ -1208,7 +1212,7 @@
             var qualityKey = theory().identifyQuality(chord.intervals);
             var intervalIndex = Array.isArray(chord.intervals) ? chord.intervals.indexOf(note.interval) : -1;
             var labels = theory().degreeLabelsForQuality(qualityKey, chord.intervals || []);
-            return intervalIndex !== -1 ? labels[intervalIndex] : theory().degreeLabels([note.interval])[0];
+            return displayDegreeLabel(intervalIndex !== -1 ? labels[intervalIndex] : theory().degreeLabels([note.interval])[0]);
         }
         if (spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]) {
             return spelledNoteNames[noteIndex];
@@ -1333,7 +1337,7 @@
         if (mode === 'degree') {
             var degreeIndex = (chord.intervals || []).indexOf(overlay.interval);
             var degreeLabels = theory().degreeLabelsForQuality(theory().identifyQuality(chord.intervals), chord.intervals || []);
-            return degreeIndex !== -1 ? degreeLabels[degreeIndex] : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval);
+            return displayDegreeLabel(degreeIndex !== -1 ? degreeLabels[degreeIndex] : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval));
         }
         return spelled;
     }
@@ -1375,7 +1379,7 @@
         var noteIndex = (chord.intervals || []).indexOf(overlay.interval);
         var spelled = spelledNoteNames && spelledNoteNames[noteIndex];
         if (mode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(overlay.pc, chordUseFlats(chord));
-        if (mode === 'degree') return window.ChordCruise.chordModel.TENSION_LABELS[overlay.tension] || theory().degreeLabels([overlay.interval])[0];
+        if (mode === 'degree') return displayDegreeLabel(window.ChordCruise.chordModel.TENSION_LABELS[overlay.tension] || theory().degreeLabels([overlay.interval])[0]);
         if (spelled) return spelled;
         return theory().noteName(overlay.pc, chordUseFlats(chord));
     }

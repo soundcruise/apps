@@ -662,6 +662,22 @@ function orderOf(env) {
     assert.strictEqual(ui.notices.at(-1).options.type, 'error');
 })();
 
+(function formalDegreeNotationResetsWithRightTopDisplaySettings() {
+    const seed = baseData();
+    seed[P + 'settings'] = json({
+        degreeNotationFormal: true,
+        libraryCardDisplayMode: 'degree',
+        futureSetting: 'keep-me'
+    });
+    const ui = loadRightTopSettingsUi(seed);
+    assert.strictEqual(ui.api.resetDisplaySettings(), true);
+    const settings = native(ui.env.storage.loadSettings());
+    assert.strictEqual(settings.degreeNotationFormal, false, 'formal degree notation resets to the existing display default');
+    assert.strictEqual(settings.libraryCardDisplayMode, 'degree', 'library-only mode remains outside the right-top reset');
+    assert.strictEqual(settings.futureSetting, 'keep-me', 'display reset still preserves unknown settings');
+    assert.strictEqual(ui.fretboardChangeCount(), 1, 'successful formal-notation reset redraws dependent fretboards');
+})();
+
 (function libraryCardsUseGlobalDisplaySizesAndClampByColumn() {
     const env = loadLibrary(baseData());
     const scale = env.context.window.ChordCruise.ui.library.libraryCardTextScale;

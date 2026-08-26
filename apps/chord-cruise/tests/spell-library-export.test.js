@@ -81,6 +81,29 @@ function markerLabels(record, mode) {
     });
 });
 
+(function formalDegreeNotationFlowsThroughLibrarySvgAndPng() {
+    window.ChordCruise.state.settings.degreeNotationFormal = true;
+    var dim7 = savedRecord({ rootPc: 0, third: 3, fifth: 6, seventh: 9, tensions: [] });
+    var dim7Labels = markerLabels(dim7, 'degree');
+    ['P1', 'm3', 'd5', 'd7'].forEach(function (label) {
+        assert(dim7Labels.indexOf(label) !== -1, 'formal dim7 library label includes ' + label);
+    });
+    var dim7Diagram = savedDiagramOptions(dim7, { mode: 'degree' });
+    var dim7Svg = fretboard.buildStaticSvg(dim7Diagram);
+    var dim7PngSvg = fretboard.buildExportSvg('Cdim7', dim7Diagram).svg;
+    ['P1', 'm3', 'd5', 'd7'].forEach(function (label) {
+        assert(dim7Svg.indexOf('>' + label + '</text>') !== -1, 'formal label reaches static SVG: ' + label);
+        assert(dim7PngSvg.indexOf('>' + label + '</text>') !== -1, 'formal label reaches PNG source SVG: ' + label);
+    });
+
+    var sharpEleven = savedRecord({ rootPc: 0, third: 4, fifth: 7, seventh: 10, tensions: [18] });
+    sharpEleven.fretRange = { min: 0, max: 13, includesOpen: true };
+    assert(markerLabels(sharpEleven, 'degree').indexOf('A11') !== -1, 'formal tension label reaches library and folder-export diagram data');
+
+    window.ChordCruise.state.settings.degreeNotationFormal = false;
+    assert(markerLabels(dim7, 'degree').indexOf('♭♭7') !== -1, 'turning the setting off restores the original semantic label');
+}());
+
 [
     [{ rootPc: 0, third: 4, fifth: 7, seventh: null, tensions: [], bassPc: 4 }, 'C/E'],
     [{ rootPc: 0, third: 4, fifth: 7, seventh: 10, tensions: [], bassPc: 4 }, 'C7/E']
