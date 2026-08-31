@@ -28,7 +28,7 @@ var EXPECTED_QUALITIES = {
     m7no5: { suffix: 'm7(no5)', symbolSuffix: 'm7(no5)', romanSuffix: 'm7(no5)', intervals: [0, 3, 10], degreeLabels: ['1', '♭3', '♭7'] },
     m: { suffix: 'm', symbolSuffix: 'm', romanSuffix: 'm', intervals: [0, 3, 7], degreeLabels: ['1', '♭3', '5'] },
     m6: { suffix: 'm6', symbolSuffix: 'm6', romanSuffix: 'm6', intervals: [0, 3, 7, 9], degreeLabels: ['1', '♭3', '5', '6'] },
-    dim: { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: '°', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
+    dim: { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: 'm♭5', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
     maj7: { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },
     '7': { suffix: '7', symbolSuffix: '7', romanSuffix: '7', intervals: [0, 4, 7, 10], degreeLabels: ['1', '3', '5', '♭7'] },
     '7b5': { suffix: '7♭5', symbolSuffix: '7♭5', romanSuffix: '7♭5', intervals: [0, 4, 6, 10], degreeLabels: ['1', '3', '♭5', '♭7'] },
@@ -42,6 +42,7 @@ var EXPECTED_QUALITIES = {
 };
 var LEGACY_SCALE_IDS = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'locrian'];
 var SCALE_IDS = LEGACY_SCALE_IDS.concat(['harmonic-minor', 'melodic-minor']);
+var ROMAN_DEGREES = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII'];
 var EXPECTED_SCALES = {
     major: {
         label: 'メジャー / イオニアン',
@@ -49,7 +50,7 @@ var EXPECTED_SCALES = {
         degreeLabels: ['1', '2', '3', '4', '5', '6', '7'],
         triadQualities: ['maj', 'm', 'm', 'maj', 'maj', 'm', 'dim'],
         seventhQualities: ['maj7', 'm7', 'm7', 'maj7', '7', 'm7', 'm7b5'],
-        roman3: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII°'],
+        roman3: ['I', 'IIm', 'IIIm', 'IV', 'V', 'VIm', 'VIIm♭5'],
         roman7: ['IM7', 'IIm7', 'IIIm7', 'IVM7', 'V7', 'VIm7', 'VIIm7♭5']
     },
     dorian: {
@@ -58,7 +59,7 @@ var EXPECTED_SCALES = {
         degreeLabels: ['1', '2', '♭3', '4', '5', '6', '♭7'],
         triadQualities: ['m', 'm', 'maj', 'maj', 'm', 'dim', 'maj'],
         seventhQualities: ['m7', 'm7', 'maj7', '7', 'm7', 'm7b5', 'maj7'],
-        roman3: ['I', 'II', 'III', 'IV', 'V', 'VI°', 'VII'],
+        roman3: ['Im', 'IIm', 'III', 'IV', 'Vm', 'VIm♭5', 'VII'],
         roman7: ['Im7', 'IIm7', 'IIIM7', 'IV7', 'Vm7', 'VIm7♭5', 'VIIM7']
     },
     phrygian: {
@@ -67,7 +68,7 @@ var EXPECTED_SCALES = {
         degreeLabels: ['1', '♭2', '♭3', '4', '5', '♭6', '♭7'],
         triadQualities: ['m', 'maj', 'maj', 'm', 'dim', 'maj', 'm'],
         seventhQualities: ['m7', 'maj7', '7', 'm7', 'm7b5', 'maj7', 'm7'],
-        roman3: ['I', 'II', 'III', 'IV', 'V°', 'VI', 'VII'],
+        roman3: ['Im', 'II', 'III', 'IVm', 'Vm♭5', 'VI', 'VIIm'],
         roman7: ['Im7', 'IIM7', 'III7', 'IVm7', 'Vm7♭5', 'VIM7', 'VIIm7']
     },
     lydian: {
@@ -76,7 +77,7 @@ var EXPECTED_SCALES = {
         degreeLabels: ['1', '2', '3', '♯4', '5', '6', '7'],
         triadQualities: ['maj', 'maj', 'm', 'dim', 'maj', 'm', 'm'],
         seventhQualities: ['maj7', '7', 'm7', 'm7b5', 'maj7', 'm7', 'm7'],
-        roman3: ['I', 'II', 'III', 'IV°', 'V', 'VI', 'VII'],
+        roman3: ['I', 'II', 'IIIm', 'IVm♭5', 'V', 'VIm', 'VIIm'],
         roman7: ['IM7', 'II7', 'IIIm7', 'IVm7♭5', 'VM7', 'VIm7', 'VIIm7']
     },
     mixolydian: {
@@ -85,7 +86,7 @@ var EXPECTED_SCALES = {
         degreeLabels: ['1', '2', '3', '4', '5', '6', '♭7'],
         triadQualities: ['maj', 'm', 'dim', 'maj', 'm', 'm', 'maj'],
         seventhQualities: ['7', 'm7', 'm7b5', 'maj7', 'm7', 'm7', 'maj7'],
-        roman3: ['I', 'II', 'III°', 'IV', 'V', 'VI', 'VII'],
+        roman3: ['I', 'IIm', 'IIIm♭5', 'IV', 'Vm', 'VIm', 'VII'],
         roman7: ['I7', 'IIm7', 'IIIm7♭5', 'IVM7', 'Vm7', 'VIm7', 'VIIM7']
     },
     minor: {
@@ -94,7 +95,7 @@ var EXPECTED_SCALES = {
         degreeLabels: ['1', '2', '♭3', '4', '5', '♭6', '♭7'],
         triadQualities: ['m', 'dim', 'maj', 'm', 'm', 'maj', 'maj'],
         seventhQualities: ['m7', 'm7b5', 'maj7', 'm7', 'm7', 'maj7', '7'],
-        roman3: ['I', 'II°', 'III', 'IV', 'V', 'VI', 'VII'],
+        roman3: ['Im', 'IIm♭5', 'III', 'IVm', 'Vm', 'VI', 'VII'],
         roman7: ['Im7', 'IIm7♭5', 'IIIM7', 'IVm7', 'Vm7', 'VIM7', 'VII7']
     },
     locrian: {
@@ -103,7 +104,7 @@ var EXPECTED_SCALES = {
         degreeLabels: ['1', '♭2', '♭3', '4', '♭5', '♭6', '♭7'],
         triadQualities: ['dim', 'maj', 'm', 'm', 'maj', 'maj', 'm'],
         seventhQualities: ['m7b5', 'maj7', 'm7', 'm7', 'maj7', '7', 'm7'],
-        roman3: ['I°', 'II', 'III', 'IV', 'V', 'VI', 'VII'],
+        roman3: ['Im♭5', 'II', 'IIIm', 'IVm', 'V', 'VI', 'VIIm'],
         roman7: ['Im7♭5', 'IIM7', 'IIIm7', 'IVm7', 'VM7', 'VI7', 'VIIm7']
     },
     'harmonic-minor': {
@@ -112,7 +113,7 @@ var EXPECTED_SCALES = {
         degreeLabels: ['1', '2', '♭3', '4', '5', '♭6', '7'],
         triadQualities: ['m', 'dim', 'aug', 'm', 'maj', 'maj', 'dim'],
         seventhQualities: ['mMaj7', 'm7b5', 'maj7sharp5', 'm7', '7', 'maj7', 'dim7'],
-        roman3: ['Im', 'II°', 'IIIaug', 'IVm', 'V', 'VI', 'VII°'],
+        roman3: ['Im', 'IIm♭5', 'IIIaug', 'IVm', 'V', 'VI', 'VIIm♭5'],
         roman7: ['ImM7', 'IIm7♭5', 'IIIM7♯5', 'IVm7', 'V7', 'VIM7', 'VII°7']
     },
     'melodic-minor': {
@@ -121,7 +122,7 @@ var EXPECTED_SCALES = {
         degreeLabels: ['1', '2', '♭3', '4', '5', '6', '7'],
         triadQualities: ['m', 'm', 'aug', 'maj', 'maj', 'dim', 'dim'],
         seventhQualities: ['mMaj7', 'm7', 'maj7sharp5', '7', '7', 'm7b5', 'm7b5'],
-        roman3: ['Im', 'IIm', 'IIIaug', 'IV', 'V', 'VI°', 'VII°'],
+        roman3: ['Im', 'IIm', 'IIIaug', 'IV', 'V', 'VIm♭5', 'VIIm♭5'],
         roman7: ['ImM7', 'IIm7', 'IIIM7♯5', 'IV7', 'V7', 'VIm7♭5', 'VIIm7♭5']
     }
 };
@@ -158,6 +159,32 @@ SCALE_IDS.forEach(function (mode) {
     assert.deepStrictEqual(diatonic.roman3, expected.roman3, mode + ' DIATONIC triad Roman');
     assert.deepStrictEqual(diatonic.roman7, expected.roman7, mode + ' DIATONIC seventh Roman');
 });
+
+// Roman本体は常に大文字、qualityはQUALITIESのromanSuffixで表す現行規約をsemanticに固定する。
+var romanSemanticDegreeCount = 0;
+var legacyMinorDegreeCount = 0;
+var allKeyRomanSemanticCount = 0;
+SCALE_IDS.forEach(function (mode) {
+    var def = theory.DIATONIC[mode];
+    def.triadQualities.forEach(function (qualityKey, degreeIndex) {
+        var expectedRoman = ROMAN_DEGREES[degreeIndex] + theory.QUALITIES[qualityKey].romanSuffix;
+        assert.strictEqual(def.roman3[degreeIndex], expectedRoman, mode + ' degree ' + (degreeIndex + 1) + ' Roman matches its triad quality');
+        assert.strictEqual(theory.SCALES[mode].roman3[degreeIndex], expectedRoman, mode + ' scale Roman matches its generated quality');
+        if (LEGACY_SCALE_IDS.indexOf(mode) !== -1 && qualityKey === 'm') legacyMinorDegreeCount += 1;
+        romanSemanticDegreeCount += 1;
+    });
+
+    for (var tonicPc = 0; tonicPc < 12; tonicPc += 1) {
+        theory.getDiatonicChords(tonicPc, mode, '3').forEach(function (chord, degreeIndex) {
+            var expectedRoman = ROMAN_DEGREES[degreeIndex] + theory.QUALITIES[chord.qualityKey].romanSuffix;
+            assert.strictEqual(chord.roman, expectedRoman, mode + '/' + tonicPc + ' degree ' + (degreeIndex + 1) + ' keeps Roman/quality semantics');
+            allKeyRomanSemanticCount += 1;
+        });
+    }
+});
+assert.strictEqual(romanSemanticDegreeCount, 63, 'all nine scales × seven degrees are semantically checked');
+assert.strictEqual(legacyMinorDegreeCount, 21, 'all twenty-one legacy minor-triad Roman suffix omissions are covered');
+assert.strictEqual(allKeyRomanSemanticCount, 756, 'all nine scales × twelve keys × seven triad degrees are checked');
 
 assert.deepStrictEqual(theory.stackScaleChordIntervals(EXPECTED_SCALES.major.rootIntervals, 0, 3), [0, 4, 7]);
 assert.deepStrictEqual(theory.stackScaleChordIntervals(EXPECTED_SCALES.dorian.rootIntervals, 3, 4), [0, 4, 7, 10]);

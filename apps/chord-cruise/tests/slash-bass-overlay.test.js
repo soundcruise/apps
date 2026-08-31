@@ -95,6 +95,15 @@ assert(aMinorOverEModel.markers.some((marker) => marker.string === 6 && marker.f
 assert(aMinorOverEModel.markers.some((marker) => marker.string === 5 && marker.fret === 0 && !marker.isBassCandidate), 'Am/E preserves the ordinary 5th-string open A beside the 5th-string 7F Bass alternative');
 assert(aMinorOverEModel.markers.some((marker) => marker.string === 5 && marker.fret === 7 && marker.isBassCandidate), 'Am/E keeps the 5th-string 7F E Bass candidate');
 assert.deepStrictEqual(aMinorOverEModel.mutedStrings, [], 'visible Bass candidates continue to suppress the obsolete same-string mute mark');
+const aMinorOverEWithBothOpenMutes = fretboard.createModel({
+    startFret: 0,
+    endFret: 13,
+    markers: aMinorOverECandidates,
+    mutedStrings: [5, 6],
+    preserveOpenBassCandidates: true
+});
+assert.deepStrictEqual(aMinorOverEWithBothOpenMutes.mutedStrings, [], 'Am/E active ordinary/Bass open markers both suppress same-string mutes without removing the 5th-string 7F candidate');
+assert(aMinorOverEWithBothOpenMutes.markers.some((marker) => marker.string === 5 && marker.fret === 7 && marker.isBassCandidate), 'mute normalization does not change preserveOpenBassCandidates behavior');
 
 assert(themeSource.includes('0 0 0 2px var(--cc-bg),\n        0 0 0 4px var(--cc-gold-bright)'), 'bass CSS paints the 2px dark separator in front of the independent 2px gold outer ring');
 assert(themeSource.includes('外径は通常30pxより8pxだけ大きい38px'), 'bass ring exterior remains intentionally bounded for the mobile grid');

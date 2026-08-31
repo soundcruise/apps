@@ -131,6 +131,13 @@ body {
     display: none;
 }
 
+/* 編集モーダル／bottom sheet 表示中は、固定設定ボタンを操作対象から外す。 */
+.cc-settings-corner-btn--blocked,
+body:has(.cc-modal-overlay:not(.cc-modal-overlay--hidden)) .cc-settings-corner-btn,
+body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-settings-corner-btn {
+    display: none;
+}
+
 /* 画面切り替え */
 .cc-screen--hidden {
     display: none;
@@ -1550,12 +1557,17 @@ body {
     background: rgba(5, 4, 3, 0.72);
     backdrop-filter: blur(5px);
     -webkit-backdrop-filter: blur(5px);
-    z-index: 100;
+    z-index: 1000;
     overflow-y: auto;
     display: flex;
     justify-content: center;
     align-items: flex-start;
     padding: 24px 12px 40px;
+}
+
+/* 通常モーダル上で使う削除・書き出し確認は、常に最前面に置く。 */
+.cc-modal-overlay--confirm {
+    z-index: 2400;
 }
 
 .cc-modal-overlay--hidden {
@@ -3936,7 +3948,7 @@ body.cc-settings-open {
 
 .cc-toast-host {
     position: fixed;
-    z-index: 400;
+    z-index: 2600;
     left: 50%;
     bottom: max(18px, calc(env(safe-area-inset-bottom) + 14px));
     width: min(calc(100vw - 32px), 420px);

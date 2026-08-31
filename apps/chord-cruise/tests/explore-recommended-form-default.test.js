@@ -38,7 +38,7 @@ assert.strictEqual((exploreSource.match(/selectRecommendedFretboardPresentation\
 assert(exploreSource.includes('var cagedTabAutoChange = getSettings().cagedTabAutoChange === true;'), 'CAGED tab order reads the persisted automatic-change setting');
 assert(exploreSource.includes('var circularShapeOrder = !cagedTabAutoChange || featuredIndex === -1'), 'fixed mode keeps the normal CAGED order while automatic mode remains circular');
 assert(exploreSource.includes("var orderedShapes = circularShapeOrder.concat(['']);"), 'All remains after the circular CAGED order');
-assert(exploreSource.includes('getState().exploreFretboardDisplayMode = null;\n                getState().exploreFretboardPresentationInitialized = true;\n                saveSetting({ fretboardDisplayMode: mode });'), 'manual mode selection clears only the temporary Explore override before saving the user setting');
+assert(exploreSource.includes('if (!saveSetting({ fretboardDisplayMode: mode })) {\n                    updateFbSegments();\n                    return;\n                }\n                getState().exploreFretboardDisplayMode = null;\n                getState().exploreFretboardPresentationInitialized = true;'), 'manual mode selection clears the temporary Explore override only after the user setting is saved');
 assert(exploreSource.includes("getState().exploreFretboardDisplayMode = 'note';"), 'unavailable forms fall back without mutating stored settings');
 assert(exploreSource.includes('getState().exploreAnimateFretboardScroll = !!shape;'), 'a selected CAGED form requests a fretboard scroll animation');
 assert(exploreSource.includes('state.exploreAnimateFretboardScroll = !!state.exploreShape;'), 'a code selection requests a fretboard scroll to its final form');

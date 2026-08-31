@@ -81,7 +81,7 @@ var c7No3 = chordModel.buildCustomChord({ rootPc: 0, third: null, fifth: 7, seve
 var cM7No3 = chordModel.buildCustomChord({ rootPc: 0, third: null, fifth: 7, seventh: 11, tensions: [] }, '');
 assert.strictEqual(c5.symbol, 'C5');
 assert.strictEqual(cNo5.symbol, 'C(no5)');
-assert.strictEqual(cNo3.symbol, 'C(no3)');
+assert.strictEqual(cNo3.symbol, 'C(no3,no5)');
 assert.strictEqual(c7No3.symbol, 'C7(no3)');
 assert.strictEqual(cM7No3.symbol, 'CM7(no3)');
 assert.deepStrictEqual(c5.intervals, [0, 7]);

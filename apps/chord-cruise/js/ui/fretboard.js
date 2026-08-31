@@ -360,6 +360,13 @@
             return !(marker.fret === 0 && openConflictStrings[marker.string] && !preserveOpenBassCandidate);
         });
 
+        // 同一弦の有効な0Fマーカーとmute ×も同時には描画しない。
+        // 押弦音との競合整理後に残った最終markersだけを対象とし、削除予定音は実音に数えない。
+        var activeOpenStrings = {};
+        markers.forEach(function (marker) {
+            if (marker.fret === 0 && !marker.pendingDelete) activeOpenStrings[marker.string] = true;
+        });
+
         (opts.barres || []).forEach(function (barre) {
             var x = layout.centerForFret(barre.fret);
             var topString = Math.min(barre.fromString, barre.toString);
@@ -379,7 +386,7 @@
         });
 
         (opts.mutedStrings || []).forEach(function (stringNum) {
-            if (stringNum < 1 || stringNum > 6 || frettedStrings[stringNum] || mutedStrings.indexOf(stringNum) !== -1) return;
+            if (stringNum < 1 || stringNum > 6 || frettedStrings[stringNum] || activeOpenStrings[stringNum] || mutedStrings.indexOf(stringNum) !== -1) return;
             mutedStrings.push(stringNum);
         });
 

@@ -19,6 +19,18 @@
     // Object.keys() の列挙順には依存せず、UI側も同じ意図の並びを明示的に使う。
     var VALID_SCALE_TYPES = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian'];
 
+    function isPlainObject(value) {
+        return value !== null && typeof value === 'object' && !Array.isArray(value);
+    }
+
+    function isNonEmptyId(value) {
+        return typeof value === 'string' && value.trim().length > 0;
+    }
+
+    function isIntegerInRange(value, min, max) {
+        return typeof value === 'number' && isFinite(value) && Math.floor(value) === value && value >= min && value <= max;
+    }
+
     function setLastError(code) {
         lastError = code || null;
     }
@@ -97,9 +109,26 @@
     }
 
     function normalizeSettings(settings) {
-        var normalized = settings;
+        var normalized = getSettingsDefaults();
+        var settingKey;
+        if (isPlainObject(settings)) {
+            for (settingKey in settings) {
+                if (Object.prototype.hasOwnProperty.call(settings, settingKey)) {
+                    normalized[settingKey] = settings[settingKey];
+                }
+            }
+        }
+        if (!isIntegerInRange(normalized.selectedKey, 0, 11)) {
+            normalized.selectedKey = 0;
+        }
         if (VALID_SCALE_TYPES.indexOf(normalized.scaleType) === -1) {
             normalized.scaleType = 'major';
+        }
+        if (['3', '7'].indexOf(normalized.chordToneMode) === -1) {
+            normalized.chordToneMode = '3';
+        }
+        if (['note', 'solfege', 'degree', 'finger'].indexOf(normalized.fretboardDisplayMode) === -1) {
+            normalized.fretboardDisplayMode = 'note';
         }
         if (['xsmall', 'small', 'medium', 'large', 'xlarge'].indexOf(normalized.chordNameSize) === -1) {
             normalized.chordNameSize = 'medium';
@@ -131,6 +160,10 @@
         normalized.degreeNotationFormal = normalized.degreeNotationFormal === true;
         normalized.cagedTabAutoChange = normalized.cagedTabAutoChange === true;
         delete normalized.cagedFormLocked;
+        // 現行UIで並び替え方式は未提供。将来値を推測せず、現在の正式値だけを通す。
+        if (normalized.librarySortMode !== 'updatedDesc') {
+            normalized.librarySortMode = 'updatedDesc';
+        }
         if (typeof normalized.lastSaveFolderId !== 'string') {
             normalized.lastSaveFolderId = '';
         }
@@ -166,6 +199,24 @@
         }
     }
 
+    /** 欠損と破損を区別し、破損値を読み込みだけで上書きしないための状態読取。 */
+    function readJSONState(key) {
+        var raw;
+        try {
+            raw = window.localStorage.getItem(key);
+        } catch (err) {
+            return { exists: false, valid: false, value: null };
+        }
+        if (raw === null || raw === undefined) {
+            return { exists: false, valid: true, value: null };
+        }
+        try {
+            return { exists: true, valid: true, value: JSON.parse(raw) };
+        } catch (err) {
+            return { exists: true, valid: false, value: null };
+        }
+    }
+
     function writeJSON(key, value) {
         try {
             window.localStorage.setItem(key, JSON.stringify(value));
@@ -177,7 +228,12 @@
     }
 
     function ensureSchemaVersion() {
-        var current = window.localStorage.getItem(KEY_SCHEMA_VERSION);
+        var current;
+        try {
+            current = window.localStorage.getItem(KEY_SCHEMA_VERSION);
+        } catch (err) {
+            return;
+        }
         if (current === null || current === undefined) {
             writeJSON(KEY_SCHEMA_VERSION, '1');
         }
@@ -185,21 +241,7 @@
 
     function loadSettings() {
         var stored = readJSON(KEY_SETTINGS, null);
-        var merged = {};
-        var key;
-        for (key in DEFAULT_SETTINGS) {
-            if (Object.prototype.hasOwnProperty.call(DEFAULT_SETTINGS, key)) {
-                merged[key] = DEFAULT_SETTINGS[key];
-            }
-        }
-        if (stored && typeof stored === 'object') {
-            for (key in stored) {
-                if (Object.prototype.hasOwnProperty.call(stored, key)) {
-                    merged[key] = stored[key];
-                }
-            }
-        }
-        return normalizeSettings(merged);
+        return normalizeSettings(stored);
     }
 
     function saveSettings(partial) {
@@ -211,7 +253,7 @@
                 next[key] = current[key];
             }
         }
-        if (partial && typeof partial === 'object') {
+        if (isPlainObject(partial)) {
             for (key in partial) {
                 if (Object.prototype.hasOwnProperty.call(partial, key)) {
                     next[key] = partial[key];
@@ -263,12 +305,47 @@
         return folder && validFolderColorKey(folder.colorKey) ? folder.colorKey : defaultFolderColorKey(folder && folder.id);
     }
 
-    function uniqueById(items) {
-        var seen = {};
+    /** 既存の任意fieldは保持し、一覧操作が直ちに必要とする最小契約だけを確認する。 */
+    function isValidFolder(folder) {
+        return isPlainObject(folder) && isNonEmptyId(folder.id) && typeof folder.name === 'string';
+    }
+
+    function isValidIndexEntry(entry) {
+        return isPlainObject(entry) && isNonEmptyId(entry.id) && isNonEmptyId(entry.folderId);
+    }
+
+    function isValidChordNote(note) {
+        return isPlainObject(note) && isIntegerInRange(note.string, 1, 6) &&
+            typeof note.fret === 'number' && isFinite(note.fret) && Math.floor(note.fret) === note.fret && note.fret >= 0;
+    }
+
+    /**
+     * 本棚・編集・描画へ渡すと即座に破綻するrecordだけを除外する。
+     * legacy/custom/tension/未知fieldは必須化せず、そのまま保持する。
+     */
+    function isValidChordRecord(record) {
+        if (!isPlainObject(record) || !isNonEmptyId(record.id) || !isNonEmptyId(record.folderId)) return false;
+        if (typeof record.chordName !== 'string' || !Array.isArray(record.notes)) return false;
+        if (!record.notes.every(isValidChordNote)) return false;
+        if (record.intervals !== undefined && !Array.isArray(record.intervals)) return false;
+        if (record.rootPc !== undefined && !isIntegerInRange(record.rootPc, 0, 11)) return false;
+        if (record.schemaVersion !== undefined && (!isIntegerInRange(record.schemaVersion, 1, Number.MAX_SAFE_INTEGER || 9007199254740991))) return false;
+        if (record.mutedStrings !== undefined && !Array.isArray(record.mutedStrings)) return false;
+        return true;
+    }
+
+    function validatedUniqueItems(items, validator) {
+        var seen = Object.create(null);
         return (Array.isArray(items) ? items : []).filter(function (item) {
-            if (!item || typeof item.id !== 'string' || !item.id || seen[item.id]) return false;
+            if (!validator(item) || seen[item.id]) return false;
             seen[item.id] = true;
             return true;
+        });
+    }
+
+    function uniqueById(items) {
+        return validatedUniqueItems(items, function (item) {
+            return isPlainObject(item) && isNonEmptyId(item.id);
         });
     }
 
@@ -302,15 +379,24 @@
     }
 
     function loadFolders() {
-        var folders = readJSON(KEY_FOLDERS, null);
-        if (!Array.isArray(folders)) {
-            folders = [initialUncategorizedFolder()];
-            writeJSON(KEY_FOLDERS, folders);
-            return folders;
+        var state = readJSONState(KEY_FOLDERS);
+        if (!state.exists) {
+            var initialFolders = [initialUncategorizedFolder()];
+            if (state.valid) writeJSON(KEY_FOLDERS, initialFolders);
+            return initialFolders;
         }
-        var normalized = normalizeUncategorizedFolder(folders);
-        if (normalized.changed) writeJSON(KEY_FOLDERS, normalized.folders);
-        return normalized.folders;
+        if (!state.valid || !Array.isArray(state.value)) {
+            console.warn('[ChordCruise.storage] invalid folders data; using a non-destructive fallback view');
+            return [initialUncategorizedFolder()];
+        }
+        var normalized = normalizeUncategorizedFolder(state.value);
+        var folders = validatedUniqueItems(normalized.folders, isValidFolder);
+        // 従来のbuiltin移行は、配列全体が有効で重複もない場合だけ永続化する。
+        // 破損memberを含むraw配列は読み込みだけで書き換えない。
+        if (normalized.changed && folders.length === normalized.folders.length) {
+            writeJSON(KEY_FOLDERS, normalized.folders);
+        }
+        return folders;
     }
 
     function saveFolders(folders) {
@@ -363,8 +449,8 @@
                 changed = true;
             }
         });
-        if (changed) saveFolders(folders);
-        return changed;
+        if (!changed) return false;
+        return saveFolders(folders);
     }
 
     function setFolderColor(id, colorKey) {
@@ -418,6 +504,7 @@
     function copyFolder(id) {
         setLastError(null);
         var folders = loadFolders();
+        var storedIndex = loadStoredChordIndex();
         var index = loadChordIndex();
         var source = null;
         folders.forEach(function (folder) { if (folder.id === id) source = folder; });
@@ -435,7 +522,12 @@
         var existingFolderIds = {};
         var existingChordIds = {};
         folders.forEach(function (folder) { existingFolderIds[folder.id] = true; });
+        storedIndex.forEach(function (entry) { existingChordIds[entry.id] = true; });
         index.forEach(function (entry) { existingChordIds[entry.id] = true; });
+        var allRecordScan = scanStoredChordRecords();
+        if (allRecordScan.available) {
+            allRecordScan.records.forEach(function (record) { existingChordIds[record.id] = true; });
+        }
         var stamp = Date.now();
         var copyId = 'folder_' + stamp + '_copy';
         var copyNumber = 1;
@@ -466,8 +558,10 @@
             copiedChords.push(clone);
         }
         var nextFolders = folders.concat([copiedFolder]);
-        var nextIndex = index.concat(copiedChords.map(indexEntryOf));
-        var nextOrder = normalizeLibraryOrder(orderBefore, nextFolders, nextIndex);
+        var copiedEntries = copiedChords.map(indexEntryOf);
+        var nextStoredIndex = storedIndex.concat(copiedEntries);
+        var nextOperationalIndex = index.concat(copiedEntries);
+        var nextOrder = normalizeLibraryOrder(orderBefore, nextFolders, nextOperationalIndex);
         var sourcePosition = nextOrder.folderIds.indexOf(id);
         nextOrder.folderIds = nextOrder.folderIds.filter(function (folderId) { return folderId !== copyId; });
         nextOrder.folderIds.splice(sourcePosition + 1, 0, copyId);
@@ -478,9 +572,9 @@
             for (var copyIndex = 0; copyIndex < copiedChords.length; copyIndex += 1) {
                 if (!writeJSON(chordKey(copiedChords[copyIndex].id), copiedChords[copyIndex])) throw new Error('chord write failed');
             }
-            if (!writeChordIndex(nextIndex)) throw new Error('index write failed');
+            if (!writeChordIndex(nextStoredIndex)) throw new Error('index write failed');
             if (!saveFolders(nextFolders)) throw new Error('folder write failed');
-            if (!writeJSON(KEY_LIBRARY_ORDER, normalizeLibraryOrder(nextOrder, nextFolders, nextIndex))) throw new Error('order write failed');
+            if (!writeJSON(KEY_LIBRARY_ORDER, normalizeLibraryOrder(nextOrder, nextFolders, nextOperationalIndex))) throw new Error('order write failed');
             return copiedFolder;
         } catch (err) {
             restoreKeys(snapshot);
@@ -492,6 +586,7 @@
     /** フォルダは所属コードごと完全に削除する。 */
     function deleteFolder(id) {
         var folders = loadFolders();
+        var storedIndexBefore = loadStoredChordIndex();
         var indexBefore = loadChordIndex();
         var orderBefore = libraryOrderInfo(folders, indexBefore).order;
         var target = null;
@@ -501,24 +596,40 @@
         if (!target) {
             return false;
         }
-        var deletedIds = (orderBefore.entryIdsByFolder[id] || []).slice();
-        indexBefore.forEach(function (entry) {
-            if (entry.folderId === id && deletedIds.indexOf(entry.id) === -1) deletedIds.push(entry.id);
-        });
+        var recordScan = scanStoredChordRecords();
+        var deletedRecordIds = [];
+        if (recordScan.available) {
+            recordScan.records.forEach(function (record) {
+                if (record.folderId === id) deletedRecordIds.push(record.id);
+            });
+        } else {
+            // 列挙不可時も従来のindexed record削除は継続し、アプリ操作を停止させない。
+            indexBefore.forEach(function (entry) {
+                var record = loadChord(entry.id);
+                if (record && record.folderId === id && deletedRecordIds.indexOf(record.id) === -1) {
+                    deletedRecordIds.push(record.id);
+                }
+            });
+        }
         var nextFolders = folders.filter(function (folder) {
             return folder.id !== id;
         });
-        var nextIndex = indexBefore.filter(function (entry) { return entry.folderId !== id; });
-        var nextOrder = normalizeLibraryOrder(orderBefore, nextFolders, nextIndex);
+        var nextStoredIndex = storedIndexBefore.filter(function (entry) {
+            return entry.folderId !== id && deletedRecordIds.indexOf(entry.id) === -1;
+        });
+        var nextOperationalIndex = indexBefore.filter(function (entry) {
+            return entry.folderId !== id && deletedRecordIds.indexOf(entry.id) === -1;
+        });
+        var nextOrder = normalizeLibraryOrder(orderBefore, nextFolders, nextOperationalIndex);
         nextOrder.folderIds = nextOrder.folderIds.filter(function (folderId) { return folderId !== id; });
         delete nextOrder.entryIdsByFolder[id];
-        var keys = [KEY_FOLDERS, KEY_CHORD_INDEX, KEY_LIBRARY_ORDER].concat(deletedIds.map(chordKey));
+        var keys = [KEY_FOLDERS, KEY_CHORD_INDEX, KEY_LIBRARY_ORDER].concat(deletedRecordIds.map(chordKey));
         var snapshot = snapshotKeys(keys);
         try {
-            if (!writeChordIndex(nextIndex)) throw new Error('index write failed');
+            if (!writeChordIndex(nextStoredIndex)) throw new Error('index write failed');
             if (!saveFolders(nextFolders)) throw new Error('folder write failed');
-            if (!writeJSON(KEY_LIBRARY_ORDER, normalizeLibraryOrder(nextOrder, nextFolders, nextIndex))) throw new Error('order write failed');
-            deletedIds.forEach(function (entryId) { window.localStorage.removeItem(chordKey(entryId)); });
+            if (!writeJSON(KEY_LIBRARY_ORDER, normalizeLibraryOrder(nextOrder, nextFolders, nextOperationalIndex))) throw new Error('order write failed');
+            deletedRecordIds.forEach(function (entryId) { window.localStorage.removeItem(chordKey(entryId)); });
         } catch (err) {
             restoreKeys(snapshot);
             return false;
@@ -532,9 +643,97 @@
         return CHORD_KEY_PREFIX + id;
     }
 
-    function loadChordIndex() {
+    /** raw indexを構造検証・重複除外しただけの永続metadata view。 */
+    function loadStoredChordIndex() {
         var index = readJSON(KEY_CHORD_INDEX, null);
-        return Array.isArray(index) ? index : [];
+        return validatedUniqueItems(index, isValidIndexEntry);
+    }
+
+    /**
+     * chordCruise.chord.* だけを列挙する。列挙APIのどこかが失敗した場合は、
+     * 部分的なorphan判定を使わず全体を利用不可として返す。
+     */
+    function scanStoredChordRecords() {
+        var keys = [];
+        var length;
+        var index;
+        try {
+            length = window.localStorage.length;
+            if (!isIntegerInRange(length, 0, Number.MAX_SAFE_INTEGER || 9007199254740991) ||
+                typeof window.localStorage.key !== 'function') {
+                return { available: false, records: [] };
+            }
+            for (index = 0; index < length; index += 1) {
+                var key = window.localStorage.key(index);
+                if (typeof key === 'string' && key.indexOf(CHORD_KEY_PREFIX) === 0) keys.push(key);
+            }
+        } catch (err) {
+            console.warn('[ChordCruise.storage] chord record enumeration is unavailable', err);
+            return { available: false, records: [] };
+        }
+
+        var records = [];
+        for (index = 0; index < keys.length; index += 1) {
+            var raw;
+            try {
+                raw = window.localStorage.getItem(keys[index]);
+            } catch (err) {
+                console.warn('[ChordCruise.storage] chord record enumeration is unavailable', err);
+                return { available: false, records: [] };
+            }
+            var record;
+            try {
+                record = raw === null || raw === undefined ? null : JSON.parse(raw);
+            } catch (parseError) {
+                continue;
+            }
+            var id = keys[index].slice(CHORD_KEY_PREFIX.length);
+            if (isValidChordRecord(record) && record.id === id) records.push(record);
+        }
+        return { available: true, records: records };
+    }
+
+    /** record本体を優先しつつ、既存indexの未知metadataだけは失わない一時entry。 */
+    function operationalIndexEntry(record, storedEntry) {
+        var entry = {};
+        if (isPlainObject(storedEntry)) {
+            Object.keys(storedEntry).forEach(function (key) { entry[key] = storedEntry[key]; });
+        }
+        ['id', 'chordName', 'formName', 'shape', 'folderId', 'fretRange', 'memo', 'keyContext', 'updatedAt'].forEach(function (key) {
+            if (Object.prototype.hasOwnProperty.call(record, key)) entry[key] = record[key];
+        });
+        // validator上必須なので、未知fieldだけのentryでも所属とIDは必ずrecord側を使う。
+        entry.id = record.id;
+        entry.folderId = record.folderId;
+        return entry;
+    }
+
+    function buildOperationalChordIndex(storedIndex, folders, recordScan) {
+        if (!recordScan.available) return storedIndex.slice();
+        var folderIds = Object.create(null);
+        var recordsById = Object.create(null);
+        var included = Object.create(null);
+        var result = [];
+        folders.forEach(function (folder) { folderIds[folder.id] = true; });
+        recordScan.records.forEach(function (record) { recordsById[record.id] = record; });
+
+        storedIndex.forEach(function (entry) {
+            var record = recordsById[entry.id];
+            if (!record || !folderIds[record.folderId]) return;
+            result.push(operationalIndexEntry(record, entry));
+            included[record.id] = true;
+        });
+        recordScan.records.forEach(function (record) {
+            if (included[record.id] || !folderIds[record.folderId]) return;
+            result.push(operationalIndexEntry(record, null));
+            included[record.id] = true;
+        });
+        return result;
+    }
+
+    /** Library・件数・上限が利用するrecord-backed operational view。 */
+    function loadChordIndex() {
+        return buildOperationalChordIndex(loadStoredChordIndex(), loadFolders(), scanStoredChordRecords());
     }
 
     function writeChordIndex(index) {
@@ -729,6 +928,7 @@
         } catch (err) {
             return null;
         }
+        var storedIndexBefore = loadStoredChordIndex();
         var indexBefore = loadChordIndex();
         var previousEntry = null;
         var isNew = !record.id;
@@ -757,13 +957,18 @@
             snapshot = snapshotKeys([chordKey(record.id), KEY_CHORD_INDEX, KEY_LIBRARY_ORDER, KEY_FOLDERS]);
             var orderBefore = libraryOrderInfo(folders, indexBefore).order;
             if (!writeJSON(chordKey(record.id), record)) throw new Error('chord write failed');
-            var index = indexBefore.filter(function (entry) {
+            var storedIndex = storedIndexBefore.filter(function (entry) {
                 return entry.id !== record.id;
             });
-            index.push(indexEntryOf(record));
-            if (!writeChordIndex(index)) throw new Error('index write failed');
+            storedIndex.push(indexEntryOf(record));
+            if (!writeChordIndex(storedIndex)) throw new Error('index write failed');
 
-            var nextOrder = normalizeLibraryOrder(orderBefore, folders, index);
+            var operationalIndex = indexBefore.filter(function (entry) {
+                return entry.id !== record.id;
+            });
+            operationalIndex.push(indexEntryOf(record));
+
+            var nextOrder = normalizeLibraryOrder(orderBefore, folders, operationalIndex);
             Object.keys(nextOrder.entryIdsByFolder).forEach(function (folderId) {
                 nextOrder.entryIdsByFolder[folderId] = nextOrder.entryIdsByFolder[folderId].filter(function (id) {
                     return id !== record.id;
@@ -779,7 +984,7 @@
                 destination.unshift(record.id);
             }
             nextOrder.entryIdsByFolder[record.folderId] = destination;
-            if (!saveNormalizedLibraryOrder(nextOrder, folders, index)) throw new Error('order write failed');
+            if (!saveNormalizedLibraryOrder(nextOrder, folders, operationalIndex)) throw new Error('order write failed');
             return record;
         } catch (err) {
             if (snapshot && !restoreKeys(snapshot)) {
@@ -792,19 +997,21 @@
     }
 
     function loadChord(id) {
-        return readJSON(chordKey(id), null);
+        var record = readJSON(chordKey(id), null);
+        return isValidChordRecord(record) && record.id === id ? record : null;
     }
 
     function deleteChord(id) {
         if (!id) return false;
         var recordKey = chordKey(id);
+        var storedIndexBefore = loadStoredChordIndex();
         var indexBefore = loadChordIndex();
         var snapshot = null;
         try {
             snapshot = snapshotKeys([recordKey, KEY_CHORD_INDEX, KEY_LIBRARY_ORDER, KEY_FOLDERS]);
             var folders = loadFolders();
             var orderBefore = libraryOrderInfo(folders, indexBefore).order;
-            var exists = snapshot[recordKey] !== null || indexBefore.some(function (entry) {
+            var exists = snapshot[recordKey] !== null || storedIndexBefore.some(function (entry) {
                 return entry.id === id;
             });
             Object.keys(orderBefore.entryIdsByFolder).forEach(function (folderId) {
@@ -813,17 +1020,20 @@
             if (!exists) return false;
 
             window.localStorage.removeItem(recordKey);
-            var nextIndex = indexBefore.filter(function (entry) {
+            var nextStoredIndex = storedIndexBefore.filter(function (entry) {
                 return entry.id !== id;
             });
-            if (!writeChordIndex(nextIndex)) throw new Error('index write failed');
-            var nextOrder = normalizeLibraryOrder(orderBefore, folders, nextIndex);
+            if (!writeChordIndex(nextStoredIndex)) throw new Error('index write failed');
+            var nextOperationalIndex = indexBefore.filter(function (entry) {
+                return entry.id !== id;
+            });
+            var nextOrder = normalizeLibraryOrder(orderBefore, folders, nextOperationalIndex);
             Object.keys(nextOrder.entryIdsByFolder).forEach(function (folderId) {
                 nextOrder.entryIdsByFolder[folderId] = nextOrder.entryIdsByFolder[folderId].filter(function (entryId) {
                     return entryId !== id;
                 });
             });
-            if (!saveNormalizedLibraryOrder(nextOrder, folders, nextIndex)) throw new Error('order write failed');
+            if (!saveNormalizedLibraryOrder(nextOrder, folders, nextOperationalIndex)) throw new Error('order write failed');
             return true;
         } catch (err) {
             if (snapshot && !restoreKeys(snapshot)) {

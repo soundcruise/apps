@@ -16,15 +16,42 @@
         return getState().settings;
     }
 
+    function cloneSettings(settings) {
+        var clone = {};
+        var key;
+        for (key in settings) {
+            if (Object.prototype.hasOwnProperty.call(settings, key)) {
+                clone[key] = Array.isArray(settings[key]) ? settings[key].slice() : settings[key];
+            }
+        }
+        return clone;
+    }
+
+    function showSettingSaveError() {
+        if (window.ChordCruise.ui.toast) {
+            window.ChordCruise.ui.toast.show('設定を保存できませんでした', { type: 'error' });
+        }
+    }
+
     function saveSetting(partial) {
-        var settings = getSettings();
+        var current = getSettings();
+        var next = cloneSettings(current);
         var key;
         for (key in partial) {
             if (Object.prototype.hasOwnProperty.call(partial, key)) {
-                settings[key] = partial[key];
+                next[key] = Array.isArray(partial[key]) ? partial[key].slice() : partial[key];
             }
         }
-        window.ChordCruise.storage.saveSettings(partial);
+        if (window.ChordCruise.storage.saveSettings(next) !== true) {
+            showSettingSaveError();
+            return false;
+        }
+        for (key in next) {
+            if (Object.prototype.hasOwnProperty.call(next, key)) {
+                current[key] = Array.isArray(next[key]) ? next[key].slice() : next[key];
+            }
+        }
+        return true;
     }
 
     var cagedNoticeExpanded = { fingering: false, range: false };
@@ -39,6 +66,19 @@
 
     function focusTrap() {
         return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
+    }
+
+    function escapeAlreadyHandled(event) {
+        return !!(event && event.__chordCruiseModalHandled);
+    }
+
+    function claimEscape(event) {
+        if (!event || escapeAlreadyHandled(event)) return false;
+        event.__chordCruiseModalHandled = true;
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+        else if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        return true;
     }
 
     function scaleDefinition(scaleType) {
@@ -173,8 +213,11 @@
         });
 
         document.getElementById('cc-key-select').addEventListener('change', function (event) {
+            if (!saveSetting({ selectedKey: parseInt(event.target.value, 10) })) {
+                event.target.value = String(getSettings().selectedKey);
+                return;
+            }
             resetCagedNotice();
-            saveSetting({ selectedKey: parseInt(event.target.value, 10) });
             renderChordGrid();
             renderFretboard();
             renderDetail();
@@ -226,9 +269,12 @@
                 if (exploreDisplayMode() === mode) {
                     return;
                 }
+                if (!saveSetting({ fretboardDisplayMode: mode })) {
+                    updateFbSegments();
+                    return;
+                }
                 getState().exploreFretboardDisplayMode = null;
                 getState().exploreFretboardPresentationInitialized = true;
-                saveSetting({ fretboardDisplayMode: mode });
                 updateFbSegments();
                 renderFretboard();
             });
@@ -243,9 +289,12 @@
             if (exploreDisplayMode() === 'finger') {
                 return;
             }
+            if (!saveSetting({ fretboardDisplayMode: 'finger' })) {
+                updateFbSegments();
+                return;
+            }
             getState().exploreFretboardDisplayMode = null;
             getState().exploreFretboardPresentationInitialized = true;
-            saveSetting({ fretboardDisplayMode: 'finger' });
             updateFbSegments();
             renderFretboard();
         });
@@ -303,8 +352,11 @@
 
         document.getElementById('cc-high-fret-toggle').addEventListener('click', function () {
             var enabled = !getSettings().highFretMode;
+            if (!saveSetting({ highFretMode: enabled })) {
+                updateHighFretToggle();
+                return;
+            }
             resetCagedNotice();
-            saveSetting({ highFretMode: enabled });
             updateHighFretToggle();
             renderFretboard();
         });
@@ -442,6 +494,8 @@
         scaleSheet.className = 'cc-folder-manage-overlay cc-folder-manage-overlay--hidden cc-scale-sheet-overlay';
         scaleSheet.addEventListener('click', function (event) {
             if (event.target === scaleSheet) {
+                if (typeof event.preventDefault === 'function') event.preventDefault();
+                if (typeof event.stopPropagation === 'function') event.stopPropagation();
                 closeScaleSheet(true);
             }
         });
@@ -452,7 +506,8 @@
             }
         });
         document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape' && scaleSheet && !scaleSheet.classList.contains('cc-folder-manage-overlay--hidden')) {
+            if (event.key === 'Escape' && !escapeAlreadyHandled(event) && scaleSheet &&
+                    !scaleSheet.classList.contains('cc-folder-manage-overlay--hidden') && claimEscape(event)) {
                 closeScaleSheet(true);
             }
         });
@@ -517,14 +572,18 @@
 
     function setToneMode(toneMode) {
         if (getSettings().chordToneMode === toneMode) {
-            return;
+            return true;
+        }
+        if (!saveSetting({ chordToneMode: toneMode })) {
+            updateSegments();
+            return false;
         }
         resetCagedNotice();
-        saveSetting({ chordToneMode: toneMode });
         updateSegments();
         renderChordGrid();
         renderFretboard();
         renderDetail();
+        return true;
     }
 
     function updateKeyOptions() {
@@ -753,12 +812,18 @@
         return getTheory().keyUsesFlats(settings.selectedKey, settings.scaleType);
     }
 
-    /** interval のラベル（任意コードはテンション表記を保持） */
+    /** core qualityとtensionを分け、FORM音のsemantic degreeを維持する。 */
+    function chordDegreeLabels(chord) {
+        return window.ChordCruise.chordModel.semanticDegreeLabels({
+            qualityKey: chord.qualityKey,
+            intervals: chord.intervals,
+            tensionIntervals: chord.tensionIntervals,
+            degreeLabels: chord.degreeLabelsList
+        });
+    }
+
     function chordDegreeLabel(chord, noteIndex) {
-        if (chord.degreeLabelsList) {
-            return chord.degreeLabelsList[noteIndex];
-        }
-        return getTheory().degreeLabelsForQuality(chord.qualityKey, chord.intervals)[noteIndex];
+        return chordDegreeLabels(chord)[noteIndex];
     }
 
     function displayDegreeLabel(label) {
@@ -848,8 +913,8 @@
         }
         if (mode === 'degree') {
             var intervalIndex = chord.intervals.indexOf(interval);
-            var qualityLabels = theory.degreeLabelsForQuality(chord.qualityKey, chord.intervals);
-            return displayDegreeLabel(intervalIndex !== -1 ? qualityLabels[intervalIndex] : theory.degreeLabels([interval])[0]);
+            var semanticLabels = chordDegreeLabels(chord);
+            return displayDegreeLabel(intervalIndex !== -1 ? semanticLabels[intervalIndex] : theory.degreeLabels([interval])[0]);
         }
         var noteIndex = chord.intervals.indexOf(interval);
         return chordNoteName(chord, noteIndex, pc, useFlats, spelledNoteNames);

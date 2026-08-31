@@ -52,59 +52,142 @@
         });
     }
 
+    function normalizedInterval(value) {
+        return typeof value === 'number' && isFinite(value)
+            ? ((value % 12) + 12) % 12
+            : null;
+    }
+
+    function qualityMatchesDisplayedIntervals(quality, displayedIntervals) {
+        return !!quality && quality.intervals.every(function (interval) {
+            return displayedIntervals.indexOf(normalizedInterval(interval)) !== -1;
+        });
+    }
+
     /**
-     * コード名を自動生成する（音感クルーズPRO generateChordName 準拠、表記は本アプリ基準）。
+     * core qualityと追加tensionを分離し、表示対象intervalごとの意味付き度数を復元する。
+     * FORM音はquality固有表記を優先し、同じpitch classのtensionがあっても上書きしない。
+     */
+    function semanticDegreeLabels(options) {
+        var opts = options || {};
+        var theory = window.ChordCruise && window.ChordCruise.theory;
+        var intervals = Array.isArray(opts.intervals) ? opts.intervals.map(normalizedInterval) : [];
+        var preservedLabels = Array.isArray(opts.degreeLabels) ? opts.degreeLabels : null;
+        if (preservedLabels && preservedLabels.length === intervals.length) return preservedLabels.slice();
+        if (!theory || !theory.QUALITIES) return [];
+
+        var tensionLabelsByInterval = {};
+        (Array.isArray(opts.tensionIntervals) ? opts.tensionIntervals : []).forEach(function (tension) {
+            var interval = normalizedInterval(tension);
+            if (interval === null || !Object.prototype.hasOwnProperty.call(TENSION_LABELS, tension)) return;
+            tensionLabelsByInterval[interval] = TENSION_LABELS[tension];
+        });
+
+        var qualityKey = opts.qualityKey;
+        var quality = qualityKey && theory.QUALITIES[qualityKey];
+        if (!qualityMatchesDisplayedIntervals(quality, intervals)) {
+            qualityKey = null;
+            quality = null;
+            Object.keys(theory.QUALITIES).forEach(function (candidateKey) {
+                var candidate = theory.QUALITIES[candidateKey];
+                if (!qualityMatchesDisplayedIntervals(candidate, intervals)) return;
+                var candidateIntervals = candidate.intervals.map(normalizedInterval);
+                var extrasAreTensions = intervals.every(function (interval) {
+                    return candidateIntervals.indexOf(interval) !== -1 ||
+                        Object.prototype.hasOwnProperty.call(tensionLabelsByInterval, interval);
+                });
+                if (!extrasAreTensions || (quality && quality.intervals.length >= candidate.intervals.length)) return;
+                qualityKey = candidateKey;
+                quality = candidate;
+            });
+        }
+
+        var coreLabelsByInterval = {};
+        if (quality) {
+            theory.degreeLabelsForQuality(qualityKey, quality.intervals).forEach(function (label, index) {
+                coreLabelsByInterval[normalizedInterval(quality.intervals[index])] = label;
+            });
+        }
+        return intervals.map(function (interval) {
+            if (Object.prototype.hasOwnProperty.call(coreLabelsByInterval, interval)) {
+                return coreLabelsByInterval[interval];
+            }
+            if (Object.prototype.hasOwnProperty.call(tensionLabelsByInterval, interval)) {
+                return tensionLabelsByInterval[interval];
+            }
+            return theory.degreeLabels([interval])[0];
+        });
+    }
+
+    function coreIntervalsForSpec(spec) {
+        var intervals = [0];
+        [spec.third, spec.fifth, spec.seventh].forEach(function (interval) {
+            if (interval !== null && interval !== undefined) intervals.push(interval);
+        });
+        return intervals;
+    }
+
+    /** 完全一致する既存qualityは、そのcanonical表記を変更せず利用する。 */
+    function canonicalCoreSuffix(spec) {
+        var theory = window.ChordCruise && window.ChordCruise.theory;
+        if (!theory || typeof theory.identifyQuality !== 'function' || !theory.QUALITIES) return null;
+        var qualityKey = theory.identifyQuality(coreIntervalsForSpec(spec));
+        var quality = qualityKey ? theory.QUALITIES[qualityKey] : null;
+        return quality && typeof quality.symbolSuffix === 'string' ? quality.symbolSuffix : null;
+    }
+
+    function seventhSuffix(seventh) {
+        if (seventh === 9) return '6';
+        if (seventh === 10) return '7';
+        if (seventh === 11) return 'M7';
+        return '';
+    }
+
+    /**
+     * canonical qualityに一致しないcoreだけを構成的に表す。
+     * 省略・変化音を一般的なqualityへ丸めず、任意コードで明示された意味を名前に残す。
+     */
+    function nonCanonicalCoreSuffix(spec) {
+        var third = spec.third;
+        var fifth = spec.fifth;
+        var seventh = spec.seventh;
+        var suffix = seventhSuffix(seventh);
+        var fifthModifier = fifth === 6 ? '♭5' : (fifth === 8 ? '♯5' : (fifth === null ? 'no5' : ''));
+
+        if (third === 3) {
+            suffix = 'm' + suffix;
+            return fifthModifier === 'no5'
+                ? suffix + '(no5)'
+                : suffix + fifthModifier;
+        }
+
+        if (third === 5) {
+            suffix += 'sus4';
+            return fifthModifier ? suffix + '(' + fifthModifier + ')' : suffix;
+        }
+
+        if (third === null) {
+            var omissions = ['no3'];
+            if (fifthModifier) omissions.push(fifthModifier);
+            return suffix + '(' + omissions.join(',') + ')';
+        }
+
+        // Caug7は既存表記のままで、M3/♯5/m7を過不足なく表せる。
+        if (fifth === 8 && seventh === 10) return 'aug7';
+        return fifthModifier ? suffix + '(' + fifthModifier + ')' : suffix;
+    }
+
+    /**
+     * コード名を自動生成する。canonical qualityを優先し、そこから外れる明示構成は省略しない。
      * @param {Object} spec { rootPc, third, fifth, seventh, tensions, bassPc? }
      */
     function generateName(spec) {
         var name = CUSTOM_ROOT_NAMES[spec.rootPc] || 'C';
-        var third = spec.third;
-        var fifth = spec.fifth;
         var seventh = spec.seventh;
         var tensions = spec.tensions || [];
+        var canonicalSuffix = canonicalCoreSuffix(spec);
 
-        if (third === 3) {
-            // マイナー系
-            if (fifth === 6 && seventh === 9) name += 'dim7';
-            else if (fifth === 6 && seventh === 10) name += 'm7♭5';
-            else if (fifth === 6) name += 'dim';
-            else if (fifth === null && seventh === 10) name += 'm7(no5)';
-            else if (seventh === 9) name += 'm6';
-            else if (seventh === 10) name += 'm7';
-            else if (seventh === 11) name += 'mM7';
-            else name += 'm';
-        } else if (third === 5) {
-            // sus4系
-            if (seventh === 10) name += '7sus4';
-            else if (seventh === 11) name += 'M7sus4';
-            else name += 'sus4';
-        } else if (third === 4) {
-            // メジャー系
-            if (fifth === 8) {
-                if (seventh === 10) name += 'aug7';
-                else if (seventh === 11) name += 'M7♯5';
-                else name += 'aug';
-            } else {
-                if (fifth === 6 && seventh === 10) name += '7♭5';
-                else if (fifth === 6 && seventh === 11) name += 'M7♭5';
-                else if (fifth === null && seventh === 10) name += '7(no5)';
-                else if (fifth === null && seventh === 11) name += 'M7(no5)';
-                else if (seventh === 9) name += '6';
-                else if (seventh === 10) name += '7';
-                else if (seventh === 11) name += 'M7';
-                else if (seventh === null && fifth === null) name += '(no5)';
-                else if (fifth === 6) name += '(♭5)';
-            }
-        } else {
-            // 3度なし
-            if (fifth === 7 && seventh === null && tensions.length === 0) {
-                name += '5';
-            } else {
-                if (seventh === 10) name += '7';
-                else if (seventh === 11) name += 'M7';
-                name += '(no3)';
-            }
-        }
+        name += canonicalSuffix !== null ? canonicalSuffix : nonCanonicalCoreSuffix(spec);
 
         if (tensions.length > 0) {
             var tNames = tensions.map(function (t) {
@@ -358,6 +441,7 @@
         TENSION_LABELS: TENSION_LABELS,
         tensionIntervalsForPcs: tensionIntervalsForPcs,
         tensionPcsForIntervals: tensionPcsForIntervals,
+        semanticDegreeLabels: semanticDegreeLabels,
         generateName: generateName,
         bassCandidates: bassCandidates,
         nonChordBassCandidates: nonChordBassCandidates,

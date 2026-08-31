@@ -20,6 +20,50 @@
     var closeBtn = null;
     var previousFocus = null;
     var reloadInProgress = false;
+    var modalObserver = null;
+
+    function isVisible(element, hiddenClass) {
+        return !!(element && !element.classList.contains(hiddenClass));
+    }
+
+    function hasOpenBlockingLayer() {
+        if (!document || typeof document.querySelector !== 'function') return false;
+        return !!document.querySelector(
+            '.cc-modal-overlay:not(.cc-modal-overlay--hidden), ' +
+            '.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)'
+        );
+    }
+
+    function hasOpenForegroundLayer() {
+        if (!document || typeof document.querySelector !== 'function') return false;
+        return !!document.querySelector(
+            '.cc-modal-overlay--confirm:not(.cc-modal-overlay--hidden), ' +
+            '.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)'
+        );
+    }
+
+    function escapeAlreadyHandled(event) {
+        return !!(event && event.__chordCruiseModalHandled);
+    }
+
+    function claimEscape(event) {
+        if (!event || escapeAlreadyHandled(event)) return false;
+        event.__chordCruiseModalHandled = true;
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+        else if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        return true;
+    }
+
+    function syncModalAvailability() {
+        if (!openBtn) return false;
+        var blocked = hasOpenBlockingLayer();
+        openBtn.disabled = blocked;
+        openBtn.classList.toggle('cc-settings-corner-btn--blocked', blocked);
+        if (blocked) openBtn.setAttribute('aria-hidden', 'true');
+        else openBtn.removeAttribute('aria-hidden');
+        return blocked;
+    }
 
     function normalizeSize(value) {
         return VALID_SIZES.indexOf(value) !== -1 ? value : 'medium';
@@ -463,7 +507,7 @@
     }
 
     function open() {
-        if (!overlayEl) return;
+        if (!overlayEl || syncModalAvailability()) return false;
         previousFocus = document.activeElement;
         setResetConfirmationVisible(false);
         updateControls();
@@ -473,6 +517,7 @@
         document.body.classList.add('cc-settings-open');
         if (openBtn) openBtn.classList.add('cc-settings-corner-btn--hidden');
         if (closeBtn) closeBtn.focus();
+        return true;
     }
 
     function close() {
@@ -482,6 +527,7 @@
         overlayEl.setAttribute('aria-hidden', 'true');
         document.body.classList.remove('cc-settings-open');
         if (openBtn) openBtn.classList.remove('cc-settings-corner-btn--hidden');
+        syncModalAvailability();
         if (focusTrap()) focusTrap().restoreFocus(previousFocus, openBtn);
         else if (previousFocus && typeof previousFocus.focus === 'function') previousFocus.focus();
         else if (openBtn) openBtn.focus();
@@ -502,6 +548,17 @@
         getSettings().chordNameSize = initialChordNameSize;
         getSettings().fretboardMarkerLabelSize = normalizeSize(getSettings().fretboardMarkerLabelSize);
         updateControls();
+        syncModalAvailability();
+
+        if (!modalObserver && window.MutationObserver && document.body) {
+            modalObserver = new window.MutationObserver(syncModalAvailability);
+            modalObserver.observe(document.body, {
+                subtree: true,
+                childList: true,
+                attributes: true,
+                attributeFilter: ['class']
+            });
+        }
 
         if (openBtn) openBtn.addEventListener('click', open);
         if (closeBtn) closeBtn.addEventListener('click', close);
@@ -591,12 +648,18 @@
                     deleteAllAppData();
                     return;
                 }
-                if (event.target === overlayEl) close();
+                if (event.target === overlayEl) {
+                    if (typeof event.preventDefault === 'function') event.preventDefault();
+                    if (typeof event.stopPropagation === 'function') event.stopPropagation();
+                    close();
+                }
             });
         }
         document.addEventListener('keydown', function (event) {
             if (event.key === 'Escape' && overlayEl &&
-                !overlayEl.classList.contains('cc-settings-overlay--hidden')) {
+                !overlayEl.classList.contains('cc-settings-overlay--hidden') &&
+                !escapeAlreadyHandled(event) && !hasOpenForegroundLayer()) {
+                if (!claimEscape(event)) return;
                 var confirmation = document.getElementById('cc-settings-reset-confirm');
                 if (confirmation && !confirmation.hidden) {
                     setResetConfirmationVisible(false);

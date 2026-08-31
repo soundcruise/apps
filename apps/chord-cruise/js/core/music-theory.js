@@ -50,7 +50,7 @@
         'm': { suffix: 'm', symbolSuffix: 'm', romanSuffix: 'm', intervals: [0, 3, 7], degreeLabels: ['1', '♭3', '5'] },
         // Minor CAGEDの構成音を保ち、6度を追加する派生quality。
         'm6': { suffix: 'm6', symbolSuffix: 'm6', romanSuffix: 'm6', intervals: [0, 3, 7, 9], degreeLabels: ['1', '♭3', '5', '6'] },
-        'dim': { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: '°', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
+        'dim': { suffix: 'dim', symbolSuffix: 'dim', romanSuffix: 'm♭5', intervals: [0, 3, 6], degreeLabels: ['1', '♭3', '♭5'] },
         'maj7': { suffix: 'M7', symbolSuffix: 'M7', romanSuffix: 'M7', intervals: [0, 4, 7, 11], degreeLabels: ['1', '3', '5', '7'] },
         '7': { suffix: '7', symbolSuffix: '7', romanSuffix: '7', intervals: [0, 4, 7, 10], degreeLabels: ['1', '3', '5', '♭7'] },
         '7b5': { suffix: '7♭5', symbolSuffix: '7♭5', romanSuffix: '7♭5', intervals: [0, 4, 6, 10], degreeLabels: ['1', '3', '♭5', '♭7'] },
@@ -117,7 +117,7 @@
             tonicFamily: 'major',
             intervals: [0, 2, 4, 5, 7, 9, 11],
             degreeLabels: ['1', '2', '3', '4', '5', '6', '7'],
-            roman3: ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII°'],
+            roman3: ['I', 'IIm', 'IIIm', 'IV', 'V', 'VIm', 'VIIm♭5'],
             roman7: ['IM7', 'IIm7', 'IIIm7', 'IVM7', 'V7', 'VIm7', 'VIIm7♭5']
         },
         dorian: {
@@ -126,7 +126,7 @@
             tonicFamily: 'major',
             intervals: [0, 2, 3, 5, 7, 9, 10],
             degreeLabels: ['1', '2', '♭3', '4', '5', '6', '♭7'],
-            roman3: ['I', 'II', 'III', 'IV', 'V', 'VI°', 'VII'],
+            roman3: ['Im', 'IIm', 'III', 'IV', 'Vm', 'VIm♭5', 'VII'],
             roman7: ['Im7', 'IIm7', 'IIIM7', 'IV7', 'Vm7', 'VIm7♭5', 'VIIM7']
         },
         phrygian: {
@@ -135,7 +135,7 @@
             tonicFamily: 'major',
             intervals: [0, 1, 3, 5, 7, 8, 10],
             degreeLabels: ['1', '♭2', '♭3', '4', '5', '♭6', '♭7'],
-            roman3: ['I', 'II', 'III', 'IV', 'V°', 'VI', 'VII'],
+            roman3: ['Im', 'II', 'III', 'IVm', 'Vm♭5', 'VI', 'VIIm'],
             roman7: ['Im7', 'IIM7', 'III7', 'IVm7', 'Vm7♭5', 'VIM7', 'VIIm7']
         },
         lydian: {
@@ -144,7 +144,7 @@
             tonicFamily: 'major',
             intervals: [0, 2, 4, 6, 7, 9, 11],
             degreeLabels: ['1', '2', '3', '♯4', '5', '6', '7'],
-            roman3: ['I', 'II', 'III', 'IV°', 'V', 'VI', 'VII'],
+            roman3: ['I', 'II', 'IIIm', 'IVm♭5', 'V', 'VIm', 'VIIm'],
             roman7: ['IM7', 'II7', 'IIIm7', 'IVm7♭5', 'VM7', 'VIm7', 'VIIm7']
         },
         mixolydian: {
@@ -153,7 +153,7 @@
             tonicFamily: 'major',
             intervals: [0, 2, 4, 5, 7, 9, 10],
             degreeLabels: ['1', '2', '3', '4', '5', '6', '♭7'],
-            roman3: ['I', 'II', 'III°', 'IV', 'V', 'VI', 'VII'],
+            roman3: ['I', 'IIm', 'IIIm♭5', 'IV', 'Vm', 'VIm', 'VII'],
             roman7: ['I7', 'IIm7', 'IIIm7♭5', 'IVM7', 'Vm7', 'VIm7', 'VIIM7']
         },
         minor: { // ナチュラルマイナー（エオリアン）
@@ -162,7 +162,7 @@
             tonicFamily: 'minor',
             intervals: [0, 2, 3, 5, 7, 8, 10],
             degreeLabels: ['1', '2', '♭3', '4', '5', '♭6', '♭7'],
-            roman3: ['I', 'II°', 'III', 'IV', 'V', 'VI', 'VII'],
+            roman3: ['Im', 'IIm♭5', 'III', 'IVm', 'Vm', 'VI', 'VII'],
             roman7: ['Im7', 'IIm7♭5', 'IIIM7', 'IVm7', 'Vm7', 'VIM7', 'VII7']
         },
         locrian: {
@@ -171,7 +171,7 @@
             tonicFamily: 'major',
             intervals: [0, 1, 3, 5, 6, 8, 10],
             degreeLabels: ['1', '♭2', '♭3', '4', '♭5', '♭6', '♭7'],
-            roman3: ['I°', 'II', 'III', 'IV', 'V', 'VI', 'VII'],
+            roman3: ['Im♭5', 'II', 'IIIm', 'IVm', 'V', 'VI', 'VIIm'],
             roman7: ['Im7♭5', 'IIM7', 'IIIm7', 'IVm7', 'VM7', 'VI7', 'VIIm7']
         },
         'harmonic-minor': {
@@ -180,7 +180,7 @@
             tonicFamily: 'minor',
             intervals: [0, 2, 3, 5, 7, 8, 11],
             degreeLabels: ['1', '2', '♭3', '4', '5', '♭6', '7'],
-            roman3: ['Im', 'II°', 'IIIaug', 'IVm', 'V', 'VI', 'VII°'],
+            roman3: ['Im', 'IIm♭5', 'IIIaug', 'IVm', 'V', 'VI', 'VIIm♭5'],
             roman7: ['ImM7', 'IIm7♭5', 'IIIM7♯5', 'IVm7', 'V7', 'VIM7', 'VII°7']
         },
         'melodic-minor': {
@@ -190,7 +190,7 @@
             // 上行形のみを固定採用する。下降時にNatural Minorへ切り替えない。
             intervals: [0, 2, 3, 5, 7, 9, 11],
             degreeLabels: ['1', '2', '♭3', '4', '5', '6', '7'],
-            roman3: ['Im', 'IIm', 'IIIaug', 'IV', 'V', 'VI°', 'VII°'],
+            roman3: ['Im', 'IIm', 'IIIaug', 'IV', 'V', 'VIm♭5', 'VIIm♭5'],
             roman7: ['ImM7', 'IIm7', 'IIIM7♯5', 'IV7', 'V7', 'VIm7♭5', 'VIIm7♭5']
         }
     };

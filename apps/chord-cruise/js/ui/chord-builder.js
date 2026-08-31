@@ -85,7 +85,11 @@
             applyInitialSpec(defaultInitialSpec());
         });
         overlayEl.addEventListener('click', function (event) {
-            if (event.target === overlayEl) close();
+            if (event.target === overlayEl) {
+                if (typeof event.preventDefault === 'function') event.preventDefault();
+                if (typeof event.stopPropagation === 'function') event.stopPropagation();
+                close();
+            }
         });
         overlayEl.addEventListener('keydown', function (event) {
             var dialog = overlayEl.querySelector('[role="dialog"]');

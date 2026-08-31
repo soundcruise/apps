@@ -157,6 +157,16 @@ assert.strictEqual(window.ChordCruise.state.settings.chordToneMode, '7', 'changi
 assert.strictEqual(testDocument.elements['cc-scale-selector-value'].textContent, SCALE_LABELS.major, 'selector label updates after a successful commit');
 assert.strictEqual(testDocument.elements['cc-chord-grid'].children.length, 7, 'successful commit redraws the diatonic grid');
 
+window.ChordCruise.state.settings.chordToneMode = '3';
+assert.strictEqual(explore.setScaleType('dorian'), true, 'Explore can leave Major before the triad redraw check');
+assert.strictEqual(explore.setScaleType('major'), true, 'Explore redraws the triad grid with the corrected Roman values');
+assert.deepStrictEqual(
+    testDocument.elements['cc-chord-grid'].children.map(function (button) { return button.children[0].textContent; }),
+    ['I', 'IIm', 'IIIm', 'IV', 'V', 'VIm', 'VIIm♭5'],
+    'Explore uses the corrected C Major triad Roman sequence'
+);
+window.ChordCruise.state.settings.chordToneMode = '7';
+
 assert.strictEqual(explore.setScaleType('harmonic-minor'), true, 'Harmonic Minor commits after successful persistence');
 assert.strictEqual(savedScaleType, 'harmonic-minor');
 assert.strictEqual(window.ChordCruise.state.settings.scaleType, 'harmonic-minor');

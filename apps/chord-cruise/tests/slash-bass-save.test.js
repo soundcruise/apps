@@ -45,8 +45,10 @@ global.document = { addEventListener() {} };
 require('../js/core/music-theory.js');
 require('../js/core/chord-model.js');
 require('../js/core/caged-forms.js');
+require('../js/ui/fretboard.js');
 require('../js/ui/library.js');
 const savedDiagramOptions = window.ChordCruise.ui.library.savedDiagramOptions;
+const fretboardRenderer = window.ChordCruise.ui.fretboard;
 const cOverE = {
     chordName: 'C/E', rootPc: 0, bassPc: 4, intervals: [0, 4, 7],
     fretRange: { min: 0, max: 3, includesOpen: true },
@@ -64,6 +66,8 @@ assert(diagram.markers.find((marker) => marker.string === 4 && marker.fret === 2
 const overlayOnly = diagram.markers.find((marker) => marker.string === 6 && marker.fret === 0);
 assert(overlayOnly && overlayOnly.isOverlay && overlayOnly.isBassCandidate, 'saved diagram regenerates overlay-only bass positions');
 assert.strictEqual(overlayOnly.finger, null, 'semantic bass overlay never becomes a saved fingering note');
+const cOverEModel = fretboardRenderer.createModel(diagram);
+assert.deepStrictEqual(cOverEModel.mutedStrings, [], 'C/E C-form suppresses the 6th-string mute under its active 0F Bass candidate');
 assert.strictEqual(savedDiagramOptions(Object.assign({}, cOverE, { bassPc: undefined }), { mode: 'note' }).markers.some((marker) => marker.isBassCandidate), false, 'old records without bassPc remain unchanged');
 const deletedBassDiagram = savedDiagramOptions(Object.assign({}, cOverE, {
     bassFingerings: [{ string: 6, fret: 0, finger: null, fingeringWarning: false, pendingDelete: true }]
@@ -79,4 +83,49 @@ const nearbyE = window.ChordCruise.chordModel.bassOverlayNotes({ bassPc: 4, root
 assert(nearbyE.some((note) => note.string === 4 && note.fret === 2), 'C/E A-form context includes the 4th-string 2F E candidate');
 assert.strictEqual(aForm.displayRange.min, 3, 'the fixture proves the candidate extends the legacy 3–5F form range downward');
 
-console.log('slash-bass-save: semantic bassPc save/reload/editor/library/export coverage wiring OK');
+// 監査代表例: D/A D型・保存範囲0〜3F。基底FORMのmutedStringsは保持し、描画モデルだけを正規化する。
+const dForm = window.ChordCruise.caged.getForm('D', 'maj', 2, 3, 0);
+const dOverA = {
+    chordName: 'D/A', rootPc: 2, bassPc: 9, qualityKey: 'maj', intervals: [0, 4, 7],
+    fretRange: { min: 0, max: 3, includesOpen: true },
+    notes: dForm.notes.map((note) => ({
+        string: note.string, fret: note.fret, interval: note.interval,
+        finger: note.finger, fingeringWarning: note.fingeringWarning
+    })),
+    mutedStrings: dForm.mutedStrings.slice()
+};
+assert.deepStrictEqual(dOverA.mutedStrings, [5, 6], 'D-form record retains its original muted strings');
+const dOverADiagram = savedDiagramOptions(dOverA, { mode: 'degree' });
+assert(dOverADiagram.markers.some((marker) => marker.string === 5 && marker.fret === 0 && marker.isBassCandidate), 'D/A saved path regenerates the 5th-string open A Bass candidate');
+const dOverAModel = fretboardRenderer.createModel(dOverADiagram);
+assert.deepStrictEqual(dOverAModel.mutedStrings, [6], 'D/A final model removes only the conflicting 5th-string mute');
+assert.deepStrictEqual(dOverA.mutedStrings, [5, 6], 'render normalization never mutates the source record');
+const dOverAStaticSvg = fretboardRenderer.buildStaticSvg(dOverADiagram);
+const dOverAExportSvg = fretboardRenderer.buildExportSvg('D/A', dOverADiagram).svg;
+assert.strictEqual((dOverAStaticSvg.match(/cc-fb-static-mute/g) || []).length, 1, 'library/folder PNG card renders only the remaining 6th-string mute');
+assert.strictEqual((dOverAExportSvg.match(/cc-fb-static-mute/g) || []).length, 1, 'individual PNG source renders only the remaining 6th-string mute');
+assert(dOverAStaticSvg.includes('#e8c97a'), 'D/A static SVG retains the open Bass candidate gold ring');
+
+[
+    { name: 'A/E', shape: 'A', quality: 'maj', rootPc: 9, bassPc: 4, openString: 6 },
+    { name: 'Am/E', shape: 'A', quality: 'm', rootPc: 9, bassPc: 4, openString: 6 },
+    { name: 'Dm/A', shape: 'D', quality: 'm', rootPc: 2, bassPc: 9, openString: 5 }
+].forEach((fixture) => {
+    const form = window.ChordCruise.caged.getForm(fixture.shape, fixture.quality, fixture.rootPc, 3, 0);
+    const record = {
+        chordName: fixture.name, rootPc: fixture.rootPc, bassPc: fixture.bassPc,
+        qualityKey: fixture.quality, intervals: window.ChordCruise.theory.QUALITIES[fixture.quality].intervals.slice(),
+        fretRange: { min: 0, max: 3, includesOpen: true },
+        notes: form.notes.map((note) => ({
+            string: note.string, fret: note.fret, interval: note.interval,
+            finger: note.finger, fingeringWarning: note.fingeringWarning
+        })),
+        mutedStrings: form.mutedStrings.slice()
+    };
+    const options = savedDiagramOptions(record, { mode: 'degree' });
+    assert(options.markers.some((marker) => marker.string === fixture.openString && marker.fret === 0 && marker.isBassCandidate), fixture.name + ' regenerates its open Bass candidate');
+    assert.strictEqual(fretboardRenderer.createModel(options).mutedStrings.indexOf(fixture.openString), -1, fixture.name + ' final model omits the conflicting same-string mute');
+    assert(record.mutedStrings.indexOf(fixture.openString) !== -1, fixture.name + ' source record keeps its base FORM mute');
+});
+
+console.log('slash-bass-save: semantic bassPc save/reload/editor/library/export and active-open mute normalization OK');

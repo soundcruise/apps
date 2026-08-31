@@ -119,6 +119,8 @@ var unknownRoute = runRouting('https://soundcruise.jp/apps/chord-cruise/info.htm
 assert.strictEqual(unknownRoute.proAccessLink.hidden, true, 'unknown edition fails closed for the purchase route');
 
 assert(usageHtml.includes('コードを調べる') && usageHtml.includes('CAGEDフォーム') && usageHtml.includes('コード本棚'), 'usage page documents current Chord Cruise flows');
+assert(!usageHtml.includes('進行先の候補'), 'usage page does not advertise the removed progression-candidate view');
+assert(usageHtml.includes('指板上のCAGEDフォームや構成音を確認できます'), 'usage page describes the current Explore result');
 assert(!/マイク|ストローク|リズム判定/.test(termsHtml + privacyHtml), 'legal pages contain no Rhythm-specific input or judgement descriptions');
 assert(privacyHtml.includes('localStorage') && privacyHtml.includes('保存したコードフォーム'), 'privacy page describes actual local browser storage');
 assert(themeSource.includes('@media (max-width: 480px)') && themeSource.includes('.cc-info-shell'), 'information layout includes a mobile breakpoint');

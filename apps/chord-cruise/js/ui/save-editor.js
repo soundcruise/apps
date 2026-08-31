@@ -26,8 +26,44 @@
         return theory().formatDegreeLabel(label, settings && settings.degreeNotationFormal === true);
     }
 
+    function semanticDegreeLabels(rootPc, intervals, qualityKey, tensionPcs, preservedLabels) {
+        var chordModel = window.ChordCruise.chordModel;
+        return chordModel.semanticDegreeLabels({
+            qualityKey: qualityKey,
+            intervals: intervals,
+            tensionIntervals: chordModel.tensionIntervalsForPcs(rootPc, tensionPcs),
+            degreeLabels: preservedLabels
+        });
+    }
+
+    function draftSemanticDegreeLabels() {
+        return semanticDegreeLabels(draft.rootPc, draft.intervals, draft.qualityKey, draft.tensionPcs, draft.degreeLabels);
+    }
+
     function focusTrap() {
         return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
+    }
+
+    function escapeAlreadyHandled(event) {
+        return !!(event && event.__chordCruiseModalHandled);
+    }
+
+    function claimEscape(event) {
+        if (!event || escapeAlreadyHandled(event)) return false;
+        event.__chordCruiseModalHandled = true;
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+        else if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        return true;
+    }
+
+    function hasForegroundLayer() {
+        if (!document || typeof document.querySelector !== 'function') return false;
+        return !!document.querySelector(
+            '.cc-settings-overlay:not(.cc-settings-overlay--hidden), ' +
+            '.cc-modal-overlay--confirm:not(.cc-modal-overlay--hidden), ' +
+            '.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)'
+        );
     }
 
     function storageErrorMessage(fallback) {
@@ -146,14 +182,19 @@
         document.getElementById('cc-save-cancel').addEventListener('click', requestClose);
         document.getElementById('cc-save-cancel-bottom').addEventListener('click', cancelNewSave);
         overlayEl.addEventListener('click', function (event) {
-            if (event.target === overlayEl) requestClose();
+            if (event.target === overlayEl) {
+                if (typeof event.preventDefault === 'function') event.preventDefault();
+                if (typeof event.stopPropagation === 'function') event.stopPropagation();
+                requestClose();
+            }
         });
         overlayEl.addEventListener('keydown', function (event) {
             var dialog = overlayEl.querySelector('[role="dialog"]');
             if (focusTrap()) focusTrap().trapFocus(dialog || overlayEl, event);
         });
         document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape' && draft) requestClose();
+            if (event.key !== 'Escape' || !draft || escapeAlreadyHandled(event) || hasForegroundLayer()) return;
+            if (claimEscape(event)) requestClose();
         });
 
         document.getElementById('cc-range-min-minus').addEventListener('click', function () { stepRange('min', -1); });
@@ -353,9 +394,8 @@
             return theory().solfegeNameForSpelling(spelledNoteNames && spelledNoteNames[solfegeIndex]) || theory().solfegeName(notePc(note), draft.useFlats);
         }
         if (draft.displayMode === 'degree') {
-            var qualityKey = theory().identifyQuality(draft.intervals);
             var intervalIndex = draft.intervals.indexOf(note.interval);
-            var labels = theory().degreeLabelsForQuality(qualityKey, draft.intervals);
+            var labels = draftSemanticDegreeLabels();
             return displayDegreeLabel(intervalIndex !== -1 ? labels[intervalIndex] : theory().degreeLabels([note.interval])[0]);
         }
         var noteIndex = draft.intervals.indexOf(note.interval);
@@ -570,7 +610,7 @@
         if (draft.displayMode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(note.pc, window.ChordCruise.chordModel.bassUsesFlats(note.pc));
         if (draft.displayMode === 'degree') {
             var index = draft.intervals.indexOf(note.interval);
-            var labels = theory().degreeLabelsForQuality(theory().identifyQuality(draft.intervals), draft.intervals);
+            var labels = draftSemanticDegreeLabels();
             return displayDegreeLabel(index !== -1 ? labels[index] : window.ChordCruise.chordModel.bassDegreeLabel(note.interval));
         }
         return spelled;
@@ -1143,7 +1183,7 @@
             qualityKey: chord.qualityKey || null,
             degreeLabels: Array.isArray(chord.degreeLabelsList)
                 ? chord.degreeLabelsList.slice()
-                : theory().degreeLabelsForQuality(chord.qualityKey, chord.intervals),
+                : semanticDegreeLabels(chord.rootPc, chord.intervals, chord.qualityKey, tensionPcs),
             rootPc: chord.rootPc,
             bassPc: validBassPc(chord.bassPc),
             bassFingerings: [],
@@ -1204,6 +1244,7 @@
 
         onSavedCallback = payload.onSaved || null;
         saveInProgress = false;
+        var tensionPcs = normalizeTensionPcs(typeof original.rootPc === 'number' ? original.rootPc : null, original.tensionPcs);
         draft = {
             mode: 'edit',
             source: original.keyContext ? 'diatonic' : 'custom',
@@ -1216,12 +1257,17 @@
             qualityKey: original.qualityKey || theory().identifyQuality(Array.isArray(original.intervals) ? original.intervals : []),
             degreeLabels: Array.isArray(original.degreeLabelsList)
                 ? original.degreeLabelsList.slice()
-                : theory().degreeLabelsForQuality(original.qualityKey || theory().identifyQuality(Array.isArray(original.intervals) ? original.intervals : []), Array.isArray(original.intervals) ? original.intervals : []),
+                : semanticDegreeLabels(
+                    typeof original.rootPc === 'number' ? original.rootPc : null,
+                    Array.isArray(original.intervals) ? original.intervals : [],
+                    original.qualityKey || null,
+                    tensionPcs
+                ),
             rootPc: typeof original.rootPc === 'number' ? original.rootPc : null,
             bassPc: validBassPc(original.bassPc),
             bassFingerings: normalizeBassFingerings(original.bassFingerings),
-            tensionPcs: normalizeTensionPcs(typeof original.rootPc === 'number' ? original.rootPc : null, original.tensionPcs),
-            tensionFingerings: normalizeTensionFingerings(original.tensionFingerings, normalizeTensionPcs(typeof original.rootPc === 'number' ? original.rootPc : null, original.tensionPcs)).filter(function (entry) {
+            tensionPcs: tensionPcs,
+            tensionFingerings: normalizeTensionFingerings(original.tensionFingerings, tensionPcs).filter(function (entry) {
                 return !editableNotes.some(function (note) { return note.string === entry.string && note.fret === entry.fret; });
             }),
             useFlats: !!useFlats,

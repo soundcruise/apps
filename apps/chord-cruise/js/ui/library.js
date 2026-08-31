@@ -46,6 +46,37 @@
         if (code === 'standard-folder-chord-limit') return 'Standard版では1フォルダ10個まで保存できます。';
         return fallback;
     }
+    function cloneSettings(settings) {
+        var clone = {};
+        var key;
+        for (key in settings) {
+            if (Object.prototype.hasOwnProperty.call(settings, key)) {
+                clone[key] = Array.isArray(settings[key]) ? settings[key].slice() : settings[key];
+            }
+        }
+        return clone;
+    }
+    function saveLibrarySetting(partial) {
+        var current = window.ChordCruise.state && window.ChordCruise.state.settings;
+        if (!current) return false;
+        var next = cloneSettings(current);
+        var key;
+        for (key in partial) {
+            if (Object.prototype.hasOwnProperty.call(partial, key)) {
+                next[key] = Array.isArray(partial[key]) ? partial[key].slice() : partial[key];
+            }
+        }
+        if (storage().saveSettings(next) !== true) {
+            toast('設定を保存できませんでした', 'error');
+            return false;
+        }
+        for (key in next) {
+            if (Object.prototype.hasOwnProperty.call(next, key)) {
+                current[key] = Array.isArray(next[key]) ? next[key].slice() : next[key];
+            }
+        }
+        return true;
+    }
     function showFolderLimitProLink() {
         var link = document.getElementById('cc-folder-pro-link');
         var code = typeof storage().getLastError === 'function' ? storage().getLastError() : null;
@@ -181,6 +212,19 @@
         return window.ChordCruise.ui && window.ChordCruise.ui.focusTrap;
     }
 
+    function escapeAlreadyHandled(event) {
+        return !!(event && event.__chordCruiseModalHandled);
+    }
+
+    function claimEscape(event) {
+        if (!event || escapeAlreadyHandled(event)) return false;
+        event.__chordCruiseModalHandled = true;
+        if (typeof event.preventDefault === 'function') event.preventDefault();
+        if (typeof event.stopImmediatePropagation === 'function') event.stopImmediatePropagation();
+        else if (typeof event.stopPropagation === 'function') event.stopPropagation();
+        return true;
+    }
+
     function closeDangerConfirm(returnFocus) {
         if (!confirmOverlay) return;
         confirmOverlay.classList.add('cc-modal-overlay--hidden');
@@ -194,7 +238,7 @@
     function confirmDanger(message, okLabel, onOk, returnFocus, title, options) {
         if (!confirmOverlay) {
             confirmOverlay = document.createElement('div');
-            confirmOverlay.className = 'cc-modal-overlay cc-modal-overlay--hidden';
+            confirmOverlay.className = 'cc-modal-overlay cc-modal-overlay--confirm cc-modal-overlay--hidden';
             confirmOverlay.innerHTML =
                 '<div class="cc-confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="cc-confirm-title" aria-describedby="cc-confirm-description">' +
                     '<h2 class="cc-confirm-title" id="cc-confirm-title"></h2>' +
@@ -218,7 +262,8 @@
                 if (focusTrap()) focusTrap().trapFocus(dialog || confirmOverlay, event);
             });
             document.addEventListener('keydown', function (event) {
-                if (event.key === 'Escape' && confirmOverlay && !confirmOverlay.classList.contains('cc-modal-overlay--hidden')) {
+                if (event.key === 'Escape' && !escapeAlreadyHandled(event) && confirmOverlay &&
+                        !confirmOverlay.classList.contains('cc-modal-overlay--hidden') && claimEscape(event)) {
                     closeDangerConfirm(true);
                 }
             });
@@ -492,14 +537,20 @@
         folderManageSheet = document.createElement('div');
         folderManageSheet.className = 'cc-folder-manage-overlay cc-folder-manage-overlay--hidden';
         folderManageSheet.addEventListener('click', function (event) {
-            if (event.target === folderManageSheet) closeFolderManageSheet(true);
+            if (event.target === folderManageSheet) {
+                if (typeof event.preventDefault === 'function') event.preventDefault();
+                if (typeof event.stopPropagation === 'function') event.stopPropagation();
+                closeFolderManageSheet(true);
+            }
         });
         folderManageSheet.addEventListener('keydown', function (event) {
             var dialog = folderManageSheet.querySelector('[role="dialog"]');
             if (focusTrap()) focusTrap().trapFocus(dialog || folderManageSheet, event);
         });
         document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape' && folderManageSheet && !folderManageSheet.classList.contains('cc-folder-manage-overlay--hidden')) {
+            if (event.key === 'Escape' && !escapeAlreadyHandled(event) && folderManageSheet &&
+                    !folderManageSheet.classList.contains('cc-folder-manage-overlay--hidden') &&
+                    (!confirmOverlay || confirmOverlay.classList.contains('cc-modal-overlay--hidden')) && claimEscape(event)) {
                 closeFolderManageSheet(true);
             }
         });
@@ -531,14 +582,20 @@
         chordManageSheet = document.createElement('div');
         chordManageSheet.className = 'cc-folder-manage-overlay cc-folder-manage-overlay--hidden';
         chordManageSheet.addEventListener('click', function (event) {
-            if (event.target === chordManageSheet) closeChordManageSheet(true);
+            if (event.target === chordManageSheet) {
+                if (typeof event.preventDefault === 'function') event.preventDefault();
+                if (typeof event.stopPropagation === 'function') event.stopPropagation();
+                closeChordManageSheet(true);
+            }
         });
         chordManageSheet.addEventListener('keydown', function (event) {
             var dialog = chordManageSheet.querySelector('[role="dialog"]');
             if (focusTrap()) focusTrap().trapFocus(dialog || chordManageSheet, event);
         });
         document.addEventListener('keydown', function (event) {
-            if (event.key === 'Escape' && chordManageSheet && !chordManageSheet.classList.contains('cc-folder-manage-overlay--hidden')) {
+            if (event.key === 'Escape' && !escapeAlreadyHandled(event) && chordManageSheet &&
+                    !chordManageSheet.classList.contains('cc-folder-manage-overlay--hidden') &&
+                    (!confirmOverlay || confirmOverlay.classList.contains('cc-modal-overlay--hidden')) && claimEscape(event)) {
                 closeChordManageSheet(true);
             }
         });
@@ -741,16 +798,20 @@
             button.addEventListener('click', function () {
                 var mode = button.getAttribute('data-library-card-display-mode');
                 if (['note', 'solfege', 'degree', 'finger'].indexOf(mode) === -1) return;
-                window.ChordCruise.state.settings.libraryCardDisplayMode = mode;
-                storage().saveSettings({ libraryCardDisplayMode: mode });
+                if (!saveLibrarySetting({ libraryCardDisplayMode: mode })) {
+                    updateLibraryCardDisplayControls();
+                    return;
+                }
                 refreshListThumbnails();
             });
         });
         var toggle = document.getElementById('cc-library-card-monochrome-toggle');
         if (toggle) toggle.addEventListener('click', function () {
             var monochrome = !libraryCardMonochrome();
-            window.ChordCruise.state.settings.libraryCardMonochrome = monochrome;
-            storage().saveSettings({ libraryCardMonochrome: monochrome });
+            if (!saveLibrarySetting({ libraryCardMonochrome: monochrome })) {
+                updateLibraryCardDisplayControls();
+                return;
+            }
             refreshListThumbnails();
         });
     }
@@ -847,8 +908,14 @@
                 if (!folder) return closeFolderManageSheet(false);
                 if (action === 'menu' || action === 'rename' || action === 'color') return showFolderManagePane(id, action === 'menu' ? 'menu' : action);
                 if (action === 'rename-save') {
-                    var name = document.getElementById('cc-folder-manage-name').value.trim();
-                    if (!name || !storage().renameFolder(id, name)) return;
+                    var input = document.getElementById('cc-folder-manage-name');
+                    var name = input.value.trim();
+                    if (!name) return;
+                    if (!storage().renameFolder(id, name)) {
+                        input.value = folder.name;
+                        toast(storageErrorMessage('フォルダ名を変更できませんでした'), 'error');
+                        return;
+                    }
                     closeFolderManageSheet(false);
                     renderFolders();
                     toast('フォルダ名を変更しました');
@@ -970,9 +1037,11 @@
             button.addEventListener('click', function () {
                 var columns = parseInt(button.getAttribute('data-folder-shelf-columns-choice'), 10);
                 if ([2, 3, 4, 5, 6].indexOf(columns) === -1) return;
+                if (!saveLibrarySetting({ folderShelfColumns: columns })) {
+                    renderFolders();
+                    return;
+                }
                 folderShelfColumns = columns;
-                window.ChordCruise.state.settings.folderShelfColumns = columns;
-                storage().saveSettings({ folderShelfColumns: columns });
                 renderFolders();
             });
         });
@@ -1099,9 +1168,12 @@
 
         Array.prototype.forEach.call(contentEl().querySelectorAll('[data-library-columns-choice]'), function (button) {
             button.addEventListener('click', function () {
-                var nextColumns = applyLibraryColumns(parseInt(button.getAttribute('data-library-columns-choice'), 10));
-                window.ChordCruise.state.settings.libraryColumns = nextColumns;
-                storage().saveSettings({ libraryColumns: nextColumns });
+                var nextColumns = normalizeLibraryColumns(parseInt(button.getAttribute('data-library-columns-choice'), 10));
+                if (!saveLibrarySetting({ libraryColumns: nextColumns })) {
+                    applyLibraryColumns(currentLibraryColumns());
+                    return;
+                }
+                applyLibraryColumns(nextColumns);
             });
         });
         bindLibraryCardDisplayControls();
@@ -1145,30 +1217,19 @@
     /** 保存schemaを増やさず、semantic interval情報から表示用degreeを復元する。 */
     function savedDegreeLabels(chord) {
         var intervals = chord && Array.isArray(chord.intervals) ? chord.intervals.slice() : [];
-        var tensionIntervals = window.ChordCruise.chordModel.tensionIntervalsForPcs(
+        var chordModel = window.ChordCruise.chordModel;
+        if (!chordModel || typeof chordModel.semanticDegreeLabels !== 'function') {
+            return theory().degreeLabelsForQuality(theory().identifyQuality(intervals), intervals);
+        }
+        var tensionIntervals = chordModel.tensionIntervalsForPcs(
             chord && chord.rootPc,
             savedTensionPcs(chord)
         );
-        var tensionLabelsByInterval = {};
-        tensionIntervals.forEach(function (interval) {
-            tensionLabelsByInterval[interval % 12] = window.ChordCruise.chordModel.TENSION_LABELS[interval] || theory().degreeLabels([interval % 12])[0];
-        });
-        var coreIntervals = intervals.filter(function (interval) {
-            return !Object.prototype.hasOwnProperty.call(tensionLabelsByInterval, interval);
-        });
-        var qualityKey = chord && chord.qualityKey;
-        if (!qualityKey || !theory().QUALITIES[qualityKey] ||
-            !theory().QUALITIES[qualityKey].intervals.every(function (interval, index) { return coreIntervals[index] === interval; }) ||
-            theory().QUALITIES[qualityKey].intervals.length !== coreIntervals.length) {
-            qualityKey = theory().identifyQuality(coreIntervals);
-        }
-        var coreLabels = theory().degreeLabelsForQuality(qualityKey, coreIntervals);
-        var coreIndex = 0;
-        return intervals.map(function (interval) {
-            if (Object.prototype.hasOwnProperty.call(tensionLabelsByInterval, interval)) {
-                return tensionLabelsByInterval[interval];
-            }
-            return coreLabels[coreIndex++];
+        return chordModel.semanticDegreeLabels({
+            qualityKey: chord && chord.qualityKey,
+            intervals: intervals,
+            tensionIntervals: tensionIntervals,
+            degreeLabels: chord && chord.degreeLabelsList
         });
     }
 
@@ -1209,9 +1270,8 @@
         var spelled = spelledNoteNames && spelledNoteNames[noteIndex];
         if (mode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(pc, chordUseFlats(chord));
         if (mode === 'degree') {
-            var qualityKey = theory().identifyQuality(chord.intervals);
             var intervalIndex = Array.isArray(chord.intervals) ? chord.intervals.indexOf(note.interval) : -1;
-            var labels = theory().degreeLabelsForQuality(qualityKey, chord.intervals || []);
+            var labels = savedDegreeLabels(chord);
             return displayDegreeLabel(intervalIndex !== -1 ? labels[intervalIndex] : theory().degreeLabels([note.interval])[0]);
         }
         if (spelledNoteNames && noteIndex !== -1 && spelledNoteNames[noteIndex]) {
@@ -1336,7 +1396,7 @@
         if (mode === 'solfege') return theory().solfegeNameForSpelling(spelled) || theory().solfegeName(overlay.pc, window.ChordCruise.chordModel.bassUsesFlats(overlay.pc));
         if (mode === 'degree') {
             var degreeIndex = (chord.intervals || []).indexOf(overlay.interval);
-            var degreeLabels = theory().degreeLabelsForQuality(theory().identifyQuality(chord.intervals), chord.intervals || []);
+            var degreeLabels = savedDegreeLabels(chord);
             return displayDegreeLabel(degreeIndex !== -1 ? degreeLabels[degreeIndex] : window.ChordCruise.chordModel.bassDegreeLabel(overlay.interval));
         }
         return spelled;
@@ -1890,9 +1950,11 @@
         // 表示切替
         ['note', 'solfege', 'degree', 'finger'].forEach(function (mode) {
             document.getElementById('cc-libmode-' + mode).addEventListener('click', function () {
+                if (!saveLibrarySetting({ fretboardDisplayMode: mode })) {
+                    updateLibModeSegments();
+                    return;
+                }
                 detailDisplayModeOverride = mode;
-                window.ChordCruise.storage.saveSettings({ fretboardDisplayMode: mode });
-                window.ChordCruise.state.settings.fretboardDisplayMode = mode;
                 updateLibModeSegments();
                 renderDetailFretboard(currentDetailChord || chord);
             });

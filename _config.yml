@@ -1,0 +1,5 @@
+exclude:
+  - AGENTS.md
+  - CLAUDE.md
+  - apps/chord-cruise/tests
+  - apps/chord-cruise/ai-handoff
