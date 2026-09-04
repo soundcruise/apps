@@ -33,7 +33,7 @@ body {
 }
 
 .port-shell {
-    width: min(100%, 620px);
+    width: min(100%, 680px);
     min-height: 100vh;
     min-height: 100dvh;
     margin: 0 auto;
@@ -45,7 +45,7 @@ body {
 }
 
 .port-header {
-    margin-bottom: 34px;
+    margin-bottom: 42px;
     text-align: center;
 }
 
@@ -74,18 +74,45 @@ h1::after {
     line-height: 1.7;
 }
 
-.app-grid {
+.port-section + .port-section {
+    margin-top: 48px;
+}
+
+.port-section h2 {
+    display: flex;
+    margin: 0 0 17px;
+    align-items: center;
+    gap: 12px;
+    color: var(--port-text);
+    font-size: 1.03rem;
+    font-weight: 680;
+    letter-spacing: 0.05em;
+    line-height: 1.4;
+}
+
+.port-section h2::after {
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(90deg, var(--port-border), transparent);
+    content: "";
+}
+
+.card-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
 }
 
-.app-card {
-    display: flex;
+.port-card {
+    width: 100%;
     min-width: 0;
+    min-height: 174px;
+    margin: 0;
+    display: flex;
     padding: 16px 12px 18px;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     border: 1px solid var(--port-border);
     border-radius: 20px;
     color: var(--port-text);
@@ -93,8 +120,10 @@ h1::after {
         linear-gradient(150deg, rgba(255, 255, 255, 0.035), transparent 48%),
         linear-gradient(180deg, var(--port-surface), var(--port-surface-deep));
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+    font: inherit;
     text-align: center;
     text-decoration: none;
+    appearance: none;
     -webkit-tap-highlight-color: transparent;
 }
 
@@ -106,7 +135,7 @@ h1::after {
     filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.42));
 }
 
-.app-name {
+.card-name {
     margin-top: 15px;
     font-size: clamp(0.86rem, 3.7vw, 1rem);
     font-weight: 650;
@@ -114,7 +143,7 @@ h1::after {
     line-height: 1.4;
 }
 
-.app-card:focus-visible {
+.port-card:focus-visible {
     outline: 2px solid var(--port-gold-bright);
     outline-offset: 4px;
 }
@@ -123,6 +152,94 @@ h1::after {
     border-color: rgba(241, 218, 153, 0.58);
     background: linear-gradient(180deg, #1c1913, #12100d);
     transform: translateY(1px);
+}
+
+.skeleton-card:disabled {
+    color: var(--port-text);
+    cursor: not-allowed;
+    opacity: 1;
+}
+
+.skeleton-card {
+    position: relative;
+    border-color: rgba(217, 189, 114, 0.17);
+    background:
+        linear-gradient(150deg, rgba(217, 189, 114, 0.045), transparent 52%),
+        linear-gradient(180deg, #12110f, #0d0c0a);
+}
+
+.skeleton-icon {
+    display: grid;
+    width: 82px;
+    height: 82px;
+    place-items: center;
+    border: 1px solid rgba(217, 189, 114, 0.2);
+    border-radius: 24px;
+    color: rgba(241, 218, 153, 0.74);
+    background: rgba(217, 189, 114, 0.055);
+}
+
+.skeleton-icon svg {
+    width: 54px;
+    height: 54px;
+    overflow: visible;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.25;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.skeleton-icon .icon-accent {
+    color: var(--port-gold-bright);
+}
+
+.status-pill {
+    margin-top: 9px;
+    padding: 3px 9px;
+    border: 1px solid rgba(217, 189, 114, 0.18);
+    border-radius: 999px;
+    color: var(--port-muted);
+    background: rgba(217, 189, 114, 0.045);
+    font-size: 0.66rem;
+    font-weight: 620;
+    letter-spacing: 0.06em;
+    line-height: 1.35;
+}
+
+.practice-card .card-name {
+    margin-top: 13px;
+}
+
+.practice-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 21px;
+}
+
+.card-detail {
+    margin-top: 5px;
+    color: var(--port-gold-bright);
+    font-size: 0.8rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.add-card {
+    border-style: dashed;
+}
+
+.add-symbol {
+    display: grid;
+    width: 70px;
+    height: 70px;
+    place-items: center;
+    border: 1px solid rgba(217, 189, 114, 0.25);
+    border-radius: 50%;
+    color: var(--port-gold);
+    background: rgba(217, 189, 114, 0.04);
+    font-size: 2.15rem;
+    font-weight: 260;
+    line-height: 1;
 }
 
 .btn-primary {
@@ -162,19 +279,56 @@ h1::after {
     }
 
     .port-header {
-        margin-bottom: 42px;
+        margin-bottom: 50px;
     }
 
-    .app-grid {
+    .card-grid {
         gap: 20px;
     }
 
-    .app-card {
+    .port-card {
         padding: 22px 18px 23px;
     }
 
     .app-card img {
         width: 136px;
+    }
+}
+
+@media (max-width: 340px) {
+    .port-shell {
+        padding-right: max(14px, calc(env(safe-area-inset-right) + 14px));
+        padding-left: max(14px, calc(env(safe-area-inset-left) + 14px));
+    }
+
+    .card-grid {
+        gap: 10px;
+    }
+
+    .port-card {
+        min-height: 158px;
+        padding: 13px 8px 15px;
+        border-radius: 17px;
+    }
+
+    .app-card img {
+        width: min(100%, 102px);
+    }
+
+    .skeleton-icon {
+        width: 68px;
+        height: 68px;
+        border-radius: 20px;
+    }
+
+    .skeleton-icon svg {
+        width: 46px;
+        height: 46px;
+    }
+
+    .add-symbol {
+        width: 60px;
+        height: 60px;
     }
 }
 

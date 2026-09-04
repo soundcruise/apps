@@ -24,27 +24,98 @@
         </header>
 
         <main>
-            <nav class="app-grid" aria-label="クルーズアプリ">
-                <a class="app-card" href="../pitch-cruise/pro_x9v7q2m8/">
-                    <img src="../pitch-cruise/pro_icon_192.png" alt="" width="192" height="192">
-                    <span class="app-name">音感クルーズ</span>
-                </a>
+            <section class="port-section" aria-labelledby="cruise-apps-heading">
+                <h2 id="cruise-apps-heading">クルーズアプリ</h2>
+                <nav class="card-grid" aria-label="クルーズアプリ">
+                    <a class="port-card app-card" href="../pitch-cruise/pro_x9v7q2m8/">
+                        <img src="../pitch-cruise/pro_icon_192.png" alt="" width="192" height="192">
+                        <span class="card-name">音感クルーズ</span>
+                    </a>
 
-                <a class="app-card" href="../fretboard_cruise/pro_a9f4k7q2m8z/">
-                    <img src="../fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-192.png" alt="" width="192" height="192">
-                    <span class="app-name">指板クルーズ</span>
-                </a>
+                    <a class="port-card app-card" href="../fretboard_cruise/pro_a9f4k7q2m8z/">
+                        <img src="../fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-192.png" alt="" width="192" height="192">
+                        <span class="card-name">指板クルーズ</span>
+                    </a>
 
-                <a class="app-card" href="../rhythm-cruise/pro_r4m8k7n2q9x/">
-                    <img src="../rhythm-cruise/pro_r4m8k7n2q9x/icon-192.png" alt="" width="192" height="192">
-                    <span class="app-name">リズムクルーズ</span>
-                </a>
+                    <a class="port-card app-card" href="../rhythm-cruise/pro_r4m8k7n2q9x/">
+                        <img src="../rhythm-cruise/pro_r4m8k7n2q9x/icon-192.png" alt="" width="192" height="192">
+                        <span class="card-name">リズムクルーズ</span>
+                    </a>
 
-                <a class="app-card" href="../chord-cruise/pro_k7m4q9v2x8/">
-                    <img src="../chord-cruise/icons/chord-cruise-pro-192.png" alt="" width="192" height="192">
-                    <span class="app-name">コードクルーズ</span>
-                </a>
-            </nav>
+                    <a class="port-card app-card" href="../chord-cruise/pro_k7m4q9v2x8/">
+                        <img src="../chord-cruise/icons/chord-cruise-pro-192.png" alt="" width="192" height="192">
+                        <span class="card-name">コードクルーズ</span>
+                    </a>
+                </nav>
+            </section>
+
+            <section class="port-section" aria-labelledby="tools-heading">
+                <h2 id="tools-heading">ツール</h2>
+                <div class="card-grid">
+                    <button class="port-card skeleton-card" type="button" disabled>
+                        <span class="skeleton-icon" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" role="img">
+                                <path d="M13 43a21 21 0 0 1 38 0" />
+                                <path d="M20 36l-5-5M44 36l5-5M32 22v-7" />
+                                <path class="icon-accent" d="M32 41l9-13" />
+                                <circle class="icon-accent" cx="32" cy="41" r="3" />
+                                <path d="M17 49h30" />
+                            </svg>
+                        </span>
+                        <span class="card-name">チューナー</span>
+                        <span class="status-pill">準備中</span>
+                    </button>
+
+                    <button class="port-card skeleton-card" type="button" disabled>
+                        <span class="skeleton-icon" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" role="img">
+                                <path d="M23 13h18l8 39H15l8-39Z" />
+                                <path d="M22 42h20" />
+                                <path class="icon-accent" d="M32 39V18l10-5" />
+                                <circle class="icon-accent" cx="32" cy="39" r="3" />
+                            </svg>
+                        </span>
+                        <span class="card-name">メトロノーム</span>
+                        <span class="status-pill">準備中</span>
+                    </button>
+                </div>
+            </section>
+
+            <section class="port-section" aria-labelledby="practice-heading">
+                <h2 id="practice-heading">練習メニュー</h2>
+                <div class="card-grid">
+                    <button class="port-card skeleton-card practice-card" type="button" disabled>
+                        <span class="skeleton-icon practice-icon" aria-hidden="true">
+                            <svg viewBox="0 0 64 64" role="img">
+                                <path d="M20 17h24v34H20z" />
+                                <path d="M26 25h12M26 32h12M26 39h7" />
+                                <circle class="icon-accent" cx="43" cy="43" r="10" />
+                                <path class="icon-accent" d="M43 37v6l4 3" />
+                            </svg>
+                        </span>
+                        <span class="card-name">コードチェンジ練習</span>
+                        <span class="card-detail">10分</span>
+                        <span class="status-pill">サンプル</span>
+                    </button>
+
+                    <button class="port-card skeleton-card add-card" type="button" disabled>
+                        <span class="add-symbol" aria-hidden="true">＋</span>
+                        <span class="card-name">練習メニューを追加</span>
+                        <span class="status-pill">準備中</span>
+                    </button>
+                </div>
+            </section>
+
+            <section class="port-section" aria-labelledby="my-apps-heading">
+                <h2 id="my-apps-heading">My Apps</h2>
+                <div class="card-grid">
+                    <button class="port-card skeleton-card add-card" type="button" disabled>
+                        <span class="add-symbol" aria-hidden="true">＋</span>
+                        <span class="card-name">アプリを追加</span>
+                        <span class="status-pill">準備中</span>
+                    </button>
+                </div>
+            </section>
         </main>
     </div>
 </body>
