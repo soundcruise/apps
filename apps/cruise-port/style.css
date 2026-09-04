@@ -1,0 +1,185 @@
+:root {
+    color-scheme: dark;
+    --port-bg: #090806;
+    --port-surface: #14120f;
+    --port-surface-deep: #0e0d0b;
+    --port-gold: #d9bd72;
+    --port-gold-bright: #f1da99;
+    --port-text: #f8f4e9;
+    --port-muted: #aaa394;
+    --port-border: rgba(217, 189, 114, 0.24);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    min-height: 100%;
+    background: var(--port-bg);
+}
+
+body {
+    min-width: 280px;
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0;
+    color: var(--port-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", sans-serif;
+    background:
+        radial-gradient(circle at 50% -12%, rgba(217, 189, 114, 0.14), transparent 40%),
+        linear-gradient(180deg, #0b0a08 0%, var(--port-bg) 58%, #060604 100%);
+    -webkit-font-smoothing: antialiased;
+}
+
+.port-shell {
+    width: min(100%, 620px);
+    min-height: 100vh;
+    min-height: 100dvh;
+    margin: 0 auto;
+    padding:
+        max(48px, calc(env(safe-area-inset-top) + 32px))
+        max(20px, calc(env(safe-area-inset-right) + 20px))
+        max(40px, calc(env(safe-area-inset-bottom) + 28px))
+        max(20px, calc(env(safe-area-inset-left) + 20px));
+}
+
+.port-header {
+    margin-bottom: 34px;
+    text-align: center;
+}
+
+h1 {
+    margin: 0;
+    font-size: clamp(1.85rem, 8vw, 2.45rem);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    line-height: 1.25;
+}
+
+h1::after {
+    display: block;
+    width: 42px;
+    height: 1px;
+    margin: 17px auto 16px;
+    background: linear-gradient(90deg, transparent, var(--port-gold), transparent);
+    content: "";
+}
+
+.port-concept {
+    margin: 0;
+    color: var(--port-muted);
+    font-size: 0.88rem;
+    letter-spacing: 0.03em;
+    line-height: 1.7;
+}
+
+.app-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.app-card {
+    display: flex;
+    min-width: 0;
+    padding: 16px 12px 18px;
+    flex-direction: column;
+    align-items: center;
+    border: 1px solid var(--port-border);
+    border-radius: 20px;
+    color: var(--port-text);
+    background:
+        linear-gradient(150deg, rgba(255, 255, 255, 0.035), transparent 48%),
+        linear-gradient(180deg, var(--port-surface), var(--port-surface-deep));
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+    text-align: center;
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.app-card img {
+    display: block;
+    width: min(100%, 116px);
+    height: auto;
+    border-radius: 23%;
+    filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.42));
+}
+
+.app-name {
+    margin-top: 15px;
+    font-size: clamp(0.86rem, 3.7vw, 1rem);
+    font-weight: 650;
+    letter-spacing: 0.02em;
+    line-height: 1.4;
+}
+
+.app-card:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 4px;
+}
+
+.app-card:active {
+    border-color: rgba(241, 218, 153, 0.58);
+    background: linear-gradient(180deg, #1c1913, #12100d);
+    transform: translateY(1px);
+}
+
+.btn-primary {
+    border: 1px solid rgba(241, 218, 153, 0.54);
+    border-radius: 10px;
+    color: #171208;
+    background: linear-gradient(180deg, #f4dfa3, #c9a850);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+}
+
+.btn-primary:focus-visible {
+    outline: 2px solid #fff3bd;
+    outline-offset: 3px;
+}
+
+.btn-primary:disabled {
+    cursor: wait;
+    opacity: 0.65;
+}
+
+@media (hover: hover) {
+    .app-card {
+        transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+    }
+
+    .app-card:hover {
+        border-color: rgba(241, 218, 153, 0.48);
+        box-shadow: 0 18px 34px rgba(0, 0, 0, 0.36);
+        transform: translateY(-2px);
+    }
+}
+
+@media (min-width: 520px) {
+    .port-shell {
+        padding-top: max(68px, calc(env(safe-area-inset-top) + 42px));
+    }
+
+    .port-header {
+        margin-bottom: 42px;
+    }
+
+    .app-grid {
+        gap: 20px;
+    }
+
+    .app-card {
+        padding: 22px 18px 23px;
+    }
+
+    .app-card img {
+        width: 136px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-card {
+        transition: none;
+    }
+}
