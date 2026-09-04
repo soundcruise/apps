@@ -1,5 +1,6 @@
 const GATE_VERSION = 8; // ゲート方式変更時・パスワード変更時に +1
 const CACHE_NAME = 'pitch-trainer-pro-scope-v15-apps-pitch-cruise';
+const CACHE_PREFIX = 'pitch-trainer-pro-scope-';
 const INFO_NEW_VERSION_KEY = 'infoNewVersionSeen';
 
 self.addEventListener('install', () => {
@@ -10,7 +11,8 @@ self.addEventListener('activate', (e) => {
     e.waitUntil(
         Promise.all([
             caches.keys().then((cacheNames) => {
-                return Promise.all(cacheNames.map((name) => caches.delete(name)));
+                const ownCacheNames = cacheNames.filter((name) => name.startsWith(CACHE_PREFIX));
+                return Promise.all(ownCacheNames.map((name) => caches.delete(name)));
             }),
             self.clients.matchAll({ includeUncontrolled: true, type: 'window' }).then((clients) => {
                 clients.forEach((client) => {

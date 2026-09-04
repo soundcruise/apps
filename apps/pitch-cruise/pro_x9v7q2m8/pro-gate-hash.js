@@ -268,7 +268,14 @@
                 var s = localStorage.getItem(SW_GATE_VERSION_KEY);
                 if (s != null) knownVer = parseInt(s, 10);
             } catch (_) {}
-            if (Number.isNaN(knownVer) || newVer > knownVer) {
+
+            // 初回のSW activateは版更新ではないため、現行版を基準値として記録するだけにする。
+            // 既知の版より上がった場合は、従来どおりパスワード変更等による強制退出を行う。
+            if (Number.isNaN(knownVer)) {
+                try { localStorage.setItem(SW_GATE_VERSION_KEY, String(newVer)); } catch (_) {}
+                return;
+            }
+            if (newVer > knownVer) {
                 try { localStorage.setItem(SW_GATE_VERSION_KEY, String(newVer)); } catch (_) {}
                 clearGateStorage();
                 var url = location.href;
