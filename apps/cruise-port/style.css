@@ -233,6 +233,62 @@ h1::after {
     gap: 10px;
 }
 
+.practice-heading-row {
+    display: flex;
+    margin-bottom: 14px;
+    align-items: center;
+    gap: 9px;
+}
+
+.practice-heading-row h2 {
+    min-width: 0;
+    margin: 0;
+    flex: 1;
+}
+
+.reorder-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+}
+
+.reorder-actions[hidden],
+.reorder-button[hidden],
+.reorder-status[hidden] {
+    display: none;
+}
+
+.reorder-button,
+.reorder-move {
+    min-height: 38px;
+    border: 1px solid rgba(207, 189, 148, 0.18);
+    border-radius: 10px;
+    color: var(--port-muted);
+    background: rgba(205, 180, 116, 0.035);
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 620;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.reorder-button {
+    padding: 7px 10px;
+    white-space: nowrap;
+}
+
+.reorder-button-primary {
+    border-color: rgba(230, 210, 155, 0.38);
+    color: var(--port-gold-bright);
+}
+
+.reorder-status {
+    margin: 0 0 10px;
+    color: var(--port-muted);
+    font-size: 0.76rem;
+    line-height: 1.55;
+}
+
 #practice-menu-list {
     display: grid;
     gap: 10px;
@@ -276,6 +332,38 @@ h1::after {
     cursor: pointer;
 }
 
+.reorder-card {
+    min-height: 76px;
+    cursor: default;
+}
+
+.reorder-handle {
+    flex: 0 0 auto;
+    color: rgba(205, 180, 116, 0.62);
+    font-size: 1.35rem;
+    line-height: 1;
+}
+
+.reorder-controls {
+    display: grid;
+    flex: 0 0 auto;
+    grid-template-columns: repeat(2, 42px);
+    gap: 5px;
+}
+
+.reorder-move {
+    width: 42px;
+    min-height: 42px;
+    padding: 0;
+    color: var(--port-text);
+    font-size: 1rem;
+}
+
+.reorder-move:disabled {
+    cursor: not-allowed;
+    opacity: 0.36;
+}
+
 .practice-arrow {
     flex: 0 0 auto;
     color: rgba(205, 180, 116, 0.66);
@@ -306,6 +394,8 @@ h1::after {
 }
 
 .practice-row:focus-visible,
+.reorder-button:focus-visible,
+.reorder-move:focus-visible,
 .view-back:focus-visible,
 .action-button:focus-visible,
 input:focus-visible,
@@ -626,6 +716,25 @@ select {
     .practice-row {
         padding: 10px 11px;
         gap: 10px;
+    }
+
+    .reorder-actions {
+        gap: 4px;
+    }
+
+    .reorder-button {
+        padding-right: 8px;
+        padding-left: 8px;
+    }
+
+    .reorder-controls {
+        grid-template-columns: repeat(2, 38px);
+        gap: 4px;
+    }
+
+    .reorder-move {
+        width: 38px;
+        min-height: 38px;
     }
 }
 

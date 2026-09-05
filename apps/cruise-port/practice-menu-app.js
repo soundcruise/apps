@@ -4,6 +4,7 @@ import {
     createPracticeMenu,
     deletePracticeMenu,
     loadPracticeMenus,
+    movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
 } from './practice-menu-store.js';
@@ -29,14 +30,22 @@ const elements = {
     durationInput: document.querySelector('#practice-duration'),
     appInput: document.querySelector('#practice-app'),
     memoInput: document.querySelector('#practice-memo'),
-    formError: document.querySelector('#practice-form-error')
+    formError: document.querySelector('#practice-form-error'),
+    reorderStart: document.querySelector('#practice-reorder-start'),
+    reorderActions: document.querySelector('#practice-reorder-actions'),
+    reorderCancel: document.querySelector('#practice-reorder-cancel'),
+    reorderComplete: document.querySelector('#practice-reorder-complete'),
+    reorderStatus: document.querySelector('#practice-reorder-status'),
+    reorderNotice: document.querySelector('#practice-reorder-notice')
 };
 
 const state = {
     items: [],
     storageReady: false,
     activeId: null,
-    formMode: 'create'
+    formMode: 'create',
+    reorderMode: false,
+    reorderItems: []
 };
 
 function showNotice(element, message = '') {
@@ -64,39 +73,147 @@ function setHashRoute(route) {
     location.hash = route;
 }
 
+function sameOrder(firstItems, secondItems) {
+    return firstItems.length === secondItems.length
+        && firstItems.every((item, index) => item.id === secondItems[index].id);
+}
+
+function renderPracticeCard(item) {
+    const app = APP_DEFINITIONS[item.appId];
+    const card = document.createElement('a');
+    const copy = document.createElement('span');
+    const name = document.createElement('span');
+    const detail = document.createElement('span');
+    const arrow = document.createElement('span');
+
+    card.className = 'practice-row practice-menu-card';
+    card.href = `#practice-menu/${encodeURIComponent(item.id)}`;
+    copy.className = 'practice-copy';
+    name.className = 'card-name';
+    detail.className = 'card-detail';
+    arrow.className = 'practice-arrow';
+    arrow.setAttribute('aria-hidden', 'true');
+    name.textContent = item.name;
+    detail.textContent = `${item.durationMinutes}分 ・ ${app.name}`;
+    arrow.textContent = '→';
+    copy.append(name, detail);
+    card.append(copy, arrow);
+    return card;
+}
+
+function renderReorderCard(item, index) {
+    const app = APP_DEFINITIONS[item.appId];
+    const card = document.createElement('div');
+    const handle = document.createElement('span');
+    const copy = document.createElement('span');
+    const name = document.createElement('span');
+    const detail = document.createElement('span');
+    const controls = document.createElement('div');
+    const upButton = document.createElement('button');
+    const downButton = document.createElement('button');
+
+    card.className = 'practice-row reorder-card';
+    card.setAttribute('role', 'group');
+    card.setAttribute('aria-label', `${item.name}の並び替え`);
+    handle.className = 'reorder-handle';
+    handle.setAttribute('aria-hidden', 'true');
+    handle.textContent = '≡';
+    copy.className = 'practice-copy';
+    name.className = 'card-name';
+    detail.className = 'card-detail';
+    name.textContent = item.name;
+    detail.textContent = `${item.durationMinutes}分 ・ ${app.name}`;
+    controls.className = 'reorder-controls';
+
+    upButton.className = 'reorder-move';
+    upButton.type = 'button';
+    upButton.dataset.id = item.id;
+    upButton.dataset.direction = '-1';
+    upButton.setAttribute('aria-label', `${item.name}を上へ移動`);
+    upButton.textContent = '↑';
+    upButton.disabled = index === 0;
+
+    downButton.className = 'reorder-move';
+    downButton.type = 'button';
+    downButton.dataset.id = item.id;
+    downButton.dataset.direction = '1';
+    downButton.setAttribute('aria-label', `${item.name}を下へ移動`);
+    downButton.textContent = '↓';
+    downButton.disabled = index === state.reorderItems.length - 1;
+
+    controls.append(upButton, downButton);
+    copy.append(name, detail);
+    card.append(handle, copy, controls);
+    return card;
+}
+
 function renderHome() {
     showView(elements.homeView);
     elements.list.replaceChildren();
+    const visibleItems = state.reorderMode ? state.reorderItems : state.items;
 
-    state.items.forEach((item) => {
-        const app = APP_DEFINITIONS[item.appId];
-        const card = document.createElement('a');
-        const copy = document.createElement('span');
-        const name = document.createElement('span');
-        const detail = document.createElement('span');
-        const arrow = document.createElement('span');
-
-        card.className = 'practice-row practice-menu-card';
-        card.href = `#practice-menu/${encodeURIComponent(item.id)}`;
-        copy.className = 'practice-copy';
-        name.className = 'card-name';
-        detail.className = 'card-detail';
-        arrow.className = 'practice-arrow';
-        arrow.setAttribute('aria-hidden', 'true');
-
-        name.textContent = item.name;
-        detail.textContent = `${item.durationMinutes}分 ・ ${app.name}`;
-        arrow.textContent = '→';
-        copy.append(name, detail);
-        card.append(copy, arrow);
-        elements.list.append(card);
+    visibleItems.forEach((item, index) => {
+        elements.list.append(
+            state.reorderMode ? renderReorderCard(item, index) : renderPracticeCard(item)
+        );
     });
 
+    elements.reorderStart.hidden = state.reorderMode || state.items.length < 2;
+    elements.reorderActions.hidden = !state.reorderMode;
+    elements.addButton.hidden = state.reorderMode;
     elements.addButton.disabled = !state.storageReady;
+    elements.reorderStatus.textContent = state.reorderMode
+        ? '並び替え中です。上下のボタンで順序を変更し、完了で保存します。'
+        : '';
+    elements.reorderStatus.hidden = !state.reorderMode;
     showNotice(
         elements.storageError,
         state.storageReady ? '' : '練習メニューの保存データを読み込めません。保存領域の値は変更していません。'
     );
+}
+
+function startReorder() {
+    if (!state.storageReady || state.items.length < 2) return;
+    state.reorderMode = true;
+    state.reorderItems = [...state.items];
+    showNotice(elements.reorderNotice);
+    renderHome();
+}
+
+function cancelReorder() {
+    state.reorderMode = false;
+    state.reorderItems = [];
+    showNotice(elements.reorderNotice);
+    renderHome();
+}
+
+function moveReorderItem(id, direction) {
+    const moveResult = movePracticeMenu(state.reorderItems, id, direction);
+    if (!moveResult.moved) return;
+    state.reorderItems = moveResult.items;
+    renderHome();
+    [...elements.list.querySelectorAll('.reorder-move')]
+        .find((button) => button.dataset.id === id && Number(button.dataset.direction) === direction)
+        ?.focus();
+}
+
+function completeReorder() {
+    if (!state.reorderMode) return;
+    if (sameOrder(state.items, state.reorderItems)) {
+        cancelReorder();
+        return;
+    }
+
+    const saveResult = savePracticeMenus(state.reorderItems);
+    if (!saveResult.ok) {
+        showNotice(elements.reorderNotice, '並び順を保存できませんでした。元の順番は変更していません。');
+        return;
+    }
+    state.items = state.reorderItems;
+    state.reorderMode = false;
+    state.reorderItems = [];
+    showNotice(elements.reorderNotice);
+    renderHome();
 }
 
 function renderDetail(id) {
@@ -245,6 +362,14 @@ elements.editButton.addEventListener('click', () => {
     if (state.activeId) setHashRoute(`#practice-menu/${encodeURIComponent(state.activeId)}/edit`);
 });
 elements.deleteButton.addEventListener('click', handleDelete);
+elements.reorderStart.addEventListener('click', startReorder);
+elements.reorderCancel.addEventListener('click', cancelReorder);
+elements.reorderComplete.addEventListener('click', completeReorder);
+elements.list.addEventListener('click', (event) => {
+    const button = event.target.closest('.reorder-move');
+    if (!button || !state.reorderMode) return;
+    moveReorderItem(button.dataset.id, Number(button.dataset.direction));
+});
 document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
 document.querySelectorAll('[data-action="cancel-form"]').forEach((button) => button.addEventListener('click', cancelForm));
 window.addEventListener('hashchange', renderRoute);

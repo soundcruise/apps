@@ -163,4 +163,16 @@ export function deletePracticeMenu(items, id) {
     return { found: nextItems.length !== items.length, items: nextItems };
 }
 
+export function movePracticeMenu(items, id, direction) {
+    const currentIndex = items.findIndex((item) => item.id === id);
+    const nextIndex = currentIndex + direction;
+    if (currentIndex < 0 || nextIndex < 0 || nextIndex >= items.length) {
+        return { moved: false, items };
+    }
+
+    const nextItems = [...items];
+    [nextItems[currentIndex], nextItems[nextIndex]] = [nextItems[nextIndex], nextItems[currentIndex]];
+    return { moved: true, items: nextItems };
+}
+
 export { APP_DEFINITIONS, LIMITS, SCHEMA_VERSION, STORAGE_KEYS };

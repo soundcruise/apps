@@ -82,8 +82,17 @@
             </section>
 
             <section class="port-section" aria-labelledby="practice-heading">
-                <h2 id="practice-heading">練習メニュー</h2>
+                <div class="practice-heading-row">
+                    <h2 id="practice-heading">練習メニュー</h2>
+                    <div id="practice-reorder-actions" class="reorder-actions" hidden>
+                        <button id="practice-reorder-cancel" class="reorder-button" type="button">キャンセル</button>
+                        <button id="practice-reorder-complete" class="reorder-button reorder-button-primary" type="button">完了</button>
+                    </div>
+                    <button id="practice-reorder-start" class="reorder-button" type="button" hidden>並び替え</button>
+                </div>
                 <p id="practice-storage-error" class="notice notice-error" role="alert" hidden></p>
+                <p id="practice-reorder-status" class="reorder-status" aria-live="polite" hidden></p>
+                <p id="practice-reorder-notice" class="notice notice-error" role="alert" hidden></p>
                 <div class="practice-list">
                     <div id="practice-menu-list"></div>
                     <button id="practice-menu-add" class="practice-row add-row" type="button">
