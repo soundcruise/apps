@@ -1,13 +1,13 @@
 :root {
     color-scheme: dark;
-    --port-bg: #090806;
-    --port-surface: #14120f;
-    --port-surface-deep: #0e0d0b;
-    --port-gold: #d9bd72;
-    --port-gold-bright: #f1da99;
-    --port-text: #f8f4e9;
-    --port-muted: #aaa394;
-    --port-border: rgba(217, 189, 114, 0.24);
+    --port-bg: #080806;
+    --port-surface: #12110f;
+    --port-surface-deep: #0c0c0a;
+    --port-gold: #cdb474;
+    --port-gold-bright: #e6d29b;
+    --port-text: #f3f0e8;
+    --port-muted: #9b968a;
+    --port-border: rgba(207, 189, 148, 0.16);
 }
 
 * {
@@ -27,8 +27,8 @@ body {
     color: var(--port-text);
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", sans-serif;
     background:
-        radial-gradient(circle at 50% -12%, rgba(217, 189, 114, 0.14), transparent 40%),
-        linear-gradient(180deg, #0b0a08 0%, var(--port-bg) 58%, #060604 100%);
+        radial-gradient(circle at 50% -18%, rgba(205, 180, 116, 0.075), transparent 38%),
+        linear-gradient(180deg, #0a0a08 0%, var(--port-bg) 58%, #060604 100%);
     -webkit-font-smoothing: antialiased;
 }
 
@@ -45,24 +45,24 @@ body {
 }
 
 .port-header {
-    margin-bottom: 42px;
+    margin-bottom: 36px;
     text-align: center;
 }
 
 h1 {
     margin: 0;
     font-size: clamp(1.85rem, 8vw, 2.45rem);
-    font-weight: 700;
-    letter-spacing: 0.08em;
+    font-weight: 680;
+    letter-spacing: 0.07em;
     line-height: 1.25;
 }
 
 h1::after {
     display: block;
-    width: 42px;
+    width: 28px;
     height: 1px;
-    margin: 17px auto 16px;
-    background: linear-gradient(90deg, transparent, var(--port-gold), transparent);
+    margin: 14px auto 14px;
+    background: linear-gradient(90deg, transparent, rgba(205, 180, 116, 0.72), transparent);
     content: "";
 }
 
@@ -75,51 +75,52 @@ h1::after {
 }
 
 .port-section + .port-section {
-    margin-top: 48px;
+    margin-top: 40px;
 }
 
 .port-section h2 {
     display: flex;
-    margin: 0 0 17px;
+    margin: 0 0 14px;
     align-items: center;
-    gap: 12px;
+    gap: 10px;
     color: var(--port-text);
     font-size: 1.03rem;
-    font-weight: 680;
+    font-weight: 650;
     letter-spacing: 0.05em;
     line-height: 1.4;
 }
 
 .port-section h2::after {
     height: 1px;
-    flex: 1;
-    background: linear-gradient(90deg, var(--port-border), transparent);
+    width: 26px;
+    flex: none;
+    background: linear-gradient(90deg, rgba(205, 180, 116, 0.48), transparent);
     content: "";
 }
 
 .card-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: 12px;
 }
 
 .port-card {
     width: 100%;
     min-width: 0;
-    min-height: 174px;
+    min-height: 150px;
     margin: 0;
     display: flex;
-    padding: 16px 12px 18px;
+    padding: 13px 10px 14px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     border: 1px solid var(--port-border);
-    border-radius: 20px;
+    border-radius: 17px;
     color: var(--port-text);
     background:
-        linear-gradient(150deg, rgba(255, 255, 255, 0.035), transparent 48%),
+        linear-gradient(150deg, rgba(255, 255, 255, 0.025), transparent 48%),
         linear-gradient(180deg, var(--port-surface), var(--port-surface-deep));
-    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
     font: inherit;
     text-align: center;
     text-decoration: none;
@@ -129,14 +130,14 @@ h1::after {
 
 .app-card img {
     display: block;
-    width: min(100%, 116px);
+    width: min(100%, 100px);
     height: auto;
     border-radius: 23%;
-    filter: drop-shadow(0 10px 15px rgba(0, 0, 0, 0.42));
+    filter: drop-shadow(0 8px 13px rgba(0, 0, 0, 0.4));
 }
 
 .card-name {
-    margin-top: 15px;
+    margin-top: 11px;
     font-size: clamp(0.86rem, 3.7vw, 1rem);
     font-weight: 650;
     letter-spacing: 0.02em;
@@ -149,7 +150,7 @@ h1::after {
 }
 
 .app-card:active {
-    border-color: rgba(241, 218, 153, 0.58);
+    border-color: rgba(230, 210, 155, 0.48);
     background: linear-gradient(180deg, #1c1913, #12100d);
     transform: translateY(1px);
 }
@@ -162,26 +163,26 @@ h1::after {
 
 .skeleton-card {
     position: relative;
-    border-color: rgba(217, 189, 114, 0.17);
+    border-color: rgba(207, 189, 148, 0.12);
     background:
-        linear-gradient(150deg, rgba(217, 189, 114, 0.045), transparent 52%),
+        linear-gradient(150deg, rgba(205, 180, 116, 0.03), transparent 52%),
         linear-gradient(180deg, #12110f, #0d0c0a);
 }
 
 .skeleton-icon {
     display: grid;
-    width: 82px;
-    height: 82px;
+    width: 70px;
+    height: 70px;
     place-items: center;
     border: 1px solid rgba(217, 189, 114, 0.2);
-    border-radius: 24px;
-    color: rgba(241, 218, 153, 0.74);
-    background: rgba(217, 189, 114, 0.055);
+    border-radius: 20px;
+    color: rgba(230, 210, 155, 0.68);
+    background: rgba(205, 180, 116, 0.04);
 }
 
 .skeleton-icon svg {
-    width: 54px;
-    height: 54px;
+    width: 47px;
+    height: 47px;
     overflow: visible;
     fill: none;
     stroke: currentColor;
@@ -194,33 +195,18 @@ h1::after {
     color: var(--port-gold-bright);
 }
 
-.status-pill {
-    margin-top: 9px;
-    padding: 3px 9px;
-    border: 1px solid rgba(217, 189, 114, 0.18);
-    border-radius: 999px;
-    color: var(--port-muted);
-    background: rgba(217, 189, 114, 0.045);
-    font-size: 0.66rem;
-    font-weight: 620;
-    letter-spacing: 0.06em;
-    line-height: 1.35;
-}
-
-.practice-card .card-name {
-    margin-top: 13px;
-}
-
 .practice-icon {
-    width: 72px;
-    height: 72px;
-    border-radius: 21px;
+    width: 50px;
+    height: 50px;
+    flex: 0 0 auto;
+    border-radius: 15px;
 }
 
 .card-detail {
-    margin-top: 5px;
-    color: var(--port-gold-bright);
-    font-size: 0.8rem;
+    display: block;
+    margin-top: 3px;
+    color: var(--port-muted);
+    font-size: 0.78rem;
     font-variant-numeric: tabular-nums;
 }
 
@@ -230,16 +216,72 @@ h1::after {
 
 .add-symbol {
     display: grid;
-    width: 70px;
-    height: 70px;
+    width: 54px;
+    height: 54px;
     place-items: center;
-    border: 1px solid rgba(217, 189, 114, 0.25);
+    border: 1px solid rgba(205, 180, 116, 0.2);
     border-radius: 50%;
     color: var(--port-gold);
-    background: rgba(217, 189, 114, 0.04);
-    font-size: 2.15rem;
+    background: rgba(205, 180, 116, 0.035);
+    font-size: 1.8rem;
     font-weight: 260;
     line-height: 1;
+}
+
+.practice-list {
+    display: grid;
+    gap: 10px;
+}
+
+.practice-row {
+    width: 100%;
+    min-height: 76px;
+    display: flex;
+    padding: 12px 14px;
+    align-items: center;
+    gap: 13px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 15px;
+    color: var(--port-text);
+    background: linear-gradient(180deg, #12110f, #0d0c0a);
+    font: inherit;
+    text-align: left;
+}
+
+.practice-row:disabled {
+    opacity: 1;
+    cursor: not-allowed;
+}
+
+.practice-copy {
+    min-width: 0;
+}
+
+.practice-row .card-name {
+    margin: 0;
+    font-size: 0.94rem;
+}
+
+.add-row {
+    min-height: 64px;
+    border-style: dashed;
+    color: var(--port-muted);
+}
+
+.add-row .add-symbol {
+    width: 38px;
+    height: 38px;
+    font-size: 1.4rem;
+}
+
+.add-row .card-name {
+    color: var(--port-muted);
+    font-size: 0.86rem;
+    font-weight: 570;
+}
+
+.my-app-card {
+    min-height: 128px;
 }
 
 .btn-primary {
@@ -268,7 +310,7 @@ h1::after {
 
     .app-card:hover {
         border-color: rgba(241, 218, 153, 0.48);
-        box-shadow: 0 18px 34px rgba(0, 0, 0, 0.36);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.32);
         transform: translateY(-2px);
     }
 }
@@ -279,19 +321,19 @@ h1::after {
     }
 
     .port-header {
-        margin-bottom: 50px;
+        margin-bottom: 44px;
     }
 
     .card-grid {
-        gap: 20px;
+        gap: 16px;
     }
 
     .port-card {
-        padding: 22px 18px 23px;
+        padding: 14px 14px;
     }
 
     .app-card img {
-        width: 136px;
+        width: 118px;
     }
 }
 
@@ -306,29 +348,34 @@ h1::after {
     }
 
     .port-card {
-        min-height: 158px;
-        padding: 13px 8px 15px;
-        border-radius: 17px;
+        min-height: 142px;
+        padding: 11px 7px 12px;
+        border-radius: 15px;
     }
 
     .app-card img {
-        width: min(100%, 102px);
+        width: min(100%, 94px);
     }
 
     .skeleton-icon {
-        width: 68px;
-        height: 68px;
+        width: 62px;
+        height: 62px;
         border-radius: 20px;
     }
 
     .skeleton-icon svg {
-        width: 46px;
-        height: 46px;
+        width: 42px;
+        height: 42px;
     }
 
     .add-symbol {
-        width: 60px;
-        height: 60px;
+        width: 50px;
+        height: 50px;
+    }
+
+    .practice-row {
+        padding: 10px 11px;
+        gap: 10px;
     }
 }
 

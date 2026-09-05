@@ -63,7 +63,6 @@
                             </svg>
                         </span>
                         <span class="card-name">チューナー</span>
-                        <span class="status-pill">準備中</span>
                     </button>
 
                     <button class="port-card skeleton-card" type="button" disabled>
@@ -76,15 +75,14 @@
                             </svg>
                         </span>
                         <span class="card-name">メトロノーム</span>
-                        <span class="status-pill">準備中</span>
                     </button>
                 </div>
             </section>
 
             <section class="port-section" aria-labelledby="practice-heading">
                 <h2 id="practice-heading">練習メニュー</h2>
-                <div class="card-grid">
-                    <button class="port-card skeleton-card practice-card" type="button" disabled>
+                <div class="practice-list">
+                    <button class="practice-row skeleton-card" type="button" disabled>
                         <span class="skeleton-icon practice-icon" aria-hidden="true">
                             <svg viewBox="0 0 64 64" role="img">
                                 <path d="M20 17h24v34H20z" />
@@ -93,15 +91,15 @@
                                 <path class="icon-accent" d="M43 37v6l4 3" />
                             </svg>
                         </span>
-                        <span class="card-name">コードチェンジ練習</span>
-                        <span class="card-detail">10分</span>
-                        <span class="status-pill">サンプル</span>
+                        <span class="practice-copy">
+                            <span class="card-name">コードチェンジ練習</span>
+                            <span class="card-detail">10分 ・ コードクルーズ</span>
+                        </span>
                     </button>
 
-                    <button class="port-card skeleton-card add-card" type="button" disabled>
+                    <button class="practice-row skeleton-card add-row" type="button" disabled>
                         <span class="add-symbol" aria-hidden="true">＋</span>
                         <span class="card-name">練習メニューを追加</span>
-                        <span class="status-pill">準備中</span>
                     </button>
                 </div>
             </section>
@@ -109,10 +107,9 @@
             <section class="port-section" aria-labelledby="my-apps-heading">
                 <h2 id="my-apps-heading">My Apps</h2>
                 <div class="card-grid">
-                    <button class="port-card skeleton-card add-card" type="button" disabled>
+                    <button class="port-card skeleton-card add-card my-app-card" type="button" disabled>
                         <span class="add-symbol" aria-hidden="true">＋</span>
                         <span class="card-name">アプリを追加</span>
-                        <span class="status-pill">準備中</span>
                     </button>
                 </div>
             </section>
