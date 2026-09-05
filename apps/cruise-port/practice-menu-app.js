@@ -8,11 +8,13 @@ import {
     savePracticeMenus,
     updatePracticeMenu
 } from './practice-menu-store.js';
+import { initMetronome } from './metronome-app.js';
 
 const elements = {
     homeView: document.querySelector('#home-view'),
     detailView: document.querySelector('#practice-detail-view'),
     formView: document.querySelector('#practice-form-view'),
+    metronomeView: document.querySelector('#metronome-view'),
     list: document.querySelector('#practice-menu-list'),
     addButton: document.querySelector('#practice-menu-add'),
     storageError: document.querySelector('#practice-storage-error'),
@@ -48,15 +50,18 @@ const state = {
     reorderItems: []
 };
 
+let metronomeController = null;
+
 function showNotice(element, message = '') {
     element.textContent = message;
     element.hidden = message.length === 0;
 }
 
 function showView(view) {
-    [elements.homeView, elements.detailView, elements.formView].forEach((candidate) => {
+    [elements.homeView, elements.detailView, elements.formView, elements.metronomeView].forEach((candidate) => {
         candidate.hidden = candidate !== view;
     });
+    metronomeController?.setActive(view === elements.metronomeView);
     window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
@@ -271,6 +276,8 @@ function renderRoute() {
 
     if (hash === '#practice-menu/new') {
         renderForm('create');
+    } else if (hash === '#metronome') {
+        showView(elements.metronomeView);
     } else if (editMatch) {
         renderForm('edit', decodeURIComponent(editMatch[1]));
     } else if (detailMatch) {
@@ -373,8 +380,13 @@ elements.list.addEventListener('click', (event) => {
 document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
 document.querySelectorAll('[data-action="cancel-form"]').forEach((button) => button.addEventListener('click', cancelForm));
 window.addEventListener('hashchange', renderRoute);
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) metronomeController?.stopForPageHidden();
+});
+window.addEventListener('pagehide', () => metronomeController?.stopForPageHidden());
 
 const loadResult = loadPracticeMenus();
 state.items = loadResult.items;
 state.storageReady = loadResult.ok;
+metronomeController = initMetronome(elements.metronomeView);
 renderRoute();

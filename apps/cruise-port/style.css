@@ -155,6 +155,16 @@ h1::after {
     transform: translateY(1px);
 }
 
+.tool-card {
+    cursor: pointer;
+}
+
+.tool-card:active {
+    border-color: rgba(230, 210, 155, 0.48);
+    background: linear-gradient(180deg, #1c1913, #12100d);
+    transform: translateY(1px);
+}
+
 .skeleton-card:disabled {
     color: var(--port-text);
     cursor: not-allowed;
@@ -416,7 +426,8 @@ textarea:focus-visible {
 }
 
 .detail-view,
-.form-view {
+.form-view,
+.metronome-view {
     width: min(100%, 600px);
     margin: 0 auto;
 }
@@ -635,8 +646,226 @@ select {
     opacity: 0.65;
 }
 
+.visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.metronome-panel {
+    text-align: center;
+}
+
+.metronome-title {
+    text-align: left;
+}
+
+.tempo-display {
+    display: grid;
+    margin: clamp(30px, 8vw, 46px) auto 18px;
+    justify-items: center;
+}
+
+.tempo-value {
+    width: min(100%, 250px);
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    color: var(--port-text);
+    background: transparent;
+    font-size: clamp(4rem, 20vw, 6.8rem);
+    font-weight: 640;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.055em;
+    line-height: 0.98;
+    text-align: center;
+    appearance: textfield;
+}
+
+.tempo-value::-webkit-inner-spin-button,
+.tempo-value::-webkit-outer-spin-button {
+    margin: 0;
+    appearance: none;
+}
+
+.tempo-value:focus-visible {
+    border-radius: 8px;
+    outline-offset: 6px;
+}
+
+.tempo-unit {
+    margin-top: 10px;
+    color: var(--port-gold);
+    font-size: 0.72rem;
+    font-weight: 680;
+    letter-spacing: 0.22em;
+}
+
+.tempo-steps {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.tempo-steps button {
+    min-width: 0;
+    min-height: 48px;
+    padding: 8px 4px;
+    border: 1px solid rgba(207, 189, 148, 0.2);
+    border-radius: 11px;
+    color: var(--port-text);
+    background: #151410;
+    font: inherit;
+    font-size: 0.92rem;
+    font-weight: 650;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.tempo-steps button:focus-visible,
+.metronome-toggle:focus-visible,
+.metronome-tap:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
+}
+
+.beat-display {
+    min-height: 54px;
+    display: flex;
+    margin: 28px 0 24px;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(12px, 4.5vw, 22px);
+}
+
+.beat-dot {
+    width: 13px;
+    height: 13px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(230, 210, 155, 0.48);
+    border-radius: 50%;
+    background: rgba(205, 180, 116, 0.06);
+    box-shadow: none;
+    transition: transform 55ms ease, background-color 55ms ease, border-color 55ms ease;
+}
+
+.beat-dot.beat-strong {
+    width: 17px;
+    height: 17px;
+    border-color: rgba(230, 210, 155, 0.75);
+}
+
+.beat-dot.beat-medium {
+    width: 15px;
+    height: 15px;
+    border-color: rgba(205, 180, 116, 0.6);
+}
+
+.beat-dot.group-start {
+    margin-left: clamp(8px, 2.5vw, 14px);
+}
+
+.beat-dot.is-current {
+    border-color: var(--port-gold-bright);
+    background: var(--port-gold);
+    box-shadow: 0 0 0 5px rgba(205, 180, 116, 0.09);
+    transform: scale(1.18);
+}
+
+.metronome-settings {
+    display: grid;
+    padding-top: 4px;
+    gap: 18px;
+    text-align: left;
+}
+
+.metronome-field {
+    display: grid;
+    gap: 8px;
+}
+
+.metronome-field > span {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    color: var(--port-muted);
+    font-size: 0.78rem;
+    font-weight: 620;
+    letter-spacing: 0.05em;
+}
+
+.metronome-field select {
+    min-height: 48px;
+}
+
+.volume-field output {
+    color: var(--port-gold-bright);
+    font-variant-numeric: tabular-nums;
+}
+
+.volume-field output::after {
+    content: "%";
+}
+
+.volume-field input[type="range"] {
+    height: 32px;
+    min-height: 32px;
+    padding: 0;
+    border: 0;
+    accent-color: var(--port-gold);
+    background: transparent;
+    cursor: pointer;
+}
+
+.metronome-status {
+    min-height: 1.5em;
+    margin: 20px 0 0;
+    color: var(--port-muted);
+    font-size: 0.76rem;
+    line-height: 1.5;
+}
+
+.metronome-actions {
+    display: grid;
+    margin-top: 10px;
+    gap: 10px;
+}
+
+.metronome-toggle {
+    min-height: 58px;
+    font-size: 1rem;
+}
+
+.metronome-toggle.is-playing {
+    border-color: rgba(230, 210, 155, 0.28);
+    color: var(--port-text);
+    background: #181611;
+}
+
+.metronome-tap {
+    min-height: 50px;
+    color: var(--port-gold-bright);
+    letter-spacing: 0.14em;
+}
+
+.tap-status {
+    min-height: 1.5em;
+    margin: 0;
+    color: var(--port-muted);
+    font-size: 0.72rem;
+    line-height: 1.5;
+}
+
 @media (hover: hover) {
     .app-card,
+    .tool-card,
     .practice-menu-card,
     .add-row {
         transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
@@ -646,6 +875,17 @@ select {
         border-color: rgba(241, 218, 153, 0.48);
         box-shadow: 0 15px 30px rgba(0, 0, 0, 0.32);
         transform: translateY(-2px);
+    }
+
+    .tool-card:hover {
+        border-color: rgba(241, 218, 153, 0.4);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.32);
+        transform: translateY(-2px);
+    }
+
+    .tempo-steps button:hover {
+        border-color: rgba(230, 210, 155, 0.36);
+        background: #1b1914;
     }
 
     .practice-menu-card:hover,
@@ -738,10 +978,38 @@ select {
     }
 }
 
+@media (max-width: 370px) {
+    .metronome-panel {
+        padding-right: 18px;
+        padding-left: 18px;
+    }
+
+    .tempo-steps {
+        gap: 6px;
+    }
+
+    .tempo-steps button {
+        min-height: 46px;
+        font-size: 0.84rem;
+    }
+
+    .beat-display {
+        gap: 11px;
+    }
+
+    .beat-dot.group-start {
+        margin-left: 5px;
+    }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .app-card,
     .practice-menu-card,
     .add-row {
+        transition: none;
+    }
+
+    .beat-dot {
         transition: none;
     }
 }

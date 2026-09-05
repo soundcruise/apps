@@ -8,7 +8,8 @@ const APP_DEFINITIONS = Object.freeze({
     pitch: Object.freeze({ name: '音感クルーズ', href: '../pitch-cruise/pro_x9v7q2m8/' }),
     fretboard: Object.freeze({ name: '指板クルーズ', href: '../fretboard_cruise/pro_a9f4k7q2m8z/' }),
     rhythm: Object.freeze({ name: 'リズムクルーズ', href: '../rhythm-cruise/pro_r4m8k7n2q9x/' }),
-    chord: Object.freeze({ name: 'コードクルーズ', href: '../chord-cruise/pro_k7m4q9v2x8/' })
+    chord: Object.freeze({ name: 'コードクルーズ', href: '../chord-cruise/pro_k7m4q9v2x8/' }),
+    metronome: Object.freeze({ name: 'メトロノーム', href: '#metronome' })
 });
 
 const LIMITS = Object.freeze({
