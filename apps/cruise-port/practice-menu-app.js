@@ -9,11 +9,13 @@ import {
     updatePracticeMenu
 } from './practice-menu-store.js';
 import { initMetronome } from './metronome-app.js';
+import { initTuner } from './tuner-app.js';
 
 const elements = {
     homeView: document.querySelector('#home-view'),
     detailView: document.querySelector('#practice-detail-view'),
     formView: document.querySelector('#practice-form-view'),
+    tunerView: document.querySelector('#tuner-view'),
     metronomeView: document.querySelector('#metronome-view'),
     list: document.querySelector('#practice-menu-list'),
     addButton: document.querySelector('#practice-menu-add'),
@@ -51,6 +53,7 @@ const state = {
 };
 
 let metronomeController = null;
+let tunerController = null;
 
 function showNotice(element, message = '') {
     element.textContent = message;
@@ -58,10 +61,12 @@ function showNotice(element, message = '') {
 }
 
 function showView(view) {
-    [elements.homeView, elements.detailView, elements.formView, elements.metronomeView].forEach((candidate) => {
-        candidate.hidden = candidate !== view;
-    });
+    [elements.homeView, elements.detailView, elements.formView, elements.tunerView, elements.metronomeView]
+        .forEach((candidate) => {
+            candidate.hidden = candidate !== view;
+        });
     metronomeController?.setActive(view === elements.metronomeView);
+    tunerController?.setActive(view === elements.tunerView);
     window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
@@ -276,6 +281,8 @@ function renderRoute() {
 
     if (hash === '#practice-menu/new') {
         renderForm('create');
+    } else if (hash === '#tuner') {
+        showView(elements.tunerView);
     } else if (hash === '#metronome') {
         showView(elements.metronomeView);
     } else if (editMatch) {
@@ -389,4 +396,5 @@ const loadResult = loadPracticeMenus();
 state.items = loadResult.items;
 state.storageReady = loadResult.ok;
 metronomeController = initMetronome(elements.metronomeView);
+tunerController = initTuner(elements.tunerView);
 renderRoute();

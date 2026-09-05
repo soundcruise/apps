@@ -54,7 +54,7 @@
             <section class="port-section" aria-labelledby="tools-heading">
                 <h2 id="tools-heading">ツール</h2>
                 <div class="card-grid">
-                    <button class="port-card skeleton-card" type="button" disabled>
+                    <a class="port-card skeleton-card tool-card" id="tuner-card" href="#tuner">
                         <span class="skeleton-icon" aria-hidden="true">
                             <svg viewBox="0 0 64 64" role="img">
                                 <path d="M13 43a21 21 0 0 1 38 0" />
@@ -65,7 +65,7 @@
                             </svg>
                         </span>
                         <span class="card-name">チューナー</span>
-                    </button>
+                    </a>
 
                     <a class="port-card skeleton-card tool-card" id="metronome-card" href="#metronome">
                         <span class="skeleton-icon" aria-hidden="true">
@@ -172,6 +172,7 @@
                             <option value="rhythm">リズムクルーズ</option>
                             <option value="chord">コードクルーズ</option>
                             <option value="metronome">メトロノーム</option>
+                            <option value="tuner">チューナー</option>
                         </select>
                     </div>
 
@@ -186,6 +187,67 @@
                         <button class="action-button secondary-action" type="button" data-action="cancel-form">キャンセル</button>
                     </div>
                 </form>
+            </section>
+        </main>
+
+        <main id="tuner-view" class="port-view tuner-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポート</button>
+            <section class="view-panel tuner-panel" aria-labelledby="tuner-title">
+                <div class="tuner-heading">
+                    <div>
+                        <p class="view-kicker">ツール</p>
+                        <h1 id="tuner-title" class="view-title tuner-title" tabindex="-1">チューナー</h1>
+                    </div>
+                    <p class="tuner-reference">A4 = 440 Hz</p>
+                </div>
+
+                <div class="tuner-reading" aria-label="検出した音程">
+                    <p id="tuner-note" class="tuner-note">—</p>
+                    <p id="tuner-frequency" class="tuner-frequency">— Hz</p>
+                </div>
+
+                <div
+                    id="tuner-meter"
+                    class="tuner-meter is-neutral"
+                    role="meter"
+                    aria-label="音程メーター、入力待ち"
+                    aria-valuemin="-50"
+                    aria-valuemax="50"
+                    aria-valuenow="0"
+                    aria-valuetext="入力待ち"
+                >
+                    <div class="tuner-meter-scale" aria-hidden="true">
+                        <span>−50</span>
+                        <span>0</span>
+                        <span>＋50</span>
+                    </div>
+                    <div class="tuner-meter-track" aria-hidden="true">
+                        <span class="tuner-meter-center"></span>
+                        <span class="tuner-meter-marker"></span>
+                    </div>
+                    <div class="tuner-meter-directions" aria-hidden="true">
+                        <span>低い</span>
+                        <span>高い</span>
+                    </div>
+                </div>
+
+                <p id="tuner-cents" class="tuner-cents">—</p>
+                <p id="tuner-direction" class="tuner-direction" data-state="neutral">入力待ち</p>
+                <p id="tuner-guide" class="tuner-guide">1本ずつ弦を鳴らしてください</p>
+
+                <ul class="tuner-strings" aria-label="ギター標準チューニング">
+                    <li data-tuner-string data-note="E2"><span>6弦</span><strong>E2</strong></li>
+                    <li data-tuner-string data-note="A2"><span>5弦</span><strong>A2</strong></li>
+                    <li data-tuner-string data-note="D3"><span>4弦</span><strong>D3</strong></li>
+                    <li data-tuner-string data-note="G3"><span>3弦</span><strong>G3</strong></li>
+                    <li data-tuner-string data-note="B3"><span>2弦</span><strong>B3</strong></li>
+                    <li data-tuner-string data-note="E4"><span>1弦</span><strong>E4</strong></li>
+                </ul>
+
+                <p id="tuner-error" class="notice notice-error tuner-error" role="alert" hidden></p>
+                <p id="tuner-status" class="tuner-status" aria-live="polite">マイクは停止中です</p>
+                <button id="tuner-toggle" class="action-button primary-action tuner-toggle" type="button">マイクを開始</button>
+                <p class="tuner-privacy">音声は端末内で解析され、録音・送信されません。</p>
             </section>
         </main>
 

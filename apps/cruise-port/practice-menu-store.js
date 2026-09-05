@@ -9,7 +9,8 @@ const APP_DEFINITIONS = Object.freeze({
     fretboard: Object.freeze({ name: '指板クルーズ', href: '../fretboard_cruise/pro_a9f4k7q2m8z/' }),
     rhythm: Object.freeze({ name: 'リズムクルーズ', href: '../rhythm-cruise/pro_r4m8k7n2q9x/' }),
     chord: Object.freeze({ name: 'コードクルーズ', href: '../chord-cruise/pro_k7m4q9v2x8/' }),
-    metronome: Object.freeze({ name: 'メトロノーム', href: '#metronome' })
+    metronome: Object.freeze({ name: 'メトロノーム', href: '#metronome' }),
+    tuner: Object.freeze({ name: 'チューナー', href: '#tuner' })
 });
 
 const LIMITS = Object.freeze({
