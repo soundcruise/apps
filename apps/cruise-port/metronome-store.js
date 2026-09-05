@@ -20,6 +20,7 @@ export const METRONOME_DEFAULTS = Object.freeze({
 });
 
 export function clampInteger(value, min, max, fallback) {
+    if (value === null || (typeof value === 'string' && value.trim() === '')) return fallback;
     const number = Number(value);
     if (!Number.isFinite(number)) return fallback;
     return Math.max(min, Math.min(max, Math.round(number)));

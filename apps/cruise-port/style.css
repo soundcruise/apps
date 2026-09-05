@@ -708,6 +708,14 @@ select {
     letter-spacing: 0.22em;
 }
 
+.tempo-note {
+    margin: 10px 0 0;
+    color: var(--port-muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    line-height: 1.5;
+}
+
 .tempo-steps {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1004,6 +1012,7 @@ select {
 
 @media (prefers-reduced-motion: reduce) {
     .app-card,
+    .tool-card,
     .practice-menu-card,
     .add-row {
         transition: none;

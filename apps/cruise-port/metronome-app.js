@@ -36,8 +36,14 @@ export function accentForBeat(meter, beatIndex) {
     return 'normal';
 }
 
-export function secondsPerBeat(bpm) {
-    return 60 / clampInteger(bpm, METRONOME_LIMITS.bpmMin, METRONOME_LIMITS.bpmMax, METRONOME_DEFAULTS.bpm);
+export function secondsPerBeat(bpm, meter = METRONOME_DEFAULTS.meter) {
+    const quarterNoteSeconds = 60 / clampInteger(
+        bpm,
+        METRONOME_LIMITS.bpmMin,
+        METRONOME_LIMITS.bpmMax,
+        METRONOME_DEFAULTS.bpm
+    );
+    return meter === '6/8' ? quarterNoteSeconds / 3 : quarterNoteSeconds;
 }
 
 export function bpmFromTapTimes(tapTimes) {
@@ -62,7 +68,10 @@ function createAudioEngine(onVisualBeat) {
     let playing = false;
     let nextNoteTime = 0;
     let nextBeatIndex = 0;
+    let lastBeatTime = Number.NEGATIVE_INFINITY;
+    let lastBeatIndex = -1;
     let visualQueue = [];
+    let startGeneration = 0;
     const activeSources = new Map();
 
     function ensureContext() {
@@ -288,7 +297,10 @@ function createAudioEngine(onVisualBeat) {
     function visualTick() {
         if (!playing || !context) return;
         while (visualQueue.length && visualQueue[0].when <= context.currentTime) {
-            onVisualBeat(visualQueue.shift().beatIndex);
+            const beat = visualQueue.shift();
+            lastBeatTime = beat.when;
+            lastBeatIndex = beat.beatIndex;
+            onVisualBeat(beat.beatIndex);
         }
         visualFrame = window.requestAnimationFrame(visualTick);
     }
@@ -303,18 +315,26 @@ function createAudioEngine(onVisualBeat) {
         while (nextNoteTime < horizon) {
             scheduleBeat(nextNoteTime, nextBeatIndex, settings);
             nextBeatIndex = (nextBeatIndex + 1) % beatsForMeter(settings.meter);
-            nextNoteTime += secondsPerBeat(settings.bpm);
+            nextNoteTime += secondsPerBeat(settings.bpm, settings.meter);
         }
         schedulerTimer = window.setTimeout(() => scheduler(getSettings), METRONOME_SCHEDULER_INTERVAL_MS);
     }
 
-    async function start(getSettings) {
+    async function start(getSettings, canStart) {
         if (playing) return true;
+        const generation = ++startGeneration;
         const audioContext = await resume();
-        if (!audioContext || audioContext.state !== 'running') return false;
+        if (
+            generation !== startGeneration
+            || !audioContext
+            || audioContext.state !== 'running'
+            || !canStart()
+        ) return false;
         playing = true;
         nextBeatIndex = 0;
         nextNoteTime = audioContext.currentTime + METRONOME_START_LEAD_SEC;
+        lastBeatTime = Number.NEGATIVE_INFINITY;
+        lastBeatIndex = -1;
         visualQueue = [];
         scheduler(getSettings);
         visualFrame = window.requestAnimationFrame(visualTick);
@@ -322,25 +342,57 @@ function createAudioEngine(onVisualBeat) {
     }
 
     function stop() {
+        startGeneration += 1;
         playing = false;
         window.clearTimeout(schedulerTimer);
         window.cancelAnimationFrame(visualFrame);
         schedulerTimer = 0;
         visualFrame = 0;
         visualQueue = [];
+        lastBeatTime = Number.NEGATIVE_INFINITY;
+        lastBeatIndex = -1;
         cancelScheduledSources();
     }
 
-    function reschedule(getSettings, currentBeat) {
+    function reschedule(getSettings, { resetBeat = false } = {}) {
         if (!playing || !context) return;
+        const settings = getSettings();
+        const beatCount = beatsForMeter(settings.meter);
+        const beatDuration = secondsPerBeat(settings.bpm, settings.meter);
+        const now = context.currentTime;
+
+        while (visualQueue.length && visualQueue[0].when <= now) {
+            const beat = visualQueue.shift();
+            lastBeatTime = beat.when;
+            lastBeatIndex = beat.beatIndex;
+            if (!resetBeat) onVisualBeat(beat.beatIndex);
+        }
+
+        const firstFutureBeat = visualQueue[0] || null;
+        let rescheduledTime = Number.isFinite(lastBeatTime)
+            ? lastBeatTime + beatDuration
+            : (firstFutureBeat?.when || nextNoteTime);
+        let rescheduledBeat = resetBeat
+            ? 0
+            : (Number.isFinite(lastBeatTime)
+                ? (lastBeatIndex + 1) % beatCount
+                : (firstFutureBeat?.beatIndex ?? nextBeatIndex) % beatCount);
+
+        if (!Number.isFinite(lastBeatTime)) {
+            rescheduledTime = Math.max(rescheduledTime, now + METRONOME_START_LEAD_SEC);
+        } else {
+            while (rescheduledTime < now + METRONOME_START_LEAD_SEC) {
+                rescheduledTime += beatDuration;
+                if (!resetBeat) rescheduledBeat = (rescheduledBeat + 1) % beatCount;
+            }
+        }
+
         window.clearTimeout(schedulerTimer);
         schedulerTimer = 0;
         cancelScheduledSources();
         visualQueue = [];
-        nextBeatIndex = currentBeat < 0
-            ? 0
-            : (currentBeat + 1) % beatsForMeter(getSettings().meter);
-        nextNoteTime = context.currentTime + METRONOME_START_LEAD_SEC;
+        nextBeatIndex = rescheduledBeat;
+        nextNoteTime = rescheduledTime;
         scheduler(getSettings);
     }
 
@@ -365,6 +417,7 @@ export function initMetronome(root) {
         title: root.querySelector('#metronome-title'),
         bpm: root.querySelector('#metronome-bpm'),
         meter: root.querySelector('#metronome-meter'),
+        tempoNote: root.querySelector('#metronome-tempo-note'),
         sound: root.querySelector('#metronome-sound'),
         volume: root.querySelector('#metronome-volume'),
         volumeValue: root.querySelector('#metronome-volume-value'),
@@ -383,6 +436,7 @@ export function initMetronome(root) {
         currentBeat: -1,
         tapTimes: []
     };
+    let viewActive = false;
 
     function getSettings() {
         return { ...state.settings };
@@ -424,6 +478,7 @@ export function initMetronome(root) {
         elements.sound.value = state.settings.sound;
         elements.volume.value = String(state.settings.volume);
         elements.volumeValue.value = String(state.settings.volume);
+        elements.tempoNote.hidden = state.settings.meter !== '6/8';
         renderBeatDisplay();
     }
 
@@ -442,7 +497,12 @@ export function initMetronome(root) {
     const engine = createAudioEngine(setVisualBeat);
 
     function rescheduleIfPlaying() {
-        if (engine.isPlaying()) engine.reschedule(getSettings, state.currentBeat);
+        if (engine.isPlaying()) engine.reschedule(getSettings);
+    }
+
+    function resetTapState() {
+        state.tapTimes = [];
+        elements.tapStatus.textContent = 'タップしてテンポを測定';
     }
 
     function setBpm(value, { persist = true } = {}) {
@@ -470,15 +530,15 @@ export function initMetronome(root) {
     elements.meter.addEventListener('change', () => {
         state.settings = { ...state.settings, meter: elements.meter.value };
         state.currentBeat = -1;
+        elements.tempoNote.hidden = state.settings.meter !== '6/8';
         renderBeatDisplay();
         saveSettings();
-        rescheduleIfPlaying();
+        if (engine.isPlaying()) engine.reschedule(getSettings, { resetBeat: true });
     });
 
     elements.sound.addEventListener('change', () => {
         state.settings = { ...state.settings, sound: elements.sound.value };
         saveSettings();
-        rescheduleIfPlaying();
     });
 
     elements.volume.addEventListener('input', () => {
@@ -498,8 +558,8 @@ export function initMetronome(root) {
         }
         elements.toggle.disabled = true;
         try {
-            const started = await engine.start(getSettings);
-            if (!started) elements.status.textContent = '音声を開始できませんでした。もう一度お試しください。';
+            const started = await engine.start(getSettings, () => viewActive && !document.hidden);
+            if (!started && viewActive) elements.status.textContent = '音声を開始できませんでした。もう一度お試しください。';
             renderPlaying();
         } catch (error) {
             elements.status.textContent = '音声を開始できませんでした。もう一度お試しください。';
@@ -532,16 +592,18 @@ export function initMetronome(root) {
 
     return {
         setActive(active) {
-            if (!active && engine.isPlaying()) {
+            viewActive = active;
+            if (!active) {
                 engine.stop();
                 state.currentBeat = -1;
+                resetTapState();
                 renderBeatDisplay();
                 renderPlaying();
             }
             if (active) elements.title.focus({ preventScroll: true });
         },
         stopForPageHidden() {
-            state.tapTimes = [];
+            resetTapState();
             engine.suspend();
             state.currentBeat = -1;
             renderBeatDisplay();
