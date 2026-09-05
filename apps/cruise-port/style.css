@@ -233,6 +233,11 @@ h1::after {
     gap: 10px;
 }
 
+#practice-menu-list {
+    display: grid;
+    gap: 10px;
+}
+
 .practice-row {
     width: 100%;
     min-height: 76px;
@@ -246,26 +251,42 @@ h1::after {
     background: linear-gradient(180deg, #12110f, #0d0c0a);
     font: inherit;
     text-align: left;
-}
-
-.practice-row:disabled {
-    opacity: 1;
-    cursor: not-allowed;
+    text-decoration: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .practice-copy {
     min-width: 0;
+    flex: 1;
 }
 
 .practice-row .card-name {
+    display: -webkit-box;
     margin: 0;
+    overflow: hidden;
     font-size: 0.94rem;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.practice-menu-card {
+    min-height: 72px;
+    cursor: pointer;
+}
+
+.practice-arrow {
+    flex: 0 0 auto;
+    color: rgba(205, 180, 116, 0.66);
+    font-size: 1rem;
 }
 
 .add-row {
     min-height: 64px;
     border-style: dashed;
     color: var(--port-muted);
+    cursor: pointer;
 }
 
 .add-row .add-symbol {
@@ -282,6 +303,227 @@ h1::after {
 
 .my-app-card {
     min-height: 128px;
+}
+
+.practice-row:focus-visible,
+.view-back:focus-visible,
+.action-button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
+}
+
+.practice-row:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.port-view[hidden],
+.notice[hidden] {
+    display: none;
+}
+
+.detail-view,
+.form-view {
+    width: min(100%, 600px);
+    margin: 0 auto;
+}
+
+.view-back {
+    min-height: 44px;
+    margin: -10px 0 18px;
+    padding: 8px 2px;
+    border: 0;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.88rem;
+    cursor: pointer;
+}
+
+.view-panel {
+    padding: clamp(22px, 6vw, 34px);
+    border: 1px solid var(--port-border);
+    border-radius: 18px;
+    background:
+        linear-gradient(150deg, rgba(255, 255, 255, 0.025), transparent 46%),
+        linear-gradient(180deg, var(--port-surface), var(--port-surface-deep));
+    box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
+}
+
+.view-kicker {
+    margin: 0 0 10px;
+    color: var(--port-gold);
+    font-size: 0.72rem;
+    font-weight: 650;
+    letter-spacing: 0.12em;
+}
+
+.view-title {
+    margin: 0;
+    font-size: clamp(1.45rem, 6vw, 2rem);
+    font-weight: 680;
+    letter-spacing: 0.035em;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.view-title::after {
+    display: none;
+}
+
+.detail-list {
+    margin: 30px 0 0;
+}
+
+.detail-list > div {
+    padding: 18px 0;
+    border-top: 1px solid rgba(207, 189, 148, 0.12);
+}
+
+.detail-list dt {
+    margin-bottom: 7px;
+    color: var(--port-muted);
+    font-size: 0.76rem;
+    letter-spacing: 0.05em;
+}
+
+.detail-list dd {
+    margin: 0;
+    color: var(--port-text);
+    font-size: 0.96rem;
+    line-height: 1.7;
+}
+
+.detail-memo {
+    min-height: 1.7em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.view-actions,
+.form-actions {
+    display: grid;
+    margin-top: 24px;
+    gap: 10px;
+}
+
+.action-button {
+    width: 100%;
+    min-height: 48px;
+    display: inline-flex;
+    padding: 11px 18px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    font: inherit;
+    font-size: 0.91rem;
+    font-weight: 650;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.primary-action {
+    border-color: rgba(230, 210, 155, 0.46);
+    color: #171208;
+    background: linear-gradient(180deg, #e8d49d, #bfa25a);
+}
+
+.secondary-action {
+    border-color: rgba(207, 189, 148, 0.18);
+    color: var(--port-text);
+    background: #151410;
+}
+
+.danger-action {
+    border-color: rgba(194, 104, 92, 0.3);
+    color: #e2aaa2;
+    background: rgba(92, 35, 29, 0.14);
+}
+
+.notice {
+    margin: 0 0 12px;
+    padding: 11px 13px;
+    border-radius: 10px;
+    font-size: 0.8rem;
+    line-height: 1.6;
+}
+
+.notice-error {
+    border: 1px solid rgba(194, 104, 92, 0.3);
+    color: #e7b7b0;
+    background: rgba(92, 35, 29, 0.16);
+}
+
+.form-field + .form-field {
+    margin-top: 20px;
+}
+
+.form-field:first-of-type {
+    margin-top: 30px;
+}
+
+.form-field label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--port-text);
+    font-size: 0.84rem;
+    font-weight: 620;
+}
+
+.required-label,
+.optional-label {
+    margin-left: 5px;
+    color: var(--port-muted);
+    font-size: 0.68rem;
+    font-weight: 500;
+}
+
+input,
+select,
+textarea {
+    width: 100%;
+    max-width: 100%;
+    border: 1px solid rgba(207, 189, 148, 0.2);
+    border-radius: 11px;
+    color: var(--port-text);
+    background: #090907;
+    font: inherit;
+    font-size: 1rem;
+}
+
+input,
+select {
+    min-height: 48px;
+    padding: 10px 12px;
+}
+
+textarea {
+    min-height: 132px;
+    padding: 12px;
+    line-height: 1.65;
+    resize: vertical;
+}
+
+select {
+    color-scheme: dark;
+}
+
+.duration-input {
+    display: grid;
+    grid-template-columns: minmax(0, 140px) auto;
+    align-items: center;
+    gap: 10px;
+}
+
+.duration-input span {
+    color: var(--port-muted);
+    font-size: 0.9rem;
 }
 
 .btn-primary {
@@ -304,7 +546,9 @@ h1::after {
 }
 
 @media (hover: hover) {
-    .app-card {
+    .app-card,
+    .practice-menu-card,
+    .add-row {
         transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
     }
 
@@ -312,6 +556,12 @@ h1::after {
         border-color: rgba(241, 218, 153, 0.48);
         box-shadow: 0 15px 30px rgba(0, 0, 0, 0.32);
         transform: translateY(-2px);
+    }
+
+    .practice-menu-card:hover,
+    .add-row:hover {
+        border-color: rgba(230, 210, 155, 0.3);
+        background: #151410;
     }
 }
 
@@ -380,7 +630,9 @@ h1::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .app-card {
+    .app-card,
+    .practice-menu-card,
+    .add-row {
         transition: none;
     }
 }

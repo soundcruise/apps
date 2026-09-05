@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#090806">
     <title>クルーズポート</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
     <link rel="stylesheet" href="./style.css">
     <script>
@@ -15,15 +16,16 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
+    <script type="module" src="./practice-menu-app.js"></script>
 </head>
 <body>
     <div class="port-shell">
-        <header class="port-header">
-            <h1>クルーズポート</h1>
-            <p class="port-concept">弾き語りに必要なアプリを1つに集約。</p>
-        </header>
+        <main id="home-view" class="port-view">
+            <header class="port-header">
+                <h1>クルーズポート</h1>
+                <p class="port-concept">弾き語りに必要なアプリを1つに集約。</p>
+            </header>
 
-        <main>
             <section class="port-section" aria-labelledby="cruise-apps-heading">
                 <h2 id="cruise-apps-heading">クルーズアプリ</h2>
                 <nav class="card-grid" aria-label="クルーズアプリ">
@@ -81,23 +83,10 @@
 
             <section class="port-section" aria-labelledby="practice-heading">
                 <h2 id="practice-heading">練習メニュー</h2>
+                <p id="practice-storage-error" class="notice notice-error" role="alert" hidden></p>
                 <div class="practice-list">
-                    <button class="practice-row skeleton-card" type="button" disabled>
-                        <span class="skeleton-icon practice-icon" aria-hidden="true">
-                            <svg viewBox="0 0 64 64" role="img">
-                                <path d="M20 17h24v34H20z" />
-                                <path d="M26 25h12M26 32h12M26 39h7" />
-                                <circle class="icon-accent" cx="43" cy="43" r="10" />
-                                <path class="icon-accent" d="M43 37v6l4 3" />
-                            </svg>
-                        </span>
-                        <span class="practice-copy">
-                            <span class="card-name">コードチェンジ練習</span>
-                            <span class="card-detail">10分 ・ コードクルーズ</span>
-                        </span>
-                    </button>
-
-                    <button class="practice-row skeleton-card add-row" type="button" disabled>
+                    <div id="practice-menu-list"></div>
+                    <button id="practice-menu-add" class="practice-row add-row" type="button">
                         <span class="add-symbol" aria-hidden="true">＋</span>
                         <span class="card-name">練習メニューを追加</span>
                     </button>
@@ -112,6 +101,81 @@
                         <span class="card-name">アプリを追加</span>
                     </button>
                 </div>
+            </section>
+        </main>
+
+        <main id="practice-detail-view" class="port-view detail-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポート</button>
+            <article class="view-panel" aria-labelledby="practice-detail-title">
+                <p class="view-kicker">練習メニュー</p>
+                <h1 id="practice-detail-title" class="view-title" tabindex="-1"></h1>
+
+                <dl class="detail-list">
+                    <div>
+                        <dt>練習時間</dt>
+                        <dd id="practice-detail-duration"></dd>
+                    </div>
+                    <div>
+                        <dt>使用アプリ</dt>
+                        <dd id="practice-detail-app"></dd>
+                    </div>
+                    <div>
+                        <dt>メモ</dt>
+                        <dd id="practice-detail-memo" class="detail-memo"></dd>
+                    </div>
+                </dl>
+
+                <p id="practice-detail-error" class="notice notice-error" role="alert" hidden></p>
+                <div class="view-actions">
+                    <a id="practice-open-app" class="action-button primary-action" href="#"></a>
+                    <button id="practice-edit" class="action-button secondary-action" type="button">編集</button>
+                    <button id="practice-delete" class="action-button danger-action" type="button">削除</button>
+                </div>
+            </article>
+        </main>
+
+        <main id="practice-form-view" class="port-view form-view" hidden>
+            <button class="view-back" type="button" data-action="cancel-form">← 戻る</button>
+            <section class="view-panel" aria-labelledby="practice-form-title">
+                <p class="view-kicker">練習メニュー</p>
+                <h1 id="practice-form-title" class="view-title" tabindex="-1">練習メニューを作成</h1>
+
+                <form id="practice-menu-form" novalidate>
+                    <div class="form-field">
+                        <label for="practice-name">メニュー名 <span class="required-label">必須</span></label>
+                        <input id="practice-name" name="name" type="text" maxlength="100" autocomplete="off" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="practice-duration">練習時間 <span class="required-label">必須</span></label>
+                        <div class="duration-input">
+                            <input id="practice-duration" name="durationMinutes" type="number" min="1" max="999" step="1" inputmode="numeric" required>
+                            <span>分</span>
+                        </div>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="practice-app">使用アプリ <span class="required-label">必須</span></label>
+                        <select id="practice-app" name="appId" required>
+                            <option value="">選択してください</option>
+                            <option value="pitch">音感クルーズ</option>
+                            <option value="fretboard">指板クルーズ</option>
+                            <option value="rhythm">リズムクルーズ</option>
+                            <option value="chord">コードクルーズ</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="practice-memo">メモ <span class="optional-label">任意・1000文字以内</span></label>
+                        <textarea id="practice-memo" name="memo" maxlength="1000" rows="6"></textarea>
+                    </div>
+
+                    <p id="practice-form-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="form-actions">
+                        <button class="action-button primary-action" type="submit">保存</button>
+                        <button class="action-button secondary-action" type="button" data-action="cancel-form">キャンセル</button>
+                    </div>
+                </form>
             </section>
         </main>
     </div>
