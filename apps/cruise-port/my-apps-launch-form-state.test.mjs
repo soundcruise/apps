@@ -6,6 +6,7 @@ import {
     markCustomLaunchTested,
     recognizeKnownLaunchApp,
     setKnownLaunchDecision,
+    shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js';
 
@@ -23,6 +24,14 @@ assert.equal(isKnownLaunchEnabled(state), false, 'YouTube manual OFF is remember
 state = recognizeKnownLaunchApp(state, null);
 assert.equal(state.activeAppKey, null, 'unknown URL clears the active known app key');
 assert.equal(isKnownLaunchEnabled(state), false);
+
+assert.equal(shouldShowCustomLaunchSettings(), false, 'new unknown Store URLs do not expose advanced custom settings');
+assert.equal(shouldShowCustomLaunchSettings({ customEditAvailable: true }), true, 'existing custom settings remain editable');
+assert.equal(
+    shouldShowCustomLaunchSettings({ knownAppKey: 'spotify', customEditAvailable: true }),
+    false,
+    'a recognized known app does not show legacy custom settings'
+);
 
 const knownItem = { launchMode: 'known-app', appKey: 'spotify' };
 assert.equal(isKnownLaunchEnabled(createKnownLaunchFormState(knownItem, 'spotify')), true);

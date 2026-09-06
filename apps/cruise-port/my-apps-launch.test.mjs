@@ -17,6 +17,19 @@ assert.equal(resolveMyAppHref(spotifyItem, 'unknown'), storeUrl, 'unknown platfo
 assert.equal(resolveMyAppHref(spotifyItem, 'android'), storeUrl, 'Android direct launch is disabled until M3.2-B');
 assert.equal(resolveMyAppHref({ ...spotifyItem, appKey: 'unknown-app' }, 'ios'), storeUrl);
 
+const lineMusicItem = {
+    url: 'https://play.google.com/store/apps/details?id=jp.linecorp.linemusic.android',
+    launchMode: 'known-app',
+    appKey: 'line-music',
+    customLaunch: null
+};
+assert.equal(resolveMyAppHref(lineMusicItem, 'ios'), 'https://music.line.me/launch');
+assert.equal(
+    resolveMyAppHref(lineMusicItem, 'android'),
+    lineMusicItem.url,
+    'Android candidate metadata remains inactive until M3.2-B'
+);
+
 const customItem = {
     url: storeUrl,
     launchMode: 'custom',

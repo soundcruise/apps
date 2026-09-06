@@ -27,6 +27,10 @@ export function isKnownLaunchEnabled(state) {
     return Boolean(state.activeAppKey && state.decisions[state.activeAppKey]);
 }
 
+export function shouldShowCustomLaunchSettings({ knownAppKey = null, customEditAvailable = false } = {}) {
+    return !knownAppKey && Boolean(customEditAvailable);
+}
+
 export function createCustomLaunchTestState() {
     return {
         ios: { href: null, testedHref: null },

@@ -33,6 +33,7 @@ import {
     markCustomLaunchTested,
     recognizeKnownLaunchApp,
     setKnownLaunchDecision,
+    shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.0.0';
 import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.2.0';
@@ -602,7 +603,10 @@ function updateMyAppsLaunchOptions(item = null, { initial = false } = {}) {
         myAppsState.customEditAvailable = false;
     }
     myAppsState.customStoreIdentity = storeIdentity;
-    const showCustom = !knownApp && (Boolean(store) || myAppsState.customEditAvailable);
+    const showCustom = shouldShowCustomLaunchSettings({
+        knownAppKey: knownApp?.key || null,
+        customEditAvailable: myAppsState.customEditAvailable
+    });
     elements.myAppsCustomLaunch.hidden = !showCustom;
     if (!showCustom) elements.myAppsCustomEnabled.checked = false;
     updateMyAppsCustomLaunchTests();
