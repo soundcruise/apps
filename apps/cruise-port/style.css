@@ -947,6 +947,94 @@ select {
     letter-spacing: 0.04em;
 }
 
+.tuner-target-controls {
+    display: grid;
+    margin-top: 18px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 10px;
+    text-align: left;
+}
+
+.tuner-tuning-field,
+.tuner-capo-field {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+}
+
+.tuner-tuning-field > span,
+.tuner-capo-field > span {
+    color: var(--port-muted);
+    font-size: 0.66rem;
+    font-weight: 650;
+    letter-spacing: 0.05em;
+}
+
+.tuner-tuning-field select {
+    min-height: 44px;
+    padding-top: 8px;
+    padding-bottom: 8px;
+    font-size: 0.84rem;
+}
+
+.tuner-capo-control {
+    display: grid;
+    grid-template-columns: 44px minmax(48px, auto) 44px;
+    align-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(207, 189, 148, 0.2);
+    border-radius: 11px;
+    background: #090907;
+}
+
+.tuner-capo-control button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    color: var(--port-gold-bright);
+    background: transparent;
+    font: inherit;
+    font-size: 1.1rem;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.tuner-capo-control button:disabled {
+    color: rgba(190, 185, 170, 0.28);
+    cursor: default;
+}
+
+.tuner-capo-control button:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: -3px;
+}
+
+.tuner-capo-control output {
+    min-width: 0;
+    color: var(--port-text);
+    font-size: 0.76rem;
+    font-variant-numeric: tabular-nums;
+    font-weight: 650;
+    text-align: center;
+}
+
+.tuner-capo-help,
+.tuner-settings-error {
+    margin: 6px 0 0;
+    color: var(--port-muted);
+    font-size: 0.62rem;
+    line-height: 1.45;
+    text-align: right;
+}
+
+.tuner-settings-error {
+    min-height: 1.45em;
+    margin-top: 2px;
+    color: #e5aca4;
+}
+
 .tuner-reading {
     display: grid;
     min-height: 92px;
@@ -1076,8 +1164,14 @@ select {
 
 .tuner-direction[data-state="neutral"],
 .tuner-direction[data-state="stale"],
-.tuner-direction[data-state="checking"] {
+.tuner-direction[data-state="checking"],
+.tuner-direction[data-state="off-target"] {
     color: var(--port-muted);
+}
+
+.tuner-direction[data-state="off-target"] {
+    font-size: clamp(1rem, 4.6vw, 1.28rem);
+    font-weight: 620;
 }
 
 .tuner-strings {

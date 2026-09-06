@@ -8,7 +8,16 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=1.1.4';
+} from './tuner-store.js?v=1.1.5';
+import {
+    TUNER_CAPO_MAX,
+    TUNER_CAPO_MIN,
+    TUNING_PRESET_LIST,
+    findTargetString,
+    getTuningTargets,
+    isValidCapo,
+    isValidTuningId
+} from './tuner-tuning.js?v=1.1.5';
 
 const EMA_TIME_CONSTANT_MS = 80;
 const NULL_GRACE_MS = 150;
@@ -29,14 +38,7 @@ const DIAGNOSTIC_MAX_DBFS = -18;
 const INPUT_LEVEL_ATTACK_MS = 70;
 const INPUT_LEVEL_RELEASE_MS = 400;
 
-export const STANDARD_TUNING = Object.freeze([
-    Object.freeze({ string: 6, note: 'E2' }),
-    Object.freeze({ string: 5, note: 'A2' }),
-    Object.freeze({ string: 4, note: 'D3' }),
-    Object.freeze({ string: 3, note: 'G3' }),
-    Object.freeze({ string: 2, note: 'B3' }),
-    Object.freeze({ string: 1, note: 'E4' })
-]);
+export const STANDARD_TUNING = Object.freeze(getTuningTargets('standard', 0));
 
 const ERROR_MESSAGES = Object.freeze({
     'permission-denied': 'マイクを利用できません。サイトと端末のマイク許可を確認してください。',
@@ -75,8 +77,7 @@ function isValidResult(result) {
 }
 
 export function standardStringForNote(noteName, octave) {
-    const note = `${noteName}${octave}`;
-    return STANDARD_TUNING.find((entry) => entry.note === note) || null;
+    return findTargetString(STANDARD_TUNING, noteName, octave);
 }
 
 export function createTunerSmoother() {
@@ -339,6 +340,8 @@ export function formatTunerDiagnosticCopy({
     diagnostic = {},
     display = {},
     thresholdDb = TUNER_DEFAULT_THRESHOLD_DB,
+    tuningId = 'standard',
+    capo = 0,
     rmsThreshold = diagnostic.rmsThreshold ?? thresholdDbToRms(thresholdDb),
     summary = { frames: 0, valid: 0, lowRms: 0, lowConfidence: 0, other: 0 }
 } = {}) {
@@ -362,6 +365,8 @@ export function formatTunerDiagnosticCopy({
         `Current Reason: ${diagnostic.reason || '—'}`,
         `Threshold: ${number(thresholdDb, 0)} dBFS`,
         `RMS Threshold: ${number(rmsThreshold, 6)}`,
+        `Tuning: ${tuningId}`,
+        `Capo: ${capo}`,
         `Display: ${display.state || 'neutral'}`,
         `Final: ${finalLabel}`,
         '',
@@ -398,6 +403,11 @@ export function initTuner(root, {
         toggle: root.querySelector('#tuner-toggle'),
         error: root.querySelector('#tuner-error'),
         status: root.querySelector('#tuner-status'),
+        tuning: root.querySelector('#tuner-tuning'),
+        capoDown: root.querySelector('#tuner-capo-down'),
+        capoUp: root.querySelector('#tuner-capo-up'),
+        capoValue: root.querySelector('#tuner-capo-value'),
+        settingsError: root.querySelector('#tuner-settings-error'),
         inputLevelWrap: root.querySelector('#tuner-input-level-wrap'),
         inputLevel: root.querySelector('#tuner-input-level'),
         inputSettingsToggle: root.querySelector('#tuner-input-settings-toggle'),
@@ -438,6 +448,10 @@ export function initTuner(root, {
     const diagnosticHistory = debugEnabled ? createTunerDiagnosticHistory() : null;
     const loadResult = loadTunerSettings(storage);
     let currentThresholdDb = loadResult.settings.thresholdDb;
+    let currentTuningId = loadResult.settings.tuningId;
+    let currentCapo = loadResult.settings.capo;
+    let currentTargets = getTuningTargets(currentTuningId, currentCapo);
+    let currentReading = null;
     let inputSettingsOpen = false;
     let viewActive = false;
     let audioStatus = 'idle';
@@ -453,6 +467,49 @@ export function initTuner(root, {
         });
     }
 
+    function saveCurrentSettings() {
+        const result = saveTunerSettings({
+            version: TUNER_SCHEMA_VERSION,
+            thresholdDb: currentThresholdDb,
+            tuningId: currentTuningId,
+            capo: currentCapo
+        }, storage);
+        elements.settingsError.textContent = result.ok ? '' : 'チューナー設定を保存できませんでした。';
+        return result;
+    }
+
+    function initializeTuningOptions() {
+        const documentObject = root.ownerDocument ?? globalThis.document;
+        const options = TUNING_PRESET_LIST.map(({ id, label }) => {
+            const option = documentObject.createElement('option');
+            option.value = id;
+            option.textContent = label;
+            return option;
+        });
+        elements.tuning.replaceChildren(...options);
+    }
+
+    function renderTargetCards() {
+        currentTargets = getTuningTargets(currentTuningId, currentCapo);
+        elements.strings.forEach((element, index) => {
+            const target = currentTargets[index];
+            element.dataset.note = target.note;
+            element.dataset.string = String(target.string);
+            element.querySelector('span').textContent = `${target.string}弦`;
+            element.querySelector('strong').textContent = target.note;
+            element.setAttribute('aria-label', `${target.string}弦 ${target.note}`);
+        });
+    }
+
+    function renderTargetControls() {
+        elements.tuning.value = currentTuningId;
+        elements.capoValue.textContent = currentCapo === 0 ? 'なし' : String(currentCapo);
+        elements.capoValue.setAttribute('aria-label', currentCapo === 0 ? 'カポなし' : `カポ${currentCapo}フレット`);
+        elements.capoDown.disabled = currentCapo === TUNER_CAPO_MIN;
+        elements.capoUp.disabled = currentCapo === TUNER_CAPO_MAX;
+        renderTargetCards();
+    }
+
     function showError(message = '') {
         elements.error.textContent = message;
         elements.error.hidden = !message;
@@ -465,12 +522,14 @@ export function initTuner(root, {
 
     function renderNeutral() {
         smoother.reset();
+        currentReading = null;
         elements.note.textContent = '—';
         elements.frequency.textContent = '— Hz';
         elements.cents.textContent = '—';
         elements.direction.textContent = '入力待ち';
         elements.direction.dataset.state = 'neutral';
         elements.meter.classList.add('is-neutral');
+        elements.meter.classList.remove('is-off-target');
         elements.meter.style.setProperty('--tuner-position', '50%');
         elements.meter.setAttribute('aria-valuenow', '0');
         elements.meter.setAttribute('aria-valuetext', '入力待ち');
@@ -481,11 +540,12 @@ export function initTuner(root, {
     function renderReading(reading) {
         if (!reading) {
             renderNeutral();
-            return;
+            return null;
         }
 
         const roundedCents = Math.round(reading.cents);
         const noteLabel = `${reading.noteName}${reading.octave}`;
+        const targetString = findTargetString(currentTargets, reading.noteName, reading.octave);
         const directionLabels = {
             low: '↓ 低い',
             high: '↑ 高い',
@@ -494,11 +554,27 @@ export function initTuner(root, {
         };
         elements.note.textContent = noteLabel;
         elements.frequency.textContent = `${reading.frequency.toFixed(2)} Hz`;
+        clearStringHighlight();
+
+        if (!targetString) {
+            elements.cents.textContent = '—';
+            elements.direction.textContent = '目標音ではありません';
+            elements.direction.dataset.state = 'off-target';
+            elements.meter.classList.add('is-neutral');
+            elements.meter.classList.add('is-off-target');
+            elements.meter.style.setProperty('--tuner-position', '50%');
+            elements.meter.setAttribute('aria-valuenow', '0');
+            elements.meter.setAttribute('aria-valuetext', '目標音ではありません');
+            elements.meter.setAttribute('aria-label', `${noteLabel}、目標音ではありません`);
+            return null;
+        }
+
         elements.cents.textContent = formatCents(reading.cents);
         const directionText = reading.stale ? '音を確認しています' : directionLabels[reading.direction];
         elements.direction.textContent = directionText;
         elements.direction.dataset.state = reading.stale ? 'stale' : reading.direction;
         elements.meter.classList.remove('is-neutral');
+        elements.meter.classList.remove('is-off-target');
         elements.meter.style.setProperty(
             '--tuner-position',
             `${Math.max(0, Math.min(100, reading.cents + 50))}%`
@@ -507,13 +583,10 @@ export function initTuner(root, {
         elements.meter.setAttribute('aria-valuetext', `${formatCents(reading.cents)}、${directionText}`);
         elements.meter.setAttribute('aria-label', `${noteLabel}、${formatCents(reading.cents)}、${directionText}`);
 
-        clearStringHighlight();
-        const standardString = standardStringForNote(reading.noteName, reading.octave);
-        if (standardString) {
-            const activeElement = elements.strings.find((element) => element.dataset.note === standardString.note);
-            activeElement?.classList.add('is-active');
-            activeElement?.setAttribute('aria-current', 'true');
-        }
+        const activeElement = elements.strings.find((element) => element.dataset.string === String(targetString.string));
+        activeElement?.classList.add('is-active');
+        activeElement?.setAttribute('aria-current', 'true');
+        return targetString;
     }
 
     function renderAudioState(state) {
@@ -653,14 +726,15 @@ export function initTuner(root, {
         onResult(result) {
             if (!viewActive || audioStatus !== 'running') return;
             const reading = smoother.push(result, now());
+            currentReading = reading;
+            const targetString = renderReading(reading);
             latestDiagnosticDisplay = reading
                 ? {
-                    state: reading.stale ? 'stale' : 'valid',
+                    state: reading.stale ? 'stale' : (targetString ? 'valid' : 'off-target'),
                     note: `${reading.noteName}${reading.octave}`,
                     frequency: reading.frequency
                 }
                 : { ...latestDiagnosticDisplay, state: 'neutral' };
-            renderReading(reading);
         },
         onDiagnostic(diagnostic) {
             if (!viewActive || audioStatus !== 'running') return;
@@ -689,6 +763,8 @@ export function initTuner(root, {
                 diagnostic: latestDiagnostic || {},
                 display: latestDiagnosticDisplay,
                 thresholdDb: currentThresholdDb,
+                tuningId: currentTuningId,
+                capo: currentCapo,
                 rmsThreshold: thresholdDbToRms(currentThresholdDb),
                 summary: latestDiagnosticSummary
             });
@@ -702,6 +778,41 @@ export function initTuner(root, {
         });
     }
 
+    function reevaluateCurrentReading() {
+        if (!currentReading) {
+            clearStringHighlight();
+            return;
+        }
+        const targetString = renderReading(currentReading);
+        latestDiagnosticDisplay = {
+            state: currentReading.stale ? 'stale' : (targetString ? 'valid' : 'off-target'),
+            note: `${currentReading.noteName}${currentReading.octave}`,
+            frequency: currentReading.frequency
+        };
+    }
+
+    elements.tuning.addEventListener('change', () => {
+        if (!isValidTuningId(elements.tuning.value)) {
+            elements.tuning.value = currentTuningId;
+            return;
+        }
+        currentTuningId = elements.tuning.value;
+        renderTargetControls();
+        reevaluateCurrentReading();
+        saveCurrentSettings();
+    });
+
+    function changeCapo(delta) {
+        const nextCapo = currentCapo + delta;
+        if (!isValidCapo(nextCapo)) return;
+        currentCapo = nextCapo;
+        renderTargetControls();
+        reevaluateCurrentReading();
+        saveCurrentSettings();
+    }
+
+    elements.capoDown.addEventListener('click', () => changeCapo(-1));
+    elements.capoUp.addEventListener('click', () => changeCapo(1));
 
     elements.threshold.addEventListener('input', () => {
         const nextThresholdDb = Number(elements.threshold.value);
@@ -720,11 +831,7 @@ export function initTuner(root, {
     });
 
     elements.threshold.addEventListener('change', () => {
-        const result = saveTunerSettings({
-            version: TUNER_SCHEMA_VERSION,
-            thresholdDb: currentThresholdDb
-        }, storage);
-        elements.thresholdError.textContent = result.ok ? '' : '検出閾値を保存できませんでした。';
+        saveCurrentSettings();
     });
 
     elements.inputSettingsToggle.addEventListener('click', () => {
@@ -742,6 +849,8 @@ export function initTuner(root, {
         await audioController.start();
     });
 
+    initializeTuningOptions();
+    renderTargetControls();
     renderNeutral();
     renderThreshold();
     renderInputSettings();

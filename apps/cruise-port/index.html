@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.1.4">
+    <link rel="stylesheet" href="./style.css?v=1.1.5">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.1.4"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.1.5"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -201,6 +201,23 @@
                     <p class="tuner-reference">A4 = 440 Hz</p>
                 </div>
 
+                <div class="tuner-target-controls">
+                    <label class="tuner-tuning-field" for="tuner-tuning">
+                        <span>チューニング</span>
+                        <select id="tuner-tuning"></select>
+                    </label>
+                    <div class="tuner-capo-field">
+                        <span id="tuner-capo-label">カポ</span>
+                        <div class="tuner-capo-control" role="group" aria-labelledby="tuner-capo-label">
+                            <button id="tuner-capo-down" type="button" aria-label="カポを1フレット下げる">−</button>
+                            <output id="tuner-capo-value" aria-label="カポなし">なし</output>
+                            <button id="tuner-capo-up" type="button" aria-label="カポを1フレット上げる">＋</button>
+                        </div>
+                    </div>
+                </div>
+                <p class="tuner-capo-help">カポを付けたまま調弦する場合</p>
+                <p id="tuner-settings-error" class="tuner-settings-error" role="status"></p>
+
                 <div class="tuner-reading" aria-label="検出した音程">
                     <p id="tuner-note" class="tuner-note">—</p>
                     <p id="tuner-frequency" class="tuner-frequency">— Hz</p>
@@ -234,13 +251,13 @@
                 <p id="tuner-direction" class="tuner-direction" data-state="neutral">入力待ち</p>
                 <p id="tuner-cents" class="tuner-cents">—</p>
 
-                <ul class="tuner-strings" aria-label="ギター標準チューニング">
-                    <li data-tuner-string data-note="E2"><span>6弦</span><strong>E2</strong></li>
-                    <li data-tuner-string data-note="A2"><span>5弦</span><strong>A2</strong></li>
-                    <li data-tuner-string data-note="D3"><span>4弦</span><strong>D3</strong></li>
-                    <li data-tuner-string data-note="G3"><span>3弦</span><strong>G3</strong></li>
-                    <li data-tuner-string data-note="B3"><span>2弦</span><strong>B3</strong></li>
-                    <li data-tuner-string data-note="E4"><span>1弦</span><strong>E4</strong></li>
+                <ul class="tuner-strings" aria-label="ギターの目標音">
+                    <li data-tuner-string data-string="6" data-note="E2"><span>6弦</span><strong>E2</strong></li>
+                    <li data-tuner-string data-string="5" data-note="A2"><span>5弦</span><strong>A2</strong></li>
+                    <li data-tuner-string data-string="4" data-note="D3"><span>4弦</span><strong>D3</strong></li>
+                    <li data-tuner-string data-string="3" data-note="G3"><span>3弦</span><strong>G3</strong></li>
+                    <li data-tuner-string data-string="2" data-note="B3"><span>2弦</span><strong>B3</strong></li>
+                    <li data-tuner-string data-string="1" data-note="E4"><span>1弦</span><strong>E4</strong></li>
                 </ul>
 
                 <section class="tuner-input-settings" aria-label="入力設定">

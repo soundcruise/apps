@@ -21,6 +21,9 @@ const tunerMarkup = readFileSync(new URL('./index.html', import.meta.url), 'utf8
 const tunerStyles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
 
 assert.match(tunerMarkup, /id="tuner-input-settings-panel" class="tuner-input-tools" hidden/);
+assert.match(tunerMarkup, /id="tuner-tuning"/);
+assert.match(tunerMarkup, /id="tuner-capo-down"[^>]+aria-label="カポを1フレット下げる"/);
+assert.match(tunerMarkup, /カポを付けたまま調弦する場合/);
 assert.doesNotMatch(tunerMarkup, /1本ずつ弦を鳴らしてください/);
 assert.match(tunerStyles, /\.tuner-input-tools\[hidden\]\s*\{\s*display: none;/);
 assert.match(tunerStyles, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
@@ -156,6 +159,8 @@ class FakeElement {
         };
         this.focusCalls = 0;
         this.removeCalls = 0;
+        this.children = [];
+        this.namedChildren = new Map();
     }
 
     addEventListener(type, listener) {
@@ -182,6 +187,14 @@ class FakeElement {
     remove() {
         this.removeCalls += 1;
     }
+
+    replaceChildren(...children) {
+        this.children = children;
+    }
+
+    querySelector(selector) {
+        return this.namedChildren.get(selector) || null;
+    }
 }
 
 function createFakeRoot() {
@@ -195,6 +208,11 @@ function createFakeRoot() {
         'tuner-toggle',
         'tuner-error',
         'tuner-status',
+        'tuner-tuning',
+        'tuner-capo-down',
+        'tuner-capo-up',
+        'tuner-capo-value',
+        'tuner-settings-error',
         'tuner-input-settings-toggle',
         'tuner-input-settings-panel',
         'tuner-input-level-wrap',
@@ -228,10 +246,16 @@ function createFakeRoot() {
     ];
     const elements = new Map(ids.map((id) => [id, new FakeElement()]));
     const strings = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']
-        .map((note) => new FakeElement({ note }));
+        .map((note, index) => {
+            const element = new FakeElement({ note, string: String(6 - index) });
+            element.namedChildren.set('span', new FakeElement());
+            element.namedChildren.set('strong', new FakeElement());
+            return element;
+        });
     return {
         elements,
         strings,
+        ownerDocument: { createElement: () => new FakeElement() },
         querySelector(selector) {
             return elements.get(selector.slice(1));
         },
@@ -337,6 +361,13 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'input settings start closed');
     assert.equal(root.elements.get('tuner-input-settings-toggle').attributes.get('aria-expanded'), 'false');
     assert.equal(root.elements.get('tuner-diagnostic').removeCalls, 1, 'debug OFF removes the panel');
+    assert.equal(root.elements.get('tuner-tuning').children.length, 10, 'preset select is generated from the shared definition');
+    assert.deepEqual(
+        root.strings.map((element) => element.querySelector('strong').textContent),
+        ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']
+    );
+    assert.equal(root.elements.get('tuner-capo-value').textContent, 'なし');
+    assert.equal(root.elements.get('tuner-capo-down').disabled, true);
     const toggle = root.elements.get('tuner-toggle');
     const note = root.elements.get('tuner-note');
     const error = root.elements.get('tuner-error');
@@ -382,6 +413,30 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.match(root.elements.get('tuner-frequency').textContent, /^82\.\d{2} Hz$/);
     assert.equal(root.elements.get('tuner-direction').textContent, '✓ 合っています');
     assert(root.strings[0].classList.contains('is-active'));
+
+    root.elements.get('tuner-tuning').value = 'whole-step-down';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    assert.deepEqual(
+        root.strings.map((element) => element.querySelector('strong').textContent),
+        ['D2', 'G2', 'C3', 'F3', 'A3', 'D4']
+    );
+    assert.equal(root.elements.get('tuner-note').textContent, 'E2', 'detected chromatic note remains visible');
+    assert.equal(root.elements.get('tuner-direction').textContent, '目標音ではありません');
+    assert.equal(root.elements.get('tuner-cents').textContent, '—');
+    assert(root.strings.every((element) => !element.classList.contains('is-active')));
+    assert(root.elements.get('tuner-meter').classList.contains('is-neutral'));
+
+    root.elements.get('tuner-tuning').value = 'standard';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    assert.equal(root.elements.get('tuner-direction').textContent, '✓ 合っています');
+    assert(root.strings[0].classList.contains('is-active'));
+    await root.elements.get('tuner-capo-up').dispatch('click');
+    assert.equal(root.elements.get('tuner-capo-value').textContent, '1');
+    assert.equal(root.strings[0].querySelector('strong').textContent, 'F2');
+    assert.equal(root.elements.get('tuner-direction').textContent, '目標音ではありません');
+    await root.elements.get('tuner-capo-down').dispatch('click');
+    assert.equal(root.elements.get('tuner-capo-value').textContent, 'なし');
+    assert.equal(root.elements.get('tuner-direction').textContent, '✓ 合っています');
 
     for (const frequency of [
         frequencyAtCents(E2_FREQUENCY, -25),
@@ -588,7 +643,7 @@ assert.equal(inputLevelPercentage(0), 100);
     await root.elements.get('tuner-threshold').dispatch('change');
     assert.deepEqual(writes, [[
         'cruisePort.tuner',
-        JSON.stringify({ version: 2, thresholdDb: -60 })
+        JSON.stringify({ version: 3, thresholdDb: -60, tuningId: 'standard', capo: 0 })
     ]]);
 }
 
@@ -611,10 +666,56 @@ assert.equal(inputLevelPercentage(0), 100);
     await root.elements.get('tuner-threshold').dispatch('input');
     await root.elements.get('tuner-threshold').dispatch('change');
     assert.equal(
-        root.elements.get('tuner-threshold-error').textContent,
-        '検出閾値を保存できませんでした。'
+        root.elements.get('tuner-settings-error').textContent,
+        'チューナー設定を保存できませんでした。'
     );
     assert.equal(root.elements.get('tuner-threshold-value').textContent, '-62 dB', 'session value remains active');
+}
+
+{
+    const root = createFakeRoot();
+    const writes = [];
+    let factoryCalls = 0;
+    const storage = {
+        getItem: () => JSON.stringify({ version: 3, thresholdDb: -72, tuningId: 'dadgad', capo: 2 }),
+        setItem: (key, value) => writes.push([key, value])
+    };
+    const controller = {
+        start: async () => true,
+        stop: async () => {},
+        getState: () => ({ status: 'idle' }),
+        setRmsThreshold: () => true
+    };
+    initTuner(root, {
+        storage,
+        audioControllerFactory() {
+            factoryCalls += 1;
+            return controller;
+        }
+    });
+    assert.equal(root.elements.get('tuner-tuning').value, 'dadgad');
+    assert.equal(root.elements.get('tuner-capo-value').textContent, '2');
+    assert.deepEqual(
+        root.strings.map((element) => element.querySelector('strong').textContent),
+        ['E2', 'B2', 'E3', 'A3', 'B3', 'E4']
+    );
+
+    root.elements.get('tuner-tuning').value = 'open-g';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    await root.elements.get('tuner-capo-up').dispatch('click');
+    assert.deepEqual(writes.map(([, value]) => JSON.parse(value)), [
+        { version: 3, thresholdDb: -72, tuningId: 'open-g', capo: 2 },
+        { version: 3, thresholdDb: -72, tuningId: 'open-g', capo: 3 }
+    ]);
+    for (let capo = 4; capo <= 12; capo += 1) {
+        await root.elements.get('tuner-capo-up').dispatch('click');
+    }
+    assert.equal(root.elements.get('tuner-capo-value').textContent, '12');
+    assert.equal(root.elements.get('tuner-capo-up').disabled, true);
+    const writesAtMaximum = writes.length;
+    await root.elements.get('tuner-capo-up').dispatch('click');
+    assert.equal(writes.length, writesAtMaximum, 'capo remains clamped at 12 without an extra save');
+    assert.equal(factoryCalls, 1, 'target changes do not recreate the audio controller');
 }
 
 {
