@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     createInputLevelSmoother,
     createTunerDiagnosticHistory,
@@ -16,6 +17,13 @@ import {
 } from './practice-menu-store.js';
 
 const E2_FREQUENCY = 82.4069;
+const tunerMarkup = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+const tunerStyles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+
+assert.match(tunerMarkup, /id="tuner-input-settings-panel" class="tuner-input-tools" hidden/);
+assert.doesNotMatch(tunerMarkup, /1本ずつ弦を鳴らしてください/);
+assert.match(tunerStyles, /\.tuner-input-tools\[hidden\]\s*\{\s*display: none;/);
+assert.match(tunerStyles, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
 
 function result(frequency, confidence = 0.99) {
     return { frequency, confidence };
@@ -183,7 +191,6 @@ function createFakeRoot() {
         'tuner-frequency',
         'tuner-cents',
         'tuner-direction',
-        'tuner-guide',
         'tuner-meter',
         'tuner-toggle',
         'tuner-error',
@@ -237,17 +244,17 @@ function createFakeRoot() {
 assert.equal(isTunerDebugEnabled('?tunerDebug=1'), true);
 assert.equal(isTunerDebugEnabled('?tunerDebug=0'), false);
 assert.equal(isTunerDebugEnabled('?other=1'), false);
-assert.equal(inputLevelPercentage(-80), 0);
-assert.equal(inputLevelPercentage(-18), 100);
 assert.equal(inputLevelPercentage(-100), 0);
+assert.equal(inputLevelPercentage(-18), 100);
+assert.equal(inputLevelPercentage(-80), (20 / 82) * 100);
 assert.equal(inputLevelPercentage(0), 100);
 
 {
     const level = createInputLevelSmoother();
-    assert.equal(level.push(-80, 0), -80);
+    assert.equal(level.push(-100, 0), -100);
     const attacked = level.push(-30, 100);
     const released = level.push(-72, 200);
-    assert(attacked > -45, 'input meter attack is fast');
+    assert(attacked > -50, 'input meter attack is fast');
     assert(released > -60, 'input meter release is slower than attack');
     level.reset();
     assert.equal(level.push(-50, 300), -50);
@@ -283,8 +290,8 @@ assert.equal(inputLevelPercentage(0), 100);
     });
     assert.match(copied, /low-rms 76%/);
     assert.match(copied, /Current dBFS: -53\.6/);
-    assert.match(copied, /Threshold: -68 dBFS/);
-    assert.match(copied, /RMS Threshold: 0\.000398/);
+    assert.match(copied, /Threshold: -80 dBFS/);
+    assert.match(copied, /RMS Threshold: 0\.000100/);
     assert.doesNotMatch(copied, /Sensitivity:/);
     assert.doesNotMatch(copied, /private-id|deviceId/i, 'copied diagnostics omit identifying IDs');
 }
@@ -324,8 +331,8 @@ assert.equal(inputLevelPercentage(0), 100);
         },
         now: () => clock
     });
-    assert.equal(callbacks.rmsThreshold.toFixed(6), '0.000398', 'missing tuner settings use the -68 dB threshold');
-    assert.equal(root.elements.get('tuner-threshold-value').textContent, '-68 dB');
+    assert.equal(callbacks.rmsThreshold.toFixed(6), '0.000100', 'missing tuner settings use the -80 dB threshold');
+    assert.equal(root.elements.get('tuner-threshold-value').textContent, '-80 dB');
     assert.match(root.elements.get('tuner-threshold').attributes.get('aria-valuetext'), /左ほど高感度/);
     assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'input settings start closed');
     assert.equal(root.elements.get('tuner-input-settings-toggle').attributes.get('aria-expanded'), 'false');
@@ -361,10 +368,10 @@ assert.equal(inputLevelPercentage(0), 100);
         '0%'
     );
 
-    root.elements.get('tuner-threshold').value = '-80';
+    root.elements.get('tuner-threshold').value = '-100';
     await root.elements.get('tuner-threshold').dispatch('input');
-    assert.equal(thresholdChanges[0], 0.0001);
-    assert.equal(root.elements.get('tuner-threshold-value').textContent, '-80 dB');
+    assert.equal(thresholdChanges[0], 0.00001);
+    assert.equal(root.elements.get('tuner-threshold-value').textContent, '-100 dB');
     assert.equal(root.elements.get('tuner-input-level').style.values.get('--tuner-threshold-position'), '0.0%');
 
     for (const frequency of [82.40, 82.41, 82.39]) {
@@ -397,11 +404,9 @@ assert.equal(inputLevelPercentage(0), 100);
 
     callbacks.onResult(null);
     assert.equal(root.elements.get('tuner-direction').textContent, '音を確認しています');
-    assert.equal(root.elements.get('tuner-guide').textContent, 'もう一度、弦を鳴らしてください');
     clock += 151;
     callbacks.onResult(null);
     assert.equal(root.elements.get('tuner-direction').textContent, '入力待ち');
-    assert.equal(root.elements.get('tuner-guide').textContent, '1本ずつ弦を鳴らしてください');
 
     for (const [code, expectedText] of [
         ['permission-denied', 'マイク許可'],
@@ -475,8 +480,8 @@ assert.equal(inputLevelPercentage(0), 100);
 
     assert.equal(controllerOptions.diagnosticEnabled, true);
     assert.equal(root.elements.get('tuner-diagnostic').hidden, false, 'debug ON reveals the panel');
-    assert.equal(root.elements.get('tuner-diagnostic-threshold-db').textContent, '-68 dBFS');
-    assert.equal(root.elements.get('tuner-diagnostic-rms-threshold').textContent, '0.000398');
+    assert.equal(root.elements.get('tuner-diagnostic-threshold-db').textContent, '-80 dBFS');
+    assert.equal(root.elements.get('tuner-diagnostic-rms-threshold').textContent, '0.000100');
     app.setActive(true);
     await root.elements.get('tuner-toggle').dispatch('click');
     callbacks.onResult(result(E2_FREQUENCY));

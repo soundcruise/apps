@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.1.3">
+    <link rel="stylesheet" href="./style.css?v=1.1.4">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.1.3"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.1.4"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -233,7 +233,6 @@
 
                 <p id="tuner-direction" class="tuner-direction" data-state="neutral">入力待ち</p>
                 <p id="tuner-cents" class="tuner-cents">—</p>
-                <p id="tuner-guide" class="tuner-guide">1本ずつ弦を鳴らしてください</p>
 
                 <ul class="tuner-strings" aria-label="ギター標準チューニング">
                     <li data-tuner-string data-note="E2"><span>6弦</span><strong>E2</strong></li>
@@ -262,9 +261,9 @@
                                 class="tuner-input-level"
                                 role="meter"
                                 aria-label="マイクの入力レベル"
-                                aria-valuemin="-80"
+                                aria-valuemin="-100"
                                 aria-valuemax="-18"
-                                aria-valuenow="-80"
+                                aria-valuenow="-100"
                             >
                                 <span class="tuner-input-level-fill"></span>
                                 <span class="tuner-input-threshold-marker" aria-hidden="true"></span>
@@ -274,16 +273,16 @@
                         <div class="tuner-threshold-control">
                             <div class="tuner-threshold-heading">
                                 <label for="tuner-threshold">検出閾値</label>
-                                <output id="tuner-threshold-value" for="tuner-threshold">-68 dB</output>
+                                <output id="tuner-threshold-value" for="tuner-threshold">-80 dB</output>
                             </div>
                             <input
                                 id="tuner-threshold"
                                 type="range"
-                                min="-80"
+                                min="-100"
                                 max="-40"
                                 step="1"
-                                value="-68"
-                                aria-valuetext="-68 dBFS。左ほど高感度、右ほど低感度"
+                                value="-80"
+                                aria-valuetext="-80 dBFS。左ほど高感度、右ほど低感度"
                             >
                             <div class="tuner-threshold-labels" aria-hidden="true">
                                 <span>高感度（小さい音まで拾う）</span><span>低感度（大きい音だけ拾う）</span>
@@ -307,11 +306,11 @@
                         <span>入力レベル</span>
                         <output id="tuner-diagnostic-dbfs">— dBFS</output>
                     </div>
-                    <div id="tuner-diagnostic-level" class="diagnostic-level" role="meter" aria-label="入力レベル" aria-valuemin="-80" aria-valuemax="-18" aria-valuenow="-80">
+                    <div id="tuner-diagnostic-level" class="diagnostic-level" role="meter" aria-label="入力レベル" aria-valuemin="-100" aria-valuemax="-18" aria-valuenow="-100">
                         <span class="diagnostic-level-fill"></span>
                         <span class="diagnostic-threshold" aria-hidden="true"></span>
                     </div>
-                    <p id="tuner-diagnostic-threshold-label" class="diagnostic-threshold-label">現在の検出しきい値 -68 dBFS</p>
+                    <p id="tuner-diagnostic-threshold-label" class="diagnostic-threshold-label">現在の検出しきい値 -80 dBFS</p>
                     <dl class="diagnostic-values">
                         <div><dt>RMS</dt><dd id="tuner-diagnostic-rms">—</dd></div>
                         <div><dt>Confidence</dt><dd id="tuner-diagnostic-confidence">—</dd></div>
@@ -321,8 +320,8 @@
                         <div><dt>Display</dt><dd id="tuner-diagnostic-display">neutral</dd></div>
                         <div><dt>Sample Rate</dt><dd id="tuner-diagnostic-sample-rate">—</dd></div>
                         <div><dt>FFT Size</dt><dd id="tuner-diagnostic-fft-size">—</dd></div>
-                        <div><dt>Threshold</dt><dd id="tuner-diagnostic-threshold-db">-68 dBFS</dd></div>
-                        <div><dt>RMS Threshold</dt><dd id="tuner-diagnostic-rms-threshold">0.000398</dd></div>
+                        <div><dt>Threshold</dt><dd id="tuner-diagnostic-threshold-db">-80 dBFS</dd></div>
+                        <div><dt>RMS Threshold</dt><dd id="tuner-diagnostic-rms-threshold">0.000100</dd></div>
                     </dl>
                     <div class="diagnostic-environment">
                         <p><strong>Track</strong> <span id="tuner-diagnostic-track">—</span></p>

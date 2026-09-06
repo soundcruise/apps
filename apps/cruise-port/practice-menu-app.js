@@ -13,7 +13,7 @@ import {
     applyVersionDisplay,
     reloadAppWithCacheBust
 } from './app-version.js?v=1.1.2';
-import { initTuner } from './tuner-app.js?v=1.1.3';
+import { initTuner } from './tuner-app.js?v=1.1.4';
 
 const elements = {
     homeView: document.querySelector('#home-view'),

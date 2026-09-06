@@ -1080,59 +1080,55 @@ select {
     color: var(--port-muted);
 }
 
-.tuner-guide {
-    margin: 8px 0 0;
-    color: var(--port-muted);
-    font-size: 0.74rem;
-    line-height: 1.55;
-}
-
-.tuner-guide:empty {
-    display: none;
-}
-
 .tuner-strings {
     display: grid;
-    margin: 22px 0 0;
+    width: min(100%, 580px);
+    margin: 22px auto 0;
     padding: 0;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 4px;
     list-style: none;
 }
 
 .tuner-strings li {
     min-width: 0;
     display: grid;
-    min-height: 58px;
-    padding: 8px 5px;
+    min-height: 52px;
+    padding: 6px 2px;
     align-content: center;
     gap: 4px;
     border: 1px solid rgba(207, 189, 148, 0.12);
-    border-radius: 11px;
+    border-radius: 9px;
     color: var(--port-muted);
     background: rgba(205, 180, 116, 0.025);
     transition: border-color 120ms ease, color 120ms ease, background-color 120ms ease;
 }
 
 .tuner-strings span {
-    font-size: 0.63rem;
+    font-size: 0.58rem;
 }
 
 .tuner-strings strong {
     color: var(--port-text);
-    font-size: 0.92rem;
+    font-size: 0.82rem;
     font-weight: 650;
     font-variant-numeric: tabular-nums;
 }
 
 .tuner-strings li.is-active {
-    border-color: rgba(159, 200, 168, 0.56);
-    color: #b9d6bf;
-    background: rgba(85, 130, 94, 0.15);
+    border-color: rgba(174, 218, 184, 0.78);
+    color: #d2ead7;
+    background: rgba(85, 130, 94, 0.24);
+    box-shadow: inset 0 0 0 1px rgba(185, 224, 194, 0.18), 0 4px 10px rgba(85, 130, 94, 0.12);
 }
 
 .tuner-strings li.is-active strong {
-    color: #d8eadc;
+    color: #f0f9f1;
+}
+
+.tuner-strings li.is-active span {
+    color: #d2ead7;
+    font-weight: 720;
 }
 
 .tuner-input-settings {
@@ -1182,6 +1178,10 @@ select {
     text-align: left;
 }
 
+.tuner-input-tools[hidden] {
+    display: none;
+}
+
 .tuner-input-label,
 .tuner-threshold-heading {
     margin: 0;
@@ -1193,7 +1193,7 @@ select {
 
 .tuner-input-level {
     --tuner-input-level-position: 0%;
-    --tuner-threshold-position: 19.4%;
+    --tuner-threshold-position: 24.4%;
     position: relative;
     height: 6px;
     margin-top: 8px;
@@ -1291,7 +1291,7 @@ select {
 
 .tuner-diagnostic {
     --diagnostic-level-position: 0%;
-    --diagnostic-threshold-position: 39.9%;
+    --diagnostic-threshold-position: 24.4%;
     margin-top: 28px;
     padding: 18px;
     border: 1px solid rgba(205, 180, 116, 0.18);

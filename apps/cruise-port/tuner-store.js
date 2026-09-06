@@ -1,9 +1,9 @@
 export const TUNER_STORAGE_KEY = 'cruisePort.tuner';
 export const TUNER_SCHEMA_VERSION = 2;
-export const TUNER_THRESHOLD_DB_MIN = -80;
+export const TUNER_THRESHOLD_DB_MIN = -100;
 export const TUNER_THRESHOLD_DB_MAX = -40;
 export const TUNER_THRESHOLD_DB_STEP = 1;
-export const TUNER_DEFAULT_THRESHOLD_DB = -68;
+export const TUNER_DEFAULT_THRESHOLD_DB = -80;
 
 export const TUNER_DEFAULTS = Object.freeze({
     version: TUNER_SCHEMA_VERSION,

@@ -1,5 +1,5 @@
-import { createTunerAudioController } from './tuner-audio.js?v=1.1.3';
-import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.3';
+import { createTunerAudioController } from './tuner-audio.js?v=1.1.4';
+import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
 import {
     TUNER_DEFAULT_THRESHOLD_DB,
     TUNER_SCHEMA_VERSION,
@@ -8,7 +8,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=1.1.3';
+} from './tuner-store.js?v=1.1.4';
 
 const EMA_TIME_CONSTANT_MS = 80;
 const NULL_GRACE_MS = 150;
@@ -24,7 +24,7 @@ const IN_TUNE_HOLD_MS = 100;
 const DIAGNOSTIC_WINDOW_MS = 5000;
 const DIAGNOSTIC_MAX_FRAMES = 120;
 const DIAGNOSTIC_RENDER_INTERVAL_MS = 100;
-const DIAGNOSTIC_MIN_DBFS = -80;
+const DIAGNOSTIC_MIN_DBFS = -100;
 const DIAGNOSTIC_MAX_DBFS = -18;
 const INPUT_LEVEL_ATTACK_MS = 70;
 const INPUT_LEVEL_RELEASE_MS = 400;
@@ -394,7 +394,6 @@ export function initTuner(root, {
         frequency: root.querySelector('#tuner-frequency'),
         cents: root.querySelector('#tuner-cents'),
         direction: root.querySelector('#tuner-direction'),
-        guide: root.querySelector('#tuner-guide'),
         meter: root.querySelector('#tuner-meter'),
         toggle: root.querySelector('#tuner-toggle'),
         error: root.querySelector('#tuner-error'),
@@ -471,7 +470,6 @@ export function initTuner(root, {
         elements.cents.textContent = '—';
         elements.direction.textContent = '入力待ち';
         elements.direction.dataset.state = 'neutral';
-        elements.guide.textContent = '1本ずつ弦を鳴らしてください';
         elements.meter.classList.add('is-neutral');
         elements.meter.style.setProperty('--tuner-position', '50%');
         elements.meter.setAttribute('aria-valuenow', '0');
@@ -500,7 +498,6 @@ export function initTuner(root, {
         const directionText = reading.stale ? '音を確認しています' : directionLabels[reading.direction];
         elements.direction.textContent = directionText;
         elements.direction.dataset.state = reading.stale ? 'stale' : reading.direction;
-        elements.guide.textContent = reading.stale ? 'もう一度、弦を鳴らしてください' : '';
         elements.meter.classList.remove('is-neutral');
         elements.meter.style.setProperty(
             '--tuner-position',
@@ -536,7 +533,6 @@ export function initTuner(root, {
             elements.toggle.disabled = false;
             elements.toggle.textContent = '■ マイク停止';
             elements.status.textContent = 'マイク入力中';
-            elements.guide.textContent = '1本ずつ弦を鳴らしてください';
             return;
         }
 
