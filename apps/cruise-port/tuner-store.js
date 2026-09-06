@@ -1,29 +1,56 @@
 export const TUNER_STORAGE_KEY = 'cruisePort.tuner';
-export const TUNER_SCHEMA_VERSION = 1;
-export const TUNER_SENSITIVITIES = Object.freeze(['low', 'standard', 'high']);
+export const TUNER_SCHEMA_VERSION = 2;
+export const TUNER_THRESHOLD_DB_MIN = -80;
+export const TUNER_THRESHOLD_DB_MAX = -40;
+export const TUNER_THRESHOLD_DB_STEP = 1;
+export const TUNER_DEFAULT_THRESHOLD_DB = -68;
 
 export const TUNER_DEFAULTS = Object.freeze({
     version: TUNER_SCHEMA_VERSION,
-    sensitivity: 'standard'
+    thresholdDb: TUNER_DEFAULT_THRESHOLD_DB
 });
+
+// These values only translate an existing v1 setting. The range is now a 1 dB control.
+const LEGACY_SENSITIVITY_THRESHOLDS = Object.freeze({
+    low: -44,
+    standard: -50,
+    high: -62
+});
+
+export function thresholdDbToRms(thresholdDb) {
+    return Number.isFinite(thresholdDb) ? 10 ** (thresholdDb / 20) : null;
+}
 
 export function normalizeTunerSettings(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-    if (value.version !== TUNER_SCHEMA_VERSION) return null;
-    if (!TUNER_SENSITIVITIES.includes(value.sensitivity)) return null;
-    return { version: TUNER_SCHEMA_VERSION, sensitivity: value.sensitivity };
+    if (value.version !== TUNER_SCHEMA_VERSION
+        || !Number.isInteger(value.thresholdDb)
+        || value.thresholdDb < TUNER_THRESHOLD_DB_MIN
+        || value.thresholdDb > TUNER_THRESHOLD_DB_MAX) return null;
+    return { version: TUNER_SCHEMA_VERSION, thresholdDb: value.thresholdDb };
+}
+
+function migrateV1Settings(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || value.version !== 1) return null;
+    const thresholdDb = LEGACY_SENSITIVITY_THRESHOLDS[value.sensitivity];
+    return Number.isInteger(thresholdDb)
+        ? { version: TUNER_SCHEMA_VERSION, thresholdDb }
+        : null;
 }
 
 export function loadTunerSettings(storage) {
     try {
         const targetStorage = storage ?? globalThis.localStorage;
         const raw = targetStorage.getItem(TUNER_STORAGE_KEY);
-        if (raw === null) return { ok: true, settings: { ...TUNER_DEFAULTS } };
-        const settings = normalizeTunerSettings(JSON.parse(raw));
-        if (!settings) return { ok: false, settings: { ...TUNER_DEFAULTS }, reason: 'invalid-data' };
-        return { ok: true, settings };
+        if (raw === null) return { ok: true, settings: { ...TUNER_DEFAULTS }, migrated: false };
+        const value = JSON.parse(raw);
+        const settings = normalizeTunerSettings(value);
+        if (settings) return { ok: true, settings, migrated: false };
+        const migrated = migrateV1Settings(value);
+        if (migrated) return { ok: true, settings: migrated, migrated: true };
+        return { ok: false, settings: { ...TUNER_DEFAULTS }, reason: 'invalid-data', migrated: false };
     } catch (_) {
-        return { ok: false, settings: { ...TUNER_DEFAULTS }, reason: 'read-failed' };
+        return { ok: false, settings: { ...TUNER_DEFAULTS }, reason: 'read-failed', migrated: false };
     }
 }
 

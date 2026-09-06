@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import {
-    TUNER_SENSITIVITY_CONFIG,
     createInputLevelSmoother,
     createTunerDiagnosticHistory,
     createTunerSmoother,
@@ -191,9 +190,9 @@ function createFakeRoot() {
         'tuner-status',
         'tuner-input-level-wrap',
         'tuner-input-level',
-        'tuner-sensitivity',
-        'tuner-sensitivity-value',
-        'tuner-sensitivity-error',
+        'tuner-threshold',
+        'tuner-threshold-value',
+        'tuner-threshold-error',
         'tuner-diagnostic',
         'tuner-diagnostic-dbfs',
         'tuner-diagnostic-level',
@@ -205,7 +204,7 @@ function createFakeRoot() {
         'tuner-diagnostic-display',
         'tuner-diagnostic-sample-rate',
         'tuner-diagnostic-fft-size',
-        'tuner-diagnostic-sensitivity',
+        'tuner-diagnostic-threshold-db',
         'tuner-diagnostic-rms-threshold',
         'tuner-diagnostic-threshold-label',
         'tuner-diagnostic-track',
@@ -236,18 +235,14 @@ function createFakeRoot() {
 assert.equal(isTunerDebugEnabled('?tunerDebug=1'), true);
 assert.equal(isTunerDebugEnabled('?tunerDebug=0'), false);
 assert.equal(isTunerDebugEnabled('?other=1'), false);
-assert.deepEqual(
-    Object.fromEntries(Object.entries(TUNER_SENSITIVITY_CONFIG).map(([key, value]) => [key, value.rmsThreshold])),
-    { low: 0.006, standard: 0.003, high: 0.0008 }
-);
-assert.equal(inputLevelPercentage(-72), 0);
+assert.equal(inputLevelPercentage(-80), 0);
 assert.equal(inputLevelPercentage(-18), 100);
 assert.equal(inputLevelPercentage(-100), 0);
 assert.equal(inputLevelPercentage(0), 100);
 
 {
     const level = createInputLevelSmoother();
-    assert.equal(level.push(-72, 0), -72);
+    assert.equal(level.push(-80, 0), -80);
     const attacked = level.push(-30, 100);
     const released = level.push(-72, 200);
     assert(attacked > -45, 'input meter attack is fast');
@@ -286,6 +281,9 @@ assert.equal(inputLevelPercentage(0), 100);
     });
     assert.match(copied, /low-rms 76%/);
     assert.match(copied, /Current dBFS: -53\.6/);
+    assert.match(copied, /Threshold: -68 dBFS/);
+    assert.match(copied, /RMS Threshold: 0\.000398/);
+    assert.doesNotMatch(copied, /Sensitivity:/);
     assert.doesNotMatch(copied, /private-id|deviceId/i, 'copied diagnostics omit identifying IDs');
 }
 
@@ -324,9 +322,9 @@ assert.equal(inputLevelPercentage(0), 100);
         },
         now: () => clock
     });
-    assert.equal(callbacks.rmsThreshold, 0.003, 'missing tuner settings use standard threshold');
-    assert.equal(root.elements.get('tuner-sensitivity-value').textContent, '標準');
-    assert.equal(root.elements.get('tuner-sensitivity').attributes.get('aria-valuetext'), '標準');
+    assert.equal(callbacks.rmsThreshold.toFixed(6), '0.000398', 'missing tuner settings use the -68 dB threshold');
+    assert.equal(root.elements.get('tuner-threshold-value').textContent, '-68 dB');
+    assert.match(root.elements.get('tuner-threshold').attributes.get('aria-valuetext'), /左ほど高感度/);
     assert.equal(root.elements.get('tuner-diagnostic').removeCalls, 1, 'debug OFF removes the panel');
     const toggle = root.elements.get('tuner-toggle');
     const note = root.elements.get('tuner-note');
@@ -351,11 +349,11 @@ assert.equal(inputLevelPercentage(0), 100);
         '0%'
     );
 
-    root.elements.get('tuner-sensitivity').value = '2';
-    await root.elements.get('tuner-sensitivity').dispatch('input');
-    assert.deepEqual(thresholdChanges, [0.0008]);
-    assert.equal(root.elements.get('tuner-sensitivity-value').textContent, '高');
-    assert.equal(root.elements.get('tuner-sensitivity').attributes.get('aria-valuetext'), '高');
+    root.elements.get('tuner-threshold').value = '-80';
+    await root.elements.get('tuner-threshold').dispatch('input');
+    assert.equal(thresholdChanges[0], 0.0001);
+    assert.equal(root.elements.get('tuner-threshold-value').textContent, '-80 dB');
+    assert.equal(root.elements.get('tuner-input-level').style.values.get('--tuner-threshold-position'), '0.0%');
 
     for (const frequency of [82.40, 82.41, 82.39]) {
         callbacks.onResult(result(frequency));
@@ -433,8 +431,8 @@ assert.equal(inputLevelPercentage(0), 100);
 
     assert.equal(controllerOptions.diagnosticEnabled, true);
     assert.equal(root.elements.get('tuner-diagnostic').hidden, false, 'debug ON reveals the panel');
-    assert.equal(root.elements.get('tuner-diagnostic-sensitivity').textContent, 'standard');
-    assert.equal(root.elements.get('tuner-diagnostic-rms-threshold').textContent, '0.003');
+    assert.equal(root.elements.get('tuner-diagnostic-threshold-db').textContent, '-68 dBFS');
+    assert.equal(root.elements.get('tuner-diagnostic-rms-threshold').textContent, '0.000398');
     app.setActive(true);
     await root.elements.get('tuner-toggle').dispatch('click');
     callbacks.onResult(result(E2_FREQUENCY));
@@ -455,11 +453,11 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(root.elements.get('tuner-diagnostic-final').textContent.startsWith('E2 / '), true);
     assert.equal(root.elements.get('tuner-diagnostic-track').textContent.includes('private-id'), false);
 
-    root.elements.get('tuner-sensitivity').value = '2';
-    await root.elements.get('tuner-sensitivity').dispatch('input');
-    assert.deepEqual(thresholdChanges, [0.0008]);
-    assert.equal(root.elements.get('tuner-diagnostic-sensitivity').textContent, 'high');
-    assert.equal(root.elements.get('tuner-diagnostic-rms-threshold').textContent, '0.0008');
+    root.elements.get('tuner-threshold').value = '-40';
+    await root.elements.get('tuner-threshold').dispatch('input');
+    assert.equal(thresholdChanges[0], 0.01);
+    assert.equal(root.elements.get('tuner-diagnostic-threshold-db').textContent, '-40 dBFS');
+    assert.equal(root.elements.get('tuner-diagnostic-rms-threshold').textContent, '0.010000');
 
     clock = 100;
     callbacks.onResult(null);
@@ -503,8 +501,8 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.match(copiedText, /low-rms 67%/);
     assert.match(copiedText, /Display: neutral/);
     assert.match(copiedText, /Final: E2/);
-    assert.match(copiedText, /Sensitivity: high/);
-    assert.match(copiedText, /RMS Threshold: 0\.000800/);
+    assert.match(copiedText, /Threshold: -40 dBFS/);
+    assert.match(copiedText, /RMS Threshold: 0\.010000/);
     assert.doesNotMatch(copiedText, /private-id|deviceId/i);
     assert.equal(root.elements.get('tuner-diagnostic-copy-status').textContent, '診断結果をコピーしました。');
 
@@ -534,14 +532,14 @@ assert.equal(inputLevelPercentage(0), 100);
             return controller;
         }
     });
-    assert.equal(callbacks.rmsThreshold, 0.006, 'saved low setting initializes the detector');
-    assert.equal(root.elements.get('tuner-sensitivity-value').textContent, '低');
-    root.elements.get('tuner-sensitivity').value = '1';
-    await root.elements.get('tuner-sensitivity').dispatch('input');
-    await root.elements.get('tuner-sensitivity').dispatch('change');
+    assert.equal(callbacks.rmsThreshold, 10 ** (-44 / 20), 'v1 setting is migrated to its nearest 1 dB threshold');
+    assert.equal(root.elements.get('tuner-threshold-value').textContent, '-44 dB');
+    root.elements.get('tuner-threshold').value = '-60';
+    await root.elements.get('tuner-threshold').dispatch('input');
+    await root.elements.get('tuner-threshold').dispatch('change');
     assert.deepEqual(writes, [[
         'cruisePort.tuner',
-        JSON.stringify({ version: 1, sensitivity: 'standard' })
+        JSON.stringify({ version: 2, thresholdDb: -60 })
     ]]);
 }
 
@@ -560,14 +558,14 @@ assert.equal(inputLevelPercentage(0), 100);
         },
         audioControllerFactory: () => controller
     });
-    root.elements.get('tuner-sensitivity').value = '2';
-    await root.elements.get('tuner-sensitivity').dispatch('input');
-    await root.elements.get('tuner-sensitivity').dispatch('change');
+    root.elements.get('tuner-threshold').value = '-62';
+    await root.elements.get('tuner-threshold').dispatch('input');
+    await root.elements.get('tuner-threshold').dispatch('change');
     assert.equal(
-        root.elements.get('tuner-sensitivity-error').textContent,
-        '感度設定を保存できませんでした。'
+        root.elements.get('tuner-threshold-error').textContent,
+        '検出閾値を保存できませんでした。'
     );
-    assert.equal(root.elements.get('tuner-sensitivity-value').textContent, '高', 'session value remains active');
+    assert.equal(root.elements.get('tuner-threshold-value').textContent, '-62 dB', 'session value remains active');
 }
 
 {

@@ -1,10 +1,14 @@
-import { createTunerAudioController } from './tuner-audio.js?v=1.1.1';
-import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.1';
+import { createTunerAudioController } from './tuner-audio.js?v=1.1.2';
+import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.2';
 import {
+    TUNER_DEFAULT_THRESHOLD_DB,
     TUNER_SCHEMA_VERSION,
+    TUNER_THRESHOLD_DB_MAX,
+    TUNER_THRESHOLD_DB_MIN,
     loadTunerSettings,
-    saveTunerSettings
-} from './tuner-store.js?v=1.1.1';
+    saveTunerSettings,
+    thresholdDbToRms
+} from './tuner-store.js?v=1.1.2';
 
 const EMA_TIME_CONSTANT_MS = 80;
 const NULL_GRACE_MS = 150;
@@ -20,18 +24,10 @@ const IN_TUNE_HOLD_MS = 100;
 const DIAGNOSTIC_WINDOW_MS = 5000;
 const DIAGNOSTIC_MAX_FRAMES = 120;
 const DIAGNOSTIC_RENDER_INTERVAL_MS = 100;
-const DIAGNOSTIC_MIN_DBFS = -72;
+const DIAGNOSTIC_MIN_DBFS = -80;
 const DIAGNOSTIC_MAX_DBFS = -18;
 const INPUT_LEVEL_ATTACK_MS = 70;
 const INPUT_LEVEL_RELEASE_MS = 400;
-
-export const TUNER_SENSITIVITY_CONFIG = Object.freeze({
-    low: Object.freeze({ index: 0, label: '低', rmsThreshold: 0.006 }),
-    standard: Object.freeze({ index: 1, label: '標準', rmsThreshold: 0.003 }),
-    high: Object.freeze({ index: 2, label: '高', rmsThreshold: 0.0008 })
-});
-
-const TUNER_SENSITIVITY_ORDER = Object.freeze(['low', 'standard', 'high']);
 
 export const STANDARD_TUNING = Object.freeze([
     Object.freeze({ string: 6, note: 'E2' }),
@@ -271,16 +267,6 @@ export function createInputLevelSmoother({
     };
 }
 
-function sensitivityFromIndex(value) {
-    return TUNER_SENSITIVITY_ORDER[Number(value)] || 'standard';
-}
-
-function thresholdDbfs(threshold) {
-    return Number.isFinite(threshold) && threshold > 0
-        ? 20 * Math.log10(threshold)
-        : Number.NEGATIVE_INFINITY;
-}
-
 export function isTunerDebugEnabled(search = globalThis.location?.search || '') {
     try { return new URLSearchParams(search).get('tunerDebug') === '1'; } catch (_) { return false; }
 }
@@ -352,8 +338,8 @@ export function formatTunerDiagnosticCopy({
     device = 'Unknown browser',
     diagnostic = {},
     display = {},
-    sensitivity = 'standard',
-    rmsThreshold = diagnostic.rmsThreshold,
+    thresholdDb = TUNER_DEFAULT_THRESHOLD_DB,
+    rmsThreshold = diagnostic.rmsThreshold ?? thresholdDbToRms(thresholdDb),
     summary = { frames: 0, valid: 0, lowRms: 0, lowConfidence: 0, other: 0 }
 } = {}) {
     const number = (value, digits) => (Number.isFinite(value) ? value.toFixed(digits) : '—');
@@ -374,7 +360,7 @@ export function formatTunerDiagnosticCopy({
         `Current Confidence: ${number(diagnostic.confidence, 3)}`,
         `Raw Frequency: ${number(diagnostic.rawFrequency, 2)} Hz`,
         `Current Reason: ${diagnostic.reason || '—'}`,
-        `Sensitivity: ${sensitivity}`,
+        `Threshold: ${number(thresholdDb, 0)} dBFS`,
         `RMS Threshold: ${number(rmsThreshold, 6)}`,
         `Display: ${display.state || 'neutral'}`,
         `Final: ${finalLabel}`,
@@ -415,9 +401,9 @@ export function initTuner(root, {
         status: root.querySelector('#tuner-status'),
         inputLevelWrap: root.querySelector('#tuner-input-level-wrap'),
         inputLevel: root.querySelector('#tuner-input-level'),
-        sensitivity: root.querySelector('#tuner-sensitivity'),
-        sensitivityValue: root.querySelector('#tuner-sensitivity-value'),
-        sensitivityError: root.querySelector('#tuner-sensitivity-error'),
+        threshold: root.querySelector('#tuner-threshold'),
+        thresholdValue: root.querySelector('#tuner-threshold-value'),
+        thresholdError: root.querySelector('#tuner-threshold-error'),
         diagnostic: root.querySelector('#tuner-diagnostic'),
         strings: [...root.querySelectorAll('[data-tuner-string]')]
     };
@@ -433,7 +419,7 @@ export function initTuner(root, {
         display: root.querySelector('#tuner-diagnostic-display'),
         sampleRate: root.querySelector('#tuner-diagnostic-sample-rate'),
         fftSize: root.querySelector('#tuner-diagnostic-fft-size'),
-        sensitivity: root.querySelector('#tuner-diagnostic-sensitivity'),
+        thresholdDb: root.querySelector('#tuner-diagnostic-threshold-db'),
         rmsThreshold: root.querySelector('#tuner-diagnostic-rms-threshold'),
         thresholdLabel: root.querySelector('#tuner-diagnostic-threshold-label'),
         track: root.querySelector('#tuner-diagnostic-track'),
@@ -450,7 +436,7 @@ export function initTuner(root, {
     const inputLevelSmoother = createInputLevelSmoother();
     const diagnosticHistory = debugEnabled ? createTunerDiagnosticHistory() : null;
     const loadResult = loadTunerSettings(storage);
-    let currentSensitivity = loadResult.settings.sensitivity;
+    let currentThresholdDb = loadResult.settings.thresholdDb;
     let viewActive = false;
     let audioStatus = 'idle';
     let latestDiagnostic = null;
@@ -563,21 +549,27 @@ export function initTuner(root, {
         elements.inputLevel.setAttribute('aria-valuenow', smoothedDbfs.toFixed(1));
     }
 
-    function renderSensitivity() {
-        const config = TUNER_SENSITIVITY_CONFIG[currentSensitivity];
-        elements.sensitivity.value = String(config.index);
-        elements.sensitivityValue.textContent = config.label;
-        elements.sensitivity.setAttribute('aria-valuetext', config.label);
-        if (latestDiagnostic) latestDiagnostic = { ...latestDiagnostic, rmsThreshold: config.rmsThreshold };
+    function renderThreshold() {
+        const rmsThreshold = thresholdDbToRms(currentThresholdDb);
+        elements.threshold.value = String(currentThresholdDb);
+        elements.thresholdValue.textContent = `${currentThresholdDb} dB`;
+        elements.threshold.setAttribute(
+            'aria-valuetext',
+            `${currentThresholdDb} dBFS。左ほど高感度、右ほど低感度`
+        );
+        elements.inputLevel.style.setProperty(
+            '--tuner-threshold-position',
+            `${inputLevelPercentage(currentThresholdDb).toFixed(1)}%`
+        );
+        if (latestDiagnostic) latestDiagnostic = { ...latestDiagnostic, rmsThreshold };
         if (!diagnosticElements) return;
 
-        const dbfs = thresholdDbfs(config.rmsThreshold);
-        diagnosticElements.sensitivity.textContent = currentSensitivity;
-        diagnosticElements.rmsThreshold.textContent = String(config.rmsThreshold);
-        diagnosticElements.thresholdLabel.textContent = `現在の検出しきい値 ${dbfs.toFixed(1)} dBFS`;
+        diagnosticElements.thresholdDb.textContent = `${currentThresholdDb} dBFS`;
+        diagnosticElements.rmsThreshold.textContent = rmsThreshold.toFixed(6);
+        diagnosticElements.thresholdLabel.textContent = `現在の検出しきい値 ${currentThresholdDb} dBFS`;
         elements.diagnostic.style.setProperty(
             '--diagnostic-threshold-position',
-            `${inputLevelPercentage(dbfs).toFixed(1)}%`
+            `${inputLevelPercentage(currentThresholdDb).toFixed(1)}%`
         );
     }
 
@@ -590,7 +582,7 @@ export function initTuner(root, {
         lastDiagnosticRenderTime = Number.NEGATIVE_INFINITY;
         diagnosticElements.dbfs.textContent = '— dBFS';
         diagnosticElements.level.style.setProperty('--diagnostic-level-position', '0%');
-        diagnosticElements.level.setAttribute('aria-valuenow', '-72');
+        diagnosticElements.level.setAttribute('aria-valuenow', String(DIAGNOSTIC_MIN_DBFS));
         diagnosticElements.rms.textContent = '—';
         diagnosticElements.confidence.textContent = '—';
         diagnosticElements.rawFrequency.textContent = '—';
@@ -607,7 +599,7 @@ export function initTuner(root, {
         diagnosticElements.lowConfidence.textContent = '0%';
         diagnosticElements.other.textContent = '0%';
         diagnosticElements.copyStatus.textContent = '';
-        renderSensitivity();
+        renderThreshold();
     }
 
     function renderDiagnostic(diagnostic, timestamp) {
@@ -680,7 +672,7 @@ export function initTuner(root, {
             showError(errorMessage(error));
         },
         diagnosticEnabled: debugEnabled,
-        rmsThreshold: TUNER_SENSITIVITY_CONFIG[currentSensitivity].rmsThreshold
+        rmsThreshold: thresholdDbToRms(currentThresholdDb)
     });
 
     if (diagnosticElements) {
@@ -691,8 +683,8 @@ export function initTuner(root, {
                 device: diagnosticDeviceLabel(navigatorObject),
                 diagnostic: latestDiagnostic || {},
                 display: latestDiagnosticDisplay,
-                sensitivity: currentSensitivity,
-                rmsThreshold: TUNER_SENSITIVITY_CONFIG[currentSensitivity].rmsThreshold,
+                thresholdDb: currentThresholdDb,
+                rmsThreshold: thresholdDbToRms(currentThresholdDb),
                 summary: latestDiagnosticSummary
             });
             try {
@@ -706,25 +698,28 @@ export function initTuner(root, {
     }
 
 
-    elements.sensitivity.addEventListener('input', () => {
-        const nextSensitivity = sensitivityFromIndex(elements.sensitivity.value);
-        const nextConfig = TUNER_SENSITIVITY_CONFIG[nextSensitivity];
-        if (!audioController.setRmsThreshold(nextConfig.rmsThreshold)) {
-            elements.sensitivityError.textContent = '入力感度を変更できませんでした。';
-            renderSensitivity();
+    elements.threshold.addEventListener('input', () => {
+        const nextThresholdDb = Number(elements.threshold.value);
+        const nextRmsThreshold = thresholdDbToRms(nextThresholdDb);
+        if (!Number.isInteger(nextThresholdDb)
+            || nextThresholdDb < TUNER_THRESHOLD_DB_MIN
+            || nextThresholdDb > TUNER_THRESHOLD_DB_MAX
+            || !audioController.setRmsThreshold(nextRmsThreshold)) {
+            elements.thresholdError.textContent = '検出閾値を変更できませんでした。';
+            renderThreshold();
             return;
         }
-        currentSensitivity = nextSensitivity;
-        elements.sensitivityError.textContent = '';
-        renderSensitivity();
+        currentThresholdDb = nextThresholdDb;
+        elements.thresholdError.textContent = '';
+        renderThreshold();
     });
 
-    elements.sensitivity.addEventListener('change', () => {
+    elements.threshold.addEventListener('change', () => {
         const result = saveTunerSettings({
             version: TUNER_SCHEMA_VERSION,
-            sensitivity: currentSensitivity
+            thresholdDb: currentThresholdDb
         }, storage);
-        elements.sensitivityError.textContent = result.ok ? '' : '感度設定を保存できませんでした。';
+        elements.thresholdError.textContent = result.ok ? '' : '検出閾値を保存できませんでした。';
     });
 
     elements.toggle.addEventListener('click', async () => {
@@ -738,7 +733,7 @@ export function initTuner(root, {
     });
 
     renderNeutral();
-    renderSensitivity();
+    renderThreshold();
     elements.inputLevelWrap.hidden = true;
     elements.status.textContent = 'マイクは停止中です';
 

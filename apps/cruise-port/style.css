@@ -1084,7 +1084,7 @@ select {
 }
 
 .tuner-input-label,
-.tuner-sensitivity-heading {
+.tuner-threshold-heading {
     margin: 0;
     color: var(--port-muted);
     font-size: 0.68rem;
@@ -1094,9 +1094,11 @@ select {
 
 .tuner-input-level {
     --tuner-input-level-position: 0%;
+    --tuner-threshold-position: 19.4%;
+    position: relative;
     height: 6px;
     margin-top: 8px;
-    overflow: hidden;
+    overflow: visible;
     border-radius: 3px;
     background: rgba(230, 210, 155, 0.08);
 }
@@ -1110,19 +1112,31 @@ select {
     transition: width 70ms linear;
 }
 
-.tuner-sensitivity-heading {
+.tuner-input-threshold-marker {
+    position: absolute;
+    z-index: 1;
+    top: -3px;
+    bottom: -3px;
+    left: var(--tuner-threshold-position);
+    width: 1px;
+    background: rgba(243, 240, 232, 0.88);
+    box-shadow: 0 0 0 1px rgba(8, 7, 5, 0.5);
+    pointer-events: none;
+}
+
+.tuner-threshold-heading {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: 12px;
 }
 
-.tuner-sensitivity-heading output {
+.tuner-threshold-heading output {
     color: var(--port-gold-bright);
     font-variant-numeric: tabular-nums;
 }
 
-.tuner-sensitivity input[type="range"] {
+.tuner-threshold-control input[type="range"] {
     width: 100%;
     height: 28px;
     min-height: 28px;
@@ -1133,7 +1147,7 @@ select {
     background: transparent;
 }
 
-.tuner-sensitivity-labels {
+.tuner-threshold-labels {
     display: flex;
     justify-content: space-between;
     margin-top: -2px;
@@ -1141,7 +1155,7 @@ select {
     font-size: 0.6rem;
 }
 
-.tuner-sensitivity-error {
+.tuner-threshold-error {
     min-height: 1.4em;
     margin: 5px 0 0;
     color: #e5aca4;

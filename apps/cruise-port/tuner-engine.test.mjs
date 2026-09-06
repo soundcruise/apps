@@ -209,11 +209,11 @@ assert.throws(() => createPitchDetector({ minFrequency: 1400, maxFrequency: 70 }
         amplitude: 0.0012
     });
     assert.equal(detectPitch(quietIphoneLikeInput, 48000), null, 'standard rejects sub-threshold input');
-    const highSensitivity = detectPitchDetailed(quietIphoneLikeInput, 48000, { rmsThreshold: 0.0008 });
-    assert(highSensitivity.result, 'high sensitivity passes the measured iPhone-like level to YIN');
-    assert.equal(highSensitivity.result.noteName, 'E');
-    assert.equal(highSensitivity.result.octave, 2);
-    assert.equal(highSensitivity.diagnostics.rmsThreshold, 0.0008);
+    const quietThresholdResult = detectPitchDetailed(quietIphoneLikeInput, 48000, { rmsThreshold: 0.0008 });
+    assert(quietThresholdResult.result, 'a lower RMS threshold passes the measured iPhone-like level to YIN');
+    assert.equal(quietThresholdResult.result.noteName, 'E');
+    assert.equal(quietThresholdResult.result.octave, 2);
+    assert.equal(quietThresholdResult.diagnostics.rmsThreshold, 0.0008);
 }
 
 {

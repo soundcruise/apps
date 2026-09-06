@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
 import {
     TUNER_DEFAULTS,
+    TUNER_DEFAULT_THRESHOLD_DB,
     TUNER_SCHEMA_VERSION,
     TUNER_STORAGE_KEY,
+    TUNER_THRESHOLD_DB_MAX,
+    TUNER_THRESHOLD_DB_MIN,
+    TUNER_THRESHOLD_DB_STEP,
     loadTunerSettings,
     normalizeTunerSettings,
-    saveTunerSettings
+    saveTunerSettings,
+    thresholdDbToRms
 } from './tuner-store.js';
 
 function createStorage(initialValue = null, { readError = null, writeError = null } = {}) {
@@ -27,37 +32,62 @@ function createStorage(initialValue = null, { readError = null, writeError = nul
     };
 }
 
-assert.deepEqual(TUNER_DEFAULTS, { version: 1, sensitivity: 'standard' });
-assert.equal(TUNER_SCHEMA_VERSION, 1);
+assert.deepEqual(TUNER_DEFAULTS, { version: 2, thresholdDb: -68 });
+assert.equal(TUNER_SCHEMA_VERSION, 2);
 assert.equal(TUNER_STORAGE_KEY, 'cruisePort.tuner');
+assert.deepEqual([TUNER_THRESHOLD_DB_MIN, TUNER_THRESHOLD_DB_MAX, TUNER_THRESHOLD_DB_STEP], [-80, -40, 1]);
+assert.equal(TUNER_DEFAULT_THRESHOLD_DB, -68);
+assert(Math.abs(thresholdDbToRms(-68) - 0.000398107) < 0.0000001, '-68 dBFS converts safely to RMS');
 
 {
     const storage = createStorage();
-    assert.deepEqual(loadTunerSettings(storage), { ok: true, settings: { version: 1, sensitivity: 'standard' } });
+    assert.deepEqual(loadTunerSettings(storage), {
+        ok: true,
+        settings: { version: 2, thresholdDb: -68 },
+        migrated: false
+    });
     assert.equal(storage.writes.length, 0, 'missing settings are not written during load');
 }
 
-for (const sensitivity of ['low', 'standard', 'high']) {
+for (const thresholdDb of [-80, -68, -40]) {
     assert.deepEqual(
-        normalizeTunerSettings({ version: 1, sensitivity }),
-        { version: 1, sensitivity }
+        normalizeTunerSettings({ version: 2, thresholdDb }),
+        { version: 2, thresholdDb }
     );
 }
 for (const invalid of [
     null,
     [],
-    { version: 2, sensitivity: 'high' },
-    { version: 1, sensitivity: 'maximum' },
-    { version: 1 }
+    { version: 1, thresholdDb: -68 },
+    { version: 2, thresholdDb: -81 },
+    { version: 2, thresholdDb: -39 },
+    { version: 2, thresholdDb: -68.5 },
+    { version: 2 }
 ]) {
     assert.equal(normalizeTunerSettings(invalid), null);
 }
 
-for (const raw of ['{broken', JSON.stringify({ version: 2, sensitivity: 'high' })]) {
+for (const [legacy, expected] of [
+    ['low', -44],
+    ['standard', -50],
+    ['high', -62]
+]) {
+    const raw = JSON.stringify({ version: 1, sensitivity: legacy });
+    const storage = createStorage(raw);
+    assert.deepEqual(loadTunerSettings(storage), {
+        ok: true,
+        settings: { version: 2, thresholdDb: expected },
+        migrated: true
+    });
+    assert.equal(storage.values.get(TUNER_STORAGE_KEY), raw, 'v1 data remains untouched until a user adjustment');
+    assert.equal(storage.writes.length, 0);
+}
+
+for (const raw of ['{broken', JSON.stringify({ version: 2, thresholdDb: -81 }), JSON.stringify({ version: 1, sensitivity: 'maximum' })]) {
     const storage = createStorage(raw);
     const loaded = loadTunerSettings(storage);
     assert.equal(loaded.ok, false);
-    assert.deepEqual(loaded.settings, { version: 1, sensitivity: 'standard' });
+    assert.deepEqual(loaded.settings, { version: 2, thresholdDb: -68 });
     assert.equal(storage.values.get(TUNER_STORAGE_KEY), raw, 'invalid source data remains untouched');
     assert.equal(storage.writes.length, 0);
 }
@@ -69,19 +99,19 @@ for (const raw of ['{broken', JSON.stringify({ version: 2, sensitivity: 'high' }
 
 {
     const storage = createStorage();
-    assert.deepEqual(saveTunerSettings({ version: 1, sensitivity: 'high', extra: true }, storage), { ok: true });
+    assert.deepEqual(saveTunerSettings({ version: 2, thresholdDb: -60, extra: true }, storage), { ok: true });
     assert.deepEqual(storage.writes, [[
         'cruisePort.tuner',
-        JSON.stringify({ version: 1, sensitivity: 'high' })
+        JSON.stringify({ version: 2, thresholdDb: -60 })
     ]]);
 }
 
 {
     const storage = createStorage(null, { writeError: new Error('quota') });
-    assert.equal(saveTunerSettings({ version: 1, sensitivity: 'low' }, storage).reason, 'write-failed');
+    assert.equal(saveTunerSettings({ version: 2, thresholdDb: -68 }, storage).reason, 'write-failed');
     assert.equal(storage.writes.length, 0);
 }
 
-assert.equal(saveTunerSettings({ version: 1, sensitivity: 'invalid' }, createStorage()).reason, 'invalid-data');
+assert.equal(saveTunerSettings({ version: 2, thresholdDb: -68.5 }, createStorage()).reason, 'invalid-data');
 
-console.log('tuner-store: all settings tests passed');
+console.log('tuner-store: threshold v2 settings tests passed');

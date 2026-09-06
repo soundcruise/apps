@@ -2,7 +2,7 @@ import {
     TUNER_ENGINE_DEFAULTS,
     createDetailedPitchDetector,
     createPitchDetector
-} from './tuner-engine.js?v=1.1.1';
+} from './tuner-engine.js?v=1.1.2';
 
 const ANALYSIS_INTERVAL_MS = 50;
 const BASE_ANALYSER_SIZE = 4096;
