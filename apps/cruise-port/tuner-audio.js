@@ -1,4 +1,8 @@
-import { createDetailedPitchDetector, createPitchDetector } from './tuner-engine.js?v=1.1.0';
+import {
+    TUNER_ENGINE_DEFAULTS,
+    createDetailedPitchDetector,
+    createPitchDetector
+} from './tuner-engine.js?v=1.1.1';
 
 const ANALYSIS_INTERVAL_MS = 50;
 const BASE_ANALYSER_SIZE = 4096;
@@ -111,13 +115,18 @@ function selectDiagnosticValues(source) {
 
 export function createTunerAudioController({
     onResult,
+    onInputLevel,
     onDiagnostic,
     onStateChange,
     onError,
     diagnosticEnabled = false,
+    rmsThreshold = TUNER_ENGINE_DEFAULTS.rmsThreshold,
     environment = {}
 } = {}) {
     const platform = { ...defaultEnvironment(), ...environment };
+    let currentRmsThreshold = Number.isFinite(rmsThreshold) && rmsThreshold >= 0
+        ? rmsThreshold
+        : TUNER_ENGINE_DEFAULTS.rmsThreshold;
     let status = TUNER_AUDIO_STATES.idle;
     let generation = 0;
     let startPromise = null;
@@ -132,6 +141,8 @@ export function createTunerAudioController({
     let diagnosticTrackSettings = {};
     let diagnosticSupportedConstraints = {};
     let callbackErrorReported = false;
+    const levelEnabled = typeof onInputLevel === 'function';
+    const detailedDetectionEnabled = diagnosticEnabled || levelEnabled;
     const trackListeners = new Map();
 
     function getState() {
@@ -140,6 +151,7 @@ export function createTunerAudioController({
             sampleRate: context?.sampleRate ?? null,
             trackSampleRate,
             analyserFftSize: analyser?.fftSize ?? null,
+            rmsThreshold: currentRmsThreshold,
             destroyed: status === TUNER_AUDIO_STATES.destroyed
         };
     }
@@ -237,8 +249,14 @@ export function createTunerAudioController({
         try {
             analyser.getFloatTimeDomainData(samples);
             const detection = detector(samples, context.sampleRate);
-            const result = diagnosticEnabled ? detection.result : detection;
+            const result = detailedDetectionEnabled ? detection.result : detection;
             notify(onResult, result);
+            if (levelEnabled) {
+                notify(onInputLevel, {
+                    rms: detection.diagnostics.rms,
+                    rmsDbfs: detection.diagnostics.rmsDbfs
+                });
+            }
             if (diagnosticEnabled) {
                 notify(onDiagnostic, {
                     ...detection.diagnostics,
@@ -353,9 +371,9 @@ export function createTunerAudioController({
             localAnalyser = localContext.createAnalyser();
             localAnalyser.fftSize = chooseAnalyserSize(localContext.sampleRate);
             const localSamples = new Float32Array(localAnalyser.fftSize);
-            const localDetector = diagnosticEnabled
-                ? platform.detailedDetectorFactory()
-                : platform.detectorFactory();
+            const localDetector = detailedDetectionEnabled
+                ? platform.detailedDetectorFactory({ rmsThreshold: currentRmsThreshold })
+                : platform.detectorFactory({ rmsThreshold: currentRmsThreshold });
             localSource.connect(localAnalyser);
 
             if (!isCurrent(startGeneration)) {
@@ -420,6 +438,22 @@ export function createTunerAudioController({
         return wrapped;
     }
 
+    function setRmsThreshold(nextThreshold) {
+        if (!Number.isFinite(nextThreshold) || nextThreshold < 0) return false;
+        if (nextThreshold === currentRmsThreshold) return true;
+        try {
+            if (detector) {
+                detector = detailedDetectionEnabled
+                    ? platform.detailedDetectorFactory({ rmsThreshold: nextThreshold })
+                    : platform.detectorFactory({ rmsThreshold: nextThreshold });
+            }
+            currentRmsThreshold = nextThreshold;
+            return true;
+        } catch (_) {
+            return false;
+        }
+    }
+
     const handleVisibilityChange = () => {
         if (platform.documentTarget?.hidden) void stop();
     };
@@ -436,5 +470,5 @@ export function createTunerAudioController({
         return closePromise;
     }
 
-    return { start, stop, destroy, getState };
+    return { start, stop, destroy, getState, setRmsThreshold };
 }

@@ -195,10 +195,25 @@ assert.throws(() => createPitchDetector({ minFrequency: 1400, maxFrequency: 70 }
     assert.equal(detailed.diagnostics.reason, 'valid');
     assert.equal(detailed.diagnostics.finalFrequency, detailed.result.frequency);
     assert.equal(detailed.diagnostics.rawFrequency, detailed.result.frequency);
+    assert.equal(detailed.diagnostics.rmsThreshold, 0.003);
     assert(Number.isFinite(detailed.diagnostics.rmsDbfs));
 
     const reusableDetailed = createDetailedPitchDetector();
     assert.equal(reusableDetailed(samples, 48000).diagnostics.reason, 'valid');
+}
+
+{
+    const quietIphoneLikeInput = makeWave({
+        frequency: 82.4069,
+        sampleRate: 48000,
+        amplitude: 0.0012
+    });
+    assert.equal(detectPitch(quietIphoneLikeInput, 48000), null, 'standard rejects sub-threshold input');
+    const highSensitivity = detectPitchDetailed(quietIphoneLikeInput, 48000, { rmsThreshold: 0.0008 });
+    assert(highSensitivity.result, 'high sensitivity passes the measured iPhone-like level to YIN');
+    assert.equal(highSensitivity.result.noteName, 'E');
+    assert.equal(highSensitivity.result.octave, 2);
+    assert.equal(highSensitivity.diagnostics.rmsThreshold, 0.0008);
 }
 
 {

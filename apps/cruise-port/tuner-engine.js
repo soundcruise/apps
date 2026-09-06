@@ -161,7 +161,8 @@ function completeDetection(
     rmsValue = null,
     confidenceValue = null,
     candidateLagValue = null,
-    rawFrequencyValue = null
+    rawFrequencyValue = null,
+    rmsThresholdValue = null
 ) {
     if (!detailed) return result;
     const rms = Number.isFinite(rmsValue) ? rmsValue : null;
@@ -174,6 +175,7 @@ function completeDetection(
             confidence: Number.isFinite(confidenceValue) ? confidenceValue : null,
             candidateLag: Number.isFinite(candidateLagValue) ? candidateLagValue : null,
             rawFrequency: Number.isFinite(rawFrequencyValue) ? rawFrequencyValue : null,
+            rmsThreshold: Number.isFinite(rmsThresholdValue) ? rmsThresholdValue : null,
             finalFrequency: Number.isFinite(result?.frequency) ? result.frequency : null
         }
     };
@@ -183,19 +185,21 @@ function detectWithWorkspace(samples, sampleRate, config, workspace, detailed = 
     if (!(samples instanceof Float32Array)
         || samples.length < MIN_BUFFER_LENGTH
         || !isFinitePositive(sampleRate)) {
-        return completeDetection(detailed, null, 'invalid-input');
+        return completeDetection(detailed, null, 'invalid-input', null, null, null, null, config.rmsThreshold);
     }
 
     const rms = calculateCenteredRms(samples);
-    if (rms === null) return completeDetection(detailed, null, 'invalid-input');
-    if (rms < config.rmsThreshold) return completeDetection(detailed, null, 'low-rms', rms);
+    if (rms === null) return completeDetection(detailed, null, 'invalid-input', null, null, null, null, config.rmsThreshold);
+    if (rms < config.rmsThreshold) {
+        return completeDetection(detailed, null, 'low-rms', rms, null, null, null, config.rmsThreshold);
+    }
 
     const firstSearchLag = Math.max(2, Math.floor(sampleRate / config.maxFrequency) - 1);
     const requestedLastLag = Math.ceil(sampleRate / config.minFrequency) + 1;
     const lastLag = Math.min(requestedLastLag, samples.length - 3);
     const comparisonLength = samples.length - lastLag - 1;
     if (firstSearchLag > lastLag || comparisonLength < lastLag) {
-        return completeDetection(detailed, null, 'no-candidate', rms);
+        return completeDetection(detailed, null, 'no-candidate', rms, null, null, null, config.rmsThreshold);
     }
 
     workspace.ensureLength(lastLag + 1);
@@ -232,14 +236,17 @@ function detectWithWorkspace(samples, sampleRate, config, workspace, detailed = 
             rms,
             Math.max(0, Math.min(1, 1 - normalized[firstCandidate])),
             firstCandidate,
-            sampleRate / firstCandidate
+            sampleRate / firstCandidate,
+            config.rmsThreshold
         );
     }
 
     let candidate = firstCandidate >= firstSearchLag ? firstCandidate : -1;
     if (candidate < 0) {
         candidate = findBestCandidate(normalized, firstSearchLag, lastLag);
-        if (candidate < 0) return completeDetection(detailed, null, 'no-candidate', rms);
+        if (candidate < 0) {
+            return completeDetection(detailed, null, 'no-candidate', rms, null, null, null, config.rmsThreshold);
+        }
         const fallbackConfidence = Math.max(0, Math.min(1, 1 - normalized[candidate]));
         if (fallbackConfidence < config.minConfidence) {
             return completeDetection(
@@ -249,7 +256,8 @@ function detectWithWorkspace(samples, sampleRate, config, workspace, detailed = 
                 rms,
                 fallbackConfidence,
                 candidate,
-                sampleRate / candidate
+                sampleRate / candidate,
+                config.rmsThreshold
             );
         }
     }
@@ -264,7 +272,8 @@ function detectWithWorkspace(samples, sampleRate, config, workspace, detailed = 
             rms,
             confidence,
             candidate,
-            sampleRate / candidate
+            sampleRate / candidate,
+            config.rmsThreshold
         );
     }
 
@@ -272,10 +281,14 @@ function detectWithWorkspace(samples, sampleRate, config, workspace, detailed = 
     const refinedLag = interpolateLag(difference, candidate);
     const frequency = sampleRate / refinedLag;
     if (!Number.isFinite(frequency)) {
-        return completeDetection(detailed, null, 'invalid-frequency', rms, confidence, refinedLag);
+        return completeDetection(
+            detailed, null, 'invalid-frequency', rms, confidence, refinedLag, null, config.rmsThreshold
+        );
     }
     if (frequency < config.minFrequency || frequency > config.maxFrequency) {
-        return completeDetection(detailed, null, 'out-of-range', rms, confidence, refinedLag, frequency);
+        return completeDetection(
+            detailed, null, 'out-of-range', rms, confidence, refinedLag, frequency, config.rmsThreshold
+        );
     }
 
     const note = frequencyToNoteInfo(frequency);
@@ -287,11 +300,14 @@ function detectWithWorkspace(samples, sampleRate, config, workspace, detailed = 
             rms,
             confidence,
             refinedLag,
-            frequency
+            frequency,
+            config.rmsThreshold
         );
     }
     const result = { frequency, confidence, rms, ...note };
-    return completeDetection(detailed, result, 'valid', rms, confidence, refinedLag, frequency);
+    return completeDetection(
+        detailed, result, 'valid', rms, confidence, refinedLag, frequency, config.rmsThreshold
+    );
 }
 
 export function createPitchDetector(options = {}) {

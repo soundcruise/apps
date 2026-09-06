@@ -1076,6 +1076,79 @@ select {
     color: #d8eadc;
 }
 
+.tuner-input-tools {
+    display: grid;
+    margin-top: 22px;
+    gap: 16px;
+    text-align: left;
+}
+
+.tuner-input-label,
+.tuner-sensitivity-heading {
+    margin: 0;
+    color: var(--port-muted);
+    font-size: 0.68rem;
+    font-weight: 620;
+    letter-spacing: 0.05em;
+}
+
+.tuner-input-level {
+    --tuner-input-level-position: 0%;
+    height: 6px;
+    margin-top: 8px;
+    overflow: hidden;
+    border-radius: 3px;
+    background: rgba(230, 210, 155, 0.08);
+}
+
+.tuner-input-level-fill {
+    display: block;
+    width: var(--tuner-input-level-position);
+    height: 100%;
+    border-radius: inherit;
+    background: rgba(205, 180, 116, 0.66);
+    transition: width 70ms linear;
+}
+
+.tuner-sensitivity-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.tuner-sensitivity-heading output {
+    color: var(--port-gold-bright);
+    font-variant-numeric: tabular-nums;
+}
+
+.tuner-sensitivity input[type="range"] {
+    width: 100%;
+    height: 28px;
+    min-height: 28px;
+    margin: 5px 0 0;
+    padding: 0;
+    border: 0;
+    accent-color: var(--port-gold);
+    background: transparent;
+}
+
+.tuner-sensitivity-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: -2px;
+    color: var(--port-muted);
+    font-size: 0.6rem;
+}
+
+.tuner-sensitivity-error {
+    min-height: 1.4em;
+    margin: 5px 0 0;
+    color: #e5aca4;
+    font-size: 0.64rem;
+    line-height: 1.4;
+}
+
 .tuner-error {
     margin-top: 20px;
     margin-bottom: 0;
@@ -1105,6 +1178,7 @@ select {
 
 .tuner-diagnostic {
     --diagnostic-level-position: 0%;
+    --diagnostic-threshold-position: 39.9%;
     margin-top: 28px;
     padding: 18px;
     border: 1px solid rgba(205, 180, 116, 0.18);
@@ -1166,7 +1240,7 @@ select {
     position: absolute;
     top: 0;
     bottom: 0;
-    left: 39.9%;
+    left: var(--diagnostic-threshold-position);
     width: 1px;
     background: rgba(243, 240, 232, 0.84);
 }

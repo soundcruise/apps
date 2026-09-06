@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.1.0">
+    <link rel="stylesheet" href="./style.css?v=1.1.1">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.1.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.1.1"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -244,6 +244,43 @@
                     <li data-tuner-string data-note="E4"><span>1弦</span><strong>E4</strong></li>
                 </ul>
 
+                <div class="tuner-input-tools">
+                    <div id="tuner-input-level-wrap" class="tuner-input-level-wrap" hidden>
+                        <p class="tuner-input-label">入力レベル</p>
+                        <div
+                            id="tuner-input-level"
+                            class="tuner-input-level"
+                            role="meter"
+                            aria-label="マイクの入力レベル"
+                            aria-valuemin="-72"
+                            aria-valuemax="-18"
+                            aria-valuenow="-72"
+                        >
+                            <span class="tuner-input-level-fill"></span>
+                        </div>
+                    </div>
+
+                    <div class="tuner-sensitivity">
+                        <div class="tuner-sensitivity-heading">
+                            <label for="tuner-sensitivity">入力感度</label>
+                            <output id="tuner-sensitivity-value" for="tuner-sensitivity">標準</output>
+                        </div>
+                        <input
+                            id="tuner-sensitivity"
+                            type="range"
+                            min="0"
+                            max="2"
+                            step="1"
+                            value="1"
+                            aria-valuetext="標準"
+                        >
+                        <div class="tuner-sensitivity-labels" aria-hidden="true">
+                            <span>低</span><span>標準</span><span>高</span>
+                        </div>
+                        <p id="tuner-sensitivity-error" class="tuner-sensitivity-error" role="status"></p>
+                    </div>
+                </div>
+
                 <p id="tuner-error" class="notice notice-error tuner-error" role="alert" hidden></p>
                 <p id="tuner-status" class="tuner-status" aria-live="polite">マイクは停止中です</p>
                 <button id="tuner-toggle" class="action-button primary-action tuner-toggle" type="button">マイクを開始</button>
@@ -262,7 +299,7 @@
                         <span class="diagnostic-level-fill"></span>
                         <span class="diagnostic-threshold" aria-hidden="true"></span>
                     </div>
-                    <p class="diagnostic-threshold-label">現在の検出しきい値 −50.5 dBFS</p>
+                    <p id="tuner-diagnostic-threshold-label" class="diagnostic-threshold-label">現在の検出しきい値 −50.5 dBFS</p>
                     <dl class="diagnostic-values">
                         <div><dt>RMS</dt><dd id="tuner-diagnostic-rms">—</dd></div>
                         <div><dt>Confidence</dt><dd id="tuner-diagnostic-confidence">—</dd></div>
@@ -272,6 +309,8 @@
                         <div><dt>Display</dt><dd id="tuner-diagnostic-display">neutral</dd></div>
                         <div><dt>Sample Rate</dt><dd id="tuner-diagnostic-sample-rate">—</dd></div>
                         <div><dt>FFT Size</dt><dd id="tuner-diagnostic-fft-size">—</dd></div>
+                        <div><dt>Sensitivity</dt><dd id="tuner-diagnostic-sensitivity">standard</dd></div>
+                        <div><dt>RMS Threshold</dt><dd id="tuner-diagnostic-rms-threshold">0.003</dd></div>
                     </dl>
                     <div class="diagnostic-environment">
                         <p><strong>Track</strong> <span id="tuner-diagnostic-track">—</span></p>

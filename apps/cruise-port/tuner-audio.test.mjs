@@ -150,7 +150,9 @@ function createHarness({
     detectorFactory,
     detailedDetectorFactory,
     diagnosticEnabled,
+    rmsThreshold,
     onResult,
+    onInputLevel,
     onDiagnostic,
     onStateChange,
     onError
@@ -163,10 +165,12 @@ function createHarness({
     const gum = getUserMedia || (async () => createStream());
     const controller = createTunerAudioController({
         onResult,
+        onInputLevel,
         onDiagnostic,
         onStateChange,
         onError,
         diagnosticEnabled,
+        rmsThreshold,
         environment: {
             navigatorObject: {
                 mediaDevices: {
@@ -200,6 +204,50 @@ function createHarness({
         get getUserMediaCalls() { return getUserMediaCalls; },
         requestedConstraints
     };
+}
+
+{
+    const ContextClass = createContextClass();
+    const factoryThresholds = [];
+    const inputLevels = [];
+    const results = [];
+    const harness = createHarness({
+        ContextClass,
+        rmsThreshold: 0.003,
+        onResult: (value) => results.push(value),
+        onInputLevel: (value) => inputLevels.push(value),
+        detailedDetectorFactory: (options) => {
+            factoryThresholds.push(options.rmsThreshold);
+            const threshold = options.rmsThreshold;
+            return () => ({
+                result: threshold === 0.0008 ? { frequency: 82.4, confidence: 0.9 } : null,
+                diagnostics: {
+                    reason: threshold === 0.0008 ? 'valid' : 'low-rms',
+                    rms: 0.0012,
+                    rmsDbfs: -58.4,
+                    rmsThreshold: threshold
+                }
+            });
+        }
+    });
+    await harness.controller.start();
+    assert.deepEqual(factoryThresholds, [0.003]);
+    harness.timers.runNext();
+    assert.equal(results[0], null);
+    assert.deepEqual(inputLevels[0], { rms: 0.0012, rmsDbfs: -58.4 });
+
+    assert.equal(harness.controller.setRmsThreshold(0.0008), true);
+    assert.deepEqual(factoryThresholds, [0.003, 0.0008]);
+    assert.equal(harness.getUserMediaCalls, 1, 'threshold switch does not reacquire the stream');
+    assert.equal(ContextClass.instances.length, 1, 'threshold switch does not recreate AudioContext');
+    assert.equal(harness.controller.getState().rmsThreshold, 0.0008);
+    harness.timers.runNext();
+    assert.equal(results[1].frequency, 82.4, 'next frame uses the replacement detector');
+
+    assert.equal(harness.controller.setRmsThreshold(-1), false);
+    assert.equal(harness.controller.getState().rmsThreshold, 0.0008);
+    assert.deepEqual(factoryThresholds, [0.003, 0.0008]);
+    await harness.controller.stop();
 }
 
 {

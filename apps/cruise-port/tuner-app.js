@@ -1,5 +1,10 @@
-import { createTunerAudioController } from './tuner-audio.js?v=1.1.0';
-import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.0';
+import { createTunerAudioController } from './tuner-audio.js?v=1.1.1';
+import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.1';
+import {
+    TUNER_SCHEMA_VERSION,
+    loadTunerSettings,
+    saveTunerSettings
+} from './tuner-store.js?v=1.1.1';
 
 const EMA_TIME_CONSTANT_MS = 80;
 const NULL_GRACE_MS = 150;
@@ -17,6 +22,16 @@ const DIAGNOSTIC_MAX_FRAMES = 120;
 const DIAGNOSTIC_RENDER_INTERVAL_MS = 100;
 const DIAGNOSTIC_MIN_DBFS = -72;
 const DIAGNOSTIC_MAX_DBFS = -18;
+const INPUT_LEVEL_ATTACK_MS = 70;
+const INPUT_LEVEL_RELEASE_MS = 400;
+
+export const TUNER_SENSITIVITY_CONFIG = Object.freeze({
+    low: Object.freeze({ index: 0, label: '低', rmsThreshold: 0.006 }),
+    standard: Object.freeze({ index: 1, label: '標準', rmsThreshold: 0.003 }),
+    high: Object.freeze({ index: 2, label: '高', rmsThreshold: 0.0008 })
+});
+
+const TUNER_SENSITIVITY_ORDER = Object.freeze(['low', 'standard', 'high']);
 
 export const STANDARD_TUNING = Object.freeze([
     Object.freeze({ string: 6, note: 'E2' }),
@@ -218,6 +233,54 @@ function formatCents(cents) {
     return `${rounded} cent`;
 }
 
+export function inputLevelPercentage(dbfs) {
+    const level = Number.isFinite(dbfs) ? dbfs : DIAGNOSTIC_MIN_DBFS;
+    const clamped = Math.max(DIAGNOSTIC_MIN_DBFS, Math.min(DIAGNOSTIC_MAX_DBFS, level));
+    return ((clamped - DIAGNOSTIC_MIN_DBFS) / (DIAGNOSTIC_MAX_DBFS - DIAGNOSTIC_MIN_DBFS)) * 100;
+}
+
+export function createInputLevelSmoother({
+    attackMs = INPUT_LEVEL_ATTACK_MS,
+    releaseMs = INPUT_LEVEL_RELEASE_MS
+} = {}) {
+    let level = DIAGNOSTIC_MIN_DBFS;
+    let lastTime = null;
+
+    return {
+        push(dbfs, timestamp) {
+            const now = Number.isFinite(timestamp) ? timestamp : 0;
+            const target = Math.max(
+                DIAGNOSTIC_MIN_DBFS,
+                Math.min(DIAGNOSTIC_MAX_DBFS, Number.isFinite(dbfs) ? dbfs : DIAGNOSTIC_MIN_DBFS)
+            );
+            if (lastTime === null) {
+                level = target;
+            } else {
+                const elapsed = Math.max(0, now - lastTime);
+                const timeConstant = target > level ? attackMs : releaseMs;
+                const alpha = timeConstant > 0 ? 1 - Math.exp(-elapsed / timeConstant) : 1;
+                level += alpha * (target - level);
+            }
+            lastTime = now;
+            return level;
+        },
+        reset() {
+            level = DIAGNOSTIC_MIN_DBFS;
+            lastTime = null;
+        }
+    };
+}
+
+function sensitivityFromIndex(value) {
+    return TUNER_SENSITIVITY_ORDER[Number(value)] || 'standard';
+}
+
+function thresholdDbfs(threshold) {
+    return Number.isFinite(threshold) && threshold > 0
+        ? 20 * Math.log10(threshold)
+        : Number.NEGATIVE_INFINITY;
+}
+
 export function isTunerDebugEnabled(search = globalThis.location?.search || '') {
     try { return new URLSearchParams(search).get('tunerDebug') === '1'; } catch (_) { return false; }
 }
@@ -289,6 +352,8 @@ export function formatTunerDiagnosticCopy({
     device = 'Unknown browser',
     diagnostic = {},
     display = {},
+    sensitivity = 'standard',
+    rmsThreshold = diagnostic.rmsThreshold,
     summary = { frames: 0, valid: 0, lowRms: 0, lowConfidence: 0, other: 0 }
 } = {}) {
     const number = (value, digits) => (Number.isFinite(value) ? value.toFixed(digits) : '—');
@@ -309,6 +374,8 @@ export function formatTunerDiagnosticCopy({
         `Current Confidence: ${number(diagnostic.confidence, 3)}`,
         `Raw Frequency: ${number(diagnostic.rawFrequency, 2)} Hz`,
         `Current Reason: ${diagnostic.reason || '—'}`,
+        `Sensitivity: ${sensitivity}`,
+        `RMS Threshold: ${number(rmsThreshold, 6)}`,
         `Display: ${display.state || 'neutral'}`,
         `Final: ${finalLabel}`,
         '',
@@ -332,7 +399,8 @@ export function initTuner(root, {
     audioControllerFactory = createTunerAudioController,
     now = () => globalThis.performance?.now?.() ?? Date.now(),
     debugEnabled = isTunerDebugEnabled(),
-    navigatorObject = globalThis.navigator
+    navigatorObject = globalThis.navigator,
+    storage
 } = {}) {
     const elements = {
         title: root.querySelector('#tuner-title'),
@@ -345,6 +413,11 @@ export function initTuner(root, {
         toggle: root.querySelector('#tuner-toggle'),
         error: root.querySelector('#tuner-error'),
         status: root.querySelector('#tuner-status'),
+        inputLevelWrap: root.querySelector('#tuner-input-level-wrap'),
+        inputLevel: root.querySelector('#tuner-input-level'),
+        sensitivity: root.querySelector('#tuner-sensitivity'),
+        sensitivityValue: root.querySelector('#tuner-sensitivity-value'),
+        sensitivityError: root.querySelector('#tuner-sensitivity-error'),
         diagnostic: root.querySelector('#tuner-diagnostic'),
         strings: [...root.querySelectorAll('[data-tuner-string]')]
     };
@@ -360,6 +433,9 @@ export function initTuner(root, {
         display: root.querySelector('#tuner-diagnostic-display'),
         sampleRate: root.querySelector('#tuner-diagnostic-sample-rate'),
         fftSize: root.querySelector('#tuner-diagnostic-fft-size'),
+        sensitivity: root.querySelector('#tuner-diagnostic-sensitivity'),
+        rmsThreshold: root.querySelector('#tuner-diagnostic-rms-threshold'),
+        thresholdLabel: root.querySelector('#tuner-diagnostic-threshold-label'),
         track: root.querySelector('#tuner-diagnostic-track'),
         supported: root.querySelector('#tuner-diagnostic-supported'),
         frames: root.querySelector('#tuner-diagnostic-frames'),
@@ -371,7 +447,10 @@ export function initTuner(root, {
         copyStatus: root.querySelector('#tuner-diagnostic-copy-status')
     } : null;
     const smoother = createTunerSmoother();
+    const inputLevelSmoother = createInputLevelSmoother();
     const diagnosticHistory = debugEnabled ? createTunerDiagnosticHistory() : null;
+    const loadResult = loadTunerSettings(storage);
+    let currentSensitivity = loadResult.settings.sensitivity;
     let viewActive = false;
     let audioStatus = 'idle';
     let latestDiagnostic = null;
@@ -451,12 +530,14 @@ export function initTuner(root, {
 
         if (state.status === 'starting') {
             renderNeutral();
+            elements.inputLevelWrap.hidden = true;
             elements.toggle.disabled = true;
             elements.toggle.textContent = 'マイクの使用を確認中…';
             elements.status.textContent = 'マイクの使用を確認しています…';
             return;
         }
         if (state.status === 'running') {
+            elements.inputLevelWrap.hidden = false;
             elements.toggle.disabled = false;
             elements.toggle.textContent = '■ マイク停止';
             elements.status.textContent = 'マイク入力中';
@@ -465,9 +546,39 @@ export function initTuner(root, {
         }
 
         renderNeutral();
+        inputLevelSmoother.reset();
+        elements.inputLevelWrap.hidden = true;
+        elements.inputLevel.style.setProperty('--tuner-input-level-position', '0%');
+        elements.inputLevel.setAttribute('aria-valuenow', String(DIAGNOSTIC_MIN_DBFS));
         elements.toggle.disabled = false;
         elements.toggle.textContent = 'マイクを開始';
         elements.status.textContent = state.status === 'error' ? 'マイクを開始できませんでした' : 'マイクは停止中です';
+    }
+
+    function renderInputLevel(level) {
+        if (!viewActive || audioStatus !== 'running') return;
+        const smoothedDbfs = inputLevelSmoother.push(level.rmsDbfs, now());
+        const percentage = inputLevelPercentage(smoothedDbfs);
+        elements.inputLevel.style.setProperty('--tuner-input-level-position', `${percentage.toFixed(1)}%`);
+        elements.inputLevel.setAttribute('aria-valuenow', smoothedDbfs.toFixed(1));
+    }
+
+    function renderSensitivity() {
+        const config = TUNER_SENSITIVITY_CONFIG[currentSensitivity];
+        elements.sensitivity.value = String(config.index);
+        elements.sensitivityValue.textContent = config.label;
+        elements.sensitivity.setAttribute('aria-valuetext', config.label);
+        if (latestDiagnostic) latestDiagnostic = { ...latestDiagnostic, rmsThreshold: config.rmsThreshold };
+        if (!diagnosticElements) return;
+
+        const dbfs = thresholdDbfs(config.rmsThreshold);
+        diagnosticElements.sensitivity.textContent = currentSensitivity;
+        diagnosticElements.rmsThreshold.textContent = String(config.rmsThreshold);
+        diagnosticElements.thresholdLabel.textContent = `現在の検出しきい値 ${dbfs.toFixed(1)} dBFS`;
+        elements.diagnostic.style.setProperty(
+            '--diagnostic-threshold-position',
+            `${inputLevelPercentage(dbfs).toFixed(1)}%`
+        );
     }
 
     function resetDiagnostic() {
@@ -496,6 +607,7 @@ export function initTuner(root, {
         diagnosticElements.lowConfidence.textContent = '0%';
         diagnosticElements.other.textContent = '0%';
         diagnosticElements.copyStatus.textContent = '';
+        renderSensitivity();
     }
 
     function renderDiagnostic(diagnostic, timestamp) {
@@ -507,8 +619,7 @@ export function initTuner(root, {
 
         const dbfs = Number.isFinite(diagnostic.rmsDbfs) ? diagnostic.rmsDbfs : DIAGNOSTIC_MIN_DBFS;
         const clampedDbfs = Math.max(DIAGNOSTIC_MIN_DBFS, Math.min(DIAGNOSTIC_MAX_DBFS, dbfs));
-        const levelPercent = ((clampedDbfs - DIAGNOSTIC_MIN_DBFS)
-            / (DIAGNOSTIC_MAX_DBFS - DIAGNOSTIC_MIN_DBFS)) * 100;
+        const levelPercent = inputLevelPercentage(dbfs);
         diagnosticElements.dbfs.textContent = Number.isFinite(diagnostic.rmsDbfs)
             ? `${diagnostic.rmsDbfs.toFixed(1)} dBFS`
             : '−∞ dBFS';
@@ -558,6 +669,9 @@ export function initTuner(root, {
             if (!viewActive || audioStatus !== 'running') return;
             renderDiagnostic(diagnostic, now());
         },
+        onInputLevel(level) {
+            renderInputLevel(level);
+        },
         onStateChange(state) {
             renderAudioState(state);
         },
@@ -565,7 +679,8 @@ export function initTuner(root, {
             if (!viewActive) return;
             showError(errorMessage(error));
         },
-        diagnosticEnabled: debugEnabled
+        diagnosticEnabled: debugEnabled,
+        rmsThreshold: TUNER_SENSITIVITY_CONFIG[currentSensitivity].rmsThreshold
     });
 
     if (diagnosticElements) {
@@ -576,6 +691,8 @@ export function initTuner(root, {
                 device: diagnosticDeviceLabel(navigatorObject),
                 diagnostic: latestDiagnostic || {},
                 display: latestDiagnosticDisplay,
+                sensitivity: currentSensitivity,
+                rmsThreshold: TUNER_SENSITIVITY_CONFIG[currentSensitivity].rmsThreshold,
                 summary: latestDiagnosticSummary
             });
             try {
@@ -588,6 +705,28 @@ export function initTuner(root, {
         });
     }
 
+
+    elements.sensitivity.addEventListener('input', () => {
+        const nextSensitivity = sensitivityFromIndex(elements.sensitivity.value);
+        const nextConfig = TUNER_SENSITIVITY_CONFIG[nextSensitivity];
+        if (!audioController.setRmsThreshold(nextConfig.rmsThreshold)) {
+            elements.sensitivityError.textContent = '入力感度を変更できませんでした。';
+            renderSensitivity();
+            return;
+        }
+        currentSensitivity = nextSensitivity;
+        elements.sensitivityError.textContent = '';
+        renderSensitivity();
+    });
+
+    elements.sensitivity.addEventListener('change', () => {
+        const result = saveTunerSettings({
+            version: TUNER_SCHEMA_VERSION,
+            sensitivity: currentSensitivity
+        }, storage);
+        elements.sensitivityError.textContent = result.ok ? '' : '感度設定を保存できませんでした。';
+    });
+
     elements.toggle.addEventListener('click', async () => {
         if (audioStatus === 'running') {
             await audioController.stop();
@@ -599,6 +738,8 @@ export function initTuner(root, {
     });
 
     renderNeutral();
+    renderSensitivity();
+    elements.inputLevelWrap.hidden = true;
     elements.status.textContent = 'マイクは停止中です';
 
     return {
@@ -610,6 +751,9 @@ export function initTuner(root, {
                 resetDiagnostic();
                 showError();
                 renderNeutral();
+                inputLevelSmoother.reset();
+                elements.inputLevelWrap.hidden = true;
+                elements.inputLevel.style.setProperty('--tuner-input-level-position', '0%');
                 elements.toggle.disabled = false;
                 elements.toggle.textContent = 'マイクを開始';
                 elements.status.textContent = 'マイクは停止中です';
