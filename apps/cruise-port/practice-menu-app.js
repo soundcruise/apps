@@ -16,16 +16,16 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=5.0.0';
+} from './my-apps-store.js?v=5.1.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
     recognizeStoreUrl
-} from './my-apps-known-apps.js?v=1.1.0';
+} from './my-apps-known-apps.js?v=1.2.0';
 import {
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=1.1.0';
+} from './my-apps-launch.js?v=1.2.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -35,8 +35,8 @@ import {
     setKnownLaunchDecision,
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
-} from './my-apps-launch-form-state.js?v=1.0.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.2.0';
+} from './my-apps-launch-form-state.js?v=1.1.0';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.3.0';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -54,12 +54,12 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=2.2.0';
+} from './my-apps-icon-workflow.js?v=2.3.0';
 import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.7.0';
+} from './app-version.js?v=1.8.0';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
