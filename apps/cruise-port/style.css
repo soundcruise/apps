@@ -484,6 +484,14 @@ h1::after {
     stroke-width: 2.1;
 }
 
+.my-app-icon img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: contain;
+}
+
 .my-app-external-mark {
     position: absolute;
     top: 10px;
@@ -554,6 +562,94 @@ h1::after {
     color: var(--port-muted);
     font-size: 0.9rem;
     line-height: 1.75;
+}
+
+.form-field-label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--port-text);
+    font-size: 0.84rem;
+    font-weight: 620;
+}
+
+.my-apps-icon-editor {
+    display: flex;
+    min-width: 0;
+    padding: 14px;
+    align-items: center;
+    gap: 16px;
+    border: 1px solid rgba(207, 189, 148, 0.14);
+    border-radius: 14px;
+    background: rgba(205, 180, 116, 0.025);
+}
+
+.my-apps-icon-preview {
+    width: 82px;
+    height: 82px;
+    flex: 0 0 auto;
+}
+
+.my-apps-icon-preview .my-app-icon {
+    width: 82px;
+    height: 82px;
+    border-radius: 22px;
+}
+
+.my-apps-icon-preview .my-app-icon svg {
+    width: 51px;
+    height: 51px;
+}
+
+.my-apps-icon-controls {
+    min-width: 0;
+    display: flex;
+    flex: 1;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.my-apps-icon-select,
+.my-apps-icon-remove {
+    min-height: 42px;
+    display: inline-flex;
+    padding: 8px 12px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(207, 189, 148, 0.22);
+    border-radius: 10px;
+    color: var(--port-gold-bright);
+    background: #151410;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 620;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.my-apps-icon-remove {
+    color: var(--port-muted);
+    background: transparent;
+}
+
+.my-apps-icon-select.is-disabled,
+.my-apps-icon-remove:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
+
+.my-apps-icon-select:focus-within,
+.my-apps-icon-input:focus-visible + .my-apps-icon-select,
+.my-apps-icon-remove:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
+}
+
+.my-apps-icon-status {
+    width: 100%;
+    margin: 1px 0 0;
+    color: var(--port-muted);
+    font-size: 0.72rem;
+    line-height: 1.55;
 }
 
 .practice-row:focus-visible,
@@ -1767,6 +1863,26 @@ select {
         width: 56px;
         height: 56px;
         border-radius: 17px;
+    }
+
+    .my-apps-icon-editor {
+        padding: 12px;
+        gap: 12px;
+    }
+
+    .my-apps-icon-preview,
+    .my-apps-icon-preview .my-app-icon {
+        width: 68px;
+        height: 68px;
+    }
+
+    .my-apps-icon-preview .my-app-icon {
+        border-radius: 19px;
+    }
+
+    .my-apps-icon-preview .my-app-icon svg {
+        width: 42px;
+        height: 42px;
     }
 
     .skeleton-icon svg {

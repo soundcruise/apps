@@ -1,4 +1,4 @@
-export const MY_APPS_SCHEMA_VERSION = 1;
+export const MY_APPS_SCHEMA_VERSION = 2;
 export const MY_APPS_STORAGE_KEY = 'cruisePort.myApps';
 
 export const MY_APPS_LIMITS = Object.freeze({
@@ -8,7 +8,8 @@ export const MY_APPS_LIMITS = Object.freeze({
     id: 128
 });
 
-const ITEM_KEYS = Object.freeze(['id', 'name', 'url', 'createdAt', 'updatedAt']);
+const ITEM_KEYS_V1 = Object.freeze(['id', 'name', 'url', 'createdAt', 'updatedAt']);
+const ITEM_KEYS_V2 = Object.freeze(['id', 'name', 'url', 'iconId', 'createdAt', 'updatedAt']);
 
 function isIsoDate(value) {
     return typeof value === 'string'
@@ -58,7 +59,12 @@ export function validateMyAppValues(values) {
     return { ok: true, values: { name, url: urlResult.url } };
 }
 
-function isValidItem(item) {
+function hasExactKeys(item, keys) {
+    return Object.keys(item).length === keys.length && keys.every((key) => Object.hasOwn(item, key));
+}
+
+function isValidItem(item, version = MY_APPS_SCHEMA_VERSION) {
+    const expectedKeys = version === 1 ? ITEM_KEYS_V1 : ITEM_KEYS_V2;
     if (
         !item
         || typeof item !== 'object'
@@ -70,8 +76,11 @@ function isValidItem(item) {
         || item.name !== item.name.trim()
         || !isIsoDate(item.createdAt)
         || !isIsoDate(item.updatedAt)
-        || Object.keys(item).length !== ITEM_KEYS.length
-        || !ITEM_KEYS.every((key) => Object.hasOwn(item, key))
+        || !hasExactKeys(item, expectedKeys)
+        || (version === MY_APPS_SCHEMA_VERSION && !(
+            item.iconId === null
+            || (typeof item.iconId === 'string' && item.iconId.length > 0 && item.iconId.length <= MY_APPS_LIMITS.id)
+        ))
     ) {
         return false;
     }
@@ -88,7 +97,7 @@ function cloneItems(items) {
     return items.map((item) => ({ ...item }));
 }
 
-function createUuid() {
+export function createSecureId() {
     if (typeof globalThis.crypto?.randomUUID === 'function') {
         return globalThis.crypto.randomUUID();
     }
@@ -108,19 +117,26 @@ export function loadMyApps(storage = window.localStorage) {
         if (rawValue === null) return { ok: true, items: [] };
 
         const parsed = JSON.parse(rawValue);
+        const storedVersion = parsed?.version;
         if (
             !parsed
             || typeof parsed !== 'object'
             || Array.isArray(parsed)
-            || parsed.version !== MY_APPS_SCHEMA_VERSION
+            || ![1, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
             || !Array.isArray(parsed.items)
             || parsed.items.length > MY_APPS_LIMITS.items
-            || !parsed.items.every(isValidItem)
+            || !parsed.items.every((item) => isValidItem(item, storedVersion))
             || !hasUniqueIds(parsed.items)
         ) {
             return { ok: false, items: [], reason: 'invalid-data' };
         }
-        return { ok: true, items: cloneItems(parsed.items) };
+        const items = parsed.items.map((item) => ({
+            ...item,
+            iconId: storedVersion === 1 ? null : item.iconId
+        }));
+        return storedVersion === 1
+            ? { ok: true, items, migrated: true }
+            : { ok: true, items };
     } catch (_) {
         return { ok: false, items: [], reason: 'read-failed' };
     }
@@ -130,7 +146,7 @@ export function saveMyApps(items, storage = window.localStorage) {
     if (
         !Array.isArray(items)
         || items.length > MY_APPS_LIMITS.items
-        || !items.every(isValidItem)
+        || !items.every((item) => isValidItem(item))
         || !hasUniqueIds(items)
     ) {
         return { ok: false, reason: 'invalid-data' };
@@ -147,7 +163,7 @@ export function saveMyApps(items, storage = window.localStorage) {
     }
 }
 
-export function createMyApp(values, existingItems, now = new Date(), idFactory = createUuid) {
+export function createMyApp(values, existingItems, now = new Date(), idFactory = createSecureId) {
     const valuesResult = validateMyAppValues(values);
     if (!valuesResult.ok) return { ok: false, reason: valuesResult.reason };
     if (!Array.isArray(existingItems) || existingItems.length >= MY_APPS_LIMITS.items) {
@@ -170,6 +186,7 @@ export function createMyApp(values, existingItems, now = new Date(), idFactory =
         item: {
             id,
             ...valuesResult.values,
+            iconId: null,
             createdAt: timestamp,
             updatedAt: timestamp
         }

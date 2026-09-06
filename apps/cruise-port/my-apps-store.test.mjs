@@ -35,16 +35,35 @@ const baseItem = Object.freeze({
     id: 'b2cd4d9e-4f14-47e1-8cc2-9623f0a18cc9',
     name: 'Spotify',
     url: 'https://open.spotify.com/',
+    iconId: null,
     createdAt,
     updatedAt
 });
+const { iconId: omittedIconId, ...v1ItemValues } = baseItem;
+const v1Item = Object.freeze(v1ItemValues);
 
 assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty store loads safely');
+
+{
+    const raw = JSON.stringify({ version: 1, items: [v1Item] });
+    const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
+    assert.deepEqual(loadMyApps(storage), {
+        ok: true,
+        items: [baseItem],
+        migrated: true
+    }, 'v1 metadata is migrated to iconId null in memory');
+    assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v1 load does not rewrite storage');
+    assert.deepEqual(saveMyApps(loadMyApps(storage).items, storage), { ok: true });
+    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 2, 'next explicit save writes v2');
+}
 
 {
     const storage = new FakeStorage();
     assert.deepEqual(saveMyApps([baseItem], storage), { ok: true });
     assert.deepEqual(loadMyApps(storage), { ok: true, items: [baseItem] }, 'saved data persists across reload');
+    const withIcon = { ...baseItem, iconId: '56582913-4b14-4ae4-95f6-af8367858f6d' };
+    assert.deepEqual(saveMyApps([withIcon], storage), { ok: true });
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: [withIcon] }, 'v2 iconId persists');
 }
 
 {
@@ -81,6 +100,8 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 
 {
     const second = { ...baseItem, id: 'e4a121b3-20af-4961-92f6-126b5b1c5e1d', name: 'Notion' };
+    const storage = new FakeStorage();
+    assert.deepEqual(saveMyApps([baseItem, second], storage), { ok: true }, 'multiple v2 items validate independently of their array index');
     const moved = moveMyApp([baseItem, second], second.id, -1);
     assert.equal(moved.moved, true, 'item can be reordered');
     assert.deepEqual(moved.items.map((item) => item.id), [second.id, baseItem.id]);
@@ -91,10 +112,10 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 for (const raw of [
     '{',
     JSON.stringify({ items: [] }),
-    JSON.stringify({ version: 2, items: [] }),
+    JSON.stringify({ version: 3, items: [] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{}] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, url: 'http://example.com/' }] }),
-    JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconId: 'not-supported-in-m2' }] })
+    JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconId: 42 }] })
 ]) {
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.equal(loadMyApps(storage).ok, false, 'malformed or unsupported stored data is rejected without rewrite');
@@ -131,5 +152,13 @@ assert.match(appSource, /#my-apps\/new/);
 assert.match(appSource, /#my-apps\/\$\{encodeURIComponent\(editButton\.dataset\.id\)\}\/edit/);
 assert.match(markup, /id="my-apps-manage-view"/);
 assert.match(markup, /id="my-apps-form-view"/);
+assert.match(markup, /id="my-apps-icon-input"[^>]+type="file"[^>]+accept="image\/\*"/);
+assert.doesNotMatch(markup, /id="my-apps-icon-input"[^>]+capture/);
+assert.match(appSource, /cleanupMyAppsObjectUrls\('home'\)/);
+assert.match(appSource, /cleanupMyAppsObjectUrls\('manage'\)/);
+assert.match(appSource, /cleanupMyAppsObjectUrls\('form'\)/);
+assert.match(appSource, /createMyAppsIconStore\(\)/);
+assert.match(appSource, /if \(!result\.ok \|\| !result\.record[^\n]+return;/, 'missing/read-failed Blob leaves the generic icon');
+assert.match(appSource, /image\.alt = '';/, 'decorative icon does not duplicate the card name');
 
 console.log('my-apps-store: secure HTTPS launcher storage and route integration tests passed');

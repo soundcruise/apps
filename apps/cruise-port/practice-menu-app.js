@@ -10,19 +10,23 @@ import {
 } from './practice-menu-store.js';
 import {
     MY_APPS_LIMITS,
-    createMyApp,
-    deleteMyApp,
     loadMyApps,
     moveMyApp,
     saveMyApps,
-    updateMyApp,
     validateMyAppValues
-} from './my-apps-store.js?v=1.0.0';
+} from './my-apps-store.js?v=2.0.0';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.0.0';
+import { processMyAppIcon } from './my-apps-image-processor.js?v=1.0.0';
+import {
+    createMyAppEntry,
+    deleteMyAppEntry,
+    updateMyAppEntry
+} from './my-apps-icon-workflow.js?v=1.0.0';
 import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.2.0';
+} from './app-version.js?v=1.3.0';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
@@ -72,9 +76,16 @@ const elements = {
     myAppsReorderNotice: document.querySelector('#my-apps-reorder-notice'),
     myAppsManageAdd: document.querySelector('#my-apps-manage-add'),
     myAppsFormTitle: document.querySelector('#my-apps-form-title'),
+    myAppsFormBack: document.querySelector('#my-apps-form-back'),
     myAppsForm: document.querySelector('#my-apps-form'),
     myAppsNameInput: document.querySelector('#my-apps-name'),
     myAppsUrlInput: document.querySelector('#my-apps-url'),
+    myAppsIconInput: document.querySelector('#my-apps-icon-input'),
+    myAppsIconSelectLabel: document.querySelector('#my-apps-icon-select-label'),
+    myAppsIconPreview: document.querySelector('#my-apps-icon-preview'),
+    myAppsIconRemove: document.querySelector('#my-apps-icon-remove'),
+    myAppsIconStatus: document.querySelector('#my-apps-icon-status'),
+    myAppsSubmit: document.querySelector('#my-apps-submit'),
     myAppsFormError: document.querySelector('#my-apps-form-error'),
     myAppsDelete: document.querySelector('#my-apps-delete'),
     myAppsNotFoundTitle: document.querySelector('#my-apps-not-found-title')
@@ -95,18 +106,46 @@ const myAppsState = {
     activeId: null,
     formMode: 'create',
     reorderMode: false,
-    reorderItems: []
+    reorderItems: [],
+    iconAction: 'keep',
+    iconBlob: null,
+    iconProcessing: false,
+    saving: false
 };
 
 let metronomeController = null;
 let tunerController = null;
+const myAppsIconStore = createMyAppsIconStore();
+const myAppsObjectUrls = {
+    home: new Set(),
+    manage: new Set(),
+    form: new Set()
+};
+const myAppsRenderGeneration = { home: 0, manage: 0, form: 0 };
 
 function showNotice(element, message = '') {
     element.textContent = message;
     element.hidden = message.length === 0;
 }
 
+function cleanupMyAppsObjectUrls(scope) {
+    myAppsRenderGeneration[scope] += 1;
+    myAppsObjectUrls[scope].forEach((url) => URL.revokeObjectURL(url));
+    myAppsObjectUrls[scope].clear();
+}
+
+function cleanupMyAppsFormState() {
+    cleanupMyAppsObjectUrls('form');
+    myAppsState.iconAction = 'keep';
+    myAppsState.iconBlob = null;
+    myAppsState.iconProcessing = false;
+    myAppsState.saving = false;
+}
+
 function showView(view) {
+    if (view !== elements.homeView) cleanupMyAppsObjectUrls('home');
+    if (view !== elements.myAppsManageView) cleanupMyAppsObjectUrls('manage');
+    if (view !== elements.myAppsFormView) cleanupMyAppsFormState();
     [
         elements.homeView,
         elements.detailView,
@@ -212,7 +251,7 @@ function renderReorderCard(item, index) {
     return card;
 }
 
-function createMyAppIcon() {
+function createMyAppIcon(item = null, scope = 'home') {
     const namespace = 'http://www.w3.org/2000/svg';
     const icon = document.createElement('span');
     const svg = document.createElementNS(namespace, 'svg');
@@ -233,7 +272,32 @@ function createMyAppIcon() {
     arrow.setAttribute('d', 'M37 41l9-9m0 0h-7m7 0v7');
     svg.append(frame, line, arrow);
     icon.append(svg);
+    if (item?.iconId) hydrateMyAppIcon(icon, item.iconId, scope);
     return icon;
+}
+
+async function hydrateMyAppIcon(icon, iconId, scope) {
+    const generation = myAppsRenderGeneration[scope];
+    const result = await myAppsIconStore.getIcon(iconId);
+    if (!result.ok || !result.record || generation !== myAppsRenderGeneration[scope]) return;
+
+    const objectUrl = URL.createObjectURL(result.record.blob);
+    if (generation !== myAppsRenderGeneration[scope]) {
+        URL.revokeObjectURL(objectUrl);
+        return;
+    }
+    myAppsObjectUrls[scope].add(objectUrl);
+    const image = document.createElement('img');
+    image.alt = '';
+    image.decoding = 'async';
+    image.onload = () => {
+        if (generation === myAppsRenderGeneration[scope]) icon.replaceChildren(image);
+    };
+    image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        myAppsObjectUrls[scope].delete(objectUrl);
+    };
+    image.src = objectUrl;
 }
 
 function findMyApp(id) {
@@ -253,11 +317,12 @@ function renderMyAppCard(item) {
     external.className = 'my-app-external-mark';
     external.setAttribute('aria-hidden', 'true');
     external.textContent = '↗';
-    card.append(createMyAppIcon(), name, external);
+    card.append(createMyAppIcon(item, 'home'), name, external);
     return card;
 }
 
 function renderMyAppsHome() {
+    cleanupMyAppsObjectUrls('home');
     elements.myAppsGrid.replaceChildren();
     myAppsState.items.forEach((item) => elements.myAppsGrid.append(renderMyAppCard(item)));
     elements.myAppsGrid.append(elements.myAppsAdd);
@@ -272,7 +337,7 @@ function renderMyAppsHome() {
 
 function renderMyAppsReorderCard(item, index) {
     const card = document.createElement('div');
-    const icon = createMyAppIcon();
+    const icon = createMyAppIcon(item, 'manage');
     const copy = document.createElement('span');
     const name = document.createElement('span');
     const controls = document.createElement('div');
@@ -308,7 +373,7 @@ function renderMyAppsReorderCard(item, index) {
 
 function renderMyAppsManageCard(item) {
     const card = document.createElement('div');
-    const icon = createMyAppIcon();
+    const icon = createMyAppIcon(item, 'manage');
     const copy = document.createElement('span');
     const name = document.createElement('span');
     const url = document.createElement('span');
@@ -336,6 +401,7 @@ function renderMyAppsManage() {
         setHomeRoute();
         return;
     }
+    cleanupMyAppsObjectUrls('manage');
     showView(elements.myAppsManageView);
     elements.myAppsList.replaceChildren();
     const visibleItems = myAppsState.reorderMode ? myAppsState.reorderItems : myAppsState.items;
@@ -405,11 +471,92 @@ function renderMyAppsNotFound() {
 }
 
 function fillMyAppsForm(item = null) {
+    cleanupMyAppsFormState();
     elements.myAppsForm.reset();
     elements.myAppsNameInput.value = item?.name || '';
     elements.myAppsUrlInput.value = item?.url || '';
     elements.myAppsDelete.hidden = !item;
+    elements.myAppsIconSelectLabel.textContent = item?.iconId ? '画像を変更' : '画像を選択';
+    elements.myAppsIconRemove.hidden = !item?.iconId;
+    elements.myAppsIconStatus.textContent = item?.iconId ? '現在のアイコン画像' : '画像未設定';
+    elements.myAppsIconPreview.replaceChildren(createMyAppIcon(item, 'form'));
     showNotice(elements.myAppsFormError);
+    setMyAppsFormBusy(false);
+}
+
+function setMyAppsFormBusy(busy) {
+    myAppsState.saving = busy && !myAppsState.iconProcessing;
+    elements.myAppsSubmit.disabled = busy;
+    elements.myAppsSubmit.textContent = busy ? '保存中…' : '保存';
+    elements.myAppsIconInput.disabled = busy;
+    elements.myAppsIconRemove.disabled = busy;
+    elements.myAppsDelete.disabled = busy;
+    elements.myAppsFormBack.disabled = busy;
+    elements.myAppsForm.querySelectorAll('[data-action="cancel-my-apps-form"]').forEach((button) => {
+        button.disabled = busy;
+    });
+    elements.myAppsIconSelectLabel.parentElement.classList.toggle('is-disabled', busy);
+    elements.myAppsIconSelectLabel.parentElement.setAttribute('aria-disabled', String(busy));
+}
+
+function showMyAppsBlobPreview(blob) {
+    cleanupMyAppsObjectUrls('form');
+    const generation = myAppsRenderGeneration.form;
+    const icon = createMyAppIcon();
+    const image = document.createElement('img');
+    const objectUrl = URL.createObjectURL(blob);
+    myAppsObjectUrls.form.add(objectUrl);
+    image.alt = '';
+    image.onload = () => {
+        if (generation === myAppsRenderGeneration.form) icon.replaceChildren(image);
+    };
+    image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        myAppsObjectUrls.form.delete(objectUrl);
+    };
+    image.src = objectUrl;
+    elements.myAppsIconPreview.replaceChildren(icon);
+}
+
+function iconProcessingErrorMessage(reason) {
+    if (reason === 'file-too-large') return '画像は15MB以内で選択してください。';
+    if (reason === 'svg-not-supported') return 'SVG画像は使用できません。PNG、JPEG、WebPなどの画像を選択してください。';
+    return 'この画像形式を読み込めませんでした。別の画像を選んでください。';
+}
+
+async function handleMyAppsIconSelection() {
+    const file = elements.myAppsIconInput.files?.[0];
+    if (!file) return;
+    const generation = myAppsRenderGeneration.form;
+    myAppsState.iconProcessing = true;
+    setMyAppsFormBusy(true);
+    elements.myAppsIconStatus.textContent = '画像を準備しています…';
+    const result = await processMyAppIcon(file);
+    if (generation !== myAppsRenderGeneration.form) return;
+    myAppsState.iconProcessing = false;
+    setMyAppsFormBusy(false);
+    if (!result.ok) {
+        elements.myAppsIconInput.value = '';
+        elements.myAppsIconStatus.textContent = iconProcessingErrorMessage(result.reason);
+        return;
+    }
+    myAppsState.iconAction = 'replace';
+    myAppsState.iconBlob = result.blob;
+    elements.myAppsIconSelectLabel.textContent = '画像を変更';
+    elements.myAppsIconRemove.hidden = false;
+    elements.myAppsIconStatus.textContent = '新しいアイコン画像を選択しました。保存すると反映されます。';
+    showMyAppsBlobPreview(result.blob);
+}
+
+function removeMyAppsIcon() {
+    myAppsState.iconAction = 'remove';
+    myAppsState.iconBlob = null;
+    elements.myAppsIconInput.value = '';
+    elements.myAppsIconSelectLabel.textContent = '画像を選択';
+    elements.myAppsIconRemove.hidden = true;
+    elements.myAppsIconStatus.textContent = '保存すると汎用アイコンへ戻ります。';
+    cleanupMyAppsObjectUrls('form');
+    elements.myAppsIconPreview.replaceChildren(createMyAppIcon());
 }
 
 function renderMyAppsForm(mode, id = null) {
@@ -442,46 +589,55 @@ function readMyAppsFormValues() {
     return { ok: false, message: 'HTTPS URLを入力してください。http、独自scheme、認証情報付きURLは登録できません。' };
 }
 
-function handleMyAppsSubmit(event) {
+async function handleMyAppsSubmit(event) {
     event.preventDefault();
     showNotice(elements.myAppsFormError);
+    if (myAppsState.iconProcessing || myAppsState.saving) {
+        showNotice(elements.myAppsFormError, '画像の準備が終わるまでお待ちください。');
+        return;
+    }
     const formResult = readMyAppsFormValues();
     if (!formResult.ok) {
         showNotice(elements.myAppsFormError, formResult.message);
         return;
     }
 
-    if (myAppsState.formMode === 'edit') {
-        const updateResult = updateMyApp(myAppsState.items, myAppsState.activeId, formResult.values);
-        if (!updateResult.found) {
-            renderMyAppsNotFound();
-            return;
-        }
-        const saveResult = saveMyApps(updateResult.items);
-        if (!saveResult.ok) {
-            showNotice(elements.myAppsFormError, '保存できませんでした。Safariの保存設定や空き容量を確認してください。');
-            return;
-        }
-        myAppsState.items = updateResult.items;
-        setHashRoute('#my-apps/manage');
-        return;
-    }
+    const formGeneration = myAppsRenderGeneration.form;
+    setMyAppsFormBusy(true);
+    const result = myAppsState.formMode === 'edit'
+        ? await updateMyAppEntry({
+            items: myAppsState.items,
+            id: myAppsState.activeId,
+            values: formResult.values,
+            iconAction: myAppsState.iconAction,
+            iconBlob: myAppsState.iconBlob,
+            iconStore: myAppsIconStore
+        })
+        : await createMyAppEntry({
+            items: myAppsState.items,
+            values: formResult.values,
+            iconBlob: myAppsState.iconAction === 'replace' ? myAppsState.iconBlob : null,
+            iconStore: myAppsIconStore
+        });
 
-    const createResult = createMyApp(formResult.values, myAppsState.items);
-    if (!createResult.ok) {
-        const message = createResult.reason === 'limit-reached'
-            ? `My Appsは${MY_APPS_LIMITS.items}件まで登録できます。`
-            : 'アプリを準備できませんでした。もう一度お試しください。';
-        showNotice(elements.myAppsFormError, message);
+    if (formGeneration !== myAppsRenderGeneration.form) {
+        if (result.ok) myAppsState.items = result.items;
         return;
     }
-    const candidateItems = [...myAppsState.items, createResult.item];
-    const saveResult = saveMyApps(candidateItems);
-    if (!saveResult.ok) {
-        showNotice(elements.myAppsFormError, '保存できませんでした。Safariの保存設定や空き容量を確認してください。');
+    if (!result.ok) {
+        setMyAppsFormBusy(false);
+        if (result.reason === 'not-found') {
+            renderMyAppsNotFound();
+        } else if (result.reason === 'limit-reached') {
+            showNotice(elements.myAppsFormError, `My Appsは${MY_APPS_LIMITS.items}件まで登録できます。`);
+        } else if (result.reason === 'icon-write-failed') {
+            showNotice(elements.myAppsFormError, 'アイコン画像を保存できませんでした。Safariの保存設定や空き容量を確認して、もう一度お試しください。');
+        } else {
+            showNotice(elements.myAppsFormError, '保存できませんでした。Safariの保存設定や空き容量を確認してください。');
+        }
         return;
     }
-    myAppsState.items = candidateItems;
+    myAppsState.items = result.items;
     setHashRoute('#my-apps/manage');
 }
 
@@ -493,20 +649,31 @@ function cancelMyAppsForm() {
     }
 }
 
-function handleMyAppsDelete() {
+async function handleMyAppsDelete() {
     const item = findMyApp(myAppsState.activeId);
     if (!item) {
         renderMyAppsNotFound();
         return;
     }
     if (!window.confirm('このアプリをMy Appsから削除しますか？\n外部アプリ自体は削除されません。')) return;
-    const deleteResult = deleteMyApp(myAppsState.items, item.id);
-    const saveResult = saveMyApps(deleteResult.items);
-    if (!deleteResult.found || !saveResult.ok) {
+    if (myAppsState.saving) return;
+    const formGeneration = myAppsRenderGeneration.form;
+    setMyAppsFormBusy(true);
+    const result = await deleteMyAppEntry({
+        items: myAppsState.items,
+        id: item.id,
+        iconStore: myAppsIconStore
+    });
+    if (formGeneration !== myAppsRenderGeneration.form) {
+        if (result.ok) myAppsState.items = result.items;
+        return;
+    }
+    if (!result.ok) {
+        setMyAppsFormBusy(false);
         showNotice(elements.myAppsFormError, '削除できませんでした。Safariの保存設定や空き容量を確認してください。');
         return;
     }
-    myAppsState.items = deleteResult.items;
+    myAppsState.items = result.items;
     setHashRoute('#my-apps/manage');
 }
 
@@ -757,6 +924,8 @@ elements.myAppsAdd.addEventListener('click', () => setHashRoute('#my-apps/new'))
 elements.myAppsManage.addEventListener('click', () => setHashRoute('#my-apps/manage'));
 elements.myAppsForm.addEventListener('submit', handleMyAppsSubmit);
 elements.myAppsDelete.addEventListener('click', handleMyAppsDelete);
+elements.myAppsIconInput.addEventListener('change', handleMyAppsIconSelection);
+elements.myAppsIconRemove.addEventListener('click', removeMyAppsIcon);
 elements.myAppsReorderStart.addEventListener('click', startMyAppsReorder);
 elements.myAppsReorderCancel.addEventListener('click', cancelMyAppsReorder);
 elements.myAppsReorderComplete.addEventListener('click', completeMyAppsReorder);
@@ -780,7 +949,12 @@ window.addEventListener('hashchange', renderRoute);
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) metronomeController?.stopForPageHidden();
 });
-window.addEventListener('pagehide', () => metronomeController?.stopForPageHidden());
+window.addEventListener('pagehide', () => {
+    metronomeController?.stopForPageHidden();
+    cleanupMyAppsObjectUrls('home');
+    cleanupMyAppsObjectUrls('manage');
+    cleanupMyAppsObjectUrls('form');
+});
 
 const loadResult = loadPracticeMenus();
 state.items = loadResult.items;

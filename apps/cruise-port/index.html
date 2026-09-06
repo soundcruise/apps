@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.2.0">
+    <link rel="stylesheet" href="./style.css?v=1.3.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.2.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.3.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -219,7 +219,7 @@
         </main>
 
         <main id="my-apps-form-view" class="port-view form-view my-apps-form-view" hidden>
-            <button class="view-back" type="button" data-action="cancel-my-apps-form">← 戻る</button>
+            <button id="my-apps-form-back" class="view-back" type="button" data-action="cancel-my-apps-form">← 戻る</button>
             <section class="view-panel" aria-labelledby="my-apps-form-title">
                 <p class="view-kicker">My Apps</p>
                 <h1 id="my-apps-form-title" class="view-title" tabindex="-1">My Appを追加</h1>
@@ -235,9 +235,22 @@
                         <input id="my-apps-url" name="url" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://open.spotify.com/" required>
                     </div>
 
+                    <div class="form-field my-apps-icon-field">
+                        <span class="form-field-label">アイコン <span class="optional-label">任意・15MB以内</span></span>
+                        <div class="my-apps-icon-editor">
+                            <div id="my-apps-icon-preview" class="my-apps-icon-preview" aria-label="アイコンのプレビュー"></div>
+                            <div class="my-apps-icon-controls">
+                                <input id="my-apps-icon-input" class="visually-hidden" name="icon" type="file" accept="image/*">
+                                <label class="my-apps-icon-select" for="my-apps-icon-input"><span id="my-apps-icon-select-label">画像を選択</span></label>
+                                <button id="my-apps-icon-remove" class="my-apps-icon-remove" type="button" hidden>画像を削除</button>
+                                <p id="my-apps-icon-status" class="my-apps-icon-status" role="status" aria-live="polite">画像未設定</p>
+                            </div>
+                        </div>
+                    </div>
+
                     <p id="my-apps-form-error" class="notice notice-error" role="alert" hidden></p>
                     <div class="form-actions">
-                        <button class="action-button primary-action" type="submit">保存</button>
+                        <button id="my-apps-submit" class="action-button primary-action" type="submit">保存</button>
                         <button id="my-apps-delete" class="action-button danger-action" type="button" hidden>削除</button>
                         <button class="action-button secondary-action" type="button" data-action="cancel-my-apps-form">キャンセル</button>
                     </div>
