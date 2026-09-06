@@ -38,7 +38,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.4.0';
+} from './app-version.js?v=1.5.0';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
