@@ -12,8 +12,8 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.1.4';
-import { initTuner } from './tuner-app.js?v=1.1.6';
+} from './app-version.js?v=1.1.5';
+import { initTuner } from './tuner-app.js?v=1.1.7';
 
 const elements = {
     homeView: document.querySelector('#home-view'),
