@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import {
+    createTunerDiagnosticHistory,
     createTunerSmoother,
+    formatTunerDiagnosticCopy,
     initTuner,
+    isTunerDebugEnabled,
     standardStringForNote
 } from './tuner-app.js';
 import {
@@ -141,6 +144,7 @@ class FakeElement {
             setProperty: (name, value) => this.style.values.set(name, value)
         };
         this.focusCalls = 0;
+        this.removeCalls = 0;
     }
 
     addEventListener(type, listener) {
@@ -163,6 +167,10 @@ class FakeElement {
     focus() {
         this.focusCalls += 1;
     }
+
+    remove() {
+        this.removeCalls += 1;
+    }
 }
 
 function createFakeRoot() {
@@ -176,7 +184,27 @@ function createFakeRoot() {
         'tuner-meter',
         'tuner-toggle',
         'tuner-error',
-        'tuner-status'
+        'tuner-status',
+        'tuner-diagnostic',
+        'tuner-diagnostic-dbfs',
+        'tuner-diagnostic-level',
+        'tuner-diagnostic-rms',
+        'tuner-diagnostic-confidence',
+        'tuner-diagnostic-raw-frequency',
+        'tuner-diagnostic-final',
+        'tuner-diagnostic-reason',
+        'tuner-diagnostic-display',
+        'tuner-diagnostic-sample-rate',
+        'tuner-diagnostic-fft-size',
+        'tuner-diagnostic-track',
+        'tuner-diagnostic-supported',
+        'tuner-diagnostic-frames',
+        'tuner-diagnostic-valid',
+        'tuner-diagnostic-low-rms',
+        'tuner-diagnostic-low-confidence',
+        'tuner-diagnostic-other',
+        'tuner-diagnostic-copy',
+        'tuner-diagnostic-copy-status'
     ];
     const elements = new Map(ids.map((id) => [id, new FakeElement()]));
     const strings = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']
@@ -191,6 +219,43 @@ function createFakeRoot() {
             return selector === '[data-tuner-string]' ? strings : [];
         }
     };
+}
+
+assert.equal(isTunerDebugEnabled('?tunerDebug=1'), true);
+assert.equal(isTunerDebugEnabled('?tunerDebug=0'), false);
+assert.equal(isTunerDebugEnabled('?other=1'), false);
+
+{
+    const history = createTunerDiagnosticHistory({ windowMs: 5000, maxFrames: 3 });
+    history.add('valid', 0);
+    history.add('low-rms', 100);
+    history.add('low-confidence', 200);
+    const bounded = history.add('invalid-input', 300);
+    assert.equal(bounded.frames, 3, 'diagnostic history obeys its fixed frame cap');
+    assert.deepEqual(bounded, { frames: 3, valid: 0, lowRms: 33, lowConfidence: 33, other: 33 });
+    assert.equal(history.summary(6000).frames, 0, 'diagnostic history expires old frames');
+}
+
+{
+    const copied = formatTunerDiagnosticCopy({
+        device: 'iPhone / Safari',
+        diagnostic: {
+            reason: 'low-rms',
+            rms: 0.0021,
+            rmsDbfs: -53.6,
+            confidence: 0.88,
+            rawFrequency: 82.57,
+            sampleRate: 48000,
+            fftSize: 4096,
+            trackSettings: { sampleRate: 48000, channelCount: 1, deviceId: 'private-id' },
+            supportedConstraints: { sampleRate: true, deviceId: true }
+        },
+        display: { state: 'neutral', note: null, frequency: null },
+        summary: { frames: 100, valid: 18, lowRms: 76, lowConfidence: 5, other: 1 }
+    });
+    assert.match(copied, /low-rms 76%/);
+    assert.match(copied, /Current dBFS: -53\.6/);
+    assert.doesNotMatch(copied, /private-id|deviceId/i, 'copied diagnostics omit identifying IDs');
 }
 
 {
@@ -223,6 +288,7 @@ function createFakeRoot() {
         },
         now: () => clock
     });
+    assert.equal(root.elements.get('tuner-diagnostic').removeCalls, 1, 'debug OFF removes the panel');
     const toggle = root.elements.get('tuner-toggle');
     const note = root.elements.get('tuner-note');
     const error = root.elements.get('tuner-error');
@@ -271,6 +337,112 @@ function createFakeRoot() {
     app.setActive(false);
     assert.equal(stopCalls, 2, 'route leave always requests a safe stop');
     assert.equal(note.textContent, '—');
+}
+
+{
+    const root = createFakeRoot();
+    let callbacks;
+    let controllerOptions;
+    let status = 'idle';
+    let clock = 0;
+    let copiedText = '';
+    let stopCalls = 0;
+    const controller = {
+        async start() {
+            status = 'running';
+            callbacks.onStateChange({ status });
+            return true;
+        },
+        async stop() {
+            stopCalls += 1;
+            status = 'idle';
+            callbacks.onStateChange({ status });
+        },
+        getState: () => ({ status })
+    };
+    const app = initTuner(root, {
+        debugEnabled: true,
+        audioControllerFactory(options) {
+            controllerOptions = options;
+            callbacks = options;
+            return controller;
+        },
+        navigatorObject: {
+            userAgent: 'Mozilla/5.0 (iPhone) AppleWebKit Safari',
+            clipboard: { writeText: async (text) => { copiedText = text; } }
+        },
+        now: () => clock
+    });
+
+    assert.equal(controllerOptions.diagnosticEnabled, true);
+    assert.equal(root.elements.get('tuner-diagnostic').hidden, false, 'debug ON reveals the panel');
+    app.setActive(true);
+    await root.elements.get('tuner-toggle').dispatch('click');
+    callbacks.onResult(result(E2_FREQUENCY));
+    callbacks.onDiagnostic({
+        reason: 'valid',
+        rms: 0.0049,
+        rmsDbfs: -46.2,
+        confidence: 0.91,
+        rawFrequency: 82.57,
+        sampleRate: 48000,
+        fftSize: 4096,
+        trackSettings: { sampleRate: 48000, channelCount: 1, deviceId: 'private-id' },
+        supportedConstraints: { sampleRate: true, autoGainControl: true, deviceId: true }
+    });
+    assert.equal(root.elements.get('tuner-diagnostic-reason').textContent, 'valid');
+    assert.equal(root.elements.get('tuner-diagnostic-dbfs').textContent, '-46.2 dBFS');
+    assert.equal(root.elements.get('tuner-diagnostic-final').textContent.startsWith('E2 / '), true);
+    assert.equal(root.elements.get('tuner-diagnostic-track').textContent.includes('private-id'), false);
+
+    clock = 100;
+    callbacks.onResult(null);
+    callbacks.onDiagnostic({
+        reason: 'low-rms',
+        rms: 0.0021,
+        rmsDbfs: -53.6,
+        confidence: null,
+        rawFrequency: null,
+        sampleRate: 48000,
+        fftSize: 4096,
+        trackSettings: {},
+        supportedConstraints: {}
+    });
+    assert.equal(root.elements.get('tuner-diagnostic-frames').textContent, '2');
+    assert.equal(root.elements.get('tuner-diagnostic-low-rms').textContent, '50%');
+    assert.equal(root.elements.get('tuner-diagnostic-display').textContent, 'stale');
+
+    clock = 200;
+    callbacks.onResult(null);
+    callbacks.onDiagnostic({
+        reason: 'low-rms',
+        rms: 0.0018,
+        rmsDbfs: -54.9,
+        confidence: null,
+        rawFrequency: null,
+        sampleRate: 48000,
+        fftSize: 4096,
+        trackSettings: {},
+        supportedConstraints: {}
+    });
+    assert.equal(root.elements.get('tuner-diagnostic-display').textContent, 'neutral');
+    assert.equal(
+        root.elements.get('tuner-diagnostic-final').textContent.startsWith('E2 / '),
+        true,
+        'neutral display retains the latest valid note for diagnosis'
+    );
+
+    await root.elements.get('tuner-diagnostic-copy').dispatch('click');
+    assert.match(copiedText, /Device: iPhone \/ Safari/);
+    assert.match(copiedText, /low-rms 67%/);
+    assert.match(copiedText, /Display: neutral/);
+    assert.match(copiedText, /Final: E2/);
+    assert.doesNotMatch(copiedText, /private-id|deviceId/i);
+    assert.equal(root.elements.get('tuner-diagnostic-copy-status').textContent, '診断結果をコピーしました。');
+
+    app.setActive(false);
+    assert.equal(stopCalls, 1, 'route leave stops debug audio');
+    assert.equal(root.elements.get('tuner-diagnostic-frames').textContent, '0', 'route leave resets diagnostics');
 }
 
 {

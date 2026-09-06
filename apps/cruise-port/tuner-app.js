@@ -1,5 +1,5 @@
-import { createTunerAudioController } from './tuner-audio.js';
-import { frequencyToNoteInfo } from './tuner-engine.js';
+import { createTunerAudioController } from './tuner-audio.js?v=1.1.0';
+import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.0';
 
 const EMA_TIME_CONSTANT_MS = 80;
 const NULL_GRACE_MS = 150;
@@ -12,6 +12,11 @@ const NOTE_HYSTERESIS_CENTS = 8;
 const IN_TUNE_ENTER_CENTS = 3;
 const IN_TUNE_EXIT_CENTS = 5;
 const IN_TUNE_HOLD_MS = 100;
+const DIAGNOSTIC_WINDOW_MS = 5000;
+const DIAGNOSTIC_MAX_FRAMES = 120;
+const DIAGNOSTIC_RENDER_INTERVAL_MS = 100;
+const DIAGNOSTIC_MIN_DBFS = -72;
+const DIAGNOSTIC_MAX_DBFS = -18;
 
 export const STANDARD_TUNING = Object.freeze([
     Object.freeze({ string: 6, note: 'E2' }),
@@ -213,9 +218,121 @@ function formatCents(cents) {
     return `${rounded} cent`;
 }
 
+export function isTunerDebugEnabled(search = globalThis.location?.search || '') {
+    try { return new URLSearchParams(search).get('tunerDebug') === '1'; } catch (_) { return false; }
+}
+
+function diagnosticCategory(reason) {
+    if (reason === 'valid' || reason === 'low-rms' || reason === 'low-confidence') return reason;
+    return 'other';
+}
+
+export function createTunerDiagnosticHistory({
+    windowMs = DIAGNOSTIC_WINDOW_MS,
+    maxFrames = DIAGNOSTIC_MAX_FRAMES
+} = {}) {
+    let frames = [];
+
+    function prune(now) {
+        const cutoff = now - windowMs;
+        while (frames.length && frames[0].timestamp < cutoff) frames.shift();
+        if (frames.length > maxFrames) frames = frames.slice(-maxFrames);
+    }
+
+    function summary(now) {
+        prune(now);
+        const counts = { valid: 0, 'low-rms': 0, 'low-confidence': 0, other: 0 };
+        for (const frame of frames) counts[frame.category] += 1;
+        const percentage = (count) => (frames.length ? Math.round((count / frames.length) * 100) : 0);
+        return {
+            frames: frames.length,
+            valid: percentage(counts.valid),
+            lowRms: percentage(counts['low-rms']),
+            lowConfidence: percentage(counts['low-confidence']),
+            other: percentage(counts.other)
+        };
+    }
+
+    return {
+        add(reason, timestamp) {
+            const now = Number.isFinite(timestamp) ? timestamp : 0;
+            frames.push({ timestamp: now, category: diagnosticCategory(reason) });
+            prune(now);
+            return summary(now);
+        },
+        summary,
+        reset() { frames = []; }
+    };
+}
+
+function formatValue(value) {
+    if (typeof value === 'boolean') return value ? 'yes' : 'no';
+    if (Number.isFinite(value)) return String(value);
+    return '—';
+}
+
+function formatSettings(values = {}) {
+    const labels = {
+        sampleRate: 'SR',
+        channelCount: 'ch',
+        echoCancellation: 'EC',
+        noiseSuppression: 'NS',
+        autoGainControl: 'AGC'
+    };
+    const parts = Object.entries(labels)
+        .filter(([key]) => Object.prototype.hasOwnProperty.call(values, key))
+        .map(([key, label]) => `${label} ${formatValue(values[key])}`);
+    return parts.join(' / ') || '—';
+}
+
+export function formatTunerDiagnosticCopy({
+    device = 'Unknown browser',
+    diagnostic = {},
+    display = {},
+    summary = { frames: 0, valid: 0, lowRms: 0, lowConfidence: 0, other: 0 }
+} = {}) {
+    const number = (value, digits) => (Number.isFinite(value) ? value.toFixed(digits) : '—');
+    const finalLabel = display.note && Number.isFinite(display.frequency)
+        ? `${display.note} / ${display.frequency.toFixed(2)} Hz`
+        : '—';
+    return [
+        'Cruise Port Tuner Diagnostic',
+        '',
+        `Device: ${device}`,
+        `Sample Rate: ${formatValue(diagnostic.sampleRate)} Hz`,
+        `FFT Size: ${formatValue(diagnostic.fftSize)}`,
+        `Track Settings: ${formatSettings(diagnostic.trackSettings)}`,
+        `Supported: ${formatSettings(diagnostic.supportedConstraints)}`,
+        '',
+        `Current RMS: ${number(diagnostic.rms, 6)}`,
+        `Current dBFS: ${number(diagnostic.rmsDbfs, 1)}`,
+        `Current Confidence: ${number(diagnostic.confidence, 3)}`,
+        `Raw Frequency: ${number(diagnostic.rawFrequency, 2)} Hz`,
+        `Current Reason: ${diagnostic.reason || '—'}`,
+        `Display: ${display.state || 'neutral'}`,
+        `Final: ${finalLabel}`,
+        '',
+        `Last 5 sec (${summary.frames} frames):`,
+        `valid ${summary.valid}%`,
+        `low-rms ${summary.lowRms}%`,
+        `low-confidence ${summary.lowConfidence}%`,
+        `other ${summary.other}%`
+    ].join('\n');
+}
+
+function diagnosticDeviceLabel(navigatorObject) {
+    const userAgent = navigatorObject?.userAgent || '';
+    if (/iPhone/i.test(userAgent)) return 'iPhone / Safari';
+    if (/iPad/i.test(userAgent)) return 'iPad / Safari';
+    if (/Macintosh|Mac OS X/i.test(userAgent)) return 'Mac / Safari-compatible browser';
+    return 'Browser';
+}
+
 export function initTuner(root, {
     audioControllerFactory = createTunerAudioController,
-    now = () => globalThis.performance?.now?.() ?? Date.now()
+    now = () => globalThis.performance?.now?.() ?? Date.now(),
+    debugEnabled = isTunerDebugEnabled(),
+    navigatorObject = globalThis.navigator
 } = {}) {
     const elements = {
         title: root.querySelector('#tuner-title'),
@@ -228,11 +345,39 @@ export function initTuner(root, {
         toggle: root.querySelector('#tuner-toggle'),
         error: root.querySelector('#tuner-error'),
         status: root.querySelector('#tuner-status'),
+        diagnostic: root.querySelector('#tuner-diagnostic'),
         strings: [...root.querySelectorAll('[data-tuner-string]')]
     };
+    if (!debugEnabled) elements.diagnostic?.remove?.();
+    const diagnosticElements = debugEnabled && elements.diagnostic ? {
+        dbfs: root.querySelector('#tuner-diagnostic-dbfs'),
+        level: root.querySelector('#tuner-diagnostic-level'),
+        rms: root.querySelector('#tuner-diagnostic-rms'),
+        confidence: root.querySelector('#tuner-diagnostic-confidence'),
+        rawFrequency: root.querySelector('#tuner-diagnostic-raw-frequency'),
+        final: root.querySelector('#tuner-diagnostic-final'),
+        reason: root.querySelector('#tuner-diagnostic-reason'),
+        display: root.querySelector('#tuner-diagnostic-display'),
+        sampleRate: root.querySelector('#tuner-diagnostic-sample-rate'),
+        fftSize: root.querySelector('#tuner-diagnostic-fft-size'),
+        track: root.querySelector('#tuner-diagnostic-track'),
+        supported: root.querySelector('#tuner-diagnostic-supported'),
+        frames: root.querySelector('#tuner-diagnostic-frames'),
+        valid: root.querySelector('#tuner-diagnostic-valid'),
+        lowRms: root.querySelector('#tuner-diagnostic-low-rms'),
+        lowConfidence: root.querySelector('#tuner-diagnostic-low-confidence'),
+        other: root.querySelector('#tuner-diagnostic-other'),
+        copy: root.querySelector('#tuner-diagnostic-copy'),
+        copyStatus: root.querySelector('#tuner-diagnostic-copy-status')
+    } : null;
     const smoother = createTunerSmoother();
+    const diagnosticHistory = debugEnabled ? createTunerDiagnosticHistory() : null;
     let viewActive = false;
     let audioStatus = 'idle';
+    let latestDiagnostic = null;
+    let latestDiagnosticSummary = diagnosticHistory?.summary(0) || null;
+    let latestDiagnosticDisplay = { state: 'neutral', note: null, frequency: null };
+    let lastDiagnosticRenderTime = Number.NEGATIVE_INFINITY;
 
     function clearStringHighlight() {
         elements.strings.forEach((element) => {
@@ -325,10 +470,93 @@ export function initTuner(root, {
         elements.status.textContent = state.status === 'error' ? 'マイクを開始できませんでした' : 'マイクは停止中です';
     }
 
+    function resetDiagnostic() {
+        if (!diagnosticElements) return;
+        diagnosticHistory.reset();
+        latestDiagnostic = null;
+        latestDiagnosticSummary = diagnosticHistory.summary(0);
+        latestDiagnosticDisplay = { state: 'neutral', note: null, frequency: null };
+        lastDiagnosticRenderTime = Number.NEGATIVE_INFINITY;
+        diagnosticElements.dbfs.textContent = '— dBFS';
+        diagnosticElements.level.style.setProperty('--diagnostic-level-position', '0%');
+        diagnosticElements.level.setAttribute('aria-valuenow', '-72');
+        diagnosticElements.rms.textContent = '—';
+        diagnosticElements.confidence.textContent = '—';
+        diagnosticElements.rawFrequency.textContent = '—';
+        diagnosticElements.final.textContent = '—';
+        diagnosticElements.reason.textContent = '—';
+        diagnosticElements.display.textContent = 'neutral';
+        diagnosticElements.sampleRate.textContent = '—';
+        diagnosticElements.fftSize.textContent = '—';
+        diagnosticElements.track.textContent = '—';
+        diagnosticElements.supported.textContent = '—';
+        diagnosticElements.frames.textContent = '0';
+        diagnosticElements.valid.textContent = '0%';
+        diagnosticElements.lowRms.textContent = '0%';
+        diagnosticElements.lowConfidence.textContent = '0%';
+        diagnosticElements.other.textContent = '0%';
+        diagnosticElements.copyStatus.textContent = '';
+    }
+
+    function renderDiagnostic(diagnostic, timestamp) {
+        if (!diagnosticElements) return;
+        latestDiagnostic = diagnostic;
+        latestDiagnosticSummary = diagnosticHistory.add(diagnostic.reason, timestamp);
+        if (timestamp - lastDiagnosticRenderTime < DIAGNOSTIC_RENDER_INTERVAL_MS) return;
+        lastDiagnosticRenderTime = timestamp;
+
+        const dbfs = Number.isFinite(diagnostic.rmsDbfs) ? diagnostic.rmsDbfs : DIAGNOSTIC_MIN_DBFS;
+        const clampedDbfs = Math.max(DIAGNOSTIC_MIN_DBFS, Math.min(DIAGNOSTIC_MAX_DBFS, dbfs));
+        const levelPercent = ((clampedDbfs - DIAGNOSTIC_MIN_DBFS)
+            / (DIAGNOSTIC_MAX_DBFS - DIAGNOSTIC_MIN_DBFS)) * 100;
+        diagnosticElements.dbfs.textContent = Number.isFinite(diagnostic.rmsDbfs)
+            ? `${diagnostic.rmsDbfs.toFixed(1)} dBFS`
+            : '−∞ dBFS';
+        diagnosticElements.level.style.setProperty('--diagnostic-level-position', `${levelPercent.toFixed(1)}%`);
+        diagnosticElements.level.setAttribute('aria-valuenow', String(clampedDbfs));
+        diagnosticElements.rms.textContent = Number.isFinite(diagnostic.rms) ? diagnostic.rms.toFixed(6) : '—';
+        diagnosticElements.confidence.textContent = Number.isFinite(diagnostic.confidence)
+            ? diagnostic.confidence.toFixed(3)
+            : '—';
+        diagnosticElements.rawFrequency.textContent = Number.isFinite(diagnostic.rawFrequency)
+            ? `${diagnostic.rawFrequency.toFixed(2)} Hz`
+            : '—';
+        diagnosticElements.final.textContent = latestDiagnosticDisplay.note
+            ? `${latestDiagnosticDisplay.note} / ${latestDiagnosticDisplay.frequency.toFixed(2)} Hz`
+            : '—';
+        diagnosticElements.reason.textContent = diagnostic.reason || '—';
+        diagnosticElements.display.textContent = latestDiagnosticDisplay.state;
+        diagnosticElements.sampleRate.textContent = Number.isFinite(diagnostic.sampleRate)
+            ? `${diagnostic.sampleRate} Hz`
+            : '—';
+        diagnosticElements.fftSize.textContent = Number.isFinite(diagnostic.fftSize)
+            ? String(diagnostic.fftSize)
+            : '—';
+        diagnosticElements.track.textContent = formatSettings(diagnostic.trackSettings);
+        diagnosticElements.supported.textContent = formatSettings(diagnostic.supportedConstraints);
+        diagnosticElements.frames.textContent = String(latestDiagnosticSummary.frames);
+        diagnosticElements.valid.textContent = `${latestDiagnosticSummary.valid}%`;
+        diagnosticElements.lowRms.textContent = `${latestDiagnosticSummary.lowRms}%`;
+        diagnosticElements.lowConfidence.textContent = `${latestDiagnosticSummary.lowConfidence}%`;
+        diagnosticElements.other.textContent = `${latestDiagnosticSummary.other}%`;
+    }
+
     const audioController = audioControllerFactory({
         onResult(result) {
             if (!viewActive || audioStatus !== 'running') return;
-            renderReading(smoother.push(result, now()));
+            const reading = smoother.push(result, now());
+            latestDiagnosticDisplay = reading
+                ? {
+                    state: reading.stale ? 'stale' : 'valid',
+                    note: `${reading.noteName}${reading.octave}`,
+                    frequency: reading.frequency
+                }
+                : { ...latestDiagnosticDisplay, state: 'neutral' };
+            renderReading(reading);
+        },
+        onDiagnostic(diagnostic) {
+            if (!viewActive || audioStatus !== 'running') return;
+            renderDiagnostic(diagnostic, now());
         },
         onStateChange(state) {
             renderAudioState(state);
@@ -336,8 +564,29 @@ export function initTuner(root, {
         onError(error) {
             if (!viewActive) return;
             showError(errorMessage(error));
-        }
+        },
+        diagnosticEnabled: debugEnabled
     });
+
+    if (diagnosticElements) {
+        elements.diagnostic.hidden = false;
+        resetDiagnostic();
+        diagnosticElements.copy.addEventListener('click', async () => {
+            const copyText = formatTunerDiagnosticCopy({
+                device: diagnosticDeviceLabel(navigatorObject),
+                diagnostic: latestDiagnostic || {},
+                display: latestDiagnosticDisplay,
+                summary: latestDiagnosticSummary
+            });
+            try {
+                if (!navigatorObject?.clipboard?.writeText) throw new Error('Clipboard is unavailable');
+                await navigatorObject.clipboard.writeText(copyText);
+                diagnosticElements.copyStatus.textContent = '診断結果をコピーしました。';
+            } catch (_) {
+                diagnosticElements.copyStatus.textContent = 'コピーできませんでした。画面をスクリーンショットしてください。';
+            }
+        });
+    }
 
     elements.toggle.addEventListener('click', async () => {
         if (audioStatus === 'running') {
@@ -358,6 +607,7 @@ export function initTuner(root, {
             if (!active) {
                 void audioController.stop();
                 audioStatus = 'idle';
+                resetDiagnostic();
                 showError();
                 renderNeutral();
                 elements.toggle.disabled = false;

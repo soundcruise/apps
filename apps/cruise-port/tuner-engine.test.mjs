@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { performance } from 'node:perf_hooks';
 import {
+    createDetailedPitchDetector,
     createPitchDetector,
     detectPitch,
+    detectPitchDetailed,
     frequencyToNoteInfo,
     TUNER_ENGINE_DEFAULTS
 } from './tuner-engine.js';
@@ -184,6 +186,58 @@ oversizedSamples[100] = 100;
 assert.equal(detectPitch(oversizedSamples, 48000), null);
 assert.equal(detectPitch(new Float32Array(4096).fill(0.5), 48000), null);
 assert.throws(() => createPitchDetector({ minFrequency: 1400, maxFrequency: 70 }), TypeError);
+
+{
+    const samples = makeWave({ frequency: 82.4069, sampleRate: 48000 });
+    const ordinary = detectPitch(samples, 48000);
+    const detailed = detectPitchDetailed(samples, 48000);
+    assert.deepEqual(detailed.result, ordinary, 'detailed detection preserves the ordinary result');
+    assert.equal(detailed.diagnostics.reason, 'valid');
+    assert.equal(detailed.diagnostics.finalFrequency, detailed.result.frequency);
+    assert.equal(detailed.diagnostics.rawFrequency, detailed.result.frequency);
+    assert(Number.isFinite(detailed.diagnostics.rmsDbfs));
+
+    const reusableDetailed = createDetailedPitchDetector();
+    assert.equal(reusableDetailed(samples, 48000).diagnostics.reason, 'valid');
+}
+
+{
+    const weak = detectPitchDetailed(
+        makeWave({ frequency: 82.4069, sampleRate: 48000, amplitude: 0.001 }),
+        48000
+    );
+    assert.equal(weak.result, null);
+    assert.equal(weak.diagnostics.reason, 'low-rms');
+    assert(weak.diagnostics.rms < TUNER_ENGINE_DEFAULTS.rmsThreshold);
+    assert(Number.isFinite(weak.diagnostics.rmsDbfs));
+}
+
+{
+    const noise = detectPitchDetailed(
+        makeWave({ frequency: 440, sampleRate: 48000, amplitude: 0, noiseAmplitude: 0.4 }),
+        48000
+    );
+    assert.equal(noise.result, null);
+    assert.equal(noise.diagnostics.reason, 'low-confidence');
+    assert(noise.diagnostics.rms > TUNER_ENGINE_DEFAULTS.rmsThreshold);
+    assert(noise.diagnostics.confidence < TUNER_ENGINE_DEFAULTS.minConfidence);
+}
+
+{
+    const outside = detectPitchDetailed(makeWave({ frequency: 1500, sampleRate: 48000 }), 48000);
+    assert.equal(outside.result, null);
+    assert.equal(outside.diagnostics.reason, 'out-of-range');
+
+    const invalid = detectPitchDetailed(undefined, 48000);
+    assert.equal(invalid.result, null);
+    assert.equal(invalid.diagnostics.reason, 'invalid-input');
+
+    const invalidOptions = detectPitchDetailed(new Float32Array(BUFFER_LENGTH), 48000, {
+        minFrequency: 1400,
+        maxFrequency: 70
+    });
+    assert.equal(invalidOptions.diagnostics.reason, 'invalid-input');
+}
 
 const performanceDetector = createPitchDetector();
 const performanceWave = makeWave({ frequency: 82.4069, sampleRate: 48000, harmonics: normalHarmonics });

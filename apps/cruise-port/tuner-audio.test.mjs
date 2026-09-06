@@ -33,15 +33,16 @@ class FakeEventTarget {
 }
 
 class FakeTrack extends FakeEventTarget {
-    constructor(sampleRate = 48000) {
+    constructor(sampleRate = 48000, settings = {}) {
         super();
         this.sampleRate = sampleRate;
+        this.settings = settings;
         this.readyState = 'live';
         this.stopCalls = 0;
     }
 
     getSettings() {
-        return { sampleRate: this.sampleRate };
+        return { sampleRate: this.sampleRate, ...this.settings };
     }
 
     stop() {
@@ -50,8 +51,8 @@ class FakeTrack extends FakeEventTarget {
     }
 }
 
-function createStream(sampleRate = 48000) {
-    const track = new FakeTrack(sampleRate);
+function createStream(sampleRate = 48000, settings = {}) {
+    const track = new FakeTrack(sampleRate, settings);
     return {
         track,
         getTracks: () => [track],
@@ -142,7 +143,18 @@ function createContextClass({
     return FakeAudioContext;
 }
 
-function createHarness({ getUserMedia, ContextClass, detectorFactory, onResult, onStateChange, onError } = {}) {
+function createHarness({
+    getUserMedia,
+    getSupportedConstraints,
+    ContextClass,
+    detectorFactory,
+    detailedDetectorFactory,
+    diagnosticEnabled,
+    onResult,
+    onDiagnostic,
+    onStateChange,
+    onError
+} = {}) {
     const documentTarget = new FakeEventTarget();
     const windowTarget = new FakeEventTarget();
     const timers = createTimers();
@@ -151,8 +163,10 @@ function createHarness({ getUserMedia, ContextClass, detectorFactory, onResult, 
     const gum = getUserMedia || (async () => createStream());
     const controller = createTunerAudioController({
         onResult,
+        onDiagnostic,
         onStateChange,
         onError,
+        diagnosticEnabled,
         environment: {
             navigatorObject: {
                 mediaDevices: {
@@ -160,7 +174,8 @@ function createHarness({ getUserMedia, ContextClass, detectorFactory, onResult, 
                         getUserMediaCalls += 1;
                         requestedConstraints.push(constraints);
                         return gum(constraints);
-                    }
+                    },
+                    getSupportedConstraints: getSupportedConstraints || (() => ({}))
                 }
             },
             AudioContextClass: ContextClass || createContextClass(),
@@ -170,7 +185,11 @@ function createHarness({ getUserMedia, ContextClass, detectorFactory, onResult, 
             setTimeout: timers.setTimeout,
             clearTimeout: timers.clearTimeout,
             now: () => 0,
-            detectorFactory: detectorFactory || (() => () => null)
+            detectorFactory: detectorFactory || (() => () => null),
+            detailedDetectorFactory: detailedDetectorFactory || (() => () => ({
+                result: null,
+                diagnostics: { reason: 'low-rms', rms: 0, rmsDbfs: Number.NEGATIVE_INFINITY }
+            }))
         }
     });
     return {
@@ -181,6 +200,85 @@ function createHarness({ getUserMedia, ContextClass, detectorFactory, onResult, 
         get getUserMediaCalls() { return getUserMediaCalls; },
         requestedConstraints
     };
+}
+
+{
+    const ordinaryResult = { frequency: 82.4, confidence: 0.99 };
+    let detailedFactoryCalls = 0;
+    const results = [];
+    const diagnostics = [];
+    const harness = createHarness({
+        detectorFactory: () => () => ordinaryResult,
+        detailedDetectorFactory: () => {
+            detailedFactoryCalls += 1;
+            return () => ({ result: null, diagnostics: { reason: 'other' } });
+        },
+        onResult: (value) => results.push(value),
+        onDiagnostic: (value) => diagnostics.push(value)
+    });
+    await harness.controller.start();
+    harness.timers.runNext();
+    assert.strictEqual(results[0], ordinaryResult, 'normal mode keeps raw result callback behavior');
+    assert.equal(diagnostics.length, 0, 'normal mode emits no diagnostics');
+    assert.equal(detailedFactoryCalls, 0, 'normal mode does not create a detailed detector');
+    await harness.controller.stop();
+}
+
+{
+    const rawResult = { frequency: 82.4, confidence: 0.91 };
+    const results = [];
+    const diagnostics = [];
+    const stream = createStream(48000, {
+        channelCount: 1,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        deviceId: 'must-not-leak',
+        groupId: 'must-not-leak'
+    });
+    const harness = createHarness({
+        getUserMedia: async () => stream,
+        getSupportedConstraints: () => ({
+            sampleRate: true,
+            channelCount: true,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            deviceId: true
+        }),
+        diagnosticEnabled: true,
+        detailedDetectorFactory: () => () => ({
+            result: rawResult,
+            diagnostics: {
+                reason: 'valid',
+                rms: 0.0049,
+                rmsDbfs: -46.2,
+                confidence: 0.91,
+                candidateLag: 582,
+                rawFrequency: 82.57,
+                finalFrequency: 82.4
+            }
+        }),
+        onResult: (value) => results.push(value),
+        onDiagnostic: (value) => diagnostics.push(value)
+    });
+    await harness.controller.start();
+    harness.timers.runNext();
+    assert.strictEqual(results[0], rawResult, 'diagnostic mode preserves onResult payload');
+    assert.equal(diagnostics[0].reason, 'valid');
+    assert.equal(diagnostics[0].sampleRate, 48000);
+    assert.equal(diagnostics[0].fftSize, 4096);
+    assert.deepEqual(diagnostics[0].trackSettings, {
+        sampleRate: 48000,
+        channelCount: 1,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+    });
+    assert.equal(diagnostics[0].trackSettings.deviceId, undefined);
+    assert.equal(diagnostics[0].supportedConstraints.deviceId, undefined);
+    await harness.controller.stop();
+    assert.equal(harness.timers.size, 0, 'diagnostic mode cleans up its analysis timer');
 }
 
 {

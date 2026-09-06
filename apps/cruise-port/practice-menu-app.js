@@ -9,7 +9,7 @@ import {
     updatePracticeMenu
 } from './practice-menu-store.js';
 import { initMetronome } from './metronome-app.js';
-import { initTuner } from './tuner-app.js';
+import { initTuner } from './tuner-app.js?v=1.1.0';
 
 const elements = {
     homeView: document.querySelector('#home-view'),

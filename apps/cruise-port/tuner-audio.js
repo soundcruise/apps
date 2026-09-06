@@ -1,4 +1,4 @@
-import { createPitchDetector } from './tuner-engine.js';
+import { createDetailedPitchDetector, createPitchDetector } from './tuner-engine.js?v=1.1.0';
 
 const ANALYSIS_INTERVAL_MS = 50;
 const BASE_ANALYSER_SIZE = 4096;
@@ -85,14 +85,36 @@ function defaultEnvironment() {
         setTimeout: globalObject.setTimeout?.bind(globalObject),
         clearTimeout: globalObject.clearTimeout?.bind(globalObject),
         now: () => globalObject.performance?.now?.() ?? Date.now(),
-        detectorFactory: createPitchDetector
+        detectorFactory: createPitchDetector,
+        detailedDetectorFactory: createDetailedPitchDetector
     };
+}
+
+const DIAGNOSTIC_SETTING_KEYS = Object.freeze([
+    'sampleRate',
+    'channelCount',
+    'echoCancellation',
+    'noiseSuppression',
+    'autoGainControl'
+]);
+
+function selectDiagnosticValues(source) {
+    const selected = {};
+    for (const key of DIAGNOSTIC_SETTING_KEYS) {
+        const value = source?.[key];
+        if (typeof value === 'boolean' || typeof value === 'string' || Number.isFinite(value)) {
+            selected[key] = value;
+        }
+    }
+    return selected;
 }
 
 export function createTunerAudioController({
     onResult,
+    onDiagnostic,
     onStateChange,
     onError,
+    diagnosticEnabled = false,
     environment = {}
 } = {}) {
     const platform = { ...defaultEnvironment(), ...environment };
@@ -107,6 +129,8 @@ export function createTunerAudioController({
     let detector = null;
     let timerId = null;
     let trackSampleRate = null;
+    let diagnosticTrackSettings = {};
+    let diagnosticSupportedConstraints = {};
     let callbackErrorReported = false;
     const trackListeners = new Map();
 
@@ -180,6 +204,8 @@ export function createTunerAudioController({
         samples = null;
         detector = null;
         trackSampleRate = null;
+        diagnosticTrackSettings = {};
+        diagnosticSupportedConstraints = {};
 
         return closeAudioContext(oldContext);
     }
@@ -210,8 +236,18 @@ export function createTunerAudioController({
         const startedAt = platform.now();
         try {
             analyser.getFloatTimeDomainData(samples);
-            const result = detector(samples, context.sampleRate);
+            const detection = detector(samples, context.sampleRate);
+            const result = diagnosticEnabled ? detection.result : detection;
             notify(onResult, result);
+            if (diagnosticEnabled) {
+                notify(onDiagnostic, {
+                    ...detection.diagnostics,
+                    sampleRate: context.sampleRate,
+                    fftSize: analyser.fftSize,
+                    trackSettings: diagnosticTrackSettings,
+                    supportedConstraints: diagnosticSupportedConstraints
+                });
+            }
         } catch (error) {
             void fail(error, 'analysis-failed');
             return;
@@ -317,7 +353,9 @@ export function createTunerAudioController({
             localAnalyser = localContext.createAnalyser();
             localAnalyser.fftSize = chooseAnalyserSize(localContext.sampleRate);
             const localSamples = new Float32Array(localAnalyser.fftSize);
-            const localDetector = platform.detectorFactory();
+            const localDetector = diagnosticEnabled
+                ? platform.detailedDetectorFactory()
+                : platform.detectorFactory();
             localSource.connect(localAnalyser);
 
             if (!isCurrent(startGeneration)) {
@@ -333,7 +371,17 @@ export function createTunerAudioController({
             analyser = localAnalyser;
             samples = localSamples;
             detector = localDetector;
-            const settingsRate = audioTracks[0].getSettings?.().sampleRate;
+            let trackSettings = {};
+            if (diagnosticEnabled) {
+                try { trackSettings = selectDiagnosticValues(audioTracks[0].getSettings?.()); } catch (_) { /* Optional diagnostics. */ }
+                try {
+                    diagnosticSupportedConstraints = selectDiagnosticValues(mediaDevices.getSupportedConstraints?.());
+                } catch (_) { /* Optional diagnostics. */ }
+                diagnosticTrackSettings = trackSettings;
+            }
+            const settingsRate = diagnosticEnabled
+                ? trackSettings.sampleRate
+                : audioTracks[0].getSettings?.().sampleRate;
             trackSampleRate = Number.isFinite(settingsRate) ? settingsRate : null;
             addTrackListeners(localStream);
             setStatus(TUNER_AUDIO_STATES.running);

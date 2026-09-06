@@ -150,21 +150,45 @@ function createWorkspace() {
     };
 }
 
-function detectWithWorkspace(samples, sampleRate, config, workspace) {
+function rmsToDbfs(rms) {
+    return Number.isFinite(rms) && rms > 0 ? 20 * Math.log10(rms) : Number.NEGATIVE_INFINITY;
+}
+
+function completeDetection(detailed, result, reason, values = {}) {
+    if (!detailed) return result;
+    const rms = Number.isFinite(values.rms) ? values.rms : null;
+    return {
+        result,
+        diagnostics: {
+            reason,
+            rms,
+            rmsDbfs: rms === null ? null : rmsToDbfs(rms),
+            confidence: Number.isFinite(values.confidence) ? values.confidence : null,
+            candidateLag: Number.isFinite(values.candidateLag) ? values.candidateLag : null,
+            rawFrequency: Number.isFinite(values.rawFrequency) ? values.rawFrequency : null,
+            finalFrequency: Number.isFinite(result?.frequency) ? result.frequency : null
+        }
+    };
+}
+
+function detectWithWorkspace(samples, sampleRate, config, workspace, detailed = false) {
     if (!(samples instanceof Float32Array)
         || samples.length < MIN_BUFFER_LENGTH
         || !isFinitePositive(sampleRate)) {
-        return null;
+        return completeDetection(detailed, null, 'invalid-input');
     }
 
     const rms = calculateCenteredRms(samples);
-    if (rms === null || rms < config.rmsThreshold) return null;
+    if (rms === null) return completeDetection(detailed, null, 'invalid-input');
+    if (rms < config.rmsThreshold) return completeDetection(detailed, null, 'low-rms', { rms });
 
     const firstSearchLag = Math.max(2, Math.floor(sampleRate / config.maxFrequency) - 1);
     const requestedLastLag = Math.ceil(sampleRate / config.minFrequency) + 1;
     const lastLag = Math.min(requestedLastLag, samples.length - 3);
     const comparisonLength = samples.length - lastLag - 1;
-    if (firstSearchLag > lastLag || comparisonLength < lastLag) return null;
+    if (firstSearchLag > lastLag || comparisonLength < lastLag) {
+        return completeDetection(detailed, null, 'no-candidate', { rms });
+    }
 
     workspace.ensureLength(lastLag + 1);
     const difference = workspace.difference;
@@ -192,30 +216,65 @@ function detectWithWorkspace(samples, sampleRate, config, workspace) {
 
     // Detect an above-range fundamental before accepting one of its in-range multiples.
     const firstCandidate = findThresholdCandidate(normalized, 2, lastLag, config.yinThreshold);
-    if (firstCandidate > 0 && firstCandidate < firstSearchLag) return null;
+    if (firstCandidate > 0 && firstCandidate < firstSearchLag) {
+        return completeDetection(detailed, null, 'out-of-range', {
+            rms,
+            confidence: Math.max(0, Math.min(1, 1 - normalized[firstCandidate])),
+            candidateLag: firstCandidate,
+            rawFrequency: sampleRate / firstCandidate
+        });
+    }
 
     let candidate = firstCandidate >= firstSearchLag ? firstCandidate : -1;
     if (candidate < 0) {
         candidate = findBestCandidate(normalized, firstSearchLag, lastLag);
-        if (candidate < 0 || 1 - normalized[candidate] < config.minConfidence) return null;
+        if (candidate < 0) return completeDetection(detailed, null, 'no-candidate', { rms });
+        const fallbackConfidence = Math.max(0, Math.min(1, 1 - normalized[candidate]));
+        if (fallbackConfidence < config.minConfidence) {
+            return completeDetection(detailed, null, 'low-confidence', {
+                rms,
+                confidence: fallbackConfidence,
+                candidateLag: candidate,
+                rawFrequency: sampleRate / candidate
+            });
+        }
     }
 
     candidate = reduceOctaveError(normalized, candidate, lastLag);
     const confidence = Math.max(0, Math.min(1, 1 - normalized[candidate]));
-    if (confidence < config.minConfidence) return null;
+    if (confidence < config.minConfidence) {
+        return completeDetection(detailed, null, 'low-confidence', {
+            rms,
+            confidence,
+            candidateLag: candidate,
+            rawFrequency: sampleRate / candidate
+        });
+    }
 
     // Refine against the unnormalized difference curve; it has less high-note bias.
     const refinedLag = interpolateLag(difference, candidate);
     const frequency = sampleRate / refinedLag;
-    if (!Number.isFinite(frequency)
-        || frequency < config.minFrequency
-        || frequency > config.maxFrequency) {
-        return null;
+    if (!Number.isFinite(frequency)) {
+        return completeDetection(detailed, null, 'invalid-frequency', {
+            rms, confidence, candidateLag: refinedLag
+        });
+    }
+    if (frequency < config.minFrequency || frequency > config.maxFrequency) {
+        return completeDetection(detailed, null, 'out-of-range', {
+            rms, confidence, candidateLag: refinedLag, rawFrequency: frequency
+        });
     }
 
     const note = frequencyToNoteInfo(frequency);
-    if (!note) return null;
-    return { frequency, confidence, rms, ...note };
+    if (!note) {
+        return completeDetection(detailed, null, 'note-conversion-failed', {
+            rms, confidence, candidateLag: refinedLag, rawFrequency: frequency
+        });
+    }
+    const result = { frequency, confidence, rms, ...note };
+    return completeDetection(detailed, result, 'valid', {
+        rms, confidence, candidateLag: refinedLag, rawFrequency: frequency
+    });
 }
 
 export function createPitchDetector(options = {}) {
@@ -230,6 +289,20 @@ export function detectPitch(samples, sampleRate, options = {}) {
     if (!config) return null;
     const workspace = createWorkspace();
     return detectWithWorkspace(samples, sampleRate, config, workspace);
+}
+
+export function createDetailedPitchDetector(options = {}) {
+    const config = normalizeOptions(options);
+    if (!config) throw new TypeError('Invalid tuner detector options');
+    const workspace = createWorkspace();
+    return (samples, sampleRate) => detectWithWorkspace(samples, sampleRate, config, workspace, true);
+}
+
+export function detectPitchDetailed(samples, sampleRate, options = {}) {
+    const config = normalizeOptions(options);
+    if (!config) return completeDetection(true, null, 'invalid-input');
+    const workspace = createWorkspace();
+    return detectWithWorkspace(samples, sampleRate, config, workspace, true);
 }
 
 export const TUNER_ENGINE_DEFAULTS = DEFAULT_OPTIONS;

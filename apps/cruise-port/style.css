@@ -1103,6 +1103,145 @@ select {
     line-height: 1.55;
 }
 
+.tuner-diagnostic {
+    --diagnostic-level-position: 0%;
+    margin-top: 28px;
+    padding: 18px;
+    border: 1px solid rgba(205, 180, 116, 0.18);
+    border-radius: 14px;
+    color: var(--port-muted);
+    background: rgba(8, 7, 5, 0.72);
+    text-align: left;
+}
+
+.tuner-diagnostic-heading,
+.diagnostic-level-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.tuner-diagnostic-heading h2 {
+    margin: 0;
+    color: var(--port-text);
+    font-size: 0.9rem;
+    letter-spacing: 0.08em;
+}
+
+.tuner-diagnostic-heading span,
+.diagnostic-level-row {
+    font-size: 0.68rem;
+}
+
+.diagnostic-level-row {
+    margin-top: 17px;
+}
+
+.diagnostic-level-row output,
+.diagnostic-values dd,
+.diagnostic-summary dd {
+    color: var(--port-gold-bright);
+    font-variant-numeric: tabular-nums;
+}
+
+.diagnostic-level {
+    position: relative;
+    height: 10px;
+    margin-top: 7px;
+    overflow: hidden;
+    border-radius: 5px;
+    background: rgba(230, 210, 155, 0.09);
+}
+
+.diagnostic-level-fill {
+    display: block;
+    width: var(--diagnostic-level-position);
+    height: 100%;
+    background: rgba(205, 180, 116, 0.72);
+    transition: width 80ms linear;
+}
+
+.diagnostic-threshold {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 39.9%;
+    width: 1px;
+    background: rgba(243, 240, 232, 0.84);
+}
+
+.diagnostic-threshold-label {
+    margin: 6px 0 0;
+    font-size: 0.6rem;
+    text-align: right;
+}
+
+.diagnostic-values,
+.diagnostic-summary {
+    display: grid;
+    margin: 18px 0 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px 14px;
+}
+
+.diagnostic-values div,
+.diagnostic-summary div {
+    min-width: 0;
+}
+
+.diagnostic-values dt,
+.diagnostic-summary dt {
+    font-size: 0.6rem;
+}
+
+.diagnostic-values dd,
+.diagnostic-summary dd {
+    margin: 3px 0 0;
+    font-size: 0.72rem;
+    overflow-wrap: anywhere;
+}
+
+.diagnostic-environment {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(205, 180, 116, 0.1);
+}
+
+.diagnostic-environment p {
+    margin: 5px 0 0;
+    font-size: 0.62rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.diagnostic-environment strong {
+    color: var(--port-text);
+}
+
+.diagnostic-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.diagnostic-copy {
+    width: 100%;
+    min-height: 42px;
+    margin-top: 18px;
+    border: 1px solid rgba(205, 180, 116, 0.25);
+    border-radius: 10px;
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.05);
+    font: inherit;
+    font-size: 0.72rem;
+}
+
+.diagnostic-copy-status {
+    min-height: 1.4em;
+    margin: 7px 0 0;
+    font-size: 0.64rem;
+    text-align: center;
+}
+
 @media (hover: hover) {
     .app-card,
     .tool-card,
