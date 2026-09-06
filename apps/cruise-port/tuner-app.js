@@ -1,4 +1,5 @@
 import { createTunerAudioController } from './tuner-audio.js?v=1.1.4';
+import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.1.7';
 import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
 import {
     TUNER_DEFAULT_THRESHOLD_DB,
@@ -389,6 +390,7 @@ function diagnosticDeviceLabel(navigatorObject) {
 
 export function initTuner(root, {
     audioControllerFactory = createTunerAudioController,
+    previewAudioControllerFactory = createTunerPreviewAudioController,
     now = () => globalThis.performance?.now?.() ?? Date.now(),
     debugEnabled = isTunerDebugEnabled(),
     navigatorObject = globalThis.navigator,
@@ -447,6 +449,7 @@ export function initTuner(root, {
     } : null;
     const smoother = createTunerSmoother();
     const inputLevelSmoother = createInputLevelSmoother();
+    const previewAudioController = previewAudioControllerFactory();
     const diagnosticHistory = debugEnabled ? createTunerDiagnosticHistory() : null;
     const loadResult = loadTunerSettings(storage);
     let currentThresholdDb = loadResult.settings.thresholdDb;
@@ -500,9 +503,11 @@ export function initTuner(root, {
             const target = currentTargets[index];
             element.dataset.note = target?.note || '';
             element.dataset.string = String(string);
+            element.disabled = isFreeMode;
             element.querySelector('span').textContent = `${string}弦`;
             element.querySelector('strong').textContent = target?.note || '-';
-            element.setAttribute('aria-label', isFreeMode ? `${string}弦 目標なし` : `${string}弦 ${target.note}`);
+            const accessibleNote = target?.note.replaceAll('♯', 'シャープ');
+            element.setAttribute('aria-label', isFreeMode ? `${string}弦 目標なし` : `${string}弦 ${accessibleNote} の音を鳴らす`);
         });
     }
 
@@ -769,6 +774,13 @@ export function initTuner(root, {
         rmsThreshold: thresholdDbToRms(currentThresholdDb)
     });
 
+    elements.strings.forEach((element, index) => {
+        element.addEventListener('click', () => {
+            const target = currentTargets[index];
+            if (target) void previewAudioController.play(target);
+        });
+    });
+
     if (diagnosticElements) {
         elements.diagnostic.hidden = false;
         resetDiagnostic();
@@ -879,6 +891,8 @@ export function initTuner(root, {
             viewActive = active;
             if (!active) {
                 void audioController.stop();
+                previewAudioController.stop();
+                void previewAudioController.suspend();
                 audioStatus = 'idle';
                 resetDiagnostic();
                 showError();

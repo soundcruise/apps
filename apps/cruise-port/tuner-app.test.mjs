@@ -26,9 +26,11 @@ assert.match(tunerMarkup, /id="tuner-capo-down"[^>]+aria-label="カポを1フレ
 assert.doesNotMatch(tunerMarkup, /カポを付けたまま調弦する場合/);
 assert.match(tunerMarkup, /id="tuner-note-string"/);
 assert.match(tunerMarkup, /id="tuner-note-value"/);
+assert.match(tunerMarkup, /<button type="button" data-tuner-string data-string="6" data-note="E2" aria-label="6弦 E2 の音を鳴らす">/);
 assert.doesNotMatch(tunerMarkup, /1本ずつ弦を鳴らしてください/);
 assert.match(tunerStyles, /\.tuner-input-tools\[hidden\]\s*\{\s*display: none;/);
 assert.match(tunerStyles, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
+assert.match(tunerStyles, /\.tuner-strings button:focus-visible/);
 
 function result(frequency, confidence = 0.99) {
     return { frequency, confidence };
@@ -276,6 +278,78 @@ assert.equal(inputLevelPercentage(-100), 0);
 assert.equal(inputLevelPercentage(-18), 100);
 assert.equal(inputLevelPercentage(-80), (20 / 82) * 100);
 assert.equal(inputLevelPercentage(0), 100);
+
+{
+    const root = createFakeRoot();
+    const playedTargets = [];
+    let previewStopCalls = 0;
+    let previewSuspendCalls = 0;
+    const controller = {
+        start: async () => true,
+        stop: async () => {},
+        getState: () => ({ status: 'idle' }),
+        setRmsThreshold: () => true
+    };
+    const app = initTuner(root, {
+        audioControllerFactory: () => controller,
+        previewAudioControllerFactory: () => ({
+            play: async (target) => { playedTargets.push(target); return true; },
+            stop: () => { previewStopCalls += 1; },
+            suspend: async () => { previewSuspendCalls += 1; }
+        })
+    });
+
+    for (const card of root.strings) await card.dispatch('click');
+    assert.deepEqual(
+        playedTargets.map(({ note, targetFrequency }) => ({ note, targetFrequency })),
+        [
+            { note: 'E2', targetFrequency: 82.4068892282175 },
+            { note: 'A2', targetFrequency: 110 },
+            { note: 'D3', targetFrequency: 146.8323839587038 },
+            { note: 'G3', targetFrequency: 195.99771799087463 },
+            { note: 'B3', targetFrequency: 246.94165062806206 },
+            { note: 'E4', targetFrequency: 329.6275569128699 }
+        ],
+        'each standard card uses its generated target frequency'
+    );
+    root.elements.get('tuner-tuning').value = 'drop-d';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    await root.strings[0].dispatch('click');
+    assert.equal(playedTargets.at(-1).note, 'D2');
+    await root.elements.get('tuner-capo-up').dispatch('click');
+    await root.elements.get('tuner-capo-up').dispatch('click');
+    for (const card of root.strings) await card.dispatch('click');
+    assert.deepEqual(
+        playedTargets.slice(-6).map(({ note }) => note),
+        ['E2', 'B2', 'E3', 'A3', 'C♯4', 'F♯4'],
+        'capo cards use effective targets rather than base strings'
+    );
+
+    root.elements.get('tuner-tuning').value = 'dadgad';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    await root.strings[4].dispatch('click');
+    assert.equal(playedTargets.at(-1).note, 'B3', 'DADGAD card uses its current capo-adjusted target');
+    root.elements.get('tuner-tuning').value = 'open-d';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    await root.strings[3].dispatch('click');
+    assert.equal(playedTargets.at(-1).note, 'G♯3', 'Open D card uses its current capo-adjusted target');
+    await root.elements.get('tuner-capo-down').dispatch('click');
+    await root.elements.get('tuner-capo-down').dispatch('click');
+    root.elements.get('tuner-tuning').value = 'open-c';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    await root.strings[0].dispatch('click');
+    assert.equal(playedTargets.at(-1).note, 'C2', 'Open C card uses its generated target');
+
+    root.elements.get('tuner-tuning').value = 'free';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    assert.equal(root.strings[0].disabled, true);
+    await root.strings[0].dispatch('click');
+    assert.equal(playedTargets.at(-1).note, 'C2', 'free cards never request a preview sound');
+
+    app.setActive(false);
+    assert.equal(previewStopCalls, 1, 'route leave stops the active preview');
+    assert.equal(previewSuspendCalls, 1, 'route leave suspends the preview context');
+}
 
 {
     const level = createInputLevelSmoother();
