@@ -44,6 +44,56 @@ body {
         max(20px, calc(env(safe-area-inset-left) + 20px));
 }
 
+.port-footer {
+    margin-top: auto;
+    padding: 28px 0 16px;
+    color: var(--port-muted);
+    font-size: 0.72rem;
+    letter-spacing: 0.3em;
+    text-align: center;
+}
+
+.port-global-refresh-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    margin: 18px auto 0;
+    padding: 10px 4px 0;
+    border-top: 1px solid rgba(205, 180, 116, 0.12);
+    opacity: 0.8;
+}
+
+.port-refresh-btn {
+    min-height: 38px;
+    padding: 7px 14px;
+    border: 1px solid rgba(205, 180, 116, 0.48);
+    border-radius: 10px;
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.1);
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.port-refresh-btn:active {
+    transform: scale(0.97);
+    background: rgba(205, 180, 116, 0.18);
+}
+
+.port-refresh-btn:disabled {
+    cursor: wait;
+    opacity: 0.62;
+}
+
+.port-refresh-btn:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 2px;
+}
+
 .port-header {
     margin-bottom: 36px;
     text-align: center;

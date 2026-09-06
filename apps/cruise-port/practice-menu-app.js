@@ -9,6 +9,10 @@ import {
     updatePracticeMenu
 } from './practice-menu-store.js';
 import { initMetronome } from './metronome-app.js';
+import {
+    applyVersionDisplay,
+    reloadAppWithCacheBust
+} from './app-version.js?v=1.1.2';
 import { initTuner } from './tuner-app.js?v=1.1.2';
 
 const elements = {
@@ -386,6 +390,10 @@ elements.list.addEventListener('click', (event) => {
 });
 document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
 document.querySelectorAll('[data-action="cancel-form"]').forEach((button) => button.addEventListener('click', cancelForm));
+applyVersionDisplay();
+document.querySelectorAll('.port-refresh-app').forEach((button) => button.addEventListener('click', () => {
+    reloadAppWithCacheBust();
+}));
 window.addEventListener('hashchange', renderRoute);
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) metronomeController?.stopForPageHidden();
