@@ -66,6 +66,11 @@ for (const thresholdDb of [-100, -80, -68, -40]) {
         { version: 3, thresholdDb, tuningId: 'open-d', capo: 12 }
     );
 }
+assert.deepEqual(
+    normalizeTunerSettings({ version: 3, thresholdDb: -80, tuningId: 'free', capo: 8 }),
+    { version: 3, thresholdDb: -80, tuningId: 'free', capo: 0 },
+    'free mode is stored with its effective capo reset to zero'
+);
 for (const invalid of [
     null,
     [],
@@ -139,6 +144,16 @@ for (const raw of [
         'cruisePort.tuner',
         JSON.stringify({ version: 3, thresholdDb: -60, tuningId: 'open-g', capo: 5 })
     ]]);
+}
+
+{
+    const storage = createStorage();
+    assert.deepEqual(saveTunerSettings({ version: 3, thresholdDb: -80, tuningId: 'free', capo: 0 }, storage), { ok: true });
+    assert.deepEqual(loadTunerSettings(storage), {
+        ok: true,
+        settings: { version: 3, thresholdDb: -80, tuningId: 'free', capo: 0 },
+        migrated: false
+    });
 }
 
 for (const thresholdDb of [-100, -40]) {

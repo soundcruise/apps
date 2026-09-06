@@ -23,7 +23,9 @@ const tunerStyles = readFileSync(new URL('./style.css', import.meta.url), 'utf8'
 assert.match(tunerMarkup, /id="tuner-input-settings-panel" class="tuner-input-tools" hidden/);
 assert.match(tunerMarkup, /id="tuner-tuning"/);
 assert.match(tunerMarkup, /id="tuner-capo-down"[^>]+aria-label="カポを1フレット下げる"/);
-assert.match(tunerMarkup, /カポを付けたまま調弦する場合/);
+assert.doesNotMatch(tunerMarkup, /カポを付けたまま調弦する場合/);
+assert.match(tunerMarkup, /id="tuner-note-string"/);
+assert.match(tunerMarkup, /id="tuner-note-value"/);
 assert.doesNotMatch(tunerMarkup, /1本ずつ弦を鳴らしてください/);
 assert.match(tunerStyles, /\.tuner-input-tools\[hidden\]\s*\{\s*display: none;/);
 assert.match(tunerStyles, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
@@ -201,6 +203,8 @@ function createFakeRoot() {
     const ids = [
         'tuner-title',
         'tuner-note',
+        'tuner-note-string',
+        'tuner-note-value',
         'tuner-frequency',
         'tuner-cents',
         'tuner-direction',
@@ -361,7 +365,8 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'input settings start closed');
     assert.equal(root.elements.get('tuner-input-settings-toggle').attributes.get('aria-expanded'), 'false');
     assert.equal(root.elements.get('tuner-diagnostic').removeCalls, 1, 'debug OFF removes the panel');
-    assert.equal(root.elements.get('tuner-tuning').children.length, 10, 'preset select is generated from the shared definition');
+    assert.equal(root.elements.get('tuner-tuning').children.length, 11, 'preset select is generated from the shared definition');
+    assert.equal(root.elements.get('tuner-tuning').children.at(-1).textContent, '自由');
     assert.deepEqual(
         root.strings.map((element) => element.querySelector('strong').textContent),
         ['E2', 'A2', 'D3', 'G3', 'B3', 'E4']
@@ -369,7 +374,7 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(root.elements.get('tuner-capo-value').textContent, 'なし');
     assert.equal(root.elements.get('tuner-capo-down').disabled, true);
     const toggle = root.elements.get('tuner-toggle');
-    const note = root.elements.get('tuner-note');
+    const note = root.elements.get('tuner-note-value');
     const error = root.elements.get('tuner-error');
 
     app.setActive(true);
@@ -410,6 +415,8 @@ assert.equal(inputLevelPercentage(0), 100);
         clock += 50;
     }
     assert.equal(note.textContent, 'E2');
+    assert.equal(root.elements.get('tuner-note-string').textContent, '6弦');
+    assert.equal(root.elements.get('tuner-note-string').hidden, false);
     assert.match(root.elements.get('tuner-frequency').textContent, /^82\.\d{2} Hz$/);
     assert.equal(root.elements.get('tuner-direction').textContent, '✓ 合っています');
     assert(root.strings[0].classList.contains('is-active'));
@@ -420,7 +427,8 @@ assert.equal(inputLevelPercentage(0), 100);
         root.strings.map((element) => element.querySelector('strong').textContent),
         ['D2', 'G2', 'C3', 'F3', 'A3', 'D4']
     );
-    assert.equal(root.elements.get('tuner-note').textContent, 'E2', 'detected chromatic note remains visible');
+    assert.equal(root.elements.get('tuner-note-value').textContent, 'E2', 'detected chromatic note remains visible');
+    assert.equal(root.elements.get('tuner-note-string').hidden, true, 'target外では弦番号を推測しない');
     assert.equal(root.elements.get('tuner-direction').textContent, '目標音ではありません');
     assert.equal(root.elements.get('tuner-cents').textContent, '—');
     assert(root.strings.every((element) => !element.classList.contains('is-active')));
@@ -437,6 +445,35 @@ assert.equal(inputLevelPercentage(0), 100);
     await root.elements.get('tuner-capo-down').dispatch('click');
     assert.equal(root.elements.get('tuner-capo-value').textContent, 'なし');
     assert.equal(root.elements.get('tuner-direction').textContent, '✓ 合っています');
+
+    root.elements.get('tuner-tuning').value = 'free';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    assert.deepEqual(
+        root.strings.map((element) => element.querySelector('strong').textContent),
+        ['-', '-', '-', '-', '-', '-']
+    );
+    assert.equal(root.elements.get('tuner-capo-value').textContent, 'なし');
+    assert.equal(root.elements.get('tuner-capo-down').disabled, true);
+    assert.equal(root.elements.get('tuner-capo-up').disabled, true);
+    assert.equal(root.elements.get('tuner-note-value').textContent, 'E2');
+    assert.equal(root.elements.get('tuner-note-string').hidden, true, '自由モードでは弦番号を推測しない');
+    assert.equal(root.elements.get('tuner-direction').textContent, '✓ 合っています');
+    assert(root.strings.every((element) => !element.classList.contains('is-active')));
+
+    for (const frequency of [87.31, 87.31]) {
+        callbacks.onResult(result(frequency));
+        clock += 50;
+    }
+    assert.equal(root.elements.get('tuner-note-value').textContent, 'F2');
+    assert.notEqual(root.elements.get('tuner-direction').textContent, '目標音ではありません');
+    assert.notEqual(root.elements.get('tuner-cents').textContent, '—');
+
+    root.elements.get('tuner-tuning').value = 'standard';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    for (const frequency of [82.40, 82.40]) {
+        callbacks.onResult(result(frequency));
+        clock += 50;
+    }
 
     for (const frequency of [
         frequencyAtCents(E2_FREQUENCY, -25),
@@ -715,6 +752,16 @@ assert.equal(inputLevelPercentage(0), 100);
     const writesAtMaximum = writes.length;
     await root.elements.get('tuner-capo-up').dispatch('click');
     assert.equal(writes.length, writesAtMaximum, 'capo remains clamped at 12 without an extra save');
+    root.elements.get('tuner-tuning').value = 'free';
+    await root.elements.get('tuner-tuning').dispatch('change');
+    assert.deepEqual(JSON.parse(writes.at(-1)[1]), {
+        version: 3,
+        thresholdDb: -72,
+        tuningId: 'free',
+        capo: 0
+    });
+    assert.equal(root.elements.get('tuner-capo-down').disabled, true);
+    assert.equal(root.elements.get('tuner-capo-up').disabled, true);
     assert.equal(factoryCalls, 1, 'target changes do not recreate the audio controller');
 }
 

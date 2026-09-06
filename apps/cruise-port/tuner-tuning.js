@@ -1,7 +1,7 @@
 const NOTE_NAMES = Object.freeze(['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B']);
 
 function preset(id, label, baseMidis) {
-    return Object.freeze({ id, label, baseMidis: Object.freeze(baseMidis) });
+    return Object.freeze({ id, label, baseMidis: baseMidis === null ? null : Object.freeze(baseMidis) });
 }
 
 export const TUNING_PRESET_LIST = Object.freeze([
@@ -14,7 +14,8 @@ export const TUNING_PRESET_LIST = Object.freeze([
     preset('open-g', 'Open G', [38, 43, 50, 55, 59, 62]),
     preset('open-d', 'Open D', [38, 45, 50, 54, 57, 62]),
     preset('open-e', 'Open E', [40, 47, 52, 56, 59, 64]),
-    preset('open-c', 'Open C', [36, 43, 48, 55, 60, 64])
+    preset('open-c', 'Open C', [36, 43, 48, 55, 60, 64]),
+    preset('free', '自由', null)
 ]);
 
 export const TUNING_PRESETS = Object.freeze(Object.fromEntries(
@@ -26,6 +27,10 @@ export const TUNER_CAPO_MAX = 12;
 
 export function isValidTuningId(tuningId) {
     return Object.prototype.hasOwnProperty.call(TUNING_PRESETS, tuningId);
+}
+
+export function isFreeTuning(tuningId) {
+    return isValidTuningId(tuningId) && TUNING_PRESETS[tuningId].baseMidis === null;
 }
 
 export function isValidCapo(capo) {
@@ -47,6 +52,7 @@ export function midiToNoteInfo(midi) {
 
 export function getTuningTargets(tuningId, capo) {
     if (!isValidTuningId(tuningId) || !isValidCapo(capo)) return null;
+    if (isFreeTuning(tuningId)) return [];
     // Capo mode is for tuning while the capo remains attached, so every open-string target rises numerically.
     return TUNING_PRESETS[tuningId].baseMidis.map((baseMidi, index) => Object.freeze({
         string: 6 - index,

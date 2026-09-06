@@ -1,4 +1,4 @@
-import { isValidCapo, isValidTuningId } from './tuner-tuning.js?v=1.1.5';
+import { isFreeTuning, isValidCapo, isValidTuningId } from './tuner-tuning.js?v=1.1.6';
 
 export const TUNER_STORAGE_KEY = 'cruisePort.tuner';
 export const TUNER_SCHEMA_VERSION = 3;
@@ -37,7 +37,7 @@ export function normalizeTunerSettings(value) {
         version: TUNER_SCHEMA_VERSION,
         thresholdDb: value.thresholdDb,
         tuningId: value.tuningId,
-        capo: value.capo
+        capo: isFreeTuning(value.tuningId) ? 0 : value.capo
     };
 }
 

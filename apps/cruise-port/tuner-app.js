@@ -8,16 +8,17 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=1.1.5';
+} from './tuner-store.js?v=1.1.6';
 import {
     TUNER_CAPO_MAX,
     TUNER_CAPO_MIN,
     TUNING_PRESET_LIST,
     findTargetString,
     getTuningTargets,
+    isFreeTuning,
     isValidCapo,
     isValidTuningId
-} from './tuner-tuning.js?v=1.1.5';
+} from './tuner-tuning.js?v=1.1.6';
 
 const EMA_TIME_CONSTANT_MS = 80;
 const NULL_GRACE_MS = 150;
@@ -395,7 +396,8 @@ export function initTuner(root, {
 } = {}) {
     const elements = {
         title: root.querySelector('#tuner-title'),
-        note: root.querySelector('#tuner-note'),
+        noteString: root.querySelector('#tuner-note-string'),
+        noteValue: root.querySelector('#tuner-note-value'),
         frequency: root.querySelector('#tuner-frequency'),
         cents: root.querySelector('#tuner-cents'),
         direction: root.querySelector('#tuner-direction'),
@@ -450,6 +452,7 @@ export function initTuner(root, {
     let currentThresholdDb = loadResult.settings.thresholdDb;
     let currentTuningId = loadResult.settings.tuningId;
     let currentCapo = loadResult.settings.capo;
+    if (isFreeTuning(currentTuningId)) currentCapo = 0;
     let currentTargets = getTuningTargets(currentTuningId, currentCapo);
     let currentReading = null;
     let inputSettingsOpen = false;
@@ -491,13 +494,15 @@ export function initTuner(root, {
 
     function renderTargetCards() {
         currentTargets = getTuningTargets(currentTuningId, currentCapo);
+        const isFreeMode = isFreeTuning(currentTuningId);
         elements.strings.forEach((element, index) => {
+            const string = 6 - index;
             const target = currentTargets[index];
-            element.dataset.note = target.note;
-            element.dataset.string = String(target.string);
-            element.querySelector('span').textContent = `${target.string}弦`;
-            element.querySelector('strong').textContent = target.note;
-            element.setAttribute('aria-label', `${target.string}弦 ${target.note}`);
+            element.dataset.note = target?.note || '';
+            element.dataset.string = String(string);
+            element.querySelector('span').textContent = `${string}弦`;
+            element.querySelector('strong').textContent = target?.note || '-';
+            element.setAttribute('aria-label', isFreeMode ? `${string}弦 目標なし` : `${string}弦 ${target.note}`);
         });
     }
 
@@ -505,9 +510,16 @@ export function initTuner(root, {
         elements.tuning.value = currentTuningId;
         elements.capoValue.textContent = currentCapo === 0 ? 'なし' : String(currentCapo);
         elements.capoValue.setAttribute('aria-label', currentCapo === 0 ? 'カポなし' : `カポ${currentCapo}フレット`);
-        elements.capoDown.disabled = currentCapo === TUNER_CAPO_MIN;
-        elements.capoUp.disabled = currentCapo === TUNER_CAPO_MAX;
+        const isFreeMode = isFreeTuning(currentTuningId);
+        elements.capoDown.disabled = isFreeMode || currentCapo === TUNER_CAPO_MIN;
+        elements.capoUp.disabled = isFreeMode || currentCapo === TUNER_CAPO_MAX;
         renderTargetCards();
+    }
+
+    function renderDetectedNote(noteLabel, targetString = null) {
+        elements.noteString.hidden = !targetString;
+        elements.noteString.textContent = targetString ? `${targetString.string}弦` : '';
+        elements.noteValue.textContent = noteLabel;
     }
 
     function showError(message = '') {
@@ -523,7 +535,7 @@ export function initTuner(root, {
     function renderNeutral() {
         smoother.reset();
         currentReading = null;
-        elements.note.textContent = '—';
+        renderDetectedNote('—');
         elements.frequency.textContent = '— Hz';
         elements.cents.textContent = '—';
         elements.direction.textContent = '入力待ち';
@@ -545,18 +557,19 @@ export function initTuner(root, {
 
         const roundedCents = Math.round(reading.cents);
         const noteLabel = `${reading.noteName}${reading.octave}`;
-        const targetString = findTargetString(currentTargets, reading.noteName, reading.octave);
+        const isFreeMode = isFreeTuning(currentTuningId);
+        const targetString = isFreeMode ? null : findTargetString(currentTargets, reading.noteName, reading.octave);
         const directionLabels = {
             low: '↓ 低い',
             high: '↑ 高い',
             'in-tune': '✓ 合っています',
             checking: '安定を確認しています'
         };
-        elements.note.textContent = noteLabel;
+        renderDetectedNote(noteLabel, targetString);
         elements.frequency.textContent = `${reading.frequency.toFixed(2)} Hz`;
         clearStringHighlight();
 
-        if (!targetString) {
+        if (!isFreeMode && !targetString) {
             elements.cents.textContent = '—';
             elements.direction.textContent = '目標音ではありません';
             elements.direction.dataset.state = 'off-target';
@@ -583,10 +596,12 @@ export function initTuner(root, {
         elements.meter.setAttribute('aria-valuetext', `${formatCents(reading.cents)}、${directionText}`);
         elements.meter.setAttribute('aria-label', `${noteLabel}、${formatCents(reading.cents)}、${directionText}`);
 
-        const activeElement = elements.strings.find((element) => element.dataset.string === String(targetString.string));
-        activeElement?.classList.add('is-active');
-        activeElement?.setAttribute('aria-current', 'true');
-        return targetString;
+        if (targetString) {
+            const activeElement = elements.strings.find((element) => element.dataset.string === String(targetString.string));
+            activeElement?.classList.add('is-active');
+            activeElement?.setAttribute('aria-current', 'true');
+        }
+        return targetString || (isFreeMode ? { isFree: true } : null);
     }
 
     function renderAudioState(state) {
@@ -797,12 +812,14 @@ export function initTuner(root, {
             return;
         }
         currentTuningId = elements.tuning.value;
+        if (isFreeTuning(currentTuningId)) currentCapo = 0;
         renderTargetControls();
         reevaluateCurrentReading();
         saveCurrentSettings();
     });
 
     function changeCapo(delta) {
+        if (isFreeTuning(currentTuningId)) return;
         const nextCapo = currentCapo + delta;
         if (!isValidCapo(nextCapo)) return;
         currentCapo = nextCapo;

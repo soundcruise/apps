@@ -948,6 +948,7 @@ select {
 }
 
 .tuner-target-controls {
+    --tuner-target-control-height: 44px;
     display: grid;
     margin-top: 18px;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -972,7 +973,9 @@ select {
 }
 
 .tuner-tuning-field select {
-    min-height: 44px;
+    box-sizing: border-box;
+    height: var(--tuner-target-control-height);
+    min-height: var(--tuner-target-control-height);
     padding-top: 8px;
     padding-bottom: 8px;
     font-size: 0.84rem;
@@ -980,6 +983,8 @@ select {
 
 .tuner-capo-control {
     display: grid;
+    box-sizing: border-box;
+    height: var(--tuner-target-control-height);
     grid-template-columns: 44px minmax(48px, auto) 44px;
     align-items: center;
     overflow: hidden;
@@ -990,7 +995,8 @@ select {
 
 .tuner-capo-control button {
     min-width: 44px;
-    min-height: 44px;
+    min-height: 0;
+    height: 100%;
     padding: 0;
     border: 0;
     color: var(--port-gold-bright);
@@ -1020,9 +1026,7 @@ select {
     text-align: center;
 }
 
-.tuner-capo-help,
 .tuner-settings-error {
-    margin: 6px 0 0;
     color: var(--port-muted);
     font-size: 0.62rem;
     line-height: 1.45;
@@ -1030,8 +1034,8 @@ select {
 }
 
 .tuner-settings-error {
-    min-height: 1.45em;
-    margin-top: 2px;
+    min-height: 0;
+    margin: 0;
     color: #e5aca4;
 }
 
@@ -1044,6 +1048,10 @@ select {
 }
 
 .tuner-note {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.14em;
     max-width: 100%;
     margin: 0;
     color: var(--port-text);
@@ -1053,6 +1061,14 @@ select {
     letter-spacing: -0.045em;
     line-height: 0.9;
     overflow-wrap: anywhere;
+}
+
+.tuner-note-string {
+    color: var(--port-muted);
+    font-size: 0.28em;
+    font-weight: 620;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
 }
 
 .tuner-frequency {
