@@ -1,6 +1,25 @@
 export const MY_APPS_CROP_VIEW_SIZE = 320;
 export const MY_APPS_CROP_MAX_ZOOM_MULTIPLIER = 6;
 
+export function isValidIconCrop(crop) {
+    return Boolean(
+        crop
+        && typeof crop === 'object'
+        && !Array.isArray(crop)
+        && Object.keys(crop).length === 3
+        && ['x', 'y', 'size'].every((key) => Object.hasOwn(crop, key))
+        && Number.isFinite(crop.x)
+        && Number.isFinite(crop.y)
+        && Number.isFinite(crop.size)
+        && crop.x >= 0
+        && crop.x <= 1
+        && crop.y >= 0
+        && crop.y <= 1
+        && crop.size > 0
+        && crop.size <= 1
+    );
+}
+
 function requirePositive(value) {
     if (!(value > 0) || !Number.isFinite(value)) throw new TypeError('invalid-crop-dimensions');
     return value;
@@ -38,6 +57,32 @@ export function createInitialCropState(sourceWidth, sourceHeight, {
         scale: minScale,
         offsetX: (cropSize - sourceWidth * minScale) / 2,
         offsetY: (cropSize - sourceHeight * minScale) / 2
+    });
+}
+
+export function cropStateToMetadata(state) {
+    const sourceCropSize = state.cropSize / state.scale;
+    const minimumSourceDimension = Math.min(state.sourceWidth, state.sourceHeight);
+    return Object.freeze({
+        x: Math.min(1, Math.max(0, (-state.offsetX / state.scale) / state.sourceWidth)),
+        y: Math.min(1, Math.max(0, (-state.offsetY / state.scale) / state.sourceHeight)),
+        size: Math.min(1, Math.max(Number.EPSILON, sourceCropSize / minimumSourceDimension))
+    });
+}
+
+export function createCropStateFromMetadata(sourceWidth, sourceHeight, crop, options = {}) {
+    const initialState = createInitialCropState(sourceWidth, sourceHeight, options);
+    if (!isValidIconCrop(crop)) return initialState;
+    const sourceCropSize = crop.size * Math.min(sourceWidth, sourceHeight);
+    const scale = Math.min(
+        initialState.maxScale,
+        Math.max(initialState.minScale, initialState.cropSize / sourceCropSize)
+    );
+    return clampCropPosition({
+        ...initialState,
+        scale,
+        offsetX: -(crop.x * sourceWidth) * scale,
+        offsetY: -(crop.y * sourceHeight) * scale
     });
 }
 

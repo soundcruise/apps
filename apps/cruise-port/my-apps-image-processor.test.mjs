@@ -3,6 +3,8 @@ import {
     MY_APPS_ICON_MAX_SOURCE_BYTES,
     MY_APPS_ICON_SIZE,
     MY_APPS_ICON_WEBP_QUALITY,
+    MY_APPS_EDITOR_SOURCE_MAX_SIZE,
+    prepareMyAppEditorSource,
     processMyAppIcon,
     validateIconFile
 } from './my-apps-image-processor.js';
@@ -57,6 +59,42 @@ function createCanvasHarness({ webp = true, png = true } = {}) {
         }
     };
     return { canvas, calls };
+}
+
+{
+    const harness = createCanvasHarness();
+    let decodeCount = 0;
+    let closed = 0;
+    const result = await prepareMyAppEditorSource(namedBlob('large photo', 'image/jpeg', 'photo.jpg'), {
+        createImageBitmapFunction: async () => {
+            decodeCount += 1;
+            return decodeCount === 1
+                ? { width: 4032, height: 3024, close() { closed += 1; } }
+                : { width: 1024, height: 768, close() { closed += 1; } };
+        },
+        createCanvas: () => harness.canvas
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.width, MY_APPS_EDITOR_SOURCE_MAX_SIZE);
+    assert.equal(result.height, 768);
+    assert.equal(result.blob.type, 'image/webp');
+    assert.deepEqual(harness.calls[1], ['drawImage', 0, 0, 1024, 768]);
+    assert.equal(closed, 1, 'full-resolution decode is released after the reduced source is encoded');
+    result.cleanup();
+    assert.equal(closed, 2, 'reduced editor decode remains available until the crop editor closes');
+}
+
+{
+    const harness = createCanvasHarness();
+    const result = await prepareMyAppEditorSource(namedBlob('small image', 'image/png', 'small.png'), {
+        createImageBitmapFunction: async () => ({ width: 200, height: 100, close() {} }),
+        createCanvas: () => harness.canvas
+    });
+    assert.equal(result.ok, true);
+    assert.equal(harness.canvas.width, 200);
+    assert.equal(harness.canvas.height, 100);
+    assert.deepEqual(harness.calls[1], ['drawImage', 0, 0, 200, 100], 'small sources are not enlarged');
+    result.cleanup();
 }
 
 {

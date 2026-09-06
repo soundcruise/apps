@@ -36,10 +36,14 @@ const baseItem = Object.freeze({
     name: 'Spotify',
     url: 'https://open.spotify.com/',
     iconId: null,
+    iconSourceId: null,
+    iconCrop: null,
     createdAt,
     updatedAt
 });
-const { iconId: omittedIconId, ...v1ItemValues } = baseItem;
+const { iconSourceId: omittedSourceId, iconCrop: omittedCrop, ...v2ItemValues } = baseItem;
+const v2Item = Object.freeze(v2ItemValues);
+const { iconId: omittedIconId, ...v1ItemValues } = v2Item;
 const v1Item = Object.freeze(v1ItemValues);
 
 assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty store loads safely');
@@ -51,10 +55,22 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
         ok: true,
         items: [baseItem],
         migrated: true
-    }, 'v1 metadata is migrated to iconId null in memory');
+    }, 'v1 metadata is migrated to v3 null image fields in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v1 load does not rewrite storage');
     assert.deepEqual(saveMyApps(loadMyApps(storage).items, storage), { ok: true });
-    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 2, 'next explicit save writes v2');
+    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 3, 'next explicit save writes v3');
+}
+
+{
+    const v2WithIcon = { ...v2Item, iconId: '56582913-4b14-4ae4-95f6-af8367858f6d' };
+    const raw = JSON.stringify({ version: 2, items: [v2WithIcon] });
+    const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
+    assert.deepEqual(loadMyApps(storage), {
+        ok: true,
+        items: [{ ...v2WithIcon, iconSourceId: null, iconCrop: null }],
+        migrated: true
+    }, 'v2 metadata preserves its final icon and adds null source/crop in memory');
+    assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v2 load does not rewrite storage');
 }
 
 {
@@ -63,7 +79,14 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     assert.deepEqual(loadMyApps(storage), { ok: true, items: [baseItem] }, 'saved data persists across reload');
     const withIcon = { ...baseItem, iconId: '56582913-4b14-4ae4-95f6-af8367858f6d' };
     assert.deepEqual(saveMyApps([withIcon], storage), { ok: true });
-    assert.deepEqual(loadMyApps(storage), { ok: true, items: [withIcon] }, 'v2 iconId persists');
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: [withIcon] }, 'legacy iconId remains valid in v3');
+    const editableIcon = {
+        ...withIcon,
+        iconSourceId: '38d1c7d2-5248-4df7-aa11-7d8e8c96b58f',
+        iconCrop: { x: 0.25, y: 0.1, size: 0.5 }
+    };
+    assert.deepEqual(saveMyApps([editableIcon], storage), { ok: true });
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: [editableIcon] }, 'source ID and normalized crop persist');
 }
 
 {
@@ -101,7 +124,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 {
     const second = { ...baseItem, id: 'e4a121b3-20af-4961-92f6-126b5b1c5e1d', name: 'Notion' };
     const storage = new FakeStorage();
-    assert.deepEqual(saveMyApps([baseItem, second], storage), { ok: true }, 'multiple v2 items validate independently of their array index');
+    assert.deepEqual(saveMyApps([baseItem, second], storage), { ok: true }, 'multiple v3 items validate independently of their array index');
     const moved = moveMyApp([baseItem, second], second.id, -1);
     assert.equal(moved.moved, true, 'item can be reordered');
     assert.deepEqual(moved.items.map((item) => item.id), [second.id, baseItem.id]);
@@ -112,10 +135,12 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 for (const raw of [
     '{',
     JSON.stringify({ items: [] }),
-    JSON.stringify({ version: 3, items: [] }),
+    JSON.stringify({ version: 4, items: [] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{}] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, url: 'http://example.com/' }] }),
-    JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconId: 42 }] })
+    JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconId: 42 }] }),
+    JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconId: 'icon', iconSourceId: 'source', iconCrop: { x: -1, y: 0, size: 1 } }] }),
+    JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconSourceId: 'orphan-source' }] })
 ]) {
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.equal(loadMyApps(storage).ok, false, 'malformed or unsupported stored data is rejected without rewrite');
@@ -155,12 +180,17 @@ assert.match(markup, /id="my-apps-manage-view"/);
 assert.match(markup, /id="my-apps-form-view"/);
 assert.match(markup, /id="my-apps-icon-input"[^>]+type="file"[^>]+accept="image\/\*"/);
 assert.doesNotMatch(markup, /id="my-apps-icon-input"[^>]+capture/);
+assert.match(markup, /id="my-apps-icon-preview"[^>]+type="button"[^>]+aria-label="現在のアイコンを調整"[^>]+disabled/);
+assert.match(markup, /id="my-apps-icon-adjust-hint"[^>]*>タップして調整/);
 assert.match(markup, /id="my-apps-crop-dialog"[^>]+role="dialog"[^>]+aria-modal="true"/);
 assert.match(markup, /id="my-apps-crop-canvas"[^>]+width="320"[^>]+height="320"/);
 assert.match(markup, /id="my-apps-crop-slider"[^>]+type="range"/);
 assert.match(appSource, /addEventListener\('pointerdown', handleCropPointerDown\)/);
 assert.match(appSource, /addEventListener\('pointermove', handleCropPointerMove\)/);
 assert.match(appSource, /encodePreparedMyAppIcon\(session\.prepared, cropState\)/);
+assert.match(appSource, /myAppsIconPreview\.addEventListener\('click', handleCurrentMyAppsIconAdjustment\)/);
+assert.match(appSource, /myAppsIconStore\.getIcon\(item\.iconSourceId\)/);
+assert.match(appSource, /useCurrentIconAsSource = true/);
 assert.match(appSource, /closeMyAppsCropEditor\(\{ restoreStatus: false, restoreFocus: false \}\)/);
 assert.match(styles, /\.my-apps-manage-card,[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);
 assert.match(styles, /\.my-app-edit-button[\s\S]*grid-column:\s*1 \/ -1/);

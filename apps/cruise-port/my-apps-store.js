@@ -1,4 +1,6 @@
-export const MY_APPS_SCHEMA_VERSION = 2;
+import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
+
+export const MY_APPS_SCHEMA_VERSION = 3;
 export const MY_APPS_STORAGE_KEY = 'cruisePort.myApps';
 
 export const MY_APPS_LIMITS = Object.freeze({
@@ -10,6 +12,16 @@ export const MY_APPS_LIMITS = Object.freeze({
 
 const ITEM_KEYS_V1 = Object.freeze(['id', 'name', 'url', 'createdAt', 'updatedAt']);
 const ITEM_KEYS_V2 = Object.freeze(['id', 'name', 'url', 'iconId', 'createdAt', 'updatedAt']);
+const ITEM_KEYS_V3 = Object.freeze([
+    'id',
+    'name',
+    'url',
+    'iconId',
+    'iconSourceId',
+    'iconCrop',
+    'createdAt',
+    'updatedAt'
+]);
 
 function isIsoDate(value) {
     return typeof value === 'string'
@@ -64,7 +76,7 @@ function hasExactKeys(item, keys) {
 }
 
 function isValidItem(item, version = MY_APPS_SCHEMA_VERSION) {
-    const expectedKeys = version === 1 ? ITEM_KEYS_V1 : ITEM_KEYS_V2;
+    const expectedKeys = version === 1 ? ITEM_KEYS_V1 : version === 2 ? ITEM_KEYS_V2 : ITEM_KEYS_V3;
     if (
         !item
         || typeof item !== 'object'
@@ -77,12 +89,26 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION) {
         || !isIsoDate(item.createdAt)
         || !isIsoDate(item.updatedAt)
         || !hasExactKeys(item, expectedKeys)
-        || (version === MY_APPS_SCHEMA_VERSION && !(
+        || (version >= 2 && !(
             item.iconId === null
             || (typeof item.iconId === 'string' && item.iconId.length > 0 && item.iconId.length <= MY_APPS_LIMITS.id)
         ))
     ) {
         return false;
+    }
+
+    if (version === MY_APPS_SCHEMA_VERSION) {
+        const validSourceId = item.iconSourceId === null || (
+            typeof item.iconSourceId === 'string'
+            && item.iconSourceId.length > 0
+            && item.iconSourceId.length <= MY_APPS_LIMITS.id
+        );
+        const validImageState = item.iconId === null
+            ? item.iconSourceId === null && item.iconCrop === null
+            : item.iconSourceId === null
+                ? item.iconCrop === null
+                : isValidIconCrop(item.iconCrop);
+        if (!validSourceId || !validImageState) return false;
     }
 
     const valuesResult = validateMyAppValues({ name: item.name, url: item.url });
@@ -94,7 +120,10 @@ function hasUniqueIds(items) {
 }
 
 function cloneItems(items) {
-    return items.map((item) => ({ ...item }));
+    return items.map((item) => ({
+        ...item,
+        iconCrop: item.iconCrop ? { ...item.iconCrop } : null
+    }));
 }
 
 export function createSecureId() {
@@ -122,7 +151,7 @@ export function loadMyApps(storage = window.localStorage) {
             !parsed
             || typeof parsed !== 'object'
             || Array.isArray(parsed)
-            || ![1, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
+            || ![1, 2, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
             || !Array.isArray(parsed.items)
             || parsed.items.length > MY_APPS_LIMITS.items
             || !parsed.items.every((item) => isValidItem(item, storedVersion))
@@ -132,9 +161,13 @@ export function loadMyApps(storage = window.localStorage) {
         }
         const items = parsed.items.map((item) => ({
             ...item,
-            iconId: storedVersion === 1 ? null : item.iconId
+            iconId: storedVersion === 1 ? null : item.iconId,
+            iconSourceId: storedVersion < MY_APPS_SCHEMA_VERSION ? null : item.iconSourceId,
+            iconCrop: storedVersion < MY_APPS_SCHEMA_VERSION || item.iconCrop === null
+                ? null
+                : { ...item.iconCrop }
         }));
-        return storedVersion === 1
+        return storedVersion < MY_APPS_SCHEMA_VERSION
             ? { ok: true, items, migrated: true }
             : { ok: true, items };
     } catch (_) {
@@ -187,6 +220,8 @@ export function createMyApp(values, existingItems, now = new Date(), idFactory =
             id,
             ...valuesResult.values,
             iconId: null,
+            iconSourceId: null,
+            iconCrop: null,
             createdAt: timestamp,
             updatedAt: timestamp
         }

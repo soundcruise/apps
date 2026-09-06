@@ -598,10 +598,33 @@ h1::after {
     background: rgba(205, 180, 116, 0.025);
 }
 
+.my-apps-icon-preview-wrap {
+    width: 82px;
+    flex: 0 0 auto;
+    text-align: center;
+}
+
 .my-apps-icon-preview {
     width: 82px;
     height: 82px;
-    flex: 0 0 auto;
+    display: block;
+    padding: 0;
+    border: 0;
+    border-radius: 22px;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.my-apps-icon-preview:not(:disabled) {
+    cursor: pointer;
+}
+
+.my-apps-icon-preview:not(:disabled):focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 4px;
 }
 
 .my-apps-icon-preview .my-app-icon {
@@ -613,6 +636,15 @@ h1::after {
 .my-apps-icon-preview .my-app-icon svg {
     width: 51px;
     height: 51px;
+}
+
+.my-apps-icon-adjust-hint {
+    display: block;
+    margin-top: 7px;
+    color: rgba(230, 210, 155, 0.72);
+    font-size: 0.62rem;
+    line-height: 1.35;
+    white-space: nowrap;
 }
 
 .my-apps-icon-controls {
@@ -2004,6 +2036,10 @@ select {
     .my-apps-icon-editor {
         padding: 12px;
         gap: 12px;
+    }
+
+    .my-apps-icon-preview-wrap {
+        width: 68px;
     }
 
     .my-apps-icon-preview,

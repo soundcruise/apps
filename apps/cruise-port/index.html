@@ -238,7 +238,10 @@
                     <div class="form-field my-apps-icon-field">
                         <span class="form-field-label">アイコン <span class="optional-label">任意・15MB以内</span></span>
                         <div class="my-apps-icon-editor">
-                            <div id="my-apps-icon-preview" class="my-apps-icon-preview" aria-label="アイコンのプレビュー"></div>
+                            <div class="my-apps-icon-preview-wrap">
+                                <button id="my-apps-icon-preview" class="my-apps-icon-preview" type="button" aria-label="現在のアイコンを調整" disabled></button>
+                                <span id="my-apps-icon-adjust-hint" class="my-apps-icon-adjust-hint" hidden>タップして調整</span>
+                            </div>
                             <div class="my-apps-icon-controls">
                                 <input id="my-apps-icon-input" class="visually-hidden" name="icon" type="file" accept="image/*">
                                 <label class="my-apps-icon-select" for="my-apps-icon-input"><span id="my-apps-icon-select-label">画像を選択</span></label>

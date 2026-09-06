@@ -3,7 +3,10 @@ import {
     applyPinchGesture,
     calculateCropDrawRect,
     calculateMinimumCoverScale,
+    createCropStateFromMetadata,
     createInitialCropState,
+    cropStateToMetadata,
+    isValidIconCrop,
     moveCrop,
     zoomCropAtPoint
 } from './my-apps-crop.js';
@@ -25,6 +28,22 @@ assert.equal(portrait.offsetY, -160);
 const square = createInitialCropState(640, 640);
 assert.equal(square.offsetX, 0);
 assert.equal(square.offsetY, 0);
+
+const savedCropState = { ...landscape, scale: 2, offsetX: -320, offsetY: -160 };
+const cropMetadata = cropStateToMetadata(savedCropState);
+assert.deepEqual(cropMetadata, { x: 0.25, y: 0.25, size: 0.5 });
+assert.deepEqual(
+    createCropStateFromMetadata(640, 320, cropMetadata),
+    savedCropState,
+    'normalized crop metadata restores the exact editor transform'
+);
+assert.equal(isValidIconCrop(cropMetadata), true);
+assert.equal(isValidIconCrop({ x: 0, y: 0, size: 0 }), false);
+assert.deepEqual(
+    createCropStateFromMetadata(640, 320, null),
+    landscape,
+    'missing legacy crop starts from centered cover'
+);
 
 assert.equal(moveCrop(landscape, 1000, 0).offsetX, 0, 'drag X clamps at near edge');
 assert.equal(moveCrop(landscape, -1000, 0).offsetX, -320, 'drag X clamps at far edge');
