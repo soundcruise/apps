@@ -12,7 +12,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.1.2';
+} from './app-version.js?v=1.1.3';
 import { initTuner } from './tuner-app.js?v=1.1.5';
 
 const elements = {
