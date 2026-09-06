@@ -16,7 +16,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=5.1.0';
+} from './my-apps-store.js?v=5.2.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
