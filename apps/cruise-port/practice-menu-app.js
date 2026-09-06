@@ -21,12 +21,12 @@ import {
     getKnownApp,
     recognizeKnownAppUrl,
     recognizeStoreUrl
-} from './my-apps-known-apps.js?v=1.2.0';
+} from './my-apps-known-apps.js?v=1.3.0';
 import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=1.2.0';
+} from './my-apps-launch.js?v=1.3.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -60,7 +60,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.8.0';
+} from './app-version.js?v=1.9.0';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
