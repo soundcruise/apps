@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.1.7">
+    <link rel="stylesheet" href="./style.css?v=1.2.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.1.9"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.2.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -103,9 +103,13 @@
             </section>
 
             <section class="port-section" aria-labelledby="my-apps-heading">
-                <h2 id="my-apps-heading">My Apps</h2>
-                <div class="card-grid">
-                    <button class="port-card skeleton-card add-card my-app-card" type="button" disabled>
+                <div class="practice-heading-row my-apps-heading-row">
+                    <h2 id="my-apps-heading">My Apps</h2>
+                    <button id="my-apps-manage" class="reorder-button" type="button" hidden>編集・並び替え</button>
+                </div>
+                <p id="my-apps-storage-error" class="notice notice-error" role="alert" hidden></p>
+                <div id="my-apps-grid" class="card-grid">
+                    <button id="my-apps-add" class="port-card skeleton-card add-card my-app-card" type="button">
                         <span class="add-symbol" aria-hidden="true">＋</span>
                         <span class="card-name">アプリを追加</span>
                     </button>
@@ -187,6 +191,68 @@
                         <button class="action-button secondary-action" type="button" data-action="cancel-form">キャンセル</button>
                     </div>
                 </form>
+            </section>
+        </main>
+
+        <main id="my-apps-manage-view" class="port-view my-apps-manage-view" hidden>
+            <button class="view-back" type="button" data-action="my-apps-home">← クルーズポート</button>
+            <section class="view-panel" aria-labelledby="my-apps-manage-title">
+                <div class="practice-heading-row my-apps-manage-heading">
+                    <div>
+                        <p class="view-kicker">My Apps</p>
+                        <h1 id="my-apps-manage-title" class="view-title" tabindex="-1">My Appsを管理</h1>
+                    </div>
+                    <div id="my-apps-reorder-actions" class="reorder-actions" hidden>
+                        <button id="my-apps-reorder-cancel" class="reorder-button" type="button">キャンセル</button>
+                        <button id="my-apps-reorder-complete" class="reorder-button reorder-button-primary" type="button">完了</button>
+                    </div>
+                    <button id="my-apps-reorder-start" class="reorder-button" type="button" hidden>並び替え</button>
+                </div>
+                <p id="my-apps-reorder-status" class="reorder-status" aria-live="polite" hidden></p>
+                <p id="my-apps-reorder-notice" class="notice notice-error" role="alert" hidden></p>
+                <div id="my-apps-list" class="practice-list"></div>
+                <div class="view-actions my-apps-manage-actions">
+                    <button id="my-apps-manage-add" class="action-button primary-action" type="button" data-action="new-my-app">アプリを追加</button>
+                    <button class="action-button secondary-action" type="button" data-action="my-apps-home">クルーズポートへ戻る</button>
+                </div>
+            </section>
+        </main>
+
+        <main id="my-apps-form-view" class="port-view form-view my-apps-form-view" hidden>
+            <button class="view-back" type="button" data-action="cancel-my-apps-form">← 戻る</button>
+            <section class="view-panel" aria-labelledby="my-apps-form-title">
+                <p class="view-kicker">My Apps</p>
+                <h1 id="my-apps-form-title" class="view-title" tabindex="-1">My Appを追加</h1>
+
+                <form id="my-apps-form" novalidate>
+                    <div class="form-field">
+                        <label for="my-apps-name">アプリ名 <span class="required-label">必須・80文字以内</span></label>
+                        <input id="my-apps-name" name="name" type="text" maxlength="80" autocomplete="off" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="my-apps-url">URL <span class="required-label">必須・HTTPSのみ</span></label>
+                        <input id="my-apps-url" name="url" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://open.spotify.com/" required>
+                    </div>
+
+                    <p id="my-apps-form-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="form-actions">
+                        <button class="action-button primary-action" type="submit">保存</button>
+                        <button id="my-apps-delete" class="action-button danger-action" type="button" hidden>削除</button>
+                        <button class="action-button secondary-action" type="button" data-action="cancel-my-apps-form">キャンセル</button>
+                    </div>
+                </form>
+            </section>
+        </main>
+
+        <main id="my-apps-not-found-view" class="port-view my-apps-not-found-view" hidden>
+            <section class="view-panel" aria-labelledby="my-apps-not-found-title">
+                <p class="view-kicker">My Apps</p>
+                <h1 id="my-apps-not-found-title" class="view-title" tabindex="-1">アプリが見つかりません</h1>
+                <p class="my-apps-not-found-copy">この登録は削除されたか、URLが正しくありません。</p>
+                <div class="view-actions">
+                    <button class="action-button secondary-action" type="button" data-action="my-apps-home">クルーズポートへ戻る</button>
+                </div>
             </section>
         </main>
 

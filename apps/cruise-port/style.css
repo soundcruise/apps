@@ -14,6 +14,10 @@
     box-sizing: border-box;
 }
 
+[hidden] {
+    display: none !important;
+}
+
 html {
     min-height: 100%;
     background: var(--port-bg);
@@ -453,6 +457,105 @@ h1::after {
     min-height: 128px;
 }
 
+.my-app-launch-card {
+    position: relative;
+    min-height: 138px;
+    cursor: pointer;
+}
+
+.my-app-launch-card .card-name {
+    display: -webkit-box;
+    max-width: 100%;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.my-app-icon {
+    width: 62px;
+    height: 62px;
+    border-radius: 18px;
+}
+
+.my-app-icon svg {
+    width: 40px;
+    height: 40px;
+    stroke-width: 2.1;
+}
+
+.my-app-external-mark {
+    position: absolute;
+    top: 10px;
+    right: 12px;
+    color: rgba(205, 180, 116, 0.48);
+    font-size: 0.82rem;
+    line-height: 1;
+}
+
+.my-apps-manage-heading {
+    margin-bottom: 20px;
+    align-items: flex-start;
+}
+
+.my-apps-manage-heading > div:first-child {
+    min-width: 0;
+    flex: 1;
+}
+
+.my-apps-manage-heading .view-kicker {
+    margin-bottom: 7px;
+}
+
+.my-apps-manage-card,
+.my-apps-reorder-card {
+    min-height: 76px;
+}
+
+.my-app-manage-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 15px;
+}
+
+.my-app-manage-icon svg {
+    width: 31px;
+    height: 31px;
+}
+
+.my-apps-manage-card .card-detail {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.my-app-edit-button {
+    min-width: 52px;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 1px solid rgba(207, 189, 148, 0.18);
+    border-radius: 10px;
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.035);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 620;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.my-app-edit-button:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
+}
+
+.my-apps-not-found-copy {
+    margin: 28px 0 0;
+    color: var(--port-muted);
+    font-size: 0.9rem;
+    line-height: 1.75;
+}
+
 .practice-row:focus-visible,
 .reorder-button:focus-visible,
 .reorder-move:focus-visible,
@@ -478,7 +581,9 @@ textarea:focus-visible {
 .detail-view,
 .form-view,
 .tuner-view,
-.metronome-view {
+.metronome-view,
+.my-apps-manage-view,
+.my-apps-not-found-view {
     width: min(100%, 600px);
     margin: 0 auto;
 }
@@ -1575,7 +1680,8 @@ select {
     .app-card,
     .tool-card,
     .practice-menu-card,
-    .add-row {
+    .add-row,
+    .my-app-launch-card {
         transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
     }
 
@@ -1586,6 +1692,12 @@ select {
     }
 
     .tool-card:hover {
+        border-color: rgba(241, 218, 153, 0.4);
+        box-shadow: 0 15px 30px rgba(0, 0, 0, 0.32);
+        transform: translateY(-2px);
+    }
+
+    .my-app-launch-card:hover {
         border-color: rgba(241, 218, 153, 0.4);
         box-shadow: 0 15px 30px rgba(0, 0, 0, 0.32);
         transform: translateY(-2px);
@@ -1649,6 +1761,12 @@ select {
         width: 62px;
         height: 62px;
         border-radius: 20px;
+    }
+
+    .my-app-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 17px;
     }
 
     .skeleton-icon svg {
@@ -1740,7 +1858,8 @@ select {
     .app-card,
     .tool-card,
     .practice-menu-card,
-    .add-row {
+    .add-row,
+    .my-app-launch-card {
         transition: none;
     }
 
