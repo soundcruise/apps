@@ -637,6 +637,97 @@ h1::after {
     font-size: 0.7rem;
 }
 
+.my-apps-custom-launch {
+    margin-top: 18px;
+    border: 1px solid rgba(207, 189, 148, 0.14);
+    border-radius: 13px;
+    background: rgba(205, 180, 116, 0.018);
+}
+
+.my-apps-custom-launch summary {
+    min-height: 46px;
+    display: flex;
+    padding: 12px 15px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: rgba(243, 240, 232, 0.86);
+    font-size: 0.8rem;
+    font-weight: 620;
+    cursor: pointer;
+    list-style: none;
+}
+
+.my-apps-custom-launch summary::-webkit-details-marker {
+    display: none;
+}
+
+.my-apps-custom-launch summary::after {
+    color: var(--port-gold);
+    content: "+";
+    font-size: 1rem;
+    font-weight: 400;
+}
+
+.my-apps-custom-launch[open] summary::after {
+    content: "−";
+}
+
+.my-apps-custom-launch summary:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
+}
+
+.my-apps-custom-launch-body {
+    padding: 2px 15px 15px;
+    border-top: 1px solid rgba(207, 189, 148, 0.09);
+}
+
+.my-apps-custom-description {
+    margin: 12px 0 16px;
+    color: var(--port-muted);
+    font-size: 0.72rem;
+    line-height: 1.65;
+}
+
+.my-apps-custom-field + .my-apps-custom-field {
+    margin-top: 16px;
+}
+
+.my-apps-launch-test-row {
+    min-height: 32px;
+    display: flex;
+    margin-top: 7px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.my-apps-launch-test {
+    min-height: 32px;
+    display: inline-flex;
+    padding: 5px 10px;
+    align-items: center;
+    border: 1px solid rgba(207, 189, 148, 0.22);
+    border-radius: 9px;
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.035);
+    font-size: 0.72rem;
+    font-weight: 620;
+    text-decoration: none;
+}
+
+.my-apps-launch-test:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
+}
+
+.my-apps-launch-test-status {
+    color: var(--port-muted);
+    font-size: 0.67rem;
+    line-height: 1.45;
+}
+
 .form-field-label {
     display: block;
     margin-bottom: 8px;

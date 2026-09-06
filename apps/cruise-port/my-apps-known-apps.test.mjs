@@ -7,6 +7,7 @@ import {
     parseAndroidPlayPackage,
     parseIosAppStoreId,
     recognizeKnownAppUrl,
+    recognizeStoreUrl,
     resolveKnownAppTarget
 } from './my-apps-known-apps.js';
 
@@ -74,5 +75,14 @@ assert.equal(
     'youtube'
 );
 assert.equal(recognizeKnownAppUrl('https://apps.apple.com/app/id000000000'), null, 'unknown store app stays HTTPS-only');
+assert.deepEqual(recognizeStoreUrl('https://apps.apple.com/app/id000000000'), {
+    platform: 'ios',
+    identifier: '000000000'
+});
+assert.deepEqual(recognizeStoreUrl('https://play.google.com/store/apps/details?id=com.example.unknown'), {
+    platform: 'android',
+    identifier: 'com.example.unknown'
+});
+assert.equal(recognizeStoreUrl('https://example.com/'), null);
 
 console.log('my-apps-known-apps: registry, HTTPS targets, and strict store URL parsers passed');

@@ -105,18 +105,21 @@ export function parseAndroidPlayPackage(value) {
         : null;
 }
 
-export function recognizeKnownAppUrl(value) {
+export function recognizeStoreUrl(value) {
     const iosStoreId = parseIosAppStoreId(value);
-    if (iosStoreId) {
-        const app = findKnownAppByIosStoreId(iosStoreId);
-        return app ? { platform: 'ios', identifier: iosStoreId, app } : null;
-    }
+    if (iosStoreId) return { platform: 'ios', identifier: iosStoreId };
     const androidPackage = parseAndroidPlayPackage(value);
-    if (androidPackage) {
-        const app = findKnownAppByAndroidPackage(androidPackage);
-        return app ? { platform: 'android', identifier: androidPackage, app } : null;
-    }
+    if (androidPackage) return { platform: 'android', identifier: androidPackage };
     return null;
+}
+
+export function recognizeKnownAppUrl(value) {
+    const store = recognizeStoreUrl(value);
+    if (!store) return null;
+    const app = store.platform === 'ios'
+        ? findKnownAppByIosStoreId(store.identifier)
+        : findKnownAppByAndroidPackage(store.identifier);
+    return app ? { ...store, app } : null;
 }
 
 export function resolveKnownAppTarget(appKey, platform) {

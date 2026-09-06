@@ -1,4 +1,5 @@
 import { getKnownApp, resolveKnownAppTarget } from './my-apps-known-apps.js?v=1.0.0';
+import { normalizeCustomLaunch } from './my-apps-store.js?v=4.0.0';
 
 export function detectMyAppsPlatform(navigatorObject = globalThis.navigator) {
     const clientPlatform = navigatorObject?.userAgentData?.platform?.toLowerCase() || '';
@@ -18,6 +19,15 @@ export function detectMyAppsPlatform(navigatorObject = globalThis.navigator) {
 }
 
 export function resolveMyAppHref(item, platform) {
+    if (item?.launchMode === 'custom') {
+        const customResult = normalizeCustomLaunch(item.customLaunch);
+        if (platform === 'ios' && customResult.ok) {
+            return customResult.value.ios || item.url;
+        }
+        // Android custom targets remain metadata-only until M3.2-B device verification.
+        return item.url;
+    }
+
     if (
         !item
         || item.launchMode !== 'known-app'

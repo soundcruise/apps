@@ -7,6 +7,7 @@ import {
     deleteMyApp,
     loadMyApps,
     moveMyApp,
+    normalizeCustomLaunch,
     normalizeMyAppUrl,
     saveMyApps,
     updateMyApp,
@@ -37,13 +38,16 @@ const baseItem = Object.freeze({
     url: 'https://open.spotify.com/',
     launchMode: 'https',
     appKey: null,
+    customLaunch: null,
     iconId: null,
     iconSourceId: null,
     iconCrop: null,
     createdAt,
     updatedAt
 });
-const { launchMode: omittedLaunchMode, appKey: omittedAppKey, ...v3ItemValues } = baseItem;
+const { customLaunch: omittedCustomLaunch, ...v4ItemValues } = baseItem;
+const v4Item = Object.freeze(v4ItemValues);
+const { launchMode: omittedLaunchMode, appKey: omittedAppKey, ...v3ItemValues } = v4Item;
 const v3Item = Object.freeze(v3ItemValues);
 const { iconSourceId: omittedSourceId, iconCrop: omittedCrop, ...v2ItemValues } = v3Item;
 const v2Item = Object.freeze(v2ItemValues);
@@ -59,10 +63,10 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
         ok: true,
         items: [baseItem],
         migrated: true
-    }, 'v1 metadata is migrated to v4 defaults in memory');
+    }, 'v1 metadata is migrated to v5 defaults in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v1 load does not rewrite storage');
     assert.deepEqual(saveMyApps(loadMyApps(storage).items, storage), { ok: true });
-    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 4, 'next explicit save writes v4');
+    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 5, 'next explicit save writes v5');
 }
 
 {
@@ -71,7 +75,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
-        items: [{ ...v2WithIcon, launchMode: 'https', appKey: null, iconSourceId: null, iconCrop: null }],
+        items: [{ ...v2WithIcon, launchMode: 'https', appKey: null, customLaunch: null, iconSourceId: null, iconCrop: null }],
         migrated: true
     }, 'v2 metadata preserves its final icon and adds null source/crop in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v2 load does not rewrite storage');
@@ -88,10 +92,22 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
-        items: [{ ...v3WithIcon, launchMode: 'https', appKey: null }],
+        items: [{ ...v3WithIcon, launchMode: 'https', appKey: null, customLaunch: null }],
         migrated: true
     }, 'v3 metadata preserves all icon data and adds safe launch defaults');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v3 load does not rewrite storage');
+}
+
+{
+    const v4Known = { ...v4Item, launchMode: 'known-app', appKey: 'spotify' };
+    const raw = JSON.stringify({ version: 4, items: [v4Known] });
+    const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
+    assert.deepEqual(loadMyApps(storage), {
+        ok: true,
+        items: [{ ...v4Known, customLaunch: null }],
+        migrated: true
+    }, 'v4 known-app metadata is preserved and gains customLaunch null');
+    assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v4 load does not rewrite storage');
 }
 
 {
@@ -100,7 +116,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     assert.deepEqual(loadMyApps(storage), { ok: true, items: [baseItem] }, 'saved data persists across reload');
     const withIcon = { ...baseItem, iconId: '56582913-4b14-4ae4-95f6-af8367858f6d' };
     assert.deepEqual(saveMyApps([withIcon], storage), { ok: true });
-    assert.deepEqual(loadMyApps(storage), { ok: true, items: [withIcon] }, 'legacy iconId remains valid in v4');
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: [withIcon] }, 'legacy iconId remains valid in v5');
     const editableIcon = {
         ...withIcon,
         iconSourceId: '38d1c7d2-5248-4df7-aa11-7d8e8c96b58f',
@@ -145,7 +161,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 {
     const second = { ...baseItem, id: 'e4a121b3-20af-4961-92f6-126b5b1c5e1d', name: 'Notion' };
     const storage = new FakeStorage();
-    assert.deepEqual(saveMyApps([baseItem, second], storage), { ok: true }, 'multiple v4 items validate independently of their array index');
+    assert.deepEqual(saveMyApps([baseItem, second], storage), { ok: true }, 'multiple v5 items validate independently of their array index');
     const moved = moveMyApp([baseItem, second], second.id, -1);
     assert.equal(moved.moved, true, 'item can be reordered');
     assert.deepEqual(moved.items.map((item) => item.id), [second.id, baseItem.id]);
@@ -156,7 +172,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 for (const raw of [
     '{',
     JSON.stringify({ items: [] }),
-    JSON.stringify({ version: 5, items: [] }),
+    JSON.stringify({ version: 6, items: [] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{}] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, url: 'http://example.com/' }] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconId: 42 }] }),
@@ -182,7 +198,7 @@ for (const raw of [
 
 {
     const unknownAppItem = { ...baseItem, launchMode: 'known-app', appKey: 'removed-app' };
-    const raw = JSON.stringify({ version: 4, items: [unknownAppItem] });
+    const raw = JSON.stringify({ version: 5, items: [unknownAppItem] });
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
@@ -190,6 +206,47 @@ for (const raw of [
         migrated: true
     }, 'unknown stored appKey falls back to HTTPS in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'safe fallback does not rewrite storage automatically');
+}
+
+for (const customLaunch of [
+    { ios: 'https://example.com/ios', android: null },
+    { ios: null, android: 'https://example.com/android' },
+    { ios: 'https://example.com/ios', android: 'https://example.com/android' }
+]) {
+    const customItem = { ...baseItem, launchMode: 'custom', customLaunch };
+    const storage = new FakeStorage();
+    assert.deepEqual(saveMyApps([customItem], storage), { ok: true }, 'valid custom HTTPS targets can be saved');
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: [customItem] });
+}
+
+assert.deepEqual(normalizeCustomLaunch({ ios: 'example.com/app', android: null }), {
+    ok: true,
+    value: { ios: 'https://example.com/app', android: null }
+});
+for (const customLaunch of [
+    null,
+    { ios: null, android: null },
+    { ios: 'javascript:alert(1)', android: null },
+    { ios: 'https://user:pass@example.com/', android: null },
+    { ios: 'https://example.com/', android: null, extra: true }
+]) {
+    assert.equal(
+        validateMyAppValues({ name: 'Custom', url: 'https://apps.apple.com/app/id999999999', launchMode: 'custom', appKey: null, customLaunch }).ok,
+        false,
+        'invalid custom launch combination is rejected'
+    );
+}
+
+{
+    const unsafeCustom = {
+        ...baseItem,
+        launchMode: 'custom',
+        customLaunch: { ios: 'javascript:alert(1)', android: null }
+    };
+    const raw = JSON.stringify({ version: 5, items: [unsafeCustom] });
+    const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: [baseItem], migrated: true });
+    assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'unsafe stored custom target falls back without rewrite');
 }
 
 assert.equal(validateMyAppValues({ name: '', url: 'https://example.com' }).ok, false, 'empty name is rejected');
@@ -229,6 +286,13 @@ assert.match(markup, /id="my-apps-icon-preview"[^>]+type="button"[^>]+aria-label
 assert.match(markup, /id="my-apps-icon-adjust-hint"[^>]*>タップして調整/);
 assert.match(markup, /id="my-apps-direct-enabled"[^>]+type="checkbox"[^>]+aria-describedby="my-apps-direct-description"/);
 assert.match(markup, /対応している端末では、Webページではなくアプリを開きます。/);
+assert.match(markup, /id="my-apps-custom-launch"[^>]+hidden/);
+assert.match(markup, /直接起動の設定（任意）/);
+assert.match(markup, /id="my-apps-custom-ios"[^>]+type="url"[^>]+maxlength="2048"/);
+assert.match(markup, /id="my-apps-custom-android"[^>]+type="url"[^>]+maxlength="2048"/);
+assert.match(markup, /id="my-apps-custom-ios-test"[^>]+target="_blank"[^>]+rel="noopener noreferrer"/);
+assert.match(markup, /id="my-apps-custom-android-test"[^>]+target="_blank"[^>]+rel="noopener noreferrer"/);
+assert.match(markup, /id="my-apps-custom-enabled"[^>]+type="checkbox"[^>]+aria-describedby="my-apps-custom-enabled-description"/);
 assert.match(markup, /id="my-apps-crop-dialog"[^>]+role="dialog"[^>]+aria-modal="true"/);
 assert.match(markup, /id="my-apps-crop-canvas"[^>]+width="320"[^>]+height="320"/);
 assert.match(markup, /id="my-apps-crop-slider"[^>]+type="range"/);
@@ -238,7 +302,10 @@ assert.match(appSource, /encodePreparedMyAppIcon\(session\.prepared, cropState\)
 assert.match(appSource, /myAppsIconPreview\.addEventListener\('click', handleCurrentMyAppsIconAdjustment\)/);
 assert.match(appSource, /myAppsIconStore\.getIcon\(item\.iconSourceId\)/);
 assert.match(appSource, /recognizeKnownAppUrl\(elements\.myAppsUrlInput\.value\)/);
-assert.match(appSource, /updateMyAppsDirectLaunchRecognition\(null, \{ preserveSelection: true \}\)/);
+assert.match(appSource, /updateMyAppsLaunchOptions\(\)/);
+assert.match(appSource, /normalizeCustomLaunch\(\{/);
+assert.match(appSource, /link\.href = href/);
+assert.doesNotMatch(appSource, /window\.open\(/);
 assert.match(appSource, /useCurrentIconAsSource = true/);
 assert.match(appSource, /closeMyAppsCropEditor\(\{ restoreStatus: false, restoreFocus: false \}\)/);
 assert.match(styles, /\.my-apps-manage-card,[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);

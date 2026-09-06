@@ -244,6 +244,34 @@
                         <p id="my-apps-direct-description" class="my-apps-direct-description">対応している端末では、Webページではなくアプリを開きます。</p>
                     </div>
 
+                    <details id="my-apps-custom-launch" class="my-apps-custom-launch" hidden>
+                        <summary>直接起動の設定（任意）</summary>
+                        <div class="my-apps-custom-launch-body">
+                            <p id="my-apps-custom-description" class="my-apps-custom-description">アプリが対応している公式の起動用Web URLを入力してください。設定しなくても通常どおり登録できます。</p>
+                            <div class="form-field my-apps-custom-field">
+                                <label for="my-apps-custom-ios">iPhone・iPad用URL <span class="optional-label">任意・HTTPSのみ</span></label>
+                                <input id="my-apps-custom-ios" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://example.com/app-link" aria-describedby="my-apps-custom-description">
+                                <div class="my-apps-launch-test-row">
+                                    <a id="my-apps-custom-ios-test" class="my-apps-launch-test" target="_blank" rel="noopener noreferrer" aria-label="iPhone・iPad用URLの起動をテスト" hidden>起動をテスト</a>
+                                    <span id="my-apps-custom-ios-status" class="my-apps-launch-test-status" role="status" aria-live="polite"></span>
+                                </div>
+                            </div>
+                            <div class="form-field my-apps-custom-field">
+                                <label for="my-apps-custom-android">Android用URL <span class="optional-label">任意・HTTPSのみ</span></label>
+                                <input id="my-apps-custom-android" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://example.com/app-link" aria-describedby="my-apps-custom-description">
+                                <div class="my-apps-launch-test-row">
+                                    <a id="my-apps-custom-android-test" class="my-apps-launch-test" target="_blank" rel="noopener noreferrer" aria-label="Android用URLの起動をテスト" hidden>起動をテスト</a>
+                                    <span id="my-apps-custom-android-status" class="my-apps-launch-test-status" role="status" aria-live="polite"></span>
+                                </div>
+                            </div>
+                            <label class="my-apps-direct-toggle" for="my-apps-custom-enabled">
+                                <input id="my-apps-custom-enabled" type="checkbox" aria-describedby="my-apps-custom-enabled-description">
+                                <span>この起動設定を使用する</span>
+                            </label>
+                            <p id="my-apps-custom-enabled-description" class="my-apps-direct-description">OFFで保存すると、入力した起動用URLは保存されません。</p>
+                        </div>
+                    </details>
+
                     <div class="form-field my-apps-icon-field">
                         <span class="form-field-label">アイコン <span class="optional-label">任意・15MB以内</span></span>
                         <div class="my-apps-icon-editor">

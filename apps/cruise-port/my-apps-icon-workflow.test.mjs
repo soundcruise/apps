@@ -56,7 +56,8 @@ const values = {
     name: 'Spotify',
     url: 'https://open.spotify.com/',
     launchMode: 'https',
-    appKey: null
+    appKey: null,
+    customLaunch: null
 };
 const crop = { x: 0.25, y: 0.1, size: 0.5 };
 const nextCrop = { x: 0.1, y: 0.2, size: 0.4 };

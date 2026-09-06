@@ -12,17 +12,29 @@ import {
     MY_APPS_LIMITS,
     loadMyApps,
     moveMyApp,
+    normalizeCustomLaunch,
+    normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
 } from './my-apps-store.js?v=4.0.0';
 import {
     getKnownApp,
-    recognizeKnownAppUrl
+    recognizeKnownAppUrl,
+    recognizeStoreUrl
 } from './my-apps-known-apps.js?v=1.0.0';
 import {
     detectMyAppsPlatform,
     resolveMyAppHref
 } from './my-apps-launch.js?v=1.0.0';
+import {
+    createCustomLaunchTestState,
+    createKnownLaunchFormState,
+    isKnownLaunchEnabled,
+    markCustomLaunchTested,
+    recognizeKnownLaunchApp,
+    setKnownLaunchDecision,
+    updateCustomLaunchTestTarget
+} from './my-apps-launch-form-state.js?v=1.0.0';
 import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.1.0';
 import {
     encodePreparedMyAppIcon,
@@ -103,6 +115,14 @@ const elements = {
     myAppsDirectLaunch: document.querySelector('#my-apps-direct-launch'),
     myAppsDirectRecognition: document.querySelector('#my-apps-direct-recognition'),
     myAppsDirectEnabled: document.querySelector('#my-apps-direct-enabled'),
+    myAppsCustomLaunch: document.querySelector('#my-apps-custom-launch'),
+    myAppsCustomIosInput: document.querySelector('#my-apps-custom-ios'),
+    myAppsCustomAndroidInput: document.querySelector('#my-apps-custom-android'),
+    myAppsCustomEnabled: document.querySelector('#my-apps-custom-enabled'),
+    myAppsCustomIosTest: document.querySelector('#my-apps-custom-ios-test'),
+    myAppsCustomAndroidTest: document.querySelector('#my-apps-custom-android-test'),
+    myAppsCustomIosStatus: document.querySelector('#my-apps-custom-ios-status'),
+    myAppsCustomAndroidStatus: document.querySelector('#my-apps-custom-android-status'),
     myAppsIconInput: document.querySelector('#my-apps-icon-input'),
     myAppsIconSelectLabel: document.querySelector('#my-apps-icon-select-label'),
     myAppsIconPreview: document.querySelector('#my-apps-icon-preview'),
@@ -148,7 +168,10 @@ const myAppsState = {
     cropSession: null,
     cropState: null,
     cropPointers: new Map(),
-    recognizedAppKey: null
+    knownLaunchForm: createKnownLaunchFormState(),
+    customLaunchTests: createCustomLaunchTestState(),
+    customEditAvailable: false,
+    customStoreIdentity: null
 };
 
 let metronomeController = null;
@@ -183,7 +206,10 @@ function cleanupMyAppsFormState() {
     myAppsState.useCurrentIconAsSource = false;
     myAppsState.iconProcessing = false;
     myAppsState.saving = false;
-    myAppsState.recognizedAppKey = null;
+    myAppsState.knownLaunchForm = createKnownLaunchFormState();
+    myAppsState.customLaunchTests = createCustomLaunchTestState();
+    myAppsState.customEditAvailable = false;
+    myAppsState.customStoreIdentity = null;
 }
 
 function showView(view) {
@@ -520,7 +546,19 @@ function fillMyAppsForm(item = null) {
     elements.myAppsForm.reset();
     elements.myAppsNameInput.value = item?.name || '';
     elements.myAppsUrlInput.value = item?.url || '';
-    updateMyAppsDirectLaunchRecognition(item);
+    const recognition = recognizeKnownAppUrl(elements.myAppsUrlInput.value);
+    const initialAppKey = recognition?.app.key
+        || (item?.launchMode === 'known-app' && getKnownApp(item.appKey) ? item.appKey : null);
+    const store = recognizeStoreUrl(elements.myAppsUrlInput.value);
+    myAppsState.knownLaunchForm = createKnownLaunchFormState(item, initialAppKey);
+    myAppsState.customLaunchTests = createCustomLaunchTestState();
+    myAppsState.customEditAvailable = item?.launchMode === 'custom';
+    myAppsState.customStoreIdentity = store ? `${store.platform}:${store.identifier}` : null;
+    elements.myAppsCustomIosInput.value = item?.customLaunch?.ios || '';
+    elements.myAppsCustomAndroidInput.value = item?.customLaunch?.android || '';
+    elements.myAppsCustomEnabled.checked = item?.launchMode === 'custom';
+    elements.myAppsCustomLaunch.open = item?.launchMode === 'custom';
+    updateMyAppsLaunchOptions(item, { initial: true });
     elements.myAppsDelete.hidden = !item;
     elements.myAppsIconSelectLabel.textContent = item?.iconId ? '画像を変更' : '画像を選択';
     elements.myAppsIconRemove.hidden = !item?.iconId;
@@ -531,29 +569,86 @@ function fillMyAppsForm(item = null) {
     setMyAppsFormBusy(false);
 }
 
-function updateMyAppsDirectLaunchRecognition(item = null, { preserveSelection = false } = {}) {
+function updateMyAppsLaunchOptions(item = null, { initial = false } = {}) {
     const recognition = recognizeKnownAppUrl(elements.myAppsUrlInput.value);
     const existingApp = item?.launchMode === 'known-app' ? getKnownApp(item.appKey) : null;
-    const knownApp = recognition?.app || existingApp;
-    const previousAppKey = myAppsState.recognizedAppKey;
-    const keepChecked = preserveSelection
-        && Boolean(knownApp)
-        && previousAppKey === knownApp.key
-        && elements.myAppsDirectEnabled.checked;
+    const knownApp = initial && item?.launchMode === 'custom'
+        ? null
+        : recognition?.app || existingApp;
+    if (!initial) {
+        myAppsState.knownLaunchForm = recognizeKnownLaunchApp(
+            myAppsState.knownLaunchForm,
+            knownApp?.key || null
+        );
+    }
 
     if (!knownApp) {
-        myAppsState.recognizedAppKey = null;
         elements.myAppsDirectEnabled.checked = false;
         elements.myAppsDirectLaunch.hidden = true;
         elements.myAppsDirectRecognition.textContent = '';
-        return;
+    } else {
+        elements.myAppsDirectEnabled.checked = isKnownLaunchEnabled(myAppsState.knownLaunchForm);
+        elements.myAppsDirectRecognition.textContent = `${knownApp.name}を認識しました`;
+        elements.myAppsDirectLaunch.hidden = false;
     }
 
-    myAppsState.recognizedAppKey = knownApp.key;
-    elements.myAppsDirectEnabled.checked = keepChecked
-        || Boolean(item?.launchMode === 'known-app' && item.appKey === knownApp.key);
-    elements.myAppsDirectRecognition.textContent = `${knownApp.name}を認識しました`;
-    elements.myAppsDirectLaunch.hidden = false;
+    const store = recognizeStoreUrl(elements.myAppsUrlInput.value);
+    const storeIdentity = store ? `${store.platform}:${store.identifier}` : null;
+    if (!initial && myAppsState.customStoreIdentity && storeIdentity !== myAppsState.customStoreIdentity) {
+        elements.myAppsCustomEnabled.checked = false;
+        elements.myAppsCustomIosInput.value = '';
+        elements.myAppsCustomAndroidInput.value = '';
+        myAppsState.customLaunchTests = createCustomLaunchTestState();
+        myAppsState.customEditAvailable = false;
+    }
+    myAppsState.customStoreIdentity = storeIdentity;
+    const showCustom = !knownApp && (Boolean(store) || myAppsState.customEditAvailable);
+    elements.myAppsCustomLaunch.hidden = !showCustom;
+    if (!showCustom) elements.myAppsCustomEnabled.checked = false;
+    updateMyAppsCustomLaunchTests();
+}
+
+function customLaunchTestElements(platform) {
+    return platform === 'ios'
+        ? {
+            input: elements.myAppsCustomIosInput,
+            link: elements.myAppsCustomIosTest,
+            status: elements.myAppsCustomIosStatus
+        }
+        : {
+            input: elements.myAppsCustomAndroidInput,
+            link: elements.myAppsCustomAndroidTest,
+            status: elements.myAppsCustomAndroidStatus
+        };
+}
+
+function updateMyAppsCustomLaunchTests() {
+    const unstable = myAppsState.saving || myAppsState.iconProcessing || Boolean(myAppsState.cropSession);
+    for (const platform of ['ios', 'android']) {
+        const { input, link, status } = customLaunchTestElements(platform);
+        const result = input.value.trim() ? normalizeMyAppUrl(input.value) : { ok: false };
+        const href = result.ok ? result.url : null;
+        myAppsState.customLaunchTests = updateCustomLaunchTestTarget(
+            myAppsState.customLaunchTests,
+            platform,
+            href
+        );
+        if (href && !unstable) {
+            link.href = href;
+            link.hidden = false;
+        } else {
+            link.removeAttribute('href');
+            link.hidden = true;
+        }
+        status.textContent = myAppsState.customLaunchTests[platform].testedHref === href && href
+            ? '結果を確認後、このフォームへ戻って保存してください。'
+            : '';
+    }
+}
+
+function markMyAppsCustomLaunchTest(platform) {
+    myAppsState.customLaunchTests = markCustomLaunchTested(myAppsState.customLaunchTests, platform);
+    updateMyAppsCustomLaunchTests();
 }
 
 function setMyAppsFormBusy(busy) {
@@ -564,6 +659,9 @@ function setMyAppsFormBusy(busy) {
     elements.myAppsIconRemove.disabled = busy;
     elements.myAppsIconPreview.disabled = busy || !elements.myAppsIconPreview.dataset.adjustable;
     elements.myAppsDirectEnabled.disabled = busy;
+    elements.myAppsCustomIosInput.disabled = busy;
+    elements.myAppsCustomAndroidInput.disabled = busy;
+    elements.myAppsCustomEnabled.disabled = busy;
     elements.myAppsDelete.disabled = busy;
     elements.myAppsFormBack.disabled = busy;
     elements.myAppsForm.querySelectorAll('[data-action="cancel-my-apps-form"]').forEach((button) => {
@@ -571,6 +669,7 @@ function setMyAppsFormBusy(busy) {
     });
     elements.myAppsIconSelectLabel.parentElement.classList.toggle('is-disabled', busy);
     elements.myAppsIconSelectLabel.parentElement.setAttribute('aria-disabled', String(busy));
+    updateMyAppsCustomLaunchTests();
 }
 
 function setMyAppsIconPreviewAdjustable(adjustable) {
@@ -657,6 +756,7 @@ function openMyAppsCropEditor(prepared, returnStatus, {
         : '';
     elements.myAppsCropDialog.hidden = false;
     document.body.classList.add('my-apps-crop-open');
+    updateMyAppsCustomLaunchTests();
     renderMyAppsCrop();
     elements.myAppsCropTitle.focus({ preventScroll: true });
 }
@@ -673,6 +773,7 @@ function closeMyAppsCropEditor({ restoreStatus = true, restoreFocus = true } = {
     const context = elements.myAppsCropCanvas.getContext('2d');
     context.clearRect(0, 0, elements.myAppsCropCanvas.width, elements.myAppsCropCanvas.height);
     elements.myAppsIconInput.value = '';
+    updateMyAppsCustomLaunchTests();
     if (restoreFocus) elements.myAppsIconPreview.focus({ preventScroll: true });
 }
 
@@ -896,13 +997,34 @@ function renderMyAppsForm(mode, id = null) {
 
 function readMyAppsFormValues() {
     const appKey = !elements.myAppsDirectLaunch.hidden && elements.myAppsDirectEnabled.checked
-        ? myAppsState.recognizedAppKey
+        ? myAppsState.knownLaunchForm.activeAppKey
         : null;
+    let launchMode = appKey ? 'known-app' : 'https';
+    let customLaunch = null;
+    if (
+        !appKey
+        && !elements.myAppsCustomLaunch.hidden
+        && elements.myAppsCustomEnabled.checked
+    ) {
+        const customResult = normalizeCustomLaunch({
+            ios: elements.myAppsCustomIosInput.value.trim() || null,
+            android: elements.myAppsCustomAndroidInput.value.trim() || null
+        });
+        if (!customResult.ok) {
+            return {
+                ok: false,
+                message: '起動用URLはHTTPSで入力してください。iPhone・iPad用またはAndroid用のどちらか1つは必要です。'
+            };
+        }
+        launchMode = 'custom';
+        customLaunch = customResult.value;
+    }
     const valuesResult = validateMyAppValues({
         name: elements.myAppsNameInput.value,
         url: elements.myAppsUrlInput.value,
-        launchMode: appKey ? 'known-app' : 'https',
-        appKey
+        launchMode,
+        appKey,
+        customLaunch
     });
     if (valuesResult.ok) return valuesResult;
     if (valuesResult.reason === 'invalid-name') {
@@ -1253,8 +1375,18 @@ elements.myAppsForm.addEventListener('submit', handleMyAppsSubmit);
 elements.myAppsDelete.addEventListener('click', handleMyAppsDelete);
 elements.myAppsIconInput.addEventListener('change', handleMyAppsIconSelection);
 elements.myAppsUrlInput.addEventListener('input', () => {
-    updateMyAppsDirectLaunchRecognition(null, { preserveSelection: true });
+    updateMyAppsLaunchOptions();
 });
+elements.myAppsDirectEnabled.addEventListener('change', () => {
+    myAppsState.knownLaunchForm = setKnownLaunchDecision(
+        myAppsState.knownLaunchForm,
+        elements.myAppsDirectEnabled.checked
+    );
+});
+elements.myAppsCustomIosInput.addEventListener('input', updateMyAppsCustomLaunchTests);
+elements.myAppsCustomAndroidInput.addEventListener('input', updateMyAppsCustomLaunchTests);
+elements.myAppsCustomIosTest.addEventListener('click', () => markMyAppsCustomLaunchTest('ios'));
+elements.myAppsCustomAndroidTest.addEventListener('click', () => markMyAppsCustomLaunchTest('android'));
 elements.myAppsIconRemove.addEventListener('click', removeMyAppsIcon);
 elements.myAppsIconPreview.addEventListener('click', handleCurrentMyAppsIconAdjustment);
 elements.myAppsCropCanvas.addEventListener('pointerdown', handleCropPointerDown);
