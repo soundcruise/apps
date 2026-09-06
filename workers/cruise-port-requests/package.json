@@ -1,0 +1,16 @@
+{
+  "name": "cruise-port-requests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "npm test && wrangler deploy --dry-run",
+    "dev": "wrangler dev --local",
+    "migrate:local": "wrangler d1 migrations apply REQUESTS_DB --local",
+    "migrate:remote": "wrangler d1 migrations apply REQUESTS_DB --remote"
+  },
+  "devDependencies": {
+    "wrangler": "4.129.0"
+  }
+}
