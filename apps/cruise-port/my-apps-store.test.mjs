@@ -145,6 +145,7 @@ for (const url of [
 
 const appSource = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
 const markup = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
 assert.match(appSource, /card\.href = item\.url/);
 assert.match(appSource, /name\.textContent = item\.name/);
 assert.match(appSource, /#my-apps\/manage/);
@@ -154,6 +155,16 @@ assert.match(markup, /id="my-apps-manage-view"/);
 assert.match(markup, /id="my-apps-form-view"/);
 assert.match(markup, /id="my-apps-icon-input"[^>]+type="file"[^>]+accept="image\/\*"/);
 assert.doesNotMatch(markup, /id="my-apps-icon-input"[^>]+capture/);
+assert.match(markup, /id="my-apps-crop-dialog"[^>]+role="dialog"[^>]+aria-modal="true"/);
+assert.match(markup, /id="my-apps-crop-canvas"[^>]+width="320"[^>]+height="320"/);
+assert.match(markup, /id="my-apps-crop-slider"[^>]+type="range"/);
+assert.match(appSource, /addEventListener\('pointerdown', handleCropPointerDown\)/);
+assert.match(appSource, /addEventListener\('pointermove', handleCropPointerMove\)/);
+assert.match(appSource, /encodePreparedMyAppIcon\(session\.prepared, cropState\)/);
+assert.match(appSource, /closeMyAppsCropEditor\(\{ restoreStatus: false, restoreFocus: false \}\)/);
+assert.match(styles, /\.my-apps-manage-card,[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);
+assert.match(styles, /\.my-app-edit-button[\s\S]*grid-column:\s*1 \/ -1/);
+assert.match(styles, /\.my-apps-crop-canvas[\s\S]*touch-action:\s*none/);
 assert.match(appSource, /cleanupMyAppsObjectUrls\('home'\)/);
 assert.match(appSource, /cleanupMyAppsObjectUrls\('manage'\)/);
 assert.match(appSource, /cleanupMyAppsObjectUrls\('form'\)/);

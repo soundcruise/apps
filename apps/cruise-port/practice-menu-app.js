@@ -16,7 +16,16 @@ import {
     validateMyAppValues
 } from './my-apps-store.js?v=2.0.0';
 import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.0.0';
-import { processMyAppIcon } from './my-apps-image-processor.js?v=1.0.0';
+import {
+    encodePreparedMyAppIcon,
+    prepareMyAppIcon
+} from './my-apps-image-processor.js?v=1.1.0';
+import {
+    applyPinchGesture,
+    createInitialCropState,
+    moveCrop,
+    zoomCropAtPoint
+} from './my-apps-crop.js?v=1.0.0';
 import {
     createMyAppEntry,
     deleteMyAppEntry,
@@ -85,6 +94,13 @@ const elements = {
     myAppsIconPreview: document.querySelector('#my-apps-icon-preview'),
     myAppsIconRemove: document.querySelector('#my-apps-icon-remove'),
     myAppsIconStatus: document.querySelector('#my-apps-icon-status'),
+    myAppsCropDialog: document.querySelector('#my-apps-crop-dialog'),
+    myAppsCropTitle: document.querySelector('#my-apps-crop-title'),
+    myAppsCropCanvas: document.querySelector('#my-apps-crop-canvas'),
+    myAppsCropSlider: document.querySelector('#my-apps-crop-slider'),
+    myAppsCropStatus: document.querySelector('#my-apps-crop-status'),
+    myAppsCropConfirm: document.querySelector('#my-apps-crop-confirm'),
+    myAppsCropCancel: document.querySelector('#my-apps-crop-cancel'),
     myAppsSubmit: document.querySelector('#my-apps-submit'),
     myAppsFormError: document.querySelector('#my-apps-form-error'),
     myAppsDelete: document.querySelector('#my-apps-delete'),
@@ -110,7 +126,10 @@ const myAppsState = {
     iconAction: 'keep',
     iconBlob: null,
     iconProcessing: false,
-    saving: false
+    saving: false,
+    cropSession: null,
+    cropState: null,
+    cropPointers: new Map()
 };
 
 let metronomeController = null;
@@ -135,6 +154,7 @@ function cleanupMyAppsObjectUrls(scope) {
 }
 
 function cleanupMyAppsFormState() {
+    closeMyAppsCropEditor({ restoreStatus: false, restoreFocus: false });
     cleanupMyAppsObjectUrls('form');
     myAppsState.iconAction = 'keep';
     myAppsState.iconBlob = null;
@@ -345,6 +365,7 @@ function renderMyAppsReorderCard(item, index) {
     const downButton = document.createElement('button');
 
     card.className = 'practice-row reorder-card my-apps-reorder-card';
+    icon.classList.add('my-app-manage-icon');
     card.setAttribute('role', 'group');
     card.setAttribute('aria-label', `${item.name}の並び替え`);
     copy.className = 'practice-copy';
@@ -524,28 +545,157 @@ function iconProcessingErrorMessage(reason) {
     return 'この画像形式を読み込めませんでした。別の画像を選んでください。';
 }
 
-async function handleMyAppsIconSelection() {
-    const file = elements.myAppsIconInput.files?.[0];
-    if (!file) return;
-    const generation = myAppsRenderGeneration.form;
+function renderMyAppsCrop() {
+    const session = myAppsState.cropSession;
+    const cropState = myAppsState.cropState;
+    if (!session || !cropState) return;
+    const canvas = elements.myAppsCropCanvas;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(
+        session.prepared.source,
+        cropState.offsetX,
+        cropState.offsetY,
+        cropState.sourceWidth * cropState.scale,
+        cropState.sourceHeight * cropState.scale
+    );
+    elements.myAppsCropSlider.value = String(cropState.scale);
+    const zoomPercent = Math.round((cropState.scale / cropState.minScale) * 100);
+    elements.myAppsCropSlider.setAttribute('aria-valuetext', `${zoomPercent}%`);
+}
+
+function openMyAppsCropEditor(prepared, returnStatus) {
+    closeMyAppsCropEditor({ restoreStatus: false, restoreFocus: false });
+    const cropState = createInitialCropState(prepared.width, prepared.height);
+    myAppsState.cropSession = {
+        prepared,
+        returnStatus
+    };
+    myAppsState.cropState = cropState;
+    myAppsState.cropPointers.clear();
+    elements.myAppsCropSlider.min = String(cropState.minScale);
+    elements.myAppsCropSlider.max = String(cropState.maxScale);
+    elements.myAppsCropSlider.step = String((cropState.maxScale - cropState.minScale) / 1000);
+    elements.myAppsCropStatus.textContent = '';
+    elements.myAppsCropDialog.hidden = false;
+    document.body.classList.add('my-apps-crop-open');
+    renderMyAppsCrop();
+    elements.myAppsCropTitle.focus({ preventScroll: true });
+}
+
+function closeMyAppsCropEditor({ restoreStatus = true, restoreFocus = true } = {}) {
+    const session = myAppsState.cropSession;
+    if (session) session.prepared.cleanup();
+    if (restoreStatus && session) elements.myAppsIconStatus.textContent = session.returnStatus;
+    myAppsState.cropSession = null;
+    myAppsState.cropState = null;
+    myAppsState.cropPointers.clear();
+    elements.myAppsCropDialog.hidden = true;
+    document.body.classList.remove('my-apps-crop-open');
+    const context = elements.myAppsCropCanvas.getContext('2d');
+    context.clearRect(0, 0, elements.myAppsCropCanvas.width, elements.myAppsCropCanvas.height);
+    elements.myAppsIconInput.value = '';
+    if (restoreFocus) elements.myAppsNameInput.focus({ preventScroll: true });
+}
+
+function cropPointerPosition(event) {
+    const rect = elements.myAppsCropCanvas.getBoundingClientRect();
+    const scaleX = elements.myAppsCropCanvas.width / rect.width;
+    const scaleY = elements.myAppsCropCanvas.height / rect.height;
+    return { x: (event.clientX - rect.left) * scaleX, y: (event.clientY - rect.top) * scaleY };
+}
+
+function handleCropPointerDown(event) {
+    if (!myAppsState.cropSession) return;
+    event.preventDefault();
+    elements.myAppsCropCanvas.setPointerCapture?.(event.pointerId);
+    myAppsState.cropPointers.set(event.pointerId, cropPointerPosition(event));
+}
+
+function handleCropPointerMove(event) {
+    if (!myAppsState.cropPointers.has(event.pointerId) || !myAppsState.cropState) return;
+    event.preventDefault();
+    const previousPoints = [...myAppsState.cropPointers.values()];
+    const previousPoint = myAppsState.cropPointers.get(event.pointerId);
+    const currentPoint = cropPointerPosition(event);
+    myAppsState.cropPointers.set(event.pointerId, currentPoint);
+    const currentPoints = [...myAppsState.cropPointers.values()];
+    myAppsState.cropState = currentPoints.length === 1
+        ? moveCrop(
+            myAppsState.cropState,
+            currentPoint.x - previousPoint.x,
+            currentPoint.y - previousPoint.y
+        )
+        : applyPinchGesture(myAppsState.cropState, previousPoints.slice(0, 2), currentPoints.slice(0, 2));
+    renderMyAppsCrop();
+}
+
+function handleCropPointerEnd(event) {
+    myAppsState.cropPointers.delete(event.pointerId);
+    if (elements.myAppsCropCanvas.hasPointerCapture?.(event.pointerId)) {
+        elements.myAppsCropCanvas.releasePointerCapture(event.pointerId);
+    }
+}
+
+function handleCropSlider() {
+    if (!myAppsState.cropState) return;
+    const center = myAppsState.cropState.cropSize / 2;
+    myAppsState.cropState = zoomCropAtPoint(
+        myAppsState.cropState,
+        Number(elements.myAppsCropSlider.value),
+        center,
+        center
+    );
+    renderMyAppsCrop();
+}
+
+async function confirmMyAppsCrop() {
+    const session = myAppsState.cropSession;
+    const cropState = myAppsState.cropState;
+    if (!session || !cropState || myAppsState.iconProcessing) return;
     myAppsState.iconProcessing = true;
-    setMyAppsFormBusy(true);
-    elements.myAppsIconStatus.textContent = '画像を準備しています…';
-    const result = await processMyAppIcon(file);
-    if (generation !== myAppsRenderGeneration.form) return;
+    elements.myAppsCropConfirm.disabled = true;
+    elements.myAppsCropCancel.disabled = true;
+    elements.myAppsCropStatus.textContent = 'アイコン画像を作成しています…';
+    const result = await encodePreparedMyAppIcon(session.prepared, cropState);
+    if (myAppsState.cropSession !== session) return;
     myAppsState.iconProcessing = false;
-    setMyAppsFormBusy(false);
+    elements.myAppsCropConfirm.disabled = false;
+    elements.myAppsCropCancel.disabled = false;
     if (!result.ok) {
-        elements.myAppsIconInput.value = '';
-        elements.myAppsIconStatus.textContent = iconProcessingErrorMessage(result.reason);
+        elements.myAppsCropStatus.textContent = iconProcessingErrorMessage(result.reason);
         return;
     }
+    closeMyAppsCropEditor({ restoreStatus: false });
     myAppsState.iconAction = 'replace';
     myAppsState.iconBlob = result.blob;
     elements.myAppsIconSelectLabel.textContent = '画像を変更';
     elements.myAppsIconRemove.hidden = false;
-    elements.myAppsIconStatus.textContent = '新しいアイコン画像を選択しました。保存すると反映されます。';
+    elements.myAppsIconStatus.textContent = '調整したアイコン画像です。フォームの保存で反映されます。';
     showMyAppsBlobPreview(result.blob);
+}
+
+async function handleMyAppsIconSelection() {
+    const file = elements.myAppsIconInput.files?.[0];
+    if (!file) return;
+    elements.myAppsIconInput.value = '';
+    const generation = myAppsRenderGeneration.form;
+    const returnStatus = elements.myAppsIconStatus.textContent;
+    myAppsState.iconProcessing = true;
+    setMyAppsFormBusy(true);
+    elements.myAppsIconStatus.textContent = '画像を準備しています…';
+    const result = await prepareMyAppIcon(file);
+    if (generation !== myAppsRenderGeneration.form) {
+        if (result.ok) result.cleanup();
+        return;
+    }
+    myAppsState.iconProcessing = false;
+    setMyAppsFormBusy(false);
+    if (!result.ok) {
+        elements.myAppsIconStatus.textContent = iconProcessingErrorMessage(result.reason);
+        return;
+    }
+    openMyAppsCropEditor(result, returnStatus);
 }
 
 function removeMyAppsIcon() {
@@ -926,6 +1076,30 @@ elements.myAppsForm.addEventListener('submit', handleMyAppsSubmit);
 elements.myAppsDelete.addEventListener('click', handleMyAppsDelete);
 elements.myAppsIconInput.addEventListener('change', handleMyAppsIconSelection);
 elements.myAppsIconRemove.addEventListener('click', removeMyAppsIcon);
+elements.myAppsCropCanvas.addEventListener('pointerdown', handleCropPointerDown);
+elements.myAppsCropCanvas.addEventListener('pointermove', handleCropPointerMove);
+elements.myAppsCropCanvas.addEventListener('pointerup', handleCropPointerEnd);
+elements.myAppsCropCanvas.addEventListener('pointercancel', handleCropPointerEnd);
+elements.myAppsCropSlider.addEventListener('input', handleCropSlider);
+elements.myAppsCropConfirm.addEventListener('click', confirmMyAppsCrop);
+elements.myAppsCropCancel.addEventListener('click', () => closeMyAppsCropEditor());
+elements.myAppsCropDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !myAppsState.iconProcessing) {
+        closeMyAppsCropEditor();
+        return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [elements.myAppsCropSlider, elements.myAppsCropConfirm, elements.myAppsCropCancel]
+        .filter((element) => !element.disabled);
+    const currentIndex = focusable.indexOf(document.activeElement);
+    if (event.shiftKey && currentIndex <= 0) {
+        event.preventDefault();
+        focusable[focusable.length - 1]?.focus();
+    } else if (!event.shiftKey && currentIndex === focusable.length - 1) {
+        event.preventDefault();
+        focusable[0]?.focus();
+    }
+});
 elements.myAppsReorderStart.addEventListener('click', startMyAppsReorder);
 elements.myAppsReorderCancel.addEventListener('click', cancelMyAppsReorder);
 elements.myAppsReorderComplete.addEventListener('click', completeMyAppsReorder);
@@ -951,6 +1125,7 @@ document.addEventListener('visibilitychange', () => {
 });
 window.addEventListener('pagehide', () => {
     metronomeController?.stopForPageHidden();
+    closeMyAppsCropEditor({ restoreStatus: false, restoreFocus: false });
     cleanupMyAppsObjectUrls('home');
     cleanupMyAppsObjectUrls('manage');
     cleanupMyAppsObjectUrls('form');

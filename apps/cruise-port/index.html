@@ -269,6 +269,27 @@
             </section>
         </main>
 
+        <div id="my-apps-crop-dialog" class="my-apps-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="my-apps-crop-title" hidden>
+            <section class="my-apps-crop-panel">
+                <p class="view-kicker">My Apps</p>
+                <h1 id="my-apps-crop-title" class="my-apps-crop-title" tabindex="-1">アイコンを調整</h1>
+                <p class="my-apps-crop-help">画像をドラッグして位置を調整します。2本指のピンチまたはスライダーで拡大できます。</p>
+                <div class="my-apps-crop-stage-wrap">
+                    <canvas id="my-apps-crop-canvas" class="my-apps-crop-canvas" width="320" height="320" aria-label="アイコンとして切り出す正方形の範囲"></canvas>
+                </div>
+                <div class="my-apps-crop-zoom">
+                    <label for="my-apps-crop-slider">拡大・縮小</label>
+                    <input id="my-apps-crop-slider" type="range" min="1" max="6" step="0.001" value="1">
+                    <div class="my-apps-crop-zoom-labels" aria-hidden="true"><span>縮小</span><span>拡大</span></div>
+                </div>
+                <p id="my-apps-crop-status" class="my-apps-crop-status" role="status" aria-live="polite"></p>
+                <div class="my-apps-crop-actions">
+                    <button id="my-apps-crop-confirm" class="action-button primary-action" type="button">決定</button>
+                    <button id="my-apps-crop-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                </div>
+            </section>
+        </div>
+
         <main id="tuner-view" class="port-view tuner-view" hidden>
             <button class="view-back" type="button" data-action="home">← クルーズポート</button>
             <section class="view-panel tuner-panel" aria-labelledby="tuner-title">

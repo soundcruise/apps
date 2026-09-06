@@ -518,6 +518,9 @@ h1::after {
 .my-apps-manage-card,
 .my-apps-reorder-card {
     min-height: 76px;
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
 }
 
 .my-app-manage-icon {
@@ -532,14 +535,21 @@ h1::after {
 }
 
 .my-apps-manage-card .card-detail {
+    display: block;
+    width: 100%;
+    max-width: 100%;
     overflow: hidden;
+    overflow-wrap: anywhere;
+    word-break: break-all;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
 
 .my-app-edit-button {
     min-width: 52px;
-    min-height: 42px;
+    min-height: 44px;
+    grid-column: 1 / -1;
+    justify-self: end;
     padding: 8px 10px;
     border: 1px solid rgba(207, 189, 148, 0.18);
     border-radius: 10px;
@@ -550,6 +560,11 @@ h1::after {
     font-weight: 620;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+}
+
+.my-apps-reorder-card .reorder-controls {
+    grid-column: 1 / -1;
+    justify-self: end;
 }
 
 .my-app-edit-button:focus-visible {
@@ -650,6 +665,127 @@ h1::after {
     color: var(--port-muted);
     font-size: 0.72rem;
     line-height: 1.55;
+}
+
+body.my-apps-crop-open {
+    overflow: hidden;
+}
+
+.my-apps-crop-dialog {
+    position: fixed;
+    z-index: 1000;
+    inset: 0;
+    display: grid;
+    padding:
+        max(18px, env(safe-area-inset-top))
+        max(14px, env(safe-area-inset-right))
+        max(18px, env(safe-area-inset-bottom))
+        max(14px, env(safe-area-inset-left));
+    place-items: center;
+    overflow-y: auto;
+    background: rgba(3, 3, 2, 0.88);
+    overscroll-behavior: contain;
+}
+
+.my-apps-crop-dialog[hidden] {
+    display: none;
+}
+
+.my-apps-crop-panel {
+    width: min(100%, 390px);
+    padding: clamp(18px, 5vw, 26px);
+    border: 1px solid rgba(207, 189, 148, 0.24);
+    border-radius: 20px;
+    background: linear-gradient(180deg, #12110f, #090806);
+    box-shadow: 0 28px 70px rgba(0, 0, 0, 0.58);
+}
+
+.my-apps-crop-title {
+    margin: 0;
+    color: var(--port-text);
+    font-size: clamp(1.35rem, 6vw, 1.8rem);
+    font-weight: 520;
+}
+
+.my-apps-crop-help {
+    margin: 10px 0 16px;
+    color: var(--port-muted);
+    font-size: 0.76rem;
+    line-height: 1.65;
+}
+
+.my-apps-crop-stage-wrap {
+    width: min(100%, 320px);
+    margin: 0 auto;
+    border: 1px solid rgba(241, 218, 153, 0.58);
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #12110f;
+    background-image:
+        linear-gradient(45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%);
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-size: 16px 16px;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.72), 0 14px 34px rgba(0, 0, 0, 0.32);
+}
+
+.my-apps-crop-canvas {
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.my-apps-crop-canvas:active {
+    cursor: grabbing;
+}
+
+.my-apps-crop-zoom {
+    margin-top: 17px;
+}
+
+.my-apps-crop-zoom label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--port-text);
+    font-size: 0.8rem;
+    font-weight: 620;
+}
+
+.my-apps-crop-zoom input {
+    width: 100%;
+    min-height: 44px;
+    margin: 0;
+    accent-color: var(--port-gold-bright);
+}
+
+.my-apps-crop-zoom-labels {
+    display: flex;
+    margin-top: -5px;
+    justify-content: space-between;
+    color: var(--port-muted);
+    font-size: 0.66rem;
+}
+
+.my-apps-crop-status {
+    min-height: 1.5em;
+    margin: 8px 0 0;
+    color: var(--port-muted);
+    font-size: 0.72rem;
+    text-align: center;
+}
+
+.my-apps-crop-actions {
+    display: grid;
+    margin-top: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px;
 }
 
 .practice-row:focus-visible,

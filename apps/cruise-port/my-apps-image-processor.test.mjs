@@ -3,7 +3,6 @@ import {
     MY_APPS_ICON_MAX_SOURCE_BYTES,
     MY_APPS_ICON_SIZE,
     MY_APPS_ICON_WEBP_QUALITY,
-    calculateContainRect,
     processMyAppIcon,
     validateIconFile
 } from './my-apps-image-processor.js';
@@ -26,9 +25,14 @@ assert.deepEqual(
     'renamed SVG content is rejected before decode'
 );
 
-assert.deepEqual(calculateContainRect(400, 200), { x: 0, y: 64, width: 256, height: 128 });
-assert.deepEqual(calculateContainRect(200, 400), { x: 64, y: 0, width: 128, height: 256 });
-assert.throws(() => calculateContainRect(0, 100), /invalid-image-dimensions/);
+{
+    const harness = createCanvasHarness();
+    const result = await processMyAppIcon(namedBlob('\u0089PNG binary metadata <svg preview>', 'image/png', 'valid.png'), {
+        createImageBitmapFunction: async () => ({ width: 100, height: 100, close() {} }),
+        createCanvas: () => harness.canvas
+    });
+    assert.equal(result.ok, true, 'SVG-like metadata inside a raster file is not treated as an SVG document');
+}
 
 function createCanvasHarness({ webp = true, png = true } = {}) {
     const calls = [];
@@ -69,7 +73,7 @@ function createCanvasHarness({ webp = true, png = true } = {}) {
     assert.equal(harness.canvas.width, 256);
     assert.equal(harness.canvas.height, 256);
     assert.deepEqual(harness.calls[0], ['clearRect', 0, 0, 256, 256], 'transparent canvas is not filled');
-    assert.deepEqual(harness.calls[1].slice(1), [0, 64, 256, 128], 'image uses centered contain geometry');
+    assert.deepEqual(harness.calls[1].slice(1), [-128, 0, 512, 256], 'default processing uses centered square cover geometry');
     assert.deepEqual(harness.calls[2], ['toBlob', 'image/webp', MY_APPS_ICON_WEBP_QUALITY]);
     assert.equal(closed, 1);
 }
@@ -105,4 +109,4 @@ function createCanvasHarness({ webp = true, png = true } = {}) {
     assert.deepEqual(revoked, ['blob:preview'], 'fallback preview URL is revoked after decode failure');
 }
 
-console.log('my-apps-image-processor: validation, contain resize, WebP/PNG, alpha, and cleanup tests passed');
+console.log('my-apps-image-processor: validation, square crop, WebP/PNG, alpha, and cleanup tests passed');

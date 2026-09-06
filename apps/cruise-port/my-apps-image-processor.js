@@ -1,3 +1,5 @@
+import { calculateCropDrawRect, createInitialCropState } from './my-apps-crop.js?v=1.0.0';
+
 export const MY_APPS_ICON_MAX_SOURCE_BYTES = 15 * 1024 * 1024;
 export const MY_APPS_ICON_SIZE = 256;
 export const MY_APPS_ICON_WEBP_QUALITY = 0.88;
@@ -28,25 +30,16 @@ async function hasSvgContent(file) {
     if (typeof file?.slice !== 'function') return false;
     try {
         const header = await file.slice(0, 4096).text();
-        return /<svg(?:\s|>)/i.test(header);
+        const documentStart = header
+            .replace(/^\uFEFF/, '')
+            .trimStart()
+            .replace(/^<\?xml[\s\S]*?\?>\s*/i, '')
+            .replace(/^(?:<!--?[\s\S]*?-->\s*)+/i, '')
+            .replace(/^<!doctype\s+svg[\s\S]*?>\s*/i, '');
+        return /^<svg(?:\s|>)/i.test(documentStart);
     } catch (_) {
         return false;
     }
-}
-
-export function calculateContainRect(sourceWidth, sourceHeight, targetSize = MY_APPS_ICON_SIZE) {
-    if (!(sourceWidth > 0) || !(sourceHeight > 0) || !(targetSize > 0)) {
-        throw new TypeError('invalid-image-dimensions');
-    }
-    const scale = Math.min(targetSize / sourceWidth, targetSize / sourceHeight);
-    const width = sourceWidth * scale;
-    const height = sourceHeight * scale;
-    return Object.freeze({
-        x: (targetSize - width) / 2,
-        y: (targetSize - height) / 2,
-        width,
-        height
-    });
 }
 
 function canvasToBlob(canvas, type, quality) {
@@ -113,11 +106,10 @@ function decodeWithImageElement(file, ImageConstructor, urlObject) {
     });
 }
 
-export async function processMyAppIcon(file, {
+export async function prepareMyAppIcon(file, {
     createImageBitmapFunction = globalThis.createImageBitmap,
     ImageConstructor = globalThis.Image,
-    urlObject = globalThis.URL,
-    createCanvas = () => globalThis.document?.createElement('canvas')
+    urlObject = globalThis.URL
 } = {}) {
     const validation = validateIconFile(file);
     if (!validation.ok) return validation;
@@ -132,6 +124,16 @@ export async function processMyAppIcon(file, {
         }
     }
 
+    return { ok: true, ...decoded };
+}
+
+export async function encodePreparedMyAppIcon(prepared, cropState, {
+    createCanvas = () => globalThis.document?.createElement('canvas')
+} = {}) {
+    if (!prepared?.source || !(prepared.width > 0) || !(prepared.height > 0)) {
+        return { ok: false, reason: 'decode-failed' };
+    }
+
     try {
         const canvas = createCanvas();
         const context = canvas?.getContext?.('2d');
@@ -139,8 +141,8 @@ export async function processMyAppIcon(file, {
         canvas.width = MY_APPS_ICON_SIZE;
         canvas.height = MY_APPS_ICON_SIZE;
         context.clearRect(0, 0, MY_APPS_ICON_SIZE, MY_APPS_ICON_SIZE);
-        const rect = calculateContainRect(decoded.width, decoded.height);
-        context.drawImage(decoded.source, rect.x, rect.y, rect.width, rect.height);
+        const rect = calculateCropDrawRect(cropState, MY_APPS_ICON_SIZE);
+        context.drawImage(prepared.source, rect.x, rect.y, rect.width, rect.height);
 
         const webpBlob = await canvasToBlob(canvas, 'image/webp', MY_APPS_ICON_WEBP_QUALITY);
         if (webpBlob instanceof Blob && webpBlob.size > 0 && webpBlob.type === 'image/webp') {
@@ -154,7 +156,19 @@ export async function processMyAppIcon(file, {
         return { ok: false, reason: 'encode-failed' };
     } catch (_) {
         return { ok: false, reason: 'encode-failed' };
+    }
+}
+
+export async function processMyAppIcon(file, options = {}) {
+    const prepared = await prepareMyAppIcon(file, options);
+    if (!prepared.ok) return prepared;
+    try {
+        return await encodePreparedMyAppIcon(
+            prepared,
+            createInitialCropState(prepared.width, prepared.height),
+            options
+        );
     } finally {
-        decoded.cleanup();
+        prepared.cleanup();
     }
 }
