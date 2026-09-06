@@ -14,7 +14,7 @@ import {
     moveMyApp,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=3.0.0';
+} from './my-apps-store.js?v=4.0.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl
@@ -23,7 +23,7 @@ import {
     detectMyAppsPlatform,
     resolveMyAppHref
 } from './my-apps-launch.js?v=1.0.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.0.0';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.1.0';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -41,12 +41,12 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=2.0.0';
+} from './my-apps-icon-workflow.js?v=2.1.0';
 import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.5.0';
+} from './app-version.js?v=1.6.0';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
