@@ -26,6 +26,7 @@ const expectedNewKeys = [
     'canva', 'adobe-express', 'picsart', 'vn-video-editor', 'claude', 'perplexity', 'grok', 'suno',
     'discord', 'slack', 'messenger', 'instagram', 'tiktok', 'x-twitter', 'threads'
 ];
+const verifiedAndroidKeys = ['youtube', 'google-drive', 'canva', 'youtube-music', 'x-twitter'];
 
 assert.equal(MY_APPS_KNOWN_APPS.length, 39, 'the approved registry contains five existing and 34 new apps');
 assert.equal(new Set(MY_APPS_KNOWN_APPS.map((app) => app.key)).size, 39, 'app keys are unique');
@@ -83,7 +84,14 @@ for (const app of MY_APPS_KNOWN_APPS) {
         assert.equal(url.port, '');
         assert.deepEqual(normalizeMyAppUrl(target.href), { ok: true, url: target.href });
     }
+    if (app.launch.android) assert.equal(typeof app.launch.android.verified, 'boolean');
 }
+
+assert.deepEqual(
+    MY_APPS_KNOWN_APPS.filter((app) => app.launch.android?.verified).map((app) => app.key),
+    verifiedAndroidKeys,
+    'only Android targets confirmed by a normal Chrome tap are marked verified'
+);
 
 assert.equal(parseIosAppStoreId('https://apps.apple.com/app/id324684580'), '324684580');
 assert.equal(parseIosAppStoreId('https://apps.apple.com/jp/app/spotify/id324684580?l=ja#details'), '324684580');

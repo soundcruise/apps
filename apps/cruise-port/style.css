@@ -767,6 +767,10 @@ h1::after {
     -webkit-tap-highlight-color: transparent;
 }
 
+.my-apps-direct-toggle[hidden] {
+    display: none;
+}
+
 .my-apps-icon-preview:not(:disabled) {
     cursor: pointer;
 }

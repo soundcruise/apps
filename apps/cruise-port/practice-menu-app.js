@@ -23,6 +23,7 @@ import {
     recognizeStoreUrl
 } from './my-apps-known-apps.js?v=1.2.0';
 import {
+    getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
 } from './my-apps-launch.js?v=1.2.0';
@@ -115,7 +116,9 @@ const elements = {
     myAppsUrlInput: document.querySelector('#my-apps-url'),
     myAppsDirectLaunch: document.querySelector('#my-apps-direct-launch'),
     myAppsDirectRecognition: document.querySelector('#my-apps-direct-recognition'),
+    myAppsDirectToggle: document.querySelector('#my-apps-direct-toggle'),
     myAppsDirectEnabled: document.querySelector('#my-apps-direct-enabled'),
+    myAppsDirectDescription: document.querySelector('#my-apps-direct-description'),
     myAppsCustomLaunch: document.querySelector('#my-apps-custom-launch'),
     myAppsCustomIosInput: document.querySelector('#my-apps-custom-ios'),
     myAppsCustomAndroidInput: document.querySelector('#my-apps-custom-android'),
@@ -583,13 +586,25 @@ function updateMyAppsLaunchOptions(item = null, { initial = false } = {}) {
         );
     }
 
-    if (!knownApp) {
+    const launchUiMode = getKnownLaunchUiMode(knownApp?.key || null, myAppsPlatform);
+    if (launchUiMode === 'hidden') {
         elements.myAppsDirectEnabled.checked = false;
         elements.myAppsDirectLaunch.hidden = true;
+        elements.myAppsDirectToggle.hidden = false;
         elements.myAppsDirectRecognition.textContent = '';
+        elements.myAppsDirectDescription.textContent = '対応している端末では、Webページではなくアプリを開きます。';
+    } else if (launchUiMode === 'fallback') {
+        myAppsState.knownLaunchForm = setKnownLaunchDecision(myAppsState.knownLaunchForm, false);
+        elements.myAppsDirectEnabled.checked = false;
+        elements.myAppsDirectToggle.hidden = true;
+        elements.myAppsDirectRecognition.textContent = `${knownApp.name}を認識しました`;
+        elements.myAppsDirectDescription.textContent = 'Androidでは登録したGoogle Playページを開きます。';
+        elements.myAppsDirectLaunch.hidden = false;
     } else {
         elements.myAppsDirectEnabled.checked = isKnownLaunchEnabled(myAppsState.knownLaunchForm);
+        elements.myAppsDirectToggle.hidden = false;
         elements.myAppsDirectRecognition.textContent = `${knownApp.name}を認識しました`;
+        elements.myAppsDirectDescription.textContent = '対応している端末では、Webページではなくアプリを開きます。';
         elements.myAppsDirectLaunch.hidden = false;
     }
 

@@ -5,7 +5,8 @@ const createKnownApp = ({
     iosStoreIds = [],
     androidPackages = [],
     iosHref = null,
-    androidHref = null
+    androidHref = null,
+    androidVerified = false
 }) => Object.freeze({
     key,
     name,
@@ -16,11 +17,13 @@ const createKnownApp = ({
     }),
     launch: Object.freeze({
         ios: iosHref ? Object.freeze({ kind: 'https', href: iosHref }) : null,
-        android: androidHref ? Object.freeze({ kind: 'https', href: androidHref }) : null
+        android: androidHref
+            ? Object.freeze({ kind: 'https', href: androidHref, verified: androidVerified === true })
+            : null
     })
 });
 
-// Targets are limited to HTTPS Universal/App Links verified during the K1 audit.
+// iOS targets are verified direct links. Android hrefs remain candidates unless verified is true.
 export const MY_APPS_KNOWN_APPS = Object.freeze([
     createKnownApp({
         key: 'spotify',
@@ -38,7 +41,8 @@ export const MY_APPS_KNOWN_APPS = Object.freeze([
         iosStoreIds: ['544007664'],
         androidPackages: ['com.google.android.youtube'],
         iosHref: 'https://www.youtube.com/',
-        androidHref: 'https://www.youtube.com/'
+        androidHref: 'https://www.youtube.com/',
+        androidVerified: true
     }),
     createKnownApp({
         key: 'dropbox',
@@ -118,7 +122,8 @@ export const MY_APPS_KNOWN_APPS = Object.freeze([
         iosStoreIds: ['507874739'],
         androidPackages: ['com.google.android.apps.docs'],
         iosHref: 'https://drive.google.com/drive',
-        androidHref: 'https://drive.google.com/drive'
+        androidHref: 'https://drive.google.com/drive',
+        androidVerified: true
     }),
     createKnownApp({
         key: 'mega',
@@ -163,7 +168,8 @@ export const MY_APPS_KNOWN_APPS = Object.freeze([
         iosStoreIds: ['897446215'],
         androidPackages: ['com.canva.editor'],
         iosHref: 'https://www.canva.com/design',
-        androidHref: 'https://www.canva.com/design'
+        androidHref: 'https://www.canva.com/design',
+        androidVerified: true
     }),
     createKnownApp({
         key: 'picsart',
@@ -280,7 +286,8 @@ export const MY_APPS_KNOWN_APPS = Object.freeze([
         iosStoreIds: ['1017492454'],
         androidPackages: ['com.google.android.apps.youtube.music'],
         iosHref: 'https://music.youtube.com/',
-        androidHref: 'https://music.youtube.com/'
+        androidHref: 'https://music.youtube.com/',
+        androidVerified: true
     }),
     createKnownApp({
         key: 'evernote',
@@ -361,7 +368,8 @@ export const MY_APPS_KNOWN_APPS = Object.freeze([
         iosStoreIds: ['333903271'],
         androidPackages: ['com.twitter.android'],
         iosHref: 'https://x.com/',
-        androidHref: 'https://x.com/'
+        androidHref: 'https://x.com/',
+        androidVerified: true
     }),
     createKnownApp({
         key: 'moises',
