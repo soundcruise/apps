@@ -1,5 +1,5 @@
-import { createTunerAudioController } from './tuner-audio.js?v=1.1.4';
-import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.1.7';
+import { createTunerAudioController } from './tuner-audio.js?v=1.1.5';
+import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.1.8';
 import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
 import {
     TUNER_DEFAULT_THRESHOLD_DB,
