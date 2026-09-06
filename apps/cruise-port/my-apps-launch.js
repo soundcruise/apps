@@ -1,5 +1,5 @@
-import { getKnownApp, resolveKnownAppTarget } from './my-apps-known-apps.js?v=1.0.0';
-import { normalizeCustomLaunch } from './my-apps-store.js?v=4.0.0';
+import { getKnownApp, resolveKnownAppTarget } from './my-apps-known-apps.js?v=1.1.0';
+import { normalizeCustomLaunch } from './my-apps-store.js?v=5.0.0';
 
 export function detectMyAppsPlatform(navigatorObject = globalThis.navigator) {
     const clientPlatform = navigatorObject?.userAgentData?.platform?.toLowerCase() || '';

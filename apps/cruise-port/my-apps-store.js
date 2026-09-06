@@ -1,5 +1,5 @@
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
-import { getKnownApp } from './my-apps-known-apps.js?v=1.0.0';
+import { getKnownApp } from './my-apps-known-apps.js?v=1.1.0';
 
 export const MY_APPS_SCHEMA_VERSION = 5;
 export const MY_APPS_STORAGE_KEY = 'cruisePort.myApps';

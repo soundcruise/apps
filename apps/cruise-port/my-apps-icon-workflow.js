@@ -3,7 +3,7 @@ import {
     deleteMyApp,
     saveMyApps,
     updateMyApp
-} from './my-apps-store.js?v=4.0.0';
+} from './my-apps-store.js?v=5.0.0';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 
 async function deleteIconBestEffort(iconStore, iconId) {
