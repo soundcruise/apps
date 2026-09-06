@@ -1,5 +1,5 @@
-import { createTunerAudioController } from './tuner-audio.js?v=1.1.2';
-import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.2';
+import { createTunerAudioController } from './tuner-audio.js?v=1.1.3';
+import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.3';
 import {
     TUNER_DEFAULT_THRESHOLD_DB,
     TUNER_SCHEMA_VERSION,
@@ -8,7 +8,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=1.1.2';
+} from './tuner-store.js?v=1.1.3';
 
 const EMA_TIME_CONSTANT_MS = 80;
 const NULL_GRACE_MS = 150;
@@ -401,6 +401,8 @@ export function initTuner(root, {
         status: root.querySelector('#tuner-status'),
         inputLevelWrap: root.querySelector('#tuner-input-level-wrap'),
         inputLevel: root.querySelector('#tuner-input-level'),
+        inputSettingsToggle: root.querySelector('#tuner-input-settings-toggle'),
+        inputSettingsPanel: root.querySelector('#tuner-input-settings-panel'),
         threshold: root.querySelector('#tuner-threshold'),
         thresholdValue: root.querySelector('#tuner-threshold-value'),
         thresholdError: root.querySelector('#tuner-threshold-error'),
@@ -437,6 +439,7 @@ export function initTuner(root, {
     const diagnosticHistory = debugEnabled ? createTunerDiagnosticHistory() : null;
     const loadResult = loadTunerSettings(storage);
     let currentThresholdDb = loadResult.settings.thresholdDb;
+    let inputSettingsOpen = false;
     let viewActive = false;
     let audioStatus = 'idle';
     let latestDiagnostic = null;
@@ -454,6 +457,11 @@ export function initTuner(root, {
     function showError(message = '') {
         elements.error.textContent = message;
         elements.error.hidden = !message;
+    }
+
+    function renderInputSettings() {
+        elements.inputSettingsToggle.setAttribute('aria-expanded', String(inputSettingsOpen));
+        elements.inputSettingsPanel.hidden = !inputSettingsOpen;
     }
 
     function renderNeutral() {
@@ -481,25 +489,26 @@ export function initTuner(root, {
         const roundedCents = Math.round(reading.cents);
         const noteLabel = `${reading.noteName}${reading.octave}`;
         const directionLabels = {
-            low: '低い',
-            high: '高い',
-            'in-tune': '合っています',
+            low: '↓ 低い',
+            high: '↑ 高い',
+            'in-tune': '✓ 合っています',
             checking: '安定を確認しています'
         };
         elements.note.textContent = noteLabel;
         elements.frequency.textContent = `${reading.frequency.toFixed(2)} Hz`;
         elements.cents.textContent = formatCents(reading.cents);
-        elements.direction.textContent = reading.stale ? '音を確認しています' : directionLabels[reading.direction];
+        const directionText = reading.stale ? '音を確認しています' : directionLabels[reading.direction];
+        elements.direction.textContent = directionText;
         elements.direction.dataset.state = reading.stale ? 'stale' : reading.direction;
-        elements.guide.textContent = reading.stale ? 'もう一度、弦を鳴らしてください' : '1本ずつ弦を鳴らしてください';
+        elements.guide.textContent = reading.stale ? 'もう一度、弦を鳴らしてください' : '';
         elements.meter.classList.remove('is-neutral');
         elements.meter.style.setProperty(
             '--tuner-position',
             `${Math.max(0, Math.min(100, reading.cents + 50))}%`
         );
         elements.meter.setAttribute('aria-valuenow', String(Math.max(-50, Math.min(50, roundedCents))));
-        elements.meter.setAttribute('aria-valuetext', `${formatCents(reading.cents)}、${directionLabels[reading.direction]}`);
-        elements.meter.setAttribute('aria-label', `${noteLabel}、${formatCents(reading.cents)}、${directionLabels[reading.direction]}`);
+        elements.meter.setAttribute('aria-valuetext', `${formatCents(reading.cents)}、${directionText}`);
+        elements.meter.setAttribute('aria-label', `${noteLabel}、${formatCents(reading.cents)}、${directionText}`);
 
         clearStringHighlight();
         const standardString = standardStringForNote(reading.noteName, reading.octave);
@@ -722,6 +731,11 @@ export function initTuner(root, {
         elements.thresholdError.textContent = result.ok ? '' : '検出閾値を保存できませんでした。';
     });
 
+    elements.inputSettingsToggle.addEventListener('click', () => {
+        inputSettingsOpen = !inputSettingsOpen;
+        renderInputSettings();
+    });
+
     elements.toggle.addEventListener('click', async () => {
         if (audioStatus === 'running') {
             await audioController.stop();
@@ -734,6 +748,7 @@ export function initTuner(root, {
 
     renderNeutral();
     renderThreshold();
+    renderInputSettings();
     elements.inputLevelWrap.hidden = true;
     elements.status.textContent = 'マイクは停止中です';
 
@@ -748,6 +763,8 @@ export function initTuner(root, {
                 renderNeutral();
                 inputLevelSmoother.reset();
                 elements.inputLevelWrap.hidden = true;
+                inputSettingsOpen = false;
+                renderInputSettings();
                 elements.inputLevel.style.setProperty('--tuner-input-level-position', '0%');
                 elements.toggle.disabled = false;
                 elements.toggle.textContent = 'マイクを開始';

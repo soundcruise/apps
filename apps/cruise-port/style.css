@@ -949,8 +949,8 @@ select {
 
 .tuner-reading {
     display: grid;
-    min-height: 152px;
-    margin: clamp(28px, 8vw, 42px) 0 10px;
+    min-height: 92px;
+    margin: clamp(24px, 6vw, 34px) 0 4px;
     align-content: center;
     justify-items: center;
 }
@@ -959,7 +959,7 @@ select {
     max-width: 100%;
     margin: 0;
     color: var(--port-text);
-    font-size: clamp(4.8rem, 26vw, 8.4rem);
+    font-size: clamp(2.8rem, 14vw, 4.5rem);
     font-weight: 640;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.045em;
@@ -968,9 +968,9 @@ select {
 }
 
 .tuner-frequency {
-    margin: 18px 0 0;
-    color: var(--port-gold-bright);
-    font-size: clamp(1rem, 4.8vw, 1.3rem);
+    margin: 8px 0 0;
+    color: var(--port-muted);
+    font-size: clamp(0.82rem, 3.8vw, 1rem);
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.04em;
 }
@@ -978,7 +978,7 @@ select {
 .tuner-meter {
     --tuner-position: 50%;
     width: 100%;
-    margin: 24px auto 0;
+    margin: 16px auto 0;
 }
 
 .tuner-meter-scale,
@@ -992,15 +992,20 @@ select {
     line-height: 1;
 }
 
+.tuner-meter-scale span:nth-child(2) {
+    color: var(--port-gold-bright);
+    font-weight: 700;
+}
+
 .tuner-meter-track {
     position: relative;
-    height: 28px;
+    height: 32px;
     margin: 7px 5px 6px;
 }
 
 .tuner-meter-track::before {
     position: absolute;
-    top: 13px;
+    top: 15px;
     right: 0;
     left: 0;
     height: 2px;
@@ -1016,17 +1021,17 @@ select {
 
 .tuner-meter-center {
     position: absolute;
-    top: 5px;
+    top: 4px;
     left: 50%;
-    width: 1px;
-    height: 18px;
-    background: rgba(243, 240, 232, 0.54);
+    width: 2px;
+    height: 23px;
+    background: rgba(243, 240, 232, 0.72);
     transform: translateX(-50%);
 }
 
 .tuner-meter-marker {
     position: absolute;
-    top: 5px;
+    top: 7px;
     left: var(--tuner-position);
     width: 16px;
     height: 16px;
@@ -1049,20 +1054,20 @@ select {
 
 .tuner-cents {
     min-height: 1.35em;
-    margin: 14px 0 0;
-    color: var(--port-text);
-    font-size: 1.12rem;
+    margin: 4px 0 0;
+    color: var(--port-muted);
+    font-size: 1rem;
     font-variant-numeric: tabular-nums;
     font-weight: 620;
 }
 
 .tuner-direction {
-    min-height: 1.45em;
-    margin: 7px 0 0;
+    min-height: 1.4em;
+    margin: 15px 0 0;
     color: var(--port-gold-bright);
-    font-size: 0.94rem;
-    font-weight: 680;
-    letter-spacing: 0.04em;
+    font-size: clamp(1.35rem, 6vw, 1.75rem);
+    font-weight: 720;
+    letter-spacing: 0.02em;
 }
 
 .tuner-direction[data-state="in-tune"] {
@@ -1082,9 +1087,13 @@ select {
     line-height: 1.55;
 }
 
+.tuner-guide:empty {
+    display: none;
+}
+
 .tuner-strings {
     display: grid;
-    margin: 26px 0 0;
+    margin: 22px 0 0;
     padding: 0;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
@@ -1126,10 +1135,50 @@ select {
     color: #d8eadc;
 }
 
+.tuner-input-settings {
+    margin-top: 22px;
+    border-top: 1px solid rgba(205, 180, 116, 0.14);
+    text-align: left;
+}
+
+.tuner-input-settings-toggle {
+    display: flex;
+    width: 100%;
+    min-height: 44px;
+    padding: 0;
+    align-items: center;
+    justify-content: space-between;
+    border: 0;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.tuner-input-settings-toggle:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: -2px;
+}
+
+.tuner-input-settings-chevron {
+    color: var(--port-gold-bright);
+    font-size: 1rem;
+    line-height: 1;
+    transition: transform 160ms ease;
+}
+
+.tuner-input-settings-toggle[aria-expanded="true"] .tuner-input-settings-chevron {
+    transform: rotate(180deg);
+}
+
 .tuner-input-tools {
     display: grid;
-    margin-top: 22px;
-    gap: 16px;
+    padding: 2px 0 4px;
+    gap: 14px;
     text-align: left;
 }
 
@@ -1528,11 +1577,11 @@ select {
     }
 
     .tuner-reading {
-        min-height: 132px;
+        min-height: 82px;
     }
 
     .tuner-note {
-        font-size: clamp(4.4rem, 25vw, 6.3rem);
+        font-size: clamp(2.6rem, 13vw, 3.7rem);
     }
 
     .tuner-strings {
@@ -1558,7 +1607,8 @@ select {
     }
 
     .tuner-meter-marker,
-    .tuner-strings li {
+    .tuner-strings li,
+    .tuner-input-settings-chevron {
         transition: none;
     }
 }

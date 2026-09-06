@@ -188,6 +188,8 @@ function createFakeRoot() {
         'tuner-toggle',
         'tuner-error',
         'tuner-status',
+        'tuner-input-settings-toggle',
+        'tuner-input-settings-panel',
         'tuner-input-level-wrap',
         'tuner-input-level',
         'tuner-threshold',
@@ -325,6 +327,8 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(callbacks.rmsThreshold.toFixed(6), '0.000398', 'missing tuner settings use the -68 dB threshold');
     assert.equal(root.elements.get('tuner-threshold-value').textContent, '-68 dB');
     assert.match(root.elements.get('tuner-threshold').attributes.get('aria-valuetext'), /左ほど高感度/);
+    assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'input settings start closed');
+    assert.equal(root.elements.get('tuner-input-settings-toggle').attributes.get('aria-expanded'), 'false');
     assert.equal(root.elements.get('tuner-diagnostic').removeCalls, 1, 'debug OFF removes the panel');
     const toggle = root.elements.get('tuner-toggle');
     const note = root.elements.get('tuner-note');
@@ -342,6 +346,14 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(toggle.textContent, '■ マイク停止');
     assert.equal(root.elements.get('tuner-status').textContent, 'マイク入力中');
     assert.equal(root.elements.get('tuner-input-level-wrap').hidden, false);
+    assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'running input meter stays inside the closed settings panel');
+
+    await root.elements.get('tuner-input-settings-toggle').dispatch('click');
+    assert.equal(root.elements.get('tuner-input-settings-panel').hidden, false, 'input settings open on click');
+    assert.equal(root.elements.get('tuner-input-settings-toggle').attributes.get('aria-expanded'), 'true');
+    await root.elements.get('tuner-input-settings-toggle').dispatch('click');
+    assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'input settings close on click');
+    assert.equal(root.elements.get('tuner-input-settings-toggle').attributes.get('aria-expanded'), 'false');
 
     callbacks.onInputLevel({ rms: 0.0012, rmsDbfs: -58.4 });
     assert.notEqual(
@@ -361,7 +373,35 @@ assert.equal(inputLevelPercentage(0), 100);
     }
     assert.equal(note.textContent, 'E2');
     assert.match(root.elements.get('tuner-frequency').textContent, /^82\.\d{2} Hz$/);
+    assert.equal(root.elements.get('tuner-direction').textContent, '✓ 合っています');
     assert(root.strings[0].classList.contains('is-active'));
+
+    for (const frequency of [
+        frequencyAtCents(E2_FREQUENCY, -25),
+        frequencyAtCents(E2_FREQUENCY, -25)
+    ]) {
+        callbacks.onResult(result(frequency));
+        clock += 50;
+    }
+    assert.equal(root.elements.get('tuner-direction').textContent, '↓ 低い');
+
+    for (const frequency of [
+        frequencyAtCents(E2_FREQUENCY, 25),
+        frequencyAtCents(E2_FREQUENCY, 25),
+        frequencyAtCents(E2_FREQUENCY, 25)
+    ]) {
+        callbacks.onResult(result(frequency));
+        clock += 50;
+    }
+    assert.equal(root.elements.get('tuner-direction').textContent, '↑ 高い');
+
+    callbacks.onResult(null);
+    assert.equal(root.elements.get('tuner-direction').textContent, '音を確認しています');
+    assert.equal(root.elements.get('tuner-guide').textContent, 'もう一度、弦を鳴らしてください');
+    clock += 151;
+    callbacks.onResult(null);
+    assert.equal(root.elements.get('tuner-direction').textContent, '入力待ち');
+    assert.equal(root.elements.get('tuner-guide').textContent, '1本ずつ弦を鳴らしてください');
 
     for (const [code, expectedText] of [
         ['permission-denied', 'マイク許可'],
@@ -384,9 +424,13 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(note.textContent, '—');
     assert.equal(toggle.textContent, 'マイクを開始');
 
+    await root.elements.get('tuner-input-settings-toggle').dispatch('click');
+    assert.equal(root.elements.get('tuner-input-settings-panel').hidden, false);
     app.setActive(false);
     assert.equal(stopCalls, 2, 'route leave always requests a safe stop');
     assert.equal(note.textContent, '—');
+    assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'route leave resets settings to closed');
+    assert.equal(root.elements.get('tuner-input-settings-toggle').attributes.get('aria-expanded'), 'false');
 }
 
 {

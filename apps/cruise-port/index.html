@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.1.2">
+    <link rel="stylesheet" href="./style.css?v=1.1.3">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.1.2"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.1.3"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -231,8 +231,8 @@
                     </div>
                 </div>
 
-                <p id="tuner-cents" class="tuner-cents">—</p>
                 <p id="tuner-direction" class="tuner-direction" data-state="neutral">入力待ち</p>
+                <p id="tuner-cents" class="tuner-cents">—</p>
                 <p id="tuner-guide" class="tuner-guide">1本ずつ弦を鳴らしてください</p>
 
                 <ul class="tuner-strings" aria-label="ギター標準チューニング">
@@ -244,43 +244,54 @@
                     <li data-tuner-string data-note="E4"><span>1弦</span><strong>E4</strong></li>
                 </ul>
 
-                <div class="tuner-input-tools">
-                    <div id="tuner-input-level-wrap" class="tuner-input-level-wrap" hidden>
-                        <p class="tuner-input-label">入力レベル</p>
-                        <div
-                            id="tuner-input-level"
-                            class="tuner-input-level"
-                            role="meter"
-                            aria-label="マイクの入力レベル"
-                            aria-valuemin="-80"
-                            aria-valuemax="-18"
-                            aria-valuenow="-80"
-                        >
-                            <span class="tuner-input-level-fill"></span>
-                            <span class="tuner-input-threshold-marker" aria-hidden="true"></span>
+                <section class="tuner-input-settings" aria-label="入力設定">
+                    <button
+                        id="tuner-input-settings-toggle"
+                        class="tuner-input-settings-toggle"
+                        type="button"
+                        aria-expanded="false"
+                        aria-controls="tuner-input-settings-panel"
+                    >
+                        <span>入力設定</span><span class="tuner-input-settings-chevron" aria-hidden="true">⌄</span>
+                    </button>
+                    <div id="tuner-input-settings-panel" class="tuner-input-tools" hidden>
+                        <div id="tuner-input-level-wrap" class="tuner-input-level-wrap" hidden>
+                            <p class="tuner-input-label">入力レベル</p>
+                            <div
+                                id="tuner-input-level"
+                                class="tuner-input-level"
+                                role="meter"
+                                aria-label="マイクの入力レベル"
+                                aria-valuemin="-80"
+                                aria-valuemax="-18"
+                                aria-valuenow="-80"
+                            >
+                                <span class="tuner-input-level-fill"></span>
+                                <span class="tuner-input-threshold-marker" aria-hidden="true"></span>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="tuner-threshold-control">
-                        <div class="tuner-threshold-heading">
-                            <label for="tuner-threshold">検出閾値</label>
-                            <output id="tuner-threshold-value" for="tuner-threshold">-68 dB</output>
+                        <div class="tuner-threshold-control">
+                            <div class="tuner-threshold-heading">
+                                <label for="tuner-threshold">検出閾値</label>
+                                <output id="tuner-threshold-value" for="tuner-threshold">-68 dB</output>
+                            </div>
+                            <input
+                                id="tuner-threshold"
+                                type="range"
+                                min="-80"
+                                max="-40"
+                                step="1"
+                                value="-68"
+                                aria-valuetext="-68 dBFS。左ほど高感度、右ほど低感度"
+                            >
+                            <div class="tuner-threshold-labels" aria-hidden="true">
+                                <span>高感度（小さい音まで拾う）</span><span>低感度（大きい音だけ拾う）</span>
+                            </div>
+                            <p id="tuner-threshold-error" class="tuner-threshold-error" role="status"></p>
                         </div>
-                        <input
-                            id="tuner-threshold"
-                            type="range"
-                            min="-80"
-                            max="-40"
-                            step="1"
-                            value="-68"
-                            aria-valuetext="-68 dBFS。左ほど高感度、右ほど低感度"
-                        >
-                        <div class="tuner-threshold-labels" aria-hidden="true">
-                            <span>高感度（小さい音まで拾う）</span><span>低感度（大きい音だけ拾う）</span>
-                        </div>
-                        <p id="tuner-threshold-error" class="tuner-threshold-error" role="status"></p>
                     </div>
-                </div>
+                </section>
 
                 <p id="tuner-error" class="notice notice-error tuner-error" role="alert" hidden></p>
                 <p id="tuner-status" class="tuner-status" aria-live="polite">マイクは停止中です</p>
