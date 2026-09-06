@@ -153,4 +153,20 @@ class FakeAudioContext {
     assert.equal(controller.getState().hasContext, false, 'invalid cards never allocate audio resources');
 }
 
+{
+    const audioSession = { type: 'play-and-record' };
+    const controller = createTunerPreviewAudioController({
+        environment: {
+            AudioContextClass: FakeAudioContext,
+            navigatorObject: { audioSession }
+        }
+    });
+    assert.equal(await controller.play({ targetFrequency: 82.4068892282175 }), true, 'preview plays while microphone capture owns the session');
+    assert.equal(audioSession.type, 'play-and-record', 'preview does not replace an active capture session with playback');
+    controller.stop(0);
+    assert.equal(await controller.play({ targetFrequency: 110 }), true, 'preview still plays after microphone stop without an extra session transition');
+    assert.equal(audioSession.type, 'play-and-record');
+    controller.destroy();
+}
+
 console.log('tuner-preview-audio: acoustic guitar preview and lifecycle tests passed');

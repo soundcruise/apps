@@ -27,7 +27,10 @@ export function createTunerPreviewAudioController({ environment = {} } = {}) {
 
     function requestPlaybackAudioSession() {
         try {
-            if (platform.navigatorObject?.audioSession) platform.navigatorObject.audioSession.type = 'playback';
+            const audioSession = platform.navigatorObject?.audioSession;
+            if (audioSession && 'type' in audioSession && audioSession.type !== 'play-and-record') {
+                audioSession.type = 'playback';
+            }
         } catch (_) { /* Audio Session is optional. */ }
     }
 

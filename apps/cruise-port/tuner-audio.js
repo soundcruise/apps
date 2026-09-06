@@ -290,6 +290,12 @@ export function createTunerAudioController({
         }
     }
 
+    function requestCaptureAudioSession() {
+        const audioSession = platform.navigatorObject?.audioSession;
+        if (!audioSession || !('type' in audioSession)) return;
+        audioSession.type = 'play-and-record';
+    }
+
     async function startInternal(startGeneration) {
         const mediaDevices = platform.navigatorObject?.mediaDevices;
         if (!mediaDevices || typeof mediaDevices.getUserMedia !== 'function') {
@@ -333,6 +339,7 @@ export function createTunerAudioController({
                 throw controllerError('audio-context-failed', 'AudioContext returned an invalid sample rate.');
             }
 
+            requestCaptureAudioSession();
             localStream = await mediaDevices.getUserMedia(TUNER_AUDIO_CONSTRAINTS);
             if (!isCurrent(startGeneration)) {
                 stopStreamTracks(localStream);

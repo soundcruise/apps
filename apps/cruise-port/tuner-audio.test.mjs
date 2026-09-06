@@ -146,6 +146,7 @@ function createContextClass({
 function createHarness({
     getUserMedia,
     getSupportedConstraints,
+    audioSession,
     ContextClass,
     detectorFactory,
     detailedDetectorFactory,
@@ -173,6 +174,7 @@ function createHarness({
         rmsThreshold,
         environment: {
             navigatorObject: {
+                ...(audioSession ? { audioSession } : {}),
                 mediaDevices: {
                     getUserMedia: (constraints) => {
                         getUserMediaCalls += 1;
@@ -204,6 +206,61 @@ function createHarness({
         get getUserMediaCalls() { return getUserMediaCalls; },
         requestedConstraints
     };
+}
+
+{
+    const calls = [];
+    let audioSessionType = 'playback';
+    const audioSession = {};
+    Object.defineProperty(audioSession, 'type', {
+        enumerable: true,
+        get: () => audioSessionType,
+        set(value) {
+            audioSessionType = value;
+            calls.push(`audioSession:${value}`);
+        }
+    });
+    const harness = createHarness({
+        audioSession,
+        getUserMedia: async () => {
+            calls.push('getUserMedia');
+            return createStream();
+        }
+    });
+    assert.equal(await harness.controller.start(), true, 'preview playback state can transition to microphone capture');
+    assert.equal(audioSession.type, 'play-and-record');
+    assert.deepEqual(calls, ['audioSession:play-and-record', 'getUserMedia'], 'capture session is requested before getUserMedia');
+    await harness.controller.stop();
+}
+
+{
+    const harness = createHarness();
+    assert.equal(await harness.controller.start(), true, 'browsers without Audio Session API keep the existing microphone path');
+    assert.equal(harness.getUserMediaCalls, 1);
+    await harness.controller.stop();
+}
+
+{
+    const errors = [];
+    const ContextClass = createContextClass();
+    const audioSession = {};
+    const failure = new Error('Audio Session type could not be changed.');
+    failure.name = 'InvalidStateError';
+    Object.defineProperty(audioSession, 'type', {
+        enumerable: true,
+        get: () => 'playback',
+        set() { throw failure; }
+    });
+    const harness = createHarness({
+        audioSession,
+        ContextClass,
+        onError: (error) => errors.push(error)
+    });
+    assert.equal(await harness.controller.start(), false, 'Audio Session assignment failures use the existing error path');
+    assert.equal(harness.getUserMediaCalls, 0, 'failed Audio Session assignment does not request a microphone stream');
+    assert.equal(harness.controller.getState().status, 'error');
+    assert.equal(errors[0].code, 'unknown');
+    assert.equal(ContextClass.instances[0].closeCalls, 1, 'failed Audio Session assignment closes the microphone context');
 }
 
 {
