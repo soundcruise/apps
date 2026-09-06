@@ -235,6 +235,15 @@
                         <input id="my-apps-url" name="url" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://open.spotify.com/" required>
                     </div>
 
+                    <div id="my-apps-direct-launch" class="my-apps-direct-launch" hidden>
+                        <p id="my-apps-direct-recognition" class="my-apps-direct-recognition"></p>
+                        <label class="my-apps-direct-toggle" for="my-apps-direct-enabled">
+                            <input id="my-apps-direct-enabled" type="checkbox" aria-describedby="my-apps-direct-description">
+                            <span>アプリを直接開く</span>
+                        </label>
+                        <p id="my-apps-direct-description" class="my-apps-direct-description">対応している端末では、Webページではなくアプリを開きます。</p>
+                    </div>
+
                     <div class="form-field my-apps-icon-field">
                         <span class="form-field-label">アイコン <span class="optional-label">任意・15MB以内</span></span>
                         <div class="my-apps-icon-editor">

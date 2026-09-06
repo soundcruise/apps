@@ -1,6 +1,7 @@
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
+import { getKnownApp } from './my-apps-known-apps.js?v=1.0.0';
 
-export const MY_APPS_SCHEMA_VERSION = 3;
+export const MY_APPS_SCHEMA_VERSION = 4;
 export const MY_APPS_STORAGE_KEY = 'cruisePort.myApps';
 
 export const MY_APPS_LIMITS = Object.freeze({
@@ -16,6 +17,18 @@ const ITEM_KEYS_V3 = Object.freeze([
     'id',
     'name',
     'url',
+    'iconId',
+    'iconSourceId',
+    'iconCrop',
+    'createdAt',
+    'updatedAt'
+]);
+const ITEM_KEYS_V4 = Object.freeze([
+    'id',
+    'name',
+    'url',
+    'launchMode',
+    'appKey',
     'iconId',
     'iconSourceId',
     'iconCrop',
@@ -68,15 +81,30 @@ export function validateMyAppValues(values) {
 
     const urlResult = normalizeMyAppUrl(values?.url);
     if (!urlResult.ok) return urlResult;
-    return { ok: true, values: { name, url: urlResult.url } };
+    const launchMode = values?.launchMode ?? 'https';
+    const appKey = values?.appKey ?? null;
+    if (
+        !['https', 'known-app'].includes(launchMode)
+        || (launchMode === 'https' && appKey !== null)
+        || (launchMode === 'known-app' && !getKnownApp(appKey))
+    ) {
+        return { ok: false, reason: 'invalid-launch' };
+    }
+    return { ok: true, values: { name, url: urlResult.url, launchMode, appKey } };
 }
 
 function hasExactKeys(item, keys) {
     return Object.keys(item).length === keys.length && keys.every((key) => Object.hasOwn(item, key));
 }
 
-function isValidItem(item, version = MY_APPS_SCHEMA_VERSION) {
-    const expectedKeys = version === 1 ? ITEM_KEYS_V1 : version === 2 ? ITEM_KEYS_V2 : ITEM_KEYS_V3;
+function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, { allowUnknownAppKey = false } = {}) {
+    const expectedKeys = version === 1
+        ? ITEM_KEYS_V1
+        : version === 2
+            ? ITEM_KEYS_V2
+            : version === 3
+                ? ITEM_KEYS_V3
+                : ITEM_KEYS_V4;
     if (
         !item
         || typeof item !== 'object'
@@ -97,7 +125,7 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION) {
         return false;
     }
 
-    if (version === MY_APPS_SCHEMA_VERSION) {
+    if (version >= 3) {
         const validSourceId = item.iconSourceId === null || (
             typeof item.iconSourceId === 'string'
             && item.iconSourceId.length > 0
@@ -111,7 +139,23 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION) {
         if (!validSourceId || !validImageState) return false;
     }
 
-    const valuesResult = validateMyAppValues({ name: item.name, url: item.url });
+    if (version === MY_APPS_SCHEMA_VERSION) {
+        const validLaunch = item.launchMode === 'https'
+            ? item.appKey === null
+            : item.launchMode === 'known-app'
+                && typeof item.appKey === 'string'
+                && item.appKey.length > 0
+                && item.appKey.length <= 80
+                && (allowUnknownAppKey || Boolean(getKnownApp(item.appKey)));
+        if (!validLaunch) return false;
+    }
+
+    const valuesResult = validateMyAppValues({
+        name: item.name,
+        url: item.url,
+        launchMode: version === MY_APPS_SCHEMA_VERSION && !allowUnknownAppKey ? item.launchMode : 'https',
+        appKey: version === MY_APPS_SCHEMA_VERSION && !allowUnknownAppKey ? item.appKey : null
+    });
     return valuesResult.ok && valuesResult.values.url === item.url;
 }
 
@@ -151,23 +195,34 @@ export function loadMyApps(storage = window.localStorage) {
             !parsed
             || typeof parsed !== 'object'
             || Array.isArray(parsed)
-            || ![1, 2, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
+            || ![1, 2, 3, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
             || !Array.isArray(parsed.items)
             || parsed.items.length > MY_APPS_LIMITS.items
-            || !parsed.items.every((item) => isValidItem(item, storedVersion))
+            || !parsed.items.every((item) => isValidItem(item, storedVersion, { allowUnknownAppKey: true }))
             || !hasUniqueIds(parsed.items)
         ) {
             return { ok: false, items: [], reason: 'invalid-data' };
         }
-        const items = parsed.items.map((item) => ({
-            ...item,
-            iconId: storedVersion === 1 ? null : item.iconId,
-            iconSourceId: storedVersion < MY_APPS_SCHEMA_VERSION ? null : item.iconSourceId,
-            iconCrop: storedVersion < MY_APPS_SCHEMA_VERSION || item.iconCrop === null
-                ? null
-                : { ...item.iconCrop }
-        }));
-        return storedVersion < MY_APPS_SCHEMA_VERSION
+        let repairedUnknownAppKey = false;
+        const items = parsed.items.map((item) => {
+            const knownLaunch = storedVersion === MY_APPS_SCHEMA_VERSION
+                && item.launchMode === 'known-app'
+                && getKnownApp(item.appKey);
+            if (storedVersion === MY_APPS_SCHEMA_VERSION && item.launchMode === 'known-app' && !knownLaunch) {
+                repairedUnknownAppKey = true;
+            }
+            return {
+                ...item,
+                launchMode: knownLaunch ? 'known-app' : 'https',
+                appKey: knownLaunch ? item.appKey : null,
+                iconId: storedVersion === 1 ? null : item.iconId,
+                iconSourceId: storedVersion < 3 ? null : item.iconSourceId,
+                iconCrop: storedVersion < 3 || item.iconCrop === null
+                    ? null
+                    : { ...item.iconCrop }
+            };
+        });
+        return storedVersion < MY_APPS_SCHEMA_VERSION || repairedUnknownAppKey
             ? { ok: true, items, migrated: true }
             : { ok: true, items };
     } catch (_) {

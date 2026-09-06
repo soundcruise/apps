@@ -579,6 +579,64 @@ h1::after {
     line-height: 1.75;
 }
 
+.my-apps-direct-launch {
+    margin-top: 20px;
+    padding: 14px 15px;
+    border: 1px solid rgba(207, 189, 148, 0.15);
+    border-radius: 13px;
+    background: rgba(205, 180, 116, 0.025);
+}
+
+.my-apps-direct-launch[hidden] {
+    display: none;
+}
+
+.my-apps-direct-recognition,
+.my-apps-direct-description {
+    margin: 0;
+    line-height: 1.55;
+}
+
+.my-apps-direct-recognition {
+    color: rgba(230, 210, 155, 0.82);
+    font-size: 0.74rem;
+}
+
+.my-apps-direct-toggle {
+    display: inline-flex;
+    min-height: 44px;
+    margin: 4px 0 0;
+    align-items: center;
+    gap: 10px;
+    color: var(--port-text);
+    font-size: 0.86rem;
+    font-weight: 620;
+    cursor: pointer;
+}
+
+.my-apps-direct-toggle input {
+    width: 19px;
+    min-height: 19px;
+    margin: 0;
+    padding: 0;
+    accent-color: var(--port-gold);
+}
+
+.my-apps-direct-toggle input:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
+}
+
+.my-apps-direct-toggle input:disabled {
+    cursor: wait;
+    opacity: 0.55;
+}
+
+.my-apps-direct-description {
+    color: var(--port-muted);
+    font-size: 0.7rem;
+}
+
 .form-field-label {
     display: block;
     margin-bottom: 8px;

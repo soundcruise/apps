@@ -52,7 +52,12 @@ const oldIconId = '54a101c7-d015-48ef-bbaa-339beab422f4';
 const oldSourceId = 'f9433150-03c8-4d99-a6f2-7e444345f8c5';
 const newIconId = 'ce3006d8-c1a3-4316-a51d-7a13a8bb7462';
 const newSourceId = '7f110e06-e069-459a-b9ea-b166adfd6d08';
-const values = { name: 'Spotify', url: 'https://open.spotify.com/' };
+const values = {
+    name: 'Spotify',
+    url: 'https://open.spotify.com/',
+    launchMode: 'https',
+    appKey: null
+};
 const crop = { x: 0.25, y: 0.1, size: 0.5 };
 const nextCrop = { x: 0.1, y: 0.2, size: 0.4 };
 const baseItem = {

@@ -35,13 +35,17 @@ const baseItem = Object.freeze({
     id: 'b2cd4d9e-4f14-47e1-8cc2-9623f0a18cc9',
     name: 'Spotify',
     url: 'https://open.spotify.com/',
+    launchMode: 'https',
+    appKey: null,
     iconId: null,
     iconSourceId: null,
     iconCrop: null,
     createdAt,
     updatedAt
 });
-const { iconSourceId: omittedSourceId, iconCrop: omittedCrop, ...v2ItemValues } = baseItem;
+const { launchMode: omittedLaunchMode, appKey: omittedAppKey, ...v3ItemValues } = baseItem;
+const v3Item = Object.freeze(v3ItemValues);
+const { iconSourceId: omittedSourceId, iconCrop: omittedCrop, ...v2ItemValues } = v3Item;
 const v2Item = Object.freeze(v2ItemValues);
 const { iconId: omittedIconId, ...v1ItemValues } = v2Item;
 const v1Item = Object.freeze(v1ItemValues);
@@ -55,10 +59,10 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
         ok: true,
         items: [baseItem],
         migrated: true
-    }, 'v1 metadata is migrated to v3 null image fields in memory');
+    }, 'v1 metadata is migrated to v4 defaults in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v1 load does not rewrite storage');
     assert.deepEqual(saveMyApps(loadMyApps(storage).items, storage), { ok: true });
-    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 3, 'next explicit save writes v3');
+    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 4, 'next explicit save writes v4');
 }
 
 {
@@ -67,10 +71,27 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
-        items: [{ ...v2WithIcon, iconSourceId: null, iconCrop: null }],
+        items: [{ ...v2WithIcon, launchMode: 'https', appKey: null, iconSourceId: null, iconCrop: null }],
         migrated: true
     }, 'v2 metadata preserves its final icon and adds null source/crop in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v2 load does not rewrite storage');
+}
+
+{
+    const v3WithIcon = {
+        ...v3Item,
+        iconId: '56582913-4b14-4ae4-95f6-af8367858f6d',
+        iconSourceId: '38d1c7d2-5248-4df7-aa11-7d8e8c96b58f',
+        iconCrop: { x: 0.25, y: 0.1, size: 0.5 }
+    };
+    const raw = JSON.stringify({ version: 3, items: [v3WithIcon] });
+    const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
+    assert.deepEqual(loadMyApps(storage), {
+        ok: true,
+        items: [{ ...v3WithIcon, launchMode: 'https', appKey: null }],
+        migrated: true
+    }, 'v3 metadata preserves all icon data and adds safe launch defaults');
+    assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v3 load does not rewrite storage');
 }
 
 {
@@ -79,7 +100,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     assert.deepEqual(loadMyApps(storage), { ok: true, items: [baseItem] }, 'saved data persists across reload');
     const withIcon = { ...baseItem, iconId: '56582913-4b14-4ae4-95f6-af8367858f6d' };
     assert.deepEqual(saveMyApps([withIcon], storage), { ok: true });
-    assert.deepEqual(loadMyApps(storage), { ok: true, items: [withIcon] }, 'legacy iconId remains valid in v3');
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: [withIcon] }, 'legacy iconId remains valid in v4');
     const editableIcon = {
         ...withIcon,
         iconSourceId: '38d1c7d2-5248-4df7-aa11-7d8e8c96b58f',
@@ -124,7 +145,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 {
     const second = { ...baseItem, id: 'e4a121b3-20af-4961-92f6-126b5b1c5e1d', name: 'Notion' };
     const storage = new FakeStorage();
-    assert.deepEqual(saveMyApps([baseItem, second], storage), { ok: true }, 'multiple v3 items validate independently of their array index');
+    assert.deepEqual(saveMyApps([baseItem, second], storage), { ok: true }, 'multiple v4 items validate independently of their array index');
     const moved = moveMyApp([baseItem, second], second.id, -1);
     assert.equal(moved.moved, true, 'item can be reordered');
     assert.deepEqual(moved.items.map((item) => item.id), [second.id, baseItem.id]);
@@ -135,7 +156,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 for (const raw of [
     '{',
     JSON.stringify({ items: [] }),
-    JSON.stringify({ version: 4, items: [] }),
+    JSON.stringify({ version: 5, items: [] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{}] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, url: 'http://example.com/' }] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconId: 42 }] }),
@@ -145,6 +166,30 @@ for (const raw of [
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.equal(loadMyApps(storage).ok, false, 'malformed or unsupported stored data is rejected without rewrite');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw);
+}
+
+{
+    const knownAppItem = { ...baseItem, launchMode: 'known-app', appKey: 'spotify' };
+    const storage = new FakeStorage();
+    assert.deepEqual(saveMyApps([knownAppItem], storage), { ok: true }, 'known registry app can be saved');
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: [knownAppItem] });
+    assert.equal(
+        saveMyApps([{ ...knownAppItem, appKey: 'removed-app' }], storage).ok,
+        false,
+        'unknown appKey cannot be written'
+    );
+}
+
+{
+    const unknownAppItem = { ...baseItem, launchMode: 'known-app', appKey: 'removed-app' };
+    const raw = JSON.stringify({ version: 4, items: [unknownAppItem] });
+    const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
+    assert.deepEqual(loadMyApps(storage), {
+        ok: true,
+        items: [baseItem],
+        migrated: true
+    }, 'unknown stored appKey falls back to HTTPS in memory');
+    assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'safe fallback does not rewrite storage automatically');
 }
 
 assert.equal(validateMyAppValues({ name: '', url: 'https://example.com' }).ok, false, 'empty name is rejected');
@@ -171,7 +216,7 @@ for (const url of [
 const appSource = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
 const markup = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
-assert.match(appSource, /card\.href = item\.url/);
+assert.match(appSource, /card\.href = resolveMyAppHref\(item, myAppsPlatform\)/);
 assert.match(appSource, /name\.textContent = item\.name/);
 assert.match(appSource, /#my-apps\/manage/);
 assert.match(appSource, /#my-apps\/new/);
@@ -182,6 +227,8 @@ assert.match(markup, /id="my-apps-icon-input"[^>]+type="file"[^>]+accept="image\
 assert.doesNotMatch(markup, /id="my-apps-icon-input"[^>]+capture/);
 assert.match(markup, /id="my-apps-icon-preview"[^>]+type="button"[^>]+aria-label="現在のアイコンを調整"[^>]+disabled/);
 assert.match(markup, /id="my-apps-icon-adjust-hint"[^>]*>タップして調整/);
+assert.match(markup, /id="my-apps-direct-enabled"[^>]+type="checkbox"[^>]+aria-describedby="my-apps-direct-description"/);
+assert.match(markup, /対応している端末では、Webページではなくアプリを開きます。/);
 assert.match(markup, /id="my-apps-crop-dialog"[^>]+role="dialog"[^>]+aria-modal="true"/);
 assert.match(markup, /id="my-apps-crop-canvas"[^>]+width="320"[^>]+height="320"/);
 assert.match(markup, /id="my-apps-crop-slider"[^>]+type="range"/);
@@ -190,6 +237,8 @@ assert.match(appSource, /addEventListener\('pointermove', handleCropPointerMove\
 assert.match(appSource, /encodePreparedMyAppIcon\(session\.prepared, cropState\)/);
 assert.match(appSource, /myAppsIconPreview\.addEventListener\('click', handleCurrentMyAppsIconAdjustment\)/);
 assert.match(appSource, /myAppsIconStore\.getIcon\(item\.iconSourceId\)/);
+assert.match(appSource, /recognizeKnownAppUrl\(elements\.myAppsUrlInput\.value\)/);
+assert.match(appSource, /updateMyAppsDirectLaunchRecognition\(null, \{ preserveSelection: true \}\)/);
 assert.match(appSource, /useCurrentIconAsSource = true/);
 assert.match(appSource, /closeMyAppsCropEditor\(\{ restoreStatus: false, restoreFocus: false \}\)/);
 assert.match(styles, /\.my-apps-manage-card,[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);

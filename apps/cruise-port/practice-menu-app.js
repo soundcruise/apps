@@ -15,6 +15,14 @@ import {
     saveMyApps,
     validateMyAppValues
 } from './my-apps-store.js?v=3.0.0';
+import {
+    getKnownApp,
+    recognizeKnownAppUrl
+} from './my-apps-known-apps.js?v=1.0.0';
+import {
+    detectMyAppsPlatform,
+    resolveMyAppHref
+} from './my-apps-launch.js?v=1.0.0';
 import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.0.0';
 import {
     encodePreparedMyAppIcon,
@@ -92,6 +100,9 @@ const elements = {
     myAppsForm: document.querySelector('#my-apps-form'),
     myAppsNameInput: document.querySelector('#my-apps-name'),
     myAppsUrlInput: document.querySelector('#my-apps-url'),
+    myAppsDirectLaunch: document.querySelector('#my-apps-direct-launch'),
+    myAppsDirectRecognition: document.querySelector('#my-apps-direct-recognition'),
+    myAppsDirectEnabled: document.querySelector('#my-apps-direct-enabled'),
     myAppsIconInput: document.querySelector('#my-apps-icon-input'),
     myAppsIconSelectLabel: document.querySelector('#my-apps-icon-select-label'),
     myAppsIconPreview: document.querySelector('#my-apps-icon-preview'),
@@ -136,12 +147,14 @@ const myAppsState = {
     saving: false,
     cropSession: null,
     cropState: null,
-    cropPointers: new Map()
+    cropPointers: new Map(),
+    recognizedAppKey: null
 };
 
 let metronomeController = null;
 let tunerController = null;
 const myAppsIconStore = createMyAppsIconStore();
+const myAppsPlatform = detectMyAppsPlatform();
 const myAppsObjectUrls = {
     home: new Set(),
     manage: new Set(),
@@ -170,6 +183,7 @@ function cleanupMyAppsFormState() {
     myAppsState.useCurrentIconAsSource = false;
     myAppsState.iconProcessing = false;
     myAppsState.saving = false;
+    myAppsState.recognizedAppKey = null;
 }
 
 function showView(view) {
@@ -340,7 +354,7 @@ function renderMyAppCard(item) {
     const external = document.createElement('span');
 
     card.className = 'port-card skeleton-card tool-card my-app-launch-card';
-    card.href = item.url;
+    card.href = resolveMyAppHref(item, myAppsPlatform);
     card.setAttribute('aria-label', `${item.name}を開く（外部アプリまたはWebサイト）`);
     name.className = 'card-name';
     name.textContent = item.name;
@@ -506,6 +520,7 @@ function fillMyAppsForm(item = null) {
     elements.myAppsForm.reset();
     elements.myAppsNameInput.value = item?.name || '';
     elements.myAppsUrlInput.value = item?.url || '';
+    updateMyAppsDirectLaunchRecognition(item);
     elements.myAppsDelete.hidden = !item;
     elements.myAppsIconSelectLabel.textContent = item?.iconId ? '画像を変更' : '画像を選択';
     elements.myAppsIconRemove.hidden = !item?.iconId;
@@ -516,6 +531,31 @@ function fillMyAppsForm(item = null) {
     setMyAppsFormBusy(false);
 }
 
+function updateMyAppsDirectLaunchRecognition(item = null, { preserveSelection = false } = {}) {
+    const recognition = recognizeKnownAppUrl(elements.myAppsUrlInput.value);
+    const existingApp = item?.launchMode === 'known-app' ? getKnownApp(item.appKey) : null;
+    const knownApp = recognition?.app || existingApp;
+    const previousAppKey = myAppsState.recognizedAppKey;
+    const keepChecked = preserveSelection
+        && Boolean(knownApp)
+        && previousAppKey === knownApp.key
+        && elements.myAppsDirectEnabled.checked;
+
+    if (!knownApp) {
+        myAppsState.recognizedAppKey = null;
+        elements.myAppsDirectEnabled.checked = false;
+        elements.myAppsDirectLaunch.hidden = true;
+        elements.myAppsDirectRecognition.textContent = '';
+        return;
+    }
+
+    myAppsState.recognizedAppKey = knownApp.key;
+    elements.myAppsDirectEnabled.checked = keepChecked
+        || Boolean(item?.launchMode === 'known-app' && item.appKey === knownApp.key);
+    elements.myAppsDirectRecognition.textContent = `${knownApp.name}を認識しました`;
+    elements.myAppsDirectLaunch.hidden = false;
+}
+
 function setMyAppsFormBusy(busy) {
     myAppsState.saving = busy && !myAppsState.iconProcessing;
     elements.myAppsSubmit.disabled = busy;
@@ -523,6 +563,7 @@ function setMyAppsFormBusy(busy) {
     elements.myAppsIconInput.disabled = busy;
     elements.myAppsIconRemove.disabled = busy;
     elements.myAppsIconPreview.disabled = busy || !elements.myAppsIconPreview.dataset.adjustable;
+    elements.myAppsDirectEnabled.disabled = busy;
     elements.myAppsDelete.disabled = busy;
     elements.myAppsFormBack.disabled = busy;
     elements.myAppsForm.querySelectorAll('[data-action="cancel-my-apps-form"]').forEach((button) => {
@@ -854,9 +895,14 @@ function renderMyAppsForm(mode, id = null) {
 }
 
 function readMyAppsFormValues() {
+    const appKey = !elements.myAppsDirectLaunch.hidden && elements.myAppsDirectEnabled.checked
+        ? myAppsState.recognizedAppKey
+        : null;
     const valuesResult = validateMyAppValues({
         name: elements.myAppsNameInput.value,
-        url: elements.myAppsUrlInput.value
+        url: elements.myAppsUrlInput.value,
+        launchMode: appKey ? 'known-app' : 'https',
+        appKey
     });
     if (valuesResult.ok) return valuesResult;
     if (valuesResult.reason === 'invalid-name') {
@@ -1206,6 +1252,9 @@ elements.myAppsManage.addEventListener('click', () => setHashRoute('#my-apps/man
 elements.myAppsForm.addEventListener('submit', handleMyAppsSubmit);
 elements.myAppsDelete.addEventListener('click', handleMyAppsDelete);
 elements.myAppsIconInput.addEventListener('change', handleMyAppsIconSelection);
+elements.myAppsUrlInput.addEventListener('input', () => {
+    updateMyAppsDirectLaunchRecognition(null, { preserveSelection: true });
+});
 elements.myAppsIconRemove.addEventListener('click', removeMyAppsIcon);
 elements.myAppsIconPreview.addEventListener('click', handleCurrentMyAppsIconAdjustment);
 elements.myAppsCropCanvas.addEventListener('pointerdown', handleCropPointerDown);
