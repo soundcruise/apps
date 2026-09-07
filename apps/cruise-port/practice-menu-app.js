@@ -15,6 +15,11 @@ import {
     resolvePracticeMenuApp
 } from './practice-menu-app-resolver.js?v=1.0.0';
 import {
+    HOME_HISTORY_MODE,
+    safeDecodeRouteSegment,
+    updateHomeHistory
+} from './practice-menu-navigation.js?v=1.0.0';
+import {
     MY_APPS_LIMITS,
     loadMyApps,
     moveMyApp,
@@ -262,7 +267,12 @@ function findItem(id) {
 }
 
 function setHomeRoute() {
-    history.pushState(null, '', `${location.pathname}${location.search}`);
+    updateHomeHistory({ mode: HOME_HISTORY_MODE.push });
+    renderRoute();
+}
+
+function replaceHomeRoute() {
+    updateHomeHistory({ mode: HOME_HISTORY_MODE.replace });
     renderRoute();
 }
 
@@ -516,7 +526,7 @@ function renderMyAppsManageCard(item) {
 
 function renderMyAppsManage() {
     if (!myAppsState.storageReady) {
-        setHomeRoute();
+        replaceHomeRoute();
         return;
     }
     cleanupMyAppsObjectUrls('manage');
@@ -1107,7 +1117,7 @@ function removeMyAppsIcon() {
 
 function renderMyAppsForm(mode, id = null) {
     if (!myAppsState.storageReady) {
-        setHomeRoute();
+        replaceHomeRoute();
         return;
     }
     const item = mode === 'edit' ? findMyApp(id) : null;
@@ -1345,7 +1355,7 @@ function completeReorder() {
 function renderDetail(id) {
     const item = findItem(id);
     if (!item) {
-        setHomeRoute();
+        replaceHomeRoute();
         return;
     }
 
@@ -1421,11 +1431,11 @@ function fillForm(item = null) {
 function renderForm(mode, id = null) {
     const item = mode === 'edit' ? findItem(id) : null;
     if (mode === 'edit' && !item) {
-        setHomeRoute();
+        replaceHomeRoute();
         return;
     }
     if (!state.storageReady) {
-        setHomeRoute();
+        replaceHomeRoute();
         return;
     }
 
@@ -1448,11 +1458,9 @@ function renderRoute() {
     } else if (hash === '#my-apps/new') {
         renderMyAppsForm('create');
     } else if (myAppsEditMatch) {
-        try {
-            renderMyAppsForm('edit', decodeURIComponent(myAppsEditMatch[1]));
-        } catch (_) {
-            renderMyAppsNotFound();
-        }
+        const id = safeDecodeRouteSegment(myAppsEditMatch[1]);
+        if (id === null) replaceHomeRoute();
+        else renderMyAppsForm('edit', id);
     } else if (hash === '#practice-menu/new') {
         renderForm('create');
     } else if (hash === '#tuner') {
@@ -1460,9 +1468,15 @@ function renderRoute() {
     } else if (hash === '#metronome') {
         showView(elements.metronomeView);
     } else if (editMatch) {
-        renderForm('edit', decodeURIComponent(editMatch[1]));
+        const id = safeDecodeRouteSegment(editMatch[1]);
+        if (id === null) replaceHomeRoute();
+        else renderForm('edit', id);
     } else if (detailMatch) {
-        renderDetail(decodeURIComponent(detailMatch[1]));
+        const id = safeDecodeRouteSegment(detailMatch[1]);
+        if (id === null) replaceHomeRoute();
+        else renderDetail(id);
+    } else if (hash) {
+        replaceHomeRoute();
     } else {
         renderHome();
     }
@@ -1553,7 +1567,7 @@ function handleDelete() {
         return;
     }
     state.items = deleteResult.items;
-    setHomeRoute();
+    replaceHomeRoute();
 }
 
 elements.addButton.addEventListener('click', () => setHashRoute('#practice-menu/new'));
