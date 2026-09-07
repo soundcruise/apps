@@ -723,6 +723,57 @@ h1::after {
     font-size: 0.64rem;
 }
 
+/* Temporary U1.3 comparison: Cruise Apps and uploaded/external images stay at
+   their formal size. Only Tool, preset, and generic Cruise Port icons shrink. */
+#home-view { --icon-scale-preview: 1; }
+#home-view[data-icon-scale-preview="90"] { --icon-scale-preview: 0.9; }
+#home-view[data-icon-scale-preview="80"] { --icon-scale-preview: 0.8; }
+#home-view[data-icon-scale-preview="70"] { --icon-scale-preview: 0.7; }
+
+#home-view[data-display-size="large"] .tool-card .skeleton-icon {
+    width: calc(80px * var(--icon-scale-preview));
+    height: calc(80px * var(--icon-scale-preview));
+}
+
+#home-view[data-display-size="large"] .my-app-icon--preset,
+#home-view[data-display-size="large"] .my-app-icon--generic {
+    width: calc(86px * var(--icon-scale-preview));
+    height: calc(86px * var(--icon-scale-preview));
+}
+
+#home-view[data-display-size="standard"] .tool-card .skeleton-icon {
+    width: calc(84px * var(--icon-scale-preview));
+    height: calc(84px * var(--icon-scale-preview));
+}
+
+#home-view[data-display-size="standard"] .my-app-icon--preset,
+#home-view[data-display-size="standard"] .my-app-icon--generic {
+    width: calc(90px * var(--icon-scale-preview));
+    height: calc(90px * var(--icon-scale-preview));
+}
+
+#home-view[data-display-size="small"] .tool-card .skeleton-icon {
+    width: calc(56px * var(--icon-scale-preview));
+    height: calc(56px * var(--icon-scale-preview));
+}
+
+#home-view[data-display-size="small"] .my-app-icon--preset,
+#home-view[data-display-size="small"] .my-app-icon--generic {
+    width: calc(60px * var(--icon-scale-preview));
+    height: calc(60px * var(--icon-scale-preview));
+}
+
+#home-view[data-display-size="xsmall"] .tool-card .skeleton-icon {
+    width: calc(36px * var(--icon-scale-preview));
+    height: calc(36px * var(--icon-scale-preview));
+}
+
+#home-view[data-display-size="xsmall"] .my-app-icon--preset,
+#home-view[data-display-size="xsmall"] .my-app-icon--generic {
+    width: calc(39px * var(--icon-scale-preview));
+    height: calc(39px * var(--icon-scale-preview));
+}
+
 .my-app-external-mark {
     position: absolute;
     top: 10px;

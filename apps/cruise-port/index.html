@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.12.2">
+    <link rel="stylesheet" href="./style.css?v=1.12.3">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.12.2"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.12.3"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -109,6 +109,17 @@
                         <button type="button" class="settings-choice" data-display-size="xsmall" role="radio" aria-checked="false"><span>極小</span><small>6列</small></button>
                     </div>
                     <p id="settings-storage-error" class="notice notice-error" role="alert" hidden></p>
+                </section>
+                <section class="settings-card" aria-labelledby="icon-scale-preview-title">
+                    <h2 id="icon-scale-preview-title">アイコンサイズ比較</h2>
+                    <p>ToolとMy Appsのシンプルなアイコンだけを、実機で比較できます。</p>
+                    <div class="settings-choices" role="radiogroup" aria-label="アイコンサイズ比較">
+                        <button type="button" class="settings-choice" data-icon-scale-preview="100" role="radio" aria-checked="true"><span>現状</span><small>100%</small></button>
+                        <button type="button" class="settings-choice" data-icon-scale-preview="90" role="radio" aria-checked="false"><span>90%</span></button>
+                        <button type="button" class="settings-choice" data-icon-scale-preview="80" role="radio" aria-checked="false"><span>80%</span></button>
+                        <button type="button" class="settings-choice" data-icon-scale-preview="70" role="radio" aria-checked="false"><span>70%</span></button>
+                    </div>
+                    <p id="icon-scale-preview-storage-error" class="notice notice-error" role="alert" hidden></p>
                 </section>
             </section>
         </main>

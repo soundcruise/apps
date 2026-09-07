@@ -72,12 +72,15 @@ import {
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.3';
+import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
 import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
 } from './app-version.js?v=1.12.2';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
+import { applyHomeIconScalePreview } from './home-icon-scale-preview.js?v=1.0.0';
+import { loadIconScalePreview, saveIconScalePreview } from './icon-scale-preview-store.js?v=1.0.0';
 import { loadSettings, saveSettings } from './settings-store.js?v=1.0.0';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
@@ -97,6 +100,8 @@ const elements = {
     settingsTitle: document.querySelector('#settings-title'),
     settingsStorageError: document.querySelector('#settings-storage-error'),
     settingsChoices: [...document.querySelectorAll('[data-display-size]')],
+    iconScalePreviewStorageError: document.querySelector('#icon-scale-preview-storage-error'),
+    iconScalePreviewChoices: [...document.querySelectorAll('[data-icon-scale-preview]')],
     list: document.querySelector('#practice-menu-list'),
     addButton: document.querySelector('#practice-menu-add'),
     storageError: document.querySelector('#practice-storage-error'),
@@ -214,6 +219,8 @@ let tunerController = null;
 let pendingHomeScrollTarget = null;
 let homeSettings = { displaySize: 'standard' };
 let settingsStorageReady = true;
+let homeIconScalePreview = '100';
+let iconScalePreviewStorageReady = true;
 const myAppsIconStore = createMyAppsIconStore();
 const myAppsPlatform = detectMyAppsPlatform();
 const myAppsObjectUrls = {
@@ -420,6 +427,7 @@ function createMyAppIcon(item = null, scope = 'home') {
         : null;
 
     icon.className = 'skeleton-icon my-app-icon';
+    if (scope === 'home') icon.classList.add(`my-app-icon--${getMyAppHomeIconKind(item)}`);
     icon.setAttribute('aria-hidden', 'true');
     icon.append(presetGraphic || fallback);
     if (item?.iconId) hydrateMyAppIcon(icon, item.iconId, scope);
@@ -1484,9 +1492,20 @@ function renderSettings({ focus = true, storageError = '' } = {}) {
         button.setAttribute('aria-checked', selected ? 'true' : 'false');
         button.tabIndex = selected ? 0 : -1;
     });
+    const activeIconScale = applyHomeIconScalePreview(elements.homeView, homeIconScalePreview);
+    elements.iconScalePreviewChoices.forEach((button) => {
+        const selected = button.dataset.iconScalePreview === activeIconScale;
+        button.classList.toggle('is-selected', selected);
+        button.setAttribute('aria-checked', selected ? 'true' : 'false');
+        button.tabIndex = selected ? 0 : -1;
+    });
     showNotice(
         elements.settingsStorageError,
         storageError || (settingsStorageReady ? '' : '表示設定を読み込めませんでした。標準表示で開いています。')
+    );
+    showNotice(
+        elements.iconScalePreviewStorageError,
+        iconScalePreviewStorageReady ? '' : 'アイコンサイズ比較を読み込めませんでした。現状サイズで開いています。'
     );
     if (focus) elements.settingsTitle.focus({ preventScroll: true });
 }
@@ -1665,6 +1684,24 @@ elements.settingsChoices.forEach((button, index) => button.addEventListener('key
     const next = elements.settingsChoices[(index + offset + elements.settingsChoices.length) % elements.settingsChoices.length];
     next.click();
 }));
+elements.iconScalePreviewChoices.forEach((button) => button.addEventListener('click', () => {
+    const saveResult = saveIconScalePreview(button.dataset.iconScalePreview);
+    homeIconScalePreview = saveResult.value;
+    iconScalePreviewStorageReady = saveResult.ok;
+    applyHomeIconScalePreview(elements.homeView, homeIconScalePreview);
+    renderSettings({ focus: false });
+    if (!saveResult.ok) {
+        showNotice(elements.iconScalePreviewStorageError, 'アイコンサイズ比較を保存できませんでした。今回の表示には反映しています。');
+    }
+    button.focus({ preventScroll: true });
+}));
+elements.iconScalePreviewChoices.forEach((button, index) => button.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    const offset = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
+    const next = elements.iconScalePreviewChoices[(index + offset + elements.iconScalePreviewChoices.length) % elements.iconScalePreviewChoices.length];
+    next.click();
+}));
 elements.myAppsForm.addEventListener('submit', handleMyAppsSubmit);
 elements.myAppsDelete.addEventListener('click', handleMyAppsDelete);
 elements.myAppsIconInput.addEventListener('change', handleMyAppsIconSelection);
@@ -1763,6 +1800,10 @@ const settingsLoadResult = loadSettings();
 homeSettings = settingsLoadResult.settings;
 settingsStorageReady = settingsLoadResult.ok;
 applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
+const iconScalePreviewLoadResult = loadIconScalePreview();
+homeIconScalePreview = iconScalePreviewLoadResult.value;
+iconScalePreviewStorageReady = iconScalePreviewLoadResult.ok;
+applyHomeIconScalePreview(elements.homeView, homeIconScalePreview);
 metronomeController = initMetronome(elements.metronomeView);
 tunerController = initTuner(elements.tunerView);
 renderRoute();
