@@ -118,10 +118,95 @@
             <section class="view-panel wishlist-panel" aria-labelledby="wishlist-title">
                 <p class="view-kicker">ツール</p>
                 <h1 id="wishlist-title" class="view-title" tabindex="-1">機材リスト</h1>
-                <p class="wishlist-copy">自分の機材や、<br>これから欲しい機材を整理できる機能を準備中です。</p>
-                <div class="view-actions">
-                    <button class="action-button secondary-action" type="button" data-action="home">クルーズポートへ戻る</button>
+
+                <div class="gear-list-tabs" role="tablist" aria-label="機材リストの種類">
+                    <button id="gear-owned-tab" type="button" role="tab" aria-selected="true" aria-controls="gear-list-content" data-gear-status="owned">自分の機材</button>
+                    <button id="gear-wishlist-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="wishlist">ほしい物リスト</button>
                 </div>
+
+                <div id="gear-category-filter" class="gear-category-filter" aria-label="カテゴリで絞り込む"></div>
+                <p id="gear-list-storage-error" class="notice notice-error" role="alert" hidden></p>
+
+                <div id="gear-list-content" role="tabpanel" aria-labelledby="gear-owned-tab">
+                    <section id="gear-owned-preview" class="gear-owned-preview" aria-labelledby="gear-owned-preview-title" hidden>
+                        <h2 id="gear-owned-preview-title">今持っている機材</h2>
+                        <div id="gear-owned-preview-list" class="gear-owned-preview-list"></div>
+                        <p id="gear-owned-preview-empty" class="gear-owned-preview-empty" hidden>このカテゴリで登録済みの機材はありません</p>
+                    </section>
+
+                    <div class="gear-list-heading">
+                        <h2 id="gear-list-section-title">自分の機材</h2>
+                        <span id="gear-list-count" aria-live="polite"></span>
+                    </div>
+                    <div id="gear-list-items" class="gear-list-items"></div>
+                    <div id="gear-list-empty" class="gear-list-empty" hidden>
+                        <p id="gear-list-empty-message">まだ機材が登録されていません</p>
+                    </div>
+                    <button id="gear-list-add" class="action-button primary-action gear-list-add" type="button">＋ 機材を追加</button>
+                </div>
+            </section>
+        </main>
+
+        <main id="gear-form-view" class="port-view form-view gear-form-view" hidden>
+            <button class="view-back" type="button" data-action="gear-list">← 機材リスト</button>
+            <section class="view-panel" aria-labelledby="gear-form-title">
+                <p class="view-kicker">機材リスト</p>
+                <h1 id="gear-form-title" class="view-title" tabindex="-1">機材を追加</h1>
+
+                <form id="gear-list-form" novalidate>
+                    <div class="form-field">
+                        <label for="gear-name">名前 <span class="required-label">必須・100文字以内</span></label>
+                        <input id="gear-name" name="name" type="text" maxlength="100" autocomplete="off" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-category">カテゴリ <span class="required-label">必須</span></label>
+                        <select id="gear-category" name="category" required></select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-manufacturer">メーカー <span class="optional-label">任意・100文字以内</span></label>
+                        <input id="gear-manufacturer" name="manufacturer" type="text" maxlength="100" autocomplete="organization">
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-url">URL <span class="optional-label">任意・http / https</span></label>
+                        <input id="gear-url" name="url" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://example.com/item">
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-price">価格 <span class="optional-label">任意・円</span></label>
+                        <input id="gear-price" name="priceYen" type="number" min="0" step="1" inputmode="numeric" placeholder="198000">
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-status">リスト <span class="required-label">必須</span></label>
+                        <select id="gear-status" name="status" required>
+                            <option value="owned">自分の機材</option>
+                            <option value="wishlist">ほしい物リスト</option>
+                        </select>
+                    </div>
+
+                    <div id="gear-priority-field" class="form-field">
+                        <label for="gear-priority">優先度</label>
+                        <select id="gear-priority" name="priority">
+                            <option value="low">低</option>
+                            <option value="medium" selected>中</option>
+                            <option value="high">高</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="gear-memo">メモ <span class="optional-label">任意・1000文字以内</span></label>
+                        <textarea id="gear-memo" name="memo" maxlength="1000" rows="6"></textarea>
+                    </div>
+
+                    <p id="gear-form-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="form-actions">
+                        <button class="action-button primary-action" type="submit">保存</button>
+                        <button class="action-button secondary-action" type="button" data-action="gear-list">キャンセル</button>
+                    </div>
+                </form>
             </section>
         </main>
 

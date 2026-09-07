@@ -16,11 +16,12 @@ assert.doesNotMatch(markup, /<section class="port-section" aria-labelledby="prac
 assert.match(markup, /id="wishlist-card" href="#wishlist"/);
 assert.match(markup, /id="wishlist-card"[\s\S]*?>機材リスト</);
 assert.doesNotMatch(markup, /欲しいものリスト/);
-assert.match(markup, /id="wishlist-view"[\s\S]*?自分の機材や、[\s\S]*?これから欲しい機材を整理できる機能を準備中です/);
+assert.match(markup, /id="wishlist-view"[\s\S]*?自分の機材[\s\S]*?ほしい物リスト/);
+assert.doesNotMatch(markup, /これから欲しい機材を整理できる機能を準備中です/);
 assert.match(markup, /id="my-apps-grid" class="card-grid home-card-grid"/);
 
 assert.match(appSource, /hash === '#settings'/);
-assert.match(appSource, /hash === '#wishlist'/);
+assert.match(appSource, /parseGearRoute\(hash\)/);
 assert.match(appSource, /hash === '#practice-menu'/);
 assert.match(appSource, /applyHomeDisplaySize\(elements\.homeView, homeSettings\.displaySize\)/);
 assert.doesNotMatch(appSource, /applyHomeIconScalePreviews|loadIconScalePreviews|saveIconScalePreview|homeIconScalePreviews/);
@@ -43,4 +44,4 @@ assert.equal(formalIconRuleStart >= 0, true);
 assert.doesNotMatch(formalIconRules, /my-app-icon--custom/);
 assert.doesNotMatch(formalIconRules, /transform: scale/);
 
-console.log('home-ui: settings, display densities, Practice Menu integration, and wishlist placeholder tests passed');
+console.log('home-ui: settings, display densities, Practice Menu integration, and Gear List entry tests passed');

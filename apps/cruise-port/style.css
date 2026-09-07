@@ -1381,6 +1381,10 @@ body.my-apps-crop-open {
 .practice-row:focus-visible,
 .port-settings-button:focus-visible,
 .settings-choice:focus-visible,
+.gear-list-tabs button:focus-visible,
+.gear-category-chip:focus-visible,
+.gear-owned-preview-card:focus-visible,
+.gear-card-link:focus-visible,
 .reorder-button:focus-visible,
 .reorder-move:focus-visible,
 .view-back:focus-visible,
@@ -1405,7 +1409,12 @@ textarea:focus-visible {
 }
 
 .port-view[hidden],
-.notice[hidden] {
+.notice[hidden],
+.gear-owned-preview[hidden],
+.gear-owned-preview-list[hidden],
+.gear-owned-preview-empty[hidden],
+.gear-list-empty[hidden],
+.form-field[hidden] {
     display: none;
 }
 
@@ -1495,11 +1504,281 @@ textarea:focus-visible {
     box-shadow: inset 0 0 0 1px rgba(230, 210, 155, 0.1);
 }
 
-.wishlist-copy {
-    margin: 28px 0 0;
+.gear-list-tabs {
+    display: grid;
+    margin-top: 24px;
+    padding: 4px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px;
+    border: 1px solid rgba(207, 189, 148, 0.17);
+    border-radius: 12px;
+    background: rgba(4, 4, 3, 0.38);
+}
+
+.gear-list-tabs button {
+    min-height: 43px;
+    padding: 8px 6px;
+    border: 1px solid transparent;
+    border-radius: 9px;
     color: var(--port-muted);
-    font-size: 0.94rem;
-    line-height: 1.75;
+    background: transparent;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 650;
+    cursor: pointer;
+}
+
+.gear-list-tabs button.is-selected {
+    border-color: rgba(230, 210, 155, 0.36);
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.12);
+}
+
+.gear-category-filter {
+    display: flex;
+    margin: 18px calc(clamp(22px, 6vw, 34px) * -1) 0;
+    padding: 1px clamp(22px, 6vw, 34px) 7px;
+    gap: 7px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+}
+
+.gear-category-filter::-webkit-scrollbar,
+.gear-owned-preview-list::-webkit-scrollbar {
+    height: 3px;
+}
+
+.gear-category-filter::-webkit-scrollbar-track,
+.gear-owned-preview-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.gear-category-filter::-webkit-scrollbar-thumb,
+.gear-owned-preview-list::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(207, 189, 148, 0.24);
+}
+
+.gear-category-chip {
+    min-height: 36px;
+    flex: 0 0 auto;
+    padding: 7px 12px;
+    scroll-snap-align: start;
+    border: 1px solid rgba(207, 189, 148, 0.17);
+    border-radius: 999px;
+    color: var(--port-muted);
+    background: rgba(8, 8, 6, 0.5);
+    font: inherit;
+    font-size: 0.73rem;
+    cursor: pointer;
+}
+
+.gear-category-chip.is-selected {
+    border-color: rgba(230, 210, 155, 0.52);
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.12);
+}
+
+.gear-owned-preview {
+    margin-top: 18px;
+    padding: 16px;
+    border: 1px solid rgba(207, 189, 148, 0.13);
+    border-radius: 13px;
+    background: rgba(205, 180, 116, 0.025);
+}
+
+.gear-owned-preview h2,
+.gear-list-heading h2 {
+    margin: 0;
+    color: var(--port-text);
+    font-size: 0.91rem;
+    font-weight: 650;
+}
+
+.gear-owned-preview-list {
+    display: flex;
+    margin-top: 11px;
+    padding-bottom: 4px;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+}
+
+.gear-owned-preview-card {
+    min-width: 142px;
+    max-width: 190px;
+    min-height: 62px;
+    display: grid;
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    scroll-snap-align: start;
+    gap: 3px;
+    border: 1px solid rgba(207, 189, 148, 0.17);
+    border-radius: 10px;
+    color: var(--port-text);
+    background: rgba(5, 5, 4, 0.5);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.gear-owned-preview-card strong,
+.gear-owned-preview-card span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gear-owned-preview-card strong {
+    font-size: 0.79rem;
+}
+
+.gear-owned-preview-card span,
+.gear-owned-preview-empty {
+    color: var(--port-muted);
+    font-size: 0.67rem;
+}
+
+.gear-owned-preview-empty {
+    margin: 11px 0 0;
+    line-height: 1.6;
+}
+
+.gear-list-heading {
+    display: flex;
+    margin-top: 25px;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.gear-list-heading span {
+    color: var(--port-muted);
+    font-size: 0.7rem;
+}
+
+.gear-list-items {
+    display: grid;
+    margin-top: 12px;
+    gap: 11px;
+}
+
+.gear-card {
+    padding: 16px;
+    border: 1px solid rgba(207, 189, 148, 0.16);
+    border-radius: 13px;
+    background: rgba(7, 7, 5, 0.46);
+}
+
+.gear-card-heading {
+    display: grid;
+    gap: 9px;
+}
+
+.gear-card h3 {
+    margin: 0;
+    color: var(--port-text);
+    font-size: 1rem;
+    font-weight: 680;
+    line-height: 1.45;
+    overflow-wrap: anywhere;
+}
+
+.gear-card-metadata {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.gear-card-metadata span {
+    padding: 4px 8px;
+    border: 1px solid rgba(207, 189, 148, 0.17);
+    border-radius: 999px;
+    color: var(--port-muted);
+    font-size: 0.65rem;
+    line-height: 1.2;
+}
+
+.gear-card-metadata .gear-priority--high {
+    border-color: rgba(230, 210, 155, 0.43);
+    color: var(--port-gold-bright);
+}
+
+.gear-card-manufacturer,
+.gear-card-price,
+.gear-card-memo {
+    margin: 10px 0 0;
+}
+
+.gear-card-manufacturer {
+    color: var(--port-muted);
+    font-size: 0.76rem;
+}
+
+.gear-card-price {
+    color: var(--port-gold-bright);
+    font-size: 0.88rem;
+    font-weight: 650;
+}
+
+.gear-card-memo {
+    display: -webkit-box;
+    color: var(--port-muted);
+    font-size: 0.75rem;
+    line-height: 1.65;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.gear-card-link {
+    display: inline-block;
+    margin-top: 12px;
+    color: var(--port-gold-bright);
+    font-size: 0.75rem;
+    font-weight: 620;
+    text-underline-offset: 3px;
+}
+
+.gear-card-actions {
+    display: grid;
+    margin-top: 14px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.gear-card--wishlist .gear-card-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.gear-card-actions .action-button {
+    min-height: 40px;
+    padding: 8px 5px;
+    border-radius: 9px;
+    font-size: 0.73rem;
+}
+
+.gear-list-empty {
+    margin-top: 12px;
+    padding: 24px 14px;
+    border: 1px dashed rgba(207, 189, 148, 0.16);
+    border-radius: 12px;
+    color: var(--port-muted);
+    text-align: center;
+}
+
+.gear-list-empty p {
+    margin: 0;
+    font-size: 0.8rem;
+}
+
+.gear-list-add {
+    margin-top: 14px;
 }
 
 .view-panel {
