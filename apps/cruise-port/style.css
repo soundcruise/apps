@@ -259,6 +259,13 @@ h1::after {
     stroke-linejoin: round;
 }
 
+.skeleton-icon > img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
 .skeleton-icon .icon-accent {
     color: var(--port-gold-bright);
 }
@@ -966,6 +973,13 @@ h1::after {
     width: 31px;
     height: 31px;
     stroke-width: 2.2;
+}
+
+.my-apps-preset-option > img {
+    display: block;
+    width: 42px;
+    height: 42px;
+    object-fit: contain;
 }
 
 .my-apps-preset-option.is-selected {
@@ -2350,6 +2364,11 @@ select {
     .skeleton-icon svg {
         width: 42px;
         height: 42px;
+    }
+
+    .my-apps-preset-option > img {
+        width: 38px;
+        height: 38px;
     }
 
     .add-symbol {

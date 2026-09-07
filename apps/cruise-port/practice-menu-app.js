@@ -22,7 +22,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=6.0.0';
+} from './my-apps-store.js?v=6.0.0-assets';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -61,17 +61,17 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=3.0.0';
+} from './my-apps-icon-workflow.js?v=3.0.0-assets';
 import {
     MY_APPS_ICON_PRESETS,
-    createMyAppsPresetSvg,
+    createMyAppsPresetGraphic,
     getMyAppsIconPreset
-} from './my-apps-icon-presets.js?v=1.0.0';
+} from './my-apps-icon-presets.js?v=1.0.1';
 import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.11.0';
+} from './app-version.js?v=1.11.1';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
@@ -357,16 +357,13 @@ function renderReorderCard(item, index) {
     return card;
 }
 
-function createMyAppIcon(item = null, scope = 'home') {
+function createMyAppFallbackSvg() {
     const namespace = 'http://www.w3.org/2000/svg';
-    const icon = document.createElement('span');
     const svg = document.createElementNS(namespace, 'svg');
     const frame = document.createElementNS(namespace, 'rect');
     const line = document.createElementNS(namespace, 'path');
     const arrow = document.createElementNS(namespace, 'path');
 
-    icon.className = 'skeleton-icon my-app-icon';
-    icon.setAttribute('aria-hidden', 'true');
     svg.setAttribute('viewBox', '0 0 64 64');
     frame.setAttribute('x', '13');
     frame.setAttribute('y', '15');
@@ -377,8 +374,21 @@ function createMyAppIcon(item = null, scope = 'home') {
     arrow.setAttribute('class', 'icon-accent');
     arrow.setAttribute('d', 'M37 41l9-9m0 0h-7m7 0v7');
     svg.append(frame, line, arrow);
-    const presetSvg = item?.iconPresetKey ? createMyAppsPresetSvg(item.iconPresetKey) : null;
-    icon.append(presetSvg || svg);
+    return svg;
+}
+
+function createMyAppIcon(item = null, scope = 'home') {
+    const icon = document.createElement('span');
+    const fallback = createMyAppFallbackSvg();
+    const presetGraphic = item?.iconPresetKey
+        ? createMyAppsPresetGraphic(item.iconPresetKey, {
+            onAssetError: () => icon.replaceChildren(fallback)
+        })
+        : null;
+
+    icon.className = 'skeleton-icon my-app-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.append(presetGraphic || fallback);
     if (item?.iconId) hydrateMyAppIcon(icon, item.iconId, scope);
     return icon;
 }
@@ -635,7 +645,11 @@ function renderMyAppsPresetPicker() {
         button.setAttribute('aria-label', preset.label);
         button.setAttribute('aria-pressed', String(myAppsState.iconPresetKey === preset.key));
         button.classList.toggle('is-selected', myAppsState.iconPresetKey === preset.key);
-        button.append(createMyAppsPresetSvg(preset.key));
+        const fallback = createMyAppFallbackSvg();
+        const graphic = createMyAppsPresetGraphic(preset.key, {
+            onAssetError: () => graphic.replaceWith(fallback)
+        });
+        button.append(graphic || fallback);
         label.textContent = preset.label;
         button.append(label);
         elements.myAppsIconPresetPicker.append(button);
