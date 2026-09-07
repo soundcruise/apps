@@ -18,8 +18,8 @@ assert.match(markup, /id="my-apps-icon-preset-open"[^>]+aria-controls="my-apps-i
 assert.match(markup, /id="my-apps-icon-preset-picker"[^>]+hidden/);
 assert.match(markup, /id="my-apps-section"/);
 assert.match(markup, /data-action="my-apps-home-scroll"/);
-assert.match(markup, /id="tuner-card"[\s\S]*?src="\.\/assets\/my-app-icons\/tuner\.png"[\s\S]*?alt=""/);
-assert.match(markup, /id="metronome-card"[\s\S]*?src="\.\/assets\/my-app-icons\/metronome\.png"[\s\S]*?alt=""/);
+assert.match(markup, /id="tuner-card"[\s\S]*?src="\.\/assets\/my-app-icons\/tool-tuner\.png\?v=0\.13\.1"[\s\S]*?alt=""/);
+assert.match(markup, /id="metronome-card"[\s\S]*?src="\.\/assets\/my-app-icons\/tool-metronome\.png\?v=0\.13\.1"[\s\S]*?alt=""/);
 
 assert.match(appSource, /setMyAppsUrlHelpOpen\(elements\.myAppsUrlHelp\.hidden\)/);
 assert.match(appSource, /createMyAppsPresetGraphic\(preset\.key/);

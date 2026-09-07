@@ -16,12 +16,23 @@ function readPngHeader(name) {
     };
 }
 
-for (const name of ['practice-menu.png', 'gear-list.png']) {
+for (const name of ['practice-menu.png', 'gear-list.png', 'tool-tuner.png', 'tool-metronome.png']) {
     const header = readPngHeader(name);
     assert.deepEqual([header.width, header.height], [512, 512], `${name} is 512x512`);
     assert.equal(header.colorType, 6, `${name} is RGBA with alpha`);
 }
 
+for (const name of ['tool-tuner.png', 'tool-metronome.png']) {
+    const bytes = readFileSync(new URL(`./assets/my-app-icons/${name}`, import.meta.url));
+    assert.equal(bytes[25], 6, `${name} has alpha channel`);
+}
+
+assert.match(markup, /id="tuner-card"[\s\S]*?assets\/my-app-icons\/tool-tuner\.png\?v=0\.13\.1/);
+assert.match(markup, /id="metronome-card"[\s\S]*?assets\/my-app-icons\/tool-metronome\.png\?v=0\.13\.1/);
+assert.doesNotMatch(markup, /id="tuner-card"[\s\S]*?assets\/my-app-icons\/tuner\.png/);
+assert.doesNotMatch(markup, /id="metronome-card"[\s\S]*?assets\/my-app-icons\/metronome\.png/);
+assert.match(presetSource, /`\.\/assets\/my-app-icons\/\$\{key\}\.png`/);
+assert.doesNotMatch(presetSource, /tool-tuner\.png|tool-metronome\.png/);
 assert.match(markup, /id="practice-menu-card"[\s\S]*?assets\/my-app-icons\/practice-menu\.png\?v=0\.12\.8/);
 assert.match(markup, /id="wishlist-card"[\s\S]*?assets\/my-app-icons\/gear-list\.png\?v=0\.12\.8/);
 assert.doesNotMatch(markup, /id="practice-menu-card"[\s\S]*?assets\/my-app-icons\/rhythm\.png/);
