@@ -732,52 +732,52 @@ h1::after {
 #home-view[data-simple-icon-scale-preview="50"] { --simple-icon-scale-preview: 0.5; }
 
 /* 100% retains the current Cruise Apps baseline. */
-#home-view[data-display-size="large"] .app-card img {
+#home-view[data-display-size="large"] .home-card-grid .app-card img {
     width: calc(80px * var(--cruise-icon-scale-preview));
     height: calc(80px * var(--cruise-icon-scale-preview));
 }
 
-#home-view[data-display-size="standard"] .app-card img {
+#home-view[data-display-size="standard"] .home-card-grid .app-card img {
     width: calc(84px * var(--cruise-icon-scale-preview));
     height: calc(84px * var(--cruise-icon-scale-preview));
 }
 
-#home-view[data-display-size="small"] .app-card img {
+#home-view[data-display-size="small"] .home-card-grid .app-card img {
     width: calc(56px * var(--cruise-icon-scale-preview));
     height: calc(56px * var(--cruise-icon-scale-preview));
 }
 
-#home-view[data-display-size="xsmall"] .app-card img {
+#home-view[data-display-size="xsmall"] .home-card-grid .app-card img {
     width: calc(36px * var(--cruise-icon-scale-preview));
     height: calc(36px * var(--cruise-icon-scale-preview));
 }
 
 /* The My Apps wrapper is the Simple Icons baseline. Tool corrections are
    deliberately removed so the same raster asset has the same rendered box. */
-#home-view[data-display-size="large"] .tool-card .skeleton-icon,
-#home-view[data-display-size="large"] .my-app-icon--preset,
-#home-view[data-display-size="large"] .my-app-icon--generic {
+#home-view[data-display-size="large"] .home-card-grid .tool-card .skeleton-icon,
+#home-view[data-display-size="large"] .home-card-grid .my-app-icon--preset,
+#home-view[data-display-size="large"] .home-card-grid .my-app-icon--generic {
     width: calc(86px * var(--simple-icon-scale-preview));
     height: calc(86px * var(--simple-icon-scale-preview));
 }
 
-#home-view[data-display-size="standard"] .tool-card .skeleton-icon,
-#home-view[data-display-size="standard"] .my-app-icon--preset,
-#home-view[data-display-size="standard"] .my-app-icon--generic {
+#home-view[data-display-size="standard"] .home-card-grid .tool-card .skeleton-icon,
+#home-view[data-display-size="standard"] .home-card-grid .my-app-icon--preset,
+#home-view[data-display-size="standard"] .home-card-grid .my-app-icon--generic {
     width: calc(90px * var(--simple-icon-scale-preview));
     height: calc(90px * var(--simple-icon-scale-preview));
 }
 
-#home-view[data-display-size="small"] .tool-card .skeleton-icon,
-#home-view[data-display-size="small"] .my-app-icon--preset,
-#home-view[data-display-size="small"] .my-app-icon--generic {
+#home-view[data-display-size="small"] .home-card-grid .tool-card .skeleton-icon,
+#home-view[data-display-size="small"] .home-card-grid .my-app-icon--preset,
+#home-view[data-display-size="small"] .home-card-grid .my-app-icon--generic {
     width: calc(60px * var(--simple-icon-scale-preview));
     height: calc(60px * var(--simple-icon-scale-preview));
 }
 
-#home-view[data-display-size="xsmall"] .tool-card .skeleton-icon,
-#home-view[data-display-size="xsmall"] .my-app-icon--preset,
-#home-view[data-display-size="xsmall"] .my-app-icon--generic {
+#home-view[data-display-size="xsmall"] .home-card-grid .tool-card .skeleton-icon,
+#home-view[data-display-size="xsmall"] .home-card-grid .my-app-icon--preset,
+#home-view[data-display-size="xsmall"] .home-card-grid .my-app-icon--generic {
     width: calc(39px * var(--simple-icon-scale-preview));
     height: calc(39px * var(--simple-icon-scale-preview));
 }

@@ -35,8 +35,8 @@ for (const [size, columns] of [['large', 1], ['standard', 2], ['small', 4], ['xs
 }
 
 for (const [size, simpleBaseline] of [['large', 86], ['standard', 90], ['small', 60], ['xsmall', 39]]) {
-    assert.match(styles, new RegExp(`data-display-size="${size}"\\] \\.app-card img[\\s\\S]*?var\\(--cruise-icon-scale-preview\\)`));
-    assert.match(styles, new RegExp(`data-display-size="${size}"\\] \\.tool-card \\.skeleton-icon,[\\s\\S]*?my-app-icon--preset,[\\s\\S]*?my-app-icon--generic \\{[\\s\\S]*?calc\\(${simpleBaseline}px \\* var\\(--simple-icon-scale-preview\\)\\)`));
+    assert.match(styles, new RegExp(`data-display-size="${size}"\\] \\.home-card-grid \\.app-card img[\\s\\S]*?var\\(--cruise-icon-scale-preview\\)`));
+    assert.match(styles, new RegExp(`data-display-size="${size}"\\] \\.home-card-grid \\.tool-card \\.skeleton-icon,[\\s\\S]*?home-card-grid \\.my-app-icon--preset,[\\s\\S]*?home-card-grid \\.my-app-icon--generic \\{[\\s\\S]*?calc\\(${simpleBaseline}px \\* var\\(--simple-icon-scale-preview\\)\\)`));
 }
 
 const comparisonStart = styles.indexOf('/* Temporary U1.4 comparison.');
