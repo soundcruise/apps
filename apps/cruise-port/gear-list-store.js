@@ -1,5 +1,7 @@
 export const GEAR_LIST_STORAGE_KEY = 'cruisePort.gearList';
-export const GEAR_LIST_SCHEMA_VERSION = 1;
+export const GEAR_LIST_SCHEMA_VERSION = 2;
+
+const LEGACY_GEAR_LIST_SCHEMA_VERSION = 1;
 
 export const GEAR_CATEGORIES = Object.freeze([
     Object.freeze({ key: 'guitar', label: 'ギター' }),
@@ -19,16 +21,20 @@ export const GEAR_PRIORITIES = Object.freeze([
 
 export const GEAR_LIMITS = Object.freeze({
     name: 100,
-    manufacturer: 100,
-    url: 2048,
+    priceText: 100,
     memo: 1000
 });
 
+const LEGACY_LIMITS = Object.freeze({ manufacturer: 100, url: 2048 });
 const CATEGORY_KEYS = new Set(GEAR_CATEGORIES.map(({ key }) => key));
 const PRIORITY_KEYS = new Set(GEAR_PRIORITIES.map(({ key }) => key));
 const STATUS_KEYS = new Set(['owned', 'wishlist']);
 const PRIORITY_RANK = Object.freeze({ high: 0, medium: 1, low: 2 });
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
+
+function hasOwn(object, key) {
+    return Object.prototype.hasOwnProperty.call(object, key);
+}
 
 function isIsoDate(value) {
     return typeof value === 'string'
@@ -45,6 +51,10 @@ function restoreStorage(storage, previousValue) {
     else storage.setItem(GEAR_LIST_STORAGE_KEY, previousValue);
 }
 
+function cloneGearItem(item) {
+    return item.legacy ? { ...item, legacy: { ...item.legacy } } : { ...item };
+}
+
 function createStableId(existingItems) {
     const existingIds = new Set(existingItems.map(({ id }) => id));
     let id;
@@ -56,24 +66,24 @@ function createStableId(existingItems) {
     return id;
 }
 
-export function normalizeGearUrl(value) {
+function normalizeLegacyGearUrl(value) {
     const trimmed = typeof value === 'string' ? value.trim() : '';
-    if (!trimmed) return { ok: true, value: '' };
-    if (trimmed.length > GEAR_LIMITS.url || CONTROL_CHARACTERS.test(trimmed)) {
-        return { ok: false, message: 'URLを正しく入力してください。' };
-    }
+    if (!trimmed) return { ok: true };
+    if (trimmed.length > LEGACY_LIMITS.url || CONTROL_CHARACTERS.test(trimmed)) return { ok: false };
     try {
         const url = new URL(trimmed);
-        if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || !url.hostname) {
-            return { ok: false, message: 'URLはhttpまたはhttpsで入力してください。' };
-        }
-        return { ok: true, value: url.href };
+        return {
+            ok: ['http:', 'https:'].includes(url.protocol)
+                && !url.username
+                && !url.password
+                && Boolean(url.hostname)
+        };
     } catch (_) {
-        return { ok: false, message: 'URLを正しく入力してください。' };
+        return { ok: false };
     }
 }
 
-export function validateGearValues(values) {
+function validateCommonGearValues(values) {
     const name = typeof values?.name === 'string' ? values.name.trim() : '';
     if (!name) return { ok: false, field: 'name', message: '名前を入力してください。' };
     if (name.length > GEAR_LIMITS.name) {
@@ -83,26 +93,6 @@ export function validateGearValues(values) {
     const category = values?.category;
     if (!CATEGORY_KEYS.has(category)) {
         return { ok: false, field: 'category', message: 'カテゴリを選択してください。' };
-    }
-
-    const manufacturer = typeof values?.manufacturer === 'string' ? values.manufacturer.trim() : '';
-    if (manufacturer.length > GEAR_LIMITS.manufacturer) {
-        return { ok: false, field: 'manufacturer', message: 'メーカーは100文字以内で入力してください。' };
-    }
-
-    const urlResult = normalizeGearUrl(values?.url);
-    if (!urlResult.ok) return { ok: false, field: 'url', message: urlResult.message };
-
-    let priceYen = null;
-    if (values?.priceYen !== '' && values?.priceYen !== null && values?.priceYen !== undefined) {
-        const priceText = String(values.priceYen).trim();
-        if (!/^\d+$/.test(priceText)) {
-            return { ok: false, field: 'priceYen', message: '価格は0以上の整数で入力してください。' };
-        }
-        priceYen = Number(priceText);
-        if (!Number.isSafeInteger(priceYen) || priceYen < 0) {
-            return { ok: false, field: 'priceYen', message: '価格は0以上の整数で入力してください。' };
-        }
     }
 
     const priority = values?.priority || 'medium';
@@ -120,10 +110,79 @@ export function validateGearValues(values) {
         return { ok: false, field: 'memo', message: 'メモは1000文字以内で入力してください。' };
     }
 
+    return { ok: true, values: { name, category, priority, memo, status } };
+}
+
+export function validateGearValues(values) {
+    const common = validateCommonGearValues(values);
+    if (!common.ok) return common;
+
+    const priceText = typeof values?.priceText === 'string' ? values.priceText.trim() : '';
+    if (priceText.length > GEAR_LIMITS.priceText) {
+        return { ok: false, field: 'priceText', message: '価格は100文字以内で入力してください。' };
+    }
+
     return {
         ok: true,
-        values: { name, category, manufacturer, url: urlResult.value, priceYen, priority, memo, status }
+        values: {
+            name: common.values.name,
+            category: common.values.category,
+            priceText,
+            priority: common.values.priority,
+            memo: common.values.memo,
+            status: common.values.status
+        }
     };
+}
+
+function validateLegacyGearValues(values) {
+    const common = validateCommonGearValues(values);
+    if (!common.ok) return common;
+
+    const manufacturer = typeof values?.manufacturer === 'string' ? values.manufacturer.trim() : '';
+    if (manufacturer.length > LEGACY_LIMITS.manufacturer) return { ok: false };
+    if (!normalizeLegacyGearUrl(values?.url).ok) return { ok: false };
+
+    if (values?.priceYen !== '' && values?.priceYen !== null && values?.priceYen !== undefined) {
+        const price = String(values.priceYen).trim();
+        if (!/^\d+$/.test(price)) return { ok: false };
+        const priceYen = Number(price);
+        if (!Number.isSafeInteger(priceYen) || priceYen < 0) return { ok: false };
+    }
+    return { ok: true };
+}
+
+function hasValidTimestamps(item) {
+    return isIsoDate(item.createdAt)
+        && isIsoDate(item.updatedAt)
+        && (item.ownedAt === null || isIsoDate(item.ownedAt))
+        && (item.status !== 'owned' || isIsoDate(item.ownedAt))
+        && (item.status !== 'wishlist' || item.ownedAt === null);
+}
+
+function isValidLegacyMetadata(legacy) {
+    if (legacy === undefined) return true;
+    if (!legacy || typeof legacy !== 'object' || Array.isArray(legacy)) return false;
+    if (Object.keys(legacy).some((key) => !['manufacturer', 'url'].includes(key))) return false;
+    if ('manufacturer' in legacy
+        && (typeof legacy.manufacturer !== 'string'
+            || legacy.manufacturer.trim().length > LEGACY_LIMITS.manufacturer)) {
+        return false;
+    }
+    return !('url' in legacy)
+        || (typeof legacy.url === 'string' && normalizeLegacyGearUrl(legacy.url).ok);
+}
+
+function isValidLegacyGearItem(item) {
+    return Boolean(
+        item
+        && typeof item === 'object'
+        && !Array.isArray(item)
+        && typeof item.id === 'string'
+        && item.id.length > 0
+        && validateLegacyGearValues(item).ok
+        && hasValidTimestamps(item)
+    );
 }
 
 export function isValidGearItem(item) {
@@ -133,13 +192,38 @@ export function isValidGearItem(item) {
         && !Array.isArray(item)
         && typeof item.id === 'string'
         && item.id.length > 0
+        && hasOwn(item, 'priceText')
+        && !hasOwn(item, 'priceYen')
+        && !hasOwn(item, 'manufacturer')
+        && !hasOwn(item, 'url')
         && validateGearValues(item).ok
-        && isIsoDate(item.createdAt)
-        && isIsoDate(item.updatedAt)
-        && (item.ownedAt === null || isIsoDate(item.ownedAt))
-        && (item.status !== 'owned' || isIsoDate(item.ownedAt))
-        && (item.status !== 'wishlist' || item.ownedAt === null)
+        && isValidLegacyMetadata(item.legacy)
+        && hasValidTimestamps(item)
     );
+}
+
+function migrateLegacyGearItem(item) {
+    const legacy = {};
+    if (typeof item.manufacturer === 'string' && item.manufacturer.length > 0) {
+        legacy.manufacturer = item.manufacturer;
+    }
+    if (typeof item.url === 'string' && item.url.length > 0) legacy.url = item.url;
+
+    const migrated = {
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        priceText: item.priceYen === null || item.priceYen === undefined || item.priceYen === ''
+            ? ''
+            : `¥${Number(item.priceYen).toLocaleString('ja-JP')}`,
+        priority: item.priority,
+        memo: item.memo,
+        status: item.status,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt,
+        ownedAt: item.ownedAt
+    };
+    return Object.keys(legacy).length > 0 ? { ...migrated, legacy } : migrated;
 }
 
 export function loadGearList(storage = globalThis.localStorage) {
@@ -147,13 +231,26 @@ export function loadGearList(storage = globalThis.localStorage) {
         const rawValue = storage.getItem(GEAR_LIST_STORAGE_KEY);
         if (rawValue === null) return { ok: true, items: [] };
         const payload = JSON.parse(rawValue);
+
+        if (payload?.version === LEGACY_GEAR_LIST_SCHEMA_VERSION) {
+            if (!Array.isArray(payload.items)
+                || !payload.items.every(isValidLegacyGearItem)
+                || !hasUniqueIds(payload.items)) {
+                return { ok: false, items: [], reason: 'invalid-data' };
+            }
+            const items = payload.items.map(migrateLegacyGearItem);
+            const migrationSave = saveGearList(items, storage);
+            if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
+            return { ok: true, items: items.map(cloneGearItem), migrated: true };
+        }
+
         if (payload?.version !== GEAR_LIST_SCHEMA_VERSION) {
             return { ok: false, items: [], reason: 'unsupported-version' };
         }
         if (!Array.isArray(payload.items) || !payload.items.every(isValidGearItem) || !hasUniqueIds(payload.items)) {
             return { ok: false, items: [], reason: 'invalid-data' };
         }
-        return { ok: true, items: payload.items.map((item) => ({ ...item })) };
+        return { ok: true, items: payload.items.map(cloneGearItem) };
     } catch (_) {
         return { ok: false, items: [], reason: 'read-failed' };
     }
@@ -183,11 +280,20 @@ export function saveGearList(items, storage = globalThis.localStorage) {
     }
 }
 
+export function getInitialGearCategory(activeCategory) {
+    return CATEGORY_KEYS.has(activeCategory) ? activeCategory : '';
+}
+
 export function createGearItem(values, existingItems, now = new Date()) {
     const timestamp = now.toISOString();
     return {
         id: createStableId(existingItems),
-        ...values,
+        name: values.name,
+        category: values.category,
+        priceText: values.priceText,
+        priority: values.priority,
+        memo: values.memo,
+        status: values.status,
         createdAt: timestamp,
         updatedAt: timestamp,
         ownedAt: values.status === 'owned' ? timestamp : null
@@ -198,11 +304,16 @@ export function updateGearItem(items, id, values, now = new Date()) {
     let found = false;
     const timestamp = now.toISOString();
     const nextItems = items.map((item) => {
-        if (item.id !== id) return { ...item };
+        if (item.id !== id) return cloneGearItem(item);
         found = true;
         return {
             ...item,
-            ...values,
+            name: values.name,
+            category: values.category,
+            priceText: values.priceText,
+            priority: values.priority,
+            memo: values.memo,
+            status: values.status,
             id: item.id,
             createdAt: item.createdAt,
             updatedAt: timestamp,
@@ -220,7 +331,7 @@ export function markGearPurchased(items, id, now = new Date()) {
     let found = false;
     const timestamp = now.toISOString();
     const nextItems = items.map((item) => {
-        if (item.id !== id || item.status !== 'wishlist') return { ...item };
+        if (item.id !== id || item.status !== 'wishlist') return cloneGearItem(item);
         found = true;
         return { ...item, status: 'owned', updatedAt: timestamp, ownedAt: timestamp };
     });
@@ -228,7 +339,7 @@ export function markGearPurchased(items, id, now = new Date()) {
 }
 
 export function deleteGearItem(items, id) {
-    const nextItems = items.filter((item) => item.id !== id).map((item) => ({ ...item }));
+    const nextItems = items.filter((item) => item.id !== id).map(cloneGearItem);
     return { found: nextItems.length !== items.length, items: nextItems };
 }
 

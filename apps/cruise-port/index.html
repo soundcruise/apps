@@ -161,22 +161,14 @@
 
                     <div class="form-field">
                         <label for="gear-category">カテゴリ <span class="required-label">必須</span></label>
-                        <select id="gear-category" name="category" required></select>
+                        <select id="gear-category" name="category" required>
+                            <option value="">選択してください</option>
+                        </select>
                     </div>
 
                     <div class="form-field">
-                        <label for="gear-manufacturer">メーカー <span class="optional-label">任意・100文字以内</span></label>
-                        <input id="gear-manufacturer" name="manufacturer" type="text" maxlength="100" autocomplete="organization">
-                    </div>
-
-                    <div class="form-field">
-                        <label for="gear-url">URL <span class="optional-label">任意・http / https</span></label>
-                        <input id="gear-url" name="url" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://example.com/item">
-                    </div>
-
-                    <div class="form-field">
-                        <label for="gear-price">価格 <span class="optional-label">任意・円</span></label>
-                        <input id="gear-price" name="priceYen" type="number" min="0" step="1" inputmode="numeric" placeholder="198000">
+                        <label for="gear-price">価格 <span class="optional-label">任意・100文字以内</span></label>
+                        <input id="gear-price" name="priceText" type="text" maxlength="100" autocomplete="off" placeholder="例：198,000円、約20万円、未定">
                     </div>
 
                     <div class="form-field">

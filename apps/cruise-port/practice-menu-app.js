@@ -86,6 +86,7 @@ import {
     createGearItem,
     deleteGearItem,
     getGearCategoryLabel,
+    getInitialGearCategory,
     getGearPriorityLabel,
     loadGearList,
     markGearPurchased,
@@ -135,8 +136,6 @@ const elements = {
     gearForm: document.querySelector('#gear-list-form'),
     gearNameInput: document.querySelector('#gear-name'),
     gearCategoryInput: document.querySelector('#gear-category'),
-    gearManufacturerInput: document.querySelector('#gear-manufacturer'),
-    gearUrlInput: document.querySelector('#gear-url'),
     gearPriceInput: document.querySelector('#gear-price'),
     gearStatusInput: document.querySelector('#gear-status'),
     gearPriorityField: document.querySelector('#gear-priority-field'),
@@ -1561,10 +1560,6 @@ function correctGearListRoute() {
     renderRoute();
 }
 
-function formatGearPrice(priceYen) {
-    return priceYen === null ? '' : `¥${priceYen.toLocaleString('ja-JP')}`;
-}
-
 function createGearMetadata(item) {
     const metadata = document.createElement('div');
     metadata.className = 'gear-card-metadata';
@@ -1601,16 +1596,10 @@ function renderGearCard(item) {
     heading.append(name, createGearMetadata(item));
     card.append(heading);
 
-    if (item.manufacturer) {
-        const manufacturer = document.createElement('p');
-        manufacturer.className = 'gear-card-manufacturer';
-        manufacturer.textContent = item.manufacturer;
-        card.append(manufacturer);
-    }
-    if (item.priceYen !== null) {
+    if (item.priceText) {
         const price = document.createElement('p');
         price.className = 'gear-card-price';
-        price.textContent = formatGearPrice(item.priceYen);
+        price.textContent = item.priceText;
         card.append(price);
     }
     if (item.memo) {
@@ -1619,17 +1608,6 @@ function renderGearCard(item) {
         memo.textContent = item.memo;
         card.append(memo);
     }
-    if (item.url) {
-        const link = document.createElement('a');
-        link.className = 'gear-card-link';
-        link.href = item.url;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = '商品ページを開く';
-        link.setAttribute('aria-label', `${item.name}の商品ページを開く`);
-        card.append(link);
-    }
-
     const actions = document.createElement('div');
     actions.className = 'gear-card-actions';
     if (item.status === 'wishlist') {
@@ -1662,7 +1640,7 @@ function renderOwnedPreview() {
         button.dataset.id = item.id;
         button.setAttribute('aria-label', `${item.name}を編集`);
         name.textContent = item.name;
-        detail.textContent = item.manufacturer || getGearCategoryLabel(item.category);
+        detail.textContent = getGearCategoryLabel(item.category);
         button.append(name, detail);
         elements.gearOwnedPreviewList.append(button);
     });
@@ -1722,10 +1700,8 @@ function renderWishlist({ focus = true } = {}) {
 function fillGearForm(item = null) {
     elements.gearForm.reset();
     elements.gearNameInput.value = item?.name || '';
-    elements.gearCategoryInput.value = item?.category || 'guitar';
-    elements.gearManufacturerInput.value = item?.manufacturer || '';
-    elements.gearUrlInput.value = item?.url || '';
-    elements.gearPriceInput.value = item?.priceYen ?? '';
+    elements.gearCategoryInput.value = item?.category || getInitialGearCategory(gearState.activeCategory);
+    elements.gearPriceInput.value = item?.priceText || '';
     elements.gearStatusInput.value = item?.status || gearState.activeStatus;
     elements.gearPriorityInput.value = item?.priority || 'medium';
     elements.gearMemoInput.value = item?.memo || '';
@@ -1761,9 +1737,7 @@ function readGearFormValues() {
     return validateGearValues({
         name: elements.gearNameInput.value,
         category: elements.gearCategoryInput.value,
-        manufacturer: elements.gearManufacturerInput.value,
-        url: elements.gearUrlInput.value,
-        priceYen: elements.gearPriceInput.value,
+        priceText: elements.gearPriceInput.value,
         priority: elements.gearPriorityInput.value,
         memo: elements.gearMemoInput.value,
         status: elements.gearStatusInput.value
@@ -1789,9 +1763,7 @@ function handleGearSubmit(event) {
         const fieldElements = {
             name: elements.gearNameInput,
             category: elements.gearCategoryInput,
-            manufacturer: elements.gearManufacturerInput,
-            url: elements.gearUrlInput,
-            priceYen: elements.gearPriceInput,
+            priceText: elements.gearPriceInput,
             priority: elements.gearPriorityInput,
             status: elements.gearStatusInput,
             memo: elements.gearMemoInput

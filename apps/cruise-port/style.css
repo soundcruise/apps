@@ -1384,7 +1384,6 @@ body.my-apps-crop-open {
 .gear-list-tabs button:focus-visible,
 .gear-category-chip:focus-visible,
 .gear-owned-preview-card:focus-visible,
-.gear-card-link:focus-visible,
 .reorder-button:focus-visible,
 .reorder-move:focus-visible,
 .view-back:focus-visible,
@@ -1707,15 +1706,9 @@ textarea:focus-visible {
     color: var(--port-gold-bright);
 }
 
-.gear-card-manufacturer,
 .gear-card-price,
 .gear-card-memo {
     margin: 10px 0 0;
-}
-
-.gear-card-manufacturer {
-    color: var(--port-muted);
-    font-size: 0.76rem;
 }
 
 .gear-card-price {
@@ -1734,15 +1727,6 @@ textarea:focus-visible {
     white-space: pre-wrap;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 3;
-}
-
-.gear-card-link {
-    display: inline-block;
-    margin-top: 12px;
-    color: var(--port-gold-bright);
-    font-size: 0.75rem;
-    font-weight: 620;
-    text-underline-offset: 3px;
 }
 
 .gear-card-actions {
