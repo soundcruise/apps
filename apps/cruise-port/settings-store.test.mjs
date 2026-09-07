@@ -4,6 +4,7 @@ import {
     DEFAULT_SETTINGS,
     SETTINGS_SCHEMA_VERSION,
     SETTINGS_STORAGE_KEY,
+    clearRetiredIconScalePreviewKeys,
     loadSettings,
     saveSettings
 } from './settings-store.js';
@@ -12,13 +13,37 @@ function createStorage(initial = {}) {
     const values = new Map(Object.entries(initial));
     return {
         setCalls: 0,
+        removedKeys: [],
         getItem(key) { return values.has(key) ? values.get(key) : null; },
         setItem(key, value) {
             this.setCalls += 1;
             values.set(key, String(value));
+        },
+        removeItem(key) {
+            this.removedKeys.push(key);
+            values.delete(key);
         }
     };
 }
+
+test('retired icon comparison keys are removed individually without touching settings', () => {
+    const storage = createStorage({
+        [SETTINGS_STORAGE_KEY]: JSON.stringify({ version: SETTINGS_SCHEMA_VERSION, displaySize: 'small' }),
+        'cruisePort.cruiseIconScalePreview': '90',
+        'cruisePort.simpleIconScalePreview': '60',
+        'cruisePort.iconScalePreview': '60',
+        'cruisePort.myApps': 'preserve'
+    });
+
+    assert.equal(clearRetiredIconScalePreviewKeys(storage), true);
+    assert.deepEqual(storage.removedKeys, [
+        'cruisePort.cruiseIconScalePreview',
+        'cruisePort.simpleIconScalePreview',
+        'cruisePort.iconScalePreview'
+    ]);
+    assert.equal(storage.getItem(SETTINGS_STORAGE_KEY), JSON.stringify({ version: SETTINGS_SCHEMA_VERSION, displaySize: 'small' }));
+    assert.equal(storage.getItem('cruisePort.myApps'), 'preserve');
+});
 
 test('settings default to large', () => {
     assert.deepEqual(loadSettings(createStorage()), { ok: true, settings: DEFAULT_SETTINGS });

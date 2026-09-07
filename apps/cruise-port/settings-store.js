@@ -6,6 +6,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
     displaySize: 'large'
 });
 
+const RETIRED_ICON_SCALE_PREVIEW_STORAGE_KEYS = Object.freeze([
+    'cruisePort.cruiseIconScalePreview',
+    'cruisePort.simpleIconScalePreview',
+    'cruisePort.iconScalePreview'
+]);
+
 const LEGACY_DISPLAY_SIZE_MIGRATION = Object.freeze({
     large: 'standard',
     standard: 'small',
@@ -63,5 +69,14 @@ export function saveSettings(settings, storage = window.localStorage) {
         return { ok: true, settings: normalized };
     } catch (_) {
         return { ok: false, settings: normalized };
+    }
+}
+
+export function clearRetiredIconScalePreviewKeys(storage = globalThis.localStorage) {
+    try {
+        RETIRED_ICON_SCALE_PREVIEW_STORAGE_KEYS.forEach((key) => storage?.removeItem(key));
+        return true;
+    } catch (_) {
+        return false;
     }
 }
