@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.12.0">
+    <link rel="stylesheet" href="./style.css?v=1.12.1">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,14 +16,14 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.12.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.12.1"></script>
 </head>
 <body>
     <div class="port-shell">
         <main id="home-view" class="port-view">
             <header class="port-header">
                 <button id="home-settings-button" class="port-settings-button" type="button" aria-label="表示設定を開く">
-                    <span aria-hidden="true">⚙︎</span><span>設定</span>
+                    <span class="port-settings-gear" aria-hidden="true">⚙️</span><span>設定</span>
                 </button>
                 <h1>クルーズポート</h1>
                 <p class="port-concept">弾き語りに必要なアプリを1つに集約。</p>
@@ -74,7 +74,7 @@
 
                     <a class="port-card skeleton-card tool-card" id="wishlist-card" href="#wishlist">
                         <span class="skeleton-icon" aria-hidden="true"><img src="./assets/my-app-icons/audio-file.png" alt="" decoding="async"></span>
-                        <span class="card-name">欲しいものリスト</span>
+                        <span class="card-name">機材リスト</span>
                     </a>
                 </div>
             </section>
@@ -103,9 +103,10 @@
                     <h2 id="display-size-title">表示の大きさ</h2>
                     <p>ホームのカード表示を選べます。</p>
                     <div class="settings-choices" role="radiogroup" aria-label="表示の大きさ">
-                        <button type="button" class="settings-choice" data-display-size="large" role="radio" aria-checked="false"><span>大</span><small>2列</small></button>
-                        <button type="button" class="settings-choice" data-display-size="standard" role="radio" aria-checked="true"><span>標準</span><small>4列</small></button>
-                        <button type="button" class="settings-choice" data-display-size="small" role="radio" aria-checked="false"><span>小</span><small>6列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="large" role="radio" aria-checked="false"><span>大</span><small>1列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="standard" role="radio" aria-checked="true"><span>標準</span><small>2列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="small" role="radio" aria-checked="false"><span>小</span><small>4列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="xsmall" role="radio" aria-checked="false"><span>極小</span><small>6列</small></button>
                     </div>
                     <p id="settings-storage-error" class="notice notice-error" role="alert" hidden></p>
                 </section>
@@ -116,8 +117,8 @@
             <button class="view-back" type="button" data-action="home">← クルーズポートへ戻る</button>
             <section class="view-panel wishlist-panel" aria-labelledby="wishlist-title">
                 <p class="view-kicker">ツール</p>
-                <h1 id="wishlist-title" class="view-title" tabindex="-1">欲しいものリスト</h1>
-                <p class="wishlist-copy">欲しい機材を整理して保存できる機能を準備中です。</p>
+                <h1 id="wishlist-title" class="view-title" tabindex="-1">機材リスト</h1>
+                <p class="wishlist-copy">自分の機材や、<br>これから欲しい機材を整理できる機能を準備中です。</p>
                 <div class="view-actions">
                     <button class="action-button secondary-action" type="button" data-action="home">クルーズポートへ戻る</button>
                 </div>

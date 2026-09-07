@@ -105,36 +105,40 @@ body {
 }
 
 .port-settings-button {
-    position: absolute;
-    top: -8px;
-    right: 0;
-    min-height: 40px;
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    right: max(12px, env(safe-area-inset-right));
+    z-index: 200;
     display: inline-flex;
-    padding: 7px 10px;
     align-items: center;
-    gap: 4px;
-    border: 1px solid rgba(207, 189, 148, 0.26);
+    gap: 5px;
+    padding: 8px 15px;
+    border: 1px solid rgba(228, 198, 124, 0.34);
     border-radius: 999px;
-    color: var(--port-muted);
-    background: rgba(18, 17, 15, 0.82);
-    font: inherit;
-    font-size: 0.72rem;
-    font-weight: 620;
+    color: var(--port-text);
+    background: rgba(20, 19, 17, 0.88);
+    font-family: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
     line-height: 1;
     cursor: pointer;
+    white-space: nowrap;
     touch-action: manipulation;
     -webkit-tap-highlight-color: transparent;
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
+    transition: transform 0.12s ease, background 0.15s ease;
 }
 
-.port-settings-button > span:first-child {
-    font-size: 1rem;
+.port-settings-gear {
+    display: inline-block;
+    font-size: 1.1rem;
+    line-height: 1;
 }
 
 .port-settings-button:active {
-    transform: scale(0.96);
-    background: rgba(205, 180, 116, 0.13);
+    transform: scale(0.95);
+    background: rgba(212, 175, 55, 0.16);
 }
 
 h1 {
@@ -539,16 +543,21 @@ h1::after {
 
 /* ホームのカード密度はすべてのランチャーに共通で適用する。 */
 #home-view[data-display-size="large"] .home-card-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(1, minmax(0, 1fr));
     gap: 12px;
 }
 
 #home-view[data-display-size="standard"] .home-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+#home-view[data-display-size="small"] .home-card-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
 }
 
-#home-view[data-display-size="small"] .home-card-grid {
+#home-view[data-display-size="xsmall"] .home-card-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 5px;
 }
@@ -576,49 +585,77 @@ h1::after {
 #wishlist-card .skeleton-icon > img { transform: scale(1.35); }
 
 #home-view[data-display-size="large"] .home-card-grid .port-card {
-    min-height: 150px;
-    padding: 13px 10px 14px;
+    min-height: 122px;
+    padding: 14px 20px;
+    flex-direction: row;
+    justify-content: flex-start;
+    gap: 20px;
     border-radius: 17px;
+    text-align: left;
 }
 
 #home-view[data-display-size="large"] .home-card-grid .app-card img,
 #home-view[data-display-size="large"] .home-card-grid .skeleton-icon,
 #home-view[data-display-size="large"] .home-card-grid .my-app-icon {
-    width: min(100%, 100px);
-    height: 100px;
+    width: 80px;
+    height: 80px;
 }
 
 #home-view[data-display-size="large"] .home-card-grid .my-app-icon {
-    border-radius: 23%;
-    width: min(100%, 108px);
-    height: 108px;
+    border-radius: 19px;
+    width: 86px;
+    height: 86px;
 }
 
 #home-view[data-display-size="large"] .home-card-grid .card-name {
-    margin-top: 11px;
-    font-size: clamp(0.86rem, 3.7vw, 1rem);
+    margin-top: 0;
+    font-size: clamp(0.92rem, 4vw, 1.06rem);
 }
 
 #home-view[data-display-size="standard"] .home-card-grid .port-card {
-    min-height: 106px;
-    padding: 8px 4px 9px;
-    border-radius: 13px;
+    min-height: 150px;
+    padding: 13px 10px 14px;
+    border-radius: 17px;
 }
 
 #home-view[data-display-size="standard"] .home-card-grid .app-card img,
 #home-view[data-display-size="standard"] .home-card-grid .skeleton-icon,
 #home-view[data-display-size="standard"] .home-card-grid .my-app-icon {
+    width: min(100%, 100px);
+    height: 100px;
+}
+
+#home-view[data-display-size="standard"] .home-card-grid .my-app-icon {
+    border-radius: 23%;
+    width: min(100%, 108px);
+    height: 108px;
+}
+
+#home-view[data-display-size="standard"] .home-card-grid .card-name {
+    margin-top: 11px;
+    font-size: clamp(0.86rem, 3.7vw, 1rem);
+}
+
+#home-view[data-display-size="small"] .home-card-grid .port-card {
+    min-height: 106px;
+    padding: 8px 4px 9px;
+    border-radius: 13px;
+}
+
+#home-view[data-display-size="small"] .home-card-grid .app-card img,
+#home-view[data-display-size="small"] .home-card-grid .skeleton-icon,
+#home-view[data-display-size="small"] .home-card-grid .my-app-icon {
     width: min(100%, 56px);
     height: 56px;
 }
 
-#home-view[data-display-size="standard"] .home-card-grid .my-app-icon {
+#home-view[data-display-size="small"] .home-card-grid .my-app-icon {
     border-radius: 17px;
     width: min(100%, 60px);
     height: 60px;
 }
 
-#home-view[data-display-size="standard"] .home-card-grid .card-name {
+#home-view[data-display-size="small"] .home-card-grid .card-name {
     display: -webkit-box;
     max-width: 100%;
     margin-top: 6px;
@@ -630,31 +667,31 @@ h1::after {
     -webkit-line-clamp: 2;
 }
 
-#home-view[data-display-size="small"] .home-card-grid .port-card {
+#home-view[data-display-size="xsmall"] .home-card-grid .port-card {
     min-height: 78px;
     padding: 5px 2px 6px;
     border-radius: 10px;
 }
 
-#home-view[data-display-size="small"] .home-card-grid .app-card img,
-#home-view[data-display-size="small"] .home-card-grid .skeleton-icon,
-#home-view[data-display-size="small"] .home-card-grid .my-app-icon {
+#home-view[data-display-size="xsmall"] .home-card-grid .app-card img,
+#home-view[data-display-size="xsmall"] .home-card-grid .skeleton-icon,
+#home-view[data-display-size="xsmall"] .home-card-grid .my-app-icon {
     width: min(100%, 36px);
     height: 36px;
 }
 
-#home-view[data-display-size="small"] .home-card-grid .my-app-icon {
+#home-view[data-display-size="xsmall"] .home-card-grid .my-app-icon {
     border-radius: 11px;
     width: min(100%, 39px);
     height: 39px;
 }
 
-#home-view[data-display-size="small"] #tuner-card .skeleton-icon > img { transform: scale(1.22); }
-#home-view[data-display-size="small"] #metronome-card .skeleton-icon > img { transform: scale(1.12); }
-#home-view[data-display-size="small"] #practice-menu-card .skeleton-icon > img { transform: scale(1.04); }
-#home-view[data-display-size="small"] #wishlist-card .skeleton-icon > img { transform: scale(1.22); }
+#home-view[data-display-size="xsmall"] #tuner-card .skeleton-icon > img { transform: scale(1.22); }
+#home-view[data-display-size="xsmall"] #metronome-card .skeleton-icon > img { transform: scale(1.12); }
+#home-view[data-display-size="xsmall"] #practice-menu-card .skeleton-icon > img { transform: scale(1.04); }
+#home-view[data-display-size="xsmall"] #wishlist-card .skeleton-icon > img { transform: scale(1.22); }
 
-#home-view[data-display-size="small"] .home-card-grid .card-name {
+#home-view[data-display-size="xsmall"] .home-card-grid .card-name {
     display: -webkit-box;
     max-width: 100%;
     margin-top: 4px;
@@ -667,8 +704,8 @@ h1::after {
     -webkit-line-clamp: 2;
 }
 
-#home-view[data-display-size="standard"] .home-card-grid .add-symbol,
-#home-view[data-display-size="small"] .home-card-grid .add-symbol {
+#home-view[data-display-size="small"] .home-card-grid .add-symbol,
+#home-view[data-display-size="xsmall"] .home-card-grid .add-symbol {
     width: auto;
     height: auto;
     border: 0;
@@ -676,7 +713,7 @@ h1::after {
     font-size: 1.35rem;
 }
 
-#home-view[data-display-size="small"] .home-card-grid .add-symbol {
+#home-view[data-display-size="xsmall"] .home-card-grid .add-symbol {
     font-size: 1.05rem;
 }
 
@@ -1381,7 +1418,7 @@ textarea:focus-visible {
 .settings-choices {
     display: grid;
     margin-top: 16px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
 }
 
