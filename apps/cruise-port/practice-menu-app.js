@@ -77,7 +77,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.15.0';
+} from './app-version.js?v=1.15.1';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
 import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=1.0.1';
 import { initTuner } from './tuner-app.js?v=1.1.8';
@@ -1652,7 +1652,8 @@ function getGearSections() {
     if (gearState.activeStatus === 'all') {
         return [
             { status: 'owned', title: '今持っている機材', emptyMessage: '今持っている機材はまだありません' },
-            { status: 'wishlist', title: 'ほしい物', emptyMessage: 'ほしい物はまだありません' }
+            { status: 'sold', title: '手放した機材', emptyMessage: '手放した機材はまだありません' },
+            { status: 'wishlist', title: 'ほしい機材', emptyMessage: 'ほしい機材はまだありません' }
         ];
     }
     if (gearState.activeStatus === 'owned') {
@@ -1661,7 +1662,7 @@ function getGearSections() {
             { status: 'sold', title: '手放した機材', emptyMessage: '手放した機材はまだありません' }
         ];
     }
-    return [{ status: 'wishlist', title: 'ほしい物', emptyMessage: 'ほしい物はまだありません' }];
+    return [{ status: 'wishlist', title: 'ほしい機材', emptyMessage: 'ほしい機材はまだありません' }];
 }
 
 function renderGearReorderCard(item, index, length) {
@@ -1749,7 +1750,7 @@ function renderWishlist({ focus = true } = {}) {
         ? '並び替え中です。上下のボタンで順序を変更し、完了で保存します。'
         : '';
     elements.gearAdd.hidden = gearState.reorderMode;
-    elements.gearAdd.textContent = gearState.activeStatus === 'wishlist' ? '＋ ほしい物を追加' : '＋ 機材を追加';
+    elements.gearAdd.textContent = gearState.activeStatus === 'wishlist' ? '＋ ほしい機材を追加' : '＋ 機材を追加';
     elements.gearAdd.disabled = !gearState.storageReady || gearState.reorderMode;
     showNotice(
         elements.gearStorageError,
@@ -1784,7 +1785,7 @@ function renderGearForm(mode, id = null) {
     gearState.activeId = item?.id || null;
     elements.gearFormTitle.textContent = mode === 'edit'
         ? `${item.name}を編集`
-        : gearState.activeStatus === 'wishlist' ? 'ほしい物を追加' : '機材を追加';
+        : gearState.activeStatus === 'wishlist' ? 'ほしい機材を追加' : '機材を追加';
     fillGearForm(item);
     showView(elements.gearFormView);
     elements.gearFormTitle.focus({ preventScroll: true });
@@ -1881,7 +1882,7 @@ function handleGearDelete(item) {
         ? `${item.name}を機材リストから削除しますか？`
         : item.status === 'sold'
             ? `${item.name}を手放した機材から削除しますか？`
-            : `${item.name}をほしい物リストから削除しますか？`;
+            : `${item.name}をほしい機材から削除しますか？`;
     if (!window.confirm(message)) return;
     const result = deleteGearItem(gearState.items, item.id);
     if (!result.found) return;

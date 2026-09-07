@@ -16,7 +16,7 @@ assert.doesNotMatch(markup, /<section class="port-section" aria-labelledby="prac
 assert.match(markup, /id="wishlist-card" href="#wishlist"/);
 assert.match(markup, /id="wishlist-card"[\s\S]*?>機材リスト</);
 assert.doesNotMatch(markup, /欲しいものリスト/);
-assert.match(markup, /id="wishlist-view"[\s\S]*?自分の機材[\s\S]*?ほしい物リスト/);
+assert.match(markup, /id="wishlist-view"[\s\S]*?自分の機材[\s\S]*?ほしい機材/);
 assert.doesNotMatch(markup, /これから欲しい機材を整理できる機能を準備中です/);
 assert.match(markup, /id="my-apps-grid" class="card-grid home-card-grid"/);
 

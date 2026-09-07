@@ -11,7 +11,7 @@ const gearSource = source.match(/function findGearItem[\s\S]*?function renderRou
 assert.match(markup, /id="wishlist-card" href="#wishlist"/);
 assert.match(markup, /id="gear-all-tab"[\s\S]*?role="tab"[\s\S]*?全て/);
 assert.match(markup, /id="gear-owned-tab"[\s\S]*?role="tab"[\s\S]*?自分の機材/);
-assert.match(markup, /id="gear-wishlist-tab"[\s\S]*?role="tab"[\s\S]*?ほしい物リスト/);
+assert.match(markup, /id="gear-wishlist-tab"[\s\S]*?role="tab"[\s\S]*?ほしい機材/);
 assert.match(markup, /id="gear-category-filter"/);
 assert.match(markup, /id="gear-list-sections"/);
 assert.doesNotMatch(markup, /gear-owned-preview/);
@@ -26,7 +26,7 @@ assert.match(markup, /id="gear-price" name="priceText" type="text" maxlength="10
 assert.match(markup, /placeholder="例：198,000円、約20万円、未定"/);
 assert.doesNotMatch(gearFormMarkup, /id="gear-price"[^>]*type="number"|name="priceYen"|inputmode="numeric"/);
 assert.match(markup, /option value="owned">自分の機材/);
-assert.match(markup, /option value="wishlist">ほしい物リスト/);
+assert.match(markup, /option value="wishlist">ほしい機材/);
 assert.match(markup, /option value="sold">手放した機材/);
 
 for (const category of ['guitar', 'effects', 'amp', 'dtm', 'recording', 'accessories', 'other']) {
@@ -52,7 +52,7 @@ assert.match(source, /\$\{item\.name\}を自分の機材に追加しますか？
 assert.match(source, /\$\{item\.name\}を手放した機材へ移しますか？/);
 assert.match(source, /\$\{item\.name\}を所有中の機材へ戻しますか？/);
 assert.match(source, /\$\{item\.name\}を機材リストから削除しますか？/);
-assert.match(source, /\$\{item\.name\}をほしい物リストから削除しますか？/);
+assert.match(source, /\$\{item\.name\}をほしい機材から削除しますか？/);
 assert.match(source, /price\.textContent = item\.priceText/);
 assert.match(source, /heading\.append\(name\);/);
 assert.match(source, /card\.append\(createGearMetadata\(item\)\);/);

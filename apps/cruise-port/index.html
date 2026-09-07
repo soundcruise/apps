@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.15.0">
+    <link rel="stylesheet" href="./style.css?v=1.15.1">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.15.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.15.1"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -122,7 +122,7 @@
                 <div class="gear-list-tabs" role="tablist" aria-label="機材リストの種類">
                     <button id="gear-all-tab" type="button" role="tab" aria-selected="true" aria-controls="gear-list-content" data-gear-status="all">全て</button>
                     <button id="gear-owned-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="owned">自分の機材</button>
-                    <button id="gear-wishlist-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="wishlist">ほしい物リスト</button>
+                    <button id="gear-wishlist-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="wishlist">ほしい機材</button>
                 </div>
 
                 <div id="gear-category-filter" class="gear-category-filter" aria-label="カテゴリで絞り込む"></div>
@@ -169,7 +169,7 @@
                         <label for="gear-status">リスト <span class="required-label">必須</span></label>
                         <select id="gear-status" name="status" required>
                             <option value="owned">自分の機材</option>
-                            <option value="wishlist">ほしい物リスト</option>
+                            <option value="wishlist">ほしい機材</option>
                             <option value="sold">手放した機材</option>
                         </select>
                     </div>
