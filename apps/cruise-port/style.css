@@ -1515,7 +1515,7 @@ textarea:focus-visible {
 }
 
 .gear-list-tabs button {
-    min-height: 43px;
+    min-height: 44px;
     padding: 8px 6px;
     border: 1px solid transparent;
     border-radius: 9px;
@@ -1561,9 +1561,9 @@ textarea:focus-visible {
 }
 
 .gear-category-chip {
-    min-height: 36px;
+    min-height: 44px;
     flex: 0 0 auto;
-    padding: 7px 12px;
+    padding: 7px 13px;
     scroll-snap-align: start;
     border: 1px solid rgba(207, 189, 148, 0.17);
     border-radius: 999px;
@@ -1581,8 +1581,8 @@ textarea:focus-visible {
 }
 
 .gear-owned-preview {
-    margin-top: 18px;
-    padding: 16px;
+    margin-top: 16px;
+    padding: 13px;
     border: 1px solid rgba(207, 189, 148, 0.13);
     border-radius: 13px;
     background: rgba(205, 180, 116, 0.025);
@@ -1598,7 +1598,7 @@ textarea:focus-visible {
 
 .gear-owned-preview-list {
     display: flex;
-    margin-top: 11px;
+    margin-top: 9px;
     padding-bottom: 4px;
     gap: 8px;
     overflow-x: auto;
@@ -1607,12 +1607,12 @@ textarea:focus-visible {
 }
 
 .gear-owned-preview-card {
-    min-width: 142px;
-    max-width: 190px;
-    min-height: 62px;
+    min-width: 136px;
+    max-width: 176px;
+    min-height: 54px;
     display: grid;
     flex: 0 0 auto;
-    padding: 10px 12px;
+    padding: 8px 10px;
     scroll-snap-align: start;
     gap: 3px;
     border: 1px solid rgba(207, 189, 148, 0.17);
@@ -1632,23 +1632,23 @@ textarea:focus-visible {
 }
 
 .gear-owned-preview-card strong {
-    font-size: 0.79rem;
+    font-size: 0.76rem;
 }
 
 .gear-owned-preview-card span,
 .gear-owned-preview-empty {
     color: var(--port-muted);
-    font-size: 0.67rem;
+    font-size: 0.65rem;
 }
 
 .gear-owned-preview-empty {
-    margin: 11px 0 0;
+    margin: 9px 0 0;
     line-height: 1.6;
 }
 
 .gear-list-heading {
     display: flex;
-    margin-top: 25px;
+    margin-top: 22px;
     align-items: baseline;
     justify-content: space-between;
     gap: 12px;
@@ -1662,19 +1662,23 @@ textarea:focus-visible {
 .gear-list-items {
     display: grid;
     margin-top: 12px;
-    gap: 11px;
+    gap: 10px;
 }
 
 .gear-card {
-    padding: 16px;
+    padding: 15px;
     border: 1px solid rgba(207, 189, 148, 0.16);
     border-radius: 13px;
     background: rgba(7, 7, 5, 0.46);
 }
 
+.gear-card--wishlist {
+    border-color: rgba(230, 210, 155, 0.22);
+    background: linear-gradient(135deg, rgba(205, 180, 116, 0.07), rgba(7, 7, 5, 0.46) 44%);
+}
+
 .gear-card-heading {
     display: grid;
-    gap: 9px;
 }
 
 .gear-card h3 {
@@ -1688,6 +1692,7 @@ textarea:focus-visible {
 
 .gear-card-metadata {
     display: flex;
+    margin-top: 9px;
     flex-wrap: wrap;
     gap: 6px;
 }
@@ -1706,14 +1711,18 @@ textarea:focus-visible {
     color: var(--port-gold-bright);
 }
 
+.gear-card-metadata .gear-priority--medium {
+    color: rgba(230, 210, 155, 0.86);
+}
+
 .gear-card-price,
 .gear-card-memo {
-    margin: 10px 0 0;
+    margin: 8px 0 0;
 }
 
 .gear-card-price {
     color: var(--port-gold-bright);
-    font-size: 0.88rem;
+    font-size: 0.86rem;
     font-weight: 650;
 }
 
@@ -1726,22 +1735,26 @@ textarea:focus-visible {
     overflow-wrap: anywhere;
     white-space: pre-wrap;
     -webkit-box-orient: vertical;
-    -webkit-line-clamp: 3;
+    -webkit-line-clamp: 2;
 }
 
 .gear-card-actions {
     display: grid;
-    margin-top: 14px;
+    margin-top: 13px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 7px;
 }
 
 .gear-card--wishlist .gear-card-actions {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.gear-card--wishlist .gear-card-actions .primary-action {
+    grid-column: 1 / -1;
 }
 
 .gear-card-actions .action-button {
-    min-height: 40px;
+    min-height: 44px;
     padding: 8px 5px;
     border-radius: 9px;
     font-size: 0.73rem;
@@ -1763,6 +1776,22 @@ textarea:focus-visible {
 
 .gear-list-add {
     margin-top: 14px;
+}
+
+.gear-list-add .action-button {
+    min-height: 44px;
+}
+
+.gear-form-view .form-field:first-of-type {
+    margin-top: 24px;
+}
+
+.gear-form-view .form-field + .form-field {
+    margin-top: 16px;
+}
+
+.gear-form-view textarea {
+    min-height: 104px;
 }
 
 .view-panel {

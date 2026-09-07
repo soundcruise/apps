@@ -77,7 +77,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.14.0';
+} from './app-version.js?v=1.14.1';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
 import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=1.0.1';
 import { initTuner } from './tuner-app.js?v=1.1.8';
@@ -1563,15 +1563,16 @@ function correctGearListRoute() {
 function createGearMetadata(item) {
     const metadata = document.createElement('div');
     metadata.className = 'gear-card-metadata';
-    const category = document.createElement('span');
-    category.textContent = getGearCategoryLabel(item.category);
-    metadata.append(category);
     if (item.status === 'wishlist') {
         const priority = document.createElement('span');
         priority.className = `gear-priority gear-priority--${item.priority}`;
         priority.textContent = `優先度 ${getGearPriorityLabel(item.priority)}`;
         metadata.append(priority);
     }
+    const category = document.createElement('span');
+    category.className = 'gear-category-badge';
+    category.textContent = getGearCategoryLabel(item.category);
+    metadata.append(category);
     return metadata;
 }
 
@@ -1593,7 +1594,7 @@ function renderGearCard(item) {
     card.className = `gear-card gear-card--${item.status}`;
     heading.className = 'gear-card-heading';
     name.textContent = item.name;
-    heading.append(name, createGearMetadata(item));
+    heading.append(name);
     card.append(heading);
 
     if (item.priceText) {
@@ -1602,6 +1603,7 @@ function renderGearCard(item) {
         price.textContent = item.priceText;
         card.append(price);
     }
+    card.append(createGearMetadata(item));
     if (item.memo) {
         const memo = document.createElement('p');
         memo.className = 'gear-card-memo';
@@ -1640,7 +1642,7 @@ function renderOwnedPreview() {
         button.dataset.id = item.id;
         button.setAttribute('aria-label', `${item.name}を編集`);
         name.textContent = item.name;
-        detail.textContent = getGearCategoryLabel(item.category);
+        detail.textContent = item.priceText || getGearCategoryLabel(item.category);
         button.append(name, detail);
         elements.gearOwnedPreviewList.append(button);
     });

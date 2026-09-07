@@ -18,6 +18,7 @@ assert.doesNotMatch(gearFormMarkup, /id="gear-manufacturer"|name="manufacturer"|
 assert.doesNotMatch(gearFormMarkup, /id="gear-url"|name="url"|>URL</);
 assert.match(markup, /maxlength="100"/);
 assert.match(markup, /id="gear-memo"[\s\S]*?maxlength="1000"/);
+assert.match(markup, /id="gear-memo"[\s\S]*?rows="4"/);
 assert.match(markup, /id="gear-category"[\s\S]*?<option value="">選択してください<\/option>/);
 assert.match(markup, /id="gear-price" name="priceText" type="text" maxlength="100"/);
 assert.match(markup, /placeholder="例：198,000円、約20万円、未定"/);
@@ -45,7 +46,9 @@ assert.match(source, /\$\{item\.name\}を自分の機材に追加しますか？
 assert.match(source, /\$\{item\.name\}を機材リストから削除しますか？/);
 assert.match(source, /\$\{item\.name\}をほしい物リストから削除しますか？/);
 assert.match(source, /price\.textContent = item\.priceText/);
-assert.match(source, /detail\.textContent = getGearCategoryLabel\(item\.category\)/);
+assert.match(source, /heading\.append\(name\);/);
+assert.match(source, /card\.append\(createGearMetadata\(item\)\);/);
+assert.match(source, /detail\.textContent = item\.priceText \|\| getGearCategoryLabel\(item\.category\)/);
 assert.doesNotMatch(source, /gearManufacturerInput|gearUrlInput|formatGearPrice/);
 assert.doesNotMatch(gearSource, /item\.manufacturer|item\.url|item\.priceYen/);
 assert.doesNotMatch(gearSource, /商品ページを開く/);
@@ -54,7 +57,11 @@ assert.doesNotMatch(source, /localStorage\.clear/);
 
 assert.match(styles, /\.gear-category-filter[\s\S]*?overflow-x: auto/);
 assert.match(styles, /\.gear-owned-preview-list[\s\S]*?overflow-x: auto/);
-assert.match(styles, /\.gear-card-memo[\s\S]*?-webkit-line-clamp: 3/);
+assert.match(styles, /\.gear-category-chip[\s\S]*?min-height: 44px/);
+assert.match(styles, /\.gear-card-memo[\s\S]*?-webkit-line-clamp: 2/);
 assert.match(styles, /\.gear-card-actions/);
+assert.match(styles, /\.gear-card--wishlist \.gear-card-actions \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+assert.match(styles, /\.gear-card--wishlist \.gear-card-actions \.primary-action[\s\S]*?grid-column: 1 \/ -1/);
+assert.match(styles, /\.gear-form-view textarea[\s\S]*?min-height: 104px/);
 
 console.log('gear-list-ui: core UI, safe rendering, routing, and mobile layout checks passed');
