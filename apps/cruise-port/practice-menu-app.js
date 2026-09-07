@@ -77,7 +77,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.12.2';
+} from './app-version.js?v=1.12.3';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
 import { applyHomeIconScalePreview } from './home-icon-scale-preview.js?v=1.0.0';
 import { loadIconScalePreview, saveIconScalePreview } from './icon-scale-preview-store.js?v=1.0.0';
