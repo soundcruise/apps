@@ -76,7 +76,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.11.3';
+} from './app-version.js?v=1.11.4';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
