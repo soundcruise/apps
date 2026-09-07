@@ -30,13 +30,14 @@ assert.equal(new Set(MY_APPS_ICON_PRESETS.map((preset) => preset.key)).size, 22,
 for (const preset of MY_APPS_ICON_PRESETS) {
     assert.equal(isKnownMyAppsIconPreset(preset.key), true);
     assert.equal(getMyAppsIconPreset(preset.key).label, preset.label);
-    assert.match(preset.src, /^\.\/assets\/my-app-icons\/[a-z-]+\.png$/);
-    const file = readFileSync(new URL(preset.src, import.meta.url));
+    assert.match(preset.src, /^\.\/assets\/my-app-icons\/[a-z-]+\.png(?:\?v=0\.11\.3)?$/);
+    const assetPath = preset.src.split('?')[0];
+    const file = readFileSync(new URL(assetPath, import.meta.url));
     assert.equal(file.subarray(1, 4).toString(), 'PNG', `${preset.key} is a PNG`);
     assert.equal(file.readUInt32BE(16), 512, `${preset.key} is 512px wide`);
     assert.equal(file.readUInt32BE(20), 512, `${preset.key} is 512px tall`);
     assert.equal(file[25], 6, `${preset.key} uses RGBA transparency`);
-    assert.equal(existsSync(new URL(preset.src, import.meta.url)), true);
+    assert.equal(existsSync(new URL(assetPath, import.meta.url)), true);
 
     const image = createMyAppsPresetGraphic(preset.key);
     assert.equal(image.name, 'img');

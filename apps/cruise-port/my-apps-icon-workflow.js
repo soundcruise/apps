@@ -5,7 +5,7 @@ import {
     updateMyApp
 } from './my-apps-store.js?v=6.0.0';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
-import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.2';
+import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
 
 async function deleteIconBestEffort(iconStore, iconId) {
     if (!iconId || !iconStore?.deleteIcon) return;

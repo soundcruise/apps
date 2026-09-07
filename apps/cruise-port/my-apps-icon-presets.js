@@ -26,7 +26,9 @@ const PRESET_DEFINITIONS = [
 export const MY_APPS_ICON_PRESETS = Object.freeze(PRESET_DEFINITIONS.map(([key, label, source]) => Object.freeze({
     key,
     label,
-    src: `./assets/my-app-icons/${key}.png`
+    src: key === 'rhythm'
+        ? './assets/my-app-icons/rhythm.png?v=0.11.3'
+        : `./assets/my-app-icons/${key}.png`
 })));
 
 const PRESET_BY_KEY = new Map(MY_APPS_ICON_PRESETS.map((preset) => [preset.key, preset]));
