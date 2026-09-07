@@ -10,7 +10,10 @@ import {
     getGearCategoryLabel,
     getInitialGearCategory,
     loadGearList,
+    markGearSold,
     markGearPurchased,
+    moveGearItem,
+    restoreGearOwned,
     saveGearList,
     selectGearItems,
     updateGearItem,
@@ -56,9 +59,14 @@ function createLegacyItem(overrides = {}) {
     };
 }
 
-test('empty storage starts with version 2 compatible empty data', () => {
+function asV2(item) {
+    const { order, soldAt, ...v2Item } = item;
+    return v2Item;
+}
+
+test('empty storage starts with version 3 compatible empty data', () => {
     assert.deepEqual(loadGearList(createMemoryStorage()), { ok: true, items: [] });
-    assert.equal(GEAR_LIST_SCHEMA_VERSION, 2);
+    assert.equal(GEAR_LIST_SCHEMA_VERSION, 3);
 });
 
 test('category filter supplies a new-item category except for all', () => {
@@ -100,11 +108,12 @@ test('keeps markup-like price input as plain text data', () => {
 
 test('validates priority, status, and memo', () => {
     assert.equal(validateGearValues({ ...baseValues, priority: 'urgent' }).field, 'priority');
-    assert.equal(validateGearValues({ ...baseValues, status: 'sold' }).field, 'status');
+    assert.equal(validateGearValues({ ...baseValues, status: 'sold' }).ok, true);
+    assert.equal(validateGearValues({ ...baseValues, status: 'archived' }).field, 'status');
     assert.equal(validateGearValues({ ...baseValues, memo: 'x'.repeat(1001) }).field, 'memo');
 });
 
-test('creates v2 owned and wishlist items without retired fields', () => {
+test('creates v3 owned, wishlist, and sold items without retired fields', () => {
     const wishlist = createGearItem({
         ...baseValues,
         manufacturer: 'ignored',
@@ -112,24 +121,31 @@ test('creates v2 owned and wishlist items without retired fields', () => {
         priceYen: 1
     }, [], firstDate);
     const owned = createGearItem({ ...baseValues, status: 'owned' }, [wishlist], firstDate);
+    const sold = createGearItem({ ...baseValues, status: 'sold' }, [wishlist, owned], firstDate);
     assert.equal(wishlist.status, 'wishlist');
     assert.equal(wishlist.ownedAt, null);
     assert.equal(owned.ownedAt, firstDate.toISOString());
+    assert.equal(wishlist.order, 0);
+    assert.equal(wishlist.soldAt, null);
+    assert.equal(sold.ownedAt, firstDate.toISOString());
+    assert.equal(sold.soldAt, firstDate.toISOString());
     assert.notEqual(wishlist.id, owned.id);
     for (const retired of ['manufacturer', 'url', 'priceYen']) {
         assert.equal(Object.hasOwn(wishlist, retired), false, retired);
     }
 });
 
-test('saves and loads a version 2 payload without changing other keys', () => {
+test('saves and loads a version 3 payload without changing other keys', () => {
     const storage = createMemoryStorage({ 'cruisePort.practiceMenus': 'keep' });
     const item = createGearItem(baseValues, [], firstDate);
     assert.deepEqual(saveGearList([item], storage), { ok: true });
     assert.equal(loadGearList(storage).items[0].id, item.id);
     assert.equal(storage.snapshot()['cruisePort.practiceMenus'], 'keep');
     const payload = JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]);
-    assert.equal(payload.version, 2);
+    assert.equal(payload.version, 3);
     assert.equal(payload.items[0].priceText, '約48万円');
+    assert.equal(payload.items[0].order, 0);
+    assert.equal(payload.items[0].soldAt, null);
     assert.equal(Object.hasOwn(payload.items[0], 'manufacturer'), false);
     assert.equal(Object.hasOwn(payload.items[0], 'url'), false);
     assert.equal(Object.hasOwn(payload.items[0], 'priceYen'), false);
@@ -159,7 +175,7 @@ test('migrates v1 once while preserving identity, state, memo, timestamps, and r
     assert.equal(Object.hasOwn(migrated, 'manufacturer'), false);
     assert.equal(Object.hasOwn(migrated, 'url'), false);
     assert.equal(Object.hasOwn(migrated, 'priceYen'), false);
-    assert.equal(JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 2);
+    assert.equal(JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 3);
     assert.equal(Object.hasOwn(loadGearList(storage), 'migrated'), false);
 });
 
@@ -207,21 +223,40 @@ test('migration write failure restores the complete v1 payload', () => {
     assert.equal(value, raw);
 });
 
-test('rejects duplicate IDs and unknown categories while loading v2', () => {
+test('migrates v2 to v3 with deterministic legacy display order', () => {
+    const low = asV2(createGearItem({ ...baseValues, name: 'Low', priority: 'low' }, [], firstDate));
+    const high = asV2(createGearItem({ ...baseValues, name: 'High', priority: 'high' }, [low], secondDate));
+    const storage = createMemoryStorage({
+        [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 2, items: [low, high] })
+    });
+    const result = loadGearList(storage);
+    assert.equal(result.ok, true);
+    assert.equal(result.migrated, true);
+    assert.deepEqual(selectGearItems(result.items, { status: 'wishlist' }).map(({ name }) => name), ['High', 'Low']);
+    assert.deepEqual(result.items.map(({ soldAt }) => soldAt), [null, null]);
+    assert.equal(JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 3);
+});
+
+test('rejects duplicate IDs, status orders, and unknown categories while loading v3', () => {
     const item = createGearItem(baseValues, [], firstDate);
     const duplicateStorage = createMemoryStorage({
-        [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 2, items: [item, item] })
+        [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 3, items: [item, item] })
     });
     assert.equal(loadGearList(duplicateStorage).ok, false);
     const invalidStorage = createMemoryStorage({
-        [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 2, items: [{ ...item, category: 'custom' }] })
+        [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 3, items: [{ ...item, category: 'custom' }] })
     });
     assert.equal(loadGearList(invalidStorage).ok, false);
+    const sameOrder = createGearItem({ ...baseValues, name: 'Same order' }, [item], firstDate);
+    const orderStorage = createMemoryStorage({
+        [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 3, items: [item, { ...sameOrder, order: item.order }] })
+    });
+    assert.equal(loadGearList(orderStorage).ok, false);
     assert.equal(getGearCategoryLabel('custom'), 'その他');
 });
 
 test('save failure restores the dedicated key', () => {
-    const oldValue = JSON.stringify({ version: 2, items: [] });
+    const oldValue = JSON.stringify({ version: 3, items: [] });
     let value = oldValue;
     let writes = 0;
     const storage = {
@@ -264,6 +299,30 @@ test('wishlist purchase preserves price text, ID, category, and other fields', (
     assert.equal(purchased.memo, item.memo);
     assert.equal(purchased.status, 'owned');
     assert.equal(purchased.ownedAt, secondDate.toISOString());
+    assert.equal(purchased.soldAt, null);
+    assert.equal(purchased.order, 0);
+});
+
+test('owned to sold and sold to owned preserve ID, fields, timestamps, and front order', () => {
+    const owned = createGearItem({ ...baseValues, status: 'owned', priceText: '約20万円' }, [], firstDate);
+    const oldSold = createGearItem({ ...baseValues, name: 'Old sold', status: 'sold' }, [owned], firstDate);
+    const soldResult = markGearSold([owned, oldSold], owned.id, secondDate);
+    const sold = soldResult.items.find((item) => item.id === owned.id);
+    assert.equal(soldResult.found, true);
+    assert.equal(sold.id, owned.id);
+    assert.equal(sold.status, 'sold');
+    assert.equal(sold.soldAt, secondDate.toISOString());
+    assert.equal(sold.ownedAt, owned.ownedAt);
+    assert.equal(sold.order, 0);
+    assert.equal(sold.priceText, owned.priceText);
+    const restoredResult = restoreGearOwned(soldResult.items, owned.id, new Date('2026-03-01T00:00:00.000Z'));
+    const restored = restoredResult.items.find((item) => item.id === owned.id);
+    assert.equal(restoredResult.found, true);
+    assert.equal(restored.status, 'owned');
+    assert.equal(restored.soldAt, null);
+    assert.equal(restored.ownedAt, '2026-03-01T00:00:00.000Z');
+    assert.equal(restored.order, 0);
+    assert.equal(restored.id, owned.id);
 });
 
 test('owned item can return to wishlist without losing price text', () => {
@@ -282,32 +341,43 @@ test('delete returns a candidate without mutating the source', () => {
     assert.equal(item.name, baseValues.name);
 });
 
-test('filters owned and wishlist items by category and all', () => {
+test('filters owned, wishlist, and sold items by category and all', () => {
     const ownedGuitar = createGearItem({ ...baseValues, name: 'Owned', status: 'owned' }, [], firstDate);
     const ownedAmp = createGearItem({ ...baseValues, name: 'Amp', category: 'amp', status: 'owned' }, [ownedGuitar], secondDate);
     const wanted = createGearItem({ ...baseValues, name: 'Wanted' }, [ownedGuitar, ownedAmp], firstDate);
-    const items = [ownedGuitar, ownedAmp, wanted];
+    const sold = createGearItem({ ...baseValues, name: 'Sold', status: 'sold' }, [ownedGuitar, ownedAmp, wanted], firstDate);
+    const items = [ownedGuitar, ownedAmp, wanted, sold];
     assert.deepEqual(selectGearItems(items, { status: 'owned', category: 'guitar' }).map(({ name }) => name), ['Owned']);
     assert.equal(selectGearItems(items, { status: 'owned', category: 'all' }).length, 2);
     assert.deepEqual(selectGearItems(items, { status: 'wishlist', category: 'guitar' }).map(({ name }) => name), ['Wanted']);
+    assert.deepEqual(selectGearItems(items, { status: 'sold', category: 'guitar' }).map(({ name }) => name), ['Sold']);
     assert.deepEqual(selectGearItems(items, { status: 'owned', category: 'unknown' }), []);
 });
 
-test('sorts owned by updatedAt descending', () => {
-    const older = createGearItem({ ...baseValues, name: 'Older', status: 'owned' }, [], firstDate);
-    const newer = createGearItem({ ...baseValues, name: 'Newer', status: 'owned' }, [older], secondDate);
-    assert.deepEqual(selectGearItems([older, newer], { status: 'owned' }).map(({ name }) => name), ['Newer', 'Older']);
+test('uses saved order and reorders only the current status', () => {
+    const low = createGearItem({ ...baseValues, name: 'Low', priority: 'low' }, [], secondDate);
+    const high = createGearItem({ ...baseValues, name: 'High', priority: 'high' }, [low], firstDate);
+    const owned = createGearItem({ ...baseValues, name: 'Owned', status: 'owned' }, [low, high], firstDate);
+    const result = moveGearItem([low, high, owned], low.id, -1);
+    assert.equal(result.moved, true);
+    assert.deepEqual(
+        selectGearItems(result.items, { status: 'wishlist' }).map(({ name }) => name),
+        ['Low', 'High']
+    );
+    assert.deepEqual(selectGearItems(result.items, { status: 'owned' }).map(({ name }) => name), ['Owned']);
+    assert.equal(moveGearItem(result.items, low.id, -1).moved, false);
 });
 
-test('sorts wishlist by priority then updatedAt descending', () => {
-    const low = createGearItem({ ...baseValues, name: 'Low', priority: 'low' }, [], secondDate);
-    const medium = createGearItem({ ...baseValues, name: 'Medium', priority: 'medium' }, [low], secondDate);
-    const highOld = createGearItem({ ...baseValues, name: 'High old', priority: 'high' }, [low, medium], firstDate);
-    const highNew = createGearItem({ ...baseValues, name: 'High new', priority: 'high' }, [low, medium, highOld], secondDate);
-    assert.deepEqual(
-        selectGearItems([low, highOld, medium, highNew], { status: 'wishlist' }).map(({ name }) => name),
-        ['High new', 'High old', 'Medium', 'Low']
-    );
+test('v3 malformed and unknown payloads remain untouched', () => {
+    const item = createGearItem(baseValues, [], firstDate);
+    for (const raw of [
+        JSON.stringify({ version: 3, items: [{ ...item, soldAt: 'invalid' }] }),
+        JSON.stringify({ version: 4, items: [] })
+    ]) {
+        const storage = createMemoryStorage({ [GEAR_LIST_STORAGE_KEY]: raw });
+        assert.equal(loadGearList(storage).ok, false);
+        assert.equal(storage.snapshot()[GEAR_LIST_STORAGE_KEY], raw);
+    }
 });
 
 test('fixed category labels cover the seven specified categories', () => {

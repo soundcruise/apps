@@ -1383,7 +1383,6 @@ body.my-apps-crop-open {
 .settings-choice:focus-visible,
 .gear-list-tabs button:focus-visible,
 .gear-category-chip:focus-visible,
-.gear-owned-preview-card:focus-visible,
 .reorder-button:focus-visible,
 .reorder-move:focus-visible,
 .view-back:focus-visible,
@@ -1409,9 +1408,6 @@ textarea:focus-visible {
 
 .port-view[hidden],
 .notice[hidden],
-.gear-owned-preview[hidden],
-.gear-owned-preview-list[hidden],
-.gear-owned-preview-empty[hidden],
 .gear-list-empty[hidden],
 .form-field[hidden] {
     display: none;
@@ -1507,7 +1503,7 @@ textarea:focus-visible {
     display: grid;
     margin-top: 24px;
     padding: 4px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 4px;
     border: 1px solid rgba(207, 189, 148, 0.17);
     border-radius: 12px;
@@ -1522,7 +1518,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.82rem;
+    font-size: 0.75rem;
     font-weight: 650;
     cursor: pointer;
 }
@@ -1544,18 +1540,15 @@ textarea:focus-visible {
     -webkit-overflow-scrolling: touch;
 }
 
-.gear-category-filter::-webkit-scrollbar,
-.gear-owned-preview-list::-webkit-scrollbar {
+.gear-category-filter::-webkit-scrollbar {
     height: 3px;
 }
 
-.gear-category-filter::-webkit-scrollbar-track,
-.gear-owned-preview-list::-webkit-scrollbar-track {
+.gear-category-filter::-webkit-scrollbar-track {
     background: transparent;
 }
 
-.gear-category-filter::-webkit-scrollbar-thumb,
-.gear-owned-preview-list::-webkit-scrollbar-thumb {
+.gear-category-filter::-webkit-scrollbar-thumb {
     border-radius: 999px;
     background: rgba(207, 189, 148, 0.24);
 }
@@ -1580,15 +1573,11 @@ textarea:focus-visible {
     background: rgba(205, 180, 116, 0.12);
 }
 
-.gear-owned-preview {
-    margin-top: 16px;
-    padding: 13px;
-    border: 1px solid rgba(207, 189, 148, 0.13);
-    border-radius: 13px;
-    background: rgba(205, 180, 116, 0.025);
+.gear-category-chip:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
 }
 
-.gear-owned-preview h2,
 .gear-list-heading h2 {
     margin: 0;
     color: var(--port-text);
@@ -1596,54 +1585,8 @@ textarea:focus-visible {
     font-weight: 650;
 }
 
-.gear-owned-preview-list {
-    display: flex;
-    margin-top: 9px;
-    padding-bottom: 4px;
-    gap: 8px;
-    overflow-x: auto;
-    scroll-snap-type: x proximity;
-    -webkit-overflow-scrolling: touch;
-}
-
-.gear-owned-preview-card {
-    min-width: 136px;
-    max-width: 176px;
-    min-height: 54px;
-    display: grid;
-    flex: 0 0 auto;
-    padding: 8px 10px;
-    scroll-snap-align: start;
-    gap: 3px;
-    border: 1px solid rgba(207, 189, 148, 0.17);
-    border-radius: 10px;
-    color: var(--port-text);
-    background: rgba(5, 5, 4, 0.5);
-    font: inherit;
-    text-align: left;
-    cursor: pointer;
-}
-
-.gear-owned-preview-card strong,
-.gear-owned-preview-card span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
-.gear-owned-preview-card strong {
-    font-size: 0.76rem;
-}
-
-.gear-owned-preview-card span,
-.gear-owned-preview-empty {
-    color: var(--port-muted);
-    font-size: 0.65rem;
-}
-
-.gear-owned-preview-empty {
-    margin: 9px 0 0;
-    line-height: 1.6;
+.gear-list-section + .gear-list-section {
+    margin-top: 24px;
 }
 
 .gear-list-heading {
@@ -1657,6 +1600,21 @@ textarea:focus-visible {
 .gear-list-heading span {
     color: var(--port-muted);
     font-size: 0.7rem;
+}
+
+.gear-reorder-start {
+    margin-left: auto;
+}
+
+.gear-reorder-actions {
+    display: flex;
+    margin-top: 14px;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.gear-reorder-actions[hidden] {
+    display: none;
 }
 
 .gear-list-items {
@@ -1675,6 +1633,11 @@ textarea:focus-visible {
 .gear-card--wishlist {
     border-color: rgba(230, 210, 155, 0.22);
     background: linear-gradient(135deg, rgba(205, 180, 116, 0.07), rgba(7, 7, 5, 0.46) 44%);
+}
+
+.gear-card--sold {
+    border-color: rgba(207, 189, 148, 0.12);
+    background: rgba(7, 7, 5, 0.32);
 }
 
 .gear-card-heading {
@@ -1741,16 +1704,8 @@ textarea:focus-visible {
 .gear-card-actions {
     display: grid;
     margin-top: 13px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 7px;
-}
-
-.gear-card--wishlist .gear-card-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.gear-card--wishlist .gear-card-actions .primary-action {
-    grid-column: 1 / -1;
 }
 
 .gear-card-actions .action-button {
@@ -1758,6 +1713,28 @@ textarea:focus-visible {
     padding: 8px 5px;
     border-radius: 9px;
     font-size: 0.73rem;
+}
+
+.gear-purchase-action {
+    border-color: rgba(230, 210, 155, 0.28);
+    color: rgba(230, 210, 155, 0.92);
+    background: rgba(205, 180, 116, 0.075);
+}
+
+.gear-card--reorder {
+    min-height: 72px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.gear-card--reorder h3 {
+    min-width: 0;
+    flex: 1;
+}
+
+.gear-reorder-controls {
+    margin-left: auto;
 }
 
 .gear-list-empty {

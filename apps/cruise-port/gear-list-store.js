@@ -1,6 +1,7 @@
 export const GEAR_LIST_STORAGE_KEY = 'cruisePort.gearList';
-export const GEAR_LIST_SCHEMA_VERSION = 2;
+export const GEAR_LIST_SCHEMA_VERSION = 3;
 
+const PREVIOUS_GEAR_LIST_SCHEMA_VERSION = 2;
 const LEGACY_GEAR_LIST_SCHEMA_VERSION = 1;
 
 export const GEAR_CATEGORIES = Object.freeze([
@@ -28,7 +29,8 @@ export const GEAR_LIMITS = Object.freeze({
 const LEGACY_LIMITS = Object.freeze({ manufacturer: 100, url: 2048 });
 const CATEGORY_KEYS = new Set(GEAR_CATEGORIES.map(({ key }) => key));
 const PRIORITY_KEYS = new Set(GEAR_PRIORITIES.map(({ key }) => key));
-const STATUS_KEYS = new Set(['owned', 'wishlist']);
+const STATUS_KEYS = new Set(['owned', 'wishlist', 'sold']);
+const PREVIOUS_STATUS_KEYS = new Set(['owned', 'wishlist']);
 const PRIORITY_RANK = Object.freeze({ high: 0, medium: 1, low: 2 });
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 
@@ -44,6 +46,10 @@ function isIsoDate(value) {
 
 function hasUniqueIds(items) {
     return new Set(items.map(({ id }) => id)).size === items.length;
+}
+
+function hasUniqueStatusOrders(items) {
+    return new Set(items.map(({ status, order }) => `${status}:${order}`)).size === items.length;
 }
 
 function restoreStorage(storage, previousValue) {
@@ -152,12 +158,24 @@ function validateLegacyGearValues(values) {
     return { ok: true };
 }
 
-function hasValidTimestamps(item) {
+function hasValidV2Timestamps(item) {
     return isIsoDate(item.createdAt)
         && isIsoDate(item.updatedAt)
         && (item.ownedAt === null || isIsoDate(item.ownedAt))
         && (item.status !== 'owned' || isIsoDate(item.ownedAt))
         && (item.status !== 'wishlist' || item.ownedAt === null);
+}
+
+function hasValidTimestamps(item) {
+    if (!isIsoDate(item.createdAt)
+        || !isIsoDate(item.updatedAt)
+        || (item.ownedAt !== null && !isIsoDate(item.ownedAt))
+        || (item.soldAt !== null && !isIsoDate(item.soldAt))) {
+        return false;
+    }
+    if (item.status === 'owned') return isIsoDate(item.ownedAt) && item.soldAt === null;
+    if (item.status === 'wishlist') return item.ownedAt === null && item.soldAt === null;
+    return isIsoDate(item.ownedAt) && isIsoDate(item.soldAt);
 }
 
 function isValidLegacyMetadata(legacy) {
@@ -181,7 +199,26 @@ function isValidLegacyGearItem(item) {
         && typeof item.id === 'string'
         && item.id.length > 0
         && validateLegacyGearValues(item).ok
-        && hasValidTimestamps(item)
+        && PREVIOUS_STATUS_KEYS.has(item.status)
+        && hasValidV2Timestamps(item)
+    );
+}
+
+function isValidV2GearItem(item) {
+    return Boolean(
+        item
+        && typeof item === 'object'
+        && !Array.isArray(item)
+        && typeof item.id === 'string'
+        && item.id.length > 0
+        && hasOwn(item, 'priceText')
+        && !hasOwn(item, 'priceYen')
+        && !hasOwn(item, 'manufacturer')
+        && !hasOwn(item, 'url')
+        && PREVIOUS_STATUS_KEYS.has(item.status)
+        && validateGearValues(item).ok
+        && isValidLegacyMetadata(item.legacy)
+        && hasValidV2Timestamps(item)
     );
 }
 
@@ -193,6 +230,9 @@ export function isValidGearItem(item) {
         && typeof item.id === 'string'
         && item.id.length > 0
         && hasOwn(item, 'priceText')
+        && hasOwn(item, 'order')
+        && hasOwn(item, 'soldAt')
+        && Number.isSafeInteger(item.order)
         && !hasOwn(item, 'priceYen')
         && !hasOwn(item, 'manufacturer')
         && !hasOwn(item, 'url')
@@ -200,6 +240,13 @@ export function isValidGearItem(item) {
         && isValidLegacyMetadata(item.legacy)
         && hasValidTimestamps(item)
     );
+}
+
+function isValidGearCollection(items) {
+    return Array.isArray(items)
+        && items.every(isValidGearItem)
+        && hasUniqueIds(items)
+        && hasUniqueStatusOrders(items);
 }
 
 function migrateLegacyGearItem(item) {
@@ -226,6 +273,29 @@ function migrateLegacyGearItem(item) {
     return Object.keys(legacy).length > 0 ? { ...migrated, legacy } : migrated;
 }
 
+function compareV2Items(first, second) {
+    if (first.status === 'wishlist') {
+        const priorityDifference = PRIORITY_RANK[first.priority] - PRIORITY_RANK[second.priority];
+        if (priorityDifference !== 0) return priorityDifference;
+    }
+    return Date.parse(second.updatedAt) - Date.parse(first.updatedAt);
+}
+
+function migrateV2Items(items) {
+    const orderById = new Map();
+    [...PREVIOUS_STATUS_KEYS].forEach((status) => {
+        items
+            .filter((item) => item.status === status)
+            .sort(compareV2Items)
+            .forEach((item, index) => orderById.set(item.id, index));
+    });
+    return items.map((item) => ({
+        ...cloneGearItem(item),
+        order: orderById.get(item.id),
+        soldAt: null
+    }));
+}
+
 export function loadGearList(storage = globalThis.localStorage) {
     try {
         const rawValue = storage.getItem(GEAR_LIST_STORAGE_KEY);
@@ -238,7 +308,19 @@ export function loadGearList(storage = globalThis.localStorage) {
                 || !hasUniqueIds(payload.items)) {
                 return { ok: false, items: [], reason: 'invalid-data' };
             }
-            const items = payload.items.map(migrateLegacyGearItem);
+            const items = migrateV2Items(payload.items.map(migrateLegacyGearItem));
+            const migrationSave = saveGearList(items, storage);
+            if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
+            return { ok: true, items: items.map(cloneGearItem), migrated: true };
+        }
+
+        if (payload?.version === PREVIOUS_GEAR_LIST_SCHEMA_VERSION) {
+            if (!Array.isArray(payload.items)
+                || !payload.items.every(isValidV2GearItem)
+                || !hasUniqueIds(payload.items)) {
+                return { ok: false, items: [], reason: 'invalid-data' };
+            }
+            const items = migrateV2Items(payload.items);
             const migrationSave = saveGearList(items, storage);
             if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
             return { ok: true, items: items.map(cloneGearItem), migrated: true };
@@ -247,7 +329,7 @@ export function loadGearList(storage = globalThis.localStorage) {
         if (payload?.version !== GEAR_LIST_SCHEMA_VERSION) {
             return { ok: false, items: [], reason: 'unsupported-version' };
         }
-        if (!Array.isArray(payload.items) || !payload.items.every(isValidGearItem) || !hasUniqueIds(payload.items)) {
+        if (!isValidGearCollection(payload.items)) {
             return { ok: false, items: [], reason: 'invalid-data' };
         }
         return { ok: true, items: payload.items.map(cloneGearItem) };
@@ -257,7 +339,7 @@ export function loadGearList(storage = globalThis.localStorage) {
 }
 
 export function saveGearList(items, storage = globalThis.localStorage) {
-    if (!Array.isArray(items) || !items.every(isValidGearItem) || !hasUniqueIds(items)) {
+    if (!isValidGearCollection(items)) {
         return { ok: false, reason: 'invalid-data' };
     }
     let previousValue;
@@ -286,6 +368,7 @@ export function getInitialGearCategory(activeCategory) {
 
 export function createGearItem(values, existingItems, now = new Date()) {
     const timestamp = now.toISOString();
+    const order = getNewGearOrder(existingItems, values.status);
     return {
         id: createStableId(existingItems),
         name: values.name,
@@ -294,9 +377,44 @@ export function createGearItem(values, existingItems, now = new Date()) {
         priority: values.priority,
         memo: values.memo,
         status: values.status,
+        order,
         createdAt: timestamp,
         updatedAt: timestamp,
-        ownedAt: values.status === 'owned' ? timestamp : null
+        ownedAt: values.status === 'wishlist' ? null : timestamp,
+        soldAt: values.status === 'sold' ? timestamp : null
+    };
+}
+
+function getNewGearOrder(items, status) {
+    const orders = items.filter((item) => item.status === status).map((item) => item.order);
+    return orders.length === 0 ? 0 : Math.min(...orders) - 1;
+}
+
+function cloneItems(items) {
+    return items.map(cloneGearItem);
+}
+
+function transitionStatus(items, id, fromStatus, toStatus, now = new Date()) {
+    const source = items.find((item) => item.id === id && item.status === fromStatus);
+    if (!source) return { found: false, items: cloneItems(items) };
+    const timestamp = now.toISOString();
+    const transitioned = {
+        ...cloneGearItem(source),
+        status: toStatus,
+        order: 0,
+        updatedAt: timestamp,
+        ownedAt: toStatus === 'wishlist' ? null : toStatus === 'owned' ? timestamp : source.ownedAt || timestamp,
+        soldAt: toStatus === 'sold' ? timestamp : null
+    };
+    const targetIds = selectGearItems(items, { status: toStatus }).map(({ id: targetId }) => targetId);
+    const targetOrder = new Map(targetIds.map((targetId, index) => [targetId, index + 1]));
+    return {
+        found: true,
+        items: items.map((item) => {
+            if (item.id === id) return transitioned;
+            if (item.status === toStatus) return { ...cloneGearItem(item), order: targetOrder.get(item.id) };
+            return cloneGearItem(item);
+        })
     };
 }
 
@@ -313,29 +431,31 @@ export function updateGearItem(items, id, values, now = new Date()) {
             priceText: values.priceText,
             priority: values.priority,
             memo: values.memo,
-            status: values.status,
+            status: item.status,
             id: item.id,
             createdAt: item.createdAt,
             updatedAt: timestamp,
-            ownedAt: values.status === 'wishlist'
-                ? null
-                : item.status === 'wishlist' || item.ownedAt === null
-                    ? timestamp
-                    : item.ownedAt
+            ownedAt: item.ownedAt,
+            soldAt: item.soldAt
         };
     });
-    return { found, items: nextItems };
+    if (!found) return { found, items: nextItems };
+    const previous = items.find((item) => item.id === id);
+    return values.status === previous.status
+        ? { found, items: nextItems }
+        : transitionStatus(nextItems, id, previous.status, values.status, now);
 }
 
 export function markGearPurchased(items, id, now = new Date()) {
-    let found = false;
-    const timestamp = now.toISOString();
-    const nextItems = items.map((item) => {
-        if (item.id !== id || item.status !== 'wishlist') return cloneGearItem(item);
-        found = true;
-        return { ...item, status: 'owned', updatedAt: timestamp, ownedAt: timestamp };
-    });
-    return { found, items: nextItems };
+    return transitionStatus(items, id, 'wishlist', 'owned', now);
+}
+
+export function markGearSold(items, id, now = new Date()) {
+    return transitionStatus(items, id, 'owned', 'sold', now);
+}
+
+export function restoreGearOwned(items, id, now = new Date()) {
+    return transitionStatus(items, id, 'sold', 'owned', now);
 }
 
 export function deleteGearItem(items, id) {
@@ -345,14 +465,26 @@ export function deleteGearItem(items, id) {
 
 export function selectGearItems(items, { status, category = 'all' }) {
     if (!STATUS_KEYS.has(status) || (category !== 'all' && !CATEGORY_KEYS.has(category))) return [];
-    const selected = items.filter((item) => item.status === status && (category === 'all' || item.category === category));
-    return selected.sort((first, second) => {
-        if (status === 'wishlist') {
-            const priorityDifference = PRIORITY_RANK[first.priority] - PRIORITY_RANK[second.priority];
-            if (priorityDifference !== 0) return priorityDifference;
-        }
-        return Date.parse(second.updatedAt) - Date.parse(first.updatedAt);
-    });
+    return items
+        .filter((item) => item.status === status && (category === 'all' || item.category === category))
+        .sort((first, second) => first.order - second.order);
+}
+
+export function moveGearItem(items, id, direction) {
+    const source = items.find((item) => item.id === id);
+    if (!source || !Number.isInteger(direction) || direction === 0) return { moved: false, items: cloneItems(items) };
+    const ordered = selectGearItems(items, { status: source.status });
+    const index = ordered.findIndex((item) => item.id === id);
+    const destination = index + Math.sign(direction);
+    if (index < 0 || destination < 0 || destination >= ordered.length) return { moved: false, items: cloneItems(items) };
+    [ordered[index], ordered[destination]] = [ordered[destination], ordered[index]];
+    const orderById = new Map(ordered.map((item, order) => [item.id, order]));
+    return {
+        moved: true,
+        items: items.map((item) => item.status === source.status
+            ? { ...cloneGearItem(item), order: orderById.get(item.id) }
+            : cloneGearItem(item))
+    };
 }
 
 export function getGearCategoryLabel(key) {

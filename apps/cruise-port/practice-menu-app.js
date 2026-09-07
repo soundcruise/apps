@@ -77,7 +77,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.14.1';
+} from './app-version.js?v=1.15.0';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
 import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=1.0.1';
 import { initTuner } from './tuner-app.js?v=1.1.8';
@@ -89,12 +89,15 @@ import {
     getInitialGearCategory,
     getGearPriorityLabel,
     loadGearList,
+    markGearSold,
     markGearPurchased,
+    moveGearItem,
+    restoreGearOwned,
     saveGearList,
     selectGearItems,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=2.0.0';
+} from './gear-list-store.js?v=3.0.0';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
@@ -123,14 +126,12 @@ const elements = {
     gearCategoryFilter: document.querySelector('#gear-category-filter'),
     gearStorageError: document.querySelector('#gear-list-storage-error'),
     gearContent: document.querySelector('#gear-list-content'),
-    gearOwnedPreview: document.querySelector('#gear-owned-preview'),
-    gearOwnedPreviewList: document.querySelector('#gear-owned-preview-list'),
-    gearOwnedPreviewEmpty: document.querySelector('#gear-owned-preview-empty'),
-    gearSectionTitle: document.querySelector('#gear-list-section-title'),
-    gearCount: document.querySelector('#gear-list-count'),
-    gearItems: document.querySelector('#gear-list-items'),
-    gearEmpty: document.querySelector('#gear-list-empty'),
-    gearEmptyMessage: document.querySelector('#gear-list-empty-message'),
+    gearSections: document.querySelector('#gear-list-sections'),
+    gearReorderActions: document.querySelector('#gear-reorder-actions'),
+    gearReorderCancel: document.querySelector('#gear-reorder-cancel'),
+    gearReorderComplete: document.querySelector('#gear-reorder-complete'),
+    gearReorderStatus: document.querySelector('#gear-reorder-status'),
+    gearReorderNotice: document.querySelector('#gear-reorder-notice'),
     gearAdd: document.querySelector('#gear-list-add'),
     gearFormTitle: document.querySelector('#gear-form-title'),
     gearForm: document.querySelector('#gear-list-form'),
@@ -257,10 +258,13 @@ const myAppsState = {
 const gearState = {
     items: [],
     storageReady: false,
-    activeStatus: 'owned',
+    activeStatus: 'all',
     activeCategory: 'all',
     activeId: null,
-    formMode: 'create'
+    formMode: 'create',
+    reorderMode: false,
+    reorderStatus: null,
+    reorderItems: []
 };
 
 let metronomeController = null;
@@ -1613,7 +1617,11 @@ function renderGearCard(item) {
     const actions = document.createElement('div');
     actions.className = 'gear-card-actions';
     if (item.status === 'wishlist') {
-        actions.append(createGearAction('購入した', 'purchase', item, 'primary-action'));
+        actions.append(createGearAction('購入した', 'purchase', item, 'gear-purchase-action'));
+    } else if (item.status === 'owned') {
+        actions.append(createGearAction('手放した', 'sell', item, 'secondary-action'));
+    } else {
+        actions.append(createGearAction('所有中に戻す', 'restore', item, 'secondary-action'));
     }
     actions.append(
         createGearAction('編集', 'edit', item),
@@ -1621,33 +1629,6 @@ function renderGearCard(item) {
     );
     card.append(actions);
     return card;
-}
-
-function renderOwnedPreview() {
-    const visible = gearState.activeStatus === 'wishlist';
-    elements.gearOwnedPreview.hidden = !visible;
-    if (!visible) return;
-    const items = selectGearItems(gearState.items, {
-        status: 'owned',
-        category: gearState.activeCategory
-    });
-    elements.gearOwnedPreviewList.replaceChildren();
-    items.forEach((item) => {
-        const button = document.createElement('button');
-        const name = document.createElement('strong');
-        const detail = document.createElement('span');
-        button.type = 'button';
-        button.className = 'gear-owned-preview-card';
-        button.dataset.gearAction = 'edit';
-        button.dataset.id = item.id;
-        button.setAttribute('aria-label', `${item.name}を編集`);
-        name.textContent = item.name;
-        detail.textContent = item.priceText || getGearCategoryLabel(item.category);
-        button.append(name, detail);
-        elements.gearOwnedPreviewList.append(button);
-    });
-    elements.gearOwnedPreviewList.hidden = items.length === 0;
-    elements.gearOwnedPreviewEmpty.hidden = items.length !== 0;
 }
 
 function renderGearCategoryFilter() {
@@ -1660,10 +1641,94 @@ function renderGearCategoryFilter() {
         button.className = 'gear-category-chip';
         button.dataset.gearCategory = key;
         button.textContent = label;
+        button.disabled = gearState.reorderMode;
         button.setAttribute('aria-pressed', String(selected));
         button.classList.toggle('is-selected', selected);
         elements.gearCategoryFilter.append(button);
     });
+}
+
+function getGearSections() {
+    if (gearState.activeStatus === 'all') {
+        return [
+            { status: 'owned', title: '今持っている機材', emptyMessage: '今持っている機材はまだありません' },
+            { status: 'wishlist', title: 'ほしい物', emptyMessage: 'ほしい物はまだありません' }
+        ];
+    }
+    if (gearState.activeStatus === 'owned') {
+        return [
+            { status: 'owned', title: '今持っている機材', emptyMessage: '今持っている機材はまだありません' },
+            { status: 'sold', title: '手放した機材', emptyMessage: '手放した機材はまだありません' }
+        ];
+    }
+    return [{ status: 'wishlist', title: 'ほしい物', emptyMessage: 'ほしい物はまだありません' }];
+}
+
+function renderGearReorderCard(item, index, length) {
+    const card = document.createElement('article');
+    const name = document.createElement('h3');
+    const controls = document.createElement('div');
+    const upButton = document.createElement('button');
+    const downButton = document.createElement('button');
+    card.className = `gear-card gear-card--${item.status} gear-card--reorder`;
+    name.textContent = item.name;
+    controls.className = 'reorder-controls gear-reorder-controls';
+    [
+        [upButton, '↑', -1, index === 0, '上へ移動'],
+        [downButton, '↓', 1, index === length - 1, '下へ移動']
+    ].forEach(([button, label, direction, disabled, description]) => {
+        button.type = 'button';
+        button.className = 'reorder-move';
+        button.dataset.gearAction = 'reorder-move';
+        button.dataset.id = item.id;
+        button.dataset.direction = String(direction);
+        button.disabled = disabled;
+        button.textContent = label;
+        button.setAttribute('aria-label', `${item.name}を${description}`);
+        controls.append(button);
+    });
+    card.append(name, controls);
+    return card;
+}
+
+function renderGearSection({ status, title, emptyMessage }) {
+    const section = document.createElement('section');
+    const heading = document.createElement('div');
+    const headingTitle = document.createElement('h2');
+    const count = document.createElement('span');
+    const items = selectGearItems(
+        gearState.reorderMode && gearState.reorderStatus === status ? gearState.reorderItems : gearState.items,
+        { status, category: gearState.activeCategory }
+    );
+    section.className = 'gear-list-section';
+    heading.className = 'gear-list-heading';
+    headingTitle.textContent = title;
+    count.textContent = `${items.length}件`;
+    heading.append(headingTitle, count);
+    if (!gearState.reorderMode && gearState.activeStatus !== 'all' && gearState.activeCategory === 'all' && items.length >= 2) {
+        const start = document.createElement('button');
+        start.type = 'button';
+        start.className = 'reorder-button gear-reorder-start';
+        start.dataset.gearReorderStatus = status;
+        start.textContent = '並び替え';
+        start.setAttribute('aria-label', `${title}を並び替え`);
+        heading.append(start);
+    }
+    const list = document.createElement('div');
+    list.className = 'gear-list-items';
+    if (gearState.reorderMode && gearState.reorderStatus === status) {
+        items.forEach((item, index) => list.append(renderGearReorderCard(item, index, items.length)));
+    } else {
+        items.forEach((item) => list.append(renderGearCard(item)));
+    }
+    const empty = document.createElement('div');
+    empty.className = 'gear-list-empty';
+    empty.hidden = items.length !== 0;
+    const emptyCopy = document.createElement('p');
+    emptyCopy.textContent = emptyMessage;
+    empty.append(emptyCopy);
+    section.append(heading, list, empty);
+    return section;
 }
 
 function renderWishlist({ focus = true } = {}) {
@@ -1675,23 +1740,17 @@ function renderWishlist({ focus = true } = {}) {
         tab.classList.toggle('is-selected', selected);
     });
     const activeTab = elements.gearTabs.find((tab) => tab.dataset.gearStatus === gearState.activeStatus);
-    elements.gearContent.setAttribute('aria-labelledby', activeTab?.id || 'gear-owned-tab');
+    elements.gearContent.setAttribute('aria-labelledby', activeTab?.id || 'gear-all-tab');
     renderGearCategoryFilter();
-    renderOwnedPreview();
-
-    const items = selectGearItems(gearState.items, {
-        status: gearState.activeStatus,
-        category: gearState.activeCategory
-    });
-    elements.gearItems.replaceChildren(...items.map(renderGearCard));
-    elements.gearSectionTitle.textContent = gearState.activeStatus === 'owned' ? '自分の機材' : 'ほしい物';
-    elements.gearCount.textContent = `${items.length}件`;
-    elements.gearEmptyMessage.textContent = gearState.activeStatus === 'owned'
-        ? 'まだ機材が登録されていません'
-        : 'ほしい物はまだありません';
-    elements.gearEmpty.hidden = items.length !== 0;
-    elements.gearAdd.textContent = gearState.activeStatus === 'owned' ? '＋ 機材を追加' : '＋ ほしい物を追加';
-    elements.gearAdd.disabled = !gearState.storageReady;
+    elements.gearSections.replaceChildren(...getGearSections().map(renderGearSection));
+    elements.gearReorderActions.hidden = !gearState.reorderMode;
+    elements.gearReorderStatus.hidden = !gearState.reorderMode;
+    elements.gearReorderStatus.textContent = gearState.reorderMode
+        ? '並び替え中です。上下のボタンで順序を変更し、完了で保存します。'
+        : '';
+    elements.gearAdd.hidden = gearState.reorderMode;
+    elements.gearAdd.textContent = gearState.activeStatus === 'wishlist' ? '＋ ほしい物を追加' : '＋ 機材を追加';
+    elements.gearAdd.disabled = !gearState.storageReady || gearState.reorderMode;
     showNotice(
         elements.gearStorageError,
         gearState.storageReady ? '' : '機材リストを読み込めませんでした。保存データは変更していません。'
@@ -1704,7 +1763,7 @@ function fillGearForm(item = null) {
     elements.gearNameInput.value = item?.name || '';
     elements.gearCategoryInput.value = item?.category || getInitialGearCategory(gearState.activeCategory);
     elements.gearPriceInput.value = item?.priceText || '';
-    elements.gearStatusInput.value = item?.status || gearState.activeStatus;
+    elements.gearStatusInput.value = item?.status || (gearState.activeStatus === 'wishlist' ? 'wishlist' : 'owned');
     elements.gearPriorityInput.value = item?.priority || 'medium';
     elements.gearMemoInput.value = item?.memo || '';
     updateGearPriorityVisibility();
@@ -1725,7 +1784,7 @@ function renderGearForm(mode, id = null) {
     gearState.activeId = item?.id || null;
     elements.gearFormTitle.textContent = mode === 'edit'
         ? `${item.name}を編集`
-        : gearState.activeStatus === 'owned' ? '機材を追加' : 'ほしい物を追加';
+        : gearState.activeStatus === 'wishlist' ? 'ほしい物を追加' : '機材を追加';
     fillGearForm(item);
     showView(elements.gearFormView);
     elements.gearFormTitle.focus({ preventScroll: true });
@@ -1786,7 +1845,7 @@ function handleGearSubmit(event) {
         candidateItems = [...gearState.items, createGearItem(validation.values, gearState.items)];
     }
     if (!persistGearItems(candidateItems, elements.gearFormError, '保存できませんでした。元の機材リストは変更していません。')) return;
-    gearState.activeStatus = validation.values.status;
+    gearState.activeStatus = validation.values.status === 'wishlist' ? 'wishlist' : 'owned';
     setGearListRoute();
 }
 
@@ -1799,10 +1858,30 @@ function handleGearPurchase(item) {
     renderWishlist({ focus: false });
 }
 
+function handleGearSell(item) {
+    if (!window.confirm(`${item.name}を手放した機材へ移しますか？`)) return;
+    const result = markGearSold(gearState.items, item.id);
+    if (!result.found) return;
+    if (!persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。')) return;
+    gearState.activeStatus = 'owned';
+    renderWishlist({ focus: false });
+}
+
+function handleGearRestore(item) {
+    if (!window.confirm(`${item.name}を所有中の機材へ戻しますか？`)) return;
+    const result = restoreGearOwned(gearState.items, item.id);
+    if (!result.found) return;
+    if (!persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。')) return;
+    gearState.activeStatus = 'owned';
+    renderWishlist({ focus: false });
+}
+
 function handleGearDelete(item) {
     const message = item.status === 'owned'
         ? `${item.name}を機材リストから削除しますか？`
-        : `${item.name}をほしい物リストから削除しますか？`;
+        : item.status === 'sold'
+            ? `${item.name}を手放した機材から削除しますか？`
+            : `${item.name}をほしい物リストから削除しますか？`;
     if (!window.confirm(message)) return;
     const result = deleteGearItem(gearState.items, item.id);
     if (!result.found) return;
@@ -1810,15 +1889,71 @@ function handleGearDelete(item) {
     renderWishlist({ focus: false });
 }
 
+function startGearReorder(status) {
+    if (!['owned', 'wishlist', 'sold'].includes(status)
+        || gearState.activeStatus === 'all'
+        || gearState.activeCategory !== 'all'
+        || selectGearItems(gearState.items, { status }).length < 2) {
+        return;
+    }
+    gearState.reorderMode = true;
+    gearState.reorderStatus = status;
+    gearState.reorderItems = gearState.items.map((item) => ({ ...item }));
+    showNotice(elements.gearReorderNotice);
+    renderWishlist({ focus: false });
+}
+
+function cancelGearReorder() {
+    gearState.reorderMode = false;
+    gearState.reorderStatus = null;
+    gearState.reorderItems = [];
+    showNotice(elements.gearReorderNotice);
+    renderWishlist({ focus: false });
+}
+
+function moveGearReorderItem(id, direction) {
+    const result = moveGearItem(gearState.reorderItems, id, direction);
+    if (!result.moved) return;
+    gearState.reorderItems = result.items;
+    renderWishlist({ focus: false });
+    [...elements.gearSections.querySelectorAll('.reorder-move')]
+        .find((button) => button.dataset.id === id && Number(button.dataset.direction) === direction)
+        ?.focus();
+}
+
+function completeGearReorder() {
+    if (!gearState.reorderMode) return;
+    const currentIds = selectGearItems(gearState.items, { status: gearState.reorderStatus }).map(({ id }) => id);
+    const reorderedIds = selectGearItems(gearState.reorderItems, { status: gearState.reorderStatus }).map(({ id }) => id);
+    if (currentIds.every((id, index) => id === reorderedIds[index])) {
+        cancelGearReorder();
+        return;
+    }
+    if (!persistGearItems(gearState.reorderItems, elements.gearReorderNotice, '並び順を保存できませんでした。元の順番は変更していません。')) return;
+    gearState.reorderMode = false;
+    gearState.reorderStatus = null;
+    gearState.reorderItems = [];
+    showNotice(elements.gearReorderNotice);
+    renderWishlist({ focus: false });
+}
+
 function handleGearListAction(event) {
     const target = event.target.closest('[data-gear-action]');
     if (!target) return;
+    if (target.dataset.gearAction === 'reorder-move') {
+        moveGearReorderItem(target.dataset.id, Number(target.dataset.direction));
+        return;
+    }
     const item = findGearItem(target.dataset.id);
     if (!item) return;
     if (target.dataset.gearAction === 'edit') {
         setHashRoute(`#wishlist/${encodeURIComponent(item.id)}/edit`);
     } else if (target.dataset.gearAction === 'purchase') {
         handleGearPurchase(item);
+    } else if (target.dataset.gearAction === 'sell') {
+        handleGearSell(item);
+    } else if (target.dataset.gearAction === 'restore') {
+        handleGearRestore(item);
     } else if (target.dataset.gearAction === 'delete') {
         handleGearDelete(item);
     }
@@ -1964,10 +2099,19 @@ elements.addButton.addEventListener('click', () => setHashRoute('#practice-menu/
 elements.gearAdd.addEventListener('click', () => setHashRoute('#wishlist/new'));
 elements.gearForm.addEventListener('submit', handleGearSubmit);
 elements.gearStatusInput.addEventListener('change', updateGearPriorityVisibility);
-elements.gearItems.addEventListener('click', handleGearListAction);
-elements.gearOwnedPreviewList.addEventListener('click', handleGearListAction);
+elements.gearSections.addEventListener('click', (event) => {
+    const reorderStart = event.target.closest('[data-gear-reorder-status]');
+    if (reorderStart) {
+        startGearReorder(reorderStart.dataset.gearReorderStatus);
+        return;
+    }
+    handleGearListAction(event);
+});
+elements.gearReorderCancel.addEventListener('click', cancelGearReorder);
+elements.gearReorderComplete.addEventListener('click', completeGearReorder);
 elements.gearTabs.forEach((tab, index) => {
     tab.addEventListener('click', () => {
+        if (gearState.reorderMode) cancelGearReorder();
         gearState.activeStatus = tab.dataset.gearStatus;
         renderWishlist({ focus: false });
         tab.focus({ preventScroll: true });
@@ -1981,7 +2125,7 @@ elements.gearTabs.forEach((tab, index) => {
 });
 elements.gearCategoryFilter.addEventListener('click', (event) => {
     const chip = event.target.closest('[data-gear-category]');
-    if (!chip) return;
+    if (!chip || gearState.reorderMode) return;
     gearState.activeCategory = chip.dataset.gearCategory;
     renderWishlist({ focus: false });
     elements.gearCategoryFilter.querySelector(`[data-gear-category="${gearState.activeCategory}"]`)?.focus({ preventScroll: true });

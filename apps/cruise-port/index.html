@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.14.1">
+    <link rel="stylesheet" href="./style.css?v=1.15.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.14.1"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.15.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -120,28 +120,22 @@
                 <h1 id="wishlist-title" class="view-title" tabindex="-1">機材リスト</h1>
 
                 <div class="gear-list-tabs" role="tablist" aria-label="機材リストの種類">
-                    <button id="gear-owned-tab" type="button" role="tab" aria-selected="true" aria-controls="gear-list-content" data-gear-status="owned">自分の機材</button>
+                    <button id="gear-all-tab" type="button" role="tab" aria-selected="true" aria-controls="gear-list-content" data-gear-status="all">全て</button>
+                    <button id="gear-owned-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="owned">自分の機材</button>
                     <button id="gear-wishlist-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="wishlist">ほしい物リスト</button>
                 </div>
 
                 <div id="gear-category-filter" class="gear-category-filter" aria-label="カテゴリで絞り込む"></div>
                 <p id="gear-list-storage-error" class="notice notice-error" role="alert" hidden></p>
 
-                <div id="gear-list-content" role="tabpanel" aria-labelledby="gear-owned-tab">
-                    <section id="gear-owned-preview" class="gear-owned-preview" aria-labelledby="gear-owned-preview-title" hidden>
-                        <h2 id="gear-owned-preview-title">今持っている機材</h2>
-                        <div id="gear-owned-preview-list" class="gear-owned-preview-list"></div>
-                        <p id="gear-owned-preview-empty" class="gear-owned-preview-empty" hidden>このカテゴリで登録済みの機材はありません</p>
-                    </section>
-
-                    <div class="gear-list-heading">
-                        <h2 id="gear-list-section-title">自分の機材</h2>
-                        <span id="gear-list-count" aria-live="polite"></span>
+                <div id="gear-list-content" role="tabpanel" aria-labelledby="gear-all-tab">
+                    <div id="gear-reorder-actions" class="gear-reorder-actions" hidden>
+                        <button id="gear-reorder-cancel" class="reorder-button" type="button">キャンセル</button>
+                        <button id="gear-reorder-complete" class="reorder-button reorder-button-primary" type="button">完了</button>
                     </div>
-                    <div id="gear-list-items" class="gear-list-items"></div>
-                    <div id="gear-list-empty" class="gear-list-empty" hidden>
-                        <p id="gear-list-empty-message">まだ機材が登録されていません</p>
-                    </div>
+                    <p id="gear-reorder-status" class="reorder-status" aria-live="polite" hidden></p>
+                    <p id="gear-reorder-notice" class="notice notice-error" role="alert" hidden></p>
+                    <div id="gear-list-sections" class="gear-list-sections"></div>
                     <button id="gear-list-add" class="action-button primary-action gear-list-add" type="button">＋ 機材を追加</button>
                 </div>
             </section>
@@ -176,6 +170,7 @@
                         <select id="gear-status" name="status" required>
                             <option value="owned">自分の機材</option>
                             <option value="wishlist">ほしい物リスト</option>
+                            <option value="sold">手放した機材</option>
                         </select>
                     </div>
 
