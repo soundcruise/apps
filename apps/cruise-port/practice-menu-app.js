@@ -77,7 +77,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.13.1';
+} from './app-version.js?v=1.14.0';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
 import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=1.0.1';
 import { initTuner } from './tuner-app.js?v=1.1.8';
@@ -94,7 +94,7 @@ import {
     selectGearItems,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=1.0.0';
+} from './gear-list-store.js?v=2.0.0';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
