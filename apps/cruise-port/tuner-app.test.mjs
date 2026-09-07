@@ -855,8 +855,9 @@ assert.equal(inputLevelPercentage(0), 100);
     ]);
     const storage = { getItem: (key) => values.get(key) ?? null };
     const loaded = loadPracticeMenus(storage);
-    assert.equal(SCHEMA_VERSION, 1);
+    assert.equal(SCHEMA_VERSION, 2);
     assert.equal(loaded.ok, true);
+    assert.equal(loaded.migrated, true);
     assert.deepEqual(loaded.items, [existingMenu]);
     assert.deepEqual(APP_DEFINITIONS.tuner, { name: 'チューナー', href: '#tuner' });
 }

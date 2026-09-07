@@ -1,4 +1,5 @@
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+const LEGACY_SCHEMA_VERSIONS = Object.freeze([1]);
 const STORAGE_KEYS = Object.freeze({
     schemaVersion: 'cruisePort.schemaVersion',
     practiceMenus: 'cruisePort.practiceMenus'
@@ -16,8 +17,13 @@ const APP_DEFINITIONS = Object.freeze({
 const LIMITS = Object.freeze({
     name: 100,
     durationMinutes: 999,
-    memo: 1000
+    memo: 1000,
+    appId: 134,
+    myAppId: 128
 });
+
+const MY_APP_PREFIX = 'myapp:';
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 
 function isIsoDate(value) {
     return typeof value === 'string'
@@ -25,7 +31,22 @@ function isIsoDate(value) {
         && !Number.isNaN(Date.parse(value));
 }
 
-function isValidItem(item) {
+export function isValidPracticeAppId(value) {
+    if (
+        typeof value !== 'string'
+        || value.length === 0
+        || value.trim().length === 0
+        || value.length > LIMITS.appId
+        || CONTROL_CHARACTERS.test(value)
+    ) {
+        return false;
+    }
+    if (!value.startsWith(MY_APP_PREFIX)) return true;
+    const myAppId = value.slice(MY_APP_PREFIX.length);
+    return myAppId.length > 0 && myAppId.trim().length > 0 && myAppId.length <= LIMITS.myAppId;
+}
+
+function isValidItem(item, version = SCHEMA_VERSION) {
     return Boolean(
         item
         && typeof item === 'object'
@@ -38,7 +59,8 @@ function isValidItem(item) {
         && Number.isInteger(item.durationMinutes)
         && item.durationMinutes >= 1
         && item.durationMinutes <= LIMITS.durationMinutes
-        && Object.hasOwn(APP_DEFINITIONS, item.appId)
+        && isValidPracticeAppId(item.appId)
+        && (version !== 1 || Object.hasOwn(APP_DEFINITIONS, item.appId))
         && typeof item.memo === 'string'
         && item.memo.length <= LIMITS.memo
         && isIsoDate(item.createdAt)
@@ -63,30 +85,40 @@ export function loadPracticeMenus(storage = window.localStorage) {
         const schemaValue = storage.getItem(STORAGE_KEYS.schemaVersion);
         const rawValue = storage.getItem(STORAGE_KEYS.practiceMenus);
 
+        const supportedVersions = [...LEGACY_SCHEMA_VERSIONS, SCHEMA_VERSION];
+        const supportedSchemaValues = supportedVersions.map(String);
+        const storedSchemaVersion = schemaValue === null ? null : Number(schemaValue);
+
         if (rawValue === null) {
-            if (schemaValue !== null && schemaValue !== String(SCHEMA_VERSION)) {
+            if (schemaValue !== null && !supportedSchemaValues.includes(schemaValue)) {
                 return { ok: false, items: [], reason: 'unsupported-version' };
             }
             return { ok: true, items: [] };
         }
 
-        if (schemaValue !== null && schemaValue !== String(SCHEMA_VERSION)) {
+        if (schemaValue !== null && !supportedSchemaValues.includes(schemaValue)) {
             return { ok: false, items: [], reason: 'unsupported-version' };
         }
 
         const parsed = JSON.parse(rawValue);
+        if (schemaValue !== null && storedSchemaVersion !== parsed?.version) {
+            return { ok: false, items: [], reason: 'invalid-data' };
+        }
         if (
             !parsed
             || typeof parsed !== 'object'
-            || parsed.version !== SCHEMA_VERSION
+            || !supportedVersions.includes(parsed.version)
             || !Array.isArray(parsed.items)
-            || !parsed.items.every(isValidItem)
+            || !parsed.items.every((item) => isValidItem(item, parsed.version))
             || !hasUniqueIds(parsed.items)
         ) {
             return { ok: false, items: [], reason: 'invalid-data' };
         }
 
-        return { ok: true, items: parsed.items.map((item) => ({ ...item })) };
+        const items = parsed.items.map((item) => ({ ...item }));
+        return parsed.version < SCHEMA_VERSION
+            ? { ok: true, items, migrated: true }
+            : { ok: true, items };
     } catch (error) {
         return { ok: false, items: [], reason: 'read-failed' };
     }
@@ -177,4 +209,4 @@ export function movePracticeMenu(items, id, direction) {
     return { moved: true, items: nextItems };
 }
 
-export { APP_DEFINITIONS, LIMITS, SCHEMA_VERSION, STORAGE_KEYS };
+export { APP_DEFINITIONS, LIMITS, MY_APP_PREFIX, SCHEMA_VERSION, STORAGE_KEYS };

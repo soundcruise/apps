@@ -1,0 +1,147 @@
+import assert from 'node:assert/strict';
+import {
+    APP_DEFINITIONS,
+    SCHEMA_VERSION,
+    STORAGE_KEYS,
+    isValidPracticeAppId,
+    loadPracticeMenus,
+    savePracticeMenus
+} from './practice-menu-store.js';
+
+class FakeStorage {
+    constructor(entries = {}) {
+        this.entries = new Map(Object.entries(entries));
+        this.writes = [];
+        this.failNextWriteFor = null;
+    }
+
+    getItem(key) {
+        return this.entries.has(key) ? this.entries.get(key) : null;
+    }
+
+    setItem(key, value) {
+        this.writes.push([key, value]);
+        if (this.failNextWriteFor === key) {
+            this.failNextWriteFor = null;
+            throw new Error('write failed');
+        }
+        this.entries.set(key, value);
+    }
+
+    removeItem(key) {
+        this.entries.delete(key);
+    }
+}
+
+const timestamp = '2026-09-07T00:00:00.000Z';
+const baseItem = Object.freeze({
+    id: 'practice-1',
+    name: '基礎練習',
+    durationMinutes: 10,
+    appId: 'pitch',
+    memo: '',
+    createdAt: timestamp,
+    updatedAt: timestamp
+});
+
+assert.equal(SCHEMA_VERSION, 2);
+assert.deepEqual(Object.keys(APP_DEFINITIONS), ['pitch', 'fretboard', 'rhythm', 'chord', 'metronome', 'tuner']);
+
+{
+    const raw = JSON.stringify({ version: 1, items: [baseItem] });
+    const storage = new FakeStorage({
+        [STORAGE_KEYS.schemaVersion]: '1',
+        [STORAGE_KEYS.practiceMenus]: raw
+    });
+    assert.deepEqual(loadPracticeMenus(storage), { ok: true, items: [baseItem], migrated: true });
+    assert.equal(storage.getItem(STORAGE_KEYS.practiceMenus), raw, 'v1 load must not rewrite the payload');
+    assert.equal(storage.writes.length, 0, 'v1 migration is in memory only');
+    assert.deepEqual(savePracticeMenus([baseItem], storage), { ok: true });
+    assert.equal(storage.getItem(STORAGE_KEYS.schemaVersion), '2');
+    assert.equal(JSON.parse(storage.getItem(STORAGE_KEYS.practiceMenus)).version, 2);
+}
+
+for (const appId of Object.keys(APP_DEFINITIONS)) {
+    assert.deepEqual(savePracticeMenus([{ ...baseItem, appId }], new FakeStorage()), { ok: true }, `${appId} remains valid`);
+}
+
+for (const [appId, expected] of [
+    ['myapp:opaque-id', true],
+    ['myapp:', false],
+    [`myapp:${'x'.repeat(128)}`, true],
+    [`myapp:${'x'.repeat(129)}`, false],
+    ['future-app', true],
+    ['', false],
+    ['   ', false],
+    ['bad\napp', false],
+    ['bad\u0085app', false]
+]) {
+    assert.equal(isValidPracticeAppId(appId), expected, appId);
+    assert.equal(savePracticeMenus([{ ...baseItem, appId }], new FakeStorage()).ok, expected, `save ${appId}`);
+}
+
+{
+    const future = { ...baseItem, appId: 'future-app' };
+    const storage = new FakeStorage({
+        [STORAGE_KEYS.schemaVersion]: '2',
+        [STORAGE_KEYS.practiceMenus]: JSON.stringify({ version: 2, items: [future] })
+    });
+    assert.deepEqual(loadPracticeMenus(storage), { ok: true, items: [future] });
+}
+
+for (const version of [0, 3, 999]) {
+    const raw = JSON.stringify({ version, items: [] });
+    const storage = new FakeStorage({
+        [STORAGE_KEYS.schemaVersion]: String(version),
+        [STORAGE_KEYS.practiceMenus]: raw
+    });
+    assert.deepEqual(loadPracticeMenus(storage), { ok: false, items: [], reason: 'unsupported-version' });
+    assert.equal(storage.getItem(STORAGE_KEYS.practiceMenus), raw, 'unsupported data is not overwritten');
+}
+
+{
+    const raw = JSON.stringify({ version: 1, items: [baseItem] });
+    const storage = new FakeStorage({
+        [STORAGE_KEYS.schemaVersion]: '01',
+        [STORAGE_KEYS.practiceMenus]: raw
+    });
+    assert.deepEqual(loadPracticeMenus(storage), { ok: false, items: [], reason: 'unsupported-version' });
+}
+
+{
+    const storage = new FakeStorage({
+        [STORAGE_KEYS.schemaVersion]: '1',
+        [STORAGE_KEYS.practiceMenus]: JSON.stringify({ version: 2, items: [] })
+    });
+    assert.deepEqual(loadPracticeMenus(storage), { ok: false, items: [], reason: 'invalid-data' });
+}
+
+for (const item of [
+    { ...baseItem, appId: '' },
+    { ...baseItem, appId: 1 },
+    { ...baseItem, appId: 'myapp:' },
+    { ...baseItem, appId: `myapp:${'x'.repeat(129)}` },
+    { ...baseItem, appId: 'bad\u0000value' }
+]) {
+    const raw = JSON.stringify({ version: 2, items: [item] });
+    const storage = new FakeStorage({
+        [STORAGE_KEYS.schemaVersion]: '2',
+        [STORAGE_KEYS.practiceMenus]: raw
+    });
+    assert.equal(loadPracticeMenus(storage).ok, false);
+    assert.equal(storage.getItem(STORAGE_KEYS.practiceMenus), raw, 'malformed data is not overwritten');
+}
+
+{
+    const previousPayload = JSON.stringify({ version: 1, items: [baseItem] });
+    const storage = new FakeStorage({
+        [STORAGE_KEYS.schemaVersion]: '1',
+        [STORAGE_KEYS.practiceMenus]: previousPayload
+    });
+    storage.failNextWriteFor = STORAGE_KEYS.practiceMenus;
+    assert.deepEqual(savePracticeMenus([baseItem], storage), { ok: false, reason: 'write-failed' });
+    assert.equal(storage.getItem(STORAGE_KEYS.schemaVersion), '1', 'schema key rolls back');
+    assert.equal(storage.getItem(STORAGE_KEYS.practiceMenus), previousPayload, 'payload remains intact');
+}
+
+console.log('practice-menu-store: schema v2, v1 migration, references, and rollback tests passed');

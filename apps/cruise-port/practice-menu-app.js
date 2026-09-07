@@ -1,5 +1,4 @@
 import {
-    APP_DEFINITIONS,
     LIMITS,
     createPracticeMenu,
     deletePracticeMenu,
@@ -7,7 +6,14 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js';
+} from './practice-menu-store.js?v=2.0.0';
+import {
+    PRACTICE_APP_STATUS,
+    countPracticeMenuReferences,
+    createPracticeAppOptionGroups,
+    isSelectablePracticeAppId,
+    resolvePracticeMenuApp
+} from './practice-menu-app-resolver.js?v=1.0.0';
 import {
     MY_APPS_LIMITS,
     loadMyApps,
@@ -60,7 +66,7 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.9.0';
+} from './app-version.js?v=1.10.0';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
@@ -256,8 +262,16 @@ function sameOrder(firstItems, secondItems) {
         && firstItems.every((item, index) => item.id === secondItems[index].id);
 }
 
+function resolveCurrentPracticeApp(appId) {
+    return resolvePracticeMenuApp(appId, {
+        myApps: myAppsState.items,
+        myAppsReady: myAppsState.storageReady,
+        platform: myAppsPlatform
+    });
+}
+
 function renderPracticeCard(item) {
-    const app = APP_DEFINITIONS[item.appId];
+    const app = resolveCurrentPracticeApp(item.appId);
     const card = document.createElement('a');
     const copy = document.createElement('span');
     const name = document.createElement('span');
@@ -272,7 +286,7 @@ function renderPracticeCard(item) {
     arrow.className = 'practice-arrow';
     arrow.setAttribute('aria-hidden', 'true');
     name.textContent = item.name;
-    detail.textContent = `${item.durationMinutes}分 ・ ${app.name}`;
+    detail.textContent = `${item.durationMinutes}分 ・ ${app.label}`;
     arrow.textContent = '→';
     copy.append(name, detail);
     card.append(copy, arrow);
@@ -280,7 +294,7 @@ function renderPracticeCard(item) {
 }
 
 function renderReorderCard(item, index) {
-    const app = APP_DEFINITIONS[item.appId];
+    const app = resolveCurrentPracticeApp(item.appId);
     const card = document.createElement('div');
     const handle = document.createElement('span');
     const copy = document.createElement('span');
@@ -300,7 +314,7 @@ function renderReorderCard(item, index) {
     name.className = 'card-name';
     detail.className = 'card-detail';
     name.textContent = item.name;
-    detail.textContent = `${item.durationMinutes}分 ・ ${app.name}`;
+    detail.textContent = `${item.durationMinutes}分 ・ ${app.label}`;
     controls.className = 'reorder-controls';
 
     upButton.className = 'reorder-move';
@@ -1123,7 +1137,13 @@ async function handleMyAppsDelete() {
         renderMyAppsNotFound();
         return;
     }
-    if (!window.confirm('このアプリをMy Appsから削除しますか？\n外部アプリ自体は削除されません。')) return;
+    const referenceCount = state.storageReady
+        ? countPracticeMenuReferences(state.items, item.id)
+        : null;
+    const referenceWarning = referenceCount > 0
+        ? `\n\nこのアプリは練習メニュー${referenceCount}件で使用されています。削除すると、それらの練習メニューではアプリを開けなくなります。`
+        : '';
+    if (!window.confirm(`このアプリをMy Appsから削除しますか？${referenceWarning}\n外部アプリ自体は削除されません。`)) return;
     if (myAppsState.saving) return;
     const formGeneration = myAppsRenderGeneration.form;
     setMyAppsFormBusy(true);
@@ -1222,24 +1242,71 @@ function renderDetail(id) {
         return;
     }
 
-    const app = APP_DEFINITIONS[item.appId];
+    const app = resolveCurrentPracticeApp(item.appId);
     state.activeId = item.id;
     elements.detailTitle.textContent = item.name;
     elements.detailDuration.textContent = `${item.durationMinutes}分`;
-    elements.detailApp.textContent = app.name;
+    elements.detailApp.textContent = app.label;
     elements.detailMemo.textContent = item.memo || 'なし';
-    elements.openApp.textContent = `${app.name}を開く`;
-    elements.openApp.href = app.href;
-    showNotice(elements.detailError);
+    elements.openApp.textContent = `${app.label}を開く`;
+    elements.openApp.classList.toggle('is-disabled', !app.launchable);
+    if (app.launchable) {
+        elements.openApp.href = app.href;
+        elements.openApp.removeAttribute('aria-disabled');
+        elements.openApp.removeAttribute('tabindex');
+    } else {
+        elements.openApp.removeAttribute('href');
+        elements.openApp.setAttribute('aria-disabled', 'true');
+        elements.openApp.setAttribute('tabindex', '-1');
+    }
+    const detailMessage = app.status === PRACTICE_APP_STATUS.missing
+        ? '使用アプリが削除されています。練習メニューを編集してください。'
+        : app.status === PRACTICE_APP_STATUS.storeUnavailable
+            ? 'My Appsの保存データを読み込めないため、このアプリを開けません。'
+            : app.status === PRACTICE_APP_STATUS.unsupported
+                ? 'この使用アプリには現在対応していません。練習メニューを編集してください。'
+                : '';
+    showNotice(elements.detailError, detailMessage);
     showView(elements.detailView);
     elements.detailTitle.focus({ preventScroll: true });
+}
+
+function populatePracticeAppSelect(selectedAppId = '') {
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '選択してください';
+    elements.appInput.replaceChildren(placeholder);
+
+    const optionValues = new Set();
+    createPracticeAppOptionGroups(myAppsState.items).forEach((groupModel) => {
+        const group = document.createElement('optgroup');
+        group.label = groupModel.label;
+        groupModel.options.forEach((optionModel) => {
+            const option = document.createElement('option');
+            option.value = optionModel.value;
+            option.textContent = optionModel.label;
+            optionValues.add(optionModel.value);
+            group.append(option);
+        });
+        elements.appInput.append(group);
+    });
+
+    if (selectedAppId && !optionValues.has(selectedAppId)) {
+        const unresolved = resolveCurrentPracticeApp(selectedAppId);
+        const option = document.createElement('option');
+        option.value = selectedAppId;
+        option.textContent = unresolved.label;
+        option.dataset.temporary = 'true';
+        elements.appInput.append(option);
+    }
+    elements.appInput.value = selectedAppId;
 }
 
 function fillForm(item = null) {
     elements.form.reset();
     elements.nameInput.value = item?.name || '';
     elements.durationInput.value = item?.durationMinutes ?? 10;
-    elements.appInput.value = item?.appId || '';
+    populatePracticeAppSelect(item?.appId || '');
     elements.memoInput.value = item?.memo || '';
     showNotice(elements.formError);
 }
@@ -1308,7 +1375,19 @@ function readFormValues() {
     if (durationMinutes < 1 || durationMinutes > LIMITS.durationMinutes) {
         return { ok: false, message: '練習時間は1〜999分で入力してください。' };
     }
-    if (!Object.hasOwn(APP_DEFINITIONS, appId)) return { ok: false, message: '使用アプリを選択してください。' };
+    if (!isSelectablePracticeAppId(appId, {
+        myApps: myAppsState.items,
+        myAppsReady: myAppsState.storageReady
+    })) {
+        const unresolved = resolveCurrentPracticeApp(appId);
+        if (unresolved.status === PRACTICE_APP_STATUS.missing) {
+            return { ok: false, message: '使用アプリが削除されています。別のアプリを選択してください。' };
+        }
+        if (unresolved.status === PRACTICE_APP_STATUS.storeUnavailable) {
+            return { ok: false, message: 'My Appsを読み込めません。クルーズアプリまたはツールを選択してください。' };
+        }
+        return { ok: false, message: '使用アプリを選択してください。' };
+    }
     if (memo.length > LIMITS.memo) return { ok: false, message: 'メモは1000文字以内で入力してください。' };
 
     return { ok: true, values: { name, durationMinutes, appId, memo } };

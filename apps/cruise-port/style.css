@@ -985,6 +985,13 @@ textarea:focus-visible {
     outline-offset: 3px;
 }
 
+.action-button.is-disabled,
+.action-button[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.48;
+    pointer-events: none;
+}
+
 .practice-row:disabled {
     cursor: not-allowed;
     opacity: 0.55;
