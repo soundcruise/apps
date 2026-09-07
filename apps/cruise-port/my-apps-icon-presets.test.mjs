@@ -21,8 +21,7 @@ class FakeElement {
 
 const previousDocument = globalThis.document;
 globalThis.document = {
-    createElement: (name) => new FakeElement(name),
-    createElementNS: (_namespace, name) => new FakeElement(name)
+    createElement: (name) => new FakeElement(name)
 };
 
 assert.equal(MY_APPS_ICON_PRESETS.length, 22);
@@ -31,12 +30,6 @@ assert.equal(new Set(MY_APPS_ICON_PRESETS.map((preset) => preset.key)).size, 22,
 for (const preset of MY_APPS_ICON_PRESETS) {
     assert.equal(isKnownMyAppsIconPreset(preset.key), true);
     assert.equal(getMyAppsIconPreset(preset.key).label, preset.label);
-    if (preset.key === 'rhythm') {
-        assert.equal(preset.src, null, 'only the source-sheet-missing rhythm icon retains its SVG fallback');
-        assert.equal(createMyAppsPresetGraphic(preset.key).name, 'svg');
-        continue;
-    }
-
     assert.match(preset.src, /^\.\/assets\/my-app-icons\/[a-z-]+\.png$/);
     const file = readFileSync(new URL(preset.src, import.meta.url));
     assert.equal(file.subarray(1, 4).toString(), 'PNG', `${preset.key} is a PNG`);
@@ -54,15 +47,13 @@ for (const preset of MY_APPS_ICON_PRESETS) {
 }
 
 assert.equal(createMyAppsPresetGraphic('unknown'), null);
-assert.equal(createMyAppsPresetSvg('rhythm').name, 'svg');
-assert.equal(createMyAppsPresetSvg('microphone'), null);
+assert.equal(createMyAppsPresetSvg('rhythm'), null);
 assert.equal(isKnownMyAppsIconPreset('unknown'), false);
 
 if (previousDocument === undefined) delete globalThis.document;
 else globalThis.document = previousDocument;
 
 const source = readFileSync(new URL('./my-apps-icon-presets.js', import.meta.url), 'utf8');
-assert.doesNotMatch(source, /drawIcon\(/, 'raster presets do not use the former SVG switch renderer');
-assert.match(source, /createRhythmSvg/, 'only the documented source-sheet-missing exception keeps vector fallback');
+assert.doesNotMatch(source, /drawIcon\(|createElementNS|<svg/i, 'all presets use the raster renderer');
 
-console.log('my-apps-icon-presets: 22 preset keys, 21 transparent local raster assets, and rhythm fallback tests passed');
+console.log('my-apps-icon-presets: 22 preset keys and 22 transparent local raster assets passed');

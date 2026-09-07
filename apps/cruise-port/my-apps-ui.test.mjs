@@ -9,9 +9,9 @@ assert.match(markup, /id="my-apps-url-help-toggle"[^>]+aria-expanded="false"[^>]
 assert.match(markup, /id="my-apps-url-help"[^>]+hidden/);
 assert.match(markup, /ホーム画面で追加したいアプリを長押し/);
 assert.match(markup, /Google Playの商品ページを開く/);
-assert.match(markup, /「共有」を選ぶ/);
+assert.match(markup, /「3点リーダー」から「共有」を選ぶ/);
 assert.match(markup, /「アプリ情報」を選ぶ/);
-assert.match(markup, /画面下部付近の「アプリの詳細」を選ぶ/);
+assert.match(markup, /画面最下部付近の「アプリの詳細」を選ぶ/);
 assert.match(markup, /表示名や位置は端末によって異なる場合があります/);
 assert.match(markup, /id="my-apps-url-help-close"[^>]+aria-label="URLの取得方法を閉じる"/);
 assert.match(markup, /id="my-apps-icon-preset-open"[^>]+aria-controls="my-apps-icon-preset-picker"/);

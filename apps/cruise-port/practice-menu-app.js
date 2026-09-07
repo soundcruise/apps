@@ -22,7 +22,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=6.0.0-assets';
+} from './my-apps-store.js?v=6.0.1-assets';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -61,17 +61,17 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=3.0.0-assets';
+} from './my-apps-icon-workflow.js?v=3.0.1-assets';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
-} from './my-apps-icon-presets.js?v=1.0.1';
+} from './my-apps-icon-presets.js?v=1.0.2';
 import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.11.1';
+} from './app-version.js?v=1.11.2';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
