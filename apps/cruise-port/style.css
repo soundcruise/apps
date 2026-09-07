@@ -579,11 +579,6 @@ h1::after {
     background: transparent;
 }
 
-#tuner-card .skeleton-icon > img { transform: scale(1.35); }
-#metronome-card .skeleton-icon > img { transform: scale(1.22); }
-#practice-menu-card .skeleton-icon > img { transform: scale(1.12); }
-#wishlist-card .skeleton-icon > img { transform: scale(1.35); }
-
 #home-view[data-display-size="large"] .home-card-grid .port-card {
     min-height: 122px;
     padding: 14px 20px;
@@ -686,11 +681,6 @@ h1::after {
     height: 39px;
 }
 
-#home-view[data-display-size="xsmall"] #tuner-card .skeleton-icon > img { transform: scale(1.22); }
-#home-view[data-display-size="xsmall"] #metronome-card .skeleton-icon > img { transform: scale(1.12); }
-#home-view[data-display-size="xsmall"] #practice-menu-card .skeleton-icon > img { transform: scale(1.04); }
-#home-view[data-display-size="xsmall"] #wishlist-card .skeleton-icon > img { transform: scale(1.22); }
-
 #home-view[data-display-size="xsmall"] .home-card-grid .card-name {
     display: -webkit-box;
     max-width: 100%;
@@ -723,55 +713,73 @@ h1::after {
     font-size: 0.64rem;
 }
 
-/* Temporary U1.3 comparison: Cruise Apps and uploaded/external images stay at
-   their formal size. Only Tool, preset, and generic Cruise Port icons shrink. */
-#home-view { --icon-scale-preview: 1; }
-#home-view[data-icon-scale-preview="90"] { --icon-scale-preview: 0.9; }
-#home-view[data-icon-scale-preview="80"] { --icon-scale-preview: 0.8; }
-#home-view[data-icon-scale-preview="70"] { --icon-scale-preview: 0.7; }
-
-#home-view[data-display-size="large"] .tool-card .skeleton-icon {
-    width: calc(80px * var(--icon-scale-preview));
-    height: calc(80px * var(--icon-scale-preview));
+/* Temporary U1.4 comparison. The Cruise Apps and Simple Icons groups stay
+   independent; uploaded or external My Apps images have no preview class. */
+#home-view {
+    --cruise-icon-scale-preview: 1;
+    --simple-icon-scale-preview: 1;
 }
 
+#home-view[data-cruise-icon-scale-preview="90"] { --cruise-icon-scale-preview: 0.9; }
+#home-view[data-cruise-icon-scale-preview="80"] { --cruise-icon-scale-preview: 0.8; }
+#home-view[data-cruise-icon-scale-preview="70"] { --cruise-icon-scale-preview: 0.7; }
+#home-view[data-cruise-icon-scale-preview="60"] { --cruise-icon-scale-preview: 0.6; }
+#home-view[data-cruise-icon-scale-preview="50"] { --cruise-icon-scale-preview: 0.5; }
+#home-view[data-simple-icon-scale-preview="90"] { --simple-icon-scale-preview: 0.9; }
+#home-view[data-simple-icon-scale-preview="80"] { --simple-icon-scale-preview: 0.8; }
+#home-view[data-simple-icon-scale-preview="70"] { --simple-icon-scale-preview: 0.7; }
+#home-view[data-simple-icon-scale-preview="60"] { --simple-icon-scale-preview: 0.6; }
+#home-view[data-simple-icon-scale-preview="50"] { --simple-icon-scale-preview: 0.5; }
+
+/* 100% retains the current Cruise Apps baseline. */
+#home-view[data-display-size="large"] .app-card img {
+    width: calc(80px * var(--cruise-icon-scale-preview));
+    height: calc(80px * var(--cruise-icon-scale-preview));
+}
+
+#home-view[data-display-size="standard"] .app-card img {
+    width: calc(84px * var(--cruise-icon-scale-preview));
+    height: calc(84px * var(--cruise-icon-scale-preview));
+}
+
+#home-view[data-display-size="small"] .app-card img {
+    width: calc(56px * var(--cruise-icon-scale-preview));
+    height: calc(56px * var(--cruise-icon-scale-preview));
+}
+
+#home-view[data-display-size="xsmall"] .app-card img {
+    width: calc(36px * var(--cruise-icon-scale-preview));
+    height: calc(36px * var(--cruise-icon-scale-preview));
+}
+
+/* The My Apps wrapper is the Simple Icons baseline. Tool corrections are
+   deliberately removed so the same raster asset has the same rendered box. */
+#home-view[data-display-size="large"] .tool-card .skeleton-icon,
 #home-view[data-display-size="large"] .my-app-icon--preset,
 #home-view[data-display-size="large"] .my-app-icon--generic {
-    width: calc(86px * var(--icon-scale-preview));
-    height: calc(86px * var(--icon-scale-preview));
+    width: calc(86px * var(--simple-icon-scale-preview));
+    height: calc(86px * var(--simple-icon-scale-preview));
 }
 
-#home-view[data-display-size="standard"] .tool-card .skeleton-icon {
-    width: calc(84px * var(--icon-scale-preview));
-    height: calc(84px * var(--icon-scale-preview));
-}
-
+#home-view[data-display-size="standard"] .tool-card .skeleton-icon,
 #home-view[data-display-size="standard"] .my-app-icon--preset,
 #home-view[data-display-size="standard"] .my-app-icon--generic {
-    width: calc(90px * var(--icon-scale-preview));
-    height: calc(90px * var(--icon-scale-preview));
+    width: calc(90px * var(--simple-icon-scale-preview));
+    height: calc(90px * var(--simple-icon-scale-preview));
 }
 
-#home-view[data-display-size="small"] .tool-card .skeleton-icon {
-    width: calc(56px * var(--icon-scale-preview));
-    height: calc(56px * var(--icon-scale-preview));
-}
-
+#home-view[data-display-size="small"] .tool-card .skeleton-icon,
 #home-view[data-display-size="small"] .my-app-icon--preset,
 #home-view[data-display-size="small"] .my-app-icon--generic {
-    width: calc(60px * var(--icon-scale-preview));
-    height: calc(60px * var(--icon-scale-preview));
+    width: calc(60px * var(--simple-icon-scale-preview));
+    height: calc(60px * var(--simple-icon-scale-preview));
 }
 
-#home-view[data-display-size="xsmall"] .tool-card .skeleton-icon {
-    width: calc(36px * var(--icon-scale-preview));
-    height: calc(36px * var(--icon-scale-preview));
-}
-
+#home-view[data-display-size="xsmall"] .tool-card .skeleton-icon,
 #home-view[data-display-size="xsmall"] .my-app-icon--preset,
 #home-view[data-display-size="xsmall"] .my-app-icon--generic {
-    width: calc(39px * var(--icon-scale-preview));
-    height: calc(39px * var(--icon-scale-preview));
+    width: calc(39px * var(--simple-icon-scale-preview));
+    height: calc(39px * var(--simple-icon-scale-preview));
 }
 
 .my-app-external-mark {
@@ -1471,6 +1479,29 @@ textarea:focus-visible {
     margin-top: 16px;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
+}
+
+.settings-choices--six {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.settings-icon-scale-group {
+    margin-top: 18px;
+}
+
+.settings-icon-scale-group h3 {
+    margin: 0;
+    color: rgba(230, 210, 155, 0.84);
+    font-size: 0.76rem;
+    font-weight: 650;
+}
+
+.settings-icon-scale-group .settings-choices {
+    margin-top: 9px;
+}
+
+.settings-choices--six .settings-choice {
+    min-height: 48px;
 }
 
 .settings-choice {

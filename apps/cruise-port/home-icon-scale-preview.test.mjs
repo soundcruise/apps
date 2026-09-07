@@ -1,17 +1,20 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { applyHomeIconScalePreview } from './home-icon-scale-preview.js';
+import { applyHomeIconScalePreviews } from './home-icon-scale-preview.js';
 
-for (const value of ['100', '90', '80', '70']) {
-    test(`home data attribute switches to ${value} percent icon scale`, () => {
-        const homeView = { dataset: {} };
-        assert.equal(applyHomeIconScalePreview(homeView, value), value);
-        assert.equal(homeView.dataset.iconScalePreview, value);
-    });
-}
-
-test('invalid home icon scale safely falls back to 100 percent', () => {
+test('home data attributes switch the two icon groups independently', () => {
     const homeView = { dataset: {} };
-    assert.equal(applyHomeIconScalePreview(homeView, '55'), '100');
-    assert.equal(homeView.dataset.iconScalePreview, '100');
+    assert.deepEqual(
+        applyHomeIconScalePreviews(homeView, { cruise: '80', simple: '60' }),
+        { cruise: '80', simple: '60' }
+    );
+    assert.deepEqual(homeView.dataset, { cruiseIconScalePreview: '80', simpleIconScalePreview: '60' });
+});
+
+test('invalid group values safely fall back to 100 percent', () => {
+    const homeView = { dataset: {} };
+    assert.deepEqual(
+        applyHomeIconScalePreviews(homeView, { cruise: '55', simple: 'invalid' }),
+        { cruise: '100', simple: '100' }
+    );
 });

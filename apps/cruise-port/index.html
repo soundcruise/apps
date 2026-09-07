@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.12.3">
+    <link rel="stylesheet" href="./style.css?v=1.12.4">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.12.3"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.12.4"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -112,12 +112,28 @@
                 </section>
                 <section class="settings-card" aria-labelledby="icon-scale-preview-title">
                     <h2 id="icon-scale-preview-title">アイコンサイズ比較</h2>
-                    <p>ToolとMy Appsのシンプルなアイコンだけを、実機で比較できます。</p>
-                    <div class="settings-choices" role="radiogroup" aria-label="アイコンサイズ比較">
-                        <button type="button" class="settings-choice" data-icon-scale-preview="100" role="radio" aria-checked="true"><span>現状</span><small>100%</small></button>
-                        <button type="button" class="settings-choice" data-icon-scale-preview="90" role="radio" aria-checked="false"><span>90%</span></button>
-                        <button type="button" class="settings-choice" data-icon-scale-preview="80" role="radio" aria-checked="false"><span>80%</span></button>
-                        <button type="button" class="settings-choice" data-icon-scale-preview="70" role="radio" aria-checked="false"><span>70%</span></button>
+                    <p>Cruise Appsと、Tool／My Appsのシンプルなアイコンを別々に比較できます。</p>
+                    <div class="settings-icon-scale-group">
+                        <h3>クルーズアプリ</h3>
+                        <div class="settings-choices settings-choices--six" role="radiogroup" aria-label="クルーズアプリアイコンサイズ">
+                            <button type="button" class="settings-choice" data-cruise-icon-scale-preview="100" role="radio" aria-checked="true"><span>100%</span></button>
+                            <button type="button" class="settings-choice" data-cruise-icon-scale-preview="90" role="radio" aria-checked="false"><span>90%</span></button>
+                            <button type="button" class="settings-choice" data-cruise-icon-scale-preview="80" role="radio" aria-checked="false"><span>80%</span></button>
+                            <button type="button" class="settings-choice" data-cruise-icon-scale-preview="70" role="radio" aria-checked="false"><span>70%</span></button>
+                            <button type="button" class="settings-choice" data-cruise-icon-scale-preview="60" role="radio" aria-checked="false"><span>60%</span></button>
+                            <button type="button" class="settings-choice" data-cruise-icon-scale-preview="50" role="radio" aria-checked="false"><span>50%</span></button>
+                        </div>
+                    </div>
+                    <div class="settings-icon-scale-group">
+                        <h3>ツール・My Apps</h3>
+                        <div class="settings-choices settings-choices--six" role="radiogroup" aria-label="ツール・My Appsアイコンサイズ">
+                            <button type="button" class="settings-choice" data-simple-icon-scale-preview="100" role="radio" aria-checked="true"><span>100%</span></button>
+                            <button type="button" class="settings-choice" data-simple-icon-scale-preview="90" role="radio" aria-checked="false"><span>90%</span></button>
+                            <button type="button" class="settings-choice" data-simple-icon-scale-preview="80" role="radio" aria-checked="false"><span>80%</span></button>
+                            <button type="button" class="settings-choice" data-simple-icon-scale-preview="70" role="radio" aria-checked="false"><span>70%</span></button>
+                            <button type="button" class="settings-choice" data-simple-icon-scale-preview="60" role="radio" aria-checked="false"><span>60%</span></button>
+                            <button type="button" class="settings-choice" data-simple-icon-scale-preview="50" role="radio" aria-checked="false"><span>50%</span></button>
+                        </div>
                     </div>
                     <p id="icon-scale-preview-storage-error" class="notice notice-error" role="alert" hidden></p>
                 </section>
