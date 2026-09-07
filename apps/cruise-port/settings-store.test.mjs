@@ -20,7 +20,7 @@ function createStorage(initial = {}) {
     };
 }
 
-test('settings default to standard', () => {
+test('settings default to large', () => {
     assert.deepEqual(loadSettings(createStorage()), { ok: true, settings: DEFAULT_SETTINGS });
 });
 
@@ -34,10 +34,23 @@ for (const displaySize of ['large', 'standard', 'small', 'xsmall']) {
     });
 }
 
-test('invalid settings safely fall back to standard', () => {
+test('invalid settings safely fall back to large', () => {
     const storage = createStorage({ [SETTINGS_STORAGE_KEY]: JSON.stringify({ displaySize: 'wide' }) });
     assert.deepEqual(loadSettings(storage), { ok: true, settings: DEFAULT_SETTINGS });
 });
+
+for (const displaySize of ['large', 'standard', 'small', 'xsmall']) {
+    test(`schema v2 ${displaySize} remains unchanged after reload`, () => {
+        const storage = createStorage({
+            [SETTINGS_STORAGE_KEY]: JSON.stringify({ version: SETTINGS_SCHEMA_VERSION, displaySize })
+        });
+        const expected = { version: SETTINGS_SCHEMA_VERSION, displaySize };
+        assert.deepEqual(loadSettings(storage), { ok: true, settings: expected });
+        assert.equal(storage.setCalls, 0, 'existing v2 data is never rewritten by the default change');
+        assert.deepEqual(loadSettings(storage), { ok: true, settings: expected });
+        assert.equal(storage.setCalls, 0);
+    });
+}
 
 for (const [legacyDisplaySize, displaySize] of [
     ['large', 'standard'],

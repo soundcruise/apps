@@ -7,6 +7,8 @@ const styles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
 
 assert.match(markup, /id="home-settings-button"[\s\S]*?表示設定を開く/);
 assert.match(markup, /id="settings-view"[\s\S]*?data-display-size="large"[\s\S]*?data-display-size="standard"[\s\S]*?data-display-size="small"[\s\S]*?data-display-size="xsmall"/);
+assert.match(markup, /data-display-size="standard"[\s\S]*?><span>中<\/span>/);
+assert.doesNotMatch(markup, /<span>標準<\/span>/);
 assert.match(markup, /id="practice-menu-card" href="#practice-menu"/);
 assert.doesNotMatch(markup, /<section class="port-section" aria-labelledby="practice-heading">/);
 assert.match(markup, /id="wishlist-card" href="#wishlist"/);

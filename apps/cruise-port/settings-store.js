@@ -3,7 +3,7 @@ export const SETTINGS_SCHEMA_VERSION = 2;
 export const DISPLAY_SIZES = Object.freeze(['large', 'standard', 'small', 'xsmall']);
 export const DEFAULT_SETTINGS = Object.freeze({
     version: SETTINGS_SCHEMA_VERSION,
-    displaySize: 'standard'
+    displaySize: 'large'
 });
 
 const LEGACY_DISPLAY_SIZE_MIGRATION = Object.freeze({

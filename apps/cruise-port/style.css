@@ -621,14 +621,14 @@ h1::after {
 #home-view[data-display-size="standard"] .home-card-grid .app-card img,
 #home-view[data-display-size="standard"] .home-card-grid .skeleton-icon,
 #home-view[data-display-size="standard"] .home-card-grid .my-app-icon {
-    width: min(100%, 100px);
-    height: 100px;
+    width: min(100%, 84px);
+    height: 84px;
 }
 
 #home-view[data-display-size="standard"] .home-card-grid .my-app-icon {
     border-radius: 23%;
-    width: min(100%, 108px);
-    height: 108px;
+    width: min(100%, 90px);
+    height: 90px;
 }
 
 #home-view[data-display-size="standard"] .home-card-grid .card-name {

@@ -10,8 +10,8 @@ for (const displaySize of ['large', 'standard', 'small', 'xsmall']) {
     });
 }
 
-test('home data attribute safely falls back to standard', () => {
+test('home data attribute safely falls back to large', () => {
     const homeView = { dataset: {} };
-    assert.equal(applyHomeDisplaySize(homeView, 'unknown'), 'standard');
-    assert.equal(homeView.dataset.displaySize, 'standard');
+    assert.equal(applyHomeDisplaySize(homeView, 'unknown'), 'large');
+    assert.equal(homeView.dataset.displaySize, 'large');
 });
