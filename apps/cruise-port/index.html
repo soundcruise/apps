@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.10.0">
+    <link rel="stylesheet" href="./style.css?v=1.11.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.10.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.11.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -57,11 +57,10 @@
                     <a class="port-card skeleton-card tool-card" id="tuner-card" href="#tuner">
                         <span class="skeleton-icon" aria-hidden="true">
                             <svg viewBox="0 0 64 64" role="img">
-                                <path d="M13 43a21 21 0 0 1 38 0" />
-                                <path d="M20 36l-5-5M44 36l5-5M32 22v-7" />
-                                <path class="icon-accent" d="M32 41l9-13" />
-                                <circle class="icon-accent" cx="32" cy="41" r="3" />
-                                <path d="M17 49h30" />
+                                <path d="M13 46a19 19 0 0 1 38 0" />
+                                <path d="M17 46h30M20 36l-4-4M32 30v-6M44 36l4-4" />
+                                <path class="icon-accent" d="M32 44l8-12" />
+                                <circle class="icon-accent" cx="32" cy="44" r="2.5" />
                             </svg>
                         </span>
                         <span class="card-name">チューナー</span>
@@ -71,9 +70,10 @@
                         <span class="skeleton-icon" aria-hidden="true">
                             <svg viewBox="0 0 64 64" role="img">
                                 <path d="M23 13h18l8 39H15l8-39Z" />
-                                <path d="M22 42h20" />
-                                <path class="icon-accent" d="M32 39V18l10-5" />
-                                <circle class="icon-accent" cx="32" cy="39" r="3" />
+                                <path d="M19 52h26M22 42h20" />
+                                <path class="icon-accent" d="M32 42l8-25" />
+                                <path class="icon-accent" d="M36 29h8" />
+                                <circle class="icon-accent" cx="32" cy="42" r="2.5" />
                             </svg>
                         </span>
                         <span class="card-name">メトロノーム</span>
@@ -102,7 +102,7 @@
                 </div>
             </section>
 
-            <section class="port-section" aria-labelledby="my-apps-heading">
+            <section id="my-apps-section" class="port-section" aria-labelledby="my-apps-heading">
                 <div class="practice-heading-row my-apps-heading-row">
                     <h2 id="my-apps-heading">My Apps</h2>
                     <button id="my-apps-manage" class="reorder-button" type="button" hidden>編集・並び替え</button>
@@ -207,7 +207,7 @@
                 <div id="my-apps-list" class="practice-list"></div>
                 <div class="view-actions my-apps-manage-actions">
                     <button id="my-apps-manage-add" class="action-button primary-action" type="button" data-action="new-my-app">アプリを追加</button>
-                    <button class="action-button secondary-action" type="button" data-action="my-apps-home">クルーズポートへ戻る</button>
+                    <button class="action-button secondary-action" type="button" data-action="my-apps-home-scroll">クルーズポートへ戻る</button>
                 </div>
             </section>
         </main>
@@ -225,8 +225,18 @@
                     </div>
 
                     <div class="form-field">
-                        <label for="my-apps-url">URL <span class="required-label">必須・HTTPSのみ</span></label>
+                        <div class="my-apps-url-label-row">
+                            <label for="my-apps-url">URL <span class="required-label">必須・HTTPSのみ</span></label>
+                            <button id="my-apps-url-help-toggle" class="my-apps-url-help-toggle" type="button" aria-expanded="false" aria-controls="my-apps-url-help">URLの取得方法</button>
+                        </div>
                         <input id="my-apps-url" name="url" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://open.spotify.com/" required>
+                        <section id="my-apps-url-help" class="my-apps-url-help" aria-label="URLの取得方法" hidden>
+                            <div class="my-apps-url-help-heading"><strong>アプリのURLをコピーして貼り付けます</strong><button id="my-apps-url-help-close" type="button" aria-label="URLの取得方法を閉じる">×</button></div>
+                            <div class="my-apps-url-help-columns">
+                                <div><h2>iPhone・iPad</h2><ol><li>ホーム画面で追加したいアプリを長押し</li><li>「アプリを共有」を選ぶ</li><li>「コピー」を選ぶ</li><li>この欄へ貼り付ける</li></ol></div>
+                                <div><h2>Android</h2><ol><li>Google Playで対象アプリを開く</li><li>「共有」を選ぶ</li><li>「リンクをコピー」を選ぶ</li><li>この欄へ貼り付ける</li></ol></div>
+                            </div>
+                        </section>
                     </div>
 
                     <div id="my-apps-direct-launch" class="my-apps-direct-launch" hidden>
@@ -276,10 +286,12 @@
                             <div class="my-apps-icon-controls">
                                 <input id="my-apps-icon-input" class="visually-hidden" name="icon" type="file" accept="image/*">
                                 <label class="my-apps-icon-select" for="my-apps-icon-input"><span id="my-apps-icon-select-label">画像を選択</span></label>
-                                <button id="my-apps-icon-remove" class="my-apps-icon-remove" type="button" hidden>画像を削除</button>
+                                <button id="my-apps-icon-preset-open" class="my-apps-icon-preset-open" type="button" aria-expanded="false" aria-controls="my-apps-icon-preset-picker">アイコンから選ぶ</button>
+                                <button id="my-apps-icon-remove" class="my-apps-icon-remove" type="button" hidden>アイコンを削除</button>
                                 <p id="my-apps-icon-status" class="my-apps-icon-status" role="status" aria-live="polite">画像未設定</p>
                             </div>
                         </div>
+                        <section id="my-apps-icon-preset-picker" class="my-apps-icon-preset-picker" aria-label="アイコンから選ぶ" hidden></section>
                     </div>
 
                     <p id="my-apps-form-error" class="notice notice-error" role="alert" hidden></p>

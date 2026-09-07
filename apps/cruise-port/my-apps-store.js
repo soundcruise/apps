@@ -1,7 +1,8 @@
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { getKnownApp } from './my-apps-known-apps.js?v=1.3.0';
+import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.0';
 
-export const MY_APPS_SCHEMA_VERSION = 5;
+export const MY_APPS_SCHEMA_VERSION = 6;
 export const MY_APPS_STORAGE_KEY = 'cruisePort.myApps';
 
 export const MY_APPS_LIMITS = Object.freeze({
@@ -48,6 +49,7 @@ const ITEM_KEYS_V5 = Object.freeze([
     'createdAt',
     'updatedAt'
 ]);
+const ITEM_KEYS_V6 = Object.freeze([...ITEM_KEYS_V5.slice(0, -2), 'iconPresetKey', 'createdAt', 'updatedAt']);
 
 function isIsoDate(value) {
     return typeof value === 'string'
@@ -145,7 +147,11 @@ export function normalizeCustomLaunch(value) {
     };
 }
 
-function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, { allowUnknownAppKey = false } = {}) {
+function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, {
+    allowUnknownAppKey = false,
+    allowUnknownPresetKey = false,
+    allowPresetConflict = false
+} = {}) {
     const expectedKeys = version === 1
         ? ITEM_KEYS_V1
         : version === 2
@@ -154,7 +160,9 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, { allowUnknownAppKe
                 ? ITEM_KEYS_V3
                 : version === 4
                     ? ITEM_KEYS_V4
-                    : ITEM_KEYS_V5;
+                    : version === 5
+                        ? ITEM_KEYS_V5
+                        : ITEM_KEYS_V6;
     if (
         !item
         || typeof item !== 'object'
@@ -187,6 +195,17 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, { allowUnknownAppKe
                 ? item.iconCrop === null
                 : isValidIconCrop(item.iconCrop);
         if (!validSourceId || !validImageState) return false;
+    }
+
+    if (version >= 6) {
+        const validPresetKey = item.iconPresetKey === null || (
+            typeof item.iconPresetKey === 'string'
+            && item.iconPresetKey.length > 0
+            && item.iconPresetKey.length <= 80
+            && (allowUnknownPresetKey || isKnownMyAppsIconPreset(item.iconPresetKey))
+        );
+        const hasCustomImage = item.iconId !== null;
+        if (!validPresetKey || (!allowPresetConflict && hasCustomImage && item.iconPresetKey !== null)) return false;
     }
 
     if (version === 4) {
@@ -230,6 +249,7 @@ function hasUniqueIds(items) {
 function cloneItems(items) {
     return items.map((item) => ({
         ...item,
+        iconPresetKey: item.iconPresetKey ?? null,
         customLaunch: item.customLaunch ? { ...item.customLaunch } : null,
         iconCrop: item.iconCrop ? { ...item.iconCrop } : null
     }));
@@ -260,26 +280,31 @@ export function loadMyApps(storage = window.localStorage) {
             !parsed
             || typeof parsed !== 'object'
             || Array.isArray(parsed)
-            || ![1, 2, 3, 4, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
+            || ![1, 2, 3, 4, 5, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
             || !Array.isArray(parsed.items)
             || parsed.items.length > MY_APPS_LIMITS.items
-            || !parsed.items.every((item) => isValidItem(item, storedVersion, { allowUnknownAppKey: true }))
+            || !parsed.items.every((item) => isValidItem(item, storedVersion, {
+                allowUnknownAppKey: true,
+                allowUnknownPresetKey: true,
+                allowPresetConflict: true
+            }))
             || !hasUniqueIds(parsed.items)
         ) {
             return { ok: false, items: [], reason: 'invalid-data' };
         }
         let repairedLaunch = false;
+        let repairedPreset = false;
         const items = parsed.items.map((item) => {
             const knownLaunch = storedVersion >= 4
                 && item.launchMode === 'known-app'
                 && getKnownApp(item.appKey);
-            const customResult = storedVersion === MY_APPS_SCHEMA_VERSION && item.launchMode === 'custom'
+            const customResult = storedVersion >= 5 && item.launchMode === 'custom'
                 ? normalizeCustomLaunch(item.customLaunch)
                 : null;
             const customLaunch = customResult?.ok ? customResult.value : null;
             if (
                 (storedVersion >= 4 && item.launchMode === 'known-app' && !knownLaunch)
-                || (storedVersion === MY_APPS_SCHEMA_VERSION && item.launchMode === 'custom' && !customLaunch)
+                || (storedVersion >= 5 && item.launchMode === 'custom' && !customLaunch)
             ) {
                 repairedLaunch = true;
             }
@@ -289,6 +314,11 @@ export function loadMyApps(storage = window.localStorage) {
             ) {
                 repairedLaunch = true;
             }
+            const storedPresetKey = storedVersion >= 6 ? item.iconPresetKey : null;
+            const iconPresetKey = item.iconId !== null || !isKnownMyAppsIconPreset(storedPresetKey)
+                ? null
+                : storedPresetKey;
+            if (storedPresetKey !== iconPresetKey) repairedPreset = true;
             return {
                 ...item,
                 launchMode: knownLaunch ? 'known-app' : customLaunch ? 'custom' : 'https',
@@ -298,10 +328,11 @@ export function loadMyApps(storage = window.localStorage) {
                 iconSourceId: storedVersion < 3 ? null : item.iconSourceId,
                 iconCrop: storedVersion < 3 || item.iconCrop === null
                     ? null
-                    : { ...item.iconCrop }
+                    : { ...item.iconCrop },
+                iconPresetKey
             };
         });
-        return storedVersion < MY_APPS_SCHEMA_VERSION || repairedLaunch
+        return storedVersion < MY_APPS_SCHEMA_VERSION || repairedLaunch || repairedPreset
             ? { ok: true, items, migrated: true }
             : { ok: true, items };
     } catch (_) {
@@ -356,6 +387,7 @@ export function createMyApp(values, existingItems, now = new Date(), idFactory =
             iconId: null,
             iconSourceId: null,
             iconCrop: null,
+            iconPresetKey: null,
             createdAt: timestamp,
             updatedAt: timestamp
         }

@@ -67,6 +67,7 @@ const baseItem = {
     iconId: oldIconId,
     iconSourceId: oldSourceId,
     iconCrop: crop,
+    iconPresetKey: null,
     createdAt: '2026-09-06T01:00:00.000Z',
     updatedAt: '2026-09-06T01:00:00.000Z'
 };
@@ -90,6 +91,20 @@ const sourceBlob = new Blob(['editor-source'], { type: 'image/webp' });
 {
     const events = [];
     const result = await createMyAppEntry({
+        items: [], values, iconPresetKey: 'microphone', storage: new EventStorage(events),
+        iconStore: createIconStore(events), now, appIdFactory: () => appId
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+        { iconId: result.item.iconId, iconSourceId: result.item.iconSourceId, iconCrop: result.item.iconCrop, iconPresetKey: result.item.iconPresetKey },
+        { iconId: null, iconSourceId: null, iconCrop: null, iconPresetKey: 'microphone' }
+    );
+    assert.deepEqual(events, ['metadata:cruisePort.myApps']);
+}
+
+{
+    const events = [];
+    const result = await createMyAppEntry({
         items: [], values, iconBlob, iconSourceBlob: sourceBlob, iconCrop: crop,
         storage: new EventStorage(events), iconStore: createIconStore(events), now,
         appIdFactory: () => appId, sourceIdFactory: () => newSourceId, iconIdFactory: () => newIconId
@@ -98,6 +113,33 @@ const sourceBlob = new Blob(['editor-source'], { type: 'image/webp' });
     assert.equal(result.item.iconSourceId, newSourceId);
     assert.equal(result.item.iconId, newIconId);
     assert.deepEqual(result.item.iconCrop, crop);
+    assert.deepEqual(events, ['blob:save:1', 'blob:save:2', 'metadata:cruisePort.myApps']);
+}
+
+{
+    const events = [];
+    const result = await updateMyAppEntry({
+        items: [baseItem], id: appId, values, iconAction: 'preset', iconPresetKey: 'microphone',
+        storage: new EventStorage(events), iconStore: createIconStore(events), now
+    });
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+        { iconId: result.items[0].iconId, iconSourceId: result.items[0].iconSourceId, iconCrop: result.items[0].iconCrop, iconPresetKey: result.items[0].iconPresetKey },
+        { iconId: null, iconSourceId: null, iconCrop: null, iconPresetKey: 'microphone' }
+    );
+    assert.deepEqual(events, ['metadata:cruisePort.myApps', `blob:delete:${oldIconId}`, `blob:delete:${oldSourceId}`], 'old blobs are removed only after preset metadata saves');
+}
+
+{
+    const events = [];
+    const presetItem = { ...baseItem, iconId: null, iconSourceId: null, iconCrop: null, iconPresetKey: 'microphone' };
+    const result = await updateMyAppEntry({
+        items: [presetItem], id: appId, values, iconAction: 'replace', iconBlob, iconSourceBlob: sourceBlob, iconCrop: nextCrop,
+        storage: new EventStorage(events), iconStore: createIconStore(events), now,
+        sourceIdFactory: () => newSourceId, iconIdFactory: () => newIconId
+    });
+    assert.equal(result.ok, true);
+    assert.equal(result.items[0].iconPresetKey, null, 'custom image clears the preset only after its save succeeds');
     assert.deepEqual(events, ['blob:save:1', 'blob:save:2', 'metadata:cruisePort.myApps']);
 }
 

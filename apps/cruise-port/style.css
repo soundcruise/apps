@@ -132,6 +132,10 @@ h1::after {
     margin-top: 40px;
 }
 
+#my-apps-section {
+    scroll-margin-top: max(18px, env(safe-area-inset-top));
+}
+
 .port-section h2 {
     display: flex;
     margin: 0 0 14px;
@@ -587,6 +591,83 @@ h1::after {
     background: rgba(205, 180, 116, 0.025);
 }
 
+.my-apps-url-label-row {
+    display: flex;
+    margin-bottom: 8px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.my-apps-url-label-row label {
+    margin-bottom: 0;
+}
+
+.my-apps-url-help-toggle,
+.my-apps-url-help-heading button {
+    border: 0;
+    color: var(--port-gold-bright);
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+
+.my-apps-url-help-toggle {
+    min-height: 34px;
+    padding: 5px 8px;
+    border: 1px solid rgba(207, 189, 148, 0.24);
+    border-radius: 9px;
+    font-size: 0.69rem;
+    white-space: nowrap;
+}
+
+.my-apps-url-help {
+    margin-top: 10px;
+    padding: 13px;
+    border: 1px solid rgba(207, 189, 148, 0.18);
+    border-radius: 12px;
+    background: rgba(205, 180, 116, 0.035);
+}
+
+.my-apps-url-help-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--port-text);
+    font-size: 0.76rem;
+}
+
+.my-apps-url-help-heading button {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 auto;
+    padding: 0;
+    font-size: 1.25rem;
+    line-height: 1;
+}
+
+.my-apps-url-help-columns {
+    display: grid;
+    margin-top: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.my-apps-url-help h2 {
+    margin: 0;
+    color: rgba(230, 210, 155, 0.86);
+    font-size: 0.72rem;
+}
+
+.my-apps-url-help ol {
+    margin: 6px 0 0;
+    padding-left: 1.3em;
+    color: var(--port-muted);
+    font-size: 0.68rem;
+    line-height: 1.6;
+}
+
 .my-apps-direct-launch[hidden] {
     display: none;
 }
@@ -809,7 +890,8 @@ h1::after {
 }
 
 .my-apps-icon-select,
-.my-apps-icon-remove {
+.my-apps-icon-remove,
+.my-apps-icon-preset-open {
     min-height: 42px;
     display: inline-flex;
     padding: 8px 12px;
@@ -831,6 +913,11 @@ h1::after {
     background: transparent;
 }
 
+.my-apps-icon-preset-open {
+    color: var(--port-text);
+    background: rgba(205, 180, 116, 0.08);
+}
+
 .my-apps-icon-select.is-disabled,
 .my-apps-icon-remove:disabled {
     cursor: wait;
@@ -839,9 +926,52 @@ h1::after {
 
 .my-apps-icon-select:focus-within,
 .my-apps-icon-input:focus-visible + .my-apps-icon-select,
-.my-apps-icon-remove:focus-visible {
+.my-apps-icon-remove:focus-visible,
+.my-apps-icon-preset-open:focus-visible,
+.my-apps-url-help-toggle:focus-visible,
+.my-apps-url-help-heading button:focus-visible,
+.my-apps-preset-option:focus-visible {
     outline: 2px solid var(--port-gold-bright);
     outline-offset: 3px;
+}
+
+.my-apps-icon-preset-picker {
+    display: grid;
+    margin-top: 10px;
+    padding: 10px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    border: 1px solid rgba(207, 189, 148, 0.16);
+    border-radius: 14px;
+    background: rgba(205, 180, 116, 0.02);
+}
+
+.my-apps-preset-option {
+    min-height: 66px;
+    display: grid;
+    padding: 6px 3px;
+    place-items: center;
+    gap: 3px;
+    border: 1px solid transparent;
+    border-radius: 11px;
+    color: rgba(243, 240, 232, 0.82);
+    background: transparent;
+    font: inherit;
+    font-size: 0.57rem;
+    line-height: 1.15;
+    cursor: pointer;
+}
+
+.my-apps-preset-option svg {
+    width: 31px;
+    height: 31px;
+    stroke-width: 2.2;
+}
+
+.my-apps-preset-option.is-selected {
+    border-color: rgba(230, 210, 155, 0.72);
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.09);
 }
 
 .my-apps-icon-status {
@@ -2299,6 +2429,13 @@ select {
     .tuner-strings li {
         padding-right: 3px;
         padding-left: 3px;
+    }
+}
+
+@media (max-width: 420px) {
+    .my-apps-url-help-columns {
+        grid-template-columns: 1fr;
+        gap: 10px;
     }
 }
 

@@ -3,8 +3,9 @@ import {
     deleteMyApp,
     saveMyApps,
     updateMyApp
-} from './my-apps-store.js?v=5.1.0';
+} from './my-apps-store.js?v=6.0.0';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
+import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.0';
 
 async function deleteIconBestEffort(iconStore, iconId) {
     if (!iconId || !iconStore?.deleteIcon) return;
@@ -32,6 +33,7 @@ export async function createMyAppEntry({
     iconBlob = null,
     iconSourceBlob = null,
     iconCrop = null,
+    iconPresetKey = null,
     storage,
     iconStore,
     now = new Date(),
@@ -42,7 +44,10 @@ export async function createMyAppEntry({
     const createResult = createMyApp(values, items, now, appIdFactory);
     if (!createResult.ok) return createResult;
 
-    let item = createResult.item;
+    if (iconPresetKey !== null && (!isKnownMyAppsIconPreset(iconPresetKey) || iconBlob || iconSourceBlob || iconCrop)) {
+        return { ok: false, reason: 'invalid-icon-action' };
+    }
+    let item = iconPresetKey ? { ...createResult.item, iconPresetKey } : createResult.item;
     const newIds = [];
     if (iconBlob) {
         if (!iconSourceBlob || !isValidIconCrop(iconCrop)) {
@@ -85,6 +90,7 @@ export async function updateMyAppEntry({
     iconBlob = null,
     iconSourceBlob = null,
     iconCrop = null,
+    iconPresetKey = null,
     useCurrentIconAsSource = false,
     storage,
     iconStore,
@@ -102,7 +108,8 @@ export async function updateMyAppEntry({
     let nextImageState = {
         iconId: currentItem.iconId,
         iconSourceId: currentItem.iconSourceId,
-        iconCrop: currentItem.iconCrop ? { ...currentItem.iconCrop } : null
+        iconCrop: currentItem.iconCrop ? { ...currentItem.iconCrop } : null,
+        iconPresetKey: currentItem.iconPresetKey ?? null
     };
 
     if (iconAction === 'replace') {
@@ -121,7 +128,8 @@ export async function updateMyAppEntry({
         nextImageState = {
             iconId: iconResult.record.id,
             iconSourceId: sourceResult.record.id,
-            iconCrop: { ...iconCrop }
+            iconCrop: { ...iconCrop },
+            iconPresetKey: null
         };
     } else if (iconAction === 'readjust') {
         if (!iconBlob || !isValidIconCrop(iconCrop) || !currentItem.iconId) {
@@ -135,10 +143,19 @@ export async function updateMyAppEntry({
             iconSourceId: useCurrentIconAsSource || !currentItem.iconSourceId
                 ? currentItem.iconId
                 : currentItem.iconSourceId,
-            iconCrop: { ...iconCrop }
+            iconCrop: { ...iconCrop },
+            iconPresetKey: null
+        };
+    } else if (iconAction === 'preset') {
+        if (!isKnownMyAppsIconPreset(iconPresetKey)) return { ok: false, reason: 'invalid-icon-action' };
+        nextImageState = {
+            iconId: null,
+            iconSourceId: null,
+            iconCrop: null,
+            iconPresetKey
         };
     } else if (iconAction === 'remove') {
-        nextImageState = { iconId: null, iconSourceId: null, iconCrop: null };
+        nextImageState = { iconId: null, iconSourceId: null, iconCrop: null, iconPresetKey: null };
     } else if (iconAction !== 'keep') {
         return { ok: false, reason: 'invalid-icon-action' };
     }

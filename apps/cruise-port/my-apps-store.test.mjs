@@ -42,10 +42,12 @@ const baseItem = Object.freeze({
     iconId: null,
     iconSourceId: null,
     iconCrop: null,
+    iconPresetKey: null,
     createdAt,
     updatedAt
 });
-const { customLaunch: omittedCustomLaunch, ...v4ItemValues } = baseItem;
+const { iconPresetKey: omittedPresetKey, ...v5ItemValues } = baseItem;
+const { customLaunch: omittedCustomLaunch, ...v4ItemValues } = v5ItemValues;
 const v4Item = Object.freeze(v4ItemValues);
 const { launchMode: omittedLaunchMode, appKey: omittedAppKey, ...v3ItemValues } = v4Item;
 const v3Item = Object.freeze(v3ItemValues);
@@ -63,10 +65,10 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
         ok: true,
         items: [baseItem],
         migrated: true
-    }, 'v1 metadata is migrated to v5 defaults in memory');
+    }, 'v1 metadata is migrated to v6 defaults in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v1 load does not rewrite storage');
     assert.deepEqual(saveMyApps(loadMyApps(storage).items, storage), { ok: true });
-    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 5, 'next explicit save writes v5');
+    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 6, 'next explicit save writes v6');
 }
 
 {
@@ -75,7 +77,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
-        items: [{ ...v2WithIcon, launchMode: 'https', appKey: null, customLaunch: null, iconSourceId: null, iconCrop: null }],
+        items: [{ ...v2WithIcon, launchMode: 'https', appKey: null, customLaunch: null, iconSourceId: null, iconCrop: null, iconPresetKey: null }],
         migrated: true
     }, 'v2 metadata preserves its final icon and adds null source/crop in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v2 load does not rewrite storage');
@@ -92,7 +94,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
-        items: [{ ...v3WithIcon, launchMode: 'https', appKey: null, customLaunch: null }],
+        items: [{ ...v3WithIcon, launchMode: 'https', appKey: null, customLaunch: null, iconPresetKey: null }],
         migrated: true
     }, 'v3 metadata preserves all icon data and adds safe launch defaults');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v3 load does not rewrite storage');
@@ -104,7 +106,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
-        items: [{ ...v4Known, customLaunch: null }],
+        items: [{ ...v4Known, customLaunch: null, iconPresetKey: null }],
         migrated: true
     }, 'v4 known-app metadata is preserved and gains customLaunch null');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v4 load does not rewrite storage');
@@ -124,6 +126,30 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     };
     assert.deepEqual(saveMyApps([editableIcon], storage), { ok: true });
     assert.deepEqual(loadMyApps(storage), { ok: true, items: [editableIcon] }, 'source ID and normalized crop persist');
+}
+
+{
+    const presetItem = { ...baseItem, iconPresetKey: 'microphone' };
+    const storage = new FakeStorage();
+    assert.deepEqual(saveMyApps([presetItem], storage), { ok: true }, 'known preset can be saved');
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: [presetItem] }, 'preset survives reload');
+    assert.equal(saveMyApps([{ ...presetItem, iconPresetKey: 'unknown-preset' }], storage).ok, false, 'unknown preset cannot be written');
+    assert.equal(saveMyApps([{ ...presetItem, iconId: 'image-id' }], storage).ok, false, 'custom image and preset cannot be written together');
+}
+
+{
+    const rawUnknown = JSON.stringify({ version: 6, items: [{ ...baseItem, iconPresetKey: 'unknown-preset' }] });
+    const unknownStorage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: rawUnknown });
+    assert.deepEqual(loadMyApps(unknownStorage), { ok: true, items: [baseItem], migrated: true }, 'unknown stored preset safely falls back to generic');
+    assert.equal(unknownStorage.getItem(MY_APPS_STORAGE_KEY), rawUnknown, 'unknown preset is not overwritten automatically');
+
+    const rawConflict = JSON.stringify({ version: 6, items: [{ ...baseItem, iconId: 'legacy-image', iconPresetKey: 'microphone' }] });
+    const conflictStorage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: rawConflict });
+    assert.deepEqual(loadMyApps(conflictStorage), {
+        ok: true,
+        items: [{ ...baseItem, iconId: 'legacy-image' }],
+        migrated: true
+    }, 'custom image takes precedence over an inconsistent stored preset');
 }
 
 {
@@ -172,7 +198,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 for (const raw of [
     '{',
     JSON.stringify({ items: [] }),
-    JSON.stringify({ version: 6, items: [] }),
+    JSON.stringify({ version: 7, items: [] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{}] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, url: 'http://example.com/' }] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconId: 42 }] }),
@@ -197,7 +223,7 @@ for (const raw of [
 }
 
 {
-    const unknownAppItem = { ...baseItem, launchMode: 'known-app', appKey: 'removed-app' };
+    const unknownAppItem = { ...v5ItemValues, launchMode: 'known-app', appKey: 'removed-app' };
     const raw = JSON.stringify({ version: 5, items: [unknownAppItem] });
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
@@ -239,7 +265,7 @@ for (const customLaunch of [
 
 {
     const unsafeCustom = {
-        ...baseItem,
+        ...v5ItemValues,
         launchMode: 'custom',
         customLaunch: { ios: 'javascript:alert(1)', android: null }
     };

@@ -22,7 +22,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=5.2.0';
+} from './my-apps-store.js?v=6.0.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -61,12 +61,17 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=2.3.0';
+} from './my-apps-icon-workflow.js?v=3.0.0';
+import {
+    MY_APPS_ICON_PRESETS,
+    createMyAppsPresetSvg,
+    getMyAppsIconPreset
+} from './my-apps-icon-presets.js?v=1.0.0';
 import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.10.0';
+} from './app-version.js?v=1.11.0';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
@@ -120,6 +125,9 @@ const elements = {
     myAppsForm: document.querySelector('#my-apps-form'),
     myAppsNameInput: document.querySelector('#my-apps-name'),
     myAppsUrlInput: document.querySelector('#my-apps-url'),
+    myAppsUrlHelpToggle: document.querySelector('#my-apps-url-help-toggle'),
+    myAppsUrlHelp: document.querySelector('#my-apps-url-help'),
+    myAppsUrlHelpClose: document.querySelector('#my-apps-url-help-close'),
     myAppsDirectLaunch: document.querySelector('#my-apps-direct-launch'),
     myAppsDirectRecognition: document.querySelector('#my-apps-direct-recognition'),
     myAppsDirectToggle: document.querySelector('#my-apps-direct-toggle'),
@@ -135,6 +143,8 @@ const elements = {
     myAppsCustomAndroidStatus: document.querySelector('#my-apps-custom-android-status'),
     myAppsIconInput: document.querySelector('#my-apps-icon-input'),
     myAppsIconSelectLabel: document.querySelector('#my-apps-icon-select-label'),
+    myAppsIconPresetOpen: document.querySelector('#my-apps-icon-preset-open'),
+    myAppsIconPresetPicker: document.querySelector('#my-apps-icon-preset-picker'),
     myAppsIconPreview: document.querySelector('#my-apps-icon-preview'),
     myAppsIconAdjustHint: document.querySelector('#my-apps-icon-adjust-hint'),
     myAppsIconRemove: document.querySelector('#my-apps-icon-remove'),
@@ -172,6 +182,7 @@ const myAppsState = {
     iconBlob: null,
     iconSourceBlob: null,
     iconCrop: null,
+    iconPresetKey: null,
     useCurrentIconAsSource: false,
     iconProcessing: false,
     saving: false,
@@ -186,6 +197,7 @@ const myAppsState = {
 
 let metronomeController = null;
 let tunerController = null;
+let pendingHomeScrollTarget = null;
 const myAppsIconStore = createMyAppsIconStore();
 const myAppsPlatform = detectMyAppsPlatform();
 const myAppsObjectUrls = {
@@ -213,6 +225,7 @@ function cleanupMyAppsFormState() {
     myAppsState.iconBlob = null;
     myAppsState.iconSourceBlob = null;
     myAppsState.iconCrop = null;
+    myAppsState.iconPresetKey = null;
     myAppsState.useCurrentIconAsSource = false;
     myAppsState.iconProcessing = false;
     myAppsState.saving = false;
@@ -251,6 +264,11 @@ function findItem(id) {
 function setHomeRoute() {
     history.pushState(null, '', `${location.pathname}${location.search}`);
     renderRoute();
+}
+
+function setHomeRouteWithMyAppsScroll() {
+    pendingHomeScrollTarget = 'my-apps-section';
+    setHomeRoute();
 }
 
 function setHashRoute(route) {
@@ -359,7 +377,8 @@ function createMyAppIcon(item = null, scope = 'home') {
     arrow.setAttribute('class', 'icon-accent');
     arrow.setAttribute('d', 'M37 41l9-9m0 0h-7m7 0v7');
     svg.append(frame, line, arrow);
-    icon.append(svg);
+    const presetSvg = item?.iconPresetKey ? createMyAppsPresetSvg(item.iconPresetKey) : null;
+    icon.append(presetSvg || svg);
     if (item?.iconId) hydrateMyAppIcon(icon, item.iconId, scope);
     return icon;
 }
@@ -578,13 +597,69 @@ function fillMyAppsForm(item = null) {
     elements.myAppsCustomLaunch.open = item?.launchMode === 'custom';
     updateMyAppsLaunchOptions(item, { initial: true });
     elements.myAppsDelete.hidden = !item;
+    myAppsState.iconPresetKey = item?.iconPresetKey || null;
     elements.myAppsIconSelectLabel.textContent = item?.iconId ? '画像を変更' : '画像を選択';
-    elements.myAppsIconRemove.hidden = !item?.iconId;
-    elements.myAppsIconStatus.textContent = item?.iconId ? '現在のアイコン画像' : '画像未設定';
+    elements.myAppsIconRemove.hidden = !item?.iconId && !item?.iconPresetKey;
+    elements.myAppsIconStatus.textContent = item?.iconId
+        ? '現在のアイコン画像'
+        : item?.iconPresetKey
+            ? `${getMyAppsIconPreset(item.iconPresetKey)?.label || '選択した'}アイコン`
+            : '画像未設定';
     elements.myAppsIconPreview.replaceChildren(createMyAppIcon(item, 'form'));
     setMyAppsIconPreviewAdjustable(Boolean(item?.iconId));
+    setMyAppsUrlHelpOpen(false);
+    setMyAppsPresetPickerOpen(false);
+    renderMyAppsPresetPicker();
     showNotice(elements.myAppsFormError);
     setMyAppsFormBusy(false);
+}
+
+function setMyAppsUrlHelpOpen(open) {
+    elements.myAppsUrlHelp.hidden = !open;
+    elements.myAppsUrlHelpToggle.setAttribute('aria-expanded', String(open));
+}
+
+function setMyAppsPresetPickerOpen(open) {
+    elements.myAppsIconPresetPicker.hidden = !open;
+    elements.myAppsIconPresetOpen.setAttribute('aria-expanded', String(open));
+}
+
+function renderMyAppsPresetPicker() {
+    elements.myAppsIconPresetPicker.replaceChildren();
+    MY_APPS_ICON_PRESETS.forEach((preset) => {
+        const button = document.createElement('button');
+        const label = document.createElement('span');
+        button.type = 'button';
+        button.className = 'my-apps-preset-option';
+        button.dataset.presetKey = preset.key;
+        button.setAttribute('aria-label', preset.label);
+        button.setAttribute('aria-pressed', String(myAppsState.iconPresetKey === preset.key));
+        button.classList.toggle('is-selected', myAppsState.iconPresetKey === preset.key);
+        button.append(createMyAppsPresetSvg(preset.key));
+        label.textContent = preset.label;
+        button.append(label);
+        elements.myAppsIconPresetPicker.append(button);
+    });
+}
+
+function selectMyAppsPresetIcon(key) {
+    const preset = getMyAppsIconPreset(key);
+    if (!preset || myAppsState.saving || myAppsState.iconProcessing) return;
+    myAppsState.iconAction = 'preset';
+    myAppsState.iconPresetKey = preset.key;
+    myAppsState.iconBlob = null;
+    myAppsState.iconSourceBlob = null;
+    myAppsState.iconCrop = null;
+    myAppsState.useCurrentIconAsSource = false;
+    elements.myAppsIconInput.value = '';
+    elements.myAppsIconSelectLabel.textContent = '画像を選択';
+    elements.myAppsIconRemove.hidden = false;
+    elements.myAppsIconStatus.textContent = `${preset.label}を選択しました。フォームの保存で反映されます。`;
+    cleanupMyAppsObjectUrls('form');
+    elements.myAppsIconPreview.replaceChildren(createMyAppIcon({ iconPresetKey: preset.key }));
+    setMyAppsIconPreviewAdjustable(false);
+    renderMyAppsPresetPicker();
+    setMyAppsPresetPickerOpen(false);
 }
 
 function updateMyAppsLaunchOptions(item = null, { initial = false } = {}) {
@@ -690,6 +765,8 @@ function setMyAppsFormBusy(busy) {
     elements.myAppsSubmit.textContent = busy ? '保存中…' : '保存';
     elements.myAppsIconInput.disabled = busy;
     elements.myAppsIconRemove.disabled = busy;
+    elements.myAppsIconPresetOpen.disabled = busy;
+    elements.myAppsIconPresetPicker.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
     elements.myAppsIconPreview.disabled = busy || !elements.myAppsIconPreview.dataset.adjustable;
     elements.myAppsDirectEnabled.disabled = busy;
     elements.myAppsCustomIosInput.disabled = busy;
@@ -884,6 +961,7 @@ async function confirmMyAppsCrop() {
     myAppsState.iconBlob = result.blob;
     myAppsState.iconSourceBlob = session.sourceBlob;
     myAppsState.iconCrop = iconCrop;
+    myAppsState.iconPresetKey = null;
     myAppsState.useCurrentIconAsSource = session.useCurrentIconAsSource;
     elements.myAppsIconSelectLabel.textContent = '画像を変更';
     elements.myAppsIconRemove.hidden = false;
@@ -973,6 +1051,7 @@ async function handleMyAppsIconSelection() {
     const file = elements.myAppsIconInput.files?.[0];
     if (!file) return;
     elements.myAppsIconInput.value = '';
+    setMyAppsPresetPickerOpen(false);
     const generation = myAppsRenderGeneration.form;
     const returnStatus = elements.myAppsIconStatus.textContent;
     myAppsState.iconProcessing = true;
@@ -1000,6 +1079,7 @@ function removeMyAppsIcon() {
     myAppsState.iconBlob = null;
     myAppsState.iconSourceBlob = null;
     myAppsState.iconCrop = null;
+    myAppsState.iconPresetKey = null;
     myAppsState.useCurrentIconAsSource = false;
     elements.myAppsIconInput.value = '';
     elements.myAppsIconSelectLabel.textContent = '画像を選択';
@@ -1008,6 +1088,7 @@ function removeMyAppsIcon() {
     cleanupMyAppsObjectUrls('form');
     elements.myAppsIconPreview.replaceChildren(createMyAppIcon());
     setMyAppsIconPreviewAdjustable(false);
+    renderMyAppsPresetPicker();
 }
 
 function renderMyAppsForm(mode, id = null) {
@@ -1090,6 +1171,7 @@ async function handleMyAppsSubmit(event) {
             iconBlob: myAppsState.iconBlob,
             iconSourceBlob: myAppsState.iconSourceBlob,
             iconCrop: myAppsState.iconCrop,
+            iconPresetKey: myAppsState.iconAction === 'preset' ? myAppsState.iconPresetKey : null,
             useCurrentIconAsSource: myAppsState.useCurrentIconAsSource,
             iconStore: myAppsIconStore
         })
@@ -1099,6 +1181,7 @@ async function handleMyAppsSubmit(event) {
             iconBlob: myAppsState.iconAction === 'replace' ? myAppsState.iconBlob : null,
             iconSourceBlob: myAppsState.iconAction === 'replace' ? myAppsState.iconSourceBlob : null,
             iconCrop: myAppsState.iconAction === 'replace' ? myAppsState.iconCrop : null,
+            iconPresetKey: myAppsState.iconAction === 'preset' ? myAppsState.iconPresetKey : null,
             iconStore: myAppsIconStore
         });
 
@@ -1189,6 +1272,16 @@ function renderHome() {
         state.storageReady ? '' : '練習メニューの保存データを読み込めません。保存領域の値は変更していません。'
     );
     renderMyAppsHome();
+    const targetId = pendingHomeScrollTarget;
+    pendingHomeScrollTarget = null;
+    if (targetId) {
+        requestAnimationFrame(() => {
+            const target = document.querySelector(`#${targetId}`);
+            if (!target) return;
+            const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+            target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+        });
+    }
 }
 
 function startReorder() {
@@ -1466,6 +1559,7 @@ elements.list.addEventListener('click', (event) => {
 document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
 document.querySelectorAll('[data-action="cancel-form"]').forEach((button) => button.addEventListener('click', cancelForm));
 document.querySelectorAll('[data-action="my-apps-home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
+document.querySelectorAll('[data-action="my-apps-home-scroll"]').forEach((button) => button.addEventListener('click', setHomeRouteWithMyAppsScroll));
 document.querySelectorAll('[data-action="new-my-app"]').forEach((button) => button.addEventListener('click', () => setHashRoute('#my-apps/new')));
 elements.myAppsAdd.addEventListener('click', () => setHashRoute('#my-apps/new'));
 elements.myAppsManage.addEventListener('click', () => setHashRoute('#my-apps/manage'));
@@ -1474,6 +1568,13 @@ elements.myAppsDelete.addEventListener('click', handleMyAppsDelete);
 elements.myAppsIconInput.addEventListener('change', handleMyAppsIconSelection);
 elements.myAppsUrlInput.addEventListener('input', () => {
     updateMyAppsLaunchOptions();
+});
+elements.myAppsUrlHelpToggle.addEventListener('click', () => {
+    setMyAppsUrlHelpOpen(elements.myAppsUrlHelp.hidden);
+});
+elements.myAppsUrlHelpClose.addEventListener('click', () => {
+    setMyAppsUrlHelpOpen(false);
+    elements.myAppsUrlHelpToggle.focus({ preventScroll: true });
 });
 elements.myAppsDirectEnabled.addEventListener('change', () => {
     myAppsState.knownLaunchForm = setKnownLaunchDecision(
@@ -1486,6 +1587,14 @@ elements.myAppsCustomAndroidInput.addEventListener('input', updateMyAppsCustomLa
 elements.myAppsCustomIosTest.addEventListener('click', () => markMyAppsCustomLaunchTest('ios'));
 elements.myAppsCustomAndroidTest.addEventListener('click', () => markMyAppsCustomLaunchTest('android'));
 elements.myAppsIconRemove.addEventListener('click', removeMyAppsIcon);
+elements.myAppsIconPresetOpen.addEventListener('click', () => {
+    renderMyAppsPresetPicker();
+    setMyAppsPresetPickerOpen(elements.myAppsIconPresetPicker.hidden);
+});
+elements.myAppsIconPresetPicker.addEventListener('click', (event) => {
+    const presetButton = event.target.closest('.my-apps-preset-option');
+    if (presetButton) selectMyAppsPresetIcon(presetButton.dataset.presetKey);
+});
 elements.myAppsIconPreview.addEventListener('click', handleCurrentMyAppsIconAdjustment);
 elements.myAppsCropCanvas.addEventListener('pointerdown', handleCropPointerDown);
 elements.myAppsCropCanvas.addEventListener('pointermove', handleCropPointerMove);
