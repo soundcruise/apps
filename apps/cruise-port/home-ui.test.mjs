@@ -32,7 +32,7 @@ for (const [size, columns] of [['large', 1], ['standard', 2], ['small', 4], ['xs
 
 for (const [size, cruiseBaseline, simpleBaseline] of [['large', 80, 86], ['standard', 84, 90], ['small', 56, 60], ['xsmall', 36, 39]]) {
     assert.match(styles, new RegExp(`data-display-size="${size}"\\] \\.home-card-grid \\.app-card img[\\s\\S]*?calc\\(${cruiseBaseline}px \\* 0\\.9\\)`));
-    assert.match(styles, new RegExp(`data-display-size="${size}"\\] \\.home-card-grid \\.tool-card \\.skeleton-icon,[\\s\\S]*?home-card-grid \\.my-app-icon--preset,[\\s\\S]*?home-card-grid \\.my-app-icon--generic \\{[\\s\\S]*?calc\\(${simpleBaseline}px \\* 0\\.6\\)`));
+    assert.match(styles, new RegExp(`data-display-size="${size}"\\] \\.home-card-grid \\.tool-card \\.skeleton-icon,[\\s\\S]*?home-card-grid \\.my-app-icon--preset,[\\s\\S]*?home-card-grid \\.my-app-icon--generic \\{[\\s\\S]*?calc\\(${simpleBaseline}px \\* 0\\.7\\)`));
 }
 
 assert.doesNotMatch(styles, /icon-scale-preview|cruise-icon-scale-preview|simple-icon-scale-preview/);

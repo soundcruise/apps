@@ -734,34 +734,34 @@ h1::after {
     height: calc(36px * 0.9);
 }
 
-/* Tool and preset/generic My Apps use 60% of the shared Simple baseline.
+/* Tool and preset/generic My Apps use 70% of the shared Simple baseline.
    Uploaded and external My Apps images remain outside this selector. */
 #home-view[data-display-size="large"] .home-card-grid .tool-card .skeleton-icon,
 #home-view[data-display-size="large"] .home-card-grid .my-app-icon--preset,
 #home-view[data-display-size="large"] .home-card-grid .my-app-icon--generic {
-    width: calc(86px * 0.6);
-    height: calc(86px * 0.6);
+    width: calc(86px * 0.7);
+    height: calc(86px * 0.7);
 }
 
 #home-view[data-display-size="standard"] .home-card-grid .tool-card .skeleton-icon,
 #home-view[data-display-size="standard"] .home-card-grid .my-app-icon--preset,
 #home-view[data-display-size="standard"] .home-card-grid .my-app-icon--generic {
-    width: calc(90px * 0.6);
-    height: calc(90px * 0.6);
+    width: calc(90px * 0.7);
+    height: calc(90px * 0.7);
 }
 
 #home-view[data-display-size="small"] .home-card-grid .tool-card .skeleton-icon,
 #home-view[data-display-size="small"] .home-card-grid .my-app-icon--preset,
 #home-view[data-display-size="small"] .home-card-grid .my-app-icon--generic {
-    width: calc(60px * 0.6);
-    height: calc(60px * 0.6);
+    width: calc(60px * 0.7);
+    height: calc(60px * 0.7);
 }
 
 #home-view[data-display-size="xsmall"] .home-card-grid .tool-card .skeleton-icon,
 #home-view[data-display-size="xsmall"] .home-card-grid .my-app-icon--preset,
 #home-view[data-display-size="xsmall"] .home-card-grid .my-app-icon--generic {
-    width: calc(39px * 0.6);
-    height: calc(39px * 0.6);
+    width: calc(39px * 0.7);
+    height: calc(39px * 0.7);
 }
 
 .my-app-external-mark {
