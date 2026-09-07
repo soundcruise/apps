@@ -1,0 +1,17 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { applyHomeDisplaySize } from './home-display.js';
+
+for (const displaySize of ['large', 'standard', 'small']) {
+    test(`home data attribute switches to ${displaySize}`, () => {
+        const homeView = { dataset: {} };
+        assert.equal(applyHomeDisplaySize(homeView, displaySize), displaySize);
+        assert.equal(homeView.dataset.displaySize, displaySize);
+    });
+}
+
+test('home data attribute safely falls back to standard', () => {
+    const homeView = { dataset: {} };
+    assert.equal(applyHomeDisplaySize(homeView, 'unknown'), 'standard');
+    assert.equal(homeView.dataset.displaySize, 'standard');
+});

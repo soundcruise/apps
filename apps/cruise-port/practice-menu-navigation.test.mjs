@@ -49,35 +49,33 @@ class MemoryBrowserHistory {
     }
 }
 
-function replaceWithHome(browser) {
-    updateHomeHistory({
-        historyObject: browser,
-        locationObject: browser.location,
-        mode: HOME_HISTORY_MODE.replace
-    });
+function replaceWithPracticeList(browser) {
+    browser.replaceState(null, '', `${browser.location.pathname}${browser.location.search}#practice-menu`);
 }
 
 {
     const browser = new MemoryBrowserHistory();
+    browser.pushHash('#practice-menu');
     browser.pushHash('#practice-menu/menu-1');
     browser.back();
-    assert.equal(browser.location.hash, '', 'normal detail -> back returns home');
+    assert.equal(browser.location.hash, '#practice-menu', 'normal detail -> back returns the Practice Menu list');
 }
 
 {
     const browser = new MemoryBrowserHistory();
+    browser.pushHash('#practice-menu');
     browser.pushHash('#practice-menu/menu-1');
     const lengthBeforeDelete = browser.length;
-    replaceWithHome(browser);
-    assert.equal(browser.location.hash, '', 'delete replaces the current detail entry with home');
+    replaceWithPracticeList(browser);
+    assert.equal(browser.location.hash, '#practice-menu', 'delete replaces the current detail entry with the Practice Menu list');
     assert.equal(browser.length, lengthBeforeDelete, 'delete does not grow history');
-    assert.equal(browser.pushCount, 1, 'delete does not add another push');
+    assert.equal(browser.pushCount, 2, 'delete does not add another push after list and detail navigation');
     assert.equal(browser.replaceCount, 1);
 
     browser.back();
-    assert.equal(browser.location.hash, '', 'back cannot revisit the deleted detail route');
+    assert.equal(browser.location.hash, '#practice-menu', 'back cannot revisit the deleted detail route');
     browser.forward();
-    assert.equal(browser.location.hash, '', 'forward cannot revisit the deleted detail route');
+    assert.equal(browser.location.hash, '#practice-menu', 'forward returns the Practice Menu list without a loop');
 }
 
 for (const staleHash of [
@@ -88,9 +86,9 @@ for (const staleHash of [
     const browser = new MemoryBrowserHistory('https://soundcruise.jp/apps/cruise-port/?source=test');
     browser.pushHash(staleHash);
     const lengthBeforeCorrection = browser.length;
-    replaceWithHome(browser);
-    assert.equal(browser.location.hash, '', `${staleHash} is corrected to home`);
-    assert.equal(browser.location.search, '?source=test', 'home correction preserves the query');
+    replaceWithPracticeList(browser);
+    assert.equal(browser.location.hash, '#practice-menu', `${staleHash} is corrected to the Practice Menu list`);
+    assert.equal(browser.location.search, '?source=test', 'list correction preserves the query');
     assert.equal(browser.length, lengthBeforeCorrection, 'stale correction does not grow history');
     browser.back();
     assert.notEqual(browser.location.hash, staleHash, 'back does not revisit a corrected stale route');
@@ -101,8 +99,8 @@ for (const encoded of ['%ZZ', '%', '%E0%A4%A']) {
     const browser = new MemoryBrowserHistory();
     browser.pushHash(`#practice-menu/${encoded}`);
     const lengthBeforeCorrection = browser.length;
-    replaceWithHome(browser);
-    assert.equal(browser.location.hash, '');
+    replaceWithPracticeList(browser);
+    assert.equal(browser.location.hash, '#practice-menu');
     assert.equal(browser.length, lengthBeforeCorrection, 'invalid route correction does not grow history');
 }
 
@@ -110,9 +108,10 @@ assert.equal(safeDecodeRouteSegment('menu%20name'), 'menu name');
 
 const appSource = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
 assert.match(appSource, /function replaceHomeRoute\(\)[\s\S]*HOME_HISTORY_MODE\.replace/);
-assert.match(appSource, /function renderDetail\(id\)[\s\S]*if \(!item\) \{\s*replaceHomeRoute\(\)/);
-assert.match(appSource, /function renderForm\(mode, id = null\)[\s\S]*mode === 'edit' && !item\)[\s\S]*replaceHomeRoute\(\)/);
-assert.match(appSource, /function handleDelete\(\)[\s\S]*state\.items = deleteResult\.items;\s*replaceHomeRoute\(\)/);
+assert.match(appSource, /function replacePracticeListRoute\(\)[\s\S]*history\.replaceState[\s\S]*#practice-menu/);
+assert.match(appSource, /function renderDetail\(id\)[\s\S]*if \(!item\) \{\s*replacePracticeListRoute\(\)/);
+assert.match(appSource, /function renderForm\(mode, id = null\)[\s\S]*mode === 'edit' && !item\)[\s\S]*replacePracticeListRoute\(\)/);
+assert.match(appSource, /function handleDelete\(\)[\s\S]*state\.items = deleteResult\.items;\s*replacePracticeListRoute\(\)/);
 assert.doesNotMatch(appSource, /decodeURIComponent\((?:editMatch|detailMatch|myAppsEditMatch)/);
 
 console.log('practice-menu-navigation: push/replace, stale routes, back/forward, and safe decode passed');

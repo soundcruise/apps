@@ -99,8 +99,42 @@ body {
 }
 
 .port-header {
+    position: relative;
     margin-bottom: 36px;
     text-align: center;
+}
+
+.port-settings-button {
+    position: absolute;
+    top: -8px;
+    right: 0;
+    min-height: 40px;
+    display: inline-flex;
+    padding: 7px 10px;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(207, 189, 148, 0.26);
+    border-radius: 999px;
+    color: var(--port-muted);
+    background: rgba(18, 17, 15, 0.82);
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 620;
+    line-height: 1;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.port-settings-button > span:first-child {
+    font-size: 1rem;
+}
+
+.port-settings-button:active {
+    transform: scale(0.96);
+    background: rgba(205, 180, 116, 0.13);
 }
 
 h1 {
@@ -501,6 +535,155 @@ h1::after {
     height: 100%;
     border-radius: inherit;
     object-fit: contain;
+}
+
+/* ホームのカード密度はすべてのランチャーに共通で適用する。 */
+#home-view[data-display-size="large"] .home-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+#home-view[data-display-size="standard"] .home-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+}
+
+#home-view[data-display-size="small"] .home-card-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 5px;
+}
+
+#home-view[data-display-size] .home-card-grid .port-card {
+    min-height: 0;
+    justify-content: center;
+    overflow: hidden;
+}
+
+#home-view[data-display-size] .home-card-grid .app-card img,
+#home-view[data-display-size] .home-card-grid .skeleton-icon,
+#home-view[data-display-size] .home-card-grid .my-app-icon {
+    flex: 0 0 auto;
+}
+
+#home-view[data-display-size] .home-card-grid .skeleton-icon {
+    border: 0;
+    background: transparent;
+}
+
+#tuner-card .skeleton-icon > img { transform: scale(1.35); }
+#metronome-card .skeleton-icon > img { transform: scale(1.22); }
+#practice-menu-card .skeleton-icon > img { transform: scale(1.12); }
+#wishlist-card .skeleton-icon > img { transform: scale(1.35); }
+
+#home-view[data-display-size="large"] .home-card-grid .port-card {
+    min-height: 150px;
+    padding: 13px 10px 14px;
+    border-radius: 17px;
+}
+
+#home-view[data-display-size="large"] .home-card-grid .app-card img,
+#home-view[data-display-size="large"] .home-card-grid .skeleton-icon,
+#home-view[data-display-size="large"] .home-card-grid .my-app-icon {
+    width: min(100%, 100px);
+    height: 100px;
+}
+
+#home-view[data-display-size="large"] .home-card-grid .my-app-icon {
+    border-radius: 23%;
+    width: min(100%, 108px);
+    height: 108px;
+}
+
+#home-view[data-display-size="large"] .home-card-grid .card-name {
+    margin-top: 11px;
+    font-size: clamp(0.86rem, 3.7vw, 1rem);
+}
+
+#home-view[data-display-size="standard"] .home-card-grid .port-card {
+    min-height: 106px;
+    padding: 8px 4px 9px;
+    border-radius: 13px;
+}
+
+#home-view[data-display-size="standard"] .home-card-grid .app-card img,
+#home-view[data-display-size="standard"] .home-card-grid .skeleton-icon,
+#home-view[data-display-size="standard"] .home-card-grid .my-app-icon {
+    width: min(100%, 56px);
+    height: 56px;
+}
+
+#home-view[data-display-size="standard"] .home-card-grid .my-app-icon {
+    border-radius: 17px;
+    width: min(100%, 60px);
+    height: 60px;
+}
+
+#home-view[data-display-size="standard"] .home-card-grid .card-name {
+    display: -webkit-box;
+    max-width: 100%;
+    margin-top: 6px;
+    overflow: hidden;
+    font-size: clamp(0.64rem, 2.9vw, 0.76rem);
+    line-height: 1.28;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+#home-view[data-display-size="small"] .home-card-grid .port-card {
+    min-height: 78px;
+    padding: 5px 2px 6px;
+    border-radius: 10px;
+}
+
+#home-view[data-display-size="small"] .home-card-grid .app-card img,
+#home-view[data-display-size="small"] .home-card-grid .skeleton-icon,
+#home-view[data-display-size="small"] .home-card-grid .my-app-icon {
+    width: min(100%, 36px);
+    height: 36px;
+}
+
+#home-view[data-display-size="small"] .home-card-grid .my-app-icon {
+    border-radius: 11px;
+    width: min(100%, 39px);
+    height: 39px;
+}
+
+#home-view[data-display-size="small"] #tuner-card .skeleton-icon > img { transform: scale(1.22); }
+#home-view[data-display-size="small"] #metronome-card .skeleton-icon > img { transform: scale(1.12); }
+#home-view[data-display-size="small"] #practice-menu-card .skeleton-icon > img { transform: scale(1.04); }
+#home-view[data-display-size="small"] #wishlist-card .skeleton-icon > img { transform: scale(1.22); }
+
+#home-view[data-display-size="small"] .home-card-grid .card-name {
+    display: -webkit-box;
+    max-width: 100%;
+    margin-top: 4px;
+    overflow: hidden;
+    font-size: clamp(0.54rem, 2.35vw, 0.64rem);
+    font-weight: 620;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+#home-view[data-display-size="standard"] .home-card-grid .add-symbol,
+#home-view[data-display-size="small"] .home-card-grid .add-symbol {
+    width: auto;
+    height: auto;
+    border: 0;
+    background: transparent;
+    font-size: 1.35rem;
+}
+
+#home-view[data-display-size="small"] .home-card-grid .add-symbol {
+    font-size: 1.05rem;
+}
+
+#home-view[data-display-size] .home-card-grid .my-app-external-mark {
+    top: 7px;
+    right: 7px;
+    font-size: 0.64rem;
 }
 
 .my-app-external-mark {
@@ -1118,6 +1301,8 @@ body.my-apps-crop-open {
 }
 
 .practice-row:focus-visible,
+.port-settings-button:focus-visible,
+.settings-choice:focus-visible,
 .reorder-button:focus-visible,
 .reorder-move:focus-visible,
 .view-back:focus-visible,
@@ -1148,6 +1333,9 @@ textarea:focus-visible {
 
 .detail-view,
 .form-view,
+.settings-view,
+.wishlist-view,
+.practice-list-view,
 .tuner-view,
 .metronome-view,
 .my-apps-manage-view,
@@ -1166,6 +1354,74 @@ textarea:focus-visible {
     font: inherit;
     font-size: 0.88rem;
     cursor: pointer;
+}
+
+.settings-card {
+    margin-top: 28px;
+    padding: 18px;
+    border: 1px solid rgba(207, 189, 148, 0.14);
+    border-radius: 14px;
+    background: rgba(205, 180, 116, 0.025);
+}
+
+.settings-card h2 {
+    margin: 0;
+    color: var(--port-text);
+    font-size: 0.96rem;
+    font-weight: 650;
+}
+
+.settings-card > p {
+    margin: 7px 0 0;
+    color: var(--port-muted);
+    font-size: 0.78rem;
+    line-height: 1.65;
+}
+
+.settings-choices {
+    display: grid;
+    margin-top: 16px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.settings-choice {
+    min-height: 66px;
+    display: grid;
+    padding: 8px 4px;
+    place-items: center;
+    align-content: center;
+    gap: 3px;
+    border: 1px solid rgba(207, 189, 148, 0.2);
+    border-radius: 11px;
+    color: var(--port-muted);
+    background: rgba(8, 8, 6, 0.42);
+    font: inherit;
+    font-size: 0.88rem;
+    font-weight: 650;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.settings-choice small {
+    color: inherit;
+    font-size: 0.66rem;
+    font-weight: 520;
+}
+
+.settings-choice.is-selected {
+    border-color: rgba(230, 210, 155, 0.62);
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(230, 210, 155, 0.1);
+}
+
+.wishlist-copy {
+    margin: 28px 0 0;
+    color: var(--port-muted);
+    font-size: 0.94rem;
+    line-height: 1.75;
 }
 
 .view-panel {

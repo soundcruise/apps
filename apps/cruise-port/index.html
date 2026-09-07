@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.11.2">
+    <link rel="stylesheet" href="./style.css?v=1.12.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,19 +16,22 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.11.4"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.12.0"></script>
 </head>
 <body>
     <div class="port-shell">
         <main id="home-view" class="port-view">
             <header class="port-header">
+                <button id="home-settings-button" class="port-settings-button" type="button" aria-label="表示設定を開く">
+                    <span aria-hidden="true">⚙︎</span><span>設定</span>
+                </button>
                 <h1>クルーズポート</h1>
                 <p class="port-concept">弾き語りに必要なアプリを1つに集約。</p>
             </header>
 
             <section class="port-section" aria-labelledby="cruise-apps-heading">
                 <h2 id="cruise-apps-heading">クルーズアプリ</h2>
-                <nav class="card-grid" aria-label="クルーズアプリ">
+                <nav class="card-grid home-card-grid" aria-label="クルーズアプリ">
                     <a class="port-card app-card" href="../pitch-cruise/pro_x9v7q2m8/">
                         <img src="../pitch-cruise/pro_icon_192.png" alt="" width="192" height="192">
                         <span class="card-name">音感クルーズ</span>
@@ -53,7 +56,7 @@
 
             <section class="port-section" aria-labelledby="tools-heading">
                 <h2 id="tools-heading">ツール</h2>
-                <div class="card-grid">
+                <div class="card-grid home-card-grid" aria-label="ツール">
                     <a class="port-card skeleton-card tool-card" id="tuner-card" href="#tuner">
                         <span class="skeleton-icon" aria-hidden="true"><img src="./assets/my-app-icons/tuner.png" alt="" decoding="async"></span>
                         <span class="card-name">チューナー</span>
@@ -63,12 +66,72 @@
                         <span class="skeleton-icon" aria-hidden="true"><img src="./assets/my-app-icons/metronome.png" alt="" decoding="async"></span>
                         <span class="card-name">メトロノーム</span>
                     </a>
+
+                    <a class="port-card skeleton-card tool-card" id="practice-menu-card" href="#practice-menu">
+                        <span class="skeleton-icon" aria-hidden="true"><img src="./assets/my-app-icons/rhythm.png" alt="" decoding="async"></span>
+                        <span class="card-name">練習メニュー</span>
+                    </a>
+
+                    <a class="port-card skeleton-card tool-card" id="wishlist-card" href="#wishlist">
+                        <span class="skeleton-icon" aria-hidden="true"><img src="./assets/my-app-icons/audio-file.png" alt="" decoding="async"></span>
+                        <span class="card-name">欲しいものリスト</span>
+                    </a>
                 </div>
             </section>
 
-            <section class="port-section" aria-labelledby="practice-heading">
+            <section id="my-apps-section" class="port-section" aria-labelledby="my-apps-heading">
+                <div class="practice-heading-row my-apps-heading-row">
+                    <h2 id="my-apps-heading">My Apps</h2>
+                    <button id="my-apps-manage" class="reorder-button" type="button" hidden>編集・並び替え</button>
+                </div>
+                <p id="my-apps-storage-error" class="notice notice-error" role="alert" hidden></p>
+                <div id="my-apps-grid" class="card-grid home-card-grid">
+                    <button id="my-apps-add" class="port-card skeleton-card add-card my-app-card" type="button">
+                        <span class="add-symbol" aria-hidden="true">＋</span>
+                        <span class="card-name">アプリを追加</span>
+                    </button>
+                </div>
+            </section>
+        </main>
+
+        <main id="settings-view" class="port-view settings-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポートへ戻る</button>
+            <section class="view-panel settings-panel" aria-labelledby="settings-title">
+                <p class="view-kicker">クルーズポート</p>
+                <h1 id="settings-title" class="view-title" tabindex="-1">設定</h1>
+                <section class="settings-card" aria-labelledby="display-size-title">
+                    <h2 id="display-size-title">表示の大きさ</h2>
+                    <p>ホームのカード表示を選べます。</p>
+                    <div class="settings-choices" role="radiogroup" aria-label="表示の大きさ">
+                        <button type="button" class="settings-choice" data-display-size="large" role="radio" aria-checked="false"><span>大</span><small>2列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="standard" role="radio" aria-checked="true"><span>標準</span><small>4列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="small" role="radio" aria-checked="false"><span>小</span><small>6列</small></button>
+                    </div>
+                    <p id="settings-storage-error" class="notice notice-error" role="alert" hidden></p>
+                </section>
+            </section>
+        </main>
+
+        <main id="wishlist-view" class="port-view wishlist-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポートへ戻る</button>
+            <section class="view-panel wishlist-panel" aria-labelledby="wishlist-title">
+                <p class="view-kicker">ツール</p>
+                <h1 id="wishlist-title" class="view-title" tabindex="-1">欲しいものリスト</h1>
+                <p class="wishlist-copy">欲しい機材を整理して保存できる機能を準備中です。</p>
+                <div class="view-actions">
+                    <button class="action-button secondary-action" type="button" data-action="home">クルーズポートへ戻る</button>
+                </div>
+            </section>
+        </main>
+
+        <main id="practice-list-view" class="port-view practice-list-view" hidden>
+            <button class="view-back" type="button" data-action="home">← クルーズポートへ戻る</button>
+            <section class="view-panel" aria-labelledby="practice-heading">
                 <div class="practice-heading-row">
-                    <h2 id="practice-heading">練習メニュー</h2>
+                    <div>
+                        <p class="view-kicker">ツール</p>
+                        <h1 id="practice-heading" class="view-title" tabindex="-1">練習メニュー</h1>
+                    </div>
                     <div id="practice-reorder-actions" class="reorder-actions" hidden>
                         <button id="practice-reorder-cancel" class="reorder-button" type="button">キャンセル</button>
                         <button id="practice-reorder-complete" class="reorder-button reorder-button-primary" type="button">完了</button>
@@ -86,24 +149,10 @@
                     </button>
                 </div>
             </section>
-
-            <section id="my-apps-section" class="port-section" aria-labelledby="my-apps-heading">
-                <div class="practice-heading-row my-apps-heading-row">
-                    <h2 id="my-apps-heading">My Apps</h2>
-                    <button id="my-apps-manage" class="reorder-button" type="button" hidden>編集・並び替え</button>
-                </div>
-                <p id="my-apps-storage-error" class="notice notice-error" role="alert" hidden></p>
-                <div id="my-apps-grid" class="card-grid">
-                    <button id="my-apps-add" class="port-card skeleton-card add-card my-app-card" type="button">
-                        <span class="add-symbol" aria-hidden="true">＋</span>
-                        <span class="card-name">アプリを追加</span>
-                    </button>
-                </div>
-            </section>
         </main>
 
         <main id="practice-detail-view" class="port-view detail-view" hidden>
-            <button class="view-back" type="button" data-action="home">← クルーズポート</button>
+            <button class="view-back" type="button" data-action="practice-list">← 練習メニュー</button>
             <article class="view-panel" aria-labelledby="practice-detail-title">
                 <p class="view-kicker">練習メニュー</p>
                 <h1 id="practice-detail-title" class="view-title" tabindex="-1"></h1>

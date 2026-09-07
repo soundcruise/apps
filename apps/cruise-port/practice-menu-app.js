@@ -76,11 +76,16 @@ import { initMetronome } from './metronome-app.js';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.11.4';
+} from './app-version.js?v=1.12.0';
+import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
+import { loadSettings, saveSettings } from './settings-store.js?v=1.0.0';
 import { initTuner } from './tuner-app.js?v=1.1.8';
 
 const elements = {
     homeView: document.querySelector('#home-view'),
+    settingsView: document.querySelector('#settings-view'),
+    wishlistView: document.querySelector('#wishlist-view'),
+    practiceListView: document.querySelector('#practice-list-view'),
     detailView: document.querySelector('#practice-detail-view'),
     formView: document.querySelector('#practice-form-view'),
     tunerView: document.querySelector('#tuner-view'),
@@ -88,6 +93,10 @@ const elements = {
     myAppsManageView: document.querySelector('#my-apps-manage-view'),
     myAppsFormView: document.querySelector('#my-apps-form-view'),
     myAppsNotFoundView: document.querySelector('#my-apps-not-found-view'),
+    homeSettingsButton: document.querySelector('#home-settings-button'),
+    settingsTitle: document.querySelector('#settings-title'),
+    settingsStorageError: document.querySelector('#settings-storage-error'),
+    settingsChoices: [...document.querySelectorAll('[data-display-size]')],
     list: document.querySelector('#practice-menu-list'),
     addButton: document.querySelector('#practice-menu-add'),
     storageError: document.querySelector('#practice-storage-error'),
@@ -203,6 +212,8 @@ const myAppsState = {
 let metronomeController = null;
 let tunerController = null;
 let pendingHomeScrollTarget = null;
+let homeSettings = { displaySize: 'standard' };
+let settingsStorageReady = true;
 const myAppsIconStore = createMyAppsIconStore();
 const myAppsPlatform = detectMyAppsPlatform();
 const myAppsObjectUrls = {
@@ -246,6 +257,9 @@ function showView(view) {
     if (view !== elements.myAppsFormView) cleanupMyAppsFormState();
     [
         elements.homeView,
+        elements.settingsView,
+        elements.wishlistView,
+        elements.practiceListView,
         elements.detailView,
         elements.formView,
         elements.tunerView,
@@ -283,6 +297,15 @@ function setHomeRouteWithMyAppsScroll() {
 
 function setHashRoute(route) {
     location.hash = route;
+}
+
+function setPracticeListRoute() {
+    setHashRoute('#practice-menu');
+}
+
+function replacePracticeListRoute() {
+    window.history.replaceState(null, '', `${location.pathname}${location.search}#practice-menu`);
+    renderRoute();
 }
 
 function sameOrder(firstItems, secondItems) {
@@ -1274,6 +1297,21 @@ async function handleMyAppsDelete() {
 
 function renderHome() {
     showView(elements.homeView);
+    renderMyAppsHome();
+    const targetId = pendingHomeScrollTarget;
+    pendingHomeScrollTarget = null;
+    if (targetId) {
+        requestAnimationFrame(() => {
+            const target = document.querySelector(`#${targetId}`);
+            if (!target) return;
+            const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+            target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
+        });
+    }
+}
+
+function renderPracticeList() {
+    showView(elements.practiceListView);
     elements.list.replaceChildren();
     const visibleItems = state.reorderMode ? state.reorderItems : state.items;
 
@@ -1295,17 +1333,7 @@ function renderHome() {
         elements.storageError,
         state.storageReady ? '' : '練習メニューの保存データを読み込めません。保存領域の値は変更していません。'
     );
-    renderMyAppsHome();
-    const targetId = pendingHomeScrollTarget;
-    pendingHomeScrollTarget = null;
-    if (targetId) {
-        requestAnimationFrame(() => {
-            const target = document.querySelector(`#${targetId}`);
-            if (!target) return;
-            const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-            target.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
-        });
-    }
+    document.querySelector('#practice-heading')?.focus({ preventScroll: true });
 }
 
 function startReorder() {
@@ -1313,21 +1341,21 @@ function startReorder() {
     state.reorderMode = true;
     state.reorderItems = [...state.items];
     showNotice(elements.reorderNotice);
-    renderHome();
+    renderPracticeList();
 }
 
 function cancelReorder() {
     state.reorderMode = false;
     state.reorderItems = [];
     showNotice(elements.reorderNotice);
-    renderHome();
+    renderPracticeList();
 }
 
 function moveReorderItem(id, direction) {
     const moveResult = movePracticeMenu(state.reorderItems, id, direction);
     if (!moveResult.moved) return;
     state.reorderItems = moveResult.items;
-    renderHome();
+    renderPracticeList();
     [...elements.list.querySelectorAll('.reorder-move')]
         .find((button) => button.dataset.id === id && Number(button.dataset.direction) === direction)
         ?.focus();
@@ -1349,13 +1377,13 @@ function completeReorder() {
     state.reorderMode = false;
     state.reorderItems = [];
     showNotice(elements.reorderNotice);
-    renderHome();
+    renderPracticeList();
 }
 
 function renderDetail(id) {
     const item = findItem(id);
     if (!item) {
-        replaceHomeRoute();
+        replacePracticeListRoute();
         return;
     }
 
@@ -1431,7 +1459,7 @@ function fillForm(item = null) {
 function renderForm(mode, id = null) {
     const item = mode === 'edit' ? findItem(id) : null;
     if (mode === 'edit' && !item) {
-        replaceHomeRoute();
+        replacePracticeListRoute();
         return;
     }
     if (!state.storageReady) {
@@ -1447,13 +1475,40 @@ function renderForm(mode, id = null) {
     elements.formTitle.focus({ preventScroll: true });
 }
 
+function renderSettings({ focus = true, storageError = '' } = {}) {
+    showView(elements.settingsView);
+    const activeSize = applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
+    elements.settingsChoices.forEach((button) => {
+        const selected = button.dataset.displaySize === activeSize;
+        button.classList.toggle('is-selected', selected);
+        button.setAttribute('aria-checked', selected ? 'true' : 'false');
+        button.tabIndex = selected ? 0 : -1;
+    });
+    showNotice(
+        elements.settingsStorageError,
+        storageError || (settingsStorageReady ? '' : '表示設定を読み込めませんでした。標準表示で開いています。')
+    );
+    if (focus) elements.settingsTitle.focus({ preventScroll: true });
+}
+
+function renderWishlist() {
+    showView(elements.wishlistView);
+    document.querySelector('#wishlist-title')?.focus({ preventScroll: true });
+}
+
 function renderRoute() {
     const hash = location.hash;
     const editMatch = hash.match(/^#practice-menu\/([^/]+)\/edit$/);
     const detailMatch = hash.match(/^#practice-menu\/([^/]+)$/);
     const myAppsEditMatch = hash.match(/^#my-apps\/([^/]+)\/edit$/);
 
-    if (hash === '#my-apps/manage') {
+    if (hash === '#settings') {
+        renderSettings();
+    } else if (hash === '#wishlist') {
+        renderWishlist();
+    } else if (hash === '#practice-menu') {
+        renderPracticeList();
+    } else if (hash === '#my-apps/manage') {
         renderMyAppsManage();
     } else if (hash === '#my-apps/new') {
         renderMyAppsForm('create');
@@ -1551,7 +1606,7 @@ function cancelForm() {
     if (state.formMode === 'edit' && state.activeId) {
         setHashRoute(`#practice-menu/${encodeURIComponent(state.activeId)}`);
     } else {
-        setHomeRoute();
+        setPracticeListRoute();
     }
 }
 
@@ -1567,7 +1622,7 @@ function handleDelete() {
         return;
     }
     state.items = deleteResult.items;
-    replaceHomeRoute();
+    replacePracticeListRoute();
 }
 
 elements.addButton.addEventListener('click', () => setHashRoute('#practice-menu/new'));
@@ -1585,12 +1640,31 @@ elements.list.addEventListener('click', (event) => {
     moveReorderItem(button.dataset.id, Number(button.dataset.direction));
 });
 document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
+document.querySelectorAll('[data-action="practice-list"]').forEach((button) => button.addEventListener('click', setPracticeListRoute));
 document.querySelectorAll('[data-action="cancel-form"]').forEach((button) => button.addEventListener('click', cancelForm));
 document.querySelectorAll('[data-action="my-apps-home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
 document.querySelectorAll('[data-action="my-apps-home-scroll"]').forEach((button) => button.addEventListener('click', setHomeRouteWithMyAppsScroll));
 document.querySelectorAll('[data-action="new-my-app"]').forEach((button) => button.addEventListener('click', () => setHashRoute('#my-apps/new')));
 elements.myAppsAdd.addEventListener('click', () => setHashRoute('#my-apps/new'));
 elements.myAppsManage.addEventListener('click', () => setHashRoute('#my-apps/manage'));
+elements.homeSettingsButton.addEventListener('click', () => setHashRoute('#settings'));
+elements.settingsChoices.forEach((button) => button.addEventListener('click', () => {
+    const saveResult = saveSettings({ displaySize: button.dataset.displaySize });
+    homeSettings = saveResult.settings;
+    applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
+    renderSettings({
+        focus: false,
+        storageError: saveResult.ok ? '' : '表示設定を保存できませんでした。今回の表示には反映しています。'
+    });
+    button.focus({ preventScroll: true });
+}));
+elements.settingsChoices.forEach((button, index) => button.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    const offset = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
+    const next = elements.settingsChoices[(index + offset + elements.settingsChoices.length) % elements.settingsChoices.length];
+    next.click();
+}));
 elements.myAppsForm.addEventListener('submit', handleMyAppsSubmit);
 elements.myAppsDelete.addEventListener('click', handleMyAppsDelete);
 elements.myAppsIconInput.addEventListener('change', handleMyAppsIconSelection);
@@ -1685,6 +1759,10 @@ state.storageReady = loadResult.ok;
 const myAppsLoadResult = loadMyApps();
 myAppsState.items = myAppsLoadResult.items;
 myAppsState.storageReady = myAppsLoadResult.ok;
+const settingsLoadResult = loadSettings();
+homeSettings = settingsLoadResult.settings;
+settingsStorageReady = settingsLoadResult.ok;
+applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
 metronomeController = initMetronome(elements.metronomeView);
 tunerController = initTuner(elements.tunerView);
 renderRoute();
