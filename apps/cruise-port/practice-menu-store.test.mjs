@@ -3,9 +3,12 @@ import {
     APP_DEFINITIONS,
     SCHEMA_VERSION,
     STORAGE_KEYS,
+    createPracticeMenu,
+    deletePracticeMenu,
     isValidPracticeAppId,
     loadPracticeMenus,
-    savePracticeMenus
+    savePracticeMenus,
+    updatePracticeMenu
 } from './practice-menu-store.js';
 
 class FakeStorage {
@@ -66,6 +69,7 @@ for (const appId of Object.keys(APP_DEFINITIONS)) {
 }
 
 for (const [appId, expected] of [
+    [null, true],
     ['myapp:opaque-id', true],
     ['myapp:', false],
     [`myapp:${'x'.repeat(128)}`, true],
@@ -130,6 +134,39 @@ for (const item of [
     });
     assert.equal(loadPracticeMenus(storage).ok, false);
     assert.equal(storage.getItem(STORAGE_KEYS.practiceMenus), raw, 'malformed data is not overwritten');
+}
+
+{
+    const withoutApp = { ...baseItem, appId: null };
+    const storage = new FakeStorage();
+    assert.deepEqual(savePracticeMenus([withoutApp], storage), { ok: true });
+    assert.deepEqual(loadPracticeMenus(storage), { ok: true, items: [withoutApp] });
+}
+
+{
+    const created = createPracticeMenu({
+        name: 'アプリなし練習', durationMinutes: 20, appId: null, memo: '運指のみ'
+    }, [], new Date(timestamp));
+    assert.equal(created.appId, null);
+    assert.equal(created.createdAt, timestamp);
+    const updated = updatePracticeMenu([created], created.id, {
+        name: created.name, durationMinutes: 25, appId: 'tuner', memo: created.memo
+    }, new Date('2026-09-07T01:00:00.000Z'));
+    assert.equal(updated.found, true);
+    assert.equal(updated.items[0].appId, 'tuner');
+    assert.equal(updated.items[0].createdAt, timestamp);
+    const removed = deletePracticeMenu(updated.items, created.id);
+    assert.equal(removed.found, true);
+    assert.deepEqual(removed.items, []);
+}
+
+{
+    const legacyWithoutApp = { ...baseItem, appId: null };
+    const storage = new FakeStorage({
+        [STORAGE_KEYS.schemaVersion]: '1',
+        [STORAGE_KEYS.practiceMenus]: JSON.stringify({ version: 1, items: [legacyWithoutApp] })
+    });
+    assert.equal(loadPracticeMenus(storage).ok, false, 'v1 keeps its original builtin-app requirement');
 }
 
 {

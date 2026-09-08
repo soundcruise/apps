@@ -359,6 +359,35 @@ h1::after {
     flex: 1;
 }
 
+.practice-list-intro {
+    margin: -2px 0 18px;
+    color: var(--port-muted);
+    font-size: 0.78rem;
+    line-height: 1.7;
+}
+
+.practice-empty {
+    padding: 22px 18px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 15px;
+    background: rgba(205, 180, 116, 0.025);
+    text-align: center;
+}
+
+.practice-empty p {
+    margin: 0;
+    color: var(--port-text);
+    font-size: 0.91rem;
+}
+
+.practice-empty span {
+    display: block;
+    margin-top: 7px;
+    color: var(--port-muted);
+    font-size: 0.72rem;
+    line-height: 1.6;
+}
+
 .reorder-actions {
     display: flex;
     flex: 0 0 auto;
@@ -435,6 +464,18 @@ h1::after {
     margin: 0;
     overflow: hidden;
     font-size: 0.94rem;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.practice-card-memo {
+    display: -webkit-box;
+    margin-top: 5px;
+    overflow: hidden;
+    color: rgba(180, 174, 158, 0.82);
+    font-size: 0.7rem;
+    line-height: 1.5;
     overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -1929,6 +1970,17 @@ textarea:focus-visible {
     margin: 30px 0 0;
 }
 
+.practice-saved {
+    margin: 18px 0 -10px;
+    padding: 10px 12px;
+    border: 1px solid rgba(174, 218, 184, 0.24);
+    border-radius: 11px;
+    color: #d2ead7;
+    background: rgba(85, 130, 94, 0.12);
+    font-size: 0.75rem;
+    line-height: 1.55;
+}
+
 .detail-list > div {
     padding: 18px 0;
     border-top: 1px solid rgba(207, 189, 148, 0.12);
@@ -3183,6 +3235,10 @@ body.metronome-preset-open {
     margin-bottom: 0;
     text-align: left;
     overflow-wrap: anywhere;
+}
+
+.tuner-error:not([hidden]) + .tuner-status {
+    margin-top: 10px;
 }
 
 .tuner-status {

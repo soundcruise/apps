@@ -155,7 +155,7 @@ test('BPM step controls include four balanced buttons in order', () => {
 });
 test('TAP UI and logic are completely removed', () => {
     assert.doesNotMatch(html, /metronome-tap|>TAP<|タップしてテンポを測定/);
-    assert.doesNotMatch(appSource, /bpmFromTapTimes|METRONOME_TAP_|tapTimes|tapStatus|metronome-tap/);
+    assert.doesNotMatch(appSource, /bpmFromTapTimes|METRONOME_TAP_|tapTimes|tapStatus|resetTapState|metronome-tap/);
     assert.doesNotMatch(css, /metronome-tap|tap-status/);
 });
 

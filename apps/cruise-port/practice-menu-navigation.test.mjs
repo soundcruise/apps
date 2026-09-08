@@ -53,6 +53,20 @@ function replaceWithPracticeList(browser) {
     browser.replaceState(null, '', `${browser.location.pathname}${browser.location.search}#practice-menu`);
 }
 
+function replaceWithPracticeDetail(browser, id) {
+    browser.replaceState(null, '', `${browser.location.pathname}${browser.location.search}#practice-menu/${encodeURIComponent(id)}`);
+}
+
+{
+    const browser = new MemoryBrowserHistory();
+    browser.pushHash('#practice-menu');
+    browser.pushHash('#practice-menu/new');
+    replaceWithPracticeDetail(browser, 'created-id');
+    assert.equal(browser.location.hash, '#practice-menu/created-id', 'save replaces the completed create form with detail');
+    browser.back();
+    assert.equal(browser.location.hash, '#practice-menu', 'back after save returns to the list instead of the completed form');
+}
+
 {
     const browser = new MemoryBrowserHistory();
     browser.pushHash('#practice-menu');
@@ -109,6 +123,7 @@ assert.equal(safeDecodeRouteSegment('menu%20name'), 'menu name');
 const appSource = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
 assert.match(appSource, /function replaceHomeRoute\(\)[\s\S]*HOME_HISTORY_MODE\.replace/);
 assert.match(appSource, /function replacePracticeListRoute\(\)[\s\S]*history\.replaceState[\s\S]*#practice-menu/);
+assert.match(appSource, /function replacePracticeDetailRoute\(id\)[\s\S]*history\.replaceState/);
 assert.match(appSource, /function renderDetail\(id\)[\s\S]*if \(!item\) \{\s*replacePracticeListRoute\(\)/);
 assert.match(appSource, /function renderForm\(mode, id = null\)[\s\S]*mode === 'edit' && !item\)[\s\S]*replacePracticeListRoute\(\)/);
 assert.match(appSource, /function handleDelete\(\)[\s\S]*state\.items = deleteResult\.items;\s*replacePracticeListRoute\(\)/);

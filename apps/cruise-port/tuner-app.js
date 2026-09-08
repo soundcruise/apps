@@ -43,7 +43,7 @@ const INPUT_LEVEL_RELEASE_MS = 400;
 export const STANDARD_TUNING = Object.freeze(getTuningTargets('standard', 0));
 
 const ERROR_MESSAGES = Object.freeze({
-    'permission-denied': 'マイクを利用できません。サイトと端末のマイク許可を確認してください。',
+    'permission-denied': 'マイクへのアクセスが許可されていません。ブラウザの設定でマイクを許可してから、もう一度お試しください。',
     'no-device': '使用できるマイクが見つかりません。',
     'device-busy': 'マイクを開始できません。他のアプリの使用状況や接続を確認してください。',
     'insecure-context': 'この環境ではマイクを利用できません。HTTPSのページで開いてください。',
@@ -461,6 +461,7 @@ export function initTuner(root, {
     let inputSettingsOpen = false;
     let viewActive = false;
     let audioStatus = 'idle';
+    let lastAudioError = '';
     let latestDiagnostic = null;
     let latestDiagnosticSummary = diagnosticHistory?.summary(0) || null;
     let latestDiagnosticDisplay = { state: 'neutral', note: null, frequency: null };
@@ -616,15 +617,17 @@ export function initTuner(root, {
         if (state.status === 'starting') {
             renderNeutral();
             elements.inputLevelWrap.hidden = true;
-            elements.toggle.disabled = true;
-            elements.toggle.textContent = 'マイクの使用を確認中…';
+            elements.toggle.hidden = true;
+            elements.toggle.disabled = false;
             elements.status.textContent = 'マイクの使用を確認しています…';
             return;
         }
         if (state.status === 'running') {
+            lastAudioError = '';
+            showError();
             elements.inputLevelWrap.hidden = false;
+            elements.toggle.hidden = true;
             elements.toggle.disabled = false;
-            elements.toggle.textContent = '■ マイク停止';
             elements.status.textContent = 'マイク入力中';
             return;
         }
@@ -634,8 +637,9 @@ export function initTuner(root, {
         elements.inputLevelWrap.hidden = true;
         elements.inputLevel.style.setProperty('--tuner-input-level-position', '0%');
         elements.inputLevel.setAttribute('aria-valuenow', String(DIAGNOSTIC_MIN_DBFS));
+        elements.toggle.hidden = false;
         elements.toggle.disabled = false;
-        elements.toggle.textContent = 'マイクを開始';
+        elements.toggle.textContent = state.status === 'error' ? 'マイクを再試行' : 'マイクを開始';
         elements.status.textContent = state.status === 'error' ? 'マイクを開始できませんでした' : 'マイクは停止中です';
     }
 
@@ -767,8 +771,8 @@ export function initTuner(root, {
             renderAudioState(state);
         },
         onError(error) {
-            if (!viewActive) return;
-            showError(errorMessage(error));
+            lastAudioError = errorMessage(error);
+            if (viewActive) showError(lastAudioError);
         },
         diagnosticEnabled: debugEnabled,
         rmsThreshold: thresholdDbToRms(currentThresholdDb)
@@ -868,15 +872,14 @@ export function initTuner(root, {
         renderInputSettings();
     });
 
-    elements.toggle.addEventListener('click', async () => {
-        if (audioStatus === 'running') {
-            await audioController.stop();
-            return;
-        }
-        if (audioStatus === 'starting') return;
-        showError();
-        await audioController.start();
-    });
+    function startAudio() {
+        if (audioStatus === 'starting' || audioStatus === 'running') return audioController.start();
+        lastAudioError = '';
+        if (viewActive) showError();
+        return audioController.start();
+    }
+
+    elements.toggle.addEventListener('click', () => startAudio());
 
     initializeTuningOptions();
     renderTargetControls();
@@ -884,10 +887,15 @@ export function initTuner(root, {
     renderThreshold();
     renderInputSettings();
     elements.inputLevelWrap.hidden = true;
-    elements.status.textContent = 'マイクは停止中です';
+    elements.toggle.hidden = true;
+    elements.status.textContent = 'マイクを準備しています…';
 
     return {
+        startFromUserGesture() {
+            return startAudio();
+        },
         setActive(active) {
+            const wasActive = viewActive;
             viewActive = active;
             if (!active) {
                 void audioController.stop();
@@ -902,14 +910,16 @@ export function initTuner(root, {
                 inputSettingsOpen = false;
                 renderInputSettings();
                 elements.inputLevel.style.setProperty('--tuner-input-level-position', '0%');
+                elements.toggle.hidden = true;
                 elements.toggle.disabled = false;
-                elements.toggle.textContent = 'マイクを開始';
-                elements.status.textContent = 'マイクは停止中です';
+                elements.toggle.textContent = 'マイクを再試行';
+                elements.status.textContent = 'マイクを準備しています…';
                 return;
             }
-            showError();
+            showError(lastAudioError);
             renderAudioState({ status: audioController.getState().status });
             elements.title.focus({ preventScroll: true });
+            if (!wasActive) void startAudio();
         }
     };
 }

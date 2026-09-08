@@ -1,7 +1,8 @@
-import { APP_DEFINITIONS, MY_APP_PREFIX } from './practice-menu-store.js?v=2.0.0';
+import { APP_DEFINITIONS, MY_APP_PREFIX } from './practice-menu-store.js?v=2.1.0';
 import { resolveMyAppHref } from './my-apps-launch.js?v=1.3.0';
 
 export const PRACTICE_APP_STATUS = Object.freeze({
+    none: 'none',
     resolved: 'resolved',
     missing: 'missing',
     storeUnavailable: 'store-unavailable',
@@ -39,6 +40,16 @@ export function resolvePracticeMenuApp(appId, {
     myAppsReady = false,
     platform = 'unknown'
 } = {}) {
+    if (appId === null) {
+        return {
+            appId: null,
+            kind: 'none',
+            label: '使用アプリなし',
+            href: null,
+            launchable: false,
+            status: PRACTICE_APP_STATUS.none
+        };
+    }
     const builtin = Object.hasOwn(APP_DEFINITIONS, appId) ? APP_DEFINITIONS[appId] : null;
     if (builtin) return resolvedModel(appId, 'builtin', builtin.name, builtin.href);
 

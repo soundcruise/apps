@@ -6,14 +6,14 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=2.0.0';
+} from './practice-menu-store.js?v=2.1.0';
 import {
     PRACTICE_APP_STATUS,
     countPracticeMenuReferences,
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=1.0.0';
+} from './practice-menu-app-resolver.js?v=1.1.0';
 import {
     HOME_HISTORY_MODE,
     safeDecodeRouteSegment,
@@ -73,14 +73,14 @@ import {
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.3';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=2.3.0';
+import { initMetronome } from './metronome-app.js?v=2.3.1';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
 } from './app-version.js?v=1.18.1';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
 import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=1.0.1';
-import { initTuner } from './tuner-app.js?v=1.1.8';
+import { initTuner } from './tuner-app.js?v=1.2.0';
 import {
     GEAR_CATEGORIES,
     clearGearPhotoReferences,
@@ -173,10 +173,13 @@ const elements = {
     gearPhotoLightboxImage: document.querySelector('#gear-photo-lightbox-image'),
     gearPhotoLightboxClose: document.querySelector('#gear-photo-lightbox-close'),
     gearFormError: document.querySelector('#gear-form-error'),
+    tunerCard: document.querySelector('#tuner-card'),
     list: document.querySelector('#practice-menu-list'),
+    empty: document.querySelector('#practice-empty'),
     addButton: document.querySelector('#practice-menu-add'),
     storageError: document.querySelector('#practice-storage-error'),
     detailTitle: document.querySelector('#practice-detail-title'),
+    detailSaved: document.querySelector('#practice-detail-saved'),
     detailDuration: document.querySelector('#practice-detail-duration'),
     detailApp: document.querySelector('#practice-detail-app'),
     detailMemo: document.querySelector('#practice-detail-memo'),
@@ -258,7 +261,8 @@ const state = {
     activeId: null,
     formMode: 'create',
     reorderMode: false,
-    reorderItems: []
+    reorderItems: [],
+    savedNotice: null
 };
 
 const myAppsState = {
@@ -434,6 +438,15 @@ function replacePracticeListRoute() {
     renderRoute();
 }
 
+function replacePracticeDetailRoute(id) {
+    window.history.replaceState(
+        null,
+        '',
+        `${location.pathname}${location.search}#practice-menu/${encodeURIComponent(id)}`
+    );
+    renderRoute();
+}
+
 function sameOrder(firstItems, secondItems) {
     return firstItems.length === secondItems.length
         && firstItems.every((item, index) => item.id === secondItems[index].id);
@@ -453,6 +466,7 @@ function renderPracticeCard(item) {
     const copy = document.createElement('span');
     const name = document.createElement('span');
     const detail = document.createElement('span');
+    const memo = document.createElement('span');
     const arrow = document.createElement('span');
 
     card.className = 'practice-row practice-menu-card';
@@ -460,12 +474,15 @@ function renderPracticeCard(item) {
     copy.className = 'practice-copy';
     name.className = 'card-name';
     detail.className = 'card-detail';
+    memo.className = 'practice-card-memo';
     arrow.className = 'practice-arrow';
     arrow.setAttribute('aria-hidden', 'true');
     name.textContent = item.name;
     detail.textContent = `${item.durationMinutes}分 ・ ${app.label}`;
+    memo.textContent = item.memo;
     arrow.textContent = '→';
     copy.append(name, detail);
+    if (item.memo) copy.append(memo);
     card.append(copy, arrow);
     return card;
 }
@@ -1447,6 +1464,7 @@ function renderPracticeList() {
             state.reorderMode ? renderReorderCard(item, index) : renderPracticeCard(item)
         );
     });
+    elements.empty.hidden = state.reorderMode || state.items.length > 0 || !state.storageReady;
 
     elements.reorderStart.hidden = state.reorderMode || state.items.length < 2;
     elements.reorderActions.hidden = !state.reorderMode;
@@ -1520,7 +1538,10 @@ function renderDetail(id) {
     elements.detailDuration.textContent = `${item.durationMinutes}分`;
     elements.detailApp.textContent = app.label;
     elements.detailMemo.textContent = item.memo || 'なし';
+    showNotice(elements.detailSaved, state.savedNotice?.id === item.id ? state.savedNotice.message : '');
+    state.savedNotice = null;
     elements.openApp.textContent = `${app.label}を開く`;
+    elements.openApp.hidden = !app.launchable;
     elements.openApp.classList.toggle('is-disabled', !app.launchable);
     if (app.launchable) {
         elements.openApp.href = app.href;
@@ -1546,7 +1567,7 @@ function renderDetail(id) {
 function populatePracticeAppSelect(selectedAppId = '') {
     const placeholder = document.createElement('option');
     placeholder.value = '';
-    placeholder.textContent = '選択してください';
+    placeholder.textContent = '使用アプリなし';
     elements.appInput.replaceChildren(placeholder);
 
     const optionValues = new Set();
@@ -2458,7 +2479,8 @@ function renderRoute() {
 function readFormValues() {
     const name = elements.nameInput.value.trim();
     const durationText = elements.durationInput.value.trim();
-    const appId = elements.appInput.value;
+    const selectedAppId = elements.appInput.value;
+    const appId = selectedAppId || null;
     const memo = elements.memoInput.value;
 
     if (!name) return { ok: false, message: 'メニュー名を入力してください。' };
@@ -2469,7 +2491,7 @@ function readFormValues() {
     if (durationMinutes < 1 || durationMinutes > LIMITS.durationMinutes) {
         return { ok: false, message: '練習時間は1〜999分で入力してください。' };
     }
-    if (!isSelectablePracticeAppId(appId, {
+    if (appId !== null && !isSelectablePracticeAppId(appId, {
         myApps: myAppsState.items,
         myAppsReady: myAppsState.storageReady
     })) {
@@ -2512,12 +2534,18 @@ function handleSubmit(event) {
             showNotice(elements.formError, '編集する練習メニューが見つかりません。');
             return;
         }
-        if (persist(updateResult.items)) setHashRoute(`#practice-menu/${encodeURIComponent(state.activeId)}`);
+        if (persist(updateResult.items)) {
+            state.savedNotice = { id: state.activeId, message: '変更を保存しました。' };
+            replacePracticeDetailRoute(state.activeId);
+        }
         return;
     }
 
     const item = createPracticeMenu(formResult.values, state.items);
-    if (persist([...state.items, item])) setHashRoute(`#practice-menu/${encodeURIComponent(item.id)}`);
+    if (persist([...state.items, item])) {
+        state.savedNotice = { id: item.id, message: '保存しました。この画面から内容を確認して使えます。' };
+        replacePracticeDetailRoute(item.id);
+    }
 }
 
 function cancelForm() {
@@ -2775,4 +2803,8 @@ applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
 clearRetiredIconScalePreviewKeys();
 metronomeController = initMetronome(elements.metronomeView);
 tunerController = initTuner(elements.tunerView);
+elements.tunerCard.addEventListener('click', (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    void tunerController.startFromUserGesture();
+});
 renderRoute();

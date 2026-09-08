@@ -19,6 +19,7 @@ import {
 const E2_FREQUENCY = 82.4069;
 const tunerMarkup = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const tunerStyles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
 
 assert.match(tunerMarkup, /id="tuner-input-settings-panel" class="tuner-input-tools" hidden/);
 assert.match(tunerMarkup, /id="tuner-tuning"/);
@@ -31,6 +32,9 @@ assert.doesNotMatch(tunerMarkup, /1本ずつ弦を鳴らしてください/);
 assert.match(tunerStyles, /\.tuner-input-tools\[hidden\]\s*\{\s*display: none;/);
 assert.match(tunerStyles, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
 assert.match(tunerStyles, /\.tuner-strings button:focus-visible/);
+assert.match(tunerMarkup, /id="tuner-status"[\s\S]*id="tuner-toggle"[\s\S]*class="tuner-input-settings"/, 'mic state and retry precede input settings');
+assert.match(mainSource, /elements\.tunerCard\.addEventListener\('click'[\s\S]*startFromUserGesture\(\)/, 'home card directly requests microphone start');
+assert.doesNotMatch(mainSource, /tunerCard[\s\S]{0,300}setTimeout/, 'card start does not lose activation to a timer');
 
 function result(frequency, confidence = 0.99) {
     return { frequency, confidence };
@@ -403,17 +407,23 @@ assert.equal(inputLevelPercentage(0), 100);
     let callbacks;
     let status = 'idle';
     let stopCalls = 0;
+    let startCalls = 0;
+    let pendingStart = null;
     const thresholdChanges = [];
     let clock = 0;
     const startGate = deferred();
     const controller = {
-        async start() {
+        start() {
+            if (status === 'starting' && pendingStart) return pendingStart;
+            startCalls += 1;
             status = 'starting';
             callbacks.onStateChange({ status });
-            await startGate.promise;
-            status = 'running';
-            callbacks.onStateChange({ status });
-            return true;
+            pendingStart = startGate.promise.then(() => {
+                status = 'running';
+                callbacks.onStateChange({ status });
+                return true;
+            });
+            return pendingStart;
         },
         async stop() {
             stopCalls += 1;
@@ -451,16 +461,18 @@ assert.equal(inputLevelPercentage(0), 100);
     const note = root.elements.get('tuner-note-value');
     const error = root.elements.get('tuner-error');
 
+    const gestureStart = app.startFromUserGesture();
+    await Promise.resolve();
+    assert.equal(startCalls, 1, 'card gesture starts audio before route rendering');
     app.setActive(true);
     assert.equal(note.textContent, '—');
     assert.equal(root.elements.get('tuner-title').focusCalls, 1);
-    const startClick = toggle.dispatch('click');
-    await Promise.resolve();
-    assert.equal(toggle.disabled, true);
-    assert.equal(toggle.textContent, 'マイクの使用を確認中…');
+    assert.equal(startCalls, 1, 'route activation shares the pending microphone start');
+    assert.equal(toggle.hidden, true);
+    assert.equal(root.elements.get('tuner-status').textContent, 'マイクの使用を確認しています…');
     startGate.resolve();
-    await startClick;
-    assert.equal(toggle.textContent, '■ マイク停止');
+    await gestureStart;
+    assert.equal(toggle.hidden, true, 'normal capture has no manual stop control');
     assert.equal(root.elements.get('tuner-status').textContent, 'マイク入力中');
     assert.equal(root.elements.get('tuner-input-level-wrap').hidden, false);
     assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'running input meter stays inside the closed settings panel');
@@ -575,7 +587,7 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(root.elements.get('tuner-direction').textContent, '入力待ち');
 
     for (const [code, expectedText] of [
-        ['permission-denied', 'マイク許可'],
+        ['permission-denied', 'アクセスが許可されていません'],
         ['no-device', 'マイクが見つかりません'],
         ['device-busy', '他のアプリ'],
         ['insecure-context', 'HTTPS'],
@@ -590,18 +602,73 @@ assert.equal(inputLevelPercentage(0), 100);
         assert.doesNotMatch(error.textContent, /browser text/);
     }
 
-    await toggle.dispatch('click');
-    assert.equal(stopCalls, 1);
-    assert.equal(note.textContent, '—');
-    assert.equal(toggle.textContent, 'マイクを開始');
-
     await root.elements.get('tuner-input-settings-toggle').dispatch('click');
     assert.equal(root.elements.get('tuner-input-settings-panel').hidden, false);
     app.setActive(false);
-    assert.equal(stopCalls, 2, 'route leave always requests a safe stop');
+    assert.equal(stopCalls, 1, 'route leave always requests a safe stop');
     assert.equal(note.textContent, '—');
+    assert.equal(toggle.hidden, true);
     assert.equal(root.elements.get('tuner-input-settings-panel').hidden, true, 'route leave resets settings to closed');
     assert.equal(root.elements.get('tuner-input-settings-toggle').attributes.get('aria-expanded'), 'false');
+}
+
+{
+    const root = createFakeRoot();
+    let callbacks;
+    let status = 'idle';
+    let startCalls = 0;
+    let stopCalls = 0;
+    const controller = {
+        async start() {
+            startCalls += 1;
+            status = 'starting';
+            callbacks.onStateChange({ status });
+            if (startCalls === 1) {
+                status = 'error';
+                callbacks.onStateChange({ status });
+                callbacks.onError({ code: 'permission-denied' });
+                return false;
+            }
+            status = 'running';
+            callbacks.onStateChange({ status });
+            return true;
+        },
+        async stop() {
+            stopCalls += 1;
+            status = 'idle';
+            callbacks.onStateChange({ status });
+        },
+        getState: () => ({ status }),
+        setRmsThreshold: () => true
+    };
+    const app = initTuner(root, {
+        audioControllerFactory(options) {
+            callbacks = options;
+            return controller;
+        }
+    });
+
+    app.setActive(true);
+    await Promise.resolve();
+    await Promise.resolve();
+    const retry = root.elements.get('tuner-toggle');
+    assert.equal(startCalls, 1, 'route entry automatically requests microphone access');
+    assert.equal(retry.hidden, false);
+    assert.equal(retry.disabled, false);
+    assert.equal(retry.textContent, 'マイクを再試行');
+    assert.match(root.elements.get('tuner-error').textContent, /アクセスが許可されていません/);
+
+    await retry.dispatch('click');
+    assert.equal(startCalls, 2, 'permission rejection resets into a retryable state');
+    assert.equal(status, 'running');
+    assert.equal(retry.hidden, true);
+    assert.equal(root.elements.get('tuner-error').hidden, true);
+
+    app.setActive(false);
+    assert.equal(stopCalls, 1);
+    app.setActive(true);
+    await Promise.resolve();
+    assert.equal(startCalls, 3, 're-entry starts a fresh capture');
 }
 
 {
@@ -649,7 +716,6 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(root.elements.get('tuner-diagnostic-threshold-db').textContent, '-80 dBFS');
     assert.equal(root.elements.get('tuner-diagnostic-rms-threshold').textContent, '0.000100');
     app.setActive(true);
-    await root.elements.get('tuner-toggle').dispatch('click');
     callbacks.onResult(result(E2_FREQUENCY));
     callbacks.onDiagnostic({
         reason: 'valid',

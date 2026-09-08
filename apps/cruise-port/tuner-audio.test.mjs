@@ -522,6 +522,32 @@ for (const [name, expectedCode] of [
     assert.equal(ContextClass.instances[0].closeCalls, 1, `${name} closes its context`);
 }
 
+{
+    const errors = [];
+    const retryStream = createStream();
+    let attempt = 0;
+    const harness = createHarness({
+        getUserMedia: async () => {
+            attempt += 1;
+            if (attempt === 1) {
+                const failure = new Error('denied');
+                failure.name = 'NotAllowedError';
+                throw failure;
+            }
+            return retryStream;
+        },
+        onError: (error) => errors.push(error)
+    });
+    assert.equal(await harness.controller.start(), false);
+    assert.equal(harness.controller.getState().status, 'error');
+    assert.equal(errors[0].code, 'permission-denied');
+    assert.equal(await harness.controller.start(), true, 'permission rejection never leaves the start guard stuck');
+    assert.equal(harness.getUserMediaCalls, 2);
+    assert.equal(harness.controller.getState().status, 'running');
+    await harness.controller.stop();
+    assert.equal(retryStream.track.stopCalls, 1);
+}
+
 for (const [isSecureContext, expectedCode] of [
     [false, 'insecure-context'],
     [true, 'unsupported']

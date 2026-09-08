@@ -935,7 +935,6 @@ export function initMetronome(root) {
                 elements.detailsSummary.setAttribute('aria-expanded', 'false');
                 state.currentBeat = -1;
                 state.currentSubdivision = -1;
-                resetTapState();
                 renderBeatState();
                 renderVisualState();
                 renderPlaying();
@@ -944,7 +943,6 @@ export function initMetronome(root) {
         },
         stopForPageHidden() {
             closePresetDialog({ restoreFocus: false });
-            resetTapState();
             engine.suspend();
             state.currentBeat = -1;
             state.currentSubdivision = -1;

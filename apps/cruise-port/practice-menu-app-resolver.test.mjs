@@ -44,6 +44,9 @@ assert.deepEqual(resolvePracticeMenuApp('pitch'), {
     href: '../pitch-cruise/pro_x9v7q2m8/', launchable: true, status: 'resolved'
 });
 assert.equal(resolvePracticeMenuApp('tuner').href, '#tuner');
+assert.deepEqual(resolvePracticeMenuApp(null), {
+    appId: null, kind: 'none', label: '使用アプリなし', href: null, launchable: false, status: 'none'
+});
 
 assert.equal(resolvePracticeMenuApp('myapp:spotify-id', { myApps: [spotify], myAppsReady: true, platform: 'ios' }).href, 'https://open.spotify.com/');
 assert.equal(resolvePracticeMenuApp('myapp:unknown-id', { myApps: [unknown], myAppsReady: true, platform: 'ios' }).href, unknown.url);
@@ -65,6 +68,7 @@ assert.equal(missing.status, PRACTICE_APP_STATUS.missing);
 assert.equal(missing.label, '削除済みのMy App');
 assert.equal(missing.launchable, false);
 assert.equal(missing.href, null);
+assert.notEqual(resolvePracticeMenuApp(null).status, missing.status, 'no app and a deleted My App remain distinct');
 
 const unavailable = resolvePracticeMenuApp('myapp:spotify-id', { myApps: [], myAppsReady: false });
 assert.equal(unavailable.status, PRACTICE_APP_STATUS.storeUnavailable);
@@ -145,6 +149,15 @@ assert.match(appSource, /このアプリは練習メニュー\$\{referenceCount\
 assert.match(appSource, /elements\.openApp\.href = app\.href/);
 assert.match(appSource, /elements\.openApp\.removeAttribute\('href'\)/);
 assert.doesNotMatch(appSource, /window\.open\(/);
-assert.match(markup, /<select id="practice-app" name="appId" required>/);
+assert.match(markup, /<select id="practice-app" name="appId">/);
+assert.doesNotMatch(markup, /<select id="practice-app" name="appId" required>/);
+assert.match(appSource, /const appId = selectedAppId \|\| null/);
+assert.match(appSource, /elements\.openApp\.hidden = !app\.launchable/);
+assert.match(markup, /id="practice-empty"[\s\S]*まだ練習メニューがありません/);
+assert.match(markup, /id="practice-detail-saved"/);
+assert.match(appSource, /保存しました。この画面から内容を確認して使えます/);
+assert.match(appSource, /function replacePracticeDetailRoute\(id\)[\s\S]*history\.replaceState/);
+assert.match(appSource, /replacePracticeDetailRoute\(item\.id\)/);
+assert.match(appSource, /elements\.empty\.hidden = state\.reorderMode \|\| state\.items\.length > 0/);
 
 console.log('practice-menu-app-resolver: resolution, dynamic options, updates, and delete references passed');

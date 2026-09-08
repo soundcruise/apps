@@ -32,6 +32,7 @@ function isIsoDate(value) {
 }
 
 export function isValidPracticeAppId(value) {
+    if (value === null) return true;
     if (
         typeof value !== 'string'
         || value.length === 0
@@ -60,7 +61,7 @@ function isValidItem(item, version = SCHEMA_VERSION) {
         && item.durationMinutes >= 1
         && item.durationMinutes <= LIMITS.durationMinutes
         && isValidPracticeAppId(item.appId)
-        && (version !== 1 || Object.hasOwn(APP_DEFINITIONS, item.appId))
+        && (version !== 1 || (typeof item.appId === 'string' && Object.hasOwn(APP_DEFINITIONS, item.appId)))
         && typeof item.memo === 'string'
         && item.memo.length <= LIMITS.memo
         && isIsoDate(item.createdAt)

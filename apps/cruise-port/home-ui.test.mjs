@@ -23,6 +23,8 @@ assert.match(markup, /id="my-apps-grid" class="card-grid home-card-grid"/);
 assert.match(appSource, /hash === '#settings'/);
 assert.match(appSource, /parseGearRoute\(hash\)/);
 assert.match(appSource, /hash === '#practice-menu'/);
+assert.match(appSource, /elements\.tunerCard\.addEventListener\('click'/);
+assert.doesNotMatch(appSource, /resetTapState/);
 assert.match(appSource, /applyHomeDisplaySize\(elements\.homeView, homeSettings\.displaySize\)/);
 assert.doesNotMatch(appSource, /applyHomeIconScalePreviews|loadIconScalePreviews|saveIconScalePreview|homeIconScalePreviews/);
 assert.match(appSource, /my-app-icon--\$\{getMyAppHomeIconKind\(item\)\}/);

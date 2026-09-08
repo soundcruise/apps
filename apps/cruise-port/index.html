@@ -225,10 +225,15 @@
                     </div>
                     <button id="practice-reorder-start" class="reorder-button" type="button" hidden>並び替え</button>
                 </div>
+                <p class="practice-list-intro">保存した練習メニューを選ぶと、内容を確認して使用アプリを開けます。</p>
                 <p id="practice-storage-error" class="notice notice-error" role="alert" hidden></p>
                 <p id="practice-reorder-status" class="reorder-status" aria-live="polite" hidden></p>
                 <p id="practice-reorder-notice" class="notice notice-error" role="alert" hidden></p>
                 <div class="practice-list">
+                    <div id="practice-empty" class="practice-empty" hidden>
+                        <p>まだ練習メニューがありません</p>
+                        <span>下のボタンから、最初の練習メニューを作成できます。</span>
+                    </div>
                     <div id="practice-menu-list"></div>
                     <button id="practice-menu-add" class="practice-row add-row" type="button">
                         <span class="add-symbol" aria-hidden="true">＋</span>
@@ -243,10 +248,11 @@
             <article class="view-panel" aria-labelledby="practice-detail-title">
                 <p class="view-kicker">練習メニュー</p>
                 <h1 id="practice-detail-title" class="view-title" tabindex="-1"></h1>
+                <p id="practice-detail-saved" class="practice-saved" role="status" hidden></p>
 
                 <dl class="detail-list">
                     <div>
-                        <dt>練習時間</dt>
+                        <dt>練習時間の目安</dt>
                         <dd id="practice-detail-duration"></dd>
                     </div>
                     <div>
@@ -261,7 +267,7 @@
 
                 <p id="practice-detail-error" class="notice notice-error" role="alert" hidden></p>
                 <div class="view-actions">
-                    <a id="practice-open-app" class="action-button primary-action" href="#"></a>
+                    <a id="practice-open-app" class="action-button primary-action" href="#" hidden></a>
                     <button id="practice-edit" class="action-button secondary-action" type="button">編集</button>
                     <button id="practice-delete" class="action-button danger-action" type="button">削除</button>
                 </div>
@@ -289,9 +295,9 @@
                     </div>
 
                     <div class="form-field">
-                        <label for="practice-app">使用アプリ <span class="required-label">必須</span></label>
-                        <select id="practice-app" name="appId" required>
-                            <option value="">選択してください</option>
+                        <label for="practice-app">使用アプリ <span class="optional-label">任意</span></label>
+                        <select id="practice-app" name="appId">
+                            <option value="">使用アプリなし</option>
                         </select>
                     </div>
 
@@ -555,6 +561,10 @@
                     <li><button type="button" data-tuner-string data-string="1" data-note="E4" aria-label="1弦 E4 の音を鳴らす"><span>1弦</span><strong>E4</strong></button></li>
                 </ul>
 
+                <p id="tuner-error" class="notice notice-error tuner-error" role="alert" hidden></p>
+                <p id="tuner-status" class="tuner-status" aria-live="polite">マイクを準備しています…</p>
+                <button id="tuner-toggle" class="action-button primary-action tuner-toggle" type="button" hidden>マイクを再試行</button>
+
                 <section class="tuner-input-settings" aria-label="入力設定">
                     <button
                         id="tuner-input-settings-toggle"
@@ -603,10 +613,6 @@
                         </div>
                     </div>
                 </section>
-
-                <p id="tuner-error" class="notice notice-error tuner-error" role="alert" hidden></p>
-                <p id="tuner-status" class="tuner-status" aria-live="polite">マイクは停止中です</p>
-                <button id="tuner-toggle" class="action-button primary-action tuner-toggle" type="button">マイクを開始</button>
                 <p class="tuner-privacy">音声は端末内で解析され、録音・送信されません。</p>
 
                 <section id="tuner-diagnostic" class="tuner-diagnostic" aria-labelledby="tuner-diagnostic-title" hidden>
