@@ -2290,9 +2290,121 @@ select {
     background: #181611;
 }
 
+.metronome-visual-rhythm {
+    min-height: 78px;
+    display: grid;
+    margin-top: 20px;
+    padding: 12px 8px 9px;
+    place-items: center;
+    gap: 9px;
+}
+
+.visual-beat-display {
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(16px, 5.4vw, 26px);
+}
+
+.visual-beat-dot {
+    width: 16px;
+    height: 16px;
+    display: block;
+    border: 1px solid rgba(230, 210, 155, 0.4);
+    border-radius: 50%;
+    background: rgba(205, 180, 116, 0.08);
+    transition: transform 70ms ease, background-color 70ms ease, border-color 70ms ease, box-shadow 70ms ease;
+}
+
+.visual-beat-dot.is-accented {
+    width: 20px;
+    height: 20px;
+    border-color: rgba(241, 218, 153, 0.68);
+    box-shadow: inset 0 0 0 3px rgba(205, 180, 116, 0.12);
+}
+
+.visual-beat-dot.is-current {
+    border-color: var(--port-gold-bright);
+    background: var(--port-gold-bright);
+    box-shadow: 0 0 0 5px rgba(205, 180, 116, 0.09);
+    transform: scale(1.16);
+}
+
+.visual-subdivision-display {
+    min-height: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.visual-subdivision-display[hidden] {
+    display: none;
+}
+
+.visual-subdivision-display span {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(180, 174, 158, 0.28);
+    transition: background-color 55ms ease, transform 55ms ease;
+}
+
+.visual-subdivision-display span.is-current {
+    background: rgba(241, 218, 153, 0.82);
+    transform: scale(1.4);
+}
+
+.metronome-details {
+    margin-top: 8px;
+    text-align: left;
+}
+
+.metronome-details summary {
+    min-height: 48px;
+    display: flex;
+    padding: 11px 3px;
+    border-top: 1px solid rgba(207, 189, 148, 0.12);
+    border-bottom: 1px solid rgba(207, 189, 148, 0.12);
+    align-items: center;
+    justify-content: space-between;
+    color: var(--port-muted);
+    font-size: 0.82rem;
+    font-weight: 620;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    list-style: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.metronome-details summary::-webkit-details-marker {
+    display: none;
+}
+
+.metronome-details summary:focus-visible {
+    border-radius: 8px;
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
+}
+
+.metronome-details-chevron {
+    width: 9px;
+    height: 9px;
+    margin-right: 5px;
+    border-right: 1.5px solid var(--port-gold);
+    border-bottom: 1.5px solid var(--port-gold);
+    transform: rotate(45deg) translate(-2px, 2px);
+    transition: transform 140ms ease;
+}
+
+.metronome-details[open] .metronome-details-chevron {
+    transform: rotate(225deg) translate(-2px, 2px);
+}
+
 .metronome-settings {
     display: grid;
-    margin-top: 28px;
+    margin-top: 12px;
     gap: 12px;
     text-align: left;
 }
@@ -2441,6 +2553,10 @@ select {
 
 .metronome-sound-section {
     gap: 16px;
+}
+
+.metronome-sound-grid button:last-child {
+    grid-column: 1 / -1;
 }
 
 .volume-field output {
@@ -3326,6 +3442,12 @@ select {
     }
 
     .beat-button {
+        transition: none;
+    }
+
+    .visual-beat-dot,
+    .visual-subdivision-display span,
+    .metronome-details-chevron {
         transition: none;
     }
 

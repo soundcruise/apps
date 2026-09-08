@@ -5,7 +5,7 @@ import {
     defaultAccentsForMeter,
     loadMetronomeSettings,
     saveMetronomeSettings
-} from './metronome-store.js?v=2.0.0';
+} from './metronome-store.js?v=3.0.0';
 import {
     beatsForMeter,
     compatibleRhythm,
@@ -15,7 +15,7 @@ import {
     meterLabel,
     scheduleEventsUntil,
     secondsPerBeat
-} from './metronome-timing.js?v=1.0.0';
+} from './metronome-timing.js?v=1.1.0';
 
 export const METRONOME_SCHEDULER_INTERVAL_MS = 25;
 export const METRONOME_SCHEDULE_AHEAD_SEC = 0.1;
@@ -37,9 +37,9 @@ export function bpmFromTapTimes(tapTimes) {
     return clampInteger(60000 / averageMs, METRONOME_LIMITS.bpmMin, METRONOME_LIMITS.bpmMax, METRONOME_DEFAULTS.bpm);
 }
 
-function volumeLevel(volume) {
+export function volumeLevel(volume) {
     if (volume <= 0) return 0;
-    return Math.pow(volume / 100, 1.35);
+    return Math.min(1.15, Math.pow(volume / 100, 1.05) * 1.15);
 }
 
 export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment = {}) {
@@ -54,6 +54,8 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
 
     let context = null;
     let masterGain = null;
+    let outputLimiter = null;
+    let noiseBuffer = null;
     let schedulerTimer = 0;
     let visualFrame = 0;
     let playing = false;
@@ -88,7 +90,20 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
             if (!AudioContextClass) return null;
             context = new AudioContextClass();
             masterGain = context.createGain();
-            masterGain.connect(context.destination);
+            outputLimiter = typeof context.createDynamicsCompressor === 'function'
+                ? context.createDynamicsCompressor()
+                : null;
+            if (outputLimiter) {
+                outputLimiter.threshold.value = -6;
+                outputLimiter.knee.value = 6;
+                outputLimiter.ratio.value = 12;
+                outputLimiter.attack.value = 0.003;
+                outputLimiter.release.value = 0.08;
+                masterGain.connect(outputLimiter).connect(context.destination);
+            } else {
+                masterGain.connect(context.destination);
+            }
+            noiseBuffer = null;
             setMasterVolume(latestVolume, true);
         }
         return context;
@@ -134,13 +149,43 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
         oscillator.stop(when + release + 0.012);
     }
 
+    function getNoiseBuffer() {
+        if (noiseBuffer) return noiseBuffer;
+        const length = Math.ceil(context.sampleRate * 0.1);
+        noiseBuffer = context.createBuffer(1, length, context.sampleRate);
+        const samples = noiseBuffer.getChannelData(0);
+        for (let index = 0; index < samples.length; index += 1) samples[index] = Math.random() * 2 - 1;
+        return noiseBuffer;
+    }
+
+    function scheduleNoise(when, { frequency, q, peak, attack, release }) {
+        const source = context.createBufferSource();
+        const filter = context.createBiquadFilter();
+        const gain = context.createGain();
+        source.buffer = getNoiseBuffer();
+        filter.type = 'bandpass';
+        filter.frequency.setValueAtTime(frequency, when);
+        filter.Q.value = q;
+        gain.gain.setValueAtTime(0.0001, when);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak), when + attack);
+        gain.gain.exponentialRampToValueAtTime(0.0001, when + release);
+        source.connect(filter).connect(gain).connect(masterGain);
+        trackSource(source, () => {
+            try { source.disconnect(); } catch (_) { /* Already disconnected. */ }
+            try { filter.disconnect(); } catch (_) { /* Already disconnected. */ }
+            try { gain.disconnect(); } catch (_) { /* Already disconnected. */ }
+        }, when);
+        source.start(when);
+        source.stop(when + release + 0.012);
+    }
+
     // Rhythm Cruiseのsquare波クリック（accent 1500Hz / normal 1200Hz）を、
-    // マイク判定系へ依存しないCruise Port専用の安全なgainで再利用する。
+    // マイク判定系へ依存しないCruise Port専用gainへ移し、スマホ用に実効音量を上げる。
     function scheduleElectronic(when, voice) {
         const voices = {
-            accent: { frequency: 1500, peak: 0.46, release: 0.08 },
-            main: { frequency: 1200, peak: 0.35, release: 0.075 },
-            subdivision: { frequency: 900, peak: 0.19, release: 0.042 }
+            accent: { frequency: 1500, peak: 0.72, release: 0.08 },
+            main: { frequency: 1200, peak: 0.62, release: 0.072 },
+            subdivision: { frequency: 900, peak: 0.34, release: 0.04 }
         };
         const selected = voices[voice];
         scheduleOscillator(when, {
@@ -152,53 +197,130 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
         });
     }
 
-    // Fretboard Cruise「指板をたどる」のkick/snare/hat生成方式を再利用。
-    // subdivisionでも重ならないよう、同じ周波数特性を保ったままgainとtailを安全側へ整える。
-    function scheduleDrum(when, voice) {
+    // Fretboard Cruise「指板をたどる」のkick/snare/hat思想を基礎に、スマホで消えにくい
+    // 中域のattackを加えたCruise Port専用の短い電子ドラムへ調整する。
+    function scheduleElectronicDrum(when, voice) {
         if (voice === 'accent') {
             scheduleOscillator(when, {
                 type: 'sine',
-                frequency: 150,
-                endFrequency: 42,
-                peak: 0.52,
+                frequency: 165,
+                endFrequency: 55,
+                peak: 0.42,
                 attack: 0.002,
-                release: 0.18
+                release: 0.14
+            });
+            scheduleOscillator(when, {
+                type: 'triangle',
+                frequency: 720,
+                endFrequency: 260,
+                peak: 0.28,
+                attack: 0.001,
+                release: 0.065
             });
             scheduleOscillator(when, {
                 type: 'square',
-                frequency: 8000,
-                peak: 0.035,
+                frequency: 5200,
+                peak: 0.07,
                 attack: 0.001,
-                release: 0.04
+                release: 0.028
             });
             return;
         }
         if (voice === 'main') {
             scheduleOscillator(when, {
-                type: 'square',
-                frequency: 250,
-                peak: 0.23,
+                type: 'triangle',
+                frequency: 420,
+                endFrequency: 250,
+                peak: 0.38,
                 attack: 0.001,
-                release: 0.075
+                release: 0.062
+            });
+            scheduleOscillator(when, {
+                type: 'square',
+                frequency: 1600,
+                peak: 0.12,
+                attack: 0.001,
+                release: 0.032
             });
             return;
         }
         scheduleOscillator(when, {
             type: 'square',
-            frequency: 8000,
-            peak: 0.06,
+            frequency: 6500,
+            peak: 0.14,
             attack: 0.001,
-            release: 0.032
+            release: 0.025
         });
+    }
+
+    function scheduleAnalog(when, voice) {
+        const voices = {
+            accent: { frequency: 1050, peak: 0.64, release: 0.09 },
+            main: { frequency: 780, peak: 0.52, release: 0.078 },
+            subdivision: { frequency: 620, peak: 0.27, release: 0.045 }
+        };
+        const selected = voices[voice];
+        scheduleOscillator(when, {
+            type: 'triangle',
+            frequency: selected.frequency,
+            endFrequency: selected.frequency * 0.82,
+            peak: selected.peak,
+            attack: 0.003,
+            release: selected.release
+        });
+    }
+
+    function scheduleWood(when, voice) {
+        const voices = {
+            accent: { frequency: 1150, noise: 0.38, body: 0.24, release: 0.064 },
+            main: { frequency: 900, noise: 0.32, body: 0.20, release: 0.058 },
+            subdivision: { frequency: 680, noise: 0.18, body: 0.12, release: 0.038 }
+        };
+        const selected = voices[voice];
+        scheduleNoise(when, {
+            frequency: selected.frequency,
+            q: 4.2,
+            peak: selected.noise,
+            attack: 0.001,
+            release: selected.release
+        });
+        scheduleOscillator(when, {
+            type: 'triangle',
+            frequency: selected.frequency * 0.62,
+            peak: selected.body,
+            attack: 0.002,
+            release: selected.release + 0.012
+        });
+    }
+
+    function scheduleHardClick(when, voice) {
+        const voices = {
+            accent: { frequency: 2500, peak: 0.70, release: 0.035 },
+            main: { frequency: 2100, peak: 0.58, release: 0.03 },
+            subdivision: { frequency: 1700, peak: 0.31, release: 0.02 }
+        };
+        const selected = voices[voice];
+        scheduleOscillator(when, {
+            type: 'square',
+            frequency: selected.frequency,
+            peak: selected.peak,
+            attack: 0.001,
+            release: selected.release
+        });
+    }
+
+    function scheduleSound(when, sound, voice) {
+        if (sound === 'electronic-drum') scheduleElectronicDrum(when, voice);
+        else if (sound === 'analog') scheduleAnalog(when, voice);
+        else if (sound === 'wood') scheduleWood(when, voice);
+        else if (sound === 'click') scheduleHardClick(when, voice);
+        else scheduleElectronic(when, voice);
     }
 
     function scheduleEvent(event, settings) {
         const accentEnabled = event.isMainBeat && settings.accents[event.beatIndex] === true;
         const voice = accentEnabled ? 'accent' : (event.isMainBeat ? 'main' : 'subdivision');
-        if (latestVolume > 0) {
-            if (settings.sound === 'drum') scheduleDrum(event.when, voice);
-            else scheduleElectronic(event.when, voice);
-        }
+        if (latestVolume > 0) scheduleSound(event.when, settings.sound, voice);
         visualQueue.push({ ...event, voice, sound: settings.sound, accentEnabled });
     }
 
@@ -308,7 +430,14 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
             activeSourceCount: activeSources.size,
             scheduledEvents: visualQueue.map((event) => ({ ...event })),
             cursor: { ...cursor },
-            volume: latestVolume
+            volume: latestVolume,
+            outputLimiter: outputLimiter ? {
+                threshold: outputLimiter.threshold.value,
+                knee: outputLimiter.knee.value,
+                ratio: outputLimiter.ratio.value,
+                attack: outputLimiter.attack.value,
+                release: outputLimiter.release.value
+            } : null
         };
     }
 
@@ -333,6 +462,10 @@ export function initMetronome(root) {
         rhythm: root.querySelector('#metronome-rhythm'),
         rhythmHint: root.querySelector('#metronome-rhythm-hint'),
         sound: root.querySelector('#metronome-sound'),
+        details: root.querySelector('#metronome-details'),
+        detailsSummary: root.querySelector('#metronome-details-summary'),
+        visualBeats: root.querySelector('#metronome-visual-beats'),
+        visualSubdivisions: root.querySelector('#metronome-visual-subdivisions'),
         volume: root.querySelector('#metronome-volume'),
         volumeValue: root.querySelector('#metronome-volume-value'),
         beats: root.querySelector('#metronome-beats'),
@@ -342,7 +475,8 @@ export function initMetronome(root) {
         status: root.querySelector('#metronome-status'),
         storageError: root.querySelector('#metronome-storage-error'),
         stepButtons: [...root.querySelectorAll('[data-bpm-delta]')],
-        rhythmButtons: [...root.querySelectorAll('[data-metronome-rhythm]')]
+        rhythmButtons: [...root.querySelectorAll('[data-metronome-rhythm]')],
+        soundButtons: [...root.querySelectorAll('[data-metronome-sound]')]
     };
 
     const loadResult = loadMetronomeSettings();
@@ -407,6 +541,46 @@ export function initMetronome(root) {
         renderBeatState();
     }
 
+    function renderVisualState() {
+        [...elements.visualBeats.querySelectorAll('[data-visual-beat]')].forEach((indicator, index) => {
+            indicator.classList.toggle('is-accented', state.settings.accents[index] === true);
+            indicator.classList.toggle('is-current', index === state.currentBeat);
+        });
+        [...elements.visualSubdivisions.children].forEach((indicator, index) => {
+            indicator.classList.toggle('is-current', state.currentBeat >= 0 && index === state.currentSubdivision);
+        });
+        elements.visualBeats.setAttribute(
+            'aria-label',
+            state.currentBeat < 0
+                ? `${meterLabel(state.settings.meter)}、停止中`
+                : `${meterLabel(state.settings.meter)}、現在${state.currentBeat + 1}拍目`
+        );
+    }
+
+    function rebuildVisualRhythm() {
+        elements.visualBeats.replaceChildren();
+        for (let index = 0; index < beatsForMeter(state.settings.meter); index += 1) {
+            const indicator = document.createElement('span');
+            indicator.className = 'visual-beat-dot';
+            indicator.dataset.visualBeat = String(index);
+            indicator.setAttribute('aria-hidden', 'true');
+            elements.visualBeats.append(indicator);
+        }
+        const subdivisionCount = scheduleEventsUntil(
+            createScheduleCursor(0),
+            { ...state.settings, bpm: 60 },
+            0.999
+        ).events.length;
+        elements.visualSubdivisions.replaceChildren();
+        for (let index = 0; index < subdivisionCount; index += 1) {
+            const indicator = document.createElement('span');
+            indicator.setAttribute('aria-hidden', 'true');
+            elements.visualSubdivisions.append(indicator);
+        }
+        elements.visualSubdivisions.hidden = subdivisionCount <= 1;
+        renderVisualState();
+    }
+
     function renderRhythmControls() {
         elements.rhythmButtons.forEach((button) => {
             const rhythm = button.dataset.metronomeRhythm;
@@ -420,20 +594,29 @@ export function initMetronome(root) {
         elements.rhythmHint.hidden = !isCompoundMeter(state.settings.meter);
     }
 
+    function renderSoundControls() {
+        elements.soundButtons.forEach((button) => {
+            const selected = state.settings.sound === button.dataset.metronomeSound;
+            button.setAttribute('aria-checked', String(selected));
+            button.classList.toggle('is-selected', selected);
+        });
+    }
+
     function renderControls({ rebuildBeats = true } = {}) {
         elements.bpm.value = String(state.settings.bpm);
         elements.bpmSlider.value = String(state.settings.bpm);
         elements.bpmSlider.setAttribute('aria-valuetext', `${state.settings.bpm} BPM`);
         elements.meter.value = state.settings.meter;
-        elements.sound.value = state.settings.sound;
         elements.volume.value = String(state.settings.volume);
         elements.volumeValue.value = String(state.settings.volume);
         elements.tempoNote.textContent = isCompoundMeter(state.settings.meter)
             ? '付点4分音符＝BPM'
             : '4分音符＝BPM';
         renderRhythmControls();
+        renderSoundControls();
         if (rebuildBeats) rebuildBeatDisplay();
         else renderBeatState();
+        rebuildVisualRhythm();
     }
 
     function renderPlaying() {
@@ -448,6 +631,7 @@ export function initMetronome(root) {
         state.currentBeat = event.beatIndex;
         state.currentSubdivision = event.subdivisionIndex;
         renderBeatState();
+        renderVisualState();
     }
 
     const engine = createMetronomeAudioEngine(setVisualEvent);
@@ -486,6 +670,10 @@ export function initMetronome(root) {
     });
     elements.bpmSlider.addEventListener('input', () => setBpm(elements.bpmSlider.value, { persist: false }));
     elements.bpmSlider.addEventListener('change', saveSettings);
+
+    elements.details.addEventListener('toggle', () => {
+        elements.detailsSummary.setAttribute('aria-expanded', String(elements.details.open));
+    });
 
     elements.tap.addEventListener('click', () => {
         const now = performance.now();
@@ -526,6 +714,7 @@ export function initMetronome(root) {
         const rhythm = button.dataset.metronomeRhythm;
         state.settings = { ...state.settings, rhythm };
         renderRhythmControls();
+        rebuildVisualRhythm();
         saveSettings();
         rescheduleIfPlaying();
     });
@@ -538,12 +727,16 @@ export function initMetronome(root) {
         accents[beatIndex] = !accents[beatIndex];
         state.settings = { ...state.settings, accents };
         renderBeatState();
+        renderVisualState();
         saveSettings();
         rescheduleIfPlaying();
     });
 
-    elements.sound.addEventListener('change', () => {
-        state.settings = { ...state.settings, sound: elements.sound.value };
+    elements.sound.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-metronome-sound]');
+        if (!button) return;
+        state.settings = { ...state.settings, sound: button.dataset.metronomeSound };
+        renderSoundControls();
         saveSettings();
         rescheduleIfPlaying();
     });
@@ -562,6 +755,7 @@ export function initMetronome(root) {
             state.currentBeat = -1;
             state.currentSubdivision = -1;
             renderBeatState();
+            renderVisualState();
             renderPlaying();
             return;
         }
@@ -590,10 +784,13 @@ export function initMetronome(root) {
             viewActive = active;
             if (!active) {
                 engine.stop();
+                elements.details.open = false;
+                elements.detailsSummary.setAttribute('aria-expanded', 'false');
                 state.currentBeat = -1;
                 state.currentSubdivision = -1;
                 resetTapState();
                 renderBeatState();
+                renderVisualState();
                 renderPlaying();
             }
             if (active) elements.title.focus({ preventScroll: true });
@@ -604,6 +801,7 @@ export function initMetronome(root) {
             state.currentBeat = -1;
             state.currentSubdivision = -1;
             renderBeatState();
+            renderVisualState();
             renderPlaying();
         }
     };

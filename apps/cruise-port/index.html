@@ -683,7 +683,17 @@
                 <p id="metronome-status" class="metronome-status" aria-live="polite">停止中</p>
                 <button id="metronome-toggle" class="action-button primary-action metronome-toggle" type="button" aria-pressed="false">▶ 開始</button>
 
-                <div class="metronome-settings">
+                <div class="metronome-visual-rhythm" aria-label="再生位置">
+                    <div id="metronome-visual-beats" class="visual-beat-display" role="img" aria-label="4分の4拍子、停止中"></div>
+                    <div id="metronome-visual-subdivisions" class="visual-subdivision-display" aria-hidden="true" hidden></div>
+                </div>
+
+                <details id="metronome-details" class="metronome-details">
+                    <summary id="metronome-details-summary" aria-expanded="false">
+                        <span>詳細設定</span>
+                        <span class="metronome-details-chevron" aria-hidden="true"></span>
+                    </summary>
+                    <div class="metronome-settings">
                     <section class="metronome-section" aria-labelledby="metronome-meter-label">
                         <label class="metronome-field" for="metronome-meter">
                             <span id="metronome-meter-label">拍子</span>
@@ -720,21 +730,23 @@
                         <div id="metronome-beats" class="beat-display" role="group" aria-labelledby="metronome-accent-label"></div>
                     </section>
 
-                    <section class="metronome-section metronome-sound-section" aria-label="音の設定">
-                        <label class="metronome-field" for="metronome-sound">
-                            <span>音色</span>
-                            <select id="metronome-sound">
-                                <option value="electronic" selected>電子音</option>
-                                <option value="drum">ドラム</option>
-                            </select>
-                        </label>
+                    <section class="metronome-section metronome-sound-section" aria-labelledby="metronome-sound-label">
+                        <h2 id="metronome-sound-label">音色</h2>
+                        <div id="metronome-sound" class="metronome-choice-grid metronome-sound-grid" role="radiogroup" aria-labelledby="metronome-sound-label">
+                            <button type="button" role="radio" aria-checked="true" data-metronome-sound="electronic">電子音</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-sound="electronic-drum">電子ドラム</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-sound="analog">アナログ</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-sound="wood">ウッド</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-sound="click">クリック</button>
+                        </div>
 
                         <label class="metronome-field volume-field" for="metronome-volume">
                             <span>音量 <output id="metronome-volume-value" for="metronome-volume">70</output></span>
                             <input id="metronome-volume" type="range" min="0" max="100" step="1" value="70">
                         </label>
                     </section>
-                </div>
+                    </div>
+                </details>
 
                 <p id="metronome-storage-error" class="notice notice-error" role="alert" hidden></p>
             </section>

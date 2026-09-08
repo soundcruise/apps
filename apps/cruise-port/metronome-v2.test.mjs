@@ -5,6 +5,7 @@ import {
     METRONOME_DEFAULTS,
     METRONOME_LIMITS,
     METRONOME_SCHEMA_VERSION,
+    METRONOME_SOUNDS,
     METRONOME_STORAGE_KEY,
     beatCountForMeter,
     clampInteger,
@@ -30,7 +31,8 @@ import {
     METRONOME_SCHEDULER_INTERVAL_MS,
     METRONOME_TAP_RESET_MS,
     bpmFromTapTimes,
-    createMetronomeAudioEngine
+    createMetronomeAudioEngine,
+    volumeLevel
 } from './metronome-app.js';
 
 const html = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
@@ -64,6 +66,7 @@ class FakeAudioNode {
         this.context = context;
         this.kind = kind;
         this.frequency = new FakeAudioParam();
+        this.Q = new FakeAudioParam();
         this.gain = new FakeAudioParam(1);
         this.type = '';
         this.listeners = new Map();
@@ -82,12 +85,28 @@ class FakeAudioContext {
         this.currentTime = 10;
         this.state = 'running';
         this.destination = new FakeAudioNode(this, 'destination');
+        this.sampleRate = 48000;
         this.started = [];
         this.gains = [];
         FakeAudioContext.instances.push(this);
     }
     createGain() { const node = new FakeAudioNode(this, 'gain'); this.gains.push(node); return node; }
     createOscillator() { return new FakeAudioNode(this, 'oscillator'); }
+    createBufferSource() { return new FakeAudioNode(this, 'buffer-source'); }
+    createBiquadFilter() { return new FakeAudioNode(this, 'biquad-filter'); }
+    createDynamicsCompressor() {
+        const node = new FakeAudioNode(this, 'compressor');
+        node.threshold = new FakeAudioParam();
+        node.knee = new FakeAudioParam();
+        node.ratio = new FakeAudioParam();
+        node.attack = new FakeAudioParam();
+        node.release = new FakeAudioParam();
+        return node;
+    }
+    createBuffer(_channels, length) {
+        const samples = new Float32Array(length);
+        return { getChannelData: () => samples };
+    }
     async resume() { this.state = 'running'; }
     async suspend() { this.state = 'suspended'; }
 }
@@ -183,29 +202,41 @@ test('accent controls expose pressed state and a tap target', () => {
     assert.match(css, /\.beat-button\s*\{[\s\S]*min-height:\s*58px/);
 });
 
-test('schema v2 persists rhythm and accents', () => {
+test('schema v3 persists rhythm, sound, and accents', () => {
     const storage = memoryStorage();
-    const settings = { ...METRONOME_DEFAULTS, accents: [true, false, true, false] };
+    const settings = { ...METRONOME_DEFAULTS, sound: 'analog', accents: [true, false, true, false] };
     assert.equal(saveMetronomeSettings(settings, storage).ok, true);
     assert.deepEqual(loadMetronomeSettings(storage).settings, settings);
-    assert.equal(storage.parsed.version, 2);
+    assert.equal(storage.parsed.version, 3);
 });
 test('legacy v1 settings migrate without touching the storage key', () => {
     const legacy = { version: 1, bpm: 96, meter: '3/4', sound: 'click', volume: 55 };
     const storage = memoryStorage({ [METRONOME_STORAGE_KEY]: JSON.stringify(legacy) });
     const result = loadMetronomeSettings(storage);
     assert.equal(result.migrated, true);
-    assert.deepEqual(result.settings, { version: 2, bpm: 96, meter: '3/4', rhythm: 'quarter', sound: 'electronic', volume: 55, accents: [true, false, false] });
+    assert.deepEqual(result.settings, { version: 3, bpm: 96, meter: '3/4', rhythm: 'quarter', sound: 'click', volume: 55, accents: [true, false, false] });
 });
 test('legacy 6/8 keeps its audible eighth-note pulse during migration', () => {
     const legacy = { version: 1, bpm: 120, meter: '6/8', sound: 'drum', volume: 70 };
     const storage = memoryStorage({ [METRONOME_STORAGE_KEY]: JSON.stringify(legacy) });
     assert.equal(loadMetronomeSettings(storage).settings.rhythm, 'eighth');
 });
-test('legacy wood maps to the retained drum family', () => {
+test('legacy wood maps to the dedicated wood sound', () => {
     const legacy = { version: 1, bpm: 80, meter: '4/4', sound: 'wood', volume: 60 };
     const storage = memoryStorage({ [METRONOME_STORAGE_KEY]: JSON.stringify(legacy) });
-    assert.equal(loadMetronomeSettings(storage).settings.sound, 'drum');
+    assert.equal(loadMetronomeSettings(storage).settings.sound, 'wood');
+});
+test('schema v2 drum migrates to electronic drum without losing settings', () => {
+    const legacy = { version: 2, bpm: 132, meter: '5/4', rhythm: 'eighth', sound: 'drum', volume: 84, accents: [true, false, true, false, true] };
+    const storage = memoryStorage({ [METRONOME_STORAGE_KEY]: JSON.stringify(legacy) });
+    const result = loadMetronomeSettings(storage);
+    assert.equal(result.migrated, true);
+    assert.deepEqual(result.settings, { ...legacy, version: 3, sound: 'electronic-drum' });
+});
+test('schema v2 electronic sound remains electronic after migration', () => {
+    const legacy = { version: 2, bpm: 72, meter: '6/8', rhythm: 'eighth', sound: 'electronic', volume: 61, accents: [true, false] };
+    const storage = memoryStorage({ [METRONOME_STORAGE_KEY]: JSON.stringify(legacy) });
+    assert.deepEqual(loadMetronomeSettings(storage).settings, { ...legacy, version: 3 });
 });
 test('malformed settings fall back safely without overwriting their raw value', () => {
     const raw = '{"version":2,"bpm":"fast"}';
@@ -215,12 +246,17 @@ test('malformed settings fall back safely without overwriting their raw value', 
     assert.deepEqual(result.settings, { ...METRONOME_DEFAULTS, accents: [...METRONOME_DEFAULTS.accents] });
     assert.equal(storage.raw, raw);
 });
-test('invalid compound rhythm is rejected by v2 normalization', () => {
+test('invalid compound rhythm is rejected by v3 normalization', () => {
     assert.equal(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, meter: '6/8', rhythm: 'triplet', accents: [true, false] }), null);
+});
+test('schema v3 accepts exactly the five formal sound colors', () => {
+    assert.deepEqual(METRONOME_SOUNDS, ['electronic', 'electronic-drum', 'analog', 'wood', 'click']);
+    METRONOME_SOUNDS.forEach((sound) => assert.ok(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, sound })));
+    assert.equal(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, sound: 'drum' }), null);
 });
 test('metronome keeps its dedicated localStorage key and schema version', () => {
     assert.equal(METRONOME_STORAGE_KEY, 'cruisePort.metronome');
-    assert.equal(METRONOME_SCHEMA_VERSION, 2);
+    assert.equal(METRONOME_SCHEMA_VERSION, 3);
 });
 
 test('lookahead scheduler uses the AudioContext timeline', async () => {
@@ -275,9 +311,9 @@ test('live rhythm change schedules the new subdivision phases', async () => {
 test('live sound change replaces future voices', async () => {
     const harness = engineHarness();
     await harness.engine.start(() => harness.settings);
-    harness.settings.sound = 'drum';
+    harness.settings.sound = 'electronic-drum';
     harness.engine.reschedule(() => harness.settings);
-    assert.ok(harness.engine.snapshot().scheduledEvents.every(({ sound }) => sound === 'drum'));
+    assert.ok(harness.engine.snapshot().scheduledEvents.every(({ sound }) => sound === 'electronic-drum'));
 });
 test('live accent change selects a distinct accent voice', async () => {
     const harness = engineHarness({ accents: [false, false, false, false] });
@@ -293,11 +329,28 @@ test('live volume updates the shared master gain without a restart', async () =>
     assert.equal(harness.engine.snapshot().volume, 25);
     assert.equal(harness.engine.snapshot().playing, true);
 });
-test('drum sound reuses fretboard kick frequencies at a safe master gain', async () => {
-    const harness = engineHarness({ sound: 'drum' });
+test('new volume curve raises the practical output range substantially', () => {
+    assert.ok(volumeLevel(70) > Math.pow(0.7, 1.35));
+    assert.equal(volumeLevel(0), 0);
+    assert.equal(volumeLevel(100), 1.15);
+});
+test('output uses a short safety limiter after the boosted master gain', async () => {
+    const harness = engineHarness();
+    await harness.engine.start(() => harness.settings);
+    assert.deepEqual(harness.engine.snapshot().outputLimiter, {
+        threshold: -6,
+        knee: 6,
+        ratio: 12,
+        attack: 0.003,
+        release: 0.08
+    });
+});
+test('electronic drum combines a low kick body with a smartphone-audible attack', async () => {
+    const harness = engineHarness({ sound: 'electronic-drum' });
     await harness.engine.start(() => harness.settings);
     const context = FakeAudioContext.instances[0];
-    assert.ok(context.started.some((node) => node.type === 'sine' && node.frequency.events.some((event) => event[1] === 150)));
+    assert.ok(context.started.some((node) => node.type === 'sine' && node.frequency.events.some((event) => event[1] === 165)));
+    assert.ok(context.started.some((node) => node.type === 'triangle' && node.frequency.events.some((event) => event[1] === 720)));
 });
 test('electronic sound reuses Rhythm Cruise accent frequency', async () => {
     const harness = engineHarness({ sound: 'electronic' });
@@ -305,6 +358,14 @@ test('electronic sound reuses Rhythm Cruise accent frequency', async () => {
     const context = FakeAudioContext.instances[0];
     assert.ok(context.started.some((node) => node.type === 'square' && node.frequency.events.some((event) => event[1] === 1500)));
 });
+for (const sound of ['analog', 'wood', 'click']) {
+    test(`${sound} has a schedulable dedicated Web Audio voice`, async () => {
+        const harness = engineHarness({ sound });
+        await harness.engine.start(() => harness.settings);
+        assert.ok(FakeAudioContext.instances[0].started.length > 0);
+        assert.ok(harness.engine.snapshot().scheduledEvents.every((event) => event.sound === sound));
+    });
+}
 test('background suspend stops playback and does not auto-resume', async () => {
     const harness = engineHarness();
     await harness.engine.start(() => harness.settings);
@@ -325,6 +386,31 @@ test('tuner, Practice Menu, Gear List, and My Apps routes remain present', () =>
 test('mobile UI keeps large touch controls and a two-column rhythm grid', () => {
     assert.match(css, /\.tempo-steps button\s*\{[\s\S]*min-height:\s*48px/);
     assert.match(css, /\.metronome-choice-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(2/);
+});
+test('detailed settings start closed and include all five advanced controls', () => {
+    assert.match(html, /<details id="metronome-details" class="metronome-details">/);
+    assert.doesNotMatch(html, /<details id="metronome-details"[^>]*\sopen(?:\s|>)/);
+    assert.match(html, /id="metronome-details-summary" aria-expanded="false"/);
+    for (const label of ['拍子', 'リズム', 'アクセント', '音色', '音量']) assert.match(html, new RegExp(`>${label}(?:\\s|<)`));
+    assert.match(appSource, /details\.addEventListener\('toggle'[\s\S]*aria-expanded/);
+});
+test('sound selector exposes five named radio choices including electronic drum', () => {
+    for (const [key, label] of [['electronic', '電子音'], ['electronic-drum', '電子ドラム'], ['analog', 'アナログ'], ['wood', 'ウッド'], ['click', 'クリック']]) {
+        assert.match(html, new RegExp(`data-metronome-sound="${key}"[^>]*>${label}<`));
+    }
+});
+test('primary beat display remains visible outside detailed settings', () => {
+    assert.ok(html.indexOf('id="metronome-visual-beats"') < html.indexOf('id="metronome-details"'));
+    assert.match(appSource, /function renderVisualState\(\)[\s\S]*data-visual-beat/);
+    assert.match(appSource, /function setVisualEvent\(event\)[\s\S]*renderVisualState\(\)/);
+});
+test('stop, route leave, and hidden cleanup clear the primary beat state', () => {
+    assert.match(appSource, /engine\.stop\(\);[\s\S]*state\.currentBeat = -1;[\s\S]*renderVisualState\(\)/);
+    assert.match(appSource, /details\.open = false/);
+    assert.match(rootSource, /visibilitychange[\s\S]*stopForPageHidden/);
+});
+test('reduced motion also covers the new primary beat display', () => {
+    assert.match(css, /prefers-reduced-motion:[\s\S]*visual-beat-dot[\s\S]*visual-subdivision-display/);
 });
 test('range and selection controls expose accessible names and states', () => {
     assert.match(html, /for="metronome-bpm-slider"/);

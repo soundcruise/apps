@@ -1,5 +1,5 @@
 export const METRONOME_STORAGE_KEY = 'cruisePort.metronome';
-export const METRONOME_SCHEMA_VERSION = 2;
+export const METRONOME_SCHEMA_VERSION = 3;
 
 export const METRONOME_LIMITS = Object.freeze({
     bpmMin: 30,
@@ -10,7 +10,7 @@ export const METRONOME_LIMITS = Object.freeze({
 
 export const METRONOME_METERS = Object.freeze(['2/4', '3/4', '4/4', '5/4', '6/8', '9/8', '12/8']);
 export const METRONOME_RHYTHMS = Object.freeze(['quarter', 'eighth', 'sixteenth', 'triplet', 'eighth-shuffle', 'sixteenth-shuffle']);
-export const METRONOME_SOUNDS = Object.freeze(['drum', 'electronic']);
+export const METRONOME_SOUNDS = Object.freeze(['electronic', 'electronic-drum', 'analog', 'wood', 'click']);
 
 const METER_BEAT_COUNTS = Object.freeze({
     '2/4': 2,
@@ -24,6 +24,7 @@ const METER_BEAT_COUNTS = Object.freeze({
 
 const LEGACY_METERS = Object.freeze(['2/4', '3/4', '4/4', '6/8']);
 const LEGACY_SOUNDS = Object.freeze(['standard', 'wood', 'click', 'drum']);
+const V2_SOUNDS = Object.freeze(['electronic', 'drum']);
 const COMPOUND_METERS = Object.freeze(['6/8', '9/8', '12/8']);
 const COMPOUND_RHYTHMS = Object.freeze(['quarter', 'eighth', 'sixteenth']);
 
@@ -76,7 +77,27 @@ export function normalizeMetronomeSettings(value) {
 }
 
 export function migrateMetronomeSettings(value) {
-    if (!value || typeof value !== 'object' || Array.isArray(value) || value.version !== 1) return null;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    if (value.version === 2) {
+        if (!Number.isInteger(value.bpm) || value.bpm < METRONOME_LIMITS.bpmMin || value.bpm > METRONOME_LIMITS.bpmMax) return null;
+        if (!METRONOME_METERS.includes(value.meter)) return null;
+        if (!METRONOME_RHYTHMS.includes(value.rhythm)) return null;
+        if (COMPOUND_METERS.includes(value.meter) && !COMPOUND_RHYTHMS.includes(value.rhythm)) return null;
+        if (!V2_SOUNDS.includes(value.sound)) return null;
+        if (!Number.isInteger(value.volume) || value.volume < METRONOME_LIMITS.volumeMin || value.volume > METRONOME_LIMITS.volumeMax) return null;
+        if (!Array.isArray(value.accents) || value.accents.length !== beatCountForMeter(value.meter)) return null;
+        if (!value.accents.every((accent) => typeof accent === 'boolean')) return null;
+        return {
+            version: METRONOME_SCHEMA_VERSION,
+            bpm: value.bpm,
+            meter: value.meter,
+            rhythm: value.rhythm,
+            sound: value.sound === 'drum' ? 'electronic-drum' : 'electronic',
+            volume: value.volume,
+            accents: [...value.accents]
+        };
+    }
+    if (value.version !== 1) return null;
     if (!Number.isInteger(value.bpm) || value.bpm < METRONOME_LIMITS.bpmMin || value.bpm > METRONOME_LIMITS.bpmMax) return null;
     if (!LEGACY_METERS.includes(value.meter)) return null;
     if (!LEGACY_SOUNDS.includes(value.sound)) return null;
@@ -86,7 +107,9 @@ export function migrateMetronomeSettings(value) {
         bpm: value.bpm,
         meter: value.meter,
         rhythm: value.meter === '6/8' ? 'eighth' : 'quarter',
-        sound: value.sound === 'drum' || value.sound === 'wood' ? 'drum' : 'electronic',
+        sound: value.sound === 'drum'
+            ? 'electronic-drum'
+            : (value.sound === 'wood' || value.sound === 'click' ? value.sound : 'electronic'),
         volume: value.volume,
         accents: defaultAccentsForMeter(value.meter)
     };
