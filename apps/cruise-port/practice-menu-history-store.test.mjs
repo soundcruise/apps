@@ -8,7 +8,9 @@ import {
     createCycleCompletedEvent,
     createEmptyPracticeHistory,
     createPracticeCalendarMonth,
+    createPracticeCalendarDaySummary,
     createPracticeCompletedEvent,
+    createPracticeDayHistoryView,
     createPracticeSessionEvent,
     getPracticeHistoryForDate,
     loadPracticeHistory,
@@ -38,9 +40,18 @@ test('individual history stores local date and stable display snapshots', () => 
     assert.equal(event.practiceName, item.name);
     assert.equal(event.durationMinutes, 15);
     assert.equal(event.appId, 'chord');
+    assert.equal(event.sessionId, null);
     const renamed = { ...item, name: '変更後' };
     assert.equal(event.practiceName, 'コードフォーム練習');
     assert.notEqual(event.practiceName, renamed.name);
+});
+
+test('timer-running completion records a session id while timer-free completion stays independent', () => {
+    const now = new Date(2026, 8, 8, 10, 0);
+    const linked = createPracticeCompletedEvent(item, 'cycle-a', now, 'session-a');
+    const independent = createPracticeCompletedEvent(item, 'cycle-b', now);
+    assert.equal(linked.sessionId, 'session-a');
+    assert.equal(independent.sessionId, null);
 });
 test('cycle completion event is distinct and date grouping keeps both event types', () => {
     const now = new Date(2026, 8, 8, 10, 0, 0, 0);
@@ -80,10 +91,74 @@ test('calendar month marks practice days and complete days without UTC conversio
     history = appendPracticeHistoryEvent(history, createCycleCompletedEvent('cycle-a', completeDate)).history;
     const cells = createPracticeCalendarMonth(2026, 8, history, [{ localDate: '2026-09-20' }]);
     assert.equal(cells.find((cell) => cell?.day === 8).count, 1);
+    assert.equal(cells.find((cell) => cell?.day === 8).practiced, true);
     assert.equal(cells.find((cell) => cell?.day === 8).completed, false);
     assert.equal(cells.find((cell) => cell?.day === 9).completed, true);
     assert.equal(cells.find((cell) => cell?.day === 20).hasMemo, true);
     assert.equal(toLocalDateKey(practiceDate), '2026-09-08');
+});
+
+test('session view groups matching practices in timestamp order without duplicating flat source events', () => {
+    const first = createPracticeCompletedEvent(item, 'cycle-a', new Date('2026-09-08T01:05:00.000Z'), 'session-a');
+    const second = createPracticeCompletedEvent(
+        { ...item, id: 'practice-b', name: 'リズム練習', durationMinutes: 20 },
+        'cycle-a',
+        new Date('2026-09-08T01:10:00.000Z'),
+        'session-a'
+    );
+    const independent = createPracticeCompletedEvent(
+        { ...item, id: 'practice-c', name: 'タイマー外', durationMinutes: 5 },
+        'cycle-b',
+        new Date('2026-09-08T02:00:00.000Z')
+    );
+    const session = createPracticeSessionEvent({
+        sessionId: 'session-a',
+        startedAt: '2026-09-08T01:00:00.000Z',
+        endedAt: '2026-09-08T01:20:00.000Z',
+        durationSeconds: 1200
+    });
+    let history = createEmptyPracticeHistory();
+    [second, first, session, independent].forEach((event) => {
+        history = appendPracticeHistoryEvent(history, event).history;
+    });
+    const view = createPracticeDayHistoryView(history, '2026-09-08');
+    assert.equal(history.events.length, 4);
+    assert.deepEqual(view.map(({ kind }) => kind), ['session', 'event']);
+    assert.deepEqual(view[0].children.map(({ practiceName }) => practiceName), ['コードフォーム練習', 'リズム練習']);
+    assert.equal(view[1].event.practiceName, 'タイマー外');
+});
+
+test('unmatched running-session completion remains visible until its session event exists', () => {
+    let history = createEmptyPracticeHistory();
+    history = appendPracticeHistoryEvent(
+        history,
+        createPracticeCompletedEvent(item, 'cycle-a', new Date('2026-09-08T01:05:00.000Z'), 'running-session')
+    ).history;
+    const view = createPracticeDayHistoryView(history, '2026-09-08');
+    assert.equal(view.length, 1);
+    assert.equal(view[0].kind, 'event');
+});
+
+test('multiple sessions on one day keep their own children and calendar uses one practiced marker', () => {
+    let history = createEmptyPracticeHistory();
+    for (const [sessionId, hour] of [['session-a', 1], ['session-b', 2]]) {
+        history = appendPracticeHistoryEvent(history, createPracticeCompletedEvent(
+            { ...item, id: `practice-${sessionId}`, name: sessionId },
+            'cycle-a',
+            new Date(`2026-09-08T0${hour}:05:00.000Z`),
+            sessionId
+        )).history;
+        history = appendPracticeHistoryEvent(history, createPracticeSessionEvent({
+            sessionId,
+            startedAt: `2026-09-08T0${hour}:00:00.000Z`,
+            endedAt: `2026-09-08T0${hour}:10:00.000Z`,
+            durationSeconds: 600
+        })).history;
+    }
+    const view = createPracticeDayHistoryView(history, '2026-09-08');
+    assert.equal(view.length, 2);
+    assert.deepEqual(view.map(({ children }) => children.length), [1, 1]);
+    assert.equal(createPracticeCalendarDaySummary('2026-09-08', history).practiced, true);
 });
 
 test('history persists separately and malformed data is never overwritten', () => {
@@ -109,8 +184,20 @@ test('legacy v1 history migrates without dropping cycle-completed events', () =>
     const loaded = loadPracticeHistory(storage);
     assert.equal(loaded.ok, true);
     assert.equal(loaded.migrated, true);
-    assert.equal(loaded.history.version, 2);
+    assert.equal(loaded.history.version, 3);
     assert.equal(loaded.history.events[0].type, PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted);
+});
+
+test('legacy v2 practice events migrate with null session ids', () => {
+    const event = createPracticeCompletedEvent(item, 'legacy-cycle', new Date(2026, 8, 8, 12, 0));
+    delete event.sessionId;
+    const legacy = { version: 2, events: [event] };
+    const storage = new FakeStorage({ [PRACTICE_HISTORY_STORAGE_KEY]: JSON.stringify(legacy) });
+    const loaded = loadPracticeHistory(storage);
+    assert.equal(loaded.ok, true);
+    assert.equal(loaded.migrated, true);
+    assert.equal(loaded.history.version, 3);
+    assert.equal(loaded.history.events[0].sessionId, null);
 });
 
 test('history retains deleted-item snapshots and caps storage by dropping oldest events', () => {

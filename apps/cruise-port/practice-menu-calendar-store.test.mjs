@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+    PRACTICE_CALENDAR_DEFAULT_ICON,
+    PRACTICE_CALENDAR_ICONS,
     PRACTICE_CALENDAR_LIMITS,
+    PRACTICE_CALENDAR_SCHEMA_VERSION,
     PRACTICE_CALENDAR_STORAGE_KEY,
     createEmptyPracticeCalendar,
     createPracticeCalendarNote,
@@ -25,6 +28,7 @@ test('future and past dates support multiple trimmed notes with reload', () => {
     let calendar = createEmptyPracticeCalendar();
     const first = createPracticeCalendarNote(calendar, { localDate: '2026-10-02', text: '  バンドリハーサル  ' }, now);
     assert.equal(first.ok, true);
+    assert.equal(first.note.icon, PRACTICE_CALENDAR_DEFAULT_ICON);
     calendar = first.calendar;
     calendar = createPracticeCalendarNote(calendar, { localDate: '2026-10-02', text: '個人練習' }, now).calendar;
     calendar = createPracticeCalendarNote(calendar, { localDate: '2026-09-01', text: 'ライブ' }, now).calendar;
@@ -35,18 +39,52 @@ test('future and past dates support multiple trimmed notes with reload', () => {
 });
 
 test('notes can be edited and individually deleted without touching peers', () => {
-    const created = createPracticeCalendarNote(createEmptyPracticeCalendar(), { localDate: '2026-10-02', text: 'ライブ' }, now);
+    const created = createPracticeCalendarNote(createEmptyPracticeCalendar(), { localDate: '2026-10-02', text: 'ライブ', icon: 'live' }, now);
     const peer = createPracticeCalendarNote(created.calendar, { localDate: '2026-10-02', text: '休み' }, now);
-    const updated = updatePracticeCalendarNote(peer.calendar, created.note.id, 'ライブ本番', new Date('2026-09-09T01:00:00Z'));
+    const updated = updatePracticeCalendarNote(peer.calendar, created.note.id, { text: 'ライブ本番', icon: 'recording' }, new Date('2026-09-09T01:00:00Z'));
     assert.equal(updated.calendar.notes[0].text, 'ライブ本番');
+    assert.equal(updated.calendar.notes[0].icon, 'recording');
     const deleted = deletePracticeCalendarNote(updated.calendar, created.note.id);
     assert.deepEqual(deleted.calendar.notes.map(({ text }) => text), ['休み']);
+});
+
+test('v1 notes migrate to v2 with the memo icon without rewriting raw storage', () => {
+    const legacyNote = {
+        id: 'legacy-note',
+        localDate: '2026-09-09',
+        text: '以前のメモ',
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString()
+    };
+    const raw = JSON.stringify({ version: 1, notes: [legacyNote] });
+    const storage = new FakeStorage({ [PRACTICE_CALENDAR_STORAGE_KEY]: raw });
+    const loaded = loadPracticeCalendar(storage);
+    assert.equal(loaded.ok, true);
+    assert.equal(loaded.migrated, true);
+    assert.equal(loaded.calendar.version, PRACTICE_CALENDAR_SCHEMA_VERSION);
+    assert.equal(loaded.calendar.notes[0].icon, PRACTICE_CALENDAR_DEFAULT_ICON);
+    assert.equal(storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY), raw);
+});
+
+test('all six formal icons save and reload', () => {
+    let calendar = createEmptyPracticeCalendar();
+    PRACTICE_CALENDAR_ICONS.forEach(({ value }, index) => {
+        calendar = createPracticeCalendarNote(calendar, {
+            localDate: `2026-10-${String(index + 1).padStart(2, '0')}`,
+            text: value,
+            icon: value
+        }, now).calendar;
+    });
+    const storage = new FakeStorage();
+    assert.equal(savePracticeCalendar(calendar, storage).ok, true);
+    assert.deepEqual(loadPracticeCalendar(storage).calendar.notes.map(({ icon }) => icon), PRACTICE_CALENDAR_ICONS.map(({ value }) => value));
 });
 
 test('empty, overlong, malformed, and over-limit calendar data fail safely', () => {
     const empty = createEmptyPracticeCalendar();
     assert.equal(createPracticeCalendarNote(empty, { localDate: '2026-10-02', text: ' ' }, now).ok, false);
     assert.equal(createPracticeCalendarNote(empty, { localDate: 'bad', text: '予定' }, now).ok, false);
+    assert.equal(createPracticeCalendarNote(empty, { localDate: '2026-10-02', text: '予定', icon: 'unknown' }, now).ok, false);
     assert.equal(createPracticeCalendarNote(empty, { localDate: '2026-10-02', text: 'x'.repeat(PRACTICE_CALENDAR_LIMITS.text + 1) }, now).ok, false);
     const malformed = '{broken';
     const storage = new FakeStorage({ [PRACTICE_CALENDAR_STORAGE_KEY]: malformed });

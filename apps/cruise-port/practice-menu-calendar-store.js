@@ -1,6 +1,17 @@
-export const PRACTICE_CALENDAR_SCHEMA_VERSION = 1;
+export const PRACTICE_CALENDAR_SCHEMA_VERSION = 2;
 export const PRACTICE_CALENDAR_STORAGE_KEY = 'cruisePort.practiceCalendar';
 export const PRACTICE_CALENDAR_LIMITS = Object.freeze({ notes: 1500, text: 500 });
+export const PRACTICE_CALENDAR_DEFAULT_ICON = 'memo';
+export const PRACTICE_CALENDAR_ICONS = Object.freeze([
+    Object.freeze({ value: 'schedule', label: '予定' }),
+    Object.freeze({ value: 'live', label: 'ライブ' }),
+    Object.freeze({ value: 'rehearsal', label: 'リハ' }),
+    Object.freeze({ value: 'recording', label: '録音' }),
+    Object.freeze({ value: 'memo', label: 'メモ' }),
+    Object.freeze({ value: 'rest', label: '休み' })
+]);
+
+const PRACTICE_CALENDAR_ICON_VALUES = new Set(PRACTICE_CALENDAR_ICONS.map(({ value }) => value));
 
 function createId(now = new Date()) {
     return globalThis.crypto?.randomUUID
@@ -19,7 +30,7 @@ export function isValidPracticeLocalDate(value) {
     return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
-function isValidNote(note) {
+function isValidNote(note, version = PRACTICE_CALENDAR_SCHEMA_VERSION) {
     return Boolean(
         note
         && typeof note === 'object'
@@ -32,6 +43,7 @@ function isValidNote(note) {
         && note.text.length > 0
         && note.text.trim() === note.text
         && note.text.length <= PRACTICE_CALENDAR_LIMITS.text
+        && (version === 1 || PRACTICE_CALENDAR_ICON_VALUES.has(note.icon))
         && isIsoDate(note.createdAt)
         && isIsoDate(note.updatedAt)
     );
@@ -42,20 +54,27 @@ export function createEmptyPracticeCalendar() {
 }
 
 export function isValidPracticeCalendar(calendar) {
+    return isValidPracticeCalendarVersion(calendar, PRACTICE_CALENDAR_SCHEMA_VERSION);
+}
+
+function isValidPracticeCalendarVersion(calendar, version) {
     return Boolean(
         calendar
         && typeof calendar === 'object'
         && !Array.isArray(calendar)
-        && calendar.version === PRACTICE_CALENDAR_SCHEMA_VERSION
+        && calendar.version === version
         && Array.isArray(calendar.notes)
         && calendar.notes.length <= PRACTICE_CALENDAR_LIMITS.notes
-        && calendar.notes.every(isValidNote)
+        && calendar.notes.every((note) => isValidNote(note, version))
         && new Set(calendar.notes.map((note) => note.id)).size === calendar.notes.length
     );
 }
 
 function cloneCalendar(calendar) {
-    return { version: calendar.version, notes: calendar.notes.map((note) => ({ ...note })) };
+    return {
+        version: PRACTICE_CALENDAR_SCHEMA_VERSION,
+        notes: calendar.notes.map((note) => ({ ...note, icon: note.icon || PRACTICE_CALENDAR_DEFAULT_ICON }))
+    };
 }
 
 export function loadPracticeCalendar(storage = window.localStorage) {
@@ -64,9 +83,12 @@ export function loadPracticeCalendar(storage = window.localStorage) {
         const rawValue = storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY);
         if (rawValue === null) return { ok: true, calendar: fallback };
         const parsed = JSON.parse(rawValue);
-        return isValidPracticeCalendar(parsed)
-            ? { ok: true, calendar: cloneCalendar(parsed) }
-            : { ok: false, calendar: fallback, reason: 'invalid-data' };
+        const current = isValidPracticeCalendar(parsed);
+        const legacy = isValidPracticeCalendarVersion(parsed, 1);
+        if (!current && !legacy) return { ok: false, calendar: fallback, reason: 'invalid-data' };
+        return legacy
+            ? { ok: true, calendar: cloneCalendar(parsed), migrated: true }
+            : { ok: true, calendar: cloneCalendar(parsed) };
     } catch (_) {
         return { ok: false, calendar: fallback, reason: 'read-failed' };
     }
@@ -90,28 +112,40 @@ export function savePracticeCalendar(calendar, storage = window.localStorage) {
     }
 }
 
-export function createPracticeCalendarNote(calendar, { localDate, text }, now = new Date()) {
+export function createPracticeCalendarNote(calendar, { localDate, text, icon = PRACTICE_CALENDAR_DEFAULT_ICON }, now = new Date()) {
     const normalizedText = typeof text === 'string' ? text.trim() : '';
-    if (!isValidPracticeLocalDate(localDate) || !normalizedText || normalizedText.length > PRACTICE_CALENDAR_LIMITS.text) {
+    if (
+        !isValidPracticeLocalDate(localDate)
+        || !normalizedText
+        || normalizedText.length > PRACTICE_CALENDAR_LIMITS.text
+        || !PRACTICE_CALENDAR_ICON_VALUES.has(icon)
+    ) {
         return { ok: false, calendar: cloneCalendar(calendar), reason: 'invalid-values' };
     }
     if (calendar.notes.length >= PRACTICE_CALENDAR_LIMITS.notes) {
         return { ok: false, calendar: cloneCalendar(calendar), reason: 'limit-reached' };
     }
     const timestamp = now.toISOString();
-    const note = { id: createId(now), localDate, text: normalizedText, createdAt: timestamp, updatedAt: timestamp };
+    const note = { id: createId(now), localDate, text: normalizedText, icon, createdAt: timestamp, updatedAt: timestamp };
     return { ok: true, note, calendar: { version: PRACTICE_CALENDAR_SCHEMA_VERSION, notes: [...calendar.notes, note] } };
 }
 
-export function updatePracticeCalendarNote(calendar, id, text, now = new Date()) {
-    const normalizedText = typeof text === 'string' ? text.trim() : '';
+export function updatePracticeCalendarNote(calendar, id, values, now = new Date()) {
     const index = calendar.notes.findIndex((note) => note.id === id);
     if (index < 0) return { ok: false, calendar: cloneCalendar(calendar), reason: 'not-found' };
-    if (!normalizedText || normalizedText.length > PRACTICE_CALENDAR_LIMITS.text) {
+    const current = calendar.notes[index];
+    const text = typeof values === 'string' ? values : values?.text;
+    const icon = typeof values === 'string' ? current.icon : values?.icon;
+    const normalizedText = typeof text === 'string' ? text.trim() : '';
+    if (
+        !normalizedText
+        || normalizedText.length > PRACTICE_CALENDAR_LIMITS.text
+        || !PRACTICE_CALENDAR_ICON_VALUES.has(icon)
+    ) {
         return { ok: false, calendar: cloneCalendar(calendar), reason: 'invalid-values' };
     }
     const notes = calendar.notes.map((note, noteIndex) => noteIndex === index
-        ? { ...note, text: normalizedText, updatedAt: now.toISOString() }
+        ? { ...note, text: normalizedText, icon, updatedAt: now.toISOString() }
         : { ...note });
     return { ok: true, calendar: { version: PRACTICE_CALENDAR_SCHEMA_VERSION, notes } };
 }

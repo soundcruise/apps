@@ -1730,8 +1730,10 @@ body.gear-photo-lightbox-open {
 .practice-overview-links button:focus-visible,
 .practice-quiet-action:focus-visible,
 .practice-calendar-heading button:focus-visible,
+.practice-calendar-view-tabs button:focus-visible,
 .practice-calendar-day:focus-visible,
 .practice-calendar-today:focus-visible,
+.practice-calendar-note-icons button:focus-visible,
 .practice-count-reset-section button:focus-visible,
 .port-settings-button:focus-visible,
 .settings-choice:focus-visible,
@@ -2380,10 +2382,41 @@ textarea:focus-visible {
 
 .practice-calendar-heading {
     display: grid;
-    margin-top: 26px;
+    margin-top: 14px;
     grid-template-columns: 44px minmax(0, 1fr) 44px;
     align-items: center;
     gap: 8px;
+}
+
+.practice-calendar-view-tabs {
+    display: grid;
+    max-width: 270px;
+    margin: 24px auto 0;
+    padding: 3px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 3px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 12px;
+    background: rgba(5, 6, 6, 0.42);
+}
+
+.practice-calendar-view-tabs button {
+    min-height: 40px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 9px;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.75rem;
+    font-weight: 620;
+    cursor: pointer;
+}
+
+.practice-calendar-view-tabs button[aria-selected="true"] {
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(229, 204, 139, 0.12);
 }
 
 .practice-calendar-heading strong {
@@ -2419,9 +2452,10 @@ textarea:focus-visible {
 }
 
 .practice-calendar-weekdays span {
-    padding: 6px 0;
+    padding: 8px 0 7px;
     color: rgba(180, 174, 158, 0.76);
-    font-size: 0.63rem;
+    font-size: 0.72rem;
+    font-weight: 560;
     text-align: center;
 }
 
@@ -2434,42 +2468,98 @@ textarea:focus-visible {
     position: relative;
     min-width: 0;
     display: grid;
-    padding: 0;
+    min-height: 44px;
+    padding: 7px 2px 5px;
+    grid-template-rows: 1fr 15px;
     place-items: center;
     border: 1px solid transparent;
     border-radius: 10px;
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.72rem;
+    font-size: 0.86rem;
+    font-weight: 560;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
 }
 
-.practice-calendar-day i {
-    position: absolute;
-    bottom: 5px;
-    left: calc(50% - 5px);
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: rgba(205, 180, 116, 0.72);
+.practice-calendar-markers {
+    display: flex;
+    min-width: 0;
+    height: 15px;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    line-height: 1;
 }
 
-.practice-calendar-day b {
-    position: absolute;
-    right: calc(50% - 7px);
-    bottom: 4px;
-    width: 5px;
-    height: 5px;
-    border: 1px solid rgba(232, 219, 181, 0.75);
-    border-radius: 1px;
+.practice-calendar-markers i {
+    color: var(--port-gold-bright);
+    font-size: 0.65rem;
+    font-style: normal;
+    font-weight: 760;
 }
 
-.practice-calendar-day.has-complete i {
-    width: 6px;
-    height: 6px;
-    background: var(--port-gold-bright);
+.practice-calendar-markers b {
+    display: inline-flex;
+    width: 12px;
+    height: 12px;
+    color: rgba(232, 219, 181, 0.88);
+}
+
+.practice-calendar-markers b svg {
+    width: 100%;
+    height: 100%;
+}
+
+.practice-calendar-markers em {
+    color: var(--port-muted);
+    font-size: 0.5rem;
+    font-style: normal;
+}
+
+.practice-calendar-days.is-week {
+    gap: 4px;
+}
+
+.practice-calendar-days.is-week .practice-calendar-day {
+    aspect-ratio: auto;
+    min-height: 76px;
+    padding: 8px 1px 6px;
+    grid-template-rows: 15px 1fr 15px;
+    font-size: 0.7rem;
+}
+
+.practice-calendar-days.is-week .practice-calendar-day small {
+    color: var(--port-muted);
+    font-size: 0.62rem;
+}
+
+.practice-calendar-day-focus {
+    display: grid;
+    min-height: 100px;
+    padding: 20px;
+    place-items: center;
+    gap: 8px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 14px;
+    background: rgba(205, 180, 116, 0.025);
+    text-align: center;
+}
+
+.practice-calendar-day-focus[hidden] {
+    display: none;
+}
+
+.practice-calendar-day-focus time {
+    color: var(--port-text);
+    font-size: 1rem;
+    font-weight: 620;
+}
+
+.practice-calendar-day-focus span {
+    color: var(--port-muted);
+    font-size: 0.72rem;
 }
 
 .practice-calendar-notes {
@@ -2527,10 +2617,16 @@ textarea:focus-visible {
 .practice-calendar-note {
     display: grid;
     padding: 13px 0;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: start;
+    grid-template-columns: 24px minmax(0, 1fr) auto;
+    align-items: center;
     gap: 10px;
     border-bottom: 1px solid rgba(207, 189, 148, 0.08);
+}
+
+.practice-calendar-note-icon {
+    width: 20px;
+    height: 20px;
+    color: var(--port-gold-bright);
 }
 
 .practice-calendar-note p {
@@ -2566,6 +2662,53 @@ textarea:focus-visible {
     border: 1px solid rgba(207, 189, 148, 0.12);
     border-radius: 12px;
     background: rgba(205, 180, 116, 0.025);
+}
+
+.practice-calendar-note-icon-field {
+    min-width: 0;
+    margin: 0 0 15px;
+    padding: 0;
+    border: 0;
+}
+
+.practice-calendar-note-icon-field legend {
+    margin-bottom: 8px;
+    color: var(--port-text);
+    font-size: 0.78rem;
+    font-weight: 620;
+}
+
+.practice-calendar-note-icons {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.practice-calendar-note-icons button {
+    min-width: 0;
+    min-height: 52px;
+    display: grid;
+    padding: 7px 4px;
+    place-items: center;
+    gap: 3px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 9px;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.62rem;
+    cursor: pointer;
+}
+
+.practice-calendar-note-icons button[aria-pressed="true"] {
+    border-color: rgba(229, 204, 139, 0.34);
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.08);
+}
+
+.practice-calendar-note-icons svg {
+    width: 20px;
+    height: 20px;
 }
 
 #practice-calendar-note-form > label {
@@ -2643,6 +2786,36 @@ textarea:focus-visible {
 }
 
 .practice-history-event.is-cycle-complete {
+    color: var(--port-gold-bright);
+}
+
+.practice-history-event.is-session {
+    margin-top: 5px;
+    padding: 14px 10px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 12px;
+    background: rgba(205, 180, 116, 0.025);
+}
+
+.practice-history-session-children {
+    display: grid;
+    margin: 5px 0 0;
+    padding: 9px 0 0;
+    gap: 7px;
+    border-top: 1px solid rgba(207, 189, 148, 0.09);
+    list-style: none;
+}
+
+.practice-history-session-children li {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 5px;
+    color: var(--port-text);
+    font-size: 0.76rem;
+    line-height: 1.45;
+}
+
+.practice-history-session-children li > span:first-child {
     color: var(--port-gold-bright);
 }
 

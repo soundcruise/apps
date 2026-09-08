@@ -21,16 +21,19 @@ import {
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
+    createPracticeCalendarDaySummary,
     createCycleCompletedEvent,
     createPracticeCalendarMonth,
     createPracticeCompletedEvent,
+    createPracticeDayHistoryView,
     createPracticeSessionEvent,
-    getPracticeHistoryForDate,
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=2.0.0';
+} from './practice-menu-history-store.js?v=3.0.0';
 import {
+    PRACTICE_CALENDAR_DEFAULT_ICON,
+    PRACTICE_CALENDAR_ICONS,
     PRACTICE_CALENDAR_LIMITS,
     createPracticeCalendarNote,
     deletePracticeCalendarNote,
@@ -38,7 +41,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=1.0.0';
+} from './practice-menu-calendar-store.js?v=2.0.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -54,6 +57,10 @@ import {
     isSafePracticeAttachmentInlineOpen,
     isSafePracticeImagePreview
 } from './practice-menu-attachment-store.js?v=1.0.1';
+import {
+    navigatePreparedPracticeFileWindow,
+    preparePracticeFileWindow
+} from './practice-menu-file-open.js?v=1.0.0';
 import {
     PRACTICE_APP_STATUS,
     countPracticeMenuReferences,
@@ -126,7 +133,7 @@ import { initMetronome } from './metronome-app.js?v=2.3.1';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.21.1';
+} from './app-version.js?v=1.22.0';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
 import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=1.0.1';
 import { initTuner } from './tuner-app.js?v=1.2.0';
@@ -247,15 +254,19 @@ const elements = {
     hiddenNotice: document.querySelector('#practice-hidden-notice'),
     historyTitle: document.querySelector('#practice-history-title'),
     historyError: document.querySelector('#practice-history-error'),
+    calendarViewTabs: [...document.querySelectorAll('[data-calendar-view]')],
     calendarPrevious: document.querySelector('#practice-calendar-previous'),
     calendarNext: document.querySelector('#practice-calendar-next'),
     calendarToday: document.querySelector('#practice-calendar-today'),
     calendarMonth: document.querySelector('#practice-calendar-month'),
+    calendarWeekdays: document.querySelector('#practice-calendar-weekdays'),
     calendarDays: document.querySelector('#practice-calendar-days'),
+    calendarDayFocus: document.querySelector('#practice-calendar-day-focus'),
     calendarNoteAdd: document.querySelector('#practice-calendar-note-add'),
     calendarNotesEmpty: document.querySelector('#practice-calendar-notes-empty'),
     calendarNotesList: document.querySelector('#practice-calendar-notes-list'),
     calendarNoteForm: document.querySelector('#practice-calendar-note-form'),
+    calendarNoteIcons: document.querySelector('#practice-calendar-note-icons'),
     calendarNoteText: document.querySelector('#practice-calendar-note-text'),
     calendarNoteError: document.querySelector('#practice-calendar-note-error'),
     calendarNoteCancel: document.querySelector('#practice-calendar-note-cancel'),
@@ -376,6 +387,7 @@ const state = {
     calendar: null,
     calendarReady: false,
     calendarNoteEditId: null,
+    calendarNoteIcon: PRACTICE_CALENDAR_DEFAULT_ICON,
     timer: null,
     timerReady: false,
     timerInterval: null,
@@ -384,6 +396,7 @@ const state = {
     filesFocusId: null,
     historyMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     historySelectedDate: toLocalDateKey(),
+    calendarViewMode: 'month',
     completionTimer: null,
     completing: false
 };
@@ -447,6 +460,7 @@ const myAppsIconStore = createMyAppsIconStore();
 const gearPhotoStore = createGearPhotoStore();
 const practiceAttachmentStore = createPracticeAttachmentStore();
 const practiceAttachmentObjectUrls = new Set();
+const practiceAttachmentExternalObjectUrls = new Set();
 const myAppsPlatform = detectMyAppsPlatform();
 const myAppsObjectUrls = {
     home: new Set(),
@@ -1813,7 +1827,12 @@ function handlePracticeCheck(item) {
 
     const historyResult = appendPracticeHistoryEvent(
         state.history,
-        createPracticeCompletedEvent(item, state.progress.cycleId)
+        createPracticeCompletedEvent(
+            item,
+            state.progress.cycleId,
+            new Date(),
+            state.timerReady && state.timer?.running ? state.timer.sessionId : null
+        )
     );
     if (!historyResult.ok || !persistPracticeActivity(transition.progress, historyResult.history)) {
         state.listNotice = '練習記録を保存できませんでした。チェック状態は変更していません。';
@@ -1869,27 +1888,93 @@ function renderPracticeHiddenList() {
     elements.hiddenTitle.focus({ preventScroll: true });
 }
 
-function selectPracticeHistoryMonth(date) {
+const PRACTICE_CALENDAR_WEEKDAYS = Object.freeze(['日', '月', '火', '水', '木', '金', '土']);
+
+function practiceLocalDateToDate(localDate) {
+    const [year, month, day] = localDate.split('-').map(Number);
+    return new Date(year, month - 1, day, 12);
+}
+
+function setPracticeCalendarSelectedDate(date) {
+    state.historySelectedDate = toLocalDateKey(date);
     state.historyMonth = new Date(date.getFullYear(), date.getMonth(), 1);
-    const prefix = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-`;
-    const latestDate = [
-        ...state.history.events.map((event) => event.localDate),
-        ...state.calendar.notes.map((note) => note.localDate)
-    ].filter((localDate) => localDate.startsWith(prefix)).sort().at(-1);
-    const today = toLocalDateKey();
-    state.historySelectedDate = today.startsWith(prefix) ? today : (latestDate || `${prefix}01`);
+}
+
+function shiftPracticeCalendarDate({ days = 0, months = 0 }) {
+    const current = practiceLocalDateToDate(state.historySelectedDate);
+    if (months) {
+        const intendedDay = current.getDate();
+        current.setDate(1);
+        current.setMonth(current.getMonth() + months);
+        current.setDate(Math.min(intendedDay, new Date(current.getFullYear(), current.getMonth() + 1, 0).getDate()));
+    }
+    if (days) current.setDate(current.getDate() + days);
+    setPracticeCalendarSelectedDate(current);
+}
+
+function getPracticeCalendarWeekDates(localDate) {
+    const selected = practiceLocalDateToDate(localDate);
+    selected.setDate(selected.getDate() - selected.getDay());
+    return Array.from({ length: 7 }, (_, index) => {
+        const date = new Date(selected);
+        date.setDate(selected.getDate() + index);
+        return date;
+    });
 }
 
 function closePracticeCalendarNoteForm() {
     state.calendarNoteEditId = null;
+    state.calendarNoteIcon = PRACTICE_CALENDAR_DEFAULT_ICON;
     elements.calendarNoteForm.hidden = true;
     elements.calendarNoteText.value = '';
     showNotice(elements.calendarNoteError);
 }
 
+const PRACTICE_CALENDAR_ICON_SHAPES = Object.freeze({
+    schedule: [['rect', { x: 4, y: 5.5, width: 16, height: 14, rx: 2 }], ['path', { d: 'M8 3.5v4M16 3.5v4M4 10h16' }]],
+    live: [['path', { d: 'M9 18V6l10-2v12' }], ['circle', { cx: 6.5, cy: 18, r: 2.5 }], ['circle', { cx: 16.5, cy: 16, r: 2.5 }]],
+    rehearsal: [['circle', { cx: 9, cy: 8, r: 3 }], ['circle', { cx: 17, cy: 9, r: 2.5 }], ['path', { d: 'M3.5 19c.6-3.6 2.4-5.5 5.5-5.5s4.9 1.9 5.5 5.5M14 14.5c3.6-.7 5.8.8 6.5 4.5' }]],
+    recording: [['rect', { x: 8, y: 3, width: 8, height: 12, rx: 4 }], ['path', { d: 'M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8' }]],
+    memo: [['path', { d: 'M6 3.5h9l3 3V20H6zM15 3.5V7h3M9 11h6M9 15h6' }]],
+    rest: [['path', { d: 'M18.5 15.5A8 8 0 0 1 8.5 5.5 8 8 0 1 0 18.5 15.5z' }]]
+});
+
+function createPracticeCalendarIcon(icon, className = '') {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('fill', 'none');
+    svg.setAttribute('stroke', 'currentColor');
+    svg.setAttribute('stroke-width', '1.6');
+    svg.setAttribute('stroke-linecap', 'round');
+    svg.setAttribute('stroke-linejoin', 'round');
+    if (className) svg.setAttribute('class', className);
+    (PRACTICE_CALENDAR_ICON_SHAPES[icon] || PRACTICE_CALENDAR_ICON_SHAPES.memo).forEach(([tagName, attributes]) => {
+        const shape = document.createElementNS('http://www.w3.org/2000/svg', tagName);
+        Object.entries(attributes).forEach(([name, value]) => shape.setAttribute(name, String(value)));
+        svg.append(shape);
+    });
+    return svg;
+}
+
+function renderPracticeCalendarIconChoices() {
+    elements.calendarNoteIcons.replaceChildren(...PRACTICE_CALENDAR_ICONS.map(({ value, label }) => {
+        const button = document.createElement('button');
+        const text = document.createElement('span');
+        button.type = 'button';
+        button.dataset.calendarNoteIcon = value;
+        button.setAttribute('aria-pressed', value === state.calendarNoteIcon ? 'true' : 'false');
+        button.append(createPracticeCalendarIcon(value), text);
+        text.textContent = label;
+        return button;
+    }));
+}
+
 function openPracticeCalendarNoteForm(note = null) {
     state.calendarNoteEditId = note?.id || null;
+    state.calendarNoteIcon = note?.icon || PRACTICE_CALENDAR_DEFAULT_ICON;
     elements.calendarNoteText.value = note?.text || '';
+    renderPracticeCalendarIconChoices();
     elements.calendarNoteForm.hidden = false;
     showNotice(elements.calendarNoteError);
     elements.calendarNoteText.focus({ preventScroll: true });
@@ -1905,6 +1990,7 @@ function renderPracticeCalendarNotes() {
         const edit = document.createElement('button');
         const remove = document.createElement('button');
         row.className = 'practice-calendar-note';
+        row.append(createPracticeCalendarIcon(note.icon, 'practice-calendar-note-icon'));
         text.textContent = note.text;
         edit.type = 'button';
         edit.dataset.calendarNoteAction = 'edit';
@@ -1930,10 +2016,14 @@ function handlePracticeCalendarNoteSubmit(event) {
     event.preventDefault();
     if (!state.calendarReady) return;
     const result = state.calendarNoteEditId
-        ? updatePracticeCalendarNote(state.calendar, state.calendarNoteEditId, elements.calendarNoteText.value)
+        ? updatePracticeCalendarNote(state.calendar, state.calendarNoteEditId, {
+            text: elements.calendarNoteText.value,
+            icon: state.calendarNoteIcon
+        })
         : createPracticeCalendarNote(state.calendar, {
             localDate: state.historySelectedDate,
-            text: elements.calendarNoteText.value
+            text: elements.calendarNoteText.value,
+            icon: state.calendarNoteIcon
         });
     if (!result.ok) {
         showNotice(
@@ -1974,24 +2064,24 @@ function handlePracticeCalendarNoteAction(event) {
 function renderPracticeDayHistory() {
     const [year, month, day] = state.historySelectedDate.split('-').map(Number);
     elements.dayHistoryTitle.textContent = `${month}月${day}日の練習記録`;
-    const events = getPracticeHistoryForDate(state.history, state.historySelectedDate);
+    const entries = createPracticeDayHistoryView(state.history, state.historySelectedDate);
     elements.dayHistoryList.replaceChildren();
-    if (events.length === 0) {
+    if (entries.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'practice-history-empty';
         empty.textContent = 'この日の練習記録はありません。';
         elements.dayHistoryList.append(empty);
         return;
     }
-    events.forEach((event) => {
+    entries.forEach(({ event, kind, children }) => {
         const row = document.createElement('div');
         const mark = document.createElement('span');
         const copy = document.createElement('span');
         const title = document.createElement('strong');
         const detail = document.createElement('small');
         const completed = event.type === PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted;
-        const session = event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession;
-        row.className = `practice-history-event${completed ? ' is-cycle-complete' : ''}`;
+        const session = kind === 'session';
+        row.className = `practice-history-event${completed ? ' is-cycle-complete' : ''}${session ? ' is-session' : ''}`;
         mark.setAttribute('aria-hidden', 'true');
         mark.textContent = completed ? '★' : session ? '◷' : '✓';
         title.textContent = completed ? '全メニュー完了' : session ? '練習セッション' : event.practiceName;
@@ -2001,52 +2091,143 @@ function renderPracticeDayHistory() {
                 ? `${formatPracticeSessionDuration(event.durationSeconds)} ・ ${new Date(event.startedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${new Date(event.endedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
             : `${event.durationMinutes}分 ・ ${new Date(event.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
         copy.append(title, detail);
+        if (session && children.length > 0) {
+            const childList = document.createElement('ul');
+            childList.className = 'practice-history-session-children';
+            children.forEach((child) => {
+                const childItem = document.createElement('li');
+                const childMark = document.createElement('span');
+                const childName = document.createElement('span');
+                childMark.setAttribute('aria-hidden', 'true');
+                childMark.textContent = '✓';
+                childName.textContent = child.practiceName;
+                childItem.append(childMark, childName);
+                childList.append(childItem);
+            });
+            copy.append(childList);
+        }
         row.append(mark, copy);
         elements.dayHistoryList.append(row);
     });
 }
 
-function renderPracticeHistory({ focus = true } = {}) {
-    showView(elements.practiceHistoryView);
-    const year = state.historyMonth.getFullYear();
-    const monthIndex = state.historyMonth.getMonth();
+function createPracticeCalendarDayButton(summary, date, { week = false } = {}) {
+    const button = document.createElement('button');
+    const selected = summary.localDate === state.historySelectedDate;
+    const today = summary.localDate === toLocalDateKey();
+    button.type = 'button';
+    button.dataset.practiceDate = summary.localDate;
+    button.className = 'practice-calendar-day';
+    button.classList.toggle('has-activity', summary.practiced);
+    button.classList.toggle('has-complete', summary.completed);
+    button.classList.toggle('has-memo', summary.notes.length > 0);
+    button.classList.toggle('is-today', today);
+    button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    button.setAttribute('aria-label', `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日${summary.practiced ? '、練習済み' : '、練習記録なし'}${summary.notes.length ? `、予定・メモ${summary.notes.length}件` : ''}${summary.completed ? '、全メニュー完了' : ''}`);
+    if (week) {
+        const weekday = document.createElement('small');
+        weekday.textContent = PRACTICE_CALENDAR_WEEKDAYS[date.getDay()];
+        button.append(weekday);
+    }
+    const dayNumber = document.createElement('span');
+    dayNumber.textContent = week ? `${date.getMonth() + 1}/${date.getDate()}` : String(date.getDate());
+    button.append(dayNumber);
+    const markers = document.createElement('span');
+    markers.className = 'practice-calendar-markers';
+    if (summary.practiced) {
+        const mark = document.createElement('i');
+        mark.setAttribute('aria-hidden', 'true');
+        mark.textContent = '✓';
+        markers.append(mark);
+    }
+    if (summary.notes.length > 0) {
+        const memoMark = document.createElement('b');
+        memoMark.setAttribute('aria-hidden', 'true');
+        memoMark.append(createPracticeCalendarIcon(summary.memoIcons[0]));
+        markers.append(memoMark);
+        if (summary.notes.length > 1) {
+            const noteCount = document.createElement('em');
+            noteCount.setAttribute('aria-hidden', 'true');
+            noteCount.textContent = `+${summary.notes.length - 1}`;
+            markers.append(noteCount);
+        }
+    }
+    button.append(markers);
+    return button;
+}
+
+function renderPracticeMonthCalendar(selectedDate) {
+    const year = selectedDate.getFullYear();
+    const monthIndex = selectedDate.getMonth();
     elements.calendarMonth.textContent = `${year}年${monthIndex + 1}月`;
-    elements.calendarDays.replaceChildren();
-    createPracticeCalendarMonth(year, monthIndex, state.history, state.calendar.notes).forEach((cell) => {
+    elements.calendarPrevious.setAttribute('aria-label', '前の月');
+    elements.calendarNext.setAttribute('aria-label', '次の月');
+    elements.calendarWeekdays.hidden = false;
+    elements.calendarDays.hidden = false;
+    elements.calendarDayFocus.hidden = true;
+    elements.calendarDays.className = 'practice-calendar-days is-month';
+    elements.calendarDays.setAttribute('aria-label', `${year}年${monthIndex + 1}月の練習カレンダー`);
+    elements.calendarDays.replaceChildren(...createPracticeCalendarMonth(year, monthIndex, state.history, state.calendar.notes).map((cell) => {
         if (!cell) {
             const blank = document.createElement('span');
             blank.className = 'practice-calendar-blank';
             blank.setAttribute('aria-hidden', 'true');
-            elements.calendarDays.append(blank);
-            return;
+            return blank;
         }
-        const button = document.createElement('button');
-        const selected = cell.localDate === state.historySelectedDate;
-        const today = cell.localDate === toLocalDateKey();
-        button.type = 'button';
-        button.dataset.practiceDate = cell.localDate;
-        button.className = 'practice-calendar-day';
-        button.classList.toggle('has-activity', cell.count > 0);
-        button.classList.toggle('has-complete', cell.completed);
-        button.classList.toggle('has-memo', cell.hasMemo);
-        button.classList.toggle('is-today', today);
-        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
-        button.setAttribute('aria-label', `${year}年${monthIndex + 1}月${cell.day}日${cell.count ? `、練習${cell.count}件` : '、練習記録なし'}${cell.hasMemo ? '、予定・メモあり' : ''}${cell.completed ? '、全メニュー完了' : ''}`);
-        const dayNumber = document.createElement('span');
-        dayNumber.textContent = String(cell.day);
-        button.append(dayNumber);
-        if (cell.count) {
-            const mark = document.createElement('i');
-            mark.setAttribute('aria-hidden', 'true');
-            button.append(mark);
-        }
-        if (cell.hasMemo) {
-            const memoMark = document.createElement('b');
-            memoMark.setAttribute('aria-hidden', 'true');
-            button.append(memoMark);
-        }
-        elements.calendarDays.append(button);
+        return createPracticeCalendarDayButton(cell, new Date(year, monthIndex, cell.day, 12));
+    }));
+}
+
+function renderPracticeWeekCalendar() {
+    const weekDates = getPracticeCalendarWeekDates(state.historySelectedDate);
+    const first = weekDates[0];
+    const last = weekDates[6];
+    elements.calendarMonth.textContent = first.getMonth() === last.getMonth()
+        ? `${first.getFullYear()}年${first.getMonth() + 1}月${first.getDate()}日〜${last.getDate()}日`
+        : `${first.getMonth() + 1}月${first.getDate()}日〜${last.getMonth() + 1}月${last.getDate()}日`;
+    elements.calendarPrevious.setAttribute('aria-label', '前の週');
+    elements.calendarNext.setAttribute('aria-label', '次の週');
+    elements.calendarWeekdays.hidden = true;
+    elements.calendarDays.hidden = false;
+    elements.calendarDayFocus.hidden = true;
+    elements.calendarDays.className = 'practice-calendar-days is-week';
+    elements.calendarDays.setAttribute('aria-label', '選択日を含む週の練習カレンダー');
+    elements.calendarDays.replaceChildren(...weekDates.map((date) => createPracticeCalendarDayButton(
+        createPracticeCalendarDaySummary(toLocalDateKey(date), state.history, state.calendar.notes),
+        date,
+        { week: true }
+    )));
+}
+
+function renderPracticeDayCalendar(selectedDate) {
+    const summary = createPracticeCalendarDaySummary(state.historySelectedDate, state.history, state.calendar.notes);
+    elements.calendarMonth.textContent = `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日（${PRACTICE_CALENDAR_WEEKDAYS[selectedDate.getDay()]}）`;
+    elements.calendarPrevious.setAttribute('aria-label', '前の日');
+    elements.calendarNext.setAttribute('aria-label', '次の日');
+    elements.calendarWeekdays.hidden = true;
+    elements.calendarDays.hidden = true;
+    elements.calendarDayFocus.hidden = false;
+    elements.calendarDayFocus.replaceChildren();
+    const date = document.createElement('time');
+    date.dateTime = state.historySelectedDate;
+    date.textContent = `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日 ${PRACTICE_CALENDAR_WEEKDAYS[selectedDate.getDay()]}曜日`;
+    const status = document.createElement('span');
+    status.textContent = summary.practiced ? '✓ 練習できた日' : '練習記録はまだありません';
+    elements.calendarDayFocus.append(date, status);
+}
+
+function renderPracticeHistory({ focus = true } = {}) {
+    showView(elements.practiceHistoryView);
+    const selectedDate = practiceLocalDateToDate(state.historySelectedDate);
+    state.historyMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+    elements.calendarViewTabs.forEach((button) => {
+        const active = button.dataset.calendarView === state.calendarViewMode;
+        button.setAttribute('aria-selected', active ? 'true' : 'false');
+        button.tabIndex = active ? 0 : -1;
     });
+    if (state.calendarViewMode === 'week') renderPracticeWeekCalendar();
+    else if (state.calendarViewMode === 'day') renderPracticeDayCalendar(selectedDate);
+    else renderPracticeMonthCalendar(selectedDate);
     showNotice(
         elements.historyError,
         state.historyReady && state.calendarReady
@@ -2295,25 +2476,43 @@ function openPracticeAttachmentLightboxForRecord(record, trigger) {
     elements.attachmentLightboxTitle.focus({ preventScroll: true });
 }
 
-function openPracticeAttachmentRecord(record) {
-    const objectUrl = URL.createObjectURL(record.blob);
-    practiceAttachmentObjectUrls.add(objectUrl);
-    const link = document.createElement('a');
-    link.href = objectUrl;
-    if (isSafePracticeAttachmentInlineOpen(record.mimeType)) {
-        link.target = '_blank';
-        link.rel = 'noopener';
-    } else {
-        link.download = record.fileName;
+function closePreparedPracticeAttachmentWindow(preparedWindow) {
+    try {
+        if (preparedWindow && !preparedWindow.closed) preparedWindow.close();
+    } catch (_) {
+        // A blocked or already-detached popup needs no further cleanup.
     }
-    link.hidden = true;
-    document.body.append(link);
-    link.click();
-    link.remove();
+}
+
+function openPracticeAttachmentRecord(record, preparedWindow = null) {
+    const inline = isSafePracticeAttachmentInlineOpen(record.mimeType);
+    if (inline && !preparedWindow) return false;
+    const objectUrl = URL.createObjectURL(record.blob);
+    practiceAttachmentExternalObjectUrls.add(objectUrl);
+    if (inline) {
+        try {
+            if (!navigatePreparedPracticeFileWindow(preparedWindow, objectUrl)) throw new Error('navigation-failed');
+        } catch (_) {
+            closePreparedPracticeAttachmentWindow(preparedWindow);
+            practiceAttachmentExternalObjectUrls.delete(objectUrl);
+            URL.revokeObjectURL(objectUrl);
+            return false;
+        }
+    } else {
+        closePreparedPracticeAttachmentWindow(preparedWindow);
+        const link = document.createElement('a');
+        link.href = objectUrl;
+        link.download = record.fileName;
+        link.hidden = true;
+        document.body.append(link);
+        link.click();
+        link.remove();
+    }
     window.setTimeout(() => {
-        if (!practiceAttachmentObjectUrls.delete(objectUrl)) return;
+        if (!practiceAttachmentExternalObjectUrls.delete(objectUrl)) return;
         URL.revokeObjectURL(objectUrl);
-    }, 60_000);
+    }, 5 * 60_000);
+    return true;
 }
 
 async function handlePracticeAttachmentSelection(event, scope = 'detail') {
@@ -2377,21 +2576,36 @@ async function handlePracticeFilesAction(button, event) {
     event.stopPropagation();
     const item = findItem(button.dataset.id);
     if (!item) return;
+    let preparedWindow = null;
+    if (button.dataset.count === '1') {
+        try {
+            preparedWindow = preparePracticeFileWindow(window);
+        } catch (_) {
+            preparedWindow = null;
+        }
+    }
     const result = await practiceAttachmentStore.getAttachments(item.id);
     if (!result.ok) {
+        closePreparedPracticeAttachmentWindow(preparedWindow);
         state.listNotice = 'ファイル機能を利用できません。保存設定を確認してください。';
         renderPracticeList({ focus: false });
         return;
     }
     await refreshPracticeAttachmentCounts({ renderList: false });
     if (result.records.length !== 1) {
+        closePreparedPracticeAttachmentWindow(preparedWindow);
         state.filesFocusId = item.id;
         setHashRoute(`#practice-menu/${encodeURIComponent(item.id)}`);
         return;
     }
     const [record] = result.records;
-    if (record.kind === 'image') openPracticeAttachmentLightboxForRecord(record, button);
-    else openPracticeAttachmentRecord(record);
+    if (record.kind === 'image') {
+        closePreparedPracticeAttachmentWindow(preparedWindow);
+        openPracticeAttachmentLightboxForRecord(record, button);
+    } else if (!openPracticeAttachmentRecord(record, preparedWindow)) {
+        state.listNotice = 'ファイルを開けませんでした。ポップアップを許可して、もう一度お試しください。';
+        renderPracticeList({ focus: false });
+    }
 }
 
 function renderDetail(id) {
@@ -2436,8 +2650,12 @@ function renderDetail(id) {
     state.filesFocusId = null;
     void renderPracticeAttachments(item.id).then(() => {
         if (!focusFiles || state.activeId !== item.id) return;
-        document.querySelector('#practice-attachments-title')?.scrollIntoView({ block: 'nearest' });
-        document.querySelector('#practice-attachments-title')?.focus({ preventScroll: true });
+        requestAnimationFrame(() => {
+            if (state.activeId !== item.id || parsePracticeRoute(location.hash)?.kind !== PRACTICE_ROUTE_KIND.detail) return;
+            const target = document.querySelector('#practice-attachments-title');
+            target?.scrollIntoView({ behavior: 'auto', block: 'start' });
+            target?.focus({ preventScroll: true });
+        });
     });
     elements.detailTitle.focus({ preventScroll: true });
 }
@@ -3626,20 +3844,38 @@ elements.reorderStart.addEventListener('click', startReorder);
 elements.reorderCancel.addEventListener('click', cancelReorder);
 elements.reorderComplete.addEventListener('click', completeReorder);
 elements.timerToggle.addEventListener('click', handlePracticeTimerToggle);
-elements.historyOpen.addEventListener('click', () => setHashRoute('#practice-menu/calendar'));
+elements.historyOpen.addEventListener('click', () => {
+    state.calendarViewMode = 'month';
+    setHashRoute('#practice-menu/calendar');
+});
 elements.hiddenOpen.addEventListener('click', () => setHashRoute('#practice-menu/hidden'));
 elements.completeButton.addEventListener('click', handlePracticeComplete);
 elements.cycleReset.addEventListener('click', handlePracticeCycleReset);
+elements.calendarViewTabs.forEach((button) => button.addEventListener('click', () => {
+    state.calendarViewMode = button.dataset.calendarView;
+    renderPracticeHistory({ focus: false });
+    button.focus({ preventScroll: true });
+}));
+elements.calendarViewTabs.forEach((button, index) => button.addEventListener('keydown', (event) => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault();
+    const offset = event.key === 'ArrowLeft' ? -1 : 1;
+    elements.calendarViewTabs[(index + offset + elements.calendarViewTabs.length) % elements.calendarViewTabs.length].click();
+}));
 elements.calendarPrevious.addEventListener('click', () => {
-    selectPracticeHistoryMonth(new Date(state.historyMonth.getFullYear(), state.historyMonth.getMonth() - 1, 1));
+    shiftPracticeCalendarDate(state.calendarViewMode === 'month'
+        ? { months: -1 }
+        : { days: state.calendarViewMode === 'week' ? -7 : -1 });
     renderPracticeHistory({ focus: false });
 });
 elements.calendarNext.addEventListener('click', () => {
-    selectPracticeHistoryMonth(new Date(state.historyMonth.getFullYear(), state.historyMonth.getMonth() + 1, 1));
+    shiftPracticeCalendarDate(state.calendarViewMode === 'month'
+        ? { months: 1 }
+        : { days: state.calendarViewMode === 'week' ? 7 : 1 });
     renderPracticeHistory({ focus: false });
 });
 elements.calendarToday.addEventListener('click', () => {
-    selectPracticeHistoryMonth(new Date());
+    setPracticeCalendarSelectedDate(new Date());
     renderPracticeHistory({ focus: false });
 });
 elements.calendarDays.addEventListener('click', (event) => {
@@ -3649,6 +3885,13 @@ elements.calendarDays.addEventListener('click', (event) => {
     renderPracticeHistory({ focus: false });
 });
 elements.calendarNoteAdd.addEventListener('click', () => openPracticeCalendarNoteForm());
+elements.calendarNoteIcons.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-calendar-note-icon]');
+    if (!button) return;
+    state.calendarNoteIcon = button.dataset.calendarNoteIcon;
+    renderPracticeCalendarIconChoices();
+    elements.calendarNoteIcons.querySelector(`[data-calendar-note-icon="${state.calendarNoteIcon}"]`)?.focus({ preventScroll: true });
+});
 elements.calendarNoteForm.addEventListener('submit', handlePracticeCalendarNoteSubmit);
 elements.calendarNoteCancel.addEventListener('click', closePracticeCalendarNoteForm);
 elements.calendarNotesList.addEventListener('click', handlePracticeCalendarNoteAction);
@@ -3822,6 +4065,8 @@ window.addEventListener('pagehide', () => {
     state.timerInterval = null;
     closePracticeAttachmentLightbox();
     cleanupPracticeAttachmentObjectUrls();
+    practiceAttachmentExternalObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+    practiceAttachmentExternalObjectUrls.clear();
 });
 window.addEventListener('pageshow', ensurePracticeTimerTicking);
 
