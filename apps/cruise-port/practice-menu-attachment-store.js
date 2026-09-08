@@ -153,6 +153,24 @@ export function createPracticeAttachmentStore({ indexedDBObject = globalThis.ind
         }
     }
 
+    async function getAttachmentCounts(practiceIds) {
+        const ids = [...new Set(practiceIds)].filter((practiceId) => typeof practiceId === 'string' && practiceId);
+        try {
+            const database = await getDatabase();
+            const counts = await Promise.all(ids.map((practiceId) => new Promise((resolve, reject) => {
+                const transaction = database.transaction(PRACTICE_ATTACHMENT_STORE_NAME, 'readonly');
+                const request = transaction.objectStore(PRACTICE_ATTACHMENT_STORE_NAME)
+                    .index(PRACTICE_ATTACHMENT_INDEX_NAME)
+                    .count(practiceId);
+                request.onsuccess = () => resolve([practiceId, request.result || 0]);
+                request.onerror = () => reject(request.error || new Error('indexeddb-count-failed'));
+            })));
+            return { ok: true, counts: Object.fromEntries(counts) };
+        } catch (_) {
+            return { ok: false, counts: {}, reason: 'read-failed' };
+        }
+    }
+
     return Object.freeze({
         async addAttachment(practiceId, blob, { fileName, now = new Date(), idFactory = createAttachmentId } = {}) {
             const mimeType = normalizeMimeType(blob);
@@ -182,6 +200,7 @@ export function createPracticeAttachmentStore({ indexedDBObject = globalThis.ind
             }
         },
         getAttachments,
+        getAttachmentCounts,
         deleteAttachment,
         async deleteAttachmentsForPractice(practiceId) {
             const existing = await getAttachments(practiceId);

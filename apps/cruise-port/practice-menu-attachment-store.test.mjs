@@ -38,6 +38,14 @@ function createFakeIndexedDB() {
                                 request.onsuccess?.();
                             });
                             return request;
+                        },
+                        count(practiceId) {
+                            const request = {};
+                            queueMicrotask(() => {
+                                request.result = [...records.values()].filter((record) => record.practiceId === practiceId).length;
+                                request.onsuccess?.();
+                            });
+                            return request;
                         }
                     };
                 }
@@ -77,6 +85,10 @@ test('separate IndexedDB stores multiple image and PDF attachments by practice',
     assert.equal(image.record.kind, 'image');
     assert.equal(pdf.record.kind, 'file');
     assert.deepEqual((await store.getAttachments('practice-a')).records.map(({ id }) => id), ['image-1', 'pdf-1']);
+    assert.deepEqual(await store.getAttachmentCounts(['practice-a', 'practice-b', 'practice-a']), {
+        ok: true,
+        counts: { 'practice-a': 2, 'practice-b': 1 }
+    });
     assert.deepEqual(indexedDBObject.calls[0], ['open', PRACTICE_ATTACHMENT_DB_NAME, PRACTICE_ATTACHMENT_DB_VERSION]);
     assert.deepEqual(indexedDBObject.calls[2], ['createIndex', PRACTICE_ATTACHMENT_INDEX_NAME, 'practiceId', { unique: false }]);
 });

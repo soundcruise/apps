@@ -32,6 +32,10 @@ assert.match(markup, /id="practice-detail-count"/);
 assert.match(markup, /id="practice-open-app"[^>]*>アプリを開く/);
 assert.match(markup, /id="practice-detail-back"[^>]*>練習メニューに戻る/);
 assert.match(markup, /id="practice-attachment-input"[^>]*multiple/);
+assert.match(markup, /id="practice-attachments-title"[^>]*>ファイル/);
+assert.match(markup, /id="practice-form-attachments"/);
+assert.match(markup, /id="practice-form-attachment-input"[^>]*multiple/);
+assert.doesNotMatch(`${markup}\n${source}`, /資料/);
 assert.doesNotMatch(markup, /id="practice-open-app"[^>]*primary-action/);
 
 assert.match(source, /className = 'practice-check'/);
@@ -53,6 +57,10 @@ assert.match(source, /createPracticeSessionEvent\(transition\.session\)/);
 assert.match(source, /setHashRoute\('#practice-menu\/calendar'\)/);
 assert.match(source, /deleteAttachmentsForPractice\(item\.id\)/);
 assert.match(source, /cleanupPracticeAttachmentObjectUrls\(\)/);
+assert.match(source, /getAttachmentCounts\(state\.items\.map/);
+assert.match(source, /action\.dataset\.practiceAction === 'files'/);
+assert.match(source, /ファイルサイズが大きすぎます。20MB以下のファイルを選んでください。/);
+assert.match(source, /画像サイズが大きすぎます。15MB以下の画像を選んでください。/);
 assert.doesNotMatch(source, /pagehide[\s\S]{0,500}stopPracticeTimer/);
 assert.match(source, /history\.replaceState[\s\S]*#practice-menu\/hidden/);
 
@@ -63,12 +71,15 @@ const listCardSource = source.slice(
 assert.doesNotMatch(listCardSource, /durationMinutes/);
 assert.doesNotMatch(listCardSource, /(?:detail|copy|name)\.textContent = app\.label/);
 assert.match(listCardSource, /card\.append\(detailLink, checkButton, copy, actions, arrow\)/);
+assert.match(listCardSource, /files\.textContent = attachmentCount === 1 \? 'ファイル' : `ファイル \$\{attachmentCount\}`/);
 
 assert.match(styles, /\.practice-calendar-days[\s\S]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/);
 assert.match(styles, /\.practice-check[\s\S]*width: 44px[\s\S]*height: 44px/);
 assert.match(styles, /\.practice-menu-card[\s\S]*grid-template-columns: 44px minmax\(0, 1fr\) auto 18px/);
 assert.match(styles, /\.practice-timer-toggle[\s\S]*min-height: 48px/);
 assert.match(styles, /\.practice-attachment-lightbox\[hidden\]/);
+assert.match(styles, /\.practice-files-button/);
+assert.match(styles, /\.practice-attachment-status\.is-error/);
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.practice-completion-celebration[\s\S]*animation: none/);
 assert.doesNotMatch(markup, /fullcalendar|react-calendar|calendar\.js/);
 

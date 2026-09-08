@@ -53,7 +53,7 @@ import {
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen,
     isSafePracticeImagePreview
-} from './practice-menu-attachment-store.js?v=1.0.0';
+} from './practice-menu-attachment-store.js?v=1.0.1';
 import {
     PRACTICE_APP_STATUS,
     countPracticeMenuReferences,
@@ -126,7 +126,7 @@ import { initMetronome } from './metronome-app.js?v=2.3.1';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.21.0';
+} from './app-version.js?v=1.21.1';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
 import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=1.0.1';
 import { initTuner } from './tuner-app.js?v=1.2.0';
@@ -274,6 +274,12 @@ const elements = {
     attachmentStatus: document.querySelector('#practice-attachment-status'),
     attachmentsEmpty: document.querySelector('#practice-attachments-empty'),
     attachmentsList: document.querySelector('#practice-attachments-list'),
+    formAttachments: document.querySelector('#practice-form-attachments'),
+    formAttachmentAdd: document.querySelector('#practice-form-attachments .practice-attachment-add'),
+    formAttachmentInput: document.querySelector('#practice-form-attachment-input'),
+    formAttachmentStatus: document.querySelector('#practice-form-attachment-status'),
+    formAttachmentsEmpty: document.querySelector('#practice-form-attachments-empty'),
+    formAttachmentsList: document.querySelector('#practice-form-attachments-list'),
     attachmentLightbox: document.querySelector('#practice-attachment-lightbox'),
     attachmentLightboxTitle: document.querySelector('#practice-attachment-lightbox-title'),
     attachmentLightboxImage: document.querySelector('#practice-attachment-lightbox-image'),
@@ -373,6 +379,9 @@ const state = {
     timer: null,
     timerReady: false,
     timerInterval: null,
+    attachmentCounts: {},
+    attachmentCountsReady: false,
+    filesFocusId: null,
     historyMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     historySelectedDate: toLocalDateKey(),
     completionTimer: null,
@@ -603,6 +612,24 @@ function getPracticeTotalCount(id) {
     return state.progress?.totalCounts[id] || 0;
 }
 
+function getPracticeAttachmentCount(id) {
+    return state.attachmentCounts[id] || 0;
+}
+
+async function refreshPracticeAttachmentCounts({ renderList = true } = {}) {
+    const result = await practiceAttachmentStore.getAttachmentCounts(state.items.map((item) => item.id));
+    if (!result.ok) {
+        state.attachmentCounts = {};
+        state.attachmentCountsReady = false;
+    } else {
+        state.attachmentCounts = result.counts;
+        state.attachmentCountsReady = true;
+    }
+    if (renderList && parsePracticeRoute(location.hash)?.kind === PRACTICE_ROUTE_KIND.list) {
+        renderPracticeList({ focus: false });
+    }
+}
+
 function renderPracticeCard(item) {
     const app = resolveCurrentPracticeApp(item.appId);
     const card = document.createElement('article');
@@ -655,6 +682,18 @@ function renderPracticeCard(item) {
         launchArrow.textContent = '↗';
         launch.append(launchArrow);
         actions.append(launch);
+    }
+    const attachmentCount = getPracticeAttachmentCount(item.id);
+    if (state.attachmentCountsReady && attachmentCount > 0) {
+        const files = document.createElement('button');
+        files.className = 'practice-files-button';
+        files.type = 'button';
+        files.dataset.practiceAction = 'files';
+        files.dataset.id = item.id;
+        files.dataset.count = String(attachmentCount);
+        files.setAttribute('aria-label', `${item.name}のファイル${attachmentCount}件を${attachmentCount === 1 ? '開く' : '一覧で見る'}`);
+        files.textContent = attachmentCount === 1 ? 'ファイル' : `ファイル ${attachmentCount}`;
+        actions.append(files);
     }
     card.append(detailLink, checkButton, copy, actions, arrow);
     return card;
@@ -2125,6 +2164,30 @@ function formatPracticeAttachmentSize(byteSize) {
     return `${(byteSize / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getPracticeAttachmentPresentation(scope = 'detail') {
+    return scope === 'form'
+        ? {
+            add: elements.formAttachmentAdd,
+            input: elements.formAttachmentInput,
+            status: elements.formAttachmentStatus,
+            empty: elements.formAttachmentsEmpty,
+            list: elements.formAttachmentsList
+        }
+        : {
+            add: elements.attachmentAdd,
+            input: elements.attachmentInput,
+            status: elements.attachmentStatus,
+            empty: elements.attachmentsEmpty,
+            list: elements.attachmentsList
+        };
+}
+
+function setPracticeAttachmentStatus(scope, message = '', { error = false } = {}) {
+    const status = getPracticeAttachmentPresentation(scope).status;
+    status.textContent = message;
+    status.classList.toggle('is-error', Boolean(message) && error);
+}
+
 function createPracticeAttachmentRow(record) {
     const row = document.createElement('article');
     const preview = document.createElement(record.kind === 'image' ? 'button' : 'span');
@@ -2155,7 +2218,12 @@ function createPracticeAttachmentRow(record) {
     }
     copy.className = 'practice-attachment-copy';
     name.textContent = record.fileName;
-    detail.textContent = formatPracticeAttachmentSize(record.byteSize);
+    const fileKind = record.kind === 'image'
+      ? '画像'
+      : record.mimeType === 'application/pdf'
+        ? 'PDF'
+        : 'ファイル';
+    detail.textContent = `${fileKind} ・ ${formatPracticeAttachmentSize(record.byteSize)}`;
     copy.append(name, detail);
     actions.className = 'practice-attachment-actions';
     open.href = objectUrl;
@@ -2179,29 +2247,30 @@ function createPracticeAttachmentRow(record) {
     return row;
 }
 
-async function renderPracticeAttachments(practiceId) {
+async function renderPracticeAttachments(practiceId, scope = 'detail') {
+    const presentation = getPracticeAttachmentPresentation(scope);
     closePracticeAttachmentLightbox();
     cleanupPracticeAttachmentObjectUrls();
     const generation = practiceAttachmentRenderGeneration;
-    elements.attachmentsList.replaceChildren();
-    elements.attachmentsEmpty.hidden = true;
-    elements.attachmentInput.disabled = true;
-    elements.attachmentAdd.classList.add('is-disabled');
+    presentation.list.replaceChildren();
+    presentation.empty.hidden = true;
+    presentation.input.disabled = true;
+    presentation.add.classList.add('is-disabled');
     const result = await practiceAttachmentStore.getAttachments(practiceId);
     if (generation !== practiceAttachmentRenderGeneration || state.activeId !== practiceId) return;
     if (!result.ok) {
-        elements.attachmentsEmpty.hidden = false;
-        elements.attachmentsEmpty.textContent = '資料の保存領域を利用できません。練習メニュー本体は引き続き利用できます。';
-        elements.attachmentStatus.textContent = '';
+        presentation.empty.hidden = false;
+        presentation.empty.textContent = 'ファイル機能を利用できません。練習メニュー本体は引き続き利用できます。';
+        setPracticeAttachmentStatus(scope, 'ファイルの保存領域を利用できません。', { error: true });
         return;
     }
-    elements.attachmentInput.disabled = result.records.length >= PRACTICE_ATTACHMENT_LIMITS.countPerPractice;
-    elements.attachmentAdd.classList.toggle('is-disabled', elements.attachmentInput.disabled);
-    elements.attachmentsEmpty.hidden = result.records.length > 0;
-    elements.attachmentsEmpty.textContent = result.records.length >= PRACTICE_ATTACHMENT_LIMITS.countPerPractice
-        ? `資料は${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。`
-        : '資料はありません。';
-    elements.attachmentsList.replaceChildren(...result.records.map(createPracticeAttachmentRow));
+    presentation.input.disabled = result.records.length >= PRACTICE_ATTACHMENT_LIMITS.countPerPractice;
+    presentation.add.classList.toggle('is-disabled', presentation.input.disabled);
+    presentation.empty.hidden = result.records.length > 0;
+    presentation.empty.textContent = result.records.length >= PRACTICE_ATTACHMENT_LIMITS.countPerPractice
+        ? `ファイルは${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。`
+        : 'ファイルはありません。';
+    presentation.list.replaceChildren(...result.records.map(createPracticeAttachmentRow));
 }
 
 function openPracticeAttachmentLightbox(button) {
@@ -2214,36 +2283,81 @@ function openPracticeAttachmentLightbox(button) {
     elements.attachmentLightboxTitle.focus({ preventScroll: true });
 }
 
-async function handlePracticeAttachmentSelection() {
+function openPracticeAttachmentLightboxForRecord(record, trigger) {
+    const objectUrl = URL.createObjectURL(record.blob);
+    practiceAttachmentObjectUrls.add(objectUrl);
+    practiceAttachmentLightboxReturnFocus = trigger;
+    elements.attachmentLightboxTitle.textContent = record.fileName;
+    elements.attachmentLightboxImage.src = objectUrl;
+    elements.attachmentLightboxImage.alt = record.fileName;
+    elements.attachmentLightbox.hidden = false;
+    document.body.classList.add('practice-attachment-lightbox-open');
+    elements.attachmentLightboxTitle.focus({ preventScroll: true });
+}
+
+function openPracticeAttachmentRecord(record) {
+    const objectUrl = URL.createObjectURL(record.blob);
+    practiceAttachmentObjectUrls.add(objectUrl);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    if (isSafePracticeAttachmentInlineOpen(record.mimeType)) {
+        link.target = '_blank';
+        link.rel = 'noopener';
+    } else {
+        link.download = record.fileName;
+    }
+    link.hidden = true;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => {
+        if (!practiceAttachmentObjectUrls.delete(objectUrl)) return;
+        URL.revokeObjectURL(objectUrl);
+    }, 60_000);
+}
+
+async function handlePracticeAttachmentSelection(event, scope = 'detail') {
+    const presentation = getPracticeAttachmentPresentation(scope);
     const item = findItem(state.activeId);
-    const files = [...(elements.attachmentInput.files || [])];
-    elements.attachmentInput.value = '';
+    const files = [...(presentation.input.files || [])];
+    presentation.input.value = '';
     if (!item || files.length === 0) return;
-    elements.attachmentInput.disabled = true;
-    elements.attachmentStatus.textContent = '資料を保存しています…';
+    presentation.input.disabled = true;
+    setPracticeAttachmentStatus(scope, 'ファイルを保存しています…');
     let savedCount = 0;
     let failureMessage = '';
     for (const file of files) {
         const image = isSafePracticeImagePreview(file.type.toLowerCase());
         const limit = image ? PRACTICE_ATTACHMENT_LIMITS.imageBytes : PRACTICE_ATTACHMENT_LIMITS.fileBytes;
-        if (!file.size || file.size > limit) {
-            failureMessage = image ? '画像は15MB以内にしてください。' : 'ファイルは20MB以内にしてください。';
+        if (!file.size) {
+            failureMessage = '空のファイルは追加できません。別のファイルを選んでください。';
+            break;
+        }
+        if (file.size > limit) {
+            failureMessage = image
+                ? '画像サイズが大きすぎます。15MB以下の画像を選んでください。'
+                : 'ファイルサイズが大きすぎます。20MB以下のファイルを選んでください。';
             break;
         }
         const result = await practiceAttachmentStore.addAttachment(item.id, file, { fileName: file.name });
         if (!result.ok) {
             failureMessage = result.reason === 'limit-reached'
-                ? `資料は1つの練習メニューにつき${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。`
-                : '資料を保存できませんでした。ブラウザの空き容量や保存設定を確認してください。';
+                ? `ファイルは1つの練習メニューにつき${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。不要なファイルを削除してください。`
+                : 'ファイルを保存できませんでした。ブラウザの空き容量や保存設定を確認してください。';
             break;
         }
         savedCount += 1;
     }
-    elements.attachmentStatus.textContent = failureMessage || `${savedCount}件の資料を追加しました。`;
-    await renderPracticeAttachments(item.id);
+    setPracticeAttachmentStatus(
+        scope,
+        failureMessage || `ファイルを${savedCount}件追加しました。`,
+        { error: Boolean(failureMessage) }
+    );
+    await renderPracticeAttachments(item.id, scope);
+    await refreshPracticeAttachmentCounts();
 }
 
-async function handlePracticeAttachmentAction(event) {
+async function handlePracticeAttachmentAction(event, scope = 'detail') {
     const button = event.target.closest('[data-attachment-action]');
     if (!button) return;
     if (button.dataset.attachmentAction === 'preview') {
@@ -2253,10 +2367,31 @@ async function handlePracticeAttachmentAction(event) {
     const item = findItem(state.activeId);
     if (!item || !window.confirm(`「${button.dataset.fileName}」を削除しますか？`)) return;
     const result = await practiceAttachmentStore.deleteAttachment(button.dataset.id);
-    elements.attachmentStatus.textContent = result.ok
-        ? '資料を削除しました。'
-        : '資料を削除できませんでした。';
-    await renderPracticeAttachments(item.id);
+    setPracticeAttachmentStatus(scope, result.ok ? 'ファイルを削除しました。' : 'ファイルを削除できませんでした。', { error: !result.ok });
+    await renderPracticeAttachments(item.id, scope);
+    await refreshPracticeAttachmentCounts();
+}
+
+async function handlePracticeFilesAction(button, event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const item = findItem(button.dataset.id);
+    if (!item) return;
+    const result = await practiceAttachmentStore.getAttachments(item.id);
+    if (!result.ok) {
+        state.listNotice = 'ファイル機能を利用できません。保存設定を確認してください。';
+        renderPracticeList({ focus: false });
+        return;
+    }
+    await refreshPracticeAttachmentCounts({ renderList: false });
+    if (result.records.length !== 1) {
+        state.filesFocusId = item.id;
+        setHashRoute(`#practice-menu/${encodeURIComponent(item.id)}`);
+        return;
+    }
+    const [record] = result.records;
+    if (record.kind === 'image') openPracticeAttachmentLightboxForRecord(record, button);
+    else openPracticeAttachmentRecord(record);
 }
 
 function renderDetail(id) {
@@ -2296,8 +2431,14 @@ function renderDetail(id) {
                 : '';
     showNotice(elements.detailError, detailMessage);
     showView(elements.detailView);
-    elements.attachmentStatus.textContent = '';
-    void renderPracticeAttachments(item.id);
+    setPracticeAttachmentStatus('detail');
+    const focusFiles = state.filesFocusId === item.id;
+    state.filesFocusId = null;
+    void renderPracticeAttachments(item.id).then(() => {
+        if (!focusFiles || state.activeId !== item.id) return;
+        document.querySelector('#practice-attachments-title')?.scrollIntoView({ block: 'nearest' });
+        document.querySelector('#practice-attachments-title')?.focus({ preventScroll: true });
+    });
     elements.detailTitle.focus({ preventScroll: true });
 }
 
@@ -2340,6 +2481,10 @@ function fillForm(item = null) {
     elements.memoInput.value = item?.memo || '';
     elements.hiddenInput.checked = item?.hidden || false;
     elements.hiddenField.hidden = !item;
+    elements.formAttachments.hidden = !item;
+    elements.formAttachmentsList.replaceChildren();
+    elements.formAttachmentsEmpty.hidden = true;
+    setPracticeAttachmentStatus('form');
     elements.countResetSection.hidden = !item;
     elements.formTotalCount.textContent = `${item ? getPracticeTotalCount(item.id) : 0}回`;
     elements.countReset.disabled = !item || !state.progressReady || getPracticeTotalCount(item.id) === 0;
@@ -2363,6 +2508,7 @@ function renderForm(mode, id = null) {
     elements.formTitle.textContent = mode === 'edit' ? '練習メニューを編集' : '練習メニューを作成';
     fillForm(item);
     showView(elements.formView);
+    if (item) void renderPracticeAttachments(item.id, 'form');
     elements.formTitle.focus({ preventScroll: true });
 }
 
@@ -3355,8 +3501,9 @@ async function handleDelete() {
     }
     const attachmentCleanup = await practiceAttachmentStore.deleteAttachmentsForPractice(item.id);
     if (!attachmentCleanup.ok) {
-        state.listNotice = '練習メニューは削除しましたが、資料データの整理を完了できませんでした。';
+        state.listNotice = '練習メニューは削除しましたが、ファイルデータの整理を完了できませんでした。';
     }
+    await refreshPracticeAttachmentCounts({ renderList: false });
     if (item.hidden) {
         window.history.replaceState(null, '', `${location.pathname}${location.search}#practice-menu/hidden`);
         renderRoute();
@@ -3505,8 +3652,10 @@ elements.calendarNoteAdd.addEventListener('click', () => openPracticeCalendarNot
 elements.calendarNoteForm.addEventListener('submit', handlePracticeCalendarNoteSubmit);
 elements.calendarNoteCancel.addEventListener('click', closePracticeCalendarNoteForm);
 elements.calendarNotesList.addEventListener('click', handlePracticeCalendarNoteAction);
-elements.attachmentInput.addEventListener('change', handlePracticeAttachmentSelection);
-elements.attachmentsList.addEventListener('click', handlePracticeAttachmentAction);
+elements.attachmentInput.addEventListener('change', (event) => handlePracticeAttachmentSelection(event, 'detail'));
+elements.attachmentsList.addEventListener('click', (event) => handlePracticeAttachmentAction(event, 'detail'));
+elements.formAttachmentInput.addEventListener('change', (event) => handlePracticeAttachmentSelection(event, 'form'));
+elements.formAttachmentsList.addEventListener('click', (event) => handlePracticeAttachmentAction(event, 'form'));
 elements.attachmentLightboxClose.addEventListener('click', () => closePracticeAttachmentLightbox({ restoreFocus: true }));
 elements.attachmentLightbox.addEventListener('click', (event) => {
     if (event.target === elements.attachmentLightbox) closePracticeAttachmentLightbox({ restoreFocus: true });
@@ -3546,6 +3695,9 @@ elements.list.addEventListener('click', (event) => {
         event.stopPropagation();
         const item = findItem(action.dataset.id);
         if (item) handlePracticeCheck(item);
+    }
+    if (action.dataset.practiceAction === 'files') {
+        void handlePracticeFilesAction(action, event);
     }
 });
 document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
@@ -3713,3 +3865,4 @@ elements.tunerCard.addEventListener('click', (event) => {
 });
 ensurePracticeTimerTicking();
 renderRoute();
+void refreshPracticeAttachmentCounts();

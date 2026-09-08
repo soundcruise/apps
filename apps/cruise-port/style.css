@@ -675,9 +675,11 @@ h1::after {
 .practice-card-actions {
     display: flex;
     align-items: center;
+    gap: 4px;
 }
 
-.practice-launch {
+.practice-launch,
+.practice-files-button {
     min-height: 44px;
     display: inline-flex;
     padding: 8px 10px;
@@ -692,6 +694,10 @@ h1::after {
     font-weight: 620;
     text-decoration: none;
     white-space: nowrap;
+}
+
+.practice-files-button {
+    cursor: pointer;
 }
 
 .practice-launch span {
@@ -1720,6 +1726,7 @@ body.gear-photo-lightbox-open {
 .practice-card-link:focus-visible,
 .practice-check:focus-visible,
 .practice-launch:focus-visible,
+.practice-files-button:focus-visible,
 .practice-overview-links button:focus-visible,
 .practice-quiet-action:focus-visible,
 .practice-calendar-heading button:focus-visible,
@@ -2675,6 +2682,18 @@ textarea:focus-visible {
     color: var(--port-muted);
     font-size: 0.7rem;
     line-height: 1.5;
+}
+
+.practice-attachment-status.is-error {
+    color: #e2aaa2;
+    font-weight: 580;
+}
+
+.practice-form-attachments {
+    padding: 14px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 12px;
+    background: rgba(205, 180, 116, 0.022);
 }
 
 .practice-attachments-list {
@@ -4290,6 +4309,7 @@ body.metronome-preset-open {
 
     .practice-check:hover,
     .practice-launch:hover,
+    .practice-files-button:hover,
     .practice-calendar-heading button:hover {
         border-color: rgba(230, 210, 155, 0.34);
         background: rgba(205, 180, 116, 0.08);

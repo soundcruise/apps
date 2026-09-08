@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.21.0">
+    <link rel="stylesheet" href="./style.css?v=1.21.1">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=2.1.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=2.1.1"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -352,12 +352,12 @@
                 <p id="practice-detail-error" class="notice notice-error" role="alert" hidden></p>
                 <section class="practice-attachments" aria-labelledby="practice-attachments-title">
                     <div class="practice-attachments-heading">
-                        <h2 id="practice-attachments-title">資料</h2>
-                        <label class="practice-attachment-add" for="practice-attachment-input">資料を追加</label>
+                        <h2 id="practice-attachments-title" tabindex="-1">ファイル</h2>
+                        <label class="practice-attachment-add" for="practice-attachment-input">ファイルを追加</label>
                         <input id="practice-attachment-input" type="file" multiple hidden>
                     </div>
-                    <p id="practice-attachment-status" class="practice-attachment-status" role="status"></p>
-                    <p id="practice-attachments-empty" class="practice-attachment-empty">資料はありません。</p>
+                    <p id="practice-attachment-status" class="practice-attachment-status" role="status" aria-live="polite"></p>
+                    <p id="practice-attachments-empty" class="practice-attachment-empty">ファイルはありません。</p>
                     <div id="practice-attachments-list" class="practice-attachments-list"></div>
                 </section>
                 <div class="view-actions">
@@ -394,6 +394,17 @@
                             <option value="">使用アプリなし</option>
                         </select>
                     </div>
+
+                    <section id="practice-form-attachments" class="form-field practice-form-attachments" aria-labelledby="practice-form-attachments-title" hidden>
+                        <div class="practice-attachments-heading">
+                            <h2 id="practice-form-attachments-title">ファイル</h2>
+                            <label class="practice-attachment-add" for="practice-form-attachment-input">ファイルを追加</label>
+                            <input id="practice-form-attachment-input" type="file" multiple hidden>
+                        </div>
+                        <p id="practice-form-attachment-status" class="practice-attachment-status" role="status" aria-live="polite"></p>
+                        <p id="practice-form-attachments-empty" class="practice-attachment-empty">ファイルはありません。</p>
+                        <div id="practice-form-attachments-list" class="practice-attachments-list"></div>
+                    </section>
 
                     <div class="form-field">
                         <label for="practice-memo">メモ <span class="optional-label">任意・1000文字以内</span></label>
@@ -897,7 +908,7 @@
         <div id="practice-attachment-lightbox" class="practice-attachment-lightbox" role="dialog" aria-modal="true" aria-labelledby="practice-attachment-lightbox-title" hidden>
             <section>
                 <div>
-                    <h2 id="practice-attachment-lightbox-title" tabindex="-1">資料</h2>
+                    <h2 id="practice-attachment-lightbox-title" tabindex="-1">ファイル</h2>
                     <button id="practice-attachment-lightbox-close" type="button" aria-label="プレビューを閉じる">×</button>
                 </div>
                 <img id="practice-attachment-lightbox-image" alt="">
