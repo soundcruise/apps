@@ -10,7 +10,8 @@ export const METRONOME_LIMITS = Object.freeze({
 
 export const METRONOME_METERS = Object.freeze(['2/4', '3/4', '4/4', '5/4', '6/8', '9/8', '12/8']);
 export const METRONOME_RHYTHMS = Object.freeze(['quarter', 'eighth', 'sixteenth', 'triplet', 'eighth-shuffle', 'sixteenth-shuffle']);
-export const METRONOME_SOUNDS = Object.freeze(['electronic', 'electronic-drum', 'analog', 'wood', 'click', 'rim']);
+export const METRONOME_SOUNDS = Object.freeze(['electronic', 'analog', 'click', 'rim']);
+export const METRONOME_RETIRED_SOUNDS = Object.freeze(['electronic-drum', 'wood']);
 
 const METER_BEAT_COUNTS = Object.freeze({
     '2/4': 2,
@@ -53,6 +54,10 @@ export function clampInteger(value, min, max, fallback) {
     return Math.max(min, Math.min(max, Math.round(number)));
 }
 
+export function migrateMetronomeSound(sound) {
+    return METRONOME_RETIRED_SOUNDS.includes(sound) ? 'rim' : sound;
+}
+
 export function normalizeMetronomeSettings(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
     if (value.version !== METRONOME_SCHEMA_VERSION) return null;
@@ -78,6 +83,10 @@ export function normalizeMetronomeSettings(value) {
 
 export function migrateMetronomeSettings(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    if (value.version === METRONOME_SCHEMA_VERSION) {
+        if (!METRONOME_RETIRED_SOUNDS.includes(value.sound)) return null;
+        return normalizeMetronomeSettings({ ...value, sound: migrateMetronomeSound(value.sound) });
+    }
     if (value.version === 2) {
         if (!Number.isInteger(value.bpm) || value.bpm < METRONOME_LIMITS.bpmMin || value.bpm > METRONOME_LIMITS.bpmMax) return null;
         if (!METRONOME_METERS.includes(value.meter)) return null;
@@ -92,7 +101,7 @@ export function migrateMetronomeSettings(value) {
             bpm: value.bpm,
             meter: value.meter,
             rhythm: value.rhythm,
-            sound: value.sound === 'drum' ? 'electronic-drum' : 'electronic',
+            sound: value.sound === 'drum' ? 'rim' : 'electronic',
             volume: value.volume,
             accents: [...value.accents]
         };
@@ -107,9 +116,9 @@ export function migrateMetronomeSettings(value) {
         bpm: value.bpm,
         meter: value.meter,
         rhythm: value.meter === '6/8' ? 'eighth' : 'quarter',
-        sound: value.sound === 'drum'
-            ? 'electronic-drum'
-            : (value.sound === 'wood' || value.sound === 'click' ? value.sound : 'electronic'),
+        sound: value.sound === 'drum' || value.sound === 'wood'
+            ? 'rim'
+            : (value.sound === 'click' ? 'click' : 'electronic'),
         volume: value.volume,
         accents: defaultAccentsForMeter(value.meter)
     };

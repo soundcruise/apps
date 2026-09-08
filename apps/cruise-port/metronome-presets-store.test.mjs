@@ -64,7 +64,7 @@ test('preset captures all metronome settings', () => {
         meter: '6/8',
         rhythm: 'sixteenth',
         accents: [true, true],
-        sound: 'wood',
+        sound: 'rim',
         volume: 88
     };
     const result = createOne(storage, { settings });
@@ -186,6 +186,37 @@ test('malformed item and unknown sound are ignored while valid presets survive',
     assert.equal(result.reason, 'partial-invalid');
     assert.equal(result.ignored, 1);
     assert.deepEqual(result.presets, [valid]);
+});
+
+for (const retiredSound of ['electronic-drum', 'wood']) {
+    test(`preset ${retiredSound} migrates to rim while preserving all other fields`, () => {
+        const storage = memoryStorage();
+        const preset = createOne(storage).preset;
+        const retired = { ...preset, sound: retiredSound, volume: 83 };
+        storage.setItem(METRONOME_PRESETS_STORAGE_KEY, JSON.stringify({ version: 1, items: [retired] }));
+        const result = loadMetronomePresets(storage);
+        assert.equal(result.ok, true);
+        assert.equal(result.migrated, true);
+        assert.deepEqual(result.presets, [{ ...retired, sound: 'rim' }]);
+        assert.deepEqual(JSON.parse(storage.value(METRONOME_PRESETS_STORAGE_KEY)), {
+            version: 1,
+            items: result.presets
+        });
+    });
+}
+
+test('preset migration write failure returns usable data without overwriting raw value', () => {
+    const base = memoryStorage();
+    const preset = createOne(base).preset;
+    const raw = JSON.stringify({ version: 1, items: [{ ...preset, sound: 'wood' }] });
+    const storage = {
+        getItem: () => raw,
+        setItem() { throw new Error('quota'); }
+    };
+    const result = loadMetronomePresets(storage);
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'migration-write-failed');
+    assert.equal(result.presets[0].sound, 'rim');
 });
 
 test('failed storage write does not mutate the caller preset list', () => {

@@ -679,11 +679,9 @@
                 <div class="tempo-steps" aria-label="テンポ調整">
                     <button type="button" data-bpm-delta="-5">−5</button>
                     <button type="button" data-bpm-delta="-1">−1</button>
-                    <button id="metronome-tap" class="metronome-tap" type="button">TAP</button>
                     <button type="button" data-bpm-delta="1">＋1</button>
                     <button type="button" data-bpm-delta="5">＋5</button>
                 </div>
-                <p id="metronome-tap-status" class="tap-status" aria-live="polite">タップしてテンポを測定</p>
 
                 <p id="metronome-status" class="metronome-status" aria-live="polite">停止中</p>
                 <button id="metronome-toggle" class="action-button primary-action metronome-toggle" type="button" aria-pressed="false">▶ 開始</button>
@@ -747,9 +745,7 @@
                         <h2 id="metronome-sound-label">音色</h2>
                         <div id="metronome-sound" class="metronome-choice-grid metronome-sound-grid" role="radiogroup" aria-labelledby="metronome-sound-label">
                             <button type="button" role="radio" aria-checked="true" data-metronome-sound="electronic">電子音</button>
-                            <button type="button" role="radio" aria-checked="false" data-metronome-sound="electronic-drum">電子ドラム</button>
                             <button type="button" role="radio" aria-checked="false" data-metronome-sound="analog">アナログ</button>
-                            <button type="button" role="radio" aria-checked="false" data-metronome-sound="wood">ウッド</button>
                             <button type="button" role="radio" aria-checked="false" data-metronome-sound="click">クリック</button>
                             <button type="button" role="radio" aria-checked="false" data-metronome-sound="rim">リム</button>
                         </div>

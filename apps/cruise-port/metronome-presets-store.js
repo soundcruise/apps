@@ -1,7 +1,9 @@
 import {
+    METRONOME_RETIRED_SOUNDS,
     METRONOME_SCHEMA_VERSION,
+    migrateMetronomeSound,
     normalizeMetronomeSettings
-} from './metronome-store.js?v=3.1.0';
+} from './metronome-store.js?v=3.2.0';
 
 export const METRONOME_PRESETS_STORAGE_KEY = 'cruisePort.metronomePresets';
 export const METRONOME_PRESETS_SCHEMA_VERSION = 1;
@@ -58,6 +60,12 @@ export function normalizeMetronomePreset(item) {
     };
 }
 
+function migrateMetronomePreset(item) {
+    if (!item || typeof item !== 'object' || Array.isArray(item)
+        || !METRONOME_RETIRED_SOUNDS.includes(item.sound)) return null;
+    return normalizeMetronomePreset({ ...item, sound: migrateMetronomeSound(item.sound) });
+}
+
 function validatePresetList(presets) {
     if (!Array.isArray(presets) || presets.length > METRONOME_PRESET_LIMITS.items) return null;
     const normalized = [];
@@ -87,23 +95,34 @@ export function loadMetronomePresets(storage = window.localStorage) {
         const ids = new Set();
         const names = new Set();
         let ignored = 0;
+        let migrated = 0;
         parsed.items.slice(0, METRONOME_PRESET_LIMITS.items).forEach((candidate) => {
-            const preset = normalizeMetronomePreset(candidate);
+            const normalized = normalizeMetronomePreset(candidate);
+            const preset = normalized || migrateMetronomePreset(candidate);
             const normalizedName = preset ? nameKey(preset.name) : '';
             if (!preset || ids.has(preset.id) || names.has(normalizedName)) {
                 ignored += 1;
                 return;
             }
+            if (!normalized) migrated += 1;
             ids.add(preset.id);
             names.add(normalizedName);
             presets.push(preset);
         });
         ignored += Math.max(0, parsed.items.length - METRONOME_PRESET_LIMITS.items);
+        if (ignored === 0 && migrated > 0) {
+            const result = saveMetronomePresets(presets, storage);
+            if (!result.ok) {
+                return { ok: false, presets, reason: 'migration-write-failed', ignored: 0, migrated: false };
+            }
+            return { ok: true, presets: result.presets, ignored: 0, migrated: true };
+        }
         return {
             ok: ignored === 0,
             presets,
             reason: ignored === 0 ? undefined : 'partial-invalid',
-            ignored
+            ignored,
+            migrated: false
         };
     } catch (_) {
         return { ok: false, presets: [], reason: 'read-failed', ignored: 0 };

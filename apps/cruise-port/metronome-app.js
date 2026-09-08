@@ -5,14 +5,14 @@ import {
     defaultAccentsForMeter,
     loadMetronomeSettings,
     saveMetronomeSettings
-} from './metronome-store.js?v=3.1.0';
+} from './metronome-store.js?v=3.2.0';
 import {
     METRONOME_PRESET_LIMITS,
     createMetronomePreset,
     deleteMetronomePreset,
     loadMetronomePresets,
     settingsFromMetronomePreset
-} from './metronome-presets-store.js?v=1.0.0';
+} from './metronome-presets-store.js?v=1.1.0';
 import {
     beatsForMeter,
     compatibleRhythm,
@@ -27,26 +27,19 @@ import {
 export const METRONOME_SCHEDULER_INTERVAL_MS = 25;
 export const METRONOME_SCHEDULE_AHEAD_SEC = 0.1;
 export const METRONOME_START_LEAD_SEC = 0.055;
-export const METRONOME_TAP_RESET_MS = 3000;
-export const METRONOME_TAP_MIN_INTERVAL_MS = 250;
-export const METRONOME_TAP_HISTORY_LIMIT = 4;
-
-export function bpmFromTapTimes(tapTimes) {
-    if (!Array.isArray(tapTimes) || tapTimes.length < 2) return null;
-    const recent = tapTimes.slice(-METRONOME_TAP_HISTORY_LIMIT);
-    const intervals = [];
-    for (let index = 1; index < recent.length; index += 1) {
-        const interval = recent[index] - recent[index - 1];
-        if (interval < METRONOME_TAP_MIN_INTERVAL_MS || interval >= METRONOME_TAP_RESET_MS) return null;
-        intervals.push(interval);
-    }
-    const averageMs = intervals.reduce((total, interval) => total + interval, 0) / intervals.length;
-    return clampInteger(60000 / averageMs, METRONOME_LIMITS.bpmMin, METRONOME_LIMITS.bpmMax, METRONOME_DEFAULTS.bpm);
-}
+export const METRONOME_PREVIOUS_MAX_GAIN = 1.15;
+export const METRONOME_MAX_GAIN = 2.1;
 
 export function volumeLevel(volume) {
-    if (volume <= 0) return 0;
-    return Math.min(1.15, Math.pow(volume / 100, 1.05) * 1.15);
+    const numeric = Number(volume);
+    if (!Number.isFinite(numeric)) return 0;
+    const normalized = Math.max(METRONOME_LIMITS.volumeMin, Math.min(METRONOME_LIMITS.volumeMax, numeric));
+    if (normalized <= 0) return 0;
+    if (normalized <= 50) {
+        return METRONOME_PREVIOUS_MAX_GAIN * Math.pow(normalized / 50, 1.35);
+    }
+    return METRONOME_PREVIOUS_MAX_GAIN
+        + (METRONOME_MAX_GAIN - METRONOME_PREVIOUS_MAX_GAIN) * Math.pow((normalized - 50) / 50, 1.15);
 }
 
 export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment = {}) {
@@ -101,11 +94,11 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
                 ? context.createDynamicsCompressor()
                 : null;
             if (outputLimiter) {
-                outputLimiter.threshold.value = -6;
-                outputLimiter.knee.value = 6;
-                outputLimiter.ratio.value = 12;
-                outputLimiter.attack.value = 0.003;
-                outputLimiter.release.value = 0.08;
+                outputLimiter.threshold.value = -3;
+                outputLimiter.knee.value = 4;
+                outputLimiter.ratio.value = 10;
+                outputLimiter.attack.value = 0.002;
+                outputLimiter.release.value = 0.06;
                 masterGain.connect(outputLimiter).connect(context.destination);
             } else {
                 masterGain.connect(context.destination);
@@ -187,105 +180,28 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
     }
 
     // Rhythm Cruiseのsquare波クリック（accent 1500Hz / normal 1200Hz）を、
-    // マイク判定系へ依存しないCruise Port専用gainへ移し、スマホ用に実効音量を上げる。
+    // マイク判定系へ依存しないCruise Port専用gainへ移し、短いattackを強める。
     function scheduleElectronic(when, voice) {
         const voices = {
-            accent: { frequency: 1500, peak: 0.72, release: 0.08 },
-            main: { frequency: 1200, peak: 0.62, release: 0.072 },
-            subdivision: { frequency: 900, peak: 0.34, release: 0.04 }
+            accent: { frequency: 1500, peak: 0.82, release: 0.072 },
+            main: { frequency: 1200, peak: 0.70, release: 0.064 },
+            subdivision: { frequency: 900, peak: 0.40, release: 0.034 }
         };
         const selected = voices[voice];
         scheduleOscillator(when, {
             type: 'square',
             frequency: selected.frequency,
             peak: selected.peak,
-            attack: 0.002,
+            attack: 0.0012,
             release: selected.release
-        });
-    }
-
-    // 低域だけでなく中低域body・noise transient・倍音を重ね、小型スピーカーでも
-    // punchを感じられる短い電子ドラムへ調整する。
-    function scheduleElectronicDrum(when, voice) {
-        if (voice === 'accent') {
-            scheduleOscillator(when, {
-                type: 'sine',
-                frequency: 190,
-                endFrequency: 68,
-                peak: 0.50,
-                attack: 0.001,
-                release: 0.125
-            });
-            scheduleOscillator(when, {
-                type: 'triangle',
-                frequency: 560,
-                endFrequency: 185,
-                peak: 0.34,
-                attack: 0.001,
-                release: 0.074
-            });
-            scheduleNoise(when, {
-                frequency: 1900,
-                q: 1.35,
-                peak: 0.24,
-                attack: 0.0008,
-                release: 0.032
-            });
-            scheduleOscillator(when, {
-                type: 'square',
-                frequency: 2800,
-                peak: 0.09,
-                attack: 0.0008,
-                release: 0.018
-            });
-            return;
-        }
-        if (voice === 'main') {
-            scheduleOscillator(when, {
-                type: 'triangle',
-                frequency: 520,
-                endFrequency: 285,
-                peak: 0.42,
-                attack: 0.001,
-                release: 0.056
-            });
-            scheduleNoise(when, {
-                frequency: 1550,
-                q: 1.8,
-                peak: 0.28,
-                attack: 0.0008,
-                release: 0.034
-            });
-            scheduleOscillator(when, {
-                type: 'square',
-                frequency: 1180,
-                peak: 0.12,
-                attack: 0.0008,
-                release: 0.026
-            });
-            return;
-        }
-        scheduleNoise(when, {
-            frequency: 7200,
-            q: 0.9,
-            peak: 0.16,
-            attack: 0.0007,
-            release: 0.021
-        });
-        scheduleOscillator(when, {
-            type: 'square',
-            frequency: 5600,
-            peak: 0.075,
-            attack: 0.0007,
-            release: 0.017
         });
     }
 
     function scheduleAnalog(when, voice) {
         const voices = {
-            accent: { frequency: 1050, peak: 0.64, release: 0.09 },
-            main: { frequency: 780, peak: 0.52, release: 0.078 },
-            subdivision: { frequency: 620, peak: 0.27, release: 0.045 }
+            accent: { frequency: 1050, peak: 0.76, body: 0.16, release: 0.085 },
+            main: { frequency: 780, peak: 0.63, body: 0.13, release: 0.072 },
+            subdivision: { frequency: 620, peak: 0.34, body: 0.07, release: 0.04 }
         };
         const selected = voices[voice];
         scheduleOscillator(when, {
@@ -293,47 +209,23 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
             frequency: selected.frequency,
             endFrequency: selected.frequency * 0.82,
             peak: selected.peak,
-            attack: 0.003,
-            release: selected.release
-        });
-    }
-
-    function scheduleWood(when, voice) {
-        const voices = {
-            accent: { frequency: 980, noiseFrequency: 2200, noise: 0.42, body: 0.46, overtone: 0.18, release: 0.072 },
-            main: { frequency: 820, noiseFrequency: 1800, noise: 0.34, body: 0.38, overtone: 0.13, release: 0.062 },
-            subdivision: { frequency: 680, noiseFrequency: 1450, noise: 0.19, body: 0.21, overtone: 0.07, release: 0.04 }
-        };
-        const selected = voices[voice];
-        scheduleNoise(when, {
-            frequency: selected.noiseFrequency,
-            q: 2.4,
-            peak: selected.noise,
-            attack: 0.0008,
-            release: Math.min(0.038, selected.release * 0.55)
-        });
-        scheduleOscillator(when, {
-            type: 'triangle',
-            frequency: selected.frequency,
-            endFrequency: selected.frequency * 0.78,
-            peak: selected.body,
-            attack: 0.001,
+            attack: 0.002,
             release: selected.release
         });
         scheduleOscillator(when, {
             type: 'sine',
-            frequency: selected.frequency * 2.02,
-            peak: selected.overtone,
-            attack: 0.001,
-            release: selected.release * 0.58
+            frequency: selected.frequency * 0.5,
+            peak: selected.body,
+            attack: 0.002,
+            release: selected.release * 0.9
         });
     }
 
     function scheduleHardClick(when, voice) {
         const voices = {
-            accent: { frequency: 2500, peak: 0.70, release: 0.035 },
-            main: { frequency: 2100, peak: 0.58, release: 0.03 },
-            subdivision: { frequency: 1700, peak: 0.31, release: 0.02 }
+            accent: { frequency: 2500, peak: 0.76, body: 0.18, release: 0.032 },
+            main: { frequency: 2100, peak: 0.64, body: 0.15, release: 0.027 },
+            subdivision: { frequency: 1700, peak: 0.35, body: 0.08, release: 0.018 }
         };
         const selected = voices[voice];
         scheduleOscillator(when, {
@@ -343,13 +235,20 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
             attack: 0.001,
             release: selected.release
         });
+        scheduleOscillator(when, {
+            type: 'triangle',
+            frequency: selected.frequency * 0.5,
+            peak: selected.body,
+            attack: 0.001,
+            release: selected.release * 1.1
+        });
     }
 
     function scheduleRim(when, voice) {
         const voices = {
-            accent: { frequency: 1480, noiseFrequency: 3600, body: 0.42, noise: 0.27, release: 0.045 },
-            main: { frequency: 1240, noiseFrequency: 3150, body: 0.34, noise: 0.22, release: 0.038 },
-            subdivision: { frequency: 1020, noiseFrequency: 2800, body: 0.18, noise: 0.12, release: 0.026 }
+            accent: { frequency: 1480, noiseFrequency: 3500, body: 0.58, core: 0.16, noise: 0.28, release: 0.043 },
+            main: { frequency: 1240, noiseFrequency: 3050, body: 0.46, core: 0.13, noise: 0.23, release: 0.036 },
+            subdivision: { frequency: 1020, noiseFrequency: 2700, body: 0.25, core: 0.07, noise: 0.13, release: 0.024 }
         };
         const selected = voices[voice];
         scheduleOscillator(when, {
@@ -359,6 +258,13 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
             peak: selected.body,
             attack: 0.0008,
             release: selected.release
+        });
+        scheduleOscillator(when, {
+            type: 'sine',
+            frequency: selected.frequency * 0.52,
+            peak: selected.core,
+            attack: 0.0009,
+            release: selected.release * 0.86
         });
         scheduleNoise(when, {
             frequency: selected.noiseFrequency,
@@ -370,9 +276,7 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
     }
 
     function scheduleSound(when, sound, voice) {
-        if (sound === 'electronic-drum') scheduleElectronicDrum(when, voice);
-        else if (sound === 'analog') scheduleAnalog(when, voice);
-        else if (sound === 'wood') scheduleWood(when, voice);
+        if (sound === 'analog') scheduleAnalog(when, voice);
         else if (sound === 'click') scheduleHardClick(when, voice);
         else if (sound === 'rim') scheduleRim(when, voice);
         else scheduleElectronic(when, voice);
@@ -530,8 +434,6 @@ export function initMetronome(root) {
         volumeValue: root.querySelector('#metronome-volume-value'),
         beats: root.querySelector('#metronome-beats'),
         toggle: root.querySelector('#metronome-toggle'),
-        tap: root.querySelector('#metronome-tap'),
-        tapStatus: root.querySelector('#metronome-tap-status'),
         status: root.querySelector('#metronome-status'),
         storageError: root.querySelector('#metronome-storage-error'),
         presetSelect: root.querySelector('#metronome-preset-select'),
@@ -557,8 +459,7 @@ export function initMetronome(root) {
         presetStorageWritable: presetLoadResult.ok,
         selectedPresetId: '',
         currentBeat: -1,
-        currentSubdivision: -1,
-        tapTimes: []
+        currentSubdivision: -1
     };
     let viewActive = false;
     let presetDialogReturnFocus = null;
@@ -787,11 +688,6 @@ export function initMetronome(root) {
         if (engine.isPlaying()) engine.reschedule(getSettings, options);
     }
 
-    function resetTapState() {
-        state.tapTimes = [];
-        elements.tapStatus.textContent = 'タップしてテンポを測定';
-    }
-
     function applyPreset(presetId) {
         const preset = state.presets.find((candidate) => candidate.id === presetId);
         const settings = settingsFromMetronomePreset(preset);
@@ -805,7 +701,6 @@ export function initMetronome(root) {
         state.selectedPresetId = preset.id;
         state.currentBeat = -1;
         state.currentSubdivision = -1;
-        resetTapState();
         engine.setVolume(settings.volume);
         renderControls();
         renderPresetOptions();
@@ -930,23 +825,6 @@ export function initMetronome(root) {
 
     elements.details.addEventListener('toggle', () => {
         elements.detailsSummary.setAttribute('aria-expanded', String(elements.details.open));
-    });
-
-    elements.tap.addEventListener('click', () => {
-        const now = performance.now();
-        const lastTap = state.tapTimes[state.tapTimes.length - 1];
-        const interval = lastTap === undefined ? null : now - lastTap;
-        if (interval === null || interval < METRONOME_TAP_MIN_INTERVAL_MS || interval >= METRONOME_TAP_RESET_MS) {
-            state.tapTimes = [now];
-            elements.tapStatus.textContent = 'もう一度タップ';
-            return;
-        }
-        state.tapTimes.push(now);
-        state.tapTimes = state.tapTimes.slice(-METRONOME_TAP_HISTORY_LIMIT);
-        const bpm = bpmFromTapTimes(state.tapTimes);
-        if (bpm === null) return;
-        setBpm(bpm);
-        elements.tapStatus.textContent = `${bpm} BPM ・ 続けてタップできます`;
     });
 
     elements.meter.addEventListener('change', () => {

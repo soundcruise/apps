@@ -27,11 +27,11 @@ import {
     subdivisionOffsets
 } from './metronome-timing.js';
 import {
+    METRONOME_MAX_GAIN,
+    METRONOME_PREVIOUS_MAX_GAIN,
     METRONOME_SCHEDULE_AHEAD_SEC,
     METRONOME_SCHEDULER_INTERVAL_MS,
     METRONOME_START_LEAD_SEC,
-    METRONOME_TAP_RESET_MS,
-    bpmFromTapTimes,
     createMetronomeAudioEngine,
     volumeLevel
 } from './metronome-app.js';
@@ -132,15 +132,32 @@ function engineHarness(settingsOverride = {}) {
     return { engine, settings, timers, frames };
 }
 
+function runLatestTimer(harness) {
+    const timerId = Math.max(...harness.timers.keys());
+    const callback = harness.timers.get(timerId);
+    harness.timers.delete(timerId);
+    callback();
+}
+
+function sourcePeak(source) {
+    let node = source.target;
+    while (node && !node.gain?.events?.length) node = node.target;
+    return Math.max(0, ...(node?.gain?.events || []).map((event) => Number(event[1]) || 0));
+}
+
 test('default BPM is 120', () => assert.equal(METRONOME_DEFAULTS.bpm, 120));
 test('BPM minimum clamps to 30', () => assert.equal(clampInteger(1, 30, 240, 120), 30));
 test('BPM maximum clamps to 240', () => assert.equal(clampInteger(999, 30, 240, 120), 240));
 test('BPM slider spans 30 through 240', () => assert.match(html, /id="metronome-bpm-slider"[^>]*min="30"[^>]*max="240"/));
-test('BPM step controls include -5, -1, TAP, +1, +5 in order', () => assert.match(html, /data-bpm-delta="-5"[\s\S]*data-bpm-delta="-1"[\s\S]*id="metronome-tap"[\s\S]*data-bpm-delta="1"[\s\S]*data-bpm-delta="5"/));
-test('TAP averages recent valid intervals', () => assert.equal(bpmFromTapTimes([0, 500, 1000, 1500]), 120));
-test('TAP clamps a valid fast interval at the BPM maximum', () => assert.equal(bpmFromTapTimes([0, 250]), 240));
-test('TAP timeout resets calculation', () => assert.equal(bpmFromTapTimes([0, METRONOME_TAP_RESET_MS]), null));
-test('TAP rejects accidental ultra-fast taps', () => assert.equal(bpmFromTapTimes([0, 100]), null));
+test('BPM step controls include four balanced buttons in order', () => {
+    assert.match(html, /data-bpm-delta="-5"[\s\S]*data-bpm-delta="-1"[\s\S]*data-bpm-delta="1"[\s\S]*data-bpm-delta="5"/);
+    assert.equal((html.match(/data-bpm-delta=/g) || []).length, 4);
+});
+test('TAP UI and logic are completely removed', () => {
+    assert.doesNotMatch(html, /metronome-tap|>TAP<|タップしてテンポを測定/);
+    assert.doesNotMatch(appSource, /bpmFromTapTimes|METRONOME_TAP_|tapTimes|tapStatus|metronome-tap/);
+    assert.doesNotMatch(css, /metronome-tap|tap-status/);
+});
 
 for (const [meter, beats] of Object.entries({ '2/4': 2, '3/4': 3, '4/4': 4, '5/4': 5, '6/8': 2, '9/8': 3, '12/8': 4 })) {
     test(`${meter} exposes ${beats} musical beat groups`, () => {
@@ -222,17 +239,40 @@ test('legacy 6/8 keeps its audible eighth-note pulse during migration', () => {
     const storage = memoryStorage({ [METRONOME_STORAGE_KEY]: JSON.stringify(legacy) });
     assert.equal(loadMetronomeSettings(storage).settings.rhythm, 'eighth');
 });
-test('legacy wood maps to the dedicated wood sound', () => {
+test('legacy wood migrates to the formal rim sound', () => {
     const legacy = { version: 1, bpm: 80, meter: '4/4', sound: 'wood', volume: 60 };
     const storage = memoryStorage({ [METRONOME_STORAGE_KEY]: JSON.stringify(legacy) });
-    assert.equal(loadMetronomeSettings(storage).settings.sound, 'wood');
+    assert.equal(loadMetronomeSettings(storage).settings.sound, 'rim');
 });
-test('schema v2 drum migrates to electronic drum without losing settings', () => {
+test('schema v2 drum migrates to rim without losing settings', () => {
     const legacy = { version: 2, bpm: 132, meter: '5/4', rhythm: 'eighth', sound: 'drum', volume: 84, accents: [true, false, true, false, true] };
     const storage = memoryStorage({ [METRONOME_STORAGE_KEY]: JSON.stringify(legacy) });
     const result = loadMetronomeSettings(storage);
     assert.equal(result.migrated, true);
-    assert.deepEqual(result.settings, { ...legacy, version: 3, sound: 'electronic-drum' });
+    assert.deepEqual(result.settings, { ...legacy, version: 3, sound: 'rim' });
+});
+for (const retiredSound of ['electronic-drum', 'wood']) {
+    test(`schema v3 ${retiredSound} migrates to rim without changing volume`, () => {
+        const retired = { ...METRONOME_DEFAULTS, sound: retiredSound, volume: 83, accents: [...METRONOME_DEFAULTS.accents] };
+        const storage = memoryStorage({ [METRONOME_STORAGE_KEY]: JSON.stringify(retired) });
+        const result = loadMetronomeSettings(storage);
+        assert.equal(result.migrated, true);
+        assert.deepEqual(result.settings, { ...retired, sound: 'rim' });
+        assert.deepEqual(storage.parsed, result.settings);
+    });
+}
+test('retired current sound remains usable when migration cannot be persisted', () => {
+    const retired = { ...METRONOME_DEFAULTS, sound: 'wood', volume: 81, accents: [...METRONOME_DEFAULTS.accents] };
+    const raw = JSON.stringify(retired);
+    const storage = {
+        getItem: () => raw,
+        setItem() { throw new Error('quota'); }
+    };
+    const result = loadMetronomeSettings(storage);
+    assert.equal(result.ok, false);
+    assert.equal(result.reason, 'migration-write-failed');
+    assert.equal(result.settings.sound, 'rim');
+    assert.equal(result.settings.volume, 81);
 });
 test('schema v2 electronic sound remains electronic after migration', () => {
     const legacy = { version: 2, bpm: 72, meter: '6/8', rhythm: 'eighth', sound: 'electronic', volume: 61, accents: [true, false] };
@@ -250,10 +290,12 @@ test('malformed settings fall back safely without overwriting their raw value', 
 test('invalid compound rhythm is rejected by v3 normalization', () => {
     assert.equal(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, meter: '6/8', rhythm: 'triplet', accents: [true, false] }), null);
 });
-test('schema v3 accepts the six comparison sound colors', () => {
-    assert.deepEqual(METRONOME_SOUNDS, ['electronic', 'electronic-drum', 'analog', 'wood', 'click', 'rim']);
+test('schema v3 accepts exactly the four formal sound colors', () => {
+    assert.deepEqual(METRONOME_SOUNDS, ['electronic', 'analog', 'click', 'rim']);
     METRONOME_SOUNDS.forEach((sound) => assert.ok(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, sound })));
-    assert.equal(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, sound: 'drum' }), null);
+    for (const sound of ['drum', 'electronic-drum', 'wood']) {
+        assert.equal(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, sound }), null);
+    }
 });
 test('metronome keeps its dedicated localStorage key and schema version', () => {
     assert.equal(METRONOME_STORAGE_KEY, 'cruisePort.metronome');
@@ -313,9 +355,9 @@ test('live rhythm change schedules the new subdivision phases', async () => {
 test('live sound change replaces future voices', async () => {
     const harness = engineHarness();
     await harness.engine.start(() => harness.settings);
-    harness.settings.sound = 'electronic-drum';
+    harness.settings.sound = 'rim';
     harness.engine.reschedule(() => harness.settings);
-    assert.ok(harness.engine.snapshot().scheduledEvents.every(({ sound }) => sound === 'electronic-drum'));
+    assert.ok(harness.engine.snapshot().scheduledEvents.every(({ sound }) => sound === 'rim'));
 });
 test('live accent change selects a distinct accent voice', async () => {
     const harness = engineHarness({ accents: [false, false, false, false] });
@@ -331,29 +373,39 @@ test('live volume updates the shared master gain without a restart', async () =>
     assert.equal(harness.engine.snapshot().volume, 25);
     assert.equal(harness.engine.snapshot().playing, true);
 });
-test('new volume curve raises the practical output range substantially', () => {
-    assert.ok(volumeLevel(70) > Math.pow(0.7, 1.35));
+test('new volume curve maps 50 percent to the previous maximum and extends headroom', () => {
     assert.equal(volumeLevel(0), 0);
-    assert.equal(volumeLevel(100), 1.15);
+    assert.equal(volumeLevel(50), METRONOME_PREVIOUS_MAX_GAIN);
+    assert.equal(METRONOME_PREVIOUS_MAX_GAIN, 1.15);
+    assert.equal(volumeLevel(100), METRONOME_MAX_GAIN);
+    assert.equal(METRONOME_MAX_GAIN, 2.1);
+    assert.ok(volumeLevel(100) > volumeLevel(50));
+});
+test('volume curve is monotonic, fine-grained at low levels, and safe for invalid input', () => {
+    const levels = Array.from({ length: 101 }, (_, volume) => volumeLevel(volume));
+    assert.ok(levels.every((level, index) => index === 0 || level > levels[index - 1]));
+    assert.ok(volumeLevel(10) < volumeLevel(25));
+    assert.equal(volumeLevel(-1), 0);
+    assert.equal(volumeLevel(Number.NaN), 0);
+    assert.equal(volumeLevel('invalid'), 0);
+    assert.equal(volumeLevel(500), METRONOME_MAX_GAIN);
 });
 test('output uses a short safety limiter after the boosted master gain', async () => {
     const harness = engineHarness();
     await harness.engine.start(() => harness.settings);
     assert.deepEqual(harness.engine.snapshot().outputLimiter, {
-        threshold: -6,
-        knee: 6,
-        ratio: 12,
-        attack: 0.003,
-        release: 0.08
+        threshold: -3,
+        knee: 4,
+        ratio: 10,
+        attack: 0.002,
+        release: 0.06
     });
 });
-test('electronic drum combines a low kick body with a smartphone-audible attack', async () => {
-    const harness = engineHarness({ sound: 'electronic-drum' });
-    await harness.engine.start(() => harness.settings);
-    const context = FakeAudioContext.instances[0];
-    assert.ok(context.started.some((node) => node.type === 'sine' && node.frequency.events.some((event) => event[1] === 190)));
-    assert.ok(context.started.some((node) => node.type === 'triangle' && node.frequency.events.some((event) => event[1] === 560)));
-    assert.ok(context.started.some((node) => node.kind === 'buffer-source'));
+test('maximum summed source peak retains estimated headroom after limiting', () => {
+    const loudestFormalVoicePeak = 1.02;
+    const inputDb = 20 * Math.log10(loudestFormalVoicePeak * METRONOME_MAX_GAIN);
+    const estimatedOutputDb = -3 + (inputDb + 3) / 10;
+    assert.ok(estimatedOutputDb < 0);
 });
 test('electronic sound reuses Rhythm Cruise accent frequency', async () => {
     const harness = engineHarness({ sound: 'electronic' });
@@ -361,7 +413,21 @@ test('electronic sound reuses Rhythm Cruise accent frequency', async () => {
     const context = FakeAudioContext.instances[0];
     assert.ok(context.started.some((node) => node.type === 'square' && node.frequency.events.some((event) => event[1] === 1500)));
 });
-for (const sound of ['analog', 'wood', 'click', 'rim']) {
+test('analog adds a round lower body without replacing its triangle character', async () => {
+    const harness = engineHarness({ sound: 'analog' });
+    await harness.engine.start(() => harness.settings);
+    const context = FakeAudioContext.instances[0];
+    assert.ok(context.started.some((node) => node.type === 'triangle' && node.frequency.events.some((event) => event[1] === 1050)));
+    assert.ok(context.started.some((node) => node.type === 'sine' && node.frequency.events.some((event) => event[1] === 525)));
+});
+test('click balances its hard transient with a short midrange body', async () => {
+    const harness = engineHarness({ sound: 'click' });
+    await harness.engine.start(() => harness.settings);
+    const context = FakeAudioContext.instances[0];
+    assert.ok(context.started.some((node) => node.type === 'square' && node.frequency.events.some((event) => event[1] === 2500)));
+    assert.ok(context.started.some((node) => node.type === 'triangle' && node.frequency.events.some((event) => event[1] === 1250)));
+});
+for (const sound of ['analog', 'click', 'rim']) {
     test(`${sound} has a schedulable dedicated Web Audio voice`, async () => {
         const harness = engineHarness({ sound });
         await harness.engine.start(() => harness.settings);
@@ -369,14 +435,37 @@ for (const sound of ['analog', 'wood', 'click', 'rim']) {
         assert.ok(harness.engine.snapshot().scheduledEvents.every((event) => event.sound === sound));
     });
 }
-test('wood sound has a stronger resonant body and attack layer', async () => {
-    const harness = engineHarness({ sound: 'wood' });
+test('rim sound combines a stronger midrange body, core, and transient', async () => {
+    const harness = engineHarness({ sound: 'rim' });
     await harness.engine.start(() => harness.settings);
     const context = FakeAudioContext.instances[0];
-    assert.ok(context.started.some((node) => node.type === 'triangle' && node.frequency.events.some((event) => event[1] === 980)));
-    assert.ok(context.started.some((node) => node.type === 'sine' && node.frequency.events.some((event) => Math.abs(event[1] - 1979.6) < 1e-9)));
+    assert.ok(context.started.some((node) => node.type === 'triangle' && node.frequency.events.some((event) => event[1] === 1480)));
+    assert.ok(context.started.some((node) => node.type === 'sine' && node.frequency.events.some((event) => Math.abs(event[1] - 769.6) < 1e-9)));
     assert.ok(context.started.some((node) => node.kind === 'buffer-source'));
 });
+for (const sound of METRONOME_SOUNDS) {
+    test(`${sound} keeps accent, main, and subdivision peak hierarchy`, async () => {
+        const harness = engineHarness({ bpm: 240, rhythm: 'sixteenth', sound });
+        await harness.engine.start(() => harness.settings);
+        const context = FakeAudioContext.instances[0];
+        for (const currentTime of [10.08, 10.14, 10.20, 10.26]) {
+            context.currentTime = currentTime;
+            runLatestTimer(harness);
+        }
+        const peakByTime = new Map();
+        context.started.forEach((source) => {
+            peakByTime.set(source.startTime, (peakByTime.get(source.startTime) || 0) + sourcePeak(source));
+        });
+        const events = harness.engine.snapshot().scheduledEvents;
+        const accentPeak = peakByTime.get(events.find((event) => event.voice === 'accent').when);
+        const mainPeak = peakByTime.get(events.find((event) => event.voice === 'main').when);
+        const subdivisionPeak = Math.max(...events
+            .filter((event) => event.voice === 'subdivision')
+            .map((event) => peakByTime.get(event.when)));
+        assert.ok(accentPeak > mainPeak, `${sound}: accent ${accentPeak} > main ${mainPeak}`);
+        assert.ok(mainPeak > subdivisionPeak, `${sound}: main ${mainPeak} > subdivision ${subdivisionPeak}`);
+    });
+}
 test('background suspend stops playback and does not auto-resume', async () => {
     const harness = engineHarness();
     await harness.engine.start(() => harness.settings);
@@ -405,19 +494,22 @@ test('detailed settings start closed and include all five advanced controls', ()
     for (const label of ['拍子', 'リズム', 'アクセント', '音色', '音量']) assert.match(html, new RegExp(`>${label}(?:\\s|<)`));
     assert.match(appSource, /details\.addEventListener\('toggle'[\s\S]*aria-expanded/);
 });
-test('sound selector exposes six named radio choices including the rim candidate', () => {
-    for (const [key, label] of [['electronic', '電子音'], ['electronic-drum', '電子ドラム'], ['analog', 'アナログ'], ['wood', 'ウッド'], ['click', 'クリック'], ['rim', 'リム']]) {
+test('sound selector exposes exactly four formal radio choices', () => {
+    for (const [key, label] of [['electronic', '電子音'], ['analog', 'アナログ'], ['click', 'クリック'], ['rim', 'リム']]) {
         assert.match(html, new RegExp(`data-metronome-sound="${key}"[^>]*>${label}<`));
     }
+    assert.equal((html.match(/data-metronome-sound=/g) || []).length, 4);
+    assert.doesNotMatch(html, /data-metronome-sound="(?:electronic-drum|wood)"/);
 });
-test('BPM label precedes the centered number and visual beats sit directly below it', () => {
+test('BPM label sits above the centered number and visual beats directly below it', () => {
     const unitIndex = html.indexOf('class="tempo-unit"');
     const bpmIndex = html.indexOf('id="metronome-bpm"');
     const visualIndex = html.indexOf('id="metronome-visual-beats"');
     const sliderIndex = html.indexOf('id="metronome-bpm-slider"');
     assert.ok(unitIndex < bpmIndex && bpmIndex < visualIndex && visualIndex < sliderIndex);
-    assert.match(css, /\.tempo-readout\s*\{[\s\S]*position:\s*relative/);
-    assert.match(css, /\.tempo-unit\s*\{[\s\S]*position:\s*absolute/);
+    assert.match(css, /\.tempo-readout\s*\{[\s\S]*place-items:\s*center/);
+    assert.doesNotMatch(css.match(/\.tempo-unit\s*\{[\s\S]*?\}/)[0], /position:\s*absolute/);
+    assert.match(css, /\.tempo-steps\s*\{[\s\S]*grid-template-columns:\s*repeat\(4/);
 });
 test('BPM interpretation copy is removed without changing timing logic', () => {
     assert.doesNotMatch(html + appSource, /metronome-tempo-note|4分音符＝BPM|付点4分音符＝BPM/);

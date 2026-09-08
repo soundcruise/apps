@@ -2118,15 +2118,15 @@ select {
 
 .tempo-display {
     display: grid;
-    margin: clamp(22px, 6vw, 36px) auto 8px;
+    margin: clamp(16px, 4.5vw, 26px) auto 4px;
     justify-items: center;
-    gap: 3px;
+    gap: 0;
 }
 
 .tempo-readout {
-    position: relative;
     width: 100%;
     display: grid;
+    gap: 0;
     place-items: center;
 }
 
@@ -2138,11 +2138,11 @@ select {
     border-radius: 0;
     color: var(--port-text);
     background: transparent;
-    font-size: clamp(4rem, 20vw, 6.8rem);
+    font-size: clamp(3.8rem, 18vw, 6.1rem);
     font-weight: 640;
     font-variant-numeric: tabular-nums;
     letter-spacing: -0.055em;
-    line-height: 0.98;
+    line-height: 0.94;
     text-align: center;
     appearance: textfield;
 }
@@ -2159,18 +2159,17 @@ select {
 }
 
 .tempo-unit {
-    position: absolute;
-    right: calc(50% + 78px);
-    bottom: 12px;
     color: var(--port-gold);
-    font-size: 0.66rem;
+    font-size: 0.64rem;
     font-weight: 680;
     letter-spacing: 0.16em;
+    line-height: 1.2;
+    text-indent: 0.16em;
 }
 
 .tempo-slider-field {
     display: grid;
-    margin: 0 2px 14px;
+    margin: 0 2px 10px;
     gap: 0;
 }
 
@@ -2231,7 +2230,7 @@ select {
 
 .tempo-steps {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
 }
 
@@ -2252,7 +2251,6 @@ select {
 
 .tempo-steps button:focus-visible,
 .metronome-toggle:focus-visible,
-.metronome-tap:focus-visible,
 .metronome-preset-controls button:focus-visible,
 .metronome-preset-delete:focus-visible,
 .metronome-preset-dialog button:focus-visible,
@@ -2263,22 +2261,9 @@ select {
     outline-offset: 3px;
 }
 
-.metronome-tap {
-    color: var(--port-gold-bright) !important;
-    letter-spacing: 0.08em;
-}
-
-.tap-status {
-    min-height: 1.5em;
-    margin: 8px 0 0;
-    color: var(--port-muted);
-    font-size: 0.72rem;
-    line-height: 1.5;
-}
-
 .metronome-status {
     min-height: 1.5em;
-    margin: 18px 0 7px;
+    margin: 12px 0 7px;
     color: var(--port-muted);
     font-size: 0.76rem;
     line-height: 1.5;
@@ -2297,10 +2282,10 @@ select {
 }
 
 .metronome-visual-rhythm {
-    min-height: 52px;
+    min-height: 46px;
     display: grid;
-    margin: 3px 0 0;
-    padding: 4px 8px 3px;
+    margin: 0;
+    padding: 2px 8px;
     place-items: center;
     gap: 5px;
 }
@@ -2364,7 +2349,7 @@ select {
 
 .metronome-presets {
     display: grid;
-    margin-top: 18px;
+    margin-top: 14px;
     padding: 14px 2px 10px;
     border-bottom: 1px solid rgba(207, 189, 148, 0.1);
     gap: 8px;
