@@ -2118,8 +2118,16 @@ select {
 
 .tempo-display {
     display: grid;
-    margin: clamp(26px, 7vw, 42px) auto 14px;
+    margin: clamp(22px, 6vw, 36px) auto 8px;
     justify-items: center;
+    gap: 3px;
+}
+
+.tempo-readout {
+    position: relative;
+    width: 100%;
+    display: grid;
+    place-items: center;
 }
 
 .tempo-value {
@@ -2151,19 +2159,13 @@ select {
 }
 
 .tempo-unit {
-    margin-top: 10px;
+    position: absolute;
+    right: calc(50% + 78px);
+    bottom: 12px;
     color: var(--port-gold);
-    font-size: 0.72rem;
+    font-size: 0.66rem;
     font-weight: 680;
-    letter-spacing: 0.22em;
-}
-
-.tempo-note {
-    margin: 8px 0 0;
-    color: var(--port-muted);
-    font-size: 0.72rem;
-    letter-spacing: 0.04em;
-    line-height: 1.5;
+    letter-spacing: 0.16em;
 }
 
 .tempo-slider-field {
@@ -2251,6 +2253,10 @@ select {
 .tempo-steps button:focus-visible,
 .metronome-toggle:focus-visible,
 .metronome-tap:focus-visible,
+.metronome-preset-controls button:focus-visible,
+.metronome-preset-delete:focus-visible,
+.metronome-preset-dialog button:focus-visible,
+.metronome-preset-dialog input:focus-visible,
 .metronome-choice-grid button:focus-visible,
 .beat-button:focus-visible {
     outline: 2px solid var(--port-gold-bright);
@@ -2291,16 +2297,16 @@ select {
 }
 
 .metronome-visual-rhythm {
-    min-height: 78px;
+    min-height: 52px;
     display: grid;
-    margin-top: 20px;
-    padding: 12px 8px 9px;
+    margin: 3px 0 0;
+    padding: 4px 8px 3px;
     place-items: center;
-    gap: 9px;
+    gap: 5px;
 }
 
 .visual-beat-display {
-    min-height: 30px;
+    min-height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -2354,6 +2360,142 @@ select {
 .visual-subdivision-display span.is-current {
     background: rgba(241, 218, 153, 0.82);
     transform: scale(1.4);
+}
+
+.metronome-presets {
+    display: grid;
+    margin-top: 18px;
+    padding: 14px 2px 10px;
+    border-bottom: 1px solid rgba(207, 189, 148, 0.1);
+    gap: 8px;
+    text-align: left;
+}
+
+.metronome-presets > label {
+    color: var(--port-muted);
+    font-size: 0.72rem;
+    font-weight: 620;
+    letter-spacing: 0.05em;
+}
+
+.metronome-preset-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 72px;
+    gap: 8px;
+}
+
+.metronome-preset-controls select,
+.metronome-preset-controls button {
+    min-width: 0;
+    min-height: 46px;
+    border: 1px solid rgba(207, 189, 148, 0.2);
+    border-radius: 10px;
+    color: var(--port-text);
+    background: #12110e;
+    font: inherit;
+    font-size: 0.76rem;
+}
+
+.metronome-preset-controls button {
+    padding: 8px;
+    color: var(--port-gold-bright);
+    cursor: pointer;
+}
+
+.metronome-preset-controls button:disabled,
+.metronome-preset-delete:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+
+.metronome-preset-delete {
+    width: fit-content;
+    min-height: 36px;
+    padding: 5px 2px;
+    border: 0;
+    color: rgba(210, 182, 173, 0.86);
+    background: transparent;
+    font: inherit;
+    font-size: 0.69rem;
+    cursor: pointer;
+}
+
+.metronome-preset-status {
+    margin: 0;
+    color: var(--port-muted);
+    font-size: 0.68rem;
+    line-height: 1.5;
+}
+
+.metronome-preset-status:empty {
+    display: none;
+}
+
+body.metronome-preset-open {
+    overflow: hidden;
+}
+
+.metronome-preset-dialog {
+    position: fixed;
+    z-index: 1050;
+    inset: 0;
+    display: grid;
+    padding: max(18px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+    place-items: center;
+    overflow-y: auto;
+    background: rgba(3, 3, 2, 0.88);
+    overscroll-behavior: contain;
+}
+
+.metronome-preset-dialog[hidden] {
+    display: none;
+}
+
+.metronome-preset-dialog-panel {
+    width: min(100%, 360px);
+    padding: 22px;
+    border: 1px solid rgba(207, 189, 148, 0.22);
+    border-radius: 18px;
+    background: #11100d;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.58);
+    text-align: left;
+}
+
+.metronome-preset-dialog-panel h2 {
+    margin: 3px 0 20px;
+    color: var(--port-text);
+    font-size: 1.3rem;
+    font-weight: 540;
+}
+
+.metronome-preset-dialog-panel label {
+    display: flex;
+    margin-bottom: 8px;
+    align-items: baseline;
+    justify-content: space-between;
+    color: var(--port-text);
+    font-size: 0.8rem;
+}
+
+.metronome-preset-dialog-panel label span {
+    color: var(--port-muted);
+    font-size: 0.68rem;
+}
+
+.metronome-preset-dialog-panel input {
+    width: 100%;
+    min-height: 48px;
+}
+
+.metronome-preset-dialog-actions {
+    display: grid;
+    margin-top: 18px;
+    grid-template-columns: 1fr 1fr;
+    gap: 9px;
+}
+
+.metronome-preset-dialog-actions .action-button {
+    min-height: 48px;
 }
 
 .metronome-details {
@@ -2553,10 +2695,6 @@ select {
 
 .metronome-sound-section {
     gap: 16px;
-}
-
-.metronome-sound-grid button:last-child {
-    grid-column: 1 / -1;
 }
 
 .volume-field output {

@@ -5,7 +5,14 @@ import {
     defaultAccentsForMeter,
     loadMetronomeSettings,
     saveMetronomeSettings
-} from './metronome-store.js?v=3.0.0';
+} from './metronome-store.js?v=3.1.0';
+import {
+    METRONOME_PRESET_LIMITS,
+    createMetronomePreset,
+    deleteMetronomePreset,
+    loadMetronomePresets,
+    settingsFromMetronomePreset
+} from './metronome-presets-store.js?v=1.0.0';
 import {
     beatsForMeter,
     compatibleRhythm,
@@ -15,7 +22,7 @@ import {
     meterLabel,
     scheduleEventsUntil,
     secondsPerBeat
-} from './metronome-timing.js?v=1.1.0';
+} from './metronome-timing.js?v=1.2.0';
 
 export const METRONOME_SCHEDULER_INTERVAL_MS = 25;
 export const METRONOME_SCHEDULE_AHEAD_SEC = 0.1;
@@ -197,59 +204,80 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
         });
     }
 
-    // Fretboard Cruise「指板をたどる」のkick/snare/hat思想を基礎に、スマホで消えにくい
-    // 中域のattackを加えたCruise Port専用の短い電子ドラムへ調整する。
+    // 低域だけでなく中低域body・noise transient・倍音を重ね、小型スピーカーでも
+    // punchを感じられる短い電子ドラムへ調整する。
     function scheduleElectronicDrum(when, voice) {
         if (voice === 'accent') {
             scheduleOscillator(when, {
                 type: 'sine',
-                frequency: 165,
-                endFrequency: 55,
-                peak: 0.42,
-                attack: 0.002,
-                release: 0.14
+                frequency: 190,
+                endFrequency: 68,
+                peak: 0.50,
+                attack: 0.001,
+                release: 0.125
             });
             scheduleOscillator(when, {
                 type: 'triangle',
-                frequency: 720,
-                endFrequency: 260,
-                peak: 0.28,
+                frequency: 560,
+                endFrequency: 185,
+                peak: 0.34,
                 attack: 0.001,
-                release: 0.065
+                release: 0.074
+            });
+            scheduleNoise(when, {
+                frequency: 1900,
+                q: 1.35,
+                peak: 0.24,
+                attack: 0.0008,
+                release: 0.032
             });
             scheduleOscillator(when, {
                 type: 'square',
-                frequency: 5200,
-                peak: 0.07,
-                attack: 0.001,
-                release: 0.028
+                frequency: 2800,
+                peak: 0.09,
+                attack: 0.0008,
+                release: 0.018
             });
             return;
         }
         if (voice === 'main') {
             scheduleOscillator(when, {
                 type: 'triangle',
-                frequency: 420,
-                endFrequency: 250,
-                peak: 0.38,
+                frequency: 520,
+                endFrequency: 285,
+                peak: 0.42,
                 attack: 0.001,
-                release: 0.062
+                release: 0.056
+            });
+            scheduleNoise(when, {
+                frequency: 1550,
+                q: 1.8,
+                peak: 0.28,
+                attack: 0.0008,
+                release: 0.034
             });
             scheduleOscillator(when, {
                 type: 'square',
-                frequency: 1600,
+                frequency: 1180,
                 peak: 0.12,
-                attack: 0.001,
-                release: 0.032
+                attack: 0.0008,
+                release: 0.026
             });
             return;
         }
+        scheduleNoise(when, {
+            frequency: 7200,
+            q: 0.9,
+            peak: 0.16,
+            attack: 0.0007,
+            release: 0.021
+        });
         scheduleOscillator(when, {
             type: 'square',
-            frequency: 6500,
-            peak: 0.14,
-            attack: 0.001,
-            release: 0.025
+            frequency: 5600,
+            peak: 0.075,
+            attack: 0.0007,
+            release: 0.017
         });
     }
 
@@ -272,24 +300,32 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
 
     function scheduleWood(when, voice) {
         const voices = {
-            accent: { frequency: 1150, noise: 0.38, body: 0.24, release: 0.064 },
-            main: { frequency: 900, noise: 0.32, body: 0.20, release: 0.058 },
-            subdivision: { frequency: 680, noise: 0.18, body: 0.12, release: 0.038 }
+            accent: { frequency: 980, noiseFrequency: 2200, noise: 0.42, body: 0.46, overtone: 0.18, release: 0.072 },
+            main: { frequency: 820, noiseFrequency: 1800, noise: 0.34, body: 0.38, overtone: 0.13, release: 0.062 },
+            subdivision: { frequency: 680, noiseFrequency: 1450, noise: 0.19, body: 0.21, overtone: 0.07, release: 0.04 }
         };
         const selected = voices[voice];
         scheduleNoise(when, {
-            frequency: selected.frequency,
-            q: 4.2,
+            frequency: selected.noiseFrequency,
+            q: 2.4,
             peak: selected.noise,
+            attack: 0.0008,
+            release: Math.min(0.038, selected.release * 0.55)
+        });
+        scheduleOscillator(when, {
+            type: 'triangle',
+            frequency: selected.frequency,
+            endFrequency: selected.frequency * 0.78,
+            peak: selected.body,
             attack: 0.001,
             release: selected.release
         });
         scheduleOscillator(when, {
-            type: 'triangle',
-            frequency: selected.frequency * 0.62,
-            peak: selected.body,
-            attack: 0.002,
-            release: selected.release + 0.012
+            type: 'sine',
+            frequency: selected.frequency * 2.02,
+            peak: selected.overtone,
+            attack: 0.001,
+            release: selected.release * 0.58
         });
     }
 
@@ -309,11 +345,36 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
         });
     }
 
+    function scheduleRim(when, voice) {
+        const voices = {
+            accent: { frequency: 1480, noiseFrequency: 3600, body: 0.42, noise: 0.27, release: 0.045 },
+            main: { frequency: 1240, noiseFrequency: 3150, body: 0.34, noise: 0.22, release: 0.038 },
+            subdivision: { frequency: 1020, noiseFrequency: 2800, body: 0.18, noise: 0.12, release: 0.026 }
+        };
+        const selected = voices[voice];
+        scheduleOscillator(when, {
+            type: 'triangle',
+            frequency: selected.frequency,
+            endFrequency: selected.frequency * 0.88,
+            peak: selected.body,
+            attack: 0.0008,
+            release: selected.release
+        });
+        scheduleNoise(when, {
+            frequency: selected.noiseFrequency,
+            q: 1.7,
+            peak: selected.noise,
+            attack: 0.0007,
+            release: selected.release * 0.62
+        });
+    }
+
     function scheduleSound(when, sound, voice) {
         if (sound === 'electronic-drum') scheduleElectronicDrum(when, voice);
         else if (sound === 'analog') scheduleAnalog(when, voice);
         else if (sound === 'wood') scheduleWood(when, voice);
         else if (sound === 'click') scheduleHardClick(when, voice);
+        else if (sound === 'rim') scheduleRim(when, voice);
         else scheduleElectronic(when, voice);
     }
 
@@ -458,7 +519,6 @@ export function initMetronome(root) {
         bpm: root.querySelector('#metronome-bpm'),
         bpmSlider: root.querySelector('#metronome-bpm-slider'),
         meter: root.querySelector('#metronome-meter'),
-        tempoNote: root.querySelector('#metronome-tempo-note'),
         rhythm: root.querySelector('#metronome-rhythm'),
         rhythmHint: root.querySelector('#metronome-rhythm-hint'),
         sound: root.querySelector('#metronome-sound'),
@@ -474,19 +534,34 @@ export function initMetronome(root) {
         tapStatus: root.querySelector('#metronome-tap-status'),
         status: root.querySelector('#metronome-status'),
         storageError: root.querySelector('#metronome-storage-error'),
+        presetSelect: root.querySelector('#metronome-preset-select'),
+        presetSaveOpen: root.querySelector('#metronome-preset-save-open'),
+        presetDelete: root.querySelector('#metronome-preset-delete'),
+        presetStatus: root.querySelector('#metronome-preset-status'),
+        presetError: root.querySelector('#metronome-preset-error'),
+        presetDialog: root.querySelector('#metronome-preset-dialog'),
+        presetName: root.querySelector('#metronome-preset-name'),
+        presetDialogError: root.querySelector('#metronome-preset-dialog-error'),
+        presetSave: root.querySelector('#metronome-preset-save'),
+        presetCancel: root.querySelector('#metronome-preset-cancel'),
         stepButtons: [...root.querySelectorAll('[data-bpm-delta]')],
         rhythmButtons: [...root.querySelectorAll('[data-metronome-rhythm]')],
         soundButtons: [...root.querySelectorAll('[data-metronome-sound]')]
     };
 
     const loadResult = loadMetronomeSettings();
+    const presetLoadResult = loadMetronomePresets();
     const state = {
         settings: loadResult.settings,
+        presets: presetLoadResult.presets,
+        presetStorageWritable: presetLoadResult.ok,
+        selectedPresetId: '',
         currentBeat: -1,
         currentSubdivision: -1,
         tapTimes: []
     };
     let viewActive = false;
+    let presetDialogReturnFocus = null;
 
     function getSettings() {
         return { ...state.settings, accents: [...state.settings.accents] };
@@ -500,6 +575,81 @@ export function initMetronome(root) {
     function saveSettings() {
         const result = saveMetronomeSettings(state.settings);
         showStorageError(result.ok ? '' : 'メトロノーム設定を保存できませんでした。現在の操作はこの画面内だけに反映されています。');
+    }
+
+    function showPresetError(message = '') {
+        elements.presetError.textContent = message;
+        elements.presetError.hidden = !message;
+    }
+
+    function showPresetDialogError(message = '') {
+        elements.presetDialogError.textContent = message;
+        elements.presetDialogError.hidden = !message;
+    }
+
+    function showPresetStatus(message = '') {
+        elements.presetStatus.textContent = message;
+    }
+
+    function renderPresetOptions() {
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = state.presets.length ? 'プリセットを選択' : '保存済みプリセットなし';
+        elements.presetSelect.replaceChildren(placeholder);
+        state.presets.forEach((preset) => {
+            const option = document.createElement('option');
+            option.value = preset.id;
+            option.textContent = preset.name;
+            elements.presetSelect.append(option);
+        });
+        if (!state.presets.some((preset) => preset.id === state.selectedPresetId)) state.selectedPresetId = '';
+        elements.presetSelect.value = state.selectedPresetId;
+        elements.presetDelete.hidden = !state.selectedPresetId;
+        elements.presetDelete.disabled = !state.presetStorageWritable;
+        elements.presetSaveOpen.disabled = !state.presetStorageWritable
+            || state.presets.length >= METRONOME_PRESET_LIMITS.items;
+    }
+
+    function markPresetDirty() {
+        if (!state.selectedPresetId) return;
+        state.selectedPresetId = '';
+        elements.presetSelect.value = '';
+        elements.presetDelete.hidden = true;
+        showPresetStatus('設定を変更しました。保存済みプリセットは変更されていません。');
+    }
+
+    function openPresetDialog() {
+        if (!state.presetStorageWritable) {
+            showPresetError('保存済みプリセットを安全に読み込めないため、新しい保存は行いません。現在のメトロノームはそのまま利用できます。');
+            return;
+        }
+        if (state.presets.length >= METRONOME_PRESET_LIMITS.items) {
+            showPresetError(`プリセットは${METRONOME_PRESET_LIMITS.items}件まで保存できます。`);
+            return;
+        }
+        presetDialogReturnFocus = document.activeElement;
+        elements.presetName.value = '';
+        showPresetDialogError();
+        elements.presetDialog.hidden = false;
+        document.body.classList.add('metronome-preset-open');
+        requestAnimationFrame(() => elements.presetName.focus({ preventScroll: true }));
+    }
+
+    function closePresetDialog({ restoreFocus = true } = {}) {
+        if (elements.presetDialog.hidden) return;
+        elements.presetDialog.hidden = true;
+        document.body.classList.remove('metronome-preset-open');
+        showPresetDialogError();
+        if (restoreFocus && viewActive && presetDialogReturnFocus?.isConnected) {
+            presetDialogReturnFocus.focus({ preventScroll: true });
+        }
+        presetDialogReturnFocus = null;
+    }
+
+    function markPresetStorageUnavailable() {
+        state.presetStorageWritable = false;
+        renderPresetOptions();
+        showPresetError('プリセットを保存できませんでした。保存済みデータは変更していません。Safariの保存設定や空き容量を確認してください。');
     }
 
     function renderBeatState() {
@@ -609,9 +759,6 @@ export function initMetronome(root) {
         elements.meter.value = state.settings.meter;
         elements.volume.value = String(state.settings.volume);
         elements.volumeValue.value = String(state.settings.volume);
-        elements.tempoNote.textContent = isCompoundMeter(state.settings.meter)
-            ? '付点4分音符＝BPM'
-            : '4分音符＝BPM';
         renderRhythmControls();
         renderSoundControls();
         if (rebuildBeats) rebuildBeatDisplay();
@@ -645,9 +792,80 @@ export function initMetronome(root) {
         elements.tapStatus.textContent = 'タップしてテンポを測定';
     }
 
+    function applyPreset(presetId) {
+        const preset = state.presets.find((candidate) => candidate.id === presetId);
+        const settings = settingsFromMetronomePreset(preset);
+        if (!preset || !settings) {
+            state.selectedPresetId = '';
+            renderPresetOptions();
+            showPresetError('このプリセットを読み込めませんでした。現在の設定は変更していません。');
+            return false;
+        }
+        state.settings = settings;
+        state.selectedPresetId = preset.id;
+        state.currentBeat = -1;
+        state.currentSubdivision = -1;
+        resetTapState();
+        engine.setVolume(settings.volume);
+        renderControls();
+        renderPresetOptions();
+        saveSettings();
+        showPresetError();
+        showPresetStatus(`「${preset.name}」を呼び出しました。`);
+        if (engine.isPlaying()) engine.reschedule(getSettings, { resetBeat: true });
+        return true;
+    }
+
+    function saveCurrentAsPreset() {
+        const result = createMetronomePreset({
+            presets: state.presets,
+            name: elements.presetName.value,
+            settings: getSettings()
+        });
+        if (!result.ok) {
+            if (result.reason === 'name-required') showPresetDialogError('プリセット名を入力してください。');
+            else if (result.reason === 'name-too-long') showPresetDialogError(`プリセット名は${METRONOME_PRESET_LIMITS.name}文字以内で入力してください。`);
+            else if (result.reason === 'duplicate-name') showPresetDialogError('同じ名前のプリセットがあります。別の名前を入力してください。');
+            else if (result.reason === 'limit-reached') showPresetDialogError(`プリセットは${METRONOME_PRESET_LIMITS.items}件まで保存できます。`);
+            else {
+                closePresetDialog({ restoreFocus: false });
+                markPresetStorageUnavailable();
+            }
+            return false;
+        }
+        state.presets = result.presets;
+        state.selectedPresetId = result.preset.id;
+        renderPresetOptions();
+        showPresetError();
+        showPresetStatus(`「${result.preset.name}」を保存しました。`);
+        closePresetDialog();
+        return true;
+    }
+
+    function deleteSelectedPreset() {
+        const preset = state.presets.find((candidate) => candidate.id === state.selectedPresetId);
+        if (!preset) return;
+        if (!state.presetStorageWritable) {
+            showPresetError('保存済みプリセットを安全に読み込めないため、削除は行いません。');
+            return;
+        }
+        if (!window.confirm(`プリセット「${preset.name}」を削除しますか？\n現在のメトロノーム設定はそのまま残ります。`)) return;
+        const result = deleteMetronomePreset({ presets: state.presets, id: preset.id });
+        if (!result.ok) {
+            markPresetStorageUnavailable();
+            return;
+        }
+        state.presets = result.presets;
+        state.selectedPresetId = '';
+        renderPresetOptions();
+        showPresetError();
+        showPresetStatus(`「${preset.name}」を削除しました。現在の設定は変更していません。`);
+    }
+
     function setBpm(value, { persist = true } = {}) {
         const bpm = clampInteger(value, METRONOME_LIMITS.bpmMin, METRONOME_LIMITS.bpmMax, state.settings.bpm);
         state.settings = { ...state.settings, bpm };
+        markPresetDirty();
         elements.bpm.value = String(bpm);
         elements.bpmSlider.value = String(bpm);
         elements.bpmSlider.setAttribute('aria-valuetext', `${bpm} BPM`);
@@ -670,6 +888,45 @@ export function initMetronome(root) {
     });
     elements.bpmSlider.addEventListener('input', () => setBpm(elements.bpmSlider.value, { persist: false }));
     elements.bpmSlider.addEventListener('change', saveSettings);
+
+    elements.presetSelect.addEventListener('change', () => {
+        if (!elements.presetSelect.value) {
+            state.selectedPresetId = '';
+            elements.presetDelete.hidden = true;
+            showPresetStatus();
+            return;
+        }
+        applyPreset(elements.presetSelect.value);
+    });
+    elements.presetSaveOpen.addEventListener('click', openPresetDialog);
+    elements.presetSave.addEventListener('click', saveCurrentAsPreset);
+    elements.presetCancel.addEventListener('click', () => closePresetDialog());
+    elements.presetDelete.addEventListener('click', deleteSelectedPreset);
+    elements.presetName.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            saveCurrentAsPreset();
+        }
+    });
+    elements.presetDialog.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closePresetDialog();
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const focusable = [elements.presetName, elements.presetSave, elements.presetCancel]
+            .filter((element) => !element.disabled && !element.hidden);
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    });
 
     elements.details.addEventListener('toggle', () => {
         elements.detailsSummary.setAttribute('aria-expanded', String(elements.details.open));
@@ -701,6 +958,7 @@ export function initMetronome(root) {
             rhythm,
             accents: defaultAccentsForMeter(meter)
         };
+        markPresetDirty();
         state.currentBeat = -1;
         state.currentSubdivision = -1;
         renderControls();
@@ -713,6 +971,7 @@ export function initMetronome(root) {
         if (!button || button.disabled) return;
         const rhythm = button.dataset.metronomeRhythm;
         state.settings = { ...state.settings, rhythm };
+        markPresetDirty();
         renderRhythmControls();
         rebuildVisualRhythm();
         saveSettings();
@@ -726,6 +985,7 @@ export function initMetronome(root) {
         const accents = [...state.settings.accents];
         accents[beatIndex] = !accents[beatIndex];
         state.settings = { ...state.settings, accents };
+        markPresetDirty();
         renderBeatState();
         renderVisualState();
         saveSettings();
@@ -736,6 +996,7 @@ export function initMetronome(root) {
         const button = event.target.closest('[data-metronome-sound]');
         if (!button) return;
         state.settings = { ...state.settings, sound: button.dataset.metronomeSound };
+        markPresetDirty();
         renderSoundControls();
         saveSettings();
         rescheduleIfPlaying();
@@ -744,6 +1005,7 @@ export function initMetronome(root) {
     elements.volume.addEventListener('input', () => {
         const volume = clampInteger(elements.volume.value, METRONOME_LIMITS.volumeMin, METRONOME_LIMITS.volumeMax, state.settings.volume);
         state.settings = { ...state.settings, volume };
+        markPresetDirty();
         elements.volumeValue.value = String(volume);
         engine.setVolume(volume);
     });
@@ -776,7 +1038,13 @@ export function initMetronome(root) {
             ? '旧設定を使用していますが、新しい形式で保存できませんでした。'
             : '保存済みのメトロノーム設定を読み込めません。保存内容は変更していません。初期値で表示しています。');
     }
+    if (!presetLoadResult.ok) {
+        showPresetError(presetLoadResult.reason === 'partial-invalid'
+            ? `保存済みプリセットのうち${presetLoadResult.ignored}件を安全のため読み込みませんでした。プリセットの保存・削除は停止しています。`
+            : '保存済みプリセットを読み込めません。保存内容は変更せず、プリセット機能だけ停止しています。');
+    }
     renderControls();
+    renderPresetOptions();
     renderPlaying();
 
     return {
@@ -784,6 +1052,7 @@ export function initMetronome(root) {
             viewActive = active;
             if (!active) {
                 engine.stop();
+                closePresetDialog({ restoreFocus: false });
                 elements.details.open = false;
                 elements.detailsSummary.setAttribute('aria-expanded', 'false');
                 state.currentBeat = -1;
@@ -796,6 +1065,7 @@ export function initMetronome(root) {
             if (active) elements.title.focus({ preventScroll: true });
         },
         stopForPageHidden() {
+            closePresetDialog({ restoreFocus: false });
             resetTapState();
             engine.suspend();
             state.currentBeat = -1;

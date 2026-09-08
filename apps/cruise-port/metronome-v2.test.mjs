@@ -29,6 +29,7 @@ import {
 import {
     METRONOME_SCHEDULE_AHEAD_SEC,
     METRONOME_SCHEDULER_INTERVAL_MS,
+    METRONOME_START_LEAD_SEC,
     METRONOME_TAP_RESET_MS,
     bpmFromTapTimes,
     createMetronomeAudioEngine,
@@ -249,8 +250,8 @@ test('malformed settings fall back safely without overwriting their raw value', 
 test('invalid compound rhythm is rejected by v3 normalization', () => {
     assert.equal(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, meter: '6/8', rhythm: 'triplet', accents: [true, false] }), null);
 });
-test('schema v3 accepts exactly the five formal sound colors', () => {
-    assert.deepEqual(METRONOME_SOUNDS, ['electronic', 'electronic-drum', 'analog', 'wood', 'click']);
+test('schema v3 accepts the six comparison sound colors', () => {
+    assert.deepEqual(METRONOME_SOUNDS, ['electronic', 'electronic-drum', 'analog', 'wood', 'click', 'rim']);
     METRONOME_SOUNDS.forEach((sound) => assert.ok(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, sound })));
     assert.equal(normalizeMetronomeSettings({ ...METRONOME_DEFAULTS, sound: 'drum' }), null);
 });
@@ -267,6 +268,7 @@ test('lookahead scheduler uses the AudioContext timeline', async () => {
     assert.ok(snapshot.scheduledEvents[0].when >= 10 + 0.05);
     assert.equal(METRONOME_SCHEDULE_AHEAD_SEC, 0.1);
     assert.equal(METRONOME_SCHEDULER_INTERVAL_MS, 25);
+    assert.equal(METRONOME_START_LEAD_SEC, 0.055);
 });
 test('scheduler prevents double start', async () => {
     const harness = engineHarness();
@@ -349,8 +351,9 @@ test('electronic drum combines a low kick body with a smartphone-audible attack'
     const harness = engineHarness({ sound: 'electronic-drum' });
     await harness.engine.start(() => harness.settings);
     const context = FakeAudioContext.instances[0];
-    assert.ok(context.started.some((node) => node.type === 'sine' && node.frequency.events.some((event) => event[1] === 165)));
-    assert.ok(context.started.some((node) => node.type === 'triangle' && node.frequency.events.some((event) => event[1] === 720)));
+    assert.ok(context.started.some((node) => node.type === 'sine' && node.frequency.events.some((event) => event[1] === 190)));
+    assert.ok(context.started.some((node) => node.type === 'triangle' && node.frequency.events.some((event) => event[1] === 560)));
+    assert.ok(context.started.some((node) => node.kind === 'buffer-source'));
 });
 test('electronic sound reuses Rhythm Cruise accent frequency', async () => {
     const harness = engineHarness({ sound: 'electronic' });
@@ -358,7 +361,7 @@ test('electronic sound reuses Rhythm Cruise accent frequency', async () => {
     const context = FakeAudioContext.instances[0];
     assert.ok(context.started.some((node) => node.type === 'square' && node.frequency.events.some((event) => event[1] === 1500)));
 });
-for (const sound of ['analog', 'wood', 'click']) {
+for (const sound of ['analog', 'wood', 'click', 'rim']) {
     test(`${sound} has a schedulable dedicated Web Audio voice`, async () => {
         const harness = engineHarness({ sound });
         await harness.engine.start(() => harness.settings);
@@ -366,6 +369,14 @@ for (const sound of ['analog', 'wood', 'click']) {
         assert.ok(harness.engine.snapshot().scheduledEvents.every((event) => event.sound === sound));
     });
 }
+test('wood sound has a stronger resonant body and attack layer', async () => {
+    const harness = engineHarness({ sound: 'wood' });
+    await harness.engine.start(() => harness.settings);
+    const context = FakeAudioContext.instances[0];
+    assert.ok(context.started.some((node) => node.type === 'triangle' && node.frequency.events.some((event) => event[1] === 980)));
+    assert.ok(context.started.some((node) => node.type === 'sine' && node.frequency.events.some((event) => Math.abs(event[1] - 1979.6) < 1e-9)));
+    assert.ok(context.started.some((node) => node.kind === 'buffer-source'));
+});
 test('background suspend stops playback and does not auto-resume', async () => {
     const harness = engineHarness();
     await harness.engine.start(() => harness.settings);
@@ -394,19 +405,48 @@ test('detailed settings start closed and include all five advanced controls', ()
     for (const label of ['拍子', 'リズム', 'アクセント', '音色', '音量']) assert.match(html, new RegExp(`>${label}(?:\\s|<)`));
     assert.match(appSource, /details\.addEventListener\('toggle'[\s\S]*aria-expanded/);
 });
-test('sound selector exposes five named radio choices including electronic drum', () => {
-    for (const [key, label] of [['electronic', '電子音'], ['electronic-drum', '電子ドラム'], ['analog', 'アナログ'], ['wood', 'ウッド'], ['click', 'クリック']]) {
+test('sound selector exposes six named radio choices including the rim candidate', () => {
+    for (const [key, label] of [['electronic', '電子音'], ['electronic-drum', '電子ドラム'], ['analog', 'アナログ'], ['wood', 'ウッド'], ['click', 'クリック'], ['rim', 'リム']]) {
         assert.match(html, new RegExp(`data-metronome-sound="${key}"[^>]*>${label}<`));
     }
+});
+test('BPM label precedes the centered number and visual beats sit directly below it', () => {
+    const unitIndex = html.indexOf('class="tempo-unit"');
+    const bpmIndex = html.indexOf('id="metronome-bpm"');
+    const visualIndex = html.indexOf('id="metronome-visual-beats"');
+    const sliderIndex = html.indexOf('id="metronome-bpm-slider"');
+    assert.ok(unitIndex < bpmIndex && bpmIndex < visualIndex && visualIndex < sliderIndex);
+    assert.match(css, /\.tempo-readout\s*\{[\s\S]*position:\s*relative/);
+    assert.match(css, /\.tempo-unit\s*\{[\s\S]*position:\s*absolute/);
+});
+test('BPM interpretation copy is removed without changing timing logic', () => {
+    assert.doesNotMatch(html + appSource, /metronome-tempo-note|4分音符＝BPM|付点4分音符＝BPM/);
+    assert.equal(secondsPerQuarterNote(120, '4/4'), 0.5);
+    assert.ok(Math.abs(secondsPerQuarterNote(120, '6/8') - (1 / 3)) < 1e-12);
 });
 test('primary beat display remains visible outside detailed settings', () => {
     assert.ok(html.indexOf('id="metronome-visual-beats"') < html.indexOf('id="metronome-details"'));
     assert.match(appSource, /function renderVisualState\(\)[\s\S]*data-visual-beat/);
     assert.match(appSource, /function setVisualEvent\(event\)[\s\S]*renderVisualState\(\)/);
 });
+test('named preset UI stays outside details and uses a focused modal workflow', () => {
+    assert.ok(html.indexOf('id="metronome-preset-select"') < html.indexOf('id="metronome-details"'));
+    assert.match(html, /id="metronome-preset-dialog"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*hidden/);
+    assert.match(html, /id="metronome-preset-name"[^>]*maxlength="40"/);
+    assert.match(appSource, /function openPresetDialog\(\)[\s\S]*presetName\.focus/);
+    assert.match(appSource, /event\.key === 'Escape'[\s\S]*closePresetDialog/);
+});
+test('preset apply commits one complete settings object and reschedules once', () => {
+    const applySource = appSource.match(/function applyPreset\(presetId\)[\s\S]*?function saveCurrentAsPreset/)[0];
+    assert.match(applySource, /state\.settings = settings/);
+    assert.match(applySource, /engine\.setVolume\(settings\.volume\)/);
+    assert.equal((applySource.match(/engine\.reschedule/g) || []).length, 1);
+    assert.match(applySource, /engine\.reschedule\(getSettings, \{ resetBeat: true \}\)/);
+});
 test('stop, route leave, and hidden cleanup clear the primary beat state', () => {
     assert.match(appSource, /engine\.stop\(\);[\s\S]*state\.currentBeat = -1;[\s\S]*renderVisualState\(\)/);
     assert.match(appSource, /details\.open = false/);
+    assert.match(appSource, /closePresetDialog\(\{ restoreFocus: false \}\)/);
     assert.match(rootSource, /visibilitychange[\s\S]*stopForPageHidden/);
 });
 test('reduced motion also covers the new primary beat display', () => {
