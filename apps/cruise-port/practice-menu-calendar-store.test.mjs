@@ -1,0 +1,55 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+    PRACTICE_CALENDAR_LIMITS,
+    PRACTICE_CALENDAR_STORAGE_KEY,
+    createEmptyPracticeCalendar,
+    createPracticeCalendarNote,
+    deletePracticeCalendarNote,
+    getPracticeCalendarNotesForDate,
+    loadPracticeCalendar,
+    savePracticeCalendar,
+    updatePracticeCalendarNote
+} from './practice-menu-calendar-store.js';
+
+class FakeStorage {
+    constructor(values = {}) { this.values = new Map(Object.entries(values)); this.failWrites = false; }
+    getItem(key) { return this.values.has(key) ? this.values.get(key) : null; }
+    setItem(key, value) { if (this.failWrites) throw new Error('quota'); this.values.set(key, String(value)); }
+    removeItem(key) { this.values.delete(key); }
+}
+
+const now = new Date('2026-09-08T01:00:00.000Z');
+
+test('future and past dates support multiple trimmed notes with reload', () => {
+    let calendar = createEmptyPracticeCalendar();
+    const first = createPracticeCalendarNote(calendar, { localDate: '2026-10-02', text: '  バンドリハーサル  ' }, now);
+    assert.equal(first.ok, true);
+    calendar = first.calendar;
+    calendar = createPracticeCalendarNote(calendar, { localDate: '2026-10-02', text: '個人練習' }, now).calendar;
+    calendar = createPracticeCalendarNote(calendar, { localDate: '2026-09-01', text: 'ライブ' }, now).calendar;
+    assert.deepEqual(getPracticeCalendarNotesForDate(calendar, '2026-10-02').map(({ text }) => text), ['バンドリハーサル', '個人練習']);
+    const storage = new FakeStorage();
+    assert.deepEqual(savePracticeCalendar(calendar, storage), { ok: true });
+    assert.equal(loadPracticeCalendar(storage).calendar.notes.length, 3);
+});
+
+test('notes can be edited and individually deleted without touching peers', () => {
+    const created = createPracticeCalendarNote(createEmptyPracticeCalendar(), { localDate: '2026-10-02', text: 'ライブ' }, now);
+    const peer = createPracticeCalendarNote(created.calendar, { localDate: '2026-10-02', text: '休み' }, now);
+    const updated = updatePracticeCalendarNote(peer.calendar, created.note.id, 'ライブ本番', new Date('2026-09-09T01:00:00Z'));
+    assert.equal(updated.calendar.notes[0].text, 'ライブ本番');
+    const deleted = deletePracticeCalendarNote(updated.calendar, created.note.id);
+    assert.deepEqual(deleted.calendar.notes.map(({ text }) => text), ['休み']);
+});
+
+test('empty, overlong, malformed, and over-limit calendar data fail safely', () => {
+    const empty = createEmptyPracticeCalendar();
+    assert.equal(createPracticeCalendarNote(empty, { localDate: '2026-10-02', text: ' ' }, now).ok, false);
+    assert.equal(createPracticeCalendarNote(empty, { localDate: 'bad', text: '予定' }, now).ok, false);
+    assert.equal(createPracticeCalendarNote(empty, { localDate: '2026-10-02', text: 'x'.repeat(PRACTICE_CALENDAR_LIMITS.text + 1) }, now).ok, false);
+    const malformed = '{broken';
+    const storage = new FakeStorage({ [PRACTICE_CALENDAR_STORAGE_KEY]: malformed });
+    assert.equal(loadPracticeCalendar(storage).ok, false);
+    assert.equal(storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY), malformed);
+});

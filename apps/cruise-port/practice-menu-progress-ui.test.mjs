@@ -6,8 +6,10 @@ const source = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 
 const styles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
 
 assert.doesNotMatch(markup, /保存した練習メニューを選ぶと、内容を確認して使用アプリを開けます。/);
-assert.match(markup, /id="practice-complete-count"/);
+assert.doesNotMatch(markup, /practice-complete-count|コンプリート回数/);
 assert.match(markup, /id="practice-history-open"/);
+assert.match(markup, /id="practice-history-open"[\s\S]*練習カレンダー/);
+assert.match(markup, /id="practice-timer-toggle"[\s\S]*練習スタート/);
 assert.match(markup, /id="practice-hidden-open"/);
 assert.match(markup, /id="practice-complete"[^>]*disabled>全部完了/);
 assert.match(markup, /id="practice-cycle-reset"[^>]*disabled>チェックをすべてリセット/);
@@ -20,15 +22,22 @@ assert.match(markup, /id="practice-history-view"/);
 assert.match(markup, /id="practice-calendar-previous"/);
 assert.match(markup, /id="practice-calendar-next"/);
 assert.match(markup, /id="practice-calendar-days"[^>]*role="grid"/);
+assert.match(markup, /id="practice-calendar-note-add"/);
+assert.match(markup, /id="practice-calendar-note-text"[^>]*maxlength="500"/);
 assert.match(markup, /<span>日<\/span><span>月<\/span><span>火<\/span><span>水<\/span><span>木<\/span><span>金<\/span><span>土<\/span>/);
 
 assert.match(markup, /id="practice-hidden"[^>]*type="checkbox"/);
 assert.match(markup, /id="practice-count-reset"[^>]*>通算回数をリセット/);
 assert.match(markup, /id="practice-detail-count"/);
+assert.match(markup, /id="practice-open-app"[^>]*>アプリを開く/);
+assert.match(markup, /id="practice-detail-back"[^>]*>練習メニューに戻る/);
+assert.match(markup, /id="practice-attachment-input"[^>]*multiple/);
+assert.doesNotMatch(markup, /id="practice-open-app"[^>]*primary-action/);
 
 assert.match(source, /className = 'practice-check'/);
 assert.match(source, /setAttribute\('aria-pressed', checked \? 'true' : 'false'\)/);
 assert.match(source, /className = 'practice-launch'/);
+assert.match(source, /launch\.textContent = 'アプリへ'/);
 assert.match(source, /setAttribute\('aria-label', `\$\{item\.name\}の使用アプリ/);
 assert.match(source, /const activeItems = getActivePracticeItems\(\)/);
 assert.match(source, /canCompletePracticeCycle\(state\.progress, activeItems\.map/);
@@ -38,11 +47,29 @@ assert.match(source, /clearPracticeCurrentCheck\(state\.progress, state\.activeI
 assert.match(source, /resetPracticeTotalCount\(state\.progress, item\.id\)/);
 assert.match(source, /savePracticeProgress\(nextProgress\)/);
 assert.match(source, /savePracticeHistory\(nextHistory\)/);
+assert.match(source, /startPracticeTimer\(state\.timer\)/);
+assert.match(source, /getPracticeTimerElapsedSeconds\(state\.timer\)/);
+assert.match(source, /createPracticeSessionEvent\(transition\.session\)/);
+assert.match(source, /setHashRoute\('#practice-menu\/calendar'\)/);
+assert.match(source, /deleteAttachmentsForPractice\(item\.id\)/);
+assert.match(source, /cleanupPracticeAttachmentObjectUrls\(\)/);
+assert.doesNotMatch(source, /pagehide[\s\S]{0,500}stopPracticeTimer/);
 assert.match(source, /history\.replaceState[\s\S]*#practice-menu\/hidden/);
 
+const listCardSource = source.slice(
+    source.indexOf('function renderPracticeCard(item)'),
+    source.indexOf('function renderHiddenPracticeCard(item)')
+);
+assert.doesNotMatch(listCardSource, /durationMinutes/);
+assert.doesNotMatch(listCardSource, /(?:detail|copy|name)\.textContent = app\.label/);
+assert.match(listCardSource, /card\.append\(detailLink, checkButton, copy, actions, arrow\)/);
+
 assert.match(styles, /\.practice-calendar-days[\s\S]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/);
-assert.match(styles, /\.practice-check[\s\S]*width: 42px[\s\S]*height: 42px/);
+assert.match(styles, /\.practice-check[\s\S]*width: 44px[\s\S]*height: 44px/);
+assert.match(styles, /\.practice-menu-card[\s\S]*grid-template-columns: 44px minmax\(0, 1fr\) auto 18px/);
+assert.match(styles, /\.practice-timer-toggle[\s\S]*min-height: 48px/);
+assert.match(styles, /\.practice-attachment-lightbox\[hidden\]/);
 assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.practice-completion-celebration[\s\S]*animation: none/);
 assert.doesNotMatch(markup, /fullcalendar|react-calendar|calendar\.js/);
 
-console.log('practice-menu-progress-ui: list controls, hidden view, calendar, accessibility, and quiet completion UI passed');
+console.log('practice-menu-progress-ui: timer, concise cards, calendar notes, detail actions, attachments, accessibility, and completion UI passed');

@@ -1,10 +1,12 @@
-export const PRACTICE_HISTORY_SCHEMA_VERSION = 1;
+export const PRACTICE_HISTORY_SCHEMA_VERSION = 2;
 export const PRACTICE_HISTORY_STORAGE_KEY = 'cruisePort.practiceHistory';
 export const PRACTICE_HISTORY_MAX_EVENTS = 8000;
+export const PRACTICE_SESSION_MAX_SECONDS = 30 * 24 * 60 * 60;
 
 export const PRACTICE_HISTORY_EVENT_TYPE = Object.freeze({
     practiceCompleted: 'practice-completed',
-    cycleCompleted: 'cycle-completed'
+    cycleCompleted: 'cycle-completed',
+    practiceSession: 'practice-session'
 });
 
 const EVENT_TYPES = new Set(Object.values(PRACTICE_HISTORY_EVENT_TYPE));
@@ -29,7 +31,7 @@ function isValidLocalDate(value) {
     return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
-function isValidEvent(event) {
+function isValidEvent(event, version = PRACTICE_HISTORY_SCHEMA_VERSION) {
     if (
         !event
         || typeof event !== 'object'
@@ -37,11 +39,29 @@ function isValidEvent(event) {
         || typeof event.id !== 'string'
         || event.id.length === 0
         || !EVENT_TYPES.has(event.type)
+        || (version === 1 && event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession)
         || !isIsoDate(event.timestamp)
         || !isValidLocalDate(event.localDate)
-        || typeof event.cycleId !== 'string'
-        || event.cycleId.length === 0
     ) return false;
+
+    if (event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession) {
+        return event.cycleId === null
+            && typeof event.sessionId === 'string'
+            && event.sessionId.length > 0
+            && event.sessionId.length <= 160
+            && isIsoDate(event.startedAt)
+            && isIsoDate(event.endedAt)
+            && Date.parse(event.endedAt) >= Date.parse(event.startedAt)
+            && Number.isSafeInteger(event.durationSeconds)
+            && event.durationSeconds >= 0
+            && event.durationSeconds <= PRACTICE_SESSION_MAX_SECONDS
+            && event.practiceId === null
+            && event.practiceName === null
+            && event.durationMinutes === null
+            && event.appId === null;
+    }
+
+    if (typeof event.cycleId !== 'string' || event.cycleId.length === 0) return false;
 
     if (event.type === PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted) {
         return event.practiceId === null
@@ -70,21 +90,25 @@ export function createEmptyPracticeHistory() {
     return { version: PRACTICE_HISTORY_SCHEMA_VERSION, events: [] };
 }
 
-export function isValidPracticeHistory(history) {
+function isValidPracticeHistoryVersion(history, version) {
     return Boolean(
         history
         && typeof history === 'object'
         && !Array.isArray(history)
-        && history.version === PRACTICE_HISTORY_SCHEMA_VERSION
+        && history.version === version
         && Array.isArray(history.events)
         && history.events.length <= PRACTICE_HISTORY_MAX_EVENTS
-        && history.events.every(isValidEvent)
+        && history.events.every((event) => isValidEvent(event, version))
         && new Set(history.events.map((event) => event.id)).size === history.events.length
     );
 }
 
+export function isValidPracticeHistory(history) {
+    return isValidPracticeHistoryVersion(history, PRACTICE_HISTORY_SCHEMA_VERSION);
+}
+
 function cloneHistory(history) {
-    return { version: history.version, events: history.events.map((event) => ({ ...event })) };
+    return { version: PRACTICE_HISTORY_SCHEMA_VERSION, events: history.events.map((event) => ({ ...event })) };
 }
 
 export function loadPracticeHistory(storage = window.localStorage) {
@@ -93,8 +117,12 @@ export function loadPracticeHistory(storage = window.localStorage) {
         const rawValue = storage.getItem(PRACTICE_HISTORY_STORAGE_KEY);
         if (rawValue === null) return { ok: true, history: fallback };
         const parsed = JSON.parse(rawValue);
-        if (!isValidPracticeHistory(parsed)) return { ok: false, history: fallback, reason: 'invalid-data' };
-        return { ok: true, history: cloneHistory(parsed) };
+        const current = isValidPracticeHistory(parsed);
+        const legacy = isValidPracticeHistoryVersion(parsed, 1);
+        if (!current && !legacy) return { ok: false, history: fallback, reason: 'invalid-data' };
+        return legacy
+            ? { ok: true, history: cloneHistory(parsed), migrated: true }
+            : { ok: true, history: cloneHistory(parsed) };
     } catch (error) {
         return { ok: false, history: fallback, reason: 'read-failed' };
     }
@@ -146,8 +174,34 @@ export function createCycleCompletedEvent(cycleId, now = new Date()) {
     };
 }
 
+export function createPracticeSessionEvent({ sessionId, startedAt, endedAt, durationSeconds }) {
+    const endedDate = new Date(endedAt);
+    return {
+        id: createEventId(endedDate),
+        type: PRACTICE_HISTORY_EVENT_TYPE.practiceSession,
+        timestamp: endedDate.toISOString(),
+        localDate: toLocalDateKey(endedDate),
+        cycleId: null,
+        sessionId,
+        startedAt: new Date(startedAt).toISOString(),
+        endedAt: endedDate.toISOString(),
+        durationSeconds,
+        practiceId: null,
+        practiceName: null,
+        durationMinutes: null,
+        appId: null
+    };
+}
+
 export function appendPracticeHistoryEvent(history, event) {
     if (!isValidEvent(event)) return { ok: false, history: cloneHistory(history), reason: 'invalid-event' };
+    const duplicate = history.events.some((current) => current.id === event.id
+        || (
+            event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession
+            && current.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession
+            && current.sessionId === event.sessionId
+        ));
+    if (duplicate) return { ok: true, history: cloneHistory(history), duplicate: true };
     const events = [...history.events, { ...event }].slice(-PRACTICE_HISTORY_MAX_EVENTS);
     return { ok: true, history: { version: PRACTICE_HISTORY_SCHEMA_VERSION, events } };
 }
@@ -158,7 +212,7 @@ export function getPracticeHistoryForDate(history, localDate) {
         .sort((first, second) => first.timestamp.localeCompare(second.timestamp));
 }
 
-export function createPracticeCalendarMonth(year, monthIndex, history) {
+export function createPracticeCalendarMonth(year, monthIndex, history, calendarNotes = []) {
     const firstWeekday = new Date(year, monthIndex, 1).getDay();
     const dayCount = new Date(year, monthIndex + 1, 0).getDate();
     const activity = new Map();
@@ -170,11 +224,18 @@ export function createPracticeCalendarMonth(year, monthIndex, history) {
         current.completed ||= event.type === PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted;
         activity.set(event.localDate, current);
     });
+    calendarNotes.forEach((note) => {
+        const [noteYear, noteMonth] = note.localDate.split('-').map(Number);
+        if (noteYear !== year || noteMonth !== monthIndex + 1) return;
+        const current = activity.get(note.localDate) || { count: 0, completed: false };
+        current.hasMemo = true;
+        activity.set(note.localDate, current);
+    });
 
     const cells = Array.from({ length: firstWeekday }, () => null);
     for (let day = 1; day <= dayCount; day += 1) {
         const localDate = `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        cells.push({ day, localDate, ...(activity.get(localDate) || { count: 0, completed: false }) });
+        cells.push({ day, localDate, hasMemo: false, ...(activity.get(localDate) || { count: 0, completed: false }) });
     }
     while (cells.length % 7 !== 0) cells.push(null);
     return cells;

@@ -353,9 +353,8 @@ h1::after {
     gap: 9px;
 }
 
-.practice-heading-row h2 {
+.practice-heading-row > div {
     min-width: 0;
-    margin: 0;
     flex: 1;
 }
 
@@ -367,29 +366,19 @@ h1::after {
     gap: 12px;
 }
 
-.practice-complete-stat {
-    margin: 0;
-    color: var(--port-muted);
-    font-size: 0.73rem;
-    letter-spacing: 0.02em;
-}
-
-.practice-complete-stat strong {
-    color: var(--port-gold-bright);
-    font-size: 0.9rem;
-    font-variant-numeric: tabular-nums;
-}
-
 .practice-overview-links {
-    display: flex;
-    gap: 4px;
+    width: 100%;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
 }
 
 .practice-overview-links button,
 .practice-quiet-action,
 .practice-calendar-today,
 .practice-count-reset-section button {
-    min-height: 40px;
+    min-height: 44px;
     padding: 7px 9px;
     border: 0;
     border-radius: 9px;
@@ -398,6 +387,107 @@ h1::after {
     font: inherit;
     font-size: 0.72rem;
     cursor: pointer;
+}
+
+.practice-overview-links .practice-calendar-open {
+    min-height: 46px;
+    display: flex;
+    padding: 9px 12px;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: 1px solid rgba(207, 189, 148, 0.16);
+    color: rgba(232, 219, 181, 0.92);
+    background: rgba(205, 180, 116, 0.035);
+    font-size: 0.77rem;
+    font-weight: 620;
+}
+
+.practice-calendar-open svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.practice-sort-button {
+    min-height: 44px;
+    display: inline-flex;
+    padding: 7px 9px;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 5px;
+    border: 0;
+    border-radius: 9px;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+
+.practice-sort-button:hover {
+    color: var(--port-text);
+    background: rgba(205, 180, 116, 0.055);
+}
+
+.practice-timer-card {
+    display: grid;
+    margin: 20px 0 15px;
+    padding: 10px;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    border: 1px solid rgba(207, 189, 148, 0.2);
+    border-radius: 14px;
+    background: linear-gradient(145deg, rgba(205, 180, 116, 0.075), rgba(205, 180, 116, 0.018));
+}
+
+.practice-timer-toggle {
+    min-height: 48px;
+    display: inline-flex;
+    padding: 10px 15px;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    border: 1px solid rgba(229, 204, 139, 0.4);
+    border-radius: 11px;
+    color: #17140e;
+    background: linear-gradient(180deg, #dbc68f, #b89d5e);
+    font: inherit;
+    font-size: 0.83rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.practice-timer-toggle.is-running {
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.055);
+}
+
+.practice-timer-toggle:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+}
+
+.practice-timer-card time {
+    min-width: 70px;
+    color: var(--port-muted);
+    font-size: 1.08rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.045em;
+    text-align: right;
+}
+
+.practice-timer-card time.is-running {
+    color: var(--port-gold-bright);
+}
+
+#practice-timer-status {
+    margin: -7px 0 16px;
 }
 
 .practice-overview-links button:hover,
@@ -524,18 +614,19 @@ h1::after {
 }
 
 .practice-menu-card {
+    position: relative;
     min-height: 72px;
     display: grid;
     padding: 9px 10px;
-    grid-template-columns: 44px minmax(0, 1fr) 44px;
+    grid-template-columns: 44px minmax(0, 1fr) auto 18px;
+    align-items: center;
     gap: 7px;
     cursor: default;
 }
 
-.practice-check,
-.practice-launch {
-    width: 42px;
-    height: 42px;
+.practice-check {
+    width: 44px;
+    height: 44px;
     display: grid;
     padding: 0;
     place-items: center;
@@ -560,29 +651,51 @@ h1::after {
 }
 
 .practice-card-link {
-    min-width: 0;
-    display: flex;
-    padding: 4px 2px;
-    align-items: center;
-    gap: 7px;
-    color: inherit;
-    text-decoration: none;
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    border-radius: inherit;
+}
+
+.practice-card-link:focus-visible {
+    outline: 2px solid rgba(229, 204, 139, 0.72);
+    outline-offset: 2px;
+}
+
+.practice-menu-card > :not(.practice-card-link) {
+    position: relative;
+    z-index: 1;
+}
+
+.practice-menu-card .practice-copy,
+.practice-menu-card .practice-arrow {
+    pointer-events: none;
 }
 
 .practice-card-actions {
-    display: grid;
-    min-width: 42px;
-    place-items: center;
+    display: flex;
+    align-items: center;
 }
 
-.practice-launch svg {
-    width: 19px;
-    height: 19px;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 1.7;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+.practice-launch {
+    min-height: 44px;
+    display: inline-flex;
+    padding: 8px 10px;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    border: 1px solid rgba(207, 189, 148, 0.18);
+    border-radius: 10px;
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.025);
+    font-size: 0.7rem;
+    font-weight: 620;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.practice-launch span {
+    font-size: 0.72rem;
 }
 
 .practice-card-count {
@@ -2329,16 +2442,149 @@ textarea:focus-visible {
 .practice-calendar-day i {
     position: absolute;
     bottom: 5px;
+    left: calc(50% - 5px);
     width: 4px;
     height: 4px;
     border-radius: 50%;
     background: rgba(205, 180, 116, 0.72);
 }
 
+.practice-calendar-day b {
+    position: absolute;
+    right: calc(50% - 7px);
+    bottom: 4px;
+    width: 5px;
+    height: 5px;
+    border: 1px solid rgba(232, 219, 181, 0.75);
+    border-radius: 1px;
+}
+
 .practice-calendar-day.has-complete i {
     width: 6px;
     height: 6px;
     background: var(--port-gold-bright);
+}
+
+.practice-calendar-notes {
+    margin-top: 26px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(207, 189, 148, 0.12);
+}
+
+.practice-calendar-section-heading,
+.practice-attachments-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.practice-calendar-section-heading h2,
+.practice-attachments-heading h2 {
+    margin: 0;
+    color: var(--port-text);
+    font-size: 0.9rem;
+}
+
+.practice-calendar-section-heading button,
+.practice-attachment-add {
+    min-height: 44px;
+    display: inline-flex;
+    padding: 8px 12px;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(207, 189, 148, 0.17);
+    border-radius: 10px;
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.035);
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 620;
+    cursor: pointer;
+}
+
+.practice-calendar-section-heading button:disabled,
+.practice-attachment-add.is-disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+    pointer-events: none;
+}
+
+.practice-calendar-section-empty,
+.practice-attachment-empty {
+    margin: 13px 0 0;
+    color: var(--port-muted);
+    font-size: 0.73rem;
+}
+
+.practice-calendar-note {
+    display: grid;
+    padding: 13px 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
+    border-bottom: 1px solid rgba(207, 189, 148, 0.08);
+}
+
+.practice-calendar-note p {
+    margin: 0;
+    color: var(--port-text);
+    font-size: 0.8rem;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.practice-calendar-note > div {
+    display: flex;
+    gap: 2px;
+}
+
+.practice-calendar-note button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 7px;
+    border: 0;
+    border-radius: 9px;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.68rem;
+    cursor: pointer;
+}
+
+#practice-calendar-note-form {
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 12px;
+    background: rgba(205, 180, 116, 0.025);
+}
+
+#practice-calendar-note-form > label {
+    display: block;
+    margin-bottom: 8px;
+    color: var(--port-text);
+    font-size: 0.78rem;
+    font-weight: 620;
+}
+
+#practice-calendar-note-form textarea {
+    width: 100%;
+    min-height: 104px;
+    resize: vertical;
+}
+
+#practice-calendar-note-form > div {
+    display: grid;
+    margin-top: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+#practice-calendar-note-form .action-button {
+    min-height: 44px;
+    margin: 0;
 }
 
 .practice-calendar-day.is-today {
@@ -2391,6 +2637,197 @@ textarea:focus-visible {
 
 .practice-history-event.is-cycle-complete {
     color: var(--port-gold-bright);
+}
+
+.practice-detail-app-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.practice-detail-launch {
+    min-height: 44px;
+    display: inline-flex;
+    padding: 8px 12px;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(207, 189, 148, 0.18);
+    border-radius: 10px;
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.03);
+    font-size: 0.72rem;
+    font-weight: 620;
+    line-height: 1.2;
+    text-decoration: none;
+}
+
+.practice-attachments {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(207, 189, 148, 0.12);
+}
+
+.practice-attachment-status {
+    min-height: 1.3em;
+    margin: 9px 0 0;
+    color: var(--port-muted);
+    font-size: 0.7rem;
+    line-height: 1.5;
+}
+
+.practice-attachments-list {
+    display: grid;
+    margin-top: 8px;
+    gap: 8px;
+}
+
+.practice-attachment-row {
+    display: grid;
+    min-width: 0;
+    padding: 9px;
+    grid-template-columns: 48px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 9px;
+    border: 1px solid rgba(207, 189, 148, 0.1);
+    border-radius: 12px;
+    background: rgba(205, 180, 116, 0.018);
+}
+
+.practice-attachment-preview {
+    width: 48px;
+    height: 48px;
+    display: grid;
+    padding: 0;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(207, 189, 148, 0.13);
+    border-radius: 9px;
+    color: var(--port-muted);
+    background: rgba(0, 0, 0, 0.26);
+    font: inherit;
+    font-size: 0.58rem;
+}
+
+button.practice-attachment-preview {
+    cursor: pointer;
+}
+
+.practice-attachment-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.practice-attachment-copy {
+    min-width: 0;
+    display: grid;
+    gap: 3px;
+}
+
+.practice-attachment-copy strong {
+    overflow: hidden;
+    color: var(--port-text);
+    font-size: 0.72rem;
+    font-weight: 580;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.practice-attachment-copy small {
+    color: var(--port-muted);
+    font-size: 0.63rem;
+}
+
+.practice-attachment-actions {
+    display: flex;
+    gap: 2px;
+}
+
+.practice-attachment-actions a,
+.practice-attachment-actions button {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-grid;
+    padding: 6px;
+    place-items: center;
+    border: 0;
+    border-radius: 9px;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.66rem;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.practice-attachment-actions button {
+    color: #d7aaa1;
+}
+
+.practice-attachment-lightbox {
+    position: fixed;
+    z-index: 145;
+    inset: 0;
+    display: grid;
+    padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+    place-items: center;
+    background: rgba(0, 0, 0, 0.92);
+}
+
+.practice-attachment-lightbox[hidden] {
+    display: none;
+}
+
+.practice-attachment-lightbox > section {
+    width: min(92vw, 680px);
+    display: grid;
+    gap: 12px;
+}
+
+.practice-attachment-lightbox > section > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.practice-attachment-lightbox h2 {
+    min-width: 0;
+    margin: 0;
+    overflow: hidden;
+    color: var(--port-text);
+    font-size: 0.84rem;
+    font-weight: 580;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.practice-attachment-lightbox button {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(207, 189, 148, 0.22);
+    border-radius: 50%;
+    color: var(--port-text);
+    background: rgba(205, 180, 116, 0.06);
+    font: inherit;
+    font-size: 1.2rem;
+    cursor: pointer;
+}
+
+.practice-attachment-lightbox img {
+    width: min(92vw, calc(100vh - 108px), 680px);
+    height: min(92vw, calc(100vh - 108px), 680px);
+    max-width: 100%;
+    max-height: calc(100vh - 108px);
+    border-radius: 13px;
+    object-fit: contain;
+}
+
+body.practice-attachment-lightbox-open {
+    overflow: hidden;
 }
 
 .detail-list > div {

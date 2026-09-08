@@ -9,6 +9,7 @@ import {
     createEmptyPracticeHistory,
     createPracticeCalendarMonth,
     createPracticeCompletedEvent,
+    createPracticeSessionEvent,
     getPracticeHistoryForDate,
     loadPracticeHistory,
     savePracticeHistory,
@@ -50,16 +51,38 @@ test('cycle completion event is distinct and date grouping keeps both event type
     assert.deepEqual(events.map((event) => event.type), ['practice-completed', 'cycle-completed']);
 });
 
+test('timer session history stores bounded timestamps and appears with existing events', () => {
+    const startedAt = '2026-09-08T01:00:00.000Z';
+    const endedAt = '2026-09-08T01:42:11.000Z';
+    const session = createPracticeSessionEvent({
+        sessionId: 'session-a',
+        startedAt,
+        endedAt,
+        durationSeconds: 2531
+    });
+    let history = createEmptyPracticeHistory();
+    history = appendPracticeHistoryEvent(history, session).history;
+    const events = getPracticeHistoryForDate(history, toLocalDateKey(new Date(endedAt)));
+    assert.equal(events[0].type, PRACTICE_HISTORY_EVENT_TYPE.practiceSession);
+    assert.equal(events[0].sessionId, 'session-a');
+    assert.equal(events[0].durationSeconds, 2531);
+    const duplicate = appendPracticeHistoryEvent(history, { ...session, id: 'different-event-id' });
+    assert.equal(duplicate.ok, true);
+    assert.equal(duplicate.duplicate, true);
+    assert.equal(duplicate.history.events.length, 1);
+});
+
 test('calendar month marks practice days and complete days without UTC conversion', () => {
     const practiceDate = new Date(2026, 8, 8, 23, 59, 0, 0);
     const completeDate = new Date(2026, 8, 9, 0, 1, 0, 0);
     let history = createEmptyPracticeHistory();
     history = appendPracticeHistoryEvent(history, createPracticeCompletedEvent(item, 'cycle-a', practiceDate)).history;
     history = appendPracticeHistoryEvent(history, createCycleCompletedEvent('cycle-a', completeDate)).history;
-    const cells = createPracticeCalendarMonth(2026, 8, history);
+    const cells = createPracticeCalendarMonth(2026, 8, history, [{ localDate: '2026-09-20' }]);
     assert.equal(cells.find((cell) => cell?.day === 8).count, 1);
     assert.equal(cells.find((cell) => cell?.day === 8).completed, false);
     assert.equal(cells.find((cell) => cell?.day === 9).completed, true);
+    assert.equal(cells.find((cell) => cell?.day === 20).hasMemo, true);
     assert.equal(toLocalDateKey(practiceDate), '2026-09-08');
 });
 
@@ -77,6 +100,17 @@ test('history persists separately and malformed data is never overwritten', () =
     storage.setItem(PRACTICE_HISTORY_STORAGE_KEY, malformed);
     assert.equal(loadPracticeHistory(storage).ok, false);
     assert.equal(storage.getItem(PRACTICE_HISTORY_STORAGE_KEY), malformed);
+});
+
+test('legacy v1 history migrates without dropping cycle-completed events', () => {
+    const complete = createCycleCompletedEvent('legacy-cycle', new Date(2026, 8, 8, 12, 0));
+    const legacy = { version: 1, events: [complete] };
+    const storage = new FakeStorage({ [PRACTICE_HISTORY_STORAGE_KEY]: JSON.stringify(legacy) });
+    const loaded = loadPracticeHistory(storage);
+    assert.equal(loaded.ok, true);
+    assert.equal(loaded.migrated, true);
+    assert.equal(loaded.history.version, 2);
+    assert.equal(loaded.history.events[0].type, PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted);
 });
 
 test('history retains deleted-item snapshots and caps storage by dropping oldest events', () => {

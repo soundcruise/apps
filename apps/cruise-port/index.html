@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.20.0">
+    <link rel="stylesheet" href="./style.css?v=1.21.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=2.0.1"></script>
+    <script type="module" src="./practice-menu-app.js?v=2.1.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -223,12 +223,22 @@
                         <button id="practice-reorder-cancel" class="reorder-button" type="button">キャンセル</button>
                         <button id="practice-reorder-complete" class="reorder-button reorder-button-primary" type="button">完了</button>
                     </div>
-                    <button id="practice-reorder-start" class="reorder-button" type="button" hidden>並び替え</button>
+                    <button id="practice-reorder-start" class="practice-sort-button" type="button" hidden><span aria-hidden="true">↕</span> 並び替え</button>
                 </div>
+                <div class="practice-timer-card">
+                    <button id="practice-timer-toggle" class="practice-timer-toggle" type="button">
+                        <span id="practice-timer-icon" aria-hidden="true">▶</span>
+                        <span id="practice-timer-label">練習スタート</span>
+                    </button>
+                    <time id="practice-timer-display" datetime="PT0S">00:00</time>
+                </div>
+                <p id="practice-timer-status" class="practice-saved" role="status" hidden></p>
                 <div class="practice-overview">
-                    <p class="practice-complete-stat">コンプリート <strong id="practice-complete-count">0</strong>回</p>
                     <div class="practice-overview-links" aria-label="練習メニューの補助機能">
-                        <button id="practice-history-open" type="button">履歴</button>
+                        <button id="practice-history-open" class="practice-calendar-open" type="button">
+                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3M18 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
+                            練習カレンダー
+                        </button>
                         <button id="practice-hidden-open" type="button">非表示 <span id="practice-hidden-count">0</span></button>
                     </div>
                 </div>
@@ -274,7 +284,7 @@
             <button class="view-back" type="button" data-action="practice-list">← 練習メニュー</button>
             <section class="view-panel" aria-labelledby="practice-history-title">
                 <p class="view-kicker">練習メニュー</p>
-                <h1 id="practice-history-title" class="view-title" tabindex="-1">履歴</h1>
+                <h1 id="practice-history-title" class="view-title" tabindex="-1">練習カレンダー</h1>
                 <p id="practice-history-error" class="notice notice-error" role="alert" hidden></p>
                 <div class="practice-calendar-heading">
                     <button id="practice-calendar-previous" type="button" aria-label="前の月">‹</button>
@@ -285,9 +295,26 @@
                 <div class="practice-calendar-weekdays" aria-hidden="true">
                     <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
                 </div>
-                <div id="practice-calendar-days" class="practice-calendar-days" role="grid" aria-label="練習履歴カレンダー"></div>
+                <div id="practice-calendar-days" class="practice-calendar-days" role="grid" aria-label="練習カレンダー"></div>
+                <section class="practice-calendar-notes" aria-labelledby="practice-calendar-notes-title">
+                    <div class="practice-calendar-section-heading">
+                        <h2 id="practice-calendar-notes-title">予定・メモ</h2>
+                        <button id="practice-calendar-note-add" type="button">追加</button>
+                    </div>
+                    <p id="practice-calendar-notes-empty" class="practice-calendar-section-empty">予定・メモはありません。</p>
+                    <div id="practice-calendar-notes-list"></div>
+                    <form id="practice-calendar-note-form" hidden>
+                        <label for="practice-calendar-note-text">予定・メモ <span class="optional-label">500文字以内</span></label>
+                        <textarea id="practice-calendar-note-text" maxlength="500" rows="4" required></textarea>
+                        <p id="practice-calendar-note-error" class="notice notice-error" role="alert" hidden></p>
+                        <div>
+                            <button class="action-button primary-action" type="submit">保存</button>
+                            <button id="practice-calendar-note-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                        </div>
+                    </form>
+                </section>
                 <section class="practice-day-history" aria-labelledby="practice-day-history-title">
-                    <h2 id="practice-day-history-title"></h2>
+                    <h2 id="practice-day-history-title">練習記録</h2>
                     <div id="practice-day-history-list"></div>
                 </section>
             </section>
@@ -307,7 +334,10 @@
                     </div>
                     <div>
                         <dt>使用アプリ</dt>
-                        <dd id="practice-detail-app"></dd>
+                        <dd class="practice-detail-app-row">
+                            <span id="practice-detail-app"></span>
+                            <a id="practice-open-app" class="practice-detail-launch" href="#" hidden>アプリを開く</a>
+                        </dd>
                     </div>
                     <div>
                         <dt>メモ</dt>
@@ -320,8 +350,18 @@
                 </dl>
 
                 <p id="practice-detail-error" class="notice notice-error" role="alert" hidden></p>
+                <section class="practice-attachments" aria-labelledby="practice-attachments-title">
+                    <div class="practice-attachments-heading">
+                        <h2 id="practice-attachments-title">資料</h2>
+                        <label class="practice-attachment-add" for="practice-attachment-input">資料を追加</label>
+                        <input id="practice-attachment-input" type="file" multiple hidden>
+                    </div>
+                    <p id="practice-attachment-status" class="practice-attachment-status" role="status"></p>
+                    <p id="practice-attachments-empty" class="practice-attachment-empty">資料はありません。</p>
+                    <div id="practice-attachments-list" class="practice-attachments-list"></div>
+                </section>
                 <div class="view-actions">
-                    <a id="practice-open-app" class="action-button primary-action" href="#" hidden></a>
+                    <button id="practice-detail-back" class="action-button primary-action" type="button" data-action="practice-list">練習メニューに戻る</button>
                     <button id="practice-edit" class="action-button secondary-action" type="button">編集</button>
                     <button id="practice-delete" class="action-button danger-action" type="button">削除</button>
                 </div>
@@ -854,6 +894,15 @@
                 </section>
             </div>
         </main>
+        <div id="practice-attachment-lightbox" class="practice-attachment-lightbox" role="dialog" aria-modal="true" aria-labelledby="practice-attachment-lightbox-title" hidden>
+            <section>
+                <div>
+                    <h2 id="practice-attachment-lightbox-title" tabindex="-1">資料</h2>
+                    <button id="practice-attachment-lightbox-close" type="button" aria-label="プレビューを閉じる">×</button>
+                </div>
+                <img id="practice-attachment-lightbox-image" alt="">
+            </section>
+        </div>
         <div class="port-global-refresh-bar" aria-label="バージョンとページの再読み込み">
             <span class="port-app-version-display"></span>
             <button type="button" class="port-refresh-btn port-refresh-app">ページを更新</button>

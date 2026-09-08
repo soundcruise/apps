@@ -8,7 +8,7 @@ export const PRACTICE_ROUTE_KIND = Object.freeze({
     create: 'create',
     detail: 'detail',
     edit: 'edit',
-    history: 'history',
+    calendar: 'calendar',
     hidden: 'hidden',
     invalid: 'invalid'
 });
@@ -24,7 +24,9 @@ export function safeDecodeRouteSegment(value) {
 export function parsePracticeRoute(hash) {
     if (hash === '#practice-menu') return { kind: PRACTICE_ROUTE_KIND.list };
     if (hash === '#practice-menu/new') return { kind: PRACTICE_ROUTE_KIND.create };
-    if (hash === '#practice-menu/history') return { kind: PRACTICE_ROUTE_KIND.history };
+    if (hash === '#practice-menu/calendar' || hash === '#practice-menu/history') {
+        return { kind: PRACTICE_ROUTE_KIND.calendar };
+    }
     if (hash === '#practice-menu/hidden') return { kind: PRACTICE_ROUTE_KIND.hidden };
 
     const editMatch = hash.match(/^#practice-menu\/([^/]+)\/edit$/);

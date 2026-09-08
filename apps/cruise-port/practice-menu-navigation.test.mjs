@@ -123,7 +123,8 @@ for (const encoded of ['%ZZ', '%', '%E0%A4%A']) {
 assert.equal(safeDecodeRouteSegment('menu%20name'), 'menu name');
 assert.deepEqual(parsePracticeRoute('#practice-menu'), { kind: PRACTICE_ROUTE_KIND.list });
 assert.deepEqual(parsePracticeRoute('#practice-menu/new'), { kind: PRACTICE_ROUTE_KIND.create });
-assert.deepEqual(parsePracticeRoute('#practice-menu/history'), { kind: PRACTICE_ROUTE_KIND.history });
+assert.deepEqual(parsePracticeRoute('#practice-menu/calendar'), { kind: PRACTICE_ROUTE_KIND.calendar });
+assert.deepEqual(parsePracticeRoute('#practice-menu/history'), { kind: PRACTICE_ROUTE_KIND.calendar });
 assert.deepEqual(parsePracticeRoute('#practice-menu/hidden'), { kind: PRACTICE_ROUTE_KIND.hidden });
 assert.deepEqual(parsePracticeRoute('#practice-menu/menu%20id'), { kind: PRACTICE_ROUTE_KIND.detail, id: 'menu id' });
 assert.deepEqual(parsePracticeRoute('#practice-menu/menu%20id/edit'), { kind: PRACTICE_ROUTE_KIND.edit, id: 'menu id' });
@@ -133,11 +134,11 @@ assert.equal(parsePracticeRoute('#metronome'), null);
 {
     const browser = new MemoryBrowserHistory();
     browser.pushHash('#practice-menu');
-    browser.pushHash('#practice-menu/history');
+    browser.pushHash('#practice-menu/calendar');
     browser.back();
-    assert.equal(browser.location.hash, '#practice-menu', 'history back returns to the list');
+    assert.equal(browser.location.hash, '#practice-menu', 'calendar back returns to the list');
     browser.forward();
-    assert.equal(browser.location.hash, '#practice-menu/history');
+    assert.equal(browser.location.hash, '#practice-menu/calendar');
 }
 
 {
@@ -154,8 +155,8 @@ assert.match(appSource, /function replacePracticeListRoute\(\)[\s\S]*history\.re
 assert.match(appSource, /function replacePracticeDetailRoute\(id\)[\s\S]*history\.replaceState/);
 assert.match(appSource, /function renderDetail\(id\)[\s\S]*if \(!item\) \{\s*replacePracticeListRoute\(\)/);
 assert.match(appSource, /function renderForm\(mode, id = null\)[\s\S]*mode === 'edit' && !item\)[\s\S]*replacePracticeListRoute\(\)/);
-assert.match(appSource, /function handleDelete\(\)[\s\S]*persistPracticeItemsAndProgress\(deleteResult\.items, nextProgress\)/);
-assert.match(appSource, /PRACTICE_ROUTE_KIND\.history[\s\S]*renderPracticeHistory/);
+assert.match(appSource, /async function handleDelete\(\)[\s\S]*persistPracticeItemsAndProgress\(deleteResult\.items, nextProgress\)/);
+assert.match(appSource, /PRACTICE_ROUTE_KIND\.calendar[\s\S]*renderPracticeHistory/);
 assert.match(appSource, /PRACTICE_ROUTE_KIND\.hidden[\s\S]*renderPracticeHiddenList/);
 assert.doesNotMatch(appSource, /decodeURIComponent\((?:editMatch|detailMatch|myAppsEditMatch)/);
 

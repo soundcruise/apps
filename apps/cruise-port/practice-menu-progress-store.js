@@ -1,4 +1,4 @@
-export const PRACTICE_PROGRESS_SCHEMA_VERSION = 1;
+export const PRACTICE_PROGRESS_SCHEMA_VERSION = 2;
 export const PRACTICE_PROGRESS_STORAGE_KEY = 'cruisePort.practiceProgress';
 
 const MAX_COUNT = Number.MAX_SAFE_INTEGER;
@@ -16,8 +16,7 @@ export function createEmptyPracticeProgress(now = new Date()) {
         cycleId: createCycleId(now),
         checkedPracticeIds: [],
         countedPracticeIds: [],
-        totalCounts: {},
-        completeCount: 0
+        totalCounts: {}
     };
 }
 
@@ -31,12 +30,12 @@ function isValidCount(value) {
     return Number.isSafeInteger(value) && value >= 0 && value <= MAX_COUNT;
 }
 
-export function isValidPracticeProgress(progress) {
+function isValidPracticeProgressVersion(progress, version) {
     return Boolean(
         progress
         && typeof progress === 'object'
         && !Array.isArray(progress)
-        && progress.version === PRACTICE_PROGRESS_SCHEMA_VERSION
+        && progress.version === version
         && typeof progress.cycleId === 'string'
         && progress.cycleId.length > 0
         && progress.cycleId.length <= 160
@@ -48,13 +47,18 @@ export function isValidPracticeProgress(progress) {
         && !Array.isArray(progress.totalCounts)
         && Object.entries(progress.totalCounts).every(([id, count]) => id.length > 0 && isValidCount(count))
         && progress.countedPracticeIds.every((id) => Object.hasOwn(progress.totalCounts, id))
-        && isValidCount(progress.completeCount)
+        && (version !== 1 || isValidCount(progress.completeCount))
     );
+}
+
+export function isValidPracticeProgress(progress) {
+    return isValidPracticeProgressVersion(progress, PRACTICE_PROGRESS_SCHEMA_VERSION);
 }
 
 function cloneProgress(progress) {
     return {
-        ...progress,
+        version: PRACTICE_PROGRESS_SCHEMA_VERSION,
+        cycleId: progress.cycleId,
         checkedPracticeIds: [...progress.checkedPracticeIds],
         countedPracticeIds: [...progress.countedPracticeIds],
         totalCounts: { ...progress.totalCounts }
@@ -67,10 +71,14 @@ export function loadPracticeProgress(storage = window.localStorage, now = new Da
         const rawValue = storage.getItem(PRACTICE_PROGRESS_STORAGE_KEY);
         if (rawValue === null) return { ok: true, progress: fallback };
         const parsed = JSON.parse(rawValue);
-        if (!isValidPracticeProgress(parsed)) {
+        const current = isValidPracticeProgress(parsed);
+        const legacy = isValidPracticeProgressVersion(parsed, 1);
+        if (!current && !legacy) {
             return { ok: false, progress: fallback, reason: 'invalid-data' };
         }
-        return { ok: true, progress: cloneProgress(parsed) };
+        return legacy
+            ? { ok: true, progress: cloneProgress(parsed), migrated: true }
+            : { ok: true, progress: cloneProgress(parsed) };
     } catch (error) {
         return { ok: false, progress: fallback, reason: 'read-failed' };
     }
@@ -132,7 +140,6 @@ export function completePracticeCycle(progress, activePracticeIds, now = new Dat
         return { completed: false, progress: cloneProgress(progress) };
     }
     const next = startNextPracticeCycle(progress, now);
-    next.completeCount = Math.min(MAX_COUNT, progress.completeCount + 1);
     return { completed: true, completedCycleId: progress.cycleId, progress: next };
 }
 

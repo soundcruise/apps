@@ -39,7 +39,7 @@ test('empty progress is valid and persists independently', () => {
     assert.deepEqual(emptyLoad.progress.checkedPracticeIds, []);
     assert.deepEqual(emptyLoad.progress.totalCounts, {});
     assert.deepEqual(savePracticeProgress(progress, storage), { ok: true });
-    assert.equal(JSON.parse(storage.getItem(PRACTICE_PROGRESS_STORAGE_KEY)).version, 1);
+    assert.equal(JSON.parse(storage.getItem(PRACTICE_PROGRESS_STORAGE_KEY)).version, 2);
     assert.deepEqual(loadPracticeProgress(storage).progress, progress);
 });
 
@@ -61,20 +61,20 @@ test('first check counts once and OFF then ON in the same cycle does not count a
     assert.equal(onAgain.progress.totalCounts['practice-a'], 1);
 });
 
-test('reset starts a new cycle and preserves totals and complete count', () => {
+test('reset starts a new cycle and preserves totals without a complete count', () => {
     const checked = setPracticeChecked(createEmptyPracticeProgress(firstDate), 'practice-a', true).progress;
     const reset = startNextPracticeCycle(checked, secondDate);
     assert.notEqual(reset.cycleId, checked.cycleId);
     assert.deepEqual(reset.checkedPracticeIds, []);
     assert.deepEqual(reset.countedPracticeIds, []);
     assert.equal(reset.totalCounts['practice-a'], 1);
-    assert.equal(reset.completeCount, 0);
+    assert.equal(Object.hasOwn(reset, 'completeCount'), false);
     const nextCheck = setPracticeChecked(reset, 'practice-a', true);
     assert.equal(nextCheck.countAdded, true);
     assert.equal(nextCheck.progress.totalCounts['practice-a'], 2);
 });
 
-test('completion requires every active item, increments once, and starts a new cycle', () => {
+test('completion requires every active item and starts a new cycle without cumulative completion state', () => {
     let progress = createEmptyPracticeProgress(firstDate);
     progress = setPracticeChecked(progress, 'practice-a', true).progress;
     assert.equal(canCompletePracticeCycle(progress, ['practice-a', 'practice-b']), false);
@@ -82,10 +82,34 @@ test('completion requires every active item, increments once, and starts a new c
     assert.equal(canCompletePracticeCycle(progress, ['practice-a', 'practice-b']), true);
     const result = completePracticeCycle(progress, ['practice-a', 'practice-b'], secondDate);
     assert.equal(result.completed, true);
-    assert.equal(result.progress.completeCount, 1);
+    assert.equal(Object.hasOwn(result.progress, 'completeCount'), false);
     assert.deepEqual(result.progress.checkedPracticeIds, []);
     assert.equal(canCompletePracticeCycle(result.progress, ['practice-a', 'practice-b']), false);
     assert.equal(completePracticeCycle(result.progress, [], secondDate).completed, false);
+});
+
+test('legacy v1 complete count migrates without losing progress and is omitted from new saves', () => {
+    const legacy = {
+        version: 1,
+        cycleId: 'legacy-cycle',
+        checkedPracticeIds: ['practice-a'],
+        countedPracticeIds: ['practice-a'],
+        totalCounts: { 'practice-a': 7 },
+        completeCount: 12
+    };
+    const storage = new FakeStorage({ [PRACTICE_PROGRESS_STORAGE_KEY]: JSON.stringify(legacy) });
+    const loaded = loadPracticeProgress(storage);
+    assert.equal(loaded.ok, true);
+    assert.equal(loaded.migrated, true);
+    assert.deepEqual(loaded.progress, {
+        version: 2,
+        cycleId: 'legacy-cycle',
+        checkedPracticeIds: ['practice-a'],
+        countedPracticeIds: ['practice-a'],
+        totalCounts: { 'practice-a': 7 }
+    });
+    assert.deepEqual(savePracticeProgress(loaded.progress, storage), { ok: true });
+    assert.equal(Object.hasOwn(JSON.parse(storage.getItem(PRACTICE_PROGRESS_STORAGE_KEY)), 'completeCount'), false);
 });
 
 test('hidden cleanup clears only current visual check and preserves same-cycle counted state', () => {
