@@ -43,15 +43,17 @@ const baseItem = Object.freeze({
     durationMinutes: 10,
     appId: 'pitch',
     memo: '',
+    hidden: false,
     createdAt: timestamp,
     updatedAt: timestamp
 });
 
-assert.equal(SCHEMA_VERSION, 2);
+assert.equal(SCHEMA_VERSION, 3);
 assert.deepEqual(Object.keys(APP_DEFINITIONS), ['pitch', 'fretboard', 'rhythm', 'chord', 'metronome', 'tuner']);
 
 {
-    const raw = JSON.stringify({ version: 1, items: [baseItem] });
+    const { hidden, ...legacyItem } = baseItem;
+    const raw = JSON.stringify({ version: 1, items: [legacyItem] });
     const storage = new FakeStorage({
         [STORAGE_KEYS.schemaVersion]: '1',
         [STORAGE_KEYS.practiceMenus]: raw
@@ -60,8 +62,8 @@ assert.deepEqual(Object.keys(APP_DEFINITIONS), ['pitch', 'fretboard', 'rhythm', 
     assert.equal(storage.getItem(STORAGE_KEYS.practiceMenus), raw, 'v1 load must not rewrite the payload');
     assert.equal(storage.writes.length, 0, 'v1 migration is in memory only');
     assert.deepEqual(savePracticeMenus([baseItem], storage), { ok: true });
-    assert.equal(storage.getItem(STORAGE_KEYS.schemaVersion), '2');
-    assert.equal(JSON.parse(storage.getItem(STORAGE_KEYS.practiceMenus)).version, 2);
+    assert.equal(storage.getItem(STORAGE_KEYS.schemaVersion), '3');
+    assert.equal(JSON.parse(storage.getItem(STORAGE_KEYS.practiceMenus)).version, 3);
 }
 
 for (const appId of Object.keys(APP_DEFINITIONS)) {
@@ -85,15 +87,20 @@ for (const [appId, expected] of [
 }
 
 {
-    const future = { ...baseItem, appId: 'future-app' };
+    const { hidden, ...legacyItem } = baseItem;
+    const future = { ...legacyItem, appId: 'future-app' };
     const storage = new FakeStorage({
         [STORAGE_KEYS.schemaVersion]: '2',
         [STORAGE_KEYS.practiceMenus]: JSON.stringify({ version: 2, items: [future] })
     });
-    assert.deepEqual(loadPracticeMenus(storage), { ok: true, items: [future] });
+    assert.deepEqual(loadPracticeMenus(storage), {
+        ok: true,
+        items: [{ ...future, hidden: false }],
+        migrated: true
+    });
 }
 
-for (const version of [0, 3, 999]) {
+for (const version of [0, 4, 999]) {
     const raw = JSON.stringify({ version, items: [] });
     const storage = new FakeStorage({
         [STORAGE_KEYS.schemaVersion]: String(version),
@@ -104,7 +111,8 @@ for (const version of [0, 3, 999]) {
 }
 
 {
-    const raw = JSON.stringify({ version: 1, items: [baseItem] });
+    const { hidden, ...legacyItem } = baseItem;
+    const raw = JSON.stringify({ version: 1, items: [legacyItem] });
     const storage = new FakeStorage({
         [STORAGE_KEYS.schemaVersion]: '01',
         [STORAGE_KEYS.practiceMenus]: raw
@@ -113,9 +121,10 @@ for (const version of [0, 3, 999]) {
 }
 
 {
+    const { hidden, ...legacyItem } = baseItem;
     const storage = new FakeStorage({
         [STORAGE_KEYS.schemaVersion]: '1',
-        [STORAGE_KEYS.practiceMenus]: JSON.stringify({ version: 2, items: [] })
+        [STORAGE_KEYS.practiceMenus]: JSON.stringify({ version: 2, items: [legacyItem] })
     });
     assert.deepEqual(loadPracticeMenus(storage), { ok: false, items: [], reason: 'invalid-data' });
 }
@@ -125,11 +134,12 @@ for (const item of [
     { ...baseItem, appId: 1 },
     { ...baseItem, appId: 'myapp:' },
     { ...baseItem, appId: `myapp:${'x'.repeat(129)}` },
-    { ...baseItem, appId: 'bad\u0000value' }
+    { ...baseItem, appId: 'bad\u0000value' },
+    { ...baseItem, hidden: 'false' }
 ]) {
-    const raw = JSON.stringify({ version: 2, items: [item] });
+    const raw = JSON.stringify({ version: 3, items: [item] });
     const storage = new FakeStorage({
-        [STORAGE_KEYS.schemaVersion]: '2',
+        [STORAGE_KEYS.schemaVersion]: '3',
         [STORAGE_KEYS.practiceMenus]: raw
     });
     assert.equal(loadPracticeMenus(storage).ok, false);
@@ -141,6 +151,12 @@ for (const item of [
     const storage = new FakeStorage();
     assert.deepEqual(savePracticeMenus([withoutApp], storage), { ok: true });
     assert.deepEqual(loadPracticeMenus(storage), { ok: true, items: [withoutApp] });
+    const secondWithoutApp = { ...withoutApp, id: 'practice-2', name: '2件目' };
+    assert.deepEqual(
+        savePracticeMenus([baseItem, secondWithoutApp], storage),
+        { ok: true },
+        'array index is never mistaken for a legacy schema version during validation'
+    );
 }
 
 {
@@ -148,6 +164,7 @@ for (const item of [
         name: 'アプリなし練習', durationMinutes: 20, appId: null, memo: '運指のみ'
     }, [], new Date(timestamp));
     assert.equal(created.appId, null);
+    assert.equal(created.hidden, false);
     assert.equal(created.createdAt, timestamp);
     const updated = updatePracticeMenu([created], created.id, {
         name: created.name, durationMinutes: 25, appId: 'tuner', memo: created.memo
@@ -161,7 +178,8 @@ for (const item of [
 }
 
 {
-    const legacyWithoutApp = { ...baseItem, appId: null };
+    const { hidden, ...legacyItem } = baseItem;
+    const legacyWithoutApp = { ...legacyItem, appId: null };
     const storage = new FakeStorage({
         [STORAGE_KEYS.schemaVersion]: '1',
         [STORAGE_KEYS.practiceMenus]: JSON.stringify({ version: 1, items: [legacyWithoutApp] })
@@ -170,7 +188,8 @@ for (const item of [
 }
 
 {
-    const previousPayload = JSON.stringify({ version: 1, items: [baseItem] });
+    const { hidden, ...legacyItem } = baseItem;
+    const previousPayload = JSON.stringify({ version: 1, items: [legacyItem] });
     const storage = new FakeStorage({
         [STORAGE_KEYS.schemaVersion]: '1',
         [STORAGE_KEYS.practiceMenus]: previousPayload
@@ -181,4 +200,4 @@ for (const item of [
     assert.equal(storage.getItem(STORAGE_KEYS.practiceMenus), previousPayload, 'payload remains intact');
 }
 
-console.log('practice-menu-store: schema v2, v1 migration, references, and rollback tests passed');
+console.log('practice-menu-store: schema v3, v1/v2 migration, hidden state, references, and rollback passed');

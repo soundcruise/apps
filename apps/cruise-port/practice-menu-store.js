@@ -1,5 +1,5 @@
-const SCHEMA_VERSION = 2;
-const LEGACY_SCHEMA_VERSIONS = Object.freeze([1]);
+const SCHEMA_VERSION = 3;
+const LEGACY_SCHEMA_VERSIONS = Object.freeze([1, 2]);
 const STORAGE_KEYS = Object.freeze({
     schemaVersion: 'cruisePort.schemaVersion',
     practiceMenus: 'cruisePort.practiceMenus'
@@ -64,6 +64,7 @@ function isValidItem(item, version = SCHEMA_VERSION) {
         && (version !== 1 || (typeof item.appId === 'string' && Object.hasOwn(APP_DEFINITIONS, item.appId)))
         && typeof item.memo === 'string'
         && item.memo.length <= LIMITS.memo
+        && (version < 3 || typeof item.hidden === 'boolean')
         && isIsoDate(item.createdAt)
         && isIsoDate(item.updatedAt)
     );
@@ -116,7 +117,10 @@ export function loadPracticeMenus(storage = window.localStorage) {
             return { ok: false, items: [], reason: 'invalid-data' };
         }
 
-        const items = parsed.items.map((item) => ({ ...item }));
+        const items = parsed.items.map((item) => ({
+            ...item,
+            hidden: parsed.version < 3 ? false : item.hidden
+        }));
         return parsed.version < SCHEMA_VERSION
             ? { ok: true, items, migrated: true }
             : { ok: true, items };
@@ -126,7 +130,7 @@ export function loadPracticeMenus(storage = window.localStorage) {
 }
 
 export function savePracticeMenus(items, storage = window.localStorage) {
-    if (!Array.isArray(items) || !items.every(isValidItem) || !hasUniqueIds(items)) {
+    if (!Array.isArray(items) || !items.every((item) => isValidItem(item)) || !hasUniqueIds(items)) {
         return { ok: false, reason: 'invalid-data' };
     }
 
@@ -172,6 +176,7 @@ export function createPracticeMenu(values, existingItems, now = new Date()) {
     return {
         id,
         ...values,
+        hidden: values.hidden ?? false,
         createdAt: timestamp,
         updatedAt: timestamp
     };

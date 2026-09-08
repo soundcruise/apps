@@ -6,19 +6,43 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=2.1.0';
+} from './practice-menu-store.js?v=3.0.1';
+import {
+    canCompletePracticeCycle,
+    clearPracticeCurrentCheck,
+    completePracticeCycle,
+    loadPracticeProgress,
+    removePracticeFromProgress,
+    resetPracticeTotalCount,
+    savePracticeProgress,
+    setPracticeChecked,
+    startNextPracticeCycle
+} from './practice-menu-progress-store.js?v=1.0.0';
+import {
+    PRACTICE_HISTORY_EVENT_TYPE,
+    appendPracticeHistoryEvent,
+    createCycleCompletedEvent,
+    createPracticeCalendarMonth,
+    createPracticeCompletedEvent,
+    getPracticeHistoryForDate,
+    loadPracticeHistory,
+    savePracticeHistory,
+    toLocalDateKey
+} from './practice-menu-history-store.js?v=1.0.0';
 import {
     PRACTICE_APP_STATUS,
     countPracticeMenuReferences,
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=1.1.0';
+} from './practice-menu-app-resolver.js?v=1.2.0';
 import {
     HOME_HISTORY_MODE,
+    PRACTICE_ROUTE_KIND,
+    parsePracticeRoute,
     safeDecodeRouteSegment,
     updateHomeHistory
-} from './practice-menu-navigation.js?v=1.0.0';
+} from './practice-menu-navigation.js?v=1.1.0';
 import {
     MY_APPS_LIMITS,
     loadMyApps,
@@ -123,6 +147,8 @@ const elements = {
     wishlistView: document.querySelector('#wishlist-view'),
     gearFormView: document.querySelector('#gear-form-view'),
     practiceListView: document.querySelector('#practice-list-view'),
+    practiceHiddenView: document.querySelector('#practice-hidden-view'),
+    practiceHistoryView: document.querySelector('#practice-history-view'),
     detailView: document.querySelector('#practice-detail-view'),
     formView: document.querySelector('#practice-form-view'),
     tunerView: document.querySelector('#tuner-view'),
@@ -178,11 +204,33 @@ const elements = {
     empty: document.querySelector('#practice-empty'),
     addButton: document.querySelector('#practice-menu-add'),
     storageError: document.querySelector('#practice-storage-error'),
+    listNotice: document.querySelector('#practice-list-notice'),
+    completeCount: document.querySelector('#practice-complete-count'),
+    historyOpen: document.querySelector('#practice-history-open'),
+    hiddenOpen: document.querySelector('#practice-hidden-open'),
+    hiddenCount: document.querySelector('#practice-hidden-count'),
+    completeButton: document.querySelector('#practice-complete'),
+    cycleReset: document.querySelector('#practice-cycle-reset'),
+    completionCelebration: document.querySelector('#practice-completion-celebration'),
+    hiddenTitle: document.querySelector('#practice-hidden-title'),
+    hiddenList: document.querySelector('#practice-hidden-list'),
+    hiddenEmpty: document.querySelector('#practice-hidden-empty'),
+    hiddenNotice: document.querySelector('#practice-hidden-notice'),
+    historyTitle: document.querySelector('#practice-history-title'),
+    historyError: document.querySelector('#practice-history-error'),
+    calendarPrevious: document.querySelector('#practice-calendar-previous'),
+    calendarNext: document.querySelector('#practice-calendar-next'),
+    calendarToday: document.querySelector('#practice-calendar-today'),
+    calendarMonth: document.querySelector('#practice-calendar-month'),
+    calendarDays: document.querySelector('#practice-calendar-days'),
+    dayHistoryTitle: document.querySelector('#practice-day-history-title'),
+    dayHistoryList: document.querySelector('#practice-day-history-list'),
     detailTitle: document.querySelector('#practice-detail-title'),
     detailSaved: document.querySelector('#practice-detail-saved'),
     detailDuration: document.querySelector('#practice-detail-duration'),
     detailApp: document.querySelector('#practice-detail-app'),
     detailMemo: document.querySelector('#practice-detail-memo'),
+    detailCount: document.querySelector('#practice-detail-count'),
     detailError: document.querySelector('#practice-detail-error'),
     openApp: document.querySelector('#practice-open-app'),
     editButton: document.querySelector('#practice-edit'),
@@ -193,7 +241,13 @@ const elements = {
     durationInput: document.querySelector('#practice-duration'),
     appInput: document.querySelector('#practice-app'),
     memoInput: document.querySelector('#practice-memo'),
+    hiddenField: document.querySelector('#practice-hidden-field'),
+    hiddenInput: document.querySelector('#practice-hidden'),
+    countResetSection: document.querySelector('#practice-count-reset-section'),
+    formTotalCount: document.querySelector('#practice-form-total-count'),
+    countReset: document.querySelector('#practice-count-reset'),
     formError: document.querySelector('#practice-form-error'),
+    formStatus: document.querySelector('#practice-form-status'),
     reorderStart: document.querySelector('#practice-reorder-start'),
     reorderActions: document.querySelector('#practice-reorder-actions'),
     reorderCancel: document.querySelector('#practice-reorder-cancel'),
@@ -262,7 +316,16 @@ const state = {
     formMode: 'create',
     reorderMode: false,
     reorderItems: [],
-    savedNotice: null
+    savedNotice: null,
+    listNotice: '',
+    progress: null,
+    progressReady: false,
+    history: null,
+    historyReady: false,
+    historyMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+    historySelectedDate: toLocalDateKey(),
+    completionTimer: null,
+    completing: false
 };
 
 const myAppsState = {
@@ -384,12 +447,15 @@ function showView(view) {
     if (view !== elements.wishlistView) cleanupGearPhotoObjectUrls('list');
     if (view !== elements.gearFormView) cleanupGearPhotoFormState();
     if (view !== elements.wishlistView && view !== elements.gearFormView) closeGearPhotoLightbox();
+    if (view !== elements.practiceListView) elements.completionCelebration.hidden = true;
     [
         elements.homeView,
         elements.settingsView,
         elements.wishlistView,
         elements.gearFormView,
         elements.practiceListView,
+        elements.practiceHiddenView,
+        elements.practiceHistoryView,
         elements.detailView,
         elements.formView,
         elements.tunerView,
@@ -460,30 +526,101 @@ function resolveCurrentPracticeApp(appId) {
     });
 }
 
+function getPracticeTotalCount(id) {
+    return state.progress?.totalCounts[id] || 0;
+}
+
+function createPracticeLaunchIcon() {
+    const namespace = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(namespace, 'svg');
+    const box = document.createElementNS(namespace, 'path');
+    const arrow = document.createElementNS(namespace, 'path');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    box.setAttribute('d', 'M13 5H6.8A1.8 1.8 0 0 0 5 6.8v10.4A1.8 1.8 0 0 0 6.8 19h10.4a1.8 1.8 0 0 0 1.8-1.8V11');
+    arrow.setAttribute('d', 'M14 5h5v5M19 5l-8 8');
+    svg.append(box, arrow);
+    return svg;
+}
+
 function renderPracticeCard(item) {
     const app = resolveCurrentPracticeApp(item.appId);
-    const card = document.createElement('a');
+    const card = document.createElement('article');
+    const checkButton = document.createElement('button');
+    const detailLink = document.createElement('a');
     const copy = document.createElement('span');
     const name = document.createElement('span');
     const detail = document.createElement('span');
+    const count = document.createElement('span');
     const memo = document.createElement('span');
     const arrow = document.createElement('span');
+    const actions = document.createElement('span');
+    const checked = state.progress?.checkedPracticeIds.includes(item.id) || false;
 
     card.className = 'practice-row practice-menu-card';
-    card.href = `#practice-menu/${encodeURIComponent(item.id)}`;
+    card.dataset.practiceId = item.id;
+    checkButton.className = 'practice-check';
+    checkButton.type = 'button';
+    checkButton.dataset.practiceAction = 'check';
+    checkButton.dataset.id = item.id;
+    checkButton.setAttribute('aria-label', `${item.name}を${checked ? '未完了に戻す' : '完了にする'}`);
+    checkButton.setAttribute('aria-pressed', checked ? 'true' : 'false');
+    checkButton.disabled = !state.storageReady || !state.progressReady || !state.historyReady;
+    checkButton.textContent = checked ? '✓' : '';
+    detailLink.className = 'practice-card-link';
+    detailLink.href = `#practice-menu/${encodeURIComponent(item.id)}`;
     copy.className = 'practice-copy';
     name.className = 'card-name';
     detail.className = 'card-detail';
+    count.className = 'practice-card-count';
     memo.className = 'practice-card-memo';
     arrow.className = 'practice-arrow';
     arrow.setAttribute('aria-hidden', 'true');
     name.textContent = item.name;
     detail.textContent = `${item.durationMinutes}分 ・ ${app.label}`;
+    count.textContent = `${getPracticeTotalCount(item.id)}回`;
     memo.textContent = item.memo;
     arrow.textContent = '→';
-    copy.append(name, detail);
+    copy.append(name, detail, count);
     if (item.memo) copy.append(memo);
-    card.append(copy, arrow);
+    detailLink.append(copy, arrow);
+    actions.className = 'practice-card-actions';
+    if (app.launchable) {
+        const launch = document.createElement('a');
+        launch.className = 'practice-launch';
+        launch.href = app.href;
+        launch.dataset.practiceAction = 'launch';
+        launch.setAttribute('aria-label', `${item.name}の使用アプリ「${app.label}」を開く`);
+        launch.title = `${app.label}を開く`;
+        launch.append(createPracticeLaunchIcon());
+        actions.append(launch);
+    }
+    card.append(checkButton, detailLink, actions);
+    return card;
+}
+
+function renderHiddenPracticeCard(item) {
+    const app = resolveCurrentPracticeApp(item.appId);
+    const card = document.createElement('a');
+    const copy = document.createElement('span');
+    const name = document.createElement('span');
+    const detail = document.createElement('span');
+    const count = document.createElement('span');
+    const edit = document.createElement('span');
+
+    card.className = 'practice-row practice-hidden-card';
+    card.href = `#practice-menu/${encodeURIComponent(item.id)}/edit`;
+    copy.className = 'practice-copy';
+    name.className = 'card-name';
+    detail.className = 'card-detail';
+    count.className = 'practice-card-count';
+    edit.className = 'practice-hidden-edit';
+    name.textContent = item.name;
+    detail.textContent = `${item.durationMinutes}分 ・ ${app.label}`;
+    count.textContent = `${getPracticeTotalCount(item.id)}回`;
+    edit.textContent = '編集';
+    copy.append(name, detail, count);
+    card.append(copy, edit);
     return card;
 }
 
@@ -1454,19 +1591,220 @@ function renderHome() {
     }
 }
 
-function renderPracticeList() {
+function getActivePracticeItems() {
+    return state.items.filter((item) => !item.hidden);
+}
+
+function getHiddenPracticeItems() {
+    return state.items.filter((item) => item.hidden);
+}
+
+function mergeReorderedActiveItems(items, reorderedActiveItems) {
+    let activeIndex = 0;
+    return items.map((item) => item.hidden ? item : reorderedActiveItems[activeIndex++]);
+}
+
+function persistPracticeProgress(nextProgress) {
+    const result = savePracticeProgress(nextProgress);
+    if (!result.ok) return false;
+    state.progress = nextProgress;
+    return true;
+}
+
+function persistPracticeActivity(nextProgress, nextHistory) {
+    const previousProgress = state.progress;
+    const progressResult = savePracticeProgress(nextProgress);
+    if (!progressResult.ok) return false;
+    const historyResult = savePracticeHistory(nextHistory);
+    if (!historyResult.ok) {
+        savePracticeProgress(previousProgress);
+        return false;
+    }
+    state.progress = nextProgress;
+    state.history = nextHistory;
+    return true;
+}
+
+function showPracticeCompletion() {
+    window.clearTimeout(state.completionTimer);
+    elements.completionCelebration.hidden = false;
+    state.completionTimer = window.setTimeout(() => {
+        elements.completionCelebration.hidden = true;
+    }, 1800);
+}
+
+function handlePracticeCheck(item) {
+    if (!state.progressReady || !state.historyReady || item.hidden) return;
+    const checked = state.progress.checkedPracticeIds.includes(item.id);
+    const transition = setPracticeChecked(state.progress, item.id, !checked);
+    if (!transition.changed) return;
+
+    if (!transition.countAdded) {
+        if (!persistPracticeProgress(transition.progress)) {
+            state.listNotice = '進捗を保存できませんでした。チェック状態は変更していません。';
+        }
+        renderPracticeList({ focus: false, focusCheckId: item.id });
+        return;
+    }
+
+    const historyResult = appendPracticeHistoryEvent(
+        state.history,
+        createPracticeCompletedEvent(item, state.progress.cycleId)
+    );
+    if (!historyResult.ok || !persistPracticeActivity(transition.progress, historyResult.history)) {
+        state.listNotice = '練習記録を保存できませんでした。チェック状態は変更していません。';
+    }
+    renderPracticeList({ focus: false, focusCheckId: item.id });
+}
+
+function handlePracticeCycleReset() {
+    if (!state.progressReady) return;
+    const hasCycleActivity = state.progress.checkedPracticeIds.length > 0
+        || state.progress.countedPracticeIds.length > 0;
+    if (!hasCycleActivity) return;
+    if (!window.confirm('チェックをすべてリセットして、次の練習サイクルを始めますか？\n通算回数と履歴は残ります。')) return;
+    const nextProgress = startNextPracticeCycle(state.progress);
+    if (!persistPracticeProgress(nextProgress)) {
+        state.listNotice = 'チェックをリセットできませんでした。現在の進捗は変更していません。';
+    } else {
+        state.listNotice = 'チェックをリセットしました。';
+    }
+    renderPracticeList({ focus: false });
+}
+
+function handlePracticeComplete() {
+    if (state.completing || !state.progressReady || !state.historyReady) return;
+    const activeIds = getActivePracticeItems().map((item) => item.id);
+    const now = new Date();
+    const transition = completePracticeCycle(state.progress, activeIds, now);
+    if (!transition.completed) return;
+    state.completing = true;
+    const historyResult = appendPracticeHistoryEvent(
+        state.history,
+        createCycleCompletedEvent(transition.completedCycleId, now)
+    );
+    if (!historyResult.ok || !persistPracticeActivity(transition.progress, historyResult.history)) {
+        state.listNotice = '完了記録を保存できませんでした。現在の進捗は変更していません。';
+        state.completing = false;
+        renderPracticeList({ focus: false });
+        return;
+    }
+    state.completing = false;
+    state.listNotice = '';
+    renderPracticeList({ focus: false });
+    showPracticeCompletion();
+}
+
+function renderPracticeHiddenList() {
+    showView(elements.practiceHiddenView);
+    const hiddenItems = getHiddenPracticeItems();
+    elements.hiddenList.replaceChildren(...hiddenItems.map(renderHiddenPracticeCard));
+    elements.hiddenEmpty.hidden = hiddenItems.length > 0;
+    showNotice(elements.hiddenNotice, state.listNotice);
+    state.listNotice = '';
+    elements.hiddenTitle.focus({ preventScroll: true });
+}
+
+function selectPracticeHistoryMonth(date) {
+    state.historyMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    const prefix = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-`;
+    const latestDate = [...state.history.events]
+        .reverse()
+        .find((event) => event.localDate.startsWith(prefix))
+        ?.localDate;
+    const today = toLocalDateKey();
+    state.historySelectedDate = today.startsWith(prefix) ? today : (latestDate || `${prefix}01`);
+}
+
+function renderPracticeDayHistory() {
+    const [year, month, day] = state.historySelectedDate.split('-').map(Number);
+    elements.dayHistoryTitle.textContent = `${month}月${day}日`;
+    const events = getPracticeHistoryForDate(state.history, state.historySelectedDate);
+    elements.dayHistoryList.replaceChildren();
+    if (events.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'practice-history-empty';
+        empty.textContent = 'この日の練習記録はありません。';
+        elements.dayHistoryList.append(empty);
+        return;
+    }
+    events.forEach((event) => {
+        const row = document.createElement('div');
+        const mark = document.createElement('span');
+        const copy = document.createElement('span');
+        const title = document.createElement('strong');
+        const detail = document.createElement('small');
+        const completed = event.type === PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted;
+        row.className = `practice-history-event${completed ? ' is-cycle-complete' : ''}`;
+        mark.setAttribute('aria-hidden', 'true');
+        mark.textContent = completed ? '★' : '✓';
+        title.textContent = completed ? '全メニュー完了' : event.practiceName;
+        detail.textContent = completed
+            ? '練習サイクルを完了'
+            : `${event.durationMinutes}分 ・ ${new Date(event.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
+        copy.append(title, detail);
+        row.append(mark, copy);
+        elements.dayHistoryList.append(row);
+    });
+}
+
+function renderPracticeHistory({ focus = true } = {}) {
+    showView(elements.practiceHistoryView);
+    const year = state.historyMonth.getFullYear();
+    const monthIndex = state.historyMonth.getMonth();
+    elements.calendarMonth.textContent = `${year}年${monthIndex + 1}月`;
+    elements.calendarDays.replaceChildren();
+    createPracticeCalendarMonth(year, monthIndex, state.history).forEach((cell) => {
+        if (!cell) {
+            const blank = document.createElement('span');
+            blank.className = 'practice-calendar-blank';
+            blank.setAttribute('aria-hidden', 'true');
+            elements.calendarDays.append(blank);
+            return;
+        }
+        const button = document.createElement('button');
+        const selected = cell.localDate === state.historySelectedDate;
+        const today = cell.localDate === toLocalDateKey();
+        button.type = 'button';
+        button.dataset.practiceDate = cell.localDate;
+        button.className = 'practice-calendar-day';
+        button.classList.toggle('has-activity', cell.count > 0);
+        button.classList.toggle('has-complete', cell.completed);
+        button.classList.toggle('is-today', today);
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        button.setAttribute('aria-label', `${year}年${monthIndex + 1}月${cell.day}日${cell.count ? `、練習${cell.count}件` : '、練習記録なし'}${cell.completed ? '、全メニュー完了' : ''}`);
+        const dayNumber = document.createElement('span');
+        dayNumber.textContent = String(cell.day);
+        button.append(dayNumber);
+        if (cell.count) {
+            const mark = document.createElement('i');
+            mark.setAttribute('aria-hidden', 'true');
+            button.append(mark);
+        }
+        elements.calendarDays.append(button);
+    });
+    showNotice(
+        elements.historyError,
+        state.historyReady ? '' : '練習履歴を読み込めません。保存領域の値は変更していません。'
+    );
+    renderPracticeDayHistory();
+    if (focus) elements.historyTitle.focus({ preventScroll: true });
+}
+
+function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
     showView(elements.practiceListView);
     elements.list.replaceChildren();
-    const visibleItems = state.reorderMode ? state.reorderItems : state.items;
+    const activeItems = getActivePracticeItems();
+    const visibleItems = state.reorderMode ? state.reorderItems : activeItems;
 
     visibleItems.forEach((item, index) => {
         elements.list.append(
             state.reorderMode ? renderReorderCard(item, index) : renderPracticeCard(item)
         );
     });
-    elements.empty.hidden = state.reorderMode || state.items.length > 0 || !state.storageReady;
+    elements.empty.hidden = state.reorderMode || activeItems.length > 0 || !state.storageReady;
 
-    elements.reorderStart.hidden = state.reorderMode || state.items.length < 2;
+    elements.reorderStart.hidden = state.reorderMode || activeItems.length < 2;
     elements.reorderActions.hidden = !state.reorderMode;
     elements.addButton.hidden = state.reorderMode;
     elements.addButton.disabled = !state.storageReady;
@@ -1474,17 +1812,41 @@ function renderPracticeList() {
         ? '並び替え中です。上下のボタンで順序を変更し、完了で保存します。'
         : '';
     elements.reorderStatus.hidden = !state.reorderMode;
+    elements.completeCount.textContent = String(state.progress?.completeCount || 0);
+    elements.hiddenCount.textContent = String(getHiddenPracticeItems().length);
+    elements.completeButton.disabled = state.completing
+        || !state.progressReady
+        || !state.historyReady
+        || !canCompletePracticeCycle(state.progress, activeItems.map((item) => item.id));
+    elements.cycleReset.disabled = !state.progressReady
+        || (state.progress.checkedPracticeIds.length === 0 && state.progress.countedPracticeIds.length === 0);
+    elements.completeButton.parentElement.hidden = state.reorderMode;
+    elements.historyOpen.disabled = !state.history;
+    elements.hiddenOpen.disabled = !state.storageReady;
+    showNotice(elements.listNotice, state.listNotice);
+    state.listNotice = '';
     showNotice(
         elements.storageError,
-        state.storageReady ? '' : '練習メニューの保存データを読み込めません。保存領域の値は変更していません。'
+        !state.storageReady
+            ? '練習メニューの保存データを読み込めません。保存領域の値は変更していません。'
+            : !state.progressReady || !state.historyReady
+                ? '進捗または履歴を読み込めないため、チェック機能を停止しています。既存データは変更していません。'
+                : ''
     );
-    document.querySelector('#practice-heading')?.focus({ preventScroll: true });
+    if (focusCheckId) {
+        [...elements.list.querySelectorAll('[data-practice-action="check"]')]
+            .find((button) => button.dataset.id === focusCheckId)
+            ?.focus({ preventScroll: true });
+    } else if (focus) {
+        document.querySelector('#practice-heading')?.focus({ preventScroll: true });
+    }
 }
 
 function startReorder() {
-    if (!state.storageReady || state.items.length < 2) return;
+    const activeItems = getActivePracticeItems();
+    if (!state.storageReady || activeItems.length < 2) return;
     state.reorderMode = true;
-    state.reorderItems = [...state.items];
+    state.reorderItems = [...activeItems];
     showNotice(elements.reorderNotice);
     renderPracticeList();
 }
@@ -1508,17 +1870,19 @@ function moveReorderItem(id, direction) {
 
 function completeReorder() {
     if (!state.reorderMode) return;
-    if (sameOrder(state.items, state.reorderItems)) {
+    const activeItems = getActivePracticeItems();
+    if (sameOrder(activeItems, state.reorderItems)) {
         cancelReorder();
         return;
     }
 
-    const saveResult = savePracticeMenus(state.reorderItems);
+    const candidateItems = mergeReorderedActiveItems(state.items, state.reorderItems);
+    const saveResult = savePracticeMenus(candidateItems);
     if (!saveResult.ok) {
         showNotice(elements.reorderNotice, '並び順を保存できませんでした。元の順番は変更していません。');
         return;
     }
-    state.items = state.reorderItems;
+    state.items = candidateItems;
     state.reorderMode = false;
     state.reorderItems = [];
     showNotice(elements.reorderNotice);
@@ -1538,6 +1902,7 @@ function renderDetail(id) {
     elements.detailDuration.textContent = `${item.durationMinutes}分`;
     elements.detailApp.textContent = app.label;
     elements.detailMemo.textContent = item.memo || 'なし';
+    elements.detailCount.textContent = `${getPracticeTotalCount(item.id)}回`;
     showNotice(elements.detailSaved, state.savedNotice?.id === item.id ? state.savedNotice.message : '');
     state.savedNotice = null;
     elements.openApp.textContent = `${app.label}を開く`;
@@ -1601,7 +1966,13 @@ function fillForm(item = null) {
     elements.durationInput.value = item?.durationMinutes ?? 10;
     populatePracticeAppSelect(item?.appId || '');
     elements.memoInput.value = item?.memo || '';
+    elements.hiddenInput.checked = item?.hidden || false;
+    elements.hiddenField.hidden = !item;
+    elements.countResetSection.hidden = !item;
+    elements.formTotalCount.textContent = `${item ? getPracticeTotalCount(item.id) : 0}回`;
+    elements.countReset.disabled = !item || !state.progressReady || getPracticeTotalCount(item.id) === 0;
     showNotice(elements.formError);
+    showNotice(elements.formStatus);
 }
 
 function renderForm(mode, id = null) {
@@ -2431,8 +2802,7 @@ function handleGearListAction(event) {
 function renderRoute() {
     const hash = location.hash;
     const gearRoute = parseGearRoute(hash);
-    const editMatch = hash.match(/^#practice-menu\/([^/]+)\/edit$/);
-    const detailMatch = hash.match(/^#practice-menu\/([^/]+)$/);
+    const practiceRoute = parsePracticeRoute(hash);
     const myAppsEditMatch = hash.match(/^#my-apps\/([^/]+)\/edit$/);
 
     if (hash === '#settings') {
@@ -2445,8 +2815,12 @@ function renderRoute() {
         renderGearForm('edit', gearRoute.id);
     } else if (gearRoute?.kind === GEAR_ROUTE_KIND.invalid) {
         correctGearListRoute();
-    } else if (hash === '#practice-menu') {
+    } else if (practiceRoute?.kind === PRACTICE_ROUTE_KIND.list) {
         renderPracticeList();
+    } else if (practiceRoute?.kind === PRACTICE_ROUTE_KIND.hidden) {
+        renderPracticeHiddenList();
+    } else if (practiceRoute?.kind === PRACTICE_ROUTE_KIND.history) {
+        renderPracticeHistory();
     } else if (hash === '#my-apps/manage') {
         renderMyAppsManage();
     } else if (hash === '#my-apps/new') {
@@ -2455,20 +2829,18 @@ function renderRoute() {
         const id = safeDecodeRouteSegment(myAppsEditMatch[1]);
         if (id === null) replaceHomeRoute();
         else renderMyAppsForm('edit', id);
-    } else if (hash === '#practice-menu/new') {
+    } else if (practiceRoute?.kind === PRACTICE_ROUTE_KIND.create) {
         renderForm('create');
     } else if (hash === '#tuner') {
         showView(elements.tunerView);
     } else if (hash === '#metronome') {
         showView(elements.metronomeView);
-    } else if (editMatch) {
-        const id = safeDecodeRouteSegment(editMatch[1]);
-        if (id === null) replaceHomeRoute();
-        else renderForm('edit', id);
-    } else if (detailMatch) {
-        const id = safeDecodeRouteSegment(detailMatch[1]);
-        if (id === null) replaceHomeRoute();
-        else renderDetail(id);
+    } else if (practiceRoute?.kind === PRACTICE_ROUTE_KIND.edit) {
+        renderForm('edit', practiceRoute.id);
+    } else if (practiceRoute?.kind === PRACTICE_ROUTE_KIND.detail) {
+        renderDetail(practiceRoute.id);
+    } else if (practiceRoute?.kind === PRACTICE_ROUTE_KIND.invalid) {
+        replaceHomeRoute();
     } else if (hash) {
         replaceHomeRoute();
     } else {
@@ -2506,7 +2878,8 @@ function readFormValues() {
     }
     if (memo.length > LIMITS.memo) return { ok: false, message: 'メモは1000文字以内で入力してください。' };
 
-    return { ok: true, values: { name, durationMinutes, appId, memo } };
+    const hidden = state.formMode === 'edit' ? elements.hiddenInput.checked : false;
+    return { ok: true, values: { name, durationMinutes, appId, memo, hidden } };
 }
 
 function persist(candidateItems) {
@@ -2516,6 +2889,20 @@ function persist(candidateItems) {
         return false;
     }
     state.items = candidateItems;
+    return true;
+}
+
+function persistPracticeItemsAndProgress(candidateItems, nextProgress) {
+    const previousProgress = state.progress;
+    const progressChanged = nextProgress !== state.progress;
+    if (progressChanged && !savePracticeProgress(nextProgress).ok) return false;
+    const menuResult = savePracticeMenus(candidateItems);
+    if (!menuResult.ok) {
+        if (progressChanged) savePracticeProgress(previousProgress);
+        return false;
+    }
+    state.items = candidateItems;
+    if (progressChanged) state.progress = nextProgress;
     return true;
 }
 
@@ -2529,14 +2916,36 @@ function handleSubmit(event) {
     }
 
     if (state.formMode === 'edit') {
+        const previousItem = findItem(state.activeId);
         const updateResult = updatePracticeMenu(state.items, state.activeId, formResult.values);
         if (!updateResult.found) {
             showNotice(elements.formError, '編集する練習メニューが見つかりません。');
             return;
         }
-        if (persist(updateResult.items)) {
-            state.savedNotice = { id: state.activeId, message: '変更を保存しました。' };
-            replacePracticeDetailRoute(state.activeId);
+        const nextItem = updateResult.items.find((item) => item.id === state.activeId);
+        const visibilityChanged = previousItem.hidden !== nextItem.hidden;
+        const nextProgress = !previousItem.hidden && nextItem.hidden && state.progressReady
+            ? clearPracticeCurrentCheck(state.progress, state.activeId)
+            : state.progress;
+        if (persistPracticeItemsAndProgress(updateResult.items, nextProgress)) {
+            if (visibilityChanged) {
+                state.listNotice = nextItem.hidden
+                    ? '練習メニューを非表示にしました。'
+                    : '練習メニューを通常一覧へ戻しました。';
+                window.history.replaceState(
+                    null,
+                    '',
+                    `${location.pathname}${location.search}${nextItem.hidden ? '#practice-menu/hidden' : '#practice-menu'}`
+                );
+                renderRoute();
+            } else if (nextItem.hidden) {
+                state.listNotice = '変更を保存しました。';
+                window.history.replaceState(null, '', `${location.pathname}${location.search}#practice-menu/hidden`);
+                renderRoute();
+            } else {
+                state.savedNotice = { id: state.activeId, message: '変更を保存しました。' };
+                replacePracticeDetailRoute(state.activeId);
+            }
         }
         return;
     }
@@ -2550,7 +2959,10 @@ function handleSubmit(event) {
 
 function cancelForm() {
     if (state.formMode === 'edit' && state.activeId) {
-        setHashRoute(`#practice-menu/${encodeURIComponent(state.activeId)}`);
+        const item = findItem(state.activeId);
+        setHashRoute(item?.hidden
+            ? '#practice-menu/hidden'
+            : `#practice-menu/${encodeURIComponent(state.activeId)}`);
     } else {
         setPracticeListRoute();
     }
@@ -2562,13 +2974,33 @@ function handleDelete() {
 
     const deleteResult = deletePracticeMenu(state.items, item.id);
     if (!deleteResult.found) return;
-    const saveResult = savePracticeMenus(deleteResult.items);
-    if (!saveResult.ok) {
+    const nextProgress = state.progressReady
+        ? removePracticeFromProgress(state.progress, item.id)
+        : state.progress;
+    if (!persistPracticeItemsAndProgress(deleteResult.items, nextProgress)) {
         showNotice(elements.detailError, '削除できませんでした。保存設定を確認してください。');
         return;
     }
-    state.items = deleteResult.items;
-    replacePracticeListRoute();
+    if (item.hidden) {
+        window.history.replaceState(null, '', `${location.pathname}${location.search}#practice-menu/hidden`);
+        renderRoute();
+    } else {
+        replacePracticeListRoute();
+    }
+}
+
+function handlePracticeTotalCountReset() {
+    const item = findItem(state.activeId);
+    if (!item || !state.progressReady || !getPracticeTotalCount(item.id)) return;
+    if (!window.confirm(`「${item.name}」の通算回数を0回に戻しますか？\n過去の練習履歴は残ります。`)) return;
+    const nextProgress = resetPracticeTotalCount(state.progress, item.id);
+    if (!persistPracticeProgress(nextProgress)) {
+        showNotice(elements.formError, '通算回数をリセットできませんでした。');
+        return;
+    }
+    elements.formTotalCount.textContent = '0回';
+    elements.countReset.disabled = true;
+    showNotice(elements.formStatus, '通算回数をリセットしました。履歴は保持されています。');
 }
 
 elements.addButton.addEventListener('click', () => setHashRoute('#practice-menu/new'));
@@ -2650,6 +3082,19 @@ elements.gearCategoryFilter.addEventListener('click', (event) => {
     elements.gearCategoryFilter.querySelector(`[data-gear-category="${gearState.activeCategory}"]`)?.focus({ preventScroll: true });
 });
 elements.form.addEventListener('submit', handleSubmit);
+elements.countReset.addEventListener('click', handlePracticeTotalCountReset);
+elements.openApp.addEventListener('click', (event) => {
+    if (
+        elements.openApp.getAttribute('href') !== '#tuner'
+        || event.defaultPrevented
+        || event.button !== 0
+        || event.metaKey
+        || event.ctrlKey
+        || event.shiftKey
+        || event.altKey
+    ) return;
+    void tunerController.startFromUserGesture();
+});
 elements.editButton.addEventListener('click', () => {
     if (state.activeId) setHashRoute(`#practice-menu/${encodeURIComponent(state.activeId)}/edit`);
 });
@@ -2657,10 +3102,57 @@ elements.deleteButton.addEventListener('click', handleDelete);
 elements.reorderStart.addEventListener('click', startReorder);
 elements.reorderCancel.addEventListener('click', cancelReorder);
 elements.reorderComplete.addEventListener('click', completeReorder);
+elements.historyOpen.addEventListener('click', () => setHashRoute('#practice-menu/history'));
+elements.hiddenOpen.addEventListener('click', () => setHashRoute('#practice-menu/hidden'));
+elements.completeButton.addEventListener('click', handlePracticeComplete);
+elements.cycleReset.addEventListener('click', handlePracticeCycleReset);
+elements.calendarPrevious.addEventListener('click', () => {
+    selectPracticeHistoryMonth(new Date(state.historyMonth.getFullYear(), state.historyMonth.getMonth() - 1, 1));
+    renderPracticeHistory({ focus: false });
+});
+elements.calendarNext.addEventListener('click', () => {
+    selectPracticeHistoryMonth(new Date(state.historyMonth.getFullYear(), state.historyMonth.getMonth() + 1, 1));
+    renderPracticeHistory({ focus: false });
+});
+elements.calendarToday.addEventListener('click', () => {
+    selectPracticeHistoryMonth(new Date());
+    renderPracticeHistory({ focus: false });
+});
+elements.calendarDays.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-practice-date]');
+    if (!button) return;
+    state.historySelectedDate = button.dataset.practiceDate;
+    renderPracticeHistory({ focus: false });
+});
 elements.list.addEventListener('click', (event) => {
-    const button = event.target.closest('.reorder-move');
-    if (!button || !state.reorderMode) return;
-    moveReorderItem(button.dataset.id, Number(button.dataset.direction));
+    const reorderButton = event.target.closest('.reorder-move');
+    if (reorderButton && state.reorderMode) {
+        moveReorderItem(reorderButton.dataset.id, Number(reorderButton.dataset.direction));
+        return;
+    }
+    const action = event.target.closest('[data-practice-action]');
+    if (!action || state.reorderMode) return;
+    if (action.dataset.practiceAction === 'launch') {
+        event.stopPropagation();
+        if (
+            action.getAttribute('href') === '#tuner'
+            && !event.defaultPrevented
+            && event.button === 0
+            && !event.metaKey
+            && !event.ctrlKey
+            && !event.shiftKey
+            && !event.altKey
+        ) {
+            void tunerController.startFromUserGesture();
+        }
+        return;
+    }
+    if (action.dataset.practiceAction === 'check') {
+        event.preventDefault();
+        event.stopPropagation();
+        const item = findItem(action.dataset.id);
+        if (item) handlePracticeCheck(item);
+    }
 });
 document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
 document.querySelectorAll('[data-action="practice-list"]').forEach((button) => button.addEventListener('click', setPracticeListRoute));
@@ -2784,6 +3276,12 @@ window.addEventListener('pagehide', () => {
 const loadResult = loadPracticeMenus();
 state.items = loadResult.items;
 state.storageReady = loadResult.ok;
+const progressLoadResult = loadPracticeProgress();
+state.progress = progressLoadResult.progress;
+state.progressReady = progressLoadResult.ok;
+const historyLoadResult = loadPracticeHistory();
+state.history = historyLoadResult.history;
+state.historyReady = historyLoadResult.ok;
 GEAR_CATEGORIES.forEach(({ key, label }) => {
     const option = document.createElement('option');
     option.value = key;

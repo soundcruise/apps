@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.19.0">
+    <link rel="stylesheet" href="./style.css?v=1.20.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=1.19.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=2.0.1"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -225,8 +225,15 @@
                     </div>
                     <button id="practice-reorder-start" class="reorder-button" type="button" hidden>並び替え</button>
                 </div>
-                <p class="practice-list-intro">保存した練習メニューを選ぶと、内容を確認して使用アプリを開けます。</p>
+                <div class="practice-overview">
+                    <p class="practice-complete-stat">コンプリート <strong id="practice-complete-count">0</strong>回</p>
+                    <div class="practice-overview-links" aria-label="練習メニューの補助機能">
+                        <button id="practice-history-open" type="button">履歴</button>
+                        <button id="practice-hidden-open" type="button">非表示 <span id="practice-hidden-count">0</span></button>
+                    </div>
+                </div>
                 <p id="practice-storage-error" class="notice notice-error" role="alert" hidden></p>
+                <p id="practice-list-notice" class="practice-saved" role="status" hidden></p>
                 <p id="practice-reorder-status" class="reorder-status" aria-live="polite" hidden></p>
                 <p id="practice-reorder-notice" class="notice notice-error" role="alert" hidden></p>
                 <div class="practice-list">
@@ -240,6 +247,49 @@
                         <span class="card-name">練習メニューを追加</span>
                     </button>
                 </div>
+                <div class="practice-cycle-actions">
+                    <button id="practice-complete" class="action-button primary-action" type="button" disabled>全部完了</button>
+                    <button id="practice-cycle-reset" class="practice-quiet-action" type="button" disabled>チェックをすべてリセット</button>
+                </div>
+                <div id="practice-completion-celebration" class="practice-completion-celebration" role="status" aria-live="polite" hidden>
+                    <span aria-hidden="true">✓</span>
+                    <strong>お疲れさまでした</strong>
+                    <small>今日の練習を完了しました</small>
+                </div>
+            </section>
+        </main>
+
+        <main id="practice-hidden-view" class="port-view practice-hidden-view" hidden>
+            <button class="view-back" type="button" data-action="practice-list">← 練習メニュー</button>
+            <section class="view-panel" aria-labelledby="practice-hidden-title">
+                <p class="view-kicker">練習メニュー</p>
+                <h1 id="practice-hidden-title" class="view-title" tabindex="-1">非表示一覧</h1>
+                <p id="practice-hidden-notice" class="practice-saved" role="status" hidden></p>
+                <p id="practice-hidden-empty" class="practice-subview-empty" hidden>非表示の練習メニューはありません。</p>
+                <div id="practice-hidden-list" class="practice-list"></div>
+            </section>
+        </main>
+
+        <main id="practice-history-view" class="port-view practice-history-view" hidden>
+            <button class="view-back" type="button" data-action="practice-list">← 練習メニュー</button>
+            <section class="view-panel" aria-labelledby="practice-history-title">
+                <p class="view-kicker">練習メニュー</p>
+                <h1 id="practice-history-title" class="view-title" tabindex="-1">履歴</h1>
+                <p id="practice-history-error" class="notice notice-error" role="alert" hidden></p>
+                <div class="practice-calendar-heading">
+                    <button id="practice-calendar-previous" type="button" aria-label="前の月">‹</button>
+                    <strong id="practice-calendar-month"></strong>
+                    <button id="practice-calendar-next" type="button" aria-label="次の月">›</button>
+                </div>
+                <button id="practice-calendar-today" class="practice-calendar-today" type="button">今日</button>
+                <div class="practice-calendar-weekdays" aria-hidden="true">
+                    <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+                </div>
+                <div id="practice-calendar-days" class="practice-calendar-days" role="grid" aria-label="練習履歴カレンダー"></div>
+                <section class="practice-day-history" aria-labelledby="practice-day-history-title">
+                    <h2 id="practice-day-history-title"></h2>
+                    <div id="practice-day-history-list"></div>
+                </section>
             </section>
         </main>
 
@@ -262,6 +312,10 @@
                     <div>
                         <dt>メモ</dt>
                         <dd id="practice-detail-memo" class="detail-memo"></dd>
+                    </div>
+                    <div>
+                        <dt>通算回数</dt>
+                        <dd id="practice-detail-count"></dd>
                     </div>
                 </dl>
 
@@ -306,7 +360,26 @@
                         <textarea id="practice-memo" name="memo" maxlength="1000" rows="6"></textarea>
                     </div>
 
+                    <div id="practice-hidden-field" class="form-field practice-hidden-field" hidden>
+                        <label class="practice-hidden-toggle" for="practice-hidden">
+                            <span>
+                                <strong>非表示</strong>
+                                <small>通常の一覧と「全部完了」の対象から外します。</small>
+                            </span>
+                            <input id="practice-hidden" name="hidden" type="checkbox">
+                        </label>
+                    </div>
+
+                    <section id="practice-count-reset-section" class="practice-count-reset-section" aria-labelledby="practice-count-reset-title" hidden>
+                        <div>
+                            <strong id="practice-count-reset-title">通算回数</strong>
+                            <span id="practice-form-total-count">0回</span>
+                        </div>
+                        <button id="practice-count-reset" type="button">通算回数をリセット</button>
+                    </section>
+
                     <p id="practice-form-error" class="notice notice-error" role="alert" hidden></p>
+                    <p id="practice-form-status" class="practice-saved" role="status" hidden></p>
                     <div class="form-actions">
                         <button class="action-button primary-action" type="submit">保存</button>
                         <button class="action-button secondary-action" type="button" data-action="cancel-form">キャンセル</button>

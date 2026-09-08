@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
     HOME_HISTORY_MODE,
+    PRACTICE_ROUTE_KIND,
+    parsePracticeRoute,
     safeDecodeRouteSegment,
     updateHomeHistory
 } from './practice-menu-navigation.js';
@@ -119,6 +121,32 @@ for (const encoded of ['%ZZ', '%', '%E0%A4%A']) {
 }
 
 assert.equal(safeDecodeRouteSegment('menu%20name'), 'menu name');
+assert.deepEqual(parsePracticeRoute('#practice-menu'), { kind: PRACTICE_ROUTE_KIND.list });
+assert.deepEqual(parsePracticeRoute('#practice-menu/new'), { kind: PRACTICE_ROUTE_KIND.create });
+assert.deepEqual(parsePracticeRoute('#practice-menu/history'), { kind: PRACTICE_ROUTE_KIND.history });
+assert.deepEqual(parsePracticeRoute('#practice-menu/hidden'), { kind: PRACTICE_ROUTE_KIND.hidden });
+assert.deepEqual(parsePracticeRoute('#practice-menu/menu%20id'), { kind: PRACTICE_ROUTE_KIND.detail, id: 'menu id' });
+assert.deepEqual(parsePracticeRoute('#practice-menu/menu%20id/edit'), { kind: PRACTICE_ROUTE_KIND.edit, id: 'menu id' });
+assert.deepEqual(parsePracticeRoute('#practice-menu/%ZZ'), { kind: PRACTICE_ROUTE_KIND.invalid });
+assert.equal(parsePracticeRoute('#metronome'), null);
+
+{
+    const browser = new MemoryBrowserHistory();
+    browser.pushHash('#practice-menu');
+    browser.pushHash('#practice-menu/history');
+    browser.back();
+    assert.equal(browser.location.hash, '#practice-menu', 'history back returns to the list');
+    browser.forward();
+    assert.equal(browser.location.hash, '#practice-menu/history');
+}
+
+{
+    const browser = new MemoryBrowserHistory();
+    browser.pushHash('#practice-menu');
+    browser.pushHash('#practice-menu/hidden');
+    browser.back();
+    assert.equal(browser.location.hash, '#practice-menu', 'hidden list back returns to the main list');
+}
 
 const appSource = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
 assert.match(appSource, /function replaceHomeRoute\(\)[\s\S]*HOME_HISTORY_MODE\.replace/);
@@ -126,7 +154,9 @@ assert.match(appSource, /function replacePracticeListRoute\(\)[\s\S]*history\.re
 assert.match(appSource, /function replacePracticeDetailRoute\(id\)[\s\S]*history\.replaceState/);
 assert.match(appSource, /function renderDetail\(id\)[\s\S]*if \(!item\) \{\s*replacePracticeListRoute\(\)/);
 assert.match(appSource, /function renderForm\(mode, id = null\)[\s\S]*mode === 'edit' && !item\)[\s\S]*replacePracticeListRoute\(\)/);
-assert.match(appSource, /function handleDelete\(\)[\s\S]*state\.items = deleteResult\.items;\s*replacePracticeListRoute\(\)/);
+assert.match(appSource, /function handleDelete\(\)[\s\S]*persistPracticeItemsAndProgress\(deleteResult\.items, nextProgress\)/);
+assert.match(appSource, /PRACTICE_ROUTE_KIND\.history[\s\S]*renderPracticeHistory/);
+assert.match(appSource, /PRACTICE_ROUTE_KIND\.hidden[\s\S]*renderPracticeHiddenList/);
 assert.doesNotMatch(appSource, /decodeURIComponent\((?:editMatch|detailMatch|myAppsEditMatch)/);
 
 console.log('practice-menu-navigation: push/replace, stale routes, back/forward, and safe decode passed');

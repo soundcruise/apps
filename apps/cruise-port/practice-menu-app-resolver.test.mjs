@@ -158,6 +158,11 @@ assert.match(markup, /id="practice-detail-saved"/);
 assert.match(appSource, /保存しました。この画面から内容を確認して使えます/);
 assert.match(appSource, /function replacePracticeDetailRoute\(id\)[\s\S]*history\.replaceState/);
 assert.match(appSource, /replacePracticeDetailRoute\(item\.id\)/);
-assert.match(appSource, /elements\.empty\.hidden = state\.reorderMode \|\| state\.items\.length > 0/);
+assert.match(appSource, /elements\.empty\.hidden = state\.reorderMode \|\| activeItems\.length > 0/);
+assert.match(appSource, /launch\.dataset\.practiceAction = 'launch'/);
+assert.match(appSource, /if \(app\.launchable\)/);
+assert.match(appSource, /if \(action\.dataset\.practiceAction === 'launch'\)[\s\S]*event\.stopPropagation/);
+assert.match(appSource, /action\.getAttribute\('href'\) === '#tuner'[\s\S]*tunerController\.startFromUserGesture/);
+assert.match(appSource, /elements\.openApp\.getAttribute\('href'\) !== '#tuner'[\s\S]*tunerController\.startFromUserGesture/);
 
 console.log('practice-menu-app-resolver: resolution, dynamic options, updates, and delete references passed');
