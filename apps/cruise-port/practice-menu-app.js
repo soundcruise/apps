@@ -83,9 +83,11 @@ import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './
 import { initTuner } from './tuner-app.js?v=1.1.8';
 import {
     GEAR_CATEGORIES,
+    clearGearPhotoReferences,
     createGearItem,
     deleteGearItem,
     getGearCategoryLabel,
+    getGearPhotoReferences,
     getInitialGearCategory,
     getGearPriorityLabel,
     loadGearList,
@@ -95,9 +97,20 @@ import {
     restoreGearOwned,
     saveGearList,
     selectGearItems,
+    setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=3.0.0';
+} from './gear-list-store.js?v=4.0.0';
+import { createGearPhotoStore } from './gear-photo-store.js?v=1.0.0';
+import {
+    encodePreparedGearPhoto,
+    prepareGearPhotoSource
+} from './gear-photo-processor.js?v=1.0.0';
+import {
+    commitGearItemDeletion,
+    commitGearPhotoChange,
+    commitGearPhotoRemoval
+} from './gear-photo-workflow.js?v=1.0.0';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
@@ -142,6 +155,23 @@ const elements = {
     gearPriorityField: document.querySelector('#gear-priority-field'),
     gearPriorityInput: document.querySelector('#gear-priority'),
     gearMemoInput: document.querySelector('#gear-memo'),
+    gearPhotoInput: document.querySelector('#gear-photo-input'),
+    gearPhotoSelectLabel: document.querySelector('#gear-photo-select-label'),
+    gearPhotoPreview: document.querySelector('#gear-photo-preview'),
+    gearPhotoReadjust: document.querySelector('#gear-photo-readjust'),
+    gearPhotoRemove: document.querySelector('#gear-photo-remove'),
+    gearPhotoStatus: document.querySelector('#gear-photo-status'),
+    gearPhotoCropDialog: document.querySelector('#gear-photo-crop-dialog'),
+    gearPhotoCropTitle: document.querySelector('#gear-photo-crop-title'),
+    gearPhotoCropCanvas: document.querySelector('#gear-photo-crop-canvas'),
+    gearPhotoCropSlider: document.querySelector('#gear-photo-crop-slider'),
+    gearPhotoCropStatus: document.querySelector('#gear-photo-crop-status'),
+    gearPhotoCropConfirm: document.querySelector('#gear-photo-crop-confirm'),
+    gearPhotoCropCancel: document.querySelector('#gear-photo-crop-cancel'),
+    gearPhotoLightbox: document.querySelector('#gear-photo-lightbox'),
+    gearPhotoLightboxTitle: document.querySelector('#gear-photo-lightbox-title'),
+    gearPhotoLightboxImage: document.querySelector('#gear-photo-lightbox-image'),
+    gearPhotoLightboxClose: document.querySelector('#gear-photo-lightbox-close'),
     gearFormError: document.querySelector('#gear-form-error'),
     list: document.querySelector('#practice-menu-list'),
     addButton: document.querySelector('#practice-menu-add'),
@@ -264,7 +294,18 @@ const gearState = {
     formMode: 'create',
     reorderMode: false,
     reorderStatus: null,
-    reorderItems: []
+    reorderItems: [],
+    photoAction: 'keep',
+    photoBlob: null,
+    photoSourceBlob: null,
+    photoCrop: null,
+    photoSourceWidth: 0,
+    photoSourceHeight: 0,
+    photoProcessing: false,
+    saving: false,
+    cropSession: null,
+    cropState: null,
+    cropPointers: new Map()
 };
 
 let metronomeController = null;
@@ -272,7 +313,9 @@ let tunerController = null;
 let pendingHomeScrollTarget = null;
 let homeSettings = { displaySize: 'standard' };
 let settingsStorageReady = true;
+let gearPhotoLightboxReturnFocus = null;
 const myAppsIconStore = createMyAppsIconStore();
+const gearPhotoStore = createGearPhotoStore();
 const myAppsPlatform = detectMyAppsPlatform();
 const myAppsObjectUrls = {
     home: new Set(),
@@ -280,6 +323,8 @@ const myAppsObjectUrls = {
     form: new Set()
 };
 const myAppsRenderGeneration = { home: 0, manage: 0, form: 0 };
+const gearPhotoObjectUrls = { list: new Set(), form: new Set(), lightbox: new Set() };
+const gearPhotoRenderGeneration = { list: 0, form: 0, lightbox: 0 };
 
 function showNotice(element, message = '') {
     element.textContent = message;
@@ -290,6 +335,25 @@ function cleanupMyAppsObjectUrls(scope) {
     myAppsRenderGeneration[scope] += 1;
     myAppsObjectUrls[scope].forEach((url) => URL.revokeObjectURL(url));
     myAppsObjectUrls[scope].clear();
+}
+
+function cleanupGearPhotoObjectUrls(scope) {
+    gearPhotoRenderGeneration[scope] += 1;
+    gearPhotoObjectUrls[scope].forEach((url) => URL.revokeObjectURL(url));
+    gearPhotoObjectUrls[scope].clear();
+}
+
+function cleanupGearPhotoFormState() {
+    closeGearPhotoCropEditor({ restoreStatus: false, restoreFocus: false });
+    cleanupGearPhotoObjectUrls('form');
+    gearState.photoAction = 'keep';
+    gearState.photoBlob = null;
+    gearState.photoSourceBlob = null;
+    gearState.photoCrop = null;
+    gearState.photoSourceWidth = 0;
+    gearState.photoSourceHeight = 0;
+    gearState.photoProcessing = false;
+    gearState.saving = false;
 }
 
 function cleanupMyAppsFormState() {
@@ -313,6 +377,9 @@ function showView(view) {
     if (view !== elements.homeView) cleanupMyAppsObjectUrls('home');
     if (view !== elements.myAppsManageView) cleanupMyAppsObjectUrls('manage');
     if (view !== elements.myAppsFormView) cleanupMyAppsFormState();
+    if (view !== elements.wishlistView) cleanupGearPhotoObjectUrls('list');
+    if (view !== elements.gearFormView) cleanupGearPhotoFormState();
+    if (view !== elements.wishlistView && view !== elements.gearFormView) closeGearPhotoLightbox();
     [
         elements.homeView,
         elements.settingsView,
@@ -1591,6 +1658,112 @@ function createGearAction(label, action, item, className = 'secondary-action') {
     return button;
 }
 
+function showGearPhotoBlob(blob, scope, image, onReady = null) {
+    const generation = gearPhotoRenderGeneration[scope];
+    const objectUrl = URL.createObjectURL(blob);
+    gearPhotoObjectUrls[scope].add(objectUrl);
+    image.onload = () => {
+        if (generation === gearPhotoRenderGeneration[scope]) onReady?.();
+    };
+    image.onerror = () => {
+        URL.revokeObjectURL(objectUrl);
+        gearPhotoObjectUrls[scope].delete(objectUrl);
+    };
+    image.src = objectUrl;
+}
+
+function createGearPhotoThumbnail(item) {
+    const button = document.createElement('button');
+    const image = document.createElement('img');
+    button.type = 'button';
+    button.className = 'gear-card-photo';
+    button.dataset.gearPhotoId = item.id;
+    button.setAttribute('aria-label', `${item.name}の写真を拡大表示`);
+    button.hidden = true;
+    image.alt = '';
+    button.append(image);
+    gearPhotoStore.getPhoto(item.photoId).then((result) => {
+        if (!result.ok || !result.record?.blob || !button.isConnected) return;
+        showGearPhotoBlob(result.record.blob, 'list', image, () => { button.hidden = false; });
+    });
+    return button;
+}
+
+function closeGearPhotoLightbox({ restoreFocus = false } = {}) {
+    const returnFocus = gearPhotoLightboxReturnFocus;
+    cleanupGearPhotoObjectUrls('lightbox');
+    elements.gearPhotoLightbox.hidden = true;
+    elements.gearPhotoLightboxImage.removeAttribute('src');
+    delete elements.gearPhotoLightbox.dataset.itemId;
+    gearPhotoLightboxReturnFocus = null;
+    document.body.classList.remove('gear-photo-lightbox-open');
+    if (restoreFocus && returnFocus?.isConnected && !returnFocus.disabled) returnFocus.focus({ preventScroll: true });
+}
+
+async function openGearPhotoLightbox(item, blob = null) {
+    if (!item?.photoId && !blob) return;
+    const returnFocus = document.activeElement;
+    cleanupGearPhotoObjectUrls('lightbox');
+    const generation = gearPhotoRenderGeneration.lightbox;
+    const result = blob ? { ok: true, record: { blob } } : await gearPhotoStore.getPhoto(item.photoId);
+    if (generation !== gearPhotoRenderGeneration.lightbox || !result.ok || !result.record?.blob) return;
+    elements.gearPhotoLightbox.dataset.itemId = item.id || '';
+    gearPhotoLightboxReturnFocus = returnFocus;
+    elements.gearPhotoLightboxTitle.textContent = `${item.name || '機材'}の写真`;
+    elements.gearPhotoLightboxImage.alt = `${item.name || '機材'}の写真`;
+    showGearPhotoBlob(result.record.blob, 'lightbox', elements.gearPhotoLightboxImage);
+    elements.gearPhotoLightbox.hidden = false;
+    document.body.classList.add('gear-photo-lightbox-open');
+    elements.gearPhotoLightboxClose.focus({ preventScroll: true });
+}
+
+function updateGearPhotoControls(hasPhoto) {
+    elements.gearPhotoPreview.disabled = !hasPhoto || gearState.photoProcessing || gearState.saving;
+    elements.gearPhotoReadjust.hidden = !hasPhoto;
+    elements.gearPhotoRemove.hidden = !hasPhoto;
+    elements.gearPhotoReadjust.disabled = gearState.photoProcessing || gearState.saving;
+    elements.gearPhotoRemove.disabled = gearState.photoProcessing || gearState.saving;
+    elements.gearPhotoInput.disabled = gearState.photoProcessing || gearState.saving;
+    elements.gearPhotoSelectLabel.classList.toggle('is-disabled', gearState.photoProcessing || gearState.saving);
+    elements.gearPhotoSelectLabel.setAttribute('aria-disabled', String(gearState.photoProcessing || gearState.saving));
+}
+
+function showGearPhotoPreview(blob, status = '') {
+    cleanupGearPhotoObjectUrls('form');
+    const image = document.createElement('img');
+    image.alt = '';
+    elements.gearPhotoPreview.replaceChildren(image);
+    showGearPhotoBlob(blob, 'form', image);
+    elements.gearPhotoStatus.textContent = status;
+    updateGearPhotoControls(true);
+}
+
+function showEmptyGearPhotoPreview(status = '') {
+    cleanupGearPhotoObjectUrls('form');
+    const text = document.createElement('span');
+    text.textContent = '写真は未設定です';
+    elements.gearPhotoPreview.replaceChildren(text);
+    elements.gearPhotoStatus.textContent = status;
+    updateGearPhotoControls(false);
+}
+
+async function resetGearPhotoForm(item = null) {
+    cleanupGearPhotoFormState();
+    elements.gearPhotoInput.value = '';
+    elements.gearPhotoSelectLabel.textContent = item?.photoId ? '写真を変更' : '写真を選択';
+    showEmptyGearPhotoPreview();
+    if (!item?.photoId) return;
+    const generation = gearPhotoRenderGeneration.form;
+    elements.gearPhotoStatus.textContent = '写真を読み込んでいます…';
+    const result = await gearPhotoStore.getPhoto(item.photoId);
+    if (generation !== gearPhotoRenderGeneration.form) return;
+    if (!result.ok || !result.record?.blob) {
+        showEmptyGearPhotoPreview('写真を読み込めませんでした。機材情報はそのまま利用できます。');
+        return;
+    }
+    showGearPhotoPreview(result.record.blob);
+}
+
 function renderGearCard(item) {
     const card = document.createElement('article');
     const heading = document.createElement('div');
@@ -1600,6 +1773,8 @@ function renderGearCard(item) {
     name.textContent = item.name;
     heading.append(name);
     card.append(heading);
+
+    if (item.photoId) card.prepend(createGearPhotoThumbnail(item));
 
     if (item.priceText) {
         const price = document.createElement('p');
@@ -1733,6 +1908,7 @@ function renderGearSection({ status, title, emptyMessage }) {
 }
 
 function renderWishlist({ focus = true } = {}) {
+    cleanupGearPhotoObjectUrls('list');
     showView(elements.wishlistView);
     elements.gearTabs.forEach((tab) => {
         const selected = tab.dataset.gearStatus === gearState.activeStatus;
@@ -1759,6 +1935,205 @@ function renderWishlist({ focus = true } = {}) {
     if (focus) elements.gearTitle.focus({ preventScroll: true });
 }
 
+function gearPhotoErrorMessage(reason) {
+    if (reason === 'file-too-large') return '写真は15MB以内で選択してください。';
+    if (reason === 'svg-not-supported') return 'SVG画像は使用できません。PNG、JPEG、WebPなどの画像を選択してください。';
+    return 'この画像形式を読み込めませんでした。別の画像を選んでください。';
+}
+
+function renderGearPhotoCrop() {
+    const session = gearState.cropSession;
+    const cropState = gearState.cropState;
+    if (!session || !cropState) return;
+    const canvas = elements.gearPhotoCropCanvas;
+    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(
+        session.prepared.source,
+        cropState.offsetX,
+        cropState.offsetY,
+        cropState.sourceWidth * cropState.scale,
+        cropState.sourceHeight * cropState.scale
+    );
+    elements.gearPhotoCropSlider.value = String(cropState.scale);
+    const zoomPercent = Math.round((cropState.scale / cropState.minScale) * 100);
+    elements.gearPhotoCropSlider.setAttribute('aria-valuetext', `${zoomPercent}%`);
+}
+
+function openGearPhotoCropEditor(prepared, { sourceBlob, initialCrop = null } = {}) {
+    closeGearPhotoCropEditor({ restoreStatus: false, restoreFocus: false });
+    const cropState = initialCrop
+        ? createCropStateFromMetadata(prepared.width, prepared.height, initialCrop)
+        : createInitialCropState(prepared.width, prepared.height);
+    gearState.cropSession = { prepared, sourceBlob };
+    gearState.cropState = cropState;
+    gearState.cropPointers.clear();
+    elements.gearPhotoCropSlider.min = String(cropState.minScale);
+    elements.gearPhotoCropSlider.max = String(cropState.maxScale);
+    elements.gearPhotoCropSlider.step = String((cropState.maxScale - cropState.minScale) / 1000);
+    elements.gearPhotoCropStatus.textContent = '';
+    elements.gearPhotoCropDialog.hidden = false;
+    document.body.classList.add('my-apps-crop-open');
+    renderGearPhotoCrop();
+    elements.gearPhotoCropTitle.focus({ preventScroll: true });
+}
+
+function closeGearPhotoCropEditor({ restoreStatus = true, restoreFocus = true } = {}) {
+    const session = gearState.cropSession;
+    session?.prepared.cleanup();
+    gearState.cropSession = null;
+    gearState.cropState = null;
+    gearState.cropPointers.clear();
+    elements.gearPhotoCropDialog.hidden = true;
+    if (elements.myAppsCropDialog.hidden) document.body.classList.remove('my-apps-crop-open');
+    const context = elements.gearPhotoCropCanvas.getContext('2d');
+    context.clearRect(0, 0, elements.gearPhotoCropCanvas.width, elements.gearPhotoCropCanvas.height);
+    elements.gearPhotoInput.value = '';
+    if (restoreStatus) elements.gearPhotoStatus.textContent = '';
+    if (restoreFocus) elements.gearPhotoPreview.focus({ preventScroll: true });
+}
+
+function gearCropPointerPosition(event) {
+    const rect = elements.gearPhotoCropCanvas.getBoundingClientRect();
+    return {
+        x: (event.clientX - rect.left) * (elements.gearPhotoCropCanvas.width / rect.width),
+        y: (event.clientY - rect.top) * (elements.gearPhotoCropCanvas.height / rect.height)
+    };
+}
+
+function handleGearCropPointerDown(event) {
+    if (!gearState.cropSession) return;
+    event.preventDefault();
+    elements.gearPhotoCropCanvas.setPointerCapture?.(event.pointerId);
+    gearState.cropPointers.set(event.pointerId, gearCropPointerPosition(event));
+}
+
+function handleGearCropPointerMove(event) {
+    if (!gearState.cropPointers.has(event.pointerId) || !gearState.cropState) return;
+    event.preventDefault();
+    const previousPoints = [...gearState.cropPointers.values()];
+    const previousPoint = gearState.cropPointers.get(event.pointerId);
+    const currentPoint = gearCropPointerPosition(event);
+    gearState.cropPointers.set(event.pointerId, currentPoint);
+    const currentPoints = [...gearState.cropPointers.values()];
+    gearState.cropState = currentPoints.length === 1
+        ? moveCrop(gearState.cropState, currentPoint.x - previousPoint.x, currentPoint.y - previousPoint.y)
+        : applyPinchGesture(gearState.cropState, previousPoints.slice(0, 2), currentPoints.slice(0, 2));
+    renderGearPhotoCrop();
+}
+
+function handleGearCropPointerEnd(event) {
+    gearState.cropPointers.delete(event.pointerId);
+    if (elements.gearPhotoCropCanvas.hasPointerCapture?.(event.pointerId)) {
+        elements.gearPhotoCropCanvas.releasePointerCapture(event.pointerId);
+    }
+}
+
+function handleGearCropSlider() {
+    if (!gearState.cropState) return;
+    const center = gearState.cropState.cropSize / 2;
+    gearState.cropState = zoomCropAtPoint(gearState.cropState, Number(elements.gearPhotoCropSlider.value), center, center);
+    renderGearPhotoCrop();
+}
+
+async function confirmGearPhotoCrop() {
+    const session = gearState.cropSession;
+    const cropState = gearState.cropState;
+    if (!session || !cropState || gearState.photoProcessing) return;
+    gearState.photoProcessing = true;
+    elements.gearPhotoCropConfirm.disabled = true;
+    elements.gearPhotoCropCancel.disabled = true;
+    elements.gearPhotoCropStatus.textContent = '写真を作成しています…';
+    const result = await encodePreparedGearPhoto(session.prepared, cropState);
+    if (gearState.cropSession !== session) return;
+    gearState.photoProcessing = false;
+    elements.gearPhotoCropConfirm.disabled = false;
+    elements.gearPhotoCropCancel.disabled = false;
+    if (!result.ok) {
+        elements.gearPhotoCropStatus.textContent = gearPhotoErrorMessage(result.reason);
+        return;
+    }
+    const crop = cropStateToMetadata(cropState);
+    const sourceBlob = session.sourceBlob;
+    const sourceWidth = session.prepared.width;
+    const sourceHeight = session.prepared.height;
+    closeGearPhotoCropEditor({ restoreStatus: false });
+    gearState.photoAction = 'replace';
+    gearState.photoBlob = result.blob;
+    gearState.photoSourceBlob = sourceBlob;
+    gearState.photoCrop = crop;
+    gearState.photoSourceWidth = sourceWidth;
+    gearState.photoSourceHeight = sourceHeight;
+    elements.gearPhotoSelectLabel.textContent = '写真を変更';
+    showGearPhotoPreview(result.blob, '調整した写真です。フォームの保存で反映されます。');
+}
+
+async function prepareAndOpenGearPhoto(blob, initialCrop = null) {
+    if (gearState.photoProcessing || gearState.saving) return;
+    gearState.photoProcessing = true;
+    updateGearPhotoControls(Boolean(gearState.photoBlob || findGearItem(gearState.activeId)?.photoId));
+    elements.gearPhotoStatus.textContent = '写真を読み込んでいます…';
+    const prepared = await prepareGearPhotoSource(blob);
+    gearState.photoProcessing = false;
+    updateGearPhotoControls(Boolean(gearState.photoBlob || findGearItem(gearState.activeId)?.photoId));
+    if (!prepared.ok) {
+        elements.gearPhotoStatus.textContent = gearPhotoErrorMessage(prepared.reason);
+        elements.gearPhotoInput.value = '';
+        return;
+    }
+    openGearPhotoCropEditor(prepared, { sourceBlob: prepared.blob, initialCrop });
+}
+
+async function openStoredGearPhotoForReadjustment(blob, initialCrop) {
+    if (gearState.photoProcessing || gearState.saving) return;
+    gearState.photoProcessing = true;
+    updateGearPhotoControls(true);
+    elements.gearPhotoStatus.textContent = '元の写真を読み込んでいます…';
+    const prepared = await prepareMyAppIcon(blob);
+    gearState.photoProcessing = false;
+    updateGearPhotoControls(true);
+    if (!prepared.ok) {
+        elements.gearPhotoStatus.textContent = gearPhotoErrorMessage(prepared.reason);
+        return;
+    }
+    openGearPhotoCropEditor(prepared, { sourceBlob: blob, initialCrop });
+}
+
+async function handleGearPhotoSelection() {
+    const file = elements.gearPhotoInput.files?.[0];
+    if (file) await prepareAndOpenGearPhoto(file);
+}
+
+async function handleGearPhotoReadjust() {
+    if (gearState.photoAction === 'replace' && gearState.photoSourceBlob) {
+        await openStoredGearPhotoForReadjustment(gearState.photoSourceBlob, gearState.photoCrop);
+        return;
+    }
+    const item = findGearItem(gearState.activeId);
+    if (!item?.photoSourceId) return;
+    gearState.photoProcessing = true;
+    updateGearPhotoControls(true);
+    elements.gearPhotoStatus.textContent = '元の写真を読み込んでいます…';
+    const result = await gearPhotoStore.getPhoto(item.photoSourceId);
+    gearState.photoProcessing = false;
+    updateGearPhotoControls(true);
+    if (!result.ok || !result.record?.blob) {
+        elements.gearPhotoStatus.textContent = '元の写真を読み込めませんでした。別の写真を選んでください。';
+        return;
+    }
+    await openStoredGearPhotoForReadjustment(result.record.blob, item.photoCrop);
+}
+
+function handleGearPhotoRemove() {
+    if (!window.confirm('この機材の写真を削除しますか？')) return;
+    gearState.photoAction = 'remove';
+    gearState.photoBlob = null;
+    gearState.photoSourceBlob = null;
+    gearState.photoCrop = null;
+    elements.gearPhotoSelectLabel.textContent = '写真を選択';
+    showEmptyGearPhotoPreview('写真はフォームの保存時に削除されます。');
+}
+
 function fillGearForm(item = null) {
     elements.gearForm.reset();
     elements.gearNameInput.value = item?.name || '';
@@ -1769,6 +2144,7 @@ function fillGearForm(item = null) {
     elements.gearMemoInput.value = item?.memo || '';
     updateGearPriorityVisibility();
     showNotice(elements.gearFormError);
+    resetGearPhotoForm(item);
 }
 
 function renderGearForm(mode, id = null) {
@@ -1816,8 +2192,9 @@ function persistGearItems(candidateItems, errorElement, message) {
     return true;
 }
 
-function handleGearSubmit(event) {
+async function handleGearSubmit(event) {
     event.preventDefault();
+    if (gearState.saving || gearState.photoProcessing || gearState.cropSession) return;
     showNotice(elements.gearFormError);
     const validation = readGearFormValues();
     if (!validation.ok) {
@@ -1834,18 +2211,65 @@ function handleGearSubmit(event) {
         return;
     }
 
-    let candidateItems;
-    if (gearState.formMode === 'edit') {
-        const updateResult = updateGearItem(gearState.items, gearState.activeId, validation.values);
-        if (!updateResult.found) {
-            correctGearListRoute();
-            return;
+    const originalItem = gearState.formMode === 'edit' ? findGearItem(gearState.activeId) : null;
+    const buildItems = (references = null, removePhoto = false) => {
+        if (gearState.formMode === 'edit') {
+            const updateResult = updateGearItem(gearState.items, gearState.activeId, validation.values);
+            if (!updateResult.found) return null;
+            if (references) return setGearPhotoReferences(updateResult.items, gearState.activeId, references).items;
+            if (removePhoto) return clearGearPhotoReferences(updateResult.items, gearState.activeId).items;
+            return updateResult.items;
         }
-        candidateItems = updateResult.items;
-    } else {
-        candidateItems = [...gearState.items, createGearItem(validation.values, gearState.items)];
+        return [...gearState.items, createGearItem(validation.values, gearState.items, new Date(), references)];
+    };
+    if (gearState.formMode === 'edit' && !originalItem) {
+        correctGearListRoute();
+        return;
     }
-    if (!persistGearItems(candidateItems, elements.gearFormError, '保存できませんでした。元の機材リストは変更していません。')) return;
+
+    gearState.saving = true;
+    updateGearPhotoControls(Boolean(gearState.photoBlob || originalItem?.photoId));
+    const submitButton = elements.gearForm.querySelector('[type="submit"]');
+    submitButton.disabled = true;
+    submitButton.textContent = '保存中…';
+    let result;
+    if (gearState.photoAction === 'replace') {
+        result = await commitGearPhotoChange({
+            photoStore: gearPhotoStore,
+            pending: {
+                sourceBlob: gearState.photoSourceBlob,
+                finalBlob: gearState.photoBlob,
+                crop: gearState.photoCrop,
+                sourceWidth: gearState.photoSourceWidth,
+                sourceHeight: gearState.photoSourceHeight
+            },
+            previousReferences: getGearPhotoReferences(originalItem),
+            buildItems: (references) => buildItems(references),
+            persist: (items) => saveGearList(items)
+        });
+    } else if (gearState.photoAction === 'remove' && originalItem) {
+        result = await commitGearPhotoRemoval({
+            photoStore: gearPhotoStore,
+            previousReferences: getGearPhotoReferences(originalItem),
+            buildItems: () => buildItems(null, true),
+            persist: (items) => saveGearList(items)
+        });
+    } else {
+        const candidateItems = buildItems();
+        const persisted = saveGearList(candidateItems);
+        result = persisted.ok ? { ok: true, items: candidateItems } : { ok: false, reason: 'metadata-write-failed' };
+    }
+    gearState.saving = false;
+    submitButton.disabled = false;
+    submitButton.textContent = '保存';
+    updateGearPhotoControls(Boolean(gearState.photoBlob || originalItem?.photoId));
+    if (!result.ok) {
+        showNotice(elements.gearFormError, result.reason === 'write-failed'
+            ? '写真を保存できませんでした。機材リストは変更していません。'
+            : '保存できませんでした。元の機材リストは変更していません。');
+        return;
+    }
+    gearState.items = result.items;
     gearState.activeStatus = validation.values.status === 'wishlist' ? 'wishlist' : 'owned';
     setGearListRoute();
 }
@@ -1877,17 +2301,34 @@ function handleGearRestore(item) {
     renderWishlist({ focus: false });
 }
 
-function handleGearDelete(item) {
+async function handleGearDelete(item) {
     const message = item.status === 'owned'
         ? `${item.name}を機材リストから削除しますか？`
         : item.status === 'sold'
             ? `${item.name}を手放した機材から削除しますか？`
             : `${item.name}をほしい機材から削除しますか？`;
     if (!window.confirm(message)) return;
-    const result = deleteGearItem(gearState.items, item.id);
-    if (!result.found) return;
-    if (!persistGearItems(result.items, elements.gearStorageError, '削除を保存できませんでした。元のリストは変更していません。')) return;
+    const deletion = deleteGearItem(gearState.items, item.id);
+    if (!deletion.found) return;
+    const result = item.photoId || item.photoSourceId
+        ? await commitGearItemDeletion({
+            photoStore: gearPhotoStore,
+            references: getGearPhotoReferences(item),
+            buildItems: () => deletion.items,
+            persist: (items) => saveGearList(items)
+        })
+        : saveGearList(deletion.items).ok
+            ? { ok: true, items: deletion.items, cleanupOk: true }
+            : { ok: false };
+    if (!result.ok) {
+        showNotice(elements.gearStorageError, '削除を保存できませんでした。元のリストは変更していません。');
+        return;
+    }
+    gearState.items = result.items;
     renderWishlist({ focus: false });
+    if (result.cleanupOk === false) {
+        showNotice(elements.gearStorageError, '機材は削除しましたが、写真データの整理を完了できませんでした。');
+    }
 }
 
 function startGearReorder(status) {
@@ -1939,6 +2380,12 @@ function completeGearReorder() {
 }
 
 function handleGearListAction(event) {
+    const photoTarget = event.target.closest('[data-gear-photo-id]');
+    if (photoTarget) {
+        const photoItem = findGearItem(photoTarget.dataset.gearPhotoId);
+        if (photoItem) openGearPhotoLightbox(photoItem);
+        return;
+    }
     const target = event.target.closest('[data-gear-action]');
     if (!target) return;
     if (target.dataset.gearAction === 'reorder-move') {
@@ -2100,6 +2547,49 @@ elements.addButton.addEventListener('click', () => setHashRoute('#practice-menu/
 elements.gearAdd.addEventListener('click', () => setHashRoute('#wishlist/new'));
 elements.gearForm.addEventListener('submit', handleGearSubmit);
 elements.gearStatusInput.addEventListener('change', updateGearPriorityVisibility);
+elements.gearPhotoInput.addEventListener('change', handleGearPhotoSelection);
+elements.gearPhotoReadjust.addEventListener('click', handleGearPhotoReadjust);
+elements.gearPhotoRemove.addEventListener('click', handleGearPhotoRemove);
+elements.gearPhotoPreview.addEventListener('click', () => {
+    const item = findGearItem(gearState.activeId) || { id: '', name: elements.gearNameInput.value || '機材' };
+    if (gearState.photoAction === 'replace' && gearState.photoBlob) openGearPhotoLightbox(item, gearState.photoBlob);
+    else if (item.photoId) openGearPhotoLightbox(item);
+});
+elements.gearPhotoCropCanvas.addEventListener('pointerdown', handleGearCropPointerDown);
+elements.gearPhotoCropCanvas.addEventListener('pointermove', handleGearCropPointerMove);
+elements.gearPhotoCropCanvas.addEventListener('pointerup', handleGearCropPointerEnd);
+elements.gearPhotoCropCanvas.addEventListener('pointercancel', handleGearCropPointerEnd);
+elements.gearPhotoCropSlider.addEventListener('input', handleGearCropSlider);
+elements.gearPhotoCropConfirm.addEventListener('click', confirmGearPhotoCrop);
+elements.gearPhotoCropCancel.addEventListener('click', () => closeGearPhotoCropEditor());
+elements.gearPhotoCropDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && !gearState.photoProcessing) {
+        closeGearPhotoCropEditor();
+        return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [elements.gearPhotoCropSlider, elements.gearPhotoCropConfirm, elements.gearPhotoCropCancel]
+        .filter((element) => !element.disabled);
+    const currentIndex = focusable.indexOf(document.activeElement);
+    if (event.shiftKey && currentIndex <= 0) {
+        event.preventDefault();
+        focusable[focusable.length - 1]?.focus();
+    } else if (!event.shiftKey && currentIndex === focusable.length - 1) {
+        event.preventDefault();
+        focusable[0]?.focus();
+    }
+});
+elements.gearPhotoLightboxClose.addEventListener('click', () => closeGearPhotoLightbox({ restoreFocus: true }));
+elements.gearPhotoLightbox.addEventListener('click', (event) => {
+    if (event.target === elements.gearPhotoLightbox) closeGearPhotoLightbox({ restoreFocus: true });
+});
+elements.gearPhotoLightbox.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeGearPhotoLightbox({ restoreFocus: true });
+    if (event.key === 'Tab') {
+        event.preventDefault();
+        elements.gearPhotoLightboxClose.focus();
+    }
+});
 elements.gearSections.addEventListener('click', (event) => {
     const reorderStart = event.target.closest('[data-gear-reorder-status]');
     if (reorderStart) {
@@ -2257,6 +2747,10 @@ window.addEventListener('pagehide', () => {
     cleanupMyAppsObjectUrls('home');
     cleanupMyAppsObjectUrls('manage');
     cleanupMyAppsObjectUrls('form');
+    closeGearPhotoCropEditor({ restoreStatus: false, restoreFocus: false });
+    closeGearPhotoLightbox();
+    cleanupGearPhotoObjectUrls('list');
+    cleanupGearPhotoObjectUrls('form');
 });
 
 const loadResult = loadPracticeMenus();

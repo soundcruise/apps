@@ -1,7 +1,8 @@
 export const GEAR_LIST_STORAGE_KEY = 'cruisePort.gearList';
-export const GEAR_LIST_SCHEMA_VERSION = 3;
+export const GEAR_LIST_SCHEMA_VERSION = 4;
 
-const PREVIOUS_GEAR_LIST_SCHEMA_VERSION = 2;
+const PREVIOUS_GEAR_LIST_SCHEMA_VERSION = 3;
+const VERSION_WITHOUT_ORDER = 2;
 const LEGACY_GEAR_LIST_SCHEMA_VERSION = 1;
 
 export const GEAR_CATEGORIES = Object.freeze([
@@ -58,7 +59,9 @@ function restoreStorage(storage, previousValue) {
 }
 
 function cloneGearItem(item) {
-    return item.legacy ? { ...item, legacy: { ...item.legacy } } : { ...item };
+    const cloned = item.legacy ? { ...item, legacy: { ...item.legacy } } : { ...item };
+    if (item.photoCrop) cloned.photoCrop = { ...item.photoCrop };
+    return cloned;
 }
 
 function createStableId(existingItems) {
@@ -222,7 +225,7 @@ function isValidV2GearItem(item) {
     );
 }
 
-export function isValidGearItem(item) {
+function isValidV3GearItem(item) {
     return Boolean(
         item
         && typeof item === 'object'
@@ -240,6 +243,39 @@ export function isValidGearItem(item) {
         && isValidLegacyMetadata(item.legacy)
         && hasValidTimestamps(item)
     );
+}
+
+function isValidPhotoCrop(crop) {
+    return Boolean(
+        crop
+        && typeof crop === 'object'
+        && !Array.isArray(crop)
+        && Object.keys(crop).length === 3
+        && Number.isFinite(crop.x)
+        && crop.x >= 0
+        && crop.x <= 1
+        && Number.isFinite(crop.y)
+        && crop.y >= 0
+        && crop.y <= 1
+        && Number.isFinite(crop.size)
+        && crop.size > 0
+        && crop.size <= 1
+    );
+}
+
+export function isValidGearItem(item) {
+    if (!isValidV3GearItem(item)
+        || !hasOwn(item, 'photoId')
+        || !hasOwn(item, 'photoSourceId')
+        || !hasOwn(item, 'photoCrop')) {
+        return false;
+    }
+    if (item.photoId === null && item.photoSourceId === null && item.photoCrop === null) return true;
+    return typeof item.photoId === 'string'
+        && item.photoId.length > 0
+        && typeof item.photoSourceId === 'string'
+        && item.photoSourceId.length > 0
+        && isValidPhotoCrop(item.photoCrop);
 }
 
 function isValidGearCollection(items) {
@@ -296,6 +332,15 @@ function migrateV2Items(items) {
     }));
 }
 
+function migrateV3Items(items) {
+    return items.map((item) => ({
+        ...cloneGearItem(item),
+        photoId: null,
+        photoSourceId: null,
+        photoCrop: null
+    }));
+}
+
 export function loadGearList(storage = globalThis.localStorage) {
     try {
         const rawValue = storage.getItem(GEAR_LIST_STORAGE_KEY);
@@ -308,7 +353,19 @@ export function loadGearList(storage = globalThis.localStorage) {
                 || !hasUniqueIds(payload.items)) {
                 return { ok: false, items: [], reason: 'invalid-data' };
             }
-            const items = migrateV2Items(payload.items.map(migrateLegacyGearItem));
+            const items = migrateV3Items(migrateV2Items(payload.items.map(migrateLegacyGearItem)));
+            const migrationSave = saveGearList(items, storage);
+            if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
+            return { ok: true, items: items.map(cloneGearItem), migrated: true };
+        }
+
+        if (payload?.version === VERSION_WITHOUT_ORDER) {
+            if (!Array.isArray(payload.items)
+                || !payload.items.every(isValidV2GearItem)
+                || !hasUniqueIds(payload.items)) {
+                return { ok: false, items: [], reason: 'invalid-data' };
+            }
+            const items = migrateV3Items(migrateV2Items(payload.items));
             const migrationSave = saveGearList(items, storage);
             if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
             return { ok: true, items: items.map(cloneGearItem), migrated: true };
@@ -316,11 +373,12 @@ export function loadGearList(storage = globalThis.localStorage) {
 
         if (payload?.version === PREVIOUS_GEAR_LIST_SCHEMA_VERSION) {
             if (!Array.isArray(payload.items)
-                || !payload.items.every(isValidV2GearItem)
-                || !hasUniqueIds(payload.items)) {
+                || !payload.items.every(isValidV3GearItem)
+                || !hasUniqueIds(payload.items)
+                || !hasUniqueStatusOrders(payload.items)) {
                 return { ok: false, items: [], reason: 'invalid-data' };
             }
-            const items = migrateV2Items(payload.items);
+            const items = migrateV3Items(payload.items);
             const migrationSave = saveGearList(items, storage);
             if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
             return { ok: true, items: items.map(cloneGearItem), migrated: true };
@@ -366,7 +424,7 @@ export function getInitialGearCategory(activeCategory) {
     return CATEGORY_KEYS.has(activeCategory) ? activeCategory : '';
 }
 
-export function createGearItem(values, existingItems, now = new Date()) {
+export function createGearItem(values, existingItems, now = new Date(), photoReferences = null) {
     const timestamp = now.toISOString();
     const order = getNewGearOrder(existingItems, values.status);
     return {
@@ -381,7 +439,10 @@ export function createGearItem(values, existingItems, now = new Date()) {
         createdAt: timestamp,
         updatedAt: timestamp,
         ownedAt: values.status === 'wishlist' ? null : timestamp,
-        soldAt: values.status === 'sold' ? timestamp : null
+        soldAt: values.status === 'sold' ? timestamp : null,
+        photoId: photoReferences?.photoId || null,
+        photoSourceId: photoReferences?.photoSourceId || null,
+        photoCrop: photoReferences?.photoCrop ? { ...photoReferences.photoCrop } : null
     };
 }
 
@@ -461,6 +522,48 @@ export function restoreGearOwned(items, id, now = new Date()) {
 export function deleteGearItem(items, id) {
     const nextItems = items.filter((item) => item.id !== id).map(cloneGearItem);
     return { found: nextItems.length !== items.length, items: nextItems };
+}
+
+export function getGearPhotoReferences(item) {
+    return {
+        photoId: item?.photoId || null,
+        photoSourceId: item?.photoSourceId || null,
+        photoCrop: item?.photoCrop ? { ...item.photoCrop } : null
+    };
+}
+
+export function setGearPhotoReferences(items, id, references, now = new Date()) {
+    let found = false;
+    const timestamp = now.toISOString();
+    const nextItems = items.map((item) => {
+        if (item.id !== id) return cloneGearItem(item);
+        found = true;
+        return {
+            ...cloneGearItem(item),
+            photoId: references.photoId,
+            photoSourceId: references.photoSourceId,
+            photoCrop: { ...references.photoCrop },
+            updatedAt: timestamp
+        };
+    });
+    return { found, items: nextItems };
+}
+
+export function clearGearPhotoReferences(items, id, now = new Date()) {
+    let found = false;
+    const timestamp = now.toISOString();
+    const nextItems = items.map((item) => {
+        if (item.id !== id) return cloneGearItem(item);
+        found = true;
+        return {
+            ...cloneGearItem(item),
+            photoId: null,
+            photoSourceId: null,
+            photoCrop: null,
+            updatedAt: timestamp
+        };
+    });
+    return { found, items: nextItems };
 }
 
 export function selectGearItems(items, { status, category = 'all' }) {

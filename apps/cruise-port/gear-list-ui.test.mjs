@@ -28,12 +28,18 @@ assert.doesNotMatch(gearFormMarkup, /id="gear-price"[^>]*type="number"|name="pri
 assert.match(markup, /option value="owned">自分の機材/);
 assert.match(markup, /option value="wishlist">ほしい機材/);
 assert.match(markup, /option value="sold">手放した機材/);
+assert.match(gearFormMarkup, /id="gear-photo-input" type="file" accept="image\/\*"/);
+assert.match(gearFormMarkup, /id="gear-photo-preview"/);
+assert.match(gearFormMarkup, /id="gear-photo-readjust"/);
+assert.match(gearFormMarkup, /id="gear-photo-remove"/);
+assert.match(markup, /id="gear-photo-crop-dialog"[\s\S]*?aria-modal="true"/);
+assert.match(markup, /id="gear-photo-lightbox"[\s\S]*?aria-modal="true"/);
 
 for (const category of ['guitar', 'effects', 'amp', 'dtm', 'recording', 'accessories', 'other']) {
     assert.match(store, new RegExp(`key: '${category}'`));
 }
 assert.match(store, /GEAR_LIST_STORAGE_KEY = 'cruisePort\.gearList'/);
-assert.match(store, /GEAR_LIST_SCHEMA_VERSION = 3/);
+assert.match(store, /GEAR_LIST_SCHEMA_VERSION = 4/);
 assert.doesNotMatch(store, /localStorage\.clear/);
 
 assert.match(source, /parseGearRoute\(hash\)/);
@@ -65,6 +71,16 @@ assert.doesNotMatch(gearSource, /item\.manufacturer|item\.url|item\.priceYen/);
 assert.doesNotMatch(gearSource, /商品ページを開く/);
 assert.doesNotMatch(source, /innerHTML/);
 assert.doesNotMatch(source, /localStorage\.clear/);
+assert.match(source, /createGearPhotoStore\(\)/);
+assert.match(source, /commitGearPhotoChange/);
+assert.match(source, /commitGearPhotoRemoval/);
+assert.match(source, /commitGearItemDeletion/);
+assert.match(store, /photoId: null/);
+assert.match(source, /URL\.createObjectURL\(blob\)/);
+assert.match(source, /URL\.revokeObjectURL\(url\)/);
+assert.match(source, /if \(!result\.ok \|\| !result\.record\?\.blob \|\| !button\.isConnected\) return/);
+assert.match(source, /写真を読み込めませんでした。機材情報はそのまま利用できます。/);
+assert.doesNotMatch(source, /cruisePortMyApps.*photos|myAppsIconStore\.saveIcon\([^)]*gear/i);
 
 assert.match(styles, /\.gear-category-filter[\s\S]*?overflow-x: auto/);
 assert.match(styles, /\.gear-category-chip[\s\S]*?min-height: 44px/);
@@ -75,5 +91,8 @@ assert.match(styles, /\.gear-card-actions[\s\S]*?grid-template-columns: repeat\(
 assert.match(styles, /\.gear-purchase-action/);
 assert.match(styles, /\.gear-card--reorder/);
 assert.match(styles, /\.gear-form-view textarea[\s\S]*?min-height: 104px/);
+assert.match(styles, /\.gear-card-photo[\s\S]*?width: 84px[\s\S]*?height: 84px/);
+assert.match(styles, /\.gear-photo-preview[\s\S]*?aspect-ratio: 1/);
+assert.match(styles, /\.gear-photo-lightbox[\s\S]*?position: fixed/);
 
 console.log('gear-list-ui: core UI, safe rendering, routing, and mobile layout checks passed');

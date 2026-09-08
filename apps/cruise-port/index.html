@@ -188,6 +188,20 @@
                         <textarea id="gear-memo" name="memo" maxlength="1000" rows="4"></textarea>
                     </div>
 
+                    <fieldset class="gear-photo-field">
+                        <legend>写真 <span class="optional-label">任意・1枚</span></legend>
+                        <input id="gear-photo-input" type="file" accept="image/*" hidden>
+                        <button id="gear-photo-preview" class="gear-photo-preview" type="button" aria-label="機材写真を確認" disabled>
+                            <span>写真は未設定です</span>
+                        </button>
+                        <div class="gear-photo-actions">
+                            <label id="gear-photo-select-label" class="action-button secondary-action" for="gear-photo-input">写真を選択</label>
+                            <button id="gear-photo-readjust" class="action-button secondary-action" type="button" hidden>再調整</button>
+                            <button id="gear-photo-remove" class="action-button danger-action" type="button" hidden>写真を削除</button>
+                        </div>
+                        <p id="gear-photo-status" class="gear-photo-status" role="status" aria-live="polite"></p>
+                    </fieldset>
+
                     <p id="gear-form-error" class="notice notice-error" role="alert" hidden></p>
                     <div class="form-actions">
                         <button class="action-button primary-action" type="submit">保存</button>
@@ -440,6 +454,35 @@
                     <button id="my-apps-crop-confirm" class="action-button primary-action" type="button">決定</button>
                     <button id="my-apps-crop-cancel" class="action-button secondary-action" type="button">キャンセル</button>
                 </div>
+            </section>
+        </div>
+
+        <div id="gear-photo-crop-dialog" class="my-apps-crop-dialog" role="dialog" aria-modal="true" aria-labelledby="gear-photo-crop-title" hidden>
+            <section class="my-apps-crop-panel">
+                <p class="view-kicker">機材リスト</p>
+                <h1 id="gear-photo-crop-title" class="my-apps-crop-title" tabindex="-1">写真を調整</h1>
+                <p class="my-apps-crop-help">画像をドラッグして位置を調整します。2本指のピンチまたはスライダーで拡大できます。</p>
+                <div class="my-apps-crop-stage-wrap">
+                    <canvas id="gear-photo-crop-canvas" class="my-apps-crop-canvas" width="320" height="320" aria-label="機材写真として切り出す正方形の範囲"></canvas>
+                </div>
+                <div class="my-apps-crop-zoom">
+                    <label for="gear-photo-crop-slider">拡大・縮小</label>
+                    <input id="gear-photo-crop-slider" type="range" min="1" max="6" step="0.001" value="1">
+                    <div class="my-apps-crop-zoom-labels" aria-hidden="true"><span>縮小</span><span>拡大</span></div>
+                </div>
+                <p id="gear-photo-crop-status" class="my-apps-crop-status" role="status" aria-live="polite"></p>
+                <div class="my-apps-crop-actions">
+                    <button id="gear-photo-crop-confirm" class="action-button primary-action" type="button">決定</button>
+                    <button id="gear-photo-crop-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                </div>
+            </section>
+        </div>
+
+        <div id="gear-photo-lightbox" class="gear-photo-lightbox" role="dialog" aria-modal="true" aria-labelledby="gear-photo-lightbox-title" hidden>
+            <section class="gear-photo-lightbox-panel">
+                <h1 id="gear-photo-lightbox-title" class="visually-hidden" tabindex="-1">機材写真</h1>
+                <img id="gear-photo-lightbox-image" alt="">
+                <button id="gear-photo-lightbox-close" class="action-button secondary-action" type="button">閉じる</button>
             </section>
         </div>
 
