@@ -2118,7 +2118,7 @@ select {
 
 .tempo-display {
     display: grid;
-    margin: clamp(30px, 8vw, 46px) auto 18px;
+    margin: clamp(26px, 7vw, 42px) auto 14px;
     justify-items: center;
 }
 
@@ -2159,16 +2159,77 @@ select {
 }
 
 .tempo-note {
-    margin: 10px 0 0;
+    margin: 8px 0 0;
     color: var(--port-muted);
     font-size: 0.72rem;
     letter-spacing: 0.04em;
     line-height: 1.5;
 }
 
+.tempo-slider-field {
+    display: grid;
+    margin: 0 2px 14px;
+    gap: 0;
+}
+
+.metronome-panel input[type="range"] {
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.metronome-panel input[type="range"]::-webkit-slider-runnable-track {
+    height: 5px;
+    border: 1px solid rgba(230, 210, 155, 0.22);
+    border-radius: 999px;
+    background: rgba(207, 189, 148, 0.14);
+}
+
+.metronome-panel input[type="range"]::-webkit-slider-thumb {
+    width: 25px;
+    height: 25px;
+    margin-top: -11px;
+    border: 1px solid rgba(255, 241, 193, 0.85);
+    border-radius: 50%;
+    background: linear-gradient(180deg, #f0d996, #b89643);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.38);
+    appearance: none;
+}
+
+.metronome-panel input[type="range"]::-moz-range-track {
+    height: 5px;
+    border: 1px solid rgba(230, 210, 155, 0.22);
+    border-radius: 999px;
+    background: rgba(207, 189, 148, 0.14);
+}
+
+.metronome-panel input[type="range"]::-moz-range-thumb {
+    width: 25px;
+    height: 25px;
+    border: 1px solid rgba(255, 241, 193, 0.85);
+    border-radius: 50%;
+    background: linear-gradient(180deg, #f0d996, #b89643);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.38);
+}
+
+.tempo-slider-limits {
+    display: flex;
+    margin-top: -5px;
+    justify-content: space-between;
+    color: rgba(180, 174, 158, 0.72);
+    font-size: 0.66rem;
+    font-variant-numeric: tabular-nums;
+}
+
 .tempo-steps {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 8px;
 }
 
@@ -2189,59 +2250,87 @@ select {
 
 .tempo-steps button:focus-visible,
 .metronome-toggle:focus-visible,
-.metronome-tap:focus-visible {
+.metronome-tap:focus-visible,
+.metronome-choice-grid button:focus-visible,
+.beat-button:focus-visible {
     outline: 2px solid var(--port-gold-bright);
     outline-offset: 3px;
 }
 
-.beat-display {
-    min-height: 54px;
-    display: flex;
-    margin: 28px 0 24px;
-    align-items: center;
-    justify-content: center;
-    gap: clamp(12px, 4.5vw, 22px);
+.metronome-tap {
+    color: var(--port-gold-bright) !important;
+    letter-spacing: 0.08em;
 }
 
-.beat-dot {
-    width: 13px;
-    height: 13px;
-    flex: 0 0 auto;
-    border: 1px solid rgba(230, 210, 155, 0.48);
-    border-radius: 50%;
-    background: rgba(205, 180, 116, 0.06);
-    box-shadow: none;
-    transition: transform 55ms ease, background-color 55ms ease, border-color 55ms ease;
+.tap-status {
+    min-height: 1.5em;
+    margin: 8px 0 0;
+    color: var(--port-muted);
+    font-size: 0.72rem;
+    line-height: 1.5;
 }
 
-.beat-dot.beat-strong {
-    width: 17px;
-    height: 17px;
-    border-color: rgba(230, 210, 155, 0.75);
+.metronome-status {
+    min-height: 1.5em;
+    margin: 18px 0 7px;
+    color: var(--port-muted);
+    font-size: 0.76rem;
+    line-height: 1.5;
 }
 
-.beat-dot.beat-medium {
-    width: 15px;
-    height: 15px;
-    border-color: rgba(205, 180, 116, 0.6);
+.metronome-toggle {
+    width: 100%;
+    min-height: 60px;
+    font-size: 1rem;
 }
 
-.beat-dot.group-start {
-    margin-left: clamp(8px, 2.5vw, 14px);
-}
-
-.beat-dot.is-current {
-    border-color: var(--port-gold-bright);
-    background: var(--port-gold);
-    box-shadow: 0 0 0 5px rgba(205, 180, 116, 0.09);
-    transform: scale(1.18);
+.metronome-toggle.is-playing {
+    border-color: rgba(230, 210, 155, 0.28);
+    color: var(--port-text);
+    background: #181611;
 }
 
 .metronome-settings {
     display: grid;
-    padding-top: 4px;
-    gap: 18px;
+    margin-top: 28px;
+    gap: 12px;
     text-align: left;
+}
+
+.metronome-section {
+    display: grid;
+    padding: 15px;
+    border: 1px solid rgba(207, 189, 148, 0.13);
+    border-radius: 14px;
+    gap: 11px;
+    background: rgba(205, 180, 116, 0.025);
+}
+
+.metronome-section h2,
+.metronome-section-heading h2 {
+    margin: 0;
+    color: var(--port-muted);
+    font-size: 0.78rem;
+    font-weight: 620;
+    letter-spacing: 0.05em;
+}
+
+.metronome-section-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.metronome-section-heading span,
+.metronome-section-note {
+    color: rgba(180, 174, 158, 0.78);
+    font-size: 0.68rem;
+    line-height: 1.55;
+}
+
+.metronome-section-note {
+    margin: 0;
 }
 
 .metronome-field {
@@ -2263,6 +2352,97 @@ select {
     min-height: 48px;
 }
 
+.metronome-choice-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.metronome-choice-grid button {
+    min-width: 0;
+    min-height: 45px;
+    padding: 8px 6px;
+    border: 1px solid rgba(207, 189, 148, 0.18);
+    border-radius: 10px;
+    color: var(--port-text);
+    background: #12110e;
+    font: inherit;
+    font-size: 0.76rem;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.metronome-choice-grid button.is-selected {
+    border-color: rgba(241, 218, 153, 0.58);
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.1);
+}
+
+.metronome-choice-grid button:disabled {
+    cursor: not-allowed;
+    opacity: 0.34;
+}
+
+.beat-display {
+    min-height: 62px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(7px, 2.6vw, 13px);
+}
+
+.beat-button {
+    width: clamp(44px, 13vw, 57px);
+    min-height: 58px;
+    display: grid;
+    padding: 5px;
+    border: 1px solid rgba(230, 210, 155, 0.2);
+    border-radius: 12px;
+    place-items: center;
+    gap: 0;
+    color: var(--port-muted);
+    background: #11100d;
+    font: inherit;
+    cursor: pointer;
+    transition: border-color 55ms ease, background-color 55ms ease, transform 55ms ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.beat-mark {
+    color: rgba(205, 180, 116, 0.52);
+    font-size: 1.28rem;
+    line-height: 1;
+}
+
+.beat-number {
+    color: rgba(180, 174, 158, 0.78);
+    font-size: 0.66rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.beat-button.is-accented {
+    border-color: rgba(230, 210, 155, 0.5);
+}
+
+.beat-button.is-accented .beat-mark {
+    color: var(--port-gold);
+}
+
+.beat-button.is-current {
+    border-color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.1);
+    box-shadow: 0 0 0 3px rgba(205, 180, 116, 0.07);
+    transform: scale(1.04);
+}
+
+.beat-button.is-current:not(.is-main-pulse) {
+    transform: scale(1.015);
+}
+
+.metronome-sound-section {
+    gap: 16px;
+}
+
 .volume-field output {
     color: var(--port-gold-bright);
     font-variant-numeric: tabular-nums;
@@ -2273,52 +2453,8 @@ select {
 }
 
 .volume-field input[type="range"] {
-    height: 32px;
-    min-height: 32px;
-    padding: 0;
-    border: 0;
-    accent-color: var(--port-gold);
-    background: transparent;
-    cursor: pointer;
-}
-
-.metronome-status {
-    min-height: 1.5em;
-    margin: 20px 0 0;
-    color: var(--port-muted);
-    font-size: 0.76rem;
-    line-height: 1.5;
-}
-
-.metronome-actions {
-    display: grid;
-    margin-top: 10px;
-    gap: 10px;
-}
-
-.metronome-toggle {
-    min-height: 58px;
-    font-size: 1rem;
-}
-
-.metronome-toggle.is-playing {
-    border-color: rgba(230, 210, 155, 0.28);
-    color: var(--port-text);
-    background: #181611;
-}
-
-.metronome-tap {
-    min-height: 50px;
-    color: var(--port-gold-bright);
-    letter-spacing: 0.14em;
-}
-
-.tap-status {
-    min-height: 1.5em;
-    margin: 0;
-    color: var(--port-muted);
-    font-size: 0.72rem;
-    line-height: 1.5;
+    height: 38px;
+    min-height: 38px;
 }
 
 .tuner-panel {
@@ -3144,11 +3280,7 @@ select {
     }
 
     .beat-display {
-        gap: 11px;
-    }
-
-    .beat-dot.group-start {
-        margin-left: 5px;
+        gap: 6px;
     }
 
     .tuner-heading {
@@ -3193,7 +3325,7 @@ select {
         transition: none;
     }
 
-    .beat-dot {
+    .beat-button {
         transition: none;
     }
 

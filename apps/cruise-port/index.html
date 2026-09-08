@@ -662,53 +662,81 @@
                     <label class="visually-hidden" for="metronome-bpm">テンポ</label>
                     <input id="metronome-bpm" class="tempo-value" type="number" min="30" max="240" step="1" inputmode="numeric" value="120">
                     <span class="tempo-unit">BPM</span>
-                    <p id="metronome-tempo-note" class="tempo-note" hidden>付点4分音符＝BPM</p>
+                    <p id="metronome-tempo-note" class="tempo-note">4分音符＝BPM</p>
                 </div>
+
+                <label class="tempo-slider-field" for="metronome-bpm-slider">
+                    <span class="visually-hidden">BPMスライダー</span>
+                    <input id="metronome-bpm-slider" type="range" min="30" max="240" step="1" value="120" aria-valuetext="120 BPM">
+                    <span class="tempo-slider-limits" aria-hidden="true"><span>30</span><span>240</span></span>
+                </label>
 
                 <div class="tempo-steps" aria-label="テンポ調整">
                     <button type="button" data-bpm-delta="-5">−5</button>
                     <button type="button" data-bpm-delta="-1">−1</button>
+                    <button id="metronome-tap" class="metronome-tap" type="button">TAP</button>
                     <button type="button" data-bpm-delta="1">＋1</button>
                     <button type="button" data-bpm-delta="5">＋5</button>
                 </div>
+                <p id="metronome-tap-status" class="tap-status" aria-live="polite">タップしてテンポを測定</p>
 
-                <div id="metronome-beats" class="beat-display" role="img" aria-label="4分の4拍子、停止中"></div>
+                <p id="metronome-status" class="metronome-status" aria-live="polite">停止中</p>
+                <button id="metronome-toggle" class="action-button primary-action metronome-toggle" type="button" aria-pressed="false">▶ 開始</button>
 
                 <div class="metronome-settings">
-                    <label class="metronome-field" for="metronome-meter">
-                        <span>拍子</span>
-                        <select id="metronome-meter">
-                            <option value="2/4">2/4</option>
-                            <option value="3/4">3/4</option>
-                            <option value="4/4" selected>4/4</option>
-                            <option value="6/8">6/8</option>
-                        </select>
-                    </label>
+                    <section class="metronome-section" aria-labelledby="metronome-meter-label">
+                        <label class="metronome-field" for="metronome-meter">
+                            <span id="metronome-meter-label">拍子</span>
+                            <select id="metronome-meter">
+                                <option value="2/4">2/4</option>
+                                <option value="3/4">3/4</option>
+                                <option value="4/4" selected>4/4</option>
+                                <option value="5/4">5/4</option>
+                                <option value="6/8">6/8</option>
+                                <option value="9/8">9/8</option>
+                                <option value="12/8">12/8</option>
+                            </select>
+                        </label>
+                    </section>
 
-                    <label class="metronome-field" for="metronome-sound">
-                        <span>クリック音</span>
-                        <select id="metronome-sound">
-                            <option value="standard" selected>スタンダード</option>
-                            <option value="wood">ウッド</option>
-                            <option value="click">クリック</option>
-                            <option value="drum">ドラム</option>
-                        </select>
-                    </label>
+                    <section class="metronome-section" aria-labelledby="metronome-rhythm-label">
+                        <h2 id="metronome-rhythm-label">リズム</h2>
+                        <div id="metronome-rhythm" class="metronome-choice-grid" role="radiogroup" aria-labelledby="metronome-rhythm-label">
+                            <button type="button" role="radio" aria-checked="true" data-metronome-rhythm="quarter">4分</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="eighth">8分</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="sixteenth">16分</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="triplet">3連符</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="eighth-shuffle">8分シャッフル</button>
+                            <button type="button" role="radio" aria-checked="false" data-metronome-rhythm="sixteenth-shuffle">16分シャッフル</button>
+                        </div>
+                        <p id="metronome-rhythm-hint" class="metronome-section-note" hidden>複合拍子では付点4分を1拍として、8分は3分割、16分は6分割します。</p>
+                    </section>
 
-                    <label class="metronome-field volume-field" for="metronome-volume">
-                        <span>音量 <output id="metronome-volume-value" for="metronome-volume">70</output></span>
-                        <input id="metronome-volume" type="range" min="0" max="100" step="1" value="70">
-                    </label>
+                    <section class="metronome-section" aria-labelledby="metronome-accent-label">
+                        <div class="metronome-section-heading">
+                            <h2 id="metronome-accent-label">アクセント</h2>
+                            <span>拍をタップして切り替え</span>
+                        </div>
+                        <div id="metronome-beats" class="beat-display" role="group" aria-labelledby="metronome-accent-label"></div>
+                    </section>
+
+                    <section class="metronome-section metronome-sound-section" aria-label="音の設定">
+                        <label class="metronome-field" for="metronome-sound">
+                            <span>音色</span>
+                            <select id="metronome-sound">
+                                <option value="electronic" selected>電子音</option>
+                                <option value="drum">ドラム</option>
+                            </select>
+                        </label>
+
+                        <label class="metronome-field volume-field" for="metronome-volume">
+                            <span>音量 <output id="metronome-volume-value" for="metronome-volume">70</output></span>
+                            <input id="metronome-volume" type="range" min="0" max="100" step="1" value="70">
+                        </label>
+                    </section>
                 </div>
 
                 <p id="metronome-storage-error" class="notice notice-error" role="alert" hidden></p>
-                <p id="metronome-status" class="metronome-status" aria-live="polite">停止中</p>
-
-                <div class="metronome-actions">
-                    <button id="metronome-toggle" class="action-button primary-action metronome-toggle" type="button">▶ 開始</button>
-                    <button id="metronome-tap" class="action-button secondary-action metronome-tap" type="button">TAP</button>
-                    <p id="metronome-tap-status" class="tap-status" aria-live="polite">タップしてテンポを測定</p>
-                </div>
             </section>
         </main>
         <div class="port-global-refresh-bar" aria-label="バージョンとページの再読み込み">

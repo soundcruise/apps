@@ -2,84 +2,94 @@ import {
     METRONOME_DEFAULTS,
     METRONOME_LIMITS,
     clampInteger,
+    defaultAccentsForMeter,
     loadMetronomeSettings,
     saveMetronomeSettings
-} from './metronome-store.js';
+} from './metronome-store.js?v=2.0.0';
+import {
+    beatsForMeter,
+    compatibleRhythm,
+    createScheduleCursor,
+    isCompoundMeter,
+    isRhythmSupported,
+    meterLabel,
+    scheduleEventsUntil,
+    secondsPerBeat
+} from './metronome-timing.js?v=1.0.0';
 
-export const METRONOME_SCHEDULER_INTERVAL_MS = 30;
-export const METRONOME_SCHEDULE_AHEAD_SEC = 0.13;
-const METRONOME_START_LEAD_SEC = 0.06;
-const TAP_RESET_MS = 3000;
-const TAP_HISTORY_LIMIT = 4;
-
-const METER_BEATS = Object.freeze({
-    '2/4': 2,
-    '3/4': 3,
-    '4/4': 4,
-    '6/8': 6
-});
-
-const METER_LABELS = Object.freeze({
-    '2/4': '4分の2拍子',
-    '3/4': '4分の3拍子',
-    '4/4': '4分の4拍子',
-    '6/8': '8分の6拍子'
-});
-
-export function beatsForMeter(meter) {
-    return METER_BEATS[meter] || METER_BEATS[METRONOME_DEFAULTS.meter];
-}
-
-export function accentForBeat(meter, beatIndex) {
-    if (beatIndex === 0) return 'strong';
-    if (meter === '6/8' && beatIndex === 3) return 'medium';
-    return 'normal';
-}
-
-export function secondsPerBeat(bpm, meter = METRONOME_DEFAULTS.meter) {
-    const quarterNoteSeconds = 60 / clampInteger(
-        bpm,
-        METRONOME_LIMITS.bpmMin,
-        METRONOME_LIMITS.bpmMax,
-        METRONOME_DEFAULTS.bpm
-    );
-    return meter === '6/8' ? quarterNoteSeconds / 3 : quarterNoteSeconds;
-}
+export const METRONOME_SCHEDULER_INTERVAL_MS = 25;
+export const METRONOME_SCHEDULE_AHEAD_SEC = 0.1;
+export const METRONOME_START_LEAD_SEC = 0.055;
+export const METRONOME_TAP_RESET_MS = 3000;
+export const METRONOME_TAP_MIN_INTERVAL_MS = 250;
+export const METRONOME_TAP_HISTORY_LIMIT = 4;
 
 export function bpmFromTapTimes(tapTimes) {
     if (!Array.isArray(tapTimes) || tapTimes.length < 2) return null;
-    const recent = tapTimes.slice(-TAP_HISTORY_LIMIT);
+    const recent = tapTimes.slice(-METRONOME_TAP_HISTORY_LIMIT);
     const intervals = [];
     for (let index = 1; index < recent.length; index += 1) {
         const interval = recent[index] - recent[index - 1];
-        if (!(interval > 0) || interval >= TAP_RESET_MS) return null;
+        if (interval < METRONOME_TAP_MIN_INTERVAL_MS || interval >= METRONOME_TAP_RESET_MS) return null;
         intervals.push(interval);
     }
-    if (!intervals.length) return null;
     const averageMs = intervals.reduce((total, interval) => total + interval, 0) / intervals.length;
     return clampInteger(60000 / averageMs, METRONOME_LIMITS.bpmMin, METRONOME_LIMITS.bpmMax, METRONOME_DEFAULTS.bpm);
 }
 
-function createAudioEngine(onVisualBeat) {
+function volumeLevel(volume) {
+    if (volume <= 0) return 0;
+    return Math.pow(volume / 100, 1.35);
+}
+
+export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment = {}) {
+    const windowObject = environment.windowObject || globalThis.window;
+    const AudioContextClass = environment.AudioContextClass
+        || windowObject?.AudioContext
+        || windowObject?.webkitAudioContext;
+    const setTimer = environment.setTimeout || windowObject?.setTimeout?.bind(windowObject);
+    const clearTimer = environment.clearTimeout || windowObject?.clearTimeout?.bind(windowObject);
+    const requestFrame = environment.requestAnimationFrame || windowObject?.requestAnimationFrame?.bind(windowObject);
+    const cancelFrame = environment.cancelAnimationFrame || windowObject?.cancelAnimationFrame?.bind(windowObject);
+
     let context = null;
-    let noiseBuffer = null;
+    let masterGain = null;
     let schedulerTimer = 0;
     let visualFrame = 0;
     let playing = false;
-    let nextNoteTime = 0;
-    let nextBeatIndex = 0;
-    let lastBeatTime = Number.NEGATIVE_INFINITY;
-    let lastBeatIndex = -1;
+    let cursor = createScheduleCursor();
     let visualQueue = [];
+    let lastMainEvent = null;
     let startGeneration = 0;
+    let latestVolume = METRONOME_DEFAULTS.volume;
     const activeSources = new Map();
+
+    function setMasterVolume(volume, immediate = false) {
+        latestVolume = clampInteger(
+            volume,
+            METRONOME_LIMITS.volumeMin,
+            METRONOME_LIMITS.volumeMax,
+            METRONOME_DEFAULTS.volume
+        );
+        if (!masterGain || !context) return;
+        const target = volumeLevel(latestVolume);
+        masterGain.gain.cancelScheduledValues?.(context.currentTime);
+        if (!immediate && typeof masterGain.gain.setTargetAtTime === 'function') {
+            masterGain.gain.setTargetAtTime(target, context.currentTime, 0.012);
+        } else if (typeof masterGain.gain.setValueAtTime === 'function') {
+            masterGain.gain.setValueAtTime(target, context.currentTime);
+        } else {
+            masterGain.gain.value = target;
+        }
+    }
 
     function ensureContext() {
         if (!context || context.state === 'closed') {
-            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
             if (!AudioContextClass) return null;
             context = new AudioContextClass();
-            noiseBuffer = null;
+            masterGain = context.createGain();
+            masterGain.connect(context.destination);
+            setMasterVolume(latestVolume, true);
         }
         return context;
     }
@@ -91,316 +101,215 @@ function createAudioEngine(onVisualBeat) {
         return audioContext;
     }
 
-    function getNoiseBuffer() {
-        if (noiseBuffer) return noiseBuffer;
-        const length = Math.ceil(context.sampleRate * 0.12);
-        noiseBuffer = context.createBuffer(1, length, context.sampleRate);
-        const samples = noiseBuffer.getChannelData(0);
-        for (let index = 0; index < samples.length; index += 1) {
-            samples[index] = Math.random() * 2 - 1;
-        }
-        return noiseBuffer;
-    }
-
-    function trackSource(source, cleanup) {
-        activeSources.set(source, cleanup);
-        source.addEventListener('ended', () => {
-            const release = activeSources.get(source);
-            if (release) release();
+    function trackSource(source, cleanup, when) {
+        activeSources.set(source, { cleanup, when });
+        source.addEventListener?.('ended', () => {
+            const record = activeSources.get(source);
+            if (record) record.cleanup();
             activeSources.delete(source);
         }, { once: true });
     }
 
-    function connectEnvelope(source, when, peak, attack, release, outputNode = context.destination) {
+    function connectEnvelope(source, when, peak, attack, release) {
         const gain = context.createGain();
         gain.gain.setValueAtTime(0.0001, when);
         gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak), when + attack);
         gain.gain.exponentialRampToValueAtTime(0.0001, when + release);
-        source.connect(gain).connect(outputNode);
-        return gain;
-    }
-
-    function scheduleOscillator(when, options) {
-        const oscillator = context.createOscillator();
-        oscillator.type = options.type;
-        oscillator.frequency.setValueAtTime(options.frequency, when);
-        if (options.endFrequency) {
-            oscillator.frequency.exponentialRampToValueAtTime(options.endFrequency, when + options.release);
-        }
-        const gain = connectEnvelope(oscillator, when, options.peak, options.attack, options.release);
-        trackSource(oscillator, () => {
-            try { oscillator.disconnect(); } catch (error) { /* Already disconnected. */ }
-            try { gain.disconnect(); } catch (error) { /* Already disconnected. */ }
-        });
-        oscillator.start(when);
-        oscillator.stop(when + options.release + 0.015);
-    }
-
-    function scheduleNoise(when, options) {
-        const source = context.createBufferSource();
-        const filter = context.createBiquadFilter();
-        source.buffer = getNoiseBuffer();
-        filter.type = options.filterType;
-        filter.frequency.setValueAtTime(options.frequency, when);
-        filter.Q.value = options.q;
-        const gain = context.createGain();
-        gain.gain.setValueAtTime(0.0001, when);
-        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, options.peak), when + options.attack);
-        gain.gain.exponentialRampToValueAtTime(0.0001, when + options.release);
-        source.connect(filter).connect(gain).connect(context.destination);
+        source.connect(gain).connect(masterGain);
         trackSource(source, () => {
-            try { source.disconnect(); } catch (error) { /* Already disconnected. */ }
-            try { filter.disconnect(); } catch (error) { /* Already disconnected. */ }
-            try { gain.disconnect(); } catch (error) { /* Already disconnected. */ }
-        });
-        source.start(when);
-        source.stop(when + options.release + 0.015);
+            try { source.disconnect(); } catch (_) { /* Already disconnected. */ }
+            try { gain.disconnect(); } catch (_) { /* Already disconnected. */ }
+        }, when);
     }
 
-    function volumeLevel(volume) {
-        if (volume <= 0) return 0;
-        return Math.pow(volume / 100, 1.35);
+    function scheduleOscillator(when, { type, frequency, endFrequency = null, peak, attack, release }) {
+        const oscillator = context.createOscillator();
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(frequency, when);
+        if (endFrequency !== null) {
+            oscillator.frequency.exponentialRampToValueAtTime(endFrequency, when + release);
+        }
+        connectEnvelope(oscillator, when, peak, attack, release);
+        oscillator.start(when);
+        oscillator.stop(when + release + 0.012);
     }
 
-    function scheduleStandard(when, accent, volume) {
-        const levels = {
-            strong: { frequency: 1500, peak: 0.42 },
-            medium: { frequency: 1350, peak: 0.35 },
-            normal: { frequency: 1200, peak: 0.30 }
+    // Rhythm Cruiseのsquare波クリック（accent 1500Hz / normal 1200Hz）を、
+    // マイク判定系へ依存しないCruise Port専用の安全なgainで再利用する。
+    function scheduleElectronic(when, voice) {
+        const voices = {
+            accent: { frequency: 1500, peak: 0.46, release: 0.08 },
+            main: { frequency: 1200, peak: 0.35, release: 0.075 },
+            subdivision: { frequency: 900, peak: 0.19, release: 0.042 }
         };
-        const voice = levels[accent];
+        const selected = voices[voice];
         scheduleOscillator(when, {
             type: 'square',
-            frequency: voice.frequency,
-            peak: voice.peak * volume,
+            frequency: selected.frequency,
+            peak: selected.peak,
             attack: 0.002,
-            release: 0.085
+            release: selected.release
         });
     }
 
-    function scheduleElectronicClick(when, accent, volume) {
-        const levels = {
-            strong: { frequency: 2600, peak: 0.34 },
-            medium: { frequency: 2300, peak: 0.29 },
-            normal: { frequency: 2050, peak: 0.25 }
-        };
-        const voice = levels[accent];
+    // Fretboard Cruise「指板をたどる」のkick/snare/hat生成方式を再利用。
+    // subdivisionでも重ならないよう、同じ周波数特性を保ったままgainとtailを安全側へ整える。
+    function scheduleDrum(when, voice) {
+        if (voice === 'accent') {
+            scheduleOscillator(when, {
+                type: 'sine',
+                frequency: 150,
+                endFrequency: 42,
+                peak: 0.52,
+                attack: 0.002,
+                release: 0.18
+            });
+            scheduleOscillator(when, {
+                type: 'square',
+                frequency: 8000,
+                peak: 0.035,
+                attack: 0.001,
+                release: 0.04
+            });
+            return;
+        }
+        if (voice === 'main') {
+            scheduleOscillator(when, {
+                type: 'square',
+                frequency: 250,
+                peak: 0.23,
+                attack: 0.001,
+                release: 0.075
+            });
+            return;
+        }
         scheduleOscillator(when, {
             type: 'square',
-            frequency: voice.frequency,
-            peak: voice.peak * volume,
+            frequency: 8000,
+            peak: 0.06,
             attack: 0.001,
-            release: 0.045
+            release: 0.032
         });
     }
 
-    function scheduleWood(when, accent, volume) {
-        const levels = {
-            strong: { frequency: 980, noise: 0.27, body: 0.15 },
-            medium: { frequency: 830, noise: 0.23, body: 0.13 },
-            normal: { frequency: 690, noise: 0.20, body: 0.11 }
-        };
-        const voice = levels[accent];
-        scheduleNoise(when, {
-            filterType: 'bandpass',
-            frequency: voice.frequency,
-            q: 3.6,
-            peak: voice.noise * volume,
-            attack: 0.0015,
-            release: 0.075
-        });
-        scheduleOscillator(when, {
-            type: 'triangle',
-            frequency: voice.frequency * 0.62,
-            peak: voice.body * volume,
-            attack: 0.002,
-            release: 0.09
-        });
-    }
-
-    function scheduleKick(when, strength, volume) {
-        scheduleOscillator(when, {
-            type: 'sine',
-            frequency: strength === 'strong' ? 145 : 120,
-            endFrequency: 52,
-            peak: (strength === 'strong' ? 0.62 : 0.42) * volume,
-            attack: 0.002,
-            release: strength === 'strong' ? 0.16 : 0.13
-        });
-    }
-
-    function scheduleHat(when, volume) {
-        scheduleNoise(when, {
-            filterType: 'highpass',
-            frequency: 5200,
-            q: 0.8,
-            peak: 0.16 * volume,
-            attack: 0.001,
-            release: 0.045
-        });
-    }
-
-    function scheduleSnare(when, volume) {
-        scheduleNoise(when, {
-            filterType: 'bandpass',
-            frequency: 1800,
-            q: 0.9,
-            peak: 0.22 * volume,
-            attack: 0.001,
-            release: 0.09
-        });
-        scheduleOscillator(when, {
-            type: 'triangle',
-            frequency: 185,
-            peak: 0.08 * volume,
-            attack: 0.001,
-            release: 0.07
-        });
-    }
-
-    function scheduleDrum(when, meter, beatIndex, volume) {
-        if (beatIndex === 0) {
-            scheduleKick(when, 'strong', volume);
-            return;
+    function scheduleEvent(event, settings) {
+        const accentEnabled = event.isMainBeat && settings.accents[event.beatIndex] === true;
+        const voice = accentEnabled ? 'accent' : (event.isMainBeat ? 'main' : 'subdivision');
+        if (latestVolume > 0) {
+            if (settings.sound === 'drum') scheduleDrum(event.when, voice);
+            else scheduleElectronic(event.when, voice);
         }
-        if (meter === '4/4' && beatIndex === 2) {
-            scheduleSnare(when, volume);
-            return;
-        }
-        if (meter === '6/8' && beatIndex === 3) {
-            scheduleKick(when, 'medium', volume);
-            return;
-        }
-        scheduleHat(when, volume);
+        visualQueue.push({ ...event, voice, sound: settings.sound, accentEnabled });
     }
 
-    function scheduleBeat(when, beatIndex, settings) {
-        const volume = volumeLevel(settings.volume);
-        const accent = accentForBeat(settings.meter, beatIndex);
-        if (volume > 0) {
-            if (settings.sound === 'wood') scheduleWood(when, accent, volume);
-            else if (settings.sound === 'click') scheduleElectronicClick(when, accent, volume);
-            else if (settings.sound === 'drum') scheduleDrum(when, settings.meter, beatIndex, volume);
-            else scheduleStandard(when, accent, volume);
-        }
-        visualQueue.push({ when, beatIndex });
-    }
-
-    function cancelScheduledSources() {
-        activeSources.forEach((cleanup, source) => {
-            try { source.stop(); } catch (error) { /* A source may already have ended. */ }
-            cleanup();
+    function cancelSources({ futureOnly = false } = {}) {
+        const now = context?.currentTime ?? 0;
+        activeSources.forEach((record, source) => {
+            if (futureOnly && record.when <= now + 0.003) return;
+            try { source.stop(); } catch (_) { /* A source may already have ended. */ }
+            record.cleanup();
+            activeSources.delete(source);
         });
-        activeSources.clear();
     }
 
     function visualTick() {
         if (!playing || !context) return;
         while (visualQueue.length && visualQueue[0].when <= context.currentTime) {
-            const beat = visualQueue.shift();
-            lastBeatTime = beat.when;
-            lastBeatIndex = beat.beatIndex;
-            onVisualBeat(beat.beatIndex);
+            const event = visualQueue.shift();
+            if (event.isMainBeat) lastMainEvent = event;
+            onVisualEvent(event);
         }
-        visualFrame = window.requestAnimationFrame(visualTick);
+        visualFrame = requestFrame?.(visualTick) || 0;
     }
 
     function scheduler(getSettings) {
         if (!playing || !context) return;
         const settings = getSettings();
-        if (nextNoteTime < context.currentTime - METRONOME_SCHEDULE_AHEAD_SEC) {
-            nextNoteTime = context.currentTime + METRONOME_START_LEAD_SEC;
+        if (cursor.when < context.currentTime - METRONOME_SCHEDULE_AHEAD_SEC) {
+            cursor = createScheduleCursor(context.currentTime + METRONOME_START_LEAD_SEC, cursor.beatIndex, 0);
         }
-        const horizon = context.currentTime + METRONOME_SCHEDULE_AHEAD_SEC;
-        while (nextNoteTime < horizon) {
-            scheduleBeat(nextNoteTime, nextBeatIndex, settings);
-            nextBeatIndex = (nextBeatIndex + 1) % beatsForMeter(settings.meter);
-            nextNoteTime += secondsPerBeat(settings.bpm, settings.meter);
-        }
-        schedulerTimer = window.setTimeout(() => scheduler(getSettings), METRONOME_SCHEDULER_INTERVAL_MS);
+        const batch = scheduleEventsUntil(cursor, settings, context.currentTime + METRONOME_SCHEDULE_AHEAD_SEC);
+        batch.events.forEach((event) => scheduleEvent(event, settings));
+        cursor = batch.cursor;
+        schedulerTimer = setTimer?.(() => scheduler(getSettings), METRONOME_SCHEDULER_INTERVAL_MS) || 0;
     }
 
-    async function start(getSettings, canStart) {
+    async function start(getSettings, canStart = () => true) {
         if (playing) return true;
         const generation = ++startGeneration;
         const audioContext = await resume();
-        if (
-            generation !== startGeneration
-            || !audioContext
-            || audioContext.state !== 'running'
-            || !canStart()
-        ) return false;
+        if (generation !== startGeneration || !audioContext || audioContext.state !== 'running' || !canStart()) return false;
+        const settings = getSettings();
         playing = true;
-        nextBeatIndex = 0;
-        nextNoteTime = audioContext.currentTime + METRONOME_START_LEAD_SEC;
-        lastBeatTime = Number.NEGATIVE_INFINITY;
-        lastBeatIndex = -1;
+        setMasterVolume(settings.volume, true);
+        cursor = createScheduleCursor(audioContext.currentTime + METRONOME_START_LEAD_SEC);
         visualQueue = [];
+        lastMainEvent = null;
         scheduler(getSettings);
-        visualFrame = window.requestAnimationFrame(visualTick);
+        visualFrame = requestFrame?.(visualTick) || 0;
         return true;
     }
 
     function stop() {
         startGeneration += 1;
         playing = false;
-        window.clearTimeout(schedulerTimer);
-        window.cancelAnimationFrame(visualFrame);
+        if (schedulerTimer) clearTimer?.(schedulerTimer);
+        if (visualFrame) cancelFrame?.(visualFrame);
         schedulerTimer = 0;
         visualFrame = 0;
         visualQueue = [];
-        lastBeatTime = Number.NEGATIVE_INFINITY;
-        lastBeatIndex = -1;
-        cancelScheduledSources();
+        lastMainEvent = null;
+        cancelSources();
     }
 
     function reschedule(getSettings, { resetBeat = false } = {}) {
         if (!playing || !context) return;
         const settings = getSettings();
-        const beatCount = beatsForMeter(settings.meter);
-        const beatDuration = secondsPerBeat(settings.bpm, settings.meter);
         const now = context.currentTime;
-
         while (visualQueue.length && visualQueue[0].when <= now) {
-            const beat = visualQueue.shift();
-            lastBeatTime = beat.when;
-            lastBeatIndex = beat.beatIndex;
-            if (!resetBeat) onVisualBeat(beat.beatIndex);
+            const event = visualQueue.shift();
+            if (event.isMainBeat) lastMainEvent = event;
+            onVisualEvent(event);
         }
-
-        const firstFutureBeat = visualQueue[0] || null;
-        let rescheduledTime = Number.isFinite(lastBeatTime)
-            ? lastBeatTime + beatDuration
-            : (firstFutureBeat?.when || nextNoteTime);
-        let rescheduledBeat = resetBeat
-            ? 0
-            : (Number.isFinite(lastBeatTime)
-                ? (lastBeatIndex + 1) % beatCount
-                : (firstFutureBeat?.beatIndex ?? nextBeatIndex) % beatCount);
-
-        if (!Number.isFinite(lastBeatTime)) {
-            rescheduledTime = Math.max(rescheduledTime, now + METRONOME_START_LEAD_SEC);
-        } else {
-            while (rescheduledTime < now + METRONOME_START_LEAD_SEC) {
-                rescheduledTime += beatDuration;
-                if (!resetBeat) rescheduledBeat = (rescheduledBeat + 1) % beatCount;
-            }
+        const futureMain = visualQueue.find((event) => event.isMainBeat && event.when >= now + METRONOME_START_LEAD_SEC);
+        let nextTime = futureMain?.when;
+        let nextBeatIndex = resetBeat ? 0 : futureMain?.beatIndex;
+        if (!Number.isFinite(nextTime)) {
+            nextTime = lastMainEvent
+                ? lastMainEvent.when + secondsPerBeat(settings.bpm)
+                : now + METRONOME_START_LEAD_SEC;
+            nextBeatIndex = resetBeat
+                ? 0
+                : ((lastMainEvent?.beatIndex ?? -1) + 1) % beatsForMeter(settings.meter);
         }
-
-        window.clearTimeout(schedulerTimer);
+        while (nextTime < now + METRONOME_START_LEAD_SEC) {
+            nextTime += secondsPerBeat(settings.bpm);
+            if (!resetBeat) nextBeatIndex = (nextBeatIndex + 1) % beatsForMeter(settings.meter);
+        }
+        if (schedulerTimer) clearTimer?.(schedulerTimer);
         schedulerTimer = 0;
-        cancelScheduledSources();
+        cancelSources({ futureOnly: true });
         visualQueue = [];
-        nextBeatIndex = rescheduledBeat;
-        nextNoteTime = rescheduledTime;
+        cursor = createScheduleCursor(nextTime, nextBeatIndex || 0, 0);
         scheduler(getSettings);
     }
 
     async function suspend() {
         stop();
-        if (context && context.state === 'running' && typeof context.suspend === 'function') {
-            try { await context.suspend(); } catch (error) { /* The page is already leaving. */ }
+        if (context?.state === 'running' && typeof context.suspend === 'function') {
+            try { await context.suspend(); } catch (_) { /* The document is already leaving. */ }
         }
+    }
+
+    function snapshot() {
+        return {
+            playing,
+            contextState: context?.state || 'none',
+            activeSourceCount: activeSources.size,
+            scheduledEvents: visualQueue.map((event) => ({ ...event })),
+            cursor: { ...cursor },
+            volume: latestVolume
+        };
     }
 
     return {
@@ -408,7 +317,9 @@ function createAudioEngine(onVisualBeat) {
         stop,
         reschedule,
         suspend,
-        isPlaying: () => playing
+        setVolume: setMasterVolume,
+        isPlaying: () => playing,
+        snapshot
     };
 }
 
@@ -416,8 +327,11 @@ export function initMetronome(root) {
     const elements = {
         title: root.querySelector('#metronome-title'),
         bpm: root.querySelector('#metronome-bpm'),
+        bpmSlider: root.querySelector('#metronome-bpm-slider'),
         meter: root.querySelector('#metronome-meter'),
         tempoNote: root.querySelector('#metronome-tempo-note'),
+        rhythm: root.querySelector('#metronome-rhythm'),
+        rhythmHint: root.querySelector('#metronome-rhythm-hint'),
         sound: root.querySelector('#metronome-sound'),
         volume: root.querySelector('#metronome-volume'),
         volumeValue: root.querySelector('#metronome-volume-value'),
@@ -427,19 +341,21 @@ export function initMetronome(root) {
         tapStatus: root.querySelector('#metronome-tap-status'),
         status: root.querySelector('#metronome-status'),
         storageError: root.querySelector('#metronome-storage-error'),
-        stepButtons: [...root.querySelectorAll('[data-bpm-delta]')]
+        stepButtons: [...root.querySelectorAll('[data-bpm-delta]')],
+        rhythmButtons: [...root.querySelectorAll('[data-metronome-rhythm]')]
     };
 
     const loadResult = loadMetronomeSettings();
     const state = {
         settings: loadResult.settings,
         currentBeat: -1,
+        currentSubdivision: -1,
         tapTimes: []
     };
     let viewActive = false;
 
     function getSettings() {
-        return { ...state.settings };
+        return { ...state.settings, accents: [...state.settings.accents] };
     }
 
     function showStorageError(message = '') {
@@ -452,52 +368,92 @@ export function initMetronome(root) {
         showStorageError(result.ok ? '' : 'メトロノーム設定を保存できませんでした。現在の操作はこの画面内だけに反映されています。');
     }
 
-    function renderBeatDisplay() {
-        const beatCount = beatsForMeter(state.settings.meter);
-        elements.beats.replaceChildren();
-        for (let index = 0; index < beatCount; index += 1) {
-            const dot = document.createElement('span');
-            const accent = accentForBeat(state.settings.meter, index);
-            dot.className = `beat-dot beat-${accent}`;
-            if (index === state.currentBeat) dot.classList.add('is-current');
-            if (state.settings.meter === '6/8' && index === 3) dot.classList.add('group-start');
-            dot.setAttribute('aria-hidden', 'true');
-            elements.beats.append(dot);
-        }
+    function renderBeatState() {
+        const buttons = [...elements.beats.querySelectorAll('[data-accent-beat]')];
+        buttons.forEach((button, index) => {
+            const accented = state.settings.accents[index] === true;
+            button.classList.toggle('is-accented', accented);
+            button.classList.toggle('is-current', index === state.currentBeat);
+            button.classList.toggle('is-main-pulse', index === state.currentBeat && state.currentSubdivision === 0);
+            button.setAttribute('aria-pressed', String(accented));
+            button.setAttribute('aria-label', `${index + 1}拍目、アクセント${accented ? 'オン' : 'オフ'}`);
+            button.querySelector('.beat-mark').textContent = accented ? '●' : '○';
+        });
         elements.beats.setAttribute(
             'aria-label',
             state.currentBeat < 0
-                ? `${METER_LABELS[state.settings.meter]}、停止中`
-                : `${METER_LABELS[state.settings.meter]}、${state.currentBeat + 1}拍目`
+                ? `${meterLabel(state.settings.meter)}、停止中。拍を押すとアクセントを変更できます`
+                : `${meterLabel(state.settings.meter)}、${state.currentBeat + 1}拍目`
         );
     }
 
-    function renderControls() {
+    function rebuildBeatDisplay() {
+        elements.beats.replaceChildren();
+        for (let index = 0; index < beatsForMeter(state.settings.meter); index += 1) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'beat-button';
+            button.dataset.accentBeat = String(index);
+            const mark = document.createElement('span');
+            mark.className = 'beat-mark';
+            mark.setAttribute('aria-hidden', 'true');
+            const number = document.createElement('span');
+            number.className = 'beat-number';
+            number.setAttribute('aria-hidden', 'true');
+            number.textContent = String(index + 1);
+            button.append(mark, number);
+            elements.beats.append(button);
+        }
+        renderBeatState();
+    }
+
+    function renderRhythmControls() {
+        elements.rhythmButtons.forEach((button) => {
+            const rhythm = button.dataset.metronomeRhythm;
+            const supported = isRhythmSupported(state.settings.meter, rhythm);
+            const selected = state.settings.rhythm === rhythm;
+            button.disabled = !supported;
+            button.setAttribute('aria-disabled', String(!supported));
+            button.setAttribute('aria-checked', String(selected));
+            button.classList.toggle('is-selected', selected);
+        });
+        elements.rhythmHint.hidden = !isCompoundMeter(state.settings.meter);
+    }
+
+    function renderControls({ rebuildBeats = true } = {}) {
         elements.bpm.value = String(state.settings.bpm);
+        elements.bpmSlider.value = String(state.settings.bpm);
+        elements.bpmSlider.setAttribute('aria-valuetext', `${state.settings.bpm} BPM`);
         elements.meter.value = state.settings.meter;
         elements.sound.value = state.settings.sound;
         elements.volume.value = String(state.settings.volume);
         elements.volumeValue.value = String(state.settings.volume);
-        elements.tempoNote.hidden = state.settings.meter !== '6/8';
-        renderBeatDisplay();
+        elements.tempoNote.textContent = isCompoundMeter(state.settings.meter)
+            ? '付点4分音符＝BPM'
+            : '4分音符＝BPM';
+        renderRhythmControls();
+        if (rebuildBeats) rebuildBeatDisplay();
+        else renderBeatState();
     }
 
     function renderPlaying() {
         const playing = engine.isPlaying();
         elements.toggle.textContent = playing ? '■ 停止' : '▶ 開始';
         elements.toggle.classList.toggle('is-playing', playing);
+        elements.toggle.setAttribute('aria-pressed', String(playing));
         elements.status.textContent = playing ? '再生中' : '停止中';
     }
 
-    function setVisualBeat(beatIndex) {
-        state.currentBeat = beatIndex;
-        renderBeatDisplay();
+    function setVisualEvent(event) {
+        state.currentBeat = event.beatIndex;
+        state.currentSubdivision = event.subdivisionIndex;
+        renderBeatState();
     }
 
-    const engine = createAudioEngine(setVisualBeat);
+    const engine = createMetronomeAudioEngine(setVisualEvent);
 
-    function rescheduleIfPlaying() {
-        if (engine.isPlaying()) engine.reschedule(getSettings);
+    function rescheduleIfPlaying(options) {
+        if (engine.isPlaying()) engine.reschedule(getSettings, options);
     }
 
     function resetTapState() {
@@ -509,6 +465,8 @@ export function initMetronome(root) {
         const bpm = clampInteger(value, METRONOME_LIMITS.bpmMin, METRONOME_LIMITS.bpmMax, state.settings.bpm);
         state.settings = { ...state.settings, bpm };
         elements.bpm.value = String(bpm);
+        elements.bpmSlider.value = String(bpm);
+        elements.bpmSlider.setAttribute('aria-valuetext', `${bpm} BPM`);
         if (persist) saveSettings();
         rescheduleIfPlaying();
         return bpm;
@@ -526,25 +484,75 @@ export function initMetronome(root) {
             elements.bpm.blur();
         }
     });
+    elements.bpmSlider.addEventListener('input', () => setBpm(elements.bpmSlider.value, { persist: false }));
+    elements.bpmSlider.addEventListener('change', saveSettings);
+
+    elements.tap.addEventListener('click', () => {
+        const now = performance.now();
+        const lastTap = state.tapTimes[state.tapTimes.length - 1];
+        const interval = lastTap === undefined ? null : now - lastTap;
+        if (interval === null || interval < METRONOME_TAP_MIN_INTERVAL_MS || interval >= METRONOME_TAP_RESET_MS) {
+            state.tapTimes = [now];
+            elements.tapStatus.textContent = 'もう一度タップ';
+            return;
+        }
+        state.tapTimes.push(now);
+        state.tapTimes = state.tapTimes.slice(-METRONOME_TAP_HISTORY_LIMIT);
+        const bpm = bpmFromTapTimes(state.tapTimes);
+        if (bpm === null) return;
+        setBpm(bpm);
+        elements.tapStatus.textContent = `${bpm} BPM ・ 続けてタップできます`;
+    });
 
     elements.meter.addEventListener('change', () => {
-        state.settings = { ...state.settings, meter: elements.meter.value };
+        const meter = elements.meter.value;
+        const rhythm = compatibleRhythm(meter, state.settings.rhythm);
+        state.settings = {
+            ...state.settings,
+            meter,
+            rhythm,
+            accents: defaultAccentsForMeter(meter)
+        };
         state.currentBeat = -1;
-        elements.tempoNote.hidden = state.settings.meter !== '6/8';
-        renderBeatDisplay();
+        state.currentSubdivision = -1;
+        renderControls();
         saveSettings();
-        if (engine.isPlaying()) engine.reschedule(getSettings, { resetBeat: true });
+        rescheduleIfPlaying({ resetBeat: true });
+    });
+
+    elements.rhythm.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-metronome-rhythm]');
+        if (!button || button.disabled) return;
+        const rhythm = button.dataset.metronomeRhythm;
+        state.settings = { ...state.settings, rhythm };
+        renderRhythmControls();
+        saveSettings();
+        rescheduleIfPlaying();
+    });
+
+    elements.beats.addEventListener('click', (event) => {
+        const button = event.target.closest('[data-accent-beat]');
+        if (!button) return;
+        const beatIndex = Number(button.dataset.accentBeat);
+        const accents = [...state.settings.accents];
+        accents[beatIndex] = !accents[beatIndex];
+        state.settings = { ...state.settings, accents };
+        renderBeatState();
+        saveSettings();
+        rescheduleIfPlaying();
     });
 
     elements.sound.addEventListener('change', () => {
         state.settings = { ...state.settings, sound: elements.sound.value };
         saveSettings();
+        rescheduleIfPlaying();
     });
 
     elements.volume.addEventListener('input', () => {
         const volume = clampInteger(elements.volume.value, METRONOME_LIMITS.volumeMin, METRONOME_LIMITS.volumeMax, state.settings.volume);
         state.settings = { ...state.settings, volume };
         elements.volumeValue.value = String(volume);
+        engine.setVolume(volume);
     });
     elements.volume.addEventListener('change', saveSettings);
 
@@ -552,7 +560,8 @@ export function initMetronome(root) {
         if (engine.isPlaying()) {
             engine.stop();
             state.currentBeat = -1;
-            renderBeatDisplay();
+            state.currentSubdivision = -1;
+            renderBeatState();
             renderPlaying();
             return;
         }
@@ -561,31 +570,17 @@ export function initMetronome(root) {
             const started = await engine.start(getSettings, () => viewActive && !document.hidden);
             if (!started && viewActive) elements.status.textContent = '音声を開始できませんでした。もう一度お試しください。';
             renderPlaying();
-        } catch (error) {
+        } catch (_) {
             elements.status.textContent = '音声を開始できませんでした。もう一度お試しください。';
         } finally {
             elements.toggle.disabled = false;
         }
     });
 
-    elements.tap.addEventListener('click', () => {
-        const now = performance.now();
-        const lastTap = state.tapTimes[state.tapTimes.length - 1];
-        if (lastTap === undefined || now - lastTap >= TAP_RESET_MS) {
-            state.tapTimes = [now];
-            elements.tapStatus.textContent = 'もう一度タップ';
-            return;
-        }
-        state.tapTimes.push(now);
-        state.tapTimes = state.tapTimes.slice(-TAP_HISTORY_LIMIT);
-        const bpm = bpmFromTapTimes(state.tapTimes);
-        if (bpm === null) return;
-        setBpm(bpm);
-        elements.tapStatus.textContent = `${bpm} BPM ・ 続けてタップできます`;
-    });
-
     if (!loadResult.ok) {
-        showStorageError('保存済みのメトロノーム設定を読み込めません。保存内容は変更していません。初期値で表示しています。');
+        showStorageError(loadResult.reason === 'migration-write-failed'
+            ? '旧設定を使用していますが、新しい形式で保存できませんでした。'
+            : '保存済みのメトロノーム設定を読み込めません。保存内容は変更していません。初期値で表示しています。');
     }
     renderControls();
     renderPlaying();
@@ -596,8 +591,9 @@ export function initMetronome(root) {
             if (!active) {
                 engine.stop();
                 state.currentBeat = -1;
+                state.currentSubdivision = -1;
                 resetTapState();
-                renderBeatDisplay();
+                renderBeatState();
                 renderPlaying();
             }
             if (active) elements.title.focus({ preventScroll: true });
@@ -606,7 +602,8 @@ export function initMetronome(root) {
             resetTapState();
             engine.suspend();
             state.currentBeat = -1;
-            renderBeatDisplay();
+            state.currentSubdivision = -1;
+            renderBeatState();
             renderPlaying();
         }
     };

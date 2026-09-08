@@ -73,7 +73,7 @@ import {
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.3';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js';
+import { initMetronome } from './metronome-app.js?v=2.0.0';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
