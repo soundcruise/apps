@@ -62,11 +62,15 @@ test('v1 notes migrate to v2 with the memo icon without rewriting raw storage', 
     assert.equal(loaded.ok, true);
     assert.equal(loaded.migrated, true);
     assert.equal(loaded.calendar.version, PRACTICE_CALENDAR_SCHEMA_VERSION);
-    assert.equal(loaded.calendar.notes[0].icon, PRACTICE_CALENDAR_DEFAULT_ICON);
+    assert.equal(loaded.calendar.notes[0].icon, 'memo');
     assert.equal(storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY), raw);
 });
 
-test('all six formal icons save and reload', () => {
+test('all eight formal icons save and reload', () => {
+    assert.deepEqual(PRACTICE_CALENDAR_ICONS.map(({value,label})=>[value,label]), [
+        ['practice','練習'],['live','ライブ'],['rehearsal','リハ'],['studio','スタジオ'],
+        ['recording','録音'],['work','作業'],['rest','休み'],['schedule','予定']
+    ]);
     let calendar = createEmptyPracticeCalendar();
     PRACTICE_CALENDAR_ICONS.forEach(({ value }, index) => {
         calendar = createPracticeCalendarNote(calendar, {
@@ -78,6 +82,18 @@ test('all six formal icons save and reload', () => {
     const storage = new FakeStorage();
     assert.equal(savePracticeCalendar(calendar, storage).ok, true);
     assert.deepEqual(loadPracticeCalendar(storage).calendar.notes.map(({ icon }) => icon), PRACTICE_CALENDAR_ICONS.map(({ value }) => value));
+});
+
+test('legacy v2 memo remains readable and unmodified in storage', () => {
+    const created = createPracticeCalendarNote(createEmptyPracticeCalendar(), {localDate:'2026-10-02',text:'以前の本文',icon:'memo'}, now);
+    assert.equal(created.ok,true);
+    const raw=JSON.stringify(created.calendar);
+    const storage=new FakeStorage({[PRACTICE_CALENDAR_STORAGE_KEY]:raw});
+    const loaded=loadPracticeCalendar(storage);
+    assert.equal(loaded.ok,true);
+    assert.equal(loaded.calendar.notes[0].icon,'memo');
+    assert.equal(storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY),raw);
+    assert(!PRACTICE_CALENDAR_ICONS.some(({value})=>value==='memo'));
 });
 
 test('empty, overlong, malformed, and over-limit calendar data fail safely', () => {

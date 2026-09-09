@@ -2,17 +2,20 @@ import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from '.
 export const PRACTICE_CALENDAR_SCHEMA_VERSION = 2;
 export const PRACTICE_CALENDAR_STORAGE_KEY = 'cruisePort.practiceCalendar';
 export const PRACTICE_CALENDAR_LIMITS = Object.freeze({ notes: 1500, text: 500 });
-export const PRACTICE_CALENDAR_DEFAULT_ICON = 'memo';
+export const PRACTICE_CALENDAR_DEFAULT_ICON = 'schedule';
 export const PRACTICE_CALENDAR_ICONS = Object.freeze([
-    Object.freeze({ value: 'schedule', label: '予定' }),
+    Object.freeze({ value: 'practice', label: '練習' }),
     Object.freeze({ value: 'live', label: 'ライブ' }),
     Object.freeze({ value: 'rehearsal', label: 'リハ' }),
+    Object.freeze({ value: 'studio', label: 'スタジオ' }),
     Object.freeze({ value: 'recording', label: '録音' }),
-    Object.freeze({ value: 'memo', label: 'メモ' }),
-    Object.freeze({ value: 'rest', label: '休み' })
+    Object.freeze({ value: 'work', label: '作業' }),
+    Object.freeze({ value: 'rest', label: '休み' }),
+    Object.freeze({ value: 'schedule', label: '予定' })
 ]);
 
-const PRACTICE_CALENDAR_ICON_VALUES = new Set(PRACTICE_CALENDAR_ICONS.map(({ value }) => value));
+// Keep legacy memo valid without rewriting stored records.
+const PRACTICE_CALENDAR_ICON_VALUES = new Set(['memo', ...PRACTICE_CALENDAR_ICONS.map(({ value }) => value)]);
 
 function createId(now = new Date()) {
     return globalThis.crypto?.randomUUID
@@ -74,7 +77,7 @@ function isValidPracticeCalendarVersion(calendar, version) {
 function cloneCalendar(calendar) {
     return {
         version: PRACTICE_CALENDAR_SCHEMA_VERSION,
-        notes: calendar.notes.map((note) => ({ ...note, icon: note.icon || PRACTICE_CALENDAR_DEFAULT_ICON }))
+        notes: calendar.notes.map((note) => ({ ...note, icon: note.icon || 'memo' }))
     };
 }
 

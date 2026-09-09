@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 
 test('narrow Practice cards reserve a separate wrapping row for launch and file actions', () => {
     const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
-    const narrow = css.slice(css.indexOf('@media (max-width: 420px)'));
+    const narrow = css.slice(css.lastIndexOf('@media (max-width: 370px)'));
     assert.match(narrow, /\.practice-menu-card\s*\{\s*grid-template-columns: 44px minmax\(0, 1fr\) 18px;/);
     assert.match(narrow, /\.practice-card-actions\s*\{[^}]*grid-column: 2 \/ -1;[^}]*grid-row: 2;[^}]*flex-wrap: wrap;/);
     assert.match(narrow, /\.practice-card-actions:empty\s*\{\s*display: none;/);

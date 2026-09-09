@@ -123,8 +123,8 @@ const listCardSource = source.slice(
 );
 assert.doesNotMatch(listCardSource, /durationMinutes/);
 assert.doesNotMatch(listCardSource, /(?:detail|copy|name)\.textContent = app\.label/);
-assert.match(listCardSource, /card\.append\(detailLink, progress, copy, actions, arrow\)/);
-assert.match(listCardSource, /progress\.append\(checkButton, count\)/);
+assert.match(listCardSource, /card\.append\(detailLink, checkButton, copy, actions, arrow\)/);
+assert.match(listCardSource, /copy\.append\(name, count\)/);
 assert.match(listCardSource, /files\.textContent = attachmentCount === 1 \? 'ファイル' : `ファイル \$\{attachmentCount\}`/);
 
 assert.match(styles, /\.practice-calendar-days[\s\S]*grid-template-columns: repeat\(7, minmax\(0, 1fr\)\)/);

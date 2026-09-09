@@ -707,25 +707,18 @@ summary.tool-pro-locked > span:first-child::after {
     cursor: pointer;
 }
 
-.practice-progress-column {
-    pointer-events: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
-    min-width: 0;
-}
-.practice-progress-column .practice-check { pointer-events: auto; }
-.practice-progress-column .practice-card-count {
-    max-width: 100%;
-    overflow-wrap: anywhere;
-    text-align: center;
-}
 .practice-detail-top-actions {
     display: flex;
-    justify-content: flex-end;
-    margin-block: 12px;
+    align-items: flex-start;
+    gap: 12px;
 }
+.practice-detail-top-actions h1 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+#practice-edit-top { flex: none; min-height: 44px; padding: 8px 12px; }
+#practice-list-view > .view-panel { padding-inline: 14px; }
+.practice-menu-card .practice-launch,
+.practice-menu-card .practice-files-button { padding-inline: 6px; }
+#practice-menu-add { justify-content: center; border-style: solid; border-color: var(--port-gold-bright); color: var(--port-gold-bright); }
+#practice-menu-add .add-symbol { width: auto; height: auto; border: 0; background: transparent; }
 
 .practice-check[aria-pressed="true"] {
     border-color: rgba(229, 204, 139, 0.45);
@@ -2880,20 +2873,20 @@ textarea:focus-visible {
 
 .practice-calendar-note-icons {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 6px;
 }
 
 .practice-calendar-note-icons button {
     min-width: 0;
-    min-height: 52px;
+    min-height: 68px;
     display: grid;
     padding: 7px 4px;
     place-items: center;
     gap: 3px;
     border: 1px solid rgba(207, 189, 148, 0.12);
     border-radius: 9px;
-    color: var(--port-muted);
+    color: var(--port-gold-bright);
     background: transparent;
     font: inherit;
     font-size: calc(0.62rem * var(--font-scale));
@@ -2907,8 +2900,8 @@ textarea:focus-visible {
 }
 
 .practice-calendar-note-icons svg {
-    width: 20px;
-    height: 20px;
+    width: 30px;
+    height: 30px;
 }
 
 #practice-calendar-note-form > label {
@@ -4912,7 +4905,7 @@ body.metronome-preset-open {
     }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 370px) {
     /* Keep names readable when both launch and file actions occupy a card. */
     .practice-menu-card {
         grid-template-columns: 44px minmax(0, 1fr) 18px;
@@ -4934,6 +4927,16 @@ body.metronome-preset-open {
         display: none;
     }
 
+}
+
+@media (min-width: 371px) and (max-width: 430px) {
+    :root:is([data-font-size="large"], [data-font-size="xlarge"]) .practice-menu-card { grid-template-columns: 44px minmax(0, 1fr) 18px; }
+    :root:is([data-font-size="large"], [data-font-size="xlarge"]) .practice-arrow { grid-column: 3; grid-row: 1; }
+    :root:is([data-font-size="large"], [data-font-size="xlarge"]) .practice-card-actions { grid-column: 2 / -1; grid-row: 2; flex-wrap: wrap; }
+    .practice-card-actions:empty { display: none; }
+}
+
+@media (max-width: 420px) {
     .my-apps-url-help-columns {
         grid-template-columns: 1fr;
         gap: 10px;
