@@ -49,7 +49,8 @@ export function createMyAppsPresetGraphic(key, { onAssetError } = {}) {
     const preset = getMyAppsIconPreset(key);
     if (!preset) return null;
     const image = document.createElement('img');
-    image.src = preset.src;
+    // Resolve against the shared module, not the deeper Pro document URL.
+    image.src = new URL(preset.src, import.meta.url).href;
     image.alt = '';
     image.decoding = 'async';
     image.setAttribute('aria-hidden', 'true');

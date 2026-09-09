@@ -1,18 +1,10 @@
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
+import { APP_DEFINITIONS } from './cruise-app-links.js?v=0.26.0';
 const SCHEMA_VERSION = 3;
 const LEGACY_SCHEMA_VERSIONS = Object.freeze([1, 2]);
 const STORAGE_KEYS = Object.freeze({
     schemaVersion: 'cruisePort.schemaVersion',
     practiceMenus: 'cruisePort.practiceMenus'
-});
-
-const APP_DEFINITIONS = Object.freeze({
-    pitch: Object.freeze({ name: '音感クルーズ', href: '../pitch-cruise/pro_x9v7q2m8/' }),
-    fretboard: Object.freeze({ name: '指板クルーズ', href: '../fretboard_cruise/pro_a9f4k7q2m8z/' }),
-    rhythm: Object.freeze({ name: 'リズムクルーズ', href: '../rhythm-cruise/pro_r4m8k7n2q9x/' }),
-    chord: Object.freeze({ name: 'コードクルーズ', href: '../chord-cruise/pro_k7m4q9v2x8/' }),
-    metronome: Object.freeze({ name: 'メトロノーム', href: '#metronome' }),
-    tuner: Object.freeze({ name: 'チューナー', href: '#tuner' })
 });
 
 const LIMITS = Object.freeze({

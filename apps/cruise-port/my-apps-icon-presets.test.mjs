@@ -41,7 +41,7 @@ for (const preset of MY_APPS_ICON_PRESETS) {
 
     const image = createMyAppsPresetGraphic(preset.key);
     assert.equal(image.name, 'img');
-    assert.equal(image.src, preset.src);
+    assert.equal(image.src, new URL(preset.src, import.meta.url).href);
     assert.equal(image.alt, '');
     assert.equal(image.decoding, 'async');
     assert.equal(image.attributes.get('aria-hidden'), 'true');

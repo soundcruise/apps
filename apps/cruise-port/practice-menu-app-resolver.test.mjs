@@ -39,9 +39,9 @@ assert.equal(createMyAppPracticeAppId('opaque-id'), 'myapp:opaque-id');
 assert.equal(getMyAppIdFromPracticeAppId('myapp:opaque-id'), 'opaque-id');
 assert.equal(getMyAppIdFromPracticeAppId('future-app'), null);
 
-assert.deepEqual(resolvePracticeMenuApp('pitch'), {
+assert.deepEqual(resolvePracticeMenuApp('pitch', { edition: 'pro' }), {
     appId: 'pitch', kind: 'builtin', label: '音感クルーズ',
-    href: '../pitch-cruise/pro_x9v7q2m8/', launchable: true, status: 'resolved'
+    href: '/apps/pitch-cruise/pro_x9v7q2m8/', launchable: true, status: 'resolved'
 });
 assert.equal(resolvePracticeMenuApp('tuner').href, '#tuner');
 assert.deepEqual(resolvePracticeMenuApp(null), {

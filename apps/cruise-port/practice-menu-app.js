@@ -6,7 +6,9 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.24.0';
+} from './practice-menu-store.js?v=0.26.0';
+import { applyEditionDisplay } from './cruise-port-edition.js?v=0.26.0';
+import { applyHomeCruiseLinks } from './cruise-app-links.js?v=0.26.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -71,7 +73,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=0.24.0';
+} from './practice-menu-app-resolver.js?v=0.26.0';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -131,7 +133,7 @@ import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
-} from './my-apps-icon-presets.js?v=1.0.3';
+} from './my-apps-icon-presets.js?v=1.0.4';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
 import { initMetronome } from './metronome-app.js?v=0.24.0';
 import {
@@ -176,6 +178,9 @@ import {
     parseGearRoute,
     replaceGearListRoute
 } from './gear-list-navigation.js?v=1.0.0';
+
+applyEditionDisplay();
+applyHomeCruiseLinks();
 
 const elements = {
     homeView: document.querySelector('#home-view'),

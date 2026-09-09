@@ -168,6 +168,32 @@ h1::after {
     content: "";
 }
 
+/* Keep the title itself centered; the edition mark is a quiet annotation. */
+.port-title-text { position: relative; display: inline-block; }
+.port-pro-badge {
+    position: absolute;
+    top: 50%;
+    left: calc(100% + 0.45em);
+    transform: translateY(-50%);
+    padding: 0.2em 0.38em;
+    border: 1px solid rgba(205, 180, 116, 0.5);
+    border-radius: 0.35em;
+    color: var(--port-muted);
+    background: rgba(205, 180, 116, 0.035);
+    font-size: 0.38em;
+    font-weight: 500;
+    line-height: 1.15;
+    letter-spacing: 0.025em;
+}
+
+/* At narrow widths reserve room for the badge rather than clipping it. */
+@media (max-width: 360px) {
+    [data-edition="pro"] .port-header h1 {
+        font-size: min(calc(1.85rem * var(--font-scale)), calc((100vw - 32px) / 8.65));
+    }
+    [data-edition="pro"] .port-title-text { transform: translateX(-0.55em); }
+}
+
 .port-concept {
     margin: 0;
     color: var(--port-muted);

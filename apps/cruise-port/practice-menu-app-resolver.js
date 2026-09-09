@@ -1,4 +1,6 @@
-import { APP_DEFINITIONS, MY_APP_PREFIX } from './practice-menu-store.js?v=0.24.0';
+import { MY_APP_PREFIX } from './practice-menu-store.js?v=0.26.0';
+import { APP_DEFINITIONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.26.0';
+import { getEdition } from './cruise-port-edition.js?v=0.26.0';
 import { resolveMyAppHref } from './my-apps-launch.js?v=0.24.0';
 
 export const PRACTICE_APP_STATUS = Object.freeze({
@@ -38,7 +40,8 @@ export function createMyAppPracticeAppId(myAppId) {
 export function resolvePracticeMenuApp(appId, {
     myApps = [],
     myAppsReady = false,
-    platform = 'unknown'
+    platform = 'unknown',
+    edition = getEdition()
 } = {}) {
     if (appId === null) {
         return {
@@ -51,7 +54,7 @@ export function resolvePracticeMenuApp(appId, {
         };
     }
     const builtin = Object.hasOwn(APP_DEFINITIONS, appId) ? APP_DEFINITIONS[appId] : null;
-    if (builtin) return resolvedModel(appId, 'builtin', builtin.name, builtin.href);
+    if (builtin) return resolvedModel(appId, 'builtin', builtin.name, resolveCruiseAppHref(appId, edition) || builtin.href);
 
     const myAppId = getMyAppIdFromPracticeAppId(appId);
     if (myAppId) {
