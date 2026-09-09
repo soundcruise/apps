@@ -2316,6 +2316,7 @@ function createPracticeCalendarDayButton(summary, date, { week = false } = {}) {
     button.classList.toggle('has-complete', summary.completed);
     button.classList.toggle('has-memo', summary.notes.length > 0);
     button.classList.toggle('is-today', today);
+    if (today) button.setAttribute('aria-current', 'date');
     button.setAttribute('aria-pressed', selected ? 'true' : 'false');
     button.setAttribute('aria-label', `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日${summary.practiced ? '、練習済み' : '、練習記録なし'}${summary.notes.length ? `、予定・メモ${summary.notes.length}件` : ''}${summary.completed ? '、全メニュー完了' : ''}`);
     if (week) {
@@ -2404,6 +2405,7 @@ function renderPracticeDayCalendar(selectedDate) {
     elements.calendarDayFocus.replaceChildren();
     const date = document.createElement('time');
     date.dateTime = state.historySelectedDate;
+    if (state.historySelectedDate === toLocalDateKey()) date.setAttribute('aria-current', 'date');
     date.textContent = `${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日 ${PRACTICE_CALENDAR_WEEKDAYS[selectedDate.getDay()]}曜日`;
     const status = document.createElement('span');
     status.textContent = summary.practiced ? '✓ 練習できた日' : '練習記録はまだありません';
@@ -2417,8 +2419,8 @@ function renderPracticeHistory({ focus = true } = {}) {
     state.historyMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     elements.calendarViewTabs.forEach((button) => {
         const active = button.dataset.calendarView === state.calendarViewMode;
-        button.setAttribute('aria-selected', active ? 'true' : 'false');
-        button.tabIndex = active ? 0 : -1;
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+        button.tabIndex = 0;
     });
     if (state.calendarViewMode === 'week') renderPracticeWeekCalendar();
     else if (state.calendarViewMode === 'day') renderPracticeDayCalendar(selectedDate);
@@ -4149,6 +4151,9 @@ elements.calendarDays.addEventListener('click', (event) => {
     if (!button) return;
     state.historySelectedDate = button.dataset.practiceDate;
     renderPracticeHistory({ focus: false });
+    if (event.detail === 0) {
+        elements.calendarDays.querySelector(`[data-practice-date="${state.historySelectedDate}"]`)?.focus({ preventScroll: true });
+    }
 });
 elements.calendarNoteAdd.addEventListener('click', () => openPracticeCalendarNoteForm());
 elements.calendarNoteIcons.addEventListener('click', (event) => {

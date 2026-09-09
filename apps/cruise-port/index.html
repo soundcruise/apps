@@ -15,7 +15,7 @@
             appName: 'クルーズポート'
         };
     </script>
-    <script src="../shared/pro-gate.js?v=19" defer></script>
+    <script src="../shared/pro-gate.js?v=20" defer></script>
     <script type="module" src="./practice-menu-app.js?v=0.25.0"></script>
 </head>
 <body>
@@ -296,10 +296,10 @@
                 <p class="view-kicker">練習メニュー</p>
                 <h1 id="practice-history-title" class="view-title" tabindex="-1">練習カレンダー</h1>
                 <p id="practice-history-error" class="notice notice-error" role="alert" hidden></p>
-                <div id="practice-calendar-view-tabs" class="practice-calendar-view-tabs" role="tablist" aria-label="カレンダー表示">
-                    <button type="button" role="tab" data-calendar-view="month" aria-selected="true">月</button>
-                    <button type="button" role="tab" data-calendar-view="week" aria-selected="false">週</button>
-                    <button type="button" role="tab" data-calendar-view="day" aria-selected="false">日</button>
+                <div id="practice-calendar-view-tabs" class="practice-calendar-view-tabs" role="group" aria-label="カレンダー表示">
+                    <button type="button" data-calendar-view="month" aria-pressed="true">月</button>
+                    <button type="button" data-calendar-view="week" aria-pressed="false">週</button>
+                    <button type="button" data-calendar-view="day" aria-pressed="false">日</button>
                 </div>
                 <div class="practice-calendar-heading">
                     <button id="practice-calendar-previous" type="button" aria-label="前の月">‹</button>
@@ -310,7 +310,7 @@
                 <div id="practice-calendar-weekdays" class="practice-calendar-weekdays" aria-hidden="true">
                     <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
                 </div>
-                <div id="practice-calendar-days" class="practice-calendar-days" role="grid" aria-label="練習カレンダー"></div>
+                <div id="practice-calendar-days" class="practice-calendar-days" role="group" aria-label="練習カレンダー"></div>
                 <div id="practice-calendar-day-focus" class="practice-calendar-day-focus" hidden></div>
                 <section class="practice-calendar-notes" aria-labelledby="practice-calendar-notes-title">
                     <div class="practice-calendar-section-heading">

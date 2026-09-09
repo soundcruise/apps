@@ -2528,7 +2528,7 @@ textarea:focus-visible {
     cursor: pointer;
 }
 
-.practice-calendar-view-tabs button[aria-selected="true"] {
+.practice-calendar-view-tabs button[aria-pressed="true"] {
     color: var(--port-gold-bright);
     background: rgba(205, 180, 116, 0.1);
     box-shadow: inset 0 0 0 1px rgba(229, 204, 139, 0.12);

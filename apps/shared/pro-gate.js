@@ -67,7 +67,60 @@
         return false;
     }
 
+    let releaseGateFocus = null;
+
+    function containGateFocus(overlay) {
+        const backgrounds = new Map();
+        function isolateBackground() {
+            for (const element of document.body.children) {
+                if (element === overlay || backgrounds.has(element)) continue;
+                backgrounds.set(element, element.hasAttribute('inert'));
+                element.setAttribute('inert', '');
+            }
+        }
+        function focusable() {
+            return [...overlay.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')]
+                .filter(element => element.tabIndex >= 0 && !element.matches(':disabled')
+                    && !element.closest('[hidden], [inert]') && element.getClientRects().length
+                    && getComputedStyle(element).visibility === 'visible');
+        }
+        overlay.tabIndex = -1;
+        function focusFirst() {
+            (focusable()[0] || overlay).focus({ preventScroll: true });
+        }
+        function onKeydown(event) {
+            if (event.key !== 'Tab') return;
+            const targets = focusable();
+            const index = targets.indexOf(document.activeElement);
+            if (!targets.length || index < 0 || (event.shiftKey ? index === 0 : index === targets.length - 1)) {
+                event.preventDefault();
+                (event.shiftKey ? targets[targets.length - 1] || overlay : targets[0] || overlay)
+                    .focus({ preventScroll: true });
+            }
+        }
+        function onFocus(event) {
+            if (!overlay.contains(event.target)) focusFirst();
+        }
+        isolateBackground();
+        const observer = new MutationObserver(isolateBackground);
+        observer.observe(document.body, { childList: true });
+        document.addEventListener('keydown', onKeydown, true);
+        document.addEventListener('focusin', onFocus, true);
+        const frame = requestAnimationFrame(focusFirst);
+        return () => {
+            cancelAnimationFrame(frame);
+            observer.disconnect();
+            document.removeEventListener('keydown', onKeydown, true);
+            document.removeEventListener('focusin', onFocus, true);
+            for (const [element, wasInert] of backgrounds) {
+                if (!wasInert) element.removeAttribute('inert');
+            }
+        };
+    }
+
     function dismissOverlay(overlay) {
+        releaseGateFocus?.();
+        releaseGateFocus = null;
         document.body.classList.remove('pro-gate-active');
         if (overlay && overlay.parentNode) {
             overlay.parentNode.removeChild(overlay);
@@ -155,7 +208,7 @@
             '<div class="pro-gate-panel">' +
             '<h2 id="pro-gate-title">' + CONFIG.appName + ' <span style="color:#ffe566;">PRO</span></h2>' +
             '<p class="pro-gate-hint">会員向けのページです。<br>4桁のパスワードを入力(初回のみ)</p>' +
-            '<input type="password" id="pro-gate-input" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" aria-describedby="pro-gate-error" />' +
+            '<input type="password" id="pro-gate-input" aria-label="パスワード" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="one-time-code" aria-describedby="pro-gate-error" />' +
             '<p id="pro-gate-error" aria-live="polite"></p>' +
             '<button type="button" id="pro-gate-submit" class="btn-primary">入る</button>' +
             '</div>' +
@@ -211,9 +264,7 @@
             if (e.key === 'Enter') trySubmit();
         });
 
-        requestAnimationFrame(() => {
-            input.focus();
-        });
+        releaseGateFocus = containGateFocus(overlay);
     }
 
     if ('serviceWorker' in navigator) {
