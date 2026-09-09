@@ -22,9 +22,14 @@
     <div class="port-shell">
         <main id="home-view" class="port-view">
             <header class="port-header">
-                <button id="home-settings-button" class="port-settings-button" type="button" aria-label="表示設定を開く">
-                    <span class="port-settings-gear" aria-hidden="true">⚙️</span><span>設定</span>
-                </button>
+                <div class="port-header-actions">
+                    <button id="home-calendar-button" class="port-calendar-button" type="button" aria-label="音楽カレンダーを開く" title="音楽カレンダー">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3M18 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
+                    </button>
+                    <button id="home-settings-button" class="port-settings-button" type="button" aria-label="表示設定を開く">
+                        <span class="port-settings-gear" aria-hidden="true">⚙️</span><span>設定</span>
+                    </button>
+                </div>
                 <h1><span class="port-title-text">クルーズポート<span id="home-pro-badge" class="port-pro-badge" aria-hidden="true" hidden>Pro</span></span></h1>
                 <p class="port-concept">弾き語りに必要なアプリを1つに集約。</p>
             </header>
@@ -248,11 +253,14 @@
                         <p class="view-kicker">ツール</p>
                         <h1 id="practice-heading" class="view-title" tabindex="-1">練習メニュー</h1>
                     </div>
+                    <button id="practice-history-open" class="practice-calendar-open practice-calendar-open-compact" type="button">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3M18 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
+                        音楽カレンダー
+                    </button>
                     <div id="practice-reorder-actions" class="reorder-actions" hidden>
                         <button id="practice-reorder-cancel" class="reorder-button" type="button">キャンセル</button>
                         <button id="practice-reorder-complete" class="reorder-button reorder-button-primary" type="button">完了</button>
                     </div>
-                    <button id="practice-reorder-start" class="practice-sort-button" type="button" hidden><span aria-hidden="true">↕</span> 並び替え</button>
                 </div>
                 <div class="practice-timer-card">
                     <button id="practice-timer-toggle" class="practice-timer-toggle" type="button">
@@ -264,11 +272,8 @@
                 <p id="practice-timer-status" class="practice-saved" role="status" hidden></p>
                 <div class="practice-overview">
                     <div class="practice-overview-links" aria-label="練習メニューの補助機能">
-                        <button id="practice-history-open" class="practice-calendar-open" type="button">
-                            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v3M18 3v3M4 8h16M5 5h14a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/></svg>
-                            練習カレンダー
-                        </button>
                         <button id="practice-hidden-open" type="button">非表示 <span id="practice-hidden-count">0</span></button>
+                        <button id="practice-reorder-start" class="practice-sort-button" type="button" hidden><span aria-hidden="true">↕</span> 並び替え</button>
                     </div>
                 </div>
                 <p id="practice-storage-error" class="notice notice-error" role="alert" hidden></p>
@@ -308,7 +313,7 @@
             <button class="view-back" type="button" data-action="practice-list">← 練習メニュー</button>
             <section class="view-panel" aria-labelledby="practice-history-title">
                 <p class="view-kicker">練習メニュー</p>
-                <h1 id="practice-history-title" class="view-title" tabindex="-1">練習カレンダー</h1>
+                <h1 id="practice-history-title" class="view-title" tabindex="-1">音楽カレンダー</h1>
                 <p id="practice-history-error" class="notice notice-error" role="alert" hidden></p>
                 <div id="practice-calendar-view-tabs" class="practice-calendar-view-tabs" role="group" aria-label="カレンダー表示">
                     <button type="button" data-calendar-view="month" aria-pressed="true">月</button>
@@ -324,7 +329,7 @@
                 <div id="practice-calendar-weekdays" class="practice-calendar-weekdays" aria-hidden="true">
                     <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
                 </div>
-                <div id="practice-calendar-days" class="practice-calendar-days" role="group" aria-label="練習カレンダー"></div>
+                <div id="practice-calendar-days" class="practice-calendar-days" role="group" aria-label="音楽カレンダー"></div>
                 <div id="practice-calendar-day-focus" class="practice-calendar-day-focus" hidden></div>
                 <section class="practice-calendar-notes" aria-labelledby="practice-calendar-notes-title">
                     <div class="practice-calendar-section-heading">
@@ -336,14 +341,30 @@
                     <form id="practice-calendar-note-form" data-keyboard-scroll-target="calendar-note-form" hidden>
                         <fieldset class="practice-calendar-note-icon-field">
                             <legend>表示アイコン</legend>
-                            <div id="practice-calendar-note-icons" class="practice-calendar-note-icons" role="group" aria-label="表示アイコン"></div>
+                            <div class="practice-calendar-icon-dropdown">
+                                <button id="practice-calendar-note-icon-toggle" class="practice-calendar-note-icon-toggle" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="practice-calendar-note-icons">
+                                    <span id="practice-calendar-note-icon-selection"></span>
+                                    <span class="practice-calendar-dropdown-chevron" aria-hidden="true">⌄</span>
+                                </button>
+                                <div id="practice-calendar-note-icons" class="practice-calendar-note-icons" role="listbox" aria-label="表示アイコン" hidden></div>
+                            </div>
                         </fieldset>
-                        <label for="practice-calendar-note-time">時刻 <span class="optional-label">任意</span></label>
-                        <input id="practice-calendar-note-time" type="time" step="60">
+                        <fieldset class="practice-calendar-note-time-field">
+                            <legend>時刻 <span class="optional-label">任意</span></legend>
+                            <div class="practice-calendar-note-times">
+                                <label for="practice-calendar-note-time">開始
+                                    <select id="practice-calendar-note-time"><option value="">なし</option></select>
+                                </label>
+                                <span aria-hidden="true">–</span>
+                                <label for="practice-calendar-note-end-time">終了
+                                    <select id="practice-calendar-note-end-time" disabled><option value="">なし</option></select>
+                                </label>
+                            </div>
+                        </fieldset>
                         <label for="practice-calendar-note-text">予定・メモ <span class="optional-label">500文字以内</span></label>
-                        <textarea id="practice-calendar-note-text" maxlength="500" rows="4" required></textarea>
+                        <textarea id="practice-calendar-note-text" maxlength="500" rows="4" placeholder="予定やメモを入力してください…" required></textarea>
                         <p id="practice-calendar-note-error" class="notice notice-error" role="alert" hidden></p>
-                        <div>
+                        <div class="practice-calendar-note-form-actions">
                             <button class="action-button primary-action" type="submit">保存</button>
                             <button id="practice-calendar-note-cancel" class="action-button secondary-action" type="button">キャンセル</button>
                         </div>
@@ -964,7 +985,7 @@
                 <p id="practice-completion-error" class="notice notice-error" role="alert" hidden></p>
                 <div class="practice-completion-actions">
                     <button id="practice-completion-end" class="action-button primary-action" type="button">練習を終了する</button>
-                    <button id="practice-completion-calendar" class="action-button secondary-action" type="button">練習カレンダーを見る</button>
+                    <button id="practice-completion-calendar" class="action-button secondary-action" type="button">音楽カレンダーを見る</button>
                 </div>
             </section>
         </div>

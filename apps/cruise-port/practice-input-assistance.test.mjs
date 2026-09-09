@@ -5,16 +5,16 @@ import {PRACTICE_CALENDAR_ICONS, PRACTICE_CALENDAR_SCHEMA_VERSION} from './pract
 const read=f=>readFileSync(new URL(f,import.meta.url),'utf8');
 const source=read('practice-menu-app.js');
 test('icon click follows selection until the user edits text',()=>{
- const handler=source.split("elements.calendarNoteIcons.addEventListener('click', (event) => {")[1].split("\n});")[0];
- const listener=new Function('event','state','elements','PRACTICE_CALENDAR_ICONS','renderPracticeCalendarIconChoices',handler);
- const text={value:''};const elements={calendarNoteText:text,calendarNoteIcons:{querySelector:()=>null}};
+ const helper=source.match(/function selectPracticeCalendarIcon\([\s\S]*?\n\}/)?.[0];
+ assert.ok(helper);
+ const text={value:''};const elements={calendarNoteText:text};
  const state={calendarNoteUserEdited:false};
- const click=key=>listener({target:{closest:()=>({dataset:{calendarNoteIcon:key}})}},state,elements,PRACTICE_CALENDAR_ICONS,()=>{});
+ const click=new Function('state','elements','PRACTICE_CALENDAR_ICONS','renderPracticeCalendarIconChoices','setPracticeCalendarIconDropdownOpen',`${helper}; return selectPracticeCalendarIcon;`)(state,elements,PRACTICE_CALENDAR_ICONS,()=>{},()=>{});
  for(const {value,label} of PRACTICE_CALENDAR_ICONS){click(value);assert.equal(text.value,label);}
  state.calendarNoteUserEdited=true;
  for(const existing of ['宇都宮でライブ','']){text.value=existing;click('recording');assert.equal(text.value,existing);}
  assert.equal(PRACTICE_CALENDAR_SCHEMA_VERSION,2);
- assert.doesNotMatch(handler,/calendarNoteText\.focus|scrollIntoView|\.blur\(/);
+ assert.doesNotMatch(helper,/calendarNoteText\.focus|scrollIntoView|\.blur\(/);
 });
 test('new and edit sessions initialize transient user-edit state safely',()=>{
  assert.match(source,/state\.calendarNoteUserEdited = Boolean\(note\)/);

@@ -6,6 +6,7 @@ const appSource = readFileSync(new URL('./practice-menu-app.js', import.meta.url
 const styles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
 
 assert.match(markup, /id="home-settings-button"[\s\S]*?表示設定を開く/);
+assert.match(markup, /id="home-calendar-button"[^>]*aria-label="音楽カレンダーを開く"[^>]*title="音楽カレンダー"/);
 assert.match(markup, /id="settings-view"[\s\S]*?data-display-size="large"[\s\S]*?data-display-size="standard"[\s\S]*?data-display-size="small"[\s\S]*?data-display-size="xsmall"/);
 assert.match(markup, /data-display-size="standard"[\s\S]*?><span>中<\/span>/);
 assert.doesNotMatch(markup, /<span>標準<\/span>/);
@@ -21,6 +22,7 @@ assert.doesNotMatch(markup, /これから欲しい機材を整理できる機能
 assert.match(markup, /id="my-apps-grid" class="card-grid home-card-grid"/);
 
 assert.match(appSource, /hash === '#settings'/);
+assert.match(appSource, /elements\.homeCalendarButton\.addEventListener\('click'/);
 assert.match(appSource, /parseGearRoute\(hash\)/);
 assert.match(appSource, /parsePracticeRoute\(hash\)/);
 assert.match(appSource, /elements\.tunerCard\.addEventListener\('click'/);

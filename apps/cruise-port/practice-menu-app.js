@@ -45,10 +45,12 @@ import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
     PRACTICE_CALENDAR_ICONS,
     PRACTICE_CALENDAR_LIMITS,
+    PRACTICE_CALENDAR_TIME_OPTIONS,
     createPracticeCalendarNote,
     deletePracticeCalendarNote,
     getPracticeCalendarNotesForDate,
     isValidPracticeCalendarTime,
+    isValidPracticeCalendarTimeRange,
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
@@ -222,6 +224,7 @@ const elements = {
     myAppsManageView: document.querySelector('#my-apps-manage-view'),
     myAppsFormView: document.querySelector('#my-apps-form-view'),
     myAppsNotFoundView: document.querySelector('#my-apps-not-found-view'),
+    homeCalendarButton: document.querySelector('#home-calendar-button'),
     homeSettingsButton: document.querySelector('#home-settings-button'),
     settingsTitle: document.querySelector('#settings-title'),
     settingsStorageError: document.querySelector('#settings-storage-error'),
@@ -310,8 +313,11 @@ const elements = {
     calendarNotesEmpty: document.querySelector('#practice-calendar-notes-empty'),
     calendarNotesList: document.querySelector('#practice-calendar-notes-list'),
     calendarNoteForm: document.querySelector('#practice-calendar-note-form'),
+    calendarNoteIconToggle: document.querySelector('#practice-calendar-note-icon-toggle'),
+    calendarNoteIconSelection: document.querySelector('#practice-calendar-note-icon-selection'),
     calendarNoteIcons: document.querySelector('#practice-calendar-note-icons'),
     calendarNoteTime: document.querySelector('#practice-calendar-note-time'),
+    calendarNoteEndTime: document.querySelector('#practice-calendar-note-end-time'),
     calendarNoteText: document.querySelector('#practice-calendar-note-text'),
     calendarNoteError: document.querySelector('#practice-calendar-note-error'),
     calendarNoteCancel: document.querySelector('#practice-calendar-note-cancel'),
@@ -434,6 +440,7 @@ const state = {
     calendarReady: false,
     calendarNoteEditId: null,
     calendarNoteIcon: PRACTICE_CALENDAR_DEFAULT_ICON,
+    calendarNoteIconDropdownOpen: false,
     calendarNoteUserEdited: false,
     timer: null,
     timerReady: false,
@@ -587,7 +594,10 @@ function cleanupMyAppsFormState() {
 
 function showView(view) {
     const viewChanged = view.hidden;
-    if (view !== elements.practiceHistoryView) cleanupPracticeCalendarKeyboardTracking();
+    if (view !== elements.practiceHistoryView) {
+        cleanupPracticeCalendarKeyboardTracking();
+        setPracticeCalendarIconDropdownOpen(false);
+    }
     if (view !== elements.homeView) cleanupMyAppsObjectUrls('home');
     if (view !== elements.myAppsManageView) cleanupMyAppsObjectUrls('manage');
     if (view !== elements.myAppsFormView) cleanupMyAppsFormState();
@@ -2142,11 +2152,14 @@ function getPracticeCalendarWeekDates(localDate) {
 
 function closePracticeCalendarNoteForm() {
     cleanupPracticeCalendarKeyboardTracking();
+    setPracticeCalendarIconDropdownOpen(false);
     state.calendarNoteEditId = null;
     state.calendarNoteIcon = PRACTICE_CALENDAR_DEFAULT_ICON;
     state.calendarNoteUserEdited = false;
     elements.calendarNoteForm.hidden = true;
     elements.calendarNoteTime.value = '';
+    elements.calendarNoteEndTime.value = '';
+    syncPracticeCalendarEndTimeOptions();
     elements.calendarNoteText.value = '';
     showNotice(elements.calendarNoteError);
 }
@@ -2155,7 +2168,7 @@ const calendarKeyboard = createPracticeCalendarKeyboard({
     windowObject: window,
     form: elements.calendarNoteForm,
     getInputBounds: () => ({
-        top: elements.calendarNoteIcons.closest('fieldset').getBoundingClientRect().top,
+        top: elements.calendarNoteIconToggle.closest('fieldset').getBoundingClientRect().top,
         bottom: elements.calendarNoteText.getBoundingClientRect().bottom
     })
 });
@@ -2173,10 +2186,10 @@ const PRACTICE_CALENDAR_ICON_SHAPES = Object.freeze({
     studio: [['circle', { cx: 12, cy: 16, r: 4 }], ['rect', { x: 6, y: 8, width: 5, height: 4, rx: 1 }], ['rect', { x: 13, y: 8, width: 5, height: 4, rx: 1 }], ['path', { d: 'M2 6h5M4 4v16M2 21l2-3 2 3M18 5h4M20 3v17M18 21l2-3 2 3' }]],
     work: [['path', { d: 'M4 20l2-6L17 3l4 4L10 18zM14 6l4 4M6 14l4 4M4 20l6-2' }]],
     schedule: [['rect', { x: 4, y: 5.5, width: 16, height: 14, rx: 2 }], ['path', { d: 'M8 3.5v4M16 3.5v4M4 10h16' }]],
-    live: [['circle', { cx: 7, cy: 6, r: 3.5, fill: 'currentColor', stroke: 'none' }], ['path', { d: 'M9.5 8.5l4 4M13.5 12.5l2 2M15.5 14.5l-3.8 6.2M8.5 21h6.5' }]],
+    live: [['ellipse', { cx: 15.5, cy: 6, rx: 4, ry: 3, transform: 'rotate(40 15.5 6)', fill: 'currentColor', stroke: 'none' }], ['path', { d: 'M13.2 8.4L5 16.7 8.3 20l8.2-8.2z', fill: 'currentColor', stroke: 'none' }]],
     rehearsal: [['circle', { cx: 9, cy: 8, r: 3 }], ['circle', { cx: 17, cy: 9, r: 2.5 }], ['path', { d: 'M3.5 19c.6-3.6 2.4-5.5 5.5-5.5s4.9 1.9 5.5 5.5M14 14.5c3.6-.7 5.8.8 6.5 4.5' }]],
     recording: [['rect', { x: 8, y: 3, width: 8, height: 12, rx: 4 }], ['path', { d: 'M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8' }]],
-    'string-change': [['circle', { cx: 8, cy: 11, r: 3.2 }], ['path', { d: 'M10.3 8.7L16.8 2.2M14.7 4.3l2 2 2.6-2.6-2-2.1zM5.7 13.5c-2.4 2.3-1.4 5.5 1.4 6.8 2.5 1.1 5.8.1 8.3-2.4M13.1 16.3l2.3 1.6-1.7 2.3' }]],
+    'string-change': [['path', { d: 'M9 3h6l1.5 14h-9zM9 17v4h6v-4M8.5 6H6M8 10H6M7.7 14H6M15.5 6H18M16 10h2M16.3 14H18' }], ['circle', { cx: 5, cy: 6, r: 1 }], ['circle', { cx: 5, cy: 10, r: 1 }], ['circle', { cx: 5, cy: 14, r: 1 }], ['circle', { cx: 19, cy: 6, r: 1 }], ['circle', { cx: 19, cy: 10, r: 1 }], ['circle', { cx: 19, cy: 14, r: 1 }]],
     maintenance: [['path', { d: 'M14.2 3.4a5.2 5.2 0 0 0-6.6 6.5L3 14.5 9.5 21l4.6-4.6a5.2 5.2 0 0 0 6.5-6.6l-3.4 2-3.1-3.1zM5.7 15.7l2.6 2.6' }]],
     memo: [['path', { d: 'M6 3.5h9l3 3V20H6zM15 3.5V7h3M9 11h6M9 15h6' }]],
     rest: [['path', { d: 'M4 10h12v5a6 6 0 0 1-12 0zM16 11h2a3 3 0 0 1 0 6h-3M2 22h18M6 3c-2 2 2 3 0 5M10 3c-2 2 2 3 0 5M14 3c-2 2 2 3 0 5' }]]
@@ -2200,29 +2213,121 @@ function createPracticeCalendarIcon(icon, className = '') {
     return svg;
 }
 
+function getPracticeCalendarIconDefinition(value = state.calendarNoteIcon) {
+    const normalizedValue = value === 'memo' ? 'schedule' : value;
+    return PRACTICE_CALENDAR_ICONS.find(({ value: iconValue }) => iconValue === normalizedValue)
+        || PRACTICE_CALENDAR_ICONS.find(({ value: iconValue }) => iconValue === PRACTICE_CALENDAR_DEFAULT_ICON);
+}
+
+function setPracticeCalendarIconDropdownOpen(open, { focusOption = false, restoreFocus = false } = {}) {
+    const nextOpen = Boolean(open && !elements.calendarNoteForm.hidden);
+    state.calendarNoteIconDropdownOpen = nextOpen;
+    elements.calendarNoteIcons.hidden = !nextOpen;
+    elements.calendarNoteIconToggle.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+    if (nextOpen && focusOption) {
+        elements.calendarNoteIcons.querySelector('[role="option"][aria-selected="true"]')?.focus({ preventScroll: true });
+    } else if (!nextOpen && restoreFocus) {
+        elements.calendarNoteIconToggle.focus({ preventScroll: true });
+    }
+}
+
+function renderPracticeCalendarIconSelection() {
+    const icon = getPracticeCalendarIconDefinition();
+    const label = document.createElement('span');
+    label.textContent = icon.label;
+    elements.calendarNoteIconSelection.replaceChildren(createPracticeCalendarIcon(icon.value), label);
+    elements.calendarNoteIconToggle.setAttribute('aria-label', `表示アイコン：${icon.label}`);
+}
+
 function renderPracticeCalendarIconChoices() {
     elements.calendarNoteIcons.replaceChildren(...PRACTICE_CALENDAR_ICONS.map(({ value, label }) => {
         const button = document.createElement('button');
         const text = document.createElement('span');
         button.type = 'button';
+        button.id = `practice-calendar-note-icon-${value}`;
+        button.setAttribute('role', 'option');
         button.dataset.calendarNoteIcon = value;
         button.setAttribute('aria-label', `表示アイコン：${label}`);
-        button.setAttribute('aria-pressed', value === (state.calendarNoteIcon === 'memo' ? 'schedule' : state.calendarNoteIcon) ? 'true' : 'false');
+        const selected = value === getPracticeCalendarIconDefinition().value;
+        button.setAttribute('aria-selected', selected ? 'true' : 'false');
+        button.tabIndex = selected ? 0 : -1;
         button.append(createPracticeCalendarIcon(value), text);
         text.textContent = label;
         return button;
     }));
+    renderPracticeCalendarIconSelection();
+}
+
+function selectPracticeCalendarIcon(value, { restoreFocus = true } = {}) {
+    const icon = PRACTICE_CALENDAR_ICONS.find(({ value: iconValue }) => iconValue === value);
+    if (!icon) return;
+    state.calendarNoteIcon = icon.value;
+    if (!state.calendarNoteUserEdited) elements.calendarNoteText.value = icon.label;
+    renderPracticeCalendarIconChoices();
+    setPracticeCalendarIconDropdownOpen(false, { restoreFocus });
+}
+
+function movePracticeCalendarIconFocus(direction) {
+    const options = [...elements.calendarNoteIcons.querySelectorAll('[role="option"]')];
+    if (options.length === 0) return;
+    const currentIndex = Math.max(0, options.indexOf(document.activeElement));
+    const nextIndex = direction === 'first'
+        ? 0
+        : direction === 'last'
+            ? options.length - 1
+            : (currentIndex + direction + options.length) % options.length;
+    options.forEach((option, index) => { option.tabIndex = index === nextIndex ? 0 : -1; });
+    options[nextIndex].focus({ preventScroll: true });
+}
+
+function renderPracticeCalendarTimeOptions() {
+    for (const select of [elements.calendarNoteTime, elements.calendarNoteEndTime]) {
+        if (select.options.length > 1) continue;
+        select.append(...PRACTICE_CALENDAR_TIME_OPTIONS.map((value) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = value;
+            return option;
+        }));
+    }
+}
+
+function ensurePracticeCalendarTimeOption(select, value) {
+    select.querySelectorAll('[data-legacy-time]').forEach((option) => option.remove());
+    if (!value || [...select.options].some((option) => option.value === value)) return;
+    const option = document.createElement('option');
+    option.value = value;
+    option.textContent = value;
+    option.dataset.legacyTime = 'true';
+    select.append(option);
+}
+
+function syncPracticeCalendarEndTimeOptions() {
+    const startTime = elements.calendarNoteTime.value;
+    elements.calendarNoteEndTime.disabled = !startTime;
+    [...elements.calendarNoteEndTime.options].forEach((option) => {
+        option.disabled = Boolean(option.value && (!startTime || option.value <= startTime));
+    });
+    if (!isValidPracticeCalendarTimeRange(startTime, elements.calendarNoteEndTime.value)) {
+        elements.calendarNoteEndTime.value = '';
+    }
 }
 
 function openPracticeCalendarNoteForm(note = null) {
     cleanupPracticeCalendarKeyboardTracking();
+    renderPracticeCalendarTimeOptions();
     state.calendarNoteEditId = note?.id || null;
     state.calendarNoteIcon = note?.icon || PRACTICE_CALENDAR_DEFAULT_ICON;
     state.calendarNoteUserEdited = Boolean(note);
+    ensurePracticeCalendarTimeOption(elements.calendarNoteTime, note?.time || '');
+    ensurePracticeCalendarTimeOption(elements.calendarNoteEndTime, note?.endTime || '');
     elements.calendarNoteTime.value = note?.time || '';
+    elements.calendarNoteEndTime.value = note?.endTime || '';
+    syncPracticeCalendarEndTimeOptions();
     elements.calendarNoteText.value = note?.text || '';
     renderPracticeCalendarIconChoices();
     elements.calendarNoteForm.hidden = false;
+    setPracticeCalendarIconDropdownOpen(false);
     showNotice(elements.calendarNoteError);
     elements.calendarNoteText.focus();
 }
@@ -2244,7 +2349,7 @@ function renderPracticeCalendarNotes() {
         if (note.time) {
             const time = document.createElement('time');
             time.dateTime = `${note.localDate}T${note.time}`;
-            time.textContent = note.time;
+            time.textContent = note.endTime ? `${note.time}–${note.endTime}` : note.time;
             copy.append(time);
         }
         text.textContent = note.text;
@@ -2273,21 +2378,28 @@ function handlePracticeCalendarNoteSubmit(event) {
     event.preventDefault();
     if (!state.calendarReady) return;
     const time = elements.calendarNoteTime.value;
+    const endTime = elements.calendarNoteEndTime.value;
     if (time && !isValidPracticeCalendarTime(time)) {
         showNotice(elements.calendarNoteError, '時刻を00:00〜23:59で入力してください。');
+        return;
+    }
+    if (!isValidPracticeCalendarTimeRange(time, endTime)) {
+        showNotice(elements.calendarNoteError, '終了時刻は開始時刻より後を選んでください。');
         return;
     }
     const result = state.calendarNoteEditId
         ? updatePracticeCalendarNote(state.calendar, state.calendarNoteEditId, {
             text: elements.calendarNoteText.value,
             icon: state.calendarNoteIcon,
-            time
+            time,
+            endTime
         })
         : createPracticeCalendarNote(state.calendar, {
             localDate: state.historySelectedDate,
             text: elements.calendarNoteText.value,
             icon: state.calendarNoteIcon,
-            time
+            time,
+            endTime
         });
     if (!result.ok) {
         showNotice(
@@ -2480,7 +2592,7 @@ function renderPracticeMonthCalendar(selectedDate) {
     elements.calendarDays.hidden = false;
     elements.calendarDayFocus.hidden = true;
     elements.calendarDays.className = 'practice-calendar-days is-month';
-    elements.calendarDays.setAttribute('aria-label', `${year}年${monthIndex + 1}月の練習カレンダー`);
+    elements.calendarDays.setAttribute('aria-label', `${year}年${monthIndex + 1}月の音楽カレンダー`);
     elements.calendarDays.replaceChildren(...createPracticeCalendarMonth(year, monthIndex, state.history, state.calendar.notes).map((cell) => {
         if (!cell) {
             const blank = document.createElement('span');
@@ -2505,7 +2617,7 @@ function renderPracticeWeekCalendar() {
     elements.calendarDays.hidden = false;
     elements.calendarDayFocus.hidden = true;
     elements.calendarDays.className = 'practice-calendar-days is-week';
-    elements.calendarDays.setAttribute('aria-label', '選択日を含む週の練習カレンダー');
+    elements.calendarDays.setAttribute('aria-label', '選択日を含む週の音楽カレンダー');
     elements.calendarDays.replaceChildren(...weekDates.map((date) => createPracticeCalendarDayButton(
         createPracticeCalendarDaySummary(toLocalDateKey(date), state.history, state.calendar.notes),
         date,
@@ -2548,7 +2660,7 @@ function renderPracticeHistory({ focus = true } = {}) {
         elements.historyError,
         state.historyReady && state.calendarReady
             ? ''
-            : '練習カレンダーを読み込めません。保存領域の値は変更していません。'
+            : '音楽カレンダーを読み込めません。保存領域の値は変更していません。'
     );
     renderPracticeCalendarNotes();
     renderPracticeDayHistory();
@@ -2570,6 +2682,7 @@ function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
 
     elements.reorderStart.hidden = state.reorderMode || activeItems.length < 2;
     elements.reorderActions.hidden = !state.reorderMode;
+    elements.historyOpen.hidden = state.reorderMode;
     elements.addButton.hidden = state.reorderMode;
     elements.addButton.disabled = !state.storageReady;
     elements.addButton.classList.toggle('tool-pro-locked', !canCreatePractice(state.items));
@@ -4428,17 +4541,53 @@ elements.calendarDays.addEventListener('click', (event) => {
     }
 });
 elements.calendarNoteAdd.addEventListener('click', () => openPracticeCalendarNoteForm());
+elements.calendarNoteIconToggle.addEventListener('click', () => {
+    setPracticeCalendarIconDropdownOpen(!state.calendarNoteIconDropdownOpen, { focusOption: true });
+});
+elements.calendarNoteIconToggle.addEventListener('keydown', (event) => {
+    if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+    event.preventDefault();
+    setPracticeCalendarIconDropdownOpen(true, { focusOption: true });
+    if (event.key === 'ArrowUp') movePracticeCalendarIconFocus('last');
+});
 elements.calendarNoteIcons.addEventListener('click', (event) => {
     const button = event.target.closest('[data-calendar-note-icon]');
     if (!button) return;
-    state.calendarNoteIcon = button.dataset.calendarNoteIcon;
-    if (!state.calendarNoteUserEdited) {
-        const icon = PRACTICE_CALENDAR_ICONS.find(({ value }) => value === state.calendarNoteIcon);
-        if (icon) elements.calendarNoteText.value = icon.label;
-    }
-    renderPracticeCalendarIconChoices();
-    elements.calendarNoteIcons.querySelector(`[data-calendar-note-icon="${state.calendarNoteIcon}"]`)?.focus({ preventScroll: true });
+    selectPracticeCalendarIcon(button.dataset.calendarNoteIcon);
 });
+elements.calendarNoteIcons.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        setPracticeCalendarIconDropdownOpen(false, { restoreFocus: true });
+        return;
+    }
+    if (event.key === 'Tab') {
+        setPracticeCalendarIconDropdownOpen(false);
+        return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        selectPracticeCalendarIcon(document.activeElement?.dataset?.calendarNoteIcon);
+        return;
+    }
+    const direction = {
+        ArrowDown: 1,
+        ArrowRight: 1,
+        ArrowUp: -1,
+        ArrowLeft: -1,
+        Home: 'first',
+        End: 'last'
+    }[event.key];
+    if (direction === undefined) return;
+    event.preventDefault();
+    movePracticeCalendarIconFocus(direction);
+});
+document.addEventListener('click', (event) => {
+    if (state.calendarNoteIconDropdownOpen && !event.target.closest('.practice-calendar-icon-dropdown')) {
+        setPracticeCalendarIconDropdownOpen(false);
+    }
+});
+elements.calendarNoteTime.addEventListener('change', syncPracticeCalendarEndTimeOptions);
 elements.calendarNoteText.addEventListener('input', () => {
     state.calendarNoteUserEdited = true;
 });
@@ -4518,6 +4667,10 @@ document.querySelectorAll('[data-action="my-apps-home-scroll"]').forEach((button
 document.querySelectorAll('[data-action="new-my-app"]').forEach((button) => button.addEventListener('click', openMyAppsCreate));
 elements.myAppsAdd.addEventListener('click', openMyAppsCreate);
 elements.myAppsManage.addEventListener('click', () => setHashRoute('#my-apps/manage'));
+elements.homeCalendarButton.addEventListener('click', () => {
+    state.calendarViewMode = 'month';
+    setHashRoute('#practice-menu/calendar');
+});
 elements.homeSettingsButton.addEventListener('click', () => setHashRoute('#settings'));
 function updateDisplaySettings(next) {
     const saveResult = saveSettings(next);

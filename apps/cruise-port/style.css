@@ -115,11 +115,19 @@ body {
     text-align: center;
 }
 
-.port-settings-button {
+.port-header-actions {
     position: fixed;
     top: max(12px, env(safe-area-inset-top));
     right: max(12px, env(safe-area-inset-right));
     z-index: 200;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.port-settings-button,
+.port-calendar-button {
+    min-height: 44px;
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -141,13 +149,31 @@ body {
     transition: transform 0.12s ease, background 0.15s ease;
 }
 
+.port-calendar-button {
+    width: 44px;
+    flex: 0 0 44px;
+    justify-content: center;
+    padding: 0;
+}
+
+.port-calendar-button svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
 .port-settings-gear {
     display: inline-block;
     font-size: 1.1rem;
     line-height: 1;
 }
 
-.port-settings-button:active {
+.port-settings-button:active,
+.port-calendar-button:active {
     transform: scale(0.95);
     background: rgba(212, 175, 55, 0.16);
 }
@@ -426,6 +452,11 @@ summary.tool-pro-locked > span:first-child::after {
     flex: 1;
 }
 
+.practice-heading-row #practice-heading {
+    font-size: min(calc(1.85rem * var(--font-scale)), 1.85rem);
+    letter-spacing: 0.045em;
+}
+
 .practice-overview {
     display: flex;
     margin: -2px 0 18px;
@@ -457,7 +488,7 @@ summary.tool-pro-locked > span:first-child::after {
     cursor: pointer;
 }
 
-.practice-overview-links .practice-calendar-open {
+.practice-calendar-open {
     min-height: 46px;
     display: flex;
     padding: 9px 12px;
@@ -467,8 +498,18 @@ summary.tool-pro-locked > span:first-child::after {
     border: 1px solid rgba(207, 189, 148, 0.16);
     color: rgba(232, 219, 181, 0.92);
     background: rgba(205, 180, 116, 0.035);
+    font: inherit;
     font-size: calc(0.77rem * var(--font-scale));
     font-weight: 620;
+    cursor: pointer;
+}
+
+.practice-calendar-open-compact {
+    min-height: 44px;
+    padding: 7px 9px;
+    flex: 0 0 auto;
+    font-size: min(calc(0.67rem * var(--font-scale)), 0.7rem);
+    white-space: nowrap;
 }
 
 .practice-calendar-open svg {
@@ -500,6 +541,17 @@ summary.tool-pro-locked > span:first-child::after {
 .practice-sort-button:hover {
     color: var(--port-text);
     background: rgba(205, 180, 116, 0.055);
+}
+
+@media (max-width: 340px) {
+    .practice-heading-row #practice-heading {
+        font-size: min(calc(1.3rem * var(--font-scale)), 1.3rem);
+    }
+
+    .practice-calendar-open-compact {
+        padding-inline: 7px;
+        font-size: 0.59rem;
+    }
 }
 
 .practice-timer-card {
@@ -1939,8 +1991,11 @@ body.gear-photo-lightbox-open {
 .practice-calendar-view-tabs button:focus-visible,
 .practice-calendar-day:focus-visible,
 .practice-calendar-today:focus-visible,
+.practice-calendar-open:focus-visible,
+.practice-calendar-note-icon-toggle:focus-visible,
 .practice-calendar-note-icons button:focus-visible,
 .practice-count-reset-section button:focus-visible,
+.port-calendar-button:focus-visible,
 .port-settings-button:focus-visible,
 .settings-choice:focus-visible,
 .gear-list-tabs button:focus-visible,
@@ -2890,8 +2945,9 @@ textarea:focus-visible {
 .practice-calendar-note-icon-field {
     min-width: 0;
     margin: 0 0 15px;
-    padding: 0;
-    border: 0;
+    padding: 13px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 11px;
 }
 
 .practice-calendar-note-icon-field legend {
@@ -2901,47 +2957,142 @@ textarea:focus-visible {
     font-weight: 620;
 }
 
-.practice-calendar-note-icons {
-    display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 4px;
+.practice-calendar-icon-dropdown {
+    position: relative;
 }
 
-.practice-calendar-note-icons button {
-    min-width: 0;
-    min-height: 68px;
-    display: grid;
-    padding: 7px 2px;
-    place-items: center;
-    gap: 3px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
-    border-radius: 9px;
+.practice-calendar-note-icon-toggle {
+    width: 100%;
+    min-height: 50px;
+    display: flex;
+    padding: 8px 12px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid rgba(229, 204, 139, 0.42);
+    border-radius: 10px;
     color: var(--port-gold-bright);
-    background: transparent;
+    background: rgba(5, 6, 6, 0.45);
     font: inherit;
-    font-size: min(calc(0.62rem * var(--font-scale)), 0.65rem);
+    font-size: calc(0.78rem * var(--font-scale));
+    font-weight: 620;
     cursor: pointer;
 }
 
-.practice-calendar-note-icons button span {
-    white-space: nowrap;
+.practice-calendar-note-icon-toggle > span:first-child,
+.practice-calendar-note-icons button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
-@media (max-width: 340px) {
-    .practice-calendar-note-icons {
-        margin-inline: -10px;
-    }
+.practice-calendar-note-icon-toggle svg {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 26px;
 }
 
-.practice-calendar-note-icons button[aria-pressed="true"] {
-    border-color: rgba(229, 204, 139, 0.34);
+.practice-calendar-dropdown-chevron {
+    font-size: 1.05rem;
+    transition: transform 0.12s ease;
+}
+
+.practice-calendar-note-icon-toggle[aria-expanded="true"] .practice-calendar-dropdown-chevron {
+    transform: rotate(180deg);
+}
+
+.practice-calendar-note-icons {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    left: 0;
+    z-index: 30;
+    max-height: min(410px, 55dvh);
+    padding: 5px;
+    overflow-y: auto;
+    border: 1px solid rgba(229, 204, 139, 0.48);
+    border-radius: 10px;
+    background: #0d0c09;
+    box-shadow: 0 14px 30px rgba(0, 0, 0, 0.48);
+}
+
+.practice-calendar-note-icons button {
+    width: 100%;
+    min-height: 44px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: 7px;
+    color: rgba(232, 219, 181, 0.9);
+    background: transparent;
+    font: inherit;
+    font-size: calc(0.75rem * var(--font-scale));
+    text-align: left;
+    cursor: pointer;
+}
+
+.practice-calendar-note-icons button::after {
+    margin-left: auto;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.08);
+    font-size: 1rem;
+    content: "";
+}
+
+.practice-calendar-note-icons button[aria-selected="true"] {
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.14);
+}
+
+.practice-calendar-note-icons button[aria-selected="true"]::after {
+    content: "✓";
 }
 
 .practice-calendar-note-icons svg {
-    width: 30px;
-    height: 30px;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+}
+
+.practice-calendar-note-time-field {
+    min-width: 0;
+    margin: 0 0 15px;
+    padding: 13px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 11px;
+}
+
+.practice-calendar-note-time-field legend {
+    padding: 0;
+    color: var(--port-text);
+    font-size: calc(0.78rem * var(--font-scale));
+    font-weight: 620;
+}
+
+.practice-calendar-note-times {
+    display: grid;
+    margin-top: 8px;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: end;
+    gap: 8px;
+}
+
+.practice-calendar-note-times > span {
+    padding-bottom: 14px;
+    color: var(--port-muted);
+}
+
+.practice-calendar-note-times label {
+    display: grid;
+    min-width: 0;
+    gap: 5px;
+    color: var(--port-muted);
+    font-size: calc(0.68rem * var(--font-scale));
+}
+
+.practice-calendar-note-times select {
+    width: 100%;
+    min-width: 0;
+    min-height: 48px;
+    color-scheme: dark;
 }
 
 #practice-calendar-note-form > label {
@@ -2950,12 +3101,6 @@ textarea:focus-visible {
     color: var(--port-text);
     font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
-}
-
-#practice-calendar-note-time {
-    min-height: 48px;
-    margin-bottom: 15px;
-    color-scheme: dark;
 }
 
 #practice-calendar-note-form textarea {
@@ -2970,10 +3115,10 @@ textarea:focus-visible {
     height: 132px;
 }
 
-#practice-calendar-note-form > div {
+.practice-calendar-note-form-actions {
     display: grid;
     margin-top: 10px;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 8px;
 }
 

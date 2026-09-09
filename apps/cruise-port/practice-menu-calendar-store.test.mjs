@@ -6,11 +6,13 @@ import {
     PRACTICE_CALENDAR_LIMITS,
     PRACTICE_CALENDAR_SCHEMA_VERSION,
     PRACTICE_CALENDAR_STORAGE_KEY,
+    PRACTICE_CALENDAR_TIME_OPTIONS,
     createEmptyPracticeCalendar,
     createPracticeCalendarNote,
     deletePracticeCalendarNote,
     getPracticeCalendarNotesForDate,
     isValidPracticeCalendarTime,
+    isValidPracticeCalendarTimeRange,
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
@@ -67,11 +69,11 @@ test('v1 notes migrate to v2 with the memo icon without rewriting raw storage', 
     assert.equal(storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY), raw);
 });
 
-test('all ten formal icons save and reload in the two-row order', () => {
+test('all ten formal icons save and reload in the dropdown order', () => {
     assert.deepEqual(PRACTICE_CALENDAR_ICONS.map(({value,label})=>[value,label]), [
         ['practice','練習'],['live','ライブ'],['rehearsal','リハ'],['studio','スタジオ'],
-        ['recording','録音'],['work','作業'],['string-change','弦交換'],['maintenance','メンテ'],
-        ['rest','休み'],['schedule','予定']
+        ['recording','録音'],['work','作業'],['rest','休み'],['schedule','予定'],
+        ['string-change','弦交換'],['maintenance','メンテ']
     ]);
     let calendar = createEmptyPracticeCalendar();
     PRACTICE_CALENDAR_ICONS.forEach(({ value }, index) => {
@@ -119,6 +121,52 @@ test('time edit can change and remove the field without changing schema', () => 
     assert.equal(Object.hasOwn(removed.calendar.notes[0], 'time'), false);
 });
 
+test('15 minute choices cover a local day and endTime stays optional', () => {
+    assert.equal(PRACTICE_CALENDAR_TIME_OPTIONS.length, 96);
+    assert.equal(PRACTICE_CALENDAR_TIME_OPTIONS[0], '00:00');
+    assert.equal(PRACTICE_CALENDAR_TIME_OPTIONS[1], '00:15');
+    assert.equal(PRACTICE_CALENDAR_TIME_OPTIONS.at(-1), '23:45');
+    const created = createPracticeCalendarNote(createEmptyPracticeCalendar(), {
+        localDate: '2026-10-02', text: 'ライブ', icon: 'live', time: '19:00', endTime: '21:00'
+    }, now);
+    assert.equal(created.ok, true);
+    assert.equal(created.note.time, '19:00');
+    assert.equal(created.note.endTime, '21:00');
+    assert.equal(created.calendar.version, 2);
+});
+
+test('endTime edits and removal preserve the established time field', () => {
+    const created = createPracticeCalendarNote(createEmptyPracticeCalendar(), {
+        localDate: '2026-10-02', text: 'ライブ', icon: 'live', time: '19:00', endTime: '21:00'
+    }, now);
+    const changed = updatePracticeCalendarNote(created.calendar, created.note.id, {
+        text: 'ライブ', icon: 'live', time: '19:00', endTime: '21:30'
+    }, new Date('2026-09-09T01:00:00Z'));
+    assert.equal(changed.calendar.notes[0].endTime, '21:30');
+    const endRemoved = updatePracticeCalendarNote(changed.calendar, created.note.id, {
+        text: 'ライブ', icon: 'live', time: '19:00', endTime: ''
+    }, new Date('2026-09-09T02:00:00Z'));
+    assert.equal(endRemoved.calendar.notes[0].time, '19:00');
+    assert.equal(Object.hasOwn(endRemoved.calendar.notes[0], 'endTime'), false);
+    const bothRemoved = updatePracticeCalendarNote(endRemoved.calendar, created.note.id, {
+        text: 'ライブ', icon: 'live', time: '', endTime: ''
+    }, new Date('2026-09-09T03:00:00Z'));
+    assert.equal(Object.hasOwn(bothRemoved.calendar.notes[0], 'time'), false);
+    assert.equal(Object.hasOwn(bothRemoved.calendar.notes[0], 'endTime'), false);
+});
+
+test('endTime requires a valid earlier start on the same local day', () => {
+    assert.equal(isValidPracticeCalendarTimeRange('', ''), true);
+    assert.equal(isValidPracticeCalendarTimeRange('19:00', ''), true);
+    assert.equal(isValidPracticeCalendarTimeRange('19:00', '21:00'), true);
+    for (const [time, endTime] of [['', '21:00'], ['19:00', '19:00'], ['21:00', '19:00'], ['19:00', '24:00']]) {
+        assert.equal(isValidPracticeCalendarTimeRange(time, endTime), false);
+        assert.equal(createPracticeCalendarNote(createEmptyPracticeCalendar(), {
+            localDate: '2026-10-02', text: '不正', icon: 'schedule', time, endTime
+        }, now).ok, false);
+    }
+});
+
 test('time validation rejects malformed values and preserves created order', () => {
     for (const valid of ['00:00', '09:05', '19:00', '23:59']) assert.equal(isValidPracticeCalendarTime(valid), true);
     for (const invalid of ['9:05', '24:00', '12:60', '19:00:00', 'UTC', 1900, null]) assert.equal(isValidPracticeCalendarTime(invalid), false);
@@ -145,6 +193,19 @@ test('legacy v2 records without time load without rewriting stored data', () => 
     assert.equal(Object.hasOwn(loaded.calendar.notes[0], 'time'), false);
     assert.equal(storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY), raw);
     assert.equal(PRACTICE_CALENDAR_SCHEMA_VERSION, 2);
+});
+
+test('SP6.9 time-only records remain start-time records without rewrite', () => {
+    const created = createPracticeCalendarNote(createEmptyPracticeCalendar(), {
+        localDate: '2026-10-02', text: '旧時刻', icon: 'schedule', time: '19:07'
+    }, now);
+    const raw = JSON.stringify(created.calendar);
+    const storage = new FakeStorage({ [PRACTICE_CALENDAR_STORAGE_KEY]: raw });
+    const loaded = loadPracticeCalendar(storage);
+    assert.equal(loaded.ok, true);
+    assert.equal(loaded.calendar.notes[0].time, '19:07');
+    assert.equal(Object.hasOwn(loaded.calendar.notes[0], 'endTime'), false);
+    assert.equal(storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY), raw);
 });
 
 test('legacy v2 memo remains readable and unmodified in storage', () => {

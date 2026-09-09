@@ -3,6 +3,11 @@ export const PRACTICE_CALENDAR_SCHEMA_VERSION = 2;
 export const PRACTICE_CALENDAR_STORAGE_KEY = 'cruisePort.practiceCalendar';
 export const PRACTICE_CALENDAR_LIMITS = Object.freeze({ notes: 1500, text: 500 });
 export const PRACTICE_CALENDAR_DEFAULT_ICON = 'schedule';
+export const PRACTICE_CALENDAR_TIME_OPTIONS = Object.freeze(Array.from({ length: 96 }, (_, index) => {
+    const hours = Math.floor(index / 4);
+    const minutes = (index % 4) * 15;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}));
 export const PRACTICE_CALENDAR_ICONS = Object.freeze([
     Object.freeze({ value: 'practice', label: '練習' }),
     Object.freeze({ value: 'live', label: 'ライブ' }),
@@ -10,10 +15,10 @@ export const PRACTICE_CALENDAR_ICONS = Object.freeze([
     Object.freeze({ value: 'studio', label: 'スタジオ' }),
     Object.freeze({ value: 'recording', label: '録音' }),
     Object.freeze({ value: 'work', label: '作業' }),
-    Object.freeze({ value: 'string-change', label: '弦交換' }),
-    Object.freeze({ value: 'maintenance', label: 'メンテ' }),
     Object.freeze({ value: 'rest', label: '休み' }),
-    Object.freeze({ value: 'schedule', label: '予定' })
+    Object.freeze({ value: 'schedule', label: '予定' }),
+    Object.freeze({ value: 'string-change', label: '弦交換' }),
+    Object.freeze({ value: 'maintenance', label: 'メンテ' })
 ]);
 
 // Keep legacy memo valid without rewriting stored records.
@@ -42,6 +47,13 @@ export function isValidPracticeCalendarTime(value) {
     return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
 }
 
+export function isValidPracticeCalendarTimeRange(time, endTime) {
+    if (endTime === undefined || endTime === null || endTime === '') return true;
+    return isValidPracticeCalendarTime(time)
+        && isValidPracticeCalendarTime(endTime)
+        && endTime > time;
+}
+
 function normalizePracticeCalendarTime(value) {
     if (value === undefined || value === null || value === '') return { ok: true, time: null };
     return isValidPracticeCalendarTime(value)
@@ -63,6 +75,8 @@ function isValidNote(note, version = PRACTICE_CALENDAR_SCHEMA_VERSION) {
         && note.text.trim() === note.text
         && note.text.length <= PRACTICE_CALENDAR_LIMITS.text
         && (note.time === undefined || note.time === null || isValidPracticeCalendarTime(note.time))
+        && (note.endTime === undefined || note.endTime === null || isValidPracticeCalendarTime(note.endTime))
+        && isValidPracticeCalendarTimeRange(note.time, note.endTime)
         && (version === 1 || PRACTICE_CALENDAR_ICON_VALUES.has(note.icon))
         && isIsoDate(note.createdAt)
         && isIsoDate(note.updatedAt)
@@ -136,14 +150,23 @@ export function savePracticeCalendar(calendar, storage) {
     }
 }
 
-export function createPracticeCalendarNote(calendar, { localDate, text, icon = PRACTICE_CALENDAR_DEFAULT_ICON, time = null }, now = new Date()) {
+export function createPracticeCalendarNote(calendar, {
+    localDate,
+    text,
+    icon = PRACTICE_CALENDAR_DEFAULT_ICON,
+    time = null,
+    endTime = null
+}, now = new Date()) {
     const normalizedText = typeof text === 'string' ? text.trim() : '';
     const normalizedTime = normalizePracticeCalendarTime(time);
+    const normalizedEndTime = normalizePracticeCalendarTime(endTime);
     if (
         !isValidPracticeLocalDate(localDate)
         || !normalizedText
         || normalizedText.length > PRACTICE_CALENDAR_LIMITS.text
         || !normalizedTime.ok
+        || !normalizedEndTime.ok
+        || !isValidPracticeCalendarTimeRange(normalizedTime.time, normalizedEndTime.time)
         || !PRACTICE_CALENDAR_ICON_VALUES.has(icon)
     ) {
         return { ok: false, calendar: cloneCalendar(calendar), reason: 'invalid-values' };
@@ -158,6 +181,7 @@ export function createPracticeCalendarNote(calendar, { localDate, text, icon = P
         text: normalizedText,
         icon,
         ...(normalizedTime.time === null ? {} : { time: normalizedTime.time }),
+        ...(normalizedEndTime.time === null ? {} : { endTime: normalizedEndTime.time }),
         createdAt: timestamp,
         updatedAt: timestamp
     };
@@ -173,12 +197,18 @@ export function updatePracticeCalendarNote(calendar, id, values, now = new Date(
     const time = typeof values === 'string' || !Object.prototype.hasOwnProperty.call(values || {}, 'time')
         ? current.time
         : values.time;
+    const endTime = typeof values === 'string' || !Object.prototype.hasOwnProperty.call(values || {}, 'endTime')
+        ? current.endTime
+        : values.endTime;
     const normalizedText = typeof text === 'string' ? text.trim() : '';
     const normalizedTime = normalizePracticeCalendarTime(time);
+    const normalizedEndTime = normalizePracticeCalendarTime(endTime);
     if (
         !normalizedText
         || normalizedText.length > PRACTICE_CALENDAR_LIMITS.text
         || !normalizedTime.ok
+        || !normalizedEndTime.ok
+        || !isValidPracticeCalendarTimeRange(normalizedTime.time, normalizedEndTime.time)
         || !PRACTICE_CALENDAR_ICON_VALUES.has(icon)
     ) {
         return { ok: false, calendar: cloneCalendar(calendar), reason: 'invalid-values' };
@@ -188,6 +218,8 @@ export function updatePracticeCalendarNote(calendar, id, values, now = new Date(
         const updated = { ...note, text: normalizedText, icon, updatedAt: now.toISOString() };
         if (normalizedTime.time === null) delete updated.time;
         else updated.time = normalizedTime.time;
+        if (normalizedEndTime.time === null) delete updated.endTime;
+        else updated.endTime = normalizedEndTime.time;
         return updated;
     });
     return { ok: true, calendar: { version: PRACTICE_CALENDAR_SCHEMA_VERSION, notes } };

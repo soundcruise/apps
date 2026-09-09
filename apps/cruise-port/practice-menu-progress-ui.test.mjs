@@ -8,7 +8,7 @@ const styles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
 assert.doesNotMatch(markup, /保存した練習メニューを選ぶと、内容を確認して使用アプリを開けます。/);
 assert.doesNotMatch(markup, /practice-complete-count|コンプリート回数/);
 assert.match(markup, /id="practice-history-open"/);
-assert.match(markup, /id="practice-history-open"[\s\S]*練習カレンダー/);
+assert.match(markup, /id="practice-history-open"[\s\S]*音楽カレンダー/);
 assert.match(markup, /id="practice-timer-toggle"[\s\S]*練習スタート/);
 assert.match(markup, /id="practice-hidden-open"/);
 assert.doesNotMatch(markup, /id="practice-complete"/);
@@ -19,7 +19,7 @@ assert.match(markup, /id="practice-completion-dialog"[^>]*role="dialog"[^>]*aria
 assert.doesNotMatch(`${markup}\n${source}\n${styles}`, /confetti/i);
 assert.match(markup, /class="practice-completion-sparkles"[^>]*aria-hidden="true"/);
 assert.match(markup, /id="practice-completion-end"[^>]*>練習を終了する/);
-assert.match(markup, /id="practice-completion-calendar"[^>]*>練習カレンダーを見る/);
+assert.match(markup, /id="practice-completion-calendar"[^>]*>音楽カレンダーを見る/);
 assert.match(markup, /お疲れさまでした！/);
 
 assert.match(markup, /id="practice-hidden-view"/);
@@ -34,6 +34,9 @@ assert.match(markup, /data-calendar-view="day"[^>]*>日/);
 assert.match(markup, /id="practice-calendar-day-focus"/);
 assert.match(markup, /id="practice-calendar-note-add"/);
 assert.match(markup, /id="practice-calendar-note-icons"/);
+assert.match(markup, /id="practice-calendar-note-icon-toggle"[^>]*aria-haspopup="listbox"/);
+assert.match(markup, /id="practice-calendar-note-time"/);
+assert.match(markup, /id="practice-calendar-note-end-time"/);
 assert.match(markup, /id="practice-calendar-note-text"[^>]*maxlength="500"/);
 assert.match(markup, /id="practice-calendar-note-form"[^>]*data-keyboard-scroll-target="calendar-note-form"/);
 assert.match(markup, /<span>日<\/span><span>月<\/span><span>火<\/span><span>水<\/span><span>木<\/span><span>金<\/span><span>土<\/span>/);
