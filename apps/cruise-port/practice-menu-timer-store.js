@@ -112,6 +112,7 @@ export function formatPracticeSessionDuration(totalSeconds) {
     if (safeSeconds < 60) return `${safeSeconds}秒`;
     const hours = Math.floor(safeSeconds / 3600);
     const minutes = Math.floor((safeSeconds % 3600) / 60);
-    if (hours === 0) return `${minutes}分`;
-    return minutes ? `${hours}時間${minutes}分` : `${hours}時間`;
+    const seconds = safeSeconds % 60;
+    if (hours === 0) return `${minutes}分${String(seconds).padStart(2, '0')}秒`;
+    return `${hours}時間${String(minutes).padStart(2, '0')}分${String(seconds).padStart(2, '0')}秒`;
 }

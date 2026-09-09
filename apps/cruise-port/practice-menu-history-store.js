@@ -219,6 +219,11 @@ export function appendPracticeHistoryEvent(history, event) {
             event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession
             && current.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession
             && current.sessionId === event.sessionId
+        )
+        || (
+            event.type === PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted
+            && current.type === PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted
+            && current.cycleId === event.cycleId
         ));
     if (duplicate) return { ok: true, history: cloneHistory(history), duplicate: true };
     const events = [...history.events, { ...event }].slice(-PRACTICE_HISTORY_MAX_EVENTS);
@@ -245,10 +250,20 @@ export function createPracticeDayHistoryView(history, localDate) {
         children.push({ event, stableIndex });
         childrenBySessionId.set(event.sessionId, children);
     });
-    childrenBySessionId.forEach((children) => children.sort((first, second) => (
-        first.event.timestamp.localeCompare(second.event.timestamp)
-        || first.stableIndex - second.stableIndex
-    )));
+    childrenBySessionId.forEach((children, sessionId) => {
+        const session = sessionsById.get(sessionId);
+        let previousTimestamp = Date.parse(session.startedAt);
+        const endedTimestamp = Date.parse(session.endedAt);
+        children.sort((first, second) => (
+            first.event.timestamp.localeCompare(second.event.timestamp)
+            || first.stableIndex - second.stableIndex
+        ));
+        children.forEach((child) => {
+            const checkedTimestamp = Math.min(endedTimestamp, Math.max(previousTimestamp, Date.parse(child.event.timestamp)));
+            child.measuredDurationSeconds = Math.floor((checkedTimestamp - previousTimestamp) / 1000);
+            previousTimestamp = checkedTimestamp;
+        });
+    });
 
     return getPracticeHistoryForDate(history, localDate)
         .filter((event) => !(
@@ -260,7 +275,10 @@ export function createPracticeDayHistoryView(history, localDate) {
             ? {
                 kind: 'session',
                 event,
-                children: (childrenBySessionId.get(event.sessionId) || []).map(({ event: child }) => child)
+                children: (childrenBySessionId.get(event.sessionId) || []).map(({ event: child, measuredDurationSeconds }) => ({
+                    ...child,
+                    measuredDurationSeconds
+                }))
             }
             : { kind: 'event', event, children: [] });
 }

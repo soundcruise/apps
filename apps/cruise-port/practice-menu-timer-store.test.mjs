@@ -36,7 +36,9 @@ test('elapsed uses timestamps across background/reload and formats long sessions
     const timer = startPracticeTimer(createStoppedPracticeTimer(), start).timer;
     assert.equal(getPracticeTimerElapsedSeconds(timer, new Date(start.getTime() + 3723000)), 3723);
     assert.equal(formatPracticeTimerDuration(3723), '1:02:03');
-    assert.equal(formatPracticeSessionDuration(3723), '1時間2分');
+    assert.equal(formatPracticeSessionDuration(42), '42秒');
+    assert.equal(formatPracticeSessionDuration(728), '12分08秒');
+    assert.equal(formatPracticeSessionDuration(3723), '1時間02分03秒');
 });
 
 test('future clock, malformed values, and extreme elapsed clamp safely', () => {

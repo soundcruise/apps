@@ -60,6 +60,12 @@ test('cycle completion event is distinct and date grouping keeps both event type
     history = appendPracticeHistoryEvent(history, createCycleCompletedEvent('cycle-a', now)).history;
     const events = getPracticeHistoryForDate(history, '2026-09-08');
     assert.deepEqual(events.map((event) => event.type), ['practice-completed', 'cycle-completed']);
+    const duplicate = appendPracticeHistoryEvent(
+        history,
+        { ...createCycleCompletedEvent('cycle-a', new Date(2026, 8, 8, 10, 1)), id: 'different-event-id' }
+    );
+    assert.equal(duplicate.duplicate, true);
+    assert.equal(duplicate.history.events.length, 2);
 });
 
 test('timer session history stores bounded timestamps and appears with existing events', () => {
@@ -125,7 +131,42 @@ test('session view groups matching practices in timestamp order without duplicat
     assert.equal(history.events.length, 4);
     assert.deepEqual(view.map(({ kind }) => kind), ['session', 'event']);
     assert.deepEqual(view[0].children.map(({ practiceName }) => practiceName), ['コードフォーム練習', 'リズム練習']);
+    assert.deepEqual(view[0].children.map(({ measuredDurationSeconds }) => measuredDurationSeconds), [300, 300]);
     assert.equal(view[1].event.practiceName, 'タイマー外');
+    assert.equal(Object.hasOwn(view[1].event, 'measuredDurationSeconds'), false);
+    assert.equal(Object.hasOwn(first, 'measuredDurationSeconds'), false);
+    assert.equal(Object.hasOwn(history.events.find(({ id }) => id === first.id), 'measuredDurationSeconds'), false);
+});
+
+test('measured child durations retain seconds, timestamp order, and may differ from session total', () => {
+    const sessionId = 'session-duration-boundaries';
+    const first = createPracticeCompletedEvent(
+        { ...item, id: 'practice-short', name: '短い練習' },
+        'cycle-duration',
+        new Date('2026-09-08T01:00:42.000Z'),
+        sessionId
+    );
+    const second = createPracticeCompletedEvent(
+        { ...item, id: 'practice-long', name: '長い練習' },
+        'cycle-duration',
+        new Date('2026-09-08T02:04:06.000Z'),
+        sessionId
+    );
+    const session = createPracticeSessionEvent({
+        sessionId,
+        startedAt: '2026-09-08T01:00:00.000Z',
+        endedAt: '2026-09-08T02:10:00.000Z',
+        durationSeconds: 4200
+    });
+    let history = createEmptyPracticeHistory();
+    [second, session, first].forEach((event) => {
+        history = appendPracticeHistoryEvent(history, event).history;
+    });
+    const [entry] = createPracticeDayHistoryView(history, '2026-09-08');
+    assert.deepEqual(entry.children.map(({ practiceName }) => practiceName), ['短い練習', '長い練習']);
+    assert.deepEqual(entry.children.map(({ measuredDurationSeconds }) => measuredDurationSeconds), [42, 3804]);
+    assert.equal(entry.children.reduce((sum, child) => sum + child.measuredDurationSeconds, 0), 3846);
+    assert.equal(entry.event.durationSeconds, 4200);
 });
 
 test('unmatched running-session completion remains visible until its session event exists', () => {

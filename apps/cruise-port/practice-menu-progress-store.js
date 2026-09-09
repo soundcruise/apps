@@ -1,5 +1,10 @@
-export const PRACTICE_PROGRESS_SCHEMA_VERSION = 2;
+export const PRACTICE_PROGRESS_SCHEMA_VERSION = 3;
 export const PRACTICE_PROGRESS_STORAGE_KEY = 'cruisePort.practiceProgress';
+
+export const PRACTICE_COMPLETION_TYPE = Object.freeze({
+    complete: 'complete',
+    partial: 'partial'
+});
 
 const MAX_COUNT = Number.MAX_SAFE_INTEGER;
 
@@ -16,7 +21,8 @@ export function createEmptyPracticeProgress(now = new Date()) {
         cycleId: createCycleId(now),
         checkedPracticeIds: [],
         countedPracticeIds: [],
-        totalCounts: {}
+        totalCounts: {},
+        completionPending: null
     };
 }
 
@@ -28,6 +34,23 @@ function hasUniqueStrings(values) {
 
 function isValidCount(value) {
     return Number.isSafeInteger(value) && value >= 0 && value <= MAX_COUNT;
+}
+
+function isIsoDate(value) {
+    return typeof value === 'string'
+        && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)
+        && !Number.isNaN(Date.parse(value));
+}
+
+function isValidCompletionPending(value, cycleId) {
+    return value === null || Boolean(
+        value
+        && typeof value === 'object'
+        && !Array.isArray(value)
+        && Object.values(PRACTICE_COMPLETION_TYPE).includes(value.type)
+        && value.cycleId === cycleId
+        && isIsoDate(value.createdAt)
+    );
 }
 
 function isValidPracticeProgressVersion(progress, version) {
@@ -47,6 +70,7 @@ function isValidPracticeProgressVersion(progress, version) {
         && !Array.isArray(progress.totalCounts)
         && Object.entries(progress.totalCounts).every(([id, count]) => id.length > 0 && isValidCount(count))
         && progress.countedPracticeIds.every((id) => Object.hasOwn(progress.totalCounts, id))
+        && (version < 3 || isValidCompletionPending(progress.completionPending, progress.cycleId))
         && (version !== 1 || isValidCount(progress.completeCount))
     );
 }
@@ -61,7 +85,12 @@ function cloneProgress(progress) {
         cycleId: progress.cycleId,
         checkedPracticeIds: [...progress.checkedPracticeIds],
         countedPracticeIds: [...progress.countedPracticeIds],
-        totalCounts: { ...progress.totalCounts }
+        totalCounts: { ...progress.totalCounts },
+        completionPending: progress.version >= 3
+            && isValidCompletionPending(progress.completionPending, progress.cycleId)
+            && progress.completionPending
+            ? { ...progress.completionPending }
+            : null
     };
 }
 
@@ -72,7 +101,8 @@ export function loadPracticeProgress(storage = window.localStorage, now = new Da
         if (rawValue === null) return { ok: true, progress: fallback };
         const parsed = JSON.parse(rawValue);
         const current = isValidPracticeProgress(parsed);
-        const legacy = isValidPracticeProgressVersion(parsed, 1);
+        const legacy = isValidPracticeProgressVersion(parsed, 1)
+            || isValidPracticeProgressVersion(parsed, 2);
         if (!current && !legacy) {
             return { ok: false, progress: fallback, reason: 'invalid-data' };
         }
@@ -104,6 +134,7 @@ export function savePracticeProgress(progress, storage = window.localStorage) {
 
 export function setPracticeChecked(progress, practiceId, checked) {
     const next = cloneProgress(progress);
+    if (next.completionPending) return { progress: next, countAdded: false, changed: false };
     const wasChecked = next.checkedPracticeIds.includes(practiceId);
     const wasCounted = next.countedPracticeIds.includes(practiceId);
 
@@ -125,7 +156,8 @@ export function startNextPracticeCycle(progress, now = new Date()) {
         ...cloneProgress(progress),
         cycleId: createCycleId(now),
         checkedPracticeIds: [],
-        countedPracticeIds: []
+        countedPracticeIds: [],
+        completionPending: null
     };
 }
 
@@ -135,12 +167,36 @@ export function canCompletePracticeCycle(progress, activePracticeIds) {
         && activePracticeIds.every((id) => progress.checkedPracticeIds.includes(id));
 }
 
-export function completePracticeCycle(progress, activePracticeIds, now = new Date()) {
-    if (!canCompletePracticeCycle(progress, activePracticeIds)) {
-        return { completed: false, progress: cloneProgress(progress) };
+export function beginPracticeCompletion(progress, type, activePracticeIds = [], now = new Date()) {
+    const next = cloneProgress(progress);
+    if (next.completionPending) {
+        return { started: false, duplicate: true, progress: next };
     }
-    const next = startNextPracticeCycle(progress, now);
-    return { completed: true, completedCycleId: progress.cycleId, progress: next };
+    if (
+        !Object.values(PRACTICE_COMPLETION_TYPE).includes(type)
+        || (type === PRACTICE_COMPLETION_TYPE.complete && !canCompletePracticeCycle(next, activePracticeIds))
+    ) {
+        return { started: false, duplicate: false, progress: next };
+    }
+    next.completionPending = {
+        type,
+        cycleId: next.cycleId,
+        createdAt: now.toISOString()
+    };
+    return { started: true, duplicate: false, progress: next };
+}
+
+export function finishPracticeCompletion(progress, now = new Date()) {
+    const current = cloneProgress(progress);
+    if (!current.completionPending) {
+        return { finished: false, completionType: null, completedCycleId: null, progress: current };
+    }
+    return {
+        finished: true,
+        completionType: current.completionPending.type,
+        completedCycleId: current.cycleId,
+        progress: startNextPracticeCycle(current, now)
+    };
 }
 
 export function clearPracticeCurrentCheck(progress, practiceId) {

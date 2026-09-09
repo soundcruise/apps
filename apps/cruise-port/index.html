@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.22.0">
+    <link rel="stylesheet" href="./style.css?v=1.23.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=2.2.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=2.3.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -258,13 +258,8 @@
                     </button>
                 </div>
                 <div class="practice-cycle-actions">
-                    <button id="practice-complete" class="action-button primary-action" type="button" disabled>全部完了</button>
+                    <button id="practice-finish" class="practice-finish-action" type="button" disabled>ここで練習終了</button>
                     <button id="practice-cycle-reset" class="practice-quiet-action" type="button" disabled>チェックをすべてリセット</button>
-                </div>
-                <div id="practice-completion-celebration" class="practice-completion-celebration" role="status" aria-live="polite" hidden>
-                    <span aria-hidden="true">✓</span>
-                    <strong>お疲れさまでした</strong>
-                    <small>今日の練習を完了しました</small>
                 </div>
             </section>
         </main>
@@ -309,7 +304,7 @@
                     </div>
                     <p id="practice-calendar-notes-empty" class="practice-calendar-section-empty">予定・メモはありません。</p>
                     <div id="practice-calendar-notes-list"></div>
-                    <form id="practice-calendar-note-form" hidden>
+                    <form id="practice-calendar-note-form" data-keyboard-scroll-target="calendar-note-form" hidden>
                         <fieldset class="practice-calendar-note-icon-field">
                             <legend>表示アイコン</legend>
                             <div id="practice-calendar-note-icons" class="practice-calendar-note-icons" role="group" aria-label="表示アイコン"></div>
@@ -425,7 +420,7 @@
                         <label class="practice-hidden-toggle" for="practice-hidden">
                             <span>
                                 <strong>非表示</strong>
-                                <small>通常の一覧と「全部完了」の対象から外します。</small>
+                                <small>通常の一覧と自動完了の対象から外します。</small>
                             </span>
                             <input id="practice-hidden" name="hidden" type="checkbox">
                         </label>
@@ -922,6 +917,19 @@
                     <button id="practice-attachment-lightbox-close" type="button" aria-label="プレビューを閉じる">×</button>
                 </div>
                 <img id="practice-attachment-lightbox-image" alt="">
+            </section>
+        </div>
+        <div id="practice-completion-dialog" class="practice-completion-dialog" role="dialog" aria-modal="true" aria-labelledby="practice-completion-title" aria-describedby="practice-completion-description" hidden>
+            <div id="practice-completion-confetti" class="practice-completion-confetti" aria-hidden="true"></div>
+            <section class="practice-completion-panel">
+                <span class="practice-completion-mark" aria-hidden="true">✓</span>
+                <h2 id="practice-completion-title" tabindex="-1">お疲れさまでした！</h2>
+                <p id="practice-completion-description">今日の練習メニューをすべて完了しました。</p>
+                <p id="practice-completion-error" class="notice notice-error" role="alert" hidden></p>
+                <div class="practice-completion-actions">
+                    <button id="practice-completion-end" class="action-button primary-action" type="button">練習を終了する</button>
+                    <button id="practice-completion-calendar" class="action-button secondary-action" type="button">練習カレンダーを見る</button>
+                </div>
             </section>
         </div>
         <div class="port-global-refresh-bar" aria-label="バージョンとページの再読み込み">

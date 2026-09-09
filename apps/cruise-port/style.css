@@ -732,60 +732,152 @@ h1::after {
     margin: 0;
 }
 
-.practice-cycle-actions .action-button:disabled,
+.practice-finish-action {
+    min-height: 46px;
+    padding: 9px 12px;
+    border: 1px solid rgba(207, 189, 148, 0.16);
+    border-radius: 10px;
+    color: rgba(232, 219, 181, 0.88);
+    background: rgba(205, 180, 116, 0.025);
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 620;
+    cursor: pointer;
+}
+
+.practice-finish-action:hover {
+    border-color: rgba(229, 204, 139, 0.26);
+    background: rgba(205, 180, 116, 0.055);
+}
+
+.practice-finish-action:disabled,
 .practice-quiet-action:disabled,
 .practice-overview-links button:disabled {
     cursor: not-allowed;
     opacity: 0.38;
 }
 
-.practice-completion-celebration {
+.practice-completion-dialog {
     position: fixed;
-    z-index: 140;
-    top: max(110px, calc(env(safe-area-inset-top) + 82px));
-    left: 50%;
-    width: min(calc(100% - 48px), 310px);
+    z-index: 220;
+    inset: 0;
     display: grid;
-    padding: 19px 22px;
+    padding: max(20px, env(safe-area-inset-top)) 20px max(20px, env(safe-area-inset-bottom));
     place-items: center;
-    border: 1px solid rgba(229, 204, 139, 0.3);
-    border-radius: 16px;
-    background: rgba(16, 15, 12, 0.96);
-    box-shadow: 0 18px 44px rgba(0, 0, 0, 0.48);
-    text-align: center;
-    transform: translateX(-50%);
-    animation: practice-complete-in 220ms ease-out both;
+    background: rgba(5, 5, 4, 0.74);
+    overscroll-behavior: contain;
+    touch-action: none;
 }
 
-.practice-completion-celebration[hidden] {
+.practice-completion-dialog[hidden] {
     display: none;
 }
 
-.practice-completion-celebration > span {
-    width: 32px;
-    height: 32px;
+.practice-completion-panel {
+    position: relative;
+    z-index: 2;
+    width: min(100%, 360px);
+    max-height: calc(100dvh - 40px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
     display: grid;
-    margin-bottom: 8px;
+    padding: 27px 24px 22px;
     place-items: center;
-    border: 1px solid rgba(229, 204, 139, 0.44);
+    overflow-y: auto;
+    border: 1px solid rgba(229, 204, 139, 0.3);
+    border-radius: 19px;
+    background: linear-gradient(155deg, rgba(31, 28, 21, 0.99), rgba(14, 14, 12, 0.99));
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.58), 0 0 42px rgba(205, 180, 116, 0.08);
+    text-align: center;
+    animation: practice-completion-panel-in 240ms ease-out both;
+}
+
+.practice-completion-mark {
+    width: 44px;
+    height: 44px;
+    display: grid;
+    margin-bottom: 12px;
+    place-items: center;
+    border: 1px solid rgba(229, 204, 139, 0.52);
     border-radius: 50%;
     color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.07);
+    box-shadow: 0 0 28px rgba(205, 180, 116, 0.13);
+    font-size: 1.12rem;
 }
 
-.practice-completion-celebration strong {
+.practice-completion-panel h2 {
+    margin: 0;
     color: var(--port-text);
-    font-size: 0.94rem;
+    font-size: 1.08rem;
+    font-weight: 650;
 }
 
-.practice-completion-celebration small {
-    margin-top: 4px;
+.practice-completion-panel > p:not(.notice) {
+    margin: 8px 0 0;
     color: var(--port-muted);
-    font-size: 0.7rem;
+    font-size: 0.79rem;
+    line-height: 1.65;
 }
 
-@keyframes practice-complete-in {
-    from { opacity: 0; transform: translate(-50%, -5px) scale(0.98); }
-    to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+#practice-completion-error {
+    width: 100%;
+    margin: 12px 0 0;
+}
+
+.practice-completion-actions {
+    width: 100%;
+    display: grid;
+    margin-top: 20px;
+    gap: 9px;
+}
+
+.practice-completion-actions .action-button {
+    min-height: 48px;
+    margin: 0;
+}
+
+.practice-completion-dialog.is-partial .practice-completion-panel {
+    box-shadow: 0 25px 64px rgba(0, 0, 0, 0.54);
+}
+
+.practice-completion-dialog.is-partial .practice-completion-mark {
+    box-shadow: none;
+}
+
+.practice-completion-confetti {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.practice-completion-confetti i {
+    position: absolute;
+    top: -7vh;
+    left: var(--confetti-x);
+    width: 7px;
+    height: 13px;
+    border-radius: 2px;
+    background: var(--confetti-color);
+    opacity: 0;
+    animation: practice-confetti-fall var(--confetti-duration) cubic-bezier(0.18, 0.75, 0.32, 1) var(--confetti-delay) both;
+}
+
+.practice-completion-confetti i:nth-child(3n) {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+}
+
+@keyframes practice-completion-panel-in {
+    from { opacity: 0; transform: translateY(-7px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes practice-confetti-fall {
+    0% { opacity: 0; transform: translate3d(0, -4vh, 0) rotate(0deg); }
+    12% { opacity: 0.9; }
+    100% { opacity: 0; transform: translate3d(var(--confetti-drift), 108vh, 0) rotate(var(--confetti-rotate)); }
 }
 
 .reorder-card {
@@ -1728,6 +1820,7 @@ body.gear-photo-lightbox-open {
 .practice-launch:focus-visible,
 .practice-files-button:focus-visible,
 .practice-overview-links button:focus-visible,
+.practice-finish-action:focus-visible,
 .practice-quiet-action:focus-visible,
 .practice-calendar-heading button:focus-visible,
 .practice-calendar-view-tabs button:focus-visible,
@@ -2454,7 +2547,7 @@ textarea:focus-visible {
 .practice-calendar-weekdays span {
     padding: 8px 0 7px;
     color: rgba(180, 174, 158, 0.76);
-    font-size: 0.72rem;
+    font-size: 0.8rem;
     font-weight: 560;
     text-align: center;
 }
@@ -2477,7 +2570,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.86rem;
+    font-size: 0.96rem;
     font-weight: 560;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
@@ -2775,14 +2868,15 @@ textarea:focus-visible {
 
 .practice-history-event strong {
     color: var(--port-text);
-    font-size: 0.8rem;
-    font-weight: 590;
+    font-size: 0.94rem;
+    font-weight: 610;
     overflow-wrap: anywhere;
 }
 
 .practice-history-event small {
     color: var(--port-muted);
-    font-size: 0.68rem;
+    font-size: 0.86rem;
+    line-height: 1.5;
 }
 
 .practice-history-event.is-cycle-complete {
@@ -2811,12 +2905,23 @@ textarea:focus-visible {
     grid-template-columns: 18px minmax(0, 1fr);
     gap: 5px;
     color: var(--port-text);
-    font-size: 0.76rem;
-    line-height: 1.45;
+    font-size: 0.9rem;
+    line-height: 1.5;
 }
 
 .practice-history-session-children li > span:first-child {
     color: var(--port-gold-bright);
+}
+
+.practice-history-session-children li > span:last-child {
+    display: grid;
+    gap: 1px;
+}
+
+.practice-history-session-duration {
+    color: var(--port-muted);
+    font-size: 0.86rem;
+    font-variant-numeric: tabular-nums;
 }
 
 .practice-detail-app-row {
@@ -4685,7 +4790,11 @@ body.metronome-preset-open {
         transition: none;
     }
 
-    .practice-completion-celebration {
+    .practice-completion-panel {
         animation: none;
+    }
+
+    .practice-completion-confetti {
+        display: none;
     }
 }

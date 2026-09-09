@@ -8,16 +8,18 @@ import {
     updatePracticeMenu
 } from './practice-menu-store.js?v=3.0.2';
 import {
+    PRACTICE_COMPLETION_TYPE,
+    beginPracticeCompletion,
     canCompletePracticeCycle,
     clearPracticeCurrentCheck,
-    completePracticeCycle,
+    finishPracticeCompletion,
     loadPracticeProgress,
     removePracticeFromProgress,
     resetPracticeTotalCount,
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=2.0.0';
+} from './practice-menu-progress-store.js?v=3.0.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -30,7 +32,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=3.0.0';
+} from './practice-menu-history-store.js?v=3.1.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
     PRACTICE_CALENDAR_ICONS,
@@ -50,7 +52,7 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=1.0.0';
+} from './practice-menu-timer-store.js?v=1.1.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -133,7 +135,7 @@ import { initMetronome } from './metronome-app.js?v=2.3.1';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.22.0';
+} from './app-version.js?v=1.23.0';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
 import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=1.0.1';
 import { initTuner } from './tuner-app.js?v=1.2.0';
@@ -245,9 +247,15 @@ const elements = {
     timerLabel: document.querySelector('#practice-timer-label'),
     timerDisplay: document.querySelector('#practice-timer-display'),
     timerStatus: document.querySelector('#practice-timer-status'),
-    completeButton: document.querySelector('#practice-complete'),
+    finishButton: document.querySelector('#practice-finish'),
     cycleReset: document.querySelector('#practice-cycle-reset'),
-    completionCelebration: document.querySelector('#practice-completion-celebration'),
+    completionDialog: document.querySelector('#practice-completion-dialog'),
+    completionConfetti: document.querySelector('#practice-completion-confetti'),
+    completionTitle: document.querySelector('#practice-completion-title'),
+    completionDescription: document.querySelector('#practice-completion-description'),
+    completionError: document.querySelector('#practice-completion-error'),
+    completionEnd: document.querySelector('#practice-completion-end'),
+    completionCalendar: document.querySelector('#practice-completion-calendar'),
     hiddenTitle: document.querySelector('#practice-hidden-title'),
     hiddenList: document.querySelector('#practice-hidden-list'),
     hiddenEmpty: document.querySelector('#practice-hidden-empty'),
@@ -397,8 +405,11 @@ const state = {
     historyMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     historySelectedDate: toLocalDateKey(),
     calendarViewMode: 'month',
-    completionTimer: null,
-    completing: false
+    completionConfettiTimer: null,
+    completionConfettiCycleId: null,
+    completionActionInProgress: false,
+    calendarKeyboardFrame: null,
+    calendarKeyboardActive: false
 };
 
 const myAppsState = {
@@ -533,6 +544,8 @@ function cleanupMyAppsFormState() {
 }
 
 function showView(view) {
+    const viewChanged = view.hidden;
+    if (view !== elements.practiceHistoryView) cleanupPracticeCalendarKeyboardTracking();
     if (view !== elements.homeView) cleanupMyAppsObjectUrls('home');
     if (view !== elements.myAppsManageView) cleanupMyAppsObjectUrls('manage');
     if (view !== elements.myAppsFormView) cleanupMyAppsFormState();
@@ -543,7 +556,6 @@ function showView(view) {
         closePracticeAttachmentLightbox();
         cleanupPracticeAttachmentObjectUrls();
     }
-    if (view !== elements.practiceListView) elements.completionCelebration.hidden = true;
     [
         elements.homeView,
         elements.settingsView,
@@ -565,7 +577,7 @@ function showView(view) {
         });
     metronomeController?.setActive(view === elements.metronomeView);
     tunerController?.setActive(view === elements.tunerView);
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    if (viewChanged) window.scrollTo({ top: 0, behavior: 'auto' });
 }
 
 function findItem(id) {
@@ -665,7 +677,10 @@ function renderPracticeCard(item) {
     checkButton.dataset.id = item.id;
     checkButton.setAttribute('aria-label', `${item.name}を${checked ? '未完了に戻す' : '完了にする'}`);
     checkButton.setAttribute('aria-pressed', checked ? 'true' : 'false');
-    checkButton.disabled = !state.storageReady || !state.progressReady || !state.historyReady;
+    checkButton.disabled = !state.storageReady
+        || !state.progressReady
+        || !state.historyReady
+        || Boolean(state.progress?.completionPending);
     checkButton.textContent = checked ? '✓' : '';
     detailLink.className = 'practice-card-link';
     detailLink.href = `#practice-menu/${encodeURIComponent(item.id)}`;
@@ -1745,7 +1760,9 @@ function persistPracticeCalendar(nextCalendar) {
 function updatePracticeTimerDisplay() {
     const running = Boolean(state.timerReady && state.timer?.running);
     const elapsedSeconds = running ? getPracticeTimerElapsedSeconds(state.timer) : 0;
-    elements.timerToggle.disabled = !state.timerReady || !state.historyReady;
+    elements.timerToggle.disabled = !state.timerReady
+        || !state.historyReady
+        || Boolean(state.progress?.completionPending);
     elements.timerToggle.classList.toggle('is-running', running);
     elements.timerToggle.setAttribute('aria-label', running ? '練習を終了する' : '練習タイマーを開始する');
     elements.timerIcon.textContent = running ? '■' : '▶';
@@ -1763,8 +1780,36 @@ function ensurePracticeTimerTicking() {
     state.timerInterval = window.setInterval(updatePracticeTimerDisplay, 500);
 }
 
+function stopPracticeTimerWithHistory(now = new Date()) {
+    if (!state.timerReady || !state.historyReady) {
+        return { ok: false, message: 'タイマーまたは履歴を読み込めないため、練習を終了できません。' };
+    }
+    if (!state.timer.running) return { ok: true, stopped: false, session: null };
+    const transition = stopPracticeTimer(state.timer, now);
+    if (!transition.stopped) return { ok: false, message: 'タイマーを終了できませんでした。計測を継続しています。' };
+    const historyResult = appendPracticeHistoryEvent(
+        state.history,
+        createPracticeSessionEvent(transition.session)
+    );
+    if (!historyResult.ok) {
+        return { ok: false, message: '練習記録を作成できませんでした。タイマーは継続しています。' };
+    }
+    const previousHistory = state.history;
+    if (!savePracticeHistory(historyResult.history).ok) {
+        return { ok: false, message: '練習記録を保存できませんでした。タイマーは継続しています。' };
+    }
+    if (!savePracticeTimer(transition.timer).ok) {
+        savePracticeHistory(previousHistory);
+        return { ok: false, message: 'タイマーを終了できませんでした。計測を継続しています。' };
+    }
+    state.history = historyResult.history;
+    state.timer = transition.timer;
+    ensurePracticeTimerTicking();
+    return { ok: true, stopped: true, session: transition.session };
+}
+
 function handlePracticeTimerToggle() {
-    if (!state.timerReady || !state.historyReady) return;
+    if (!state.timerReady || !state.historyReady || state.progress?.completionPending) return;
     showNotice(elements.timerStatus);
     if (!state.timer.running) {
         const transition = startPracticeTimer(state.timer);
@@ -1774,70 +1819,149 @@ function handlePracticeTimerToggle() {
         }
         state.timer = transition.timer;
         ensurePracticeTimerTicking();
+        renderPracticeList({ focus: false });
         return;
     }
-
-    const transition = stopPracticeTimer(state.timer);
-    if (!transition.stopped) return;
-    const historyResult = appendPracticeHistoryEvent(
-        state.history,
-        createPracticeSessionEvent(transition.session)
+    const result = stopPracticeTimerWithHistory();
+    showNotice(
+        elements.timerStatus,
+        result.ok
+            ? `練習時間 ${formatPracticeSessionDuration(result.session.durationSeconds)}を記録しました。`
+            : result.message
     );
-    if (!historyResult.ok) {
-        showNotice(elements.timerStatus, '練習記録を作成できませんでした。タイマーは継続しています。');
-        return;
-    }
-    const previousHistory = state.history;
-    if (!savePracticeHistory(historyResult.history).ok) {
-        showNotice(elements.timerStatus, '練習記録を保存できませんでした。タイマーは継続しています。');
-        return;
-    }
-    if (!savePracticeTimer(transition.timer).ok) {
-        savePracticeHistory(previousHistory);
-        showNotice(elements.timerStatus, 'タイマーを終了できませんでした。計測を継続しています。');
-        return;
-    }
-    state.history = historyResult.history;
-    state.timer = transition.timer;
-    ensurePracticeTimerTicking();
-    showNotice(elements.timerStatus, `練習時間 ${formatPracticeSessionDuration(transition.session.durationSeconds)}を記録しました。`);
+    renderPracticeList({ focus: false });
 }
 
-function showPracticeCompletion() {
-    window.clearTimeout(state.completionTimer);
-    elements.completionCelebration.hidden = false;
-    state.completionTimer = window.setTimeout(() => {
-        elements.completionCelebration.hidden = true;
-    }, 1800);
+function setPracticeCompletionBackgroundInert(inert) {
+    document.querySelectorAll('.port-view, .port-global-refresh-bar, .port-footer').forEach((element) => {
+        element.inert = inert;
+    });
+}
+
+function clearPracticeCompletionConfetti() {
+    window.clearTimeout(state.completionConfettiTimer);
+    state.completionConfettiTimer = null;
+    elements.completionConfetti.replaceChildren();
+}
+
+function renderPracticeCompletionConfetti(cycleId) {
+    clearPracticeCompletionConfetti();
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+    const colors = ['#d8b968', '#ead89f', '#f2ead4', '#aa8145'];
+    const pieces = Array.from({ length: 64 }, (_, index) => {
+        const piece = document.createElement('i');
+        piece.style.setProperty('--confetti-x', `${(index * 37) % 101}%`);
+        piece.style.setProperty('--confetti-drift', `${((index * 29) % 81) - 40}px`);
+        piece.style.setProperty('--confetti-delay', `${(index % 13) * 34}ms`);
+        piece.style.setProperty('--confetti-duration', `${2100 + (index % 9) * 85}ms`);
+        piece.style.setProperty('--confetti-rotate', `${180 + (index % 7) * 75}deg`);
+        piece.style.setProperty('--confetti-color', colors[index % colors.length]);
+        return piece;
+    });
+    elements.completionConfetti.replaceChildren(...pieces);
+    state.completionConfettiCycleId = cycleId;
+    state.completionConfettiTimer = window.setTimeout(clearPracticeCompletionConfetti, 3100);
+}
+
+function closePracticeCompletionDialog() {
+    clearPracticeCompletionConfetti();
+    state.completionConfettiCycleId = null;
+    elements.completionDialog.hidden = true;
+    elements.completionDialog.classList.remove('is-partial');
+    document.body.classList.remove('practice-completion-open');
+    setPracticeCompletionBackgroundInert(false);
+    showNotice(elements.completionError);
+}
+
+function syncPracticeCompletionDialog({ focus = true } = {}) {
+    const pending = state.progressReady ? state.progress?.completionPending : null;
+    if (!pending) {
+        if (!elements.completionDialog.hidden) closePracticeCompletionDialog();
+        return;
+    }
+    const complete = pending.type === PRACTICE_COMPLETION_TYPE.complete;
+    elements.completionDialog.classList.toggle('is-partial', !complete);
+    elements.completionTitle.textContent = complete ? 'お疲れさまでした！' : 'お疲れさまでした';
+    elements.completionDescription.textContent = complete
+        ? '今日の練習メニューをすべて完了しました。'
+        : '今日の練習、おつかれさまでした。';
+    elements.completionEnd.disabled = state.completionActionInProgress;
+    elements.completionCalendar.disabled = state.completionActionInProgress;
+    const wasHidden = elements.completionDialog.hidden;
+    elements.completionDialog.hidden = false;
+    document.body.classList.add('practice-completion-open');
+    setPracticeCompletionBackgroundInert(true);
+    if (complete && state.completionConfettiCycleId !== pending.cycleId) {
+        renderPracticeCompletionConfetti(pending.cycleId);
+    } else if (!complete) {
+        clearPracticeCompletionConfetti();
+    }
+    if (wasHidden && focus) elements.completionEnd.focus({ preventScroll: true });
+}
+
+function persistPracticeCheck(item, checked) {
+    const now = new Date();
+    const transition = setPracticeChecked(state.progress, item.id, checked);
+    if (!transition.changed) return { changed: false, completionStarted: false };
+    let nextProgress = transition.progress;
+    let nextHistory = state.history;
+    let historyChanged = false;
+
+    if (transition.countAdded) {
+        const individualResult = appendPracticeHistoryEvent(
+            nextHistory,
+            createPracticeCompletedEvent(
+                item,
+                state.progress.cycleId,
+                now,
+                state.timerReady && state.timer?.running ? state.timer.sessionId : null
+            )
+        );
+        if (!individualResult.ok) return { changed: false, completionStarted: false, failed: true };
+        nextHistory = individualResult.history;
+        historyChanged = true;
+    }
+
+    let completionStarted = false;
+    const activeIds = getActivePracticeItems().map((activeItem) => activeItem.id);
+    if (checked && canCompletePracticeCycle(nextProgress, activeIds)) {
+        const completion = beginPracticeCompletion(
+            nextProgress,
+            PRACTICE_COMPLETION_TYPE.complete,
+            activeIds,
+            now
+        );
+        if (completion.started) {
+            const cycleResult = appendPracticeHistoryEvent(
+                nextHistory,
+                createCycleCompletedEvent(completion.progress.cycleId, now)
+            );
+            if (!cycleResult.ok) return { changed: false, completionStarted: false, failed: true };
+            nextProgress = completion.progress;
+            nextHistory = cycleResult.history;
+            historyChanged = true;
+            completionStarted = true;
+        }
+    }
+
+    const persisted = historyChanged
+        ? persistPracticeActivity(nextProgress, nextHistory)
+        : persistPracticeProgress(nextProgress);
+    return { changed: persisted, completionStarted: persisted && completionStarted, failed: !persisted };
 }
 
 function handlePracticeCheck(item) {
-    if (!state.progressReady || !state.historyReady || item.hidden) return;
+    if (!state.progressReady || !state.historyReady || item.hidden || state.progress.completionPending) return;
     const checked = state.progress.checkedPracticeIds.includes(item.id);
-    const transition = setPracticeChecked(state.progress, item.id, !checked);
-    if (!transition.changed) return;
-
-    if (!transition.countAdded) {
-        if (!persistPracticeProgress(transition.progress)) {
-            state.listNotice = '進捗を保存できませんでした。チェック状態は変更していません。';
-        }
-        renderPracticeList({ focus: false, focusCheckId: item.id });
-        return;
-    }
-
-    const historyResult = appendPracticeHistoryEvent(
-        state.history,
-        createPracticeCompletedEvent(
-            item,
-            state.progress.cycleId,
-            new Date(),
-            state.timerReady && state.timer?.running ? state.timer.sessionId : null
-        )
-    );
-    if (!historyResult.ok || !persistPracticeActivity(transition.progress, historyResult.history)) {
+    const result = persistPracticeCheck(item, !checked);
+    if (result.failed) {
         state.listNotice = '練習記録を保存できませんでした。チェック状態は変更していません。';
     }
-    renderPracticeList({ focus: false, focusCheckId: item.id });
+    renderPracticeList({
+        focus: false,
+        focusCheckId: result.completionStarted ? null : item.id
+    });
+    if (result.completionStarted) syncPracticeCompletionDialog();
 }
 
 function handlePracticeCycleReset() {
@@ -1855,27 +1979,58 @@ function handlePracticeCycleReset() {
     renderPracticeList({ focus: false });
 }
 
-function handlePracticeComplete() {
-    if (state.completing || !state.progressReady || !state.historyReady) return;
+function handlePracticeFinishEarly() {
+    if (!state.progressReady || state.progress.completionPending) return;
     const activeIds = getActivePracticeItems().map((item) => item.id);
-    const now = new Date();
-    const transition = completePracticeCycle(state.progress, activeIds, now);
-    if (!transition.completed) return;
-    state.completing = true;
-    const historyResult = appendPracticeHistoryEvent(
-        state.history,
-        createCycleCompletedEvent(transition.completedCycleId, now)
+    const hasActivity = Boolean(state.timerReady && state.timer?.running)
+        || state.progress.checkedPracticeIds.length > 0;
+    if (activeIds.length === 0 || !hasActivity) return;
+    const transition = beginPracticeCompletion(
+        state.progress,
+        PRACTICE_COMPLETION_TYPE.partial,
+        activeIds
     );
-    if (!historyResult.ok || !persistPracticeActivity(transition.progress, historyResult.history)) {
-        state.listNotice = '完了記録を保存できませんでした。現在の進捗は変更していません。';
-        state.completing = false;
+    if (!transition.started || !persistPracticeProgress(transition.progress)) {
+        state.listNotice = '練習終了の状態を保存できませんでした。現在の進捗は変更していません。';
         renderPracticeList({ focus: false });
         return;
     }
-    state.completing = false;
-    state.listNotice = '';
     renderPracticeList({ focus: false });
-    showPracticeCompletion();
+    syncPracticeCompletionDialog();
+}
+
+function handlePracticeCompletionAction(destination) {
+    if (state.completionActionInProgress || !state.progress?.completionPending) return;
+    state.completionActionInProgress = true;
+    showNotice(elements.completionError);
+    syncPracticeCompletionDialog({ focus: false });
+
+    const timerResult = stopPracticeTimerWithHistory();
+    if (!timerResult.ok) {
+        state.completionActionInProgress = false;
+        showNotice(elements.completionError, timerResult.message);
+        syncPracticeCompletionDialog({ focus: false });
+        return;
+    }
+
+    const transition = finishPracticeCompletion(state.progress);
+    if (!transition.finished || !persistPracticeProgress(transition.progress)) {
+        state.completionActionInProgress = false;
+        showNotice(elements.completionError, '次の練習サイクルを開始できませんでした。もう一度お試しください。');
+        syncPracticeCompletionDialog({ focus: false });
+        return;
+    }
+
+    state.completionActionInProgress = false;
+    closePracticeCompletionDialog();
+    if (destination === 'calendar') {
+        setPracticeCalendarSelectedDate(new Date());
+        state.calendarViewMode = 'month';
+        if (location.hash === '#practice-menu/calendar') renderPracticeHistory();
+        else setHashRoute('#practice-menu/calendar');
+        return;
+    }
+    setHomeRoute();
 }
 
 function renderPracticeHiddenList() {
@@ -1923,11 +2078,63 @@ function getPracticeCalendarWeekDates(localDate) {
 }
 
 function closePracticeCalendarNoteForm() {
+    cleanupPracticeCalendarKeyboardTracking();
     state.calendarNoteEditId = null;
     state.calendarNoteIcon = PRACTICE_CALENDAR_DEFAULT_ICON;
     elements.calendarNoteForm.hidden = true;
     elements.calendarNoteText.value = '';
     showNotice(elements.calendarNoteError);
+}
+
+function adjustPracticeCalendarNoteVisibility() {
+    state.calendarKeyboardFrame = null;
+    if (!state.calendarKeyboardActive || elements.calendarNoteForm.hidden) return;
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop || 0;
+    const viewportHeight = viewport?.height || window.innerHeight;
+    const viewportBottom = viewportTop + viewportHeight;
+    const safeGap = 12;
+    const formRect = elements.calendarNoteForm.getBoundingClientRect();
+    const visibleHeight = Math.max(0, viewportHeight - safeGap * 2);
+    let scrollDelta = 0;
+
+    if (formRect.height <= visibleHeight) {
+        if (formRect.top < viewportTop + safeGap) {
+            scrollDelta = formRect.top - viewportTop - safeGap;
+        } else if (formRect.bottom > viewportBottom - safeGap) {
+            scrollDelta = formRect.bottom - viewportBottom + safeGap;
+        }
+    } else {
+        scrollDelta = formRect.top - viewportTop - safeGap;
+    }
+    if (Math.abs(scrollDelta) >= 1) {
+        window.scrollBy({ top: scrollDelta, left: 0, behavior: 'auto' });
+    }
+}
+
+function schedulePracticeCalendarNoteVisibility() {
+    window.cancelAnimationFrame(state.calendarKeyboardFrame);
+    state.calendarKeyboardFrame = window.requestAnimationFrame(adjustPracticeCalendarNoteVisibility);
+}
+
+function activatePracticeCalendarKeyboardTracking() {
+    if (state.calendarKeyboardActive) {
+        schedulePracticeCalendarNoteVisibility();
+        return;
+    }
+    state.calendarKeyboardActive = true;
+    window.visualViewport?.addEventListener('resize', schedulePracticeCalendarNoteVisibility);
+    window.visualViewport?.addEventListener('scroll', schedulePracticeCalendarNoteVisibility);
+    schedulePracticeCalendarNoteVisibility();
+}
+
+function cleanupPracticeCalendarKeyboardTracking() {
+    if (!state.calendarKeyboardActive && state.calendarKeyboardFrame === null) return;
+    window.cancelAnimationFrame(state.calendarKeyboardFrame);
+    state.calendarKeyboardFrame = null;
+    state.calendarKeyboardActive = false;
+    window.visualViewport?.removeEventListener('resize', schedulePracticeCalendarNoteVisibility);
+    window.visualViewport?.removeEventListener('scroll', schedulePracticeCalendarNoteVisibility);
 }
 
 const PRACTICE_CALENDAR_ICON_SHAPES = Object.freeze({
@@ -2097,11 +2304,16 @@ function renderPracticeDayHistory() {
             children.forEach((child) => {
                 const childItem = document.createElement('li');
                 const childMark = document.createElement('span');
+                const childCopy = document.createElement('span');
                 const childName = document.createElement('span');
+                const childDuration = document.createElement('small');
                 childMark.setAttribute('aria-hidden', 'true');
                 childMark.textContent = '✓';
                 childName.textContent = child.practiceName;
-                childItem.append(childMark, childName);
+                childDuration.className = 'practice-history-session-duration';
+                childDuration.textContent = formatPracticeSessionDuration(child.measuredDurationSeconds);
+                childCopy.append(childName, childDuration);
+                childItem.append(childMark, childCopy);
                 childList.append(childItem);
             });
             copy.append(childList);
@@ -2261,13 +2473,18 @@ function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
         : '';
     elements.reorderStatus.hidden = !state.reorderMode;
     elements.hiddenCount.textContent = String(getHiddenPracticeItems().length);
-    elements.completeButton.disabled = state.completing
-        || !state.progressReady
+    const completionPending = Boolean(state.progress?.completionPending);
+    const hasFinishActivity = Boolean(state.timerReady && state.timer?.running)
+        || state.progress.checkedPracticeIds.length > 0;
+    elements.finishButton.disabled = !state.progressReady
         || !state.historyReady
-        || !canCompletePracticeCycle(state.progress, activeItems.map((item) => item.id));
+        || completionPending
+        || activeItems.length === 0
+        || !hasFinishActivity;
     elements.cycleReset.disabled = !state.progressReady
+        || completionPending
         || (state.progress.checkedPracticeIds.length === 0 && state.progress.countedPracticeIds.length === 0);
-    elements.completeButton.parentElement.hidden = state.reorderMode;
+    elements.finishButton.parentElement.hidden = state.reorderMode;
     elements.historyOpen.disabled = !state.historyReady;
     elements.hiddenOpen.disabled = !state.storageReady;
     updatePracticeTimerDisplay();
@@ -3582,6 +3799,7 @@ function renderRoute() {
     } else {
         renderHome();
     }
+    syncPracticeCompletionDialog();
 }
 
 function readFormValues() {
@@ -3849,8 +4067,32 @@ elements.historyOpen.addEventListener('click', () => {
     setHashRoute('#practice-menu/calendar');
 });
 elements.hiddenOpen.addEventListener('click', () => setHashRoute('#practice-menu/hidden'));
-elements.completeButton.addEventListener('click', handlePracticeComplete);
+elements.finishButton.addEventListener('click', handlePracticeFinishEarly);
 elements.cycleReset.addEventListener('click', handlePracticeCycleReset);
+elements.completionEnd.addEventListener('click', () => handlePracticeCompletionAction('home'));
+elements.completionCalendar.addEventListener('click', () => handlePracticeCompletionAction('calendar'));
+elements.completionDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        event.stopPropagation();
+        return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [elements.completionEnd, elements.completionCalendar]
+        .filter((element) => !element.disabled);
+    if (focusable.length === 0) {
+        event.preventDefault();
+        return;
+    }
+    const currentIndex = focusable.indexOf(document.activeElement);
+    if (event.shiftKey && currentIndex <= 0) {
+        event.preventDefault();
+        focusable[focusable.length - 1].focus();
+    } else if (!event.shiftKey && currentIndex === focusable.length - 1) {
+        event.preventDefault();
+        focusable[0].focus();
+    }
+});
 elements.calendarViewTabs.forEach((button) => button.addEventListener('click', () => {
     state.calendarViewMode = button.dataset.calendarView;
     renderPracticeHistory({ focus: false });
@@ -3894,6 +4136,14 @@ elements.calendarNoteIcons.addEventListener('click', (event) => {
 });
 elements.calendarNoteForm.addEventListener('submit', handlePracticeCalendarNoteSubmit);
 elements.calendarNoteCancel.addEventListener('click', closePracticeCalendarNoteForm);
+elements.calendarNoteForm.addEventListener('focusin', activatePracticeCalendarKeyboardTracking);
+elements.calendarNoteForm.addEventListener('focusout', () => {
+    window.requestAnimationFrame(() => {
+        if (!elements.calendarNoteForm.contains(document.activeElement)) {
+            cleanupPracticeCalendarKeyboardTracking();
+        }
+    });
+});
 elements.calendarNotesList.addEventListener('click', handlePracticeCalendarNoteAction);
 elements.attachmentInput.addEventListener('change', (event) => handlePracticeAttachmentSelection(event, 'detail'));
 elements.attachmentsList.addEventListener('click', (event) => handlePracticeAttachmentAction(event, 'detail'));
@@ -4067,6 +4317,8 @@ window.addEventListener('pagehide', () => {
     cleanupPracticeAttachmentObjectUrls();
     practiceAttachmentExternalObjectUrls.forEach((url) => URL.revokeObjectURL(url));
     practiceAttachmentExternalObjectUrls.clear();
+    cleanupPracticeCalendarKeyboardTracking();
+    clearPracticeCompletionConfetti();
 });
 window.addEventListener('pageshow', ensurePracticeTimerTicking);
 
