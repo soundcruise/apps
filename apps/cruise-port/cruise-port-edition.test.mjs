@@ -71,7 +71,7 @@ test('Pro entry is an exactly synchronized static shell, with only document-rela
     assert.equal(pro, expected, 'When updating root HTML, synchronize Pro HTML in the same change');
     assert.doesNotMatch(pro, /<iframe|<base|http-equiv="refresh"|location\.(?:replace|assign)/i);
     for (const entry of [root, pro]) {
-        assert.match(entry, /shared\/pro-gate\.js\?v=20/);
+        assert.match(entry, /shared\/pro-gate\.js\?v=21/);
         assert.match(entry, /__SOUNDCRUISE_PRO_GATE__/);
         assert.match(entry, /home-pro-badge[^>]*hidden>Pro/);
         assert.equal((entry.match(/data-cruise-app=/g) || []).length, 4);

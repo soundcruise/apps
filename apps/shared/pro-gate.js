@@ -267,16 +267,36 @@
         releaseGateFocus = containGateFocus(overlay);
     }
 
+    // SW notifications and page gateVersion share the authentication-generation
+    // domain. Reject coercible junk rather than treating it as an update.
+    function parseGateVersion(value) {
+        if (typeof value !== 'number' && (typeof value !== 'string' || !/^\d+$/.test(value))) return null;
+        var version = Number(value);
+        return Number.isSafeInteger(version) && version >= 0 ? version : null;
+    }
+
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.addEventListener('message', function (event) {
             if (!event.data || event.data.type !== 'PRO_GATE_INVALIDATE') return;
-            var newVer = event.data.version;
-            var knownVer = NaN;
+            var newVer = parseGateVersion(event.data.version);
+            if (newVer === null) return;
+            var knownVer = null;
             try {
                 var s = localStorage.getItem(SW_GATE_VERSION_KEY);
-                if (s != null) knownVer = parseInt(s, 10);
+                knownVer = parseGateVersion(s);
             } catch (_) {}
-            if (Number.isNaN(knownVer) || newVer > knownVer) {
+            if (knownVer === null) {
+                // First activation is not necessarily a password-generation
+                // change. Use this page's generation, not an older SW's value
+                // (e.g. Standard), so a later current-generation notice is safe.
+                knownVer = parseGateVersion(CONFIG && CONFIG.gateVersion);
+                if (knownVer === null) return;
+                if (newVer <= knownVer) {
+                    try { localStorage.setItem(SW_GATE_VERSION_KEY, String(knownVer)); } catch (_) {}
+                    return;
+                }
+            }
+            if (newVer > knownVer) {
                 try { localStorage.setItem(SW_GATE_VERSION_KEY, String(newVer)); } catch (_) {}
                 clearGateStorage();
                 var url = location.href;

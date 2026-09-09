@@ -16,12 +16,12 @@ var sharedGateSource = fs.readFileSync(sharedGatePath, 'utf8');
 
 assert(proHtml.includes('<html lang="ja" data-app-edition="Pro">'), 'Chord Cruise Pro keeps the shared edition convention');
 assert(proHtml.includes('<link rel="stylesheet" href="../../shared/pro-gate.css?v=5">'), 'Chord Cruise Pro loads shared gate CSS');
-assert(proHtml.includes('<script src="../../shared/pro-gate.js?v=19"></script>'), 'Chord Cruise Pro loads shared gate JS');
+assert(proHtml.includes('<script src="../../shared/pro-gate.js?v=21"></script>'), 'Chord Cruise Pro loads shared gate JS');
 assert(fs.existsSync(sharedGatePath), 'Chord Cruise Pro gate JS path resolves');
 assert(fs.existsSync(sharedGateCssPath), 'Chord Cruise Pro gate CSS path resolves');
 
 var configPosition = proHtml.indexOf('window.__SOUNDCRUISE_PRO_GATE__');
-var gateScriptPosition = proHtml.indexOf('<script src="../../shared/pro-gate.js?v=19"></script>');
+var gateScriptPosition = proHtml.indexOf('<script src="../../shared/pro-gate.js?v=21"></script>');
 var appPosition = proHtml.indexOf('<div id="cc-app"');
 assert(configPosition > -1 && configPosition < gateScriptPosition, 'gate config is defined before shared gate JS');
 assert(gateScriptPosition < appPosition, 'shared gate boots before the Chord Cruise app markup');
