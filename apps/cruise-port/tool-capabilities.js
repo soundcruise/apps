@@ -7,6 +7,8 @@ export function requestToolPro(feature, documentObject = document) {
     if (!prompts.has(documentObject)) prompts.set(documentObject, createProPrompt(documentObject));
     return prompts.get(documentObject).open({
         tunerCapo: 'カポ機能はPro版で利用できます。',
+        practiceCreate: `通常版では練習メニューを${getCapabilities().practiceMenuCreateLimit}件まで登録できます。Pro版では登録枠を拡張できます。`,
+        practiceFile: 'ファイルの追加はPro版で利用できます。',
         metronomeAdvanced: 'Pro版では、拍子・リズム・アクセント・音色などを詳しく設定できます。',
         metronomePresetWrite: 'メトロノームの設定保存はPro版で利用できます。'
     }[feature]);

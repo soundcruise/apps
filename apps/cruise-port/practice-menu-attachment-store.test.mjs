@@ -6,10 +6,30 @@ import {
     PRACTICE_ATTACHMENT_INDEX_NAME,
     PRACTICE_ATTACHMENT_LIMITS,
     PRACTICE_ATTACHMENT_STORE_NAME,
-    createPracticeAttachmentStore,
+    createPracticeAttachmentStore as createAttachmentStore,
     isSafePracticeAttachmentInlineOpen,
     isSafePracticeImagePreview
 } from './practice-menu-attachment-store.js';
+
+const createPracticeAttachmentStore = options => createAttachmentStore({ canWrite: () => true, ...options });
+
+test('Standard retains read/delete but cannot write, including capability changes during await', async () => {
+    const indexedDBObject = createFakeIndexedDB();
+    let allowed = true;
+    const store = createAttachmentStore({ indexedDBObject, canWrite: () => allowed });
+    const blob = new Blob(['QA'], { type: 'text/plain' });
+    const first = await store.addAttachment('qa', blob, { fileName: 'qa.txt' });
+    assert.equal(first.ok, true);
+    allowed = false;
+    assert.equal((await store.getAttachments('qa')).records.length, 1);
+    assert.equal((await store.addAttachment('qa', blob, { fileName: 'blocked.txt' })).reason, 'pro-required');
+    let checks = 0;
+    const changing = createAttachmentStore({ indexedDBObject, canWrite: () => ++checks === 1 });
+    assert.equal((await changing.addAttachment('qa', blob, { fileName: 'changed.txt' })).reason, 'pro-required');
+    assert.equal(indexedDBObject.records.size, 1);
+    assert.equal((await store.deleteAttachment(first.record.id)).ok, true);
+    assert.equal(indexedDBObject.records.size, 0);
+});
 
 function createFakeIndexedDB() {
     const records = new Map();

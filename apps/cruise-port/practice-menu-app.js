@@ -1,3 +1,6 @@
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.0.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
+import { requestToolPro } from './tool-capabilities.js?v=1.0.0';
 import {
     LIMITS,
     createPracticeMenu,
@@ -2463,6 +2466,9 @@ function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
     elements.reorderActions.hidden = !state.reorderMode;
     elements.addButton.hidden = state.reorderMode;
     elements.addButton.disabled = !state.storageReady;
+    elements.addButton.classList.toggle('tool-pro-locked', !canCreatePractice(state.items));
+    elements.addButton.setAttribute('aria-label', canCreatePractice(state.items)
+        ? '練習メニューを追加' : '練習メニューを追加（Pro版では登録枠を拡張できます）');
     elements.reorderStatus.textContent = state.reorderMode
         ? '並び替え中です。上下のボタンで順序を変更し、完了で保存します。'
         : '';
@@ -2649,6 +2655,9 @@ async function renderPracticeAttachments(practiceId, scope = 'detail') {
     presentation.empty.hidden = true;
     presentation.input.disabled = true;
     presentation.add.classList.add('is-disabled');
+    if (!getCapabilities().practiceFileWrite) presentation.add.classList.remove('is-disabled');
+    presentation.add.classList.toggle('tool-pro-locked', !getCapabilities().practiceFileWrite);
+    presentation.add.setAttribute('aria-label', getCapabilities().practiceFileWrite ? 'ファイルを追加' : 'ファイルを追加（Pro版機能）');
     const result = await practiceAttachmentStore.getAttachments(practiceId);
     if (generation !== practiceAttachmentRenderGeneration || state.activeId !== practiceId) return;
     if (!result.ok) {
@@ -2658,7 +2667,7 @@ async function renderPracticeAttachments(practiceId, scope = 'detail') {
         return;
     }
     presentation.input.disabled = result.records.length >= PRACTICE_ATTACHMENT_LIMITS.countPerPractice;
-    presentation.add.classList.toggle('is-disabled', presentation.input.disabled);
+    presentation.add.classList.toggle('is-disabled', getCapabilities().practiceFileWrite && presentation.input.disabled);
     presentation.empty.hidden = result.records.length > 0;
     presentation.empty.textContent = result.records.length >= PRACTICE_ATTACHMENT_LIMITS.countPerPractice
         ? `ファイルは${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。`
@@ -2729,6 +2738,11 @@ function openPracticeAttachmentRecord(record, preparedWindow = null) {
 
 async function handlePracticeAttachmentSelection(event, scope = 'detail') {
     const presentation = getPracticeAttachmentPresentation(scope);
+    if (!getCapabilities().practiceFileWrite) {
+        presentation.input.value = '';
+        requestToolPro('practiceFile');
+        return;
+    }
     const item = findItem(state.activeId);
     const files = [...(presentation.input.files || [])];
     presentation.input.value = '';
@@ -2752,6 +2766,7 @@ async function handlePracticeAttachmentSelection(event, scope = 'detail') {
         }
         const result = await practiceAttachmentStore.addAttachment(item.id, file, { fileName: file.name });
         if (!result.ok) {
+            if (result.reason === 'pro-required') requestToolPro('practiceFile');
             failureMessage = result.reason === 'limit-reached'
                 ? `ファイルは1つの練習メニューにつき${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。不要なファイルを削除してください。`
                 : 'ファイルを保存できませんでした。ブラウザの空き容量や保存設定を確認してください。';
@@ -2923,6 +2938,10 @@ function fillForm(item = null) {
 }
 
 function renderForm(mode, id = null) {
+    if (mode === 'create' && !guardPracticeCreation()) {
+        replacePracticeListRoute();
+        return;
+    }
     const item = mode === 'edit' ? findItem(id) : null;
     if (mode === 'edit' && !item) {
         replacePracticeListRoute();
@@ -3899,6 +3918,19 @@ function persistPracticeItemsAndProgress(candidateItems, nextProgress) {
     return true;
 }
 
+function guardPracticeCreation() {
+    const latest = checkPracticeCreation();
+    if (!latest.ok) {
+        const message = '最新の練習メニューを読み込めません。入力内容を控えてから再読み込みしてください。';
+        showNotice(elements.formError, message);
+        state.listNotice = message;
+        showNotice(elements.listNotice, message);
+        return false;
+    }
+    if (!latest.allowed) { requestToolPro('practiceCreate'); return false; }
+    return true;
+}
+
 function handleSubmit(event) {
     event.preventDefault();
     showNotice(elements.formError);
@@ -3943,6 +3975,7 @@ function handleSubmit(event) {
         return;
     }
 
+    if (!guardPracticeCreation()) return;
     const item = createPracticeMenu(formResult.values, state.items);
     if (persist([...state.items, item])) {
         state.savedNotice = { id: item.id, message: '保存しました。' };
@@ -4001,7 +4034,9 @@ function handlePracticeTotalCountReset() {
     showNotice(elements.formStatus, '通算回数をリセットしました。履歴は保持されています。');
 }
 
-elements.addButton.addEventListener('click', () => setHashRoute('#practice-menu/new'));
+elements.addButton.addEventListener('click', () => {
+    if (guardPracticeCreation()) setHashRoute('#practice-menu/new');
+});
 elements.gearAdd.addEventListener('click', () => setHashRoute('#wishlist/new'));
 elements.gearForm.addEventListener('submit', handleGearSubmit);
 elements.gearStatusInput.addEventListener('change', updateGearPriorityVisibility);
@@ -4189,6 +4224,13 @@ elements.calendarNoteForm.addEventListener('focusout', () => {
 elements.calendarNotesList.addEventListener('click', handlePracticeCalendarNoteAction);
 elements.dayHistoryList.addEventListener('click', handlePracticeHistoryDelete);
 elements.attachmentInput.addEventListener('change', (event) => handlePracticeAttachmentSelection(event, 'detail'));
+for (const scope of ['detail', 'form']) {
+    const presentation = getPracticeAttachmentPresentation(scope);
+    presentation.add.addEventListener('click', () => {
+        if (!getCapabilities().practiceFileWrite) { requestToolPro('practiceFile'); return; }
+        if (!presentation.input.disabled) presentation.input.click();
+    });
+}
 elements.attachmentsList.addEventListener('click', (event) => handlePracticeAttachmentAction(event, 'detail'));
 elements.formAttachmentInput.addEventListener('change', (event) => handlePracticeAttachmentSelection(event, 'form'));
 elements.formAttachmentsList.addEventListener('click', (event) => handlePracticeAttachmentAction(event, 'form'));

@@ -1,3 +1,5 @@
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
+
 export const PRACTICE_ATTACHMENT_DB_NAME = 'cruisePortPractice';
 export const PRACTICE_ATTACHMENT_DB_VERSION = 1;
 export const PRACTICE_ATTACHMENT_STORE_NAME = 'attachments';
@@ -109,7 +111,7 @@ function runTransaction(database, mode, operation) {
     });
 }
 
-export function createPracticeAttachmentStore({ indexedDBObject } = {}) {
+export function createPracticeAttachmentStore({ indexedDBObject, canWrite = () => getCapabilities().practiceFileWrite } = {}) {
     let databasePromise = null;
     function getDatabase() {
         if (!databasePromise) {
@@ -174,6 +176,7 @@ export function createPracticeAttachmentStore({ indexedDBObject } = {}) {
 
     return Object.freeze({
         async addAttachment(practiceId, blob, { fileName, now = new Date(), idFactory = createAttachmentId } = {}) {
+            if (!canWrite()) return { ok: false, reason: 'pro-required' };
             const mimeType = normalizeMimeType(blob);
             const kind = isSafePracticeImagePreview(mimeType) ? 'image' : 'file';
             const record = {
@@ -194,6 +197,7 @@ export function createPracticeAttachmentStore({ indexedDBObject } = {}) {
             }
             try {
                 const database = await getDatabase();
+                if (!canWrite()) return { ok: false, reason: 'pro-required' };
                 await runTransaction(database, 'readwrite', (store) => store.add(record));
                 return { ok: true, record: { ...record } };
             } catch (_) {
