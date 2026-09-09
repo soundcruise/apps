@@ -179,7 +179,10 @@ import {
     replaceGearListRoute
 } from './gear-list-navigation.js?v=1.0.0';
 
+import { initializeProAuthSettings } from './pro-auth-settings.js?v=1.0.0';
+
 applyEditionDisplay();
+initializeProAuthSettings();
 applyHomeCruiseLinks();
 
 const elements = {
