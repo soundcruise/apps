@@ -1,4 +1,4 @@
-import { createSecureId } from './my-apps-store.js?v=6.0.0';
+import { createSecureId } from './my-apps-store.js?v=0.24.0';
 
 export const MY_APPS_ICON_DB_NAME = 'cruisePortMyApps';
 export const MY_APPS_ICON_DB_VERSION = 1;
@@ -28,6 +28,7 @@ function isValidRecord(record) {
 
 function openDatabase(indexedDBObject) {
     return new Promise((resolve, reject) => {
+        if (indexedDBObject === undefined) indexedDBObject = globalThis.indexedDB;
         if (!indexedDBObject?.open) {
             reject(new Error('indexeddb-unavailable'));
             return;
@@ -69,7 +70,7 @@ function runTransaction(database, mode, operation) {
     });
 }
 
-export function createMyAppsIconStore({ indexedDBObject = globalThis.indexedDB } = {}) {
+export function createMyAppsIconStore({ indexedDBObject } = {}) {
     let databasePromise = null;
 
     function getDatabase() {

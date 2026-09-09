@@ -69,6 +69,7 @@ function isValidRecord(record) {
 
 function openDatabase(indexedDBObject) {
     return new Promise((resolve, reject) => {
+        if (indexedDBObject === undefined) indexedDBObject = globalThis.indexedDB;
         if (!indexedDBObject?.open) {
             reject(new Error('indexeddb-unavailable'));
             return;
@@ -108,7 +109,7 @@ function runTransaction(database, mode, operation) {
     });
 }
 
-export function createPracticeAttachmentStore({ indexedDBObject = globalThis.indexedDB } = {}) {
+export function createPracticeAttachmentStore({ indexedDBObject } = {}) {
     let databasePromise = null;
     function getDatabase() {
         if (!databasePromise) {

@@ -1,3 +1,4 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 export const METRONOME_STORAGE_KEY = 'cruisePort.metronome';
 export const METRONOME_SCHEMA_VERSION = 3;
 
@@ -131,9 +132,10 @@ function defaultSettings() {
     };
 }
 
-export function loadMetronomeSettings(storage = window.localStorage) {
+export function loadMetronomeSettings(storage) {
     try {
-        const raw = storage.getItem(METRONOME_STORAGE_KEY);
+        if (storage === undefined) storage = globalThis.localStorage;
+        const raw = readStorageValue(storage, METRONOME_STORAGE_KEY);
         if (raw === null) return { ok: true, settings: defaultSettings(), migrated: false };
         const parsed = JSON.parse(raw);
         const settings = normalizeMetronomeSettings(parsed);
@@ -151,11 +153,14 @@ export function loadMetronomeSettings(storage = window.localStorage) {
     }
 }
 
-export function saveMetronomeSettings(settings, storage = window.localStorage) {
+export function saveMetronomeSettings(settings, storage) {
     const normalized = normalizeMetronomeSettings(settings);
     if (!normalized) return { ok: false, reason: 'invalid-data' };
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [METRONOME_STORAGE_KEY]);
         storage.setItem(METRONOME_STORAGE_KEY, JSON.stringify(normalized));
+        acceptStorageValues(storage, [METRONOME_STORAGE_KEY]);
         return { ok: true };
     } catch (error) {
         return { ok: false, reason: 'write-failed' };

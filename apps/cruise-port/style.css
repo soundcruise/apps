@@ -843,30 +843,38 @@ h1::after {
     box-shadow: none;
 }
 
-.practice-completion-confetti {
+.practice-completion-dialog:not(.is-partial) .practice-completion-panel {
+    border-color: rgba(229, 204, 139, 0.58);
+    background: radial-gradient(ellipse at 50% 0%, rgba(197, 158, 78, 0.17), transparent 68%),
+        linear-gradient(155deg, #201e17, #0e0e0c);
+}
+
+.practice-completion-sparkles {
     position: absolute;
-    z-index: 1;
     inset: 0;
     overflow: hidden;
     pointer-events: none;
 }
 
-.practice-completion-confetti i {
+.practice-completion-sparkles i {
     position: absolute;
-    top: -7vh;
-    left: var(--confetti-x);
-    width: 7px;
-    height: 13px;
-    border-radius: 2px;
-    background: var(--confetti-color);
-    opacity: 0;
-    animation: practice-confetti-fall var(--confetti-duration) cubic-bezier(0.18, 0.75, 0.32, 1) var(--confetti-delay) both;
+    color: #e5cc8b;
+    font-size: 12px;
+    font-style: normal;
+    line-height: 1;
+    opacity: 0.45;
+    animation: practice-card-glint 4.8s ease-in-out infinite;
 }
 
-.practice-completion-confetti i:nth-child(3n) {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
+.practice-completion-sparkles i:nth-child(1) { top: 23px; left: 22px; }
+.practice-completion-sparkles i:nth-child(2) { top: 49px; right: 27px; animation-delay: -1.8s; font-size: 17px; }
+.practice-completion-sparkles i:nth-child(3) { top: 91px; left: 14px; animation-delay: -3.2s; font-size: 8px; }
+.practice-completion-sparkles i:nth-child(4) { bottom: 15px; left: 24px; animation-delay: -2.4s; }
+.practice-completion-sparkles i:nth-child(5) { bottom: 22px; right: 16px; animation-delay: -0.8s; font-size: 8px; }
+.practice-completion-sparkles i:nth-child(6) { top: 14px; right: 63px; animation-delay: -4s; font-size: 9px; }
+
+.practice-completion-dialog.is-partial .practice-completion-sparkles {
+    display: none;
 }
 
 @keyframes practice-completion-panel-in {
@@ -874,10 +882,9 @@ h1::after {
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes practice-confetti-fall {
-    0% { opacity: 0; transform: translate3d(0, -4vh, 0) rotate(0deg); }
-    12% { opacity: 0.9; }
-    100% { opacity: 0; transform: translate3d(var(--confetti-drift), 108vh, 0) rotate(var(--confetti-rotate)); }
+@keyframes practice-card-glint {
+    0%, 100% { opacity: 0.28; transform: scale(0.85); }
+    50% { opacity: 0.8; transform: scale(1.08); }
 }
 
 .reorder-card {
@@ -2855,13 +2862,13 @@ textarea:focus-visible {
 .practice-history-event {
     display: grid;
     padding: 11px 2px;
-    grid-template-columns: 24px minmax(0, 1fr);
+    grid-template-columns: 20px minmax(0, 1fr) 40px;
     gap: 8px;
     border-bottom: 1px solid rgba(207, 189, 148, 0.08);
     color: rgba(205, 180, 116, 0.72);
 }
 
-.practice-history-event > span:last-child {
+.practice-history-event > span:nth-child(2) {
     display: grid;
     gap: 4px;
 }
@@ -2893,6 +2900,7 @@ textarea:focus-visible {
 
 .practice-history-session-children {
     display: grid;
+    grid-column: 1 / -1;
     margin: 5px 0 0;
     padding: 9px 0 0;
     gap: 7px;
@@ -2902,7 +2910,7 @@ textarea:focus-visible {
 
 .practice-history-session-children li {
     display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
+    grid-template-columns: 18px minmax(0, 1fr) 40px;
     gap: 5px;
     color: var(--port-text);
     font-size: 0.9rem;
@@ -2913,10 +2921,38 @@ textarea:focus-visible {
     color: var(--port-gold-bright);
 }
 
-.practice-history-session-children li > span:last-child {
+.practice-history-session-children li > span:nth-child(2) {
     display: grid;
     gap: 1px;
+    overflow-wrap: anywhere;
 }
+
+.practice-history-delete {
+    width: 40px;
+    min-height: 44px;
+    display: grid;
+    padding: 0;
+    place-items: center;
+    align-self: start;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--port-muted);
+    background: transparent;
+    cursor: pointer;
+}
+
+.practice-history-delete svg {
+    width: 17px;
+    height: 17px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.practice-history-delete:hover { color: var(--port-text); background: rgba(205, 180, 116, 0.06); }
+.practice-history-delete:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 
 .practice-history-session-duration {
     color: var(--port-muted);
@@ -4794,7 +4830,8 @@ body.metronome-preset-open {
         animation: none;
     }
 
-    .practice-completion-confetti {
-        display: none;
+    .practice-completion-sparkles i {
+        animation: none;
+        opacity: 0.55;
     }
 }

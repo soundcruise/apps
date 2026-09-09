@@ -16,7 +16,8 @@ assert.doesNotMatch(`${markup}\n${source}`, /全部完了/);
 assert.match(markup, /id="practice-finish"[^>]*disabled>ここで練習終了/);
 assert.match(markup, /id="practice-cycle-reset"[^>]*disabled>チェックをすべてリセット/);
 assert.match(markup, /id="practice-completion-dialog"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*hidden/);
-assert.match(markup, /id="practice-completion-confetti"/);
+assert.doesNotMatch(`${markup}\n${source}\n${styles}`, /confetti/i);
+assert.match(markup, /class="practice-completion-sparkles"[^>]*aria-hidden="true"/);
 assert.match(markup, /id="practice-completion-end"[^>]*>練習を終了する/);
 assert.match(markup, /id="practice-completion-calendar"[^>]*>練習カレンダーを見る/);
 assert.match(markup, /お疲れさまでした！/);
@@ -62,8 +63,6 @@ assert.match(source, /beginPracticeCompletion\([\s\S]*PRACTICE_COMPLETION_TYPE\.
 assert.match(source, /beginPracticeCompletion\([\s\S]*PRACTICE_COMPLETION_TYPE\.partial/);
 assert.match(source, /finishPracticeCompletion\(state\.progress\)/);
 assert.match(source, /completionPending/);
-assert.match(source, /Array\.from\(\{ length: 64 \}/);
-assert.match(source, /matchMedia\?\.\('\(prefers-reduced-motion: reduce\)'\)/);
 assert.match(source, /event\.key === 'Escape'[\s\S]*preventDefault\(\)/);
 const completionActionSource = source.slice(
     source.indexOf('function handlePracticeCompletionAction(destination)'),
@@ -103,8 +102,12 @@ assert.match(source, /practice-history-session-duration/);
 assert.match(source, /formatPracticeSessionDuration\(child\.measuredDurationSeconds\)/);
 assert.match(source, /state\.calendarViewMode === 'week'/);
 assert.match(source, /state\.calendarViewMode === 'day'/);
-assert.match(source, /window\.visualViewport\?\.addEventListener\('resize'/);
-assert.match(source, /window\.visualViewport\?\.addEventListener\('scroll'/);
+assert.match(source, /createPracticeCalendarKeyboard/);
+assert.doesNotMatch(source, /visualViewport\?\.addEventListener\('scroll'/);
+const deletionSource = source.slice(source.indexOf('function handlePracticeHistoryDelete'), source.indexOf('function renderPracticeDayHistory'));
+assert.match(deletionSource, /window\.confirm/);
+assert.ok(deletionSource.indexOf('savePracticeHistory(result.history)') < deletionSource.indexOf('state.history = result.history'));
+assert.doesNotMatch(deletionSource, /savePracticeProgress|totalCounts|deletePracticeMenu|localStorage\.clear/);
 assert.match(source, /cleanupPracticeCalendarKeyboardTracking/);
 assert.match(source, /const viewChanged = view\.hidden/);
 assert.match(source, /if \(viewChanged\) window\.scrollTo/);
@@ -139,8 +142,9 @@ assert.match(styles, /\.practice-attachment-lightbox\[hidden\]/);
 assert.match(styles, /\.practice-files-button/);
 assert.match(styles, /\.practice-attachment-status\.is-error/);
 assert.match(styles, /\.practice-completion-dialog[\s\S]*position: fixed[\s\S]*place-items: center/);
-assert.match(styles, /\.practice-completion-confetti i[\s\S]*practice-confetti-fall/);
-assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.practice-completion-confetti[\s\S]*display: none/);
+assert.match(styles, /\.practice-completion-sparkles i[\s\S]*practice-card-glint[\s\S]*infinite/);
+assert.match(styles, /\.is-partial \.practice-completion-sparkles[\s\S]*display: none/);
+assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.practice-completion-sparkles i[\s\S]*animation: none/);
 assert.doesNotMatch(markup, /fullcalendar|react-calendar|calendar\.js/);
 
 console.log('practice-menu-progress-ui: timer, concise cards, calendar notes, detail actions, attachments, accessibility, and completion UI passed');

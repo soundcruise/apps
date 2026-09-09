@@ -1,3 +1,4 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { getKnownApp } from './my-apps-known-apps.js?v=1.3.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
@@ -269,9 +270,10 @@ export function createSecureId() {
     throw new Error('secure-id-unavailable');
 }
 
-export function loadMyApps(storage = window.localStorage) {
+export function loadMyApps(storage) {
     try {
-        const rawValue = storage.getItem(MY_APPS_STORAGE_KEY);
+        if (storage === undefined) storage = globalThis.localStorage;
+        const rawValue = readStorageValue(storage, MY_APPS_STORAGE_KEY);
         if (rawValue === null) return { ok: true, items: [] };
 
         const parsed = JSON.parse(rawValue);
@@ -340,7 +342,7 @@ export function loadMyApps(storage = window.localStorage) {
     }
 }
 
-export function saveMyApps(items, storage = window.localStorage) {
+export function saveMyApps(items, storage) {
     if (
         !Array.isArray(items)
         || items.length > MY_APPS_LIMITS.items
@@ -351,10 +353,13 @@ export function saveMyApps(items, storage = window.localStorage) {
     }
 
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [MY_APPS_STORAGE_KEY]);
         storage.setItem(MY_APPS_STORAGE_KEY, JSON.stringify({
             version: MY_APPS_SCHEMA_VERSION,
             items: cloneItems(items)
         }));
+        acceptStorageValues(storage, [MY_APPS_STORAGE_KEY]);
         return { ok: true };
     } catch (_) {
         return { ok: false, reason: 'write-failed' };

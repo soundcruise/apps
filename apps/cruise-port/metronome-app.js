@@ -5,14 +5,14 @@ import {
     defaultAccentsForMeter,
     loadMetronomeSettings,
     saveMetronomeSettings
-} from './metronome-store.js?v=3.2.0';
+} from './metronome-store.js?v=0.24.0';
 import {
     METRONOME_PRESET_LIMITS,
     createMetronomePreset,
     deleteMetronomePreset,
     loadMetronomePresets,
     settingsFromMetronomePreset
-} from './metronome-presets-store.js?v=1.1.0';
+} from './metronome-presets-store.js?v=0.24.0';
 import {
     beatsForMeter,
     compatibleRhythm,
@@ -22,7 +22,7 @@ import {
     meterLabel,
     scheduleEventsUntil,
     secondsPerBeat
-} from './metronome-timing.js?v=1.2.0';
+} from './metronome-timing.js?v=0.24.0';
 
 export const METRONOME_SCHEDULER_INTERVAL_MS = 25;
 export const METRONOME_SCHEDULE_AHEAD_SEC = 0.1;
@@ -902,8 +902,8 @@ export function initMetronome(root) {
         elements.toggle.disabled = true;
         try {
             const started = await engine.start(getSettings, () => viewActive && !document.hidden);
-            if (!started && viewActive) elements.status.textContent = '音声を開始できませんでした。もう一度お試しください。';
             renderPlaying();
+            if (!started && viewActive) elements.status.textContent = '音声を開始できませんでした。もう一度お試しください。';
         } catch (_) {
             elements.status.textContent = '音声を開始できませんでした。もう一度お試しください。';
         } finally {

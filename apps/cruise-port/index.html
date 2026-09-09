@@ -7,7 +7,7 @@
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="./style.css?v=1.23.0">
+    <link rel="stylesheet" href="./style.css?v=0.24.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -16,7 +16,7 @@
         };
     </script>
     <script src="../shared/pro-gate.js?v=19" defer></script>
-    <script type="module" src="./practice-menu-app.js?v=2.3.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.24.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -319,7 +319,8 @@
                     </form>
                 </section>
                 <section class="practice-day-history" aria-labelledby="practice-day-history-title">
-                    <h2 id="practice-day-history-title">練習記録</h2>
+                    <h2 id="practice-day-history-title" tabindex="-1">練習記録</h2>
+                    <p id="practice-history-status" class="practice-saved" role="status" hidden></p>
                     <div id="practice-day-history-list"></div>
                 </section>
             </section>
@@ -920,8 +921,8 @@
             </section>
         </div>
         <div id="practice-completion-dialog" class="practice-completion-dialog" role="dialog" aria-modal="true" aria-labelledby="practice-completion-title" aria-describedby="practice-completion-description" hidden>
-            <div id="practice-completion-confetti" class="practice-completion-confetti" aria-hidden="true"></div>
             <section class="practice-completion-panel">
+                <div class="practice-completion-sparkles" aria-hidden="true"><i>✦</i><i>✧</i><i>✦</i><i>✧</i><i>✦</i><i>✧</i></div>
                 <span class="practice-completion-mark" aria-hidden="true">✓</span>
                 <h2 id="practice-completion-title" tabindex="-1">お疲れさまでした！</h2>
                 <p id="practice-completion-description">今日の練習メニューをすべて完了しました。</p>

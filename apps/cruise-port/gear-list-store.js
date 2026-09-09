@@ -1,3 +1,4 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 export const GEAR_LIST_STORAGE_KEY = 'cruisePort.gearList';
 export const GEAR_LIST_SCHEMA_VERSION = 4;
 
@@ -341,9 +342,10 @@ function migrateV3Items(items) {
     }));
 }
 
-export function loadGearList(storage = globalThis.localStorage) {
+export function loadGearList(storage) {
     try {
-        const rawValue = storage.getItem(GEAR_LIST_STORAGE_KEY);
+        if (storage === undefined) storage = globalThis.localStorage;
+        const rawValue = readStorageValue(storage, GEAR_LIST_STORAGE_KEY);
         if (rawValue === null) return { ok: true, items: [] };
         const payload = JSON.parse(rawValue);
 
@@ -396,17 +398,20 @@ export function loadGearList(storage = globalThis.localStorage) {
     }
 }
 
-export function saveGearList(items, storage = globalThis.localStorage) {
+export function saveGearList(items, storage) {
     if (!isValidGearCollection(items)) {
         return { ok: false, reason: 'invalid-data' };
     }
     let previousValue;
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [GEAR_LIST_STORAGE_KEY]);
         previousValue = storage.getItem(GEAR_LIST_STORAGE_KEY);
         storage.setItem(GEAR_LIST_STORAGE_KEY, JSON.stringify({
             version: GEAR_LIST_SCHEMA_VERSION,
             items
         }));
+        acceptStorageValues(storage, [GEAR_LIST_STORAGE_KEY]);
         return { ok: true };
     } catch (_) {
         if (previousValue !== undefined) {

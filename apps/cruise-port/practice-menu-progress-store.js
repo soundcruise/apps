@@ -1,3 +1,4 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 export const PRACTICE_PROGRESS_SCHEMA_VERSION = 3;
 export const PRACTICE_PROGRESS_STORAGE_KEY = 'cruisePort.practiceProgress';
 
@@ -94,10 +95,11 @@ function cloneProgress(progress) {
     };
 }
 
-export function loadPracticeProgress(storage = window.localStorage, now = new Date()) {
+export function loadPracticeProgress(storage, now = new Date()) {
     const fallback = createEmptyPracticeProgress(now);
     try {
-        const rawValue = storage.getItem(PRACTICE_PROGRESS_STORAGE_KEY);
+        if (storage === undefined) storage = globalThis.localStorage;
+        const rawValue = readStorageValue(storage, PRACTICE_PROGRESS_STORAGE_KEY);
         if (rawValue === null) return { ok: true, progress: fallback };
         const parsed = JSON.parse(rawValue);
         const current = isValidPracticeProgress(parsed);
@@ -114,12 +116,15 @@ export function loadPracticeProgress(storage = window.localStorage, now = new Da
     }
 }
 
-export function savePracticeProgress(progress, storage = window.localStorage) {
+export function savePracticeProgress(progress, storage) {
     if (!isValidPracticeProgress(progress)) return { ok: false, reason: 'invalid-data' };
     let previousValue;
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [PRACTICE_PROGRESS_STORAGE_KEY]);
         previousValue = storage.getItem(PRACTICE_PROGRESS_STORAGE_KEY);
         storage.setItem(PRACTICE_PROGRESS_STORAGE_KEY, JSON.stringify(progress));
+        acceptStorageValues(storage, [PRACTICE_PROGRESS_STORAGE_KEY]);
         return { ok: true };
     } catch (error) {
         try {

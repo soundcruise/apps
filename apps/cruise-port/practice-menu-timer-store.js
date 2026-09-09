@@ -1,3 +1,4 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 export const PRACTICE_TIMER_SCHEMA_VERSION = 1;
 export const PRACTICE_TIMER_STORAGE_KEY = 'cruisePort.practiceTimer';
 export const PRACTICE_TIMER_MAX_SECONDS = 30 * 24 * 60 * 60;
@@ -29,10 +30,11 @@ export function isValidPracticeTimer(timer) {
         && isIsoDate(timer.startedAt);
 }
 
-export function loadPracticeTimer(storage = window.localStorage) {
+export function loadPracticeTimer(storage) {
     const fallback = createStoppedPracticeTimer();
     try {
-        const rawValue = storage.getItem(PRACTICE_TIMER_STORAGE_KEY);
+        if (storage === undefined) storage = globalThis.localStorage;
+        const rawValue = readStorageValue(storage, PRACTICE_TIMER_STORAGE_KEY);
         if (rawValue === null) return { ok: true, timer: fallback };
         const parsed = JSON.parse(rawValue);
         return isValidPracticeTimer(parsed)
@@ -43,12 +45,15 @@ export function loadPracticeTimer(storage = window.localStorage) {
     }
 }
 
-export function savePracticeTimer(timer, storage = window.localStorage) {
+export function savePracticeTimer(timer, storage) {
     if (!isValidPracticeTimer(timer)) return { ok: false, reason: 'invalid-data' };
     let previousValue;
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [PRACTICE_TIMER_STORAGE_KEY]);
         previousValue = storage.getItem(PRACTICE_TIMER_STORAGE_KEY);
         storage.setItem(PRACTICE_TIMER_STORAGE_KEY, JSON.stringify(timer));
+        acceptStorageValues(storage, [PRACTICE_TIMER_STORAGE_KEY]);
         return { ok: true };
     } catch (_) {
         try {

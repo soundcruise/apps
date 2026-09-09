@@ -1,3 +1,4 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 import { isFreeTuning, isValidCapo, isValidTuningId } from './tuner-tuning.js?v=1.1.6';
 
 export const TUNER_STORAGE_KEY = 'cruisePort.tuner';
@@ -60,7 +61,7 @@ function migrateV1Settings(value) {
 export function loadTunerSettings(storage) {
     try {
         const targetStorage = storage ?? globalThis.localStorage;
-        const raw = targetStorage.getItem(TUNER_STORAGE_KEY);
+        const raw = readStorageValue(targetStorage, TUNER_STORAGE_KEY);
         if (raw === null) return { ok: true, settings: { ...TUNER_DEFAULTS }, migrated: false };
         const value = JSON.parse(raw);
         const settings = normalizeTunerSettings(value);
@@ -78,7 +79,9 @@ export function saveTunerSettings(settings, storage) {
     if (!normalized) return { ok: false, reason: 'invalid-data' };
     try {
         const targetStorage = storage ?? globalThis.localStorage;
+        assertStorageUnchanged(targetStorage, [TUNER_STORAGE_KEY]);
         targetStorage.setItem(TUNER_STORAGE_KEY, JSON.stringify(normalized));
+        acceptStorageValues(targetStorage, [TUNER_STORAGE_KEY]);
         return { ok: true };
     } catch (_) {
         return { ok: false, reason: 'write-failed' };

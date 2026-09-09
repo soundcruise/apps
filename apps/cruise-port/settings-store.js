@@ -1,3 +1,4 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 export const SETTINGS_STORAGE_KEY = 'cruisePort.settings';
 export const SETTINGS_SCHEMA_VERSION = 2;
 export const DISPLAY_SIZES = Object.freeze(['large', 'standard', 'small', 'xsmall']);
@@ -33,9 +34,10 @@ export function normalizeSettings(value) {
     };
 }
 
-export function loadSettings(storage = window.localStorage) {
+export function loadSettings(storage) {
     try {
-        const raw = storage.getItem(SETTINGS_STORAGE_KEY);
+        if (storage === undefined) storage = globalThis.localStorage;
+        const raw = readStorageValue(storage, SETTINGS_STORAGE_KEY);
         if (raw === null) return { ok: true, settings: { ...DEFAULT_SETTINGS } };
         const parsed = JSON.parse(raw);
 
@@ -62,18 +64,22 @@ export function loadSettings(storage = window.localStorage) {
     }
 }
 
-export function saveSettings(settings, storage = window.localStorage) {
+export function saveSettings(settings, storage) {
     const normalized = normalizeSettings(settings);
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [SETTINGS_STORAGE_KEY]);
         storage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(normalized));
+        acceptStorageValues(storage, [SETTINGS_STORAGE_KEY]);
         return { ok: true, settings: normalized };
     } catch (_) {
         return { ok: false, settings: normalized };
     }
 }
 
-export function clearRetiredIconScalePreviewKeys(storage = globalThis.localStorage) {
+export function clearRetiredIconScalePreviewKeys(storage) {
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
         RETIRED_ICON_SCALE_PREVIEW_STORAGE_KEYS.forEach((key) => storage?.removeItem(key));
         return true;
     } catch (_) {

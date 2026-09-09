@@ -1,3 +1,4 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 const SCHEMA_VERSION = 3;
 const LEGACY_SCHEMA_VERSIONS = Object.freeze([1, 2]);
 const STORAGE_KEYS = Object.freeze({
@@ -82,10 +83,11 @@ function restoreStorage(storage, key, previousValue) {
     }
 }
 
-export function loadPracticeMenus(storage = window.localStorage) {
+export function loadPracticeMenus(storage) {
     try {
-        const schemaValue = storage.getItem(STORAGE_KEYS.schemaVersion);
-        const rawValue = storage.getItem(STORAGE_KEYS.practiceMenus);
+        if (storage === undefined) storage = globalThis.localStorage;
+        const schemaValue = readStorageValue(storage, STORAGE_KEYS.schemaVersion);
+        const rawValue = readStorageValue(storage, STORAGE_KEYS.practiceMenus);
 
         const supportedVersions = [...LEGACY_SCHEMA_VERSIONS, SCHEMA_VERSION];
         const supportedSchemaValues = supportedVersions.map(String);
@@ -129,7 +131,7 @@ export function loadPracticeMenus(storage = window.localStorage) {
     }
 }
 
-export function savePracticeMenus(items, storage = window.localStorage) {
+export function savePracticeMenus(items, storage) {
     if (!Array.isArray(items) || !items.every((item) => isValidItem(item)) || !hasUniqueIds(items)) {
         return { ok: false, reason: 'invalid-data' };
     }
@@ -137,11 +139,14 @@ export function savePracticeMenus(items, storage = window.localStorage) {
     let previousSchema;
     let previousMenus;
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [STORAGE_KEYS.schemaVersion, STORAGE_KEYS.practiceMenus]);
         previousSchema = storage.getItem(STORAGE_KEYS.schemaVersion);
         previousMenus = storage.getItem(STORAGE_KEYS.practiceMenus);
         const payload = JSON.stringify({ version: SCHEMA_VERSION, items });
         storage.setItem(STORAGE_KEYS.schemaVersion, String(SCHEMA_VERSION));
         storage.setItem(STORAGE_KEYS.practiceMenus, payload);
+        acceptStorageValues(storage, [STORAGE_KEYS.schemaVersion, STORAGE_KEYS.practiceMenus]);
         return { ok: true };
     } catch (error) {
         try {

@@ -1,3 +1,4 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 export const PRACTICE_CALENDAR_SCHEMA_VERSION = 2;
 export const PRACTICE_CALENDAR_STORAGE_KEY = 'cruisePort.practiceCalendar';
 export const PRACTICE_CALENDAR_LIMITS = Object.freeze({ notes: 1500, text: 500 });
@@ -77,10 +78,11 @@ function cloneCalendar(calendar) {
     };
 }
 
-export function loadPracticeCalendar(storage = window.localStorage) {
+export function loadPracticeCalendar(storage) {
     const fallback = createEmptyPracticeCalendar();
     try {
-        const rawValue = storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY);
+        if (storage === undefined) storage = globalThis.localStorage;
+        const rawValue = readStorageValue(storage, PRACTICE_CALENDAR_STORAGE_KEY);
         if (rawValue === null) return { ok: true, calendar: fallback };
         const parsed = JSON.parse(rawValue);
         const current = isValidPracticeCalendar(parsed);
@@ -94,12 +96,15 @@ export function loadPracticeCalendar(storage = window.localStorage) {
     }
 }
 
-export function savePracticeCalendar(calendar, storage = window.localStorage) {
+export function savePracticeCalendar(calendar, storage) {
     if (!isValidPracticeCalendar(calendar)) return { ok: false, reason: 'invalid-data' };
     let previousValue;
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [PRACTICE_CALENDAR_STORAGE_KEY]);
         previousValue = storage.getItem(PRACTICE_CALENDAR_STORAGE_KEY);
         storage.setItem(PRACTICE_CALENDAR_STORAGE_KEY, JSON.stringify(calendar));
+        acceptStorageValues(storage, [PRACTICE_CALENDAR_STORAGE_KEY]);
         return { ok: true };
     } catch (_) {
         try {

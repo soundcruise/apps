@@ -12,6 +12,7 @@ import {
     createPracticeCompletedEvent,
     createPracticeDayHistoryView,
     createPracticeSessionEvent,
+    deletePracticeHistoryEvent,
     getPracticeHistoryForDate,
     loadPracticeHistory,
     savePracticeHistory,
@@ -52,6 +53,9 @@ test('timer-running completion records a session id while timer-free completion 
     const independent = createPracticeCompletedEvent(item, 'cycle-b', now);
     assert.equal(linked.sessionId, 'session-a');
     assert.equal(independent.sessionId, null);
+    const appended = appendPracticeHistoryEvent(createEmptyPracticeHistory(), independent, { running: false, sessionId: null, startedAt: null });
+    assert.equal(appended.ok, true);
+    assert.equal(appended.history.activeSessionTiming, undefined);
 });
 test('cycle completion event is distinct and date grouping keeps both event types', () => {
     const now = new Date(2026, 8, 8, 10, 0, 0, 0);
@@ -225,7 +229,7 @@ test('legacy v1 history migrates without dropping cycle-completed events', () =>
     const loaded = loadPracticeHistory(storage);
     assert.equal(loaded.ok, true);
     assert.equal(loaded.migrated, true);
-    assert.equal(loaded.history.version, 3);
+    assert.equal(loaded.history.version, 4);
     assert.equal(loaded.history.events[0].type, PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted);
 });
 
@@ -237,7 +241,7 @@ test('legacy v2 practice events migrate with null session ids', () => {
     const loaded = loadPracticeHistory(storage);
     assert.equal(loaded.ok, true);
     assert.equal(loaded.migrated, true);
-    assert.equal(loaded.history.version, 3);
+    assert.equal(loaded.history.version, 4);
     assert.equal(loaded.history.events[0].sessionId, null);
 });
 
@@ -255,4 +259,114 @@ test('history retains deleted-item snapshots and caps storage by dropping oldest
     assert.equal(capped.events[0].id, 'event-1');
     assert.equal(capped.events.at(-1).id, 'event-newest');
     assert.equal(capped.events.at(-1).practiceName, item.name);
+});
+
+function deletionFixture() {
+    const children = [12, 27, 35].map((minute, index) => createPracticeCompletedEvent(
+        { ...item, id: `child-${index}` }, 'cycle-delete', new Date(`2026-09-08T01:${minute}:03.000Z`), 'session-delete'
+    ));
+    const session = createPracticeSessionEvent({ sessionId: 'session-delete', startedAt: '2026-09-08T01:00:00.000Z', endedAt: '2026-09-08T01:42:18.000Z', durationSeconds: 2538 });
+    const standalone = createPracticeCompletedEvent(item, 'standalone', new Date('2026-09-08T02:00:00.000Z'));
+    const cycle = createCycleCompletedEvent('cycle-delete', new Date('2026-09-08T01:35:03.000Z'));
+    return { history: { version: 4, events: [...children, session, standalone, cycle] }, children, session, standalone, cycle };
+}
+
+test('delete standalone and cycle affects only selected event ID, never the input object', () => {
+    const { history, standalone, cycle } = deletionFixture();
+    const before = structuredClone(history);
+    for (const target of [standalone, cycle]) {
+        const result = deletePracticeHistoryEvent(history, target.id);
+        assert.equal(result.ok, true);
+        assert.deepEqual(result.deletedIds, [target.id]);
+        assert.deepEqual(result.history.events.map(e => e.id), history.events.filter(e => e.id !== target.id).map(e => e.id));
+    }
+    assert.deepEqual(history, before);
+    assert.equal(deletePracticeHistoryEvent(history, 'missing').reason, 'not-found');
+});
+
+test('delete middle/first children freezes original intervals through repeated deletion and reload', () => {
+    const { history, children, session } = deletionFixture();
+    const storage = new FakeStorage();
+    const removedMiddle = deletePracticeHistoryEvent(history, children[1].id).history;
+    const view = createPracticeDayHistoryView(removedMiddle, '2026-09-08').find(entry => entry.kind === 'session');
+    assert.deepEqual(view.children.map(e => e.measuredDurationSeconds), [723, 480]);
+    assert.deepEqual(view.event, session);
+    savePracticeHistory(removedMiddle, storage);
+    const reloaded = loadPracticeHistory(storage).history;
+    const removedFirst = deletePracticeHistoryEvent(reloaded, children[0].id).history;
+    assert.deepEqual(createPracticeDayHistoryView(removedFirst, '2026-09-08').find(e => e.kind === 'session').children.map(e => e.measuredDurationSeconds), [480]);
+    assert.equal(history.events.length, 6);
+});
+
+test('session deletion removes only its group, including cross-date children; count/progress keys stay unchanged', () => {
+    const { history, session, children, standalone, cycle } = deletionFixture();
+    history.events[0].localDate = '2026-09-07';
+    const result = deletePracticeHistoryEvent(history, session.id);
+    assert.deepEqual(new Set(result.deletedIds), new Set([session.id, ...children.map(e => e.id)]));
+    assert.deepEqual(result.history.events, [standalone, cycle]);
+    const storage = new FakeStorage({ 'cruisePort.practiceProgress': '{"totalCounts":{"practice-a":10}}', 'cruisePort.practiceMenus': 'sentinel' });
+    savePracticeHistory(result.history, storage);
+    assert.equal(storage.getItem('cruisePort.practiceProgress'), '{"totalCounts":{"practice-a":10}}');
+    assert.equal(storage.getItem('cruisePort.practiceMenus'), 'sentinel');
+});
+
+test('last history deletion clears practiced mark but retains calendar memo icon', () => {
+    const { history, standalone } = deletionFixture();
+    history.events = [standalone];
+    const notes = [{ localDate: standalone.localDate, icon: 'live' }];
+    assert.equal(createPracticeCalendarDaySummary(standalone.localDate, history, notes).practiced, true);
+    const result = deletePracticeHistoryEvent(history, standalone.id);
+    const summary = createPracticeCalendarDaySummary(standalone.localDate, result.history, notes);
+    assert.equal(summary.practiced, false);
+    assert.deepEqual(summary.memoIcons, ['live']);
+});
+
+test('failed delete save retains stored history and may safely retry', () => {
+    const { history, standalone } = deletionFixture();
+    const raw = JSON.stringify(history);
+    const storage = new FakeStorage({ [PRACTICE_HISTORY_STORAGE_KEY]: raw });
+    storage.setItem = () => { throw new Error('quota'); };
+    const result = deletePracticeHistoryEvent(history, standalone.id);
+    assert.equal(savePracticeHistory(result.history, storage).ok, false);
+    assert.equal(storage.getItem(PRACTICE_HISTORY_STORAGE_KEY), raw);
+    assert.equal(history.events.some(e => e.id === standalone.id), true);
+});
+
+test('v3 migration remains read-only and supports stable deletion without rewriting unrelated events', () => {
+    const { history, children } = deletionFixture();
+    const raw = JSON.stringify({ ...history, version: 3 });
+    const storage = new FakeStorage({ [PRACTICE_HISTORY_STORAGE_KEY]: raw });
+    const loaded = loadPracticeHistory(storage);
+    assert.equal(loaded.migrated, true);
+    assert.equal(storage.getItem(PRACTICE_HISTORY_STORAGE_KEY), raw);
+    assert.equal(loaded.history.version, 4);
+    const result = deletePracticeHistoryEvent(loaded.history, children[1].id);
+    assert.equal(createPracticeDayHistoryView(result.history, '2026-09-08').find(e => e.kind === 'session').children[1].measuredDurationSeconds, 480);
+});
+
+test('deleting latest running child preserves timing boundary for next check, including reload', () => {
+    const timer = { running: true, sessionId: 'running-delete', startedAt: '2026-09-08T01:00:00.000Z' };
+    const first = createPracticeCompletedEvent(item, 'running-cycle', new Date('2026-09-08T01:05:00.000Z'), timer.sessionId);
+    let history = appendPracticeHistoryEvent(createEmptyPracticeHistory(), first, timer).history;
+    assert.equal(history.events[0].measuredDurationSeconds, 300);
+    history = deletePracticeHistoryEvent(history, first.id, timer).history;
+    assert.equal(history.events.length, 0);
+    const storage = new FakeStorage();
+    savePracticeHistory(history, storage);
+    history = loadPracticeHistory(storage).history;
+    const next = createPracticeCompletedEvent({ ...item, id: 'next' }, 'running-cycle', new Date('2026-09-08T01:07:00.000Z'), timer.sessionId);
+    history = appendPracticeHistoryEvent(history, next, timer).history;
+    assert.equal(history.events[0].measuredDurationSeconds, 120);
+    history = appendPracticeHistoryEvent(history, createPracticeSessionEvent({ ...timer, endedAt: '2026-09-08T01:10:00.000Z', durationSeconds: 600 })).history;
+    assert.equal(history.activeSessionTiming, undefined);
+    assert.equal(createPracticeDayHistoryView(history, '2026-09-08')[0].children[0].measuredDurationSeconds, 120);
+});
+
+test('cap pruning freezes only affected sessions before removing a child timing boundary', () => {
+    const { history, children, session, standalone } = deletionFixture();
+    history.events = [children[0], ...Array.from({ length: PRACTICE_HISTORY_MAX_EVENTS - 4 }, (_, i) => ({ ...standalone, id: `unrelated-${i}` })), children[1], children[2], session];
+    const result = appendPracticeHistoryEvent(history, createCycleCompletedEvent('qa-prune')).history;
+    assert.equal(result.events.length, PRACTICE_HISTORY_MAX_EVENTS);
+    const entry = createPracticeDayHistoryView(result, '2026-09-08').find(e => e.kind === 'session');
+    assert.deepEqual(entry.children.map(e => e.measuredDurationSeconds), [900, 480]);
 });

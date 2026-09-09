@@ -1,5 +1,5 @@
-import { APP_DEFINITIONS, MY_APP_PREFIX } from './practice-menu-store.js?v=3.0.1';
-import { resolveMyAppHref } from './my-apps-launch.js?v=1.3.0';
+import { APP_DEFINITIONS, MY_APP_PREFIX } from './practice-menu-store.js?v=0.24.0';
+import { resolveMyAppHref } from './my-apps-launch.js?v=0.24.0';
 
 export const PRACTICE_APP_STATUS = Object.freeze({
     none: 'none',

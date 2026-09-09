@@ -6,7 +6,7 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=3.0.2';
+} from './practice-menu-store.js?v=0.24.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -19,7 +19,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=3.0.0';
+} from './practice-menu-progress-store.js?v=0.24.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -29,10 +29,12 @@ import {
     createPracticeCompletedEvent,
     createPracticeDayHistoryView,
     createPracticeSessionEvent,
+    deletePracticeHistoryEvent,
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=3.1.0';
+} from './practice-menu-history-store.js?v=0.24.0';
+import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.24.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
     PRACTICE_CALENDAR_ICONS,
@@ -43,7 +45,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=2.0.0';
+} from './practice-menu-calendar-store.js?v=0.24.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -52,13 +54,13 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=1.1.0';
+} from './practice-menu-timer-store.js?v=0.24.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen,
     isSafePracticeImagePreview
-} from './practice-menu-attachment-store.js?v=1.0.1';
+} from './practice-menu-attachment-store.js?v=0.24.0';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -69,7 +71,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=1.2.1';
+} from './practice-menu-app-resolver.js?v=0.24.0';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -85,7 +87,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=6.0.1-assets';
+} from './my-apps-store.js?v=0.24.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -95,7 +97,7 @@ import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=1.3.0';
+} from './my-apps-launch.js?v=0.24.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -106,7 +108,7 @@ import {
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.1.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.3.0';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=0.24.0';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -124,21 +126,21 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=3.0.1-assets';
+} from './my-apps-icon-workflow.js?v=0.24.0';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.3';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=2.3.1';
+import { initMetronome } from './metronome-app.js?v=0.24.0';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.23.0';
+} from './app-version.js?v=0.24.0';
 import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
-import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=1.0.1';
-import { initTuner } from './tuner-app.js?v=1.2.0';
+import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.24.0';
+import { initTuner } from './tuner-app.js?v=0.24.0';
 import {
     GEAR_CATEGORIES,
     clearGearPhotoReferences,
@@ -158,8 +160,8 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=4.0.0';
-import { createGearPhotoStore } from './gear-photo-store.js?v=1.0.0';
+} from './gear-list-store.js?v=0.24.0';
+import { createGearPhotoStore } from './gear-photo-store.js?v=0.24.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -250,7 +252,6 @@ const elements = {
     finishButton: document.querySelector('#practice-finish'),
     cycleReset: document.querySelector('#practice-cycle-reset'),
     completionDialog: document.querySelector('#practice-completion-dialog'),
-    completionConfetti: document.querySelector('#practice-completion-confetti'),
     completionTitle: document.querySelector('#practice-completion-title'),
     completionDescription: document.querySelector('#practice-completion-description'),
     completionError: document.querySelector('#practice-completion-error'),
@@ -262,6 +263,7 @@ const elements = {
     hiddenNotice: document.querySelector('#practice-hidden-notice'),
     historyTitle: document.querySelector('#practice-history-title'),
     historyError: document.querySelector('#practice-history-error'),
+    historyStatus: document.querySelector('#practice-history-status'),
     calendarViewTabs: [...document.querySelectorAll('[data-calendar-view]')],
     calendarPrevious: document.querySelector('#practice-calendar-previous'),
     calendarNext: document.querySelector('#practice-calendar-next'),
@@ -405,11 +407,7 @@ const state = {
     historyMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     historySelectedDate: toLocalDateKey(),
     calendarViewMode: 'month',
-    completionConfettiTimer: null,
-    completionConfettiCycleId: null,
-    completionActionInProgress: false,
-    calendarKeyboardFrame: null,
-    calendarKeyboardActive: false
+    completionActionInProgress: false
 };
 
 const myAppsState = {
@@ -1838,34 +1836,7 @@ function setPracticeCompletionBackgroundInert(inert) {
     });
 }
 
-function clearPracticeCompletionConfetti() {
-    window.clearTimeout(state.completionConfettiTimer);
-    state.completionConfettiTimer = null;
-    elements.completionConfetti.replaceChildren();
-}
-
-function renderPracticeCompletionConfetti(cycleId) {
-    clearPracticeCompletionConfetti();
-    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
-    const colors = ['#d8b968', '#ead89f', '#f2ead4', '#aa8145'];
-    const pieces = Array.from({ length: 64 }, (_, index) => {
-        const piece = document.createElement('i');
-        piece.style.setProperty('--confetti-x', `${(index * 37) % 101}%`);
-        piece.style.setProperty('--confetti-drift', `${((index * 29) % 81) - 40}px`);
-        piece.style.setProperty('--confetti-delay', `${(index % 13) * 34}ms`);
-        piece.style.setProperty('--confetti-duration', `${2100 + (index % 9) * 85}ms`);
-        piece.style.setProperty('--confetti-rotate', `${180 + (index % 7) * 75}deg`);
-        piece.style.setProperty('--confetti-color', colors[index % colors.length]);
-        return piece;
-    });
-    elements.completionConfetti.replaceChildren(...pieces);
-    state.completionConfettiCycleId = cycleId;
-    state.completionConfettiTimer = window.setTimeout(clearPracticeCompletionConfetti, 3100);
-}
-
 function closePracticeCompletionDialog() {
-    clearPracticeCompletionConfetti();
-    state.completionConfettiCycleId = null;
     elements.completionDialog.hidden = true;
     elements.completionDialog.classList.remove('is-partial');
     document.body.classList.remove('practice-completion-open');
@@ -1891,11 +1862,6 @@ function syncPracticeCompletionDialog({ focus = true } = {}) {
     elements.completionDialog.hidden = false;
     document.body.classList.add('practice-completion-open');
     setPracticeCompletionBackgroundInert(true);
-    if (complete && state.completionConfettiCycleId !== pending.cycleId) {
-        renderPracticeCompletionConfetti(pending.cycleId);
-    } else if (!complete) {
-        clearPracticeCompletionConfetti();
-    }
     if (wasHidden && focus) elements.completionEnd.focus({ preventScroll: true });
 }
 
@@ -1915,7 +1881,8 @@ function persistPracticeCheck(item, checked) {
                 state.progress.cycleId,
                 now,
                 state.timerReady && state.timer?.running ? state.timer.sessionId : null
-            )
+            ),
+            state.timerReady ? state.timer : null
         );
         if (!individualResult.ok) return { changed: false, completionStarted: false, failed: true };
         nextHistory = individualResult.history;
@@ -2086,55 +2053,21 @@ function closePracticeCalendarNoteForm() {
     showNotice(elements.calendarNoteError);
 }
 
-function adjustPracticeCalendarNoteVisibility() {
-    state.calendarKeyboardFrame = null;
-    if (!state.calendarKeyboardActive || elements.calendarNoteForm.hidden) return;
-    const viewport = window.visualViewport;
-    const viewportTop = viewport?.offsetTop || 0;
-    const viewportHeight = viewport?.height || window.innerHeight;
-    const viewportBottom = viewportTop + viewportHeight;
-    const safeGap = 12;
-    const formRect = elements.calendarNoteForm.getBoundingClientRect();
-    const visibleHeight = Math.max(0, viewportHeight - safeGap * 2);
-    let scrollDelta = 0;
-
-    if (formRect.height <= visibleHeight) {
-        if (formRect.top < viewportTop + safeGap) {
-            scrollDelta = formRect.top - viewportTop - safeGap;
-        } else if (formRect.bottom > viewportBottom - safeGap) {
-            scrollDelta = formRect.bottom - viewportBottom + safeGap;
-        }
-    } else {
-        scrollDelta = formRect.top - viewportTop - safeGap;
-    }
-    if (Math.abs(scrollDelta) >= 1) {
-        window.scrollBy({ top: scrollDelta, left: 0, behavior: 'auto' });
-    }
-}
-
-function schedulePracticeCalendarNoteVisibility() {
-    window.cancelAnimationFrame(state.calendarKeyboardFrame);
-    state.calendarKeyboardFrame = window.requestAnimationFrame(adjustPracticeCalendarNoteVisibility);
-}
+const calendarKeyboard = createPracticeCalendarKeyboard({
+    windowObject: window,
+    form: elements.calendarNoteForm,
+    getInputBounds: () => ({
+        top: elements.calendarNoteIcons.closest('fieldset').getBoundingClientRect().top,
+        bottom: elements.calendarNoteText.getBoundingClientRect().bottom
+    })
+});
 
 function activatePracticeCalendarKeyboardTracking() {
-    if (state.calendarKeyboardActive) {
-        schedulePracticeCalendarNoteVisibility();
-        return;
-    }
-    state.calendarKeyboardActive = true;
-    window.visualViewport?.addEventListener('resize', schedulePracticeCalendarNoteVisibility);
-    window.visualViewport?.addEventListener('scroll', schedulePracticeCalendarNoteVisibility);
-    schedulePracticeCalendarNoteVisibility();
+    calendarKeyboard.start(document.activeElement);
 }
 
 function cleanupPracticeCalendarKeyboardTracking() {
-    if (!state.calendarKeyboardActive && state.calendarKeyboardFrame === null) return;
-    window.cancelAnimationFrame(state.calendarKeyboardFrame);
-    state.calendarKeyboardFrame = null;
-    state.calendarKeyboardActive = false;
-    window.visualViewport?.removeEventListener('resize', schedulePracticeCalendarNoteVisibility);
-    window.visualViewport?.removeEventListener('scroll', schedulePracticeCalendarNoteVisibility);
+    calendarKeyboard.stop();
 }
 
 const PRACTICE_CALENDAR_ICON_SHAPES = Object.freeze({
@@ -2178,13 +2111,14 @@ function renderPracticeCalendarIconChoices() {
 }
 
 function openPracticeCalendarNoteForm(note = null) {
+    cleanupPracticeCalendarKeyboardTracking();
     state.calendarNoteEditId = note?.id || null;
     state.calendarNoteIcon = note?.icon || PRACTICE_CALENDAR_DEFAULT_ICON;
     elements.calendarNoteText.value = note?.text || '';
     renderPracticeCalendarIconChoices();
     elements.calendarNoteForm.hidden = false;
     showNotice(elements.calendarNoteError);
-    elements.calendarNoteText.focus({ preventScroll: true });
+    elements.calendarNoteText.focus();
 }
 
 function renderPracticeCalendarNotes() {
@@ -2268,6 +2202,48 @@ function handlePracticeCalendarNoteAction(event) {
     renderPracticeHistory({ focus: false });
 }
 
+function createPracticeHistoryDeleteButton(event, label) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'practice-history-delete';
+    button.dataset.historyDeleteId = event.id;
+    button.setAttribute('aria-label', `${label}の練習記録を削除`);
+    button.title = '練習記録を削除';
+    button.disabled = !state.historyReady;
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', 'M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 10v7M14 10v7');
+    svg.append(path);
+    button.append(svg);
+    return button;
+}
+
+function handlePracticeHistoryDelete(event) {
+    const button = event.target.closest('[data-history-delete-id]');
+    if (!button || !state.historyReady) return;
+    const target = state.history.events.find(({ id }) => id === button.dataset.historyDeleteId);
+    if (!target) return;
+    const message = target.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession
+        ? 'この練習セッションと、セッション内の練習記録を削除しますか？'
+        : 'この練習記録を削除しますか？';
+    if (!window.confirm(`${message}\n練習メニューと通算回数は変わりません。`)) return;
+    showNotice(elements.historyStatus);
+    const result = deletePracticeHistoryEvent(state.history, target.id, state.timerReady ? state.timer : null);
+    if (!result.ok || !savePracticeHistory(result.history).ok) {
+        showNotice(elements.historyError, '練習記録を削除できませんでした。記録は変更していません。');
+        return;
+    }
+    const buttons = [...elements.dayHistoryList.querySelectorAll('[data-history-delete-id]')];
+    const index = buttons.indexOf(button);
+    state.history = result.history;
+    renderPracticeHistory({ focus: false });
+    const remaining = elements.dayHistoryList.querySelectorAll('[data-history-delete-id]');
+    (remaining[Math.min(index, remaining.length - 1)] || elements.dayHistoryTitle).focus({ preventScroll: true });
+    showNotice(elements.historyStatus, `${result.deletedIds.length}件の練習記録を削除しました。`);
+}
+
 function renderPracticeDayHistory() {
     const [year, month, day] = state.historySelectedDate.split('-').map(Number);
     elements.dayHistoryTitle.textContent = `${month}月${day}日の練習記録`;
@@ -2298,6 +2274,8 @@ function renderPracticeDayHistory() {
                 ? `${formatPracticeSessionDuration(event.durationSeconds)} ・ ${new Date(event.startedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${new Date(event.endedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
             : `${event.durationMinutes}分 ・ ${new Date(event.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
         copy.append(title, detail);
+        row.dataset.historyEventId = event.id;
+        row.append(mark, copy, createPracticeHistoryDeleteButton(event, title.textContent));
         if (session && children.length > 0) {
             const childList = document.createElement('ul');
             childList.className = 'practice-history-session-children';
@@ -2307,18 +2285,18 @@ function renderPracticeDayHistory() {
                 const childCopy = document.createElement('span');
                 const childName = document.createElement('span');
                 const childDuration = document.createElement('small');
+                childItem.dataset.historyEventId = child.id;
                 childMark.setAttribute('aria-hidden', 'true');
                 childMark.textContent = '✓';
                 childName.textContent = child.practiceName;
                 childDuration.className = 'practice-history-session-duration';
                 childDuration.textContent = formatPracticeSessionDuration(child.measuredDurationSeconds);
                 childCopy.append(childName, childDuration);
-                childItem.append(childMark, childCopy);
+                childItem.append(childMark, childCopy, createPracticeHistoryDeleteButton(child, child.practiceName));
                 childList.append(childItem);
             });
-            copy.append(childList);
+            row.append(childList);
         }
-        row.append(mark, copy);
         elements.dayHistoryList.append(row);
     });
 }
@@ -2430,6 +2408,7 @@ function renderPracticeDayCalendar(selectedDate) {
 
 function renderPracticeHistory({ focus = true } = {}) {
     showView(elements.practiceHistoryView);
+    showNotice(elements.historyStatus);
     const selectedDate = practiceLocalDateToDate(state.historySelectedDate);
     state.historyMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
     elements.calendarViewTabs.forEach((button) => {
@@ -3415,10 +3394,15 @@ async function confirmGearPhotoCrop() {
 
 async function prepareAndOpenGearPhoto(blob, initialCrop = null) {
     if (gearState.photoProcessing || gearState.saving) return;
+    const generation = gearPhotoRenderGeneration.form;
     gearState.photoProcessing = true;
     updateGearPhotoControls(Boolean(gearState.photoBlob || findGearItem(gearState.activeId)?.photoId));
     elements.gearPhotoStatus.textContent = '写真を読み込んでいます…';
     const prepared = await prepareGearPhotoSource(blob);
+    if (generation !== gearPhotoRenderGeneration.form) {
+        prepared.cleanup?.();
+        return;
+    }
     gearState.photoProcessing = false;
     updateGearPhotoControls(Boolean(gearState.photoBlob || findGearItem(gearState.activeId)?.photoId));
     if (!prepared.ok) {
@@ -3431,10 +3415,15 @@ async function prepareAndOpenGearPhoto(blob, initialCrop = null) {
 
 async function openStoredGearPhotoForReadjustment(blob, initialCrop) {
     if (gearState.photoProcessing || gearState.saving) return;
+    const generation = gearPhotoRenderGeneration.form;
     gearState.photoProcessing = true;
     updateGearPhotoControls(true);
     elements.gearPhotoStatus.textContent = '元の写真を読み込んでいます…';
     const prepared = await prepareMyAppIcon(blob);
+    if (generation !== gearPhotoRenderGeneration.form) {
+        prepared.cleanup?.();
+        return;
+    }
     gearState.photoProcessing = false;
     updateGearPhotoControls(true);
     if (!prepared.ok) {
@@ -3456,10 +3445,12 @@ async function handleGearPhotoReadjust() {
     }
     const item = findGearItem(gearState.activeId);
     if (!item?.photoSourceId) return;
+    const generation = gearPhotoRenderGeneration.form;
     gearState.photoProcessing = true;
     updateGearPhotoControls(true);
     elements.gearPhotoStatus.textContent = '元の写真を読み込んでいます…';
     const result = await gearPhotoStore.getPhoto(item.photoSourceId);
+    if (generation !== gearPhotoRenderGeneration.form) return;
     gearState.photoProcessing = false;
     updateGearPhotoControls(true);
     if (!result.ok || !result.record?.blob) {
@@ -4145,6 +4136,7 @@ elements.calendarNoteForm.addEventListener('focusout', () => {
     });
 });
 elements.calendarNotesList.addEventListener('click', handlePracticeCalendarNoteAction);
+elements.dayHistoryList.addEventListener('click', handlePracticeHistoryDelete);
 elements.attachmentInput.addEventListener('change', (event) => handlePracticeAttachmentSelection(event, 'detail'));
 elements.attachmentsList.addEventListener('click', (event) => handlePracticeAttachmentAction(event, 'detail'));
 elements.formAttachmentInput.addEventListener('change', (event) => handlePracticeAttachmentSelection(event, 'form'));
@@ -4318,9 +4310,11 @@ window.addEventListener('pagehide', () => {
     practiceAttachmentExternalObjectUrls.forEach((url) => URL.revokeObjectURL(url));
     practiceAttachmentExternalObjectUrls.clear();
     cleanupPracticeCalendarKeyboardTracking();
-    clearPracticeCompletionConfetti();
 });
 window.addEventListener('pageshow', ensurePracticeTimerTicking);
+window.addEventListener('cruise-port-storage-conflict', () => {
+    window.alert('別のタブで保存内容が変更されました。上書きを防ぐため、この操作は保存していません。\n入力中の内容を控えてから「ページを更新」を押してください。');
+});
 
 const loadResult = loadPracticeMenus();
 state.items = loadResult.items;

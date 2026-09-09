@@ -1,9 +1,10 @@
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.24.0';
 import {
     METRONOME_RETIRED_SOUNDS,
     METRONOME_SCHEMA_VERSION,
     migrateMetronomeSound,
     normalizeMetronomeSettings
-} from './metronome-store.js?v=3.2.0';
+} from './metronome-store.js?v=0.24.0';
 
 export const METRONOME_PRESETS_STORAGE_KEY = 'cruisePort.metronomePresets';
 export const METRONOME_PRESETS_SCHEMA_VERSION = 1;
@@ -82,9 +83,10 @@ function validatePresetList(presets) {
     return normalized;
 }
 
-export function loadMetronomePresets(storage = window.localStorage) {
+export function loadMetronomePresets(storage) {
     try {
-        const raw = storage.getItem(METRONOME_PRESETS_STORAGE_KEY);
+        if (storage === undefined) storage = globalThis.localStorage;
+        const raw = readStorageValue(storage, METRONOME_PRESETS_STORAGE_KEY);
         if (raw === null) return { ok: true, presets: [], ignored: 0 };
         const parsed = JSON.parse(raw);
         if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)
@@ -129,14 +131,17 @@ export function loadMetronomePresets(storage = window.localStorage) {
     }
 }
 
-export function saveMetronomePresets(presets, storage = window.localStorage) {
+export function saveMetronomePresets(presets, storage) {
     const normalized = validatePresetList(presets);
     if (!normalized) return { ok: false, reason: 'invalid-data' };
     try {
+        if (storage === undefined) storage = globalThis.localStorage;
+        assertStorageUnchanged(storage, [METRONOME_PRESETS_STORAGE_KEY]);
         storage.setItem(METRONOME_PRESETS_STORAGE_KEY, JSON.stringify({
             version: METRONOME_PRESETS_SCHEMA_VERSION,
             items: normalized
         }));
+        acceptStorageValues(storage, [METRONOME_PRESETS_STORAGE_KEY]);
         return { ok: true, presets: normalized };
     } catch (_) {
         return { ok: false, reason: 'write-failed' };
@@ -147,7 +152,7 @@ export function createMetronomePreset({
     presets,
     name,
     settings,
-    storage = window.localStorage,
+    storage,
     idFactory = defaultId,
     now = Date.now()
 }) {
@@ -184,7 +189,7 @@ export function createMetronomePreset({
     return { ok: true, presets: result.presets, preset: normalizeMetronomePreset(preset) };
 }
 
-export function deleteMetronomePreset({ presets, id, storage = window.localStorage }) {
+export function deleteMetronomePreset({ presets, id, storage }) {
     const normalizedPresets = validatePresetList(presets);
     if (!normalizedPresets) return { ok: false, reason: 'invalid-data' };
     if (!normalizedPresets.some((preset) => preset.id === id)) return { ok: false, reason: 'not-found' };
