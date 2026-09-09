@@ -13,12 +13,12 @@ const proFile = `.${PRO_ENTRY_PATH.slice(CRUISE_PORT_ROOT.length - 1)}index.html
 const root = read('./index.html');
 const pro = read(proFile);
 
-test('SP1 exact root compatibility and explicit Pro route, malformed paths fail to Standard', () => {
-    for (const path of [CRUISE_PORT_ROOT, `${CRUISE_PORT_ROOT}index.html`, PRO_ENTRY_PATH, `${PRO_ENTRY_PATH}index.html`]) {
+test('SP2 root is Standard; only explicit Pro route is Pro', () => {
+    for (const path of [PRO_ENTRY_PATH, `${PRO_ENTRY_PATH}index.html`]) {
         assert.equal(getEdition(path), 'pro');
         assert.equal(isProEdition(path), true);
     }
-    for (const path of [undefined, null, '', '/', {}, '/apps/cruise-port/pro_fake/', `${PRO_ENTRY_PATH}extra`, '/apps/cruise-port/%70ro_fake/', '/apps/cruise-port/../', '//apps/cruise-port/', `${PRO_ENTRY_PATH}?edition=pro`]) {
+    for (const path of [CRUISE_PORT_ROOT, `${CRUISE_PORT_ROOT}index.html`, undefined, null, '', '/', {}, '/apps/cruise-port/pro_fake/', `${PRO_ENTRY_PATH}extra`, '/apps/cruise-port/%70ro_fake/', '/apps/cruise-port/../', '//apps/cruise-port/', `${PRO_ENTRY_PATH}?edition=pro`]) {
         assert.equal(getEdition(path), 'standard');
         assert.equal(isStandardEdition(path), true);
     }
@@ -66,13 +66,18 @@ test('Home and Practice resolve all four editions through one catalog; local too
     assert.deepEqual(Object.keys(APP_DEFINITIONS), ['pitch', 'fretboard', 'rhythm', 'chord', 'metronome', 'tuner']);
 });
 
-test('Pro entry is an exactly synchronized static shell, with only document-relative URLs adjusted', () => {
+test('SP2 shells allow only Pro title/gate and document-relative URL differences', () => {
     const expected = root.replace(/((?:src|href)=")(\.\.?\/)/g, (_, start, relative) => start + (relative === './' ? '../' : '../../'));
-    assert.equal(pro, expected, 'When updating root HTML, synchronize Pro HTML in the same change');
+    const withoutGate = pro
+        .replace('クルーズポート Pro</title>', 'クルーズポート</title>')
+        .split('\n').filter(line => !line.includes('shared/pro-gate.')).join('\n')
+        .replace(/    <script>\n        window\.__SOUNDCRUISE_PRO_GATE__[\s\S]*?<\/script>\n/, '');
+    assert.equal(withoutGate, expected, 'Only explicitly allowed edition differences may diverge');
+    assert.doesNotMatch(root, /pro-gate\.(?:js|css)|__SOUNDCRUISE_PRO_GATE__/);
+    assert.match(pro, /shared\/pro-gate\.js\?v=21/);
+    assert.match(pro, /__SOUNDCRUISE_PRO_GATE__/);
     assert.doesNotMatch(pro, /<iframe|<base|http-equiv="refresh"|location\.(?:replace|assign)/i);
     for (const entry of [root, pro]) {
-        assert.match(entry, /shared\/pro-gate\.js\?v=21/);
-        assert.match(entry, /__SOUNDCRUISE_PRO_GATE__/);
         assert.match(entry, /home-pro-badge[^>]*hidden>Pro/);
         assert.equal((entry.match(/data-cruise-app=/g) || []).length, 4);
     }

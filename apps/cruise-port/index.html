@@ -6,16 +6,7 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート</title>
     <link rel="icon" href="data:,">
-    <link rel="stylesheet" href="../shared/pro-gate.css?v=5">
     <link rel="stylesheet" href="./style.css?v=0.26.0">
-    <script>
-        window.__SOUNDCRUISE_PRO_GATE__ = {
-            passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
-            gateVersion: 8,
-            appName: 'クルーズポート'
-        };
-    </script>
-    <script src="../shared/pro-gate.js?v=21" defer></script>
     <script type="module" src="./practice-menu-app.js?v=0.26.2"></script>
 </head>
 <body>
@@ -25,7 +16,7 @@
                 <button id="home-settings-button" class="port-settings-button" type="button" aria-label="表示設定を開く">
                     <span class="port-settings-gear" aria-hidden="true">⚙️</span><span>設定</span>
                 </button>
-                <h1><span class="port-title-text">クルーズポート<span id="home-pro-badge" class="port-pro-badge" hidden>Pro</span></span></h1>
+                <h1><span class="port-title-text">クルーズポート<span id="home-pro-badge" class="port-pro-badge" aria-hidden="true" hidden>Pro</span></span></h1>
                 <p class="port-concept">弾き語りに必要なアプリを1つに集約。</p>
             </header>
 
@@ -92,6 +83,9 @@
                     </button>
                 </div>
             </section>
+            <section class="port-pro-link" data-standard-pro-link hidden>
+                <span>Cruise Port Pro</span> · <a href="/apps/cruise-port/pro_9a3943176561/" aria-label="Cruise Port Pro版はこちら">Pro版はこちら →</a>
+            </section>
         </main>
 
         <main id="settings-view" class="port-view settings-view" hidden>
@@ -125,6 +119,11 @@
                 </section>
                 <button id="settings-reset" class="action-button secondary-action" type="button">全てをデフォルトに戻す</button>
                 <p id="settings-storage-error" class="notice notice-error" role="alert" hidden></p>
+                <section class="settings-card port-pro-link" data-standard-pro-link hidden>
+                    <h2>Cruise Port Pro</h2>
+                    <p>Pro版では、さらに便利な機能を利用できます。</p>
+                    <a href="/apps/cruise-port/pro_9a3943176561/" aria-label="Cruise Port Pro版はこちら">Pro版はこちら →</a>
+                </section>
                 <section id="settings-pro-auth" class="settings-card" aria-labelledby="settings-pro-auth-title" hidden>
                     <h2 id="settings-pro-auth-title">Pro版の認証</h2>
                     <p>次回Pro版を開く際に、パスワードの入力が必要になります。</p>

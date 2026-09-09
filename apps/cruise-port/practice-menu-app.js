@@ -180,9 +180,11 @@ import {
 } from './gear-list-navigation.js?v=1.0.0';
 
 import { initializeProAuthSettings } from './pro-auth-settings.js?v=1.0.0';
+import { applyProLinks } from './pro-prompt.js?v=1.0.0';
 
 applyEditionDisplay();
 initializeProAuthSettings();
+applyProLinks();
 applyHomeCruiseLinks();
 
 const elements = {
@@ -2944,6 +2946,9 @@ function applyDisplaySettings() {
     applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
     document.documentElement.dataset.fontSize = homeSettings.fontSize;
     applyHomeSectionOrder(elements.homeView, homeSettings.sectionOrder);
+    // The edition link is auxiliary, never part of the user's section order.
+    const proLink = elements.homeView.querySelector('[data-standard-pro-link]');
+    if (proLink) elements.homeView.append(proLink);
 }
 
 const homeSectionLabels = { cruiseApps: 'クルーズアプリ', tools: 'ツール', myApps: 'My Apps' };

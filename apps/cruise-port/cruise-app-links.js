@@ -21,9 +21,18 @@ export const APP_DEFINITIONS = Object.freeze({
     tuner: Object.freeze({ name: 'チューナー', href: '#tuner' })
 });
 
+export const CRUISE_APP_ICONS = Object.freeze({
+    pitch: Object.freeze({ standard: '/apps/pitch-cruise/icon_pwa_192.png', pro: '/apps/pitch-cruise/pro_icon_192.png' }),
+    fretboard: Object.freeze({ standard: '/apps/fretboard_cruise/generated-home-icons/standard-selected-icon/fretboard-cruise-standard-selection-192.png', pro: '/apps/fretboard_cruise/generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-192.png' }),
+    rhythm: Object.freeze({ standard: '/apps/rhythm-cruise/icon-192.png', pro: '/apps/rhythm-cruise/pro_r4m8k7n2q9x/icon-192.png' }),
+    chord: Object.freeze({ standard: '/apps/chord-cruise/icons/chord-cruise-192.png', pro: '/apps/chord-cruise/icons/chord-cruise-pro-192.png' })
+});
+
 export function applyHomeCruiseLinks(documentObject = document, edition = getEdition()) {
     documentObject.querySelectorAll('[data-cruise-app]').forEach((link) => {
         const href = resolveCruiseAppHref(link.dataset.cruiseApp, edition);
         if (href) link.setAttribute('href', href);
+        const image = link.querySelector?.('img');
+        if (image && CRUISE_APP_ICONS[link.dataset.cruiseApp]) image.src = CRUISE_APP_ICONS[link.dataset.cruiseApp][edition === 'pro' ? 'pro' : 'standard'];
     });
 }
