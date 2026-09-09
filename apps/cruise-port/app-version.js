@@ -4,8 +4,15 @@ let reloadInProgress = false;
 
 export function buildReloadUrl(href, timestamp) {
     const url = new URL(href);
+    url.hash = '';
     url.searchParams.set('_r', String(timestamp));
     return url.toString();
+}
+
+// Call once at document startup, never from the SPA route renderer.
+export function normalizeInitialHome({ historyObject = globalThis.history, locationObject = globalThis.location } = {}) {
+    if (!locationObject?.hash) return;
+    historyObject.replaceState(historyObject.state, '', `${locationObject.pathname}${locationObject.search}`);
 }
 
 export function applyVersionDisplay(root = globalThis.document) {

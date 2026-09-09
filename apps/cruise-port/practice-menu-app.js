@@ -142,6 +142,7 @@ import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0
 import { initMetronome } from './metronome-app.js?v=0.24.0';
 import {
     applyVersionDisplay,
+    normalizeInitialHome,
     reloadAppWithCacheBust
 } from './app-version.js?v=0.26.2';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
@@ -186,6 +187,7 @@ import {
 import { initializeProAuthSettings } from './pro-auth-settings.js?v=1.0.0';
 import { applyProLinks, createProAccessView, PRO_INFO_ROUTE } from './pro-prompt.js?v=1.0.0';
 
+normalizeInitialHome();
 const proAccessView = createProAccessView();
 document.querySelector('#home-view').before(proAccessView);
 let proAccessHasPreviousRoute = false;
