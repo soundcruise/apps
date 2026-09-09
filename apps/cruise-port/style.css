@@ -707,6 +707,26 @@ summary.tool-pro-locked > span:first-child::after {
     cursor: pointer;
 }
 
+.practice-progress-column {
+    pointer-events: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+.practice-progress-column .practice-check { pointer-events: auto; }
+.practice-progress-column .practice-card-count {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-align: center;
+}
+.practice-detail-top-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-block: 12px;
+}
+
 .practice-check[aria-pressed="true"] {
     border-color: rgba(229, 204, 139, 0.45);
     background: rgba(205, 180, 116, 0.12);

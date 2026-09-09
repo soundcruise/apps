@@ -723,7 +723,10 @@ function renderPracticeCard(item) {
     count.textContent = `${getPracticeTotalCount(item.id)}回`;
     memo.textContent = item.memo;
     arrow.textContent = '→';
-    copy.append(name, count);
+    const progress = document.createElement('span');
+    progress.className = 'practice-progress-column';
+    progress.append(checkButton, count);
+    copy.append(name);
     if (item.memo) copy.append(memo);
     actions.className = 'practice-card-actions';
     if (app.launchable) {
@@ -752,7 +755,7 @@ function renderPracticeCard(item) {
         files.textContent = attachmentCount === 1 ? 'ファイル' : `ファイル ${attachmentCount}`;
         actions.append(files);
     }
-    card.append(detailLink, checkButton, copy, actions, arrow);
+    card.append(detailLink, progress, copy, actions, arrow);
     return card;
 }
 
@@ -4213,9 +4216,11 @@ elements.openApp.addEventListener('click', (event) => {
     ) return;
     void tunerController.startFromUserGesture();
 });
-elements.editButton.addEventListener('click', () => {
+function openActivePracticeEditor() {
     if (state.activeId) setHashRoute(`#practice-menu/${encodeURIComponent(state.activeId)}/edit`);
-});
+}
+elements.editButton.addEventListener('click', openActivePracticeEditor);
+document.querySelector('#practice-edit-top').addEventListener('click', openActivePracticeEditor);
 elements.deleteButton.addEventListener('click', handleDelete);
 elements.reorderStart.addEventListener('click', startReorder);
 elements.reorderCancel.addEventListener('click', cancelReorder);
@@ -4293,6 +4298,10 @@ elements.calendarNoteIcons.addEventListener('click', (event) => {
     const button = event.target.closest('[data-calendar-note-icon]');
     if (!button) return;
     state.calendarNoteIcon = button.dataset.calendarNoteIcon;
+    if (!elements.calendarNoteText.value.trim()) {
+        const icon = PRACTICE_CALENDAR_ICONS.find(({ value }) => value === state.calendarNoteIcon);
+        if (icon) elements.calendarNoteText.value = icon.label;
+    }
     renderPracticeCalendarIconChoices();
     elements.calendarNoteIcons.querySelector(`[data-calendar-note-icon="${state.calendarNoteIcon}"]`)?.focus({ preventScroll: true });
 });
