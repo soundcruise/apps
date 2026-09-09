@@ -5,11 +5,13 @@ import {
     createTunerDiagnosticHistory,
     createTunerSmoother,
     formatTunerDiagnosticCopy,
-    initTuner,
+    initTuner as initTunerCore,
     inputLevelPercentage,
     isTunerDebugEnabled,
     standardStringForNote
 } from './tuner-app.js';
+import { getCapabilities } from './cruise-port-capabilities.js';
+const initTuner = (root, options) => initTunerCore(root, { capabilities: getCapabilities('pro'), ...options });
 import {
     APP_DEFINITIONS,
     SCHEMA_VERSION,
@@ -928,4 +930,37 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.deepEqual(APP_DEFINITIONS.tuner, { name: 'チューナー', href: '#tuner' });
 }
 
+{
+    const root = createFakeRoot();
+    let raw = JSON.stringify({version:3,thresholdDb:-80,tuningId:'standard',capo:5});
+    const prompts = [], played = [];
+    let callbacks;
+    const standardApp = initTuner(root, {
+        capabilities: getCapabilities('standard'),
+        requestPro: key=>prompts.push(key),
+        storage: { getItem:()=>raw, setItem:(_,value)=>{raw=value;} },
+        audioControllerFactory:options=>{callbacks=options;return {start:async()=>true,stop:async()=>{},getState:()=>({status:'running'}),setRmsThreshold:()=>true};},
+        previewAudioControllerFactory:()=>({play:async target=>{played.push(target);return true;},stop(){},suspend:async()=>{}})
+    });
+    assert.equal(root.strings[0].querySelector('strong').textContent,'E2');
+    standardApp.setActive(true);
+    callbacks.onStateChange({status:'running'});
+    for(const frequency of [82.40,82.41,82.39])callbacks.onResult(result(frequency));
+    assert.equal(root.elements.get('tuner-note-string').textContent,'6弦');
+    assert.equal(root.elements.get('tuner-note-value').textContent,'E2');
+    await root.strings[0].dispatch('click');
+    assert(Math.abs(played[0].targetFrequency-82.406889)<0.001);
+    await root.elements.get('tuner-capo-up').dispatch('click');
+    assert.deepEqual(prompts,['tunerCapo']);
+    assert.equal(JSON.parse(raw).capo,5);
+    for(const tuning of ['drop-d','free','standard']){
+        root.elements.get('tuner-tuning').value=tuning;
+        await root.elements.get('tuner-tuning').dispatch('change');
+        assert.equal(JSON.parse(raw).capo,5);
+    }
+    root.elements.get('tuner-threshold').value='-70';
+    await root.elements.get('tuner-threshold').dispatch('input');
+    await root.elements.get('tuner-threshold').dispatch('change');
+    assert.equal(JSON.parse(raw).capo,5);
+}
 console.log('tuner-app: all UI-controller and smoothing tests passed');

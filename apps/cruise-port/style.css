@@ -196,6 +196,14 @@ h1::after {
     [data-edition="pro"] .port-title-text { transform: translateX(-0.55em); }
 }
 
+.tool-pro-locked:not(summary)::after,
+summary.tool-pro-locked > span:first-child::after {
+    content: "🔒";
+    font-size: 0.75em;
+    margin-left: 0.35em;
+}
+#tuner-capo-lock { grid-column: 1 / -1; width: 100%; color: var(--port-gold-bright); }
+
 .port-pro-link {
     margin-top: 28px;
     color: var(--port-muted);

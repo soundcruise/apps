@@ -68,8 +68,8 @@ for (const thresholdDb of [-100, -80, -68, -40]) {
 }
 assert.deepEqual(
     normalizeTunerSettings({ version: 3, thresholdDb: -80, tuningId: 'free', capo: 8 }),
-    { version: 3, thresholdDb: -80, tuningId: 'free', capo: 0 },
-    'free mode is stored with its effective capo reset to zero'
+    { version: 3, thresholdDb: -80, tuningId: 'free', capo: 8 },
+    'Free mode preserves stored Pro capo; execution decides the effective value'
 );
 for (const invalid of [
     null,

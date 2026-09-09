@@ -530,8 +530,8 @@ test('named preset UI stays outside details and uses a focused modal workflow', 
 });
 test('preset apply commits one complete settings object and reschedules once', () => {
     const applySource = appSource.match(/function applyPreset\(presetId\)[\s\S]*?function saveCurrentAsPreset/)[0];
-    assert.match(applySource, /state\.settings = settings/);
-    assert.match(applySource, /engine\.setVolume\(settings\.volume\)/);
+    assert.match(applySource, /state\.settings = effectiveMetronome\(settings, capabilities\)/);
+    assert.match(applySource, /engine\.setVolume\(state\.settings\.volume\)/);
     assert.equal((applySource.match(/engine\.reschedule/g) || []).length, 1);
     assert.match(applySource, /engine\.reschedule\(getSettings, \{ resetBeat: true \}\)/);
 });

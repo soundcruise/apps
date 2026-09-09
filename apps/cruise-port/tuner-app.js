@@ -388,7 +388,12 @@ function diagnosticDeviceLabel(navigatorObject) {
     return 'Browser';
 }
 
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
+import { effectiveCapo, requestToolPro } from './tool-capabilities.js?v=1.0.0';
+
 export function initTuner(root, {
+    capabilities = getCapabilities(),
+    requestPro = requestToolPro,
     audioControllerFactory = createTunerAudioController,
     previewAudioControllerFactory = createTunerPreviewAudioController,
     now = () => globalThis.performance?.now?.() ?? Date.now(),
@@ -454,8 +459,8 @@ export function initTuner(root, {
     const loadResult = loadTunerSettings(storage);
     let currentThresholdDb = loadResult.settings.thresholdDb;
     let currentTuningId = loadResult.settings.tuningId;
-    let currentCapo = loadResult.settings.capo;
-    if (isFreeTuning(currentTuningId)) currentCapo = 0;
+    const storedCapo = loadResult.settings.capo;
+    let currentCapo = effectiveCapo(storedCapo, capabilities);
     let currentTargets = getTuningTargets(currentTuningId, currentCapo);
     let currentReading = null;
     let inputSettingsOpen = false;
@@ -479,7 +484,7 @@ export function initTuner(root, {
             version: TUNER_SCHEMA_VERSION,
             thresholdDb: currentThresholdDb,
             tuningId: currentTuningId,
-            capo: currentCapo
+            capo: capabilities.tunerCapo ? currentCapo : storedCapo
         }, storage);
         elements.settingsError.textContent = result.ok ? '' : 'チューナー設定を保存できませんでした。';
         return result;
@@ -514,11 +519,18 @@ export function initTuner(root, {
 
     function renderTargetControls() {
         elements.tuning.value = currentTuningId;
-        elements.capoValue.textContent = currentCapo === 0 ? 'なし' : String(currentCapo);
-        elements.capoValue.setAttribute('aria-label', currentCapo === 0 ? 'カポなし' : `カポ${currentCapo}フレット`);
+        elements.capoValue.textContent = currentCapo === 0 || isFreeTuning(currentTuningId) ? 'なし' : String(currentCapo);
+        elements.capoValue.setAttribute('aria-label', currentCapo === 0 || isFreeTuning(currentTuningId) ? 'カポなし' : `カポ${currentCapo}フレット`);
         const isFreeMode = isFreeTuning(currentTuningId);
         elements.capoDown.disabled = isFreeMode || currentCapo === TUNER_CAPO_MIN;
         elements.capoUp.disabled = isFreeMode || currentCapo === TUNER_CAPO_MAX;
+        const lock = root.querySelector('#tuner-capo-lock');
+        if (lock) {
+            lock.hidden = capabilities.tunerCapo;
+            elements.capoDown.hidden = !capabilities.tunerCapo;
+            elements.capoUp.hidden = !capabilities.tunerCapo;
+            elements.capoValue.hidden = !capabilities.tunerCapo;
+        }
         renderTargetCards();
     }
 
@@ -835,6 +847,7 @@ export function initTuner(root, {
     });
 
     function changeCapo(delta) {
+        if (!capabilities.tunerCapo) { requestPro('tunerCapo'); return; }
         if (isFreeTuning(currentTuningId)) return;
         const nextCapo = currentCapo + delta;
         if (!isValidCapo(nextCapo)) return;
@@ -846,6 +859,7 @@ export function initTuner(root, {
 
     elements.capoDown.addEventListener('click', () => changeCapo(-1));
     elements.capoUp.addEventListener('click', () => changeCapo(1));
+    root.querySelector('#tuner-capo-lock')?.addEventListener('click', () => requestPro('tunerCapo'));
 
     elements.threshold.addEventListener('input', () => {
         const nextThresholdDb = Number(elements.threshold.value);

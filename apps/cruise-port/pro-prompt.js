@@ -19,8 +19,9 @@ export function createProPrompt(documentObject = document, isPro = isProEdition)
         backgrounds.clear();
         if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });
     }
-    function open() {
+    function open(message = 'Pro版では、さらに便利な機能を利用できます。') {
         if (isPro() || !overlay.hidden) return false;
+        overlay.querySelector('p').textContent = message;
         returnFocus = documentObject.activeElement;
         for (const element of documentObject.body.children) {
             if (element === overlay) continue;

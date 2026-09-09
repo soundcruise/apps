@@ -417,7 +417,10 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
     };
 }
 
-export function initMetronome(root) {
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
+import { effectiveMetronome, mergeMetronomeSettings, requestToolPro } from './tool-capabilities.js?v=1.0.0';
+
+export function initMetronome(root, { capabilities = getCapabilities(), requestPro = requestToolPro } = {}) {
     const elements = {
         title: root.querySelector('#metronome-title'),
         bpm: root.querySelector('#metronome-bpm'),
@@ -453,8 +456,9 @@ export function initMetronome(root) {
 
     const loadResult = loadMetronomeSettings();
     const presetLoadResult = loadMetronomePresets();
+    let storedSettings = loadResult.settings;
     const state = {
-        settings: loadResult.settings,
+        settings: effectiveMetronome(storedSettings, capabilities),
         presets: presetLoadResult.presets,
         presetStorageWritable: presetLoadResult.ok,
         selectedPresetId: '',
@@ -474,7 +478,9 @@ export function initMetronome(root) {
     }
 
     function saveSettings() {
-        const result = saveMetronomeSettings(state.settings);
+        const merged = mergeMetronomeSettings(storedSettings, state.settings, capabilities);
+        const result = saveMetronomeSettings(merged);
+        if (result.ok) storedSettings = merged;
         showStorageError(result.ok ? '' : 'メトロノーム設定を保存できませんでした。現在の操作はこの画面内だけに反映されています。');
     }
 
@@ -507,8 +513,8 @@ export function initMetronome(root) {
         elements.presetSelect.value = state.selectedPresetId;
         elements.presetDelete.hidden = !state.selectedPresetId;
         elements.presetDelete.disabled = !state.presetStorageWritable;
-        elements.presetSaveOpen.disabled = !state.presetStorageWritable
-            || state.presets.length >= METRONOME_PRESET_LIMITS.items;
+        elements.presetSaveOpen.disabled = capabilities.metronomePresetWrite && (!state.presetStorageWritable
+            || state.presets.length >= METRONOME_PRESET_LIMITS.items);
     }
 
     function markPresetDirty() {
@@ -520,6 +526,7 @@ export function initMetronome(root) {
     }
 
     function openPresetDialog() {
+        if (!capabilities.metronomePresetWrite) { requestPro('metronomePresetWrite'); return; }
         if (!state.presetStorageWritable) {
             showPresetError('保存済みプリセットを安全に読み込めないため、新しい保存は行いません。現在のメトロノームはそのまま利用できます。');
             return;
@@ -697,11 +704,11 @@ export function initMetronome(root) {
             showPresetError('このプリセットを読み込めませんでした。現在の設定は変更していません。');
             return false;
         }
-        state.settings = settings;
+        state.settings = effectiveMetronome(settings, capabilities);
         state.selectedPresetId = preset.id;
         state.currentBeat = -1;
         state.currentSubdivision = -1;
-        engine.setVolume(settings.volume);
+        engine.setVolume(state.settings.volume);
         renderControls();
         renderPresetOptions();
         saveSettings();
@@ -712,6 +719,7 @@ export function initMetronome(root) {
     }
 
     function saveCurrentAsPreset() {
+        if (!capabilities.metronomePresetWrite) { requestPro('metronomePresetWrite'); return false; }
         const result = createMetronomePreset({
             presets: state.presets,
             name: elements.presetName.value,
@@ -824,10 +832,23 @@ export function initMetronome(root) {
     });
 
     elements.details.addEventListener('toggle', () => {
+        if (!capabilities.metronomeAdvanced) elements.details.open = false;
         elements.detailsSummary.setAttribute('aria-expanded', String(elements.details.open));
     });
+    elements.detailsSummary.addEventListener('click', event => {
+        if (!capabilities.metronomeAdvanced) { event.preventDefault(); requestPro('metronomeAdvanced'); }
+    });
+    if (!capabilities.metronomeAdvanced) {
+        elements.detailsSummary.classList.add('tool-pro-locked');
+        elements.detailsSummary.setAttribute('aria-label', '詳細設定（Pro版機能）');
+    }
+    if (!capabilities.metronomePresetWrite) {
+        elements.presetSaveOpen.classList.add('tool-pro-locked');
+        elements.presetSaveOpen.setAttribute('aria-label', '設定を保存（Pro版機能）');
+    }
 
     elements.meter.addEventListener('change', () => {
+        if (!capabilities.metronomeAdvanced) { renderControls(); requestPro('metronomeAdvanced'); return; }
         const meter = elements.meter.value;
         const rhythm = compatibleRhythm(meter, state.settings.rhythm);
         state.settings = {
@@ -845,6 +866,7 @@ export function initMetronome(root) {
     });
 
     elements.rhythm.addEventListener('click', (event) => {
+        if (!capabilities.metronomeAdvanced) { requestPro('metronomeAdvanced'); return; }
         const button = event.target.closest('[data-metronome-rhythm]');
         if (!button || button.disabled) return;
         const rhythm = button.dataset.metronomeRhythm;
@@ -857,6 +879,7 @@ export function initMetronome(root) {
     });
 
     elements.beats.addEventListener('click', (event) => {
+        if (!capabilities.metronomeAdvanced) { requestPro('metronomeAdvanced'); return; }
         const button = event.target.closest('[data-accent-beat]');
         if (!button) return;
         const beatIndex = Number(button.dataset.accentBeat);
@@ -871,6 +894,7 @@ export function initMetronome(root) {
     });
 
     elements.sound.addEventListener('click', (event) => {
+        if (!capabilities.metronomeAdvanced) { requestPro('metronomeAdvanced'); return; }
         const button = event.target.closest('[data-metronome-sound]');
         if (!button) return;
         state.settings = { ...state.settings, sound: button.dataset.metronomeSound };
@@ -881,6 +905,7 @@ export function initMetronome(root) {
     });
 
     elements.volume.addEventListener('input', () => {
+        if (!capabilities.metronomeAdvanced) { renderControls(); requestPro('metronomeAdvanced'); return; }
         const volume = clampInteger(elements.volume.value, METRONOME_LIMITS.volumeMin, METRONOME_LIMITS.volumeMax, state.settings.volume);
         state.settings = { ...state.settings, volume };
         markPresetDirty();

@@ -26,7 +26,7 @@ test('two quiet Standard links target the Pro entry and disappear in Pro', () =>
         assert.match(html, /port-pro-badge" aria-hidden="true"/);
     }
 });
-test('prompt is an unused reusable foundation, not a hidden QA entry or feature lock', () => {
+test('prompt is a reusable foundation with no hidden QA entry or storage side effects', () => {
     const source = read('pro-prompt.js');
     assert.match(source, /role="dialog" aria-modal="true" aria-labelledby=/);
     assert.match(source, /Escape/); assert.match(source, /returnFocus.*focus/);
