@@ -4114,11 +4114,19 @@ body.metronome-preset-open {
 .tuner-capo-control output {
     min-width: 0;
     color: var(--port-text);
-    font-size: calc(0.76rem * var(--font-scale));
+    font-size: calc(1rem * var(--font-scale));
+    line-height: 1.2;
     font-variant-numeric: tabular-nums;
     font-weight: 650;
     text-align: center;
 }
+
+.pro-access-view { max-width: 640px; margin-inline: auto; }
+.pro-access-view ol { padding-inline-start: 1.5em; }
+.pro-access-view li { margin-block: 24px; }
+.pro-access-view h2 { font-size: calc(1rem * var(--font-scale)); }
+.pro-access-view p { line-height: 1.7; }
+.pro-access-view a { white-space: normal; overflow-wrap: anywhere; }
 
 .tuner-settings-error {
     color: var(--port-muted);

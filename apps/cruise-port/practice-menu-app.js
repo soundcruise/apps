@@ -184,7 +184,16 @@ import {
 } from './gear-list-navigation.js?v=1.0.0';
 
 import { initializeProAuthSettings } from './pro-auth-settings.js?v=1.0.0';
-import { applyProLinks } from './pro-prompt.js?v=1.0.0';
+import { applyProLinks, createProAccessView, PRO_INFO_ROUTE } from './pro-prompt.js?v=1.0.0';
+
+const proAccessView = createProAccessView();
+document.querySelector('#home-view').before(proAccessView);
+let proAccessHasPreviousRoute = false;
+let lastRenderedHash = null;
+proAccessView.querySelector('button').addEventListener('click', () => {
+    if (proAccessHasPreviousRoute) history.back();
+    else replaceHomeRoute();
+});
 
 applyEditionDisplay();
 initializeProAuthSettings();
@@ -573,6 +582,7 @@ function showView(view) {
         cleanupPracticeAttachmentObjectUrls();
     }
     [
+        proAccessView,
         elements.homeView,
         elements.settingsView,
         elements.wishlistView,
@@ -3871,11 +3881,22 @@ function handleGearListAction(event) {
 
 function renderRoute() {
     const hash = location.hash;
+    if (hash === PRO_INFO_ROUTE && lastRenderedHash !== PRO_INFO_ROUTE) {
+        proAccessHasPreviousRoute = lastRenderedHash !== null;
+    }
+    lastRenderedHash = hash;
     const gearRoute = parseGearRoute(hash);
     const practiceRoute = parsePracticeRoute(hash);
     const myAppsEditMatch = hash.match(/^#my-apps\/([^/]+)\/edit$/);
 
-    if (hash === '#settings') {
+    if (hash === PRO_INFO_ROUTE) {
+        if (document.documentElement.dataset.edition === 'pro') {
+            replaceHomeRoute();
+            return;
+        }
+        showView(proAccessView);
+        proAccessView.querySelector('h1').focus({ preventScroll: true });
+    } else if (hash === '#settings') {
         renderSettings();
     } else if (gearRoute?.kind === GEAR_ROUTE_KIND.list) {
         renderWishlist();
