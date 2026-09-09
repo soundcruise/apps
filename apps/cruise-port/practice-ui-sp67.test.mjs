@@ -25,7 +25,7 @@ test('practice calendar uses a robust filled pick and retains the other formal i
     const pick = source.match(/practice: \[\['path', \{ d: '([^']+)', fill: 'currentColor', stroke: 'none' \}\]\]/);
     assert.ok(pick);
     assert.match(pick[1], /^M12 3C/);
-    for (const key of ['live', 'rehearsal', 'studio', 'recording', 'work', 'rest', 'schedule']) {
+    for (const key of ['live', 'rehearsal', 'studio', 'recording', 'work', "'string-change'", 'maintenance', 'rest', 'schedule']) {
         assert.match(source, new RegExp(`\\n    ${key}:`));
     }
 });

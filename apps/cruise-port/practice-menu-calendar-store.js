@@ -10,6 +10,8 @@ export const PRACTICE_CALENDAR_ICONS = Object.freeze([
     Object.freeze({ value: 'studio', label: 'スタジオ' }),
     Object.freeze({ value: 'recording', label: '録音' }),
     Object.freeze({ value: 'work', label: '作業' }),
+    Object.freeze({ value: 'string-change', label: '弦交換' }),
+    Object.freeze({ value: 'maintenance', label: 'メンテ' }),
     Object.freeze({ value: 'rest', label: '休み' }),
     Object.freeze({ value: 'schedule', label: '予定' })
 ]);
@@ -34,6 +36,19 @@ export function isValidPracticeLocalDate(value) {
     return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day;
 }
 
+export function isValidPracticeCalendarTime(value) {
+    if (typeof value !== 'string' || !/^\d{2}:\d{2}$/.test(value)) return false;
+    const [hours, minutes] = value.split(':').map(Number);
+    return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+}
+
+function normalizePracticeCalendarTime(value) {
+    if (value === undefined || value === null || value === '') return { ok: true, time: null };
+    return isValidPracticeCalendarTime(value)
+        ? { ok: true, time: value }
+        : { ok: false, time: null };
+}
+
 function isValidNote(note, version = PRACTICE_CALENDAR_SCHEMA_VERSION) {
     return Boolean(
         note
@@ -47,6 +62,7 @@ function isValidNote(note, version = PRACTICE_CALENDAR_SCHEMA_VERSION) {
         && note.text.length > 0
         && note.text.trim() === note.text
         && note.text.length <= PRACTICE_CALENDAR_LIMITS.text
+        && (note.time === undefined || note.time === null || isValidPracticeCalendarTime(note.time))
         && (version === 1 || PRACTICE_CALENDAR_ICON_VALUES.has(note.icon))
         && isIsoDate(note.createdAt)
         && isIsoDate(note.updatedAt)
@@ -120,12 +136,14 @@ export function savePracticeCalendar(calendar, storage) {
     }
 }
 
-export function createPracticeCalendarNote(calendar, { localDate, text, icon = PRACTICE_CALENDAR_DEFAULT_ICON }, now = new Date()) {
+export function createPracticeCalendarNote(calendar, { localDate, text, icon = PRACTICE_CALENDAR_DEFAULT_ICON, time = null }, now = new Date()) {
     const normalizedText = typeof text === 'string' ? text.trim() : '';
+    const normalizedTime = normalizePracticeCalendarTime(time);
     if (
         !isValidPracticeLocalDate(localDate)
         || !normalizedText
         || normalizedText.length > PRACTICE_CALENDAR_LIMITS.text
+        || !normalizedTime.ok
         || !PRACTICE_CALENDAR_ICON_VALUES.has(icon)
     ) {
         return { ok: false, calendar: cloneCalendar(calendar), reason: 'invalid-values' };
@@ -134,7 +152,15 @@ export function createPracticeCalendarNote(calendar, { localDate, text, icon = P
         return { ok: false, calendar: cloneCalendar(calendar), reason: 'limit-reached' };
     }
     const timestamp = now.toISOString();
-    const note = { id: createId(now), localDate, text: normalizedText, icon, createdAt: timestamp, updatedAt: timestamp };
+    const note = {
+        id: createId(now),
+        localDate,
+        text: normalizedText,
+        icon,
+        ...(normalizedTime.time === null ? {} : { time: normalizedTime.time }),
+        createdAt: timestamp,
+        updatedAt: timestamp
+    };
     return { ok: true, note, calendar: { version: PRACTICE_CALENDAR_SCHEMA_VERSION, notes: [...calendar.notes, note] } };
 }
 
@@ -144,17 +170,26 @@ export function updatePracticeCalendarNote(calendar, id, values, now = new Date(
     const current = calendar.notes[index];
     const text = typeof values === 'string' ? values : values?.text;
     const icon = typeof values === 'string' ? current.icon : values?.icon;
+    const time = typeof values === 'string' || !Object.prototype.hasOwnProperty.call(values || {}, 'time')
+        ? current.time
+        : values.time;
     const normalizedText = typeof text === 'string' ? text.trim() : '';
+    const normalizedTime = normalizePracticeCalendarTime(time);
     if (
         !normalizedText
         || normalizedText.length > PRACTICE_CALENDAR_LIMITS.text
+        || !normalizedTime.ok
         || !PRACTICE_CALENDAR_ICON_VALUES.has(icon)
     ) {
         return { ok: false, calendar: cloneCalendar(calendar), reason: 'invalid-values' };
     }
-    const notes = calendar.notes.map((note, noteIndex) => noteIndex === index
-        ? { ...note, text: normalizedText, icon, updatedAt: now.toISOString() }
-        : { ...note });
+    const notes = calendar.notes.map((note, noteIndex) => {
+        if (noteIndex !== index) return { ...note };
+        const updated = { ...note, text: normalizedText, icon, updatedAt: now.toISOString() };
+        if (normalizedTime.time === null) delete updated.time;
+        else updated.time = normalizedTime.time;
+        return updated;
+    });
     return { ok: true, calendar: { version: PRACTICE_CALENDAR_SCHEMA_VERSION, notes } };
 }
 

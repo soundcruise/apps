@@ -2849,7 +2849,19 @@ textarea:focus-visible {
     overflow-wrap: anywhere;
 }
 
-.practice-calendar-note > div {
+.practice-calendar-note-copy {
+    min-width: 0;
+}
+
+.practice-calendar-note-copy time {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--port-gold-bright);
+    font-size: calc(0.68rem * var(--font-scale));
+    font-variant-numeric: tabular-nums;
+}
+
+.practice-calendar-note-actions {
     display: flex;
     gap: 2px;
 }
@@ -2891,15 +2903,15 @@ textarea:focus-visible {
 
 .practice-calendar-note-icons {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 6px;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
 }
 
 .practice-calendar-note-icons button {
     min-width: 0;
     min-height: 68px;
     display: grid;
-    padding: 7px 4px;
+    padding: 7px 2px;
     place-items: center;
     gap: 3px;
     border: 1px solid rgba(207, 189, 148, 0.12);
@@ -2907,8 +2919,18 @@ textarea:focus-visible {
     color: var(--port-gold-bright);
     background: transparent;
     font: inherit;
-    font-size: calc(0.62rem * var(--font-scale));
+    font-size: min(calc(0.62rem * var(--font-scale)), 0.65rem);
     cursor: pointer;
+}
+
+.practice-calendar-note-icons button span {
+    white-space: nowrap;
+}
+
+@media (max-width: 340px) {
+    .practice-calendar-note-icons {
+        margin-inline: -10px;
+    }
 }
 
 .practice-calendar-note-icons button[aria-pressed="true"] {
@@ -2928,6 +2950,12 @@ textarea:focus-visible {
     color: var(--port-text);
     font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
+}
+
+#practice-calendar-note-time {
+    min-height: 48px;
+    margin-bottom: 15px;
+    color-scheme: dark;
 }
 
 #practice-calendar-note-form textarea {

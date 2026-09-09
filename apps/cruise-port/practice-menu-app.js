@@ -48,6 +48,7 @@ import {
     createPracticeCalendarNote,
     deletePracticeCalendarNote,
     getPracticeCalendarNotesForDate,
+    isValidPracticeCalendarTime,
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
@@ -310,6 +311,7 @@ const elements = {
     calendarNotesList: document.querySelector('#practice-calendar-notes-list'),
     calendarNoteForm: document.querySelector('#practice-calendar-note-form'),
     calendarNoteIcons: document.querySelector('#practice-calendar-note-icons'),
+    calendarNoteTime: document.querySelector('#practice-calendar-note-time'),
     calendarNoteText: document.querySelector('#practice-calendar-note-text'),
     calendarNoteError: document.querySelector('#practice-calendar-note-error'),
     calendarNoteCancel: document.querySelector('#practice-calendar-note-cancel'),
@@ -2144,6 +2146,7 @@ function closePracticeCalendarNoteForm() {
     state.calendarNoteIcon = PRACTICE_CALENDAR_DEFAULT_ICON;
     state.calendarNoteUserEdited = false;
     elements.calendarNoteForm.hidden = true;
+    elements.calendarNoteTime.value = '';
     elements.calendarNoteText.value = '';
     showNotice(elements.calendarNoteError);
 }
@@ -2170,9 +2173,11 @@ const PRACTICE_CALENDAR_ICON_SHAPES = Object.freeze({
     studio: [['circle', { cx: 12, cy: 16, r: 4 }], ['rect', { x: 6, y: 8, width: 5, height: 4, rx: 1 }], ['rect', { x: 13, y: 8, width: 5, height: 4, rx: 1 }], ['path', { d: 'M2 6h5M4 4v16M2 21l2-3 2 3M18 5h4M20 3v17M18 21l2-3 2 3' }]],
     work: [['path', { d: 'M4 20l2-6L17 3l4 4L10 18zM14 6l4 4M6 14l4 4M4 20l6-2' }]],
     schedule: [['rect', { x: 4, y: 5.5, width: 16, height: 14, rx: 2 }], ['path', { d: 'M8 3.5v4M16 3.5v4M4 10h16' }]],
-    live: [['rect', { x: 9, y: 2, width: 6, height: 12, rx: 3, fill: 'currentColor' }], ['path', { d: 'M6 10v2a6 6 0 0 0 12 0v-2M12 18v4M8 22h8' }]],
+    live: [['circle', { cx: 7, cy: 6, r: 3.5, fill: 'currentColor', stroke: 'none' }], ['path', { d: 'M9.5 8.5l4 4M13.5 12.5l2 2M15.5 14.5l-3.8 6.2M8.5 21h6.5' }]],
     rehearsal: [['circle', { cx: 9, cy: 8, r: 3 }], ['circle', { cx: 17, cy: 9, r: 2.5 }], ['path', { d: 'M3.5 19c.6-3.6 2.4-5.5 5.5-5.5s4.9 1.9 5.5 5.5M14 14.5c3.6-.7 5.8.8 6.5 4.5' }]],
     recording: [['rect', { x: 8, y: 3, width: 8, height: 12, rx: 4 }], ['path', { d: 'M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8' }]],
+    'string-change': [['circle', { cx: 8, cy: 11, r: 3.2 }], ['path', { d: 'M10.3 8.7L16.8 2.2M14.7 4.3l2 2 2.6-2.6-2-2.1zM5.7 13.5c-2.4 2.3-1.4 5.5 1.4 6.8 2.5 1.1 5.8.1 8.3-2.4M13.1 16.3l2.3 1.6-1.7 2.3' }]],
+    maintenance: [['path', { d: 'M14.2 3.4a5.2 5.2 0 0 0-6.6 6.5L3 14.5 9.5 21l4.6-4.6a5.2 5.2 0 0 0 6.5-6.6l-3.4 2-3.1-3.1zM5.7 15.7l2.6 2.6' }]],
     memo: [['path', { d: 'M6 3.5h9l3 3V20H6zM15 3.5V7h3M9 11h6M9 15h6' }]],
     rest: [['path', { d: 'M4 10h12v5a6 6 0 0 1-12 0zM16 11h2a3 3 0 0 1 0 6h-3M2 22h18M6 3c-2 2 2 3 0 5M10 3c-2 2 2 3 0 5M14 3c-2 2 2 3 0 5' }]]
 });
@@ -2214,6 +2219,7 @@ function openPracticeCalendarNoteForm(note = null) {
     state.calendarNoteEditId = note?.id || null;
     state.calendarNoteIcon = note?.icon || PRACTICE_CALENDAR_DEFAULT_ICON;
     state.calendarNoteUserEdited = Boolean(note);
+    elements.calendarNoteTime.value = note?.time || '';
     elements.calendarNoteText.value = note?.text || '';
     renderPracticeCalendarIconChoices();
     elements.calendarNoteForm.hidden = false;
@@ -2226,13 +2232,23 @@ function renderPracticeCalendarNotes() {
     elements.calendarNotesList.replaceChildren();
     notes.forEach((note) => {
         const row = document.createElement('article');
+        const copy = document.createElement('div');
         const text = document.createElement('p');
         const actions = document.createElement('div');
         const edit = document.createElement('button');
         const remove = document.createElement('button');
         row.className = 'practice-calendar-note';
         row.append(createPracticeCalendarIcon(note.icon, 'practice-calendar-note-icon'));
+        copy.className = 'practice-calendar-note-copy';
+        actions.className = 'practice-calendar-note-actions';
+        if (note.time) {
+            const time = document.createElement('time');
+            time.dateTime = `${note.localDate}T${note.time}`;
+            time.textContent = note.time;
+            copy.append(time);
+        }
         text.textContent = note.text;
+        copy.append(text);
         edit.type = 'button';
         edit.dataset.calendarNoteAction = 'edit';
         edit.dataset.id = note.id;
@@ -2242,7 +2258,7 @@ function renderPracticeCalendarNotes() {
         remove.dataset.id = note.id;
         remove.textContent = '削除';
         actions.append(edit, remove);
-        row.append(text, actions);
+        row.append(copy, actions);
         elements.calendarNotesList.append(row);
     });
     elements.calendarNotesEmpty.hidden = notes.length > 0;
@@ -2256,15 +2272,22 @@ function renderPracticeCalendarNotes() {
 function handlePracticeCalendarNoteSubmit(event) {
     event.preventDefault();
     if (!state.calendarReady) return;
+    const time = elements.calendarNoteTime.value;
+    if (time && !isValidPracticeCalendarTime(time)) {
+        showNotice(elements.calendarNoteError, '時刻を00:00〜23:59で入力してください。');
+        return;
+    }
     const result = state.calendarNoteEditId
         ? updatePracticeCalendarNote(state.calendar, state.calendarNoteEditId, {
             text: elements.calendarNoteText.value,
-            icon: state.calendarNoteIcon
+            icon: state.calendarNoteIcon,
+            time
         })
         : createPracticeCalendarNote(state.calendar, {
             localDate: state.historySelectedDate,
             text: elements.calendarNoteText.value,
-            icon: state.calendarNoteIcon
+            icon: state.calendarNoteIcon,
+            time
         });
     if (!result.ok) {
         showNotice(
