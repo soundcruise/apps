@@ -3317,6 +3317,10 @@ body.practice-attachment-lightbox-open {
     background: rgba(92, 35, 29, 0.14);
 }
 
+#practice-empty > p {
+    color: #e2aaa2;
+}
+
 .notice {
     margin: 0 0 12px;
     padding: 11px 13px;
