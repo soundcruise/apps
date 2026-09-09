@@ -43,7 +43,7 @@ test('Home has one 44px Calendar action before Settings in both editions', () =>
         assert.ok(header.indexOf('id="home-calendar-button"') < header.indexOf('id="home-settings-button"'));
         assert.match(header, /aria-label="音楽カレンダーを開く" title="音楽カレンダー"/);
     }
-    assert.match(source, /elements\.homeCalendarButton\.addEventListener\('click',[\s\S]*#practice-menu\/calendar/);
+    assert.match(source, /elements\.homeCalendarButton\.addEventListener\('click',[\s\S]*openPracticeCalendar\(PRACTICE_CALENDAR_ENTRY_SOURCE\.home\)/);
     assert.match(styles, /\.port-header-actions\s*\{[\s\S]*gap: 8px/);
     assert.match(styles, /\.port-calendar-button\s*\{[^}]*width: 44px;[^}]*flex: 0 0 44px/);
 });
@@ -62,7 +62,7 @@ test('icon picker is an accessible custom listbox with the schedule default', ()
 });
 
 test('formal revised icons use a diagonal mic, acoustic 3+3 headstock and wrench', () => {
-    assert.match(source, /live: \[\['ellipse',[\s\S]*rotate\(40 15\.5 6\)/);
+    assert.match(source, /live: \[\['ellipse',[\s\S]*rotate\(-45 16 6\)/);
     assert.match(source, /recording: \[\['rect'/);
     const stringIcon = source.match(/'string-change': (\[[\s\S]*?\]),\n    maintenance:/)?.[1];
     assert.ok(stringIcon);

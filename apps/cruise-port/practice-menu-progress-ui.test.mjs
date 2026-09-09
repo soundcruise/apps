@@ -89,7 +89,7 @@ assert.match(source, /savePracticeHistory\(nextHistory\)/);
 assert.match(source, /startPracticeTimer\(state\.timer\)/);
 assert.match(source, /getPracticeTimerElapsedSeconds\(state\.timer\)/);
 assert.match(source, /createPracticeSessionEvent\(transition\.session\)/);
-assert.match(source, /setHashRoute\('#practice-menu\/calendar'\)/);
+assert.match(source, /openPracticeCalendar\(PRACTICE_CALENDAR_ENTRY_SOURCE\.practice\)/);
 assert.match(source, /deleteAttachmentsForPractice\(item\.id\)/);
 assert.match(source, /cleanupPracticeAttachmentObjectUrls\(\)/);
 assert.match(source, /getAttachmentCounts\(state\.items\.map/);

@@ -2912,7 +2912,7 @@ textarea:focus-visible {
     display: block;
     margin-bottom: 2px;
     color: var(--port-gold-bright);
-    font-size: calc(0.68rem * var(--font-scale));
+    font-size: calc(0.78rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
 

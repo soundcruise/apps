@@ -199,6 +199,11 @@ const proAccessView = createProAccessView();
 document.querySelector('#home-view').before(proAccessView);
 let proAccessHasPreviousRoute = false;
 let lastRenderedHash = null;
+const PRACTICE_CALENDAR_ENTRY_SOURCE = Object.freeze({
+    home: 'home',
+    practice: 'practice'
+});
+const PRACTICE_CALENDAR_SOURCE_STATE_KEY = 'cruisePortCalendarSource';
 proAccessView.querySelector('button').addEventListener('click', () => {
     if (proAccessHasPreviousRoute) history.back();
     else replaceHomeRoute();
@@ -299,6 +304,7 @@ const elements = {
     hiddenEmpty: document.querySelector('#practice-hidden-empty'),
     hiddenNotice: document.querySelector('#practice-hidden-notice'),
     historyTitle: document.querySelector('#practice-history-title'),
+    historyBack: document.querySelector('#practice-history-back'),
     historyError: document.querySelector('#practice-history-error'),
     historyStatus: document.querySelector('#practice-history-status'),
     calendarViewTabs: [...document.querySelectorAll('[data-calendar-view]')],
@@ -659,6 +665,33 @@ function setHashRoute(route) {
 
 function setPracticeListRoute() {
     setHashRoute('#practice-menu');
+}
+
+function getPracticeCalendarEntrySource() {
+    const source = window.history.state?.[PRACTICE_CALENDAR_SOURCE_STATE_KEY];
+    return Object.values(PRACTICE_CALENDAR_ENTRY_SOURCE).includes(source) ? source : null;
+}
+
+function openPracticeCalendar(source) {
+    const entrySource = Object.values(PRACTICE_CALENDAR_ENTRY_SOURCE).includes(source)
+        ? source
+        : PRACTICE_CALENDAR_ENTRY_SOURCE.home;
+    const currentState = window.history.state && typeof window.history.state === 'object'
+        ? window.history.state
+        : {};
+    const nextState = { ...currentState, [PRACTICE_CALENDAR_SOURCE_STATE_KEY]: entrySource };
+    const url = `${location.pathname}${location.search}#practice-menu/calendar`;
+    if (location.hash === '#practice-menu/calendar') window.history.replaceState(nextState, '', url);
+    else window.history.pushState(nextState, '', url);
+    renderRoute();
+}
+
+function returnFromPracticeCalendar() {
+    if (getPracticeCalendarEntrySource()) {
+        window.history.back();
+        return;
+    }
+    replaceHomeRoute();
 }
 
 function replacePracticeListRoute() {
@@ -2099,8 +2132,7 @@ function handlePracticeCompletionAction(destination) {
     if (destination === 'calendar') {
         setPracticeCalendarSelectedDate(new Date());
         state.calendarViewMode = 'month';
-        if (location.hash === '#practice-menu/calendar') renderPracticeHistory();
-        else setHashRoute('#practice-menu/calendar');
+        openPracticeCalendar(PRACTICE_CALENDAR_ENTRY_SOURCE.practice);
         return;
     }
     setHomeRoute();
@@ -2186,11 +2218,11 @@ const PRACTICE_CALENDAR_ICON_SHAPES = Object.freeze({
     studio: [['circle', { cx: 12, cy: 16, r: 4 }], ['rect', { x: 6, y: 8, width: 5, height: 4, rx: 1 }], ['rect', { x: 13, y: 8, width: 5, height: 4, rx: 1 }], ['path', { d: 'M2 6h5M4 4v16M2 21l2-3 2 3M18 5h4M20 3v17M18 21l2-3 2 3' }]],
     work: [['path', { d: 'M4 20l2-6L17 3l4 4L10 18zM14 6l4 4M6 14l4 4M4 20l6-2' }]],
     schedule: [['rect', { x: 4, y: 5.5, width: 16, height: 14, rx: 2 }], ['path', { d: 'M8 3.5v4M16 3.5v4M4 10h16' }]],
-    live: [['ellipse', { cx: 15.5, cy: 6, rx: 4, ry: 3, transform: 'rotate(40 15.5 6)', fill: 'currentColor', stroke: 'none' }], ['path', { d: 'M13.2 8.4L5 16.7 8.3 20l8.2-8.2z', fill: 'currentColor', stroke: 'none' }]],
+    live: [['ellipse', { cx: 16, cy: 6, rx: 4.4, ry: 3.6, transform: 'rotate(-45 16 6)' }], ['path', { d: 'M13.2 3.8l5 5M11.9 5.2l5 5M13.2 8.8l2 2-7.5 7.5-3-3zM6.2 17.8l-1.7 1.7' }]],
     rehearsal: [['circle', { cx: 9, cy: 8, r: 3 }], ['circle', { cx: 17, cy: 9, r: 2.5 }], ['path', { d: 'M3.5 19c.6-3.6 2.4-5.5 5.5-5.5s4.9 1.9 5.5 5.5M14 14.5c3.6-.7 5.8.8 6.5 4.5' }]],
     recording: [['rect', { x: 8, y: 3, width: 8, height: 12, rx: 4 }], ['path', { d: 'M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8' }]],
     'string-change': [['path', { d: 'M9 3h6l1.5 14h-9zM9 17v4h6v-4M8.5 6H6M8 10H6M7.7 14H6M15.5 6H18M16 10h2M16.3 14H18' }], ['circle', { cx: 5, cy: 6, r: 1 }], ['circle', { cx: 5, cy: 10, r: 1 }], ['circle', { cx: 5, cy: 14, r: 1 }], ['circle', { cx: 19, cy: 6, r: 1 }], ['circle', { cx: 19, cy: 10, r: 1 }], ['circle', { cx: 19, cy: 14, r: 1 }]],
-    maintenance: [['path', { d: 'M14.2 3.4a5.2 5.2 0 0 0-6.6 6.5L3 14.5 9.5 21l4.6-4.6a5.2 5.2 0 0 0 6.5-6.6l-3.4 2-3.1-3.1zM5.7 15.7l2.6 2.6' }]],
+    maintenance: [['path', { d: 'M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-8 8l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 8-8z' }]],
     memo: [['path', { d: 'M6 3.5h9l3 3V20H6zM15 3.5V7h3M9 11h6M9 15h6' }]],
     rest: [['path', { d: 'M4 10h12v5a6 6 0 0 1-12 0zM16 11h2a3 3 0 0 1 0 6h-3M2 22h18M6 3c-2 2 2 3 0 5M10 3c-2 2 2 3 0 5M14 3c-2 2 2 3 0 5' }]]
 });
@@ -2645,6 +2677,9 @@ function renderPracticeDayCalendar(selectedDate) {
 
 function renderPracticeHistory({ focus = true } = {}) {
     showView(elements.practiceHistoryView);
+    elements.historyBack.textContent = getPracticeCalendarEntrySource() === PRACTICE_CALENDAR_ENTRY_SOURCE.practice
+        ? '← 練習メニュー'
+        : '← TOPに戻る';
     showNotice(elements.historyStatus);
     const selectedDate = practiceLocalDateToDate(state.historySelectedDate);
     state.historyMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
@@ -4475,8 +4510,9 @@ elements.reorderComplete.addEventListener('click', completeReorder);
 elements.timerToggle.addEventListener('click', handlePracticeTimerToggle);
 elements.historyOpen.addEventListener('click', () => {
     state.calendarViewMode = 'month';
-    setHashRoute('#practice-menu/calendar');
+    openPracticeCalendar(PRACTICE_CALENDAR_ENTRY_SOURCE.practice);
 });
+elements.historyBack.addEventListener('click', returnFromPracticeCalendar);
 elements.hiddenOpen.addEventListener('click', () => setHashRoute('#practice-menu/hidden'));
 elements.finishButton.addEventListener('click', handlePracticeFinishEarly);
 elements.cycleReset.addEventListener('click', handlePracticeCycleReset);
@@ -4669,7 +4705,7 @@ elements.myAppsAdd.addEventListener('click', openMyAppsCreate);
 elements.myAppsManage.addEventListener('click', () => setHashRoute('#my-apps/manage'));
 elements.homeCalendarButton.addEventListener('click', () => {
     state.calendarViewMode = 'month';
-    setHashRoute('#practice-menu/calendar');
+    openPracticeCalendar(PRACTICE_CALENDAR_ENTRY_SOURCE.home);
 });
 elements.homeSettingsButton.addEventListener('click', () => setHashRoute('#settings'));
 function updateDisplaySettings(next) {

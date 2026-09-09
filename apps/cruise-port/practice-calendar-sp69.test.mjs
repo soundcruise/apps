@@ -23,8 +23,8 @@ test('live uses the revised diagonal dynamic microphone distinct from recording'
     const recording = source.match(/recording: (\[\['rect',[\s\S]*?\]\]),\n    'string-change':/)?.[1];
     assert.ok(live);
     assert.ok(recording);
-    assert.match(live, /fill: 'currentColor'/);
-    assert.match(live, /rotate\(40 15\.5 6\)/);
+    assert.match(live, /rx: 4\.4, ry: 3\.6/);
+    assert.match(live, /rotate\(-45 16 6\)/);
     assert.notEqual(live, recording);
     assert.match(source, /'string-change': \[\['path'/);
     assert.match(source, /maintenance: \[\['path'/);
