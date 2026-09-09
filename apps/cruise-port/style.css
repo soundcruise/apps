@@ -4881,6 +4881,27 @@ body.metronome-preset-open {
 }
 
 @media (max-width: 420px) {
+    /* Keep names readable when both launch and file actions occupy a card. */
+    .practice-menu-card {
+        grid-template-columns: 44px minmax(0, 1fr) 18px;
+    }
+
+    .practice-menu-card .practice-arrow {
+        grid-column: 3;
+        grid-row: 1;
+    }
+
+    .practice-card-actions {
+        min-width: 0;
+        grid-column: 2 / -1;
+        grid-row: 2;
+        flex-wrap: wrap;
+    }
+
+    .practice-card-actions:empty {
+        display: none;
+    }
+
     .my-apps-url-help-columns {
         grid-template-columns: 1fr;
         gap: 10px;
