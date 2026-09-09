@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import {
     commitGearItemDeletion,
-    commitGearPhotoChange,
+    commitGearPhotoChange as commitChange,
     commitGearPhotoRemoval
 } from './gear-photo-workflow.js';
+
+const commitGearPhotoChange = options => commitChange({ canWrite: () => true, ...options });
 
 function createStore({ failAt = 0 } = {}) {
     const records = new Map();

@@ -1667,6 +1667,13 @@ summary.tool-pro-locked > span:first-child::after {
     gap: 8px;
 }
 
+#gear-photo-select-label,
+#gear-photo-readjust {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
 .my-apps-icon-select,
 .my-apps-icon-remove,
 .my-apps-icon-preset-open {

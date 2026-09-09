@@ -1,10 +1,24 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
+
+test('image store refuses Standard writes and rechecks after DB await', async () => {
+    const db = createFakeIndexedDB();
+    const blob = new Blob(['image'], {type:'image/webp'});
+    const blocked = createIconStore({indexedDBObject:db,canWrite:()=>false});
+    assert.equal((await blocked.saveIcon(blob, { idFactory: () => 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa' })).reason,'pro-required');
+    let checks=0;
+    const changed = createIconStore({indexedDBObject:db,canWrite:()=>++checks===1});
+    assert.equal((await changed.saveIcon(blob, { idFactory: () => 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa' })).reason,'pro-required');
+    assert.equal(db.records.size,0);
+});
 import {
     MY_APPS_ICON_DB_NAME,
     MY_APPS_ICON_DB_VERSION,
     MY_APPS_ICON_STORE_NAME,
-    createMyAppsIconStore
+    createMyAppsIconStore as createIconStore
 } from './my-apps-icon-store.js';
+
+const createMyAppsIconStore = options => createIconStore({ canWrite: () => true, ...options });
 
 function createFakeIndexedDB() {
     const records = new Map();

@@ -1,3 +1,5 @@
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
+
 async function deleteReferences(photoStore, references) {
     const ids = [references?.photoId, references?.photoSourceId].filter(Boolean);
     const results = await Promise.all(ids.map((id) => photoStore.deletePhoto(id)));
@@ -29,9 +31,14 @@ export async function savePendingGearPhoto(photoStore, pending) {
     };
 }
 
-export async function commitGearPhotoChange({ photoStore, pending, previousReferences, buildItems, persist }) {
+export async function commitGearPhotoChange({ photoStore, pending, previousReferences, buildItems, persist, canWrite = () => getCapabilities().gearPhotoWrite }) {
+    if (!canWrite()) return { ok: false, reason: 'pro-required' };
     const saved = await savePendingGearPhoto(photoStore, pending);
     if (!saved.ok) return saved;
+    if (!canWrite()) {
+        await deleteReferences(photoStore, saved.references);
+        return { ok: false, reason: 'pro-required' };
+    }
     const candidateItems = buildItems(saved.references);
     const persisted = persist(candidateItems);
     if (!persisted.ok) {

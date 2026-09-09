@@ -9,6 +9,9 @@ export function requestToolPro(feature, documentObject = document) {
         tunerCapo: 'カポ機能はPro版で利用できます。',
         practiceCreate: `通常版では練習メニューを${getCapabilities().practiceMenuCreateLimit}件まで登録できます。Pro版では登録枠を拡張できます。`,
         practiceFile: 'ファイルの追加はPro版で利用できます。',
+        myAppsCreate: `通常版ではMy Appsを${getCapabilities().myAppsCreateLimit}件まで登録できます。Pro版では登録枠を拡張できます。`,
+        customIcon: 'カスタムアイコンの追加・編集はPro版で利用できます。',
+        gearPhoto: '機材写真の追加・編集はPro版で利用できます。',
         metronomeAdvanced: 'Pro版では、拍子・リズム・アクセント・音色などを詳しく設定できます。',
         metronomePresetWrite: 'メトロノームの設定保存はPro版で利用できます。'
     }[feature]);

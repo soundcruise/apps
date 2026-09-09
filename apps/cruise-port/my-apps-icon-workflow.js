@@ -6,6 +6,8 @@ import {
 } from './my-apps-store.js?v=0.24.0';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
+import { checkMyAppsCreation } from './my-apps-capabilities.js?v=1.0.0';
 
 async function deleteIconBestEffort(iconStore, iconId) {
     if (!iconId || !iconStore?.deleteIcon) return;
@@ -39,8 +41,12 @@ export async function createMyAppEntry({
     now = new Date(),
     appIdFactory,
     iconIdFactory,
-    sourceIdFactory
+    sourceIdFactory,
+    canCreate = () => checkMyAppsCreation(storage).allowed,
+    canWrite = () => getCapabilities().customMyAppIconWrite
 }) {
+    if (!canCreate()) return { ok: false, reason: 'creation-blocked' };
+    if (iconBlob && !canWrite()) return { ok: false, reason: 'pro-required' };
     const createResult = createMyApp(values, items, now, appIdFactory);
     if (!createResult.ok) return createResult;
 
@@ -74,6 +80,10 @@ export async function createMyAppEntry({
         ...entry,
         iconCrop: entry.iconCrop ? { ...entry.iconCrop } : null
     })), item];
+    if (!canCreate() || (iconBlob && !canWrite())) {
+        await deleteIconsBestEffort(iconStore, newIds);
+        return { ok: false, reason: 'creation-blocked' };
+    }
     const saveResult = saveMyApps(nextItems, storage);
     if (!saveResult.ok) {
         await deleteIconsBestEffort(iconStore, newIds);
@@ -96,8 +106,11 @@ export async function updateMyAppEntry({
     iconStore,
     now = new Date(),
     iconIdFactory,
-    sourceIdFactory
+    sourceIdFactory,
+    canWrite = () => getCapabilities().customMyAppIconWrite
 }) {
+    const writesImage = iconAction === 'replace' || iconAction === 'readjust';
+    if (writesImage && !canWrite()) return { ok: false, reason: 'pro-required' };
     const currentItem = items.find((item) => item.id === id) || null;
     if (!currentItem) return { ok: false, reason: 'not-found' };
     const updateResult = updateMyApp(items, id, values, now);
@@ -163,6 +176,10 @@ export async function updateMyAppEntry({
     const nextItems = updateResult.items.map((item) => (
         item.id === id ? { ...item, ...nextImageState } : item
     ));
+    if (writesImage && !canWrite()) {
+        await deleteIconsBestEffort(iconStore, newIds);
+        return { ok: false, reason: 'pro-required' };
+    }
     const saveResult = saveMyApps(nextItems, storage);
     if (!saveResult.ok) {
         await deleteIconsBestEffort(iconStore, newIds);

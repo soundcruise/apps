@@ -1,4 +1,5 @@
 import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.0.0';
+import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.0.0';
 import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
 import { requestToolPro } from './tool-capabilities.js?v=1.0.0';
 import {
@@ -892,12 +893,46 @@ function renderMyAppCard(item) {
     return card;
 }
 
+function guardImageWrite(feature) {
+    const capability = feature === 'customIcon' ? 'customMyAppIconWrite' : 'gearPhotoWrite';
+    if (getCapabilities()[capability]) return true;
+    requestToolPro(feature);
+    return false;
+}
+
+function updateMyAppsCreateControls() {
+    const locked = !canCreateMyApp(myAppsState.items);
+    for (const button of [elements.myAppsAdd, elements.myAppsManageAdd]) {
+        button.classList.toggle('tool-pro-locked', locked && getCapabilities().myAppsCreateLimit < MY_APPS_LIMITS.items);
+        button.setAttribute('aria-label', locked ? 'My Appを追加（登録上限）' : 'My Appを追加');
+    }
+}
+
+function guardMyAppsCreation() {
+    const latest = checkMyAppsCreation();
+    if (!latest.ok) {
+        const message = '最新のMy Appsを読み込めません。入力内容を控えてから再読み込みしてください。';
+        showNotice(elements.myAppsFormError, message);
+        showNotice(elements.myAppsStorageError, message);
+        return false;
+    }
+    if (latest.allowed) return true;
+    if (getCapabilities().myAppsCreateLimit < MY_APPS_LIMITS.items) requestToolPro('myAppsCreate');
+    else window.alert(`My Appsは${MY_APPS_LIMITS.items}件まで登録できます。`);
+    return false;
+}
+
+function openMyAppsCreate() {
+    if (guardMyAppsCreation()) setHashRoute('#my-apps/new');
+}
+
 function renderMyAppsHome() {
     cleanupMyAppsObjectUrls('home');
     elements.myAppsGrid.replaceChildren();
     myAppsState.items.forEach((item) => elements.myAppsGrid.append(renderMyAppCard(item)));
     elements.myAppsGrid.append(elements.myAppsAdd);
-    elements.myAppsAdd.disabled = !myAppsState.storageReady || myAppsState.items.length >= MY_APPS_LIMITS.items;
+    elements.myAppsAdd.disabled = !myAppsState.storageReady || (getCapabilities().myAppsCreateLimit >= MY_APPS_LIMITS.items && myAppsState.items.length >= MY_APPS_LIMITS.items);
+    updateMyAppsCreateControls();
     elements.myAppsAdd.hidden = false;
     elements.myAppsManage.hidden = !myAppsState.storageReady || myAppsState.items.length === 0;
     showNotice(
@@ -984,7 +1019,8 @@ function renderMyAppsManage() {
     });
     elements.myAppsReorderStart.hidden = myAppsState.reorderMode || myAppsState.items.length < 2;
     elements.myAppsReorderActions.hidden = !myAppsState.reorderMode;
-    elements.myAppsManageAdd.hidden = myAppsState.reorderMode || myAppsState.items.length >= MY_APPS_LIMITS.items;
+    elements.myAppsManageAdd.hidden = myAppsState.reorderMode || (getCapabilities().myAppsCreateLimit >= MY_APPS_LIMITS.items && myAppsState.items.length >= MY_APPS_LIMITS.items);
+    updateMyAppsCreateControls();
     elements.myAppsReorderStatus.textContent = myAppsState.reorderMode
         ? '並び替え中です。上下のボタンで順序を変更し、完了で保存します。'
         : '';
@@ -1251,6 +1287,10 @@ function setMyAppsFormBusy(busy) {
 }
 
 function setMyAppsIconPreviewAdjustable(adjustable) {
+    elements.myAppsIconSelectLabel.parentElement.classList.toggle('tool-pro-locked', !getCapabilities().customMyAppIconWrite);
+    elements.myAppsIconSelectLabel.parentElement.setAttribute('aria-label', getCapabilities().customMyAppIconWrite ? 'アイコン画像を選択' : 'アイコン画像を選択（Pro版機能）');
+    elements.myAppsIconAdjustHint.classList.toggle('tool-pro-locked', adjustable && !getCapabilities().customMyAppIconWrite);
+    elements.myAppsIconPreview.setAttribute('aria-label', getCapabilities().customMyAppIconWrite ? 'アイコンを再調整' : 'アイコンを再調整（Pro版機能）');
     if (adjustable) {
         elements.myAppsIconPreview.dataset.adjustable = 'true';
     } else {
@@ -1407,6 +1447,7 @@ function handleCropSlider() {
 }
 
 async function confirmMyAppsCrop() {
+    if (!guardImageWrite('customIcon')) return;
     const session = myAppsState.cropSession;
     const cropState = myAppsState.cropState;
     if (!session || !cropState || myAppsState.iconProcessing) return;
@@ -1440,6 +1481,7 @@ async function confirmMyAppsCrop() {
 }
 
 async function handleCurrentMyAppsIconAdjustment() {
+    if (!guardImageWrite('customIcon')) return;
     if (
         elements.myAppsIconPreview.disabled
         || myAppsState.iconProcessing
@@ -1516,6 +1558,7 @@ async function handleCurrentMyAppsIconAdjustment() {
 }
 
 async function handleMyAppsIconSelection() {
+    if (!guardImageWrite('customIcon')) { elements.myAppsIconInput.value = ''; return; }
     const file = elements.myAppsIconInput.files?.[0];
     if (!file) return;
     elements.myAppsIconInput.value = '';
@@ -1560,6 +1603,7 @@ function removeMyAppsIcon() {
 }
 
 function renderMyAppsForm(mode, id = null) {
+    if (mode === 'create' && !guardMyAppsCreation()) { setHashRoute('#my-apps/manage'); return; }
     if (!myAppsState.storageReady) {
         replaceHomeRoute();
         return;
@@ -1628,6 +1672,8 @@ async function handleMyAppsSubmit(event) {
         return;
     }
 
+    if (myAppsState.formMode !== 'edit' && !guardMyAppsCreation()) return;
+    if (['replace', 'readjust'].includes(myAppsState.iconAction) && !guardImageWrite('customIcon')) return;
     const formGeneration = myAppsRenderGeneration.form;
     setMyAppsFormBusy(true);
     const result = myAppsState.formMode === 'edit'
@@ -1659,7 +1705,12 @@ async function handleMyAppsSubmit(event) {
     }
     if (!result.ok) {
         setMyAppsFormBusy(false);
-        if (result.reason === 'not-found') {
+        if (result.reason === 'creation-blocked') {
+            guardMyAppsCreation();
+            if (myAppsState.iconAction === 'replace') guardImageWrite('customIcon');
+        } else if (result.reason === 'pro-required') {
+            requestToolPro('customIcon');
+        } else if (result.reason === 'not-found') {
             renderMyAppsNotFound();
         } else if (result.reason === 'limit-reached') {
             showNotice(elements.myAppsFormError, `My Appsは${MY_APPS_LIMITS.items}件まで登録できます。`);
@@ -3109,6 +3160,10 @@ async function openGearPhotoLightbox(item, blob = null) {
 }
 
 function updateGearPhotoControls(hasPhoto) {
+    for (const button of [elements.gearPhotoSelectLabel, elements.gearPhotoReadjust]) {
+        button.classList.toggle('tool-pro-locked', !getCapabilities().gearPhotoWrite);
+        button.setAttribute('aria-label', `${button.textContent}${getCapabilities().gearPhotoWrite ? '' : '（Pro版機能）'}`);
+    }
     elements.gearPhotoPreview.disabled = !hasPhoto || gearState.photoProcessing || gearState.saving;
     elements.gearPhotoReadjust.hidden = !hasPhoto;
     elements.gearPhotoRemove.hidden = !hasPhoto;
@@ -3428,6 +3483,7 @@ function handleGearCropSlider() {
 }
 
 async function confirmGearPhotoCrop() {
+    if (!guardImageWrite('gearPhoto')) return;
     const session = gearState.cropSession;
     const cropState = gearState.cropState;
     if (!session || !cropState || gearState.photoProcessing) return;
@@ -3501,11 +3557,13 @@ async function openStoredGearPhotoForReadjustment(blob, initialCrop) {
 }
 
 async function handleGearPhotoSelection() {
+    if (!guardImageWrite('gearPhoto')) { elements.gearPhotoInput.value = ''; return; }
     const file = elements.gearPhotoInput.files?.[0];
     if (file) await prepareAndOpenGearPhoto(file);
 }
 
 async function handleGearPhotoReadjust() {
+    if (!guardImageWrite('gearPhoto')) return;
     if (gearState.photoAction === 'replace' && gearState.photoSourceBlob) {
         await openStoredGearPhotoForReadjustment(gearState.photoSourceBlob, gearState.photoCrop);
         return;
@@ -3630,6 +3688,7 @@ async function handleGearSubmit(event) {
         return;
     }
 
+    if (gearState.photoAction === 'replace' && !guardImageWrite('gearPhoto')) return;
     gearState.saving = true;
     updateGearPhotoControls(Boolean(gearState.photoBlob || originalItem?.photoId));
     const submitButton = elements.gearForm.querySelector('[type="submit"]');
@@ -4041,6 +4100,9 @@ elements.gearAdd.addEventListener('click', () => setHashRoute('#wishlist/new'));
 elements.gearForm.addEventListener('submit', handleGearSubmit);
 elements.gearStatusInput.addEventListener('change', updateGearPriorityVisibility);
 elements.gearPhotoInput.addEventListener('change', handleGearPhotoSelection);
+elements.gearPhotoSelectLabel.addEventListener('click', () => {
+    if (guardImageWrite('gearPhoto') && !elements.gearPhotoInput.disabled) elements.gearPhotoInput.click();
+});
 elements.gearPhotoReadjust.addEventListener('click', handleGearPhotoReadjust);
 elements.gearPhotoRemove.addEventListener('click', handleGearPhotoRemove);
 elements.gearPhotoPreview.addEventListener('click', () => {
@@ -4284,8 +4346,8 @@ document.querySelectorAll('[data-action="gear-list"]').forEach((button) => butto
 document.querySelectorAll('[data-action="cancel-form"]').forEach((button) => button.addEventListener('click', cancelForm));
 document.querySelectorAll('[data-action="my-apps-home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
 document.querySelectorAll('[data-action="my-apps-home-scroll"]').forEach((button) => button.addEventListener('click', setHomeRouteWithMyAppsScroll));
-document.querySelectorAll('[data-action="new-my-app"]').forEach((button) => button.addEventListener('click', () => setHashRoute('#my-apps/new')));
-elements.myAppsAdd.addEventListener('click', () => setHashRoute('#my-apps/new'));
+document.querySelectorAll('[data-action="new-my-app"]').forEach((button) => button.addEventListener('click', openMyAppsCreate));
+elements.myAppsAdd.addEventListener('click', openMyAppsCreate);
 elements.myAppsManage.addEventListener('click', () => setHashRoute('#my-apps/manage'));
 elements.homeSettingsButton.addEventListener('click', () => setHashRoute('#settings'));
 function updateDisplaySettings(next) {
@@ -4330,6 +4392,9 @@ elements.settingsReset.addEventListener('click', () => {
 elements.myAppsForm.addEventListener('submit', handleMyAppsSubmit);
 elements.myAppsDelete.addEventListener('click', handleMyAppsDelete);
 elements.myAppsIconInput.addEventListener('change', handleMyAppsIconSelection);
+elements.myAppsIconSelectLabel.parentElement.addEventListener('click', () => {
+    if (guardImageWrite('customIcon') && !elements.myAppsIconInput.disabled) elements.myAppsIconInput.click();
+});
 elements.myAppsUrlInput.addEventListener('input', () => {
     updateMyAppsLaunchOptions();
 });

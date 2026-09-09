@@ -224,7 +224,7 @@
                             <span>写真は未設定です</span>
                         </button>
                         <div class="gear-photo-actions">
-                            <label id="gear-photo-select-label" class="action-button secondary-action" for="gear-photo-input">写真を選択</label>
+                            <button type="button" id="gear-photo-select-label" class="action-button secondary-action" aria-controls="gear-photo-input">写真を選択</button>
                             <button id="gear-photo-readjust" class="action-button secondary-action" type="button" hidden>再調整</button>
                             <button id="gear-photo-remove" class="action-button danger-action" type="button" hidden>写真を削除</button>
                         </div>
@@ -570,8 +570,8 @@
                                 <span id="my-apps-icon-adjust-hint" class="my-apps-icon-adjust-hint" hidden>タップして調整</span>
                             </div>
                             <div class="my-apps-icon-controls">
-                                <input id="my-apps-icon-input" class="visually-hidden" name="icon" type="file" accept="image/*">
-                                <label class="my-apps-icon-select" for="my-apps-icon-input"><span id="my-apps-icon-select-label">画像を選択</span></label>
+                                <input id="my-apps-icon-input" name="icon" type="file" accept="image/*" hidden>
+                                <button type="button" class="my-apps-icon-select" aria-controls="my-apps-icon-input"><span id="my-apps-icon-select-label">画像を選択</span></button>
                                 <button id="my-apps-icon-preset-open" class="my-apps-icon-preset-open" type="button" aria-expanded="false" aria-controls="my-apps-icon-preset-picker">アイコンから選ぶ</button>
                                 <button id="my-apps-icon-remove" class="my-apps-icon-remove" type="button" hidden>アイコンを削除</button>
                                 <p id="my-apps-icon-status" class="my-apps-icon-status" role="status" aria-live="polite">画像未設定</p>

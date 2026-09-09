@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
 import {
-    createMyAppEntry,
+    createMyAppEntry as createEntry,
     deleteMyAppEntry,
-    updateMyAppEntry
+    updateMyAppEntry as updateEntry
 } from './my-apps-icon-workflow.js';
+
+const createMyAppEntry = options => createEntry({ canCreate: () => true, canWrite: () => true, ...options });
+const updateMyAppEntry = options => updateEntry({ canWrite: () => true, ...options });
 
 class EventStorage {
     constructor(events, failWrites = false) {
@@ -274,4 +277,21 @@ const sourceBlob = new Blob(['editor-source'], { type: 'image/webp' });
     assert.deepEqual(events, ['metadata:cruisePort.myApps'], 'both old Blobs remain when metadata deletion fails');
 }
 
+{
+    const events = []; let checks = 0;
+    const result = await createMyAppEntry({ items: [], values, iconBlob, iconSourceBlob: sourceBlob, iconCrop: crop,
+        storage: new EventStorage(events), iconStore: createIconStore(events), now, appIdFactory: () => appId,
+        sourceIdFactory: () => newSourceId, iconIdFactory: () => newIconId, canCreate: () => ++checks === 1 });
+    assert.equal(result.reason, 'creation-blocked');
+    assert.deepEqual(events, ['blob:save:1', 'blob:save:2', `blob:delete:${newSourceId}`, `blob:delete:${newIconId}`]);
+}
+{
+    const events = []; let checks = 0;
+    const result = await updateMyAppEntry({ items: [baseItem], id: appId, values, iconAction: 'readjust', iconBlob, iconCrop: nextCrop,
+        storage: new EventStorage(events), iconStore: createIconStore(events), now, iconIdFactory: () => newIconId,
+        canWrite: () => ++checks === 1 });
+    assert.equal(result.reason, 'pro-required');
+    assert.deepEqual(events, ['blob:save:1', `blob:delete:${newIconId}`]);
+    assert.equal(baseItem.iconId, oldIconId);
+}
 console.log('my-apps-icon-workflow: source/final create, replace, re-adjust, delete, rollback, and ordering tests passed');

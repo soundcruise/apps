@@ -1,3 +1,5 @@
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
+
 export const GEAR_PHOTO_DB_NAME = 'cruisePortGear';
 export const GEAR_PHOTO_DB_VERSION = 1;
 export const GEAR_PHOTO_STORE_NAME = 'photos';
@@ -75,7 +77,7 @@ function runTransaction(database, mode, operation) {
     });
 }
 
-export function createGearPhotoStore({ indexedDBObject } = {}) {
+export function createGearPhotoStore({ indexedDBObject, canWrite = () => getCapabilities().gearPhotoWrite } = {}) {
     let databasePromise = null;
     function getDatabase() {
         if (!databasePromise) {
@@ -89,6 +91,7 @@ export function createGearPhotoStore({ indexedDBObject } = {}) {
 
     return Object.freeze({
         async savePhoto(blob, { kind, width, height, now = new Date(), idFactory = createPhotoId } = {}) {
+            if (!canWrite()) return { ok: false, reason: 'pro-required' };
             const record = {
                 id: idFactory(),
                 kind,
@@ -102,6 +105,7 @@ export function createGearPhotoStore({ indexedDBObject } = {}) {
             if (!isValidRecord(record)) return { ok: false, reason: 'invalid-record' };
             try {
                 const database = await getDatabase();
+                if (!canWrite()) return { ok: false, reason: 'pro-required' };
                 await runTransaction(database, 'readwrite', (store) => store.add(record));
                 return { ok: true, record: { ...record } };
             } catch (_) {

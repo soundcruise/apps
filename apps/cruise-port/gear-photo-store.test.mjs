@@ -1,10 +1,24 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
+
+test('image store refuses Standard writes and rechecks after DB await', async () => {
+    const db = createFakeIndexedDB();
+    const blob = new Blob(['image'], {type:'image/webp'});
+    const blocked = createPhotoStore({indexedDBObject:db,canWrite:()=>false});
+    assert.equal((await blocked.savePhoto(blob, { kind:'final', width:512, height:512 })).reason,'pro-required');
+    let checks=0;
+    const changed = createPhotoStore({indexedDBObject:db,canWrite:()=>++checks===1});
+    assert.equal((await changed.savePhoto(blob, { kind:'final', width:512, height:512 })).reason,'pro-required');
+    assert.equal(db.records.size,0);
+});
 import {
     GEAR_PHOTO_DB_NAME,
     GEAR_PHOTO_DB_VERSION,
     GEAR_PHOTO_STORE_NAME,
-    createGearPhotoStore
+    createGearPhotoStore as createPhotoStore
 } from './gear-photo-store.js';
+
+const createGearPhotoStore = options => createPhotoStore({ canWrite: () => true, ...options });
 
 function createFakeIndexedDB() {
     const records = new Map();

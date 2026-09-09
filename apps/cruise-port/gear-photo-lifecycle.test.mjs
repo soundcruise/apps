@@ -15,7 +15,7 @@ test('late gear photo decodes and DB reads do not reopen a crop editor after lea
             const generation = { form: 1 };
             const state = { photoProcessing: false, saving: false, photoAction: 'keep' };
             const prepared = { ok: true, blob: {}, cleanup: () => { cleaned += 1; } };
-            const sandbox = { gearPhotoRenderGeneration: generation, gearState: state,
+            const sandbox = { gearPhotoRenderGeneration: generation, gearState: state, guardImageWrite: () => true,
                 elements: { gearPhotoStatus: { textContent: '' }, gearPhotoInput: { value: '' } },
                 updateGearPhotoControls() {}, findGearItem: () => ({ photoSourceId: 'qa-source' }),
                 prepareGearPhotoSource: () => pending,
