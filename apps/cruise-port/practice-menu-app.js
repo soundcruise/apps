@@ -2218,7 +2218,7 @@ const PRACTICE_CALENDAR_ICON_SHAPES = Object.freeze({
     studio: [['circle', { cx: 12, cy: 16, r: 4 }], ['rect', { x: 6, y: 8, width: 5, height: 4, rx: 1 }], ['rect', { x: 13, y: 8, width: 5, height: 4, rx: 1 }], ['path', { d: 'M2 6h5M4 4v16M2 21l2-3 2 3M18 5h4M20 3v17M18 21l2-3 2 3' }]],
     work: [['path', { d: 'M4 20l2-6L17 3l4 4L10 18zM14 6l4 4M6 14l4 4M4 20l6-2' }]],
     schedule: [['rect', { x: 4, y: 5.5, width: 16, height: 14, rx: 2 }], ['path', { d: 'M8 3.5v4M16 3.5v4M4 10h16' }]],
-    live: [['ellipse', { cx: 16, cy: 6, rx: 4.4, ry: 3.6, transform: 'rotate(-45 16 6)' }], ['path', { d: 'M13.2 3.8l5 5M11.9 5.2l5 5M13.2 8.8l2 2-7.5 7.5-3-3zM6.2 17.8l-1.7 1.7' }]],
+    live: [['ellipse', { cx: 16, cy: 6.2, rx: 4.1, ry: 4.6, transform: 'rotate(45 16 6.2)', fill: 'currentColor', stroke: 'none' }], ['path', { d: 'M12.4 9.1l2.8 2.8-7.7 7.7a1.4 1.4 0 0 1-2 0l-1.1-1.1a1.4 1.4 0 0 1 0-2z', fill: 'currentColor', stroke: 'none' }], ['rect', { x: 13.4, y: 13.1, width: 2.6, height: 8, rx: 1.3, fill: 'currentColor', stroke: 'none' }]],
     rehearsal: [['circle', { cx: 9, cy: 8, r: 3 }], ['circle', { cx: 17, cy: 9, r: 2.5 }], ['path', { d: 'M3.5 19c.6-3.6 2.4-5.5 5.5-5.5s4.9 1.9 5.5 5.5M14 14.5c3.6-.7 5.8.8 6.5 4.5' }]],
     recording: [['rect', { x: 8, y: 3, width: 8, height: 12, rx: 4 }], ['path', { d: 'M5 11a7 7 0 0 0 14 0M12 18v3M8 21h8' }]],
     'string-change': [['path', { d: 'M9 3h6l1.5 14h-9zM9 17v4h6v-4M8.5 6H6M8 10H6M7.7 14H6M15.5 6H18M16 10h2M16.3 14H18' }], ['circle', { cx: 5, cy: 6, r: 1 }], ['circle', { cx: 5, cy: 10, r: 1 }], ['circle', { cx: 5, cy: 14, r: 1 }], ['circle', { cx: 19, cy: 6, r: 1 }], ['circle', { cx: 19, cy: 10, r: 1 }], ['circle', { cx: 19, cy: 14, r: 1 }]],

@@ -9,12 +9,13 @@ const pro = read('pro_9a3943176561/index.html');
 const source = read('practice-menu-app.js');
 const styles = read('style.css');
 
-test('Home calendar glyph has bindings, a header divider and date dots without changing its button', () => {
+test('Home calendar glyph has bindings, a header divider and date grid without changing its button', () => {
     for (const markup of [standard, pro]) {
         const button = markup.match(/<button id="home-calendar-button"[\s\S]*?<\/button>/)?.[0];
         assert.ok(button);
-        assert.match(button, /M7 3v4M17 3v4M4 9h16/);
-        assert.equal((button.match(/<circle/g) || []).length, 4);
+        assert.match(button, /M8 3v5M16 3v5M3\.5 10h17/);
+        assert.equal((button.match(/<g fill="currentColor" stroke="none">/g) || []).length, 1);
+        assert.equal((button.match(/<rect/g) || []).length, 7);
     }
     assert.match(styles, /\.port-calendar-button\s*\{[^}]*width: 44px;[^}]*flex: 0 0 44px/);
     assert.match(styles, /\.port-header-actions\s*\{[\s\S]*gap: 8px/);
@@ -41,13 +42,14 @@ test('calendar back label follows source without changing the hash route', () =>
     assert.doesNotMatch(source, /#music-calendar|calendarSource=/);
 });
 
-test('live and maintenance use small-size-safe outlined geometry while recording and the other icons remain', () => {
+test('live uses the confirmed solid geometry while maintenance, recording and the other icons remain', () => {
     const live = source.match(/live: (\[\['ellipse',[\s\S]*?\]\]),\n    rehearsal:/)?.[1];
     const recording = source.match(/recording: (\[\['rect',[\s\S]*?\]\]),\n    'string-change':/)?.[1];
     const maintenance = source.match(/maintenance: (\[\['path',[\s\S]*?\]\]),\n    memo:/)?.[1];
     assert.ok(live && recording && maintenance);
-    assert.match(live, /rx: 4\.4, ry: 3\.6/);
-    assert.match(live, /M13\.2 3\.8l5 5M11\.9 5\.2l5 5/);
+    assert.match(live, /rx: 4\.1, ry: 4\.6/);
+    assert.match(live, /fill: 'currentColor', stroke: 'none'/);
+    assert.match(live, /x: 13\.4, y: 13\.1, width: 2\.6, height: 8/);
     assert.notEqual(live, recording);
     assert.match(maintenance, /M14\.7 6\.3a1 1 0 0 0 0 1\.4/);
     assert.match(maintenance, /l6\.9-6\.9a6 6/);
