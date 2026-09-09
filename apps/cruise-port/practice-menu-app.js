@@ -139,7 +139,7 @@ import { initMetronome } from './metronome-app.js?v=0.24.0';
 import {
     applyVersionDisplay,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.25.1';
+} from './app-version.js?v=0.26.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.24.0';
