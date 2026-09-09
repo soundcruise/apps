@@ -427,6 +427,7 @@ const state = {
     calendarReady: false,
     calendarNoteEditId: null,
     calendarNoteIcon: PRACTICE_CALENDAR_DEFAULT_ICON,
+    calendarNoteUserEdited: false,
     timer: null,
     timerReady: false,
     timerInterval: null,
@@ -2128,6 +2129,7 @@ function closePracticeCalendarNoteForm() {
     cleanupPracticeCalendarKeyboardTracking();
     state.calendarNoteEditId = null;
     state.calendarNoteIcon = PRACTICE_CALENDAR_DEFAULT_ICON;
+    state.calendarNoteUserEdited = false;
     elements.calendarNoteForm.hidden = true;
     elements.calendarNoteText.value = '';
     showNotice(elements.calendarNoteError);
@@ -2151,7 +2153,7 @@ function cleanupPracticeCalendarKeyboardTracking() {
 }
 
 const PRACTICE_CALENDAR_ICON_SHAPES = Object.freeze({
-    practice: [['path', { d: 'M14 10l6-6M18 3l3 3M13 9c-2-2-4-1-4 1 0 1-1 2-3 2-3 0-4 4-2 6s6 2 7-1c0-2 1-3 2-3 2 0 3-3 0-5z' }], ['circle', { cx: 9, cy: 15, r: 1.5 }]],
+    practice: [['path', { d: 'M12 3C8.2 3 4.2 3.5 3.1 6.1c-1 2.5 2.5 10.1 5.9 13.6a4.2 4.2 0 0 0 6 0c3.4-3.5 6.9-11.1 5.9-13.6C19.8 3.5 15.8 3 12 3Z', fill: 'currentColor', stroke: 'none' }]],
     studio: [['circle', { cx: 12, cy: 16, r: 4 }], ['rect', { x: 6, y: 8, width: 5, height: 4, rx: 1 }], ['rect', { x: 13, y: 8, width: 5, height: 4, rx: 1 }], ['path', { d: 'M2 6h5M4 4v16M2 21l2-3 2 3M18 5h4M20 3v17M18 21l2-3 2 3' }]],
     work: [['path', { d: 'M4 20l2-6L17 3l4 4L10 18zM14 6l4 4M6 14l4 4M4 20l6-2' }]],
     schedule: [['rect', { x: 4, y: 5.5, width: 16, height: 14, rx: 2 }], ['path', { d: 'M8 3.5v4M16 3.5v4M4 10h16' }]],
@@ -2198,6 +2200,7 @@ function openPracticeCalendarNoteForm(note = null) {
     cleanupPracticeCalendarKeyboardTracking();
     state.calendarNoteEditId = note?.id || null;
     state.calendarNoteIcon = note?.icon || PRACTICE_CALENDAR_DEFAULT_ICON;
+    state.calendarNoteUserEdited = Boolean(note);
     elements.calendarNoteText.value = note?.text || '';
     renderPracticeCalendarIconChoices();
     elements.calendarNoteForm.hidden = false;
@@ -4299,12 +4302,15 @@ elements.calendarNoteIcons.addEventListener('click', (event) => {
     const button = event.target.closest('[data-calendar-note-icon]');
     if (!button) return;
     state.calendarNoteIcon = button.dataset.calendarNoteIcon;
-    if (!elements.calendarNoteText.value.trim()) {
+    if (!state.calendarNoteUserEdited) {
         const icon = PRACTICE_CALENDAR_ICONS.find(({ value }) => value === state.calendarNoteIcon);
         if (icon) elements.calendarNoteText.value = icon.label;
     }
     renderPracticeCalendarIconChoices();
     elements.calendarNoteIcons.querySelector(`[data-calendar-note-icon="${state.calendarNoteIcon}"]`)?.focus({ preventScroll: true });
+});
+elements.calendarNoteText.addEventListener('input', () => {
+    state.calendarNoteUserEdited = true;
 });
 elements.calendarNoteForm.addEventListener('submit', handlePracticeCalendarNoteSubmit);
 elements.calendarNoteCancel.addEventListener('click', closePracticeCalendarNoteForm);

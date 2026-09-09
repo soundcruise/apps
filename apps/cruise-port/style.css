@@ -712,11 +712,29 @@ summary.tool-pro-locked > span:first-child::after {
     align-items: flex-start;
     gap: 12px;
 }
-.practice-detail-top-actions h1 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-#practice-edit-top { flex: none; min-height: 44px; padding: 8px 12px; }
+.practice-detail-top-actions h1 {
+    min-width: 0;
+    display: -webkit-box;
+    flex: 1;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+#practice-edit-top {
+    width: auto;
+    min-width: 58px;
+    min-height: 44px;
+    flex: none;
+    padding: 7px 11px;
+    align-self: flex-start;
+    border-color: rgba(207, 189, 148, 0.16);
+    color: var(--port-muted);
+    font-size: calc(0.76rem * var(--font-scale));
+}
 #practice-list-view > .view-panel { padding-inline: 14px; }
 .practice-menu-card .practice-launch,
-.practice-menu-card .practice-files-button { padding-inline: 6px; }
+.practice-menu-card .practice-files-button { padding-inline: 10px; }
 #practice-menu-add { justify-content: center; border-style: solid; border-color: var(--port-gold-bright); color: var(--port-gold-bright); }
 #practice-menu-add .add-symbol { width: auto; height: auto; border: 0; background: transparent; }
 
