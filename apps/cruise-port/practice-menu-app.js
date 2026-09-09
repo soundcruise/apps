@@ -64,9 +64,13 @@ import {
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
-    isSafePracticeAttachmentInlineOpen,
-    isSafePracticeImagePreview
+    isSafePracticeAttachmentInlineOpen
 } from './practice-menu-attachment-store.js?v=0.24.0';
+import {
+    appendPendingPracticeAttachments,
+    savePendingPracticeAttachments,
+    validatePendingPracticeAttachment
+} from './practice-menu-pending-attachments.js?v=1.0.0';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -338,6 +342,7 @@ const elements = {
     deleteButton: document.querySelector('#practice-delete'),
     formTitle: document.querySelector('#practice-form-title'),
     form: document.querySelector('#practice-menu-form'),
+    formSubmit: document.querySelector('#practice-menu-form button[type="submit"]'),
     nameInput: document.querySelector('#practice-name'),
     durationInput: document.querySelector('#practice-duration'),
     appInput: document.querySelector('#practice-app'),
@@ -433,6 +438,8 @@ const state = {
     timerInterval: null,
     attachmentCounts: {},
     attachmentCountsReady: false,
+    pendingCreateAttachments: [],
+    formSaving: false,
     filesFocusId: null,
     historyMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     historySelectedDate: toLocalDateKey(),
@@ -533,6 +540,11 @@ function cleanupPracticeAttachmentObjectUrls() {
     practiceAttachmentObjectUrls.clear();
 }
 
+function cleanupPendingPracticeAttachments() {
+    state.pendingCreateAttachments = [];
+    elements.formAttachmentInput.value = '';
+}
+
 function closePracticeAttachmentLightbox({ restoreFocus = false } = {}) {
     elements.attachmentLightbox.hidden = true;
     elements.attachmentLightboxImage.removeAttribute('src');
@@ -579,6 +591,7 @@ function showView(view) {
     if (view !== elements.myAppsFormView) cleanupMyAppsFormState();
     if (view !== elements.wishlistView) cleanupGearPhotoObjectUrls('list');
     if (view !== elements.gearFormView) cleanupGearPhotoFormState();
+    if (view !== elements.formView && state.formMode === 'create') cleanupPendingPracticeAttachments();
     if (view !== elements.wishlistView && view !== elements.gearFormView) closeGearPhotoLightbox();
     if (view !== elements.detailView) {
         closePracticeAttachmentLightbox();
@@ -2633,6 +2646,16 @@ function formatPracticeAttachmentSize(byteSize) {
     return `${(byteSize / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+function getPracticeAttachmentFailureMessage(reason) {
+    if (reason === 'empty-file') return '空のファイルは追加できません。別のファイルを選んでください。';
+    if (reason === 'image-too-large') return '画像サイズが大きすぎます。15MB以下の画像を選んでください。';
+    if (reason === 'file-too-large') return 'ファイルサイズが大きすぎます。20MB以下のファイルを選んでください。';
+    if (reason === 'limit-reached') {
+        return `ファイルは1つの練習メニューにつき${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。不要なファイルを削除してください。`;
+    }
+    return 'ファイルを保存できませんでした。ブラウザの空き容量や保存設定を確認してください。';
+}
+
 function getPracticeAttachmentPresentation(scope = 'detail') {
     return scope === 'form'
         ? {
@@ -2714,6 +2737,51 @@ function createPracticeAttachmentRow(record) {
     actions.append(open, remove);
     row.append(preview, copy, actions);
     return row;
+}
+
+function createPendingPracticeAttachmentRow(record) {
+    const row = document.createElement('article');
+    const preview = document.createElement('span');
+    const copy = document.createElement('span');
+    const name = document.createElement('strong');
+    const detail = document.createElement('small');
+    const actions = document.createElement('span');
+    const remove = document.createElement('button');
+
+    row.className = 'practice-attachment-row';
+    preview.className = 'practice-attachment-preview';
+    preview.setAttribute('aria-hidden', 'true');
+    preview.textContent = record.kind === 'image'
+        ? '画像'
+        : record.mimeType === 'application/pdf' ? 'PDF' : 'FILE';
+    copy.className = 'practice-attachment-copy';
+    name.textContent = record.fileName;
+    detail.textContent = `${record.kind === 'image' ? '画像' : record.mimeType === 'application/pdf' ? 'PDF' : 'ファイル'} ・ ${formatPracticeAttachmentSize(record.byteSize)}`;
+    copy.append(name, detail);
+    actions.className = 'practice-attachment-actions';
+    remove.type = 'button';
+    remove.dataset.attachmentAction = 'pending-delete';
+    remove.dataset.pendingId = record.pendingId;
+    remove.setAttribute('aria-label', `${record.fileName}を選択から外す`);
+    remove.textContent = '削除';
+    actions.append(remove);
+    row.append(preview, copy, actions);
+    return row;
+}
+
+function renderPendingPracticeAttachments() {
+    const presentation = getPracticeAttachmentPresentation('form');
+    const canWrite = getCapabilities().practiceFileWrite;
+    const limitReached = state.pendingCreateAttachments.length >= PRACTICE_ATTACHMENT_LIMITS.countPerPractice;
+    presentation.input.disabled = !canWrite || limitReached || state.formSaving;
+    presentation.add.classList.toggle('tool-pro-locked', !canWrite);
+    presentation.add.classList.toggle('is-disabled', canWrite && (limitReached || state.formSaving));
+    presentation.add.setAttribute('aria-label', canWrite ? 'ファイルを追加' : 'ファイルを追加（Pro版機能）');
+    presentation.empty.hidden = state.pendingCreateAttachments.length > 0;
+    presentation.empty.textContent = limitReached
+        ? `ファイルは${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。`
+        : 'ファイルはありません。';
+    presentation.list.replaceChildren(...state.pendingCreateAttachments.map(createPendingPracticeAttachmentRow));
 }
 
 async function renderPracticeAttachments(practiceId, scope = 'detail') {
@@ -2816,30 +2884,32 @@ async function handlePracticeAttachmentSelection(event, scope = 'detail') {
     const item = findItem(state.activeId);
     const files = [...(presentation.input.files || [])];
     presentation.input.value = '';
+    if (scope === 'form' && state.formMode === 'create') {
+        if (files.length === 0) return;
+        const result = appendPendingPracticeAttachments(state.pendingCreateAttachments, files);
+        state.pendingCreateAttachments = result.pending;
+        const message = result.ok
+            ? `保存前のファイルを${result.addedCount}件追加しました。`
+            : `${result.addedCount ? `${result.addedCount}件を追加しました。` : ''}${getPracticeAttachmentFailureMessage(result.reason)}`;
+        setPracticeAttachmentStatus('form', message, { error: !result.ok });
+        renderPendingPracticeAttachments();
+        return;
+    }
     if (!item || files.length === 0) return;
     presentation.input.disabled = true;
     setPracticeAttachmentStatus(scope, 'ファイルを保存しています…');
     let savedCount = 0;
     let failureMessage = '';
     for (const file of files) {
-        const image = isSafePracticeImagePreview(file.type.toLowerCase());
-        const limit = image ? PRACTICE_ATTACHMENT_LIMITS.imageBytes : PRACTICE_ATTACHMENT_LIMITS.fileBytes;
-        if (!file.size) {
-            failureMessage = '空のファイルは追加できません。別のファイルを選んでください。';
-            break;
-        }
-        if (file.size > limit) {
-            failureMessage = image
-                ? '画像サイズが大きすぎます。15MB以下の画像を選んでください。'
-                : 'ファイルサイズが大きすぎます。20MB以下のファイルを選んでください。';
+        const validation = validatePendingPracticeAttachment(file);
+        if (!validation.ok) {
+            failureMessage = getPracticeAttachmentFailureMessage(validation.reason);
             break;
         }
         const result = await practiceAttachmentStore.addAttachment(item.id, file, { fileName: file.name });
         if (!result.ok) {
             if (result.reason === 'pro-required') requestToolPro('practiceFile');
-            failureMessage = result.reason === 'limit-reached'
-                ? `ファイルは1つの練習メニューにつき${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。不要なファイルを削除してください。`
-                : 'ファイルを保存できませんでした。ブラウザの空き容量や保存設定を確認してください。';
+            failureMessage = getPracticeAttachmentFailureMessage(result.reason);
             break;
         }
         savedCount += 1;
@@ -2856,6 +2926,13 @@ async function handlePracticeAttachmentSelection(event, scope = 'detail') {
 async function handlePracticeAttachmentAction(event, scope = 'detail') {
     const button = event.target.closest('[data-attachment-action]');
     if (!button) return;
+    if (scope === 'form' && state.formMode === 'create' && button.dataset.attachmentAction === 'pending-delete') {
+        state.pendingCreateAttachments = state.pendingCreateAttachments
+            .filter((record) => record.pendingId !== button.dataset.pendingId);
+        setPracticeAttachmentStatus('form', '保存前のファイルを選択から外しました。');
+        renderPendingPracticeAttachments();
+        return;
+    }
     if (button.dataset.attachmentAction === 'preview') {
         openPracticeAttachmentLightbox(button);
         return;
@@ -2919,7 +2996,8 @@ function renderDetail(id) {
     elements.detailApp.textContent = app.label;
     elements.detailMemo.textContent = item.memo || 'なし';
     elements.detailCount.textContent = `${getPracticeTotalCount(item.id)}回`;
-    showNotice(elements.detailSaved, state.savedNotice?.id === item.id ? state.savedNotice.message : '');
+    const savedNotice = state.savedNotice?.id === item.id ? state.savedNotice : null;
+    showNotice(elements.detailSaved, savedNotice?.message || '');
     state.savedNotice = null;
     elements.openApp.textContent = 'アプリを開く';
     elements.openApp.hidden = !app.launchable;
@@ -2940,7 +3018,7 @@ function renderDetail(id) {
             : app.status === PRACTICE_APP_STATUS.unsupported
                 ? 'この使用アプリには現在対応していません。練習メニューを編集してください。'
                 : '';
-    showNotice(elements.detailError, detailMessage);
+    showNotice(elements.detailError, [detailMessage, savedNotice?.error].filter(Boolean).join(' '));
     showView(elements.detailView);
     setPracticeAttachmentStatus('detail');
     const focusFiles = state.filesFocusId === item.id;
@@ -2996,7 +3074,7 @@ function fillForm(item = null) {
     elements.memoInput.value = item?.memo || '';
     elements.hiddenInput.checked = item?.hidden || false;
     elements.hiddenField.hidden = !item;
-    elements.formAttachments.hidden = !item;
+    elements.formAttachments.hidden = false;
     elements.formAttachmentsList.replaceChildren();
     elements.formAttachmentsEmpty.hidden = true;
     setPracticeAttachmentStatus('form');
@@ -3005,6 +3083,16 @@ function fillForm(item = null) {
     elements.countReset.disabled = !item || !state.progressReady || getPracticeTotalCount(item.id) === 0;
     showNotice(elements.formError);
     showNotice(elements.formStatus);
+}
+
+function setPracticeFormSaving(saving) {
+    state.formSaving = saving;
+    elements.formSubmit.disabled = saving;
+    elements.formSubmit.textContent = saving ? '保存中…' : '保存';
+    document.querySelectorAll('[data-action="cancel-form"]').forEach((button) => {
+        button.disabled = saving;
+    });
+    if (state.formMode === 'create') renderPendingPracticeAttachments();
 }
 
 function renderForm(mode, id = null) {
@@ -3024,10 +3112,13 @@ function renderForm(mode, id = null) {
 
     state.formMode = mode;
     state.activeId = item?.id || null;
+    cleanupPendingPracticeAttachments();
+    setPracticeFormSaving(false);
     elements.formTitle.textContent = mode === 'edit' ? '練習メニューを編集' : '練習メニューを作成';
     fillForm(item);
     showView(elements.formView);
     if (item) void renderPracticeAttachments(item.id, 'form');
+    else renderPendingPracticeAttachments();
     elements.formTitle.focus({ preventScroll: true });
 }
 
@@ -4020,7 +4111,7 @@ function guardPracticeCreation() {
     return true;
 }
 
-function handleSubmit(event) {
+async function handleSubmit(event) {
     event.preventDefault();
     showNotice(elements.formError);
     const formResult = readFormValues();
@@ -4067,7 +4158,23 @@ function handleSubmit(event) {
     if (!guardPracticeCreation()) return;
     const item = createPracticeMenu(formResult.values, state.items);
     if (persist([...state.items, item])) {
-        state.savedNotice = { id: item.id, message: '保存しました。' };
+        const pending = [...state.pendingCreateAttachments];
+        let attachmentResult = { ok: true, savedRecords: [], remaining: [] };
+        if (pending.length > 0) {
+            setPracticeFormSaving(true);
+            attachmentResult = await savePendingPracticeAttachments(practiceAttachmentStore, item.id, pending);
+            state.pendingCreateAttachments = attachmentResult.remaining;
+            await refreshPracticeAttachmentCounts({ renderList: false });
+            setPracticeFormSaving(false);
+        }
+        const savedCount = attachmentResult.savedRecords.length;
+        state.savedNotice = {
+            id: item.id,
+            message: savedCount > 0 ? `保存しました。ファイルを${savedCount}件追加しました。` : '保存しました。',
+            error: attachmentResult.ok
+                ? ''
+                : `「${attachmentResult.failed.fileName}」以降のファイルを保存できませんでした。${getPracticeAttachmentFailureMessage(attachmentResult.reason)}`
+        };
         replacePracticeDetailRoute(item.id);
     }
 }

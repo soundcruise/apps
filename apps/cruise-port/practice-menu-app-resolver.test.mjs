@@ -155,7 +155,7 @@ assert.match(appSource, /const appId = selectedAppId \|\| null/);
 assert.match(appSource, /elements\.openApp\.hidden = !app\.launchable/);
 assert.match(markup, /id="practice-empty"[\s\S]*まだ練習メニューがありません/);
 assert.match(markup, /id="practice-detail-saved"/);
-assert.match(appSource, /state\.savedNotice = \{ id: item\.id, message: '保存しました。' \}/);
+assert.match(appSource, /message: savedCount > 0 \? `保存しました。ファイルを\$\{savedCount\}件追加しました。` : '保存しました。'/);
 assert.match(markup, /id="practice-detail-back"[^>]*>練習メニューに戻る/);
 assert.match(appSource, /function replacePracticeDetailRoute\(id\)[\s\S]*history\.replaceState/);
 assert.match(appSource, /replacePracticeDetailRoute\(item\.id\)/);
