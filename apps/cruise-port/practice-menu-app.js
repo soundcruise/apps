@@ -34,7 +34,7 @@ import {
     savePracticeHistory,
     toLocalDateKey
 } from './practice-menu-history-store.js?v=0.24.0';
-import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.24.0';
+import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
     PRACTICE_CALENDAR_ICONS,
@@ -138,8 +138,8 @@ import {
     applyVersionDisplay,
     reloadAppWithCacheBust
 } from './app-version.js?v=0.24.0';
-import { applyHomeDisplaySize } from './home-display.js?v=1.0.0';
-import { clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.24.0';
+import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.24.0';
 import {
     GEAR_CATEGORIES,
@@ -196,6 +196,10 @@ const elements = {
     settingsTitle: document.querySelector('#settings-title'),
     settingsStorageError: document.querySelector('#settings-storage-error'),
     settingsChoices: [...document.querySelectorAll('[data-display-size]')],
+    fontChoices: [...document.querySelectorAll('button[data-font-size]')],
+    sectionOrder: document.querySelector('#settings-section-order'),
+    orderStatus: document.querySelector('#settings-order-status'),
+    settingsReset: document.querySelector('#settings-reset'),
     gearTitle: document.querySelector('#wishlist-title'),
     gearTabs: [...document.querySelectorAll('[data-gear-status]')],
     gearCategoryFilter: document.querySelector('#gear-category-filter'),
@@ -460,7 +464,7 @@ const gearState = {
 let metronomeController = null;
 let tunerController = null;
 let pendingHomeScrollTarget = null;
-let homeSettings = { displaySize: 'standard' };
+let homeSettings = { ...DEFAULT_SETTINGS };
 let settingsStorageReady = true;
 let gearPhotoLightboxReturnFocus = null;
 let practiceAttachmentRenderGeneration = 0;
@@ -2926,15 +2930,44 @@ function renderForm(mode, id = null) {
     elements.formTitle.focus({ preventScroll: true });
 }
 
+function applyDisplaySettings() {
+    applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
+    document.documentElement.dataset.fontSize = homeSettings.fontSize;
+    applyHomeSectionOrder(elements.homeView, homeSettings.sectionOrder);
+}
+
+const homeSectionLabels = { cruiseApps: 'クルーズアプリ', tools: 'ツール', myApps: 'My Apps' };
+
 function renderSettings({ focus = true, storageError = '' } = {}) {
     showView(elements.settingsView);
-    const activeSize = applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
-    elements.settingsChoices.forEach((button) => {
-        const selected = button.dataset.displaySize === activeSize;
+    applyDisplaySettings();
+    [...elements.settingsChoices, ...elements.fontChoices].forEach((button) => {
+        const selected = button.dataset.displaySize
+            ? button.dataset.displaySize === homeSettings.displaySize
+            : button.dataset.fontSize === homeSettings.fontSize;
         button.classList.toggle('is-selected', selected);
         button.setAttribute('aria-checked', selected ? 'true' : 'false');
         button.tabIndex = selected ? 0 : -1;
     });
+    elements.sectionOrder.replaceChildren(...homeSettings.sectionOrder.map((key, index) => {
+        const row = document.createElement('div');
+        row.className = 'settings-order-row';
+        const label = document.createElement('span');
+        label.textContent = homeSectionLabels[key];
+        row.append(label);
+        for (const direction of [-1, 1]) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'reorder-button';
+            button.dataset.sectionKey = key;
+            button.dataset.direction = String(direction);
+            button.textContent = direction === -1 ? '↑' : '↓';
+            button.setAttribute('aria-label', `${homeSectionLabels[key]}を${direction === -1 ? '上' : '下'}へ`);
+            button.disabled = index + direction < 0 || index + direction >= homeSettings.sectionOrder.length;
+            row.append(button);
+        }
+        return row;
+    }));
     showNotice(
         elements.settingsStorageError,
         storageError || (settingsStorageReady ? '' : '表示設定を読み込めませんでした。標準表示で開いています。')
@@ -4195,23 +4228,45 @@ document.querySelectorAll('[data-action="new-my-app"]').forEach((button) => butt
 elements.myAppsAdd.addEventListener('click', () => setHashRoute('#my-apps/new'));
 elements.myAppsManage.addEventListener('click', () => setHashRoute('#my-apps/manage'));
 elements.homeSettingsButton.addEventListener('click', () => setHashRoute('#settings'));
-elements.settingsChoices.forEach((button) => button.addEventListener('click', () => {
-    const saveResult = saveSettings({ displaySize: button.dataset.displaySize });
+function updateDisplaySettings(next) {
+    const saveResult = saveSettings(next);
     homeSettings = saveResult.settings;
-    applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
+    applyDisplaySettings();
     renderSettings({
         focus: false,
         storageError: saveResult.ok ? '' : '表示設定を保存できませんでした。今回の表示には反映しています。'
     });
+    return saveResult.ok;
+}
+[...elements.settingsChoices, ...elements.fontChoices].forEach((button) => button.addEventListener('click', () => {
+    const field = button.dataset.displaySize ? 'displaySize' : 'fontSize';
+    updateDisplaySettings({ ...homeSettings, [field]: button.dataset[field] });
     button.focus({ preventScroll: true });
 }));
-elements.settingsChoices.forEach((button, index) => button.addEventListener('keydown', (event) => {
+for (const choices of [elements.settingsChoices, elements.fontChoices]) choices.forEach((button, index) => button.addEventListener('keydown', (event) => {
     if (!['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     const offset = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
-    const next = elements.settingsChoices[(index + offset + elements.settingsChoices.length) % elements.settingsChoices.length];
+    const next = choices[(index + offset + choices.length) % choices.length];
     next.click();
 }));
+elements.sectionOrder.addEventListener('click', (event) => {
+    const button = event.target.closest('button[data-section-key]');
+    if (!button || button.disabled) return;
+    const key = button.dataset.sectionKey;
+    const direction = Number(button.dataset.direction);
+    const saved = updateDisplaySettings({ ...homeSettings, sectionOrder: moveHomeSection(homeSettings.sectionOrder, key, direction) });
+    elements.orderStatus.textContent = `${homeSettings.sectionOrder.map(key => homeSectionLabels[key]).join('、')}の順${saved ? 'に保存しました。' : 'です。保存はできていません。'}`;
+    const same = elements.sectionOrder.querySelector(`[data-section-key="${key}"][data-direction="${direction}"]`);
+    const fallback = elements.sectionOrder.querySelector(`[data-section-key="${key}"]:not(:disabled)`);
+    (same?.disabled ? fallback : same)?.focus({ preventScroll: true });
+});
+elements.settingsReset.addEventListener('click', () => {
+    if (!window.confirm('表示設定をすべてデフォルトに戻しますか？\n練習メニューやMy Appsなどのデータは削除されません。')) return;
+    const saved = updateDisplaySettings(DEFAULT_SETTINGS);
+    elements.orderStatus.textContent = saved ? '表示設定をデフォルトに戻しました。' : '保存できませんでした。デフォルトは今回の表示だけに反映しています。';
+    elements.settingsReset.focus({ preventScroll: true });
+});
 elements.myAppsForm.addEventListener('submit', handleMyAppsSubmit);
 elements.myAppsDelete.addEventListener('click', handleMyAppsDelete);
 elements.myAppsIconInput.addEventListener('change', handleMyAppsIconSelection);
@@ -4346,7 +4401,7 @@ myAppsState.storageReady = myAppsLoadResult.ok;
 const settingsLoadResult = loadSettings();
 homeSettings = settingsLoadResult.settings;
 settingsStorageReady = settingsLoadResult.ok;
-applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
+applyDisplaySettings();
 clearRetiredIconScalePreviewKeys();
 metronomeController = initMetronome(elements.metronomeView);
 tunerController = initTuner(elements.tunerView);

@@ -29,7 +29,7 @@
                 <p class="port-concept">弾き語りに必要なアプリを1つに集約。</p>
             </header>
 
-            <section class="port-section" aria-labelledby="cruise-apps-heading">
+            <section class="port-section" data-home-section="cruiseApps" aria-labelledby="cruise-apps-heading">
                 <h2 id="cruise-apps-heading">クルーズアプリ</h2>
                 <nav class="card-grid home-card-grid" aria-label="クルーズアプリ">
                     <a class="port-card app-card" href="../pitch-cruise/pro_x9v7q2m8/">
@@ -54,7 +54,7 @@
                 </nav>
             </section>
 
-            <section class="port-section" aria-labelledby="tools-heading">
+            <section class="port-section" data-home-section="tools" aria-labelledby="tools-heading">
                 <h2 id="tools-heading">ツール</h2>
                 <div class="card-grid home-card-grid" aria-label="ツール">
                     <a class="port-card skeleton-card tool-card" id="tuner-card" href="#tuner">
@@ -79,7 +79,7 @@
                 </div>
             </section>
 
-            <section id="my-apps-section" class="port-section" aria-labelledby="my-apps-heading">
+            <section id="my-apps-section" class="port-section" data-home-section="myApps" aria-labelledby="my-apps-heading">
                 <div class="practice-heading-row my-apps-heading-row">
                     <h2 id="my-apps-heading">My Apps</h2>
                     <button id="my-apps-manage" class="reorder-button" type="button" hidden>編集・並び替え</button>
@@ -103,13 +103,28 @@
                     <h2 id="display-size-title">表示の大きさ</h2>
                     <p>ホームのカード表示を選べます。</p>
                     <div class="settings-choices" role="radiogroup" aria-label="表示の大きさ">
-                        <button type="button" class="settings-choice" data-display-size="large" role="radio" aria-checked="true"><span>大</span><small>1列</small></button>
-                        <button type="button" class="settings-choice" data-display-size="standard" role="radio" aria-checked="false"><span>中</span><small>2列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="large" role="radio" aria-checked="false"><span>大</span><small>1列</small></button>
+                        <button type="button" class="settings-choice" data-display-size="standard" role="radio" aria-checked="true"><span>中</span><small>2列</small></button>
                         <button type="button" class="settings-choice" data-display-size="small" role="radio" aria-checked="false"><span>小</span><small>4列</small></button>
                         <button type="button" class="settings-choice" data-display-size="xsmall" role="radio" aria-checked="false"><span>極小</span><small>6列</small></button>
                     </div>
-                    <p id="settings-storage-error" class="notice notice-error" role="alert" hidden></p>
                 </section>
+                <section class="settings-card" aria-labelledby="font-size-title">
+                    <h2 id="font-size-title">フォント</h2>
+                    <div class="settings-choices" role="radiogroup" aria-label="フォント">
+                        <button type="button" class="settings-choice" data-font-size="small" role="radio" aria-checked="false">小</button>
+                        <button type="button" class="settings-choice" data-font-size="medium" role="radio" aria-checked="true">中</button>
+                        <button type="button" class="settings-choice" data-font-size="large" role="radio" aria-checked="false">大</button>
+                        <button type="button" class="settings-choice" data-font-size="xlarge" role="radio" aria-checked="false">特大</button>
+                    </div>
+                </section>
+                <section class="settings-card" aria-labelledby="section-order-title">
+                    <h2 id="section-order-title">ホームの表示順</h2>
+                    <div id="settings-section-order" class="settings-section-order"></div>
+                    <p id="settings-order-status" role="status" class="settings-order-status"></p>
+                </section>
+                <button id="settings-reset" class="action-button secondary-action" type="button">全てをデフォルトに戻す</button>
+                <p id="settings-storage-error" class="notice notice-error" role="alert" hidden></p>
             </section>
         </main>
 

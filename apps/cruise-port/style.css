@@ -1,5 +1,6 @@
 :root {
     color-scheme: dark;
+    --font-scale: 1;
     --port-bg: #080806;
     --port-surface: #12110f;
     --port-surface-deep: #0c0c0a;
@@ -9,6 +10,15 @@
     --port-muted: #9b968a;
     --port-border: rgba(207, 189, 148, 0.16);
 }
+
+:root[data-font-size="small"] { --font-scale: 0.9; }
+:root[data-font-size="medium"] { --font-scale: 1; }
+:root[data-font-size="large"] { --font-scale: 1.13; }
+:root[data-font-size="xlarge"] { --font-scale: 1.26; }
+
+/* Route headings retain assistive-technology focus without a touch-entry ring.
+   Interactive controls keep their existing :focus-visible styles. */
+.port-view .view-title[tabindex="-1"]:focus { outline: none; }
 
 * {
     box-sizing: border-box;
@@ -52,7 +62,7 @@ body {
     margin-top: auto;
     padding: 28px 0 16px;
     color: var(--port-muted);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     letter-spacing: 0.3em;
     text-align: center;
 }
@@ -77,7 +87,7 @@ body {
     color: var(--port-gold-bright);
     background: rgba(205, 180, 116, 0.1);
     font: inherit;
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--font-scale));
     font-weight: 700;
     cursor: pointer;
     touch-action: manipulation;
@@ -118,7 +128,7 @@ body {
     color: var(--port-text);
     background: rgba(20, 19, 17, 0.88);
     font-family: inherit;
-    font-size: 0.84rem;
+    font-size: calc(0.84rem * var(--font-scale));
     font-weight: 700;
     line-height: 1;
     cursor: pointer;
@@ -143,7 +153,7 @@ body {
 
 h1 {
     margin: 0;
-    font-size: clamp(1.85rem, 8vw, 2.45rem);
+    font-size: calc(clamp(1.85rem, 8vw, 2.45rem) * var(--font-scale));
     font-weight: 680;
     letter-spacing: 0.07em;
     line-height: 1.25;
@@ -161,7 +171,7 @@ h1::after {
 .port-concept {
     margin: 0;
     color: var(--port-muted);
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--font-scale));
     letter-spacing: 0.03em;
     line-height: 1.7;
 }
@@ -180,7 +190,7 @@ h1::after {
     align-items: center;
     gap: 10px;
     color: var(--port-text);
-    font-size: 1.03rem;
+    font-size: calc(1.03rem * var(--font-scale));
     font-weight: 650;
     letter-spacing: 0.05em;
     line-height: 1.4;
@@ -234,7 +244,7 @@ h1::after {
 
 .card-name {
     margin-top: 11px;
-    font-size: clamp(0.86rem, 3.7vw, 1rem);
+    font-size: calc(clamp(0.86rem, 3.7vw, 1rem) * var(--font-scale));
     font-weight: 650;
     letter-spacing: 0.02em;
     line-height: 1.4;
@@ -319,7 +329,7 @@ h1::after {
     display: block;
     margin-top: 3px;
     color: var(--port-muted);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
 
@@ -385,7 +395,7 @@ h1::after {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     cursor: pointer;
 }
 
@@ -399,7 +409,7 @@ h1::after {
     border: 1px solid rgba(207, 189, 148, 0.16);
     color: rgba(232, 219, 181, 0.92);
     background: rgba(205, 180, 116, 0.035);
-    font-size: 0.77rem;
+    font-size: calc(0.77rem * var(--font-scale));
     font-weight: 620;
 }
 
@@ -425,7 +435,7 @@ h1::after {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     cursor: pointer;
 }
 
@@ -458,7 +468,7 @@ h1::after {
     color: #17140e;
     background: linear-gradient(180deg, #dbc68f, #b89d5e);
     font: inherit;
-    font-size: 0.83rem;
+    font-size: calc(0.83rem * var(--font-scale));
     font-weight: 700;
     cursor: pointer;
 }
@@ -509,14 +519,14 @@ h1::after {
 .practice-empty p {
     margin: 0;
     color: var(--port-text);
-    font-size: 0.91rem;
+    font-size: calc(0.91rem * var(--font-scale));
 }
 
 .practice-empty span {
     display: block;
     margin-top: 7px;
     color: var(--port-muted);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     line-height: 1.6;
 }
 
@@ -559,7 +569,7 @@ h1::after {
 .reorder-status {
     margin: 0 0 10px;
     color: var(--port-muted);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     line-height: 1.55;
 }
 
@@ -595,7 +605,7 @@ h1::after {
     display: -webkit-box;
     margin: 0;
     overflow: hidden;
-    font-size: 0.94rem;
+    font-size: calc(0.94rem * var(--font-scale));
     overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -606,7 +616,7 @@ h1::after {
     margin-top: 5px;
     overflow: hidden;
     color: rgba(180, 174, 158, 0.82);
-    font-size: 0.7rem;
+    font-size: calc(0.7rem * var(--font-scale));
     line-height: 1.5;
     overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
@@ -690,7 +700,7 @@ h1::after {
     border-radius: 10px;
     color: var(--port-gold-bright);
     background: rgba(205, 180, 116, 0.025);
-    font-size: 0.7rem;
+    font-size: calc(0.7rem * var(--font-scale));
     font-weight: 620;
     text-decoration: none;
     white-space: nowrap;
@@ -701,14 +711,14 @@ h1::after {
 }
 
 .practice-launch span {
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
 }
 
 .practice-card-count {
     display: block;
     margin-top: 4px;
     color: rgba(205, 180, 116, 0.7);
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
 
@@ -719,7 +729,7 @@ h1::after {
 .practice-hidden-edit {
     flex: 0 0 auto;
     color: var(--port-muted);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
 }
 
 .practice-cycle-actions {
@@ -740,7 +750,7 @@ h1::after {
     color: rgba(232, 219, 181, 0.88);
     background: rgba(205, 180, 116, 0.025);
     font: inherit;
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     font-weight: 620;
     cursor: pointer;
 }
@@ -807,14 +817,14 @@ h1::after {
 .practice-completion-panel h2 {
     margin: 0;
     color: var(--port-text);
-    font-size: 1.08rem;
+    font-size: calc(1.08rem * var(--font-scale));
     font-weight: 650;
 }
 
 .practice-completion-panel > p:not(.notice) {
     margin: 8px 0 0;
     color: var(--port-muted);
-    font-size: 0.79rem;
+    font-size: calc(0.79rem * var(--font-scale));
     line-height: 1.65;
 }
 
@@ -940,7 +950,7 @@ h1::after {
 
 .add-row .card-name {
     color: var(--port-muted);
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--font-scale));
     font-weight: 570;
 }
 
@@ -1046,7 +1056,7 @@ h1::after {
 
 #home-view[data-display-size="large"] .home-card-grid .card-name {
     margin-top: 0;
-    font-size: clamp(0.92rem, 4vw, 1.06rem);
+    font-size: calc(clamp(0.92rem, 4vw, 1.06rem) * var(--font-scale));
 }
 
 #home-view[data-display-size="standard"] .home-card-grid .port-card {
@@ -1070,7 +1080,7 @@ h1::after {
 
 #home-view[data-display-size="standard"] .home-card-grid .card-name {
     margin-top: 11px;
-    font-size: clamp(0.86rem, 3.7vw, 1rem);
+    font-size: calc(clamp(0.86rem, 3.7vw, 1rem) * var(--font-scale));
 }
 
 #home-view[data-display-size="small"] .home-card-grid .port-card {
@@ -1097,7 +1107,7 @@ h1::after {
     max-width: 100%;
     margin-top: 6px;
     overflow: hidden;
-    font-size: clamp(0.64rem, 2.9vw, 0.76rem);
+    font-size: calc(clamp(0.64rem, 2.9vw, 0.76rem) * var(--font-scale));
     line-height: 1.28;
     overflow-wrap: anywhere;
     -webkit-box-orient: vertical;
@@ -1128,7 +1138,7 @@ h1::after {
     max-width: 100%;
     margin-top: 4px;
     overflow: hidden;
-    font-size: clamp(0.54rem, 2.35vw, 0.64rem);
+    font-size: calc(clamp(0.54rem, 2.35vw, 0.64rem) * var(--font-scale));
     font-weight: 620;
     line-height: 1.2;
     overflow-wrap: anywhere;
@@ -1270,7 +1280,7 @@ h1::after {
     color: var(--port-gold-bright);
     background: rgba(205, 180, 116, 0.035);
     font: inherit;
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
@@ -1289,7 +1299,7 @@ h1::after {
 .my-apps-not-found-copy {
     margin: 28px 0 0;
     color: var(--port-muted);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--font-scale));
     line-height: 1.75;
 }
 
@@ -1327,7 +1337,7 @@ h1::after {
     padding: 5px 8px;
     border: 1px solid rgba(207, 189, 148, 0.24);
     border-radius: 9px;
-    font-size: 0.69rem;
+    font-size: calc(0.69rem * var(--font-scale));
     white-space: nowrap;
 }
 
@@ -1345,7 +1355,7 @@ h1::after {
     justify-content: space-between;
     gap: 12px;
     color: var(--port-text);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
 }
 
 .my-apps-url-help-heading button {
@@ -1353,7 +1363,7 @@ h1::after {
     height: 32px;
     flex: 0 0 auto;
     padding: 0;
-    font-size: 1.25rem;
+    font-size: calc(1.25rem * var(--font-scale));
     line-height: 1;
 }
 
@@ -1367,14 +1377,14 @@ h1::after {
 .my-apps-url-help h2 {
     margin: 0;
     color: rgba(230, 210, 155, 0.86);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
 }
 
 .my-apps-url-help ol {
     margin: 6px 0 0;
     padding-left: 1.3em;
     color: var(--port-muted);
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--font-scale));
     line-height: 1.6;
 }
 
@@ -1390,7 +1400,7 @@ h1::after {
 
 .my-apps-direct-recognition {
     color: rgba(230, 210, 155, 0.82);
-    font-size: 0.74rem;
+    font-size: calc(0.74rem * var(--font-scale));
 }
 
 .my-apps-direct-toggle {
@@ -1400,7 +1410,7 @@ h1::after {
     align-items: center;
     gap: 10px;
     color: var(--port-text);
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--font-scale));
     font-weight: 620;
     cursor: pointer;
 }
@@ -1425,7 +1435,7 @@ h1::after {
 
 .my-apps-direct-description {
     color: var(--port-muted);
-    font-size: 0.7rem;
+    font-size: calc(0.7rem * var(--font-scale));
 }
 
 .my-apps-custom-launch {
@@ -1443,7 +1453,7 @@ h1::after {
     justify-content: space-between;
     gap: 12px;
     color: rgba(243, 240, 232, 0.86);
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--font-scale));
     font-weight: 620;
     cursor: pointer;
     list-style: none;
@@ -1477,7 +1487,7 @@ h1::after {
 .my-apps-custom-description {
     margin: 12px 0 16px;
     color: var(--port-muted);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     line-height: 1.65;
 }
 
@@ -1503,7 +1513,7 @@ h1::after {
     border-radius: 9px;
     color: var(--port-gold-bright);
     background: rgba(205, 180, 116, 0.035);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     font-weight: 620;
     text-decoration: none;
 }
@@ -1515,7 +1525,7 @@ h1::after {
 
 .my-apps-launch-test-status {
     color: var(--port-muted);
-    font-size: 0.67rem;
+    font-size: calc(0.67rem * var(--font-scale));
     line-height: 1.45;
 }
 
@@ -1523,7 +1533,7 @@ h1::after {
     display: block;
     margin-bottom: 8px;
     color: var(--port-text);
-    font-size: 0.84rem;
+    font-size: calc(0.84rem * var(--font-scale));
     font-weight: 620;
 }
 
@@ -1586,7 +1596,7 @@ h1::after {
     display: block;
     margin-top: 7px;
     color: rgba(230, 210, 155, 0.72);
-    font-size: 0.62rem;
+    font-size: calc(0.62rem * var(--font-scale));
     line-height: 1.35;
     white-space: nowrap;
 }
@@ -1612,7 +1622,7 @@ h1::after {
     color: var(--port-gold-bright);
     background: #151410;
     font: inherit;
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
@@ -1667,7 +1677,7 @@ h1::after {
     color: rgba(243, 240, 232, 0.82);
     background: transparent;
     font: inherit;
-    font-size: 0.57rem;
+    font-size: calc(0.57rem * var(--font-scale));
     line-height: 1.15;
     cursor: pointer;
 }
@@ -1695,7 +1705,7 @@ h1::after {
     width: 100%;
     margin: 1px 0 0;
     color: var(--port-muted);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     line-height: 1.55;
 }
 
@@ -1736,14 +1746,14 @@ body.gear-photo-lightbox-open {
 .my-apps-crop-title {
     margin: 0;
     color: var(--port-text);
-    font-size: clamp(1.35rem, 6vw, 1.8rem);
+    font-size: calc(clamp(1.35rem, 6vw, 1.8rem) * var(--font-scale));
     font-weight: 520;
 }
 
 .my-apps-crop-help {
     margin: 10px 0 16px;
     color: var(--port-muted);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     line-height: 1.65;
 }
 
@@ -1787,7 +1797,7 @@ body.gear-photo-lightbox-open {
     display: block;
     margin-bottom: 8px;
     color: var(--port-text);
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--font-scale));
     font-weight: 620;
 }
 
@@ -1803,14 +1813,14 @@ body.gear-photo-lightbox-open {
     margin-top: -5px;
     justify-content: space-between;
     color: var(--port-muted);
-    font-size: 0.66rem;
+    font-size: calc(0.66rem * var(--font-scale));
 }
 
 .my-apps-crop-status {
     min-height: 1.5em;
     margin: 8px 0 0;
     color: var(--port-muted);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     text-align: center;
 }
 
@@ -1890,29 +1900,34 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--font-scale));
     cursor: pointer;
 }
 
 .settings-card {
     margin-top: 28px;
-    padding: 18px;
-    border: 1px solid rgba(207, 189, 148, 0.14);
-    border-radius: 14px;
-    background: rgba(205, 180, 116, 0.025);
+    padding: 18px 0 0;
+    border-top: 1px solid var(--port-border);
 }
+
+.settings-section-order { display: grid; gap: 8px; margin-top: 16px; }
+.settings-order-row { display: grid; grid-template-columns: minmax(0, 1fr) 44px 44px; gap: 8px; align-items: center; }
+.settings-order-row > span { overflow-wrap: anywhere; font-size: calc(0.88rem * var(--font-scale)); }
+.settings-order-row button { min-width: 44px; min-height: 44px; padding: 6px; }
+.settings-order-row button:disabled { opacity: 0.35; cursor: default; }
+#settings-reset { margin-top: 24px; width: 100%; white-space: normal; }
 
 .settings-card h2 {
     margin: 0;
     color: var(--port-text);
-    font-size: 0.96rem;
+    font-size: calc(0.96rem * var(--font-scale));
     font-weight: 650;
 }
 
 .settings-card > p {
     margin: 7px 0 0;
     color: var(--port-muted);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--font-scale));
     line-height: 1.65;
 }
 
@@ -1935,7 +1950,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: rgba(8, 8, 6, 0.42);
     font: inherit;
-    font-size: 0.88rem;
+    font-size: calc(0.88rem * var(--font-scale));
     font-weight: 650;
     cursor: pointer;
     touch-action: manipulation;
@@ -1944,7 +1959,7 @@ textarea:focus-visible {
 
 .settings-choice small {
     color: inherit;
-    font-size: 0.66rem;
+    font-size: calc(0.66rem * var(--font-scale));
     font-weight: 520;
 }
 
@@ -1974,7 +1989,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.75rem;
+    font-size: calc(0.75rem * var(--font-scale));
     font-weight: 650;
     cursor: pointer;
 }
@@ -2019,7 +2034,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: rgba(8, 8, 6, 0.5);
     font: inherit;
-    font-size: 0.73rem;
+    font-size: calc(0.73rem * var(--font-scale));
     cursor: pointer;
 }
 
@@ -2037,7 +2052,7 @@ textarea:focus-visible {
 .gear-list-heading h2 {
     margin: 0;
     color: var(--port-text);
-    font-size: 0.91rem;
+    font-size: calc(0.91rem * var(--font-scale));
     font-weight: 650;
 }
 
@@ -2055,7 +2070,7 @@ textarea:focus-visible {
 
 .gear-list-heading span {
     color: var(--port-muted);
-    font-size: 0.7rem;
+    font-size: calc(0.7rem * var(--font-scale));
 }
 
 .gear-reorder-start {
@@ -2129,7 +2144,7 @@ textarea:focus-visible {
 .gear-card h3 {
     margin: 0;
     color: var(--port-text);
-    font-size: 1rem;
+    font-size: calc(1rem * var(--font-scale));
     font-weight: 680;
     line-height: 1.45;
     overflow-wrap: anywhere;
@@ -2147,7 +2162,7 @@ textarea:focus-visible {
     border: 1px solid rgba(207, 189, 148, 0.17);
     border-radius: 999px;
     color: var(--port-muted);
-    font-size: 0.65rem;
+    font-size: calc(0.65rem * var(--font-scale));
     line-height: 1.2;
 }
 
@@ -2167,14 +2182,14 @@ textarea:focus-visible {
 
 .gear-card-price {
     color: var(--port-gold-bright);
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--font-scale));
     font-weight: 650;
 }
 
 .gear-card-memo {
     display: -webkit-box;
     color: var(--port-muted);
-    font-size: 0.75rem;
+    font-size: calc(0.75rem * var(--font-scale));
     line-height: 1.65;
     overflow: hidden;
     overflow-wrap: anywhere;
@@ -2195,7 +2210,7 @@ textarea:focus-visible {
     min-height: 44px;
     padding: 8px 5px;
     border-radius: 9px;
-    font-size: 0.73rem;
+    font-size: calc(0.73rem * var(--font-scale));
 }
 
 .gear-purchase-action {
@@ -2231,7 +2246,7 @@ textarea:focus-visible {
 
 .gear-list-empty p {
     margin: 0;
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--font-scale));
 }
 
 .gear-list-add {
@@ -2263,7 +2278,7 @@ textarea:focus-visible {
 .gear-photo-field legend {
     margin-bottom: 9px;
     color: var(--port-text);
-    font-size: 0.84rem;
+    font-size: calc(0.84rem * var(--font-scale));
     font-weight: 650;
 }
 
@@ -2279,7 +2294,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: rgba(4, 4, 3, 0.48);
     font: inherit;
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
 }
 
 .gear-photo-preview:not(:disabled) {
@@ -2310,7 +2325,7 @@ textarea:focus-visible {
     min-height: 1.4em;
     margin: 8px 0 0;
     color: var(--port-muted);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     line-height: 1.5;
 }
 
@@ -2362,14 +2377,14 @@ textarea:focus-visible {
 .view-kicker {
     margin: 0 0 10px;
     color: var(--port-gold);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     font-weight: 650;
     letter-spacing: 0.12em;
 }
 
 .view-title {
     margin: 0;
-    font-size: clamp(1.45rem, 6vw, 2rem);
+    font-size: calc(clamp(1.45rem, 6vw, 2rem) * var(--font-scale));
     font-weight: 680;
     letter-spacing: 0.035em;
     line-height: 1.45;
@@ -2391,7 +2406,7 @@ textarea:focus-visible {
     border-radius: 11px;
     color: #d2ead7;
     background: rgba(85, 130, 94, 0.12);
-    font-size: 0.75rem;
+    font-size: calc(0.75rem * var(--font-scale));
     line-height: 1.55;
 }
 
@@ -2403,7 +2418,7 @@ textarea:focus-visible {
     border-radius: 13px;
     color: var(--port-muted);
     background: rgba(205, 180, 116, 0.02);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     line-height: 1.6;
     text-align: center;
 }
@@ -2432,12 +2447,12 @@ textarea:focus-visible {
 
 .practice-hidden-toggle strong {
     color: var(--port-text);
-    font-size: 0.84rem;
+    font-size: calc(0.84rem * var(--font-scale));
 }
 
 .practice-hidden-toggle small {
     color: var(--port-muted);
-    font-size: 0.67rem;
+    font-size: calc(0.67rem * var(--font-scale));
     font-weight: 400;
     line-height: 1.5;
 }
@@ -2467,12 +2482,12 @@ textarea:focus-visible {
 
 .practice-count-reset-section strong {
     color: var(--port-text);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--font-scale));
 }
 
 .practice-count-reset-section span {
     color: var(--port-muted);
-    font-size: 0.7rem;
+    font-size: calc(0.7rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
 
@@ -2508,7 +2523,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.75rem;
+    font-size: calc(0.75rem * var(--font-scale));
     font-weight: 620;
     cursor: pointer;
 }
@@ -2521,7 +2536,7 @@ textarea:focus-visible {
 
 .practice-calendar-heading strong {
     color: var(--port-text);
-    font-size: 0.94rem;
+    font-size: calc(0.94rem * var(--font-scale));
     letter-spacing: 0.04em;
     text-align: center;
 }
@@ -2535,7 +2550,7 @@ textarea:focus-visible {
     color: var(--port-gold-bright);
     background: rgba(205, 180, 116, 0.025);
     font: inherit;
-    font-size: 1.25rem;
+    font-size: calc(1.25rem * var(--font-scale));
     cursor: pointer;
 }
 
@@ -2653,13 +2668,13 @@ textarea:focus-visible {
 
 .practice-calendar-day-focus time {
     color: var(--port-text);
-    font-size: 1rem;
+    font-size: calc(1rem * var(--font-scale));
     font-weight: 620;
 }
 
 .practice-calendar-day-focus span {
     color: var(--port-muted);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
 }
 
 .practice-calendar-notes {
@@ -2680,7 +2695,7 @@ textarea:focus-visible {
 .practice-attachments-heading h2 {
     margin: 0;
     color: var(--port-text);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--font-scale));
 }
 
 .practice-calendar-section-heading button,
@@ -2695,7 +2710,7 @@ textarea:focus-visible {
     color: var(--port-gold-bright);
     background: rgba(205, 180, 116, 0.035);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     font-weight: 620;
     cursor: pointer;
 }
@@ -2711,7 +2726,7 @@ textarea:focus-visible {
 .practice-attachment-empty {
     margin: 13px 0 0;
     color: var(--port-muted);
-    font-size: 0.73rem;
+    font-size: calc(0.73rem * var(--font-scale));
 }
 
 .practice-calendar-note {
@@ -2732,7 +2747,7 @@ textarea:focus-visible {
 .practice-calendar-note p {
     margin: 0;
     color: var(--port-text);
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--font-scale));
     line-height: 1.65;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -2752,7 +2767,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--font-scale));
     cursor: pointer;
 }
 
@@ -2774,7 +2789,7 @@ textarea:focus-visible {
 .practice-calendar-note-icon-field legend {
     margin-bottom: 8px;
     color: var(--port-text);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
 }
 
@@ -2796,7 +2811,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.62rem;
+    font-size: calc(0.62rem * var(--font-scale));
     cursor: pointer;
 }
 
@@ -2815,7 +2830,7 @@ textarea:focus-visible {
     display: block;
     margin-bottom: 8px;
     color: var(--port-text);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
 }
 
@@ -2823,6 +2838,12 @@ textarea:focus-visible {
     width: 100%;
     min-height: 104px;
     resize: vertical;
+}
+
+/* Keep the initial memo block above the phone keyboard at larger text sizes.
+   The text still scales; longer notes scroll and the user can resize vertically. */
+:root:is([data-font-size="large"], [data-font-size="xlarge"]) #practice-calendar-note-form textarea {
+    height: 132px;
 }
 
 #practice-calendar-note-form > div {
@@ -2856,7 +2877,7 @@ textarea:focus-visible {
 .practice-day-history h2 {
     margin: 0 0 12px;
     color: var(--port-text);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--font-scale));
 }
 
 .practice-history-event {
@@ -2875,14 +2896,14 @@ textarea:focus-visible {
 
 .practice-history-event strong {
     color: var(--port-text);
-    font-size: 0.94rem;
+    font-size: calc(0.94rem * var(--font-scale));
     font-weight: 610;
     overflow-wrap: anywhere;
 }
 
 .practice-history-event small {
     color: var(--port-muted);
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--font-scale));
     line-height: 1.5;
 }
 
@@ -2913,7 +2934,7 @@ textarea:focus-visible {
     grid-template-columns: 18px minmax(0, 1fr) 40px;
     gap: 5px;
     color: var(--port-text);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--font-scale));
     line-height: 1.5;
 }
 
@@ -2956,7 +2977,7 @@ textarea:focus-visible {
 
 .practice-history-session-duration {
     color: var(--port-muted);
-    font-size: 0.86rem;
+    font-size: calc(0.86rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
 
@@ -2978,7 +2999,7 @@ textarea:focus-visible {
     border-radius: 10px;
     color: var(--port-gold-bright);
     background: rgba(205, 180, 116, 0.03);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     font-weight: 620;
     line-height: 1.2;
     text-decoration: none;
@@ -2994,7 +3015,7 @@ textarea:focus-visible {
     min-height: 1.3em;
     margin: 9px 0 0;
     color: var(--port-muted);
-    font-size: 0.7rem;
+    font-size: calc(0.7rem * var(--font-scale));
     line-height: 1.5;
 }
 
@@ -3040,7 +3061,7 @@ textarea:focus-visible {
     color: var(--port-muted);
     background: rgba(0, 0, 0, 0.26);
     font: inherit;
-    font-size: 0.58rem;
+    font-size: calc(0.58rem * var(--font-scale));
 }
 
 button.practice-attachment-preview {
@@ -3062,7 +3083,7 @@ button.practice-attachment-preview {
 .practice-attachment-copy strong {
     overflow: hidden;
     color: var(--port-text);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     font-weight: 580;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3070,7 +3091,7 @@ button.practice-attachment-preview {
 
 .practice-attachment-copy small {
     color: var(--port-muted);
-    font-size: 0.63rem;
+    font-size: calc(0.63rem * var(--font-scale));
 }
 
 .practice-attachment-actions {
@@ -3090,7 +3111,7 @@ button.practice-attachment-preview {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.66rem;
+    font-size: calc(0.66rem * var(--font-scale));
     text-decoration: none;
     cursor: pointer;
 }
@@ -3131,7 +3152,7 @@ button.practice-attachment-preview {
     margin: 0;
     overflow: hidden;
     color: var(--port-text);
-    font-size: 0.84rem;
+    font-size: calc(0.84rem * var(--font-scale));
     font-weight: 580;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -3146,7 +3167,7 @@ button.practice-attachment-preview {
     color: var(--port-text);
     background: rgba(205, 180, 116, 0.06);
     font: inherit;
-    font-size: 1.2rem;
+    font-size: calc(1.2rem * var(--font-scale));
     cursor: pointer;
 }
 
@@ -3171,14 +3192,14 @@ body.practice-attachment-lightbox-open {
 .detail-list dt {
     margin-bottom: 7px;
     color: var(--port-muted);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     letter-spacing: 0.05em;
 }
 
 .detail-list dd {
     margin: 0;
     color: var(--port-text);
-    font-size: 0.96rem;
+    font-size: calc(0.96rem * var(--font-scale));
     line-height: 1.7;
 }
 
@@ -3205,7 +3226,7 @@ body.practice-attachment-lightbox-open {
     border: 1px solid transparent;
     border-radius: 12px;
     font: inherit;
-    font-size: 0.91rem;
+    font-size: calc(0.91rem * var(--font-scale));
     font-weight: 650;
     text-align: center;
     text-decoration: none;
@@ -3235,7 +3256,7 @@ body.practice-attachment-lightbox-open {
     margin: 0 0 12px;
     padding: 11px 13px;
     border-radius: 10px;
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--font-scale));
     line-height: 1.6;
 }
 
@@ -3257,7 +3278,7 @@ body.practice-attachment-lightbox-open {
     display: block;
     margin-bottom: 8px;
     color: var(--port-text);
-    font-size: 0.84rem;
+    font-size: calc(0.84rem * var(--font-scale));
     font-weight: 620;
 }
 
@@ -3265,7 +3286,7 @@ body.practice-attachment-lightbox-open {
 .optional-label {
     margin-left: 5px;
     color: var(--port-muted);
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--font-scale));
     font-weight: 500;
 }
 
@@ -3279,7 +3300,7 @@ textarea {
     color: var(--port-text);
     background: #090907;
     font: inherit;
-    font-size: 1rem;
+    font-size: max(1rem, calc(1rem * var(--font-scale)));
 }
 
 input,
@@ -3308,7 +3329,7 @@ select {
 
 .duration-input span {
     color: var(--port-muted);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--font-scale));
 }
 
 .btn-primary {
@@ -3394,7 +3415,7 @@ select {
 
 .tempo-unit {
     color: var(--port-gold);
-    font-size: 0.64rem;
+    font-size: calc(0.64rem * var(--font-scale));
     font-weight: 680;
     letter-spacing: 0.16em;
     line-height: 1.2;
@@ -3458,7 +3479,7 @@ select {
     margin-top: -5px;
     justify-content: space-between;
     color: rgba(180, 174, 158, 0.72);
-    font-size: 0.66rem;
+    font-size: calc(0.66rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
 
@@ -3477,7 +3498,7 @@ select {
     color: var(--port-text);
     background: #151410;
     font: inherit;
-    font-size: 0.92rem;
+    font-size: calc(0.92rem * var(--font-scale));
     font-weight: 650;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
@@ -3499,14 +3520,14 @@ select {
     min-height: 1.5em;
     margin: 12px 0 7px;
     color: var(--port-muted);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     line-height: 1.5;
 }
 
 .metronome-toggle {
     width: 100%;
     min-height: 60px;
-    font-size: 1rem;
+    font-size: calc(1rem * var(--font-scale));
 }
 
 .metronome-toggle.is-playing {
@@ -3592,7 +3613,7 @@ select {
 
 .metronome-presets > label {
     color: var(--port-muted);
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     font-weight: 620;
     letter-spacing: 0.05em;
 }
@@ -3612,7 +3633,7 @@ select {
     color: var(--port-text);
     background: #12110e;
     font: inherit;
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
 }
 
 .metronome-preset-controls button {
@@ -3635,14 +3656,14 @@ select {
     color: rgba(210, 182, 173, 0.86);
     background: transparent;
     font: inherit;
-    font-size: 0.69rem;
+    font-size: calc(0.69rem * var(--font-scale));
     cursor: pointer;
 }
 
 .metronome-preset-status {
     margin: 0;
     color: var(--port-muted);
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--font-scale));
     line-height: 1.5;
 }
 
@@ -3683,7 +3704,7 @@ body.metronome-preset-open {
 .metronome-preset-dialog-panel h2 {
     margin: 3px 0 20px;
     color: var(--port-text);
-    font-size: 1.3rem;
+    font-size: calc(1.3rem * var(--font-scale));
     font-weight: 540;
 }
 
@@ -3693,12 +3714,12 @@ body.metronome-preset-open {
     align-items: baseline;
     justify-content: space-between;
     color: var(--port-text);
-    font-size: 0.8rem;
+    font-size: calc(0.8rem * var(--font-scale));
 }
 
 .metronome-preset-dialog-panel label span {
     color: var(--port-muted);
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--font-scale));
 }
 
 .metronome-preset-dialog-panel input {
@@ -3731,7 +3752,7 @@ body.metronome-preset-open {
     align-items: center;
     justify-content: space-between;
     color: var(--port-muted);
-    font-size: 0.82rem;
+    font-size: calc(0.82rem * var(--font-scale));
     font-weight: 620;
     letter-spacing: 0.05em;
     cursor: pointer;
@@ -3783,7 +3804,7 @@ body.metronome-preset-open {
 .metronome-section-heading h2 {
     margin: 0;
     color: var(--port-muted);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
     letter-spacing: 0.05em;
 }
@@ -3798,7 +3819,7 @@ body.metronome-preset-open {
 .metronome-section-heading span,
 .metronome-section-note {
     color: rgba(180, 174, 158, 0.78);
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--font-scale));
     line-height: 1.55;
 }
 
@@ -3816,7 +3837,7 @@ body.metronome-preset-open {
     align-items: baseline;
     justify-content: space-between;
     color: var(--port-muted);
-    font-size: 0.78rem;
+    font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
     letter-spacing: 0.05em;
 }
@@ -3840,7 +3861,7 @@ body.metronome-preset-open {
     color: var(--port-text);
     background: #12110e;
     font: inherit;
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
 }
@@ -3889,7 +3910,7 @@ body.metronome-preset-open {
 
 .beat-number {
     color: rgba(180, 174, 158, 0.78);
-    font-size: 0.66rem;
+    font-size: calc(0.66rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
 
@@ -3950,7 +3971,7 @@ body.metronome-preset-open {
     margin: 4px 0 0;
     flex: 0 0 auto;
     color: var(--port-muted);
-    font-size: 0.7rem;
+    font-size: calc(0.7rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.04em;
 }
@@ -3975,7 +3996,7 @@ body.metronome-preset-open {
 .tuner-tuning-field > span,
 .tuner-capo-field > span {
     color: var(--port-muted);
-    font-size: 0.66rem;
+    font-size: calc(0.66rem * var(--font-scale));
     font-weight: 650;
     letter-spacing: 0.05em;
 }
@@ -3986,7 +4007,7 @@ body.metronome-preset-open {
     min-height: var(--tuner-target-control-height);
     padding-top: 8px;
     padding-bottom: 8px;
-    font-size: 0.84rem;
+    font-size: calc(0.84rem * var(--font-scale));
 }
 
 .tuner-capo-control {
@@ -4010,7 +4031,7 @@ body.metronome-preset-open {
     color: var(--port-gold-bright);
     background: transparent;
     font: inherit;
-    font-size: 1.1rem;
+    font-size: calc(1.1rem * var(--font-scale));
     cursor: pointer;
     touch-action: manipulation;
 }
@@ -4028,7 +4049,7 @@ body.metronome-preset-open {
 .tuner-capo-control output {
     min-width: 0;
     color: var(--port-text);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
     font-weight: 650;
     text-align: center;
@@ -4036,7 +4057,7 @@ body.metronome-preset-open {
 
 .tuner-settings-error {
     color: var(--port-muted);
-    font-size: 0.62rem;
+    font-size: calc(0.62rem * var(--font-scale));
     line-height: 1.45;
     text-align: right;
 }
@@ -4082,7 +4103,7 @@ body.metronome-preset-open {
 .tuner-frequency {
     margin: 8px 0 0;
     color: var(--port-muted);
-    font-size: clamp(0.82rem, 3.8vw, 1rem);
+    font-size: calc(clamp(0.82rem, 3.8vw, 1rem) * var(--font-scale));
     font-variant-numeric: tabular-nums;
     letter-spacing: 0.04em;
 }
@@ -4099,7 +4120,7 @@ body.metronome-preset-open {
     align-items: center;
     justify-content: space-between;
     color: var(--port-muted);
-    font-size: 0.66rem;
+    font-size: calc(0.66rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
     line-height: 1;
 }
@@ -4168,7 +4189,7 @@ body.metronome-preset-open {
     min-height: 1.35em;
     margin: 4px 0 0;
     color: var(--port-muted);
-    font-size: 1rem;
+    font-size: calc(1rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
     font-weight: 620;
 }
@@ -4177,7 +4198,7 @@ body.metronome-preset-open {
     min-height: 1.4em;
     margin: 15px 0 0;
     color: var(--port-gold-bright);
-    font-size: clamp(1.35rem, 6vw, 1.75rem);
+    font-size: calc(clamp(1.35rem, 6vw, 1.75rem) * var(--font-scale));
     font-weight: 720;
     letter-spacing: 0.02em;
 }
@@ -4194,7 +4215,7 @@ body.metronome-preset-open {
 }
 
 .tuner-direction[data-state="off-target"] {
-    font-size: clamp(1rem, 4.6vw, 1.28rem);
+    font-size: calc(clamp(1rem, 4.6vw, 1.28rem) * var(--font-scale));
     font-weight: 620;
 }
 
@@ -4233,12 +4254,12 @@ body.metronome-preset-open {
 }
 
 .tuner-strings span {
-    font-size: 0.58rem;
+    font-size: calc(0.58rem * var(--font-scale));
 }
 
 .tuner-strings strong {
     color: var(--port-text);
-    font-size: 0.82rem;
+    font-size: calc(0.82rem * var(--font-scale));
     font-weight: 650;
     font-variant-numeric: tabular-nums;
 }
@@ -4298,7 +4319,7 @@ body.metronome-preset-open {
     color: var(--port-muted);
     background: transparent;
     font: inherit;
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     font-weight: 650;
     letter-spacing: 0.05em;
     cursor: pointer;
@@ -4336,7 +4357,7 @@ body.metronome-preset-open {
 .tuner-threshold-heading {
     margin: 0;
     color: var(--port-muted);
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--font-scale));
     font-weight: 620;
     letter-spacing: 0.05em;
 }
@@ -4401,14 +4422,14 @@ body.metronome-preset-open {
     justify-content: space-between;
     margin-top: -2px;
     color: var(--port-muted);
-    font-size: 0.6rem;
+    font-size: calc(0.6rem * var(--font-scale));
 }
 
 .tuner-threshold-error {
     min-height: 1.4em;
     margin: 5px 0 0;
     color: #e5aca4;
-    font-size: 0.64rem;
+    font-size: calc(0.64rem * var(--font-scale));
     line-height: 1.4;
 }
 
@@ -4427,19 +4448,19 @@ body.metronome-preset-open {
     min-height: 1.5em;
     margin: 20px 0 9px;
     color: var(--port-muted);
-    font-size: 0.76rem;
+    font-size: calc(0.76rem * var(--font-scale));
     line-height: 1.5;
 }
 
 .tuner-toggle {
     min-height: 58px;
-    font-size: 1rem;
+    font-size: calc(1rem * var(--font-scale));
 }
 
 .tuner-privacy {
     margin: 14px 0 0;
     color: var(--port-muted);
-    font-size: 0.67rem;
+    font-size: calc(0.67rem * var(--font-scale));
     line-height: 1.55;
 }
 
@@ -4466,13 +4487,13 @@ body.metronome-preset-open {
 .tuner-diagnostic-heading h2 {
     margin: 0;
     color: var(--port-text);
-    font-size: 0.9rem;
+    font-size: calc(0.9rem * var(--font-scale));
     letter-spacing: 0.08em;
 }
 
 .tuner-diagnostic-heading span,
 .diagnostic-level-row {
-    font-size: 0.68rem;
+    font-size: calc(0.68rem * var(--font-scale));
 }
 
 .diagnostic-level-row {
@@ -4514,7 +4535,7 @@ body.metronome-preset-open {
 
 .diagnostic-threshold-label {
     margin: 6px 0 0;
-    font-size: 0.6rem;
+    font-size: calc(0.6rem * var(--font-scale));
     text-align: right;
 }
 
@@ -4533,13 +4554,13 @@ body.metronome-preset-open {
 
 .diagnostic-values dt,
 .diagnostic-summary dt {
-    font-size: 0.6rem;
+    font-size: calc(0.6rem * var(--font-scale));
 }
 
 .diagnostic-values dd,
 .diagnostic-summary dd {
     margin: 3px 0 0;
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
     overflow-wrap: anywhere;
 }
 
@@ -4551,7 +4572,7 @@ body.metronome-preset-open {
 
 .diagnostic-environment p {
     margin: 5px 0 0;
-    font-size: 0.62rem;
+    font-size: calc(0.62rem * var(--font-scale));
     line-height: 1.5;
     overflow-wrap: anywhere;
 }
@@ -4573,13 +4594,13 @@ body.metronome-preset-open {
     color: var(--port-gold-bright);
     background: rgba(205, 180, 116, 0.05);
     font: inherit;
-    font-size: 0.72rem;
+    font-size: calc(0.72rem * var(--font-scale));
 }
 
 .diagnostic-copy-status {
     min-height: 1.4em;
     margin: 7px 0 0;
-    font-size: 0.64rem;
+    font-size: calc(0.64rem * var(--font-scale));
     text-align: center;
 }
 
@@ -4761,7 +4782,7 @@ body.metronome-preset-open {
 
     .tempo-steps button {
         min-height: 46px;
-        font-size: 0.84rem;
+        font-size: calc(0.84rem * var(--font-scale));
     }
 
     .beat-display {
@@ -4773,7 +4794,7 @@ body.metronome-preset-open {
     }
 
     .tuner-reference {
-        font-size: 0.64rem;
+        font-size: calc(0.64rem * var(--font-scale));
     }
 
     .tuner-reading {

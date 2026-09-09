@@ -132,8 +132,8 @@ assert.match(styles, /\.practice-calendar-weekdays span[\s\S]*font-size: 0\.8rem
 assert.match(styles, /\.practice-calendar-day[\s\S]*font-size: 0\.96rem/);
 assert.match(styles, /\.practice-history-session-children/);
 assert.match(styles, /\.practice-history-session-duration/);
-assert.match(styles, /\.practice-history-event strong[\s\S]*font-size: 0\.94rem/);
-assert.match(styles, /\.practice-history-event small[\s\S]*font-size: 0\.86rem/);
+assert.match(styles, /\.practice-history-event strong[\s\S]*font-size: calc\(0\.94rem \* var\(--font-scale\)\)/);
+assert.match(styles, /\.practice-history-event small[\s\S]*font-size: calc\(0\.86rem \* var\(--font-scale\)\)/);
 assert.match(styles, /\.practice-calendar-note-icons/);
 assert.match(styles, /\.practice-check[\s\S]*width: 44px[\s\S]*height: 44px/);
 assert.match(styles, /\.practice-menu-card[\s\S]*grid-template-columns: 44px minmax\(0, 1fr\) auto 18px/);

@@ -52,7 +52,7 @@ test('keyboard settles then corrects once, ignoring own viewport feedback and su
     h.viewport.dispatchEvent(new Event('resize'));
     h.advance(210);
     assert.equal(h.scrolls.length, 1);
-    assert.equal(h.scrolls[0].top, 342);
+    assert.equal(h.scrolls[0].top, 436);
     for (let i = 0; i < 10; i++) {
         h.viewport.height -= 9;
         h.viewport.dispatchEvent(new Event('resize'));
@@ -111,6 +111,42 @@ test('continuous keyboard resize has a finite deadline and at most one correctio
         h.viewport.dispatchEvent(new Event('resize'));
         h.advance(80);
     }
+    assert.equal(h.scrolls.length, 0);
+    assert.equal(h.tasks.size, 0);
+});
+
+test('measured iPhone coordinates do not double count offsetTop', () => {
+    const h = harness({ height: 376 });
+    h.windowObject.innerHeight = 754;
+    h.windowObject.scrollY = 831;
+    Object.assign(h.viewport, { pageTop: 831, offsetTop: 378 });
+    Object.assign(h.bounds, { top: -50.890625, bottom: 253.671875 });
+    h.controller.start(h.focus);
+    h.advance(250);
+    assert.equal(h.scrolls.length, 1);
+    assert.equal(h.scrolls[0].top, -74.890625);
+});
+
+test('layout-relative viewport coordinates retain their offset', () => {
+    const h = harness();
+    h.windowObject.scrollY = 100;
+    Object.assign(h.viewport, { pageTop: 200, offsetTop: 100 });
+    h.controller.start(h.focus);
+    h.advance(250);
+    assert.equal(h.scrolls[0].top, 336);
+});
+
+test('offset-only and native scroll changes postpone settlement without event loops', () => {
+    const h = harness();
+    h.controller.start(h.focus);
+    h.advance(160);
+    h.viewport.offsetTop = 80;
+    h.advance(160);
+    assert.equal(h.scrolls.length, 0);
+    h.windowObject.scrollY = 50;
+    h.advance(160);
+    assert.equal(h.scrolls.length, 0);
+    h.advance(60);
     assert.equal(h.scrolls.length, 1);
     assert.equal(h.tasks.size, 0);
 });
