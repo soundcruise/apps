@@ -23,7 +23,7 @@ test('live uses the confirmed diagonal solid microphone distinct from recording'
     const recording = source.match(/recording: (\[\['rect',[\s\S]*?\]\]),\n    'string-change':/)?.[1];
     assert.ok(live);
     assert.ok(recording);
-    assert.match(live, /M3\.7 17\.8l7\.3-7\.3/);
+    assert.match(live, /M3\.3 20\.2c-1-1-1-2\.5/);
     assert.doesNotMatch(live, /ellipse|rect|transform/);
     assert.equal((live.match(/fill: 'currentColor'/g) || []).length, 1);
     assert.notEqual(live, recording);

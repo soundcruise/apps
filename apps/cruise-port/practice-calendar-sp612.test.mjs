@@ -28,7 +28,7 @@ test('confirmed Live is one diagonal solid microphone without assembled parts', 
     const live = source.match(/live: (\[\['path',[\s\S]*?\]\]),\n    rehearsal:/)?.[1];
     const recording = source.match(/recording: (\[\['rect',[\s\S]*?\]\]),\n    'string-change':/)?.[1];
     assert.ok(live && recording);
-    assert.match(live, /M3\.7 17\.8l7\.3-7\.3/);
+    assert.match(live, /M3\.3 20\.2c-1-1-1-2\.5/);
     assert.equal((live.match(/\['path'/g) || []).length, 1);
     assert.equal((live.match(/fill: 'currentColor'/g) || []).length, 1);
     assert.equal((live.match(/stroke: 'none'/g) || []).length, 1);

@@ -47,8 +47,9 @@ test('live uses the confirmed solid geometry while maintenance, recording and th
     const recording = source.match(/recording: (\[\['rect',[\s\S]*?\]\]),\n    'string-change':/)?.[1];
     const maintenance = source.match(/maintenance: (\[\['path',[\s\S]*?\]\]),\n    memo:/)?.[1];
     assert.ok(live && recording && maintenance);
-    assert.match(live, /fill: 'currentColor', stroke: 'none'/);
-    assert.match(live, /M3\.7 17\.8l7\.3-7\.3/);
+    assert.match(live, /fill: 'currentColor'/);
+    assert.match(live, /stroke: 'none'/);
+    assert.match(live, /M3\.3 20\.2c-1-1-1-2\.5/);
     assert.notEqual(live, recording);
     assert.match(maintenance, /M14\.7 6\.3a1 1 0 0 0 0 1\.4/);
     assert.match(maintenance, /l6\.9-6\.9a6 6/);

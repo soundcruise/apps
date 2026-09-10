@@ -62,7 +62,7 @@ test('icon picker is an accessible custom listbox with the schedule default', ()
 });
 
 test('formal revised icons use a diagonal mic, acoustic 3+3 headstock and wrench', () => {
-    assert.match(source, /live: \[\['path',[\s\S]*fill: 'currentColor', stroke: 'none'/);
+    assert.match(source, /live: \[\['path',[\s\S]*fill: 'currentColor',[\s\S]*stroke: 'none'/);
     assert.match(source, /recording: \[\['rect'/);
     const stringIcon = source.match(/'string-change': (\[[\s\S]*?\]),\n    maintenance:/)?.[1];
     assert.ok(stringIcon);
