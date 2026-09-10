@@ -437,8 +437,11 @@
 
                 <form id="practice-menu-form" novalidate>
                     <div class="form-field">
-                        <label for="practice-name">メニュー名 <span class="required-label">必須</span></label>
-                        <input id="practice-name" name="name" type="text" maxlength="100" autocomplete="off" required>
+                        <label id="practice-name-label" for="practice-name-preset">メニュー名 <span class="required-label">必須</span></label>
+                        <div class="practice-name-controls">
+                            <select id="practice-name-preset" name="namePreset"></select>
+                            <input id="practice-name" name="name" type="text" maxlength="100" autocomplete="off" required>
+                        </div>
                     </div>
 
                     <div class="form-field">

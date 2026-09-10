@@ -3555,6 +3555,11 @@ body.practice-attachment-lightbox-open {
     font-weight: 620;
 }
 
+.practice-name-controls {
+    display: grid;
+    gap: 10px;
+}
+
 .required-label,
 .optional-label {
     margin-left: 5px;

@@ -17,6 +17,13 @@ const LIMITS = Object.freeze({
 
 const MY_APP_PREFIX = 'myapp:';
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
+export const INITIAL_PRACTICE_MENU_VALUES = Object.freeze({
+    name: '曲練',
+    durationMinutes: 10,
+    appId: null,
+    memo: '',
+    hidden: false
+});
 
 function isIsoDate(value) {
     return typeof value === 'string'
@@ -89,7 +96,7 @@ export function loadPracticeMenus(storage) {
             if (schemaValue !== null && !supportedSchemaValues.includes(schemaValue)) {
                 return { ok: false, items: [], reason: 'unsupported-version' };
             }
-            return { ok: true, items: [] };
+            return { ok: true, items: [], uninitialized: true };
         }
 
         if (schemaValue !== null && !supportedSchemaValues.includes(schemaValue)) {
@@ -177,6 +184,16 @@ export function createPracticeMenu(values, existingItems, now = new Date()) {
         createdAt: timestamp,
         updatedAt: timestamp
     };
+}
+
+export function initializePracticeMenus(loadResult, storage, now = new Date()) {
+    if (!loadResult?.ok || loadResult.uninitialized !== true) return loadResult;
+
+    const item = createPracticeMenu({ ...INITIAL_PRACTICE_MENU_VALUES }, [], now);
+    const saveResult = savePracticeMenus([item], storage);
+    return saveResult.ok
+        ? { ok: true, items: [item] }
+        : { ok: false, items: [], reason: saveResult.reason };
 }
 
 export function updatePracticeMenu(items, id, values, now = new Date()) {

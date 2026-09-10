@@ -6,11 +6,17 @@ import {
     LIMITS,
     createPracticeMenu,
     deletePracticeMenu,
+    initializePracticeMenus,
     loadPracticeMenus,
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
 } from './practice-menu-store.js?v=0.26.0';
+import {
+    PRACTICE_NAME_PRESET_CUSTOM,
+    PRACTICE_NAME_PRESETS,
+    getPracticeNamePreset
+} from './practice-menu-presets.js?v=1.0.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.26.0';
 import { applyHomeCruiseLinks } from './cruise-app-links.js?v=0.26.0';
 import {
@@ -357,6 +363,8 @@ const elements = {
     formTitle: document.querySelector('#practice-form-title'),
     form: document.querySelector('#practice-menu-form'),
     formSubmit: document.querySelector('#practice-menu-form button[type="submit"]'),
+    nameLabel: document.querySelector('#practice-name-label'),
+    namePresetInput: document.querySelector('#practice-name-preset'),
     nameInput: document.querySelector('#practice-name'),
     durationInput: document.querySelector('#practice-duration'),
     appInput: document.querySelector('#practice-app'),
@@ -3237,11 +3245,38 @@ function populatePracticeAppSelect(selectedAppId = '') {
     elements.appInput.value = selectedAppId;
 }
 
+function populatePracticeNamePresets() {
+    elements.namePresetInput.replaceChildren(...PRACTICE_NAME_PRESETS.map((preset) => {
+        const option = document.createElement('option');
+        option.value = preset.value;
+        option.textContent = preset.label;
+        return option;
+    }));
+}
+
+function syncPracticeNameControls() {
+    const isCreate = state.formMode === 'create';
+    const customName = elements.namePresetInput.value === PRACTICE_NAME_PRESET_CUSTOM;
+    elements.namePresetInput.hidden = !isCreate;
+    elements.nameInput.hidden = isCreate && !customName;
+    elements.nameInput.required = !elements.nameInput.hidden;
+    elements.nameLabel.htmlFor = isCreate ? 'practice-name-preset' : 'practice-name';
+}
+
+function handlePracticeNamePresetChange() {
+    if (state.formMode !== 'create') return;
+    const preset = getPracticeNamePreset(elements.namePresetInput.value);
+    syncPracticeNameControls();
+    if (preset.appId) elements.appInput.value = preset.appId;
+}
+
 function fillForm(item = null) {
     elements.form.reset();
+    elements.namePresetInput.value = PRACTICE_NAME_PRESET_CUSTOM;
     elements.nameInput.value = item?.name || '';
     elements.durationInput.value = item?.durationMinutes ?? 10;
     populatePracticeAppSelect(item?.appId || '');
+    syncPracticeNameControls();
     elements.memoInput.value = item?.memo || '';
     elements.hiddenInput.checked = item?.hidden || false;
     elements.hiddenField.hidden = !item;
@@ -4212,7 +4247,12 @@ function renderRoute() {
 }
 
 function readFormValues() {
-    const name = elements.nameInput.value.trim();
+    const namePreset = state.formMode === 'create'
+        ? getPracticeNamePreset(elements.namePresetInput.value)
+        : null;
+    const name = namePreset && namePreset.value !== PRACTICE_NAME_PRESET_CUSTOM
+        ? namePreset.label
+        : elements.nameInput.value.trim();
     const durationText = elements.durationInput.value.trim();
     const selectedAppId = elements.appInput.value;
     const appId = selectedAppId || null;
@@ -4404,6 +4444,7 @@ function handlePracticeTotalCountReset() {
 elements.addButton.addEventListener('click', () => {
     if (guardPracticeCreation()) setHashRoute('#practice-menu/new');
 });
+elements.namePresetInput.addEventListener('change', handlePracticeNamePresetChange);
 elements.gearAdd.addEventListener('click', () => setHashRoute('#wishlist/new'));
 elements.gearForm.addEventListener('submit', handleGearSubmit);
 elements.gearStatusInput.addEventListener('change', updateGearPriorityVisibility);
@@ -4854,7 +4895,7 @@ window.addEventListener('cruise-port-storage-conflict', () => {
     window.alert('別のタブで保存内容が変更されました。上書きを防ぐため、この操作は保存していません。\n入力中の内容を控えてから「ページを更新」を押してください。');
 });
 
-const loadResult = loadPracticeMenus();
+const loadResult = initializePracticeMenus(loadPracticeMenus());
 state.items = loadResult.items;
 state.storageReady = loadResult.ok;
 const progressLoadResult = loadPracticeProgress();
@@ -4869,6 +4910,7 @@ state.calendarReady = calendarLoadResult.ok;
 const timerLoadResult = loadPracticeTimer();
 state.timer = timerLoadResult.timer;
 state.timerReady = timerLoadResult.ok;
+populatePracticeNamePresets();
 GEAR_CATEGORIES.forEach(({ key, label }) => {
     const option = document.createElement('option');
     option.value = key;
