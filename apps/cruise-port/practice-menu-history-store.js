@@ -352,6 +352,7 @@ export function createPracticeDayHistoryView(history, localDate) {
     });
 
     return getPracticeHistoryForDate(history, localDate)
+        .filter((event) => event.type !== PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted)
         .filter((event) => !(
             event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceCompleted
             && event.sessionId

@@ -7,7 +7,9 @@ export const PRACTICE_NAME_PRESETS = Object.freeze([
     Object.freeze({ value: 'fretboard', label: '指板練', appId: 'fretboard' }),
     Object.freeze({ value: 'basic', label: '基礎練習' }),
     Object.freeze({ value: 'scale', label: 'スケール練' }),
-    Object.freeze({ value: 'song', label: '曲練' })
+    Object.freeze({ value: 'song', label: '曲練' }),
+    Object.freeze({ value: 'composition', label: '作曲' }),
+    Object.freeze({ value: 'score', label: '譜面作り' })
 ]);
 
 export function getPracticeNamePreset(value) {

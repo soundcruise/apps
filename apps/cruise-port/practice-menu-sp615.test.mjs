@@ -108,10 +108,10 @@ test('initial 曲練 remains editable, deletable and counts toward the Standard 
 test('name presets have the formal order and only three builtin app suggestions', () => {
     assert.equal(PRACTICE_NAME_PRESET_CUSTOM, 'custom');
     assert.deepEqual(PRACTICE_NAME_PRESETS.map(({ label }) => label), [
-        '自由記入', '音感練', 'リズム練', '指板練', '基礎練習', 'スケール練', '曲練'
+        '自由記入', '音感練', 'リズム練', '指板練', '基礎練習', 'スケール練', '曲練', '作曲', '譜面作り'
     ]);
     assert.deepEqual(PRACTICE_NAME_PRESETS.map(({ appId }) => appId ?? null), [
-        null, 'pitch', 'rhythm', 'fretboard', null, null, null
+        null, 'pitch', 'rhythm', 'fretboard', null, null, null, null, null
     ]);
     assert.equal(getPracticeNamePreset('invalid').value, PRACTICE_NAME_PRESET_CUSTOM);
 });

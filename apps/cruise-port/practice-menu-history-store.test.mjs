@@ -142,6 +142,52 @@ test('session view groups matching practices in timestamp order without duplicat
     assert.equal(Object.hasOwn(history.events.find(({ id }) => id === first.id), 'measuredDurationSeconds'), false);
 });
 
+test('day view hides cycle completion without rewriting storage or calendar completion state', () => {
+    const sessionId = 'session-complete';
+    const child = createPracticeCompletedEvent(
+        { ...item, durationMinutes: 10 },
+        'cycle-complete',
+        new Date('2026-09-08T01:00:04.000Z'),
+        sessionId
+    );
+    const cycle = createCycleCompletedEvent('cycle-complete', new Date('2026-09-08T01:00:05.000Z'));
+    const session = createPracticeSessionEvent({
+        sessionId,
+        startedAt: '2026-09-08T01:00:00.000Z',
+        endedAt: '2026-09-08T01:00:06.000Z',
+        durationSeconds: 6
+    });
+    const history = { version: 4, events: [child, cycle, session] };
+    const before = JSON.stringify(history);
+
+    const view = createPracticeDayHistoryView(history, '2026-09-08');
+
+    assert.equal(view.length, 1);
+    assert.equal(view[0].kind, 'session');
+    assert.equal(view[0].event.durationSeconds, 6);
+    assert.deepEqual(view[0].children.map(({ practiceName, measuredDurationSeconds }) => ({ practiceName, measuredDurationSeconds })), [
+        { practiceName: item.name, measuredDurationSeconds: 4 }
+    ]);
+    assert.equal(createPracticeCalendarDaySummary('2026-09-08', history).completed, true);
+    assert.equal(history.events.some(({ type }) => type === PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted), true);
+    assert.equal(JSON.stringify(history), before);
+});
+
+test('standalone and unmatched legacy practices stay independent instead of inventing a session', () => {
+    const standalone = createPracticeCompletedEvent(item, 'cycle-standalone', new Date('2026-09-08T01:00:00.000Z'));
+    const unmatched = createPracticeCompletedEvent(
+        { ...item, id: 'legacy-unmatched', name: '旧記録' },
+        'cycle-legacy',
+        new Date('2026-09-08T01:01:00.000Z'),
+        'missing-session'
+    );
+    const history = { version: 4, events: [standalone, unmatched] };
+    const view = createPracticeDayHistoryView(history, '2026-09-08');
+
+    assert.deepEqual(view.map(({ kind }) => kind), ['event', 'event']);
+    assert.deepEqual(view.map(({ event }) => event.id), [standalone.id, unmatched.id]);
+});
+
 test('measured child durations retain seconds, timestamp order, and may differ from session total', () => {
     const sessionId = 'session-duration-boundaries';
     const first = createPracticeCompletedEvent(
@@ -308,6 +354,32 @@ test('session deletion removes only its group, including cross-date children; co
     savePracticeHistory(result.history, storage);
     assert.equal(storage.getItem('cruisePort.practiceProgress'), '{"totalCounts":{"practice-a":10}}');
     assert.equal(storage.getItem('cruisePort.practiceMenus'), 'sentinel');
+});
+
+test('session deletion never removes another session, its children, or a standalone practice', () => {
+    const { history, session, standalone } = deletionFixture();
+    const otherChild = createPracticeCompletedEvent(
+        { ...item, id: 'other-child', name: '別セッション' },
+        'other-cycle',
+        new Date('2026-09-08T03:05:00.000Z'),
+        'other-session'
+    );
+    const otherSession = createPracticeSessionEvent({
+        sessionId: 'other-session',
+        startedAt: '2026-09-08T03:00:00.000Z',
+        endedAt: '2026-09-08T03:10:00.000Z',
+        durationSeconds: 600
+    });
+    history.events.push(otherChild, otherSession);
+
+    const result = deletePracticeHistoryEvent(history, session.id);
+
+    assert.equal(result.history.events.some(({ id }) => id === standalone.id), true);
+    assert.equal(result.history.events.some(({ id }) => id === otherChild.id), true);
+    assert.equal(result.history.events.some(({ id }) => id === otherSession.id), true);
+    const [entry] = createPracticeDayHistoryView(result.history, '2026-09-08').filter(({ kind }) => kind === 'session');
+    assert.equal(entry.event.id, otherSession.id);
+    assert.deepEqual(entry.children.map(({ id }) => id), [otherChild.id]);
 });
 
 test('last history deletion clears practiced mark but retains calendar memo icon', () => {

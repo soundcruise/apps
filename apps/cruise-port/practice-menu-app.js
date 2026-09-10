@@ -2537,16 +2537,13 @@ function renderPracticeDayHistory() {
         const copy = document.createElement('span');
         const title = document.createElement('strong');
         const detail = document.createElement('small');
-        const completed = event.type === PRACTICE_HISTORY_EVENT_TYPE.cycleCompleted;
         const session = kind === 'session';
-        row.className = `practice-history-event${completed ? ' is-cycle-complete' : ''}${session ? ' is-session' : ''}`;
+        row.className = `practice-history-event${session ? ' is-session' : ''}`;
         mark.setAttribute('aria-hidden', 'true');
-        mark.textContent = completed ? '★' : session ? '◷' : '✓';
-        title.textContent = completed ? '全メニュー完了' : session ? '練習セッション' : event.practiceName;
-        detail.textContent = completed
-            ? '練習サイクルを完了'
-            : session
-                ? `${formatPracticeSessionDuration(event.durationSeconds)} ・ ${new Date(event.startedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${new Date(event.endedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
+        mark.textContent = session ? '◷' : '✓';
+        title.textContent = session ? '練習セッション' : event.practiceName;
+        detail.textContent = session
+            ? `${formatPracticeSessionDuration(event.durationSeconds)} ・ ${new Date(event.startedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${new Date(event.endedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
             : `${event.durationMinutes}分 ・ ${new Date(event.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
         copy.append(title, detail);
         row.dataset.historyEventId = event.id;
