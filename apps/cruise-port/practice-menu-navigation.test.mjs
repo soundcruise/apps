@@ -55,18 +55,16 @@ function replaceWithPracticeList(browser) {
     browser.replaceState(null, '', `${browser.location.pathname}${browser.location.search}#practice-menu`);
 }
 
-function replaceWithPracticeDetail(browser, id) {
-    browser.replaceState(null, '', `${browser.location.pathname}${browser.location.search}#practice-menu/${encodeURIComponent(id)}`);
-}
-
 {
     const browser = new MemoryBrowserHistory();
     browser.pushHash('#practice-menu');
     browser.pushHash('#practice-menu/new');
-    replaceWithPracticeDetail(browser, 'created-id');
-    assert.equal(browser.location.hash, '#practice-menu/created-id', 'save replaces the completed create form with detail');
+    replaceWithPracticeList(browser);
+    assert.equal(browser.location.hash, '#practice-menu', 'successful create replaces the completed form with the Practice Menu list');
     browser.back();
-    assert.equal(browser.location.hash, '#practice-menu', 'back after save returns to the list instead of the completed form');
+    assert.equal(browser.location.hash, '#practice-menu', 'back after create cannot reopen the completed form');
+    browser.forward();
+    assert.equal(browser.location.hash, '#practice-menu', 'forward stays on the list without a form loop');
 }
 
 {
@@ -153,6 +151,12 @@ const appSource = readFileSync(new URL('./practice-menu-app.js', import.meta.url
 assert.match(appSource, /function replaceHomeRoute\(\)[\s\S]*HOME_HISTORY_MODE\.replace/);
 assert.match(appSource, /function replacePracticeListRoute\(\)[\s\S]*history\.replaceState[\s\S]*#practice-menu/);
 assert.match(appSource, /function replacePracticeDetailRoute\(id\)[\s\S]*history\.replaceState/);
+const submitSource = appSource.slice(appSource.indexOf('async function handleSubmit'), appSource.indexOf('\nfunction cancelForm'));
+const editSubmitSource = submitSource.slice(0, submitSource.indexOf("if (!guardPracticeCreation()) return;"));
+const createSubmitSource = submitSource.slice(submitSource.indexOf("if (!guardPracticeCreation()) return;"));
+assert.match(createSubmitSource, /savePendingPracticeAttachments\(practiceAttachmentStore, item\.id, pending\)[\s\S]*await refreshPracticeAttachmentCounts\(\{ renderList: false \}\)[\s\S]*if \(attachmentResult\.ok\)[\s\S]*replacePracticeListRoute\(\)/);
+assert.match(createSubmitSource, /if \(attachmentResult\.ok\)[\s\S]*replacePracticeListRoute\(\)[\s\S]*state\.savedNotice[\s\S]*replacePracticeDetailRoute\(item\.id\)/);
+assert.match(editSubmitSource, /state\.savedNotice = \{ id: state\.activeId, message: '変更を保存しました。' \};[\s\S]*replacePracticeDetailRoute\(state\.activeId\)/);
 assert.match(appSource, /function renderDetail\(id\)[\s\S]*if \(!item\) \{\s*replacePracticeListRoute\(\)/);
 assert.match(appSource, /function renderForm\(mode, id = null\)[\s\S]*mode === 'edit' && !item\)[\s\S]*replacePracticeListRoute\(\)/);
 assert.match(appSource, /async function handleDelete\(\)[\s\S]*persistPracticeItemsAndProgress\(deleteResult\.items, nextProgress\)/);

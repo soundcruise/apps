@@ -106,5 +106,7 @@ test('create form uses the existing file section with pending removal and the sh
     assert.match(source, /remove\.dataset\.attachmentAction = 'pending-delete'/);
     assert.match(source, /if \(!getCapabilities\(\)\.practiceFileWrite\) \{ requestToolPro\('practiceFile'\); return; \}/);
     assert.ok(source.indexOf('persist([...state.items, item])') < source.indexOf('savePendingPracticeAttachments(practiceAttachmentStore, item.id, pending)'), 'Practice persists before attachments');
+    assert.ok(source.indexOf('savePendingPracticeAttachments(practiceAttachmentStore, item.id, pending)') < source.indexOf('if (attachmentResult.ok)'), 'attachment saving completes before choosing the post-create route');
+    assert.match(source, /if \(attachmentResult\.ok\) \{[\s\S]*replacePracticeListRoute\(\);[\s\S]*state\.savedNotice[\s\S]*replacePracticeDetailRoute\(item\.id\)/);
     assert.match(source, /if \(view !== elements\.formView && state\.formMode === 'create'\) cleanupPendingPracticeAttachments\(\)/);
 });

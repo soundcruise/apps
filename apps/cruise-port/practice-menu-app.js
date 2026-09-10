@@ -4385,12 +4385,17 @@ async function handleSubmit(event) {
             setPracticeFormSaving(false);
         }
         const savedCount = attachmentResult.savedRecords.length;
+        if (attachmentResult.ok) {
+            state.listNotice = savedCount > 0
+                ? `保存しました。ファイルを${savedCount}件追加しました。`
+                : '保存しました。';
+            replacePracticeListRoute();
+            return;
+        }
         state.savedNotice = {
             id: item.id,
             message: savedCount > 0 ? `保存しました。ファイルを${savedCount}件追加しました。` : '保存しました。',
-            error: attachmentResult.ok
-                ? ''
-                : `「${attachmentResult.failed.fileName}」以降のファイルを保存できませんでした。${getPracticeAttachmentFailureMessage(attachmentResult.reason)}`
+            error: `「${attachmentResult.failed.fileName}」以降のファイルを保存できませんでした。${getPracticeAttachmentFailureMessage(attachmentResult.reason)}`
         };
         replacePracticeDetailRoute(item.id);
     }
