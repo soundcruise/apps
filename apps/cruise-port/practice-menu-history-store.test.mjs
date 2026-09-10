@@ -136,6 +136,8 @@ test('session view groups matching practices in timestamp order without duplicat
     assert.deepEqual(view.map(({ kind }) => kind), ['session', 'event']);
     assert.deepEqual(view[0].children.map(({ practiceName }) => practiceName), ['コードフォーム練習', 'リズム練習']);
     assert.deepEqual(view[0].children.map(({ measuredDurationSeconds }) => measuredDurationSeconds), [300, 300]);
+    assert.equal(view[0].displayDurationSeconds, 600);
+    assert.equal(view[0].event.durationSeconds, 1200);
     assert.equal(view[1].event.practiceName, 'タイマー外');
     assert.equal(Object.hasOwn(view[1].event, 'measuredDurationSeconds'), false);
     assert.equal(Object.hasOwn(first, 'measuredDurationSeconds'), false);
@@ -165,6 +167,7 @@ test('day view hides cycle completion without rewriting storage or calendar comp
     assert.equal(view.length, 1);
     assert.equal(view[0].kind, 'session');
     assert.equal(view[0].event.durationSeconds, 6);
+    assert.equal(view[0].displayDurationSeconds, 4);
     assert.deepEqual(view[0].children.map(({ practiceName, measuredDurationSeconds }) => ({ practiceName, measuredDurationSeconds })), [
         { practiceName: item.name, measuredDurationSeconds: 4 }
     ]);
@@ -216,7 +219,69 @@ test('measured child durations retain seconds, timestamp order, and may differ f
     assert.deepEqual(entry.children.map(({ practiceName }) => practiceName), ['短い練習', '長い練習']);
     assert.deepEqual(entry.children.map(({ measuredDurationSeconds }) => measuredDurationSeconds), [42, 3804]);
     assert.equal(entry.children.reduce((sum, child) => sum + child.measuredDurationSeconds, 0), 3846);
+    assert.equal(entry.displayDurationSeconds, 3846);
     assert.equal(entry.event.durationSeconds, 4200);
+});
+
+test('session display duration uses the exact child sum while preserving raw timestamps and history', () => {
+    const sessionId = 'session-formal-duration';
+    const first = createPracticeCompletedEvent(
+        { ...item, id: 'practice-song', name: '曲練' },
+        'cycle-formal-duration',
+        new Date('2026-09-08T01:00:05.000Z'),
+        sessionId
+    );
+    const second = createPracticeCompletedEvent(
+        { ...item, id: 'practice-compose', name: '作曲' },
+        'cycle-formal-duration',
+        new Date('2026-09-08T01:00:07.000Z'),
+        sessionId
+    );
+    const session = createPracticeSessionEvent({
+        sessionId,
+        startedAt: '2026-09-08T01:00:00.000Z',
+        endedAt: '2026-09-08T01:00:09.000Z',
+        durationSeconds: 9
+    });
+    const history = { version: 4, events: [first, second, session] };
+    const before = JSON.stringify(history);
+
+    const [entry] = createPracticeDayHistoryView(history, '2026-09-08');
+
+    assert.deepEqual(entry.children.map(({ practiceName, measuredDurationSeconds }) => ({ practiceName, measuredDurationSeconds })), [
+        { practiceName: '曲練', measuredDurationSeconds: 5 },
+        { practiceName: '作曲', measuredDurationSeconds: 2 }
+    ]);
+    assert.equal(entry.displayDurationSeconds, 7);
+    assert.equal(entry.event.durationSeconds, 9);
+    assert.equal(entry.event.startedAt, session.startedAt);
+    assert.equal(entry.event.endedAt, session.endedAt);
+    assert.equal(JSON.stringify(history), before);
+});
+
+test('session display duration falls back only when no children exist and accepts a measured zero', () => {
+    const emptySession = createPracticeSessionEvent({
+        sessionId: 'session-empty',
+        startedAt: '2026-09-08T01:00:00.000Z',
+        endedAt: '2026-09-08T01:00:12.000Z',
+        durationSeconds: 12
+    });
+    const zeroChild = createPracticeCompletedEvent(
+        { ...item, id: 'practice-zero' },
+        'cycle-zero',
+        new Date('2026-09-08T02:00:00.000Z'),
+        'session-zero'
+    );
+    const zeroSession = createPracticeSessionEvent({
+        sessionId: 'session-zero',
+        startedAt: '2026-09-08T02:00:00.000Z',
+        endedAt: '2026-09-08T02:00:05.000Z',
+        durationSeconds: 5
+    });
+    const history = { version: 4, events: [emptySession, zeroChild, zeroSession] };
+    const view = createPracticeDayHistoryView(history, '2026-09-08');
+
+    assert.deepEqual(view.map(({ displayDurationSeconds }) => displayDurationSeconds), [12, 0]);
 });
 
 test('unmatched running-session completion remains visible until its session event exists', () => {
@@ -249,6 +314,7 @@ test('multiple sessions on one day keep their own children and calendar uses one
     const view = createPracticeDayHistoryView(history, '2026-09-08');
     assert.equal(view.length, 2);
     assert.deepEqual(view.map(({ children }) => children.length), [1, 1]);
+    assert.deepEqual(view.map(({ displayDurationSeconds }) => displayDurationSeconds), [300, 300]);
     assert.equal(createPracticeCalendarDaySummary('2026-09-08', history).practiced, true);
 });
 
@@ -336,11 +402,14 @@ test('delete middle/first children freezes original intervals through repeated d
     const removedMiddle = deletePracticeHistoryEvent(history, children[1].id).history;
     const view = createPracticeDayHistoryView(removedMiddle, '2026-09-08').find(entry => entry.kind === 'session');
     assert.deepEqual(view.children.map(e => e.measuredDurationSeconds), [723, 480]);
+    assert.equal(view.displayDurationSeconds, 1203);
     assert.deepEqual(view.event, session);
     savePracticeHistory(removedMiddle, storage);
     const reloaded = loadPracticeHistory(storage).history;
     const removedFirst = deletePracticeHistoryEvent(reloaded, children[0].id).history;
-    assert.deepEqual(createPracticeDayHistoryView(removedFirst, '2026-09-08').find(e => e.kind === 'session').children.map(e => e.measuredDurationSeconds), [480]);
+    const afterFirstDelete = createPracticeDayHistoryView(removedFirst, '2026-09-08').find(e => e.kind === 'session');
+    assert.deepEqual(afterFirstDelete.children.map(e => e.measuredDurationSeconds), [480]);
+    assert.equal(afterFirstDelete.displayDurationSeconds, 480);
     assert.equal(history.events.length, 6);
 });
 
@@ -412,8 +481,11 @@ test('v3 migration remains read-only and supports stable deletion without rewrit
     assert.equal(loaded.migrated, true);
     assert.equal(storage.getItem(PRACTICE_HISTORY_STORAGE_KEY), raw);
     assert.equal(loaded.history.version, 4);
+    assert.equal(createPracticeDayHistoryView(loaded.history, '2026-09-08').find(e => e.kind === 'session').displayDurationSeconds, 2103);
     const result = deletePracticeHistoryEvent(loaded.history, children[1].id);
-    assert.equal(createPracticeDayHistoryView(result.history, '2026-09-08').find(e => e.kind === 'session').children[1].measuredDurationSeconds, 480);
+    const entry = createPracticeDayHistoryView(result.history, '2026-09-08').find(e => e.kind === 'session');
+    assert.equal(entry.children[1].measuredDurationSeconds, 480);
+    assert.equal(entry.displayDurationSeconds, 1203);
 });
 
 test('deleting latest running child preserves timing boundary for next check, including reload', () => {

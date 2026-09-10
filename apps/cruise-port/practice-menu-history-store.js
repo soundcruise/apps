@@ -358,16 +358,23 @@ export function createPracticeDayHistoryView(history, localDate) {
             && event.sessionId
             && sessionsById.has(event.sessionId)
         ))
-        .map((event) => event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession
-            ? {
+        .map((event) => {
+            if (event.type !== PRACTICE_HISTORY_EVENT_TYPE.practiceSession) {
+                return { kind: 'event', event, children: [] };
+            }
+            const children = (childrenBySessionId.get(event.sessionId) || []).map(({ event: child, measuredDurationSeconds }) => ({
+                ...child,
+                measuredDurationSeconds
+            }));
+            return {
                 kind: 'session',
                 event,
-                children: (childrenBySessionId.get(event.sessionId) || []).map(({ event: child, measuredDurationSeconds }) => ({
-                    ...child,
-                    measuredDurationSeconds
-                }))
-            }
-            : { kind: 'event', event, children: [] });
+                children,
+                displayDurationSeconds: children.length > 0
+                    ? children.reduce((total, child) => total + child.measuredDurationSeconds, 0)
+                    : event.durationSeconds
+            };
+        });
 }
 
 export function createPracticeCalendarDaySummary(localDate, history, calendarNotes = []) {

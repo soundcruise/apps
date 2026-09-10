@@ -1950,7 +1950,16 @@ function stopPracticeTimerWithHistory(now = new Date()) {
     state.history = historyResult.history;
     state.timer = transition.timer;
     ensurePracticeTimerTicking();
-    return { ok: true, stopped: true, session: transition.session };
+    const sessionEntry = createPracticeDayHistoryView(
+        state.history,
+        toLocalDateKey(new Date(transition.session.endedAt))
+    ).find(({ kind, event }) => kind === 'session' && event.sessionId === transition.session.sessionId);
+    return {
+        ok: true,
+        stopped: true,
+        session: transition.session,
+        displayDurationSeconds: sessionEntry?.displayDurationSeconds ?? transition.session.durationSeconds
+    };
 }
 
 function handlePracticeTimerToggle() {
@@ -1971,7 +1980,7 @@ function handlePracticeTimerToggle() {
     showNotice(
         elements.timerStatus,
         result.ok
-            ? `練習時間 ${formatPracticeSessionDuration(result.session.durationSeconds)}を記録しました。`
+            ? `練習時間 ${formatPracticeSessionDuration(result.displayDurationSeconds)}を記録しました。`
             : result.message
     );
     renderPracticeList({ focus: false });
@@ -2531,7 +2540,7 @@ function renderPracticeDayHistory() {
         elements.dayHistoryList.append(empty);
         return;
     }
-    entries.forEach(({ event, kind, children }) => {
+    entries.forEach(({ event, kind, children, displayDurationSeconds }) => {
         const row = document.createElement('div');
         const mark = document.createElement('span');
         const copy = document.createElement('span');
@@ -2543,7 +2552,7 @@ function renderPracticeDayHistory() {
         mark.textContent = session ? '◷' : '✓';
         title.textContent = session ? '練習セッション' : event.practiceName;
         detail.textContent = session
-            ? `${formatPracticeSessionDuration(event.durationSeconds)} ・ ${new Date(event.startedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${new Date(event.endedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
+            ? `${formatPracticeSessionDuration(displayDurationSeconds)} ・ ${new Date(event.startedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${new Date(event.endedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
             : `${event.durationMinutes}分 ・ ${new Date(event.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
         copy.append(title, detail);
         row.dataset.historyEventId = event.id;

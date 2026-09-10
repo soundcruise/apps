@@ -103,6 +103,8 @@ assert.match(source, /createPracticeDayHistoryView/);
 assert.match(source, /practice-history-session-children/);
 assert.match(source, /practice-history-session-duration/);
 assert.match(source, /formatPracticeSessionDuration\(child\.measuredDurationSeconds\)/);
+assert.match(source, /formatPracticeSessionDuration\(displayDurationSeconds\)/);
+assert.match(source, /formatPracticeSessionDuration\(result\.displayDurationSeconds\)/);
 assert.match(source, /state\.calendarViewMode === 'week'/);
 assert.match(source, /state\.calendarViewMode === 'day'/);
 assert.match(source, /createPracticeCalendarKeyboard/);
