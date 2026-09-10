@@ -43,13 +43,12 @@ test('calendar back label follows source without changing the hash route', () =>
 });
 
 test('live uses the confirmed solid geometry while maintenance, recording and the other icons remain', () => {
-    const live = source.match(/live: (\[\['ellipse',[\s\S]*?\]\]),\n    rehearsal:/)?.[1];
+    const live = source.match(/live: (\[\['path',[\s\S]*?\]\]),\n    rehearsal:/)?.[1];
     const recording = source.match(/recording: (\[\['rect',[\s\S]*?\]\]),\n    'string-change':/)?.[1];
     const maintenance = source.match(/maintenance: (\[\['path',[\s\S]*?\]\]),\n    memo:/)?.[1];
     assert.ok(live && recording && maintenance);
-    assert.match(live, /rx: 4\.1, ry: 4\.6/);
     assert.match(live, /fill: 'currentColor', stroke: 'none'/);
-    assert.match(live, /x: 13\.4, y: 13\.1, width: 2\.6, height: 8/);
+    assert.match(live, /M3\.7 17\.8l7\.3-7\.3/);
     assert.notEqual(live, recording);
     assert.match(maintenance, /M14\.7 6\.3a1 1 0 0 0 0 1\.4/);
     assert.match(maintenance, /l6\.9-6\.9a6 6/);

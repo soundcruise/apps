@@ -19,13 +19,13 @@ test('ten icon choices retain the formal keys without a memo selector', () => {
 
 test('live uses the confirmed diagonal solid microphone distinct from recording', () => {
     const source = read('practice-menu-app.js');
-    const live = source.match(/live: (\[\['ellipse',[\s\S]*?\]\]),\n    rehearsal:/)?.[1];
+    const live = source.match(/live: (\[\['path',[\s\S]*?\]\]),\n    rehearsal:/)?.[1];
     const recording = source.match(/recording: (\[\['rect',[\s\S]*?\]\]),\n    'string-change':/)?.[1];
     assert.ok(live);
     assert.ok(recording);
-    assert.match(live, /rx: 4\.1, ry: 4\.6/);
-    assert.match(live, /rotate\(45 16 6\.2\)/);
-    assert.equal((live.match(/fill: 'currentColor'/g) || []).length, 3);
+    assert.match(live, /M3\.7 17\.8l7\.3-7\.3/);
+    assert.doesNotMatch(live, /ellipse|rect|transform/);
+    assert.equal((live.match(/fill: 'currentColor'/g) || []).length, 1);
     assert.notEqual(live, recording);
     assert.match(source, /'string-change': \[\['path'/);
     assert.match(source, /maintenance: \[\['path'/);

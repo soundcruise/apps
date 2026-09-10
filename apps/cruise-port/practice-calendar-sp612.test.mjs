@@ -24,17 +24,15 @@ test('confirmed basic Calendar has two tabs, divider and a six-cell solid date g
     assert.match(styles, /\.port-header-actions\s*\{[\s\S]*gap: 8px/);
 });
 
-test('confirmed Live is one diagonal solid head, handle and short stand without a base', () => {
-    const live = source.match(/live: (\[\['ellipse',[\s\S]*?\]\]),\n    rehearsal:/)?.[1];
+test('confirmed Live is one diagonal solid microphone without assembled parts', () => {
+    const live = source.match(/live: (\[\['path',[\s\S]*?\]\]),\n    rehearsal:/)?.[1];
     const recording = source.match(/recording: (\[\['rect',[\s\S]*?\]\]),\n    'string-change':/)?.[1];
     assert.ok(live && recording);
-    assert.match(live, /cx: 16, cy: 6\.2, rx: 4\.1, ry: 4\.6/);
-    assert.match(live, /rotate\(45 16 6\.2\)/);
-    assert.match(live, /M12\.4 9\.1l2\.8 2\.8-7\.7 7\.7/);
-    assert.match(live, /x: 13\.4, y: 13\.1, width: 2\.6, height: 8, rx: 1\.3/);
-    assert.equal((live.match(/fill: 'currentColor'/g) || []).length, 3);
-    assert.equal((live.match(/stroke: 'none'/g) || []).length, 3);
-    assert.doesNotMatch(live, /line|circle|M8 21h8|M5 11a7/);
+    assert.match(live, /M3\.7 17\.8l7\.3-7\.3/);
+    assert.equal((live.match(/\['path'/g) || []).length, 1);
+    assert.equal((live.match(/fill: 'currentColor'/g) || []).length, 1);
+    assert.equal((live.match(/stroke: 'none'/g) || []).length, 1);
+    assert.doesNotMatch(live, /ellipse|rect|circle|transform|M8 21h8|M5 11a7/);
     assert.notEqual(live, recording);
 });
 
