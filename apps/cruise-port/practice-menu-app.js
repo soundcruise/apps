@@ -526,6 +526,7 @@ const gearState = {
     formMode: 'create',
     reorderMode: false,
     reorderStatus: null,
+    reorderCategory: null,
     reorderItems: [],
     photoAction: 'keep',
     photoBlob: null,
@@ -3820,7 +3821,7 @@ function renderGearSection({ status, title, emptyMessage }) {
     headingTitle.textContent = title;
     count.textContent = `${items.length}件`;
     heading.append(headingTitle, count);
-    if (!gearState.reorderMode && gearState.activeStatus !== 'all' && gearState.activeCategory === 'all' && items.length >= 2) {
+    if (!gearState.reorderMode && gearState.activeStatus !== 'all' && items.length >= 2) {
         const start = document.createElement('button');
         start.type = 'button';
         start.className = 'reorder-button gear-reorder-start';
@@ -4298,12 +4299,12 @@ async function handleGearDelete(item) {
 function startGearReorder(status) {
     if (!['owned', 'wishlist', 'sold'].includes(status)
         || gearState.activeStatus === 'all'
-        || gearState.activeCategory !== 'all'
-        || selectGearItems(gearState.items, { status }).length < 2) {
+        || selectGearItems(gearState.items, { status, category: gearState.activeCategory }).length < 2) {
         return;
     }
     gearState.reorderMode = true;
     gearState.reorderStatus = status;
+    gearState.reorderCategory = gearState.activeCategory;
     gearState.reorderItems = gearState.items.map((item) => ({ ...item }));
     showNotice(elements.gearReorderNotice);
     renderWishlist({ focus: false });
@@ -4312,13 +4313,16 @@ function startGearReorder(status) {
 function cancelGearReorder() {
     gearState.reorderMode = false;
     gearState.reorderStatus = null;
+    gearState.reorderCategory = null;
     gearState.reorderItems = [];
     showNotice(elements.gearReorderNotice);
     renderWishlist({ focus: false });
 }
 
 function moveGearReorderItem(id, direction) {
-    const result = moveGearItem(gearState.reorderItems, id, direction);
+    const result = moveGearItem(gearState.reorderItems, id, direction, {
+        category: gearState.reorderCategory || 'all'
+    });
     if (!result.moved) return;
     gearState.reorderItems = result.items;
     renderWishlist({ focus: false });
@@ -4329,8 +4333,9 @@ function moveGearReorderItem(id, direction) {
 
 function completeGearReorder() {
     if (!gearState.reorderMode) return;
-    const currentIds = selectGearItems(gearState.items, { status: gearState.reorderStatus }).map(({ id }) => id);
-    const reorderedIds = selectGearItems(gearState.reorderItems, { status: gearState.reorderStatus }).map(({ id }) => id);
+    const filter = { status: gearState.reorderStatus, category: gearState.reorderCategory || 'all' };
+    const currentIds = selectGearItems(gearState.items, filter).map(({ id }) => id);
+    const reorderedIds = selectGearItems(gearState.reorderItems, filter).map(({ id }) => id);
     if (currentIds.every((id, index) => id === reorderedIds[index])) {
         cancelGearReorder();
         return;
@@ -4338,6 +4343,7 @@ function completeGearReorder() {
     if (!persistGearItems(gearState.reorderItems, elements.gearReorderNotice, '並び順を保存できませんでした。元の順番は変更していません。')) return;
     gearState.reorderMode = false;
     gearState.reorderStatus = null;
+    gearState.reorderCategory = null;
     gearState.reorderItems = [];
     showNotice(elements.gearReorderNotice);
     renderWishlist({ focus: false });

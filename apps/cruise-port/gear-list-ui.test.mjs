@@ -90,7 +90,7 @@ assert.match(source, /このカテゴリには機材が登録されています�
 assert.match(source, /markGearPurchased\(gearState\.items, item\.id\)/);
 assert.match(source, /markGearSold\(gearState\.items, item\.id\)/);
 assert.match(source, /restoreGearOwned\(gearState\.items, item\.id\)/);
-assert.match(source, /moveGearItem\(gearState\.reorderItems, id, direction\)/);
+assert.match(source, /moveGearItem\(gearState\.reorderItems, id, direction, \{[\s\S]*?category: gearState\.reorderCategory \|\| 'all'/);
 assert.match(source, /\$\{item\.name\}を自分の機材に追加しますか？/);
 assert.match(source, /\$\{item\.name\}を手放した機材へ移しますか？/);
 assert.match(source, /\$\{item\.name\}を所有中の機材へ戻しますか？/);
@@ -105,7 +105,9 @@ assert.match(source, /elements\.gearCategorySelect\.disabled = gearState\.reorde
 assert.match(source, /elements\.gearCategoryMenuToggle\.disabled = gearState\.reorderMode/);
 assert.match(source, /elements\.gearCategorySelect\.addEventListener\('change'/);
 assert.match(source, /gearState\.activeCategory = elements\.gearCategorySelect\.value/);
-assert.match(source, /gearState\.activeCategory === 'all' && items\.length >= 2/);
+assert.match(source, /selectGearItems\(gearState\.items, \{ status, category: gearState\.activeCategory \}\)\.length < 2/);
+assert.doesNotMatch(source, /gearState\.activeCategory === 'all' && items\.length >= 2/);
+assert.match(source, /reorderCategory: null/);
 assert.doesNotMatch(source, /gearManufacturerInput|gearUrlInput|formatGearPrice/);
 assert.doesNotMatch(gearSource, /item\.manufacturer|item\.url|item\.priceYen/);
 assert.doesNotMatch(gearSource, /商品ページを開く/);

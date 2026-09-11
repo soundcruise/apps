@@ -586,15 +586,25 @@ export function selectGearItems(items, { status, category = 'all' }) {
         .sort((first, second) => first.order - second.order);
 }
 
-export function moveGearItem(items, id, direction) {
+export function moveGearItem(items, id, direction, { category = 'all' } = {}) {
     const source = items.find((item) => item.id === id);
-    if (!source || !Number.isInteger(direction) || direction === 0) return { moved: false, items: cloneItems(items) };
-    const ordered = selectGearItems(items, { status: source.status });
+    if (!source || !Number.isInteger(direction) || direction === 0
+        || (category !== 'all' && !isValidGearCategoryId(category))
+        || (category !== 'all' && source.category !== category)) {
+        return { moved: false, items: cloneItems(items) };
+    }
+    const ordered = selectGearItems(items, { status: source.status, category });
     const index = ordered.findIndex((item) => item.id === id);
     const destination = index + Math.sign(direction);
     if (index < 0 || destination < 0 || destination >= ordered.length) return { moved: false, items: cloneItems(items) };
     [ordered[index], ordered[destination]] = [ordered[destination], ordered[index]];
-    const orderById = new Map(ordered.map((item, order) => [item.id, order]));
+    let reorderedCategoryIndex = 0;
+    const statusOrdered = category === 'all'
+        ? ordered
+        : selectGearItems(items, { status: source.status }).map((item) => item.category === category
+            ? ordered[reorderedCategoryIndex++]
+            : item);
+    const orderById = new Map(statusOrdered.map((item, order) => [item.id, order]));
     return {
         moved: true,
         items: items.map((item) => item.status === source.status

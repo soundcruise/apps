@@ -409,6 +409,40 @@ test('uses saved order and reorders only the current status', () => {
     assert.deepEqual(getGearPhotoReferences(result.items.find((item) => item.id === low.id)), photo);
 });
 
+test('filtered reorder changes only the selected category order within one status', () => {
+    const guitarA = createGearItem({ ...baseValues, name: 'Guitar A', status: 'owned' }, [], firstDate);
+    const ampA = createGearItem({ ...baseValues, name: 'Amp A', category: 'amp', status: 'owned' }, [guitarA], secondDate);
+    const guitarBPhoto = { photoId: 'guitar-b', photoSourceId: 'source-b', photoCrop: { x: 0.1, y: 0.2, size: 0.8 } };
+    const guitarB = createGearItem({ ...baseValues, name: 'Guitar B', status: 'owned' }, [guitarA, ampA], firstDate, guitarBPhoto);
+    const effectsA = createGearItem({ ...baseValues, name: 'Effects A', category: 'effects', status: 'owned' }, [guitarA, ampA, guitarB], secondDate);
+    const ownedItems = [guitarA, ampA, guitarB, effectsA].map((item, order) => ({ ...item, order }));
+    const wishlistGuitar = createGearItem({ ...baseValues, name: 'Wishlist Guitar' }, ownedItems, firstDate);
+    const soldGuitar = createGearItem({ ...baseValues, name: 'Sold Guitar', status: 'sold' }, [...ownedItems, wishlistGuitar], secondDate);
+    const items = [...ownedItems, wishlistGuitar, soldGuitar];
+
+    const result = moveGearItem(items, guitarB.id, -1, { category: 'guitar' });
+    assert.equal(result.moved, true);
+    assert.deepEqual(selectGearItems(result.items, { status: 'owned' }).map(({ name }) => name), [
+        'Guitar B', 'Amp A', 'Guitar A', 'Effects A'
+    ]);
+    assert.deepEqual(selectGearItems(result.items, { status: 'owned', category: 'guitar' }).map(({ name }) => name), [
+        'Guitar B', 'Guitar A'
+    ]);
+    assert.deepEqual(selectGearItems(result.items, { status: 'wishlist' }).map(({ name }) => name), ['Wishlist Guitar']);
+    assert.deepEqual(selectGearItems(result.items, { status: 'sold' }).map(({ name }) => name), ['Sold Guitar']);
+    assert.deepEqual(getGearPhotoReferences(result.items.find((item) => item.id === guitarB.id)), guitarBPhoto);
+    assert.equal(result.items.find((item) => item.id === ampA.id).category, 'amp');
+    assert.equal(result.items.find((item) => item.id === effectsA.id).category, 'effects');
+    assert.equal(moveGearItem(items, ampA.id, -1, { category: 'guitar' }).moved, false);
+
+    const storage = createMemoryStorage();
+    assert.equal(saveGearList(result.items, storage).ok, true);
+    assert.deepEqual(
+        selectGearItems(loadGearList(storage).items, { status: 'owned', category: 'guitar' }).map(({ name }) => name),
+        ['Guitar B', 'Guitar A']
+    );
+});
+
 test('v4 malformed and unknown payloads remain untouched', () => {
     const item = createGearItem(baseValues, [], firstDate);
     for (const raw of [
