@@ -159,7 +159,8 @@ assert.match(appSource, /message: savedCount > 0 \? `保存しました。ファ
 assert.match(markup, /id="practice-detail-back"[^>]*>練習メニューに戻る/);
 assert.match(appSource, /function replacePracticeDetailRoute\(id\)[\s\S]*history\.replaceState/);
 const createSubmitSource = appSource.slice(appSource.indexOf("if (!guardPracticeCreation()) return;"), appSource.indexOf('\nfunction cancelForm'));
-assert.match(createSubmitSource, /if \(attachmentResult\.ok\)[\s\S]*state\.listNotice[\s\S]*replacePracticeListRoute\(\)/);
+assert.match(createSubmitSource, /if \(attachmentResult\.ok\)[\s\S]*replacePracticeListRoute\(\)/);
+assert.doesNotMatch(createSubmitSource, /if \(attachmentResult\.ok\)[\s\S]*state\.listNotice/);
 assert.match(createSubmitSource, /state\.savedNotice[\s\S]*attachmentResult\.failed\.fileName[\s\S]*replacePracticeDetailRoute\(item\.id\)/);
 assert.match(appSource, /elements\.empty\.hidden = state\.reorderMode \|\| activeItems\.length > 0/);
 assert.match(appSource, /launch\.dataset\.practiceAction = 'launch'/);

@@ -156,6 +156,7 @@ const editSubmitSource = submitSource.slice(0, submitSource.indexOf("if (!guardP
 const createSubmitSource = submitSource.slice(submitSource.indexOf("if (!guardPracticeCreation()) return;"));
 assert.match(createSubmitSource, /savePendingPracticeAttachments\(practiceAttachmentStore, item\.id, pending\)[\s\S]*await refreshPracticeAttachmentCounts\(\{ renderList: false \}\)[\s\S]*if \(attachmentResult\.ok\)[\s\S]*replacePracticeListRoute\(\)/);
 assert.match(createSubmitSource, /if \(attachmentResult\.ok\)[\s\S]*replacePracticeListRoute\(\)[\s\S]*state\.savedNotice[\s\S]*replacePracticeDetailRoute\(item\.id\)/);
+assert.doesNotMatch(createSubmitSource, /if \(attachmentResult\.ok\)[\s\S]*state\.listNotice/);
 assert.match(editSubmitSource, /state\.savedNotice = \{ id: state\.activeId, message: '変更を保存しました。' \};[\s\S]*replacePracticeDetailRoute\(state\.activeId\)/);
 assert.match(appSource, /function renderDetail\(id\)[\s\S]*if \(!item\) \{\s*replacePracticeListRoute\(\)/);
 assert.match(appSource, /function renderForm\(mode, id = null\)[\s\S]*mode === 'edit' && !item\)[\s\S]*replacePracticeListRoute\(\)/);

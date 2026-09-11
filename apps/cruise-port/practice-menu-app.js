@@ -4386,9 +4386,6 @@ async function handleSubmit(event) {
         }
         const savedCount = attachmentResult.savedRecords.length;
         if (attachmentResult.ok) {
-            state.listNotice = savedCount > 0
-                ? `保存しました。ファイルを${savedCount}件追加しました。`
-                : '保存しました。';
             replacePracticeListRoute();
             return;
         }
