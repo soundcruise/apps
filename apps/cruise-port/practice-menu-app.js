@@ -254,6 +254,9 @@ const elements = {
     gearTitle: document.querySelector('#wishlist-title'),
     gearTabs: [...document.querySelectorAll('[data-gear-status]')],
     gearCategoryFilter: document.querySelector('#gear-category-filter'),
+    gearCategoryMenuWrap: document.querySelector('.gear-category-menu-wrap'),
+    gearCategoryMenuToggle: document.querySelector('#gear-category-menu-toggle'),
+    gearCategoryMenu: document.querySelector('#gear-category-menu'),
     gearCategoryAdd: document.querySelector('#gear-category-add'),
     gearCategoryRename: document.querySelector('#gear-category-rename'),
     gearCategoryDelete: document.querySelector('#gear-category-delete'),
@@ -3620,6 +3623,27 @@ function renderGearCategoryFilter() {
     elements.gearCategoryDelete.disabled = !categorySelected || gearState.reorderMode || !gearState.categoryStorageReady;
 }
 
+function closeGearCategoryMenu({ restoreFocus = false } = {}) {
+    if (!elements.gearCategoryMenu || elements.gearCategoryMenu.hidden) return;
+    elements.gearCategoryMenu.hidden = true;
+    elements.gearCategoryMenuToggle?.setAttribute('aria-expanded', 'false');
+    if (restoreFocus) elements.gearCategoryMenuToggle?.focus({ preventScroll: true });
+}
+
+function toggleGearCategoryMenu() {
+    if (!elements.gearCategoryMenu || gearState.reorderMode) return;
+    const willOpen = elements.gearCategoryMenu.hidden;
+    if (!willOpen) {
+        closeGearCategoryMenu({ restoreFocus: true });
+        return;
+    }
+    elements.gearCategoryMenu.hidden = false;
+    elements.gearCategoryMenuToggle.setAttribute('aria-expanded', 'true');
+    const firstEnabled = [...elements.gearCategoryMenu.querySelectorAll('[role="menuitem"]')]
+        .find((item) => !item.disabled);
+    firstEnabled?.focus({ preventScroll: true });
+}
+
 function populateGearCategoryOptions(selectedId = '') {
     elements.gearCategoryInput.replaceChildren();
     const placeholder = document.createElement('option');
@@ -3655,9 +3679,7 @@ function closeGearCategoryDialog({ restoreFocus = true } = {}) {
     elements.wishlistView.inert = false;
     gearState.categoryDialogMode = null;
     if (!restoreFocus) return;
-    const target = mode === 'rename'
-        ? elements.gearCategoryRename
-        : elements.gearCategoryAdd;
+    const target = elements.gearCategoryMenuToggle;
     target?.focus({ preventScroll: true });
 }
 
@@ -3712,7 +3734,7 @@ function handleGearCategoryDelete() {
     if (!itemsBeforeConfirmation) return;
     if (itemsBeforeConfirmation.some((item) => item.category === category.id)) {
         showGearCategoryHasItemsNotice();
-        elements.gearCategoryDelete.focus({ preventScroll: true });
+        elements.gearCategoryMenuToggle?.focus({ preventScroll: true });
         return;
     }
     if (!window.confirm(`「${category.name}」カテゴリを削除しますか？\nこの操作は元に戻せません。`)) return;
@@ -3724,7 +3746,7 @@ function handleGearCategoryDelete() {
     if (latestItems.some((item) => item.category === category.id)) {
         showGearCategoryHasItemsNotice();
         renderWishlist({ focus: false });
-        elements.gearCategoryDelete.focus({ preventScroll: true });
+        elements.gearCategoryMenuToggle?.focus({ preventScroll: true });
         return;
     }
 
@@ -3738,7 +3760,7 @@ function handleGearCategoryDelete() {
     gearState.categories = result.categories;
     gearState.activeCategory = 'all';
     renderWishlist({ focus: false });
-    elements.gearCategoryFilter.querySelector('[data-gear-category="all"]')?.focus({ preventScroll: true });
+    elements.gearCategoryMenuToggle?.focus({ preventScroll: true });
 }
 
 function getGearSections() {
@@ -4692,9 +4714,30 @@ elements.gearCategoryFilter.addEventListener('click', (event) => {
         .find((button) => button.dataset.gearCategory === gearState.activeCategory)
         ?.focus({ preventScroll: true });
 });
-elements.gearCategoryAdd.addEventListener('click', () => openGearCategoryDialog('add'));
-elements.gearCategoryRename.addEventListener('click', () => openGearCategoryDialog('rename'));
-elements.gearCategoryDelete.addEventListener('click', handleGearCategoryDelete);
+elements.gearCategoryMenuToggle.addEventListener('click', toggleGearCategoryMenu);
+elements.gearCategoryAdd.addEventListener('click', () => {
+    closeGearCategoryMenu({ restoreFocus: false });
+    openGearCategoryDialog('add');
+});
+elements.gearCategoryRename.addEventListener('click', () => {
+    closeGearCategoryMenu({ restoreFocus: false });
+    openGearCategoryDialog('rename');
+});
+elements.gearCategoryDelete.addEventListener('click', () => {
+    closeGearCategoryMenu({ restoreFocus: false });
+    handleGearCategoryDelete();
+});
+document.addEventListener('click', (event) => {
+    if (!elements.gearCategoryMenu?.hidden && !elements.gearCategoryMenuWrap?.contains(event.target)) {
+        closeGearCategoryMenu();
+    }
+});
+document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && elements.gearCategoryMenu && !elements.gearCategoryMenu.hidden) {
+        event.preventDefault();
+        closeGearCategoryMenu({ restoreFocus: true });
+    }
+});
 elements.gearCategoryForm.addEventListener('submit', handleGearCategorySubmit);
 elements.gearCategoryCancel.addEventListener('click', () => closeGearCategoryDialog());
 elements.gearCategoryDialog.addEventListener('click', (event) => {
