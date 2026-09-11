@@ -36,6 +36,14 @@ const PREVIOUS_STATUS_KEYS = new Set(['owned', 'wishlist']);
 const PRIORITY_RANK = Object.freeze({ high: 0, medium: 1, low: 2 });
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 
+export function isValidGearCategoryId(value) {
+    return typeof value === 'string'
+        && value.length > 0
+        && value.length <= 100
+        && value !== 'all'
+        && !CONTROL_CHARACTERS.test(value);
+}
+
 function hasOwn(object, key) {
     return Object.prototype.hasOwnProperty.call(object, key);
 }
@@ -101,7 +109,7 @@ function validateCommonGearValues(values) {
     }
 
     const category = values?.category;
-    if (!CATEGORY_KEYS.has(category)) {
+    if (!isValidGearCategoryId(category)) {
         return { ok: false, field: 'category', message: 'カテゴリを選択してください。' };
     }
 
@@ -426,7 +434,7 @@ export function saveGearList(items, storage) {
 }
 
 export function getInitialGearCategory(activeCategory) {
-    return CATEGORY_KEYS.has(activeCategory) ? activeCategory : '';
+    return isValidGearCategoryId(activeCategory) ? activeCategory : '';
 }
 
 export function createGearItem(values, existingItems, now = new Date(), photoReferences = null) {
@@ -572,7 +580,7 @@ export function clearGearPhotoReferences(items, id, now = new Date()) {
 }
 
 export function selectGearItems(items, { status, category = 'all' }) {
-    if (!STATUS_KEYS.has(status) || (category !== 'all' && !CATEGORY_KEYS.has(category))) return [];
+    if (!STATUS_KEYS.has(status) || (category !== 'all' && !isValidGearCategoryId(category))) return [];
     return items
         .filter((item) => item.status === status && (category === 'all' || item.category === category))
         .sort((first, second) => first.order - second.order);

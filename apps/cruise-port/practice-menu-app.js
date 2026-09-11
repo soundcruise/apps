@@ -162,11 +162,9 @@ import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.24.0';
 import {
-    GEAR_CATEGORIES,
     clearGearPhotoReferences,
     createGearItem,
     deleteGearItem,
-    getGearCategoryLabel,
     getGearPhotoReferences,
     getInitialGearCategory,
     getGearPriorityLabel,
@@ -181,6 +179,14 @@ import {
     updateGearItem,
     validateGearValues
 } from './gear-list-store.js?v=0.24.0';
+import {
+    GEAR_CATEGORY_NAME_LIMIT,
+    addGearCategory,
+    getGearCategoryName,
+    loadGearCategories,
+    renameGearCategory,
+    saveGearCategories
+} from './gear-category-store.js?v=0.26.2';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.24.0';
 import {
     encodePreparedGearPhoto,
@@ -247,6 +253,13 @@ const elements = {
     gearTitle: document.querySelector('#wishlist-title'),
     gearTabs: [...document.querySelectorAll('[data-gear-status]')],
     gearCategoryFilter: document.querySelector('#gear-category-filter'),
+    gearCategoryRename: document.querySelector('#gear-category-rename'),
+    gearCategoryDialog: document.querySelector('#gear-category-dialog'),
+    gearCategoryDialogTitle: document.querySelector('#gear-category-dialog-title'),
+    gearCategoryForm: document.querySelector('#gear-category-form'),
+    gearCategoryName: document.querySelector('#gear-category-name'),
+    gearCategoryError: document.querySelector('#gear-category-error'),
+    gearCategoryCancel: document.querySelector('#gear-category-cancel'),
     gearStorageError: document.querySelector('#gear-list-storage-error'),
     gearContent: document.querySelector('#gear-list-content'),
     gearSections: document.querySelector('#gear-list-sections'),
@@ -497,6 +510,9 @@ const myAppsState = {
 const gearState = {
     items: [],
     storageReady: false,
+    categories: [],
+    categoryStorageReady: false,
+    categoryDialogMode: null,
     activeStatus: 'all',
     activeCategory: 'all',
     activeId: null,
@@ -3412,7 +3428,7 @@ function createGearMetadata(item) {
     }
     const category = document.createElement('span');
     category.className = 'gear-category-badge';
-    category.textContent = getGearCategoryLabel(item.category);
+    category.textContent = getGearCategoryName(gearState.categories, item.category);
     metadata.append(category);
     return metadata;
 }
@@ -3581,20 +3597,98 @@ function renderGearCard(item) {
 }
 
 function renderGearCategoryFilter() {
-    const categories = [{ key: 'all', label: 'すべて' }, ...GEAR_CATEGORIES];
+    const categories = [{ id: 'all', name: '全て' }, ...gearState.categories];
     elements.gearCategoryFilter.replaceChildren();
-    categories.forEach(({ key, label }) => {
+    categories.forEach(({ id, name }) => {
         const button = document.createElement('button');
-        const selected = gearState.activeCategory === key;
+        const selected = gearState.activeCategory === id;
         button.type = 'button';
         button.className = 'gear-category-chip';
-        button.dataset.gearCategory = key;
-        button.textContent = label;
+        button.dataset.gearCategory = id;
+        button.textContent = name;
         button.disabled = gearState.reorderMode;
         button.setAttribute('aria-pressed', String(selected));
         button.classList.toggle('is-selected', selected);
         elements.gearCategoryFilter.append(button);
     });
+    const addButton = document.createElement('button');
+    addButton.type = 'button';
+    addButton.className = 'gear-category-chip gear-category-add';
+    addButton.dataset.gearCategoryAction = 'add';
+    addButton.textContent = '＋';
+    addButton.setAttribute('aria-label', 'カテゴリを追加');
+    addButton.disabled = gearState.reorderMode || !gearState.categoryStorageReady;
+    elements.gearCategoryFilter.append(addButton);
+    elements.gearCategoryRename.hidden = gearState.activeCategory === 'all' || gearState.reorderMode;
+    elements.gearCategoryRename.disabled = !gearState.categoryStorageReady;
+}
+
+function populateGearCategoryOptions(selectedId = '') {
+    elements.gearCategoryInput.replaceChildren();
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '選択してください';
+    elements.gearCategoryInput.append(placeholder);
+    gearState.categories.forEach(({ id, name }) => {
+        const option = document.createElement('option');
+        option.value = id;
+        option.textContent = name;
+        elements.gearCategoryInput.append(option);
+    });
+    elements.gearCategoryInput.value = gearState.categories.some(({ id }) => id === selectedId) ? selectedId : '';
+}
+
+function openGearCategoryDialog(mode) {
+    if (!gearState.categoryStorageReady || gearState.reorderMode) return;
+    const category = gearState.categories.find(({ id }) => id === gearState.activeCategory);
+    if (mode === 'rename' && !category) return;
+    gearState.categoryDialogMode = mode;
+    elements.gearCategoryDialogTitle.textContent = mode === 'rename' ? 'カテゴリ名を変更' : 'カテゴリを追加';
+    elements.gearCategoryName.value = mode === 'rename' ? category.name : '';
+    showNotice(elements.gearCategoryError);
+    elements.gearCategoryDialog.hidden = false;
+    elements.wishlistView.inert = true;
+    requestAnimationFrame(() => elements.gearCategoryName.focus());
+}
+
+function closeGearCategoryDialog({ restoreFocus = true } = {}) {
+    if (elements.gearCategoryDialog.hidden) return;
+    const mode = gearState.categoryDialogMode;
+    elements.gearCategoryDialog.hidden = true;
+    elements.wishlistView.inert = false;
+    gearState.categoryDialogMode = null;
+    if (!restoreFocus) return;
+    const target = mode === 'rename'
+        ? elements.gearCategoryRename
+        : elements.gearCategoryFilter.querySelector('[data-gear-category-action="add"]');
+    target?.focus({ preventScroll: true });
+}
+
+function handleGearCategorySubmit(event) {
+    event.preventDefault();
+    const result = gearState.categoryDialogMode === 'rename'
+        ? renameGearCategory(gearState.categories, gearState.activeCategory, elements.gearCategoryName.value)
+        : addGearCategory(gearState.categories, elements.gearCategoryName.value);
+    if (!result.ok) {
+        const message = result.reason === 'duplicate-name'
+            ? '同じ名前のカテゴリが既にあります。'
+            : `カテゴリ名は1〜${GEAR_CATEGORY_NAME_LIMIT}文字で入力してください。`;
+        showNotice(elements.gearCategoryError, message);
+        elements.gearCategoryName.focus();
+        return;
+    }
+    const saved = saveGearCategories(result.categories);
+    if (!saved.ok) {
+        showNotice(elements.gearCategoryError, 'カテゴリを保存できませんでした。入力内容を控えてからページを更新してください。');
+        return;
+    }
+    gearState.categories = result.categories;
+    if (result.category) gearState.activeCategory = result.category.id;
+    closeGearCategoryDialog({ restoreFocus: false });
+    renderWishlist({ focus: false });
+    [...elements.gearCategoryFilter.querySelectorAll('[data-gear-category]')]
+        .find((button) => button.dataset.gearCategory === gearState.activeCategory)
+        ?.focus({ preventScroll: true });
 }
 
 function getGearSections() {
@@ -3701,10 +3795,14 @@ function renderWishlist({ focus = true } = {}) {
         : '';
     elements.gearAdd.hidden = gearState.reorderMode;
     elements.gearAdd.textContent = gearState.activeStatus === 'wishlist' ? '＋ ほしい機材を追加' : '＋ 機材を追加';
-    elements.gearAdd.disabled = !gearState.storageReady || gearState.reorderMode;
+    elements.gearAdd.disabled = !gearState.storageReady || !gearState.categoryStorageReady || gearState.reorderMode;
     showNotice(
         elements.gearStorageError,
-        gearState.storageReady ? '' : '機材リストを読み込めませんでした。保存データは変更していません。'
+        !gearState.storageReady
+            ? '機材リストを読み込めませんでした。保存データは変更していません。'
+            : !gearState.categoryStorageReady
+                ? 'カテゴリ設定を読み込めませんでした。機材データは変更していません。'
+                : ''
     );
     if (focus) elements.gearTitle.focus({ preventScroll: true });
 }
@@ -3926,7 +4024,7 @@ function handleGearPhotoRemove() {
 function fillGearForm(item = null) {
     elements.gearForm.reset();
     elements.gearNameInput.value = item?.name || '';
-    elements.gearCategoryInput.value = item?.category || getInitialGearCategory(gearState.activeCategory);
+    populateGearCategoryOptions(item?.category || getInitialGearCategory(gearState.activeCategory));
     elements.gearPriceInput.value = item?.priceText || '';
     elements.gearStatusInput.value = item?.status || (gearState.activeStatus === 'wishlist' ? 'wishlist' : 'owned');
     elements.gearPriorityInput.value = item?.priority || 'medium';
@@ -3937,7 +4035,7 @@ function fillGearForm(item = null) {
 }
 
 function renderGearForm(mode, id = null) {
-    if (!gearState.storageReady) {
+    if (!gearState.storageReady || !gearState.categoryStorageReady) {
         correctGearListRoute();
         return;
     }
@@ -3961,6 +4059,9 @@ function updateGearPriorityVisibility() {
 }
 
 function readGearFormValues() {
+    if (!gearState.categories.some(({ id }) => id === elements.gearCategoryInput.value)) {
+        return { ok: false, field: 'category', message: 'カテゴリを選択してください。' };
+    }
     return validateGearValues({
         name: elements.gearNameInput.value,
         category: elements.gearCategoryInput.value,
@@ -4533,11 +4634,41 @@ elements.gearTabs.forEach((tab, index) => {
     });
 });
 elements.gearCategoryFilter.addEventListener('click', (event) => {
+    const addButton = event.target.closest('[data-gear-category-action="add"]');
+    if (addButton) {
+        openGearCategoryDialog('add');
+        return;
+    }
     const chip = event.target.closest('[data-gear-category]');
     if (!chip || gearState.reorderMode) return;
     gearState.activeCategory = chip.dataset.gearCategory;
     renderWishlist({ focus: false });
-    elements.gearCategoryFilter.querySelector(`[data-gear-category="${gearState.activeCategory}"]`)?.focus({ preventScroll: true });
+    [...elements.gearCategoryFilter.querySelectorAll('[data-gear-category]')]
+        .find((button) => button.dataset.gearCategory === gearState.activeCategory)
+        ?.focus({ preventScroll: true });
+});
+elements.gearCategoryRename.addEventListener('click', () => openGearCategoryDialog('rename'));
+elements.gearCategoryForm.addEventListener('submit', handleGearCategorySubmit);
+elements.gearCategoryCancel.addEventListener('click', () => closeGearCategoryDialog());
+elements.gearCategoryDialog.addEventListener('click', (event) => {
+    if (event.target === elements.gearCategoryDialog) closeGearCategoryDialog();
+});
+elements.gearCategoryDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        closeGearCategoryDialog();
+        return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [elements.gearCategoryName, ...elements.gearCategoryForm.querySelectorAll('button')]
+        .filter((element) => !element.disabled && !element.hidden);
+    const currentIndex = focusable.indexOf(document.activeElement);
+    if (event.shiftKey && currentIndex <= 0) {
+        event.preventDefault();
+        focusable.at(-1)?.focus();
+    } else if (!event.shiftKey && currentIndex === focusable.length - 1) {
+        event.preventDefault();
+        focusable[0]?.focus();
+    }
 });
 elements.form.addEventListener('submit', handleSubmit);
 elements.countReset.addEventListener('click', handlePracticeTotalCountReset);
@@ -4925,15 +5056,12 @@ const timerLoadResult = loadPracticeTimer();
 state.timer = timerLoadResult.timer;
 state.timerReady = timerLoadResult.ok;
 populatePracticeNamePresets();
-GEAR_CATEGORIES.forEach(({ key, label }) => {
-    const option = document.createElement('option');
-    option.value = key;
-    option.textContent = label;
-    elements.gearCategoryInput.append(option);
-});
 const gearLoadResult = loadGearList();
 gearState.items = gearLoadResult.items;
 gearState.storageReady = gearLoadResult.ok;
+const gearCategoryLoadResult = loadGearCategories(gearState.items);
+gearState.categories = gearCategoryLoadResult.categories;
+gearState.categoryStorageReady = gearCategoryLoadResult.ok;
 const myAppsLoadResult = loadMyApps();
 myAppsState.items = myAppsLoadResult.items;
 myAppsState.storageReady = myAppsLoadResult.ok;

@@ -160,6 +160,7 @@
                 </div>
 
                 <div id="gear-category-filter" class="gear-category-filter" aria-label="カテゴリで絞り込む"></div>
+                <button id="gear-category-rename" class="gear-category-rename" type="button" hidden>選択中のカテゴリ名を変更</button>
                 <p id="gear-list-storage-error" class="notice notice-error" role="alert" hidden></p>
 
                 <div id="gear-list-content" role="tabpanel" aria-labelledby="gear-all-tab">
@@ -174,6 +175,21 @@
                 </div>
             </section>
         </main>
+
+        <div id="gear-category-dialog" class="gear-category-dialog" role="dialog" aria-modal="true" aria-labelledby="gear-category-dialog-title" hidden>
+            <section class="gear-category-dialog-panel">
+                <h2 id="gear-category-dialog-title" tabindex="-1">カテゴリを追加</h2>
+                <form id="gear-category-form" novalidate>
+                    <label for="gear-category-name">カテゴリ名 <span class="required-label">必須・40文字以内</span></label>
+                    <input id="gear-category-name" name="categoryName" type="text" maxlength="40" autocomplete="off" required>
+                    <p id="gear-category-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="gear-category-dialog-actions">
+                        <button class="action-button primary-action" type="submit">保存</button>
+                        <button id="gear-category-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                    </div>
+                </form>
+            </section>
+        </div>
 
         <main id="gear-form-view" class="port-view form-view gear-form-view" hidden>
             <button class="view-back" type="button" data-action="gear-list">← 機材リスト</button>

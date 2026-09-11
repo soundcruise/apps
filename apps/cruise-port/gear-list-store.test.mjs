@@ -77,18 +77,20 @@ test('empty storage starts with version 4 compatible empty data', () => {
     assert.equal(GEAR_LIST_SCHEMA_VERSION, 4);
 });
 
-test('category filter supplies a new-item category except for all', () => {
+test('category filter accepts stable category ids except for all', () => {
     for (const category of ['guitar', 'effects', 'amp', 'dtm', 'recording', 'accessories', 'other']) {
         assert.equal(getInitialGearCategory(category), category);
     }
     assert.equal(getInitialGearCategory('all'), '');
-    assert.equal(getInitialGearCategory('unknown'), '');
+    assert.equal(getInitialGearCategory('unknown'), 'unknown');
 });
 
-test('validates required name and fixed category', () => {
+test('validates required name and a bounded stable category id', () => {
     assert.equal(validateGearValues({ ...baseValues, name: '   ' }).field, 'name');
     assert.equal(validateGearValues({ ...baseValues, category: '' }).field, 'category');
-    assert.equal(validateGearValues({ ...baseValues, category: 'custom' }).field, 'category');
+    assert.equal(validateGearValues({ ...baseValues, category: 'custom' }).ok, true);
+    assert.equal(validateGearValues({ ...baseValues, category: 'all' }).field, 'category');
+    assert.equal(validateGearValues({ ...baseValues, category: 'bad\ncategory' }).field, 'category');
     const result = validateGearValues({ ...baseValues, name: '  D-28  ' });
     assert.equal(result.ok, true);
     assert.equal(result.values.name, 'D-28');
@@ -209,8 +211,8 @@ test('malformed and unknown-version payloads remain untouched', () => {
     }
 });
 
-test('invalid v1 data is not migrated or rewritten', () => {
-    const raw = JSON.stringify({ version: 1, items: [createLegacyItem({ category: 'custom' })] });
+test('invalid v1 category data is not migrated or rewritten', () => {
+    const raw = JSON.stringify({ version: 1, items: [createLegacyItem({ category: 'bad\ncategory' })] });
     const storage = createMemoryStorage({ [GEAR_LIST_STORAGE_KEY]: raw });
     assert.equal(loadGearList(storage).reason, 'invalid-data');
     assert.equal(storage.snapshot()[GEAR_LIST_STORAGE_KEY], raw);
@@ -264,7 +266,7 @@ test('migrates v3 to v4 and rejects malformed v3 collections', () => {
     });
     assert.equal(loadGearList(duplicateStorage).ok, false);
     const invalidStorage = createMemoryStorage({
-        [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 3, items: [{ ...oldItem, category: 'custom' }] })
+        [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 3, items: [{ ...oldItem, category: 'bad\ncategory' }] })
     });
     assert.equal(loadGearList(invalidStorage).ok, false);
     const sameOrder = createGearItem({ ...baseValues, name: 'Same order' }, [item], firstDate);

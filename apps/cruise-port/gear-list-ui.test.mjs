@@ -5,6 +5,7 @@ const markup = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const source = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
 const store = readFileSync(new URL('./gear-list-store.js', import.meta.url), 'utf8');
+const categoryStore = readFileSync(new URL('./gear-category-store.js', import.meta.url), 'utf8');
 const gearFormMarkup = markup.match(/<form id="gear-list-form"[\s\S]*?<\/form>/)?.[0] || '';
 const gearSource = source.match(/function findGearItem[\s\S]*?function renderRoute/)?.[0] || '';
 
@@ -13,6 +14,9 @@ assert.match(markup, /id="gear-all-tab"[\s\S]*?role="tab"[\s\S]*?全て/);
 assert.match(markup, /id="gear-owned-tab"[\s\S]*?role="tab"[\s\S]*?自分の機材/);
 assert.match(markup, /id="gear-wishlist-tab"[\s\S]*?role="tab"[\s\S]*?ほしい機材/);
 assert.match(markup, /id="gear-category-filter"/);
+assert.match(markup, /id="gear-category-rename"[^>]+hidden/);
+assert.match(markup, /id="gear-category-dialog"[^>]+aria-modal="true"/);
+assert.match(markup, /id="gear-category-name"[^>]+maxlength="40"/);
 assert.match(markup, /id="gear-list-sections"/);
 assert.doesNotMatch(markup, /gear-owned-preview/);
 assert.match(markup, /id="gear-list-form"[\s\S]*?id="gear-name"[\s\S]*?id="gear-category"[\s\S]*?id="gear-price"[\s\S]*?id="gear-status"[\s\S]*?id="gear-priority"[\s\S]*?id="gear-memo"/);
@@ -38,6 +42,12 @@ assert.match(markup, /id="gear-photo-lightbox"[\s\S]*?aria-modal="true"/);
 for (const category of ['guitar', 'effects', 'amp', 'dtm', 'recording', 'accessories', 'other']) {
     assert.match(store, new RegExp(`key: '${category}'`));
 }
+assert.match(categoryStore, /GEAR_CATEGORY_STORAGE_KEY = 'cruisePort\.gearCategories'/);
+assert.match(categoryStore, /GEAR_CATEGORY_SCHEMA_VERSION = 1/);
+assert.match(categoryStore, /id: 'guitar', name: 'ギター'/);
+assert.match(categoryStore, /id: 'sound', name: '音作り'/);
+assert.match(categoryStore, /id: 'accessories', name: 'アクセサリー'/);
+assert.doesNotMatch(categoryStore, /deleteGearCategory|removeGearCategory/);
 assert.match(store, /GEAR_LIST_STORAGE_KEY = 'cruisePort\.gearList'/);
 assert.match(store, /GEAR_LIST_SCHEMA_VERSION = 4/);
 assert.doesNotMatch(store, /localStorage\.clear/);
@@ -48,8 +58,11 @@ assert.match(source, /#wishlist\/\$\{encodeURIComponent\(item\.id\)\}\/edit/);
 assert.match(source, /replaceGearListRoute\(\)/);
 assert.match(source, /saveGearList\(candidateItems\)/);
 assert.match(source, /gearState\.items = candidateItems/);
-assert.match(source, /getInitialGearCategory\(gearState\.activeCategory\)/);
-assert.match(source, /elements\.gearCategoryInput\.value = item\?\.category \|\| getInitialGearCategory/);
+assert.match(source, /populateGearCategoryOptions\(item\?\.category \|\| getInitialGearCategory\(gearState\.activeCategory\)\)/);
+assert.match(source, /getGearCategoryName\(gearState\.categories, item\.category\)/);
+assert.match(source, /addButton\.dataset\.gearCategoryAction = 'add'/);
+assert.match(source, /openGearCategoryDialog\('rename'\)/);
+assert.match(source, /saveGearCategories\(result\.categories\)/);
 assert.match(source, /markGearPurchased\(gearState\.items, item\.id\)/);
 assert.match(source, /markGearSold\(gearState\.items, item\.id\)/);
 assert.match(source, /restoreGearOwned\(gearState\.items, item\.id\)/);
@@ -84,6 +97,9 @@ assert.doesNotMatch(source, /cruisePortMyApps.*photos|myAppsIconStore\.saveIcon\
 
 assert.match(styles, /\.gear-category-filter[\s\S]*?overflow-x: auto/);
 assert.match(styles, /\.gear-category-chip[\s\S]*?min-height: 44px/);
+assert.match(styles, /\.gear-category-filter[\s\S]*?scroll-snap-type: x proximity/);
+assert.match(styles, /\.gear-category-add[\s\S]*?min-width: 44px/);
+assert.match(styles, /\.gear-category-dialog[\s\S]*?position: fixed/);
 assert.match(styles, /\.gear-category-chip:disabled/);
 assert.match(styles, /\.gear-card-memo[\s\S]*?-webkit-line-clamp: 2/);
 assert.match(styles, /\.gear-card-actions/);

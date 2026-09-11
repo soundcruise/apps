@@ -2000,6 +2000,9 @@ body.gear-photo-lightbox-open {
 .settings-choice:focus-visible,
 .gear-list-tabs button:focus-visible,
 .gear-category-chip:focus-visible,
+.gear-category-rename:focus-visible,
+.gear-category-dialog button:focus-visible,
+.gear-category-dialog input:focus-visible,
 .reorder-button:focus-visible,
 .reorder-move:focus-visible,
 .view-back:focus-visible,
@@ -2186,6 +2189,7 @@ textarea:focus-visible {
     background: rgba(8, 8, 6, 0.5);
     font: inherit;
     font-size: calc(0.73rem * var(--font-scale));
+    white-space: nowrap;
     cursor: pointer;
 }
 
@@ -2198,6 +2202,77 @@ textarea:focus-visible {
 .gear-category-chip:disabled {
     cursor: not-allowed;
     opacity: 0.48;
+}
+
+.gear-category-add {
+    min-width: 44px;
+    padding-inline: 12px;
+    color: var(--port-gold-bright);
+    font-size: calc(1rem * var(--font-scale));
+}
+
+.gear-category-rename {
+    display: block;
+    min-height: 44px;
+    margin: 7px 0 0 auto;
+    padding: 7px 2px;
+    border: 0;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: calc(0.72rem * var(--font-scale));
+    cursor: pointer;
+}
+
+.gear-category-rename[hidden] {
+    display: none;
+}
+
+.gear-category-dialog {
+    position: fixed;
+    z-index: 90;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: max(20px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(20px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+    background: rgba(0, 0, 0, 0.76);
+}
+
+.gear-category-dialog[hidden] {
+    display: none;
+}
+
+.gear-category-dialog-panel {
+    width: min(100%, 420px);
+    padding: 24px;
+    border: 1px solid rgba(230, 210, 155, 0.3);
+    border-radius: 22px;
+    background: #11100d;
+    box-shadow: 0 22px 60px rgba(0, 0, 0, 0.48);
+}
+
+.gear-category-dialog-panel h2 {
+    margin: 0 0 20px;
+    color: var(--port-text);
+    font-size: calc(1.15rem * var(--font-scale));
+}
+
+.gear-category-dialog-panel label {
+    display: block;
+    margin-bottom: 9px;
+    color: var(--port-text);
+    font-weight: 650;
+}
+
+.gear-category-dialog-panel input {
+    width: 100%;
+}
+
+.gear-category-dialog-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-top: 20px;
 }
 
 .gear-list-heading h2 {
