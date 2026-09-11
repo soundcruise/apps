@@ -14,7 +14,7 @@ assert.match(markup, /id="gear-all-tab"[\s\S]*?role="tab"[\s\S]*?全て/);
 assert.match(markup, /id="gear-owned-tab"[\s\S]*?role="tab"[\s\S]*?自分の機材/);
 assert.match(markup, /id="gear-wishlist-tab"[\s\S]*?role="tab"[\s\S]*?ほしい機材/);
 assert.match(markup, /id="gear-category-filter"/);
-assert.match(markup, /class="gear-category-actions"[\s\S]*?id="gear-category-add"[\s\S]*?id="gear-category-rename"[\s\S]*?id="gear-category-delete"/);
+assert.match(markup, /class="gear-category-toolbar"[\s\S]*?id="gear-category-filter"[\s\S]*?class="gear-category-actions"[\s\S]*?id="gear-category-add"[\s\S]*?id="gear-category-rename"[\s\S]*?id="gear-category-delete"/);
 assert.match(markup, /id="gear-category-add"[^>]+aria-label="カテゴリを追加"[^>]+title="カテゴリを追加"/);
 assert.match(markup, /id="gear-category-rename"[^>]+aria-label="カテゴリ名を変更"[^>]+title="カテゴリ名を変更"/);
 assert.match(markup, /id="gear-category-delete"[^>]+aria-label="カテゴリを削除"[^>]+title="カテゴリを削除"/);
@@ -105,9 +105,12 @@ assert.match(source, /写真を読み込めませんでした。機材情報は�
 assert.doesNotMatch(source, /cruisePortMyApps.*photos|myAppsIconStore\.saveIcon\([^)]*gear/i);
 
 assert.match(styles, /\.gear-category-filter[\s\S]*?overflow-x: auto/);
+assert.match(styles, /\.gear-category-toolbar[\s\S]*?display: flex/);
+assert.match(styles, /\.gear-category-filter[\s\S]*?flex: 1 1 auto[\s\S]*?min-width: 0/);
 assert.match(styles, /\.gear-category-chip[\s\S]*?min-height: 44px/);
 assert.match(styles, /\.gear-category-filter[\s\S]*?scroll-snap-type: x proximity/);
 assert.match(styles, /\.gear-category-actions[\s\S]*?gap: 8px/);
+assert.match(styles, /\.gear-category-actions[\s\S]*?flex: 0 0 auto/);
 assert.match(styles, /\.gear-category-action[\s\S]*?width: 44px[\s\S]*?height: 44px/);
 assert.match(styles, /\.gear-category-action:disabled/);
 assert.match(styles, /\.gear-category-dialog[\s\S]*?position: fixed/);
