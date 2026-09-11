@@ -667,6 +667,11 @@ function setHomeRouteWithMyAppsScroll() {
     setHomeRoute();
 }
 
+function replaceHomeRouteWithMyAppsScroll() {
+    pendingHomeScrollTarget = 'my-apps-section';
+    replaceHomeRoute();
+}
+
 function setHashRoute(route) {
     location.hash = route;
 }
@@ -1801,7 +1806,8 @@ async function handleMyAppsSubmit(event) {
         return;
     }
     myAppsState.items = result.items;
-    setHashRoute('#my-apps/manage');
+    if (myAppsState.formMode === 'edit') setHashRoute('#my-apps/manage');
+    else replaceHomeRouteWithMyAppsScroll();
 }
 
 function cancelMyAppsForm() {

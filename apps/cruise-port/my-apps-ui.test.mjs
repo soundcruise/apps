@@ -29,6 +29,9 @@ assert.match(appSource, /iconPresetKey: myAppsState\.iconAction === 'preset'/);
 assert.match(appSource, /pendingHomeScrollTarget = 'my-apps-section'/);
 assert.match(appSource, /pendingHomeScrollTarget = null/);
 assert.match(appSource, /scrollIntoView\(\{ behavior: reducedMotion \? 'auto' : 'smooth', block: 'start' \}\)/);
+assert.match(appSource, /function replaceHomeRouteWithMyAppsScroll\(\)[\s\S]*pendingHomeScrollTarget = 'my-apps-section'[\s\S]*replaceHomeRoute\(\)/);
+assert.match(appSource, /myAppsState\.formMode === 'edit'\) setHashRoute\('#my-apps\/manage'\);[\s\S]*else replaceHomeRouteWithMyAppsScroll\(\)/);
+assert.match(appSource, /myAppsState\.items = result\.items;[\s\S]*if \(myAppsState\.formMode === 'edit'\)/);
 assert.match(appSource, /\[data-action="my-apps-home-scroll"\]/);
 assert.doesNotMatch(appSource, /window\.open\(/);
 
