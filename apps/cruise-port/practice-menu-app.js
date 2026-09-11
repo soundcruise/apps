@@ -253,7 +253,7 @@ const elements = {
     settingsReset: document.querySelector('#settings-reset'),
     gearTitle: document.querySelector('#wishlist-title'),
     gearTabs: [...document.querySelectorAll('[data-gear-status]')],
-    gearCategoryFilter: document.querySelector('#gear-category-filter'),
+    gearCategorySelect: document.querySelector('#gear-category-select'),
     gearCategoryMenuWrap: document.querySelector('.gear-category-menu-wrap'),
     gearCategoryMenuToggle: document.querySelector('#gear-category-menu-toggle'),
     gearCategoryMenu: document.querySelector('#gear-category-menu'),
@@ -3604,19 +3604,19 @@ function renderGearCard(item) {
 
 function renderGearCategoryFilter() {
     const categories = [{ id: 'all', name: '全て' }, ...gearState.categories];
-    elements.gearCategoryFilter.replaceChildren();
+    elements.gearCategorySelect.replaceChildren();
     categories.forEach(({ id, name }) => {
-        const button = document.createElement('button');
-        const selected = gearState.activeCategory === id;
-        button.type = 'button';
-        button.className = 'gear-category-chip';
-        button.dataset.gearCategory = id;
-        button.textContent = name;
-        button.disabled = gearState.reorderMode;
-        button.setAttribute('aria-pressed', String(selected));
-        button.classList.toggle('is-selected', selected);
-        elements.gearCategoryFilter.append(button);
+        const option = document.createElement('option');
+        option.value = id;
+        option.textContent = name;
+        elements.gearCategorySelect.append(option);
     });
+    elements.gearCategorySelect.value = categories.some(({ id }) => id === gearState.activeCategory)
+        ? gearState.activeCategory
+        : 'all';
+    elements.gearCategorySelect.disabled = gearState.reorderMode;
+    elements.gearCategoryMenuToggle.disabled = gearState.reorderMode;
+    if (gearState.reorderMode) closeGearCategoryMenu();
     const categorySelected = gearState.activeCategory !== 'all';
     elements.gearCategoryAdd.disabled = gearState.reorderMode || !gearState.categoryStorageReady;
     elements.gearCategoryRename.disabled = !categorySelected || gearState.reorderMode || !gearState.categoryStorageReady;
@@ -3705,9 +3705,7 @@ function handleGearCategorySubmit(event) {
     if (result.category) gearState.activeCategory = result.category.id;
     closeGearCategoryDialog({ restoreFocus: false });
     renderWishlist({ focus: false });
-    [...elements.gearCategoryFilter.querySelectorAll('[data-gear-category]')]
-        .find((button) => button.dataset.gearCategory === gearState.activeCategory)
-        ?.focus({ preventScroll: true });
+    elements.gearCategorySelect.focus({ preventScroll: true });
 }
 
 function reloadGearItemsBeforeCategoryDelete() {
@@ -3760,7 +3758,7 @@ function handleGearCategoryDelete() {
     gearState.categories = result.categories;
     gearState.activeCategory = 'all';
     renderWishlist({ focus: false });
-    elements.gearCategoryMenuToggle?.focus({ preventScroll: true });
+    elements.gearCategorySelect.focus({ preventScroll: true });
 }
 
 function getGearSections() {
@@ -4705,14 +4703,11 @@ elements.gearTabs.forEach((tab, index) => {
         elements.gearTabs[(index + offset + elements.gearTabs.length) % elements.gearTabs.length].click();
     });
 });
-elements.gearCategoryFilter.addEventListener('click', (event) => {
-    const chip = event.target.closest('[data-gear-category]');
-    if (!chip || gearState.reorderMode) return;
-    gearState.activeCategory = chip.dataset.gearCategory;
+elements.gearCategorySelect.addEventListener('change', () => {
+    if (gearState.reorderMode) return;
+    gearState.activeCategory = elements.gearCategorySelect.value;
     renderWishlist({ focus: false });
-    [...elements.gearCategoryFilter.querySelectorAll('[data-gear-category]')]
-        .find((button) => button.dataset.gearCategory === gearState.activeCategory)
-        ?.focus({ preventScroll: true });
+    elements.gearCategorySelect.focus({ preventScroll: true });
 });
 elements.gearCategoryMenuToggle.addEventListener('click', toggleGearCategoryMenu);
 elements.gearCategoryAdd.addEventListener('click', () => {

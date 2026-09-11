@@ -7,9 +7,13 @@ export const GEAR_CATEGORY_NAME_LIMIT = 40;
 
 export const DEFAULT_GEAR_CATEGORIES = Object.freeze([
     Object.freeze({ id: 'guitar', name: 'ギター' }),
-    Object.freeze({ id: 'sound', name: '音作り' }),
+    Object.freeze({ id: 'sound', name: 'エフェクター' }),
     Object.freeze({ id: 'accessories', name: 'アクセサリー' })
 ]);
+
+const RETIRED_DEFAULT_CATEGORY_NAMES = Object.freeze({
+    sound: Object.freeze({ from: '音作り', to: 'エフェクター' })
+});
 
 const LEGACY_CATEGORY_NAMES = Object.freeze({
     guitar: 'ギター',
@@ -72,6 +76,22 @@ function uniqueLegacyName(categories, id) {
     return candidate;
 }
 
+function upgradeRetiredDefaultCategoryNames(categories) {
+    const names = new Set(categories.map(({ name }) => name.toLocaleLowerCase('ja-JP')));
+    let changed = false;
+    const upgraded = categories.map((category) => {
+        const update = RETIRED_DEFAULT_CATEGORY_NAMES[category.id];
+        if (!update || category.name !== update.from || names.has(update.to.toLocaleLowerCase('ja-JP'))) {
+            return { ...category };
+        }
+        names.delete(update.from.toLocaleLowerCase('ja-JP'));
+        names.add(update.to.toLocaleLowerCase('ja-JP'));
+        changed = true;
+        return { id: category.id, name: update.to };
+    });
+    return { categories: upgraded, changed };
+}
+
 export function buildInitialGearCategories(items = []) {
     const categories = cloneCategories(DEFAULT_GEAR_CATEGORIES);
     const ids = new Set(categories.map(({ id }) => id));
@@ -129,7 +149,8 @@ export function loadGearCategories(items = [], storage = globalThis.localStorage
         if (payload?.version !== GEAR_CATEGORY_SCHEMA_VERSION || !isValidCategoryCollection(payload.categories)) {
             return { ok: false, categories: buildInitialGearCategories(items), reason: 'invalid-data' };
         }
-        const categories = cloneCategories(payload.categories);
+        const renamed = upgradeRetiredDefaultCategoryNames(payload.categories);
+        const categories = renamed.categories;
         const knownIds = new Set(categories.map(({ id }) => id));
         // A present category store represents explicit user choices, including
         // deletion of an empty initial category. Only restore definitions that
@@ -137,7 +158,7 @@ export function loadGearCategories(items = [], storage = globalThis.localStorage
         const usedIds = new Set(items.map((item) => item?.category).filter(isValidGearCategoryId));
         const missing = buildInitialGearCategories(items)
             .filter(({ id }) => usedIds.has(id) && !knownIds.has(id));
-        if (missing.length === 0) return { ok: true, categories };
+        if (missing.length === 0 && !renamed.changed) return { ok: true, categories };
         const repaired = [...categories, ...missing];
         const saved = saveGearCategories(repaired, storage);
         return saved.ok

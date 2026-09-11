@@ -40,7 +40,7 @@ test('new users receive only the three formal categories in order', () => {
     assert.equal(result.initialized, true);
     assert.deepEqual(result.categories, [
         { id: 'guitar', name: 'ギター' },
-        { id: 'sound', name: '音作り' },
+        { id: 'sound', name: 'エフェクター' },
         { id: 'accessories', name: 'アクセサリー' }
     ]);
     const payload = JSON.parse(storage.snapshot()[GEAR_CATEGORY_STORAGE_KEY]);
@@ -57,7 +57,7 @@ test('existing users retain every used legacy category without merging items', (
     ];
     assert.deepEqual(buildInitialGearCategories(items), [
         ...DEFAULT_GEAR_CATEGORIES,
-        { id: 'effects', name: 'エフェクター' },
+        { id: 'effects', name: 'エフェクター（旧カテゴリ）' },
         { id: 'dtm', name: 'DTM' },
         { id: 'recording', name: '録音・配信' }
     ]);
@@ -104,7 +104,41 @@ test('rename changes only the label and preserves the category id', () => {
         id: 'sound',
         name: 'エフェクター・アンプ'
     });
-    assert.equal(before.find(({ id }) => id === 'sound').name, '音作り');
+    assert.equal(before.find(({ id }) => id === 'sound').name, 'エフェクター');
+});
+
+test('the formal sound category label upgrades without changing its stable id or Gear data', () => {
+    const storage = createMemoryStorage({
+        [GEAR_CATEGORY_STORAGE_KEY]: JSON.stringify({
+            version: GEAR_CATEGORY_SCHEMA_VERSION,
+            categories: [
+                { id: 'guitar', name: 'ギター' },
+                { id: 'sound', name: '音作り' },
+                { id: 'accessories', name: 'アクセサリー' }
+            ]
+        }),
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [{ id: 'gear-1', category: 'sound' }] })
+    });
+    const result = loadGearCategories([{ id: 'gear-1', category: 'sound' }], storage);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.categories.find(({ id }) => id === 'sound'), { id: 'sound', name: 'エフェクター' });
+    assert.equal(JSON.parse(storage.snapshot()['cruisePort.gearList']).items[0].category, 'sound');
+});
+
+test('the formal label upgrade does not collide with an existing legacy effects category', () => {
+    const storage = createMemoryStorage({
+        [GEAR_CATEGORY_STORAGE_KEY]: JSON.stringify({
+            version: GEAR_CATEGORY_SCHEMA_VERSION,
+            categories: [
+                { id: 'sound', name: '音作り' },
+                { id: 'effects', name: 'エフェクター' }
+            ]
+        })
+    });
+    const result = loadGearCategories([], storage);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.categories.find(({ id }) => id === 'sound'), { id: 'sound', name: '音作り' });
+    assert.deepEqual(result.categories.find(({ id }) => id === 'effects'), { id: 'effects', name: 'エフェクター' });
 });
 
 test('rename requires no gear item rewrite and preserves photo, status, and order references', () => {
