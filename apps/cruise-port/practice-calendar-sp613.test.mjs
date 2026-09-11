@@ -32,6 +32,6 @@ test('recording and the other nine formal icons remain available', () => {
     }
 });
 
-test('SP6.13 UI remains covered in Cruise Port 0.27.1', () => {
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.27\.1'/);
+test('SP6.13 UI remains covered in Cruise Port 0.27.2', () => {
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.27\.2'/);
 });

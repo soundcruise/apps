@@ -29,7 +29,7 @@ function assertManifest({ manifestDirectory, expectedId, expectedName, expectedP
         ['512x512', 'maskable']
     ]);
     for (const icon of manifest.icons) {
-        assert.match(icon.src, new RegExp(`${expectedPrefix}/icon(?:-maskable)?-(?:192|512)\\.png\\?v=0\\.27\\.1$`));
+        assert.match(icon.src, new RegExp(`${expectedPrefix}/icon(?:-maskable)?-(?:192|512)\\.png\\?v=0\\.27\\.2$`));
         const relativePath = icon.src.split('?')[0];
         const target = path.resolve(manifestDirectory, relativePath);
         assert.equal(existsSync(target), true, `manifest icon exists: ${icon.src}`);
@@ -48,20 +48,28 @@ test('Standard and Pro manifests use distinct edition identities and icon sets',
     assertManifest({
         manifestDirectory: proDirectory,
         expectedId: '/apps/cruise-port/pro_9a3943176561/',
-        expectedName: 'クルーズポート Pro',
+        expectedName: 'クルーズポート',
         expectedPrefix: '\\.\\./assets/app-icons/pro'
     });
 });
 
 test('each edition references only its formal favicon, Apple icon, and cache-busted manifest', () => {
-    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.27\.1">/);
-    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.27\.1/);
-    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.27\.1/);
-    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.27\.1">/);
-    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.27\.1/);
-    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.27\.1/);
+    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.27\.2">/);
+    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.27\.2/);
+    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.27\.2/);
+    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.27\.2">/);
+    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.27\.2/);
+    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.27\.2/);
     assert.doesNotMatch(standardHtml, /data:,/);
     assert.doesNotMatch(proHtml, /data:,/);
+});
+
+test('home screen names are unified while browser titles retain Edition distinction', () => {
+    for (const html of [standardHtml, proHtml]) {
+        assert.match(html, /<meta name="apple-mobile-web-app-title" content="クルーズポート">/);
+    }
+    assert.match(standardHtml, /<title>クルーズポート<\/title>/);
+    assert.match(proHtml, /<title>クルーズポート Pro<\/title>/);
 });
 
 test('the normal and Android maskable icon asset dimensions are complete for both editions', () => {

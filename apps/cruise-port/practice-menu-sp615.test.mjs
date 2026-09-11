@@ -140,5 +140,5 @@ test('schema, pending files, Live icon and edition limits stay unchanged', () =>
     assert.match(source, /savePendingPracticeAttachments\(practiceAttachmentStore, item\.id, pending\)/);
     assert.match(source, /live: \[\['path',[\s\S]*M3\.3 20\.2c-1-1-1-2\.5/);
     assert.match(source, /guardPracticeCreation\(\)/);
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.27\.1'/);
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.27\.2'/);
 });
