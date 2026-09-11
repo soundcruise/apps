@@ -274,6 +274,7 @@ const elements = {
     gearReorderComplete: document.querySelector('#gear-reorder-complete'),
     gearReorderStatus: document.querySelector('#gear-reorder-status'),
     gearReorderNotice: document.querySelector('#gear-reorder-notice'),
+    gearTitleAdd: document.querySelector('#gear-list-title-add'),
     gearAdd: document.querySelector('#gear-list-add'),
     gearFormTitle: document.querySelector('#gear-form-title'),
     gearForm: document.querySelector('#gear-list-form'),
@@ -3863,6 +3864,8 @@ function renderWishlist({ focus = true } = {}) {
     elements.gearReorderStatus.textContent = gearState.reorderMode
         ? '並び替え中です。上下のボタンで順序を変更し、完了で保存します。'
         : '';
+    elements.gearTitleAdd.hidden = gearState.reorderMode;
+    elements.gearTitleAdd.disabled = !gearState.storageReady || !gearState.categoryStorageReady || gearState.reorderMode;
     elements.gearAdd.hidden = gearState.reorderMode;
     elements.gearAdd.textContent = gearState.activeStatus === 'wishlist' ? '＋ ほしい機材を追加' : '＋ 機材を追加';
     elements.gearAdd.disabled = !gearState.storageReady || !gearState.categoryStorageReady || gearState.reorderMode;
@@ -4630,7 +4633,7 @@ elements.addButton.addEventListener('click', () => {
     if (guardPracticeCreation()) setHashRoute('#practice-menu/new');
 });
 elements.namePresetInput.addEventListener('change', handlePracticeNamePresetChange);
-elements.gearAdd.addEventListener('click', () => setHashRoute('#wishlist/new'));
+[elements.gearTitleAdd, elements.gearAdd].forEach((button) => button.addEventListener('click', () => setHashRoute('#wishlist/new')));
 elements.gearForm.addEventListener('submit', handleGearSubmit);
 elements.gearStatusInput.addEventListener('change', updateGearPriorityVisibility);
 elements.gearPhotoInput.addEventListener('change', handleGearPhotoSelection);
