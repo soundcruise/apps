@@ -7,20 +7,25 @@ export const GEAR_CATEGORY_NAME_LIMIT = 40;
 
 export const DEFAULT_GEAR_CATEGORIES = Object.freeze([
     Object.freeze({ id: 'guitar', name: 'ギター' }),
+    Object.freeze({ id: 'amp', name: 'アンプ' }),
     Object.freeze({ id: 'sound', name: 'エフェクター' }),
+    Object.freeze({ id: 'recording', name: '配信・録音' }),
     Object.freeze({ id: 'accessories', name: 'アクセサリー' })
 ]);
 
 const RETIRED_DEFAULT_CATEGORY_NAMES = Object.freeze({
-    sound: Object.freeze({ from: '音作り', to: 'エフェクター' })
+    sound: Object.freeze({ from: '音作り', to: 'エフェクター' }),
+    recording: Object.freeze({ from: '録音・配信', to: '配信・録音' })
 });
+const PREVIOUS_DEFAULT_CATEGORY_IDS = Object.freeze(['guitar', 'sound', 'accessories']);
+const NEW_FORMAL_CATEGORY_IDS = Object.freeze(['amp', 'recording']);
 
 const LEGACY_CATEGORY_NAMES = Object.freeze({
     guitar: 'ギター',
     effects: 'エフェクター',
     amp: 'アンプ',
     dtm: 'DTM',
-    recording: '録音・配信',
+    recording: '配信・録音',
     accessories: 'アクセサリー',
     other: 'その他'
 });
@@ -76,7 +81,7 @@ function uniqueLegacyName(categories, id) {
     return candidate;
 }
 
-function upgradeRetiredDefaultCategoryNames(categories) {
+function reconcileFormalGearCategories(categories) {
     const names = new Set(categories.map(({ name }) => name.toLocaleLowerCase('ja-JP')));
     let changed = false;
     const upgraded = categories.map((category) => {
@@ -89,7 +94,23 @@ function upgradeRetiredDefaultCategoryNames(categories) {
         changed = true;
         return { id: category.id, name: update.to };
     });
-    return { categories: upgraded, changed };
+    const ids = new Set(upgraded.map(({ id }) => id));
+    const shouldAddNewFormalCategories = PREVIOUS_DEFAULT_CATEGORY_IDS.some((id) => ids.has(id));
+    DEFAULT_GEAR_CATEGORIES.forEach((category) => {
+        if (!shouldAddNewFormalCategories || !NEW_FORMAL_CATEGORY_IDS.includes(category.id)
+            || ids.has(category.id) || names.has(category.name.toLocaleLowerCase('ja-JP'))) return;
+        upgraded.push({ ...category });
+        ids.add(category.id);
+        names.add(category.name.toLocaleLowerCase('ja-JP'));
+        changed = true;
+    });
+    const formalIds = new Set(DEFAULT_GEAR_CATEGORIES.map(({ id }) => id));
+    const ordered = [
+        ...DEFAULT_GEAR_CATEGORIES.flatMap(({ id }) => upgraded.filter((category) => category.id === id)),
+        ...upgraded.filter((category) => !formalIds.has(category.id))
+    ];
+    if (ordered.some((category, index) => category.id !== upgraded[index]?.id)) changed = true;
+    return { categories: ordered, changed };
 }
 
 export function buildInitialGearCategories(items = []) {
@@ -149,8 +170,8 @@ export function loadGearCategories(items = [], storage = globalThis.localStorage
         if (payload?.version !== GEAR_CATEGORY_SCHEMA_VERSION || !isValidCategoryCollection(payload.categories)) {
             return { ok: false, categories: buildInitialGearCategories(items), reason: 'invalid-data' };
         }
-        const renamed = upgradeRetiredDefaultCategoryNames(payload.categories);
-        const categories = renamed.categories;
+        const reconciled = reconcileFormalGearCategories(payload.categories);
+        const categories = reconciled.categories;
         const knownIds = new Set(categories.map(({ id }) => id));
         // A present category store represents explicit user choices, including
         // deletion of an empty initial category. Only restore definitions that
@@ -158,7 +179,7 @@ export function loadGearCategories(items = [], storage = globalThis.localStorage
         const usedIds = new Set(items.map((item) => item?.category).filter(isValidGearCategoryId));
         const missing = buildInitialGearCategories(items)
             .filter(({ id }) => usedIds.has(id) && !knownIds.has(id));
-        if (missing.length === 0 && !renamed.changed) return { ok: true, categories };
+        if (missing.length === 0 && !reconciled.changed) return { ok: true, categories };
         const repaired = [...categories, ...missing];
         const saved = saveGearCategories(repaired, storage);
         return saved.ok

@@ -33,14 +33,16 @@ function createSharedStoragePair(initial = {}) {
     return [create(), create()];
 }
 
-test('new users receive only the three formal categories in order', () => {
+test('new users receive the five formal categories in order', () => {
     const storage = createMemoryStorage();
     const result = loadGearCategories([], storage);
     assert.equal(result.ok, true);
     assert.equal(result.initialized, true);
     assert.deepEqual(result.categories, [
         { id: 'guitar', name: 'ギター' },
+        { id: 'amp', name: 'アンプ' },
         { id: 'sound', name: 'エフェクター' },
+        { id: 'recording', name: '配信・録音' },
         { id: 'accessories', name: 'アクセサリー' }
     ]);
     const payload = JSON.parse(storage.snapshot()[GEAR_CATEGORY_STORAGE_KEY]);
@@ -58,8 +60,7 @@ test('existing users retain every used legacy category without merging items', (
     assert.deepEqual(buildInitialGearCategories(items), [
         ...DEFAULT_GEAR_CATEGORIES,
         { id: 'effects', name: 'エフェクター（旧カテゴリ）' },
-        { id: 'dtm', name: 'DTM' },
-        { id: 'recording', name: '録音・配信' }
+        { id: 'dtm', name: 'DTM' }
     ]);
     assert.deepEqual(items.map(({ category }) => category), ['effects', 'guitar', 'dtm', 'effects', 'recording']);
     const allLegacy = buildInitialGearCategories([
@@ -67,7 +68,7 @@ test('existing users retain every used legacy category without merging items', (
         { category: 'amp' }, { category: 'effects' }, { category: 'accessories' }, { category: 'guitar' }
     ]);
     assert.deepEqual(allLegacy.map(({ id }) => id), [
-        'guitar', 'sound', 'accessories', 'effects', 'amp', 'dtm', 'recording', 'other'
+        'guitar', 'amp', 'sound', 'recording', 'accessories', 'effects', 'dtm', 'other'
     ]);
 });
 
@@ -125,6 +126,63 @@ test('the formal sound category label upgrades without changing its stable id or
     assert.equal(JSON.parse(storage.snapshot()['cruisePort.gearList']).items[0].category, 'sound');
 });
 
+test('existing default categories gain amp and recording in the formal order without Gear rewrites', () => {
+    const storage = createMemoryStorage({
+        [GEAR_CATEGORY_STORAGE_KEY]: JSON.stringify({
+            version: GEAR_CATEGORY_SCHEMA_VERSION,
+            categories: [
+                { id: 'guitar', name: 'ギター' },
+                { id: 'sound', name: 'エフェクター' },
+                { id: 'accessories', name: 'アクセサリー' },
+                { id: 'category-live', name: 'ライブ用' }
+            ]
+        }),
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [
+            { id: 'gear-1', category: 'sound', order: 4, photoId: 'photo-1' },
+            { id: 'gear-2', category: 'recording', order: 7, photoSourceId: 'source-2', photoCrop: { zoom: 1.2 } }
+        ] })
+    });
+    const items = [
+        { id: 'gear-1', category: 'sound', order: 4, photoId: 'photo-1' },
+        { id: 'gear-2', category: 'recording', order: 7, photoSourceId: 'source-2', photoCrop: { zoom: 1.2 } }
+    ];
+    const result = loadGearCategories(items, storage);
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.categories, [
+        { id: 'guitar', name: 'ギター' },
+        { id: 'amp', name: 'アンプ' },
+        { id: 'sound', name: 'エフェクター' },
+        { id: 'recording', name: '配信・録音' },
+        { id: 'accessories', name: 'アクセサリー' },
+        { id: 'category-live', name: 'ライブ用' }
+    ]);
+    assert.deepEqual(JSON.parse(storage.snapshot()['cruisePort.gearList']).items, items);
+});
+
+test('the old recording label upgrades only when it was not user-renamed', () => {
+    const storage = createMemoryStorage({
+        [GEAR_CATEGORY_STORAGE_KEY]: JSON.stringify({
+            version: GEAR_CATEGORY_SCHEMA_VERSION,
+            categories: [
+                { id: 'guitar', name: 'ギター' },
+                { id: 'recording', name: '録音・配信' },
+                { id: 'sound', name: 'エフェクター' },
+                { id: 'accessories', name: 'アクセサリー' }
+            ]
+        })
+    });
+    const result = loadGearCategories([], storage);
+    assert.deepEqual(result.categories.find(({ id }) => id === 'recording'), { id: 'recording', name: '配信・録音' });
+    const renamed = saveGearCategories([
+        { id: 'guitar', name: 'ギター' },
+        { id: 'recording', name: '宅録' },
+        { id: 'sound', name: 'エフェクター' },
+        { id: 'accessories', name: 'アクセサリー' }
+    ], storage);
+    assert.equal(renamed.ok, true);
+    assert.deepEqual(loadGearCategories([], storage).categories.find(({ id }) => id === 'recording'), { id: 'recording', name: '宅録' });
+});
+
 test('the formal label upgrade does not collide with an existing legacy effects category', () => {
     const storage = createMemoryStorage({
         [GEAR_CATEGORY_STORAGE_KEY]: JSON.stringify({
@@ -176,11 +234,13 @@ test('deleting an empty category removes only its definition and permits an empt
     const snapshot = structuredClone(item);
     const removed = deleteGearCategory(DEFAULT_GEAR_CATEGORIES, 'guitar');
     assert.equal(removed.ok, true);
-    assert.deepEqual(removed.categories.map(({ id }) => id), ['sound', 'accessories']);
+    assert.deepEqual(removed.categories.map(({ id }) => id), ['amp', 'sound', 'recording', 'accessories']);
     assert.deepEqual(item, snapshot);
 
-    const withoutSound = deleteGearCategory(removed.categories, 'sound');
-    const withoutAccessories = deleteGearCategory(withoutSound.categories, 'accessories');
+    const withoutAmp = deleteGearCategory(removed.categories, 'amp');
+    const withoutSound = deleteGearCategory(withoutAmp.categories, 'sound');
+    const withoutRecording = deleteGearCategory(withoutSound.categories, 'recording');
+    const withoutAccessories = deleteGearCategory(withoutRecording.categories, 'accessories');
     assert.equal(withoutAccessories.ok, true);
     assert.deepEqual(withoutAccessories.categories, []);
     const storage = createMemoryStorage();

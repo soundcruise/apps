@@ -57,7 +57,9 @@ for (const category of ['guitar', 'effects', 'amp', 'dtm', 'recording', 'accesso
 assert.match(categoryStore, /GEAR_CATEGORY_STORAGE_KEY = 'cruisePort\.gearCategories'/);
 assert.match(categoryStore, /GEAR_CATEGORY_SCHEMA_VERSION = 1/);
 assert.match(categoryStore, /id: 'guitar', name: 'ギター'/);
+assert.match(categoryStore, /id: 'amp', name: 'アンプ'/);
 assert.match(categoryStore, /id: 'sound', name: 'エフェクター'/);
+assert.match(categoryStore, /id: 'recording', name: '配信・録音'/);
 assert.match(categoryStore, /id: 'accessories', name: 'アクセサリー'/);
 assert.match(categoryStore, /export function deleteGearCategory/);
 assert.match(store, /GEAR_LIST_STORAGE_KEY = 'cruisePort\.gearList'/);
