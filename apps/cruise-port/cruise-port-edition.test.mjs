@@ -70,6 +70,8 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
     const expected = root.replace(/((?:src|href)=")(\.\.?\/)/g, (_, start, relative) => start + (relative === './' ? '../' : '../../'));
     const withoutGate = pro
         .replace('クルーズポート Pro</title>', 'クルーズポート</title>')
+        .replace('href="./manifest.json?v=0.27.1"', 'href="../manifest.json?v=0.27.1"')
+        .replaceAll('/app-icons/pro/', '/app-icons/standard/')
         .split('\n').filter(line => !line.includes('shared/pro-gate.')).join('\n')
         .replace(/    <script>\n        window\.__SOUNDCRUISE_PRO_GATE__[\s\S]*?<\/script>\n/, '');
     assert.equal(withoutGate, expected, 'Only explicitly allowed edition differences may diverge');
