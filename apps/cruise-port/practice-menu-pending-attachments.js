@@ -1,7 +1,7 @@
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     isSafePracticeImagePreview
-} from './practice-menu-attachment-store.js?v=0.24.0';
+} from './practice-menu-attachment-store.js?v=0.27.0';
 
 function createPendingAttachmentId() {
     return globalThis.crypto?.randomUUID

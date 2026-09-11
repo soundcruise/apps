@@ -31,11 +31,11 @@ test('recording and every non-Live icon definition remain present', () => {
     }
 });
 
-test('SP6.14 changes neither central rendering routes nor version', () => {
+test('SP6.14 central rendering routes remain covered in Cruise Port 0.27.0', () => {
     assert.equal((source.match(/\n    live:/g) || []).length, 1);
     assert.match(source, /calendarNoteIconSelection\.replaceChildren\(createPracticeCalendarIcon\(icon\.value\)/);
     assert.match(source, /button\.append\(createPracticeCalendarIcon\(value\), text\)/);
     assert.match(source, /row\.append\(createPracticeCalendarIcon\(note\.icon, 'practice-calendar-note-icon'\)\)/);
     assert.match(source, /memoMark\.append\(createPracticeCalendarIcon\(summary\.memoIcons\[0\]\)\)/);
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.26\.2'/);
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.27\.0'/);
 });

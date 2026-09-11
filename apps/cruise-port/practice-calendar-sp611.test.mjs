@@ -65,6 +65,6 @@ test('only calendar note time grows one restrained step and storage stays v2', (
     assert.doesNotMatch(read('practice-menu-calendar-store.js'), /PRACTICE_CALENDAR_SCHEMA_VERSION = 3/);
 });
 
-test('SP6.11 retains Cruise Port 0.26.2', () => {
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.26\.2'/);
+test('SP6.11 UI remains covered in Cruise Port 0.27.0', () => {
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.27\.0'/);
 });

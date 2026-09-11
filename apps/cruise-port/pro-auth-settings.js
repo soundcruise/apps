@@ -1,4 +1,4 @@
-import { isProEdition } from './cruise-port-edition.js?v=0.26.0';
+import { isProEdition } from './cruise-port-edition.js?v=0.27.0';
 
 export function initializeProAuthSettings(documentObject = document, windowObject = window, isPro = isProEdition) {
     const section = documentObject.querySelector('#settings-pro-auth');

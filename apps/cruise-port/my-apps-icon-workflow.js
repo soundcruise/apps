@@ -6,8 +6,8 @@ import {
 } from './my-apps-store.js?v=0.24.0';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
-import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
-import { checkMyAppsCreation } from './my-apps-capabilities.js?v=1.0.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';
+import { checkMyAppsCreation } from './my-apps-capabilities.js?v=0.27.0';
 
 async function deleteIconBestEffort(iconStore, iconId) {
     if (!iconId || !iconStore?.deleteIcon) return;

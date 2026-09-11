@@ -1,6 +1,6 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';
 import { METRONOME_DEFAULTS } from './metronome-store.js?v=0.24.0';
-import { createProPrompt } from './pro-prompt.js?v=1.0.0';
+import { createProPrompt } from './pro-prompt.js?v=0.27.0';
 
 const prompts = new WeakMap();
 export function requestToolPro(feature, documentObject = document) {

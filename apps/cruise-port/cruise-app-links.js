@@ -1,4 +1,4 @@
-import { getEdition } from './cruise-port-edition.js?v=0.26.0';
+import { getEdition } from './cruise-port-edition.js?v=0.27.0';
 
 // Single URL catalog for Home and Practice. Stored builtin appIds stay stable.
 const CRUISE_APPS = Object.freeze({

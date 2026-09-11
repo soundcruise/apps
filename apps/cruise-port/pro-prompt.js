@@ -1,4 +1,4 @@
-import { isProEdition, PRO_ENTRY_PATH } from './cruise-port-edition.js?v=0.26.0';
+import { isProEdition, PRO_ENTRY_PATH } from './cruise-port-edition.js?v=0.27.0';
 
 export const PRO_INFO_ROUTE = '#pro-access';
 

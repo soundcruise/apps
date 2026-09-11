@@ -1,4 +1,4 @@
-import { getEdition } from './cruise-port-edition.js?v=0.26.0';
+import { getEdition } from './cruise-port-edition.js?v=0.27.0';
 import { MY_APPS_LIMITS } from './my-apps-store.js?v=0.24.0';
 
 // Creation/write policy only. Never pass product limits into store validation.

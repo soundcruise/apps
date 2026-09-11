@@ -1,7 +1,7 @@
-import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.0.0';
-import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.0.0';
-import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
-import { requestToolPro } from './tool-capabilities.js?v=1.0.0';
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=0.27.0';
+import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=0.27.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';
+import { requestToolPro } from './tool-capabilities.js?v=0.27.0';
 import {
     LIMITS,
     createPracticeMenu,
@@ -11,14 +11,14 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.26.0';
+} from './practice-menu-store.js?v=0.27.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
-} from './practice-menu-presets.js?v=1.0.0';
-import { applyEditionDisplay } from './cruise-port-edition.js?v=0.26.0';
-import { applyHomeCruiseLinks } from './cruise-app-links.js?v=0.26.0';
+} from './practice-menu-presets.js?v=0.27.0';
+import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
+import { applyHomeCruiseLinks } from './cruise-app-links.js?v=0.27.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -45,7 +45,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.24.0';
+} from './practice-menu-history-store.js?v=0.27.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -60,7 +60,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.24.0';
+} from './practice-menu-calendar-store.js?v=0.27.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -74,12 +74,12 @@ import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen
-} from './practice-menu-attachment-store.js?v=0.24.0';
+} from './practice-menu-attachment-store.js?v=0.27.0';
 import {
     appendPendingPracticeAttachments,
     savePendingPracticeAttachments,
     validatePendingPracticeAttachment
-} from './practice-menu-pending-attachments.js?v=1.0.0';
+} from './practice-menu-pending-attachments.js?v=0.27.0';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -90,7 +90,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=0.26.0';
+} from './practice-menu-app-resolver.js?v=0.27.0';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -127,7 +127,7 @@ import {
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.1.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=0.24.0';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=0.27.0';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -145,22 +145,22 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=0.24.0';
+} from './my-apps-icon-workflow.js?v=0.27.0';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.4';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=0.24.0';
+import { initMetronome } from './metronome-app.js?v=0.27.0';
 import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.26.2';
+} from './app-version.js?v=0.27.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
-import { initTuner } from './tuner-app.js?v=0.24.0';
+import { initTuner } from './tuner-app.js?v=0.27.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -178,7 +178,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.24.0';
+} from './gear-list-store.js?v=0.27.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -187,8 +187,8 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.26.2';
-import { createGearPhotoStore } from './gear-photo-store.js?v=0.24.0';
+} from './gear-category-store.js?v=0.27.0';
+import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -197,15 +197,15 @@ import {
     commitGearItemDeletion,
     commitGearPhotoChange,
     commitGearPhotoRemoval
-} from './gear-photo-workflow.js?v=1.0.0';
+} from './gear-photo-workflow.js?v=0.27.0';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
     replaceGearListRoute
 } from './gear-list-navigation.js?v=1.0.0';
 
-import { initializeProAuthSettings } from './pro-auth-settings.js?v=1.0.0';
-import { applyProLinks, createProAccessView, PRO_INFO_ROUTE } from './pro-prompt.js?v=1.0.0';
+import { initializeProAuthSettings } from './pro-auth-settings.js?v=0.27.0';
+import { applyProLinks, createProAccessView, PRO_INFO_ROUTE } from './pro-prompt.js?v=0.27.0';
 
 normalizeInitialHome();
 const proAccessView = createProAccessView();

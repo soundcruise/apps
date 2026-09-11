@@ -417,8 +417,8 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
     };
 }
 
-import { getCapabilities } from './cruise-port-capabilities.js?v=0.26.0';
-import { effectiveMetronome, mergeMetronomeSettings, requestToolPro } from './tool-capabilities.js?v=1.0.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';
+import { effectiveMetronome, mergeMetronomeSettings, requestToolPro } from './tool-capabilities.js?v=0.27.0';
 
 export function initMetronome(root, { capabilities = getCapabilities(), requestPro = requestToolPro } = {}) {
     const elements = {
