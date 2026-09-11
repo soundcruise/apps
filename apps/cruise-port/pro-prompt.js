@@ -65,11 +65,11 @@ export function createProAccessView(documentObject = document) {
     view.innerHTML = `<button class="view-back" type="button">← 戻る</button>
         <section class="view-panel" aria-labelledby="pro-access-title">
             <h1 id="pro-access-title" class="view-title" tabindex="-1">Pro版の入手方法</h1>
-            <p>クルーズポートPro版のご利用までの手順をご案内します。</p>
+            <p>Cruise Port Proは、YouTubeメンバーシップ「フォルテ」の特典としてご利用いただけます。</p>
             <ol>
-                <li><h2>メンバーシップ「フォルテ」への登録</h2><p>YouTube Chメンバーシップに下記ページから登録できます。</p><a class="action-button primary-action" href="https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ/join" target="_blank" rel="noopener noreferrer">登録ページへ（新しいタブ）</a></li>
-                <li><h2>Pro版のURLとパスワードを確認</h2><p>YouTubeメンバー限定投稿で、Pro版に入るための情報を確認してください。</p><a class="action-button primary-action" href="https://www.youtube.com/post/UgkxGGd0QKGyDd3-mMWvhusmK4ZvqmH8I6Er" target="_blank" rel="noopener noreferrer">限定投稿へ（新しいタブ）</a></li>
-                <li><h2>クルーズポートPro版を開く</h2><p>すでに利用権をお持ちの方は、確認したパスワードを入力してご利用ください。</p><a class="action-button secondary-action" href="${PRO_ENTRY_PATH}">Pro版を開く</a></li>
+                <li><h2>1. フォルテに登録</h2><p>YouTubeメンバーシップ「フォルテ」にご登録ください。</p><a class="action-button primary-action" href="https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ/join" target="_blank" rel="noopener noreferrer">フォルテに登録（新しいタブ）</a></li>
+                <li><h2>2. メンバー限定投稿を確認</h2><p>登録後、フォルテ会員向けの限定投稿をご確認ください。</p><a class="action-button primary-action" href="https://www.youtube.com/post/UgkxGGd0QKGyDd3-mMWvhusmK4ZvqmH8I6Er" target="_blank" rel="noopener noreferrer">限定投稿を確認（新しいタブ）</a></li>
+                <li><h2>3. Pro版を利用</h2><p>限定投稿内の案内からCruise Port Proを開いてください。</p><p>すでに利用資格と案内情報をお持ちの方は、こちらからPro版を開けます。</p><a class="action-button secondary-action" href="${PRO_ENTRY_PATH}">Pro版を開く</a></li>
             </ol>
         </section>`;
     return view;

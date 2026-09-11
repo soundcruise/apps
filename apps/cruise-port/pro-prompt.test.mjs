@@ -15,14 +15,23 @@ test('acquisition CTA is centralized and closes the modal before navigation', ()
         assert.equal((read(file).match(/href="#pro-access"/g) || []).length, 2);
     }
 });
-test('acquisition uses only the established Chord membership and post links', () => {
+test('acquisition uses the established Forte membership and post links without presenting Pro as a standalone product', () => {
     const source = read('pro-prompt.js');
     const chord = read('../chord-cruise/pro-access.html');
     const links = source.match(/https:\/\/www.youtube.com\/[^" ]+/g);
     assert.equal(links.length, 2);
     links.forEach(link => assert.ok(chord.includes(link)));
-    assert.match(source, /すでに利用権をお持ち/);
-    assert.match(read('RELEASE-CHECKS.md'), /未解決/);
+    assert.match(source, /フォルテ」の特典/);
+    assert.match(source, /1\. フォルテに登録/);
+    assert.match(source, /2\. メンバー限定投稿を確認/);
+    assert.match(source, /3\. Pro版を利用/);
+    assert.match(source, /すでに利用資格と案内情報をお持ち/);
+    assert.doesNotMatch(source, /URLとパスワード|Pro版を購入|Pro版を買う|Pro版の価格|Pro単体販売/);
+    const releaseChecks = read('RELEASE-CHECKS.md');
+    assert.match(releaseChecks, /フォルテ」会員向け特典/);
+    assert.match(releaseChecks, /Pro単体販売は行わない/);
+    assert.match(releaseChecks, /限定投稿内で案内/);
+    assert.doesNotMatch(releaseChecks, /未解決|暫定採用/);
 });
 test('capo number grows without changing the control sizing rules', () => {
     const css = read('style.css');
