@@ -1,0 +1,15 @@
+{
+  "name": "sound-cruise-sync",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "npm test && wrangler deploy --dry-run",
+    "dev": "wrangler dev --local",
+    "migrate:local": "wrangler d1 migrations apply SYNC_DB --local"
+  },
+  "devDependencies": {
+    "wrangler": "4.131.1"
+  }
+}

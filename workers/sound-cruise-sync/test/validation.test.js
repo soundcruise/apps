@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { isJsonContentType, readBodyWithLimit, validateStartPayload } from '../src/validation.js';
+
+const env = { SYNC_ALLOWED_APP_IDS: 'chord' };
+const hash = 'a'.repeat(64);
+
+function validPayload() {
+  return {
+    appId: 'chord',
+    turnstileToken: 'token',
+    deviceLabel: ' QA iPhone ',
+    initialSummary: { schemaVersion: 1, recordCount: 5, manifestHash: hash }
+  };
+}
+
+test('valid start payload is normalized without accepting identity fields', () => {
+  const result = validateStartPayload(validPayload(), env);
+  assert.equal(result.ok, true);
+  assert.equal(result.value.deviceLabel, 'QA iPhone');
+  assert.deepEqual(result.value.initialSummary, { schemaVersion: 1, recordCount: 5, manifestHash: hash });
+  for (const forbidden of ['userId', 'deviceId', 'credential', 'recoveryCode']) {
+    const payload = validPayload();
+    payload[forbidden] = 'attacker-controlled';
+    assert.equal(validateStartPayload(payload, env).ok, false, `${forbidden} is rejected`);
+  }
+});
+
+test('app allowlist, summary, token, label, and unknown fields are fail closed', () => {
+  const cases = [];
+  const wrongApp = validPayload(); wrongApp.appId = 'pitch'; cases.push(wrongApp);
+  const wrongSchema = validPayload(); wrongSchema.initialSummary.schemaVersion = 2; cases.push(wrongSchema);
+  const wrongCount = validPayload(); wrongCount.initialSummary.recordCount = -1; cases.push(wrongCount);
+  const wrongHash = validPayload(); wrongHash.initialSummary.manifestHash = 'bad'; cases.push(wrongHash);
+  const noToken = validPayload(); noToken.turnstileToken = ''; cases.push(noToken);
+  const controlLabel = validPayload(); controlLabel.deviceLabel = 'bad\nlabel'; cases.push(controlLabel);
+  const unknown = validPayload(); unknown.extra = true; cases.push(unknown);
+  cases.forEach((payload) => assert.equal(validateStartPayload(payload, env).ok, false));
+});
+
+test('JSON content type and bounded UTF-8 reader reject unsafe requests', async () => {
+  assert.equal(isJsonContentType('application/json'), true);
+  assert.equal(isJsonContentType('application/json; charset=UTF-8'), true);
+  assert.equal(isJsonContentType('text/json'), false);
+  const valid = await readBodyWithLimit(new Request('https://sync.test', { method: 'POST', body: '{"ok":true}' }), 20);
+  assert.equal(valid.ok, true);
+  const oversized = await readBodyWithLimit(new Request('https://sync.test', { method: 'POST', body: 'x'.repeat(21) }), 20);
+  assert.equal(oversized.tooLarge, true);
+  const invalidUtf8 = await readBodyWithLimit(new Request('https://sync.test', {
+    method: 'POST', body: new Uint8Array([0xc3, 0x28])
+  }), 20);
+  assert.equal(invalidUtf8.ok, false);
+});

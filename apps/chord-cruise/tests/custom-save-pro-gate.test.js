@@ -87,13 +87,13 @@ function chord(name) {
     assert.deepStrictEqual(JSON.parse(JSON.stringify(standard.storage.loadChord(saved.id))), JSON.parse(JSON.stringify(saved)), 'Standard can read an existing custom record unchanged');
 }());
 
-assert(standardHtml.includes('<script src="../js/core/feature-access.js?v=1.0.0"></script>'), 'Standard loads feature access');
+assert(standardHtml.includes('<script src="../js/core/feature-access.js?v=1.1.0"></script>'), 'Standard loads feature access');
 assert(standardHtml.indexOf('js/core/feature-access.js') < standardHtml.indexOf('js/core/storage.js'), 'Standard loads feature access before storage');
 assert(proHtml.indexOf('../js/core/feature-access.js') < proHtml.indexOf('../js/core/storage.js'), 'Pro loads feature access before storage');
 assert(saveEditorSource.includes("source: chord.source === 'custom' ? 'custom' : 'diatonic'"), 'save editor keeps a transient source for new saves');
 assert(saveEditorSource.includes("saveChord(record, { source: draft.source })"), 'save editor passes source to the storage boundary');
 assert(saveEditorSource.includes('作成したコードを保存するにはPro版が必要です。'), 'custom save has an independent Pro explanation');
 assert(saveEditorSource.includes('href="../pro-access.html"'), 'Standard points to the root Chord Cruise Pro access page');
-assert(proHtml.includes('../../shared/pro-gate.js?v=19'), 'the Pro entry continues into the shared Pro gate');
+assert(proHtml.includes('../../shared/pro-gate.js?v=21'), 'the Pro entry continues into the current shared Pro gate');
 
 console.log('custom-save-pro-gate: Standard creation/view remains enabled, custom save is rejected at UI/storage, Pro save and existing record read OK');
