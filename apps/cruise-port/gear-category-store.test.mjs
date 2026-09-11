@@ -6,6 +6,7 @@ import {
     GEAR_CATEGORY_STORAGE_KEY,
     addGearCategory,
     buildInitialGearCategories,
+    deleteGearCategory,
     getGearCategoryName,
     loadGearCategories,
     renameGearCategory,
@@ -128,6 +129,44 @@ test('all is not a persisted category and therefore cannot be renamed', () => {
     assert.equal(DEFAULT_GEAR_CATEGORIES.some(({ id }) => id === 'all'), false);
 });
 
+test('deleting an empty category removes only its definition and permits an empty category list', () => {
+    const item = Object.freeze({
+        id: 'gear-1',
+        category: 'sound',
+        photoId: 'photo-final',
+        photoSourceId: 'photo-source',
+        photoCrop: Object.freeze({ x: 0.1, y: 0.2, size: 0.8 }),
+        status: 'owned',
+        order: 2
+    });
+    const snapshot = structuredClone(item);
+    const removed = deleteGearCategory(DEFAULT_GEAR_CATEGORIES, 'guitar');
+    assert.equal(removed.ok, true);
+    assert.deepEqual(removed.categories.map(({ id }) => id), ['sound', 'accessories']);
+    assert.deepEqual(item, snapshot);
+
+    const withoutSound = deleteGearCategory(removed.categories, 'sound');
+    const withoutAccessories = deleteGearCategory(withoutSound.categories, 'accessories');
+    assert.equal(withoutAccessories.ok, true);
+    assert.deepEqual(withoutAccessories.categories, []);
+    const storage = createMemoryStorage();
+    assert.equal(saveGearCategories(withoutAccessories.categories, storage).ok, true);
+    assert.deepEqual(loadGearCategories([], storage).categories, []);
+});
+
+test('deleted category ids are not reused when a category with the same name is created again', () => {
+    const first = addGearCategory(DEFAULT_GEAR_CATEGORIES, 'ライブ用');
+    const removed = deleteGearCategory(first.categories, first.category.id);
+    const recreated = addGearCategory(removed.categories, 'ライブ用');
+    assert.equal(recreated.ok, true);
+    assert.notEqual(recreated.category.id, first.category.id);
+});
+
+test('all and unknown category ids cannot be deleted', () => {
+    assert.equal(deleteGearCategory(DEFAULT_GEAR_CATEGORIES, 'all').reason, 'not-found');
+    assert.equal(deleteGearCategory(DEFAULT_GEAR_CATEGORIES, 'missing').reason, 'not-found');
+});
+
 test('reload preserves additions and renames without touching gear data', () => {
     const storage = createMemoryStorage({ 'cruisePort.gearList': 'gear-data' });
     const initial = loadGearCategories([], storage);
@@ -188,4 +227,15 @@ test('stale tab addition cannot overwrite a newer category rename', () => {
     const staleAdd = addGearCategory(stateB.categories, 'ライブ用品');
     assert.equal(saveGearCategories(staleAdd.categories, tabB).ok, false);
     assert.equal(loadGearCategories([], tabA).categories.find(({ id }) => id === 'guitar').name, 'アコギ');
+});
+
+test('stale tab deletion cannot overwrite a newer category addition', () => {
+    const [tabA, tabB] = createSharedStoragePair();
+    const stateA = loadGearCategories([], tabA);
+    const stateB = loadGearCategories([], tabB);
+    const added = addGearCategory(stateA.categories, '配信機材');
+    assert.equal(saveGearCategories(added.categories, tabA).ok, true);
+    const staleDelete = deleteGearCategory(stateB.categories, 'guitar');
+    assert.equal(saveGearCategories(staleDelete.categories, tabB).ok, false);
+    assert.equal(loadGearCategories([], tabA).categories.some(({ name }) => name === '配信機材'), true);
 });

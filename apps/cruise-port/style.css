@@ -2000,7 +2000,7 @@ body.gear-photo-lightbox-open {
 .settings-choice:focus-visible,
 .gear-list-tabs button:focus-visible,
 .gear-category-chip:focus-visible,
-.gear-category-rename:focus-visible,
+.gear-category-action:focus-visible,
 .gear-category-dialog button:focus-visible,
 .gear-category-dialog input:focus-visible,
 .reorder-button:focus-visible,
@@ -2204,28 +2204,44 @@ textarea:focus-visible {
     opacity: 0.48;
 }
 
-.gear-category-add {
-    min-width: 44px;
-    padding-inline: 12px;
-    color: var(--port-gold-bright);
-    font-size: calc(1rem * var(--font-scale));
+.gear-category-actions {
+    display: flex;
+    min-height: 44px;
+    margin-top: 7px;
+    gap: 8px;
 }
 
-.gear-category-rename {
-    display: block;
-    min-height: 44px;
-    margin: 7px 0 0 auto;
-    padding: 7px 2px;
-    border: 0;
+.gear-category-action {
+    display: grid;
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid rgba(207, 189, 148, 0.24);
+    border-radius: 12px;
     color: var(--port-muted);
-    background: transparent;
-    font: inherit;
-    font-size: calc(0.72rem * var(--font-scale));
+    background: rgba(8, 8, 6, 0.5);
     cursor: pointer;
 }
 
-.gear-category-rename[hidden] {
-    display: none;
+.gear-category-action svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.8;
+}
+
+.gear-category-action:first-child {
+    color: var(--port-gold-bright);
+}
+
+.gear-category-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.48;
 }
 
 .gear-category-dialog {

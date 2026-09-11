@@ -182,6 +182,7 @@ import {
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
+    deleteGearCategory,
     getGearCategoryName,
     loadGearCategories,
     renameGearCategory,
@@ -253,7 +254,9 @@ const elements = {
     gearTitle: document.querySelector('#wishlist-title'),
     gearTabs: [...document.querySelectorAll('[data-gear-status]')],
     gearCategoryFilter: document.querySelector('#gear-category-filter'),
+    gearCategoryAdd: document.querySelector('#gear-category-add'),
     gearCategoryRename: document.querySelector('#gear-category-rename'),
+    gearCategoryDelete: document.querySelector('#gear-category-delete'),
     gearCategoryDialog: document.querySelector('#gear-category-dialog'),
     gearCategoryDialogTitle: document.querySelector('#gear-category-dialog-title'),
     gearCategoryForm: document.querySelector('#gear-category-form'),
@@ -3611,16 +3614,10 @@ function renderGearCategoryFilter() {
         button.classList.toggle('is-selected', selected);
         elements.gearCategoryFilter.append(button);
     });
-    const addButton = document.createElement('button');
-    addButton.type = 'button';
-    addButton.className = 'gear-category-chip gear-category-add';
-    addButton.dataset.gearCategoryAction = 'add';
-    addButton.textContent = '＋';
-    addButton.setAttribute('aria-label', 'カテゴリを追加');
-    addButton.disabled = gearState.reorderMode || !gearState.categoryStorageReady;
-    elements.gearCategoryFilter.append(addButton);
-    elements.gearCategoryRename.hidden = gearState.activeCategory === 'all' || gearState.reorderMode;
-    elements.gearCategoryRename.disabled = !gearState.categoryStorageReady;
+    const categorySelected = gearState.activeCategory !== 'all';
+    elements.gearCategoryAdd.disabled = gearState.reorderMode || !gearState.categoryStorageReady;
+    elements.gearCategoryRename.disabled = !categorySelected || gearState.reorderMode || !gearState.categoryStorageReady;
+    elements.gearCategoryDelete.disabled = !categorySelected || gearState.reorderMode || !gearState.categoryStorageReady;
 }
 
 function populateGearCategoryOptions(selectedId = '') {
@@ -3660,7 +3657,7 @@ function closeGearCategoryDialog({ restoreFocus = true } = {}) {
     if (!restoreFocus) return;
     const target = mode === 'rename'
         ? elements.gearCategoryRename
-        : elements.gearCategoryFilter.querySelector('[data-gear-category-action="add"]');
+        : elements.gearCategoryAdd;
     target?.focus({ preventScroll: true });
 }
 
@@ -3689,6 +3686,59 @@ function handleGearCategorySubmit(event) {
     [...elements.gearCategoryFilter.querySelectorAll('[data-gear-category]')]
         .find((button) => button.dataset.gearCategory === gearState.activeCategory)
         ?.focus({ preventScroll: true });
+}
+
+function reloadGearItemsBeforeCategoryDelete() {
+    const latest = loadGearList();
+    if (!latest.ok) {
+        gearState.storageReady = false;
+        showNotice(elements.gearStorageError, '機材リストを読み込めませんでした。カテゴリは削除していません。');
+        return null;
+    }
+    gearState.items = latest.items;
+    gearState.storageReady = true;
+    return latest.items;
+}
+
+function showGearCategoryHasItemsNotice() {
+    window.alert('このカテゴリには機材が登録されています。\n削除するには、先に機材を別のカテゴリへ移動してください。');
+}
+
+function handleGearCategoryDelete() {
+    if (!gearState.categoryStorageReady || gearState.reorderMode) return;
+    const category = gearState.categories.find(({ id }) => id === gearState.activeCategory);
+    if (!category) return;
+    const itemsBeforeConfirmation = reloadGearItemsBeforeCategoryDelete();
+    if (!itemsBeforeConfirmation) return;
+    if (itemsBeforeConfirmation.some((item) => item.category === category.id)) {
+        showGearCategoryHasItemsNotice();
+        elements.gearCategoryDelete.focus({ preventScroll: true });
+        return;
+    }
+    if (!window.confirm(`「${category.name}」カテゴリを削除しますか？\nこの操作は元に戻せません。`)) return;
+
+    // Re-read after confirmation. A different tab may have assigned an item to
+    // this category while the confirmation dialog was open.
+    const latestItems = reloadGearItemsBeforeCategoryDelete();
+    if (!latestItems) return;
+    if (latestItems.some((item) => item.category === category.id)) {
+        showGearCategoryHasItemsNotice();
+        renderWishlist({ focus: false });
+        elements.gearCategoryDelete.focus({ preventScroll: true });
+        return;
+    }
+
+    const result = deleteGearCategory(gearState.categories, category.id);
+    if (!result.ok) return;
+    const saved = saveGearCategories(result.categories);
+    if (!saved.ok) {
+        showNotice(elements.gearStorageError, 'カテゴリを削除できませんでした。ページを更新してからもう一度お試しください。');
+        return;
+    }
+    gearState.categories = result.categories;
+    gearState.activeCategory = 'all';
+    renderWishlist({ focus: false });
+    elements.gearCategoryFilter.querySelector('[data-gear-category="all"]')?.focus({ preventScroll: true });
 }
 
 function getGearSections() {
@@ -4634,11 +4684,6 @@ elements.gearTabs.forEach((tab, index) => {
     });
 });
 elements.gearCategoryFilter.addEventListener('click', (event) => {
-    const addButton = event.target.closest('[data-gear-category-action="add"]');
-    if (addButton) {
-        openGearCategoryDialog('add');
-        return;
-    }
     const chip = event.target.closest('[data-gear-category]');
     if (!chip || gearState.reorderMode) return;
     gearState.activeCategory = chip.dataset.gearCategory;
@@ -4647,7 +4692,9 @@ elements.gearCategoryFilter.addEventListener('click', (event) => {
         .find((button) => button.dataset.gearCategory === gearState.activeCategory)
         ?.focus({ preventScroll: true });
 });
+elements.gearCategoryAdd.addEventListener('click', () => openGearCategoryDialog('add'));
 elements.gearCategoryRename.addEventListener('click', () => openGearCategoryDialog('rename'));
+elements.gearCategoryDelete.addEventListener('click', handleGearCategoryDelete);
 elements.gearCategoryForm.addEventListener('submit', handleGearCategorySubmit);
 elements.gearCategoryCancel.addEventListener('click', () => closeGearCategoryDialog());
 elements.gearCategoryDialog.addEventListener('click', (event) => {

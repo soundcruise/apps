@@ -46,7 +46,6 @@ function isValidCategory(category) {
 
 function isValidCategoryCollection(categories) {
     return Array.isArray(categories)
-        && categories.length > 0
         && categories.every(isValidCategory)
         && new Set(categories.map(({ id }) => id)).size === categories.length
         && new Set(categories.map(({ name }) => name.toLocaleLowerCase('ja-JP'))).size === categories.length;
@@ -132,7 +131,12 @@ export function loadGearCategories(items = [], storage = globalThis.localStorage
         }
         const categories = cloneCategories(payload.categories);
         const knownIds = new Set(categories.map(({ id }) => id));
-        const missing = buildInitialGearCategories(items).filter(({ id }) => !knownIds.has(id));
+        // A present category store represents explicit user choices, including
+        // deletion of an empty initial category. Only restore definitions that
+        // are currently required by a persisted Gear item.
+        const usedIds = new Set(items.map((item) => item?.category).filter(isValidGearCategoryId));
+        const missing = buildInitialGearCategories(items)
+            .filter(({ id }) => usedIds.has(id) && !knownIds.has(id));
         if (missing.length === 0) return { ok: true, categories };
         const repaired = [...categories, ...missing];
         const saved = saveGearCategories(repaired, storage);
@@ -185,6 +189,21 @@ export function renameGearCategory(categories, id, name) {
         categories: categories.map((category) => category.id === id
             ? { id: category.id, name: validation.name }
             : { ...category })
+    };
+}
+
+// Category definitions deliberately have no link to a destination category.
+// The UI verifies that the latest Gear list has no matching item before calling
+// this function, so deleting an empty category never rewrites Gear data.
+export function deleteGearCategory(categories, id) {
+    if (!isValidCategoryCollection(categories) || !categories.some((category) => category.id === id)) {
+        return { ok: false, reason: 'not-found', categories: cloneCategories(categories) };
+    }
+    return {
+        ok: true,
+        categories: categories
+            .filter((category) => category.id !== id)
+            .map((category) => ({ ...category }))
     };
 }
 

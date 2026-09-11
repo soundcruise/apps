@@ -160,7 +160,17 @@
                 </div>
 
                 <div id="gear-category-filter" class="gear-category-filter" aria-label="カテゴリで絞り込む"></div>
-                <button id="gear-category-rename" class="gear-category-rename" type="button" hidden>選択中のカテゴリ名を変更</button>
+                <div class="gear-category-actions" aria-label="カテゴリ操作">
+                    <button id="gear-category-add" class="gear-category-action" type="button" aria-label="カテゴリを追加" title="カテゴリを追加">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+                    </button>
+                    <button id="gear-category-rename" class="gear-category-action" type="button" aria-label="カテゴリ名を変更" title="カテゴリ名を変更">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16.5-.7 4.2 4.2-.7L19 8.5 15.5 5 4 16.5Z" /><path d="m13.8 6.7 3.5 3.5" /></svg>
+                    </button>
+                    <button id="gear-category-delete" class="gear-category-action" type="button" aria-label="カテゴリを削除" title="カテゴリを削除">
+                        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13M10 11v5M14 11v5" /></svg>
+                    </button>
+                </div>
                 <p id="gear-list-storage-error" class="notice notice-error" role="alert" hidden></p>
 
                 <div id="gear-list-content" role="tabpanel" aria-labelledby="gear-all-tab">
