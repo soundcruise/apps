@@ -109,6 +109,20 @@
                     }));
                 });
             },
+            setMetaBatch: function (entries, updatedAt) {
+                if (!Array.isArray(entries) || entries.length < 1 || entries.some(function (entry) {
+                    return !entry || typeof entry.key !== 'string' || !entry.key;
+                })) return Promise.reject(new TypeError('Invalid metadata batch'));
+                return run(STORE_NAMES.meta, 'readwrite', function (store) {
+                    return Promise.all(entries.map(function (entry) {
+                        return requestResult(store.put({
+                            key: entry.key,
+                            value: clone(entry.value),
+                            updatedAt: typeof updatedAt === 'number' ? updatedAt : Date.now()
+                        }));
+                    }));
+                });
+            },
             putOutbox: function (operation) {
                 return run(STORE_NAMES.outbox, 'readwrite', function (store) {
                     return requestResult(store.put(clone(operation)));

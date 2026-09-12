@@ -6,10 +6,14 @@ import { DatabaseSync } from 'node:sqlite';
 
 const migration = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0001_create_sync_foundation.sql'), 'utf8');
 const migration2 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0002_add_sync_revision_metadata.sql'), 'utf8');
+const migration3 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0003_add_pairing_device_lifecycle.sql'), 'utf8');
+const migration4 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0004_add_pairing_attempt_limiter.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
   db.exec(migration2);
+  db.exec(migration3);
+  db.exec(migration4);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -22,6 +26,9 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare("SELECT schema_version FROM sync_records LIMIT 1"));
   assert(db.prepare("SELECT schema_version FROM sync_changes LIMIT 1"));
   assert(db.prepare("SELECT last_change_seq FROM sync_datasets LIMIT 1"));
+  assert(db.prepare("SELECT pairing_pending_at, paired_at FROM sync_devices LIMIT 1"));
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_pairing_codes_user_active'").get());
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pairing_attempts'").get());
   db.close();
 });
 

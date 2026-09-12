@@ -10,14 +10,15 @@ export async function createProvisioningIdentity(db, input) {
   const deviceStatement = db.prepare(`
     INSERT INTO sync_devices (
       id, user_id, app_id, credential_version, credential_verifier,
-      label, last_cursor, created_at, last_seen_at, revoked_at
-    ) VALUES (?, ?, ?, 1, ?, ?, 0, ?, ?, NULL)
+      label, last_cursor, created_at, last_seen_at, revoked_at, pairing_pending_at, paired_at
+    ) VALUES (?, ?, ?, 1, ?, ?, 0, ?, ?, NULL, NULL, ?)
   `).bind(
     input.deviceId,
     input.userId,
     input.appId,
     input.credentialVerifier,
     input.deviceLabel,
+    input.now,
     input.now,
     input.now
   );

@@ -58,7 +58,10 @@
                     client.watchLocalMutations(global.ChordCruise && global.ChordCruise.storage);
                     var store = await client.openStore();
                     if (await store.getMeta('datasetState') === 'ready') client.startBackgroundSync();
-                    return result;
+                    return loadScript('sync-pairing-ui.js').then(function () {
+                        if (global.ChordCruiseSync.pairingUi) global.ChordCruiseSync.pairingUi.install(client);
+                        return result;
+                    });
                 });
             })
             .catch(function () {

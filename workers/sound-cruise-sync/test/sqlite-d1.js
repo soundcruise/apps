@@ -4,6 +4,8 @@ import path from 'node:path';
 
 const migration1 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0001_create_sync_foundation.sql'), 'utf8');
 const migration2 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0002_add_sync_revision_metadata.sql'), 'utf8');
+const migration3 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0003_add_pairing_device_lifecycle.sql'), 'utf8');
+const migration4 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0004_add_pairing_attempt_limiter.sql'), 'utf8');
 
 function statementWrapper(database, sql, values = []) {
   return {
@@ -23,6 +25,8 @@ export function createSqliteD1() {
   const database = new DatabaseSync(':memory:');
   database.exec(migration1);
   database.exec(migration2);
+  database.exec(migration3);
+  database.exec(migration4);
   let bookmark = 0;
   const binding = {
     prepare(sql) { return statementWrapper(database, sql); },

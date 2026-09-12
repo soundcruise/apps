@@ -1,7 +1,7 @@
 const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 const DEFAULT_TIMEOUT_MS = 5000;
 
-export async function verifyTurnstileToken(token, env, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+export async function verifyTurnstileToken(token, env, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS, expectedAction = env.TURNSTILE_EXPECTED_ACTION } = {}) {
   if (!env.TURNSTILE_SECRET_KEY) return { ok: false, unavailable: true };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -17,7 +17,7 @@ export async function verifyTurnstileToken(token, env, { fetchImpl = fetch, time
     try { result = await response.json(); } catch { return { ok: false, unavailable: true }; }
     if (!result || result.success !== true) return { ok: false };
     if (env.TURNSTILE_EXPECTED_HOSTNAME && result.hostname !== env.TURNSTILE_EXPECTED_HOSTNAME) return { ok: false };
-    if (env.TURNSTILE_EXPECTED_ACTION && result.action !== env.TURNSTILE_EXPECTED_ACTION) return { ok: false };
+    if (expectedAction && result.action !== expectedAction) return { ok: false };
     return { ok: true };
   } catch {
     return { ok: false, unavailable: true };

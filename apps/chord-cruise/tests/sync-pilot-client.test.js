@@ -25,16 +25,21 @@ function createStorage(seed) {
     };
 }
 
-function createMemoryStore() {
+function createMemoryStore(failures) {
     var meta = new Map();
     var outbox = new Map();
     var shadow = new Map();
     var conflicts = new Map();
+    var config = failures || {};
     function clone(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
     return {
         name: 'soundCruiseSync', version: 1,
         getMeta: async function (key) { return clone(meta.get(key)); },
         setMeta: async function (key, value) { meta.set(key, clone(value)); },
+        setMetaBatch: async function (entries) {
+            if (config.failMetaBatch) throw new Error('IndexedDB metadata batch failure');
+            entries.forEach(function (entry) { meta.set(entry.key, clone(entry.value)); });
+        },
         putOutbox: async function (value) { outbox.set(value.operationId, clone(value)); },
         getOutbox: async function (key) { return clone(outbox.get(key)); },
         listOutbox: async function () { return clone(Array.from(outbox.values())); },
@@ -192,6 +197,45 @@ var seed = {
     assert.strictEqual(requestBody.initialSummary.manifestHash.length, 64);
     assert.strictEqual((await validStore.getMeta('deviceCredential')).credential, credential, 'credential is stored only in sync IndexedDB metadata');
     assert.deepStrictEqual(validStorage.snapshot(), seed, 'start does not write localStorage');
+
+    var pairingStore = createMemoryStore();
+    var pairingSync = loadClient(pairingStore);
+    var pairingStorage = createStorage({ 'chordCruise.schemaVersion': JSON.stringify('1') });
+    var pairCredential = 'scd1.123e4567-e89b-42d3-a456-426614174999.' + 'B'.repeat(43);
+    var pairingClient = pairingSync.client.createClient({
+        enabled: true, localStorage: pairingStorage, crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787', now: function () { return 3000; },
+        fetch: async function (url, options) {
+            assert.strictEqual(url.endsWith('/v1/sync/pair'), true);
+            var sent = JSON.parse(options.body);
+            assert.strictEqual(sent.pairingCode, '12345678');
+            return {
+                ok: true, status: 201,
+                json: async function () { return { ok: true, appId: 'chord', syncState: 'paired_pending', datasetState: 'remote_pending', deviceId: '123e4567-e89b-42d3-a456-426614174999', deviceCredential: pairCredential }; },
+                headers: { get: function () { return 'bookmark-pair'; } }
+            };
+        }
+    });
+    await pairingClient.initialize();
+    var paired = await pairingClient.pairWithCode({ pairingCode: '1234-5678', turnstileToken: 'token', deviceLabel: 'Device B' });
+    assert.strictEqual(paired.ok, true, JSON.stringify(paired));
+    assert.strictEqual(paired.localState, 'empty');
+    assert.strictEqual((await pairingStore.getMeta('deviceCredential')).credential, pairCredential);
+    assert.strictEqual(await pairingStore.getMeta('syncState'), 'paired_pending');
+    assert.strictEqual(await pairingStore.getMeta('pairingLocalState'), 'empty');
+    assert.deepStrictEqual(pairingStorage.snapshot(), { 'chordCruise.schemaVersion': JSON.stringify('1') }, 'pair never overwrites localStorage');
+
+    var pairingFailStore = createMemoryStore({ failMetaBatch: true });
+    var pairingFailSync = loadClient(pairingFailStore);
+    var pairingFailClient = pairingFailSync.client.createClient({
+        enabled: true, localStorage: createStorage(), crypto: webcrypto, endpoint: 'http://127.0.0.1:8787',
+        fetch: async function () { return { ok: true, status: 201, json: async function () {
+            return { ok: true, appId: 'chord', syncState: 'paired_pending', datasetState: 'remote_pending', deviceId: '123e4567-e89b-42d3-a456-426614174999', deviceCredential: pairCredential };
+        }, headers: { get: function () { return null; } } }; }
+    });
+    var pairingFail = await pairingFailClient.pairWithCode({ pairingCode: '12345678', turnstileToken: 'token' });
+    assert.strictEqual(pairingFail.code, 'client_storage_failed');
+    assert.strictEqual(await pairingFailStore.getMeta('deviceCredential'), undefined, 'metadata batch failure leaves no partial credential state');
 
     var failingDbSync = loadClient(createMemoryStore());
     failingDbSync.database.open = async function () {

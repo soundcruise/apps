@@ -13,6 +13,17 @@
     var INITIAL_CURSOR = 'scc1.MA';
     var CURSOR_PATTERN = /^scc1\.[A-Za-z0-9_-]{1,32}$/;
 
+    function normalizePairingCode(value) {
+        if (typeof value !== 'string') return null;
+        var normalized = value.replace(/[\s-]/g, '');
+        return /^\d{8}$/.test(normalized) ? normalized : null;
+    }
+
+    function formatPairingCode(value) {
+        var normalized = normalizePairingCode(value);
+        return normalized ? normalized.slice(0, 4) + ' ' + normalized.slice(4) : null;
+    }
+
     function isPositiveInteger(value) {
         return typeof value === 'number' && Number.isFinite(value) && Math.floor(value) === value && value > 0;
     }
@@ -449,6 +460,67 @@
             };
         }
 
+        async function issuePairingCode() {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            var response = await authenticatedRequest('POST', '/v1/sync/pairing-codes', { appId: core.APP_ID });
+            if (!response.ok) return { ok: false, code: response.code || 'pairing_issue_failed' };
+            var code = normalizePairingCode(response.body && response.body.pairingCode);
+            if (!code || !Number.isFinite(response.body.expiresAt)) return { ok: false, code: 'invalid_response' };
+            return { ok: true, pairingCode: code, displayCode: formatPairingCode(code), expiresAt: response.body.expiresAt };
+        }
+
+        async function pairWithCode(input) {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            if (!fetchImpl) return { ok: false, code: 'network_unavailable' };
+            var request = input || {};
+            var code = normalizePairingCode(request.pairingCode);
+            if (!code || typeof request.turnstileToken !== 'string' || !request.turnstileToken) {
+                return { ok: false, code: 'invalid_request' };
+            }
+            var snapshot = await adapter.snapshot();
+            if (snapshot.errors.length) return { ok: false, code: 'snapshot_invalid', errors: snapshot.errors.length };
+            var response;
+            try {
+                response = await fetchImpl(endpoint + '/v1/sync/pair', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    cache: 'no-store',
+                    body: JSON.stringify({
+                        appId: core.APP_ID,
+                        pairingCode: code,
+                        turnstileToken: request.turnstileToken,
+                        deviceLabel: request.deviceLabel
+                    })
+                });
+            } catch (error) { return { ok: false, code: 'network_error' }; }
+            var body;
+            try { body = await response.json(); } catch (error) { return { ok: false, code: 'invalid_response' }; }
+            if (!response.ok || !body || body.ok !== true) return { ok: false, code: body && body.code ? body.code : 'pair_failed' };
+            if (body.appId !== core.APP_ID || body.datasetState !== 'remote_pending' ||
+                typeof body.deviceId !== 'string' || !CREDENTIAL_PATTERN.test(body.deviceCredential || '')) {
+                return { ok: false, code: 'invalid_response' };
+            }
+            var store = await openStore();
+            var localState = snapshot.counts.total === 0 ? 'empty' : 'local_data_pending_merge';
+            var bookmark = response.headers && response.headers.get ? response.headers.get('X-D1-Bookmark') : null;
+            try {
+                await store.setMetaBatch([
+                    { key: 'deviceCredential', value: { deviceId: body.deviceId, credential: body.deviceCredential, credentialVersion: 1, createdAt: now() } },
+                    { key: 'syncState', value: 'paired_pending' },
+                    { key: 'datasetState', value: 'remote_pending' },
+                    { key: 'migrationState', value: 'pair_pending' },
+                    { key: 'pairingLocalState', value: localState },
+                    { key: 'd1Bookmark', value: bookmark || null }
+                ], now());
+            } catch (error) {
+                // The response code is consumed and cannot safely be replayed. The
+                // server marks this device pending; an unclaimed pending device is
+                // opportunistically purged after 15 minutes on the next pair flow.
+                return { ok: false, code: 'client_storage_failed', pairedOnServer: true };
+            }
+            return { ok: true, appId: core.APP_ID, deviceId: body.deviceId, localState: localState };
+        }
+
         function retryDelay(retryCount) {
             return Math.min(5 * 60 * 1000, 1000 * Math.pow(2, Math.min(retryCount, 8)));
         }
@@ -832,6 +904,8 @@
             createExport: function (timestamp) { return adapter.createExport(timestamp); },
             saveShadow: saveShadow,
             startIdentity: startIdentity,
+            issuePairingCode: issuePairingCode,
+            pairWithCode: pairWithCode,
             flushOutbox: flushOutbox,
             applyPulledRecord: async function (input) { return applyPulledRecord(await openStore(), input); },
             pullOnce: pullOnce,
@@ -846,6 +920,8 @@
 
     sync.client = Object.freeze({
         CREDENTIAL_PATTERN: CREDENTIAL_PATTERN,
+        normalizePairingCode: normalizePairingCode,
+        formatPairingCode: formatPairingCode,
         createLocalAdapter: createLocalAdapter,
         createClient: createClient,
         makeOperationId: makeOperationId

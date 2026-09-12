@@ -1,4 +1,5 @@
 import { SHA256_PATTERN, validateOperation } from './records.js';
+import { normalizePairingCode } from './crypto.js';
 
 export const MAX_BODY_BYTES = 8 * 1024;
 export const MAX_PUSH_BODY_BYTES = 256 * 1024;
@@ -22,6 +23,15 @@ function codePointLength(value) {
 
 function hasControlCharacters(value) {
   return /[\u0000-\u001f\u007f-\u009f]/u.test(value);
+}
+
+function normalizeDeviceLabel(value) {
+  if (value === undefined || value === null) return { ok: true, value: null };
+  if (typeof value !== 'string') return { ok: false };
+  const normalized = value.trim().normalize('NFC');
+  return !normalized || codePointLength(normalized) > MAX_DEVICE_LABEL_CODE_POINTS || hasControlCharacters(normalized)
+    ? { ok: false }
+    : { ok: true, value: normalized };
 }
 
 export function isJsonContentType(value) {
@@ -65,14 +75,8 @@ export function validateStartPayload(payload, env) {
     return { ok: false, reason: 'turnstile' };
   }
 
-  let deviceLabel = null;
-  if (payload.deviceLabel !== undefined && payload.deviceLabel !== null) {
-    if (typeof payload.deviceLabel !== 'string') return { ok: false, reason: 'device_label' };
-    deviceLabel = payload.deviceLabel.trim().normalize('NFC');
-    if (!deviceLabel || codePointLength(deviceLabel) > MAX_DEVICE_LABEL_CODE_POINTS || hasControlCharacters(deviceLabel)) {
-      return { ok: false, reason: 'device_label' };
-    }
-  }
+  const label = normalizeDeviceLabel(payload.deviceLabel);
+  if (!label.ok) return { ok: false, reason: 'device_label' };
 
   if (!isPlainObject(payload.initialSummary) ||
       !hasOnlyKeys(payload.initialSummary, ['schemaVersion', 'recordCount', 'manifestHash']) ||
@@ -88,7 +92,7 @@ export function validateStartPayload(payload, env) {
     value: {
       appId: payload.appId,
       turnstileToken: payload.turnstileToken,
-      deviceLabel,
+      deviceLabel: label.value,
       initialSummary: {
         schemaVersion: payload.initialSummary.schemaVersion,
         recordCount: payload.initialSummary.recordCount,
@@ -96,6 +100,25 @@ export function validateStartPayload(payload, env) {
       }
     }
   };
+}
+
+export function validatePairingIssuePayload(payload, env) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId']) || !validateAppId(payload.appId, env)) {
+    return { ok: false };
+  }
+  return { ok: true, value: { appId: payload.appId } };
+}
+
+export function validatePairPayload(payload, env) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'pairingCode', 'turnstileToken', 'deviceLabel']) ||
+      !validateAppId(payload.appId, env)) return { ok: false, reason: 'shape' };
+  const pairingCode = normalizePairingCode(payload.pairingCode);
+  if (!pairingCode) return { ok: false, reason: 'pairing_code' };
+  if (typeof payload.turnstileToken !== 'string' || payload.turnstileToken.length < 1 ||
+      payload.turnstileToken.length > MAX_TURNSTILE_TOKEN_LENGTH) return { ok: false, reason: 'turnstile' };
+  const label = normalizeDeviceLabel(payload.deviceLabel);
+  if (!label.ok) return { ok: false, reason: 'device_label' };
+  return { ok: true, value: { appId: payload.appId, pairingCode, turnstileToken: payload.turnstileToken, deviceLabel: label.value } };
 }
 
 export async function validatePushPayload(payload, env, cryptoImpl = crypto) {

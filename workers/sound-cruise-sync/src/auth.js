@@ -23,5 +23,19 @@ export async function authenticateDevice(db, authorization, expectedAppId, peppe
   const matches = timingSafeHexEqual(calculated, verifier);
   if (!row || !matches || row.revoked_at != null || row.app_id !== expectedAppId ||
       !['provisioning', 'active'].includes(row.user_state)) return null;
+  // A paired device becomes claimed only after it presents the returned
+  // credential. A lost pair response therefore cannot become a permanent,
+  // indistinguishable device record.
+  try {
+    const now = Date.now();
+    const claim = await db.prepare(`
+      UPDATE sync_devices
+      SET last_seen_at = ?, paired_at = COALESCE(paired_at, ?)
+      WHERE id = ? AND user_id = ? AND revoked_at IS NULL
+    `).bind(now, now, row.device_id, row.user_id).run();
+    if (claim?.success === false) throw new Error('Device claim failed');
+  } catch {
+    throw new Error('Device authentication database failure');
+  }
   return { userId: row.user_id, deviceId: row.device_id, appId: row.app_id, userState: row.user_state };
 }

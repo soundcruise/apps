@@ -1,6 +1,7 @@
 import { authenticateDevice } from './auth.js';
-import { createIdentityMaterial } from './crypto.js';
+import { createIdentityMaterial, createPairingCode, pairingCodeVerifier } from './crypto.js';
 import { createProvisioningIdentity } from './database.js';
+import { createD1PairingRepository } from './pairing-database.js';
 import { decodeCursor, encodeCursor } from './records.js';
 import { createD1SyncRepository } from './sync-database.js';
 import { verifyTurnstileToken } from './turnstile.js';
@@ -10,6 +11,8 @@ import {
   MAX_PUSH_BODY_BYTES,
   readBodyWithLimit,
   validateMigrationCompletePayload,
+  validatePairingIssuePayload,
+  validatePairPayload,
   validatePushPayload,
   validateReadQuery,
   validateStartPayload
@@ -17,6 +20,8 @@ import {
 
 const ROUTES = Object.freeze({
   '/v1/sync/start': { method: 'POST', headers: ['content-type'] },
+  '/v1/sync/pairing-codes': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
+  '/v1/sync/pair': { method: 'POST', headers: ['content-type'] },
   '/v1/sync/push': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/migration/complete': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/changes': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
@@ -166,6 +171,101 @@ async function handleStart(request, env, origin, route, dependencies) {
   }, origin, route, { 'X-D1-Bookmark': sessionBookmark(session) });
 }
 
+function pairingError(status, result, origin, route) {
+  const codes = {
+    invalid: 'pairing_invalid',
+    used: 'pairing_already_used',
+    expired: 'pairing_expired',
+    cancelled: 'pairing_cancelled',
+    attempts_exhausted: 'pairing_attempts_exhausted',
+    device_limit: 'device_limit',
+    code_limit: 'pairing_code_limit'
+  };
+  return errorResponse(status, codes[result] || 'pairing_invalid', origin, route);
+}
+
+async function handlePairingIssue(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validatePairingIssuePayload(parsed.value, env);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await authenticatedContext(request, env, validation.value.appId, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  if (await isRateLimited(env.PAIRING_ISSUE_RATE_LIMITER, `pairing-issue:${context.identity.deviceId}`)) {
+    return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '600' });
+  }
+  if (!env.SYNC_PAIRING_CODE_PEPPER) return errorResponse(503, 'server_unavailable', origin, route);
+  try {
+    const code = (dependencies.createPairingCode || createPairingCode)();
+    const verifier = await (dependencies.pairingCodeVerifier || pairingCodeVerifier)(code, env.SYNC_PAIRING_CODE_PEPPER);
+    const repository = (dependencies.createPairingRepository || createD1PairingRepository)(context.session);
+    const issued = await repository.issue(context.identity, {
+      codeVerifier: verifier,
+      ttlMs: 10 * 60 * 1000,
+      windowMs: 10 * 60 * 1000,
+      now: Date.now()
+    });
+    if (issued.status !== 'issued') return pairingError(issued.status === 'rate_limited' ? 429 : 409, issued.status, origin, route);
+    return jsonResponse(201, {
+      ok: true,
+      appId: context.identity.appId,
+      pairingCode: code,
+      expiresAt: issued.expiresAt
+    }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch {
+    return errorResponse(503, 'server_error', origin, route);
+  }
+}
+
+async function handlePair(request, env, origin, route, dependencies) {
+  if (await isRateLimited(env.PAIR_RATE_LIMITER, `pair:${requestIp(request)}`)) {
+    return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
+  }
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validatePairPayload(parsed.value, env);
+  if (!validation.ok) return errorResponse(400, validation.reason === 'turnstile' ? 'turnstile_failed' : 'invalid_request', origin, route);
+  const verify = dependencies.verifyTurnstileToken || verifyTurnstileToken;
+  let turnstile;
+  try {
+    turnstile = await verify(validation.value.turnstileToken, env, {
+      expectedAction: env.TURNSTILE_PAIR_EXPECTED_ACTION || 'sound_cruise_sync_pair'
+    });
+  } catch { return errorResponse(503, 'turnstile_failed', origin, route); }
+  if (!turnstile.ok) return errorResponse(turnstile.unavailable ? 503 : 403, 'turnstile_failed', origin, route);
+  if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_PAIRING_CODE_PEPPER || !env.SYNC_DB) {
+    return errorResponse(503, 'server_unavailable', origin, route);
+  }
+  let session;
+  try {
+    session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    const verifier = await (dependencies.pairingCodeVerifier || pairingCodeVerifier)(validation.value.pairingCode, env.SYNC_PAIRING_CODE_PEPPER);
+    const repository = (dependencies.createPairingRepository || createD1PairingRepository)(session);
+    const attempt = await repository.reserveAttempt(verifier, Date.now());
+    if (attempt.status !== 'allowed') return pairingError(400, attempt.status, origin, route);
+    const material = await (dependencies.createIdentityMaterial || createIdentityMaterial)(env.SYNC_CREDENTIAL_PEPPER);
+    const paired = await repository.consume(material, {
+      codeVerifier: verifier,
+      appId: validation.value.appId,
+      deviceLabel: validation.value.deviceLabel,
+      now: Date.now()
+    });
+    if (paired.status !== 'paired') return pairingError(paired.status === 'device_limit' ? 409 : 400, paired.status, origin, route);
+    return jsonResponse(201, {
+      ok: true,
+      appId: validation.value.appId,
+      syncState: 'paired_pending',
+      datasetState: 'remote_pending',
+      deviceId: material.deviceId,
+      deviceCredential: material.credential
+    }, origin, route, { 'X-D1-Bookmark': sessionBookmark(session) });
+  } catch {
+    return errorResponse(503, 'server_error', origin, route);
+  }
+}
+
 async function handlePush(request, env, origin, route, dependencies) {
   const parsed = await readJson(request, MAX_PUSH_BODY_BYTES);
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
@@ -282,7 +382,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   const url = new URL(request.url);
   if (url.pathname === '/health') {
     if (request.method !== 'GET') return errorResponse(405, 'method_not_allowed', null, null, { Allow: 'GET' });
-    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p2' });
+    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p3' });
   }
   const route = ROUTES[url.pathname];
   if (!route) return errorResponse(404, 'not_found');
@@ -309,6 +409,8 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
     return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
   }
   if (url.pathname === '/v1/sync/start') return handleStart(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/pairing-codes') return handlePairingIssue(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/pair') return handlePair(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/push') return handlePush(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/changes') return handleChanges(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v1/sync/snapshot') return handleSnapshot(request, env, origin, route, dependencies, url);

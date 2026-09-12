@@ -27,6 +27,10 @@ test('remote Pilot remains isolated, allowlisted, and secret-free in repo config
     'sound-cruise-sync.cruise-port-requests.workers.dev'
   );
   assert.equal(config.vars.TURNSTILE_EXPECTED_ACTION, 'sound_cruise_sync_start');
+  assert.equal(config.vars.TURNSTILE_PAIR_EXPECTED_ACTION, 'sound_cruise_sync_pair');
+  assert.deepEqual(config.ratelimits.map((entry) => entry.name), [
+    'START_RATE_LIMITER', 'SYNC_RATE_LIMITER', 'PAIRING_ISSUE_RATE_LIMITER', 'PAIR_RATE_LIMITER'
+  ]);
   assert.equal(Object.hasOwn(config.vars, 'SYNC_CREDENTIAL_PEPPER'), false);
   assert.equal(Object.hasOwn(config.vars, 'TURNSTILE_SECRET_KEY'), false);
 });

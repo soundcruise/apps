@@ -1,5 +1,6 @@
 const DEVICE_SECRET_BYTES = 32;
 const CREDENTIAL_PREFIX = 'scd1';
+const PAIRING_CODE_RANGE = 100000000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function toBase64Url(bytes) {
@@ -39,6 +40,37 @@ export async function createIdentityMaterial(pepper, cryptoImpl = crypto) {
     credential,
     credentialVerifier: await hmacVerifier(credential, pepper, cryptoImpl)
   };
+}
+
+export function normalizePairingCode(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.replace(/[\s-]/g, '');
+  return /^\d{8}$/.test(normalized) ? normalized : null;
+}
+
+export function formatPairingCode(value) {
+  const normalized = normalizePairingCode(value);
+  return normalized ? `${normalized.slice(0, 4)} ${normalized.slice(4)}` : null;
+}
+
+// Rejection sampling avoids the modulo bias that an eight-digit code would get
+// from directly reducing a 32-bit random value.
+export function createPairingCode(cryptoImpl = crypto) {
+  if (!cryptoImpl || typeof cryptoImpl.getRandomValues !== 'function') {
+    throw new Error('Secure random source is unavailable');
+  }
+  const ceiling = Math.floor(0x100000000 / PAIRING_CODE_RANGE) * PAIRING_CODE_RANGE;
+  const value = new Uint32Array(1);
+  do {
+    cryptoImpl.getRandomValues(value);
+  } while (value[0] >= ceiling);
+  return String(value[0] % PAIRING_CODE_RANGE).padStart(8, '0');
+}
+
+export async function pairingCodeVerifier(code, pepper, cryptoImpl = crypto) {
+  const normalized = normalizePairingCode(code);
+  if (!normalized) throw new Error('Invalid pairing code');
+  return hmacVerifier(`sound-cruise-pairing:v1:${normalized}`, pepper, cryptoImpl);
 }
 
 export function parseDeviceCredential(value) {
