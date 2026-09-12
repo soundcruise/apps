@@ -64,6 +64,22 @@ test('account deletion is a one-time intent, revokes every device, and retains t
   db.close();
 });
 
+test('an expired delete intent leaves the account and every active device unchanged', async () => {
+  const db = createSqliteD1();
+  const identity = activeIdentity(db);
+  const repository = createD1DeviceRepository(db, () => 100);
+  await repository.createDeleteIntent(identity, { intentId: INTENT, intentVerifier: 'intent-verifier', now: 100 });
+  const result = await repository.deleteAccount(identity, {
+    intentId: INTENT,
+    intentVerifier: 'intent-verifier',
+    now: 100 + repository.DELETE_INTENT_TTL_MS
+  });
+  assert.equal(result.status, 'expired');
+  assert.equal(db.raw.prepare('SELECT state FROM sync_users WHERE id = ?').get(USER_ID).state, 'active');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM sync_devices WHERE user_id = ? AND revoked_at IS NULL').get(USER_ID).count, 2);
+  db.close();
+});
+
 test('cleanup is bounded and advances a dataset watermark before deleting old change rows', async () => {
   const db = createSqliteD1();
   const identity = activeIdentity(db);
