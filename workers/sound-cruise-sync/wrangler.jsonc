@@ -3,22 +3,22 @@
   "name": "sound-cruise-sync",
   "main": "src/index.js",
   "compatibility_date": "2026-09-01",
-  "workers_dev": false,
+  "workers_dev": true,
   "preview_urls": false,
   "observability": {
     "enabled": false
   },
   "vars": {
-    "ALLOWED_ORIGINS": "https://soundcruise.jp",
+    "ALLOWED_ORIGINS": "https://soundcruise.jp,https://sound-cruise-sync.cruise-port-requests.workers.dev",
     "SYNC_ALLOWED_APP_IDS": "chord",
-    "TURNSTILE_EXPECTED_HOSTNAME": "soundcruise.jp",
+    "TURNSTILE_EXPECTED_HOSTNAME": "sound-cruise-sync.cruise-port-requests.workers.dev",
     "TURNSTILE_EXPECTED_ACTION": "sound_cruise_sync_start"
   },
   "d1_databases": [
     {
       "binding": "SYNC_DB",
       "database_name": "sound-cruise-sync",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "e37759f8-df08-4d2a-92b0-ffdd50de66df",
       "migrations_dir": "migrations"
     }
   ],

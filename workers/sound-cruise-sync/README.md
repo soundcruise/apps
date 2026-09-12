@@ -26,25 +26,34 @@ npm run check
 
 `POST /v1/sync/start`はTurnstile、それ以外の同期endpointはdevice credentialで認証します。`TURNSTILE_SECRET_KEY`、`SYNC_CREDENTIAL_PEPPER`、`SYNC_DB`、該当rate limiterのいずれかが不足するとfail closedします。production bypassはありません。
 
-## Remote resource gate
+## Remote Pilot（P2.5）
 
-`wrangler.jsonc`のD1 IDは意図的にzero UUIDです。次を確認するまでremote deployしません。
+一般公開前の隔離検証用に、K3-Aと共有しない専用resourceを使用します。
 
-1. 正しいCloudflare accountを`wrangler whoami`で確認
-2. `sound-cruise-sync` Worker／D1の名前衝突を確認
-3. 専用D1を作成し、zero UUIDを実IDへ置換
-4. `TURNSTILE_SECRET_KEY`を専用Workers Secretとして登録
-5. 32文字以上の`SYNC_CREDENTIAL_PEPPER`を専用Workers Secretとして登録
-6. `sync.soundcruise.jp`の既存DNSとroute衝突を確認
-7. 0001＋0002 local migration／dry-run／rollback手順を確認
-8. 一般公開前にWorkers Paidをrelease gateとして確認
+- Worker: `sound-cruise-sync`
+- Pilot URL: `https://sound-cruise-sync.cruise-port-requests.workers.dev`
+- D1: `sound-cruise-sync` (`e37759f8-df08-4d2a-92b0-ffdd50de66df`)
+- binding: `SYNC_DB`
+- migrations: `0001_create_sync_foundation.sql` → `0002_add_sync_revision_metadata.sql`
+- Secrets: `SYNC_CREDENTIAL_PEPPER`、`TURNSTILE_SECRET_KEY`
+- Turnstile: Sync専用widget、Pilot hostname限定
 
-候補custom domainは`sync.soundcruise.jp`です。P1ではDNS、Worker、D1、secretなどのremote resourceを作成しません。
+`soundcruise.jp`のDNSはこのCloudflare accountの管理外なので、`sync.soundcruise.jp`は設定していません。Custom DomainはDNS管理者と安全に調整できる後続Phaseまでrelease gateとして残します。本番ChordはFeature Flag既定OFFかつproduction host lockoutを維持し、remote Workerを呼びません。
+
+### Remote rollback
+
+1. `wrangler rollback --name sound-cruise-sync <version-id>`で直前の正常versionへ戻す
+2. Pilot停止が必要なら`wrangler delete sound-cruise-sync`で専用Workerだけを削除する
+3. Turnstileは専用widgetだけを削除し、K3-A widgetには触れない
+4. D1は監査・必要なexport・保持判断を先に行い、schemaをDROPしない
+5. Custom Domainは未設定のため解除作業なし
+
+D1とSecretsはWorker削除とは別resourceです。誤削除を避けるため、Pilot完了時も専用D1は原則保持し、QA identityだけをID限定で削除します。一般公開前にはWorkers Paid、Privacy Policy、Custom Domain、Pairing/Recoveryを改めてrelease gateとして確認します。
 
 ## Credential
 
 形式は`scd1.<device_id>.<256-bit base64url secret>`です。D1へ保存するのはWorkers Secretのpepperを使ったHMAC-SHA-256 verifierだけです。credential、Turnstile token、request body、raw IPをログへ出してはいけません。
 
-## P1 rollback
+## Local rollback
 
-Chord側のfeature flagは既定OFFです。Workerを停止しても現在のChord localStorage動作は継続します。remote deploy前なので、P1のrollbackはChordの新規Syncファイルとこの専用Worker directoryのrevertだけで完結します。
+Chord側のfeature flagは既定OFFです。Workerを停止しても現在のChord localStorage動作は継続します。ローカル実装のrollbackはChordのSyncファイルとこの専用Worker directoryのrevertに閉じ、Cruise PortやK3-Aへ広げません。
