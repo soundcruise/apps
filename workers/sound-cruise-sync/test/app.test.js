@@ -158,6 +158,47 @@ test('OPTIONS is exact and unknown routes disclose no internals', async () => {
   assert.deepEqual(await response.json(), { ok: false, code: 'not_found' });
 });
 
+test('configured same-origin GET accepts iOS standalone fetch metadata without weakening origin lockout', async () => {
+  const repository = {
+    getDataset: async () => ({ state: 'ready', schema_version: 1, min_change_seq: 0, last_change_seq: 0 }),
+    readSnapshot: async () => ({
+      dataset: { state: 'ready', schema_version: 1, last_change_seq: 0 },
+      recordCount: 0,
+      manifestHash: '0'.repeat(64),
+      records: []
+    })
+  };
+  const deps = authDependencies(repository);
+  const standaloneRequest = (site = 'same-origin', origin) => new Request(
+    'https://sound-cruise-sync.cruise-port-requests.workers.dev/v1/sync/snapshot?appId=chord',
+    {
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${CREDENTIAL}`,
+        'Sec-Fetch-Site': site,
+        ...(origin ? { Origin: origin } : {})
+      }
+    }
+  );
+  const pilotEnv = env({ ALLOWED_ORIGINS: `${ORIGIN},https://sound-cruise-sync.cruise-port-requests.workers.dev` });
+
+  let response = await handleRequest(standaloneRequest(), pilotEnv, null, deps);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Access-Control-Allow-Origin'), 'https://sound-cruise-sync.cruise-port-requests.workers.dev');
+
+  response = await handleRequest(standaloneRequest(), env(), null, deps);
+  assert.equal(response.status, 403, 'request URL origin must be explicitly configured');
+  response = await handleRequest(new Request(
+    'https://sound-cruise-sync.cruise-port-requests.workers.dev/v1/sync/snapshot?appId=chord',
+    { method: 'GET', headers: { Authorization: `Bearer ${CREDENTIAL}` } }
+  ), pilotEnv, null, deps);
+  assert.equal(response.status, 403, 'a missing Origin without trusted Fetch Metadata remains rejected');
+  response = await handleRequest(standaloneRequest('cross-site'), pilotEnv, null, deps);
+  assert.equal(response.status, 403, 'cross-site fetch metadata remains rejected');
+  response = await handleRequest(standaloneRequest('same-origin', 'https://evil.example'), pilotEnv, null, deps);
+  assert.equal(response.status, 403, 'an explicit untrusted Origin takes precedence');
+});
+
 async function pushOperation(overrides = {}) {
   const value = {
     operationId: '123e4567-e89b-52d3-a456-426614174000',

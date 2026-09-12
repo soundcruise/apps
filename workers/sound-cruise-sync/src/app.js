@@ -50,6 +50,17 @@ function configuredOrigins(env) {
   return new Set(String(env.ALLOWED_ORIGINS || '').split(',').map((value) => value.trim()).filter(Boolean));
 }
 
+function requestOrigin(request, env) {
+  const explicitOrigin = request.headers.get('Origin');
+  if (explicitOrigin) return explicitOrigin;
+  // iOS standalone omits Origin on same-origin GET fetches. Accept that browser
+  // shape only when Fetch Metadata and the request URL both match an explicit
+  // allowlist entry; missing or cross-site origins remain fail-closed.
+  if (request.method !== 'GET' || request.headers.get('Sec-Fetch-Site') !== 'same-origin') return null;
+  const sameOrigin = new URL(request.url).origin;
+  return configuredOrigins(env).has(sameOrigin) ? sameOrigin : null;
+}
+
 function headerCase(value) {
   return value.replace(/(^|-)([a-z])/g, (_match, prefix, letter) => prefix + letter.toUpperCase());
 }
@@ -611,7 +622,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   }
   const route = ROUTES[url.pathname];
   if (!route) return errorResponse(404, 'not_found');
-  const origin = request.headers.get('Origin');
+  const origin = requestOrigin(request, env);
   const originAllowed = Boolean(origin && configuredOrigins(env).has(origin));
   if (request.method === 'OPTIONS') {
     if (!originAllowed) return errorResponse(403, 'invalid_origin');
