@@ -132,6 +132,38 @@
         }), cryptoImpl);
     }
 
+    async function hashSyncPayload(recordType, recordId, payload, schemaVersion, cryptoImpl) {
+        if (payload === null) {
+            if (RECORD_TYPES.indexOf(recordType) === -1 || !isNonEmptyString(recordId)) {
+                throw new TypeError('Invalid tombstone identity');
+            }
+            return sha256Text(canonicalJson({
+                appId: APP_ID,
+                recordType: recordType,
+                recordId: recordId,
+                schemaVersion: schemaVersion || APP_SCHEMA_VERSION,
+                payload: null
+            }), cryptoImpl);
+        }
+        return hashRecord({
+            recordType: recordType,
+            recordId: recordId,
+            schemaVersion: schemaVersion || APP_SCHEMA_VERSION,
+            payload: payload
+        }, cryptoImpl);
+    }
+
+    async function deterministicUuid(value, cryptoImpl) {
+        var hex = await sha256Text(String(value), cryptoImpl);
+        var bytes = [];
+        for (var index = 0; index < 32; index += 2) bytes.push(parseInt(hex.slice(index, index + 2), 16));
+        bytes[6] = (bytes[6] & 0x0f) | 0x50;
+        bytes[8] = (bytes[8] & 0x3f) | 0x80;
+        var uuidHex = bytes.map(function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
+        return uuidHex.slice(0, 8) + '-' + uuidHex.slice(8, 12) + '-' + uuidHex.slice(12, 16) + '-' +
+            uuidHex.slice(16, 20) + '-' + uuidHex.slice(20, 32);
+    }
+
     function safeRead(storage, key, errors) {
         var raw;
         try {
@@ -280,6 +312,8 @@
         recordKey: recordKey,
         normalizeRecord: normalizeRecord,
         hashRecord: hashRecord,
+        hashSyncPayload: hashSyncPayload,
+        deterministicUuid: deterministicUuid,
         sha256Text: sha256Text,
         snapshotLocalStorage: snapshotLocalStorage,
         createExport: createExport

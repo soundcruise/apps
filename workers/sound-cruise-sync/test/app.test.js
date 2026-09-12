@@ -1,11 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleRequest } from '../src/app.js';
+import { hashRecord } from '../src/records.js';
 
 const ORIGIN = 'https://soundcruise.jp';
 const DEVICE_ID = '123e4567-e89b-42d3-a456-426614174000';
 const USER_ID = '123e4567-e89b-42d3-a456-426614174001';
 const CREDENTIAL = `scd1.${DEVICE_ID}.${'A'.repeat(43)}`;
+
+function dbBinding() {
+  return { prepare() {}, batch() {} };
+}
 
 function env(overrides = {}) {
   return {
@@ -15,8 +20,9 @@ function env(overrides = {}) {
     TURNSTILE_EXPECTED_ACTION: 'sound_cruise_sync_start',
     TURNSTILE_SECRET_KEY: 'secret',
     SYNC_CREDENTIAL_PEPPER: 'p'.repeat(64),
-    SYNC_DB: {},
+    SYNC_DB: dbBinding(),
     START_RATE_LIMITER: { limit: async () => ({ success: true }) },
+    SYNC_RATE_LIMITER: { limit: async () => ({ success: true }) },
     ...overrides
   };
 }
@@ -52,7 +58,7 @@ test('health is minimal, no-store, and independent of provisioning bindings', as
   const response = await handleRequest(new Request('https://sync.soundcruise.jp/health'));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
-  assert.deepEqual(await response.json(), { ok: true, service: 'sound-cruise-sync', phase: 'p1' });
+  assert.deepEqual(await response.json(), { ok: true, service: 'sound-cruise-sync', phase: 'p2' });
 });
 
 test('valid start provisions verifier-only identity and returns the secret once', async () => {
@@ -142,4 +148,125 @@ test('OPTIONS is exact and unknown routes disclose no internals', async () => {
   response = await handleRequest(new Request('https://sync.soundcruise.jp/unknown'));
   assert.equal(response.status, 404);
   assert.deepEqual(await response.json(), { ok: false, code: 'not_found' });
+});
+
+async function pushOperation(overrides = {}) {
+  const value = {
+    operationId: '123e4567-e89b-52d3-a456-426614174000',
+    recordType: 'chord', recordId: 'c1', schemaVersion: 1, baseRevision: 0,
+    payload: { id: 'c1', chordName: 'C' }, payloadHash: '', deleted: false,
+    ...overrides
+  };
+  value.payloadHash = await hashRecord(value);
+  return value;
+}
+
+function authDependencies(repository, authenticate = async (_db, _authorization, appId) => ({
+  userId: USER_ID, deviceId: DEVICE_ID, appId, userState: 'provisioning'
+})) {
+  return { authenticateDevice: authenticate, createRepository: () => repository };
+}
+
+function authRequest(path, options = {}) {
+  const method = options.method || 'GET';
+  return new Request(`https://sync.soundcruise.jp${path}`, {
+    method,
+    headers: {
+      Origin: ORIGIN,
+      Authorization: `Bearer ${CREDENTIAL}`,
+      ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}),
+      ...(options.headers || {})
+    },
+    body: method === 'POST' ? JSON.stringify(options.body) : undefined
+  });
+}
+
+test('authenticated push returns per-operation applied, invalid, and conflict outcomes', async () => {
+  const valid = await pushOperation();
+  const conflictRecord = {
+    recordType: 'chord', recordId: 'c2', schemaVersion: 1, revision: 2,
+    payload: { id: 'c2', chordName: 'Dm' }, payloadHash: '', deletedAt: null,
+    operationId: 'server-op', changeSeq: 2
+  };
+  conflictRecord.payloadHash = await hashRecord(conflictRecord);
+  const repository = {
+    getDataset: async () => ({ state: 'ready', min_change_seq: 0 }),
+    applyOperation: async (_identity, operation) => operation.recordId === 'c2'
+      ? { status: 'conflict', record: conflictRecord }
+      : {
+          status: 'applied',
+          record: { ...operation, revision: 1, deletedAt: null, changeSeq: 1 }
+        }
+  };
+  const conflict = await pushOperation({
+    operationId: '123e4567-e89b-52d3-a456-426614174002',
+    recordId: 'c2', payload: { id: 'c2', chordName: 'D' }
+  });
+  conflict.payloadHash = await hashRecord(conflict);
+  const tampered = { ...await pushOperation({ operationId: '123e4567-e89b-52d3-a456-426614174003' }), payloadHash: '0'.repeat(64) };
+  const response = await handleRequest(authRequest('/v1/sync/push', {
+    method: 'POST', body: { appId: 'chord', mode: 'sync', operations: [valid, tampered, conflict] }
+  }), env(), null, authDependencies(repository));
+  assert.equal(response.status, 200);
+  const responseBody = await response.json();
+  assert.deepEqual(responseBody.results.map((result) => result.status), ['applied', 'invalid', 'conflict']);
+});
+
+test('changes, snapshot, and migration completion are credential-authenticated and cursor-safe', async () => {
+  const record = {
+    recordType: 'chord', recordId: 'c1', schemaVersion: 1, revision: 1,
+    payload: { id: 'c1', chordName: 'C' }, payloadHash: '', deletedAt: null,
+    operationId: 'op', changeSeq: 1
+  };
+  record.payloadHash = await hashRecord(record);
+  const repository = {
+    getDataset: async () => ({ state: 'ready', schema_version: 1, min_change_seq: 0, last_change_seq: 1 }),
+    listChanges: async () => ({ changes: [record], hasMore: false }),
+    readSnapshot: async () => ({
+      dataset: { state: 'ready', schema_version: 1, last_change_seq: 1 },
+      recordCount: 1, manifestHash: 'a'.repeat(64), records: [record]
+    }),
+    completeMigration: async () => ({
+      status: 'ready',
+      snapshot: { dataset: { last_change_seq: 1 }, recordCount: 1, manifestHash: 'a'.repeat(64) }
+    })
+  };
+  const deps = authDependencies(repository);
+  let response = await handleRequest(authRequest('/v1/sync/changes?appId=chord&cursor=scc1.MA'), env(), null, deps);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).nextCursor, 'scc1.MQ');
+  response = await handleRequest(authRequest('/v1/sync/changes?appId=chord&cursor=raw-sequence'), env(), null, deps);
+  assert.equal(response.status, 400);
+  response = await handleRequest(authRequest('/v1/sync/snapshot?appId=chord'), env(), null, deps);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).records.length, 1);
+  response = await handleRequest(authRequest('/v1/sync/migration/complete', {
+    method: 'POST', body: { appId: 'chord', schemaVersion: 1, recordCount: 1, manifestHash: 'a'.repeat(64) }
+  }), env(), null, deps);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).datasetState, 'ready');
+});
+
+test('auth API rejects missing rate limiter, invalid credential, cross-app input, and oversized push', async () => {
+  const valid = await pushOperation();
+  const payload = { appId: 'chord', mode: 'sync', operations: [valid] };
+  let response = await handleRequest(authRequest('/v1/sync/push', { method: 'POST', body: payload }), env({ SYNC_RATE_LIMITER: null }), null, authDependencies({}));
+  assert.equal(response.status, 429);
+  response = await handleRequest(authRequest('/v1/sync/push', { method: 'POST', body: payload }), env(), null,
+    authDependencies({}, async () => null));
+  assert.equal(response.status, 401);
+  response = await handleRequest(authRequest('/v1/sync/push', {
+    method: 'POST', body: { ...payload, appId: 'pitch' }
+  }), env(), null, authDependencies({}));
+  assert.equal(response.status, 400);
+  response = await handleRequest(new Request('https://sync.soundcruise.jp/v1/sync/push', {
+    method: 'POST', headers: { Origin: ORIGIN, Authorization: `Bearer ${CREDENTIAL}`, 'Content-Type': 'application/json' },
+    body: 'x'.repeat(257 * 1024)
+  }), env(), null, authDependencies({}));
+  assert.equal(response.status, 413);
+  response = await handleRequest(new Request('https://sync.soundcruise.jp/v1/sync/push', {
+    method: 'POST', headers: { Origin: ORIGIN, Authorization: `Bearer ${CREDENTIAL}`, 'Content-Type': 'application/json' },
+    body: '{not-json'
+  }), env(), null, authDependencies({}));
+  assert.equal(response.status, 400);
 });

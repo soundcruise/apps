@@ -54,7 +54,12 @@
                 var endpoint = global.__SOUND_CRUISE_SYNC_PILOT_ENDPOINT__ || 'http://127.0.0.1:8787';
                 var client = global.ChordCruiseSync.client.createClient({ enabled: true, endpoint: endpoint });
                 global.ChordCruiseSync.pilotClient = client;
-                return client.initialize();
+                return client.initialize().then(async function (result) {
+                    client.watchLocalMutations(global.ChordCruise && global.ChordCruise.storage);
+                    var store = await client.openStore();
+                    if (await store.getMeta('datasetState') === 'ready') client.startBackgroundSync();
+                    return result;
+                });
             })
             .catch(function () {
                 return { enabled: true, ready: false, code: 'pilot_initialization_failed' };

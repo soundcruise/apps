@@ -6,10 +6,14 @@ Chord Cruise限定pilotの同期基盤です。Cruise Portのアプリ追加リ�
 
 - `GET /health`
 - `POST /v1/sync/start`
+- `POST /v1/sync/push`
+- `GET /v1/sync/changes`
+- `GET /v1/sync/snapshot`
+- `POST /v1/sync/migration/complete`
 - 匿名`sync_user`とChord専用device credentialのprovisioning
 - D1 schemaとローカルmigration試験
 
-Pairing、Recovery、push/pull、migration upload、Conflict UI、一般公開は後続Phaseです。P1で作るuserは`provisioning`、datasetは`initializing`のままで、同期データを受け付けません。
+Pairing、Recovery、Conflict解決UI、一般公開は後続Phaseです。P2では明示的なPilot操作だけが初回migrationを開始し、manifest一致後にdatasetを`ready`へ進めます。
 
 ## ローカル確認
 
@@ -20,7 +24,7 @@ npm run migrate:local
 npm run check
 ```
 
-`POST /v1/sync/start`は、`TURNSTILE_SECRET_KEY`、`SYNC_CREDENTIAL_PEPPER`、`SYNC_DB`、`START_RATE_LIMITER`のいずれかが不足するとfail closedします。production bypassはありません。テストは依存注入でTurnstileとD1を置き換えます。
+`POST /v1/sync/start`はTurnstile、それ以外の同期endpointはdevice credentialで認証します。`TURNSTILE_SECRET_KEY`、`SYNC_CREDENTIAL_PEPPER`、`SYNC_DB`、該当rate limiterのいずれかが不足するとfail closedします。production bypassはありません。
 
 ## Remote resource gate
 
@@ -32,7 +36,7 @@ npm run check
 4. `TURNSTILE_SECRET_KEY`を専用Workers Secretとして登録
 5. 32文字以上の`SYNC_CREDENTIAL_PEPPER`を専用Workers Secretとして登録
 6. `sync.soundcruise.jp`の既存DNSとroute衝突を確認
-7. local migration／dry-run／rollback手順を確認
+7. 0001＋0002 local migration／dry-run／rollback手順を確認
 8. 一般公開前にWorkers Paidをrelease gateとして確認
 
 候補custom domainは`sync.soundcruise.jp`です。P1ではDNS、Worker、D1、secretなどのremote resourceを作成しません。

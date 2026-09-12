@@ -1,7 +1,10 @@
+import { SHA256_PATTERN, validateOperation } from './records.js';
+
 export const MAX_BODY_BYTES = 8 * 1024;
+export const MAX_PUSH_BODY_BYTES = 256 * 1024;
+export const MAX_PUSH_OPERATIONS = 50;
 const MAX_TURNSTILE_TOKEN_LENGTH = 2048;
 const MAX_DEVICE_LABEL_CODE_POINTS = 80;
-const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
 function isPlainObject(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
@@ -46,11 +49,15 @@ function allowedAppIds(env) {
   return new Set(String(env.SYNC_ALLOWED_APP_IDS || '').split(',').map((value) => value.trim()).filter(Boolean));
 }
 
+export function validateAppId(appId, env) {
+  return typeof appId === 'string' && allowedAppIds(env).has(appId);
+}
+
 export function validateStartPayload(payload, env) {
   if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'turnstileToken', 'deviceLabel', 'initialSummary'])) {
     return { ok: false, reason: 'shape' };
   }
-  if (typeof payload.appId !== 'string' || !allowedAppIds(env).has(payload.appId)) {
+  if (!validateAppId(payload.appId, env)) {
     return { ok: false, reason: 'app_id' };
   }
   if (typeof payload.turnstileToken !== 'string' || payload.turnstileToken.length < 1 ||
@@ -89,4 +96,49 @@ export function validateStartPayload(payload, env) {
       }
     }
   };
+}
+
+export async function validatePushPayload(payload, env, cryptoImpl = crypto) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'mode', 'operations']) ||
+      !validateAppId(payload.appId, env) || !['sync', 'migration'].includes(payload.mode) ||
+      !Array.isArray(payload.operations) || payload.operations.length < 1 ||
+      payload.operations.length > MAX_PUSH_OPERATIONS) {
+    return { ok: false, reason: 'shape' };
+  }
+  const operations = [];
+  for (let index = 0; index < payload.operations.length; index += 1) {
+    const input = payload.operations[index];
+    const result = await validateOperation(input, cryptoImpl);
+    operations.push(result.ok
+      ? { ok: true, operation: result.operation, index }
+      : {
+          ok: false,
+          operationId: typeof input?.operationId === 'string' && input.operationId.length <= 100
+            ? input.operationId
+            : null,
+          code: result.code,
+          index
+        });
+  }
+  return { ok: true, value: { appId: payload.appId, mode: payload.mode, operations } };
+}
+
+export function validateMigrationCompletePayload(payload, env) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'schemaVersion', 'recordCount', 'manifestHash']) ||
+      !validateAppId(payload.appId, env) || payload.schemaVersion !== 1 ||
+      !Number.isInteger(payload.recordCount) || payload.recordCount < 0 || payload.recordCount > 10000 ||
+      typeof payload.manifestHash !== 'string' || !SHA256_PATTERN.test(payload.manifestHash)) {
+    return { ok: false, reason: 'shape' };
+  }
+  return { ok: true, value: { ...payload } };
+}
+
+export function validateReadQuery(url, env, allowCursor) {
+  const allowed = allowCursor ? ['appId', 'cursor'] : ['appId'];
+  if ([...url.searchParams.keys()].some((key) => !allowed.includes(key))) return { ok: false };
+  const appId = url.searchParams.get('appId');
+  if (!validateAppId(appId, env)) return { ok: false };
+  const cursor = url.searchParams.get('cursor');
+  if (!allowCursor && cursor !== null) return { ok: false };
+  return { ok: true, appId, cursor };
 }

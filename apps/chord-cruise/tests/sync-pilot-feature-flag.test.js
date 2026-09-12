@@ -54,6 +54,9 @@ function runBootstrap(hostname, sessionValue, explicitFlag) {
     });
     assert(source.indexOf("loadScript('sync-core.js')") < source.indexOf("loadScript('sync-db.js')"));
     assert(source.indexOf("loadScript('sync-db.js')") < source.indexOf("loadScript('sync-client.js')"));
+    assert(source.includes('client.watchLocalMutations'), 'Pilot ON connects successful local saves to debounced sync');
+    assert(source.includes("getMeta('datasetState') === 'ready'"), 'background sync starts only after migration is ready');
+    assert.strictEqual(source.includes('beginInitialMigration('), false, 'bootstrap never starts migration without an explicit Pilot action');
     assert(fixtureHtml.includes('window.__SOUND_CRUISE_SYNC_PILOT__ = true'));
     assert(fixtureHtml.includes("'Pilot ready'"));
     assert.strictEqual(standardHtml.includes('tests/fixtures'), false, 'production Standard has no QA fixture route');

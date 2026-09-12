@@ -136,9 +136,10 @@ var seed = {
         recordType: 'chord', recordId: 'c1', revision: 4, payload: chord.payload,
         payloadHash: chord.payloadHash, deletedAt: null
     }]);
+    var deletedHash = await sync.core.hashSyncPayload('chord', 'deleted-chord', null, 1, webcrypto);
     await client.saveShadow([{
         recordType: 'chord', recordId: 'deleted-chord', revision: 5, payload: null,
-        payloadHash: '0'.repeat(64), deletedAt: 1000
+        payloadHash: deletedHash, deletedAt: 1000
     }]);
     assert.strictEqual((await store.getShadow('chord/deleted-chord')).payload, null, 'tombstone shadow accepts no payload');
     var changedPayload = JSON.parse(storage.getItem('chordCruise.chord.c1'));
