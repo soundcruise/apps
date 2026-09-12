@@ -153,6 +153,29 @@ export function validateRecoveryIssuePayload(payload, env) {
   return { ok: true, value: { appId: payload.appId } };
 }
 
+function validUuid(value) {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value);
+}
+
+export function validateDeviceRevokePayload(payload, env) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'deviceId']) ||
+      !validateAppId(payload.appId, env) || !validUuid(payload.deviceId)) return { ok: false };
+  return { ok: true, value: { appId: payload.appId, deviceId: payload.deviceId } };
+}
+
+export function validateDeleteIntentPayload(payload, env) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId']) || !validateAppId(payload.appId, env)) return { ok: false };
+  return { ok: true, value: { appId: payload.appId } };
+}
+
+export function validateAccountDeletePayload(payload, env) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'intentToken']) || !validateAppId(payload.appId, env) ||
+      typeof payload.intentToken !== 'string' || payload.intentToken.length < 1 || payload.intentToken.length > 128) {
+    return { ok: false };
+  }
+  return { ok: true, value: { appId: payload.appId, intentToken: payload.intentToken } };
+}
+
 export async function validatePushPayload(payload, env, cryptoImpl = crypto) {
   if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'mode', 'operations']) ||
       !validateAppId(payload.appId, env) || !['sync', 'migration'].includes(payload.mode) ||

@@ -210,6 +210,27 @@
                 return run(STORE_NAMES.mergeSessions, 'readonly', function (store) {
                     return requestResult(store.getAll()).then(function (entries) { return clone(entries || []); });
                 });
+            },
+            clearCloudState: function () {
+                var names = [STORE_NAMES.meta, STORE_NAMES.outbox, STORE_NAMES.shadow, STORE_NAMES.conflicts, STORE_NAMES.mergeSessions];
+                var transaction;
+                try { transaction = database.transaction(names, 'readwrite'); } catch (error) { return Promise.reject(error); }
+                try {
+                    transaction.objectStore(STORE_NAMES.outbox).clear();
+                    transaction.objectStore(STORE_NAMES.shadow).clear();
+                    transaction.objectStore(STORE_NAMES.conflicts).clear();
+                    transaction.objectStore(STORE_NAMES.mergeSessions).clear();
+                    var meta = transaction.objectStore(STORE_NAMES.meta);
+                    meta.clear();
+                    meta.put({ key: 'appId', value: core.APP_ID, updatedAt: Date.now() });
+                    meta.put({ key: 'syncState', value: 'off', updatedAt: Date.now() });
+                    meta.put({ key: 'datasetState', value: 'local_only', updatedAt: Date.now() });
+                    meta.put({ key: 'migrationState', value: 'not_started', updatedAt: Date.now() });
+                } catch (error) {
+                    try { transaction.abort(); } catch (abortError) {}
+                    return Promise.reject(error);
+                }
+                return transactionDone(transaction);
             }
         });
     }

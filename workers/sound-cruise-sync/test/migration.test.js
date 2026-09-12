@@ -9,6 +9,7 @@ const migration2 = fs.readFileSync(path.join(import.meta.dirname, '../migrations
 const migration3 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0003_add_pairing_device_lifecycle.sql'), 'utf8');
 const migration4 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0004_add_pairing_attempt_limiter.sql'), 'utf8');
 const migration5 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0005_add_recovery_lifecycle.sql'), 'utf8');
+const migration6 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0006_add_device_management_and_account_deletion.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -16,6 +17,7 @@ function migrate(db) {
   db.exec(migration3);
   db.exec(migration4);
   db.exec(migration5);
+  db.exec(migration6);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -34,6 +36,9 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='recovery_claims'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='recovery_attempts'").get());
   assert(db.prepare('SELECT recovery_created_at, recovery_rotated_at FROM sync_users LIMIT 1'));
+  assert(db.prepare('SELECT delete_requested_at, purge_after FROM sync_users LIMIT 1'));
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='account_delete_intents'").get());
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_users_purge'").get());
   db.close();
 });
 

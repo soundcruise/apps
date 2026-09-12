@@ -62,7 +62,7 @@ test('health is minimal, no-store, and independent of provisioning bindings', as
   const response = await handleRequest(new Request('https://sync.soundcruise.jp/health'));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
-  assert.deepEqual(await response.json(), { ok: true, service: 'sound-cruise-sync', phase: 'p5' });
+  assert.deepEqual(await response.json(), { ok: true, service: 'sound-cruise-sync', phase: 'p6' });
 });
 
 test('valid start provisions verifier-only identity and returns the secret once', async () => {

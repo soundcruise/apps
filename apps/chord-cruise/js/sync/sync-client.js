@@ -9,6 +9,7 @@
     var CREDENTIAL_PATTERN = /^scd1\.([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/;
     var RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
     var RECOVERY_CLAIM_PATTERN = /^scr1\.([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/;
+    var DELETE_INTENT_PATTERN = /^sdi1\.([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/;
     var RECORD_TYPES = core.RECORD_TYPES;
     var MAX_PUSH_OPERATIONS = 50;
     var MAX_PUSH_BODY_BYTES = 256 * 1024;
@@ -40,6 +41,17 @@
     function formatRecoveryCode(value) {
         var normalized = normalizeRecoveryCode(value);
         return normalized ? normalized.match(/.{4}/g).join('-') : null;
+    }
+
+    function automaticDeviceLabel() {
+        var ua = (global.navigator && global.navigator.userAgent) || '';
+        var standalone = Boolean((global.navigator && global.navigator.standalone) ||
+            (global.matchMedia && global.matchMedia('(display-mode: standalone)').matches));
+        if (/iPhone/i.test(ua)) return standalone ? 'iPhone ホーム画面' : 'iPhone Safari';
+        if (/iPad/i.test(ua)) return standalone ? 'iPad ホーム画面' : 'iPad Safari';
+        if (/Android/i.test(ua)) return /Chrome/i.test(ua) ? 'Android Chrome' : 'Android ブラウザ';
+        if (/Macintosh|Mac OS X/i.test(ua)) return /Safari/i.test(ua) && !/Chrome|CriOS/i.test(ua) ? 'Mac Safari' : 'Mac ブラウザ';
+        return 'この端末';
     }
 
     function isPositiveInteger(value) {
@@ -555,7 +567,7 @@
                     body: JSON.stringify({
                         appId: core.APP_ID,
                         turnstileToken: request.turnstileToken,
-                        deviceLabel: request.deviceLabel,
+                        deviceLabel: request.deviceLabel || automaticDeviceLabel(),
                         initialSummary: {
                             schemaVersion: snapshot.schemaVersion,
                             recordCount: snapshot.counts.total,
@@ -659,7 +671,7 @@
                         appId: core.APP_ID,
                         pairingCode: code,
                         turnstileToken: request.turnstileToken,
-                        deviceLabel: request.deviceLabel
+                        deviceLabel: request.deviceLabel || automaticDeviceLabel()
                     })
                 });
             } catch (error) { return { ok: false, code: 'network_error' }; }
@@ -712,7 +724,7 @@
                         appId: core.APP_ID,
                         recoveryCode: recoveryCode,
                         turnstileToken: request.turnstileToken,
-                        deviceLabel: request.deviceLabel
+                        deviceLabel: request.deviceLabel || automaticDeviceLabel()
                     })
                 });
             } catch (error) { return { ok: false, code: 'network_error' }; }
@@ -864,6 +876,85 @@
                 displayRecoveryCode: formatRecoveryCode(code),
                 recoveryVersion: response.body.recoveryVersion
             };
+        }
+
+        async function listDevices() {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            var response = await authenticatedRequest('GET', '/v1/sync/devices?appId=' + encodeURIComponent(core.APP_ID));
+            if (!response.ok || !Array.isArray(response.body && response.body.devices)) {
+                return { ok: false, code: response.code || 'device_list_failed' };
+            }
+            var devices = response.body.devices.filter(function (device) {
+                return device && typeof device.deviceId === 'string' && typeof device.appId === 'string' &&
+                    typeof device.createdAt === 'number' && typeof device.lastSeenAt === 'number' &&
+                    typeof device.isCurrent === 'boolean';
+            });
+            return { ok: true, devices: devices };
+        }
+
+        async function pendingOutboxCount() {
+            var store = await openStore();
+            return (await store.listOutbox()).filter(function (operation) { return operation && operation.localCommitted; }).length;
+        }
+
+        async function clearCloudState() {
+            var store = await openStore();
+            if (typeof store.clearCloudState !== 'function') return { ok: false, code: 'client_storage_failed' };
+            try {
+                await store.clearCloudState();
+                return { ok: true };
+            } catch (error) { return { ok: false, code: 'client_storage_failed' };
+            }
+        }
+
+        async function revokeDevice(deviceId) {
+            if (!enabled || typeof deviceId !== 'string') return { ok: false, code: 'invalid_request' };
+            var response = await authenticatedRequest('POST', '/v1/sync/devices/revoke', { appId: core.APP_ID, deviceId: deviceId });
+            if (!response.ok) return { ok: false, code: response.code || 'device_revoke_failed' };
+            var current = Boolean(response.body && response.body.isCurrent);
+            if (!current) return { ok: true, current: false };
+            var cleared = await clearCloudState();
+            return cleared.ok ? { ok: true, current: true } : { ok: false, code: cleared.code, revoked: true, current: true };
+        }
+
+        async function disconnectCurrentDevice() {
+            var store = await openStore();
+            var credential = await store.getMeta('deviceCredential');
+            if (!credential || typeof credential.deviceId !== 'string') return { ok: false, code: 'credential_missing' };
+            return revokeDevice(credential.deviceId);
+        }
+
+        async function prepareAccountDelete() {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            var response = await authenticatedRequest('POST', '/v1/sync/account/delete-intent', { appId: core.APP_ID });
+            if (!response.ok || !DELETE_INTENT_PATTERN.test(response.body && response.body.intentToken || '') ||
+                !Number.isFinite(response.body && response.body.expiresAt)) {
+                return { ok: false, code: response.code || 'delete_intent_failed' };
+            }
+            return { ok: true, intentToken: response.body.intentToken, expiresAt: response.body.expiresAt };
+        }
+
+        async function commitAccountDelete(prepared) {
+            if (!enabled || !prepared || !DELETE_INTENT_PATTERN.test(prepared.intentToken || '')) {
+                return { ok: false, code: 'invalid_request' };
+            }
+            var store = await openStore();
+            try { await store.setMeta('pendingAccountDelete', { intentToken: prepared.intentToken, expiresAt: prepared.expiresAt, createdAt: now() }, now()); }
+            catch (error) { return { ok: false, code: 'client_storage_failed', serverUnchanged: true }; }
+            return resumeAccountDelete();
+        }
+
+        async function resumeAccountDelete() {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            var store = await openStore();
+            var pending = await store.getMeta('pendingAccountDelete');
+            if (!pending || !DELETE_INTENT_PATTERN.test(pending.intentToken || '')) return { ok: false, code: 'delete_pending_missing' };
+            var response = await authenticatedRequest('DELETE', '/v1/sync/account', { appId: core.APP_ID, intentToken: pending.intentToken });
+            if (!response.ok || !response.body || response.body.deleted !== true) {
+                return { ok: false, code: response.code || 'delete_uncertain', resumable: response.retryable === true };
+            }
+            var cleared = await clearCloudState();
+            return cleared.ok ? { ok: true, deleted: true } : { ok: false, code: cleared.code, deleted: true };
         }
 
         function retryDelay(retryCount) {
@@ -1583,6 +1674,15 @@
             commitRecovery: commitRecovery,
             resumeRecovery: resumeRecovery,
             regenerateRecoveryCode: regenerateRecoveryCode,
+            automaticDeviceLabel: automaticDeviceLabel,
+            listDevices: listDevices,
+            pendingOutboxCount: pendingOutboxCount,
+            revokeDevice: revokeDevice,
+            disconnectCurrentDevice: disconnectCurrentDevice,
+            clearCloudState: clearCloudState,
+            prepareAccountDelete: prepareAccountDelete,
+            commitAccountDelete: commitAccountDelete,
+            resumeAccountDelete: resumeAccountDelete,
             flushOutbox: flushOutbox,
             applyPulledRecord: async function (input) { return applyPulledRecord(await openStore(), input); },
             pullOnce: pullOnce,

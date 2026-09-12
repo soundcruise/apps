@@ -4,6 +4,7 @@ const PAIRING_CODE_RANGE = 100000000;
 export const RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const RECOVERY_CODE_LENGTH = 20;
 const RECOVERY_CLAIM_PREFIX = 'scr1';
+const DELETE_INTENT_PREFIX = 'sdi1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function toBase64Url(bytes) {
@@ -130,6 +131,31 @@ export async function recoveryClaimVerifier(token, pepper, cryptoImpl = crypto) 
   return {
     claimId: parts[1],
     claimVerifier: await hmacVerifier(`sound-cruise-recovery-claim:v1:${token}`, pepper, cryptoImpl)
+  };
+}
+
+export async function createDeleteIntent(pepper, cryptoImpl = crypto) {
+  const intentId = cryptoImpl.randomUUID();
+  const secretBytes = new Uint8Array(DEVICE_SECRET_BYTES);
+  cryptoImpl.getRandomValues(secretBytes);
+  const token = `${DELETE_INTENT_PREFIX}.${intentId}.${toBase64Url(secretBytes)}`;
+  return {
+    intentId,
+    intentToken: token,
+    intentVerifier: await hmacVerifier(`sound-cruise-delete-intent:v1:${token}`, pepper, cryptoImpl)
+  };
+}
+
+export async function deleteIntentVerifier(token, pepper, cryptoImpl = crypto) {
+  if (typeof token !== 'string') throw new Error('Invalid delete intent');
+  const parts = token.split('.');
+  if (parts.length !== 3 || parts[0] !== DELETE_INTENT_PREFIX ||
+      !UUID_PATTERN.test(parts[1]) || !/^[A-Za-z0-9_-]{43}$/.test(parts[2])) {
+    throw new Error('Invalid delete intent');
+  }
+  return {
+    intentId: parts[1],
+    intentVerifier: await hmacVerifier(`sound-cruise-delete-intent:v1:${token}`, pepper, cryptoImpl)
   };
 }
 

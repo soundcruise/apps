@@ -13,6 +13,7 @@ test('remote Pilot remains isolated, allowlisted, and secret-free in repo config
   assert.equal(config.name, 'sound-cruise-sync');
   assert.equal(config.workers_dev, true);
   assert.equal(config.preview_urls, false);
+  assert.deepEqual(config.triggers, { crons: ['15 3 * * *'] });
   assert.equal(database.database_name, 'sound-cruise-sync');
   assert.match(database.database_id, /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/);
   assert.notEqual(database.database_id, '00000000-0000-0000-0000-000000000000');

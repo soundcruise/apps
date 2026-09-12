@@ -1,5 +1,7 @@
 import { hmacVerifier, parseDeviceCredential, timingSafeHexEqual } from './crypto.js';
 
+const LAST_SEEN_WRITE_INTERVAL_MS = 60 * 60 * 1000;
+
 export async function authenticateDevice(db, authorization, expectedAppId, pepper) {
   if (!db || typeof db.prepare !== 'function' || typeof authorization !== 'string' ||
       !authorization.startsWith('Bearer ') || typeof pepper !== 'string') return null;
@@ -10,7 +12,7 @@ export async function authenticateDevice(db, authorization, expectedAppId, peppe
   try {
     row = await db.prepare(`
       SELECT d.id AS device_id, d.user_id, d.app_id, d.credential_verifier,
-             d.revoked_at, u.state AS user_state
+             d.revoked_at, d.last_seen_at, d.paired_at, u.state AS user_state
       FROM sync_devices d
       JOIN sync_users u ON u.id = d.user_id
       WHERE d.id = ?
@@ -28,11 +30,14 @@ export async function authenticateDevice(db, authorization, expectedAppId, peppe
   // indistinguishable device record.
   try {
     const now = Date.now();
+    const shouldWriteLastSeen = !Number.isFinite(row.last_seen_at) || now - row.last_seen_at >= LAST_SEEN_WRITE_INTERVAL_MS;
+    const shouldTouch = row.paired_at == null || shouldWriteLastSeen;
     const claim = await db.prepare(`
       UPDATE sync_devices
-      SET last_seen_at = ?, paired_at = COALESCE(paired_at, ?)
-      WHERE id = ? AND user_id = ? AND revoked_at IS NULL
-    `).bind(now, now, row.device_id, row.user_id).run();
+      SET last_seen_at = CASE WHEN ? THEN ? ELSE last_seen_at END,
+          paired_at = COALESCE(paired_at, ?)
+      WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND ?
+    `).bind(shouldWriteLastSeen ? 1 : 0, now, now, row.device_id, row.user_id, shouldTouch ? 1 : 0).run();
     if (claim?.success === false) throw new Error('Device claim failed');
   } catch {
     throw new Error('Device authentication database failure');

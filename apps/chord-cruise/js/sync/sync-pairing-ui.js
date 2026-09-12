@@ -16,11 +16,17 @@
             device_limit: 'この同期には接続できる端末数の上限があります。',
             rate_limited: '少し時間をおいてからもう一度お試しください。',
             turnstile_failed: '認証を完了できませんでした。もう一度お試しください。',
-            client_storage_failed: 'この端末に同期情報を保存できませんでした。コードを再発行してやり直してください。',
+            client_storage_failed: 'この端末の同期情報を安全に更新できませんでした。もう一度お試しください。',
             recovery_invalid: '復旧コードが正しくありません。',
             recovery_uncertain: '通信結果を確認できませんでした。保存した復旧情報から再確認できます。',
             recovery_pending_missing: '再開できる復旧情報がありません。',
             recovery_rotation_failed: '新しい復旧コードを発行できませんでした。',
+            device_list_failed: '端末の一覧を取得できませんでした。',
+            device_not_found: '指定した端末は見つかりませんでした。',
+            device_revoke_failed: '端末の同期を解除できませんでした。もう一度お試しください。',
+            delete_intent_expired: '削除の確認期限が切れました。もう一度最初から操作してください。',
+            delete_pending_missing: '再開できるクラウド削除の確認情報がありません。',
+            delete_uncertain: '削除結果を確認できませんでした。通信を確認してもう一度お試しください。',
             invalid_cloud_snapshot: 'クラウドデータを安全に検証できませんでした。統合は行っていません。',
             cloud_snapshot_stale: '確認後にクラウドデータが変わりました。もう一度内容を確認してください。',
             local_snapshot_stale: '確認後にこの端末のデータが変わりました。もう一度内容を確認してください。',
@@ -79,13 +85,115 @@
             actions.appendChild(button('保存しました', onSaved, 'cc-settings-reset-trigger cc-settings-pro-link'));
         }
 
+        function formatLastSeen(value) {
+            if (!Number.isFinite(value)) return '不明';
+            var date = new Date(value);
+            if (isNaN(date.getTime())) return '不明';
+            return date.toLocaleString('ja-JP', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        function clearActionsForDecision() {
+            actions.textContent = '';
+            result.textContent = '';
+        }
+
+        async function disconnectAfterConfirmation(force) {
+            var pending = await client.pendingOutboxCount();
+            if (pending > 0 && !force) {
+                clearActionsForDecision();
+                status.textContent = '未同期の変更があります。';
+                result.textContent = '先に同期するか、同期せずにこの端末の同期だけを解除できます。コードはこの端末に残ります。';
+                actions.appendChild(button('先に同期', async function () {
+                    result.textContent = '未同期の変更を同期しています…';
+                    var synced = await client.syncNow();
+                    if (!synced.ok || await client.pendingOutboxCount() > 0) { result.textContent = '同期を完了できませんでした。データはそのままです。'; return; }
+                    await disconnectAfterConfirmation(true);
+                }));
+                actions.appendChild(button('同期せずに解除', function () { disconnectAfterConfirmation(true); }, 'cc-settings-reset-trigger cc-settings-pro-link'));
+                actions.appendChild(button('戻る', render));
+                return;
+            }
+            if (global.confirm && !global.confirm('この端末の同期を解除しますか？\nこの端末に保存されているコードは残ります。クラウド上のデータも削除されません。')) return;
+            result.textContent = 'この端末の同期を解除しています…';
+            var disconnected = await client.disconnectCurrentDevice();
+            if (!disconnected.ok) {
+                result.textContent = messageFor(disconnected.code);
+                if (disconnected.revoked === true) {
+                    actions.appendChild(button('この端末の同期情報を削除', async function () {
+                        var cleared = await client.clearCloudState();
+                        if (!cleared.ok) { result.textContent = messageFor(cleared.code); return; }
+                        await render();
+                        result.textContent = 'この端末の同期を解除しました。コードとクラウドデータは残っています。';
+                    }, 'cc-settings-reset-trigger cc-settings-pro-link'));
+                }
+                return;
+            }
+            await render();
+            result.textContent = 'この端末の同期を解除しました。コードとクラウドデータは残っています。';
+        }
+
+        async function showDevices() {
+            clearActionsForDecision();
+            status.textContent = '同期中の端末';
+            var listed = await client.listDevices();
+            if (!listed.ok) { result.textContent = messageFor(listed.code); actions.appendChild(button('戻る', render)); return; }
+            listed.devices.forEach(function (device) {
+                var row = global.document.createElement('div');
+                row.className = 'cc-settings-note';
+                var heading = global.document.createElement('strong');
+                heading.textContent = device.isCurrent ? 'この端末：' + (device.label || '名称なし') : (device.label || '名称なし');
+                row.appendChild(heading);
+                var detail = global.document.createElement('p');
+                detail.textContent = '最終同期：' + formatLastSeen(device.lastSeenAt);
+                row.appendChild(detail);
+                if (!device.isCurrent) {
+                    row.appendChild(button('解除', async function () {
+                        if (global.confirm && !global.confirm((device.label || 'この端末') + ' の同期を解除しますか？この端末のコードは削除されません。')) return;
+                        var revoked = await client.revokeDevice(device.deviceId);
+                        if (!revoked.ok) { result.textContent = messageFor(revoked.code); return; }
+                        result.textContent = '端末の同期を解除しました。';
+                        showDevices();
+                    }, 'cc-settings-reset-trigger cc-settings-pro-link'));
+                }
+                actions.appendChild(row);
+            });
+            actions.appendChild(button('戻る', render));
+        }
+
+        async function deleteCloudData() {
+            if (global.confirm && !global.confirm('クラウドに保存されているSound Cruise Syncデータを削除します。各端末のコードは削除されません。続けますか？')) return;
+            result.textContent = '削除内容を準備しています…';
+            var prepared = await client.prepareAccountDelete();
+            if (!prepared.ok) { result.textContent = messageFor(prepared.code); return; }
+            if (global.confirm && !global.confirm('最終確認：クラウドデータを削除します。他の同期端末もクラウドへアクセスできなくなります。')) return;
+            result.textContent = 'クラウドデータを削除しています…';
+            var deleted = await client.commitAccountDelete(prepared);
+            if (!deleted.ok) { result.textContent = messageFor(deleted.code); return; }
+            await render();
+            result.textContent = 'クラウドデータを削除しました。この端末のコードは残っています。';
+        }
+
+        async function resumeAccountDelete() {
+            result.textContent = 'クラウド削除の結果を確認しています…';
+            var deleted = await client.resumeAccountDelete();
+            if (!deleted.ok) { result.textContent = messageFor(deleted.code); return; }
+            await render();
+            result.textContent = 'クラウドデータを削除しました。この端末のコードは残っています。';
+        }
+
         async function render() {
             var store = await client.openStore();
             var credential = await store.getMeta('deviceCredential');
             var pendingRecovery = await store.getMeta('pendingRecovery');
+            var pendingAccountDelete = await store.getMeta('pendingAccountDelete');
             var syncState = await store.getMeta('syncState');
             actions.textContent = '';
             result.textContent = '';
+            if (pendingAccountDelete && pendingAccountDelete.intentToken) {
+                status.textContent = 'クラウド削除の結果を確認する必要があります。';
+                actions.appendChild(button('クラウド削除を再確認', resumeAccountDelete));
+                return;
+            }
             if (credential && credential.credential) {
                 status.textContent = syncState === 'paired_pending' ? '同期接続済み（データ統合の確認待ち）' : '同期済み';
                 if (syncState === 'paired_pending') {
@@ -93,6 +201,9 @@
                 }
                 actions.appendChild(button('別のアプリと同期', issueCode));
                 actions.appendChild(button('新しい復旧コードを発行', regenerateRecoveryCode, 'cc-settings-reset-trigger cc-settings-pro-link'));
+                actions.appendChild(button('同期中の端末を管理', showDevices));
+                actions.appendChild(button('この端末の同期を解除', function () { disconnectAfterConfirmation(false); }, 'cc-settings-reset-trigger cc-settings-pro-link'));
+                actions.appendChild(button('クラウドデータを削除', deleteCloudData, 'cc-settings-reset-trigger cc-settings-pro-link'));
                 return;
             }
             if (pendingRecovery && pendingRecovery.deviceCredential) {

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   createIdentityMaterial, hmacVerifier, parseDeviceCredential, timingSafeHexEqual,
   RECOVERY_ALPHABET, RECOVERY_CODE_LENGTH, createRecoveryClaim, createRecoveryCode,
-  formatRecoveryCode, normalizeRecoveryCode, recoveryClaimVerifier, recoveryCodeVerifier
+  formatRecoveryCode, normalizeRecoveryCode, recoveryClaimVerifier, recoveryCodeVerifier,
+  createDeleteIntent, deleteIntentVerifier
 } from '../src/crypto.js';
 
 const PEPPER = 'p'.repeat(64);
@@ -67,4 +68,14 @@ test('Recovery claim is opaque, short-lived material with verifier-only server r
   assert.equal(parsed.claimVerifier, claim.claimVerifier);
   assert.equal(claim.claimVerifier.includes(claim.claimToken), false);
   await assert.rejects(recoveryClaimVerifier('bad', PEPPER), /Invalid recovery claim/);
+});
+
+test('account deletion intent is opaque, verifier-only, and rejects malformed material', async () => {
+  const intent = await createDeleteIntent(PEPPER);
+  assert.match(intent.intentToken, /^sdi1\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}$/);
+  const parsed = await deleteIntentVerifier(intent.intentToken, PEPPER);
+  assert.equal(parsed.intentId, intent.intentId);
+  assert.equal(parsed.intentVerifier, intent.intentVerifier);
+  assert.equal(intent.intentVerifier.includes(intent.intentToken), false);
+  await assert.rejects(deleteIntentVerifier('bad', PEPPER), /Invalid delete intent/);
 });

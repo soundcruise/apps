@@ -13,7 +13,7 @@ Chord Cruise限定pilotの同期基盤です。Cruise Portのアプリ追加リ�
 - 匿名`sync_user`とChord専用device credentialのprovisioning
 - D1 schemaとローカルmigration試験
 
-P5ではPairing、Conflict解決UIに加え、100-bit Recovery Codeの二段階復旧と認証済み端末からの再発行をPilot限定で実装しています。一般公開は後続Phaseです。P2では明示的なPilot操作だけが初回migrationを開始し、manifest一致後にdatasetを`ready`へ進めます。
+P6では端末一覧・個別解除・この端末の同期解除・クラウドデータ削除をPilot限定で追加しています。同期解除はこの端末の同期資格だけを消し、Chord localStorageとクラウドデータを残します。クラウド削除は短命intentを使う二段階確認で全deviceを失効させ、7日後のscheduled hard purgeまで論理削除します。一般公開は後続Phaseです。P2では明示的なPilot操作だけが初回migrationを開始し、manifest一致後にdatasetを`ready`へ進めます。
 
 ## ローカル確認
 
@@ -34,7 +34,7 @@ npm run check
 - Pilot URL: `https://sound-cruise-sync.cruise-port-requests.workers.dev`
 - D1: `sound-cruise-sync` (`e37759f8-df08-4d2a-92b0-ffdd50de66df`)
 - binding: `SYNC_DB`
-- migrations: `0001_create_sync_foundation.sql` → `0002_add_sync_revision_metadata.sql`
+- migrations: `0001_create_sync_foundation.sql` → `0006_add_device_management_and_account_deletion.sql`
 - Secrets: `SYNC_CREDENTIAL_PEPPER`、`SYNC_PAIRING_CODE_PEPPER`、`SYNC_RECOVERY_PEPPER`、`TURNSTILE_SECRET_KEY`
 - Turnstile: Sync専用widget、Pilot hostname限定
 
@@ -57,6 +57,12 @@ D1とSecretsはWorker削除とは別resourceです。誤削除を避けるため
 ## Recovery
 
 Recovery Codeは紛らわしい文字`I/L/O/U`を除いた32文字alphabetの20文字（100 bit）です。平文はD1へ保存せず、Recovery専用pepperによるHMAC-SHA-256 verifierだけを保存します。復旧はprepareで短期claimと次のcredential/codeを受け取り、ユーザーの保存確認と端末へのcredential先行保存後にcommitします。commitは旧device全失効、未使用Pairing Code取消、新device作成、Recovery Code rotationを1つのD1 batchで行います。
+
+## Device management and deletion
+
+`GET /v1/sync/devices`はcredentialが属する同一anonymous identityのactive deviceだけを返します。`POST /v1/sync/devices/revoke`は同一identity・同一appのdeviceだけをidempotentに解除し、その端末が発行した未使用Pairing Codeも取消します。remote revokeは対象端末のlocal Chord dataを削除しません。
+
+`POST /v1/sync/account/delete-intent`が10分間のone-time intentを発行し、`DELETE /v1/sync/account`がそのintentと現在credentialで論理削除を確定します。確定後は全device・Pairing・Recovery claimを無効化します。DELETE応答が失われても同じintentを再送すると`alreadyDeleted`として安全に確認できます。Cronは毎日03:15 UTCに条件付き・最大100件ずつ、期限切れPairing／attempt／claim、15分以上未claimのpair device、90日超のchange、365日超のtombstone、7日graceを過ぎたlogical-deleted accountをcleanupします。
 
 ## Local rollback
 

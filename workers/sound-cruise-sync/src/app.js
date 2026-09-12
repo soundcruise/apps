@@ -2,8 +2,10 @@ import { authenticateDevice } from './auth.js';
 import {
   createIdentityMaterial, createPairingCode, pairingCodeVerifier,
   createRecoveryClaim, createRecoveryCode, formatRecoveryCode,
-  recoveryClaimVerifier, recoveryCodeVerifier
+  recoveryClaimVerifier, recoveryCodeVerifier, createDeleteIntent, deleteIntentVerifier
 } from './crypto.js';
+import { createD1DeviceRepository } from './device-database.js';
+import { createD1CleanupRepository } from './cleanup-database.js';
 import { createProvisioningIdentity } from './database.js';
 import { createD1PairingRepository } from './pairing-database.js';
 import { createD1RecoveryRepository } from './recovery-database.js';
@@ -16,6 +18,9 @@ import {
   MAX_PUSH_BODY_BYTES,
   readBodyWithLimit,
   validateMigrationCompletePayload,
+  validateDeviceRevokePayload,
+  validateDeleteIntentPayload,
+  validateAccountDeletePayload,
   validatePairingIssuePayload,
   validatePairPayload,
   validateRecoveryIssuePayload,
@@ -31,6 +36,10 @@ const ROUTES = Object.freeze({
   '/v1/sync/pair': { method: 'POST', headers: ['content-type'] },
   '/v1/sync/recover': { method: 'POST', headers: ['content-type'] },
   '/v1/sync/recovery-codes': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
+  '/v1/sync/devices': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
+  '/v1/sync/devices/revoke': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
+  '/v1/sync/account/delete-intent': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
+  '/v1/sync/account': { method: 'DELETE', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/push': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/migration/complete': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/changes': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
@@ -307,6 +316,86 @@ async function handleRecoveryIssue(request, env, origin, route, dependencies) {
   }
 }
 
+function deviceRepository(session, dependencies) {
+  return (dependencies.createDeviceRepository || createD1DeviceRepository)(session);
+}
+
+async function handleDevices(request, env, origin, route, dependencies, url) {
+  const query = validateReadQuery(url, env, false);
+  if (!query.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await authenticatedContext(request, env, query.appId, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const devices = await deviceRepository(context.session, dependencies).list(context.identity);
+    return jsonResponse(200, { ok: true, appId: context.identity.appId, devices }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch { return errorResponse(503, 'server_error', origin, route); }
+}
+
+async function handleDeviceRevoke(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateDeviceRevokePayload(parsed.value, env);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await authenticatedContext(request, env, validation.value.appId, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const result = await deviceRepository(context.session, dependencies).revoke(context.identity, validation.value.deviceId, Date.now());
+    if (result.status === 'not_found') return errorResponse(404, 'device_not_found', origin, route);
+    return jsonResponse(200, { ok: true, appId: context.identity.appId, deviceId: result.deviceId, revoked: true, isCurrent: result.isCurrent }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch { return errorResponse(503, 'server_error', origin, route); }
+}
+
+async function handleDeleteIntent(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateDeleteIntentPayload(parsed.value, env);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await authenticatedContext(request, env, validation.value.appId, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const intent = await (dependencies.createDeleteIntent || createDeleteIntent)(env.SYNC_CREDENTIAL_PEPPER);
+    const result = await deviceRepository(context.session, dependencies).createDeleteIntent(context.identity, { ...intent, now: Date.now() });
+    if (result.status !== 'issued') return errorResponse(409, 'delete_unavailable', origin, route);
+    return jsonResponse(201, { ok: true, appId: context.identity.appId, intentToken: intent.intentToken, expiresAt: result.expiresAt }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch { return errorResponse(503, 'server_error', origin, route); }
+}
+
+async function handleAccountDelete(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountDeletePayload(parsed.value, env);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_DB) return errorResponse(503, 'server_unavailable', origin, route);
+  let token;
+  let session;
+  try {
+    token = await (dependencies.deleteIntentVerifier || deleteIntentVerifier)(validation.value.intentToken, env.SYNC_CREDENTIAL_PEPPER);
+    session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+  } catch { return errorResponse(400, 'invalid_request', origin, route); }
+  const repository = deviceRepository(session, dependencies);
+  let context;
+  try { context = await authenticatedContext(request, env, validation.value.appId, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) {
+    // Response loss after the atomic revoke makes normal device auth fail. The
+    // short-lived one-time token is the resumable proof and returns no dataset.
+    try {
+      const state = await repository.resolveDeletedIntent({ ...token, appId: validation.value.appId });
+      if (state.status === 'deleted') return jsonResponse(200, { ok: true, appId: validation.value.appId, deleted: true, alreadyDeleted: true }, origin, route, { 'X-D1-Bookmark': sessionBookmark(session) });
+    } catch { return errorResponse(503, 'server_error', origin, route); }
+    return errorResponse(context.status, context.error, origin, route);
+  }
+  try {
+    const result = await repository.deleteAccount(context.identity, { ...token, now: Date.now() });
+    if (result.status === 'expired') return errorResponse(409, 'delete_intent_expired', origin, route);
+    if (result.status !== 'deleted') return errorResponse(400, 'delete_invalid', origin, route);
+    return jsonResponse(200, { ok: true, appId: context.identity.appId, deleted: true, purgeAfter: result.purgeAfter || null }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch { return errorResponse(503, 'server_error', origin, route); }
+}
+
 function pairingError(status, result, origin, route) {
   const codes = {
     invalid: 'pairing_invalid',
@@ -518,7 +607,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   const url = new URL(request.url);
   if (url.pathname === '/health') {
     if (request.method !== 'GET') return errorResponse(405, 'method_not_allowed', null, null, { Allow: 'GET' });
-    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p5' });
+    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p6' });
   }
   const route = ROUTES[url.pathname];
   if (!route) return errorResponse(404, 'not_found');
@@ -538,7 +627,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
     return errorResponse(405, 'method_not_allowed', originAllowed ? origin : null, originAllowed ? route : null, { Allow: `${route.method}, OPTIONS` });
   }
   if (!originAllowed) return errorResponse(403, 'invalid_origin');
-  if (route.method === 'POST' && !isJsonContentType(request.headers.get('Content-Type'))) {
+  if ((route.method === 'POST' || route.method === 'DELETE') && !isJsonContentType(request.headers.get('Content-Type'))) {
     return errorResponse(415, 'invalid_content_type', origin, route);
   }
   if (url.pathname !== '/v1/sync/start' && await isRateLimited(env.SYNC_RATE_LIMITER, `sync-api:${requestIp(request)}`)) {
@@ -549,8 +638,18 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if (url.pathname === '/v1/sync/pair') return handlePair(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/recover') return handleRecover(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/recovery-codes') return handleRecoveryIssue(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/devices') return handleDevices(request, env, origin, route, dependencies, url);
+  if (url.pathname === '/v1/sync/devices/revoke') return handleDeviceRevoke(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/account/delete-intent') return handleDeleteIntent(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/account') return handleAccountDelete(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/push') return handlePush(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/changes') return handleChanges(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v1/sync/snapshot') return handleSnapshot(request, env, origin, route, dependencies, url);
   return handleMigrationComplete(request, env, origin, route, dependencies);
+}
+
+export async function handleScheduled(_event, env = {}, dependencies = {}) {
+  if (!env.SYNC_DB || typeof env.SYNC_DB.prepare !== 'function') return;
+  const repository = (dependencies.createCleanupRepository || createD1CleanupRepository)(env.SYNC_DB);
+  await repository.cleanup(Date.now());
 }
