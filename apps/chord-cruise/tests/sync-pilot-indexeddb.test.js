@@ -60,7 +60,7 @@ function fakeIndexedDb() {
             var request = { result: database, error: null };
             setTimeout(function () {
                 assert.strictEqual(name, 'soundCruiseSync');
-                assert.strictEqual(version, 1);
+                assert.strictEqual(version, 2);
                 if (request.onupgradeneeded) request.onupgradeneeded();
                 if (request.onsuccess) request.onsuccess();
             }, 0);
@@ -79,7 +79,7 @@ function fakeIndexedDb() {
 
     var factory = fakeIndexedDb();
     var store = await window.ChordCruiseSync.database.open(factory);
-    assert.deepStrictEqual(Array.from(factory.definitions.keys()), ['meta', 'outbox', 'shadow', 'conflicts']);
+    assert.deepStrictEqual(Array.from(factory.definitions.keys()), ['meta', 'outbox', 'shadow', 'conflicts', 'backups', 'merge_sessions']);
     assert.deepStrictEqual(factory.definitions.get('outbox').indexes, ['recordKey', 'localCommitted', 'nextRetryAt']);
     assert.deepStrictEqual(factory.definitions.get('conflicts').indexes, ['recordKey']);
 
@@ -100,9 +100,15 @@ function fakeIndexedDb() {
     assert.strictEqual((await store.listConflicts()).length, 1);
     await store.deleteConflict('conflict-1');
     assert.strictEqual((await store.listConflicts()).length, 0);
+    await store.putBackup({ backupId: 'backup-1', values: { a: 'b' } });
+    assert.strictEqual((await store.getBackup('backup-1')).values.a, 'b');
+    assert.strictEqual((await store.listBackups()).length, 1);
+    await store.putMergeSession({ sessionId: 'session-1', stage: 'planning' });
+    assert.strictEqual((await store.getMergeSession('session-1')).stage, 'planning');
+    assert.strictEqual((await store.listMergeSessions()).length, 1);
 
     await assert.rejects(window.ChordCruiseSync.database.open(null), /IndexedDB is unavailable/);
-    console.log('sync-pilot-indexeddb: isolated schema and meta/outbox/shadow/conflict CRUD passed');
+    console.log('sync-pilot-indexeddb: isolated schema and merge backup/session CRUD passed');
 }()).catch(function (error) {
     console.error(error);
     process.exitCode = 1;

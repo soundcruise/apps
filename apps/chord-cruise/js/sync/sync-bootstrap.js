@@ -49,6 +49,7 @@
     if (isEnabled() && global.document && baseUrl) {
         ready = loadScript('sync-core.js')
             .then(function () { return loadScript('sync-db.js'); })
+            .then(function () { return loadScript('sync-merge.js'); })
             .then(function () { return loadScript('sync-client.js'); })
             .then(function () {
                 var endpoint = global.__SOUND_CRUISE_SYNC_PILOT_ENDPOINT__ || 'http://127.0.0.1:8787';

@@ -12,6 +12,7 @@
     var MAX_PUSH_BODY_BYTES = 256 * 1024;
     var INITIAL_CURSOR = 'scc1.MA';
     var CURSOR_PATTERN = /^scc1\.[A-Za-z0-9_-]{1,32}$/;
+    var MERGE_STAGES = ['planning', 'awaiting_confirmation', 'applying_local', 'pushing', 'verifying', 'complete', 'rollback_required', 'rolled_back'];
 
     function normalizePairingCode(value) {
         if (typeof value !== 'string') return null;
@@ -183,6 +184,132 @@
         var dbPromise = null;
         var adapter = storage ? createLocalAdapter(storage, cryptoImpl) : null;
 
+        function mergeApi() {
+            var api = global.ChordCruiseSync && global.ChordCruiseSync.merge;
+            if (!api) throw new Error('Sound Cruise Sync merge planner is unavailable');
+            return api;
+        }
+
+        function isManagedLocalKey(key) {
+            return key === 'chordCruise.schemaVersion' || key === 'chordCruise.settings' ||
+                key === 'chordCruise.folders' || key === 'chordCruise.libraryOrder' ||
+                key === 'chordCruise.chords.index' || key.indexOf('chordCruise.chord.') === 0;
+        }
+
+        function captureManagedStorage() {
+            var values = {};
+            for (var index = 0; index < storage.length; index += 1) {
+                var key = storage.key(index);
+                if (typeof key === 'string' && isManagedLocalKey(key)) values[key] = storage.getItem(key);
+            }
+            return values;
+        }
+
+        function restoreManagedStorage(values) {
+            var existing = [];
+            for (var index = 0; index < storage.length; index += 1) {
+                var key = storage.key(index);
+                if (typeof key === 'string' && isManagedLocalKey(key)) existing.push(key);
+            }
+            existing.forEach(function (key) { storage.removeItem(key); });
+            Object.keys(values || {}).forEach(function (key) {
+                if (isManagedLocalKey(key)) storage.setItem(key, values[key]);
+            });
+        }
+
+        function indexEntryOf(chord) {
+            return {
+                id: chord.id,
+                chordName: chord.chordName,
+                formName: chord.formName,
+                shape: chord.shape,
+                folderId: chord.folderId,
+                fretRange: chord.fretRange,
+                memo: chord.memo || '',
+                keyContext: chord.keyContext || null,
+                updatedAt: chord.updatedAt
+            };
+        }
+
+        function applyFinalSnapshot(snapshot) {
+            if (!snapshot || !Array.isArray(snapshot.records)) throw new TypeError('Final merge snapshot is required');
+            var byType = { settings: [], folder: [], chord: [], library_order: [] };
+            snapshot.records.forEach(function (record) { byType[record.recordType].push(record); });
+            var currentChordKeys = [];
+            for (var index = 0; index < storage.length; index += 1) {
+                var key = storage.key(index);
+                if (typeof key === 'string' && key.indexOf('chordCruise.chord.') === 0) currentChordKeys.push(key);
+            }
+
+            // Referential parents first; the derived index is rebuilt only after all
+            // canonical chord records have been written.
+            function setJsonIfChanged(key, value) {
+                var serialized = JSON.stringify(value);
+                if (storage.getItem(key) !== serialized) storage.setItem(key, serialized);
+            }
+            setJsonIfChanged('chordCruise.schemaVersion', core.APP_SCHEMA_VERSION);
+            setJsonIfChanged('chordCruise.folders', byType.folder.map(function (record) { return record.payload; }));
+            var desiredChords = Object.create(null);
+            byType.chord.forEach(function (record) { desiredChords['chordCruise.chord.' + record.recordId] = record.payload; });
+            currentChordKeys.forEach(function (key) {
+                if (!Object.prototype.hasOwnProperty.call(desiredChords, key)) storage.removeItem(key);
+            });
+            Object.keys(desiredChords).forEach(function (key) {
+                var next = JSON.stringify(desiredChords[key]);
+                if (storage.getItem(key) !== next) storage.setItem(key, next);
+            });
+            if (byType.library_order[0]) setJsonIfChanged('chordCruise.libraryOrder', byType.library_order[0].payload);
+            else storage.removeItem('chordCruise.libraryOrder');
+            if (byType.settings[0]) setJsonIfChanged('chordCruise.settings', byType.settings[0].payload);
+            else storage.removeItem('chordCruise.settings');
+            setJsonIfChanged('chordCruise.chords.index', byType.chord.map(function (record) {
+                return indexEntryOf(record.payload);
+            }));
+        }
+
+        function verifyLocalGraph(finalSnapshot) {
+            var folderIds = [];
+            var chordById = Object.create(null);
+            var expectedIndex = [];
+            finalSnapshot.records.forEach(function (record) {
+                if (record.recordType === 'folder') {
+                    if (folderIds.indexOf(record.recordId) !== -1) throw new Error('duplicate_folder_id');
+                    folderIds.push(record.recordId);
+                }
+            });
+            finalSnapshot.records.forEach(function (record) {
+                if (record.recordType === 'chord') {
+                    if (chordById[record.recordId]) throw new Error('duplicate_chord_id');
+                    chordById[record.recordId] = record;
+                    if (folderIds.indexOf(record.payload.folderId) === -1) throw new Error('orphan_chord');
+                    expectedIndex.push(indexEntryOf(record.payload));
+                }
+            });
+            var orderState = readJsonState(storage, 'chordCruise.libraryOrder');
+            var indexState = readJsonState(storage, 'chordCruise.chords.index');
+            if (!orderState.valid || !orderState.exists || !indexState.valid || !indexState.exists) throw new Error('derived_state_invalid');
+            var order = orderState.value;
+            if (!Array.isArray(order.folderIds) || !order.entryIdsByFolder || typeof order.entryIdsByFolder !== 'object') throw new Error('order_invalid');
+            if (new Set(order.folderIds).size !== order.folderIds.length || order.folderIds.length !== folderIds.length ||
+                folderIds.some(function (id) { return order.folderIds.indexOf(id) === -1; })) throw new Error('folder_order_invalid');
+            var orderedChordIds = [];
+            order.folderIds.forEach(function (folderId) {
+                var ids = order.entryIdsByFolder[folderId];
+                if (!Array.isArray(ids)) throw new Error('entry_order_invalid');
+                ids.forEach(function (id) {
+                    if (!chordById[id] || chordById[id].payload.folderId !== folderId || orderedChordIds.indexOf(id) !== -1) {
+                        throw new Error('entry_order_reference_invalid');
+                    }
+                    orderedChordIds.push(id);
+                });
+            });
+            if (orderedChordIds.length !== Object.keys(chordById).length) throw new Error('entry_order_incomplete');
+            var actualIndex = indexState.value.slice().sort(function (a, b) { return a.id.localeCompare(b.id); });
+            expectedIndex.sort(function (a, b) { return a.id.localeCompare(b.id); });
+            if (core.canonicalJson(actualIndex) !== core.canonicalJson(expectedIndex)) throw new Error('index_mismatch');
+            return true;
+        }
+
         function openStore() {
             if (!enabled) return Promise.reject(new Error('Sound Cruise Sync Pilot is disabled'));
             if (!dbPromise) dbPromise = database.open(config.indexedDB || global.indexedDB);
@@ -198,6 +325,26 @@
             if (!(await store.getMeta('syncState'))) await store.setMeta('syncState', 'off', now());
             if (!(await store.getMeta('datasetState'))) await store.setMeta('datasetState', 'local_only', now());
             if (!(await store.getMeta('migrationState'))) await store.setMeta('migrationState', 'not_started', now());
+            var mergeSessions = typeof store.listMergeSessions === 'function' ? await store.listMergeSessions() : [];
+            for (var index = 0; index < mergeSessions.length; index += 1) {
+                var session = mergeSessions[index];
+                if (session.stage !== 'applying_local' && session.stage !== 'rollback_required') continue;
+                var backup = typeof store.getBackup === 'function' ? await store.getBackup(session.backupId) : null;
+                if (!backup || !backup.values) {
+                    session.stage = 'rollback_required';
+                    session.lastError = 'backup_missing';
+                } else {
+                    try {
+                        restoreManagedStorage(backup.values);
+                        session.stage = 'rolled_back';
+                        session.rolledBackAt = now();
+                    } catch (error) {
+                        session.stage = 'rollback_required';
+                        session.lastError = 'rollback_failed';
+                    }
+                }
+                await store.putMergeSession(session);
+            }
             return { enabled: true, database: store.name, version: store.version };
         }
 
@@ -501,7 +648,7 @@
                 return { ok: false, code: 'invalid_response' };
             }
             var store = await openStore();
-            var localState = snapshot.counts.total === 0 ? 'empty' : 'local_data_pending_merge';
+            var localState = mergeApi().hasMeaningfulLocalData(snapshot) ? 'local_data_pending_merge' : 'empty';
             var bookmark = response.headers && response.headers.get ? response.headers.get('X-D1-Bookmark') : null;
             try {
                 await store.setMetaBatch([
@@ -829,6 +976,334 @@
             return response.body;
         }
 
+        async function readValidatedCloudSnapshot() {
+            var body = await getServerSnapshot();
+            if (!body || body.ok === false) return { ok: false, code: body && body.code ? body.code : 'snapshot_failed' };
+            try {
+                var validated = await mergeApi().validateCloudSnapshot(body, cryptoImpl);
+                return { ok: true, snapshot: validated };
+            } catch (error) {
+                return { ok: false, code: 'invalid_cloud_snapshot' };
+            }
+        }
+
+        async function preparePairingMerge(options) {
+            if (!enabled) return { enabled: false };
+            var settings = options || {};
+            var store = await openStore();
+            var syncState = await store.getMeta('syncState');
+            if (syncState !== 'paired_pending') return { enabled: true, ok: false, code: 'pairing_not_pending' };
+            var local = await adapter.snapshot();
+            if (local.errors.length) return { enabled: true, ok: false, code: 'snapshot_invalid', errors: local.errors.length };
+            var cloudResult = await readValidatedCloudSnapshot();
+            if (!cloudResult.ok) return { enabled: true, ok: false, code: cloudResult.code };
+            var shadow = await store.listShadow();
+            var sessionId = settings.sessionId || await core.deterministicUuid(
+                'sound-cruise-sync:p4:' + local.manifestHash + ':' + cloudResult.snapshot.manifestHash + ':' + cloudResult.snapshot.cursor,
+                cryptoImpl
+            );
+            var plan = await mergeApi().planMerge({
+                local: local,
+                cloud: cloudResult.snapshot,
+                shadow: shadow,
+                choices: settings.choices || {},
+                sessionId: sessionId
+            }, cryptoImpl);
+            var session = {
+                sessionId: sessionId,
+                stage: 'awaiting_confirmation',
+                createdAt: now(),
+                updatedAt: now(),
+                localState: plan.localState,
+                choices: core.cloneJson(settings.choices || {}),
+                localSnapshot: core.cloneJson(local),
+                cloudSnapshot: core.cloneJson(cloudResult.snapshot),
+                shadow: core.cloneJson(shadow),
+                plan: core.cloneJson(plan)
+            };
+            if (typeof store.putMergeSession !== 'function') return { enabled: true, ok: false, code: 'merge_storage_unavailable' };
+            await store.putMergeSession(session);
+            await store.setMeta('activeMergeSessionId', sessionId, now());
+            return { enabled: true, ok: true, sessionId: sessionId, localState: plan.localState, plan: plan };
+        }
+
+        function changesBetweenCloudAndFinal(cloudSnapshot, finalSnapshot) {
+            var before = Object.create(null);
+            var after = Object.create(null);
+            cloudSnapshot.records.forEach(function (record) { before[record.recordKey || core.recordKey(record.recordType, record.recordId)] = record; });
+            finalSnapshot.records.forEach(function (record) { after[record.recordKey] = record; });
+            var keys = Object.create(null);
+            Object.keys(before).concat(Object.keys(after)).forEach(function (key) { keys[key] = true; });
+            return Object.keys(keys).sort().filter(function (key) {
+                var cloud = before[key]; var finalRecord = after[key];
+                var cloudLive = Boolean(cloud && cloud.deletedAt == null && cloud.payload !== null);
+                return (!cloudLive && finalRecord) || (cloudLive && !finalRecord) ||
+                    (cloudLive && finalRecord && cloud.payloadHash !== finalRecord.payloadHash);
+            }).map(function (key) { return { recordKey: key, before: before[key] || null, after: after[key] || null }; });
+        }
+
+        async function queueMergeChanges(store, session, cloudSnapshot, finalSnapshot) {
+            var pending = await store.listOutbox();
+            var known = Object.create(null);
+            pending.forEach(function (operation) { known[operation.operationId] = true; });
+            var changes = changesBetweenCloudAndFinal(cloudSnapshot, finalSnapshot);
+            for (var index = 0; index < changes.length; index += 1) {
+                var change = changes[index];
+                var identity = change.after || change.before;
+                var record = change.after || {
+                    recordType: identity.recordType,
+                    recordId: identity.recordId,
+                    schemaVersion: core.APP_SCHEMA_VERSION,
+                    payload: null
+                };
+                var operation = await buildOperation(
+                    record,
+                    change.before && Number.isInteger(change.before.revision) ? change.before.revision : 0,
+                    change.before && change.before.deletedAt == null ? change.before.payload : null,
+                    !change.after
+                );
+                operation.operationId = await core.deterministicUuid(
+                    'sound-cruise-sync:p4:operation:' + session.sessionId + ':' + change.recordKey + ':' +
+                    (change.after ? change.after.payloadHash : 'delete'),
+                    cryptoImpl
+                );
+                operation.localCommitted = true;
+                operation.mergeSessionId = session.sessionId;
+                if (!known[operation.operationId]) await store.putOutbox(operation);
+            }
+            return changes.length;
+        }
+
+        async function finishMergeSession(store, session) {
+            var enteringStage = session.stage;
+            var local = await adapter.snapshot();
+            if (local.errors.length || !session.plan.finalManifest ||
+                local.manifestHash !== session.plan.finalManifest.manifestHash ||
+                local.counts.total !== session.plan.finalManifest.recordCount) {
+                session.stage = 'rollback_required';
+                session.lastError = 'local_post_verify_failed';
+                session.updatedAt = now();
+                await store.putMergeSession(session);
+                if (enteringStage === 'applying_local' && session.backupId) {
+                    var failedBackup = await store.getBackup(session.backupId);
+                    if (failedBackup && failedBackup.values) {
+                        try {
+                            restoreManagedStorage(failedBackup.values);
+                            session.stage = 'rolled_back';
+                            session.rolledBackAt = now();
+                            await store.putMergeSession(session);
+                        } catch (rollbackError) {}
+                    }
+                }
+                return { enabled: true, ok: false, code: session.lastError, rollbackRequired: true };
+            }
+            try {
+                verifyLocalGraph(session.plan.finalSnapshot);
+            } catch (error) {
+                session.stage = 'rollback_required';
+                session.lastError = error.message || 'local_graph_verify_failed';
+                session.updatedAt = now();
+                await store.putMergeSession(session);
+                if (session.backupId) {
+                    var graphBackup = await store.getBackup(session.backupId);
+                    if (graphBackup && graphBackup.values) {
+                        try {
+                            restoreManagedStorage(graphBackup.values);
+                            session.stage = 'rolled_back';
+                            session.rolledBackAt = now();
+                            await store.putMergeSession(session);
+                        } catch (graphRollbackError) {}
+                    }
+                }
+                return { enabled: true, ok: false, code: session.lastError, rollbackRequired: session.stage !== 'rolled_back' };
+            }
+
+            if (enteringStage !== 'verifying') {
+                session.stage = 'pushing';
+                session.updatedAt = now();
+                await store.putMergeSession(session);
+                if (enteringStage === 'applying_local') {
+                    var cloudResult = await readValidatedCloudSnapshot();
+                    if (!cloudResult.ok) return { enabled: true, ok: false, code: cloudResult.code, resumable: true };
+                    if (cloudResult.snapshot.cursor !== session.cloudSnapshot.cursor ||
+                        cloudResult.snapshot.manifestHash !== session.cloudSnapshot.manifestHash) {
+                        session.stage = 'rollback_required';
+                        session.lastError = 'cloud_snapshot_stale';
+                        session.updatedAt = now();
+                        await store.putMergeSession(session);
+                        var staleBackup = session.backupId ? await store.getBackup(session.backupId) : null;
+                        if (staleBackup && staleBackup.values) {
+                            try {
+                                restoreManagedStorage(staleBackup.values);
+                                session.stage = 'rolled_back';
+                                session.rolledBackAt = now();
+                                await store.putMergeSession(session);
+                            } catch (staleRollbackError) {}
+                        }
+                        return {
+                            enabled: true,
+                            ok: false,
+                            code: 'cloud_snapshot_stale',
+                            rollbackRequired: session.stage !== 'rolled_back'
+                        };
+                    }
+                }
+                // Always retain the preview revisions as operation bases. If a remote
+                // record changed after preview, P2 returns a revision conflict rather
+                // than allowing the merge to overwrite that newer value.
+                await queueMergeChanges(store, session, session.cloudSnapshot, session.plan.finalSnapshot);
+                for (var batchIndex = 0; batchIndex < 50; batchIndex += 1) {
+                    var mergePending = (await store.listOutbox()).filter(function (operation) {
+                        return operation.mergeSessionId === session.sessionId && !operation.conflict && !operation.terminalError;
+                    });
+                    if (!mergePending.length) break;
+                    var pushed = await flushOutbox({ force: true });
+                    if (pushed.ok === false || pushed.conflict || pushed.invalid) {
+                        session.lastError = pushed.code || (pushed.conflict ? 'remote_conflict' : 'remote_invalid');
+                        session.updatedAt = now();
+                        await store.putMergeSession(session);
+                        return { enabled: true, ok: false, code: session.lastError, resumable: pushed.ok === false };
+                    }
+                }
+                var left = (await store.listOutbox()).filter(function (operation) { return operation.mergeSessionId === session.sessionId; });
+                if (left.length) return { enabled: true, ok: false, code: 'merge_push_incomplete', resumable: true };
+
+                session.stage = 'verifying';
+                session.updatedAt = now();
+                await store.putMergeSession(session);
+            }
+            var verifiedResult = await readValidatedCloudSnapshot();
+            if (!verifiedResult.ok) return { enabled: true, ok: false, code: verifiedResult.code, resumable: true };
+            if (verifiedResult.snapshot.manifestHash !== session.plan.finalManifest.manifestHash ||
+                verifiedResult.snapshot.recordCount !== session.plan.finalManifest.recordCount) {
+                session.lastError = 'remote_post_verify_failed';
+                session.updatedAt = now();
+                await store.putMergeSession(session);
+                return { enabled: true, ok: false, code: session.lastError, resumable: true };
+            }
+            await saveShadow(verifiedResult.snapshot.records);
+            await store.setMetaBatch([
+                { key: 'datasetState', value: 'ready' },
+                { key: 'migrationState', value: 'complete' },
+                { key: 'syncState', value: 'pilot_ready' },
+                { key: 'cursor', value: verifiedResult.snapshot.cursor },
+                { key: 'activeMergeSessionId', value: null }
+            ], now());
+            session.stage = 'complete';
+            session.completedAt = now();
+            session.updatedAt = now();
+            delete session.lastError;
+            await store.putMergeSession(session);
+            startBackgroundSync();
+            return {
+                enabled: true,
+                ok: true,
+                sessionId: session.sessionId,
+                recordCount: verifiedResult.snapshot.recordCount,
+                manifestHash: verifiedResult.snapshot.manifestHash
+            };
+        }
+
+        async function applyPairingMerge(sessionId, choices) {
+            if (!enabled) return { enabled: false };
+            var store = await openStore();
+            if (typeof store.getMergeSession !== 'function') return { enabled: true, ok: false, code: 'merge_storage_unavailable' };
+            var session = await store.getMergeSession(sessionId);
+            if (!session || MERGE_STAGES.indexOf(session.stage) === -1) return { enabled: true, ok: false, code: 'merge_session_missing' };
+            if (session.stage === 'pushing' || session.stage === 'verifying') return finishMergeSession(store, session);
+            if (session.stage !== 'awaiting_confirmation') return { enabled: true, ok: false, code: 'merge_stage_invalid' };
+
+            var local = await adapter.snapshot();
+            if (local.errors.length || local.manifestHash !== session.localSnapshot.manifestHash) {
+                return { enabled: true, ok: false, code: 'local_snapshot_stale' };
+            }
+            var cloudResult = await readValidatedCloudSnapshot();
+            if (!cloudResult.ok) return { enabled: true, ok: false, code: cloudResult.code };
+            if (cloudResult.snapshot.cursor !== session.cloudSnapshot.cursor ||
+                cloudResult.snapshot.manifestHash !== session.cloudSnapshot.manifestHash) {
+                return { enabled: true, ok: false, code: 'cloud_snapshot_stale' };
+            }
+            var plan = await mergeApi().planMerge({
+                local: session.localSnapshot,
+                cloud: session.cloudSnapshot,
+                shadow: session.shadow,
+                choices: choices || {},
+                sessionId: session.sessionId
+            }, cryptoImpl);
+            if (plan.conflicts.length || !plan.finalSnapshot) {
+                session.choices = core.cloneJson(choices || {});
+                session.plan = core.cloneJson(plan);
+                session.updatedAt = now();
+                await store.putMergeSession(session);
+                return { enabled: true, ok: false, code: 'merge_conflicts_unresolved', plan: plan };
+            }
+
+            var backupId = await core.deterministicUuid('sound-cruise-sync:p4:backup:' + session.sessionId, cryptoImpl);
+            var backup = {
+                backupId: backupId,
+                sessionId: session.sessionId,
+                createdAt: now(),
+                manifestHash: local.manifestHash,
+                export: core.createExport(local, now()),
+                values: captureManagedStorage()
+            };
+            try {
+                await store.putBackup(backup);
+            } catch (error) {
+                return { enabled: true, ok: false, code: 'backup_failed' };
+            }
+            session.backupId = backupId;
+            session.choices = core.cloneJson(choices || {});
+            session.plan = core.cloneJson(plan);
+            session.stage = 'applying_local';
+            session.updatedAt = now();
+            await store.putMergeSession(session);
+            try {
+                applyFinalSnapshot(plan.finalSnapshot);
+            } catch (error) {
+                session.stage = 'rollback_required';
+                session.lastError = 'local_apply_failed';
+                await store.putMergeSession(session);
+                try {
+                    restoreManagedStorage(backup.values);
+                    session.stage = 'rolled_back';
+                    session.rolledBackAt = now();
+                    await store.putMergeSession(session);
+                } catch (rollbackError) {}
+                return { enabled: true, ok: false, code: 'local_apply_failed', rollbackRequired: session.stage !== 'rolled_back' };
+            }
+            return finishMergeSession(store, session);
+        }
+
+        async function resumePairingMerge(sessionId) {
+            var store = await openStore();
+            var id = sessionId || await store.getMeta('activeMergeSessionId');
+            var session = id && typeof store.getMergeSession === 'function' ? await store.getMergeSession(id) : null;
+            if (!session) return { enabled: true, ok: false, code: 'merge_session_missing' };
+            if (session.stage === 'pushing' || session.stage === 'verifying') return finishMergeSession(store, session);
+            return { enabled: true, ok: false, code: 'merge_not_resumable', stage: session.stage };
+        }
+
+        async function rollbackPairingMerge(sessionId) {
+            var store = await openStore();
+            var session = typeof store.getMergeSession === 'function' ? await store.getMergeSession(sessionId) : null;
+            if (!session || !session.backupId || session.stage === 'complete') return { enabled: true, ok: false, code: 'rollback_not_available' };
+            var backup = await store.getBackup(session.backupId);
+            if (!backup || !backup.values) return { enabled: true, ok: false, code: 'backup_missing' };
+            try {
+                restoreManagedStorage(backup.values);
+                session.stage = 'rolled_back';
+                session.rolledBackAt = now();
+                await store.putMergeSession(session);
+                return { enabled: true, ok: true, sessionId: session.sessionId };
+            } catch (error) {
+                session.stage = 'rollback_required';
+                session.lastError = 'rollback_failed';
+                await store.putMergeSession(session);
+                return { enabled: true, ok: false, code: 'rollback_failed' };
+            }
+        }
+
         async function syncNow() {
             if (!enabled) return { enabled: false };
             var pushed = { enabled: true, sent: 0, applied: 0, duplicate: 0, conflict: 0, invalid: 0 };
@@ -911,6 +1386,10 @@
             pullOnce: pullOnce,
             beginInitialMigration: beginInitialMigration,
             getServerSnapshot: getServerSnapshot,
+            preparePairingMerge: preparePairingMerge,
+            applyPairingMerge: applyPairingMerge,
+            resumePairingMerge: resumePairingMerge,
+            rollbackPairingMerge: rollbackPairingMerge,
             syncNow: syncNow,
             scheduleSync: scheduleSync,
             startBackgroundSync: startBackgroundSync,

@@ -8,6 +8,7 @@ var webcrypto = require('crypto').webcrypto;
 
 var root = path.join(__dirname, '..');
 var coreSource = fs.readFileSync(path.join(root, 'js/sync/sync-core.js'), 'utf8');
+var mergeSource = fs.readFileSync(path.join(root, 'js/sync/sync-merge.js'), 'utf8');
 var clientSource = fs.readFileSync(path.join(root, 'js/sync/sync-client.js'), 'utf8');
 var DEVICE_ID = '123e4567-e89b-42d3-a456-426614174000';
 var CREDENTIAL = 'scd1.' + DEVICE_ID + '.' + 'A'.repeat(43);
@@ -82,6 +83,7 @@ function loadClient(store) {
     };
     vm.createContext(context);
     vm.runInContext(coreSource, context, { filename: 'sync-core.js' });
+    vm.runInContext(mergeSource, context, { filename: 'sync-merge.js' });
     window.ChordCruiseSync.database = { open: async function () { return store; } };
     vm.runInContext(clientSource, context, { filename: 'sync-client.js' });
     return window.ChordCruiseSync;

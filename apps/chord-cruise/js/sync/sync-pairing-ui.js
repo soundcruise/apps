@@ -16,7 +16,14 @@
             device_limit: 'この同期には接続できる端末数の上限があります。',
             rate_limited: '少し時間をおいてからもう一度お試しください。',
             turnstile_failed: '認証を完了できませんでした。もう一度お試しください。',
-            client_storage_failed: 'この端末に同期情報を保存できませんでした。コードを再発行してやり直してください。'
+            client_storage_failed: 'この端末に同期情報を保存できませんでした。コードを再発行してやり直してください。',
+            invalid_cloud_snapshot: 'クラウドデータを安全に検証できませんでした。統合は行っていません。',
+            cloud_snapshot_stale: '確認後にクラウドデータが変わりました。もう一度内容を確認してください。',
+            local_snapshot_stale: '確認後にこの端末のデータが変わりました。もう一度内容を確認してください。',
+            merge_conflicts_unresolved: '競合ごとに残す内容を選んでください。',
+            local_apply_failed: 'この端末への反映に失敗したため、元のデータへ戻しました。',
+            backup_failed: '安全なバックアップを作成できなかったため、統合は行っていません。',
+            remote_post_verify_failed: '送信後の検証を完了できませんでした。再試行できます。'
         };
         return labels[code] || '接続を完了できませんでした。';
     }
@@ -51,7 +58,10 @@
             actions.textContent = '';
             result.textContent = '';
             if (credential && credential.credential) {
-                status.textContent = syncState === 'paired_pending' ? '同期接続済み（データ統合は次のPilotで行います）' : '同期済み';
+                status.textContent = syncState === 'paired_pending' ? '同期接続済み（データ統合の確認待ち）' : '同期済み';
+                if (syncState === 'paired_pending') {
+                    actions.appendChild(button('統合内容を確認', showMergePreview));
+                }
                 actions.appendChild(button('別のアプリと同期', issueCode));
                 return;
             }
@@ -60,6 +70,92 @@
                 result.textContent = '新規同期の開始は既存Pilot導線から実行してください。';
             }));
             actions.appendChild(button('すでに同期しています', showPairForm, 'cc-settings-reset-trigger cc-settings-pro-link'));
+        }
+
+        function choiceLabel(choice) {
+            return { local: 'この端末', cloud: 'クラウド', both: '両方残す', delete: '削除を反映' }[choice] || choice;
+        }
+
+        function summaryLine(plan) {
+            var finalCount = plan.finalManifest ? plan.finalManifest.recordCount : '確認後に確定';
+            return (plan.localState === 'empty' ? '空の端末へクラウドデータを導入' : 'この端末とクラウドのデータを統合') +
+                'します。この端末 ' + plan.source.localRecordCount + '件、クラウド ' + plan.source.cloudRecordCount +
+                '件。同一 ' + plan.summary.identical + '件、この端末から追加 ' + plan.summary.local_only +
+                '件、クラウドから追加 ' + plan.summary.cloud_only + '件、競合 ' + plan.conflicts.length +
+                '件、ID調整 ' + plan.idRemaps.length + '件、統合後 ' + finalCount + '件。';
+        }
+
+        async function showMergePreview() {
+            status.textContent = 'クラウドとこの端末のデータを読み取り、統合内容を確認しています…';
+            actions.textContent = '';
+            result.textContent = '';
+            var prepared = await client.preparePairingMerge();
+            if (!prepared.ok) {
+                status.textContent = '統合内容を確認できませんでした。';
+                result.textContent = messageFor(prepared.code);
+                actions.appendChild(button('もう一度確認', showMergePreview));
+                return;
+            }
+            renderMergePreview(prepared);
+        }
+
+        function renderMergePreview(prepared) {
+            var plan = prepared.plan;
+            status.textContent = summaryLine(plan);
+            actions.textContent = '';
+            var form = global.document.createElement('div');
+            form.setAttribute('data-sync-merge-preview', '');
+            var choices = {};
+            plan.conflicts.forEach(function (conflict, index) {
+                var row = global.document.createElement('div');
+                row.className = 'cc-settings-note';
+                var label = global.document.createElement('label');
+                label.textContent = (conflict.recordType === 'chord' && conflict.local && conflict.local.payload
+                    ? (conflict.local.payload.chordName || conflict.recordKey) : conflict.recordKey) + '：';
+                var select = global.document.createElement('select');
+                select.setAttribute('aria-label', '競合 ' + (index + 1) + ' の残し方');
+                var placeholder = global.document.createElement('option');
+                placeholder.value = ''; placeholder.textContent = '残す内容を選択';
+                select.appendChild(placeholder);
+                conflict.choices.forEach(function (choice) {
+                    var option = global.document.createElement('option');
+                    option.value = choice; option.textContent = choiceLabel(choice);
+                    select.appendChild(option);
+                });
+                select.addEventListener('change', function () { choices[conflict.conflictId] = select.value; });
+                label.appendChild(select);
+                row.appendChild(label);
+                if (conflict.local || conflict.cloud) {
+                    var comparison = global.document.createElement('p');
+                    comparison.textContent = 'この端末：' + (conflict.local && conflict.local.payload
+                        ? (conflict.local.payload.chordName || conflict.local.payload.name || '変更あり') : '削除') +
+                        ' ／ クラウド：' + (conflict.cloud && conflict.cloud.payload
+                            ? (conflict.cloud.payload.chordName || conflict.cloud.payload.name || '変更あり') : '削除');
+                    row.appendChild(comparison);
+                }
+                form.appendChild(row);
+            });
+            var confirm = button(plan.conflicts.length ? '選択内容で統合' : 'この内容で統合', async function () {
+                confirm.disabled = true;
+                result.textContent = 'バックアップを作成して統合しています。画面を閉じずにお待ちください…';
+                var applied = await client.applyPairingMerge(prepared.sessionId, choices);
+                if (!applied.ok) {
+                    result.textContent = messageFor(applied.code);
+                    confirm.disabled = false;
+                    if (applied.code === 'cloud_snapshot_stale' || applied.code === 'local_snapshot_stale') {
+                        actions.textContent = '';
+                        actions.appendChild(button('最新の内容を再確認', showMergePreview));
+                    }
+                    return;
+                }
+                status.textContent = '同期データの統合が完了しました。';
+                actions.textContent = '';
+                actions.appendChild(button('別のアプリと同期', issueCode));
+                result.textContent = 'この端末とクラウドの内容を検証し、同期を開始しました。';
+            });
+            form.appendChild(confirm);
+            form.appendChild(button('今は統合しない', render));
+            actions.appendChild(form);
         }
 
         async function issueCode() {
@@ -95,10 +191,10 @@
                 if (!token) { result.textContent = '認証を完了してから接続してください。'; return; }
                 var paired = await client.pairWithCode({ pairingCode: input.value, turnstileToken: token });
                 if (!paired.ok) { result.textContent = messageFor(paired.code); return; }
+                await render();
                 result.textContent = paired.localState === 'empty'
-                    ? '接続しました。クラウドデータの導入は次のPilotで安全に確認します。'
-                    : '接続しました。この端末のデータは統合待ちです。どちらのデータも変更していません。';
-                render();
+                    ? '接続しました。導入内容を確認してからクラウドデータを反映できます。'
+                    : '接続しました。統合内容を確認するまで、どちらのデータも変更しません。';
             }));
         }
 

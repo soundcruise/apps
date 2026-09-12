@@ -48,12 +48,13 @@ function runBootstrap(hostname, sessionValue, explicitFlag) {
 
     assert(standardHtml.includes('../js/sync/sync-bootstrap.js?v=1.1.0'), 'Standard loads only the OFF-first bootstrap');
     assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.1.0'), 'Pro loads only the OFF-first bootstrap');
-    ['sync-core.js', 'sync-db.js', 'sync-client.js'].forEach(function (fileName) {
+    ['sync-core.js', 'sync-db.js', 'sync-merge.js', 'sync-client.js'].forEach(function (fileName) {
         assert.strictEqual(standardHtml.includes(fileName), false, 'Standard does not eagerly load ' + fileName);
         assert.strictEqual(proHtml.includes(fileName), false, 'Pro does not eagerly load ' + fileName);
     });
     assert(source.indexOf("loadScript('sync-core.js')") < source.indexOf("loadScript('sync-db.js')"));
-    assert(source.indexOf("loadScript('sync-db.js')") < source.indexOf("loadScript('sync-client.js')"));
+    assert(source.indexOf("loadScript('sync-db.js')") < source.indexOf("loadScript('sync-merge.js')"));
+    assert(source.indexOf("loadScript('sync-merge.js')") < source.indexOf("loadScript('sync-client.js')"));
     assert(source.includes('client.watchLocalMutations'), 'Pilot ON connects successful local saves to debounced sync');
     assert(source.includes("getMeta('datasetState') === 'ready'"), 'background sync starts only after migration is ready');
     assert.strictEqual(source.includes('beginInitialMigration('), false, 'bootstrap never starts migration without an explicit Pilot action');

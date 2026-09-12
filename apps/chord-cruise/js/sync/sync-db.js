@@ -8,7 +8,9 @@
         meta: 'meta',
         outbox: 'outbox',
         shadow: 'shadow',
-        conflicts: 'conflicts'
+        conflicts: 'conflicts',
+        backups: 'backups',
+        mergeSessions: 'merge_sessions'
     });
 
     function requestResult(request) {
@@ -42,6 +44,12 @@
         if (!database.objectStoreNames.contains(STORE_NAMES.conflicts)) {
             var conflicts = database.createObjectStore(STORE_NAMES.conflicts, { keyPath: 'conflictId' });
             conflicts.createIndex('recordKey', 'recordKey', { unique: false });
+        }
+        if (!database.objectStoreNames.contains(STORE_NAMES.backups)) {
+            database.createObjectStore(STORE_NAMES.backups, { keyPath: 'backupId' });
+        }
+        if (!database.objectStoreNames.contains(STORE_NAMES.mergeSessions)) {
+            database.createObjectStore(STORE_NAMES.mergeSessions, { keyPath: 'sessionId' });
         }
     }
 
@@ -171,6 +179,36 @@
             deleteConflict: function (conflictId) {
                 return run(STORE_NAMES.conflicts, 'readwrite', function (store) {
                     return requestResult(store.delete(conflictId));
+                });
+            },
+            putBackup: function (backup) {
+                return run(STORE_NAMES.backups, 'readwrite', function (store) {
+                    return requestResult(store.put(clone(backup)));
+                });
+            },
+            getBackup: function (backupId) {
+                return run(STORE_NAMES.backups, 'readonly', function (store) {
+                    return requestResult(store.get(backupId)).then(clone);
+                });
+            },
+            listBackups: function () {
+                return run(STORE_NAMES.backups, 'readonly', function (store) {
+                    return requestResult(store.getAll()).then(function (entries) { return clone(entries || []); });
+                });
+            },
+            putMergeSession: function (session) {
+                return run(STORE_NAMES.mergeSessions, 'readwrite', function (store) {
+                    return requestResult(store.put(clone(session)));
+                });
+            },
+            getMergeSession: function (sessionId) {
+                return run(STORE_NAMES.mergeSessions, 'readonly', function (store) {
+                    return requestResult(store.get(sessionId)).then(clone);
+                });
+            },
+            listMergeSessions: function () {
+                return run(STORE_NAMES.mergeSessions, 'readonly', function (store) {
+                    return requestResult(store.getAll()).then(function (entries) { return clone(entries || []); });
                 });
             }
         });

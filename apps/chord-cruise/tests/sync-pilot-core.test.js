@@ -35,7 +35,7 @@ var core = loadCore();
 
 (async function () {
     assert.strictEqual(core.DB_NAME, 'soundCruiseSync');
-    assert.strictEqual(core.DB_VERSION, 1);
+    assert.strictEqual(core.DB_VERSION, 2);
     assert.strictEqual(core.canonicalJson({ z: 1, a: { y: 2, x: undefined }, list: [1, undefined, -0] }),
         '{"a":{"y":2},"list":[1,null,0],"z":1}', 'canonical JSON sorts keys and fixes JSON edge cases');
 

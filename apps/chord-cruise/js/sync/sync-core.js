@@ -304,7 +304,7 @@
         APP_SCHEMA_VERSION: APP_SCHEMA_VERSION,
         EXPORT_FORMAT_VERSION: EXPORT_FORMAT_VERSION,
         DB_NAME: 'soundCruiseSync',
-        DB_VERSION: 1,
+        DB_VERSION: 2,
         RECORD_TYPES: RECORD_TYPES.slice(),
         canonicalValue: canonicalValue,
         canonicalJson: canonicalJson,
