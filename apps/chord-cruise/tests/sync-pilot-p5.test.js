@@ -75,7 +75,8 @@ function preparedBody() {
     return {
         ok: true, operation: 'prepared', appId: 'chord', claimToken: CLAIM,
         expiresAt: 700000, deviceId: DEVICE_ID, deviceCredential: CREDENTIAL,
-        recoveryCode: '2345-6789-ABCD-EFGH-JKMN'
+        recoveryCode: '2345-6789-ABCD-EFGH-JKMN',
+        summary: { appId: 'chord', recordCount: 6, chordCount: 3, folderCount: 1, updatedAt: 123456, activeDeviceCount: 2 }
     };
 }
 
@@ -101,6 +102,9 @@ function preparedBody() {
     });
     assert.strictEqual(prepared.ok, true);
     assert.strictEqual(prepared.localState, 'empty');
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(prepared.summary)), {
+        appId: 'chord', recordCount: 6, chordCount: 3, folderCount: 1, updatedAt: 123456, activeDeviceCount: 2
+    });
     var wire = JSON.parse(calls[0].options.body);
     assert.strictEqual(wire.operation, 'prepare');
     assert.strictEqual(wire.recoveryCode, '0123456789ABCDEFGHJK');
@@ -160,6 +164,13 @@ function preparedBody() {
     assert(uiSource.includes('現在の復旧コードは使えなくなります。'));
     assert(uiSource.includes("input.autocomplete = 'off'"));
     assert(uiSource.includes('保存しました'));
+    assert(uiSource.includes('復旧するデータを確認'));
+    assert(uiSource.includes('このデータを復旧'));
+    assert(uiSource.includes('クラウドに保存されているコード：'));
+    assert(uiSource.includes('現在同期中の他の端末はすべて同期解除されます。'));
+    assert(uiSource.includes("button('戻る', render)"), 'summary can be cancelled without committing');
+    assert(uiSource.indexOf('recoverySummaryView(prepared)') < uiSource.lastIndexOf('client.commitRecovery(prepared)'),
+        'prepare first renders a dataset confirmation before the commit path');
     console.log('sync-pilot-p5: Recovery normalization, storage-first commit, response-loss proof, UI, and no plaintext persistence passed');
 }()).catch(function (error) {
     console.error(error);

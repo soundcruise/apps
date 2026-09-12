@@ -85,6 +85,44 @@
             actions.appendChild(button('保存しました', onSaved, 'cc-settings-reset-trigger cc-settings-pro-link'));
         }
 
+        function recoverySummaryView(prepared) {
+            actions.textContent = '';
+            result.textContent = '';
+            status.textContent = '復旧するデータを確認';
+            var heading = global.document.createElement('strong');
+            heading.textContent = 'コードクルーズ';
+            actions.appendChild(heading);
+            var summary = prepared.summary;
+            [
+                'クラウドに保存されているコード：' + summary.chordCount + '件',
+                'フォルダ：' + summary.folderCount + '件',
+                '同期データ：' + summary.recordCount + '件',
+                '同期中の端末：' + summary.activeDeviceCount + '台',
+                '最終更新：' + formatLastSeen(summary.updatedAt)
+            ].forEach(function (text) {
+                var detail = global.document.createElement('p');
+                detail.className = 'cc-settings-note';
+                detail.textContent = text;
+                actions.appendChild(detail);
+            });
+            var warning = global.document.createElement('p');
+            warning.className = 'cc-settings-note';
+            warning.textContent = 'このクラウドデータを復旧しますか？復旧すると、現在同期中の他の端末はすべて同期解除されます。';
+            actions.appendChild(warning);
+            actions.appendChild(button('戻る', render));
+            actions.appendChild(button('このデータを復旧', function () {
+                recoveryCodeView(prepared, async function () {
+                    result.textContent = '端末へ安全に保存して復旧しています…';
+                    var recovered = await client.commitRecovery(prepared);
+                    if (!recovered.ok) { result.textContent = messageFor(recovered.code); return; }
+                    await render();
+                    result.textContent = recovered.localState === 'empty'
+                        ? '復旧しました。導入内容を確認してからクラウドデータを反映できます。'
+                        : '復旧しました。統合内容を確認するまで、どちらのデータも変更しません。';
+                });
+            }, 'cc-settings-reset-trigger cc-settings-pro-link'));
+        }
+
         function formatLastSeen(value) {
             if (!Number.isFinite(value)) return '不明';
             var date = new Date(value);
@@ -402,15 +440,7 @@
                 result.textContent = '復旧コードを確認しています…';
                 var prepared = await client.prepareRecovery({ recoveryCode: input.value, turnstileToken: token });
                 if (!prepared.ok) { result.textContent = messageFor(prepared.code); return; }
-                recoveryCodeView(prepared, async function () {
-                    result.textContent = '端末へ安全に保存して復旧しています…';
-                    var recovered = await client.commitRecovery(prepared);
-                    if (!recovered.ok) { result.textContent = messageFor(recovered.code); return; }
-                    await render();
-                    result.textContent = recovered.localState === 'empty'
-                        ? '復旧しました。導入内容を確認してからクラウドデータを反映できます。'
-                        : '復旧しました。統合内容を確認するまで、どちらのデータも変更しません。';
-                });
+                recoverySummaryView(prepared);
             }));
             actions.appendChild(button('戻る', render, 'cc-settings-reset-trigger cc-settings-pro-link'));
         }

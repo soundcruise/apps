@@ -734,10 +734,21 @@
                 return { ok: false, code: body && body.code ? body.code : 'recovery_failed' };
             }
             var nextCode = normalizeRecoveryCode(body.recoveryCode);
+            var summary = body.summary;
+            var summaryKeys = summary && typeof summary === 'object' ? Object.keys(summary).sort() : [];
+            var expectedSummaryKeys = ['activeDeviceCount', 'appId', 'chordCount', 'folderCount', 'recordCount', 'updatedAt'];
             if (body.operation !== 'prepared' || body.appId !== core.APP_ID ||
                 !RECOVERY_CLAIM_PATTERN.test(body.claimToken || '') ||
                 !CREDENTIAL_PATTERN.test(body.deviceCredential || '') ||
-                typeof body.deviceId !== 'string' || !nextCode || !Number.isFinite(body.expiresAt)) {
+                typeof body.deviceId !== 'string' || !nextCode || !Number.isFinite(body.expiresAt) ||
+                summaryKeys.length !== expectedSummaryKeys.length ||
+                summaryKeys.some(function (key, index) { return key !== expectedSummaryKeys[index]; }) ||
+                summary.appId !== core.APP_ID ||
+                !Number.isInteger(summary.recordCount) || summary.recordCount < 0 ||
+                !Number.isInteger(summary.chordCount) || summary.chordCount < 0 ||
+                !Number.isInteger(summary.folderCount) || summary.folderCount < 0 ||
+                !Number.isInteger(summary.activeDeviceCount) || summary.activeDeviceCount < 0 ||
+                !Number.isFinite(summary.updatedAt) || summary.updatedAt < 0) {
                 return { ok: false, code: 'invalid_response' };
             }
             return {
@@ -748,6 +759,14 @@
                 deviceCredential: body.deviceCredential,
                 recoveryCode: nextCode,
                 displayRecoveryCode: formatRecoveryCode(nextCode),
+                summary: {
+                    appId: summary.appId,
+                    recordCount: summary.recordCount,
+                    chordCount: summary.chordCount,
+                    folderCount: summary.folderCount,
+                    updatedAt: summary.updatedAt,
+                    activeDeviceCount: summary.activeDeviceCount
+                },
                 localState: mergeApi().hasMeaningfulLocalData(snapshot) ? 'local_data_pending_merge' : 'empty'
             };
         }

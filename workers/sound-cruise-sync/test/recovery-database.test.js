@@ -28,8 +28,20 @@ function fixture() {
   db.raw.prepare(`
     INSERT INTO sync_datasets (
       user_id,app_id,state,schema_version,record_count,manifest_hash,min_change_seq,initialized_at,updated_at,last_change_seq
-    ) VALUES (?, 'chord', 'ready', 1, 0, ?, 0, 1, 1, 0)
+    ) VALUES (?, 'chord', 'ready', 1, 6, ?, 0, 1, 9000, 0)
   `).run(USER, '0'.repeat(64));
+  for (const [type, id] of [
+    ['chord', 'c1'], ['chord', 'c2'], ['chord', 'c3'], ['folder', 'f1'],
+    ['library_order', 'order'], ['settings', 'settings']
+  ]) {
+    db.raw.prepare(`
+      INSERT INTO sync_records (
+        user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,
+        updated_at,deleted_at,updated_by_device_id,last_operation_id
+      ) VALUES (?, 'chord', ?, ?, ?, ?, 1, 9000, NULL, ?, ?)
+    `).run(USER, type, id, JSON.stringify({ id, chordName: type === 'chord' ? 'private-' + id : undefined }),
+      'a'.repeat(64), DEVICE_A, 'operation-' + id);
+  }
   db.raw.prepare(`
     INSERT INTO pairing_codes (
       code_verifier,user_id,created_by_device_id,target_app_id,attempts_remaining,created_at,expires_at,consumed_at,cancelled_at
@@ -67,7 +79,16 @@ test('candidate verifier attempts are bounded without storing Recovery Code plai
 test('recovery commit atomically rotates, revokes all devices and pairing, and creates only the recovery device', async () => {
   const { db, repository } = fixture();
   assert.equal((await repository.reserveAttempt(CURRENT, 1000)).status, 'allowed');
-  assert.deepEqual(await prepare(repository), { status: 'prepared', expiresAt: 601000 });
+  const prepared = await prepare(repository);
+  assert.deepEqual(prepared, {
+    status: 'prepared', expiresAt: 601000,
+    summary: { appId: 'chord', recordCount: 6, chordCount: 3, folderCount: 1, updatedAt: 9000, activeDeviceCount: 2 }
+  });
+  assert.equal(JSON.stringify(prepared).includes('private-c'), false, 'summary never includes Chord payload or name');
+  assert.equal(db.raw.prepare('SELECT recovery_version FROM sync_users WHERE id = ?').get(USER).recovery_version, 1,
+    'prepare alone never rotates Recovery credentials');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM sync_devices WHERE user_id = ? AND revoked_at IS NULL').get(USER).count, 2,
+    'prepare alone never revokes devices');
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM recovery_attempts').get().count, 0, 'valid candidate attempt is cleared');
   const claim = db.raw.prepare('SELECT * FROM recovery_claims').get();
   assert.equal(claim.claim_verifier, '4'.repeat(64));

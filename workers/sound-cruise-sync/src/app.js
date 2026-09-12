@@ -268,7 +268,8 @@ async function handleRecover(request, env, origin, route, dependencies) {
         expiresAt: prepared.expiresAt,
         deviceId: device.deviceId,
         deviceCredential: device.credential,
-        recoveryCode: formatRecoveryCode(nextRecoveryCode)
+        recoveryCode: formatRecoveryCode(nextRecoveryCode),
+        summary: prepared.summary
       }, origin, route, { 'X-D1-Bookmark': sessionBookmark(session) });
     }
     let claim;

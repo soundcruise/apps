@@ -54,7 +54,10 @@ test('Recovery prepare uses dedicated Turnstile, no user selector, and returns s
   const calls = {};
   const repository = {
     reserveAttempt: async () => ({ status: 'allowed' }),
-    prepare: async (input) => { preparedInput = input; return { status: 'prepared', expiresAt: 700000 }; }
+    prepare: async (input) => { preparedInput = input; return {
+      status: 'prepared', expiresAt: 700000,
+      summary: { appId: 'chord', recordCount: 6, chordCount: 3, folderCount: 1, updatedAt: 123456, activeDeviceCount: 2 }
+    }; }
   };
   const response = await handleRequest(request({
     operation: 'prepare', appId: 'chord', recoveryCode: '0123-4567-89ab-cdef-ghjk',
@@ -69,8 +72,11 @@ test('Recovery prepare uses dedicated Turnstile, no user selector, and returns s
   assert.deepEqual(body, {
     ok: true, operation: 'prepared', appId: 'chord', claimToken: CLAIM, expiresAt: 700000,
     deviceId: DEVICE_ID, deviceCredential: CREDENTIAL,
-    recoveryCode: '2345-6789-ABCD-EFGH-JKMN'
+    recoveryCode: '2345-6789-ABCD-EFGH-JKMN',
+    summary: { appId: 'chord', recordCount: 6, chordCount: 3, folderCount: 1, updatedAt: 123456, activeDeviceCount: 2 }
   });
+  assert.equal(JSON.stringify(body).includes('userId'), false);
+  assert.equal(JSON.stringify(body).includes('chordName'), false);
 });
 
 test('wrong Recovery Code, Turnstile failure, rate limiting and identity injection fail closed', async () => {

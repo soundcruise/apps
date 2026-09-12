@@ -62,7 +62,38 @@ export function createD1RecoveryRepository(db, clock = Date.now) {
     );
     const results = await db.batch([cleanupClaims, clearValidAttempt, insertClaim]);
     if (!batchSucceeded(results, 3)) throw new Error('D1 recovery prepare transaction failed');
-    return changes(results[2]) === 1 ? { status: 'prepared', expiresAt } : { status: 'invalid' };
+    if (changes(results[2]) !== 1) return { status: 'invalid' };
+    const summary = await db.prepare(`
+      SELECT r.target_app_id AS app_id,
+             s.record_count AS record_count,
+             s.updated_at AS updated_at,
+             (SELECT COUNT(*) FROM sync_records sr
+              WHERE sr.user_id = r.user_id AND sr.app_id = r.target_app_id
+                AND sr.record_type = 'chord' AND sr.deleted_at IS NULL) AS chord_count,
+             (SELECT COUNT(*) FROM sync_records sr
+              WHERE sr.user_id = r.user_id AND sr.app_id = r.target_app_id
+                AND sr.record_type = 'folder' AND sr.deleted_at IS NULL) AS folder_count,
+             (SELECT COUNT(*) FROM sync_devices d
+              WHERE d.user_id = r.user_id AND d.app_id = r.target_app_id
+                AND d.revoked_at IS NULL) AS active_device_count
+      FROM recovery_claims r
+      JOIN sync_datasets s ON s.user_id = r.user_id AND s.app_id = r.target_app_id
+      WHERE r.claim_id = ? AND r.claim_verifier = ?
+        AND r.committed_at IS NULL AND r.cancelled_at IS NULL AND r.expires_at > ?
+    `).bind(input.claimId, input.claimVerifier, now).first();
+    if (!summary) throw new Error('D1 recovery summary unavailable');
+    return {
+      status: 'prepared',
+      expiresAt,
+      summary: {
+        appId: summary.app_id,
+        recordCount: Number(summary.record_count),
+        chordCount: Number(summary.chord_count),
+        folderCount: Number(summary.folder_count),
+        updatedAt: Number(summary.updated_at),
+        activeDeviceCount: Number(summary.active_device_count)
+      }
+    };
   }
 
   async function getClaim(claimId) {
