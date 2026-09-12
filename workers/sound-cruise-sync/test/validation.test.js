@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { isJsonContentType, readBodyWithLimit, validateStartPayload } from '../src/validation.js';
+import {
+  isJsonContentType, readBodyWithLimit, validateStartPayload,
+  validateRecoveryPayload, validateRecoveryIssuePayload
+} from '../src/validation.js';
 
 const env = { SYNC_ALLOWED_APP_IDS: 'chord' };
 const hash = 'a'.repeat(64);
@@ -50,4 +53,21 @@ test('JSON content type and bounded UTF-8 reader reject unsafe requests', async 
     method: 'POST', body: new Uint8Array([0xc3, 0x28])
   }), 20);
   assert.equal(invalidUtf8.ok, false);
+});
+
+test('Recovery prepare/commit payloads normalize codes and reject identity injection', () => {
+  const prepared = validateRecoveryPayload({
+    operation: 'prepare', appId: 'chord', recoveryCode: '0123-4567-89ab-cdef-ghjk',
+    turnstileToken: 'token', deviceLabel: ' QA Recovery '
+  }, env);
+  assert.equal(prepared.ok, true);
+  assert.equal(prepared.value.recoveryCode, '0123456789ABCDEFGHJK');
+  assert.equal(prepared.value.deviceLabel, 'QA Recovery');
+  assert.equal(validateRecoveryPayload({ ...prepared.value, userId: 'attacker' }, env).ok, false);
+  assert.equal(validateRecoveryPayload({ ...prepared.value, recoveryCode: 'O'.repeat(20) }, env).ok, false);
+  assert.equal(validateRecoveryPayload({ operation: 'commit', appId: 'chord', claimToken: 'token' }, env).ok, true);
+  assert.equal(validateRecoveryPayload({ operation: 'commit', appId: 'pitch', claimToken: 'token' }, env).ok, false);
+  assert.equal(validateRecoveryPayload({ operation: 'commit', appId: 'chord', claimToken: 'x'.repeat(129) }, env).ok, false);
+  assert.equal(validateRecoveryIssuePayload({ appId: 'chord' }, env).ok, true);
+  assert.equal(validateRecoveryIssuePayload({ appId: 'chord', recoveryCode: 'secret' }, env).ok, false);
 });

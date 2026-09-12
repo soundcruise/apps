@@ -4,9 +4,10 @@ export async function createProvisioningIdentity(db, input) {
   }
   const userStatement = db.prepare(`
     INSERT INTO sync_users (
-      id, state, recovery_version, recovery_verifier, created_at, updated_at, deleted_at
-    ) VALUES (?, 'provisioning', 0, NULL, ?, ?, NULL)
-  `).bind(input.userId, input.now, input.now);
+      id, state, recovery_version, recovery_verifier, created_at, updated_at, deleted_at,
+      recovery_created_at, recovery_rotated_at
+    ) VALUES (?, 'active', 1, ?, ?, ?, NULL, ?, ?)
+  `).bind(input.userId, input.recoveryVerifier, input.now, input.now, input.now, input.now);
   const deviceStatement = db.prepare(`
     INSERT INTO sync_devices (
       id, user_id, app_id, credential_version, credential_verifier,

@@ -7,6 +7,8 @@
     if (!core || !database) throw new Error('Sound Cruise Sync core and database must load before the client');
 
     var CREDENTIAL_PATTERN = /^scd1\.([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/;
+    var RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    var RECOVERY_CLAIM_PATTERN = /^scr1\.([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/;
     var RECORD_TYPES = core.RECORD_TYPES;
     var MAX_PUSH_OPERATIONS = 50;
     var MAX_PUSH_BODY_BYTES = 256 * 1024;
@@ -23,6 +25,21 @@
     function formatPairingCode(value) {
         var normalized = normalizePairingCode(value);
         return normalized ? normalized.slice(0, 4) + ' ' + normalized.slice(4) : null;
+    }
+
+    function normalizeRecoveryCode(value) {
+        if (typeof value !== 'string') return null;
+        var normalized = value.toUpperCase().replace(/[\s-]/g, '');
+        if (normalized.length !== 20) return null;
+        for (var index = 0; index < normalized.length; index += 1) {
+            if (RECOVERY_ALPHABET.indexOf(normalized[index]) === -1) return null;
+        }
+        return normalized;
+    }
+
+    function formatRecoveryCode(value) {
+        var normalized = normalizeRecoveryCode(value);
+        return normalized ? normalized.match(/.{4}/g).join('-') : null;
     }
 
     function isPositiveInteger(value) {
@@ -553,7 +570,8 @@
             try { body = await response.json(); } catch (error) { return { ok: false, code: 'invalid_response' }; }
             if (!response.ok || !body || body.ok !== true) return { ok: false, code: body && body.code ? body.code : 'start_failed' };
             if (body.appId !== core.APP_ID || body.datasetState !== 'initializing' ||
-                typeof body.deviceId !== 'string' || !CREDENTIAL_PATTERN.test(body.deviceCredential || '')) {
+                typeof body.deviceId !== 'string' || !CREDENTIAL_PATTERN.test(body.deviceCredential || '') ||
+                !normalizeRecoveryCode(body.recoveryCode) || body.recoveryVersion !== 1) {
                 return { ok: false, code: 'invalid_response' };
             }
             var store = await openStore();
@@ -568,7 +586,12 @@
             await store.setMeta('migrationState', 'not_started', now());
             var bookmark = response.headers && response.headers.get ? response.headers.get('X-D1-Bookmark') : null;
             if (bookmark) await store.setMeta('d1Bookmark', bookmark, now());
-            return { ok: true, appId: core.APP_ID, deviceId: body.deviceId, datasetState: body.datasetState };
+            return {
+                ok: true, appId: core.APP_ID, deviceId: body.deviceId, datasetState: body.datasetState,
+                recoveryCode: normalizeRecoveryCode(body.recoveryCode),
+                displayRecoveryCode: formatRecoveryCode(body.recoveryCode),
+                recoveryVersion: body.recoveryVersion
+            };
         }
 
         async function authenticatedRequest(method, path, body) {
@@ -666,6 +689,181 @@
                 return { ok: false, code: 'client_storage_failed', pairedOnServer: true };
             }
             return { ok: true, appId: core.APP_ID, deviceId: body.deviceId, localState: localState };
+        }
+
+        async function prepareRecovery(input) {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            if (!fetchImpl) return { ok: false, code: 'network_unavailable' };
+            var request = input || {};
+            var recoveryCode = normalizeRecoveryCode(request.recoveryCode);
+            if (!recoveryCode || typeof request.turnstileToken !== 'string' || !request.turnstileToken) {
+                return { ok: false, code: 'invalid_request' };
+            }
+            var snapshot = await adapter.snapshot();
+            if (snapshot.errors.length) return { ok: false, code: 'snapshot_invalid', errors: snapshot.errors.length };
+            var response;
+            try {
+                response = await fetchImpl(endpoint + '/v1/sync/recover', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    cache: 'no-store',
+                    body: JSON.stringify({
+                        operation: 'prepare',
+                        appId: core.APP_ID,
+                        recoveryCode: recoveryCode,
+                        turnstileToken: request.turnstileToken,
+                        deviceLabel: request.deviceLabel
+                    })
+                });
+            } catch (error) { return { ok: false, code: 'network_error' }; }
+            var body;
+            try { body = await response.json(); } catch (error) { return { ok: false, code: 'invalid_response' }; }
+            if (!response.ok || !body || body.ok !== true) {
+                return { ok: false, code: body && body.code ? body.code : 'recovery_failed' };
+            }
+            var nextCode = normalizeRecoveryCode(body.recoveryCode);
+            if (body.operation !== 'prepared' || body.appId !== core.APP_ID ||
+                !RECOVERY_CLAIM_PATTERN.test(body.claimToken || '') ||
+                !CREDENTIAL_PATTERN.test(body.deviceCredential || '') ||
+                typeof body.deviceId !== 'string' || !nextCode || !Number.isFinite(body.expiresAt)) {
+                return { ok: false, code: 'invalid_response' };
+            }
+            return {
+                ok: true,
+                claimToken: body.claimToken,
+                expiresAt: body.expiresAt,
+                deviceId: body.deviceId,
+                deviceCredential: body.deviceCredential,
+                recoveryCode: nextCode,
+                displayRecoveryCode: formatRecoveryCode(nextCode),
+                localState: mergeApi().hasMeaningfulLocalData(snapshot) ? 'local_data_pending_merge' : 'empty'
+            };
+        }
+
+        async function requestWithCredential(credential, path) {
+            if (!fetchImpl || !CREDENTIAL_PATTERN.test(credential || '')) return { ok: false, code: 'credential_missing' };
+            var response;
+            try {
+                response = await fetchImpl(endpoint + path, {
+                    method: 'GET',
+                    headers: { Authorization: 'Bearer ' + credential },
+                    cache: 'no-store'
+                });
+            } catch (error) { return { ok: false, code: 'network_error', retryable: true }; }
+            var body;
+            try { body = await response.json(); } catch (error) { return { ok: false, code: 'invalid_response' }; }
+            return { ok: response.ok && body && body.ok === true, status: response.status, body: body };
+        }
+
+        async function promoteRecoveredCredential(store, pending, bookmark) {
+            await store.setMetaBatch([
+                { key: 'deviceCredential', value: {
+                    deviceId: pending.deviceId,
+                    credential: pending.deviceCredential,
+                    credentialVersion: 1,
+                    createdAt: pending.createdAt
+                } },
+                { key: 'syncState', value: 'paired_pending' },
+                { key: 'datasetState', value: 'remote_pending' },
+                { key: 'migrationState', value: 'pair_pending' },
+                { key: 'pairingLocalState', value: pending.localState },
+                { key: 'd1Bookmark', value: bookmark || null },
+                { key: 'pendingRecovery', value: null }
+            ], now());
+            return { ok: true, appId: core.APP_ID, deviceId: pending.deviceId, localState: pending.localState };
+        }
+
+        async function commitRecovery(prepared) {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            if (!prepared || !RECOVERY_CLAIM_PATTERN.test(prepared.claimToken || '') ||
+                !CREDENTIAL_PATTERN.test(prepared.deviceCredential || '') || typeof prepared.deviceId !== 'string') {
+                return { ok: false, code: 'invalid_request' };
+            }
+            var store = await openStore();
+            var pending = {
+                claimToken: prepared.claimToken,
+                deviceId: prepared.deviceId,
+                deviceCredential: prepared.deviceCredential,
+                localState: prepared.localState === 'empty' ? 'empty' : 'local_data_pending_merge',
+                createdAt: now(),
+                expiresAt: prepared.expiresAt
+            };
+            try {
+                // This durable write is deliberately before the destructive server
+                // commit. If it fails, the old devices and recovery code remain valid.
+                await store.setMeta('pendingRecovery', pending, now());
+            } catch (error) {
+                return { ok: false, code: 'client_storage_failed', serverUnchanged: true };
+            }
+            return resumeRecovery(pending);
+        }
+
+        async function resumeRecovery(providedPending) {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            var store = await openStore();
+            var pending = providedPending || await store.getMeta('pendingRecovery');
+            if (!pending || !RECOVERY_CLAIM_PATTERN.test(pending.claimToken || '') ||
+                !CREDENTIAL_PATTERN.test(pending.deviceCredential || '')) {
+                return { ok: false, code: 'recovery_pending_missing' };
+            }
+            // A previous commit response may have been lost. Authenticate the
+            // already-persisted candidate first; success proves the atomic commit.
+            var proof = await requestWithCredential(
+                pending.deviceCredential,
+                '/v1/sync/snapshot?appId=' + encodeURIComponent(core.APP_ID)
+            );
+            if (proof.ok) return promoteRecoveredCredential(store, pending, null);
+            var response;
+            try {
+                response = await fetchImpl(endpoint + '/v1/sync/recover', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    cache: 'no-store',
+                    body: JSON.stringify({ operation: 'commit', appId: core.APP_ID, claimToken: pending.claimToken })
+                });
+            } catch (error) {
+                proof = await requestWithCredential(
+                    pending.deviceCredential,
+                    '/v1/sync/snapshot?appId=' + encodeURIComponent(core.APP_ID)
+                );
+                if (proof.ok) return promoteRecoveredCredential(store, pending, null);
+                return { ok: false, code: 'recovery_uncertain', resumable: true };
+            }
+            var body;
+            try { body = await response.json(); } catch (error) {
+                return { ok: false, code: 'recovery_uncertain', resumable: true };
+            }
+            if (response.ok && body && body.ok === true && body.operation === 'committed' &&
+                body.appId === core.APP_ID && body.deviceId === pending.deviceId) {
+                var bookmark = response.headers && response.headers.get ? response.headers.get('X-D1-Bookmark') : null;
+                return promoteRecoveredCredential(store, pending, bookmark);
+            }
+            proof = await requestWithCredential(
+                pending.deviceCredential,
+                '/v1/sync/snapshot?appId=' + encodeURIComponent(core.APP_ID)
+            );
+            if (proof.ok) return promoteRecoveredCredential(store, pending, null);
+            if (response.status >= 500 || response.status === 429) {
+                return { ok: false, code: 'recovery_uncertain', resumable: true };
+            }
+            await store.setMeta('pendingRecovery', null, now());
+            return { ok: false, code: body && body.code ? body.code : 'recovery_failed' };
+        }
+
+        async function regenerateRecoveryCode() {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            var response = await authenticatedRequest('POST', '/v1/sync/recovery-codes', { appId: core.APP_ID });
+            if (!response.ok) return { ok: false, code: response.code || 'recovery_rotation_failed' };
+            var code = normalizeRecoveryCode(response.body && response.body.recoveryCode);
+            if (!code || !Number.isInteger(response.body.recoveryVersion) || response.body.recoveryVersion < 2) {
+                return { ok: false, code: 'invalid_response' };
+            }
+            return {
+                ok: true,
+                recoveryCode: code,
+                displayRecoveryCode: formatRecoveryCode(code),
+                recoveryVersion: response.body.recoveryVersion
+            };
         }
 
         function retryDelay(retryCount) {
@@ -1381,6 +1579,10 @@
             startIdentity: startIdentity,
             issuePairingCode: issuePairingCode,
             pairWithCode: pairWithCode,
+            prepareRecovery: prepareRecovery,
+            commitRecovery: commitRecovery,
+            resumeRecovery: resumeRecovery,
+            regenerateRecoveryCode: regenerateRecoveryCode,
             flushOutbox: flushOutbox,
             applyPulledRecord: async function (input) { return applyPulledRecord(await openStore(), input); },
             pullOnce: pullOnce,
@@ -1401,6 +1603,9 @@
         CREDENTIAL_PATTERN: CREDENTIAL_PATTERN,
         normalizePairingCode: normalizePairingCode,
         formatPairingCode: formatPairingCode,
+        RECOVERY_ALPHABET: RECOVERY_ALPHABET,
+        normalizeRecoveryCode: normalizeRecoveryCode,
+        formatRecoveryCode: formatRecoveryCode,
         createLocalAdapter: createLocalAdapter,
         createClient: createClient,
         makeOperationId: makeOperationId

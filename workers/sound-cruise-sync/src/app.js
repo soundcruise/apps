@@ -1,7 +1,12 @@
 import { authenticateDevice } from './auth.js';
-import { createIdentityMaterial, createPairingCode, pairingCodeVerifier } from './crypto.js';
+import {
+  createIdentityMaterial, createPairingCode, pairingCodeVerifier,
+  createRecoveryClaim, createRecoveryCode, formatRecoveryCode,
+  recoveryClaimVerifier, recoveryCodeVerifier
+} from './crypto.js';
 import { createProvisioningIdentity } from './database.js';
 import { createD1PairingRepository } from './pairing-database.js';
+import { createD1RecoveryRepository } from './recovery-database.js';
 import { decodeCursor, encodeCursor } from './records.js';
 import { createD1SyncRepository } from './sync-database.js';
 import { verifyTurnstileToken } from './turnstile.js';
@@ -13,6 +18,8 @@ import {
   validateMigrationCompletePayload,
   validatePairingIssuePayload,
   validatePairPayload,
+  validateRecoveryIssuePayload,
+  validateRecoveryPayload,
   validatePushPayload,
   validateReadQuery,
   validateStartPayload
@@ -22,6 +29,8 @@ const ROUTES = Object.freeze({
   '/v1/sync/start': { method: 'POST', headers: ['content-type'] },
   '/v1/sync/pairing-codes': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/pair': { method: 'POST', headers: ['content-type'] },
+  '/v1/sync/recover': { method: 'POST', headers: ['content-type'] },
+  '/v1/sync/recovery-codes': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/push': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/migration/complete': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/changes': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
@@ -142,17 +151,23 @@ async function handleStart(request, env, origin, route, dependencies) {
   let turnstile;
   try { turnstile = await verify(validation.value.turnstileToken, env); } catch { return errorResponse(503, 'turnstile_failed', origin, route); }
   if (!turnstile.ok) return errorResponse(turnstile.unavailable ? 503 : 403, 'turnstile_failed', origin, route);
-  if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_DB) return errorResponse(503, 'server_unavailable', origin, route);
+  if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_RECOVERY_PEPPER || !env.SYNC_DB) {
+    return errorResponse(503, 'server_unavailable', origin, route);
+  }
   let material;
+  let recoveryCode;
   let session;
   try {
     session = createSession(env, request);
     if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
     material = await (dependencies.createIdentityMaterial || createIdentityMaterial)(env.SYNC_CREDENTIAL_PEPPER);
+    recoveryCode = (dependencies.createRecoveryCode || createRecoveryCode)();
+    const recoveryVerifier = await (dependencies.recoveryCodeVerifier || recoveryCodeVerifier)(recoveryCode, env.SYNC_RECOVERY_PEPPER);
     await (dependencies.createProvisioningIdentity || createProvisioningIdentity)(session, {
       userId: material.userId,
       deviceId: material.deviceId,
       credentialVerifier: material.credentialVerifier,
+      recoveryVerifier,
       appId: validation.value.appId,
       deviceLabel: validation.value.deviceLabel,
       initialSummary: validation.value.initialSummary,
@@ -167,8 +182,129 @@ async function handleStart(request, env, origin, route, dependencies) {
     syncState: 'provisioning',
     datasetState: 'initializing',
     deviceId: material.deviceId,
-    deviceCredential: material.credential
+    deviceCredential: material.credential,
+    recoveryCode: formatRecoveryCode(recoveryCode),
+    recoveryVersion: 1
   }, origin, route, { 'X-D1-Bookmark': sessionBookmark(session) });
+}
+
+async function handleRecover(request, env, origin, route, dependencies) {
+  if (await isRateLimited(env.RECOVERY_RATE_LIMITER, `recover:${requestIp(request)}`)) {
+    return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
+  }
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateRecoveryPayload(parsed.value, env);
+  if (!validation.ok) {
+    return errorResponse(400, validation.reason === 'turnstile' ? 'turnstile_failed' : 'invalid_request', origin, route);
+  }
+  if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_RECOVERY_PEPPER || !env.SYNC_DB) {
+    return errorResponse(503, 'server_unavailable', origin, route);
+  }
+  let session;
+  try {
+    session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    const repository = (dependencies.createRecoveryRepository || createD1RecoveryRepository)(session);
+    if (validation.value.operation === 'prepare') {
+      const verify = dependencies.verifyTurnstileToken || verifyTurnstileToken;
+      let turnstile;
+      try {
+        turnstile = await verify(validation.value.turnstileToken, env, {
+          expectedAction: env.TURNSTILE_RECOVER_EXPECTED_ACTION || 'sound_cruise_sync_recover'
+        });
+      } catch {
+        return errorResponse(503, 'turnstile_failed', origin, route);
+      }
+      if (!turnstile.ok) return errorResponse(turnstile.unavailable ? 503 : 403, 'turnstile_failed', origin, route);
+      const currentVerifier = await (dependencies.recoveryCodeVerifier || recoveryCodeVerifier)(
+        validation.value.recoveryCode, env.SYNC_RECOVERY_PEPPER
+      );
+      const attempt = await repository.reserveAttempt(currentVerifier, Date.now());
+      if (attempt.status !== 'allowed') return errorResponse(400, 'recovery_invalid', origin, route);
+      const nextRecoveryCode = (dependencies.createRecoveryCode || createRecoveryCode)();
+      const nextRecoveryVerifier = await (dependencies.recoveryCodeVerifier || recoveryCodeVerifier)(
+        nextRecoveryCode, env.SYNC_RECOVERY_PEPPER
+      );
+      const device = await (dependencies.createIdentityMaterial || createIdentityMaterial)(env.SYNC_CREDENTIAL_PEPPER);
+      const claim = await (dependencies.createRecoveryClaim || createRecoveryClaim)(env.SYNC_RECOVERY_PEPPER);
+      const prepared = await repository.prepare({
+        currentRecoveryVerifier: currentVerifier,
+        claimId: claim.claimId,
+        claimVerifier: claim.claimVerifier,
+        appId: validation.value.appId,
+        nextRecoveryVerifier,
+        nextDeviceId: device.deviceId,
+        nextCredentialVerifier: device.credentialVerifier,
+        deviceLabel: validation.value.deviceLabel,
+        now: Date.now()
+      });
+      if (prepared.status !== 'prepared') return errorResponse(400, 'recovery_invalid', origin, route);
+      return jsonResponse(200, {
+        ok: true,
+        operation: 'prepared',
+        appId: validation.value.appId,
+        claimToken: claim.claimToken,
+        expiresAt: prepared.expiresAt,
+        deviceId: device.deviceId,
+        deviceCredential: device.credential,
+        recoveryCode: formatRecoveryCode(nextRecoveryCode)
+      }, origin, route, { 'X-D1-Bookmark': sessionBookmark(session) });
+    }
+    let claim;
+    try {
+      claim = await (dependencies.recoveryClaimVerifier || recoveryClaimVerifier)(
+        validation.value.claimToken, env.SYNC_RECOVERY_PEPPER
+      );
+    } catch {
+      return errorResponse(400, 'recovery_invalid', origin, route);
+    }
+    const committed = await repository.commit({
+      claimId: claim.claimId,
+      claimVerifier: claim.claimVerifier,
+      appId: validation.value.appId,
+      now: Date.now()
+    });
+    if (committed.status !== 'recovered') return errorResponse(400, 'recovery_invalid', origin, route);
+    return jsonResponse(200, {
+      ok: true,
+      operation: 'committed',
+      appId: validation.value.appId,
+      deviceId: committed.deviceId,
+      recoveryVersion: committed.recoveryVersion,
+      datasetState: 'remote_pending'
+    }, origin, route, { 'X-D1-Bookmark': sessionBookmark(session) });
+  } catch {
+    return errorResponse(503, 'server_error', origin, route);
+  }
+}
+
+async function handleRecoveryIssue(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateRecoveryIssuePayload(parsed.value, env);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_RECOVERY_PEPPER) return errorResponse(503, 'server_unavailable', origin, route);
+  let context;
+  try { context = await authenticatedContext(request, env, validation.value.appId, dependencies); } catch {
+    return errorResponse(503, 'server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const code = (dependencies.createRecoveryCode || createRecoveryCode)();
+    const verifier = await (dependencies.recoveryCodeVerifier || recoveryCodeVerifier)(code, env.SYNC_RECOVERY_PEPPER);
+    const repository = (dependencies.createRecoveryRepository || createD1RecoveryRepository)(context.session);
+    const rotated = await repository.regenerate(context.identity, verifier, Date.now());
+    if (rotated.status !== 'rotated') return errorResponse(409, 'recovery_rotation_failed', origin, route);
+    return jsonResponse(201, {
+      ok: true,
+      appId: context.identity.appId,
+      recoveryCode: formatRecoveryCode(code),
+      recoveryVersion: rotated.recoveryVersion
+    }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch {
+    return errorResponse(503, 'server_error', origin, route);
+  }
 }
 
 function pairingError(status, result, origin, route) {
@@ -382,7 +518,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   const url = new URL(request.url);
   if (url.pathname === '/health') {
     if (request.method !== 'GET') return errorResponse(405, 'method_not_allowed', null, null, { Allow: 'GET' });
-    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p3' });
+    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p5' });
   }
   const route = ROUTES[url.pathname];
   if (!route) return errorResponse(404, 'not_found');
@@ -411,6 +547,8 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if (url.pathname === '/v1/sync/start') return handleStart(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/pairing-codes') return handlePairingIssue(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/pair') return handlePair(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/recover') return handleRecover(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/recovery-codes') return handleRecoveryIssue(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/push') return handlePush(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/changes') return handleChanges(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v1/sync/snapshot') return handleSnapshot(request, env, origin, route, dependencies, url);

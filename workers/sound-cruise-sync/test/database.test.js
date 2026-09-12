@@ -26,6 +26,7 @@ function input() {
   return {
     userId: 'user-id', deviceId: 'device-id', appId: 'chord',
     credentialVerifier: 'v'.repeat(64), deviceLabel: 'QA iPhone', now: 1234,
+    recoveryVerifier: 'r'.repeat(64),
     initialSummary: { schemaVersion: 1, recordCount: 4, manifestHash: 'a'.repeat(64) }
   };
 }
@@ -36,6 +37,8 @@ test('provisioning writes user, verifier-only device, and initializing dataset i
   assert.deepEqual(result, { userId: 'user-id', deviceId: 'device-id', datasetState: 'initializing' });
   assert.equal(db.statements.length, 3);
   assert.equal(db.statements[1].values.includes('v'.repeat(64)), true);
+  assert.equal(db.statements[0].values.includes('r'.repeat(64)), true);
+  assert.equal(db.statements[0].sql.includes("'active', 1"), true);
   assert.equal(db.statements.some((statement) => statement.values.some((value) => String(value).startsWith('scd1.'))), false,
     'plaintext credential never reaches D1');
 });

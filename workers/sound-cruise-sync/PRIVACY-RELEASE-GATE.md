@@ -9,6 +9,9 @@
 - change log、tombstone、削除猶予、hard deleteの保持期間
 - 「同期を解除」「端末を解除」「クラウドデータを削除」「ローカルデータを削除」の違い
 - recovery codeを全deviceとともに失うと復旧不能であること
+- Recovery Codeは100-bitで一度だけ表示し、平文をserverへ保存しないこと
+- Recovery成功時に旧device・未使用Pairing Codeを失効し、Recovery Code自身をrotationすること
+- Recovery prepare/claimの保持期間、失敗試行制限、revoked device metadataの保持目的
 - Cloudflare Workers／D1／Turnstileを処理基盤として利用すること
 - request payload、資格情報、raw IPをアプリ運用ログへ残さないこと
 - Standard／Proの基本同期とquotaの扱い

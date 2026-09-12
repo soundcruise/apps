@@ -13,7 +13,7 @@ Chord Cruise限定pilotの同期基盤です。Cruise Portのアプリ追加リ�
 - 匿名`sync_user`とChord専用device credentialのprovisioning
 - D1 schemaとローカルmigration試験
 
-Pairing、Recovery、Conflict解決UI、一般公開は後続Phaseです。P2では明示的なPilot操作だけが初回migrationを開始し、manifest一致後にdatasetを`ready`へ進めます。
+P5ではPairing、Conflict解決UIに加え、100-bit Recovery Codeの二段階復旧と認証済み端末からの再発行をPilot限定で実装しています。一般公開は後続Phaseです。P2では明示的なPilot操作だけが初回migrationを開始し、manifest一致後にdatasetを`ready`へ進めます。
 
 ## ローカル確認
 
@@ -24,7 +24,7 @@ npm run migrate:local
 npm run check
 ```
 
-`POST /v1/sync/start`はTurnstile、それ以外の同期endpointはdevice credentialで認証します。`TURNSTILE_SECRET_KEY`、`SYNC_CREDENTIAL_PEPPER`、`SYNC_DB`、該当rate limiterのいずれかが不足するとfail closedします。production bypassはありません。
+`POST /v1/sync/start`とRecovery prepareはTurnstile、Recovery commitは短期claim、その他の同期endpointはdevice credentialで認証します。`TURNSTILE_SECRET_KEY`、`SYNC_CREDENTIAL_PEPPER`、`SYNC_RECOVERY_PEPPER`、`SYNC_DB`、該当rate limiterのいずれかが不足するとfail closedします。production bypassはありません。
 
 ## Remote Pilot（P2.5）
 
@@ -35,7 +35,7 @@ npm run check
 - D1: `sound-cruise-sync` (`e37759f8-df08-4d2a-92b0-ffdd50de66df`)
 - binding: `SYNC_DB`
 - migrations: `0001_create_sync_foundation.sql` → `0002_add_sync_revision_metadata.sql`
-- Secrets: `SYNC_CREDENTIAL_PEPPER`、`TURNSTILE_SECRET_KEY`
+- Secrets: `SYNC_CREDENTIAL_PEPPER`、`SYNC_PAIRING_CODE_PEPPER`、`SYNC_RECOVERY_PEPPER`、`TURNSTILE_SECRET_KEY`
 - Turnstile: Sync専用widget、Pilot hostname限定
 
 `soundcruise.jp`のDNSはこのCloudflare accountの管理外なので、`sync.soundcruise.jp`は設定していません。Custom DomainはDNS管理者と安全に調整できる後続Phaseまでrelease gateとして残します。本番ChordはFeature Flag既定OFFかつproduction host lockoutを維持し、remote Workerを呼びません。
@@ -53,6 +53,10 @@ D1とSecretsはWorker削除とは別resourceです。誤削除を避けるため
 ## Credential
 
 形式は`scd1.<device_id>.<256-bit base64url secret>`です。D1へ保存するのはWorkers Secretのpepperを使ったHMAC-SHA-256 verifierだけです。credential、Turnstile token、request body、raw IPをログへ出してはいけません。
+
+## Recovery
+
+Recovery Codeは紛らわしい文字`I/L/O/U`を除いた32文字alphabetの20文字（100 bit）です。平文はD1へ保存せず、Recovery専用pepperによるHMAC-SHA-256 verifierだけを保存します。復旧はprepareで短期claimと次のcredential/codeを受け取り、ユーザーの保存確認と端末へのcredential先行保存後にcommitします。commitは旧device全失効、未使用Pairing Code取消、新device作成、Recovery Code rotationを1つのD1 batchで行います。
 
 ## Local rollback
 

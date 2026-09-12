@@ -13,7 +13,8 @@
     "SYNC_ALLOWED_APP_IDS": "chord",
     "TURNSTILE_EXPECTED_HOSTNAME": "sound-cruise-sync.cruise-port-requests.workers.dev",
     "TURNSTILE_EXPECTED_ACTION": "sound_cruise_sync_start",
-    "TURNSTILE_PAIR_EXPECTED_ACTION": "sound_cruise_sync_pair"
+    "TURNSTILE_PAIR_EXPECTED_ACTION": "sound_cruise_sync_pair",
+    "TURNSTILE_RECOVER_EXPECTED_ACTION": "sound_cruise_sync_recover"
   },
   "d1_databases": [
     {
@@ -53,6 +54,14 @@
       "namespace_id": "32004",
       "simple": {
         "limit": 10,
+        "period": 60
+      }
+    },
+    {
+      "name": "RECOVERY_RATE_LIMITER",
+      "namespace_id": "32005",
+      "simple": {
+        "limit": 5,
         "period": 60
       }
     }

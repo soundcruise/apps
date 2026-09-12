@@ -191,7 +191,10 @@ var seed = {
         endpoint: 'http://127.0.0.1:8787', now: function () { return 2000; },
         fetch: async function (_url, options) {
             requestBody = JSON.parse(options.body);
-            return { ok: true, json: async function () { return { ok: true, appId: 'chord', datasetState: 'initializing', deviceId: deviceId, deviceCredential: credential }; } };
+            return { ok: true, json: async function () { return {
+                ok: true, appId: 'chord', datasetState: 'initializing', deviceId: deviceId,
+                deviceCredential: credential, recoveryCode: '0123-4567-89AB-CDEF-GHJK', recoveryVersion: 1
+            }; } };
         }
     });
     assert.strictEqual((await validClient.startIdentity({ turnstileToken: 'token', deviceLabel: 'QA iPhone' })).ok, true);

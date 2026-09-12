@@ -1,9 +1,9 @@
 (function (global) {
     'use strict';
 
-    function tokenForPairing() {
+    function tokenFor(action) {
         var provider = global.__SOUND_CRUISE_SYNC_PILOT_GET_TURNSTILE_TOKEN__;
-        if (typeof provider === 'function') return Promise.resolve(provider('sound_cruise_sync_pair'));
+        if (typeof provider === 'function') return Promise.resolve(provider(action));
         return Promise.resolve(global.__SOUND_CRUISE_SYNC_PILOT_TURNSTILE_TOKEN__ || null);
     }
 
@@ -17,6 +17,10 @@
             rate_limited: '少し時間をおいてからもう一度お試しください。',
             turnstile_failed: '認証を完了できませんでした。もう一度お試しください。',
             client_storage_failed: 'この端末に同期情報を保存できませんでした。コードを再発行してやり直してください。',
+            recovery_invalid: '復旧コードが正しくありません。',
+            recovery_uncertain: '通信結果を確認できませんでした。保存した復旧情報から再確認できます。',
+            recovery_pending_missing: '再開できる復旧情報がありません。',
+            recovery_rotation_failed: '新しい復旧コードを発行できませんでした。',
             invalid_cloud_snapshot: 'クラウドデータを安全に検証できませんでした。統合は行っていません。',
             cloud_snapshot_stale: '確認後にクラウドデータが変わりました。もう一度内容を確認してください。',
             local_snapshot_stale: '確認後にこの端末のデータが変わりました。もう一度内容を確認してください。',
@@ -51,9 +55,34 @@
             return element;
         }
 
+        function recoveryCodeView(issued, onSaved) {
+            actions.textContent = '';
+            status.textContent = '重要：復旧コード';
+            var output = global.document.createElement('output');
+            output.className = 'cc-settings-note';
+            output.setAttribute('data-sync-recovery-code', '');
+            output.textContent = issued.displayRecoveryCode;
+            actions.appendChild(output);
+            var explanation = global.document.createElement('p');
+            explanation.className = 'cc-settings-note';
+            explanation.textContent = 'すべての端末を失った場合のデータ復旧に必要です。安全な場所に保管してください。このコードは再表示できません。';
+            actions.appendChild(explanation);
+            actions.appendChild(button('コピー', async function () {
+                try {
+                    if (!global.navigator || !global.navigator.clipboard) throw new Error('Clipboard unavailable');
+                    await global.navigator.clipboard.writeText(issued.recoveryCode);
+                    result.textContent = '復旧コードをコピーしました。';
+                } catch (error) {
+                    result.textContent = 'コピーできませんでした。表示中のコードを安全な場所へ保存してください。';
+                }
+            }));
+            actions.appendChild(button('保存しました', onSaved, 'cc-settings-reset-trigger cc-settings-pro-link'));
+        }
+
         async function render() {
             var store = await client.openStore();
             var credential = await store.getMeta('deviceCredential');
+            var pendingRecovery = await store.getMeta('pendingRecovery');
             var syncState = await store.getMeta('syncState');
             actions.textContent = '';
             result.textContent = '';
@@ -63,13 +92,56 @@
                     actions.appendChild(button('統合内容を確認', showMergePreview));
                 }
                 actions.appendChild(button('別のアプリと同期', issueCode));
+                actions.appendChild(button('新しい復旧コードを発行', regenerateRecoveryCode, 'cc-settings-reset-trigger cc-settings-pro-link'));
+                return;
+            }
+            if (pendingRecovery && pendingRecovery.deviceCredential) {
+                status.textContent = '復旧処理の確認が必要です。';
+                actions.appendChild(button('復旧を再確認', resumeRecovery));
                 return;
             }
             status.textContent = 'この端末はまだクラウド同期に接続していません。';
-            actions.appendChild(button('同期をはじめる', function () {
-                result.textContent = '新規同期の開始は既存Pilot導線から実行してください。';
-            }));
+            actions.appendChild(button('同期をはじめる', startIdentity));
             actions.appendChild(button('すでに同期しています', showPairForm, 'cc-settings-reset-trigger cc-settings-pro-link'));
+            actions.appendChild(button('復旧コードを使う', showRecoveryForm, 'cc-settings-reset-trigger cc-settings-pro-link'));
+        }
+
+        async function startIdentity() {
+            result.textContent = '';
+            var token = await tokenFor('sound_cruise_sync_start');
+            if (!token) { result.textContent = '認証を完了してから同期を開始してください。'; return; }
+            status.textContent = '同期を開始しています…';
+            actions.textContent = '';
+            var started = await client.startIdentity({ turnstileToken: token });
+            if (!started.ok) { result.textContent = messageFor(started.code); await render(); return; }
+            recoveryCodeView(started, async function () {
+                result.textContent = 'ローカルデータを安全に同期しています…';
+                var migrated = await client.beginInitialMigration();
+                if (!migrated.ok) { result.textContent = messageFor(migrated.code); return; }
+                await render();
+                result.textContent = '同期を開始しました。';
+            });
+        }
+
+        async function regenerateRecoveryCode() {
+            if (global.confirm && !global.confirm('現在の復旧コードは使えなくなります。新しい復旧コードを発行しますか？')) return;
+            result.textContent = '新しい復旧コードを発行しています…';
+            var issued = await client.regenerateRecoveryCode();
+            if (!issued.ok) { result.textContent = messageFor(issued.code); return; }
+            recoveryCodeView(issued, async function () {
+                await render();
+                result.textContent = '新しい復旧コードを発行しました。';
+            });
+        }
+
+        async function resumeRecovery() {
+            result.textContent = '復旧結果を確認しています…';
+            var recovered = await client.resumeRecovery();
+            if (!recovered.ok) { result.textContent = messageFor(recovered.code); return; }
+            await render();
+            result.textContent = recovered.localState === 'empty'
+                ? '復旧しました。導入内容を確認してからクラウドデータを反映できます。'
+                : '復旧しました。統合内容を確認するまで、どちらのデータも変更しません。';
         }
 
         function choiceLabel(choice) {
@@ -187,7 +259,7 @@
             });
             actions.appendChild(input);
             actions.appendChild(button('接続する', async function () {
-                var token = await tokenForPairing();
+                var token = await tokenFor('sound_cruise_sync_pair');
                 if (!token) { result.textContent = '認証を完了してから接続してください。'; return; }
                 var paired = await client.pairWithCode({ pairingCode: input.value, turnstileToken: token });
                 if (!paired.ok) { result.textContent = messageFor(paired.code); return; }
@@ -196,6 +268,40 @@
                     ? '接続しました。導入内容を確認してからクラウドデータを反映できます。'
                     : '接続しました。統合内容を確認するまで、どちらのデータも変更しません。';
             }));
+        }
+
+        function showRecoveryForm() {
+            actions.textContent = '';
+            result.textContent = '';
+            status.textContent = '安全な場所に保存した20文字の復旧コードを入力してください。';
+            var input = global.document.createElement('input');
+            input.type = 'text'; input.inputMode = 'text'; input.autocomplete = 'off';
+            input.autocapitalize = 'characters'; input.spellcheck = false;
+            input.maxLength = 24; input.placeholder = 'ABCD-EFGH-JKMP-QRST-WXYZ';
+            input.setAttribute('aria-label', '20文字の復旧コード');
+            input.addEventListener('input', function () {
+                var normalized = global.ChordCruiseSync.client.normalizeRecoveryCode(input.value);
+                if (normalized) input.value = global.ChordCruiseSync.client.formatRecoveryCode(normalized);
+                else input.value = input.value.toUpperCase().replace(/[^0-9ABCDEFGHJKMNPQRSTVWXYZ\s-]/g, '');
+            });
+            actions.appendChild(input);
+            actions.appendChild(button('復旧する', async function () {
+                var token = await tokenFor('sound_cruise_sync_recover');
+                if (!token) { result.textContent = '認証を完了してから復旧してください。'; return; }
+                result.textContent = '復旧コードを確認しています…';
+                var prepared = await client.prepareRecovery({ recoveryCode: input.value, turnstileToken: token });
+                if (!prepared.ok) { result.textContent = messageFor(prepared.code); return; }
+                recoveryCodeView(prepared, async function () {
+                    result.textContent = '端末へ安全に保存して復旧しています…';
+                    var recovered = await client.commitRecovery(prepared);
+                    if (!recovered.ok) { result.textContent = messageFor(recovered.code); return; }
+                    await render();
+                    result.textContent = recovered.localState === 'empty'
+                        ? '復旧しました。導入内容を確認してからクラウドデータを反映できます。'
+                        : '復旧しました。統合内容を確認するまで、どちらのデータも変更しません。';
+                });
+            }));
+            actions.appendChild(button('戻る', render, 'cc-settings-reset-trigger cc-settings-pro-link'));
         }
 
         render().catch(function () { status.textContent = '同期状態を確認できませんでした。'; });

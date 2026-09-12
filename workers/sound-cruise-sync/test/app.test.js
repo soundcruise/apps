@@ -20,9 +20,11 @@ function env(overrides = {}) {
     TURNSTILE_EXPECTED_ACTION: 'sound_cruise_sync_start',
     TURNSTILE_SECRET_KEY: 'secret',
     SYNC_CREDENTIAL_PEPPER: 'p'.repeat(64),
+    SYNC_RECOVERY_PEPPER: 'r'.repeat(64),
     SYNC_DB: dbBinding(),
     START_RATE_LIMITER: { limit: async () => ({ success: true }) },
     SYNC_RATE_LIMITER: { limit: async () => ({ success: true }) },
+    RECOVERY_RATE_LIMITER: { limit: async () => ({ success: true }) },
     ...overrides
   };
 }
@@ -50,6 +52,8 @@ function dependencies(calls) {
     createIdentityMaterial: async () => ({
       userId: USER_ID, deviceId: DEVICE_ID, credential: CREDENTIAL, credentialVerifier: 'f'.repeat(64)
     }),
+    createRecoveryCode: () => '0123456789ABCDEFGHJK',
+    recoveryCodeVerifier: async () => 'e'.repeat(64),
     createProvisioningIdentity: async (_db, input) => { calls.database.push(input); return { datasetState: 'initializing' }; }
   };
 }
@@ -58,7 +62,7 @@ test('health is minimal, no-store, and independent of provisioning bindings', as
   const response = await handleRequest(new Request('https://sync.soundcruise.jp/health'));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
-  assert.deepEqual(await response.json(), { ok: true, service: 'sound-cruise-sync', phase: 'p3' });
+  assert.deepEqual(await response.json(), { ok: true, service: 'sound-cruise-sync', phase: 'p5' });
 });
 
 test('valid start provisions verifier-only identity and returns the secret once', async () => {
@@ -69,11 +73,13 @@ test('valid start provisions verifier-only identity and returns the secret once'
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
   assert.deepEqual(await response.json(), {
     ok: true, appId: 'chord', syncState: 'provisioning', datasetState: 'initializing',
-    deviceId: DEVICE_ID, deviceCredential: CREDENTIAL
+    deviceId: DEVICE_ID, deviceCredential: CREDENTIAL,
+    recoveryCode: '0123-4567-89AB-CDEF-GHJK', recoveryVersion: 1
   });
   assert.deepEqual(calls.turnstile, ['turnstile-token']);
   assert.equal(calls.database.length, 1);
   assert.equal(calls.database[0].credentialVerifier, 'f'.repeat(64));
+  assert.equal(calls.database[0].recoveryVerifier, 'e'.repeat(64));
   assert.equal(JSON.stringify(calls.database[0]).includes(CREDENTIAL), false, 'plaintext credential does not reach D1 adapter');
   assert.equal(Object.prototype.hasOwnProperty.call(calls.database[0], 'turnstileToken'), false, 'Turnstile token does not reach D1');
 });
@@ -118,6 +124,8 @@ test('rate limiter, Turnstile, secrets, D1, and provisioning failures are fail c
   });
   assert.equal(response.status, 503);
   response = await handleRequest(request(), env({ SYNC_CREDENTIAL_PEPPER: '' }), null, dependencies(baseCalls));
+  assert.equal(response.status, 503);
+  response = await handleRequest(request(), env({ SYNC_RECOVERY_PEPPER: '' }), null, dependencies(baseCalls));
   assert.equal(response.status, 503);
   response = await handleRequest(request(), env({ SYNC_DB: null }), null, dependencies(baseCalls));
   assert.equal(response.status, 503);

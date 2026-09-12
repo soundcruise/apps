@@ -1,5 +1,5 @@
 import { SHA256_PATTERN, validateOperation } from './records.js';
-import { normalizePairingCode } from './crypto.js';
+import { normalizePairingCode, normalizeRecoveryCode } from './crypto.js';
 
 export const MAX_BODY_BYTES = 8 * 1024;
 export const MAX_PUSH_BODY_BYTES = 256 * 1024;
@@ -119,6 +119,38 @@ export function validatePairPayload(payload, env) {
   const label = normalizeDeviceLabel(payload.deviceLabel);
   if (!label.ok) return { ok: false, reason: 'device_label' };
   return { ok: true, value: { appId: payload.appId, pairingCode, turnstileToken: payload.turnstileToken, deviceLabel: label.value } };
+}
+
+export function validateRecoveryPayload(payload, env) {
+  if (!isPlainObject(payload) || !['prepare', 'commit'].includes(payload.operation) ||
+      !validateAppId(payload.appId, env)) return { ok: false, reason: 'shape' };
+  if (payload.operation === 'prepare') {
+    if (!hasOnlyKeys(payload, ['operation', 'appId', 'recoveryCode', 'turnstileToken', 'deviceLabel'])) {
+      return { ok: false, reason: 'shape' };
+    }
+    const recoveryCode = normalizeRecoveryCode(payload.recoveryCode);
+    if (!recoveryCode) return { ok: false, reason: 'recovery_code' };
+    if (typeof payload.turnstileToken !== 'string' || payload.turnstileToken.length < 1 ||
+        payload.turnstileToken.length > MAX_TURNSTILE_TOKEN_LENGTH) return { ok: false, reason: 'turnstile' };
+    const label = normalizeDeviceLabel(payload.deviceLabel);
+    if (!label.ok) return { ok: false, reason: 'device_label' };
+    return { ok: true, value: {
+      operation: 'prepare', appId: payload.appId, recoveryCode,
+      turnstileToken: payload.turnstileToken, deviceLabel: label.value
+    } };
+  }
+  if (!hasOnlyKeys(payload, ['operation', 'appId', 'claimToken']) ||
+      typeof payload.claimToken !== 'string' || payload.claimToken.length < 1 || payload.claimToken.length > 128) {
+    return { ok: false, reason: 'claim' };
+  }
+  return { ok: true, value: { operation: 'commit', appId: payload.appId, claimToken: payload.claimToken } };
+}
+
+export function validateRecoveryIssuePayload(payload, env) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId']) || !validateAppId(payload.appId, env)) {
+    return { ok: false };
+  }
+  return { ok: true, value: { appId: payload.appId } };
 }
 
 export async function validatePushPayload(payload, env, cryptoImpl = crypto) {

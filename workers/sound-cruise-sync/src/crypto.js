@@ -1,6 +1,9 @@
 const DEVICE_SECRET_BYTES = 32;
 const CREDENTIAL_PREFIX = 'scd1';
 const PAIRING_CODE_RANGE = 100000000;
+export const RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+export const RECOVERY_CODE_LENGTH = 20;
+const RECOVERY_CLAIM_PREFIX = 'scr1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 function toBase64Url(bytes) {
@@ -71,6 +74,63 @@ export async function pairingCodeVerifier(code, pepper, cryptoImpl = crypto) {
   const normalized = normalizePairingCode(code);
   if (!normalized) throw new Error('Invalid pairing code');
   return hmacVerifier(`sound-cruise-pairing:v1:${normalized}`, pepper, cryptoImpl);
+}
+
+export function normalizeRecoveryCode(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.toUpperCase().replace(/[\s-]/g, '');
+  if (normalized.length !== RECOVERY_CODE_LENGTH) return null;
+  for (const character of normalized) {
+    if (!RECOVERY_ALPHABET.includes(character)) return null;
+  }
+  return normalized;
+}
+
+export function formatRecoveryCode(value) {
+  const normalized = normalizeRecoveryCode(value);
+  return normalized ? normalized.match(/.{4}/g).join('-') : null;
+}
+
+export function createRecoveryCode(cryptoImpl = crypto) {
+  if (!cryptoImpl || typeof cryptoImpl.getRandomValues !== 'function') {
+    throw new Error('Secure random source is unavailable');
+  }
+  const random = new Uint8Array(RECOVERY_CODE_LENGTH);
+  cryptoImpl.getRandomValues(random);
+  // The alphabet contains exactly 32 symbols. Taking five independent low bits
+  // per byte is unbiased and yields exactly 20 * 5 = 100 bits of entropy.
+  return Array.from(random, (value) => RECOVERY_ALPHABET[value & 31]).join('');
+}
+
+export async function recoveryCodeVerifier(code, pepper, cryptoImpl = crypto) {
+  const normalized = normalizeRecoveryCode(code);
+  if (!normalized) throw new Error('Invalid recovery code');
+  return hmacVerifier(`sound-cruise-recovery:v1:${normalized}`, pepper, cryptoImpl);
+}
+
+export async function createRecoveryClaim(pepper, cryptoImpl = crypto) {
+  const claimId = cryptoImpl.randomUUID();
+  const secretBytes = new Uint8Array(DEVICE_SECRET_BYTES);
+  cryptoImpl.getRandomValues(secretBytes);
+  const token = `${RECOVERY_CLAIM_PREFIX}.${claimId}.${toBase64Url(secretBytes)}`;
+  return {
+    claimId,
+    claimToken: token,
+    claimVerifier: await hmacVerifier(`sound-cruise-recovery-claim:v1:${token}`, pepper, cryptoImpl)
+  };
+}
+
+export async function recoveryClaimVerifier(token, pepper, cryptoImpl = crypto) {
+  if (typeof token !== 'string') throw new Error('Invalid recovery claim');
+  const parts = token.split('.');
+  if (parts.length !== 3 || parts[0] !== RECOVERY_CLAIM_PREFIX ||
+      !UUID_PATTERN.test(parts[1]) || !/^[A-Za-z0-9_-]{43}$/.test(parts[2])) {
+    throw new Error('Invalid recovery claim');
+  }
+  return {
+    claimId: parts[1],
+    claimVerifier: await hmacVerifier(`sound-cruise-recovery-claim:v1:${token}`, pepper, cryptoImpl)
+  };
 }
 
 export function parseDeviceCredential(value) {
