@@ -115,10 +115,26 @@ npx wrangler d1 execute SYNC_DB --remote --file /absolute/path/to/reviewed-enrol
 
 Before issuing any code, ensure the Worker secret `SYNC_ENROLLMENT_PEPPER` and the operator environment use the same dedicated value. Do not reuse the credential, Pairing, Recovery, Turnstile, or delete-intent pepper.
 
+## Per-container client activation
+
+Client activation is a UX visibility gate, not an authentication or admission boundary. The Worker runtime row, one-time Enrollment Code, Turnstile, and device credential remain authoritative.
+
+- Chord Cruise Standard never loads the activation controller or Sync bootstrap. A copied activation state cannot enable Standard.
+- Chord Cruise Pro stores `{ "version": 1, "enabled": true|false }` under `chordCruise.syncProductionCohort` in the current container's local storage.
+- Missing state, invalid JSON, malformed fields, or an unknown version fail closed.
+- Query parameters, the local-QA session flag, and the local-QA global flag cannot enable production.
+- Safari and an installed Home Screen PWA must each be activated inside their own storage container. Do not copy storage between them.
+
+The activation page is `apps/chord-cruise/pro_k7m4q9v2x8/sync-cohort.html`. It is Pro-gated and intentionally absent from normal navigation. To reach it from the currently open Pro container, open Settings and tap the displayed app version seven times within five seconds. This same-container entry is required for an installed PWA, which has no address bar.
+
+After selecting **この端末で先行テストを有効にする**, the page returns to Chord Cruise and only that container loads the Sync implementation. Runtime `closed` still rejects admission with HTTP 423. Runtime `cohort` still requires a valid unused Enrollment Code.
+
+To deactivate, open the same page and select **この端末の先行テスト表示を解除する**. Deactivation only writes the disabled activation state. It must never delete or revoke the device credential, IndexedDB, outbox, local Chord data, or cloud data. Re-enabling the same container restores the UI around the retained Sync state.
+
 ## P-ROLL-3 prerequisites
 
 - Approve and apply migration `0007_add_production_rollout_control.sql` to the intended D1.
 - Provision `SYNC_ENROLLMENT_PEPPER` as a Worker secret without logging it.
 - Validate the temporary `workers.dev` production endpoint and the dedicated production Turnstile hostname separately. Custom Domain remains a future phase.
-- Keep the tracked client `DEFAULT_ENABLED=false` and production host lockout until an explicit release decision.
+- Keep the tracked client `DEFAULT_ENABLED=false`; activate only the explicitly selected Pro browser/PWA containers. Production session/global/query overrides remain locked out.
 - Run the complete local/test gate matrix before any production rollout change.

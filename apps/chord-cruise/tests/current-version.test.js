@@ -10,6 +10,7 @@ var expectedVersion = '1.2.0';
 var appSource = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
 var standardHtml = fs.readFileSync(path.join(standardDirectory, 'index.html'), 'utf8');
 var proHtml = fs.readFileSync(path.join(root, 'pro_k7m4q9v2x8/index.html'), 'utf8');
+var cohortHtml = fs.readFileSync(path.join(root, 'pro_k7m4q9v2x8/sync-cohort.html'), 'utf8');
 var infoPageNames = ['info.html', 'usage.html', 'terms.html', 'privacy.html'];
 var infoPages = infoPageNames.map(function (fileName) {
     return { fileName: fileName, source: fs.readFileSync(path.join(root, fileName), 'utf8') };
@@ -28,6 +29,8 @@ assert(proHtml.includes('../theme.css?v=' + expectedVersion), 'Pro theme cache v
 assert(proHtml.includes('../js/app.js?v=' + expectedVersion), 'Pro app cache version matches');
 assert(appAssetVersions(standardHtml).every(function (version) { return version === expectedVersion; }), 'all Standard app assets use the formal version');
 assert(appAssetVersions(proHtml).every(function (version) { return version === expectedVersion; }), 'all Pro app assets use the formal version');
+assert(cohortHtml.includes('../theme.css?v=' + expectedVersion), 'cohort activation theme cache version matches');
+assert(cohortHtml.includes('../js/sync/sync-cohort-activation.js?v=' + expectedVersion), 'cohort activation controller cache version matches');
 infoPages.forEach(function (page) {
     assert(page.source.includes('./theme.css?v=' + expectedVersion), page.fileName + ' theme cache version matches');
     assert(page.source.includes('./info-routing.js?v=' + expectedVersion), page.fileName + ' routing cache version matches');

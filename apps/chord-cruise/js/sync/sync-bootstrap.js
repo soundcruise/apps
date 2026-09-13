@@ -6,7 +6,7 @@
     var LOCAL_HOSTS = ['127.0.0.1', 'localhost', '::1'];
     var PRODUCTION_HOSTS = ['soundcruise.jp'];
     var PRODUCTION_ROLLOUT = Object.freeze({
-        enabled: false,
+        clientActivationRequired: true,
         endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
         enrollmentRequired: true
     });
@@ -23,13 +23,28 @@
         return Boolean(global.location && PRODUCTION_HOSTS.indexOf(global.location.hostname) !== -1);
     }
 
+    function isProEdition() {
+        var root = global.document && global.document.documentElement;
+        return Boolean(root && root.getAttribute('data-app-edition') === 'Pro');
+    }
+
+    function productionCohortEnabled() {
+        var activation = global.ChordCruiseSyncCohortActivation;
+        return Boolean(
+            isProEdition() &&
+            activation &&
+            typeof activation.isEnabled === 'function' &&
+            activation.isEnabled() === true
+        );
+    }
+
     function sessionFlagEnabled() {
         if (!isLocalQaHost()) return false;
         try { return global.sessionStorage.getItem(SESSION_FLAG_KEY) === 'enabled'; } catch (error) { return false; }
     }
 
     function isEnabled() {
-        if (isProductionHost()) return PRODUCTION_ROLLOUT.enabled === true;
+        if (isProductionHost()) return productionCohortEnabled();
         if (!isLocalQaHost()) return false;
         return global.__SOUND_CRUISE_SYNC_PILOT__ === true || sessionFlagEnabled() || DEFAULT_ENABLED;
     }

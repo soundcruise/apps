@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja" data-app-edition="Pro">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<title>クラウド同期 先行テスト | コードクルーズ</title>
+<link rel="stylesheet" href="../theme.css?v=1.2.0">
+<link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+<style>
+    .cc-sync-cohort-card { max-width: 520px; }
+    .cc-sync-cohort-actions { display: grid; gap: 12px; margin: 24px 0; }
+    .cc-sync-cohort-action { width: 100%; min-height: 48px; }
+    .cc-sync-cohort-status { color: rgba(255, 229, 102, 0.96); font-weight: 700; }
+    .cc-sync-cohort-note { color: rgba(255, 255, 255, 0.68); line-height: 1.7; }
+</style>
+</head>
+<body class="cc-legal-page" data-sync-cohort-page>
+<script>
+    window.__SOUNDCRUISE_PRO_GATE__ = {
+        passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
+        gateVersion: 8,
+        appName: 'コードクルーズ'
+    };
+</script>
+<script src="../../shared/pro-gate.js?v=21"></script>
+<div class="cc-info-shell">
+    <main class="cc-legal-card cc-sync-cohort-card">
+        <nav class="cc-legal-nav" aria-label="ページ移動">
+            <a class="cc-nav-btn cc-legal-back" href="./">← コードクルーズへ戻る</a>
+        </nav>
+        <h1>クラウド同期 先行テスト</h1>
+        <p class="cc-sync-cohort-note">招待された端末だけで、クラウド同期の先行テスト画面を表示します。この設定は、現在のブラウザまたはホーム画面アプリだけに保存されます。</p>
+        <p id="sync-cohort-status" class="cc-sync-cohort-status" aria-live="polite"></p>
+        <div class="cc-sync-cohort-actions">
+            <button type="button" id="sync-cohort-enable" class="cc-settings-reset-trigger cc-settings-pro-link cc-sync-cohort-action">この端末で先行テストを有効にする</button>
+            <button type="button" id="sync-cohort-disable" class="cc-settings-reset-trigger cc-sync-cohort-action">この端末の先行テスト表示を解除する</button>
+        </div>
+        <p class="cc-sync-cohort-note">この操作は表示対象を切り替えるだけです。同期の利用開始には別途招待コードが必要です。表示を解除しても、同期資格情報、未送信データ、端末内のコード、クラウドデータは削除されません。</p>
+    </main>
+</div>
+<script src="../js/sync/sync-cohort-activation.js?v=1.2.0"></script>
+</body>
+</html>
