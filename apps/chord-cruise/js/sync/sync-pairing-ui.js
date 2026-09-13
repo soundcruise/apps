@@ -60,14 +60,30 @@
         if (!anchor) return false;
         var section = global.document.createElement('section');
         section.id = 'cc-sync-pairing-section';
-        section.className = 'cc-settings-reset';
+        section.className = 'cc-settings-reset cc-sync-settings-entry';
         section.setAttribute('aria-labelledby', 'cc-sync-pairing-title');
-        section.innerHTML = '<h4 id="cc-sync-pairing-title">クラウド同期</h4><p class="cc-settings-note" data-sync-pairing-status>確認中…</p><div data-sync-pairing-actions></div><p class="cc-settings-note" data-sync-pairing-result aria-live="polite"></p>';
+        section.innerHTML = '' +
+            '<button type="button" class="cc-sync-entry-row" data-sync-open aria-describedby="cc-sync-entry-status">' +
+                '<span><strong id="cc-sync-pairing-title">クラウド同期</strong><small>端末間でコードと設定を同期</small></span>' +
+                '<span class="cc-sync-entry-state"><span id="cc-sync-entry-status" data-sync-entry-status>確認中…</span><b aria-hidden="true">›</b></span>' +
+            '</button>' +
+            '<section class="cc-sync-screen" data-sync-screen aria-labelledby="cc-sync-screen-title" hidden>' +
+                '<header class="cc-sync-screen-head"><button type="button" class="cc-settings-back-btn" data-sync-close>戻る</button><h3 id="cc-sync-screen-title">クラウド同期</h3><button type="button" class="cc-sync-help-btn" data-sync-help aria-label="クラウド同期のヘルプ">?</button></header>' +
+                '<div class="cc-sync-status-card" data-sync-status-card><strong data-sync-pairing-status>確認中…</strong><p data-sync-status-detail></p></div>' +
+                '<div class="cc-sync-screen-actions" data-sync-pairing-actions></div>' +
+                '<p class="cc-settings-note cc-sync-result" data-sync-pairing-result aria-live="polite"></p>' +
+            '</section>';
         anchor.parentNode.insertBefore(section, anchor);
+        var screen = section.querySelector('[data-sync-screen]') || section;
+        var entry = section.querySelector('[data-sync-open]');
+        var entryStatus = section.querySelector('[data-sync-entry-status]');
         var status = section.querySelector('[data-sync-pairing-status]');
+        var statusDetail = section.querySelector('[data-sync-status-detail]');
         var actions = section.querySelector('[data-sync-pairing-actions]');
         var result = section.querySelector('[data-sync-pairing-result]');
         var transientResult = '';
+        var transientTimer = null;
+        var busy = false;
         var RECOVERY_PHASES = Object.freeze({ input: true, summary: true, 'new-code': true, commit: true, complete: true });
 
         function setRecoveryPhase(phase) {
@@ -78,12 +94,76 @@
             section.setAttribute('data-sync-recovery-phase', phase);
         }
 
+        function setTransient(message) {
+            transientResult = message || '';
+            result.textContent = transientResult;
+            if (transientTimer && typeof global.clearTimeout === 'function') global.clearTimeout(transientTimer);
+            if (message && typeof global.setTimeout === 'function') {
+                transientTimer = global.setTimeout(function () {
+                    transientResult = '';
+                    if (result.textContent === message) result.textContent = '';
+                }, 5500);
+            }
+        }
+
+        function setStatus(label, detail) {
+            status.textContent = label;
+            if (statusDetail) statusDetail.textContent = detail || '';
+        }
+
+        function setEntryStatus(label) {
+            if (entryStatus) entryStatus.textContent = label;
+        }
+
+        function showScreen() {
+            if (entry) entry.hidden = true;
+            if (screen !== section) screen.hidden = false;
+            if (typeof screen.scrollIntoView === 'function') screen.scrollIntoView({ block: 'start' });
+            return render();
+        }
+
+        function closeScreen() {
+            if (screen !== section) screen.hidden = true;
+            if (entry) entry.hidden = false;
+            setRecoveryPhase(null);
+            if (entry && typeof entry.focus === 'function') entry.focus();
+        }
+
+        function setButtonBusy(element, label, isBusy) {
+            if (!element) return;
+            if (isBusy) {
+                element.setAttribute('data-sync-label', element.textContent);
+                element.disabled = true;
+                element.setAttribute('aria-busy', 'true');
+                element.textContent = label || '処理中…';
+                return;
+            }
+            element.disabled = false;
+            element.removeAttribute('aria-busy');
+            var savedLabel = typeof element.getAttribute === 'function' ? element.getAttribute('data-sync-label') : null;
+            if (savedLabel) {
+                element.textContent = savedLabel;
+                element.removeAttribute('data-sync-label');
+            }
+        }
+
         function button(label, action, className) {
             var element = global.document.createElement('button');
             element.type = 'button';
             element.className = className || 'cc-settings-reset-trigger';
             element.textContent = label;
-            element.addEventListener('click', action);
+            element.setAttribute('data-sync-action', '');
+            element.addEventListener('click', async function () {
+                if (busy || element.disabled) return;
+                busy = true;
+                setButtonBusy(element, '処理中…', true);
+                try {
+                    await action();
+                } finally {
+                    busy = false;
+                    setButtonBusy(element, null, false);
+                }
+            });
             return element;
         }
 
@@ -96,7 +176,8 @@
         function recoveryCodeView(issued, onSaved, options) {
             setRecoveryPhase('new-code');
             actions.textContent = '';
-            status.textContent = '重要：復旧コード';
+            setStatus('Step 3 / 4　新しい復旧コードを保存', 'このコードは再表示できません。本人だけが確認できる場所に保管してください。');
+            appendRecoverySteps(3);
             var output = global.document.createElement('output');
             output.className = 'cc-settings-note';
             output.setAttribute('data-sync-recovery-code', '');
@@ -105,7 +186,7 @@
             actions.appendChild(output);
             var explanation = global.document.createElement('p');
             explanation.className = 'cc-settings-note';
-            explanation.textContent = 'すべての端末を失った場合のデータ復旧に必要です。安全な場所に保管してください。このコードは再表示できません。';
+            explanation.textContent = 'すべての端末を失った場合のデータ復旧に必要です。運営者へ送らず、安全な場所に保管してください。';
             actions.appendChild(explanation);
             actions.appendChild(button('コピー', async function () {
                 try {
@@ -116,17 +197,30 @@
                     result.textContent = 'コピーできませんでした。表示中のコードを安全な場所へ保存してください。';
                 }
             }));
-            actions.appendChild(recoveryActionButton('保存しました', async function () {
+            actions.appendChild(recoveryActionButton(options && options.commitOnSaved === true ? '保存しました。復旧を確定' : '保存しました', async function () {
                 if (options && options.commitOnSaved === true) setRecoveryPhase('commit');
                 await onSaved();
             }, 'confirm-saved', 'cc-settings-reset-trigger cc-settings-pro-link'));
+        }
+
+        function appendRecoverySteps(activeStep) {
+            var steps = global.document.createElement('ol');
+            steps.className = 'cc-sync-recovery-steps';
+            ['復旧コードを入力', 'クラウドデータを確認', '新しいコードを保存', '復旧を確定'].forEach(function (label, index) {
+                var item = global.document.createElement('li');
+                item.textContent = (index + 1) + '. ' + label;
+                if (index + 1 === activeStep) item.setAttribute('aria-current', 'step');
+                steps.appendChild(item);
+            });
+            actions.appendChild(steps);
         }
 
         function recoverySummaryView(prepared) {
             setRecoveryPhase('summary');
             actions.textContent = '';
             result.textContent = '';
-            status.textContent = '復旧するデータを確認';
+            setStatus('Step 2 / 4　復旧するデータを確認', '内容が正しいことを確認してから次へ進んでください。');
+            appendRecoverySteps(2);
             var heading = global.document.createElement('strong');
             heading.setAttribute('data-sync-recovery-summary', 'app');
             heading.textContent = 'コードクルーズ';
@@ -147,10 +241,10 @@
             });
             var warning = global.document.createElement('p');
             warning.className = 'cc-settings-note';
-            warning.textContent = 'このクラウドデータを復旧しますか？復旧すると、現在同期中の他の端末はすべて同期解除されます。';
+            warning.textContent = '次の画面で新しい復旧コードを保存します。復旧を確定すると、現在同期中の他の端末はすべて同期解除されます。';
             actions.appendChild(warning);
             actions.appendChild(button('戻る', render));
-            actions.appendChild(recoveryActionButton('このデータを復旧', function () {
+            actions.appendChild(recoveryActionButton('新しい復旧コードを確認', function () {
                 recoveryCodeView(prepared, async function () {
                     result.textContent = '端末へ安全に保存して復旧しています…';
                     var recovered = await client.commitRecovery(prepared);
@@ -176,11 +270,58 @@
             result.textContent = '';
         }
 
+        function actionGroup(title, description, className) {
+            var group = global.document.createElement('section');
+            group.className = 'cc-sync-action-group' + (className ? ' ' + className : '');
+            if (title) {
+                var heading = global.document.createElement('h4');
+                heading.textContent = title;
+                group.appendChild(heading);
+            }
+            if (description) {
+                var note = global.document.createElement('p');
+                note.className = 'cc-settings-note';
+                note.textContent = description;
+                group.appendChild(note);
+            }
+            actions.appendChild(group);
+            return group;
+        }
+
+        function appendConnectedActions() {
+            var everyday = actionGroup('', '', 'cc-sync-action-group--everyday');
+            everyday.appendChild(button('別の端末を追加', issueCode, 'cc-sync-primary-action'));
+            everyday.appendChild(button('同期中の端末', showDevices));
+
+            var security = actionGroup('復旧と安全', '復旧コードを更新すると、現在のコードは使えなくなります。');
+            security.appendChild(button('復旧コードを更新', regenerateRecoveryCode));
+            security.appendChild(button('この端末の同期を解除', function () { disconnectAfterConfirmation(false); }));
+
+            var danger = actionGroup('危険な操作', 'クラウド上の同期データを削除します。この端末に保存されているコードは削除されません。削除要求から7日後に完全削除の対象になります。', 'cc-sync-action-group--danger');
+            danger.appendChild(button('クラウド上の同期データを削除', deleteCloudData, 'cc-settings-reset-trigger cc-settings-danger-trigger'));
+        }
+
+        function showHelp() {
+            actions.textContent = '';
+            setStatus('クラウド同期のヘルプ', '必要な項目だけ確認できます。');
+            [
+                ['クラウド同期とは？', '保存したコード、フォルダ、並び順、対応設定を対応する端末間で同期できます。'],
+                ['別の端末で使うには？', '同期済みの端末で「別の端末を追加」を選び、表示された接続コードを新しい端末へ入力します。'],
+                ['復旧コードとは？', '端末を失った場合などにクラウド上のデータを復旧するためのコードです。本人だけが確認できる安全な場所に保存し、運営者へ送らないでください。'],
+                ['同期解除とは？', 'この端末の同期資格だけを解除します。この端末に保存されたコードとクラウド上のデータは削除されません。'],
+                ['クラウドデータ削除とは？', 'クラウド上の同期データの削除を要求します。端末内のコードは自動削除されず、クラウド側は7日後に完全削除の対象になります。']
+            ].forEach(function (item) {
+                var group = actionGroup(item[0], item[1]);
+                group.classList.add('cc-sync-help-item');
+            });
+            actions.appendChild(button('戻る', render));
+        }
+
         async function disconnectAfterConfirmation(force) {
             var pending = await client.pendingOutboxCount();
             if (pending > 0 && !force) {
                 clearActionsForDecision();
-                status.textContent = '未同期の変更があります。';
+                setStatus('未送信の変更があります', '先に同期するか、同期せずにこの端末だけ解除するかを選べます。');
                 result.textContent = '先に同期するか、同期せずにこの端末の同期だけを解除できます。コードはこの端末に残ります。';
                 actions.appendChild(button('先に同期', async function () {
                     result.textContent = '未同期の変更を同期しています…';
@@ -193,7 +334,7 @@
                 return;
             }
             if (global.confirm && !global.confirm('この端末の同期を解除しますか？\nこの端末に保存されているコードは残ります。クラウド上のデータも削除されません。')) return;
-            result.textContent = 'この端末の同期を解除しています…';
+            setStatus('同期を解除しています…', 'この端末のコードとクラウド上のデータは削除されません。');
             var disconnected = await client.disconnectCurrentDevice();
             if (!disconnected.ok) {
                 result.textContent = messageFor(disconnected.code);
@@ -213,7 +354,7 @@
 
         async function showDevices() {
             clearActionsForDecision();
-            status.textContent = '同期中の端末';
+            setStatus('同期中の端末', 'この端末と接続済みの端末を確認できます。');
             var listed = await client.listDevices();
             if (!listed.ok) { result.textContent = messageFor(listed.code); actions.appendChild(button('戻る', render)); return; }
             listed.devices.forEach(function (device) {
@@ -226,7 +367,7 @@
                 detail.textContent = '最終同期：' + formatLastSeen(device.lastSeenAt);
                 row.appendChild(detail);
                 if (!device.isCurrent) {
-                    row.appendChild(button('解除', async function () {
+                    row.appendChild(button((device.label || 'この端末') + ' の同期を解除', async function () {
                         if (global.confirm && !global.confirm((device.label || 'この端末') + ' の同期を解除しますか？この端末のコードは削除されません。')) return;
                         var revoked = await client.revokeDevice(device.deviceId);
                         if (!revoked.ok) { result.textContent = messageFor(revoked.code); return; }
@@ -241,11 +382,11 @@
 
         async function deleteCloudData() {
             if (global.confirm && !global.confirm('クラウドに保存されているSound Cruise Syncデータを削除します。各端末のコードは削除されません。続けますか？')) return;
-            result.textContent = '削除内容を準備しています…';
+            setStatus('クラウドデータの削除を準備しています…', 'この端末に保存されているコードは削除されません。');
             var prepared = await client.prepareAccountDelete();
             if (!prepared.ok) { result.textContent = messageFor(prepared.code); return; }
             if (global.confirm && !global.confirm('最終確認：クラウドデータを削除します。他の同期端末もクラウドへアクセスできなくなります。')) return;
-            result.textContent = 'クラウドデータを削除しています…';
+            setStatus('クラウドデータを削除しています…', '削除要求を送信しています。');
             var deleted = await client.commitAccountDelete(prepared);
             if (!deleted.ok) { result.textContent = messageFor(deleted.code); return; }
             await render();
@@ -253,7 +394,7 @@
         }
 
         async function resumeAccountDelete() {
-            result.textContent = 'クラウド削除の結果を確認しています…';
+            setStatus('クラウド削除の結果を確認しています…', '通信結果を確認しています。');
             var deleted = await client.resumeAccountDelete();
             if (!deleted.ok) { result.textContent = messageFor(deleted.code); return; }
             await render();
@@ -273,42 +414,54 @@
             if (!options || options.preserveTransientResult !== true) transientResult = '';
             result.textContent = transientResult;
             if (pendingAccountDelete && pendingAccountDelete.intentToken) {
-                status.textContent = 'クラウド削除の結果を確認する必要があります。';
+                setStatus('要確認', 'クラウド削除の結果を確認する必要があります。');
+                setEntryStatus('要確認');
                 actions.appendChild(button('クラウド削除を再確認', resumeAccountDelete));
                 return;
             }
             if (credential && credential.credential) {
                 if (initialMigrationNeedsResume(credential, syncState, migrationState)) {
-                    status.textContent = migrationState === 'not_started'
-                        ? '初回同期の開始が未完了です。'
-                        : '初回同期を再開できます。';
+                    setStatus('準備中', migrationState === 'not_started'
+                        ? '復旧コードの保存後、初回同期を開始してください。'
+                        : '初回同期を再開できます。');
+                    setEntryStatus('準備中');
                     result.textContent = '最初に表示された復旧コードを安全な場所へ保存済みの場合だけ、初回同期を再開してください。';
                     actions.appendChild(button('復旧コードを保存しました。初回同期を再開', resumeInitialMigration));
-                    actions.appendChild(button('復旧コードを保存していない場合は再発行', regenerateRecoveryCode, 'cc-settings-reset-trigger cc-settings-pro-link'));
+                    actions.appendChild(button('復旧コードを保存していない場合は更新', regenerateRecoveryCode));
                     return;
                 }
-                status.textContent = syncState === 'paired_pending' ? '同期接続済み（データ統合の確認待ち）' : '同期済み';
-                if (runtimePause && runtimePause.code) result.textContent = messageFor(runtimePause.code);
-                if (syncState === 'paired_pending') {
-                    actions.appendChild(button('統合内容を確認', showMergePreview));
+                if (runtimePause && runtimePause.code) {
+                    setStatus('同期一時停止', messageFor(runtimePause.code));
+                    setEntryStatus('一時停止中');
+                } else if (syncState === 'paired_pending') {
+                    setStatus('要確認', 'この端末とクラウドのデータ統合を確認してください。');
+                    setEntryStatus('要確認');
+                } else {
+                    setStatus('同期済み', 'この端末のデータはクラウドと同期されています。');
+                    setEntryStatus('同期済み');
                 }
-                actions.appendChild(button('別のアプリと同期', issueCode));
-                actions.appendChild(button('新しい復旧コードを発行', regenerateRecoveryCode, 'cc-settings-reset-trigger cc-settings-pro-link'));
-                actions.appendChild(button('同期中の端末を管理', showDevices));
-                actions.appendChild(button('この端末の同期を解除', function () { disconnectAfterConfirmation(false); }, 'cc-settings-reset-trigger cc-settings-pro-link'));
-                actions.appendChild(button('クラウドデータを削除', deleteCloudData, 'cc-settings-reset-trigger cc-settings-pro-link'));
+                if (syncState === 'paired_pending') {
+                    var pending = actionGroup('', '統合内容を確認するまで、どちらのデータも変更しません。', 'cc-sync-action-group--attention');
+                    pending.appendChild(button('統合内容を確認', showMergePreview, 'cc-sync-primary-action'));
+                    return;
+                }
+                appendConnectedActions();
                 return;
             }
             if (pendingRecovery && pendingRecovery.deviceCredential) {
                 setRecoveryPhase('commit');
-                status.textContent = '復旧処理の確認が必要です。';
+                setStatus('要確認', '復旧処理の結果を確認する必要があります。');
+                setEntryStatus('要確認');
+                appendRecoverySteps(4);
                 actions.appendChild(recoveryActionButton('復旧を再確認', resumeRecovery, 'resume-commit'));
                 return;
             }
-            status.textContent = 'この端末はまだクラウド同期に接続していません。';
-            actions.appendChild(button('同期をはじめる', function () { startIdentity(null); }));
+            setStatus('未設定', 'この端末はまだクラウド同期に接続していません。');
+            setEntryStatus('未設定');
+            var start = actionGroup('', '保存したコードやフォルダ、設定を対応する端末間で同期できます。', 'cc-sync-action-group--start');
+            start.appendChild(button('クラウド同期を設定', function () { startIdentity(null); }, 'cc-sync-primary-action'));
             if (global.__SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__ === true) {
-                actions.textContent = '';
+                start.textContent = '';
                 var enrollmentInput = global.document.createElement('input');
                 enrollmentInput.type = 'text';
                 enrollmentInput.inputMode = 'text';
@@ -319,15 +472,17 @@
                 enrollmentInput.placeholder = 'SCE1-XXXX-XXXX-XXXX-XXXX-XXXX';
                 enrollmentInput.setAttribute('aria-label', 'クラウド同期の招待コード');
                 enrollmentInput.setAttribute('data-sync-sensitive', 'enrollment-code-input');
-                actions.appendChild(enrollmentInput);
-                actions.appendChild(button('招待コードで同期をはじめる', function () { startIdentity(enrollmentInput.value); }));
+                start.appendChild(enrollmentInput);
+                start.appendChild(button('招待コードでクラウド同期を設定', function () { startIdentity(enrollmentInput.value); }, 'cc-sync-primary-action'));
             }
-            actions.appendChild(button('すでに同期しています', showPairForm, 'cc-settings-reset-trigger cc-settings-pro-link'));
-            actions.appendChild(recoveryActionButton('復旧コードを使う', showRecoveryForm, 'open', 'cc-settings-reset-trigger cc-settings-pro-link'));
+            var existing = actionGroup('すでに別の端末で利用していますか？', '同期済みの端末で発行した接続コードを入力します。');
+            existing.appendChild(button('別の端末から接続', showPairForm));
+            var recovery = actionGroup('困ったとき', '端末を失った場合などは、保存した復旧コードで復旧できます。');
+            recovery.appendChild(recoveryActionButton('復旧コードで復旧', showRecoveryForm, 'open'));
         }
 
         async function resumeInitialMigration() {
-            status.textContent = '初回同期を再開しています…';
+            setStatus('初回同期を開始しています…', 'ローカルデータを安全に同期しています。');
             actions.textContent = '';
             result.textContent = 'ローカルデータを安全に同期しています…';
             var migrated = await client.beginInitialMigration();
@@ -337,7 +492,6 @@
                 return;
             }
             await render();
-            result.textContent = '同期を開始しました。';
         }
 
         async function startIdentity(enrollmentCode) {
@@ -345,7 +499,7 @@
             result.textContent = '';
             var token = await tokenFor('sound_cruise_sync_start');
             if (!token) { result.textContent = '認証を完了してから同期を開始してください。'; return; }
-            status.textContent = '同期を開始しています…';
+            setStatus('クラウド同期を設定しています…', '認証と同期情報を準備しています。');
             actions.textContent = '';
             var started = await client.startIdentity({ turnstileToken: token, enrollmentCode: enrollmentCode || null });
             if (!started.ok) {
@@ -358,25 +512,25 @@
 
         async function regenerateRecoveryCode() {
             if (global.confirm && !global.confirm('現在の復旧コードは使えなくなります。新しい復旧コードを発行しますか？')) return;
-            result.textContent = '新しい復旧コードを発行しています…';
+            setStatus('復旧コードを更新しています…', '現在の復旧コードは使えなくなります。');
             var issued = await client.regenerateRecoveryCode();
             if (!issued.ok) { result.textContent = messageFor(issued.code); return; }
             recoveryCodeView(issued, async function () {
                 await render();
-                result.textContent = '新しい復旧コードを発行しました。';
+                setTransient('復旧コードを更新しました。');
             });
         }
 
         async function resumeRecovery() {
             setRecoveryPhase('commit');
-            result.textContent = '復旧結果を確認しています…';
+            setStatus('復旧結果を確認しています…', '通信結果を確認しています。');
             var recovered = await client.resumeRecovery();
             if (!recovered.ok) { result.textContent = messageFor(recovered.code); return; }
             await render();
             setRecoveryPhase('complete');
-            result.textContent = recovered.localState === 'empty'
+            setTransient(recovered.localState === 'empty'
                 ? '復旧しました。導入内容を確認してからクラウドデータを反映できます。'
-                : '復旧しました。統合内容を確認するまで、どちらのデータも変更しません。';
+                : '復旧しました。統合内容を確認するまで、どちらのデータも変更しません。');
         }
 
         function choiceLabel(choice) {
@@ -393,12 +547,12 @@
         }
 
         async function showMergePreview() {
-            status.textContent = 'クラウドとこの端末のデータを読み取り、統合内容を確認しています…';
+            setStatus('統合内容を確認しています…', 'クラウドとこの端末のデータを安全に読み取っています。');
             actions.textContent = '';
             result.textContent = '';
             var prepared = await client.preparePairingMerge();
             if (!prepared.ok) {
-                status.textContent = '統合内容を確認できませんでした。';
+                setStatus('要確認', '統合内容を確認できませんでした。');
                 result.textContent = messageFor(prepared.code);
                 actions.appendChild(button('もう一度確認', showMergePreview));
                 return;
@@ -408,7 +562,7 @@
 
         function renderMergePreview(prepared) {
             var plan = prepared.plan;
-            status.textContent = summaryLine(plan);
+            setStatus('統合内容を確認', summaryLine(plan));
             actions.textContent = '';
             var form = global.document.createElement('div');
             form.setAttribute('data-sync-merge-preview', '');
@@ -455,10 +609,11 @@
                     }
                     return;
                 }
-                status.textContent = '同期データの統合が完了しました。';
+                setStatus('同期済み', 'この端末とクラウドのデータ統合が完了しました。');
+                setEntryStatus('同期済み');
                 actions.textContent = '';
-                actions.appendChild(button('別のアプリと同期', issueCode));
-                result.textContent = 'この端末とクラウドの内容を検証し、同期を開始しました。';
+                appendConnectedActions();
+                setTransient('この端末とクラウドの内容を検証し、同期を開始しました。');
             });
             form.appendChild(confirm);
             form.appendChild(button('今は統合しない', render));
@@ -468,7 +623,7 @@
         async function issueCode() {
             var issued = await client.issuePairingCode();
             if (!issued.ok) { result.textContent = messageFor(issued.code); return; }
-            status.textContent = '別のChord Cruiseで、この8桁コードを入力してください。';
+            setStatus('別の端末を追加', '別のChord Cruiseで、この8桁の接続コードを入力してください。');
             actions.textContent = '';
             var output = global.document.createElement('output');
             output.className = 'cc-settings-note';
@@ -481,11 +636,13 @@
                     result.textContent = 'コードをコピーしました。';
                 } catch (error) { result.textContent = 'コピーできませんでした。表示中のコードを入力してください。'; }
             }));
-            actions.appendChild(button('新しいコードを発行', issueCode, 'cc-settings-reset-trigger cc-settings-pro-link'));
+            actions.appendChild(button('新しい接続コードを発行', issueCode));
+            actions.appendChild(button('戻る', render));
         }
 
         function showPairForm() {
             actions.textContent = '';
+            setStatus('別の端末から接続', '同期済みの端末で発行した8桁の接続コードを入力してください。');
             var input = global.document.createElement('input');
             input.type = 'text'; input.inputMode = 'numeric'; input.autocomplete = 'one-time-code';
             input.maxLength = 9; input.placeholder = '1234 5678'; input.setAttribute('aria-label', '8桁の同期コード');
@@ -501,17 +658,19 @@
                 var paired = await client.pairWithCode({ pairingCode: input.value, turnstileToken: token });
                 if (!paired.ok) { result.textContent = messageFor(paired.code); return; }
                 await render();
-                result.textContent = paired.localState === 'empty'
+                setTransient(paired.localState === 'empty'
                     ? '接続しました。導入内容を確認してからクラウドデータを反映できます。'
-                    : '接続しました。統合内容を確認するまで、どちらのデータも変更しません。';
+                    : '接続しました。統合内容を確認するまで、どちらのデータも変更しません。');
             }));
+            actions.appendChild(button('戻る', render));
         }
 
         function showRecoveryForm() {
             setRecoveryPhase('input');
             actions.textContent = '';
             result.textContent = '';
-            status.textContent = '安全な場所に保存した20文字の復旧コードを入力してください。';
+            setStatus('Step 1 / 4　復旧コードを入力', '安全な場所に保存した20文字の復旧コードを入力してください。');
+            appendRecoverySteps(1);
             var input = global.document.createElement('input');
             input.type = 'text'; input.inputMode = 'text'; input.autocomplete = 'off';
             input.autocapitalize = 'characters'; input.spellcheck = false;
@@ -524,7 +683,7 @@
                 else input.value = input.value.toUpperCase().replace(/[^0-9ABCDEFGHJKMNPQRSTVWXYZ\s-]/g, '');
             });
             actions.appendChild(input);
-            actions.appendChild(recoveryActionButton('復旧する', async function () {
+            actions.appendChild(recoveryActionButton('クラウドデータを確認', async function () {
                 var token = await tokenFor('sound_cruise_sync_recover');
                 if (!token) { result.textContent = '認証を完了してから復旧してください。'; return; }
                 result.textContent = '復旧コードを確認しています…';
@@ -535,7 +694,16 @@
             actions.appendChild(button('戻る', render, 'cc-settings-reset-trigger cc-settings-pro-link'));
         }
 
-        render().catch(function () { status.textContent = '同期状態を確認できませんでした。'; });
+        if (entry) entry.addEventListener('click', showScreen);
+        var closeButton = section.querySelector('[data-sync-close]');
+        if (closeButton) closeButton.addEventListener('click', closeScreen);
+        var helpButton = section.querySelector('[data-sync-help]');
+        if (helpButton) helpButton.addEventListener('click', showHelp);
+
+        render().catch(function () {
+            setStatus('要確認', '同期状態を確認できませんでした。接続を確認してもう一度お試しください。');
+            setEntryStatus('要確認');
+        });
         return true;
     }
 

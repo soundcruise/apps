@@ -88,7 +88,13 @@ function createStore(seed) {
 }
 
 function buttonWithText(actions, text) {
-    return actions.children.find(function (child) { return child.tagName === 'button' && child.textContent === text; });
+    var stack = actions.children.slice();
+    while (stack.length) {
+        var child = stack.shift();
+        if (child.tagName === 'button' && child.textContent === text) return child;
+        if (child.children && child.children.length) stack.push.apply(stack, child.children);
+    }
+    return null;
 }
 
 function settle() {
@@ -121,10 +127,10 @@ function settle() {
     assert.strictEqual(loadUi(firstDocument).install(client), true);
     await settle();
     var firstNodes = firstDocument.insertedSection().testNodes;
-    assert.strictEqual(firstNodes.status.textContent, '初回同期の開始が未完了です。');
+    assert.strictEqual(firstNodes.status.textContent, '準備中');
     assert(firstNodes.result.textContent.includes('復旧コードを安全な場所へ保存済みの場合だけ'));
     assert.strictEqual(Boolean(buttonWithText(firstNodes.actions, '同期をはじめる')), false, 'reload never offers a second identity');
-    assert(buttonWithText(firstNodes.actions, '復旧コードを保存していない場合は再発行'), 'unsaved users retain the existing explicit rotation path');
+    assert(buttonWithText(firstNodes.actions, '復旧コードを保存していない場合は更新'), 'unsaved users retain the existing explicit rotation path');
 
     var secondDocument = createDocument();
     assert.strictEqual(loadUi(secondDocument).install(client), true, 'another reload restores the same resumable state');
@@ -152,7 +158,7 @@ function settle() {
     }), true);
     await settle();
     var uploadingNodes = uploadingDocument.insertedSection().testNodes;
-    assert.strictEqual(uploadingNodes.status.textContent, '初回同期を再開できます。');
+    assert.strictEqual(uploadingNodes.status.textContent, '準備中');
     assert(buttonWithText(uploadingNodes.actions, '復旧コードを保存しました。初回同期を再開'),
         'network failure followed by reload remains resumable');
 
@@ -187,15 +193,15 @@ function settle() {
     }), true);
     await settle();
     var admissionNodes = admissionDocument.insertedSection().testNodes;
-    await buttonWithText(admissionNodes.actions, '招待コードで同期をはじめる').click();
+    await buttonWithText(admissionNodes.actions, '招待コードでクラウド同期を設定').click();
     await settle();
     assert.strictEqual(admissionNodes.result.textContent, '現在、新しいクラウド同期の受付を一時停止しています。',
         'the formal admission-paused message survives the post-423 UI rerender');
-    assert(buttonWithText(admissionNodes.actions, '招待コードで同期をはじめる'),
+    assert(buttonWithText(admissionNodes.actions, '招待コードでクラウド同期を設定'),
         'the enrollment controls are rendered again while the formal message remains visible');
 
     startResult = { ok: true, displayRecoveryCode: 'display-only-code', recoveryCode: 'copy-only-code' };
-    await buttonWithText(admissionNodes.actions, '招待コードで同期をはじめる').click();
+    await buttonWithText(admissionNodes.actions, '招待コードでクラウド同期を設定').click();
     await settle();
     assert.strictEqual(admissionNodes.result.textContent, '', 'a subsequent successful start clears the stale admission message');
     assert(buttonWithText(admissionNodes.actions, '保存しました'), 'the success view replaces the enrollment controls');
@@ -215,8 +221,7 @@ function settle() {
         }), true);
         await settle();
         var pauseNodes = pauseDocument.insertedSection().testNodes;
-        assert(pauseNodes.result.textContent.includes(pauseCode === 'sync_write_paused' ? 'クラウド同期は一時停止中' : 'クラウドからの同期取得は一時停止中'),
-            pauseCode + ' remains mapped to its formal runtime-gate message');
+        assert.strictEqual(pauseNodes.status.textContent, '同期一時停止', pauseCode + ' uses one canonical paused status');
     }
 
     console.log('sync-pilot-provisioning-resume: reload recovery, transient gate feedback, and no duplicate identity passed');

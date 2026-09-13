@@ -159,13 +159,13 @@ function preparedBody() {
 
     assert(uiSource.includes("provider(action)"), 'Turnstile action is selected per start/pair/recover flow');
     assert(uiSource.includes("tokenFor('sound_cruise_sync_recover')"));
-    assert(uiSource.includes('復旧コードを使う'));
-    assert(uiSource.includes('新しい復旧コードを発行'));
+    assert(uiSource.includes('復旧コードで復旧'));
+    assert(uiSource.includes('復旧コードを更新'));
     assert(uiSource.includes('現在の復旧コードは使えなくなります。'));
     assert(uiSource.includes("input.autocomplete = 'off'"));
     assert(uiSource.includes('保存しました'));
     assert(uiSource.includes('復旧するデータを確認'));
-    assert(uiSource.includes('このデータを復旧'));
+    assert(uiSource.includes('新しい復旧コードを確認'));
     assert(uiSource.includes('クラウドに保存されているコード：'));
     assert(uiSource.includes('現在同期中の他の端末はすべて同期解除されます。'));
     assert(uiSource.includes("button('戻る', render)"), 'summary can be cancelled without committing');

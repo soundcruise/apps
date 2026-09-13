@@ -127,10 +127,10 @@ function response(status, body) { return { ok: status >= 200 && status < 300, st
     assert.strictEqual(cleanupFailed.ok, false);
     assert.strictEqual(cleanupFailed.revoked, true, 'server revocation remains known when local Sync IDB cleanup fails');
     assert(uiSource.includes('この端末の同期を解除'));
-    assert(uiSource.includes('クラウドデータを削除'));
+    assert(uiSource.includes('クラウド上の同期データを削除'));
     assert(uiSource.includes('クラウド削除を再確認'));
     assert(uiSource.includes('この端末の同期情報を削除'));
     assert(uiSource.includes('コードはこの端末に残ります'));
-    assert(uiSource.includes('同期中の端末を管理'));
+    assert(uiSource.includes('同期中の端末'));
     console.log('sync-pilot-p6: device list/revoke, delete intent/local cleanup, automatic label, and separated UI passed');
 }()).catch(function (error) { console.error(error); process.exit(1); });
