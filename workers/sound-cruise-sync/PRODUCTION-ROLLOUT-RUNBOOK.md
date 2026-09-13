@@ -115,6 +115,63 @@ npx wrangler d1 execute SYNC_DB --remote --file /absolute/path/to/reviewed-enrol
 
 Before issuing any code, ensure the Worker secret `SYNC_ENROLLMENT_PEPPER` and the operator environment use the same dedicated value. Do not reuse the credential, Pairing, Recovery, Turnstile, or delete-intent pepper.
 
+## Sensitive UI operation
+
+Treat Enrollment, Pairing, Recovery and Turnstile screens as sensitive surfaces. This section applies to production QA, incident support and browser automation. It does not relax any Worker gate or authorization check.
+
+### Never capture
+
+Never place any of the following in a Codex/browser-automation result, command output, console, operation log, report, screenshot, recording, accessibility snapshot, network dump, HAR, clipboard read, form serialization or storage inspection:
+
+- Recovery Code, including the initial code and the replacement code shown during Recovery or rotation
+- Pairing Code
+- Enrollment Code
+- device credential, `Authorization` value, Recovery claim, delete intent or another bearer value
+- Turnstile token
+
+On a sensitive surface, do not read the full DOM, `document.body.textContent`, full `innerText`, a full accessibility tree, an AX snapshot, a page dump or OCR. Do not inspect input values, the clipboard, request/response bodies, IndexedDB or local storage to find a secret. A normal page-capture workflow is not permitted merely to locate a button.
+
+### User-only operations
+
+Only the user may type, copy, save or transfer a plaintext secret. Codex may open the known page and then must stop before the secret is entered or displayed.
+
+For Recovery input, instruct the user to enter the Recovery Code and reply only `入力済み`. Never read the field after entry. For a newly displayed Recovery Code, do not read or capture the page; instruct the user to save it and reply only `保存済み`. The same rule applies to Enrollment input and Pairing transfer between storage containers. The Enrollment issuance helper must be run by the user in a terminal that is not being captured by Codex; Codex must not invoke it because its one-time plaintext output would enter the tool log.
+
+### Information Codex may verify
+
+Use source inspection, narrowly scoped non-secret UI state and verifier-only D1 queries. Codex may verify success/failure, app ID, counts, shortened user/device IDs, user and dataset state, Recovery version, claim/consumed/cancelled state, verifier presence and HTTP status. It must not select verifier values when a Boolean presence check is sufficient.
+
+Turnstile is verified only as a Boolean success/failure state. Never inspect its callback token, hidden fields, widget internals or request body. The non-secret container `#sound-cruise-sync-turnstile` may be used only to establish widget presence; it must not be dumped.
+
+### Recovery operation sequence
+
+1. Confirm the production gates, target identity metadata and expected summary with read-only queries.
+2. Open the known Recovery page. Stop and ask the user to enter the code and reply `入力済み`.
+3. Do not inspect the Recovery input. Operate a control only when it has a pre-audited stable selector; never discover it from a page-wide scan or a positional selector.
+4. Read only dedicated non-secret summary elements for app, Chord count, Folder count, total records, active device count and last update. Compare them with the read-only baseline.
+5. Before the replacement Recovery Code is shown, stop again. Once it is displayed, do not capture the screen or DOM. Ask the user to save it and reply `保存済み`.
+6. After the user confirms, operate the pre-audited save/commit control. Verify completion from non-secret state and read-only D1 metadata.
+
+If any required stable selector or non-secret state marker is absent, stop. Do not substitute text search across the page, `nth-child`, coordinates learned from a screenshot or an accessibility snapshot.
+
+### Static selector audit and current limitation
+
+The current Sync section has these stable non-secret containers:
+
+- `#cc-sync-pairing-section`
+- `[data-sync-pairing-status]`
+- `[data-sync-pairing-actions]`
+- `[data-sync-pairing-result]`
+- `#sound-cruise-sync-turnstile`
+
+`[data-sync-recovery-code]` identifies the secret itself and is a forbidden target; its existence does not authorize reading it.
+
+As of this runbook revision, the Recovery input has an accessible label, but the prepare, summary-next, code-copy/save-confirm and commit actions are generated as generic buttons without stable IDs or action attributes. Recovery summary rows likewise have no dedicated per-field selectors or a non-secret phase marker. Pairing output/input/actions and Enrollment input/start also lack a complete stable action/state selector contract. Therefore Codex/browser automation must not operate these sensitive flows beyond the last safely addressable state. A user may complete the steps manually, but automated Recovery, Pairing or Enrollment operation remains blocked until a separately reviewed client change adds stable action attributes, dedicated summary-field attributes and non-secret phase state without exposing secret values.
+
+### Incident handling
+
+If a secret appears in an operation log, stop capture immediately, do not repeat the value, classify the capture source, rotate or invalidate the secret through the normal product flow where appropriate, and record only the remediation state. A full DOM/AX state containing an input value counts as disclosure even if the log is local.
+
 ## Per-container client activation
 
 Client activation is a UX visibility gate, not an authentication or admission boundary. The Worker runtime row, one-time Enrollment Code, Turnstile, and device credential remain authoritative.
