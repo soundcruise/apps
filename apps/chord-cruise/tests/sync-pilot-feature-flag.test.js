@@ -53,6 +53,7 @@ function runBootstrap(hostname, sessionValue, explicitFlag) {
 
     assert.strictEqual(standardHtml.includes('../js/sync/'), false, 'Standard loads no Sync module');
     assert.strictEqual(standardHtml.includes('__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__'), false, 'Standard has no production Turnstile configuration');
+    assert(proHtml.includes("__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr'"), 'Pro has the dedicated public production site key');
     assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.2.0'), 'Pro loads the production Turnstile provider');
     assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.2.0'), 'Pro loads the OFF-first bootstrap');
     assert(proHtml.indexOf('sync-turnstile.js') < proHtml.indexOf('sync-bootstrap.js'), 'Pro installs Turnstile before Sync bootstrap');
