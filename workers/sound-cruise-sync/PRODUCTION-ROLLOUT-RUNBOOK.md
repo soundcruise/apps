@@ -164,9 +164,11 @@ The current Sync section has these stable non-secret containers:
 - `[data-sync-pairing-result]`
 - `#sound-cruise-sync-turnstile`
 
-`[data-sync-recovery-code]` identifies the secret itself and is a forbidden target; its existence does not authorize reading it.
+`[data-sync-recovery-code]` and `[data-sync-sensitive="recovery-code"]` identify the displayed secret and are forbidden targets; their existence does not authorize reading them. `[data-sync-sensitive="recovery-code-input"]`, `[data-sync-sensitive="pairing-code"]`, `[data-sync-sensitive="pairing-code-input"]` and `[data-sync-sensitive="enrollment-code-input"]` are likewise avoidance markers, not readable selectors.
 
-As of this runbook revision, the Recovery input has an accessible label, but the prepare, summary-next, code-copy/save-confirm and commit actions are generated as generic buttons without stable IDs or action attributes. Recovery summary rows likewise have no dedicated per-field selectors or a non-secret phase marker. Pairing output/input/actions and Enrollment input/start also lack a complete stable action/state selector contract. Therefore Codex/browser automation must not operate these sensitive flows beyond the last safely addressable state. A user may complete the steps manually, but automated Recovery, Pairing or Enrollment operation remains blocked until a separately reviewed client change adds stable action attributes, dedicated summary-field attributes and non-secret phase state without exposing secret values.
+Recovery automation must read only the root marker `[data-sync-recovery-phase]`: `input`, `summary`, `new-code`, `commit` or `complete`. An absent or unknown phase is fail-safe: stop. The only permitted Recovery actions are `[data-sync-recovery-action="open"]`, `[data-sync-recovery-action="prepare"]`, `[data-sync-recovery-action="continue"]`, `[data-sync-recovery-action="confirm-saved"]` and `[data-sync-recovery-action="resume-commit"]`. In the Recovery path, `confirm-saved` transitions from `new-code` to `commit`; it is the commit trigger and must be used only after the user has replied `保存済み`.
+
+On the `summary` phase, read only these individual non-secret elements: `[data-sync-recovery-summary="app"]`, `chords`, `folders`, `records`, `devices` and `updated-at`. Do not read the action container, a sibling text node, or an unspecified element as a substitute. These selectors are the complete Sensitive UI automation contract; full DOM/AX exploration remains prohibited.
 
 ### Incident handling
 

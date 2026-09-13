@@ -29,6 +29,7 @@ Element.prototype.appendChild = function (child) {
     return child;
 };
 Element.prototype.setAttribute = function (name, value) { this.attributes[name] = value; };
+Element.prototype.removeAttribute = function (name) { delete this.attributes[name]; };
 Element.prototype.addEventListener = function (name, listener) { this.listeners[name] = listener; };
 Element.prototype.click = function () { return this.listeners.click(); };
 
