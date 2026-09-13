@@ -97,6 +97,16 @@ function buttonWithText(actions, text) {
     return null;
 }
 
+function inputWithAriaLabel(actions, label) {
+    var stack = actions.children.slice();
+    while (stack.length) {
+        var child = stack.shift();
+        if (child.tagName === 'input' && child.attributes['aria-label'] === label) return child;
+        if (child.children && child.children.length) stack.push.apply(stack, child.children);
+    }
+    return null;
+}
+
 function settle() {
     return new Promise(function (resolve) { setImmediate(resolve); });
 }
@@ -185,7 +195,6 @@ function settle() {
     });
     var startResult = { ok: false, code: 'sync_admission_paused' };
     assert.strictEqual(loadUi(admissionDocument, {
-        enrollmentRequired: true,
         turnstileToken: function () { return 'turnstile-token'; }
     }).install({
         openStore: async function () { return admissionStore; },
@@ -193,18 +202,45 @@ function settle() {
     }), true);
     await settle();
     var admissionNodes = admissionDocument.insertedSection().testNodes;
-    await buttonWithText(admissionNodes.actions, '招待コードでクラウド同期を設定').click();
+    assert(buttonWithText(admissionNodes.actions, 'クラウド同期を設定'), 'official production begins without an Enrollment Code');
+    assert.strictEqual(inputWithAriaLabel(admissionNodes.actions, 'クラウド同期の招待コード'), null, 'official production does not render an Enrollment input');
+    await buttonWithText(admissionNodes.actions, 'クラウド同期を設定').click();
     await settle();
     assert.strictEqual(admissionNodes.result.textContent, '現在、新しいクラウド同期の受付を一時停止しています。',
         'the formal admission-paused message survives the post-423 UI rerender');
-    assert(buttonWithText(admissionNodes.actions, '招待コードでクラウド同期を設定'),
-        'the enrollment controls are rendered again while the formal message remains visible');
+    assert(buttonWithText(admissionNodes.actions, 'クラウド同期を設定'),
+        'the official start control remains available while the formal message remains visible');
+    assert.strictEqual(inputWithAriaLabel(admissionNodes.actions, 'クラウド同期の招待コード'), null,
+        'a closed runtime never introduces Enrollment UI');
 
     startResult = { ok: true, displayRecoveryCode: 'display-only-code', recoveryCode: 'copy-only-code' };
-    await buttonWithText(admissionNodes.actions, '招待コードでクラウド同期を設定').click();
+    await buttonWithText(admissionNodes.actions, 'クラウド同期を設定').click();
     await settle();
     assert.strictEqual(admissionNodes.result.textContent, '', 'a subsequent successful start clears the stale admission message');
-    assert(buttonWithText(admissionNodes.actions, '保存しました'), 'the success view replaces the enrollment controls');
+    assert(buttonWithText(admissionNodes.actions, '保存しました'), 'the success view replaces the official start controls');
+
+    var cohortDocument = createDocument();
+    var cohortStore = createStore({ syncState: 'off', migrationState: 'not_started' });
+    var receivedEnrollmentCodes = [];
+    var cohortStartResult = { ok: false, code: 'enrollment_required' };
+    assert.strictEqual(loadUi(cohortDocument, {
+        turnstileToken: function () { return 'turnstile-token'; }
+    }).install({
+        openStore: async function () { return cohortStore; },
+        startIdentity: async function (request) {
+            receivedEnrollmentCodes.push(request.enrollmentCode);
+            return cohortStartResult;
+        }
+    }), true);
+    await settle();
+    var cohortNodes = cohortDocument.insertedSection().testNodes;
+    await buttonWithText(cohortNodes.actions, 'クラウド同期を設定').click();
+    await settle();
+    assert.strictEqual(receivedEnrollmentCodes[0], null, 'official first attempt does not supply an Enrollment Code');
+    assert.strictEqual(cohortNodes.result.textContent, 'クラウド同期を開始するには招待コードが必要です。');
+    assert(inputWithAriaLabel(cohortNodes.actions, 'クラウド同期の招待コード'),
+        'a future cohort response safely reveals the preserved Enrollment flow');
+    assert(buttonWithText(cohortNodes.actions, '招待コードでクラウド同期を設定'));
 
     for (var pauseIndex = 0; pauseIndex < 2; pauseIndex += 1) {
         var pauseCode = ['sync_write_paused', 'sync_read_paused'][pauseIndex];

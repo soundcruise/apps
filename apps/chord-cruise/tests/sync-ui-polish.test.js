@@ -9,6 +9,7 @@ var ui = fs.readFileSync(path.join(root, 'js/sync/sync-pairing-ui.js'), 'utf8');
 var css = fs.readFileSync(path.join(root, 'theme.css'), 'utf8');
 var standard = fs.readFileSync(path.join(root, 'standard/index.html'), 'utf8');
 var pro = fs.readFileSync(path.join(root, 'pro_k7m4q9v2x8/index.html'), 'utf8');
+var helpSource = ui.slice(ui.indexOf('function showHelp()'), ui.indexOf('async function disconnectAfterConfirmation'));
 
 assert(ui.includes('data-sync-open'), 'Pro settings expose one compact Sync entry row');
 assert(ui.includes('data-sync-screen'), 'the Sync controls live in a dedicated subview');
@@ -20,6 +21,7 @@ assert(ui.includes('危険な操作'), 'Cloud Delete is separated into a danger 
 assert(ui.includes('Step 1 / 4') && ui.includes('Step 2 / 4') && ui.includes('Step 3 / 4'), 'Recovery exposes its staged flow');
 assert(ui.includes('新しい復旧コードを確認') && ui.includes('保存しました。復旧を確定'), 'Recovery separates code review from final commit');
 assert(ui.includes('クラウド同期とは？') && ui.includes('運営者へ送らないでください'), 'compact safety help is available');
+assert(!helpSource.includes('招待コード') && !helpSource.includes('先行テスト'), 'official Help omits cohort-only guidance');
 assert(ui.includes("if (busy || element.disabled)"), 'duplicate submissions are prevented');
 assert(ui.includes("setStatus('同期一時停止'"), 'a runtime pause has one canonical status');
 assert(css.includes('.cc-sync-screen') && css.includes('.cc-sync-action-group--danger'), 'the dedicated screen and danger spacing are styled');

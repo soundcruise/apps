@@ -125,24 +125,27 @@ function runBootstrap(options) {
     assert.deepStrictEqual(safariStorage.writes.map(function (write) { return write.key; }), [STORAGE_KEY, STORAGE_KEY], 'activation only writes its own state key');
 
     var inactiveProduction = runBootstrap({ edition: 'Pro', activation: safari });
-    assert.strictEqual(inactiveProduction.api.enabled, false);
-    assert.strictEqual(inactiveProduction.appended.length, 0, 'inactive Pro loads no Sync implementation');
-    assert.deepStrictEqual(JSON.parse(JSON.stringify(await inactiveProduction.api.ready)), { enabled: false });
+    assert.strictEqual(inactiveProduction.api.enabled, true, 'official Pro ignores a disabled legacy activation state');
+    assert.strictEqual(inactiveProduction.appended.length, 1, 'official Pro starts lazy Sync loading');
 
     var activeProduction = runBootstrap({ edition: 'Pro', activation: pwa });
-    assert.strictEqual(activeProduction.api.enabled, true, 'activated production Pro begins lazy Sync loading');
+    assert.strictEqual(activeProduction.api.enabled, true, 'legacy activation remains harmless for official production Pro');
     assert.strictEqual(activeProduction.appended.length, 1);
     assert(activeProduction.appended[0].endsWith('/sync-core.js'));
+
+    var missingActivationProduction = runBootstrap({ edition: 'Pro' });
+    assert.strictEqual(missingActivationProduction.api.enabled, true, 'official Pro does not require activation state to exist');
+    assert.strictEqual(missingActivationProduction.appended.length, 1);
 
     var standardBypass = runBootstrap({ edition: 'Standard', activation: pwa, explicitFlag: true, session: { 'soundCruise.syncPilot.enabled': 'enabled' }, search: '?sync=1' });
     assert.strictEqual(standardBypass.api.enabled, false, 'Standard cannot use a copied activation state');
     assert.strictEqual(standardBypass.appended.length, 0);
     var productionBypass = runBootstrap({ edition: 'Pro', activation: safari, explicitFlag: true, session: { 'soundCruise.syncPilot.enabled': 'enabled' }, search: '?sync=1' });
-    assert.strictEqual(productionBypass.api.enabled, false, 'query, session and local-QA globals cannot bypass production activation');
-    assert.strictEqual(productionBypass.appended.length, 0);
+    assert.strictEqual(productionBypass.api.enabled, true, 'official production Pro is enabled independently of query, session, and local-QA globals');
+    assert.strictEqual(productionBypass.appended.length, 1);
 
     assert.strictEqual(standardHtml.includes('sync-cohort'), false, 'Standard has no activation route reference or controller');
-    assert(proHtml.includes('../js/sync/sync-cohort-activation.js?v=1.3.0'), 'Pro loads only the small activation controller');
+    assert(proHtml.includes('../js/sync/sync-cohort-activation.js?v=1.3.1'), 'Pro loads only the small activation controller');
     assert(proHtml.indexOf('sync-cohort-activation.js') < proHtml.indexOf('sync-bootstrap.js'), 'activation state is available before bootstrap');
     assert.strictEqual(proHtml.includes('クラウド同期 先行テスト'), false, 'normal Pro UI does not expose the cohort entry');
     assert(activationHtml.includes('data-app-edition="Pro"'));
@@ -161,7 +164,7 @@ function runBootstrap(options) {
     privateEntry.click();
     assert.deepStrictEqual(privateEntry.assigned, ['./sync-cohort.html'], 'seven deliberate version taps open the same-container route');
 
-    console.log('sync-production-cohort-activation: per-container Pro activation, fail-closed state, Standard isolation, and safe deactivation passed');
+    console.log('sync-production-cohort-activation: legacy activation safety, official Pro enablement, Standard isolation, and safe deactivation passed');
 }()).catch(function (error) {
     console.error(error);
     process.exitCode = 1;

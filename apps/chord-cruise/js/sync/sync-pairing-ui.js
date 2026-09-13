@@ -84,6 +84,7 @@
         var transientResult = '';
         var transientTimer = null;
         var busy = false;
+        var enrollmentRequired = global.__SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__ === true;
         var RECOVERY_PHASES = Object.freeze({ input: true, summary: true, 'new-code': true, commit: true, complete: true });
 
         function setRecoveryPhase(phase) {
@@ -288,6 +289,22 @@
             return group;
         }
 
+        function appendEnrollmentStart(start) {
+            start.textContent = '';
+            var enrollmentInput = global.document.createElement('input');
+            enrollmentInput.type = 'text';
+            enrollmentInput.inputMode = 'text';
+            enrollmentInput.autocomplete = 'off';
+            enrollmentInput.autocapitalize = 'characters';
+            enrollmentInput.spellcheck = false;
+            enrollmentInput.maxLength = 29;
+            enrollmentInput.placeholder = 'SCE1-XXXX-XXXX-XXXX-XXXX-XXXX';
+            enrollmentInput.setAttribute('aria-label', 'クラウド同期の招待コード');
+            enrollmentInput.setAttribute('data-sync-sensitive', 'enrollment-code-input');
+            start.appendChild(enrollmentInput);
+            start.appendChild(button('招待コードでクラウド同期を設定', function () { startIdentity(enrollmentInput.value); }, 'cc-sync-primary-action'));
+        }
+
         function appendConnectedActions() {
             var everyday = actionGroup('', '', 'cc-sync-action-group--everyday');
             everyday.appendChild(button('別の端末を追加', issueCode, 'cc-sync-primary-action'));
@@ -459,22 +476,8 @@
             setStatus('未設定', 'この端末はまだクラウド同期に接続していません。');
             setEntryStatus('未設定');
             var start = actionGroup('', '保存したコードやフォルダ、設定を対応する端末間で同期できます。', 'cc-sync-action-group--start');
-            start.appendChild(button('クラウド同期を設定', function () { startIdentity(null); }, 'cc-sync-primary-action'));
-            if (global.__SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__ === true) {
-                start.textContent = '';
-                var enrollmentInput = global.document.createElement('input');
-                enrollmentInput.type = 'text';
-                enrollmentInput.inputMode = 'text';
-                enrollmentInput.autocomplete = 'off';
-                enrollmentInput.autocapitalize = 'characters';
-                enrollmentInput.spellcheck = false;
-                enrollmentInput.maxLength = 29;
-                enrollmentInput.placeholder = 'SCE1-XXXX-XXXX-XXXX-XXXX-XXXX';
-                enrollmentInput.setAttribute('aria-label', 'クラウド同期の招待コード');
-                enrollmentInput.setAttribute('data-sync-sensitive', 'enrollment-code-input');
-                start.appendChild(enrollmentInput);
-                start.appendChild(button('招待コードでクラウド同期を設定', function () { startIdentity(enrollmentInput.value); }, 'cc-sync-primary-action'));
-            }
+            if (enrollmentRequired) appendEnrollmentStart(start);
+            else start.appendChild(button('クラウド同期を設定', function () { startIdentity(null); }, 'cc-sync-primary-action'));
             var existing = actionGroup('すでに別の端末で利用していますか？', '同期済みの端末で発行した接続コードを入力します。');
             existing.appendChild(button('別の端末から接続', showPairForm));
             var recovery = actionGroup('困ったとき', '端末を失った場合などは、保存した復旧コードで復旧できます。');
@@ -503,6 +506,7 @@
             actions.textContent = '';
             var started = await client.startIdentity({ turnstileToken: token, enrollmentCode: enrollmentCode || null });
             if (!started.ok) {
+                if (started.code === 'enrollment_required') enrollmentRequired = true;
                 transientResult = messageFor(started.code);
                 await render({ preserveTransientResult: true });
                 return;

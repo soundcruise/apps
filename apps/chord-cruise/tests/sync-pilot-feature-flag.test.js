@@ -55,18 +55,22 @@ function runBootstrap(hostname, sessionValue, explicitFlag, edition, activationV
     assert.deepStrictEqual(JSON.parse(JSON.stringify(await off.api.ready)), { enabled: false });
 
     var production = runBootstrap('soundcruise.jp', 'enabled', true, 'Pro');
-    assert.strictEqual(production.api.enabled, false, 'production cannot be enabled with local-QA overrides');
+    assert.strictEqual(production.api.enabled, true, 'official production Pro loads Sync without a cohort activation');
     assert.deepStrictEqual(JSON.parse(JSON.stringify(production.api.productionRollout)), {
-        clientActivationRequired: true,
+        clientActivationRequired: false,
         endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
-        enrollmentRequired: true
+        enrollmentRequired: false
     });
-    assert.strictEqual(production.appendCount, 0);
+    assert.strictEqual(production.appendCount, 1, 'official production Pro starts lazy loading with the first implementation module');
     assert.strictEqual(production.api.setSessionEnabled(true), false, 'production cannot persist the pilot flag');
 
-    var activatedProduction = runBootstrap('soundcruise.jp', null, false, 'Pro', JSON.stringify({ version: 1, enabled: true }));
-    assert.strictEqual(activatedProduction.api.enabled, true, 'versioned container activation enables production Pro lazy loading');
-    assert.strictEqual(activatedProduction.appendCount, 1, 'activated Pro begins with only the first lazy implementation module');
+    var missingActivationProduction = runBootstrap('soundcruise.jp', null, false, 'Pro');
+    assert.strictEqual(missingActivationProduction.api.enabled, true, 'missing legacy activation state does not hide official production Sync');
+    assert.strictEqual(missingActivationProduction.appendCount, 1);
+
+    var disabledActivationProduction = runBootstrap('soundcruise.jp', null, false, 'Pro', JSON.stringify({ version: 1, enabled: false }));
+    assert.strictEqual(disabledActivationProduction.api.enabled, true, 'disabled legacy activation state does not hide official production Sync');
+    assert.strictEqual(disabledActivationProduction.appendCount, 1);
 
     var standardWithCopiedState = runBootstrap('soundcruise.jp', null, false, 'Standard', JSON.stringify({ version: 1, enabled: true }));
     assert.strictEqual(standardWithCopiedState.api.enabled, false, 'copied activation state cannot enable Standard');
@@ -76,8 +80,8 @@ function runBootstrap(hostname, sessionValue, explicitFlag, edition, activationV
     assert.strictEqual(standardHtml.includes('sync-cohort'), false, 'Standard loads no cohort activation controller');
     assert.strictEqual(standardHtml.includes('__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__'), false, 'Standard has no production Turnstile configuration');
     assert(proHtml.includes("__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr'"), 'Pro has the dedicated public production site key');
-    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.3.0'), 'Pro loads the production Turnstile provider');
-    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.3.0'), 'Pro loads the OFF-first bootstrap');
+    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.3.1'), 'Pro loads the production Turnstile provider');
+    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.3.1'), 'Pro loads the OFF-first bootstrap');
     assert(proHtml.indexOf('sync-turnstile.js') < proHtml.indexOf('sync-bootstrap.js'), 'Pro installs Turnstile before Sync bootstrap');
     ['sync-core.js', 'sync-db.js', 'sync-merge.js', 'sync-client.js'].forEach(function (fileName) {
         assert.strictEqual(standardHtml.includes(fileName), false, 'Standard never loads ' + fileName);
@@ -94,7 +98,7 @@ function runBootstrap(hostname, sessionValue, explicitFlag, edition, activationV
     assert.strictEqual(standardHtml.includes('tests/fixtures'), false, 'production Standard has no QA fixture route');
     assert.strictEqual(proHtml.includes('tests/fixtures'), false, 'production Pro has no QA fixture route');
 
-    console.log('sync-pilot-feature-flag: default OFF, container-scoped production activation, Standard isolation, and lazy loading passed');
+    console.log('sync-pilot-feature-flag: official Pro enablement, Standard isolation, and lazy loading passed');
 }()).catch(function (error) {
     console.error(error);
     process.exitCode = 1;
