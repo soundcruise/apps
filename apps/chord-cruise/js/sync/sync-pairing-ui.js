@@ -67,6 +67,7 @@
         var status = section.querySelector('[data-sync-pairing-status]');
         var actions = section.querySelector('[data-sync-pairing-actions]');
         var result = section.querySelector('[data-sync-pairing-result]');
+        var transientResult = '';
 
         function button(label, action, className) {
             var element = global.document.createElement('button');
@@ -235,7 +236,7 @@
             result.textContent = 'クラウドデータを削除しました。この端末のコードは残っています。';
         }
 
-        async function render() {
+        async function render(options) {
             var store = await client.openStore();
             var credential = await store.getMeta('deviceCredential');
             var pendingRecovery = await store.getMeta('pendingRecovery');
@@ -244,7 +245,8 @@
             var migrationState = await store.getMeta('migrationState');
             var runtimePause = await store.getMeta('runtimePause');
             actions.textContent = '';
-            result.textContent = '';
+            if (!options || options.preserveTransientResult !== true) transientResult = '';
+            result.textContent = transientResult;
             if (pendingAccountDelete && pendingAccountDelete.intentToken) {
                 status.textContent = 'クラウド削除の結果を確認する必要があります。';
                 actions.appendChild(button('クラウド削除を再確認', resumeAccountDelete));
@@ -312,13 +314,18 @@
         }
 
         async function startIdentity(enrollmentCode) {
+            transientResult = '';
             result.textContent = '';
             var token = await tokenFor('sound_cruise_sync_start');
             if (!token) { result.textContent = '認証を完了してから同期を開始してください。'; return; }
             status.textContent = '同期を開始しています…';
             actions.textContent = '';
             var started = await client.startIdentity({ turnstileToken: token, enrollmentCode: enrollmentCode || null });
-            if (!started.ok) { result.textContent = messageFor(started.code); await render(); return; }
+            if (!started.ok) {
+                transientResult = messageFor(started.code);
+                await render({ preserveTransientResult: true });
+                return;
+            }
             recoveryCodeView(started, resumeInitialMigration);
         }
 

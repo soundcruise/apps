@@ -64,8 +64,14 @@ function createDocument() {
     };
 }
 
-function loadUi(document) {
-    var window = { document: document, navigator: {} };
+function loadUi(document, options) {
+    options = options || {};
+    var window = {
+        document: document,
+        navigator: {},
+        __SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__: options.enrollmentRequired === true,
+        __SOUND_CRUISE_SYNC_GET_TURNSTILE_TOKEN__: options.turnstileToken
+    };
     var context = { window: window, Promise: Promise, Object: Object, Boolean: Boolean, Number: Number, Date: Date };
     vm.createContext(context);
     vm.runInContext(uiSource, context, { filename: 'sync-pairing-ui.js' });
@@ -165,7 +171,54 @@ function settle() {
     assert.strictEqual(Boolean(buttonWithText(normalNodes.actions, '復旧コードを保存しました。初回同期を再開')), false,
         'normal Sync user is never offered migration again');
 
-    console.log('sync-pilot-provisioning-resume: reload recovery, explicit Recovery Code guard, and no duplicate identity passed');
+    var admissionDocument = createDocument();
+    var admissionStore = createStore({
+        syncState: 'off',
+        migrationState: 'not_started'
+    });
+    var startResult = { ok: false, code: 'sync_admission_paused' };
+    assert.strictEqual(loadUi(admissionDocument, {
+        enrollmentRequired: true,
+        turnstileToken: function () { return 'turnstile-token'; }
+    }).install({
+        openStore: async function () { return admissionStore; },
+        startIdentity: async function () { return startResult; }
+    }), true);
+    await settle();
+    var admissionNodes = admissionDocument.insertedSection().testNodes;
+    await buttonWithText(admissionNodes.actions, '招待コードで同期をはじめる').click();
+    await settle();
+    assert.strictEqual(admissionNodes.result.textContent, '現在、新しいクラウド同期の受付を一時停止しています。',
+        'the formal admission-paused message survives the post-423 UI rerender');
+    assert(buttonWithText(admissionNodes.actions, '招待コードで同期をはじめる'),
+        'the enrollment controls are rendered again while the formal message remains visible');
+
+    startResult = { ok: true, displayRecoveryCode: 'display-only-code', recoveryCode: 'copy-only-code' };
+    await buttonWithText(admissionNodes.actions, '招待コードで同期をはじめる').click();
+    await settle();
+    assert.strictEqual(admissionNodes.result.textContent, '', 'a subsequent successful start clears the stale admission message');
+    assert(buttonWithText(admissionNodes.actions, '保存しました'), 'the success view replaces the enrollment controls');
+
+    for (var pauseIndex = 0; pauseIndex < 2; pauseIndex += 1) {
+        var pauseCode = ['sync_write_paused', 'sync_read_paused'][pauseIndex];
+        var pauseDocument = createDocument();
+        var pauseStore = createStore({
+            deviceCredential: credential,
+            syncState: 'pilot_ready',
+            datasetState: 'ready',
+            migrationState: 'complete',
+            runtimePause: { code: pauseCode }
+        });
+        assert.strictEqual(loadUi(pauseDocument).install({
+            openStore: async function () { return pauseStore; }
+        }), true);
+        await settle();
+        var pauseNodes = pauseDocument.insertedSection().testNodes;
+        assert(pauseNodes.result.textContent.includes(pauseCode === 'sync_write_paused' ? 'クラウド同期は一時停止中' : 'クラウドからの同期取得は一時停止中'),
+            pauseCode + ' remains mapped to its formal runtime-gate message');
+    }
+
+    console.log('sync-pilot-provisioning-resume: reload recovery, transient gate feedback, and no duplicate identity passed');
 }()).catch(function (error) {
     console.error(error);
     process.exitCode = 1;
