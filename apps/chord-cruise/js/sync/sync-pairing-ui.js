@@ -38,6 +38,14 @@
         return labels[code] || '接続を完了できませんでした。';
     }
 
+    function initialMigrationNeedsResume(credential, syncState, migrationState) {
+        return Boolean(
+            credential && credential.credential &&
+            syncState === 'provisioning' &&
+            migrationState !== 'complete'
+        );
+    }
+
     function install(client) {
         if (!global.document || global.document.getElementById('cc-sync-pairing-section')) return false;
         var anchor = global.document.querySelector('.cc-settings-refresh-bar');
@@ -225,6 +233,7 @@
             var pendingRecovery = await store.getMeta('pendingRecovery');
             var pendingAccountDelete = await store.getMeta('pendingAccountDelete');
             var syncState = await store.getMeta('syncState');
+            var migrationState = await store.getMeta('migrationState');
             actions.textContent = '';
             result.textContent = '';
             if (pendingAccountDelete && pendingAccountDelete.intentToken) {
@@ -233,6 +242,15 @@
                 return;
             }
             if (credential && credential.credential) {
+                if (initialMigrationNeedsResume(credential, syncState, migrationState)) {
+                    status.textContent = migrationState === 'not_started'
+                        ? '初回同期の開始が未完了です。'
+                        : '初回同期を再開できます。';
+                    result.textContent = '最初に表示された復旧コードを安全な場所へ保存済みの場合だけ、初回同期を再開してください。';
+                    actions.appendChild(button('復旧コードを保存しました。初回同期を再開', resumeInitialMigration));
+                    actions.appendChild(button('復旧コードを保存していない場合は再発行', regenerateRecoveryCode, 'cc-settings-reset-trigger cc-settings-pro-link'));
+                    return;
+                }
                 status.textContent = syncState === 'paired_pending' ? '同期接続済み（データ統合の確認待ち）' : '同期済み';
                 if (syncState === 'paired_pending') {
                     actions.appendChild(button('統合内容を確認', showMergePreview));
@@ -255,6 +273,20 @@
             actions.appendChild(button('復旧コードを使う', showRecoveryForm, 'cc-settings-reset-trigger cc-settings-pro-link'));
         }
 
+        async function resumeInitialMigration() {
+            status.textContent = '初回同期を再開しています…';
+            actions.textContent = '';
+            result.textContent = 'ローカルデータを安全に同期しています…';
+            var migrated = await client.beginInitialMigration();
+            if (!migrated.ok) {
+                await render();
+                result.textContent = messageFor(migrated.code);
+                return;
+            }
+            await render();
+            result.textContent = '同期を開始しました。';
+        }
+
         async function startIdentity() {
             result.textContent = '';
             var token = await tokenFor('sound_cruise_sync_start');
@@ -263,13 +295,7 @@
             actions.textContent = '';
             var started = await client.startIdentity({ turnstileToken: token });
             if (!started.ok) { result.textContent = messageFor(started.code); await render(); return; }
-            recoveryCodeView(started, async function () {
-                result.textContent = 'ローカルデータを安全に同期しています…';
-                var migrated = await client.beginInitialMigration();
-                if (!migrated.ok) { result.textContent = messageFor(migrated.code); return; }
-                await render();
-                result.textContent = '同期を開始しました。';
-            });
+            recoveryCodeView(started, resumeInitialMigration);
         }
 
         async function regenerateRecoveryCode() {

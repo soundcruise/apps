@@ -113,18 +113,17 @@ async function seedCredential(store) {
 (async function () {
     var migrationStore = createMemoryStore();
     await seedCredential(migrationStore);
+    await migrationStore.setMeta('syncState', 'provisioning');
+    await migrationStore.setMeta('datasetState', 'initializing');
+    await migrationStore.setMeta('migrationState', 'not_started');
     var migrationSync = loadClient(migrationStore);
     var migrationStorage = createStorage(seed);
     var serverOperations = new Map();
     var serverSequence = 0;
     var loseFirstResponse = true;
-    var migrationClient = migrationSync.client.createClient({
-        enabled: true,
-        localStorage: migrationStorage,
-        crypto: webcrypto,
-        endpoint: 'http://127.0.0.1:8787',
-        now: function () { return 1000; },
-        fetch: async function (url, options) {
+    var migrationRequestCount = 0;
+    var migrationFetch = async function (url, options) {
+            migrationRequestCount += 1;
             assert.strictEqual(options.headers.Authorization, 'Bearer ' + CREDENTIAL);
             if (url.endsWith('/v1/sync/push')) {
                 var request = JSON.parse(options.body);
@@ -166,7 +165,14 @@ async function seedCredential(store) {
                 }, 'bookmark-ready');
             }
             throw new Error('unexpected endpoint');
-        }
+        };
+    var migrationClient = migrationSync.client.createClient({
+        enabled: true,
+        localStorage: migrationStorage,
+        crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787',
+        now: function () { return 1000; },
+        fetch: migrationFetch
     });
     var beforeMigration = migrationStorage.snapshot();
     var firstMigration = await migrationClient.beginInitialMigration();
@@ -174,7 +180,16 @@ async function seedCredential(store) {
     assert.strictEqual(firstMigration.code, 'network_error');
     assert.strictEqual(serverOperations.size, 4, 'server commit happened once before response loss');
     assert.strictEqual((await migrationStore.listOutbox()).length, 4, 'response loss retains original operations');
-    var completedMigration = await migrationClient.beginInitialMigration();
+    assert.strictEqual(await migrationStore.getMeta('migrationState'), 'uploading');
+    var reloadedMigrationClient = migrationSync.client.createClient({
+        enabled: true,
+        localStorage: migrationStorage,
+        crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787',
+        now: function () { return 1000; },
+        fetch: migrationFetch
+    });
+    var completedMigration = await reloadedMigrationClient.beginInitialMigration();
     assert.strictEqual(completedMigration.ok, true);
     assert.strictEqual(serverOperations.size, 4, 'retry uses deterministic operation IDs without duplicate records');
     assert.strictEqual((await migrationStore.listOutbox()).length, 0);
@@ -183,6 +198,10 @@ async function seedCredential(store) {
     assert.strictEqual(await migrationStore.getMeta('migrationState'), 'complete');
     assert.strictEqual(await migrationStore.getMeta('cursor'), 'scc1.NA');
     assert.deepStrictEqual(migrationStorage.snapshot(), beforeMigration, 'migration and retry never rewrite localStorage');
+    var completedRequestCount = migrationRequestCount;
+    var alreadyComplete = await reloadedMigrationClient.beginInitialMigration();
+    assert.strictEqual(alreadyComplete.alreadyComplete, true, 'completed migration is not started again');
+    assert.strictEqual(migrationRequestCount, completedRequestCount, 'completed migration makes no duplicate upload or completion request');
 
     var syncStore = createMemoryStore();
     await seedCredential(syncStore);

@@ -1234,6 +1234,11 @@
         async function beginInitialMigration() {
             if (!enabled) return { enabled: false };
             var store = await openStore();
+            var storedDatasetState = await store.getMeta('datasetState');
+            var storedMigrationState = await store.getMeta('migrationState');
+            if (storedDatasetState === 'ready' && storedMigrationState === 'complete') {
+                return { enabled: true, ok: true, alreadyComplete: true };
+            }
             var snapshot = await adapter.snapshot();
             if (snapshot.errors.length) return { enabled: true, ok: false, code: 'snapshot_invalid', errors: snapshot.errors.length };
             var backup = core.createExport(snapshot, now());
