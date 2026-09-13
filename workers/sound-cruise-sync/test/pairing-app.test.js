@@ -16,7 +16,7 @@ function env(overrides = {}) {
     TURNSTILE_EXPECTED_HOSTNAME: 'soundcruise.jp',
     TURNSTILE_EXPECTED_ACTION: 'sound_cruise_sync_start',
     TURNSTILE_PAIR_EXPECTED_ACTION: 'sound_cruise_sync_pair',
-    TURNSTILE_SECRET_KEY: 'secret',
+    TURNSTILE_PRODUCTION_SECRET_KEY: 'secret',
     SYNC_CREDENTIAL_PEPPER: 'p'.repeat(64),
     SYNC_PAIRING_CODE_PEPPER: 'q'.repeat(64),
     SYNC_DB: { prepare() {}, batch() {} },

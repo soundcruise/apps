@@ -9,12 +9,19 @@
   },
   "preview_urls": false,
   "observability": {
-    "enabled": false
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "invocation_logs": true,
+      "head_sampling_rate": 1
+    }
   },
   "vars": {
-    "ALLOWED_ORIGINS": "https://soundcruise.jp,https://sound-cruise-sync.cruise-port-requests.workers.dev",
+    "ALLOWED_ORIGINS": "https://soundcruise.jp",
     "SYNC_ALLOWED_APP_IDS": "chord",
-    "TURNSTILE_EXPECTED_HOSTNAME": "sound-cruise-sync.cruise-port-requests.workers.dev",
+    "TURNSTILE_EXPECTED_HOSTNAME": "soundcruise.jp",
     "TURNSTILE_EXPECTED_ACTION": "sound_cruise_sync_start",
     "TURNSTILE_PAIR_EXPECTED_ACTION": "sound_cruise_sync_pair",
     "TURNSTILE_RECOVER_EXPECTED_ACTION": "sound_cruise_sync_recover"

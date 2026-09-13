@@ -45,16 +45,19 @@ function runBootstrap(hostname, sessionValue, explicitFlag) {
     assert.strictEqual(production.api.enabled, false, 'P1 cannot be enabled on production even with both overrides');
     assert.deepStrictEqual(JSON.parse(JSON.stringify(production.api.productionRollout)), {
         enabled: false,
-        endpoint: 'https://sync.soundcruise.jp',
+        endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
         enrollmentRequired: true
     });
     assert.strictEqual(production.appendCount, 0);
     assert.strictEqual(production.api.setSessionEnabled(true), false, 'production cannot persist the pilot flag');
 
-    assert(standardHtml.includes('../js/sync/sync-bootstrap.js?v=1.1.0'), 'Standard loads only the OFF-first bootstrap');
-    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.1.0'), 'Pro loads only the OFF-first bootstrap');
+    assert.strictEqual(standardHtml.includes('../js/sync/'), false, 'Standard loads no Sync module');
+    assert.strictEqual(standardHtml.includes('__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__'), false, 'Standard has no production Turnstile configuration');
+    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.2.0'), 'Pro loads the production Turnstile provider');
+    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.2.0'), 'Pro loads the OFF-first bootstrap');
+    assert(proHtml.indexOf('sync-turnstile.js') < proHtml.indexOf('sync-bootstrap.js'), 'Pro installs Turnstile before Sync bootstrap');
     ['sync-core.js', 'sync-db.js', 'sync-merge.js', 'sync-client.js'].forEach(function (fileName) {
-        assert.strictEqual(standardHtml.includes(fileName), false, 'Standard does not eagerly load ' + fileName);
+        assert.strictEqual(standardHtml.includes(fileName), false, 'Standard never loads ' + fileName);
         assert.strictEqual(proHtml.includes(fileName), false, 'Pro does not eagerly load ' + fileName);
     });
     assert(source.indexOf("loadScript('sync-core.js')") < source.indexOf("loadScript('sync-db.js')"));

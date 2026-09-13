@@ -17,7 +17,7 @@ function env(overrides = {}) {
     SYNC_DB: { prepare() {}, batch() {} },
     SYNC_CREDENTIAL_PEPPER: 'p'.repeat(64),
     SYNC_RECOVERY_PEPPER: 'r'.repeat(64),
-    TURNSTILE_SECRET_KEY: 'secret',
+    TURNSTILE_PRODUCTION_SECRET_KEY: 'secret',
     TURNSTILE_EXPECTED_HOSTNAME: 'soundcruise.jp',
     TURNSTILE_RECOVER_EXPECTED_ACTION: 'sound_cruise_sync_recover',
     START_RATE_LIMITER: { limit: async () => ({ success: true }) },

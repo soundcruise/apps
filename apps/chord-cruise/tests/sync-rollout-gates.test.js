@@ -134,7 +134,7 @@ function response(status, body) {
     assert.strictEqual(sentBody.enrollmentCode, 'SCE10123456789ABCDEFGHJK');
     assert.strictEqual(startSync.client.normalizeEnrollmentCode('0123-4567-89AB-CDEF-GHJK'), null);
     assert(bootstrapSource.includes('var DEFAULT_ENABLED = false'));
-    assert(bootstrapSource.includes("endpoint: 'https://sync.soundcruise.jp'"));
+    assert(bootstrapSource.includes("endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev'"));
     assert(bootstrapSource.includes('var PRODUCTION_ROLLOUT = Object.freeze'));
     assert(pairingUiSource.includes('現在、新しいクラウド同期の受付を一時停止しています。'));
     assert(pairingUiSource.includes('クラウド同期は一時停止中です。端末内の保存は利用できます。'));

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { verifyTurnstileToken } from '../src/turnstile.js';
 
 const env = {
-  TURNSTILE_SECRET_KEY: 'secret',
+  TURNSTILE_PRODUCTION_SECRET_KEY: 'secret',
   TURNSTILE_EXPECTED_HOSTNAME: 'soundcruise.jp',
   TURNSTILE_EXPECTED_ACTION: 'sound_cruise_sync_start'
 };

@@ -14,15 +14,17 @@ var standardHtml = fs.readFileSync(standardPath, 'utf8');
 var proHtml = fs.readFileSync(proPath, 'utf8');
 var standardScripts = Array.from(standardHtml.matchAll(/<script src="([^"]+)"/g)).map(function (match) { return match[1]; });
 var proScripts = Array.from(proHtml.matchAll(/<script src="([^"]+)"/g)).map(function (match) { return match[1]; });
-var proApplicationScripts = proScripts.filter(function (src) { return src.indexOf('../js/') === 0; });
+var proSharedApplicationScripts = proScripts.filter(function (src) {
+    return src.indexOf('../js/') === 0 && src.indexOf('../js/sync/') !== 0;
+});
 
 assert(fs.existsSync(proDirectory), 'Pro entry directory exists');
 assert(/^pro_[a-z0-9]+$/.test(path.basename(proDirectory)), 'Pro directory uses the existing pro_ lowercase-alphanumeric convention');
 assert(standardHtml.includes('<html lang="ja">'), 'Standard entry remains edition-neutral');
 assert(!standardHtml.includes('data-app-edition="Pro"'), 'Standard entry is unchanged by the Pro entry');
 assert(proHtml.includes('<html lang="ja" data-app-edition="Pro">'), 'Pro entry declares the Pro edition');
-assert(proHtml.includes('<link rel="stylesheet" href="../theme.css?v=1.1.0">'), 'Pro entry resolves the shared Chord Cruise theme from its parent directory');
-assert(proHtml.includes('<script src="../js/core/feature-access.js?v=1.1.0"></script>'), 'Pro entry loads feature access before application code');
+assert(proHtml.includes('<link rel="stylesheet" href="../theme.css?v=1.2.0">'), 'Pro entry resolves the shared Chord Cruise theme from its parent directory');
+assert(proHtml.includes('<script src="../js/core/feature-access.js?v=1.2.0"></script>'), 'Pro entry loads feature access before application code');
 
 standardScripts.forEach(function (standardSrc) {
     assert(fs.existsSync(path.resolve(standardDirectory, standardSrc.split('?')[0])), 'Standard script target exists: ' + standardSrc);
@@ -30,8 +32,8 @@ standardScripts.forEach(function (standardSrc) {
 
 assert.deepStrictEqual(
     standardScripts.map(function (src) { return path.resolve(standardDirectory, src.split('?')[0]); }),
-    proApplicationScripts.map(function (src) { return path.resolve(proDirectory, src.split('?')[0]); }),
-    'Standard and Pro resolve every shared application script to the same file'
+    proSharedApplicationScripts.map(function (src) { return path.resolve(proDirectory, src.split('?')[0]); }),
+    'Standard and Pro resolve every non-Sync application script to the same file'
 );
 
 assert(fs.existsSync(path.resolve(proDirectory, '../theme.css')), 'Pro theme target exists');

@@ -7,7 +7,7 @@
     var PRODUCTION_HOSTS = ['soundcruise.jp'];
     var PRODUCTION_ROLLOUT = Object.freeze({
         enabled: false,
-        endpoint: 'https://sync.soundcruise.jp',
+        endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
         enrollmentRequired: true
     });
     var currentScript = global.document && global.document.currentScript;

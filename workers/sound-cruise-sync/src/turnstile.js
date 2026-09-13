@@ -2,14 +2,14 @@ const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverif
 const DEFAULT_TIMEOUT_MS = 5000;
 
 export async function verifyTurnstileToken(token, env, { fetchImpl = fetch, timeoutMs = DEFAULT_TIMEOUT_MS, expectedAction = env.TURNSTILE_EXPECTED_ACTION } = {}) {
-  if (!env.TURNSTILE_SECRET_KEY) return { ok: false, unavailable: true };
+  if (!env.TURNSTILE_PRODUCTION_SECRET_KEY) return { ok: false, unavailable: true };
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImpl(SITEVERIFY_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ secret: env.TURNSTILE_SECRET_KEY, response: token }),
+      body: JSON.stringify({ secret: env.TURNSTILE_PRODUCTION_SECRET_KEY, response: token }),
       signal: controller.signal
     });
     if (!response.ok) return { ok: false, unavailable: response.status >= 500 };

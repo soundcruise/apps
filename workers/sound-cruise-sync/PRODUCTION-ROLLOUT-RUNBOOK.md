@@ -2,6 +2,15 @@
 
 P-ROLL-1 adds the tracked gate architecture only. It does not enable production Sync, remove the production-host lockout, configure `sync.soundcruise.jp`, modify DNS/Turnstile, apply the remote migration, or deploy anything.
 
+## Initial production service policy
+
+- The initial rollout uses Workers Free and serves Chord Cruise Pro only. Standard never loads or exposes Sound Cruise Sync.
+- The maximum planning assumption is approximately 1,000 users, but rollout starts with a very small enrollment-only cohort.
+- During the initial cohort, review Worker requests and errors plus D1 rows read, rows written and latency in the Cloudflare dashboard every day. Also review pending client outboxes, conflicts, Recovery failures and Pairing failures from QA/incident reports without logging user payloads or credentials.
+- Sustained usage at or above 50% of the current Workers or D1 Free allowance is the operational trigger to evaluate Workers Paid before expanding the cohort.
+- Cloudflare limits can change. Treat the dashboard and current official documentation as authoritative instead of embedding quota values in code or this runbook.
+- Reaching a Free limit can cause Worker or D1 operations to fail until the limit resets or the account is upgraded. Use the runtime emergency gates to stop admission first and freeze data traffic only when necessary; local Chord data and queued outbox operations must remain intact.
+
 ## Route and gate map
 
 | Class | Routes | Gate |

@@ -24,7 +24,7 @@ npm run migrate:local
 npm run check
 ```
 
-`POST /v1/sync/start`とRecovery prepareはTurnstile、Recovery commitは短期claim、その他の同期endpointはdevice credentialで認証します。`TURNSTILE_SECRET_KEY`、`SYNC_CREDENTIAL_PEPPER`、`SYNC_RECOVERY_PEPPER`、`SYNC_DB`、該当rate limiterのいずれかが不足するとfail closedします。production bypassはありません。
+`POST /v1/sync/start`とRecovery prepareはTurnstile、Recovery commitは短期claim、その他の同期endpointはdevice credentialで認証します。`TURNSTILE_PRODUCTION_SECRET_KEY`、`SYNC_CREDENTIAL_PEPPER`、`SYNC_RECOVERY_PEPPER`、`SYNC_DB`、該当rate limiterのいずれかが不足するとfail closedします。production bypassはありません。
 
 ## Remote Pilot（P2.5）
 
@@ -35,10 +35,10 @@ npm run check
 - D1: `sound-cruise-sync` (`e37759f8-df08-4d2a-92b0-ffdd50de66df`)
 - binding: `SYNC_DB`
 - migrations: `0001_create_sync_foundation.sql` → `0006_add_device_management_and_account_deletion.sql`
-- Secrets: `SYNC_CREDENTIAL_PEPPER`、`SYNC_PAIRING_CODE_PEPPER`、`SYNC_RECOVERY_PEPPER`、`TURNSTILE_SECRET_KEY`
+- Secrets: `SYNC_CREDENTIAL_PEPPER`、`SYNC_PAIRING_CODE_PEPPER`、`SYNC_RECOVERY_PEPPER`、`SYNC_ENROLLMENT_PEPPER`、`TURNSTILE_PRODUCTION_SECRET_KEY`
 - Turnstile: Sync専用widget、Pilot hostname限定
 
-`soundcruise.jp`のDNSはこのCloudflare accountの管理外なので、`sync.soundcruise.jp`は設定していません。Custom DomainはDNS管理者と安全に調整できる後続Phaseまでrelease gateとして残します。本番ChordはFeature Flag既定OFFかつproduction host lockoutを維持し、remote Workerを呼びません。
+`soundcruise.jp`のDNSはこのCloudflare accountの管理外なので、初期production endpointには既存の`workers.dev` URLを使用します。Custom DomainはDNS管理者と安全に調整できる後続Phaseまでrelease gateとして残します。本番ChordはProだけがSync moduleを読み込みますが、Feature Flag既定OFFかつproduction host lockoutを維持し、rolloutが開くまではremote Workerを呼びません。StandardはSync moduleを読み込みません。
 
 ### Remote rollback
 

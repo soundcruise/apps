@@ -54,13 +54,7 @@ function configuredOrigins(env) {
 
 function requestOrigin(request, env) {
   const explicitOrigin = request.headers.get('Origin');
-  if (explicitOrigin) return explicitOrigin;
-  // iOS standalone omits Origin on same-origin GET fetches. Accept that browser
-  // shape only when Fetch Metadata and the request URL both match an explicit
-  // allowlist entry; missing or cross-site origins remain fail-closed.
-  if (request.method !== 'GET' || request.headers.get('Sec-Fetch-Site') !== 'same-origin') return null;
-  const sameOrigin = new URL(request.url).origin;
-  return configuredOrigins(env).has(sameOrigin) ? sameOrigin : null;
+  return explicitOrigin || null;
 }
 
 function headerCase(value) {

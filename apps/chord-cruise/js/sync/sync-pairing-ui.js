@@ -2,9 +2,9 @@
     'use strict';
 
     function tokenFor(action) {
-        var provider = global.__SOUND_CRUISE_SYNC_PILOT_GET_TURNSTILE_TOKEN__;
+        var provider = global.__SOUND_CRUISE_SYNC_GET_TURNSTILE_TOKEN__;
         if (typeof provider === 'function') return Promise.resolve(provider(action));
-        return Promise.resolve(global.__SOUND_CRUISE_SYNC_PILOT_TURNSTILE_TOKEN__ || null);
+        return Promise.resolve(null);
     }
 
     function messageFor(code) {
