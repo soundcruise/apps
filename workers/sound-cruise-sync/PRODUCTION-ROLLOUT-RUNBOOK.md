@@ -1,6 +1,6 @@
 # Sound Cruise Sync production rollout runbook
 
-P-ROLL-1 adds the tracked gate architecture only. It does not enable production Sync, remove the production-host lockout, configure `sync.soundcruise.jp`, modify DNS/Turnstile, apply the remote migration, or deploy anything.
+P-ROLL-2B deploys the production foundation to the temporary `workers.dev` endpoint. It keeps the authoritative runtime state `closed`, leaves the Chord production rollout flag OFF, issues no Enrollment Code, and does not begin a cohort or public rollout.
 
 ## Initial production service policy
 
@@ -39,7 +39,7 @@ The Worker reads the singleton D1 row for every user request. A missing row, mal
 
 `recovery_enabled` and `cloud_delete_enabled` are changed only for a specific incident affecting those flows. Do not revoke credentials or delete local data to implement a pause.
 
-## Local/test verification before P-ROLL-2
+## Local/test verification before a rollout-state change
 
 From `workers/sound-cruise-sync`:
 
@@ -115,10 +115,10 @@ npx wrangler d1 execute SYNC_DB --remote --file /absolute/path/to/reviewed-enrol
 
 Before issuing any code, ensure the Worker secret `SYNC_ENROLLMENT_PEPPER` and the operator environment use the same dedicated value. Do not reuse the credential, Pairing, Recovery, Turnstile, or delete-intent pepper.
 
-## P-ROLL-2 prerequisites
+## P-ROLL-3 prerequisites
 
 - Approve and apply migration `0007_add_production_rollout_control.sql` to the intended D1.
 - Provision `SYNC_ENROLLMENT_PEPPER` as a Worker secret without logging it.
-- Configure and validate the custom domain and production Turnstile hostname separately.
+- Validate the temporary `workers.dev` production endpoint and the dedicated production Turnstile hostname separately. Custom Domain remains a future phase.
 - Keep the tracked client `DEFAULT_ENABLED=false` and production host lockout until an explicit release decision.
 - Run the complete local/test gate matrix before any production rollout change.

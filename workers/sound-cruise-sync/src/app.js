@@ -628,7 +628,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   const url = new URL(request.url);
   if (url.pathname === '/health') {
     if (request.method !== 'GET') return errorResponse(405, 'method_not_allowed', null, null, { Allow: 'GET' });
-    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p-roll-1' });
+    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p-roll-2b' });
   }
   const route = ROUTES[url.pathname];
   if (!route) return errorResponse(404, 'not_found');
