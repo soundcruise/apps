@@ -7,7 +7,8 @@
     "test": "node --test",
     "check": "npm test && wrangler deploy --dry-run",
     "dev": "wrangler dev --local",
-    "migrate:local": "wrangler d1 migrations apply SYNC_DB --local"
+    "migrate:local": "wrangler d1 migrations apply SYNC_DB --local",
+    "enrollment:create": "node scripts/create-enrollment-code.mjs"
   },
   "devDependencies": {
     "wrangler": "4.131.1"

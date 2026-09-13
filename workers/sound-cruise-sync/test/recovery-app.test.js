@@ -7,9 +7,11 @@ const DEVICE_ID = '123e4567-e89b-42d3-a456-426614174020';
 const CLAIM_ID = '123e4567-e89b-42d3-a456-426614174030';
 const CREDENTIAL = `scd1.${DEVICE_ID}.${'A'.repeat(43)}`;
 const CLAIM = `scr1.${CLAIM_ID}.${'B'.repeat(43)}`;
+const OPEN_CONTROL = Object.freeze({ rolloutMode: 'open', admissionEnabled: true, dataWriteEnabled: true, dataReadEnabled: true, recoveryEnabled: true, cloudDeleteEnabled: true });
 
 function env(overrides = {}) {
   return {
+    readRuntimeControl: async () => OPEN_CONTROL,
     ALLOWED_ORIGINS: ORIGIN,
     SYNC_ALLOWED_APP_IDS: 'chord',
     SYNC_DB: { prepare() {}, batch() {} },
@@ -35,6 +37,7 @@ function request(body, path = '/v1/sync/recover', headers = {}) {
 
 function prepareDependencies(repository, calls = {}) {
   return {
+    readRuntimeControl: async () => OPEN_CONTROL,
     verifyTurnstileToken: async (_token, _env, options) => {
       calls.action = options.expectedAction;
       return { ok: true };
@@ -122,6 +125,7 @@ test('wrong Recovery Code, Turnstile failure, rate limiting and identity injecti
 test('Recovery commit authenticates only the short claim and returns no credential plaintext', async () => {
   let commitInput;
   const deps = {
+    readRuntimeControl: async () => OPEN_CONTROL,
     recoveryClaimVerifier: async () => ({ claimId: CLAIM_ID, claimVerifier: '4'.repeat(64) }),
     createRecoveryRepository: () => ({
       commit: async (input) => { commitInput = input; return { status: 'recovered', deviceId: DEVICE_ID, recoveryVersion: 2 }; }
@@ -138,13 +142,14 @@ test('Recovery commit authenticates only the short claim and returns no credenti
 
   const malformed = await handleRequest(request({
     operation: 'commit', appId: 'chord', claimToken: 'not-a-recovery-claim'
-  }), env());
+  }), env(), null, { readRuntimeControl: async () => OPEN_CONTROL });
   assert.equal(malformed.status, 400);
   assert.deepEqual(await malformed.json(), { ok: false, code: 'recovery_invalid' });
 });
 
 test('authenticated regeneration rotates only Recovery Code and preserves generic endpoint protections', async () => {
   const deps = {
+    readRuntimeControl: async () => OPEN_CONTROL,
     authenticateDevice: async () => ({ userId: 'u1', deviceId: 'd1', appId: 'chord', userState: 'active' }),
     createRepository: () => ({}),
     createRecoveryCode: () => '23456789ABCDEFGHJKMN',

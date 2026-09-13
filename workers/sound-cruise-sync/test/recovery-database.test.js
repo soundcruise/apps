@@ -110,7 +110,9 @@ test('recovery commit atomically rotates, revokes all devices and pairing, and c
   assert.equal(active[0].paired_at, 1100);
   assert.equal(db.raw.prepare('SELECT cancelled_at FROM pairing_codes').get().cancelled_at, 1100);
   assert.equal(db.raw.prepare('SELECT committed_at FROM recovery_claims WHERE claim_id = ?').get(claim.claim_id).committed_at, 1100);
-  assert.deepEqual(await repository.commit({ claimId: claim.claim_id, claimVerifier: claim.claim_verifier, appId: 'chord', now: 1200 }), { status: 'invalid' });
+  assert.deepEqual(await repository.commit({ claimId: claim.claim_id, claimVerifier: claim.claim_verifier, appId: 'chord', now: 1200 }), {
+    status: 'recovered', userId: USER, deviceId: DEVICE_R, recoveryVersion: 2, alreadyRecovered: true
+  });
   assert.equal((await prepare(repository, {
     claimId: '123e4567-e89b-42d3-a456-426614174032',
     claimVerifier: '6'.repeat(64),

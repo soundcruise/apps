@@ -1,5 +1,5 @@
 import { SHA256_PATTERN, validateOperation } from './records.js';
-import { normalizePairingCode, normalizeRecoveryCode } from './crypto.js';
+import { normalizeEnrollmentCode, normalizePairingCode, normalizeRecoveryCode } from './crypto.js';
 
 export const MAX_BODY_BYTES = 8 * 1024;
 export const MAX_PUSH_BODY_BYTES = 256 * 1024;
@@ -64,7 +64,7 @@ export function validateAppId(appId, env) {
 }
 
 export function validateStartPayload(payload, env) {
-  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'turnstileToken', 'deviceLabel', 'initialSummary'])) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'turnstileToken', 'deviceLabel', 'initialSummary', 'enrollmentCode'])) {
     return { ok: false, reason: 'shape' };
   }
   if (!validateAppId(payload.appId, env)) {
@@ -77,6 +77,12 @@ export function validateStartPayload(payload, env) {
 
   const label = normalizeDeviceLabel(payload.deviceLabel);
   if (!label.ok) return { ok: false, reason: 'device_label' };
+  const enrollmentCode = payload.enrollmentCode == null || payload.enrollmentCode === ''
+    ? null
+    : normalizeEnrollmentCode(payload.enrollmentCode);
+  if (payload.enrollmentCode != null && payload.enrollmentCode !== '' && !enrollmentCode) {
+    return { ok: false, reason: 'enrollment_code' };
+  }
 
   if (!isPlainObject(payload.initialSummary) ||
       !hasOnlyKeys(payload.initialSummary, ['schemaVersion', 'recordCount', 'manifestHash']) ||
@@ -93,6 +99,7 @@ export function validateStartPayload(payload, env) {
       appId: payload.appId,
       turnstileToken: payload.turnstileToken,
       deviceLabel: label.value,
+      enrollmentCode,
       initialSummary: {
         schemaVersion: payload.initialSummary.schemaVersion,
         recordCount: payload.initialSummary.recordCount,

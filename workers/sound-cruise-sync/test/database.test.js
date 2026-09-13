@@ -34,7 +34,7 @@ function input() {
 test('provisioning writes user, verifier-only device, and initializing dataset in one batch', async () => {
   const db = fakeDb();
   const result = await createProvisioningIdentity(db, input());
-  assert.deepEqual(result, { userId: 'user-id', deviceId: 'device-id', datasetState: 'initializing' });
+  assert.deepEqual(result, { status: 'created', userId: 'user-id', deviceId: 'device-id', datasetState: 'initializing' });
   assert.equal(db.statements.length, 3);
   assert.equal(db.statements[1].values.includes('v'.repeat(64)), true);
   assert.equal(db.statements[0].values.includes('r'.repeat(64)), true);

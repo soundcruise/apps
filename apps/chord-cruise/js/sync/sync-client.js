@@ -8,6 +8,7 @@
 
     var CREDENTIAL_PATTERN = /^scd1\.([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/;
     var RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+    var ENROLLMENT_PREFIX = 'SCE1';
     var RECOVERY_CLAIM_PATTERN = /^scr1\.([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/;
     var DELETE_INTENT_PATTERN = /^sdi1\.([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/;
     var RECORD_TYPES = core.RECORD_TYPES;
@@ -41,6 +42,18 @@
     function formatRecoveryCode(value) {
         var normalized = normalizeRecoveryCode(value);
         return normalized ? normalized.match(/.{4}/g).join('-') : null;
+    }
+
+    function normalizeEnrollmentCode(value) {
+        if (typeof value !== 'string') return null;
+        var compact = value.toUpperCase().replace(/[\s-]/g, '');
+        if (compact.slice(0, ENROLLMENT_PREFIX.length) !== ENROLLMENT_PREFIX) return null;
+        var code = compact.slice(ENROLLMENT_PREFIX.length);
+        if (code.length !== 20) return null;
+        for (var index = 0; index < code.length; index += 1) {
+            if (RECOVERY_ALPHABET.indexOf(code[index]) === -1) return null;
+        }
+        return ENROLLMENT_PREFIX + code;
     }
 
     function automaticDeviceLabel() {
@@ -559,21 +572,26 @@
             var snapshot = await adapter.snapshot();
             if (snapshot.errors.length) return { ok: false, code: 'snapshot_invalid', errors: snapshot.errors.length };
             var response;
+            var enrollmentCode = request.enrollmentCode == null || request.enrollmentCode === ''
+                ? null : normalizeEnrollmentCode(request.enrollmentCode);
+            if (request.enrollmentCode && !enrollmentCode) return { ok: false, code: 'enrollment_invalid' };
             try {
+                var startBody = {
+                    appId: core.APP_ID,
+                    turnstileToken: request.turnstileToken,
+                    deviceLabel: request.deviceLabel || automaticDeviceLabel(),
+                    initialSummary: {
+                        schemaVersion: snapshot.schemaVersion,
+                        recordCount: snapshot.counts.total,
+                        manifestHash: snapshot.manifestHash
+                    }
+                };
+                if (enrollmentCode) startBody.enrollmentCode = enrollmentCode;
                 response = await fetchImpl(endpoint + '/v1/sync/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     cache: 'no-store',
-                    body: JSON.stringify({
-                        appId: core.APP_ID,
-                        turnstileToken: request.turnstileToken,
-                        deviceLabel: request.deviceLabel || automaticDeviceLabel(),
-                        initialSummary: {
-                            schemaVersion: snapshot.schemaVersion,
-                            recordCount: snapshot.counts.total,
-                            manifestHash: snapshot.manifestHash
-                        }
-                    })
+                    body: JSON.stringify(startBody)
                 });
             } catch (error) {
                 return { ok: false, code: 'network_error' };
@@ -632,11 +650,36 @@
             try { responseBody = await response.json(); } catch (error) {
                 return { ok: false, code: 'invalid_response', retryable: response.status >= 500 };
             }
+            var code = responseBody && responseBody.code ? responseBody.code : (response.ok ? null : 'request_failed');
+            var requestCategory = path.indexOf('/v1/sync/push') === 0 || path.indexOf('/v1/sync/migration/complete') === 0
+                ? 'write'
+                : path.indexOf('/v1/sync/changes') === 0 || path.indexOf('/v1/sync/snapshot') === 0
+                    ? 'read'
+                    : path.indexOf('/v1/sync/pairing-codes') === 0
+                        ? 'admission'
+                        : path.indexOf('/v1/sync/recovery-codes') === 0
+                            ? 'recovery'
+                            : path.indexOf('/v1/sync/account') === 0
+                                ? 'cloud_delete' : null;
+            var gateCategory = code === 'sync_write_paused' ? 'write'
+                : code === 'sync_read_paused' ? 'read'
+                    : code === 'sync_admission_paused' ? 'admission'
+                        : code === 'sync_recovery_paused' ? 'recovery'
+                            : code === 'sync_cloud_delete_paused' ? 'cloud_delete'
+                                : code === 'rollout_control_unavailable' ? requestCategory || 'control' : null;
+            if (gateCategory) {
+                await store.setMeta('runtimePause', { category: gateCategory, code: code, observedAt: now() }, now());
+            } else if (response.ok) {
+                var currentPause = await store.getMeta('runtimePause');
+                if (requestCategory && currentPause && currentPause.category === requestCategory) {
+                    await store.setMeta('runtimePause', null, now());
+                }
+            }
             return {
                 ok: response.ok && responseBody && responseBody.ok === true,
                 status: response.status,
-                code: responseBody && responseBody.code ? responseBody.code : (response.ok ? null : 'request_failed'),
-                retryable: response.status === 429 || response.status >= 500,
+                code: code,
+                retryable: !gateCategory && (response.status === 429 || response.status >= 500),
                 body: responseBody,
                 bookmark: response.headers && response.headers.get ? response.headers.get('X-D1-Bookmark') : null
             };
@@ -990,6 +1033,15 @@
             }
         }
 
+        async function markPaused(store, operations, code) {
+            for (var index = 0; index < operations.length; index += 1) {
+                var operation = operations[index];
+                operation.nextRetryAt = now() + 5 * 60 * 1000;
+                operation.lastError = code;
+                await store.putOutbox(operation);
+            }
+        }
+
         async function validatedServerRecord(input, expectedOperation, requireAcknowledgement) {
             if (!input) throw new TypeError('Invalid server record');
             if (RECORD_TYPES.indexOf(input.recordType) === -1) throw new TypeError('Invalid server record type');
@@ -1093,7 +1145,10 @@
             });
             if (!response.ok) {
                 if (response.status === 401) await store.setMeta('syncState', 'credential_invalid', now());
-                if (response.retryable) await markRetry(store, pending, response.code);
+                if (response.code === 'sync_write_paused' || response.code === 'rollout_control_unavailable') {
+                    await markPaused(store, pending, response.code);
+                }
+                else if (response.retryable) await markRetry(store, pending, response.code);
                 return { enabled: true, sent: pending.length, ok: false, code: response.code, retryable: response.retryable };
             }
             if (!response.body || !Array.isArray(response.body.results) || response.body.results.length !== pending.length) {
@@ -1727,6 +1782,7 @@
         CREDENTIAL_PATTERN: CREDENTIAL_PATTERN,
         normalizePairingCode: normalizePairingCode,
         formatPairingCode: formatPairingCode,
+        normalizeEnrollmentCode: normalizeEnrollmentCode,
         RECOVERY_ALPHABET: RECOVERY_ALPHABET,
         normalizeRecoveryCode: normalizeRecoveryCode,
         formatRecoveryCode: formatRecoveryCode,

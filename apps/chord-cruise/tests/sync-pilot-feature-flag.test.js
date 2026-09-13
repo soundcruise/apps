@@ -43,6 +43,11 @@ function runBootstrap(hostname, sessionValue, explicitFlag) {
 
     var production = runBootstrap('soundcruise.jp', 'enabled', true);
     assert.strictEqual(production.api.enabled, false, 'P1 cannot be enabled on production even with both overrides');
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(production.api.productionRollout)), {
+        enabled: false,
+        endpoint: 'https://sync.soundcruise.jp',
+        enrollmentRequired: true
+    });
     assert.strictEqual(production.appendCount, 0);
     assert.strictEqual(production.api.setSessionEnabled(true), false, 'production cannot persist the pilot flag');
 

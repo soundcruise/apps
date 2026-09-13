@@ -7,6 +7,11 @@ const ORIGIN = 'https://soundcruise.jp';
 const DEVICE_ID = '123e4567-e89b-42d3-a456-426614174000';
 const USER_ID = '123e4567-e89b-42d3-a456-426614174001';
 const CREDENTIAL = `scd1.${DEVICE_ID}.${'A'.repeat(43)}`;
+const OPEN_CONTROL = Object.freeze({
+  rolloutMode: 'open', admissionEnabled: true, dataWriteEnabled: true,
+  dataReadEnabled: true, recoveryEnabled: true, cloudDeleteEnabled: true,
+  generation: 1, updatedAt: 1
+});
 
 function dbBinding() {
   return { prepare() {}, batch() {} };
@@ -48,6 +53,7 @@ function request(path = '/v1/sync/start', payload = body(), overrides = {}) {
 
 function dependencies(calls) {
   return {
+    readRuntimeControl: async () => OPEN_CONTROL,
     verifyTurnstileToken: async (token) => { calls.turnstile.push(token); return { ok: true }; },
     createIdentityMaterial: async () => ({
       userId: USER_ID, deviceId: DEVICE_ID, credential: CREDENTIAL, credentialVerifier: 'f'.repeat(64)
@@ -62,7 +68,7 @@ test('health is minimal, no-store, and independent of provisioning bindings', as
   const response = await handleRequest(new Request('https://sync.soundcruise.jp/health'));
   assert.equal(response.status, 200);
   assert.equal(response.headers.get('Cache-Control'), 'no-store');
-  assert.deepEqual(await response.json(), { ok: true, service: 'sound-cruise-sync', phase: 'p6' });
+  assert.deepEqual(await response.json(), { ok: true, service: 'sound-cruise-sync', phase: 'p-roll-1' });
 });
 
 test('valid start provisions verifier-only identity and returns the secret once', async () => {
@@ -213,7 +219,7 @@ async function pushOperation(overrides = {}) {
 function authDependencies(repository, authenticate = async (_db, _authorization, appId) => ({
   userId: USER_ID, deviceId: DEVICE_ID, appId, userState: 'provisioning'
 })) {
-  return { authenticateDevice: authenticate, createRepository: () => repository };
+  return { readRuntimeControl: async () => OPEN_CONTROL, authenticateDevice: authenticate, createRepository: () => repository };
 }
 
 function authRequest(path, options = {}) {

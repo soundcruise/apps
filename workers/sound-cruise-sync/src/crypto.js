@@ -3,6 +3,8 @@ const CREDENTIAL_PREFIX = 'scd1';
 const PAIRING_CODE_RANGE = 100000000;
 export const RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 export const RECOVERY_CODE_LENGTH = 20;
+export const ENROLLMENT_CODE_PREFIX = 'SCE1';
+export const ENROLLMENT_CODE_LENGTH = 20;
 const RECOVERY_CLAIM_PREFIX = 'scr1';
 const DELETE_INTENT_PREFIX = 'sdi1';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -107,6 +109,40 @@ export async function recoveryCodeVerifier(code, pepper, cryptoImpl = crypto) {
   const normalized = normalizeRecoveryCode(code);
   if (!normalized) throw new Error('Invalid recovery code');
   return hmacVerifier(`sound-cruise-recovery:v1:${normalized}`, pepper, cryptoImpl);
+}
+
+export function normalizeEnrollmentCode(value) {
+  if (typeof value !== 'string') return null;
+  const compact = value.toUpperCase().replace(/[\s-]/g, '');
+  if (!compact.startsWith(ENROLLMENT_CODE_PREFIX)) return null;
+  const code = compact.slice(ENROLLMENT_CODE_PREFIX.length);
+  if (code.length !== ENROLLMENT_CODE_LENGTH) return null;
+  for (const character of code) {
+    if (!RECOVERY_ALPHABET.includes(character)) return null;
+  }
+  return `${ENROLLMENT_CODE_PREFIX}${code}`;
+}
+
+export function formatEnrollmentCode(value) {
+  const normalized = normalizeEnrollmentCode(value);
+  if (!normalized) return null;
+  const code = normalized.slice(ENROLLMENT_CODE_PREFIX.length);
+  return `${ENROLLMENT_CODE_PREFIX}-${code.match(/.{4}/g).join('-')}`;
+}
+
+export function createEnrollmentCode(cryptoImpl = crypto) {
+  if (!cryptoImpl || typeof cryptoImpl.getRandomValues !== 'function') {
+    throw new Error('Secure random source is unavailable');
+  }
+  const random = new Uint8Array(ENROLLMENT_CODE_LENGTH);
+  cryptoImpl.getRandomValues(random);
+  return ENROLLMENT_CODE_PREFIX + Array.from(random, (value) => RECOVERY_ALPHABET[value & 31]).join('');
+}
+
+export async function enrollmentCodeVerifier(code, pepper, cryptoImpl = crypto) {
+  const normalized = normalizeEnrollmentCode(code);
+  if (!normalized) throw new Error('Invalid enrollment code');
+  return hmacVerifier(`sound-cruise-enrollment:v1:${normalized}`, pepper, cryptoImpl);
 }
 
 export async function createRecoveryClaim(pepper, cryptoImpl = crypto) {

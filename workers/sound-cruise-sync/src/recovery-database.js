@@ -108,10 +108,28 @@ export function createD1RecoveryRepository(db, clock = Date.now) {
   async function commit(input) {
     const now = input.now || clock();
     const claim = await getClaim(input.claimId);
-    if (!claim || !timingSafeHexEqual(claim.claim_verifier, input.claimVerifier) || claim.target_app_id !== input.appId ||
-        claim.committed_at != null || claim.cancelled_at != null || claim.expires_at <= now) {
+    if (!claim || !timingSafeHexEqual(claim.claim_verifier, input.claimVerifier) || claim.target_app_id !== input.appId) {
       return { status: 'invalid' };
     }
+    // Recovery commit is idempotent for the same short-lived claim. This is the
+    // response-loss proof path and does not depend on the normal snapshot gate.
+    if (claim.committed_at != null) {
+      const committed = await db.prepare(`
+        SELECT u.recovery_version, d.id AS device_id
+        FROM sync_users u JOIN sync_devices d ON d.user_id = u.id
+        WHERE u.id = ? AND u.state = 'active' AND u.deleted_at IS NULL
+          AND u.recovery_version = ? AND u.recovery_verifier = ?
+          AND d.id = ? AND d.app_id = ? AND d.revoked_at IS NULL
+      `).bind(
+        claim.user_id, claim.expected_recovery_version + 1, claim.next_recovery_verifier,
+        claim.next_device_id, claim.target_app_id
+      ).first();
+      return committed ? {
+        status: 'recovered', userId: claim.user_id, deviceId: committed.device_id,
+        recoveryVersion: Number(committed.recovery_version), alreadyRecovered: true
+      } : { status: 'invalid' };
+    }
+    if (claim.cancelled_at != null || claim.expires_at <= now) return { status: 'invalid' };
     const nextVersion = claim.expected_recovery_version + 1;
     const rotate = db.prepare(`
       UPDATE sync_users

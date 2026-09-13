@@ -4,6 +4,12 @@
     var DEFAULT_ENABLED = false;
     var SESSION_FLAG_KEY = 'soundCruise.syncPilot.enabled';
     var LOCAL_HOSTS = ['127.0.0.1', 'localhost', '::1'];
+    var PRODUCTION_HOSTS = ['soundcruise.jp'];
+    var PRODUCTION_ROLLOUT = Object.freeze({
+        enabled: false,
+        endpoint: 'https://sync.soundcruise.jp',
+        enrollmentRequired: true
+    });
     var currentScript = global.document && global.document.currentScript;
     var baseUrl = currentScript && currentScript.src
         ? currentScript.src.slice(0, currentScript.src.lastIndexOf('/') + 1)
@@ -13,12 +19,17 @@
         return Boolean(global.location && LOCAL_HOSTS.indexOf(global.location.hostname) !== -1);
     }
 
+    function isProductionHost() {
+        return Boolean(global.location && PRODUCTION_HOSTS.indexOf(global.location.hostname) !== -1);
+    }
+
     function sessionFlagEnabled() {
         if (!isLocalQaHost()) return false;
         try { return global.sessionStorage.getItem(SESSION_FLAG_KEY) === 'enabled'; } catch (error) { return false; }
     }
 
     function isEnabled() {
+        if (isProductionHost()) return PRODUCTION_ROLLOUT.enabled === true;
         if (!isLocalQaHost()) return false;
         return global.__SOUND_CRUISE_SYNC_PILOT__ === true || sessionFlagEnabled() || DEFAULT_ENABLED;
     }
@@ -52,7 +63,13 @@
             .then(function () { return loadScript('sync-merge.js'); })
             .then(function () { return loadScript('sync-client.js'); })
             .then(function () {
-                var endpoint = global.__SOUND_CRUISE_SYNC_PILOT_ENDPOINT__ || 'http://127.0.0.1:8787';
+                var production = isProductionHost();
+                var endpoint = production
+                    ? PRODUCTION_ROLLOUT.endpoint
+                    : global.__SOUND_CRUISE_SYNC_PILOT_ENDPOINT__ || 'http://127.0.0.1:8787';
+                if (production) {
+                    global.__SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__ = PRODUCTION_ROLLOUT.enrollmentRequired;
+                }
                 var client = global.ChordCruiseSync.client.createClient({ enabled: true, endpoint: endpoint });
                 global.ChordCruiseSync.pilotClient = client;
                 return client.initialize().then(async function (result) {
@@ -73,6 +90,7 @@
     var api = Object.freeze({
         enabled: isEnabled(),
         defaultEnabled: DEFAULT_ENABLED,
+        productionRollout: PRODUCTION_ROLLOUT,
         databaseName: 'soundCruiseSync',
         setSessionEnabled: setSessionEnabled,
         ready: ready

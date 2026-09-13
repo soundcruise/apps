@@ -7,9 +7,11 @@ const DEVICE_ID = '123e4567-e89b-42d3-a456-426614174000';
 const OTHER_DEVICE = '123e4567-e89b-42d3-a456-426614174002';
 const INTENT = 'sdi1.123e4567-e89b-42d3-a456-426614174003.' + 'A'.repeat(43);
 const identity = { userId: '123e4567-e89b-42d3-a456-426614174001', deviceId: DEVICE_ID, appId: 'chord', userState: 'active' };
+const OPEN_CONTROL = Object.freeze({ rolloutMode: 'open', admissionEnabled: true, dataWriteEnabled: true, dataReadEnabled: true, recoveryEnabled: true, cloudDeleteEnabled: true });
 
 function env() {
   return {
+    readRuntimeControl: async () => OPEN_CONTROL,
     ALLOWED_ORIGINS: ORIGIN, SYNC_ALLOWED_APP_IDS: 'chord', SYNC_CREDENTIAL_PEPPER: 'p'.repeat(64),
     SYNC_DB: { prepare() {}, batch() {}, withSession() { return this; }, getBookmark() { return 'qa'; } },
     SYNC_RATE_LIMITER: { limit: async () => ({ success: true }) }
@@ -26,6 +28,7 @@ function request(path, method, body, authorization = true) {
 
 function dependencies(overrides = {}) {
   return {
+    readRuntimeControl: async () => OPEN_CONTROL,
     authenticateDevice: async () => identity,
     createRepository: () => ({}),
     createDeleteIntent: async () => ({ intentId: '123e4567-e89b-42d3-a456-426614174003', intentToken: INTENT, intentVerifier: 'intent-verifier' }),

@@ -2,7 +2,8 @@ import { authenticateDevice } from './auth.js';
 import {
   createIdentityMaterial, createPairingCode, pairingCodeVerifier,
   createRecoveryClaim, createRecoveryCode, formatRecoveryCode,
-  recoveryClaimVerifier, recoveryCodeVerifier, createDeleteIntent, deleteIntentVerifier
+  recoveryClaimVerifier, recoveryCodeVerifier, createDeleteIntent, deleteIntentVerifier,
+  enrollmentCodeVerifier
 } from './crypto.js';
 import { createD1DeviceRepository } from './device-database.js';
 import { createD1CleanupRepository } from './cleanup-database.js';
@@ -12,6 +13,7 @@ import { createD1RecoveryRepository } from './recovery-database.js';
 import { decodeCursor, encodeCursor } from './records.js';
 import { createD1SyncRepository } from './sync-database.js';
 import { verifyTurnstileToken } from './turnstile.js';
+import { gateDecision, readRuntimeControl } from './rollout-control.js';
 import {
   isJsonContentType,
   MAX_BODY_BYTES,
@@ -159,7 +161,7 @@ async function authenticatedContext(request, env, appId, dependencies) {
   return { session, identity, repository: createRepository(session) };
 }
 
-async function handleStart(request, env, origin, route, dependencies) {
+async function handleStart(request, env, origin, route, dependencies, runtimeControl) {
   if (await isRateLimited(env.START_RATE_LIMITER, `sync-start:${requestIp(request)}`)) {
     return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
   }
@@ -167,11 +169,15 @@ async function handleStart(request, env, origin, route, dependencies) {
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const validation = validateStartPayload(parsed.value, env);
   if (!validation.ok) return errorResponse(400, validation.reason === 'turnstile' ? 'turnstile_failed' : 'invalid_request', origin, route);
+  if (runtimeControl.rolloutMode === 'cohort' && !validation.value.enrollmentCode) {
+    return errorResponse(403, 'enrollment_required', origin, route);
+  }
   const verify = dependencies.verifyTurnstileToken || verifyTurnstileToken;
   let turnstile;
   try { turnstile = await verify(validation.value.turnstileToken, env); } catch { return errorResponse(503, 'turnstile_failed', origin, route); }
   if (!turnstile.ok) return errorResponse(turnstile.unavailable ? 503 : 403, 'turnstile_failed', origin, route);
-  if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_RECOVERY_PEPPER || !env.SYNC_DB) {
+  if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_RECOVERY_PEPPER || !env.SYNC_DB ||
+      (runtimeControl.rolloutMode === 'cohort' && !env.SYNC_ENROLLMENT_PEPPER)) {
     return errorResponse(503, 'server_unavailable', origin, route);
   }
   let material;
@@ -183,7 +189,12 @@ async function handleStart(request, env, origin, route, dependencies) {
     material = await (dependencies.createIdentityMaterial || createIdentityMaterial)(env.SYNC_CREDENTIAL_PEPPER);
     recoveryCode = (dependencies.createRecoveryCode || createRecoveryCode)();
     const recoveryVerifier = await (dependencies.recoveryCodeVerifier || recoveryCodeVerifier)(recoveryCode, env.SYNC_RECOVERY_PEPPER);
-    await (dependencies.createProvisioningIdentity || createProvisioningIdentity)(session, {
+    const enrollmentVerifier = runtimeControl.rolloutMode === 'cohort'
+      ? await (dependencies.enrollmentCodeVerifier || enrollmentCodeVerifier)(
+          validation.value.enrollmentCode, env.SYNC_ENROLLMENT_PEPPER
+        )
+      : null;
+    const created = await (dependencies.createProvisioningIdentity || createProvisioningIdentity)(session, {
       userId: material.userId,
       deviceId: material.deviceId,
       credentialVerifier: material.credentialVerifier,
@@ -191,8 +202,12 @@ async function handleStart(request, env, origin, route, dependencies) {
       appId: validation.value.appId,
       deviceLabel: validation.value.deviceLabel,
       initialSummary: validation.value.initialSummary,
+      enrollmentVerifier,
       now: Date.now()
     });
+    if (created?.status === 'enrollment_invalid') {
+      return errorResponse(403, 'enrollment_invalid', origin, route);
+    }
   } catch {
     return errorResponse(503, 'server_error', origin, route);
   }
@@ -619,7 +634,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   const url = new URL(request.url);
   if (url.pathname === '/health') {
     if (request.method !== 'GET') return errorResponse(405, 'method_not_allowed', null, null, { Allow: 'GET' });
-    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p6' });
+    return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p-roll-1' });
   }
   const route = ROUTES[url.pathname];
   if (!route) return errorResponse(404, 'not_found');
@@ -642,10 +657,15 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if ((route.method === 'POST' || route.method === 'DELETE') && !isJsonContentType(request.headers.get('Content-Type'))) {
     return errorResponse(415, 'invalid_content_type', origin, route);
   }
+  const runtimeReader = dependencies.readRuntimeControl || readRuntimeControl;
+  let runtimeControl = null;
+  try { runtimeControl = await runtimeReader(env.SYNC_DB); } catch {}
+  const gate = gateDecision(url.pathname, runtimeControl);
+  if (!gate.allowed) return errorResponse(gate.status, gate.code, origin, route);
   if (url.pathname !== '/v1/sync/start' && await isRateLimited(env.SYNC_RATE_LIMITER, `sync-api:${requestIp(request)}`)) {
     return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
   }
-  if (url.pathname === '/v1/sync/start') return handleStart(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/start') return handleStart(request, env, origin, route, dependencies, runtimeControl);
   if (url.pathname === '/v1/sync/pairing-codes') return handlePairingIssue(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/pair') return handlePair(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/recover') return handleRecover(request, env, origin, route, dependencies);

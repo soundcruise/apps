@@ -4,7 +4,8 @@ import {
   createIdentityMaterial, hmacVerifier, parseDeviceCredential, timingSafeHexEqual,
   RECOVERY_ALPHABET, RECOVERY_CODE_LENGTH, createRecoveryClaim, createRecoveryCode,
   formatRecoveryCode, normalizeRecoveryCode, recoveryClaimVerifier, recoveryCodeVerifier,
-  createDeleteIntent, deleteIntentVerifier
+  createDeleteIntent, deleteIntentVerifier, createEnrollmentCode, normalizeEnrollmentCode,
+  formatEnrollmentCode, enrollmentCodeVerifier, ENROLLMENT_CODE_PREFIX, ENROLLMENT_CODE_LENGTH
 } from '../src/crypto.js';
 
 const PEPPER = 'p'.repeat(64);
@@ -58,6 +59,22 @@ test('Recovery Code has an explicit Crockford alphabet and exactly 100 bits of s
   assert.equal(normalizeRecoveryCode('I'.repeat(20)), null);
   assert.throws(() => createRecoveryCode({}), /Secure random/);
   assert.match(await recoveryCodeVerifier(code, PEPPER), /^[0-9a-f]{64}$/);
+});
+
+test('Enrollment Code is a distinct 100-bit verifier-only credential', async () => {
+  const deterministic = {
+    getRandomValues(bytes) { for (let index = 0; index < bytes.length; index += 1) bytes[index] = index; return bytes; }
+  };
+  const code = createEnrollmentCode(deterministic);
+  assert.equal(ENROLLMENT_CODE_PREFIX, 'SCE1');
+  assert.equal(ENROLLMENT_CODE_LENGTH * Math.log2(RECOVERY_ALPHABET.length), 100);
+  assert.equal(code, 'SCE10123456789ABCDEFGHJK');
+  assert.equal(formatEnrollmentCode(code), 'SCE1-0123-4567-89AB-CDEF-GHJK');
+  assert.equal(normalizeEnrollmentCode('sce1 0123-4567-89ab-cdef-ghjk'), code);
+  assert.equal(normalizeEnrollmentCode('0123-4567-89AB-CDEF-GHJK'), null, 'Recovery-shaped input is not Enrollment');
+  const verifier = await enrollmentCodeVerifier(code, PEPPER);
+  assert.match(verifier, /^[0-9a-f]{64}$/);
+  assert.equal(verifier.includes(code), false);
 });
 
 test('Recovery claim is opaque, short-lived material with verifier-only server representation', async () => {

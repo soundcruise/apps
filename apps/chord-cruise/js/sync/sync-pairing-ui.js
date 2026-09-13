@@ -15,6 +15,14 @@
             pairing_attempts_exhausted: '試行回数の上限に達しました。新しいコードを発行してください。',
             device_limit: 'この同期には接続できる端末数の上限があります。',
             rate_limited: '少し時間をおいてからもう一度お試しください。',
+            sync_admission_paused: '現在、新しいクラウド同期の受付を一時停止しています。',
+            enrollment_required: 'クラウド同期を開始するには招待コードが必要です。',
+            enrollment_invalid: '招待コードが無効、期限切れ、または使用済みです。',
+            sync_write_paused: 'クラウド同期は一時停止中です。端末内の保存は利用できます。',
+            sync_read_paused: 'クラウドからの同期取得は一時停止中です。端末内の保存は利用できます。',
+            sync_recovery_paused: 'クラウドデータの復旧を一時停止しています。',
+            sync_cloud_delete_paused: 'クラウドデータの削除を一時停止しています。',
+            rollout_control_unavailable: 'クラウド同期の状態を確認できません。端末内の保存は利用できます。',
             turnstile_failed: '認証を完了できませんでした。もう一度お試しください。',
             client_storage_failed: 'この端末の同期情報を安全に更新できませんでした。もう一度お試しください。',
             recovery_invalid: '復旧コードが正しくありません。',
@@ -234,6 +242,7 @@
             var pendingAccountDelete = await store.getMeta('pendingAccountDelete');
             var syncState = await store.getMeta('syncState');
             var migrationState = await store.getMeta('migrationState');
+            var runtimePause = await store.getMeta('runtimePause');
             actions.textContent = '';
             result.textContent = '';
             if (pendingAccountDelete && pendingAccountDelete.intentToken) {
@@ -252,6 +261,7 @@
                     return;
                 }
                 status.textContent = syncState === 'paired_pending' ? '同期接続済み（データ統合の確認待ち）' : '同期済み';
+                if (runtimePause && runtimePause.code) result.textContent = messageFor(runtimePause.code);
                 if (syncState === 'paired_pending') {
                     actions.appendChild(button('統合内容を確認', showMergePreview));
                 }
@@ -268,7 +278,21 @@
                 return;
             }
             status.textContent = 'この端末はまだクラウド同期に接続していません。';
-            actions.appendChild(button('同期をはじめる', startIdentity));
+            actions.appendChild(button('同期をはじめる', function () { startIdentity(null); }));
+            if (global.__SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__ === true) {
+                actions.textContent = '';
+                var enrollmentInput = global.document.createElement('input');
+                enrollmentInput.type = 'text';
+                enrollmentInput.inputMode = 'text';
+                enrollmentInput.autocomplete = 'off';
+                enrollmentInput.autocapitalize = 'characters';
+                enrollmentInput.spellcheck = false;
+                enrollmentInput.maxLength = 29;
+                enrollmentInput.placeholder = 'SCE1-XXXX-XXXX-XXXX-XXXX-XXXX';
+                enrollmentInput.setAttribute('aria-label', 'クラウド同期の招待コード');
+                actions.appendChild(enrollmentInput);
+                actions.appendChild(button('招待コードで同期をはじめる', function () { startIdentity(enrollmentInput.value); }));
+            }
             actions.appendChild(button('すでに同期しています', showPairForm, 'cc-settings-reset-trigger cc-settings-pro-link'));
             actions.appendChild(button('復旧コードを使う', showRecoveryForm, 'cc-settings-reset-trigger cc-settings-pro-link'));
         }
@@ -287,13 +311,13 @@
             result.textContent = '同期を開始しました。';
         }
 
-        async function startIdentity() {
+        async function startIdentity(enrollmentCode) {
             result.textContent = '';
             var token = await tokenFor('sound_cruise_sync_start');
             if (!token) { result.textContent = '認証を完了してから同期を開始してください。'; return; }
             status.textContent = '同期を開始しています…';
             actions.textContent = '';
-            var started = await client.startIdentity({ turnstileToken: token });
+            var started = await client.startIdentity({ turnstileToken: token, enrollmentCode: enrollmentCode || null });
             if (!started.ok) { result.textContent = messageFor(started.code); await render(); return; }
             recoveryCodeView(started, resumeInitialMigration);
         }

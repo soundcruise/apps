@@ -22,6 +22,11 @@ test('valid start payload is normalized without accepting identity fields', () =
   assert.equal(result.ok, true);
   assert.equal(result.value.deviceLabel, 'QA iPhone');
   assert.deepEqual(result.value.initialSummary, { schemaVersion: 1, recordCount: 5, manifestHash: hash });
+  const cohortPayload = validPayload();
+  cohortPayload.enrollmentCode = 'SCE1-0123-4567-89ab-cdef-ghjk';
+  assert.equal(validateStartPayload(cohortPayload, env).value.enrollmentCode, 'SCE10123456789ABCDEFGHJK');
+  cohortPayload.enrollmentCode = '0123-4567-89AB-CDEF-GHJK';
+  assert.equal(validateStartPayload(cohortPayload, env).ok, false, 'Recovery-shaped input cannot become an Enrollment Code');
   for (const forbidden of ['userId', 'deviceId', 'credential', 'recoveryCode']) {
     const payload = validPayload();
     payload[forbidden] = 'attacker-controlled';

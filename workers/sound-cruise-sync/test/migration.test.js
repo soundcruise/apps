@@ -10,6 +10,7 @@ const migration3 = fs.readFileSync(path.join(import.meta.dirname, '../migrations
 const migration4 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0004_add_pairing_attempt_limiter.sql'), 'utf8');
 const migration5 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0005_add_recovery_lifecycle.sql'), 'utf8');
 const migration6 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0006_add_device_management_and_account_deletion.sql'), 'utf8');
+const migration7 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0007_add_production_rollout_control.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -18,13 +19,17 @@ function migrate(db) {
   db.exec(migration4);
   db.exec(migration5);
   db.exec(migration6);
+  db.exec(migration7);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
   const db = new DatabaseSync(':memory:');
   migrate(db);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'sync_%' ORDER BY name").all().map((row) => row.name);
-  assert.deepEqual(tables, ['sync_changes', 'sync_datasets', 'sync_devices', 'sync_records', 'sync_users']);
+  assert.deepEqual(tables, [
+    'sync_changes', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
+    'sync_records', 'sync_runtime_control', 'sync_users'
+  ]);
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pairing_codes'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_changes_pull'").get());
   assert(db.prepare("SELECT schema_version FROM sync_records LIMIT 1"));
@@ -39,6 +44,36 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare('SELECT delete_requested_at, purge_after FROM sync_users LIMIT 1'));
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='account_delete_intents'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_users_purge'").get());
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_runtime_control'").get());
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_enrollment_codes'").get());
+  assert.deepEqual({ ...db.prepare(`
+    SELECT rollout_mode, admission_enabled, data_write_enabled, data_read_enabled,
+           recovery_enabled, cloud_delete_enabled, generation
+    FROM sync_runtime_control WHERE singleton_id = 1
+  `).get() }, {
+    rollout_mode: 'closed', admission_enabled: 0, data_write_enabled: 1,
+    data_read_enabled: 1, recovery_enabled: 1, cloud_delete_enabled: 1, generation: 1
+  });
+  db.close();
+});
+
+test('P-ROLL-1 migration is forward-only and safe to re-run without changing the singleton', () => {
+  const db = new DatabaseSync(':memory:');
+  migrate(db);
+  db.prepare(`
+    UPDATE sync_runtime_control SET rollout_mode = 'cohort', admission_enabled = 1,
+      generation = 2, updated_at = 1234 WHERE singleton_id = 1
+  `).run();
+  db.exec(migration7);
+  assert.deepEqual({ ...db.prepare(`
+    SELECT rollout_mode, admission_enabled, generation, updated_at
+    FROM sync_runtime_control WHERE singleton_id = 1
+  `).get() }, { rollout_mode: 'cohort', admission_enabled: 1, generation: 2, updated_at: 1234 });
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sync_runtime_control').get().count, 1);
+  assert.throws(() => db.prepare(`
+    INSERT INTO sync_enrollment_codes (code_verifier, app_id, created_at, expires_at)
+    VALUES ('v', 'pitch', 1, 2)
+  `).run());
   db.close();
 });
 

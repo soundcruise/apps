@@ -6,6 +6,8 @@ const ORIGIN = 'https://soundcruise.jp';
 const DEVICE_ID = '123e4567-e89b-42d3-a456-426614174000';
 const USER_ID = '123e4567-e89b-42d3-a456-426614174001';
 const CREDENTIAL = `scd1.${DEVICE_ID}.${'A'.repeat(43)}`;
+const OPEN_CONTROL = Object.freeze({ rolloutMode: 'open', admissionEnabled: true, dataWriteEnabled: true, dataReadEnabled: true, recoveryEnabled: true, cloudDeleteEnabled: true });
+const withControl = (dependencies = {}) => ({ readRuntimeControl: async () => OPEN_CONTROL, ...dependencies });
 
 function env(overrides = {}) {
   return {
@@ -38,12 +40,12 @@ const auth = async (_db, _authorization, appId) => ({ userId: USER_ID, deviceId:
 
 test('pairing code issue is credential-authenticated, rate-limited, and returns plaintext only once', async () => {
   let issueInput;
-  const response = await handleRequest(request('/v1/sync/pairing-codes', { appId: 'chord' }, { Authorization: `Bearer ${CREDENTIAL}` }), env(), null, {
+  const response = await handleRequest(request('/v1/sync/pairing-codes', { appId: 'chord' }, { Authorization: `Bearer ${CREDENTIAL}` }), env(), null, withControl({
     authenticateDevice: auth,
     createPairingCode: () => '01234567',
     pairingCodeVerifier: async () => 'v'.repeat(64),
     createPairingRepository: () => ({ issue: async (_identity, input) => { issueInput = input; return { status: 'issued', expiresAt: 600001 }; } })
-  });
+  }));
   assert.equal(response.status, 201);
   assert.deepEqual(await response.json(), { ok: true, appId: 'chord', pairingCode: '01234567', expiresAt: 600001 });
   assert.equal(issueInput.codeVerifier, 'v'.repeat(64));
@@ -53,7 +55,7 @@ test('pairing code issue is credential-authenticated, rate-limited, and returns 
     request('/v1/sync/pairing-codes', { appId: 'chord' }, { Authorization: `Bearer ${CREDENTIAL}` }),
     env({ PAIRING_ISSUE_RATE_LIMITER: { limit: async () => ({ success: false }) } }),
     null,
-    { authenticateDevice: auth }
+    withControl({ authenticateDevice: auth })
   );
   assert.equal(limited.status, 429);
 });
@@ -63,12 +65,12 @@ test('pair requires Turnstile and atomically returns a new device credential onl
   let pairInput;
   const response = await handleRequest(request('/v1/sync/pair', {
     appId: 'chord', pairingCode: '0123 4567', turnstileToken: 'token', deviceLabel: 'Device B'
-  }), env(), null, {
+  }), env(), null, withControl({
     verifyTurnstileToken: async (_token, _env, options) => { assert.equal(options.expectedAction, 'sound_cruise_sync_pair'); return { ok: true }; },
     pairingCodeVerifier: async () => 'v'.repeat(64),
     createIdentityMaterial: async () => material,
     createPairingRepository: () => ({ reserveAttempt: async () => ({ status: 'allowed' }), consume: async (_identity, input) => { pairInput = input; return { status: 'paired', userId: USER_ID }; } })
-  });
+  }));
   assert.equal(response.status, 201);
   const body = await response.json();
   assert.equal(body.deviceCredential, material.credential);
@@ -77,16 +79,16 @@ test('pair requires Turnstile and atomically returns a new device credential onl
 
   const invalidTurnstile = await handleRequest(request('/v1/sync/pair', {
     appId: 'chord', pairingCode: '01234567', turnstileToken: 'bad'
-  }), env(), null, { verifyTurnstileToken: async () => ({ ok: false }) });
+  }), env(), null, withControl({ verifyTurnstileToken: async () => ({ ok: false }) }));
   assert.equal(invalidTurnstile.status, 403);
 
   const exhausted = await handleRequest(request('/v1/sync/pair', {
     appId: 'chord', pairingCode: '01234567', turnstileToken: 'token'
-  }), env(), null, {
+  }), env(), null, withControl({
     verifyTurnstileToken: async () => ({ ok: true }),
     pairingCodeVerifier: async () => 'v'.repeat(64),
     createPairingRepository: () => ({ reserveAttempt: async () => ({ status: 'attempts_exhausted' }) })
-  });
+  }));
   assert.equal(exhausted.status, 400);
   assert.equal((await exhausted.json()).code, 'pairing_attempts_exhausted');
 
