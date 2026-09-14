@@ -20,6 +20,24 @@ async function deleteLimited(db, selectSql, deleteSql, values) {
   return results.filter((result) => result?.success !== false).length;
 }
 
+async function expirePreparedChordBridges(db, now, limit) {
+  const selected = await db.prepare(`
+    SELECT bridge_id AS id FROM sync_chord_account_bridges
+    WHERE state = 'prepared' AND expires_at <= ?
+    ORDER BY expires_at ASC LIMIT ${limit}
+  `).bind(now).all();
+  const ids = (selected.results || []).map((row) => row.id);
+  if (!ids.length) return 0;
+  const statements = ids.map((id) => db.prepare(`
+    UPDATE sync_chord_account_bridges
+    SET state = 'rolled_back', generation = generation + 1,
+        updated_at = ?, rolled_back_at = ?
+    WHERE bridge_id = ? AND state = 'prepared' AND expires_at <= ?
+  `).bind(now, now, id, now));
+  const results = await db.batch(statements);
+  return results.reduce((total, result) => total + Number(result?.meta?.changes || 0), 0);
+}
+
 export function createD1CleanupRepository(db, clock = Date.now) {
   if (!db || typeof db.prepare !== 'function' || typeof db.batch !== 'function') throw new Error('D1 session is unavailable');
   async function cleanup(now = clock()) {
@@ -50,6 +68,13 @@ export function createD1CleanupRepository(db, clock = Date.now) {
       // Account schema is a staged additive rollout. A Worker started before
       // migration 0008/0009 must not interrupt the legacy Chord cleanup chain.
       results.accountHandoffs = 0;
+    }
+    try {
+      results.chordAccountBridges = await expirePreparedChordBridges(db, now, limit);
+    } catch {
+      // M4 is also staged additively. Legacy scheduled cleanup must continue
+      // when migration 0010 has not been applied yet.
+      results.chordAccountBridges = 0;
     }
     const oldChanges = await db.prepare(`
       SELECT change_seq, user_id, app_id FROM sync_changes

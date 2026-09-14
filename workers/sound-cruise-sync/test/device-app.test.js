@@ -31,6 +31,9 @@ function dependencies(overrides = {}) {
     readRuntimeControl: async () => OPEN_CONTROL,
     authenticateDevice: async () => identity,
     createRepository: () => ({}),
+    readLegacyAccountPolicy: async () => ({
+      schemaAvailable: true, mode: 'legacy', bridgeState: null
+    }),
     createDeleteIntent: async () => ({ intentId: '123e4567-e89b-42d3-a456-426614174003', intentToken: INTENT, intentVerifier: 'intent-verifier' }),
     deleteIntentVerifier: async () => ({ intentId: '123e4567-e89b-42d3-a456-426614174003', intentVerifier: 'intent-verifier' }),
     createDeviceRepository: () => ({
@@ -66,6 +69,33 @@ test('revoke and deletion endpoints use only authenticated identity plus a short
   response = await handleRequest(request('/v1/sync/account', 'DELETE', { appId: 'chord', intentToken: INTENT }), env(), null, dependencies());
   assert.equal(response.status, 200);
   assert.equal((await response.json()).deleted, true);
+});
+
+test('Account-managed Chord keeps app device revoke but blocks the legacy Cloud Delete authority', async () => {
+  const accountManaged = dependencies({
+    readLegacyAccountPolicy: async () => ({
+      schemaAvailable: true,
+      mode: 'account',
+      bridgeState: 'finalized',
+      accountId: 'account-1',
+      membershipId: 'membership-1'
+    })
+  });
+  let response = await handleRequest(
+    request('/v1/sync/devices/revoke', 'POST', { appId: 'chord', deviceId: OTHER_DEVICE }),
+    env(),
+    null,
+    accountManaged
+  );
+  assert.equal(response.status, 200);
+  response = await handleRequest(
+    request('/v1/sync/account/delete-intent', 'POST', { appId: 'chord' }),
+    env(),
+    null,
+    accountManaged
+  );
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, 'account_membership_delete_required');
 });
 
 test('account delete response loss may be resolved by the one-time token after device auth is revoked', async () => {

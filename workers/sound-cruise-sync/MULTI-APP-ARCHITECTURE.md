@@ -1,6 +1,6 @@
 # Sound Cruise Sync Multi-App Architecture
 
-Status: M1 architecture freeze / M2 local backbone / M3 local Account API
+Status: M1 architecture freeze / M2 local backbone / M3 local Account API / M4 local Chord bridge
 Date: 2026-09-14
 
 ## Decision
@@ -122,7 +122,7 @@ M2 adds internal repository/service APIs only:
 No M2 module is imported by the current request router, so the existing Chord
 path cannot accidentally enter the new logic.
 
-The M3 versioned HTTP contract behind the new gate is:
+The M3/M4 versioned HTTP contract behind the new gate is:
 
 ```text
 POST /v2/accounts/start
@@ -133,6 +133,11 @@ GET  /v2/accounts/devices
 POST /v2/accounts/handoffs
 POST /v2/accounts/handoffs/consume
 POST /v2/accounts/handoffs/cancel
+GET  /v2/accounts/bridges/chord
+POST /v2/accounts/bridges/chord/prepare
+POST /v2/accounts/bridges/chord/dual
+POST /v2/accounts/bridges/chord/finalize
+POST /v2/accounts/bridges/chord/rollback
 ```
 
 App payload push/pull remains on app data-plane routes. The new API must not
@@ -160,8 +165,8 @@ internal Recovery verifier exists only to satisfy the legacy `sync_users`
 invariant and is not a user-facing app Recovery Code. M4 must explicitly reject
 legacy app Recovery for this marker before connecting any app client.
 
-M3 uses three dedicated future secret domains and three independent future rate
-limit bindings:
+M3/M4 use three dedicated future secret domains and four independent future
+rate limit bindings:
 
 - `SYNC_ACCOUNT_CREDENTIAL_PEPPER`
 - `SYNC_ACCOUNT_RECOVERY_PEPPER`
@@ -169,6 +174,7 @@ limit bindings:
 - `ACCOUNT_START_RATE_LIMITER`
 - `ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER`
 - `ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER`
+- `ACCOUNT_BRIDGE_RATE_LIMITER`
 
 Exact Account origins come from `ACCOUNT_ALLOWED_ORIGINS`; wildcard CORS is
 forbidden. Account creation requires Turnstile action
@@ -180,7 +186,9 @@ limit binding.
 Shared additive browser primitives live in `apps/shared/sync-account/`. Account
 credentials use their own IndexedDB database and never reuse app credential
 keys. Account Recovery and handoff tokens are rejected by the persistence
-abstraction. The current Chord client does not import these files in M3.
+abstraction. M4 adds a Chord-specific bridge adapter to this unreferenced shared
+directory. The current Chord client still does not import any of these files,
+so the bridge has no production UI entry point.
 
 ## Independent rollout control
 
@@ -265,22 +273,75 @@ normal app push/pull or app-scoped security actions.
 
 ## Existing Chord bridge
 
-There is no automatic backfill in migration `0008`.
+There is no automatic backfill in migration `0008` or `0010`. M4 implements an
+explicit, dual-authority protocol:
 
-1. Existing Chord Sync keeps its current identity, dataset, devices and legacy
-   Recovery.
-2. Opt-in prepares a new Account and Chord membership without linking them.
-3. The client and server show the existing Chord dataset/device summary.
-4. The user saves the new Account Recovery Code.
-5. Commit links the existing `sync_user_id` and devices and enters `dual` mode;
-   it does not rekey the dataset or revoke devices.
-6. After a durable client acknowledgement and a successful Account-authenticated
-   read, a separate finalization changes the membership to `account` mode.
-7. Until finalization, rollback removes/deactivates only the new link and leaves
-   legacy Chord fully operational. No old Recovery is invalidated during prepare.
+1. If no Account exists, the client first uses the existing Account start flow.
+   Its Recovery candidate must be shown and acknowledged as saved before the
+   Account is created. Existing Accounts reuse their already saved Account
+   Recovery version; a second Account is never created for that path.
+2. The client then presents both an active Account credential and an active
+   Chord app credential. Neither authority can claim the other by itself.
+3. `prepare` checks an active legacy user, a ready Chord dataset, a pending Chord
+   membership, matching generations, no Account-managed marker, no active
+   legacy Recovery claim/delete intent and no conflicting bridge. It persists
+   only operation metadata and returns a non-secret record/device summary.
+4. `dual` atomically activates the pending membership, points it to the existing
+   `sync_user_id`, links the two credential containers, bumps generations and
+   records the acknowledgement. It creates no user, device, dataset, record or
+   change and does not rotate the legacy Recovery verifier.
+5. `finalize` is a separate explicit CAS. It verifies both live credentials,
+   active membership, ready dataset, Account Recovery verifier/version and all
+   generations. Only then does it set `recovery_mode=account`, add the managed
+   marker and disable legacy Recovery by version rotation plus a keyed internal
+   verifier. The app devices and data plane remain unchanged.
+6. A prepared bridge can be rolled back directly. A dual bridge atomically
+   removes only the membership/device link and returns that membership to
+   pending. The Account, its other memberships and all legacy Chord data remain.
+   Finalized bridges are forward-only; a silent downgrade would revive an old
+   authority and is therefore rejected.
 
-The precise dual-mode credential transition requires dedicated response-loss,
-parallel-commit and rollback tests before any pilot or Remote D1 migration.
+Every transition has an operation ID, secret-free request fingerprint,
+generation compare-and-swap and exact-retry resolution before rate limiting.
+The first credential-container pair to prepare owns that bridge attempt; a
+simultaneous Safari/PWA attempt (even for the same Account) receives an explicit
+ownership conflict rather than creating or silently taking over a second link.
+The browser stores only resumable bridge metadata before the network call. It
+never persists Account Recovery, legacy Recovery or handoff plaintext. A reload
+can reconcile `prepared`, candidate-saved, `dual`, finalized or rolled-back
+state from the server.
+
+### Dual-mode authority and legacy operation matrix
+
+Dual mode deliberately follows the conservative policy: legacy Recovery alone
+remains executable until finalize. Account Recovery becomes the Chord Recovery
+authority only in account mode. A successful legacy Recovery or legacy Recovery
+Code rotation during dual updates the bridge's expected legacy version; it does
+not prematurely enable Account Recovery.
+
+| Legacy app operation | legacy | dual | account |
+|---|---:|---:|---:|
+| push / pull / snapshot / migration completion | allow | allow | allow |
+| Pairing | allow | allow | allow |
+| app device list / revoke | allow | allow | allow |
+| legacy Recovery prepare / commit | allow | allow | deny |
+| legacy Recovery Code issue | allow | allow | deny |
+| legacy app Cloud Delete | allow | deny | deny |
+
+Cloud Delete is also denied while a bridge is merely prepared, because a
+pre-issued app deletion racing the ownership commit could orphan the Account
+membership. Account-scoped deletion will be implemented through the dedicated
+Account intent model, not by weakening `/v1/sync/account`.
+Pending Pairing is not a destructive ownership conflict: Pairing remains
+app-scoped, and any change in active-device count is informational rather than
+part of the bridge CAS.
+
+Migration `0010` adds only bridge state/operation metadata and the membership
+legacy-Recovery-disabled timestamp. Expired `prepared` rows are transitioned to
+`rolled_back` by the bounded cleanup chain. An abandoned new Account is retained
+rather than automatically deleted: the user already owns its credential and
+Recovery Code, and it may contain other memberships. No production migration,
+binding, secret, runtime switch or client import is part of M4.
 
 ## App adapter boundaries
 
@@ -313,8 +374,10 @@ restore()
 - **M3 (this checkpoint):** versioned non-destructive Account/handoff API,
   verifier-only one-time handoff, reserved app identity activation and additive
   shared transport/credential primitives. Chord remains unmodified.
-- **M4:** existing Chord opt-in bridge (`legacy → dual → account`) with
-  response-loss and rollback coverage.
+- **M4 (this checkpoint):** existing Chord opt-in bridge
+  (`legacy → dual → account`) with response-loss, concurrency, destructive
+  guard, crash-resume and rollback coverage; still unreachable from production
+  clients.
 - **M5:** Pitch canonical adapter and standalone/Account membership flow.
 - **M6:** Rhythm canonical adapter with audio/device-state exclusions.
 - **M7:** Fretboard durable-state extraction and canonical adapter.

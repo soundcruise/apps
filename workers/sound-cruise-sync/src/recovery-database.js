@@ -186,9 +186,91 @@ export function createD1RecoveryRepository(db, clock = Date.now) {
         ) THEN ? ELSE created_at - 1 END
       WHERE claim_id = ? AND claim_verifier = ? AND committed_at IS NULL AND cancelled_at IS NULL
     `).bind(nextVersion, claim.next_recovery_verifier, now, claim.claim_id, input.claimVerifier);
+    const dualRelink = input.dualBridge ? db.prepare(`
+      UPDATE sync_membership_device_links
+      SET app_device_id = ?, linked_at = ?
+      WHERE account_id = ? AND membership_id = ?
+        AND EXISTS (
+          SELECT 1 FROM sync_account_memberships m
+          WHERE m.id = sync_membership_device_links.membership_id
+            AND m.account_id = sync_membership_device_links.account_id
+            AND m.sync_user_id = ? AND m.app_id = ?
+            AND m.state = 'active' AND m.recovery_mode = 'dual'
+        )
+        AND EXISTS (
+          SELECT 1 FROM sync_devices d
+          WHERE d.id = ? AND d.user_id = ? AND d.app_id = ? AND d.revoked_at IS NULL
+        )
+    `).bind(
+      claim.next_device_id,
+      now,
+      input.dualBridge.accountId,
+      input.dualBridge.membershipId,
+      claim.user_id,
+      input.appId,
+      claim.next_device_id,
+      claim.user_id,
+      input.appId
+    ) : null;
+    const dualBridgeUpdate = input.dualBridge ? db.prepare(`
+      UPDATE sync_chord_account_bridges
+      SET app_device_id = ?, expected_legacy_recovery_version = ?,
+          generation = generation + 1, updated_at = ?
+      WHERE account_id = ? AND membership_id = ? AND sync_user_id = ?
+        AND state = 'dual'
+        AND EXISTS (
+          SELECT 1 FROM sync_membership_device_links l
+          WHERE l.account_id = sync_chord_account_bridges.account_id
+            AND l.membership_id = sync_chord_account_bridges.membership_id
+            AND l.app_device_id = ?
+        )
+    `).bind(
+      claim.next_device_id,
+      nextVersion,
+      now,
+      input.dualBridge.accountId,
+      input.dualBridge.membershipId,
+      claim.user_id,
+      claim.next_device_id
+    ) : null;
+    const dualBridgeGuard = input.dualBridge ? db.prepare(`
+      UPDATE sync_chord_account_bridges
+      SET updated_at = CASE
+        WHEN state = 'dual' AND app_device_id = ?
+          AND expected_legacy_recovery_version = ?
+          AND EXISTS (
+            SELECT 1 FROM sync_users u
+            WHERE u.id = sync_chord_account_bridges.sync_user_id
+              AND u.recovery_version = ? AND u.recovery_verifier = ?
+          )
+          AND EXISTS (
+            SELECT 1 FROM sync_membership_device_links l
+            WHERE l.account_id = sync_chord_account_bridges.account_id
+              AND l.membership_id = sync_chord_account_bridges.membership_id
+              AND l.app_device_id = ?
+          )
+        THEN updated_at ELSE created_at - 1 END
+      WHERE account_id = ? AND membership_id = ? AND sync_user_id = ?
+    `).bind(
+      claim.next_device_id,
+      nextVersion,
+      nextVersion,
+      claim.next_recovery_verifier,
+      claim.next_device_id,
+      input.dualBridge.accountId,
+      input.dualBridge.membershipId,
+      claim.user_id
+    ) : null;
     try {
-      const results = await db.batch([rotate, revokeDevices, cancelPairing, cancelOtherClaims, createDevice, finishClaim]);
-      if (!batchSucceeded(results, 6) || changes(results[0]) !== 1 || changes(results[4]) !== 1 || changes(results[5]) !== 1) {
+      const statements = [rotate, revokeDevices, cancelPairing, cancelOtherClaims, createDevice];
+      if (dualRelink) statements.push(dualRelink, dualBridgeUpdate, dualBridgeGuard);
+      statements.push(finishClaim);
+      const results = await db.batch(statements);
+      const finishIndex = results.length - 1;
+      const dualIndexes = dualRelink ? [5, 6, 7] : [];
+      if (!batchSucceeded(results, statements.length) || changes(results[0]) !== 1 ||
+          changes(results[4]) !== 1 || changes(results[finishIndex]) !== 1 ||
+          dualIndexes.some((index) => changes(results[index]) !== 1)) {
         throw new Error('D1 recovery compare-and-swap failed');
       }
       return { status: 'recovered', userId: claim.user_id, deviceId: claim.next_device_id, recoveryVersion: nextVersion };
@@ -210,7 +292,7 @@ export function createD1RecoveryRepository(db, clock = Date.now) {
     }
   }
 
-  async function regenerate(identity, nextRecoveryVerifier, now = clock()) {
+  async function regenerate(identity, nextRecoveryVerifier, now = clock(), dualBridge = null) {
     const current = await db.prepare(`
       SELECT recovery_version FROM sync_users
       WHERE id = ? AND state = 'active' AND deleted_at IS NULL
@@ -226,8 +308,51 @@ export function createD1RecoveryRepository(db, clock = Date.now) {
       WHERE user_id = ? AND committed_at IS NULL AND cancelled_at IS NULL
         AND EXISTS (SELECT 1 FROM sync_users WHERE id = ? AND recovery_version = ? AND recovery_verifier = ?)
     `).bind(now, identity.userId, identity.userId, nextVersion, nextRecoveryVerifier);
-    const results = await db.batch([rotate, cancelClaims]);
-    if (!batchSucceeded(results, 2)) throw new Error('D1 recovery regeneration transaction failed');
+    const updateDualBridge = dualBridge ? db.prepare(`
+      UPDATE sync_chord_account_bridges
+      SET expected_legacy_recovery_version = ?, generation = generation + 1, updated_at = ?
+      WHERE account_id = ? AND membership_id = ? AND sync_user_id = ? AND state = 'dual'
+        AND expected_legacy_recovery_version = ?
+        AND EXISTS (
+          SELECT 1 FROM sync_account_memberships m
+          WHERE m.id = sync_chord_account_bridges.membership_id
+            AND m.account_id = sync_chord_account_bridges.account_id
+            AND m.state = 'active' AND m.recovery_mode = 'dual'
+        )
+    `).bind(
+      nextVersion,
+      now,
+      dualBridge.accountId,
+      dualBridge.membershipId,
+      identity.userId,
+      current.recovery_version
+    ) : null;
+    const dualBridgeGuard = dualBridge ? db.prepare(`
+      UPDATE sync_chord_account_bridges
+      SET updated_at = CASE
+        WHEN state = 'dual' AND expected_legacy_recovery_version = ?
+          AND EXISTS (
+            SELECT 1 FROM sync_users u
+            WHERE u.id = sync_chord_account_bridges.sync_user_id
+              AND u.recovery_version = ? AND u.recovery_verifier = ?
+          )
+        THEN updated_at ELSE created_at - 1 END
+      WHERE account_id = ? AND membership_id = ? AND sync_user_id = ?
+    `).bind(
+      nextVersion,
+      nextVersion,
+      nextRecoveryVerifier,
+      dualBridge.accountId,
+      dualBridge.membershipId,
+      identity.userId
+    ) : null;
+    const statements = [rotate, cancelClaims];
+    if (updateDualBridge) statements.push(updateDualBridge, dualBridgeGuard);
+    const results = await db.batch(statements);
+    if (!batchSucceeded(results, statements.length) ||
+        (updateDualBridge && (changes(results[2]) !== 1 || changes(results[3]) !== 1))) {
+      throw new Error('D1 recovery regeneration transaction failed');
+    }
     return changes(results[0]) === 1 ? { status: 'rotated', recoveryVersion: nextVersion } : { status: 'invalid' };
   }
 

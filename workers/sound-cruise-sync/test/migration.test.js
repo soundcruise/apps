@@ -13,6 +13,7 @@ const migration6 = fs.readFileSync(path.join(import.meta.dirname, '../migrations
 const migration7 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0007_add_production_rollout_control.sql'), 'utf8');
 const migration8 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0008_add_multi_app_account_backbone.sql'), 'utf8');
 const migration9 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0009_add_account_api_handoff_state.sql'), 'utf8');
+const migration10 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0010_add_chord_account_bridge.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -24,6 +25,7 @@ function migrate(db) {
   db.exec(migration7);
   db.exec(migration8);
   db.exec(migration9);
+  db.exec(migration10);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -35,7 +37,7 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     'sync_account_memberships',
     'sync_account_recovery_claims', 'sync_account_runtime_control',
     'sync_account_start_operations', 'sync_accounts',
-    'sync_changes', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
+    'sync_changes', 'sync_chord_account_bridges', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
     'sync_membership_device_links', 'sync_membership_handoffs', 'sync_records',
     'sync_runtime_control', 'sync_users'
   ]);
@@ -168,6 +170,74 @@ test('M3 migration is additive and adds response-loss metadata without touching 
     WHERE u.id = 'm3-legacy'
   `).get() }, { state: 'active', recovery_version: 1, app_id: 'chord', revoked_at: null });
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sync_account_managed_users').get().count, 0);
+  db.close();
+});
+
+test('M4 migration adds only bridge metadata and leaves an existing Chord identity untouched', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(migration);
+  db.exec(migration2);
+  db.exec(migration3);
+  db.exec(migration4);
+  db.exec(migration5);
+  db.exec(migration6);
+  db.exec(migration7);
+  db.exec(migration8);
+  db.exec(migration9);
+  db.prepare(`
+    INSERT INTO sync_users (
+      id, state, recovery_version, recovery_verifier, created_at, updated_at,
+      recovery_created_at, recovery_rotated_at
+    ) VALUES ('m4-legacy', 'active', 1, ?, 1, 1, 1, 1)
+  `).run('6'.repeat(64));
+  db.prepare(`
+    INSERT INTO sync_devices (
+      id, user_id, app_id, credential_version, credential_verifier, label,
+      last_cursor, created_at, last_seen_at, revoked_at, pairing_pending_at, paired_at
+    ) VALUES ('m4-device', 'm4-legacy', 'chord', 1, ?, NULL,
+              0, 1, 1, NULL, NULL, 1)
+  `).run('7'.repeat(64));
+  db.prepare(`
+    INSERT INTO sync_datasets (
+      user_id, app_id, state, schema_version, record_count, manifest_hash,
+      min_change_seq, initialized_at, updated_at, last_change_seq
+    ) VALUES ('m4-legacy', 'chord', 'ready', 1, 0, ?, 0, 1, 1, 0)
+  `).run('8'.repeat(64));
+  const before = { ...db.prepare(`
+    SELECT u.state, u.recovery_version, u.recovery_verifier,
+           d.credential_verifier, d.revoked_at,
+           s.state AS dataset_state, s.record_count, s.manifest_hash
+    FROM sync_users u
+    JOIN sync_devices d ON d.user_id = u.id
+    JOIN sync_datasets s ON s.user_id = u.id AND s.app_id = d.app_id
+    WHERE u.id = 'm4-legacy'
+  `).get() };
+
+  db.exec(migration10);
+
+  assert.deepEqual({ ...db.prepare(`
+    SELECT u.state, u.recovery_version, u.recovery_verifier,
+           d.credential_verifier, d.revoked_at,
+           s.state AS dataset_state, s.record_count, s.manifest_hash
+    FROM sync_users u
+    JOIN sync_devices d ON d.user_id = u.id
+    JOIN sync_datasets s ON s.user_id = u.id AND s.app_id = d.app_id
+    WHERE u.id = 'm4-legacy'
+  `).get() }, before);
+  assert(db.prepare(`
+    SELECT legacy_recovery_disabled_at FROM sync_account_memberships LIMIT 1
+  `));
+  assert(db.prepare(`
+    SELECT bridge_id, state, generation, prepare_operation_id, dual_operation_id,
+           finalize_operation_id, rollback_operation_id
+    FROM sync_chord_account_bridges LIMIT 1
+  `));
+  assert(db.prepare(`
+    SELECT name FROM sqlite_master
+    WHERE type = 'index' AND name = 'idx_sync_chord_account_bridges_active_user'
+  `).get());
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sync_chord_account_bridges').get().count, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sync_account_memberships').get().count, 0);
   db.close();
 });
 

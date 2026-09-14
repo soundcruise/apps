@@ -12,6 +12,10 @@ import {
 import { createD1AccountRepository } from './account-database.js';
 import { createD1AccountHandoffRepository } from './account-handoff-database.js';
 import {
+  CHORD_BRIDGE_ROUTES,
+  handleChordAccountBridgeRequest
+} from './account-bridge-app.js';
+import {
   ACCOUNT_GATE_ACTIONS,
   accountGateDecision,
   readAccountRuntimeControl
@@ -56,7 +60,16 @@ const ACCOUNT_ROUTES = Object.freeze({
   '/v2/accounts/handoffs/cancel': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION,
     headers: ['content-type', 'authorization', 'x-d1-bookmark']
-  }
+  },
+  ...Object.fromEntries(Object.entries(CHORD_BRIDGE_ROUTES).map(([path, route]) => [
+    path,
+    {
+      ...route,
+      action: path === '/v2/accounts/bridges/chord'
+        ? ACCOUNT_GATE_ACTIONS.ACCOUNT_READ
+        : ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION
+    }
+  ]))
 });
 
 function resolvedRoute(pathname, method) {
@@ -572,6 +585,19 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   try { control = await readControl(env.SYNC_DB); } catch {}
   const gate = accountGateDecision(route.action, control);
   if (!gate.allowed) return errorResponse(gate.status, gate.code, origin, route);
+
+  if (url.pathname === '/v2/accounts/bridges/chord' ||
+      url.pathname.startsWith('/v2/accounts/bridges/chord/')) {
+    return handleChordAccountBridgeRequest(request, env, origin, route, dependencies, {
+      createSession,
+      sessionBookmark,
+      jsonResponse,
+      errorResponse,
+      rateLimit,
+      rateError,
+      maxBodyBytes: ACCOUNT_MAX_BODY_BYTES
+    });
+  }
 
   if (url.pathname === '/v2/accounts/start') return handleStart(request, env, origin, route, dependencies);
   if (url.pathname === '/v2/accounts/summary') return handleSummary(request, env, origin, route, dependencies, url);

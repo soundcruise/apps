@@ -99,3 +99,49 @@ export function validateHandoffCancelPayload(value) {
 export function validateAccountReadQuery(url) {
   return url.search === '' ? { ok: true, value: {} } : { ok: false };
 }
+
+function positiveGeneration(value) {
+  return Number.isInteger(value) && value >= 1 ? value : null;
+}
+
+export function validateChordBridgePreparePayload(value) {
+  if (!exactObject(value, ['operationId', 'membershipId', 'expectedAccountGeneration'])) {
+    return { ok: false };
+  }
+  const normalized = {
+    operationId: operationId(value.operationId),
+    membershipId: operationId(value.membershipId),
+    expectedAccountGeneration: positiveGeneration(value.expectedAccountGeneration)
+  };
+  return Object.values(normalized).every(Boolean) ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validateChordBridgeDualPayload(value) {
+  const keys = [
+    'operationId', 'bridgeId', 'expectedBridgeGeneration',
+    'accountRecoveryVersion', 'recoverySaved'
+  ];
+  if (!exactObject(value, keys)) return { ok: false };
+  const normalized = {
+    operationId: operationId(value.operationId),
+    bridgeId: operationId(value.bridgeId),
+    expectedBridgeGeneration: positiveGeneration(value.expectedBridgeGeneration),
+    accountRecoveryVersion: positiveGeneration(value.accountRecoveryVersion),
+    recoverySaved: value.recoverySaved === true
+  };
+  return normalized.operationId && normalized.bridgeId && normalized.expectedBridgeGeneration &&
+    normalized.accountRecoveryVersion && normalized.recoverySaved
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validateChordBridgeTransitionPayload(value) {
+  if (!exactObject(value, ['operationId', 'bridgeId', 'expectedBridgeGeneration'])) {
+    return { ok: false };
+  }
+  const normalized = {
+    operationId: operationId(value.operationId),
+    bridgeId: operationId(value.bridgeId),
+    expectedBridgeGeneration: positiveGeneration(value.expectedBridgeGeneration)
+  };
+  return Object.values(normalized).every(Boolean) ? { ok: true, value: normalized } : { ok: false };
+}

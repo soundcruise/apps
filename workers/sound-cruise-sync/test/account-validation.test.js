@@ -9,6 +9,9 @@ import { createIdentityMaterial } from '../src/crypto.js';
 import {
   validateAccountReadQuery,
   validateAccountStartPayload,
+  validateChordBridgeDualPayload,
+  validateChordBridgePreparePayload,
+  validateChordBridgeTransitionPayload,
   validateHandoffCancelPayload,
   validateHandoffConsumePayload,
   validateHandoffIssuePayload,
@@ -36,6 +39,40 @@ test('strict Account payloads accept only known apps and normalized bounded labe
   assert.equal(validateAccountStartPayload({ ...valid, accountId: operationId }).ok, false);
   assert.equal(validateAccountStartPayload({ ...valid, appIds: ['chord', 'chord'] }).ok, false);
   assert.equal(validateAccountStartPayload({ ...valid, appIds: ['unknown'] }).ok, false);
+});
+
+test('Chord bridge payloads are strict, generation-bound and accept no identity selectors', () => {
+  const membershipId = '123e4567-e89b-42d3-a456-426614174001';
+  const bridgeId = '123e4567-e89b-42d3-a456-426614174002';
+  assert.equal(validateChordBridgePreparePayload({
+    operationId, membershipId, expectedAccountGeneration: 1
+  }).ok, true);
+  assert.equal(validateChordBridgePreparePayload({
+    operationId, membershipId, expectedAccountGeneration: 0
+  }).ok, false);
+  assert.equal(validateChordBridgePreparePayload({
+    operationId, membershipId, expectedAccountGeneration: 1, syncUserId: 'victim'
+  }).ok, false);
+  assert.equal(validateChordBridgeDualPayload({
+    operationId,
+    bridgeId,
+    expectedBridgeGeneration: 1,
+    accountRecoveryVersion: 1,
+    recoverySaved: true
+  }).ok, true);
+  assert.equal(validateChordBridgeDualPayload({
+    operationId,
+    bridgeId,
+    expectedBridgeGeneration: 1,
+    accountRecoveryVersion: 1,
+    recoverySaved: false
+  }).ok, false);
+  assert.equal(validateChordBridgeTransitionPayload({
+    operationId, bridgeId, expectedBridgeGeneration: 2
+  }).ok, true);
+  assert.equal(validateChordBridgeTransitionPayload({
+    operationId, bridgeId, expectedBridgeGeneration: 2, accountId: 'attacker'
+  }).ok, false);
 });
 
 test('membership and handoff validation rejects identity injection and wrong credential kinds', async () => {

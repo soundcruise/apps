@@ -22,6 +22,15 @@
     handoff_cancelled: 'handoff_cancelled',
     handoff_consumed: 'handoff_consumed',
     wrong_app: 'wrong_app',
+    bridge_not_found: 'bridge_not_found',
+    bridge_ownership_conflict: 'bridge_ownership_conflict',
+    bridge_ineligible: 'bridge_ineligible',
+    bridge_precondition_failed: 'bridge_precondition_failed',
+    bridge_forward_only: 'bridge_forward_only',
+    legacy_recovery_active: 'legacy_recovery_active',
+    invalid_app_credential: 'app_auth_required',
+    account_recovery_required: 'account_recovery_required',
+    account_membership_delete_required: 'account_membership_delete_required',
     rate_limited: 'rate_limited',
     turnstile_failed: 'verification_failed',
     invalid_request: 'invalid_request'
@@ -51,6 +60,9 @@
       const headers = new Headers({ Accept: 'application/json' });
       if (options.body) headers.set('Content-Type', 'application/json');
       if (options.accountCredential) headers.set('Authorization', `Bearer ${options.accountCredential}`);
+      if (options.appCredential) {
+        headers.set('X-Sound-Cruise-App-Authorization', `Bearer ${options.appCredential}`);
+      }
       const response = await this.fetchImpl(`${this.endpoint}${path}`, {
         method: options.method || 'GET',
         headers,
@@ -67,9 +79,10 @@
       return payload;
     }
 
-    async startAccount({ appIds, deviceLabel, turnstileToken, material }) {
+    async startAccount({ appIds, deviceLabel, turnstileToken, material, recoverySaved }) {
       if (!material || !this.core.validAccountCredential(material.accountCredential) ||
-          typeof material.recoveryCode !== 'string' || typeof material.operationId !== 'string') {
+          typeof material.recoveryCode !== 'string' || typeof material.operationId !== 'string' ||
+          recoverySaved !== true) {
         throw new Error('account_material_must_be_created_and_saved_first');
       }
       const candidate = material;
@@ -78,7 +91,8 @@
         accountDeviceId: candidate.accountDeviceId,
         accountCredential: candidate.accountCredential,
         appIds,
-        deviceLabel: deviceLabel || null
+        deviceLabel: deviceLabel || null,
+        recoveryAcknowledged: true
       });
       const result = await this.request('/v2/accounts/start', {
         method: 'POST',
@@ -95,7 +109,9 @@
         accountId: result.accountId,
         accountDeviceId: result.accountDeviceId,
         accountCredential: candidate.accountCredential,
-        recoveryVersion: result.recoveryVersion
+        recoveryVersion: result.recoveryVersion,
+        recoveryAcknowledgedVersion: result.recoveryVersion,
+        recoveryAcknowledgedAt: Date.now()
       });
       await this.storage.clearPendingStart();
       return Object.freeze({ ...result, recoveryCode: candidate.recoveryCode });
@@ -192,7 +208,10 @@
           accountId: summary.account.id,
           accountDeviceId: pending.accountDeviceId,
           accountCredential: pending.accountCredential,
-          recoveryVersion: summary.account.recoveryVersion
+          recoveryVersion: summary.account.recoveryVersion,
+          recoveryAcknowledgedVersion: pending.recoveryAcknowledged
+            ? summary.account.recoveryVersion : null,
+          recoveryAcknowledgedAt: pending.recoveryAcknowledged ? Date.now() : null
         });
         await this.storage.clearPendingStart();
         return Object.freeze({ status: 'committed', summary });

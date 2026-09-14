@@ -48,7 +48,8 @@ function prepareDependencies(repository, calls = {}) {
       userId: 'unused', deviceId: DEVICE_ID, credential: CREDENTIAL, credentialVerifier: '3'.repeat(64)
     }),
     createRecoveryClaim: async () => ({ claimId: CLAIM_ID, claimToken: CLAIM, claimVerifier: '4'.repeat(64) }),
-    createRecoveryRepository: () => repository
+    createRecoveryRepository: () => repository,
+    readLegacyAccountPolicyByRecoveryVerifier: async () => null
   };
 }
 
@@ -127,7 +128,9 @@ test('Recovery commit authenticates only the short claim and returns no credenti
   const deps = {
     readRuntimeControl: async () => OPEN_CONTROL,
     recoveryClaimVerifier: async () => ({ claimId: CLAIM_ID, claimVerifier: '4'.repeat(64) }),
+    readLegacyAccountPolicy: async () => ({ mode: 'legacy', bridgeState: null }),
     createRecoveryRepository: () => ({
+      getClaim: async () => ({ user_id: 'u1' }),
       commit: async (input) => { commitInput = input; return { status: 'recovered', deviceId: DEVICE_ID, recoveryVersion: 2 }; }
     })
   };
@@ -147,6 +150,54 @@ test('Recovery commit authenticates only the short claim and returns no credenti
   assert.deepEqual(await malformed.json(), { ok: false, code: 'recovery_invalid' });
 });
 
+test('dual legacy Recovery carries its Account link while finalized Account mode is generic-invalid', async () => {
+  let commitInput;
+  let reserveCalled = false;
+  const dual = await handleRequest(
+    request({ operation: 'commit', appId: 'chord', claimToken: CLAIM }),
+    env(),
+    null,
+    {
+      readRuntimeControl: async () => OPEN_CONTROL,
+      recoveryClaimVerifier: async () => ({ claimId: CLAIM_ID, claimVerifier: '4'.repeat(64) }),
+      readLegacyAccountPolicy: async () => ({
+        mode: 'dual', bridgeState: 'dual', accountId: 'account-1', membershipId: 'membership-1'
+      }),
+      createRecoveryRepository: () => ({
+        getClaim: async () => ({ user_id: 'u1' }),
+        commit: async (input) => {
+          commitInput = input;
+          return { status: 'recovered', deviceId: DEVICE_ID, recoveryVersion: 2 };
+        }
+      })
+    }
+  );
+  assert.equal(dual.status, 200);
+  assert.deepEqual(commitInput.dualBridge, {
+    accountId: 'account-1', membershipId: 'membership-1'
+  });
+
+  const blocked = await handleRequest(
+    request({
+      operation: 'prepare', appId: 'chord',
+      recoveryCode: '0123-4567-89AB-CDEF-GHJK', turnstileToken: 'token'
+    }),
+    env(),
+    null,
+    {
+      ...prepareDependencies({
+        reserveAttempt: async () => { reserveCalled = true; return { status: 'allowed' }; }
+      }),
+      readLegacyAccountPolicyByRecoveryVerifier: async () => ({
+        userId: 'u1', policy: { mode: 'account', bridgeState: 'finalized' }
+      })
+    }
+  );
+  assert.equal(blocked.status, 400);
+  assert.deepEqual(await blocked.json(), { ok: false, code: 'recovery_invalid' });
+  assert.equal(reserveCalled, false);
+});
+
 test('authenticated regeneration rotates only Recovery Code and preserves generic endpoint protections', async () => {
   const deps = {
     readRuntimeControl: async () => OPEN_CONTROL,
@@ -154,6 +205,7 @@ test('authenticated regeneration rotates only Recovery Code and preserves generi
     createRepository: () => ({}),
     createRecoveryCode: () => '23456789ABCDEFGHJKMN',
     recoveryCodeVerifier: async () => '2'.repeat(64),
+    readLegacyAccountPolicy: async () => ({ mode: 'legacy', bridgeState: null }),
     createRecoveryRepository: () => ({ regenerate: async () => ({ status: 'rotated', recoveryVersion: 3 }) })
   };
   const response = await handleRequest(request(

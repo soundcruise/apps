@@ -8,6 +8,7 @@ const directory = import.meta.dirname;
 const coreSource = fs.readFileSync(path.join(directory, 'sync-account-core.js'), 'utf8');
 const dbSource = fs.readFileSync(path.join(directory, 'sync-account-db.js'), 'utf8');
 const clientSource = fs.readFileSync(path.join(directory, 'sync-account-client.js'), 'utf8');
+const bridgeSource = fs.readFileSync(path.join(directory, 'chord-account-bridge.js'), 'utf8');
 
 function load(sources) {
   const context = vm.createContext({
@@ -148,10 +149,18 @@ test('Account start exposes Recovery once to the caller but never writes it to p
     appIds: ['chord'],
     deviceLabel: 'QA',
     turnstileToken: 'opaque',
-    material
+    material,
+    recoverySaved: true
   });
   assert.equal(result.recoveryCode, material.recoveryCode);
   assert.equal(JSON.stringify(writes).includes(material.recoveryCode), false);
+
+  await assert.rejects(client.startAccount({
+    appIds: ['chord'],
+    deviceLabel: 'QA',
+    turnstileToken: 'opaque',
+    material
+  }), /account_material_must_be_created_and_saved_first/);
 });
 
 test('consume response-loss recovery proves committed state with candidate Account auth, not handoff persistence', async () => {
@@ -192,4 +201,137 @@ test('consume response-loss recovery proves committed state with candidate Accou
   assert.equal(result.membership.id, membershipId);
   assert.equal(writes.at(-1)[0], 'clearPendingConsume');
   assert.equal(JSON.stringify(writes).includes('sch1.'), false);
+});
+
+test('Chord bridge persists only resumable metadata before dual network commit', async () => {
+  const account = load([coreSource, bridgeSource]);
+  const writes = [];
+  const requests = [];
+  const storage = {
+    async setPendingBridge(value) { writes.push(structuredClone(value)); },
+    async clearPendingBridge() {},
+    async getPendingBridge() { return null; }
+  };
+  const bridge = {
+    bridgeId: crypto.randomUUID(),
+    membershipId: crypto.randomUUID(),
+    state: 'prepared',
+    generation: 1,
+    accountRecoveryVersion: 1
+  };
+  const accountCredential = account.core.createAccountCredential().accountCredential;
+  const appCredential = account.core.createAppCredential().appDeviceCredential;
+  const accountClient = {
+    async request(path, options) {
+      requests.push({ path, options: structuredClone(options) });
+      return { ok: true, bridge: { ...bridge, state: 'dual', generation: 2 } };
+    }
+  };
+  const client = new account.ChordAccountBridgeClient({ accountClient, storage, core: account.core });
+  await client.commitDual({
+    accountCredential,
+    appCredential,
+    bridge,
+    accountRecoveryVersion: 1,
+    recoverySaved: true
+  });
+  assert.equal(writes[0].state, 'candidate_saved');
+  assert.equal(writes[0].recoveryAcknowledged, true);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].options.accountCredential, accountCredential);
+  assert.equal(requests[0].options.appCredential, appCredential);
+  assert.equal(JSON.stringify(writes).includes(accountCredential), false);
+  assert.equal(JSON.stringify(writes).includes(appCredential), false);
+  assert.equal(/recoveryCode|handoffToken/u.test(JSON.stringify(writes)), false);
+});
+
+test('Chord bridge keeps legacy authority when candidate metadata cannot be saved', async () => {
+  const account = load([coreSource, bridgeSource]);
+  let requested = false;
+  const client = new account.ChordAccountBridgeClient({
+    core: account.core,
+    storage: {
+      async setPendingBridge() { throw new Error('storage_failed'); }
+    },
+    accountClient: {
+      async request() { requested = true; throw new Error('must_not_request'); }
+    }
+  });
+  await assert.rejects(client.commitDual({
+    accountCredential: 'opaque-account',
+    appCredential: 'opaque-app',
+    bridge: {
+      bridgeId: crypto.randomUUID(), membershipId: crypto.randomUUID(),
+      state: 'prepared', generation: 1, accountRecoveryVersion: 1
+    },
+    accountRecoveryVersion: 1,
+    recoverySaved: true
+  }), /storage_failed/);
+  assert.equal(requested, false);
+});
+
+test('Chord bridge reload resumes prepared/dual state and clears finalized state', async () => {
+  const account = load([coreSource, bridgeSource]);
+  const pending = {
+    bridgeId: crypto.randomUUID(), membershipId: crypto.randomUUID(),
+    state: 'candidate_saved', generation: 1, accountRecoveryVersion: 1
+  };
+  const writes = [];
+  let remoteState = 'dual';
+  const client = new account.ChordAccountBridgeClient({
+    core: account.core,
+    storage: {
+      async getPendingBridge() { return pending; },
+      async setPendingBridge(value) { writes.push(['set', structuredClone(value)]); },
+      async clearPendingBridge() { writes.push(['clear']); }
+    },
+    accountClient: {
+      async request() {
+        return { ok: true, bridge: { ...pending, state: remoteState, generation: 2 } };
+      }
+    }
+  });
+  let result = await client.resume({ accountCredential: 'account', appCredential: 'app' });
+  assert.equal(result.status, 'dual');
+  assert.equal(writes.at(-1)[0], 'set');
+  remoteState = 'finalized';
+  result = await client.resume({ accountCredential: 'account', appCredential: 'app' });
+  assert.equal(result.status, 'finalized');
+  assert.equal(writes.at(-1)[0], 'clear');
+});
+
+test('new and existing Account bridge paths both require explicit Recovery acknowledgement', async () => {
+  const account = load([coreSource, bridgeSource]);
+  const material = account.core.createAccountMaterial();
+  const membershipId = crypto.randomUUID();
+  let startRecoverySaved = null;
+  const client = new account.ChordAccountBridgeClient({
+    core: account.core,
+    storage: { async setPendingBridge() {} },
+    accountClient: {
+      async startAccount(input) {
+        startRecoverySaved = input.recoverySaved;
+        return { memberships: [{ id: membershipId, appId: 'chord' }] };
+      },
+      async summary() { return { account: { generation: 1 } }; },
+      async request(path) {
+        assert.equal(path, '/v2/accounts/bridges/chord/prepare');
+        return {
+          bridge: {
+            bridgeId: crypto.randomUUID(), membershipId, state: 'prepared',
+            generation: 1, accountRecoveryVersion: 1
+          }
+        };
+      }
+    }
+  });
+  await assert.rejects(client.createAccountAndPrepare({
+    appCredential: 'app', accountMaterial: material,
+    recoverySaved: false, turnstileToken: 'opaque', deviceLabel: null
+  }), /account_recovery_must_be_saved_first/);
+  await client.createAccountAndPrepare({
+    appCredential: 'app', accountMaterial: material,
+    recoverySaved: true, turnstileToken: 'opaque', deviceLabel: null
+  });
+  assert.equal(startRecoverySaved, true);
 });

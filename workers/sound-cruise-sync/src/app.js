@@ -1,6 +1,11 @@
 import { authenticateDevice } from './auth.js';
 import { handleAccountApiRequest } from './account-app.js';
 import {
+  legacyOperationDecision,
+  readLegacyAccountPolicy,
+  readLegacyAccountPolicyByRecoveryVerifier
+} from './account-legacy-guard.js';
+import {
   createIdentityMaterial, createPairingCode, pairingCodeVerifier,
   createRecoveryClaim, createRecoveryCode, formatRecoveryCode,
   recoveryClaimVerifier, recoveryCodeVerifier, createDeleteIntent, deleteIntentVerifier,
@@ -156,6 +161,18 @@ async function authenticatedContext(request, env, appId, dependencies) {
   return { session, identity, repository: createRepository(session) };
 }
 
+async function legacyGuard(session, userId, operation, dependencies) {
+  const readPolicy = dependencies.readLegacyAccountPolicy || readLegacyAccountPolicy;
+  const decide = dependencies.legacyOperationDecision || legacyOperationDecision;
+  return { policy: await readPolicy(session, userId), decision: null, decide };
+}
+
+async function requireLegacyOperation(session, userId, operation, dependencies) {
+  const result = await legacyGuard(session, userId, operation, dependencies);
+  result.decision = result.decide(result.policy, operation);
+  return result;
+}
+
 async function handleStart(request, env, origin, route, dependencies, runtimeControl) {
   if (await isRateLimited(env.START_RATE_LIMITER, `sync-start:${requestIp(request)}`)) {
     return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
@@ -250,6 +267,17 @@ async function handleRecover(request, env, origin, route, dependencies) {
       const currentVerifier = await (dependencies.recoveryCodeVerifier || recoveryCodeVerifier)(
         validation.value.recoveryCode, env.SYNC_RECOVERY_PEPPER
       );
+      const readPolicyByVerifier = dependencies.readLegacyAccountPolicyByRecoveryVerifier ||
+        readLegacyAccountPolicyByRecoveryVerifier;
+      const recoveryIdentity = await readPolicyByVerifier(
+        session, currentVerifier, validation.value.appId
+      );
+      if (recoveryIdentity) {
+        const decision = (dependencies.legacyOperationDecision || legacyOperationDecision)(
+          recoveryIdentity.policy, 'recovery_prepare'
+        );
+        if (!decision.allowed) return errorResponse(400, 'recovery_invalid', origin, route);
+      }
       const attempt = await repository.reserveAttempt(currentVerifier, Date.now());
       if (attempt.status !== 'allowed') return errorResponse(400, 'recovery_invalid', origin, route);
       const nextRecoveryCode = (dependencies.createRecoveryCode || createRecoveryCode)();
@@ -290,10 +318,20 @@ async function handleRecover(request, env, origin, route, dependencies) {
     } catch {
       return errorResponse(400, 'recovery_invalid', origin, route);
     }
+    const claimState = await repository.getClaim(claim.claimId);
+    if (!claimState) return errorResponse(400, 'recovery_invalid', origin, route);
+    const guard = await requireLegacyOperation(
+      session, claimState.user_id, 'recovery_commit', dependencies
+    );
+    if (!guard.decision.allowed) return errorResponse(400, 'recovery_invalid', origin, route);
     const committed = await repository.commit({
       claimId: claim.claimId,
       claimVerifier: claim.claimVerifier,
       appId: validation.value.appId,
+      dualBridge: guard.policy.mode === 'dual' ? {
+        accountId: guard.policy.accountId,
+        membershipId: guard.policy.membershipId
+      } : null,
       now: Date.now()
     });
     if (committed.status !== 'recovered') return errorResponse(400, 'recovery_invalid', origin, route);
@@ -322,10 +360,24 @@ async function handleRecoveryIssue(request, env, origin, route, dependencies) {
   }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   try {
+    const guard = await requireLegacyOperation(
+      context.session, context.identity.userId, 'recovery_issue', dependencies
+    );
+    if (!guard.decision.allowed) {
+      return errorResponse(409, guard.decision.code, origin, route);
+    }
     const code = (dependencies.createRecoveryCode || createRecoveryCode)();
     const verifier = await (dependencies.recoveryCodeVerifier || recoveryCodeVerifier)(code, env.SYNC_RECOVERY_PEPPER);
     const repository = (dependencies.createRecoveryRepository || createD1RecoveryRepository)(context.session);
-    const rotated = await repository.regenerate(context.identity, verifier, Date.now());
+    const rotated = await repository.regenerate(
+      context.identity,
+      verifier,
+      Date.now(),
+      guard.policy.mode === 'dual' ? {
+        accountId: guard.policy.accountId,
+        membershipId: guard.policy.membershipId
+      } : null
+    );
     if (rotated.status !== 'rotated') return errorResponse(409, 'recovery_rotation_failed', origin, route);
     return jsonResponse(201, {
       ok: true,
@@ -378,6 +430,12 @@ async function handleDeleteIntent(request, env, origin, route, dependencies) {
   try { context = await authenticatedContext(request, env, validation.value.appId, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   try {
+    const guard = await requireLegacyOperation(
+      context.session, context.identity.userId, 'cloud_delete_intent', dependencies
+    );
+    if (!guard.decision.allowed) {
+      return errorResponse(409, guard.decision.code, origin, route);
+    }
     const intent = await (dependencies.createDeleteIntent || createDeleteIntent)(env.SYNC_CREDENTIAL_PEPPER);
     const result = await deviceRepository(context.session, dependencies).createDeleteIntent(context.identity, { ...intent, now: Date.now() });
     if (result.status !== 'issued') return errorResponse(409, 'delete_unavailable', origin, route);
@@ -411,6 +469,12 @@ async function handleAccountDelete(request, env, origin, route, dependencies) {
     return errorResponse(context.status, context.error, origin, route);
   }
   try {
+    const guard = await requireLegacyOperation(
+      context.session, context.identity.userId, 'cloud_delete_commit', dependencies
+    );
+    if (!guard.decision.allowed) {
+      return errorResponse(409, guard.decision.code, origin, route);
+    }
     const result = await repository.deleteAccount(context.identity, { ...token, now: Date.now() });
     if (result.status === 'expired') return errorResponse(409, 'delete_intent_expired', origin, route);
     if (result.status !== 'deleted') return errorResponse(400, 'delete_invalid', origin, route);

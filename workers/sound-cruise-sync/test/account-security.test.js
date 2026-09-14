@@ -23,7 +23,7 @@ test('Account implementation has no plaintext logging or browser key-value secre
   assert.equal(sharedSources.includes('transient_secret_persistence_blocked'), true);
 });
 
-test('M3 shared primitives are additive and not imported by any current app client', () => {
+test('M4 shared primitives and Chord bridge adapter are not imported by any current app client', () => {
   const appDirectories = [
     'apps/chord-cruise',
     'apps/cruise-port',
@@ -41,7 +41,7 @@ test('M3 shared primitives are additive and not imported by any current app clie
         if (entry.isDirectory()) stack.push(full);
         else if (/\.(?:js|mjs|html)$/u.test(entry.name)) {
           const source = fs.readFileSync(full, 'utf8');
-          assert.equal(source.includes('shared/sync-account'), false, `${full} must remain unintegrated in M3`);
+          assert.equal(source.includes('shared/sync-account'), false, `${full} must remain unintegrated in M4`);
         }
       }
     }
@@ -55,5 +55,6 @@ test('production config is not widened for Account secrets, origins, app IDs or 
   assert.equal(config.includes('SYNC_ACCOUNT_HANDOFF_PEPPER'), false);
   assert.equal(config.includes('ACCOUNT_ALLOWED_ORIGINS'), false);
   assert.equal(config.includes('ACCOUNT_START_RATE_LIMITER'), false);
+  assert.equal(config.includes('ACCOUNT_BRIDGE_RATE_LIMITER'), false);
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
 });

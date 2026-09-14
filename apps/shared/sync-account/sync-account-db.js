@@ -5,7 +5,7 @@
   const DATABASE_NAME = 'sound-cruise-sync-account';
   const STORE_NAME = 'meta';
   const VERSION = 1;
-  const ALLOWED_KEYS = new Set(['account', 'pendingStart', 'pendingConsume']);
+  const ALLOWED_KEYS = new Set(['account', 'pendingStart', 'pendingConsume', 'pendingBridge']);
 
   function requestResult(request) {
     return new Promise((resolve, reject) => {
@@ -89,6 +89,9 @@
     clearPendingStart: (indexedDb) => remove('pendingStart', indexedDb),
     getPendingConsume: (indexedDb) => get('pendingConsume', indexedDb),
     setPendingConsume: (value, indexedDb) => set('pendingConsume', value, indexedDb),
-    clearPendingConsume: (indexedDb) => remove('pendingConsume', indexedDb)
+    clearPendingConsume: (indexedDb) => remove('pendingConsume', indexedDb),
+    getPendingBridge: (indexedDb) => get('pendingBridge', indexedDb),
+    setPendingBridge: (value, indexedDb) => set('pendingBridge', value, indexedDb),
+    clearPendingBridge: (indexedDb) => remove('pendingBridge', indexedDb)
   });
 })(globalThis);

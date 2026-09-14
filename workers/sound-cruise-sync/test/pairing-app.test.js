@@ -60,6 +60,28 @@ test('pairing code issue is credential-authenticated, rate-limited, and returns 
   assert.equal(limited.status, 429);
 });
 
+test('Account-managed Chord still permits app-scoped Pairing', async () => {
+  const response = await handleRequest(
+    request('/v1/sync/pairing-codes', { appId: 'chord' }, {
+      Authorization: `Bearer ${CREDENTIAL}`
+    }),
+    env(),
+    null,
+    withControl({
+      authenticateDevice: auth,
+      readLegacyAccountPolicy: async () => {
+        throw new Error('Pairing must not consult the destructive-operation guard');
+      },
+      createPairingCode: () => '01234567',
+      pairingCodeVerifier: async () => 'v'.repeat(64),
+      createPairingRepository: () => ({
+        issue: async () => ({ status: 'issued', expiresAt: 600001 })
+      })
+    })
+  );
+  assert.equal(response.status, 201);
+});
+
 test('pair requires Turnstile and atomically returns a new device credential only on a consumed code', async () => {
   const material = { deviceId: '123e4567-e89b-42d3-a456-426614174999', credential: `scd1.123e4567-e89b-42d3-a456-426614174999.${'B'.repeat(43)}`, credentialVerifier: 'd'.repeat(64) };
   let pairInput;
