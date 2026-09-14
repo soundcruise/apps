@@ -2189,6 +2189,27 @@ textarea:focus-visible {
 .sync-center-help-dialog h2 { margin-top: 0; color: var(--port-gold-bright); font-size: 1.1rem; }
 .sync-center-help-dialog p { color: var(--port-muted); font-size: 0.84rem; line-height: 1.75; }
 .sync-center-help-dialog .action-button { width: 100%; margin-top: 10px; }
+.sync-center-join-panel { display: grid; gap: 14px; }
+.sync-center-join-panel > h2,
+.sync-center-join-panel > p { margin-bottom: 0; }
+.sync-center-join-code {
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 14px;
+    border: 1px solid rgba(214, 180, 79, 0.6);
+    border-radius: 12px;
+    color: var(--port-gold-bright);
+    background: rgba(8, 8, 6, 0.48);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: clamp(0.8rem, 3.5vw, 1rem);
+    line-height: 1.55;
+    letter-spacing: 0.04em;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+.sync-center-join-actions { display: grid; gap: 10px; }
+.sync-center-help-dialog .sync-center-join-actions .action-button { margin-top: 0; white-space: normal; }
 .sync-center-help:focus-visible,
 .sync-center-app-action:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
 

@@ -52,3 +52,16 @@ test('official four-app routes are reused and no all-data-upload promise is made
     assert.match(root, /Cruise Portを開いておく必要はなく/);
     assert.match(root, /アプリ単位のクラウド削除と、Sound Cruise Syncアカウント全体の削除は別/);
 });
+
+test('Join invitation renders its sensitive code and actions as separate styled blocks', () => {
+    const source = read('./sync-center-ui.js');
+    const styles = read('./style.css');
+    assert.match(source, /panel\.className = 'sync-center-join-panel'/);
+    assert.match(source, /code\.className = 'sync-center-join-code'/);
+    assert.match(source, /copy\.className = 'action-button primary-action'/);
+    assert.match(source, /open\.className = 'action-button secondary-action'/);
+    assert.match(source, /close\.className = 'action-button secondary-action'/);
+    assert.match(source, /actions\.className = 'sync-center-join-actions'/);
+    assert.match(styles, /\.sync-center-join-code\s*\{[\s\S]*overflow-wrap:\s*anywhere/);
+    assert.match(styles, /\.sync-center-join-actions\s*\{\s*display:\s*grid;\s*gap:\s*10px/);
+});
