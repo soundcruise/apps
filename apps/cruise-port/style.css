@@ -2161,6 +2161,20 @@ textarea:focus-visible {
 .sync-center-environments li { color: var(--port-muted); font-size: calc(0.8rem * var(--font-scale)); line-height: 1.55; }
 .sync-center-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
 .sync-center-actions .action-button { min-width: 0; white-space: normal; }
+#sync-center-recovery-code {
+    display: block;
+    margin: 14px 0;
+    padding: 14px;
+    border: 1px solid rgba(214, 180, 79, 0.6);
+    border-radius: 12px;
+    color: var(--port-gold-bright);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: clamp(0.85rem, 3.5vw, 1.05rem);
+    letter-spacing: 0.06em;
+    overflow-wrap: anywhere;
+    user-select: all;
+}
+#sync-center-recovery-code[hidden] { display: none; }
 .sync-center-help-dialog {
     width: min(calc(100% - 32px), 520px);
     max-height: min(80dvh, 720px);

@@ -23,13 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.28.0';
-import { bindSyncCenterUnavailableActions, renderSyncCenter } from './sync-center-ui.js?v=0.28.0';
+} from './sync-center-controller.js?v=0.29.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.29.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.29.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.28.0';
+} from './sync-center-navigation.js?v=0.29.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -168,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.28.0';
+} from './app-version.js?v=0.29.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -246,6 +247,7 @@ initializeProAuthSettings();
 applyProLinks();
 applyHomeCruiseLinks();
 const syncCenterController = createSyncCenterController({ config: syncCenterConfig });
+const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig });
 
 const elements = {
     homeView: document.querySelector('#home-view'),
@@ -3442,6 +3444,7 @@ function renderSettings({ focus = true, storageError = '' } = {}) {
 }
 
 let syncCenterRenderSequence = 0;
+let syncCenterResumeChecked = false;
 
 async function renderSyncCenterView() {
     if (!syncCenterController.enabled) {
@@ -3451,11 +3454,16 @@ async function renderSyncCenterView() {
     const sequence = ++syncCenterRenderSequence;
     showView(elements.syncCenterView);
     elements.syncCenterTitle.focus({ preventScroll: true });
+    if (!syncCenterResumeChecked && syncCenterOrchestrator.enabled) {
+        syncCenterResumeChecked = true;
+        try { await syncCenterOrchestrator.resume(); } catch (_) { /* no pending committed Account */ }
+    }
     const presentation = await syncCenterController.load();
     if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
     renderSyncCenter(elements.syncCenterView, presentation, {
         edition: document.documentElement.dataset.edition,
-        setupPlan: syncCenterController.planFourAppSetup(presentation)
+        setupPlan: syncCenterController.planFourAppSetup(presentation),
+        orchestrationEnabled: syncCenterOrchestrator.enabled === true
     });
 }
 
@@ -5043,7 +5051,15 @@ elements.homeCalendarButton.addEventListener('click', () => {
 elements.homeSettingsButton.addEventListener('click', () => setHashRoute('#settings'));
 elements.syncCenterEntry.hidden = !syncCenterController.enabled;
 if (syncCenterController.enabled) {
-    bindSyncCenterUnavailableActions(elements.syncCenterView);
+    bindSyncCenterActions(elements.syncCenterView, {
+        orchestrator: syncCenterOrchestrator,
+        refresh: renderSyncCenterView,
+        tokenProvider: async () => {
+            const provider = globalThis.__SOUND_CRUISE_ACCOUNT_TURNSTILE__;
+            if (typeof provider?.getToken !== 'function') return null;
+            return provider.getToken();
+        }
+    });
     elements.syncCenterOpen.addEventListener('click', () => {
         openSyncCenter(history);
         renderRoute();

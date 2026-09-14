@@ -5,7 +5,7 @@ function setText(root, selector, value) {
     if (element) element.textContent = value;
 }
 
-function renderAppRows(root, presentation, edition) {
+function renderAppRows(root, presentation, edition, orchestrationEnabled) {
     const list = root.querySelector('#sync-center-apps');
     if (!list) return;
     const rows = presentation.apps.map((app) => {
@@ -23,9 +23,13 @@ function renderAppRows(root, presentation, edition) {
         const detail = document.createElement('span');
         detail.textContent = app.recordCount == null ? app.statusLabel : `${app.statusLabel}・${app.recordCount}件`;
         copy.append(name, detail);
-        const action = document.createElement('a');
+        const action = document.createElement(orchestrationEnabled ? 'button' : 'a');
         action.className = 'sync-center-app-action';
-        action.href = resolveCruiseAppHref(app.id, edition);
+        if (!orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
+        else {
+            action.type = 'button';
+            action.dataset.syncAppAction = app.id;
+        }
         action.textContent = app.action === 'setup' ? '設定する' : '開く';
         action.setAttribute('aria-label', `${app.name}を${app.action === 'setup' ? '設定する' : '開く'}（${app.statusLabel}）`);
         if (app.action === 'none') {
@@ -51,7 +55,7 @@ function renderEnvironments(root, presentation) {
     list.replaceChildren(...rows);
 }
 
-export function renderSyncCenter(root, presentation, { edition = 'standard', setupPlan = null } = {}) {
+export function renderSyncCenter(root, presentation, { edition = 'standard', setupPlan = null, orchestrationEnabled = false } = {}) {
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
     setText(root, '#sync-center-account-label', presentation.accountLabel);
@@ -69,17 +73,79 @@ export function renderSyncCenter(root, presentation, { edition = 'standard', set
             ? 'オフラインのため同期情報を更新できません。各アプリとCruise Portはそのまま利用できます。'
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }
-    renderAppRows(root, presentation, edition);
+    renderAppRows(root, presentation, edition, orchestrationEnabled);
     renderEnvironments(root, presentation);
 }
 
-export function bindSyncCenterUnavailableActions(root) {
+export function bindSyncCenterActions(root, { orchestrator = null, refresh = async () => {}, tokenProvider = async () => null } = {}) {
     const setup = root?.querySelector?.('#sync-center-setup');
-    root?.querySelector?.('#sync-center-setup-open')?.addEventListener('click', () => setup.showModal());
-    root?.querySelector?.('#sync-center-setup-close')?.addEventListener('click', () => setup.close());
-    root?.querySelector?.('#sync-center-setup-confirm')?.addEventListener('click', () => {
+    const confirm = root?.querySelector?.('#sync-center-setup-confirm');
+    const recovery = root?.querySelector?.('#sync-center-recovery-code');
+    const summary = root?.querySelector?.('#sync-center-setup-summary');
+    const setPhase = (phase) => {
+        setup.dataset.syncPhase = phase;
+        if (confirm) confirm.dataset.syncAction = phase === 'recovery' ? 'confirm-recovery-saved' : 'create-account';
+    };
+    root?.querySelector?.('#sync-center-setup-open')?.addEventListener('click', () => {
+        setPhase('introduction');
+        if (recovery) { recovery.hidden = true; recovery.textContent = ''; }
+        if (confirm) confirm.textContent = '復旧コードを確認';
+        setup.showModal();
+    });
+    root?.querySelector?.('#sync-center-setup-close')?.addEventListener('click', () => {
+        orchestrator?.discardAccountCandidate?.();
+        if (recovery) recovery.textContent = '';
         setup.close();
-        setText(root, '#sync-center-action-status', '各Cruiseアプリを開き、個別に初回同期を完了してください。');
+    });
+    confirm?.addEventListener('click', async () => {
+        if (!orchestrator?.enabled) {
+            setup.close();
+            setText(root, '#sync-center-action-status', 'この機能は現在利用できません。');
+            return;
+        }
+        confirm.disabled = true;
+        try {
+            if (setup.dataset.syncPhase === 'complete') {
+                setup.close();
+                return;
+            }
+            if (setup.dataset.syncPhase !== 'recovery') {
+                const candidate = orchestrator.createAccountCandidate();
+                setPhase('recovery');
+                recovery.hidden = false;
+                recovery.textContent = candidate.recoveryCode;
+                if (summary) summary.textContent = '復旧コードを安全な場所へ保存してください。保存確認後にAccountを作成します。';
+                confirm.textContent = '保存しました';
+                return;
+            }
+            const turnstileToken = await tokenProvider();
+            if (!turnstileToken) throw new Error('verification_required');
+            recovery.textContent = '';
+            recovery.hidden = true;
+            setPhase('preparing');
+            if (summary) summary.textContent = '4つのアプリの同期準備をしています…';
+            await orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken });
+            const prepared = await orchestrator.prepareAll();
+            if (!prepared.ok) throw new Error('membership_partial');
+            setPhase('complete');
+            if (summary) summary.textContent = '準備ができました。各アプリを開いて初回同期を完了してください。';
+            confirm.textContent = '閉じる';
+            await refresh();
+        } catch (error) {
+            setText(root, '#sync-center-action-status', error?.message === 'verification_required'
+                ? '人間確認を完了してから続けてください。'
+                : '準備を完了できませんでした。成功済みの設定は保持されています。もう一度お試しください。');
+        } finally { confirm.disabled = false; }
+    });
+    root?.addEventListener?.('click', async (event) => {
+        const button = event.target.closest?.('[data-sync-app-action]');
+        if (!button || !orchestrator?.enabled) return;
+        button.disabled = true;
+        try { await orchestrator.launch(button.dataset.syncAppAction); }
+        catch (_) {
+            button.disabled = false;
+            setText(root, '#sync-center-action-status', 'アプリを開く準備ができませんでした。通信状態を確認してください。');
+        }
     });
     root?.querySelectorAll?.('[data-sync-center-unavailable]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -87,3 +153,5 @@ export function bindSyncCenterUnavailableActions(root) {
         });
     });
 }
+
+export const bindSyncCenterUnavailableActions = bindSyncCenterActions;

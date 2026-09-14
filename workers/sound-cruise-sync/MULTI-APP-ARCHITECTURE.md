@@ -645,3 +645,49 @@ restore()
 Every checkpoint requires current Chord regression, Standard local-only
 regression, Worker tests, `git diff --check`, secret scan and an explicit STOP
 gate before Remote D1 writes or production deployment.
+
+## M9 one-tap orchestration and client runtime
+
+“4つのアプリをクラウド同期” means control-plane preparation, not central data
+upload. Cruise Port creates the Account only after the user has saved the
+client-generated Account Recovery Code, idempotently prepares four memberships,
+and reconstructs progress from the authenticated server summary. It never opens
+an app data database or reads any app local-storage key.
+
+App handoffs are issued just in time when an app row is selected. The five-minute
+one-time secret is carried only in the URL fragment. The receiving Pro app removes
+the fragment with `history.replaceState` before network work and never writes the
+secret to Web Storage, IndexedDB, logs, analytics or a referrer. An abandoned or
+expired handoff is simply reissued from Port; membership progress remains intact.
+
+Handoff consumption has two explicit modes. `new_app` creates the reserved
+Account-managed app identity. `existing_chord` also requires a live Chord data
+credential and creates only the app-container Account device; it leaves the
+membership pending for the dual-authority M4 bridge. Thus Port cannot assert that
+a Chord installation is existing, and consuming a handoff cannot duplicate its
+user, device or dataset.
+
+Pitch, Rhythm and Fretboard use one shared client runtime with their M5–M7
+adapters. The runtime owns an app-namespaced credential, persistent outbox,
+canonical shadow, cursor, conflict markers and retry state. A missing
+Account-managed dataset is bootstrapped through an authenticated, idempotent
+endpoint. Initial setup handles empty upload, hydrate and adapter merge; semantic
+conflicts stop without applying data. Normal local saves remain durable first and
+then emit a narrow dirty notification. Cloud failure never rolls back that local
+save.
+
+On startup, focus, online resume and a local save, the runtime reconciles a server
+snapshot without polling. Diffing the last acknowledged shadow produces stable
+record updates and tombstones. An operation ID is created once and persisted in
+the outbox, so response-loss retries reuse it. Revision conflicts are retained for
+user attention, 429/5xx use bounded exponential backoff, pause gates retain work,
+and revoked credentials stop with an authentication-required state. Adapter
+materialization preserves device-only Pitch sound values, Rhythm audio/latency
+values and Fretboard viewport/orientation values.
+
+The setup landing and completion UI exists only for a handoff-enabled Pro app.
+Completion offers a top-level return to Cruise Port `#sync-center`. Standard pages
+load no M9 runtime. The tracked production configuration remains Account OFF and
+`SYNC_ALLOWED_APP_IDS=chord`; M9 is activated only by an explicit development
+configuration. Account Recovery execution and Account-wide deletion remain M10
+work; M9 connects only Account creation and the Recovery-save guard.

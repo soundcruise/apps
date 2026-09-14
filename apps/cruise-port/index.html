@@ -6,14 +6,14 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.28.0">
-    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.28.0">
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.28.0">
-    <link rel="stylesheet" href="./style.css?v=0.28.0">
+    <link rel="manifest" href="./manifest.json?v=0.29.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.29.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.29.0">
+    <link rel="stylesheet" href="./style.css?v=0.29.0">
     <script defer src="../shared/sync-account/sync-account-core.js?v=1"></script>
     <script defer src="../shared/sync-account/sync-account-db.js?v=1"></script>
-    <script defer src="../shared/sync-account/sync-account-client.js?v=1"></script>
-    <script type="module" src="./practice-menu-app.js?v=0.28.0"></script>
+    <script defer src="../shared/sync-account/sync-account-client.js?v=2"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.29.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -196,13 +196,15 @@
                 <p>一括設定、復旧、環境管理の操作はまだ接続されていません。現在は各Cruiseアプリの設定画面から操作してください。</p>
                 <button id="sync-center-help-close" class="action-button primary-action" type="button">閉じる</button>
             </dialog>
-            <dialog id="sync-center-setup" class="sync-center-help-dialog" aria-labelledby="sync-center-setup-title">
+            <dialog id="sync-center-setup" class="sync-center-help-dialog" aria-labelledby="sync-center-setup-title" data-sync-phase="introduction">
                 <h2 id="sync-center-setup-title">4つのアプリをクラウド同期</h2>
                 <p>この操作だけで4アプリのデータがすぐにアップロードされることはありません。各Cruiseアプリを開いたときに、それぞれの初回同期を確認して完了します。</p>
                 <p id="sync-center-setup-plan"></p>
-                <p>M8では一括設定操作はまだ接続されていません。アプリ一覧から個別に設定してください。</p>
+                <p id="sync-center-setup-summary" data-sync-summary>Accountを作成し、4つのアプリの同期準備を行います。</p>
+                <output id="sync-center-recovery-code" data-sensitive="recovery-code" hidden></output>
+                <p>自動でデータを上書きせず、確認が必要な場合は各アプリで停止します。</p>
                 <div class="sync-center-actions">
-                    <button id="sync-center-setup-confirm" class="action-button primary-action" type="button">内容を確認しました</button>
+                    <button id="sync-center-setup-confirm" class="action-button primary-action" type="button" data-sync-action="create-account">復旧コードを確認</button>
                     <button id="sync-center-setup-close" class="action-button secondary-action" type="button">戻る</button>
                 </div>
             </dialog>
