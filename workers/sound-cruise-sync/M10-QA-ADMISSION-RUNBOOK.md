@@ -47,6 +47,26 @@ the named tester.
 6. Perform M10 E2E. A missing, expired, revoked, wrong-scope, wrong-app, wrong-account, or
    wrong-device QA credential must be rejected.
 
+## Sensitive UI automation contract
+
+Join, Recovery, Pairing, Enrollment and Turnstile are sensitive surfaces. Automation must not
+capture a full DOM, `body.innerText`, accessibility/AX snapshot, screenshot, OCR, clipboard,
+input value, request/response body, console output or storage while a plaintext secret can be
+present. A sensitive marker is an avoidance marker, never permission to read the element.
+
+Only the user may copy, enter or save a plaintext secret. Automation may use pre-audited phase
+and action selectors, non-secret success/status Booleans and verifier-only server metadata. After
+the user reports that a secret was entered or saved, do not rediscover the next action with a
+page-wide scan. If the required stable selector is unavailable, stop.
+
+Consumed Join, Pairing and Enrollment inputs are cleared from the DOM before transport. Their
+plaintext may remain only in an in-memory closure while an ambiguous network/5xx response is
+retryable, and is discarded after confirmed success or a definitive invalid/expired/consumed/
+wrong-code response. A successful Join complete phase contains no code input. Recovery input is
+removed on successful prepare; a replacement Recovery Code remains visible only until the user
+confirms it was saved, then its output is removed before commit. Issue-side one-time codes remain
+visible only for the product-defined save or expiry window.
+
 ## Revoke and close the QA window
 
 Dry-run first, then execute with the exact session UUID:

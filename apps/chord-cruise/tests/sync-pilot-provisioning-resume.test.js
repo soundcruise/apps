@@ -70,6 +70,27 @@ function loadUi(document, options) {
     var window = {
         document: document,
         navigator: {},
+        SoundCruiseSyncAccount: {
+            core: {
+                createSensitiveInputController: function (input) {
+                    var retryValue = null;
+                    return {
+                        take: function () {
+                            if (input.value) retryValue = input.value;
+                            input.value = '';
+                            input.removeAttribute('value');
+                            return retryValue;
+                        },
+                        resolve: function () { retryValue = null; input.value = ''; },
+                        reject: function (reason) {
+                            if (!reason || reason.retryable !== true) retryValue = null;
+                            input.value = '';
+                            return reason && reason.retryable === true;
+                        }
+                    };
+                }
+            }
+        },
         __SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__: options.enrollmentRequired === true,
         __SOUND_CRUISE_SYNC_GET_TURNSTILE_TOKEN__: options.turnstileToken
     };

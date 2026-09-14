@@ -5,7 +5,7 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..');
-var expectedVersion = '1.5.0';
+var expectedVersion = '1.5.1';
 var script = fs.readFileSync(path.join(root, 'script.js'), 'utf8');
 var standardHtml = fs.readFileSync(path.join(root, 'standard', 'index.html'), 'utf8');
 var proHtml = fs.readFileSync(path.join(root, 'pro_r4m8k7n2q9x', 'index.html'), 'utf8');

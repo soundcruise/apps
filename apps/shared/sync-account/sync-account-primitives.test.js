@@ -66,6 +66,44 @@ test('client-generated credentials are distinct and handoff secret uses a cleare
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
+test('sensitive input controller clears DOM values while preserving only retryable request-memory state', () => {
+  const account = load([coreSource]);
+  const attributes = { value: 'must-not-survive' };
+  const input = {
+    value: 'SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE',
+    removeAttribute(name) { delete attributes[name]; }
+  };
+  const secret = account.core.createSensitiveInputController(input);
+  assert.equal(secret.take(), 'SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
+  assert.equal(input.value, '');
+  assert.equal(attributes.value, undefined);
+  assert.equal(secret.hasRetryValue(), true);
+
+  assert.equal(secret.reject({ code: 'network_error' }), true);
+  assert.equal(secret.take(), 'SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
+  secret.resolve();
+  assert.equal(secret.hasRetryValue(), false);
+  assert.equal(secret.take(), null);
+
+  input.value = 'SCJ1-FFFF-GGGG-HHHH-JJJJ-KKKK';
+  assert.equal(secret.take(), 'SCJ1-FFFF-GGGG-HHHH-JJJJ-KKKK');
+  assert.equal(secret.reject({ code: 'app_join_expired', status: 400 }), false);
+  assert.equal(secret.hasRetryValue(), false);
+  assert.equal(secret.take(), null);
+});
+
+test('sensitive retry policy distinguishes response loss from definitive code rejection', () => {
+  const account = load([coreSource]);
+  assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'network_error' }), true);
+  assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'invalid_response' }), true);
+  assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'server_error', status: 503 }), true);
+  assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'rate_limited', status: 429 }), true);
+  assert.equal(account.core.sensitiveFailureIsRetryable(new TypeError('Failed to fetch')), true);
+  assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'pairing_expired', status: 400 }), false);
+  assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'recovery_invalid', status: 400 }), false);
+  assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'enrollment_invalid', status: 403 }), false);
+});
+
 test('cross-container Join Code is request-memory only and creates separate app and Account credentials', async () => {
   const writes = [];
   const requests = [];

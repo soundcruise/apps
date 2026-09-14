@@ -131,6 +131,50 @@
     return token;
   }
 
+  const RETRYABLE_SENSITIVE_FAILURES = new Set([
+    'network_error', 'network_unavailable', 'invalid_response',
+    'account_runtime_unavailable', 'account_server_unavailable',
+    'recovery_uncertain', 'remote_post_verify_failed'
+  ]);
+
+  function sensitiveFailureIsRetryable(reason) {
+    const status = Number(reason?.status);
+    const code = reason?.code || reason?.message || '';
+    return reason?.retryable === true || status === 429 || status >= 500 ||
+      RETRYABLE_SENSITIVE_FAILURES.has(code) ||
+      (reason?.name === 'TypeError' && reason?.code == null);
+  }
+
+  function createSensitiveInputController(input) {
+    if (!input || typeof input !== 'object') throw new Error('sensitive_input_required');
+    let retryValue = null;
+
+    function clearDom() {
+      input.value = '';
+      if (typeof input.removeAttribute === 'function') input.removeAttribute('value');
+    }
+
+    return Object.freeze({
+      take() {
+        const entered = typeof input.value === 'string' ? input.value.trim() : '';
+        if (entered) retryValue = entered;
+        clearDom();
+        return retryValue;
+      },
+      resolve() {
+        retryValue = null;
+        clearDom();
+      },
+      reject(reason) {
+        const retryable = sensitiveFailureIsRetryable(reason);
+        if (!retryable) retryValue = null;
+        clearDom();
+        return retryable;
+      },
+      hasRetryValue() { return retryValue !== null; }
+    });
+  }
+
   root.core = Object.freeze({
     ACCOUNT_API_VERSION: 2,
     ACCOUNT_APPS: Object.freeze(['chord', 'pitch', 'fretboard', 'rhythm']),
@@ -144,6 +188,8 @@
     formatRecoveryCode,
     formatJoinCode,
     normalizeJoinCode,
+    createSensitiveInputController,
+    sensitiveFailureIsRetryable,
     takeHandoffFromLocation,
     validAccountCredential: (value) => validToken(value, 'sca1'),
     validAppCredential: (value) => validToken(value, 'scd1'),

@@ -98,7 +98,7 @@
                         !(credential && credential.credential)) {
                         return result;
                     }
-                    return loadScript('sync-pairing-ui.js').then(function () {
+                    return loadScript('sync-pairing-ui.js?v=1.7.1').then(function () {
                         if (global.ChordCruiseSync.pairingUi) global.ChordCruiseSync.pairingUi.install(client);
                         return result;
                     });

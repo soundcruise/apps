@@ -73,6 +73,23 @@ function loadUi(document) {
     var window = {
         document: document,
         navigator: {},
+        SoundCruiseSyncAccount: {
+            core: {
+                createSensitiveInputController: function (input) {
+                    var retryValue = null;
+                    return {
+                        take: function () {
+                            if (input.value) retryValue = input.value;
+                            input.value = '';
+                            input.removeAttribute('value');
+                            return retryValue;
+                        },
+                        resolve: function () { retryValue = null; input.value = ''; },
+                        reject: function () { retryValue = null; input.value = ''; return false; }
+                    };
+                }
+            }
+        },
         __SOUND_CRUISE_SYNC_GET_TURNSTILE_TOKEN__: function () { return 'test-token'; }
     };
     var context = { window: window, Promise: Promise, Object: Object, Boolean: Boolean, Number: Number, Date: Date };
@@ -111,7 +128,9 @@ function createStore() {
 
     await byAttribute(actions, 'data-sync-recovery-action', 'open').click();
     assert.strictEqual(section.getAttribute('data-sync-recovery-phase'), 'input');
-    assert(byAttribute(actions, 'data-sync-sensitive', 'recovery-code-input'), 'Recovery input is marked sensitive');
+    var recoveryInput = byAttribute(actions, 'data-sync-sensitive', 'recovery-code-input');
+    assert(recoveryInput, 'Recovery input is marked sensitive');
+    recoveryInput.value = 'ABCD-EFGH-JKMP-QRST-WXYZ';
     assert(byAttribute(actions, 'data-sync-recovery-action', 'prepare'), 'prepare is individually addressable');
 
     await byAttribute(actions, 'data-sync-recovery-action', 'prepare').click();
@@ -130,6 +149,8 @@ function createStore() {
     assert.strictEqual(commits, 1, 'confirm-saved is the Recovery commit trigger');
     assert.strictEqual(section.getAttribute('data-sync-recovery-phase'), 'complete');
     assert.strictEqual(section.getAttribute('data-sync-sensitive'), null, 'the root never receives a secret value');
+    assert.strictEqual(byAttribute(actions, 'data-sync-sensitive', 'recovery-code'), undefined,
+        'saved Recovery plaintext is removed before commit completion');
     console.log('sync-sensitive-selector-contract: Recovery phases, scoped actions, summaries, and sensitive markers passed');
 }()).catch(function (error) {
     console.error(error);

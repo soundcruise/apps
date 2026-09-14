@@ -115,20 +115,31 @@
         input.autocapitalize = 'characters';
         input.spellcheck = false;
         input.dataset.sensitive = 'true';
+        input.setAttribute('data-sync-sensitive', 'join-code-input');
         input.setAttribute('aria-label', '既存データ接続コード');
         summary.after(input);
+        const joinSecret = accountRoot.core.createSensitiveInputController(input);
         const start = dialog.querySelector('[data-sync-action="start"]');
         start.textContent = '既存データを接続';
         start.addEventListener('click', async () => {
           start.disabled = true;
+          const joinCode = joinSecret.take();
+          if (!joinCode) {
+            dialog.querySelector('[data-sync-error]').hidden = false;
+            dialog.querySelector('[data-sync-error]').textContent = '接続コードを入力してください。';
+            start.disabled = false;
+            return;
+          }
           try {
-            await connectWithJoin(input.value);
-            input.value = '';
+            await connectWithJoin(joinCode);
+            joinSecret.resolve();
+            input.remove();
             summary.textContent = 'クラウド同期を設定しました。';
             start.hidden = true;
             dialog.querySelector('[data-sync-action="continue"]').hidden = false;
             dialog.querySelector('[data-sync-action="return"]').hidden = false;
-          } catch (_) {
+          } catch (reason) {
+            joinSecret.reject(reason);
             dialog.querySelector('[data-sync-error]').hidden = false;
             dialog.querySelector('[data-sync-error]').textContent = '接続を完了できませんでした。データは削除していません。';
             start.disabled = false;

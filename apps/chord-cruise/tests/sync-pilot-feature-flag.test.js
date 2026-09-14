@@ -76,7 +76,7 @@ async function runProductionLoad(hasCredential) {
                 if (script.src.endsWith('/sync-client.js')) {
                     window.ChordCruiseSync = { client: { createClient: function () { return client; } } };
                 }
-                if (script.src.endsWith('/sync-pairing-ui.js')) {
+                if (script.src.includes('/sync-pairing-ui.js')) {
                     window.ChordCruiseSync.pairingUi = { install: function () { installed += 1; } };
                 }
                 Promise.resolve().then(script.onload);
@@ -120,7 +120,7 @@ async function runProductionLoad(hasCredential) {
     assert.strictEqual(freshProduction.background, 0);
 
     var existingProduction = await runProductionLoad(true);
-    assert(existingProduction.appended.some(function (url) { return url.endsWith('/sync-pairing-ui.js'); }),
+    assert(existingProduction.appended.some(function (url) { return url.includes('/sync-pairing-ui.js'); }),
         'an existing credential retains the Legacy management UI');
     assert.strictEqual(existingProduction.installed, 1);
     assert.strictEqual(existingProduction.background, 1, 'existing ready identities keep runtime Sync');
@@ -142,8 +142,8 @@ async function runProductionLoad(hasCredential) {
     assert.strictEqual(standardHtml.includes('sync-cohort'), false, 'Standard loads no cohort activation controller');
     assert.strictEqual(standardHtml.includes('__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__'), false, 'Standard has no production Turnstile configuration');
     assert(proHtml.includes("__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr'"), 'Pro has the dedicated public production site key');
-    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.7.0'), 'Pro loads the production Turnstile provider');
-    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.7.0'), 'Pro loads the OFF-first bootstrap');
+    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.7.1'), 'Pro loads the production Turnstile provider');
+    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.7.1'), 'Pro loads the OFF-first bootstrap');
     assert(proHtml.indexOf('sync-turnstile.js') < proHtml.indexOf('sync-bootstrap.js'), 'Pro installs Turnstile before Sync bootstrap');
     ['sync-core.js', 'sync-db.js', 'sync-merge.js', 'sync-client.js'].forEach(function (fileName) {
         assert.strictEqual(standardHtml.includes(fileName), false, 'Standard never loads ' + fileName);

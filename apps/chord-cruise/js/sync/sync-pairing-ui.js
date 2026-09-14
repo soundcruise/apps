@@ -83,8 +83,10 @@
         var result = section.querySelector('[data-sync-pairing-result]');
         var transientResult = '';
         var transientTimer = null;
+        var pairingCodeTimer = null;
         var busy = false;
         var enrollmentRequired = global.__SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__ === true;
+        var sensitiveCore = global.SoundCruiseSyncAccount && global.SoundCruiseSyncAccount.core;
         var RECOVERY_PHASES = Object.freeze({ input: true, summary: true, 'new-code': true, commit: true, complete: true });
 
         function setRecoveryPhase(phase) {
@@ -124,6 +126,8 @@
         }
 
         function closeScreen() {
+            if (pairingCodeTimer && typeof global.clearTimeout === 'function') global.clearTimeout(pairingCodeTimer);
+            pairingCodeTimer = null;
             if (screen !== section) screen.hidden = true;
             if (entry) entry.hidden = false;
             setRecoveryPhase(null);
@@ -200,6 +204,10 @@
             }));
             actions.appendChild(recoveryActionButton(options && options.commitOnSaved === true ? '保存しました。復旧を確定' : '保存しました', async function () {
                 if (options && options.commitOnSaved === true) setRecoveryPhase('commit');
+                output.textContent = '';
+                output.removeAttribute('data-sync-recovery-code');
+                output.removeAttribute('data-sync-sensitive');
+                actions.textContent = '';
                 await onSaved();
             }, 'confirm-saved', 'cc-settings-reset-trigger cc-settings-pro-link'));
         }
@@ -301,8 +309,11 @@
             enrollmentInput.placeholder = 'SCE1-XXXX-XXXX-XXXX-XXXX-XXXX';
             enrollmentInput.setAttribute('aria-label', 'クラウド同期の招待コード');
             enrollmentInput.setAttribute('data-sync-sensitive', 'enrollment-code-input');
+            var enrollmentSecret = sensitiveCore.createSensitiveInputController(enrollmentInput);
             start.appendChild(enrollmentInput);
-            start.appendChild(button('招待コードでクラウド同期を設定', function () { startIdentity(enrollmentInput.value); }, 'cc-sync-primary-action'));
+            start.appendChild(button('招待コードでクラウド同期を設定', function () {
+                return startIdentity(enrollmentSecret.take(), enrollmentSecret);
+            }, 'cc-sync-primary-action'));
         }
 
         function appendConnectedActions() {
@@ -419,6 +430,8 @@
         }
 
         async function render(options) {
+            if (pairingCodeTimer && typeof global.clearTimeout === 'function') global.clearTimeout(pairingCodeTimer);
+            pairingCodeTimer = null;
             var store = await client.openStore();
             var credential = await store.getMeta('deviceCredential');
             var pendingRecovery = await store.getMeta('pendingRecovery');
@@ -497,20 +510,25 @@
             await render();
         }
 
-        async function startIdentity(enrollmentCode) {
+        async function startIdentity(enrollmentCode, enrollmentSecret) {
             transientResult = '';
             result.textContent = '';
             var token = await tokenFor('sound_cruise_sync_start');
-            if (!token) { result.textContent = '認証を完了してから同期を開始してください。'; return; }
+            if (!token) {
+                if (enrollmentSecret) enrollmentSecret.reject({ code: 'network_unavailable', retryable: true });
+                result.textContent = '認証を完了してから同期を開始してください。'; return;
+            }
             setStatus('クラウド同期を設定しています…', '認証と同期情報を準備しています。');
             actions.textContent = '';
             var started = await client.startIdentity({ turnstileToken: token, enrollmentCode: enrollmentCode || null });
             if (!started.ok) {
+                if (enrollmentSecret) enrollmentSecret.reject(started);
                 if (started.code === 'enrollment_required') enrollmentRequired = true;
                 transientResult = messageFor(started.code);
                 await render({ preserveTransientResult: true });
                 return;
             }
+            if (enrollmentSecret) enrollmentSecret.resolve();
             recoveryCodeView(started, resumeInitialMigration);
         }
 
@@ -625,6 +643,8 @@
         }
 
         async function issueCode() {
+            if (pairingCodeTimer && typeof global.clearTimeout === 'function') global.clearTimeout(pairingCodeTimer);
+            pairingCodeTimer = null;
             var issued = await client.issuePairingCode();
             if (!issued.ok) { result.textContent = messageFor(issued.code); return; }
             setStatus('別の端末を追加', '別のChord Cruiseで、この8桁の接続コードを入力してください。');
@@ -634,6 +654,17 @@
             output.setAttribute('data-sync-sensitive', 'pairing-code');
             output.textContent = issued.displayCode;
             actions.appendChild(output);
+            if (typeof global.setTimeout === 'function') {
+                pairingCodeTimer = global.setTimeout(function () {
+                    pairingCodeTimer = null;
+                    if (!actions.contains(output)) return;
+                    output.textContent = '';
+                    actions.textContent = '';
+                    result.textContent = '接続コードの有効期限が切れました。';
+                    actions.appendChild(button('新しい接続コードを発行', issueCode));
+                    actions.appendChild(button('戻る', render));
+                }, Math.max(0, issued.expiresAt - Date.now()));
+            }
             actions.appendChild(button('コードをコピー', async function () {
                 try {
                     if (global.navigator && global.navigator.clipboard) await global.navigator.clipboard.writeText(issued.pairingCode);
@@ -651,6 +682,7 @@
             input.type = 'text'; input.inputMode = 'numeric'; input.autocomplete = 'one-time-code';
             input.maxLength = 9; input.placeholder = '1234 5678'; input.setAttribute('aria-label', '8桁の同期コード');
             input.setAttribute('data-sync-sensitive', 'pairing-code-input');
+            var pairingSecret = sensitiveCore.createSensitiveInputController(input);
             input.addEventListener('input', function () {
                 var code = global.ChordCruiseSync.client.normalizePairingCode(input.value);
                 input.value = code ? global.ChordCruiseSync.client.formatPairingCode(code) : input.value.replace(/[^0-9\s-]/g, '');
@@ -659,8 +691,11 @@
             actions.appendChild(button('接続する', async function () {
                 var token = await tokenFor('sound_cruise_sync_pair');
                 if (!token) { result.textContent = '認証を完了してから接続してください。'; return; }
-                var paired = await client.pairWithCode({ pairingCode: input.value, turnstileToken: token });
-                if (!paired.ok) { result.textContent = messageFor(paired.code); return; }
+                var pairingCode = pairingSecret.take();
+                if (!pairingCode) { result.textContent = '接続コードを入力してください。'; return; }
+                var paired = await client.pairWithCode({ pairingCode: pairingCode, turnstileToken: token });
+                if (!paired.ok) { pairingSecret.reject(paired); result.textContent = messageFor(paired.code); return; }
+                pairingSecret.resolve();
                 await render();
                 setTransient(paired.localState === 'empty'
                     ? '接続しました。導入内容を確認してからクラウドデータを反映できます。'
@@ -681,6 +716,7 @@
             input.maxLength = 24; input.placeholder = 'ABCD-EFGH-JKMP-QRST-WXYZ';
             input.setAttribute('aria-label', '20文字の復旧コード');
             input.setAttribute('data-sync-sensitive', 'recovery-code-input');
+            var recoverySecret = sensitiveCore.createSensitiveInputController(input);
             input.addEventListener('input', function () {
                 var normalized = global.ChordCruiseSync.client.normalizeRecoveryCode(input.value);
                 if (normalized) input.value = global.ChordCruiseSync.client.formatRecoveryCode(normalized);
@@ -691,8 +727,11 @@
                 var token = await tokenFor('sound_cruise_sync_recover');
                 if (!token) { result.textContent = '認証を完了してから復旧してください。'; return; }
                 result.textContent = '復旧コードを確認しています…';
-                var prepared = await client.prepareRecovery({ recoveryCode: input.value, turnstileToken: token });
-                if (!prepared.ok) { result.textContent = messageFor(prepared.code); return; }
+                var recoveryCode = recoverySecret.take();
+                if (!recoveryCode) { result.textContent = '復旧コードを入力してください。'; return; }
+                var prepared = await client.prepareRecovery({ recoveryCode: recoveryCode, turnstileToken: token });
+                if (!prepared.ok) { recoverySecret.reject(prepared); result.textContent = messageFor(prepared.code); return; }
+                recoverySecret.resolve();
                 recoverySummaryView(prepared);
             }, 'prepare'));
             actions.appendChild(button('戻る', render, 'cc-settings-reset-trigger cc-settings-pro-link'));

@@ -64,3 +64,20 @@ test('Chord account orchestration selects bridge mode for an existing credential
   assert.match(source, /consumeMode:\s*'new_app'/);
   assert.equal(read('apps/chord-cruise/standard/index.html').includes('sync-account-orchestration.js'), false);
 });
+
+test('all four app Join inputs use the shared transient-secret lifecycle', () => {
+  const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
+  const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
+  assert.match(bootstrap, /data-sync-sensitive="join-code-input"/);
+  assert.match(bootstrap, /createSensitiveInputController\(joinInput\)/);
+  assert.match(bootstrap, /joinSecret\?\.take\(\)/);
+  assert.match(bootstrap, /joinSecret\?\.resolve\(\)/);
+  assert.match(bootstrap, /joinSecret\?\.reject\(reason\)/);
+  assert.match(bootstrap, /joinField\.remove\(\)/);
+  assert.match(chord, /data-sync-sensitive', 'join-code-input'/);
+  assert.match(chord, /createSensitiveInputController\(input\)/);
+  assert.match(chord, /joinSecret\.take\(\)/);
+  assert.match(chord, /joinSecret\.resolve\(\)/);
+  assert.match(chord, /joinSecret\.reject\(reason\)/);
+  assert.match(chord, /input\.remove\(\)/);
+});
