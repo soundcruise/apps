@@ -408,12 +408,14 @@ test('only active Fretboard membership and Fretboard app credential authorize mi
   assert.throws(() => adapter.assertDataPlaneContext({ membership: valid.membership, accountCredential: 'sca1.opaque' }), /required/);
 });
 
-test('M7 adapter is absent from shipped Fretboard HTML and production admission remains Chord-only', () => {
-  for (const edition of ['standard', 'pro_a9f4k7q2m8z']) {
-    const html = fs.readFileSync(path.join(fretboardRoot, edition, 'index.html'), 'utf8');
-    assert.equal(html.includes('fretboard-sync-adapter.js'), false);
-    assert.equal(html.includes('sync-app-backup.js'), false);
-  }
+test('M9 wires Fretboard data plane only into Pro while production admission remains Chord-only', () => {
+  const standard = fs.readFileSync(path.join(fretboardRoot, 'standard', 'index.html'), 'utf8');
+  assert.equal(standard.includes('fretboard-sync-adapter.js'), false);
+  assert.equal(standard.includes('sync-app-backup.js'), false);
+  const pro = fs.readFileSync(path.join(fretboardRoot, 'pro_a9f4k7q2m8z', 'index.html'), 'utf8');
+  assert.equal(pro.includes('fretboard-sync-adapter.js'), true);
+  assert.equal(pro.includes('multi-app-sync-runtime.js'), true);
+  assert.equal(pro.includes('__SOUND_CRUISE_MULTI_APP_SYNC__'), false);
   const config = fs.readFileSync(path.resolve(import.meta.dirname, '../../../workers/sound-cruise-sync/wrangler.jsonc'), 'utf8');
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
   assert.equal(config.includes('chord,fretboard'), false);

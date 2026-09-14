@@ -685,6 +685,42 @@
             };
         }
 
+        async function adoptAccountManagedIdentity(input) {
+            if (!enabled) return { ok: false, code: 'pilot_disabled' };
+            var candidate = input || {};
+            if (!CREDENTIAL_PATTERN.test(candidate.deviceCredential || '') ||
+                typeof candidate.deviceId !== 'string' || !candidate.deviceId) {
+                return { ok: false, code: 'invalid_account_handoff' };
+            }
+            var store = await openStore();
+            var existing = await store.getMeta('deviceCredential');
+            if (existing && existing.credential !== candidate.deviceCredential) {
+                return { ok: false, code: 'existing_credential_conflict' };
+            }
+            await store.setMetaBatch([
+                { key: 'deviceCredential', value: {
+                    deviceId: candidate.deviceId,
+                    credential: candidate.deviceCredential,
+                    credentialVersion: 1,
+                    createdAt: now()
+                } },
+                { key: 'syncState', value: 'provisioning' },
+                { key: 'datasetState', value: 'initializing' },
+                { key: 'migrationState', value: 'not_started' },
+                { key: 'accountManagedSetup', value: true }
+            ], now());
+            var snapshot = await adapter.snapshot();
+            if (snapshot.errors.length) return { ok: false, code: 'snapshot_invalid' };
+            var bootstrap = await authenticatedRequest('POST', '/v1/sync/bootstrap', {
+                appId: core.APP_ID,
+                schemaVersion: snapshot.schemaVersion,
+                recordCount: snapshot.counts.total,
+                manifestHash: snapshot.manifestHash
+            });
+            if (!bootstrap.ok) return { ok: false, code: bootstrap.code || 'bootstrap_failed' };
+            return beginInitialMigration();
+        }
+
         async function issuePairingCode() {
             if (!enabled) return { ok: false, code: 'pilot_disabled' };
             var response = await authenticatedRequest('POST', '/v1/sync/pairing-codes', { appId: core.APP_ID });
@@ -1747,6 +1783,7 @@
             createExport: function (timestamp) { return adapter.createExport(timestamp); },
             saveShadow: saveShadow,
             startIdentity: startIdentity,
+            adoptAccountManagedIdentity: adoptAccountManagedIdentity,
             issuePairingCode: issuePairingCode,
             pairWithCode: pairWithCode,
             prepareRecovery: prepareRecovery,

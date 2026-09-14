@@ -10,7 +10,10 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.3.0';
+const RHYTHM_CRUISE_VERSION = '1.4.0';
+function notifyRhythmSyncSave() {
+    window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
+}
 let audioContextDebugCreatedAt = null;
 let audioContextDebugLastResumeAt = null;
 
@@ -2217,6 +2220,7 @@ function saveRhythmStagePrefs() {
             if (normalized) out.builtin[key] = normalized;
         });
         localStorage.setItem(RHYTHM_STAGE_PREFS_KEY, JSON.stringify(out));
+        notifyRhythmSyncSave();
     } catch (_) { /* localStorage不可時はセッション内だけ反映 */ }
 }
 function rhythmBuiltinStageDefaultPrefs(stageN) {
@@ -2678,6 +2682,7 @@ function loadRhythmCreateUserPresets() {
 function saveRhythmCreateUserPresets(list) {
     try {
         localStorage.setItem(RHYTHM_CREATE_PRESETS_KEY, JSON.stringify(limitRhythmCreateUserPresets(list)));
+        notifyRhythmSyncSave();
     } catch (e) {
         showRhythmCreatePresetNotice('保存できませんでした', 'ブラウザの保存容量を確認してください。');
     }
@@ -4021,6 +4026,7 @@ function saveRhythmCustomPresets(list) {
     try {
         const safe = (Array.isArray(list) ? list : []).map(normalizeRhythmCustomPreset).filter(Boolean).slice(0, RHYTHM_CUSTOM_PRESET_LIMIT);
         localStorage.setItem(RHYTHM_CUSTOM_PRESETS_KEY, JSON.stringify(safe));
+        notifyRhythmSyncSave();
         return true;
     } catch (e) {
         return false;
@@ -9485,6 +9491,7 @@ function seedRhythmCustomStageSamples() {
         saveSettings();
     }
     localStorage.setItem(RHYTHM_SAMPLE_STAGES_SEEDED_KEY, '1');
+    notifyRhythmSyncSave();
 }
 
 /* セル i（負＝カウントイン）に対応するパターンセル。カスタムはループ折り返し。 */
@@ -12589,6 +12596,7 @@ function saveStageClickSettings() {
         localStorage.setItem(CLICK_SETTINGS_KEY, JSON.stringify({
             range: state.rcClickMode, beats: state.rcClickBeats, offbeat: state.rcClickOffbeat,
         }));
+        notifyRhythmSyncSave();
     } catch (_) { /* 保存失敗は無視 */ }
 }
 function setStageClickRange(mode) {
@@ -23992,6 +24000,7 @@ function saveSettings() {
             micPresetBuiltin: state.micPresetBuiltin,
             micPresetBaseline: state.micPresetBaseline,
         }));
+        notifyRhythmSyncSave();
     } catch (_) { /* プライベートモード等では無視 */ }
 }
 

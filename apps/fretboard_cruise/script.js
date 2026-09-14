@@ -1,5 +1,8 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.8.3';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.8.3';
+const FRETBOARD_CRUISE_APP_VERSION = '2.9.0';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.9.0';
+function notifyFretboardSyncSave() {
+    window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
+}
 const DEBUG_TAP_LATENCY = false;
 const DEBUG_EDITOR_FRETBOARD_LAYOUT = false;
 const DEBUG_PORTRAIT_FRETBOARD_LAYOUT = false;
@@ -1829,6 +1832,7 @@ function getStateForPersistence() {
 
 function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(getStateForPersistence()));
+    notifyFretboardSyncSave();
 }
 
 function blurActiveElement() {

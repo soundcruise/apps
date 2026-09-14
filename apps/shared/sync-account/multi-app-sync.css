@@ -1,0 +1,28 @@
+.sound-cruise-sync-setup {
+  max-width: min(32rem, calc(100vw - 2rem));
+  border: 1px solid #8f7628;
+  border-radius: 1rem;
+  background: #11100d;
+  color: #f3e5b6;
+  box-shadow: 0 1.5rem 4rem #000c;
+}
+.sound-cruise-sync-setup::backdrop { background: #000b; }
+.sound-cruise-sync-setup-panel { display: grid; gap: 1rem; margin: 0; padding: 0.5rem; }
+.sound-cruise-sync-setup h2,
+.sound-cruise-sync-setup p { margin: 0; line-height: 1.65; }
+.sound-cruise-sync-setup [data-sync-error] { color: #ffb7b7; }
+.sound-cruise-sync-setup button,
+.sound-cruise-sync-setup a {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  border: 1px solid #8f7628;
+  border-radius: 0.75rem;
+  background: #211d10;
+  color: #f3e5b6;
+  font: inherit;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+.sound-cruise-sync-setup [hidden] { display: none; }

@@ -284,12 +284,14 @@ test('only active Rhythm membership plus Rhythm app credential can create retry-
   assert.throws(() => adapter.assertDataPlaneContext({ membership: valid.membership, accountCredential: 'sca1.opaque' }), /required/);
 });
 
-test('M6 remains unreachable from shipped Rhythm editions and production stays Chord-only', () => {
-  for (const edition of ['standard', 'pro_r4m8k7n2q9x']) {
-    const html = fs.readFileSync(path.join(rhythmRoot, edition, 'index.html'), 'utf8');
-    assert.equal(html.includes('rhythm-sync-adapter.js'), false);
-    assert.equal(html.includes('sync-app-backup.js'), false);
-  }
+test('M9 wires Rhythm data plane only into Pro while production admission stays Chord-only', () => {
+  const standard = fs.readFileSync(path.join(rhythmRoot, 'standard', 'index.html'), 'utf8');
+  assert.equal(standard.includes('rhythm-sync-adapter.js'), false);
+  assert.equal(standard.includes('sync-app-backup.js'), false);
+  const pro = fs.readFileSync(path.join(rhythmRoot, 'pro_r4m8k7n2q9x', 'index.html'), 'utf8');
+  assert.equal(pro.includes('rhythm-sync-adapter.js'), true);
+  assert.equal(pro.includes('multi-app-sync-runtime.js'), true);
+  assert.equal(pro.includes('__SOUND_CRUISE_MULTI_APP_SYNC__'), false);
   const config = fs.readFileSync(path.resolve(import.meta.dirname, '../../../workers/sound-cruise-sync/wrangler.jsonc'), 'utf8');
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
   assert.equal(config.includes('chord,rhythm'), false);

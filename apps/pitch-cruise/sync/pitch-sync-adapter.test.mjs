@@ -327,12 +327,16 @@ test('active Pitch membership plus Pitch app credential is the only data-plane a
   }), /membership_inactive/);
 });
 
-test('M5 remains unreachable from every shipped Pitch edition and production stays Chord-only', () => {
-  for (const edition of ['standard', 'pro_x9v7q2m8', 'beta']) {
+test('M9 wires Pitch data plane only into Pro while production admission stays Chord-only', () => {
+  for (const edition of ['standard', 'beta']) {
     const html = fs.readFileSync(path.join(pitchRoot, edition, 'index.html'), 'utf8');
     assert.equal(html.includes('pitch-sync-adapter'), false);
     assert.equal(html.includes('sync-app-backup'), false);
   }
+  const pro = fs.readFileSync(path.join(pitchRoot, 'pro_x9v7q2m8', 'index.html'), 'utf8');
+  assert.equal(pro.includes('pitch-sync-adapter'), true);
+  assert.equal(pro.includes('multi-app-sync-runtime'), true);
+  assert.equal(pro.includes('__SOUND_CRUISE_MULTI_APP_SYNC__'), false);
   const config = fs.readFileSync(path.resolve(import.meta.dirname, '../../../workers/sound-cruise-sync/wrangler.jsonc'), 'utf8');
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
   assert.doesNotMatch(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"[^"]*pitch/u);

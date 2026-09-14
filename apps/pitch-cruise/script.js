@@ -1,5 +1,8 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.12.1';
+const PITCH_TRAINER_APP_VERSION = '2.13.0';
+function notifyPitchSyncSave() {
+    window.SoundCruiseMultiAppSync?.notifyLocalSave?.('pitch');
+}
 
 // ─── [DEV] デバッグフラグ ────────────────────────────────────────────────────
 // true にするとSTAGE選択画面のクリア回数が常に100と表示される（localStorageは変更しない）
@@ -133,6 +136,7 @@ function saveTestModeResult(category, stageKey) {
             lastClearedAt: new Date().toISOString()
         };
         localStorage.setItem(TEST_MODE_RESULTS_KEY, JSON.stringify(results));
+        notifyPitchSyncSave();
     } catch (e) {
         console.warn('PitchTrainer: Failed to save test mode result', e);
     }
@@ -1785,7 +1789,10 @@ class Game {
             testModeToggle.addEventListener('change', (e) => {
                 testModeState.enabled = e.target.checked;
                 document.body.classList.toggle('test-mode-enabled', testModeState.enabled);
-                try { localStorage.setItem(TEST_MODE_ENABLED_KEY, String(testModeState.enabled)); } catch (_) {}
+                try {
+                    localStorage.setItem(TEST_MODE_ENABLED_KEY, String(testModeState.enabled));
+                    notifyPitchSyncSave();
+                } catch (_) {}
                 updateTestModeStageButtons(this);
             });
         }
@@ -2487,6 +2494,7 @@ class Game {
                 customProgressions: this.customProgressions
             };
             localStorage.setItem('pitchTrainerProData', JSON.stringify(data));
+            notifyPitchSyncSave();
         } catch (e) {
             console.error("Failed to save custom data to localStorage", e);
         }
@@ -2665,6 +2673,7 @@ class Game {
                 } catch (e) { /* ignore */ }
             }
             localStorage.setItem('pitchTrainerSettings', JSON.stringify(data));
+            notifyPitchSyncSave();
         } catch (e) {
             console.error("Failed to save settings to localStorage", e);
         }
@@ -3584,6 +3593,7 @@ class Game {
     saveProMelodyAccidentalPref() {
         try {
             localStorage.setItem('pitchTrainerProAccidentalDisplay', this.proAccidentalDisplay);
+            notifyPitchSyncSave();
         } catch (e) { /* ignore */ }
     }
 
@@ -4046,6 +4056,7 @@ class Game {
         this._stagingMelodySlotOrder = order;
         try {
             localStorage.setItem(STAGING_PRO_MELODY_SLOTS_KEY, JSON.stringify({ slots, order }));
+            notifyPitchSyncSave();
         } catch (e) { /* ignore */ }
     }
 
@@ -4472,6 +4483,7 @@ class Game {
         this._stagingChordSlotOrder = order;
         try {
             localStorage.setItem(STAGING_PRO_CHORD_SLOTS_KEY, JSON.stringify({ slots, order }));
+            notifyPitchSyncSave();
         } catch (e) { /* ignore */ }
     }
 
