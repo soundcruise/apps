@@ -1,4 +1,5 @@
 import { timingSafeHexEqual } from './crypto.js';
+import { accountOperationFingerprint } from './account-crypto.js';
 
 export const ACCOUNT_LIFECYCLE = Object.freeze({
   recoveryClaimTtlMs: 10 * 60 * 1000,
@@ -29,6 +30,15 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       SELECT operation_id, request_fingerprint, account_id, kind, target_id, result_json, created_at
       FROM sync_account_lifecycle_operations WHERE operation_id = ?
     `).bind(operationId).first();
+  }
+
+  async function qaSessionMatches(sessionId, accountId, now, allowUnbound) {
+    if (!sessionId) return true;
+    const row = await db.prepare(`
+      SELECT account_id FROM sync_account_qa_sessions
+      WHERE id = ? AND scope = 'port' AND revoked_at IS NULL AND expires_at > ?
+    `).bind(sessionId, now).first();
+    return Boolean(row && (row.account_id === accountId || (allowUnbound && row.account_id == null)));
   }
 
   async function recoverySummary(claimId, claimVerifier, now) {
@@ -81,7 +91,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   async function resolveRecoveryPrepare(input) {
     const row = await db.prepare(`
       SELECT claim_id, claim_verifier, prepare_fingerprint, expires_at,
-             committed_at, cancelled_at
+             committed_at, cancelled_at, account_id
       FROM sync_account_recovery_claims WHERE prepare_operation_id = ?
     `).bind(input.operationId).first();
     if (!row) return null;
@@ -89,6 +99,9 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
         !timingSafeHexEqual(row.claim_verifier, input.claimVerifier)) return { status: 'conflict' };
     if (row.committed_at != null) return { status: 'committed' };
     if (row.cancelled_at != null || Number(row.expires_at) <= input.now) return { status: 'expired' };
+    if (!await qaSessionMatches(input.qaSessionId, row.account_id, input.now, true)) {
+      return { status: 'invalid' };
+    }
     const summary = await recoverySummary(row.claim_id, input.claimVerifier, input.now);
     return summary ? { status: 'prepared', summary, alreadyPrepared: true } : { status: 'invalid' };
   }
@@ -131,17 +144,23 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       FROM sync_accounts a
       WHERE a.recovery_verifier = ? AND a.state = 'active' AND a.deleted_at IS NULL
         AND a.recovery_version >= 1
+        AND (? IS NULL OR EXISTS (
+          SELECT 1 FROM sync_account_qa_sessions q
+          WHERE q.id = ? AND q.scope = 'port' AND q.revoked_at IS NULL
+            AND q.expires_at > ? AND (q.account_id IS NULL OR q.account_id = a.id)
+        ))
     `).bind(
       input.claimId, input.claimVerifier, input.nextRecoveryVerifier,
       input.nextAccountDeviceId, input.nextAccountCredentialVerifier,
       input.deviceLabel, input.now, expiresAt, input.operationId,
-      input.requestFingerprint, input.currentRecoveryVerifier
+      input.requestFingerprint, input.currentRecoveryVerifier,
+      input.qaSessionId || null, input.qaSessionId || null, input.now
     );
     const clearAttempt = db.prepare(`
       DELETE FROM sync_account_recovery_attempts WHERE recovery_verifier = ?
-        AND EXISTS (SELECT 1 FROM sync_accounts
-          WHERE recovery_verifier = ? AND state = 'active')
-    `).bind(input.currentRecoveryVerifier, input.currentRecoveryVerifier);
+        AND EXISTS (SELECT 1 FROM sync_account_recovery_claims
+          WHERE claim_id = ? AND prepare_operation_id = ?)
+    `).bind(input.currentRecoveryVerifier, input.claimId, input.operationId);
     const results = await db.batch([insert, clearAttempt]);
     if (!batchSucceeded(results, 2)) throw new Error('D1 Account recovery prepare failed');
     if (changes(results[0]) !== 1) return { status: 'invalid' };
@@ -156,6 +175,9 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       if (previous.request_fingerprint !== input.requestFingerprint || previous.kind !== 'recovery') {
         return { status: 'conflict' };
       }
+      if (!await qaSessionMatches(input.qaSessionId, previous.account_id, input.now, false)) {
+        return { status: 'invalid' };
+      }
       return { status: 'recovered', ...lifecycleResult(previous), alreadyRecovered: true };
     }
     const claim = await db.prepare(`
@@ -163,13 +185,16 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
              expected_account_generation, next_recovery_verifier,
              next_account_device_id, next_account_credential_verifier,
              device_label, expires_at, committed_at, cancelled_at,
-             commit_operation_id, commit_fingerprint
+             prepare_fingerprint, commit_operation_id, commit_fingerprint,
+             (SELECT recovery_verifier FROM sync_accounts
+               WHERE id = sync_account_recovery_claims.account_id) AS current_recovery_verifier
       FROM sync_account_recovery_claims WHERE claim_id = ?
     `).bind(input.claimId).first();
     if (!claim || !timingSafeHexEqual(claim.claim_verifier || '', input.claimVerifier) ||
         !timingSafeHexEqual(claim.next_account_credential_verifier || '', input.nextAccountCredentialVerifier)) {
       return { status: 'invalid' };
     }
+    const qaSessionId = input.qaSessionId || null;
     if (claim.committed_at != null) {
       const active = await db.prepare(`
         SELECT a.recovery_version FROM sync_accounts a
@@ -178,7 +203,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
           AND a.recovery_verifier = ? AND d.id = ? AND d.revoked_at IS NULL
       `).bind(claim.account_id, Number(claim.expected_recovery_version) + 1,
         claim.next_recovery_verifier, claim.next_account_device_id).first();
-      return active ? {
+      const qaSessionValid = await qaSessionMatches(qaSessionId, claim.account_id, input.now, false);
+      return active && qaSessionValid ? {
         status: 'recovered', accountId: claim.account_id,
         accountDeviceId: claim.next_account_device_id,
         recoveryVersion: Number(active.recovery_version), alreadyRecovered: true
@@ -186,6 +212,19 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     }
     if (claim.cancelled_at != null) return { status: 'invalid' };
     if (Number(claim.expires_at) <= input.now) return { status: 'expired' };
+    if (!await qaSessionMatches(qaSessionId, claim.account_id, input.now, true)) {
+      return { status: 'invalid' };
+    }
+    if (qaSessionId) {
+      const expectedPrepareFingerprint = await accountOperationFingerprint([
+        'account-recovery-prepare', claim.claim_verifier, claim.current_recovery_verifier,
+        claim.next_recovery_verifier, claim.next_account_device_id,
+        claim.next_account_credential_verifier, claim.device_label || '', qaSessionId
+      ]);
+      if (!timingSafeHexEqual(claim.prepare_fingerprint || '', expectedPrepareFingerprint)) {
+        return { status: 'invalid' };
+      }
+    }
     const nextVersion = Number(claim.expected_recovery_version) + 1;
     const resultBody = {
       accountId: claim.account_id,
@@ -199,9 +238,16 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
         AND EXISTS (SELECT 1 FROM sync_account_recovery_claims r
           WHERE r.claim_id = ? AND r.claim_verifier = ? AND r.committed_at IS NULL
             AND r.cancelled_at IS NULL AND r.expires_at > ?)
+        AND (? IS NULL OR EXISTS (
+          SELECT 1 FROM sync_account_qa_sessions q
+          WHERE q.id = ? AND q.scope = 'port' AND q.revoked_at IS NULL
+            AND q.expires_at > ?
+            AND (q.account_id IS NULL OR q.account_id = sync_accounts.id)
+        ))
     `).bind(nextVersion, claim.next_recovery_verifier, input.now, input.now,
       claim.account_id, claim.expected_recovery_version, claim.expected_account_generation,
-      claim.claim_id, input.claimVerifier, input.now);
+      claim.claim_id, input.claimVerifier, input.now,
+      qaSessionId, qaSessionId, input.now);
     const revokeAccountDevices = db.prepare(`
       UPDATE sync_account_devices SET revoked_at = COALESCE(revoked_at, ?)
       WHERE account_id = ? AND revoked_at IS NULL
@@ -253,6 +299,14 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     `).bind(input.operationId, input.requestFingerprint, claim.account_id,
       claim.next_account_device_id, JSON.stringify(resultBody), input.now,
       claim.claim_id, input.now, input.operationId);
+    const bindQaSession = qaSessionId ? db.prepare(`
+      UPDATE sync_account_qa_sessions SET account_id = ?, last_used_at = ?
+      WHERE id = ? AND scope = 'port' AND revoked_at IS NULL AND expires_at > ?
+        AND (account_id IS NULL OR account_id = ?)
+        AND EXISTS (SELECT 1 FROM sync_account_lifecycle_operations o
+          WHERE o.operation_id = ? AND o.account_id = ? AND o.kind = 'recovery')
+    `).bind(claim.account_id, input.now, qaSessionId, input.now, claim.account_id,
+      input.operationId, claim.account_id) : null;
     const guard = db.prepare(`
       UPDATE sync_accounts SET updated_at = CASE
         WHEN state = 'active' AND recovery_version = ? AND recovery_verifier = ?
@@ -260,16 +314,25 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
             WHERE d.account_id = sync_accounts.id AND d.revoked_at IS NULL) = 1
           AND EXISTS (SELECT 1 FROM sync_account_lifecycle_operations o
             WHERE o.operation_id = ? AND o.account_id = sync_accounts.id)
+          AND (? IS NULL OR EXISTS (
+            SELECT 1 FROM sync_account_qa_sessions q
+            WHERE q.id = ? AND q.scope = 'port' AND q.account_id = sync_accounts.id
+              AND q.revoked_at IS NULL AND q.expires_at > ?
+          ))
         THEN updated_at ELSE created_at - 1 END
       WHERE id = ?
-    `).bind(nextVersion, claim.next_recovery_verifier, input.operationId, claim.account_id);
+    `).bind(nextVersion, claim.next_recovery_verifier, input.operationId,
+      qaSessionId, qaSessionId, input.now, claim.account_id);
     try {
       const statements = [rotate, revokeAccountDevices, revokeAppDevices, cancelHandoffs,
-        cancelJoins, createDevice, cancelOtherClaims, finish, record, guard];
+        cancelJoins, createDevice, cancelOtherClaims, finish, record];
+      const bindIndex = bindQaSession ? statements.push(bindQaSession) - 1 : -1;
+      const guardIndex = statements.push(guard) - 1;
       const results = await db.batch(statements);
       if (!batchSucceeded(results, statements.length) || changes(results[0]) !== 1 ||
           changes(results[5]) !== 1 || changes(results[7]) !== 1 ||
-          changes(results[8]) !== 1 || changes(results[9]) !== 1) {
+          changes(results[8]) !== 1 || (bindIndex >= 0 && changes(results[bindIndex]) !== 1) ||
+          changes(results[guardIndex]) !== 1) {
         throw new Error('D1 Account recovery compare-and-swap failed');
       }
       return { status: 'recovered', ...resultBody, alreadyRecovered: false };

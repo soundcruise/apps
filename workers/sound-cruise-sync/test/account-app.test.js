@@ -180,6 +180,13 @@ test('Account Recovery API prepares a secret-free summary, rotates once and reso
   const env = environment(db);
   const started = await startAccount(db, env, ['chord', 'pitch']);
   assert.equal(started.response.status, 201);
+  const startedAccountId = started.payload.accountId;
+  assert.equal(db.raw.prepare('SELECT account_id FROM sync_account_qa_sessions WHERE id = ?')
+    .get(qa.sessionId).account_id, startedAccountId);
+  // Model a fresh QA browser session that authenticated Recovery but has not
+  // yet been associated with the recovered Account.
+  db.raw.prepare('UPDATE sync_account_qa_sessions SET account_id = NULL WHERE id = ?')
+    .run(qa.sessionId);
   const nextAccount = createAccountCredential();
   const claim = createAccountRecoveryClaim();
   const nextRecoveryCode = createAccountRecoveryCode();
@@ -208,6 +215,8 @@ test('Account Recovery API prepares a secret-free summary, rotates once and reso
   assert.equal(response.status, 201);
   const recovered = await response.json();
   assert.equal(recovered.recoveryVersion, 2);
+  assert.equal(db.raw.prepare('SELECT account_id FROM sync_account_qa_sessions WHERE id = ?')
+    .get(qa.sessionId).account_id, startedAccountId);
   response = await handleRequest(jsonRequest('/v2/accounts/recovery/commit', commitBody), env);
   assert.equal(response.status, 200);
   assert.equal((await response.json()).operation, 'existing');

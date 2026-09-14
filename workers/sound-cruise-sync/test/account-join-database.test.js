@@ -106,6 +106,26 @@ test('app join is a five-minute verifier-only Account/app/issuer-bound invitatio
   fixture.db.close();
 });
 
+test('app join issuer remains fail-closed for unbound and wrong-Account QA sessions', async () => {
+  const fixture = await setup();
+  fixture.db.raw.prepare('UPDATE sync_account_qa_sessions SET account_id = NULL WHERE id = ?')
+    .run(fixture.qaSessionId);
+  assert.equal((await issue(fixture)).result.status, 'membership_unavailable');
+
+  fixture.db.raw.prepare(`
+    INSERT INTO sync_accounts (
+      id, state, recovery_version, recovery_verifier, generation,
+      created_at, updated_at, recovery_created_at, recovery_rotated_at
+    ) VALUES ('other-account', 'active', 1, ?, 1, 1, 1, 1, 1)
+  `).run('f'.repeat(64));
+  fixture.db.raw.prepare('UPDATE sync_account_qa_sessions SET account_id = ? WHERE id = ?')
+    .run('other-account', fixture.qaSessionId);
+  assert.equal((await issue(fixture)).result.status, 'membership_unavailable');
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_app_join_invitations')
+    .get().count, 0);
+  fixture.db.close();
+});
+
 test('app join consume is one-time, response-loss safe and creates distinct Account/app credentials', async () => {
   const fixture = await setup();
   const issued = await issue(fixture);

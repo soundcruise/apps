@@ -516,7 +516,7 @@ async function handleAccountRecoveryPrepare(request, env, origin, route, depende
     )([
       'account-recovery-prepare', claimVerifier, currentRecoveryVerifier,
       nextRecoveryVerifier, accountDevice.deviceId, nextAccountCredentialVerifier,
-      value.deviceLabel || ''
+      value.deviceLabel || '', dependencies.qaIdentity?.sessionId || ''
     ]);
     const repository = (
       dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
@@ -531,6 +531,7 @@ async function handleAccountRecoveryPrepare(request, env, origin, route, depende
       nextAccountDeviceId: accountDevice.deviceId,
       nextAccountCredentialVerifier,
       deviceLabel: value.deviceLabel,
+      qaSessionId: dependencies.qaIdentity?.sessionId || null,
       now: Date.now()
     };
     let result = await repository.resolveRecoveryPrepare(prepareInput);
@@ -586,7 +587,8 @@ async function handleAccountRecoveryCommit(request, env, origin, route, dependen
     )(value.accountCredential, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER);
     const requestFingerprint = await (
       dependencies.accountOperationFingerprint || accountOperationFingerprint
-    )(['account-recovery-commit', claimVerifier, accountDevice.deviceId, nextAccountCredentialVerifier]);
+    )(['account-recovery-commit', claimVerifier, accountDevice.deviceId,
+      nextAccountCredentialVerifier, dependencies.qaIdentity?.sessionId || '']);
     const repository = (
       dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
     )(session);
@@ -596,6 +598,7 @@ async function handleAccountRecoveryCommit(request, env, origin, route, dependen
       claimId: claim.claimId,
       claimVerifier,
       nextAccountCredentialVerifier,
+      qaSessionId: dependencies.qaIdentity?.sessionId || null,
       now: Date.now()
     });
     if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createD1AccountLifecycleRepository, ACCOUNT_LIFECYCLE } from '../src/account-lifecycle-database.js';
 import { createD1AccountRepository } from '../src/account-database.js';
+import { createD1AppJoinRepository } from '../src/account-join-database.js';
+import { accountOperationFingerprint } from '../src/account-crypto.js';
 import { createD1CleanupRepository } from '../src/cleanup-database.js';
 import { createSqliteD1 } from './sqlite-d1.js';
 
@@ -120,6 +122,31 @@ function seedUnrelatedAccount(db, now = 1_000) {
   return { accountId, deviceId };
 }
 
+function seedQaSession(db, {
+  sessionId = 'qa-recovery-session',
+  accountId = null,
+  expiresAt = 10_000,
+  revokedAt = null
+} = {}) {
+  const enrollmentId = `enrollment-${sessionId}`;
+  db.raw.prepare(`
+    INSERT INTO sync_account_qa_enrollments (
+      id, code_verifier, created_at, expires_at, consumed_at, cancelled_at,
+      consumed_by_session_id
+    ) VALUES (?, ?, 1, ?, 1, NULL, ?)
+  `).run(enrollmentId, hex(sessionId === 'qa-recovery-session' ? 'b' : 'c'),
+    Math.max(expiresAt, 2), sessionId);
+  db.raw.prepare(`
+    INSERT INTO sync_account_qa_sessions (
+      id, credential_verifier, enrollment_id, scope, account_id, app_id,
+      app_device_id, parent_session_id, created_at, expires_at, last_used_at,
+      revoked_at, generation
+    ) VALUES (?, ?, ?, 'port', ?, NULL, NULL, NULL, 1, ?, 1, ?, 1)
+  `).run(sessionId, hex(sessionId === 'qa-recovery-session' ? 'd' : 'e'),
+    enrollmentId, accountId, expiresAt, revokedAt);
+  return sessionId;
+}
+
 function recoveryInput(overrides = {}) {
   return {
     operationId: IDS.prepare1,
@@ -134,6 +161,16 @@ function recoveryInput(overrides = {}) {
     now: 2_000,
     ...overrides
   };
+}
+
+async function qaRecoveryInput(qaSessionId, overrides = {}) {
+  const input = recoveryInput({ qaSessionId, ...overrides });
+  input.requestFingerprint = await accountOperationFingerprint([
+    'account-recovery-prepare', input.claimVerifier, input.currentRecoveryVerifier,
+    input.nextRecoveryVerifier, input.nextAccountDeviceId,
+    input.nextAccountCredentialVerifier, input.deviceLabel || '', qaSessionId
+  ]);
+  return input;
 }
 
 test('Account Recovery rotates once, revokes every old container and preserves every dataset', async () => {
@@ -179,6 +216,142 @@ test('Account Recovery rotates once, revokes every old container and preserves e
   assert.equal(responseLossRetry.alreadyRecovered, true);
   assert.equal(db.raw.prepare('SELECT recovery_version FROM sync_accounts WHERE id = ?').get(IDS.account).recovery_version, 2);
   db.close();
+});
+
+test('QA Account Recovery atomically binds its session and immediately enables strict Join issue', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const qaSessionId = seedQaSession(db);
+  const otherQaSessionId = seedQaSession(db, { sessionId: 'qa-other-session' });
+  const repository = createD1AccountLifecycleRepository(db);
+  assert.equal((await repository.prepareRecovery(await qaRecoveryInput(qaSessionId))).status, 'prepared');
+  const commitInput = {
+    operationId: IDS.commit1, requestFingerprint: hex('9'), claimId: IDS.claim1,
+    claimVerifier: hex('6'), nextAccountCredentialVerifier: hex('8'), qaSessionId, now: 3_000
+  };
+  assert.equal((await repository.commitRecovery({
+    ...commitInput, qaSessionId: otherQaSessionId
+  })).status, 'invalid');
+  assert.equal(db.raw.prepare('SELECT recovery_version FROM sync_accounts WHERE id = ?')
+    .get(IDS.account).recovery_version, 1);
+  const committed = await repository.commitRecovery(commitInput);
+  assert.equal(committed.status, 'recovered');
+  assert.equal(db.raw.prepare('SELECT account_id FROM sync_account_qa_sessions WHERE id = ?')
+    .get(qaSessionId).account_id, IDS.account);
+
+  const issued = await createD1AppJoinRepository(db).issue({
+    accountId: IDS.account, accountDeviceId: IDS.accountR
+  }, {
+    operationId: crypto.randomUUID(), requestFingerprint: hex('1'),
+    invitationId: crypto.randomUUID(), appId: 'rhythm', codeVerifier: hex('2'),
+    qaIssuerSessionId: qaSessionId, now: 3_100
+  });
+  assert.equal(issued.status, 'issued');
+
+  const retry = await repository.commitRecovery({ ...commitInput, now: 3_200 });
+  assert.equal(retry.status, 'recovered');
+  assert.equal(retry.alreadyRecovered, true);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_devices WHERE account_id = ?')
+    .get(IDS.account).count, 3);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_devices WHERE account_id = ? AND revoked_at IS NULL')
+    .get(IDS.account).count, 1);
+  db.close();
+});
+
+test('QA Recovery rejects a session bound to another Account without rewriting either binding', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const unrelated = seedUnrelatedAccount(db);
+  const qaSessionId = seedQaSession(db, { accountId: unrelated.accountId });
+  const repository = createD1AccountLifecycleRepository(db);
+  assert.equal((await repository.prepareRecovery(await qaRecoveryInput(qaSessionId))).status, 'invalid');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_recovery_claims').get().count, 0);
+
+  assert.equal((await repository.prepareRecovery(recoveryInput())).status, 'prepared');
+  assert.equal((await repository.commitRecovery({
+    operationId: IDS.commit1, requestFingerprint: hex('9'), claimId: IDS.claim1,
+    claimVerifier: hex('6'), nextAccountCredentialVerifier: hex('8'), qaSessionId, now: 3_000
+  })).status, 'invalid');
+  assert.equal(db.raw.prepare('SELECT recovery_version FROM sync_accounts WHERE id = ?')
+    .get(IDS.account).recovery_version, 1);
+  assert.equal(db.raw.prepare('SELECT account_id FROM sync_account_qa_sessions WHERE id = ?')
+    .get(qaSessionId).account_id, unrelated.accountId);
+  db.close();
+});
+
+test('QA session bind failure rolls back the complete Recovery transaction', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const qaSessionId = seedQaSession(db);
+  const repository = createD1AccountLifecycleRepository(db);
+  await repository.prepareRecovery(await qaRecoveryInput(qaSessionId));
+  db.raw.exec(`CREATE TRIGGER fail_recovery_qa_bind
+    BEFORE UPDATE OF account_id ON sync_account_qa_sessions
+    WHEN NEW.id = '${qaSessionId}'
+    BEGIN SELECT RAISE(ABORT, 'forced QA bind failure'); END;`);
+  await assert.rejects(repository.commitRecovery({
+    operationId: IDS.commit1, requestFingerprint: hex('9'), claimId: IDS.claim1,
+    claimVerifier: hex('6'), nextAccountCredentialVerifier: hex('8'), qaSessionId, now: 3_000
+  }), /forced QA bind failure/);
+  assert.equal(db.raw.prepare('SELECT recovery_version FROM sync_accounts WHERE id = ?')
+    .get(IDS.account).recovery_version, 1);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_devices WHERE account_id = ? AND revoked_at IS NULL')
+    .get(IDS.account).count, 2);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_devices WHERE id = ?')
+    .get(IDS.accountR).count, 0);
+  assert.equal(db.raw.prepare('SELECT account_id FROM sync_account_qa_sessions WHERE id = ?')
+    .get(qaSessionId).account_id, null);
+  assert.equal(db.raw.prepare('SELECT committed_at FROM sync_account_recovery_claims WHERE claim_id = ?')
+    .get(IDS.claim1).committed_at, null);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_lifecycle_operations').get().count, 0);
+  db.close();
+});
+
+test('QA Recovery rejects missing, expired and revoked sessions while preserving Account state', async () => {
+  for (const state of ['missing', 'expired', 'revoked']) {
+    const db = createSqliteD1();
+    seedAccount(db);
+    const qaSessionId = `qa-${state}`;
+    if (state !== 'missing') seedQaSession(db, {
+      sessionId: qaSessionId,
+      expiresAt: state === 'expired' ? 1_500 : 10_000,
+      revokedAt: state === 'revoked' ? 1_500 : null
+    });
+    const repository = createD1AccountLifecycleRepository(db);
+    assert.equal((await repository.prepareRecovery(await qaRecoveryInput(qaSessionId))).status,
+      'invalid', state);
+    assert.equal(db.raw.prepare('SELECT recovery_version FROM sync_accounts WHERE id = ?')
+      .get(IDS.account).recovery_version, 1, state);
+    assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_recovery_claims').get().count,
+      0, state);
+    db.close();
+  }
+});
+
+test('QA Recovery accepts an already-correct binding and non-QA Recovery remains independent', async () => {
+  const qaDb = createSqliteD1();
+  seedAccount(qaDb);
+  const qaSessionId = seedQaSession(qaDb, { accountId: IDS.account });
+  const qaRepository = createD1AccountLifecycleRepository(qaDb);
+  assert.equal((await qaRepository.prepareRecovery(await qaRecoveryInput(qaSessionId))).status, 'prepared');
+  assert.equal((await qaRepository.commitRecovery({
+    operationId: IDS.commit1, requestFingerprint: hex('9'), claimId: IDS.claim1,
+    claimVerifier: hex('6'), nextAccountCredentialVerifier: hex('8'), qaSessionId, now: 3_000
+  })).status, 'recovered');
+  assert.equal(qaDb.raw.prepare('SELECT account_id FROM sync_account_qa_sessions WHERE id = ?')
+    .get(qaSessionId).account_id, IDS.account);
+  qaDb.close();
+
+  const regularDb = createSqliteD1();
+  seedAccount(regularDb);
+  const regularRepository = createD1AccountLifecycleRepository(regularDb);
+  assert.equal((await regularRepository.prepareRecovery(recoveryInput())).status, 'prepared');
+  assert.equal((await regularRepository.commitRecovery({
+    operationId: IDS.commit1, requestFingerprint: hex('9'), claimId: IDS.claim1,
+    claimVerifier: hex('6'), nextAccountCredentialVerifier: hex('8'), now: 3_000
+  })).status, 'recovered');
+  assert.equal(regularDb.raw.prepare('SELECT COUNT(*) count FROM sync_account_qa_sessions').get().count, 0);
+  regularDb.close();
 });
 
 test('parallel Account Recovery claims are CAS protected and the old Recovery verifier is invalid', async () => {
