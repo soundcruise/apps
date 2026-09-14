@@ -37,15 +37,15 @@ function memoryStore() {
   };
 }
 
-function adapter(initial = []) {
+function adapter(initial = [], appId = 'pitch') {
   let records = structuredClone(initial);
   return {
     get records() { return records; },
     set records(value) { records = structuredClone(value); },
-    readLocalSnapshot: () => ({ appId: 'pitch', schemaVersion: 1, records: structuredClone(records) }),
+    readLocalSnapshot: () => ({ appId, schemaVersion: 1, records: structuredClone(records) }),
     normalizeLocalSnapshot: (value) => structuredClone(value),
     serializeRecords: async (snapshot) => snapshot.records.map((record) => ({ ...structuredClone(record), payloadHash: record.payloadHash || `hash-${record.recordId}` })),
-    deserializeRecords: (remote) => ({ appId: 'pitch', schemaVersion: 1, records: remote.map(({ revision, deletedAt, ...record }) => record) }),
+    deserializeRecords: (remote) => ({ appId, schemaVersion: 1, records: remote.map(({ revision, deletedAt, ...record }) => record) }),
     computeManifest: async (snapshot) => `manifest-${snapshot.records.map((record) => record.recordId).sort().join('-')}`,
     mergeSnapshots: (local, remote) => ({ snapshot: { ...local, records: [...local.records, ...remote.records.filter((right) => !local.records.some((left) => left.recordId === right.recordId))] }, conflicts: [] }),
     applyRemoteSnapshot: async (snapshot) => { records = structuredClone(snapshot.records); return { ok: true }; },
@@ -92,36 +92,38 @@ function serverFetch() {
   return { server, fetchImpl };
 }
 
-function runtimeFixture(initial) {
+function runtimeFixture(initial, appId = 'pitch') {
   const Runtime = loadRuntime();
   const store = memoryStore();
-  const local = adapter(initial);
+  const local = adapter(initial, appId);
   const { server, fetchImpl } = serverFetch();
   let id = 0;
   const core = { validAppCredential: (value) => value === 'scd1.valid', createOperationId: () => `op-${++id}` };
   const accountClient = { consumeHandoff: async () => ({ consumeMode: 'new_app', membershipId: 'm1',
     membershipState: 'active', appDeviceCredential: 'scd1.valid' }) };
-  return { runtime: new Runtime({ appId: 'pitch', endpoint: 'https://example.test', adapter: local,
+  return { runtime: new Runtime({ appId, endpoint: 'https://example.test', adapter: local,
     store, accountClient, accountCore: core, fetchImpl, randomOperationId: () => `op-${++id}` }), store, local, server };
 }
 
 test('handoff migration, durable-save push, tombstone and remote pull share one safe runtime', async () => {
-  const a = { recordType: 'custom_chord', recordId: 'a', schemaVersion: 1, payload: { name: 'A' }, payloadHash: 'hash-a' };
-  const fixture = runtimeFixture([a]);
-  assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true);
-  assert.equal(fixture.server.state, 'ready');
-  assert.equal(fixture.server.records.size, 1);
-  fixture.local.records = [a, { recordType: 'custom_chord', recordId: 'b', schemaVersion: 1, payload: { name: 'B' }, payloadHash: 'hash-b' }];
-  assert.equal((await fixture.runtime.sync('save')).ok, true);
-  assert.equal(fixture.server.records.get('custom_chord/b').deletedAt, null);
-  fixture.local.records = fixture.local.records.filter((record) => record.recordId !== 'b');
-  assert.equal((await fixture.runtime.sync('save')).ok, true);
-  assert.ok(fixture.server.records.get('custom_chord/b').deletedAt != null);
-  const remoteA = fixture.server.records.get('custom_chord/a');
-  fixture.server.records.set('custom_chord/a', { ...remoteA, revision: remoteA.revision + 1,
-    payload: { name: 'remote' }, payloadHash: 'hash-remote', changeSeq: remoteA.changeSeq + 1 });
-  assert.equal((await fixture.runtime.sync('focus')).ok, true);
-  assert.equal(fixture.local.records.find((record) => record.recordId === 'a').payload.name, 'remote');
+  for (const appId of ['pitch', 'rhythm', 'fretboard']) {
+    const a = { recordType: 'custom_record', recordId: 'a', schemaVersion: 1, payload: { name: 'A' }, payloadHash: 'hash-a' };
+    const fixture = runtimeFixture([a], appId);
+    assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true, `${appId} migration`);
+    assert.equal(fixture.server.state, 'ready');
+    assert.equal(fixture.server.records.size, 1);
+    fixture.local.records = [a, { recordType: 'custom_record', recordId: 'b', schemaVersion: 1, payload: { name: 'B' }, payloadHash: 'hash-b' }];
+    assert.equal((await fixture.runtime.sync('save')).ok, true, `${appId} push`);
+    assert.equal(fixture.server.records.get('custom_record/b').deletedAt, null);
+    fixture.local.records = fixture.local.records.filter((record) => record.recordId !== 'b');
+    assert.equal((await fixture.runtime.sync('save')).ok, true, `${appId} tombstone`);
+    assert.ok(fixture.server.records.get('custom_record/b').deletedAt != null);
+    const remoteA = fixture.server.records.get('custom_record/a');
+    fixture.server.records.set('custom_record/a', { ...remoteA, revision: remoteA.revision + 1,
+      payload: { name: 'remote' }, payloadHash: 'hash-remote', changeSeq: remoteA.changeSeq + 1 });
+    assert.equal((await fixture.runtime.sync('focus')).ok, true, `${appId} pull`);
+    assert.equal(fixture.local.records.find((record) => record.recordId === 'a').payload.name, 'remote');
+  }
 });
 
 test('pause gate keeps the persisted outbox and never rolls back local data', async () => {
