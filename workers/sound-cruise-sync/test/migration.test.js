@@ -11,6 +11,7 @@ const migration4 = fs.readFileSync(path.join(import.meta.dirname, '../migrations
 const migration5 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0005_add_recovery_lifecycle.sql'), 'utf8');
 const migration6 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0006_add_device_management_and_account_deletion.sql'), 'utf8');
 const migration7 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0007_add_production_rollout_control.sql'), 'utf8');
+const migration8 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0008_add_multi_app_account_backbone.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -20,6 +21,7 @@ function migrate(db) {
   db.exec(migration5);
   db.exec(migration6);
   db.exec(migration7);
+  db.exec(migration8);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -27,8 +29,11 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   migrate(db);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'sync_%' ORDER BY name").all().map((row) => row.name);
   assert.deepEqual(tables, [
+    'sync_account_delete_intents', 'sync_account_devices', 'sync_account_memberships',
+    'sync_account_recovery_claims', 'sync_account_runtime_control', 'sync_accounts',
     'sync_changes', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
-    'sync_records', 'sync_runtime_control', 'sync_users'
+    'sync_membership_device_links', 'sync_membership_handoffs', 'sync_records',
+    'sync_runtime_control', 'sync_users'
   ]);
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pairing_codes'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_changes_pull'").get());
@@ -54,6 +59,69 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     rollout_mode: 'closed', admission_enabled: 0, data_write_enabled: 1,
     data_read_enabled: 1, recovery_enabled: 1, cloud_delete_enabled: 1, generation: 1
   });
+  assert.deepEqual({ ...db.prepare(`
+    SELECT rollout_mode, account_admission_enabled, membership_admission_enabled,
+           account_read_enabled, account_recovery_enabled, account_delete_enabled,
+           port_orchestration_enabled, generation
+    FROM sync_account_runtime_control WHERE singleton_id = 1
+  `).get() }, {
+    rollout_mode: 'development', account_admission_enabled: 0,
+    membership_admission_enabled: 0, account_read_enabled: 0,
+    account_recovery_enabled: 0, account_delete_enabled: 0,
+    port_orchestration_enabled: 0, generation: 1
+  });
+  db.close();
+});
+
+test('M2 migration is additive, idempotent and leaves an existing Chord identity untouched', () => {
+  const db = new DatabaseSync(':memory:');
+  migrate(db);
+  db.prepare(`
+    UPDATE sync_runtime_control
+    SET rollout_mode = 'open', admission_enabled = 1, generation = 9, updated_at = 99
+    WHERE singleton_id = 1
+  `).run();
+  db.prepare(`
+    INSERT INTO sync_users (
+      id, state, recovery_version, recovery_verifier, created_at, updated_at,
+      recovery_created_at, recovery_rotated_at
+    ) VALUES ('legacy-chord-user', 'active', 1, ?, 1, 1, 1, 1)
+  `).run('f'.repeat(64));
+  db.prepare(`
+    INSERT INTO sync_devices (
+      id, user_id, app_id, credential_version, credential_verifier, label,
+      last_cursor, created_at, last_seen_at, revoked_at, pairing_pending_at, paired_at
+    ) VALUES ('legacy-chord-device', 'legacy-chord-user', 'chord', 1, ?, NULL,
+              0, 1, 1, NULL, NULL, 1)
+  `).run('e'.repeat(64));
+  db.prepare(`
+    INSERT INTO sync_datasets (
+      user_id, app_id, state, schema_version, record_count, manifest_hash,
+      min_change_seq, initialized_at, updated_at, last_change_seq
+    ) VALUES ('legacy-chord-user', 'chord', 'ready', 1, 0, ?, 0, 1, 1, 0)
+  `).run('d'.repeat(64));
+
+  db.exec(migration8);
+
+  assert.deepEqual({ ...db.prepare(`
+    SELECT rollout_mode, admission_enabled, generation, updated_at
+    FROM sync_runtime_control WHERE singleton_id = 1
+  `).get() }, { rollout_mode: 'open', admission_enabled: 1, generation: 9, updated_at: 99 });
+  assert.deepEqual({ ...db.prepare(`
+    SELECT u.state, u.recovery_version, d.app_id, d.revoked_at, s.state AS dataset_state
+    FROM sync_users u
+    JOIN sync_devices d ON d.user_id = u.id
+    JOIN sync_datasets s ON s.user_id = u.id AND s.app_id = d.app_id
+    WHERE u.id = 'legacy-chord-user'
+  `).get() }, {
+    state: 'active', recovery_version: 1, app_id: 'chord',
+    revoked_at: null, dataset_state: 'ready'
+  });
+  assert.equal(db.prepare(`
+    SELECT COUNT(*) AS count FROM sync_account_memberships
+    WHERE sync_user_id = 'legacy-chord-user'
+  `).get().count, 0);
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sync_account_runtime_control').get().count, 1);
   db.close();
 });
 
