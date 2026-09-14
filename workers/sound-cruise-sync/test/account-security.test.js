@@ -58,7 +58,8 @@ test('production config exposes only the dedicated M10 QA Enrollment limiter', (
   assert.equal(config.includes('SYNC_ACCOUNT_RECOVERY_PEPPER'), false);
   assert.equal(config.includes('SYNC_ACCOUNT_HANDOFF_PEPPER'), false);
   assert.equal(config.includes('SYNC_ACCOUNT_APP_JOIN_PEPPER'), false);
-  assert.equal(config.includes('ACCOUNT_ALLOWED_ORIGINS'), false);
+  assert.equal(config.includes('ACCOUNT_ALLOWED_ORIGINS'), true);
+  assert.match(config, /"ACCOUNT_ALLOWED_ORIGINS"\s*:\s*"https:\/\/soundcruise\.jp"/u);
   assert.match(config, /"name"\s*:\s*"ACCOUNT_QA_ENROLL_RATE_LIMITER"[\s\S]*?"namespace_id"\s*:\s*"32006"[\s\S]*?"limit"\s*:\s*5[\s\S]*?"period"\s*:\s*60/u);
   assert.equal(config.includes('ACCOUNT_START_RATE_LIMITER'), false);
   assert.equal(config.includes('ACCOUNT_BRIDGE_RATE_LIMITER'), false);

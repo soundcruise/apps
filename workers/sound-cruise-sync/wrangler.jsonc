@@ -20,6 +20,7 @@
   },
   "vars": {
     "ALLOWED_ORIGINS": "https://soundcruise.jp",
+    "ACCOUNT_ALLOWED_ORIGINS": "https://soundcruise.jp",
     "SYNC_ALLOWED_APP_IDS": "chord",
     "TURNSTILE_EXPECTED_HOSTNAME": "soundcruise.jp",
     "TURNSTILE_EXPECTED_ACTION": "sound_cruise_sync_start",

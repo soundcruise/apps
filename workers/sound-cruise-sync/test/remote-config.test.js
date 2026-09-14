@@ -9,6 +9,7 @@ const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
 test('production Worker remains exact-origin, observable, and secret-free in repo config', () => {
   const database = config.d1_databases.find((entry) => entry.binding === 'SYNC_DB');
   const origins = config.vars.ALLOWED_ORIGINS.split(',').map((origin) => origin.trim());
+  const accountOrigins = config.vars.ACCOUNT_ALLOWED_ORIGINS.split(',').map((origin) => origin.trim());
 
   assert.equal(config.name, 'sound-cruise-sync');
   assert.equal(config.workers_dev, true);
@@ -19,6 +20,7 @@ test('production Worker remains exact-origin, observable, and secret-free in rep
   assert.notEqual(database.database_id, '00000000-0000-0000-0000-000000000000');
   assert.notEqual(database.database_id, 'f39ebfce-a042-4914-9697-7e93c89f38b3');
   assert.deepEqual(origins, ['https://soundcruise.jp']);
+  assert.deepEqual(accountOrigins, ['https://soundcruise.jp']);
   assert.equal(origins.includes('*'), false);
   assert.equal(config.vars.TURNSTILE_EXPECTED_HOSTNAME, 'soundcruise.jp');
   assert.equal(config.vars.TURNSTILE_EXPECTED_ACTION, 'sound_cruise_sync_start');
