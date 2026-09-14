@@ -14,6 +14,7 @@ const migration9 = fs.readFileSync(path.join(import.meta.dirname, '../migrations
 const migration10 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0010_add_chord_account_bridge.sql'), 'utf8');
 const migration11 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0011_add_pitch_record_types.sql'), 'utf8');
 const migration12 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0012_add_rhythm_record_types.sql'), 'utf8');
+const migration13 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0013_add_fretboard_record_types.sql'), 'utf8');
 
 function statementWrapper(database, sql, values = []) {
   return {
@@ -43,6 +44,7 @@ export function createSqliteD1() {
   database.exec(migration10);
   database.exec(migration11);
   database.exec(migration12);
+  database.exec(migration13);
   let bookmark = 0;
   const binding = {
     prepare(sql) { return statementWrapper(database, sql); },

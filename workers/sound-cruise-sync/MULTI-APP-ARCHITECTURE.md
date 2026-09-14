@@ -1,7 +1,104 @@
 # Sound Cruise Sync Multi-App Architecture
 
-Status: M1 architecture freeze / M2 local backbone / M3 local Account API / M4 local Chord bridge / M5 local Pitch adapter / M6 local Rhythm adapter
+Status: M1 architecture freeze / M2 local backbone / M3 local Account API / M4 local Chord bridge / M5 local Pitch adapter / M6 local Rhythm adapter / M7 local Fretboard adapter
 Date: 2026-09-14
+
+## M7 Fretboard data-plane adapter
+
+M7 adds the local, unreferenced adapter
+`apps/fretboard_cruise/sync/fretboard-sync-adapter.js`. Neither shipped
+Fretboard edition imports it, and production admission remains Chord-only. The
+app ID is `fretboard`; canonical schema version starts at `1`. The existing
+Fretboard app state has no IndexedDB store and continues to use the single
+`fretboard_cruise_state` localStorage key. The adapter never uploads that giant
+state as one record.
+
+### State inventory and sync boundary
+
+Required cloud content is limited to explicitly saved custom route stages,
+custom quiz stages, and saved edits to the six official route/quiz stages.
+Recommended content is stage completion/attempt/perfect counts, completed basic
+rule steps, custom-stage order, and portable practice preferences: tempo, quiz
+time/question limits and countdown sound, notation, loop count, note-name
+visibility, progression/tap mode, and legacy rhythm sound type.
+
+The current screen/course, the entire in-progress `memorize` session, current
+question/answer/score/combo, `visualize` selection, rule navigation, selected
+settings tab, and temporary UI state are ephemeral. `routeEditor`,
+`quizEditor`, both Pro custom editors, preview data, selection/expansion state,
+and their bounded Undo histories are unsaved local drafts. They are not cloud
+records even though the legacy app persists them for same-device recovery.
+
+String spacing, camera rotation/perspective, viewport mode, orientation
+automation, Bluetooth timing assistance, confirmation timing, rhythm volumes,
+group scroll positions and custom-stage scroll positions are device-specific
+and remain local. Shipped route/quiz bodies and their applied/model version
+markers, plus the route-editor scale-guide variant, are generated built-ins.
+The legacy singular `cruiseProCustomStage` is deterministically folded into the
+current ordered array without duplicating an already migrated ID. Exact shipped
+content is omitted; only a stable built-in-key override is serialized when the
+saved semantic content differs. There is no current favorite concept or
+unbounded learning history.
+Pro gate state and all Account/app credentials, Recovery, Pairing, handoff and
+token material live outside the snapshot and backup boundary.
+
+Custom stage names and group names are user-entered cloud content. No notes,
+profile fields, recordings, debug information or runtime answers are uploaded.
+
+### Canonical records, identity and references
+
+The Fretboard registry accepts `settings`, `custom_route`, `custom_quiz`,
+`builtin_route_override`, `builtin_quiz_override`, `stage_order`, and
+`progress`. Route/quiz notes are bounded `(stringName, fret)` pairs. Custom
+items keep their existing `pcs_*` legacy identity through stable
+`legacy:route-stage:*` or `legacy:quiz-stage:*` record IDs; a malformed old
+item without an ID receives a deterministic semantic-plus-ordinal migration
+ID. Thus retry is stable, same-name items remain distinct, and normal rename
+does not change an existing ID.
+
+Orders contain canonical references and validation rejects dangling custom
+stage references. Official stages use `builtin:route-stage:1..6` and
+`builtin:quiz-stage:1..6`. Generated built-in bodies are recognized by frozen
+semantic fingerprints. Fretboard local app migration/version markers remain
+separate from Sound Cruise canonical schema version `1`; an unknown future
+canonical version fails closed.
+
+### Progress, merge and deletion
+
+Official route clear counts and quiz attempt/perfect counts merge by maximum,
+which is retry-safe and does not double-count a replay. Completed basic-rule
+steps merge by set union. These counters have no trustworthy per-operation
+clock, so timestamps are not invented and device time never chooses a winner.
+Settings merge field-by-field. Disjoint custom additions and compatible order
+extensions combine; conflicting order of shared references is explicit.
+Different semantic payloads for the same custom or built-in override ID return
+the shared `semantic_conflict` result instead of silently overwriting.
+
+The current adapter produces an authoritative snapshot. A future online diff
+layer compares it with the prior cloud shadow and emits the existing data-plane
+delete operation/tombstone for removed custom content or cleared overrides.
+No Fretboard-only delete route is introduced.
+
+### Apply, backup and authority
+
+Remote apply validates before mutation, saves one app-namespaced backup of the
+complete legacy state needed for exact rollback, and reconstructs only the
+durable slices inside the current state. It preserves unknown local fields,
+navigation/session state, drafts and histories, display/device preferences,
+route scroll maps, and per-group quiz/custom-stage scroll positions. Official
+quiz defaults are materialized only so local scroll positions can survive a
+remote removal of an override. The adapter then rereads, canonicalizes and
+compares the manifest; write errors, invalid references and verification
+failure restore the byte-identical prior state. Shared backup storage retains
+the latest five Fretboard backups and rejects credential-like material.
+
+Initial migration requires an active `fretboard` membership and a Fretboard app
+device credential. An Account credential alone cannot write app records, and
+the adapter creates no Account, identity, membership or device. Existing
+`/v1/sync/*` routes remain the data plane. Migration `0013` only expands the
+local record-type storage constraint while preserving Chord, Pitch and Rhythm
+rows. `SYNC_ALLOWED_APP_IDS="chord"` independently keeps Fretboard unreachable
+in production.
 
 ## M6 Rhythm data-plane adapter
 

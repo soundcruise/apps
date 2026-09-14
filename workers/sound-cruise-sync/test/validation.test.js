@@ -107,3 +107,18 @@ test('Rhythm operations require the independent runtime allowlist as well as the
   assert.equal((await validatePushPayload({ appId: 'rhythm', mode: 'migration', operations: [operation] }, env)).ok, false,
     'production-style Chord-only allowlist keeps Rhythm unreachable');
 });
+
+test('Fretboard operations require the independent runtime allowlist and Fretboard schema', async () => {
+  const operation = {
+    operationId: '123e4567-e89b-52d3-a456-426614174002',
+    recordType: 'settings', recordId: 'settings', schemaVersion: 1, baseRevision: 0,
+    payload: { id: 'settings', values: { tempo: 90 } }, payloadHash: '', deleted: false
+  };
+  operation.payloadHash = await hashRecord(operation, crypto, 'fretboard');
+  const allowed = await validatePushPayload({ appId: 'fretboard', mode: 'migration', operations: [operation] },
+    { SYNC_ALLOWED_APP_IDS: 'chord,fretboard' });
+  assert.equal(allowed.ok, true);
+  assert.equal(allowed.value.operations[0].ok, true);
+  assert.equal((await validatePushPayload({ appId: 'fretboard', mode: 'migration', operations: [operation] }, env)).ok, false,
+    'production-style Chord-only allowlist keeps Fretboard unreachable');
+});

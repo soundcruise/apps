@@ -164,3 +164,71 @@ test('Rhythm validation rejects local-only settings, unknown types and invalid r
     assert.equal((await validateOperation(input, crypto, 'rhythm')).ok, false, recordType);
   }
 });
+
+test('Fretboard registry accepts every typed payload and remains isolated from prior apps', async () => {
+  const common = {
+    name: 'QA', key: 0, capo: 0, scale: 'major', displayMode: 'solfege',
+    doMode: 'movable', maxFret: 12
+  };
+  const cases = [
+    ['settings', 'settings', { id: 'settings', values: { tempo: 96, noteLabelMode: 'degree' } }],
+    ['custom_route', 'legacy:route-stage:one', {
+      id: 'legacy:route-stage:one', legacyId: 'one', ...common,
+      route: [{ stringName: 6, fret: 3 }], groupBreaks: [0], groupNames: ['Gr.1']
+    }],
+    ['custom_quiz', 'legacy:quiz-stage:one', {
+      id: 'legacy:quiz-stage:one', legacyId: 'one', ...common,
+      groups: [{ name: 'Gr.1', notes: [{ stringName: 1, fret: 12 }] }]
+    }],
+    ['builtin_route_override', 'builtin:route-stage:1', {
+      id: 'builtin:route-stage:1', builtinStageRef: 'builtin:route-stage:1',
+      route: [{ stringName: 6, fret: 3 }], groupBreaks: [0]
+    }],
+    ['builtin_quiz_override', 'builtin:quiz-stage:1', {
+      id: 'builtin:quiz-stage:1', builtinStageRef: 'builtin:quiz-stage:1',
+      groups: [{ notes: [{ stringName: 1, fret: 3 }] }]
+    }],
+    ['stage_order', 'route', {
+      id: 'route', category: 'route', stageRefs: ['legacy:route-stage:one']
+    }],
+    ['progress', 'route:builtin:route-stage:1', {
+      id: 'route:builtin:route-stage:1', category: 'route',
+      stageRef: 'builtin:route-stage:1', clearCount: 7
+    }]
+  ];
+  for (const [recordType, recordId, payload] of cases) {
+    const input = {
+      operationId: ID, recordType, recordId, schemaVersion: 1,
+      baseRevision: 0, payload, payloadHash: '', deleted: false
+    };
+    input.payloadHash = await hashRecord(input, crypto, 'fretboard');
+    assert.equal((await validateOperation(input, crypto, 'fretboard')).ok, true, recordType);
+    for (const appId of ['chord', 'pitch', 'rhythm']) {
+      assert.equal((await validateOperation(input, crypto, appId)).ok, false, `${recordType} is not ${appId}`);
+    }
+  }
+});
+
+test('Fretboard validation rejects drafts, device settings, bad graph values and unknown types', async () => {
+  const cases = [
+    ['settings', 'settings', { id: 'settings', values: { stringSpacing: 140 } }],
+    ['custom_route', 'legacy:route-stage:one', {
+      id: 'legacy:route-stage:one', legacyId: 'one', name: 'QA', key: 0, capo: 0,
+      scale: 'major', displayMode: 'solfege', doMode: 'movable', maxFret: 12,
+      route: [{ stringName: 7, fret: 3 }], groupBreaks: [0], groupNames: ['Gr.1']
+    }],
+    ['stage_order', 'route', { id: 'route', category: 'route', stageRefs: ['not-a-reference'] }],
+    ['progress', 'quiz:builtin:quiz-stage:1', {
+      id: 'quiz:builtin:quiz-stage:1', category: 'quiz', stageRef: 'builtin:quiz-stage:1'
+    }],
+    ['editor_draft', 'draft', { id: 'draft', value: {} }]
+  ];
+  for (const [recordType, recordId, payload] of cases) {
+    const input = {
+      operationId: ID, recordType, recordId, schemaVersion: 1,
+      baseRevision: 0, payload, payloadHash: '', deleted: false
+    };
+    input.payloadHash = await hashRecord(input, crypto, 'fretboard');
+    assert.equal((await validateOperation(input, crypto, 'fretboard')).ok, false, recordType);
+  }
+});

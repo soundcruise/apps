@@ -12,6 +12,10 @@ const RHYTHM_RECORD_TYPES = Object.freeze([
   'settings', 'custom_stage', 'create_preset', 'custom_preset',
   'stage_order', 'preset_order', 'builtin_stage_preferences'
 ]);
+const FRETBOARD_RECORD_TYPES = Object.freeze([
+  'settings', 'custom_route', 'custom_quiz', 'builtin_route_override',
+  'builtin_quiz_override', 'stage_order', 'progress'
+]);
 const PITCH_BUILTIN_CHORD_KEYS = new Set([
   'builtin:chord:c', 'builtin:chord:dm', 'builtin:chord:em',
   'builtin:chord:f', 'builtin:chord:g', 'builtin:chord:am'
@@ -20,7 +24,8 @@ const PITCH_BUILTIN_CHORD_KEYS = new Set([
 const APP_RECORD_TYPES = Object.freeze({
   chord: CHORD_RECORD_TYPES,
   pitch: PITCH_RECORD_TYPES,
-  rhythm: RHYTHM_RECORD_TYPES
+  rhythm: RHYTHM_RECORD_TYPES,
+  fretboard: FRETBOARD_RECORD_TYPES
 });
 
 function isPlainObject(value) {
@@ -221,6 +226,111 @@ function validateRhythmPayload(recordType, recordId, payload) {
   return false;
 }
 
+const FRETBOARD_SCALES = new Set([
+  'major', 'minor', 'harmonicMinor', 'melodicMinor', 'dorian', 'phrygian',
+  'lydian', 'mixolydian', 'locrian', 'pentaMajor', 'pentaMinor', 'blues'
+]);
+const FRETBOARD_SETTINGS = [
+  'tempo', 'quizTimeLimit', 'quizQuestionLimit', 'quizCountdownSound',
+  'noteLabelMode', 'cruiseLoopCount', 'cruiseShowNoteNames',
+  'cruiseProgression', 'cruiseTapBeats', 'cruiseRhythmSoundType'
+];
+
+function validateFretboardNotes(value, maximum = 4096) {
+  return Array.isArray(value) && value.length <= maximum && value.every((note) =>
+    isPlainObject(note) && onlyKeys(note, ['stringName', 'fret']) &&
+    Number.isSafeInteger(note.stringName) && note.stringName >= 1 && note.stringName <= 6 &&
+    Number.isSafeInteger(note.fret) && note.fret >= 0 && note.fret <= 24);
+}
+
+function validateFretboardGroups(value) {
+  return Array.isArray(value) && value.length >= 1 && value.length <= 60 && value.every((group) =>
+    isPlainObject(group) && onlyKeys(group, ['name', 'notes']) &&
+    (group.name === undefined || string(group.name, 100)) && validateFretboardNotes(group.notes, 512));
+}
+
+function validateFretboardCommon(payload, extra) {
+  return onlyKeys(payload, [
+    'id', 'legacyId', 'name', 'key', 'capo', 'scale', 'displayMode',
+    'doMode', 'maxFret', ...extra
+  ]) && string(payload.legacyId, 200) && string(payload.name, 200) &&
+    Number.isSafeInteger(payload.key) && payload.key >= 0 && payload.key <= 11 &&
+    Number.isSafeInteger(payload.capo) && payload.capo >= 0 && payload.capo <= 7 &&
+    FRETBOARD_SCALES.has(payload.scale) && ['solfege', 'note', 'degree'].includes(payload.displayMode) &&
+    ['movable', 'fixed'].includes(payload.doMode) && Number.isSafeInteger(payload.maxFret) &&
+    payload.maxFret >= 12 && payload.maxFret <= 24;
+}
+
+function validateFretboardSettings(payload) {
+  if (!onlyKeys(payload, ['id', 'values']) || payload.id !== 'settings' ||
+      !isPlainObject(payload.values) || !Object.keys(payload.values).length ||
+      !onlyKeys(payload.values, FRETBOARD_SETTINGS)) return false;
+  const values = payload.values;
+  if (values.tempo !== undefined && (!Number.isSafeInteger(values.tempo) || values.tempo < 40 || values.tempo > 200)) return false;
+  if (values.quizTimeLimit !== undefined && (!Number.isSafeInteger(values.quizTimeLimit) || values.quizTimeLimit < 1 || values.quizTimeLimit > 10)) return false;
+  if (values.quizQuestionLimit !== undefined && ![0, 5, 10, 15].includes(values.quizQuestionLimit)) return false;
+  if (values.quizCountdownSound !== undefined && !['none', 'beep', 'gradual', 'hat'].includes(values.quizCountdownSound)) return false;
+  if (values.noteLabelMode !== undefined && !['solfege', 'note', 'degree'].includes(values.noteLabelMode)) return false;
+  if (values.cruiseLoopCount !== undefined && ![0, 1, 2, 3].includes(values.cruiseLoopCount)) return false;
+  if (values.cruiseShowNoteNames !== undefined && typeof values.cruiseShowNoteNames !== 'boolean') return false;
+  if (values.cruiseProgression !== undefined && !['auto', 'tap'].includes(values.cruiseProgression)) return false;
+  if (values.cruiseTapBeats !== undefined && !['half', 'full'].includes(values.cruiseTapBeats)) return false;
+  if (values.cruiseRhythmSoundType !== undefined && !['default', 'kick_only', 'hihat_only', 'soft', 'silent'].includes(values.cruiseRhythmSoundType)) return false;
+  return true;
+}
+
+function validateFretboardPayload(recordType, recordId, payload) {
+  if (!isPlainObject(payload) || payload.id !== recordId) return false;
+  if (recordType === 'settings') return validateFretboardSettings(payload);
+  if (recordType === 'custom_route') {
+    return validateFretboardCommon(payload, ['route', 'groupBreaks', 'groupNames']) &&
+      validateFretboardNotes(payload.route) && Array.isArray(payload.groupBreaks) &&
+      payload.groupBreaks.length >= 1 && payload.groupBreaks.length <= 60 && payload.groupBreaks[0] === 0 &&
+      payload.groupBreaks.every((value, index) => Number.isSafeInteger(value) && value >= 0 &&
+        value <= payload.route.length + 59 && (!index || value >= payload.groupBreaks[index - 1])) &&
+      Array.isArray(payload.groupNames) && payload.groupNames.length === payload.groupBreaks.length &&
+      payload.groupNames.every((value) => string(value, 100));
+  }
+  if (recordType === 'custom_quiz') return validateFretboardCommon(payload, ['groups']) && validateFretboardGroups(payload.groups);
+  if (recordType === 'builtin_route_override') {
+    return onlyKeys(payload, ['id', 'builtinStageRef', 'route', 'groupBreaks']) &&
+      payload.id === payload.builtinStageRef && /^builtin:route-stage:[1-6]$/u.test(payload.builtinStageRef) &&
+      validateFretboardNotes(payload.route) && Array.isArray(payload.groupBreaks) &&
+      payload.groupBreaks.length >= 1 && payload.groupBreaks.length <= 60 && payload.groupBreaks[0] === 0 &&
+      payload.groupBreaks.every((value, index) => Number.isSafeInteger(value) && value >= 0 &&
+        value <= payload.route.length + 59 && (!index || value >= payload.groupBreaks[index - 1]));
+  }
+  if (recordType === 'builtin_quiz_override') {
+    return onlyKeys(payload, ['id', 'builtinStageRef', 'groups']) &&
+      payload.id === payload.builtinStageRef && /^builtin:quiz-stage:[1-6]$/u.test(payload.builtinStageRef) &&
+      validateFretboardGroups(payload.groups);
+  }
+  if (recordType === 'stage_order') {
+    return onlyKeys(payload, ['id', 'category', 'stageRefs']) && payload.id === payload.category &&
+      ['route', 'quiz'].includes(payload.category) && Array.isArray(payload.stageRefs) &&
+      payload.stageRefs.length >= 1 && payload.stageRefs.length <= 12 && payload.stageRefs.every(reference) &&
+      new Set(payload.stageRefs).size === payload.stageRefs.length;
+  }
+  if (recordType === 'progress') {
+    if (payload.category === 'rules') {
+      return onlyKeys(payload, ['id', 'category', 'completedSteps']) && payload.id === 'rules' &&
+        Array.isArray(payload.completedSteps) && payload.completedSteps.length >= 1 && payload.completedSteps.every((value) =>
+          Number.isSafeInteger(value) && value >= 1 && value <= 5) &&
+        new Set(payload.completedSteps).size === payload.completedSteps.length;
+    }
+    const fields = payload.category === 'route'
+      ? ['id', 'category', 'stageRef', 'clearCount']
+      : ['id', 'category', 'stageRef', 'attemptCount', 'perfectCount'];
+    const counts = payload.category === 'route' ? ['clearCount'] : ['attemptCount', 'perfectCount'];
+    return ['route', 'quiz'].includes(payload.category) && onlyKeys(payload, fields) &&
+      payload.id === `${payload.category}:${payload.stageRef}` &&
+      new RegExp(`^builtin:${payload.category}-stage:[1-6]$`, 'u').test(payload.stageRef) &&
+      counts.some((key) => payload[key] !== undefined) && counts.filter((key) => payload[key] !== undefined)
+        .every((key) => Number.isSafeInteger(payload[key]) && payload[key] >= 1);
+  }
+  return false;
+}
+
 export function recordTypesForApp(appId) {
   return APP_RECORD_TYPES[appId] || null;
 }
@@ -237,7 +347,11 @@ export function validateRecordPayload(appId, recordType, recordId, payload) {
       (!['folder', 'chord'].includes(recordType) || payload.id === recordId);
   }
   if (appId === 'pitch') return validatePitchPayload(recordType, recordId, payload);
-  return validateRhythmPayload(recordType, recordId, payload);
+  if (appId === 'rhythm') return validateRhythmPayload(recordType, recordId, payload);
+  return validateFretboardPayload(recordType, recordId, payload);
 }
 
-export { APP_RECORD_TYPES, CHORD_RECORD_TYPES, PITCH_RECORD_TYPES, RHYTHM_RECORD_TYPES, SCHEMA_VERSION };
+export {
+  APP_RECORD_TYPES, CHORD_RECORD_TYPES, PITCH_RECORD_TYPES, RHYTHM_RECORD_TYPES,
+  FRETBOARD_RECORD_TYPES, SCHEMA_VERSION
+};
