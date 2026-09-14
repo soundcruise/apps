@@ -2,8 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isJsonContentType, readBodyWithLimit, validateStartPayload,
-  validateRecoveryPayload, validateRecoveryIssuePayload
+  validateRecoveryPayload, validateRecoveryIssuePayload, validatePushPayload
 } from '../src/validation.js';
+import { hashRecord } from '../src/records.js';
 
 const env = { SYNC_ALLOWED_APP_IDS: 'chord' };
 const hash = 'a'.repeat(64);
@@ -75,4 +76,19 @@ test('Recovery prepare/commit payloads normalize codes and reject identity injec
   assert.equal(validateRecoveryPayload({ operation: 'commit', appId: 'chord', claimToken: 'x'.repeat(129) }, env).ok, false);
   assert.equal(validateRecoveryIssuePayload({ appId: 'chord' }, env).ok, true);
   assert.equal(validateRecoveryIssuePayload({ appId: 'chord', recoveryCode: 'secret' }, env).ok, false);
+});
+
+test('Pitch operations are admitted only when both runtime allowlist and Pitch schema agree', async () => {
+  const operation = {
+    operationId: '123e4567-e89b-52d3-a456-426614174000',
+    recordType: 'settings', recordId: 'settings', schemaVersion: 1, baseRevision: 0,
+    payload: { id: 'settings', values: { notationStyle: 'letter' } }, payloadHash: '', deleted: false
+  };
+  operation.payloadHash = await hashRecord(operation, crypto, 'pitch');
+  const allowed = await validatePushPayload({ appId: 'pitch', mode: 'migration', operations: [operation] },
+    { SYNC_ALLOWED_APP_IDS: 'chord,pitch' });
+  assert.equal(allowed.ok, true);
+  assert.equal(allowed.value.operations[0].ok, true);
+  assert.equal((await validatePushPayload({ appId: 'pitch', mode: 'migration', operations: [operation] }, env)).ok, false,
+    'production-style Chord-only allowlist keeps Pitch unreachable');
 });

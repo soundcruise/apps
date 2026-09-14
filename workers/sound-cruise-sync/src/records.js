@@ -1,6 +1,10 @@
+import {
+  CHORD_RECORD_TYPES, recordSchemaVersion, recordTypesForApp, validateRecordPayload
+} from './record-schema-registry.js';
+
 const APP_ID = 'chord';
 const SCHEMA_VERSION = 1;
-const RECORD_TYPES = new Set(['settings', 'folder', 'chord', 'library_order']);
+const RECORD_TYPES = new Set(CHORD_RECORD_TYPES);
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const OPERATION_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const MAX_RECORD_ID_LENGTH = 200;
@@ -65,9 +69,9 @@ async function sha256Text(value, cryptoImpl = crypto) {
   return bytesToHex(new Uint8Array(digest));
 }
 
-export async function hashRecord(record, cryptoImpl = crypto) {
+export async function hashRecord(record, cryptoImpl = crypto, appId = record?.appId || APP_ID) {
   return sha256Text(canonicalJson({
-    appId: APP_ID,
+    appId,
     recordType: record.recordType,
     recordId: record.recordId,
     schemaVersion: record.schemaVersion,
@@ -75,9 +79,9 @@ export async function hashRecord(record, cryptoImpl = crypto) {
   }), cryptoImpl);
 }
 
-export async function hashOperation(operation, cryptoImpl = crypto) {
+export async function hashOperation(operation, cryptoImpl = crypto, appId = operation?.appId || APP_ID) {
   return sha256Text(canonicalJson({
-    appId: APP_ID,
+    appId,
     recordType: operation.recordType,
     recordId: operation.recordId,
     schemaVersion: operation.schemaVersion,
@@ -92,14 +96,15 @@ function validRecordId(value) {
     value.length <= MAX_RECORD_ID_LENGTH && !/[\u0000-\u001f\u007f-\u009f]/u.test(value);
 }
 
-export async function validateOperation(input, cryptoImpl = crypto) {
+export async function validateOperation(input, cryptoImpl = crypto, appId = APP_ID) {
   const keys = ['operationId', 'recordType', 'recordId', 'schemaVersion', 'baseRevision', 'payload', 'payloadHash', 'deleted'];
   if (!isPlainObject(input) || !Object.keys(input).every((key) => keys.includes(key)) ||
       !keys.every((key) => Object.prototype.hasOwnProperty.call(input, key))) {
     return { ok: false, code: 'invalid_shape' };
   }
-  if (!OPERATION_ID_PATTERN.test(input.operationId) || !RECORD_TYPES.has(input.recordType) ||
-      !validRecordId(input.recordId) || input.schemaVersion !== SCHEMA_VERSION ||
+  const recordTypes = recordTypesForApp(appId);
+  if (!recordTypes || !OPERATION_ID_PATTERN.test(input.operationId) || !recordTypes.includes(input.recordType) ||
+      !validRecordId(input.recordId) || input.schemaVersion !== recordSchemaVersion(appId) ||
       !Number.isSafeInteger(input.baseRevision) || input.baseRevision < 0 ||
       typeof input.deleted !== 'boolean' || !SHA256_PATTERN.test(input.payloadHash)) {
     return { ok: false, code: 'invalid_operation' };
@@ -110,8 +115,8 @@ export async function validateOperation(input, cryptoImpl = crypto) {
   } else {
     try { payload = canonicalValue(input.payload); } catch { return { ok: false, code: 'invalid_payload' }; }
     if (!isPlainObject(payload)) return { ok: false, code: 'invalid_payload' };
-    if ((input.recordType === 'folder' || input.recordType === 'chord') && payload.id !== input.recordId) {
-      return { ok: false, code: 'record_id_mismatch' };
+    if (!validateRecordPayload(appId, input.recordType, input.recordId, payload)) {
+      return { ok: false, code: payload.id !== undefined && payload.id !== input.recordId ? 'record_id_mismatch' : 'invalid_payload' };
     }
   }
   const operation = {
@@ -124,18 +129,18 @@ export async function validateOperation(input, cryptoImpl = crypto) {
     payloadHash: input.payloadHash,
     deleted: input.deleted
   };
-  const calculatedHash = await hashRecord(operation, cryptoImpl);
+  const calculatedHash = await hashRecord(operation, cryptoImpl, appId);
   if (calculatedHash !== input.payloadHash) return { ok: false, code: 'hash_mismatch' };
-  operation.operationHash = await hashOperation(operation, cryptoImpl);
+  operation.operationHash = await hashOperation(operation, cryptoImpl, appId);
   return { ok: true, operation };
 }
 
-export async function manifestHash(records, schemaVersion = SCHEMA_VERSION, cryptoImpl = crypto) {
+export async function manifestHash(records, schemaVersion = SCHEMA_VERSION, cryptoImpl = crypto, appId = APP_ID) {
   const rows = records.filter((record) => record.deletedAt == null).map((record) => ({
     recordKey: `${record.recordType}/${record.recordId}`,
     payloadHash: record.payloadHash
   })).sort((left, right) => left.recordKey.localeCompare(right.recordKey));
-  return sha256Text(canonicalJson({ appId: APP_ID, schemaVersion, records: rows }), cryptoImpl);
+  return sha256Text(canonicalJson({ appId, schemaVersion, records: rows }), cryptoImpl);
 }
 
 function toBase64Url(value) {

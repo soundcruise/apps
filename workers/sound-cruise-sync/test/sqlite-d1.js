@@ -12,6 +12,7 @@ const migration7 = fs.readFileSync(path.join(import.meta.dirname, '../migrations
 const migration8 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0008_add_multi_app_account_backbone.sql'), 'utf8');
 const migration9 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0009_add_account_api_handoff_state.sql'), 'utf8');
 const migration10 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0010_add_chord_account_bridge.sql'), 'utf8');
+const migration11 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0011_add_pitch_record_types.sql'), 'utf8');
 
 function statementWrapper(database, sql, values = []) {
   return {
@@ -39,6 +40,7 @@ export function createSqliteD1() {
   database.exec(migration8);
   database.exec(migration9);
   database.exec(migration10);
+  database.exec(migration11);
   let bookmark = 0;
   const binding = {
     prepare(sql) { return statementWrapper(database, sql); },

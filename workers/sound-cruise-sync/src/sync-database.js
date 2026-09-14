@@ -188,7 +188,7 @@ export function createD1SyncRepository(db, clock = Date.now) {
       dataset,
       records,
       recordCount: liveRecords.length,
-      manifestHash: await manifestHash(liveRecords, dataset.schema_version)
+      manifestHash: await manifestHash(liveRecords, dataset.schema_version, crypto, identity.appId)
     };
   }
 

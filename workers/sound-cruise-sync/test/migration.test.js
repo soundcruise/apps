@@ -14,6 +14,7 @@ const migration7 = fs.readFileSync(path.join(import.meta.dirname, '../migrations
 const migration8 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0008_add_multi_app_account_backbone.sql'), 'utf8');
 const migration9 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0009_add_account_api_handoff_state.sql'), 'utf8');
 const migration10 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0010_add_chord_account_bridge.sql'), 'utf8');
+const migration11 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0011_add_pitch_record_types.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -26,6 +27,7 @@ function migrate(db) {
   db.exec(migration8);
   db.exec(migration9);
   db.exec(migration10);
+  db.exec(migration11);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -76,6 +78,31 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     account_recovery_enabled: 0, account_delete_enabled: 0,
     port_orchestration_enabled: 0, generation: 1
   });
+  db.close();
+});
+
+test('M5 migration preserves Chord rows and permits only registered Pitch storage types', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(migration);
+  db.exec(migration2);
+  db.prepare(`INSERT INTO sync_users (id,state,recovery_version,recovery_verifier,created_at,updated_at)
+    VALUES ('u', 'active', 1, ?, 1, 1)`).run('a'.repeat(64));
+  db.prepare(`INSERT INTO sync_records (
+    user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
+    deleted_at,updated_by_device_id,last_operation_id,schema_version
+  ) VALUES ('u','chord','chord','c1','{}',?,1,1,NULL,NULL,'op',1)`).run('b'.repeat(64));
+  db.exec(migration3); db.exec(migration4); db.exec(migration5); db.exec(migration6);
+  db.exec(migration7); db.exec(migration8); db.exec(migration9); db.exec(migration10);
+  db.exec(migration11);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sync_records WHERE app_id='chord'").get().count, 1);
+  db.prepare(`INSERT INTO sync_records (
+    user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
+    deleted_at,updated_by_device_id,last_operation_id,schema_version
+  ) VALUES ('u','pitch','custom_chord','p1','{}',?,1,1,NULL,NULL,'op2',1)`).run('c'.repeat(64));
+  assert.throws(() => db.prepare(`INSERT INTO sync_records (
+    user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
+    deleted_at,updated_by_device_id,last_operation_id,schema_version
+  ) VALUES ('u','pitch','unregistered','p2','{}',?,1,1,NULL,NULL,'op3',1)`).run('d'.repeat(64)));
   db.close();
 });
 

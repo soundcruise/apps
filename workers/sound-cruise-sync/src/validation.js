@@ -193,7 +193,7 @@ export async function validatePushPayload(payload, env, cryptoImpl = crypto) {
   const operations = [];
   for (let index = 0; index < payload.operations.length; index += 1) {
     const input = payload.operations[index];
-    const result = await validateOperation(input, cryptoImpl);
+    const result = await validateOperation(input, cryptoImpl, payload.appId);
     operations.push(result.ok
       ? { ok: true, operation: result.operation, index }
       : {

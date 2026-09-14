@@ -115,3 +115,25 @@ test('changes pagination and migration manifest completion use one consistent wa
   assert.equal(result.status, 'ready', 'migration completion is idempotent');
   db.close();
 });
+
+test('Pitch records use the same revision-safe data plane with an app-specific manifest', async () => {
+  const db = createSqliteD1();
+  const identity = seedIdentity(db, {
+    userId: '123e4567-e89b-42d3-a456-426614174099',
+    deviceId: '123e4567-e89b-42d3-a456-426614174098', appId: 'pitch'
+  });
+  const repository = createD1SyncRepository(db, () => 100);
+  const value = {
+    operationId: '123e4567-e89b-52d3-a456-426614174097',
+    recordType: 'settings', recordId: 'settings', schemaVersion: 1, baseRevision: 0,
+    payload: { id: 'settings', values: { notationStyle: 'letter' } }, payloadHash: '', deleted: false
+  };
+  value.payloadHash = await hashRecord(value, crypto, 'pitch');
+  const checked = await validateOperation(value, crypto, 'pitch');
+  assert.equal(checked.ok, true);
+  assert.equal((await repository.applyOperation(identity, checked.operation)).status, 'applied');
+  const snapshot = await repository.readSnapshot(identity);
+  assert.equal(snapshot.recordCount, 1);
+  assert.equal(snapshot.manifestHash, await (await import('../src/records.js')).manifestHash(snapshot.records, 1, crypto, 'pitch'));
+  db.close();
+});

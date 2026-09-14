@@ -1,7 +1,102 @@
 # Sound Cruise Sync Multi-App Architecture
 
-Status: M1 architecture freeze / M2 local backbone / M3 local Account API / M4 local Chord bridge
+Status: M1 architecture freeze / M2 local backbone / M3 local Account API / M4 local Chord bridge / M5 local Pitch adapter
 Date: 2026-09-14
+
+## M5 Pitch data-plane adapter
+
+M5 adds a local, unreferenced Pitch adapter at
+`apps/pitch-cruise/sync/pitch-sync-adapter.js`. It is not imported by the Pitch
+HTML and therefore exposes no production UI or network path. The official app
+ID is `pitch` and its first canonical schema version is `1`.
+
+### Legacy inventory and classification
+
+The adapter reads only these durable Pitch keys:
+
+- `pitchTrainerProData`: built-in and user-created chords/progressions (mixed in
+  the legacy representation).
+- `pitchTrainerSettings`: shared learning/display preferences plus the local-only
+  audio calibration fields `baseHz` and `sustainTime`.
+- `pitchTrainerProAccidentalDisplay`: shared display preference.
+- `pitchTrainerStagingProMelodySlots` and
+  `pitchTrainerStagingProChordSlots`: explicitly saved custom stages and order.
+- `pitchTrainerTestModeEnabled` and `pitchTrainerTestModeResults`: durable test
+  preference and bounded per-stage completion progress.
+
+User-created chords, progressions and saved stages are required sync data.
+Display/learning settings and bounded progress are recommended sync data.
+`baseHz` and `sustainTime` are device-specific and remain local. Current screen,
+tab/modal/editor state, current question/answer, timers, score/streak, AudioContext
+and other session state are ephemeral. Generated default chords/progressions are
+built-in and are never copied to D1. Pro gate state, app/Account credentials,
+Recovery, Pairing, handoff, badge/intro state and edition navigation state are
+security or UI bookkeeping and are outside both snapshot and backup.
+
+Pitch stores no microphone recording or unbounded session history. User-entered
+custom names and stage descriptions are part of the items the user explicitly
+chooses to sync; M5 adds no new identity/profile field.
+
+### Canonical records
+
+The `pitch` registry accepts `settings`, `custom_chord`, `custom_progression`,
+`melody_stage`, `chord_stage`, `stage_order`, and `progress`. Payloads are
+strictly app-specific even where a type name overlaps Chord. Legacy numeric IDs
+become stable `legacy:<kind>:<id>` record IDs. Missing legacy IDs use a
+deterministic semantic hash plus source ordinal, so retry/response loss cannot
+multiply records.
+
+Built-in chords and progressions use version-independent keys such as
+`builtin:chord:c` and `builtin:progression:basic`. Exact built-in payloads are
+excluded. A user disabling a built-in is represented only as a settings
+override. An edited generated chord is a stable built-in override record,
+whereas an additional user-created chord that merely has the same notes remains
+a separate custom record. Custom progressions and custom chord stages reference canonical
+custom IDs or stable built-in keys, never a generated Date-based built-in ID.
+
+The synced settings fields are `instrument`, `notationStyle`, `scaleEnabled`,
+`isAnswerMode`, `keyRandomMode`, `baseOctave`, `keyOffset`, `noteSpeed`,
+accidental display, test mode enabled, and built-in enable overrides. Apply
+preserves the current device's `baseHz` and `sustainTime`.
+
+### Snapshot, migration, merge and apply
+
+The adapter contract provides local read/normalization, strict validation,
+deterministic record serialization/deserialization, meaningful-data detection,
+category-aware merge, manifest calculation, backup/restore, remote apply, and
+initial-migration planning. Unknown schema versions and malformed/dangling
+legacy references fail closed. Generated built-ins and default settings alone
+are not meaningful local data.
+
+User-created records merge by stable ID. Different semantic payloads for the
+same ID are explicit conflicts. Settings merge by independent field and stop on
+an overlapping disagreement because legacy settings have no trustworthy update
+timestamp. Progress merges `clearCount` by maximum and `lastClearedAt` by the
+latest valid completion time, avoiding double counting after retry. Disjoint
+saved-stage orders can be combined; overlapping different order is a conflict.
+Timestamps are not generic last-write-wins signals. The completion timestamp is
+semantic only for progress.
+
+Remote apply validates first, writes a backup through the injected shared app
+backup store, materializes all managed keys, rereads/canonicalizes, compares the
+manifest, and restores every managed key on any write or verification failure.
+The shared backup database is separate from Account credential storage and
+rejects auth/credential/Recovery/Pairing/handoff/token material.
+
+Initial migration requires an active `pitch` membership and a `pitch` app
+device credential. An Account credential may accompany control-plane context
+but cannot authorize a Pitch record operation. The adapter creates no Account,
+membership, identity or device.
+
+### Worker boundary and rollout
+
+M5 keeps `/v1/sync/*` as the revision-safe app data plane and adds an
+app-specific record-schema registry rather than a second Pitch-only route.
+Chord validation and hashing remain backward-compatible. Migration `0011`
+expands only the record-type storage constraint while preserving existing rows;
+runtime admission still requires the independent app allowlist. Production
+`SYNC_ALLOWED_APP_IDS` remains exactly `chord`, so the local Pitch registry and
+adapter cannot be reached in production in M5.
 
 ## Decision
 

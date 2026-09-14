@@ -9,6 +9,7 @@ const coreSource = fs.readFileSync(path.join(directory, 'sync-account-core.js'),
 const dbSource = fs.readFileSync(path.join(directory, 'sync-account-db.js'), 'utf8');
 const clientSource = fs.readFileSync(path.join(directory, 'sync-account-client.js'), 'utf8');
 const bridgeSource = fs.readFileSync(path.join(directory, 'chord-account-bridge.js'), 'utf8');
+const backupSource = fs.readFileSync(path.join(directory, 'sync-app-backup.js'), 'utf8');
 
 function load(sources) {
   const context = vm.createContext({
@@ -298,6 +299,23 @@ test('Chord bridge reload resumes prepared/dual state and clears finalized state
   result = await client.resume({ accountCredential: 'account', appCredential: 'app' });
   assert.equal(result.status, 'finalized');
   assert.equal(writes.at(-1)[0], 'clear');
+});
+
+test('shared app backup storage is isolated and rejects auth, Recovery and credential material', () => {
+  const account = load([backupSource]);
+  assert.equal(account.appBackupStorage.DATABASE_NAME, 'sound-cruise-sync-app-backups');
+  assert.equal(account.appBackupStorage.assertSafeBackup({
+    version: 1, appId: 'pitch', createdAt: 1,
+    values: { pitchTrainerSettings: '{"notationStyle":"letter"}' }
+  }), true);
+  assert.throws(() => account.appBackupStorage.assertSafeBackup({
+    version: 1, appId: 'pitch', createdAt: 1,
+    values: { deviceCredential: 'opaque' }
+  }), /secret_forbidden/);
+  assert.throws(() => account.appBackupStorage.assertSafeBackup({
+    version: 1, appId: 'pitch', createdAt: 1,
+    values: { pitchTrainerSettings: 'SAR1-0123-4567-89AB-CDEF-GHJK' }
+  }), /secret_forbidden/);
 });
 
 test('new and existing Account bridge paths both require explicit Recovery acknowledgement', async () => {
