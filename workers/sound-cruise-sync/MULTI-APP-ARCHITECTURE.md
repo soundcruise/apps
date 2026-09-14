@@ -1,7 +1,70 @@
 # Sound Cruise Sync Multi-App Architecture
 
-Status: M1 architecture freeze / M2 local backbone / M3 local Account API / M4 local Chord bridge / M5 local Pitch adapter
+Status: M1 architecture freeze / M2 local backbone / M3 local Account API / M4 local Chord bridge / M5 local Pitch adapter / M6 local Rhythm adapter
 Date: 2026-09-14
+
+## M6 Rhythm data-plane adapter
+
+M6 adds the local, unreferenced adapter
+`apps/rhythm-cruise/sync/rhythm-sync-adapter.js`. No shipped Rhythm HTML imports
+it, and production admission remains Chord-only. The app ID is `rhythm` and
+canonical schema version is `1`.
+
+### Legacy inventory and sync boundary
+
+Rhythm has no IndexedDB data store. Durable app state is split across
+`rhythmCruiseSettings`, `rhythmCruiseCreatePresets:v1`,
+`rhythmCruiseCustomPresets:v1`, `rhythmCruiseStagePrefs:v1`,
+`rhythmCruiseClickSettings:v1`, and the sample-seeding flag. User-created
+stages and both saved preset families are required sync content. Saved order,
+built-in BPM/bar overrides, tap layout/input/judgement preferences, and durable
+click-practice preferences are recommended sync content.
+
+Microphone presets, tap calibration presets, wired/Bluetooth/platform latency,
+thresholds, input/audio device selection, click volume, calibration results and
+audio setup flags are device-specific. VexFlow zoom is viewport-specific.
+Current stage, BPM/bars runtime, editor draft, selected UI, AudioContext,
+recording and waveform are ephemeral. The bounded 100-entry result-card history
+is local session history rather than durable achievement progress and stays
+local; no recording or waveform is persisted or uploaded. Pro auth and all
+Account/app credentials, Recovery, Pairing, handoff and token material are
+outside snapshots and backups.
+
+### Canonical model and merge
+
+The Rhythm registry accepts `settings`, `custom_stage`, `create_preset`,
+`custom_preset`, `stage_order`, `preset_order`, and
+`builtin_stage_preferences`. Existing legacy IDs are preferred; missing IDs use
+a deterministic semantic hash plus source ordinal, so same-name items remain
+distinct and migration retry cannot multiply records. Generated sample stages
+use stable `builtin:stage-sample:*` references and are not copied. Deletion,
+reordering or editing is represented by an enable override, order record or
+stable custom override. Built-in stage bodies are likewise not copied.
+
+Settings merge field-by-field. Stage and preset records merge by stable ID and
+report `semantic_conflict` for different content. Timestamp-only preset changes
+can combine, but timestamps never decide between semantic edits. Ordering only
+combines disjoint references; overlapping disagreement is explicit. There is
+no cloud progress record because current Rhythm persistence has no durable
+achievement model.
+
+### Apply, backup and authority
+
+The adapter implements the shared read/normalize/validate/serialize/meaningful/
+merge/apply/backup/restore/manifest/migration-plan contract. Apply validates and
+backs up before the first write, writes every managed key, rereads and compares
+the canonical manifest, and rolls back every managed key after any injected
+write or verification failure. Local latency, calibration, audio, zoom and
+history survive remote apply. Shared app backups are app-namespaced,
+secret-rejecting, and now retain only the latest five backups per app.
+
+Initial migration requires an active `rhythm` membership and a Rhythm app
+device credential. An Account credential cannot authorize record writes, and
+the adapter creates no Account, membership, identity or device. Existing
+`/v1/sync/*` routes remain the data plane. Migration `0012` only expands the
+local record-type storage constraint while preserving Chord/Pitch rows;
+`SYNC_ALLOWED_APP_IDS="chord"` independently keeps Rhythm unreachable in
+production.
 
 ## M5 Pitch data-plane adapter
 

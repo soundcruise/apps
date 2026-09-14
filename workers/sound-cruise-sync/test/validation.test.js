@@ -92,3 +92,18 @@ test('Pitch operations are admitted only when both runtime allowlist and Pitch s
   assert.equal((await validatePushPayload({ appId: 'pitch', mode: 'migration', operations: [operation] }, env)).ok, false,
     'production-style Chord-only allowlist keeps Pitch unreachable');
 });
+
+test('Rhythm operations require the independent runtime allowlist as well as the Rhythm schema', async () => {
+  const operation = {
+    operationId: '123e4567-e89b-52d3-a456-426614174001',
+    recordType: 'settings', recordId: 'settings', schemaVersion: 1, baseRevision: 0,
+    payload: { id: 'settings', values: { tapLayout: 'ud' } }, payloadHash: '', deleted: false
+  };
+  operation.payloadHash = await hashRecord(operation, crypto, 'rhythm');
+  const allowed = await validatePushPayload({ appId: 'rhythm', mode: 'migration', operations: [operation] },
+    { SYNC_ALLOWED_APP_IDS: 'chord,rhythm' });
+  assert.equal(allowed.ok, true);
+  assert.equal(allowed.value.operations[0].ok, true);
+  assert.equal((await validatePushPayload({ appId: 'rhythm', mode: 'migration', operations: [operation] }, env)).ok, false,
+    'production-style Chord-only allowlist keeps Rhythm unreachable');
+});

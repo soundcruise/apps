@@ -15,6 +15,7 @@ const migration8 = fs.readFileSync(path.join(import.meta.dirname, '../migrations
 const migration9 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0009_add_account_api_handoff_state.sql'), 'utf8');
 const migration10 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0010_add_chord_account_bridge.sql'), 'utf8');
 const migration11 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0011_add_pitch_record_types.sql'), 'utf8');
+const migration12 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0012_add_rhythm_record_types.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -28,6 +29,7 @@ function migrate(db) {
   db.exec(migration9);
   db.exec(migration10);
   db.exec(migration11);
+  db.exec(migration12);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -103,6 +105,42 @@ test('M5 migration preserves Chord rows and permits only registered Pitch storag
     user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
     deleted_at,updated_by_device_id,last_operation_id,schema_version
   ) VALUES ('u','pitch','unregistered','p2','{}',?,1,1,NULL,NULL,'op3',1)`).run('d'.repeat(64)));
+  db.close();
+});
+
+test('M6 migration preserves Chord and Pitch rows and permits registered Rhythm storage types', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(migration); db.exec(migration2); db.exec(migration3); db.exec(migration4);
+  db.exec(migration5); db.exec(migration6); db.exec(migration7); db.exec(migration8);
+  db.exec(migration9); db.exec(migration10); db.exec(migration11);
+  db.prepare(`INSERT INTO sync_users (id,state,recovery_version,recovery_verifier,created_at,updated_at)
+    VALUES ('u-m6', 'active', 1, ?, 1, 1)`).run('e'.repeat(64));
+  let insert = db.prepare(`INSERT INTO sync_records (
+    user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
+    deleted_at,updated_by_device_id,last_operation_id,schema_version
+  ) VALUES ('u-m6',?,?,?,'{}',?,1,1,NULL,NULL,?,1)`);
+  insert.run('chord', 'chord', 'c1', 'a'.repeat(64), 'op-c');
+  insert.run('pitch', 'custom_chord', 'p1', 'b'.repeat(64), 'op-p');
+  db.prepare(`INSERT INTO sync_changes (
+    user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,
+    payload_json,payload_hash,deleted_at,changed_at,schema_version
+  ) VALUES ('u-m6','pitch','custom_chord','p1',1,'change-p','hash-p','{}',?,NULL,1,1)`)
+    .run('b'.repeat(64));
+  db.exec(migration12);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sync_records WHERE app_id IN ('chord','pitch')").get().count, 2);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM sync_changes WHERE app_id='pitch'").get().count, 1);
+  insert = db.prepare(`INSERT INTO sync_records (
+    user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
+    deleted_at,updated_by_device_id,last_operation_id,schema_version
+  ) VALUES ('u-m6',?,?,?,'{}',?,1,1,NULL,NULL,?,1)`);
+  insert.run('rhythm', 'custom_stage', 'r1', 'c'.repeat(64), 'op-r');
+  const insertChange = db.prepare(`INSERT INTO sync_changes (
+    user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,
+    payload_json,payload_hash,deleted_at,changed_at,schema_version
+  ) VALUES ('u-m6',?,?,?,1,?,?,'{}',?,NULL,1,1)`);
+  insertChange.run('rhythm', 'custom_stage', 'r1', 'change-r', 'hash-r', 'c'.repeat(64));
+  assert.throws(() => insert.run('rhythm', 'unregistered', 'r2', 'd'.repeat(64), 'op-bad'));
+  assert.throws(() => insertChange.run('rhythm', 'unregistered', 'r2', 'change-bad', 'hash-bad', 'd'.repeat(64)));
   db.close();
 });
 

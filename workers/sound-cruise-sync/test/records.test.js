@@ -107,3 +107,60 @@ test('Pitch payload validation fails closed for bad references, settings and pro
     assert.equal((await validateOperation(input, crypto, 'pitch')).ok, false);
   }
 });
+
+test('Rhythm registry accepts every typed payload and remains isolated from Chord and Pitch', async () => {
+  const stage = {
+    title: 'QA', description: '', grid: 'eighth', timeSignature: '4/4', patternBars: 1,
+    bars: 4, bpm: 90, clickMode: 'all', rhythmFeel: 'straight',
+    pattern: [{ hit: true, dir: 'down', type: 'hit' }]
+  };
+  const cases = [
+    ['settings', 'settings', { id: 'settings', values: { tapLayout: 'ud', clickOffbeat: true } }],
+    ['custom_stage', 'legacy:stage:one', { id: 'legacy:stage:one', legacyId: 'one', ...stage }],
+    ['create_preset', 'legacy:create-preset:one', {
+      id: 'legacy:create-preset:one', legacyId: 'one', name: 'QA', stageN: 1,
+      pattern: ['hit'], dirs: ['down'], patternBars: 1, bpm: 90, bars: 4,
+      balance: 50, createdAt: 1, updatedAt: 2
+    }],
+    ['custom_preset', 'legacy:custom-preset:one', {
+      id: 'legacy:custom-preset:one', legacyId: 'one', name: 'QA', settings: stage,
+      balance: 50, createdAt: 1, updatedAt: 2
+    }],
+    ['stage_order', 'stages', { id: 'stages', stageRefs: ['legacy:stage:one'] }],
+    ['preset_order', 'create', {
+      id: 'create', category: 'create', presetRefs: ['legacy:create-preset:one']
+    }],
+    ['builtin_stage_preferences', 'builtin:stage:1', {
+      id: 'builtin:stage:1', builtinStageRef: 'builtin:stage:1', bpm: 92, bars: 6
+    }]
+  ];
+  for (const [recordType, recordId, payload] of cases) {
+    const input = {
+      operationId: ID, recordType, recordId, schemaVersion: 1,
+      baseRevision: 0, payload, payloadHash: '', deleted: false
+    };
+    input.payloadHash = await hashRecord(input, crypto, 'rhythm');
+    assert.equal((await validateOperation(input, crypto, 'rhythm')).ok, true, recordType);
+    assert.equal((await validateOperation(input, crypto, 'chord')).ok, false, `${recordType} is not Chord`);
+    assert.equal((await validateOperation(input, crypto, 'pitch')).ok, false, `${recordType} is not Pitch`);
+  }
+});
+
+test('Rhythm validation rejects local-only settings, unknown types and invalid references', async () => {
+  const cases = [
+    ['settings', 'settings', { id: 'settings', values: { bluetoothMicOffsetMs: 120 } }],
+    ['progress', 'legacy:progress:one', { id: 'legacy:progress:one', clearCount: 1 }],
+    ['stage_order', 'stages', { id: 'stages', stageRefs: ['not-a-reference'] }],
+    ['builtin_stage_preferences', 'builtin:stage:9', {
+      id: 'builtin:stage:9', builtinStageRef: 'builtin:stage:9', bpm: 80, bars: 4
+    }]
+  ];
+  for (const [recordType, recordId, payload] of cases) {
+    const input = {
+      operationId: ID, recordType, recordId, schemaVersion: 1,
+      baseRevision: 0, payload, payloadHash: '', deleted: false
+    };
+    input.payloadHash = await hashRecord(input, crypto, 'rhythm');
+    assert.equal((await validateOperation(input, crypto, 'rhythm')).ok, false, recordType);
+  }
+});

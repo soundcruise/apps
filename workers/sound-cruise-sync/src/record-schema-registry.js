@@ -8,6 +8,10 @@ const PITCH_RECORD_TYPES = Object.freeze([
   'settings', 'custom_chord', 'custom_progression', 'melody_stage',
   'chord_stage', 'stage_order', 'progress'
 ]);
+const RHYTHM_RECORD_TYPES = Object.freeze([
+  'settings', 'custom_stage', 'create_preset', 'custom_preset',
+  'stage_order', 'preset_order', 'builtin_stage_preferences'
+]);
 const PITCH_BUILTIN_CHORD_KEYS = new Set([
   'builtin:chord:c', 'builtin:chord:dm', 'builtin:chord:em',
   'builtin:chord:f', 'builtin:chord:g', 'builtin:chord:am'
@@ -15,7 +19,8 @@ const PITCH_BUILTIN_CHORD_KEYS = new Set([
 
 const APP_RECORD_TYPES = Object.freeze({
   chord: CHORD_RECORD_TYPES,
-  pitch: PITCH_RECORD_TYPES
+  pitch: PITCH_RECORD_TYPES,
+  rhythm: RHYTHM_RECORD_TYPES
 });
 
 function isPlainObject(value) {
@@ -115,6 +120,107 @@ function validatePitchPayload(recordType, recordId, payload) {
   return false;
 }
 
+const RHYTHM_SAMPLE_KEYS = new Set([
+  'builtin:stage-sample:triplet', 'builtin:stage-sample:shuffle8',
+  'builtin:stage-sample:shuffle16'
+]);
+const RHYTHM_GRIDS = new Set([
+  'quarter', 'eighth', 'sixteenth', 'thirtysecond',
+  'eighthTriplet', 'sixteenthTriplet'
+]);
+
+function validateRhythmStage(value) {
+  return isPlainObject(value) &&
+    onlyKeys(value, ['title', 'description', 'grid', 'timeSignature', 'patternBars', 'bars', 'bpm',
+      'clickMode', 'rhythmFeel', 'pattern']) && string(value.title, 200) && string(value.description, 1000) &&
+    RHYTHM_GRIDS.has(value.grid) && ['4/4', '3/4', '2/4', '6/8'].includes(value.timeSignature) &&
+    Number.isSafeInteger(value.patternBars) && value.patternBars >= 1 && value.patternBars <= 4 &&
+    Number.isSafeInteger(value.bars) && value.bars >= 1 && value.bars <= 128 &&
+    Number.isSafeInteger(value.bpm) && value.bpm >= 30 && value.bpm <= 240 &&
+    ['all', 'downbeat', 'none'].includes(value.clickMode) && ['straight', 'swing'].includes(value.rhythmFeel) &&
+    Array.isArray(value.pattern) && value.pattern.length > 0 && value.pattern.length <= 512 &&
+    value.pattern.every((cell) => isPlainObject(cell) && onlyKeys(cell, ['hit', 'dir', 'type', 'dirManual']) &&
+      typeof cell.hit === 'boolean' && [null, 'up', 'down'].includes(cell.dir) &&
+      ['hit', 'rest', 'tie'].includes(cell.type) && (cell.dirManual === undefined || cell.dirManual === true));
+}
+
+function validateRhythmSettings(payload) {
+  const allowedValues = [
+    'tapLayout', 'tapUnified', 'inputMode', 'judgePreset',
+    'clickRange', 'clickBeats', 'clickOffbeat', 'builtinSampleEnabled'
+  ];
+  if (!onlyKeys(payload, ['id', 'values']) || payload.id !== 'settings' || !isPlainObject(payload.values) ||
+      !onlyKeys(payload.values, allowedValues)) return false;
+  const values = payload.values;
+  if (values.tapLayout !== undefined && !['lr', 'ud'].includes(values.tapLayout)) return false;
+  if (values.tapUnified !== undefined && typeof values.tapUnified !== 'boolean') return false;
+  if (values.inputMode !== undefined && !['tap', 'stroke'].includes(values.inputMode)) return false;
+  if (values.judgePreset !== undefined && !['easy', 'standard', 'semiStrict', 'strict', 'veryStrict'].includes(values.judgePreset)) return false;
+  if (values.clickRange !== undefined && !['always', 'firstBar', 'alternateBars', 'countOnly'].includes(values.clickRange)) return false;
+  if (values.clickBeats !== undefined && !['all', 'beat1', 'beats13', 'beats24'].includes(values.clickBeats)) return false;
+  if (values.clickOffbeat !== undefined && typeof values.clickOffbeat !== 'boolean') return false;
+  if (values.builtinSampleEnabled !== undefined && (!isPlainObject(values.builtinSampleEnabled) ||
+      Object.entries(values.builtinSampleEnabled).some(([key, enabled]) =>
+        !RHYTHM_SAMPLE_KEYS.has(key) || typeof enabled !== 'boolean'))) return false;
+  return true;
+}
+
+function nullableInteger(value, minimum, maximum) {
+  return value === null || (Number.isSafeInteger(value) && value >= minimum && value <= maximum);
+}
+
+function nullableTimestamp(value) {
+  return value === null || finiteNumber(value);
+}
+
+function validateRhythmPayload(recordType, recordId, payload) {
+  if (!isPlainObject(payload) || payload.id !== recordId) return false;
+  if (recordType === 'settings') return validateRhythmSettings(payload);
+  if (recordType === 'custom_stage') {
+    const stage = { ...payload };
+    delete stage.id;
+    delete stage.legacyId;
+    delete stage.builtinKey;
+    return onlyKeys(payload, ['id', 'legacyId', 'builtinKey', 'title', 'description', 'grid', 'timeSignature',
+      'patternBars', 'bars', 'bpm', 'clickMode', 'rhythmFeel', 'pattern']) &&
+      ((string(payload.legacyId, 100) && payload.builtinKey === undefined) ||
+        (payload.legacyId === undefined && RHYTHM_SAMPLE_KEYS.has(payload.builtinKey))) &&
+      validateRhythmStage(stage);
+  }
+  if (recordType === 'create_preset') {
+    return onlyKeys(payload, ['id', 'legacyId', 'name', 'stageN', 'pattern', 'dirs', 'patternBars', 'bpm',
+      'bars', 'balance', 'createdAt', 'updatedAt']) && string(payload.legacyId, 100) && string(payload.name, 40) &&
+      Number.isSafeInteger(payload.stageN) && payload.stageN >= 1 && payload.stageN <= 5 &&
+      Array.isArray(payload.pattern) && payload.pattern.length > 0 && payload.pattern.length <= 320 &&
+      payload.pattern.every((value) => ['hit', 'rest', 'tie'].includes(value)) && Array.isArray(payload.dirs) &&
+      payload.dirs.length === payload.pattern.length && payload.dirs.every((value) => [null, 'up', 'down'].includes(value)) &&
+      Number.isSafeInteger(payload.patternBars) && payload.patternBars >= 1 && payload.patternBars <= 4 &&
+      nullableInteger(payload.bpm, 30, 240) && nullableInteger(payload.bars, 1, 8) &&
+      nullableInteger(payload.balance, 0, 100) && nullableTimestamp(payload.createdAt) && nullableTimestamp(payload.updatedAt);
+  }
+  if (recordType === 'custom_preset') {
+    return onlyKeys(payload, ['id', 'legacyId', 'name', 'settings', 'balance', 'createdAt', 'updatedAt']) &&
+      string(payload.legacyId, 100) && string(payload.name, 40) && validateRhythmStage(payload.settings) &&
+      Number.isSafeInteger(payload.balance) && payload.balance >= 0 && payload.balance <= 100 &&
+      nullableTimestamp(payload.createdAt) && nullableTimestamp(payload.updatedAt);
+  }
+  if (recordType === 'stage_order') {
+    return onlyKeys(payload, ['id', 'stageRefs']) && Array.isArray(payload.stageRefs) && payload.stageRefs.length <= 27 &&
+      payload.stageRefs.every(reference) && new Set(payload.stageRefs).size === payload.stageRefs.length;
+  }
+  if (recordType === 'preset_order') {
+    return onlyKeys(payload, ['id', 'category', 'presetRefs']) && ['create', 'custom'].includes(payload.category) &&
+      Array.isArray(payload.presetRefs) && payload.presetRefs.length <= 100 && payload.presetRefs.every(reference) &&
+      new Set(payload.presetRefs).size === payload.presetRefs.length;
+  }
+  if (recordType === 'builtin_stage_preferences') {
+    return onlyKeys(payload, ['id', 'builtinStageRef', 'bpm', 'bars']) && payload.id === payload.builtinStageRef &&
+      /^builtin:stage:[1-6]$/u.test(payload.builtinStageRef) && Number.isSafeInteger(payload.bpm) &&
+      payload.bpm >= 40 && payload.bpm <= 200 && Number.isSafeInteger(payload.bars) && payload.bars >= 1 && payload.bars <= 64;
+  }
+  return false;
+}
+
 export function recordTypesForApp(appId) {
   return APP_RECORD_TYPES[appId] || null;
 }
@@ -130,7 +236,8 @@ export function validateRecordPayload(appId, recordType, recordId, payload) {
     return isPlainObject(payload) &&
       (!['folder', 'chord'].includes(recordType) || payload.id === recordId);
   }
-  return validatePitchPayload(recordType, recordId, payload);
+  if (appId === 'pitch') return validatePitchPayload(recordType, recordId, payload);
+  return validateRhythmPayload(recordType, recordId, payload);
 }
 
-export { APP_RECORD_TYPES, CHORD_RECORD_TYPES, PITCH_RECORD_TYPES, SCHEMA_VERSION };
+export { APP_RECORD_TYPES, CHORD_RECORD_TYPES, PITCH_RECORD_TYPES, RHYTHM_RECORD_TYPES, SCHEMA_VERSION };

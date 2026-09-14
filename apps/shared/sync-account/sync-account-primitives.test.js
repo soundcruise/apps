@@ -304,6 +304,8 @@ test('Chord bridge reload resumes prepared/dual state and clears finalized state
 test('shared app backup storage is isolated and rejects auth, Recovery and credential material', () => {
   const account = load([backupSource]);
   assert.equal(account.appBackupStorage.DATABASE_NAME, 'sound-cruise-sync-app-backups');
+  assert.equal(account.appBackupStorage.MAX_BACKUPS_PER_APP, 5);
+  assert.equal(typeof account.appBackupStorage.prune, 'function');
   assert.equal(account.appBackupStorage.assertSafeBackup({
     version: 1, appId: 'pitch', createdAt: 1,
     values: { pitchTrainerSettings: '{"notationStyle":"letter"}' }
@@ -316,6 +318,10 @@ test('shared app backup storage is isolated and rejects auth, Recovery and crede
     version: 1, appId: 'pitch', createdAt: 1,
     values: { pitchTrainerSettings: 'SAR1-0123-4567-89AB-CDEF-GHJK' }
   }), /secret_forbidden/);
+  assert.equal(account.appBackupStorage.assertSafeBackup({
+    version: 1, appId: 'rhythm', createdAt: 2,
+    values: { rhythmCruiseSettings: '{"tapLayout":"ud"}' }
+  }), true);
 });
 
 test('new and existing Account bridge paths both require explicit Recovery acknowledgement', async () => {
