@@ -20,6 +20,17 @@ import {
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
 import { applyHomeCruiseLinks } from './cruise-app-links.js?v=0.27.0';
 import {
+    SYNC_CENTER_ROUTE,
+    createSyncCenterController,
+    readSyncCenterConfig
+} from './sync-center-controller.js?v=0.28.0';
+import { bindSyncCenterUnavailableActions, renderSyncCenter } from './sync-center-ui.js?v=0.28.0';
+import {
+    openSyncCenter,
+    restoreInitialSyncCenterRoute,
+    returnToSyncCenterSource
+} from './sync-center-navigation.js?v=0.28.0';
+import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
     canCompletePracticeCycle,
@@ -157,7 +168,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.27.2';
+} from './app-version.js?v=0.28.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -207,7 +218,15 @@ import {
 import { initializeProAuthSettings } from './pro-auth-settings.js?v=0.27.0';
 import { applyProLinks, createProAccessView, PRO_INFO_ROUTE } from './pro-prompt.js?v=0.27.0';
 
+const syncCenterConfig = readSyncCenterConfig();
+const initialSyncCenterRequested = location.hash === SYNC_CENTER_ROUTE;
 normalizeInitialHome();
+restoreInitialSyncCenterRoute({
+    enabled: syncCenterConfig.enabled,
+    requested: initialSyncCenterRequested,
+    historyObject: history,
+    locationObject: location
+});
 const proAccessView = createProAccessView();
 document.querySelector('#home-view').before(proAccessView);
 let proAccessHasPreviousRoute = false;
@@ -226,10 +245,19 @@ applyEditionDisplay();
 initializeProAuthSettings();
 applyProLinks();
 applyHomeCruiseLinks();
+const syncCenterController = createSyncCenterController({ config: syncCenterConfig });
 
 const elements = {
     homeView: document.querySelector('#home-view'),
     settingsView: document.querySelector('#settings-view'),
+    syncCenterView: document.querySelector('#sync-center-view'),
+    syncCenterTitle: document.querySelector('#sync-center-title'),
+    syncCenterEntry: document.querySelector('#settings-sync-center-entry'),
+    syncCenterOpen: document.querySelector('#settings-sync-center-open'),
+    syncCenterBack: document.querySelector('#sync-center-back'),
+    syncCenterHelp: document.querySelector('#sync-center-help'),
+    syncCenterHelpOpen: document.querySelector('#sync-center-help-open'),
+    syncCenterHelpClose: document.querySelector('#sync-center-help-close'),
     wishlistView: document.querySelector('#wishlist-view'),
     gearFormView: document.querySelector('#gear-form-view'),
     practiceListView: document.querySelector('#practice-list-view'),
@@ -651,6 +679,7 @@ function showView(view) {
         proAccessView,
         elements.homeView,
         elements.settingsView,
+        elements.syncCenterView,
         elements.wishlistView,
         elements.gearFormView,
         elements.practiceListView,
@@ -3412,6 +3441,24 @@ function renderSettings({ focus = true, storageError = '' } = {}) {
     if (focus) elements.settingsTitle.focus({ preventScroll: true });
 }
 
+let syncCenterRenderSequence = 0;
+
+async function renderSyncCenterView() {
+    if (!syncCenterController.enabled) {
+        replaceHomeRoute();
+        return;
+    }
+    const sequence = ++syncCenterRenderSequence;
+    showView(elements.syncCenterView);
+    elements.syncCenterTitle.focus({ preventScroll: true });
+    const presentation = await syncCenterController.load();
+    if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
+    renderSyncCenter(elements.syncCenterView, presentation, {
+        edition: document.documentElement.dataset.edition,
+        setupPlan: syncCenterController.planFourAppSetup(presentation)
+    });
+}
+
 function findGearItem(id) {
     return gearState.items.find((item) => item.id === id) || null;
 }
@@ -4396,6 +4443,12 @@ function renderRoute() {
         proAccessView.querySelector('h1').focus({ preventScroll: true });
     } else if (hash === '#settings') {
         renderSettings();
+    } else if (hash === SYNC_CENTER_ROUTE) {
+        if (!syncCenterController.enabled) {
+            replaceHomeRoute();
+            return;
+        }
+        void renderSyncCenterView();
     } else if (gearRoute?.kind === GEAR_ROUTE_KIND.list) {
         renderWishlist();
     } else if (gearRoute?.kind === GEAR_ROUTE_KIND.create) {
@@ -4988,6 +5041,20 @@ elements.homeCalendarButton.addEventListener('click', () => {
     openPracticeCalendar(PRACTICE_CALENDAR_ENTRY_SOURCE.home);
 });
 elements.homeSettingsButton.addEventListener('click', () => setHashRoute('#settings'));
+elements.syncCenterEntry.hidden = !syncCenterController.enabled;
+if (syncCenterController.enabled) {
+    bindSyncCenterUnavailableActions(elements.syncCenterView);
+    elements.syncCenterOpen.addEventListener('click', () => {
+        openSyncCenter(history);
+        renderRoute();
+    });
+    elements.syncCenterBack.addEventListener('click', () => {
+        const action = returnToSyncCenterSource({ historyObject: history, locationObject: location });
+        if (action === 'replace') renderRoute();
+    });
+    elements.syncCenterHelpOpen.addEventListener('click', () => elements.syncCenterHelp.showModal());
+    elements.syncCenterHelpClose.addEventListener('click', () => elements.syncCenterHelp.close());
+}
 function updateDisplaySettings(next) {
     const saveResult = saveSettings(next);
     homeSettings = saveResult.settings;

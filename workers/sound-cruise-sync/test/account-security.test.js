@@ -23,10 +23,9 @@ test('Account implementation has no plaintext logging or browser key-value secre
   assert.equal(sharedSources.includes('transient_secret_persistence_blocked'), true);
 });
 
-test('M4 shared primitives and Chord bridge adapter are not imported by any current app client', () => {
+test('M8 permits only Cruise Port read-side Account primitives; data-plane apps stay unintegrated', () => {
   const appDirectories = [
     'apps/chord-cruise',
-    'apps/cruise-port',
     'apps/pitch-cruise',
     'apps/fretboard_cruise',
     'apps/rhythm-cruise'
@@ -41,11 +40,22 @@ test('M4 shared primitives and Chord bridge adapter are not imported by any curr
         if (entry.isDirectory()) stack.push(full);
         else if (/\.(?:js|mjs|html)$/u.test(entry.name)) {
           const source = fs.readFileSync(full, 'utf8');
-          assert.equal(source.includes('shared/sync-account'), false, `${full} must remain unintegrated in M4`);
+          assert.equal(source.includes('shared/sync-account'), false, `${full} must remain unintegrated after M8`);
         }
       }
     }
   }
+  const standardPort = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/index.html'), 'utf8');
+  const proPort = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/pro_9a3943176561/index.html'), 'utf8');
+  for (const source of [standardPort, proPort]) {
+    assert.equal((source.match(/shared\/sync-account\/sync-account-(?:core|db|client)\.js/gu) || []).length, 3);
+    assert.equal(source.includes('chord-account-bridge'), false);
+    assert.equal(source.includes('sync-app-backup'), false);
+  }
+  const controller = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/sync-center-controller.js'), 'utf8');
+  assert.match(controller, /client\.summary/u);
+  assert.match(controller, /client\.devices/u);
+  assert.doesNotMatch(controller, /client\.(?:prepareMembership|issueHandoff|recover|delete|revoke)\s*\(/u);
 });
 
 test('production config is not widened for Account secrets, origins, app IDs or rate namespaces', () => {

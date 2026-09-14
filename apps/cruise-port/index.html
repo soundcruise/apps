@@ -6,11 +6,14 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.27.2">
-    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.27.2">
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.27.2">
-    <link rel="stylesheet" href="./style.css?v=0.27.0">
-    <script type="module" src="./practice-menu-app.js?v=0.27.2"></script>
+    <link rel="manifest" href="./manifest.json?v=0.28.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.28.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.28.0">
+    <link rel="stylesheet" href="./style.css?v=0.28.0">
+    <script defer src="../shared/sync-account/sync-account-core.js?v=1"></script>
+    <script defer src="../shared/sync-account/sync-account-db.js?v=1"></script>
+    <script defer src="../shared/sync-account/sync-account-client.js?v=1"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.28.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -101,6 +104,12 @@
             <section class="view-panel settings-panel" aria-labelledby="settings-title">
                 <p class="view-kicker">クルーズポート</p>
                 <h1 id="settings-title" class="view-title" tabindex="-1">設定</h1>
+                <section id="settings-sync-center-entry" class="settings-card settings-link-card" hidden>
+                    <button id="settings-sync-center-open" type="button">
+                        <span><strong>クラウド同期</strong><small>4つのCruiseアプリの同期状態を確認</small></span>
+                        <span aria-hidden="true">›</span>
+                    </button>
+                </section>
                 <section class="settings-card" aria-labelledby="display-size-title">
                     <h2 id="display-size-title">表示の大きさ</h2>
                     <p>ホームのカード表示を選べます。</p>
@@ -139,6 +148,64 @@
                     <p id="settings-pro-auth-error" class="notice notice-error" role="alert" hidden></p>
                 </section>
             </section>
+        </main>
+
+        <main id="sync-center-view" class="port-view sync-center-view" hidden>
+            <button id="sync-center-back" class="view-back" type="button">← 設定へ戻る</button>
+            <section class="view-panel sync-center-panel" aria-labelledby="sync-center-title">
+                <div class="sync-center-heading">
+                    <div>
+                        <p class="view-kicker">Sound Cruise Sync</p>
+                        <h1 id="sync-center-title" class="view-title" tabindex="-1">クラウド同期</h1>
+                    </div>
+                    <button id="sync-center-help-open" class="sync-center-help" type="button" aria-label="クラウド同期のヘルプを開く">?</button>
+                </div>
+                <section class="sync-center-account" aria-labelledby="sync-center-account-title">
+                    <h2 id="sync-center-account-title">アカウント</h2>
+                    <p id="sync-center-account-label">同期情報を確認しています…</p>
+                    <p id="sync-center-account-description">各Cruiseアプリの同期状態を確認できます。</p>
+                    <p id="sync-center-progress">0 / 4 アプリの同期設定が完了</p>
+                    <p id="sync-center-alert" class="notice notice-error" role="alert" hidden></p>
+                    <button id="sync-center-setup-open" class="action-button primary-action" type="button">4つのアプリをクラウド同期</button>
+                </section>
+                <section class="sync-center-section" aria-labelledby="sync-center-apps-title">
+                    <h2 id="sync-center-apps-title">Cruiseアプリ</h2>
+                    <ul id="sync-center-apps" class="sync-center-apps" aria-live="polite"></ul>
+                </section>
+                <section class="sync-center-section" aria-labelledby="sync-center-environments-title">
+                    <h2 id="sync-center-environments-title">同期中の環境</h2>
+                    <ul id="sync-center-environments" class="sync-center-environments"></ul>
+                    <button class="action-button secondary-action" type="button" data-sync-center-unavailable>同期中の環境を管理</button>
+                </section>
+                <section class="sync-center-section" aria-labelledby="sync-center-recovery-title">
+                    <h2 id="sync-center-recovery-title">復旧とセキュリティ</h2>
+                    <p>復旧コードはアカウントを取り戻すための大切なコードです。安全な場所に保管してください。</p>
+                    <div class="sync-center-actions">
+                        <button class="action-button secondary-action" type="button" data-sync-center-unavailable>Sound Cruise Syncを復旧</button>
+                        <button class="action-button secondary-action" type="button" data-sync-center-unavailable>復旧コードを管理</button>
+                    </div>
+                </section>
+                <p id="sync-center-action-status" class="settings-order-status" role="status" aria-live="polite"></p>
+            </section>
+            <dialog id="sync-center-help" class="sync-center-help-dialog" aria-labelledby="sync-center-help-title">
+                <h2 id="sync-center-help-title">クラウド同期について</h2>
+                <p>Sound Cruise Syncは、対応するCruiseアプリのデータをクラウド経由で同期する仕組みです。</p>
+                <p>4つまとめて設定するとAccountが準備され、各アプリを開いたときに初回同期を完了できます。同期は各アプリが独立して行うため、Cruise Portを開いておく必要はなく、各Proアプリ単独でも利用できます。</p>
+                <p>Cruise Portは同期状態だけを確認し、各アプリの保存内容や認証情報は読みません。アプリごとのデータは互いに混ざりません。Portを削除したり、Portでエラーが起きたりしても各アプリの同期には影響しません。</p>
+                <p>アプリ単位のクラウド削除と、Sound Cruise Syncアカウント全体の削除は別の操作です。復旧には保存済みの復旧コードが必要です。</p>
+                <p>一括設定、復旧、環境管理の操作はまだ接続されていません。現在は各Cruiseアプリの設定画面から操作してください。</p>
+                <button id="sync-center-help-close" class="action-button primary-action" type="button">閉じる</button>
+            </dialog>
+            <dialog id="sync-center-setup" class="sync-center-help-dialog" aria-labelledby="sync-center-setup-title">
+                <h2 id="sync-center-setup-title">4つのアプリをクラウド同期</h2>
+                <p>この操作だけで4アプリのデータがすぐにアップロードされることはありません。各Cruiseアプリを開いたときに、それぞれの初回同期を確認して完了します。</p>
+                <p id="sync-center-setup-plan"></p>
+                <p>M8では一括設定操作はまだ接続されていません。アプリ一覧から個別に設定してください。</p>
+                <div class="sync-center-actions">
+                    <button id="sync-center-setup-confirm" class="action-button primary-action" type="button">内容を確認しました</button>
+                    <button id="sync-center-setup-close" class="action-button secondary-action" type="button">戻る</button>
+                </div>
+            </dialog>
         </main>
 
         <main id="wishlist-view" class="port-view wishlist-view" hidden>

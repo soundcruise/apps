@@ -29,7 +29,7 @@ function assertManifest({ manifestDirectory, expectedId, expectedName, expectedP
         ['512x512', 'maskable']
     ]);
     for (const icon of manifest.icons) {
-        assert.match(icon.src, new RegExp(`${expectedPrefix}/icon(?:-maskable)?-(?:192|512)\\.png\\?v=0\\.27\\.2$`));
+        assert.match(icon.src, new RegExp(`${expectedPrefix}/icon(?:-maskable)?-(?:192|512)\\.png\\?v=0\\.28\\.0$`));
         const relativePath = icon.src.split('?')[0];
         const target = path.resolve(manifestDirectory, relativePath);
         assert.equal(existsSync(target), true, `manifest icon exists: ${icon.src}`);
@@ -54,12 +54,12 @@ test('Standard and Pro manifests use distinct edition identities and icon sets',
 });
 
 test('each edition references only its formal favicon, Apple icon, and cache-busted manifest', () => {
-    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.27\.2">/);
-    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.27\.2/);
-    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.27\.2/);
-    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.27\.2">/);
-    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.27\.2/);
-    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.27\.2/);
+    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.28\.0">/);
+    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.28\.0/);
+    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.28\.0/);
+    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.28\.0">/);
+    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.28\.0/);
+    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.28\.0/);
     assert.doesNotMatch(standardHtml, /data:,/);
     assert.doesNotMatch(proHtml, /data:,/);
 });
