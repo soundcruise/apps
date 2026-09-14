@@ -47,7 +47,19 @@ export function createD1AccountRepository(db) {
       ) VALUES (?, ?, ?, 'pending', NULL, 'account', 1, ?, NULL, ?, NULL)
     `).bind(membership.id, input.accountId, membership.appId, input.now, input.now));
 
+    const startOperation = input.startOperation ? db.prepare(`
+      INSERT INTO sync_account_start_operations (
+        operation_id, request_fingerprint, account_id, account_device_id, created_at
+      ) VALUES (?, ?, ?, ?, ?)
+    `).bind(
+      input.startOperation.operationId,
+      input.startOperation.requestFingerprint,
+      input.accountId,
+      input.accountDeviceId,
+      input.now
+    ) : null;
     const statements = [account, accountDevice, ...membershipStatements];
+    if (startOperation) statements.push(startOperation);
     const results = await db.batch(statements);
     if (!batchSucceeded(results, statements.length) ||
         results.some((result) => changes(result) !== 1)) {
@@ -61,6 +73,35 @@ export function createD1AccountRepository(db) {
         id: membership.id,
         appId: membership.appId,
         state: 'pending'
+      }))
+    };
+  }
+
+  async function getStartOperation(operationId) {
+    const row = await db.prepare(`
+      SELECT operation_id, request_fingerprint, account_id, account_device_id, created_at
+      FROM sync_account_start_operations
+      WHERE operation_id = ?
+    `).bind(operationId).first();
+    if (!row) return null;
+    const memberships = await db.prepare(`
+      SELECT id, app_id, state
+      FROM sync_account_memberships
+      WHERE account_id = ?
+      ORDER BY CASE app_id
+        WHEN 'chord' THEN 1 WHEN 'pitch' THEN 2
+        WHEN 'fretboard' THEN 3 WHEN 'rhythm' THEN 4 ELSE 5 END
+    `).bind(row.account_id).all();
+    return {
+      operationId: row.operation_id,
+      requestFingerprint: row.request_fingerprint,
+      accountId: row.account_id,
+      accountDeviceId: row.account_device_id,
+      createdAt: Number(row.created_at),
+      memberships: (memberships?.results || []).map((membership) => ({
+        id: membership.id,
+        appId: membership.app_id,
+        state: membership.state
       }))
     };
   }
@@ -130,6 +171,91 @@ export function createD1AccountRepository(db) {
       LEFT JOIN sync_membership_device_links l ON l.membership_id = m.id
       WHERE m.id = ? AND m.account_id = ? AND m.app_id = ?
     `).bind(input.membershipId, input.accountId, input.appId).first();
+  }
+
+  async function prepareMembership(identity, input) {
+    const existing = await db.prepare(`
+      SELECT id, account_id, app_id, state, sync_user_id, prepared_operation_id
+      FROM sync_account_memberships
+      WHERE account_id = ? AND app_id = ?
+    `).bind(identity.accountId, input.appId).first();
+    if (existing) {
+      if (existing.prepared_operation_id === input.operationId ||
+          existing.state === 'pending' || existing.state === 'active') {
+        return {
+          status: existing.state,
+          membershipId: existing.id,
+          appId: existing.app_id,
+          alreadyPrepared: true
+        };
+      }
+      return { status: 'invalid' };
+    }
+
+    try {
+      const result = await db.prepare(`
+        INSERT INTO sync_account_memberships (
+          id, account_id, app_id, state, sync_user_id, recovery_mode,
+          generation, created_at, activated_at, updated_at, deleted_at,
+          prepared_operation_id, prepared_by_account_device_id
+        )
+        SELECT ?, a.id, ?, 'pending', NULL, 'account', 1, ?, NULL, ?, NULL, ?, ?
+        FROM sync_accounts a
+        JOIN sync_account_devices d
+          ON d.id = ? AND d.account_id = a.id AND d.revoked_at IS NULL
+        WHERE a.id = ? AND a.state = 'active' AND a.deleted_at IS NULL
+      `).bind(
+        input.membershipId,
+        input.appId,
+        input.now,
+        input.now,
+        input.operationId,
+        identity.accountDeviceId,
+        identity.accountDeviceId,
+        identity.accountId
+      ).run();
+      if (result?.success === false || changes(result) !== 1) return { status: 'invalid' };
+      return {
+        status: 'pending',
+        membershipId: input.membershipId,
+        appId: input.appId,
+        alreadyPrepared: false
+      };
+    } catch (error) {
+      const raced = await db.prepare(`
+        SELECT id, app_id, state, prepared_operation_id
+        FROM sync_account_memberships
+        WHERE account_id = ? AND app_id = ?
+      `).bind(identity.accountId, input.appId).first();
+      if (raced && (raced.prepared_operation_id === input.operationId ||
+          raced.state === 'pending' || raced.state === 'active')) {
+        return {
+          status: raced.state,
+          membershipId: raced.id,
+          appId: raced.app_id,
+          alreadyPrepared: true
+        };
+      }
+      throw error;
+    }
+  }
+
+  async function listAccountDevices(identity) {
+    const result = await db.prepare(`
+      SELECT id, label, credential_version, created_at, last_seen_at, revoked_at
+      FROM sync_account_devices
+      WHERE account_id = ?
+      ORDER BY created_at ASC, id ASC
+    `).bind(identity.accountId).all();
+    return (result?.results || []).map((device) => ({
+      id: device.id,
+      label: device.label,
+      credentialVersion: Number(device.credential_version),
+      createdAt: Number(device.created_at),
+      lastSeenAt: Number(device.last_seen_at),
+      revokedAt: device.revoked_at == null ? null : Number(device.revoked_at),
+      isCurrent: device.id === identity.accountDeviceId
+    }));
   }
 
   async function activateMembership(input) {
@@ -273,5 +399,12 @@ export function createD1AccountRepository(db) {
     }
   }
 
-  return Object.freeze({ createAccountBackbone, getAccountSummary, activateMembership });
+  return Object.freeze({
+    createAccountBackbone,
+    getStartOperation,
+    getAccountSummary,
+    prepareMembership,
+    listAccountDevices,
+    activateMembership
+  });
 }

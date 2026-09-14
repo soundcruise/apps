@@ -7,6 +7,7 @@ export const CLEANUP_RETENTION = Object.freeze({
   changeMs: 90 * 24 * 60 * 60 * 1000,
   tombstoneMs: 365 * 24 * 60 * 60 * 1000,
   deleteIntentMs: 7 * 24 * 60 * 60 * 1000,
+  accountHandoffMs: 24 * 60 * 60 * 1000,
   batchSize: 100
 });
 
@@ -30,6 +31,26 @@ export function createD1CleanupRepository(db, clock = Date.now) {
     results.recoveryAttempts = await deleteLimited(db, `SELECT recovery_verifier AS id FROM recovery_attempts WHERE first_attempt_at <= ? LIMIT ${limit}`, 'DELETE FROM recovery_attempts WHERE recovery_verifier = ?', [now - CLEANUP_RETENTION.recoveryAttemptMs]);
     results.pairingAttempts = await deleteLimited(db, `SELECT code_verifier AS id FROM pairing_attempts WHERE first_attempt_at <= ? LIMIT ${limit}`, 'DELETE FROM pairing_attempts WHERE code_verifier = ?', [now - CLEANUP_RETENTION.pairingAttemptMs]);
     results.deleteIntents = await deleteLimited(db, `SELECT intent_id AS id FROM account_delete_intents WHERE (consumed_at IS NULL AND expires_at <= ?) OR consumed_at <= ? LIMIT ${limit}`, 'DELETE FROM account_delete_intents WHERE intent_id = ?', [now, now - CLEANUP_RETENTION.deleteIntentMs]);
+    try {
+      results.accountHandoffs = await deleteLimited(
+        db,
+        `SELECT handoff_id AS id FROM sync_membership_handoffs
+         WHERE expires_at <= ?
+           AND (consumed_at IS NULL OR consumed_at <= ?)
+           AND (cancelled_at IS NULL OR cancelled_at <= ?)
+         LIMIT ${limit}`,
+        'DELETE FROM sync_membership_handoffs WHERE handoff_id = ?',
+        [
+          now - CLEANUP_RETENTION.accountHandoffMs,
+          now - CLEANUP_RETENTION.accountHandoffMs,
+          now - CLEANUP_RETENTION.accountHandoffMs
+        ]
+      );
+    } catch {
+      // Account schema is a staged additive rollout. A Worker started before
+      // migration 0008/0009 must not interrupt the legacy Chord cleanup chain.
+      results.accountHandoffs = 0;
+    }
     const oldChanges = await db.prepare(`
       SELECT change_seq, user_id, app_id FROM sync_changes
       WHERE changed_at <= ? ORDER BY change_seq ASC LIMIT ${limit}

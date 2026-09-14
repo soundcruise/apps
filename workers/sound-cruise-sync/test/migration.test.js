@@ -12,6 +12,7 @@ const migration5 = fs.readFileSync(path.join(import.meta.dirname, '../migrations
 const migration6 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0006_add_device_management_and_account_deletion.sql'), 'utf8');
 const migration7 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0007_add_production_rollout_control.sql'), 'utf8');
 const migration8 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0008_add_multi_app_account_backbone.sql'), 'utf8');
+const migration9 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0009_add_account_api_handoff_state.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -22,6 +23,7 @@ function migrate(db) {
   db.exec(migration6);
   db.exec(migration7);
   db.exec(migration8);
+  db.exec(migration9);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -29,8 +31,10 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   migrate(db);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'sync_%' ORDER BY name").all().map((row) => row.name);
   assert.deepEqual(tables, [
-    'sync_account_delete_intents', 'sync_account_devices', 'sync_account_memberships',
-    'sync_account_recovery_claims', 'sync_account_runtime_control', 'sync_accounts',
+    'sync_account_delete_intents', 'sync_account_devices', 'sync_account_managed_users',
+    'sync_account_memberships',
+    'sync_account_recovery_claims', 'sync_account_runtime_control',
+    'sync_account_start_operations', 'sync_accounts',
     'sync_changes', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
     'sync_membership_device_links', 'sync_membership_handoffs', 'sync_records',
     'sync_runtime_control', 'sync_users'
@@ -122,6 +126,48 @@ test('M2 migration is additive, idempotent and leaves an existing Chord identity
     WHERE sync_user_id = 'legacy-chord-user'
   `).get().count, 0);
   assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sync_account_runtime_control').get().count, 1);
+  db.close();
+});
+
+test('M3 migration is additive and adds response-loss metadata without touching legacy Chord', () => {
+  const db = new DatabaseSync(':memory:');
+  db.exec(migration);
+  db.exec(migration2);
+  db.exec(migration3);
+  db.exec(migration4);
+  db.exec(migration5);
+  db.exec(migration6);
+  db.exec(migration7);
+  db.exec(migration8);
+  db.prepare(`
+    INSERT INTO sync_users (
+      id, state, recovery_version, recovery_verifier, created_at, updated_at,
+      recovery_created_at, recovery_rotated_at
+    ) VALUES ('m3-legacy', 'active', 1, ?, 1, 1, 1, 1)
+  `).run('1'.repeat(64));
+  db.prepare(`
+    INSERT INTO sync_devices (
+      id, user_id, app_id, credential_version, credential_verifier, label,
+      last_cursor, created_at, last_seen_at, revoked_at, pairing_pending_at, paired_at
+    ) VALUES ('m3-legacy-device', 'm3-legacy', 'chord', 1, ?, NULL,
+              0, 1, 1, NULL, NULL, 1)
+  `).run('2'.repeat(64));
+
+  db.exec(migration9);
+
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_account_start_operations'").get());
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sync_account_managed_users'").get());
+  assert(db.prepare('SELECT prepared_operation_id, prepared_by_account_device_id FROM sync_account_memberships LIMIT 1'));
+  assert(db.prepare(`
+    SELECT issue_operation_id, consume_operation_id, claimed_by_account_device_id
+    FROM sync_membership_handoffs LIMIT 1
+  `));
+  assert.deepEqual({ ...db.prepare(`
+    SELECT u.state, u.recovery_version, d.app_id, d.revoked_at
+    FROM sync_users u JOIN sync_devices d ON d.user_id = u.id
+    WHERE u.id = 'm3-legacy'
+  `).get() }, { state: 'active', recovery_version: 1, app_id: 'chord', revoked_at: null });
+  assert.equal(db.prepare('SELECT COUNT(*) AS count FROM sync_account_managed_users').get().count, 0);
   db.close();
 });
 

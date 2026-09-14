@@ -1,6 +1,6 @@
 # Sound Cruise Sync Multi-App Architecture
 
-Status: M1 architecture freeze / M2 local backbone
+Status: M1 architecture freeze / M2 local backbone / M3 local Account API
 Date: 2026-09-14
 
 ## Decision
@@ -100,10 +100,10 @@ that registry path is implemented and gated.
 - `sync_membership_handoffs`: one-time verifier-only authorization from Port or
   an app to another app's isolated container.
 
-M2 creates these forward-only schema contracts but deliberately exposes no new
-public Recovery, delete or handoff route. The transactional implementations and
-security tests are a later checkpoint; a half-implemented destructive endpoint
-must never be exposed to production.
+M2 created these forward-only schema contracts. M3 exposes only non-destructive
+Account creation, read, membership preparation and handoff operations behind
+the still-disabled Account runtime gate. Account Recovery and deletion remain
+unrouted; a half-implemented destructive endpoint must never be exposed.
 
 ## Worker service and API boundary
 
@@ -122,22 +122,65 @@ M2 adds internal repository/service APIs only:
 No M2 module is imported by the current request router, so the existing Chord
 path cannot accidentally enter the new logic.
 
-The versioned HTTP contract to implement behind the new gate is:
+The M3 versioned HTTP contract behind the new gate is:
 
 ```text
 POST /v2/accounts/start
 GET  /v2/accounts/summary
-POST /v2/accounts/memberships/:appId/handoffs
-POST /v2/accounts/memberships/:appId/claim
-POST /v2/accounts/recovery/prepare
-POST /v2/accounts/recovery/commit
-POST /v2/accounts/delete-intents
-DELETE /v2/accounts
+GET  /v2/accounts/memberships
+POST /v2/accounts/memberships
+GET  /v2/accounts/devices
+POST /v2/accounts/handoffs
+POST /v2/accounts/handoffs/consume
+POST /v2/accounts/handoffs/cancel
 ```
 
 App payload push/pull remains on app data-plane routes. The new API must not
 reuse the legacy `/v1/sync/account` name, which currently means deletion of one
 app-scoped `sync_user` even though its historical UI calls that an account.
+
+Account start receives client-generated Account credential and Account
+Recovery material. The UI must display and obtain acknowledgement that the
+Recovery Code was saved before submitting start. Only dedicated HMAC verifiers
+are stored. A client operation ID plus request fingerprint makes a response-loss
+retry return the original Account rather than create a second one.
+
+Handoff issue likewise receives client-generated 256-bit opaque material. The
+issuer retains the secret only in memory and opens the target app with
+`#sound-cruise-handoff=...`; the target removes the fragment with
+`history.replaceState` before making a request. D1 stores only the dedicated
+handoff verifier. Consume atomically creates one Account credential container,
+one reserved app identity/device, a membership link and an active membership.
+It deliberately creates no `sync_datasets` row and does not migrate payloads.
+Exact consume retries return the original IDs; a different retry is rejected as
+consumed.
+
+The reserved app identity is marked in `sync_account_managed_users`. Its
+internal Recovery verifier exists only to satisfy the legacy `sync_users`
+invariant and is not a user-facing app Recovery Code. M4 must explicitly reject
+legacy app Recovery for this marker before connecting any app client.
+
+M3 uses three dedicated future secret domains and three independent future rate
+limit bindings:
+
+- `SYNC_ACCOUNT_CREDENTIAL_PEPPER`
+- `SYNC_ACCOUNT_RECOVERY_PEPPER`
+- `SYNC_ACCOUNT_HANDOFF_PEPPER`
+- `ACCOUNT_START_RATE_LIMITER`
+- `ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER`
+- `ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER`
+
+Exact Account origins come from `ACCOUNT_ALLOWED_ORIGINS`; wildcard CORS is
+forbidden. Account creation requires Turnstile action
+`sound_cruise_account_start`. Authenticated handoff issue and a 256-bit,
+short-lived, one-time consume do not add a second Turnstile interaction. All
+bindings are fail-closed. M3 does not add any production config, secret or rate
+limit binding.
+
+Shared additive browser primitives live in `apps/shared/sync-account/`. Account
+credentials use their own IndexedDB database and never reuse app credential
+keys. Account Recovery and handoff tokens are rejected by the persistence
+abstraction. The current Chord client does not import these files in M3.
 
 ## Independent rollout control
 
@@ -267,8 +310,9 @@ restore()
 
 - **M2 (this checkpoint):** additive Account schema, internal repository/service,
   independent fail-closed gate, migration and compatibility tests.
-- **M3:** versioned non-destructive Account/handoff API contracts and additive
-  shared transport/credential primitives. Do not refactor Chord wholesale.
+- **M3 (this checkpoint):** versioned non-destructive Account/handoff API,
+  verifier-only one-time handoff, reserved app identity activation and additive
+  shared transport/credential primitives. Chord remains unmodified.
 - **M4:** existing Chord opt-in bridge (`legacy → dual → account`) with
   response-loss and rollback coverage.
 - **M5:** Pitch canonical adapter and standalone/Account membership flow.

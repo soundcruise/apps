@@ -1,4 +1,5 @@
 import { authenticateDevice } from './auth.js';
+import { handleAccountApiRequest } from './account-app.js';
 import {
   createIdentityMaterial, createPairingCode, pairingCodeVerifier,
   createRecoveryClaim, createRecoveryCode, formatRecoveryCode,
@@ -629,6 +630,9 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if (url.pathname === '/health') {
     if (request.method !== 'GET') return errorResponse(405, 'method_not_allowed', null, null, { Allow: 'GET' });
     return jsonResponse(200, { ok: true, service: 'sound-cruise-sync', phase: 'p-roll-2b' });
+  }
+  if (url.pathname === '/v2/accounts' || url.pathname.startsWith('/v2/accounts/')) {
+    return handleAccountApiRequest(request, env, _ctx, dependencies);
   }
   const route = ROUTES[url.pathname];
   if (!route) return errorResponse(404, 'not_found');
