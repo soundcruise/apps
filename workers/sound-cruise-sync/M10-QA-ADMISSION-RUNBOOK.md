@@ -22,15 +22,42 @@ Chord remains governed by its existing production controls.
 
 ## Issue one enrollment
 
-Export the dedicated enrollment pepper without placing its value in shell history, then run:
+The preferred production operation is a one-shot helper that rotates only the Enrollment pepper
+and issues exactly one Enrollment. It keeps the new pepper in process memory, passes it to
+`wrangler secret put` over stdin, and never writes the pepper to stdout, argv, the repository,
+the clipboard, or a temporary file. It refuses to rotate while an active unused Enrollment exists.
+
+The command is a non-mutating dry-run by default:
 
 ```sh
-npm run qa:enrollment:create -- --remote --ttl-minutes=60
+npm run qa:enrollment:rotate-and-create
 ```
 
-The helper writes only the HMAC verifier to D1 and displays the plaintext enrollment code once,
-after the write succeeds. Do not capture terminal output in CI or logs. Give the code directly to
-the named tester.
+After confirming that active unused Enrollment count is zero, run the remote operation directly
+in the named tester's visible terminal:
+
+```sh
+npm run qa:enrollment:rotate-and-create -- --remote --ttl-minutes=60
+```
+
+`wrangler secret put` creates and immediately deploys a new Worker version containing the updated
+encrypted secret. It does not upload the local Worker source, so do not run a separate source
+deploy. The helper then writes one HMAC verifier row to D1 and displays only the plaintext SQA1
+Enrollment Code once. Do not capture the live terminal output in CI, logs, screenshots, clipboard,
+or automation. Give the code directly to the named tester.
+
+Enrollment pepper rotation invalidates only unused codes created with the previous pepper. Existing
+QA sessions continue to authenticate with the separate `SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER`; Account,
+Recovery, Join, and app/device credentials do not use the Enrollment pepper. Consumed Enrollment rows
+remain audit records and are not revalidated during QA session authentication.
+
+If secret rotation succeeds but Enrollment issuance fails, no active code is created. Fix the
+operational failure and rerun the same one-shot helper; it will rotate to another fresh pepper before
+issuing. Never recover or read back the deployed secret.
+
+The older `qa:enrollment:create` helper is only suitable when an operator already possesses the
+currently deployed Enrollment pepper through an approved secret-delivery channel. Never attempt to
+read that pepper back from Cloudflare.
 
 ## Enroll and run QA
 
