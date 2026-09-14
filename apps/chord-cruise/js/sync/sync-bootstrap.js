@@ -8,7 +8,8 @@
     var PRODUCTION_ROLLOUT = Object.freeze({
         clientActivationRequired: false,
         endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
-        enrollmentRequired: false
+        enrollmentRequired: false,
+        legacyNewAdmissionEnabled: false
     });
     var currentScript = global.document && global.document.currentScript;
     var baseUrl = currentScript && currentScript.src
@@ -91,7 +92,12 @@
                 return client.initialize().then(async function (result) {
                     client.watchLocalMutations(global.ChordCruise && global.ChordCruise.storage);
                     var store = await client.openStore();
+                    var credential = await store.getMeta('deviceCredential');
                     if (await store.getMeta('datasetState') === 'ready') client.startBackgroundSync();
+                    if (production && !PRODUCTION_ROLLOUT.legacyNewAdmissionEnabled &&
+                        !(credential && credential.credential)) {
+                        return result;
+                    }
                     return loadScript('sync-pairing-ui.js').then(function () {
                         if (global.ChordCruiseSync.pairingUi) global.ChordCruiseSync.pairingUi.install(client);
                         return result;

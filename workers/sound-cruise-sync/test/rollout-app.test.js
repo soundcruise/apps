@@ -16,6 +16,7 @@ const control = (overrides = {}) => ({
 function env(overrides = {}) {
   return {
     ALLOWED_ORIGINS: ORIGIN, SYNC_ALLOWED_APP_IDS: 'chord',
+    CHORD_LEGACY_NEW_START_ENABLED: 'true',
     SYNC_CREDENTIAL_PEPPER: 'p'.repeat(64), SYNC_RECOVERY_PEPPER: 'r'.repeat(64),
     SYNC_ENROLLMENT_PEPPER: 'e'.repeat(64), SYNC_PAIRING_CODE_PEPPER: 'q'.repeat(64),
     SYNC_DB: { prepare() {}, batch() {} },
@@ -77,6 +78,17 @@ test('cohort requires a valid one-time Enrollment verifier while open needs no c
   assert.equal(response.status, 201);
   response = await handleRequest(start(), env(), null, dependencies(control()));
   assert.equal(response.status, 201);
+});
+
+test('Chord legacy freeze closes only new start admission', async () => {
+  let turnstile = 0;
+  const deps = dependencies(control());
+  deps.verifyTurnstileToken = async () => { turnstile += 1; return { ok: true }; };
+  const response = await handleRequest(start(), env({ CHORD_LEGACY_NEW_START_ENABLED: 'false' }), null, deps);
+  assert.equal(response.status, 423);
+  assert.equal((await response.json()).code, 'sync_admission_paused');
+  assert.equal(turnstile, 0);
+  assert.equal((await handleRequest(new Request('https://sync.soundcruise.jp/health'), env(), null, deps)).status, 200);
 });
 
 test('write/read pause is server authoritative while Recovery and Cloud Delete stay independently available', async () => {

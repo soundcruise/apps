@@ -47,6 +47,54 @@ function runBootstrap(hostname, sessionValue, explicitFlag, edition, activationV
     return { api: window.ChordCruiseSyncPilot, appendCount: appendCount, values: values };
 }
 
+async function runProductionLoad(hasCredential) {
+    var appended = [];
+    var installed = 0;
+    var background = 0;
+    var watched = 0;
+    var client = {
+        initialize: async function () { return { enabled: true, ready: true }; },
+        openStore: async function () {
+            return {
+                getMeta: async function (key) {
+                    if (key === 'deviceCredential' && hasCredential) return { credential: 'opaque' };
+                    if (key === 'datasetState' && hasCredential) return 'ready';
+                    return null;
+                }
+            };
+        },
+        watchLocalMutations: function () { watched += 1; },
+        startBackgroundSync: function () { background += 1; }
+    };
+    var document = {
+        documentElement: { getAttribute: function (name) { return name === 'data-app-edition' ? 'Pro' : null; } },
+        currentScript: { src: 'https://soundcruise.jp/apps/chord-cruise/js/sync/sync-bootstrap.js' },
+        createElement: function () { return {}; },
+        head: {
+            appendChild: function (script) {
+                appended.push(script.src);
+                if (script.src.endsWith('/sync-client.js')) {
+                    window.ChordCruiseSync = { client: { createClient: function () { return client; } } };
+                }
+                if (script.src.endsWith('/sync-pairing-ui.js')) {
+                    window.ChordCruiseSync.pairingUi = { install: function () { installed += 1; } };
+                }
+                Promise.resolve().then(script.onload);
+            }
+        }
+    };
+    var window = {
+        location: { hostname: 'soundcruise.jp' },
+        document: document,
+        sessionStorage: { getItem: function () { return null; }, setItem: function () {}, removeItem: function () {} }
+    };
+    var context = { window: window, globalThis: window, Promise: Promise, Object: Object, Error: Error };
+    vm.createContext(context);
+    vm.runInContext(source, context, { filename: 'sync-bootstrap.js' });
+    await window.ChordCruiseSyncPilot.ready;
+    return { appended: appended, installed: installed, background: background, watched: watched };
+}
+
 (async function () {
     var off = runBootstrap('127.0.0.1', null, false);
     assert.strictEqual(off.api.enabled, false);
@@ -59,10 +107,24 @@ function runBootstrap(hostname, sessionValue, explicitFlag, edition, activationV
     assert.deepStrictEqual(JSON.parse(JSON.stringify(production.api.productionRollout)), {
         clientActivationRequired: false,
         endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
-        enrollmentRequired: false
+        enrollmentRequired: false,
+        legacyNewAdmissionEnabled: false
     });
     assert.strictEqual(production.appendCount, 1, 'official production Pro starts lazy loading with the first implementation module');
     assert.strictEqual(production.api.setSessionEnabled(true), false, 'production cannot persist the pilot flag');
+
+    var freshProduction = await runProductionLoad(false);
+    assert.deepStrictEqual(freshProduction.appended.map(function (url) { return url.split('/').pop(); }),
+        ['sync-core.js', 'sync-db.js', 'sync-merge.js', 'sync-client.js']);
+    assert.strictEqual(freshProduction.installed, 0, 'a new production Chord user sees no Legacy Sync entry');
+    assert.strictEqual(freshProduction.background, 0);
+
+    var existingProduction = await runProductionLoad(true);
+    assert(existingProduction.appended.some(function (url) { return url.endsWith('/sync-pairing-ui.js'); }),
+        'an existing credential retains the Legacy management UI');
+    assert.strictEqual(existingProduction.installed, 1);
+    assert.strictEqual(existingProduction.background, 1, 'existing ready identities keep runtime Sync');
+    assert.strictEqual(existingProduction.watched, 1, 'existing local saves remain watched');
 
     var missingActivationProduction = runBootstrap('soundcruise.jp', null, false, 'Pro');
     assert.strictEqual(missingActivationProduction.api.enabled, true, 'missing legacy activation state does not hide official production Sync');
@@ -80,8 +142,8 @@ function runBootstrap(hostname, sessionValue, explicitFlag, edition, activationV
     assert.strictEqual(standardHtml.includes('sync-cohort'), false, 'Standard loads no cohort activation controller');
     assert.strictEqual(standardHtml.includes('__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__'), false, 'Standard has no production Turnstile configuration');
     assert(proHtml.includes("__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr'"), 'Pro has the dedicated public production site key');
-    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.5.0'), 'Pro loads the production Turnstile provider');
-    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.5.0'), 'Pro loads the OFF-first bootstrap');
+    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.6.0'), 'Pro loads the production Turnstile provider');
+    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.6.0'), 'Pro loads the OFF-first bootstrap');
     assert(proHtml.indexOf('sync-turnstile.js') < proHtml.indexOf('sync-bootstrap.js'), 'Pro installs Turnstile before Sync bootstrap');
     ['sync-core.js', 'sync-db.js', 'sync-merge.js', 'sync-client.js'].forEach(function (fileName) {
         assert.strictEqual(standardHtml.includes(fileName), false, 'Standard never loads ' + fileName);
@@ -92,6 +154,8 @@ function runBootstrap(hostname, sessionValue, explicitFlag, edition, activationV
     assert(source.indexOf("loadScript('sync-merge.js')") < source.indexOf("loadScript('sync-client.js')"));
     assert(source.includes('client.watchLocalMutations'), 'Pilot ON connects successful local saves to debounced sync');
     assert(source.includes("getMeta('datasetState') === 'ready'"), 'background sync starts only after migration is ready');
+    assert(source.includes("getMeta('deviceCredential')"), 'production checks the existing device before exposing legacy controls');
+    assert(source.includes('!PRODUCTION_ROLLOUT.legacyNewAdmissionEnabled'), 'new legacy admission is hidden independently of existing runtime');
     assert.strictEqual(source.includes('beginInitialMigration('), false, 'bootstrap never starts migration without an explicit Pilot action');
     assert(fixtureHtml.includes('window.__SOUND_CRUISE_SYNC_PILOT__ = true'));
     assert(fixtureHtml.includes("'Pilot ready'"));

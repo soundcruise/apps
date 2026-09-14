@@ -24,6 +24,7 @@ function env(overrides = {}) {
     TURNSTILE_EXPECTED_HOSTNAME: 'soundcruise.jp',
     TURNSTILE_EXPECTED_ACTION: 'sound_cruise_sync_start',
     TURNSTILE_PRODUCTION_SECRET_KEY: 'secret',
+    CHORD_LEGACY_NEW_START_ENABLED: 'true',
     SYNC_CREDENTIAL_PEPPER: 'p'.repeat(64),
     SYNC_RECOVERY_PEPPER: 'r'.repeat(64),
     SYNC_DB: dbBinding(),
@@ -88,6 +89,15 @@ test('valid start provisions verifier-only identity and returns the secret once'
   assert.equal(calls.database[0].recoveryVerifier, 'e'.repeat(64));
   assert.equal(JSON.stringify(calls.database[0]).includes(CREDENTIAL), false, 'plaintext credential does not reach D1 adapter');
   assert.equal(Object.prototype.hasOwnProperty.call(calls.database[0], 'turnstileToken'), false, 'Turnstile token does not reach D1');
+});
+
+test('Chord legacy start is frozen before Turnstile while existing authenticated routes remain separate', async () => {
+  const calls = { turnstile: [], database: [] };
+  const response = await handleRequest(request(), env({ CHORD_LEGACY_NEW_START_ENABLED: 'false' }), null, dependencies(calls));
+  assert.equal(response.status, 423);
+  assert.deepEqual(await response.json(), { ok: false, code: 'sync_admission_paused' });
+  assert.equal(calls.turnstile.length, 0);
+  assert.equal(calls.database.length, 0);
 });
 
 test('origin, method, content type, body size, app allowlist, and client identities are rejected', async () => {

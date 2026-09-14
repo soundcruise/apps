@@ -246,6 +246,12 @@ async function handleStart(request, env, origin, route, dependencies, runtimeCon
   if (!validatePublicAppId(validation.value.appId, env)) {
     return errorResponse(403, 'qa_handoff_required', origin, route);
   }
+  // Chord's original standalone admission is frozen while existing authenticated
+  // identities keep using the remaining /v1 routes. Account-managed Chord joins
+  // are provisioned by the generic /v2 Account flow and never bypass this guard.
+  if (validation.value.appId === 'chord' && env.CHORD_LEGACY_NEW_START_ENABLED !== 'true') {
+    return errorResponse(423, 'sync_admission_paused', origin, route);
+  }
   if (runtimeControl.rolloutMode === 'cohort' && !validation.value.enrollmentCode) {
     return errorResponse(403, 'enrollment_required', origin, route);
   }
