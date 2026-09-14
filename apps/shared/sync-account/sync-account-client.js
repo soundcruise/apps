@@ -165,17 +165,31 @@
       });
     }
 
-    async consumeHandoff({ handoffToken, appId, deviceLabel, operationId, accountMaterial, appMaterial }) {
+    async consumeHandoff({
+      handoffToken, appId, deviceLabel, operationId, accountMaterial, appMaterial,
+      consumeMode = 'new_app', existingAppCredential = null, preservePending = false
+    }) {
+      if (!['new_app', 'existing_chord'].includes(consumeMode) ||
+          (consumeMode === 'existing_chord' && appId !== 'chord')) {
+        throw new Error('handoff_consume_mode_invalid');
+      }
       const account = accountMaterial || this.core.createAccountCredential();
-      const app = appMaterial || this.core.createAppCredential();
+      const app = consumeMode === 'existing_chord'
+        ? { appDeviceId: String(existingAppCredential || '').split('.')[1] || null,
+            appDeviceCredential: existingAppCredential }
+        : (appMaterial || this.core.createAppCredential());
+      if (!this.core.validAppCredential(app.appDeviceCredential)) {
+        throw new Error('handoff_app_credential_required');
+      }
       const operation = operationId || this.core.createOperationId();
       await this.storage.setPendingConsume({
         operationId: operation,
         appId,
+        consumeMode,
         accountDeviceId: account.accountDeviceId,
         accountCredential: account.accountCredential,
         appDeviceId: app.appDeviceId,
-        appDeviceCredential: app.appDeviceCredential,
+        ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
         deviceLabel: deviceLabel || null
       });
       const result = await this.request('/v2/accounts/handoffs/consume', {
@@ -186,7 +200,8 @@
           handoffToken,
           accountCredential: account.accountCredential,
           appDeviceCredential: app.appDeviceCredential,
-          deviceLabel: deviceLabel || null
+          deviceLabel: deviceLabel || null,
+          consumeMode
         }
       });
       await this.storage.setAccount({
@@ -195,8 +210,12 @@
         accountCredential: account.accountCredential,
         membershipId: result.membershipId
       });
-      await this.storage.clearPendingConsume();
-      return Object.freeze({ ...result, appDeviceCredential: app.appDeviceCredential });
+      if (!preservePending) await this.storage.clearPendingConsume();
+      return Object.freeze({
+        ...result,
+        consumeMode,
+        ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {})
+      });
     }
 
     async resumePendingStart() {
@@ -223,13 +242,15 @@
       }
     }
 
-    async resumePendingConsume() {
+    async resumePendingConsume({ preservePending = false } = {}) {
       const pending = await this.storage.getPendingConsume();
       if (!pending) return Object.freeze({ status: 'none' });
       try {
         const summary = await this.summary(pending.accountCredential);
         const membership = summary.memberships.find((entry) => entry.appId === pending.appId);
-        if (!membership || membership.state !== 'active') {
+        const consumeMode = pending.consumeMode || 'new_app';
+        const expectedState = consumeMode === 'existing_chord' ? 'pending' : 'active';
+        if (!membership || membership.state !== expectedState) {
           return Object.freeze({ status: 'not_committed' });
         }
         await this.storage.setAccount({
@@ -238,12 +259,13 @@
           accountCredential: pending.accountCredential,
           membershipId: membership.id
         });
-        await this.storage.clearPendingConsume();
+        if (!preservePending) await this.storage.clearPendingConsume();
         return Object.freeze({
-          status: 'committed',
+          status: consumeMode === 'existing_chord' ? 'bridge_required' : 'committed',
           membership,
+          consumeMode,
           appDeviceId: pending.appDeviceId,
-          appDeviceCredential: pending.appDeviceCredential
+          ...(pending.appDeviceCredential ? { appDeviceCredential: pending.appDeviceCredential } : {})
         });
       } catch (error) {
         if (error instanceof AccountApiError && error.code === 'invalid_account_credential') {
@@ -251,6 +273,10 @@
         }
         throw error;
       }
+    }
+
+    confirmConsumePersisted() {
+      return this.storage.clearPendingConsume();
     }
   }
 

@@ -17,6 +17,7 @@ const migration10 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration11 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0011_add_pitch_record_types.sql'), 'utf8');
 const migration12 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0012_add_rhythm_record_types.sql'), 'utf8');
 const migration13 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0013_add_fretboard_record_types.sql'), 'utf8');
+const migration14 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0014_add_handoff_consume_mode.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -32,6 +33,7 @@ function migrate(db) {
   db.exec(migration11);
   db.exec(migration12);
   db.exec(migration13);
+  db.exec(migration14);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -53,6 +55,7 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare("SELECT schema_version FROM sync_changes LIMIT 1"));
   assert(db.prepare("SELECT last_change_seq FROM sync_datasets LIMIT 1"));
   assert(db.prepare("SELECT pairing_pending_at, paired_at FROM sync_devices LIMIT 1"));
+  assert(db.prepare("SELECT consume_mode FROM sync_membership_handoffs LIMIT 1"));
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_pairing_codes_user_active'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pairing_attempts'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='recovery_claims'").get());

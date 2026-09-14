@@ -74,6 +74,42 @@ test('operation ID reuse with different semantic input is invalid, never a dupli
   db.close();
 });
 
+test('dataset bootstrap is idempotent and restricted to Account-managed app identities', async () => {
+  const db = createSqliteD1();
+  const managed = seedIdentity(db, {
+    userId: 'managed-user', deviceId: 'managed-device', appId: 'pitch', verifier: 'a'.repeat(64)
+  });
+  db.raw.prepare('DELETE FROM sync_datasets WHERE user_id = ?').run(managed.userId);
+  db.raw.prepare(`
+    INSERT INTO sync_accounts (id, state, generation, recovery_version, recovery_verifier, created_at, updated_at)
+    VALUES ('account', 'active', 1, 1, ?, 1, 1)
+  `).run('a'.repeat(64));
+  db.raw.prepare(`
+    INSERT INTO sync_account_memberships (id, account_id, app_id, state, sync_user_id,
+      recovery_mode, generation, created_at, activated_at, updated_at, deleted_at)
+    VALUES ('membership', 'account', 'pitch', 'active', ?, 'account', 1, 1, 1, 1, NULL)
+  `).run(managed.userId);
+  db.raw.prepare(`
+    INSERT INTO sync_account_managed_users (sync_user_id, account_id, membership_id, app_id, created_at)
+    VALUES (?, 'account', 'membership', 'pitch', 1)
+  `).run(managed.userId);
+  const repository = createD1SyncRepository(db, () => 100);
+  const summary = { schemaVersion: 1, recordCount: 0, manifestHash: '0'.repeat(64) };
+  let result = await repository.bootstrapDataset(managed, summary);
+  assert.equal(result.status, 'ready');
+  assert.equal(result.alreadyCreated, false);
+  result = await repository.bootstrapDataset(managed, summary);
+  assert.equal(result.alreadyCreated, true);
+
+  const legacy = seedIdentity(db, {
+    userId: 'legacy-user', deviceId: 'legacy-device', appId: 'rhythm', verifier: 'b'.repeat(64)
+  });
+  db.raw.prepare('DELETE FROM sync_datasets WHERE user_id = ?').run(legacy.userId);
+  assert.equal((await repository.bootstrapDataset(legacy, summary)).status, 'forbidden');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM sync_datasets WHERE user_id = ?').get(legacy.userId).count, 0);
+  db.close();
+});
+
 test('a missing record rejects a nonzero base revision without creating data', async () => {
   const db = createSqliteD1();
   const identity = seedIdentity(db);

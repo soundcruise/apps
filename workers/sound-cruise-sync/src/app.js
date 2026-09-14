@@ -29,6 +29,7 @@ import {
   validateDeviceRevokePayload,
   validateDeleteIntentPayload,
   validateAccountDeletePayload,
+  validateBootstrapPayload,
   validatePairingIssuePayload,
   validatePairPayload,
   validateRecoveryIssuePayload,
@@ -42,6 +43,7 @@ const ROUTES = Object.freeze({
   '/v1/sync/start': { method: 'POST', headers: ['content-type'] },
   '/v1/sync/pairing-codes': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/pair': { method: 'POST', headers: ['content-type'] },
+  '/v1/sync/bootstrap': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/recover': { method: 'POST', headers: ['content-type'] },
   '/v1/sync/recovery-codes': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/devices': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
@@ -171,6 +173,34 @@ async function requireLegacyOperation(session, userId, operation, dependencies) 
   const result = await legacyGuard(session, userId, operation, dependencies);
   result.decision = result.decide(result.policy, operation);
   return result;
+}
+
+async function handleBootstrap(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateBootstrapPayload(parsed.value, env);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try {
+    context = await authenticatedContext(request, env, validation.value.appId, dependencies);
+  } catch {
+    return errorResponse(503, 'server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const result = await context.repository.bootstrapDataset(context.identity, validation.value);
+    if (result.status === 'forbidden') return errorResponse(409, 'account_membership_required', origin, route);
+    if (result.status !== 'ready') return errorResponse(503, 'server_error', origin, route);
+    return jsonResponse(result.alreadyCreated ? 200 : 201, {
+      ok: true,
+      appId: context.identity.appId,
+      datasetState: result.dataset.state,
+      schemaVersion: Number(result.dataset.schema_version),
+      alreadyCreated: result.alreadyCreated
+    }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch {
+    return errorResponse(503, 'server_error', origin, route);
+  }
 }
 
 async function handleStart(request, env, origin, route, dependencies, runtimeControl) {
@@ -728,6 +758,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
     return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
   }
   if (url.pathname === '/v1/sync/start') return handleStart(request, env, origin, route, dependencies, runtimeControl);
+  if (url.pathname === '/v1/sync/bootstrap') return handleBootstrap(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/pairing-codes') return handlePairingIssue(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/pair') return handlePair(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/recover') return handleRecover(request, env, origin, route, dependencies);

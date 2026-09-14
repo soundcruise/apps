@@ -268,7 +268,8 @@ test('secure handoff issue/consume activates one app reservation and exact retry
     handoffToken: handoff.handoffToken,
     accountCredential: targetAccount.credential,
     appDeviceCredential: targetApp.credential,
-    deviceLabel: 'Chord container'
+    deviceLabel: 'Chord container',
+    consumeMode: 'new_app'
   };
   response = await handleRequest(jsonRequest('/v2/accounts/handoffs/consume', consumeBody), env);
   assert.equal(response.status, 201);
@@ -337,7 +338,8 @@ test('authenticated issuer can cancel a handoff and cancelled material cannot ac
     handoffToken: handoff.handoffToken,
     accountCredential: targetAccount.credential,
     appDeviceCredential: targetApp.credential,
-    deviceLabel: null
+    deviceLabel: null,
+    consumeMode: 'new_app'
   }), env);
   assert.equal(response.status, 409);
   assert.equal((await response.json()).code, 'handoff_cancelled');

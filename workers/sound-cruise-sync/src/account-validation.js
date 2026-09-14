@@ -74,7 +74,7 @@ export function validateHandoffIssuePayload(value) {
 export function validateHandoffConsumePayload(value) {
   const keys = [
     'operationId', 'appId', 'handoffToken', 'accountCredential',
-    'appDeviceCredential', 'deviceLabel'
+    'appDeviceCredential', 'deviceLabel', 'consumeMode'
   ];
   if (!exactObject(value, keys)) return { ok: false };
   const deviceLabel = label(value.deviceLabel);
@@ -82,9 +82,12 @@ export function validateHandoffConsumePayload(value) {
     ...value,
     operationId: operationId(value.operationId),
     appId: appId(value.appId),
-    deviceLabel
+    deviceLabel,
+    consumeMode: ['new_app', 'existing_chord'].includes(value.consumeMode)
+      ? value.consumeMode : null
   };
   return normalized.operationId && normalized.appId &&
+    (normalized.consumeMode !== 'existing_chord' || normalized.appId === 'chord') &&
     parseAccountHandoff(normalized.handoffToken) &&
     parseAccountCredential(normalized.accountCredential) &&
     parseAccountAppCredential(normalized.appDeviceCredential) &&

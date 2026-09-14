@@ -1,4 +1,5 @@
 import { authenticateAccountDevice } from './account-auth.js';
+import { authenticateDevice } from './auth.js';
 import {
   accountAppCredentialVerifier,
   accountCredentialVerifier,
@@ -477,6 +478,18 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
     const handoff = parseAccountHandoff(value.handoffToken);
     const accountDevice = parseAccountCredential(value.accountCredential);
     const appDevice = parseAccountAppCredential(value.appDeviceCredential);
+    let existingAppIdentity = null;
+    if (value.consumeMode === 'existing_chord') {
+      existingAppIdentity = await (dependencies.authenticateDevice || authenticateDevice)(
+        session,
+        `Bearer ${value.appDeviceCredential}`,
+        'chord',
+        env.SYNC_CREDENTIAL_PEPPER
+      );
+      if (!existingAppIdentity) {
+        return errorResponse(401, 'invalid_app_credential', origin, route);
+      }
+    }
     const handoffVerifier = await (dependencies.accountHandoffVerifier || accountHandoffVerifier)(
       value.handoffToken,
       env.SYNC_ACCOUNT_HANDOFF_PEPPER
@@ -491,7 +504,7 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
     );
     const fingerprint = await (dependencies.accountOperationFingerprint || accountOperationFingerprint)([
       'handoff-consume', value.appId, handoff.handoffId, accountDevice.deviceId,
-      appDevice.deviceId, accountVerifier, appVerifier, value.deviceLabel || ''
+      appDevice.deviceId, accountVerifier, appVerifier, value.deviceLabel || '', value.consumeMode
     ]);
     const repository = (dependencies.createAccountHandoffRepository || createD1AccountHandoffRepository)(session);
     const consumeInput = {
@@ -504,7 +517,8 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
       accountCredentialVerifier: accountVerifier,
       appDeviceId: appDevice.deviceId,
       appCredentialVerifier: appVerifier,
-      syncUserId: crypto.randomUUID(),
+      syncUserId: existingAppIdentity?.userId || crypto.randomUUID(),
+      consumeMode: value.consumeMode,
       deviceLabel: value.deviceLabel,
       accountRecoveryPepper: env.SYNC_ACCOUNT_RECOVERY_PEPPER,
       now: Date.now()
@@ -512,18 +526,19 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
     const retry = typeof repository.resolveConsumeRetry === 'function'
       ? await repository.resolveConsumeRetry(consumeInput)
       : null;
-    if (retry?.status === 'activated') {
+    if (['activated', 'bridge_required'].includes(retry?.status)) {
       return jsonResponse(200, {
         ok: true,
-        operation: 'activated',
+        operation: retry.status === 'bridge_required' ? 'bridge_required' : 'activated',
         accountId: retry.accountId,
         membershipId: retry.membershipId,
         appId: value.appId,
         accountDeviceId: retry.accountDeviceId,
         appDeviceId: retry.appDeviceId,
         syncUserId: retry.syncUserId,
-        membershipState: 'active',
-        datasetState: 'not_created',
+        membershipState: retry.status === 'bridge_required' ? 'pending' : 'active',
+        datasetState: retry.status === 'bridge_required' ? 'ready' : 'not_created',
+        consumeMode: value.consumeMode,
         alreadyActivated: true
       }, origin, route, bookmarkHeader(session));
     }
@@ -533,18 +548,19 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
     );
     if (!limited.ok) return rateError(limited, origin, route, 60);
     const result = await repository.consume(consumeInput);
-    if (result.status !== 'activated') return handoffError(result.status, origin, route);
+    if (!['activated', 'bridge_required'].includes(result.status)) return handoffError(result.status, origin, route);
     return jsonResponse(result.alreadyActivated ? 200 : 201, {
       ok: true,
-      operation: 'activated',
+      operation: result.status === 'bridge_required' ? 'bridge_required' : 'activated',
       accountId: result.accountId,
       membershipId: result.membershipId,
       appId: value.appId,
       accountDeviceId: result.accountDeviceId,
       appDeviceId: result.appDeviceId,
       syncUserId: result.syncUserId,
-      membershipState: 'active',
-      datasetState: 'not_created',
+      membershipState: result.status === 'bridge_required' ? 'pending' : 'active',
+      datasetState: result.status === 'bridge_required' ? 'ready' : 'not_created',
+      consumeMode: value.consumeMode,
       alreadyActivated: result.alreadyActivated
     }, origin, route, bookmarkHeader(session));
   } catch {

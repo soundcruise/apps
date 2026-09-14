@@ -88,6 +88,7 @@ async function consumeInput(issued, appId = 'chord', overrides = {}) {
     appDeviceId: app.deviceId,
     appCredentialVerifier: app.credentialVerifier,
     syncUserId: crypto.randomUUID(),
+    consumeMode: 'new_app',
     deviceLabel: 'Target',
     accountRecoveryPepper,
     now: 200,
@@ -164,6 +165,49 @@ test('consume atomically reserves separate app and Account credentials without c
     requestFingerprint: 'f'.repeat(64),
     now: 301
   })).status, 'used');
+  fixture.db.close();
+});
+
+test('existing Chord consume claims only an Account device and leaves M4 bridge authority pending', async () => {
+  const fixture = await setup();
+  const issued = await issue(fixture);
+  const legacy = await createIdentityMaterial(appPepper);
+  fixture.db.raw.prepare(`
+    INSERT INTO sync_users (id, state, recovery_version, recovery_verifier, created_at, updated_at,
+      deleted_at, recovery_created_at, recovery_rotated_at, delete_requested_at, purge_after)
+    VALUES (?, 'active', 1, ?, 1, 1, NULL, 1, 1, NULL, NULL)
+  `).run(legacy.userId, 'd'.repeat(64));
+  fixture.db.raw.prepare(`
+    INSERT INTO sync_devices (id, user_id, app_id, credential_version, credential_verifier, label,
+      last_cursor, created_at, last_seen_at, revoked_at, pairing_pending_at, paired_at)
+    VALUES (?, ?, 'chord', 1, ?, 'Legacy Chord', 0, 1, 1, NULL, NULL, 1)
+  `).run(legacy.deviceId, legacy.userId, legacy.credentialVerifier);
+  fixture.db.raw.prepare(`
+    INSERT INTO sync_datasets (user_id, app_id, state, schema_version, record_count, manifest_hash,
+      min_change_seq, last_change_seq, initialized_at, updated_at)
+    VALUES (?, 'chord', 'ready', 1, 0, ?, 0, 0, 1, 1)
+  `).run(legacy.userId, '0'.repeat(64));
+
+  const input = await consumeInput(issued, 'chord', {
+    consumeMode: 'existing_chord',
+    appDeviceId: legacy.deviceId,
+    appCredentialVerifier: legacy.credentialVerifier,
+    syncUserId: legacy.userId
+  });
+  const result = await fixture.repository.consume(input);
+  assert.equal(result.status, 'bridge_required');
+  assert.deepEqual({ ...fixture.db.raw.prepare(`
+    SELECT state, sync_user_id, recovery_mode FROM sync_account_memberships
+    WHERE id = 'membership-chord'
+  `).get() }, { state: 'pending', sync_user_id: null, recovery_mode: 'account' });
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) AS count FROM sync_users').get().count, 1);
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) AS count FROM sync_devices').get().count, 1);
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) AS count FROM sync_account_managed_users').get().count, 0);
+  assert.equal(fixture.db.raw.prepare('SELECT consume_mode FROM sync_membership_handoffs').get().consume_mode,
+    'existing_chord');
+  const retry = await fixture.repository.resolveConsumeRetry(input);
+  assert.equal(retry.status, 'bridge_required');
+  assert.equal(retry.syncUserId, legacy.userId);
   fixture.db.close();
 });
 

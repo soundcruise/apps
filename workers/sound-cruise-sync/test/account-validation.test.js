@@ -89,7 +89,8 @@ test('membership and handoff validation rejects identity injection and wrong cre
     handoffToken: handoff.handoffToken,
     accountCredential: account.credential,
     appDeviceCredential: app.credential,
-    deviceLabel: null
+    deviceLabel: null,
+    consumeMode: 'new_app'
   }).ok, true);
   assert.equal(validateHandoffConsumePayload({
     operationId,
@@ -97,7 +98,18 @@ test('membership and handoff validation rejects identity injection and wrong cre
     handoffToken: handoff.handoffToken,
     accountCredential: app.credential,
     appDeviceCredential: account.credential,
-    deviceLabel: null
+    deviceLabel: null,
+    consumeMode: 'new_app'
+  }).ok, false);
+  assert.equal(validateHandoffConsumePayload({
+    operationId, appId: 'chord', handoffToken: handoff.handoffToken,
+    accountCredential: account.credential, appDeviceCredential: app.credential,
+    deviceLabel: null, consumeMode: 'existing_chord'
+  }).ok, true);
+  assert.equal(validateHandoffConsumePayload({
+    operationId, appId: 'pitch', handoffToken: handoff.handoffToken,
+    accountCredential: account.credential, appDeviceCredential: app.credential,
+    deviceLabel: null, consumeMode: 'existing_chord'
   }).ok, false);
   assert.equal(validateHandoffCancelPayload({ handoffId: handoff.handoffId }).ok, true);
   assert.equal(validateHandoffCancelPayload({ handoffId: handoff.handoffId, accountId: 'x' }).ok, false);

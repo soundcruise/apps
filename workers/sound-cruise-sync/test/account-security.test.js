@@ -23,27 +23,19 @@ test('Account implementation has no plaintext logging or browser key-value secre
   assert.equal(sharedSources.includes('transient_secret_persistence_blocked'), true);
 });
 
-test('M8 permits only Cruise Port read-side Account primitives; data-plane apps stay unintegrated', () => {
-  const appDirectories = [
-    'apps/chord-cruise',
-    'apps/pitch-cruise',
-    'apps/fretboard_cruise',
-    'apps/rhythm-cruise'
+test('M9 keeps Standard unintegrated and wires Account orchestration only into Pro apps', () => {
+  const editions = [
+    ['apps/chord-cruise/standard/index.html', 'apps/chord-cruise/pro_k7m4q9v2x8/index.html'],
+    ['apps/pitch-cruise/standard/index.html', 'apps/pitch-cruise/pro_x9v7q2m8/index.html'],
+    ['apps/fretboard_cruise/standard/index.html', 'apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html'],
+    ['apps/rhythm-cruise/standard/index.html', 'apps/rhythm-cruise/pro_r4m8k7n2q9x/index.html']
   ];
-  for (const relative of appDirectories) {
-    const root = path.join(repositoryRoot, relative);
-    const stack = [root];
-    while (stack.length) {
-      const current = stack.pop();
-      for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
-        const full = path.join(current, entry.name);
-        if (entry.isDirectory()) stack.push(full);
-        else if (/\.(?:js|mjs|html)$/u.test(entry.name)) {
-          const source = fs.readFileSync(full, 'utf8');
-          assert.equal(source.includes('shared/sync-account'), false, `${full} must remain unintegrated after M8`);
-        }
-      }
-    }
+  for (const [standardPath, proPath] of editions) {
+    const standard = fs.readFileSync(path.join(repositoryRoot, standardPath), 'utf8');
+    const pro = fs.readFileSync(path.join(repositoryRoot, proPath), 'utf8');
+    assert.equal(standard.includes('shared/sync-account'), false, `${standardPath} must remain unintegrated`);
+    assert.equal(pro.includes('shared/sync-account'), true, `${proPath} must load M9 Account wiring`);
+    assert.equal(pro.includes('__SOUND_CRUISE_MULTI_APP_SYNC__'), false, `${proPath} production M9 gate must remain off`);
   }
   const standardPort = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/index.html'), 'utf8');
   const proPort = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/pro_9a3943176561/index.html'), 'utf8');
@@ -56,6 +48,8 @@ test('M8 permits only Cruise Port read-side Account primitives; data-plane apps 
   assert.match(controller, /client\.summary/u);
   assert.match(controller, /client\.devices/u);
   assert.doesNotMatch(controller, /client\.(?:prepareMembership|issueHandoff|recover|delete|revoke)\s*\(/u);
+  const orchestrator = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/sync-center-orchestrator.js'), 'utf8');
+  assert.doesNotMatch(orchestrator, /\blocalStorage\b|\bsessionStorage\b|\bindexedDB\b/u);
 });
 
 test('production config is not widened for Account secrets, origins, app IDs or rate namespaces', () => {

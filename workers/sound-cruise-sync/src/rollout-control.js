@@ -4,6 +4,7 @@ export const ROUTE_GATE = Object.freeze({
   '/v1/sync/start': 'admission',
   '/v1/sync/pairing-codes': 'admission',
   '/v1/sync/pair': 'admission',
+  '/v1/sync/bootstrap': 'write',
   '/v1/sync/push': 'write',
   '/v1/sync/migration/complete': 'write',
   '/v1/sync/changes': 'read',

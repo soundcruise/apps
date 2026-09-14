@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   isJsonContentType, readBodyWithLimit, validateStartPayload,
-  validateRecoveryPayload, validateRecoveryIssuePayload, validatePushPayload
+  validateRecoveryPayload, validateRecoveryIssuePayload, validatePushPayload,
+  validateBootstrapPayload
 } from '../src/validation.js';
 import { hashRecord } from '../src/records.js';
 
@@ -45,6 +46,18 @@ test('app allowlist, summary, token, label, and unknown fields are fail closed',
   const controlLabel = validPayload(); controlLabel.deviceLabel = 'bad\nlabel'; cases.push(controlLabel);
   const unknown = validPayload(); unknown.extra = true; cases.push(unknown);
   cases.forEach((payload) => assert.equal(validateStartPayload(payload, env).ok, false));
+});
+
+test('Account-managed dataset bootstrap accepts only bounded summary metadata', () => {
+  assert.deepEqual(validateBootstrapPayload({
+    appId: 'chord', schemaVersion: 1, recordCount: 0, manifestHash: hash
+  }, env), { ok: true, value: { appId: 'chord', schemaVersion: 1, recordCount: 0, manifestHash: hash } });
+  assert.equal(validateBootstrapPayload({
+    appId: 'pitch', schemaVersion: 1, recordCount: 0, manifestHash: hash
+  }, env).ok, false);
+  assert.equal(validateBootstrapPayload({
+    appId: 'chord', schemaVersion: 1, recordCount: 0, manifestHash: hash, userId: 'x'
+  }, env).ok, false);
 });
 
 test('JSON content type and bounded UTF-8 reader reject unsafe requests', async () => {

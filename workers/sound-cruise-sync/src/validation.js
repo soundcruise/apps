@@ -116,6 +116,16 @@ export function validatePairingIssuePayload(payload, env) {
   return { ok: true, value: { appId: payload.appId } };
 }
 
+export function validateBootstrapPayload(payload, env) {
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'schemaVersion', 'recordCount', 'manifestHash']) ||
+      !validateAppId(payload.appId, env) || payload.schemaVersion !== 1 ||
+      !Number.isSafeInteger(payload.recordCount) || payload.recordCount < 0 || payload.recordCount > 10000 ||
+      typeof payload.manifestHash !== 'string' || !SHA256_PATTERN.test(payload.manifestHash)) {
+    return { ok: false };
+  }
+  return { ok: true, value: { ...payload } };
+}
+
 export function validatePairPayload(payload, env) {
   if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'pairingCode', 'turnstileToken', 'deviceLabel']) ||
       !validateAppId(payload.appId, env)) return { ok: false, reason: 'shape' };

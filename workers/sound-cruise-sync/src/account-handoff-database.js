@@ -35,6 +35,7 @@ export function createD1AccountHandoffRepository(db) {
   async function readById(handoffId) {
     return db.prepare(`
       SELECT h.*, m.app_id, m.state AS membership_state, m.sync_user_id,
+             claimed.user_id AS claimed_sync_user_id,
              a.state AS account_state, a.recovery_verifier,
              issuer.revoked_at AS issuer_revoked_at
       FROM sync_membership_handoffs h
@@ -43,6 +44,8 @@ export function createD1AccountHandoffRepository(db) {
       JOIN sync_accounts a ON a.id = h.account_id
       LEFT JOIN sync_account_devices issuer
         ON issuer.id = h.created_by_account_device_id
+      LEFT JOIN sync_devices claimed
+        ON claimed.id = h.claimed_by_app_device_id
       WHERE h.handoff_id = ?
     `).bind(handoffId).first();
   }
@@ -77,10 +80,10 @@ export function createD1AccountHandoffRepository(db) {
         row.claimed_by_app_device_id !== input.appDeviceId ||
         row.claimed_by_account_device_id !== input.accountDeviceId) return null;
     return {
-      status: 'activated',
+      status: row.consume_mode === 'existing_chord' ? 'bridge_required' : 'activated',
       accountId: row.account_id,
       membershipId: row.membership_id,
-      syncUserId: row.sync_user_id,
+      syncUserId: row.sync_user_id || row.claimed_sync_user_id,
       appDeviceId: row.claimed_by_app_device_id,
       accountDeviceId: row.claimed_by_account_device_id,
       alreadyActivated: true
@@ -195,10 +198,10 @@ export function createD1AccountHandoffRepository(db) {
           row.claimed_by_app_device_id === input.appDeviceId &&
           row.claimed_by_account_device_id === input.accountDeviceId) {
         return {
-          status: 'activated',
+          status: row.consume_mode === 'existing_chord' ? 'bridge_required' : 'activated',
           accountId: row.account_id,
           membershipId: row.membership_id,
-          syncUserId: row.sync_user_id,
+          syncUserId: row.sync_user_id || row.claimed_sync_user_id,
           appDeviceId: row.claimed_by_app_device_id,
           accountDeviceId: row.claimed_by_account_device_id,
           alreadyActivated: true
@@ -212,6 +215,113 @@ export function createD1AccountHandoffRepository(db) {
         row.membership_state !== 'pending' || row.sync_user_id != null) {
       return { status: 'membership_unavailable' };
     }
+    if (input.consumeMode === 'existing_chord') {
+      const existing = await db.prepare(`
+        SELECT d.id, d.user_id, d.app_id, d.revoked_at, u.state AS user_state,
+               u.deleted_at, s.state AS dataset_state
+        FROM sync_devices d
+        JOIN sync_users u ON u.id = d.user_id
+        JOIN sync_datasets s ON s.user_id = d.user_id AND s.app_id = d.app_id
+        LEFT JOIN sync_account_managed_users am ON am.sync_user_id = d.user_id
+        WHERE d.id = ? AND d.user_id = ? AND d.app_id = 'chord'
+          AND d.credential_verifier = ? AND d.revoked_at IS NULL
+          AND u.state = 'active' AND u.deleted_at IS NULL
+          AND s.state = 'ready' AND am.sync_user_id IS NULL
+      `).bind(
+        input.appDeviceId,
+        input.syncUserId,
+        input.appCredentialVerifier
+      ).first();
+      if (!existing) return { status: 'membership_unavailable' };
+
+      const insertAccountDevice = db.prepare(`
+        INSERT INTO sync_account_devices (
+          id, account_id, credential_version, credential_verifier,
+          label, created_at, last_seen_at, revoked_at
+        ) VALUES (?, ?, 1, ?, ?, ?, ?, NULL)
+      `).bind(
+        input.accountDeviceId,
+        row.account_id,
+        input.accountCredentialVerifier,
+        input.deviceLabel,
+        input.now,
+        input.now
+      );
+      const claim = db.prepare(`
+        UPDATE sync_membership_handoffs
+        SET claimed_by_app_device_id = ?, claimed_by_account_device_id = ?,
+            consumed_at = ?, consume_operation_id = ?, consume_fingerprint = ?,
+            consume_mode = 'existing_chord'
+        WHERE handoff_id = ? AND account_id = ? AND membership_id = ?
+          AND consumed_at IS NULL AND cancelled_at IS NULL AND expires_at > ?
+      `).bind(
+        input.appDeviceId,
+        input.accountDeviceId,
+        input.now,
+        input.operationId,
+        input.requestFingerprint,
+        input.handoffId,
+        row.account_id,
+        row.membership_id,
+        input.now
+      );
+      const guard = db.prepare(`
+        UPDATE sync_account_memberships
+        SET updated_at = CASE WHEN
+          state = 'pending' AND sync_user_id IS NULL
+          AND EXISTS (
+            SELECT 1 FROM sync_membership_handoffs h
+            WHERE h.handoff_id = ? AND h.membership_id = sync_account_memberships.id
+              AND h.consume_mode = 'existing_chord'
+              AND h.claimed_by_app_device_id = ?
+              AND h.claimed_by_account_device_id = ?
+              AND h.consume_operation_id = ? AND h.consume_fingerprint = ?
+              AND h.consumed_at IS NOT NULL
+          ) THEN updated_at ELSE created_at - 1 END
+        WHERE id = ? AND account_id = ? AND app_id = 'chord'
+      `).bind(
+        input.handoffId,
+        input.appDeviceId,
+        input.accountDeviceId,
+        input.operationId,
+        input.requestFingerprint,
+        row.membership_id,
+        row.account_id
+      );
+      try {
+        const statements = [insertAccountDevice, claim, guard];
+        const results = await db.batch(statements);
+        if (!batchSucceeded(results, statements.length)) {
+          throw new Error('Existing Chord handoff transaction was incomplete');
+        }
+        return {
+          status: 'bridge_required',
+          accountId: row.account_id,
+          membershipId: row.membership_id,
+          syncUserId: input.syncUserId,
+          appDeviceId: input.appDeviceId,
+          accountDeviceId: input.accountDeviceId,
+          alreadyActivated: false
+        };
+      } catch (error) {
+        const finalState = await readById(input.handoffId);
+        if (finalState?.consume_operation_id === input.operationId &&
+            finalState.consume_fingerprint === input.requestFingerprint &&
+            finalState.consume_mode === 'existing_chord') {
+          return {
+            status: 'bridge_required',
+            accountId: finalState.account_id,
+            membershipId: finalState.membership_id,
+            syncUserId: input.syncUserId,
+            appDeviceId: finalState.claimed_by_app_device_id,
+            accountDeviceId: finalState.claimed_by_account_device_id,
+            alreadyActivated: true
+          };
+        }
+        throw error;
+      }
+    }
+
     const managedRecoveryVerifier = await accountManagedRecoveryVerifier(
       row.recovery_verifier,
       input.appId,
@@ -300,7 +410,8 @@ export function createD1AccountHandoffRepository(db) {
     const consumeHandoff = db.prepare(`
       UPDATE sync_membership_handoffs
       SET claimed_by_app_device_id = ?, claimed_by_account_device_id = ?,
-          consumed_at = ?, consume_operation_id = ?, consume_fingerprint = ?
+          consumed_at = ?, consume_operation_id = ?, consume_fingerprint = ?,
+          consume_mode = 'new_app'
       WHERE handoff_id = ? AND account_id = ? AND membership_id = ?
         AND consumed_at IS NULL AND cancelled_at IS NULL AND expires_at > ?
     `).bind(

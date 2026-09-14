@@ -36,6 +36,36 @@ export function createD1SyncRepository(db, clock = Date.now) {
     `).bind(userId, appId).first();
   }
 
+  async function bootstrapDataset(identity, initial) {
+    const managed = await db.prepare(`
+      SELECT 1 AS allowed
+      FROM sync_account_managed_users
+      WHERE sync_user_id = ? AND app_id = ?
+    `).bind(identity.userId, identity.appId).first();
+    if (!managed) return { status: 'forbidden' };
+    const existing = await getDataset(identity.userId, identity.appId);
+    if (existing) return { status: 'ready', dataset: existing, alreadyCreated: true };
+    const result = await db.prepare(`
+      INSERT INTO sync_datasets (
+        user_id, app_id, state, schema_version, record_count, manifest_hash,
+        min_change_seq, last_change_seq, initialized_at, updated_at
+      ) VALUES (?, ?, 'initializing', ?, ?, ?, 0, 0, NULL, ?)
+      ON CONFLICT(user_id, app_id) DO NOTHING
+    `).bind(
+      identity.userId,
+      identity.appId,
+      initial.schemaVersion,
+      initial.recordCount,
+      initial.manifestHash,
+      clock()
+    ).run();
+    if (result?.success === false) throw new Error('D1 bootstrap failed');
+    const dataset = await getDataset(identity.userId, identity.appId);
+    return dataset
+      ? { status: 'ready', dataset, alreadyCreated: Number(result?.meta?.changes || 0) === 0 }
+      : { status: 'failed' };
+  }
+
   async function getChangeByOperation(userId, appId, operationId) {
     const row = await db.prepare(`
       SELECT change_seq, record_type, record_id, schema_version, revision,
@@ -213,6 +243,7 @@ export function createD1SyncRepository(db, clock = Date.now) {
 
   return Object.freeze({
     getDataset,
+    bootstrapDataset,
     getChangeByOperation,
     getRecord,
     applyOperation,

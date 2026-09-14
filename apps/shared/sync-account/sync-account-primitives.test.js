@@ -122,6 +122,30 @@ test('Account transport omits referrers and persists response-loss candidates wi
   assert.equal(writes.at(-1)[0], 'clearPendingConsume');
 });
 
+test('handoff consume can retain its resumable candidate until the app confirms durable persistence', async () => {
+  const writes = [];
+  const storage = {
+    async setPendingConsume(value) { writes.push(['pendingConsume', structuredClone(value)]); },
+    async setAccount(value) { writes.push(['account', structuredClone(value)]); },
+    async clearPendingConsume() { writes.push(['clearPendingConsume']); }
+  };
+  const account = load([coreSource, clientSource]);
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(options.body);
+      return Response.json({ ok: true, accountId: crypto.randomUUID(), membershipId: crypto.randomUUID(),
+        accountDeviceId: body.accountCredential.split('.')[1], appDeviceId: body.appDeviceCredential.split('.')[1],
+        membershipState: 'active', consumeMode: 'new_app' });
+    }
+  });
+  const handoff = account.core.createHandoffMaterial();
+  await client.consumeHandoff({ handoffToken: handoff.handoffToken, appId: 'pitch', preservePending: true });
+  assert.equal(writes.some(([kind]) => kind === 'clearPendingConsume'), false);
+  await client.confirmConsumePersisted();
+  assert.equal(writes.at(-1)[0], 'clearPendingConsume');
+});
+
 test('Account start exposes Recovery once to the caller but never writes it to pending/account storage', async () => {
   const writes = [];
   const storage = {
