@@ -25,6 +25,8 @@ function fixture({ siteKey = 'public-site-key' } = {}) {
   };
   const context = {
     document,
+    setTimeout,
+    clearTimeout,
     __SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__: siteKey,
     turnstile: {
       render(_container, options) {
@@ -56,4 +58,18 @@ test('Account Turnstile fails closed without a configured public site key', asyn
   const { context, rendered } = fixture({ siteKey: '' });
   assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken('sound_cruise_account_qa_enroll'), null);
   assert.equal(rendered.length, 0);
+});
+
+test('Account Turnstile settles when the interaction callback never fires', async () => {
+  const { context } = fixture();
+  let removed = 0;
+  context.turnstile.render = () => 'widget-never-settles';
+  context.turnstile.remove = () => { removed += 1; };
+  const started = Date.now();
+  const token = await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken(
+    'sound_cruise_account_start', { timeoutMs: 10 }
+  );
+  assert.equal(token, null);
+  assert.equal(Date.now() - started < 1000, true);
+  assert.equal(removed, 1);
 });

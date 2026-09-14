@@ -11,7 +11,7 @@ const clientSource = fs.readFileSync(path.join(directory, 'sync-account-client.j
 const bridgeSource = fs.readFileSync(path.join(directory, 'chord-account-bridge.js'), 'utf8');
 const backupSource = fs.readFileSync(path.join(directory, 'sync-app-backup.js'), 'utf8');
 
-function load(sources) {
+function load(sources, overrides = {}) {
   const context = vm.createContext({
     URL,
     URLSearchParams,
@@ -20,7 +20,12 @@ function load(sources) {
     crypto,
     structuredClone,
     btoa,
-    TextEncoder
+    TextEncoder,
+    AbortController,
+    setTimeout,
+    clearTimeout,
+    queueMicrotask,
+    ...overrides
   });
   sources.forEach((source) => vm.runInContext(source, context));
   return context.SoundCruiseSyncAccount;
@@ -95,6 +100,8 @@ test('sensitive input controller clears DOM values while preserving only retryab
 test('sensitive retry policy distinguishes response loss from definitive code rejection', () => {
   const account = load([coreSource]);
   assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'network_error' }), true);
+  assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'account_request_timeout' }), true);
+  assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'account_start_uncertain' }), true);
   assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'invalid_response' }), true);
   assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'server_error', status: 503 }), true);
   assert.equal(account.core.sensitiveFailureIsRetryable({ code: 'rate_limited', status: 429 }), true);
@@ -291,6 +298,172 @@ test('Account start exposes Recovery once to the caller but never writes it to p
     turnstileToken: 'opaque',
     material
   }), /account_material_must_be_created_and_saved_first/);
+});
+
+test('Account start timeout before server execution is finite and retains one retry candidate', async () => {
+  const writes = [];
+  let startCalls = 0;
+  const account = load([coreSource, clientSource]);
+  const material = account.core.createAccountMaterial();
+  const storage = {
+    async setPendingStart(value) { writes.push(['pendingStart', structuredClone(value)]); },
+    async getPendingStart() { return writes.find(([kind]) => kind === 'pendingStart')?.[1] || null; },
+    async getQaAdmission() { return null; }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core, requestTimeoutMs: 10,
+    fetchImpl: async (url, options) => {
+      if (url.endsWith('/start')) {
+        startCalls += 1;
+        return new Promise((_resolve, reject) => options.signal?.addEventListener('abort', () => {
+          const error = new Error('aborted');
+          error.name = 'AbortError';
+          reject(error);
+        }));
+      }
+      return Response.json({ ok: false, code: 'invalid_account_credential' }, { status: 401 });
+    }
+  });
+  await assert.rejects(client.startAccount({
+    appIds: ['chord'], turnstileToken: 'opaque', material, recoverySaved: true
+  }), (error) => error.code === 'account_request_timeout');
+  assert.equal(startCalls, 1);
+  assert.equal(writes.filter(([kind]) => kind === 'pendingStart').length, 1);
+  assert.equal(JSON.stringify(writes).includes(material.recoveryCode), false);
+});
+
+test('Safari-like stalled response body is bounded and remains safe to retry', async () => {
+  let pending = null;
+  const account = load([coreSource, clientSource]);
+  const material = account.core.createAccountMaterial();
+  const storage = {
+    async setPendingStart(value) { pending = structuredClone(value); },
+    async getPendingStart() { return pending; },
+    async getQaAdmission() { return null; }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core, requestTimeoutMs: 10,
+    fetchImpl: async (url) => url.endsWith('/start')
+      ? { ok: true, status: 201, json: () => new Promise(() => {}) }
+      : Response.json({ ok: false, code: 'invalid_account_credential' }, { status: 401 })
+  });
+  await assert.rejects(client.startAccount({
+    appIds: ['chord'], turnstileToken: 'opaque', material, recoverySaved: true
+  }), (error) => error.code === 'account_request_timeout');
+  assert.equal(pending.operationId, material.operationId);
+  assert.equal(JSON.stringify(pending).includes(material.recoveryCode), false);
+});
+
+test('Account start response loss reconciles committed state without a duplicate start', async () => {
+  const writes = [];
+  let pending = null;
+  let startCalls = 0;
+  let accountId = null;
+  const account = load([coreSource, clientSource]);
+  const material = account.core.createAccountMaterial();
+  const storage = {
+    async setPendingStart(value) { pending = structuredClone(value); writes.push(['pendingStart', pending]); },
+    async getPendingStart() { return pending; },
+    async setAccount(value) { writes.push(['account', structuredClone(value)]); },
+    async clearPendingStart() { pending = null; writes.push(['clearPendingStart']); },
+    async getQaAdmission() { return null; }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core, requestTimeoutMs: 50,
+    fetchImpl: async (url) => {
+      if (url.endsWith('/start')) {
+        startCalls += 1;
+        accountId ||= crypto.randomUUID();
+        throw new TypeError('response lost');
+      }
+      return Response.json({
+        ok: true,
+        account: { id: accountId, recoveryVersion: 1 },
+        memberships: [{ id: 'm-chord', appId: 'chord', state: 'pending' }]
+      });
+    }
+  });
+  const result = await client.startAccount({
+    appIds: ['chord'], turnstileToken: 'opaque', material, recoverySaved: true
+  });
+  assert.equal(result.operation, 'reconciled');
+  assert.equal(startCalls, 1);
+  assert.equal(writes.filter(([kind]) => kind === 'account').length, 1);
+  assert.equal(pending, null);
+  assert.equal(JSON.stringify(writes).includes(material.recoveryCode), false);
+});
+
+test('CORS-like network failure and explicit rate limiting both settle without leaking secrets', async () => {
+  const account = load([coreSource, clientSource]);
+  const material = account.core.createAccountMaterial();
+  let pending = null;
+  const storage = {
+    async setPendingStart(value) { pending = structuredClone(value); },
+    async getPendingStart() { return pending; },
+    async getQaAdmission() { return null; }
+  };
+  const corsClient = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core, requestTimeoutMs: 20,
+    fetchImpl: async () => { throw new TypeError('Failed to fetch'); }
+  });
+  await assert.rejects(corsClient.startAccount({
+    appIds: ['chord'], turnstileToken: 'opaque', material, recoverySaved: true
+  }), (error) => error.code === 'account_start_uncertain' && !error.message.includes(material.recoveryCode));
+
+  let requests = 0;
+  const limitedClient = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    fetchImpl: async () => {
+      requests += 1;
+      return Response.json({ ok: false, code: 'rate_limited' }, { status: 429 });
+    }
+  });
+  await assert.rejects(limitedClient.startAccount({
+    appIds: ['chord'], turnstileToken: 'opaque', material, recoverySaved: true
+  }), (error) => error.code === 'rate_limited');
+  assert.equal(requests, 1, 'a definitive rejection is not reconciled or replayed');
+});
+
+test('Account storage rejects open failure, blocked open, and transaction abort', async () => {
+  const account = load([dbSource]);
+  function openRequest(resultFactory, eventName) {
+    return {
+      open() {
+        const request = {};
+        queueMicrotask(() => {
+          if (eventName === 'error') request.error = new Error('open failed');
+          else request.result = resultFactory?.();
+          request[`on${eventName}`]?.();
+        });
+        return request;
+      }
+    };
+  }
+  await assert.rejects(account.storage.getAccount(openRequest(null, 'error')), /open failed/);
+  await assert.rejects(account.storage.getAccount(openRequest(null, 'blocked')), /account_storage_blocked/);
+
+  const timedStorage = load([dbSource], {
+    setTimeout(callback) { queueMicrotask(callback); return 1; },
+    clearTimeout() {}
+  }).storage;
+  await assert.rejects(timedStorage.getAccount({ open: () => ({}) }), /account_storage_timeout/);
+
+  const database = {
+    objectStoreNames: { contains: () => true },
+    close() {},
+    transaction() {
+      const transaction = {
+        error: new Error('transaction aborted'),
+        objectStore: () => ({ put() {} }),
+        abort() {}
+      };
+      queueMicrotask(() => transaction.onabort?.());
+      return transaction;
+    }
+  };
+  await assert.rejects(account.storage.setAccount(
+    { accountId: 'account' }, openRequest(() => database, 'success')
+  ), /transaction aborted/);
 });
 
 test('Account Recovery requires saved candidate, persists no Recovery plaintext, and promotes only after commit', async () => {

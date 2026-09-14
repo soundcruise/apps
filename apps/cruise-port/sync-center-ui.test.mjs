@@ -1,12 +1,48 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
+import { bindSyncCenterActions } from './sync-center-ui.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const root = read('./index.html');
 const pro = read('./pro_9a3943176561/index.html');
 const app = read('./practice-menu-app.js');
 const controller = read('./sync-center-controller.js');
+
+function accountSetupFixture({ completeAccountSetup, prepareAll = async () => ({ ok: true }), tokenProvider = async () => 'verified' }) {
+    const listeners = {};
+    const element = (overrides = {}) => ({
+        dataset: {}, hidden: false, disabled: false, textContent: '',
+        addEventListener(type, listener) { this.listeners ||= {}; this.listeners[type] = listener; },
+        ...overrides
+    });
+    const setup = element({ dataset: { syncPhase: 'recovery' }, close() {}, showModal() {} });
+    const confirm = element({ textContent: '保存しました' });
+    const recovery = element({ textContent: '', hidden: false });
+    const summary = element({ textContent: '復旧コードを安全な場所へ保存してください。' });
+    const status = element();
+    const nodes = new Map([
+        ['#sync-center-setup', setup],
+        ['#sync-center-setup-confirm', confirm],
+        ['#sync-center-recovery-code', recovery],
+        ['#sync-center-setup-summary', summary],
+        ['#sync-center-action-status', status]
+    ]);
+    const root = {
+        querySelector(selector) { return nodes.get(selector) || null; },
+        querySelectorAll() { return []; },
+        addEventListener(type, listener) { listeners[type] = listener; }
+    };
+    const orchestrator = {
+        enabled: true,
+        qaAdmissionRequired: false,
+        completeAccountSetup,
+        prepareAll,
+        createAccountCandidate() { throw new Error('must_not_replace_saved_candidate'); }
+    };
+    bindSyncCenterActions(root, { orchestrator, tokenProvider });
+    return { setup, confirm, recovery, summary, status, click: () => confirm.listeners.click() };
+}
 
 test('Standard and Pro contain a feature-gated Sync Center entry and four-app shell', () => {
     for (const html of [root, pro]) {
@@ -30,6 +66,63 @@ test('QA Enrollment and Account start request distinct Turnstile actions', () =>
     assert.match(source, /tokenProvider\('sound_cruise_account_start'\)/);
     assert.match(app, /await syncCenterActions\?\.ensureQaAdmission\?\.\(\)/);
     assert.ok(app.indexOf('await syncCenterActions?.ensureQaAdmission?.()') < app.indexOf('syncCenterController.load()'));
+});
+
+test('Account setup exposes bounded retry phases instead of leaving the preparing message', () => {
+    const source = read('./sync-center-ui.js');
+    assert.match(source, /setPhase\('starting'\)/);
+    assert.match(source, /setPhase\('start-uncertain'\)/);
+    assert.match(source, /setPhase\('preparing-memberships'\)/);
+    assert.match(source, /setPhase\('membership-retry'\)/);
+    assert.match(source, /confirm\.textContent = 'もう一度試す'/);
+    assert.match(source, /setup\.dataset\.syncError = safeErrorCode\(error\)/);
+    assert.match(source, /finally \{ confirm\.disabled = false; \}/);
+});
+
+test('Account start failure returns the modal to a visible retry using the same candidate', async () => {
+    let attempts = 0;
+    const ui = accountSetupFixture({
+        completeAccountSetup: async () => {
+            attempts += 1;
+            if (attempts === 1) throw Object.assign(new Error('account_request_timeout'), { code: 'account_request_timeout' });
+            return { ok: true };
+        }
+    });
+    await ui.click();
+    assert.equal(ui.setup.dataset.syncPhase, 'start-uncertain');
+    assert.equal(ui.setup.dataset.syncError, 'account_request_timeout');
+    assert.equal(ui.confirm.disabled, false);
+    assert.equal(ui.confirm.textContent, 'もう一度試す');
+    assert.match(ui.summary.textContent, /もう一度お試しください/);
+    await ui.click();
+    assert.equal(attempts, 2);
+    assert.equal(ui.setup.dataset.syncPhase, 'complete');
+    assert.equal(ui.setup.dataset.syncError, undefined);
+});
+
+test('Turnstile failure and partial membership preparation both release the busy UI', async () => {
+    const verification = accountSetupFixture({
+        completeAccountSetup: async () => ({ ok: true }),
+        tokenProvider: async () => null
+    });
+    await verification.click();
+    assert.equal(verification.setup.dataset.syncPhase, 'recovery');
+    assert.equal(verification.confirm.disabled, false);
+    assert.match(verification.summary.textContent, /人間確認/);
+
+    let preparationAttempts = 0;
+    let accountStarts = 0;
+    const membership = accountSetupFixture({
+        completeAccountSetup: async () => { accountStarts += 1; return { ok: true }; },
+        prepareAll: async () => ({ ok: ++preparationAttempts > 1 })
+    });
+    await membership.click();
+    assert.equal(membership.setup.dataset.syncPhase, 'membership-retry');
+    assert.equal(membership.confirm.disabled, false);
+    assert.match(membership.summary.textContent, /成功済みの設定は保持/);
+    await membership.click();
+    assert.equal(membership.setup.dataset.syncPhase, 'complete');
+    assert.equal(accountStarts, 1, 'membership retry does not create another Account');
 });
 
 test('Port remains a Control Plane and never opens app stores or handles user payloads', () => {

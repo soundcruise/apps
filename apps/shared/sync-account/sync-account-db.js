@@ -5,24 +5,51 @@
   const DATABASE_NAME = 'sound-cruise-sync-account';
   const STORE_NAME = 'meta';
   const VERSION = 1;
+  const DEFAULT_STORAGE_TIMEOUT_MS = 20_000;
   const ALLOWED_KEYS = new Set([
     'account', 'qaAdmission', 'pendingStart', 'pendingConsume', 'pendingBridge',
     'pendingRecovery', 'pendingDelete'
   ]);
   const QA_APP_IDS = new Set(['chord', 'pitch', 'fretboard', 'rhythm']);
 
-  function requestResult(request) {
+  function requestResult(request, timeoutMs = DEFAULT_STORAGE_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error || new Error('account_storage_failed'));
+      let settled = false;
+      const finish = (callback, value) => {
+        if (settled) {
+          if (callback === resolve) request.result?.close?.();
+          return;
+        }
+        settled = true;
+        global.clearTimeout(timeoutId);
+        callback(value);
+      };
+      const timeoutId = global.setTimeout(() => {
+        try { request.transaction?.abort?.(); } catch (_) { /* already inactive */ }
+        finish(reject, new Error('account_storage_timeout'));
+      }, timeoutMs);
+      request.onsuccess = () => finish(resolve, request.result);
+      request.onerror = () => finish(reject, request.error || new Error('account_storage_failed'));
+      request.onblocked = () => finish(reject, new Error('account_storage_blocked'));
     });
   }
 
-  function transactionDone(transaction) {
+  function transactionDone(transaction, timeoutMs = DEFAULT_STORAGE_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
-      transaction.oncomplete = () => resolve();
-      transaction.onabort = () => reject(transaction.error || new Error('account_storage_failed'));
-      transaction.onerror = () => reject(transaction.error || new Error('account_storage_failed'));
+      let settled = false;
+      const finish = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        global.clearTimeout(timeoutId);
+        callback(value);
+      };
+      const timeoutId = global.setTimeout(() => {
+        try { transaction.abort(); } catch (_) { /* already inactive */ }
+        finish(reject, new Error('account_storage_timeout'));
+      }, timeoutMs);
+      transaction.oncomplete = () => finish(resolve);
+      transaction.onabort = () => finish(reject, transaction.error || new Error('account_storage_failed'));
+      transaction.onerror = () => finish(reject, transaction.error || new Error('account_storage_failed'));
     });
   }
 

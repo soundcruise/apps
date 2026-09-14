@@ -4,6 +4,7 @@
   const API_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
   const SCRIPT_ID = 'sound-cruise-account-turnstile-api';
   const CONTAINER_ID = 'sound-cruise-account-turnstile';
+  const DEFAULT_TIMEOUT_MS = 20_000;
   const ACTIONS = new Set([
     'sound_cruise_account_qa_enroll',
     'sound_cruise_account_start',
@@ -64,11 +65,23 @@
     if (element) element.textContent = '';
   }
 
-  async function getToken(action) {
+  function withTimeout(promise, timeoutMs, onTimeout = () => {}) {
+    let timeoutId;
+    const timeout = new Promise((resolve) => {
+      timeoutId = global.setTimeout(() => {
+        onTimeout();
+        resolve(null);
+      }, timeoutMs);
+    });
+    return Promise.race([promise, timeout]).finally(() => global.clearTimeout(timeoutId));
+  }
+
+  async function getToken(action, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     if (!ACTIONS.has(action) || !siteKey() || !global.document) return null;
     try {
-      const api = await loadApi();
-      return await new Promise((resolve) => {
+      const api = await withTimeout(loadApi(), timeoutMs, () => { scriptPromise = null; });
+      if (!api) return null;
+      return await withTimeout(new Promise((resolve) => {
         let settled = false;
         const finish = (value) => {
           if (settled) return;
@@ -77,7 +90,7 @@
         };
         reset(api);
         try {
-          activeWidgetId = api.render(container(), {
+          const widgetId = api.render(container(), {
             sitekey: siteKey(),
             action,
             appearance: 'interaction-only',
@@ -88,8 +101,10 @@
             'expired-callback': () => finish(null),
             'timeout-callback': () => finish(null)
           });
+          activeWidgetId = widgetId;
+          if (settled) reset(api);
         } catch (_) { finish(null); }
-      });
+      }), timeoutMs, () => reset(api));
     } catch (_) {
       return null;
     }

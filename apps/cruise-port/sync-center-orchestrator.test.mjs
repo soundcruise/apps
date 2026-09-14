@@ -67,6 +67,16 @@ test('Account creation requires the one-time Recovery confirmation', async () =>
     assert.equal(calls.filter(([kind]) => kind === 'start').length, 1);
 });
 
+test('duplicate Account submit shares one in-flight operation', async () => {
+    const { orchestrator, calls } = fixture();
+    orchestrator.createAccountCandidate();
+    const first = orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken: 'verified' });
+    const second = orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken: 'verified' });
+    const [left, right] = await Promise.all([first, second]);
+    assert.equal(left, right);
+    assert.equal(calls.filter(([kind]) => kind === 'start').length, 1);
+});
+
 test('four-app preparation keeps successes and retries only the failed membership', async () => {
     const { orchestrator, calls } = fixture();
     const first = await orchestrator.prepareAll();

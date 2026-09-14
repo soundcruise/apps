@@ -177,7 +177,12 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     let lifecycleAction = null;
     const setPhase = (phase) => {
         setup.dataset.syncPhase = phase;
-        if (confirm) confirm.dataset.syncAction = phase === 'recovery' ? 'confirm-recovery-saved' : 'create-account';
+        if (confirm) confirm.dataset.syncAction = ['recovery', 'start-uncertain'].includes(phase)
+            ? 'confirm-recovery-saved' : phase === 'membership-retry' ? 'retry-memberships' : 'create-account';
+    };
+    const safeErrorCode = (error) => {
+        const value = String(error?.code || error?.message || 'setup_failed');
+        return /^[a-z0-9_]{1,64}$/.test(value) ? value : 'setup_failed';
     };
     const ensureQaAdmission = async () => {
         if (!orchestrator?.qaAdmissionRequired || await orchestrator.hasQaAdmission()) return true;
@@ -207,12 +212,24 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         }
         confirm.disabled = true;
         try {
+            delete setup.dataset.syncError;
             await ensureQaAdmission();
             if (setup.dataset.syncPhase === 'complete') {
                 setup.close();
                 return;
             }
-            if (setup.dataset.syncPhase !== 'recovery') {
+            if (setup.dataset.syncPhase === 'membership-retry') {
+                setPhase('preparing-memberships');
+                if (summary) summary.textContent = '4つのアプリの同期準備をしています…';
+                const prepared = await orchestrator.prepareAll();
+                if (!prepared.ok) throw new Error('membership_partial');
+                setPhase('complete');
+                if (summary) summary.textContent = '準備ができました。各アプリを開いて初回同期を完了してください。';
+                confirm.textContent = '閉じる';
+                await refresh();
+                return;
+            }
+            if (!['recovery', 'start-uncertain'].includes(setup.dataset.syncPhase)) {
                 const candidate = orchestrator.createAccountCandidate();
                 setPhase('recovery');
                 recovery.hidden = false;
@@ -225,9 +242,11 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             if (!turnstileToken) throw new Error('verification_required');
             recovery.textContent = '';
             recovery.hidden = true;
-            setPhase('preparing');
-            if (summary) summary.textContent = '4つのアプリの同期準備をしています…';
+            setPhase('starting');
+            if (summary) summary.textContent = 'Sound Cruise Syncアカウントを作成しています…';
             await orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken });
+            setPhase('preparing-memberships');
+            if (summary) summary.textContent = '4つのアプリの同期準備をしています…';
             const prepared = await orchestrator.prepareAll();
             if (!prepared.ok) throw new Error('membership_partial');
             setPhase('complete');
@@ -235,6 +254,19 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             confirm.textContent = '閉じる';
             await refresh();
         } catch (error) {
+            const failedPhase = setup.dataset.syncPhase;
+            setup.dataset.syncError = safeErrorCode(error);
+            if (failedPhase === 'starting' || failedPhase === 'start-uncertain') {
+                setPhase('start-uncertain');
+                if (summary) summary.textContent = 'アカウント作成を完了できませんでした。通信状態を確認して、もう一度お試しください。';
+                confirm.textContent = 'もう一度試す';
+            } else if (failedPhase === 'preparing-memberships' || failedPhase === 'membership-retry') {
+                setPhase('membership-retry');
+                if (summary) summary.textContent = '完了していないアプリの同期準備があります。成功済みの設定は保持されています。';
+                confirm.textContent = 'もう一度試す';
+            } else if (failedPhase === 'recovery' && error?.message === 'verification_required') {
+                if (summary) summary.textContent = '人間確認を完了してから、もう一度お試しください。';
+            }
             setText(root, '#sync-center-action-status', error?.message === 'verification_required'
                 ? '人間確認を完了してから続けてください。'
                 : error?.message === 'qa_enrollment_required'

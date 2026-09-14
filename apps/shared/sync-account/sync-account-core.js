@@ -161,6 +161,7 @@
   const RETRYABLE_SENSITIVE_FAILURES = new Set([
     'network_error', 'network_unavailable', 'invalid_response',
     'account_runtime_unavailable', 'account_server_unavailable',
+    'account_request_timeout', 'account_start_uncertain',
     'recovery_uncertain', 'remote_post_verify_failed'
   ]);
 

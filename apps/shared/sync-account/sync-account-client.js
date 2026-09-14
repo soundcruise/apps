@@ -51,8 +51,12 @@
     qa_enrollment_expired: 'qa_enrollment_expired',
     qa_enrollment_used: 'qa_enrollment_used',
     qa_enrollment_cancelled: 'qa_enrollment_cancelled',
+    account_request_timeout: 'account_request_timeout',
+    account_start_uncertain: 'account_start_uncertain',
+    network_error: 'network_error',
     invalid_request: 'invalid_request'
   });
+  const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
 
   class AccountApiError extends Error {
     constructor(status, code) {
@@ -61,6 +65,16 @@
       this.status = status;
       this.code = code;
     }
+  }
+
+  function normalizedTimeout(value) {
+    return Number.isFinite(value) && value > 0 ? value : DEFAULT_REQUEST_TIMEOUT_MS;
+  }
+
+  function uncertainStartFailure(error) {
+    return error instanceof AccountApiError && [
+      'account_request_timeout', 'invalid_response', 'network_error', 'account_start_uncertain'
+    ].includes(error.code);
   }
 
   class AccountClient {
@@ -74,35 +88,64 @@
       this.core = options.core || root.core;
       this.qaScope = options.qaScope || 'port';
       this.qaAppId = options.qaAppId || null;
+      this.requestTimeoutMs = normalizedTimeout(options.requestTimeoutMs);
     }
 
     async request(path, options = {}) {
-      const headers = new Headers({ Accept: 'application/json' });
-      if (options.body) headers.set('Content-Type', 'application/json');
-      if (options.accountCredential) headers.set('Authorization', `Bearer ${options.accountCredential}`);
-      if (options.appCredential) {
-        headers.set('X-Sound-Cruise-App-Authorization', `Bearer ${options.appCredential}`);
-      }
-      if (!options.skipQa) {
-        const qa = options.qaAdmission || await this.storage?.getQaAdmission?.(this.qaScope, this.qaAppId);
-        if (qa?.qaCredential) {
-          headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qa.qaCredential}`);
-        }
-      }
-      const response = await this.fetchImpl(`${this.endpoint}${path}`, {
-        method: options.method || 'GET',
-        headers,
-        body: options.body ? JSON.stringify(options.body) : undefined,
-        credentials: 'omit',
-        cache: 'no-store',
-        referrerPolicy: 'no-referrer'
+      const timeoutMs = normalizedTimeout(options.timeoutMs || this.requestTimeoutMs);
+      const controller = typeof global.AbortController === 'function' ? new global.AbortController() : null;
+      let timeoutId = null;
+      let timedOut = false;
+      const timeout = new Promise((_, reject) => {
+        timeoutId = global.setTimeout(() => {
+          timedOut = true;
+          try { controller?.abort(); } catch (_) { /* best effort cancellation */ }
+          reject(new AccountApiError(0, 'account_request_timeout'));
+        }, timeoutMs);
       });
-      let payload;
-      try { payload = await response.json(); } catch { throw new AccountApiError(response.status, 'invalid_response'); }
-      if (!response.ok || payload?.ok !== true) {
-        throw new AccountApiError(response.status, payload?.code || 'account_api_error');
+      const operation = (async () => {
+        const headers = new Headers({ Accept: 'application/json' });
+        if (options.body) headers.set('Content-Type', 'application/json');
+        if (options.accountCredential) headers.set('Authorization', `Bearer ${options.accountCredential}`);
+        if (options.appCredential) {
+          headers.set('X-Sound-Cruise-App-Authorization', `Bearer ${options.appCredential}`);
+        }
+        if (!options.skipQa) {
+          const qa = options.qaAdmission || await this.storage?.getQaAdmission?.(this.qaScope, this.qaAppId);
+          if (qa?.qaCredential) {
+            headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qa.qaCredential}`);
+          }
+        }
+        let response;
+        try {
+          response = await this.fetchImpl(`${this.endpoint}${path}`, {
+            method: options.method || 'GET',
+            headers,
+            body: options.body ? JSON.stringify(options.body) : undefined,
+            credentials: 'omit',
+            cache: 'no-store',
+            referrerPolicy: 'no-referrer',
+            ...(controller ? { signal: controller.signal } : {})
+          });
+        } catch (error) {
+          if (timedOut || error?.name === 'AbortError') throw new AccountApiError(0, 'account_request_timeout');
+          throw new AccountApiError(0, 'network_error');
+        }
+        let payload;
+        try { payload = await response.json(); } catch {
+          if (timedOut) throw new AccountApiError(0, 'account_request_timeout');
+          throw new AccountApiError(response.status, 'invalid_response');
+        }
+        if (!response.ok || payload?.ok !== true) {
+          throw new AccountApiError(response.status, payload?.code || 'account_api_error');
+        }
+        return payload;
+      })();
+      try {
+        return await Promise.race([operation, timeout]);
+      } finally {
+        if (timeoutId !== null) global.clearTimeout(timeoutId);
       }
-      return payload;
     }
 
     async enrollQa({ enrollmentCode, turnstileToken, material = null }) {
@@ -136,17 +179,40 @@
         deviceLabel: deviceLabel || null,
         recoveryAcknowledged: true
       });
-      const result = await this.request('/v2/accounts/start', {
-        method: 'POST',
-        body: {
-          operationId: candidate.operationId,
-          appIds,
-          accountCredential: candidate.accountCredential,
-          recoveryCode: candidate.recoveryCode,
-          turnstileToken,
-          deviceLabel: deviceLabel || null
+      let result;
+      try {
+        result = await this.request('/v2/accounts/start', {
+          method: 'POST',
+          body: {
+            operationId: candidate.operationId,
+            appIds,
+            accountCredential: candidate.accountCredential,
+            recoveryCode: candidate.recoveryCode,
+            turnstileToken,
+            deviceLabel: deviceLabel || null
+          }
+        });
+      } catch (error) {
+        if (!uncertainStartFailure(error)) throw error;
+        try {
+          const resumed = await this.resumePendingStart();
+          if (resumed.status === 'committed') {
+            return Object.freeze({
+              ok: true,
+              operation: 'reconciled',
+              accountId: resumed.summary.account.id,
+              accountDeviceId: candidate.accountDeviceId,
+              recoveryVersion: resumed.summary.account.recoveryVersion,
+              memberships: resumed.summary.memberships || [],
+              recoveryCode: candidate.recoveryCode,
+              reconciled: true
+            });
+          }
+        } catch (_) {
+          throw new AccountApiError(0, 'account_start_uncertain');
         }
-      });
+        throw error;
+      }
       await this.storage.setAccount({
         accountId: result.accountId,
         accountDeviceId: result.accountDeviceId,
