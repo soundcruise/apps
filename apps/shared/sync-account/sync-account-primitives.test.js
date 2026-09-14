@@ -293,6 +293,82 @@ test('Account start exposes Recovery once to the caller but never writes it to p
   }), /account_material_must_be_created_and_saved_first/);
 });
 
+test('Account Recovery requires saved candidate, persists no Recovery plaintext, and promotes only after commit', async () => {
+  const writes = [];
+  const requests = [];
+  const storage = {
+    async setPendingRecovery(value) { writes.push(['pendingRecovery', structuredClone(value)]); },
+    async setAccount(value) { writes.push(['account', structuredClone(value)]); },
+    async clearPendingRecovery() { writes.push(['clearPendingRecovery']); }
+  };
+  const account = load([coreSource, clientSource]);
+  const material = account.core.createAccountRecoveryMaterial();
+  assert.equal(account.core.validAccountRecoveryClaim(material.claimToken), true);
+  assert.equal(account.core.validAccountCredential(material.accountCredential), true);
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    fetchImpl: async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push({ url, body });
+      if (url.endsWith('/prepare')) {
+        return Response.json({ ok: true, summary: { memberships: [], activeDeviceCount: 2 } }, { status: 201 });
+      }
+      return Response.json({
+        ok: true, accountId: crypto.randomUUID(),
+        accountDeviceId: material.accountDeviceId, recoveryVersion: 2
+      }, { status: 201 });
+    }
+  });
+  const prepared = await client.prepareAccountRecovery({
+    recoveryCode: 'SAR1-0000-0000-0000-0000-0000',
+    deviceLabel: 'Recovered', turnstileToken: 'opaque', material
+  });
+  assert.equal(prepared.nextRecoveryCode, account.core.formatRecoveryCode(material.nextRecoveryCode));
+  assert.equal(writes.length, 0, 'prepare keeps all candidate material in request memory');
+  await assert.rejects(
+    client.commitAccountRecovery({ material }),
+    /account_recovery_save_confirmation_required/
+  );
+  await client.commitAccountRecovery({ material, recoverySaved: true });
+  assert.equal(JSON.stringify(writes).includes(material.nextRecoveryCode), false);
+  assert.equal(writes[0][0], 'pendingRecovery');
+  assert.equal(writes.at(-1)[0], 'clearPendingRecovery');
+  assert.equal(requests[1].body.claimToken, material.claimToken);
+});
+
+test('scoped delete uses a one-time intent and clears Account storage only for Account-wide delete', async () => {
+  const account = load([coreSource, clientSource]);
+  const material = account.core.createAccountDeleteMaterial();
+  const credential = account.core.createAccountCredential().accountCredential;
+  const writes = [];
+  const storage = {
+    async setPendingDelete(value) { writes.push(['pendingDelete', structuredClone(value)]); },
+    async clearPendingDelete() { writes.push(['clearPendingDelete']); },
+    async clearAccount() { writes.push(['clearAccount']); }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    fetchImpl: async (url, options) => Response.json({
+      ok: true, operation: url.endsWith('delete-intent') ? 'issued' : 'deleting',
+      expiresAt: Date.now() + 60_000, purgeAfter: Date.now() + 60_000
+    }, { status: url.endsWith('delete-intent') ? 201 : 202 })
+  });
+  const issued = await client.issueDeleteIntent({
+    accountCredential: credential, scope: 'app', appId: 'pitch', material
+  });
+  assert.equal(issued.material.intentToken, material.intentToken);
+  await client.commitDelete({
+    accountCredential: credential, scope: 'app', appId: 'pitch', material, confirmed: true
+  });
+  assert.equal(writes.some(([kind]) => kind === 'clearAccount'), false);
+  const accountMaterial = account.core.createAccountDeleteMaterial();
+  await client.issueDeleteIntent({ accountCredential: credential, scope: 'account', material: accountMaterial });
+  await client.commitDelete({
+    accountCredential: credential, scope: 'account', material: accountMaterial, confirmed: true
+  });
+  assert.equal(writes.some(([kind]) => kind === 'clearAccount'), true);
+});
+
 test('consume response-loss recovery proves committed state with candidate Account auth, not handoff persistence', async () => {
   const writes = [];
   const account = load([coreSource, clientSource]);

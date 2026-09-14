@@ -6,6 +6,7 @@ import {
 } from '../src/account-crypto.js';
 import { createD1AccountRepository } from '../src/account-database.js';
 import { ACCOUNT_APP_JOIN_TTL_MS, createD1AppJoinRepository } from '../src/account-join-database.js';
+import { createD1AccountLifecycleRepository } from '../src/account-lifecycle-database.js';
 import { createIdentityMaterial } from '../src/crypto.js';
 import { createQaCredential, qaCredentialVerifier } from '../src/account-qa-crypto.js';
 import { createSqliteD1 } from './sqlite-d1.js';
@@ -75,6 +76,22 @@ async function consumeInput(issued, appId = 'pitch', overrides = {}) {
   return input;
 }
 
+async function deleteAccount(fixture, now = 300) {
+  const lifecycle = createD1AccountLifecycleRepository(fixture.db);
+  const issueInput = {
+    operationId: crypto.randomUUID(), requestFingerprint: '1'.repeat(64),
+    intentId: crypto.randomUUID(), intentVerifier: '2'.repeat(64),
+    scope: 'account', appId: null, now
+  };
+  const intent = await lifecycle.issueDeleteIntent(fixture.identity, issueInput);
+  assert.equal(intent.status, 'issued');
+  return lifecycle.commitDelete(fixture.identity, {
+    operationId: crypto.randomUUID(), requestFingerprint: '3'.repeat(64),
+    intentId: issueInput.intentId, intentVerifier: issueInput.intentVerifier,
+    scope: 'account', appId: null, now: now + 1
+  });
+}
+
 test('app join is a five-minute verifier-only Account/app/issuer-bound invitation', async () => {
   const fixture = await setup();
   const issued = await issue(fixture);
@@ -127,4 +144,57 @@ test('wrong app, expiry and cancellation fail before any app identity is created
   assert.equal((await cancelled.repository.cancel(cancelled.identity, cancelledIssued.input.invitationId, 150)).status, 'cancelled');
   assert.equal((await cancelled.repository.consume(await consumeInput(cancelledIssued))).status, 'cancelled');
   cancelled.db.close();
+});
+
+test('a recovered Account can reconnect to an existing ready dataset without recreating it', async () => {
+  const fixture = await setup('pitch');
+  const firstInvitation = await issue(fixture, 'pitch', 100);
+  const firstInput = await consumeInput(firstInvitation, 'pitch');
+  const first = await fixture.repository.consume(firstInput);
+  assert.equal(first.status, 'activated');
+  fixture.db.raw.prepare(`
+    INSERT INTO sync_datasets (
+      user_id, app_id, state, schema_version, record_count, manifest_hash,
+      min_change_seq, initialized_at, updated_at, last_change_seq
+    ) VALUES (?, 'pitch', 'ready', 1, 0, ?, 0, 250, 250, 0)
+  `).run(first.syncUserId, '1'.repeat(64));
+
+  const reconnectInvitation = await issue(fixture, 'pitch', 300);
+  const reconnectInput = await consumeInput(reconnectInvitation, 'pitch', { now: 350 });
+  const reconnected = await fixture.repository.consume(reconnectInput);
+  assert.equal(reconnected.status, 'activated');
+  assert.equal(reconnected.syncUserId, first.syncUserId);
+  assert.notEqual(reconnected.appDeviceId, first.appDeviceId);
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_users').get().count, 1);
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count, 1);
+  assert.equal(fixture.db.raw.prepare(
+    'SELECT COUNT(*) count FROM sync_devices WHERE user_id = ? AND revoked_at IS NULL'
+  ).get(first.syncUserId).count, 2);
+  const retry = await fixture.repository.consume({ ...reconnectInput, now: 351 });
+  assert.equal(retry.alreadyActivated, true);
+  fixture.db.close();
+});
+
+test('Account Delete versus Join has one ordered result and never leaves a live joined credential', async () => {
+  const deleteFirst = await setup();
+  const cancelledInvitation = await issue(deleteFirst);
+  assert.equal((await deleteAccount(deleteFirst)).status, 'deleting');
+  assert.equal((await deleteFirst.repository.consume(
+    await consumeInput(cancelledInvitation, 'pitch', { now: 400 })
+  )).status, 'cancelled');
+  assert.equal(deleteFirst.db.raw.prepare('SELECT COUNT(*) count FROM sync_users').get().count, 0);
+  deleteFirst.db.close();
+
+  const joinFirst = await setup();
+  const consumedInvitation = await issue(joinFirst);
+  assert.equal((await joinFirst.repository.consume(await consumeInput(consumedInvitation))).status, 'activated');
+  assert.equal((await deleteAccount(joinFirst)).status, 'deleting');
+  assert.equal(joinFirst.db.raw.prepare(
+    'SELECT COUNT(*) count FROM sync_account_devices WHERE revoked_at IS NULL'
+  ).get().count, 0);
+  assert.equal(joinFirst.db.raw.prepare(
+    'SELECT COUNT(*) count FROM sync_devices WHERE revoked_at IS NULL'
+  ).get().count, 0);
+  assert.equal(joinFirst.db.raw.prepare('SELECT state FROM sync_users').get().state, 'deleting');
+  joinFirst.db.close();
 });

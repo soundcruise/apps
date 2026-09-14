@@ -1,5 +1,5 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.31.1';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.32.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -21,6 +21,8 @@ export function createSyncCenterOrchestrator({
         qaScope: 'port'
     });
     let accountMaterial = null;
+    let recoveryMaterial = null;
+    let deleteMaterial = null;
 
     async function account() { return accountRoot.storage.getAccount(); }
     async function credential() {
@@ -59,9 +61,61 @@ export function createSyncCenterOrchestrator({
         },
         discardAccountCandidate() { accountMaterial = null; },
         async resume() {
+            const recovered = await client.resumePendingRecovery?.();
+            if (recovered?.status === 'committed') return summary();
+            const deleted = await client.resumePendingDelete?.();
+            if (deleted?.status === 'committed' && deleted.result?.scope === 'account') {
+                return Object.freeze({ accountDeleted: true });
+            }
             const resumed = await client.resumePendingStart();
             return resumed.status === 'committed' ? resumed.summary : summary();
         },
+        async prepareRecovery({ recoveryCode, turnstileToken }) {
+            recoveryMaterial = accountRoot.core.createAccountRecoveryMaterial();
+            return client.prepareAccountRecovery({
+                recoveryCode,
+                deviceLabel: deviceLabel(),
+                turnstileToken,
+                material: recoveryMaterial
+            });
+        },
+        recoveryCandidateCode() {
+            if (!recoveryMaterial) throw new Error('account_recovery_not_prepared');
+            return accountRoot.core.formatRecoveryCode(recoveryMaterial.nextRecoveryCode);
+        },
+        async commitRecovery({ recoverySaved }) {
+            if (!recoveryMaterial) throw new Error('account_recovery_not_prepared');
+            const result = await client.commitAccountRecovery({
+                material: recoveryMaterial,
+                recoverySaved
+            });
+            recoveryMaterial = null;
+            return result;
+        },
+        discardRecoveryCandidate() { recoveryMaterial = null; },
+        async revokeEnvironment(accountDeviceId) {
+            return client.revokeEnvironment({
+                accountCredential: await credential(),
+                accountDeviceId,
+                operationId: accountRoot.core.createOperationId()
+            });
+        },
+        async issueDelete(scope, appId = null) {
+            deleteMaterial = accountRoot.core.createAccountDeleteMaterial();
+            return client.issueDeleteIntent({
+                accountCredential: await credential(), scope, appId, material: deleteMaterial
+            });
+        },
+        async commitDelete(scope, appId = null) {
+            if (!deleteMaterial) throw new Error('account_delete_not_prepared');
+            const result = await client.commitDelete({
+                accountCredential: await credential(), scope, appId,
+                material: deleteMaterial, confirmed: true
+            });
+            deleteMaterial = null;
+            return result;
+        },
+        discardDeleteCandidate() { deleteMaterial = null; },
         async prepareAll() {
             const accountCredential = await credential();
             const before = await client.summary(accountCredential);
@@ -101,7 +155,7 @@ export function createSyncCenterOrchestrator({
                 membership = current.memberships?.find((item) => item.appId === appId);
             }
             if (!membership || membership.state === 'deleted') throw new Error('membership_unavailable');
-            if (membership.state === 'active') {
+            if (membership.state === 'active' && Number(membership.activeAppDeviceCount || 0) > 0) {
                 const url = appUrl(appId);
                 navigate(url);
                 return Object.freeze({ kind: 'open', appId, url });

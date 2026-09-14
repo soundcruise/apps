@@ -108,7 +108,14 @@ export function createD1SyncRepository(db, clock = Date.now) {
         user_id, app_id, record_type, record_id, payload_json, payload_hash,
         revision, updated_at, deleted_at, updated_by_device_id, last_operation_id,
         schema_version
-      ) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+      )
+      SELECT ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?
+      WHERE EXISTS (
+        SELECT 1 FROM sync_devices d
+        JOIN sync_users u ON u.id = d.user_id
+        WHERE d.id = ? AND d.user_id = ? AND d.app_id = ?
+          AND d.revoked_at IS NULL AND u.state IN ('provisioning', 'active')
+      )
       ON CONFLICT(user_id, app_id, record_type, record_id) DO UPDATE SET
         payload_json = excluded.payload_json,
         payload_hash = excluded.payload_hash,
@@ -120,10 +127,18 @@ export function createD1SyncRepository(db, clock = Date.now) {
         schema_version = excluded.schema_version
       WHERE sync_records.revision = ?
         AND sync_records.last_operation_id <> excluded.last_operation_id
+        AND EXISTS (
+          SELECT 1 FROM sync_devices d
+          JOIN sync_users u ON u.id = d.user_id
+          WHERE d.id = ? AND d.user_id = ? AND d.app_id = ?
+            AND d.revoked_at IS NULL AND u.state IN ('provisioning', 'active')
+        )
     `).bind(
       identity.userId, identity.appId, operation.recordType, operation.recordId,
       payloadJson, operation.payloadHash, now, deletedAt, identity.deviceId,
-      operation.operationId, operation.schemaVersion, operation.baseRevision
+      operation.operationId, operation.schemaVersion,
+      identity.deviceId, identity.userId, identity.appId,
+      operation.baseRevision, identity.deviceId, identity.userId, identity.appId
     );
     const insertChange = db.prepare(`
       INSERT INTO sync_changes (
@@ -174,6 +189,13 @@ export function createD1SyncRepository(db, clock = Date.now) {
         ? { status: 'applied', record: applied }
         : { status: 'invalid', code: 'operation_id_reused' };
     }
+    const stillAuthorized = await db.prepare(`
+      SELECT 1 AS allowed FROM sync_devices d
+      JOIN sync_users u ON u.id = d.user_id
+      WHERE d.id = ? AND d.user_id = ? AND d.app_id = ?
+        AND d.revoked_at IS NULL AND u.state IN ('provisioning', 'active')
+    `).bind(identity.deviceId, identity.userId, identity.appId).first();
+    if (!stillAuthorized) return { status: 'forbidden', code: 'credential_inactive' };
     return {
       status: 'conflict',
       record: await getRecord(identity.userId, identity.appId, operation.recordType, operation.recordId)

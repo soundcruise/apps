@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート Pro</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.31.1">
-    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.31.1">
-    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.31.1">
+    <link rel="manifest" href="./manifest.json?v=0.32.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.32.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.32.0">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.31.1">
+    <link rel="stylesheet" href="../style.css?v=0.32.0">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -19,12 +19,12 @@
         };
     </script>
     <script src="../../shared/pro-gate.js?v=21" defer></script>
-    <script defer src="../../shared/sync-account/sync-account-core.js?v=3"></script>
-    <script defer src="../../shared/sync-account/sync-account-db.js?v=3"></script>
-    <script defer src="../../shared/sync-account/sync-account-client.js?v=4"></script>
+    <script defer src="../../shared/sync-account/sync-account-core.js?v=4"></script>
+    <script defer src="../../shared/sync-account/sync-account-db.js?v=4"></script>
+    <script defer src="../../shared/sync-account/sync-account-client.js?v=5"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
-    <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=1"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.31.1"></script>
+    <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=2"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.32.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -186,15 +186,19 @@
                 <section class="sync-center-section" aria-labelledby="sync-center-environments-title">
                     <h2 id="sync-center-environments-title">同期中の環境</h2>
                     <ul id="sync-center-environments" class="sync-center-environments"></ul>
-                    <button class="action-button secondary-action" type="button" data-sync-center-unavailable>同期中の環境を管理</button>
                 </section>
                 <section class="sync-center-section" aria-labelledby="sync-center-recovery-title">
                     <h2 id="sync-center-recovery-title">復旧とセキュリティ</h2>
                     <p>復旧コードはアカウントを取り戻すための大切なコードです。安全な場所に保管してください。</p>
                     <div class="sync-center-actions">
-                        <button class="action-button secondary-action" type="button" data-sync-center-unavailable>Sound Cruise Syncを復旧</button>
-                        <button class="action-button secondary-action" type="button" data-sync-center-unavailable>復旧コードを管理</button>
+                        <button id="sync-center-recovery-open" class="action-button secondary-action" type="button">復旧コードで復旧</button>
                     </div>
+                </section>
+                <section class="sync-center-section sync-center-danger" aria-labelledby="sync-center-danger-title">
+                    <h2 id="sync-center-danger-title">危険な操作</h2>
+                    <p>クラウド上のデータだけが削除対象です。端末内のデータは削除されません。</p>
+                    <div id="sync-center-app-delete-actions" class="sync-center-actions"></div>
+                    <button id="sync-center-account-delete" class="action-button danger-action" type="button">Sound Cruise Sync Accountのクラウドデータをすべて削除</button>
                 </section>
                 <p id="sync-center-action-status" class="settings-order-status" role="status" aria-live="polite"></p>
             </section>
@@ -217,6 +221,25 @@
                 <div class="sync-center-actions">
                     <button id="sync-center-setup-confirm" class="action-button primary-action" type="button" data-sync-action="create-account">復旧コードを確認</button>
                     <button id="sync-center-setup-close" class="action-button secondary-action" type="button">戻る</button>
+                </div>
+            </dialog>
+            <dialog id="sync-center-recovery" class="sync-center-help-dialog" aria-labelledby="sync-center-recovery-dialog-title" data-sync-phase="input">
+                <h2 id="sync-center-recovery-dialog-title">Sound Cruise Syncを復旧</h2>
+                <p id="sync-center-recovery-summary" data-sync-summary>保存済みのAccount Recovery Codeを入力してください。</p>
+                <input id="sync-center-recovery-input" data-sensitive="account-recovery-code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Account Recovery Code">
+                <output id="sync-center-recovery-candidate" data-sensitive="account-recovery-candidate" hidden></output>
+                <div class="sync-center-actions">
+                    <button id="sync-center-recovery-confirm" class="action-button primary-action" type="button" data-sync-action="prepare-recovery">復旧対象を確認</button>
+                    <button id="sync-center-recovery-close" class="action-button secondary-action" type="button">戻る</button>
+                </div>
+            </dialog>
+            <dialog id="sync-center-lifecycle-confirm" class="sync-center-help-dialog" aria-labelledby="sync-center-lifecycle-title" data-sync-phase="review">
+                <h2 id="sync-center-lifecycle-title">操作内容を確認</h2>
+                <p id="sync-center-lifecycle-summary" data-sync-summary></p>
+                <p>端末内のデータは削除されません。クラウドデータは7日後に完全削除されます。</p>
+                <div class="sync-center-actions">
+                    <button id="sync-center-lifecycle-submit" class="action-button danger-action" type="button" data-sync-action="review">続ける</button>
+                    <button id="sync-center-lifecycle-close" class="action-button secondary-action" type="button">キャンセル</button>
                 </div>
             </dialog>
         </main>

@@ -2,13 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createAccountCredential,
+  createAccountDeleteIntent,
   createAccountHandoff,
+  createAccountRecoveryClaim,
   createAccountRecoveryCode
 } from '../src/account-crypto.js';
 import { createQaCredential } from '../src/account-qa-crypto.js';
 import { createIdentityMaterial } from '../src/crypto.js';
 import {
   validateAccountReadQuery,
+  validateAccountDeleteCommitPayload,
+  validateAccountDeleteIntentPayload,
+  validateAccountDeviceRevokePayload,
+  validateAccountRecoveryCommitPayload,
+  validateAccountRecoveryPreparePayload,
   validateAccountStartPayload,
   validateChordBridgeDualPayload,
   validateChordBridgePreparePayload,
@@ -121,4 +128,34 @@ test('membership and handoff validation rejects identity injection and wrong cre
   assert.equal(validateHandoffCancelPayload({ handoffId: handoff.handoffId, accountId: 'x' }).ok, false);
   assert.equal(validateAccountReadQuery(new URL('https://example.test/v2/accounts/summary')).ok, true);
   assert.equal(validateAccountReadQuery(new URL('https://example.test/v2/accounts/summary?account=x')).ok, false);
+});
+
+test('Account lifecycle validation is exact, scoped and accepts no Account selector', () => {
+  const account = createAccountCredential();
+  const claim = createAccountRecoveryClaim();
+  const intent = createAccountDeleteIntent();
+  const recoveryCode = createAccountRecoveryCode();
+  const nextRecoveryCode = createAccountRecoveryCode();
+  const prepare = {
+    operationId, claimToken: claim.claimToken,
+    accountCredential: account.credential, recoveryCode, nextRecoveryCode,
+    turnstileToken: 'verified', deviceLabel: null
+  };
+  assert.equal(validateAccountRecoveryPreparePayload(prepare).ok, true);
+  assert.equal(validateAccountRecoveryPreparePayload({ ...prepare, accountId: 'victim' }).ok, false);
+  assert.equal(validateAccountRecoveryCommitPayload({
+    operationId, claimToken: claim.claimToken, accountCredential: account.credential
+  }).ok, true);
+  assert.equal(validateAccountDeviceRevokePayload({
+    operationId, accountDeviceId: account.deviceId
+  }).ok, true);
+  assert.equal(validateAccountDeleteIntentPayload({
+    operationId, intentToken: intent.intentToken, appId: 'pitch'
+  }, 'app').ok, true);
+  assert.equal(validateAccountDeleteCommitPayload({
+    operationId, intentToken: intent.intentToken
+  }, 'account').ok, true);
+  assert.equal(validateAccountDeleteCommitPayload({
+    operationId, intentToken: intent.intentToken, appId: 'chord'
+  }, 'account').ok, false);
 });

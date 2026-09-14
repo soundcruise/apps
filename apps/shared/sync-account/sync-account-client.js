@@ -38,6 +38,11 @@
     invalid_app_credential: 'app_auth_required',
     account_recovery_required: 'account_recovery_required',
     account_membership_delete_required: 'account_membership_delete_required',
+    account_recovery_invalid: 'account_recovery_invalid',
+    account_recovery_paused: 'account_runtime_paused',
+    account_delete_invalid: 'account_delete_invalid',
+    account_delete_paused: 'account_runtime_paused',
+    account_device_not_found: 'account_device_not_found',
     rate_limited: 'rate_limited',
     turnstile_failed: 'verification_failed',
     qa_admission_required: 'qa_admission_required',
@@ -164,6 +169,147 @@
 
     devices(accountCredential) {
       return this.request('/v2/accounts/devices', { accountCredential });
+    }
+
+    async prepareAccountRecovery({ recoveryCode, deviceLabel, turnstileToken, material = null }) {
+      const candidate = material || this.core.createAccountRecoveryMaterial();
+      if (typeof recoveryCode !== 'string' || !recoveryCode.trim() ||
+          !this.core.validAccountRecoveryClaim(candidate.claimToken) ||
+          !this.core.validAccountCredential(candidate.accountCredential) ||
+          typeof candidate.nextRecoveryCode !== 'string') {
+        throw new Error('account_recovery_material_invalid');
+      }
+      const result = await this.request('/v2/accounts/recovery/prepare', {
+        method: 'POST',
+        body: {
+          operationId: candidate.prepareOperationId,
+          recoveryCode,
+          claimToken: candidate.claimToken,
+          nextRecoveryCode: candidate.nextRecoveryCode,
+          accountCredential: candidate.accountCredential,
+          deviceLabel: deviceLabel || null,
+          turnstileToken
+        }
+      });
+      return Object.freeze({
+        ...result,
+        material: candidate,
+        nextRecoveryCode: this.core.formatRecoveryCode(candidate.nextRecoveryCode)
+      });
+    }
+
+    async commitAccountRecovery({ material, recoverySaved }) {
+      if (recoverySaved !== true || !material ||
+          !this.core.validAccountRecoveryClaim(material.claimToken) ||
+          !this.core.validAccountCredential(material.accountCredential)) {
+        throw new Error('account_recovery_save_confirmation_required');
+      }
+      const pending = {
+        commitOperationId: material.commitOperationId,
+        claimToken: material.claimToken,
+        accountDeviceId: material.accountDeviceId,
+        accountCredential: material.accountCredential,
+        recoveryAcknowledged: true
+      };
+      await this.storage.setPendingRecovery(pending);
+      const result = await this.request('/v2/accounts/recovery/commit', {
+        method: 'POST',
+        body: {
+          operationId: material.commitOperationId,
+          claimToken: material.claimToken,
+          accountCredential: material.accountCredential
+        }
+      });
+      await this.storage.setAccount({
+        accountId: result.accountId,
+        accountDeviceId: result.accountDeviceId,
+        accountCredential: material.accountCredential,
+        recoveryVersion: result.recoveryVersion,
+        recoveryAcknowledgedVersion: result.recoveryVersion,
+        recoveryAcknowledgedAt: Date.now()
+      });
+      await this.storage.clearPendingRecovery();
+      return Object.freeze(result);
+    }
+
+    async resumePendingRecovery() {
+      const pending = await this.storage.getPendingRecovery?.();
+      if (!pending) return Object.freeze({ status: 'none' });
+      const result = await this.request('/v2/accounts/recovery/commit', {
+        method: 'POST',
+        body: {
+          operationId: pending.commitOperationId,
+          claimToken: pending.claimToken,
+          accountCredential: pending.accountCredential
+        }
+      });
+      await this.storage.setAccount({
+        accountId: result.accountId,
+        accountDeviceId: result.accountDeviceId,
+        accountCredential: pending.accountCredential,
+        recoveryVersion: result.recoveryVersion,
+        recoveryAcknowledgedVersion: result.recoveryVersion,
+        recoveryAcknowledgedAt: Date.now()
+      });
+      await this.storage.clearPendingRecovery();
+      return Object.freeze({ status: 'committed', result });
+    }
+
+    async revokeEnvironment({ accountCredential, accountDeviceId, operationId }) {
+      const result = await this.request('/v2/accounts/devices/revoke', {
+        method: 'POST', accountCredential,
+        body: { operationId, accountDeviceId }
+      });
+      if (result.isCurrent) await this.storage.clearAccount();
+      return Object.freeze(result);
+    }
+
+    async issueDeleteIntent({ accountCredential, scope, appId = null, material = null }) {
+      if (!['app', 'account'].includes(scope) || (scope === 'app' && !this.core.ACCOUNT_APPS.includes(appId))) {
+        throw new Error('account_delete_scope_invalid');
+      }
+      const candidate = material || this.core.createAccountDeleteMaterial();
+      if (!this.core.validAccountDeleteIntent(candidate.intentToken)) {
+        throw new Error('account_delete_material_invalid');
+      }
+      const path = scope === 'account'
+        ? '/v2/accounts/delete-intent'
+        : `/v2/accounts/memberships/${encodeURIComponent(appId)}/delete-intent`;
+      const body = { operationId: candidate.issueOperationId, intentToken: candidate.intentToken };
+      if (scope === 'app') body.appId = appId;
+      const result = await this.request(path, { method: 'POST', accountCredential, body });
+      return Object.freeze({ ...result, material: candidate });
+    }
+
+    async commitDelete({ accountCredential, scope, appId = null, material, confirmed }) {
+      if (confirmed !== true || !material || !this.core.validAccountDeleteIntent(material.intentToken)) {
+        throw new Error('account_delete_confirmation_required');
+      }
+      const path = scope === 'account'
+        ? '/v2/accounts'
+        : `/v2/accounts/memberships/${encodeURIComponent(appId)}`;
+      const body = { operationId: material.commitOperationId, intentToken: material.intentToken };
+      if (scope === 'app') body.appId = appId;
+      await this.storage.setPendingDelete({
+        scope, appId, path, body, accountCredential
+      });
+      const result = await this.request(path, {
+        method: 'DELETE', accountCredential, body
+      });
+      if (scope === 'account') await this.storage.clearAccount();
+      await this.storage.clearPendingDelete();
+      return Object.freeze(result);
+    }
+
+    async resumePendingDelete() {
+      const pending = await this.storage.getPendingDelete?.();
+      if (!pending) return Object.freeze({ status: 'none' });
+      const result = await this.request(pending.path, {
+        method: 'DELETE', accountCredential: pending.accountCredential, body: pending.body
+      });
+      if (pending.scope === 'account') await this.storage.clearAccount();
+      await this.storage.clearPendingDelete();
+      return Object.freeze({ status: 'committed', result });
     }
 
     prepareMembership({ accountCredential, appId, operationId }) {

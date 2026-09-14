@@ -74,6 +74,30 @@ test('operation ID reuse with different semantic input is invalid, never a dupli
   db.close();
 });
 
+test('a revoke or deleting user that wins before push prevents every record mutation', async () => {
+  for (const transition of ['revoke', 'delete']) {
+    const db = createSqliteD1();
+    const identity = seedIdentity(db);
+    db.raw.prepare(`UPDATE sync_users
+      SET state = 'active', recovery_version = 1, recovery_verifier = ?
+      WHERE id = ?`).run('a'.repeat(64), identity.userId);
+    if (transition === 'revoke') {
+      db.raw.prepare('UPDATE sync_devices SET revoked_at = 99 WHERE id = ?').run(identity.deviceId);
+    } else {
+      db.raw.prepare("UPDATE sync_users SET state = 'deleting' WHERE id = ?").run(identity.userId);
+    }
+    const repository = createD1SyncRepository(db, () => 100);
+    const result = await repository.applyOperation(
+      identity,
+      await operation({ id: 'c1', chordName: 'blocked' }, 0)
+    );
+    assert.deepEqual(result, { status: 'forbidden', code: 'credential_inactive' });
+    assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM sync_records').get().count, 0);
+    assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM sync_changes').get().count, 0);
+    db.close();
+  }
+});
+
 test('dataset bootstrap is idempotent and restricted to Account-managed app identities', async () => {
   const db = createSqliteD1();
   const managed = seedIdentity(db, {

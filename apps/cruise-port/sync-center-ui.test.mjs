@@ -40,10 +40,34 @@ test('Port remains a Control Plane and never opens app stores or handles user pa
     assert.doesNotMatch(controller, /client\.(?:prepareMembership|issueHandoff|recover|delete|revoke)\s*\(/);
 });
 
-test('recovery plaintext and credentials are never rendered or persisted by Sync Center', () => {
-    const combined = `${root}\n${pro}\n${read('./sync-center-ui.js')}\n${controller}`;
-    assert.doesNotMatch(combined, /setAccount|setPending|recoveryCode\s*[:=]|accountCredential\s*[:=]/);
+test('Recovery plaintext is ephemeral and Sync Center never persists credentials directly', () => {
+    const ui = read('./sync-center-ui.js');
+    const combined = `${root}\n${pro}\n${ui}\n${controller}`;
+    assert.doesNotMatch(combined, /setAccount|setPending|accountCredential\s*[:=]/);
     assert.doesNotMatch(combined, /innerHTML|insertAdjacentHTML/);
+    assert.match(ui, /recoverySecret\?\.take\(\)/);
+    assert.match(ui, /recoverySecret\.resolve\(\)/);
+    assert.match(ui, /recoveryCandidate\.textContent = ''[\s\S]*commitRecovery/);
+});
+
+test('Lifecycle UI separates danger actions and enforces stable two-step sensitive phases', () => {
+    for (const html of [root, pro]) {
+        assert.match(html, /sync-center-danger/);
+        assert.match(html, /data-sync-phase="input"/);
+        assert.match(html, /data-sync-action="prepare-recovery"/);
+        assert.match(html, /data-sync-summary/);
+        assert.match(html, /data-sensitive="account-recovery-code"/);
+        assert.match(html, /id="sync-center-lifecycle-submit"/);
+        assert.equal((html.match(/id="sync-center-lifecycle-confirm"/g) || []).length, 1);
+        assert.match(html, /端末内のデータは削除されません/);
+        assert.match(html, /7日後に完全削除されます/);
+    }
+    const ui = read('./sync-center-ui.js');
+    assert.match(ui, /lifecycleDialog\.dataset\.syncPhase = 'review'/);
+    assert.match(ui, /lifecycleDialog\.dataset\.syncPhase = 'confirm'/);
+    assert.match(ui, /querySelector\?\.\('#sync-center-lifecycle-submit'\)/);
+    assert.match(ui, /lifecycleConfirm\.disabled = true/);
+    assert.match(ui, /data-sync-app-delete/);
 });
 
 test('official four-app routes are reused and no all-data-upload promise is made', () => {

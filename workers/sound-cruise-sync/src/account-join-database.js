@@ -141,7 +141,9 @@ export function createD1AppJoinRepository(db) {
       identity.accountId,
       input.appId
     ).first();
-    if (!membership || membership.state !== 'pending') return { status: 'membership_unavailable' };
+    if (!membership || !['pending', 'active'].includes(membership.state)) {
+      return { status: 'membership_unavailable' };
+    }
 
     // Expired invitations no longer occupy the one-active-invitation slot. This
     // lifecycle write is part of issuing a new invitation, never scheduled cleanup.
@@ -267,8 +269,10 @@ export function createD1AppJoinRepository(db) {
     }
     if (row.cancelled_at != null) return { status: 'cancelled' };
     if (Number(row.expires_at) <= input.now) return { status: 'expired' };
+    const newMembership = row.membership_state === 'pending' && row.sync_user_id == null;
+    const reconnectMembership = row.membership_state === 'active' && row.sync_user_id != null;
     if (row.account_state !== 'active' || row.issuer_revoked_at != null ||
-        row.membership_state !== 'pending' || row.sync_user_id != null) {
+        (!newMembership && !reconnectMembership)) {
       return { status: 'membership_unavailable' };
     }
     if (!row.qa_enrollment_id || row.qa_issuer_scope !== 'port' ||
@@ -299,6 +303,7 @@ export function createD1AppJoinRepository(db) {
       input.now
     );
     if (input.consumeMode === 'existing_chord') {
+      if (!newMembership) return { status: 'membership_unavailable' };
       const existing = await db.prepare(`
         SELECT d.id, d.user_id, d.app_id, d.revoked_at, u.state AS user_state,
                u.deleted_at, s.state AS dataset_state
@@ -402,6 +407,89 @@ export function createD1AppJoinRepository(db) {
             accountDeviceId: finalState.claimed_by_account_device_id,
             qaSessionId: finalState.qa_app_session_id,
             alreadyActivated: true
+          };
+        }
+        throw error;
+      }
+    }
+
+    if (reconnectMembership) {
+      const reconnectable = await db.prepare(`
+        SELECT u.id
+        FROM sync_users u
+        JOIN sync_datasets d ON d.user_id = u.id AND d.app_id = ? AND d.state = 'ready'
+        JOIN sync_account_managed_users am
+          ON am.sync_user_id = u.id AND am.account_id = ? AND am.membership_id = ? AND am.app_id = ?
+        WHERE u.id = ? AND u.state = 'active' AND u.deleted_at IS NULL
+      `).bind(input.appId, row.account_id, row.membership_id, input.appId, row.sync_user_id).first();
+      if (!reconnectable) return { status: 'membership_unavailable' };
+      const insertAppDevice = db.prepare(`
+        INSERT INTO sync_devices (
+          id, user_id, app_id, credential_version, credential_verifier, label,
+          last_cursor, created_at, last_seen_at, revoked_at, pairing_pending_at, paired_at
+        ) VALUES (?, ?, ?, 1, ?, ?, 0, ?, ?, NULL, NULL, ?)
+      `).bind(input.appDeviceId, row.sync_user_id, input.appId,
+        input.appCredentialVerifier, input.deviceLabel, input.now, input.now, input.now);
+      const insertAccountDevice = db.prepare(`
+        INSERT INTO sync_account_devices (
+          id, account_id, credential_version, credential_verifier,
+          label, created_at, last_seen_at, revoked_at
+        ) VALUES (?, ?, 1, ?, ?, ?, ?, NULL)
+      `).bind(input.accountDeviceId, row.account_id, input.accountCredentialVerifier,
+        input.deviceLabel, input.now, input.now);
+      const linkDevice = db.prepare(`
+        INSERT INTO sync_membership_device_links (
+          account_id, membership_id, app_device_id, account_device_id, linked_at
+        ) VALUES (?, ?, ?, ?, ?)
+      `).bind(row.account_id, row.membership_id, input.appDeviceId,
+        input.accountDeviceId, input.now);
+      const consumeInvitation = db.prepare(`
+        UPDATE sync_app_join_invitations
+        SET claimed_by_app_device_id = ?, claimed_by_account_device_id = ?,
+            consumed_at = ?, consume_operation_id = ?, consume_fingerprint = ?,
+            consume_mode = 'new_app', qa_app_session_id = ?
+        WHERE invitation_id = ? AND account_id = ? AND membership_id = ?
+          AND consumed_at IS NULL AND cancelled_at IS NULL AND expires_at > ?
+      `).bind(input.appDeviceId, input.accountDeviceId, input.now,
+        input.operationId, input.requestFingerprint, input.qaSessionId,
+        input.invitationId, row.account_id, row.membership_id, input.now);
+      const guard = db.prepare(`
+        UPDATE sync_account_memberships SET updated_at = CASE WHEN
+          state = 'active' AND sync_user_id = ?
+          AND EXISTS (SELECT 1 FROM sync_membership_device_links l
+            WHERE l.membership_id = sync_account_memberships.id
+              AND l.app_device_id = ? AND l.account_device_id = ?)
+          AND EXISTS (SELECT 1 FROM sync_app_join_invitations h
+            WHERE h.invitation_id = ? AND h.consumed_at IS NOT NULL
+              AND h.consume_operation_id = ? AND h.consume_fingerprint = ?)
+          THEN updated_at ELSE created_at - 1 END
+        WHERE id = ? AND account_id = ? AND app_id = ?
+      `).bind(row.sync_user_id, input.appDeviceId, input.accountDeviceId,
+        input.invitationId, input.operationId, input.requestFingerprint,
+        row.membership_id, row.account_id, input.appId);
+      try {
+        const statements = [insertAppDevice, insertAccountDevice, insertQaSession,
+          linkDevice, consumeInvitation, guard];
+        const results = await db.batch(statements);
+        if (!batchSucceeded(results, statements.length)) {
+          throw new Error('Account app reconnect transaction was incomplete');
+        }
+        return {
+          status: 'activated', accountId: row.account_id,
+          membershipId: row.membership_id, syncUserId: row.sync_user_id,
+          appDeviceId: input.appDeviceId, accountDeviceId: input.accountDeviceId,
+          qaSessionId: input.qaSessionId, alreadyActivated: false
+        };
+      } catch (error) {
+        const finalState = await readById(input.invitationId);
+        if (finalState?.consume_operation_id === input.operationId &&
+            finalState.consume_fingerprint === input.requestFingerprint) {
+          return {
+            status: 'activated', accountId: finalState.account_id,
+            membershipId: finalState.membership_id, syncUserId: finalState.sync_user_id,
+            appDeviceId: finalState.claimed_by_app_device_id,
+            accountDeviceId: finalState.claimed_by_account_device_id,
+            qaSessionId: finalState.qa_app_session_id, alreadyActivated: true
           };
         }
         throw error;

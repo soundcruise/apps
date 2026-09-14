@@ -69,7 +69,8 @@ function normalizeApp(app, membership) {
         statusLabel: status.label,
         action: status.action,
         recordCount: safeCount(membership?.dataset?.recordCount),
-        schemaVersion: safeCount(membership?.dataset?.schemaVersion)
+        schemaVersion: safeCount(membership?.dataset?.schemaVersion),
+        activeAppDeviceCount: safeCount(membership?.activeAppDeviceCount)
     });
 }
 
@@ -86,9 +87,15 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null) {
     const accountState = deleting ? 'deleting' : account.state === 'active' ? 'active' : 'attention';
     const rawDevices = Array.isArray(devicesResponse?.devices) ? devicesResponse.devices : [];
     const environments = Object.freeze(rawDevices.map((device) => Object.freeze({
+        id: typeof device?.id === 'string' ? device.id : null,
         label: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : '名前のない環境',
         isCurrent: device?.isCurrent === true,
-        state: device?.revokedAt == null ? 'active' : 'revoked'
+        state: device?.revokedAt == null ? 'active' : 'revoked',
+        createdAt: safeCount(device?.createdAt),
+        lastSeenAt: safeCount(device?.lastSeenAt),
+        relatedApps: Object.freeze(Array.isArray(device?.relatedApps)
+            ? device.relatedApps.filter((appId) => SYNC_CENTER_APPS.some((app) => app.id === appId))
+            : [])
     })));
     return Object.freeze({
         kind: 'ready',

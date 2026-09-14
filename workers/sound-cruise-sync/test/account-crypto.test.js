@@ -3,12 +3,16 @@ import assert from 'node:assert/strict';
 import {
   ACCOUNT_CRYPTO,
   accountCredentialVerifier,
+  accountDeleteIntentVerifier,
   accountHandoffVerifier,
+  accountRecoveryClaimVerifier,
   appJoinCodeVerifier,
   accountOperationFingerprint,
   accountRecoveryCodeVerifier,
   createAccountCredential,
+  createAccountDeleteIntent,
   createAccountHandoff,
+  createAccountRecoveryClaim,
   createAppJoinCode,
   createAccountRecoveryCode,
   formatAccountRecoveryCode,
@@ -16,6 +20,8 @@ import {
   normalizeAppJoinCode,
   normalizeAccountRecoveryCode,
   parseAccountCredential,
+  parseAccountDeleteIntent,
+  parseAccountRecoveryClaim,
   parseAccountHandoff
 } from '../src/account-crypto.js';
 
@@ -61,4 +67,20 @@ test('malformed Account and handoff tokens fail before verifier generation', asy
   await assert.rejects(() => accountHandoffVerifier('invalid', pepper));
   await assert.rejects(() => accountRecoveryCodeVerifier('invalid', pepper));
   await assert.rejects(() => appJoinCodeVerifier('invalid', pepper));
+});
+
+test('Account lifecycle grants are opaque, domain-separated and verifier-only', async () => {
+  const recovery = createAccountRecoveryClaim();
+  const deletion = createAccountDeleteIntent();
+  assert.equal(parseAccountRecoveryClaim(recovery.claimToken)?.claimId, recovery.claimId);
+  assert.equal(parseAccountDeleteIntent(deletion.intentToken)?.intentId, deletion.intentId);
+  const recoveryVerifier = await accountRecoveryClaimVerifier(recovery.claimToken, pepper);
+  const deleteVerifier = await accountDeleteIntentVerifier(deletion.intentToken, pepper);
+  assert.match(recoveryVerifier, /^[a-f0-9]{64}$/);
+  assert.match(deleteVerifier, /^[a-f0-9]{64}$/);
+  assert.notEqual(recoveryVerifier, deleteVerifier);
+  assert.equal(recoveryVerifier.includes(recovery.claimToken), false);
+  assert.equal(deleteVerifier.includes(deletion.intentToken), false);
+  assert.equal(parseAccountRecoveryClaim('sarc1.bad.secret'), null);
+  assert.equal(parseAccountDeleteIntent('sadi1.bad.secret'), null);
 });

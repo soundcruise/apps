@@ -86,11 +86,26 @@ test('cross-container Join Code is default while active memberships reopen direc
     assert.equal(join.kind, 'join');
     assert.match(join.displayJoinCode, /^SCJ1-/);
     assert.equal(navigations.length, 0);
-    memberships.set('chord', { id: 'm-chord', appId: 'chord', state: 'active', dataset: { state: 'initializing' } });
+    memberships.set('chord', {
+        id: 'm-chord', appId: 'chord', state: 'active', activeAppDeviceCount: 1,
+        dataset: { state: 'initializing' }
+    });
     const reopened = await orchestrator.launch('chord');
     assert.equal(reopened.kind, 'open');
     assert.equal(calls.filter(([kind]) => kind === 'join').length, 1);
     assert.equal(navigations.at(-1), 'https://apps.example/chord/pro/');
+});
+
+test('Recovery-revoked membership gets a reconnect invitation without recreating its dataset', async () => {
+    const { orchestrator, calls, memberships, navigations } = fixture();
+    memberships.set('chord', {
+        id: 'm-chord', appId: 'chord', state: 'active', activeAppDeviceCount: 0,
+        dataset: { state: 'ready', recordCount: 12 }
+    });
+    const reconnect = await orchestrator.launch('chord');
+    assert.equal(reconnect.kind, 'join');
+    assert.equal(calls.filter(([kind]) => kind === 'join').length, 1);
+    assert.equal(navigations.length, 0);
 });
 
 test('Port can cancel a displayed cross-container Join invitation', async () => {

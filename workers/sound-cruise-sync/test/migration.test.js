@@ -20,6 +20,7 @@ const migration13 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration14 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0014_add_handoff_consume_mode.sql'), 'utf8');
 const migration15 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0015_add_account_qa_admission.sql'), 'utf8');
 const migration16 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0016_add_app_join_invitations.sql'), 'utf8');
+const migration17 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0017_add_account_lifecycle.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -38,6 +39,7 @@ function migrate(db) {
   db.exec(migration14);
   db.exec(migration15);
   db.exec(migration16);
+  db.exec(migration17);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -45,9 +47,10 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   migrate(db);
   const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'sync_%' ORDER BY name").all().map((row) => row.name);
   assert.deepEqual(tables, [
-    'sync_account_delete_intents', 'sync_account_devices', 'sync_account_managed_users',
+    'sync_account_delete_intents', 'sync_account_devices', 'sync_account_lifecycle_operations',
+    'sync_account_managed_users',
     'sync_account_memberships', 'sync_account_qa_enrollments', 'sync_account_qa_sessions',
-    'sync_account_recovery_claims', 'sync_account_runtime_control',
+    'sync_account_recovery_attempts', 'sync_account_recovery_claims', 'sync_account_runtime_control',
     'sync_account_start_operations', 'sync_accounts',
     'sync_app_join_invitations',
     'sync_changes', 'sync_chord_account_bridges', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
@@ -62,6 +65,11 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare("SELECT pairing_pending_at, paired_at FROM sync_devices LIMIT 1"));
   assert(db.prepare("SELECT consume_mode, qa_issuer_session_id, qa_app_session_id FROM sync_membership_handoffs LIMIT 1"));
   assert(db.prepare("SELECT target_app_id, code_verifier, consume_mode FROM sync_app_join_invitations LIMIT 1"));
+  assert(db.prepare('SELECT delete_requested_at, purge_after FROM sync_account_memberships LIMIT 1'));
+  assert(db.prepare(`SELECT prepare_operation_id, prepare_fingerprint,
+    commit_operation_id, commit_fingerprint FROM sync_account_recovery_claims LIMIT 1`));
+  assert(db.prepare(`SELECT issue_operation_id, issue_fingerprint,
+    consume_operation_id, consume_fingerprint FROM sync_account_delete_intents LIMIT 1`));
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_pairing_codes_user_active'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pairing_attempts'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='recovery_claims'").get());

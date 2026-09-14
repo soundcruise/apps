@@ -61,6 +61,33 @@
     return Object.freeze({ accountDeviceId: account.id, accountCredential: account.value });
   }
 
+  function createAccountRecoveryMaterial(cryptoImpl = global.crypto, btoaImpl = global.btoa.bind(global)) {
+    const claim = createCredential('sarc1', cryptoImpl, btoaImpl);
+    const account = createCredential('sca1', cryptoImpl, btoaImpl);
+    const recovery = new Uint8Array(20);
+    cryptoImpl.getRandomValues(recovery);
+    return Object.freeze({
+      prepareOperationId: randomUuid(cryptoImpl),
+      commitOperationId: randomUuid(cryptoImpl),
+      claimId: claim.id,
+      claimToken: claim.value,
+      accountDeviceId: account.id,
+      accountCredential: account.value,
+      nextRecoveryCode: RECOVERY_PREFIX +
+        Array.from(recovery, (value) => RECOVERY_ALPHABET[value & 31]).join('')
+    });
+  }
+
+  function createAccountDeleteMaterial(cryptoImpl = global.crypto, btoaImpl = global.btoa.bind(global)) {
+    const intent = createCredential('sadi1', cryptoImpl, btoaImpl);
+    return Object.freeze({
+      issueOperationId: randomUuid(cryptoImpl),
+      commitOperationId: randomUuid(cryptoImpl),
+      intentId: intent.id,
+      intentToken: intent.value
+    });
+  }
+
   function createAppCredential(cryptoImpl = global.crypto, btoaImpl = global.btoa.bind(global)) {
     const app = createCredential('scd1', cryptoImpl, btoaImpl);
     return Object.freeze({ appDeviceId: app.id, appDeviceCredential: app.value });
@@ -180,6 +207,8 @@
     ACCOUNT_APPS: Object.freeze(['chord', 'pitch', 'fretboard', 'rhythm']),
     createAccountMaterial,
     createAccountCredential,
+    createAccountRecoveryMaterial,
+    createAccountDeleteMaterial,
     createAppCredential,
     createQaCredential,
     createHandoffMaterial,
@@ -192,6 +221,8 @@
     sensitiveFailureIsRetryable,
     takeHandoffFromLocation,
     validAccountCredential: (value) => validToken(value, 'sca1'),
+    validAccountRecoveryClaim: (value) => validToken(value, 'sarc1'),
+    validAccountDeleteIntent: (value) => validToken(value, 'sadi1'),
     validAppCredential: (value) => validToken(value, 'scd1'),
     validQaCredential: (value) => validToken(value, 'scq1'),
     validHandoffToken: (value) => validToken(value, 'sch1'),

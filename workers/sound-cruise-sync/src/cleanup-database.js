@@ -9,6 +9,7 @@ export const CLEANUP_RETENTION = Object.freeze({
   deleteIntentMs: 7 * 24 * 60 * 60 * 1000,
   accountHandoffMs: 24 * 60 * 60 * 1000,
   accountAppJoinMs: 24 * 60 * 60 * 1000,
+  accountLifecycleOperationMs: 30 * 24 * 60 * 60 * 1000,
   batchSize: 100
 });
 
@@ -37,6 +38,72 @@ async function expirePreparedChordBridges(db, now, limit) {
   `).bind(now, now, id, now));
   const results = await db.batch(statements);
   return results.reduce((total, result) => total + Number(result?.meta?.changes || 0), 0);
+}
+
+async function purgeAccountMemberships(db, now, limit) {
+  const selected = await db.prepare(`
+    SELECT id, sync_user_id FROM sync_account_memberships
+    WHERE state = 'deleting' AND purge_after IS NOT NULL AND purge_after <= ?
+    ORDER BY purge_after ASC LIMIT ${limit}
+  `).bind(now).all();
+  let purged = 0;
+  for (const row of selected.results || []) {
+    const finish = db.prepare(`
+      UPDATE sync_account_memberships
+      SET state = 'deleted', sync_user_id = NULL, deleted_at = COALESCE(deleted_at, ?),
+          updated_at = ?, generation = generation + 1
+      WHERE id = ? AND state = 'deleting' AND sync_user_id = ?
+        AND purge_after IS NOT NULL AND purge_after <= ?
+    `).bind(now, now, row.id, row.sync_user_id, now);
+    const purge = db.prepare(`
+      DELETE FROM sync_users WHERE id = ? AND state = 'deleting'
+        AND purge_after IS NOT NULL AND purge_after <= ?
+        AND EXISTS (SELECT 1 FROM sync_account_memberships
+          WHERE id = ? AND state = 'deleted' AND sync_user_id IS NULL)
+    `).bind(row.sync_user_id, now, row.id);
+    const results = await db.batch([finish, purge]);
+    if (results.every((result) => result?.success !== false) &&
+        Number(results[0]?.meta?.changes || 0) === 1 &&
+        Number(results[1]?.meta?.changes || 0) === 1) purged += 1;
+  }
+  return purged;
+}
+
+async function finishDeletedAccounts(db, now, limit) {
+  const selected = await db.prepare(`
+    SELECT id FROM sync_accounts a
+    WHERE a.state = 'deleting' AND a.purge_after IS NOT NULL AND a.purge_after <= ?
+      AND NOT EXISTS (SELECT 1 FROM sync_account_memberships m
+        WHERE m.account_id = a.id AND m.state <> 'deleted')
+    ORDER BY a.purge_after ASC LIMIT ${limit}
+  `).bind(now).all();
+  const ids = (selected.results || []).map((row) => row.id);
+  if (!ids.length) return 0;
+  let purged = 0;
+  for (const id of ids) {
+    // Invitations use restrictive foreign keys so that normal Account removal
+    // can never silently erase live grants. At the scheduled purge boundary we
+    // delete those already-cancelled control rows explicitly, then let the
+    // Account cascade remove the remaining lifecycle metadata.
+    const statements = [
+      db.prepare('DELETE FROM sync_app_join_invitations WHERE account_id = ?').bind(id),
+      db.prepare('DELETE FROM sync_membership_handoffs WHERE account_id = ?').bind(id),
+      db.prepare('DELETE FROM sync_chord_account_bridges WHERE account_id = ?').bind(id),
+      // App-scoped QA sessions point at their Port parent with ON DELETE
+      // RESTRICT. Remove children first so an Account with completed QA
+      // enrollment can still be purged atomically at the grace boundary.
+      db.prepare("DELETE FROM sync_account_qa_sessions WHERE account_id = ? AND scope = 'app'").bind(id),
+      db.prepare("DELETE FROM sync_account_qa_sessions WHERE account_id = ? AND scope = 'port'").bind(id),
+      db.prepare(`DELETE FROM sync_accounts
+        WHERE id = ? AND state = 'deleting' AND purge_after IS NOT NULL AND purge_after <= ?
+          AND NOT EXISTS (SELECT 1 FROM sync_account_memberships m
+            WHERE m.account_id = sync_accounts.id AND m.state <> 'deleted')`).bind(id, now)
+    ];
+    const results = await db.batch(statements);
+    if (results.every((result) => result?.success !== false) &&
+        Number(results.at(-1)?.meta?.changes || 0) === 1) purged += 1;
+  }
+  return purged;
 }
 
 export function createD1CleanupRepository(db, clock = Date.now) {
@@ -90,6 +157,52 @@ export function createD1CleanupRepository(db, clock = Date.now) {
       results.accountAppJoins = 0;
     }
     try {
+      results.accountRecoveryAttempts = await deleteLimited(
+        db,
+        `SELECT recovery_verifier AS id FROM sync_account_recovery_attempts
+         WHERE first_attempt_at <= ? LIMIT ${limit}`,
+        'DELETE FROM sync_account_recovery_attempts WHERE recovery_verifier = ?',
+        [now - CLEANUP_RETENTION.recoveryAttemptMs]
+      );
+      results.accountRecoveryClaims = await deleteLimited(
+        db,
+        `SELECT claim_id AS id FROM sync_account_recovery_claims
+         WHERE (expires_at <= ? AND committed_at IS NULL)
+            OR committed_at <= ? OR cancelled_at <= ? LIMIT ${limit}`,
+        'DELETE FROM sync_account_recovery_claims WHERE claim_id = ?',
+        [now - CLEANUP_RETENTION.recoveryClaimMs,
+          now - CLEANUP_RETENTION.recoveryClaimMs,
+          now - CLEANUP_RETENTION.recoveryClaimMs]
+      );
+      results.accountDeleteIntents = await deleteLimited(
+        db,
+        `SELECT intent_id AS id FROM sync_account_delete_intents
+         WHERE (expires_at <= ? AND consumed_at IS NULL)
+            OR consumed_at <= ? OR cancelled_at <= ? LIMIT ${limit}`,
+        'DELETE FROM sync_account_delete_intents WHERE intent_id = ?',
+        [now - CLEANUP_RETENTION.deleteIntentMs,
+          now - CLEANUP_RETENTION.deleteIntentMs,
+          now - CLEANUP_RETENTION.deleteIntentMs]
+      );
+      results.accountLifecycleOperations = await deleteLimited(
+        db,
+        `SELECT operation_id AS id FROM sync_account_lifecycle_operations
+         WHERE created_at <= ? LIMIT ${limit}`,
+        'DELETE FROM sync_account_lifecycle_operations WHERE operation_id = ?',
+        [now - CLEANUP_RETENTION.accountLifecycleOperationMs]
+      );
+      results.accountMembershipsPurged = await purgeAccountMemberships(db, now, limit);
+      results.accountsDeleted = await finishDeletedAccounts(db, now, limit);
+    } catch {
+      // Migration 0017 is additive. Older schemas keep the established cleanup chain.
+      results.accountRecoveryAttempts = 0;
+      results.accountRecoveryClaims = 0;
+      results.accountDeleteIntents = 0;
+      results.accountLifecycleOperations = 0;
+      results.accountMembershipsPurged = 0;
+      results.accountsDeleted = 0;
+    }
+    try {
       results.chordAccountBridges = await expirePreparedChordBridges(db, now, limit);
     } catch {
       // M4 is also staged additively. Legacy scheduled cleanup must continue
@@ -119,7 +232,7 @@ export function createD1CleanupRepository(db, clock = Date.now) {
       results.changes = changeResults.filter((result) => result?.success !== false).length - watermarkByDataset.size;
     } else results.changes = 0;
     results.tombstones = await deleteLimited(db, `SELECT rowid AS id FROM sync_records WHERE deleted_at IS NOT NULL AND deleted_at <= ? LIMIT ${limit}`, 'DELETE FROM sync_records WHERE rowid = ?', [now - CLEANUP_RETENTION.tombstoneMs]);
-    results.deletedUsers = await deleteLimited(db, `SELECT id FROM sync_users WHERE state = 'deleting' AND purge_after IS NOT NULL AND purge_after <= ? LIMIT ${limit}`, 'DELETE FROM sync_users WHERE id = ? AND state = \'deleting\'', [now]);
+    results.deletedUsers = await deleteLimited(db, `SELECT id FROM sync_users u WHERE state = 'deleting' AND purge_after IS NOT NULL AND purge_after <= ? AND NOT EXISTS (SELECT 1 FROM sync_account_memberships m WHERE m.sync_user_id = u.id) LIMIT ${limit}`, 'DELETE FROM sync_users WHERE id = ? AND state = \'deleting\'', [now]);
     return results;
   }
   return Object.freeze({ cleanup, retention: CLEANUP_RETENTION });

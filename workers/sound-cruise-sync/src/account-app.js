@@ -3,15 +3,20 @@ import { authenticateDevice } from './auth.js';
 import {
   accountAppCredentialVerifier,
   accountCredentialVerifier,
+  accountDeleteIntentVerifier,
   accountHandoffVerifier,
   appJoinCodeVerifier,
   accountOperationFingerprint,
   accountRecoveryCodeVerifier,
+  accountRecoveryClaimVerifier,
+  parseAccountDeleteIntent,
   parseAccountAppCredential,
   parseAccountCredential,
+  parseAccountRecoveryClaim,
   parseAccountHandoff
 } from './account-crypto.js';
 import { createD1AccountRepository } from './account-database.js';
+import { createD1AccountLifecycleRepository } from './account-lifecycle-database.js';
 import { createD1AccountHandoffRepository } from './account-handoff-database.js';
 import { createD1AppJoinRepository } from './account-join-database.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
@@ -33,6 +38,11 @@ import {
 import {
   ACCOUNT_MAX_BODY_BYTES,
   validateAccountReadQuery,
+  validateAccountDeleteCommitPayload,
+  validateAccountDeleteIntentPayload,
+  validateAccountDeviceRevokePayload,
+  validateAccountRecoveryCommitPayload,
+  validateAccountRecoveryPreparePayload,
   validateAppJoinCancelPayload,
   validateAppJoinConsumePayload,
   validateAppJoinIssuePayload,
@@ -67,6 +77,26 @@ const ACCOUNT_ROUTES = Object.freeze({
   '/v2/accounts/devices': {
     method: 'GET', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_READ,
     headers: ['authorization', 'x-d1-bookmark']
+  },
+  '/v2/accounts/devices/revoke': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
+  '/v2/accounts/recovery/prepare': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_RECOVERY,
+    headers: ['content-type', 'x-d1-bookmark']
+  },
+  '/v2/accounts/recovery/commit': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_RECOVERY,
+    headers: ['content-type', 'x-d1-bookmark']
+  },
+  '/v2/accounts/delete-intent': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
+  '/v2/accounts': {
+    method: 'DELETE', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
   },
   '/v2/accounts/handoffs': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION,
@@ -106,6 +136,15 @@ const ACCOUNT_ROUTES = Object.freeze({
 const QA_HEADER = 'x-sound-cruise-qa-authorization';
 
 function resolvedRoute(pathname, method) {
+  const membershipDelete = pathname.match(/^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)(\/delete-intent)?$/);
+  if (membershipDelete) {
+    return {
+      method: membershipDelete[2] ? 'POST' : 'DELETE',
+      action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+      headers: ['content-type', 'authorization', 'x-d1-bookmark'],
+      appId: membershipDelete[1]
+    };
+  }
   const base = ACCOUNT_ROUTES[pathname];
   if (!base) return null;
   if (pathname === '/v2/accounts/app-join-invitations') {
@@ -419,8 +458,349 @@ async function handleDevices(request, env, origin, route, dependencies, url) {
   }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   try {
-    const devices = await context.repository.listAccountDevices(context.identity);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(context.session);
+    const devices = await repository.listEnvironments(context.identity);
     return jsonResponse(200, { ok: true, devices }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAccountRecoveryPrepare(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountRecoveryPreparePayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_DB || !env.SYNC_ACCOUNT_RECOVERY_PEPPER || !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  const limited = await rateLimit(
+    env.ACCOUNT_RECOVERY_RATE_LIMITER,
+    `account-recovery:${requestIp(request)}`
+  );
+  if (!limited.ok) return rateError(limited, origin, route, 60);
+  const verify = dependencies.verifyTurnstileToken || verifyTurnstileToken;
+  let turnstile;
+  try {
+    turnstile = await verify(validation.value.turnstileToken, env, {
+      expectedAction: env.TURNSTILE_ACCOUNT_RECOVERY_EXPECTED_ACTION || 'sound_cruise_account_recovery'
+    });
+  } catch {
+    return errorResponse(503, 'turnstile_failed', origin, route);
+  }
+  if (!turnstile.ok) {
+    return errorResponse(turnstile.unavailable ? 503 : 403, 'turnstile_failed', origin, route);
+  }
+  try {
+    const value = validation.value;
+    const session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    const claim = parseAccountRecoveryClaim(value.claimToken);
+    const accountDevice = parseAccountCredential(value.accountCredential);
+    const currentRecoveryVerifier = await (dependencies.accountRecoveryCodeVerifier || accountRecoveryCodeVerifier)(
+      value.recoveryCode, env.SYNC_ACCOUNT_RECOVERY_PEPPER
+    );
+    const nextRecoveryVerifier = await (dependencies.accountRecoveryCodeVerifier || accountRecoveryCodeVerifier)(
+      value.nextRecoveryCode, env.SYNC_ACCOUNT_RECOVERY_PEPPER
+    );
+    const claimVerifier = await (dependencies.accountRecoveryClaimVerifier || accountRecoveryClaimVerifier)(
+      value.claimToken, env.SYNC_ACCOUNT_RECOVERY_PEPPER
+    );
+    const nextAccountCredentialVerifier = await (
+      dependencies.accountCredentialVerifier || accountCredentialVerifier
+    )(value.accountCredential, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER);
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )([
+      'account-recovery-prepare', claimVerifier, currentRecoveryVerifier,
+      nextRecoveryVerifier, accountDevice.deviceId, nextAccountCredentialVerifier,
+      value.deviceLabel || ''
+    ]);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(session);
+    const prepareInput = {
+      operationId: value.operationId,
+      requestFingerprint,
+      claimId: claim.claimId,
+      claimVerifier,
+      currentRecoveryVerifier,
+      nextRecoveryVerifier,
+      nextAccountDeviceId: accountDevice.deviceId,
+      nextAccountCredentialVerifier,
+      deviceLabel: value.deviceLabel,
+      now: Date.now()
+    };
+    let result = await repository.resolveRecoveryPrepare(prepareInput);
+    if (!result) {
+      const attempt = await repository.reserveRecoveryAttempt(
+        currentRecoveryVerifier,
+        prepareInput.now
+      );
+      if (attempt.status !== 'allowed') {
+        return errorResponse(400, 'account_recovery_invalid', origin, route);
+      }
+      result = await repository.prepareRecovery(prepareInput);
+    }
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'prepared') return errorResponse(400, 'account_recovery_invalid', origin, route);
+    const summary = result.summary;
+    return jsonResponse(result.alreadyPrepared ? 200 : 201, {
+      ok: true,
+      operation: result.alreadyPrepared ? 'existing' : 'prepared',
+      claimId: claim.claimId,
+      expiresAt: summary.expiresAt,
+      summary: {
+        recoveryVersion: summary.recoveryVersion,
+        activeDeviceCount: summary.activeDeviceCount,
+        updatedAt: summary.updatedAt,
+        memberships: summary.memberships
+      }
+    }, origin, route, bookmarkHeader(session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAccountRecoveryCommit(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountRecoveryCommitPayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_DB || !env.SYNC_ACCOUNT_RECOVERY_PEPPER || !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  try {
+    const value = validation.value;
+    const session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    const claim = parseAccountRecoveryClaim(value.claimToken);
+    const accountDevice = parseAccountCredential(value.accountCredential);
+    const claimVerifier = await (dependencies.accountRecoveryClaimVerifier || accountRecoveryClaimVerifier)(
+      value.claimToken, env.SYNC_ACCOUNT_RECOVERY_PEPPER
+    );
+    const nextAccountCredentialVerifier = await (
+      dependencies.accountCredentialVerifier || accountCredentialVerifier
+    )(value.accountCredential, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER);
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )(['account-recovery-commit', claimVerifier, accountDevice.deviceId, nextAccountCredentialVerifier]);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(session);
+    const result = await repository.commitRecovery({
+      operationId: value.operationId,
+      requestFingerprint,
+      claimId: claim.claimId,
+      claimVerifier,
+      nextAccountCredentialVerifier,
+      now: Date.now()
+    });
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'recovered') return errorResponse(400, 'account_recovery_invalid', origin, route);
+    return jsonResponse(result.alreadyRecovered ? 200 : 201, {
+      ok: true,
+      operation: result.alreadyRecovered ? 'existing' : 'recovered',
+      accountId: result.accountId,
+      accountDeviceId: result.accountDeviceId,
+      recoveryVersion: result.recoveryVersion
+    }, origin, route, bookmarkHeader(session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleEnvironmentRevoke(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountDeviceRevokePayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  let session;
+  let identity;
+  try {
+    session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    identity = await (dependencies.authenticateAccountDevice || authenticateAccountDevice)(
+      session,
+      request.headers.get('Authorization'),
+      env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  try {
+    const value = validation.value;
+    const rawCredential = String(request.headers.get('Authorization') || '').replace(/^Bearer /, '');
+    const accountDevice = parseAccountCredential(rawCredential);
+    if (!accountDevice) return errorResponse(401, 'invalid_account_credential', origin, route);
+    const credentialVerifier = await (
+      dependencies.accountCredentialVerifier || accountCredentialVerifier
+    )(rawCredential, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(session);
+    if (!identity) {
+      // A current-environment revoke invalidates its own credential before the
+      // response reaches the browser. Resolve only the exact operation using
+      // the now-revoked verifier; no Account selector comes from the client.
+      const exact = await repository.resolveRevokeAfterCredentialLoss({
+        operationId: value.operationId,
+        requestFingerprint: null,
+        targetDeviceId: value.accountDeviceId,
+        accountCredentialVerifier: credentialVerifier
+      });
+      if (exact.status !== 'revoked') {
+        return errorResponse(401, 'invalid_account_credential', origin, route);
+      }
+      return jsonResponse(200, { ok: true, ...exact }, origin, route, bookmarkHeader(session));
+    }
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )(['account-device-revoke', identity.accountId, value.accountDeviceId]);
+    const result = await repository.revokeEnvironment(identity, {
+      operationId: value.operationId,
+      requestFingerprint,
+      targetDeviceId: value.accountDeviceId,
+      now: Date.now()
+    });
+    if (result.status === 'not_found') return errorResponse(404, 'account_device_not_found', origin, route);
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    return jsonResponse(200, { ok: true, ...result }, origin, route, bookmarkHeader(session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleDeleteIntent(request, env, origin, route, dependencies, scope, appId = null) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountDeleteIntentPayload(parsed.value, scope);
+  if (!validation.ok || (scope === 'app' && validation.value.appId !== appId)) {
+    return errorResponse(400, 'invalid_request', origin, route);
+  }
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const value = validation.value;
+    const intent = parseAccountDeleteIntent(value.intentToken);
+    const intentVerifier = await (dependencies.accountDeleteIntentVerifier || accountDeleteIntentVerifier)(
+      value.intentToken, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )(['account-delete-intent', context.identity.accountId, scope, appId || '', intentVerifier]);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(context.session);
+    const result = await repository.issueDeleteIntent(context.identity, {
+      operationId: value.operationId,
+      requestFingerprint,
+      intentId: intent.intentId,
+      intentVerifier,
+      scope,
+      appId,
+      now: Date.now()
+    });
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'issued') return errorResponse(409, 'account_delete_invalid', origin, route);
+    return jsonResponse(result.alreadyIssued ? 200 : 201, {
+      ok: true,
+      operation: result.alreadyIssued ? 'existing' : 'issued',
+      scope: result.scope,
+      appId,
+      expiresAt: result.expiresAt
+    }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleDeleteCommit(request, env, origin, route, dependencies, scope, appId = null) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountDeleteCommitPayload(parsed.value, scope);
+  if (!validation.ok || (scope === 'app' && validation.value.appId !== appId)) {
+    return errorResponse(400, 'invalid_request', origin, route);
+  }
+  if (!env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  let session;
+  let identity = null;
+  try {
+    session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    identity = await (dependencies.authenticateAccountDevice || authenticateAccountDevice)(
+      session,
+      request.headers.get('Authorization'),
+      env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  try {
+    const value = validation.value;
+    const parsedIntent = parseAccountDeleteIntent(value.intentToken);
+    const intentVerifier = await (dependencies.accountDeleteIntentVerifier || accountDeleteIntentVerifier)(
+      value.intentToken, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+    const rawCredential = String(request.headers.get('Authorization') || '').replace(/^Bearer /, '');
+    const accountDevice = parseAccountCredential(rawCredential);
+    if (!accountDevice) return errorResponse(401, 'invalid_account_credential', origin, route);
+    const credentialVerifier = await (
+      dependencies.accountCredentialVerifier || accountCredentialVerifier
+    )(rawCredential, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER);
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )(['account-delete-commit', scope, appId || '', intentVerifier, accountDevice.deviceId]);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(session);
+    if (!identity) {
+      const resolved = await repository.resolveDeleteAfterCredentialLoss({
+        operationId: value.operationId,
+        requestFingerprint,
+        intentId: parsedIntent.intentId,
+        intentVerifier,
+        accountCredentialVerifier: credentialVerifier,
+        scope
+      });
+      if (resolved.status !== 'deleting') {
+        return errorResponse(401, 'invalid_account_credential', origin, route);
+      }
+      return jsonResponse(200, { ok: true, operation: 'existing', ...resolved },
+        origin, route, bookmarkHeader(session));
+    }
+    if (!dependencies.qaIdentity ||
+        (dependencies.qaIdentity.accountId !== null && dependencies.qaIdentity.accountId !== identity.accountId)) {
+      return errorResponse(403, 'qa_admission_required', origin, route);
+    }
+    const result = await repository.commitDelete(identity, {
+      operationId: value.operationId,
+      requestFingerprint,
+      intentId: parsedIntent.intentId,
+      intentVerifier,
+      scope,
+      appId,
+      now: Date.now()
+    });
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'deleting') return errorResponse(409, 'account_delete_invalid', origin, route);
+    return jsonResponse(result.alreadyDeleting ? 200 : 202, {
+      ok: true,
+      operation: result.alreadyDeleting ? 'existing' : 'deleting',
+      scope,
+      appId,
+      purgeAfter: result.purgeAfter
+    }, origin, route, bookmarkHeader(session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
   }
@@ -945,7 +1325,8 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
       originAllowed ? route : null, { Allow: `${route.method}, OPTIONS` });
   }
   if (!originAllowed) return errorResponse(403, 'invalid_origin');
-  if (request.method === 'POST' && !isJsonContentType(request.headers.get('Content-Type'))) {
+  if (['POST', 'DELETE'].includes(request.method) &&
+      !isJsonContentType(request.headers.get('Content-Type'))) {
     return errorResponse(415, 'invalid_content_type', origin, route);
   }
 
@@ -1003,6 +1384,30 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   if (url.pathname === '/v2/accounts/start') return handleStart(request, env, origin, route, dependencies);
   if (url.pathname === '/v2/accounts/summary') return handleSummary(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v2/accounts/devices') return handleDevices(request, env, origin, route, dependencies, url);
+  if (url.pathname === '/v2/accounts/devices/revoke') {
+    return handleEnvironmentRevoke(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/recovery/prepare') {
+    return handleAccountRecoveryPrepare(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/recovery/commit') {
+    return handleAccountRecoveryCommit(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/delete-intent') {
+    return handleDeleteIntent(request, env, origin, route, dependencies, 'account');
+  }
+  if (url.pathname === '/v2/accounts' && request.method === 'DELETE') {
+    return handleDeleteCommit(request, env, origin, route, dependencies, 'account');
+  }
+  const membershipDelete = url.pathname.match(
+    /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)(\/delete-intent)?$/
+  );
+  if (membershipDelete?.[2]) {
+    return handleDeleteIntent(request, env, origin, route, dependencies, 'app', membershipDelete[1]);
+  }
+  if (membershipDelete && request.method === 'DELETE') {
+    return handleDeleteCommit(request, env, origin, route, dependencies, 'app', membershipDelete[1]);
+  }
   if (url.pathname === '/v2/accounts/memberships' && request.method === 'GET') {
     return handleSummary(request, env, origin, route, dependencies, url, true);
   }

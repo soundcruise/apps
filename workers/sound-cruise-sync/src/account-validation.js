@@ -1,8 +1,10 @@
 import {
   normalizeAppJoinCode,
   normalizeAccountRecoveryCode,
+  parseAccountDeleteIntent,
   parseAccountAppCredential,
   parseAccountCredential,
+  parseAccountRecoveryClaim,
   parseAccountHandoff
 } from './account-crypto.js';
 import { normalizeQaEnrollmentCode, parseQaCredential } from './account-qa-crypto.js';
@@ -164,6 +166,63 @@ export function validateAppJoinStatusQuery(url) {
 
 export function validateAccountReadQuery(url) {
   return url.search === '' ? { ok: true, value: {} } : { ok: false };
+}
+
+export function validateAccountRecoveryPreparePayload(value) {
+  const keys = [
+    'operationId', 'recoveryCode', 'claimToken', 'nextRecoveryCode',
+    'accountCredential', 'deviceLabel', 'turnstileToken'
+  ];
+  if (!exactObject(value, keys)) return { ok: false };
+  const deviceLabel = label(value.deviceLabel);
+  const normalized = {
+    ...value,
+    operationId: operationId(value.operationId),
+    recoveryCode: normalizeAccountRecoveryCode(value.recoveryCode),
+    nextRecoveryCode: normalizeAccountRecoveryCode(value.nextRecoveryCode),
+    deviceLabel
+  };
+  return normalized.operationId && normalized.recoveryCode && normalized.nextRecoveryCode &&
+    normalized.recoveryCode !== normalized.nextRecoveryCode &&
+    parseAccountRecoveryClaim(normalized.claimToken) &&
+    parseAccountCredential(normalized.accountCredential) &&
+    validTurnstile(normalized.turnstileToken) && deviceLabel !== undefined
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validateAccountRecoveryCommitPayload(value) {
+  if (!exactObject(value, ['operationId', 'claimToken', 'accountCredential'])) return { ok: false };
+  const normalized = { ...value, operationId: operationId(value.operationId) };
+  return normalized.operationId && parseAccountRecoveryClaim(normalized.claimToken) &&
+    parseAccountCredential(normalized.accountCredential)
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validateAccountDeviceRevokePayload(value) {
+  if (!exactObject(value, ['operationId', 'accountDeviceId'])) return { ok: false };
+  const normalized = {
+    operationId: operationId(value.operationId),
+    accountDeviceId: operationId(value.accountDeviceId)
+  };
+  return normalized.operationId && normalized.accountDeviceId
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validateAccountDeleteIntentPayload(value, scope) {
+  const keys = scope === 'app' ? ['operationId', 'intentToken', 'appId'] : ['operationId', 'intentToken'];
+  if (!exactObject(value, keys)) return { ok: false };
+  const normalized = {
+    ...value,
+    operationId: operationId(value.operationId),
+    appId: scope === 'app' ? appId(value.appId) : null
+  };
+  return normalized.operationId && parseAccountDeleteIntent(normalized.intentToken) &&
+    (scope === 'account' || normalized.appId)
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validateAccountDeleteCommitPayload(value, scope) {
+  return validateAccountDeleteIntentPayload(value, scope);
 }
 
 function positiveGeneration(value) {

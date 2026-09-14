@@ -127,7 +127,10 @@ export function createD1AccountRepository(db) {
       SELECT m.id, m.app_id, m.state, m.sync_user_id, m.recovery_mode,
              m.generation, m.created_at, m.activated_at, m.updated_at, m.deleted_at,
              d.state AS dataset_state, d.schema_version, d.record_count,
-             d.manifest_hash, d.last_change_seq
+             d.manifest_hash, d.last_change_seq,
+             (SELECT COUNT(*) FROM sync_membership_device_links l
+               JOIN sync_devices ad ON ad.id = l.app_device_id
+               WHERE l.membership_id = m.id AND ad.revoked_at IS NULL) AS active_app_device_count
       FROM sync_account_memberships m
       LEFT JOIN sync_datasets d
         ON d.user_id = m.sync_user_id AND d.app_id = m.app_id
@@ -160,6 +163,7 @@ export function createD1AccountRepository(db) {
         activatedAt: membership.activated_at == null ? null : Number(membership.activated_at),
         updatedAt: Number(membership.updated_at),
         deletedAt: membership.deleted_at == null ? null : Number(membership.deleted_at),
+        activeAppDeviceCount: Number(membership.active_app_device_count || 0),
         dataset: membership.dataset_state == null ? null : {
           state: membership.dataset_state,
           schemaVersion: Number(membership.schema_version),
@@ -183,7 +187,7 @@ export function createD1AccountRepository(db) {
 
   async function prepareMembership(identity, input) {
     const existing = await db.prepare(`
-      SELECT id, account_id, app_id, state, sync_user_id, prepared_operation_id
+      SELECT id, account_id, app_id, state, sync_user_id, prepared_operation_id, purge_after
       FROM sync_account_memberships
       WHERE account_id = ? AND app_id = ?
     `).bind(identity.accountId, input.appId).first();
@@ -196,6 +200,34 @@ export function createD1AccountRepository(db) {
           appId: existing.app_id,
           alreadyPrepared: true
         };
+      }
+      // Rejoin is deliberately unavailable throughout the grace period. Once
+      // scheduled cleanup has purged the old app identity, the durable
+      // membership slot can be prepared again without changing the Account.
+      if (existing.state === 'deleted' && existing.sync_user_id == null &&
+          existing.purge_after != null && Number(existing.purge_after) <= input.now) {
+        const reset = await db.prepare(`
+          UPDATE sync_account_memberships
+          SET state = 'pending', recovery_mode = 'account', generation = generation + 1,
+              activated_at = NULL, updated_at = ?, deleted_at = NULL,
+              delete_requested_at = NULL, purge_after = NULL,
+              prepared_operation_id = ?, prepared_by_account_device_id = ?
+          WHERE id = ? AND account_id = ? AND app_id = ? AND state = 'deleted'
+            AND sync_user_id IS NULL AND purge_after IS NOT NULL AND purge_after <= ?
+            AND EXISTS (SELECT 1 FROM sync_accounts a
+              JOIN sync_account_devices d ON d.account_id = a.id
+              WHERE a.id = ? AND a.state = 'active' AND a.deleted_at IS NULL
+                AND d.id = ? AND d.revoked_at IS NULL)
+        `).bind(input.now, input.operationId, identity.accountDeviceId,
+          existing.id, identity.accountId, input.appId, input.now,
+          identity.accountId, identity.accountDeviceId).run();
+        if (reset?.success === false) throw new Error('D1 membership rejoin prepare failed');
+        if (changes(reset) === 1) {
+          return {
+            status: 'pending', membershipId: existing.id,
+            appId: existing.app_id, alreadyPrepared: false, rejoined: true
+          };
+        }
       }
       return { status: 'invalid' };
     }

@@ -54,7 +54,7 @@ test('membership presentation covers unset, prepared, initial, ready, attention 
     assert.equal(membershipPresentation({ state: 'deleted' }).key, 'deleting');
 });
 
-test('summary normalization creates four-app progress without leaking identifiers or hashes', () => {
+test('summary normalization creates four-app progress without leaking Account identifiers or hashes', () => {
     const model = normalizeSyncCenterSummary(activeSummary, { devices: [
         { id: 'secret-device-id', label: 'iPhone', isCurrent: true, revokedAt: null }
     ] });
@@ -63,9 +63,12 @@ test('summary normalization creates four-app progress without leaking identifier
     ]);
     assert.equal(model.readyCount, 1);
     assert.equal(model.totalCount, 4);
-    assert.deepEqual(model.environments, [{ label: 'iPhone', isCurrent: true, state: 'active' }]);
+    assert.deepEqual(model.environments, [{
+        id: 'secret-device-id', label: 'iPhone', isCurrent: true, state: 'active',
+        createdAt: null, lastSeenAt: null, relatedApps: []
+    }]);
     const serialized = JSON.stringify(model);
-    assert.doesNotMatch(serialized, /secret-account-id|secret-device-id|secret-hash/);
+    assert.doesNotMatch(serialized, /secret-account-id|secret-hash/);
     assert.doesNotMatch(serialized, /lastSync|lastSyncedAt/);
 });
 

@@ -4,7 +4,11 @@
   const API_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
   const SCRIPT_ID = 'sound-cruise-account-turnstile-api';
   const CONTAINER_ID = 'sound-cruise-account-turnstile';
-  const ACTIONS = new Set(['sound_cruise_account_qa_enroll', 'sound_cruise_account_start']);
+  const ACTIONS = new Set([
+    'sound_cruise_account_qa_enroll',
+    'sound_cruise_account_start',
+    'sound_cruise_account_recovery'
+  ]);
   let scriptPromise = null;
   let activeWidgetId = null;
 

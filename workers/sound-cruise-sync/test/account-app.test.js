@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import { handleRequest } from '../src/app.js';
 import {
   createAccountCredential,
+  createAccountDeleteIntent,
   createAccountHandoff,
+  createAccountRecoveryClaim,
   createAppJoinCode,
   createAccountRecoveryCode
 } from '../src/account-crypto.js';
@@ -35,6 +37,16 @@ function enableAccountControl(db) {
   `).run();
 }
 
+function enableLifecycleControl(db) {
+  enableAccountControl(db);
+  db.raw.prepare(`
+    UPDATE sync_account_runtime_control
+    SET account_recovery_enabled = 1, account_delete_enabled = 1,
+        port_orchestration_enabled = 1, generation = generation + 1, updated_at = 2
+    WHERE singleton_id = 1
+  `).run();
+}
+
 function environment(db) {
   db.raw.prepare(`
     INSERT OR IGNORE INTO sync_account_qa_enrollments
@@ -61,6 +73,7 @@ function environment(db) {
     ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER: limiter(),
     ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER: limiter(),
     ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER: limiter(),
+    ACCOUNT_RECOVERY_RATE_LIMITER: limiter(),
     TURNSTILE_PRODUCTION_SECRET_KEY: 'test-only-turnstile-secret'
   };
 }
@@ -158,6 +171,111 @@ test('Account create is gated, Turnstile/rate-limited, verifier-only and respons
   assert.equal(retry.status, 200);
   assert.equal((await retry.json()).accountId, created.accountId);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM sync_accounts').get().count, 1);
+  db.close();
+});
+
+test('Account Recovery API prepares a secret-free summary, rotates once and resolves response loss', async () => {
+  const db = createSqliteD1();
+  enableLifecycleControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['chord', 'pitch']);
+  assert.equal(started.response.status, 201);
+  const nextAccount = createAccountCredential();
+  const claim = createAccountRecoveryClaim();
+  const nextRecoveryCode = createAccountRecoveryCode();
+  const prepareBody = {
+    operationId: crypto.randomUUID(), recoveryCode: started.candidate.body.recoveryCode,
+    claimToken: claim.claimToken, nextRecoveryCode,
+    accountCredential: nextAccount.credential, turnstileToken: 'verified',
+    deviceLabel: 'Recovered Port'
+  };
+  let response = await handleRequest(
+    jsonRequest('/v2/accounts/recovery/prepare', prepareBody), env, null, turnstileOk
+  );
+  assert.equal(response.status, 201);
+  const prepared = await response.json();
+  assert.equal(prepared.summary.recoveryVersion, 1);
+  assert.equal(prepared.summary.activeDeviceCount, 1);
+  assert.deepEqual(prepared.summary.memberships.map(({ appId }) => appId), ['chord', 'pitch']);
+  assert.equal(JSON.stringify(prepared).includes(prepareBody.recoveryCode), false);
+  assert.equal(JSON.stringify(prepared).includes(nextRecoveryCode), false);
+
+  const commitBody = {
+    operationId: crypto.randomUUID(), claimToken: claim.claimToken,
+    accountCredential: nextAccount.credential
+  };
+  response = await handleRequest(jsonRequest('/v2/accounts/recovery/commit', commitBody), env);
+  assert.equal(response.status, 201);
+  const recovered = await response.json();
+  assert.equal(recovered.recoveryVersion, 2);
+  response = await handleRequest(jsonRequest('/v2/accounts/recovery/commit', commitBody), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).operation, 'existing');
+  response = await handleRequest(jsonRequest('/v2/accounts/summary', undefined, {
+    credential: started.candidate.account.credential
+  }), env);
+  assert.equal(response.status, 401);
+  response = await handleRequest(jsonRequest('/v2/accounts/summary', undefined, {
+    credential: nextAccount.credential
+  }), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).account.recoveryVersion, 2);
+  db.close();
+});
+
+test('Account delete API requires a scoped one-time intent and retry survives credential revocation', async () => {
+  const db = createSqliteD1();
+  enableLifecycleControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['chord', 'pitch', 'fretboard', 'rhythm']);
+  const credential = started.candidate.account.credential;
+  const intent = createAccountDeleteIntent();
+  const issueBody = {
+    operationId: crypto.randomUUID(), intentToken: intent.intentToken
+  };
+  let response = await handleRequest(jsonRequest('/v2/accounts/delete-intent', issueBody, {
+    credential
+  }), env);
+  assert.equal(response.status, 201);
+  const commitBody = {
+    operationId: crypto.randomUUID(), intentToken: intent.intentToken
+  };
+  response = await handleRequest(jsonRequest('/v2/accounts', commitBody, {
+    credential, method: 'DELETE'
+  }), env);
+  assert.equal(response.status, 202);
+  const deleting = await response.json();
+  assert.equal(deleting.scope, 'account');
+  assert.ok(deleting.purgeAfter > Date.now());
+  response = await handleRequest(jsonRequest('/v2/accounts', commitBody, {
+    credential, method: 'DELETE'
+  }), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).operation, 'existing');
+  assert.equal(db.raw.prepare('SELECT state FROM sync_accounts').get().state, 'deleting');
+  assert.equal(db.raw.prepare(
+    'SELECT COUNT(*) count FROM sync_account_devices WHERE revoked_at IS NULL'
+  ).get().count, 0);
+  db.close();
+});
+
+test('current environment revoke is response-loss safe after its credential is invalidated', async () => {
+  const db = createSqliteD1();
+  enableLifecycleControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['chord']);
+  const body = {
+    operationId: crypto.randomUUID(), accountDeviceId: started.payload.accountDeviceId
+  };
+  const options = { credential: started.candidate.account.credential };
+  let response = await handleRequest(jsonRequest('/v2/accounts/devices/revoke', body, options), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).isCurrent, true);
+  response = await handleRequest(jsonRequest('/v2/accounts/devices/revoke', body, options), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).alreadyRevoked, true);
+  response = await handleRequest(jsonRequest('/v2/accounts/summary', undefined, options), env);
+  assert.equal(response.status, 401);
   db.close();
 });
 

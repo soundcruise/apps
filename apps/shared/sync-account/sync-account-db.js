@@ -5,7 +5,10 @@
   const DATABASE_NAME = 'sound-cruise-sync-account';
   const STORE_NAME = 'meta';
   const VERSION = 1;
-  const ALLOWED_KEYS = new Set(['account', 'qaAdmission', 'pendingStart', 'pendingConsume', 'pendingBridge']);
+  const ALLOWED_KEYS = new Set([
+    'account', 'qaAdmission', 'pendingStart', 'pendingConsume', 'pendingBridge',
+    'pendingRecovery', 'pendingDelete'
+  ]);
   const QA_APP_IDS = new Set(['chord', 'pitch', 'fretboard', 'rhythm']);
 
   function requestResult(request) {
@@ -133,6 +136,7 @@
     DATABASE_NAME,
     getAccount: (indexedDb) => get('account', indexedDb),
     setAccount: (value, indexedDb) => set('account', value, indexedDb),
+    clearAccount: (indexedDb) => remove('account', indexedDb),
     getQaAdmission,
     setQaAdmission,
     clearQaAdmission,
@@ -144,6 +148,12 @@
     clearPendingConsume: (indexedDb) => remove('pendingConsume', indexedDb),
     getPendingBridge: (indexedDb) => get('pendingBridge', indexedDb),
     setPendingBridge: (value, indexedDb) => set('pendingBridge', value, indexedDb),
-    clearPendingBridge: (indexedDb) => remove('pendingBridge', indexedDb)
+    clearPendingBridge: (indexedDb) => remove('pendingBridge', indexedDb),
+    getPendingRecovery: (indexedDb) => get('pendingRecovery', indexedDb),
+    setPendingRecovery: (value, indexedDb) => set('pendingRecovery', value, indexedDb),
+    clearPendingRecovery: (indexedDb) => remove('pendingRecovery', indexedDb),
+    getPendingDelete: (indexedDb) => get('pendingDelete', indexedDb),
+    setPendingDelete: (value, indexedDb) => set('pendingDelete', value, indexedDb),
+    clearPendingDelete: (indexedDb) => remove('pendingDelete', indexedDb)
   });
 })(globalThis);

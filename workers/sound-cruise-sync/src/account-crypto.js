@@ -4,6 +4,8 @@ const SECRET_BYTES = 32;
 const ACCOUNT_CREDENTIAL_PREFIX = 'sca1';
 const HANDOFF_PREFIX = 'sch1';
 const ACCOUNT_RECOVERY_PREFIX = 'SAR1';
+const ACCOUNT_RECOVERY_CLAIM_PREFIX = 'sarc1';
+const ACCOUNT_DELETE_INTENT_PREFIX = 'sadi1';
 const ACCOUNT_RECOVERY_LENGTH = 20;
 const APP_JOIN_CODE_PREFIX = 'SCJ1';
 const APP_JOIN_CODE_LENGTH = 20;
@@ -140,6 +142,36 @@ export async function accountRecoveryCodeVerifier(value, pepper, cryptoImpl = cr
   return hmacVerifier(`sound-cruise-account-recovery:v1:${normalized}`, pepper, cryptoImpl);
 }
 
+export function createAccountRecoveryClaim(cryptoImpl = crypto) {
+  const material = createToken(ACCOUNT_RECOVERY_CLAIM_PREFIX, cryptoImpl);
+  return { claimId: material.id, claimToken: material.token };
+}
+
+export function parseAccountRecoveryClaim(value) {
+  const parsed = parseToken(value, ACCOUNT_RECOVERY_CLAIM_PREFIX);
+  return parsed ? { version: 1, claimId: parsed.id, secret: parsed.secret } : null;
+}
+
+export async function accountRecoveryClaimVerifier(value, pepper, cryptoImpl = crypto) {
+  if (!parseAccountRecoveryClaim(value)) throw new Error('Invalid Account Recovery claim');
+  return hmacVerifier(`sound-cruise-account-recovery-claim:v1:${value}`, pepper, cryptoImpl);
+}
+
+export function createAccountDeleteIntent(cryptoImpl = crypto) {
+  const material = createToken(ACCOUNT_DELETE_INTENT_PREFIX, cryptoImpl);
+  return { intentId: material.id, intentToken: material.token };
+}
+
+export function parseAccountDeleteIntent(value) {
+  const parsed = parseToken(value, ACCOUNT_DELETE_INTENT_PREFIX);
+  return parsed ? { version: 1, intentId: parsed.id, secret: parsed.secret } : null;
+}
+
+export async function accountDeleteIntentVerifier(value, pepper, cryptoImpl = crypto) {
+  if (!parseAccountDeleteIntent(value)) throw new Error('Invalid Account delete intent');
+  return hmacVerifier(`sound-cruise-account-delete-intent:v1:${value}`, pepper, cryptoImpl);
+}
+
 export async function accountManagedRecoveryVerifier(accountVerifier, appId, pepper, cryptoImpl = crypto) {
   if (typeof accountVerifier !== 'string' || !/^[a-f0-9]{64}$/.test(accountVerifier) ||
       !['chord', 'pitch', 'fretboard', 'rhythm'].includes(appId)) {
@@ -177,5 +209,7 @@ export const ACCOUNT_CRYPTO = Object.freeze({
   ACCOUNT_RECOVERY_LENGTH,
   APP_JOIN_CODE_PREFIX,
   APP_JOIN_CODE_LENGTH,
+  ACCOUNT_RECOVERY_CLAIM_PREFIX,
+  ACCOUNT_DELETE_INTENT_PREFIX,
   HANDOFF_FRAGMENT_KEY: 'sound-cruise-handoff'
 });
