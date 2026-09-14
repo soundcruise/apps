@@ -10,6 +10,7 @@
     "migrate:local": "wrangler d1 migrations apply SYNC_DB --local",
     "enrollment:create": "node scripts/create-enrollment-code.mjs",
     "qa:enrollment:create": "node scripts/create-account-qa-enrollment.mjs",
+    "qa:enrollment:cancel-orphan": "node scripts/cancel-account-qa-enrollment.mjs",
     "qa:enrollment:rotate-and-create": "node scripts/rotate-account-qa-enrollment-pepper-and-issue.mjs",
     "qa:session:revoke": "node scripts/revoke-account-qa-session.mjs"
   },

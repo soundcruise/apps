@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { rotateAndIssue } from '../scripts/rotate-account-qa-enrollment-pepper-and-issue.mjs';
+import { cancelOrphanEnrollment } from '../scripts/cancel-account-qa-enrollment.mjs';
 
 const scriptUrl = new URL('../scripts/rotate-account-qa-enrollment-pepper-and-issue.mjs', import.meta.url);
 const scriptPath = fileURLToPath(scriptUrl);
@@ -12,8 +13,8 @@ const testCode = ['SQA1', 'ABCDEFGH', 'JKLMNPQR', 'STUV'].join('');
 const testVerifier = 'a'.repeat(64);
 const enrollmentId = '00000000-0000-4000-8000-000000000099';
 
-function d1Result(results, rowsWritten = 0) {
-  return { status: 0, stdout: JSON.stringify([{ success: true, results, meta: { rows_written: rowsWritten } }]), stderr: '' };
+function d1Result(results) {
+  return { status: 0, stdout: JSON.stringify([{ success: true, results, meta: { rows_written: 0 } }]), stderr: '' };
 }
 
 function cryptoFixture() {
@@ -44,7 +45,8 @@ test('one-shot remote flow passes pepper only over secret-put stdin and issues o
     d1Result([{ active_unused_enrollments: 0 }]),
     { status: 0, stdout: 'secret updated', stderr: '' },
     d1Result([{ active_unused_enrollments: 0 }]),
-    d1Result([], 1)
+    d1Result([]),
+    d1Result([{ enrollment_count: 1 }])
   ];
   const runWrangler = (args, options = {}) => {
     calls.push({ args, input: options.input });
@@ -63,7 +65,7 @@ test('one-shot remote flow passes pepper only over secret-put stdin and issues o
     }
   });
 
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 5);
   assert.deepEqual(calls[1].args, ['secret', 'put', 'SYNC_ACCOUNT_QA_ENROLLMENT_PEPPER']);
   assert.ok(calls[1].input.endsWith('\n'));
   const generatedPepper = calls[1].input.trim();
@@ -77,6 +79,28 @@ test('one-shot remote flow passes pepper only over secret-put stdin and issues o
   assert.equal(output.includes(['SQA1', 'ABCD', 'EFGH', 'JKLM', 'NPQR', 'STUV'].join('-')), true);
   assert.match(calls[3].args.at(-1), /INSERT INTO sync_account_qa_enrollments/);
   assert.doesNotMatch(calls[3].args.at(-1), /SQA1/);
+  assert.match(calls[4].args.at(-1), /SELECT COUNT\(\*\) AS enrollment_count/);
+});
+
+test('one-shot remote flow does not display a code unless its generated UUID is verified', async () => {
+  const chunks = [];
+  await assert.rejects(() => rotateAndIssue({
+    argv: ['--remote'], cryptoImpl: cryptoFixture(), now: () => 1_700_000_000_000,
+    runWrangler: (() => {
+      const results = [
+        d1Result([{ active_unused_enrollments: 0 }]),
+        { status: 0, stdout: 'secret updated', stderr: '' },
+        d1Result([{ active_unused_enrollments: 0 }]),
+        d1Result([]),
+        d1Result([{ enrollment_count: 0 }])
+      ];
+      return () => results.shift();
+    })(),
+    createCode: () => testCode,
+    createVerifier: async () => testVerifier,
+    stdout: { write: (chunk) => chunks.push(chunk) }
+  }), /did not write exactly one row/);
+  assert.equal(chunks.join('').includes('QA Enrollment Code'), false);
 });
 
 test('one-shot remote flow stops before rotation when an active Enrollment exists', async () => {
@@ -115,4 +139,24 @@ test('operator helper has no filesystem write path for secret material', () => {
   const source = readFileSync(scriptUrl, 'utf8');
   assert.doesNotMatch(source, /from ['"]node:fs['"]/);
   assert.doesNotMatch(source, /writeFile|mkdtemp|tmpdir/);
+});
+
+test('orphan cancellation targets one exact active UUID and rejects a missing or ambiguous target', () => {
+  const id = '00000000-0000-4000-8000-000000000123';
+  const output = [];
+  cancelOrphanEnrollment({
+    argv: [`--id=${id}`],
+    runWrangler: (args) => {
+      assert.match(args.at(-1), new RegExp(`WHERE id = '${id}'`));
+      assert.match(args.at(-1), /consumed_at IS NULL AND cancelled_at IS NULL/);
+      return { status: 0, stdout: JSON.stringify([{ success: true, meta: { changes: 1 } }]), stderr: '' };
+    },
+    stdout: { write: (chunk) => output.push(chunk) }
+  });
+  assert.equal(output.join(''), 'Cancelled exactly one orphan QA Enrollment.\n');
+  assert.throws(() => cancelOrphanEnrollment({ argv: ['--id=not-a-uuid'] }), /exactly one Enrollment UUID/);
+  assert.throws(() => cancelOrphanEnrollment({
+    argv: [`--id=${id}`],
+    runWrangler: () => ({ status: 0, stdout: JSON.stringify([{ success: true, meta: { changes: 0 } }]), stderr: '' })
+  }), /exactly one active Enrollment/);
 });

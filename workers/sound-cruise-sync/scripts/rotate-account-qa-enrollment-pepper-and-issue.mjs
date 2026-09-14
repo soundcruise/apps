@@ -59,6 +59,11 @@ function d1CommandArgs(sql) {
   return ['d1', 'execute', DATABASE, '--remote', '--json', '--yes', '--command', sql];
 }
 
+function enrollmentExistsSql(enrollmentId) {
+  return `SELECT COUNT(*) AS enrollment_count
+    FROM sync_account_qa_enrollments WHERE id = '${enrollmentId}';`;
+}
+
 function readActiveUnused(runWrangler) {
   const parsed = parseD1Json(runWrangler(d1CommandArgs(ACTIVE_GUARD_SQL)), 'active Enrollment guard');
   const count = Number(parsed[0]?.results?.[0]?.active_unused_enrollments);
@@ -112,7 +117,14 @@ export async function rotateAndIssue({
     (id, code_verifier, created_at, expires_at, consumed_at, cancelled_at, consumed_by_session_id)
     VALUES ('${enrollmentId}', '${verifier}', ${issuedAt}, ${expiresAt}, NULL, NULL, NULL);`;
   const inserted = parseD1Json(runWrangler(d1CommandArgs(sql)), 'Enrollment issuance');
-  if (Number(inserted[0]?.meta?.rows_written) !== 1) {
+  // Remote Wrangler output does not reliably expose affected-row metadata for D1 INSERTs.
+  // Verify the exact generated UUID exists instead, without reading verifier material.
+  const verify = parseD1Json(
+    runWrangler(d1CommandArgs(enrollmentExistsSql(enrollmentId))),
+    'Enrollment issuance verification'
+  );
+  const enrollmentCount = Number(verify[0]?.results?.[0]?.enrollment_count);
+  if (enrollmentCount !== 1) {
     throw new Error('Enrollment issuance did not write exactly one row');
   }
 
@@ -129,4 +141,3 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     process.exitCode = 1;
   }
 }
-

@@ -11,7 +11,9 @@ Chord remains governed by its existing production controls.
 - Add secrets `SYNC_ACCOUNT_QA_ENROLLMENT_PEPPER` and
   `SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER`. Never reuse any Enrollment, Pairing, Recovery,
   Account Recovery, Handoff, or device credential pepper.
-- Add `ACCOUNT_QA_ENROLL_RATE_LIMITER` with a conservative per-IP limit.
+- Bind `ACCOUNT_QA_ENROLL_RATE_LIMITER` to namespace `32006` with a conservative
+  per-IP limit of 5 requests per 60 seconds. The Enrollment endpoint fails closed
+  when this binding is absent; do not weaken that behavior.
 - Set `SYNC_QA_ALLOWED_APP_IDS=chord,pitch,rhythm,fretboard`; keep
   `SYNC_ALLOWED_APP_IDS=chord` unchanged.
 - Keep `ACCOUNT_ALLOWED_ORIGINS` and `ALLOWED_ORIGINS` restricted to
@@ -51,9 +53,11 @@ QA sessions continue to authenticate with the separate `SYNC_ACCOUNT_QA_CREDENTI
 Recovery, Join, and app/device credentials do not use the Enrollment pepper. Consumed Enrollment rows
 remain audit records and are not revalidated during QA session authentication.
 
-If secret rotation succeeds but Enrollment issuance fails, no active code is created. Fix the
-operational failure and rerun the same one-shot helper; it will rotate to another fresh pepper before
-issuing. Never recover or read back the deployed secret.
+If secret rotation succeeds but Enrollment issuance fails, do not assume the INSERT failed from
+Wrangler metadata alone. The helper verifies its generated UUID with a secret-free SELECT before
+displaying a code. If an older helper left an orphaned active Enrollment whose plaintext was never
+displayed, cancel only that exact UUID with `qa:enrollment:cancel-orphan`; require exactly one row
+to change, then re-run the one-shot helper. Never recover or read back the deployed secret.
 
 The older `qa:enrollment:create` helper is only suitable when an operator already possesses the
 currently deployed Enrollment pepper through an approved secret-delivery channel. Never attempt to

@@ -52,13 +52,14 @@ test('M9 keeps Standard unintegrated and wires Account orchestration only into P
   assert.doesNotMatch(orchestrator, /\blocalStorage\b|\bsessionStorage\b|\bindexedDB\b/u);
 });
 
-test('production config is not widened for Account secrets, origins, app IDs or rate namespaces', () => {
+test('production config exposes only the dedicated M10 QA Enrollment limiter', () => {
   const config = fs.readFileSync(path.join(import.meta.dirname, '../wrangler.jsonc'), 'utf8');
   assert.equal(config.includes('SYNC_ACCOUNT_CREDENTIAL_PEPPER'), false);
   assert.equal(config.includes('SYNC_ACCOUNT_RECOVERY_PEPPER'), false);
   assert.equal(config.includes('SYNC_ACCOUNT_HANDOFF_PEPPER'), false);
   assert.equal(config.includes('SYNC_ACCOUNT_APP_JOIN_PEPPER'), false);
   assert.equal(config.includes('ACCOUNT_ALLOWED_ORIGINS'), false);
+  assert.match(config, /"name"\s*:\s*"ACCOUNT_QA_ENROLL_RATE_LIMITER"[\s\S]*?"namespace_id"\s*:\s*"32006"[\s\S]*?"limit"\s*:\s*5[\s\S]*?"period"\s*:\s*60/u);
   assert.equal(config.includes('ACCOUNT_START_RATE_LIMITER'), false);
   assert.equal(config.includes('ACCOUNT_BRIDGE_RATE_LIMITER'), false);
   assert.equal(config.includes('ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER'), false);
