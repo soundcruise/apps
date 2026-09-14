@@ -98,6 +98,34 @@ test('Account start failure returns the modal to a visible retry using the same 
     assert.equal(attempts, 2);
     assert.equal(ui.setup.dataset.syncPhase, 'complete');
     assert.equal(ui.setup.dataset.syncError, undefined);
+    assert.equal(ui.setup.dataset.syncFailureCategory, undefined);
+});
+
+test('Account storage failure exposes only a stable non-secret category and releases retry UI', async () => {
+    let attempts = 0;
+    const ui = accountSetupFixture({
+        completeAccountSetup: async () => {
+            attempts += 1;
+            if (attempts === 1) {
+                throw Object.assign(new Error('account_storage_write_failed'), {
+                    code: 'account_storage_write_failed', category: 'storage'
+                });
+            }
+            return { ok: true };
+        }
+    });
+    await ui.click();
+    assert.equal(ui.setup.dataset.syncPhase, 'start-uncertain');
+    assert.equal(ui.setup.dataset.syncFailureCategory, 'storage');
+    assert.equal(ui.setup.dataset.syncError, 'account_storage_write_failed');
+    assert.equal(ui.confirm.disabled, false);
+    assert.equal(ui.confirm.textContent, 'もう一度試す');
+    assert.match(ui.summary.textContent, /このブラウザ環境/);
+    assert.doesNotMatch(ui.summary.textContent, /account_storage|credential|recovery/i);
+    await ui.click();
+    assert.equal(attempts, 2);
+    assert.equal(ui.setup.dataset.syncPhase, 'complete');
+    assert.equal(ui.setup.dataset.syncFailureCategory, undefined);
 });
 
 test('Turnstile failure and partial membership preparation both release the busy UI', async () => {

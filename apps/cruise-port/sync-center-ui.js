@@ -184,6 +184,16 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         const value = String(error?.code || error?.message || 'setup_failed');
         return /^[a-z0-9_]{1,64}$/.test(value) ? value : 'setup_failed';
     };
+    const failureCategory = (error) => {
+        const code = safeErrorCode(error);
+        if (error?.category === 'storage' || code.startsWith('account_storage_')) return 'storage';
+        if (code === 'verification_required' || code.includes('turnstile')) return 'turnstile';
+        if (['network_error', 'account_request_timeout', 'account_start_uncertain', 'invalid_response'].includes(code)) {
+            return 'network';
+        }
+        if (Number(error?.status) >= 500 || code.includes('server_') || code.includes('runtime_')) return 'server';
+        return 'unknown';
+    };
     const ensureQaAdmission = async () => {
         if (!orchestrator?.qaAdmissionRequired || await orchestrator.hasQaAdmission()) return true;
         const enrollmentCode = globalThis.prompt('Multi-App QA Enrollment Codeを入力してください。');
@@ -213,6 +223,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         confirm.disabled = true;
         try {
             delete setup.dataset.syncError;
+            delete setup.dataset.syncFailureCategory;
             await ensureQaAdmission();
             if (setup.dataset.syncPhase === 'complete') {
                 setup.close();
@@ -256,9 +267,12 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         } catch (error) {
             const failedPhase = setup.dataset.syncPhase;
             setup.dataset.syncError = safeErrorCode(error);
+            setup.dataset.syncFailureCategory = failureCategory(error);
             if (failedPhase === 'starting' || failedPhase === 'start-uncertain') {
                 setPhase('start-uncertain');
-                if (summary) summary.textContent = 'アカウント作成を完了できませんでした。通信状態を確認して、もう一度お試しください。';
+                if (summary) summary.textContent = setup.dataset.syncFailureCategory === 'storage'
+                    ? 'このブラウザ環境では同期の準備を完了できませんでした。もう一度お試しください。'
+                    : 'アカウント作成を完了できませんでした。通信状態を確認して、もう一度お試しください。';
                 confirm.textContent = 'もう一度試す';
             } else if (failedPhase === 'preparing-memberships' || failedPhase === 'membership-retry') {
                 setPhase('membership-retry');

@@ -300,6 +300,58 @@ test('Account start exposes Recovery once to the caller but never writes it to p
   }), /account_material_must_be_created_and_saved_first/);
 });
 
+test('Account start sends no POST on storage failure and retries the same memory candidate once storage recovers', async () => {
+  const account = load([coreSource, clientSource]);
+  const material = account.core.createAccountMaterial();
+  let storageAvailable = false;
+  let pending = null;
+  let startCalls = 0;
+  const writes = [];
+  const storage = {
+    async setPendingStart(value) {
+      if (!storageAvailable) {
+        const error = new Error('account_storage_write_failed');
+        error.code = 'account_storage_write_failed';
+        error.category = 'storage';
+        throw error;
+      }
+      pending = structuredClone(value);
+      writes.push(['pendingStart', pending]);
+    },
+    async getPendingStart() { return pending; },
+    async getQaAdmission() { return null; },
+    async setAccount(value) { writes.push(['account', structuredClone(value)]); },
+    async clearPendingStart() { pending = null; writes.push(['clearPendingStart']); }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    fetchImpl: async (_url, options) => {
+      startCalls += 1;
+      const body = JSON.parse(options.body);
+      return Response.json({
+        ok: true, accountId: crypto.randomUUID(),
+        accountDeviceId: body.accountCredential.split('.')[1],
+        recoveryVersion: 1, memberships: []
+      }, { status: 201 });
+    }
+  });
+  await assert.rejects(client.startAccount({
+    appIds: ['chord'], turnstileToken: 'opaque', material, recoverySaved: true
+  }), (error) => error.code === 'account_storage_write_failed' && error.category === 'storage');
+  assert.equal(startCalls, 0);
+  assert.equal(pending, null);
+
+  storageAvailable = true;
+  const result = await client.startAccount({
+    appIds: ['chord'], turnstileToken: 'opaque', material, recoverySaved: true
+  });
+  assert.equal(result.accountDeviceId, material.accountDeviceId);
+  assert.equal(startCalls, 1);
+  assert.equal(writes.filter(([kind]) => kind === 'pendingStart').length, 1);
+  assert.equal(writes.filter(([kind]) => kind === 'account').length, 1);
+  assert.equal(JSON.stringify(writes).includes(material.recoveryCode), false);
+});
+
 test('Account start timeout before server execution is finite and retains one retry candidate', async () => {
   const writes = [];
   let startCalls = 0;
@@ -424,7 +476,94 @@ test('CORS-like network failure and explicit rate limiting both settle without l
   assert.equal(requests, 1, 'a definitive rejection is not reconciled or replayed');
 });
 
-test('Account storage rejects open failure, blocked open, and transaction abort', async () => {
+function storageFixture({ transactionOutcomes = [], rejectReopen = false } = {}) {
+  const values = new Map();
+  let openCount = 0;
+  let closeCount = 0;
+  let lastDatabase = null;
+  const source = {
+    open() {
+      openCount += 1;
+      const request = {};
+      queueMicrotask(() => {
+        if (rejectReopen && openCount > 1) {
+          request.onerror?.();
+          return;
+        }
+        const database = {
+          objectStoreNames: { contains: () => true },
+          close() { closeCount += 1; },
+          transaction(_storeName, mode) {
+            const outcome = mode === 'readonly' ? 'success' : (transactionOutcomes.shift() || 'success');
+            const transaction = {
+              error: null,
+              abort() { queueMicrotask(() => transaction.onabort?.()); },
+              objectStore() {
+                return {
+                  get(key) {
+                    const getRequest = { transaction };
+                    queueMicrotask(() => {
+                      getRequest.result = structuredClone(values.get(key));
+                      getRequest.onsuccess?.();
+                    });
+                    return getRequest;
+                  },
+                  put(value, key) {
+                    if (outcome === 'put-failure') throw new Error('clone failed');
+                    values.set(key, structuredClone(value));
+                    if (outcome === 'abort') queueMicrotask(() => transaction.onabort?.());
+                    else if (outcome === 'error') queueMicrotask(() => transaction.onerror?.());
+                    else if (outcome === 'delayed') setTimeout(() => transaction.oncomplete?.(), 5);
+                    else if (outcome !== 'stalled') queueMicrotask(() => transaction.oncomplete?.());
+                  },
+                  delete(key) {
+                    values.delete(key);
+                    queueMicrotask(() => transaction.oncomplete?.());
+                  }
+                };
+              }
+            };
+            if (mode === 'readonly') queueMicrotask(() => transaction.oncomplete?.());
+            return transaction;
+          }
+        };
+        lastDatabase = database;
+        request.result = database;
+        request.onsuccess?.();
+      });
+      return request;
+    }
+  };
+  return {
+    source,
+    values,
+    openCount: () => openCount,
+    closeCount: () => closeCount,
+    versionchange: () => lastDatabase?.onversionchange?.()
+  };
+}
+
+test('Account storage reuses one Safari-safe connection for QA admission and pendingStart', async () => {
+  const account = load([dbSource]);
+  const fixture = storageFixture({ rejectReopen: true });
+  const qa = {
+    qaSessionId: crypto.randomUUID(),
+    qaCredential: `scq1.${crypto.randomUUID()}.${'A'.repeat(43)}`,
+    scope: 'port',
+    expiresAt: Date.now() + 60_000
+  };
+  await account.storage.setQaAdmission(qa, fixture.source);
+  await account.storage.setPendingStart({
+    operationId: crypto.randomUUID(), accountDeviceId: crypto.randomUUID(),
+    accountCredential: `sca1.${crypto.randomUUID()}.${'B'.repeat(43)}`,
+    appIds: ['chord', 'pitch', 'fretboard', 'rhythm'], deviceLabel: 'QA', recoveryAcknowledged: true
+  }, fixture.source);
+  assert.equal((await account.storage.getQaAdmission('port', null, fixture.source)).qaSessionId, qa.qaSessionId);
+  assert.equal(fixture.openCount(), 1, 'back-to-back account setup storage must not reopen Safari Private IDB');
+  assert.equal(fixture.closeCount(), 0);
+});
+
+test('Account storage classifies open failure, blocked open, abort, error, and put failure', async () => {
   const account = load([dbSource]);
   function openRequest(resultFactory, eventName) {
     return {
@@ -439,7 +578,8 @@ test('Account storage rejects open failure, blocked open, and transaction abort'
       }
     };
   }
-  await assert.rejects(account.storage.getAccount(openRequest(null, 'error')), /open failed/);
+  await assert.rejects(account.storage.getAccount(openRequest(null, 'error')),
+    (error) => error.code === 'account_storage_open_failed' && error.category === 'storage');
   await assert.rejects(account.storage.getAccount(openRequest(null, 'blocked')), /account_storage_blocked/);
 
   const timedStorage = load([dbSource], {
@@ -463,7 +603,44 @@ test('Account storage rejects open failure, blocked open, and transaction abort'
   };
   await assert.rejects(account.storage.setAccount(
     { accountId: 'account' }, openRequest(() => database, 'success')
-  ), /transaction aborted/);
+  ), /account_storage_transaction_failed/);
+
+  const transactionError = storageFixture({ transactionOutcomes: ['error'] });
+  await assert.rejects(account.storage.setAccount(
+    { accountId: 'account' }, transactionError.source
+  ), /account_storage_transaction_failed/);
+
+  const putFailure = storageFixture({ transactionOutcomes: ['put-failure'] });
+  await assert.rejects(account.storage.setAccount(
+    { accountId: 'account' }, putFailure.source
+  ), /account_storage_write_failed/);
+});
+
+test('Account storage handles delayed completion, timeout, versionchange, and retry without hanging', async () => {
+  const account = load([dbSource]);
+  const delayed = storageFixture({ transactionOutcomes: ['delayed'] });
+  await account.storage.setAccount({ accountId: 'delayed' }, delayed.source);
+  assert.equal((await account.storage.getAccount(delayed.source)).accountId, 'delayed');
+
+  delayed.versionchange();
+  await account.storage.setAccount({ accountId: 'after-versionchange' }, delayed.source);
+  assert.equal(delayed.openCount(), 2);
+  assert.equal(delayed.closeCount(), 1);
+
+  const retry = storageFixture({ transactionOutcomes: ['abort', 'success'] });
+  await assert.rejects(account.storage.setAccount({ accountId: 'first' }, retry.source),
+    /account_storage_transaction_failed/);
+  await account.storage.setAccount({ accountId: 'second' }, retry.source);
+  assert.equal((await account.storage.getAccount(retry.source)).accountId, 'second');
+  assert.equal(retry.openCount(), 2, 'failed connection is discarded before retry');
+
+  const timedAccount = load([dbSource], {
+    setTimeout(callback) { queueMicrotask(callback); return 1; },
+    clearTimeout() {}
+  });
+  const stalled = storageFixture({ transactionOutcomes: ['stalled'] });
+  await assert.rejects(timedAccount.storage.setAccount({ accountId: 'stalled' }, stalled.source),
+    /account_storage_timeout/);
 });
 
 test('Account Recovery requires saved candidate, persists no Recovery plaintext, and promotes only after commit', async () => {

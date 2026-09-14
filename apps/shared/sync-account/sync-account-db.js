@@ -11,8 +11,28 @@
     'pendingRecovery', 'pendingDelete'
   ]);
   const QA_APP_IDS = new Set(['chord', 'pitch', 'fretboard', 'rhythm']);
+  let activeSource = null;
+  let activeDatabase = null;
+  let activeOpen = null;
 
-  function requestResult(request, timeoutMs = DEFAULT_STORAGE_TIMEOUT_MS) {
+  class AccountStorageError extends Error {
+    constructor(code) {
+      super(code);
+      this.name = 'AccountStorageError';
+      this.code = code;
+      this.category = 'storage';
+    }
+  }
+
+  function storageError(code) {
+    return new AccountStorageError(code);
+  }
+
+  function requestResult(request, {
+    errorCode = 'account_storage_read_failed',
+    blockedCode = 'account_storage_blocked',
+    timeoutMs = DEFAULT_STORAGE_TIMEOUT_MS
+  } = {}) {
     return new Promise((resolve, reject) => {
       let settled = false;
       const finish = (callback, value) => {
@@ -26,11 +46,11 @@
       };
       const timeoutId = global.setTimeout(() => {
         try { request.transaction?.abort?.(); } catch (_) { /* already inactive */ }
-        finish(reject, new Error('account_storage_timeout'));
+        finish(reject, storageError('account_storage_timeout'));
       }, timeoutMs);
       request.onsuccess = () => finish(resolve, request.result);
-      request.onerror = () => finish(reject, request.error || new Error('account_storage_failed'));
-      request.onblocked = () => finish(reject, new Error('account_storage_blocked'));
+      request.onerror = () => finish(reject, storageError(errorCode));
+      request.onblocked = () => finish(reject, storageError(blockedCode));
     });
   }
 
@@ -45,23 +65,69 @@
       };
       const timeoutId = global.setTimeout(() => {
         try { transaction.abort(); } catch (_) { /* already inactive */ }
-        finish(reject, new Error('account_storage_timeout'));
+        finish(reject, storageError('account_storage_timeout'));
       }, timeoutMs);
       transaction.oncomplete = () => finish(resolve);
-      transaction.onabort = () => finish(reject, transaction.error || new Error('account_storage_failed'));
-      transaction.onerror = () => finish(reject, transaction.error || new Error('account_storage_failed'));
+      transaction.onabort = () => finish(reject, storageError('account_storage_transaction_failed'));
+      transaction.onerror = () => finish(reject, storageError('account_storage_transaction_failed'));
     });
   }
 
+  function closeDatabase(database = activeDatabase) {
+    if (!database) return;
+    try { database.close(); } catch (_) { /* already closed */ }
+    if (database === activeDatabase) {
+      activeDatabase = null;
+      activeSource = null;
+    }
+  }
+
+  function transaction(database, mode) {
+    try {
+      return database.transaction(STORE_NAME, mode);
+    } catch (_) {
+      closeDatabase(database);
+      throw storageError('account_storage_transaction_failed');
+    }
+  }
+
   async function open(indexedDb = global.indexedDB) {
-    if (!indexedDb || typeof indexedDb.open !== 'function') throw new Error('account_storage_unavailable');
-    const request = indexedDb.open(DATABASE_NAME, VERSION);
+    if (!indexedDb || typeof indexedDb.open !== 'function') {
+      throw storageError('account_storage_unavailable');
+    }
+    if (activeDatabase && activeSource === indexedDb) return activeDatabase;
+    if (activeOpen && activeSource === indexedDb) return activeOpen;
+    if (activeDatabase && activeSource !== indexedDb) closeDatabase();
+
+    let request;
+    try {
+      request = indexedDb.open(DATABASE_NAME, VERSION);
+    } catch (_) {
+      throw storageError('account_storage_open_failed');
+    }
     request.onupgradeneeded = () => {
       if (!request.result.objectStoreNames.contains(STORE_NAME)) {
         request.result.createObjectStore(STORE_NAME);
       }
     };
-    return requestResult(request);
+    activeSource = indexedDb;
+    const opening = requestResult(request, { errorCode: 'account_storage_open_failed' });
+    activeOpen = opening;
+    try {
+      const database = await opening;
+      if (!database?.objectStoreNames?.contains?.(STORE_NAME)) {
+        try { database?.close?.(); } catch (_) { /* best effort */ }
+        throw storageError('account_storage_schema_invalid');
+      }
+      database.onversionchange = () => closeDatabase(database);
+      activeDatabase = database;
+      return database;
+    } catch (error) {
+      activeSource = null;
+      throw error?.category === 'storage' ? error : storageError('account_storage_open_failed');
+    } finally {
+      if (activeOpen === opening) activeOpen = null;
+    }
   }
 
   function assertSafeValue(key, value) {
@@ -81,10 +147,11 @@
     if (!ALLOWED_KEYS.has(key)) throw new Error('account_storage_invalid');
     const database = await open(indexedDb);
     try {
-      const transaction = database.transaction(STORE_NAME, 'readonly');
-      return (await requestResult(transaction.objectStore(STORE_NAME).get(key))) || null;
-    } finally {
-      database.close();
+      const current = transaction(database, 'readonly');
+      return (await requestResult(current.objectStore(STORE_NAME).get(key))) || null;
+    } catch (error) {
+      closeDatabase(database);
+      throw error?.category === 'storage' ? error : storageError('account_storage_read_failed');
     }
   }
 
@@ -92,11 +159,19 @@
     assertSafeValue(key, value);
     const database = await open(indexedDb);
     try {
-      const transaction = database.transaction(STORE_NAME, 'readwrite');
-      transaction.objectStore(STORE_NAME).put(structuredClone(value), key);
-      await transactionDone(transaction);
-    } finally {
-      database.close();
+      const current = transaction(database, 'readwrite');
+      const done = transactionDone(current);
+      try {
+        current.objectStore(STORE_NAME).put(structuredClone(value), key);
+      } catch (_) {
+        try { current.abort(); } catch (_) { /* already inactive */ }
+        await done.catch(() => {});
+        throw storageError('account_storage_write_failed');
+      }
+      await done;
+    } catch (error) {
+      closeDatabase(database);
+      throw error?.category === 'storage' ? error : storageError('account_storage_write_failed');
     }
   }
 
@@ -104,11 +179,19 @@
     if (!ALLOWED_KEYS.has(key)) throw new Error('account_storage_invalid');
     const database = await open(indexedDb);
     try {
-      const transaction = database.transaction(STORE_NAME, 'readwrite');
-      transaction.objectStore(STORE_NAME).delete(key);
-      await transactionDone(transaction);
-    } finally {
-      database.close();
+      const current = transaction(database, 'readwrite');
+      const done = transactionDone(current);
+      try {
+        current.objectStore(STORE_NAME).delete(key);
+      } catch (_) {
+        try { current.abort(); } catch (_) { /* already inactive */ }
+        await done.catch(() => {});
+        throw storageError('account_storage_write_failed');
+      }
+      await done;
+    } catch (error) {
+      closeDatabase(database);
+      throw error?.category === 'storage' ? error : storageError('account_storage_write_failed');
     }
   }
 
@@ -128,35 +211,17 @@
       throw new Error('qa_admission_scope_invalid');
     }
     const slot = qaSlot(value.scope, value.appId || null);
-    const database = await open(indexedDb);
-    try {
-      const transaction = database.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const current = (await requestResult(store.get('qaAdmission'))) || {};
-      const next = { ...current, [slot]: structuredClone(value) };
-      assertSafeValue('qaAdmission', next);
-      store.put(next, 'qaAdmission');
-      await transactionDone(transaction);
-    } finally {
-      database.close();
-    }
+    const current = (await get('qaAdmission', indexedDb)) || {};
+    return set('qaAdmission', { ...current, [slot]: structuredClone(value) }, indexedDb);
   }
 
   async function clearQaAdmission(scope = 'port', appId = null, indexedDb) {
     const slot = qaSlot(scope, appId);
-    const database = await open(indexedDb);
-    try {
-      const transaction = database.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const current = (await requestResult(store.get('qaAdmission'))) || {};
-      const next = { ...current };
-      delete next[slot];
-      if (Object.keys(next).length) store.put(next, 'qaAdmission');
-      else store.delete('qaAdmission');
-      await transactionDone(transaction);
-    } finally {
-      database.close();
-    }
+    const current = (await get('qaAdmission', indexedDb)) || {};
+    const next = { ...current };
+    delete next[slot];
+    if (Object.keys(next).length) return set('qaAdmission', next, indexedDb);
+    return remove('qaAdmission', indexedDb);
   }
 
   root.storage = Object.freeze({
