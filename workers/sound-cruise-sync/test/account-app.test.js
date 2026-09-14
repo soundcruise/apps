@@ -4,6 +4,7 @@ import { handleRequest } from '../src/app.js';
 import {
   createAccountCredential,
   createAccountHandoff,
+  createAppJoinCode,
   createAccountRecoveryCode
 } from '../src/account-crypto.js';
 import { createIdentityMaterial } from '../src/crypto.js';
@@ -14,6 +15,7 @@ const origin = 'https://soundcruise.jp';
 const accountCredentialPepper = 'm3-api-account-credential-pepper-32-chars';
 const accountRecoveryPepper = 'm3-api-account-recovery-pepper-32-chars';
 const accountHandoffPepper = 'm3-api-account-handoff-pepper-32-chars';
+const accountAppJoinPepper = 'm95-api-account-app-join-pepper-32-chars';
 const appPepper = 'm3-api-app-credential-pepper-at-least-32';
 const qaPepper = 'm10-api-qa-credential-pepper-at-least-32';
 const qa = createQaCredential();
@@ -51,11 +53,14 @@ function environment(db) {
     SYNC_ACCOUNT_CREDENTIAL_PEPPER: accountCredentialPepper,
     SYNC_ACCOUNT_RECOVERY_PEPPER: accountRecoveryPepper,
     SYNC_ACCOUNT_HANDOFF_PEPPER: accountHandoffPepper,
+    SYNC_ACCOUNT_APP_JOIN_PEPPER: accountAppJoinPepper,
     SYNC_CREDENTIAL_PEPPER: appPepper,
     SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER: qaPepper,
     ACCOUNT_START_RATE_LIMITER: limiter(),
     ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER: limiter(),
     ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER: limiter(),
+    ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER: limiter(),
+    ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER: limiter(),
     TURNSTILE_PRODUCTION_SECRET_KEY: 'test-only-turnstile-secret'
   };
 }
@@ -153,6 +158,59 @@ test('Account create is gated, Turnstile/rate-limited, verifier-only and respons
   assert.equal(retry.status, 200);
   assert.equal((await retry.json()).accountId, created.accountId);
   assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM sync_accounts').get().count, 1);
+  db.close();
+});
+
+test('cross-container app Join Code activates once without echoing or storing plaintext', async () => {
+  const db = createSqliteD1();
+  enableAccountControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['pitch']);
+  let preflight = await handleRequest(new Request('https://sync.example/v2/accounts/app-join-invitations', {
+    method: 'OPTIONS', headers: {
+      Origin: origin,
+      'Access-Control-Request-Method': 'POST',
+      'Access-Control-Request-Headers': 'content-type,authorization,x-d1-bookmark,x-sound-cruise-qa-authorization'
+    }
+  }), env);
+  assert.equal(preflight.status, 204);
+  const joinCode = createAppJoinCode();
+  const invitationId = crypto.randomUUID();
+  let response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations', {
+    operationId: crypto.randomUUID(), invitationId, appId: 'pitch', joinCode
+  }, { credential: started.candidate.account.credential }), env);
+  assert.equal(response.status, 201);
+  const issued = await response.json();
+  assert.equal(issued.invitationId, invitationId);
+  assert.equal(JSON.stringify(issued).includes(joinCode), false);
+  assert.equal(JSON.stringify(db.raw.prepare('SELECT * FROM sync_app_join_invitations').get()).includes(joinCode), false);
+
+  const targetAccount = createAccountCredential();
+  const targetApp = await createIdentityMaterial(appPepper);
+  const targetQa = createQaCredential();
+  const consumeBody = {
+    operationId: crypto.randomUUID(), appId: 'pitch', joinCode,
+    accountCredential: targetAccount.credential, appDeviceCredential: targetApp.credential,
+    qaCredential: targetQa.credential, deviceLabel: 'Pitch container', consumeMode: 'new_app'
+  };
+  response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations/consume', consumeBody), env);
+  assert.equal(response.status, 201);
+  const consumed = await response.json();
+  assert.notEqual(consumed.accountDeviceId, consumed.appDeviceId);
+  env.ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER = limiter(false);
+  response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations/consume', consumeBody), env);
+  assert.equal(response.status, 200, 'exact retry resolves before limiter');
+  response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations/consume', {
+    ...consumeBody, operationId: crypto.randomUUID()
+  }), env);
+  assert.equal(response.status, 429);
+  env.ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER = limiter();
+  response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations/consume', {
+    ...consumeBody, operationId: crypto.randomUUID()
+  }), env);
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, 'app_join_consumed');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_users').get().count, 1);
   db.close();
 });
 

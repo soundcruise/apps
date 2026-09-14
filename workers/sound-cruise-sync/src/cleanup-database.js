@@ -8,6 +8,7 @@ export const CLEANUP_RETENTION = Object.freeze({
   tombstoneMs: 365 * 24 * 60 * 60 * 1000,
   deleteIntentMs: 7 * 24 * 60 * 60 * 1000,
   accountHandoffMs: 24 * 60 * 60 * 1000,
+  accountAppJoinMs: 24 * 60 * 60 * 1000,
   batchSize: 100
 });
 
@@ -68,6 +69,25 @@ export function createD1CleanupRepository(db, clock = Date.now) {
       // Account schema is a staged additive rollout. A Worker started before
       // migration 0008/0009 must not interrupt the legacy Chord cleanup chain.
       results.accountHandoffs = 0;
+    }
+    try {
+      results.accountAppJoins = await deleteLimited(
+        db,
+        `SELECT invitation_id AS id FROM sync_app_join_invitations
+         WHERE expires_at <= ?
+           AND (consumed_at IS NULL OR consumed_at <= ?)
+           AND (cancelled_at IS NULL OR cancelled_at <= ?)
+         LIMIT ${limit}`,
+        'DELETE FROM sync_app_join_invitations WHERE invitation_id = ?',
+        [
+          now - CLEANUP_RETENTION.accountAppJoinMs,
+          now - CLEANUP_RETENTION.accountAppJoinMs,
+          now - CLEANUP_RETENTION.accountAppJoinMs
+        ]
+      );
+    } catch {
+      // M9.5 is additive; an older remote schema must not stop legacy cleanup.
+      results.accountAppJoins = 0;
     }
     try {
       results.chordAccountBridges = await expirePreparedChordBridges(db, now, limit);

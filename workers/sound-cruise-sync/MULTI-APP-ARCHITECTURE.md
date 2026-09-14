@@ -691,3 +691,33 @@ load no M9 runtime. The tracked production configuration remains Account OFF and
 `SYNC_ALLOWED_APP_IDS=chord`; M9 is activated only by an explicit development
 configuration. Account Recovery execution and Account-wide deletion remain M10
 work; M9 connects only Account creation and the Recovery-save guard.
+
+## M9.5 Port-first existing-data linking
+
+Cruise Port and each browser/PWA app are independent storage containers. Port
+therefore never reads app localStorage/IndexedDB and never copies an Account
+credential into an app. The normal cross-container flow uses a short-lived
+`SCJ1` Existing App Join Code: Port issues it for one pending membership,
+displays it only in memory, and the target app consumes it in its own container.
+The app creates separate Account-device and app-device credentials locally, then
+runs the same adapter migration as the optional same-container handoff.
+
+Join Codes contain 100 bits of random Crockford material, expire after five
+minutes, are verifier-only in D1, and are bound to Account, membership, target
+app, issuing Account device, and Port QA session. Issue and consume have separate
+rate-limit namespaces. Consume is transactional and one-time; exact operation
+retries recover a lost response, while replay, wrong-app use, cancellation,
+expiry, issuer revocation, and concurrent candidates fail closed.
+
+Chord with a live legacy credential consumes in `existing_chord` mode and then
+uses the M4 `legacy -> dual -> account` bridge. Chord without a credential and
+Pitch, Rhythm, and Fretboard use `new_app`, then perform their own local
+migration. Local meaningful/cloud empty uploads local data; local empty/cloud
+meaningful hydrates; both meaningful use semantic adapter merge. Before remote
+materialization the app saves a secret-free local snapshot; apply failure rolls
+back that snapshot. Semantic conflicts stop before overwrite.
+
+Legacy Chord start is frozen independently for new callers. Previously issued
+Chord credentials retain push, pull, Pairing, Recovery, and delete behavior;
+Standard remains local-only. M9.5 does not widen production Account/runtime
+flags, origins, app allowlists, secrets, or bindings.

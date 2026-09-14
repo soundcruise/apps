@@ -33,22 +33,75 @@
     } catch (_) { return null; }
   }
 
-  function createLanding(appId, portUrl) {
+  function createLanding(appId, portUrl, mode = 'handoff') {
     const dialog = document.createElement('dialog');
     dialog.className = 'sound-cruise-sync-setup';
     dialog.dataset.syncPhase = 'confirm';
     dialog.innerHTML = `
       <form method="dialog" class="sound-cruise-sync-setup-panel">
         <h2>Sound Cruise Sync</h2>
-        <p data-sync-summary>このアプリをクラウド同期します。保存内容はこのアプリ内で確認し、安全に初回同期します。</p>
+        <p data-sync-summary>${mode === 'join' ? 'Cruise Portに表示された既存データ接続コードを入力してください。' : 'このアプリをクラウド同期します。保存内容はこのアプリ内で確認し、安全に初回同期します。'}</p>
+        <label data-sync-join-field ${mode === 'join' ? '' : 'hidden'}>接続コード
+          <input data-sync-join-code autocomplete="off" autocapitalize="characters" spellcheck="false" data-sensitive="true">
+        </label>
         <p data-sync-error role="alert" hidden></p>
-        <button type="button" data-sync-action="start">初回同期を開始</button>
+        <button type="button" data-sync-action="start">${mode === 'join' ? '既存データを接続' : '初回同期を開始'}</button>
         <button type="button" data-sync-action="continue" hidden>通常アプリへ進む</button>
         <a data-sync-action="return" href="${portUrl}" hidden>Cruise Portに戻る</a>
         <button value="cancel" data-sync-action="cancel">今は行わない</button>
       </form>`;
     document.body.append(dialog);
     return dialog;
+  }
+
+  function bindLanding(dialog, config, runtime, mode) {
+    const summary = dialog.querySelector('[data-sync-summary]');
+    const error = dialog.querySelector('[data-sync-error]');
+    const startButton = dialog.querySelector('[data-sync-action="start"]');
+    const continueButton = dialog.querySelector('[data-sync-action="continue"]');
+    const returnLink = dialog.querySelector('[data-sync-action="return"]');
+    continueButton.addEventListener('click', () => dialog.close());
+    startButton.addEventListener('click', async () => {
+      startButton.disabled = true;
+      dialog.dataset.syncPhase = 'working';
+      summary.textContent = '保存内容を確認し、初回同期を進めています…';
+      error.hidden = true;
+      try {
+        const result = mode === 'join'
+          ? await runtime.consumeInvitation(dialog.querySelector('[data-sync-join-code]').value, `${config.appId} app`)
+          : await runtime.consumeHandoff(handoffToken, `${config.appId} app`);
+        handoffToken = null;
+        if (!result.ok) throw new Error(result.code || 'setup_failed');
+        dialog.dataset.syncPhase = 'complete';
+        summary.textContent = 'クラウド同期を設定しました。';
+        startButton.hidden = true;
+        continueButton.hidden = false;
+        returnLink.hidden = false;
+      } catch (reason) {
+        dialog.dataset.syncPhase = 'attention';
+        error.hidden = false;
+        error.textContent = reason?.code === 'merge_conflict'
+          ? '自動統合できない変更があります。データは変更せず停止しました。'
+          : '初回同期を完了できませんでした。コードと通信状態を確認してください。';
+        startButton.disabled = false;
+      }
+    });
+  }
+
+  function installJoinEntry(config, runtime) {
+    if (document.querySelector('[data-sync-app-join-entry]')) return;
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.syncAppJoinEntry = '';
+    button.className = 'sound-cruise-sync-join-entry';
+    button.textContent = 'Cruise Portと接続';
+    button.addEventListener('click', () => {
+      const dialog = createLanding(config.appId, config.portUrl, 'join');
+      bindLanding(dialog, config, runtime, 'join');
+      dialog.showModal();
+    });
+    const host = document.querySelector('#settings-modal .modal-content, #screen-settings, [data-screen="settings"], main') || document.body;
+    host.append(button);
   }
 
   async function start() {
@@ -90,39 +143,11 @@
         } else {
           runtime.initializeDataset().catch(() => {});
         }
-      }
+      } else installJoinEntry(config, runtime);
       return;
     }
     const dialog = createLanding(config.appId, config.portUrl);
-    const summary = dialog.querySelector('[data-sync-summary]');
-    const error = dialog.querySelector('[data-sync-error]');
-    const startButton = dialog.querySelector('[data-sync-action="start"]');
-    const continueButton = dialog.querySelector('[data-sync-action="continue"]');
-    const returnLink = dialog.querySelector('[data-sync-action="return"]');
-    continueButton.addEventListener('click', () => dialog.close());
-    startButton.addEventListener('click', async () => {
-      startButton.disabled = true;
-      dialog.dataset.syncPhase = 'working';
-      summary.textContent = '保存内容を確認し、初回同期を進めています…';
-      error.hidden = true;
-      try {
-        const result = await runtime.consumeHandoff(handoffToken, `${config.appId} app`);
-        handoffToken = null;
-        if (!result.ok) throw new Error(result.code || 'setup_failed');
-        dialog.dataset.syncPhase = 'complete';
-        summary.textContent = 'クラウド同期を設定しました。';
-        startButton.hidden = true;
-        continueButton.hidden = false;
-        returnLink.hidden = false;
-      } catch (reason) {
-        dialog.dataset.syncPhase = 'attention';
-        error.hidden = false;
-        error.textContent = reason?.code === 'merge_conflict'
-          ? '自動統合できない変更があります。データは変更せず停止しました。'
-          : '初回同期を完了できませんでした。Cruise Portへ戻ってもう一度お試しください。';
-        startButton.disabled = false;
-      }
-    });
+    bindLanding(dialog, config, runtime, 'handoff');
     dialog.showModal();
   }
 

@@ -57,8 +57,11 @@ test('production config is not widened for Account secrets, origins, app IDs or 
   assert.equal(config.includes('SYNC_ACCOUNT_CREDENTIAL_PEPPER'), false);
   assert.equal(config.includes('SYNC_ACCOUNT_RECOVERY_PEPPER'), false);
   assert.equal(config.includes('SYNC_ACCOUNT_HANDOFF_PEPPER'), false);
+  assert.equal(config.includes('SYNC_ACCOUNT_APP_JOIN_PEPPER'), false);
   assert.equal(config.includes('ACCOUNT_ALLOWED_ORIGINS'), false);
   assert.equal(config.includes('ACCOUNT_START_RATE_LIMITER'), false);
   assert.equal(config.includes('ACCOUNT_BRIDGE_RATE_LIMITER'), false);
+  assert.equal(config.includes('ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER'), false);
+  assert.equal(config.includes('ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER'), false);
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
 });

@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.30.0';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.30.0';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.30.0';
+} from './sync-center-controller.js?v=0.31.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.31.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.31.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.30.0';
+} from './sync-center-navigation.js?v=0.31.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.30.0';
+} from './app-version.js?v=0.31.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';

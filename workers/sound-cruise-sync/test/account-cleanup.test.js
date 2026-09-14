@@ -38,6 +38,35 @@ test('expired Account handoff cleanup is bounded and idempotent', async () => {
   db.close();
 });
 
+test('expired app Join invitations are cleaned without affecting the Account membership', async () => {
+  const db = createSqliteD1();
+  await createD1AccountRepository(db).createAccountBackbone({
+    accountId: 'join-cleanup-account', accountDeviceId: 'join-cleanup-device',
+    recoveryVerifier: 'a'.repeat(64), accountCredentialVerifier: 'b'.repeat(64),
+    accountDeviceLabel: null,
+    memberships: [{ id: 'join-cleanup-membership', appId: 'pitch' }], now: 1
+  });
+  db.raw.prepare(`INSERT INTO sync_account_qa_enrollments
+    (id, code_verifier, created_at, expires_at, consumed_at, consumed_by_session_id)
+    VALUES ('join-cleanup-enrollment', ?, 1, 999999999999, 1, 'join-cleanup-session')`).run('c'.repeat(64));
+  db.raw.prepare(`INSERT INTO sync_account_qa_sessions
+    (id, credential_verifier, enrollment_id, scope, account_id, created_at, expires_at, last_used_at)
+    VALUES ('join-cleanup-session', ?, 'join-cleanup-enrollment', 'port', 'join-cleanup-account', 1, 999999999999, 1)`)
+    .run('d'.repeat(64));
+  db.raw.prepare(`INSERT INTO sync_app_join_invitations (
+    invitation_id, code_verifier, account_id, membership_id, target_app_id,
+    created_by_account_device_id, created_at, expires_at, issue_operation_id,
+    issue_fingerprint, qa_issuer_session_id
+  ) VALUES ('11111111-1111-4111-8111-111111111111', ?, 'join-cleanup-account', 'join-cleanup-membership',
+    'pitch', 'join-cleanup-device', 1, 2, 'join-cleanup-operation', ?, 'join-cleanup-session')`)
+    .run('e'.repeat(64), 'f'.repeat(64));
+  const now = CLEANUP_RETENTION.accountAppJoinMs + 3;
+  const result = await createD1CleanupRepository(db, () => now).cleanup();
+  assert.equal(result.accountAppJoins, 1);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_memberships').get().count, 1);
+  db.close();
+});
+
 test('expired prepared Chord bridge is safely rolled back without deleting Account or legacy data', async () => {
   const db = createSqliteD1();
   await createD1AccountRepository(db).createAccountBackbone({

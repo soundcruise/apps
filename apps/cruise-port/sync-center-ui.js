@@ -30,8 +30,8 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled) {
             action.type = 'button';
             action.dataset.syncAppAction = app.id;
         }
-        action.textContent = app.action === 'setup' ? '設定する' : '開く';
-        action.setAttribute('aria-label', `${app.name}を${app.action === 'setup' ? '設定する' : '開く'}（${app.statusLabel}）`);
+        action.textContent = app.action === 'setup' ? '既存データを接続' : '開く';
+        action.setAttribute('aria-label', `${app.name}を${app.action === 'setup' ? '既存データと接続する' : '開く'}（${app.statusLabel}）`);
         if (app.action === 'none') {
             action.removeAttribute('href');
             action.setAttribute('aria-disabled', 'true');
@@ -53,6 +53,42 @@ function renderEnvironments(root, presentation) {
         })
         : [Object.assign(document.createElement('li'), { textContent: '同期中の環境情報はありません。' })];
     list.replaceChildren(...rows);
+}
+
+function showJoinCode(root, result, onClose = async () => {}) {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'sync-center-help-dialog';
+    dialog.dataset.syncJoinInvitation = result.invitationId;
+    const panel = document.createElement('div');
+    const title = document.createElement('h2');
+    title.textContent = '既存データを接続';
+    const note = document.createElement('p');
+    note.textContent = 'このコードを5分以内に対象アプリの「Cruise Portと接続」へ入力してください。保存する必要はありません。';
+    const code = document.createElement('output');
+    code.dataset.sensitive = 'true';
+    code.textContent = result.displayJoinCode;
+    const copy = document.createElement('button');
+    copy.type = 'button';
+    copy.textContent = 'コードをコピー';
+    copy.addEventListener('click', () => navigator.clipboard?.writeText(result.displayJoinCode));
+    const open = document.createElement('a');
+    open.href = result.appUrl;
+    open.target = '_blank';
+    open.rel = 'noopener noreferrer';
+    open.textContent = '対象アプリを開く';
+    const close = document.createElement('button');
+    close.type = 'button';
+    close.textContent = '閉じる';
+    close.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('close', () => {
+        code.textContent = '';
+        dialog.remove();
+        Promise.resolve(onClose()).catch(() => {});
+    }, { once: true });
+    panel.append(title, note, code, copy, open, close);
+    dialog.append(panel);
+    root.append(dialog);
+    dialog.showModal();
 }
 
 export function renderSyncCenter(root, presentation, { edition = 'standard', setupPlan = null, orchestrationEnabled = false } = {}) {
@@ -153,7 +189,17 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         const button = event.target.closest?.('[data-sync-app-action]');
         if (!button || !orchestrator?.enabled) return;
         button.disabled = true;
-        try { await orchestrator.launch(button.dataset.syncAppAction); }
+        try {
+            const result = await orchestrator.launch(button.dataset.syncAppAction);
+            if (result?.kind === 'join') {
+                showJoinCode(root, result, async () => {
+                    try { await orchestrator.cancelJoin(result.invitationId); }
+                    catch (_) { /* consumed, expired, or already cancelled */ }
+                    button.disabled = false;
+                    await refresh();
+                });
+            }
+        }
         catch (_) {
             button.disabled = false;
             setText(root, '#sync-center-action-status', 'アプリを開く準備ができませんでした。通信状態を確認してください。');

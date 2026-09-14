@@ -39,8 +39,9 @@
       throw new Error('account_storage_invalid');
     }
     const serialized = JSON.stringify(value);
-    if (/recoveryCode|handoffToken/i.test(serialized) ||
+    if (/recoveryCode|handoffToken|joinCode/i.test(serialized) ||
         /sch1\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}/.test(serialized) ||
+        /SCJ1(?:-?[0-9ABCDEFGHJKMNPQRSTVWXYZ]{4}){5}/.test(serialized) ||
         /SAR1(?:-?[0-9ABCDEFGHJKMNPQRSTVWXYZ]{4}){5}/.test(serialized)) {
       throw new Error('transient_secret_persistence_blocked');
     }

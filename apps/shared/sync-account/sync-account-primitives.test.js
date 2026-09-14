@@ -35,6 +35,9 @@ test('client-generated credentials are distinct and handoff secret uses a cleare
   assert.equal(account.core.validAppCredential(app.appDeviceCredential), true);
   assert.equal(account.core.validHandoffToken(handoff.handoffToken), true);
   assert.match(account.core.formatRecoveryCode(material.recoveryCode), /^SAR1(?:-[0-9A-Z]{4}){5}$/);
+  const join = account.core.createJoinMaterial();
+  assert.equal(account.core.validJoinCode(join.joinCode), true);
+  assert.match(account.core.formatJoinCode(join.joinCode), /^SCJ1(?:-[0-9A-Z]{4}){5}$/);
 
   const url = new URL(account.core.createHandoffUrl(
     'https://soundcruise.jp/apps/chord-cruise/pro/',
@@ -63,6 +66,36 @@ test('client-generated credentials are distinct and handoff secret uses a cleare
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
+test('cross-container Join Code is request-memory only and creates separate app and Account credentials', async () => {
+  const writes = [];
+  const requests = [];
+  const account = load([coreSource, clientSource]);
+  const storage = {
+    async setPendingConsume(value) { writes.push(['pending', structuredClone(value)]); },
+    async setAccount(value) { writes.push(['account', structuredClone(value)]); },
+    async setQaAdmission(value) { writes.push(['qa', structuredClone(value)]); },
+    async clearPendingConsume() { writes.push(['clear']); }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    fetchImpl: async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push({ url, body });
+      return Response.json({
+        ok: true, accountId: crypto.randomUUID(), membershipId: crypto.randomUUID(),
+        accountDeviceId: body.accountCredential.split('.')[1],
+        appDeviceId: body.appDeviceCredential.split('.')[1],
+        qaSessionId: body.qaCredential.split('.')[1], consumeMode: 'new_app'
+      }, { status: 201 });
+    }
+  });
+  const material = account.core.createJoinMaterial();
+  const result = await client.consumeJoinInvitation({ joinCode: material.joinCode, appId: 'pitch' });
+  assert.match(requests[0].url, /app-join-invitations\/consume$/);
+  assert.equal(JSON.stringify(writes).includes(material.joinCode), false);
+  assert.notEqual(result.accountDeviceId, result.appDeviceId);
+});
+
 test('credential storage is Account-specific IndexedDB and rejects transient Recovery/handoff secrets', async () => {
   assert.equal(dbSource.includes("sound-cruise-sync-account"), true);
   assert.equal(dbSource.includes('indexedDB'), true);
@@ -74,12 +107,17 @@ test('credential storage is Account-specific IndexedDB and rejects transient Rec
   const account = load([coreSource, dbSource]);
   const handoff = account.core.createHandoffMaterial();
   const recovery = account.core.createAccountMaterial();
+  const join = account.core.createJoinMaterial();
   await assert.rejects(
     account.storage.setAccount({ renamedSecret: handoff.handoffToken }),
     /transient_secret_persistence_blocked/
   );
   await assert.rejects(
     account.storage.setAccount({ renamedSecret: recovery.recoveryCode }),
+    /transient_secret_persistence_blocked/
+  );
+  await assert.rejects(
+    account.storage.setAccount({ renamedSecret: join.joinCode }),
     /transient_secret_persistence_blocked/
   );
 });
@@ -366,6 +404,10 @@ test('shared app backup storage is isolated and rejects auth, Recovery and crede
   assert.throws(() => account.appBackupStorage.assertSafeBackup({
     version: 1, appId: 'pitch', createdAt: 1,
     values: { deviceCredential: 'opaque' }
+  }), /secret_forbidden/);
+  assert.throws(() => account.appBackupStorage.assertSafeBackup({
+    version: 1, appId: 'pitch', createdAt: 1,
+    values: { pitchTrainerSettings: 'SCJ1-0123-4567-89AB-CDEF-GHJK' }
   }), /secret_forbidden/);
   assert.throws(() => account.appBackupStorage.assertSafeBackup({
     version: 1, appId: 'pitch', createdAt: 1,

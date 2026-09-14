@@ -4,6 +4,8 @@
   const root = global.SoundCruiseSyncAccount = global.SoundCruiseSyncAccount || {};
   const RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
   const RECOVERY_PREFIX = 'SAR1';
+  const JOIN_PREFIX = 'SCJ1';
+  const JOIN_BODY_LENGTH = 20;
   const SECRET_BYTES = 32;
   const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
   const TOKEN_SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -78,6 +80,30 @@
     });
   }
 
+  function normalizeJoinCode(value) {
+    if (typeof value !== 'string') return null;
+    const compact = value.toUpperCase().replace(/[\s-]/g, '');
+    if (!compact.startsWith(JOIN_PREFIX) || compact.length !== JOIN_PREFIX.length + JOIN_BODY_LENGTH) return null;
+    const body = compact.slice(JOIN_PREFIX.length);
+    return [...body].every((character) => RECOVERY_ALPHABET.includes(character)) ? compact : null;
+  }
+
+  function formatJoinCode(value) {
+    const compact = normalizeJoinCode(value);
+    if (!compact) return null;
+    return `${JOIN_PREFIX}-${compact.slice(4).match(/.{4}/g).join('-')}`;
+  }
+
+  function createJoinMaterial(cryptoImpl = global.crypto) {
+    const bytes = new Uint8Array(JOIN_BODY_LENGTH);
+    cryptoImpl.getRandomValues(bytes);
+    return Object.freeze({
+      operationId: randomUuid(cryptoImpl),
+      invitationId: randomUuid(cryptoImpl),
+      joinCode: JOIN_PREFIX + Array.from(bytes, (value) => RECOVERY_ALPHABET[value & 31]).join('')
+    });
+  }
+
   function formatRecoveryCode(value) {
     if (typeof value !== 'string') return null;
     const compact = value.toUpperCase().replace(/[\s-]/g, '');
@@ -113,13 +139,17 @@
     createAppCredential,
     createQaCredential,
     createHandoffMaterial,
+    createJoinMaterial,
     createHandoffUrl,
     formatRecoveryCode,
+    formatJoinCode,
+    normalizeJoinCode,
     takeHandoffFromLocation,
     validAccountCredential: (value) => validToken(value, 'sca1'),
     validAppCredential: (value) => validToken(value, 'scd1'),
     validQaCredential: (value) => validToken(value, 'scq1'),
     validHandoffToken: (value) => validToken(value, 'sch1'),
+    validJoinCode: (value) => normalizeJoinCode(value) !== null,
     createOperationId: (cryptoImpl = global.crypto) => randomUuid(cryptoImpl)
   });
 })(globalThis);

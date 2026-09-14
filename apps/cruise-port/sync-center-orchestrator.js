@@ -1,5 +1,5 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.30.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.31.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -106,12 +106,29 @@ export function createSyncCenterOrchestrator({
                 navigate(url);
                 return Object.freeze({ kind: 'open', appId, url });
             }
+            const material = accountRoot.core.createJoinMaterial();
+            const issued = await client.issueJoinInvitation({ accountCredential, appId, material });
+            return Object.freeze({
+                kind: 'join', appId, invitationId: issued.invitationId,
+                displayJoinCode: issued.displayJoinCode, expiresAt: issued.expiresAt,
+                appUrl: appUrl(appId)
+            });
+        },
+        async launchSameContainer(appId) {
+            if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');
+            const accountCredential = await credential();
             const material = accountRoot.core.createHandoffMaterial();
             const issued = await client.issueHandoff({
                 accountCredential, appId, appUrl: appUrl(appId), material
             });
             navigate(issued.url);
             return Object.freeze({ kind: 'handoff', appId, expiresAt: issued.expiresAt });
+        },
+        async cancelJoin(invitationId) {
+            if (typeof invitationId !== 'string' || !invitationId) throw new Error('app_join_invalid');
+            return client.cancelJoinInvitation({
+                accountCredential: await credential(), invitationId
+            });
         },
         summary
     });

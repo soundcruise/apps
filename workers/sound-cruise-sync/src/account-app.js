@@ -4,6 +4,7 @@ import {
   accountAppCredentialVerifier,
   accountCredentialVerifier,
   accountHandoffVerifier,
+  appJoinCodeVerifier,
   accountOperationFingerprint,
   accountRecoveryCodeVerifier,
   parseAccountAppCredential,
@@ -12,6 +13,7 @@ import {
 } from './account-crypto.js';
 import { createD1AccountRepository } from './account-database.js';
 import { createD1AccountHandoffRepository } from './account-handoff-database.js';
+import { createD1AppJoinRepository } from './account-join-database.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { createD1AccountQaRepository } from './account-qa-database.js';
 import {
@@ -31,6 +33,10 @@ import {
 import {
   ACCOUNT_MAX_BODY_BYTES,
   validateAccountReadQuery,
+  validateAppJoinCancelPayload,
+  validateAppJoinConsumePayload,
+  validateAppJoinIssuePayload,
+  validateAppJoinStatusQuery,
   validateAccountStartPayload,
   validateHandoffCancelPayload,
   validateHandoffConsumePayload,
@@ -74,6 +80,18 @@ const ACCOUNT_ROUTES = Object.freeze({
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION,
     headers: ['content-type', 'authorization', 'x-d1-bookmark']
   },
+  '/v2/accounts/app-join-invitations': {
+    method: 'MULTI', action: null,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
+  '/v2/accounts/app-join-invitations/consume': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION,
+    headers: ['content-type', 'x-d1-bookmark']
+  },
+  '/v2/accounts/app-join-invitations/cancel': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
   ...Object.fromEntries(Object.entries(CHORD_BRIDGE_ROUTES).map(([path, route]) => [
     path,
     {
@@ -90,6 +108,12 @@ const QA_HEADER = 'x-sound-cruise-qa-authorization';
 function resolvedRoute(pathname, method) {
   const base = ACCOUNT_ROUTES[pathname];
   if (!base) return null;
+  if (pathname === '/v2/accounts/app-join-invitations') {
+    if (method === 'GET' || method === 'OPTIONS') {
+      return { ...base, method: 'GET', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_READ };
+    }
+    return { ...base, method: 'POST', action: ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION };
+  }
   if (pathname !== '/v2/accounts/memberships') return base;
   if (method === 'GET' || method === 'OPTIONS') {
     return { ...base, method: 'GET', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_READ };
@@ -660,9 +684,246 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
   }
 }
 
+function appJoinError(status, origin, route) {
+  const errors = {
+    invalid: [400, 'app_join_invalid'],
+    wrong_app: [400, 'app_join_wrong_app'],
+    expired: [409, 'app_join_expired'],
+    cancelled: [409, 'app_join_cancelled'],
+    used: [409, 'app_join_consumed'],
+    membership_unavailable: [409, 'membership_state_invalid'],
+    qa_admission_unavailable: [403, 'qa_admission_required']
+  };
+  const [httpStatus, code] = errors[status] || [503, 'account_server_error'];
+  return errorResponse(httpStatus, code, origin, route);
+}
+
+async function handleAppJoinIssue(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAppJoinIssuePayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_ACCOUNT_APP_JOIN_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const value = validation.value;
+    const codeVerifier = await (dependencies.appJoinCodeVerifier || appJoinCodeVerifier)(
+      value.joinCode,
+      env.SYNC_ACCOUNT_APP_JOIN_PEPPER
+    );
+    const fingerprint = await (dependencies.accountOperationFingerprint || accountOperationFingerprint)([
+      'app-join-issue', context.identity.accountId, context.identity.accountDeviceId,
+      value.appId, value.invitationId, codeVerifier
+    ]);
+    const repository = (dependencies.createAppJoinRepository || createD1AppJoinRepository)(context.session);
+    const input = {
+      operationId: value.operationId,
+      invitationId: value.invitationId,
+      appId: value.appId,
+      codeVerifier,
+      requestFingerprint: fingerprint,
+      qaIssuerSessionId: dependencies.qaIdentity.sessionId,
+      now: Date.now()
+    };
+    const retry = await repository.resolveIssueRetry(context.identity, input);
+    if (retry?.status === 'operation_conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (retry?.status === 'issued') {
+      return jsonResponse(200, { ok: true, ...retry }, origin, route, bookmarkHeader(context.session));
+    }
+    const limited = await rateLimit(
+      env.ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER,
+      `account-app-join-issue:${context.identity.accountDeviceId}`
+    );
+    if (!limited.ok) return rateError(limited, origin, route, 60);
+    const result = await repository.issue(context.identity, input);
+    if (result.status === 'operation_conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status === 'membership_unavailable') return errorResponse(409, 'membership_state_invalid', origin, route);
+    if (result.status === 'invitation_exists') return errorResponse(409, 'app_join_already_active', origin, route);
+    return jsonResponse(result.alreadyIssued ? 200 : 201, {
+      ok: true,
+      invitationId: result.invitationId,
+      appId: result.appId,
+      membershipId: result.membershipId,
+      expiresAt: result.expiresAt,
+      alreadyIssued: result.alreadyIssued
+    }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAppJoinStatus(request, env, origin, route, dependencies, url) {
+  const validation = validateAppJoinStatusQuery(url);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const repository = (dependencies.createAppJoinRepository || createD1AppJoinRepository)(context.session);
+    const result = await repository.status(context.identity, validation.value.invitationId);
+    if (result.status === 'not_found') return errorResponse(404, 'app_join_not_found', origin, route);
+    const invitation = result.invitation;
+    const state = invitation.consumedAt != null ? 'consumed'
+      : invitation.cancelledAt != null ? 'cancelled'
+        : invitation.expiresAt <= Date.now() ? 'expired' : 'active';
+    return jsonResponse(200, { ok: true, invitation, state }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAppJoinCancel(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAppJoinCancelPayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const repository = (dependencies.createAppJoinRepository || createD1AppJoinRepository)(context.session);
+    const result = await repository.cancel(context.identity, validation.value.invitationId, Date.now());
+    if (result.status === 'not_found') return errorResponse(404, 'app_join_not_found', origin, route);
+    if (result.status === 'used') return errorResponse(409, 'app_join_consumed', origin, route);
+    return jsonResponse(200, {
+      ok: true,
+      invitationId: validation.value.invitationId,
+      cancelled: true,
+      alreadyCancelled: result.alreadyCancelled
+    }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAppJoinConsume(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAppJoinConsumePayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_DB || !env.SYNC_ACCOUNT_APP_JOIN_PEPPER ||
+      !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_RECOVERY_PEPPER ||
+      !env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  let session;
+  try {
+    session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    const value = validation.value;
+    const accountDevice = parseAccountCredential(value.accountCredential);
+    const appDevice = parseAccountAppCredential(value.appDeviceCredential);
+    let existingAppIdentity = null;
+    if (value.consumeMode === 'existing_chord') {
+      existingAppIdentity = await (dependencies.authenticateDevice || authenticateDevice)(
+        session,
+        `Bearer ${value.appDeviceCredential}`,
+        'chord',
+        env.SYNC_CREDENTIAL_PEPPER
+      );
+      if (!existingAppIdentity) return errorResponse(401, 'invalid_app_credential', origin, route);
+    }
+    const codeVerifier = await (dependencies.appJoinCodeVerifier || appJoinCodeVerifier)(
+      value.joinCode,
+      env.SYNC_ACCOUNT_APP_JOIN_PEPPER
+    );
+    const accountVerifier = await (dependencies.accountCredentialVerifier || accountCredentialVerifier)(
+      value.accountCredential,
+      env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+    const appVerifier = await (dependencies.accountAppCredentialVerifier || accountAppCredentialVerifier)(
+      value.appDeviceCredential,
+      env.SYNC_CREDENTIAL_PEPPER
+    );
+    const qaCredential = parseQaCredential(value.qaCredential);
+    const qaVerifier = await (dependencies.qaCredentialVerifier || qaCredentialVerifier)(
+      value.qaCredential,
+      env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER
+    );
+    const fingerprint = await (dependencies.accountOperationFingerprint || accountOperationFingerprint)([
+      'app-join-consume', value.appId, codeVerifier, accountDevice.deviceId,
+      appDevice.deviceId, accountVerifier, appVerifier, qaVerifier,
+      value.deviceLabel || '', value.consumeMode
+    ]);
+    const repository = (dependencies.createAppJoinRepository || createD1AppJoinRepository)(session);
+    const input = {
+      operationId: value.operationId,
+      appId: value.appId,
+      codeVerifier,
+      requestFingerprint: fingerprint,
+      accountDeviceId: accountDevice.deviceId,
+      accountCredentialVerifier: accountVerifier,
+      appDeviceId: appDevice.deviceId,
+      appCredentialVerifier: appVerifier,
+      qaSessionId: qaCredential.sessionId,
+      qaCredentialVerifier: qaVerifier,
+      syncUserId: existingAppIdentity?.userId || crypto.randomUUID(),
+      consumeMode: value.consumeMode,
+      deviceLabel: value.deviceLabel,
+      accountRecoveryPepper: env.SYNC_ACCOUNT_RECOVERY_PEPPER,
+      now: Date.now()
+    };
+    const retry = await repository.resolveConsumeRetry(input);
+    if (['activated', 'bridge_required'].includes(retry?.status)) {
+      return jsonResponse(200, {
+        ok: true,
+        operation: retry.status === 'bridge_required' ? 'bridge_required' : 'activated',
+        accountId: retry.accountId,
+        membershipId: retry.membershipId,
+        appId: value.appId,
+        accountDeviceId: retry.accountDeviceId,
+        appDeviceId: retry.appDeviceId,
+        qaSessionId: retry.qaSessionId,
+        syncUserId: retry.syncUserId,
+        membershipState: retry.status === 'bridge_required' ? 'pending' : 'active',
+        datasetState: retry.status === 'bridge_required' ? 'ready' : 'not_created',
+        consumeMode: value.consumeMode,
+        alreadyActivated: true
+      }, origin, route, bookmarkHeader(session));
+    }
+    const limited = await rateLimit(
+      env.ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER,
+      `account-app-join-consume:${requestIp(request)}`
+    );
+    if (!limited.ok) return rateError(limited, origin, route, 60);
+    const result = await repository.consume(input);
+    if (!['activated', 'bridge_required'].includes(result.status)) return appJoinError(result.status, origin, route);
+    return jsonResponse(result.alreadyActivated ? 200 : 201, {
+      ok: true,
+      operation: result.status === 'bridge_required' ? 'bridge_required' : 'activated',
+      accountId: result.accountId,
+      membershipId: result.membershipId,
+      appId: value.appId,
+      accountDeviceId: result.accountDeviceId,
+      appDeviceId: result.appDeviceId,
+      qaSessionId: result.qaSessionId,
+      syncUserId: result.syncUserId,
+      membershipState: result.status === 'bridge_required' ? 'pending' : 'active',
+      datasetState: result.status === 'bridge_required' ? 'ready' : 'not_created',
+      consumeMode: value.consumeMode,
+      alreadyActivated: result.alreadyActivated
+    }, origin, route, bookmarkHeader(session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
 export async function handleAccountApiRequest(request, env = {}, _ctx, dependencies = {}) {
   const url = new URL(request.url);
-  const route = resolvedRoute(url.pathname, request.method);
+  const routingMethod = request.method === 'OPTIONS'
+    ? request.headers.get('Access-Control-Request-Method')
+    : request.method;
+  const route = resolvedRoute(url.pathname, routingMethod);
   if (!route) return errorResponse(404, 'not_found');
   const origin = request.headers.get('Origin');
   const originAllowed = Boolean(origin && configuredOrigins(env).has(origin));
@@ -700,7 +961,8 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
 
   const chordBridge = url.pathname === '/v2/accounts/bridges/chord' ||
     url.pathname.startsWith('/v2/accounts/bridges/chord/');
-  if (url.pathname !== '/v2/accounts/handoffs/consume' && !chordBridge) {
+  if (url.pathname !== '/v2/accounts/handoffs/consume' &&
+      url.pathname !== '/v2/accounts/app-join-invitations/consume' && !chordBridge) {
     let session;
     let qaIdentity;
     try {
@@ -711,7 +973,9 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
         request.headers.get('X-Sound-Cruise-QA-Authorization'),
         env,
         url.pathname === '/v2/accounts/start' || url.pathname === '/v2/accounts/handoffs' ||
-          url.pathname === '/v2/accounts/handoffs/cancel' || url.pathname === '/v2/accounts/memberships'
+          url.pathname === '/v2/accounts/handoffs/cancel' || url.pathname === '/v2/accounts/memberships' ||
+          url.pathname === '/v2/accounts/app-join-invitations' ||
+          url.pathname === '/v2/accounts/app-join-invitations/cancel'
           ? { scope: 'port' }
           : {},
         dependencies
@@ -747,5 +1011,15 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   }
   if (url.pathname === '/v2/accounts/handoffs') return handleHandoffIssue(request, env, origin, route, dependencies);
   if (url.pathname === '/v2/accounts/handoffs/cancel') return handleHandoffCancel(request, env, origin, route, dependencies);
-  return handleHandoffConsume(request, env, origin, route, dependencies);
+  if (url.pathname === '/v2/accounts/handoffs/consume') return handleHandoffConsume(request, env, origin, route, dependencies);
+  if (url.pathname === '/v2/accounts/app-join-invitations' && request.method === 'GET') {
+    return handleAppJoinStatus(request, env, origin, route, dependencies, url);
+  }
+  if (url.pathname === '/v2/accounts/app-join-invitations') {
+    return handleAppJoinIssue(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/app-join-invitations/cancel') {
+    return handleAppJoinCancel(request, env, origin, route, dependencies);
+  }
+  return handleAppJoinConsume(request, env, origin, route, dependencies);
 }

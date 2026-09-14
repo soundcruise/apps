@@ -11,6 +11,16 @@
 .sound-cruise-sync-setup h2,
 .sound-cruise-sync-setup p { margin: 0; line-height: 1.65; }
 .sound-cruise-sync-setup [data-sync-error] { color: #ffb7b7; }
+.sound-cruise-sync-join-entry { margin: 1rem; }
+.sound-cruise-sync-setup [data-sync-join-field] { display: grid; gap: .5rem; }
+.sound-cruise-sync-setup [data-sync-join-code] {
+  box-sizing: border-box;
+  width: 100%;
+  padding: .8rem;
+  font: inherit;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
 .sound-cruise-sync-setup button,
 .sound-cruise-sync-setup a {
   box-sizing: border-box;

@@ -8,11 +8,12 @@ class CustomEventPolyfill extends Event {
   constructor(type, init = {}) { super(type); this.detail = init.detail; }
 }
 
-function loadRuntime() {
+function loadRuntime(backupStorage = { async save() {} }) {
   const context = {
     crypto: webcrypto, Headers, TextEncoder, structuredClone, EventTarget, CustomEvent: CustomEventPolyfill,
     navigator: { onLine: true }, queueMicrotask,
-    SoundCruiseMultiAppSync: {}
+    SoundCruiseMultiAppSync: {},
+    SoundCruiseSyncAccount: { appBackupStorage: backupStorage }
   };
   context.globalThis = context;
   vm.runInNewContext(readFileSync(new URL('./multi-app-sync-runtime.js', import.meta.url), 'utf8'), context);
@@ -93,7 +94,8 @@ function serverFetch() {
 }
 
 function runtimeFixture(initial, appId = 'pitch') {
-  const Runtime = loadRuntime();
+  const backups = [];
+  const Runtime = loadRuntime({ async save(value) { backups.push(structuredClone(value)); } });
   const store = memoryStore();
   const local = adapter(initial, appId);
   const { server, fetchImpl } = serverFetch();
@@ -103,10 +105,15 @@ function runtimeFixture(initial, appId = 'pitch') {
     validQaCredential: (value) => value === 'scq1.valid',
     createOperationId: () => `op-${++id}`
   };
-  const accountClient = { consumeHandoff: async () => ({ consumeMode: 'new_app', membershipId: 'm1',
-    membershipState: 'active', appDeviceCredential: 'scd1.valid', qaCredential: 'scq1.valid' }) };
+  const consumed = { consumeMode: 'new_app', membershipId: 'm1',
+    membershipState: 'active', appDeviceCredential: 'scd1.valid', qaCredential: 'scq1.valid' };
+  const accountClient = {
+    consumeHandoff: async () => consumed,
+    consumeJoinInvitation: async () => consumed,
+    async confirmConsumePersisted() {}
+  };
   return { runtime: new Runtime({ appId, endpoint: 'https://example.test', adapter: local,
-    store, accountClient, accountCore: core, fetchImpl, randomOperationId: () => `op-${++id}` }), store, local, server };
+    store, accountClient, accountCore: core, fetchImpl, randomOperationId: () => `op-${++id}` }), store, local, server, backups };
 }
 
 test('handoff migration, durable-save push, tombstone and remote pull share one safe runtime', async () => {
@@ -128,6 +135,44 @@ test('handoff migration, durable-save push, tombstone and remote pull share one 
     assert.equal((await fixture.runtime.sync('focus')).ok, true, `${appId} pull`);
     assert.equal(fixture.local.records.find((record) => record.recordId === 'a').payload.name, 'remote');
   }
+});
+
+test('cross-container Join Code converges on the same migration runtime without shared Port storage', async () => {
+  for (const appId of ['pitch', 'rhythm', 'fretboard']) {
+    const localRecord = { recordType: 'custom_record', recordId: 'local', schemaVersion: 1,
+      payload: { name: 'local' }, payloadHash: 'hash-local' };
+    const fixture = runtimeFixture([localRecord], appId);
+    const result = await fixture.runtime.consumeInvitation('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
+    assert.equal(result.ok, true, appId);
+    assert.equal(fixture.server.records.size, 1, appId);
+    assert.equal(await fixture.store.readMeta('migrationState'), 'complete', appId);
+  }
+});
+
+test('failed Join hydrate restores the exact local snapshot and retains its pre-apply backup', async () => {
+  const fixture = runtimeFixture([], 'pitch');
+  fixture.server.state = 'ready';
+  fixture.server.records.set('custom_record/remote', {
+    recordType: 'custom_record', recordId: 'remote', schemaVersion: 1,
+    payload: { name: 'remote' }, payloadHash: 'hash-remote', revision: 1, changeSeq: 1, deletedAt: null
+  });
+  const originalApply = fixture.local.applyRemoteSnapshot;
+  let attempts = 0;
+  fixture.local.applyRemoteSnapshot = async (snapshot) => {
+    attempts += 1;
+    if (attempts === 1) {
+      fixture.local.records = [{ recordId: 'partial-write' }];
+      throw new Error('apply failed');
+    }
+    return originalApply(snapshot);
+  };
+  await assert.rejects(
+    fixture.runtime.consumeInvitation('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE'),
+    /apply failed/
+  );
+  assert.deepEqual(fixture.local.records, []);
+  assert.equal(fixture.backups.length, 1);
+  assert.deepEqual(fixture.backups[0].values.records, []);
 });
 
 test('pause gate keeps the persisted outbox and never rolls back local data', async () => {

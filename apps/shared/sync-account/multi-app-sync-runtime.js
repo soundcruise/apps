@@ -106,6 +106,23 @@
       return this.initializeDataset();
     }
 
+    async consumeInvitation(joinCode, deviceLabel = null) {
+      this.setState('connecting');
+      const result = await this.accountClient.consumeJoinInvitation({
+        joinCode, appId: this.appId, deviceLabel, consumeMode: 'new_app', preservePending: true
+      });
+      if (result.consumeMode !== 'new_app' || !this.accountCore.validAppCredential(result.appDeviceCredential)) {
+        throw new MultiAppSyncError('app_join_consume_invalid');
+      }
+      await this.store.setMeta('credential', result.appDeviceCredential);
+      await this.store.setMeta('qaCredential', result.qaCredential);
+      await this.store.setMeta('membership', {
+        id: result.membershipId, appId: this.appId, state: result.membershipState || 'active'
+      });
+      await this.accountClient.confirmConsumePersisted?.();
+      return this.initializeDataset();
+    }
+
     async serverSnapshot() {
       return this.request('GET', `/v1/sync/snapshot?appId=${encodeURIComponent(this.appId)}`);
     }
@@ -113,6 +130,20 @@
     async localRecords() {
       const snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
       return { snapshot, records: await this.adapter.serializeRecords(snapshot) };
+    }
+
+    async applyWithBackup(nextSnapshot, previousSnapshot) {
+      const backup = global.SoundCruiseSyncAccount?.appBackupStorage;
+      if (!backup?.save) throw new MultiAppSyncError('app_backup_unavailable');
+      await backup.save({
+        version: 1, appId: this.appId, createdAt: this.now(), values: clone(previousSnapshot)
+      });
+      try {
+        await this.adapter.applyRemoteSnapshot(nextSnapshot);
+      } catch (error) {
+        try { await this.adapter.applyRemoteSnapshot(previousSnapshot); } catch (_) { /* preserve original failure */ }
+        throw error;
+      }
     }
 
     async bootstrap(local) {
@@ -230,7 +261,7 @@
       let finalSnapshot = local.snapshot;
       if (!local.records.length && remoteLive.length) {
         finalSnapshot = remoteSnapshot;
-        await this.adapter.applyRemoteSnapshot(finalSnapshot);
+        await this.applyWithBackup(finalSnapshot, local.snapshot);
       } else if (local.records.length && remoteLive.length) {
         const merged = this.adapter.mergeSnapshots(local.snapshot, remoteSnapshot);
         if (merged.conflicts.length) {
@@ -241,7 +272,7 @@
           return Object.freeze({ ok: false, code: 'merge_conflict', conflicts: merged.conflicts.length });
         }
         finalSnapshot = merged.snapshot;
-        await this.adapter.applyRemoteSnapshot(finalSnapshot);
+        await this.applyWithBackup(finalSnapshot, local.snapshot);
       }
       const finalRecords = await this.adapter.serializeRecords(finalSnapshot);
       await this.queueDiff(finalRecords, remote.records || [], remote.records || [], { migration: true });
@@ -307,7 +338,7 @@
       ) || [...shadowBefore.keys()].some((recordKey) => !afterMap.has(recordKey) && localMap.has(recordKey));
       if (remoteChanged) {
         const live = (afterPush.records || []).filter((record) => !isDeleted(record));
-        await this.adapter.applyRemoteSnapshot(this.adapter.deserializeRecords(live));
+        await this.applyWithBackup(this.adapter.deserializeRecords(live), localAfterPush.snapshot);
       }
       await this.replaceShadow(afterPush.records || [], afterPush.cursor);
       await this.store.setMeta('lastSyncAt', this.now());

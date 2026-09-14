@@ -75,6 +75,70 @@
       });
       await accountClient.confirmConsumePersisted();
     }
+    async function connectWithJoin(joinCode) {
+      const chordStore = await chordClient.openStore();
+      const existing = await chordStore.getMeta('deviceCredential');
+      if (existing?.credential) {
+        const consumed = await accountClient.consumeJoinInvitation({
+          joinCode, appId: 'chord', deviceLabel: 'Chord Cruise',
+          consumeMode: 'existing_chord', existingAppCredential: existing.credential,
+          preservePending: true
+        });
+        if (consumed.operation !== 'bridge_required') throw new Error('bridge_required');
+        await finishExistingBridge(existing, consumed);
+        return;
+      }
+      const consumed = await accountClient.consumeJoinInvitation({
+        joinCode, appId: 'chord', deviceLabel: 'Chord Cruise',
+        consumeMode: 'new_app', preservePending: true
+      });
+      const migrated = await chordClient.adoptAccountManagedIdentity({
+        deviceId: consumed.appDeviceId,
+        deviceCredential: consumed.appDeviceCredential
+      });
+      if (!migrated.ok) throw new Error(migrated.code || 'migration_failed');
+      await accountClient.confirmConsumePersisted();
+    }
+    function installJoinEntry() {
+      if (document.querySelector('[data-sync-app-join-entry]')) return;
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.syncAppJoinEntry = '';
+      button.className = 'cc-sync-primary-action';
+      button.textContent = 'Cruise Portと接続';
+      button.addEventListener('click', () => {
+        const dialog = landing(settings.portUrl);
+        const summary = dialog.querySelector('[data-sync-summary]');
+        summary.textContent = 'Cruise Portに表示された既存データ接続コードを入力してください。';
+        const input = document.createElement('input');
+        input.autocomplete = 'off';
+        input.autocapitalize = 'characters';
+        input.spellcheck = false;
+        input.dataset.sensitive = 'true';
+        input.setAttribute('aria-label', '既存データ接続コード');
+        summary.after(input);
+        const start = dialog.querySelector('[data-sync-action="start"]');
+        start.textContent = '既存データを接続';
+        start.addEventListener('click', async () => {
+          start.disabled = true;
+          try {
+            await connectWithJoin(input.value);
+            input.value = '';
+            summary.textContent = 'クラウド同期を設定しました。';
+            start.hidden = true;
+            dialog.querySelector('[data-sync-action="continue"]').hidden = false;
+            dialog.querySelector('[data-sync-action="return"]').hidden = false;
+          } catch (_) {
+            dialog.querySelector('[data-sync-error]').hidden = false;
+            dialog.querySelector('[data-sync-error]').textContent = '接続を完了できませんでした。データは削除していません。';
+            start.disabled = false;
+          }
+        });
+        dialog.showModal();
+      });
+      const host = document.querySelector('.cc-sync-settings-entry') || document.querySelector('main') || document.body;
+      host.append(button);
+    }
     if (!handoffToken) {
       const chordStore = await chordClient.openStore();
       let existing = await chordStore.getMeta('deviceCredential');
@@ -99,6 +163,7 @@
           deviceCredential: existing.credential
         });
       }
+      installJoinEntry();
       return;
     }
     const dialog = landing(settings.portUrl);

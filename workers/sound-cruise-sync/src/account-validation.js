@@ -1,4 +1,5 @@
 import {
+  normalizeAppJoinCode,
   normalizeAccountRecoveryCode,
   parseAccountAppCredential,
   parseAccountCredential,
@@ -112,6 +113,53 @@ export function validateHandoffConsumePayload(value) {
 export function validateHandoffCancelPayload(value) {
   if (!exactObject(value, ['handoffId']) || !operationId(value.handoffId)) return { ok: false };
   return { ok: true, value: { handoffId: value.handoffId } };
+}
+
+export function validateAppJoinIssuePayload(value) {
+  const keys = ['operationId', 'invitationId', 'appId', 'joinCode'];
+  if (!exactObject(value, keys)) return { ok: false };
+  const normalized = {
+    operationId: operationId(value.operationId),
+    invitationId: operationId(value.invitationId),
+    appId: appId(value.appId),
+    joinCode: normalizeAppJoinCode(value.joinCode)
+  };
+  return Object.values(normalized).every(Boolean) ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validateAppJoinConsumePayload(value) {
+  const keys = [
+    'operationId', 'appId', 'joinCode', 'accountCredential',
+    'appDeviceCredential', 'qaCredential', 'deviceLabel', 'consumeMode'
+  ];
+  if (!exactObject(value, keys)) return { ok: false };
+  const deviceLabel = label(value.deviceLabel);
+  const normalized = {
+    ...value,
+    operationId: operationId(value.operationId),
+    appId: appId(value.appId),
+    joinCode: normalizeAppJoinCode(value.joinCode),
+    deviceLabel,
+    consumeMode: ['new_app', 'existing_chord'].includes(value.consumeMode)
+      ? value.consumeMode : null
+  };
+  return normalized.operationId && normalized.appId && normalized.joinCode &&
+    (normalized.consumeMode !== 'existing_chord' || normalized.appId === 'chord') &&
+    parseAccountCredential(normalized.accountCredential) &&
+    parseAccountAppCredential(normalized.appDeviceCredential) &&
+    parseQaCredential(normalized.qaCredential) && deviceLabel !== undefined
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validateAppJoinCancelPayload(value) {
+  if (!exactObject(value, ['invitationId']) || !operationId(value.invitationId)) return { ok: false };
+  return { ok: true, value: { invitationId: value.invitationId } };
+}
+
+export function validateAppJoinStatusQuery(url) {
+  if ([...url.searchParams.keys()].some((key) => key !== 'invitationId')) return { ok: false };
+  const invitationId = operationId(url.searchParams.get('invitationId'));
+  return invitationId ? { ok: true, value: { invitationId } } : { ok: false };
 }
 
 export function validateAccountReadQuery(url) {

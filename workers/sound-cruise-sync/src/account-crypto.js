@@ -5,6 +5,8 @@ const ACCOUNT_CREDENTIAL_PREFIX = 'sca1';
 const HANDOFF_PREFIX = 'sch1';
 const ACCOUNT_RECOVERY_PREFIX = 'SAR1';
 const ACCOUNT_RECOVERY_LENGTH = 20;
+const APP_JOIN_CODE_PREFIX = 'SCJ1';
+const APP_JOIN_CODE_LENGTH = 20;
 const RECOVERY_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const SECRET_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -66,6 +68,41 @@ export function parseAccountHandoff(value) {
 export async function accountHandoffVerifier(value, pepper, cryptoImpl = crypto) {
   if (!parseAccountHandoff(value)) throw new Error('Invalid Account handoff');
   return hmacVerifier(`sound-cruise-account-handoff:v1:${value}`, pepper, cryptoImpl);
+}
+
+export function normalizeAppJoinCode(value) {
+  if (typeof value !== 'string') return null;
+  const compact = value.toUpperCase().replace(/[\s-]/g, '');
+  if (!compact.startsWith(APP_JOIN_CODE_PREFIX)) return null;
+  const code = compact.slice(APP_JOIN_CODE_PREFIX.length);
+  if (code.length !== APP_JOIN_CODE_LENGTH) return null;
+  for (const character of code) {
+    if (!RECOVERY_ALPHABET.includes(character)) return null;
+  }
+  return `${APP_JOIN_CODE_PREFIX}${code}`;
+}
+
+export function formatAppJoinCode(value) {
+  const normalized = normalizeAppJoinCode(value);
+  if (!normalized) return null;
+  const code = normalized.slice(APP_JOIN_CODE_PREFIX.length);
+  return `${APP_JOIN_CODE_PREFIX}-${code.match(/.{4}/g).join('-')}`;
+}
+
+export function createAppJoinCode(cryptoImpl = crypto) {
+  if (!cryptoImpl || typeof cryptoImpl.getRandomValues !== 'function') {
+    throw new Error('Secure random source is unavailable');
+  }
+  const random = new Uint8Array(APP_JOIN_CODE_LENGTH);
+  cryptoImpl.getRandomValues(random);
+  return APP_JOIN_CODE_PREFIX +
+    Array.from(random, (value) => RECOVERY_ALPHABET[value & 31]).join('');
+}
+
+export async function appJoinCodeVerifier(value, pepper, cryptoImpl = crypto) {
+  const normalized = normalizeAppJoinCode(value);
+  if (!normalized) throw new Error('Invalid App Join Code');
+  return hmacVerifier(`sound-cruise-account-app-join:v1:${normalized}`, pepper, cryptoImpl);
 }
 
 export function normalizeAccountRecoveryCode(value) {
@@ -138,5 +175,7 @@ export const ACCOUNT_CRYPTO = Object.freeze({
   HANDOFF_PREFIX,
   ACCOUNT_RECOVERY_PREFIX,
   ACCOUNT_RECOVERY_LENGTH,
+  APP_JOIN_CODE_PREFIX,
+  APP_JOIN_CODE_LENGTH,
   HANDOFF_FRAGMENT_KEY: 'sound-cruise-handoff'
 });

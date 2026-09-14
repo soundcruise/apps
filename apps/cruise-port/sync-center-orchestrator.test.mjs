@@ -25,6 +25,14 @@ function fixture() {
             calls.push(['handoff', appId]);
             return { url: `${appUrl}#sc_handoff=opaque`, expiresAt: 300000 };
         }
+        async issueJoinInvitation({ appId, material }) {
+            calls.push(['join', appId]);
+            return { invitationId: material.invitationId, displayJoinCode: 'SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE', expiresAt: 300000 };
+        }
+        async cancelJoinInvitation({ invitationId }) {
+            calls.push(['cancel-join', invitationId]);
+            return { cancelled: true };
+        }
     }
     let operation = 0;
     const accountRoot = {
@@ -34,7 +42,8 @@ function fixture() {
             createAccountMaterial: () => ({ recoveryCode: 'secret', accountCredential: 'sca1.account' }),
             formatRecoveryCode: () => 'DISPLAY-ONLY',
             createOperationId: () => `op-${++operation}`,
-            createHandoffMaterial: () => ({ operationId: `op-${++operation}`, handoffToken: 'opaque' })
+            createHandoffMaterial: () => ({ operationId: `op-${++operation}`, handoffToken: 'opaque' }),
+            createJoinMaterial: () => ({ operationId: `op-${++operation}`, invitationId: 'invite-1', joinCode: 'SCJ1AAAABBBBCCCCDDDDEEEE' })
         }
     };
     const navigations = [];
@@ -71,16 +80,23 @@ test('four-app preparation keeps successes and retries only the failed membershi
         ['pitch', 'fretboard', 'rhythm', 'pitch']);
 });
 
-test('handoff is JIT for pending memberships while active memberships reopen directly', async () => {
+test('cross-container Join Code is default while active memberships reopen directly', async () => {
     const { orchestrator, calls, memberships, navigations } = fixture();
-    const handoff = await orchestrator.launch('chord');
-    assert.equal(handoff.kind, 'handoff');
-    assert.match(navigations.at(-1), /#sc_handoff=/);
+    const join = await orchestrator.launch('chord');
+    assert.equal(join.kind, 'join');
+    assert.match(join.displayJoinCode, /^SCJ1-/);
+    assert.equal(navigations.length, 0);
     memberships.set('chord', { id: 'm-chord', appId: 'chord', state: 'active', dataset: { state: 'initializing' } });
     const reopened = await orchestrator.launch('chord');
     assert.equal(reopened.kind, 'open');
-    assert.equal(calls.filter(([kind]) => kind === 'handoff').length, 1);
+    assert.equal(calls.filter(([kind]) => kind === 'join').length, 1);
     assert.equal(navigations.at(-1), 'https://apps.example/chord/pro/');
+});
+
+test('Port can cancel a displayed cross-container Join invitation', async () => {
+    const { orchestrator, calls } = fixture();
+    await orchestrator.cancelJoin('invite-1');
+    assert.deepEqual(calls.find(([kind]) => kind === 'cancel-join'), ['cancel-join', 'invite-1']);
 });
 
 test('Port orchestrator never reads app localStorage or IndexedDB', () => {

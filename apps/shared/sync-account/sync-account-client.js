@@ -21,6 +21,13 @@
     handoff_expired: 'handoff_expired',
     handoff_cancelled: 'handoff_cancelled',
     handoff_consumed: 'handoff_consumed',
+    app_join_already_active: 'app_join_already_active',
+    app_join_not_found: 'app_join_not_found',
+    app_join_invalid: 'app_join_invalid',
+    app_join_expired: 'app_join_expired',
+    app_join_cancelled: 'app_join_cancelled',
+    app_join_consumed: 'app_join_consumed',
+    app_join_wrong_app: 'wrong_app',
     wrong_app: 'wrong_app',
     bridge_not_found: 'bridge_not_found',
     bridge_ownership_conflict: 'bridge_ownership_conflict',
@@ -192,6 +199,84 @@
     cancelHandoff({ accountCredential, handoffId }) {
       return this.request('/v2/accounts/handoffs/cancel', {
         method: 'POST', accountCredential, body: { handoffId }
+      });
+    }
+
+    async issueJoinInvitation({ accountCredential, appId, material }) {
+      if (!material || !this.core.validJoinCode(material.joinCode) ||
+          typeof material.operationId !== 'string' || typeof material.invitationId !== 'string') {
+        throw new Error('app_join_material_required');
+      }
+      const result = await this.request('/v2/accounts/app-join-invitations', {
+        method: 'POST', accountCredential,
+        body: {
+          operationId: material.operationId,
+          invitationId: material.invitationId,
+          appId,
+          joinCode: material.joinCode
+        }
+      });
+      return Object.freeze({ ...result, displayJoinCode: this.core.formatJoinCode(material.joinCode) });
+    }
+
+    joinInvitationStatus({ accountCredential, invitationId }) {
+      return this.request(`/v2/accounts/app-join-invitations?invitationId=${encodeURIComponent(invitationId)}`, {
+        accountCredential
+      });
+    }
+
+    cancelJoinInvitation({ accountCredential, invitationId }) {
+      return this.request('/v2/accounts/app-join-invitations/cancel', {
+        method: 'POST', accountCredential, body: { invitationId }
+      });
+    }
+
+    async consumeJoinInvitation({
+      joinCode, appId, deviceLabel, operationId, accountMaterial, appMaterial,
+      consumeMode = 'new_app', existingAppCredential = null, preservePending = false
+    }) {
+      const normalizedCode = this.core.normalizeJoinCode(joinCode);
+      if (!normalizedCode || !['new_app', 'existing_chord'].includes(consumeMode) ||
+          (consumeMode === 'existing_chord' && appId !== 'chord')) {
+        throw new Error('app_join_input_invalid');
+      }
+      const account = accountMaterial || this.core.createAccountCredential();
+      const app = consumeMode === 'existing_chord'
+        ? { appDeviceId: String(existingAppCredential || '').split('.')[1] || null,
+            appDeviceCredential: existingAppCredential }
+        : (appMaterial || this.core.createAppCredential());
+      if (!this.core.validAppCredential(app.appDeviceCredential)) throw new Error('app_join_app_credential_required');
+      const operation = operationId || this.core.createOperationId();
+      const qa = this.core.createQaCredential();
+      await this.storage.setPendingConsume({
+        transport: 'app_join', operationId: operation, appId, consumeMode,
+        accountDeviceId: account.accountDeviceId, accountCredential: account.accountCredential,
+        appDeviceId: app.appDeviceId, qaSessionId: qa.qaSessionId, qaCredential: qa.qaCredential,
+        ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
+        deviceLabel: deviceLabel || null
+      });
+      const result = await this.request('/v2/accounts/app-join-invitations/consume', {
+        method: 'POST',
+        body: {
+          operationId: operation, appId, joinCode: normalizedCode,
+          accountCredential: account.accountCredential,
+          appDeviceCredential: app.appDeviceCredential,
+          qaCredential: qa.qaCredential, deviceLabel: deviceLabel || null, consumeMode
+        }
+      });
+      await this.storage.setAccount({
+        accountId: result.accountId, accountDeviceId: result.accountDeviceId,
+        accountCredential: account.accountCredential, membershipId: result.membershipId
+      });
+      await this.storage.setQaAdmission({
+        qaSessionId: result.qaSessionId, qaCredential: qa.qaCredential,
+        scope: 'app', appId, accountId: result.accountId
+      });
+      if (!preservePending) await this.storage.clearPendingConsume();
+      return Object.freeze({
+        ...result, consumeMode,
+        ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
+        qaCredential: qa.qaCredential
       });
     }
 

@@ -19,6 +19,7 @@ const migration12 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration13 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0013_add_fretboard_record_types.sql'), 'utf8');
 const migration14 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0014_add_handoff_consume_mode.sql'), 'utf8');
 const migration15 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0015_add_account_qa_admission.sql'), 'utf8');
+const migration16 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0016_add_app_join_invitations.sql'), 'utf8');
 
 function migrate(db) {
   db.exec(migration);
@@ -36,6 +37,7 @@ function migrate(db) {
   db.exec(migration13);
   db.exec(migration14);
   db.exec(migration15);
+  db.exec(migration16);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -47,6 +49,7 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     'sync_account_memberships', 'sync_account_qa_enrollments', 'sync_account_qa_sessions',
     'sync_account_recovery_claims', 'sync_account_runtime_control',
     'sync_account_start_operations', 'sync_accounts',
+    'sync_app_join_invitations',
     'sync_changes', 'sync_chord_account_bridges', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
     'sync_membership_device_links', 'sync_membership_handoffs', 'sync_records',
     'sync_runtime_control', 'sync_users'
@@ -58,6 +61,7 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare("SELECT last_change_seq FROM sync_datasets LIMIT 1"));
   assert(db.prepare("SELECT pairing_pending_at, paired_at FROM sync_devices LIMIT 1"));
   assert(db.prepare("SELECT consume_mode, qa_issuer_session_id, qa_app_session_id FROM sync_membership_handoffs LIMIT 1"));
+  assert(db.prepare("SELECT target_app_id, code_verifier, consume_mode FROM sync_app_join_invitations LIMIT 1"));
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_pairing_codes_user_active'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pairing_attempts'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='recovery_claims'").get());

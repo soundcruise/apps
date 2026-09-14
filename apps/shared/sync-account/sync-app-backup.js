@@ -7,8 +7,8 @@
   const VERSION = 1;
   const MAX_BACKUPS_PER_APP = 5;
   const APP_IDS = new Set(['chord', 'pitch', 'fretboard', 'rhythm']);
-  const FORBIDDEN_KEY = /(?:auth|credential|recovery|pairing|handoff|token|secret)/iu;
-  const FORBIDDEN_VALUE = /(?:sc[adh]1\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}|SAR1(?:-?[0-9A-Z]{4}){5})/u;
+  const FORBIDDEN_KEY = /(?:auth|credential|recovery|pairing|handoff|join|token|secret)/iu;
+  const FORBIDDEN_VALUE = /(?:sc[adh]1\.[0-9a-f-]{36}\.[A-Za-z0-9_-]{43}|(?:SAR1|SCJ1)(?:-?[0-9A-Z]{4}){5})/u;
 
   function requestResult(request) {
     return new Promise((resolve, reject) => {
