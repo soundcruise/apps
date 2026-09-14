@@ -1,19 +1,24 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.29.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.30.0';
 
 export function createSyncCenterOrchestrator({
     config,
     accountRoot = globalThis.SoundCruiseSyncAccount,
     fetchImpl = globalThis.fetch?.bind(globalThis),
     navigate = (url) => globalThis.location.assign(url),
-    appUrl = (appId) => new URL(resolveCruiseAppHref(appId, 'pro'), globalThis.location.origin).toString(),
+    appUrl = (appId) => {
+        const url = new URL(resolveCruiseAppHref(appId, 'pro'), globalThis.location.origin);
+        if (config?.qaAdmissionRequired) url.searchParams.set('sound-cruise-qa', '1');
+        return url.toString();
+    },
     deviceLabel = () => 'Cruise Port'
 } = {}) {
     if (!config?.enabled || !accountRoot?.AccountClient || !accountRoot?.core || !accountRoot?.storage) {
         return Object.freeze({ enabled: false });
     }
     const client = new accountRoot.AccountClient({
-        endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage, core: accountRoot.core
+        endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage, core: accountRoot.core,
+        qaScope: 'port'
     });
     let accountMaterial = null;
 
@@ -27,6 +32,14 @@ export function createSyncCenterOrchestrator({
 
     return Object.freeze({
         enabled: true,
+        qaAdmissionRequired: config.qaAdmissionRequired === true,
+        async hasQaAdmission() {
+            const value = await accountRoot.storage.getQaAdmission('port');
+            return accountRoot.core.validQaCredential(value?.qaCredential) && value.expiresAt > Date.now();
+        },
+        async enrollQa({ enrollmentCode, turnstileToken }) {
+            return client.enrollQa({ enrollmentCode, turnstileToken });
+        },
         createAccountCandidate() {
             accountMaterial = accountRoot.core.createAccountMaterial();
             return Object.freeze({

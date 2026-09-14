@@ -7,11 +7,18 @@
   catch (_) { handoffToken = null; }
   function config() {
     const value = global.__SOUND_CRUISE_MULTI_APP_SYNC__;
-    if (!value || value.enabled !== true || value.environment !== 'development') return null;
+    const qaRequested = global.location?.hostname === 'soundcruise.jp' &&
+      new URLSearchParams(global.location.search || '').get('sound-cruise-qa') === '1';
+    const effective = qaRequested ? {
+      enabled: true, environment: 'qa',
+      endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
+      portUrl: '/apps/cruise-port/?sound-cruise-qa=1#sync-center'
+    } : value;
+    if (!effective || effective.enabled !== true || !['development', 'qa'].includes(effective.environment)) return null;
     try {
-      const endpoint = new URL(value.endpoint);
+      const endpoint = new URL(effective.endpoint);
       if (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(endpoint.hostname))) return null;
-      return { endpoint: endpoint.toString().replace(/\/$/, ''), portUrl: value.portUrl || '/apps/cruise-port/#sync-center' };
+      return { endpoint: endpoint.toString().replace(/\/$/, ''), portUrl: effective.portUrl || '/apps/cruise-port/#sync-center' };
     } catch (_) { return null; }
   }
 
@@ -39,7 +46,8 @@
     const chordClient = global.ChordCruiseSync?.pilotClient;
     if (!ready?.enabled || !chordClient) return;
     const accountClient = new accountRoot.AccountClient({
-      endpoint: settings.endpoint, storage: accountRoot.storage, core: accountRoot.core
+      endpoint: settings.endpoint, storage: accountRoot.storage, core: accountRoot.core,
+      qaScope: 'app', qaAppId: 'chord'
     });
     async function finishExistingBridge(existing, consumed) {
       const account = await accountRoot.storage.getAccount();

@@ -12,6 +12,13 @@ import {
 } from './account-crypto.js';
 import { createD1AccountRepository } from './account-database.js';
 import { createD1AccountHandoffRepository } from './account-handoff-database.js';
+import { authenticateQaRequest } from './account-qa-auth.js';
+import { createD1AccountQaRepository } from './account-qa-database.js';
+import {
+  parseQaCredential,
+  qaCredentialVerifier,
+  qaEnrollmentCodeVerifier
+} from './account-qa-crypto.js';
 import {
   CHORD_BRIDGE_ROUTES,
   handleChordAccountBridgeRequest
@@ -28,12 +35,17 @@ import {
   validateHandoffCancelPayload,
   validateHandoffConsumePayload,
   validateHandoffIssuePayload,
-  validateMembershipPreparePayload
+  validateMembershipPreparePayload,
+  validateQaEnrollmentPayload
 } from './account-validation.js';
 import { verifyTurnstileToken } from './turnstile.js';
 import { isJsonContentType, readBodyWithLimit } from './validation.js';
 
 const ACCOUNT_ROUTES = Object.freeze({
+  '/v2/accounts/qa/enroll': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_ADMISSION,
+    headers: ['content-type', 'x-d1-bookmark']
+  },
   '/v2/accounts/start': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_ADMISSION,
     headers: ['content-type', 'x-d1-bookmark']
@@ -73,6 +85,8 @@ const ACCOUNT_ROUTES = Object.freeze({
   ]))
 });
 
+const QA_HEADER = 'x-sound-cruise-qa-authorization';
+
 function resolvedRoute(pathname, method) {
   const base = ACCOUNT_ROUTES[pathname];
   if (!base) return null;
@@ -93,10 +107,11 @@ function headerCase(value) {
 }
 
 function corsHeaders(origin, route) {
+  const allowedHeaders = Array.from(new Set([...route.headers, QA_HEADER]));
   return new Headers({
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': `${route.method}, OPTIONS`,
-    'Access-Control-Allow-Headers': route.headers.map(headerCase).join(', '),
+    'Access-Control-Allow-Headers': allowedHeaders.map(headerCase).join(', '),
     'Access-Control-Expose-Headers': 'X-D1-Bookmark',
     'Access-Control-Max-Age': '600',
     'Vary': 'Origin'
@@ -182,11 +197,76 @@ async function accountContext(request, env, dependencies) {
     env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
   );
   if (!identity) return { error: 'invalid_account_credential', status: 401 };
+  const qa = dependencies.qaIdentity;
+  if (!qa || (qa.accountId !== null && qa.accountId !== identity.accountId)) {
+    return { error: 'qa_admission_required', status: 403 };
+  }
   return {
     session,
     identity,
     repository: (dependencies.createAccountRepository || createD1AccountRepository)(session)
   };
+}
+
+async function handleQaEnrollment(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateQaEnrollmentPayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_DB || !env.SYNC_ACCOUNT_QA_ENROLLMENT_PEPPER ||
+      !env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_qa_unavailable', origin, route);
+  }
+  const limited = await rateLimit(env.ACCOUNT_QA_ENROLL_RATE_LIMITER, `account-qa-enroll:${requestIp(request)}`);
+  if (!limited.ok) return rateError(limited, origin, route, 60);
+  const verify = dependencies.verifyTurnstileToken || verifyTurnstileToken;
+  let turnstile;
+  try {
+    turnstile = await verify(validation.value.turnstileToken, env, {
+      expectedAction: env.TURNSTILE_ACCOUNT_QA_ENROLL_EXPECTED_ACTION || 'sound_cruise_account_qa_enroll'
+    });
+  } catch {
+    return errorResponse(503, 'turnstile_failed', origin, route);
+  }
+  if (!turnstile.ok) return errorResponse(turnstile.unavailable ? 503 : 403, 'turnstile_failed', origin, route);
+  try {
+    const session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    const qa = parseQaCredential(validation.value.qaCredential);
+    const codeVerifier = await (dependencies.qaEnrollmentCodeVerifier || qaEnrollmentCodeVerifier)(
+      validation.value.enrollmentCode,
+      env.SYNC_ACCOUNT_QA_ENROLLMENT_PEPPER
+    );
+    const credentialVerifier = await (dependencies.qaCredentialVerifier || qaCredentialVerifier)(
+      validation.value.qaCredential,
+      env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER
+    );
+    const repository = (dependencies.createAccountQaRepository || createD1AccountQaRepository)(session);
+    const result = await repository.consumeEnrollment({
+      sessionId: qa.sessionId,
+      codeVerifier,
+      credentialVerifier,
+      now: Date.now()
+    });
+    const errors = {
+      invalid: [400, 'qa_enrollment_invalid'],
+      expired: [409, 'qa_enrollment_expired'],
+      used: [409, 'qa_enrollment_used'],
+      cancelled: [409, 'qa_enrollment_cancelled']
+    };
+    if (result.status !== 'created') {
+      const [status, code] = errors[result.status] || [503, 'account_server_error'];
+      return errorResponse(status, code, origin, route);
+    }
+    return jsonResponse(201, {
+      ok: true,
+      qaSessionId: result.sessionId,
+      scope: 'port',
+      expiresAt: result.expiresAt
+    }, origin, route, bookmarkHeader(session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
 }
 
 function bookmarkHeader(session) {
@@ -268,6 +348,7 @@ async function handleStart(request, env, origin, route, dependencies) {
       accountCredentialVerifier: credentialVerifier,
       accountDeviceLabel: value.deviceLabel,
       memberships,
+      qaSessionId: dependencies.qaIdentity.sessionId,
       startOperation: {
         operationId: value.operationId,
         requestFingerprint: fingerprint
@@ -381,6 +462,7 @@ async function handleHandoffIssue(request, env, origin, route, dependencies) {
       handoffId: handoff.handoffId,
       handoffVerifier: verifier,
       requestFingerprint: fingerprint,
+      qaIssuerSessionId: dependencies.qaIdentity.sessionId,
       now: Date.now()
     };
     const retry = typeof repository.resolveIssueRetry === 'function'
@@ -454,7 +536,8 @@ function handoffError(status, origin, route) {
     expired: [409, 'handoff_expired'],
     cancelled: [409, 'handoff_cancelled'],
     used: [409, 'handoff_consumed'],
-    membership_unavailable: [409, 'membership_state_invalid']
+    membership_unavailable: [409, 'membership_state_invalid'],
+    qa_admission_unavailable: [403, 'qa_admission_required']
   };
   const [httpStatus, code] = errors[status] || [503, 'account_server_error'];
   return errorResponse(httpStatus, code, origin, route);
@@ -467,7 +550,7 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
   if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
   if (!env.SYNC_DB || !env.SYNC_ACCOUNT_HANDOFF_PEPPER ||
       !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_RECOVERY_PEPPER ||
-      !env.SYNC_CREDENTIAL_PEPPER) {
+      !env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER) {
     return errorResponse(503, 'account_server_unavailable', origin, route);
   }
   let session;
@@ -502,9 +585,14 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
       value.appDeviceCredential,
       env.SYNC_CREDENTIAL_PEPPER
     );
+    const qaCredential = parseQaCredential(value.qaCredential);
+    const qaVerifier = await (dependencies.qaCredentialVerifier || qaCredentialVerifier)(
+      value.qaCredential,
+      env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER
+    );
     const fingerprint = await (dependencies.accountOperationFingerprint || accountOperationFingerprint)([
       'handoff-consume', value.appId, handoff.handoffId, accountDevice.deviceId,
-      appDevice.deviceId, accountVerifier, appVerifier, value.deviceLabel || '', value.consumeMode
+      appDevice.deviceId, accountVerifier, appVerifier, qaVerifier, value.deviceLabel || '', value.consumeMode
     ]);
     const repository = (dependencies.createAccountHandoffRepository || createD1AccountHandoffRepository)(session);
     const consumeInput = {
@@ -517,6 +605,8 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
       accountCredentialVerifier: accountVerifier,
       appDeviceId: appDevice.deviceId,
       appCredentialVerifier: appVerifier,
+      qaSessionId: qaCredential.sessionId,
+      qaCredentialVerifier: qaVerifier,
       syncUserId: existingAppIdentity?.userId || crypto.randomUUID(),
       consumeMode: value.consumeMode,
       deviceLabel: value.deviceLabel,
@@ -535,6 +625,7 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
         appId: value.appId,
         accountDeviceId: retry.accountDeviceId,
         appDeviceId: retry.appDeviceId,
+        qaSessionId: retry.qaSessionId,
         syncUserId: retry.syncUserId,
         membershipState: retry.status === 'bridge_required' ? 'pending' : 'active',
         datasetState: retry.status === 'bridge_required' ? 'ready' : 'not_created',
@@ -557,6 +648,7 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
       appId: value.appId,
       accountDeviceId: result.accountDeviceId,
       appDeviceId: result.appDeviceId,
+      qaSessionId: result.qaSessionId,
       syncUserId: result.syncUserId,
       membershipState: result.status === 'bridge_required' ? 'pending' : 'active',
       datasetState: result.status === 'bridge_required' ? 'ready' : 'not_created',
@@ -582,7 +674,7 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
       .split(',').map((header) => header.trim().toLowerCase()).filter(Boolean);
     const optionRoute = resolvedRoute(url.pathname, requestedMethod);
     if (!optionRoute || requestedMethod !== optionRoute.method ||
-        requestedHeaders.some((header) => !optionRoute.headers.includes(header))) {
+        requestedHeaders.some((header) => ![...optionRoute.headers, QA_HEADER].includes(header))) {
       return errorResponse(403, 'invalid_origin', origin, route);
     }
     return new Response(null, { status: 204, headers: corsHeaders(origin, optionRoute) });
@@ -601,6 +693,35 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   try { control = await readControl(env.SYNC_DB); } catch {}
   const gate = accountGateDecision(route.action, control);
   if (!gate.allowed) return errorResponse(gate.status, gate.code, origin, route);
+
+  if (url.pathname === '/v2/accounts/qa/enroll') {
+    return handleQaEnrollment(request, env, origin, route, dependencies);
+  }
+
+  const chordBridge = url.pathname === '/v2/accounts/bridges/chord' ||
+    url.pathname.startsWith('/v2/accounts/bridges/chord/');
+  if (url.pathname !== '/v2/accounts/handoffs/consume' && !chordBridge) {
+    let session;
+    let qaIdentity;
+    try {
+      session = createSession(env, request);
+      if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+      qaIdentity = await (dependencies.authenticateQaRequest || authenticateQaRequest)(
+        session,
+        request.headers.get('X-Sound-Cruise-QA-Authorization'),
+        env,
+        url.pathname === '/v2/accounts/start' || url.pathname === '/v2/accounts/handoffs' ||
+          url.pathname === '/v2/accounts/handoffs/cancel' || url.pathname === '/v2/accounts/memberships'
+          ? { scope: 'port' }
+          : {},
+        dependencies
+      );
+    } catch {
+      return errorResponse(503, 'account_qa_unavailable', origin, route);
+    }
+    if (!qaIdentity) return errorResponse(403, 'qa_admission_required', origin, route);
+    dependencies = { ...dependencies, qaIdentity };
+  }
 
   if (url.pathname === '/v2/accounts/bridges/chord' ||
       url.pathname.startsWith('/v2/accounts/bridges/chord/')) {

@@ -69,6 +69,8 @@ test('credential storage is Account-specific IndexedDB and rejects transient Rec
   assert.equal(/\blocalStorage\b/.test(dbSource), false);
   assert.equal(/\bsessionStorage\b/.test(dbSource), false);
   assert.equal(dbSource.includes('transient_secret_persistence_blocked'), true);
+  assert.match(dbSource, /app:\$\{appId\}/);
+  assert.match(dbSource, /getQaAdmission\(scope = 'port'/);
   const account = load([coreSource, dbSource]);
   const handoff = account.core.createHandoffMaterial();
   const recovery = account.core.createAccountMaterial();
@@ -82,11 +84,36 @@ test('credential storage is Account-specific IndexedDB and rejects transient Rec
   );
 });
 
+test('Port and app Account transports select separate QA admission slots', async () => {
+  const reads = [];
+  const requests = [];
+  const account = load([coreSource, clientSource]);
+  const storage = {
+    async getQaAdmission(scope, appId) {
+      reads.push([scope, appId]);
+      return { qaCredential: scope === 'port' ? 'port-qa' : `${appId}-qa` };
+    }
+  };
+  const fetchImpl = async (_url, options) => {
+    requests.push(options.headers.get('X-Sound-Cruise-QA-Authorization'));
+    return Response.json({ ok: true });
+  };
+  const port = new account.AccountClient({ endpoint: 'https://sync.example', storage, core: account.core, fetchImpl,
+    qaScope: 'port' });
+  const pitch = new account.AccountClient({ endpoint: 'https://sync.example', storage, core: account.core, fetchImpl,
+    qaScope: 'app', qaAppId: 'pitch' });
+  await port.summary('account');
+  await pitch.summary('account');
+  assert.deepEqual(reads, [['port', null], ['app', 'pitch']]);
+  assert.deepEqual(requests, ['Bearer port-qa', 'Bearer pitch-qa']);
+});
+
 test('Account transport omits referrers and persists response-loss candidates without handoff plaintext', async () => {
   const writes = [];
   const storage = {
     async setPendingConsume(value) { writes.push(['pendingConsume', structuredClone(value)]); },
     async setAccount(value) { writes.push(['account', structuredClone(value)]); },
+    async setQaAdmission(value) { writes.push(['qaAdmission', structuredClone(value)]); },
     async clearPendingConsume() { writes.push(['clearPendingConsume']); }
   };
   const requests = [];
@@ -103,6 +130,7 @@ test('Account transport omits referrers and persists response-loss candidates wi
         membershipId: crypto.randomUUID(),
         accountDeviceId: JSON.parse(options.body).accountCredential.split('.')[1],
         appDeviceId: JSON.parse(options.body).appDeviceCredential.split('.')[1],
+        qaSessionId: JSON.parse(options.body).qaCredential.split('.')[1],
         syncUserId: crypto.randomUUID()
       }), { status: 201, headers: { 'Content-Type': 'application/json' } });
     }
@@ -127,6 +155,7 @@ test('handoff consume can retain its resumable candidate until the app confirms 
   const storage = {
     async setPendingConsume(value) { writes.push(['pendingConsume', structuredClone(value)]); },
     async setAccount(value) { writes.push(['account', structuredClone(value)]); },
+    async setQaAdmission(value) { writes.push(['qaAdmission', structuredClone(value)]); },
     async clearPendingConsume() { writes.push(['clearPendingConsume']); }
   };
   const account = load([coreSource, clientSource]);
@@ -136,7 +165,7 @@ test('handoff consume can retain its resumable candidate until the app confirms 
       const body = JSON.parse(options.body);
       return Response.json({ ok: true, accountId: crypto.randomUUID(), membershipId: crypto.randomUUID(),
         accountDeviceId: body.accountCredential.split('.')[1], appDeviceId: body.appDeviceCredential.split('.')[1],
-        membershipState: 'active', consumeMode: 'new_app' });
+        qaSessionId: body.qaCredential.split('.')[1], membershipState: 'active', consumeMode: 'new_app' });
     }
   });
   const handoff = account.core.createHandoffMaterial();

@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.29.0';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.29.0';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.29.0';
+} from './sync-center-controller.js?v=0.30.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.30.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.30.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.29.0';
+} from './sync-center-navigation.js?v=0.30.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.29.0';
+} from './app-version.js?v=0.30.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -3445,6 +3445,7 @@ function renderSettings({ focus = true, storageError = '' } = {}) {
 
 let syncCenterRenderSequence = 0;
 let syncCenterResumeChecked = false;
+let syncCenterActions = null;
 
 async function renderSyncCenterView() {
     if (!syncCenterController.enabled) {
@@ -3454,6 +3455,16 @@ async function renderSyncCenterView() {
     const sequence = ++syncCenterRenderSequence;
     showView(elements.syncCenterView);
     elements.syncCenterTitle.focus({ preventScroll: true });
+    try {
+        await syncCenterActions?.ensureQaAdmission?.();
+    } catch (error) {
+        if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
+        showNotice(elements.syncCenterView.querySelector('#sync-center-alert'),
+            error?.message === 'verification_required'
+                ? '認証を完了してからQAを開始してください。'
+                : 'QA Enrollmentを完了してから同期情報を確認してください。');
+        return;
+    }
     if (!syncCenterResumeChecked && syncCenterOrchestrator.enabled) {
         syncCenterResumeChecked = true;
         try { await syncCenterOrchestrator.resume(); } catch (_) { /* no pending committed Account */ }
@@ -5051,13 +5062,13 @@ elements.homeCalendarButton.addEventListener('click', () => {
 elements.homeSettingsButton.addEventListener('click', () => setHashRoute('#settings'));
 elements.syncCenterEntry.hidden = !syncCenterController.enabled;
 if (syncCenterController.enabled) {
-    bindSyncCenterActions(elements.syncCenterView, {
+    syncCenterActions = bindSyncCenterActions(elements.syncCenterView, {
         orchestrator: syncCenterOrchestrator,
         refresh: renderSyncCenterView,
-        tokenProvider: async () => {
+        tokenProvider: async (action) => {
             const provider = globalThis.__SOUND_CRUISE_ACCOUNT_TURNSTILE__;
             if (typeof provider?.getToken !== 'function') return null;
-            return provider.getToken();
+            return provider.getToken(action);
         }
     });
     elements.syncCenterOpen.addEventListener('click', () => {

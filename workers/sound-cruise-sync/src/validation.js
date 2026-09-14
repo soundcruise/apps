@@ -56,7 +56,13 @@ export async function readBodyWithLimit(request, limit = MAX_BODY_BYTES) {
 }
 
 function allowedAppIds(env) {
-  return new Set(String(env.SYNC_ALLOWED_APP_IDS || '').split(',').map((value) => value.trim()).filter(Boolean));
+  return new Set(`${env.SYNC_ALLOWED_APP_IDS || ''},${env.SYNC_QA_ALLOWED_APP_IDS || ''}`
+    .split(',').map((value) => value.trim()).filter(Boolean));
+}
+
+export function validatePublicAppId(appId, env) {
+  return typeof appId === 'string' && new Set(String(env.SYNC_ALLOWED_APP_IDS || '')
+    .split(',').map((value) => value.trim()).filter(Boolean)).has(appId);
 }
 
 export function validateAppId(appId, env) {

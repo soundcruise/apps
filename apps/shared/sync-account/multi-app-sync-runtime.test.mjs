@@ -98,9 +98,13 @@ function runtimeFixture(initial, appId = 'pitch') {
   const local = adapter(initial, appId);
   const { server, fetchImpl } = serverFetch();
   let id = 0;
-  const core = { validAppCredential: (value) => value === 'scd1.valid', createOperationId: () => `op-${++id}` };
+  const core = {
+    validAppCredential: (value) => value === 'scd1.valid',
+    validQaCredential: (value) => value === 'scq1.valid',
+    createOperationId: () => `op-${++id}`
+  };
   const accountClient = { consumeHandoff: async () => ({ consumeMode: 'new_app', membershipId: 'm1',
-    membershipState: 'active', appDeviceCredential: 'scd1.valid' }) };
+    membershipState: 'active', appDeviceCredential: 'scd1.valid', qaCredential: 'scq1.valid' }) };
   return { runtime: new Runtime({ appId, endpoint: 'https://example.test', adapter: local,
     store, accountClient, accountCore: core, fetchImpl, randomOperationId: () => `op-${++id}` }), store, local, server };
 }

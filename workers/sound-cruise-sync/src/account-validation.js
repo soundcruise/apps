@@ -4,6 +4,7 @@ import {
   parseAccountCredential,
   parseAccountHandoff
 } from './account-crypto.js';
+import { normalizeQaEnrollmentCode, parseQaCredential } from './account-qa-crypto.js';
 
 export const ACCOUNT_API_APP_IDS = Object.freeze(['chord', 'pitch', 'fretboard', 'rhythm']);
 export const ACCOUNT_MAX_BODY_BYTES = 16 * 1024;
@@ -54,6 +55,19 @@ export function validateAccountStartPayload(value) {
   return { ok: true, value: { ...value, appIds, deviceLabel } };
 }
 
+export function validateQaEnrollmentPayload(value) {
+  const keys = ['enrollmentCode', 'qaCredential', 'turnstileToken'];
+  if (!exactObject(value, keys) || !normalizeQaEnrollmentCode(value.enrollmentCode) ||
+      !parseQaCredential(value.qaCredential) || !validTurnstile(value.turnstileToken)) {
+    return { ok: false };
+  }
+  return { ok: true, value: {
+    enrollmentCode: normalizeQaEnrollmentCode(value.enrollmentCode),
+    qaCredential: value.qaCredential,
+    turnstileToken: value.turnstileToken
+  } };
+}
+
 export function validateMembershipPreparePayload(value) {
   if (!exactObject(value, ['operationId', 'appId'])) return { ok: false };
   const normalized = { operationId: operationId(value.operationId), appId: appId(value.appId) };
@@ -74,7 +88,7 @@ export function validateHandoffIssuePayload(value) {
 export function validateHandoffConsumePayload(value) {
   const keys = [
     'operationId', 'appId', 'handoffToken', 'accountCredential',
-    'appDeviceCredential', 'deviceLabel', 'consumeMode'
+    'appDeviceCredential', 'qaCredential', 'deviceLabel', 'consumeMode'
   ];
   if (!exactObject(value, keys)) return { ok: false };
   const deviceLabel = label(value.deviceLabel);
@@ -91,6 +105,7 @@ export function validateHandoffConsumePayload(value) {
     parseAccountHandoff(normalized.handoffToken) &&
     parseAccountCredential(normalized.accountCredential) &&
     parseAccountAppCredential(normalized.appDeviceCredential) &&
+    parseQaCredential(normalized.qaCredential) &&
     deviceLabel !== undefined ? { ok: true, value: normalized } : { ok: false };
 }
 

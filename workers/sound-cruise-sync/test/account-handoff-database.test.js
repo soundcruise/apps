@@ -13,12 +13,14 @@ import {
   createD1AccountHandoffRepository
 } from '../src/account-handoff-database.js';
 import { createIdentityMaterial } from '../src/crypto.js';
+import { createQaCredential, qaCredentialVerifier } from '../src/account-qa-crypto.js';
 import { createSqliteD1 } from './sqlite-d1.js';
 
 const accountCredentialPepper = 'm3-account-credential-pepper-32-characters';
 const accountRecoveryPepper = 'm3-account-recovery-pepper-at-least-32';
 const handoffPepper = 'm3-account-handoff-pepper-at-least-32';
 const appPepper = 'm3-existing-sync-app-pepper-at-least-32';
+const qaPepper = 'm10-handoff-qa-credential-pepper-32-chars';
 
 async function setup(appIds = ['chord']) {
   const db = createSqliteD1();
@@ -36,9 +38,20 @@ async function setup(appIds = ['chord']) {
     memberships,
     now: 1
   });
+  const portQa = createQaCredential();
+  db.raw.prepare(`INSERT INTO sync_account_qa_enrollments
+    (id, code_verifier, created_at, expires_at, consumed_at, cancelled_at, consumed_by_session_id)
+    VALUES ('handoff-qa-enrollment', ?, 1, ?, 1, NULL, ?)`)
+    .run('8'.repeat(64), Number.MAX_SAFE_INTEGER, portQa.sessionId);
+  db.raw.prepare(`INSERT INTO sync_account_qa_sessions
+    (id, credential_verifier, enrollment_id, scope, account_id, app_id, app_device_id,
+     parent_session_id, created_at, expires_at, last_used_at, revoked_at, generation)
+    VALUES (?, ?, 'handoff-qa-enrollment', 'port', 'handoff-account', NULL, NULL, NULL, 1, ?, 1, NULL, 1)`)
+    .run(portQa.sessionId, await qaCredentialVerifier(portQa.credential, qaPepper), Number.MAX_SAFE_INTEGER);
   return {
     db,
     repository: createD1AccountHandoffRepository(db),
+    qaSessionId: portQa.sessionId,
     identity: {
       accountId: 'handoff-account',
       accountDeviceId: issuer.deviceId,
@@ -63,6 +76,7 @@ async function issue(fixture, appId = 'chord', now = 100) {
     handoffId: material.handoffId,
     handoffVerifier: verifier,
     requestFingerprint: fingerprint,
+    qaIssuerSessionId: fixture.qaSessionId,
     now
   });
   return { material, verifier, operationId, fingerprint, result };
@@ -72,6 +86,7 @@ async function consumeInput(issued, appId = 'chord', overrides = {}) {
   const account = createAccountCredential();
   const app = await createIdentityMaterial(appPepper);
   const operationId = crypto.randomUUID();
+  const qa = createQaCredential();
   const accountVerifier = await accountCredentialVerifier(account.credential, accountCredentialPepper);
   const fingerprint = await accountOperationFingerprint([
     'consume', appId, issued.material.handoffId, account.deviceId,
@@ -87,6 +102,8 @@ async function consumeInput(issued, appId = 'chord', overrides = {}) {
     accountCredentialVerifier: accountVerifier,
     appDeviceId: app.deviceId,
     appCredentialVerifier: app.credentialVerifier,
+    qaSessionId: qa.sessionId,
+    qaCredentialVerifier: await qaCredentialVerifier(qa.credential, qaPepper),
     syncUserId: crypto.randomUUID(),
     consumeMode: 'new_app',
     deviceLabel: 'Target',
@@ -151,6 +168,15 @@ test('consume atomically reserves separate app and Account credentials without c
     'M3 activation never starts app migration or creates a dataset');
   assert.equal(fixture.db.raw.prepare('SELECT credential_verifier FROM sync_devices WHERE id = ?')
     .get(input.appDeviceId).credential_verifier, input.appCredentialVerifier);
+  const qaSession = fixture.db.raw.prepare(`
+    SELECT scope, account_id, app_id, app_device_id, parent_session_id, credential_verifier
+    FROM sync_account_qa_sessions WHERE id = ?
+  `).get(input.qaSessionId);
+  assert.deepEqual({ ...qaSession }, {
+    scope: 'app', account_id: fixture.identity.accountId, app_id: 'chord',
+    app_device_id: input.appDeviceId, parent_session_id: fixture.qaSessionId,
+    credential_verifier: input.qaCredentialVerifier
+  });
   assert.equal(fixture.db.raw.prepare('SELECT credential_verifier FROM sync_account_devices WHERE id = ?')
     .get(input.accountDeviceId).credential_verifier, input.accountCredentialVerifier);
 
@@ -260,6 +286,20 @@ test('wrong app, expiry, cancellation and wrong issuer are fail-closed without p
   )).status, 'membership_unavailable');
   assert.equal(revokedFixture.db.raw.prepare('SELECT COUNT(*) AS count FROM sync_users').get().count, 0);
   revokedFixture.db.close();
+
+  const revokedQaFixture = await setup();
+  const revokedQaIssue = await issue(revokedQaFixture);
+  revokedQaFixture.db.raw.prepare(`
+    UPDATE sync_account_qa_sessions SET revoked_at = 150 WHERE id = ?
+  `).run(revokedQaFixture.qaSessionId);
+  assert.equal((await revokedQaFixture.repository.consume(
+    await consumeInput(revokedQaIssue)
+  )).status, 'qa_admission_unavailable');
+  assert.equal(revokedQaFixture.db.raw.prepare('SELECT COUNT(*) AS count FROM sync_users').get().count, 0);
+  assert.equal(revokedQaFixture.db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_account_qa_sessions WHERE scope = 'app'
+  `).get().count, 0);
+  revokedQaFixture.db.close();
 });
 
 test('same-handoff consume race activates exactly one candidate', async () => {

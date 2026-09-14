@@ -33,6 +33,12 @@
     account_membership_delete_required: 'account_membership_delete_required',
     rate_limited: 'rate_limited',
     turnstile_failed: 'verification_failed',
+    qa_admission_required: 'qa_admission_required',
+    account_qa_unavailable: 'account_runtime_unavailable',
+    qa_enrollment_invalid: 'qa_enrollment_invalid',
+    qa_enrollment_expired: 'qa_enrollment_expired',
+    qa_enrollment_used: 'qa_enrollment_used',
+    qa_enrollment_cancelled: 'qa_enrollment_cancelled',
     invalid_request: 'invalid_request'
   });
 
@@ -54,6 +60,8 @@
       this.fetchImpl = options.fetchImpl || global.fetch.bind(global);
       this.storage = options.storage || root.storage;
       this.core = options.core || root.core;
+      this.qaScope = options.qaScope || 'port';
+      this.qaAppId = options.qaAppId || null;
     }
 
     async request(path, options = {}) {
@@ -62,6 +70,12 @@
       if (options.accountCredential) headers.set('Authorization', `Bearer ${options.accountCredential}`);
       if (options.appCredential) {
         headers.set('X-Sound-Cruise-App-Authorization', `Bearer ${options.appCredential}`);
+      }
+      if (!options.skipQa) {
+        const qa = options.qaAdmission || await this.storage?.getQaAdmission?.(this.qaScope, this.qaAppId);
+        if (qa?.qaCredential) {
+          headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qa.qaCredential}`);
+        }
       }
       const response = await this.fetchImpl(`${this.endpoint}${path}`, {
         method: options.method || 'GET',
@@ -77,6 +91,22 @@
         throw new AccountApiError(response.status, payload?.code || 'account_api_error');
       }
       return payload;
+    }
+
+    async enrollQa({ enrollmentCode, turnstileToken, material = null }) {
+      const candidate = material || this.core.createQaCredential();
+      if (!this.core.validQaCredential(candidate.qaCredential)) throw new Error('qa_material_invalid');
+      const result = await this.request('/v2/accounts/qa/enroll', {
+        method: 'POST', skipQa: true,
+        body: { enrollmentCode, qaCredential: candidate.qaCredential, turnstileToken }
+      });
+      await this.storage.setQaAdmission({
+        qaSessionId: result.qaSessionId,
+        qaCredential: candidate.qaCredential,
+        scope: result.scope,
+        expiresAt: result.expiresAt
+      });
+      return Object.freeze(result);
     }
 
     async startAccount({ appIds, deviceLabel, turnstileToken, material, recoverySaved }) {
@@ -117,8 +147,8 @@
       return Object.freeze({ ...result, recoveryCode: candidate.recoveryCode });
     }
 
-    summary(accountCredential) {
-      return this.request('/v2/accounts/summary', { accountCredential });
+    summary(accountCredential, qaAdmission = null) {
+      return this.request('/v2/accounts/summary', { accountCredential, qaAdmission });
     }
 
     memberships(accountCredential) {
@@ -182,6 +212,7 @@
         throw new Error('handoff_app_credential_required');
       }
       const operation = operationId || this.core.createOperationId();
+      const qa = this.core.createQaCredential();
       await this.storage.setPendingConsume({
         operationId: operation,
         appId,
@@ -189,6 +220,8 @@
         accountDeviceId: account.accountDeviceId,
         accountCredential: account.accountCredential,
         appDeviceId: app.appDeviceId,
+        qaSessionId: qa.qaSessionId,
+        qaCredential: qa.qaCredential,
         ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
         deviceLabel: deviceLabel || null
       });
@@ -200,6 +233,7 @@
           handoffToken,
           accountCredential: account.accountCredential,
           appDeviceCredential: app.appDeviceCredential,
+          qaCredential: qa.qaCredential,
           deviceLabel: deviceLabel || null,
           consumeMode
         }
@@ -210,11 +244,19 @@
         accountCredential: account.accountCredential,
         membershipId: result.membershipId
       });
+      await this.storage.setQaAdmission({
+        qaSessionId: result.qaSessionId,
+        qaCredential: qa.qaCredential,
+        scope: 'app',
+        appId,
+        accountId: result.accountId
+      });
       if (!preservePending) await this.storage.clearPendingConsume();
       return Object.freeze({
         ...result,
         consumeMode,
-        ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {})
+        ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
+        qaCredential: qa.qaCredential
       });
     }
 
@@ -246,7 +288,9 @@
       const pending = await this.storage.getPendingConsume();
       if (!pending) return Object.freeze({ status: 'none' });
       try {
-        const summary = await this.summary(pending.accountCredential);
+        const summary = await this.summary(pending.accountCredential, pending.qaCredential
+          ? { qaCredential: pending.qaCredential }
+          : null);
         const membership = summary.memberships.find((entry) => entry.appId === pending.appId);
         const consumeMode = pending.consumeMode || 'new_app';
         const expectedState = consumeMode === 'existing_chord' ? 'pending' : 'active';
@@ -259,13 +303,23 @@
           accountCredential: pending.accountCredential,
           membershipId: membership.id
         });
+        if (pending.qaCredential) {
+          await this.storage.setQaAdmission({
+            qaSessionId: pending.qaSessionId,
+            qaCredential: pending.qaCredential,
+            scope: 'app',
+            appId: pending.appId,
+            accountId: summary.account.id
+          });
+        }
         if (!preservePending) await this.storage.clearPendingConsume();
         return Object.freeze({
           status: consumeMode === 'existing_chord' ? 'bridge_required' : 'committed',
           membership,
           consumeMode,
           appDeviceId: pending.appDeviceId,
-          ...(pending.appDeviceCredential ? { appDeviceCredential: pending.appDeviceCredential } : {})
+          ...(pending.appDeviceCredential ? { appDeviceCredential: pending.appDeviceCredential } : {}),
+          ...(pending.qaCredential ? { qaCredential: pending.qaCredential } : {})
         });
       } catch (error) {
         if (error instanceof AccountApiError && error.code === 'invalid_account_credential') {

@@ -5,7 +5,8 @@
   const DATABASE_NAME = 'sound-cruise-sync-account';
   const STORE_NAME = 'meta';
   const VERSION = 1;
-  const ALLOWED_KEYS = new Set(['account', 'pendingStart', 'pendingConsume', 'pendingBridge']);
+  const ALLOWED_KEYS = new Set(['account', 'qaAdmission', 'pendingStart', 'pendingConsume', 'pendingBridge']);
+  const QA_APP_IDS = new Set(['chord', 'pitch', 'fretboard', 'rhythm']);
 
   function requestResult(request) {
     return new Promise((resolve, reject) => {
@@ -80,10 +81,60 @@
     }
   }
 
+  function qaSlot(scope, appId) {
+    if (scope === 'port' && appId == null) return 'port';
+    if (scope === 'app' && QA_APP_IDS.has(appId)) return `app:${appId}`;
+    throw new Error('qa_admission_scope_invalid');
+  }
+
+  async function getQaAdmission(scope = 'port', appId = null, indexedDb) {
+    const values = await get('qaAdmission', indexedDb);
+    return values?.[qaSlot(scope, appId)] || null;
+  }
+
+  async function setQaAdmission(value, indexedDb) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
+      throw new Error('qa_admission_scope_invalid');
+    }
+    const slot = qaSlot(value.scope, value.appId || null);
+    const database = await open(indexedDb);
+    try {
+      const transaction = database.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const current = (await requestResult(store.get('qaAdmission'))) || {};
+      const next = { ...current, [slot]: structuredClone(value) };
+      assertSafeValue('qaAdmission', next);
+      store.put(next, 'qaAdmission');
+      await transactionDone(transaction);
+    } finally {
+      database.close();
+    }
+  }
+
+  async function clearQaAdmission(scope = 'port', appId = null, indexedDb) {
+    const slot = qaSlot(scope, appId);
+    const database = await open(indexedDb);
+    try {
+      const transaction = database.transaction(STORE_NAME, 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const current = (await requestResult(store.get('qaAdmission'))) || {};
+      const next = { ...current };
+      delete next[slot];
+      if (Object.keys(next).length) store.put(next, 'qaAdmission');
+      else store.delete('qaAdmission');
+      await transactionDone(transaction);
+    } finally {
+      database.close();
+    }
+  }
+
   root.storage = Object.freeze({
     DATABASE_NAME,
     getAccount: (indexedDb) => get('account', indexedDb),
     setAccount: (value, indexedDb) => set('account', value, indexedDb),
+    getQaAdmission,
+    setQaAdmission,
+    clearQaAdmission,
     getPendingStart: (indexedDb) => get('pendingStart', indexedDb),
     setPendingStart: (value, indexedDb) => set('pendingStart', value, indexedDb),
     clearPendingStart: (indexedDb) => remove('pendingStart', indexedDb),

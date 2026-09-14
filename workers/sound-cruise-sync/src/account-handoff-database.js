@@ -1,5 +1,6 @@
 import { timingSafeHexEqual } from './crypto.js';
 import { accountManagedRecoveryVerifier } from './account-crypto.js';
+import { ACCOUNT_QA } from './account-qa-crypto.js';
 
 export const ACCOUNT_HANDOFF_TTL_MS = 5 * 60 * 1000;
 
@@ -37,7 +38,10 @@ export function createD1AccountHandoffRepository(db) {
       SELECT h.*, m.app_id, m.state AS membership_state, m.sync_user_id,
              claimed.user_id AS claimed_sync_user_id,
              a.state AS account_state, a.recovery_verifier,
-             issuer.revoked_at AS issuer_revoked_at
+             issuer.revoked_at AS issuer_revoked_at,
+             q.enrollment_id AS qa_enrollment_id, q.scope AS qa_issuer_scope,
+             q.account_id AS qa_issuer_account_id, q.expires_at AS qa_issuer_expires_at,
+             q.revoked_at AS qa_issuer_revoked_at
       FROM sync_membership_handoffs h
       JOIN sync_account_memberships m
         ON m.id = h.membership_id AND m.account_id = h.account_id
@@ -46,6 +50,7 @@ export function createD1AccountHandoffRepository(db) {
         ON issuer.id = h.created_by_account_device_id
       LEFT JOIN sync_devices claimed
         ON claimed.id = h.claimed_by_app_device_id
+      LEFT JOIN sync_account_qa_sessions q ON q.id = h.qa_issuer_session_id
       WHERE h.handoff_id = ?
     `).bind(handoffId).first();
   }
@@ -79,6 +84,7 @@ export function createD1AccountHandoffRepository(db) {
         row.consume_fingerprint !== input.requestFingerprint ||
         row.claimed_by_app_device_id !== input.appDeviceId ||
         row.claimed_by_account_device_id !== input.accountDeviceId) return null;
+    if (row.qa_app_session_id !== input.qaSessionId) return null;
     return {
       status: row.consume_mode === 'existing_chord' ? 'bridge_required' : 'activated',
       accountId: row.account_id,
@@ -86,6 +92,7 @@ export function createD1AccountHandoffRepository(db) {
       syncUserId: row.sync_user_id || row.claimed_sync_user_id,
       appDeviceId: row.claimed_by_app_device_id,
       accountDeviceId: row.claimed_by_account_device_id,
+      qaSessionId: row.qa_app_session_id,
       alreadyActivated: true
     };
   }
@@ -101,8 +108,17 @@ export function createD1AccountHandoffRepository(db) {
         ON a.id = m.account_id AND a.state = 'active' AND a.deleted_at IS NULL
       JOIN sync_account_devices d
         ON d.id = ? AND d.account_id = a.id AND d.revoked_at IS NULL
+      JOIN sync_account_qa_sessions q
+        ON q.id = ? AND q.scope = 'port' AND q.account_id = a.id
+        AND q.revoked_at IS NULL AND q.expires_at > ?
       WHERE m.account_id = ? AND m.app_id = ?
-    `).bind(identity.accountDeviceId, identity.accountId, input.appId).first();
+    `).bind(
+      identity.accountDeviceId,
+      input.qaIssuerSessionId,
+      input.now,
+      identity.accountId,
+      input.appId
+    ).first();
     if (!membership || membership.state !== 'pending') return { status: 'membership_unavailable' };
 
     const active = await db.prepare(`
@@ -123,8 +139,8 @@ export function createD1AccountHandoffRepository(db) {
           created_at, expires_at, consumed_at, cancelled_at,
           issue_operation_id, issue_fingerprint, consume_operation_id,
           consume_fingerprint, claimed_by_account_device_id,
-          cancelled_by_account_device_id
-        ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL, NULL, ?, ?, NULL, NULL, NULL, NULL)
+          cancelled_by_account_device_id, qa_issuer_session_id, qa_app_session_id
+        ) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, NULL, NULL, ?, ?, NULL, NULL, NULL, NULL, ?, NULL)
       `).bind(
         input.handoffId,
         input.handoffVerifier,
@@ -134,7 +150,8 @@ export function createD1AccountHandoffRepository(db) {
         input.now,
         expiresAt,
         input.operationId,
-        input.requestFingerprint
+        input.requestFingerprint,
+        input.qaIssuerSessionId
       ).run();
       if (result?.success === false || changes(result) !== 1) throw new Error('Handoff issue failed');
       return {
@@ -215,6 +232,33 @@ export function createD1AccountHandoffRepository(db) {
         row.membership_state !== 'pending' || row.sync_user_id != null) {
       return { status: 'membership_unavailable' };
     }
+    if (!row.qa_enrollment_id || row.qa_issuer_scope !== 'port' ||
+        row.qa_issuer_account_id !== row.account_id || row.qa_issuer_revoked_at != null ||
+        Number(row.qa_issuer_expires_at) <= input.now) {
+      return { status: 'qa_admission_unavailable' };
+    }
+    const qaExpiresAt = Math.min(
+      Number(row.qa_issuer_expires_at),
+      input.now + ACCOUNT_QA.SESSION_TTL_MS
+    );
+    const insertQaSession = db.prepare(`
+      INSERT INTO sync_account_qa_sessions (
+        id, credential_verifier, enrollment_id, scope, account_id, app_id,
+        app_device_id, parent_session_id, created_at, expires_at,
+        last_used_at, revoked_at, generation
+      ) VALUES (?, ?, ?, 'app', ?, ?, ?, ?, ?, ?, ?, NULL, 1)
+    `).bind(
+      input.qaSessionId,
+      input.qaCredentialVerifier,
+      row.qa_enrollment_id,
+      row.account_id,
+      input.appId,
+      input.appDeviceId,
+      row.qa_issuer_session_id,
+      input.now,
+      qaExpiresAt,
+      input.now
+    );
     if (input.consumeMode === 'existing_chord') {
       const existing = await db.prepare(`
         SELECT d.id, d.user_id, d.app_id, d.revoked_at, u.state AS user_state,
@@ -251,7 +295,7 @@ export function createD1AccountHandoffRepository(db) {
         UPDATE sync_membership_handoffs
         SET claimed_by_app_device_id = ?, claimed_by_account_device_id = ?,
             consumed_at = ?, consume_operation_id = ?, consume_fingerprint = ?,
-            consume_mode = 'existing_chord'
+            consume_mode = 'existing_chord', qa_app_session_id = ?
         WHERE handoff_id = ? AND account_id = ? AND membership_id = ?
           AND consumed_at IS NULL AND cancelled_at IS NULL AND expires_at > ?
       `).bind(
@@ -260,6 +304,7 @@ export function createD1AccountHandoffRepository(db) {
         input.now,
         input.operationId,
         input.requestFingerprint,
+        input.qaSessionId,
         input.handoffId,
         row.account_id,
         row.membership_id,
@@ -289,7 +334,7 @@ export function createD1AccountHandoffRepository(db) {
         row.account_id
       );
       try {
-        const statements = [insertAccountDevice, claim, guard];
+        const statements = [insertAccountDevice, insertQaSession, claim, guard];
         const results = await db.batch(statements);
         if (!batchSucceeded(results, statements.length)) {
           throw new Error('Existing Chord handoff transaction was incomplete');
@@ -301,6 +346,7 @@ export function createD1AccountHandoffRepository(db) {
           syncUserId: input.syncUserId,
           appDeviceId: input.appDeviceId,
           accountDeviceId: input.accountDeviceId,
+          qaSessionId: input.qaSessionId,
           alreadyActivated: false
         };
       } catch (error) {
@@ -315,6 +361,7 @@ export function createD1AccountHandoffRepository(db) {
             syncUserId: input.syncUserId,
             appDeviceId: finalState.claimed_by_app_device_id,
             accountDeviceId: finalState.claimed_by_account_device_id,
+            qaSessionId: finalState.qa_app_session_id,
             alreadyActivated: true
           };
         }
@@ -411,7 +458,7 @@ export function createD1AccountHandoffRepository(db) {
       UPDATE sync_membership_handoffs
       SET claimed_by_app_device_id = ?, claimed_by_account_device_id = ?,
           consumed_at = ?, consume_operation_id = ?, consume_fingerprint = ?,
-          consume_mode = 'new_app'
+          consume_mode = 'new_app', qa_app_session_id = ?
       WHERE handoff_id = ? AND account_id = ? AND membership_id = ?
         AND consumed_at IS NULL AND cancelled_at IS NULL AND expires_at > ?
     `).bind(
@@ -420,6 +467,7 @@ export function createD1AccountHandoffRepository(db) {
       input.now,
       input.operationId,
       input.requestFingerprint,
+      input.qaSessionId,
       input.handoffId,
       row.account_id,
       row.membership_id,
@@ -461,6 +509,7 @@ export function createD1AccountHandoffRepository(db) {
         insertUser,
         insertAppDevice,
         insertAccountDevice,
+        insertQaSession,
         linkDevice,
         markManaged,
         activateMembership,
@@ -478,6 +527,7 @@ export function createD1AccountHandoffRepository(db) {
         syncUserId: input.syncUserId,
         appDeviceId: input.appDeviceId,
         accountDeviceId: input.accountDeviceId,
+        qaSessionId: input.qaSessionId,
         alreadyActivated: false
       };
     } catch (error) {
@@ -493,6 +543,7 @@ export function createD1AccountHandoffRepository(db) {
           syncUserId: finalState.sync_user_id,
           appDeviceId: finalState.claimed_by_app_device_id,
           accountDeviceId: finalState.claimed_by_account_device_id,
+          qaSessionId: finalState.qa_app_session_id,
           alreadyActivated: true
         };
       }

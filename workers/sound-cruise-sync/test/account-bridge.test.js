@@ -9,12 +9,14 @@ import {
 } from '../src/account-crypto.js';
 import { createIdentityMaterial } from '../src/crypto.js';
 import { createD1RecoveryRepository } from '../src/recovery-database.js';
+import { createQaCredential, qaCredentialVerifier } from '../src/account-qa-crypto.js';
 import { createSqliteD1 } from './sqlite-d1.js';
 
 const origin = 'https://soundcruise.jp';
 const appPepper = 'm4-chord-app-credential-pepper-32-characters';
 const accountPepper = 'm4-account-credential-pepper-32-characters';
 const recoveryPepper = 'm4-account-recovery-pepper-32-characters';
+const qaPepper = 'm10-bridge-qa-credential-pepper-32-chars';
 
 function limiter(success = true) {
   return { async limit() { return { success }; } };
@@ -93,6 +95,23 @@ async function fixture(options = {}) {
       generation, created_at, activated_at, updated_at, deleted_at
     ) VALUES (?, ?, 'rhythm', 'pending', NULL, 'account', 1, ?, NULL, ?, NULL)
   `).run(crypto.randomUUID(), accountId, now, now);
+  const portQa = createQaCredential();
+  const appQa = createQaCredential();
+  db.raw.prepare(`INSERT INTO sync_account_qa_enrollments
+    (id, code_verifier, created_at, expires_at, consumed_at, cancelled_at, consumed_by_session_id)
+    VALUES ('bridge-qa-enrollment', ?, 1, ?, 1, NULL, ?)`)
+    .run('9'.repeat(64), Number.MAX_SAFE_INTEGER, portQa.sessionId);
+  db.raw.prepare(`INSERT INTO sync_account_qa_sessions
+    (id, credential_verifier, enrollment_id, scope, account_id, app_id, app_device_id,
+     parent_session_id, created_at, expires_at, last_used_at, revoked_at, generation)
+    VALUES (?, ?, 'bridge-qa-enrollment', 'port', ?, NULL, NULL, NULL, 1, ?, 1, NULL, 1)`)
+    .run(portQa.sessionId, await qaCredentialVerifier(portQa.credential, qaPepper), accountId, Number.MAX_SAFE_INTEGER);
+  db.raw.prepare(`INSERT INTO sync_account_qa_sessions
+    (id, credential_verifier, enrollment_id, scope, account_id, app_id, app_device_id,
+     parent_session_id, created_at, expires_at, last_used_at, revoked_at, generation)
+    VALUES (?, ?, 'bridge-qa-enrollment', 'app', ?, 'chord', ?, ?, 1, ?, 1, NULL, 1)`)
+    .run(appQa.sessionId, await qaCredentialVerifier(appQa.credential, qaPepper), accountId,
+      app.deviceId, portQa.sessionId, Number.MAX_SAFE_INTEGER);
   return {
     db,
     app,
@@ -101,7 +120,8 @@ async function fixture(options = {}) {
     membershipId,
     accountRecoveryCode,
     accountRecoveryVerifier,
-    legacyRecoveryVerifier
+    legacyRecoveryVerifier,
+    qaCredential: appQa.credential
   };
 }
 
@@ -112,6 +132,7 @@ function environment(db, overrides = {}) {
     SYNC_ACCOUNT_CREDENTIAL_PEPPER: accountPepper,
     SYNC_ACCOUNT_RECOVERY_PEPPER: recoveryPepper,
     SYNC_CREDENTIAL_PEPPER: appPepper,
+    SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER: qaPepper,
     ACCOUNT_BRIDGE_RATE_LIMITER: limiter(),
     ...overrides
   };
@@ -123,6 +144,7 @@ function bridgeRequest(path, body, setup, options = {}) {
     Authorization: `Bearer ${options.accountCredential || setup.account.credential}`,
     'X-Sound-Cruise-App-Authorization': `Bearer ${options.appCredential || setup.app.credential}`
   });
+  headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${setup.qaCredential}`);
   if (body !== undefined) headers.set('Content-Type', 'application/json');
   return new Request(`https://sync.example${path}`, {
     method: body === undefined ? 'GET' : 'POST',
@@ -379,8 +401,8 @@ test('eligibility and concurrency reject initializing, deleting, active Recovery
     accountCredential: sameAccountDevice.credential,
     appCredential: sameAccountApp.credential
   }), environment(concurrent.db));
-  assert.equal(response.status, 409);
-  assert.equal((await response.json()).code, 'bridge_ownership_conflict');
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).code, 'qa_admission_required');
   assert.equal(concurrent.db.raw.prepare(`
     SELECT COUNT(*) AS count FROM sync_chord_account_bridges
   `).get().count, 1);
@@ -407,8 +429,8 @@ test('eligibility and concurrency reject initializing, deleting, active Recovery
   response = await handleRequest(bridgeRequest('/v2/accounts/bridges/chord/prepare', {
     operationId: crypto.randomUUID(), membershipId: secondMembership, expectedAccountGeneration: 1
   }, concurrent, { accountCredential: secondAccount.credential }), environment(concurrent.db));
-  assert.equal(response.status, 409);
-  assert.equal((await response.json()).code, 'bridge_ownership_conflict');
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).code, 'qa_admission_required');
   assert.equal(first.body.bridge.state, 'prepared');
   concurrent.db.close();
 });
@@ -524,6 +546,10 @@ test('dual legacy Recovery remains authoritative, relinks the recovered device, 
   });
 
   setup.app = next;
+  setup.db.raw.prepare(`
+    UPDATE sync_account_qa_sessions SET app_device_id = ?
+    WHERE credential_verifier = ? AND scope = 'app'
+  `).run(next.deviceId, await qaCredentialVerifier(setup.qaCredential, qaPepper));
   const current = await handleRequest(bridgeRequest('/v2/accounts/bridges/chord', undefined, setup), environment(setup.db));
   assert.equal(current.status, 200);
   const currentBridge = (await current.json()).bridge;

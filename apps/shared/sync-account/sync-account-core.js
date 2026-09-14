@@ -64,6 +64,11 @@
     return Object.freeze({ appDeviceId: app.id, appDeviceCredential: app.value });
   }
 
+  function createQaCredential(cryptoImpl = global.crypto, btoaImpl = global.btoa.bind(global)) {
+    const qa = createCredential('scq1', cryptoImpl, btoaImpl);
+    return Object.freeze({ qaSessionId: qa.id, qaCredential: qa.value });
+  }
+
   function createHandoffMaterial(cryptoImpl = global.crypto, btoaImpl = global.btoa.bind(global)) {
     const handoff = createCredential('sch1', cryptoImpl, btoaImpl);
     return Object.freeze({
@@ -106,12 +111,14 @@
     createAccountMaterial,
     createAccountCredential,
     createAppCredential,
+    createQaCredential,
     createHandoffMaterial,
     createHandoffUrl,
     formatRecoveryCode,
     takeHandoffFromLocation,
     validAccountCredential: (value) => validToken(value, 'sca1'),
     validAppCredential: (value) => validToken(value, 'scd1'),
+    validQaCredential: (value) => validToken(value, 'scq1'),
     validHandoffToken: (value) => validToken(value, 'sch1'),
     createOperationId: (cryptoImpl = global.crypto) => randomUuid(cryptoImpl)
   });

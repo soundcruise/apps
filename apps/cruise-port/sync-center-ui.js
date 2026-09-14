@@ -86,6 +86,15 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         setup.dataset.syncPhase = phase;
         if (confirm) confirm.dataset.syncAction = phase === 'recovery' ? 'confirm-recovery-saved' : 'create-account';
     };
+    const ensureQaAdmission = async () => {
+        if (!orchestrator?.qaAdmissionRequired || await orchestrator.hasQaAdmission()) return true;
+        const enrollmentCode = globalThis.prompt('Multi-App QA Enrollment Codeを入力してください。');
+        if (!enrollmentCode) throw new Error('qa_enrollment_required');
+        const enrollmentToken = await tokenProvider('sound_cruise_account_qa_enroll');
+        if (!enrollmentToken) throw new Error('verification_required');
+        await orchestrator.enrollQa({ enrollmentCode, turnstileToken: enrollmentToken });
+        return true;
+    };
     root?.querySelector?.('#sync-center-setup-open')?.addEventListener('click', () => {
         setPhase('introduction');
         if (recovery) { recovery.hidden = true; recovery.textContent = ''; }
@@ -105,6 +114,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         }
         confirm.disabled = true;
         try {
+            await ensureQaAdmission();
             if (setup.dataset.syncPhase === 'complete') {
                 setup.close();
                 return;
@@ -118,7 +128,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 confirm.textContent = '保存しました';
                 return;
             }
-            const turnstileToken = await tokenProvider();
+            const turnstileToken = await tokenProvider('sound_cruise_account_start');
             if (!turnstileToken) throw new Error('verification_required');
             recovery.textContent = '';
             recovery.hidden = true;
@@ -134,6 +144,8 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         } catch (error) {
             setText(root, '#sync-center-action-status', error?.message === 'verification_required'
                 ? '人間確認を完了してから続けてください。'
+                : error?.message === 'qa_enrollment_required'
+                    ? 'QA Enrollment Codeが必要です。'
                 : '準備を完了できませんでした。成功済みの設定は保持されています。もう一度お試しください。');
         } finally { confirm.disabled = false; }
     });
@@ -152,6 +164,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             setText(root, '#sync-center-action-status', 'この操作はまだ利用できません。各Cruiseアプリの設定から操作してください。');
         });
     });
+    return Object.freeze({ ensureQaAdmission });
 }
 
 export const bindSyncCenterUnavailableActions = bindSyncCenterActions;

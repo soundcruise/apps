@@ -12,6 +12,7 @@ import {
   validateChordBridgeTransitionPayload
 } from './account-validation.js';
 import { readBodyWithLimit } from './validation.js';
+import { authenticateQaRequest } from './account-qa-auth.js';
 
 export const CHORD_BRIDGE_ROUTES = Object.freeze({
   '/v2/accounts/bridges/chord': {
@@ -70,6 +71,19 @@ async function bridgeContext(request, env, dependencies, createSession) {
     env.SYNC_CREDENTIAL_PEPPER
   );
   if (!app) return { error: 'invalid_app_credential', status: 401 };
+  const qa = dependencies.qaIdentity || await (
+    dependencies.authenticateQaRequest || authenticateQaRequest
+  )(
+    session,
+    request.headers.get('X-Sound-Cruise-QA-Authorization'),
+    env,
+    { scope: 'app', accountId: account.accountId, appId: 'chord', appDeviceId: app.deviceId },
+    dependencies
+  );
+  if (!qa || qa.scope !== 'app' || qa.appId !== 'chord' ||
+      qa.accountId !== account.accountId || qa.appDeviceId !== app.deviceId) {
+    return { error: 'qa_admission_required', status: 403 };
+  }
   return {
     session,
     identity: {

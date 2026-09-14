@@ -7,6 +7,7 @@ import {
   createAccountRecoveryCode
 } from '../src/account-crypto.js';
 import { createIdentityMaterial } from '../src/crypto.js';
+import { createQaCredential, qaCredentialVerifier } from '../src/account-qa-crypto.js';
 import { createSqliteD1 } from './sqlite-d1.js';
 
 const origin = 'https://soundcruise.jp';
@@ -14,6 +15,9 @@ const accountCredentialPepper = 'm3-api-account-credential-pepper-32-chars';
 const accountRecoveryPepper = 'm3-api-account-recovery-pepper-32-chars';
 const accountHandoffPepper = 'm3-api-account-handoff-pepper-32-chars';
 const appPepper = 'm3-api-app-credential-pepper-at-least-32';
+const qaPepper = 'm10-api-qa-credential-pepper-at-least-32';
+const qa = createQaCredential();
+const qaVerifier = await qaCredentialVerifier(qa.credential, qaPepper);
 
 function limiter(success = true) {
   return { async limit() { return { success }; } };
@@ -30,6 +34,17 @@ function enableAccountControl(db) {
 }
 
 function environment(db) {
+  db.raw.prepare(`
+    INSERT OR IGNORE INTO sync_account_qa_enrollments
+      (id, code_verifier, created_at, expires_at, consumed_at, cancelled_at, consumed_by_session_id)
+    VALUES ('qa-enrollment', ?, 1, ?, 1, NULL, ?)
+  `).run('a'.repeat(64), Number.MAX_SAFE_INTEGER, qa.sessionId);
+  db.raw.prepare(`
+    INSERT OR IGNORE INTO sync_account_qa_sessions
+      (id, credential_verifier, enrollment_id, scope, account_id, app_id, app_device_id,
+       parent_session_id, created_at, expires_at, last_used_at, revoked_at, generation)
+    VALUES (?, ?, 'qa-enrollment', 'port', NULL, NULL, NULL, NULL, 1, ?, 1, NULL, 1)
+  `).run(qa.sessionId, qaVerifier, Number.MAX_SAFE_INTEGER);
   return {
     SYNC_DB: db,
     ACCOUNT_ALLOWED_ORIGINS: origin,
@@ -37,6 +52,7 @@ function environment(db) {
     SYNC_ACCOUNT_RECOVERY_PEPPER: accountRecoveryPepper,
     SYNC_ACCOUNT_HANDOFF_PEPPER: accountHandoffPepper,
     SYNC_CREDENTIAL_PEPPER: appPepper,
+    SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER: qaPepper,
     ACCOUNT_START_RATE_LIMITER: limiter(),
     ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER: limiter(),
     ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER: limiter(),
@@ -48,6 +64,7 @@ function jsonRequest(path, body, options = {}) {
   const headers = new Headers({ Origin: options.origin || origin });
   if (body !== undefined) headers.set('Content-Type', 'application/json');
   if (options.credential) headers.set('Authorization', `Bearer ${options.credential}`);
+  headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qa.credential}`);
   return new Request(`https://sync.example${path}`, {
     method: options.method || (body === undefined ? 'GET' : 'POST'),
     headers,
@@ -262,12 +279,14 @@ test('secure handoff issue/consume activates one app reservation and exact retry
 
   const targetAccount = createAccountCredential();
   const targetApp = await createIdentityMaterial(appPepper);
+  const targetQa = createQaCredential();
   const consumeBody = {
     operationId: crypto.randomUUID(),
     appId: 'chord',
     handoffToken: handoff.handoffToken,
     accountCredential: targetAccount.credential,
     appDeviceCredential: targetApp.credential,
+    qaCredential: targetQa.credential,
     deviceLabel: 'Chord container',
     consumeMode: 'new_app'
   };
@@ -332,12 +351,14 @@ test('authenticated issuer can cancel a handoff and cancelled material cannot ac
   assert.equal(response.status, 200);
   const targetAccount = createAccountCredential();
   const targetApp = await createIdentityMaterial(appPepper);
+  const targetQa = createQaCredential();
   response = await handleRequest(jsonRequest('/v2/accounts/handoffs/consume', {
     operationId: crypto.randomUUID(),
     appId: 'pitch',
     handoffToken: handoff.handoffToken,
     accountCredential: targetAccount.credential,
     appDeviceCredential: targetApp.credential,
+    qaCredential: targetQa.credential,
     deviceLabel: null,
     consumeMode: 'new_app'
   }), env);

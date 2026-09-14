@@ -1,4 +1,5 @@
 import { authenticateDevice } from './auth.js';
+import { authenticateQaRequest } from './account-qa-auth.js';
 import { handleAccountApiRequest } from './account-app.js';
 import {
   legacyOperationDecision,
@@ -36,7 +37,8 @@ import {
   validateRecoveryPayload,
   validatePushPayload,
   validateReadQuery,
-  validateStartPayload
+  validateStartPayload,
+  validatePublicAppId
 } from './validation.js';
 
 const ROUTES = Object.freeze({
@@ -56,6 +58,8 @@ const ROUTES = Object.freeze({
   '/v1/sync/snapshot': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] }
 });
 
+const QA_HEADER = 'x-sound-cruise-qa-authorization';
+
 function configuredOrigins(env) {
   return new Set(String(env.ALLOWED_ORIGINS || '').split(',').map((value) => value.trim()).filter(Boolean));
 }
@@ -70,10 +74,11 @@ function headerCase(value) {
 }
 
 function corsHeaders(origin, route) {
+  const allowedHeaders = Array.from(new Set([...route.headers, QA_HEADER]));
   return new Headers({
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': `${route.method}, OPTIONS`,
-    'Access-Control-Allow-Headers': route.headers.map(headerCase).join(', '),
+    'Access-Control-Allow-Headers': allowedHeaders.map(headerCase).join(', '),
     'Access-Control-Expose-Headers': 'X-D1-Bookmark',
     'Access-Control-Max-Age': '600',
     'Vary': 'Origin'
@@ -159,6 +164,33 @@ async function authenticatedContext(request, env, appId, dependencies) {
   const authenticate = dependencies.authenticateDevice || authenticateDevice;
   const identity = await authenticate(session, request.headers.get('Authorization'), appId, env.SYNC_CREDENTIAL_PEPPER);
   if (!identity) return { error: 'invalid_credential', status: 401 };
+  let qaRequired = !validatePublicAppId(appId, env);
+  let accountId = null;
+  const qaApps = new Set(String(env.SYNC_QA_ALLOWED_APP_IDS || '').split(',').map((value) => value.trim()));
+  if (!qaRequired && appId === 'chord' && qaApps.has('chord')) {
+    const managed = await session.prepare(`
+      SELECT account_id FROM sync_account_managed_users WHERE sync_user_id = ? AND app_id = 'chord'
+    `).bind(identity.userId).first();
+    if (managed) {
+      qaRequired = true;
+      accountId = managed.account_id;
+    }
+  }
+  if (qaRequired) {
+    let qa;
+    try {
+      qa = await (dependencies.authenticateQaRequest || authenticateQaRequest)(
+        session,
+        request.headers.get('X-Sound-Cruise-QA-Authorization'),
+        env,
+        { scope: 'app', appId, appDeviceId: identity.deviceId, ...(accountId ? { accountId } : {}) },
+        dependencies
+      );
+    } catch {
+      return { error: 'qa_admission_unavailable', status: 503 };
+    }
+    if (!qa) return { error: 'qa_admission_required', status: 403 };
+  }
   const createRepository = dependencies.createRepository || createD1SyncRepository;
   return { session, identity, repository: createRepository(session) };
 }
@@ -211,6 +243,9 @@ async function handleStart(request, env, origin, route, dependencies, runtimeCon
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const validation = validateStartPayload(parsed.value, env);
   if (!validation.ok) return errorResponse(400, validation.reason === 'turnstile' ? 'turnstile_failed' : 'invalid_request', origin, route);
+  if (!validatePublicAppId(validation.value.appId, env)) {
+    return errorResponse(403, 'qa_handoff_required', origin, route);
+  }
   if (runtimeControl.rolloutMode === 'cohort' && !validation.value.enrollmentCode) {
     return errorResponse(403, 'enrollment_required', origin, route);
   }
@@ -274,6 +309,9 @@ async function handleRecover(request, env, origin, route, dependencies) {
   const validation = validateRecoveryPayload(parsed.value, env);
   if (!validation.ok) {
     return errorResponse(400, validation.reason === 'turnstile' ? 'turnstile_failed' : 'invalid_request', origin, route);
+  }
+  if (!validatePublicAppId(validation.value.appId, env)) {
+    return errorResponse(403, 'qa_handoff_required', origin, route);
   }
   if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_RECOVERY_PEPPER || !env.SYNC_DB) {
     return errorResponse(503, 'server_unavailable', origin, route);
@@ -567,6 +605,9 @@ async function handlePair(request, env, origin, route, dependencies) {
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const validation = validatePairPayload(parsed.value, env);
   if (!validation.ok) return errorResponse(400, validation.reason === 'turnstile' ? 'turnstile_failed' : 'invalid_request', origin, route);
+  if (!validatePublicAppId(validation.value.appId, env)) {
+    return errorResponse(403, 'qa_handoff_required', origin, route);
+  }
   const verify = dependencies.verifyTurnstileToken || verifyTurnstileToken;
   let turnstile;
   try {
@@ -737,7 +778,8 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
     const requestedMethod = request.headers.get('Access-Control-Request-Method');
     const requestedHeaders = (request.headers.get('Access-Control-Request-Headers') || '')
       .split(',').map((header) => header.trim().toLowerCase()).filter(Boolean);
-    if (requestedMethod !== route.method || requestedHeaders.some((header) => !route.headers.includes(header))) {
+    if (requestedMethod !== route.method ||
+        requestedHeaders.some((header) => ![...route.headers, QA_HEADER].includes(header))) {
       return errorResponse(403, 'invalid_origin', origin, route);
     }
     return new Response(null, { status: 204, headers: corsHeaders(origin, route) });

@@ -23,6 +23,12 @@ test('shared multi-app runtime is wired only into Pro editions and production re
   }
   assert.equal(read('apps/cruise-port/index.html').includes('__SOUND_CRUISE_SYNC_CENTER__'), false);
   assert.equal(read('apps/cruise-port/pro_9a3943176561/index.html').includes('__SOUND_CRUISE_SYNC_CENTER__'), false);
+  const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
+  const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
+  for (const source of [bootstrap, chord]) {
+    assert.match(source, /hostname === 'soundcruise\.jp'/);
+    assert.match(source, /get\('sound-cruise-qa'\) === '1'/);
+  }
 });
 
 test('durable save hooks use the shared no-op notifier without monkeypatching storage', () => {
@@ -40,6 +46,15 @@ test('data-plane persistence is app-namespaced and rejects Account and transient
   assert.match(source, /sca1\\\./);
   assert.match(source, /sch1\\\./);
   assert.match(source, /cross_plane_secret_persistence_blocked/);
+});
+
+test('Port and target apps use separate QA credential namespaces', () => {
+  const storage = read('apps/shared/sync-account/sync-account-db.js');
+  assert.match(storage, /qaSlot\(scope, appId\)/);
+  assert.match(storage, /`app:\$\{appId\}`/);
+  assert.match(read('apps/cruise-port/sync-center-orchestrator.js'), /getQaAdmission\('port'\)/);
+  assert.match(read('apps/shared/sync-account/multi-app-sync-bootstrap.js'), /qaScope: 'app', qaAppId: config\.appId/);
+  assert.match(read('apps/chord-cruise/js/sync/sync-account-orchestration.js'), /qaScope: 'app', qaAppId: 'chord'/);
 });
 
 test('Chord account orchestration selects bridge mode for an existing credential', () => {

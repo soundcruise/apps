@@ -5,6 +5,7 @@ import {
   createAccountHandoff,
   createAccountRecoveryCode
 } from '../src/account-crypto.js';
+import { createQaCredential } from '../src/account-qa-crypto.js';
 import { createIdentityMaterial } from '../src/crypto.js';
 import {
   validateAccountReadQuery,
@@ -79,6 +80,7 @@ test('membership and handoff validation rejects identity injection and wrong cre
   const account = createAccountCredential();
   const handoff = createAccountHandoff();
   const app = await createIdentityMaterial(pepper);
+  const qa = createQaCredential();
   assert.equal(validateMembershipPreparePayload({ operationId, appId: 'pitch' }).ok, true);
   assert.equal(validateHandoffIssuePayload({
     operationId, appId: 'pitch', handoffToken: handoff.handoffToken
@@ -89,6 +91,7 @@ test('membership and handoff validation rejects identity injection and wrong cre
     handoffToken: handoff.handoffToken,
     accountCredential: account.credential,
     appDeviceCredential: app.credential,
+    qaCredential: qa.credential,
     deviceLabel: null,
     consumeMode: 'new_app'
   }).ok, true);
@@ -98,17 +101,20 @@ test('membership and handoff validation rejects identity injection and wrong cre
     handoffToken: handoff.handoffToken,
     accountCredential: app.credential,
     appDeviceCredential: account.credential,
+    qaCredential: qa.credential,
     deviceLabel: null,
     consumeMode: 'new_app'
   }).ok, false);
   assert.equal(validateHandoffConsumePayload({
     operationId, appId: 'chord', handoffToken: handoff.handoffToken,
     accountCredential: account.credential, appDeviceCredential: app.credential,
+    qaCredential: qa.credential,
     deviceLabel: null, consumeMode: 'existing_chord'
   }).ok, true);
   assert.equal(validateHandoffConsumePayload({
     operationId, appId: 'pitch', handoffToken: handoff.handoffToken,
     accountCredential: account.credential, appDeviceCredential: app.credential,
+    qaCredential: qa.credential,
     deviceLabel: null, consumeMode: 'existing_chord'
   }).ok, false);
   assert.equal(validateHandoffCancelPayload({ handoffId: handoff.handoffId }).ok, true);

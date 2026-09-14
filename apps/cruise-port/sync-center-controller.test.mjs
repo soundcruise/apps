@@ -22,7 +22,27 @@ test('production defaults OFF and accepts only explicit HTTPS development config
     assert.deepEqual(readSyncCenterConfig({}), { enabled: false, endpoint: null });
     assert.deepEqual(readSyncCenterConfig({ __SOUND_CRUISE_SYNC_CENTER__: { enabled: true, environment: 'development', endpoint: 'http://localhost' } }), { enabled: false, endpoint: null });
     assert.deepEqual(readSyncCenterConfig({ __SOUND_CRUISE_SYNC_CENTER__: { enabled: true, environment: 'production', endpoint } }), { enabled: false, endpoint: null });
-    assert.deepEqual(readSyncCenterConfig({ __SOUND_CRUISE_SYNC_CENTER__: { enabled: true, environment: 'development', endpoint: `${endpoint}/` } }), { enabled: true, endpoint });
+    assert.deepEqual(readSyncCenterConfig({ __SOUND_CRUISE_SYNC_CENTER__: { enabled: true, environment: 'development', endpoint: `${endpoint}/` } }), {
+        enabled: true,
+        endpoint,
+        qaAdmissionRequired: false
+    });
+});
+
+test('production QA activation is exact-host and query-bound while ordinary users stay OFF', () => {
+    assert.deepEqual(readSyncCenterConfig({ location: {
+        hostname: 'soundcruise.jp', search: '?sound-cruise-qa=1'
+    } }), {
+        enabled: true,
+        endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
+        qaAdmissionRequired: true
+    });
+    assert.deepEqual(readSyncCenterConfig({ location: {
+        hostname: 'soundcruise.jp', search: ''
+    } }), { enabled: false, endpoint: null });
+    assert.deepEqual(readSyncCenterConfig({ location: {
+        hostname: 'attacker.example', search: '?sound-cruise-qa=1'
+    } }), { enabled: false, endpoint: null });
 });
 
 test('membership presentation covers unset, prepared, initial, ready, attention and deleting', () => {

@@ -632,6 +632,10 @@
                 return { ok: false, code: 'credential_missing', retryable: false };
             }
             var headers = { 'Authorization': 'Bearer ' + credentialMeta.credential };
+            var qaAdmission = await global.SoundCruiseSyncAccount?.storage?.getQaAdmission?.('app', 'chord');
+            if (qaAdmission && typeof qaAdmission.qaCredential === 'string' && qaAdmission.scope === 'app' && qaAdmission.appId === 'chord') {
+                headers['X-Sound-Cruise-QA-Authorization'] = 'Bearer ' + qaAdmission.qaCredential;
+            }
             if (body !== undefined) headers['Content-Type'] = 'application/json';
             var bookmark = await store.getMeta('d1Bookmark');
             if (typeof bookmark === 'string' && bookmark) headers['X-D1-Bookmark'] = bookmark;
@@ -854,9 +858,14 @@
             if (!fetchImpl || !CREDENTIAL_PATTERN.test(credential || '')) return { ok: false, code: 'credential_missing' };
             var response;
             try {
+                var qaAdmission = await global.SoundCruiseSyncAccount?.storage?.getQaAdmission?.('app', 'chord');
+                var requestHeaders = { Authorization: 'Bearer ' + credential };
+                if (qaAdmission && typeof qaAdmission.qaCredential === 'string' && qaAdmission.scope === 'app' && qaAdmission.appId === 'chord') {
+                    requestHeaders['X-Sound-Cruise-QA-Authorization'] = 'Bearer ' + qaAdmission.qaCredential;
+                }
                 response = await fetchImpl(endpoint + path, {
                     method: 'GET',
-                    headers: { Authorization: 'Bearer ' + credential },
+                    headers: requestHeaders,
                     cache: 'no-store'
                 });
             } catch (error) { return { ok: false, code: 'network_error', retryable: true }; }

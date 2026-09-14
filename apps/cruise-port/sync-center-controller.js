@@ -18,13 +18,25 @@ const MEMBERSHIP_STATES = Object.freeze({
 
 export function readSyncCenterConfig(globalObject = globalThis) {
     const value = globalObject?.__SOUND_CRUISE_SYNC_CENTER__;
-    if (!value || value.enabled !== true || value.environment !== 'development') {
+    const location = globalObject?.location;
+    const qaRequested = location?.hostname === 'soundcruise.jp' &&
+        new URLSearchParams(location.search || '').get('sound-cruise-qa') === '1';
+    const effective = qaRequested ? {
+        enabled: true,
+        environment: 'qa',
+        endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev'
+    } : value;
+    if (!effective || effective.enabled !== true || !['development', 'qa'].includes(effective.environment)) {
         return Object.freeze({ enabled: false, endpoint: null });
     }
     try {
-        const endpoint = new URL(value.endpoint);
+        const endpoint = new URL(effective.endpoint);
         if (endpoint.protocol !== 'https:') throw new Error('insecure');
-        return Object.freeze({ enabled: true, endpoint: endpoint.toString().replace(/\/$/, '') });
+        return Object.freeze({
+            enabled: true,
+            endpoint: endpoint.toString().replace(/\/$/, ''),
+            qaAdmissionRequired: effective.environment === 'qa'
+        });
     } catch (_) {
         return Object.freeze({ enabled: false, endpoint: null });
     }

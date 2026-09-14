@@ -60,6 +60,14 @@ export function createD1AccountRepository(db) {
     ) : null;
     const statements = [account, accountDevice, ...membershipStatements];
     if (startOperation) statements.push(startOperation);
+    if (input.qaSessionId) {
+      statements.push(db.prepare(`
+        UPDATE sync_account_qa_sessions
+        SET account_id = ?, last_used_at = ?
+        WHERE id = ? AND scope = 'port' AND account_id IS NULL
+          AND revoked_at IS NULL AND expires_at > ?
+      `).bind(input.accountId, input.now, input.qaSessionId, input.now));
+    }
     const results = await db.batch(statements);
     if (!batchSucceeded(results, statements.length) ||
         results.some((result) => changes(result) !== 1)) {

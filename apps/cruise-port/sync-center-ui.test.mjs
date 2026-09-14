@@ -19,8 +19,17 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.match(html, /一括設定、復旧、環境管理の操作はまだ接続されていません/);
         assert.doesNotMatch(html, /<iframe/i);
         assert.doesNotMatch(html, /__SOUND_CRUISE_SYNC_CENTER__/);
+        assert.match(html, /sync-account-turnstile\.js/);
     }
     assert.match(app, /elements\.syncCenterEntry\.hidden = !syncCenterController\.enabled/);
+});
+
+test('QA Enrollment and Account start request distinct Turnstile actions', () => {
+    const source = read('./sync-center-ui.js');
+    assert.match(source, /tokenProvider\('sound_cruise_account_qa_enroll'\)/);
+    assert.match(source, /tokenProvider\('sound_cruise_account_start'\)/);
+    assert.match(app, /await syncCenterActions\?\.ensureQaAdmission\?\.\(\)/);
+    assert.ok(app.indexOf('await syncCenterActions?.ensureQaAdmission?.()') < app.indexOf('syncCenterController.load()'));
 });
 
 test('Port remains a Control Plane and never opens app stores or handles user payloads', () => {
