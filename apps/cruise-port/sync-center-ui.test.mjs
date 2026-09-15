@@ -221,6 +221,11 @@ test('Join invitation renders its sensitive code and actions as separate styled 
     assert.match(source, /open\.className = 'action-button secondary-action'/);
     assert.match(source, /close\.className = 'action-button secondary-action'/);
     assert.match(source, /actions\.className = 'sync-center-join-actions'/);
+    assert.match(source, /data-sync-app-add-environment/);
+    assert.match(source, /別の環境を追加/);
+    assert.match(source, /edition === 'pro' && orchestrationEnabled && app\.canAddEnvironment/);
+    assert.match(source, /接続が完了するまでこの画面を開いたまま/);
     assert.match(styles, /\.sync-center-join-code\s*\{[\s\S]*overflow-wrap:\s*anywhere/);
     assert.match(styles, /\.sync-center-join-actions\s*\{\s*display:\s*grid;\s*gap:\s*10px/);
+    assert.match(styles, /\.sync-center-app-row-actions\s*\{/);
 });

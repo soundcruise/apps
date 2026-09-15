@@ -62,6 +62,7 @@ function safeCount(value) {
 
 function normalizeApp(app, membership) {
     const status = membershipPresentation(membership);
+    const activeAppDeviceCount = safeCount(membership?.activeAppDeviceCount);
     return Object.freeze({
         id: app.id,
         name: app.name,
@@ -70,7 +71,10 @@ function normalizeApp(app, membership) {
         action: status.action,
         recordCount: safeCount(membership?.dataset?.recordCount),
         schemaVersion: safeCount(membership?.dataset?.schemaVersion),
-        activeAppDeviceCount: safeCount(membership?.activeAppDeviceCount)
+        activeAppDeviceCount,
+        // This does not change four-app progress: it represents a second
+        // browser/PWA/container for an already ready app dataset.
+        canAddEnvironment: status.key === 'synced' && (activeAppDeviceCount || 0) > 0
     });
 }
 

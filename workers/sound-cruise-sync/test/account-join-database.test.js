@@ -178,6 +178,31 @@ test('a recovered Account can reconnect to an existing ready dataset without rec
       min_change_seq, initialized_at, updated_at, last_change_seq
     ) VALUES (?, 'pitch', 'ready', 1, 0, ?, 0, 250, 250, 0)
   `).run(first.syncUserId, '1'.repeat(64));
+  fixture.db.raw.prepare(`
+    INSERT INTO sync_records (
+      user_id, app_id, record_type, record_id, payload_json, payload_hash,
+      revision, updated_at, deleted_at, updated_by_device_id, last_operation_id
+    ) VALUES (?, 'pitch', 'settings', 'settings', '{}', ?, 1, 275, NULL, ?, 'seed-record')
+  `).run(first.syncUserId, '2'.repeat(64), first.appDeviceId);
+  fixture.db.raw.prepare(`
+    INSERT INTO sync_changes (
+      user_id, app_id, record_type, record_id, revision, operation_id,
+      operation_hash, payload_json, payload_hash, deleted_at, changed_at
+    ) VALUES (?, 'pitch', 'settings', 'settings', 1, 'seed-change', ?, '{}', ?, NULL, 275)
+  `).run(first.syncUserId, '3'.repeat(64), '2'.repeat(64));
+  fixture.db.raw.prepare(`
+    UPDATE sync_datasets SET record_count = 1, last_change_seq = 1, updated_at = 275
+    WHERE user_id = ? AND app_id = 'pitch'
+  `).run(first.syncUserId);
+  const before = {
+    users: fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_users').get().count,
+    datasets: fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count,
+    records: fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+    changes: fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count,
+    devices: fixture.db.raw.prepare(
+      'SELECT COUNT(*) count FROM sync_devices WHERE user_id = ? AND revoked_at IS NULL'
+    ).get(first.syncUserId).count
+  };
 
   const reconnectInvitation = await issue(fixture, 'pitch', 300);
   const reconnectInput = await consumeInput(reconnectInvitation, 'pitch', { now: 350 });
@@ -185,13 +210,45 @@ test('a recovered Account can reconnect to an existing ready dataset without rec
   assert.equal(reconnected.status, 'activated');
   assert.equal(reconnected.syncUserId, first.syncUserId);
   assert.notEqual(reconnected.appDeviceId, first.appDeviceId);
-  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_users').get().count, 1);
-  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count, 1);
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_users').get().count, before.users);
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count, before.datasets);
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count, before.records);
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count, before.changes);
   assert.equal(fixture.db.raw.prepare(
     'SELECT COUNT(*) count FROM sync_devices WHERE user_id = ? AND revoked_at IS NULL'
-  ).get(first.syncUserId).count, 2);
+  ).get(first.syncUserId).count, before.devices + 1);
+  assert.equal(fixture.db.raw.prepare(
+    'SELECT COUNT(*) count FROM sync_membership_device_links WHERE membership_id = ?'
+  ).get(first.membershipId).count, 2);
   const retry = await fixture.repository.consume({ ...reconnectInput, now: 351 });
   assert.equal(retry.alreadyActivated, true);
+  fixture.db.close();
+});
+
+test('adding an environment is fail-closed until an active membership has its ready dataset', async () => {
+  const fixture = await setup('pitch');
+  const firstInvitation = await issue(fixture, 'pitch', 100);
+  const first = await fixture.repository.consume(await consumeInput(firstInvitation, 'pitch'));
+
+  assert.equal((await issue(fixture, 'pitch', 300)).result.status, 'membership_unavailable',
+    'an active membership without its initialized dataset cannot add an environment');
+
+  fixture.db.raw.prepare(`
+    INSERT INTO sync_datasets (
+      user_id, app_id, state, schema_version, record_count, manifest_hash,
+      min_change_seq, initialized_at, updated_at, last_change_seq
+    ) VALUES (?, 'pitch', 'ready', 1, 0, ?, 0, 250, 250, 0)
+  `).run(first.syncUserId, '4'.repeat(64));
+  const issued = await issue(fixture, 'pitch', 301);
+  assert.equal(issued.result.status, 'issued',
+    'a ready Account-managed dataset can issue an additional-environment invitation');
+  assert.equal((await fixture.repository.cancel(fixture.identity, issued.input.invitationId, 302)).status, 'cancelled');
+
+  fixture.db.raw.prepare('UPDATE sync_account_devices SET revoked_at = 303 WHERE id = ?')
+    .run(fixture.identity.accountDeviceId);
+  assert.equal((await issue(fixture, 'pitch', 304)).result.status, 'membership_unavailable',
+    'a revoked issuer cannot create an invitation');
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) count FROM sync_app_join_invitations').get().count, 2);
   fixture.db.close();
 });
 

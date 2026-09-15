@@ -2157,6 +2157,13 @@ textarea:focus-visible {
     font-size: calc(0.75rem * var(--font-scale));
     text-decoration: none;
 }
+.sync-center-app-row-actions {
+    display: grid;
+    gap: 7px;
+    justify-items: stretch;
+}
+.sync-center-app-row-actions .sync-center-app-action { text-align: center; }
+.sync-center-app-action.secondary { color: var(--port-text); }
 .sync-center-app-action[aria-disabled="true"] { color: var(--port-muted); opacity: 0.6; pointer-events: none; }
 .sync-center-environments li {
     display: grid;
@@ -2251,6 +2258,7 @@ textarea:focus-visible {
     .sync-center-actions { grid-template-columns: 1fr; }
     .sync-center-app { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 9px; padding-inline: 8px; }
     .sync-center-app img { width: 44px; height: 44px; }
+    .sync-center-app-row-actions { max-width: 118px; }
 }
 
 .settings-card h2 {

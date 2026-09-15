@@ -23,6 +23,8 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled) {
         const detail = document.createElement('span');
         detail.textContent = app.recordCount == null ? app.statusLabel : `${app.statusLabel}・${app.recordCount}件`;
         copy.append(name, detail);
+        const actions = document.createElement('div');
+        actions.className = 'sync-center-app-row-actions';
         const action = document.createElement(orchestrationEnabled ? 'button' : 'a');
         action.className = 'sync-center-app-action';
         if (!orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
@@ -36,7 +38,17 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled) {
             action.removeAttribute('href');
             action.setAttribute('aria-disabled', 'true');
         }
-        row.append(image, copy, action);
+        actions.append(action);
+        if (edition === 'pro' && orchestrationEnabled && app.canAddEnvironment) {
+            const addEnvironment = document.createElement('button');
+            addEnvironment.type = 'button';
+            addEnvironment.className = 'sync-center-app-action secondary';
+            addEnvironment.dataset.syncAppAddEnvironment = app.id;
+            addEnvironment.textContent = '別の環境を追加';
+            addEnvironment.setAttribute('aria-label', `${app.name}で別の環境を追加する`);
+            actions.append(addEnvironment);
+        }
+        row.append(image, copy, actions);
         return row;
     });
     list.replaceChildren(...rows);
@@ -99,9 +111,11 @@ function showJoinCode(root, result, onClose = async () => {}) {
     const panel = document.createElement('div');
     panel.className = 'sync-center-join-panel';
     const title = document.createElement('h2');
-    title.textContent = '既存データを接続';
+    title.textContent = result.kind === 'add_environment' ? '別の環境を追加' : '既存データを接続';
     const note = document.createElement('p');
-    note.textContent = 'このコードを5分以内に対象アプリの「Cruise Portと接続」へ入力してください。保存する必要はありません。「コードを取り消す」を押すと、このコードは使えなくなります。';
+    note.textContent = result.kind === 'add_environment'
+        ? '別のブラウザやホーム画面版でも同じクラウドデータを使うためのコードです。5分以内に対象アプリの「Cruise Portと接続」へ入力してください。保存する必要はありません。接続が完了するまでこの画面を開いたままにしてください。「コードを取り消す」を押すと、このコードは使えなくなります。'
+        : 'このコードを5分以内に対象アプリの「Cruise Portと接続」へ入力してください。保存する必要はありません。接続が完了するまでこの画面を開いたままにしてください。「コードを取り消す」を押すと、このコードは使えなくなります。';
     const code = document.createElement('output');
     code.dataset.sensitive = 'true';
     code.className = 'sync-center-join-code';
@@ -299,6 +313,23 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         } finally { confirm.disabled = false; }
     });
     root?.addEventListener?.('click', async (event) => {
+        const addEnvironment = event.target.closest?.('[data-sync-app-add-environment]');
+        if (addEnvironment && orchestrator?.enabled) {
+            addEnvironment.disabled = true;
+            try {
+                const result = await orchestrator.addEnvironment(addEnvironment.dataset.syncAppAddEnvironment);
+                showJoinCode(root, result, async () => {
+                    try { await orchestrator.cancelJoin(result.invitationId); }
+                    catch (_) { /* consumed, expired, or already cancelled */ }
+                    addEnvironment.disabled = false;
+                    await refresh();
+                });
+            } catch (_) {
+                addEnvironment.disabled = false;
+                setText(root, '#sync-center-action-status', '別の環境を追加できませんでした。同期状態を確認してください。');
+            }
+            return;
+        }
         const button = event.target.closest?.('[data-sync-app-action]');
         if (!button || !orchestrator?.enabled) return;
         button.disabled = true;

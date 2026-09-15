@@ -124,7 +124,8 @@ export function createD1AppJoinRepository(db) {
     if (retry) return retry;
 
     const membership = await db.prepare(`
-      SELECT m.id, m.app_id, m.state
+      SELECT m.id, m.app_id, m.state, m.sync_user_id,
+             dataset.state AS dataset_state
       FROM sync_account_memberships m
       JOIN sync_accounts a
         ON a.id = m.account_id AND a.state = 'active' AND a.deleted_at IS NULL
@@ -133,6 +134,8 @@ export function createD1AppJoinRepository(db) {
       JOIN sync_account_qa_sessions q
         ON q.id = ? AND q.scope = 'port' AND q.account_id = a.id
         AND q.revoked_at IS NULL AND q.expires_at > ?
+      LEFT JOIN sync_datasets dataset
+        ON dataset.user_id = m.sync_user_id AND dataset.app_id = m.app_id
       WHERE m.account_id = ? AND m.app_id = ?
     `).bind(
       identity.accountDeviceId,
@@ -142,6 +145,18 @@ export function createD1AppJoinRepository(db) {
       input.appId
     ).first();
     if (!membership || !['pending', 'active'].includes(membership.state)) {
+      return { status: 'membership_unavailable' };
+    }
+    // The same verifier-only invitation primitive is intentionally reused for
+    // both an initial app join and adding another environment. An active
+    // membership may issue only when it has a ready dataset; consume keeps
+    // the authoritative Account-managed binding check before it creates a
+    // second app device. This preserves Recovery-issued invitation retries
+    // while preventing a parallel identity or incomplete data-plane join.
+    if (membership.state === 'active' && (
+      !membership.sync_user_id ||
+      membership.dataset_state !== 'ready'
+    )) {
       return { status: 'membership_unavailable' };
     }
 

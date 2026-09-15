@@ -72,6 +72,22 @@ test('summary normalization creates four-app progress without leaking Account id
     assert.doesNotMatch(serialized, /lastSync|lastSyncedAt/);
 });
 
+test('only a ready active membership with an existing app device can add another environment', () => {
+    const model = normalizeSyncCenterSummary({
+        account: { id: 'account', state: 'active', recoveryVersion: 1 },
+        memberships: [
+            { appId: 'chord', state: 'active', activeAppDeviceCount: 1, dataset: { state: 'ready', recordCount: 1 } },
+            { appId: 'pitch', state: 'active', activeAppDeviceCount: 0, dataset: { state: 'ready', recordCount: 1 } },
+            { appId: 'fretboard', state: 'active', activeAppDeviceCount: 1, dataset: { state: 'initializing', recordCount: 0 } },
+            { appId: 'rhythm', state: 'pending', activeAppDeviceCount: 0, dataset: null }
+        ]
+    });
+    assert.deepEqual(model.apps.map(({ id, canAddEnvironment }) => [id, canAddEnvironment]), [
+        ['chord', true], ['pitch', false], ['fretboard', false], ['rhythm', false]
+    ]);
+    assert.equal(model.readyCount, 2, 'environment count never changes the four-app progress');
+});
+
 function accountRoot({ account = null, summary = activeSummary, devices = { devices: [] }, fail = false } = {}) {
     class Client {
         constructor(options) { assert.equal(options.endpoint, endpoint); }

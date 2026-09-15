@@ -90,7 +90,7 @@ test('four-app preparation keeps successes and retries only the failed membershi
         ['pitch', 'fretboard', 'rhythm', 'pitch']);
 });
 
-test('cross-container Join Code is default while active memberships reopen directly', async () => {
+test('initial Join Code remains the default while active memberships reopen directly', async () => {
     const { orchestrator, calls, memberships, navigations } = fixture();
     const join = await orchestrator.launch('chord');
     assert.equal(join.kind, 'join');
@@ -104,6 +104,39 @@ test('cross-container Join Code is default while active memberships reopen direc
     assert.equal(reopened.kind, 'open');
     assert.equal(calls.filter(([kind]) => kind === 'join').length, 1);
     assert.equal(navigations.at(-1), 'https://apps.example/chord/pro/');
+});
+
+test('active ready memberships can explicitly add a separate environment without changing the open action', async () => {
+    const { orchestrator, calls, memberships, navigations } = fixture();
+    memberships.set('pitch', {
+        id: 'm-pitch', appId: 'pitch', state: 'active', activeAppDeviceCount: 1,
+        dataset: { state: 'ready', recordCount: 1 }
+    });
+    const added = await orchestrator.addEnvironment('pitch');
+    assert.equal(added.kind, 'add_environment');
+    assert.match(added.displayJoinCode, /^SCJ1-/);
+    assert.deepEqual(calls.filter(([kind]) => kind === 'join'), [['join', 'pitch']]);
+    assert.equal(navigations.length, 0);
+
+    const opened = await orchestrator.launch('pitch');
+    assert.equal(opened.kind, 'open');
+    assert.equal(navigations.at(-1), 'https://apps.example/pitch/pro/');
+});
+
+test('add environment rejects pending, incomplete, and device-less memberships', async () => {
+    const { orchestrator, memberships, calls } = fixture();
+    await assert.rejects(() => orchestrator.addEnvironment('chord'), /membership_unavailable/);
+    memberships.set('pitch', {
+        id: 'm-pitch', appId: 'pitch', state: 'active', activeAppDeviceCount: 1,
+        dataset: { state: 'initializing' }
+    });
+    await assert.rejects(() => orchestrator.addEnvironment('pitch'), /membership_unavailable/);
+    memberships.set('pitch', {
+        id: 'm-pitch', appId: 'pitch', state: 'active', activeAppDeviceCount: 0,
+        dataset: { state: 'ready' }
+    });
+    await assert.rejects(() => orchestrator.addEnvironment('pitch'), /membership_unavailable/);
+    assert.equal(calls.filter(([kind]) => kind === 'join').length, 0);
 });
 
 test('Recovery-revoked membership gets a reconnect invitation without recreating its dataset', async () => {

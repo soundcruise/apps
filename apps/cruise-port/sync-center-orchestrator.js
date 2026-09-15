@@ -1,5 +1,5 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.32.4';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.33.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -170,6 +170,23 @@ export function createSyncCenterOrchestrator({
             const issued = await client.issueJoinInvitation({ accountCredential, appId, material });
             return Object.freeze({
                 kind: 'join', appId, invitationId: issued.invitationId,
+                displayJoinCode: issued.displayJoinCode, expiresAt: issued.expiresAt,
+                appUrl: appUrl(appId)
+            });
+        },
+        async addEnvironment(appId) {
+            if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');
+            const accountCredential = await credential();
+            const current = await client.summary(accountCredential);
+            const membership = current.memberships?.find((item) => item.appId === appId);
+            if (membership?.state !== 'active' || membership?.dataset?.state !== 'ready' ||
+                Number(membership.activeAppDeviceCount || 0) < 1) {
+                throw new Error('membership_unavailable');
+            }
+            const material = accountRoot.core.createJoinMaterial();
+            const issued = await client.issueJoinInvitation({ accountCredential, appId, material });
+            return Object.freeze({
+                kind: 'add_environment', appId, invitationId: issued.invitationId,
                 displayJoinCode: issued.displayJoinCode, expiresAt: issued.expiresAt,
                 appUrl: appUrl(appId)
             });
