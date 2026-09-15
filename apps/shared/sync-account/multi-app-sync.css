@@ -12,6 +12,10 @@
 .sound-cruise-sync-setup p { margin: 0; line-height: 1.65; }
 .sound-cruise-sync-setup [data-sync-error] { color: #ffb7b7; }
 .sound-cruise-sync-join-entry { margin: 1rem; }
+#settings-modal .settings-modal-footer > .sound-cruise-sync-join-entry {
+  width: 100%;
+  margin: 1rem 0 0;
+}
 .sound-cruise-sync-setup [data-sync-join-field] { display: grid; gap: .5rem; }
 .sound-cruise-sync-setup [data-sync-join-code] {
   box-sizing: border-box;

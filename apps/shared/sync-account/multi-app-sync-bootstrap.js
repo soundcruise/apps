@@ -116,7 +116,12 @@
       bindLanding(dialog, config, runtime, 'join');
       dialog.showModal();
     });
-    const host = document.querySelector('#settings-modal .modal-content, #screen-settings, [data-screen="settings"], main') || document.body;
+    // Pitch Cruise keeps its actionable settings controls in the footer. Appending
+    // after the modal body can leave this entry beyond the visible modal viewport,
+    // so prefer the footer when that structure is present.
+    const host = document.querySelector(
+      '#settings-modal .settings-modal-footer, #settings-modal .modal-content, #screen-settings, [data-screen="settings"], main'
+    ) || document.body;
     host.append(button);
   }
 
