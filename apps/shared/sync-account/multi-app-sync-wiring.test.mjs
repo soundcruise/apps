@@ -49,7 +49,7 @@ const apps = [
   ['fretboard', 'apps/fretboard_cruise/standard/index.html', 'apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html', 'apps/fretboard_cruise/script.js']
 ];
 
-test('shared multi-app runtime is wired only into Pro editions and explicit production config remains disabled', () => {
+test('shared multi-app runtime is wired only into Pro editions and explicit production config enables general release', () => {
   for (const [appId, standardPath, proPath] of apps) {
     const standard = read(standardPath);
     const pro = read(proPath);
@@ -61,14 +61,14 @@ test('shared multi-app runtime is wired only into Pro editions and explicit prod
     assert(pro.indexOf('multi-app-conflict-ui.js') < pro.indexOf('multi-app-sync-bootstrap.js'), `${appId} conflict UI precedes bootstrap`);
     assert.equal(pro.includes(`data-sync-app-id="${appId}"`), true, `${appId} namespace`);
     assert.equal(standard.includes('production-config.js'), false, `${appId} Standard config absent`);
-    assert.equal(pro.includes('production-config.js?v=1'), true, `${appId} production config loaded`);
+    assert.equal(pro.includes('production-config.js?v=2'), true, `${appId} production config loaded`);
   }
   assert.equal(read('apps/chord-cruise/standard/index.html').includes('production-config.js'), false);
-  assert.equal(read('apps/chord-cruise/pro_k7m4q9v2x8/index.html').includes('production-config.js?v=1'), true);
-  assert.equal(read('apps/cruise-port/index.html').includes('production-config.js?v=1'), true);
-  assert.equal(read('apps/cruise-port/pro_9a3943176561/index.html').includes('production-config.js?v=1'), true);
+  assert.equal(read('apps/chord-cruise/pro_k7m4q9v2x8/index.html').includes('production-config.js?v=2'), true);
+  assert.equal(read('apps/cruise-port/index.html').includes('production-config.js?v=2'), true);
+  assert.equal(read('apps/cruise-port/pro_9a3943176561/index.html').includes('production-config.js?v=2'), true);
   const productionConfig = read('apps/shared/sync-account/production-config.js');
-  assert.match(productionConfig, /enabled: false/);
+  assert.match(productionConfig, /enabled: true/);
   assert.match(productionConfig, /environment: 'production'/);
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
   const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');

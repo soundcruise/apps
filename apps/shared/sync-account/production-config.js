@@ -1,10 +1,10 @@
 (function installSoundCruiseProductionSyncConfig(global) {
   'use strict';
 
-  // Release foundation only. General admission requires a reviewed change to
-  // this client gate plus both independent Worker-side gates.
+  // General production release. Worker admission and runtime control remain
+  // authoritative, and Standard editions do not load this configuration.
   const config = Object.freeze({
-    enabled: false,
+    enabled: true,
     environment: 'production',
     endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
     portUrl: '/apps/cruise-port/#sync-center'

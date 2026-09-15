@@ -111,17 +111,16 @@ brick an existing production Account.
 
 ### Current production exposure
 
-General public admission is intentionally **OFF**:
+General production admission is enabled for Pro editions:
 
-- `SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED` is exactly `"false"` in the Worker
-  configuration. Missing, malformed and differently-cased values fail closed.
+- `SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED` is exactly `"true"` in the active
+  Worker deployment. Missing, malformed and differently-cased values fail closed.
 - Production Account start also requires Account runtime
   `rollout_mode = 'open'`; this is independent from QA admission.
 - `SYNC_ACCOUNT_PUBLIC_APP_IDS` is parsed as an exact, unique app allowlist.
   Invalid entries and duplicates fail closed.
 - `apps/shared/sync-account/production-config.js` is loaded by Cruise Port and
-  the four Pro apps with `enabled: false`. Ordinary production visits expose no
-  Sync Center entry and make no Account request. The exact
+  the four Pro apps with `enabled: true`. The exact
   `soundcruise.jp?sound-cruise-qa=1` path still selects QA mode.
 - Standard Chord, Pitch, Fretboard and Rhythm load neither production config
   nor Account/data-plane wiring.
@@ -131,9 +130,9 @@ General public admission is intentionally **OFF**:
 - CORS remains exact-origin `https://soundcruise.jp`. Domain-separated
   peppers, Turnstile actions and independent limiter bindings fail closed.
 
-General enablement requires an explicit reviewed change to all three layers:
-the Worker static admission switch, the Account runtime row and the client
-production configuration. No one layer is sufficient by itself.
+General enablement remains controlled by three independent layers: the Worker
+static admission switch, the Account runtime row and the client production
+configuration. No one layer is sufficient by itself.
 
 ### Current release evidence boundary
 

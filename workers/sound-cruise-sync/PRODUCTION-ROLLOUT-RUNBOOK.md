@@ -1,7 +1,7 @@
 # Sound Cruise Sync production rollout and incident runbook
 
-Status: M10 public-admission foundation implemented; general activation OFF.
-This runbook does not authorize general enablement or an ad-hoc Remote D1
+Status: M10 general production release activated for Pro editions.
+This runbook does not authorize a later gate change or an ad-hoc Remote D1
 mutation.
 
 ## Current production baseline
@@ -14,13 +14,14 @@ not treat deployment identifiers copied from an earlier report as current.
   public-admission schema delta after the `0001`-`0017` baseline.
 - Legacy runtime is `open`, but new Legacy Chord start is independently frozen
   because `CHORD_LEGACY_NEW_START_ENABLED` is not exactly `true`.
-- Account runtime is `cohort` with its six operation flags enabled.
-- `SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED` is `"false"` and
-  `apps/shared/sync-account/production-config.js` has `enabled: false`.
+- Account runtime is `open` with its six operation flags enabled.
+- `SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED` is `"true"` and
+  `apps/shared/sync-account/production-config.js` has `enabled: true`.
 - `SYNC_ACCOUNT_PUBLIC_APP_IDS` lists the four Account apps. This allowlist is
   not an enable switch; invalid or missing configuration fails closed.
 - The QA allowlist and exact `soundcruise.jp?sound-cruise-qa=1` activation are
-  unchanged. Ordinary production users cannot enter the Account flow.
+  unchanged. Production Account flow is exposed only by Cruise Port and the
+  four Pro editions; Standard editions remain local-only.
 
 ## Public-admission security contract
 

@@ -36,7 +36,7 @@ test('M10 keeps Standard unintegrated and wires OFF-first Account orchestration 
     assert.equal(standard.includes('shared/sync-account'), false, `${standardPath} must remain unintegrated`);
     assert.equal(pro.includes('shared/sync-account'), true, `${proPath} must load M9 Account wiring`);
     assert.equal(pro.includes('__SOUND_CRUISE_MULTI_APP_SYNC__'), false, `${proPath} production M9 gate must remain off`);
-    assert.equal(pro.includes('production-config.js?v=1'), true, `${proPath} must load explicit production config`);
+    assert.equal(pro.includes('production-config.js?v=2'), true, `${proPath} must load explicit production config`);
   }
   const standardPort = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/index.html'), 'utf8');
   const proPort = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/pro_9a3943176561/index.html'), 'utf8');
