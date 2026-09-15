@@ -83,6 +83,14 @@
         "limit": 5,
         "period": 60
       }
+    },
+    {
+      "name": "ACCOUNT_START_RATE_LIMITER",
+      "namespace_id": "32007",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
     }
   ]
 }
