@@ -10,7 +10,7 @@ import {
 } from '../src/account-crypto.js';
 import { createQaCredential } from '../src/account-qa-crypto.js';
 import { createIdentityMaterial } from '../src/crypto.js';
-import { manifestHash } from '../src/records.js';
+import { hashRecord, manifestHash } from '../src/records.js';
 import { createSqliteD1 } from './sqlite-d1.js';
 
 const origin = 'https://soundcruise.jp';
@@ -395,10 +395,32 @@ test('public Port creates one Account and four verifier-only app joins without Q
       appId, schemaVersion: 1, recordCount: 0, manifestHash: emptyManifest
     }, { authorization: app.credential }), env);
     assert.equal(response.status, 200, `${appId} migration`);
+
+    const payloads = {
+      chord: { id: 'settings', values: {} },
+      pitch: { id: 'settings', values: { notationStyle: 'letter' } },
+      fretboard: { id: 'settings', values: { tempo: 96 } },
+      rhythm: { id: 'settings', values: { judgePreset: 'strict' } }
+    };
+    const operation = {
+      operationId: crypto.randomUUID(), recordType: 'settings', recordId: 'settings',
+      schemaVersion: 1, baseRevision: 0, payload: payloads[appId],
+      payloadHash: '', deleted: false
+    };
+    operation.payloadHash = await hashRecord(operation, crypto, appId);
+    response = await handleRequest(request('/v1/sync/push', {
+      appId, mode: 'sync', operations: [operation]
+    }, { authorization: app.credential }), env);
+    assert.equal(response.status, 200, `${appId} push`);
+    assert.deepEqual((await response.json()).results.map((result) => result.status), ['applied']);
+
     response = await handleRequest(request(`/v1/sync/snapshot?appId=${appId}`, undefined, {
       authorization: app.credential
     }), env);
     assert.equal(response.status, 200, `${appId} snapshot`);
+    const snapshot = await response.json();
+    assert.equal(snapshot.recordCount, 1, `${appId} record count`);
+    assert.equal(snapshot.records[0]?.recordId, 'settings', `${appId} saved record`);
     joined.push({ appId, accountDeviceId: consumed.accountDeviceId, appCredential: app.credential });
 
     const replay = await handleRequest(request('/v2/accounts/app-join-invitations/consume', consumeBody), env);
