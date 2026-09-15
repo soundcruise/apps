@@ -82,7 +82,9 @@ test('all four app Join inputs use the shared transient-secret lifecycle', () =>
   assert.match(chord, /input\.remove\(\)/);
 });
 
-test('app Join entry prefers the visible settings footer when an app provides one', () => {
+test('app Join entry is mounted at document level so app settings cannot hide it', () => {
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
-  assert.match(bootstrap, /#settings-modal \.settings-modal-footer, #settings-modal \.modal-content/);
+  const css = read('apps/shared/sync-account/multi-app-sync.css');
+  assert.match(bootstrap, /document\.body\.append\(button\)/);
+  assert.match(css, /\.sound-cruise-sync-join-entry\s*\{\s*position: fixed;/);
 });

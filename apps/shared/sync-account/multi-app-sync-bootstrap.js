@@ -116,13 +116,10 @@
       bindLanding(dialog, config, runtime, 'join');
       dialog.showModal();
     });
-    // Pitch Cruise keeps its actionable settings controls in the footer. Appending
-    // after the modal body can leave this entry beyond the visible modal viewport,
-    // so prefer the footer when that structure is present.
-    const host = document.querySelector(
-      '#settings-modal .settings-modal-footer, #settings-modal .modal-content, #screen-settings, [data-screen="settings"], main'
-    ) || document.body;
-    host.append(button);
+    // App settings are rendered and replaced independently by each Cruise app.
+    // Keep the QA-only Join action at document level so it cannot be clipped by
+    // a settings modal or an app's non-scrolling screen container.
+    document.body.append(button);
   }
 
   async function start() {
