@@ -52,7 +52,10 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.match(html, /この操作だけで4アプリのデータがすぐにアップロードされることはありません/);
         assert.match(html, /同期中の環境/);
         assert.match(html, /復旧とセキュリティ/);
-        assert.match(html, /一括設定、復旧、環境管理の操作はまだ接続されていません/);
+        assert.match(html, /現在有効な復旧コードは1つだけです/);
+        assert.match(html, /新しい復旧コードを発行すると、以前のコードは無効になります/);
+        assert.match(html, /一括設定、復旧、環境管理、クラウドデータの削除は、このSync Centerから操作できます/);
+        assert.doesNotMatch(html, /操作はまだ接続されていません/);
         assert.doesNotMatch(html, /<iframe/i);
         assert.doesNotMatch(html, /__SOUND_CRUISE_SYNC_CENTER__/);
         assert.match(html, /sync-account-turnstile\.js/);
