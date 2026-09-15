@@ -116,6 +116,22 @@ test('Chord retains a committed new-app Join candidate for same-device promotion
     'a ready existing dataset cannot be re-run as B initial migration');
 });
 
+test('completed Account-managed Chord containers suppress the Join entry across reloads', () => {
+  const source = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
+  const completeGuard = source.indexOf("accountManagedSetup === true && migrationState === 'complete' && existing?.credential");
+  const restoringGuard = source.indexOf("accountManagedSetup === true && migrationState !== 'complete' && existing?.credential");
+  const genericJoin = source.lastIndexOf('installJoinEntry();');
+  assert(completeGuard >= 0, 'a completed Account-managed credential is authoritative over generic Join UI');
+  assert(restoringGuard > completeGuard, 'the completed guard runs before the restoring/pending branch');
+  assert(genericJoin > restoringGuard, 'the generic Join entry remains only as the final unconnected fallback');
+  const completedBranch = source.slice(completeGuard, restoringGuard);
+  assert.match(completedBranch, /refreshPairingUi\(\)/, 'runtime restoring refreshes existing Sync UI instead of exposing Join');
+  assert.match(completedBranch, /return;/, 'completed B cannot fall through to generic Join installation');
+  const restoringBranch = source.slice(restoringGuard, genericJoin);
+  assert.match(restoringBranch, /installJoinEntry\(\{ resume: true \}\)/,
+    'paired_pending or hydrate retry uses only the resume entry');
+});
+
 test('all four app Join inputs use the shared transient-secret lifecycle', () => {
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
   const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');

@@ -275,6 +275,13 @@
       }
       const accountManagedSetup = await chordStore.getMeta('accountManagedSetup');
       const migrationState = await chordStore.getMeta('migrationState');
+      // A completed Account-managed Chord environment already owns a valid
+      // app credential.  Do not regress it to a new Join prompt while the
+      // runtime/pairing UI is still restoring after a reload.
+      if (accountManagedSetup === true && migrationState === 'complete' && existing?.credential) {
+        await refreshPairingUi();
+        return;
+      }
       if (accountManagedSetup === true && migrationState !== 'complete' && existing?.credential) {
         const migrated = await chordClient.adoptAccountManagedIdentity({
           deviceId: existing.deviceId,
