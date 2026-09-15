@@ -128,6 +128,20 @@ test('Account storage failure exposes only a stable non-secret category and rele
     assert.equal(ui.setup.dataset.syncFailureCategory, undefined);
 });
 
+test('Account start displays a safe, actionable verification failure without exposing request material', async () => {
+    const ui = accountSetupFixture({
+        completeAccountSetup: async () => {
+            throw Object.assign(new Error('verification_failed'), { code: 'turnstile_failed', status: 403 });
+        }
+    });
+    await ui.click();
+    assert.equal(ui.setup.dataset.syncPhase, 'start-uncertain');
+    assert.equal(ui.setup.dataset.syncFailureCategory, 'turnstile');
+    assert.match(ui.summary.textContent, /人間確認の検証に失敗/);
+    assert.match(ui.summary.textContent, /ページを更新/);
+    assert.doesNotMatch(ui.summary.textContent, /credential|recovery|token/i);
+});
+
 test('Turnstile failure and partial membership preparation both release the busy UI', async () => {
     const verification = accountSetupFixture({
         completeAccountSetup: async () => ({ ok: true }),
