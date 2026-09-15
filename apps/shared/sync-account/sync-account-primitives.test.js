@@ -759,6 +759,30 @@ test('consume response-loss recovery proves committed state with candidate Accou
   assert.equal(JSON.stringify(writes).includes('sch1.'), false);
 });
 
+test('expired QA admission leaves a Join response-loss candidate retryable', async () => {
+  const account = load([coreSource, clientSource]);
+  const credential = account.core.createAccountCredential();
+  const app = account.core.createAppCredential();
+  const pending = {
+    operationId: account.core.createOperationId(),
+    appId: 'pitch',
+    accountDeviceId: credential.accountDeviceId,
+    accountCredential: credential.accountCredential,
+    appDeviceId: app.appDeviceId,
+    appDeviceCredential: app.appDeviceCredential,
+    qaSessionId: crypto.randomUUID(),
+    qaCredential: account.core.createQaCredential().qaCredential
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example',
+    storage: { async getPendingConsume() { return pending; } },
+    core: account.core,
+    fetchImpl: async () => Response.json({ ok: false, code: 'qa_admission_required' }, { status: 403 })
+  });
+  const result = await client.resumePendingConsume({ preservePending: true });
+  assert.equal(result.status, 'not_committed');
+});
+
 test('Chord bridge persists only resumable metadata before dual network commit', async () => {
   const account = load([coreSource, bridgeSource]);
   const writes = [];

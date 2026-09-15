@@ -619,7 +619,13 @@
           ...(pending.qaCredential ? { qaCredential: pending.qaCredential } : {})
         });
       } catch (error) {
-        if (error instanceof AccountApiError && error.code === 'invalid_account_credential') {
+        // A failed Join can leave a response-loss candidate deliberately intact.
+        // If that candidate's short-lived QA admission has expired, it can no
+        // longer be confirmed. Treat it like an uncommitted candidate so the
+        // app can present the Join entry again; the next successful Join safely
+        // replaces the pending candidate.
+        if (error instanceof AccountApiError &&
+            ['invalid_account_credential', 'qa_admission_required'].includes(error.code)) {
           return Object.freeze({ status: 'not_committed' });
         }
         throw error;
