@@ -1,60 +1,55 @@
 # Sound Cruise Sync production rollout and incident runbook
 
-Status: M10 production QA-only. General release is blocked until the public
-admission work below is implemented and accepted. This runbook does not
-authorize a release or a Remote D1 mutation.
+Status: M10 public-admission foundation implemented; general activation OFF.
+This runbook does not authorize general enablement or an ad-hoc Remote D1
+mutation.
 
 ## Current production baseline
 
-Record fresh values before every change; the identifiers below are only the
-2026-09-15 audit baseline.
+Record fresh Git, Pages, Worker, D1 and runtime values before every change. Do
+not treat deployment identifiers copied from an earlier report as current.
 
-- Pages source: Git `main` at the audited release-candidate commit.
-- Sync Worker deployment `a0c83da2-71eb-443b-9b43-f65756c8d850`, version
-  `9618bd4d-b20a-4e51-8f07-6518540f870f`.
-- Requests Worker deployment `4d4531a2-d2b8-4ce3-a1b7-9fdf0c14cc69`, version
-  `2a478216-ba14-440e-9bbf-a43551111337`.
-- Remote migrations `0001` through `0017` are applied.
+- Pages source must be the audited release-candidate commit.
+- Migration `0018_add_account_admission_provenance.sql` is the only expected
+  public-admission schema delta after the `0001`-`0017` baseline.
 - Legacy runtime is `open`, but new Legacy Chord start is independently frozen
   because `CHORD_LEGACY_NEW_START_ENABLED` is not exactly `true`.
 - Account runtime is `cohort` with its six operation flags enabled.
-- Public app allowlist is `chord`; QA allowlist is
-  `chord,pitch,rhythm,fretboard`.
-- Pages exposes Multi-App only on the exact `soundcruise.jp` QA query. Account
-  routes require a QA session. Ordinary production users cannot enter the
-  Account flow.
+- `SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED` is `"false"` and
+  `apps/shared/sync-account/production-config.js` has `enabled: false`.
+- `SYNC_ACCOUNT_PUBLIC_APP_IDS` lists the four Account apps. This allowlist is
+  not an enable switch; invalid or missing configuration fails closed.
+- The QA allowlist and exact `soundcruise.jp?sound-cruise-qa=1` activation are
+  unchanged. Ordinary production users cannot enter the Account flow.
 
-## General-release blocker
+## Public-admission security contract
 
-Do not attempt general release by changing runtime rows or allowlists alone.
-The current Account router authenticates a QA session for Account requests,
-Account creation records that session, and App Join invitations require a QA
-issuer session. The Pages clients accept only development or QA activation.
-The app data plane also distinguishes the QA allowlist from its public
-allowlist. A flags-only rollout would either remain unusable or encourage an
-unsafe weakening of QA authorization.
+Do not attempt general release by changing one flag or allowlist alone. New
+production admission requires all of the following:
 
-Before release, implement and review one explicit public-admission change set:
+1. Worker static gate `SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED` is exactly
+   `"true"`.
+2. `SYNC_ACCOUNT_PUBLIC_APP_IDS` is present, unique and contains only known app
+   IDs.
+3. The Account runtime row is valid, has the required operation flag enabled
+   and uses `rollout_mode = 'open'` for public bootstrap.
+4. The client `production-config.js` is explicitly enabled.
+5. Account start arrives from exact origin `https://soundcruise.jp`, passes the
+   `sound_cruise_account_start` Turnstile action and Account-start limiter, and
+   contains the operation-bound client candidate plus Recovery-save guard.
 
-1. Add a fail-closed Worker public-access mode. When disabled or malformed,
-   retain the exact current QA-session requirement.
-2. Make QA provenance optional only for authenticated public requests. Add a
-   forward-only migration for invitation/provenance columns and preserve all
-   existing QA foreign keys and rows.
-3. Keep Account credential, app credential, Turnstile, operation ID,
-   fingerprint, CAS, scope and rate-limit checks unchanged. Public mode must not
-   accept a QA credential as an Account or app credential.
-4. Separate public Account-managed data-plane authorization from QA admission;
-   do not infer public authority solely from an app ID allowlist.
-5. Add an explicit production Pages configuration for Cruise Port and all four
-   Pro apps. It must be off by default, must not depend on the QA query, and must
-   leave every Standard edition local-only.
-6. Add deterministic migration, authorization, fail-closed, CORS, Turnstile,
-   response-loss, concurrency and isolation tests, then perform a disposable
-   public-cohort Remote acceptance before general enablement.
+QA and production do not share provenance. QA requests continue to require the
+scoped QA session. Production Account rows and Join invitations use explicit
+`production` provenance; production invitations require null QA session fields
+and the authenticated issuer Account device. Supplying QA material cannot turn
+a QA request into production or vice versa.
 
-Until that change set is committed, deployed and accepted, the release status
-is **blocked** even if the Account runtime row says `cohort` or `open`.
+After bootstrap, Account summary/device/lifecycle routes require the Account
+credential, data-plane routes require the app credential, and Recovery requires
+the verifier-only Recovery authority. Turning new public admission OFF does not
+disable existing production credentials, data access, Recovery or delete exit
+paths. Production handoff remains unsupported; production uses the five-minute
+verifier-only App Join path.
 
 ## Release-day preflight
 
@@ -79,26 +74,37 @@ is **blocked** even if the Account runtime row says `cohort` or `open`.
 
 ## Deploy and enable order
 
-Use this order only after the general-release blocker is closed:
+Foundation deployment, while general public admission remains OFF:
 
-1. Deploy the backward-compatible Worker and required configuration with public
-   access still disabled. Do not alter the Legacy new-start guard.
-2. Apply the reviewed forward-only migration, if required, and run health,
-   CORS, QA flow and existing-credential smoke checks.
-3. Deploy Pages clients with the explicit production mode still hidden or
-   disabled. Confirm source/cache hashes and that Standard editions remain
-   local-only.
-4. Enable a deliberately small public Account cohort. Expand
-   `SYNC_ALLOWED_APP_IDS` only for the reviewed Account-managed path; retain the
-   independent QA allowlist. Change the Account runtime with generation CAS.
-5. Run the smoke matrix below and observe the small cohort before any wider
-   change.
-6. Only after an explicit release approval, enable the ordinary Pro UI and move
-   Account rollout to `open`. Never enable Legacy Chord new start as part of the
-   Multi-App release.
+1. Apply `0018` first. Both new provenance columns default to `qa`, so the old
+   Worker can continue issuing QA invitations during this interval. Verify the
+   migration journal, foreign-key audit and preservation counts.
+2. Deploy the new Worker with
+   `SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED="false"`. The new Worker expects the
+   `0018` columns, so reversing these first two steps is unsafe.
+3. Deploy Pages with `production-config.js` still `enabled: false`. Verify exact
+   source/cache versions and that every Standard app remains local-only.
+4. Run health, CORS, public-OFF, QA, existing Legacy and Standard smoke checks.
 
-The public-mode switch, client visibility switch, allowlist and Account runtime
-must be separately reversible. Do not combine them into one irreversible step.
+Later enablement requires separate explicit release approval:
+
+1. Reconfirm the foundation Worker version, Pages commit, migration journal,
+   protected QA Account and all read-only integrity checks.
+2. Keep client activation OFF while preparing the Worker static gate and
+   Account runtime. Each individual layer must still leave public bootstrap
+   closed until the approved cutover.
+3. If an independently controlled client cohort is available, enable only that
+   small cohort and observe it. The current Account `cohort` state by itself is
+   not public-cohort proof and therefore does not admit anonymous production
+   Account start.
+4. Run the minimum smoke and observe error/write amplification before expansion.
+5. Only after explicit general-enable approval, set the client config on and
+   complete the Worker/runtime cutover. Never enable Legacy Chord new start as
+   part of the Multi-App release.
+
+The public static switch, client visibility switch, allowlist and Account
+runtime are separately reversible. Do not combine them into one irreversible
+state change.
 
 ## Minimum release smoke
 
@@ -138,6 +144,10 @@ enabled so existing users retain safe access and exit paths. For a data-plane
 incident, independently freeze writes before reads. Disable Recovery or delete
 only when that exact flow is unsafe. Leave
 `CHORD_LEGACY_NEW_START_ENABLED` unset/false so Legacy new start stays frozen.
+At the next reviewed Worker deployment, also restore
+`SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED="false"`; at the Pages layer restore
+`production-config.js` to `enabled: false`. Neither action revokes credentials
+or removes Account, dataset, record, change, device or outbox state.
 
 ## Rollback
 

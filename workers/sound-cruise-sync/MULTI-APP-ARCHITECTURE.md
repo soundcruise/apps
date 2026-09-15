@@ -1,7 +1,7 @@
 # Sound Cruise Sync Multi-App Architecture
 
-Status: M10 release candidate / production QA-only / public admission not implemented
-Date: 2026-09-15
+Status: M10 public-admission release foundation / general activation OFF
+Date: 2026-09-16
 
 ## Current M10 authority
 
@@ -13,15 +13,18 @@ not be used as current deployment instructions.
 
 Sound Cruise Sync now has a shared Account control plane above four isolated app
 data planes. Chord, Pitch, Fretboard and Rhythm Pro load their app adapter and
-shared runtime only in the explicit QA configuration. Standard editions remain
-local-only. Cruise Port owns only Account orchestration and non-secret status;
-it never opens an app's browser storage or reads app payloads.
+shared runtime only when an explicit QA or production configuration is enabled.
+The deployed production configuration is explicit and disabled. Standard
+editions remain local-only. Cruise Port owns only Account orchestration and
+non-secret status; it never opens an app's browser storage or reads app payloads.
 
 ### Current schema and runtime
 
-- Remote D1 migrations `0001` through `0017` are applied. Account tables,
-  membership/device links, QA admission, App Join invitations, lifecycle
-  operations, conflict metadata and seven-day delete grace are active.
+- Schema migrations `0001` through `0018` define Account tables,
+  membership/device links, QA admission, provenance-bound App Join invitations,
+  lifecycle operations, conflict metadata and seven-day delete grace. Migration
+  `0018` backfills existing Accounts and invitations to `qa`; it enables no
+  public traffic.
 - Existing `/v1/sync/*` remains the app data plane with revision CAS,
   idempotent operations, outbox retry, tombstones and explicit conflict
   resolution. Existing Legacy Chord credentials remain valid.
@@ -32,6 +35,10 @@ it never opens an app's browser storage or reads app payloads.
   missing rows and unclassified actions fail closed.
 - Account-managed app identities use app-scoped credentials for data-plane
   access. An Account credential cannot read or write an app payload.
+- Account and App Join rows carry an explicit `qa` or `production` admission
+  provenance. QA invitations retain mandatory issuer/app QA sessions;
+  production invitations require those fields to be null and remain bound to
+  the authenticated Account device.
 - Local saves are authoritative first. Startup, focus, online resume and a
   local-save signal reconcile without polling. Outbox operations retain stable
   IDs across response loss. Semantic conflicts stop before overwrite and are
@@ -74,28 +81,59 @@ environment revoke also revokes linked app devices without deleting data.
 Delete first enters a seven-day grace state; bounded scheduled cleanup performs
 physical purge only after the grace boundary.
 
+### Admission and authority separation
+
+The control plane has two explicit admission modes; one is never inferred by
+removing checks from the other:
+
+- **QA admission** starts with a one-time QA Enrollment Code and creates a
+  scoped QA session. QA Account requests and QA App Join retain the session
+  binding and the existing QA query activation.
+- **Production public admission** starts without QA material. Its public
+  bootstrap is `POST /v2/accounts/start`, protected by exact origin,
+  Turnstile action, the Account-start limiter, operation ID, client-generated
+  candidate Account credential, Recovery-saved confirmation and both
+  independent public-admission gates.
+- An **Account credential** authorizes Account summary, environments,
+  membership/Join issue, revoke and delete. It never authorizes app payloads.
+- An **app credential** authorizes exactly one app data plane. Production app
+  credentials remain usable when new public admission is switched off.
+- A **Recovery Code** is a separate verifier-only recovery authority. It is
+  not an Account, app or QA credential and is never persisted by the client.
+- An **App Join invitation** is a five-minute, one-time, verifier-only grant
+  bound to Account, membership, target app, issuing Account device and
+  operation. Production consume creates distinct Account and app devices and
+  creates no QA session.
+
+Account read, data-plane read/write, Recovery and lifecycle exit paths do not
+derive authority from the public-admission switch. Closing admission must not
+brick an existing production Account.
+
 ### Current production exposure
 
-Production is intentionally **QA-only**, not a releasable public cohort:
+General public admission is intentionally **OFF**:
 
-- Pages enables Cruise Port and each Pro app only for the exact
-  `soundcruise.jp` QA query. Ordinary production visits remain disabled.
-- Account routes require a valid QA session. Account creation records the QA
-  session, and App Join invitations currently require a QA issuer session.
-- `SYNC_ALLOWED_APP_IDS` is `chord`; the separate QA allowlist is
-  `chord,pitch,rhythm,fretboard`.
-- Legacy Chord new start is independently frozen because
-  `CHORD_LEGACY_NEW_START_ENABLED` is not exactly `true`. Existing Legacy
-  operations remain available under their normal authorization.
-- CORS is exact-origin `https://soundcruise.jp`. Domain-separated peppers,
-  Turnstile actions and rate-limit bindings are required and fail closed.
+- `SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED` is exactly `"false"` in the Worker
+  configuration. Missing, malformed and differently-cased values fail closed.
+- Production Account start also requires Account runtime
+  `rollout_mode = 'open'`; this is independent from QA admission.
+- `SYNC_ACCOUNT_PUBLIC_APP_IDS` is parsed as an exact, unique app allowlist.
+  Invalid entries and duplicates fail closed.
+- `apps/shared/sync-account/production-config.js` is loaded by Cruise Port and
+  the four Pro apps with `enabled: false`. Ordinary production visits expose no
+  Sync Center entry and make no Account request. The exact
+  `soundcruise.jp?sound-cruise-qa=1` path still selects QA mode.
+- Standard Chord, Pitch, Fretboard and Rhythm load neither production config
+  nor Account/data-plane wiring.
+- Legacy Chord new start remains independently frozen unless
+  `CHORD_LEGACY_NEW_START_ENABLED` is exactly `true`; existing Legacy
+  credentials and routes are unchanged.
+- CORS remains exact-origin `https://soundcruise.jp`. Domain-separated
+  peppers, Turnstile actions and independent limiter bindings fail closed.
 
-Changing only the Account runtime row or app allowlist cannot perform a safe
-general release. Public admission needs an explicit, reviewed implementation
-that removes the QA-session dependency from public requests while retaining QA
-isolation, updates the invitation schema/contract, adds a fail-closed Pages
-activation mode, and receives its own automated and Remote acceptance. That is
-a release blocker and is outside a configuration-only rollout.
+General enablement requires an explicit reviewed change to all three layers:
+the Worker static admission switch, the Account runtime row and the client
+production configuration. No one layer is sufficient by itself.
 
 ### Current release evidence boundary
 
