@@ -51,6 +51,8 @@
       this.now = options.now || Date.now;
       this.randomOperationId = options.randomOperationId || (() => this.accountCore.createOperationId());
       this.running = null;
+      this.syncRequestGeneration = 0;
+      this.pendingSyncReason = null;
       this.lifecycleBound = false;
     }
 
@@ -295,10 +297,32 @@
       return Object.freeze({ ok: true, recordCount: authoritative.recordCount, manifestHash: authoritative.manifestHash });
     }
 
-    async sync(reason = 'manual') {
+    sync(reason = 'manual') {
+      this.syncRequestGeneration += 1;
+      if (!this.pendingSyncReason || reason === 'save') this.pendingSyncReason = reason;
       if (this.running) return this.running;
-      this.running = this.performSync(reason).finally(() => { this.running = null; });
-      return this.running;
+      return this.startScheduledSync();
+    }
+
+    startScheduledSync() {
+      const generation = this.syncRequestGeneration;
+      const reason = this.pendingSyncReason || 'pending';
+      this.pendingSyncReason = null;
+      let scheduled;
+      scheduled = Promise.resolve().then(() => this.performSync(reason)).then(
+        (result) => {
+          const hasPendingRequest = this.syncRequestGeneration > generation;
+          if (this.running === scheduled) this.running = null;
+          if (result?.ok === true && hasPendingRequest) return this.startScheduledSync();
+          return result;
+        },
+        (error) => {
+          if (this.running === scheduled) this.running = null;
+          throw error;
+        }
+      );
+      this.running = scheduled;
+      return scheduled;
     }
 
     async performSync(reason) {
