@@ -1,8 +1,192 @@
-# Sound Cruise Sync production rollout runbook
+# Sound Cruise Sync production rollout and incident runbook
 
-P-ROLL-2B deploys the production foundation to the temporary `workers.dev` endpoint. It keeps the authoritative runtime state `closed`, leaves the Chord production rollout flag OFF, issues no Enrollment Code, and does not begin a cohort or public rollout.
+Status: M10 production QA-only. General release is blocked until the public
+admission work below is implemented and accepted. This runbook does not
+authorize a release or a Remote D1 mutation.
 
-## Initial production service policy
+## Current production baseline
+
+Record fresh values before every change; the identifiers below are only the
+2026-09-15 audit baseline.
+
+- Pages source: Git `main` at the audited release-candidate commit.
+- Sync Worker deployment `a0c83da2-71eb-443b-9b43-f65756c8d850`, version
+  `9618bd4d-b20a-4e51-8f07-6518540f870f`.
+- Requests Worker deployment `4d4531a2-d2b8-4ce3-a1b7-9fdf0c14cc69`, version
+  `2a478216-ba14-440e-9bbf-a43551111337`.
+- Remote migrations `0001` through `0017` are applied.
+- Legacy runtime is `open`, but new Legacy Chord start is independently frozen
+  because `CHORD_LEGACY_NEW_START_ENABLED` is not exactly `true`.
+- Account runtime is `cohort` with its six operation flags enabled.
+- Public app allowlist is `chord`; QA allowlist is
+  `chord,pitch,rhythm,fretboard`.
+- Pages exposes Multi-App only on the exact `soundcruise.jp` QA query. Account
+  routes require a QA session. Ordinary production users cannot enter the
+  Account flow.
+
+## General-release blocker
+
+Do not attempt general release by changing runtime rows or allowlists alone.
+The current Account router authenticates a QA session for Account requests,
+Account creation records that session, and App Join invitations require a QA
+issuer session. The Pages clients accept only development or QA activation.
+The app data plane also distinguishes the QA allowlist from its public
+allowlist. A flags-only rollout would either remain unusable or encourage an
+unsafe weakening of QA authorization.
+
+Before release, implement and review one explicit public-admission change set:
+
+1. Add a fail-closed Worker public-access mode. When disabled or malformed,
+   retain the exact current QA-session requirement.
+2. Make QA provenance optional only for authenticated public requests. Add a
+   forward-only migration for invitation/provenance columns and preserve all
+   existing QA foreign keys and rows.
+3. Keep Account credential, app credential, Turnstile, operation ID,
+   fingerprint, CAS, scope and rate-limit checks unchanged. Public mode must not
+   accept a QA credential as an Account or app credential.
+4. Separate public Account-managed data-plane authorization from QA admission;
+   do not infer public authority solely from an app ID allowlist.
+5. Add an explicit production Pages configuration for Cruise Port and all four
+   Pro apps. It must be off by default, must not depend on the QA query, and must
+   leave every Standard edition local-only.
+6. Add deterministic migration, authorization, fail-closed, CORS, Turnstile,
+   response-loss, concurrency and isolation tests, then perform a disposable
+   public-cohort Remote acceptance before general enablement.
+
+Until that change set is committed, deployed and accepted, the release status
+is **blocked** even if the Account runtime row says `cohort` or `open`.
+
+## Release-day preflight
+
+1. Require Git `main`, `HEAD == origin/main`, ahead/behind `0/0`, no tracked or
+   staged changes, and only reviewed untracked paths.
+2. Run the complete app/shared/Cruise Port suite, Sync Worker suite, Requests
+   Worker suite, JavaScript syntax checks, `git diff --check`, secret scan and
+   both Worker dry-runs. Require zero known failures.
+3. Record the exact Pages commit and current Sync/Requests Worker deployment and
+   version IDs. Confirm the release commit contains the reviewed public-access
+   implementation and its tests.
+4. Export or create the approved Remote D1 backup using the Cloudflare operator
+   workflow. Never copy credentials, verifiers or payloads into the release
+   report. Record only backup identity, time and success.
+5. Read and record both runtime-control rows, generations and flags; public and
+   QA app allowlists; origin; secret-name presence; limiter bindings; migration
+   journal; active unused admission artifacts; Legacy counts; and the protected
+   QA Account counts. All database checks are read-only.
+6. Require no pending migration except the reviewed public-admission migration.
+   Apply it through Wrangler, verify the journal and preservation queries, and
+   stop on any orphan, duplicate, cross-scope link or unexpected row change.
+
+## Deploy and enable order
+
+Use this order only after the general-release blocker is closed:
+
+1. Deploy the backward-compatible Worker and required configuration with public
+   access still disabled. Do not alter the Legacy new-start guard.
+2. Apply the reviewed forward-only migration, if required, and run health,
+   CORS, QA flow and existing-credential smoke checks.
+3. Deploy Pages clients with the explicit production mode still hidden or
+   disabled. Confirm source/cache hashes and that Standard editions remain
+   local-only.
+4. Enable a deliberately small public Account cohort. Expand
+   `SYNC_ALLOWED_APP_IDS` only for the reviewed Account-managed path; retain the
+   independent QA allowlist. Change the Account runtime with generation CAS.
+5. Run the smoke matrix below and observe the small cohort before any wider
+   change.
+6. Only after an explicit release approval, enable the ordinary Pro UI and move
+   Account rollout to `open`. Never enable Legacy Chord new start as part of the
+   Multi-App release.
+
+The public-mode switch, client visibility switch, allowlist and Account runtime
+must be separately reversible. Do not combine them into one irreversible step.
+
+## Minimum release smoke
+
+- Cruise Port: production entry, Account start, one current Recovery Code save
+  acknowledgement, and 4-app status.
+- One Pro app: initial connect, local-first save, Remote push and second
+  container pull; require outbox zero and no duplicate write.
+- Lifecycle entry points: Recovery summary, environment list and delete
+  confirmation UI without committing a destructive action on production data.
+- Conflict UI: Local, Remote and Later choices render for a controlled fixture.
+- Existing Legacy Chord: authenticated pull and a normal save still work; new
+  Legacy start remains HTTP 423.
+- Standard Chord, Pitch, Fretboard and Rhythm: no Account wiring or network
+  path.
+- Security: exact-origin CORS, unauthenticated rejection, wrong-scope rejection,
+  QA/public separation and no secret/payload logging.
+
+## Abort criteria
+
+Stop expansion immediately for unexpected sustained 5xx, Account creation or
+credential failures, CORS failures, Legacy regression, duplicate/write
+amplification, retry storms, conflict spikes, Recovery failure, cross-app data
+movement, QA gate exposure, unexpected lifecycle state, migration mismatch or
+loss of rollback capability. Preserve local outboxes and all Remote data while
+investigating.
+
+## Runtime kill switches
+
+All Remote control changes require an explicit reviewed SQL file, the observed
+generation in the `WHERE` clause, exactly one changed row, and an immediate
+readback. Never expose a public admin endpoint.
+
+For an Account admission incident, set Account rollout `closed`, disable
+`account_admission_enabled`, `membership_admission_enabled` and
+`port_orchestration_enabled`, while initially leaving read, Recovery and delete
+enabled so existing users retain safe access and exit paths. For a data-plane
+incident, independently freeze writes before reads. Disable Recovery or delete
+only when that exact flow is unsafe. Leave
+`CHORD_LEGACY_NEW_START_ENABLED` unset/false so Legacy new start stays frozen.
+
+## Rollback
+
+### Bad Pages release
+
+1. Disable the public UI/config switch first.
+2. Revert the release commit with a normal reviewed `git revert`; do not rewrite
+   history or force push.
+3. Push, wait for Pages, verify source/cache hashes, and repeat Standard plus
+   existing-credential smoke checks.
+
+### Bad Sync Worker release
+
+1. Close Account admission with the runtime kill switch if the current Worker
+   can safely read the control row.
+2. Use `wrangler rollback --name sound-cruise-sync <known-good-version-id>` with
+   the fresh pre-release version ID, not a memorized value.
+3. Verify deployment percentage, health, CORS, existing Legacy operations and
+   Account read/recovery/delete gates. Do not reverse a forward-only D1
+   migration; the old Worker must be schema-compatible before deploy.
+
+### Bad Requests Worker release
+
+Use its fresh pre-release version ID with Wrangler rollback, then verify the
+same endpoint routing, headers, CORS and status-only probes. Never inspect a
+request or response body to diagnose a secret-bearing operation.
+
+Client or Worker rollback must never delete Account, membership, dataset,
+record, change, tombstone, device or outbox state. A migration rollback is a
+new reviewed migration, never ad-hoc destructive SQL.
+
+## Incident first response
+
+| Incident | First action | Preserve |
+|---|---|---|
+| Sync outage | close admission; freeze writes only if required | local data and outboxes |
+| Bad client | disable public UI; revert Pages | Remote state and credentials |
+| Bad Worker | close admission; roll back Worker | forward-compatible D1 data |
+| Write amplification | freeze writes; keep reads/recovery/delete | outboxes and operation IDs |
+| Conflict spike | stop admission/writes; keep conflict markers | local, shadow and backups |
+| Recovery issue | disable Recovery only; preserve Account reads | current credentials and data |
+| QA exposure | disable public UI and Account admission | QA evidence and audit metadata |
+
+Observe Worker error/request rates, D1 rows read/written and latency, Account
+creation/Join/Recovery failures, outbox/conflict reports and cleanup batch
+results. Never add payloads, credentials, codes, verifiers or Authorization to
+logs. Expand a cohort only after the observation window is explicitly approved.
+
+## Legacy v1 production service policy (preserved)
 
 - The initial rollout uses Workers Free and serves Chord Cruise Pro only. Standard never loads or exposes Sound Cruise Sync.
 - The maximum planning assumption is approximately 1,000 users, but rollout starts with a very small enrollment-only cohort.
@@ -190,7 +374,7 @@ After selecting **この端末で先行テストを有効にする**, the page r
 
 To deactivate, open the same page and select **この端末の先行テスト表示を解除する**. Deactivation only writes the disabled activation state. It must never delete or revoke the device credential, IndexedDB, outbox, local Chord data, or cloud data. Re-enabling the same container restores the UI around the retained Sync state.
 
-## P-ROLL-3 prerequisites
+## Historical P-ROLL-3 prerequisites
 
 - Approve and apply migration `0007_add_production_rollout_control.sql` to the intended D1.
 - Provision `SYNC_ENROLLMENT_PEPPER` as a Worker secret without logging it.

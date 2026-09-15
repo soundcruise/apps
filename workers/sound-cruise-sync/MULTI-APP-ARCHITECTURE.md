@@ -1,7 +1,116 @@
 # Sound Cruise Sync Multi-App Architecture
 
-Status: M1 architecture freeze / M2 local backbone / M3 local Account API / M4 local Chord bridge / M5 local Pitch adapter / M6 local Rhythm adapter / M7 local Fretboard adapter
-Date: 2026-09-14
+Status: M10 release candidate / production QA-only / public admission not implemented
+Date: 2026-09-15
+
+## Current M10 authority
+
+This section is the authoritative description of the current implementation.
+Everything after **Historical checkpoint record** preserves the decisions and
+boundaries at the named milestone; statements there such as “unrouted”,
+“unreferenced”, “M10 work”, or “production Account OFF” are historical and must
+not be used as current deployment instructions.
+
+Sound Cruise Sync now has a shared Account control plane above four isolated app
+data planes. Chord, Pitch, Fretboard and Rhythm Pro load their app adapter and
+shared runtime only in the explicit QA configuration. Standard editions remain
+local-only. Cruise Port owns only Account orchestration and non-secret status;
+it never opens an app's browser storage or reads app payloads.
+
+### Current schema and runtime
+
+- Remote D1 migrations `0001` through `0017` are applied. Account tables,
+  membership/device links, QA admission, App Join invitations, lifecycle
+  operations, conflict metadata and seven-day delete grace are active.
+- Existing `/v1/sync/*` remains the app data plane with revision CAS,
+  idempotent operations, outbox retry, tombstones and explicit conflict
+  resolution. Existing Legacy Chord credentials remain valid.
+- `/v2/accounts/*` is the Account control plane. It supports Account creation
+  and summary, membership preparation, Account devices and revoke, handoff,
+  App Join, Chord bridge, Recovery, app-scoped delete and Account-wide delete.
+- The Account runtime row is independent of the Legacy runtime row. Invalid or
+  missing rows and unclassified actions fail closed.
+- Account-managed app identities use app-scoped credentials for data-plane
+  access. An Account credential cannot read or write an app payload.
+- Local saves are authoritative first. Startup, focus, online resume and a
+  local-save signal reconcile without polling. Outbox operations retain stable
+  IDs across response loss. Semantic conflicts stop before overwrite and are
+  resolved only by explicit Local, Remote or Later actions.
+
+### Current HTTP surface
+
+```text
+POST   /v2/accounts/qa/enroll
+POST   /v2/accounts/start
+GET    /v2/accounts/summary
+GET    /v2/accounts/memberships
+POST   /v2/accounts/memberships
+GET    /v2/accounts/devices
+POST   /v2/accounts/devices/revoke
+POST   /v2/accounts/recovery/prepare
+POST   /v2/accounts/recovery/commit
+POST   /v2/accounts/delete-intent
+DELETE /v2/accounts
+POST   /v2/accounts/memberships/:appId/delete-intent
+DELETE /v2/accounts/memberships/:appId
+POST   /v2/accounts/handoffs
+POST   /v2/accounts/handoffs/consume
+POST   /v2/accounts/handoffs/cancel
+GET    /v2/accounts/app-join-invitations
+POST   /v2/accounts/app-join-invitations
+POST   /v2/accounts/app-join-invitations/consume
+POST   /v2/accounts/app-join-invitations/cancel
+GET    /v2/accounts/bridges/chord
+POST   /v2/accounts/bridges/chord/prepare
+POST   /v2/accounts/bridges/chord/dual
+POST   /v2/accounts/bridges/chord/finalize
+POST   /v2/accounts/bridges/chord/rollback
+```
+
+Lifecycle mutations require an operation ID, a request fingerprint and the
+current authorization/CAS contract. Recovery rotates the single current
+Recovery Code, revokes old Account containers and preserves datasets. An
+environment revoke also revokes linked app devices without deleting data.
+Delete first enters a seven-day grace state; bounded scheduled cleanup performs
+physical purge only after the grace boundary.
+
+### Current production exposure
+
+Production is intentionally **QA-only**, not a releasable public cohort:
+
+- Pages enables Cruise Port and each Pro app only for the exact
+  `soundcruise.jp` QA query. Ordinary production visits remain disabled.
+- Account routes require a valid QA session. Account creation records the QA
+  session, and App Join invitations currently require a QA issuer session.
+- `SYNC_ALLOWED_APP_IDS` is `chord`; the separate QA allowlist is
+  `chord,pitch,rhythm,fretboard`.
+- Legacy Chord new start is independently frozen because
+  `CHORD_LEGACY_NEW_START_ENABLED` is not exactly `true`. Existing Legacy
+  operations remain available under their normal authorization.
+- CORS is exact-origin `https://soundcruise.jp`. Domain-separated peppers,
+  Turnstile actions and rate-limit bindings are required and fail closed.
+
+Changing only the Account runtime row or app allowlist cannot perform a safe
+general release. Public admission needs an explicit, reviewed implementation
+that removes the QA-session dependency from public requests while retaining QA
+isolation, updates the invitation schema/contract, adds a fail-closed Pages
+activation mode, and receives its own automated and Remote acceptance. That is
+a release blocker and is outside a configuration-only rollout.
+
+### Current release evidence boundary
+
+Four-app onboarding and cross-container sync, offline/outbox recovery,
+lost-save prevention, tombstones, conflict safe-stop and both conflict
+resolutions have Remote acceptance. Account Recovery and environment revoke
+also have recorded Remote lifecycle operations. App-scoped and Account-wide
+delete have comprehensive transaction, grace, concurrency, response-loss and
+isolation tests, but their destructive product flows still require dedicated
+Remote acceptance on disposable lifecycle QA Accounts.
+
+## Historical checkpoint record (M2-M9.5)
+
+The remainder is retained to explain why each boundary was introduced. Its
+checkpoint-specific production statements are not the current release plan.
 
 ## M7 Fretboard data-plane adapter
 
