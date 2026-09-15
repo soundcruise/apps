@@ -52,9 +52,13 @@ function memoryStore() {
     listOutbox: async () => [...outbox.values()].map((value) => structuredClone(value)),
     deleteOutbox: async (key) => { outbox.delete(key); },
     putShadow: async (key, value) => { shadow.set(key, structuredClone(value)); },
+    getShadow: async (key) => structuredClone(shadow.get(key) ?? null),
     listShadow: async () => [...shadow.values()].map((value) => structuredClone(value)),
+    deleteShadow: async (key) => { shadow.delete(key); },
     putConflict: async (value) => { conflicts.set(value.id, structuredClone(value)); },
-    listConflicts: async () => [...conflicts.values()].map((value) => structuredClone(value))
+    getConflict: async (key) => structuredClone(conflicts.get(key) ?? null),
+    listConflicts: async () => [...conflicts.values()].map((value) => structuredClone(value)),
+    deleteConflict: async (key) => { conflicts.delete(key); }
   };
 }
 
@@ -65,9 +69,17 @@ function adapter(initial = [], appId = 'pitch') {
     set records(value) { records = structuredClone(value); },
     readLocalSnapshot: () => ({ appId, schemaVersion: 1, records: structuredClone(records) }),
     normalizeLocalSnapshot: (value) => structuredClone(value),
-    serializeRecords: async (snapshot) => snapshot.records.map((record) => ({ ...structuredClone(record), payloadHash: record.payloadHash || `hash-${record.recordId}` })),
+    serializeRecords: async (snapshot) => snapshot.records.map((record) => ({
+      ...structuredClone(record),
+      payloadHash: record.payloadHash || (record.payload?.bpm == null
+        ? `hash-${record.recordId}` : `hash-${record.recordId}-${record.payload.bpm}`)
+    })),
     deserializeRecords: (remote) => ({ appId, schemaVersion: 1, records: remote.map(({ revision, deletedAt, ...record }) => record) }),
     computeManifest: async (snapshot) => `manifest-${snapshot.records.map((record) => record.recordId).sort().join('-')}`,
+    getConflictPresentation: ({ localRecord, remoteRecord }) => ({
+      title: 'Custom preset', name: localRecord?.payload?.name || remoteRecord?.payload?.name || 'Deleted item',
+      fields: [{ label: 'BPM', local: String(localRecord?.payload?.bpm ?? 'deleted'), remote: String(remoteRecord?.payload?.bpm ?? 'deleted') }]
+    }),
     mergeSnapshots: (local, remote) => ({ snapshot: { ...local, records: [...local.records, ...remote.records.filter((right) => !local.records.some((left) => left.recordId === right.recordId))] }, conflicts: [] }),
     applyRemoteSnapshot: async (snapshot) => { records = structuredClone(snapshot.records); return { ok: true }; },
     assertDataPlaneContext: () => true
@@ -77,7 +89,8 @@ function adapter(initial = [], appId = 'pitch') {
 function serverFetch() {
   const server = {
     state: 'missing', records: new Map(), revision: 0, paused: false,
-    nextSnapshotFailure: null, pushCalls: 0, pushedOperationIds: []
+    nextSnapshotFailure: null, nextPushFailure: null, responseLossAfterApply: false,
+    beforeNextPush: null, pushCalls: 0, pushedOperationIds: [], operations: new Map()
   };
   const fetchImpl = async (url, init) => {
     const path = new URL(url).pathname;
@@ -96,21 +109,47 @@ function serverFetch() {
         return Response.json({ ok: false, code: failure.code }, { status: failure.status });
       }
       const records = [...server.records.values()];
+      const liveIds = records.filter((record) => record.deletedAt == null)
+        .map((record) => record.recordId).sort();
       return Response.json({ ok: true, datasetState: server.state, schemaVersion: 1,
         recordCount: records.filter((record) => record.deletedAt == null).length,
-        manifestHash: `server-${server.revision}`, cursor: `c${server.revision}`, records });
+        manifestHash: `manifest-${liveIds.join('-')}`, cursor: `c${server.revision}`, records });
     }
     if (path === '/v1/sync/push') {
       server.pushCalls += 1;
+      if (server.nextPushFailure) {
+        const failure = server.nextPushFailure;
+        server.nextPushFailure = null;
+        if (failure.network) throw new Error('network failure');
+        return Response.json({ ok: false, code: failure.code }, { status: failure.status });
+      }
+      if (server.beforeNextPush) {
+        const before = server.beforeNextPush;
+        server.beforeNextPush = null;
+        await before(server);
+      }
       const body = JSON.parse(init.body);
       const results = body.operations.map((operation) => {
         server.pushedOperationIds.push(operation.operationId);
+        const duplicate = server.operations.get(operation.operationId);
+        if (duplicate) return { operationId: operation.operationId, status: 'duplicate', record: duplicate };
+        const key = `${operation.recordType}/${operation.recordId}`;
+        const current = server.records.get(key) || null;
+        if (Number(operation.baseRevision || 0) !== Number(current?.revision || 0)) {
+          return { operationId: operation.operationId, status: 'conflict', record: current };
+        }
         server.revision += 1;
-        const record = { ...operation, revision: server.revision,
+        const record = { ...operation, revision: Number(current?.revision || 0) + 1,
+          operationId: operation.operationId,
           deletedAt: operation.deleted ? Date.now() : null, changeSeq: server.revision };
-        server.records.set(`${operation.recordType}/${operation.recordId}`, record);
+        server.records.set(key, record);
+        server.operations.set(operation.operationId, structuredClone(record));
         return { operationId: operation.operationId, status: 'applied', record };
       });
+      if (server.responseLossAfterApply) {
+        server.responseLossAfterApply = false;
+        throw new Error('response lost');
+      }
       return Response.json({ ok: true, results });
     }
     if (path === '/v1/sync/migration/complete') {
@@ -145,7 +184,8 @@ function runtimeFixture(initial, appId = 'pitch') {
   };
   return { runtime: new Runtime({ appId, endpoint: 'https://example.test', adapter: local,
     store, accountClient, accountCore: core, fetchImpl, randomOperationId: () => `op-${++id}` }),
-    store, local, server, backups, context: Runtime.testContext };
+    Runtime, store, local, server, backups, context: Runtime.testContext,
+    accountClient, core, fetchImpl, nextId: () => `op-${++id}` };
 }
 
 function record(id, name = id, recordType = 'custom_record') {
@@ -534,4 +574,244 @@ test('conflict safe-stop does not run a pending follow-up', async () => {
   assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
   assert.equal((await fixture.store.listConflicts()).length, 1);
   assert.equal(fixture.local.records[0].payload.name, 'local');
+});
+
+function preset(id, bpm) {
+  return {
+    recordType: 'custom_preset', recordId: id, schemaVersion: 1,
+    payload: { name: 'QA-DP-RHYTHM-CONFLICT-BASE', bpm }, payloadHash: `hash-${id}-${bpm}`
+  };
+}
+
+function setRemoteVariant(fixture, id, bpm, options = {}) {
+  const key = `custom_preset/${id}`;
+  const current = fixture.server.records.get(key);
+  fixture.server.revision += 1;
+  fixture.server.records.set(key, {
+    ...current,
+    payload: options.deleted ? null : { name: 'QA-DP-RHYTHM-CONFLICT-BASE', bpm },
+    payloadHash: options.deleted ? `hash-${id}-deleted` : `hash-${id}-${bpm}`,
+    revision: current.revision + 1,
+    deletedAt: options.deleted ? Date.now() : null,
+    operationId: options.operationId || `remote-${id}-${bpm}`,
+    changeSeq: fixture.server.revision
+  });
+}
+
+async function conflictFixture(ids = ['conflict']) {
+  const fixture = runtimeFixture(ids.map((id) => preset(id, 80)), 'rhythm');
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = ids.map((id) => preset(id, 79));
+  for (const id of ids) setRemoteVariant(fixture, id, 81);
+  const stopped = await fixture.runtime.sync('focus');
+  assert.equal(stopped.code, 'conflict');
+  return fixture;
+}
+
+test('exact BPM 80/79/81 fixture persists minimal conflict anchors and safe presentation only', async () => {
+  const fixture = await conflictFixture();
+  const [conflict] = await fixture.store.listConflicts();
+  assert.equal(conflict.kind, 'pull');
+  assert.equal(conflict.recordKey, 'custom_preset/conflict');
+  assert.equal(conflict.recordType, 'custom_preset');
+  assert.equal(conflict.recordId, 'conflict');
+  assert.equal(conflict.anchors.shadow.payloadHash, 'hash-conflict-80');
+  assert.equal(conflict.anchors.local.payloadHash, 'hash-conflict-79');
+  assert.equal(conflict.anchors.remote.payloadHash, 'hash-conflict-81');
+  assert.equal(Object.hasOwn(conflict, 'payload'), false);
+  const [item] = await fixture.runtime.listConflictPresentations();
+  assert.equal(item.presentation.name, 'QA-DP-RHYTHM-CONFLICT-BASE');
+  assert.deepEqual(JSON.parse(JSON.stringify(item.presentation.fields)), [
+    { label: 'BPM', local: '79', remote: '81' }
+  ]);
+});
+
+test('Local wins uses the current Remote revision as CAS and advances exactly once', async () => {
+  const fixture = await conflictFixture();
+  const [conflict] = await fixture.store.listConflicts();
+  const result = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  const remote = fixture.server.records.get('custom_preset/conflict');
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(remote.payload.bpm, 79);
+  assert.equal(remote.revision, 3);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'ready');
+  assert.equal(fixture.backups.length, 1);
+});
+
+test('Remote wins applies one record with backup and performs no Remote write', async () => {
+  const fixture = await conflictFixture();
+  const pushCalls = fixture.server.pushCalls;
+  const revision = fixture.server.records.get('custom_preset/conflict').revision;
+  const [conflict] = await fixture.store.listConflicts();
+  const result = await fixture.runtime.resolveConflict(conflict.id, 'remote');
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(fixture.local.records[0].payload.bpm, 81);
+  assert.equal(fixture.server.records.get('custom_preset/conflict').revision, revision);
+  assert.equal(fixture.server.pushCalls, pushCalls);
+  assert.equal(fixture.backups.length, 1);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('Later leaves local, Remote, attention and the conflict entry unchanged', async () => {
+  const fixture = await conflictFixture();
+  const [conflict] = await fixture.store.listConflicts();
+  const result = await fixture.runtime.resolveConflict(conflict.id, 'later');
+  assert.equal(result.ok, true);
+  assert.equal(result.deferred, true);
+  assert.equal(fixture.local.records[0].payload.bpm, 79);
+  assert.equal(fixture.server.records.get('custom_preset/conflict').payload.bpm, 81);
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+});
+
+test('Local wins fails closed when Remote changes after the resolution read', async () => {
+  const fixture = await conflictFixture();
+  fixture.server.beforeNextPush = async () => setRemoteVariant(fixture, 'conflict', 82, { operationId: 'remote-third' });
+  const [conflict] = await fixture.store.listConflicts();
+  const result = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'stale_resolution');
+  assert.equal(fixture.server.records.get('custom_preset/conflict').payload.bpm, 82);
+  assert.equal(fixture.server.records.get('custom_preset/conflict').revision, 3);
+  assert.equal(fixture.local.records[0].payload.bpm, 79);
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+});
+
+test('Remote wins apply failure rolls local data back and retains the conflict', async () => {
+  const fixture = await conflictFixture();
+  const originalApply = fixture.local.applyRemoteSnapshot.bind(fixture.local);
+  let attempts = 0;
+  fixture.local.applyRemoteSnapshot = async (snapshot) => {
+    attempts += 1;
+    if (attempts === 1) {
+      fixture.local.records = [preset('partial', 1)];
+      throw new Error('synthetic_apply_failure');
+    }
+    return originalApply(snapshot);
+  };
+  const [conflict] = await fixture.store.listConflicts();
+  const result = await fixture.runtime.resolveConflict(conflict.id, 'remote');
+  assert.equal(result.ok, false);
+  assert.equal(fixture.local.records[0].recordId, 'conflict');
+  assert.equal(fixture.local.records[0].payload.bpm, 79);
+  assert.equal(fixture.server.records.get('custom_preset/conflict').payload.bpm, 81);
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+});
+
+test('Local wins response loss resumes with the same operation and never adds a second revision', async () => {
+  const fixture = await conflictFixture();
+  fixture.server.responseLossAfterApply = true;
+  const [conflict] = await fixture.store.listConflicts();
+  const first = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(first.ok, false);
+  assert.equal(fixture.server.records.get('custom_preset/conflict').revision, 3);
+  const pushes = fixture.server.pushCalls;
+  const restarted = new fixture.Runtime({
+    appId: 'rhythm', endpoint: 'https://example.test', adapter: fixture.local,
+    store: fixture.store, accountClient: fixture.accountClient, accountCore: fixture.core,
+    fetchImpl: fixture.fetchImpl, randomOperationId: fixture.nextId
+  });
+  const resumed = await restarted.resumeConflictResolutions();
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  assert.equal(fixture.server.records.get('custom_preset/conflict').revision, 3);
+  assert.equal(fixture.server.pushCalls, pushes);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('response-loss recovery verifies that the selected local value did not change before clearing', async () => {
+  const fixture = await conflictFixture();
+  fixture.server.responseLossAfterApply = true;
+  const [conflict] = await fixture.store.listConflicts();
+  assert.equal((await fixture.runtime.resolveConflict(conflict.id, 'local')).ok, false);
+  fixture.local.records = [preset('conflict', 78)];
+  const restarted = new fixture.Runtime({
+    appId: 'rhythm', endpoint: 'https://example.test', adapter: fixture.local,
+    store: fixture.store, accountClient: fixture.accountClient, accountCore: fixture.core,
+    fetchImpl: fixture.fetchImpl, randomOperationId: fixture.nextId
+  });
+  const resumed = await restarted.resumeConflictResolutions();
+  assert.equal(resumed.ok, false);
+  assert.equal(resumed.code, 'local_changed_during_resolution');
+  assert.equal(fixture.server.records.get('custom_preset/conflict').payload.bpm, 79);
+  assert.equal(fixture.server.records.get('custom_preset/conflict').revision, 3);
+  assert.equal(fixture.local.records[0].payload.bpm, 78);
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+});
+
+test('429, 5xx and network failures retain one retryable Local-wins intent', async (t) => {
+  for (const failure of [
+    { label: '429', status: 429, code: 'rate_limited' },
+    { label: '5xx', status: 503, code: 'service_unavailable' },
+    { label: 'network', network: true }
+  ]) await t.test(failure.label, async () => {
+    const fixture = await conflictFixture();
+    fixture.server.nextPushFailure = failure;
+    const [conflict] = await fixture.store.listConflicts();
+    const first = await fixture.runtime.resolveConflict(conflict.id, 'local');
+    assert.equal(first.ok, false);
+    assert.equal(fixture.local.records[0].payload.bpm, 79);
+    assert.equal((await fixture.store.listConflicts()).length, 1);
+    const second = await fixture.runtime.resolveConflict(conflict.id, 'local');
+    assert.equal(second.ok, true);
+    assert.equal(fixture.server.records.get('custom_preset/conflict').payload.bpm, 79);
+    assert.equal(fixture.server.records.get('custom_preset/conflict').revision, 3);
+  });
+});
+
+test('offline resolution persists intent without applying either side and resumes safely online', async () => {
+  const fixture = await conflictFixture();
+  fixture.context.navigator.onLine = false;
+  const [conflict] = await fixture.store.listConflicts();
+  const pending = await fixture.runtime.resolveConflict(conflict.id, 'remote');
+  assert.equal(pending.ok, false);
+  assert.equal(pending.code, 'resolution_offline');
+  assert.equal(fixture.local.records[0].payload.bpm, 79);
+  assert.equal(fixture.server.records.get('custom_preset/conflict').payload.bpm, 81);
+  fixture.context.navigator.onLine = true;
+  const resumed = await fixture.runtime.resumeConflictResolutions();
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  assert.equal(fixture.local.records[0].payload.bpm, 81);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('one of two conflicts resolves without changing the other local variant', async () => {
+  const fixture = await conflictFixture(['one', 'two']);
+  const conflicts = await fixture.store.listConflicts();
+  assert.equal(conflicts.length, 2);
+  const one = conflicts.find((entry) => entry.recordId === 'one');
+  const result = await fixture.runtime.resolveConflict(one.id, 'remote');
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(result.remaining, 1);
+  assert.equal(fixture.local.records.find((record) => record.recordId === 'one').payload.bpm, 81);
+  assert.equal(fixture.local.records.find((record) => record.recordId === 'two').payload.bpm, 79);
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+});
+
+test('edit/delete and delete/edit divergences remain tombstone conflicts without automatic writes', async (t) => {
+  await t.test('local edit vs remote delete', async () => {
+    const fixture = runtimeFixture([preset('conflict', 80)], 'rhythm');
+    await fixture.runtime.consumeHandoff('transient');
+    fixture.local.records = [preset('conflict', 79)];
+    setRemoteVariant(fixture, 'conflict', 0, { deleted: true });
+    const pushes = fixture.server.pushCalls;
+    const result = await fixture.runtime.sync('focus');
+    assert.equal(result.code, 'conflict');
+    assert.equal(fixture.server.pushCalls, pushes);
+    assert.equal((await fixture.store.listConflicts()).length, 1);
+  });
+  await t.test('local delete vs remote edit', async () => {
+    const fixture = runtimeFixture([preset('conflict', 80)], 'rhythm');
+    await fixture.runtime.consumeHandoff('transient');
+    fixture.local.records = [];
+    setRemoteVariant(fixture, 'conflict', 81);
+    const pushes = fixture.server.pushCalls;
+    const result = await fixture.runtime.sync('focus');
+    assert.equal(result.code, 'conflict');
+    assert.equal(fixture.server.pushCalls, pushes);
+    assert.equal((await fixture.store.listConflicts()).length, 1);
+  });
 });

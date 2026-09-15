@@ -115,6 +115,18 @@ test('field inventory classifies every major Fretboard state family before extra
   assert(api.FIELD_CLASSIFICATION.deviceSpecific.includes('settings.cruiseStageGroupScrollLefts'));
 });
 
+test('conflict presentation exposes only bounded user-facing Fretboard fields', () => {
+  const api = load();
+  const result = api.getConflictPresentation({
+    localRecord: { recordType: 'custom_route', recordId: 'private-id', payloadHash: 'private-hash', payload: { name: 'QA route', route: [{}, {}], groupBreaks: [0] } },
+    remoteRecord: { recordType: 'custom_route', recordId: 'private-id', revision: 4, payload: { name: 'QA route', route: [{}, {}, {}], groupBreaks: [0, 2] } }
+  });
+  const plain = JSON.parse(JSON.stringify(result));
+  assert.equal(plain.name, 'QA route');
+  assert.deepEqual(plain.fields.find((field) => field.label === '音数'), { label: '音数', local: '2', remote: '3' });
+  assert.doesNotMatch(JSON.stringify(plain), /private-id|private-hash|revision|payload/i);
+});
+
 test('empty, shipped defaults, UI state, device settings and unsaved drafts are not meaningful', () => {
   const api = load();
   assert.equal(api.isMeaningfulLocalData({ schemaVersion: 0, values: {} }), false);

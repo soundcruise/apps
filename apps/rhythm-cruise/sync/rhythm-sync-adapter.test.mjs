@@ -137,6 +137,24 @@ test('same-name presets remain distinct because stable IDs never use display nam
   assert.notEqual(presets[0].recordId, presets[1].recordId);
 });
 
+test('conflict presentation exposes only bounded user-facing Rhythm fields', () => {
+  const api = load();
+  const localRecord = {
+    recordType: 'custom_preset', recordId: 'rccustpreset_qa', payloadHash: 'local-secret-hash',
+    payload: { id: 'rccustpreset_qa', name: 'QA-DP-RHYTHM-CONFLICT-1', settings: { bpm: 79, bars: 4, timeSignature: '4/4' } }
+  };
+  const remoteRecord = {
+    recordType: 'custom_preset', recordId: 'rccustpreset_qa', payloadHash: 'remote-secret-hash', revision: 2,
+    payload: { id: 'rccustpreset_qa', name: 'QA-DP-RHYTHM-CONFLICT-1', settings: { bpm: 81, bars: 4, timeSignature: '4/4' } }
+  };
+  const result = api.getConflictPresentation({ localRecord, remoteRecord });
+  const plain = JSON.parse(JSON.stringify(result));
+  assert.equal(plain.title, 'カスタムプリセット');
+  assert.equal(plain.name, 'QA-DP-RHYTHM-CONFLICT-1');
+  assert.deepEqual(plain.fields.find((field) => field.label === 'BPM'), { label: 'BPM', local: '79', remote: '81' });
+  assert.doesNotMatch(JSON.stringify(plain), /rccustpreset_qa|secret-hash|revision|payload/i);
+});
+
 test('generated sample stages are excluded while an edited sample becomes a stable override', () => {
   const api = load();
   const stages = sampleStages(api);

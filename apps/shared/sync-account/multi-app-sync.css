@@ -75,3 +75,54 @@
   font: inherit;
   font-weight: 700;
 }
+.sound-cruise-sync-conflict {
+  box-sizing: border-box;
+  width: min(42rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  border: 1px solid #8f7628;
+  border-radius: 1rem;
+  background: #11100d;
+  color: #f3e5b6;
+  box-shadow: 0 1.5rem 4rem #000c;
+}
+.sound-cruise-sync-conflict::backdrop { background: #000b; }
+.sound-cruise-sync-conflict-panel { display: grid; gap: 1rem; padding: .5rem; }
+.sound-cruise-sync-conflict h2,
+.sound-cruise-sync-conflict h3,
+.sound-cruise-sync-conflict p { margin: 0; line-height: 1.55; }
+.sound-cruise-sync-conflict-summary { color: #e8ddbd; }
+.sound-cruise-sync-conflict-count { color: #d7c98f; font-size: .92em; }
+.sound-cruise-sync-conflict-comparison {
+  display: grid;
+  overflow: hidden;
+  border: 1px solid #65582f;
+  border-radius: .75rem;
+}
+.sound-cruise-sync-conflict-row {
+  display: grid;
+  grid-template-columns: minmax(5rem, .8fr) repeat(2, minmax(0, 1fr));
+}
+.sound-cruise-sync-conflict-row + .sound-cruise-sync-conflict-row { border-top: 1px solid #4d4428; }
+.sound-cruise-sync-conflict-row span { padding: .7rem; overflow-wrap: anywhere; }
+.sound-cruise-sync-conflict-row span + span { border-left: 1px solid #4d4428; }
+.sound-cruise-sync-conflict-headings,
+.sound-cruise-sync-conflict-label { font-weight: 700; background: #211d10; }
+.sound-cruise-sync-conflict-status { min-height: 1.5em; color: #ffcf87; }
+.sound-cruise-sync-conflict-actions { display: grid; gap: .65rem; }
+.sound-cruise-sync-conflict-actions button {
+  width: 100%;
+  padding: .8rem 1rem;
+  border: 1px solid #8f7628;
+  border-radius: .75rem;
+  background: #211d10;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+}
+.sound-cruise-sync-conflict-actions .sound-cruise-sync-conflict-primary { background: #3b3215; }
+.sound-cruise-sync-conflict-actions button:disabled { opacity: .58; }
+@media (max-width: 34rem) {
+  .sound-cruise-sync-conflict-row { grid-template-columns: minmax(4.5rem, .7fr) repeat(2, minmax(0, 1fr)); }
+  .sound-cruise-sync-conflict-row span { padding: .55rem .45rem; font-size: .9rem; }
+}

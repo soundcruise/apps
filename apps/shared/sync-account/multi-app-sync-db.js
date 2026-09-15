@@ -90,8 +90,11 @@
       putShadow: (recordKey, record) => put('shadow', recordKey, record),
       getShadow: (recordKey) => get('shadow', recordKey),
       listShadow: () => values('shadow'),
+      deleteShadow: (recordKey) => remove('shadow', recordKey),
       putConflict: (conflict) => put('conflicts', conflict.id, conflict),
-      listConflicts: () => values('conflicts')
+      getConflict: (conflictId) => get('conflicts', conflictId),
+      listConflicts: () => values('conflicts'),
+      deleteConflict: (conflictId) => remove('conflicts', conflictId)
     });
   }
 

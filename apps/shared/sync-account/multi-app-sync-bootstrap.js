@@ -197,6 +197,7 @@
       appId: config.appId, endpoint: config.endpoint,
       adapter: new AdapterClass(), store, accountClient, accountCore: accountRoot.core
     });
+    syncRoot.installConflictResolutionUi?.(runtime, document);
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
     syncRoot.runtimes[config.appId] = runtime;
     const restored = await resolveStartupState(runtime, store, accountClient, accountRoot.core);
@@ -205,7 +206,7 @@
       // stale launch URL cannot reopen setup over a connected container.
       handoffToken = null;
       runtime.bindLifecycle();
-      runtime.sync('startup').catch(() => {});
+      runtime.resumeConflictResolutions().then(() => runtime.sync('startup')).catch(() => {});
       return;
     }
     if (restored.state === 'migration_pending') {

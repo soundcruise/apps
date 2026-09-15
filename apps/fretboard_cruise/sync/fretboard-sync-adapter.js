@@ -675,6 +675,25 @@
       throw error;
     }
   }
+  function getConflictPresentation({ localRecord, remoteRecord } = {}) {
+    const local = localRecord?.deletedAt != null ? null : localRecord?.payload;
+    const remote = remoteRecord?.deletedAt != null ? null : remoteRecord?.payload;
+    const type = localRecord?.recordType || remoteRecord?.recordType || 'fretboard';
+    const labels = { custom_route: 'カスタムルート', custom_quiz: 'カスタムクイズ', settings: '指板設定' };
+    const value = (payload, selector) => payload ? String(selector(payload) ?? '—') : '削除済み';
+    const name = local?.name || remote?.name || labels[type] || '指板データ';
+    const fields = [
+      { label: '状態', local: local ? '保存済み' : '削除済み', remote: remote ? '保存済み' : '削除済み' },
+      { label: '名前', local: value(local, (payload) => payload.name), remote: value(remote, (payload) => payload.name) }
+    ];
+    if (type === 'custom_route') fields.push({
+      label: '音数', local: value(local, (payload) => payload.route?.length), remote: value(remote, (payload) => payload.route?.length)
+    });
+    if (type === 'custom_quiz') fields.push({
+      label: 'グループ数', local: value(local, (payload) => payload.groups?.length), remote: value(remote, (payload) => payload.groups?.length)
+    });
+    return Object.freeze({ title: labels[type] || '指板データ', name: String(name), fields: Object.freeze(fields) });
+  }
   function assertDataPlaneContext(context) {
     if (!isPlainObject(context?.membership) || context.membership.appId !== APP_ID || context.membership.state !== 'active') {
       throw new Error('fretboard_membership_inactive');
@@ -714,6 +733,7 @@
     }
     createBackup() { return createBackup(this.storage, this.backupStore); }
     restoreBackup(backup) { return restoreBackup(this.storage, backup); }
+    getConflictPresentation(context) { return getConflictPresentation(context); }
     computeManifest(snapshot) { return computeManifest(snapshot, this.cryptoImpl); }
     createInitialMigrationPlan(context) { return createInitialMigrationPlan(this.storage, context, { cryptoImpl: this.cryptoImpl }); }
     assertDataPlaneContext(context) { return assertDataPlaneContext(context); }
@@ -723,7 +743,7 @@
     DEFAULT_SETTINGS, FIELD_CLASSIFICATION, ROUTE_DEFAULT_HASHES, BUILTIN_QUIZ_GROUPS,
     FretboardSyncAdapter, readLocalSnapshot, normalizeLocalSnapshot: normalizeRawSnapshot,
     validateSnapshot, serializeRecords, deserializeRecords, isMeaningfulLocalData,
-    mergeSnapshots, applyRemoteSnapshot, createBackup, restoreBackup, computeManifest,
+    mergeSnapshots, applyRemoteSnapshot, createBackup, restoreBackup, getConflictPresentation, computeManifest,
     assertDataPlaneContext, createInitialMigrationPlan
   });
 })(globalThis);

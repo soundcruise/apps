@@ -707,6 +707,28 @@
     }
   }
 
+  function getConflictPresentation({ localRecord, remoteRecord } = {}) {
+    const local = localRecord?.deletedAt != null ? null : localRecord?.payload;
+    const remote = remoteRecord?.deletedAt != null ? null : remoteRecord?.payload;
+    const type = localRecord?.recordType || remoteRecord?.recordType || 'pitch';
+    const labels = {
+      custom_chord: 'カスタムコード', custom_progression: 'カスタム進行',
+      melody_stage: 'メロディーステージ', chord_stage: 'コードステージ', settings: '音感設定'
+    };
+    const value = (payload, selector) => payload ? String(selector(payload) ?? '—') : '削除済み';
+    const name = local?.name || remote?.name || labels[type] || '音感データ';
+    const fields = [
+      { label: '状態', local: local ? '保存済み' : '削除済み', remote: remote ? '保存済み' : '削除済み' },
+      { label: '名前', local: value(local, (payload) => payload.name), remote: value(remote, (payload) => payload.name) }
+    ];
+    if (type === 'custom_progression' || type === 'chord_stage') fields.push({
+      label: 'コード数',
+      local: value(local, (payload) => payload.chordRefs?.length),
+      remote: value(remote, (payload) => payload.chordRefs?.length)
+    });
+    return Object.freeze({ title: labels[type] || '音感データ', name: String(name), fields: Object.freeze(fields) });
+  }
+
   function assertDataPlaneContext(context) {
     if (!isPlainObject(context?.membership) || context.membership.appId !== APP_ID ||
         context.membership.state !== 'active') throw new Error('pitch_membership_inactive');
@@ -750,6 +772,7 @@
     }
     createBackup() { return createBackup(this.storage, this.backupStore); }
     restoreBackup(backup) { return restoreBackup(this.storage, backup); }
+    getConflictPresentation(context) { return getConflictPresentation(context); }
     computeManifest(snapshot) { return computeManifest(snapshot, this.cryptoImpl); }
     createInitialMigrationPlan(context) { return createInitialMigrationPlan(this.storage, context, { cryptoImpl: this.cryptoImpl }); }
     assertDataPlaneContext(context) { return assertDataPlaneContext(context); }
@@ -760,7 +783,7 @@
     BUILTIN_CHORDS, BUILTIN_PROGRESSIONS, PitchSyncAdapter,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeRawSnapshot, validateSnapshot,
     serializeRecords, deserializeRecords, isMeaningfulLocalData, mergeSnapshots,
-    applyRemoteSnapshot, createBackup, restoreBackup, computeManifest,
+    applyRemoteSnapshot, createBackup, restoreBackup, getConflictPresentation, computeManifest,
     assertDataPlaneContext, createInitialMigrationPlan
   });
 })(globalThis);

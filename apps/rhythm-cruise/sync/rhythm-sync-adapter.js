@@ -686,6 +686,31 @@
     }
   }
 
+  function getConflictPresentation({ localRecord, remoteRecord } = {}) {
+    const local = localRecord?.deletedAt != null ? null : localRecord?.payload;
+    const remote = remoteRecord?.deletedAt != null ? null : remoteRecord?.payload;
+    const value = (payload, selector) => payload ? String(selector(payload) ?? '—') : '削除済み';
+    const type = localRecord?.recordType || remoteRecord?.recordType || 'rhythm';
+    const labels = {
+      custom_preset: 'カスタムプリセット', create_preset: '作成プリセット',
+      custom_stage: 'カスタムステージ', settings: 'リズム設定',
+      preset_order: 'プリセット順', stage_order: 'ステージ順'
+    };
+    const name = local?.name || local?.title || remote?.name || remote?.title || labels[type] || 'リズムデータ';
+    const fields = [{ label: '状態', local: local ? '保存済み' : '削除済み', remote: remote ? '保存済み' : '削除済み' }];
+    if (['custom_preset', 'create_preset', 'custom_stage'].includes(type)) {
+      fields.push({ label: '名前', local: value(local, (payload) => payload.name || payload.title), remote: value(remote, (payload) => payload.name || payload.title) });
+      fields.push({ label: 'BPM', local: value(local, (payload) => payload.settings?.bpm ?? payload.bpm), remote: value(remote, (payload) => payload.settings?.bpm ?? payload.bpm) });
+      fields.push({ label: '小節数', local: value(local, (payload) => payload.settings?.bars ?? payload.bars), remote: value(remote, (payload) => payload.settings?.bars ?? payload.bars) });
+      if (type !== 'create_preset') fields.push({
+        label: '拍子',
+        local: value(local, (payload) => payload.settings?.timeSignature ?? payload.timeSignature),
+        remote: value(remote, (payload) => payload.settings?.timeSignature ?? payload.timeSignature)
+      });
+    }
+    return Object.freeze({ title: labels[type] || 'リズムデータ', name: String(name), fields: Object.freeze(fields) });
+  }
+
   function assertDataPlaneContext(context) {
     if (!isPlainObject(context?.membership) || context.membership.appId !== APP_ID ||
         context.membership.state !== 'active') throw new Error('rhythm_membership_inactive');
@@ -729,6 +754,7 @@
     }
     createBackup() { return createBackup(this.storage, this.backupStore); }
     restoreBackup(backup) { return restoreBackup(this.storage, backup); }
+    getConflictPresentation(context) { return getConflictPresentation(context); }
     computeManifest(snapshot) { return computeManifest(snapshot, this.cryptoImpl); }
     createInitialMigrationPlan(context) { return createInitialMigrationPlan(this.storage, context, { cryptoImpl: this.cryptoImpl }); }
     assertDataPlaneContext(context) { return assertDataPlaneContext(context); }
@@ -739,7 +765,7 @@
     BUILTIN_SAMPLE_STAGES, BUILTIN_STAGE_DEFAULTS, RhythmSyncAdapter,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeRawSnapshot, validateSnapshot,
     serializeRecords, deserializeRecords, isMeaningfulLocalData, mergeSnapshots,
-    applyRemoteSnapshot, createBackup, restoreBackup, computeManifest,
+    applyRemoteSnapshot, createBackup, restoreBackup, getConflictPresentation, computeManifest,
     assertDataPlaneContext, createInitialMigrationPlan
   });
 })(globalThis);

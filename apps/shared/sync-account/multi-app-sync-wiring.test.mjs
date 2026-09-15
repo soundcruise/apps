@@ -54,7 +54,10 @@ test('shared multi-app runtime is wired only into Pro editions and production re
     const pro = read(proPath);
     assert.equal(standard.includes('multi-app-sync-runtime.js'), false, `${appId} Standard`);
     assert.equal(pro.includes('multi-app-sync-runtime.js'), true, `${appId} Pro runtime`);
+    assert.equal(pro.includes('multi-app-conflict-ui.js'), true, `${appId} Pro conflict UI`);
     assert.equal(pro.includes('multi-app-sync-bootstrap.js'), true, `${appId} Pro bootstrap`);
+    assert(pro.indexOf('multi-app-sync-runtime.js') < pro.indexOf('multi-app-conflict-ui.js'), `${appId} runtime precedes conflict UI`);
+    assert(pro.indexOf('multi-app-conflict-ui.js') < pro.indexOf('multi-app-sync-bootstrap.js'), `${appId} conflict UI precedes bootstrap`);
     assert.equal(pro.includes(`data-sync-app-id="${appId}"`), true, `${appId} namespace`);
     assert.equal(pro.includes('__SOUND_CRUISE_MULTI_APP_SYNC__'), false, `${appId} production feature OFF`);
   }
@@ -66,6 +69,12 @@ test('shared multi-app runtime is wired only into Pro editions and production re
     assert.match(source, /hostname === 'soundcruise\.jp'/);
     assert.match(source, /get\('sound-cruise-qa'\) === '1'/);
   }
+});
+
+test('connected startup resumes a persisted resolution before normal sync', () => {
+  const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
+  assert.match(bootstrap, /resumeConflictResolutions\(\)\.then\(\(\) => runtime\.sync\('startup'\)\)/);
+  assert.match(bootstrap, /installConflictResolutionUi/);
 });
 
 test('durable save hooks use the shared no-op notifier without monkeypatching storage', () => {

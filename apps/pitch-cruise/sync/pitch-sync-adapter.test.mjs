@@ -138,6 +138,18 @@ test('a user-created duplicate of a built-in shape is not mistaken for generated
   assert.equal(custom[0].payload.legacyId, 9999);
 });
 
+test('conflict presentation exposes only bounded user-facing Pitch fields', () => {
+  const api = load();
+  const result = api.getConflictPresentation({
+    localRecord: { recordType: 'custom_progression', recordId: 'private-id', payloadHash: 'private-hash', payload: { name: 'QA progression', chordRefs: ['a', 'b'] } },
+    remoteRecord: { recordType: 'custom_progression', recordId: 'private-id', revision: 3, payload: { name: 'QA progression', chordRefs: ['a', 'b', 'c'] } }
+  });
+  const plain = JSON.parse(JSON.stringify(result));
+  assert.equal(plain.name, 'QA progression');
+  assert.deepEqual(plain.fields.find((field) => field.label === 'コード数'), { label: 'コード数', local: '2', remote: '3' });
+  assert.doesNotMatch(JSON.stringify(plain), /private-id|private-hash|revision|payload/i);
+});
+
 test('an edited generated built-in is a stable override and round-trips without duplicate defaults', async () => {
   const api = load();
   const sourceData = defaultData(api, 1000);
