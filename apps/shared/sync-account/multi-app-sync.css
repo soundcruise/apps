@@ -50,3 +50,28 @@
   text-decoration: none;
 }
 .sound-cruise-sync-setup [hidden] { display: none; }
+.sound-cruise-sync-restore-attention {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 1100;
+  display: grid;
+  gap: .65rem;
+  max-width: min(24rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid #8f7628;
+  border-radius: .75rem;
+  background: #11100d;
+  color: #f3e5b6;
+  box-shadow: 0 .5rem 1.5rem #0009;
+}
+.sound-cruise-sync-restore-attention p { margin: 0; line-height: 1.5; }
+.sound-cruise-sync-restore-attention button {
+  padding: .7rem .9rem;
+  border: 1px solid #8f7628;
+  border-radius: .65rem;
+  background: #211d10;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+}

@@ -129,6 +129,59 @@
     document.body.append(button);
   }
 
+  function installRestoreAttention() {
+    if (document.querySelector('[data-sync-restore-attention]')) return;
+    const notice = document.createElement('section');
+    notice.className = 'sound-cruise-sync-restore-attention';
+    notice.dataset.syncRestoreAttention = '';
+    notice.setAttribute('role', 'status');
+    notice.innerHTML = `
+      <p>同期状態を確認できませんでした。</p>
+      <button type="button" data-sync-action="retry-restore">もう一度確認</button>`;
+    notice.querySelector('[data-sync-action="retry-restore"]').addEventListener('click', () => global.location.reload());
+    document.body.append(notice);
+  }
+
+  async function resolveStartupState(runtime, store, accountClient, accountCore) {
+    let credential;
+    let qaCredential;
+    let migrationState;
+    try {
+      [credential, qaCredential, migrationState] = await Promise.all([
+        runtime.credential(), runtime.qaCredential(), store.readMeta('migrationState')
+      ]);
+    } catch (_) {
+      return Object.freeze({ state: 'restore_error' });
+    }
+
+    if (credential == null && qaCredential == null) {
+      try {
+        const resumed = await accountClient.resumePendingConsume({ preservePending: true });
+        if (resumed.status === 'committed' && resumed.membership?.appId === runtime.appId &&
+            accountCore.validAppCredential(resumed.appDeviceCredential) &&
+            accountCore.validQaCredential(resumed.qaCredential)) {
+          await store.setMeta('credential', resumed.appDeviceCredential);
+          await store.setMeta('qaCredential', resumed.qaCredential);
+          await store.setMeta('membership', {
+            id: resumed.membership.id, appId: runtime.appId, state: resumed.membership.state
+          });
+          await accountClient.confirmConsumePersisted();
+          credential = resumed.appDeviceCredential;
+          qaCredential = resumed.qaCredential;
+          migrationState = await store.readMeta('migrationState');
+        }
+      } catch (_) {
+        return Object.freeze({ state: 'restore_error' });
+      }
+    }
+
+    if (credential == null && qaCredential == null) return Object.freeze({ state: 'not_connected' });
+    if (!accountCore.validAppCredential(credential) || !accountCore.validQaCredential(qaCredential)) {
+      return Object.freeze({ state: 'restore_error' });
+    }
+    return Object.freeze({ state: migrationState === 'complete' ? 'connected' : 'migration_pending' });
+  }
+
   async function start() {
     const config = readConfig();
     if (!config || !accountRoot?.AccountClient || !syncRoot.MultiAppSyncRuntime || !syncRoot.dataStorage) return;
@@ -146,35 +199,36 @@
     });
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
     syncRoot.runtimes[config.appId] = runtime;
-    let existingCredential = await runtime.credential();
+    const restored = await resolveStartupState(runtime, store, accountClient, accountRoot.core);
+    if (restored.state === 'connected') {
+      // A URL handoff is transient. A durable, active app connection wins so a
+      // stale launch URL cannot reopen setup over a connected container.
+      handoffToken = null;
+      runtime.bindLifecycle();
+      runtime.sync('startup').catch(() => {});
+      return;
+    }
+    if (restored.state === 'migration_pending') {
+      handoffToken = null;
+      runtime.initializeDataset().catch(() => {});
+      return;
+    }
+    if (restored.state === 'restore_error') {
+      installRestoreAttention();
+      return;
+    }
     if (!handoffToken) {
-      if (!existingCredential) {
-        const resumed = await accountClient.resumePendingConsume({ preservePending: true });
-        if (resumed.status === 'committed' && resumed.membership?.appId === config.appId && resumed.appDeviceCredential) {
-          await store.setMeta('credential', resumed.appDeviceCredential);
-          if (resumed.qaCredential) await store.setMeta('qaCredential', resumed.qaCredential);
-          await store.setMeta('membership', {
-            id: resumed.membership.id, appId: config.appId, state: resumed.membership.state
-          });
-          await accountClient.confirmConsumePersisted();
-          existingCredential = resumed.appDeviceCredential;
-        }
-      }
-      if (existingCredential) {
-        const migrationState = await store.readMeta('migrationState');
-        if (migrationState === 'complete') {
-          runtime.bindLifecycle();
-          runtime.sync('startup').catch(() => {});
-        } else {
-          runtime.initializeDataset().catch(() => {});
-        }
-      } else installJoinEntry(config, runtime);
+      installJoinEntry(config, runtime);
       return;
     }
     const dialog = createLanding(config.appId, config.portUrl);
     bindLanding(dialog, config, runtime, 'handoff');
     dialog.showModal();
   }
+
+  // Exposed for deterministic bootstrap contract tests; no credentials or
+  // transient handoff material are returned by this state classifier.
+  syncRoot.resolveStartupState = resolveStartupState;
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start, { once: true });
   else start();

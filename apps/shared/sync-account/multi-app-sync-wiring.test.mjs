@@ -1,9 +1,46 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
+import vm from 'node:vm';
 
 const root = new URL('../../../', import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), 'utf8');
+
+function loadBootstrapStateResolver() {
+  const context = {
+    URL, URLSearchParams,
+    document: { readyState: 'loading', addEventListener() {} },
+    location: { hostname: 'example.test', search: '', hash: '', pathname: '/' },
+    SoundCruiseMultiAppSync: {},
+    SoundCruiseSyncAccount: { core: {} }
+  };
+  context.globalThis = context;
+  vm.runInNewContext(read('apps/shared/sync-account/multi-app-sync-bootstrap.js'), context);
+  return context.SoundCruiseMultiAppSync.resolveStartupState;
+}
+
+function restoredRuntime({ credential = 'scd1.valid', qaCredential = 'scq1.valid' } = {}) {
+  return {
+    appId: 'fretboard',
+    credential: async () => credential,
+    qaCredential: async () => qaCredential
+  };
+}
+
+function restoredStore({ migrationState = 'complete', fail = false } = {}) {
+  return {
+    readMeta: async (key) => {
+      if (fail) throw new Error('idb_read_failed');
+      return key === 'migrationState' ? migrationState : null;
+    },
+    async setMeta() {}
+  };
+}
+
+const validRestoreCore = {
+  validAppCredential: (value) => value === 'scd1.valid',
+  validQaCredential: (value) => value === 'scq1.valid'
+};
 
 const apps = [
   ['pitch', 'apps/pitch-cruise/standard/index.html', 'apps/pitch-cruise/pro_x9v7q2m8/index.html', 'apps/pitch-cruise/script.js'],
@@ -87,6 +124,7 @@ test('app Join entry is mounted at document level so app settings cannot hide it
   const css = read('apps/shared/sync-account/multi-app-sync.css');
   assert.match(bootstrap, /document\.body\.append\(button\)/);
   assert.match(css, /\.sound-cruise-sync-join-entry\s*\{\s*position: fixed;/);
+  assert.match(css, /\.sound-cruise-sync-restore-attention\s*\{\s*position: fixed;/);
 });
 
 test('Join lifecycle messages distinguish a cancelled code from a generic sync failure', () => {
@@ -96,4 +134,59 @@ test('Join lifecycle messages distinguish a cancelled code from a generic sync f
   assert.match(bootstrap, /接続コードは取り消されました/);
   assert.match(portUi, /コードを取り消す/);
   assert.match(portUi, /使えなくなります/);
+});
+
+test('connected containers resolve before an incidental handoff can select setup UI', async () => {
+  const resolveStartupState = loadBootstrapStateResolver();
+  let pendingResumeCalls = 0;
+  const result = await resolveStartupState(
+    restoredRuntime(), restoredStore(),
+    { resumePendingConsume: async () => { pendingResumeCalls += 1; return { status: 'none' }; } },
+    validRestoreCore
+  );
+  assert.equal(result.state, 'connected');
+  assert.equal(pendingResumeCalls, 0);
+  const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
+  assert.match(bootstrap, /restored\.state === 'connected'[\s\S]*?handoffToken = null[\s\S]*?return;[\s\S]*?if \(!handoffToken\)/);
+});
+
+test('delayed credential restore never falls through to not-connected', async () => {
+  const resolveStartupState = loadBootstrapStateResolver();
+  let releaseCredential;
+  const credential = new Promise((resolve) => { releaseCredential = resolve; });
+  const resultPromise = resolveStartupState({
+    appId: 'fretboard', credential: async () => credential, qaCredential: async () => 'scq1.valid'
+  }, restoredStore(), { resumePendingConsume: async () => ({ status: 'none' }) }, validRestoreCore);
+  releaseCredential('scd1.valid');
+  assert.equal((await resultPromise).state, 'connected');
+});
+
+test('stale Join metadata cannot override an existing connected app credential', async (t) => {
+  const resolveStartupState = loadBootstrapStateResolver();
+  for (const staleState of ['consumed', 'expired', 'cancelled']) {
+    await t.test(staleState, async () => {
+      let pendingResumeCalls = 0;
+      const result = await resolveStartupState(
+        restoredRuntime(), restoredStore(),
+        { resumePendingConsume: async () => { pendingResumeCalls += 1; return { status: staleState }; } },
+        validRestoreCore
+      );
+      assert.equal(result.state, 'connected');
+      assert.equal(pendingResumeCalls, 0);
+    });
+  }
+});
+
+test('bootstrap state distinguishes unconnected, migration-pending, and storage-read failure safely', async () => {
+  const resolveStartupState = loadBootstrapStateResolver();
+  const noPending = { resumePendingConsume: async () => ({ status: 'none' }) };
+  assert.equal((await resolveStartupState(
+    restoredRuntime({ credential: null, qaCredential: null }), restoredStore(), noPending, validRestoreCore
+  )).state, 'not_connected');
+  assert.equal((await resolveStartupState(
+    restoredRuntime(), restoredStore({ migrationState: 'not_started' }), noPending, validRestoreCore
+  )).state, 'migration_pending');
+  assert.equal((await resolveStartupState(
+    restoredRuntime(), restoredStore({ fail: true }), noPending, validRestoreCore
+  )).state, 'restore_error');
 });
