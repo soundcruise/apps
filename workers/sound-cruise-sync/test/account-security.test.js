@@ -73,4 +73,5 @@ test('production config exposes every independent Account-operation limiter', ()
     assert.match(config, new RegExp(`"name"\\s*:\\s*"${name}"[\\s\\S]*?"namespace_id"\\s*:\\s*"${namespaceId}"[\\s\\S]*?"limit"\\s*:\\s*5[\\s\\S]*?"period"\\s*:\\s*60`, 'u'));
   }
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
+  assert.match(config, /"SYNC_QA_ALLOWED_APP_IDS"\s*:\s*"chord,pitch,rhythm,fretboard"/u);
 });
