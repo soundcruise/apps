@@ -95,7 +95,43 @@
     }
 
     function removeJoinEntry() {
-      document.querySelector('[data-sync-app-join-entry]')?.remove();
+      var entry = document.querySelector('[data-sync-app-join-entry]');
+      var card = entry && entry.closest ? entry.closest('[data-sync-settings-state]') : null;
+      if (card) card.remove();
+      else if (entry) entry.remove();
+    }
+
+    function renderJoinSettings(options) {
+      var host = document.querySelector('[data-sync-join-entry-host]');
+      if (!host) return false;
+      host.textContent = '';
+      var section = document.createElement('section');
+      section.className = 'sound-cruise-sync-settings-card';
+      section.dataset.syncSettingsState = options.state;
+      var header = document.createElement('div');
+      header.className = 'sound-cruise-sync-settings-head';
+      var title = document.createElement('strong');
+      title.textContent = 'クラウド同期';
+      var status = document.createElement('span');
+      status.dataset.syncAccountStatus = '';
+      status.textContent = options.status;
+      header.append(title, status);
+      section.append(header);
+      if (options.action) {
+        options.action.className = 'sound-cruise-sync-join-entry';
+        options.action.dataset.syncAppJoinEntry = '';
+        section.append(options.action);
+      }
+      host.append(section);
+      return true;
+    }
+
+    function showConnectedJoinSettings() {
+      if (document.getElementById('cc-sync-pairing-section')) {
+        removeJoinEntry();
+        return;
+      }
+      renderJoinSettings({ state: 'connected', status: '同期済み', action: null });
     }
 
     async function ensurePairingUi() {
@@ -213,7 +249,6 @@
       const button = document.createElement('button');
       button.type = 'button';
       button.dataset.syncAppJoinEntry = '';
-      button.className = 'cc-sync-primary-action';
       button.textContent = resumeOnly ? 'クラウド同期の設定を再開' : 'Cruise Portと接続';
       button.addEventListener('click', () => {
         const dialog = landing(settings.portUrl);
@@ -262,6 +297,9 @@
             var connected = await connectWithJoin(joinCode);
             joinSecret.resolve();
             input.remove();
+            showConnectedJoinSettings();
+            await ensurePairingUi();
+            await refreshPairingUi();
             completeJoinDialog(dialog, summary, start, null, connected);
           } catch (reason) {
             if (reason && reason.accountJoinCommitted === true) {
@@ -276,8 +314,11 @@
         });
         dialog.showModal();
       });
-      const host = document.querySelector('.cc-sync-settings-entry') || document.querySelector('main') || document.body;
-      host.append(button);
+      renderJoinSettings({
+        state: resumeOnly ? 'pending' : 'unconnected',
+        status: resumeOnly ? '設定を再開してください' : '未接続',
+        action: button
+      });
     }
     if (!handoffToken) {
       const chordStore = await chordClient.openStore();
@@ -304,6 +345,9 @@
       }
       if (resumed.status === 'bridge_required' && resumed.membership?.appId === 'chord' && existing?.credential) {
         await finishExistingBridge(existing, resumed);
+        showConnectedJoinSettings();
+        await ensurePairingUi();
+        await refreshPairingUi();
         return;
       }
       const accountManagedSetup = await chordStore.getMeta('accountManagedSetup');
@@ -352,6 +396,9 @@
           setupResult = await promoteNewAppConsume(consumed);
         }
         handoffToken = null;
+        showConnectedJoinSettings();
+        await ensurePairingUi();
+        await refreshPairingUi();
         dialog.dataset.syncPhase = 'complete';
         summaryText.textContent = setupResult?.requiresConfirmation
           ? '接続を保存しました。設定の「クラウド同期」で統合内容を確認してください。'

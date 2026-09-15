@@ -11,11 +11,33 @@
 .sound-cruise-sync-setup h2,
 .sound-cruise-sync-setup p { margin: 0; line-height: 1.65; }
 .sound-cruise-sync-setup [data-sync-error] { color: #ffb7b7; }
+.sound-cruise-sync-settings-card {
+  box-sizing: border-box;
+  display: grid;
+  gap: .75rem;
+  width: 100%;
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border: 1px solid rgba(232, 201, 122, .45);
+  border-radius: .85rem;
+  background: rgba(17, 16, 13, .72);
+  color: #f3e5b6;
+}
+.sound-cruise-sync-settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.sound-cruise-sync-settings-head strong { font-size: .95rem; }
+.sound-cruise-sync-settings-head [data-sync-account-status] {
+  color: #d7c98f;
+  font-size: .82rem;
+  white-space: nowrap;
+}
 .sound-cruise-sync-join-entry {
-  position: fixed;
-  right: max(1rem, env(safe-area-inset-right));
-  bottom: max(1rem, env(safe-area-inset-bottom));
-  z-index: 1100;
+  box-sizing: border-box;
+  width: 100%;
   margin: 0;
   padding: .75rem 1rem;
   border: 1px solid #8f7628;
@@ -24,7 +46,7 @@
   color: #f3e5b6;
   font: inherit;
   font-weight: 700;
-  box-shadow: 0 .5rem 1.5rem #0009;
+  cursor: pointer;
 }
 .sound-cruise-sync-setup [data-sync-join-field] { display: grid; gap: .5rem; }
 .sound-cruise-sync-setup [data-sync-join-code] {

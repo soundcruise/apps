@@ -168,12 +168,49 @@ test('all four app Join inputs use the shared transient-secret lifecycle', () =>
   assert.match(chord, /input\.remove\(\)/);
 });
 
-test('app Join entry is mounted at document level so app settings cannot hide it', () => {
+test('all four Pro apps mount the Join entry at the bottom of settings and never expose it in Standard', () => {
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
   const css = read('apps/shared/sync-account/multi-app-sync.css');
-  assert.match(bootstrap, /document\.body\.append\(button\)/);
-  assert.match(css, /\.sound-cruise-sync-join-entry\s*\{\s*position: fixed;/);
+  const chordPro = read('apps/chord-cruise/pro_k7m4q9v2x8/index.html');
+  const pitchPro = read('apps/pitch-cruise/pro_x9v7q2m8/index.html');
+  const rhythmPro = read('apps/rhythm-cruise/pro_r4m8k7n2q9x/index.html');
+  const fretboard = read('apps/fretboard_cruise/script.js');
+  for (const [, standardPath] of apps) {
+    assert.equal(read(standardPath).includes('data-sync-join-entry-host'), false, `${standardPath} has no Join host`);
+  }
+  assert.equal(read('apps/chord-cruise/standard/index.html').includes('data-sync-join-entry-host'), false);
+  assert(chordPro.indexOf('data-sync-join-entry-host') < chordPro.indexOf('cc-settings-refresh-bar'));
+  assert(pitchPro.indexOf('settings-modal-footer') < pitchPro.indexOf('data-sync-join-entry-host'));
+  assert(pitchPro.indexOf('data-sync-join-entry-host') < pitchPro.indexOf('<!-- Pro Settings Modal -->'));
+  assert(rhythmPro.indexOf('pro-gate-settings-note') < rhythmPro.indexOf('data-sync-join-entry-host'));
+  assert(rhythmPro.indexOf('data-sync-join-entry-host') < rhythmPro.indexOf('in-game-refresh-bar'));
+  assert.match(fretboard, /isProEdition\(\) \? '<div data-sync-join-entry-host><\/div>' : ''/);
+  assert.match(bootstrap, /JOIN_HOST_SELECTOR = '\[data-sync-join-entry-host\]'/);
+  assert.match(bootstrap, /MutationObserver\(renderSettingsPresentation\)/,
+    'a dynamically rendered Fretboard settings host receives the current state');
+  assert.doesNotMatch(css, /\.sound-cruise-sync-join-entry\s*\{\s*position: fixed;/);
+  assert.match(css, /\.sound-cruise-sync-settings-card/);
   assert.match(css, /\.sound-cruise-sync-restore-attention\s*\{\s*position: fixed;/);
+});
+
+test('connected startup and successful Join immediately replace Join UI with a secret-free synced state', () => {
+  const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
+  const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
+  const pairing = read('apps/chord-cruise/js/sync/sync-pairing-ui.js');
+  assert.match(bootstrap, /showConnectedSettings\(\);[\s\S]{0,180}dialog\.dataset\.syncPhase = 'complete'/,
+    'shared Join success updates settings without reload');
+  assert.match(bootstrap, /joinSecret\?\.resolve\(\);[\s\S]{0,180}joinField\.remove\(\)/,
+    'successful Join destroys the retry secret and input field');
+  assert.match(bootstrap, /state: 'connected', status: '同期済み', action: null/);
+  assert.match(bootstrap, /restored\.state === 'connected'[\s\S]{0,220}showConnectedSettings\(\)/,
+    'reload restores synced state without Join entry');
+  assert.match(bootstrap, /showPendingSettings\(\)[\s\S]{0,220}initializeDataset\(\)[\s\S]{0,220}showConnectedSettings\(\)/,
+    'pair-pending hydrate reaches synced state only after completion');
+  assert.match(chord, /joinSecret\.resolve\(\);[\s\S]{0,180}input\.remove\(\);[\s\S]{0,180}showConnectedJoinSettings\(\)/,
+    'Chord Join success destroys its input before refreshing Account-managed UI');
+  assert.match(pairing, /querySelector\('\[data-sync-join-entry-host\]'\)/);
+  assert.match(pairing, /host\.appendChild\(section\)/,
+    'Chord Account-managed status replaces the Join card in the same settings host');
 });
 
 test('Join lifecycle messages distinguish a cancelled code from a generic sync failure', () => {

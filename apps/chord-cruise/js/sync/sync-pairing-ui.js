@@ -58,8 +58,9 @@
 
     function install(client) {
         if (!global.document || global.document.getElementById('cc-sync-pairing-section')) return false;
+        var host = global.document.querySelector('[data-sync-join-entry-host]');
         var anchor = global.document.querySelector('.cc-settings-refresh-bar');
-        if (!anchor) return false;
+        if (!host && !anchor) return false;
         var section = global.document.createElement('section');
         section.id = 'cc-sync-pairing-section';
         section.className = 'cc-settings-reset cc-sync-settings-entry';
@@ -75,7 +76,12 @@
                 '<div class="cc-sync-screen-actions" data-sync-pairing-actions></div>' +
                 '<p class="cc-settings-note cc-sync-result" data-sync-pairing-result aria-live="polite"></p>' +
             '</section>';
-        anchor.parentNode.insertBefore(section, anchor);
+        if (host) {
+            host.textContent = '';
+            host.appendChild(section);
+        } else {
+            anchor.parentNode.insertBefore(section, anchor);
+        }
         var screen = section.querySelector('[data-sync-screen]') || section;
         var entry = section.querySelector('[data-sync-open]');
         var entryStatus = section.querySelector('[data-sync-entry-status]');

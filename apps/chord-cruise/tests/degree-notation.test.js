@@ -100,9 +100,11 @@ assert(settingsSource.includes("notifyFretboardChange();"), 'settings notify ope
 function fretboardSettingsMarkup(html) {
     var start = html.indexOf('<section class="cc-settings-card" aria-labelledby="cc-settings-fretboard-title">');
     var end = html.indexOf('<div class="cc-settings-refresh-bar"', start);
-    return html.slice(start, end);
+    return html.slice(start, end).replace(/\s*<div data-sync-join-entry-host><\/div>\s*$/, '').trimEnd();
 }
 assert.strictEqual(fretboardSettingsMarkup(standardHtml), fretboardSettingsMarkup(proHtml), 'Standard and Pro use identical fretboard settings markup');
+assert(!standardHtml.includes('data-sync-join-entry-host'), 'Standard has no Account Join UI host');
+assert(proHtml.indexOf('data-sync-join-entry-host') < proHtml.indexOf('cc-settings-refresh-bar'), 'Pro Join UI stays below settings and above version/refresh');
 assert(settingsSource.includes("function toggleDegreeNotationDescription()"), 'settings reuse the existing help disclosure behavior');
 assert(settingsSource.includes("#cc-settings-degree-notation-help-toggle"), 'the delegated settings click handler opens the formal-notation help');
 assert(settingsSource.includes("classList.contains('cc-settings-help-toggle')"), 'question-mark help remains a question mark while expanded');

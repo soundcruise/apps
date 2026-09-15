@@ -8,6 +8,9 @@
     rhythm: ['SoundCruiseRhythmSync', 'RhythmSyncAdapter'],
     fretboard: ['SoundCruiseFretboardSync', 'FretboardSyncAdapter']
   });
+  const JOIN_HOST_SELECTOR = '[data-sync-join-entry-host]';
+  let settingsPresentation = null;
+  let settingsObserver = null;
 
   let handoffToken = null;
   try { handoffToken = accountRoot?.core?.takeHandoffFromLocation() || null; }
@@ -60,6 +63,55 @@
     return dialog;
   }
 
+  function renderSettingsPresentation() {
+    if (!settingsPresentation) return false;
+    const host = document.querySelector(JOIN_HOST_SELECTOR);
+    if (!host) return false;
+    if (host.dataset.syncJoinUiState === settingsPresentation.state) return true;
+    host.textContent = '';
+    host.dataset.syncJoinUiState = settingsPresentation.state;
+    const section = document.createElement('section');
+    section.className = 'sound-cruise-sync-settings-card';
+    section.dataset.syncSettingsState = settingsPresentation.state;
+    const header = document.createElement('div');
+    header.className = 'sound-cruise-sync-settings-head';
+    const title = document.createElement('strong');
+    title.textContent = 'クラウド同期';
+    const status = document.createElement('span');
+    status.dataset.syncAccountStatus = '';
+    status.textContent = settingsPresentation.status;
+    header.append(title, status);
+    section.append(header);
+    if (settingsPresentation.action) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.dataset.syncAppJoinEntry = '';
+      button.className = 'sound-cruise-sync-join-entry';
+      button.textContent = settingsPresentation.action.label;
+      button.addEventListener('click', settingsPresentation.action.run);
+      section.append(button);
+    }
+    host.append(section);
+    return true;
+  }
+
+  function setSettingsPresentation(presentation) {
+    settingsPresentation = presentation;
+    renderSettingsPresentation();
+    if (!settingsObserver && typeof MutationObserver === 'function' && document.body) {
+      settingsObserver = new MutationObserver(renderSettingsPresentation);
+      settingsObserver.observe(document.body, { childList: true, subtree: true });
+    }
+  }
+
+  function showConnectedSettings() {
+    setSettingsPresentation({ state: 'connected', status: '同期済み', action: null });
+  }
+
+  function showPendingSettings() {
+    setSettingsPresentation({ state: 'pending', status: '同期設定を再開しています…', action: null });
+  }
+
   function bindLanding(dialog, config, runtime, mode) {
     const summary = dialog.querySelector('[data-sync-summary]');
     const error = dialog.querySelector('[data-sync-error]');
@@ -99,6 +151,8 @@
         if (!result.ok) throw new Error(result.code || 'setup_failed');
         joinSecret?.resolve();
         if (joinField) joinField.remove();
+        dialog.querySelectorAll('[data-sync-copy-join-code]').forEach((node) => node.remove());
+        showConnectedSettings();
         dialog.dataset.syncPhase = 'complete';
         summary.textContent = 'クラウド同期を設定しました。';
         startButton.hidden = true;
@@ -118,21 +172,15 @@
   }
 
   function installJoinEntry(config, runtime) {
-    if (document.querySelector('[data-sync-app-join-entry]')) return;
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.dataset.syncAppJoinEntry = '';
-    button.className = 'sound-cruise-sync-join-entry';
-    button.textContent = 'Cruise Portと接続';
-    button.addEventListener('click', () => {
+    setSettingsPresentation({
+      state: 'unconnected',
+      status: '未接続',
+      action: { label: 'Cruise Portと接続', run: () => {
       const dialog = createLanding(config.appId, config.portUrl, 'join');
       bindLanding(dialog, config, runtime, 'join');
       dialog.showModal();
+      } }
     });
-    // App settings are rendered and replaced independently by each Cruise app.
-    // Keep the Account Join action at document level so it cannot be clipped by
-    // a settings modal or an app's non-scrolling screen container.
-    document.body.append(button);
   }
 
   function installRestoreAttention() {
@@ -216,13 +264,17 @@
       // A URL handoff is transient. A durable, active app connection wins so a
       // stale launch URL cannot reopen setup over a connected container.
       handoffToken = null;
+      showConnectedSettings();
       runtime.bindLifecycle();
       runtime.resumeConflictResolutions().then(() => runtime.sync('startup')).catch(() => {});
       return;
     }
     if (restored.state === 'migration_pending') {
       handoffToken = null;
-      runtime.initializeDataset().catch(() => {});
+      showPendingSettings();
+      runtime.initializeDataset().then((result) => {
+        if (result?.ok === true) showConnectedSettings();
+      }).catch(() => {});
       return;
     }
     if (restored.state === 'restore_error') {
