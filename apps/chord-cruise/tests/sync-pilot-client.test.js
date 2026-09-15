@@ -31,6 +31,8 @@ function createMemoryStore(failures) {
     var outbox = new Map();
     var shadow = new Map();
     var conflicts = new Map();
+    var backups = new Map();
+    var mergeSessions = new Map();
     var config = failures || {};
     function clone(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
     return {
@@ -51,7 +53,22 @@ function createMemoryStore(failures) {
         putConflict: async function (value) { conflicts.set(value.conflictId, clone(value)); },
         listConflicts: async function () { return clone(Array.from(conflicts.values())); },
         deleteConflict: async function (key) { conflicts.delete(key); },
+        putBackup: async function (value) { backups.set(value.backupId, clone(value)); },
+        getBackup: async function (key) { return clone(backups.get(key)); },
+        listBackups: async function () { return clone(Array.from(backups.values())); },
+        putMergeSession: async function (value) { mergeSessions.set(value.sessionId, clone(value)); },
+        getMergeSession: async function (key) { return clone(mergeSessions.get(key)); },
+        listMergeSessions: async function () { return clone(Array.from(mergeSessions.values())); },
         inspectMeta: function () { return meta; }
+    };
+}
+
+function jsonResponse(status, body) {
+    return {
+        ok: status >= 200 && status < 300,
+        status: status,
+        json: async function () { return JSON.parse(JSON.stringify(body)); },
+        headers: { get: function () { return null; } }
     };
 }
 
@@ -267,6 +284,104 @@ var seed = {
     });
     assert.strictEqual((await serverErrorClient.startIdentity({ turnstileToken: 'token' })).code, 'server_error');
     assert.strictEqual(await serverErrorStore.getMeta('deviceCredential'), undefined, 'Worker 500 cannot create local credentials');
+
+    // Regression: Account Add Environment can return a new B credential for a
+    // membership whose Chord dataset already exists.  B must enter the existing
+    // safe hydrate/merge flow, never try to re-run an initial migration.
+    var cloudSeed = Object.assign({}, seed, {
+        'chordCruise.chord.c2': JSON.stringify({ id: 'c2', folderId: 'folder-a', chordName: 'Dm', notes: [] }),
+        'chordCruise.libraryOrder': JSON.stringify({ version: 1, folderIds: ['folder-a'], entryIdsByFolder: { 'folder-a': ['c1', 'c2'] } })
+    });
+    var cloudSourceStore = createMemoryStore();
+    var cloudSourceSync = loadClient(cloudSourceStore);
+    var cloudSourceClient = cloudSourceSync.client.createClient({
+        enabled: true, localStorage: createStorage(cloudSeed), crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787'
+    });
+    await cloudSourceClient.initialize();
+    var cloudSource = await cloudSourceClient.captureSnapshot();
+    assert.strictEqual(cloudSource.counts.total, 5, 'fixture has the existing five-record Chord dataset');
+    var existingCloud = {
+        ok: true,
+        appId: 'chord',
+        datasetState: 'ready',
+        schemaVersion: 1,
+        recordCount: cloudSource.counts.total,
+        manifestHash: cloudSource.manifestHash,
+        cursor: 'scc1.test-cursor',
+        records: cloudSource.records.map(function (record, index) {
+            return Object.assign({}, record, { revision: index + 1, deletedAt: null, operationId: null, changeSeq: index + 1 });
+        })
+    };
+    var promotionStore = createMemoryStore();
+    var promotionSync = loadClient(promotionStore);
+    var promotionLocal = createStorage({ 'chordCruise.schemaVersion': JSON.stringify('1') });
+    var promotionRequests = [];
+    var hydrateUnavailable = true;
+    var promotionClient = promotionSync.client.createClient({
+        enabled: true, localStorage: promotionLocal, crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787', now: function () { return 4000; },
+        fetch: async function (url) {
+            promotionRequests.push(url);
+            if (url.indexOf('/v1/sync/bootstrap') !== -1) {
+                return jsonResponse(200, { ok: true, appId: 'chord', datasetState: 'ready', alreadyCreated: true });
+            }
+            if (url.indexOf('/v1/sync/snapshot') !== -1) {
+                if (hydrateUnavailable) return jsonResponse(503, { ok: false, code: 'server_error' });
+                return jsonResponse(200, existingCloud);
+            }
+            throw new Error('unexpected promotion request');
+        }
+    });
+    await promotionClient.initialize();
+    var promotionDeviceId = '123e4567-e89b-42d3-a456-426614174777';
+    var promotionCredential = 'scd1.' + promotionDeviceId + '.' + 'C'.repeat(43);
+    var adopted = await promotionClient.adoptAccountManagedIdentity({
+        deviceId: promotionDeviceId,
+        deviceCredential: promotionCredential
+    });
+    assert.strictEqual(adopted.ok, true, 'the consumed B credential is promoted locally');
+    assert.strictEqual(adopted.requiresMerge, true, 'existing ready data uses the hydrate boundary');
+    assert.strictEqual((await promotionStore.getMeta('deviceCredential')).deviceId, promotionDeviceId, 'the same B device is retained');
+    assert.strictEqual(await promotionStore.getMeta('accountManagedSetup'), true, 'B remains Account-managed');
+    assert.strictEqual(await promotionStore.getMeta('syncState'), 'paired_pending');
+    assert.strictEqual(await promotionStore.getMeta('migrationState'), 'pair_pending');
+    assert.strictEqual(promotionRequests.some(function (url) { return url.indexOf('/v1/sync/migration/complete') !== -1; }), false,
+        'B never attempts a second initial migration against the existing dataset');
+    assert.deepStrictEqual(promotionLocal.snapshot(), { 'chordCruise.schemaVersion': JSON.stringify('1') },
+        'credential promotion does not overwrite B local data');
+
+    var failedHydrate = await promotionClient.preparePairingMerge();
+    assert.strictEqual(failedHydrate.ok, false, 'a transient hydrate failure remains recoverable');
+    assert.strictEqual(await promotionStore.getMeta('syncState'), 'paired_pending', 'hydrate failure keeps the resumable state');
+    assert.strictEqual((await promotionStore.getMeta('deviceCredential')).credential, promotionCredential,
+        'hydrate failure keeps the existing B credential');
+    hydrateUnavailable = false;
+    var preview = await promotionClient.preparePairingMerge({ sessionId: 'account-managed-chord-b' });
+    assert.strictEqual(preview.ok, true, 'the same B device can retry hydrate without another Join');
+    var hydrated = await promotionClient.applyPairingMerge(preview.sessionId, {});
+    assert.strictEqual(hydrated.ok, true, 'the retry hydrates the existing remote dataset');
+    assert.strictEqual((await promotionClient.captureSnapshot()).counts.total, 5, 'B receives all existing canonical records');
+    assert.strictEqual(await promotionStore.getMeta('syncState'), 'pilot_ready');
+    assert.strictEqual(promotionRequests.some(function (url) {
+        return url.indexOf('/v1/sync/push') !== -1 || url.indexOf('/v2/accounts/app-join-invitations') !== -1;
+    }), false, 'promotion and hydrate create neither a third device nor remote user-data writes');
+
+    var promotionSaveFailStore = createMemoryStore({ failMetaBatch: true });
+    var promotionSaveFailSync = loadClient(promotionSaveFailStore);
+    var promotionSaveFailRequests = 0;
+    var promotionSaveFailClient = promotionSaveFailSync.client.createClient({
+        enabled: true, localStorage: createStorage(), crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787',
+        fetch: async function () { promotionSaveFailRequests += 1; throw new Error('must not request'); }
+    });
+    var saveFailed = await promotionSaveFailClient.adoptAccountManagedIdentity({
+        deviceId: promotionDeviceId,
+        deviceCredential: promotionCredential
+    });
+    assert.strictEqual(saveFailed.code, 'client_storage_failed', 'a credential persistence failure is explicit and resumable from the Account candidate');
+    assert.strictEqual(await promotionSaveFailStore.getMeta('deviceCredential'), undefined, 'failed promotion leaves no partial Chord credential');
+    assert.strictEqual(promotionSaveFailRequests, 0, 'no data-plane request runs before durable B credential storage');
 
     var offContext = {
         window: {

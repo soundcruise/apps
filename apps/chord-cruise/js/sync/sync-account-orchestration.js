@@ -75,6 +75,49 @@
       });
       await accountClient.confirmConsumePersisted();
     }
+
+    async function refreshPairingUi() {
+      var pairingUi = global.ChordCruiseSync && global.ChordCruiseSync.pairingUi;
+      if (pairingUi && typeof pairingUi.refresh === 'function') await pairingUi.refresh();
+    }
+
+    function committedJoinFailure(reason) {
+      var error = reason instanceof Error ? reason : new Error('account_join_promotion_failed');
+      error.accountJoinCommitted = true;
+      return error;
+    }
+
+    async function promoteNewAppConsume(consumed) {
+      try {
+        if (!consumed || !consumed.appDeviceId || !consumed.appDeviceCredential) {
+          throw new Error('account_join_consume_invalid');
+        }
+        var migrated = await chordClient.adoptAccountManagedIdentity({
+          deviceId: consumed.appDeviceId,
+          deviceCredential: consumed.appDeviceCredential
+        });
+        if (!migrated.ok) throw new Error(migrated.code || 'migration_failed');
+        await accountClient.confirmConsumePersisted();
+        await refreshPairingUi();
+        return migrated;
+      } catch (error) {
+        // The Account client saved an operation-bound, credential-bearing
+        // candidate before POSTing.  Once consume returned, this is no longer
+        // a code-input failure: retain that candidate and resume the same B
+        // device instead of issuing or consuming another Join invitation.
+        throw committedJoinFailure(error);
+      }
+    }
+
+    async function resumeNewAppConsume() {
+      var resumed = await accountClient.resumePendingConsume({ preservePending: true });
+      if (resumed.status !== 'committed' || resumed.membership?.appId !== 'chord' ||
+          !resumed.appDeviceId || !resumed.appDeviceCredential) {
+        throw committedJoinFailure(new Error('account_join_resume_unavailable'));
+      }
+      return promoteNewAppConsume(resumed);
+    }
+
     async function connectWithJoin(joinCode) {
       const chordStore = await chordClient.openStore();
       const existing = await chordStore.getMeta('deviceCredential');
@@ -92,23 +135,76 @@
         joinCode, appId: 'chord', deviceLabel: 'Chord Cruise',
         consumeMode: 'new_app', preservePending: true
       });
-      const migrated = await chordClient.adoptAccountManagedIdentity({
-        deviceId: consumed.appDeviceId,
-        deviceCredential: consumed.appDeviceCredential
-      });
-      if (!migrated.ok) throw new Error(migrated.code || 'migration_failed');
-      await accountClient.confirmConsumePersisted();
+      return promoteNewAppConsume(consumed);
     }
-    function installJoinEntry() {
+
+    function completeJoinDialog(dialog, summary, start, resume) {
+      if (resume) resume.remove();
+      summary.textContent = 'クラウド同期を設定しました。';
+      start.hidden = true;
+      dialog.querySelector('[data-sync-action="continue"]').hidden = false;
+      dialog.querySelector('[data-sync-action="return"]').hidden = false;
+    }
+
+    function showJoinResume(dialog, summary, start, input, joinSecret) {
+      joinSecret?.resolve();
+      if (input) input.remove();
+      start.hidden = true;
+      summary.textContent = 'この端末の接続設定を安全に再開できます。接続コードをもう一度入力する必要はありません。';
+      var error = dialog.querySelector('[data-sync-error]');
+      error.hidden = false;
+      error.textContent = '接続設定の続きが必要です。';
+      var resume = document.createElement('button');
+      resume.type = 'button';
+      resume.dataset.syncAction = 'resume';
+      resume.textContent = '同期の設定を再開';
+      start.after(resume);
+      resume.addEventListener('click', async () => {
+        resume.disabled = true;
+        try {
+          await resumeNewAppConsume();
+          error.hidden = true;
+          completeJoinDialog(dialog, summary, start, resume);
+        } catch (_) {
+          error.hidden = false;
+          error.textContent = '接続設定を再開できませんでした。データは削除していません。';
+          resume.disabled = false;
+        }
+      });
+      return resume;
+    }
+
+    function installJoinEntry(options) {
       if (document.querySelector('[data-sync-app-join-entry]')) return;
+      var resumeOnly = options && options.resume === true;
       const button = document.createElement('button');
       button.type = 'button';
       button.dataset.syncAppJoinEntry = '';
       button.className = 'cc-sync-primary-action';
-      button.textContent = 'Cruise Portと接続';
+      button.textContent = resumeOnly ? 'クラウド同期の設定を再開' : 'Cruise Portと接続';
       button.addEventListener('click', () => {
         const dialog = landing(settings.portUrl);
         const summary = dialog.querySelector('[data-sync-summary]');
+        const start = dialog.querySelector('[data-sync-action="start"]');
+        const error = dialog.querySelector('[data-sync-error]');
+        if (resumeOnly) {
+          summary.textContent = 'この端末の接続設定を安全に再開できます。接続コードをもう一度入力する必要はありません。';
+          start.textContent = '同期の設定を再開';
+          start.addEventListener('click', async () => {
+            start.disabled = true;
+            try {
+              await resumeNewAppConsume();
+              error.hidden = true;
+              completeJoinDialog(dialog, summary, start, null);
+            } catch (_) {
+              error.hidden = false;
+              error.textContent = '接続設定を再開できませんでした。データは削除していません。';
+              start.disabled = false;
+            }
+          });
+          dialog.showModal();
+          return;
+        }
         summary.textContent = 'Cruise Portに表示された既存データ接続コードを入力してください。';
         const input = document.createElement('input');
         input.autocomplete = 'off';
@@ -119,7 +215,6 @@
         input.setAttribute('aria-label', '既存データ接続コード');
         summary.after(input);
         const joinSecret = accountRoot.core.createSensitiveInputController(input);
-        const start = dialog.querySelector('[data-sync-action="start"]');
         start.textContent = '既存データを接続';
         start.addEventListener('click', async () => {
           start.disabled = true;
@@ -134,14 +229,15 @@
             await connectWithJoin(joinCode);
             joinSecret.resolve();
             input.remove();
-            summary.textContent = 'クラウド同期を設定しました。';
-            start.hidden = true;
-            dialog.querySelector('[data-sync-action="continue"]').hidden = false;
-            dialog.querySelector('[data-sync-action="return"]').hidden = false;
+            completeJoinDialog(dialog, summary, start, null);
           } catch (reason) {
+            if (reason && reason.accountJoinCommitted === true) {
+              showJoinResume(dialog, summary, start, input, joinSecret);
+              return;
+            }
             joinSecret.reject(reason);
-            dialog.querySelector('[data-sync-error]').hidden = false;
-            dialog.querySelector('[data-sync-error]').textContent = '接続を完了できませんでした。データは削除していません。';
+            error.hidden = false;
+            error.textContent = '接続を完了できませんでした。データは削除していません。';
             start.disabled = false;
           }
         });
@@ -153,14 +249,25 @@
     if (!handoffToken) {
       const chordStore = await chordClient.openStore();
       let existing = await chordStore.getMeta('deviceCredential');
-      const resumed = await accountClient.resumePendingConsume({ preservePending: true });
+      let resumed;
+      try {
+        resumed = await accountClient.resumePendingConsume({ preservePending: true });
+      } catch (_) {
+        const pending = await accountRoot.storage.getPendingConsume?.();
+        if (pending?.appId === 'chord' && pending?.consumeMode === 'new_app') {
+          installJoinEntry({ resume: true });
+          return;
+        }
+        throw _;
+      }
       if (resumed.status === 'committed' && resumed.membership?.appId === 'chord' && resumed.appDeviceCredential) {
-        const migrated = await chordClient.adoptAccountManagedIdentity({
-          deviceId: resumed.appDeviceId,
-          deviceCredential: resumed.appDeviceCredential
-        });
-        if (migrated.ok) await accountClient.confirmConsumePersisted();
-        return;
+        try {
+          await resumeNewAppConsume();
+          return;
+        } catch (_) {
+          installJoinEntry({ resume: true });
+          return;
+        }
       }
       if (resumed.status === 'bridge_required' && resumed.membership?.appId === 'chord' && existing?.credential) {
         await finishExistingBridge(existing, resumed);
@@ -169,10 +276,16 @@
       const accountManagedSetup = await chordStore.getMeta('accountManagedSetup');
       const migrationState = await chordStore.getMeta('migrationState');
       if (accountManagedSetup === true && migrationState !== 'complete' && existing?.credential) {
-        await chordClient.adoptAccountManagedIdentity({
+        const migrated = await chordClient.adoptAccountManagedIdentity({
           deviceId: existing.deviceId,
           deviceCredential: existing.credential
         });
+        if (migrated.ok) {
+          await refreshPairingUi();
+          return;
+        }
+        installJoinEntry({ resume: true });
+        return;
       }
       installJoinEntry();
       return;
@@ -201,12 +314,7 @@
             handoffToken, appId: 'chord', deviceLabel: 'Chord Cruise', consumeMode: 'new_app',
             preservePending: true
           });
-          const migrated = await chordClient.adoptAccountManagedIdentity({
-            deviceId: consumed.appDeviceId,
-            deviceCredential: consumed.appDeviceCredential
-          });
-          if (!migrated.ok) throw new Error(migrated.code || 'migration_failed');
-          await accountClient.confirmConsumePersisted();
+          await promoteNewAppConsume(consumed);
         }
         handoffToken = null;
         dialog.dataset.syncPhase = 'complete';
@@ -216,6 +324,10 @@
         dialog.querySelector('[data-sync-action="return"]').hidden = false;
       } catch (error) {
         dialog.dataset.syncPhase = 'attention';
+        if (error && error.accountJoinCommitted === true) {
+          showJoinResume(dialog, summaryText, start, null, null);
+          return;
+        }
         errorText.hidden = false;
         errorText.textContent = '接続を完了できませんでした。データは削除していません。Cruise Portから再度お試しください。';
         start.disabled = false;

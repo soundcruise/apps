@@ -73,7 +73,7 @@ async function runProductionLoad(hasCredential) {
         head: {
             appendChild: function (script) {
                 appended.push(script.src);
-                if (script.src.endsWith('/sync-client.js')) {
+                if (script.src.split('?')[0].endsWith('/sync-client.js')) {
                     window.ChordCruiseSync = { client: { createClient: function () { return client; } } };
                 }
                 if (script.src.includes('/sync-pairing-ui.js')) {
@@ -114,8 +114,10 @@ async function runProductionLoad(hasCredential) {
     assert.strictEqual(production.api.setSessionEnabled(true), false, 'production cannot persist the pilot flag');
 
     var freshProduction = await runProductionLoad(false);
-    assert.deepStrictEqual(freshProduction.appended.map(function (url) { return url.split('/').pop(); }),
+    assert.deepStrictEqual(freshProduction.appended.map(function (url) { return url.split('/').pop().split('?')[0]; }),
         ['sync-core.js', 'sync-db.js', 'sync-merge.js', 'sync-client.js']);
+    assert(freshProduction.appended.some(function (url) { return url.endsWith('/sync-client.js?v=1.8.0'); }),
+        'the newly changed client module is cache-busted');
     assert.strictEqual(freshProduction.installed, 0, 'a new production Chord user sees no Legacy Sync entry');
     assert.strictEqual(freshProduction.background, 0);
 
@@ -142,8 +144,8 @@ async function runProductionLoad(hasCredential) {
     assert.strictEqual(standardHtml.includes('sync-cohort'), false, 'Standard loads no cohort activation controller');
     assert.strictEqual(standardHtml.includes('__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__'), false, 'Standard has no production Turnstile configuration');
     assert(proHtml.includes("__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr'"), 'Pro has the dedicated public production site key');
-    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.7.1'), 'Pro loads the production Turnstile provider');
-    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.7.1'), 'Pro loads the OFF-first bootstrap');
+    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.8.0'), 'Pro loads the production Turnstile provider');
+    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.8.0'), 'Pro loads the OFF-first bootstrap');
     assert(proHtml.indexOf('sync-turnstile.js') < proHtml.indexOf('sync-bootstrap.js'), 'Pro installs Turnstile before Sync bootstrap');
     ['sync-core.js', 'sync-db.js', 'sync-merge.js', 'sync-client.js'].forEach(function (fileName) {
         assert.strictEqual(standardHtml.includes(fileName), false, 'Standard never loads ' + fileName);
@@ -151,7 +153,7 @@ async function runProductionLoad(hasCredential) {
     });
     assert(source.indexOf("loadScript('sync-core.js')") < source.indexOf("loadScript('sync-db.js')"));
     assert(source.indexOf("loadScript('sync-db.js')") < source.indexOf("loadScript('sync-merge.js')"));
-    assert(source.indexOf("loadScript('sync-merge.js')") < source.indexOf("loadScript('sync-client.js')"));
+    assert(source.indexOf("loadScript('sync-merge.js')") < source.indexOf("loadScript('sync-client.js?v=1.8.0')"));
     assert(source.includes('client.watchLocalMutations'), 'Pilot ON connects successful local saves to debounced sync');
     assert(source.includes("getMeta('datasetState') === 'ready'"), 'background sync starts only after migration is ready');
     assert(source.includes("getMeta('deviceCredential')"), 'production checks the existing device before exposing legacy controls');

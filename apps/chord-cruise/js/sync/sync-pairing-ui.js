@@ -1,6 +1,8 @@
 (function (global) {
     'use strict';
 
+    var refreshCurrent = null;
+
     function tokenFor(action) {
         var provider = global.__SOUND_CRUISE_SYNC_GET_TURNSTILE_TOKEN__;
         if (typeof provider === 'function') return Promise.resolve(provider(action));
@@ -743,13 +745,22 @@
         var helpButton = section.querySelector('[data-sync-help]');
         if (helpButton) helpButton.addEventListener('click', showHelp);
 
-        render().catch(function () {
-            setStatus('要確認', '同期状態を確認できませんでした。接続を確認してもう一度お試しください。');
-            setEntryStatus('要確認');
-        });
+        function refresh() {
+            return render().catch(function () {
+                setStatus('要確認', '同期状態を確認できませんでした。接続を確認してもう一度お試しください。');
+                setEntryStatus('要確認');
+                return false;
+            });
+        }
+
+        refreshCurrent = refresh;
+        refresh();
         return true;
     }
 
     global.ChordCruiseSync = global.ChordCruiseSync || {};
-    global.ChordCruiseSync.pairingUi = Object.freeze({ install: install });
+    global.ChordCruiseSync.pairingUi = Object.freeze({
+        install: install,
+        refresh: function () { return refreshCurrent ? refreshCurrent() : Promise.resolve(false); }
+    });
 }(typeof window !== 'undefined' ? window : globalThis));

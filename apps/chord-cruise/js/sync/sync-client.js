@@ -701,18 +701,22 @@
             if (existing && existing.credential !== candidate.deviceCredential) {
                 return { ok: false, code: 'existing_credential_conflict' };
             }
-            await store.setMetaBatch([
-                { key: 'deviceCredential', value: {
-                    deviceId: candidate.deviceId,
-                    credential: candidate.deviceCredential,
-                    credentialVersion: 1,
-                    createdAt: now()
-                } },
-                { key: 'syncState', value: 'provisioning' },
-                { key: 'datasetState', value: 'initializing' },
-                { key: 'migrationState', value: 'not_started' },
-                { key: 'accountManagedSetup', value: true }
-            ], now());
+            try {
+                await store.setMetaBatch([
+                    { key: 'deviceCredential', value: {
+                        deviceId: candidate.deviceId,
+                        credential: candidate.deviceCredential,
+                        credentialVersion: 1,
+                        createdAt: now()
+                    } },
+                    { key: 'syncState', value: 'provisioning' },
+                    { key: 'datasetState', value: 'initializing' },
+                    { key: 'migrationState', value: 'not_started' },
+                    { key: 'accountManagedSetup', value: true }
+                ], now());
+            } catch (error) {
+                return { ok: false, code: 'client_storage_failed' };
+            }
             var snapshot = await adapter.snapshot();
             if (snapshot.errors.length) return { ok: false, code: 'snapshot_invalid' };
             var bootstrap = await authenticatedRequest('POST', '/v1/sync/bootstrap', {
@@ -722,6 +726,39 @@
                 manifestHash: snapshot.manifestHash
             });
             if (!bootstrap.ok) return { ok: false, code: bootstrap.code || 'bootstrap_failed' };
+            if (!bootstrap.body || bootstrap.body.appId !== core.APP_ID ||
+                ['initializing', 'ready'].indexOf(bootstrap.body.datasetState) === -1) {
+                return { ok: false, code: 'invalid_account_bootstrap' };
+            }
+            // A new device can be added to an Account membership that already has
+            // a ready Chord dataset.  That is a hydrate/merge flow, not a second
+            // initial migration: replaying B's empty local snapshot as a migration
+            // would conflict with the existing canonical dataset.  Keep the
+            // credential and mark the normal pairing merge boundary instead.
+            if (bootstrap.body.datasetState === 'ready') {
+                var localState = mergeApi().hasMeaningfulLocalData(snapshot)
+                    ? 'local_data_pending_merge'
+                    : 'empty';
+                try {
+                    await store.setMetaBatch([
+                        { key: 'syncState', value: 'paired_pending' },
+                        { key: 'datasetState', value: 'remote_pending' },
+                        { key: 'migrationState', value: 'pair_pending' },
+                        { key: 'pairingLocalState', value: localState },
+                        { key: 'accountManagedSetup', value: true }
+                    ], now());
+                } catch (error) {
+                    return { ok: false, code: 'client_storage_failed' };
+                }
+                return {
+                    ok: true,
+                    appId: core.APP_ID,
+                    deviceId: candidate.deviceId,
+                    localState: localState,
+                    requiresMerge: true,
+                    accountManaged: true
+                };
+            }
             return beginInitialMigration();
         }
 

@@ -102,6 +102,20 @@ test('Chord account orchestration selects bridge mode for an existing credential
   assert.equal(read('apps/chord-cruise/standard/index.html').includes('sync-account-orchestration.js'), false);
 });
 
+test('Chord retains a committed new-app Join candidate for same-device promotion and hydrate retry', () => {
+  const source = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
+  const client = read('apps/chord-cruise/js/sync/sync-client.js');
+  assert.match(source, /resumeNewAppConsume/);
+  assert.match(source, /accountJoinCommitted/);
+  assert.match(source, /同期の設定を再開/);
+  assert.match(source, /confirmConsumePersisted\(\)/);
+  assert.match(client, /requiresMerge: true/);
+  assert.match(client, /datasetState === 'ready'/);
+  assert.match(client, /syncState', value: 'paired_pending'/);
+  assert.doesNotMatch(client, /datasetState === 'ready'[\s\S]{0,250}beginInitialMigration\(\)/,
+    'a ready existing dataset cannot be re-run as B initial migration');
+});
+
 test('all four app Join inputs use the shared transient-secret lifecycle', () => {
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
   const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');

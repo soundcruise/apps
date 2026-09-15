@@ -725,8 +725,10 @@ test('consume response-loss recovery proves committed state with candidate Accou
   const accountCredential = account.core.createAccountCredential();
   const appCredential = account.core.createAppCredential();
   const pending = {
+    transport: 'app_join',
     operationId: account.core.createOperationId(),
     appId: 'chord',
+    consumeMode: 'new_app',
     accountDeviceId: accountCredential.accountDeviceId,
     accountCredential: accountCredential.accountCredential,
     appDeviceId: appCredential.appDeviceId,
@@ -755,6 +757,8 @@ test('consume response-loss recovery proves committed state with candidate Accou
   const result = await client.resumePendingConsume();
   assert.equal(result.status, 'committed');
   assert.equal(result.membership.id, membershipId);
+  assert.equal(result.appDeviceCredential, appCredential.appDeviceCredential,
+    'the operation-bound candidate returns the same app B credential after response loss');
   assert.equal(writes.at(-1)[0], 'clearPendingConsume');
   assert.equal(JSON.stringify(writes).includes('sch1.'), false);
 });

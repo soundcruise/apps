@@ -78,7 +78,7 @@
         ready = loadScript('sync-core.js')
             .then(function () { return loadScript('sync-db.js'); })
             .then(function () { return loadScript('sync-merge.js'); })
-            .then(function () { return loadScript('sync-client.js'); })
+            .then(function () { return loadScript('sync-client.js?v=1.8.0'); })
             .then(function () {
                 var production = isProductionHost();
                 var endpoint = production
@@ -98,7 +98,7 @@
                         !(credential && credential.credential)) {
                         return result;
                     }
-                    return loadScript('sync-pairing-ui.js?v=1.7.1').then(function () {
+                    return loadScript('sync-pairing-ui.js?v=1.8.0').then(function () {
                         if (global.ChordCruiseSync.pairingUi) global.ChordCruiseSync.pairingUi.install(client);
                         return result;
                     });
