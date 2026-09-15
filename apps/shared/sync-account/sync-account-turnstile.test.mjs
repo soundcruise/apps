@@ -11,7 +11,13 @@ function fixture({ siteKey = 'public-site-key' } = {}) {
   const rendered = [];
   const document = {
     head: { appendChild(script) { appended.push(script); elements.set(script.id, script); } },
-    body: { appendChild(element) { elements.set(element.id, element); } },
+    body: {
+      appendChild(element) {
+        element.parentNode = this;
+        elements.set(element.id, element);
+      },
+      removeChild(element) { elements.delete(element.id); }
+    },
     getElementById(id) { return elements.get(id) || null; },
     createElement(tag) {
       const listeners = {};
@@ -29,10 +35,10 @@ function fixture({ siteKey = 'public-site-key' } = {}) {
     clearTimeout,
     __SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__: siteKey,
     turnstile: {
-      render(_container, options) {
-        rendered.push(options);
+      render(container, options) {
+        rendered.push({ container, options });
         options.callback('verified-token');
-        return 'widget-1';
+        return `widget-${rendered.length}`;
       },
       remove() {}
     }
@@ -47,10 +53,11 @@ test('Account Turnstile issues only the two exact action tokens', async () => {
   assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken('unknown'), null);
   assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken('sound_cruise_account_qa_enroll'), 'verified-token');
   assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken('sound_cruise_account_start'), 'verified-token');
-  assert.deepEqual(rendered.map((value) => value.action), [
+  assert.deepEqual(rendered.map(({ options }) => options.action), [
     'sound_cruise_account_qa_enroll', 'sound_cruise_account_start'
   ]);
-  assert.equal(rendered.every((value) => value.sitekey === 'public-site-key' && value.appearance === 'interaction-only'), true);
+  assert.equal(rendered.every(({ options }) => options.sitekey === 'public-site-key' && options.appearance === 'interaction-only'), true);
+  assert.notEqual(rendered[0].container, rendered[1].container, 'each action uses a fresh Turnstile mount node');
   assert.equal(appended.length, 0, 'an already loaded API is reused');
 });
 

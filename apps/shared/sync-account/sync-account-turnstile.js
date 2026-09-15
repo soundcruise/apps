@@ -3,7 +3,7 @@
 
   const API_URL = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
   const SCRIPT_ID = 'sound-cruise-account-turnstile-api';
-  const CONTAINER_ID = 'sound-cruise-account-turnstile';
+  const CONTAINER_PREFIX = 'sound-cruise-account-turnstile';
   const DEFAULT_TIMEOUT_MS = 20_000;
   const ACTIONS = new Set([
     'sound_cruise_account_qa_enroll',
@@ -11,7 +11,8 @@
     'sound_cruise_account_recovery'
   ]);
   let scriptPromise = null;
-  let activeWidgetId = null;
+  let activeWidget = null;
+  let containerSequence = 0;
 
   function siteKey() {
     const value = global.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__;
@@ -45,24 +46,27 @@
     return scriptPromise;
   }
 
+  // Do not reuse a Turnstile mount node. Safari Private can retain an
+  // interaction-only iframe after remove(), which prevents a later action
+  // from issuing a token in the same document.
   function container() {
-    let element = global.document.getElementById(CONTAINER_ID);
-    if (!element) {
-      element = global.document.createElement('div');
-      element.id = CONTAINER_ID;
-      element.setAttribute('aria-live', 'polite');
-      global.document.body.appendChild(element);
-    }
+    const element = global.document.createElement('div');
+    element.id = `${CONTAINER_PREFIX}-${++containerSequence}`;
+    element.setAttribute('aria-live', 'polite');
+    global.document.body.appendChild(element);
     return element;
   }
 
-  function reset(api) {
-    if (activeWidgetId !== null && typeof api.remove === 'function') {
-      try { api.remove(activeWidgetId); } catch (_) { /* best effort UI cleanup */ }
+  function reset(api, widget = activeWidget) {
+    if (widget?.id !== null && widget?.id !== undefined && typeof api.remove === 'function') {
+      try { api.remove(widget.id); } catch (_) { /* best effort UI cleanup */ }
     }
-    activeWidgetId = null;
-    const element = global.document?.getElementById(CONTAINER_ID);
-    if (element) element.textContent = '';
+    if (widget?.element?.parentNode?.removeChild) {
+      try { widget.element.parentNode.removeChild(widget.element); } catch (_) { /* best effort UI cleanup */ }
+    } else if (widget?.element) {
+      widget.element.textContent = '';
+    }
+    if (widget === activeWidget) activeWidget = null;
   }
 
   function withTimeout(promise, timeoutMs, onTimeout = () => {}) {
@@ -83,14 +87,17 @@
       if (!api) return null;
       return await withTimeout(new Promise((resolve) => {
         let settled = false;
+        const element = container();
+        const widget = { id: null, element };
         const finish = (value) => {
           if (settled) return;
           settled = true;
+          reset(api, widget);
           resolve(typeof value === 'string' && value ? value : null);
         };
         reset(api);
         try {
-          const widgetId = api.render(container(), {
+          widget.id = api.render(element, {
             sitekey: siteKey(),
             action,
             appearance: 'interaction-only',
@@ -101,8 +108,8 @@
             'expired-callback': () => finish(null),
             'timeout-callback': () => finish(null)
           });
-          activeWidgetId = widgetId;
-          if (settled) reset(api);
+          activeWidget = widget;
+          if (settled) reset(api, widget);
         } catch (_) { finish(null); }
       }), timeoutMs, () => reset(api));
     } catch (_) {
