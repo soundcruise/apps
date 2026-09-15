@@ -163,7 +163,7 @@ function serverFetch() {
   return { server, fetchImpl };
 }
 
-function runtimeFixture(initial, appId = 'pitch') {
+function runtimeFixture(initial, appId = 'pitch', admissionMode = 'qa') {
   const backups = [];
   const Runtime = loadRuntime({ async save(value) { backups.push(structuredClone(value)); } });
   const store = memoryStore();
@@ -178,15 +178,32 @@ function runtimeFixture(initial, appId = 'pitch') {
   const consumed = { consumeMode: 'new_app', membershipId: 'm1',
     membershipState: 'active', appDeviceCredential: 'scd1.valid', qaCredential: 'scq1.valid' };
   const accountClient = {
+    admissionMode,
     consumeHandoff: async () => consumed,
     consumeJoinInvitation: async () => consumed,
     async confirmConsumePersisted() {}
   };
   return { runtime: new Runtime({ appId, endpoint: 'https://example.test', adapter: local,
-    store, accountClient, accountCore: core, fetchImpl, randomOperationId: () => `op-${++id}` }),
+    store, accountClient, accountCore: core, fetchImpl, admissionMode,
+    randomOperationId: () => `op-${++id}` }),
     Runtime, store, local, server, backups, context: Runtime.testContext,
     accountClient, core, fetchImpl, nextId: () => `op-${++id}` };
 }
+
+test('production data-plane requests require only app authority and never send QA authorization', async () => {
+  const fixture = runtimeFixture([], 'pitch', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('qaCredential', null);
+  let headers;
+  fixture.runtime.fetchImpl = async (_url, init) => {
+    headers = init.headers;
+    return Response.json({ ok: true, datasetState: 'ready', schemaVersion: 1,
+      recordCount: 0, manifestHash: 'manifest-', cursor: 'c0', records: [] });
+  };
+  await fixture.runtime.request('GET', '/v1/sync/snapshot?appId=pitch');
+  assert.equal(headers.get('Authorization'), 'Bearer scd1.valid');
+  assert.equal(headers.has('X-Sound-Cruise-QA-Authorization'), false);
+});
 
 function record(id, name = id, recordType = 'custom_record') {
   return { recordType, recordId: id, schemaVersion: 1,

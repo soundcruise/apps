@@ -18,14 +18,20 @@ const activeSummary = {
     ]
 };
 
-test('production defaults OFF and accepts only explicit HTTPS development configuration', () => {
+test('production defaults OFF and accepts only explicit HTTPS configuration', () => {
     assert.deepEqual(readSyncCenterConfig({}), { enabled: false, endpoint: null });
     assert.deepEqual(readSyncCenterConfig({ __SOUND_CRUISE_SYNC_CENTER__: { enabled: true, environment: 'development', endpoint: 'http://localhost' } }), { enabled: false, endpoint: null });
-    assert.deepEqual(readSyncCenterConfig({ __SOUND_CRUISE_SYNC_CENTER__: { enabled: true, environment: 'production', endpoint } }), { enabled: false, endpoint: null });
+    assert.deepEqual(readSyncCenterConfig({ __SOUND_CRUISE_SYNC_CENTER__: { enabled: true, environment: 'production', endpoint } }), {
+        enabled: true,
+        endpoint,
+        qaAdmissionRequired: false,
+        admissionMode: 'production'
+    });
     assert.deepEqual(readSyncCenterConfig({ __SOUND_CRUISE_SYNC_CENTER__: { enabled: true, environment: 'development', endpoint: `${endpoint}/` } }), {
         enabled: true,
         endpoint,
-        qaAdmissionRequired: false
+        qaAdmissionRequired: false,
+        admissionMode: 'qa'
     });
 });
 
@@ -35,7 +41,8 @@ test('production QA activation is exact-host and query-bound while ordinary user
     } }), {
         enabled: true,
         endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
-        qaAdmissionRequired: true
+        qaAdmissionRequired: true,
+        admissionMode: 'qa'
     });
     assert.deepEqual(readSyncCenterConfig({ location: {
         hostname: 'soundcruise.jp', search: ''

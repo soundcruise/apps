@@ -23,13 +23,19 @@
       endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev',
       portUrl: '/apps/cruise-port/?sound-cruise-qa=1#sync-center'
     } : value;
-    if (!effective || effective.enabled !== true || !['development', 'qa'].includes(effective.environment) || !APP_ROOTS[appId]) return null;
+    if (!effective || effective.enabled !== true ||
+        !['development', 'qa', 'production'].includes(effective.environment) || !APP_ROOTS[appId]) return null;
     try {
       const endpoint = new URL(effective.endpoint);
       if (endpoint.protocol !== 'https:' && !(endpoint.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(endpoint.hostname))) {
         return null;
       }
-      return { appId, endpoint: endpoint.toString().replace(/\/$/, ''), portUrl: effective.portUrl || '/apps/cruise-port/#sync-center' };
+      return {
+        appId,
+        endpoint: endpoint.toString().replace(/\/$/, ''),
+        portUrl: effective.portUrl || '/apps/cruise-port/#sync-center',
+        admissionMode: effective.environment === 'production' ? 'production' : 'qa'
+      };
     } catch (_) { return null; }
   }
 
@@ -124,7 +130,7 @@
       dialog.showModal();
     });
     // App settings are rendered and replaced independently by each Cruise app.
-    // Keep the QA-only Join action at document level so it cannot be clipped by
+    // Keep the Account Join action at document level so it cannot be clipped by
     // a settings modal or an app's non-scrolling screen container.
     document.body.append(button);
   }
@@ -159,9 +165,9 @@
         const resumed = await accountClient.resumePendingConsume({ preservePending: true });
         if (resumed.status === 'committed' && resumed.membership?.appId === runtime.appId &&
             accountCore.validAppCredential(resumed.appDeviceCredential) &&
-            accountCore.validQaCredential(resumed.qaCredential)) {
+            (runtime.admissionMode === 'production' || accountCore.validQaCredential(resumed.qaCredential))) {
           await store.setMeta('credential', resumed.appDeviceCredential);
-          await store.setMeta('qaCredential', resumed.qaCredential);
+          await store.setMeta('qaCredential', resumed.qaCredential || null);
           await store.setMeta('membership', {
             id: resumed.membership.id, appId: runtime.appId, state: resumed.membership.state
           });
@@ -176,7 +182,8 @@
     }
 
     if (credential == null && qaCredential == null) return Object.freeze({ state: 'not_connected' });
-    if (!accountCore.validAppCredential(credential) || !accountCore.validQaCredential(qaCredential)) {
+    if (!accountCore.validAppCredential(credential) ||
+        (runtime.admissionMode === 'qa' && !accountCore.validQaCredential(qaCredential))) {
       return Object.freeze({ state: 'restore_error' });
     }
     return Object.freeze({ state: migrationState === 'complete' ? 'connected' : 'migration_pending' });
@@ -185,17 +192,21 @@
   async function start() {
     const config = readConfig();
     if (!config || !accountRoot?.AccountClient || !syncRoot.MultiAppSyncRuntime || !syncRoot.dataStorage) return;
+    // Production admission uses only verifier-backed Join invitations. A stale
+    // QA handoff fragment must never select the unsupported handoff path.
+    if (config.admissionMode === 'production') handoffToken = null;
     const [namespace, Adapter] = APP_ROOTS[config.appId];
     const AdapterClass = global[namespace]?.[Adapter];
     if (typeof AdapterClass !== 'function') return;
     const store = syncRoot.dataStorage.createStore(config.appId);
     const accountClient = new accountRoot.AccountClient({
       endpoint: config.endpoint, storage: accountRoot.storage, core: accountRoot.core,
-      qaScope: 'app', qaAppId: config.appId
+      admissionMode: config.admissionMode, qaScope: 'app', qaAppId: config.appId
     });
     const runtime = new syncRoot.MultiAppSyncRuntime({
       appId: config.appId, endpoint: config.endpoint,
-      adapter: new AdapterClass(), store, accountClient, accountCore: accountRoot.core
+      adapter: new AdapterClass(), store, accountClient, accountCore: accountRoot.core,
+      admissionMode: config.admissionMode
     });
     syncRoot.installConflictResolutionUi?.(runtime, document);
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);

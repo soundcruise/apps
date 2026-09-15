@@ -11,6 +11,11 @@
     account_rate_limiter_unavailable: 'account_runtime_unavailable',
     account_server_unavailable: 'account_runtime_unavailable',
     account_server_error: 'account_runtime_unavailable',
+    account_public_admission_closed: 'account_runtime_paused',
+    account_production_app_unavailable: 'account_runtime_unavailable',
+    account_app_not_available: 'membership_state_invalid',
+    account_admission_mismatch: 'account_auth_required',
+    account_public_handoff_unavailable: 'handoff_invalid',
     invalid_account_credential: 'account_auth_required',
     account_not_found: 'account_not_found',
     membership_state_invalid: 'membership_state_invalid',
@@ -86,6 +91,8 @@
       this.fetchImpl = options.fetchImpl || global.fetch.bind(global);
       this.storage = options.storage || root.storage;
       this.core = options.core || root.core;
+      this.admissionMode = options.admissionMode || 'qa';
+      if (!['qa', 'production'].includes(this.admissionMode)) throw new Error('account_admission_mode_invalid');
       this.qaScope = options.qaScope || 'port';
       this.qaAppId = options.qaAppId || null;
       this.requestTimeoutMs = normalizedTimeout(options.requestTimeoutMs);
@@ -110,7 +117,7 @@
         if (options.appCredential) {
           headers.set('X-Sound-Cruise-App-Authorization', `Bearer ${options.appCredential}`);
         }
-        if (!options.skipQa) {
+        if (this.admissionMode === 'qa' && !options.skipQa) {
           const qa = options.qaAdmission || await this.storage?.getQaAdmission?.(this.qaScope, this.qaAppId);
           if (qa?.qaCredential) {
             headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qa.qaCredential}`);
@@ -149,6 +156,7 @@
     }
 
     async enrollQa({ enrollmentCode, turnstileToken, material = null }) {
+      if (this.admissionMode !== 'qa') throw new Error('qa_admission_not_applicable');
       const candidate = material || this.core.createQaCredential();
       if (!this.core.validQaCredential(candidate.qaCredential)) throw new Error('qa_material_invalid');
       const result = await this.request('/v2/accounts/qa/enroll', {
@@ -389,6 +397,7 @@
     }
 
     async issueHandoff({ accountCredential, appId, appUrl, material }) {
+      if (this.admissionMode !== 'qa') throw new Error('production_handoff_unavailable');
       if (!material || !this.core.validHandoffToken(material.handoffToken) ||
           typeof material.operationId !== 'string') {
         throw new Error('handoff_material_required');
@@ -409,6 +418,7 @@
     }
 
     cancelHandoff({ accountCredential, handoffId }) {
+      if (this.admissionMode !== 'qa') throw new Error('production_handoff_unavailable');
       return this.request('/v2/accounts/handoffs/cancel', {
         method: 'POST', accountCredential, body: { handoffId }
       });
@@ -459,11 +469,12 @@
         : (appMaterial || this.core.createAppCredential());
       if (!this.core.validAppCredential(app.appDeviceCredential)) throw new Error('app_join_app_credential_required');
       const operation = operationId || this.core.createOperationId();
-      const qa = this.core.createQaCredential();
+      const qa = this.admissionMode === 'qa' ? this.core.createQaCredential() : null;
       await this.storage.setPendingConsume({
         transport: 'app_join', operationId: operation, appId, consumeMode,
         accountDeviceId: account.accountDeviceId, accountCredential: account.accountCredential,
-        appDeviceId: app.appDeviceId, qaSessionId: qa.qaSessionId, qaCredential: qa.qaCredential,
+        appDeviceId: app.appDeviceId,
+        ...(qa ? { qaSessionId: qa.qaSessionId, qaCredential: qa.qaCredential } : {}),
         ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
         deviceLabel: deviceLabel || null
       });
@@ -473,22 +484,25 @@
           operationId: operation, appId, joinCode: normalizedCode,
           accountCredential: account.accountCredential,
           appDeviceCredential: app.appDeviceCredential,
-          qaCredential: qa.qaCredential, deviceLabel: deviceLabel || null, consumeMode
+          ...(qa ? { qaCredential: qa.qaCredential } : {}),
+          deviceLabel: deviceLabel || null, consumeMode
         }
       });
       await this.storage.setAccount({
         accountId: result.accountId, accountDeviceId: result.accountDeviceId,
         accountCredential: account.accountCredential, membershipId: result.membershipId
       });
-      await this.storage.setQaAdmission({
-        qaSessionId: result.qaSessionId, qaCredential: qa.qaCredential,
-        scope: 'app', appId, accountId: result.accountId
-      });
+      if (qa) {
+        await this.storage.setQaAdmission({
+          qaSessionId: result.qaSessionId, qaCredential: qa.qaCredential,
+          scope: 'app', appId, accountId: result.accountId
+        });
+      }
       if (!preservePending) await this.storage.clearPendingConsume();
       return Object.freeze({
         ...result, consumeMode,
         ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
-        qaCredential: qa.qaCredential
+        ...(qa ? { qaCredential: qa.qaCredential } : {})
       });
     }
 
@@ -496,6 +510,7 @@
       handoffToken, appId, deviceLabel, operationId, accountMaterial, appMaterial,
       consumeMode = 'new_app', existingAppCredential = null, preservePending = false
     }) {
+      if (this.admissionMode !== 'qa') throw new Error('production_handoff_unavailable');
       if (!['new_app', 'existing_chord'].includes(consumeMode) ||
           (consumeMode === 'existing_chord' && appId !== 'chord')) {
         throw new Error('handoff_consume_mode_invalid');

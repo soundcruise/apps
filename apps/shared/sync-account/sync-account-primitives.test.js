@@ -141,6 +141,46 @@ test('cross-container Join Code is request-memory only and creates separate app 
   assert.notEqual(result.accountDeviceId, result.appDeviceId);
 });
 
+test('production Account client creates no QA material and sends no QA authorization', async () => {
+  const writes = [];
+  const requests = [];
+  const account = load([coreSource, clientSource]);
+  const storage = {
+    async getQaAdmission() { throw new Error('production must not read QA admission'); },
+    async setPendingConsume(value) { writes.push(['pending', structuredClone(value)]); },
+    async setAccount(value) { writes.push(['account', structuredClone(value)]); },
+    async clearPendingConsume() { writes.push(['clear']); },
+    async setQaAdmission() { throw new Error('production must not save QA admission'); }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    admissionMode: 'production',
+    fetchImpl: async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push({ url, body, qaHeader: options.headers.get('X-Sound-Cruise-QA-Authorization') });
+      return Response.json({
+        ok: true, operation: 'activated', accountId: crypto.randomUUID(),
+        membershipId: crypto.randomUUID(), accountDeviceId: body.accountCredential.split('.')[1],
+        appDeviceId: body.appDeviceCredential.split('.')[1], membershipState: 'active'
+      }, { status: 201 });
+    }
+  });
+  const result = await client.consumeJoinInvitation({
+    joinCode: account.core.createJoinMaterial().joinCode,
+    appId: 'rhythm', deviceLabel: 'Rhythm Pro'
+  });
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].qaHeader, null);
+  assert.equal(Object.hasOwn(requests[0].body, 'qaCredential'), false);
+  assert.equal(JSON.stringify(writes).includes('scq1.'), false);
+  assert.equal(Object.hasOwn(result, 'qaCredential'), false);
+  await assert.rejects(client.enrollQa({ enrollmentCode: 'unused', turnstileToken: 'unused' }),
+    /qa_admission_not_applicable/);
+  await assert.rejects(async () => client.issueHandoff({}), /production_handoff_unavailable/);
+  await assert.rejects(async () => client.cancelHandoff({}), /production_handoff_unavailable/);
+  await assert.rejects(async () => client.consumeHandoff({}), /production_handoff_unavailable/);
+});
+
 test('credential storage is Account-specific IndexedDB and rejects transient Recovery/handoff secrets', async () => {
   assert.equal(dbSource.includes("sound-cruise-sync-account"), true);
   assert.equal(dbSource.includes('indexedDB'), true);

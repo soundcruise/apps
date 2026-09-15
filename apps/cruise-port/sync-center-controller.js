@@ -26,7 +26,8 @@ export function readSyncCenterConfig(globalObject = globalThis) {
         environment: 'qa',
         endpoint: 'https://sound-cruise-sync.cruise-port-requests.workers.dev'
     } : value;
-    if (!effective || effective.enabled !== true || !['development', 'qa'].includes(effective.environment)) {
+    if (!effective || effective.enabled !== true ||
+        !['development', 'qa', 'production'].includes(effective.environment)) {
         return Object.freeze({ enabled: false, endpoint: null });
     }
     try {
@@ -35,7 +36,8 @@ export function readSyncCenterConfig(globalObject = globalThis) {
         return Object.freeze({
             enabled: true,
             endpoint: endpoint.toString().replace(/\/$/, ''),
-            qaAdmissionRequired: effective.environment === 'qa'
+            qaAdmissionRequired: effective.environment === 'qa',
+            admissionMode: effective.environment === 'production' ? 'production' : 'qa'
         });
     } catch (_) {
         return Object.freeze({ enabled: false, endpoint: null });
@@ -180,7 +182,13 @@ export function createSyncCenterController({
                 return lastPresentation;
             }
             try {
-                const client = new Client({ endpoint: effectiveConfig.endpoint, fetchImpl, storage, core: accountRoot.core });
+                const client = new Client({
+                    endpoint: effectiveConfig.endpoint,
+                    fetchImpl,
+                    storage,
+                    core: accountRoot.core,
+                    admissionMode: effectiveConfig.admissionMode || 'qa'
+                });
                 const [summary, devices] = await Promise.all([
                     client.summary(credential.accountCredential),
                     client.devices(credential.accountCredential)

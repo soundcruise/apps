@@ -1,5 +1,5 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.33.1';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.34.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -18,7 +18,7 @@ export function createSyncCenterOrchestrator({
     }
     const client = new accountRoot.AccountClient({
         endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage, core: accountRoot.core,
-        qaScope: 'port'
+        admissionMode: config.admissionMode || 'qa', qaScope: 'port'
     });
     let accountMaterial = null;
     let accountStartPromise = null;

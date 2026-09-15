@@ -85,6 +85,8 @@
       this.store = options.store;
       this.accountClient = options.accountClient;
       this.accountCore = options.accountCore;
+      this.admissionMode = options.admissionMode || this.accountClient.admissionMode || 'qa';
+      if (!['qa', 'production'].includes(this.admissionMode)) throw new Error('multi_app_runtime_admission_invalid');
       this.fetchImpl = options.fetchImpl || global.fetch.bind(global);
       this.now = options.now || Date.now;
       this.randomOperationId = options.randomOperationId || (() => this.accountCore.createOperationId());
@@ -108,9 +110,13 @@
       const credential = await this.credential();
       const qaCredential = await this.qaCredential();
       if (!this.accountCore.validAppCredential(credential)) throw new MultiAppSyncError('app_auth_required', 401);
-      if (!this.accountCore.validQaCredential(qaCredential)) throw new MultiAppSyncError('qa_admission_required', 403);
+      if (this.admissionMode === 'qa' && !this.accountCore.validQaCredential(qaCredential)) {
+        throw new MultiAppSyncError('qa_admission_required', 403);
+      }
       const headers = new Headers({ Accept: 'application/json', Authorization: `Bearer ${credential}` });
-      headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qaCredential}`);
+      if (this.admissionMode === 'qa') {
+        headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qaCredential}`);
+      }
       if (body) headers.set('Content-Type', 'application/json');
       const response = await this.fetchImpl(`${this.endpoint}${path}`, {
         method, headers, body: body ? JSON.stringify(body) : undefined,
@@ -137,7 +143,7 @@
         throw new MultiAppSyncError('handoff_consume_invalid');
       }
       await this.store.setMeta('credential', result.appDeviceCredential);
-      await this.store.setMeta('qaCredential', result.qaCredential);
+      await this.store.setMeta('qaCredential', result.qaCredential || null);
       await this.store.setMeta('membership', {
         id: result.membershipId, appId: this.appId, state: result.membershipState || 'active'
       });
@@ -156,7 +162,7 @@
         throw new MultiAppSyncError('app_join_consume_invalid');
       }
       await this.store.setMeta('credential', result.appDeviceCredential);
-      await this.store.setMeta('qaCredential', result.qaCredential);
+      await this.store.setMeta('qaCredential', result.qaCredential || null);
       await this.store.setMeta('membership', {
         id: result.membershipId, appId: this.appId, state: result.membershipState || 'active'
       });

@@ -19,9 +19,10 @@ function loadBootstrapStateResolver() {
   return context.SoundCruiseMultiAppSync.resolveStartupState;
 }
 
-function restoredRuntime({ credential = 'scd1.valid', qaCredential = 'scq1.valid' } = {}) {
+function restoredRuntime({ credential = 'scd1.valid', qaCredential = 'scq1.valid', admissionMode = 'qa' } = {}) {
   return {
     appId: 'fretboard',
+    admissionMode,
     credential: async () => credential,
     qaCredential: async () => qaCredential
   };
@@ -48,7 +49,7 @@ const apps = [
   ['fretboard', 'apps/fretboard_cruise/standard/index.html', 'apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html', 'apps/fretboard_cruise/script.js']
 ];
 
-test('shared multi-app runtime is wired only into Pro editions and production remains disabled', () => {
+test('shared multi-app runtime is wired only into Pro editions and explicit production config remains disabled', () => {
   for (const [appId, standardPath, proPath] of apps) {
     const standard = read(standardPath);
     const pro = read(proPath);
@@ -59,10 +60,16 @@ test('shared multi-app runtime is wired only into Pro editions and production re
     assert(pro.indexOf('multi-app-sync-runtime.js') < pro.indexOf('multi-app-conflict-ui.js'), `${appId} runtime precedes conflict UI`);
     assert(pro.indexOf('multi-app-conflict-ui.js') < pro.indexOf('multi-app-sync-bootstrap.js'), `${appId} conflict UI precedes bootstrap`);
     assert.equal(pro.includes(`data-sync-app-id="${appId}"`), true, `${appId} namespace`);
-    assert.equal(pro.includes('__SOUND_CRUISE_MULTI_APP_SYNC__'), false, `${appId} production feature OFF`);
+    assert.equal(standard.includes('production-config.js'), false, `${appId} Standard config absent`);
+    assert.equal(pro.includes('production-config.js?v=1'), true, `${appId} production config loaded`);
   }
-  assert.equal(read('apps/cruise-port/index.html').includes('__SOUND_CRUISE_SYNC_CENTER__'), false);
-  assert.equal(read('apps/cruise-port/pro_9a3943176561/index.html').includes('__SOUND_CRUISE_SYNC_CENTER__'), false);
+  assert.equal(read('apps/chord-cruise/standard/index.html').includes('production-config.js'), false);
+  assert.equal(read('apps/chord-cruise/pro_k7m4q9v2x8/index.html').includes('production-config.js?v=1'), true);
+  assert.equal(read('apps/cruise-port/index.html').includes('production-config.js?v=1'), true);
+  assert.equal(read('apps/cruise-port/pro_9a3943176561/index.html').includes('production-config.js?v=1'), true);
+  const productionConfig = read('apps/shared/sync-account/production-config.js');
+  assert.match(productionConfig, /enabled: false/);
+  assert.match(productionConfig, /environment: 'production'/);
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
   const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
   for (const source of [bootstrap, chord]) {
@@ -190,6 +197,23 @@ test('connected containers resolve before an incidental handoff can select setup
   assert.equal(pendingResumeCalls, 0);
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
   assert.match(bootstrap, /restored\.state === 'connected'[\s\S]*?handoffToken = null[\s\S]*?return;[\s\S]*?if \(!handoffToken\)/);
+});
+
+test('production startup restores an app credential without creating or requiring QA state', async () => {
+  const resolveStartupState = loadBootstrapStateResolver();
+  let pendingResumeCalls = 0;
+  const result = await resolveStartupState(
+    restoredRuntime({ qaCredential: null, admissionMode: 'production' }),
+    restoredStore(),
+    { resumePendingConsume: async () => { pendingResumeCalls += 1; return { status: 'none' }; } },
+    validRestoreCore
+  );
+  assert.equal(result.state, 'connected');
+  assert.equal(pendingResumeCalls, 0);
+  const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
+  const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
+  assert.match(bootstrap, /config\.admissionMode === 'production'\) handoffToken = null/);
+  assert.match(chord, /settings\.admissionMode === 'production'\) handoffToken = null/);
 });
 
 test('delayed credential restore never falls through to not-connected', async () => {
