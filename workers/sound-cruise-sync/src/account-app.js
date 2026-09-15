@@ -56,6 +56,11 @@ import {
 } from './account-validation.js';
 import { verifyTurnstileToken } from './turnstile.js';
 import { isJsonContentType, readBodyWithLimit } from './validation.js';
+import {
+  ACCOUNT_ADMISSION_PROVENANCE,
+  publicAccountAdmissionEnabled,
+  publicAccountAppAllowed
+} from './account-admission.js';
 
 const ACCOUNT_ROUTES = Object.freeze({
   '/v2/accounts/qa/enroll': {
@@ -247,6 +252,15 @@ function rateError(result, origin, route, retryAfter) {
     : errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': String(retryAfter) });
 }
 
+function requiresPublicAdmission(pathname, method) {
+  if (pathname === '/v2/accounts/start') return true;
+  if (pathname === '/v2/accounts/memberships' && method === 'POST') return true;
+  if (pathname === '/v2/accounts/app-join-invitations' && method === 'POST') return true;
+  return pathname === '/v2/accounts/bridges/chord/prepare' ||
+    pathname === '/v2/accounts/bridges/chord/dual' ||
+    pathname === '/v2/accounts/bridges/chord/finalize';
+}
+
 async function accountContext(request, env, dependencies) {
   if (!env.SYNC_DB || !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
     return { error: 'account_server_unavailable', status: 503 };
@@ -260,9 +274,14 @@ async function accountContext(request, env, dependencies) {
     env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
   );
   if (!identity) return { error: 'invalid_account_credential', status: 401 };
-  const qa = dependencies.qaIdentity;
-  if (!qa || (qa.accountId !== null && qa.accountId !== identity.accountId)) {
-    return { error: 'qa_admission_required', status: 403 };
+  if (identity.admissionProvenance !== dependencies.admissionProvenance) {
+    return { error: 'account_admission_mismatch', status: 403 };
+  }
+  if (dependencies.admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA) {
+    const qa = dependencies.qaIdentity;
+    if (!qa || (qa.accountId !== null && qa.accountId !== identity.accountId)) {
+      return { error: 'qa_admission_required', status: 403 };
+    }
   }
   return {
     session,
@@ -341,6 +360,10 @@ async function handleStart(request, env, origin, route, dependencies) {
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const validation = validateAccountStartPayload(parsed.value);
   if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (dependencies.admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION &&
+      validation.value.appIds.some((appId) => !publicAccountAppAllowed(env, appId))) {
+    return errorResponse(403, 'account_app_not_available', origin, route);
+  }
   if (!env.SYNC_DB || !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_RECOVERY_PEPPER) {
     return errorResponse(503, 'account_server_unavailable', origin, route);
   }
@@ -364,7 +387,8 @@ async function handleStart(request, env, origin, route, dependencies) {
       credentialVerifier,
       recoveryVerifier,
       value.appIds.join(','),
-      value.deviceLabel || ''
+      value.deviceLabel || '',
+      dependencies.admissionProvenance
     ]);
     const repository = (dependencies.createAccountRepository || createD1AccountRepository)(session);
     const previous = await repository.getStartOperation(value.operationId);
@@ -411,7 +435,8 @@ async function handleStart(request, env, origin, route, dependencies) {
       accountCredentialVerifier: credentialVerifier,
       accountDeviceLabel: value.deviceLabel,
       memberships,
-      qaSessionId: dependencies.qaIdentity.sessionId,
+      admissionProvenance: dependencies.admissionProvenance,
+      qaSessionId: dependencies.qaIdentity?.sessionId || null,
       startOperation: {
         operationId: value.operationId,
         requestFingerprint: fingerprint
@@ -516,7 +541,8 @@ async function handleAccountRecoveryPrepare(request, env, origin, route, depende
     )([
       'account-recovery-prepare', claimVerifier, currentRecoveryVerifier,
       nextRecoveryVerifier, accountDevice.deviceId, nextAccountCredentialVerifier,
-      value.deviceLabel || '', dependencies.qaIdentity?.sessionId || ''
+      value.deviceLabel || '', dependencies.qaIdentity?.sessionId || '',
+      dependencies.admissionProvenance
     ]);
     const repository = (
       dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
@@ -532,6 +558,7 @@ async function handleAccountRecoveryPrepare(request, env, origin, route, depende
       nextAccountCredentialVerifier,
       deviceLabel: value.deviceLabel,
       qaSessionId: dependencies.qaIdentity?.sessionId || null,
+      admissionProvenance: dependencies.admissionProvenance,
       now: Date.now()
     };
     let result = await repository.resolveRecoveryPrepare(prepareInput);
@@ -588,7 +615,8 @@ async function handleAccountRecoveryCommit(request, env, origin, route, dependen
     const requestFingerprint = await (
       dependencies.accountOperationFingerprint || accountOperationFingerprint
     )(['account-recovery-commit', claimVerifier, accountDevice.deviceId,
-      nextAccountCredentialVerifier, dependencies.qaIdentity?.sessionId || '']);
+      nextAccountCredentialVerifier, dependencies.qaIdentity?.sessionId || '',
+      dependencies.admissionProvenance]);
     const repository = (
       dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
     )(session);
@@ -599,6 +627,7 @@ async function handleAccountRecoveryCommit(request, env, origin, route, dependen
       claimVerifier,
       nextAccountCredentialVerifier,
       qaSessionId: dependencies.qaIdentity?.sessionId || null,
+      admissionProvenance: dependencies.admissionProvenance,
       now: Date.now()
     });
     if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
@@ -655,16 +684,21 @@ async function handleEnvironmentRevoke(request, env, origin, route, dependencies
         operationId: value.operationId,
         requestFingerprint: null,
         targetDeviceId: value.accountDeviceId,
-        accountCredentialVerifier: credentialVerifier
+        accountCredentialVerifier: credentialVerifier,
+        admissionProvenance: dependencies.admissionProvenance
       });
       if (exact.status !== 'revoked') {
         return errorResponse(401, 'invalid_account_credential', origin, route);
       }
       return jsonResponse(200, { ok: true, ...exact }, origin, route, bookmarkHeader(session));
     }
+    if (identity.admissionProvenance !== dependencies.admissionProvenance) {
+      return errorResponse(403, 'account_admission_mismatch', origin, route);
+    }
     const requestFingerprint = await (
       dependencies.accountOperationFingerprint || accountOperationFingerprint
-    )(['account-device-revoke', identity.accountId, value.accountDeviceId]);
+    )(['account-device-revoke', identity.accountId, value.accountDeviceId,
+      dependencies.admissionProvenance]);
     const result = await repository.revokeEnvironment(identity, {
       operationId: value.operationId,
       requestFingerprint,
@@ -763,7 +797,8 @@ async function handleDeleteCommit(request, env, origin, route, dependencies, sco
     )(rawCredential, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER);
     const requestFingerprint = await (
       dependencies.accountOperationFingerprint || accountOperationFingerprint
-    )(['account-delete-commit', scope, appId || '', intentVerifier, accountDevice.deviceId]);
+    )(['account-delete-commit', scope, appId || '', intentVerifier, accountDevice.deviceId,
+      dependencies.admissionProvenance]);
     const repository = (
       dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
     )(session);
@@ -774,7 +809,8 @@ async function handleDeleteCommit(request, env, origin, route, dependencies, sco
         intentId: parsedIntent.intentId,
         intentVerifier,
         accountCredentialVerifier: credentialVerifier,
-        scope
+        scope,
+        admissionProvenance: dependencies.admissionProvenance
       });
       if (resolved.status !== 'deleting') {
         return errorResponse(401, 'invalid_account_credential', origin, route);
@@ -782,8 +818,12 @@ async function handleDeleteCommit(request, env, origin, route, dependencies, sco
       return jsonResponse(200, { ok: true, operation: 'existing', ...resolved },
         origin, route, bookmarkHeader(session));
     }
-    if (!dependencies.qaIdentity ||
-        (dependencies.qaIdentity.accountId !== null && dependencies.qaIdentity.accountId !== identity.accountId)) {
+    if (identity.admissionProvenance !== dependencies.admissionProvenance) {
+      return errorResponse(403, 'account_admission_mismatch', origin, route);
+    }
+    if (dependencies.admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA &&
+        (!dependencies.qaIdentity ||
+          (dependencies.qaIdentity.accountId !== null && dependencies.qaIdentity.accountId !== identity.accountId))) {
       return errorResponse(403, 'qa_admission_required', origin, route);
     }
     const result = await repository.commitDelete(identity, {
@@ -814,6 +854,10 @@ async function handleMembershipPrepare(request, env, origin, route, dependencies
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const validation = validateMembershipPreparePayload(parsed.value);
   if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (dependencies.admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION &&
+      !publicAccountAppAllowed(env, validation.value.appId)) {
+    return errorResponse(403, 'account_app_not_available', origin, route);
+  }
   let context;
   try { context = await accountContext(request, env, dependencies); } catch {
     return errorResponse(503, 'account_server_error', origin, route);
@@ -869,7 +913,8 @@ async function handleHandoffIssue(request, env, origin, route, dependencies) {
       handoffId: handoff.handoffId,
       handoffVerifier: verifier,
       requestFingerprint: fingerprint,
-      qaIssuerSessionId: dependencies.qaIdentity.sessionId,
+      admissionProvenance: dependencies.admissionProvenance,
+      qaIssuerSessionId: dependencies.qaIdentity?.sessionId || null,
       now: Date.now()
     };
     const retry = typeof repository.resolveIssueRetry === 'function'
@@ -1086,6 +1131,10 @@ async function handleAppJoinIssue(request, env, origin, route, dependencies) {
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const validation = validateAppJoinIssuePayload(parsed.value);
   if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (dependencies.admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION &&
+      !publicAccountAppAllowed(env, validation.value.appId)) {
+    return errorResponse(403, 'account_app_not_available', origin, route);
+  }
   if (!env.SYNC_ACCOUNT_APP_JOIN_PEPPER) {
     return errorResponse(503, 'account_server_unavailable', origin, route);
   }
@@ -1102,7 +1151,7 @@ async function handleAppJoinIssue(request, env, origin, route, dependencies) {
     );
     const fingerprint = await (dependencies.accountOperationFingerprint || accountOperationFingerprint)([
       'app-join-issue', context.identity.accountId, context.identity.accountDeviceId,
-      value.appId, value.invitationId, codeVerifier
+      value.appId, value.invitationId, codeVerifier, dependencies.admissionProvenance
     ]);
     const repository = (dependencies.createAppJoinRepository || createD1AppJoinRepository)(context.session);
     const input = {
@@ -1111,7 +1160,8 @@ async function handleAppJoinIssue(request, env, origin, route, dependencies) {
       appId: value.appId,
       codeVerifier,
       requestFingerprint: fingerprint,
-      qaIssuerSessionId: dependencies.qaIdentity.sessionId,
+      admissionProvenance: dependencies.admissionProvenance,
+      qaIssuerSessionId: dependencies.qaIdentity?.sessionId || null,
       now: Date.now()
     };
     const retry = await repository.resolveIssueRetry(context.identity, input);
@@ -1196,7 +1246,7 @@ async function handleAppJoinConsume(request, env, origin, route, dependencies) {
   if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
   if (!env.SYNC_DB || !env.SYNC_ACCOUNT_APP_JOIN_PEPPER ||
       !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_RECOVERY_PEPPER ||
-      !env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER) {
+      !env.SYNC_CREDENTIAL_PEPPER) {
     return errorResponse(503, 'account_server_unavailable', origin, route);
   }
   let session;
@@ -1204,6 +1254,17 @@ async function handleAppJoinConsume(request, env, origin, route, dependencies) {
     session = createSession(env, request);
     if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
     const value = validation.value;
+    const admissionProvenance = value.qaCredential === undefined
+      ? ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION
+      : ACCOUNT_ADMISSION_PROVENANCE.QA;
+    if (admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION &&
+        (!dependencies.publicAdmissionEnabled || !publicAccountAppAllowed(env, value.appId))) {
+      return errorResponse(403, 'account_public_admission_closed', origin, route);
+    }
+    if (admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA &&
+        !env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER) {
+      return errorResponse(503, 'account_server_unavailable', origin, route);
+    }
     const accountDevice = parseAccountCredential(value.accountCredential);
     const appDevice = parseAccountAppCredential(value.appDeviceCredential);
     let existingAppIdentity = null;
@@ -1228,15 +1289,17 @@ async function handleAppJoinConsume(request, env, origin, route, dependencies) {
       value.appDeviceCredential,
       env.SYNC_CREDENTIAL_PEPPER
     );
-    const qaCredential = parseQaCredential(value.qaCredential);
-    const qaVerifier = await (dependencies.qaCredentialVerifier || qaCredentialVerifier)(
-      value.qaCredential,
-      env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER
-    );
+    const qaCredential = admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA
+      ? parseQaCredential(value.qaCredential) : null;
+    const qaVerifier = qaCredential
+      ? await (dependencies.qaCredentialVerifier || qaCredentialVerifier)(
+        value.qaCredential,
+        env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER
+      ) : null;
     const fingerprint = await (dependencies.accountOperationFingerprint || accountOperationFingerprint)([
       'app-join-consume', value.appId, codeVerifier, accountDevice.deviceId,
-      appDevice.deviceId, accountVerifier, appVerifier, qaVerifier,
-      value.deviceLabel || '', value.consumeMode
+      appDevice.deviceId, accountVerifier, appVerifier, qaVerifier || '',
+      value.deviceLabel || '', value.consumeMode, admissionProvenance
     ]);
     const repository = (dependencies.createAppJoinRepository || createD1AppJoinRepository)(session);
     const input = {
@@ -1248,7 +1311,8 @@ async function handleAppJoinConsume(request, env, origin, route, dependencies) {
       accountCredentialVerifier: accountVerifier,
       appDeviceId: appDevice.deviceId,
       appCredentialVerifier: appVerifier,
-      qaSessionId: qaCredential.sessionId,
+      admissionProvenance,
+      qaSessionId: qaCredential?.sessionId || null,
       qaCredentialVerifier: qaVerifier,
       syncUserId: existingAppIdentity?.userId || crypto.randomUUID(),
       consumeMode: value.consumeMode,
@@ -1338,37 +1402,57 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   try { control = await readControl(env.SYNC_DB); } catch {}
   const gate = accountGateDecision(route.action, control);
   if (!gate.allowed) return errorResponse(gate.status, gate.code, origin, route);
+  const publicAdmissionEnabled = publicAccountAdmissionEnabled(env, control);
+  dependencies = { ...dependencies, publicAdmissionEnabled };
 
   if (url.pathname === '/v2/accounts/qa/enroll') {
     return handleQaEnrollment(request, env, origin, route, dependencies);
   }
 
-  const chordBridge = url.pathname === '/v2/accounts/bridges/chord' ||
-    url.pathname.startsWith('/v2/accounts/bridges/chord/');
   if (url.pathname !== '/v2/accounts/handoffs/consume' &&
-      url.pathname !== '/v2/accounts/app-join-invitations/consume' && !chordBridge) {
-    let session;
-    let qaIdentity;
-    try {
-      session = createSession(env, request);
-      if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
-      qaIdentity = await (dependencies.authenticateQaRequest || authenticateQaRequest)(
-        session,
-        request.headers.get('X-Sound-Cruise-QA-Authorization'),
-        env,
-        url.pathname === '/v2/accounts/start' || url.pathname === '/v2/accounts/handoffs' ||
-          url.pathname === '/v2/accounts/handoffs/cancel' || url.pathname === '/v2/accounts/memberships' ||
-          url.pathname === '/v2/accounts/app-join-invitations' ||
-          url.pathname === '/v2/accounts/app-join-invitations/cancel'
-          ? { scope: 'port' }
-          : {},
-        dependencies
-      );
-    } catch {
-      return errorResponse(503, 'account_qa_unavailable', origin, route);
+      url.pathname !== '/v2/accounts/app-join-invitations/consume') {
+    const qaHeader = request.headers.get('X-Sound-Cruise-QA-Authorization');
+    if (qaHeader !== null) {
+      let session;
+      let qaIdentity;
+      try {
+        session = createSession(env, request);
+        if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+        qaIdentity = await (dependencies.authenticateQaRequest || authenticateQaRequest)(
+          session,
+          qaHeader,
+          env,
+          url.pathname === '/v2/accounts/start' || url.pathname === '/v2/accounts/handoffs' ||
+            url.pathname === '/v2/accounts/handoffs/cancel' || url.pathname === '/v2/accounts/memberships' ||
+            url.pathname === '/v2/accounts/app-join-invitations' ||
+            url.pathname === '/v2/accounts/app-join-invitations/cancel'
+            ? { scope: 'port' }
+            : {},
+          dependencies
+        );
+      } catch {
+        return errorResponse(503, 'account_qa_unavailable', origin, route);
+      }
+      if (!qaIdentity) return errorResponse(403, 'qa_admission_required', origin, route);
+      dependencies = {
+        ...dependencies,
+        qaIdentity,
+        admissionProvenance: ACCOUNT_ADMISSION_PROVENANCE.QA
+      };
+    } else {
+      if (url.pathname.startsWith('/v2/accounts/handoffs')) {
+        return errorResponse(403, 'account_public_handoff_unavailable', origin, route);
+      }
+      if (requiresPublicAdmission(url.pathname, request.method) && !publicAdmissionEnabled) {
+        return errorResponse(403, 'account_public_admission_closed', origin, route);
+      }
+      dependencies = {
+        ...dependencies,
+        admissionProvenance: ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION
+      };
     }
-    if (!qaIdentity) return errorResponse(403, 'qa_admission_required', origin, route);
-    dependencies = { ...dependencies, qaIdentity };
+  } else if (url.pathname === '/v2/accounts/handoffs/consume') {
+    dependencies = { ...dependencies, admissionProvenance: ACCOUNT_ADMISSION_PROVENANCE.QA };
   }
 
   if (url.pathname === '/v2/accounts/bridges/chord' ||

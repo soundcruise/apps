@@ -21,6 +21,7 @@ import { decodeCursor, encodeCursor } from './records.js';
 import { createD1SyncRepository } from './sync-database.js';
 import { verifyTurnstileToken } from './turnstile.js';
 import { gateDecision, readRuntimeControl } from './rollout-control.js';
+import { productionAccountAppAllowed } from './account-admission.js';
 import {
   isJsonContentType,
   MAX_BODY_BYTES,
@@ -167,13 +168,27 @@ async function authenticatedContext(request, env, appId, dependencies) {
   let qaRequired = !validatePublicAppId(appId, env);
   let accountId = null;
   const qaApps = new Set(String(env.SYNC_QA_ALLOWED_APP_IDS || '').split(',').map((value) => value.trim()));
-  if (!qaRequired && appId === 'chord' && qaApps.has('chord')) {
-    const managed = await session.prepare(`
-      SELECT account_id FROM sync_account_managed_users WHERE sync_user_id = ? AND app_id = 'chord'
-    `).bind(identity.userId).first();
-    if (managed) {
+  const accountManagedApp = qaApps.has(appId) || productionAccountAppAllowed(env, appId);
+  const managed = accountManagedApp ? await session.prepare(`
+      SELECT am.account_id, a.admission_provenance
+      FROM sync_account_managed_users am
+      JOIN sync_accounts a ON a.id = am.account_id
+      WHERE am.sync_user_id = ? AND am.app_id = ?
+    `).bind(identity.userId, appId).first() : null;
+  if (managed) {
+    accountId = managed.account_id;
+    if (managed.admission_provenance === 'qa') {
       qaRequired = true;
-      accountId = managed.account_id;
+    } else if (managed.admission_provenance === 'production') {
+      if (!productionAccountAppAllowed(env, appId)) {
+        return { error: 'account_production_app_unavailable', status: 403 };
+      }
+      if (request.headers.get('X-Sound-Cruise-QA-Authorization') !== null) {
+        return { error: 'account_admission_mismatch', status: 403 };
+      }
+      qaRequired = false;
+    } else {
+      return { error: 'account_admission_mismatch', status: 403 };
     }
   }
   if (qaRequired) {

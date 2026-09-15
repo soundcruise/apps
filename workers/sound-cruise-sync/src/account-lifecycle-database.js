@@ -27,8 +27,11 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
 
   async function operation(operationId) {
     return db.prepare(`
-      SELECT operation_id, request_fingerprint, account_id, kind, target_id, result_json, created_at
-      FROM sync_account_lifecycle_operations WHERE operation_id = ?
+      SELECT o.operation_id, o.request_fingerprint, o.account_id, o.kind, o.target_id,
+             o.result_json, o.created_at, a.admission_provenance
+      FROM sync_account_lifecycle_operations o
+      JOIN sync_accounts a ON a.id = o.account_id
+      WHERE o.operation_id = ?
     `).bind(operationId).first();
   }
 
@@ -41,7 +44,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     return Boolean(row && (row.account_id === accountId || (allowUnbound && row.account_id == null)));
   }
 
-  async function recoverySummary(claimId, claimVerifier, now) {
+  async function recoverySummary(claimId, claimVerifier, now, admissionProvenance) {
     const claim = await db.prepare(`
       SELECT r.account_id, r.expected_recovery_version, r.expected_account_generation,
              r.expires_at, a.updated_at,
@@ -53,7 +56,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
         AND r.committed_at IS NULL AND r.cancelled_at IS NULL AND r.expires_at > ?
         AND a.state = 'active' AND a.recovery_version = r.expected_recovery_version
         AND a.generation = r.expected_account_generation
-    `).bind(claimId, claimVerifier, now).first();
+        AND a.admission_provenance = ?
+    `).bind(claimId, claimVerifier, now, admissionProvenance).first();
     if (!claim) return null;
     const memberships = await db.prepare(`
       SELECT m.id, m.app_id, m.state, m.updated_at,
@@ -89,20 +93,25 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   }
 
   async function resolveRecoveryPrepare(input) {
+    input = { admissionProvenance: 'qa', ...input };
     const row = await db.prepare(`
-      SELECT claim_id, claim_verifier, prepare_fingerprint, expires_at,
-             committed_at, cancelled_at, account_id
-      FROM sync_account_recovery_claims WHERE prepare_operation_id = ?
+      SELECT r.claim_id, r.claim_verifier, r.prepare_fingerprint, r.expires_at,
+             r.committed_at, r.cancelled_at, r.account_id, a.admission_provenance
+      FROM sync_account_recovery_claims r
+      JOIN sync_accounts a ON a.id = r.account_id
+      WHERE r.prepare_operation_id = ?
     `).bind(input.operationId).first();
     if (!row) return null;
-    if (row.prepare_fingerprint !== input.requestFingerprint || row.claim_id !== input.claimId ||
+    if (row.admission_provenance !== input.admissionProvenance ||
+        row.prepare_fingerprint !== input.requestFingerprint || row.claim_id !== input.claimId ||
         !timingSafeHexEqual(row.claim_verifier, input.claimVerifier)) return { status: 'conflict' };
     if (row.committed_at != null) return { status: 'committed' };
     if (row.cancelled_at != null || Number(row.expires_at) <= input.now) return { status: 'expired' };
     if (!await qaSessionMatches(input.qaSessionId, row.account_id, input.now, true)) {
       return { status: 'invalid' };
     }
-    const summary = await recoverySummary(row.claim_id, input.claimVerifier, input.now);
+    const summary = await recoverySummary(row.claim_id, input.claimVerifier, input.now,
+      input.admissionProvenance);
     return summary ? { status: 'prepared', summary, alreadyPrepared: true } : { status: 'invalid' };
   }
 
@@ -128,6 +137,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   }
 
   async function prepareRecovery(input) {
+    input = { admissionProvenance: 'qa', ...input };
     const retry = await resolveRecoveryPrepare(input);
     if (retry) return retry;
     const expiresAt = input.now + ACCOUNT_LIFECYCLE.recoveryClaimTtlMs;
@@ -143,7 +153,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
              ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL
       FROM sync_accounts a
       WHERE a.recovery_verifier = ? AND a.state = 'active' AND a.deleted_at IS NULL
-        AND a.recovery_version >= 1
+        AND a.recovery_version >= 1 AND a.admission_provenance = ?
         AND (? IS NULL OR EXISTS (
           SELECT 1 FROM sync_account_qa_sessions q
           WHERE q.id = ? AND q.scope = 'port' AND q.revoked_at IS NULL
@@ -153,7 +163,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       input.claimId, input.claimVerifier, input.nextRecoveryVerifier,
       input.nextAccountDeviceId, input.nextAccountCredentialVerifier,
       input.deviceLabel, input.now, expiresAt, input.operationId,
-      input.requestFingerprint, input.currentRecoveryVerifier,
+      input.requestFingerprint, input.currentRecoveryVerifier, input.admissionProvenance,
       input.qaSessionId || null, input.qaSessionId || null, input.now
     );
     const clearAttempt = db.prepare(`
@@ -164,15 +174,18 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     const results = await db.batch([insert, clearAttempt]);
     if (!batchSucceeded(results, 2)) throw new Error('D1 Account recovery prepare failed');
     if (changes(results[0]) !== 1) return { status: 'invalid' };
-    const summary = await recoverySummary(input.claimId, input.claimVerifier, input.now);
+    const summary = await recoverySummary(input.claimId, input.claimVerifier, input.now,
+      input.admissionProvenance);
     if (!summary) throw new Error('D1 Account recovery summary unavailable');
     return { status: 'prepared', summary, alreadyPrepared: false };
   }
 
   async function commitRecovery(input) {
+    input = { admissionProvenance: 'qa', ...input };
     const previous = await operation(input.operationId);
     if (previous) {
-      if (previous.request_fingerprint !== input.requestFingerprint || previous.kind !== 'recovery') {
+      if (previous.admission_provenance !== input.admissionProvenance ||
+          previous.request_fingerprint !== input.requestFingerprint || previous.kind !== 'recovery') {
         return { status: 'conflict' };
       }
       if (!await qaSessionMatches(input.qaSessionId, previous.account_id, input.now, false)) {
@@ -187,10 +200,13 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
              device_label, expires_at, committed_at, cancelled_at,
              prepare_fingerprint, commit_operation_id, commit_fingerprint,
              (SELECT recovery_verifier FROM sync_accounts
-               WHERE id = sync_account_recovery_claims.account_id) AS current_recovery_verifier
+               WHERE id = sync_account_recovery_claims.account_id) AS current_recovery_verifier,
+             (SELECT admission_provenance FROM sync_accounts
+               WHERE id = sync_account_recovery_claims.account_id) AS admission_provenance
       FROM sync_account_recovery_claims WHERE claim_id = ?
     `).bind(input.claimId).first();
-    if (!claim || !timingSafeHexEqual(claim.claim_verifier || '', input.claimVerifier) ||
+    if (!claim || claim.admission_provenance !== input.admissionProvenance ||
+        !timingSafeHexEqual(claim.claim_verifier || '', input.claimVerifier) ||
         !timingSafeHexEqual(claim.next_account_credential_verifier || '', input.nextAccountCredentialVerifier)) {
       return { status: 'invalid' };
     }
@@ -200,9 +216,11 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
         SELECT a.recovery_version FROM sync_accounts a
         JOIN sync_account_devices d ON d.account_id = a.id
         WHERE a.id = ? AND a.state = 'active' AND a.recovery_version = ?
-          AND a.recovery_verifier = ? AND d.id = ? AND d.revoked_at IS NULL
+          AND a.recovery_verifier = ? AND a.admission_provenance = ?
+          AND d.id = ? AND d.revoked_at IS NULL
       `).bind(claim.account_id, Number(claim.expected_recovery_version) + 1,
-        claim.next_recovery_verifier, claim.next_account_device_id).first();
+        claim.next_recovery_verifier, input.admissionProvenance,
+        claim.next_account_device_id).first();
       const qaSessionValid = await qaSessionMatches(qaSessionId, claim.account_id, input.now, false);
       return active && qaSessionValid ? {
         status: 'recovered', accountId: claim.account_id,
@@ -219,7 +237,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       const expectedPrepareFingerprint = await accountOperationFingerprint([
         'account-recovery-prepare', claim.claim_verifier, claim.current_recovery_verifier,
         claim.next_recovery_verifier, claim.next_account_device_id,
-        claim.next_account_credential_verifier, claim.device_label || '', qaSessionId
+        claim.next_account_credential_verifier, claim.device_label || '', qaSessionId,
+        input.admissionProvenance
       ]);
       if (!timingSafeHexEqual(claim.prepare_fingerprint || '', expectedPrepareFingerprint)) {
         return { status: 'invalid' };
@@ -235,6 +254,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       UPDATE sync_accounts SET recovery_version = ?, recovery_verifier = ?,
         recovery_rotated_at = ?, updated_at = ?, generation = generation + 1
       WHERE id = ? AND state = 'active' AND recovery_version = ? AND generation = ?
+        AND admission_provenance = ?
         AND EXISTS (SELECT 1 FROM sync_account_recovery_claims r
           WHERE r.claim_id = ? AND r.claim_verifier = ? AND r.committed_at IS NULL
             AND r.cancelled_at IS NULL AND r.expires_at > ?)
@@ -246,6 +266,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
         ))
     `).bind(nextVersion, claim.next_recovery_verifier, input.now, input.now,
       claim.account_id, claim.expected_recovery_version, claim.expected_account_generation,
+      input.admissionProvenance,
       claim.claim_id, input.claimVerifier, input.now,
       qaSessionId, qaSessionId, input.now);
     const revokeAccountDevices = db.prepare(`
@@ -338,7 +359,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       return { status: 'recovered', ...resultBody, alreadyRecovered: false };
     } catch (error) {
       const raced = await operation(input.operationId);
-      if (raced?.request_fingerprint === input.requestFingerprint) {
+      if (raced?.admission_provenance === input.admissionProvenance &&
+          raced?.request_fingerprint === input.requestFingerprint) {
         return { status: 'recovered', ...lifecycleResult(raced), alreadyRecovered: true };
       }
       const current = await db.prepare(`SELECT recovery_version, state FROM sync_accounts WHERE id = ?`)
@@ -376,7 +398,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   async function revokeEnvironment(identity, input) {
     const previous = await operation(input.operationId);
     if (previous) {
-      if (previous.request_fingerprint !== input.requestFingerprint || previous.kind !== 'device_revoke') {
+      if (previous.admission_provenance !== (identity.admissionProvenance || 'qa') ||
+          previous.request_fingerprint !== input.requestFingerprint || previous.kind !== 'device_revoke') {
         return { status: 'conflict' };
       }
       return { status: 'revoked', ...lifecycleResult(previous), alreadyRevoked: true };
@@ -425,9 +448,12 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       FROM sync_account_lifecycle_operations o
       JOIN sync_account_devices d
         ON d.account_id = o.account_id AND d.id = o.target_id
+      JOIN sync_accounts a ON a.id = o.account_id
       WHERE o.operation_id = ? AND o.kind = 'device_revoke'
         AND o.target_id = ? AND d.credential_verifier = ? AND d.revoked_at IS NOT NULL
-    `).bind(input.operationId, input.targetDeviceId, input.accountCredentialVerifier).first();
+        AND a.admission_provenance = ?
+    `).bind(input.operationId, input.targetDeviceId, input.accountCredentialVerifier,
+      input.admissionProvenance).first();
     if (!row || (input.requestFingerprint != null &&
         row.request_fingerprint !== input.requestFingerprint)) return { status: 'invalid' };
     return { status: 'revoked', ...lifecycleResult(row), alreadyRevoked: true };
@@ -478,7 +504,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   async function commitDelete(identity, input) {
     const previous = await operation(input.operationId);
     if (previous) {
-      if (previous.request_fingerprint !== input.requestFingerprint ||
+      if (previous.admission_provenance !== (identity.admissionProvenance || 'qa') ||
+          previous.request_fingerprint !== input.requestFingerprint ||
           previous.kind !== (input.scope === 'account' ? 'account_delete' : 'app_delete')) {
         return { status: 'conflict' };
       }
@@ -623,7 +650,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       return { status: 'deleting', ...resultBody, alreadyDeleting: false };
     } catch (error) {
       const raced = await operation(input.operationId);
-      if (raced?.request_fingerprint === input.requestFingerprint) {
+      if (raced?.admission_provenance === (identity.admissionProvenance || 'qa') &&
+          raced?.request_fingerprint === input.requestFingerprint) {
         return { status: 'deleting', ...lifecycleResult(raced), alreadyDeleting: true };
       }
       const current = await db.prepare(`SELECT state, generation FROM sync_accounts WHERE id = ?`)
@@ -641,9 +669,11 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       FROM sync_account_delete_intents i
       JOIN sync_account_lifecycle_operations o ON o.operation_id = i.consume_operation_id
       JOIN sync_account_devices d ON d.id = i.requested_by_account_device_id
+      JOIN sync_accounts a ON a.id = i.account_id
       WHERE i.intent_id = ? AND i.intent_verifier = ? AND i.consumed_at IS NOT NULL
-        AND d.credential_verifier = ?
-    `).bind(input.intentId, input.intentVerifier, input.accountCredentialVerifier).first();
+        AND d.credential_verifier = ? AND a.admission_provenance = ?
+    `).bind(input.intentId, input.intentVerifier, input.accountCredentialVerifier,
+      input.admissionProvenance).first();
     if (!row || row.request_fingerprint !== input.requestFingerprint ||
         row.kind !== (input.scope === 'account' ? 'account_delete' : 'app_delete')) return { status: 'invalid' };
     return { status: 'deleting', ...lifecycleResult(row), alreadyDeleting: true };

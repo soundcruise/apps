@@ -23,7 +23,7 @@ test('Account implementation has no plaintext logging or browser key-value secre
   assert.equal(sharedSources.includes('transient_secret_persistence_blocked'), true);
 });
 
-test('M9 keeps Standard unintegrated and wires Account orchestration only into Pro apps', () => {
+test('M10 keeps Standard unintegrated and wires OFF-first Account orchestration only into Pro apps', () => {
   const editions = [
     ['apps/chord-cruise/standard/index.html', 'apps/chord-cruise/pro_k7m4q9v2x8/index.html'],
     ['apps/pitch-cruise/standard/index.html', 'apps/pitch-cruise/pro_x9v7q2m8/index.html'],
@@ -36,6 +36,7 @@ test('M9 keeps Standard unintegrated and wires Account orchestration only into P
     assert.equal(standard.includes('shared/sync-account'), false, `${standardPath} must remain unintegrated`);
     assert.equal(pro.includes('shared/sync-account'), true, `${proPath} must load M9 Account wiring`);
     assert.equal(pro.includes('__SOUND_CRUISE_MULTI_APP_SYNC__'), false, `${proPath} production M9 gate must remain off`);
+    assert.equal(pro.includes('production-config.js?v=1'), true, `${proPath} must load explicit production config`);
   }
   const standardPort = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/index.html'), 'utf8');
   const proPort = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/pro_9a3943176561/index.html'), 'utf8');
@@ -74,4 +75,6 @@ test('production config exposes every independent Account-operation limiter', ()
   }
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
   assert.match(config, /"SYNC_QA_ALLOWED_APP_IDS"\s*:\s*"chord,pitch,rhythm,fretboard"/u);
+  assert.match(config, /"SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED"\s*:\s*"false"/u);
+  assert.match(config, /"SYNC_ACCOUNT_PUBLIC_APP_IDS"\s*:\s*"chord,pitch,fretboard,rhythm"/u);
 });

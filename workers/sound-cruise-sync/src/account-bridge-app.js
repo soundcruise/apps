@@ -13,6 +13,10 @@ import {
 } from './account-validation.js';
 import { readBodyWithLimit } from './validation.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
+import {
+  ACCOUNT_ADMISSION_PROVENANCE,
+  productionAccountAppAllowed
+} from './account-admission.js';
 
 export const CHORD_BRIDGE_ROUTES = Object.freeze({
   '/v2/accounts/bridges/chord': {
@@ -64,6 +68,9 @@ async function bridgeContext(request, env, dependencies, createSession) {
     env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
   );
   if (!account) return { error: 'invalid_account_credential', status: 401 };
+  if (account.admissionProvenance !== dependencies.admissionProvenance) {
+    return { error: 'account_admission_mismatch', status: 403 };
+  }
   const app = await appAuth(
     session,
     request.headers.get('X-Sound-Cruise-App-Authorization'),
@@ -71,18 +78,22 @@ async function bridgeContext(request, env, dependencies, createSession) {
     env.SYNC_CREDENTIAL_PEPPER
   );
   if (!app) return { error: 'invalid_app_credential', status: 401 };
-  const qa = dependencies.qaIdentity || await (
-    dependencies.authenticateQaRequest || authenticateQaRequest
-  )(
-    session,
-    request.headers.get('X-Sound-Cruise-QA-Authorization'),
-    env,
-    { scope: 'app', accountId: account.accountId, appId: 'chord', appDeviceId: app.deviceId },
-    dependencies
-  );
-  if (!qa || qa.scope !== 'app' || qa.appId !== 'chord' ||
-      qa.accountId !== account.accountId || qa.appDeviceId !== app.deviceId) {
-    return { error: 'qa_admission_required', status: 403 };
+  if (dependencies.admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA) {
+    const qa = dependencies.qaIdentity || await (
+      dependencies.authenticateQaRequest || authenticateQaRequest
+    )(
+      session,
+      request.headers.get('X-Sound-Cruise-QA-Authorization'),
+      env,
+      { scope: 'app', accountId: account.accountId, appId: 'chord', appDeviceId: app.deviceId },
+      dependencies
+    );
+    if (!qa || qa.scope !== 'app' || qa.appId !== 'chord' ||
+        qa.accountId !== account.accountId || qa.appDeviceId !== app.deviceId) {
+      return { error: 'qa_admission_required', status: 403 };
+    }
+  } else if (!productionAccountAppAllowed(env, 'chord')) {
+    return { error: 'account_production_app_unavailable', status: 403 };
   }
   return {
     session,

@@ -130,11 +130,15 @@ export function validateAppJoinIssuePayload(value) {
 }
 
 export function validateAppJoinConsumePayload(value) {
-  const keys = [
+  const requiredKeys = [
     'operationId', 'appId', 'joinCode', 'accountCredential',
-    'appDeviceCredential', 'qaCredential', 'deviceLabel', 'consumeMode'
+    'appDeviceCredential', 'deviceLabel', 'consumeMode'
   ];
-  if (!exactObject(value, keys)) return { ok: false };
+  const keys = Object.keys(value || {});
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      !requiredKeys.every((key) => keys.includes(key)) ||
+      keys.some((key) => ![...requiredKeys, 'qaCredential'].includes(key)) ||
+      ![requiredKeys.length, requiredKeys.length + 1].includes(keys.length)) return { ok: false };
   const deviceLabel = label(value.deviceLabel);
   const normalized = {
     ...value,
@@ -149,7 +153,8 @@ export function validateAppJoinConsumePayload(value) {
     (normalized.consumeMode !== 'existing_chord' || normalized.appId === 'chord') &&
     parseAccountCredential(normalized.accountCredential) &&
     parseAccountAppCredential(normalized.appDeviceCredential) &&
-    parseQaCredential(normalized.qaCredential) && deviceLabel !== undefined
+    (normalized.qaCredential === undefined || parseQaCredential(normalized.qaCredential)) &&
+    deviceLabel !== undefined
     ? { ok: true, value: normalized } : { ok: false };
 }
 

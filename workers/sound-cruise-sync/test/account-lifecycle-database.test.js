@@ -168,7 +168,7 @@ async function qaRecoveryInput(qaSessionId, overrides = {}) {
   input.requestFingerprint = await accountOperationFingerprint([
     'account-recovery-prepare', input.claimVerifier, input.currentRecoveryVerifier,
     input.nextRecoveryVerifier, input.nextAccountDeviceId,
-    input.nextAccountCredentialVerifier, input.deviceLabel || '', qaSessionId
+    input.nextAccountCredentialVerifier, input.deviceLabel || '', qaSessionId, 'qa'
   ]);
   return input;
 }

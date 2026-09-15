@@ -35,7 +35,8 @@ test('Account auth resolves identity only from a valid active Account credential
     accountDeviceId: material.deviceId,
     accountState: 'active',
     recoveryVersion: 1,
-    generation: 1
+    generation: 1,
+    admissionProvenance: 'qa'
   });
   assert.equal(db.raw.prepare('SELECT last_seen_at FROM sync_account_devices WHERE id = ?')
     .get(material.deviceId).last_seen_at, 60 * 60 * 1000 + 2);

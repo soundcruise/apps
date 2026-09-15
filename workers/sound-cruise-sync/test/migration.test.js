@@ -21,8 +21,9 @@ const migration14 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration15 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0015_add_account_qa_admission.sql'), 'utf8');
 const migration16 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0016_add_app_join_invitations.sql'), 'utf8');
 const migration17 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0017_add_account_lifecycle.sql'), 'utf8');
+const migration18 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0018_add_account_admission_provenance.sql'), 'utf8');
 
-function migrate(db) {
+function migrateThrough17(db) {
   db.exec(migration);
   db.exec(migration2);
   db.exec(migration3);
@@ -40,6 +41,11 @@ function migrate(db) {
   db.exec(migration15);
   db.exec(migration16);
   db.exec(migration17);
+}
+
+function migrate(db) {
+  migrateThrough17(db);
+  db.exec(migration18);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -64,7 +70,8 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare("SELECT last_change_seq FROM sync_datasets LIMIT 1"));
   assert(db.prepare("SELECT pairing_pending_at, paired_at FROM sync_devices LIMIT 1"));
   assert(db.prepare("SELECT consume_mode, qa_issuer_session_id, qa_app_session_id FROM sync_membership_handoffs LIMIT 1"));
-  assert(db.prepare("SELECT target_app_id, code_verifier, consume_mode FROM sync_app_join_invitations LIMIT 1"));
+  assert(db.prepare("SELECT target_app_id, code_verifier, consume_mode, admission_provenance FROM sync_app_join_invitations LIMIT 1"));
+  assert(db.prepare("SELECT admission_provenance FROM sync_accounts LIMIT 1"));
   assert(db.prepare('SELECT delete_requested_at, purge_after FROM sync_account_memberships LIMIT 1'));
   assert(db.prepare(`SELECT prepare_operation_id, prepare_fingerprint,
     commit_operation_id, commit_fingerprint FROM sync_account_recovery_claims LIMIT 1`));
@@ -99,6 +106,149 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     account_recovery_enabled: 0, account_delete_enabled: 0,
     port_orchestration_enabled: 0, generation: 1
   });
+  db.close();
+});
+
+test('M10 admission provenance migration preserves existing 0017 QA and Legacy data', () => {
+  const db = new DatabaseSync(':memory:');
+  migrateThrough17(db);
+
+  db.prepare(`INSERT INTO sync_users (
+    id,state,recovery_version,recovery_verifier,created_at,updated_at,recovery_created_at,recovery_rotated_at
+  ) VALUES ('legacy-user','active',1,?,1,1,1,1)`).run('0'.repeat(64));
+  db.prepare(`INSERT INTO sync_devices (
+    id,user_id,app_id,credential_version,credential_verifier,label,last_cursor,
+    created_at,last_seen_at,revoked_at,pairing_pending_at,paired_at
+  ) VALUES ('legacy-device','legacy-user','chord',1,?,'Legacy',0,1,1,NULL,NULL,1)`).run('1'.repeat(64));
+  db.prepare(`INSERT INTO sync_datasets (
+    user_id,app_id,state,schema_version,record_count,manifest_hash,min_change_seq,
+    initialized_at,updated_at,last_change_seq
+  ) VALUES ('legacy-user','chord','ready',1,1,?,0,1,1,1)`).run('2'.repeat(64));
+  db.prepare(`INSERT INTO sync_records (
+    user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
+    deleted_at,updated_by_device_id,last_operation_id,schema_version
+  ) VALUES ('legacy-user','chord','chord','legacy-record','{}',?,1,1,NULL,'legacy-device','legacy-op',1)`)
+    .run('3'.repeat(64));
+  db.prepare(`INSERT INTO sync_changes (
+    user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,
+    payload_json,payload_hash,deleted_at,changed_at,schema_version
+  ) VALUES ('legacy-user','chord','chord','legacy-record',1,'legacy-change',?,'{}',?,NULL,1,1)`)
+    .run('4'.repeat(64), '3'.repeat(64));
+
+  db.prepare(`INSERT INTO sync_accounts (
+    id,state,recovery_version,recovery_verifier,generation,created_at,updated_at,
+    recovery_created_at,recovery_rotated_at
+  ) VALUES ('qa-account','active',1,?,1,1,1,1,1)`).run('5'.repeat(64));
+  db.prepare(`INSERT INTO sync_account_devices (
+    id,account_id,credential_version,credential_verifier,label,created_at,last_seen_at,revoked_at
+  ) VALUES ('qa-account-device','qa-account',1,?,'QA Port',1,1,NULL)`).run('6'.repeat(64));
+  db.prepare(`INSERT INTO sync_users (
+    id,state,recovery_version,recovery_verifier,created_at,updated_at,recovery_created_at,recovery_rotated_at
+  ) VALUES ('qa-app-user','active',1,?,1,1,1,1)`).run('7'.repeat(64));
+  db.prepare(`INSERT INTO sync_devices (
+    id,user_id,app_id,credential_version,credential_verifier,label,last_cursor,
+    created_at,last_seen_at,revoked_at,pairing_pending_at,paired_at
+  ) VALUES ('qa-app-device','qa-app-user','pitch',1,?,'QA Pitch',0,1,1,NULL,NULL,1)`).run('8'.repeat(64));
+  db.prepare(`INSERT INTO sync_datasets (
+    user_id,app_id,state,schema_version,record_count,manifest_hash,min_change_seq,
+    initialized_at,updated_at,last_change_seq
+  ) VALUES ('qa-app-user','pitch','ready',1,0,?,0,1,1,0)`).run('9'.repeat(64));
+  db.prepare(`INSERT INTO sync_account_memberships (
+    id,account_id,app_id,state,sync_user_id,recovery_mode,generation,created_at,
+    activated_at,updated_at,deleted_at
+  ) VALUES ('qa-membership','qa-account','pitch','active','qa-app-user','account',1,1,1,1,NULL)`).run();
+  db.prepare(`INSERT INTO sync_account_managed_users (
+    sync_user_id,account_id,membership_id,app_id,created_at
+  ) VALUES ('qa-app-user','qa-account','qa-membership','pitch',1)`).run();
+  db.prepare(`INSERT INTO sync_membership_device_links (
+    account_id,membership_id,app_device_id,account_device_id,linked_at
+  ) VALUES ('qa-account','qa-membership','qa-app-device','qa-account-device',1)`).run();
+  db.prepare(`INSERT INTO sync_account_qa_enrollments (
+    id,code_verifier,created_at,expires_at,consumed_at,cancelled_at,consumed_by_session_id
+  ) VALUES ('qa-enrollment',?,1,100,2,NULL,'qa-session')`).run('a'.repeat(64));
+  db.prepare(`INSERT INTO sync_account_qa_sessions (
+    id,credential_verifier,enrollment_id,scope,account_id,app_id,app_device_id,
+    parent_session_id,created_at,expires_at,last_used_at,revoked_at,generation
+  ) VALUES ('qa-session',?,'qa-enrollment','port','qa-account',NULL,NULL,NULL,1,100,1,NULL,1)`)
+    .run('b'.repeat(64));
+  db.prepare(`INSERT INTO sync_app_join_invitations (
+    invitation_id,code_verifier,account_id,membership_id,target_app_id,
+    created_by_account_device_id,created_at,expires_at,issue_operation_id,
+    issue_fingerprint,qa_issuer_session_id
+  ) VALUES ('11111111-1111-4111-8111-111111111111',?,'qa-account','qa-membership','pitch',
+    'qa-account-device',1,100,'qa-issue',?,'qa-session')`).run('c'.repeat(64), 'd'.repeat(64));
+
+  const legacyBefore = db.prepare(`SELECT
+    (SELECT COUNT(*) FROM sync_users WHERE id='legacy-user') users,
+    (SELECT COUNT(*) FROM sync_devices WHERE user_id='legacy-user') devices,
+    (SELECT COUNT(*) FROM sync_datasets WHERE user_id='legacy-user') datasets,
+    (SELECT COUNT(*) FROM sync_records WHERE user_id='legacy-user') records,
+    (SELECT COUNT(*) FROM sync_changes WHERE user_id='legacy-user') changes`).get();
+  const qaBefore = db.prepare(`SELECT
+    (SELECT COUNT(*) FROM sync_accounts WHERE id='qa-account') accounts,
+    (SELECT COUNT(*) FROM sync_account_memberships WHERE account_id='qa-account') memberships,
+    (SELECT COUNT(*) FROM sync_datasets WHERE user_id='qa-app-user') datasets,
+    (SELECT COUNT(*) FROM sync_app_join_invitations WHERE account_id='qa-account') invitations`).get();
+  const invitationBefore = { ...db.prepare('SELECT * FROM sync_app_join_invitations').get() };
+
+  db.exec(migration18);
+
+  assert.deepEqual({ ...db.prepare(`SELECT
+    (SELECT COUNT(*) FROM sync_users WHERE id='legacy-user') users,
+    (SELECT COUNT(*) FROM sync_devices WHERE user_id='legacy-user') devices,
+    (SELECT COUNT(*) FROM sync_datasets WHERE user_id='legacy-user') datasets,
+    (SELECT COUNT(*) FROM sync_records WHERE user_id='legacy-user') records,
+    (SELECT COUNT(*) FROM sync_changes WHERE user_id='legacy-user') changes`).get() }, { ...legacyBefore });
+  assert.deepEqual({ ...db.prepare(`SELECT
+    (SELECT COUNT(*) FROM sync_accounts WHERE id='qa-account') accounts,
+    (SELECT COUNT(*) FROM sync_account_memberships WHERE account_id='qa-account') memberships,
+    (SELECT COUNT(*) FROM sync_datasets WHERE user_id='qa-app-user') datasets,
+    (SELECT COUNT(*) FROM sync_app_join_invitations WHERE account_id='qa-account') invitations`).get() }, { ...qaBefore });
+  assert.equal(db.prepare("SELECT admission_provenance FROM sync_accounts WHERE id='qa-account'").get().admission_provenance, 'qa');
+  const invitationAfter = { ...db.prepare('SELECT * FROM sync_app_join_invitations').get() };
+  assert.equal(invitationAfter.admission_provenance, 'qa');
+  delete invitationAfter.admission_provenance;
+  assert.deepEqual(invitationAfter, invitationBefore);
+  db.prepare("UPDATE sync_app_join_invitations SET cancelled_at=3 WHERE issue_operation_id='qa-issue'").run();
+  db.prepare(`INSERT INTO sync_app_join_invitations (
+    invitation_id,code_verifier,account_id,membership_id,target_app_id,
+    created_by_account_device_id,created_at,expires_at,issue_operation_id,
+    issue_fingerprint,qa_issuer_session_id
+  ) VALUES ('44444444-4444-4444-8444-444444444444',?,'qa-account','qa-membership','pitch',
+    'qa-account-device',1,100,'old-worker-qa-issue',?,'qa-session')`)
+    .run('e'.repeat(64), 'f'.repeat(64));
+  assert.equal(db.prepare("SELECT admission_provenance FROM sync_app_join_invitations WHERE issue_operation_id='old-worker-qa-issue'")
+    .get().admission_provenance, 'qa', 'old Worker QA insert remains compatible after migration');
+  assert.equal(db.prepare('PRAGMA foreign_key_check').all().length, 0);
+  db.close();
+});
+
+test('M10 admission provenance constraints distinguish production and QA invitations', () => {
+  const db = new DatabaseSync(':memory:');
+  migrate(db);
+  db.prepare(`INSERT INTO sync_accounts (
+    id,state,recovery_version,recovery_verifier,generation,created_at,updated_at,
+    recovery_created_at,recovery_rotated_at,admission_provenance
+  ) VALUES ('production-account','active',1,?,1,1,1,1,1,'production')`).run('e'.repeat(64));
+  db.prepare(`INSERT INTO sync_account_devices (
+    id,account_id,credential_version,credential_verifier,label,created_at,last_seen_at,revoked_at
+  ) VALUES ('production-device','production-account',1,?,'Production Port',1,1,NULL)`).run('f'.repeat(64));
+  db.prepare(`INSERT INTO sync_account_memberships (
+    id,account_id,app_id,state,sync_user_id,recovery_mode,generation,created_at,
+    activated_at,updated_at,deleted_at
+  ) VALUES ('production-membership','production-account','rhythm','pending',NULL,'account',1,1,NULL,1,NULL)`).run();
+  const insert = db.prepare(`INSERT INTO sync_app_join_invitations (
+    invitation_id,code_verifier,account_id,membership_id,target_app_id,admission_provenance,
+    created_by_account_device_id,created_at,expires_at,issue_operation_id,
+    issue_fingerprint,qa_issuer_session_id
+  ) VALUES (?,?, 'production-account','production-membership','rhythm',?,
+    'production-device',1,100,?,?,?)`);
+  insert.run('22222222-2222-4222-8222-222222222222', '1'.repeat(64), 'production', 'production-issue', '2'.repeat(64), null);
+  assert.equal(db.prepare("SELECT admission_provenance FROM sync_app_join_invitations WHERE invitation_id LIKE '2222%'").get().admission_provenance, 'production');
+  assert.throws(() => insert.run(
+    '33333333-3333-4333-8333-333333333333', '3'.repeat(64), 'qa', 'qa-without-issuer', '4'.repeat(64), null
+  ));
+  assert.equal(db.prepare('PRAGMA foreign_key_check').all().length, 0);
   db.close();
 });
 

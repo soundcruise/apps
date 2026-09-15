@@ -259,7 +259,7 @@ test('QA-only Data Plane requires an app-scoped credential while public Legacy C
     dataReadEnabled: true, recoveryEnabled: true, cloudDeleteEnabled: true, generation: 9
   });
   const baseEnv = {
-    SYNC_DB: { prepare() { throw new Error('not used'); } },
+    SYNC_DB: { prepare() { return { bind() { return this; }, async first() { return null; } }; } },
     ALLOWED_ORIGINS: origin,
     SYNC_ALLOWED_APP_IDS: 'chord',
     SYNC_QA_ALLOWED_APP_IDS: 'chord,pitch,rhythm,fretboard',

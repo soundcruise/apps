@@ -20,6 +20,7 @@ function publicInvitation(row) {
     accountId: row.account_id,
     membershipId: row.membership_id,
     appId: row.app_id,
+    admissionProvenance: row.admission_provenance,
     issuerDeviceId: row.created_by_account_device_id,
     createdAt: Number(row.created_at),
     expiresAt: Number(row.expires_at),
@@ -38,6 +39,7 @@ export function createD1AppJoinRepository(db) {
       SELECT h.*, m.app_id, m.state AS membership_state, m.sync_user_id,
              claimed.user_id AS claimed_sync_user_id,
              a.state AS account_state, a.recovery_verifier,
+             a.admission_provenance AS account_admission_provenance,
              issuer.revoked_at AS issuer_revoked_at,
              q.enrollment_id AS qa_enrollment_id, q.scope AS qa_issuer_scope,
              q.account_id AS qa_issuer_account_id, q.expires_at AS qa_issuer_expires_at,
@@ -60,6 +62,7 @@ export function createD1AppJoinRepository(db) {
       SELECT h.*, m.app_id, m.state AS membership_state, m.sync_user_id,
              claimed.user_id AS claimed_sync_user_id,
              a.state AS account_state, a.recovery_verifier,
+             a.admission_provenance AS account_admission_provenance,
              issuer.revoked_at AS issuer_revoked_at,
              q.enrollment_id AS qa_enrollment_id, q.scope AS qa_issuer_scope,
              q.account_id AS qa_issuer_account_id, q.expires_at AS qa_issuer_expires_at,
@@ -88,10 +91,12 @@ export function createD1AppJoinRepository(db) {
   }
 
   async function resolveIssueRetry(identity, input) {
+    input = { admissionProvenance: 'qa', ...input };
     const previous = await readByIssueOperation(input.operationId);
     if (!previous) return null;
     if (previous.account_id !== identity.accountId ||
         previous.created_by_account_device_id !== identity.accountDeviceId ||
+        previous.admission_provenance !== input.admissionProvenance ||
         previous.issue_fingerprint !== input.requestFingerprint) {
       return { status: 'operation_conflict' };
     }
@@ -99,10 +104,13 @@ export function createD1AppJoinRepository(db) {
   }
 
   async function resolveConsumeRetry(input) {
+    input = { admissionProvenance: 'qa', ...input };
     const row = await readByVerifier(input.codeVerifier);
     const storedVerifier = row?.code_verifier || '0'.repeat(64);
     if (!timingSafeHexEqual(input.codeVerifier, storedVerifier) || !row) return null;
-    if (row.consumed_at == null || row.consume_operation_id !== input.operationId ||
+    if (row.admission_provenance !== input.admissionProvenance ||
+        row.account_admission_provenance !== input.admissionProvenance ||
+        row.consumed_at == null || row.consume_operation_id !== input.operationId ||
         row.consume_fingerprint !== input.requestFingerprint ||
         row.claimed_by_app_device_id !== input.appDeviceId ||
         row.claimed_by_account_device_id !== input.accountDeviceId) return null;
@@ -120,30 +128,39 @@ export function createD1AppJoinRepository(db) {
   }
 
   async function issue(identity, input) {
+    input = { admissionProvenance: 'qa', ...input };
     const retry = await resolveIssueRetry(identity, input);
     if (retry) return retry;
 
-    const membership = await db.prepare(`
-      SELECT m.id, m.app_id, m.state, m.sync_user_id,
-             dataset.state AS dataset_state
-      FROM sync_account_memberships m
-      JOIN sync_accounts a
-        ON a.id = m.account_id AND a.state = 'active' AND a.deleted_at IS NULL
-      JOIN sync_account_devices d
-        ON d.id = ? AND d.account_id = a.id AND d.revoked_at IS NULL
-      JOIN sync_account_qa_sessions q
-        ON q.id = ? AND q.scope = 'port' AND q.account_id = a.id
-        AND q.revoked_at IS NULL AND q.expires_at > ?
-      LEFT JOIN sync_datasets dataset
-        ON dataset.user_id = m.sync_user_id AND dataset.app_id = m.app_id
-      WHERE m.account_id = ? AND m.app_id = ?
-    `).bind(
-      identity.accountDeviceId,
-      input.qaIssuerSessionId,
-      input.now,
-      identity.accountId,
-      input.appId
-    ).first();
+    const membership = input.admissionProvenance === 'qa'
+      ? await db.prepare(`
+          SELECT m.id, m.app_id, m.state, m.sync_user_id,
+                 dataset.state AS dataset_state
+          FROM sync_account_memberships m
+          JOIN sync_accounts a ON a.id = m.account_id AND a.state = 'active'
+            AND a.deleted_at IS NULL AND a.admission_provenance = 'qa'
+          JOIN sync_account_devices d
+            ON d.id = ? AND d.account_id = a.id AND d.revoked_at IS NULL
+          JOIN sync_account_qa_sessions q
+            ON q.id = ? AND q.scope = 'port' AND q.account_id = a.id
+            AND q.revoked_at IS NULL AND q.expires_at > ?
+          LEFT JOIN sync_datasets dataset
+            ON dataset.user_id = m.sync_user_id AND dataset.app_id = m.app_id
+          WHERE m.account_id = ? AND m.app_id = ?
+        `).bind(identity.accountDeviceId, input.qaIssuerSessionId, input.now,
+          identity.accountId, input.appId).first()
+      : await db.prepare(`
+          SELECT m.id, m.app_id, m.state, m.sync_user_id,
+                 dataset.state AS dataset_state
+          FROM sync_account_memberships m
+          JOIN sync_accounts a ON a.id = m.account_id AND a.state = 'active'
+            AND a.deleted_at IS NULL AND a.admission_provenance = 'production'
+          JOIN sync_account_devices d
+            ON d.id = ? AND d.account_id = a.id AND d.revoked_at IS NULL
+          LEFT JOIN sync_datasets dataset
+            ON dataset.user_id = m.sync_user_id AND dataset.app_id = m.app_id
+          WHERE m.account_id = ? AND m.app_id = ?
+        `).bind(identity.accountDeviceId, identity.accountId, input.appId).first();
     if (!membership || !['pending', 'active'].includes(membership.state)) {
       return { status: 'membership_unavailable' };
     }
@@ -189,18 +206,20 @@ export function createD1AppJoinRepository(db) {
       const result = await db.prepare(`
         INSERT INTO sync_app_join_invitations (
           invitation_id, code_verifier, account_id, membership_id, target_app_id,
+          admission_provenance,
           created_by_account_device_id, claimed_by_app_device_id,
           created_at, expires_at, consumed_at, cancelled_at,
           issue_operation_id, issue_fingerprint, consume_operation_id,
           consume_fingerprint, claimed_by_account_device_id,
           cancelled_by_account_device_id, qa_issuer_session_id, qa_app_session_id
-        ) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, NULL, ?, ?, NULL, NULL, NULL, NULL, ?, NULL)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, NULL, NULL, ?, ?, NULL, NULL, NULL, NULL, ?, NULL)
       `).bind(
         input.invitationId,
         input.codeVerifier,
         identity.accountId,
         membership.id,
         membership.app_id,
+        input.admissionProvenance,
         identity.accountDeviceId,
         input.now,
         expiresAt,
@@ -260,11 +279,14 @@ export function createD1AppJoinRepository(db) {
   }
 
   async function consume(input) {
+    input = { admissionProvenance: 'qa', ...input };
     const row = await readByVerifier(input.codeVerifier);
     const storedVerifier = row?.code_verifier || '0'.repeat(64);
     if (!timingSafeHexEqual(input.codeVerifier, storedVerifier) || !row) return { status: 'invalid' };
     input = { ...input, invitationId: row.invitation_id };
     if (row.app_id !== input.appId) return { status: 'wrong_app' };
+    if (row.admission_provenance !== input.admissionProvenance ||
+        row.account_admission_provenance !== input.admissionProvenance) return { status: 'invalid' };
     if (row.consumed_at != null) {
       if (row.consume_operation_id === input.operationId &&
           row.consume_fingerprint === input.requestFingerprint &&
@@ -290,33 +312,39 @@ export function createD1AppJoinRepository(db) {
         (!newMembership && !reconnectMembership)) {
       return { status: 'membership_unavailable' };
     }
-    if (!row.qa_enrollment_id || row.qa_issuer_scope !== 'port' ||
-        row.qa_issuer_account_id !== row.account_id || row.qa_issuer_revoked_at != null ||
-        Number(row.qa_issuer_expires_at) <= input.now) {
-      return { status: 'qa_admission_unavailable' };
+    let insertQaSession = null;
+    if (input.admissionProvenance === 'qa') {
+      if (!row.qa_enrollment_id || row.qa_issuer_scope !== 'port' ||
+          row.qa_issuer_account_id !== row.account_id || row.qa_issuer_revoked_at != null ||
+          Number(row.qa_issuer_expires_at) <= input.now || !input.qaSessionId ||
+          !input.qaCredentialVerifier) {
+        return { status: 'qa_admission_unavailable' };
+      }
+      const qaExpiresAt = Math.min(
+        Number(row.qa_issuer_expires_at),
+        input.now + ACCOUNT_QA.SESSION_TTL_MS
+      );
+      insertQaSession = db.prepare(`
+        INSERT INTO sync_account_qa_sessions (
+          id, credential_verifier, enrollment_id, scope, account_id, app_id,
+          app_device_id, parent_session_id, created_at, expires_at,
+          last_used_at, revoked_at, generation
+        ) VALUES (?, ?, ?, 'app', ?, ?, ?, ?, ?, ?, ?, NULL, 1)
+      `).bind(
+        input.qaSessionId,
+        input.qaCredentialVerifier,
+        row.qa_enrollment_id,
+        row.account_id,
+        input.appId,
+        input.appDeviceId,
+        row.qa_issuer_session_id,
+        input.now,
+        qaExpiresAt,
+        input.now
+      );
+    } else if (input.qaSessionId || input.qaCredentialVerifier || row.qa_issuer_session_id) {
+      return { status: 'invalid' };
     }
-    const qaExpiresAt = Math.min(
-      Number(row.qa_issuer_expires_at),
-      input.now + ACCOUNT_QA.SESSION_TTL_MS
-    );
-    const insertQaSession = db.prepare(`
-      INSERT INTO sync_account_qa_sessions (
-        id, credential_verifier, enrollment_id, scope, account_id, app_id,
-        app_device_id, parent_session_id, created_at, expires_at,
-        last_used_at, revoked_at, generation
-      ) VALUES (?, ?, ?, 'app', ?, ?, ?, ?, ?, ?, ?, NULL, 1)
-    `).bind(
-      input.qaSessionId,
-      input.qaCredentialVerifier,
-      row.qa_enrollment_id,
-      row.account_id,
-      input.appId,
-      input.appDeviceId,
-      row.qa_issuer_session_id,
-      input.now,
-      qaExpiresAt,
-      input.now
-    );
     if (input.consumeMode === 'existing_chord') {
       if (!newMembership) return { status: 'membership_unavailable' };
       const existing = await db.prepare(`
@@ -393,7 +421,7 @@ export function createD1AppJoinRepository(db) {
         row.account_id
       );
       try {
-        const statements = [insertAccountDevice, insertQaSession, claim, guard];
+        const statements = [insertAccountDevice, ...(insertQaSession ? [insertQaSession] : []), claim, guard];
         const results = await db.batch(statements);
         if (!batchSucceeded(results, statements.length)) {
           throw new Error('Existing Chord app-join transaction was incomplete');
@@ -483,7 +511,7 @@ export function createD1AppJoinRepository(db) {
         input.invitationId, input.operationId, input.requestFingerprint,
         row.membership_id, row.account_id, input.appId);
       try {
-        const statements = [insertAppDevice, insertAccountDevice, insertQaSession,
+        const statements = [insertAppDevice, insertAccountDevice, ...(insertQaSession ? [insertQaSession] : []),
           linkDevice, consumeInvitation, guard];
         const results = await db.batch(statements);
         if (!batchSucceeded(results, statements.length)) {
@@ -651,7 +679,7 @@ export function createD1AppJoinRepository(db) {
         insertUser,
         insertAppDevice,
         insertAccountDevice,
-        insertQaSession,
+        ...(insertQaSession ? [insertQaSession] : []),
         linkDevice,
         markManaged,
         activateMembership,

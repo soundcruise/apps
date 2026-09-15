@@ -13,19 +13,21 @@ export function createD1AccountRepository(db) {
   }
 
   async function createAccountBackbone(input) {
+    input = { admissionProvenance: 'qa', ...input };
     const account = db.prepare(`
       INSERT INTO sync_accounts (
         id, state, recovery_version, recovery_verifier, generation,
         created_at, updated_at, recovery_created_at, recovery_rotated_at,
-        delete_requested_at, purge_after, deleted_at
-      ) VALUES (?, 'active', 1, ?, 1, ?, ?, ?, ?, NULL, NULL, NULL)
+        delete_requested_at, purge_after, deleted_at, admission_provenance
+      ) VALUES (?, 'active', 1, ?, 1, ?, ?, ?, ?, NULL, NULL, NULL, ?)
     `).bind(
       input.accountId,
       input.recoveryVerifier,
       input.now,
       input.now,
       input.now,
-      input.now
+      input.now,
+      input.admissionProvenance
     );
     const accountDevice = db.prepare(`
       INSERT INTO sync_account_devices (
@@ -118,7 +120,7 @@ export function createD1AccountRepository(db) {
     const account = await db.prepare(`
       SELECT id, state, recovery_version, generation, created_at, updated_at,
              recovery_created_at, recovery_rotated_at, delete_requested_at,
-             purge_after, deleted_at
+             purge_after, deleted_at, admission_provenance
       FROM sync_accounts WHERE id = ?
     `).bind(accountId).first();
     if (!account) return null;
@@ -151,7 +153,8 @@ export function createD1AccountRepository(db) {
         recoveryRotatedAt: account.recovery_rotated_at == null ? null : Number(account.recovery_rotated_at),
         deleteRequestedAt: account.delete_requested_at == null ? null : Number(account.delete_requested_at),
         purgeAfter: account.purge_after == null ? null : Number(account.purge_after),
-        deletedAt: account.deleted_at == null ? null : Number(account.deleted_at)
+        deletedAt: account.deleted_at == null ? null : Number(account.deleted_at),
+        admissionProvenance: account.admission_provenance
       },
       memberships: (membershipResult?.results || []).map((membership) => ({
         id: membership.id,

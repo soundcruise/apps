@@ -18,7 +18,8 @@ export async function authenticateAccountDevice(db, authorization, pepper, now =
     row = await db.prepare(`
       SELECT d.id AS device_id, d.account_id, d.credential_version,
              d.credential_verifier, d.last_seen_at, d.revoked_at,
-             a.state AS account_state, a.recovery_version, a.generation
+             a.state AS account_state, a.recovery_version, a.generation,
+             a.admission_provenance
       FROM sync_account_devices d
       JOIN sync_accounts a ON a.id = d.account_id
       WHERE d.id = ?
@@ -50,6 +51,7 @@ export async function authenticateAccountDevice(db, authorization, pepper, now =
     accountDeviceId: row.device_id,
     accountState: row.account_state,
     recoveryVersion: Number(row.recovery_version),
-    generation: Number(row.generation)
+    generation: Number(row.generation),
+    admissionProvenance: row.admission_provenance
   });
 }
