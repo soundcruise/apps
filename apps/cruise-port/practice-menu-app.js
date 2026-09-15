@@ -24,7 +24,7 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=0.32.4';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.32.4';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.32.5';
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.32.4';
 import {
     openSyncCenter,

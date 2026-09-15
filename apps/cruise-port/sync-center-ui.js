@@ -101,7 +101,7 @@ function showJoinCode(root, result, onClose = async () => {}) {
     const title = document.createElement('h2');
     title.textContent = '既存データを接続';
     const note = document.createElement('p');
-    note.textContent = 'このコードを5分以内に対象アプリの「Cruise Portと接続」へ入力してください。保存する必要はありません。';
+    note.textContent = 'このコードを5分以内に対象アプリの「Cruise Portと接続」へ入力してください。保存する必要はありません。「コードを取り消す」を押すと、このコードは使えなくなります。';
     const code = document.createElement('output');
     code.dataset.sensitive = 'true';
     code.className = 'sync-center-join-code';
@@ -120,7 +120,7 @@ function showJoinCode(root, result, onClose = async () => {}) {
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'action-button secondary-action';
-    close.textContent = '閉じる';
+    close.textContent = 'コードを取り消す';
     close.addEventListener('click', () => dialog.close());
     dialog.addEventListener('close', () => {
         code.textContent = '';

@@ -65,6 +65,12 @@
     const joinSecret = mode === 'join' && joinInput
       ? accountRoot.core.createSensitiveInputController(joinInput)
       : null;
+    const joinFailureMessage = (reason) => ({
+      app_join_expired: '接続コードの有効期限が切れました。Cruise Portで新しいコードを発行してください。',
+      app_join_cancelled: '接続コードは取り消されました。Cruise Portで新しいコードを発行してください。',
+      app_join_consumed: 'この接続コードはすでに使用されています。Cruise Portで新しいコードを発行してください。',
+      qa_admission_required: 'このQA環境の利用確認を完了できませんでした。ページを更新してから、もう一度お試しください。'
+    })[reason?.code] || '初回同期を完了できませんでした。コードと通信状態を確認してください。';
     continueButton.addEventListener('click', () => dialog.close());
     startButton.addEventListener('click', async () => {
       startButton.disabled = true;
@@ -98,7 +104,8 @@
         error.hidden = false;
         error.textContent = reason?.code === 'merge_conflict'
           ? '自動統合できない変更があります。データは変更せず停止しました。'
-          : '初回同期を完了できませんでした。コードと通信状態を確認してください。';
+          : mode === 'join' ? joinFailureMessage(reason)
+            : '初回同期を完了できませんでした。コードと通信状態を確認してください。';
         startButton.disabled = false;
       }
     });

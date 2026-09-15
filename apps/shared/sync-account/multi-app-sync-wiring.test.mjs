@@ -88,3 +88,12 @@ test('app Join entry is mounted at document level so app settings cannot hide it
   assert.match(bootstrap, /document\.body\.append\(button\)/);
   assert.match(css, /\.sound-cruise-sync-join-entry\s*\{\s*position: fixed;/);
 });
+
+test('Join lifecycle messages distinguish a cancelled code from a generic sync failure', () => {
+  const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
+  const portUi = read('apps/cruise-port/sync-center-ui.js');
+  assert.match(bootstrap, /app_join_cancelled/);
+  assert.match(bootstrap, /接続コードは取り消されました/);
+  assert.match(portUi, /コードを取り消す/);
+  assert.match(portUi, /使えなくなります/);
+});
