@@ -52,7 +52,7 @@ test('M9 keeps Standard unintegrated and wires Account orchestration only into P
   assert.doesNotMatch(orchestrator, /\blocalStorage\b|\bsessionStorage\b|\bindexedDB\b/u);
 });
 
-test('production config exposes the dedicated QA Enrollment and Account start limiters', () => {
+test('production config exposes every independent Account-operation limiter', () => {
   const config = fs.readFileSync(path.join(import.meta.dirname, '../wrangler.jsonc'), 'utf8');
   assert.equal(config.includes('SYNC_ACCOUNT_CREDENTIAL_PEPPER'), false);
   assert.equal(config.includes('SYNC_ACCOUNT_RECOVERY_PEPPER'), false);
@@ -62,8 +62,15 @@ test('production config exposes the dedicated QA Enrollment and Account start li
   assert.match(config, /"ACCOUNT_ALLOWED_ORIGINS"\s*:\s*"https:\/\/soundcruise\.jp"/u);
   assert.match(config, /"name"\s*:\s*"ACCOUNT_QA_ENROLL_RATE_LIMITER"[\s\S]*?"namespace_id"\s*:\s*"32006"[\s\S]*?"limit"\s*:\s*5[\s\S]*?"period"\s*:\s*60/u);
   assert.match(config, /"name"\s*:\s*"ACCOUNT_START_RATE_LIMITER"[\s\S]*?"namespace_id"\s*:\s*"32007"[\s\S]*?"limit"\s*:\s*5[\s\S]*?"period"\s*:\s*60/u);
-  assert.equal(config.includes('ACCOUNT_BRIDGE_RATE_LIMITER'), false);
-  assert.equal(config.includes('ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER'), false);
-  assert.equal(config.includes('ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER'), false);
+  for (const [name, namespaceId] of [
+    ['ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER', '32008'],
+    ['ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER', '32009'],
+    ['ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER', '32010'],
+    ['ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER', '32011'],
+    ['ACCOUNT_RECOVERY_RATE_LIMITER', '32012'],
+    ['ACCOUNT_BRIDGE_RATE_LIMITER', '32013']
+  ]) {
+    assert.match(config, new RegExp(`"name"\\s*:\\s*"${name}"[\\s\\S]*?"namespace_id"\\s*:\\s*"${namespaceId}"[\\s\\S]*?"limit"\\s*:\\s*5[\\s\\S]*?"period"\\s*:\\s*60`, 'u'));
+  }
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
 });

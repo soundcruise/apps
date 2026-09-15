@@ -91,6 +91,54 @@
         "limit": 5,
         "period": 60
       }
+    },
+    {
+      "name": "ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER",
+      "namespace_id": "32008",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER",
+      "namespace_id": "32009",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER",
+      "namespace_id": "32010",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER",
+      "namespace_id": "32011",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_RECOVERY_RATE_LIMITER",
+      "namespace_id": "32012",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_BRIDGE_RATE_LIMITER",
+      "namespace_id": "32013",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
     }
   ]
 }

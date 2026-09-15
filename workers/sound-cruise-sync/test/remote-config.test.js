@@ -28,12 +28,32 @@ test('production Worker remains exact-origin, observable, and secret-free in rep
   assert.equal(config.vars.TURNSTILE_RECOVER_EXPECTED_ACTION, 'sound_cruise_sync_recover');
   assert.deepEqual(config.ratelimits.map((entry) => entry.name), [
     'START_RATE_LIMITER', 'SYNC_RATE_LIMITER', 'PAIRING_ISSUE_RATE_LIMITER', 'PAIR_RATE_LIMITER', 'RECOVERY_RATE_LIMITER',
-    'ACCOUNT_QA_ENROLL_RATE_LIMITER', 'ACCOUNT_START_RATE_LIMITER'
+    'ACCOUNT_QA_ENROLL_RATE_LIMITER', 'ACCOUNT_START_RATE_LIMITER', 'ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER',
+    'ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER', 'ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER', 'ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER',
+    'ACCOUNT_RECOVERY_RATE_LIMITER', 'ACCOUNT_BRIDGE_RATE_LIMITER'
   ]);
-  assert.deepEqual(config.ratelimits.at(-2), {
+  assert.deepEqual(config.ratelimits.at(-8), {
     name: 'ACCOUNT_QA_ENROLL_RATE_LIMITER', namespace_id: '32006', simple: { limit: 5, period: 60 }
   });
   assert.deepEqual(config.ratelimits.at(-1), {
+    name: 'ACCOUNT_BRIDGE_RATE_LIMITER', namespace_id: '32013', simple: { limit: 5, period: 60 }
+  });
+  assert.deepEqual(config.ratelimits.at(-2), {
+    name: 'ACCOUNT_RECOVERY_RATE_LIMITER', namespace_id: '32012', simple: { limit: 5, period: 60 }
+  });
+  assert.deepEqual(config.ratelimits.at(-3), {
+    name: 'ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER', namespace_id: '32011', simple: { limit: 5, period: 60 }
+  });
+  assert.deepEqual(config.ratelimits.at(-4), {
+    name: 'ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER', namespace_id: '32010', simple: { limit: 5, period: 60 }
+  });
+  assert.deepEqual(config.ratelimits.at(-5), {
+    name: 'ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER', namespace_id: '32009', simple: { limit: 5, period: 60 }
+  });
+  assert.deepEqual(config.ratelimits.at(-6), {
+    name: 'ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER', namespace_id: '32008', simple: { limit: 5, period: 60 }
+  });
+  assert.deepEqual(config.ratelimits.at(-7), {
     name: 'ACCOUNT_START_RATE_LIMITER', namespace_id: '32007', simple: { limit: 5, period: 60 }
   });
   assert.equal(Object.hasOwn(config.vars, 'SYNC_CREDENTIAL_PEPPER'), false);
