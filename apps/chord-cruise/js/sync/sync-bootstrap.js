@@ -73,12 +73,33 @@
         });
     }
 
+    var activeClient = null;
+    var managementUiPromise = null;
+    function ensureManagementUi() {
+        if (!activeClient) return Promise.resolve(false);
+        if (global.ChordCruiseSync && global.ChordCruiseSync.pairingUi) {
+            global.ChordCruiseSync.pairingUi.install(activeClient);
+            return Promise.resolve(true);
+        }
+        if (!managementUiPromise) {
+            managementUiPromise = loadScript('sync-pairing-ui.js?v=1.8.2').then(function () {
+                if (!global.ChordCruiseSync || !global.ChordCruiseSync.pairingUi) return false;
+                global.ChordCruiseSync.pairingUi.install(activeClient);
+                return true;
+            }).catch(function () {
+                managementUiPromise = null;
+                return false;
+            });
+        }
+        return managementUiPromise;
+    }
+
     var ready = Promise.resolve({ enabled: false });
     if (isEnabled() && global.document && baseUrl) {
         ready = loadScript('sync-core.js')
             .then(function () { return loadScript('sync-db.js'); })
             .then(function () { return loadScript('sync-merge.js'); })
-            .then(function () { return loadScript('sync-client.js?v=1.8.1'); })
+            .then(function () { return loadScript('sync-client.js?v=1.8.2'); })
             .then(function () {
                 var production = isProductionHost();
                 var endpoint = production
@@ -88,6 +109,7 @@
                     global.__SOUND_CRUISE_SYNC_ENROLLMENT_REQUIRED__ = PRODUCTION_ROLLOUT.enrollmentRequired;
                 }
                 var client = global.ChordCruiseSync.client.createClient({ enabled: true, endpoint: endpoint });
+                activeClient = client;
                 global.ChordCruiseSync.pilotClient = client;
                 return client.initialize().then(async function (result) {
                     client.watchLocalMutations(global.ChordCruise && global.ChordCruise.storage);
@@ -98,8 +120,7 @@
                         !(credential && credential.credential)) {
                         return result;
                     }
-                    return loadScript('sync-pairing-ui.js?v=1.8.1').then(function () {
-                        if (global.ChordCruiseSync.pairingUi) global.ChordCruiseSync.pairingUi.install(client);
+                    return ensureManagementUi().then(function () {
                         return result;
                     });
                 });
@@ -115,6 +136,7 @@
         productionRollout: PRODUCTION_ROLLOUT,
         databaseName: 'soundCruiseSync',
         setSessionEnabled: setSessionEnabled,
+        ensureManagementUi: ensureManagementUi,
         ready: ready
     });
     global.ChordCruiseSyncPilot = api;

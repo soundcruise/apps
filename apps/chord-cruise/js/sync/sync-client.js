@@ -1730,8 +1730,57 @@
             var id = sessionId || await store.getMeta('activeMergeSessionId');
             var session = id && typeof store.getMergeSession === 'function' ? await store.getMergeSession(id) : null;
             if (!session) return { enabled: true, ok: false, code: 'merge_session_missing' };
-            if (session.stage === 'pushing' || session.stage === 'verifying') return finishMergeSession(store, session);
+            if (session.stage === 'applying_local' || session.stage === 'pushing' || session.stage === 'verifying') {
+                return finishMergeSession(store, session);
+            }
             return { enabled: true, ok: false, code: 'merge_not_resumable', stage: session.stage };
+        }
+
+        async function resumeAccountManagedHydrate() {
+            if (!enabled) return { enabled: false };
+            var store = await openStore();
+            var credential = await store.getMeta('deviceCredential');
+            var accountManagedSetup = await store.getMeta('accountManagedSetup');
+            var migrationState = await store.getMeta('migrationState');
+            var syncState = await store.getMeta('syncState');
+            if (migrationState === 'complete' && credential && credential.credential) {
+                return { enabled: true, ok: true, completed: true, alreadyComplete: true };
+            }
+            if (!credential || !CREDENTIAL_PATTERN.test(credential.credential || '') ||
+                accountManagedSetup !== true || migrationState !== 'pair_pending' || syncState !== 'paired_pending') {
+                return { enabled: true, ok: false, code: 'account_managed_hydrate_not_pending' };
+            }
+
+            var activeId = await store.getMeta('activeMergeSessionId');
+            var active = activeId && typeof store.getMergeSession === 'function'
+                ? await store.getMergeSession(activeId) : null;
+            if (active && active.stage === 'complete') {
+                return { enabled: true, ok: true, completed: true, alreadyComplete: true };
+            }
+            if (active && (active.stage === 'applying_local' || active.stage === 'pushing' || active.stage === 'verifying')) {
+                var resumed = await resumePairingMerge(active.sessionId);
+                return Object.assign({}, resumed, { completed: resumed.ok === true, resumed: true });
+            }
+            if (active && active.stage === 'awaiting_confirmation') {
+                if (active.localState !== 'empty') {
+                    return { enabled: true, ok: true, completed: false, requiresConfirmation: true,
+                        sessionId: active.sessionId, localState: active.localState };
+                }
+                var continued = await applyPairingMerge(active.sessionId, {});
+                return Object.assign({}, continued, { completed: continued.ok === true, resumed: true });
+            }
+
+            var prepared = await preparePairingMerge();
+            if (!prepared.ok) return prepared;
+            if (prepared.localState !== 'empty') {
+                return { enabled: true, ok: true, completed: false, requiresConfirmation: true,
+                    sessionId: prepared.sessionId, localState: prepared.localState, plan: prepared.plan };
+            }
+            if (prepared.plan && prepared.plan.conflicts && prepared.plan.conflicts.length) {
+                return { enabled: true, ok: false, code: 'merge_conflicts_unresolved', plan: prepared.plan };
+            }
+            var hydrated = await applyPairingMerge(prepared.sessionId, {});
+            return Object.assign({}, hydrated, { completed: hydrated.ok === true, automaticHydrate: true });
         }
 
         async function rollbackPairingMerge(sessionId) {
@@ -1853,6 +1902,7 @@
             preparePairingMerge: preparePairingMerge,
             applyPairingMerge: applyPairingMerge,
             resumePairingMerge: resumePairingMerge,
+            resumeAccountManagedHydrate: resumeAccountManagedHydrate,
             rollbackPairingMerge: rollbackPairingMerge,
             syncNow: syncNow,
             scheduleSync: scheduleSync,

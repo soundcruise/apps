@@ -125,11 +125,14 @@ test('completed Account-managed Chord containers suppress the Join entry across 
   assert(restoringGuard > completeGuard, 'the completed guard runs before the restoring/pending branch');
   assert(genericJoin > restoringGuard, 'the generic Join entry remains only as the final unconnected fallback');
   const completedBranch = source.slice(completeGuard, restoringGuard);
-  assert.match(completedBranch, /refreshPairingUi\(\)/, 'runtime restoring refreshes existing Sync UI instead of exposing Join');
+  assert.match(completedBranch, /ensurePairingUi\(\)/, 'runtime restoring loads and refreshes existing Sync UI instead of exposing Join');
+  assert.match(completedBranch, /removeJoinEntry\(\)/, 'a completed Account-managed environment removes stale Join UI');
   assert.match(completedBranch, /return;/, 'completed B cannot fall through to generic Join installation');
   const restoringBranch = source.slice(restoringGuard, genericJoin);
-  assert.match(restoringBranch, /installJoinEntry\(\{ resume: true \}\)/,
-    'paired_pending or hydrate retry uses only the resume entry');
+  assert.match(restoringBranch, /resumeAccountManagedHydrate\(\)/,
+    'paired_pending resumes the same Account-managed device without another Join');
+  assert.doesNotMatch(restoringBranch, /installJoinEntry/,
+    'paired_pending never falls back to Join-code input');
 });
 
 test('all four app Join inputs use the shared transient-secret lifecycle', () => {

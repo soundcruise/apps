@@ -12,12 +12,19 @@ var mergeSource = fs.readFileSync(path.join(root, 'js/sync/sync-merge.js'), 'utf
 var clientSource = fs.readFileSync(path.join(root, 'js/sync/sync-client.js'), 'utf8');
 var bootstrapSource = fs.readFileSync(path.join(root, 'js/sync/sync-bootstrap.js'), 'utf8');
 
-function createStorage(seed) {
+function createStorage(seed, failures) {
     var values = Object.assign({}, seed || {});
     var writes = [];
+    var config = failures || {};
     return {
         getItem: function (key) { return Object.prototype.hasOwnProperty.call(values, key) ? values[key] : null; },
-        setItem: function (key, value) { writes.push({ type: 'set', key: key }); values[key] = String(value); },
+        setItem: function (key, value) {
+            if (config.failSetItemOnce === key) {
+                config.failSetItemOnce = null;
+                throw new Error('local storage write failure');
+            }
+            writes.push({ type: 'set', key: key }); values[key] = String(value);
+        },
         removeItem: function (key) { writes.push({ type: 'remove', key: key }); delete values[key]; },
         key: function (index) { return Object.keys(values)[index] || null; },
         get length() { return Object.keys(values).length; },
@@ -41,6 +48,12 @@ function createMemoryStore(failures) {
         setMeta: async function (key, value) { meta.set(key, clone(value)); },
         setMetaBatch: async function (entries) {
             if (config.failMetaBatch) throw new Error('IndexedDB metadata batch failure');
+            if (config.failCompleteMetaBatchOnce && entries.some(function (entry) {
+                return entry.key === 'migrationState' && entry.value === 'complete';
+            })) {
+                config.failCompleteMetaBatchOnce = false;
+                throw new Error('IndexedDB completion batch failure');
+            }
             entries.forEach(function (entry) { meta.set(entry.key, clone(entry.value)); });
         },
         putOutbox: async function (value) { outbox.set(value.operationId, clone(value)); },
@@ -351,21 +364,112 @@ var seed = {
     assert.deepStrictEqual(promotionLocal.snapshot(), { 'chordCruise.schemaVersion': JSON.stringify('1') },
         'credential promotion does not overwrite B local data');
 
-    var failedHydrate = await promotionClient.preparePairingMerge();
+    var failedHydrate = await promotionClient.resumeAccountManagedHydrate();
     assert.strictEqual(failedHydrate.ok, false, 'a transient hydrate failure remains recoverable');
     assert.strictEqual(await promotionStore.getMeta('syncState'), 'paired_pending', 'hydrate failure keeps the resumable state');
     assert.strictEqual((await promotionStore.getMeta('deviceCredential')).credential, promotionCredential,
         'hydrate failure keeps the existing B credential');
     hydrateUnavailable = false;
-    var preview = await promotionClient.preparePairingMerge({ sessionId: 'account-managed-chord-b' });
-    assert.strictEqual(preview.ok, true, 'the same B device can retry hydrate without another Join');
-    var hydrated = await promotionClient.applyPairingMerge(preview.sessionId, {});
-    assert.strictEqual(hydrated.ok, true, 'the retry hydrates the existing remote dataset');
-    assert.strictEqual((await promotionClient.captureSnapshot()).counts.total, 5, 'B receives all existing canonical records');
+    var hydrated = await promotionClient.resumeAccountManagedHydrate();
+    assert.strictEqual(hydrated.ok, true, 'the same B device can retry hydrate without another Join');
+    assert.strictEqual(hydrated.automaticHydrate, true, 'empty Account-managed B hydrates without an unnecessary confirmation');
+    var hydratedSnapshot = await promotionClient.captureSnapshot();
+    assert.strictEqual(hydratedSnapshot.counts.total, 5, 'B receives all existing canonical records');
+    assert.deepStrictEqual(Array.from(new Set(hydratedSnapshot.records.map(function (record) {
+        return record.recordType;
+    }))).sort(), ['chord', 'folder', 'library_order', 'settings'],
+    'hydrate reconstructs Chord, Folder, order, and settings records');
     assert.strictEqual(await promotionStore.getMeta('syncState'), 'pilot_ready');
+    assert.strictEqual(await promotionStore.getMeta('migrationState'), 'complete');
+    assert.strictEqual((await promotionStore.listOutbox()).length, 0, 'Cloud-authoritative empty hydrate creates no outbox work');
     assert.strictEqual(promotionRequests.some(function (url) {
         return url.indexOf('/v1/sync/push') !== -1 || url.indexOf('/v2/accounts/app-join-invitations') !== -1;
     }), false, 'promotion and hydrate create neither a third device nor remote user-data writes');
+    var requestsAfterHydrate = promotionRequests.length;
+    var repeatedHydrate = await promotionClient.resumeAccountManagedHydrate();
+    assert.strictEqual(repeatedHydrate.alreadyComplete, true, 'repeated resume converges without rehydrating');
+    assert.strictEqual(promotionRequests.length, requestsAfterHydrate, 'completed resume performs no network or device operation');
+
+    var meaningfulStore = createMemoryStore();
+    var meaningfulSync = loadClient(meaningfulStore);
+    var meaningfulLocal = createStorage(seed);
+    var meaningfulRequests = [];
+    var meaningfulClient = meaningfulSync.client.createClient({
+        enabled: true, localStorage: meaningfulLocal, crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787', now: function () { return 5000; },
+        fetch: async function (url) {
+            meaningfulRequests.push(url);
+            if (url.indexOf('/v1/sync/bootstrap') !== -1) {
+                return jsonResponse(200, { ok: true, appId: 'chord', datasetState: 'ready', alreadyCreated: true });
+            }
+            if (url.indexOf('/v1/sync/snapshot') !== -1) return jsonResponse(200, existingCloud);
+            throw new Error('meaningful local data must not push before confirmation');
+        }
+    });
+    await meaningfulClient.initialize();
+    var meaningfulBefore = meaningfulLocal.snapshot();
+    assert.strictEqual((await meaningfulClient.adoptAccountManagedIdentity({
+        deviceId: promotionDeviceId, deviceCredential: promotionCredential
+    })).ok, true);
+    var meaningfulPending = await meaningfulClient.resumeAccountManagedHydrate();
+    assert.strictEqual(meaningfulPending.ok, true);
+    assert.strictEqual(meaningfulPending.requiresConfirmation, true, 'meaningful local data retains semantic merge confirmation');
+    assert.strictEqual(await meaningfulStore.getMeta('migrationState'), 'pair_pending');
+    assert.deepStrictEqual(meaningfulLocal.snapshot(), meaningfulBefore, 'meaningful local data is never silently overwritten');
+    assert.strictEqual(meaningfulRequests.some(function (url) { return url.indexOf('/v1/sync/push') !== -1; }), false);
+
+    var applyFailureStore = createMemoryStore();
+    var applyFailureSync = loadClient(applyFailureStore);
+    var applyFailureLocal = createStorage({ 'chordCruise.schemaVersion': JSON.stringify('1') }, {
+        failSetItemOnce: 'chordCruise.folders'
+    });
+    var applyFailureClient = applyFailureSync.client.createClient({
+        enabled: true, localStorage: applyFailureLocal, crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787', now: function () { return 6000; },
+        fetch: async function (url) {
+            if (url.indexOf('/v1/sync/bootstrap') !== -1) {
+                return jsonResponse(200, { ok: true, appId: 'chord', datasetState: 'ready', alreadyCreated: true });
+            }
+            if (url.indexOf('/v1/sync/snapshot') !== -1) return jsonResponse(200, existingCloud);
+            throw new Error('failed hydrate must not push');
+        }
+    });
+    await applyFailureClient.initialize();
+    await applyFailureClient.adoptAccountManagedIdentity({ deviceId: promotionDeviceId, deviceCredential: promotionCredential });
+    var applyFailed = await applyFailureClient.resumeAccountManagedHydrate();
+    assert.strictEqual(applyFailed.code, 'local_apply_failed');
+    assert.strictEqual(await applyFailureStore.getMeta('migrationState'), 'pair_pending');
+    assert.strictEqual((await applyFailureStore.getMeta('deviceCredential')).credential, promotionCredential);
+    assert.strictEqual((await applyFailureClient.captureSnapshot()).counts.total, 0, 'failed local apply rolls back to empty B');
+    assert.strictEqual((await applyFailureClient.resumeAccountManagedHydrate()).ok, true,
+        'rolled-back hydrate retries with the same B credential');
+
+    var completionFailures = { failCompleteMetaBatchOnce: true };
+    var completionStore = createMemoryStore(completionFailures);
+    var completionSync = loadClient(completionStore);
+    var completionRequests = [];
+    var completionClient = completionSync.client.createClient({
+        enabled: true, localStorage: createStorage({ 'chordCruise.schemaVersion': JSON.stringify('1') }), crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787', now: function () { return 7000; },
+        fetch: async function (url) {
+            completionRequests.push(url);
+            if (url.indexOf('/v1/sync/bootstrap') !== -1) {
+                return jsonResponse(200, { ok: true, appId: 'chord', datasetState: 'ready', alreadyCreated: true });
+            }
+            if (url.indexOf('/v1/sync/snapshot') !== -1) return jsonResponse(200, existingCloud);
+            throw new Error('completion retry must not push');
+        }
+    });
+    await completionClient.initialize();
+    await completionClient.adoptAccountManagedIdentity({ deviceId: promotionDeviceId, deviceCredential: promotionCredential });
+    await assert.rejects(completionClient.resumeAccountManagedHydrate(), /completion batch failure/);
+    assert.strictEqual(await completionStore.getMeta('migrationState'), 'pair_pending', 'completion failure remains resumable');
+    assert.strictEqual((await completionStore.getMeta('deviceCredential')).credential, promotionCredential);
+    var completedRetry = await completionClient.resumeAccountManagedHydrate();
+    assert.strictEqual(completedRetry.ok, true, 'verifying-stage retry completes without a duplicate hydrate');
+    assert.strictEqual(completedRetry.resumed, true);
+    assert.strictEqual((await completionStore.listOutbox()).length, 0);
+    assert.strictEqual(completionRequests.some(function (url) { return url.indexOf('/v1/sync/push') !== -1; }), false);
 
     var promotionSaveFailStore = createMemoryStore({ failMetaBatch: true });
     var promotionSaveFailSync = loadClient(promotionSaveFailStore);
