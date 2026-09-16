@@ -16,17 +16,17 @@ const appHtml = [
 
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
-    assert.match(html, /sync-ui-components\.js\?v=4/);
-    assert.match(html, /multi-app-sync\.css\?v=13/);
+    assert.match(html, /sync-ui-components\.js\?v=5/);
+    assert.match(html, /multi-app-sync\.css\?v=14/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
   assert.match(renderer, /sound-cruise-sync-settings-head/);
-  assert.match(renderer, /sound-cruise-sync-status/);
+  assert.doesNotMatch(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
   for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=14/);
-  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v21/);
-  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.6/);
-  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v8/);
+  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v22/);
+  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.7/);
+  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v9/);
 });
 
 test('shared status, description and button copy is exact', () => {
@@ -42,11 +42,14 @@ test('shared status, description and button copy is exact', () => {
   assert.match(bootstrap, /もう一度確認/);
 });
 
-test('help has the six product categories, procedures and privacy link', () => {
-  for (const title of ['はじめに', '接続方法', '復旧と環境管理', 'オフライン・競合・エラー', '解除・削除', 'データとプライバシー']) {
+test('Help has a summary, five product categories, procedures and privacy link', () => {
+  assert.match(renderer, /APP_HELP_SUMMARY/);
+  assert.match(renderer, /このアプリの対応データをクラウドに保存し、複数の環境で同期できます。/);
+  for (const title of ['接続方法', '復旧と環境管理', 'オフライン・競合・エラー', '解除・削除', 'データとプライバシー']) {
     assert.match(renderer, new RegExp(`title: '${title}'`));
   }
-  assert.equal((renderer.match(/title: '/g) || []).length, 6);
+  assert.equal((renderer.match(/title: '/g) || []).length, 5);
+  assert.doesNotMatch(renderer, /title: 'はじめに'/);
   for (const step of ['クラウド同期をはじめる', '復旧コードを安全な場所へ保存する', '別の環境を追加', 'Cruise Portと接続', 'コードを入力して「接続する」を押す']) {
     assert.match(renderer, new RegExp(step));
   }
@@ -59,6 +62,8 @@ test('help has the six product categories, procedures and privacy link', () => {
     'the accordion is single-open on compact screens');
   assert.match(renderer, /content\.hidden = true/,
     'all accordion sections start closed whenever Help opens');
+  assert.match(renderer, /sections = HELP_SECTIONS/);
+  assert.match(renderer, /sound-cruise-sync-help-summary/);
 });
 
 test('width and interaction tokens stay identical at supported viewport widths', () => {
@@ -96,6 +101,8 @@ test('card actions survive same-state callback replacement and Help stays isolat
     'connected management stays available across transient runtime states');
   assert.match(bootstrap, /offline'[\s\S]*connectedPresentation[\s\S]*online'[\s\S]*connectedPresentation/,
     'connected management stays available while offline and while checking after reconnect');
+  assert.doesNotMatch(renderer, /statusRow|sound-cruise-sync-status/,
+    'the compact header is the single status presentation');
 });
 
 test('accordion header owns the full row and keeps compact status separate from Help', () => {
@@ -182,7 +189,9 @@ test('Cruise Port settings entry uses the shared card language and isolated acti
   assert.match(port, /id="settings-sync-center-open"[\s\S]*クラウド同期を開く/);
   assert.match(port, /id="settings-sync-center-help"/);
   assert.match(portApp, /syncCenterOpen\.addEventListener\('click',[\s\S]*openSyncCenter\(history\)/);
-  assert.match(portApp, /syncCenterEntryHelp\?\.addEventListener\('click',[\s\S]*SoundCruiseSyncUI\?\.openHelp/);
+  assert.match(portApp, /syncCenterEntryHelp\?\.addEventListener\('click', openPortSyncHelp\)/);
+  assert.match(portApp, /syncCenterHelpOpen\.addEventListener\('click', openPortSyncHelp\)/);
+  assert.match(portApp, /sections: PORT_SYNC_HELP_SECTIONS/);
 });
 
 test('loading prevents duplicates and temporary feedback uses one five-second rule', () => {

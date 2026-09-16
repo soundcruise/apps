@@ -127,20 +127,6 @@
   font-weight: 800;
   cursor: pointer;
 }
-.sound-cruise-sync-status {
-  display: flex;
-  align-items: center;
-  gap: .5rem;
-  color: #d7c98f;
-  font-size: .84rem;
-  font-weight: 700;
-}
-.sound-cruise-sync-status-dot { color: #e8c97a; font-size: .72em; }
-[data-sync-status="attention"] .sound-cruise-sync-status-dot,
-[data-sync-status="paused"] .sound-cruise-sync-status-dot { color: #ffcf87; }
-[data-sync-status="offline"] .sound-cruise-sync-status-dot { color: #aeb7c5; }
-[data-sync-status="reconnect"] .sound-cruise-sync-status-dot,
-[data-sync-status="deleting"] .sound-cruise-sync-status-dot { color: #ff9ba4; }
 .sound-cruise-sync-description,
 .sound-cruise-sync-feedback { margin: 0; font-size: .84rem; line-height: 1.55; }
 .sound-cruise-sync-description { color: #e8ddbd; }
@@ -243,6 +229,12 @@
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+}
+.sound-cruise-sync-help-summary {
+  margin: .1rem 0 .4rem;
+  color: #e8ddbd;
+  font-size: .9rem;
+  line-height: 1.6;
 }
 .sound-cruise-sync-help-footer {
   padding: .75rem 1rem max(.75rem, env(safe-area-inset-bottom));

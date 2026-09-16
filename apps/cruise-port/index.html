@@ -9,17 +9,17 @@
     <link rel="manifest" href="./manifest.json?v=0.32.4">
     <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.32.4">
     <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.32.4">
-    <link rel="stylesheet" href="./style.css?v=0.35.2">
+    <link rel="stylesheet" href="./style.css?v=0.35.3">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
-    <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=13">
+    <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=14">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
     <script defer src="../shared/sync-account/sync-account-core.js?v=5"></script>
     <script defer src="../shared/sync-account/sync-account-db.js?v=6"></script>
     <script defer src="../shared/sync-account/sync-account-client.js?v=8"></script>
-    <script defer src="../shared/sync-account/sync-ui-components.js?v=4"></script>
+    <script defer src="../shared/sync-account/sync-ui-components.js?v=5"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=4"></script>
-    <script type="module" src="./practice-menu-app.js?v=0.35.2"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.35.3"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -206,16 +206,6 @@
                 </section>
                 <p id="sync-center-action-status" class="settings-order-status" role="status" aria-live="polite"></p>
             </section>
-            <dialog id="sync-center-help" class="sync-center-help-dialog" aria-labelledby="sync-center-help-title">
-                <h2 id="sync-center-help-title">クラウド同期について</h2>
-                <section><h3>はじめに</h3><p>Sound Cruise Syncは、4つのProアプリで保存した同期対象データをクラウド経由で共有する任意機能です。アプリごとのデータは混ざりません。</p><ol><li>Cruise Portでクラウド同期を開く</li><li>「クラウド同期をはじめる」を選ぶ</li><li>復旧コードを安全な場所へ保存する</li><li>各Proアプリを開き、画面の案内に沿って接続する</li></ol></section>
-                <section><h3>接続方法</h3><p>別の環境を追加するときは、対象アプリの「別の環境を追加」でコードを表示したまま、追加するブラウザまたはホーム画面版/PWAの設定から「Cruise Portと接続」を開き、コードを入力します。</p></section>
-                <section><h3>復旧と環境管理</h3><p>現在有効な復旧コードは1つだけです。新しい復旧コードを発行すると、以前のコードは使えなくなります。環境とは、同期に接続したブラウザ、ブラウザプロファイル、またはホーム画面版/PWAです。同じ端末でも保存領域が異なれば別の環境です。</p></section>
-                <section><h3>オフライン・競合・エラー</h3><p>オフライン中も端末内へ保存でき、接続が戻ると自動で同期を再開します。同じデータが別々に変更された場合は「確認が必要」で停止し、残す内容を選べます。</p></section>
-                <section><h3>解除・削除</h3><p>環境の同期解除、アプリ単位のクラウド削除、アカウント全体の削除は別の操作です。削除要求後は7日間の猶予期間を経て完全削除の対象になります。端末内のデータは削除されません。</p></section>
-                <section><h3>データとプライバシー</h3><p>クラウド同期を利用すると、アプリ内で保存した同期対象データと、同期に必要な識別子・更新日時などの技術情報がクラウドに保存されます。氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。</p><p><a href="./privacy.html">プライバシーポリシー</a></p></section>
-                <button id="sync-center-help-close" class="action-button primary-action" type="button">閉じる</button>
-            </dialog>
             <dialog id="sync-center-setup" class="sync-center-help-dialog" aria-labelledby="sync-center-setup-title" data-sync-phase="introduction">
                 <h2 id="sync-center-setup-title">クラウド同期をはじめる</h2>
                 <p id="sync-center-setup-intro">次の手順で設定します。</p>

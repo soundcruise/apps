@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.35.2';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.35.2';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.35.2';
+} from './sync-center-controller.js?v=0.35.3';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.35.3';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.35.3';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.35.2';
+} from './sync-center-navigation.js?v=0.35.3';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.35.2';
+} from './app-version.js?v=0.35.3';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -248,6 +248,48 @@ applyProLinks();
 applyHomeCruiseLinks();
 const syncCenterController = createSyncCenterController({ config: syncCenterConfig });
 const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig });
+const PORT_SYNC_HELP_SUMMARY = '4つのProアプリのデータを、Cruise Portからまとめて管理できます。知りたい項目を下から選んでください。';
+const PORT_SYNC_HELP_SECTIONS = Object.freeze([
+    Object.freeze({
+        title: 'クラウド同期をはじめる',
+        paragraphs: Object.freeze(['Sound Cruise Syncは、4つのProアプリで保存した同期対象データをクラウド経由で共有する任意機能です。アプリごとのデータは混ざりません。']),
+        steps: Object.freeze(['Cruise Portでクラウド同期を開く', '「クラウド同期をはじめる」を選ぶ', '復旧コードを安全な場所へ保存する', '各Proアプリを開き、画面の案内に沿って接続する'])
+    }),
+    Object.freeze({
+        title: '別の環境を追加',
+        paragraphs: Object.freeze(['Cruise Portのクラウド同期画面で、接続済みアプリの「別の環境を追加」を押します。コード画面を開いたまま、追加するブラウザ、ブラウザプロファイル、またはホーム画面版/PWAで対象Proアプリを開きます。']),
+        steps: Object.freeze(['対象アプリの「別の環境を追加」を押す', '追加先の設定で「Cruise Portと接続」を開く', 'コードを入力して「接続する」を押す', '接続完了を確認してコード画面を閉じる'])
+    }),
+    Object.freeze({
+        title: '復旧コード',
+        paragraphs: Object.freeze(['復旧コードは、同期中の環境をすべて失った場合にクラウド同期を取り戻すためのコードです。現在有効なコードは1つだけで、新しいコードを発行すると以前のコードは使えなくなります。運営者へ送らず、安全な場所へ保存してください。'])
+    }),
+    Object.freeze({
+        title: '同期中の環境',
+        paragraphs: Object.freeze(['環境とは、同期に接続したブラウザ、ブラウザプロファイル、またはホーム画面版/PWAです。同じ端末でも保存領域が異なる場合は別の環境として表示されます。環境の同期解除は、その環境の同期資格だけを無効にします。'])
+    }),
+    Object.freeze({
+        title: 'オフライン・競合',
+        paragraphs: Object.freeze(['オフライン中の変更はこの環境に保存され、接続が戻ると自動で同期を再開します。同じ項目がこの環境とクラウドの両方で変更された場合は、自動で上書きせず確認画面で停止します。内容を比較して残す側を選んでください。'])
+    }),
+    Object.freeze({
+        title: '解除・削除',
+        paragraphs: Object.freeze(['環境の同期解除、アプリ単位のクラウド削除、Account全体の削除は別の操作です。削除を確定するとクラウドデータは7日後に完全削除の対象になります。端末内のデータは自動では削除されません。'])
+    }),
+    Object.freeze({
+        title: 'データとプライバシー',
+        paragraphs: Object.freeze(['クラウド同期を利用すると、アプリ内で保存した同期対象データと、同期に必要な識別子・更新日時などの技術情報がクラウドに保存されます。氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。Cloudflare Workers、Cloudflare D1、Cloudflare Turnstileを利用します。'])
+    })
+]);
+
+function openPortSyncHelp() {
+    globalThis.SoundCruiseSyncUI?.openHelp?.({
+        document,
+        privacyHref: './privacy.html',
+        summary: PORT_SYNC_HELP_SUMMARY,
+        sections: PORT_SYNC_HELP_SECTIONS
+    });
+}
 
 const elements = {
     homeView: document.querySelector('#home-view'),
@@ -258,9 +300,7 @@ const elements = {
     syncCenterOpen: document.querySelector('#settings-sync-center-open'),
     syncCenterEntryHelp: document.querySelector('#settings-sync-center-help'),
     syncCenterBack: document.querySelector('#sync-center-back'),
-    syncCenterHelp: document.querySelector('#sync-center-help'),
     syncCenterHelpOpen: document.querySelector('#sync-center-help-open'),
-    syncCenterHelpClose: document.querySelector('#sync-center-help-close'),
     wishlistView: document.querySelector('#wishlist-view'),
     gearFormView: document.querySelector('#gear-form-view'),
     practiceListView: document.querySelector('#practice-list-view'),
@@ -5076,18 +5116,12 @@ if (syncCenterController.enabled) {
         openSyncCenter(history);
         renderRoute();
     });
-    elements.syncCenterEntryHelp?.addEventListener('click', () => {
-        globalThis.SoundCruiseSyncUI?.openHelp?.({
-            document,
-            privacyHref: './privacy.html'
-        });
-    });
+    elements.syncCenterEntryHelp?.addEventListener('click', openPortSyncHelp);
     elements.syncCenterBack.addEventListener('click', () => {
         const action = returnToSyncCenterSource({ historyObject: history, locationObject: location });
         if (action === 'replace') renderRoute();
     });
-    elements.syncCenterHelpOpen.addEventListener('click', () => elements.syncCenterHelp.showModal());
-    elements.syncCenterHelpClose.addEventListener('click', () => elements.syncCenterHelp.close());
+    elements.syncCenterHelpOpen.addEventListener('click', openPortSyncHelp);
 }
 function updateDisplaySettings(next) {
     const saveResult = saveSettings(next);

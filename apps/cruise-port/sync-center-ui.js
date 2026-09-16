@@ -41,7 +41,7 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled) {
             action.setAttribute('aria-disabled', 'true');
         }
         actions.append(action);
-        if (edition === 'pro' && orchestrationEnabled && app.canAddEnvironment) {
+        if (orchestrationEnabled && app.canAddEnvironment) {
             const addEnvironment = document.createElement('button');
             addEnvironment.type = 'button';
             addEnvironment.className = 'sync-center-app-action secondary';

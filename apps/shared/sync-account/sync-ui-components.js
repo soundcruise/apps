@@ -14,14 +14,9 @@
     reconnect: Object.freeze({ label: '再接続が必要', description: 'Cruise Portから接続し直してください。' })
   });
 
+  const APP_HELP_SUMMARY = 'このアプリの対応データをクラウドに保存し、複数の環境で同期できます。詳しい使い方は下の項目から確認できます。';
+
   const HELP_SECTIONS = Object.freeze([
-    Object.freeze({
-      title: 'はじめに',
-      paragraphs: Object.freeze([
-        'クラウド同期は、このアプリ内の対応データを複数のブラウザやホーム画面版/PWAで同期する任意の機能です。',
-        '同期対象は、このアプリで保存した設定、進捗、カスタム内容、並び順などです。Pro版の認証情報、マイク音声、Cruise Portの練習メニュー・機材・カレンダーは同期されません。'
-      ])
-    }),
     Object.freeze({
       title: '接続方法',
       paragraphs: Object.freeze(['最初の同期']),
@@ -87,7 +82,12 @@
     parent.append(list);
   }
 
-  function openHelp({ document = global.document, privacyHref = '../privacy.html?edition=pro' } = {}) {
+  function openHelp({
+    document = global.document,
+    privacyHref = '../privacy.html?edition=pro',
+    summary = APP_HELP_SUMMARY,
+    sections = HELP_SECTIONS
+  } = {}) {
     if (!document?.body) return null;
     let dialog = document.querySelector('[data-sync-shared-help]');
     if (!dialog) {
@@ -101,7 +101,8 @@
       appendText(document, header, 'h2', '', 'クラウド同期について');
       const body = document.createElement('div');
       body.className = 'sound-cruise-sync-help-body';
-      HELP_SECTIONS.forEach((section, index) => {
+      if (summary) appendText(document, body, 'p', 'sound-cruise-sync-help-summary', summary);
+      sections.forEach((section, index) => {
         const group = document.createElement('section');
         group.className = 'sound-cruise-sync-help-section';
         const headingId = `sound-cruise-sync-help-heading-${index + 1}`;
@@ -229,12 +230,6 @@
       body.hidden = !willOpen;
       host.dataset.syncCardExpanded = willOpen ? 'true' : 'false';
     });
-    const statusRow = document.createElement('div');
-    statusRow.className = 'sound-cruise-sync-status';
-    statusRow.dataset.syncAccountStatus = '';
-    statusRow.dataset.syncStatus = options.state || 'checking';
-    appendText(document, statusRow, 'span', 'sound-cruise-sync-status-dot', '●').setAttribute('aria-hidden', 'true');
-    appendText(document, statusRow, 'strong', '', statusLabel);
     const description = appendText(document, body, 'p', 'sound-cruise-sync-description',
       options.description === undefined ? status.description : options.description);
     const actions = document.createElement('div');
@@ -286,7 +281,6 @@
     [options.primaryAction, options.secondaryAction].filter(Boolean)
       .forEach((action) => actions.append(actionButton(document, action, controller)));
     actionRow.prepend(actions);
-    body.insertBefore(statusRow, description);
     body.insertBefore(actionRow, feedback);
     card.append(header, body);
     if (!description.textContent) description.hidden = true;
@@ -364,7 +358,7 @@
   }
 
   global.SoundCruiseSyncUI = Object.freeze({
-    STATUS, HELP_SECTIONS, renderCard, openHelp, createJoinDialog,
+    STATUS, APP_HELP_SUMMARY, HELP_SECTIONS, renderCard, openHelp, createJoinDialog,
     temporaryFeedbackMs: 5000
   });
 })(globalThis);

@@ -56,7 +56,8 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.match(html, /復旧とセキュリティ/);
         assert.match(html, /現在有効な復旧コードは1つだけです/);
         assert.match(html, /新しい復旧コードを発行すると、以前のコードは無効になります/);
-        assert.match(html, /<h3>データとプライバシー<\/h3>/);
+        assert.doesNotMatch(html, /id="sync-center-help"/,
+            'Port Help is rendered by the shared accordion rather than an always-expanded static dialog');
         assert.match(html, /クラウド同期をはじめる/);
         assert.doesNotMatch(html, /操作はまだ接続されていません/);
         assert.doesNotMatch(html, /<iframe/i);
@@ -64,6 +65,12 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.match(html, /sync-account-turnstile\.js/);
     }
     assert.match(app, /elements\.syncCenterEntry\.hidden = !syncCenterController\.enabled/);
+    assert.match(app, /PORT_SYNC_HELP_SUMMARY/);
+    assert.match(app, /PORT_SYNC_HELP_SECTIONS/);
+    assert.match(app, /openPortSyncHelp/);
+    for (const category of ['クラウド同期をはじめる', '別の環境を追加', '復旧コード', '同期中の環境', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
+        assert.match(app, new RegExp(`title: '${category}'`));
+    }
 });
 
 test('QA Enrollment and Account start request distinct Turnstile actions', () => {
@@ -213,9 +220,9 @@ test('Lifecycle UI separates danger actions and enforces stable two-step sensiti
 
 test('official four-app routes are reused and no all-data-upload promise is made', () => {
     assert.match(read('./sync-center-ui.js'), /resolveCruiseAppHref/);
-    assert.doesNotMatch(`${root}\n${pro}`, /今すぐ全データ|一括アップロード|自動アップロード/);
-    assert.match(root, /アプリごとのデータは混ざりません/);
-    assert.match(root, /環境の同期解除、アプリ単位のクラウド削除、アカウント全体の削除は別/);
+    assert.doesNotMatch(`${root}\n${pro}\n${app}`, /今すぐ全データ|一括アップロード|自動アップロード/);
+    assert.match(app, /アプリごとのデータは混ざりません/);
+    assert.match(app, /環境の同期解除、アプリ単位のクラウド削除、Account全体の削除は別/);
 });
 
 test('Join invitation renders its sensitive code and actions as separate styled blocks', () => {
@@ -229,7 +236,8 @@ test('Join invitation renders its sensitive code and actions as separate styled 
     assert.match(source, /actions\.className = 'sync-center-join-actions'/);
     assert.match(source, /data-sync-app-add-environment/);
     assert.match(source, /別の環境を追加/);
-    assert.match(source, /edition === 'pro' && orchestrationEnabled && app\.canAddEnvironment/);
+    assert.match(source, /if \(orchestrationEnabled && app\.canAddEnvironment\)/);
+    assert.doesNotMatch(source, /edition === 'pro' && orchestrationEnabled && app\.canAddEnvironment/);
     assert.match(source, /接続が完了するまでこの画面を開いたまま/);
     assert.match(styles, /\.sync-center-join-code\s*\{[\s\S]*overflow-wrap:\s*anywhere/);
     assert.match(styles, /\.sync-center-join-actions\s*\{\s*display:\s*grid;\s*gap:\s*10px/);
