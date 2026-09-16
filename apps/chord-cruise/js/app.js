@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var CHORD_CRUISE_APP_VERSION = '1.10.3';
+    var CHORD_CRUISE_APP_VERSION = '1.10.4';
     window.CHORD_CRUISE_APP_VERSION = CHORD_CRUISE_APP_VERSION;
 
     var SCREENS = ['home', 'explore', 'library'];
@@ -84,6 +84,9 @@
 
         if (settingsTopBtn) {
             settingsTopBtn.addEventListener('click', function () {
+                if (window.ChordCruise.ui && window.ChordCruise.ui.settings) {
+                    window.ChordCruise.ui.settings.close();
+                }
                 showScreen('home');
                 window.scrollTo(0, 0);
             });

@@ -1,5 +1,5 @@
 const GATE_VERSION = 8; // index.html の gateVersion と合わせる
-const CACHE_NAME = 'fretboard-cruise-pro-v2.3.5';
+const CACHE_NAME = 'fretboard-cruise-pro-v2.3.6';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 

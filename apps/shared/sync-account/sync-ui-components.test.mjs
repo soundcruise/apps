@@ -16,17 +16,17 @@ const appHtml = [
 
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
-    assert.match(html, /sync-ui-components\.js\?v=3/);
-    assert.match(html, /multi-app-sync\.css\?v=12/);
+    assert.match(html, /sync-ui-components\.js\?v=4/);
+    assert.match(html, /multi-app-sync\.css\?v=13/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
   assert.match(renderer, /sound-cruise-sync-settings-head/);
   assert.match(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
   for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=14/);
-  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v20/);
-  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.5/);
-  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v7/);
+  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v21/);
+  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.6/);
+  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v8/);
 });
 
 test('shared status, description and button copy is exact', () => {
@@ -81,8 +81,8 @@ test('Help uses a safe-area bounded shell with a scrolling body and fixed footer
 });
 
 test('card actions survive same-state callback replacement and Help stays isolated', () => {
-  assert.match(renderer, /body\.insertBefore\(actions, feedback\)/,
-    'the rendered CTA container is attached to the card');
+  assert.match(renderer, /body\.insertBefore\(actionRow, feedback\)/,
+    'the rendered CTA and Help row is attached to the card');
   assert.match(bootstrap, /settingsRevision \+= 1/);
   assert.match(bootstrap, /syncJoinUiRevision === String\(settingsRevision\)/);
   assert.match(bootstrap, /host\.dataset\.syncJoinUiRevision = String\(settingsRevision\)/);
@@ -96,6 +96,23 @@ test('card actions survive same-state callback replacement and Help stays isolat
     'connected management stays available across transient runtime states');
   assert.match(bootstrap, /offline'[\s\S]*connectedPresentation[\s\S]*online'[\s\S]*connectedPresentation/,
     'connected management stays available while offline and while checking after reconnect');
+});
+
+test('accordion header owns the full row and keeps compact status separate from Help', () => {
+  assert.match(renderer, /function displayStatusLabel\(state, status, suppliedLabel\)/);
+  assert.match(renderer, /state === 'unconnected'\) return '未接続'/);
+  assert.match(renderer, /state === 'ready'\) return '接続'/);
+  assert.match(renderer, /sound-cruise-sync-settings-header-status/);
+  assert.match(renderer, /header\.append\(toggle\)/,
+    'the accessible toggle is the only collapsed header control');
+  assert.doesNotMatch(renderer, /appendText\(document, header, 'button', 'sound-cruise-sync-help-button'/,
+    'Help is not rendered in the collapsed header');
+  assert.match(renderer, /actionRow\.className = 'sound-cruise-sync-action-row'/);
+  assert.match(renderer, /actionRow\.prepend\(actions\)/);
+  assert.match(renderer, /appendText\(document, actionRow, 'button', 'sound-cruise-sync-help-button', '\?'\)/);
+  assert.match(css, /\.sound-cruise-sync-settings-toggle[\s\S]*width:\s*100%/);
+  assert.match(css, /\.sound-cruise-sync-action-row[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) auto/);
+  assert.match(css, /\.sound-cruise-sync-settings-header-status[\s\S]*margin-left:\s*auto/);
 });
 
 test('all four Pro apps expose one compact TOP action only at the end of settings', () => {
@@ -113,12 +130,16 @@ test('all four Pro apps expose one compact TOP action only at the end of setting
   ]) {
     assert.doesNotMatch(readFileSync(new URL(path, root), 'utf8'), /sound-cruise-settings-top|TOPに戻る/);
   }
-  assert.match(readFileSync(new URL('chord-cruise/js/app.js', root), 'utf8'), /cc-settings-top[\s\S]*showScreen\('home'\)/);
+  assert.match(readFileSync(new URL('chord-cruise/js/app.js', root), 'utf8'), /cc-settings-top[\s\S]*ui\.settings\.close\(\)[\s\S]*showScreen\('home'\)/);
   assert.match(readFileSync(new URL('chord-cruise/js/ui/settings.js', root), 'utf8'), /sound-cruise-settings-top-wrap[\s\S]*insertBefore\(section, settingsEndAnchor\)/,
     'Chord dynamic settings sections remain before the final TOP action');
-  assert.match(readFileSync(new URL('pitch-cruise/script.js', root), 'utf8'), /pitch-settings-top[\s\S]*showHomeScreen\(\)/);
+  assert.match(readFileSync(new URL('pitch-cruise/script.js', root), 'utf8'), /pitch-settings-top[\s\S]*hideSettingsModal\(\)[\s\S]*showHomeScreen\(\)/);
   assert.match(fretboardScript, /fretboard-settings-top[\s\S]*state\.course = null[\s\S]*renderApp\(\)/);
-  assert.match(readFileSync(new URL('rhythm-cruise/script.js', root), 'utf8'), /settingsTopBtn[\s\S]*guardMicSetupInterruption\(goTop\)/);
+  const rhythmScript = readFileSync(new URL('rhythm-cruise/script.js', root), 'utf8');
+  assert.match(rhythmScript, /rhythmSettingsTopBtn:\s*\$\('rhythm-settings-top'\)/);
+  assert.match(rhythmScript, /micSettingsTopBtn:\s*\$\('settings-top-btn'\)/);
+  assert.match(rhythmScript, /rhythmSettingsTopBtn[\s\S]*guardMicSetupInterruption\(goTop\)/);
+  assert.match(rhythmScript, /micSettingsTopBtn[\s\S]*setSettingsView\('chooser'\)/);
   assert.match(css, /\.sound-cruise-settings-top[\s\S]*min-height:\s*38px[\s\S]*rgba\(255, 255, 255, \.34\)/);
 });
 

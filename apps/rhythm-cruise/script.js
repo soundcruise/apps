@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.8.2';
+const RHYTHM_CRUISE_VERSION = '1.8.3';
 function notifyRhythmSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
 }
@@ -1308,7 +1308,7 @@ const els = {
     appNav: $('app-nav'),
     navBackBtn: $('nav-back-btn'),
     navTopBtn: $('nav-top-btn'),
-    settingsTopBtn: $('rhythm-settings-top'),
+    rhythmSettingsTopBtn: $('rhythm-settings-top'),
     settingsBtn: $('settings-btn'),
     tapHint: $('tap-hint'),
     stageList: $('stage-list'),
@@ -1812,7 +1812,7 @@ const els = {
     settingsResetBtn: $('settings-reset-btn'),
     settingsResetAllBtn: $('settings-reset-all-btn'),
     settingsBackBtn: $('settings-back-btn'),
-    settingsTopBtn: $('settings-top-btn'),
+    micSettingsTopBtn: $('settings-top-btn'),
     manualTopBtn: $('manual-top-btn'),
     manualPracticeBtn: $('manual-practice-btn'),
     manualUseBtn: $('manual-use-btn'),
@@ -30798,7 +30798,7 @@ function bind() {
     // 全画面共通ナビ（戻る / TOP / 設定）
     if (els.navBackBtn) els.navBackBtn.addEventListener('click', () => guardMicSetupInterruption(navBack));
     if (els.navTopBtn) els.navTopBtn.addEventListener('click', () => guardMicSetupInterruption(goTop));
-    if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => guardMicSetupInterruption(goTop));
+    if (els.rhythmSettingsTopBtn) els.rhythmSettingsTopBtn.addEventListener('click', () => guardMicSetupInterruption(goTop));
     if (els.settingsBtn) els.settingsBtn.addEventListener('click', openSettingsFromCurrent);
     // 入力方法（タップ / ストローク）
     // 入力方式の切替（v0.9.118：リズム練をする画面）。ここでは選択の記録のみ。STAGE開始時に反映。
@@ -31001,7 +31001,7 @@ function bind() {
     if (els.settingsResetAllBtn) els.settingsResetAllBtn.addEventListener('click', resetAllRhythmCruiseData);
     if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
     // マイク設定TOP（下部・手動設定内）：いつでもマイク設定トップ画面へ戻る（v0.9.70）
-    if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));
+    if (els.micSettingsTopBtn) els.micSettingsTopBtn.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));
     // 手動設定内の「キャンセル」：変更を破棄してマイク設定TOPへ戻る（v0.9.89）
     if (els.manualTopBtn) els.manualTopBtn.addEventListener('click', () => guardMicSetupInterruption(cancelManualSettings));
     // 手動設定「＋ 説明」トグル（v0.9.226）
