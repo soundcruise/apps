@@ -66,7 +66,7 @@ test('summary normalization creates four-app progress without leaking Account id
         { id: 'secret-device-id', label: 'iPhone', isCurrent: true, revokedAt: null }
     ] });
     assert.deepEqual(model.apps.map(({ id, status }) => [id, status]), [
-        ['chord', 'synced'], ['pitch', 'prepared'], ['fretboard', 'initial'], ['rhythm', 'attention']
+        ['pitch', 'prepared'], ['fretboard', 'initial'], ['rhythm', 'attention'], ['chord', 'synced']
     ]);
     assert.equal(model.readyCount, 1);
     assert.equal(model.totalCount, 4);
@@ -90,7 +90,7 @@ test('only a ready active membership with an existing app device can add another
         ]
     });
     assert.deepEqual(model.apps.map(({ id, canAddEnvironment }) => [id, canAddEnvironment]), [
-        ['chord', true], ['pitch', false], ['fretboard', false], ['rhythm', false]
+        ['pitch', false], ['fretboard', false], ['rhythm', false], ['chord', true]
     ]);
     assert.equal(model.readyCount, 2, 'environment count never changes the four-app progress');
 });
@@ -129,7 +129,7 @@ test('controller reads only shared Account primitives and retains known status o
     root.AccountClient.prototype.summary = async () => { throw new Error('temporary'); };
     const failed = await controller.load();
     assert.equal(failed.kind, 'error');
-    assert.equal(failed.apps[0].status, 'synced');
+    assert.equal(failed.apps.find(({ id }) => id === 'chord').status, 'synced');
     assert.notEqual(failed.accountState, 'unset');
     assert.deepEqual(controller.planFourAppSetup(failed), { kind: 'unavailable', appIds: [] });
     assert.deepEqual(controller.planFourAppSetup(ready), { kind: 'local-preview', appIds: ['pitch', 'fretboard', 'rhythm'] });

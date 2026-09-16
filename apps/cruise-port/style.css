@@ -2331,7 +2331,11 @@ textarea:focus-visible {
 .sync-center-turnstile > div { min-height: 65px; }
 .sync-center-help-dialog .action-button { width: 100%; margin-top: 10px; }
 .sync-center-join-panel { display: grid; gap: 14px; }
-.sync-center-join-panel > h2,
+.sync-center-join-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; min-width: 0; }
+.sync-center-join-header h2 { min-width: 0; margin: 0; }
+.sync-center-join-target { display: flex; align-items: center; gap: 8px; flex: 0 1 auto; min-width: 0; color: var(--port-text); font-size: .8rem; font-weight: 700; text-align: right; }
+.sync-center-join-target img { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 10px; object-fit: cover; }
+.sync-center-join-target span { overflow-wrap: anywhere; }
 .sync-center-join-panel > p { margin-bottom: 0; }
 .sync-center-join-intro { margin: 0; }
 .sync-center-join-steps {
@@ -2376,6 +2380,9 @@ textarea:focus-visible {
 .sync-center-app-action:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
 
 @media (max-width: 420px) {
+    .sync-center-join-header { gap: 8px; }
+    .sync-center-join-target { font-size: .74rem; }
+    .sync-center-join-target img { width: 40px; height: 40px; flex-basis: 40px; border-radius: 9px; }
     .sync-center-actions { grid-template-columns: 1fr; }
     .sync-center-app { grid-template-columns: 44px minmax(0, 1fr) auto; gap: 9px; padding-inline: 8px; }
     .sync-center-app img { width: 44px; height: 44px; }

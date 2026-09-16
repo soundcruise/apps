@@ -82,7 +82,7 @@ test('four-app preparation keeps successes and retries only the failed membershi
     const first = await orchestrator.prepareAll();
     assert.equal(first.ok, false);
     assert.deepEqual(first.results.map(({ appId, ok }) => [appId, ok]), [
-        ['chord', true], ['pitch', false], ['fretboard', true], ['rhythm', true]
+        ['pitch', false], ['fretboard', true], ['rhythm', true], ['chord', true]
     ]);
     const second = await orchestrator.prepareAll();
     assert.equal(second.ok, true);

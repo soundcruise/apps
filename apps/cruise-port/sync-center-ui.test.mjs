@@ -388,3 +388,13 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(styles, /\.sync-center-join-steps\s*\{[\s\S]*padding-left:/);
     assert.match(styles, /\.sync-center-app-row-actions\s*\{/);
 });
+
+test('Join dialog identifies the target app from appId using the official icon catalog', () => {
+    const styles = read('./style.css');
+    assert.match(ui, /const target = SYNC_CENTER_APPS\.find\(\(app\) => app\.id === result\.appId\)/);
+    assert.match(ui, /CRUISE_APP_ICONS\[target\.id\]\[edition === 'pro' \? 'pro' : 'standard'\]/);
+    assert.match(ui, /badge\.className = 'sync-center-join-target'/);
+    assert.match(ui, /name\.textContent = target\.name/);
+    assert.match(styles, /\.sync-center-join-header\s*\{[\s\S]*display:\s*flex/);
+    assert.match(styles, /\.sync-center-join-target\s*\{[\s\S]*min-width:\s*0/);
+});

@@ -1,10 +1,10 @@
 export const SYNC_CENTER_ROUTE = '#sync-center';
 
 export const SYNC_CENTER_APPS = Object.freeze([
-    Object.freeze({ id: 'chord', name: 'コードクルーズ' }),
     Object.freeze({ id: 'pitch', name: '音感クルーズ' }),
     Object.freeze({ id: 'fretboard', name: '指板クルーズ' }),
-    Object.freeze({ id: 'rhythm', name: 'リズムクルーズ' })
+    Object.freeze({ id: 'rhythm', name: 'リズムクルーズ' }),
+    Object.freeze({ id: 'chord', name: 'コードクルーズ' })
 ]);
 
 const MEMBERSHIP_STATES = Object.freeze({

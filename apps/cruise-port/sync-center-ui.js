@@ -1,4 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.36.6';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -116,15 +117,33 @@ function renderDangerActions(root, presentation) {
     if (accountDelete) accountDelete.disabled = presentation.accountState !== 'active';
 }
 
-function showJoinCode(root, result, onClose = async () => {}) {
+function showJoinCode(root, result, edition = 'standard', onClose = async () => {}) {
     const dialog = document.createElement('dialog');
     dialog.className = 'sync-center-help-dialog';
     dialog.dataset.syncJoinInvitation = result.invitationId;
     const panel = document.createElement('div');
     panel.className = 'sync-center-join-panel';
+    const header = document.createElement('header');
+    header.className = 'sync-center-join-header';
     const title = document.createElement('h2');
     const isAdditionalEnvironment = result.kind === 'add_environment';
     title.textContent = isAdditionalEnvironment ? '別の環境を追加' : 'このアプリを接続';
+    const target = SYNC_CENTER_APPS.find((app) => app.id === result.appId);
+    if (target && CRUISE_APP_ICONS[target.id]) {
+        const badge = document.createElement('div');
+        badge.className = 'sync-center-join-target';
+        const icon = document.createElement('img');
+        icon.src = CRUISE_APP_ICONS[target.id][edition === 'pro' ? 'pro' : 'standard'];
+        icon.alt = '';
+        icon.width = 44;
+        icon.height = 44;
+        const name = document.createElement('span');
+        name.textContent = target.name;
+        badge.append(icon, name);
+        header.append(title, badge);
+    } else {
+        header.append(title);
+    }
     const intro = document.createElement('p');
     intro.className = 'sync-center-join-intro';
     intro.textContent = '以下の手順で接続します。';
@@ -190,7 +209,7 @@ function showJoinCode(root, result, onClose = async () => {}) {
     const keepOpen = document.createElement('p');
     keepOpen.className = 'sync-center-join-note';
     keepOpen.textContent = '接続が完了するまでこの画面を開いたままにしてください。';
-    panel.append(title, intro, steps, codeLabel, code, actions, expires, keepOpen, copyStatus);
+    panel.append(header, intro, steps, codeLabel, code, actions, expires, keepOpen, copyStatus);
     dialog.append(panel);
     root.append(dialog);
     dialog.showModal();
@@ -249,7 +268,7 @@ function bindSectionHelp(root) {
     });
 }
 
-export function bindSyncCenterActions(root, { orchestrator = null, refresh = async () => {}, tokenProvider = async () => null } = {}) {
+export function bindSyncCenterActions(root, { orchestrator = null, refresh = async () => {}, tokenProvider = async () => null, edition = 'standard' } = {}) {
     bindSectionHelp(root);
     const setup = root?.querySelector?.('#sync-center-setup');
     const setupTitle = root?.querySelector?.('#sync-center-setup-title');
@@ -458,7 +477,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         try {
             const result = await orchestrator.launch(button.dataset.syncAppAction);
             if (result?.kind === 'join') {
-                showJoinCode(root, result, async () => {
+                showJoinCode(root, result, edition, async () => {
                     try { await orchestrator.cancelJoin(result.invitationId); }
                     catch (_) { /* consumed, expired, or already cancelled */ }
                     button.disabled = false;
@@ -487,7 +506,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             addEnvironment.disabled = true;
             try {
                 const result = await orchestrator.addEnvironment(addEnvironment.dataset.syncAppAddEnvironment);
-                showJoinCode(root, result, async () => {
+                showJoinCode(root, result, edition, async () => {
                     try { await orchestrator.cancelJoin(result.invitationId); }
                     catch (_) { /* consumed, expired, or already cancelled */ }
                     addEnvironment.disabled = false;
