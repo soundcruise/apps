@@ -79,6 +79,19 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     }
 });
 
+test('Sync Help uses independent simple step numbering for each connection flow', () => {
+    const firstStart = app.indexOf("title: '最初の接続'");
+    const additionalStart = app.indexOf("title: '別の環境を追加'");
+    const nextSection = app.indexOf("title: '復旧コード'", additionalStart);
+    const first = app.slice(firstStart, additionalStart);
+    const additional = app.slice(additionalStart, nextSection);
+    assert.match(first, /'1\. Cruise Portで対象アプリの「同期コード」を押す'/);
+    assert.match(first, /'6\. コードを入力して「接続する」を押す'/);
+    assert.match(additional, /'1\. Cruise Portで接続済みアプリを確認する'/);
+    assert.match(additional, /'7\. コードを入力して「接続する」を押す'/);
+    assert.doesNotMatch(`${first}\n${additional}`, /[12]-[1-9]\./);
+});
+
 test('QA Enrollment and Account start request distinct Turnstile actions', () => {
     const source = read('./sync-center-ui.js');
     assert.match(source, /tokenProvider\('sound_cruise_account_qa_enroll'\)/);
