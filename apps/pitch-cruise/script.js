@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.17.1';
+const PITCH_TRAINER_APP_VERSION = '2.17.2';
 function notifyPitchSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('pitch');
 }
@@ -1721,7 +1721,7 @@ class Game {
 
         if (document.getElementById('stage-select-btn')) document.getElementById('stage-select-btn').addEventListener('click', () => this.showStageSelector());
         if (document.getElementById('top-btn')) document.getElementById('top-btn').addEventListener('click', () => this.showHomeScreen());
-        if (document.getElementById('pitch-bottom-top')) document.getElementById('pitch-bottom-top').addEventListener('click', () => {
+        if (document.getElementById('pitch-settings-top')) document.getElementById('pitch-settings-top').addEventListener('click', () => {
             this.showHomeScreen();
             window.scrollTo(0, 0);
         });

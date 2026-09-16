@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.13.1';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.13.1';
+const FRETBOARD_CRUISE_APP_VERSION = '2.13.2';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.13.2';
 function notifyFretboardSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
 }
@@ -6222,9 +6222,9 @@ function renderApp() {
         }
     }
 
-    const bottomTopButton = document.getElementById('fretboard-bottom-top');
-    if (bottomTopButton) {
-        bottomTopButton.onclick = () => {
+    const settingsTopButton = document.getElementById('fretboard-settings-top');
+    if (settingsTopButton) {
+        settingsTopButton.onclick = () => {
             stopRhythm();
             state.course = null;
             saveState();
@@ -14165,7 +14165,7 @@ function renderSettings(app) {
             </div>
         ${isProEdition() ? '<div class="pro-gate-settings-note"><button type="button" id="pro-gate-reset" class="btn-secondary">入室の記録を消す（次回パスワード入力）</button></div>' : ''}
         </div>
-        ${isProEdition() ? '<div data-sync-join-entry-host></div>' : ''}
+        ${isProEdition() ? '<div data-sync-join-entry-host></div><div class="sound-cruise-settings-top-wrap"><button type="button" id="fretboard-settings-top" class="sound-cruise-settings-top">TOPに戻る</button></div>' : ''}
         </div>
 	    `;
 

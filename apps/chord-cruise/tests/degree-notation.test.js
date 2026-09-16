@@ -100,7 +100,9 @@ assert(settingsSource.includes("notifyFretboardChange();"), 'settings notify ope
 function fretboardSettingsMarkup(html) {
     var start = html.indexOf('<section class="cc-settings-card" aria-labelledby="cc-settings-fretboard-title">');
     var end = html.indexOf('<div class="cc-settings-refresh-bar"', start);
-    return html.slice(start, end).replace(/\s*<div data-sync-join-entry-host><\/div>\s*$/, '').trimEnd();
+    return html.slice(start, end)
+        .replace(/\s*<div data-sync-join-entry-host><\/div>\s*<div class="sound-cruise-settings-top-wrap">[\s\S]*?<\/div>\s*$/, '')
+        .trimEnd();
 }
 assert.strictEqual(fretboardSettingsMarkup(standardHtml), fretboardSettingsMarkup(proHtml), 'Standard and Pro use identical fretboard settings markup');
 assert(!standardHtml.includes('data-sync-join-entry-host'), 'Standard has no Account Join UI host');

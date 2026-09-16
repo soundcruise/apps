@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.8.1';
+const RHYTHM_CRUISE_VERSION = '1.8.2';
 function notifyRhythmSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
 }
@@ -1308,7 +1308,7 @@ const els = {
     appNav: $('app-nav'),
     navBackBtn: $('nav-back-btn'),
     navTopBtn: $('nav-top-btn'),
-    bottomTopBtn: $('rhythm-bottom-top'),
+    settingsTopBtn: $('rhythm-settings-top'),
     settingsBtn: $('settings-btn'),
     tapHint: $('tap-hint'),
     stageList: $('stage-list'),
@@ -30798,7 +30798,7 @@ function bind() {
     // 全画面共通ナビ（戻る / TOP / 設定）
     if (els.navBackBtn) els.navBackBtn.addEventListener('click', () => guardMicSetupInterruption(navBack));
     if (els.navTopBtn) els.navTopBtn.addEventListener('click', () => guardMicSetupInterruption(goTop));
-    if (els.bottomTopBtn) els.bottomTopBtn.addEventListener('click', () => guardMicSetupInterruption(goTop));
+    if (els.settingsTopBtn) els.settingsTopBtn.addEventListener('click', () => guardMicSetupInterruption(goTop));
     if (els.settingsBtn) els.settingsBtn.addEventListener('click', openSettingsFromCurrent);
     // 入力方法（タップ / ストローク）
     // 入力方式の切替（v0.9.118：リズム練をする画面）。ここでは選択の記録のみ。STAGE開始時に反映。

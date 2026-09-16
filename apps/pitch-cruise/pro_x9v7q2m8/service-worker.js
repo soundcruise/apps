@@ -1,5 +1,5 @@
 const GATE_VERSION = 8; // ゲート方式変更時・パスワード変更時に +1
-const CACHE_NAME = 'pitch-trainer-pro-scope-v19-apps-pitch-cruise';
+const CACHE_NAME = 'pitch-trainer-pro-scope-v20-apps-pitch-cruise';
 const CACHE_PREFIX = 'pitch-trainer-pro-scope-';
 const INFO_NEW_VERSION_KEY = 'infoNewVersionSeen';
 

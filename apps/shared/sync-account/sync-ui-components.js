@@ -2,7 +2,7 @@
   'use strict';
 
   const STATUS = Object.freeze({
-    unconnected: Object.freeze({ label: '未接続', description: 'Cruise Portからこのアプリを接続できます。' }),
+    unconnected: Object.freeze({ label: '未接続', description: '' }),
     connecting: Object.freeze({ label: '接続中', description: '同期の準備をしています。' }),
     checking: Object.freeze({ label: '同期を確認中', description: 'クラウドの状態を確認しています。' }),
     syncing: Object.freeze({ label: '同期中', description: '' }),
@@ -70,6 +70,7 @@
       ])
     })
   ]);
+  let cardSequence = 0;
 
   function appendText(document, parent, tag, className, value) {
     const node = document.createElement(tag);
@@ -196,11 +197,19 @@
     host.dataset.syncJoinUiState = options.state || 'checking';
     const status = STATUS[options.state] || STATUS.checking;
     const card = document.createElement('section');
-    card.className = 'sound-cruise-sync-settings-card';
+    card.className = 'sound-cruise-sync-settings-card sound-cruise-sync-settings-card--accordion';
     card.dataset.syncSettingsState = options.state || 'checking';
+    const bodyId = `sound-cruise-sync-settings-body-${++cardSequence}`;
+    const expanded = host.dataset.syncCardExpanded === 'true';
     const header = document.createElement('header');
     header.className = 'sound-cruise-sync-settings-head';
-    appendText(document, header, 'strong', 'sound-cruise-sync-settings-title', 'クラウド同期');
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'sound-cruise-sync-settings-toggle';
+    toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    toggle.setAttribute('aria-controls', bodyId);
+    appendText(document, toggle, 'strong', 'sound-cruise-sync-settings-title', 'クラウド同期');
+    appendText(document, toggle, 'span', 'sound-cruise-sync-settings-chevron', '⌄').setAttribute('aria-hidden', 'true');
     const help = appendText(document, header, 'button', 'sound-cruise-sync-help-button', '?');
     help.type = 'button';
     help.setAttribute('aria-label', 'クラウド同期のヘルプを開く');
@@ -209,17 +218,28 @@
       event.stopPropagation();
       openHelp({ document, privacyHref: options.privacyHref });
     });
+    header.prepend(toggle);
+    const body = document.createElement('div');
+    body.className = 'sound-cruise-sync-settings-body';
+    body.id = bodyId;
+    body.hidden = !expanded;
+    toggle.addEventListener('click', () => {
+      const willOpen = toggle.getAttribute('aria-expanded') !== 'true';
+      toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+      body.hidden = !willOpen;
+      host.dataset.syncCardExpanded = willOpen ? 'true' : 'false';
+    });
     const statusRow = document.createElement('div');
     statusRow.className = 'sound-cruise-sync-status';
     statusRow.dataset.syncAccountStatus = '';
     statusRow.dataset.syncStatus = options.state || 'checking';
     appendText(document, statusRow, 'span', 'sound-cruise-sync-status-dot', '●').setAttribute('aria-hidden', 'true');
     appendText(document, statusRow, 'strong', '', options.statusLabel || status.label);
-    const description = appendText(document, card, 'p', 'sound-cruise-sync-description',
+    const description = appendText(document, body, 'p', 'sound-cruise-sync-description',
       options.description === undefined ? status.description : options.description);
     const actions = document.createElement('div');
     actions.className = 'sound-cruise-sync-card-actions';
-    const feedback = appendText(document, card, 'p', 'sound-cruise-sync-feedback', '');
+    const feedback = appendText(document, body, 'p', 'sound-cruise-sync-feedback', '');
     feedback.setAttribute('role', 'status');
     feedback.setAttribute('aria-live', 'polite');
     const controller = {
@@ -255,12 +275,40 @@
     };
     [options.primaryAction, options.secondaryAction].filter(Boolean)
       .forEach((action) => actions.append(actionButton(document, action, controller)));
-    card.insertBefore(actions, feedback);
-    card.prepend(header, statusRow);
+    body.insertBefore(statusRow, description);
+    body.insertBefore(actions, feedback);
+    card.append(header, body);
     if (!description.textContent) description.hidden = true;
     if (!actions.childElementCount) actions.hidden = true;
     host.append(card);
     return controller;
+  }
+
+  function bindSetupViewport(dialog) {
+    const viewport = global.visualViewport;
+    const update = () => {
+      const width = Math.max(0, Number(viewport?.width || global.innerWidth || 0));
+      const height = Math.max(0, Number(viewport?.height || global.innerHeight || 0));
+      const offsetLeft = Number(viewport?.offsetLeft || 0);
+      const offsetTop = Number(viewport?.offsetTop || 0);
+      dialog.style.setProperty('--sync-setup-viewport-width', `${width}px`);
+      dialog.style.setProperty('--sync-setup-viewport-height', `${height}px`);
+      dialog.style.setProperty('--sync-setup-viewport-center', `${offsetLeft + (width / 2)}px`);
+      dialog.style.setProperty('--sync-setup-viewport-top', `${offsetTop}px`);
+      const active = dialog.ownerDocument?.activeElement;
+      if (active && dialog.contains(active)) {
+        global.requestAnimationFrame?.(() => active.scrollIntoView?.({ block: 'nearest' }));
+      }
+    };
+    const cleanup = () => {
+      viewport?.removeEventListener('resize', update);
+      viewport?.removeEventListener('scroll', update);
+    };
+    viewport?.addEventListener('resize', update);
+    viewport?.addEventListener('scroll', update);
+    dialog.addEventListener('close', cleanup, { once: true });
+    dialog.addEventListener('focusin', update);
+    update();
   }
 
   function createJoinDialog({ document = global.document, portUrl = '/apps/cruise-port/#sync-center', mode = 'join' } = {}) {
@@ -300,6 +348,7 @@
     cancel.value = 'cancel'; cancel.dataset.syncAction = 'cancel';
     dialog.append(panel);
     document.body.append(dialog);
+    bindSetupViewport(dialog);
     return dialog;
   }
 

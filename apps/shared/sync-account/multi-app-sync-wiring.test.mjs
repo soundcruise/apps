@@ -186,7 +186,7 @@ test('all four Pro apps mount the Join entry at the bottom of settings and never
   assert(pitchPro.indexOf('data-sync-join-entry-host') < pitchPro.indexOf('<!-- Pro Settings Modal -->'));
   assert(rhythmPro.indexOf('pro-gate-settings-note') < rhythmPro.indexOf('data-sync-join-entry-host'));
   assert(rhythmPro.indexOf('data-sync-join-entry-host') < rhythmPro.indexOf('in-game-refresh-bar'));
-  assert.match(fretboard, /isProEdition\(\) \? '<div data-sync-join-entry-host><\/div>' : ''/);
+  assert.match(fretboard, /isProEdition\(\) \? '<div data-sync-join-entry-host><\/div><div class="sound-cruise-settings-top-wrap">[\s\S]*?fretboard-settings-top/);
   assert.match(bootstrap, /JOIN_HOST_SELECTOR = '\[data-sync-join-entry-host\]'/);
   assert.match(bootstrap, /MutationObserver\(renderSettingsPresentation\)/,
     'a dynamically rendered Fretboard settings host receives the current state');

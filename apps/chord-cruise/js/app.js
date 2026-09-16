@@ -1,7 +1,7 @@
 (function () {
     'use strict';
 
-    var CHORD_CRUISE_APP_VERSION = '1.10.1';
+    var CHORD_CRUISE_APP_VERSION = '1.10.2';
     window.CHORD_CRUISE_APP_VERSION = CHORD_CRUISE_APP_VERSION;
 
     var SCREENS = ['home', 'explore', 'library'];
@@ -62,7 +62,7 @@
         var goLibraryBtn = document.getElementById('cc-go-library');
         var navBackBtn = document.getElementById('cc-nav-back');
         var navTopBtn = document.getElementById('cc-nav-top');
-        var bottomTopBtn = document.getElementById('cc-bottom-top');
+        var settingsTopBtn = document.getElementById('cc-settings-top');
 
         if (goExploreBtn) {
             goExploreBtn.addEventListener('click', function () {
@@ -82,8 +82,8 @@
             });
         }
 
-        if (bottomTopBtn) {
-            bottomTopBtn.addEventListener('click', function () {
+        if (settingsTopBtn) {
+            settingsTopBtn.addEventListener('click', function () {
                 showScreen('home');
                 window.scrollTo(0, 0);
             });

@@ -225,7 +225,6 @@
     setSettingsPresentation({
       state: 'unconnected',
       status: '未接続',
-      description: 'Cruise Portからこのアプリを接続できます。',
       action: { label: 'Cruise Portと接続', run: () => {
       const dialog = createLanding(config.appId, config.portUrl, 'join');
       bindLanding(dialog, config, runtime, 'join');

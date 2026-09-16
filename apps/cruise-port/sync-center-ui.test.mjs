@@ -50,7 +50,8 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.match(html, /id="sync-center-view"[^>]*hidden/);
         assert.match(html, /4つのProアプリのクラウド同期を管理します。/);
         assert.match(html, /クラウド同期を開く/);
-        assert.match(html, /この操作だけで4アプリのデータがすぐにアップロードされることはありません/);
+        assert.match(html, /次の手順で設定します。/);
+        assert.match(html, /設定から「Cruise Portと接続」を押す/);
         assert.match(html, /同期中の環境/);
         assert.match(html, /復旧とセキュリティ/);
         assert.match(html, /現在有効な復旧コードは1つだけです/);

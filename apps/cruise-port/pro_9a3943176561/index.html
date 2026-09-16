@@ -10,9 +10,9 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.32.4">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.32.4">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.35.1">
+    <link rel="stylesheet" href="../style.css?v=0.35.2">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
-    <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=11">
+    <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=12">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -25,10 +25,10 @@
     <script defer src="../../shared/sync-account/sync-account-core.js?v=5"></script>
     <script defer src="../../shared/sync-account/sync-account-db.js?v=6"></script>
     <script defer src="../../shared/sync-account/sync-account-client.js?v=8"></script>
-    <script defer src="../../shared/sync-account/sync-ui-components.js?v=2"></script>
+    <script defer src="../../shared/sync-account/sync-ui-components.js?v=3"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=4"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.35.1"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.35.2"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -227,15 +227,18 @@
             </dialog>
             <dialog id="sync-center-setup" class="sync-center-help-dialog" aria-labelledby="sync-center-setup-title" data-sync-phase="introduction">
                 <h2 id="sync-center-setup-title">クラウド同期をはじめる</h2>
-                <p>この操作だけで4アプリのデータがすぐにアップロードされることはありません。各Cruiseアプリを開いたときに、それぞれの初回同期を確認して完了します。</p>
-                <p id="sync-center-setup-plan"></p>
-                <p id="sync-center-setup-summary" data-sync-summary>Accountを作成し、4つのアプリの同期準備を行います。</p>
+                <p id="sync-center-setup-intro">次の手順で設定します。</p>
+                <ol id="sync-center-setup-steps" class="sync-center-setup-steps">
+                    <li>復旧コードを保存する</li>
+                    <li>各Proアプリを開く</li>
+                    <li>設定から「Cruise Portと接続」を押す</li>
+                    <li>画面の案内に沿って接続する</li>
+                </ol>
+                <p id="sync-center-setup-plan">4つのProアプリは、それぞれ1回ずつ接続します。</p>
+                <p id="sync-center-setup-summary" data-sync-summary hidden></p>
                 <output id="sync-center-recovery-code" data-sensitive="recovery-code" hidden></output>
                 <button id="sync-center-setup-copy" class="action-button secondary-action" type="button" hidden>復旧コードをコピー</button>
                 <p id="sync-center-setup-copy-status" role="status" aria-live="polite"></p>
-                <p>現在有効な復旧コードは1つだけです。新しい復旧コードを発行すると、以前のコードは使えなくなります。</p>
-                <p>氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。同期対象データと技術情報はクラウドに保存されます。</p>
-                <p>自動でデータを上書きせず、確認が必要な場合は各アプリで停止します。</p>
                 <div class="sync-center-actions">
                     <button id="sync-center-setup-confirm" class="action-button primary-action" type="button" data-sync-action="create-account">復旧コードを確認</button>
                     <button id="sync-center-setup-close" class="action-button secondary-action" type="button">戻る</button>

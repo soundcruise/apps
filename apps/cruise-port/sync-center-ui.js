@@ -171,17 +171,12 @@ function showJoinCode(root, result, onClose = async () => {}) {
     dialog.showModal();
 }
 
-export function renderSyncCenter(root, presentation, { edition = 'standard', setupPlan = null, orchestrationEnabled = false } = {}) {
+export function renderSyncCenter(root, presentation, { edition = 'standard', orchestrationEnabled = false } = {}) {
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
     setText(root, '#sync-center-account-label', presentation.accountLabel);
     setText(root, '#sync-center-account-description', presentation.accountDescription);
     setText(root, '#sync-center-progress', `${presentation.readyCount} / ${presentation.totalCount} アプリの同期設定が完了`);
-    const setupCount = Array.isArray(setupPlan?.appIds) ? setupPlan.appIds.length : 0;
-    setText(root, '#sync-center-setup-plan', setupPlan?.kind === 'unavailable'
-        ? '同期情報を確認できてから、必要な設定を案内します。'
-        : setupCount ? `現在の状態では${setupCount}個のアプリで個別の初回同期が必要です。`
-            : '現在、個別の初回同期が必要なアプリはありません。');
     const alert = root.querySelector('#sync-center-alert');
     if (alert) {
         alert.hidden = !['error', 'offline'].includes(presentation.kind);
@@ -199,6 +194,9 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const confirm = root?.querySelector?.('#sync-center-setup-confirm');
     const recovery = root?.querySelector?.('#sync-center-recovery-code');
     const summary = root?.querySelector?.('#sync-center-setup-summary');
+    const setupIntro = root?.querySelector?.('#sync-center-setup-intro');
+    const setupSteps = root?.querySelector?.('#sync-center-setup-steps');
+    const setupPlan = root?.querySelector?.('#sync-center-setup-plan');
     const recoveryDialog = root?.querySelector?.('#sync-center-recovery');
     const recoveryInput = root?.querySelector?.('#sync-center-recovery-input');
     const recoverySummary = root?.querySelector?.('#sync-center-recovery-summary');
@@ -235,6 +233,11 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     recoveryCopy?.addEventListener('click', () => copySensitiveOutput(recoveryCopy, recoveryCopyStatus, recoveryCandidate?.textContent || ''));
     const setPhase = (phase) => {
         setup.dataset.syncPhase = phase;
+        const introduction = phase === 'introduction';
+        if (setupIntro) setupIntro.hidden = !introduction;
+        if (setupSteps) setupSteps.hidden = !introduction;
+        if (setupPlan) setupPlan.hidden = !introduction;
+        if (summary) summary.hidden = introduction;
         if (confirm) confirm.dataset.syncAction = ['recovery', 'start-uncertain'].includes(phase)
             ? 'confirm-recovery-saved' : phase === 'membership-retry' ? 'retry-memberships' : 'create-account';
     };
