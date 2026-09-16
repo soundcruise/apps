@@ -23,7 +23,7 @@
     "ACCOUNT_ALLOWED_ORIGINS": "https://soundcruise.jp",
     "SYNC_ALLOWED_APP_IDS": "chord",
     "SYNC_QA_ALLOWED_APP_IDS": "chord,pitch,rhythm,fretboard",
-    "SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED": "false",
+    "SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED": "true",
     "SYNC_ACCOUNT_PUBLIC_APP_IDS": "chord,pitch,fretboard,rhythm",
     "TURNSTILE_EXPECTED_HOSTNAME": "soundcruise.jp",
     "TURNSTILE_EXPECTED_ACTION": "sound_cruise_sync_start",
