@@ -220,21 +220,8 @@ function bindSectionHelp(root) {
     });
 }
 
-function bindEnvironmentDetails(root) {
-    const toggle = root?.querySelector?.('[data-sync-environments-toggle]');
-    const details = root?.querySelector?.('#sync-center-environments-details');
-    if (!toggle || !details || toggle.dataset.syncEnvironmentDetailsBound === 'true') return;
-    toggle.dataset.syncEnvironmentDetailsBound = 'true';
-    toggle.addEventListener('click', () => {
-        details.hidden = !details.hidden;
-        toggle.setAttribute('aria-expanded', String(!details.hidden));
-        toggle.textContent = details.hidden ? '詳細⌄' : '詳細を閉じる⌃';
-    });
-}
-
 export function bindSyncCenterActions(root, { orchestrator = null, refresh = async () => {}, tokenProvider = async () => null } = {}) {
     bindSectionHelp(root);
-    bindEnvironmentDetails(root);
     const setup = root?.querySelector?.('#sync-center-setup');
     const confirm = root?.querySelector?.('#sync-center-setup-confirm');
     const recovery = root?.querySelector?.('#sync-center-recovery-code');
@@ -411,6 +398,16 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         } finally { confirm.disabled = false; }
     });
     root?.addEventListener?.('click', async (event) => {
+        const environmentToggle = event.target.closest?.('[data-sync-environments-toggle]');
+        if (environmentToggle) {
+            const details = root.querySelector('#sync-center-environments-details');
+            if (details) {
+                details.hidden = !details.hidden;
+                environmentToggle.setAttribute('aria-expanded', String(!details.hidden));
+                environmentToggle.textContent = details.hidden ? '詳細⌄' : '詳細を閉じる⌃';
+            }
+            return;
+        }
         const addEnvironment = event.target.closest?.('[data-sync-app-add-environment]');
         if (addEnvironment && orchestrator?.enabled) {
             addEnvironment.disabled = true;

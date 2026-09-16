@@ -247,8 +247,8 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(source, /\['unset', 'prepared'\]\.includes\(app\.status\) \? '同期コード' : 'アプリを開く'/);
     assert.match(source, /function bindSectionHelp\(root\)/);
     assert.match(source, /button\.setAttribute\('aria-expanded', String\(!help\.hidden\)\)/);
-    assert.match(source, /function bindEnvironmentDetails\(root\)/);
-    assert.match(source, /toggle\.textContent = details\.hidden \? '詳細⌄' : '詳細を閉じる⌃'/);
+    assert.match(source, /const environmentToggle = event\.target\.closest\?\.\('\[data-sync-environments-toggle\]'\)/);
+    assert.match(source, /environmentToggle\.textContent = details\.hidden \? '詳細⌄' : '詳細を閉じる⌃'/);
     assert.match(source, /このアプリを接続/);
     assert.match(source, /以下の手順で接続します。/);
     assert.match(source, /sync-center-join-steps/);
