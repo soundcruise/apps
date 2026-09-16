@@ -129,6 +129,7 @@
         if (!document || typeof document.querySelector !== 'function') return;
         var refreshBar = document.querySelector('.cc-settings-refresh-bar');
         if (!refreshBar || document.getElementById('cc-settings-pro-section')) return;
+        var settingsEndAnchor = document.querySelector('.sound-cruise-settings-top-wrap') || refreshBar;
         var featureAccess = window.ChordCruise.featureAccess;
         var isPro = !!(featureAccess && typeof featureAccess.isProEdition === 'function' && featureAccess.isProEdition());
         var section = document.createElement('section');
@@ -138,13 +139,14 @@
         section.innerHTML = isPro
             ? '<h4 id="cc-settings-pro-title">Pro版</h4><p class="cc-settings-note">Pro版を利用中</p><button type="button" class="cc-settings-reset-trigger" id="cc-settings-pro-gate-reset">認証をリセット</button>'
             : '<h4 id="cc-settings-pro-title">Pro版</h4><p class="cc-settings-note">Standard版を利用中です。</p><a class="cc-settings-reset-trigger cc-settings-pro-link" href="../pro-access.html">Pro版はこちら</a>';
-        refreshBar.parentNode.insertBefore(section, refreshBar);
+        settingsEndAnchor.parentNode.insertBefore(section, settingsEndAnchor);
     }
 
     function renderDataDeleteSection() {
         if (!document || typeof document.querySelector !== 'function') return;
         var refreshBar = document.querySelector('.cc-settings-refresh-bar');
         if (!refreshBar || document.getElementById('cc-settings-data-delete-section')) return;
+        var settingsEndAnchor = document.querySelector('.sound-cruise-settings-top-wrap') || refreshBar;
         var section = document.createElement('section');
         section.id = 'cc-settings-data-delete-section';
         section.className = 'cc-settings-reset cc-settings-danger-section';
@@ -152,7 +154,7 @@
         section.innerHTML = '<h4 id="cc-settings-data-delete-title">全てのデータを削除</h4>' +
             '<p class="cc-settings-note">保存したコード、フォルダ、設定を初期状態に戻します。</p>' +
             '<button type="button" class="cc-settings-reset-trigger cc-settings-danger-trigger" id="cc-settings-data-delete">全てのデータを削除</button>';
-        refreshBar.parentNode.insertBefore(section, refreshBar);
+        settingsEndAnchor.parentNode.insertBefore(section, settingsEndAnchor);
     }
 
     function resetProAuthentication() {

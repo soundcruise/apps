@@ -114,6 +114,8 @@ test('all four Pro apps expose one compact TOP action only at the end of setting
     assert.doesNotMatch(readFileSync(new URL(path, root), 'utf8'), /sound-cruise-settings-top|TOPに戻る/);
   }
   assert.match(readFileSync(new URL('chord-cruise/js/app.js', root), 'utf8'), /cc-settings-top[\s\S]*showScreen\('home'\)/);
+  assert.match(readFileSync(new URL('chord-cruise/js/ui/settings.js', root), 'utf8'), /sound-cruise-settings-top-wrap[\s\S]*insertBefore\(section, settingsEndAnchor\)/,
+    'Chord dynamic settings sections remain before the final TOP action');
   assert.match(readFileSync(new URL('pitch-cruise/script.js', root), 'utf8'), /pitch-settings-top[\s\S]*showHomeScreen\(\)/);
   assert.match(fretboardScript, /fretboard-settings-top[\s\S]*state\.course = null[\s\S]*renderApp\(\)/);
   assert.match(readFileSync(new URL('rhythm-cruise/script.js', root), 'utf8'), /settingsTopBtn[\s\S]*guardMicSetupInterruption\(goTop\)/);
