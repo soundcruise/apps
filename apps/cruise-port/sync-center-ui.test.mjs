@@ -48,7 +48,8 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     for (const html of [root, pro]) {
         assert.match(html, /id="settings-sync-center-entry"[^>]*hidden/);
         assert.match(html, /id="sync-center-view"[^>]*hidden/);
-        assert.match(html, /4つのCruiseアプリの同期状態を確認/);
+        assert.match(html, /4つのProアプリのクラウド同期を管理します。/);
+        assert.match(html, /クラウド同期を開く/);
         assert.match(html, /この操作だけで4アプリのデータがすぐにアップロードされることはありません/);
         assert.match(html, /同期中の環境/);
         assert.match(html, /復旧とセキュリティ/);

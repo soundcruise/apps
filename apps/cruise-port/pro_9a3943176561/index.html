@@ -10,8 +10,9 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.32.4">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.32.4">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.35.0">
+    <link rel="stylesheet" href="../style.css?v=0.35.1">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
+    <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=9">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -24,10 +25,10 @@
     <script defer src="../../shared/sync-account/sync-account-core.js?v=5"></script>
     <script defer src="../../shared/sync-account/sync-account-db.js?v=6"></script>
     <script defer src="../../shared/sync-account/sync-account-client.js?v=8"></script>
-    <script defer src="../../shared/sync-account/sync-ui-components.js?v=1"></script>
+    <script defer src="../../shared/sync-account/sync-ui-components.js?v=2"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=4"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.35.0"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.35.1"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -118,11 +119,15 @@
             <section class="view-panel settings-panel" aria-labelledby="settings-title">
                 <p class="view-kicker">クルーズポート</p>
                 <h1 id="settings-title" class="view-title" tabindex="-1">設定</h1>
-                <section id="settings-sync-center-entry" class="settings-card settings-link-card" hidden>
-                    <button id="settings-sync-center-open" type="button">
-                        <span><strong>クラウド同期</strong><small>4つのCruiseアプリの同期状態を確認</small></span>
-                        <span aria-hidden="true">›</span>
-                    </button>
+                <section id="settings-sync-center-entry" class="sound-cruise-sync-settings-card settings-sync-center-card" hidden>
+                    <header class="sound-cruise-sync-settings-head">
+                        <strong class="sound-cruise-sync-settings-title">クラウド同期</strong>
+                        <button id="settings-sync-center-help" class="sound-cruise-sync-help-button" type="button" aria-label="クラウド同期のヘルプを開く">?</button>
+                    </header>
+                    <p class="sound-cruise-sync-description">4つのProアプリのクラウド同期を管理します。</p>
+                    <div class="sound-cruise-sync-card-actions">
+                        <button id="settings-sync-center-open" class="sound-cruise-sync-button sound-cruise-sync-button--primary" type="button">クラウド同期を開く</button>
+                    </div>
                 </section>
                 <section class="settings-card" aria-labelledby="display-size-title">
                     <h2 id="display-size-title">表示の大きさ</h2>

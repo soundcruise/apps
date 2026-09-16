@@ -118,7 +118,8 @@
             run: function () { options.action.click(); }
           } : null,
           secondaryAction: options.manage ? {
-            label: 'Cruise Portで管理', kind: 'secondary', href: settings.portUrl
+            id: 'manage', label: 'Cruise Portで管理', kind: 'secondary',
+            run: function () { global.location.assign(settings.portUrl); }
           } : null
         });
         return true;

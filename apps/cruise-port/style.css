@@ -2093,6 +2093,10 @@ textarea:focus-visible {
 .settings-link-card small { color: var(--port-muted); font-size: calc(0.76rem * var(--font-scale)); line-height: 1.5; }
 .settings-link-card > button > span:last-child { color: var(--port-gold); font-size: 1.8rem; }
 .settings-link-card > button:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 4px; }
+.settings-sync-center-card {
+    margin-top: 28px;
+    color: var(--port-text);
+}
 
 .sync-center-panel { display: grid; gap: 26px; }
 .sync-center-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }

@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.13.0';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.13.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.13.1';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.13.1';
 function notifyFretboardSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
 }
@@ -6220,6 +6220,17 @@ function renderApp() {
                 window.location.reload();
             };
         }
+    }
+
+    const bottomTopButton = document.getElementById('fretboard-bottom-top');
+    if (bottomTopButton) {
+        bottomTopButton.onclick = () => {
+            stopRhythm();
+            state.course = null;
+            saveState();
+            renderApp();
+            window.scrollTo(0, 0);
+        };
     }
 
     hideAppLoadingScreen();

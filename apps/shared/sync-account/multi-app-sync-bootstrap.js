@@ -12,6 +12,7 @@
   const JOIN_HOST_SELECTOR = '[data-sync-join-entry-host]';
   let settingsPresentation = null;
   let settingsObserver = null;
+  let settingsRevision = 0;
 
   let handoffToken = null;
   try { handoffToken = accountRoot?.core?.takeHandoffFromLocation() || null; }
@@ -69,8 +70,7 @@
     if (!settingsPresentation) return false;
     const host = document.querySelector(JOIN_HOST_SELECTOR);
     if (!host) return false;
-    if (host.dataset.syncJoinUiState === settingsPresentation.state &&
-        host.dataset.syncJoinUiAction === (settingsPresentation.action?.label || '')) return true;
+    if (host.dataset.syncJoinUiRevision === String(settingsRevision)) return true;
     if (syncUi?.renderCard) {
       syncUi.renderCard(host, {
         state: settingsPresentation.state,
@@ -83,10 +83,12 @@
           run: settingsPresentation.action.run
         } : null,
         secondaryAction: settingsPresentation.manage ? {
-          label: 'Cruise Portで管理', kind: 'secondary', href: settingsPresentation.manage
+          id: 'manage', label: 'Cruise Portで管理', kind: 'secondary',
+          run: () => global.location.assign(settingsPresentation.manage)
         } : null
       });
       host.dataset.syncJoinUiAction = settingsPresentation.action?.label || '';
+      host.dataset.syncJoinUiRevision = String(settingsRevision);
       return true;
     }
     host.textContent = '';
@@ -118,6 +120,7 @@
 
   function setSettingsPresentation(presentation) {
     settingsPresentation = presentation;
+    settingsRevision += 1;
     renderSettingsPresentation();
     if (!settingsObserver && typeof MutationObserver === 'function' && document.body) {
       settingsObserver = new MutationObserver(renderSettingsPresentation);
@@ -135,25 +138,26 @@
   }
 
   function bindSettingsRuntime(runtime, conflictController, config) {
+    const connectedPresentation = (presentation) => ({ ...presentation, manage: config.portUrl });
     const show = (state, detail = {}) => {
       if (state === 'ready') return showConnectedSettings();
-      if (state === 'syncing') return setSettingsPresentation({ state: 'syncing', status: '同期中' });
-      if (state === 'paused') return setSettingsPresentation({ state: 'paused', status: '一時停止中' });
+      if (state === 'syncing') return setSettingsPresentation(connectedPresentation({ state: 'syncing', status: '同期中' }));
+      if (state === 'paused') return setSettingsPresentation(connectedPresentation({ state: 'paused', status: '一時停止中' }));
       if (state === 'credential_invalid') return setSettingsPresentation({
         state: 'reconnect', status: '再接続が必要',
         action: { label: 'Cruise Portと接続', run: () => global.location.assign(config.portUrl) }
       });
-      if (state === 'attention') return setSettingsPresentation({
+      if (state === 'attention') return setSettingsPresentation(connectedPresentation({
         state: 'attention', status: '確認が必要',
         action: detail.reason === 'conflict' && conflictController
           ? { label: '内容を確認', run: () => conflictController.refresh() }
           : { label: 'もう一度確認', run: () => runtime.sync('manual_retry') }
-      });
+      }));
     };
     runtime.addEventListener('statechange', (event) => show(event.detail?.state, event.detail));
-    global.addEventListener?.('offline', () => setSettingsPresentation({ state: 'offline', status: 'オフライン' }));
+    global.addEventListener?.('offline', () => setSettingsPresentation(connectedPresentation({ state: 'offline', status: 'オフライン' })));
     global.addEventListener?.('online', () => {
-      setSettingsPresentation({ state: 'checking', status: '同期を確認中' });
+      setSettingsPresentation(connectedPresentation({ state: 'checking', status: '同期を確認中' }));
       runtime.sync('online').catch(() => {});
     });
   }

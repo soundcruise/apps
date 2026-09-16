@@ -95,28 +95,75 @@
       dialog.dataset.syncSharedHelp = '';
       const panel = document.createElement('section');
       panel.className = 'sound-cruise-sync-help-panel';
-      appendText(document, panel, 'h2', '', 'クラウド同期について');
-      HELP_SECTIONS.forEach((section) => {
+      const header = document.createElement('header');
+      header.className = 'sound-cruise-sync-help-header';
+      appendText(document, header, 'h2', '', 'クラウド同期について');
+      const body = document.createElement('div');
+      body.className = 'sound-cruise-sync-help-body';
+      HELP_SECTIONS.forEach((section, index) => {
         const group = document.createElement('section');
         group.className = 'sound-cruise-sync-help-section';
-        appendText(document, group, 'h3', '', section.title);
-        section.paragraphs?.forEach((paragraph) => appendText(document, group, 'p', '', paragraph));
-        if (section.steps) appendSteps(document, group, section.steps);
-        if (section.secondaryTitle) appendText(document, group, 'h4', '', section.secondaryTitle);
-        if (section.secondarySteps) appendSteps(document, group, section.secondarySteps);
+        const headingId = `sound-cruise-sync-help-heading-${index + 1}`;
+        const contentId = `sound-cruise-sync-help-content-${index + 1}`;
+        const toggle = appendText(document, group, 'button', 'sound-cruise-sync-help-toggle', section.title);
+        toggle.type = 'button';
+        toggle.id = headingId;
+        toggle.setAttribute('aria-expanded', 'false');
+        toggle.setAttribute('aria-controls', contentId);
+        const indicator = appendText(document, toggle, 'span', 'sound-cruise-sync-help-indicator', '＋');
+        indicator.setAttribute('aria-hidden', 'true');
+        const content = document.createElement('div');
+        content.className = 'sound-cruise-sync-help-content';
+        content.id = contentId;
+        content.setAttribute('role', 'region');
+        content.setAttribute('aria-labelledby', headingId);
+        content.hidden = true;
+        section.paragraphs?.forEach((paragraph) => appendText(document, content, 'p', '', paragraph));
+        if (section.steps) appendSteps(document, content, section.steps);
+        if (section.secondaryTitle) appendText(document, content, 'h4', '', section.secondaryTitle);
+        if (section.secondarySteps) appendSteps(document, content, section.secondarySteps);
         if (section.title === 'データとプライバシー') {
-          const link = appendText(document, group, 'a', 'sound-cruise-sync-help-link', 'プライバシーポリシーを確認');
+          const link = appendText(document, content, 'a', 'sound-cruise-sync-help-link', 'プライバシーポリシーを確認');
           link.href = privacyHref;
         }
-        panel.append(group);
+        toggle.addEventListener('click', () => {
+          const willOpen = toggle.getAttribute('aria-expanded') !== 'true';
+          body.querySelectorAll('.sound-cruise-sync-help-toggle[aria-expanded="true"]').forEach((openToggle) => {
+            if (openToggle === toggle) return;
+            openToggle.setAttribute('aria-expanded', 'false');
+            const openContent = document.getElementById(openToggle.getAttribute('aria-controls'));
+            if (openContent) openContent.hidden = true;
+            const openIndicator = openToggle.querySelector('.sound-cruise-sync-help-indicator');
+            if (openIndicator) openIndicator.textContent = '＋';
+          });
+          toggle.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+          content.hidden = !willOpen;
+          indicator.textContent = willOpen ? '−' : '＋';
+        });
+        group.append(content);
+        body.append(group);
       });
-      const close = appendText(document, panel, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--primary', '閉じる');
+      const footer = document.createElement('footer');
+      footer.className = 'sound-cruise-sync-help-footer';
+      const close = appendText(document, footer, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--primary', '閉じる');
       close.type = 'button';
       close.addEventListener('click', () => dialog.close());
+      panel.append(header, body, footer);
       dialog.append(panel);
       document.body.append(dialog);
+      dialog.addEventListener('close', () => document.documentElement.classList.remove('sound-cruise-sync-help-open'));
     }
-    if (!dialog.open) dialog.showModal();
+    if (!dialog.open) {
+      dialog.querySelectorAll('.sound-cruise-sync-help-toggle').forEach((toggle) => {
+        toggle.setAttribute('aria-expanded', 'false');
+        const content = document.getElementById(toggle.getAttribute('aria-controls'));
+        if (content) content.hidden = true;
+        const indicator = toggle.querySelector('.sound-cruise-sync-help-indicator');
+        if (indicator) indicator.textContent = '＋';
+      });
+      document.documentElement.classList.add('sound-cruise-sync-help-open');
+      dialog.showModal();
+    }
     return dialog;
   }
 
@@ -129,7 +176,10 @@
       return button;
     }
     button.type = 'button';
-    button.addEventListener('click', async () => {
+    button.dataset.syncAction = action.id || 'card-action';
+    button.addEventListener('click', async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       if (controller.busy || button.disabled) return;
       controller.setBusy(true, action.loadingLabel || '処理中…');
       try { await action.run?.(); }
@@ -154,7 +204,11 @@
     const help = appendText(document, header, 'button', 'sound-cruise-sync-help-button', '?');
     help.type = 'button';
     help.setAttribute('aria-label', 'クラウド同期のヘルプを開く');
-    help.addEventListener('click', () => openHelp({ document, privacyHref: options.privacyHref }));
+    help.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      openHelp({ document, privacyHref: options.privacyHref });
+    });
     const statusRow = document.createElement('div');
     statusRow.className = 'sound-cruise-sync-status';
     statusRow.dataset.syncAccountStatus = '';
@@ -201,6 +255,7 @@
     };
     [options.primaryAction, options.secondaryAction].filter(Boolean)
       .forEach((action) => actions.append(actionButton(document, action, controller)));
+    card.insertBefore(actions, feedback);
     card.prepend(header, statusRow);
     if (!description.textContent) description.hidden = true;
     if (!actions.childElementCount) actions.hidden = true;

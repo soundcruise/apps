@@ -5,7 +5,7 @@
    同一オリジン上の他アプリ（pitch-cruise / fretboard_cruise / shared）の
    キャッシュには一切触れない。 */
 
-const CACHE_NAME = 'rhythm-cruise-v3';
+const CACHE_NAME = 'rhythm-cruise-v4';
 
 self.addEventListener('install', () => {
     self.skipWaiting();
