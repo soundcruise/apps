@@ -10,7 +10,8 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.32.4">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.32.4">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.34.1">
+    <link rel="stylesheet" href="../style.css?v=0.35.0">
+    <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <script>
         window.__SOUNDCRUISE_PRO_GATE__ = {
             passwordHash: 'fa68d2ed5f32f14746be3ce92a07e5dcc7431b3ac4e7717b6947a4054fae5c18',
@@ -23,9 +24,10 @@
     <script defer src="../../shared/sync-account/sync-account-core.js?v=5"></script>
     <script defer src="../../shared/sync-account/sync-account-db.js?v=6"></script>
     <script defer src="../../shared/sync-account/sync-account-client.js?v=8"></script>
+    <script defer src="../../shared/sync-account/sync-ui-components.js?v=1"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=4"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.34.1"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.35.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -159,6 +161,11 @@
                     <button id="settings-pro-auth-reset" class="action-button secondary-action" type="button">Pro版の認証をリセット</button>
                     <p id="settings-pro-auth-error" class="notice notice-error" role="alert" hidden></p>
                 </section>
+                <nav class="settings-card sound-cruise-info-links" aria-label="法務・お問い合わせ">
+                    <a href="../terms.html">利用規約</a><br>
+                    <a href="../privacy.html">プライバシーポリシー</a><br>
+                    <a href="mailto:soundcruise.inc@gmail.com">お問い合わせ</a>
+                </nav>
             </section>
         </main>
 
@@ -175,10 +182,10 @@
                 <section class="sync-center-account" aria-labelledby="sync-center-account-title">
                     <h2 id="sync-center-account-title">アカウント</h2>
                     <p id="sync-center-account-label">同期情報を確認しています…</p>
-                    <p id="sync-center-account-description">各Cruiseアプリの同期状態を確認できます。</p>
+                    <p id="sync-center-account-description">4つのProアプリをクラウド同期できます。</p>
                     <p id="sync-center-progress">0 / 4 アプリの同期設定が完了</p>
                     <p id="sync-center-alert" class="notice notice-error" role="alert" hidden></p>
-                    <button id="sync-center-setup-open" class="action-button primary-action" type="button">4つのアプリをクラウド同期</button>
+                    <button id="sync-center-setup-open" class="action-button primary-action" type="button">クラウド同期をはじめる</button>
                 </section>
                 <section class="sync-center-section" aria-labelledby="sync-center-apps-title">
                     <h2 id="sync-center-apps-title">Cruiseアプリ</h2>
@@ -199,25 +206,30 @@
                     <h2 id="sync-center-danger-title">危険な操作</h2>
                     <p>クラウド上のデータだけが削除対象です。端末内のデータは削除されません。</p>
                     <div id="sync-center-app-delete-actions" class="sync-center-actions"></div>
-                    <button id="sync-center-account-delete" class="action-button danger-action" type="button">Sound Cruise Sync Accountのクラウドデータをすべて削除</button>
+                    <button id="sync-center-account-delete" class="action-button danger-action" type="button">すべてのクラウドデータを削除</button>
                 </section>
                 <p id="sync-center-action-status" class="settings-order-status" role="status" aria-live="polite"></p>
             </section>
             <dialog id="sync-center-help" class="sync-center-help-dialog" aria-labelledby="sync-center-help-title">
                 <h2 id="sync-center-help-title">クラウド同期について</h2>
-                <p>Sound Cruise Syncは、対応するCruiseアプリのデータをクラウド経由で同期する仕組みです。</p>
-                <p>4つまとめて設定するとAccountが準備され、各アプリを開いたときに初回同期を完了できます。同期は各アプリが独立して行うため、Cruise Portを開いておく必要はなく、各Proアプリ単独でも利用できます。</p>
-                <p>Cruise Portは同期状態だけを確認し、各アプリの保存内容や認証情報は読みません。アプリごとのデータは互いに混ざりません。Portを削除したり、Portでエラーが起きたりしても各アプリの同期には影響しません。</p>
-                <p>アプリ単位のクラウド削除と、Sound Cruise Syncアカウント全体の削除は別の操作です。復旧には保存済みの復旧コードが必要です。</p>
-                <p>一括設定、復旧、環境管理、クラウドデータの削除は、このSync Centerから操作できます。各Cruiseアプリの保存内容は、それぞれのアプリで管理します。</p>
+                <section><h3>はじめに</h3><p>Sound Cruise Syncは、4つのProアプリで保存した同期対象データをクラウド経由で共有する任意機能です。アプリごとのデータは混ざりません。</p><ol><li>Cruise Portでクラウド同期を開く</li><li>「クラウド同期をはじめる」を選ぶ</li><li>復旧コードを安全な場所へ保存する</li><li>各Proアプリを開き、画面の案内に沿って接続する</li></ol></section>
+                <section><h3>接続方法</h3><p>別の環境を追加するときは、対象アプリの「別の環境を追加」でコードを表示したまま、追加するブラウザまたはホーム画面版/PWAの設定から「Cruise Portと接続」を開き、コードを入力します。</p></section>
+                <section><h3>復旧と環境管理</h3><p>現在有効な復旧コードは1つだけです。新しい復旧コードを発行すると、以前のコードは使えなくなります。環境とは、同期に接続したブラウザ、ブラウザプロファイル、またはホーム画面版/PWAです。同じ端末でも保存領域が異なれば別の環境です。</p></section>
+                <section><h3>オフライン・競合・エラー</h3><p>オフライン中も端末内へ保存でき、接続が戻ると自動で同期を再開します。同じデータが別々に変更された場合は「確認が必要」で停止し、残す内容を選べます。</p></section>
+                <section><h3>解除・削除</h3><p>環境の同期解除、アプリ単位のクラウド削除、アカウント全体の削除は別の操作です。削除要求後は7日間の猶予期間を経て完全削除の対象になります。端末内のデータは削除されません。</p></section>
+                <section><h3>データとプライバシー</h3><p>クラウド同期を利用すると、アプリ内で保存した同期対象データと、同期に必要な識別子・更新日時などの技術情報がクラウドに保存されます。氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。</p><p><a href="../privacy.html">プライバシーポリシー</a></p></section>
                 <button id="sync-center-help-close" class="action-button primary-action" type="button">閉じる</button>
             </dialog>
             <dialog id="sync-center-setup" class="sync-center-help-dialog" aria-labelledby="sync-center-setup-title" data-sync-phase="introduction">
-                <h2 id="sync-center-setup-title">4つのアプリをクラウド同期</h2>
+                <h2 id="sync-center-setup-title">クラウド同期をはじめる</h2>
                 <p>この操作だけで4アプリのデータがすぐにアップロードされることはありません。各Cruiseアプリを開いたときに、それぞれの初回同期を確認して完了します。</p>
                 <p id="sync-center-setup-plan"></p>
                 <p id="sync-center-setup-summary" data-sync-summary>Accountを作成し、4つのアプリの同期準備を行います。</p>
                 <output id="sync-center-recovery-code" data-sensitive="recovery-code" hidden></output>
+                <button id="sync-center-setup-copy" class="action-button secondary-action" type="button" hidden>復旧コードをコピー</button>
+                <p id="sync-center-setup-copy-status" role="status" aria-live="polite"></p>
+                <p>現在有効な復旧コードは1つだけです。新しい復旧コードを発行すると、以前のコードは使えなくなります。</p>
+                <p>氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。同期対象データと技術情報はクラウドに保存されます。</p>
                 <p>自動でデータを上書きせず、確認が必要な場合は各アプリで停止します。</p>
                 <div class="sync-center-actions">
                     <button id="sync-center-setup-confirm" class="action-button primary-action" type="button" data-sync-action="create-account">復旧コードを確認</button>
@@ -229,6 +241,9 @@
                 <p id="sync-center-recovery-summary" data-sync-summary>保存済みのAccount Recovery Codeを入力してください。</p>
                 <input id="sync-center-recovery-input" data-sensitive="account-recovery-code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" aria-label="Account Recovery Code">
                 <output id="sync-center-recovery-candidate" data-sensitive="account-recovery-candidate" hidden></output>
+                <button id="sync-center-recovery-copy" class="action-button secondary-action" type="button" hidden>復旧コードをコピー</button>
+                <p id="sync-center-recovery-copy-status" role="status" aria-live="polite"></p>
+                <p>現在有効な復旧コードは1つだけです。新しい復旧コードを発行すると、以前のコードは使えなくなります。</p>
                 <div class="sync-center-actions">
                     <button id="sync-center-recovery-confirm" class="action-button primary-action" type="button" data-sync-action="prepare-recovery">復旧対象を確認</button>
                     <button id="sync-center-recovery-close" class="action-button secondary-action" type="button">戻る</button>

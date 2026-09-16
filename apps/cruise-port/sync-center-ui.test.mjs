@@ -54,7 +54,8 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.match(html, /復旧とセキュリティ/);
         assert.match(html, /現在有効な復旧コードは1つだけです/);
         assert.match(html, /新しい復旧コードを発行すると、以前のコードは無効になります/);
-        assert.match(html, /一括設定、復旧、環境管理、クラウドデータの削除は、このSync Centerから操作できます/);
+        assert.match(html, /<h3>データとプライバシー<\/h3>/);
+        assert.match(html, /クラウド同期をはじめる/);
         assert.doesNotMatch(html, /操作はまだ接続されていません/);
         assert.doesNotMatch(html, /<iframe/i);
         assert.doesNotMatch(html, /__SOUND_CRUISE_SYNC_CENTER__/);
@@ -211,8 +212,8 @@ test('Lifecycle UI separates danger actions and enforces stable two-step sensiti
 test('official four-app routes are reused and no all-data-upload promise is made', () => {
     assert.match(read('./sync-center-ui.js'), /resolveCruiseAppHref/);
     assert.doesNotMatch(`${root}\n${pro}`, /今すぐ全データ|一括アップロード|自動アップロード/);
-    assert.match(root, /Cruise Portを開いておく必要はなく/);
-    assert.match(root, /アプリ単位のクラウド削除と、Sound Cruise Syncアカウント全体の削除は別/);
+    assert.match(root, /アプリごとのデータは混ざりません/);
+    assert.match(root, /環境の同期解除、アプリ単位のクラウド削除、アカウント全体の削除は別/);
 });
 
 test('Join invitation renders its sensitive code and actions as separate styled blocks', () => {

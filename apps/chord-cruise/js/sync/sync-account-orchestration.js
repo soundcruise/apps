@@ -2,6 +2,7 @@
   'use strict';
 
   const accountRoot = global.SoundCruiseSyncAccount;
+  const syncUi = global.SoundCruiseSyncUI;
   let handoffToken = null;
   try { handoffToken = accountRoot?.core?.takeHandoffFromLocation() || null; }
   catch (_) { handoffToken = null; }
@@ -27,18 +28,19 @@
     } catch (_) { return null; }
   }
 
-  function landing(portUrl) {
+  function landing(portUrl, mode = 'handoff') {
+    if (syncUi?.createJoinDialog) return syncUi.createJoinDialog({ portUrl, mode });
     const dialog = document.createElement('dialog');
     dialog.className = 'sound-cruise-sync-setup';
     dialog.dataset.syncPhase = 'confirm';
     dialog.innerHTML = `<form method="dialog" class="sound-cruise-sync-setup-panel">
-      <h2>Sound Cruise Sync</h2>
+      <h2>${mode === 'join' ? '接続コードを入力' : 'クラウド同期'}</h2>
       <p data-sync-summary>コードクルーズをSound Cruise Sync Accountへ安全に接続します。</p>
       <p data-sync-error role="alert" hidden></p>
-      <button type="button" data-sync-action="start">接続を開始</button>
+      <button type="button" data-sync-action="start">${mode === 'join' ? '接続する' : '同期を開始'}</button>
       <button value="cancel" data-sync-action="continue" hidden>通常アプリへ進む</button>
       <a href="${portUrl}" data-sync-action="return" hidden>Cruise Portに戻る</a>
-      <button value="cancel" data-sync-action="cancel">今は行わない</button>
+      <button value="cancel" data-sync-action="cancel">キャンセル</button>
     </form>`;
     document.body.append(dialog);
     return dialog;
@@ -104,6 +106,23 @@
     function renderJoinSettings(options) {
       var host = document.querySelector('[data-sync-join-entry-host]');
       if (!host) return false;
+      if (syncUi?.renderCard) {
+        syncUi.renderCard(host, {
+          state: options.state,
+          statusLabel: options.status,
+          description: options.description,
+          privacyHref: '../privacy.html?edition=pro',
+          primaryAction: options.action ? {
+            label: options.action.textContent,
+            kind: 'primary',
+            run: function () { options.action.click(); }
+          } : null,
+          secondaryAction: options.manage ? {
+            label: 'Cruise Portで管理', kind: 'secondary', href: settings.portUrl
+          } : null
+        });
+        return true;
+      }
       host.textContent = '';
       var section = document.createElement('section');
       section.className = 'sound-cruise-sync-settings-card';
@@ -127,11 +146,7 @@
     }
 
     function showConnectedJoinSettings() {
-      if (document.getElementById('cc-sync-pairing-section')) {
-        removeJoinEntry();
-        return;
-      }
-      renderJoinSettings({ state: 'connected', status: '同期済み', action: null });
+      renderJoinSettings({ state: 'ready', status: '同期済み', action: null, manage: true });
     }
 
     async function ensurePairingUi() {
@@ -140,13 +155,42 @@
       await refreshPairingUi();
     }
 
+    function uiAction(label, run) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.addEventListener('click', async () => {
+        button.disabled = true;
+        try { await run(); }
+        finally {
+          button.disabled = false;
+        }
+      });
+      return button;
+    }
+
+    function attentionAction() {
+      return uiAction('内容を確認', async () => {
+        await ensurePairingUi();
+        await global.ChordCruiseSync?.pairingUi?.openAttention?.();
+      });
+    }
+
+    function showAttentionSettings(description, action) {
+      renderJoinSettings({
+        state: 'attention', status: '確認が必要',
+        description: description || '同期する内容を確認してください。',
+        action: action || attentionAction(), manage: true
+      });
+    }
+
     async function resumeAccountManagedHydrate() {
       var hydrated = await chordClient.resumeAccountManagedHydrate();
-      await ensurePairingUi();
-      removeJoinEntry();
       if (!hydrated.ok) {
         throw committedJoinFailure(new Error(hydrated.code || 'account_managed_hydrate_failed'), 'hydrate');
       }
+      if (hydrated.requiresConfirmation) showAttentionSettings();
+      else showConnectedJoinSettings();
       return hydrated;
     }
 
@@ -251,7 +295,7 @@
       button.dataset.syncAppJoinEntry = '';
       button.textContent = resumeOnly ? 'クラウド同期の設定を再開' : 'Cruise Portと接続';
       button.addEventListener('click', () => {
-        const dialog = landing(settings.portUrl);
+        const dialog = landing(settings.portUrl, resumeOnly ? 'handoff' : 'join');
         const summary = dialog.querySelector('[data-sync-summary]');
         const start = dialog.querySelector('[data-sync-action="start"]');
         const error = dialog.querySelector('[data-sync-error]');
@@ -273,17 +317,19 @@
           dialog.showModal();
           return;
         }
-        summary.textContent = 'Cruise Portに表示された既存データ接続コードを入力してください。';
-        const input = document.createElement('input');
-        input.autocomplete = 'off';
-        input.autocapitalize = 'characters';
-        input.spellcheck = false;
-        input.dataset.sensitive = 'true';
-        input.setAttribute('data-sync-sensitive', 'join-code-input');
-        input.setAttribute('aria-label', '既存データ接続コード');
-        summary.after(input);
+        summary.textContent = 'Cruise Portに表示された接続コードを入力してください。';
+        const input = dialog.querySelector('[data-sync-join-code]') || document.createElement('input');
+        if (!input.parentNode) {
+          input.autocomplete = 'off';
+          input.autocapitalize = 'characters';
+          input.spellcheck = false;
+          input.dataset.sensitive = 'true';
+          input.setAttribute('data-sync-sensitive', 'join-code-input');
+          input.setAttribute('aria-label', '接続コード');
+          summary.after(input);
+        }
         const joinSecret = accountRoot.core.createSensitiveInputController(input);
-        start.textContent = '既存データを接続';
+        start.textContent = '接続する';
         start.addEventListener('click', async () => {
           start.disabled = true;
           const joinCode = joinSecret.take();
@@ -297,9 +343,8 @@
             var connected = await connectWithJoin(joinCode);
             joinSecret.resolve();
             input.remove();
-            showConnectedJoinSettings();
-            await ensurePairingUi();
-            await refreshPairingUi();
+            if (connected?.requiresConfirmation) showAttentionSettings();
+            else showConnectedJoinSettings();
             completeJoinDialog(dialog, summary, start, null, connected);
           } catch (reason) {
             if (reason && reason.accountJoinCommitted === true) {
@@ -346,23 +391,25 @@
       if (resumed.status === 'bridge_required' && resumed.membership?.appId === 'chord' && existing?.credential) {
         await finishExistingBridge(existing, resumed);
         showConnectedJoinSettings();
-        await ensurePairingUi();
-        await refreshPairingUi();
         return;
       }
       const accountManagedSetup = await chordStore.getMeta('accountManagedSetup');
       const migrationState = await chordStore.getMeta('migrationState');
+      const syncState = await chordStore.getMeta('syncState');
       // A completed Account-managed Chord environment already owns a valid
       // app credential.  Do not regress it to a new Join prompt while the
       // runtime/pairing UI is still restoring after a reload.
       if (accountManagedSetup === true && migrationState === 'complete' && existing?.credential) {
-        await ensurePairingUi();
-        removeJoinEntry();
+        if (syncState === 'paired_pending') showAttentionSettings();
+        else showConnectedJoinSettings();
         return;
       }
       if (accountManagedSetup === true && migrationState !== 'complete' && existing?.credential) {
         try { await resumeAccountManagedHydrate(); }
-        catch (_) { await ensurePairingUi(); removeJoinEntry(); }
+        catch (_) {
+          showAttentionSettings('同期の設定を再確認してください。',
+            uiAction('もう一度確認', resumeAccountManagedHydrate));
+        }
         return;
       }
       installJoinEntry();
@@ -396,9 +443,8 @@
           setupResult = await promoteNewAppConsume(consumed);
         }
         handoffToken = null;
-        showConnectedJoinSettings();
-        await ensurePairingUi();
-        await refreshPairingUi();
+        if (setupResult?.requiresConfirmation) showAttentionSettings();
+        else showConnectedJoinSettings();
         dialog.dataset.syncPhase = 'complete';
         summaryText.textContent = setupResult?.requiresConfirmation
           ? '接続を保存しました。設定の「クラウド同期」で統合内容を確認してください。'

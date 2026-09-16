@@ -1,0 +1,255 @@
+(function installSoundCruiseSyncUi(global) {
+  'use strict';
+
+  const STATUS = Object.freeze({
+    unconnected: Object.freeze({ label: '未接続', description: 'Cruise Portからこのアプリを接続できます。' }),
+    connecting: Object.freeze({ label: '接続中', description: '同期の準備をしています。' }),
+    checking: Object.freeze({ label: '同期を確認中', description: 'クラウドの状態を確認しています。' }),
+    syncing: Object.freeze({ label: '同期中', description: '' }),
+    ready: Object.freeze({ label: '同期済み', description: '' }),
+    attention: Object.freeze({ label: '確認が必要', description: '同期する内容を確認してください。' }),
+    offline: Object.freeze({ label: 'オフライン', description: '接続が戻ると自動で同期を再開します。' }),
+    paused: Object.freeze({ label: '一時停止中', description: '安全のため同期を停止しています。' }),
+    deleting: Object.freeze({ label: '削除中', description: '' }),
+    reconnect: Object.freeze({ label: '再接続が必要', description: 'Cruise Portから接続し直してください。' })
+  });
+
+  const HELP_SECTIONS = Object.freeze([
+    Object.freeze({
+      title: 'はじめに',
+      paragraphs: Object.freeze([
+        'クラウド同期は、このアプリ内の対応データを複数のブラウザやホーム画面版/PWAで同期する任意の機能です。',
+        '同期対象は、このアプリで保存した設定、進捗、カスタム内容、並び順などです。Pro版の認証情報、マイク音声、Cruise Portの練習メニュー・機材・カレンダーは同期されません。'
+      ])
+    }),
+    Object.freeze({
+      title: '接続方法',
+      paragraphs: Object.freeze(['最初の同期']),
+      steps: Object.freeze([
+        'Cruise Portを開く', 'クラウド同期を開く', 'クラウド同期をはじめる',
+        '復旧コードを安全な場所へ保存する', '各Proアプリを開く', '画面の案内に沿って接続する'
+      ]),
+      secondaryTitle: '別の環境を追加',
+      secondarySteps: Object.freeze([
+        'Cruise Portでクラウド同期を開く', '対象アプリの「別の環境を追加」を押す',
+        'コード画面を開いたまま、追加するブラウザまたはPWAを開く',
+        '設定の「Cruise Portと接続」を押す', 'コードを入力して「接続する」を押す',
+        '接続完了を確認してコード画面を閉じる'
+      ])
+    }),
+    Object.freeze({
+      title: '復旧と環境管理',
+      paragraphs: Object.freeze([
+        '復旧コードは、同期中の環境をすべて失った場合にクラウド同期を取り戻すためのコードです。現在有効なコードは1つだけです。新しいコードを発行すると、以前のコードは使えなくなります。運営者へ送らず、安全な場所へ保存してください。',
+        '環境とは、同期に接続したブラウザ、ブラウザプロファイル、またはホーム画面版/PWAです。同じ端末でも保存領域が異なる場合は別の環境として表示されます。環境を解除しても、端末内とクラウドのデータは削除されません。',
+        '復旧コードと同期中の環境の両方を失った場合、クラウド同期を復旧できないことがあります。'
+      ])
+    }),
+    Object.freeze({
+      title: 'オフライン・競合・エラー',
+      paragraphs: Object.freeze([
+        'オフライン中の変更はこの環境に保存され、接続が戻ると自動で同期を再開します。',
+        '同じ項目がこの環境とクラウドの両方で変更された場合は、自動で上書きせず確認画面で停止します。内容を比較して残す側を選んでください。',
+        '「確認が必要」「一時停止中」「再接続が必要」と表示された場合は、画面の案内に沿って確認または再接続してください。'
+      ])
+    }),
+    Object.freeze({
+      title: '解除・削除',
+      paragraphs: Object.freeze([
+        '環境の同期解除は、その環境の同期資格だけを無効にします。',
+        'アプリ単位の削除は対象アプリのクラウドデータ、Account全体の削除は4アプリすべてのクラウドデータを対象にします。削除を確定すると同期中の環境は解除され、クラウドデータは7日後に完全削除の対象になります。',
+        '環境の解除やクラウドデータの削除を行っても、端末内のデータは自動では削除されません。'
+      ])
+    }),
+    Object.freeze({
+      title: 'データとプライバシー',
+      paragraphs: Object.freeze([
+        '氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。',
+        'クラウド同期を利用すると、アプリ内で保存した同期対象データと、同期に必要な識別子・更新日時などの技術情報がクラウドに保存されます。',
+        '同期の提供、保護、不正利用防止のため、Cloudflare Workers、Cloudflare D1、Cloudflare Turnstileを利用します。'
+      ])
+    })
+  ]);
+
+  function appendText(document, parent, tag, className, value) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    node.textContent = value;
+    parent.append(node);
+    return node;
+  }
+
+  function appendSteps(document, parent, steps) {
+    const list = document.createElement('ol');
+    list.className = 'sound-cruise-sync-help-steps';
+    steps.forEach((step) => appendText(document, list, 'li', '', step));
+    parent.append(list);
+  }
+
+  function openHelp({ document = global.document, privacyHref = '../privacy.html?edition=pro' } = {}) {
+    if (!document?.body) return null;
+    let dialog = document.querySelector('[data-sync-shared-help]');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.className = 'sound-cruise-sync-help';
+      dialog.dataset.syncSharedHelp = '';
+      const panel = document.createElement('section');
+      panel.className = 'sound-cruise-sync-help-panel';
+      appendText(document, panel, 'h2', '', 'クラウド同期について');
+      HELP_SECTIONS.forEach((section) => {
+        const group = document.createElement('section');
+        group.className = 'sound-cruise-sync-help-section';
+        appendText(document, group, 'h3', '', section.title);
+        section.paragraphs?.forEach((paragraph) => appendText(document, group, 'p', '', paragraph));
+        if (section.steps) appendSteps(document, group, section.steps);
+        if (section.secondaryTitle) appendText(document, group, 'h4', '', section.secondaryTitle);
+        if (section.secondarySteps) appendSteps(document, group, section.secondarySteps);
+        if (section.title === 'データとプライバシー') {
+          const link = appendText(document, group, 'a', 'sound-cruise-sync-help-link', 'プライバシーポリシーを確認');
+          link.href = privacyHref;
+        }
+        panel.append(group);
+      });
+      const close = appendText(document, panel, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--primary', '閉じる');
+      close.type = 'button';
+      close.addEventListener('click', () => dialog.close());
+      dialog.append(panel);
+      document.body.append(dialog);
+    }
+    if (!dialog.open) dialog.showModal();
+    return dialog;
+  }
+
+  function actionButton(document, action, controller) {
+    const button = document.createElement(action.href ? 'a' : 'button');
+    button.className = `sound-cruise-sync-button sound-cruise-sync-button--${action.kind || 'secondary'}`;
+    button.textContent = action.label;
+    if (action.href) {
+      button.href = action.href;
+      return button;
+    }
+    button.type = 'button';
+    button.addEventListener('click', async () => {
+      if (controller.busy || button.disabled) return;
+      controller.setBusy(true, action.loadingLabel || '処理中…');
+      try { await action.run?.(); }
+      catch (error) { controller.setFeedback(error?.message || '操作を完了できませんでした。', 'error'); }
+      finally { controller.setBusy(false); }
+    });
+    return button;
+  }
+
+  function renderCard(host, options = {}) {
+    if (!host?.ownerDocument) return null;
+    const document = host.ownerDocument;
+    host.replaceChildren();
+    host.dataset.syncJoinUiState = options.state || 'checking';
+    const status = STATUS[options.state] || STATUS.checking;
+    const card = document.createElement('section');
+    card.className = 'sound-cruise-sync-settings-card';
+    card.dataset.syncSettingsState = options.state || 'checking';
+    const header = document.createElement('header');
+    header.className = 'sound-cruise-sync-settings-head';
+    appendText(document, header, 'strong', 'sound-cruise-sync-settings-title', 'クラウド同期');
+    const help = appendText(document, header, 'button', 'sound-cruise-sync-help-button', '?');
+    help.type = 'button';
+    help.setAttribute('aria-label', 'クラウド同期のヘルプを開く');
+    help.addEventListener('click', () => openHelp({ document, privacyHref: options.privacyHref }));
+    const statusRow = document.createElement('div');
+    statusRow.className = 'sound-cruise-sync-status';
+    statusRow.dataset.syncAccountStatus = '';
+    statusRow.dataset.syncStatus = options.state || 'checking';
+    appendText(document, statusRow, 'span', 'sound-cruise-sync-status-dot', '●').setAttribute('aria-hidden', 'true');
+    appendText(document, statusRow, 'strong', '', options.statusLabel || status.label);
+    const description = appendText(document, card, 'p', 'sound-cruise-sync-description',
+      options.description === undefined ? status.description : options.description);
+    const actions = document.createElement('div');
+    actions.className = 'sound-cruise-sync-card-actions';
+    const feedback = appendText(document, card, 'p', 'sound-cruise-sync-feedback', '');
+    feedback.setAttribute('role', 'status');
+    feedback.setAttribute('aria-live', 'polite');
+    const controller = {
+      busy: false,
+      timer: null,
+      setBusy(value, label) {
+        this.busy = value;
+        card.dataset.syncBusy = value ? 'true' : 'false';
+        actions.querySelectorAll('button').forEach((node) => {
+          if (value) {
+            node.dataset.syncLabel = node.textContent;
+            node.textContent = label;
+            node.disabled = true;
+            node.setAttribute('aria-busy', 'true');
+          } else {
+            node.disabled = false;
+            node.removeAttribute('aria-busy');
+            if (node.dataset.syncLabel) node.textContent = node.dataset.syncLabel;
+            delete node.dataset.syncLabel;
+          }
+        });
+      },
+      setFeedback(message, kind = 'success', timeoutMs = 5000) {
+        feedback.textContent = message || '';
+        feedback.dataset.syncFeedback = message ? kind : '';
+        if (this.timer) global.clearTimeout(this.timer);
+        if (message && timeoutMs > 0) this.timer = global.setTimeout(() => {
+          if (feedback.textContent === message) feedback.textContent = '';
+          feedback.dataset.syncFeedback = '';
+        }, timeoutMs);
+      },
+      card
+    };
+    [options.primaryAction, options.secondaryAction].filter(Boolean)
+      .forEach((action) => actions.append(actionButton(document, action, controller)));
+    card.prepend(header, statusRow);
+    if (!description.textContent) description.hidden = true;
+    if (!actions.childElementCount) actions.hidden = true;
+    host.append(card);
+    return controller;
+  }
+
+  function createJoinDialog({ document = global.document, portUrl = '/apps/cruise-port/#sync-center', mode = 'join' } = {}) {
+    const dialog = document.createElement('dialog');
+    dialog.className = 'sound-cruise-sync-setup';
+    dialog.dataset.syncPhase = 'confirm';
+    const panel = document.createElement('form');
+    panel.method = 'dialog';
+    panel.className = 'sound-cruise-sync-setup-panel';
+    appendText(document, panel, 'h2', '', mode === 'join' ? '接続コードを入力' : 'クラウド同期');
+    appendText(document, panel, 'p', '', mode === 'join'
+      ? 'Cruise Portに表示された接続コードを入力してください。'
+      : 'このアプリをクラウド同期へ接続します。').dataset.syncSummary = '';
+    if (mode === 'join') {
+      const label = appendText(document, panel, 'label', 'sound-cruise-sync-join-field', '接続コード');
+      label.dataset.syncJoinField = '';
+      const input = document.createElement('input');
+      input.dataset.syncJoinCode = '';
+      input.dataset.sensitive = 'true';
+      input.setAttribute('data-sync-sensitive', 'join-code-input');
+      input.autocomplete = 'off';
+      input.autocapitalize = 'characters';
+      input.spellcheck = false;
+      label.append(input);
+    }
+    const error = appendText(document, panel, 'p', 'sound-cruise-sync-error', '');
+    error.dataset.syncError = '';
+    error.setAttribute('role', 'alert');
+    error.hidden = true;
+    const start = appendText(document, panel, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--primary', mode === 'join' ? '接続する' : '同期を開始');
+    start.type = 'button'; start.dataset.syncAction = 'start';
+    const continueButton = appendText(document, panel, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--primary', '閉じる');
+    continueButton.type = 'button'; continueButton.dataset.syncAction = 'continue'; continueButton.hidden = true;
+    const returnLink = appendText(document, panel, 'a', 'sound-cruise-sync-button sound-cruise-sync-button--secondary', 'Cruise Portに戻る');
+    returnLink.dataset.syncAction = 'return'; returnLink.href = portUrl; returnLink.hidden = true;
+    const cancel = appendText(document, panel, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--secondary', 'キャンセル');
+    cancel.value = 'cancel'; cancel.dataset.syncAction = 'cancel';
+    dialog.append(panel);
+    document.body.append(dialog);
+    return dialog;
+  }
+
+  global.SoundCruiseSyncUI = Object.freeze({
+    STATUS, HELP_SECTIONS, renderCard, openHelp, createJoinDialog,
+    temporaryFeedbackMs: 5000
+  });
+})(globalThis);

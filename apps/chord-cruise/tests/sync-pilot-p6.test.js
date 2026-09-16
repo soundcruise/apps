@@ -131,6 +131,6 @@ function response(status, body) { return { ok: status >= 200 && status < 300, st
     assert(uiSource.includes('クラウド削除を再確認'));
     assert(uiSource.includes('この端末の同期情報を削除'));
     assert(uiSource.includes('コードはこの端末に残ります'));
-    assert(uiSource.includes('同期中の端末'));
+    assert(uiSource.includes('同期中の環境'));
     console.log('sync-pilot-p6: device list/revoke, delete intent/local cleanup, automatic label, and separated UI passed');
 }()).catch(function (error) { console.error(error); process.exit(1); });

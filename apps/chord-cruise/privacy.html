@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>コードクルーズ | プライバシーポリシー</title>
-<link rel="stylesheet" href="./theme.css?v=1.9.2">
+<link rel="stylesheet" href="./theme.css?v=1.10.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -17,7 +17,7 @@
             <a class="cc-nav-btn cc-legal-back" href="./standard/index.html" data-cc-edition-home>🏠 ホームへ戻る</a>
         </nav>
         <h1>プライバシーポリシー</h1>
-        <p class="cc-legal-updated">最終更新日: 2026年9月13日</p>
+        <p class="cc-legal-updated">最終更新日: 2026年9月16日</p>
 
         <section>
             <h2>1. 基本方針</h2>
@@ -26,7 +26,7 @@
 
         <section>
             <h2>2. アプリ内で取得する情報</h2>
-            <p>本アプリでは、氏名、住所、電話番号などの個人情報をアプリ内で原則取得しません。ただし、お問い合わせ時には、メールアドレス、氏名または表示名、問い合わせ内容等を取得する場合があります。</p>
+            <p>氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。ただし、お問い合わせ時には、メールアドレス、氏名または表示名、問い合わせ内容等を取得する場合があります。</p>
         </section>
 
         <section>
@@ -42,26 +42,27 @@
         <section>
             <h2>5. Sound Cruise Sync（任意のクラウド同期）</h2>
             <p>Sound Cruise Sync を利用者が有効にした場合に限り、保存したコード、フォルダ、ライブラリの並び順、アプリ設定を、複数の端末またはブラウザ保存領域で同期するためクラウドへ送信・保存します。同期の利用は任意であり、通常のアプリ利用だけで全利用者の保存データをクラウドへ送信するものではありません。</p>
-            <p>同期の提供・保護・状態管理のため、ランダムに生成される同期用の利用者・端末識別子、データの更新履歴や版情報、端末接続、復旧、削除に関する管理情報も処理します。氏名やメールアドレスを用いたアカウント登録は求めません。</p>
+            <p>同期の提供・保護・状態管理のため、ランダムに生成される同期用の利用者・環境識別子、データの更新日時・変更履歴・版情報、環境接続、復旧、削除に関する管理情報も処理します。利用者が入力・作成した内容は同期対象データに含まれる場合があります。復旧用credentialと接続コードは本文ではなく検証用verifierを保存します。</p>
         </section>
 
         <section>
             <h2>6. 保存先・外部サービス</h2>
-            <p>Sound Cruise Sync では、クラウド同期データの処理・保存に Cloudflare Workers および Cloudflare D1 を利用します。また、不正利用防止のため、同期の開始、端末接続、復旧などで Cloudflare Turnstile を利用する場合があります。Cloudflare による情報の取扱いについては、<a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer">Cloudflare Privacy Policy</a> をご確認ください。</p>
+            <p>Sound Cruise Sync では、クラウド同期データの処理・保存に Cloudflare Workers および Cloudflare D1 を利用します。また、不正利用防止のため、同期の開始、環境接続、復旧などで Cloudflare Turnstile を利用する場合があります。Cloudflare による情報の取扱いについては、<a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener noreferrer">Cloudflare Privacy Policy</a> をご確認ください。</p>
+            <p>不正利用防止・rate limit等のため、IPアドレスを含む技術情報が処理される場合があります。</p>
             <p>GitHub Pages、YouTube、Google、ブラウザ、OS等の外部サービス・外部環境では、各提供者の規約やプライバシーポリシーが適用される場合があります。</p>
         </section>
 
         <section>
-            <h2>7. 端末接続と復旧</h2>
-            <p>別の端末またはブラウザ保存領域を同期に接続するため、短時間のみ有効な接続コードと端末識別情報を処理します。同期データを復旧するための復旧コードは、利用者自身で安全に保管してください。復旧コードと有効な同期端末の両方を失った場合、同期データを復旧できないことがあります。</p>
-            <p>復旧が完了すると、以前に同期していた端末は同期から解除され、新しい復旧コードが発行されます。</p>
+            <h2>7. 環境接続と復旧</h2>
+            <p>環境とは、同期に接続したブラウザ、ブラウザプロファイル、またはホーム画面版/PWAです。同じ端末でも保存領域が異なる場合は別の環境として扱います。別の環境を接続するため、短時間のみ有効な接続コードと環境識別情報を処理します。同期データを復旧するための復旧コードは、利用者自身で安全に保管してください。</p>
+            <p>現在有効な復旧コードは1つだけで、新しい復旧コードを発行すると以前のコードは無効になります。復旧が完了すると、以前に同期していた環境は同期から解除されます。</p>
         </section>
 
         <section>
             <h2>8. クラウド上の同期データの削除と保持期間</h2>
             <p>設定画面から、クラウド上の同期データを削除できます。削除を要求すると同期端末は解除され、クラウド上の同期データは削除処理の対象になります。安全な復旧処理のため、削除要求後7日間は削除待ちの状態で保持し、その後、物理削除の対象となります。</p>
             <p>クラウド上の同期データを削除しても、端末内の localStorage 等に保存されているコードや設定は自動では削除されません。端末内の保存データを削除する場合は、ブラウザのサイトデータ削除等を利用者自身で行ってください。</p>
-            <p>同期の更新履歴は、同期の提供・整合性維持のため、原則として90日間保持します。削除済みのデータに関する同期用記録は、一定期間を経て削除対象となります。</p>
+            <p>同期の更新履歴は原則90日間、削除済みデータに関する同期用記録（tombstone）は原則365日間保持します。環境の同期解除と、アプリ単位またはアカウント全体のクラウドデータ削除は別の操作です。</p>
         </section>
 
         <section>
@@ -80,6 +81,6 @@
         </section>
     </main>
 </div>
-<script src="./info-routing.js?v=1.9.2"></script>
+<script src="./info-routing.js?v=1.10.0"></script>
 </body>
 </html>

@@ -13,9 +13,9 @@ var helpSource = ui.slice(ui.indexOf('function showHelp()'), ui.indexOf('async f
 
 assert(ui.includes('data-sync-open'), 'Pro settings expose one compact Sync entry row');
 assert(ui.includes('data-sync-screen'), 'the Sync controls live in a dedicated subview');
-assert(ui.includes('別の端末を追加'), 'pairing uses device-oriented wording');
+assert(ui.includes('別の環境を追加'), 'pairing uses the common environment wording');
 assert(!ui.includes('別のアプリと同期'), 'the misleading pairing wording is removed');
-assert(ui.includes('復旧コードを更新'), 'Recovery Code rotation uses explicit wording');
+assert(ui.includes('新しい復旧コードを発行'), 'Recovery Code rotation uses explicit wording');
 assert(ui.includes('クラウド上の同期データを削除'), 'Cloud Delete has explicit cloud scope');
 assert(ui.includes('危険な操作'), 'Cloud Delete is separated into a danger section');
 assert(ui.includes('Step 1 / 4') && ui.includes('Step 2 / 4') && ui.includes('Step 3 / 4'), 'Recovery exposes its staged flow');

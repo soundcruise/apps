@@ -1,5 +1,7 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
 
+const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
+
 function setText(root, selector, value) {
     const element = root.querySelector(selector);
     if (element) element.textContent = value;
@@ -32,8 +34,8 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled) {
             action.type = 'button';
             action.dataset.syncAppAction = app.id;
         }
-        action.textContent = app.action === 'setup' ? '既存データを接続' : '開く';
-        action.setAttribute('aria-label', `${app.name}を${app.action === 'setup' ? '既存データと接続する' : '開く'}（${app.statusLabel}）`);
+        action.textContent = app.action === 'setup' ? '接続する' : 'アプリを開く';
+        action.setAttribute('aria-label', `${app.name}を${app.action === 'setup' ? '接続する' : '開く'}（${app.statusLabel}）`);
         if (app.action === 'none') {
             action.removeAttribute('href');
             action.setAttribute('aria-disabled', 'true');
@@ -124,7 +126,26 @@ function showJoinCode(root, result, onClose = async () => {}) {
     copy.type = 'button';
     copy.className = 'action-button primary-action';
     copy.textContent = 'コードをコピー';
-    copy.addEventListener('click', () => navigator.clipboard?.writeText(result.displayJoinCode));
+    const copyStatus = document.createElement('p');
+    copyStatus.setAttribute('role', 'status');
+    copyStatus.setAttribute('aria-live', 'polite');
+    let copyStatusTimer = null;
+    copy.addEventListener('click', async () => {
+        copy.disabled = true;
+        copy.setAttribute('aria-busy', 'true');
+        try {
+            if (!globalThis.navigator?.clipboard?.writeText) throw new Error('clipboard_unavailable');
+            await globalThis.navigator.clipboard.writeText(result.displayJoinCode);
+            copyStatus.textContent = 'コピーしました';
+        } catch (_) {
+            copyStatus.textContent = 'コピーできませんでした。コードを選択して保存してください。';
+        } finally {
+            copy.disabled = false;
+            copy.removeAttribute('aria-busy');
+            if (copyStatusTimer) globalThis.clearTimeout(copyStatusTimer);
+            copyStatusTimer = globalThis.setTimeout(() => { copyStatus.textContent = ''; }, TEMPORARY_FEEDBACK_MS);
+        }
+    });
     const open = document.createElement('a');
     open.href = result.appUrl;
     open.target = '_blank';
@@ -144,7 +165,7 @@ function showJoinCode(root, result, onClose = async () => {}) {
     const actions = document.createElement('div');
     actions.className = 'sync-center-join-actions';
     actions.append(copy, open, close);
-    panel.append(title, note, code, actions);
+    panel.append(title, note, code, actions, copyStatus);
     dialog.append(panel);
     root.append(dialog);
     dialog.showModal();
@@ -183,12 +204,35 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const recoverySummary = root?.querySelector?.('#sync-center-recovery-summary');
     const recoveryCandidate = root?.querySelector?.('#sync-center-recovery-candidate');
     const recoveryConfirm = root?.querySelector?.('#sync-center-recovery-confirm');
+    const setupCopy = root?.querySelector?.('#sync-center-setup-copy');
+    const setupCopyStatus = root?.querySelector?.('#sync-center-setup-copy-status');
+    const recoveryCopy = root?.querySelector?.('#sync-center-recovery-copy');
+    const recoveryCopyStatus = root?.querySelector?.('#sync-center-recovery-copy-status');
     const recoverySecret = recoveryInput && globalThis.SoundCruiseSyncAccount?.core
         ?.createSensitiveInputController?.(recoveryInput);
     const lifecycleDialog = root?.querySelector?.('#sync-center-lifecycle-confirm');
     const lifecycleSummary = root?.querySelector?.('#sync-center-lifecycle-summary');
     const lifecycleConfirm = root?.querySelector?.('#sync-center-lifecycle-submit');
     let lifecycleAction = null;
+    const copySensitiveOutput = async (button, status, value) => {
+        if (!button || !status) return;
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        try {
+            if (!value || !globalThis.navigator?.clipboard?.writeText) throw new Error('clipboard_unavailable');
+            await globalThis.navigator.clipboard.writeText(value);
+            status.textContent = 'コピーしました';
+        } catch (_) {
+            status.textContent = 'コピーできませんでした。コードを選択して保存してください。';
+        } finally {
+            button.disabled = false;
+            button.removeAttribute('aria-busy');
+            if (status._syncFeedbackTimer) globalThis.clearTimeout(status._syncFeedbackTimer);
+            status._syncFeedbackTimer = globalThis.setTimeout(() => { status.textContent = ''; }, TEMPORARY_FEEDBACK_MS);
+        }
+    };
+    setupCopy?.addEventListener('click', () => copySensitiveOutput(setupCopy, setupCopyStatus, recovery?.textContent || ''));
+    recoveryCopy?.addEventListener('click', () => copySensitiveOutput(recoveryCopy, recoveryCopyStatus, recoveryCandidate?.textContent || ''));
     const setPhase = (phase) => {
         setup.dataset.syncPhase = phase;
         if (confirm) confirm.dataset.syncAction = ['recovery', 'start-uncertain'].includes(phase)
@@ -232,12 +276,16 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     root?.querySelector?.('#sync-center-setup-open')?.addEventListener('click', () => {
         setPhase('introduction');
         if (recovery) { recovery.hidden = true; recovery.textContent = ''; }
+        if (setupCopy) setupCopy.hidden = true;
+        if (setupCopyStatus) setupCopyStatus.textContent = '';
         if (confirm) confirm.textContent = '復旧コードを確認';
         setup.showModal();
     });
     root?.querySelector?.('#sync-center-setup-close')?.addEventListener('click', () => {
         orchestrator?.discardAccountCandidate?.();
         if (recovery) recovery.textContent = '';
+        if (setupCopy) setupCopy.hidden = true;
+        if (setupCopyStatus) setupCopyStatus.textContent = '';
         setup.close();
     });
     confirm?.addEventListener('click', async () => {
@@ -271,6 +319,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 setPhase('recovery');
                 recovery.hidden = false;
                 recovery.textContent = candidate.recoveryCode;
+                if (setupCopy) setupCopy.hidden = false;
                 if (summary) summary.textContent = '復旧コードを安全な場所へ保存してください。保存確認後にAccountを作成します。';
                 confirm.textContent = '保存しました';
                 return;
@@ -279,6 +328,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             if (!turnstileToken) throw new Error('verification_required');
             recovery.textContent = '';
             recovery.hidden = true;
+            if (setupCopy) setupCopy.hidden = true;
             setPhase('starting');
             if (summary) summary.textContent = 'Sound Cruise Syncアカウントを作成しています…';
             await orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken });
@@ -359,6 +409,8 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         recoverySecret?.resolve();
         orchestrator?.discardRecoveryCandidate?.();
         if (recoveryCandidate) { recoveryCandidate.textContent = ''; recoveryCandidate.hidden = true; }
+        if (recoveryCopy) recoveryCopy.hidden = true;
+        if (recoveryCopyStatus) recoveryCopyStatus.textContent = '';
         if (recoveryDialog?.open) recoveryDialog.close();
     };
     root?.querySelector?.('#sync-center-recovery-open')?.addEventListener('click', async () => {
@@ -371,6 +423,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             recoverySummary.textContent = '保存済みのAccount Recovery Codeを入力してください。';
             recoveryCandidate.hidden = true;
             recoveryCandidate.textContent = '';
+            if (recoveryCopy) recoveryCopy.hidden = true;
             recoveryDialog.showModal();
         } catch (_) {
             setText(root, '#sync-center-action-status', '復旧を開始できませんでした。QA認証と通信状態を確認してください。');
@@ -402,6 +455,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 recoveryConfirm.dataset.syncAction = 'commit-recovery';
                 recoveryCandidate.textContent = orchestrator.recoveryCandidateCode();
                 recoveryCandidate.hidden = false;
+                if (recoveryCopy) recoveryCopy.hidden = false;
                 recoverySummary.textContent = '新しい復旧コードを安全な場所へ保存してください。次の操作で復旧が確定します。';
                 recoveryConfirm.textContent = '保存しました';
                 return;
@@ -409,6 +463,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             if (phase === 'candidate') {
                 recoveryCandidate.textContent = '';
                 recoveryCandidate.hidden = true;
+                if (recoveryCopy) recoveryCopy.hidden = true;
                 recoveryDialog.dataset.syncPhase = 'committing';
                 await orchestrator.commitRecovery({ recoverySaved: true });
                 recoveryDialog.dataset.syncPhase = 'complete';
@@ -423,6 +478,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             recoverySecret?.reject(error);
             recoveryCandidate.textContent = '';
             recoveryCandidate.hidden = true;
+            if (recoveryCopy) recoveryCopy.hidden = true;
             setText(root, '#sync-center-action-status', error?.message === 'verification_required'
                 ? '人間確認を完了してから続けてください。'
                 : '復旧を完了できませんでした。入力内容と通信状態を確認してください。');
@@ -435,7 +491,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         lifecycleAction = action;
         lifecycleDialog.dataset.syncPhase = 'review';
         lifecycleConfirm.dataset.syncAction = action.kind === 'environment' ? 'revoke-environment' : 'issue-delete-intent';
-        lifecycleConfirm.textContent = action.kind === 'environment' ? '同期を解除' : '削除手続きを続ける';
+        lifecycleConfirm.textContent = action.kind === 'environment' ? '同期を解除' : '削除内容を確認';
         lifecycleSummary.textContent = action.summary;
         lifecycleDialog.showModal();
     };
@@ -485,8 +541,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 await orchestrator.issueDelete(lifecycleAction.scope, lifecycleAction.appId);
                 lifecycleDialog.dataset.syncPhase = 'confirm';
                 lifecycleConfirm.dataset.syncAction = 'commit-delete';
-                lifecycleConfirm.textContent = lifecycleAction.scope === 'account'
-                    ? 'Account全体の削除を確定' : 'このアプリの削除を確定';
+                lifecycleConfirm.textContent = '削除を確定';
                 lifecycleSummary.textContent += ' この操作を確定すると復旧コードでは取り消せません。';
                 return;
             }

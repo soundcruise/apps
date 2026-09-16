@@ -141,8 +141,10 @@ test('completed Account-managed Chord containers suppress the Join entry across 
   assert(restoringGuard > completeGuard, 'the completed guard runs before the restoring/pending branch');
   assert(genericJoin > restoringGuard, 'the generic Join entry remains only as the final unconnected fallback');
   const completedBranch = source.slice(completeGuard, restoringGuard);
-  assert.match(completedBranch, /ensurePairingUi\(\)/, 'runtime restoring loads and refreshes existing Sync UI instead of exposing Join');
-  assert.match(completedBranch, /removeJoinEntry\(\)/, 'a completed Account-managed environment removes stale Join UI');
+  assert.match(completedBranch, /showAttentionSettings\(\)|showConnectedJoinSettings\(\)/,
+    'runtime restoring uses the common card and preserves the attention branch instead of exposing Join');
+  assert.doesNotMatch(completedBranch, /ensurePairingUi\(\)/,
+    'the large legacy management UI is not installed for a normal Account-managed environment');
   assert.match(completedBranch, /return;/, 'completed B cannot fall through to generic Join installation');
   const restoringBranch = source.slice(restoringGuard, genericJoin);
   assert.match(restoringBranch, /resumeAccountManagedHydrate\(\)/,
@@ -201,12 +203,12 @@ test('connected startup and successful Join immediately replace Join UI with a s
     'shared Join success updates settings without reload');
   assert.match(bootstrap, /joinSecret\?\.resolve\(\);[\s\S]{0,180}joinField\.remove\(\)/,
     'successful Join destroys the retry secret and input field');
-  assert.match(bootstrap, /state: 'connected', status: '同期済み', action: null/);
+  assert.match(bootstrap, /state: 'ready', status: '同期済み', action: null/);
   assert.match(bootstrap, /restored\.state === 'connected'[\s\S]{0,220}showConnectedSettings\(\)/,
     'reload restores synced state without Join entry');
   assert.match(bootstrap, /showPendingSettings\(\)[\s\S]{0,220}initializeDataset\(\)[\s\S]{0,220}showConnectedSettings\(\)/,
     'pair-pending hydrate reaches synced state only after completion');
-  assert.match(chord, /joinSecret\.resolve\(\);[\s\S]{0,180}input\.remove\(\);[\s\S]{0,180}showConnectedJoinSettings\(\)/,
+  assert.match(chord, /joinSecret\.resolve\(\);[\s\S]{0,180}input\.remove\(\);[\s\S]{0,220}(?:showAttentionSettings|showConnectedJoinSettings)\(\)/,
     'Chord Join success destroys its input before refreshing Account-managed UI');
   assert.match(pairing, /querySelector\('\[data-sync-join-entry-host\]'\)/);
   assert.match(pairing, /host\.appendChild\(section\)/,

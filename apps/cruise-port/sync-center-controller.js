@@ -124,7 +124,7 @@ export function createUnsetPresentation() {
         kind: 'unset',
         accountState: 'unset',
         accountLabel: 'Sound Cruise Syncは未設定です',
-        accountDescription: 'Cruiseアプリのデータを、対応する環境間で同期できます。',
+        accountDescription: '4つのProアプリをクラウド同期できます。',
         recoveryVersion: null,
         apps: Object.freeze(SYNC_CENTER_APPS.map((app) => normalizeApp(app, null))),
         readyCount: 0,

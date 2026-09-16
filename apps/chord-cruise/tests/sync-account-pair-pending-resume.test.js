@@ -43,7 +43,10 @@ async function runStartup(options) {
     var document = {
         readyState: 'complete',
         querySelector: function () { return null; },
-        createElement: function () { calls.createElement += 1; throw new Error('must not create Join UI'); },
+        createElement: function () {
+            calls.createElement += 1;
+            return { disabled: false, type: '', textContent: '', addEventListener: function () {}, click: function () {} };
+        },
         body: { append: function () { throw new Error('must not append Join UI'); } }
     };
     var window = {
@@ -82,25 +85,25 @@ async function runStartup(options) {
     assert.strictEqual(emptyResume.adopt, 0, 'reload never re-adopts or creates a device');
     assert.strictEqual(emptyResume.begin, 0, 'existing ready Cloud data never enters initial migration');
     assert.strictEqual(emptyResume.consume, 0, 'reload never consumes another Join');
-    assert.strictEqual(emptyResume.ensureUi, 1, 'management UI is restored after credential persistence');
+    assert.strictEqual(emptyResume.ensureUi, 0, 'normal Account-managed hydrate does not install legacy management UI');
     assert.strictEqual(emptyResume.createElement, 0, 'pair_pending is not rendered as an unconnected Join entry');
 
     var meaningfulResume = await runStartup({
         resumeResult: { ok: true, completed: false, requiresConfirmation: true, localState: 'local_data_pending_merge' }
     });
     assert.strictEqual(meaningfulResume.resume, 1);
-    assert.strictEqual(meaningfulResume.refresh, 1, 'meaningful local data is exposed through the existing confirmation UI');
-    assert.strictEqual(meaningfulResume.createElement, 0);
+    assert.strictEqual(meaningfulResume.ensureUi, 0, 'confirmation starts from the common Account-managed card');
+    assert.strictEqual(meaningfulResume.createElement, 1, 'confirmation creates only the common card action');
 
     var fetchFailure = await runStartup({ resumeResult: { ok: false, code: 'server_error' } });
     assert.strictEqual(fetchFailure.resume, 1);
-    assert(fetchFailure.ensureUi >= 1, 'failed hydrate remains visible as attention/retry state');
-    assert.strictEqual(fetchFailure.createElement, 0, 'failed hydrate never falls back to Join-code input');
+    assert.strictEqual(fetchFailure.ensureUi, 0, 'failed hydrate remains in the common attention/retry state');
+    assert.strictEqual(fetchFailure.createElement, 1, 'failed hydrate creates only the common retry action');
 
     var completed = await runStartup({ migrationState: 'complete' });
     assert.strictEqual(completed.resume, 0, 'completed reload never rehydrates');
-    assert.strictEqual(completed.ensureUi, 1);
-    assert.strictEqual(completed.refresh, 1);
+    assert.strictEqual(completed.ensureUi, 0);
+    assert.strictEqual(completed.refresh, 0);
     assert.strictEqual(completed.createElement, 0, 'completed Account-managed Chord suppresses Join entry');
 
     console.log('sync-account-pair-pending-resume: existing B hydrate resume and Join suppression passed');

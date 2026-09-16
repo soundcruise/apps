@@ -2,6 +2,7 @@
     'use strict';
 
     var refreshCurrent = null;
+    var openAttentionCurrent = null;
 
     function tokenFor(action) {
         var provider = global.__SOUND_CRUISE_SYNC_GET_TURNSTILE_TOKEN__;
@@ -113,7 +114,7 @@
                 transientTimer = global.setTimeout(function () {
                     transientResult = '';
                     if (result.textContent === message) result.textContent = '';
-                }, 5500);
+                }, global.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000);
             }
         }
 
@@ -247,7 +248,7 @@
                 { name: 'chords', text: 'クラウドに保存されているコード：' + summary.chordCount + '件' },
                 { name: 'folders', text: 'フォルダ：' + summary.folderCount + '件' },
                 { name: 'records', text: '同期データ：' + summary.recordCount + '件' },
-                { name: 'devices', text: '同期中の端末：' + summary.activeDeviceCount + '台' },
+                { name: 'devices', text: '同期中の環境：' + summary.activeDeviceCount + '件' },
                 { name: 'updated-at', text: '最終更新：' + formatLastSeen(summary.updatedAt) }
             ].forEach(function (item) {
                 var detail = global.document.createElement('p');
@@ -326,11 +327,11 @@
 
         function appendConnectedActions() {
             var everyday = actionGroup('', '', 'cc-sync-action-group--everyday');
-            everyday.appendChild(button('別の端末を追加', issueCode, 'cc-sync-primary-action'));
-            everyday.appendChild(button('同期中の端末', showDevices));
+            everyday.appendChild(button('別の環境を追加', issueCode, 'cc-sync-primary-action'));
+            everyday.appendChild(button('同期中の環境', showDevices));
 
-            var security = actionGroup('復旧と安全', '復旧コードを更新すると、現在のコードは使えなくなります。');
-            security.appendChild(button('復旧コードを更新', regenerateRecoveryCode));
+            var security = actionGroup('復旧と安全', '新しい復旧コードを発行すると、現在のコードは使えなくなります。');
+            security.appendChild(button('新しい復旧コードを発行', regenerateRecoveryCode));
             security.appendChild(button('この端末の同期を解除', function () { disconnectAfterConfirmation(false); }));
 
             var danger = actionGroup('危険な操作', 'クラウド上の同期データを削除します。この端末に保存されているコードは削除されません。削除要求から7日後に完全削除の対象になります。', 'cc-sync-action-group--danger');
@@ -342,7 +343,7 @@
             setStatus('クラウド同期のヘルプ', '必要な項目だけ確認できます。');
             [
                 ['クラウド同期とは？', '保存したコード、フォルダ、並び順、対応設定を対応する端末間で同期できます。'],
-                ['別の端末で使うには？', '同期済みの端末で「別の端末を追加」を選び、表示された接続コードを新しい端末へ入力します。'],
+                ['別の環境で使うには？', '同期済みの環境で「別の環境を追加」を選び、表示された接続コードを新しい環境へ入力します。'],
                 ['復旧コードとは？', '端末を失った場合などにクラウド上のデータを復旧するためのコードです。本人だけが確認できる安全な場所に保存し、運営者へ送らないでください。'],
                 ['同期解除とは？', 'この端末の同期資格だけを解除します。この端末に保存されたコードとクラウド上のデータは削除されません。'],
                 ['クラウドデータ削除とは？', 'クラウド上の同期データの削除を要求します。端末内のコードは自動削除されず、クラウド側は7日後に完全削除の対象になります。']
@@ -390,7 +391,7 @@
 
         async function showDevices() {
             clearActionsForDecision();
-            setStatus('同期中の端末', 'この端末と接続済みの端末を確認できます。');
+            setStatus('同期中の環境', 'この環境と接続済みの環境を確認できます。');
             var listed = await client.listDevices();
             if (!listed.ok) { result.textContent = messageFor(listed.code); actions.appendChild(button('戻る', render)); return; }
             listed.devices.forEach(function (device) {
@@ -655,7 +656,7 @@
             pairingCodeTimer = null;
             var issued = await client.issuePairingCode();
             if (!issued.ok) { result.textContent = messageFor(issued.code); return; }
-            setStatus('別の端末を追加', '別のChord Cruiseで、この8桁の接続コードを入力してください。');
+            setStatus('別の環境を追加', '別のChord Cruise環境で、この8桁の接続コードを入力してください。');
             actions.textContent = '';
             var output = global.document.createElement('output');
             output.className = 'cc-settings-note';
@@ -760,6 +761,11 @@
         }
 
         refreshCurrent = refresh;
+        openAttentionCurrent = function () {
+            return Promise.resolve(showScreen()).then(function () {
+                return showMergePreview();
+            });
+        };
         refresh();
         return true;
     }
@@ -767,6 +773,7 @@
     global.ChordCruiseSync = global.ChordCruiseSync || {};
     global.ChordCruiseSync.pairingUi = Object.freeze({
         install: install,
-        refresh: function () { return refreshCurrent ? refreshCurrent() : Promise.resolve(false); }
+        refresh: function () { return refreshCurrent ? refreshCurrent() : Promise.resolve(false); },
+        openAttention: function () { return openAttentionCurrent ? openAttentionCurrent() : Promise.resolve(false); }
     });
 }(typeof window !== 'undefined' ? window : globalThis));

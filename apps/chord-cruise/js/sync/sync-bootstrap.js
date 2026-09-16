@@ -82,7 +82,7 @@
             return Promise.resolve(true);
         }
         if (!managementUiPromise) {
-            managementUiPromise = loadScript('sync-pairing-ui.js?v=1.9.2').then(function () {
+            managementUiPromise = loadScript('sync-pairing-ui.js?v=1.10.0').then(function () {
                 if (!global.ChordCruiseSync || !global.ChordCruiseSync.pairingUi) return false;
                 global.ChordCruiseSync.pairingUi.install(activeClient);
                 return true;
@@ -99,7 +99,7 @@
         ready = loadScript('sync-core.js')
             .then(function () { return loadScript('sync-db.js'); })
             .then(function () { return loadScript('sync-merge.js'); })
-            .then(function () { return loadScript('sync-client.js?v=1.9.2'); })
+            .then(function () { return loadScript('sync-client.js?v=1.10.0'); })
             .then(function () {
                 var production = isProductionHost();
                 var endpoint = production
@@ -115,11 +115,16 @@
                     client.watchLocalMutations(global.ChordCruise && global.ChordCruise.storage);
                     var store = await client.openStore();
                     var credential = await store.getMeta('deviceCredential');
+                    var accountManagedSetup = await store.getMeta('accountManagedSetup');
                     if (await store.getMeta('datasetState') === 'ready') client.startBackgroundSync();
                     if (production && !PRODUCTION_ROLLOUT.legacyNewAdmissionEnabled &&
                         !(credential && credential.credential)) {
                         return result;
                     }
+                    // Account-managed environments use the common settings card.
+                    // The dedicated Chord screen remains available on demand for
+                    // legacy management and semantic-merge confirmation.
+                    if (accountManagedSetup === true) return result;
                     return ensureManagementUi().then(function () {
                         return result;
                     });

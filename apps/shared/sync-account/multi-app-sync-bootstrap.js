@@ -3,6 +3,7 @@
 
   const syncRoot = global.SoundCruiseMultiAppSync = global.SoundCruiseMultiAppSync || {};
   const accountRoot = global.SoundCruiseSyncAccount;
+  const syncUi = global.SoundCruiseSyncUI;
   const APP_ROOTS = Object.freeze({
     pitch: ['SoundCruisePitchSync', 'PitchSyncAdapter'],
     rhythm: ['SoundCruiseRhythmSync', 'RhythmSyncAdapter'],
@@ -43,21 +44,22 @@
   }
 
   function createLanding(appId, portUrl, mode = 'handoff') {
+    if (syncUi?.createJoinDialog) return syncUi.createJoinDialog({ portUrl, mode });
     const dialog = document.createElement('dialog');
     dialog.className = 'sound-cruise-sync-setup';
     dialog.dataset.syncPhase = 'confirm';
     dialog.innerHTML = `
       <form method="dialog" class="sound-cruise-sync-setup-panel">
-        <h2>Sound Cruise Sync</h2>
+        <h2>${mode === 'join' ? '接続コードを入力' : 'クラウド同期'}</h2>
         <p data-sync-summary>${mode === 'join' ? 'Cruise Portに表示された既存データ接続コードを入力してください。' : 'このアプリをクラウド同期します。保存内容はこのアプリ内で確認し、安全に初回同期します。'}</p>
         <label data-sync-join-field ${mode === 'join' ? '' : 'hidden'}>接続コード
           <input data-sync-join-code autocomplete="off" autocapitalize="characters" spellcheck="false" data-sensitive="true" data-sync-sensitive="join-code-input">
         </label>
         <p data-sync-error role="alert" hidden></p>
-        <button type="button" data-sync-action="start">${mode === 'join' ? '既存データを接続' : '初回同期を開始'}</button>
+        <button type="button" data-sync-action="start">${mode === 'join' ? '接続する' : '同期を開始'}</button>
         <button type="button" data-sync-action="continue" hidden>通常アプリへ進む</button>
         <a data-sync-action="return" href="${portUrl}" hidden>Cruise Portに戻る</a>
-        <button value="cancel" data-sync-action="cancel">今は行わない</button>
+        <button value="cancel" data-sync-action="cancel">キャンセル</button>
       </form>`;
     document.body.append(dialog);
     return dialog;
@@ -67,7 +69,26 @@
     if (!settingsPresentation) return false;
     const host = document.querySelector(JOIN_HOST_SELECTOR);
     if (!host) return false;
-    if (host.dataset.syncJoinUiState === settingsPresentation.state) return true;
+    if (host.dataset.syncJoinUiState === settingsPresentation.state &&
+        host.dataset.syncJoinUiAction === (settingsPresentation.action?.label || '')) return true;
+    if (syncUi?.renderCard) {
+      syncUi.renderCard(host, {
+        state: settingsPresentation.state,
+        statusLabel: settingsPresentation.status,
+        description: settingsPresentation.description,
+        privacyHref: '../privacy.html?edition=pro',
+        primaryAction: settingsPresentation.action ? {
+          label: settingsPresentation.action.label,
+          kind: 'primary',
+          run: settingsPresentation.action.run
+        } : null,
+        secondaryAction: settingsPresentation.manage ? {
+          label: 'Cruise Portで管理', kind: 'secondary', href: settingsPresentation.manage
+        } : null
+      });
+      host.dataset.syncJoinUiAction = settingsPresentation.action?.label || '';
+      return true;
+    }
     host.textContent = '';
     host.dataset.syncJoinUiState = settingsPresentation.state;
     const section = document.createElement('section');
@@ -105,11 +126,36 @@
   }
 
   function showConnectedSettings() {
-    setSettingsPresentation({ state: 'connected', status: '同期済み', action: null });
+    const config = readConfig();
+    setSettingsPresentation({ state: 'ready', status: '同期済み', action: null, manage: config?.portUrl });
   }
 
   function showPendingSettings() {
-    setSettingsPresentation({ state: 'pending', status: '同期設定を再開しています…', action: null });
+    setSettingsPresentation({ state: 'connecting', status: '接続中', action: null });
+  }
+
+  function bindSettingsRuntime(runtime, conflictController, config) {
+    const show = (state, detail = {}) => {
+      if (state === 'ready') return showConnectedSettings();
+      if (state === 'syncing') return setSettingsPresentation({ state: 'syncing', status: '同期中' });
+      if (state === 'paused') return setSettingsPresentation({ state: 'paused', status: '一時停止中' });
+      if (state === 'credential_invalid') return setSettingsPresentation({
+        state: 'reconnect', status: '再接続が必要',
+        action: { label: 'Cruise Portと接続', run: () => global.location.assign(config.portUrl) }
+      });
+      if (state === 'attention') return setSettingsPresentation({
+        state: 'attention', status: '確認が必要',
+        action: detail.reason === 'conflict' && conflictController
+          ? { label: '内容を確認', run: () => conflictController.refresh() }
+          : { label: 'もう一度確認', run: () => runtime.sync('manual_retry') }
+      });
+    };
+    runtime.addEventListener('statechange', (event) => show(event.detail?.state, event.detail));
+    global.addEventListener?.('offline', () => setSettingsPresentation({ state: 'offline', status: 'オフライン' }));
+    global.addEventListener?.('online', () => {
+      setSettingsPresentation({ state: 'checking', status: '同期を確認中' });
+      runtime.sync('online').catch(() => {});
+    });
   }
 
   function bindLanding(dialog, config, runtime, mode) {
@@ -175,6 +221,7 @@
     setSettingsPresentation({
       state: 'unconnected',
       status: '未接続',
+      description: 'Cruise Portからこのアプリを接続できます。',
       action: { label: 'Cruise Portと接続', run: () => {
       const dialog = createLanding(config.appId, config.portUrl, 'join');
       bindLanding(dialog, config, runtime, 'join');
@@ -184,16 +231,11 @@
   }
 
   function installRestoreAttention() {
-    if (document.querySelector('[data-sync-restore-attention]')) return;
-    const notice = document.createElement('section');
-    notice.className = 'sound-cruise-sync-restore-attention';
-    notice.dataset.syncRestoreAttention = '';
-    notice.setAttribute('role', 'status');
-    notice.innerHTML = `
-      <p>同期状態を確認できませんでした。</p>
-      <button type="button" data-sync-action="retry-restore">もう一度確認</button>`;
-    notice.querySelector('[data-sync-action="retry-restore"]').addEventListener('click', () => global.location.reload());
-    document.body.append(notice);
+    setSettingsPresentation({
+      state: 'attention', status: '確認が必要',
+      description: '同期状態を確認できませんでした。',
+      action: { label: 'もう一度確認', run: () => global.location.reload() }
+    });
   }
 
   async function resolveStartupState(runtime, store, accountClient, accountCore) {
@@ -256,7 +298,8 @@
       adapter: new AdapterClass(), store, accountClient, accountCore: accountRoot.core,
       admissionMode: config.admissionMode
     });
-    syncRoot.installConflictResolutionUi?.(runtime, document);
+    const conflictController = syncRoot.installConflictResolutionUi?.(runtime, document);
+    bindSettingsRuntime(runtime, conflictController, config);
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
     syncRoot.runtimes[config.appId] = runtime;
     const restored = await resolveStartupState(runtime, store, accountClient, accountRoot.core);
