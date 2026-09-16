@@ -228,24 +228,53 @@
       return promoteNewAppConsume(resumed);
     }
 
-    async function connectWithJoin(joinCode) {
-      const chordStore = await chordClient.openStore();
-      const existing = await chordStore.getMeta('deviceCredential');
-      if (existing?.credential) {
-        const consumed = await accountClient.consumeJoinInvitation({
-          joinCode, appId: 'chord', deviceLabel: 'Chord Cruise',
-          consumeMode: 'existing_chord', existingAppCredential: existing.credential,
-          preservePending: true
-        });
-        if (consumed.operation !== 'bridge_required') throw new Error('bridge_required');
-        await finishExistingBridge(existing, consumed);
-        return;
-      }
+    function canRetryAsNewChordEnvironment(reason) {
+      // A legacy Chord credential can remain in this browser after its former
+      // remote device was revoked. It cannot be bridged, but the user's local
+      // data is still safe to connect through the normal Account-managed flow.
+      return reason?.code === 'invalid_app_credential' || reason?.code === 'membership_state_invalid';
+    }
+
+    async function connectAsNewChordEnvironment(joinCode) {
       const consumed = await accountClient.consumeJoinInvitation({
         joinCode, appId: 'chord', deviceLabel: 'Chord Cruise',
         consumeMode: 'new_app', preservePending: true
       });
       return promoteNewAppConsume(consumed);
+    }
+
+    function joinFailureMessage(reason) {
+      const messages = {
+        app_join_expired: '接続コードの有効期限が切れました。Cruise Portで新しいコードを発行してください。',
+        app_join_cancelled: '接続コードは取り消されました。Cruise Portで新しいコードを発行してください。',
+        app_join_consumed: 'この接続コードはすでに使用されています。Cruise Portで新しいコードを発行してください。',
+        wrong_app: 'このコードは別のアプリ用です。コードクルーズの同期コードを使用してください。',
+        app_join_already_active: 'コードクルーズの接続コードがすでに開かれています。Cruise Portで状態を確認してください。',
+        account_runtime_paused: '現在、新しいクラウド同期の受付を一時停止しています。',
+        rate_limited: '少し時間をおいてから、もう一度お試しください。'
+      };
+      return messages[reason?.code] || '接続を完了できませんでした。データは削除していません。';
+    }
+
+    async function connectWithJoin(joinCode) {
+      const chordStore = await chordClient.openStore();
+      const existing = await chordStore.getMeta('deviceCredential');
+      if (existing?.credential) {
+        try {
+          const consumed = await accountClient.consumeJoinInvitation({
+            joinCode, appId: 'chord', deviceLabel: 'Chord Cruise',
+            consumeMode: 'existing_chord', existingAppCredential: existing.credential,
+            preservePending: true
+          });
+          if (consumed.operation !== 'bridge_required') throw new Error('bridge_required');
+          await finishExistingBridge(existing, consumed);
+          return;
+        } catch (reason) {
+          if (!canRetryAsNewChordEnvironment(reason)) throw reason;
+          return connectAsNewChordEnvironment(joinCode);
+        }
+      }
+      return connectAsNewChordEnvironment(joinCode);
     }
 
     function completeJoinDialog(dialog, summary, start, resume, result) {
@@ -354,7 +383,7 @@
             }
             joinSecret.reject(reason);
             error.hidden = false;
-            error.textContent = '接続を完了できませんでした。データは削除していません。';
+            error.textContent = joinFailureMessage(reason);
             start.disabled = false;
           }
         });

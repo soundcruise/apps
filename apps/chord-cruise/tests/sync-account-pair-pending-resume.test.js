@@ -15,6 +15,13 @@ async function settle() {
     await new Promise(function (resolve) { setImmediate(resolve); });
 }
 
+assert.match(source, /function canRetryAsNewChordEnvironment\(reason\)[\s\S]*?reason\?\.code === 'invalid_app_credential'[\s\S]*?reason\?\.code === 'membership_state_invalid'/,
+    'a retired legacy Chord credential can safely fall back to the Account-managed Join flow');
+assert.match(source, /if \(!canRetryAsNewChordEnvironment\(reason\)\) throw reason;[\s\S]*?return connectAsNewChordEnvironment\(joinCode\);/,
+    'only the stale legacy-device failure uses the new-environment fallback');
+assert.match(source, /app_join_expired: '接続コードの有効期限が切れました。Cruise Portで新しいコードを発行してください。'/,
+    'safe Join status feedback remains available without revealing the code');
+
 async function runStartup(options) {
     var config = options || {};
     var calls = { resume: 0, adopt: 0, begin: 0, ensureUi: 0, refresh: 0, createElement: 0, consume: 0 };
