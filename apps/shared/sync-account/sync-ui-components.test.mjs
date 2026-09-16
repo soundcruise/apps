@@ -17,16 +17,16 @@ const appHtml = [
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
     assert.match(html, /sync-ui-components\.js\?v=2/);
-    assert.match(html, /multi-app-sync\.css\?v=10/);
+    assert.match(html, /multi-app-sync\.css\?v=11/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
   assert.match(renderer, /sound-cruise-sync-settings-head/);
   assert.match(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
   for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=13/);
-  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v18/);
-  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.3/);
-  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v5/);
+  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v19/);
+  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.4/);
+  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v6/);
 });
 
 test('shared status, description and button copy is exact', () => {
@@ -105,6 +105,9 @@ test('all four Pro apps expose one shared bottom TOP action and Standard remains
   assert.match(readFileSync(new URL('chord-cruise/js/app.js', root), 'utf8'), /bottomTopBtn[\s\S]*showScreen\('home'\)/);
   assert.match(readFileSync(new URL('pitch-cruise/script.js', root), 'utf8'), /pitch-bottom-top[\s\S]*showHomeScreen\(\)/);
   assert.match(readFileSync(new URL('fretboard_cruise/script.js', root), 'utf8'), /fretboard-bottom-top[\s\S]*state\.course = null[\s\S]*renderApp\(\)/);
+  assert.match(appHtml[2], /sound-cruise-app-bottom-shell[\s\S]*id="app"[\s\S]*fretboard-bottom-top[\s\S]*in-game-refresh-bar/,
+    'Fretboard keeps the dynamic app, TOP action and refresh bar in one vertical flex item');
+  assert.match(css, /\.sound-cruise-app-bottom-shell[\s\S]*flex-direction:\s*column[\s\S]*width:\s*100%[\s\S]*min-width:\s*0/);
   assert.match(readFileSync(new URL('rhythm-cruise/script.js', root), 'utf8'), /bottomTopBtn[\s\S]*guardMicSetupInterruption\(goTop\)/);
 });
 
