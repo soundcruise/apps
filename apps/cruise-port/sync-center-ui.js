@@ -7,7 +7,7 @@ function setText(root, selector, value) {
     if (element) element.textContent = value;
 }
 
-function renderAppRows(root, presentation, edition, orchestrationEnabled) {
+function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction = null) {
     const list = root.querySelector('#sync-center-apps');
     if (!list) return;
     const rows = presentation.apps.map((app) => {
@@ -33,6 +33,12 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled) {
         else {
             action.type = 'button';
             action.dataset.syncAppAction = app.id;
+            if (typeof onAppAction === 'function') {
+                action.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    void onAppAction(action);
+                });
+            }
         }
         // Prepared memberships use the same launch callback as normal rows, but
         // opening them issues the initial connection code. Keep that callback
@@ -190,12 +196,16 @@ function showJoinCode(root, result, onClose = async () => {}) {
     dialog.showModal();
 }
 
-export function renderSyncCenter(root, presentation, { edition = 'standard', orchestrationEnabled = false } = {}) {
+export function renderSyncCenter(root, presentation, {
+    edition = 'standard', orchestrationEnabled = false, onAppAction = null
+} = {}) {
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
     const accountStatus = root.querySelector('#sync-center-account-status');
     const setupOpen = root.querySelector('#sync-center-setup-open');
     const accountRecoveryOpen = root.querySelector('#sync-center-account-recovery-open');
+    const accountRecoveryHelpToggle = root.querySelector('#sync-center-account-recovery-help-toggle');
+    const accountRecoveryHelp = root.querySelector('#sync-center-account-recovery-help');
     const accountState = presentation.accountState;
     if (accountStatus) {
         accountStatus.textContent = accountState === 'unset' ? '未作成' :
@@ -209,6 +219,11 @@ export function renderSyncCenter(root, presentation, { edition = 'standard', orc
         accountRecoveryOpen.hidden = accountState !== 'active';
         accountRecoveryOpen.textContent = '復旧コードを更新';
     }
+    if (accountRecoveryHelpToggle) {
+        accountRecoveryHelpToggle.hidden = accountState !== 'active';
+        accountRecoveryHelpToggle.setAttribute('aria-expanded', 'false');
+    }
+    if (accountRecoveryHelp) accountRecoveryHelp.hidden = true;
     const alert = root.querySelector('#sync-center-alert');
     if (alert) {
         alert.hidden = !['error', 'offline'].includes(presentation.kind);
@@ -216,7 +231,7 @@ export function renderSyncCenter(root, presentation, { edition = 'standard', orc
             ? 'オフラインのため同期情報を更新できません。各アプリとCruise Portはそのまま利用できます。'
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }
-    renderAppRows(root, presentation, edition, orchestrationEnabled);
+    renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction);
     renderEnvironments(root, presentation);
     renderDangerActions(root, presentation);
 }
@@ -426,6 +441,25 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 : '準備を完了できませんでした。成功済みの設定は保持されています。もう一度お試しください。');
         } finally { confirm.disabled = false; }
     });
+    const issueAppJoin = async (button) => {
+        if (!button || !orchestrator?.enabled) return;
+        button.disabled = true;
+        try {
+            const result = await orchestrator.launch(button.dataset.syncAppAction);
+            if (result?.kind === 'join') {
+                showJoinCode(root, result, async () => {
+                    try { await orchestrator.cancelJoin(result.invitationId); }
+                    catch (_) { /* consumed, expired, or already cancelled */ }
+                    button.disabled = false;
+                    await refresh();
+                });
+            }
+        }
+        catch (_) {
+            button.disabled = false;
+            setText(root, '#sync-center-action-status', '同期コードを表示できませんでした。同期状態を確認してください。');
+        }
+    };
     root?.addEventListener?.('click', async (event) => {
         const environmentToggle = event.target.closest?.('[data-sync-environments-toggle]');
         if (environmentToggle) {
@@ -455,23 +489,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             return;
         }
         const button = event.target.closest?.('[data-sync-app-action]');
-        if (!button || !orchestrator?.enabled) return;
-        button.disabled = true;
-        try {
-            const result = await orchestrator.launch(button.dataset.syncAppAction);
-            if (result?.kind === 'join') {
-                showJoinCode(root, result, async () => {
-                    try { await orchestrator.cancelJoin(result.invitationId); }
-                    catch (_) { /* consumed, expired, or already cancelled */ }
-                    button.disabled = false;
-                    await refresh();
-                });
-            }
-        }
-        catch (_) {
-            button.disabled = false;
-            setText(root, '#sync-center-action-status', '同期コードを表示できませんでした。通信状態を確認してください。');
-        }
+        await issueAppJoin(button);
     });
     root?.querySelectorAll?.('[data-sync-center-unavailable]').forEach((button) => {
         button.addEventListener('click', () => {
@@ -686,7 +704,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             lifecycleConfirm.disabled = false;
         }
     });
-    return Object.freeze({ ensureQaAdmission });
+    return Object.freeze({ ensureQaAdmission, onAppAction: issueAppJoin });
 }
 
 export const bindSyncCenterUnavailableActions = bindSyncCenterActions;

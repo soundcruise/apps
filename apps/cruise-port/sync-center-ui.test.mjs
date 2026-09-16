@@ -95,6 +95,10 @@ test('Account section presents step title, status chip and state-specific CTA', 
         assert.match(account, /sync-center-account-status/);
         assert.match(account, /アカウントの作成/);
         assert.match(account, /復旧コードを更新/);
+        assert.match(account, /sync-center-account-actions/);
+        assert.match(account, /sync-center-account-recovery-help-toggle/);
+        assert.match(account, /id="sync-center-account-recovery-help"[^>]*hidden/);
+        assert.match(account, /Cruise Portに接続できている間は、現在のコードを知らなくても新しいコードに更新できます。/);
         assert.doesNotMatch(account, /復旧コードの確認/);
         assert.doesNotMatch(account, /Sound Cruise Sync 接続済み/);
         assert.doesNotMatch(account, /アプリの同期設定が完了/);
@@ -104,9 +108,27 @@ test('Account section presents step title, status chip and state-specific CTA', 
     assert.match(ui, /accountState === 'active' \? '作成済み'/);
     assert.match(ui, /setupOpen\.hidden = accountState !== 'unset'/);
     assert.match(ui, /accountRecoveryOpen\.hidden = accountState !== 'active'/);
+    assert.match(ui, /accountRecoveryHelpToggle\.hidden = accountState !== 'active'/);
     assert.match(ui, /setupOpen\.textContent = 'アカウントの作成'/);
     assert.match(ui, /accountRecoveryOpen\.textContent = '復旧コードを更新'/);
     assert.doesNotMatch(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
+});
+
+test('Sync Code rows bind the existing launch callback after every render', () => {
+    const source = read('./sync-center-ui.js');
+    const styles = read('./style.css');
+    assert.match(source, /function renderAppRows\(root, presentation, edition, orchestrationEnabled, onAppAction = null\)/);
+    assert.match(source, /action\.addEventListener\('click', \(event\) => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*void onAppAction\(action\)/);
+    assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin \}\)/);
+    assert.match(app, /onAppAction: syncCenterActions\?\.onAppAction/);
+    assert.match(source, /const result = await orchestrator\.launch\(button\.dataset\.syncAppAction\)/);
+    assert.match(source, /if \(result\?\.kind === 'join'\) \{[\s\S]*showJoinCode\(root, result/);
+    for (const html of [root, pro]) {
+        assert.match(html, /2\. アプリを接続[\s\S]*data-sync-section-help-toggle="sync-center-apps-help"/);
+        assert.match(html, /id="sync-center-apps-help"[\s\S]*接続するアプリの「同期コード」を押す[\s\S]*コードを貼り付けて「接続する」/);
+    }
+    assert.match(styles, /\.sync-center-account-actions\s*\{[\s\S]*flex-wrap:\s*wrap/);
+    assert.match(styles, /\.sync-center-account-action\s*\{[\s\S]*min-height:\s*38px[\s\S]*padding:\s*7px 14px/);
 });
 
 test('Recovery-code update uses authenticated rotation without opening Recovery execution', () => {

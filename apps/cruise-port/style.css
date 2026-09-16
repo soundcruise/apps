@@ -2120,11 +2120,14 @@ textarea:focus-visible {
     padding-top: 20px;
     border-top: 1px solid var(--port-border);
 }
-.sync-center-account-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.sync-center-account-heading h2 { margin-bottom: 10px; }
+.sync-center-account-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
 .sync-center-account-status-chip {
     flex: 0 0 auto;
-    margin-bottom: 10px;
     padding: 2px 8px;
     border: 1px solid rgba(205, 205, 205, 0.42);
     border-radius: 999px;
@@ -2135,6 +2138,19 @@ textarea:focus-visible {
     line-height: 1.35;
     white-space: nowrap;
 }
+.sync-center-account-action {
+    min-height: 38px;
+    padding: 7px 14px;
+    border: 1px solid rgba(205, 180, 116, 0.38);
+    border-radius: 10px;
+    color: var(--port-text);
+    background: rgba(8, 8, 6, 0.38);
+    font: inherit;
+    font-size: calc(0.78rem * var(--font-scale));
+    font-weight: 650;
+    white-space: nowrap;
+}
+.sync-center-account-action[hidden] { display: none; }
 .sync-center-account h2,
 .sync-center-section h2 { margin: 0 0 10px; font-size: calc(1rem * var(--font-scale)); }
 .sync-center-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -2156,6 +2172,16 @@ textarea:focus-visible {
     cursor: pointer;
 }
 .sync-center-section-help-copy[hidden] { display: none; }
+.sync-center-section-help-steps {
+    display: grid;
+    gap: 7px;
+    margin: 8px 0 12px;
+    padding-left: 1.35rem;
+    color: var(--port-muted);
+    font-size: calc(0.8rem * var(--font-scale));
+    line-height: 1.6;
+}
+.sync-center-section-help-steps[hidden] { display: none; }
 .sync-center-environments-toggle {
     align-self: start;
     margin-top: 2px;
