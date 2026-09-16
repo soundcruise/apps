@@ -107,6 +107,12 @@ export async function appJoinCodeVerifier(value, pepper, cryptoImpl = crypto) {
   return hmacVerifier(`sound-cruise-account-app-join:v1:${normalized}`, pepper, cryptoImpl);
 }
 
+export async function portJoinCodeVerifier(value, pepper, cryptoImpl = crypto) {
+  const normalized = normalizeAppJoinCode(value);
+  if (!normalized) throw new Error('Invalid Port Join Code');
+  return hmacVerifier(`sound-cruise-account-port-join:v1:${normalized}`, pepper, cryptoImpl);
+}
+
 export function normalizeAccountRecoveryCode(value) {
   if (typeof value !== 'string') return null;
   const compact = value.toUpperCase().replace(/[\s-]/g, '');

@@ -2172,6 +2172,11 @@ textarea:focus-visible {
     cursor: pointer;
 }
 .sync-center-section-help-copy[hidden] { display: none; }
+.sync-center-section-help-copy h3 {
+    margin: 12px 0 4px;
+    color: var(--port-text);
+    font-size: calc(0.84rem * var(--font-scale));
+}
 .sync-center-section-help-steps {
     display: grid;
     gap: 7px;
@@ -2240,6 +2245,7 @@ textarea:focus-visible {
 .sync-center-app-row-actions .sync-center-app-action { text-align: center; }
 .sync-center-app-action.secondary { color: var(--port-text); }
 .sync-center-app-action[aria-disabled="true"] { color: var(--port-muted); opacity: 0.6; pointer-events: none; }
+.sync-center-app-action:disabled { color: var(--port-muted); opacity: 0.52; cursor: not-allowed; }
 .sync-center-environments li {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -2281,7 +2287,8 @@ textarea:focus-visible {
 }
 #sync-center-recovery-code[hidden],
 #sync-center-recovery-candidate[hidden] { display: none; }
-#sync-center-recovery-input {
+#sync-center-recovery-input,
+#sync-center-port-connect-input {
     box-sizing: border-box;
     width: 100%;
     min-height: 48px;

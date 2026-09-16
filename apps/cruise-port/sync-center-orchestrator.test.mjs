@@ -6,12 +6,34 @@ import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js';
 
 function fixture() {
     const calls = [];
+    let savedAccount = { accountCredential: 'sca1.account' };
+    let pendingConsume = null;
+    let qaAdmission = null;
     let failPitch = true;
     const memberships = new Map([['chord', { id: 'm-chord', appId: 'chord', state: 'pending' }]]);
     const storage = {
-        async getAccount() { return { accountCredential: 'sca1.account' }; }
+        async getAccount() { return savedAccount; },
+        async setAccount(value) { savedAccount = value; calls.push(['save-account', value.accountDeviceId]); },
+        async getPendingConsume() { return pendingConsume; },
+        async setPendingConsume(value) { pendingConsume = value; calls.push(['save-pending', value.transport]); },
+        async clearPendingConsume() { pendingConsume = null; calls.push(['clear-pending']); },
+        async setQaAdmission(value) { qaAdmission = value; calls.push(['save-qa', value.scope]); }
     };
     class Client {
+        async request(path, options) {
+            calls.push(['request', path]);
+            if (path === '/v2/accounts/port-join-invitations') {
+                return { invitationId: options.body.invitationId, expiresAt: 300000 };
+            }
+            if (path === '/v2/accounts/port-join-invitations/cancel') return { cancelled: true };
+            if (path === '/v2/accounts/port-join-invitations/consume') {
+                return {
+                    accountId: 'account-1', accountDeviceId: 'port-device-2',
+                    recoveryVersion: 1, qaSessionId: 'qa-session-2', qaExpiresAt: 900000
+                };
+            }
+            throw new Error('unexpected_request');
+        }
         async startAccount(input) { calls.push(['start', input]); return { ok: true }; }
         async summary() { return { account: { id: 'account-1', state: 'active' }, memberships: [...memberships.values()] }; }
         async prepareMembership({ appId }) {
@@ -37,13 +59,18 @@ function fixture() {
     let operation = 0;
     const accountRoot = {
         AccountClient: Client,
+        AccountApiError: class AccountApiError extends Error {},
         storage,
         core: {
             createAccountMaterial: () => ({ recoveryCode: 'secret', accountCredential: 'sca1.account' }),
             formatRecoveryCode: () => 'DISPLAY-ONLY',
             createOperationId: () => `op-${++operation}`,
             createHandoffMaterial: () => ({ operationId: `op-${++operation}`, handoffToken: 'opaque' }),
-            createJoinMaterial: () => ({ operationId: `op-${++operation}`, invitationId: 'invite-1', joinCode: 'SCJ1AAAABBBBCCCCDDDDEEEE' })
+            createJoinMaterial: () => ({ operationId: `op-${++operation}`, invitationId: 'invite-1', joinCode: 'SCJ1AAAABBBBCCCCDDDDEEEE' }),
+            formatJoinCode: () => 'SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE',
+            normalizeJoinCode: (value) => value?.replaceAll('-', '') || null,
+            createAccountCredential: () => ({ accountDeviceId: 'port-device-2', accountCredential: 'sca1.port-device-2.secret' }),
+            createQaCredential: () => ({ qaSessionId: 'qa-session-2', qaCredential: 'scq1.qa-session-2.secret' })
         }
     };
     const navigations = [];
@@ -53,7 +80,13 @@ function fixture() {
         navigate: (url) => navigations.push(url),
         appUrl: (appId) => `https://apps.example/${appId}/pro/`
     });
-    return { orchestrator, calls, memberships, navigations };
+    return {
+        orchestrator, calls, memberships, navigations,
+        setSavedAccount(value) { savedAccount = value; },
+        getSavedAccount() { return savedAccount; },
+        getPendingConsume() { return pendingConsume; },
+        getQaAdmission() { return qaAdmission; }
+    };
 }
 
 test('Account creation requires the one-time Recovery confirmation', async () => {
@@ -155,6 +188,24 @@ test('Port can cancel a displayed cross-container Join invitation', async () => 
     const { orchestrator, calls } = fixture();
     await orchestrator.cancelJoin('invite-1');
     assert.deepEqual(calls.find(([kind]) => kind === 'cancel-join'), ['cancel-join', 'invite-1']);
+});
+
+test('Port addition issues separately and receiver stores no plaintext Join Code', async () => {
+    const current = fixture();
+    const issued = await current.orchestrator.issuePortAddition();
+    assert.equal(issued.kind, 'add_port');
+    assert.match(issued.displayJoinCode, /^SCJ1-/);
+    await current.orchestrator.cancelPortAddition(issued.invitationId);
+    assert.equal(current.calls.filter(([, path]) => path === '/v2/accounts/port-join-invitations').length, 1);
+    assert.equal(current.calls.filter(([, path]) => path === '/v2/accounts/port-join-invitations/cancel').length, 1);
+
+    const receiver = fixture();
+    receiver.setSavedAccount(null);
+    await receiver.orchestrator.connectExistingAccount('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
+    assert.equal(receiver.getSavedAccount().accountDeviceId, 'port-device-2');
+    assert.equal(receiver.getQaAdmission().scope, 'port');
+    assert.equal(receiver.getPendingConsume(), null);
+    assert.equal(JSON.stringify(receiver.calls).includes('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE'), false);
 });
 
 test('Port orchestrator never reads app localStorage or IndexedDB', () => {

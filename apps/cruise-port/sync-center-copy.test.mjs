@@ -20,7 +20,8 @@ test('Account creation and Recovery rotation both expose safe copy controls', ()
 });
 
 test('Port action and destructive confirmation labels are explicit', () => {
-  assert.match(ui, /\['unset', 'prepared'\]\.includes\(app\.status\) \? '同期コード' : 'アプリを開く'/);
-  assert.match(ui, /addEnvironment\.textContent = '別の環境を追加'/);
+  assert.match(ui, /const needsInitialConnection = \['unset', 'prepared'\]\.includes\(app\.status\)/);
+  assert.match(ui, /needsInitialConnection \? '同期コード' : app\.statusLabel/);
+  assert.match(ui, /action\.textContent = '追加コード'/);
   assert.match(ui, /lifecycleConfirm\.textContent = '削除を確定'/);
 });

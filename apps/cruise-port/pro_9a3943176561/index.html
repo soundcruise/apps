@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.32.4">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.32.4">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.36.7">
+    <link rel="stylesheet" href="../style.css?v=0.37.0">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=17">
     <script>
@@ -28,7 +28,7 @@
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=9"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.36.7"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.37.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -189,6 +189,7 @@
                     <div class="sync-center-account-actions">
                         <span id="sync-center-account-status" class="sync-center-account-status-chip">確認中</span>
                         <button id="sync-center-setup-open" class="sync-center-account-action" type="button" hidden>アカウントの作成</button>
+                        <button id="sync-center-port-connect-open" class="sync-center-account-action" type="button" hidden>既存のアカウントに接続</button>
                         <button id="sync-center-account-recovery-open" class="sync-center-account-action" type="button" hidden>復旧コードを更新</button>
                         <button id="sync-center-account-recovery-help-toggle" class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-account-recovery-help" aria-expanded="false" aria-controls="sync-center-account-recovery-help" aria-label="復旧コードの説明を表示" hidden>?</button>
                     </div>
@@ -207,6 +208,24 @@
                         <li>コードを貼り付けて「接続する」</li>
                     </ol>
                     <ul id="sync-center-apps" class="sync-center-apps" aria-live="polite"></ul>
+                </section>
+                <section class="sync-center-section" aria-labelledby="sync-center-add-environments-title">
+                    <div class="sync-center-section-heading">
+                        <h2 id="sync-center-add-environments-title">3. 別の環境を追加</h2>
+                        <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-add-environments-help" aria-expanded="false" aria-controls="sync-center-add-environments-help" aria-label="別の環境を追加する方法を表示">?</button>
+                    </div>
+                    <div id="sync-center-add-environments-help" class="sync-center-section-help-copy" hidden>
+                        <p>同じクラウドデータを、別の端末やブラウザでも使えるようにします。</p>
+                        <h3>Cruise Port</h3>
+                        <ol class="sync-center-section-help-steps">
+                            <li>Cruise Portの「追加コード」を押す</li><li>コードをコピー</li><li>追加先でCruise Portを開く</li><li>「既存のアカウントに接続」を押す</li><li>コードを入力して接続</li>
+                        </ol>
+                        <h3>Proアプリ</h3>
+                        <ol class="sync-center-section-help-steps">
+                            <li>対象アプリの「追加コード」を押す</li><li>コードをコピー</li><li>追加したい環境でProアプリを開く</li><li>設定 → クラウド同期</li><li>「Cruise Portと接続」を押す</li><li>コードを入力して接続</li>
+                        </ol>
+                    </div>
+                    <ul id="sync-center-add-environments" class="sync-center-apps" aria-live="polite"></ul>
                 </section>
                 <section class="sync-center-section" aria-labelledby="sync-center-environments-title">
                     <div class="sync-center-section-heading">
@@ -261,6 +280,17 @@
                 <div class="sync-center-actions">
                     <button id="sync-center-setup-confirm" class="action-button primary-action" type="button" data-sync-action="create-account">復旧コードを確認</button>
                     <button id="sync-center-setup-close" class="action-button secondary-action" type="button">戻る</button>
+                </div>
+            </dialog>
+            <dialog id="sync-center-port-connect" class="sync-center-help-dialog" aria-labelledby="sync-center-port-connect-title">
+                <h2 id="sync-center-port-connect-title">既存のアカウントに接続</h2>
+                <p>別のCruise Portに表示された追加コードを入力してください。</p>
+                <label for="sync-center-port-connect-input">追加コード</label>
+                <input id="sync-center-port-connect-input" data-sensitive="port-addition-code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text">
+                <p id="sync-center-port-connect-status" role="alert" aria-live="polite"></p>
+                <div class="sync-center-actions">
+                    <button id="sync-center-port-connect-confirm" class="action-button primary-action" type="button">接続する</button>
+                    <button id="sync-center-port-connect-cancel" class="action-button secondary-action" type="button">キャンセル</button>
                 </div>
             </dialog>
             <dialog id="sync-center-recovery" class="sync-center-help-dialog" aria-labelledby="sync-center-recovery-dialog-title" data-sync-phase="input">

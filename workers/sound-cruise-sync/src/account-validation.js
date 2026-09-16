@@ -169,6 +169,44 @@ export function validateAppJoinStatusQuery(url) {
   return invitationId ? { ok: true, value: { invitationId } } : { ok: false };
 }
 
+export function validatePortJoinIssuePayload(value) {
+  if (!exactObject(value, ['operationId', 'invitationId', 'joinCode'])) return { ok: false };
+  const normalized = {
+    operationId: operationId(value.operationId),
+    invitationId: operationId(value.invitationId),
+    joinCode: normalizeAppJoinCode(value.joinCode)
+  };
+  return Object.values(normalized).every(Boolean) ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validatePortJoinConsumePayload(value) {
+  const requiredKeys = ['operationId', 'joinCode', 'accountCredential', 'deviceLabel'];
+  const keys = Object.keys(value || {});
+  if (!value || typeof value !== 'object' || Array.isArray(value) ||
+      !requiredKeys.every((key) => keys.includes(key)) ||
+      keys.some((key) => ![...requiredKeys, 'qaCredential'].includes(key)) ||
+      ![requiredKeys.length, requiredKeys.length + 1].includes(keys.length)) return { ok: false };
+  const deviceLabel = label(value.deviceLabel);
+  const normalized = {
+    ...value,
+    operationId: operationId(value.operationId),
+    joinCode: normalizeAppJoinCode(value.joinCode),
+    deviceLabel
+  };
+  return normalized.operationId && normalized.joinCode &&
+    parseAccountCredential(normalized.accountCredential) &&
+    (normalized.qaCredential === undefined || parseQaCredential(normalized.qaCredential)) &&
+    deviceLabel !== undefined
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validatePortJoinCancelPayload(value) {
+  if (!exactObject(value, ['invitationId']) || !operationId(value.invitationId)) return { ok: false };
+  return { ok: true, value: { invitationId: value.invitationId } };
+}
+
+export const validatePortJoinStatusQuery = validateAppJoinStatusQuery;
+
 export function validateAccountReadQuery(url) {
   return url.search === '' ? { ok: true, value: {} } : { ok: false };
 }

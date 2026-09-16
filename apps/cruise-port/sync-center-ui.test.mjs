@@ -82,7 +82,7 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     assert.match(app, /PORT_SYNC_HELP_SUMMARY/);
     assert.match(app, /PORT_SYNC_HELP_SECTIONS/);
     assert.match(app, /openPortSyncHelp/);
-    assert.equal((app.match(/flowSteps: true/g) || []).length, 2);
+    assert.equal((app.match(/flowSteps: true/g) || []).length, 1);
     for (const category of ['最初の接続', '別の環境を追加', '復旧コード', '同期中の環境', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
         assert.match(app, new RegExp(`title: '${category}'`));
     }
@@ -96,6 +96,7 @@ test('Account section presents step title, status chip and state-specific CTA', 
         assert.match(account, /1\. アカウント作成/);
         assert.match(account, /sync-center-account-status/);
         assert.match(account, /アカウントの作成/);
+        assert.match(account, /既存のアカウントに接続/);
         assert.match(account, /復旧コードを更新/);
         assert.match(account, /sync-center-account-actions/);
         assert.match(account, /sync-center-account-recovery-help-toggle/);
@@ -183,11 +184,11 @@ test('Recovery execution copy is concise and its dialog prevents iOS input zoom'
         assert.doesNotMatch(html, /現在有効な復旧コードは1つだけです。新しい復旧コードを発行すると/);
     }
     const css = read('./style.css');
-    assert.match(css, /#sync-center-recovery-input\s*\{[\s\S]*box-sizing:\s*border-box[\s\S]*font-size:\s*max\(16px, calc\(1rem \* var\(--font-scale\)\)\)/);
+    assert.match(css, /#sync-center-recovery-input,[\s\S]*#sync-center-port-connect-input\s*\{[\s\S]*box-sizing:\s*border-box[\s\S]*font-size:\s*max\(16px, calc\(1rem \* var\(--font-scale\)\)\)/);
     assert.match(css, /\.sync-center-help-dialog[\s\S]*box-sizing:\s*border-box[\s\S]*width:\s*min\(560px, calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)\)[\s\S]*max-width:\s*calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)[\s\S]*max-height:\s*min\(calc\(100dvh - 24px\), 720px\)[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/);
 });
 
-test('Sync Help uses independent simple step numbering for each connection flow', () => {
+test('Sync Help separates first connection from Port and Pro additional environments', () => {
     const firstStart = app.indexOf("title: '最初の接続'");
     const additionalStart = app.indexOf("title: '別の環境を追加'");
     const nextSection = app.indexOf("title: '復旧コード'", additionalStart);
@@ -195,9 +196,34 @@ test('Sync Help uses independent simple step numbering for each connection flow'
     const additional = app.slice(additionalStart, nextSection);
     assert.match(first, /'1\. Cruise Portで対象アプリの「同期コード」を押す'/);
     assert.match(first, /'6\. コードを入力して「接続する」を押す'/);
-    assert.match(additional, /'1\. Cruise Portで接続済みアプリを確認する'/);
-    assert.match(additional, /'7\. コードを入力して「接続する」を押す'/);
-    assert.doesNotMatch(`${first}\n${additional}`, /[12]-[1-9]\./);
+    assert.match(additional, /Cruise Port自身と4つのProアプリ/);
+    assert.match(additional, /Cruise Port: 「追加コード」/);
+    assert.match(additional, /Proアプリ: 対象アプリの「追加コード」/);
+    assert.match(additional, /復旧ではなく/);
+});
+
+test('Section 2 is initial-only and Section 3 owns Port plus four app additions', () => {
+    for (const html of [root, pro]) {
+        const section2Start = html.indexOf('aria-labelledby="sync-center-apps-title"');
+        const section3Start = html.indexOf('aria-labelledby="sync-center-add-environments-title"');
+        const environmentsStart = html.indexOf('aria-labelledby="sync-center-environments-title"');
+        const section2 = html.slice(section2Start, section3Start);
+        const section3 = html.slice(section3Start, environmentsStart);
+        assert.match(section2, /2\. アプリを接続/);
+        assert.doesNotMatch(section2, /別の環境を追加/);
+        assert.match(section3, /3\. 別の環境を追加/);
+        assert.match(section3, /sync-center-add-environments/);
+        assert.match(section3, /Cruise Portの「追加コード」/);
+        assert.match(section3, /対象アプリの「追加コード」/);
+        assert.match(html, /id="sync-center-port-connect"/);
+        assert.match(html, /data-sensitive="port-addition-code"/);
+    }
+    assert.match(ui, /function renderAddEnvironmentRows/);
+    assert.match(ui, /id: 'port', name: 'Cruise Port'/);
+    assert.match(ui, /dataset\.syncPortAddEnvironment = 'true'/);
+    assert.match(ui, /dataset\.syncAppAddEnvironment = entry\.id/);
+    assert.match(ui, /orchestrator\.issuePortAddition\(\)/);
+    assert.match(ui, /orchestrator\.connectExistingAccount\(joinCode\)/);
 });
 
 test('QA Enrollment and Account start request distinct Turnstile actions', () => {
@@ -365,9 +391,10 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(source, /actions\.className = 'sync-center-join-actions'/);
     assert.match(source, /data-sync-app-add-environment/);
     assert.match(source, /別の環境を追加/);
-    assert.match(source, /if \(orchestrationEnabled && app\.canAddEnvironment\)/);
-    assert.doesNotMatch(source, /edition === 'pro' && orchestrationEnabled && app\.canAddEnvironment/);
-    assert.match(source, /\['unset', 'prepared'\]\.includes\(app\.status\) \? '同期コード' : 'アプリを開く'/);
+    assert.match(source, /function renderAddEnvironmentRows/);
+    assert.match(source, /available: activeAccount && app\.canAddEnvironment/);
+    assert.match(source, /action\.textContent = '追加コード'/);
+    assert.match(source, /const needsInitialConnection = \['unset', 'prepared'\]\.includes\(app\.status\)/);
     assert.match(source, /function bindSectionHelp\(root\)/);
     assert.match(source, /button\.setAttribute\('aria-expanded', String\(!help\.hidden\)\)/);
     assert.match(source, /const environmentToggle = event\.target\.closest\?\.\('\[data-sync-environments-toggle\]'\)/);
@@ -391,7 +418,7 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
 
 test('Join dialog identifies the target app from appId using the official icon catalog', () => {
     const styles = read('./style.css');
-    assert.match(ui, /const target = SYNC_CENTER_APPS\.find\(\(app\) => app\.id === result\.appId\)/);
+    assert.match(ui, /: SYNC_CENTER_APPS\.find\(\(app\) => app\.id === result\.appId\)/);
     assert.match(ui, /CRUISE_APP_ICONS\[target\.id\]\[edition === 'pro' \? 'pro' : 'standard'\]/);
     assert.match(ui, /badge\.className = 'sync-center-join-target'/);
     assert.match(ui, /name\.textContent = target\.name/);

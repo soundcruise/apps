@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.36.7';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.36.7';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.36.7';
+} from './sync-center-controller.js?v=0.37.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.37.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.37.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.36.7';
+} from './sync-center-navigation.js?v=0.37.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.36.7';
+} from './app-version.js?v=0.37.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -265,16 +265,13 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     }),
     Object.freeze({
         title: '別の環境を追加',
-        paragraphs: Object.freeze(['接続済みのCruise Portから、別のブラウザやPWAへ接続を追加する手順です。']),
-        flowSteps: true,
+        paragraphs: Object.freeze([
+            '同じクラウドデータを、別の端末やブラウザでも使えるようにします。Cruise Port自身と4つのProアプリは、クラウド同期画面の「3. 別の環境を追加」から追加できます。',
+            'Cruise Portを追加するときは、追加先で「既存のアカウントに接続」を選びます。これは復旧ではなく、現在接続中のCruise Portから新しい環境へ接続を追加する操作です。'
+        ]),
         steps: Object.freeze([
-            '1. Cruise Portで接続済みアプリを確認する',
-            '2. 「別の環境を追加」を押す',
-            '3. 「コードをコピー」を押す',
-            '4. 追加したいブラウザやPWAで対象Proアプリを開く',
-            '5. 設定 → クラウド同期を開く',
-            '6. 「Cruise Portと接続」を押す',
-            '7. コードを入力して「接続する」を押す'
+            'Cruise Port: 「追加コード」→ コピー → 追加先でCruise Portを開く → 「既存のアカウントに接続」→ コードを入力',
+            'Proアプリ: 対象アプリの「追加コード」→ コピー → 追加先でProアプリを開く → 設定 → クラウド同期 → 「Cruise Portと接続」→ コードを入力'
         ])
     }),
     Object.freeze({

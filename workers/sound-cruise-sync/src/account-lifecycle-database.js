@@ -288,6 +288,10 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       UPDATE sync_app_join_invitations SET cancelled_at = COALESCE(cancelled_at, ?)
       WHERE account_id = ? AND consumed_at IS NULL AND cancelled_at IS NULL
     `).bind(input.now, claim.account_id);
+    const cancelPortJoins = db.prepare(`
+      UPDATE sync_port_join_invitations SET cancelled_at = COALESCE(cancelled_at, ?)
+      WHERE account_id = ? AND consumed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, claim.account_id);
     const createDevice = db.prepare(`
       INSERT INTO sync_account_devices (
         id, account_id, credential_version, credential_verifier,
@@ -346,13 +350,13 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       qaSessionId, qaSessionId, input.now, claim.account_id);
     try {
       const statements = [rotate, revokeAccountDevices, revokeAppDevices, cancelHandoffs,
-        cancelJoins, createDevice, cancelOtherClaims, finish, record];
+        cancelJoins, cancelPortJoins, createDevice, cancelOtherClaims, finish, record];
       const bindIndex = bindQaSession ? statements.push(bindQaSession) - 1 : -1;
       const guardIndex = statements.push(guard) - 1;
       const results = await db.batch(statements);
       if (!batchSucceeded(results, statements.length) || changes(results[0]) !== 1 ||
-          changes(results[5]) !== 1 || changes(results[7]) !== 1 ||
-          changes(results[8]) !== 1 || (bindIndex >= 0 && changes(results[bindIndex]) !== 1) ||
+          changes(results[6]) !== 1 || changes(results[8]) !== 1 ||
+          changes(results[9]) !== 1 || (bindIndex >= 0 && changes(results[bindIndex]) !== 1) ||
           changes(results[guardIndex]) !== 1) {
         throw new Error('D1 Account recovery compare-and-swap failed');
       }
@@ -613,14 +617,20 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       WHERE account_id = ? AND created_by_account_device_id = ?
         AND consumed_at IS NULL AND cancelled_at IS NULL
     `).bind(input.now, identity.accountId, input.targetDeviceId);
+    const cancelPortJoins = db.prepare(`
+      UPDATE sync_port_join_invitations SET cancelled_at = COALESCE(cancelled_at, ?),
+        cancelled_by_account_device_id = COALESCE(cancelled_by_account_device_id, ?)
+      WHERE account_id = ? AND created_by_account_device_id = ?
+        AND consumed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, identity.accountDeviceId, identity.accountId, input.targetDeviceId);
     const record = db.prepare(`
       INSERT INTO sync_account_lifecycle_operations (
         operation_id, request_fingerprint, account_id, kind, target_id, result_json, created_at
       ) VALUES (?, ?, ?, 'device_revoke', ?, ?, ?)
     `).bind(input.operationId, input.requestFingerprint, identity.accountId,
       input.targetDeviceId, JSON.stringify(resultBody), input.now);
-    const results = await db.batch([revoke, revokeApps, cancelHandoffs, cancelJoins, record]);
-    if (!batchSucceeded(results, 5) || changes(results[0]) !== 1 || changes(results[4]) !== 1) {
+    const results = await db.batch([revoke, revokeApps, cancelHandoffs, cancelJoins, cancelPortJoins, record]);
+    if (!batchSucceeded(results, 6) || changes(results[0]) !== 1 || changes(results[5]) !== 1) {
       throw new Error('D1 Account environment revoke failed');
     }
     return { status: 'revoked', ...resultBody, alreadyRevoked: target.revoked_at != null };
@@ -784,6 +794,10 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
         WHERE account_id = ? AND consumed_at IS NULL AND cancelled_at IS NULL`).bind(input.now, identity.accountId));
       statements.push(db.prepare(`UPDATE sync_app_join_invitations SET cancelled_at = COALESCE(cancelled_at, ?)
         WHERE account_id = ? AND consumed_at IS NULL AND cancelled_at IS NULL`).bind(input.now, identity.accountId));
+      statements.push(db.prepare(`UPDATE sync_port_join_invitations SET cancelled_at = COALESCE(cancelled_at, ?),
+        cancelled_by_account_device_id = COALESCE(cancelled_by_account_device_id, ?)
+        WHERE account_id = ? AND consumed_at IS NULL AND cancelled_at IS NULL`)
+        .bind(input.now, identity.accountDeviceId, identity.accountId));
       statements.push(db.prepare(`UPDATE sync_account_recovery_claims SET cancelled_at = COALESCE(cancelled_at, ?)
         WHERE account_id = ? AND committed_at IS NULL AND cancelled_at IS NULL`).bind(input.now, identity.accountId));
       statements.push(db.prepare(`UPDATE pairing_codes SET cancelled_at = COALESCE(cancelled_at, ?)

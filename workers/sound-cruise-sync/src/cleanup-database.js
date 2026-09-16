@@ -9,6 +9,7 @@ export const CLEANUP_RETENTION = Object.freeze({
   deleteIntentMs: 7 * 24 * 60 * 60 * 1000,
   accountHandoffMs: 24 * 60 * 60 * 1000,
   accountAppJoinMs: 24 * 60 * 60 * 1000,
+  accountPortJoinMs: 24 * 60 * 60 * 1000,
   accountLifecycleOperationMs: 30 * 24 * 60 * 60 * 1000,
   batchSize: 100
 });
@@ -87,6 +88,7 @@ async function finishDeletedAccounts(db, now, limit) {
     // Account cascade remove the remaining lifecycle metadata.
     const statements = [
       db.prepare('DELETE FROM sync_app_join_invitations WHERE account_id = ?').bind(id),
+      db.prepare('DELETE FROM sync_port_join_invitations WHERE account_id = ?').bind(id),
       db.prepare('DELETE FROM sync_membership_handoffs WHERE account_id = ?').bind(id),
       db.prepare('DELETE FROM sync_chord_account_bridges WHERE account_id = ?').bind(id),
       // App-scoped QA sessions point at their Port parent with ON DELETE
@@ -155,6 +157,25 @@ export function createD1CleanupRepository(db, clock = Date.now) {
     } catch {
       // M9.5 is additive; an older remote schema must not stop legacy cleanup.
       results.accountAppJoins = 0;
+    }
+    try {
+      results.accountPortJoins = await deleteLimited(
+        db,
+        `SELECT invitation_id AS id FROM sync_port_join_invitations
+         WHERE expires_at <= ?
+           AND (consumed_at IS NULL OR consumed_at <= ?)
+           AND (cancelled_at IS NULL OR cancelled_at <= ?)
+         LIMIT ${limit}`,
+        'DELETE FROM sync_port_join_invitations WHERE invitation_id = ?',
+        [
+          now - CLEANUP_RETENTION.accountPortJoinMs,
+          now - CLEANUP_RETENTION.accountPortJoinMs,
+          now - CLEANUP_RETENTION.accountPortJoinMs
+        ]
+      );
+    } catch {
+      // M15 is additive; an older remote schema must not stop established cleanup.
+      results.accountPortJoins = 0;
     }
     try {
       results.accountRecoveryAttempts = await deleteLimited(

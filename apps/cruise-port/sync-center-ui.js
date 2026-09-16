@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.36.7';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.37.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -28,10 +28,13 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
         copy.append(name, detail);
         const actions = document.createElement('div');
         actions.className = 'sync-center-app-row-actions';
-        const action = document.createElement(orchestrationEnabled ? 'button' : 'a');
+        const needsInitialConnection = ['unset', 'prepared'].includes(app.status);
+        const action = document.createElement(needsInitialConnection
+            ? (orchestrationEnabled ? 'button' : 'a')
+            : 'span');
         action.className = 'sync-center-app-action';
-        if (!orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
-        else {
+        if (needsInitialConnection && !orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
+        else if (needsInitialConnection) {
             action.type = 'button';
             action.dataset.syncAppAction = app.id;
             if (typeof onAppAction === 'function') {
@@ -44,24 +47,62 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
         // Prepared memberships use the same launch callback as normal rows, but
         // opening them issues the initial connection code. Keep that callback
         // contract intact while making the next action clear in the UI.
-        const actionLabel = ['unset', 'prepared'].includes(app.status) ? '同期コード' : 'アプリを開く';
+        const actionLabel = needsInitialConnection ? '同期コード' : app.statusLabel;
         action.textContent = actionLabel;
         action.setAttribute('aria-label', `${app.name}で${actionLabel}（${app.statusLabel}）`);
-        if (app.action === 'none') {
+        if (app.action === 'none' || !needsInitialConnection) {
             action.removeAttribute('href');
             action.setAttribute('aria-disabled', 'true');
         }
         actions.append(action);
-        if (orchestrationEnabled && app.canAddEnvironment) {
-            const addEnvironment = document.createElement('button');
-            addEnvironment.type = 'button';
-            addEnvironment.className = 'sync-center-app-action secondary';
-            addEnvironment.dataset.syncAppAddEnvironment = app.id;
-            addEnvironment.textContent = '別の環境を追加';
-            addEnvironment.setAttribute('aria-label', `${app.name}で別の環境を追加する`);
-            actions.append(addEnvironment);
-        }
         row.append(image, copy, actions);
+        return row;
+    });
+    list.replaceChildren(...rows);
+}
+
+function renderAddEnvironmentRows(root, presentation, edition, orchestrationEnabled) {
+    const list = root.querySelector('#sync-center-add-environments');
+    if (!list) return;
+    const activeAccount = presentation.accountState === 'active';
+    const entries = [
+        {
+            id: 'port', name: 'Cruise Port',
+            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png`,
+            available: activeAccount,
+            detail: activeAccount ? '別の端末やブラウザを追加' : 'アカウント作成後に利用できます'
+        },
+        ...presentation.apps.map((app) => ({
+            ...app,
+            icon: CRUISE_APP_ICONS[app.id][edition === 'pro' ? 'pro' : 'standard'],
+            available: activeAccount && app.canAddEnvironment,
+            detail: app.canAddEnvironment ? '別の端末やブラウザを追加' : app.statusLabel
+        }))
+    ];
+    const rows = entries.map((entry) => {
+        const row = document.createElement('li');
+        row.className = 'sync-center-app';
+        const image = document.createElement('img');
+        image.src = entry.icon;
+        image.alt = '';
+        image.width = 48;
+        image.height = 48;
+        const copy = document.createElement('div');
+        copy.className = 'sync-center-app-copy';
+        const name = document.createElement('strong');
+        name.textContent = entry.name;
+        const detail = document.createElement('span');
+        detail.textContent = entry.detail;
+        copy.append(name, detail);
+        const action = document.createElement('button');
+        action.type = 'button';
+        action.className = 'sync-center-app-action secondary';
+        action.textContent = '追加コード';
+        action.disabled = !orchestrationEnabled || !entry.available;
+        action.setAttribute('aria-label', `${entry.name}の追加コードを表示`);
+        if (entry.id === 'port') action.dataset.syncPortAddEnvironment = 'true';
+        else action.dataset.syncAppAddEnvironment = entry.id;
+        row.append(image, copy, action);
         return row;
     });
     list.replaceChildren(...rows);
@@ -126,14 +167,20 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
     const header = document.createElement('header');
     header.className = 'sync-center-join-header';
     const title = document.createElement('h2');
-    const isAdditionalEnvironment = result.kind === 'add_environment';
-    title.textContent = isAdditionalEnvironment ? '別の環境を追加' : 'このアプリを接続';
-    const target = SYNC_CENTER_APPS.find((app) => app.id === result.appId);
-    if (target && CRUISE_APP_ICONS[target.id]) {
+    const isPortAddition = result.kind === 'add_port';
+    const isAdditionalEnvironment = result.kind === 'add_environment' || isPortAddition;
+    title.textContent = isPortAddition ? '別のCruise Portを追加'
+        : isAdditionalEnvironment ? '別の環境を追加' : 'このアプリを接続';
+    const target = isPortAddition
+        ? { id: 'port', name: 'Cruise Port' }
+        : SYNC_CENTER_APPS.find((app) => app.id === result.appId);
+    if (target) {
         const badge = document.createElement('div');
         badge.className = 'sync-center-join-target';
         const icon = document.createElement('img');
-        icon.src = CRUISE_APP_ICONS[target.id][edition === 'pro' ? 'pro' : 'standard'];
+        icon.src = isPortAddition
+            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png`
+            : CRUISE_APP_ICONS[target.id][edition === 'pro' ? 'pro' : 'standard'];
         icon.alt = '';
         icon.width = 44;
         icon.height = 44;
@@ -146,15 +193,22 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
     }
     const intro = document.createElement('p');
     intro.className = 'sync-center-join-intro';
-    intro.textContent = '以下の手順で接続します。';
+    intro.textContent = isPortAddition
+        ? '別の端末やブラウザのCruise Portを、このアカウントに追加します。'
+        : '以下の手順で接続します。';
     const steps = document.createElement('ol');
     steps.className = 'sync-center-join-steps';
-    [
+    (isPortAddition ? [
+        '追加コードをコピー',
+        '追加したい端末やブラウザでCruise Portを開く',
+        '「既存のアカウントに接続」を押す',
+        'コードを入力して接続する'
+    ] : [
         'コードをコピー',
         isAdditionalEnvironment ? '追加したいブラウザやPWAで対象のProアプリを開く' : '普段使っているProアプリを開く',
         '設定 → クラウド同期 → 「Cruise Portと接続」を押す',
         'コードを貼り付けて「接続する」を押す'
-    ].forEach((step) => {
+    ]).forEach((step) => {
         const item = document.createElement('li');
         item.textContent = step;
         steps.append(item);
@@ -222,6 +276,7 @@ export function renderSyncCenter(root, presentation, {
     root.dataset.syncState = presentation.kind;
     const accountStatus = root.querySelector('#sync-center-account-status');
     const setupOpen = root.querySelector('#sync-center-setup-open');
+    const portConnectOpen = root.querySelector('#sync-center-port-connect-open');
     const accountRecoveryOpen = root.querySelector('#sync-center-account-recovery-open');
     const accountRecoveryHelpToggle = root.querySelector('#sync-center-account-recovery-help-toggle');
     const accountRecoveryHelp = root.querySelector('#sync-center-account-recovery-help');
@@ -234,6 +289,7 @@ export function renderSyncCenter(root, presentation, {
         setupOpen.hidden = accountState !== 'unset';
         setupOpen.textContent = 'アカウントの作成';
     }
+    if (portConnectOpen) portConnectOpen.hidden = accountState !== 'unset';
     if (accountRecoveryOpen) {
         accountRecoveryOpen.hidden = accountState !== 'active';
         accountRecoveryOpen.textContent = '復旧コードを更新';
@@ -251,6 +307,7 @@ export function renderSyncCenter(root, presentation, {
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }
     renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction);
+    renderAddEnvironmentRows(root, presentation, edition, orchestrationEnabled);
     renderEnvironments(root, presentation);
     renderDangerActions(root, presentation);
 }
@@ -296,6 +353,13 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const recoveryRotateConfirm = root?.querySelector?.('#sync-center-recovery-rotate-confirm');
     const recoverySecret = recoveryInput && globalThis.SoundCruiseSyncAccount?.core
         ?.createSensitiveInputController?.(recoveryInput);
+    const portConnectDialog = root?.querySelector?.('#sync-center-port-connect');
+    const portConnectInput = root?.querySelector?.('#sync-center-port-connect-input');
+    const portConnectConfirm = root?.querySelector?.('#sync-center-port-connect-confirm');
+    const portConnectCancel = root?.querySelector?.('#sync-center-port-connect-cancel');
+    const portConnectStatus = root?.querySelector?.('#sync-center-port-connect-status');
+    const portConnectSecret = portConnectInput && globalThis.SoundCruiseSyncAccount?.core
+        ?.createSensitiveInputController?.(portConnectInput);
     const lifecycleDialog = root?.querySelector?.('#sync-center-lifecycle-confirm');
     const lifecycleSummary = root?.querySelector?.('#sync-center-lifecycle-summary');
     const lifecycleConfirm = root?.querySelector?.('#sync-center-lifecycle-submit');
@@ -385,6 +449,38 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         await orchestrator.enrollQa({ enrollmentCode, turnstileToken: enrollmentToken });
         return true;
     };
+    root?.querySelector?.('#sync-center-port-connect-open')?.addEventListener('click', () => {
+        portConnectSecret?.resolve();
+        if (portConnectStatus) portConnectStatus.textContent = '';
+        portConnectDialog?.showModal();
+        portConnectInput?.focus();
+    });
+    portConnectCancel?.addEventListener('click', () => {
+        portConnectSecret?.resolve();
+        if (portConnectStatus) portConnectStatus.textContent = '';
+        portConnectDialog?.close();
+    });
+    portConnectConfirm?.addEventListener('click', async () => {
+        if (!orchestrator?.enabled) return;
+        portConnectConfirm.disabled = true;
+        try {
+            const joinCode = portConnectSecret?.take();
+            if (!joinCode) throw new Error('port_join_code_required');
+            await orchestrator.connectExistingAccount(joinCode);
+            portConnectSecret.resolve();
+            if (portConnectStatus) portConnectStatus.textContent = '';
+            portConnectDialog.close();
+            setText(root, '#sync-center-action-status', '既存のアカウントに接続しました。');
+            await refresh();
+        } catch (error) {
+            portConnectSecret?.reject(error);
+            if (portConnectStatus) {
+                portConnectStatus.textContent = '接続できませんでした。コードの有効期限と入力内容を確認してください。';
+            }
+        } finally {
+            portConnectConfirm.disabled = false;
+        }
+    });
     root?.querySelector?.('#sync-center-setup-open')?.addEventListener('click', () => {
         if (recovery) { recovery.hidden = true; recovery.textContent = ''; }
         if (setupCopy) setupCopy.hidden = true;
@@ -515,6 +611,24 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             } catch (_) {
                 addEnvironment.disabled = false;
                 setText(root, '#sync-center-action-status', '別の環境を追加できませんでした。同期状態を確認してください。');
+            }
+            return;
+        }
+        const addPort = event.target.closest?.('[data-sync-port-add-environment]');
+        if (addPort && orchestrator?.enabled) {
+            addPort.disabled = true;
+            try {
+                await ensureQaAdmission();
+                const result = await orchestrator.issuePortAddition();
+                showJoinCode(root, result, edition, async () => {
+                    try { await orchestrator.cancelPortAddition(result.invitationId); }
+                    catch (_) { /* consumed, expired, or already cancelled */ }
+                    addPort.disabled = false;
+                    await refresh();
+                });
+            } catch (_) {
+                addPort.disabled = false;
+                setText(root, '#sync-center-action-status', 'Cruise Portの追加コードを表示できませんでした。同期状態を確認してください。');
             }
             return;
         }

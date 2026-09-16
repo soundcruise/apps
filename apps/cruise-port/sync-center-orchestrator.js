@@ -1,5 +1,6 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.36.7';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.37.0';
+import { createPortAccountJoin } from './port-account-join.js?v=0.37.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -19,6 +20,12 @@ export function createSyncCenterOrchestrator({
     const client = new accountRoot.AccountClient({
         endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage, core: accountRoot.core,
         admissionMode: config.admissionMode || 'qa', qaScope: 'port'
+    });
+    const portJoin = createPortAccountJoin({
+        client,
+        accountRoot,
+        admissionMode: config.admissionMode || 'qa',
+        deviceLabel: () => `${deviceLabel()}（追加した環境）`
     });
     let accountMaterial = null;
     let accountStartPromise = null;
@@ -68,6 +75,8 @@ export function createSyncCenterOrchestrator({
         },
         discardAccountCandidate() { accountMaterial = null; },
         async resume() {
+            const joinedPort = await portJoin.resume();
+            if (joinedPort.status === 'committed') return joinedPort.summary;
             const recovered = await client.resumePendingRecovery?.();
             if (recovered?.status === 'committed') return summary();
             const deleted = await client.resumePendingDelete?.();
@@ -216,6 +225,16 @@ export function createSyncCenterOrchestrator({
                 displayJoinCode: issued.displayJoinCode, expiresAt: issued.expiresAt,
                 appUrl: appUrl(appId)
             });
+        },
+        async issuePortAddition() {
+            return portJoin.issue(await credential());
+        },
+        async cancelPortAddition(invitationId) {
+            if (typeof invitationId !== 'string' || !invitationId) throw new Error('port_join_invalid');
+            return portJoin.cancel(await credential(), invitationId);
+        },
+        async connectExistingAccount(joinCode) {
+            return portJoin.consume(joinCode);
         },
         async launchSameContainer(appId) {
             if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');

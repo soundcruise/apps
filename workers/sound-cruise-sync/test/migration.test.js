@@ -23,6 +23,7 @@ const migration16 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration17 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0017_add_account_lifecycle.sql'), 'utf8');
 const migration18 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0018_add_account_admission_provenance.sql'), 'utf8');
 const migration19 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0019_add_authenticated_recovery_rotation.sql'), 'utf8');
+const migration20 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0020_add_port_join_invitations.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -48,6 +49,7 @@ function migrate(db) {
   migrateThrough17(db);
   db.exec(migration18);
   db.exec(migration19);
+  db.exec(migration20);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -63,7 +65,7 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     'sync_account_start_operations', 'sync_accounts',
     'sync_app_join_invitations',
     'sync_changes', 'sync_chord_account_bridges', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
-    'sync_membership_device_links', 'sync_membership_handoffs', 'sync_records',
+    'sync_membership_device_links', 'sync_membership_handoffs', 'sync_port_join_invitations', 'sync_records',
     'sync_runtime_control', 'sync_users'
   ]);
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pairing_codes'").get());
@@ -74,6 +76,10 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare("SELECT pairing_pending_at, paired_at FROM sync_devices LIMIT 1"));
   assert(db.prepare("SELECT consume_mode, qa_issuer_session_id, qa_app_session_id FROM sync_membership_handoffs LIMIT 1"));
   assert(db.prepare("SELECT target_app_id, code_verifier, consume_mode, admission_provenance FROM sync_app_join_invitations LIMIT 1"));
+  assert(db.prepare(`SELECT code_verifier, account_id, admission_provenance,
+    created_by_account_device_id, expected_recovery_version, expected_account_generation,
+    issue_operation_id, consume_operation_id FROM sync_port_join_invitations LIMIT 1`));
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_port_join_active_issuer'").get());
   assert(db.prepare("SELECT admission_provenance FROM sync_accounts LIMIT 1"));
   assert(db.prepare('SELECT delete_requested_at, purge_after FROM sync_account_memberships LIMIT 1'));
   assert(db.prepare(`SELECT prepare_operation_id, prepare_fingerprint,

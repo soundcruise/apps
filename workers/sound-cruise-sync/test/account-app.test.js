@@ -508,6 +508,83 @@ test('cross-container app Join Code activates once without echoing or storing pl
   db.close();
 });
 
+test('Port-to-Port Join is exact-origin, rate-limited, one-time and secret-free', async () => {
+  const db = createSqliteD1();
+  enableLifecycleControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['chord', 'pitch', 'fretboard', 'rhythm']);
+  assert.equal(started.response.status, 201);
+  const joinCode = createAppJoinCode();
+  const invitationId = crypto.randomUUID();
+  const issueBody = { operationId: crypto.randomUUID(), invitationId, joinCode };
+
+  let response = await handleRequest(jsonRequest('/v2/accounts/port-join-invitations', issueBody, {
+    credential: started.candidate.account.credential,
+    origin: 'https://attacker.example'
+  }), env);
+  assert.equal(response.status, 403);
+
+  env.ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER = limiter(false);
+  response = await handleRequest(jsonRequest('/v2/accounts/port-join-invitations', issueBody, {
+    credential: started.candidate.account.credential
+  }), env);
+  assert.equal(response.status, 429);
+  env.ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER = limiter();
+
+  response = await handleRequest(jsonRequest('/v2/accounts/port-join-invitations', issueBody, {
+    credential: started.candidate.account.credential
+  }), env);
+  assert.equal(response.status, 201);
+  const issued = await response.json();
+  assert.equal(JSON.stringify(issued).includes(joinCode), false);
+  assert.equal(JSON.stringify(
+    db.raw.prepare('SELECT * FROM sync_port_join_invitations').get()
+  ).includes(joinCode), false);
+
+  const candidate = createAccountCredential();
+  const candidateQa = createQaCredential();
+  const consumeBody = {
+    operationId: crypto.randomUUID(), joinCode,
+    accountCredential: candidate.credential,
+    qaCredential: candidateQa.credential,
+    deviceLabel: 'Second Cruise Port'
+  };
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/port-join-invitations/consume', consumeBody), env
+  );
+  assert.equal(response.status, 201);
+  const joined = await response.json();
+  assert.equal(joined.accountId, started.payload.accountId);
+  assert.equal(joined.accountDeviceId, candidate.deviceId);
+  assert.equal(JSON.stringify(joined).includes(joinCode), false);
+  assert.equal(JSON.stringify(joined).includes(candidate.credential), false);
+  assert.equal(JSON.stringify(joined).includes(candidateQa.credential), false);
+  assert.equal(db.raw.prepare(
+    'SELECT COUNT(*) count FROM sync_account_devices WHERE account_id = ? AND revoked_at IS NULL'
+  ).get(started.payload.accountId).count, 2);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_users').get().count, 0);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count, 0);
+
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/port-join-invitations/consume', consumeBody), env
+  );
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).operation, 'existing');
+
+  const replayAccount = createAccountCredential();
+  const replayQa = createQaCredential();
+  response = await handleRequest(jsonRequest('/v2/accounts/port-join-invitations/consume', {
+    ...consumeBody, operationId: crypto.randomUUID(),
+    accountCredential: replayAccount.credential, qaCredential: replayQa.credential
+  }), env);
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, 'port_join_consumed');
+  assert.equal(db.raw.prepare(
+    'SELECT COUNT(*) count FROM sync_account_devices WHERE account_id = ? AND revoked_at IS NULL'
+  ).get(started.payload.accountId).count, 2);
+  db.close();
+});
+
 test('Chord Join distinguishes retired Legacy from unknown and preserves active Legacy for bridge', async () => {
   const db = createSqliteD1();
   enableAccountControl(db);

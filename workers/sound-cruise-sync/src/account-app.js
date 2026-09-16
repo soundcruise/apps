@@ -6,6 +6,7 @@ import {
   accountDeleteIntentVerifier,
   accountHandoffVerifier,
   appJoinCodeVerifier,
+  portJoinCodeVerifier,
   accountOperationFingerprint,
   accountRecoveryCodeVerifier,
   accountRecoveryClaimVerifier,
@@ -19,6 +20,7 @@ import { createD1AccountRepository } from './account-database.js';
 import { createD1AccountLifecycleRepository } from './account-lifecycle-database.js';
 import { createD1AccountHandoffRepository } from './account-handoff-database.js';
 import { createD1AppJoinRepository } from './account-join-database.js';
+import { createD1PortJoinRepository } from './account-port-join-database.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { createD1AccountQaRepository } from './account-qa-database.js';
 import {
@@ -49,6 +51,10 @@ import {
   validateAppJoinConsumePayload,
   validateAppJoinIssuePayload,
   validateAppJoinStatusQuery,
+  validatePortJoinCancelPayload,
+  validatePortJoinConsumePayload,
+  validatePortJoinIssuePayload,
+  validatePortJoinStatusQuery,
   validateAccountStartPayload,
   validateHandoffCancelPayload,
   validateHandoffConsumePayload,
@@ -137,6 +143,18 @@ const ACCOUNT_ROUTES = Object.freeze({
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION,
     headers: ['content-type', 'authorization', 'x-d1-bookmark']
   },
+  '/v2/accounts/port-join-invitations': {
+    method: 'MULTI', action: null,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
+  '/v2/accounts/port-join-invitations/consume': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_ADMISSION,
+    headers: ['content-type', 'x-d1-bookmark']
+  },
+  '/v2/accounts/port-join-invitations/cancel': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_ADMISSION,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
   ...Object.fromEntries(Object.entries(CHORD_BRIDGE_ROUTES).map(([path, route]) => [
     path,
     {
@@ -167,6 +185,12 @@ function resolvedRoute(pathname, method) {
       return { ...base, method: 'GET', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_READ };
     }
     return { ...base, method: 'POST', action: ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION };
+  }
+  if (pathname === '/v2/accounts/port-join-invitations') {
+    if (method === 'GET' || method === 'OPTIONS') {
+      return { ...base, method: 'GET', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_READ };
+    }
+    return { ...base, method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_ADMISSION };
   }
   if (pathname !== '/v2/accounts/memberships') return base;
   if (method === 'GET' || method === 'OPTIONS') {
@@ -266,6 +290,7 @@ function requiresPublicAdmission(pathname, method) {
   if (pathname === '/v2/accounts/start') return true;
   if (pathname === '/v2/accounts/memberships' && method === 'POST') return true;
   if (pathname === '/v2/accounts/app-join-invitations' && method === 'POST') return true;
+  if (pathname === '/v2/accounts/port-join-invitations' && method === 'POST') return true;
   return pathname === '/v2/accounts/bridges/chord/prepare' ||
     pathname === '/v2/accounts/bridges/chord/dual' ||
     pathname === '/v2/accounts/bridges/chord/finalize';
@@ -488,7 +513,12 @@ async function handleSummary(request, env, origin, route, dependencies, url, mem
     if (!summary) return errorResponse(404, 'account_not_found', origin, route);
     const body = membershipOnly
       ? { ok: true, memberships: summary.memberships }
-      : { ok: true, ...summary };
+      : {
+          ok: true, ...summary,
+          ...(dependencies.qaIdentity
+            ? { qaSessionExpiresAt: dependencies.qaIdentity.expiresAt }
+            : {})
+        };
     return jsonResponse(200, body, origin, route, bookmarkHeader(context.session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
@@ -1329,7 +1359,10 @@ async function handleAppJoinIssue(request, env, origin, route, dependencies) {
     const retry = await repository.resolveIssueRetry(context.identity, input);
     if (retry?.status === 'operation_conflict') return errorResponse(409, 'operation_conflict', origin, route);
     if (retry?.status === 'issued') {
-      return jsonResponse(200, { ok: true, ...retry }, origin, route, bookmarkHeader(context.session));
+      return jsonResponse(200, {
+        ok: true, invitationId: retry.invitationId,
+        expiresAt: retry.expiresAt, alreadyIssued: true
+      }, origin, route, bookmarkHeader(context.session));
     }
     const limited = await rateLimit(
       env.ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER,
@@ -1540,6 +1573,203 @@ async function handleAppJoinConsume(request, env, origin, route, dependencies) {
   }
 }
 
+function portJoinError(status, origin, route) {
+  const errors = {
+    invalid: [400, 'port_join_invalid'],
+    expired: [409, 'port_join_expired'],
+    cancelled: [409, 'port_join_cancelled'],
+    used: [409, 'port_join_consumed'],
+    issuer_unavailable: [409, 'port_join_issuer_unavailable'],
+    qa_admission_unavailable: [403, 'qa_admission_required']
+  };
+  const [httpStatus, code] = errors[status] || [503, 'account_server_error'];
+  return errorResponse(httpStatus, code, origin, route);
+}
+
+async function handlePortJoinIssue(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validatePortJoinIssuePayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_ACCOUNT_APP_JOIN_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const value = validation.value;
+    const verifier = await (dependencies.portJoinCodeVerifier || portJoinCodeVerifier)(
+      value.joinCode, env.SYNC_ACCOUNT_APP_JOIN_PEPPER
+    );
+    const fingerprint = await (dependencies.accountOperationFingerprint || accountOperationFingerprint)([
+      'port-join-issue', context.identity.accountId, context.identity.accountDeviceId,
+      value.invitationId, verifier, dependencies.admissionProvenance
+    ]);
+    const repository = (dependencies.createPortJoinRepository || createD1PortJoinRepository)(context.session);
+    const input = {
+      operationId: value.operationId,
+      invitationId: value.invitationId,
+      codeVerifier: verifier,
+      requestFingerprint: fingerprint,
+      admissionProvenance: dependencies.admissionProvenance,
+      qaIssuerSessionId: dependencies.qaIdentity?.sessionId || null,
+      now: Date.now()
+    };
+    const retry = await repository.resolveIssueRetry(context.identity, input);
+    if (retry?.status === 'operation_conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (retry?.status === 'issued') {
+      return jsonResponse(200, {
+        ok: true, invitationId: retry.invitationId,
+        expiresAt: retry.expiresAt, alreadyIssued: true
+      }, origin, route, bookmarkHeader(context.session));
+    }
+    const limited = await rateLimit(
+      env.ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER,
+      `account-port-join-issue:${context.identity.accountDeviceId}`
+    );
+    if (!limited.ok) return rateError(limited, origin, route, 60);
+    const result = await repository.issue(context.identity, input);
+    if (result.status === 'operation_conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status === 'issuer_unavailable') return portJoinError(result.status, origin, route);
+    if (result.status === 'invitation_exists') return errorResponse(409, 'port_join_already_active', origin, route);
+    return jsonResponse(result.alreadyIssued ? 200 : 201, {
+      ok: true, invitationId: result.invitationId,
+      expiresAt: result.expiresAt, alreadyIssued: result.alreadyIssued
+    }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handlePortJoinStatus(request, env, origin, route, dependencies, url) {
+  const validation = validatePortJoinStatusQuery(url);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const repository = (dependencies.createPortJoinRepository || createD1PortJoinRepository)(context.session);
+    const result = await repository.status(context.identity, validation.value.invitationId);
+    if (result.status === 'not_found') return errorResponse(404, 'port_join_not_found', origin, route);
+    const invitation = result.invitation;
+    const state = invitation.consumedAt != null ? 'consumed'
+      : invitation.cancelledAt != null ? 'cancelled'
+        : invitation.expiresAt <= Date.now() ? 'expired' : 'active';
+    return jsonResponse(200, { ok: true, invitation, state }, origin, route,
+      bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handlePortJoinCancel(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validatePortJoinCancelPayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const repository = (dependencies.createPortJoinRepository || createD1PortJoinRepository)(context.session);
+    const result = await repository.cancel(context.identity, validation.value.invitationId, Date.now());
+    if (result.status === 'not_found') return errorResponse(404, 'port_join_not_found', origin, route);
+    if (result.status === 'used') return errorResponse(409, 'port_join_consumed', origin, route);
+    return jsonResponse(200, {
+      ok: true, invitationId: validation.value.invitationId,
+      cancelled: true, alreadyCancelled: result.alreadyCancelled
+    }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handlePortJoinConsume(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validatePortJoinConsumePayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_DB || !env.SYNC_ACCOUNT_APP_JOIN_PEPPER ||
+      !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  let session;
+  try {
+    session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    const value = validation.value;
+    const admissionProvenance = value.qaCredential === undefined
+      ? ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION
+      : ACCOUNT_ADMISSION_PROVENANCE.QA;
+    if (admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION &&
+        !dependencies.publicAdmissionEnabled) {
+      return errorResponse(403, 'account_public_admission_closed', origin, route);
+    }
+    if (admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA &&
+        !env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER) {
+      return errorResponse(503, 'account_server_unavailable', origin, route);
+    }
+    const accountDevice = parseAccountCredential(value.accountCredential);
+    const verifier = await (dependencies.portJoinCodeVerifier || portJoinCodeVerifier)(
+      value.joinCode, env.SYNC_ACCOUNT_APP_JOIN_PEPPER
+    );
+    const accountVerifier = await (dependencies.accountCredentialVerifier || accountCredentialVerifier)(
+      value.accountCredential, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+    const qaCredential = admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA
+      ? parseQaCredential(value.qaCredential) : null;
+    const qaVerifier = qaCredential
+      ? await (dependencies.qaCredentialVerifier || qaCredentialVerifier)(
+        value.qaCredential, env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER
+      ) : null;
+    const fingerprint = await (dependencies.accountOperationFingerprint || accountOperationFingerprint)([
+      'port-join-consume', verifier, accountDevice.deviceId,
+      accountVerifier, qaVerifier || '', value.deviceLabel || '', admissionProvenance
+    ]);
+    const repository = (dependencies.createPortJoinRepository || createD1PortJoinRepository)(session);
+    const input = {
+      operationId: value.operationId,
+      codeVerifier: verifier,
+      requestFingerprint: fingerprint,
+      accountDeviceId: accountDevice.deviceId,
+      accountCredentialVerifier: accountVerifier,
+      admissionProvenance,
+      qaSessionId: qaCredential?.sessionId || null,
+      qaCredentialVerifier: qaVerifier,
+      deviceLabel: value.deviceLabel,
+      now: Date.now()
+    };
+    const retry = await repository.resolveConsumeRetry(input);
+    if (retry?.status === 'joined') {
+      return jsonResponse(200, { ok: true, operation: 'existing', ...retry }, origin, route,
+        bookmarkHeader(session));
+    }
+    const limited = await rateLimit(
+      env.ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER,
+      `account-port-join-consume:${requestIp(request)}`
+    );
+    if (!limited.ok) return rateError(limited, origin, route, 60);
+    const result = await repository.consume(input);
+    if (result.status !== 'joined') return portJoinError(result.status, origin, route);
+    return jsonResponse(result.alreadyJoined ? 200 : 201, {
+      ok: true, operation: result.alreadyJoined ? 'existing' : 'joined',
+      accountId: result.accountId, accountDeviceId: result.accountDeviceId,
+      recoveryVersion: result.recoveryVersion, qaSessionId: result.qaSessionId,
+      qaExpiresAt: result.qaExpiresAt,
+      alreadyJoined: result.alreadyJoined
+    }, origin, route, bookmarkHeader(session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
 export async function handleAccountApiRequest(request, env = {}, _ctx, dependencies = {}) {
   const url = new URL(request.url);
   const routingMethod = request.method === 'OPTIONS'
@@ -1585,7 +1815,8 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   }
 
   if (url.pathname !== '/v2/accounts/handoffs/consume' &&
-      url.pathname !== '/v2/accounts/app-join-invitations/consume') {
+      url.pathname !== '/v2/accounts/app-join-invitations/consume' &&
+      url.pathname !== '/v2/accounts/port-join-invitations/consume') {
     const qaHeader = request.headers.get('X-Sound-Cruise-QA-Authorization');
     if (qaHeader !== null) {
       let session;
@@ -1600,7 +1831,9 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
           url.pathname === '/v2/accounts/start' || url.pathname === '/v2/accounts/handoffs' ||
             url.pathname === '/v2/accounts/handoffs/cancel' || url.pathname === '/v2/accounts/memberships' ||
             url.pathname === '/v2/accounts/app-join-invitations' ||
-            url.pathname === '/v2/accounts/app-join-invitations/cancel'
+            url.pathname === '/v2/accounts/app-join-invitations/cancel' ||
+            url.pathname === '/v2/accounts/port-join-invitations' ||
+            url.pathname === '/v2/accounts/port-join-invitations/cancel'
             ? { scope: 'port' }
             : {},
           dependencies
@@ -1693,6 +1926,18 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   }
   if (url.pathname === '/v2/accounts/app-join-invitations/cancel') {
     return handleAppJoinCancel(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/port-join-invitations' && request.method === 'GET') {
+    return handlePortJoinStatus(request, env, origin, route, dependencies, url);
+  }
+  if (url.pathname === '/v2/accounts/port-join-invitations') {
+    return handlePortJoinIssue(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/port-join-invitations/cancel') {
+    return handlePortJoinCancel(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/port-join-invitations/consume') {
+    return handlePortJoinConsume(request, env, origin, route, dependencies);
   }
   return handleAppJoinConsume(request, env, origin, route, dependencies);
 }
