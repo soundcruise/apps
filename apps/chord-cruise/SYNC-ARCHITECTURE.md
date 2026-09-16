@@ -33,6 +33,10 @@ The bridge must not accept:
 - active or revoked Account-managed/cross-account identities;
 - membership failures as evidence of retirement.
 
+### M13 acceptance evidence
+
+M13 accepts the retired Legacy bridge through strict Worker integration coverage and local data-preservation tests. A dedicated real-device Remote acceptance was not run because no safe, disposable QA-only retired Legacy fixture existed; creating one would require either new test infrastructure or touching a protected identity. This is classified as non-blocking. If such a fixture arises naturally in future QA, the existing product path may be checked without additional implementation.
+
 ## Path classification
 
 | Path | Class | Reason |
