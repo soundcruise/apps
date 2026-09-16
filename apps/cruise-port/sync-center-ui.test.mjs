@@ -59,6 +59,8 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.match(html, /data-sync-section-help-toggle="sync-center-danger-help"/);
         assert.match(html, /id="sync-center-recovery-help"[^>]*hidden/);
         assert.doesNotMatch(html, /id="sync-center-account-description"/);
+        assert.match(html, /data-sync-environments-toggle[^>]*aria-expanded="false"/);
+        assert.match(html, /id="sync-center-environments-details"[^>]*hidden/);
         assert.doesNotMatch(html, /id="sync-center-help"/,
             'Port Help is rendered by the shared accordion rather than an always-expanded static dialog');
         assert.match(html, /クラウド同期をはじめる/);
@@ -245,6 +247,8 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(source, /\['unset', 'prepared'\]\.includes\(app\.status\) \? '同期コード' : 'アプリを開く'/);
     assert.match(source, /function bindSectionHelp\(root\)/);
     assert.match(source, /button\.setAttribute\('aria-expanded', String\(!help\.hidden\)\)/);
+    assert.match(source, /function bindEnvironmentDetails\(root\)/);
+    assert.match(source, /toggle\.textContent = details\.hidden \? '詳細⌄' : '詳細を閉じる⌃'/);
     assert.match(source, /このアプリを接続/);
     assert.match(source, /以下の手順で接続します。/);
     assert.match(source, /sync-center-join-steps/);

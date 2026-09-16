@@ -220,8 +220,21 @@ function bindSectionHelp(root) {
     });
 }
 
+function bindEnvironmentDetails(root) {
+    const toggle = root?.querySelector?.('[data-sync-environments-toggle]');
+    const details = root?.querySelector?.('#sync-center-environments-details');
+    if (!toggle || !details || toggle.dataset.syncEnvironmentDetailsBound === 'true') return;
+    toggle.dataset.syncEnvironmentDetailsBound = 'true';
+    toggle.addEventListener('click', () => {
+        details.hidden = !details.hidden;
+        toggle.setAttribute('aria-expanded', String(!details.hidden));
+        toggle.textContent = details.hidden ? '詳細⌄' : '詳細を閉じる⌃';
+    });
+}
+
 export function bindSyncCenterActions(root, { orchestrator = null, refresh = async () => {}, tokenProvider = async () => null } = {}) {
     bindSectionHelp(root);
+    bindEnvironmentDetails(root);
     const setup = root?.querySelector?.('#sync-center-setup');
     const confirm = root?.querySelector?.('#sync-center-setup-confirm');
     const recovery = root?.querySelector?.('#sync-center-recovery-code');

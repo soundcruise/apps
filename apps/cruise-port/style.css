@@ -2141,6 +2141,19 @@ textarea:focus-visible {
     cursor: pointer;
 }
 .sync-center-section-help-copy[hidden] { display: none; }
+.sync-center-environments-toggle {
+    align-self: start;
+    margin-top: 2px;
+    padding: 3px 0;
+    border: 0;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: calc(0.78rem * var(--font-scale));
+    cursor: pointer;
+}
+.sync-center-environments-toggle:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
+.sync-center-environments-details[hidden] { display: none; }
 .sync-center-account p,
 .sync-center-section p { margin: 7px 0; color: var(--port-muted); font-size: calc(0.8rem * var(--font-scale)); line-height: 1.65; }
 #sync-center-account-label { color: var(--port-text); font-weight: 650; }
