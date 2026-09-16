@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.35.3';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.35.3';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.35.3';
+} from './sync-center-controller.js?v=0.35.4';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.35.4';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.35.4';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.35.3';
+} from './sync-center-navigation.js?v=0.35.4';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.35.3';
+} from './app-version.js?v=0.35.4';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -251,14 +251,29 @@ const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenter
 const PORT_SYNC_HELP_SUMMARY = '4つのProアプリのデータを、Cruise Portからまとめて管理できます。知りたい項目を下から選んでください。';
 const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     Object.freeze({
-        title: 'クラウド同期をはじめる',
-        paragraphs: Object.freeze(['Sound Cruise Syncは、4つのProアプリで保存した同期対象データをクラウド経由で共有する任意機能です。アプリごとのデータは混ざりません。']),
-        steps: Object.freeze(['Cruise Portでクラウド同期を開く', '「クラウド同期をはじめる」を選ぶ', '復旧コードを安全な場所へ保存する', '各Proアプリを開き、画面の案内に沿って接続する'])
+        title: '最初の接続',
+        paragraphs: Object.freeze(['普段使っているProアプリをCruise Portに接続する手順です。']),
+        steps: Object.freeze([
+            '1-1. Cruise Portで対象アプリの「接続コードを表示」を押す',
+            '1-2. 「コードをコピー」を押す',
+            '1-3. 普段使っているProアプリを開く',
+            '1-4. 設定 → クラウド同期を開く',
+            '1-5. 「Cruise Portと接続」を押す',
+            '1-6. コードを入力して「接続する」を押す'
+        ])
     }),
     Object.freeze({
         title: '別の環境を追加',
-        paragraphs: Object.freeze(['Cruise Portのクラウド同期画面で、接続済みアプリの「別の環境を追加」を押します。コード画面を開いたまま、追加するブラウザ、ブラウザプロファイル、またはホーム画面版/PWAで対象Proアプリを開きます。']),
-        steps: Object.freeze(['対象アプリの「別の環境を追加」を押す', '追加先の設定で「Cruise Portと接続」を開く', 'コードを入力して「接続する」を押す', '接続完了を確認してコード画面を閉じる'])
+        paragraphs: Object.freeze(['接続済みのCruise Portから、別のブラウザやPWAへ接続を追加する手順です。']),
+        steps: Object.freeze([
+            '2-1. Cruise Portで接続済みアプリを確認する',
+            '2-2. 「別の環境を追加」を押す',
+            '2-3. 「コードをコピー」を押す',
+            '2-4. 追加したいブラウザやPWAで対象Proアプリを開く',
+            '2-5. 設定 → クラウド同期を開く',
+            '2-6. 「Cruise Portと接続」を押す',
+            '2-7. コードを入力して「接続する」を押す'
+        ])
     }),
     Object.freeze({
         title: '復旧コード',

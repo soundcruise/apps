@@ -19,17 +19,21 @@
   const HELP_SECTIONS = Object.freeze([
     Object.freeze({
       title: '接続方法',
-      paragraphs: Object.freeze(['最初の同期']),
+      paragraphs: Object.freeze(['最初の接続では、Cruise Portで「接続コードを表示」を押し、普段使っているこのアプリで入力します。']),
       steps: Object.freeze([
-        'Cruise Portを開く', 'クラウド同期を開く', 'クラウド同期をはじめる',
-        '復旧コードを安全な場所へ保存する', '各Proアプリを開く', '画面の案内に沿って接続する'
+        'Cruise Portで対象アプリの「接続コードを表示」を押す',
+        '「コードをコピー」を押す',
+        '普段使っているこのアプリを開く',
+        '設定 → クラウド同期 → 「Cruise Portと接続」を押す',
+        'コードを貼り付けて「接続する」を押す'
       ]),
       secondaryTitle: '別の環境を追加',
       secondarySteps: Object.freeze([
-        'Cruise Portでクラウド同期を開く', '対象アプリの「別の環境を追加」を押す',
-        'コード画面を開いたまま、追加するブラウザまたはPWAを開く',
-        '設定の「Cruise Portと接続」を押す', 'コードを入力して「接続する」を押す',
-        '接続完了を確認してコード画面を閉じる'
+        'Cruise Portで接続済みアプリの「別の環境を追加」を押す',
+        '「コードをコピー」を押す',
+        '追加したいブラウザやPWAでこのアプリを開く',
+        '設定 → クラウド同期 → 「Cruise Portと接続」を押す',
+        'コードを貼り付けて「接続する」を押す'
       ])
     }),
     Object.freeze({
@@ -217,7 +221,7 @@
     toggle.setAttribute('aria-controls', bodyId);
     appendText(document, toggle, 'strong', 'sound-cruise-sync-settings-title', 'クラウド同期');
     const statusLabel = displayStatusLabel(options.state, status, options.statusLabel);
-    appendText(document, toggle, 'span', 'sound-cruise-sync-settings-header-status', statusLabel);
+    appendText(document, toggle, 'span', 'sound-cruise-sync-settings-status-chip', statusLabel);
     appendText(document, toggle, 'span', 'sound-cruise-sync-settings-chevron', '⌄').setAttribute('aria-hidden', 'true');
     header.append(toggle);
     const body = document.createElement('div');

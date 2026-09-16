@@ -34,8 +34,9 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled) {
             action.type = 'button';
             action.dataset.syncAppAction = app.id;
         }
-        action.textContent = app.action === 'setup' ? '接続する' : 'アプリを開く';
-        action.setAttribute('aria-label', `${app.name}を${app.action === 'setup' ? '接続する' : '開く'}（${app.statusLabel}）`);
+        const actionLabel = app.action === 'setup' ? '接続コードを表示' : 'アプリを開く';
+        action.textContent = actionLabel;
+        action.setAttribute('aria-label', `${app.name}で${actionLabel}（${app.statusLabel}）`);
         if (app.action === 'none') {
             action.removeAttribute('href');
             action.setAttribute('aria-disabled', 'true');
@@ -113,11 +114,26 @@ function showJoinCode(root, result, onClose = async () => {}) {
     const panel = document.createElement('div');
     panel.className = 'sync-center-join-panel';
     const title = document.createElement('h2');
-    title.textContent = result.kind === 'add_environment' ? '別の環境を追加' : '既存データを接続';
-    const note = document.createElement('p');
-    note.textContent = result.kind === 'add_environment'
-        ? '別のブラウザやホーム画面版でも同じクラウドデータを使うためのコードです。5分以内に対象アプリの「Cruise Portと接続」へ入力してください。保存する必要はありません。接続が完了するまでこの画面を開いたままにしてください。「コードを取り消す」を押すと、このコードは使えなくなります。'
-        : 'このコードを5分以内に対象アプリの「Cruise Portと接続」へ入力してください。保存する必要はありません。接続が完了するまでこの画面を開いたままにしてください。「コードを取り消す」を押すと、このコードは使えなくなります。';
+    const isAdditionalEnvironment = result.kind === 'add_environment';
+    title.textContent = isAdditionalEnvironment ? '別の環境を追加' : 'このアプリを接続';
+    const intro = document.createElement('p');
+    intro.className = 'sync-center-join-intro';
+    intro.textContent = '以下の手順で接続します。';
+    const steps = document.createElement('ol');
+    steps.className = 'sync-center-join-steps';
+    [
+        'コードをコピー',
+        isAdditionalEnvironment ? '追加したいブラウザやPWAで対象のProアプリを開く' : '普段使っているProアプリを開く',
+        '設定 → クラウド同期 → 「Cruise Portと接続」を押す',
+        'コードを貼り付けて「接続する」を押す'
+    ].forEach((step) => {
+        const item = document.createElement('li');
+        item.textContent = step;
+        steps.append(item);
+    });
+    const codeLabel = document.createElement('p');
+    codeLabel.className = 'sync-center-join-code-label';
+    codeLabel.textContent = '接続コード';
     const code = document.createElement('output');
     code.dataset.sensitive = 'true';
     code.className = 'sync-center-join-code';
@@ -138,7 +154,7 @@ function showJoinCode(root, result, onClose = async () => {}) {
             await globalThis.navigator.clipboard.writeText(result.displayJoinCode);
             copyStatus.textContent = 'コピーしました';
         } catch (_) {
-            copyStatus.textContent = 'コピーできませんでした。コードを選択して保存してください。';
+            copyStatus.textContent = 'コピーできませんでした。コードを選択してコピーしてください。';
         } finally {
             copy.disabled = false;
             copy.removeAttribute('aria-busy');
@@ -146,16 +162,10 @@ function showJoinCode(root, result, onClose = async () => {}) {
             copyStatusTimer = globalThis.setTimeout(() => { copyStatus.textContent = ''; }, TEMPORARY_FEEDBACK_MS);
         }
     });
-    const open = document.createElement('a');
-    open.href = result.appUrl;
-    open.target = '_blank';
-    open.rel = 'noopener noreferrer';
-    open.className = 'action-button secondary-action';
-    open.textContent = '対象アプリを開く';
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'action-button secondary-action';
-    close.textContent = 'コードを取り消す';
+    close.textContent = '接続をやめる';
     close.addEventListener('click', () => dialog.close());
     dialog.addEventListener('close', () => {
         code.textContent = '';
@@ -164,8 +174,14 @@ function showJoinCode(root, result, onClose = async () => {}) {
     }, { once: true });
     const actions = document.createElement('div');
     actions.className = 'sync-center-join-actions';
-    actions.append(copy, open, close);
-    panel.append(title, note, code, actions, copyStatus);
+    actions.append(copy, close);
+    const expires = document.createElement('p');
+    expires.className = 'sync-center-join-note';
+    expires.textContent = 'このコードは5分間有効です。';
+    const keepOpen = document.createElement('p');
+    keepOpen.className = 'sync-center-join-note';
+    keepOpen.textContent = '接続が完了するまでこの画面を開いたままにしてください。';
+    panel.append(title, intro, steps, codeLabel, code, actions, expires, keepOpen, copyStatus);
     dialog.append(panel);
     root.append(dialog);
     dialog.showModal();
@@ -399,7 +415,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         }
         catch (_) {
             button.disabled = false;
-            setText(root, '#sync-center-action-status', 'アプリを開く準備ができませんでした。通信状態を確認してください。');
+            setText(root, '#sync-center-action-status', '接続コードを表示できませんでした。通信状態を確認してください。');
         }
     });
     root?.querySelectorAll?.('[data-sync-center-unavailable]').forEach((button) => {

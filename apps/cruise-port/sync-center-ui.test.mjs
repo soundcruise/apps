@@ -68,7 +68,7 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     assert.match(app, /PORT_SYNC_HELP_SUMMARY/);
     assert.match(app, /PORT_SYNC_HELP_SECTIONS/);
     assert.match(app, /openPortSyncHelp/);
-    for (const category of ['クラウド同期をはじめる', '別の環境を追加', '復旧コード', '同期中の環境', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
+    for (const category of ['最初の接続', '別の環境を追加', '復旧コード', '同期中の環境', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
         assert.match(app, new RegExp(`title: '${category}'`));
     }
 });
@@ -221,25 +221,36 @@ test('Lifecycle UI separates danger actions and enforces stable two-step sensiti
 test('official four-app routes are reused and no all-data-upload promise is made', () => {
     assert.match(read('./sync-center-ui.js'), /resolveCruiseAppHref/);
     assert.doesNotMatch(`${root}\n${pro}\n${app}`, /今すぐ全データ|一括アップロード|自動アップロード/);
-    assert.match(app, /アプリごとのデータは混ざりません/);
+    assert.match(app, /普段使っているProアプリをCruise Portに接続する手順です。/);
     assert.match(app, /環境の同期解除、アプリ単位のクラウド削除、Account全体の削除は別/);
 });
 
-test('Join invitation renders its sensitive code and actions as separate styled blocks', () => {
+test('Join invitation keeps existing callbacks while rendering a concise non-secret flow', () => {
     const source = read('./sync-center-ui.js');
     const styles = read('./style.css');
     assert.match(source, /panel\.className = 'sync-center-join-panel'/);
     assert.match(source, /code\.className = 'sync-center-join-code'/);
     assert.match(source, /copy\.className = 'action-button primary-action'/);
-    assert.match(source, /open\.className = 'action-button secondary-action'/);
     assert.match(source, /close\.className = 'action-button secondary-action'/);
     assert.match(source, /actions\.className = 'sync-center-join-actions'/);
     assert.match(source, /data-sync-app-add-environment/);
     assert.match(source, /別の環境を追加/);
     assert.match(source, /if \(orchestrationEnabled && app\.canAddEnvironment\)/);
     assert.doesNotMatch(source, /edition === 'pro' && orchestrationEnabled && app\.canAddEnvironment/);
+    assert.match(source, /app\.action === 'setup' \? '接続コードを表示' : 'アプリを開く'/);
+    assert.match(source, /このアプリを接続/);
+    assert.match(source, /以下の手順で接続します。/);
+    assert.match(source, /sync-center-join-steps/);
+    assert.equal((source.match(/コードをコピー/g) || []).length >= 2, true);
+    assert.match(source, /接続をやめる/);
+    assert.match(source, /このコードは5分間有効です。/);
     assert.match(source, /接続が完了するまでこの画面を開いたまま/);
+    assert.doesNotMatch(source, /対象アプリを開く/);
+    assert.doesNotMatch(source, /保存する必要はありません/);
+    assert.match(source, /orchestrator\.addEnvironment\(addEnvironment\.dataset\.syncAppAddEnvironment\)/);
+    assert.match(source, /orchestrator\.launch\(button\.dataset\.syncAppAction\)/);
     assert.match(styles, /\.sync-center-join-code\s*\{[\s\S]*overflow-wrap:\s*anywhere/);
     assert.match(styles, /\.sync-center-join-actions\s*\{\s*display:\s*grid;\s*gap:\s*10px/);
+    assert.match(styles, /\.sync-center-join-steps\s*\{[\s\S]*padding-left:/);
     assert.match(styles, /\.sync-center-app-row-actions\s*\{/);
 });

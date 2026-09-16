@@ -2247,6 +2247,27 @@ textarea:focus-visible {
 .sync-center-join-panel { display: grid; gap: 14px; }
 .sync-center-join-panel > h2,
 .sync-center-join-panel > p { margin-bottom: 0; }
+.sync-center-join-intro { margin: 0; }
+.sync-center-join-steps {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding-left: 1.35rem;
+    color: var(--port-text);
+    font-size: .88rem;
+    line-height: 1.55;
+}
+.sync-center-join-code-label {
+    margin: 2px 0 -6px;
+    color: var(--port-text);
+    font-size: .84rem;
+    font-weight: 700;
+}
+.sync-center-join-note {
+    margin: -4px 0 0;
+    font-size: .78rem !important;
+    line-height: 1.55 !important;
+}
 .sync-center-join-code {
     display: block;
     width: 100%;

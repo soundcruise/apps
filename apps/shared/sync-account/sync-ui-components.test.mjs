@@ -16,17 +16,17 @@ const appHtml = [
 
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
-    assert.match(html, /sync-ui-components\.js\?v=5/);
-    assert.match(html, /multi-app-sync\.css\?v=14/);
+    assert.match(html, /sync-ui-components\.js\?v=6/);
+    assert.match(html, /multi-app-sync\.css\?v=15/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
   assert.match(renderer, /sound-cruise-sync-settings-head/);
   assert.doesNotMatch(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
-  for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=14/);
-  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v22/);
-  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.7/);
-  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v9/);
+  for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=15/);
+  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v23/);
+  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.8/);
+  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v10/);
 });
 
 test('shared status, description and button copy is exact', () => {
@@ -50,7 +50,7 @@ test('Help has a summary, five product categories, procedures and privacy link',
   }
   assert.equal((renderer.match(/title: '/g) || []).length, 5);
   assert.doesNotMatch(renderer, /title: 'はじめに'/);
-  for (const step of ['クラウド同期をはじめる', '復旧コードを安全な場所へ保存する', '別の環境を追加', 'Cruise Portと接続', 'コードを入力して「接続する」を押す']) {
+  for (const step of ['接続コードを表示', 'コードをコピー', '普段使っているこのアプリを開く', '別の環境を追加', 'Cruise Portと接続', 'コードを貼り付けて「接続する」を押す']) {
     assert.match(renderer, new RegExp(step));
   }
   assert.match(renderer, /プライバシーポリシーを確認/);
@@ -109,7 +109,7 @@ test('accordion header owns the full row and keeps compact status separate from 
   assert.match(renderer, /function displayStatusLabel\(state, status, suppliedLabel\)/);
   assert.match(renderer, /state === 'unconnected'\) return '未接続'/);
   assert.match(renderer, /state === 'ready'\) return '接続'/);
-  assert.match(renderer, /sound-cruise-sync-settings-header-status/);
+  assert.match(renderer, /sound-cruise-sync-settings-status-chip/);
   assert.match(renderer, /header\.append\(toggle\)/,
     'the accessible toggle is the only collapsed header control');
   assert.doesNotMatch(renderer, /appendText\(document, header, 'button', 'sound-cruise-sync-help-button'/,
@@ -119,7 +119,8 @@ test('accordion header owns the full row and keeps compact status separate from 
   assert.match(renderer, /appendText\(document, actionRow, 'button', 'sound-cruise-sync-help-button', '\?'\)/);
   assert.match(css, /\.sound-cruise-sync-settings-toggle[\s\S]*width:\s*100%/);
   assert.match(css, /\.sound-cruise-sync-action-row[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) auto/);
-  assert.match(css, /\.sound-cruise-sync-settings-header-status[\s\S]*margin-left:\s*auto/);
+  assert.match(css, /\.sound-cruise-sync-settings-status-chip[\s\S]*padding:\s*2px 8px[\s\S]*border:\s*1px solid[\s\S]*border-radius:\s*999px/);
+  assert.match(css, /\.sound-cruise-sync-settings-chevron\s*\{[\s\S]*margin-left:\s*auto/);
 });
 
 test('all four Pro apps expose one compact TOP action only at the end of settings', () => {

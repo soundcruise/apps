@@ -42,7 +42,7 @@ var proScope = assertManifest(path.join(proDirectory, 'manifest.json'), '/apps/r
 assert.strictEqual(proScope.indexOf(standardScope), -1, 'Standard scope does not contain the Pro path');
 assert(standardHtml.includes('<link rel="manifest" href="manifest.json?v=2">'), 'Standard links its sibling manifest');
 assert(standardHtml.includes('href="../theme.css?v=1.5.1"'), 'Standard resolves the shared theme from its parent');
-assert(standardHtml.includes('src="../script.js?v=1.8.4"'), 'Standard resolves the shared script from its parent');
+assert(standardHtml.includes('src="../script.js?v=1.8.5"'), 'Standard resolves the shared script from its parent');
 assert(standardHtml.includes("navigator.serviceWorker.register('../service-worker.js', { scope: './' })"), 'Standard registers the root worker with Standard-only scope');
 assert(!legacyHtml.includes('manifest.json'), 'legacy root does not expose a PWA manifest');
 assert(legacyHtml.includes("navigator.serviceWorker.getRegistration('./')"), 'legacy root only inspects its own worker registration');
