@@ -207,7 +207,7 @@ export function renderSyncCenter(root, presentation, { edition = 'standard', orc
     }
     if (accountRecoveryOpen) {
         accountRecoveryOpen.hidden = accountState !== 'active';
-        accountRecoveryOpen.textContent = '復旧コードの確認';
+        accountRecoveryOpen.textContent = '復旧コードを更新';
     }
     const alert = root.querySelector('#sync-center-alert');
     if (alert) {
@@ -246,6 +246,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const setupSteps = root?.querySelector?.('#sync-center-setup-steps');
     const setupPlan = root?.querySelector?.('#sync-center-setup-plan');
     const recoveryDialog = root?.querySelector?.('#sync-center-recovery');
+    const recoveryTitle = root?.querySelector?.('#sync-center-recovery-dialog-title');
     const recoveryInput = root?.querySelector?.('#sync-center-recovery-input');
     const recoverySummary = root?.querySelector?.('#sync-center-recovery-summary');
     const recoveryCandidate = root?.querySelector?.('#sync-center-recovery-candidate');
@@ -254,6 +255,8 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const setupCopyStatus = root?.querySelector?.('#sync-center-setup-copy-status');
     const recoveryCopy = root?.querySelector?.('#sync-center-recovery-copy');
     const recoveryCopyStatus = root?.querySelector?.('#sync-center-recovery-copy-status');
+    const recoveryRotateConfirmDialog = root?.querySelector?.('#sync-center-recovery-rotate-confirm-dialog');
+    const recoveryRotateConfirm = root?.querySelector?.('#sync-center-recovery-rotate-confirm');
     const recoverySecret = recoveryInput && globalThis.SoundCruiseSyncAccount?.core
         ?.createSensitiveInputController?.(recoveryInput);
     const lifecycleDialog = root?.querySelector?.('#sync-center-lifecycle-confirm');
@@ -483,14 +486,18 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         if (recoveryCopyStatus) recoveryCopyStatus.textContent = '';
         if (recoveryDialog?.open) recoveryDialog.close();
     };
-    root?.querySelectorAll?.('#sync-center-recovery-open, #sync-center-account-recovery-open').forEach((recoveryOpen) => recoveryOpen.addEventListener('click', async () => {
+    const openRecovery = async ({ rotation = false } = {}) => {
         if (!orchestrator?.enabled) return;
         try {
             await ensureQaAdmission();
+            recoveryDialog.dataset.syncMode = rotation ? 'rotation' : 'execution';
             recoveryDialog.dataset.syncPhase = 'input';
             recoveryConfirm.dataset.syncAction = 'prepare-recovery';
-            recoveryConfirm.textContent = '復旧対象を確認';
-            recoverySummary.textContent = '保存してある復旧コードを入力してください。';
+            if (recoveryTitle) recoveryTitle.textContent = rotation ? '復旧コードを更新' : 'Sound Cruise Syncを復旧';
+            recoveryConfirm.textContent = rotation ? '新しい復旧コードを発行' : '復旧対象を確認';
+            recoverySummary.textContent = rotation
+                ? '保存してある現在の復旧コードを入力してください。'
+                : '保存してある復旧コードを入力してください。';
             recoveryCandidate.hidden = true;
             recoveryCandidate.textContent = '';
             if (recoveryCopy) recoveryCopy.hidden = true;
@@ -498,7 +505,21 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         } catch (_) {
             setText(root, '#sync-center-action-status', '復旧を開始できませんでした。QA認証と通信状態を確認してください。');
         }
-    }));
+    };
+    root?.querySelector?.('#sync-center-recovery-open')?.addEventListener('click', () => openRecovery());
+    root?.querySelector?.('#sync-center-account-recovery-open')?.addEventListener('click', () => {
+        if (orchestrator?.enabled) recoveryRotateConfirmDialog?.showModal();
+    });
+    root?.querySelector?.('#sync-center-recovery-rotate-cancel')?.addEventListener('click', () => recoveryRotateConfirmDialog?.close());
+    recoveryRotateConfirm?.addEventListener('click', async () => {
+        recoveryRotateConfirm.disabled = true;
+        try {
+            recoveryRotateConfirmDialog?.close();
+            await openRecovery({ rotation: true });
+        } finally {
+            recoveryRotateConfirm.disabled = false;
+        }
+    });
     root?.querySelector?.('#sync-center-recovery-close')?.addEventListener('click', closeRecovery);
     recoveryConfirm?.addEventListener('click', async () => {
         recoveryConfirm.disabled = true;
@@ -515,7 +536,9 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 const memberships = prepared.summary.memberships || [];
                 const ready = memberships.filter((item) => item.dataset?.state === 'ready').length;
                 const records = memberships.reduce((total, item) => total + Number(item.dataset?.recordCount || 0), 0);
-                recoverySummary.textContent = `${memberships.length}アプリ（準備完了${ready}件）、同期データ${records}件、同期中の環境${prepared.summary.activeDeviceCount}件を復旧します。`;
+                recoverySummary.textContent = recoveryDialog.dataset.syncMode === 'rotation'
+                    ? '新しい復旧コードを発行します。次へ進んで安全な場所に保存してください。'
+                    : `${memberships.length}アプリ（準備完了${ready}件）、同期データ${records}件、同期中の環境${prepared.summary.activeDeviceCount}件を復旧します。`;
                 recoveryConfirm.textContent = '新しい復旧コードを確認';
                 recoverySecret.resolve();
                 return;
@@ -537,7 +560,9 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 recoveryDialog.dataset.syncPhase = 'committing';
                 await orchestrator.commitRecovery({ recoverySaved: true });
                 recoveryDialog.dataset.syncPhase = 'complete';
-                recoverySummary.textContent = 'Sound Cruise Syncを復旧しました。旧環境の同期資格情報は無効です。';
+                recoverySummary.textContent = recoveryDialog.dataset.syncMode === 'rotation'
+                    ? '復旧コードを更新しました。以前の復旧コードは使えません。'
+                    : 'Sound Cruise Syncを復旧しました。旧環境の同期資格情報は無効です。';
                 recoveryConfirm.dataset.syncAction = 'close';
                 recoveryConfirm.textContent = '閉じる';
                 await refresh();

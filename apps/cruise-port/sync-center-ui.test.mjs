@@ -94,7 +94,8 @@ test('Account section presents step title, status chip and state-specific CTA', 
         assert.match(account, /1\. アカウント作成/);
         assert.match(account, /sync-center-account-status/);
         assert.match(account, /アカウントの作成/);
-        assert.match(account, /復旧コードの確認/);
+        assert.match(account, /復旧コードを更新/);
+        assert.doesNotMatch(account, /復旧コードの確認/);
         assert.doesNotMatch(account, /Sound Cruise Sync 接続済み/);
         assert.doesNotMatch(account, /アプリの同期設定が完了/);
         assert.doesNotMatch(account, /クラウド同期をはじめる/);
@@ -104,8 +105,26 @@ test('Account section presents step title, status chip and state-specific CTA', 
     assert.match(ui, /setupOpen\.hidden = accountState !== 'unset'/);
     assert.match(ui, /accountRecoveryOpen\.hidden = accountState !== 'active'/);
     assert.match(ui, /setupOpen\.textContent = 'アカウントの作成'/);
-    assert.match(ui, /accountRecoveryOpen\.textContent = '復旧コードの確認'/);
-    assert.match(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
+    assert.match(ui, /accountRecoveryOpen\.textContent = '復旧コードを更新'/);
+    assert.doesNotMatch(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
+});
+
+test('Recovery-code update confirms before entering the existing rotation flow', () => {
+    for (const html of [root, pro]) {
+        assert.match(html, /id="sync-center-recovery-rotate-confirm-dialog"/);
+        assert.match(html, /<h2[^>]*>復旧コードを更新<\/h2>/);
+        assert.match(html, /新しい復旧コードを発行します。発行すると、現在の復旧コードは使えなくなります。/);
+        assert.match(html, /id="sync-center-recovery-rotate-confirm"[^>]*>新しい復旧コードを発行<\/button>/);
+        assert.match(html, /id="sync-center-recovery-rotate-cancel"[^>]*>キャンセル<\/button>/);
+        assert.match(html, /復旧コードは、同期環境を失ったときに使います。安全のため再表示できません。紛失した場合は、新しい復旧コードを発行してください。有効なコードは1つだけで、新しいコードを発行すると以前のコードは使えなくなります。/);
+        assert.equal((html.match(/安全のため再表示できません/g) || []).length, 1);
+        assert.equal((html.match(/以前のコードは使えなくなります/g) || []).length, 1);
+    }
+    assert.match(ui, /#sync-center-account-recovery-open'\)\?\.addEventListener\('click', \(\) => \{[\s\S]*recoveryRotateConfirmDialog\?\.showModal\(\)/);
+    assert.match(ui, /recoveryRotateConfirmDialog\?\.close\(\);[\s\S]*await openRecovery\(\{ rotation: true \}\)/);
+    assert.match(ui, /recoveryDialog\.dataset\.syncMode = rotation \? 'rotation' : 'execution'/);
+    assert.match(ui, /await orchestrator\.prepareRecovery\(\{ recoveryCode, turnstileToken \}\)/);
+    assert.match(ui, /recoveryDialog\.dataset\.syncMode === 'rotation'[\s\S]*復旧コードを更新しました。以前の復旧コードは使えません。/);
 });
 
 test('Account creation opens the existing recovery screen directly and keeps completion copy clear', () => {
