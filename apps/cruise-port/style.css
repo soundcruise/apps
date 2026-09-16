@@ -2256,6 +2256,7 @@ textarea:focus-visible {
 #sync-center-recovery-code[hidden],
 #sync-center-recovery-candidate[hidden] { display: none; }
 #sync-center-recovery-input {
+    box-sizing: border-box;
     width: 100%;
     min-height: 48px;
     margin: 10px 0;
@@ -2263,12 +2264,13 @@ textarea:focus-visible {
     border-radius: 10px;
     color: var(--port-text);
     background: rgba(0, 0, 0, 0.32);
-    font: 0.9rem ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: max(16px, calc(1rem * var(--font-scale)));
 }
 .sync-center-help-dialog {
     box-sizing: border-box;
-    width: min(560px, calc(100% - 24px));
-    max-width: calc(100% - 24px);
+    width: min(560px, calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    max-width: calc(100vw - 24px - env(safe-area-inset-left) - env(safe-area-inset-right));
     max-height: min(calc(100dvh - 24px), 720px);
     padding: clamp(16px, 5vw, 24px);
     overflow-x: hidden;

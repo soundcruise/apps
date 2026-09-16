@@ -152,14 +152,15 @@ test('Account completion keeps only its existing close action', async () => {
     assert.equal(ui.setup.closeCount, 1);
 });
 
-test('Recovery execution copy is concise and its dialog stays mobile-safe', () => {
+test('Recovery execution copy is concise and its dialog prevents iOS input zoom', () => {
     for (const html of [root, pro]) {
         assert.match(html, /保存してある復旧コードを入力してください。/);
         assert.doesNotMatch(html, /保存済みのAccount Recovery Codeを入力してください。/);
         assert.doesNotMatch(html, /現在有効な復旧コードは1つだけです。新しい復旧コードを発行すると/);
     }
     const css = read('./style.css');
-    assert.match(css, /\.sync-center-help-dialog[\s\S]*box-sizing:\s*border-box[\s\S]*width:\s*min\(560px, calc\(100% - 24px\)\)[\s\S]*max-width:\s*calc\(100% - 24px\)[\s\S]*max-height:\s*min\(calc\(100dvh - 24px\), 720px\)[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/);
+    assert.match(css, /#sync-center-recovery-input\s*\{[\s\S]*box-sizing:\s*border-box[\s\S]*font-size:\s*max\(16px, calc\(1rem \* var\(--font-scale\)\)\)/);
+    assert.match(css, /\.sync-center-help-dialog[\s\S]*box-sizing:\s*border-box[\s\S]*width:\s*min\(560px, calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)\)[\s\S]*max-width:\s*calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)[\s\S]*max-height:\s*min\(calc\(100dvh - 24px\), 720px\)[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/);
 });
 
 test('Sync Help uses independent simple step numbering for each connection flow', () => {
