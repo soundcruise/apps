@@ -79,9 +79,9 @@
     return node;
   }
 
-  function appendSteps(document, parent, steps) {
+  function appendSteps(document, parent, steps, { flow = false } = {}) {
     const list = document.createElement('ol');
-    list.className = 'sound-cruise-sync-help-steps';
+    list.className = `sound-cruise-sync-help-steps${flow ? ' sound-cruise-sync-help-steps--flow' : ''}`;
     steps.forEach((step) => appendText(document, list, 'li', '', step));
     parent.append(list);
   }
@@ -125,9 +125,9 @@
         content.setAttribute('aria-labelledby', headingId);
         content.hidden = true;
         section.paragraphs?.forEach((paragraph) => appendText(document, content, 'p', '', paragraph));
-        if (section.steps) appendSteps(document, content, section.steps);
+        if (section.steps) appendSteps(document, content, section.steps, { flow: section.flowSteps === true });
         if (section.secondaryTitle) appendText(document, content, 'h4', '', section.secondaryTitle);
-        if (section.secondarySteps) appendSteps(document, content, section.secondarySteps);
+        if (section.secondarySteps) appendSteps(document, content, section.secondarySteps, { flow: section.secondaryFlowSteps === true });
         if (section.title === 'データとプライバシー') {
           const link = appendText(document, content, 'a', 'sound-cruise-sync-help-link', 'プライバシーポリシーを確認');
           link.href = privacyHref;

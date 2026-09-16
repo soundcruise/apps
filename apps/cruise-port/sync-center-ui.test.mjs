@@ -68,6 +68,7 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     assert.match(app, /PORT_SYNC_HELP_SUMMARY/);
     assert.match(app, /PORT_SYNC_HELP_SECTIONS/);
     assert.match(app, /openPortSyncHelp/);
+    assert.equal((app.match(/flowSteps: true/g) || []).length, 2);
     for (const category of ['最初の接続', '別の環境を追加', '復旧コード', '同期中の環境', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
         assert.match(app, new RegExp(`title: '${category}'`));
     }

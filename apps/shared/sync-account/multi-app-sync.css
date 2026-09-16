@@ -283,6 +283,7 @@
 .sound-cruise-sync-help-section p,
 .sound-cruise-sync-help-steps { color: #e8ddbd; font-size: .9rem; }
 .sound-cruise-sync-help-steps { display: grid; gap: .4rem; margin: 0; padding-left: 1.5rem; line-height: 1.55; }
+.sound-cruise-sync-help-steps--flow { padding-left: 0; list-style: none; }
 .sound-cruise-sync-help-link { color: #f3e5b6; text-underline-offset: 3px; }
 .sound-cruise-settings-top-wrap {
   display: flex;

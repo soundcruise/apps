@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.35.4';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.35.4';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.35.4';
+} from './sync-center-controller.js?v=0.35.5';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.35.5';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.35.5';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.35.4';
+} from './sync-center-navigation.js?v=0.35.5';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.35.4';
+} from './app-version.js?v=0.35.5';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -253,6 +253,7 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     Object.freeze({
         title: '最初の接続',
         paragraphs: Object.freeze(['普段使っているProアプリをCruise Portに接続する手順です。']),
+        flowSteps: true,
         steps: Object.freeze([
             '1-1. Cruise Portで対象アプリの「接続コードを表示」を押す',
             '1-2. 「コードをコピー」を押す',
@@ -265,6 +266,7 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     Object.freeze({
         title: '別の環境を追加',
         paragraphs: Object.freeze(['接続済みのCruise Portから、別のブラウザやPWAへ接続を追加する手順です。']),
+        flowSteps: true,
         steps: Object.freeze([
             '2-1. Cruise Portで接続済みアプリを確認する',
             '2-2. 「別の環境を追加」を押す',
