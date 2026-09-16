@@ -34,7 +34,10 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled) {
             action.type = 'button';
             action.dataset.syncAppAction = app.id;
         }
-        const actionLabel = app.action === 'setup' ? '接続コードを表示' : 'アプリを開く';
+        // Prepared memberships use the same launch callback as normal rows, but
+        // opening them issues the initial connection code. Keep that callback
+        // contract intact while making the next action clear in the UI.
+        const actionLabel = ['unset', 'prepared'].includes(app.status) ? '同期コード' : 'アプリを開く';
         action.textContent = actionLabel;
         action.setAttribute('aria-label', `${app.name}で${actionLabel}（${app.statusLabel}）`);
         if (app.action === 'none') {
@@ -191,7 +194,6 @@ export function renderSyncCenter(root, presentation, { edition = 'standard', orc
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
     setText(root, '#sync-center-account-label', presentation.accountLabel);
-    setText(root, '#sync-center-account-description', presentation.accountDescription);
     setText(root, '#sync-center-progress', `${presentation.readyCount} / ${presentation.totalCount} アプリの同期設定が完了`);
     const alert = root.querySelector('#sync-center-alert');
     if (alert) {
@@ -205,7 +207,21 @@ export function renderSyncCenter(root, presentation, { edition = 'standard', orc
     renderDangerActions(root, presentation);
 }
 
+function bindSectionHelp(root) {
+    root?.querySelectorAll?.('[data-sync-section-help-toggle]').forEach((button) => {
+        if (button.dataset.syncSectionHelpBound === 'true') return;
+        button.dataset.syncSectionHelpBound = 'true';
+        button.addEventListener('click', () => {
+            const help = root.querySelector(`#${button.dataset.syncSectionHelpToggle}`);
+            if (!help) return;
+            help.hidden = !help.hidden;
+            button.setAttribute('aria-expanded', String(!help.hidden));
+        });
+    });
+}
+
 export function bindSyncCenterActions(root, { orchestrator = null, refresh = async () => {}, tokenProvider = async () => null } = {}) {
+    bindSectionHelp(root);
     const setup = root?.querySelector?.('#sync-center-setup');
     const confirm = root?.querySelector?.('#sync-center-setup-confirm');
     const recovery = root?.querySelector?.('#sync-center-recovery-code');
@@ -415,7 +431,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         }
         catch (_) {
             button.disabled = false;
-            setText(root, '#sync-center-action-status', '接続コードを表示できませんでした。通信状態を確認してください。');
+            setText(root, '#sync-center-action-status', '同期コードを表示できませんでした。通信状態を確認してください。');
         }
     });
     root?.querySelectorAll?.('[data-sync-center-unavailable]').forEach((button) => {

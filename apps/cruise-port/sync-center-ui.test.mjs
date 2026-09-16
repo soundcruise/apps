@@ -54,8 +54,11 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.match(html, /設定から「Cruise Portと接続」を押す/);
         assert.match(html, /同期中の環境/);
         assert.match(html, /復旧とセキュリティ/);
-        assert.match(html, /現在有効な復旧コードは1つだけです/);
-        assert.match(html, /新しい復旧コードを発行すると、以前のコードは無効になります/);
+        assert.match(html, /data-sync-section-help-toggle="sync-center-environments-help"/);
+        assert.match(html, /data-sync-section-help-toggle="sync-center-recovery-help"/);
+        assert.match(html, /data-sync-section-help-toggle="sync-center-danger-help"/);
+        assert.match(html, /id="sync-center-recovery-help"[^>]*hidden/);
+        assert.doesNotMatch(html, /id="sync-center-account-description"/);
         assert.doesNotMatch(html, /id="sync-center-help"/,
             'Port Help is rendered by the shared accordion rather than an always-expanded static dialog');
         assert.match(html, /クラウド同期をはじめる/);
@@ -208,8 +211,9 @@ test('Lifecycle UI separates danger actions and enforces stable two-step sensiti
         assert.match(html, /data-sensitive="account-recovery-code"/);
         assert.match(html, /id="sync-center-lifecycle-submit"/);
         assert.equal((html.match(/id="sync-center-lifecycle-confirm"/g) || []).length, 1);
+        assert.match(html, /id="sync-center-danger-help"[^>]*hidden/);
         assert.match(html, /端末内のデータは削除されません/);
-        assert.match(html, /7日後に完全削除されます/);
+        assert.match(html, /7日後に完全削除の対象になります/);
     }
     const ui = read('./sync-center-ui.js');
     assert.match(ui, /lifecycleDialog\.dataset\.syncPhase = 'review'/);
@@ -238,7 +242,9 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(source, /別の環境を追加/);
     assert.match(source, /if \(orchestrationEnabled && app\.canAddEnvironment\)/);
     assert.doesNotMatch(source, /edition === 'pro' && orchestrationEnabled && app\.canAddEnvironment/);
-    assert.match(source, /app\.action === 'setup' \? '接続コードを表示' : 'アプリを開く'/);
+    assert.match(source, /\['unset', 'prepared'\]\.includes\(app\.status\) \? '同期コード' : 'アプリを開く'/);
+    assert.match(source, /function bindSectionHelp\(root\)/);
+    assert.match(source, /button\.setAttribute\('aria-expanded', String\(!help\.hidden\)\)/);
     assert.match(source, /このアプリを接続/);
     assert.match(source, /以下の手順で接続します。/);
     assert.match(source, /sync-center-join-steps/);

@@ -108,9 +108,6 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null) {
         accountState,
         accountLabel: accountState === 'active' ? 'Sound Cruise Sync 接続済み' :
             accountState === 'deleting' ? 'アカウント削除中' : 'アカウントの確認が必要です',
-        accountDescription: accountState === 'active'
-            ? '各Cruiseアプリのクラウド同期設定を確認できます。'
-            : '安全のため、各Cruiseアプリから状態を確認してください。',
         recoveryVersion: safeCount(account.recoveryVersion),
         apps,
         readyCount: apps.filter((app) => app.status === 'synced').length,
@@ -124,7 +121,6 @@ export function createUnsetPresentation() {
         kind: 'unset',
         accountState: 'unset',
         accountLabel: 'Sound Cruise Syncは未設定です',
-        accountDescription: '4つのProアプリをクラウド同期できます。',
         recoveryVersion: null,
         apps: Object.freeze(SYNC_CENTER_APPS.map((app) => normalizeApp(app, null))),
         readyCount: 0,
@@ -135,7 +131,7 @@ export function createUnsetPresentation() {
 
 export function createUnavailablePresentation(kind = 'error', previous = null) {
     const base = Array.isArray(previous?.apps) && previous.accountState !== 'unset' ? previous : Object.freeze({
-        accountState: 'unknown', recoveryVersion: null, accountDescription: '',
+        accountState: 'unknown', recoveryVersion: null,
         apps: Object.freeze(SYNC_CENTER_APPS.map((app) => Object.freeze({
             id: app.id, name: app.name, status: 'unknown', statusLabel: '確認できません',
             action: 'open', recordCount: null, schemaVersion: null

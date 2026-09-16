@@ -2122,6 +2122,25 @@ textarea:focus-visible {
 }
 .sync-center-account h2,
 .sync-center-section h2 { margin: 0 0 10px; font-size: calc(1rem * var(--font-scale)); }
+.sync-center-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sync-center-section-heading h2 { margin-bottom: 0; }
+.sync-center-section-help {
+    display: inline-grid;
+    flex: 0 0 30px;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    place-items: center;
+    border: 1px solid rgba(205, 180, 116, 0.42);
+    border-radius: 50%;
+    color: var(--port-gold-bright);
+    background: rgba(205, 180, 116, 0.08);
+    font: inherit;
+    font-size: calc(0.9rem * var(--font-scale));
+    font-weight: 700;
+    cursor: pointer;
+}
+.sync-center-section-help-copy[hidden] { display: none; }
 .sync-center-account p,
 .sync-center-section p { margin: 7px 0; color: var(--port-muted); font-size: calc(0.8rem * var(--font-scale)); line-height: 1.65; }
 #sync-center-account-label { color: var(--port-text); font-weight: 650; }
