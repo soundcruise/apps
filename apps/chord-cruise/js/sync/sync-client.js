@@ -698,7 +698,8 @@
             }
             var store = await openStore();
             var existing = await store.getMeta('deviceCredential');
-            if (existing && existing.credential !== candidate.deviceCredential) {
+            if (existing && existing.credential !== candidate.deviceCredential &&
+                candidate.replaceRetiredLegacyCredential !== true) {
                 return { ok: false, code: 'existing_credential_conflict' };
             }
             try {

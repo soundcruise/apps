@@ -7,6 +7,7 @@ var vm = require('vm');
 
 var root = path.join(__dirname, '..');
 var source = fs.readFileSync(path.join(root, 'js/sync/sync-account-orchestration.js'), 'utf8');
+var clientSource = fs.readFileSync(path.join(root, 'js/sync/sync-client.js'), 'utf8');
 var DEVICE_ID = '123e4567-e89b-42d3-a456-426614174777';
 var CREDENTIAL = 'scd1.' + DEVICE_ID + '.' + 'C'.repeat(43);
 
@@ -21,6 +22,10 @@ assert.match(source, /if \(!canRetryAsNewChordEnvironment\(reason\)\) throw reas
     'only the stale legacy-device failure uses the new-environment fallback');
 assert.match(source, /app_join_expired: '接続コードの有効期限が切れました。Cruise Portで新しいコードを発行してください。'/,
     'safe Join status feedback remains available without revealing the code');
+assert.match(source, /replaceRetiredLegacyCredential: true/,
+    'a confirmed-retired legacy device can complete the same pending Account Join without a user-facing resume step');
+assert.match(clientSource, /existing && existing\.credential !== candidate\.deviceCredential &&\s*candidate\.replaceRetiredLegacyCredential !== true/,
+    'a different credential remains protected unless the Account Join explicitly confirmed the legacy device is retired');
 
 async function runStartup(options) {
     var config = options || {};

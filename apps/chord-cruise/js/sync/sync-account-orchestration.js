@@ -203,7 +203,11 @@
         }
         var migrated = await chordClient.adoptAccountManagedIdentity({
           deviceId: consumed.appDeviceId,
-          deviceCredential: consumed.appDeviceCredential
+          deviceCredential: consumed.appDeviceCredential,
+          // `new_app` with an existing Chord credential is reached only after
+          // the Account API rejected that legacy device. The local Chord data
+          // is preserved; only its no-longer-valid sync identity is replaced.
+          replaceRetiredLegacyCredential: true
         });
         if (!migrated.ok) throw new Error(migrated.code || 'migration_failed');
         await accountClient.confirmConsumePersisted();
