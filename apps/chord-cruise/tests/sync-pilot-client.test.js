@@ -418,6 +418,52 @@ var seed = {
     assert.deepStrictEqual(meaningfulLocal.snapshot(), meaningfulBefore, 'meaningful local data is never silently overwritten');
     assert.strictEqual(meaningfulRequests.some(function (url) { return url.indexOf('/v1/sync/push') !== -1; }), false);
 
+    var retiredStore = createMemoryStore();
+    var retiredSync = loadClient(retiredStore);
+    var retiredLocal = createStorage(seed);
+    var retiredDeviceId = '123e4567-e89b-42d3-a456-426614174700';
+    var retiredCredential = 'scd1.' + retiredDeviceId + '.' + 'R'.repeat(43);
+    await retiredStore.setMeta('deviceCredential', {
+        deviceId: retiredDeviceId,
+        credential: retiredCredential,
+        credentialVersion: 1,
+        createdAt: 1
+    });
+    var retiredClient = retiredSync.client.createClient({
+        enabled: true, localStorage: retiredLocal, crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787', now: function () { return 6000; },
+        fetch: async function (url) {
+            if (url.indexOf('/v1/sync/bootstrap') !== -1) {
+                return jsonResponse(200, { ok: true, appId: 'chord', datasetState: 'ready', alreadyCreated: true });
+            }
+            throw new Error('retired identity adoption must not write user data');
+        }
+    });
+    await retiredClient.initialize();
+    var retiredBefore = retiredLocal.snapshot();
+    var unconfirmedReplacement = await retiredClient.adoptAccountManagedIdentity({
+        deviceId: promotionDeviceId,
+        deviceCredential: promotionCredential
+    });
+    assert.strictEqual(unconfirmedReplacement.ok, false, 'unknown or active existing identities safe-stop');
+    assert.strictEqual(unconfirmedReplacement.code, 'existing_credential_conflict');
+    assert.strictEqual((await retiredStore.getMeta('deviceCredential')).credential, retiredCredential,
+        'a rejected replacement keeps the exact old identity');
+    assert.deepStrictEqual(retiredLocal.snapshot(), retiredBefore,
+        'a rejected replacement leaves settings, folders, chords and library order byte-for-byte unchanged');
+    var confirmedReplacement = await retiredClient.adoptAccountManagedIdentity({
+        deviceId: promotionDeviceId,
+        deviceCredential: promotionCredential,
+        replaceRetiredLegacyCredential: true
+    });
+    assert.strictEqual(confirmedReplacement.ok, true, 'the isolated retired bridge can replace sync identity only');
+    assert.deepStrictEqual(retiredLocal.snapshot(), retiredBefore,
+        'the retired bridge preserves settings, folders, saved chords and library order byte-for-byte');
+    var retiredSnapshot = await retiredClient.captureSnapshot();
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(retiredSnapshot.counts)), {
+        total: 4, settings: 1, folder: 1, chord: 1, library_order: 1
+    }, 'stable record counts and semantic types are preserved across identity replacement');
+
     var applyFailureStore = createMemoryStore();
     var applyFailureSync = loadClient(applyFailureStore);
     var applyFailureLocal = createStorage({ 'chordCruise.schemaVersion': JSON.stringify('1') }, {

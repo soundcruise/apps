@@ -1,5 +1,5 @@
 import { authenticateAccountDevice } from './account-auth.js';
-import { authenticateDevice } from './auth.js';
+import { authenticateDevice, isRetiredLegacyDeviceCredential } from './auth.js';
 import {
   accountAppCredentialVerifier,
   accountCredentialVerifier,
@@ -1163,6 +1163,17 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
         env.SYNC_CREDENTIAL_PEPPER
       );
       if (!existingAppIdentity) {
+        const retiredLegacy = await (
+          dependencies.isRetiredLegacyDeviceCredential || isRetiredLegacyDeviceCredential
+        )(
+          session,
+          `Bearer ${value.appDeviceCredential}`,
+          'chord',
+          env.SYNC_CREDENTIAL_PEPPER
+        );
+        if (retiredLegacy) {
+          return errorResponse(409, 'retired_legacy_device', origin, route);
+        }
         return errorResponse(401, 'invalid_app_credential', origin, route);
       }
     }
@@ -1416,7 +1427,20 @@ async function handleAppJoinConsume(request, env, origin, route, dependencies) {
         'chord',
         env.SYNC_CREDENTIAL_PEPPER
       );
-      if (!existingAppIdentity) return errorResponse(401, 'invalid_app_credential', origin, route);
+      if (!existingAppIdentity) {
+        const retiredLegacy = await (
+          dependencies.isRetiredLegacyDeviceCredential || isRetiredLegacyDeviceCredential
+        )(
+          session,
+          `Bearer ${value.appDeviceCredential}`,
+          'chord',
+          env.SYNC_CREDENTIAL_PEPPER
+        );
+        if (retiredLegacy) {
+          return errorResponse(409, 'retired_legacy_device', origin, route);
+        }
+        return errorResponse(401, 'invalid_app_credential', origin, route);
+      }
     }
     const codeVerifier = await (dependencies.appJoinCodeVerifier || appJoinCodeVerifier)(
       value.joinCode,

@@ -16,14 +16,20 @@ async function settle() {
     await new Promise(function (resolve) { setImmediate(resolve); });
 }
 
-assert.match(source, /function canRetryAsNewChordEnvironment\(reason\)[\s\S]*?reason\?\.code === 'invalid_app_credential'[\s\S]*?reason\?\.code === 'membership_state_invalid'/,
-    'a retired legacy Chord credential can safely fall back to the Account-managed Join flow');
+assert.match(source, /function canRetryAsNewChordEnvironment\(reason\)[\s\S]*?reason\?\.code === 'retired_legacy_device'/,
+    'only a server-confirmed retired Legacy credential can use the Account-managed fallback');
+assert.doesNotMatch(source, /function canRetryAsNewChordEnvironment\(reason\)[\s\S]{0,240}(?:invalid_app_credential|membership_state_invalid)/,
+    'unknown, invalid, active Account-managed and cross-account credentials safe-stop');
 assert.match(source, /if \(!canRetryAsNewChordEnvironment\(reason\)\) throw reason;[\s\S]*?return connectAsNewChordEnvironment\(joinCode\);/,
     'only the stale legacy-device failure uses the new-environment fallback');
 assert.match(source, /app_join_expired: '接続コードの有効期限が切れました。Cruise Portで新しいコードを発行してください。'/,
     'safe Join status feedback remains available without revealing the code');
-assert.match(source, /replaceRetiredLegacyCredential: true/,
-    'a confirmed-retired legacy device can complete the same pending Account Join without a user-facing resume step');
+assert.match(source, /replaceRetiredLegacyCredential: replaceRetiredLegacy/,
+    'identity replacement requires persisted server confirmation');
+assert.match(source, /serverConfirmed: true[\s\S]*?retiredDeviceId: existing\.deviceId[\s\S]*?nextDeviceId: appMaterial\.appDeviceId/,
+    'the retired bridge stores only non-secret, operation-bound proof for committed Join recovery');
+assert.doesNotMatch(source, /同期の設定を再開|クラウド同期の設定を再開/,
+    'normal Account-managed users never see a Chord-only resume state');
 assert.match(clientSource, /existing && existing\.credential !== candidate\.deviceCredential &&\s*candidate\.replaceRetiredLegacyCredential !== true/,
     'a different credential remains protected unless the Account Join explicitly confirmed the legacy device is retired');
 

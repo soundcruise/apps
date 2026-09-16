@@ -13,7 +13,7 @@ import {
 } from '../src/account-crypto.js';
 import { createIdentityMaterial } from '../src/crypto.js';
 import { createQaCredential, qaCredentialVerifier } from '../src/account-qa-crypto.js';
-import { createSqliteD1 } from './sqlite-d1.js';
+import { createSqliteD1, seedIdentity } from './sqlite-d1.js';
 
 const origin = 'https://soundcruise.jp';
 const accountCredentialPepper = 'm3-api-account-credential-pepper-32-chars';
@@ -501,6 +501,81 @@ test('cross-container app Join Code activates once without echoing or storing pl
   assert.equal(response.status, 409);
   assert.equal((await response.json()).code, 'app_join_consumed');
   assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_users').get().count, 1);
+  db.close();
+});
+
+test('Chord Join distinguishes retired Legacy from unknown and preserves active Legacy for bridge', async () => {
+  const db = createSqliteD1();
+  enableAccountControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['chord']);
+  const joinCode = createAppJoinCode();
+  const invitationId = crypto.randomUUID();
+  let response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations', {
+    operationId: crypto.randomUUID(), invitationId, appId: 'chord', joinCode
+  }, { credential: started.candidate.account.credential }), env);
+  assert.equal(response.status, 201);
+
+  const legacy = await createIdentityMaterial(appPepper);
+  seedIdentity(db, {
+    userId: legacy.userId,
+    deviceId: legacy.deviceId,
+    appId: 'chord',
+    verifier: legacy.credentialVerifier
+  });
+  db.raw.prepare(`
+    UPDATE sync_users
+    SET state = 'active', recovery_version = 1, recovery_verifier = ?, updated_at = 2
+    WHERE id = ?
+  `).run('legacy-recovery-verifier', legacy.userId);
+  db.raw.prepare(`
+    UPDATE sync_datasets
+    SET state = 'ready', initialized_at = 2, updated_at = 2
+    WHERE user_id = ? AND app_id = 'chord'
+  `).run(legacy.userId);
+
+  const targetAccount = createAccountCredential();
+  const targetQa = createQaCredential();
+  const consumeBody = {
+    operationId: crypto.randomUUID(), appId: 'chord', joinCode,
+    accountCredential: targetAccount.credential,
+    appDeviceCredential: legacy.credential,
+    qaCredential: targetQa.credential,
+    deviceLabel: 'Chord container', consumeMode: 'existing_chord'
+  };
+  const unknown = await createIdentityMaterial(appPepper);
+  response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations/consume', {
+    ...consumeBody,
+    operationId: crypto.randomUUID(),
+    appDeviceCredential: unknown.credential
+  }), env);
+  assert.equal(response.status, 401);
+  assert.equal((await response.json()).code, 'invalid_app_credential');
+  assert.equal(db.raw.prepare(
+    'SELECT consumed_at FROM sync_app_join_invitations WHERE invitation_id = ?'
+  ).get(invitationId).consumed_at, null, 'unknown credential never consumes the invitation');
+
+  db.raw.prepare('UPDATE sync_devices SET revoked_at = 3 WHERE id = ?').run(legacy.deviceId);
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/app-join-invitations/consume', consumeBody), env
+  );
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, 'retired_legacy_device');
+  assert.equal(db.raw.prepare(
+    'SELECT consumed_at FROM sync_app_join_invitations WHERE invitation_id = ?'
+  ).get(invitationId).consumed_at, null, 'retired detection is read-only and leaves the code retryable');
+
+  db.raw.prepare('UPDATE sync_devices SET revoked_at = NULL WHERE id = ?').run(legacy.deviceId);
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/app-join-invitations/consume', consumeBody), env
+  );
+  assert.equal(response.status, 201);
+  const bridged = await response.json();
+  assert.equal(bridged.operation, 'bridge_required');
+  assert.equal(bridged.syncUserId, legacy.userId);
+  assert.equal(bridged.membershipState, 'pending');
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_devices WHERE id = ?')
+    .get(legacy.deviceId).revoked_at, null, 'active Legacy identity is preserved');
   db.close();
 });
 

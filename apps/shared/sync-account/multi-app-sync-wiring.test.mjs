@@ -123,7 +123,8 @@ test('Chord retains a committed new-app Join candidate for same-device promotion
   const client = read('apps/chord-cruise/js/sync/sync-client.js');
   assert.match(source, /resumeNewAppConsume/);
   assert.match(source, /accountJoinCommitted/);
-  assert.match(source, /同期の設定を再開/);
+  assert.doesNotMatch(source, /同期の設定を再開|クラウド同期の設定を再開/);
+  assert.match(source, /もう一度確認/);
   assert.match(source, /confirmConsumePersisted\(\)/);
   assert.match(client, /requiresMerge: true/);
   assert.match(client, /datasetState === 'ready'/);

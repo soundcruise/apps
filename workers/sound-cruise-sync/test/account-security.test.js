@@ -75,6 +75,6 @@ test('production config exposes every independent Account-operation limiter', ()
   }
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
   assert.match(config, /"SYNC_QA_ALLOWED_APP_IDS"\s*:\s*"chord,pitch,rhythm,fretboard"/u);
-  assert.match(config, /"SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED"\s*:\s*"false"/u);
+  assert.match(config, /"SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED"\s*:\s*"true"/u);
   assert.match(config, /"SYNC_ACCOUNT_PUBLIC_APP_IDS"\s*:\s*"chord,pitch,fretboard,rhythm"/u);
 });

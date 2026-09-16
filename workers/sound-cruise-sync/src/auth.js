@@ -2,6 +2,37 @@ import { hmacVerifier, parseDeviceCredential, timingSafeHexEqual } from './crypt
 
 const LAST_SEEN_WRITE_INTERVAL_MS = 60 * 60 * 1000;
 
+export async function isRetiredLegacyDeviceCredential(db, authorization, expectedAppId, pepper) {
+  if (!db || typeof db.prepare !== 'function' || typeof authorization !== 'string' ||
+      !authorization.startsWith('Bearer ') || typeof pepper !== 'string') return false;
+  const credential = authorization.slice(7);
+  const parsed = parseDeviceCredential(credential);
+  if (!parsed) return false;
+  let row = null;
+  try {
+    row = await db.prepare(`
+      SELECT d.app_id, d.credential_verifier, d.revoked_at,
+             u.state AS user_state, u.deleted_at,
+             EXISTS (
+               SELECT 1 FROM sync_account_managed_users am
+               WHERE am.sync_user_id = d.user_id
+             ) AS account_managed
+      FROM sync_devices d
+      JOIN sync_users u ON u.id = d.user_id
+      WHERE d.id = ?
+    `).bind(parsed.deviceId).first();
+  } catch {
+    throw new Error('Device retirement lookup database failure');
+  }
+  const calculated = await hmacVerifier(credential, pepper);
+  const verifier = row?.credential_verifier || '0'.repeat(64);
+  const matches = timingSafeHexEqual(calculated, verifier);
+  if (!row || !matches || row.app_id !== expectedAppId || Number(row.account_managed) !== 0) {
+    return false;
+  }
+  return row.revoked_at != null || (row.user_state === 'deleted' && row.deleted_at != null);
+}
+
 export async function authenticateDevice(db, authorization, expectedAppId, pepper) {
   if (!db || typeof db.prepare !== 'function' || typeof authorization !== 'string' ||
       !authorization.startsWith('Bearer ') || typeof pepper !== 'string') return null;
