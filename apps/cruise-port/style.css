@@ -2319,6 +2319,16 @@ textarea:focus-visible {
     line-height: 1.55;
 }
 .sync-center-setup-steps[hidden] { display: none; }
+.sync-center-turnstile {
+    margin: 14px 0;
+    padding: 12px;
+    border: 1px solid rgba(205, 180, 116, 0.4);
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.2);
+}
+.sync-center-turnstile[hidden] { display: none; }
+.sync-center-turnstile p { margin: 0 0 10px; }
+.sync-center-turnstile > div { min-height: 65px; }
 .sync-center-help-dialog .action-button { width: 100%; margin-top: 10px; }
 .sync-center-join-panel { display: grid; gap: 14px; }
 .sync-center-join-panel > h2,

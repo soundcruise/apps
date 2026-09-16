@@ -75,6 +75,8 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.doesNotMatch(html, /<iframe/i);
         assert.doesNotMatch(html, /__SOUND_CRUISE_SYNC_CENTER__/);
         assert.match(html, /sync-account-turnstile\.js/);
+        assert.match(html, /id="sync-center-setup-turnstile"[^>]*hidden/);
+        assert.match(html, /id="sync-center-turnstile"/);
     }
     assert.match(app, /elements\.syncCenterEntry\.hidden = !syncCenterController\.enabled/);
     assert.match(app, /PORT_SYNC_HELP_SUMMARY/);
@@ -201,7 +203,7 @@ test('Sync Help uses independent simple step numbering for each connection flow'
 test('QA Enrollment and Account start request distinct Turnstile actions', () => {
     const source = read('./sync-center-ui.js');
     assert.match(source, /tokenProvider\('sound_cruise_account_qa_enroll'\)/);
-    assert.match(source, /tokenProvider\('sound_cruise_account_start'\)/);
+    assert.match(source, /requestSetupTurnstileToken\('sound_cruise_account_start'\)/);
     assert.match(app, /await syncCenterActions\?\.ensureQaAdmission\?\.\(\)/);
     assert.ok(app.indexOf('await syncCenterActions?.ensureQaAdmission?.()') < app.indexOf('syncCenterController.load()'));
 });
@@ -215,6 +217,8 @@ test('Account setup exposes bounded retry phases instead of leaving the preparin
     assert.match(source, /confirm\.textContent = 'もう一度試す'/);
     assert.match(source, /setup\.dataset\.syncError = safeErrorCode\(error\)/);
     assert.match(source, /finally \{ confirm\.disabled = false; \}/);
+    assert.match(source, /requestSetupTurnstileToken\('sound_cruise_account_start'\)/);
+    assert.match(source, /tokenProvider\(action, \{ mount: setupTurnstileMount, visible: true \}\)/);
 });
 
 test('Account start failure returns the modal to a visible retry using the same candidate', async () => {

@@ -24,13 +24,13 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=0.35.6';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.36.4';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.36.4';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.36.5';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.36.5';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.36.4';
+} from './sync-center-navigation.js?v=0.36.5';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.36.4';
+} from './app-version.js?v=0.36.5';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -5124,10 +5124,10 @@ if (syncCenterController.enabled) {
     syncCenterActions = bindSyncCenterActions(elements.syncCenterView, {
         orchestrator: syncCenterOrchestrator,
         refresh: renderSyncCenterView,
-        tokenProvider: async (action) => {
+        tokenProvider: async (action, options = {}) => {
             const provider = globalThis.__SOUND_CRUISE_ACCOUNT_TURNSTILE__;
             if (typeof provider?.getToken !== 'function') return null;
-            return provider.getToken(action);
+            return provider.getToken(action, options);
         }
     });
     elements.syncCenterOpen.addEventListener('click', () => {

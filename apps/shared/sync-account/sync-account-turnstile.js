@@ -50,19 +50,23 @@
   // Do not reuse a Turnstile mount node. Safari Private can retain an
   // interaction-only iframe after remove(), which prevents a later action
   // from issuing a token in the same document.
-  function container() {
+  function container(mount = null) {
+    if (mount && typeof mount.appendChild === 'function') {
+      mount.textContent = '';
+      return { element: mount, owned: false };
+    }
     const element = global.document.createElement('div');
     element.id = `${CONTAINER_PREFIX}-${++containerSequence}`;
     element.setAttribute('aria-live', 'polite');
     global.document.body.appendChild(element);
-    return element;
+    return { element, owned: true };
   }
 
   function reset(api, widget = activeWidget) {
     if (widget?.id !== null && widget?.id !== undefined && typeof api.remove === 'function') {
       try { api.remove(widget.id); } catch (_) { /* best effort UI cleanup */ }
     }
-    if (widget?.element?.parentNode?.removeChild) {
+    if (widget?.owned && widget.element?.parentNode?.removeChild) {
       try { widget.element.parentNode.removeChild(widget.element); } catch (_) { /* best effort UI cleanup */ }
     } else if (widget?.element) {
       widget.element.textContent = '';
@@ -81,15 +85,15 @@
     return Promise.race([promise, timeout]).finally(() => global.clearTimeout(timeoutId));
   }
 
-  async function getToken(action, { timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  async function getToken(action, { timeoutMs = DEFAULT_TIMEOUT_MS, mount = null, visible = false } = {}) {
     if (!ACTIONS.has(action) || !siteKey() || !global.document) return null;
+    const effectiveTimeoutMs = visible && timeoutMs === DEFAULT_TIMEOUT_MS ? 60_000 : timeoutMs;
     try {
-      const api = await withTimeout(loadApi(), timeoutMs, () => { scriptPromise = null; });
+      const api = await withTimeout(loadApi(), effectiveTimeoutMs, () => { scriptPromise = null; });
       if (!api) return null;
       return await withTimeout(new Promise((resolve) => {
         let settled = false;
-        const element = container();
-        const widget = { id: null, element };
+        const widget = { id: null, ...container(mount) };
         const finish = (value) => {
           if (settled) return;
           settled = true;
@@ -98,10 +102,11 @@
         };
         reset(api);
         try {
-          widget.id = api.render(element, {
+          widget.id = api.render(widget.element, {
             sitekey: siteKey(),
             action,
-            appearance: 'interaction-only',
+            appearance: visible ? 'always' : 'interaction-only',
+            ...(visible ? { size: 'flexible' } : {}),
             theme: 'auto',
             retry: 'auto',
             callback: finish,
@@ -112,7 +117,7 @@
           activeWidget = widget;
           if (settled) reset(api, widget);
         } catch (_) { finish(null); }
-      }), timeoutMs, () => reset(api));
+      }), effectiveTimeoutMs, () => reset(api));
     } catch (_) {
       return null;
     }

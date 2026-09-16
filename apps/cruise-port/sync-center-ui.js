@@ -260,6 +260,8 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const setupIntro = root?.querySelector?.('#sync-center-setup-intro');
     const setupSteps = root?.querySelector?.('#sync-center-setup-steps');
     const setupPlan = root?.querySelector?.('#sync-center-setup-plan');
+    const setupTurnstile = root?.querySelector?.('#sync-center-setup-turnstile');
+    const setupTurnstileMount = root?.querySelector?.('#sync-center-turnstile');
     const recoveryDialog = root?.querySelector?.('#sync-center-recovery');
     const recoveryTitle = root?.querySelector?.('#sync-center-recovery-dialog-title');
     const recoveryInput = root?.querySelector?.('#sync-center-recovery-input');
@@ -294,6 +296,15 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             button.removeAttribute('aria-busy');
             if (status._syncFeedbackTimer) globalThis.clearTimeout(status._syncFeedbackTimer);
             status._syncFeedbackTimer = globalThis.setTimeout(() => { status.textContent = ''; }, TEMPORARY_FEEDBACK_MS);
+        }
+    };
+    const requestSetupTurnstileToken = async (action) => {
+        if (setupTurnstile) setupTurnstile.hidden = false;
+        if (summary) summary.textContent = '本人確認を完了してください。';
+        try {
+            return await tokenProvider(action, { mount: setupTurnstileMount, visible: true });
+        } finally {
+            if (setupTurnstile) setupTurnstile.hidden = true;
         }
     };
     setupCopy?.addEventListener('click', () => copySensitiveOutput(setupCopy, setupCopyStatus, recovery?.textContent || ''));
@@ -403,7 +414,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 showRecoveryCandidate();
                 return;
             }
-            const turnstileToken = await tokenProvider('sound_cruise_account_start');
+            const turnstileToken = await requestSetupTurnstileToken('sound_cruise_account_start');
             if (!turnstileToken) throw new Error('verification_required');
             recovery.textContent = '';
             recovery.hidden = true;

@@ -87,3 +87,14 @@ test('Account Turnstile settles when the interaction callback never fires', asyn
   assert.equal(Date.now() - started < 1000, true);
   assert.equal(removed, 1);
 });
+
+test('Account Turnstile can render a visible challenge inside a supplied setup dialog mount', async () => {
+  const { context, rendered } = fixture();
+  const mount = { textContent: 'stale', appendChild() {} };
+  assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken(
+    'sound_cruise_account_start', { mount, visible: true }
+  ), 'verified-token');
+  assert.equal(rendered[0].container, mount);
+  assert.equal(rendered[0].options.appearance, 'always');
+  assert.equal(rendered[0].options.size, 'flexible');
+});
