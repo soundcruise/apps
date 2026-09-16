@@ -17,16 +17,16 @@ const appHtml = [
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
     assert.match(html, /sync-ui-components\.js\?v=2/);
-    assert.match(html, /multi-app-sync\.css\?v=9/);
+    assert.match(html, /multi-app-sync\.css\?v=10/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
   assert.match(renderer, /sound-cruise-sync-settings-head/);
   assert.match(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
   for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=13/);
-  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v17/);
-  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.2/);
-  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v4/);
+  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v18/);
+  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.3/);
+  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v5/);
 });
 
 test('shared status, description and button copy is exact', () => {
@@ -63,6 +63,8 @@ test('help has the six product categories, procedures and privacy link', () => {
 test('width and interaction tokens stay identical at supported viewport widths', () => {
   assert.match(css, /\[data-sync-join-entry-host\][\s\S]*width:\s*100%[\s\S]*min-width:\s*0[\s\S]*align-self:\s*stretch[\s\S]*height:\s*auto[\s\S]*min-height:\s*0[\s\S]*flex:\s*0 0 auto/);
   assert.match(css, /\.sound-cruise-sync-settings-card[\s\S]*width:\s*100%[\s\S]*max-width:\s*27\.5rem[\s\S]*height:\s*auto[\s\S]*min-height:\s*0[\s\S]*flex:\s*none[\s\S]*margin:\s*1rem auto 0[\s\S]*padding:\s*1rem[\s\S]*border-radius:\s*\.875rem/);
+  assert.match(css, /\.sound-cruise-sync-settings-head[\s\S]*height:\s*auto[\s\S]*min-height:\s*0[\s\S]*margin:\s*0[\s\S]*padding:\s*0/,
+    'app-global header spacing cannot inflate the shared card');
   assert.match(css, /\.sound-cruise-sync-help-button[\s\S]*width:\s*36px[\s\S]*min-height:\s*36px/);
   assert.match(css, /\.sound-cruise-sync-button,[\s\S]*min-height:\s*46px/);
   for (const viewport of [320, 375, 393, 430, 768]) assert.equal(Math.min(viewport, 440), viewport < 440 ? viewport : 440);
