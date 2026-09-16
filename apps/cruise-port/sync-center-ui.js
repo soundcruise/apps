@@ -238,6 +238,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     bindSectionHelp(root);
     const setup = root?.querySelector?.('#sync-center-setup');
     const setupTitle = root?.querySelector?.('#sync-center-setup-title');
+    const setupClose = root?.querySelector?.('#sync-center-setup-close');
     const confirm = root?.querySelector?.('#sync-center-setup-confirm');
     const recovery = root?.querySelector?.('#sync-center-recovery-code');
     const summary = root?.querySelector?.('#sync-center-setup-summary');
@@ -282,6 +283,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         setup.dataset.syncPhase = phase;
         if (setupTitle) setupTitle.textContent = phase === 'recovery'
             ? '復旧コードを保存' : phase === 'complete' ? 'アカウント作成が完了しました' : 'クラウド同期をはじめる';
+        if (setupClose) setupClose.hidden = phase === 'complete';
         const introduction = phase === 'introduction';
         if (setupIntro) setupIntro.hidden = !introduction;
         if (setupSteps) setupSteps.hidden = !introduction;
@@ -488,7 +490,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             recoveryDialog.dataset.syncPhase = 'input';
             recoveryConfirm.dataset.syncAction = 'prepare-recovery';
             recoveryConfirm.textContent = '復旧対象を確認';
-            recoverySummary.textContent = '保存済みのAccount Recovery Codeを入力してください。';
+            recoverySummary.textContent = '保存してある復旧コードを入力してください。';
             recoveryCandidate.hidden = true;
             recoveryCandidate.textContent = '';
             if (recoveryCopy) recoveryCopy.hidden = true;

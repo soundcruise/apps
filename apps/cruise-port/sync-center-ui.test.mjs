@@ -17,14 +17,20 @@ function accountSetupFixture({ completeAccountSetup, prepareAll = async () => ({
         addEventListener(type, listener) { this.listeners ||= {}; this.listeners[type] = listener; },
         ...overrides
     });
-    const setup = element({ dataset: { syncPhase: 'recovery' }, close() {}, showModal() {} });
+    const setup = element({
+        dataset: { syncPhase: 'recovery' },
+        close() { this.closeCount = (this.closeCount || 0) + 1; },
+        showModal() {}
+    });
     const confirm = element({ textContent: '保存しました' });
+    const setupClose = element();
     const recovery = element({ textContent: '', hidden: false });
     const summary = element({ textContent: '復旧コードを安全な場所へ保存してください。' });
     const status = element();
     const nodes = new Map([
         ['#sync-center-setup', setup],
         ['#sync-center-setup-confirm', confirm],
+        ['#sync-center-setup-close', setupClose],
         ['#sync-center-recovery-code', recovery],
         ['#sync-center-setup-summary', summary],
         ['#sync-center-action-status', status]
@@ -42,7 +48,7 @@ function accountSetupFixture({ completeAccountSetup, prepareAll = async () => ({
         createAccountCandidate() { throw new Error('must_not_replace_saved_candidate'); }
     };
     bindSyncCenterActions(root, { orchestrator, tokenProvider });
-    return { setup, confirm, recovery, summary, status, click: () => confirm.listeners.click() };
+    return { setup, confirm, setupClose, recovery, summary, status, click: () => confirm.listeners.click() };
 }
 
 test('Standard and Pro contain a feature-gated Sync Center entry and four-app shell', () => {
@@ -103,13 +109,33 @@ test('Account section presents step title, status chip and state-specific CTA', 
 });
 
 test('Account creation opens the existing recovery screen directly and keeps completion copy clear', () => {
-    const openHandler = ui.slice(ui.indexOf("#sync-center-setup-open"), ui.indexOf("#sync-center-setup-close"));
+    const openHandlerStart = ui.indexOf("root?.querySelector?.('#sync-center-setup-open')?.addEventListener");
+    const openHandler = ui.slice(openHandlerStart, ui.indexOf("root?.querySelector?.('#sync-center-setup-close')", openHandlerStart));
     assert.match(openHandler, /showRecoveryCandidate\(\)/);
     assert.doesNotMatch(openHandler, /setPhase\('introduction'\)/);
     assert.match(ui, /setupTitle\.textContent = phase === 'recovery'[\s\S]*復旧コードを保存/);
     assert.match(ui, /phase === 'complete' \? 'アカウント作成が完了しました'/);
     assert.match(ui, /続いて、各アプリの初回同期を完了してください。/);
     assert.match(ui, /この復旧コードを安全な場所に保存してください。/);
+});
+
+test('Account completion keeps only its existing close action', async () => {
+    const ui = accountSetupFixture({ completeAccountSetup: async () => ({ ok: true }) });
+    await ui.click();
+    assert.equal(ui.setup.dataset.syncPhase, 'complete');
+    assert.equal(ui.setupClose.hidden, true);
+    await ui.click();
+    assert.equal(ui.setup.closeCount, 1);
+});
+
+test('Recovery execution copy is concise and its dialog stays mobile-safe', () => {
+    for (const html of [root, pro]) {
+        assert.match(html, /保存してある復旧コードを入力してください。/);
+        assert.doesNotMatch(html, /保存済みのAccount Recovery Codeを入力してください。/);
+        assert.doesNotMatch(html, /現在有効な復旧コードは1つだけです。新しい復旧コードを発行すると/);
+    }
+    const css = read('./style.css');
+    assert.match(css, /\.sync-center-help-dialog[\s\S]*box-sizing:\s*border-box[\s\S]*width:\s*min\(560px, calc\(100% - 24px\)\)[\s\S]*max-width:\s*calc\(100% - 24px\)[\s\S]*max-height:\s*min\(calc\(100dvh - 24px\), 720px\)[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/);
 });
 
 test('Sync Help uses independent simple step numbering for each connection flow', () => {

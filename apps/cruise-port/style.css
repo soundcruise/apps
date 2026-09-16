@@ -2266,10 +2266,13 @@ textarea:focus-visible {
     font: 0.9rem ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 .sync-center-help-dialog {
-    width: min(calc(100% - 32px), 520px);
-    max-height: min(80dvh, 720px);
-    padding: 24px;
-    overflow: auto;
+    box-sizing: border-box;
+    width: min(560px, calc(100% - 24px));
+    max-width: calc(100% - 24px);
+    max-height: min(calc(100dvh - 24px), 720px);
+    padding: clamp(16px, 5vw, 24px);
+    overflow-x: hidden;
+    overflow-y: auto;
     border: 1px solid rgba(205, 180, 116, 0.34);
     border-radius: 16px;
     color: var(--port-text);
