@@ -121,7 +121,7 @@ test('Recovery-code update uses authenticated rotation without opening Recovery 
         assert.equal((html.match(/以前のコードは使えなくなります/g) || []).length, 1);
     }
     assert.match(ui, /#sync-center-account-recovery-open'\)\?\.addEventListener\('click', \(\) => \{[\s\S]*recoveryRotateConfirmDialog\?\.showModal\(\)/);
-    assert.match(ui, /tokenProvider\('sound_cruise_account_recovery_rotation'\)/);
+    assert.match(ui, /tokenProvider\('sound_cruise_recovery_rotation'\)/);
     assert.match(ui, /await orchestrator\.prepareRecoveryRotation\(\{ turnstileToken \}\)/);
     assert.match(ui, /recoveryDialog\.dataset\.syncMode = 'rotation'/);
     assert.match(ui, /recoveryInput\) recoveryInput\.hidden = true/);

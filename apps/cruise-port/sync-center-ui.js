@@ -518,7 +518,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         recoveryRotateConfirm.disabled = true;
         try {
             await ensureQaAdmission();
-            const turnstileToken = await tokenProvider('sound_cruise_account_recovery_rotation');
+            const turnstileToken = await tokenProvider('sound_cruise_recovery_rotation');
             if (!turnstileToken) throw new Error('verification_required');
             await orchestrator.prepareRecoveryRotation({ turnstileToken });
             recoveryRotateConfirmDialog?.close();

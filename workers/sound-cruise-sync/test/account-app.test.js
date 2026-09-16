@@ -279,7 +279,7 @@ test('authenticated Recovery rotation requires active Account authority and pres
     jsonRequest('/v2/accounts/recovery-rotation/prepare', prepareBody, { credential }),
     env, null, {
       verifyTurnstileToken: async (_token, _env, options) => {
-        assert.equal(options.expectedAction, 'sound_cruise_account_recovery_rotation');
+        assert.equal(options.expectedAction, 'sound_cruise_recovery_rotation');
         return { ok: true };
       }
     }

@@ -535,7 +535,7 @@ async function handleAccountRecoveryRotationPrepare(request, env, origin, route,
   try {
     turnstile = await verify(validation.value.turnstileToken, env, {
       expectedAction: env.TURNSTILE_ACCOUNT_RECOVERY_ROTATION_EXPECTED_ACTION ||
-        'sound_cruise_account_recovery_rotation'
+        'sound_cruise_recovery_rotation'
     });
   } catch {
     return errorResponse(503, 'turnstile_failed', origin, route);
