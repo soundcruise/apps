@@ -102,6 +102,16 @@ test('Account section presents step title, status chip and state-specific CTA', 
     assert.match(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
 });
 
+test('Account creation opens the existing recovery screen directly and keeps completion copy clear', () => {
+    const openHandler = ui.slice(ui.indexOf("#sync-center-setup-open"), ui.indexOf("#sync-center-setup-close"));
+    assert.match(openHandler, /showRecoveryCandidate\(\)/);
+    assert.doesNotMatch(openHandler, /setPhase\('introduction'\)/);
+    assert.match(ui, /setupTitle\.textContent = phase === 'recovery'[\s\S]*復旧コードを保存/);
+    assert.match(ui, /phase === 'complete' \? 'アカウント作成が完了しました'/);
+    assert.match(ui, /続いて、各アプリの初回同期を完了してください。/);
+    assert.match(ui, /この復旧コードを安全な場所に保存してください。/);
+});
+
 test('Sync Help uses independent simple step numbering for each connection flow', () => {
     const firstStart = app.indexOf("title: '最初の接続'");
     const additionalStart = app.indexOf("title: '別の環境を追加'");

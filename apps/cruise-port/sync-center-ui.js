@@ -237,6 +237,7 @@ function bindSectionHelp(root) {
 export function bindSyncCenterActions(root, { orchestrator = null, refresh = async () => {}, tokenProvider = async () => null } = {}) {
     bindSectionHelp(root);
     const setup = root?.querySelector?.('#sync-center-setup');
+    const setupTitle = root?.querySelector?.('#sync-center-setup-title');
     const confirm = root?.querySelector?.('#sync-center-setup-confirm');
     const recovery = root?.querySelector?.('#sync-center-recovery-code');
     const summary = root?.querySelector?.('#sync-center-setup-summary');
@@ -279,6 +280,8 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     recoveryCopy?.addEventListener('click', () => copySensitiveOutput(recoveryCopy, recoveryCopyStatus, recoveryCandidate?.textContent || ''));
     const setPhase = (phase) => {
         setup.dataset.syncPhase = phase;
+        if (setupTitle) setupTitle.textContent = phase === 'recovery'
+            ? '復旧コードを保存' : phase === 'complete' ? 'アカウント作成が完了しました' : 'クラウド同期をはじめる';
         const introduction = phase === 'introduction';
         if (setupIntro) setupIntro.hidden = !introduction;
         if (setupSteps) setupSteps.hidden = !introduction;
@@ -286,6 +289,15 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         if (summary) summary.hidden = introduction;
         if (confirm) confirm.dataset.syncAction = ['recovery', 'start-uncertain'].includes(phase)
             ? 'confirm-recovery-saved' : phase === 'membership-retry' ? 'retry-memberships' : 'create-account';
+    };
+    const showRecoveryCandidate = () => {
+        const candidate = orchestrator.createAccountCandidate();
+        setPhase('recovery');
+        recovery.hidden = false;
+        recovery.textContent = candidate.recoveryCode;
+        if (setupCopy) setupCopy.hidden = false;
+        if (summary) summary.textContent = 'この復旧コードを安全な場所に保存してください。';
+        if (confirm) confirm.textContent = '保存しました';
     };
     const safeErrorCode = (error) => {
         const value = String(error?.code || error?.message || 'setup_failed');
@@ -323,12 +335,15 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         return true;
     };
     root?.querySelector?.('#sync-center-setup-open')?.addEventListener('click', () => {
-        setPhase('introduction');
         if (recovery) { recovery.hidden = true; recovery.textContent = ''; }
         if (setupCopy) setupCopy.hidden = true;
         if (setupCopyStatus) setupCopyStatus.textContent = '';
-        if (confirm) confirm.textContent = '復旧コードを確認';
-        setup.showModal();
+        try {
+            showRecoveryCandidate();
+            setup.showModal();
+        } catch (_) {
+            setText(root, '#sync-center-action-status', 'アカウント作成を開始できませんでした。もう一度お試しください。');
+        }
     });
     root?.querySelector?.('#sync-center-setup-close')?.addEventListener('click', () => {
         orchestrator?.discardAccountCandidate?.();
@@ -358,19 +373,13 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 const prepared = await orchestrator.prepareAll();
                 if (!prepared.ok) throw new Error('membership_partial');
                 setPhase('complete');
-                if (summary) summary.textContent = '準備ができました。各アプリを開いて初回同期を完了してください。';
+                if (summary) summary.textContent = '続いて、各アプリの初回同期を完了してください。';
                 confirm.textContent = '閉じる';
                 await refresh();
                 return;
             }
             if (!['recovery', 'start-uncertain'].includes(setup.dataset.syncPhase)) {
-                const candidate = orchestrator.createAccountCandidate();
-                setPhase('recovery');
-                recovery.hidden = false;
-                recovery.textContent = candidate.recoveryCode;
-                if (setupCopy) setupCopy.hidden = false;
-                if (summary) summary.textContent = '復旧コードを安全な場所へ保存してください。保存確認後にAccountを作成します。';
-                confirm.textContent = '保存しました';
+                showRecoveryCandidate();
                 return;
             }
             const turnstileToken = await tokenProvider('sound_cruise_account_start');
@@ -386,7 +395,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             const prepared = await orchestrator.prepareAll();
             if (!prepared.ok) throw new Error('membership_partial');
             setPhase('complete');
-            if (summary) summary.textContent = '準備ができました。各アプリを開いて初回同期を完了してください。';
+            if (summary) summary.textContent = '続いて、各アプリの初回同期を完了してください。';
             confirm.textContent = '閉じる';
             await refresh();
         } catch (error) {
