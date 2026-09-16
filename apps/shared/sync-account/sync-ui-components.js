@@ -364,8 +364,43 @@
     return dialog;
   }
 
+  function isStandalonePwa() {
+    return Boolean(global.navigator?.standalone || global.matchMedia?.('(display-mode: standalone)')?.matches);
+  }
+
+  function openPortManagement({
+    portUrl = '/apps/cruise-port/#sync-center',
+    document = global.document,
+    location = global.location
+  } = {}) {
+    if (!isStandalonePwa()) {
+      location?.assign?.(portUrl);
+      return null;
+    }
+    const dialog = document.createElement('dialog');
+    dialog.className = 'sound-cruise-sync-setup';
+    dialog.dataset.syncPortManagement = '';
+    const panel = document.createElement('section');
+    panel.className = 'sound-cruise-sync-setup-panel';
+    appendText(document, panel, 'h2', '', 'クラウド同期の管理');
+    appendText(document, panel, 'p', '', 'ホーム画面版のCruise Portを開いてクラウド同期を管理してください。');
+    const close = appendText(document, panel, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--primary', '閉じる');
+    close.type = 'button';
+    close.addEventListener('click', () => dialog.close());
+    const browser = appendText(document, panel, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--secondary', 'SafariでCruise Portを開く');
+    browser.type = 'button';
+    browser.addEventListener('click', () => location?.assign?.(portUrl));
+    dialog.append(panel);
+    document.body.append(dialog);
+    bindSetupViewport(dialog);
+    dialog.addEventListener('close', () => dialog.remove(), { once: true });
+    dialog.showModal();
+    return dialog;
+  }
+
   global.SoundCruiseSyncUI = Object.freeze({
     STATUS, APP_HELP_SUMMARY, HELP_SECTIONS, renderCard, openHelp, createJoinDialog,
+    isStandalonePwa, openPortManagement,
     temporaryFeedbackMs: 5000
   });
 })(globalThis);

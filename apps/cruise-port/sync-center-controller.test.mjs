@@ -145,3 +145,32 @@ test('offline state does not call API and does not masquerade as an unset accoun
     assert.equal(model.kind, 'offline');
     assert.equal(model.accountState, 'unknown');
 });
+
+test('only explicit Account terminal errors clear the stale Port binding', async () => {
+    const cleared = [];
+    class TerminalClient {
+        async summary() { throw Object.assign(new Error('terminal'), { code: 'account_deleting' }); }
+        async devices() { throw Object.assign(new Error('terminal'), { code: 'account_deleting' }); }
+    }
+    const storage = {
+        async getAccount() { return { accountCredential: 'opaque' }; },
+        async clearAccount() { cleared.push('account'); }
+    };
+    const terminal = createSyncCenterController({
+        config: { enabled: true, endpoint, admissionMode: 'production' },
+        accountRoot: { storage, AccountClient: TerminalClient, core: {} }, online: () => true
+    });
+    assert.equal((await terminal.load()).kind, 'unset');
+    assert.deepEqual(cleared, ['account']);
+
+    class GenericClient {
+        async summary() { throw Object.assign(new Error('generic'), { code: 'account_runtime_unavailable' }); }
+        async devices() { throw Object.assign(new Error('generic'), { code: 'account_runtime_unavailable' }); }
+    }
+    const generic = createSyncCenterController({
+        config: { enabled: true, endpoint, admissionMode: 'production' },
+        accountRoot: { storage, AccountClient: GenericClient, core: {} }, online: () => true
+    });
+    assert.equal((await generic.load()).kind, 'error');
+    assert.deepEqual(cleared, ['account'], 'generic errors retain the Account identity');
+});

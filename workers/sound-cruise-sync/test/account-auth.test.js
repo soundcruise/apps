@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { authenticateAccountDevice } from '../src/account-auth.js';
+import { authenticateAccountDevice, inspectAccountCredential } from '../src/account-auth.js';
 import { accountCredentialVerifier, createAccountCredential } from '../src/account-crypto.js';
 import { createD1AccountRepository } from '../src/account-database.js';
 import { createSqliteD1 } from './sqlite-d1.js';
@@ -59,5 +59,20 @@ test('revoked devices and disabled Accounts cannot authenticate or select anothe
   assert.equal(await authenticateAccountDevice(db, `Bearer ${material.credential}`, pepper), null);
   assert.equal(authenticateAccountDevice.length >= 3, true,
     'API has no caller-supplied account selector to inject');
+  db.close();
+});
+
+test('Account auth exposes terminal state only for the exact verified credential', async () => {
+  const db = createSqliteD1();
+  const material = await seedAccount(db);
+  const authorization = `Bearer ${material.credential}`;
+  db.raw.prepare(`
+    UPDATE sync_accounts
+    SET state = 'deleting', delete_requested_at = 2, purge_after = 3, updated_at = 2
+    WHERE id = 'auth-account'
+  `).run();
+  assert.equal((await inspectAccountCredential(db, authorization, pepper)).error, 'account_deleting');
+  assert.equal(await inspectAccountCredential(db, authorization, 'x'.repeat(32)), null,
+    'wrong verifier remains indistinguishable from an unknown credential');
   db.close();
 });

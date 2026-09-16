@@ -225,7 +225,8 @@ test('Account Recovery API prepares a secret-free summary, rotates once and reso
   response = await handleRequest(jsonRequest('/v2/accounts/summary', undefined, {
     credential: started.candidate.account.credential
   }), env);
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 410);
+  assert.equal((await response.json()).code, 'account_device_revoked');
   response = await handleRequest(jsonRequest('/v2/accounts/summary', undefined, {
     credential: nextAccount.credential
   }), env);
@@ -377,7 +378,8 @@ test('authenticated Recovery rotation requires active Account authority and pres
     operationId: crypto.randomUUID(), claimToken: deletingClaim.claimToken,
     nextRecoveryCode: createAccountRecoveryCode(), turnstileToken: 'verified'
   }, { credential }), env, null, turnstileOk);
-  assert.equal(response.status, 403, 'a deleting Account cannot prepare rotation');
+  assert.equal(response.status, 410, 'a deleting Account returns definitive terminal state');
+  assert.equal((await response.json()).code, 'account_deleting');
   db.raw.prepare("UPDATE sync_accounts SET state = 'active' WHERE id = ?").run(accountId);
 
   const revokedClaim = createAccountRecoveryClaim();
@@ -391,7 +393,8 @@ test('authenticated Recovery rotation requires active Account authority and pres
   response = await handleRequest(jsonRequest('/v2/accounts/recovery-rotation/commit', {
     operationId: crypto.randomUUID(), claimToken: revokedClaim.claimToken
   }, { credential }), env);
-  assert.equal(response.status, 403, 'a revoked Account Device cannot commit rotation');
+  assert.equal(response.status, 410, 'a revoked Account Device returns definitive terminal state');
+  assert.equal((await response.json()).code, 'account_device_revoked');
   db.close();
 });
 
@@ -447,7 +450,8 @@ test('current environment revoke is response-loss safe after its credential is i
   assert.equal(response.status, 200);
   assert.equal((await response.json()).alreadyRevoked, true);
   response = await handleRequest(jsonRequest('/v2/accounts/summary', undefined, options), env);
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 410);
+  assert.equal((await response.json()).code, 'account_device_revoked');
   db.close();
 });
 

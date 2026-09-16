@@ -15,6 +15,7 @@ const MEMBERSHIP_STATES = Object.freeze({
     attention: Object.freeze({ key: 'attention', label: '確認が必要', action: 'open' }),
     deleting: Object.freeze({ key: 'deleting', label: '削除中', action: 'none' })
 });
+const ACCOUNT_TERMINAL_CODES = new Set(['account_deleting', 'account_deleted', 'account_device_revoked']);
 
 export function readSyncCenterConfig(globalObject = globalThis) {
     const value = globalObject?.__SOUND_CRUISE_SYNC_CENTER__;
@@ -190,7 +191,14 @@ export function createSyncCenterController({
                     client.devices(credential.accountCredential)
                 ]);
                 lastPresentation = normalizeSyncCenterSummary(summary, devices);
-            } catch (_) {
+            } catch (error) {
+                if (ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {
+                    try {
+                        await storage.clearAccount(indexedDb);
+                        lastPresentation = createUnsetPresentation();
+                        return lastPresentation;
+                    } catch (_) { /* retain fail-closed unavailable presentation */ }
+                }
                 lastPresentation = createUnavailablePresentation('error', lastPresentation);
             }
             return lastPresentation;

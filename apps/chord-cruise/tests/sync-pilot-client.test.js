@@ -72,6 +72,13 @@ function createMemoryStore(failures) {
         putMergeSession: async function (value) { mergeSessions.set(value.sessionId, clone(value)); },
         getMergeSession: async function (key) { return clone(mergeSessions.get(key)); },
         listMergeSessions: async function () { return clone(Array.from(mergeSessions.values())); },
+        clearCloudState: async function () {
+            meta.clear(); outbox.clear(); shadow.clear(); conflicts.clear(); mergeSessions.clear();
+            meta.set('appId', 'chord');
+            meta.set('syncState', 'off');
+            meta.set('datasetState', 'local_only');
+            meta.set('migrationState', 'not_started');
+        },
         inspectMeta: function () { return meta; }
     };
 }
@@ -463,6 +470,52 @@ var seed = {
     assert.deepStrictEqual(JSON.parse(JSON.stringify(retiredSnapshot.counts)), {
         total: 4, settings: 1, folder: 1, chord: 1, library_order: 1
     }, 'stable record counts and semantic types are preserved across identity replacement');
+
+    var terminalStore = createMemoryStore();
+    var terminalSync = loadClient(terminalStore);
+    var terminalLocal = createStorage(seed);
+    var terminalDeviceId = '123e4567-e89b-42d3-a456-426614174701';
+    var terminalCredential = 'scd1.' + terminalDeviceId + '.' + 'T'.repeat(43);
+    await terminalStore.setMeta('deviceCredential', { deviceId: terminalDeviceId, credential: terminalCredential });
+    await terminalStore.setMeta('accountManagedSetup', true);
+    await terminalStore.setMeta('migrationState', 'complete');
+    var terminalMode = true;
+    var terminalClient = terminalSync.client.createClient({
+        enabled: true, localStorage: terminalLocal, crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787',
+        fetch: async function (url) {
+            if (terminalMode) return jsonResponse(410, { ok: false, code: 'account_deleting' });
+            if (url.indexOf('/v1/sync/bootstrap') !== -1) {
+                return jsonResponse(200, { ok: true, appId: 'chord', datasetState: 'ready', alreadyCreated: true });
+            }
+            throw new Error('unexpected terminal rebind request');
+        }
+    });
+    var terminalBefore = terminalLocal.snapshot();
+    var terminalResult = await terminalClient.getServerSnapshot();
+    assert.strictEqual(terminalResult.code, 'account_deleting', 'exact terminal response is preserved');
+    assert.strictEqual(await terminalStore.getMeta('deviceCredential'), undefined, 'terminal Account-managed identity detaches');
+    assert.deepStrictEqual(terminalLocal.snapshot(), terminalBefore,
+        'terminal detach preserves settings, folders, saved chords and library order byte-for-byte');
+    terminalMode = false;
+    var rebound = await terminalClient.adoptAccountManagedIdentity({
+        deviceId: promotionDeviceId, deviceCredential: promotionCredential
+    });
+    assert.strictEqual(rebound.ok, true, 'a new Account identity can be adopted after exact terminal detach');
+
+    var genericStore = createMemoryStore();
+    var genericSync = loadClient(genericStore);
+    await genericStore.setMeta('deviceCredential', { deviceId: terminalDeviceId, credential: terminalCredential });
+    await genericStore.setMeta('accountManagedSetup', true);
+    await genericStore.setMeta('migrationState', 'complete');
+    var genericClient = genericSync.client.createClient({
+        enabled: true, localStorage: createStorage(seed), crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787',
+        fetch: async function () { return jsonResponse(401, { ok: false, code: 'invalid_credential' }); }
+    });
+    assert.strictEqual((await genericClient.getServerSnapshot()).code, 'invalid_credential');
+    assert.strictEqual((await genericStore.getMeta('deviceCredential')).credential, terminalCredential,
+        'generic authorization failure does not detach an Account-managed identity');
 
     var applyFailureStore = createMemoryStore();
     var applyFailureSync = loadClient(applyFailureStore);

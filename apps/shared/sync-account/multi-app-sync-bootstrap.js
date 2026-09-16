@@ -84,7 +84,9 @@
         } : null,
         secondaryAction: settingsPresentation.manage ? {
           id: 'manage', label: 'Cruise Portで管理', kind: 'secondary',
-          run: () => global.location.assign(settingsPresentation.manage)
+          run: () => syncUi?.openPortManagement
+            ? syncUi.openPortManagement({ portUrl: settingsPresentation.manage })
+            : global.location.assign(settingsPresentation.manage)
         } : null
       });
       host.dataset.syncJoinUiAction = settingsPresentation.action?.label || '';
@@ -143,9 +145,15 @@
       if (state === 'ready') return showConnectedSettings();
       if (state === 'syncing') return setSettingsPresentation(connectedPresentation({ state: 'syncing', status: '同期中' }));
       if (state === 'paused') return setSettingsPresentation(connectedPresentation({ state: 'paused', status: '一時停止中' }));
+      if (state === 'offline') return setSettingsPresentation(connectedPresentation({ state: 'offline', status: 'オフライン' }));
       if (state === 'credential_invalid') return setSettingsPresentation({
         state: 'reconnect', status: '再接続が必要',
-        action: { label: 'Cruise Portと接続', run: () => global.location.assign(config.portUrl) }
+        description: '以前のクラウド同期は利用できません。Cruise Portから接続し直してください。',
+        action: { label: 'Cruise Portと接続', run: () => {
+          const dialog = createLanding(config.appId, config.portUrl, 'join');
+          bindLanding(dialog, config, runtime, 'join');
+          dialog.showModal();
+        } }
       });
       if (state === 'attention') return setSettingsPresentation(connectedPresentation({
         state: 'attention', status: '確認が必要',

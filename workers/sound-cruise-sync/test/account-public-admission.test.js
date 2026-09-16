@@ -282,7 +282,8 @@ test('production Account Recovery works without QA authority while public admiss
   response = await handleRequest(request('/v2/accounts/summary', undefined, {
     authorization: started.account.credential
   }), env);
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 410);
+  assert.equal((await response.json()).code, 'account_device_revoked');
   response = await handleRequest(request('/v2/accounts/summary', undefined, {
     authorization: nextAccount.credential
   }), env);
@@ -323,7 +324,8 @@ test('production app and Account deletion remain Account-credential authenticate
   response = await handleRequest(request('/v1/sync/snapshot?appId=rhythm', undefined, {
     authorization: joined.app.credential
   }), env);
-  assert.equal(response.status, 401);
+  assert.equal(response.status, 410);
+  assert.equal((await response.json()).code, 'membership_deleting');
 
   env.SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED = 'true';
   const deletingAccount = await createPublicAccount(db, env);
@@ -451,7 +453,8 @@ test('public Port creates one Account and four verifier-only app joins without Q
   const denied = await handleRequest(request('/v1/sync/snapshot?appId=pitch', undefined, {
     authorization: revoked.appCredential
   }), env);
-  assert.equal(denied.status, 401);
+  assert.equal(denied.status, 410);
+  assert.equal((await denied.json()).code, 'app_device_revoked');
   assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_qa_sessions').get().count, 0);
   db.close();
 });

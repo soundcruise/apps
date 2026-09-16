@@ -655,6 +655,7 @@
                 return { ok: false, code: 'invalid_response', retryable: response.status >= 500 };
             }
             var code = responseBody && responseBody.code ? responseBody.code : (response.ok ? null : 'request_failed');
+            if (isTerminalAccountManagedCode(code)) await detachTerminalAccountManagedIdentity(store, code);
             var requestCategory = path.indexOf('/v1/sync/push') === 0 || path.indexOf('/v1/sync/migration/complete') === 0
                 ? 'write'
                 : path.indexOf('/v1/sync/changes') === 0 || path.indexOf('/v1/sync/snapshot') === 0
@@ -687,6 +688,22 @@
                 body: responseBody,
                 bookmark: response.headers && response.headers.get ? response.headers.get('X-D1-Bookmark') : null
             };
+        }
+
+        function isTerminalAccountManagedCode(code) {
+            var terminalState = global.SoundCruiseSyncAccount && global.SoundCruiseSyncAccount.terminalState;
+            if (terminalState && typeof terminalState.isApp === 'function') return terminalState.isApp(code);
+            return ['account_deleting', 'account_deleted', 'membership_deleting', 'membership_deleted',
+                'app_device_revoked', 'app_identity_deleting', 'app_identity_deleted'].indexOf(code) !== -1;
+        }
+
+        async function detachTerminalAccountManagedIdentity(store, code) {
+            if (await store.getMeta('accountManagedSetup') !== true || typeof store.clearCloudState !== 'function') return false;
+            await store.clearCloudState();
+            if (typeof global.dispatchEvent === 'function' && typeof global.CustomEvent === 'function') {
+                global.dispatchEvent(new global.CustomEvent('soundcruise:sync-terminal', { detail: { code: code } }));
+            }
+            return true;
         }
 
         async function adoptAccountManagedIdentity(input) {
@@ -1227,7 +1244,6 @@
                 operations: pending.map(wireOperation)
             });
             if (!response.ok) {
-                if (response.status === 401) await store.setMeta('syncState', 'credential_invalid', now());
                 if (response.code === 'sync_write_paused' || response.code === 'rollout_control_unavailable') {
                     await markPaused(store, pending, response.code);
                 }
@@ -1329,7 +1345,6 @@
                     'GET', '/v1/sync/changes?appId=' + encodeURIComponent(core.APP_ID) + '&cursor=' + encodeURIComponent(cursor)
                 );
                 if (!response.ok) {
-                    if (response.status === 401) await store.setMeta('syncState', 'credential_invalid', now());
                     return { enabled: true, ok: false, code: response.code, pages: pages, applied: applied, conflicts: conflicts };
                 }
                 if (!response.body || !Array.isArray(response.body.changes) ||

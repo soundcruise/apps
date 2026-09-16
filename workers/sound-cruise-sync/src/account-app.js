@@ -1,4 +1,4 @@
-import { authenticateAccountDevice } from './account-auth.js';
+import { authenticateAccountDevice, inspectAccountCredential } from './account-auth.js';
 import { authenticateDevice, isRetiredLegacyDeviceCredential } from './auth.js';
 import {
   accountAppCredentialVerifier,
@@ -277,12 +277,22 @@ async function accountContext(request, env, dependencies) {
   }
   const session = createSession(env, request);
   if (!session) return { error: 'invalid_bookmark', status: 400 };
-  const authenticate = dependencies.authenticateAccountDevice || authenticateAccountDevice;
-  const identity = await authenticate(
-    session,
-    request.headers.get('Authorization'),
-    env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
-  );
+  let identity;
+  if (dependencies.authenticateAccountDevice) {
+    identity = await dependencies.authenticateAccountDevice(
+      session,
+      request.headers.get('Authorization'),
+      env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+  } else {
+    const inspected = await inspectAccountCredential(
+      session,
+      request.headers.get('Authorization'),
+      env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+    if (inspected?.error) return { error: inspected.error, status: 410 };
+    identity = inspected?.identity || null;
+  }
   if (!identity) return { error: 'invalid_account_credential', status: 401 };
   if (identity.admissionProvenance !== dependencies.admissionProvenance) {
     return { error: 'account_admission_mismatch', status: 403 };

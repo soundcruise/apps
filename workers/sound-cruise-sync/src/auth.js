@@ -34,6 +34,11 @@ export async function isRetiredLegacyDeviceCredential(db, authorization, expecte
 }
 
 export async function authenticateDevice(db, authorization, expectedAppId, pepper) {
+  const inspected = await inspectDeviceCredential(db, authorization, expectedAppId, pepper);
+  return inspected?.identity || null;
+}
+
+export async function inspectDeviceCredential(db, authorization, expectedAppId, pepper) {
   if (!db || typeof db.prepare !== 'function' || typeof authorization !== 'string' ||
       !authorization.startsWith('Bearer ') || typeof pepper !== 'string') return null;
   const credential = authorization.slice(7);
@@ -43,9 +48,13 @@ export async function authenticateDevice(db, authorization, expectedAppId, peppe
   try {
     row = await db.prepare(`
       SELECT d.id AS device_id, d.user_id, d.app_id, d.credential_verifier,
-             d.revoked_at, d.last_seen_at, d.paired_at, u.state AS user_state
+             d.revoked_at, d.last_seen_at, d.paired_at, u.state AS user_state,
+             a.state AS account_state, m.state AS membership_state
       FROM sync_devices d
       JOIN sync_users u ON u.id = d.user_id
+      LEFT JOIN sync_account_managed_users am ON am.sync_user_id = d.user_id
+      LEFT JOIN sync_accounts a ON a.id = am.account_id
+      LEFT JOIN sync_account_memberships m ON m.id = am.membership_id
       WHERE d.id = ?
     `).bind(parsed.deviceId).first();
   } catch {
@@ -54,8 +63,15 @@ export async function authenticateDevice(db, authorization, expectedAppId, peppe
   const calculated = await hmacVerifier(credential, pepper);
   const verifier = row?.credential_verifier || '0'.repeat(64);
   const matches = timingSafeHexEqual(calculated, verifier);
-  if (!row || !matches || row.revoked_at != null || row.app_id !== expectedAppId ||
-      !['provisioning', 'active'].includes(row.user_state)) return null;
+  if (!row || !matches || row.app_id !== expectedAppId) return null;
+  if (row.account_state === 'deleting') return Object.freeze({ error: 'account_deleting' });
+  if (row.account_state === 'deleted') return Object.freeze({ error: 'account_deleted' });
+  if (row.membership_state === 'deleting') return Object.freeze({ error: 'membership_deleting' });
+  if (row.membership_state === 'deleted') return Object.freeze({ error: 'membership_deleted' });
+  if (row.revoked_at != null) return Object.freeze({ error: 'app_device_revoked' });
+  if (row.user_state === 'deleting') return Object.freeze({ error: 'app_identity_deleting' });
+  if (row.user_state === 'deleted') return Object.freeze({ error: 'app_identity_deleted' });
+  if (!['provisioning', 'active'].includes(row.user_state)) return null;
   // A paired device becomes claimed only after it presents the returned
   // credential. A lost pair response therefore cannot become a permanent,
   // indistinguishable device record.
@@ -73,5 +89,7 @@ export async function authenticateDevice(db, authorization, expectedAppId, peppe
   } catch {
     throw new Error('Device authentication database failure');
   }
-  return { userId: row.user_id, deviceId: row.device_id, appId: row.app_id, userState: row.user_state };
+  return Object.freeze({ identity: {
+    userId: row.user_id, deviceId: row.device_id, appId: row.app_id, userState: row.user_state
+  } });
 }

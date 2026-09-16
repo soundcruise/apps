@@ -412,7 +412,10 @@ async function seedCredential(store) {
     await credentialFailureStore.putOutbox(credentialFailureOperation);
     var credentialFailure = await credentialFailureClient.flushOutbox({ force: true });
     assert.strictEqual(credentialFailure.code, 'invalid_credential');
-    assert.strictEqual(await credentialFailureStore.getMeta('syncState'), 'credential_invalid');
+    assert.notStrictEqual(await credentialFailureStore.getMeta('syncState'), 'credential_invalid',
+        'generic authorization failure is not definitive terminal proof');
+    assert((await credentialFailureStore.getMeta('deviceCredential')).credential,
+        'generic authorization failure retains the existing identity');
     assert.strictEqual((await credentialFailureStore.listOutbox()).length, 1, '401 never discards local work');
 
     var batchStore = createMemoryStore();

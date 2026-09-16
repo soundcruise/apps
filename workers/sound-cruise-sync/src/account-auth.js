@@ -7,6 +7,11 @@ import { timingSafeHexEqual } from './crypto.js';
 const LAST_SEEN_WRITE_INTERVAL_MS = 60 * 60 * 1000;
 
 export async function authenticateAccountDevice(db, authorization, pepper, now = Date.now()) {
+  const inspected = await inspectAccountCredential(db, authorization, pepper, now);
+  return inspected?.identity || null;
+}
+
+export async function inspectAccountCredential(db, authorization, pepper, now = Date.now()) {
   if (!db || typeof db.prepare !== 'function' || typeof authorization !== 'string' ||
       !authorization.startsWith('Bearer ') || typeof pepper !== 'string') return null;
   const credential = authorization.slice(7);
@@ -31,7 +36,11 @@ export async function authenticateAccountDevice(db, authorization, pepper, now =
   const calculated = await accountCredentialVerifier(credential, pepper);
   const verifier = row?.credential_verifier || '0'.repeat(64);
   const matches = timingSafeHexEqual(calculated, verifier);
-  if (!row || !matches || row.revoked_at != null || row.account_state !== 'active') return null;
+  if (!row || !matches) return null;
+  if (row.account_state === 'deleting') return Object.freeze({ error: 'account_deleting' });
+  if (row.account_state === 'deleted') return Object.freeze({ error: 'account_deleted' });
+  if (row.revoked_at != null) return Object.freeze({ error: 'account_device_revoked' });
+  if (row.account_state !== 'active') return null;
 
   try {
     if (!Number.isFinite(row.last_seen_at) || now - Number(row.last_seen_at) >= LAST_SEEN_WRITE_INTERVAL_MS) {
@@ -46,12 +55,12 @@ export async function authenticateAccountDevice(db, authorization, pepper, now =
     throw new Error('Account authentication database failure');
   }
 
-  return Object.freeze({
+  return Object.freeze({ identity: Object.freeze({
     accountId: row.account_id,
     accountDeviceId: row.device_id,
     accountState: row.account_state,
     recoveryVersion: Number(row.recovery_version),
     generation: Number(row.generation),
     admissionProvenance: row.admission_provenance
-  });
+  }) });
 }

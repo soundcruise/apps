@@ -48,6 +48,8 @@ function memoryStore() {
   return {
     readMeta: async (key) => meta.get(key) ?? null,
     setMeta: async (key, value) => { meta.set(key, structuredClone(value)); },
+    removeMeta: async (key) => { meta.delete(key); },
+    clearCloudState: async () => { meta.clear(); outbox.clear(); shadow.clear(); conflicts.clear(); },
     putOutbox: async (value) => { outbox.set(value.operationId, structuredClone(value)); },
     listOutbox: async () => [...outbox.values()].map((value) => structuredClone(value)),
     deleteOutbox: async (key) => { outbox.delete(key); },
@@ -203,6 +205,40 @@ test('production data-plane requests require only app authority and never send Q
   await fixture.runtime.request('GET', '/v1/sync/snapshot?appId=pitch');
   assert.equal(headers.get('Authorization'), 'Bearer scd1.valid');
   assert.equal(headers.has('X-Sound-Cruise-QA-Authorization'), false);
+});
+
+test('definitive terminal auth detaches only sync state, preserves local data, and allows safe rejoin for three shared apps', async () => {
+  for (const appId of ['pitch', 'fretboard', 'rhythm']) {
+    const localRecord = record(`local-${appId}`, `Local ${appId}`);
+    const fixture = runtimeFixture([localRecord], appId, 'production');
+    await fixture.store.setMeta('credential', 'scd1.valid');
+    await fixture.store.setMeta('migrationState', 'complete');
+    fixture.server.nextSnapshotFailure = { status: 410, code: 'account_deleting' };
+    await assert.rejects(fixture.runtime.sync('startup'), (error) => error.code === 'account_deleting');
+    assert.equal(await fixture.store.readMeta('credential'), null, appId);
+    assert.equal(await fixture.store.readMeta('runtimeState'), 'credential_invalid', appId);
+    assert.deepEqual(fixture.local.records, [localRecord], `${appId} user data`);
+    assert.equal((await fixture.runtime.consumeInvitation('opaque')).ok, true, `${appId} rejoin`);
+    assert.deepEqual(fixture.local.records, [localRecord], `${appId} user data after rejoin`);
+  }
+});
+
+test('generic auth, network failure, offline state, and an active identity never detach or silently replace', async () => {
+  const fixture = runtimeFixture([record('local')], 'pitch', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('migrationState', 'complete');
+  fixture.server.nextSnapshotFailure = { status: 403, code: 'invalid_credential' };
+  await assert.rejects(fixture.runtime.sync('generic'));
+  assert.equal(await fixture.store.readMeta('credential'), 'scd1.valid');
+  fixture.server.nextSnapshotFailure = { network: true };
+  await assert.rejects(fixture.runtime.sync('network'));
+  assert.equal(await fixture.store.readMeta('credential'), 'scd1.valid');
+  fixture.context.navigator.onLine = false;
+  assert.equal((await fixture.runtime.sync('offline')).code, 'offline');
+  assert.equal(await fixture.store.readMeta('credential'), 'scd1.valid');
+  await assert.rejects(fixture.runtime.consumeInvitation('opaque'), (error) => error.code === 'active_identity_present');
+  assert.equal(await fixture.store.readMeta('credential'), 'scd1.valid');
+  assert.deepEqual(fixture.local.records, [record('local')]);
 });
 
 function record(id, name = id, recordType = 'custom_record') {

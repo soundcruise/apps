@@ -4,6 +4,11 @@
   const root = global.SoundCruiseMultiAppSync = global.SoundCruiseMultiAppSync || {};
   const ACCOUNT_APPS = Object.freeze(['pitch', 'rhythm', 'fretboard']);
   const PAUSE_CODES = new Set(['sync_write_paused', 'sync_read_paused', 'rollout_control_unavailable']);
+  const TERMINAL_CODES = new Set([
+    'account_deleting', 'account_deleted', 'account_device_revoked',
+    'membership_deleting', 'membership_deleted', 'app_device_revoked',
+    'app_identity_deleting', 'app_identity_deleted'
+  ]);
   const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
 
   function keyOf(record) { return `${record.recordType}/${record.recordId}`; }
@@ -106,6 +111,14 @@
     async qaCredential() { return this.store.readMeta('qaCredential'); }
     async membership() { return this.store.readMeta('membership'); }
 
+    async detachTerminalIdentity(code) {
+      if (!TERMINAL_CODES.has(code)) return false;
+      if (typeof this.store.clearCloudState !== 'function') throw new MultiAppSyncError('sync_detach_unavailable');
+      await this.store.clearCloudState();
+      this.setState('credential_invalid', { reason: code, terminal: true });
+      return true;
+    }
+
     async request(method, path, body) {
       const credential = await this.credential();
       const qaCredential = await this.qaCredential();
@@ -126,14 +139,17 @@
       try { payload = await response.json(); } catch (_) { /* handled below */ }
       if (!response.ok || payload?.ok !== true) {
         const code = payload?.code || 'invalid_response';
-        if (response.status === 401) await this.store.setMeta('runtimeState', 'credential_invalid');
-        if (PAUSE_CODES.has(code)) await this.store.setMeta('runtimeState', 'paused');
+        if (await this.detachTerminalIdentity(code)) throw new MultiAppSyncError(code, response.status);
+        if (PAUSE_CODES.has(code)) this.setState('paused', { reason: code });
         throw new MultiAppSyncError(code, response.status);
       }
       return payload;
     }
 
     async consumeHandoff(handoffToken, deviceLabel = null) {
+      if (this.accountCore.validAppCredential(await this.credential())) {
+        throw new MultiAppSyncError('active_identity_present');
+      }
       this.setState('connecting');
       const result = await this.accountClient.consumeHandoff({
         handoffToken, appId: this.appId, deviceLabel, consumeMode: 'new_app',
@@ -154,6 +170,9 @@
     }
 
     async consumeInvitation(joinCode, deviceLabel = null) {
+      if (this.accountCore.validAppCredential(await this.credential())) {
+        throw new MultiAppSyncError('active_identity_present');
+      }
       this.setState('connecting');
       const result = await this.accountClient.consumeJoinInvitation({
         joinCode, appId: this.appId, deviceLabel, consumeMode: 'new_app', preservePending: true
@@ -687,6 +706,9 @@
         },
         (error) => {
           if (this.running === scheduled) this.running = null;
+          if (!TERMINAL_CODES.has(error?.code) && !PAUSE_CODES.has(error?.code)) {
+            this.setState('attention', { reason: safeErrorCode(error) });
+          }
           throw error;
         }
       );
@@ -696,7 +718,10 @@
 
     async performSync(reason) {
       if (await this.store.readMeta('migrationState') !== 'complete') return { ok: false, code: 'migration_required' };
-      if (global.navigator?.onLine === false) return { ok: false, code: 'offline' };
+      if (global.navigator?.onLine === false) {
+        this.setState('offline');
+        return { ok: false, code: 'offline' };
+      }
       const unresolved = await this.store.listConflicts();
       if (unresolved.length) {
         this.setState('attention', { reason: 'conflict', conflicts: unresolved.length });

@@ -78,6 +78,14 @@
       try { return await requestResult(database.transaction(storeName, 'readonly').objectStore(storeName).getAll()); }
       finally { database.close(); }
     }
+    async function clearCloudState() {
+      const database = await open(appId, indexedDb);
+      try {
+        const transaction = database.transaction(STORES, 'readwrite');
+        for (const storeName of STORES) transaction.objectStore(storeName).clear();
+        await transactionDone(transaction);
+      } finally { database.close(); }
+    }
     return Object.freeze({
       appId,
       getMeta: (key) => get('meta', key),
@@ -94,7 +102,8 @@
       putConflict: (conflict) => put('conflicts', conflict.id, conflict),
       getConflict: (conflictId) => get('conflicts', conflictId),
       listConflicts: () => values('conflicts'),
-      deleteConflict: (conflictId) => remove('conflicts', conflictId)
+      deleteConflict: (conflictId) => remove('conflicts', conflictId),
+      clearCloudState
     });
   }
 

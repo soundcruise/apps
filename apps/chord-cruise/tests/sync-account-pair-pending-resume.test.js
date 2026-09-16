@@ -50,7 +50,8 @@ async function runStartup(options) {
         resumeAccountManagedHydrate: async function () {
             calls.resume += 1;
             return config.resumeResult || { ok: true, completed: true, automaticHydrate: true };
-        }
+        },
+        getServerSnapshot: async function () { return config.snapshotResult || { ok: true }; }
     };
     function AccountClient() {
         return {

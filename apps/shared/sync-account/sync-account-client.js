@@ -17,6 +17,14 @@
     account_admission_mismatch: 'account_auth_required',
     account_public_handoff_unavailable: 'handoff_invalid',
     invalid_account_credential: 'account_auth_required',
+    account_deleting: 'account_deleting',
+    account_deleted: 'account_deleted',
+    account_device_revoked: 'account_device_revoked',
+    membership_deleting: 'membership_deleting',
+    membership_deleted: 'membership_deleted',
+    app_device_revoked: 'app_device_revoked',
+    app_identity_deleting: 'app_identity_deleting',
+    app_identity_deleted: 'app_identity_deleted',
     account_not_found: 'account_not_found',
     membership_state_invalid: 'membership_state_invalid',
     operation_conflict: 'operation_conflict',
@@ -63,6 +71,21 @@
     invalid_request: 'invalid_request'
   });
   const DEFAULT_REQUEST_TIMEOUT_MS = 20_000;
+  const ACCOUNT_TERMINAL_CODES = Object.freeze([
+    'account_deleting', 'account_deleted', 'account_device_revoked'
+  ]);
+  const APP_TERMINAL_CODES = Object.freeze([
+    ...ACCOUNT_TERMINAL_CODES,
+    'membership_deleting', 'membership_deleted', 'app_device_revoked',
+    'app_identity_deleting', 'app_identity_deleted'
+  ]);
+
+  root.terminalState = Object.freeze({
+    accountCodes: ACCOUNT_TERMINAL_CODES,
+    appCodes: APP_TERMINAL_CODES,
+    isAccount: (code) => ACCOUNT_TERMINAL_CODES.includes(code),
+    isApp: (code) => APP_TERMINAL_CODES.includes(code)
+  });
 
   class AccountApiError extends Error {
     constructor(status, code) {

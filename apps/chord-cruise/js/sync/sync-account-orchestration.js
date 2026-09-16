@@ -120,7 +120,10 @@
           } : null,
           secondaryAction: options.manage ? {
             id: 'manage', label: 'Cruise Portで管理', kind: 'secondary',
-            run: function () { global.location.assign(settings.portUrl); }
+            run: function () {
+              if (syncUi?.openPortManagement) syncUi.openPortManagement({ portUrl: settings.portUrl });
+              else global.location.assign(settings.portUrl);
+            }
           } : null
         });
         return true;
@@ -149,6 +152,13 @@
 
     function showConnectedJoinSettings() {
       renderJoinSettings({ state: 'ready', status: '同期済み', action: null, manage: true });
+    }
+
+    function isTerminalSyncCode(code) {
+      return accountRoot?.terminalState?.isApp?.(code) === true || [
+        'account_deleting', 'account_deleted', 'membership_deleting', 'membership_deleted',
+        'app_device_revoked', 'app_identity_deleting', 'app_identity_deleted'
+      ].indexOf(code) !== -1;
     }
 
     async function ensurePairingUi() {
@@ -425,9 +435,18 @@
       renderJoinSettings({
         state: 'unconnected',
         status: '未接続',
+        description: options?.terminal === true
+          ? '以前のクラウド同期は利用できません。Cruise Portから接続し直してください。'
+          : undefined,
         action: button
       });
     }
+    function showTerminalReconnect() {
+      installJoinEntry({ terminal: true });
+    }
+    global.addEventListener?.('soundcruise:sync-terminal', function () {
+      showTerminalReconnect();
+    });
     if (!handoffToken) {
       const chordStore = await chordClient.openStore();
       let existing = await chordStore.getMeta('deviceCredential');
@@ -463,14 +482,21 @@
       // app credential.  Do not regress it to a new Join prompt while the
       // runtime/pairing UI is still restoring after a reload.
       if (accountManagedSetup === true && migrationState === 'complete' && existing?.credential) {
-        if (syncState === 'paired_pending') showAttentionSettings();
+        const verified = await chordClient.getServerSnapshot();
+        if (verified?.ok === false && isTerminalSyncCode(verified.code)) {
+          showTerminalReconnect();
+        } else if (verified?.ok === false) {
+          showAttentionSettings('同期状態を確認できませんでした。データは削除していません。',
+            uiAction('もう一度確認', function () { return global.location.reload(); }));
+        } else if (syncState === 'paired_pending') showAttentionSettings();
         else showConnectedJoinSettings();
         return;
       }
       if (accountManagedSetup === true && migrationState !== 'complete' && existing?.credential) {
         try { await resumeAccountManagedHydrate(); }
-        catch (_) {
-          showAttentionSettings('同期の設定を再確認してください。',
+        catch (reason) {
+          if (isTerminalSyncCode(reason?.code)) showTerminalReconnect();
+          else showAttentionSettings('同期の設定を再確認してください。',
             uiAction('もう一度確認', resumeAccountManagedHydrate));
         }
         return;

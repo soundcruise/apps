@@ -1,4 +1,4 @@
-import { authenticateDevice } from './auth.js';
+import { inspectDeviceCredential } from './auth.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { handleAccountApiRequest } from './account-app.js';
 import {
@@ -162,8 +162,18 @@ async function authenticatedContext(request, env, appId, dependencies) {
   if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_DB) return { error: 'server_unavailable', status: 503 };
   const session = createSession(env, request);
   if (!session) return { error: 'invalid_bookmark', status: 400 };
-  const authenticate = dependencies.authenticateDevice || authenticateDevice;
-  const identity = await authenticate(session, request.headers.get('Authorization'), appId, env.SYNC_CREDENTIAL_PEPPER);
+  let identity;
+  if (dependencies.authenticateDevice) {
+    identity = await dependencies.authenticateDevice(
+      session, request.headers.get('Authorization'), appId, env.SYNC_CREDENTIAL_PEPPER
+    );
+  } else {
+    const inspected = await inspectDeviceCredential(
+      session, request.headers.get('Authorization'), appId, env.SYNC_CREDENTIAL_PEPPER
+    );
+    if (inspected?.error) return { error: inspected.error, status: 410 };
+    identity = inspected?.identity || null;
+  }
   if (!identity) return { error: 'invalid_credential', status: 401 };
   let qaRequired = !validatePublicAppId(appId, env);
   let accountId = null;

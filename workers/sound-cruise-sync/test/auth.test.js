@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { authenticateDevice, isRetiredLegacyDeviceCredential } from '../src/auth.js';
+import { authenticateDevice, inspectDeviceCredential, isRetiredLegacyDeviceCredential } from '../src/auth.js';
 import { hmacVerifier } from '../src/crypto.js';
 import { createSqliteD1, seedIdentity } from './sqlite-d1.js';
 
@@ -31,6 +31,43 @@ test('revoked or deleted identities cannot read or write through device auth', a
     UPDATE sync_users SET state = 'deleted', recovery_version = 1, recovery_verifier = 'retired'
   `).run();
   assert.equal(await authenticateDevice(db, `Bearer ${CREDENTIAL}`, 'chord', PEPPER), null);
+  db.close();
+});
+
+test('exact Account-managed terminal state is distinguished only after verifier and app checks', async () => {
+  const db = createSqliteD1();
+  const verifier = await hmacVerifier(CREDENTIAL, PEPPER);
+  const seeded = seedIdentity(db, { deviceId: DEVICE_ID, verifier });
+  const accountId = crypto.randomUUID();
+  const membershipId = crypto.randomUUID();
+  db.raw.prepare(`
+    INSERT INTO sync_accounts (
+      id, state, recovery_version, recovery_verifier, generation,
+      created_at, updated_at, recovery_created_at, recovery_rotated_at,
+      admission_provenance
+    ) VALUES (?, 'active', 1, ?, 1, 1, 1, 1, 1, 'production')
+  `).run(accountId, 'f'.repeat(64));
+  db.raw.prepare(`
+    INSERT INTO sync_account_memberships (
+      id, account_id, app_id, state, sync_user_id, recovery_mode,
+      generation, created_at, updated_at, activated_at
+    ) VALUES (?, ?, 'chord', 'active', ?, 'account', 1, 1, 1, 1)
+  `).run(membershipId, accountId, seeded.userId);
+  db.raw.prepare(`
+    INSERT INTO sync_account_managed_users (
+      sync_user_id, account_id, membership_id, app_id, created_at
+    ) VALUES (?, ?, ?, 'chord', 1)
+  `).run(seeded.userId, accountId, membershipId);
+
+  const authorization = `Bearer ${CREDENTIAL}`;
+  assert.equal((await inspectDeviceCredential(db, authorization, 'chord', PEPPER)).identity.deviceId, DEVICE_ID);
+  db.raw.prepare("UPDATE sync_accounts SET state = 'deleting', delete_requested_at = 2, purge_after = 3, updated_at = 2 WHERE id = ?")
+    .run(accountId);
+  assert.equal((await inspectDeviceCredential(db, authorization, 'chord', PEPPER)).error, 'account_deleting');
+  assert.equal(await inspectDeviceCredential(db, authorization, 'pitch', PEPPER), null, 'cross-app remains opaque');
+  assert.equal(await inspectDeviceCredential(
+    db, `Bearer scd1.${DEVICE_ID}.${'B'.repeat(43)}`, 'chord', PEPPER
+  ), null, 'wrong verifier remains opaque');
   db.close();
 });
 
