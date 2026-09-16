@@ -208,7 +208,9 @@
     host.dataset.syncJoinUiState = options.state || 'checking';
     const status = STATUS[options.state] || STATUS.checking;
     const card = document.createElement('section');
-    card.className = 'sound-cruise-sync-settings-card sound-cruise-sync-settings-card--accordion';
+    // Testing appearance is a reversible Pro-only presentation modifier.
+    const testingAppearance = document.documentElement?.dataset.appEdition === 'Pro';
+    card.className = `sound-cruise-sync-settings-card sound-cruise-sync-settings-card--accordion${testingAppearance ? ' sound-cruise-sync-settings-card--testing' : ''}`;
     card.dataset.syncSettingsState = options.state || 'checking';
     const bodyId = `sound-cruise-sync-settings-body-${++cardSequence}`;
     const expanded = host.dataset.syncCardExpanded === 'true';
@@ -220,6 +222,7 @@
     toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
     toggle.setAttribute('aria-controls', bodyId);
     appendText(document, toggle, 'strong', 'sound-cruise-sync-settings-title', 'クラウド同期');
+    if (testingAppearance) appendText(document, toggle, 'span', 'sound-cruise-sync-settings-testing-badge', '試験中');
     const statusLabel = displayStatusLabel(options.state, status, options.statusLabel);
     appendText(document, toggle, 'span', 'sound-cruise-sync-settings-status-chip', statusLabel);
     appendText(document, toggle, 'span', 'sound-cruise-sync-settings-chevron', '⌄').setAttribute('aria-hidden', 'true');

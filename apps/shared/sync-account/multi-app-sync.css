@@ -103,6 +103,18 @@
   line-height: 1.2;
   white-space: nowrap;
 }
+.sound-cruise-sync-settings-testing-badge {
+  flex: 0 0 auto;
+  padding: 2px 7px;
+  border: 1px solid rgba(190, 196, 204, .55);
+  border-radius: 999px;
+  color: #d7dbe0;
+  background: rgba(124, 132, 142, .16);
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
 .sound-cruise-sync-settings-chevron {
   margin-left: auto;
   flex: 0 0 auto;
@@ -117,6 +129,29 @@
   padding: .65rem .35rem .25rem;
 }
 .sound-cruise-sync-settings-body[hidden] { display: none; }
+
+/* Remove this modifier to restore the production black-and-gold appearance. */
+.sound-cruise-sync-settings-card--testing {
+  border-color: rgba(184, 190, 198, .58);
+  background: rgba(25, 27, 30, .9);
+  color: #eef0f2;
+}
+.sound-cruise-sync-settings-card--testing .sound-cruise-sync-settings-status-chip {
+  border-color: rgba(184, 190, 198, .58);
+  color: #e1e4e8;
+  background: rgba(124, 132, 142, .12);
+}
+.sound-cruise-sync-settings-card--testing .sound-cruise-sync-settings-chevron { color: #c9ced4; }
+.sound-cruise-sync-settings-card--testing .sound-cruise-sync-button--primary {
+  border-color: rgba(184, 190, 198, .72);
+  background: rgba(65, 70, 77, .68);
+  color: #f1f3f5;
+}
+.sound-cruise-sync-settings-card--testing .sound-cruise-sync-help-button {
+  border-color: rgba(184, 190, 198, .62);
+  color: #e1e4e8;
+  background: rgba(124, 132, 142, .12);
+}
 .sound-cruise-sync-help-button {
   display: inline-grid;
   width: 36px;
