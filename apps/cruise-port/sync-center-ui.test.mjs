@@ -7,6 +7,7 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const root = read('./index.html');
 const pro = read('./pro_9a3943176561/index.html');
 const app = read('./practice-menu-app.js');
+const ui = read('./sync-center-ui.js');
 const controller = read('./sync-center-controller.js');
 
 function accountSetupFixture({ completeAccountSetup, prepareAll = async () => ({ ok: true }), tokenProvider = async () => 'verified' }) {
@@ -77,6 +78,28 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     for (const category of ['最初の接続', '別の環境を追加', '復旧コード', '同期中の環境', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
         assert.match(app, new RegExp(`title: '${category}'`));
     }
+});
+
+test('Account section presents step title, status chip and state-specific CTA', () => {
+    for (const html of [root, pro]) {
+        const start = html.indexOf('<section class="sync-center-account"');
+        const end = html.indexOf('</section>', start);
+        const account = html.slice(start, end);
+        assert.match(account, /1\. アカウント作成/);
+        assert.match(account, /sync-center-account-status/);
+        assert.match(account, /アカウントの作成/);
+        assert.match(account, /復旧コードの確認/);
+        assert.doesNotMatch(account, /Sound Cruise Sync 接続済み/);
+        assert.doesNotMatch(account, /アプリの同期設定が完了/);
+        assert.doesNotMatch(account, /クラウド同期をはじめる/);
+    }
+    assert.match(ui, /accountState === 'unset' \? '未作成'/);
+    assert.match(ui, /accountState === 'active' \? '作成済み'/);
+    assert.match(ui, /setupOpen\.hidden = accountState !== 'unset'/);
+    assert.match(ui, /accountRecoveryOpen\.hidden = accountState !== 'active'/);
+    assert.match(ui, /setupOpen\.textContent = 'アカウントの作成'/);
+    assert.match(ui, /accountRecoveryOpen\.textContent = '復旧コードの確認'/);
+    assert.match(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
 });
 
 test('Sync Help uses independent simple step numbering for each connection flow', () => {

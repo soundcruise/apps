@@ -193,8 +193,22 @@ function showJoinCode(root, result, onClose = async () => {}) {
 export function renderSyncCenter(root, presentation, { edition = 'standard', orchestrationEnabled = false } = {}) {
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
-    setText(root, '#sync-center-account-label', presentation.accountLabel);
-    setText(root, '#sync-center-progress', `${presentation.readyCount} / ${presentation.totalCount} アプリの同期設定が完了`);
+    const accountStatus = root.querySelector('#sync-center-account-status');
+    const setupOpen = root.querySelector('#sync-center-setup-open');
+    const accountRecoveryOpen = root.querySelector('#sync-center-account-recovery-open');
+    const accountState = presentation.accountState;
+    if (accountStatus) {
+        accountStatus.textContent = accountState === 'unset' ? '未作成' :
+            accountState === 'active' ? '作成済み' : accountState === 'deleting' ? '削除中' : '確認が必要';
+    }
+    if (setupOpen) {
+        setupOpen.hidden = accountState !== 'unset';
+        setupOpen.textContent = 'アカウントの作成';
+    }
+    if (accountRecoveryOpen) {
+        accountRecoveryOpen.hidden = accountState !== 'active';
+        accountRecoveryOpen.textContent = '復旧コードの確認';
+    }
     const alert = root.querySelector('#sync-center-alert');
     if (alert) {
         alert.hidden = !['error', 'offline'].includes(presentation.kind);
@@ -458,7 +472,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         if (recoveryCopyStatus) recoveryCopyStatus.textContent = '';
         if (recoveryDialog?.open) recoveryDialog.close();
     };
-    root?.querySelector?.('#sync-center-recovery-open')?.addEventListener('click', async () => {
+    root?.querySelectorAll?.('#sync-center-recovery-open, #sync-center-account-recovery-open').forEach((recoveryOpen) => recoveryOpen.addEventListener('click', async () => {
         if (!orchestrator?.enabled) return;
         try {
             await ensureQaAdmission();
@@ -473,7 +487,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         } catch (_) {
             setText(root, '#sync-center-action-status', '復旧を開始できませんでした。QA認証と通信状態を確認してください。');
         }
-    });
+    }));
     root?.querySelector?.('#sync-center-recovery-close')?.addEventListener('click', closeRecovery);
     recoveryConfirm?.addEventListener('click', async () => {
         recoveryConfirm.disabled = true;
