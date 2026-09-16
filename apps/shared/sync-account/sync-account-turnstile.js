@@ -8,7 +8,8 @@
   const ACTIONS = new Set([
     'sound_cruise_account_qa_enroll',
     'sound_cruise_account_start',
-    'sound_cruise_account_recovery'
+    'sound_cruise_account_recovery',
+    'sound_cruise_account_recovery_rotation'
   ]);
   let scriptPromise = null;
   let activeWidget = null;

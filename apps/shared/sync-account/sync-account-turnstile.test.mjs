@@ -48,13 +48,18 @@ function fixture({ siteKey = 'public-site-key' } = {}) {
   return { context, appended, rendered };
 }
 
-test('Account Turnstile issues only the two exact action tokens', async () => {
+test('Account Turnstile issues only the exact account action tokens', async () => {
   const { context, appended, rendered } = fixture();
   assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken('unknown'), null);
   assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken('sound_cruise_account_qa_enroll'), 'verified-token');
   assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken('sound_cruise_account_start'), 'verified-token');
+  assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken('sound_cruise_account_recovery'), 'verified-token');
+  assert.equal(await context.__SOUND_CRUISE_ACCOUNT_TURNSTILE__.getToken('sound_cruise_account_recovery_rotation'), 'verified-token');
   assert.deepEqual(rendered.map(({ options }) => options.action), [
-    'sound_cruise_account_qa_enroll', 'sound_cruise_account_start'
+    'sound_cruise_account_qa_enroll',
+    'sound_cruise_account_start',
+    'sound_cruise_account_recovery',
+    'sound_cruise_account_recovery_rotation'
   ]);
   assert.equal(rendered.every(({ options }) => options.sitekey === 'public-site-key' && options.appearance === 'interaction-only'), true);
   assert.notEqual(rendered[0].container, rendered[1].container, 'each action uses a fresh Turnstile mount node');
