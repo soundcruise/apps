@@ -203,6 +203,26 @@ export function validateAccountRecoveryCommitPayload(value) {
     ? { ok: true, value: normalized } : { ok: false };
 }
 
+export function validateAccountRecoveryRotationPreparePayload(value) {
+  const keys = ['operationId', 'claimToken', 'nextRecoveryCode', 'turnstileToken'];
+  if (!exactObject(value, keys)) return { ok: false };
+  const normalized = {
+    ...value,
+    operationId: operationId(value.operationId),
+    nextRecoveryCode: normalizeAccountRecoveryCode(value.nextRecoveryCode)
+  };
+  return normalized.operationId && normalized.nextRecoveryCode &&
+    parseAccountRecoveryClaim(normalized.claimToken) && validTurnstile(normalized.turnstileToken)
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
+export function validateAccountRecoveryRotationCommitPayload(value) {
+  if (!exactObject(value, ['operationId', 'claimToken'])) return { ok: false };
+  const normalized = { ...value, operationId: operationId(value.operationId) };
+  return normalized.operationId && parseAccountRecoveryClaim(normalized.claimToken)
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
 export function validateAccountDeviceRevokePayload(value) {
   if (!exactObject(value, ['operationId', 'accountDeviceId'])) return { ok: false };
   const normalized = {

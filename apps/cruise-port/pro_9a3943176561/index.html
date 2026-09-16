@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.32.4">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.32.4">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.35.13">
+    <link rel="stylesheet" href="../style.css?v=0.36.0">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=17">
     <script>
@@ -24,11 +24,11 @@
     <script src="../../shared/sync-account/production-config.js?v=2"></script>
     <script defer src="../../shared/sync-account/sync-account-core.js?v=5"></script>
     <script defer src="../../shared/sync-account/sync-account-db.js?v=6"></script>
-    <script defer src="../../shared/sync-account/sync-account-client.js?v=8"></script>
+    <script defer src="../../shared/sync-account/sync-account-client.js?v=9"></script>
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=8"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=4"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.35.13"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.36.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -213,7 +213,7 @@
                         <h2 id="sync-center-recovery-title">復旧とセキュリティ</h2>
                         <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-recovery-help" aria-expanded="false" aria-controls="sync-center-recovery-help" aria-label="復旧とセキュリティの説明を表示">?</button>
                     </div>
-                    <p id="sync-center-recovery-help" class="sync-center-section-help-copy" hidden>復旧コードは、同期環境を失ったときに使います。安全のため再表示できません。紛失した場合は、新しい復旧コードを発行してください。有効なコードは1つだけで、新しいコードを発行すると以前のコードは使えなくなります。</p>
+                    <p id="sync-center-recovery-help" class="sync-center-section-help-copy" hidden>Cruise Portでアカウントに接続できている間は、現在の復旧コードを紛失しても、新しい復旧コードを発行できます。Cruise Portへの接続も失った場合は、保存してある復旧コードが必要です。新しい復旧コードを発行すると、以前のコードは使えなくなります。</p>
                     <div class="sync-center-actions">
                         <button id="sync-center-recovery-open" class="action-button secondary-action" type="button">復旧コードで復旧</button>
                     </div>

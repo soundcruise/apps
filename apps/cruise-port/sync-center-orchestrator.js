@@ -1,5 +1,5 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.35.13';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.36.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -23,6 +23,7 @@ export function createSyncCenterOrchestrator({
     let accountMaterial = null;
     let accountStartPromise = null;
     let recoveryMaterial = null;
+    let recoveryRotationMaterial = null;
     let deleteMaterial = null;
 
     async function account() { return accountRoot.storage.getAccount(); }
@@ -99,6 +100,31 @@ export function createSyncCenterOrchestrator({
             return result;
         },
         discardRecoveryCandidate() { recoveryMaterial = null; },
+        async prepareRecoveryRotation({ turnstileToken }) {
+            if (!recoveryRotationMaterial) {
+                recoveryRotationMaterial = accountRoot.core.createAccountRecoveryMaterial();
+            }
+            return client.prepareAccountRecoveryRotation({
+                accountCredential: await credential(),
+                turnstileToken,
+                material: recoveryRotationMaterial
+            });
+        },
+        recoveryRotationCandidateCode() {
+            if (!recoveryRotationMaterial) throw new Error('account_recovery_rotation_not_prepared');
+            return accountRoot.core.formatRecoveryCode(recoveryRotationMaterial.nextRecoveryCode);
+        },
+        async commitRecoveryRotation({ recoverySaved }) {
+            if (!recoveryRotationMaterial) throw new Error('account_recovery_rotation_not_prepared');
+            const result = await client.commitAccountRecoveryRotation({
+                accountCredential: await credential(),
+                material: recoveryRotationMaterial,
+                recoverySaved
+            });
+            recoveryRotationMaterial = null;
+            return result;
+        },
+        discardRecoveryRotationCandidate() { recoveryRotationMaterial = null; },
         async revokeEnvironment(accountDeviceId) {
             return client.revokeEnvironment({
                 accountCredential: await credential(),

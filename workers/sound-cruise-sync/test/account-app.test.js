@@ -7,7 +7,9 @@ import {
   createAccountHandoff,
   createAccountRecoveryClaim,
   createAppJoinCode,
-  createAccountRecoveryCode
+  createAccountRecoveryCode,
+  accountCredentialVerifier,
+  accountRecoveryCodeVerifier
 } from '../src/account-crypto.js';
 import { createIdentityMaterial } from '../src/crypto.js';
 import { createQaCredential, qaCredentialVerifier } from '../src/account-qa-crypto.js';
@@ -229,6 +231,167 @@ test('Account Recovery API prepares a secret-free summary, rotates once and reso
   }), env);
   assert.equal(response.status, 200);
   assert.equal((await response.json()).account.recoveryVersion, 2);
+  db.close();
+});
+
+test('authenticated Recovery rotation requires active Account authority and preserves existing control plane', async () => {
+  const db = createSqliteD1();
+  enableLifecycleControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['chord', 'pitch']);
+  const credential = started.candidate.account.credential;
+  const accountId = started.payload.accountId;
+  const accountDeviceId = started.payload.accountDeviceId;
+  const claim = createAccountRecoveryClaim();
+  const nextRecoveryCode = createAccountRecoveryCode();
+  const prepareBody = {
+    operationId: crypto.randomUUID(),
+    claimToken: claim.claimToken,
+    nextRecoveryCode,
+    turnstileToken: 'verified'
+  };
+
+  let response = await handleRequest(
+    jsonRequest('/v2/accounts/recovery-rotation/prepare', prepareBody), env, null, turnstileOk
+  );
+  assert.equal(response.status, 403, 'missing Account credential is forbidden');
+  const appOnly = await createIdentityMaterial(appPepper);
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/recovery-rotation/prepare', prepareBody, {
+      credential: appOnly.credential
+    }), env, null, turnstileOk
+  );
+  assert.equal(response.status, 403, 'an app credential cannot rotate Account Recovery');
+
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/recovery-rotation/prepare', prepareBody, {
+      credential, origin: 'https://attacker.example'
+    }), env, null, turnstileOk
+  );
+  assert.equal(response.status, 403, 'rotation requires the exact trusted Origin');
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/recovery-rotation/prepare', prepareBody, { credential }),
+    { ...env, ACCOUNT_RECOVERY_RATE_LIMITER: limiter(false) }, null, turnstileOk
+  );
+  assert.equal(response.status, 429, 'rotation uses the Account Recovery rate limiter');
+
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/recovery-rotation/prepare', prepareBody, { credential }),
+    env, null, {
+      verifyTurnstileToken: async (_token, _env, options) => {
+        assert.equal(options.expectedAction, 'sound_cruise_account_recovery_rotation');
+        return { ok: true };
+      }
+    }
+  );
+  assert.equal(response.status, 201);
+  const prepared = await response.json();
+  assert.equal(prepared.recoveryVersion, 1);
+  assert.equal(JSON.stringify(prepared).includes(nextRecoveryCode), false);
+  const oldVerifier = await accountRecoveryCodeVerifier(
+    started.candidate.body.recoveryCode, accountRecoveryPepper
+  );
+  assert.equal(db.raw.prepare('SELECT recovery_verifier FROM sync_accounts WHERE id = ?')
+    .get(accountId).recovery_verifier, oldVerifier, 'prepare keeps the old Code valid');
+
+  const commitBody = { operationId: crypto.randomUUID(), claimToken: claim.claimToken };
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/recovery-rotation/commit', commitBody, { credential }), env
+  );
+  assert.equal(response.status, 201);
+  assert.equal((await response.json()).recoveryVersion, 2);
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/recovery-rotation/commit', commitBody, { credential }), env
+  );
+  assert.equal(response.status, 200, 'response-loss retry is idempotent');
+  assert.equal((await response.json()).operation, 'existing');
+
+  const account = db.raw.prepare(`
+    SELECT recovery_version, recovery_verifier, generation, state
+    FROM sync_accounts WHERE id = ?
+  `).get(accountId);
+  assert.equal(account.recovery_version, 2);
+  assert.equal(account.recovery_verifier,
+    await accountRecoveryCodeVerifier(nextRecoveryCode, accountRecoveryPepper));
+  assert.equal(account.generation, 1);
+  assert.equal(account.state, 'active');
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_account_devices
+    WHERE account_id = ? AND revoked_at IS NULL
+  `).get(accountId).count, 1);
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_account_memberships
+    WHERE account_id = ? AND state = 'pending'
+  `).get(accountId).count, 2);
+
+  const recoveryCandidate = createAccountCredential();
+  const oldClaim = createAccountRecoveryClaim();
+  const recoveryPrepare = (recoveryCode, nextCode, nextAccount, recoveryClaim) => ({
+    operationId: crypto.randomUUID(),
+    recoveryCode,
+    claimToken: recoveryClaim.claimToken,
+    nextRecoveryCode: nextCode,
+    accountCredential: nextAccount.credential,
+    turnstileToken: 'verified',
+    deviceLabel: 'Recovered Port'
+  });
+  response = await handleRequest(jsonRequest('/v2/accounts/recovery/prepare',
+    recoveryPrepare(started.candidate.body.recoveryCode, createAccountRecoveryCode(),
+      recoveryCandidate, oldClaim)), env, null, turnstileOk);
+  assert.equal(response.status, 400, 'the old Code is invalid after rotation');
+  const newRecoveryAccount = createAccountCredential();
+  const newRecoveryClaim = createAccountRecoveryClaim();
+  response = await handleRequest(jsonRequest('/v2/accounts/recovery/prepare',
+    recoveryPrepare(nextRecoveryCode, createAccountRecoveryCode(),
+      newRecoveryAccount, newRecoveryClaim)), env, null, turnstileOk);
+  assert.equal(response.status, 201, 'the new Code remains valid for Account Recovery');
+
+  const otherCredential = createAccountCredential();
+  const otherAccountId = crypto.randomUUID();
+  const otherVerifier = await accountCredentialVerifier(
+    otherCredential.credential, accountCredentialPepper
+  );
+  db.raw.prepare(`
+    INSERT INTO sync_accounts (
+      id, state, recovery_version, recovery_verifier, generation,
+      created_at, updated_at, recovery_created_at, recovery_rotated_at,
+      admission_provenance
+    ) VALUES (?, 'active', 1, ?, 1, 1, 1, 1, 1, 'qa')
+  `).run(otherAccountId, 'f'.repeat(64));
+  db.raw.prepare(`
+    INSERT INTO sync_account_devices (
+      id, account_id, credential_version, credential_verifier,
+      label, created_at, last_seen_at, revoked_at
+    ) VALUES (?, ?, 1, ?, 'Other', 1, 1, NULL)
+  `).run(otherCredential.deviceId, otherAccountId, otherVerifier);
+  response = await handleRequest(
+    jsonRequest('/v2/accounts/recovery-rotation/commit', commitBody, {
+      credential: otherCredential.credential
+    }), env
+  );
+  assert.equal(response.status, 403, 'another Account cannot use the rotation claim');
+
+  const deletingClaim = createAccountRecoveryClaim();
+  db.raw.prepare("UPDATE sync_accounts SET state = 'deleting' WHERE id = ?").run(accountId);
+  response = await handleRequest(jsonRequest('/v2/accounts/recovery-rotation/prepare', {
+    operationId: crypto.randomUUID(), claimToken: deletingClaim.claimToken,
+    nextRecoveryCode: createAccountRecoveryCode(), turnstileToken: 'verified'
+  }, { credential }), env, null, turnstileOk);
+  assert.equal(response.status, 403, 'a deleting Account cannot prepare rotation');
+  db.raw.prepare("UPDATE sync_accounts SET state = 'active' WHERE id = ?").run(accountId);
+
+  const revokedClaim = createAccountRecoveryClaim();
+  response = await handleRequest(jsonRequest('/v2/accounts/recovery-rotation/prepare', {
+    operationId: crypto.randomUUID(), claimToken: revokedClaim.claimToken,
+    nextRecoveryCode: createAccountRecoveryCode(), turnstileToken: 'verified'
+  }, { credential }), env, null, turnstileOk);
+  assert.equal(response.status, 201);
+  db.raw.prepare('UPDATE sync_account_devices SET revoked_at = ? WHERE id = ?')
+    .run(Date.now(), accountDeviceId);
+  response = await handleRequest(jsonRequest('/v2/accounts/recovery-rotation/commit', {
+    operationId: crypto.randomUUID(), claimToken: revokedClaim.claimToken
+  }, { credential }), env);
+  assert.equal(response.status, 403, 'a revoked Account Device cannot commit rotation');
   db.close();
 });
 

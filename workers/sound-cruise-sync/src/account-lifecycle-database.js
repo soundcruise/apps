@@ -372,6 +372,190 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     }
   }
 
+  async function resolveRecoveryRotationPrepare(identity, input) {
+    const row = await db.prepare(`
+      SELECT r.claim_id, r.account_id, r.requested_by_account_device_id,
+             r.prepare_fingerprint, r.expires_at, r.committed_at, r.cancelled_at,
+             r.expected_recovery_version, a.recovery_version, a.state,
+             a.admission_provenance, d.revoked_at
+      FROM sync_account_recovery_rotations r
+      JOIN sync_accounts a ON a.id = r.account_id
+      JOIN sync_account_devices d ON d.id = r.requested_by_account_device_id
+      WHERE r.prepare_operation_id = ?
+    `).bind(input.operationId).first();
+    if (!row) return null;
+    if (row.account_id !== identity.accountId ||
+        row.requested_by_account_device_id !== identity.accountDeviceId ||
+        row.admission_provenance !== (identity.admissionProvenance || 'qa') ||
+        row.prepare_fingerprint !== input.requestFingerprint ||
+        row.claim_id !== input.claimId) return { status: 'conflict' };
+    if (row.committed_at != null) return { status: 'committed' };
+    if (row.cancelled_at != null || Number(row.expires_at) <= input.now ||
+        row.state !== 'active' || row.revoked_at != null ||
+        Number(row.recovery_version) !== Number(row.expected_recovery_version)) {
+      return { status: 'invalid' };
+    }
+    return {
+      status: 'prepared',
+      recoveryVersion: Number(row.expected_recovery_version),
+      expiresAt: Number(row.expires_at),
+      alreadyPrepared: true
+    };
+  }
+
+  async function prepareRecoveryRotation(identity, input) {
+    const retry = await resolveRecoveryRotationPrepare(identity, input);
+    if (retry) return retry;
+    const expiresAt = input.now + ACCOUNT_LIFECYCLE.recoveryClaimTtlMs;
+    try {
+      const result = await db.prepare(`
+        INSERT INTO sync_account_recovery_rotations (
+          claim_id, claim_verifier, account_id, requested_by_account_device_id,
+          expected_recovery_version, expected_account_generation,
+          next_recovery_verifier, created_at, expires_at, committed_at, cancelled_at,
+          prepare_operation_id, prepare_fingerprint, commit_operation_id, commit_fingerprint
+        )
+        SELECT ?, ?, a.id, d.id, a.recovery_version, a.generation,
+               ?, ?, ?, NULL, NULL, ?, ?, NULL, NULL
+        FROM sync_accounts a
+        JOIN sync_account_devices d ON d.account_id = a.id
+        WHERE a.id = ? AND d.id = ? AND d.revoked_at IS NULL
+          AND a.state = 'active' AND a.deleted_at IS NULL
+          AND a.recovery_version = ? AND a.generation = ?
+          AND a.admission_provenance = ?
+      `).bind(
+        input.claimId, input.claimVerifier, input.nextRecoveryVerifier,
+        input.now, expiresAt, input.operationId, input.requestFingerprint,
+        identity.accountId, identity.accountDeviceId,
+        identity.recoveryVersion, identity.generation,
+        identity.admissionProvenance || 'qa'
+      ).run();
+      if (changes(result) !== 1) return { status: 'invalid' };
+      return {
+        status: 'prepared', recoveryVersion: Number(identity.recoveryVersion),
+        expiresAt, alreadyPrepared: false
+      };
+    } catch (error) {
+      const raced = await resolveRecoveryRotationPrepare(identity, input);
+      if (raced) return raced;
+      throw error;
+    }
+  }
+
+  async function commitRecoveryRotation(identity, input) {
+    const rotation = await db.prepare(`
+      SELECT r.claim_id, r.claim_verifier, r.account_id,
+             r.requested_by_account_device_id, r.expected_recovery_version,
+             r.expected_account_generation, r.next_recovery_verifier,
+             r.expires_at, r.committed_at, r.cancelled_at,
+             r.commit_operation_id, r.commit_fingerprint,
+             a.state, a.recovery_version, a.recovery_verifier,
+             a.generation, a.admission_provenance, d.revoked_at
+      FROM sync_account_recovery_rotations r
+      JOIN sync_accounts a ON a.id = r.account_id
+      JOIN sync_account_devices d ON d.id = r.requested_by_account_device_id
+      WHERE r.claim_id = ?
+    `).bind(input.claimId).first();
+    if (!rotation || rotation.account_id !== identity.accountId ||
+        rotation.requested_by_account_device_id !== identity.accountDeviceId ||
+        rotation.admission_provenance !== (identity.admissionProvenance || 'qa') ||
+        !timingSafeHexEqual(rotation.claim_verifier || '', input.claimVerifier)) {
+      return { status: 'invalid' };
+    }
+    const nextVersion = Number(rotation.expected_recovery_version) + 1;
+    if (rotation.committed_at != null) {
+      return rotation.commit_operation_id === input.operationId &&
+        rotation.commit_fingerprint === input.requestFingerprint &&
+        rotation.state === 'active' && rotation.revoked_at == null &&
+        Number(rotation.recovery_version) === nextVersion &&
+        timingSafeHexEqual(rotation.recovery_verifier || '', rotation.next_recovery_verifier)
+        ? { status: 'rotated', recoveryVersion: nextVersion, alreadyRotated: true }
+        : { status: 'conflict' };
+    }
+    if (rotation.commit_operation_id != null || rotation.cancelled_at != null ||
+        Number(rotation.expires_at) <= input.now || rotation.state !== 'active' ||
+        rotation.revoked_at != null ||
+        Number(rotation.recovery_version) !== Number(rotation.expected_recovery_version) ||
+        Number(rotation.generation) !== Number(rotation.expected_account_generation)) {
+      return { status: 'invalid' };
+    }
+    const rotate = db.prepare(`
+      UPDATE sync_accounts SET recovery_version = ?, recovery_verifier = ?,
+        recovery_rotated_at = ?, updated_at = ?
+      WHERE id = ? AND state = 'active' AND deleted_at IS NULL
+        AND recovery_version = ? AND generation = ? AND admission_provenance = ?
+        AND EXISTS (SELECT 1 FROM sync_account_devices d
+          WHERE d.id = ? AND d.account_id = sync_accounts.id AND d.revoked_at IS NULL)
+        AND EXISTS (SELECT 1 FROM sync_account_recovery_rotations r
+          WHERE r.claim_id = ? AND r.claim_verifier = ?
+            AND r.committed_at IS NULL AND r.cancelled_at IS NULL AND r.expires_at > ?)
+    `).bind(
+      nextVersion, rotation.next_recovery_verifier, input.now, input.now,
+      identity.accountId, rotation.expected_recovery_version,
+      rotation.expected_account_generation, identity.admissionProvenance || 'qa',
+      identity.accountDeviceId, rotation.claim_id, input.claimVerifier, input.now
+    );
+    const accountGuard = db.prepare(`
+      UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END
+      WHERE id = ?
+    `).bind(identity.accountId);
+    const finish = db.prepare(`
+      UPDATE sync_account_recovery_rotations
+      SET committed_at = ?, commit_operation_id = ?, commit_fingerprint = ?
+      WHERE claim_id = ? AND claim_verifier = ?
+        AND committed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, input.operationId, input.requestFingerprint,
+      rotation.claim_id, input.claimVerifier);
+    const cancelRotations = db.prepare(`
+      UPDATE sync_account_recovery_rotations
+      SET cancelled_at = COALESCE(cancelled_at, ?)
+      WHERE account_id = ? AND claim_id <> ?
+        AND committed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, identity.accountId, rotation.claim_id);
+    const cancelRecoveries = db.prepare(`
+      UPDATE sync_account_recovery_claims
+      SET cancelled_at = COALESCE(cancelled_at, ?)
+      WHERE account_id = ? AND committed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, identity.accountId);
+    try {
+      const results = await db.batch([
+        rotate, accountGuard, finish, cancelRotations, cancelRecoveries
+      ]);
+      if (!batchSucceeded(results, 5) || changes(results[0]) !== 1 ||
+          changes(results[1]) !== 1 || changes(results[2]) !== 1) {
+        throw new Error('D1 Account Recovery rotation compare-and-swap failed');
+      }
+      return { status: 'rotated', recoveryVersion: nextVersion, alreadyRotated: false };
+    } catch (error) {
+      const raced = await db.prepare(`
+        SELECT r.commit_operation_id, r.commit_fingerprint, r.committed_at,
+               a.state, a.recovery_version, a.recovery_verifier, d.revoked_at
+        FROM sync_account_recovery_rotations r
+        JOIN sync_accounts a ON a.id = r.account_id
+        JOIN sync_account_devices d ON d.id = r.requested_by_account_device_id
+        WHERE r.claim_id = ? AND r.account_id = ?
+          AND r.requested_by_account_device_id = ?
+      `).bind(rotation.claim_id, identity.accountId, identity.accountDeviceId).first();
+      if (raced?.commit_operation_id === input.operationId &&
+          raced?.commit_fingerprint === input.requestFingerprint &&
+          raced?.committed_at != null && raced.state === 'active' &&
+          raced.revoked_at == null && Number(raced.recovery_version) === nextVersion &&
+          timingSafeHexEqual(raced.recovery_verifier || '', rotation.next_recovery_verifier)) {
+        return { status: 'rotated', recoveryVersion: nextVersion, alreadyRotated: true };
+      }
+      const current = await db.prepare(`
+        SELECT state, recovery_version, generation FROM sync_accounts WHERE id = ?
+      `).bind(identity.accountId).first();
+      if (!current || current.state !== 'active' ||
+          Number(current.recovery_version) !== Number(rotation.expected_recovery_version) ||
+          Number(current.generation) !== Number(rotation.expected_account_generation)) {
+        return { status: 'invalid' };
+      }
+      throw error;
+    }
+  }
+
   async function listEnvironments(identity) {
     const rows = await db.prepare(`
       SELECT d.id, d.label, d.credential_version, d.created_at, d.last_seen_at, d.revoked_at,
@@ -681,6 +865,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
 
   return Object.freeze({
     resolveRecoveryPrepare, reserveRecoveryAttempt, prepareRecovery, commitRecovery,
+    resolveRecoveryRotationPrepare, prepareRecoveryRotation, commitRecoveryRotation,
     listEnvironments, revokeEnvironment, resolveRevokeAfterCredentialLoss, issueDeleteIntent,
     commitDelete, resolveDeleteAfterCredentialLoss, operation
   });

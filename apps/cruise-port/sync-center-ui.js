@@ -251,6 +251,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const recoverySummary = root?.querySelector?.('#sync-center-recovery-summary');
     const recoveryCandidate = root?.querySelector?.('#sync-center-recovery-candidate');
     const recoveryConfirm = root?.querySelector?.('#sync-center-recovery-confirm');
+    const recoveryClose = root?.querySelector?.('#sync-center-recovery-close');
     const setupCopy = root?.querySelector?.('#sync-center-setup-copy');
     const setupCopyStatus = root?.querySelector?.('#sync-center-setup-copy-status');
     const recoveryCopy = root?.querySelector?.('#sync-center-recovery-copy');
@@ -481,23 +482,25 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const closeRecovery = () => {
         recoverySecret?.resolve();
         orchestrator?.discardRecoveryCandidate?.();
+        orchestrator?.discardRecoveryRotationCandidate?.();
         if (recoveryCandidate) { recoveryCandidate.textContent = ''; recoveryCandidate.hidden = true; }
         if (recoveryCopy) recoveryCopy.hidden = true;
         if (recoveryCopyStatus) recoveryCopyStatus.textContent = '';
+        if (recoveryClose) recoveryClose.hidden = false;
         if (recoveryDialog?.open) recoveryDialog.close();
     };
-    const openRecovery = async ({ rotation = false } = {}) => {
+    const openRecovery = async () => {
         if (!orchestrator?.enabled) return;
         try {
             await ensureQaAdmission();
-            recoveryDialog.dataset.syncMode = rotation ? 'rotation' : 'execution';
+            recoveryDialog.dataset.syncMode = 'execution';
             recoveryDialog.dataset.syncPhase = 'input';
             recoveryConfirm.dataset.syncAction = 'prepare-recovery';
-            if (recoveryTitle) recoveryTitle.textContent = rotation ? '復旧コードを更新' : 'Sound Cruise Syncを復旧';
-            recoveryConfirm.textContent = rotation ? '新しい復旧コードを発行' : '復旧対象を確認';
-            recoverySummary.textContent = rotation
-                ? '保存してある現在の復旧コードを入力してください。'
-                : '保存してある復旧コードを入力してください。';
+            if (recoveryTitle) recoveryTitle.textContent = 'Sound Cruise Syncを復旧';
+            if (recoveryInput) recoveryInput.hidden = false;
+            if (recoveryClose) { recoveryClose.hidden = false; recoveryClose.textContent = '戻る'; }
+            recoveryConfirm.textContent = '復旧対象を確認';
+            recoverySummary.textContent = '保存してある復旧コードを入力してください。';
             recoveryCandidate.hidden = true;
             recoveryCandidate.textContent = '';
             if (recoveryCopy) recoveryCopy.hidden = true;
@@ -514,8 +517,28 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     recoveryRotateConfirm?.addEventListener('click', async () => {
         recoveryRotateConfirm.disabled = true;
         try {
+            await ensureQaAdmission();
+            const turnstileToken = await tokenProvider('sound_cruise_account_recovery_rotation');
+            if (!turnstileToken) throw new Error('verification_required');
+            await orchestrator.prepareRecoveryRotation({ turnstileToken });
             recoveryRotateConfirmDialog?.close();
-            await openRecovery({ rotation: true });
+            recoverySecret?.resolve();
+            recoveryDialog.dataset.syncMode = 'rotation';
+            recoveryDialog.dataset.syncPhase = 'candidate';
+            recoveryConfirm.dataset.syncAction = 'commit-recovery-rotation';
+            if (recoveryTitle) recoveryTitle.textContent = '新しい復旧コードを保存';
+            if (recoveryInput) recoveryInput.hidden = true;
+            if (recoveryClose) { recoveryClose.hidden = false; recoveryClose.textContent = 'キャンセル'; }
+            recoveryCandidate.textContent = orchestrator.recoveryRotationCandidateCode();
+            recoveryCandidate.hidden = false;
+            if (recoveryCopy) recoveryCopy.hidden = false;
+            recoverySummary.textContent = 'この復旧コードを安全な場所に保存してください。';
+            recoveryConfirm.textContent = '保存しました';
+            recoveryDialog.showModal();
+        } catch (error) {
+            setText(root, '#sync-center-action-status', error?.message === 'verification_required'
+                ? '人間確認を完了してから続けてください。'
+                : '復旧コードを更新できませんでした。同期状態と通信状態を確認してください。');
         } finally {
             recoveryRotateConfirm.disabled = false;
         }
@@ -536,9 +559,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 const memberships = prepared.summary.memberships || [];
                 const ready = memberships.filter((item) => item.dataset?.state === 'ready').length;
                 const records = memberships.reduce((total, item) => total + Number(item.dataset?.recordCount || 0), 0);
-                recoverySummary.textContent = recoveryDialog.dataset.syncMode === 'rotation'
-                    ? '新しい復旧コードを発行します。次へ進んで安全な場所に保存してください。'
-                    : `${memberships.length}アプリ（準備完了${ready}件）、同期データ${records}件、同期中の環境${prepared.summary.activeDeviceCount}件を復旧します。`;
+                recoverySummary.textContent = `${memberships.length}アプリ（準備完了${ready}件）、同期データ${records}件、同期中の環境${prepared.summary.activeDeviceCount}件を復旧します。`;
                 recoveryConfirm.textContent = '新しい復旧コードを確認';
                 recoverySecret.resolve();
                 return;
@@ -554,29 +575,44 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 return;
             }
             if (phase === 'candidate') {
+                const rotation = recoveryDialog.dataset.syncMode === 'rotation';
                 recoveryCandidate.textContent = '';
                 recoveryCandidate.hidden = true;
                 if (recoveryCopy) recoveryCopy.hidden = true;
                 recoveryDialog.dataset.syncPhase = 'committing';
-                await orchestrator.commitRecovery({ recoverySaved: true });
+                if (rotation) await orchestrator.commitRecoveryRotation({ recoverySaved: true });
+                else await orchestrator.commitRecovery({ recoverySaved: true });
                 recoveryDialog.dataset.syncPhase = 'complete';
-                recoverySummary.textContent = recoveryDialog.dataset.syncMode === 'rotation'
+                recoverySummary.textContent = rotation
                     ? '復旧コードを更新しました。以前の復旧コードは使えません。'
                     : 'Sound Cruise Syncを復旧しました。旧環境の同期資格情報は無効です。';
                 recoveryConfirm.dataset.syncAction = 'close';
                 recoveryConfirm.textContent = '閉じる';
+                if (recoveryClose) recoveryClose.hidden = true;
                 await refresh();
                 return;
             }
             closeRecovery();
         } catch (error) {
             recoverySecret?.reject(error);
-            recoveryCandidate.textContent = '';
-            recoveryCandidate.hidden = true;
-            if (recoveryCopy) recoveryCopy.hidden = true;
+            if (phase === 'candidate' && recoveryDialog.dataset.syncMode === 'rotation') {
+                recoveryDialog.dataset.syncPhase = 'candidate';
+                recoveryConfirm.dataset.syncAction = 'commit-recovery-rotation';
+                recoveryConfirm.textContent = 'もう一度試す';
+                recoveryCandidate.textContent = orchestrator.recoveryRotationCandidateCode();
+                recoveryCandidate.hidden = false;
+                if (recoveryCopy) recoveryCopy.hidden = false;
+                recoverySummary.textContent = '更新結果を確認できませんでした。保存済みの同じコードで安全に再確認します。';
+            } else {
+                recoveryCandidate.textContent = '';
+                recoveryCandidate.hidden = true;
+                if (recoveryCopy) recoveryCopy.hidden = true;
+            }
             setText(root, '#sync-center-action-status', error?.message === 'verification_required'
                 ? '人間確認を完了してから続けてください。'
-                : '復旧を完了できませんでした。入力内容と通信状態を確認してください。');
+                : recoveryDialog.dataset.syncMode === 'rotation'
+                    ? '復旧コードの更新結果を確認できませんでした。同じ操作でもう一度確認してください。'
+                    : '復旧を完了できませんでした。入力内容と通信状態を確認してください。');
         } finally {
             recoveryConfirm.disabled = false;
         }

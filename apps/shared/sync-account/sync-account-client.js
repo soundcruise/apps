@@ -44,6 +44,7 @@
     account_recovery_required: 'account_recovery_required',
     account_membership_delete_required: 'account_membership_delete_required',
     account_recovery_invalid: 'account_recovery_invalid',
+    account_recovery_rotation_invalid: 'account_recovery_rotation_invalid',
     account_recovery_paused: 'account_runtime_paused',
     account_delete_invalid: 'account_delete_invalid',
     account_delete_paused: 'account_runtime_paused',
@@ -327,6 +328,56 @@
       });
       await this.storage.clearPendingRecovery();
       return Object.freeze({ status: 'committed', result });
+    }
+
+    async prepareAccountRecoveryRotation({ accountCredential, turnstileToken, material = null }) {
+      const candidate = material || this.core.createAccountRecoveryMaterial();
+      if (!this.core.validAccountCredential(accountCredential) ||
+          !this.core.validAccountRecoveryClaim(candidate.claimToken) ||
+          typeof candidate.nextRecoveryCode !== 'string' ||
+          typeof candidate.prepareOperationId !== 'string') {
+        throw new Error('account_recovery_rotation_material_invalid');
+      }
+      const result = await this.request('/v2/accounts/recovery-rotation/prepare', {
+        method: 'POST', accountCredential,
+        body: {
+          operationId: candidate.prepareOperationId,
+          claimToken: candidate.claimToken,
+          nextRecoveryCode: candidate.nextRecoveryCode,
+          turnstileToken
+        }
+      });
+      return Object.freeze({
+        ...result,
+        material: candidate,
+        nextRecoveryCode: this.core.formatRecoveryCode(candidate.nextRecoveryCode)
+      });
+    }
+
+    async commitAccountRecoveryRotation({ accountCredential, material, recoverySaved }) {
+      if (recoverySaved !== true || !this.core.validAccountCredential(accountCredential) ||
+          !material || !this.core.validAccountRecoveryClaim(material.claimToken) ||
+          typeof material.commitOperationId !== 'string') {
+        throw new Error('account_recovery_rotation_save_confirmation_required');
+      }
+      const saved = await this.storage.getAccount?.();
+      if (!saved || saved.accountCredential !== accountCredential) {
+        throw new Error('account_auth_required');
+      }
+      const result = await this.request('/v2/accounts/recovery-rotation/commit', {
+        method: 'POST', accountCredential,
+        body: {
+          operationId: material.commitOperationId,
+          claimToken: material.claimToken
+        }
+      });
+      await this.storage.setAccount({
+        ...saved,
+        recoveryVersion: result.recoveryVersion,
+        recoveryAcknowledgedVersion: result.recoveryVersion,
+        recoveryAcknowledgedAt: Date.now()
+      });
+      return Object.freeze(result);
     }
 
     async revokeEnvironment({ accountCredential, accountDeviceId, operationId }) {

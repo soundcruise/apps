@@ -726,6 +726,59 @@ test('Account Recovery requires saved candidate, persists no Recovery plaintext,
   assert.equal(requests[1].body.claimToken, material.claimToken);
 });
 
+test('authenticated Recovery rotation uses Account auth, no current Code, and persists no candidate plaintext', async () => {
+  const account = load([coreSource, clientSource]);
+  const current = account.core.createAccountCredential().accountCredential;
+  const material = account.core.createAccountRecoveryMaterial();
+  const writes = [];
+  const requests = [];
+  const saved = {
+    accountId: crypto.randomUUID(),
+    accountDeviceId: current.split('.')[1],
+    accountCredential: current,
+    recoveryVersion: 1,
+    recoveryAcknowledgedVersion: 1,
+    recoveryAcknowledgedAt: 1
+  };
+  const storage = {
+    async getAccount() { return structuredClone(saved); },
+    async setAccount(value) { writes.push(structuredClone(value)); }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    fetchImpl: async (url, options) => {
+      const body = JSON.parse(options.body);
+      requests.push({ url, headers: options.headers, body });
+      return url.endsWith('/prepare')
+        ? Response.json({ ok: true, recoveryVersion: 1 }, { status: 201 })
+        : Response.json({ ok: true, recoveryVersion: 2 }, { status: 201 });
+    }
+  });
+  const prepared = await client.prepareAccountRecoveryRotation({
+    accountCredential: current, turnstileToken: 'opaque', material
+  });
+  assert.equal(prepared.nextRecoveryCode, account.core.formatRecoveryCode(material.nextRecoveryCode));
+  assert.equal(requests[0].headers.get('Authorization'), `Bearer ${current}`);
+  assert.deepEqual(Object.keys(requests[0].body).sort(), [
+    'claimToken', 'nextRecoveryCode', 'operationId', 'turnstileToken'
+  ]);
+  assert.equal(writes.length, 0, 'prepare is memory-only');
+  await assert.rejects(
+    client.commitAccountRecoveryRotation({ accountCredential: current, material }),
+    /account_recovery_rotation_save_confirmation_required/
+  );
+  await client.commitAccountRecoveryRotation({
+    accountCredential: current, material, recoverySaved: true
+  });
+  assert.equal(requests[1].headers.get('Authorization'), `Bearer ${current}`);
+  assert.deepEqual(Object.keys(requests[1].body).sort(), ['claimToken', 'operationId']);
+  assert.equal(writes.length, 1);
+  assert.equal(writes[0].accountCredential, current);
+  assert.equal(writes[0].accountDeviceId, saved.accountDeviceId);
+  assert.equal(writes[0].recoveryVersion, 2);
+  assert.equal(JSON.stringify(writes).includes(material.nextRecoveryCode), false);
+});
+
 test('scoped delete uses a one-time intent and clears Account storage only for Account-wide delete', async () => {
   const account = load([coreSource, clientSource]);
   const material = account.core.createAccountDeleteMaterial();

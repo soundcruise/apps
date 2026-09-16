@@ -22,6 +22,7 @@ const migration15 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration16 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0016_add_app_join_invitations.sql'), 'utf8');
 const migration17 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0017_add_account_lifecycle.sql'), 'utf8');
 const migration18 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0018_add_account_admission_provenance.sql'), 'utf8');
+const migration19 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0019_add_authenticated_recovery_rotation.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -46,6 +47,7 @@ function migrateThrough17(db) {
 function migrate(db) {
   migrateThrough17(db);
   db.exec(migration18);
+  db.exec(migration19);
 }
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
@@ -56,7 +58,8 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     'sync_account_delete_intents', 'sync_account_devices', 'sync_account_lifecycle_operations',
     'sync_account_managed_users',
     'sync_account_memberships', 'sync_account_qa_enrollments', 'sync_account_qa_sessions',
-    'sync_account_recovery_attempts', 'sync_account_recovery_claims', 'sync_account_runtime_control',
+    'sync_account_recovery_attempts', 'sync_account_recovery_claims',
+    'sync_account_recovery_rotations', 'sync_account_runtime_control',
     'sync_account_start_operations', 'sync_accounts',
     'sync_app_join_invitations',
     'sync_changes', 'sync_chord_account_bridges', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
@@ -75,6 +78,10 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare('SELECT delete_requested_at, purge_after FROM sync_account_memberships LIMIT 1'));
   assert(db.prepare(`SELECT prepare_operation_id, prepare_fingerprint,
     commit_operation_id, commit_fingerprint FROM sync_account_recovery_claims LIMIT 1`));
+  assert(db.prepare(`SELECT requested_by_account_device_id, expected_recovery_version,
+    expected_account_generation, next_recovery_verifier, prepare_operation_id,
+    prepare_fingerprint, commit_operation_id, commit_fingerprint
+    FROM sync_account_recovery_rotations LIMIT 1`));
   assert(db.prepare(`SELECT issue_operation_id, issue_fingerprint,
     consume_operation_id, consume_fingerprint FROM sync_account_delete_intents LIMIT 1`));
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_pairing_codes_user_active'").get());

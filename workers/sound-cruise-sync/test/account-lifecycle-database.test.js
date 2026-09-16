@@ -163,6 +163,18 @@ function recoveryInput(overrides = {}) {
   };
 }
 
+function rotationInput(overrides = {}) {
+  return {
+    operationId: IDS.prepare1,
+    requestFingerprint: hex('1'),
+    claimId: IDS.claim1,
+    claimVerifier: hex('2'),
+    nextRecoveryVerifier: hex('7'),
+    now: 2_000,
+    ...overrides
+  };
+}
+
 async function qaRecoveryInput(qaSessionId, overrides = {}) {
   const input = recoveryInput({ qaSessionId, ...overrides });
   input.requestFingerprint = await accountOperationFingerprint([
@@ -215,6 +227,108 @@ test('Account Recovery rotates once, revokes every old container and preserves e
   });
   assert.equal(responseLossRetry.alreadyRecovered, true);
   assert.equal(db.raw.prepare('SELECT recovery_version FROM sync_accounts WHERE id = ?').get(IDS.account).recovery_version, 2);
+  db.close();
+});
+
+test('authenticated Recovery rotation preserves devices/data and one concurrent CAS wins', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const repository = createD1AccountLifecycleRepository(db);
+  const identityA = {
+    accountId: IDS.account, accountDeviceId: IDS.accountA, accountState: 'active',
+    recoveryVersion: 1, generation: 1, admissionProvenance: 'qa'
+  };
+  const identityB = { ...identityA, accountDeviceId: IDS.accountB };
+  const first = rotationInput();
+  const second = rotationInput({
+    operationId: IDS.prepare2,
+    requestFingerprint: hex('3'),
+    claimId: IDS.claim2,
+    claimVerifier: hex('4'),
+    nextRecoveryVerifier: hex('8')
+  });
+  assert.equal((await repository.prepareRecoveryRotation(identityA, first)).status, 'prepared');
+  assert.equal((await repository.prepareRecoveryRotation(identityB, second)).status, 'prepared');
+
+  const committed = await repository.commitRecoveryRotation(identityA, {
+    operationId: IDS.commit1,
+    requestFingerprint: hex('5'),
+    claimId: first.claimId,
+    claimVerifier: first.claimVerifier,
+    now: 2_100
+  });
+  assert.deepEqual(committed, {
+    status: 'rotated', recoveryVersion: 2, alreadyRotated: false
+  });
+  const retried = await repository.commitRecoveryRotation(
+    { ...identityA, recoveryVersion: 2 },
+    {
+      operationId: IDS.commit1,
+      requestFingerprint: hex('5'),
+      claimId: first.claimId,
+      claimVerifier: first.claimVerifier,
+      now: 2_200
+    }
+  );
+  assert.deepEqual(retried, {
+    status: 'rotated', recoveryVersion: 2, alreadyRotated: true
+  });
+  const stale = await repository.commitRecoveryRotation(identityB, {
+    operationId: IDS.commit2,
+    requestFingerprint: hex('6'),
+    claimId: second.claimId,
+    claimVerifier: second.claimVerifier,
+    now: 2_200
+  });
+  assert.equal(stale.status, 'invalid');
+
+  assert.deepEqual({ ...db.raw.prepare(`
+    SELECT state, recovery_version, recovery_verifier, generation
+    FROM sync_accounts WHERE id = ?
+  `).get(IDS.account) }, {
+    state: 'active', recovery_version: 2, recovery_verifier: hex('7'), generation: 1
+  });
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_account_devices
+    WHERE account_id = ? AND revoked_at IS NULL
+  `).get(IDS.account).count, 2);
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_devices
+    WHERE id IN (SELECT app_device_id FROM sync_membership_device_links WHERE account_id = ?)
+      AND revoked_at IS NULL
+  `).get(IDS.account).count, 4);
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_account_memberships
+    WHERE account_id = ? AND state = 'active'
+  `).get(IDS.account).count, 4);
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_datasets
+    WHERE user_id IN (SELECT sync_user_id FROM sync_account_memberships WHERE account_id = ?)
+      AND state = 'ready'
+  `).get(IDS.account).count, 4);
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_records
+    WHERE user_id IN (SELECT sync_user_id FROM sync_account_memberships WHERE account_id = ?)
+  `).get(IDS.account).count, 4);
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_changes
+    WHERE user_id IN (SELECT sync_user_id FROM sync_account_memberships WHERE account_id = ?)
+  `).get(IDS.account).count, 4);
+
+  const unrelated = seedUnrelatedAccount(db);
+  const wrong = await repository.commitRecoveryRotation({
+    accountId: unrelated.accountId,
+    accountDeviceId: unrelated.deviceId,
+    accountState: 'active', recoveryVersion: 1, generation: 1,
+    admissionProvenance: 'qa'
+  }, {
+    operationId: IDS.commit1,
+    requestFingerprint: hex('5'),
+    claimId: first.claimId,
+    claimVerifier: first.claimVerifier,
+    now: 2_300
+  });
+  assert.equal(wrong.status, 'invalid');
   db.close();
 });
 

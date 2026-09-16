@@ -56,6 +56,8 @@ GET    /v2/accounts/devices
 POST   /v2/accounts/devices/revoke
 POST   /v2/accounts/recovery/prepare
 POST   /v2/accounts/recovery/commit
+POST   /v2/accounts/recovery-rotation/prepare
+POST   /v2/accounts/recovery-rotation/commit
 POST   /v2/accounts/delete-intent
 DELETE /v2/accounts
 POST   /v2/accounts/memberships/:appId/delete-intent

@@ -43,6 +43,8 @@ import {
   validateAccountDeviceRevokePayload,
   validateAccountRecoveryCommitPayload,
   validateAccountRecoveryPreparePayload,
+  validateAccountRecoveryRotationCommitPayload,
+  validateAccountRecoveryRotationPreparePayload,
   validateAppJoinCancelPayload,
   validateAppJoinConsumePayload,
   validateAppJoinIssuePayload,
@@ -94,6 +96,14 @@ const ACCOUNT_ROUTES = Object.freeze({
   '/v2/accounts/recovery/commit': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_RECOVERY,
     headers: ['content-type', 'x-d1-bookmark']
+  },
+  '/v2/accounts/recovery-rotation/prepare': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_RECOVERY,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
+  '/v2/accounts/recovery-rotation/commit': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_RECOVERY,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
   },
   '/v2/accounts/delete-intent': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
@@ -488,6 +498,137 @@ async function handleDevices(request, env, origin, route, dependencies, url) {
     )(context.session);
     const devices = await repository.listEnvironments(context.identity);
     return jsonResponse(200, { ok: true, devices }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function authenticatedRotationContext(request, env, origin, route, dependencies) {
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return { response: errorResponse(503, 'account_server_error', origin, route) };
+  }
+  if (context.error) {
+    const status = context.error === 'invalid_account_credential' ? 403 : context.status;
+    return { response: errorResponse(status, context.error, origin, route) };
+  }
+  return context;
+}
+
+async function handleAccountRecoveryRotationPrepare(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountRecoveryRotationPreparePayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_DB || !env.SYNC_ACCOUNT_RECOVERY_PEPPER || !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  const context = await authenticatedRotationContext(request, env, origin, route, dependencies);
+  if (context.response) return context.response;
+  const limited = await rateLimit(
+    env.ACCOUNT_RECOVERY_RATE_LIMITER,
+    `account-recovery-rotation:${context.identity.accountId}:${requestIp(request)}`
+  );
+  if (!limited.ok) return rateError(limited, origin, route, 60);
+  const verify = dependencies.verifyTurnstileToken || verifyTurnstileToken;
+  let turnstile;
+  try {
+    turnstile = await verify(validation.value.turnstileToken, env, {
+      expectedAction: env.TURNSTILE_ACCOUNT_RECOVERY_ROTATION_EXPECTED_ACTION ||
+        'sound_cruise_account_recovery_rotation'
+    });
+  } catch {
+    return errorResponse(503, 'turnstile_failed', origin, route);
+  }
+  if (!turnstile.ok) {
+    return errorResponse(turnstile.unavailable ? 503 : 403, 'turnstile_failed', origin, route);
+  }
+  try {
+    const value = validation.value;
+    const claim = parseAccountRecoveryClaim(value.claimToken);
+    const claimVerifier = await (
+      dependencies.accountRecoveryClaimVerifier || accountRecoveryClaimVerifier
+    )(value.claimToken, env.SYNC_ACCOUNT_RECOVERY_PEPPER);
+    const nextRecoveryVerifier = await (
+      dependencies.accountRecoveryCodeVerifier || accountRecoveryCodeVerifier
+    )(value.nextRecoveryCode, env.SYNC_ACCOUNT_RECOVERY_PEPPER);
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )([
+      'account-recovery-rotation-prepare', context.identity.accountId,
+      context.identity.accountDeviceId, String(context.identity.recoveryVersion),
+      String(context.identity.generation), claimVerifier, nextRecoveryVerifier,
+      dependencies.qaIdentity?.sessionId || '', dependencies.admissionProvenance
+    ]);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(context.session);
+    const result = await repository.prepareRecoveryRotation(context.identity, {
+      operationId: value.operationId,
+      requestFingerprint,
+      claimId: claim.claimId,
+      claimVerifier,
+      nextRecoveryVerifier,
+      now: Date.now()
+    });
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'prepared') {
+      return errorResponse(403, 'account_recovery_rotation_invalid', origin, route);
+    }
+    return jsonResponse(result.alreadyPrepared ? 200 : 201, {
+      ok: true,
+      operation: result.alreadyPrepared ? 'existing' : 'prepared',
+      claimId: claim.claimId,
+      expiresAt: result.expiresAt,
+      recoveryVersion: result.recoveryVersion
+    }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAccountRecoveryRotationCommit(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountRecoveryRotationCommitPayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_DB || !env.SYNC_ACCOUNT_RECOVERY_PEPPER || !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  const context = await authenticatedRotationContext(request, env, origin, route, dependencies);
+  if (context.response) return context.response;
+  try {
+    const value = validation.value;
+    const claim = parseAccountRecoveryClaim(value.claimToken);
+    const claimVerifier = await (
+      dependencies.accountRecoveryClaimVerifier || accountRecoveryClaimVerifier
+    )(value.claimToken, env.SYNC_ACCOUNT_RECOVERY_PEPPER);
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )([
+      'account-recovery-rotation-commit', context.identity.accountId,
+      context.identity.accountDeviceId, claimVerifier,
+      dependencies.qaIdentity?.sessionId || '', dependencies.admissionProvenance
+    ]);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(context.session);
+    const result = await repository.commitRecoveryRotation(context.identity, {
+      operationId: value.operationId,
+      requestFingerprint,
+      claimId: claim.claimId,
+      claimVerifier,
+      now: Date.now()
+    });
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'rotated') {
+      return errorResponse(403, 'account_recovery_rotation_invalid', origin, route);
+    }
+    return jsonResponse(result.alreadyRotated ? 200 : 201, {
+      ok: true,
+      operation: result.alreadyRotated ? 'existing' : 'rotated',
+      recoveryVersion: result.recoveryVersion
+    }, origin, route, bookmarkHeader(context.session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
   }
@@ -1479,6 +1620,12 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   }
   if (url.pathname === '/v2/accounts/recovery/commit') {
     return handleAccountRecoveryCommit(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/recovery-rotation/prepare') {
+    return handleAccountRecoveryRotationPrepare(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/recovery-rotation/commit') {
+    return handleAccountRecoveryRotationCommit(request, env, origin, route, dependencies);
   }
   if (url.pathname === '/v2/accounts/delete-intent') {
     return handleDeleteIntent(request, env, origin, route, dependencies, 'account');
