@@ -449,10 +449,13 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(source, /以下の手順で接続します。/);
     assert.match(source, /sync-center-join-steps/);
     assert.equal((source.match(/コードをコピー/g) || []).length >= 2, true);
-    assert.match(source, /接続をやめる/);
+    assert.match(source, /close\.textContent = '閉じる'/);
+    assert.doesNotMatch(source, /接続をやめる/);
     assert.match(source, /このコードは5分間有効です。/);
-    assert.match(source, /接続が完了するまでこの画面を開いたまま/);
-    assert.doesNotMatch(source, /対象アプリを開く/);
+    assert.match(source, /sync-center-join-warning/);
+    assert.match(source, /接続が完了するまで、この画面を開いたままにしてください。閉じると、このコードは使えなくなります。/);
+    assert.match(source, /steps\.children\[0\]\?\.after\(keepOpen\)/);
+    assert.doesNotMatch(source, /追加したいブラウザやPWAで対象のProアプリを開く/);
     assert.doesNotMatch(source, /保存する必要はありません/);
     assert.match(source, /orchestrator\.addEnvironment\(addEnvironment\.dataset\.syncAppAddEnvironment\)/);
     assert.match(source, /orchestrator\.launch\(button\.dataset\.syncAppAction\)/);

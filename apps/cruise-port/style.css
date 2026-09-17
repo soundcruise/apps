@@ -2138,6 +2138,16 @@ textarea:focus-visible {
     line-height: 1.35;
     white-space: nowrap;
 }
+.sync-center-account-status-chip[data-sync-account-state="active"] {
+    border-color: rgba(232, 201, 122, 0.72);
+    color: #241d0d;
+    background: rgba(232, 201, 122, 0.88);
+}
+.sync-center-account-status-chip[data-sync-account-state="unset"] {
+    border-color: rgba(205, 205, 205, 0.62);
+    color: var(--port-text);
+    background: rgba(205, 205, 205, 0.16);
+}
 .sync-center-account-action {
     min-height: 38px;
     padding: 7px 14px;
@@ -2407,6 +2417,10 @@ textarea:focus-visible {
     margin: -4px 0 0;
     font-size: .78rem !important;
     line-height: 1.55 !important;
+}
+.sync-center-join-warning {
+    color: #ffb7b7;
+    font-size: calc(0.78rem * var(--font-scale));
 }
 .sync-center-join-code {
     display: block;

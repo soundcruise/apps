@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.1';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.2';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -181,9 +181,8 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
     header.className = 'sync-center-join-header';
     const title = document.createElement('h2');
     const isPortAddition = result.kind === 'add_port';
-    const isAdditionalEnvironment = result.kind === 'add_environment' || isPortAddition;
     title.textContent = isPortAddition ? '別のCruise Portを追加'
-        : isAdditionalEnvironment ? '別の環境を追加' : 'このアプリを接続';
+        : 'このアプリを接続';
     const target = isPortAddition
         ? { id: 'port', name: 'Cruise Port' }
         : SYNC_CENTER_APPS.find((app) => app.id === result.appId);
@@ -218,7 +217,7 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
         'コードを入力して接続する'
     ] : [
         'コードをコピー',
-        isAdditionalEnvironment ? '追加したいブラウザやPWAで対象のProアプリを開く' : '普段使っているProアプリを開く',
+        '普段使っているProアプリを開く',
         '設定 → クラウド同期 → 「Cruise Portと接続」を押す',
         'コードを貼り付けて「接続する」を押す'
     ]).forEach((step) => {
@@ -260,7 +259,7 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
     const close = document.createElement('button');
     close.type = 'button';
     close.className = 'action-button secondary-action';
-    close.textContent = '接続をやめる';
+    close.textContent = '閉じる';
     close.addEventListener('click', () => dialog.close());
     dialog.addEventListener('close', () => {
         code.textContent = '';
@@ -274,9 +273,10 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
     expires.className = 'sync-center-join-note';
     expires.textContent = 'このコードは5分間有効です。';
     const keepOpen = document.createElement('p');
-    keepOpen.className = 'sync-center-join-note';
-    keepOpen.textContent = '接続が完了するまでこの画面を開いたままにしてください。';
-    panel.append(header, intro, steps, codeLabel, code, actions, expires, keepOpen, copyStatus);
+    keepOpen.className = 'sync-center-join-note sync-center-join-warning';
+    keepOpen.textContent = '※ 接続が完了するまで、この画面を開いたままにしてください。閉じると、このコードは使えなくなります。';
+    steps.children[0]?.after(keepOpen);
+    panel.append(header, intro, steps, codeLabel, code, actions, expires, copyStatus);
     dialog.append(panel);
     root.append(dialog);
     dialog.showModal();
@@ -297,6 +297,7 @@ export function renderSyncCenter(root, presentation, {
     if (accountStatus) {
         accountStatus.textContent = accountState === 'unset' ? '未作成' :
             accountState === 'active' ? '作成済み' : accountState === 'deleting' ? '削除中' : '確認が必要';
+        accountStatus.dataset.syncAccountState = accountState || 'unknown';
     }
     if (setupOpen) {
         setupOpen.hidden = accountState !== 'unset';

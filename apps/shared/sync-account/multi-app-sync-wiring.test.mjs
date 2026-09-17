@@ -221,7 +221,7 @@ test('Join lifecycle messages distinguish a cancelled code from a generic sync f
   const portUi = read('apps/cruise-port/sync-center-ui.js');
   assert.match(bootstrap, /app_join_cancelled/);
   assert.match(bootstrap, /接続コードは取り消されました/);
-  assert.match(portUi, /接続をやめる/);
+  assert.match(portUi, /close\.textContent = '閉じる'/);
   assert.match(portUi, /orchestrator\.cancelJoin/);
 });
 
