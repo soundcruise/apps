@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.1';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -292,8 +292,6 @@ export function renderSyncCenter(root, presentation, {
     const portConnectOpen = root.querySelector('#sync-center-port-connect-open');
     const accountRecoveryOpen = root.querySelector('#sync-center-account-recovery-open');
     const currentEnvironmentDetach = root.querySelector('#sync-center-current-environment-detach');
-    const accountRecoveryHelpToggle = root.querySelector('#sync-center-account-recovery-help-toggle');
-    const accountRecoveryHelp = root.querySelector('#sync-center-account-recovery-help');
     const accountState = presentation.accountState;
     const accountDisplayId = root.querySelector('#sync-center-account-display-id');
     if (accountStatus) {
@@ -317,11 +315,6 @@ export function renderSyncCenter(root, presentation, {
         currentEnvironmentDetach.hidden = accountState !== 'active' || !currentPort;
         currentEnvironmentDetach.dataset.syncCurrentEnvironmentLastPort = String(currentPort && activePortCount === 1);
     }
-    if (accountRecoveryHelpToggle) {
-        accountRecoveryHelpToggle.hidden = accountState !== 'active';
-        accountRecoveryHelpToggle.setAttribute('aria-expanded', 'false');
-    }
-    if (accountRecoveryHelp) accountRecoveryHelp.hidden = true;
     if (accountDisplayId) {
         accountDisplayId.textContent = presentation.accountDisplayId
             ? `アカウント：${presentation.accountDisplayId}` : '';

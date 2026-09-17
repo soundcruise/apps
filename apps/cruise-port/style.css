@@ -2163,6 +2163,7 @@ textarea:focus-visible {
 .sync-center-section h2 { margin: 0 0 10px; font-size: calc(1rem * var(--font-scale)); }
 .sync-center-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .sync-center-section-heading h2 { margin-bottom: 0; }
+.sync-center-account > .sync-center-section-heading { margin-bottom: 10px; }
 .sync-center-section-help {
     display: inline-grid;
     flex: 0 0 30px;

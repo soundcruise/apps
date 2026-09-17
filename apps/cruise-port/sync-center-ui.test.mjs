@@ -100,8 +100,12 @@ test('Account section presents step title, status chip and state-specific CTA', 
         assert.match(account, /復旧コードを更新/);
         assert.match(account, /id="sync-center-current-environment-detach"[^>]*hidden>この環境の接続を解除/);
         assert.match(account, /sync-center-account-actions/);
-        assert.match(account, /sync-center-account-recovery-help-toggle/);
-        assert.match(account, /id="sync-center-account-recovery-help"[^>]*hidden/);
+        assert.match(account, /sync-center-section-heading[\s\S]*1\. アカウント作成[\s\S]*id="sync-center-account-help-toggle"/);
+        assert.match(account, /id="sync-center-account-help"[^>]*hidden/);
+        assert.match(account, /アカウントについて/);
+        assert.match(account, /復旧コードについて/);
+        assert.match(account, /この環境の接続を解除/);
+        assert.doesNotMatch(account, /account-recovery-help/);
         assert.match(account, /Cruise Portに接続できている間は、現在のコードを知らなくても新しいコードに更新できます。/);
         assert.doesNotMatch(account, /復旧コードの確認/);
         assert.doesNotMatch(account, /Sound Cruise Sync 接続済み/);
@@ -113,7 +117,6 @@ test('Account section presents step title, status chip and state-specific CTA', 
     assert.match(ui, /setupOpen\.hidden = accountState !== 'unset'/);
     assert.match(ui, /accountRecoveryOpen\.hidden = accountState !== 'active'/);
     assert.match(ui, /currentEnvironmentDetach\.hidden = accountState !== 'active'/);
-    assert.match(ui, /accountRecoveryHelpToggle\.hidden = accountState !== 'active'/);
     assert.match(ui, /setupOpen\.textContent = 'アカウントの作成'/);
     assert.match(ui, /accountRecoveryOpen\.textContent = '復旧コードを更新'/);
     assert.doesNotMatch(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
