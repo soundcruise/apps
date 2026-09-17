@@ -9,7 +9,7 @@
     <link rel="manifest" href="./manifest.json?v=0.32.4">
     <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.32.4">
     <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.32.4">
-    <link rel="stylesheet" href="./style.css?v=0.37.1">
+    <link rel="stylesheet" href="./style.css?v=0.37.2">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=17">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -19,7 +19,7 @@
     <script defer src="../shared/sync-account/sync-ui-components.js?v=9"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="./practice-menu-app.js?v=0.37.1"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.37.2"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -192,12 +192,15 @@
                         <h2 id="sync-center-apps-title">2. アプリを接続</h2>
                         <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-apps-help" aria-expanded="false" aria-controls="sync-center-apps-help" aria-label="アプリの接続方法を表示">?</button>
                     </div>
-                    <ol id="sync-center-apps-help" class="sync-center-section-help-steps" hidden>
-                        <li>接続するアプリの「同期コード」を押す</li>
-                        <li>「コードをコピー」を押す</li>
-                        <li>普段使っているProアプリを開き、設定 → クラウド同期 → 「Cruise Portと接続」を押す</li>
-                        <li>コードを貼り付けて「接続する」</li>
-                    </ol>
+                    <div id="sync-center-apps-help" hidden>
+                        <ol class="sync-center-section-help-steps">
+                            <li>接続するアプリの「同期コード」を押す</li>
+                            <li>「コードをコピー」を押す</li>
+                            <li>普段使っているProアプリを開き、設定 → クラウド同期 → 「Cruise Portと接続」を押す</li>
+                            <li>コードを貼り付けて「接続する」</li>
+                        </ol>
+                        <p class="sync-center-section-help-copy">接続済みのアプリは、各行の「同期を解除」からそのアプリだけクラウド同期を解除できます。端末内のデータは削除されません。</p>
+                    </div>
                     <ul id="sync-center-apps" class="sync-center-apps" aria-live="polite"></ul>
                 </section>
                 <section class="sync-center-section" aria-labelledby="sync-center-add-environments-title">
@@ -244,9 +247,8 @@
                         <h2 id="sync-center-danger-title">危険な操作</h2>
                         <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-danger-help" aria-expanded="false" aria-controls="sync-center-danger-help" aria-label="危険な操作の説明を表示">?</button>
                     </div>
-                    <p id="sync-center-danger-help" class="sync-center-section-help-copy" hidden>クラウド上の同期データを削除します。端末内のデータは削除されません。削除を確定したデータは、7日後に完全削除の対象になります。</p>
-                    <div id="sync-center-app-delete-actions" class="sync-center-actions"></div>
-                    <button id="sync-center-account-delete" class="action-button danger-action" type="button">すべてのクラウドデータを削除</button>
+                    <p id="sync-center-danger-help" class="sync-center-section-help-copy" hidden>Sound Cruise Syncアカウントと4つのアプリすべてのクラウド同期データを削除対象にします。端末内のデータは削除されません。削除を確定したデータは、7日後に完全削除の対象になります。</p>
+                    <button id="sync-center-account-delete" class="action-button danger-action" type="button">アカウントを削除</button>
                 </section>
                 <p id="sync-center-action-status" class="settings-order-status" role="status" aria-live="polite"></p>
             </section>

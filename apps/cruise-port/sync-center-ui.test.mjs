@@ -376,6 +376,30 @@ test('Lifecycle UI separates danger actions and enforces stable two-step sensiti
     assert.match(ui, /data-sync-app-delete/);
 });
 
+test('App sync removal stays in its app row while Danger Zone remains account-wide only', () => {
+    const source = read('./sync-center-ui.js');
+    const styles = read('./style.css');
+    assert.match(source, /const canRemoveAppSync = !needsInitialConnection && app\.status !== 'deleting' && orchestrationEnabled/);
+    assert.match(source, /action\.dataset\.syncAppDelete = app\.id/);
+    assert.match(source, /action\.dataset\.syncAppName = app\.name/);
+    assert.match(source, /canRemoveAppSync \? '同期を解除' : app\.statusLabel/);
+    assert.match(source, /const appName = appDelete\.dataset\.syncAppName \|\| 'このアプリ'/);
+    assert.match(source, /title: `\$\{appName\}の同期を解除`/);
+    assert.match(source, /await orchestrator\.issueDelete\(lifecycleAction\.scope, lifecycleAction\.appId\)/);
+    assert.match(source, /await orchestrator\.commitDelete\(lifecycleAction\.scope, lifecycleAction\.appId\)/);
+    assert.match(source, /environment\.dataset\.syncEnvironmentRevoke/);
+    assert.match(styles, /\.sync-center-app-remove \{[\s\S]*border-color: rgba\(232, 111, 120, 0\.72\)/);
+    for (const html of [root, pro]) {
+        assert.doesNotMatch(html, /sync-center-app-delete-actions/);
+        assert.match(html, /接続済みのアプリは、各行の「同期を解除」からそのアプリだけクラウド同期を解除できます。/);
+        assert.match(html, /id="sync-center-account-delete"[^>]*>アカウントを削除<\/button>/);
+        assert.match(html, /Sound Cruise Syncアカウントと4つのアプリすべてのクラウド同期データを削除対象にします。/);
+        assert.doesNotMatch(html, /すべてのクラウドデータを削除/);
+    }
+    assert.match(source, /title: 'Sound Cruise Syncアカウントを削除'/);
+    assert.match(source, /削除を確定すると同期中の環境は解除され/);
+});
+
 test('official four-app routes are reused and no all-data-upload promise is made', () => {
     assert.match(read('./sync-center-ui.js'), /resolveCruiseAppHref/);
     assert.doesNotMatch(`${root}\n${pro}\n${app}`, /今すぐ全データ|一括アップロード|自動アップロード/);

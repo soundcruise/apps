@@ -21,7 +21,9 @@ test('Account creation and Recovery rotation both expose safe copy controls', ()
 
 test('Port action and destructive confirmation labels are explicit', () => {
   assert.match(ui, /const needsInitialConnection = \['unset', 'prepared'\]\.includes\(app\.status\)/);
-  assert.match(ui, /needsInitialConnection \? '同期コード' : app\.statusLabel/);
+  assert.match(ui, /needsInitialConnection \? '同期コード' : canRemoveAppSync \? '同期を解除' : app\.statusLabel/);
+  assert.match(ui, /dataset\.syncAppDelete = app\.id/);
+  assert.match(ui, /Sound Cruise Syncアカウントを削除/);
   assert.match(ui, /action\.textContent = '追加コード'/);
   assert.match(ui, /lifecycleConfirm\.textContent = '削除を確定'/);
 });
