@@ -200,7 +200,7 @@ test('connected startup and successful Join immediately replace Join UI with a s
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
   const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
   const pairing = read('apps/chord-cruise/js/sync/sync-pairing-ui.js');
-  assert.match(bootstrap, /showConnectedSettings\(\);[\s\S]{0,180}dialog\.dataset\.syncPhase = 'complete'/,
+  assert.match(bootstrap, /showConnectedSettings\(result\.accountId\);[\s\S]{0,180}dialog\.dataset\.syncPhase = 'complete'/,
     'shared Join success updates settings without reload');
   assert.match(bootstrap, /joinSecret\?\.resolve\(\);[\s\S]{0,180}joinField\.remove\(\)/,
     'successful Join destroys the retry secret and input field');

@@ -18,6 +18,9 @@ assert(!ui.includes('別のアプリと同期'), 'the misleading pairing wording
 assert(ui.includes('新しい復旧コードを発行'), 'Recovery Code rotation uses explicit wording');
 assert(ui.includes('クラウド上の同期データを削除'), 'Cloud Delete has explicit cloud scope');
 assert(ui.includes('危険な操作'), 'Cloud Delete is separated into a danger section');
+assert(ui.includes('data-sync-account-id'), 'Account-managed Chord exposes the shared Account identifier only inside its Sync screen');
+assert(ui.includes("accountManagedSetup === true"), 'legacy Chord credentials never receive an Account identifier');
+assert(ui.includes('formatAccountDisplayId'), 'Chord uses the shared opaque Account identifier formatter');
 assert(ui.includes('Step 1 / 4') && ui.includes('Step 2 / 4') && ui.includes('Step 3 / 4'), 'Recovery exposes its staged flow');
 assert(ui.includes('新しい復旧コードを確認') && ui.includes('保存しました。復旧を確定'), 'Recovery separates code review from final commit');
 assert(ui.includes('クラウド同期とは？') && ui.includes('運営者へ送らないでください'), 'compact safety help is available');

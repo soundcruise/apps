@@ -71,6 +71,18 @@ test('client-generated credentials are distinct and handoff secret uses a cleare
     /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 });
 
+test('Account display IDs are stable, opaque, and provide at least 40 bits of visible identity', () => {
+  const account = load([coreSource]);
+  const first = '10000000-0000-4000-8000-000000000001';
+  const second = '10000000-0000-4000-8000-000000000002';
+  const display = account.core.formatAccountDisplayId(first);
+  assert.match(display, /^SC-[0-9A-F]{10}$/);
+  assert.equal(account.core.formatAccountDisplayId(first), display);
+  assert.notEqual(account.core.formatAccountDisplayId(second), display);
+  assert.equal(display.includes(first.slice(0, 6).toUpperCase()), false);
+  assert.equal(account.core.formatAccountDisplayId('not-an-account-id'), null);
+});
+
 test('sensitive input controller clears DOM values while preserving only retryable request-memory state', () => {
   const account = load([coreSource]);
   const attributes = { value: 'must-not-survive' };
@@ -810,6 +822,37 @@ test('scoped delete uses a one-time intent and clears Account storage only for A
     accountCredential: credential, scope: 'account', material: accountMaterial, confirmed: true
   });
   assert.equal(writes.some(([kind]) => kind === 'clearAccount'), true);
+});
+
+test('app detach persists only its operation metadata and response-loss resumes without duplicate authority', async () => {
+  const account = load([coreSource, clientSource]);
+  const credential = account.core.createAccountCredential().accountCredential;
+  const operationId = account.core.createOperationId();
+  let pending = null;
+  let calls = 0;
+  const storage = {
+    async getAccount() { return { accountCredential: credential }; },
+    async getPendingDetach() { return pending; },
+    async setPendingDetach(value) { pending = structuredClone(value); },
+    async clearPendingDetach() { pending = null; }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    fetchImpl: async (_url, options) => {
+      calls += 1;
+      assert.equal(options.headers.get('Authorization'), `Bearer ${credential}`);
+      if (calls === 1) throw new TypeError('response_lost');
+      return Response.json({ ok: true, scope: 'app', appId: 'pitch', revokedAppDeviceCount: 2 });
+    }
+  });
+  await assert.rejects(client.detachApp({ accountCredential: credential, appId: 'pitch', operationId }));
+  assert.deepEqual(pending.body, { operationId, appId: 'pitch' });
+  assert.equal(JSON.stringify(pending).includes(credential), false);
+  const resumed = await client.resumePendingDetach();
+  assert.equal(resumed.status, 'committed');
+  assert.equal(resumed.result.revokedAppDeviceCount, 2);
+  assert.equal(calls, 2);
+  assert.equal(pending, null);
 });
 
 test('consume response-loss recovery proves committed state with candidate Account auth, not handoff persistence', async () => {

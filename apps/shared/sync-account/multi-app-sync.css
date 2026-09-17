@@ -170,6 +170,13 @@
 .sound-cruise-sync-description,
 .sound-cruise-sync-feedback { margin: 0; font-size: .84rem; line-height: 1.55; }
 .sound-cruise-sync-description { color: #e8ddbd; }
+.sound-cruise-sync-account-id {
+  margin: 0;
+  color: #b9ae91;
+  font-size: .78rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .04em;
+}
 .sound-cruise-sync-feedback { color: #d7c98f; }
 .sound-cruise-sync-feedback:empty { display: none; }
 .sound-cruise-sync-feedback[data-sync-feedback="error"] { color: #ffb7b7; }

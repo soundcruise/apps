@@ -239,6 +239,10 @@
     });
     const description = appendText(document, body, 'p', 'sound-cruise-sync-description',
       options.description === undefined ? status.description : options.description);
+    if (options.accountDisplayId) {
+      appendText(document, body, 'p', 'sound-cruise-sync-account-id',
+        `アカウント：${options.accountDisplayId}`);
+    }
     const actions = document.createElement('div');
     actions.className = 'sound-cruise-sync-card-actions';
     const actionRow = document.createElement('div');

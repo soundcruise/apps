@@ -271,6 +271,16 @@ export function validateAccountDeviceRevokePayload(value) {
     ? { ok: true, value: normalized } : { ok: false };
 }
 
+export function validateAccountAppDetachPayload(value) {
+  if (!exactObject(value, ['operationId', 'appId'])) return { ok: false };
+  const normalized = {
+    operationId: operationId(value.operationId),
+    appId: appId(value.appId)
+  };
+  return normalized.operationId && normalized.appId
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
 export function validateAccountDeleteIntentPayload(value, scope) {
   const keys = scope === 'app' ? ['operationId', 'intentToken', 'appId'] : ['operationId', 'intentToken'];
   if (!exactObject(value, keys)) return { ok: false };

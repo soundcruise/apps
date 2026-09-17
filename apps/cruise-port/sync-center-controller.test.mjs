@@ -57,14 +57,17 @@ test('membership presentation covers unset, prepared, initial, ready, attention 
     assert.equal(membershipPresentation({ state: 'pending' }).key, 'prepared');
     assert.equal(membershipPresentation({ state: 'active', dataset: null }).key, 'initial');
     assert.equal(membershipPresentation({ state: 'active', dataset: { state: 'ready' } }).key, 'synced');
+    assert.equal(membershipPresentation({
+        state: 'active', activeAppDeviceCount: 0, dataset: { state: 'ready' }
+    }).key, 'detached');
     assert.equal(membershipPresentation({ state: 'broken' }).key, 'attention');
     assert.equal(membershipPresentation({ state: 'deleted' }).key, 'deleting');
 });
 
-test('summary normalization creates four-app progress without leaking Account identifiers or hashes', () => {
+test('summary normalization exposes only the stable display Account ID, never raw identifiers or hashes', () => {
     const model = normalizeSyncCenterSummary(activeSummary, { devices: [
         { id: 'secret-device-id', label: 'iPhone', isCurrent: true, revokedAt: null }
-    ] });
+    ] }, () => 'SC-123456789A');
     assert.deepEqual(model.apps.map(({ id, status }) => [id, status]), [
         ['pitch', 'prepared'], ['fretboard', 'initial'], ['rhythm', 'attention'], ['chord', 'synced']
     ]);
@@ -76,6 +79,7 @@ test('summary normalization creates four-app progress without leaking Account id
     }]);
     const serialized = JSON.stringify(model);
     assert.doesNotMatch(serialized, /secret-account-id|secret-hash/);
+    assert.match(model.accountDisplayId, /^SC-[0-9A-F]{10}$/);
     assert.doesNotMatch(serialized, /lastSync|lastSyncedAt/);
 });
 
@@ -92,7 +96,7 @@ test('only a ready active membership with an existing app device can add another
     assert.deepEqual(model.apps.map(({ id, canAddEnvironment }) => [id, canAddEnvironment]), [
         ['pitch', false], ['fretboard', false], ['rhythm', false], ['chord', true]
     ]);
-    assert.equal(model.readyCount, 2, 'environment count never changes the four-app progress');
+    assert.equal(model.readyCount, 1, 'a retained dataset with no app device is detached, not currently synced');
 });
 
 function accountRoot({ account = null, summary = activeSummary, devices = { devices: [] }, fail = false } = {}) {
@@ -102,7 +106,7 @@ function accountRoot({ account = null, summary = activeSummary, devices = { devi
         async devices() { if (fail) throw new Error('offline'); return devices; }
     }
     return {
-        core: {}, AccountClient: Client,
+        core: { formatAccountDisplayId: () => 'SC-123456789A' }, AccountClient: Client,
         storage: { async getAccount() { return account; } }
     };
 }

@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.37.2';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.38.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -28,8 +28,9 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
         copy.append(name, detail);
         const actions = document.createElement('div');
         actions.className = 'sync-center-app-row-actions';
-        const needsInitialConnection = ['unset', 'prepared'].includes(app.status);
-        const canRemoveAppSync = !needsInitialConnection && app.status !== 'deleting' && orchestrationEnabled;
+        const needsInitialConnection = ['unset', 'prepared', 'detached'].includes(app.status);
+        const canRemoveAppSync = Number(app.activeAppDeviceCount || 0) > 0 &&
+            app.status !== 'deleting' && orchestrationEnabled;
         const action = document.createElement(needsInitialConnection
             ? (orchestrationEnabled ? 'button' : 'a')
             : canRemoveAppSync ? 'button' : 'span');
@@ -49,7 +50,7 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
         }
         if (canRemoveAppSync) {
             action.type = 'button';
-            action.dataset.syncAppDelete = app.id;
+            action.dataset.syncAppDetach = app.id;
             action.dataset.syncAppName = app.name;
         }
         // Prepared memberships use the same launch callback as normal rows, but
@@ -151,6 +152,11 @@ function renderEnvironments(root, presentation) {
 function renderDangerActions(root, presentation) {
     const accountDelete = root.querySelector('#sync-center-account-delete');
     if (accountDelete) accountDelete.disabled = presentation.accountState !== 'active';
+    root.querySelectorAll('[data-sync-app-delete]').forEach((button) => {
+        const app = presentation.apps.find((item) => item.id === button.dataset.syncAppDelete);
+        button.disabled = presentation.accountState !== 'active' ||
+            !app || ['unset', 'prepared', 'deleting'].includes(app.status);
+    });
 }
 
 function showJoinCode(root, result, edition = 'standard', onClose = async () => {}) {
@@ -276,6 +282,7 @@ export function renderSyncCenter(root, presentation, {
     const accountRecoveryHelpToggle = root.querySelector('#sync-center-account-recovery-help-toggle');
     const accountRecoveryHelp = root.querySelector('#sync-center-account-recovery-help');
     const accountState = presentation.accountState;
+    const accountDisplayId = root.querySelector('#sync-center-account-display-id');
     if (accountStatus) {
         accountStatus.textContent = accountState === 'unset' ? '未作成' :
             accountState === 'active' ? '作成済み' : accountState === 'deleting' ? '削除中' : '確認が必要';
@@ -294,6 +301,11 @@ export function renderSyncCenter(root, presentation, {
         accountRecoveryHelpToggle.setAttribute('aria-expanded', 'false');
     }
     if (accountRecoveryHelp) accountRecoveryHelp.hidden = true;
+    if (accountDisplayId) {
+        accountDisplayId.textContent = presentation.accountDisplayId
+            ? `アカウント：${presentation.accountDisplayId}` : '';
+        accountDisplayId.hidden = !presentation.accountDisplayId;
+    }
     const alert = root.querySelector('#sync-center-alert');
     if (alert) {
         alert.hidden = !['error', 'offline'].includes(presentation.kind);
@@ -359,6 +371,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const lifecycleTitle = root?.querySelector?.('#sync-center-lifecycle-title');
     const lifecycleSummary = root?.querySelector?.('#sync-center-lifecycle-summary');
     const lifecycleConfirm = root?.querySelector?.('#sync-center-lifecycle-submit');
+    const lifecycleDeleteNote = root?.querySelector?.('#sync-center-lifecycle-delete-note');
     let lifecycleAction = null;
     const copySensitiveOutput = async (button, status, value) => {
         if (!button || !status) return;
@@ -779,8 +792,10 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const openLifecycle = (action) => {
         lifecycleAction = action;
         lifecycleDialog.dataset.syncPhase = 'review';
-        lifecycleConfirm.dataset.syncAction = action.kind === 'environment' ? 'revoke-environment' : 'issue-delete-intent';
-        lifecycleConfirm.textContent = action.kind === 'environment' ? '同期を解除' : '削除内容を確認';
+        lifecycleConfirm.dataset.syncAction = action.kind === 'delete'
+            ? 'issue-delete-intent' : action.kind === 'detach' ? 'detach-app' : 'revoke-environment';
+        lifecycleConfirm.textContent = action.kind === 'delete' ? '削除内容を確認' : '同期を解除';
+        if (lifecycleDeleteNote) lifecycleDeleteNote.hidden = action.kind !== 'delete';
         if (lifecycleTitle) lifecycleTitle.textContent = action.title || '操作内容を確認';
         lifecycleSummary.textContent = action.summary;
         lifecycleDialog.showModal();
@@ -796,15 +811,32 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             });
             return;
         }
+        const appDetach = event.target.closest?.('[data-sync-app-detach]');
+        if (appDetach) {
+            const appName = appDetach.dataset.syncAppName || 'このアプリ';
+            openLifecycle({
+                kind: 'detach', appId: appDetach.dataset.syncAppDetach,
+                title: `${appName}の同期を解除`,
+                summary: `${appName}のクラウド同期接続だけを解除します。クラウド上と端末内のデータは削除されません。解除後は同期コードからいつでも再接続できます。`
+            });
+            return;
+        }
         const appDelete = event.target.closest?.('[data-sync-app-delete]');
         if (appDelete) {
             const appName = appDelete.dataset.syncAppName || 'このアプリ';
             openLifecycle({
                 kind: 'delete', scope: 'app', appId: appDelete.dataset.syncAppDelete,
-                title: `${appName}の同期を解除`,
-                summary: `${appName}のクラウド同期データを削除対象にします。他の3アプリとSound Cruise Syncアカウントは維持されます。この端末内のデータは削除されません。`
+                title: `${appName}の同期データを削除`,
+                summary: `${appName}のクラウド上の同期データを削除対象にします。端末内のデータは削除されません。削除を確定すると、7日後に完全削除の対象になります。他の3アプリとSound Cruise Syncアカウントは維持されます。`
             });
         }
+    });
+    root?.querySelector?.('[data-sync-app-delete-toggle]')?.addEventListener('click', (event) => {
+        const details = root.querySelector('#sync-center-app-delete-actions');
+        if (!details) return;
+        details.hidden = !details.hidden;
+        event.currentTarget.setAttribute('aria-expanded', String(!details.hidden));
+        event.currentTarget.textContent = details.hidden ? 'アプリ単位で削除⌄' : 'アプリ単位で削除を閉じる⌃';
     });
     root?.querySelector?.('#sync-center-account-delete')?.addEventListener('click', () => {
         openLifecycle({
@@ -825,6 +857,13 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             await ensureQaAdmission();
             if (lifecycleAction.kind === 'environment') {
                 await orchestrator.revokeEnvironment(lifecycleAction.accountDeviceId);
+                lifecycleDialog.close();
+                lifecycleAction = null;
+                await refresh();
+                return;
+            }
+            if (lifecycleAction.kind === 'detach') {
+                await orchestrator.detachApp(lifecycleAction.appId);
                 lifecycleDialog.close();
                 lifecycleAction = null;
                 await refresh();

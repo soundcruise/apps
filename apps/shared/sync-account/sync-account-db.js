@@ -8,7 +8,7 @@
   const DEFAULT_STORAGE_TIMEOUT_MS = 20_000;
   const ALLOWED_KEYS = new Set([
     'account', 'qaAdmission', 'pendingStart', 'pendingConsume', 'pendingBridge',
-    'pendingRecovery', 'pendingDelete'
+    'pendingRecovery', 'pendingDelete', 'pendingDetach'
   ]);
   const QA_APP_IDS = new Set(['chord', 'pitch', 'fretboard', 'rhythm']);
   let activeSource = null;
@@ -246,6 +246,9 @@
     clearPendingRecovery: (indexedDb) => remove('pendingRecovery', indexedDb),
     getPendingDelete: (indexedDb) => get('pendingDelete', indexedDb),
     setPendingDelete: (value, indexedDb) => set('pendingDelete', value, indexedDb),
-    clearPendingDelete: (indexedDb) => remove('pendingDelete', indexedDb)
+    clearPendingDelete: (indexedDb) => remove('pendingDelete', indexedDb),
+    getPendingDetach: (indexedDb) => get('pendingDetach', indexedDb),
+    setPendingDetach: (value, indexedDb) => set('pendingDetach', value, indexedDb),
+    clearPendingDetach: (indexedDb) => remove('pendingDetach', indexedDb)
   });
 })(globalThis);

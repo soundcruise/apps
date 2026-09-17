@@ -55,6 +55,12 @@ function fixture() {
             calls.push(['cancel-join', invitationId]);
             return { cancelled: true };
         }
+        async detachApp({ appId, operationId }) {
+            calls.push(['detach', appId, operationId]);
+            const membership = memberships.get(appId);
+            if (membership) memberships.set(appId, { ...membership, activeAppDeviceCount: 0 });
+            return { status: 'detached', appId, revokedAppDeviceCount: 1 };
+        }
     }
     let operation = 0;
     const accountRoot = {
@@ -191,6 +197,22 @@ test('Recovery-revoked membership gets a reconnect invitation without recreating
     assert.equal(reconnect.kind, 'join');
     assert.equal(calls.filter(([kind]) => kind === 'join').length, 1);
     assert.equal(navigations.length, 0);
+});
+
+test('app detach uses Account authority once and immediate rejoin reuses the active ready membership', async () => {
+    const { orchestrator, calls, memberships } = fixture();
+    memberships.set('rhythm', {
+        id: 'm-rhythm', appId: 'rhythm', state: 'active', activeAppDeviceCount: 2,
+        dataset: { state: 'ready', recordCount: 9 }
+    });
+    const detached = await orchestrator.detachApp('rhythm');
+    assert.equal(detached.revokedAppDeviceCount, 1);
+    assert.equal(calls.filter(([kind]) => kind === 'detach').length, 1);
+    const rejoin = await orchestrator.launch('rhythm');
+    assert.equal(rejoin.kind, 'join');
+    assert.equal(memberships.get('rhythm').id, 'm-rhythm');
+    assert.equal(memberships.get('rhythm').dataset.state, 'ready');
+    assert.equal(calls.filter(([kind, appId]) => kind === 'prepare' && appId === 'rhythm').length, 0);
 });
 
 test('Port can cancel a displayed cross-container Join invitation', async () => {

@@ -10,6 +10,7 @@ export const SYNC_CENTER_APPS = Object.freeze([
 const MEMBERSHIP_STATES = Object.freeze({
     unset: Object.freeze({ key: 'unset', label: '未設定', action: 'setup' }),
     prepared: Object.freeze({ key: 'prepared', label: '準備済み', action: 'open' }),
+    detached: Object.freeze({ key: 'detached', label: '未接続', action: 'setup' }),
     initial: Object.freeze({ key: 'initial', label: '初回同期が必要', action: 'open' }),
     synced: Object.freeze({ key: 'synced', label: '同期済み', action: 'open' }),
     attention: Object.freeze({ key: 'attention', label: '確認が必要', action: 'open' }),
@@ -52,6 +53,9 @@ export function membershipPresentation(membership) {
     }
     if (['pending', 'prepared'].includes(membership.state)) return MEMBERSHIP_STATES.prepared;
     if (membership.state !== 'active') return MEMBERSHIP_STATES.attention;
+    if (membership.dataset?.state === 'ready' && membership.activeAppDeviceCount === 0) {
+        return MEMBERSHIP_STATES.detached;
+    }
     if (membership.dataset?.state === 'ready') return MEMBERSHIP_STATES.synced;
     if (!membership.dataset || ['initializing', 'migrating', 'empty'].includes(membership.dataset.state)) {
         return MEMBERSHIP_STATES.initial;
@@ -81,7 +85,8 @@ function normalizeApp(app, membership) {
     });
 }
 
-export function normalizeSyncCenterSummary(summary, devicesResponse = null) {
+export function normalizeSyncCenterSummary(summary, devicesResponse = null,
+    formatAccountDisplayId = globalThis.SoundCruiseSyncAccount?.core?.formatAccountDisplayId) {
     const account = summary?.account;
     if (!account || typeof account !== 'object') throw new Error('account_summary_invalid');
     const rawMemberships = Array.isArray(summary.memberships) ? summary.memberships : [];
@@ -109,6 +114,8 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null) {
         accountState,
         accountLabel: accountState === 'active' ? '作成済み' :
             accountState === 'deleting' ? '削除中' : '確認が必要',
+        accountDisplayId: accountState === 'active' && typeof formatAccountDisplayId === 'function'
+            ? formatAccountDisplayId(account.id) : null,
         recoveryVersion: safeCount(account.recoveryVersion),
         apps,
         readyCount: apps.filter((app) => app.status === 'synced').length,
@@ -122,6 +129,7 @@ export function createUnsetPresentation() {
         kind: 'unset',
         accountState: 'unset',
         accountLabel: '未作成',
+        accountDisplayId: null,
         recoveryVersion: null,
         apps: Object.freeze(SYNC_CENTER_APPS.map((app) => normalizeApp(app, null))),
         readyCount: 0,
@@ -190,7 +198,9 @@ export function createSyncCenterController({
                     client.summary(credential.accountCredential),
                     client.devices(credential.accountCredential)
                 ]);
-                lastPresentation = normalizeSyncCenterSummary(summary, devices);
+                lastPresentation = normalizeSyncCenterSummary(
+                    summary, devices, accountRoot.core?.formatAccountDisplayId
+                );
             } catch (error) {
                 if (ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {
                     try {

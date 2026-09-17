@@ -412,6 +412,40 @@
       return Object.freeze(result);
     }
 
+    async detachApp({ accountCredential, appId, operationId }) {
+      if (!this.core.validAccountCredential(accountCredential) ||
+          !this.core.ACCOUNT_APPS.includes(appId) || typeof operationId !== 'string') {
+        throw new Error('account_app_detach_invalid');
+      }
+      const existing = await this.storage.getPendingDetach?.();
+      if (existing && existing.appId !== appId) throw new Error('account_app_detach_pending');
+      const pending = existing || {
+        appId,
+        path: `/v2/accounts/memberships/${encodeURIComponent(appId)}/detach`,
+        body: { operationId, appId }
+      };
+      if (!existing) await this.storage.setPendingDetach?.(pending);
+      const result = await this.request(pending.path, {
+        method: 'POST', accountCredential, body: pending.body
+      });
+      await this.storage.clearPendingDetach?.();
+      return Object.freeze(result);
+    }
+
+    async resumePendingDetach() {
+      const pending = await this.storage.getPendingDetach?.();
+      if (!pending) return Object.freeze({ status: 'none' });
+      const saved = await this.storage.getAccount?.();
+      if (!saved || !this.core.validAccountCredential(saved.accountCredential)) {
+        throw new Error('account_auth_required');
+      }
+      const result = await this.request(pending.path, {
+        method: 'POST', accountCredential: saved.accountCredential, body: pending.body
+      });
+      await this.storage.clearPendingDetach?.();
+      return Object.freeze({ status: 'committed', result });
+    }
+
     async issueDeleteIntent({ accountCredential, scope, appId = null, material = null }) {
       if (!['app', 'account'].includes(scope) || (scope === 'app' && !this.core.ACCOUNT_APPS.includes(appId))) {
         throw new Error('account_delete_scope_invalid');

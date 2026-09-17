@@ -653,6 +653,134 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     return { status: 'revoked', ...lifecycleResult(row), alreadyRevoked: true };
   }
 
+  async function resolveAppDetachRetry(identity, input) {
+    const previous = await operation(input.operationId);
+    if (!previous) return null;
+    const result = lifecycleResult(previous);
+    if (previous.admission_provenance !== (identity.admissionProvenance || 'qa') ||
+        previous.request_fingerprint !== input.requestFingerprint ||
+        previous.kind !== 'device_revoke' || result?.scope !== 'app' ||
+        result?.appId !== input.appId) {
+      return { status: 'conflict' };
+    }
+    return { status: 'detached', ...result, alreadyDetached: true };
+  }
+
+  async function detachApp(identity, input) {
+    const retry = await resolveAppDetachRetry(identity, input);
+    if (retry) return retry;
+    const membership = await db.prepare(`
+      SELECT m.id, m.generation, m.state, m.sync_user_id,
+             a.generation AS account_generation, a.state AS account_state,
+             d.state AS dataset_state,
+             (SELECT COUNT(*) FROM sync_membership_device_links l
+               JOIN sync_devices ad ON ad.id = l.app_device_id
+               WHERE l.membership_id = m.id AND ad.revoked_at IS NULL) AS active_device_count
+      FROM sync_account_memberships m
+      JOIN sync_accounts a ON a.id = m.account_id
+      LEFT JOIN sync_datasets d ON d.user_id = m.sync_user_id AND d.app_id = m.app_id
+      WHERE m.account_id = ? AND m.app_id = ?
+    `).bind(identity.accountId, input.appId).first();
+    if (!membership || membership.account_state !== 'active' || membership.state !== 'active' ||
+        !membership.sync_user_id || membership.dataset_state !== 'ready') {
+      return { status: 'invalid' };
+    }
+    if (Number(membership.active_device_count || 0) === 0) {
+      return {
+        status: 'detached', scope: 'app', appId: input.appId,
+        membershipId: membership.id, revokedAppDeviceCount: 0,
+        alreadyDetached: true
+      };
+    }
+    const resultBody = {
+      scope: 'app', appId: input.appId, membershipId: membership.id,
+      revokedAppDeviceCount: Number(membership.active_device_count || 0)
+    };
+    const accountCas = db.prepare(`
+      UPDATE sync_accounts SET generation = generation + 1, updated_at = ?
+      WHERE id = ? AND state = 'active' AND deleted_at IS NULL AND generation = ?
+        AND EXISTS (SELECT 1 FROM sync_account_devices d
+          WHERE d.id = ? AND d.account_id = sync_accounts.id AND d.revoked_at IS NULL)
+    `).bind(input.now, identity.accountId, membership.account_generation, identity.accountDeviceId);
+    const accountGuard = db.prepare(`
+      UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END WHERE id = ?
+    `).bind(identity.accountId);
+    const membershipCas = db.prepare(`
+      UPDATE sync_account_memberships
+      SET generation = generation + 1, updated_at = ?
+      WHERE id = ? AND account_id = ? AND app_id = ? AND state = 'active'
+        AND sync_user_id = ? AND generation = ?
+        AND EXISTS (SELECT 1 FROM sync_datasets d
+          WHERE d.user_id = sync_account_memberships.sync_user_id
+            AND d.app_id = sync_account_memberships.app_id AND d.state = 'ready')
+    `).bind(input.now, membership.id, identity.accountId, input.appId,
+      membership.sync_user_id, membership.generation);
+    const membershipGuard = db.prepare(`
+      UPDATE sync_account_memberships SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END
+      WHERE id = ? AND account_id = ?
+    `).bind(membership.id, identity.accountId);
+    const revokeDevices = db.prepare(`
+      UPDATE sync_devices SET revoked_at = COALESCE(revoked_at, ?)
+      WHERE revoked_at IS NULL AND id IN (
+        SELECT app_device_id FROM sync_membership_device_links
+        WHERE account_id = ? AND membership_id = ?
+      )
+    `).bind(input.now, identity.accountId, membership.id);
+    const revokeQaSessions = db.prepare(`
+      UPDATE sync_account_qa_sessions SET revoked_at = COALESCE(revoked_at, ?)
+      WHERE account_id = ? AND scope = 'app' AND app_id = ? AND revoked_at IS NULL
+        AND app_device_id IN (SELECT app_device_id FROM sync_membership_device_links
+          WHERE account_id = ? AND membership_id = ?)
+    `).bind(input.now, identity.accountId, input.appId, identity.accountId, membership.id);
+    const cancelJoins = db.prepare(`
+      UPDATE sync_app_join_invitations
+      SET cancelled_at = COALESCE(cancelled_at, ?),
+          cancelled_by_account_device_id = COALESCE(cancelled_by_account_device_id, ?)
+      WHERE account_id = ? AND membership_id = ?
+        AND consumed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, identity.accountDeviceId, identity.accountId, membership.id);
+    const cancelHandoffs = db.prepare(`
+      UPDATE sync_membership_handoffs SET cancelled_at = COALESCE(cancelled_at, ?)
+      WHERE account_id = ? AND membership_id = ?
+        AND consumed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, identity.accountId, membership.id);
+    const record = db.prepare(`
+      INSERT INTO sync_account_lifecycle_operations (
+        operation_id, request_fingerprint, account_id, kind, target_id, result_json, created_at
+      ) VALUES (?, ?, ?, 'device_revoke', ?, ?, ?)
+    `).bind(input.operationId, input.requestFingerprint, identity.accountId,
+      membership.id, JSON.stringify(resultBody), input.now);
+    const statements = [accountCas, accountGuard, membershipCas, membershipGuard,
+      revokeDevices, revokeQaSessions, cancelJoins, cancelHandoffs, record];
+    try {
+      const results = await db.batch(statements);
+      if (!batchSucceeded(results, statements.length) || changes(results[0]) !== 1 ||
+          changes(results[1]) !== 1 || changes(results[2]) !== 1 ||
+          changes(results[3]) !== 1 || changes(results[8]) !== 1 ||
+          changes(results[4]) !== resultBody.revokedAppDeviceCount) {
+        throw new Error('D1 Account app detach compare-and-swap failed');
+      }
+      return { status: 'detached', ...resultBody, alreadyDetached: false };
+    } catch (error) {
+      const raced = await resolveAppDetachRetry(identity, input);
+      if (raced?.status === 'detached') return raced;
+      const current = await db.prepare(`
+        SELECT a.state AS account_state, a.generation AS account_generation,
+               m.state AS membership_state, m.generation AS membership_generation
+        FROM sync_accounts a LEFT JOIN sync_account_memberships m
+          ON m.account_id = a.id AND m.app_id = ? WHERE a.id = ?
+      `).bind(input.appId, identity.accountId).first();
+      if (!current || current.account_state !== 'active' || current.membership_state !== 'active' ||
+          Number(current.account_generation) !== Number(membership.account_generation) ||
+          Number(current.membership_generation) !== Number(membership.generation)) {
+        return { status: 'invalid' };
+      }
+      throw error;
+    }
+  }
+
   async function issueDeleteIntent(identity, input) {
     const existing = await db.prepare(`
       SELECT intent_id, intent_verifier, issue_fingerprint, expires_at, consumed_at, cancelled_at,
@@ -880,7 +1008,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   return Object.freeze({
     resolveRecoveryPrepare, reserveRecoveryAttempt, prepareRecovery, commitRecovery,
     resolveRecoveryRotationPrepare, prepareRecoveryRotation, commitRecoveryRotation,
-    listEnvironments, revokeEnvironment, resolveRevokeAfterCredentialLoss, issueDeleteIntent,
+    listEnvironments, revokeEnvironment, resolveRevokeAfterCredentialLoss,
+    resolveAppDetachRetry, detachApp, issueDeleteIntent,
     commitDelete, resolveDeleteAfterCredentialLoss, operation
   });
 }

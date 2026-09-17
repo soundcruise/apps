@@ -2151,6 +2151,14 @@ textarea:focus-visible {
     white-space: nowrap;
 }
 .sync-center-account-action[hidden] { display: none; }
+.sync-center-account-display-id {
+    margin: 8px 0 0;
+    color: var(--port-muted);
+    font-size: calc(0.74rem * var(--font-scale));
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+}
+.sync-center-account-display-id[hidden] { display: none; }
 .sync-center-account h2,
 .sync-center-section h2 { margin: 0 0 10px; font-size: calc(1rem * var(--font-scale)); }
 .sync-center-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -2222,6 +2230,7 @@ textarea:focus-visible {
 .sync-center-app-copy strong { overflow-wrap: anywhere; font-size: calc(0.87rem * var(--font-scale)); }
 .sync-center-app-copy span { color: var(--port-muted); font-size: calc(0.72rem * var(--font-scale)); }
 .sync-status-synced .sync-center-app-copy span { color: #cfe6d4; }
+.sync-status-detached .sync-center-app-copy span { color: #d9d1be; }
 .sync-status-attention .sync-center-app-copy span,
 .sync-status-initial .sync-center-app-copy span { color: #ead39b; }
 .sync-center-app-action {
@@ -2274,6 +2283,33 @@ textarea:focus-visible {
     border-color: rgba(232, 111, 120, 0.72);
     color: #ffd3d6;
     background: rgba(117, 28, 38, 0.28);
+}
+.sync-center-danger-toggle {
+    width: 100%;
+    min-height: 42px;
+    margin-top: 14px;
+    padding: 8px 12px;
+    border: 1px solid rgba(232, 111, 120, 0.48);
+    border-radius: 10px;
+    color: #f1c2c6;
+    background: transparent;
+    font: inherit;
+    font-size: calc(0.78rem * var(--font-scale));
+    font-weight: 650;
+    text-align: left;
+    cursor: pointer;
+}
+.sync-center-danger-toggle:focus-visible { outline: 2px solid #ffd3d6; outline-offset: 3px; }
+.sync-center-app-delete-actions {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+}
+.sync-center-app-delete-actions[hidden] { display: none; }
+.sync-center-app-delete-actions .action-button {
+    width: 100%;
+    min-width: 0;
+    white-space: normal;
 }
 .sync-center-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 14px; }
 .sync-center-actions .action-button { min-width: 0; white-space: normal; }

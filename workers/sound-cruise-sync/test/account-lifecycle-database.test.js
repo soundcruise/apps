@@ -528,6 +528,141 @@ test('environment revoke invalidates linked app credentials without deleting loc
   db.close();
 });
 
+test('app detach revokes every target app environment while preserving membership, dataset and durable data', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const secondAccountDevice = '10000000-0000-4000-8000-000000000007';
+  const secondChordDevice = '40000000-0000-4000-8000-000000000007';
+  db.raw.prepare(`
+    INSERT INTO sync_account_devices (
+      id, account_id, credential_version, credential_verifier,
+      label, created_at, last_seen_at, revoked_at
+    ) VALUES (?, ?, 1, ?, 'Chord B', 1000, 1000, NULL)
+  `).run(secondAccountDevice, IDS.account, hex('2'));
+  db.raw.prepare(`
+    INSERT INTO sync_devices (
+      id, user_id, app_id, credential_version, credential_verifier,
+      label, last_cursor, created_at, last_seen_at, revoked_at,
+      pairing_pending_at, paired_at
+    ) VALUES (?, ?, 'chord', 1, ?, 'Chord B', 0, 1000, 1000, NULL, NULL, 1000)
+  `).run(secondChordDevice, IDS.chordUser, hex('3'));
+  db.raw.prepare(`
+    INSERT INTO sync_membership_device_links (
+      account_id, membership_id, app_device_id, account_device_id, linked_at
+    ) VALUES (?, ?, ?, ?, 1000)
+  `).run(IDS.account, IDS.chordMembership, secondChordDevice, secondAccountDevice);
+
+  const repository = createD1AccountLifecycleRepository(db);
+  const identity = { accountId: IDS.account, accountDeviceId: IDS.accountA };
+  const before = {
+    records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+    changes: db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count,
+    datasets: db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count
+  };
+  const input = {
+    operationId: '90000000-0000-4000-8000-000000000009',
+    requestFingerprint: hex('5'), appId: 'chord', now: 2_100
+  };
+  const result = await repository.detachApp(identity, input);
+  assert.equal(result.status, 'detached');
+  assert.equal(result.revokedAppDeviceCount, 2);
+  assert.equal(db.raw.prepare('SELECT state FROM sync_account_memberships WHERE id = ?')
+    .get(IDS.chordMembership).state, 'active');
+  assert.equal(db.raw.prepare('SELECT state FROM sync_datasets WHERE user_id = ? AND app_id = ?')
+    .get(IDS.chordUser, 'chord').state, 'ready');
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) count FROM sync_devices
+    WHERE user_id = ? AND app_id = 'chord' AND revoked_at IS NULL`).get(IDS.chordUser).count, 0);
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_account_devices WHERE id = ?')
+    .get(secondAccountDevice).revoked_at, null, 'Account environments remain active');
+  assert.deepEqual({
+    records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+    changes: db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count,
+    datasets: db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count
+  }, before);
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_devices WHERE id = ?')
+    .get(IDS.pitchDevice).revoked_at, null, 'other app devices remain active');
+  const retry = await repository.detachApp(identity, { ...input, now: 2_101 });
+  assert.equal(retry.alreadyDetached, true);
+  assert.equal(retry.revokedAppDeviceCount, 2);
+  const generationsAfterDetach = db.raw.prepare(`
+    SELECT a.generation AS account_generation, m.generation AS membership_generation
+    FROM sync_accounts a JOIN sync_account_memberships m ON m.account_id = a.id
+    WHERE a.id = ? AND m.id = ?
+  `).get(IDS.account, IDS.chordMembership);
+  const duplicateWithNewOperation = await repository.detachApp(identity, {
+    ...input, operationId: crypto.randomUUID(), requestFingerprint: hex('7'), now: 2_102
+  });
+  assert.equal(duplicateWithNewOperation.alreadyDetached, true);
+  assert.equal(duplicateWithNewOperation.revokedAppDeviceCount, 0);
+  assert.deepEqual(db.raw.prepare(`
+    SELECT a.generation AS account_generation, m.generation AS membership_generation
+    FROM sync_accounts a JOIN sync_account_memberships m ON m.account_id = a.id
+    WHERE a.id = ? AND m.id = ?
+  `).get(IDS.account, IDS.chordMembership), generationsAfterDetach,
+  'a second detach operation has no duplicate lifecycle side effect');
+  assert.equal((await repository.detachApp(identity, {
+    ...input, operationId: crypto.randomUUID(), requestFingerprint: hex('6'), appId: 'unknown'
+  })).status, 'invalid');
+  db.close();
+});
+
+test('app detach fails closed for wrong Account and non-active lifecycle states', async () => {
+  const cases = [
+    {
+      name: 'wrong Account',
+      prepare(db) {
+        const other = seedUnrelatedAccount(db);
+        return { accountId: other.accountId, accountDeviceId: other.deviceId };
+      }
+    },
+    {
+      name: 'pending membership',
+      prepare(db) {
+        db.raw.prepare(`UPDATE sync_account_memberships
+          SET state = 'pending', sync_user_id = NULL, activated_at = NULL
+          WHERE id = ?`).run(IDS.chordMembership);
+      }
+    },
+    {
+      name: 'deleting membership',
+      prepare(db) {
+        db.raw.prepare(`UPDATE sync_account_memberships SET state = 'deleting'
+          WHERE id = ?`).run(IDS.chordMembership);
+      }
+    },
+    {
+      name: 'deleting Account',
+      prepare(db) {
+        db.raw.prepare(`UPDATE sync_accounts SET state = 'deleting'
+          WHERE id = ?`).run(IDS.account);
+      }
+    }
+  ];
+  for (const scenario of cases) {
+    const db = createSqliteD1();
+    seedAccount(db);
+    const identity = scenario.prepare(db) || {
+      accountId: IDS.account, accountDeviceId: IDS.accountA
+    };
+    const before = {
+      records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+      activeChordDevices: db.raw.prepare(`SELECT COUNT(*) count FROM sync_devices
+        WHERE user_id = ? AND app_id = 'chord' AND revoked_at IS NULL`).get(IDS.chordUser).count
+    };
+    const result = await createD1AccountLifecycleRepository(db).detachApp(identity, {
+      operationId: crypto.randomUUID(), requestFingerprint: hex('8'),
+      appId: 'chord', now: 2_200
+    });
+    assert.equal(result.status, 'invalid', scenario.name);
+    assert.deepEqual({
+      records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+      activeChordDevices: db.raw.prepare(`SELECT COUNT(*) count FROM sync_devices
+        WHERE user_id = ? AND app_id = 'chord' AND revoked_at IS NULL`).get(IDS.chordUser).count
+    }, before, `${scenario.name} has no partial detach`);
+    db.close();
+  }
+});
+
 async function issueIntent(repository, identity, scope, appId = null) {
   return repository.issueDeleteIntent(identity, {
     operationId: IDS.intentIssue,

@@ -140,6 +140,21 @@
     return `${RECOVERY_PREFIX}-${body.match(/.{4}/g).join('-')}`;
   }
 
+  function formatAccountDisplayId(value) {
+    if (typeof value !== 'string' || !UUID_PATTERN.test(value)) return null;
+    const hash = (seed) => {
+      let current = seed >>> 0;
+      for (let index = 0; index < value.length; index += 1) {
+        current ^= value.charCodeAt(index);
+        current = Math.imul(current, 0x01000193) >>> 0;
+      }
+      return current >>> 0;
+    };
+    const high = hash(0x811c9dc5).toString(16).padStart(8, '0');
+    const low = hash(0x9e3779b9).toString(16).padStart(8, '0').slice(0, 2);
+    return `SC-${high}${low}`.toUpperCase();
+  }
+
   function createHandoffUrl(appUrl, handoffToken) {
     if (!validToken(handoffToken, 'sch1')) throw new Error('handoff_invalid');
     const url = new URL(appUrl);
@@ -216,6 +231,7 @@
     createJoinMaterial,
     createHandoffUrl,
     formatRecoveryCode,
+    formatAccountDisplayId,
     formatJoinCode,
     normalizeJoinCode,
     createSensitiveInputController,

@@ -508,6 +508,106 @@ test('cross-container app Join Code activates once without echoing or storing pl
   db.close();
 });
 
+test('App Detach requires Account authority, is rate-limited and leaves the active membership immediately rejoinable', async () => {
+  const db = createSqliteD1();
+  enableLifecycleControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['pitch', 'chord']);
+  const credential = started.candidate.account.credential;
+  const invitationId = crypto.randomUUID();
+  const joinCode = createAppJoinCode();
+  let response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations', {
+    operationId: crypto.randomUUID(), invitationId, appId: 'pitch', joinCode
+  }, { credential }), env);
+  assert.equal(response.status, 201);
+  const targetAccount = createAccountCredential();
+  const targetApp = await createIdentityMaterial(appPepper);
+  const targetQa = createQaCredential();
+  response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations/consume', {
+    operationId: crypto.randomUUID(), appId: 'pitch', joinCode,
+    accountCredential: targetAccount.credential, appDeviceCredential: targetApp.credential,
+    qaCredential: targetQa.credential, deviceLabel: 'Pitch container', consumeMode: 'new_app'
+  }), env);
+  assert.equal(response.status, 201);
+  db.raw.prepare(`
+    INSERT OR IGNORE INTO sync_datasets (
+      user_id, app_id, state, schema_version, record_count, manifest_hash,
+      min_change_seq, initialized_at, updated_at, last_change_seq
+    ) SELECT sync_user_id, 'pitch', 'ready', 1, 0, NULL, 0, 1, 1, 0
+      FROM sync_account_memberships
+      WHERE account_id = ? AND app_id = 'pitch'
+  `).run(started.payload.accountId);
+  db.raw.prepare(`
+    UPDATE sync_datasets
+    SET state = 'ready', initialized_at = COALESCE(initialized_at, updated_at)
+    WHERE user_id = (
+      SELECT sync_user_id FROM sync_account_memberships
+      WHERE account_id = ? AND app_id = 'pitch'
+    ) AND app_id = 'pitch'
+  `).run(started.payload.accountId);
+  const membershipBefore = db.raw.prepare(`
+    SELECT id, sync_user_id, generation, state FROM sync_account_memberships
+    WHERE account_id = ? AND app_id = 'pitch'
+  `).get(started.payload.accountId);
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) count FROM sync_devices d
+    JOIN sync_membership_device_links a ON a.app_device_id = d.id
+    WHERE a.membership_id = ? AND d.revoked_at IS NULL
+  `).get(membershipBefore.id).count, 1);
+
+  const body = { operationId: crypto.randomUUID(), appId: 'pitch' };
+  response = await handleRequest(jsonRequest('/v2/accounts/memberships/pitch/detach', body), env);
+  assert.equal(response.status, 401, 'missing Account credential is unauthorized');
+  response = await handleRequest(jsonRequest('/v2/accounts/memberships/pitch/detach', body, {
+    credential: targetApp.credential
+  }), env);
+  assert.equal(response.status, 401, 'an app credential cannot detach every app environment');
+  response = await handleRequest(jsonRequest('/v2/accounts/memberships/pitch/detach', {
+    ...body, appId: 'chord'
+  }, { credential }), env);
+  assert.equal(response.status, 400, 'route and exact payload app must match');
+  response = await handleRequest(jsonRequest('/v2/accounts/memberships/pitch/detach', body, {
+    credential
+  }), { ...env, ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER: limiter(false) });
+  assert.equal(response.status, 429, 'detach has an Account-scoped rate limit');
+
+  response = await handleRequest(jsonRequest('/v2/accounts/memberships/pitch/detach', body, {
+    credential
+  }), env);
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  const detached = await response.json();
+  assert.equal(detached.scope, 'app');
+  assert.equal(detached.appId, 'pitch');
+  assert.equal(detached.revokedAppDeviceCount, 1);
+  const membershipAfter = db.raw.prepare(`
+    SELECT id, sync_user_id, state FROM sync_account_memberships
+    WHERE account_id = ? AND app_id = 'pitch'
+  `).get(started.payload.accountId);
+  assert.equal(membershipAfter.id, membershipBefore.id);
+  assert.equal(membershipAfter.sync_user_id, membershipBefore.sync_user_id);
+  assert.equal(db.raw.prepare(`
+    SELECT state FROM sync_datasets WHERE user_id = ? AND app_id = 'pitch'
+  `).get(membershipAfter.sync_user_id).state, 'ready');
+  assert.equal(membershipAfter.state, 'active');
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) count FROM sync_devices d
+    JOIN sync_membership_device_links a ON a.app_device_id = d.id
+    WHERE a.membership_id = ? AND d.revoked_at IS NULL
+  `).get(membershipBefore.id).count, 0);
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) count FROM sync_account_devices
+    WHERE account_id = ? AND revoked_at IS NULL
+  `).get(started.payload.accountId).count, 2, 'Port and app-container Account devices remain active');
+
+  env.ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER = limiter(false);
+  response = await handleRequest(jsonRequest('/v2/accounts/memberships/pitch/detach', body, {
+    credential
+  }), env);
+  assert.equal(response.status, 200, 'response-loss retry resolves before the limiter');
+  assert.equal((await response.json()).operation, 'existing');
+  db.close();
+});
+
 test('Port-to-Port Join is exact-origin, rate-limited, one-time and secret-free', async () => {
   const db = createSqliteD1();
   enableLifecycleControl(db);

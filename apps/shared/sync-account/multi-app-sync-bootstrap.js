@@ -13,6 +13,7 @@
   let settingsPresentation = null;
   let settingsObserver = null;
   let settingsRevision = 0;
+  let connectedAccountDisplayId = null;
 
   let handoffToken = null;
   try { handoffToken = accountRoot?.core?.takeHandoffFromLocation() || null; }
@@ -76,6 +77,7 @@
         state: settingsPresentation.state,
         statusLabel: settingsPresentation.status,
         description: settingsPresentation.description,
+        accountDisplayId: settingsPresentation.accountDisplayId,
         privacyHref: '../privacy.html?edition=pro',
         primaryAction: settingsPresentation.action ? {
           label: settingsPresentation.action.label,
@@ -107,6 +109,12 @@
     status.textContent = settingsPresentation.status;
     header.append(title, status);
     section.append(header);
+    if (settingsPresentation.accountDisplayId) {
+      const accountId = document.createElement('p');
+      accountId.className = 'sound-cruise-sync-account-id';
+      accountId.textContent = `アカウント：${settingsPresentation.accountDisplayId}`;
+      section.append(accountId);
+    }
     if (settingsPresentation.action) {
       const button = document.createElement('button');
       button.type = 'button';
@@ -130,17 +138,26 @@
     }
   }
 
-  function showConnectedSettings() {
+  function showConnectedSettings(accountId = null) {
     const config = readConfig();
-    setSettingsPresentation({ state: 'ready', status: '同期済み', action: null, manage: config?.portUrl });
+    if (accountId) connectedAccountDisplayId = accountRoot?.core?.formatAccountDisplayId?.(accountId) || null;
+    setSettingsPresentation({
+      state: 'ready', status: '同期済み', action: null, manage: config?.portUrl,
+      accountDisplayId: connectedAccountDisplayId
+    });
   }
 
   function showPendingSettings() {
-    setSettingsPresentation({ state: 'connecting', status: '接続中', action: null });
+    setSettingsPresentation({
+      state: 'connecting', status: '接続中', action: null,
+      accountDisplayId: connectedAccountDisplayId
+    });
   }
 
   function bindSettingsRuntime(runtime, conflictController, config) {
-    const connectedPresentation = (presentation) => ({ ...presentation, manage: config.portUrl });
+    const connectedPresentation = (presentation) => ({
+      ...presentation, manage: config.portUrl, accountDisplayId: connectedAccountDisplayId
+    });
     const show = (state, detail = {}) => {
       if (state === 'ready') return showConnectedSettings();
       if (state === 'syncing') return setSettingsPresentation(connectedPresentation({ state: 'syncing', status: '同期中' }));
@@ -210,7 +227,7 @@
         joinSecret?.resolve();
         if (joinField) joinField.remove();
         dialog.querySelectorAll('[data-sync-copy-join-code]').forEach((node) => node.remove());
-        showConnectedSettings();
+        showConnectedSettings(result.accountId);
         dialog.dataset.syncPhase = 'complete';
         summary.textContent = 'クラウド同期を設定しました。';
         startButton.hidden = true;
@@ -314,6 +331,14 @@
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
     syncRoot.runtimes[config.appId] = runtime;
     const restored = await resolveStartupState(runtime, store, accountClient, accountRoot.core);
+    if (['connected', 'migration_pending'].includes(restored.state)) {
+      try {
+        const savedAccount = await accountRoot.storage.getAccount();
+        connectedAccountDisplayId = accountRoot.core.formatAccountDisplayId(savedAccount?.accountId) || null;
+      } catch (_) {
+        connectedAccountDisplayId = null;
+      }
+    }
     if (restored.state === 'connected') {
       // A URL handoff is transient. A durable, active app connection wins so a
       // stale launch URL cannot reopen setup over a connected container.

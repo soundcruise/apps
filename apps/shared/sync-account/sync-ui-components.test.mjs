@@ -16,8 +16,8 @@ const appHtml = [
 
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
-    assert.match(html, /sync-ui-components\.js\?v=9/);
-    assert.match(html, /multi-app-sync\.css\?v=17/);
+    assert.match(html, /sync-ui-components\.js\?v=10/);
+    assert.match(html, /multi-app-sync\.css\?v=18/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
   assert.match(renderer, /sound-cruise-sync-settings-head/);
@@ -25,7 +25,7 @@ test('four Pro apps load one renderer and one card stylesheet contract', () => {
   assert.match(renderer, /sound-cruise-sync-settings-testing-badge/);
   assert.doesNotMatch(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
-  for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=17/);
+  for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=18/);
   assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v24/);
   assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.9/);
   assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v11/);
@@ -42,6 +42,17 @@ test('shared status, description and button copy is exact', () => {
   assert.match(bootstrap, /Cruise Portで管理/);
   assert.match(bootstrap, /内容を確認/);
   assert.match(bootstrap, /もう一度確認/);
+});
+
+test('connected Pro cards show the shared opaque Account ID only inside the expanded body', () => {
+  assert.match(renderer, /if \(options\.accountDisplayId\)[\s\S]*sound-cruise-sync-account-id/);
+  assert.match(renderer, /`アカウント：\$\{options\.accountDisplayId\}`/);
+  assert.match(bootstrap, /accountDisplayId: settingsPresentation\.accountDisplayId/);
+  assert.match(bootstrap, /formatAccountDisplayId\?\.\(accountId\)/);
+  assert.match(bootstrap, /savedAccount\?\.accountId/);
+  assert.match(css, /\.sound-cruise-sync-account-id/);
+  assert.doesNotMatch(renderer.slice(0, renderer.indexOf("const body = document.createElement('div')")), /accountDisplayId/,
+    'the collapsed header never includes the Account ID');
 });
 
 test('standalone PWA management is explicit while browser navigation stays direct', () => {

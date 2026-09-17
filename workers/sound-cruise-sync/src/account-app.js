@@ -42,6 +42,7 @@ import {
   validateAccountReadQuery,
   validateAccountDeleteCommitPayload,
   validateAccountDeleteIntentPayload,
+  validateAccountAppDetachPayload,
   validateAccountDeviceRevokePayload,
   validateAccountRecoveryCommitPayload,
   validateAccountRecoveryPreparePayload,
@@ -169,6 +170,14 @@ const ACCOUNT_ROUTES = Object.freeze({
 const QA_HEADER = 'x-sound-cruise-qa-authorization';
 
 function resolvedRoute(pathname, method) {
+  const membershipDetach = pathname.match(/^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/detach$/);
+  if (membershipDetach) {
+    return {
+      method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+      headers: ['content-type', 'authorization', 'x-d1-bookmark'],
+      appId: membershipDetach[1]
+    };
+  }
   const membershipDelete = pathname.match(/^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)(\/delete-intent)?$/);
   if (membershipDelete) {
     return {
@@ -889,6 +898,54 @@ async function handleEnvironmentRevoke(request, env, origin, route, dependencies
     if (result.status === 'not_found') return errorResponse(404, 'account_device_not_found', origin, route);
     if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
     return jsonResponse(200, { ok: true, ...result }, origin, route, bookmarkHeader(session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAppDetach(request, env, origin, route, dependencies, appId) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountAppDetachPayload(parsed.value);
+  if (!validation.ok || validation.value.appId !== appId) {
+    return errorResponse(400, 'invalid_request', origin, route);
+  }
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const value = validation.value;
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )(['account-app-detach', context.identity.accountId, value.appId,
+      dependencies.admissionProvenance]);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(context.session);
+    const input = {
+      operationId: value.operationId,
+      requestFingerprint,
+      appId: value.appId,
+      now: Date.now()
+    };
+    const retry = await repository.resolveAppDetachRetry(context.identity, input);
+    if (retry?.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (retry?.status === 'detached') {
+      return jsonResponse(200, { ok: true, operation: 'existing', ...retry },
+        origin, route, bookmarkHeader(context.session));
+    }
+    const limited = await rateLimit(
+      env.ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER,
+      `account-app-detach:${context.identity.accountDeviceId}`
+    );
+    if (!limited.ok) return rateError(limited, origin, route, 60);
+    const result = await repository.detachApp(context.identity, input);
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'detached') return errorResponse(409, 'membership_state_invalid', origin, route);
+    return jsonResponse(200, { ok: true, operation: 'detached', ...result },
+      origin, route, bookmarkHeader(context.session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
   }
@@ -1881,6 +1938,12 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   if (url.pathname === '/v2/accounts/devices') return handleDevices(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v2/accounts/devices/revoke') {
     return handleEnvironmentRevoke(request, env, origin, route, dependencies);
+  }
+  const membershipDetach = url.pathname.match(
+    /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/detach$/
+  );
+  if (membershipDetach) {
+    return handleAppDetach(request, env, origin, route, dependencies, membershipDetach[1]);
   }
   if (url.pathname === '/v2/accounts/recovery/prepare') {
     return handleAccountRecoveryPrepare(request, env, origin, route, dependencies);

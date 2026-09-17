@@ -1,6 +1,6 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.37.2';
-import { createPortAccountJoin } from './port-account-join.js?v=0.37.2';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.38.0';
+import { createPortAccountJoin } from './port-account-join.js?v=0.38.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -83,6 +83,8 @@ export function createSyncCenterOrchestrator({
             if (joinedPort.status === 'committed') return joinedPort.summary;
             const recovered = await client.resumePendingRecovery?.();
             if (recovered?.status === 'committed') return summary();
+            const detached = await client.resumePendingDetach?.();
+            if (detached?.status === 'committed') return summary();
             const deleted = await client.resumePendingDelete?.();
             if (deleted?.status === 'committed' && deleted.result?.scope === 'account') {
                 return Object.freeze({ accountDeleted: true });
@@ -142,6 +144,13 @@ export function createSyncCenterOrchestrator({
             return client.revokeEnvironment({
                 accountCredential: await credential(),
                 accountDeviceId,
+                operationId: accountRoot.core.createOperationId()
+            });
+        },
+        async detachApp(appId) {
+            if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');
+            return client.detachApp({
+                accountCredential: await credential(), appId,
                 operationId: accountRoot.core.createOperationId()
             });
         },

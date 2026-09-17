@@ -376,21 +376,26 @@ test('Lifecycle UI separates danger actions and enforces stable two-step sensiti
     assert.match(ui, /data-sync-app-delete/);
 });
 
-test('App sync removal stays in its app row while Danger Zone remains account-wide only', () => {
+test('App detach stays in its row while app cloud deletion moves into a closed Danger accordion', () => {
     const source = read('./sync-center-ui.js');
     const styles = read('./style.css');
-    assert.match(source, /const canRemoveAppSync = !needsInitialConnection && app\.status !== 'deleting' && orchestrationEnabled/);
-    assert.match(source, /action\.dataset\.syncAppDelete = app\.id/);
+    assert.match(source, /const canRemoveAppSync = Number\(app\.activeAppDeviceCount \|\| 0\) > 0 &&[\s\S]*app\.status !== 'deleting' && orchestrationEnabled/);
+    assert.match(source, /action\.dataset\.syncAppDetach = app\.id/);
     assert.match(source, /action\.dataset\.syncAppName = app\.name/);
     assert.match(source, /canRemoveAppSync \? '同期を解除' : app\.statusLabel/);
-    assert.match(source, /const appName = appDelete\.dataset\.syncAppName \|\| 'このアプリ'/);
+    assert.match(source, /const appName = appDetach\.dataset\.syncAppName \|\| 'このアプリ'/);
     assert.match(source, /title: `\$\{appName\}の同期を解除`/);
+    assert.match(source, /await orchestrator\.detachApp\(lifecycleAction\.appId\)/);
     assert.match(source, /await orchestrator\.issueDelete\(lifecycleAction\.scope, lifecycleAction\.appId\)/);
     assert.match(source, /await orchestrator\.commitDelete\(lifecycleAction\.scope, lifecycleAction\.appId\)/);
     assert.match(source, /environment\.dataset\.syncEnvironmentRevoke/);
     assert.match(styles, /\.sync-center-app-remove \{[\s\S]*border-color: rgba\(232, 111, 120, 0\.72\)/);
     for (const html of [root, pro]) {
-        assert.doesNotMatch(html, /sync-center-app-delete-actions/);
+        assert.match(html, /data-sync-app-delete-toggle[^>]*aria-expanded="false"/);
+        assert.match(html, /id="sync-center-app-delete-actions"[^>]*hidden/);
+        for (const appId of ['pitch', 'fretboard', 'rhythm', 'chord']) {
+            assert.match(html, new RegExp(`data-sync-app-delete="${appId}"`));
+        }
         assert.match(html, /接続済みのアプリは、各行の「同期を解除」からそのアプリだけクラウド同期を解除できます。/);
         assert.match(html, /id="sync-center-account-delete"[^>]*>アカウントを削除<\/button>/);
         assert.match(html, /Sound Cruise Syncアカウントと4つのアプリすべてのクラウド同期データを削除対象にします。/);
@@ -420,7 +425,7 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(source, /function renderAddEnvironmentRows/);
     assert.match(source, /available: activeAccount && app\.canAddEnvironment/);
     assert.match(source, /action\.textContent = '追加コード'/);
-    assert.match(source, /const needsInitialConnection = \['unset', 'prepared'\]\.includes\(app\.status\)/);
+    assert.match(source, /const needsInitialConnection = \['unset', 'prepared', 'detached'\]\.includes\(app\.status\)/);
     assert.match(source, /function bindSectionHelp\(root\)/);
     assert.match(source, /button\.setAttribute\('aria-expanded', String\(!help\.hidden\)\)/);
     assert.match(source, /const environmentToggle = event\.target\.closest\?\.\('\[data-sync-environments-toggle\]'\)/);

@@ -13,6 +13,7 @@ import {
   validateAccountReadQuery,
   validateAccountDeleteCommitPayload,
   validateAccountDeleteIntentPayload,
+  validateAccountAppDetachPayload,
   validateAccountDeviceRevokePayload,
   validateAccountRecoveryCommitPayload,
   validateAccountRecoveryPreparePayload,
@@ -149,6 +150,11 @@ test('Account lifecycle validation is exact, scoped and accepts no Account selec
   assert.equal(validateAccountDeviceRevokePayload({
     operationId, accountDeviceId: account.deviceId
   }).ok, true);
+  assert.equal(validateAccountAppDetachPayload({ operationId, appId: 'pitch' }).ok, true);
+  assert.equal(validateAccountAppDetachPayload({ operationId, appId: 'unknown' }).ok, false);
+  assert.equal(validateAccountAppDetachPayload({
+    operationId, appId: 'pitch', accountId: 'victim'
+  }).ok, false);
   assert.equal(validateAccountDeleteIntentPayload({
     operationId, intentToken: intent.intentToken, appId: 'pitch'
   }, 'app').ok, true);

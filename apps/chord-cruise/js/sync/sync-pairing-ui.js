@@ -73,7 +73,7 @@
             '</button>' +
             '<section class="cc-sync-screen" data-sync-screen aria-labelledby="cc-sync-screen-title" hidden>' +
                 '<header class="cc-sync-screen-head"><button type="button" class="cc-settings-back-btn" data-sync-close>戻る</button><h3 id="cc-sync-screen-title">クラウド同期</h3><button type="button" class="cc-sync-help-btn" data-sync-help aria-label="クラウド同期のヘルプ">?</button></header>' +
-                '<div class="cc-sync-status-card" data-sync-status-card><strong data-sync-pairing-status>確認中…</strong><p data-sync-status-detail></p></div>' +
+                '<div class="cc-sync-status-card" data-sync-status-card><strong data-sync-pairing-status>確認中…</strong><p data-sync-status-detail></p><p class="cc-sync-account-id" data-sync-account-id hidden></p></div>' +
                 '<div class="cc-sync-screen-actions" data-sync-pairing-actions></div>' +
                 '<p class="cc-settings-note cc-sync-result" data-sync-pairing-result aria-live="polite"></p>' +
             '</section>';
@@ -88,6 +88,7 @@
         var entryStatus = section.querySelector('[data-sync-entry-status]');
         var status = section.querySelector('[data-sync-pairing-status]');
         var statusDetail = section.querySelector('[data-sync-status-detail]');
+        var accountIdDisplay = section.querySelector('[data-sync-account-id]');
         var actions = section.querySelector('[data-sync-pairing-actions]');
         var result = section.querySelector('[data-sync-pairing-result]');
         var transientResult = '';
@@ -448,6 +449,23 @@
             var syncState = await store.getMeta('syncState');
             var migrationState = await store.getMeta('migrationState');
             var runtimePause = await store.getMeta('runtimePause');
+            var accountManagedSetup = await store.getMeta('accountManagedSetup');
+            if (accountIdDisplay) {
+                accountIdDisplay.hidden = true;
+                accountIdDisplay.textContent = '';
+            }
+            if (credential && credential.credential && accountManagedSetup === true && accountIdDisplay) {
+                try {
+                    var savedAccount = await global.SoundCruiseSyncAccount?.storage?.getAccount?.();
+                    var displayId = global.SoundCruiseSyncAccount?.core?.formatAccountDisplayId?.(savedAccount?.accountId);
+                    if (displayId) {
+                        accountIdDisplay.textContent = 'アカウント：' + displayId;
+                        accountIdDisplay.hidden = false;
+                    }
+                } catch (_) {
+                    accountIdDisplay.hidden = true;
+                }
+            }
             setRecoveryPhase(null);
             actions.textContent = '';
             if (!options || options.preserveTransientResult !== true) transientResult = '';

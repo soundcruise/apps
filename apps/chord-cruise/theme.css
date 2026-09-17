@@ -3918,6 +3918,17 @@ body.cc-settings-open {
     line-height: 1.6;
 }
 
+.cc-sync-status-card .cc-sync-account-id {
+    color: var(--cc-text-muted);
+    font-size: 0.76rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.04em;
+}
+
+.cc-sync-account-id[hidden] {
+    display: none;
+}
+
 .cc-sync-screen-actions {
     display: grid;
     gap: 16px;
