@@ -2126,7 +2126,8 @@ textarea:focus-visible {
     flex-wrap: wrap;
     gap: 8px;
 }
-.sync-center-account-status-chip {
+.sync-center-account-status-chip,
+.sync-center-app-status-chip {
     flex: 0 0 auto;
     padding: 2px 8px;
     border: 1px solid rgba(205, 205, 205, 0.42);
@@ -2138,12 +2139,14 @@ textarea:focus-visible {
     line-height: 1.35;
     white-space: nowrap;
 }
-.sync-center-account-status-chip[data-sync-account-state="active"] {
+.sync-center-account-status-chip[data-sync-account-state="active"],
+.sync-center-app-status-chip--synced {
     border-color: rgba(232, 201, 122, 0.72);
     color: #241d0d;
     background: rgba(232, 201, 122, 0.88);
 }
-.sync-center-account-status-chip[data-sync-account-state="unset"] {
+.sync-center-account-status-chip[data-sync-account-state="unset"],
+.sync-center-app-status-chip--detached {
     border-color: rgba(205, 205, 205, 0.62);
     color: var(--port-text);
     background: rgba(205, 205, 205, 0.16);
@@ -2239,11 +2242,20 @@ textarea:focus-visible {
 .sync-center-app img { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; }
 .sync-center-app-copy { display: grid; min-width: 0; gap: 4px; }
 .sync-center-app-copy strong { overflow-wrap: anywhere; font-size: calc(0.87rem * var(--font-scale)); }
-.sync-center-app-copy span { color: var(--port-muted); font-size: calc(0.72rem * var(--font-scale)); }
-.sync-status-synced .sync-center-app-copy span { color: #cfe6d4; }
-.sync-status-detached .sync-center-app-copy span { color: #d9d1be; }
-.sync-status-attention .sync-center-app-copy span,
-.sync-status-initial .sync-center-app-copy span { color: #ead39b; }
+.sync-center-app-status-line {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 20px;
+    color: var(--port-muted);
+    font-size: calc(0.72rem * var(--font-scale));
+}
+.sync-center-app-record-count { color: var(--port-muted); font-variant-numeric: tabular-nums; }
+.sync-status-synced .sync-center-app-record-count { color: #cfe6d4; }
+.sync-status-detached .sync-center-app-record-count { color: #d9d1be; }
+.sync-status-attention .sync-center-app-status-line,
+.sync-status-initial .sync-center-app-status-line { color: #ead39b; }
 .sync-center-app-action {
     display: inline-flex;
     min-width: 44px;

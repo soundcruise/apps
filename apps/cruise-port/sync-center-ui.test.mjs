@@ -122,6 +122,20 @@ test('Account section presents step title, status chip and state-specific CTA', 
     assert.doesNotMatch(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
 });
 
+test('App rows separate ordinary status chips from record counts without changing special states', () => {
+    const styles = read('./style.css');
+    assert.match(ui, /sync-center-app-status-line/);
+    assert.match(ui, /sync-center-app-status-chip--\$\{app\.status\}/);
+    assert.match(ui, /sync-center-app-record-count/);
+    assert.doesNotMatch(ui, /\$\{app\.statusLabel\}・\$\{app\.recordCount\}件/);
+    assert.match(ui, /\['synced', 'detached'\]\.includes\(app\.status\)/);
+    assert.match(styles, /\.sync-center-account-status-chip,\s*\.sync-center-app-status-chip/);
+    assert.match(styles, /\.sync-center-app-status-chip--synced/);
+    assert.match(styles, /\.sync-center-app-status-chip--detached/);
+    assert.match(styles, /\.sync-status-attention \.sync-center-app-status-line/);
+    assert.match(styles, /\.sync-center-app-record-count/);
+});
+
 test('current Port detach is distinct from generic environment revoke and leaves Section 2 informational when Account is unset', () => {
     assert.match(ui, /dataset\.syncCurrentEnvironmentDetach = 'true'/);
     assert.match(ui, /kind: 'current-environment'/);

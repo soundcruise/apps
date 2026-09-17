@@ -16,7 +16,7 @@ const appHtml = [
 
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
-    assert.match(html, /sync-ui-components\.js\?v=11/);
+    assert.match(html, /sync-ui-components\.js\?v=12/);
     assert.match(html, /multi-app-sync\.css\?v=18/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
@@ -66,7 +66,7 @@ test('connected cards offer only a current-environment detach action', () => {
 test('Help has four short product categories, a Port note and privacy link', () => {
   assert.match(renderer, /APP_HELP_SUMMARY/);
   assert.match(renderer, /このアプリの対応データをクラウドに保存し、複数の環境で同期できます。/);
-  for (const title of ['クラウド同期', '接続方法', 'この環境の同期を解除', '困ったとき']) {
+  for (const title of ['クラウド同期', '接続方法', 'この環境の同期を解除', 'オフライン・競合']) {
     assert.match(renderer, new RegExp(`title: '${title}'`));
   }
   const helpDefinition = renderer.slice(
@@ -74,6 +74,9 @@ test('Help has four short product categories, a Port note and privacy link', () 
   );
   assert.equal((helpDefinition.match(/title: '/g) || []).length, 4);
   assert.doesNotMatch(renderer, /title: 'はじめに'/);
+  assert.doesNotMatch(renderer, /title: '困ったとき'/);
+  assert.match(renderer, /オフライン中\\n変更は端末に保存され、接続が戻ると自動で同期を再開します。/);
+  assert.match(renderer, /競合した場合\\n自動で上書きせず、残す内容を確認する画面を表示します。/);
   assert.match(renderer, /復旧コード、別環境の追加、同期データの削除などの詳しい管理はCruise Portで行います。/);
   assert.match(renderer, /プライバシーポリシーを確認/);
   assert.match(renderer, /sound-cruise-sync-help-toggle/);

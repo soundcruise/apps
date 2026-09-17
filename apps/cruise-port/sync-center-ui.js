@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.3';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.4';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -24,7 +24,23 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
         const name = document.createElement('strong');
         name.textContent = app.name;
         const detail = document.createElement('span');
-        detail.textContent = app.recordCount == null ? app.statusLabel : `${app.statusLabel}・${app.recordCount}件`;
+        detail.className = 'sync-center-app-status-line';
+        // Ready and detached are the ordinary states users need to scan. Keep
+        // warning and deletion states in their existing text treatment.
+        if (['synced', 'detached'].includes(app.status)) {
+            const chip = document.createElement('span');
+            chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${app.status}`;
+            chip.textContent = app.statusLabel;
+            detail.append(chip);
+        } else {
+            detail.textContent = app.statusLabel;
+        }
+        if (app.recordCount != null) {
+            const count = document.createElement('span');
+            count.className = 'sync-center-app-record-count';
+            count.textContent = `${app.recordCount}件`;
+            detail.append(count);
+        }
         copy.append(name, detail);
         const actions = document.createElement('div');
         actions.className = 'sync-center-app-row-actions';
