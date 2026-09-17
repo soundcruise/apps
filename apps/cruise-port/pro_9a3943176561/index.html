@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.32.4">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.32.4">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.39.4">
+    <link rel="stylesheet" href="../style.css?v=0.40.0">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=18">
     <script>
@@ -24,11 +24,11 @@
     <script src="../../shared/sync-account/production-config.js?v=2"></script>
     <script defer src="../../shared/sync-account/sync-account-core.js?v=6"></script>
     <script defer src="../../shared/sync-account/sync-account-db.js?v=8"></script>
-    <script defer src="../../shared/sync-account/sync-account-client.js?v=13"></script>
+    <script defer src="../../shared/sync-account/sync-account-client.js?v=14"></script>
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=12"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.39.4"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.40.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -213,44 +213,20 @@
                         <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-apps-help" aria-expanded="false" aria-controls="sync-center-apps-help" aria-label="アプリの接続方法を表示">?</button>
                     </div>
                     <div id="sync-center-apps-help" hidden>
-                        <ol class="sync-center-section-help-steps">
-                            <li>接続するアプリの「同期コード」を押す</li>
-                            <li>「コードをコピー」を押す</li>
-                            <li>普段使っているProアプリを開き、設定 → クラウド同期 → 「Cruise Portと接続」を押す</li>
-                            <li>コードを貼り付けて「接続する」</li>
-                        </ol>
-                        <p class="sync-center-section-help-copy">接続済みのアプリは、各行の「同期を解除」からそのアプリだけクラウド同期を解除できます。クラウド上と端末内のデータは残り、解除後は同期コードからいつでも再接続できます。</p>
+                        <p class="sync-center-section-help-copy">最初に使うアプリを接続します。未接続のアプリは「同期コード」から接続できます。「同期を解除」ではクラウドデータを残したまま、そのアプリの全環境を解除します。</p>
                     </div>
                     <ul id="sync-center-apps" class="sync-center-apps" aria-live="polite"></ul>
                 </section>
                 <section class="sync-center-section" aria-labelledby="sync-center-add-environments-title">
                     <div class="sync-center-section-heading">
-                        <h2 id="sync-center-add-environments-title">3. 別の環境を追加</h2>
-                        <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-add-environments-help" aria-expanded="false" aria-controls="sync-center-add-environments-help" aria-label="別の環境を追加する方法を表示">?</button>
+                        <h2 id="sync-center-add-environments-title">3. 環境を管理</h2>
+                        <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-add-environments-help" aria-expanded="false" aria-controls="sync-center-add-environments-help" aria-label="環境の管理方法を表示">?</button>
                     </div>
                     <div id="sync-center-add-environments-help" class="sync-center-section-help-copy" hidden>
-                        <p>同じクラウドデータを、別の端末やブラウザでも使えるようにします。</p>
-                        <h3>Cruise Port</h3>
-                        <ol class="sync-center-section-help-steps">
-                            <li>Cruise Portの「追加コード」を押す</li><li>コードをコピー</li><li>追加先でCruise Portを開く</li><li>「既存のアカウントに接続」を押す</li><li>コードを入力して接続</li>
-                        </ol>
-                        <h3>Proアプリ</h3>
-                        <ol class="sync-center-section-help-steps">
-                            <li>対象アプリの「追加コード」を押す</li><li>コードをコピー</li><li>追加したい環境でProアプリを開く</li><li>設定 → クラウド同期</li><li>「Cruise Portと接続」を押す</li><li>コードを入力して接続</li>
-                        </ol>
+                        <p>同じクラウドデータを使う端末やブラウザを追加・確認・解除できます。</p>
+                        <p>最初の接続は「2. アプリを接続」から行います。</p>
                     </div>
                     <ul id="sync-center-add-environments" class="sync-center-apps" aria-live="polite"></ul>
-                </section>
-                <section class="sync-center-section" aria-labelledby="sync-center-environments-title">
-                    <div class="sync-center-section-heading">
-                        <h2 id="sync-center-environments-title">同期中の環境</h2>
-                        <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-environments-help" aria-expanded="false" aria-controls="sync-center-environments-help" aria-label="同期中の環境の説明を表示">?</button>
-                    </div>
-                    <p id="sync-center-environments-help" class="sync-center-section-help-copy" hidden>環境とは、クラウド同期に接続したブラウザやホーム画面版です。不要になった環境は同期から解除できます。</p>
-                    <button class="sync-center-environments-toggle" type="button" data-sync-environments-toggle aria-expanded="false" aria-controls="sync-center-environments-details">詳細⌄</button>
-                    <div id="sync-center-environments-details" class="sync-center-environments-details" hidden>
-                        <ul id="sync-center-environments" class="sync-center-environments"></ul>
-                    </div>
                 </section>
                 <section class="sync-center-section" aria-labelledby="sync-center-recovery-title">
                     <div class="sync-center-section-heading">

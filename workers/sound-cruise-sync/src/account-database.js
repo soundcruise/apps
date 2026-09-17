@@ -127,7 +127,8 @@ export function createD1AccountRepository(db) {
 
     const membershipResult = await db.prepare(`
       SELECT m.id, m.app_id, m.state, m.sync_user_id, m.recovery_mode,
-             m.generation, m.created_at, m.activated_at, m.updated_at, m.deleted_at,
+             m.generation, m.created_at, m.activated_at, m.updated_at,
+             m.delete_requested_at, m.purge_after, m.deleted_at,
              d.state AS dataset_state, d.schema_version, d.record_count,
              d.manifest_hash, d.last_change_seq,
              (SELECT COUNT(*) FROM sync_membership_device_links l
@@ -165,6 +166,9 @@ export function createD1AccountRepository(db) {
         createdAt: Number(membership.created_at),
         activatedAt: membership.activated_at == null ? null : Number(membership.activated_at),
         updatedAt: Number(membership.updated_at),
+        deleteRequestedAt: membership.delete_requested_at == null
+          ? null : Number(membership.delete_requested_at),
+        purgeAfter: membership.purge_after == null ? null : Number(membership.purge_after),
         deletedAt: membership.deleted_at == null ? null : Number(membership.deleted_at),
         activeAppDeviceCount: Number(membership.active_app_device_count || 0),
         dataset: membership.dataset_state == null ? null : {

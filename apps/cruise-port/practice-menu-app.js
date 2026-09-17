@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.39.4';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.39.4';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.39.4';
+} from './sync-center-controller.js?v=0.40.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.40.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.40.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.39.4';
+} from './sync-center-navigation.js?v=0.40.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.39.4';
+} from './app-version.js?v=0.40.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -264,10 +264,10 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
         ])
     }),
     Object.freeze({
-        title: '別の環境を追加',
+        title: '環境を管理',
         paragraphs: Object.freeze([
-            '同じクラウドデータを、別の端末やブラウザでも使えるようにします。Cruise Port自身と4つのProアプリは、クラウド同期画面の「3. 別の環境を追加」から追加できます。',
-            'Cruise Portを追加するときは、追加先で「既存のアカウントに接続」を選びます。これは復旧ではなく、現在接続中のCruise Portから新しい環境へ接続を追加する操作です。'
+            '同じクラウドデータを使う端末やブラウザを追加・確認・解除できます。最初のアプリ接続は「2. アプリを接続」から行います。',
+            'Cruise Portを追加するときは、追加先で「既存のアカウントに接続」を選びます。'
         ]),
         steps: Object.freeze([
             'Cruise Port: 「追加コード」→ コピー → 追加先でCruise Portを開く → 「既存のアカウントに接続」→ コードを入力',
@@ -277,10 +277,6 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     Object.freeze({
         title: '復旧コード',
         paragraphs: Object.freeze(['復旧コードは、同期中の環境をすべて失った場合にクラウド同期を取り戻すためのコードです。現在有効なコードは1つだけで、新しいコードを発行すると以前のコードは使えなくなります。運営者へ送らず、安全な場所へ保存してください。'])
-    }),
-    Object.freeze({
-        title: '同期中の環境',
-        paragraphs: Object.freeze(['環境とは、同期に接続したブラウザ、ブラウザプロファイル、またはホーム画面版/PWAです。同じ端末でも保存領域が異なる場合は別の環境として表示されます。環境の同期解除は、その環境の同期資格だけを無効にします。'])
     }),
     Object.freeze({
         title: 'オフライン・競合',

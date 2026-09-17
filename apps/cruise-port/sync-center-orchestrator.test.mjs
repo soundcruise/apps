@@ -65,6 +65,16 @@ function fixture() {
             calls.push(['detach-current-environment', operationId]);
             return { status: 'detached', scope: 'current_environment', revokedAppDeviceCount: 4 };
         }
+        async cancelAppDelete({ appId, operationId }) {
+            calls.push(['cancel-app-delete', appId, operationId]);
+            const membership = memberships.get(appId);
+            if (membership) memberships.set(appId, { ...membership, state: 'active', activeAppDeviceCount: 0 });
+            return { status: 'active', appId };
+        }
+        async revokeAppEnvironment({ appId, appDeviceId, operationId }) {
+            calls.push(['revoke-app-environment', appId, appDeviceId, operationId]);
+            return { status: 'revoked', appId, appDeviceId };
+        }
     }
     let operation = 0;
     const accountRoot = {
@@ -217,6 +227,23 @@ test('app detach uses Account authority once and immediate rejoin reuses the act
     assert.equal(memberships.get('rhythm').id, 'm-rhythm');
     assert.equal(memberships.get('rhythm').dataset.state, 'ready');
     assert.equal(calls.filter(([kind, appId]) => kind === 'prepare' && appId === 'rhythm').length, 0);
+});
+
+test('delete cancellation completes before issuing a reconnect code and app environment revoke stays scoped', async () => {
+    const { orchestrator, calls, memberships } = fixture();
+    memberships.set('pitch', {
+        id: 'm-pitch', appId: 'pitch', state: 'deleting', activeAppDeviceCount: 0,
+        dataset: { state: 'ready', recordCount: 4 }
+    });
+    const join = await orchestrator.cancelAppDeleteAndLaunch('pitch');
+    assert.equal(join.kind, 'join');
+    assert.deepEqual(calls.filter(([kind]) => ['cancel-app-delete', 'join'].includes(kind))
+        .map(([kind, appId]) => [kind, appId]), [
+        ['cancel-app-delete', 'pitch'], ['join', 'pitch']
+    ]);
+    await orchestrator.revokeAppEnvironment('pitch', 'app-device-1');
+    assert.deepEqual(calls.find(([kind]) => kind === 'revoke-app-environment').slice(0, 3),
+        ['revoke-app-environment', 'pitch', 'app-device-1']);
 });
 
 test('current Port detach uses only the stored Account authority and does not issue a Join or Delete intent', async () => {

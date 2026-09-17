@@ -62,6 +62,23 @@ test('membership presentation covers unset, prepared, initial, ready, attention 
     }).key, 'detached');
     assert.equal(membershipPresentation({ state: 'broken' }).key, 'attention');
     assert.equal(membershipPresentation({ state: 'deleted' }).key, 'deleting');
+    assert.equal(membershipPresentation({ state: 'pending', activeAppDeviceCount: 0 }).key, 'detached');
+    assert.equal(membershipPresentation({ state: 'pending', activeAppDeviceCount: 1 }).key, 'connecting');
+    assert.equal(membershipPresentation({
+        state: 'active', activeAppDeviceCount: 1, dataset: { state: 'initializing' }
+    }).key, 'connecting');
+    assert.equal(membershipPresentation({
+        state: 'deleting', activeAppDeviceCount: 0, deletedAt: null,
+        deleteRequestedAt: 500, purgeAfter: 2_000
+    }, { accountDeleting: false, now: 1_000 }).key, 'detached');
+    assert.equal(membershipPresentation({
+        state: 'deleting', activeAppDeviceCount: 0, deletedAt: null,
+        deleteRequestedAt: 500, purgeAfter: 2_000
+    }, { accountDeleting: true, now: 1_000 }).key, 'deleting');
+    assert.equal(membershipPresentation({
+        state: 'deleting', activeAppDeviceCount: 0, deletedAt: null,
+        deleteRequestedAt: 500, purgeAfter: 1_000
+    }, { accountDeleting: false, now: 1_000 }).key, 'deleting');
 });
 
 test('summary normalization exposes only the stable display Account ID, never raw identifiers or hashes', () => {
@@ -93,6 +110,19 @@ test('environment normalization retains only the server-derived Port classificat
     ]);
 });
 
+test('app environment metadata is grouped by app and excludes revoked environments', () => {
+    const model = normalizeSyncCenterSummary(activeSummary, {
+        devices: [],
+        appDevices: [
+            { id: 'pitch-a', appId: 'pitch', label: 'iPhone', revokedAt: null, lastSeenAt: 10 },
+            { id: 'pitch-old', appId: 'pitch', label: 'Old', revokedAt: 20 },
+            { id: 'chord-a', appId: 'chord', label: 'PWA', revokedAt: null, isCurrent: true }
+        ]
+    });
+    assert.deepEqual(model.apps.find((app) => app.id === 'pitch').environments.map(({ id }) => id), ['pitch-a']);
+    assert.deepEqual(model.apps.find((app) => app.id === 'chord').environments.map(({ id }) => id), ['chord-a']);
+});
+
 test('only a ready active membership with an existing app device can add another environment', () => {
     const model = normalizeSyncCenterSummary({
         account: { id: 'account', state: 'active', recoveryVersion: 1 },
@@ -107,6 +137,24 @@ test('only a ready active membership with an existing app device can add another
         ['pitch', false], ['fretboard', false], ['rhythm', false], ['chord', true]
     ]);
     assert.equal(model.readyCount, 1, 'a retained dataset with no app device is detached, not currently synced');
+});
+
+test('app-scoped delete grace is presented as a detached reconnect path, not an active environment', () => {
+    const model = normalizeSyncCenterSummary({
+        account: { id: 'account', state: 'active', recoveryVersion: 1 },
+        memberships: [{
+            appId: 'pitch', state: 'deleting', deletedAt: null,
+            deleteRequestedAt: Date.now() - 1_000,
+            purgeAfter: Date.now() + 60_000,
+            activeAppDeviceCount: 0, dataset: { state: 'ready', recordCount: 2 }
+        }]
+    }, { devices: [], appDevices: [] });
+    const pitch = model.apps.find((app) => app.id === 'pitch');
+    assert.equal(pitch.status, 'detached');
+    assert.equal(pitch.statusLabel, '未接続');
+    assert.equal(pitch.deleteGrace, true);
+    assert.equal(pitch.canAddEnvironment, false);
+    assert.deepEqual(pitch.environments, []);
 });
 
 function accountRoot({ account = null, summary = activeSummary, devices = { devices: [] }, fail = false } = {}) {

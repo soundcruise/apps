@@ -528,6 +528,41 @@ test('environment revoke invalidates linked app credentials without deleting loc
   db.close();
 });
 
+test('app environment revoke targets one app device and preserves its Account environment and durable data', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const repository = createD1AccountLifecycleRepository(db);
+  const identity = { accountId: IDS.account, accountDeviceId: IDS.accountB };
+  const listed = await repository.listAppEnvironments(identity);
+  assert.deepEqual(listed.map(({ appId, id }) => [appId, id]), [
+    ['pitch', IDS.pitchDevice], ['fretboard', IDS.fretboardDevice],
+    ['rhythm', IDS.rhythmDevice], ['chord', IDS.chordDevice]
+  ]);
+  const before = {
+    records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+    changes: db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count,
+    datasets: db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count
+  };
+  const input = {
+    operationId: '90000000-0000-4000-8000-000000000020',
+    requestFingerprint: hex('2'), appId: 'chord', appDeviceId: IDS.chordDevice, now: 2_000
+  };
+  assert.equal((await repository.revokeAppEnvironment(identity, input)).status, 'revoked');
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_devices WHERE id = ?')
+    .get(IDS.chordDevice).revoked_at, 2_000);
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_devices WHERE id = ?')
+    .get(IDS.fretboardDevice).revoked_at, null, 'another app on the same Account environment is preserved');
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_account_devices WHERE id = ?')
+    .get(IDS.accountA).revoked_at, null, 'Account environment remains active');
+  assert.deepEqual({
+    records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+    changes: db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count,
+    datasets: db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count
+  }, before);
+  assert.equal((await repository.revokeAppEnvironment(identity, { ...input, now: 2_001 })).alreadyRevoked, true);
+  db.close();
+});
+
 test('current Port environment detach follows invitation issuer links only and preserves Account data', async () => {
   const db = createSqliteD1();
   seedAccount(db);
@@ -800,6 +835,80 @@ test('App-scoped delete retains its dataset for grace and leaves Account and oth
   });
   assert.equal(retry.alreadyDeleting, true);
   db.close();
+});
+
+test('App-scoped delete cancellation atomically restores the same dataset without reviving devices', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const repository = createD1AccountLifecycleRepository(db);
+  const identity = { accountId: IDS.account, accountDeviceId: IDS.accountA };
+  await issueIntent(repository, identity, 'app', 'chord');
+  await repository.commitDelete(identity, {
+    operationId: IDS.intentCommit, requestFingerprint: hex('8'),
+    intentId: IDS.intent, intentVerifier: hex('7'), scope: 'app', appId: 'chord', now: 3_000
+  });
+  const before = {
+    records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+    changes: db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count,
+    datasets: db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count
+  };
+  const input = {
+    operationId: '90000000-0000-4000-8000-000000000021',
+    requestFingerprint: hex('b'), appId: 'chord', now: 4_000
+  };
+  const cancelled = await repository.cancelAppDelete(identity, input);
+  assert.equal(cancelled.status, 'active');
+  assert.equal(cancelled.membershipId, IDS.chordMembership);
+  assert.deepEqual({ ...db.raw.prepare(`
+    SELECT state, delete_requested_at, purge_after, deleted_at
+    FROM sync_account_memberships WHERE id = ?
+  `).get(IDS.chordMembership) }, {
+    state: 'active', delete_requested_at: null, purge_after: null, deleted_at: null
+  });
+  assert.deepEqual({ ...db.raw.prepare(`
+    SELECT state, delete_requested_at, purge_after, deleted_at FROM sync_users WHERE id = ?
+  `).get(IDS.chordUser) }, {
+    state: 'active', delete_requested_at: null, purge_after: null, deleted_at: null
+  });
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) count FROM sync_devices
+    WHERE user_id = ? AND revoked_at IS NULL`).get(IDS.chordUser).count, 0,
+  'cancellation does not revive an old app device');
+  assert.equal(db.raw.prepare('SELECT state FROM sync_datasets WHERE user_id = ? AND app_id = ?')
+    .get(IDS.chordUser, 'chord').state, 'ready');
+  assert.deepEqual({
+    records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+    changes: db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count,
+    datasets: db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count
+  }, before);
+  assert.equal((await repository.cancelAppDelete(identity, { ...input, now: 4_001 })).alreadyCancelled, true);
+  assert.equal((await repository.cancelAppDelete(identity, {
+    ...input, operationId: crypto.randomUUID(), requestFingerprint: hex('c'), appId: 'pitch', now: 4_002
+  })).status, 'invalid');
+  db.close();
+});
+
+test('delete cancellation fails closed after grace and during Account-wide deletion', async () => {
+  for (const scope of ['expired', 'account']) {
+    const db = createSqliteD1();
+    seedAccount(db);
+    const repository = createD1AccountLifecycleRepository(db);
+    const identity = { accountId: IDS.account, accountDeviceId: IDS.accountA };
+    await issueIntent(repository, identity, scope === 'account' ? 'account' : 'app',
+      scope === 'account' ? null : 'chord');
+    const deleted = await repository.commitDelete(identity, {
+      operationId: IDS.intentCommit, requestFingerprint: hex('8'),
+      intentId: IDS.intent, intentVerifier: hex('7'),
+      scope: scope === 'account' ? 'account' : 'app',
+      appId: scope === 'account' ? null : 'chord', now: 3_000
+    });
+    const result = await repository.cancelAppDelete(identity, {
+      operationId: '90000000-0000-4000-8000-000000000022',
+      requestFingerprint: hex('d'), appId: 'chord',
+      now: scope === 'expired' ? deleted.purgeAfter : 4_000
+    });
+    assert.equal(result.status, 'invalid', scope);
+    db.close();
+  }
 });
 
 test('Account-wide delete revokes every credential and scheduled cleanup purges only after grace', async () => {

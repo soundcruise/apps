@@ -703,6 +703,128 @@ test('App Detach requires Account authority, is rate-limited and leaves the acti
   db.close();
 });
 
+test('Account authority can revoke one app environment and cancel app deletion before issuing a new Join Code', async () => {
+  const db = createSqliteD1();
+  enableLifecycleControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['pitch']);
+  const credential = started.candidate.account.credential;
+  const invitationId = crypto.randomUUID();
+  const joinCode = createAppJoinCode();
+  let response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations', {
+    operationId: crypto.randomUUID(), invitationId, appId: 'pitch', joinCode
+  }, { credential }), env);
+  assert.equal(response.status, 201);
+  const targetAccount = createAccountCredential();
+  const targetApp = await createIdentityMaterial(appPepper);
+  const targetQa = createQaCredential();
+  response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations/consume', {
+    operationId: crypto.randomUUID(), appId: 'pitch', joinCode,
+    accountCredential: targetAccount.credential, appDeviceCredential: targetApp.credential,
+    qaCredential: targetQa.credential, deviceLabel: 'Pitch environment', consumeMode: 'new_app'
+  }), env);
+  assert.equal(response.status, 201);
+  db.raw.prepare(`
+    INSERT OR IGNORE INTO sync_datasets (
+      user_id, app_id, state, schema_version, record_count, manifest_hash,
+      min_change_seq, initialized_at, updated_at, last_change_seq
+    ) SELECT sync_user_id, 'pitch', 'ready', 1, 0, NULL, 0, 1, 1, 0
+      FROM sync_account_memberships
+      WHERE account_id = ? AND app_id = 'pitch'
+  `).run(started.payload.accountId);
+  db.raw.prepare(`
+    UPDATE sync_datasets SET state = 'ready', initialized_at = COALESCE(initialized_at, updated_at)
+    WHERE user_id = (SELECT sync_user_id FROM sync_account_memberships
+      WHERE account_id = ? AND app_id = 'pitch') AND app_id = 'pitch'
+  `).run(started.payload.accountId);
+
+  response = await handleRequest(jsonRequest('/v2/accounts/devices', undefined, { credential }), env);
+  assert.equal(response.status, 200);
+  const listed = await response.json();
+  assert.equal(listed.appDevices.filter((device) =>
+    device.appId === 'pitch' && device.revokedAt == null).length, 1);
+  assert.equal(JSON.stringify(listed).includes('credential_verifier'), false);
+
+  const revokeBody = {
+    operationId: crypto.randomUUID(), appId: 'pitch', appDeviceId: targetApp.deviceId
+  };
+  response = await handleRequest(jsonRequest(
+    '/v2/accounts/memberships/pitch/devices/revoke', revokeBody,
+    { credential: targetApp.credential }
+  ), env);
+  assert.equal(response.status, 401, 'an app credential cannot use the Account control plane');
+  response = await handleRequest(jsonRequest(
+    '/v2/accounts/memberships/chord/devices/revoke', revokeBody, { credential }
+  ), env);
+  assert.equal(response.status, 400, 'route app and payload app must match');
+  response = await handleRequest(jsonRequest(
+    '/v2/accounts/memberships/pitch/devices/revoke', revokeBody, { credential }
+  ), env);
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  assert.equal((await response.json()).operation, 'revoked');
+  response = await handleRequest(jsonRequest(
+    '/v2/accounts/memberships/pitch/devices/revoke', revokeBody, { credential }
+  ), env);
+  assert.equal(response.status, 200, 'exact environment-revoke retry is idempotent');
+  assert.equal((await response.json()).operation, 'existing');
+  assert.notEqual(db.raw.prepare('SELECT revoked_at FROM sync_devices WHERE id = ?')
+    .get(targetApp.deviceId).revoked_at, null);
+  assert.equal(db.raw.prepare('SELECT state FROM sync_datasets WHERE app_id = ?')
+    .get('pitch').state, 'ready');
+
+  const intent = createAccountDeleteIntent();
+  response = await handleRequest(jsonRequest('/v2/accounts/memberships/pitch/delete-intent', {
+    operationId: crypto.randomUUID(), intentToken: intent.intentToken, appId: 'pitch'
+  }, { credential }), env);
+  assert.equal(response.status, 201);
+  response = await handleRequest(jsonRequest('/v2/accounts/memberships/pitch', {
+    operationId: crypto.randomUUID(), intentToken: intent.intentToken, appId: 'pitch'
+  }, { credential, method: 'DELETE' }), env);
+  assert.equal(response.status, 202);
+  const membership = db.raw.prepare(`SELECT id, sync_user_id, state, purge_after
+    FROM sync_account_memberships WHERE account_id = ? AND app_id = 'pitch'`)
+    .get(started.payload.accountId);
+  assert.equal(membership.state, 'deleting');
+  response = await handleRequest(jsonRequest('/v2/accounts/summary', undefined, { credential }), env);
+  assert.equal(response.status, 200);
+  const deletingSummary = await response.json();
+  const deletingPitch = deletingSummary.memberships.find((item) => item.appId === 'pitch');
+  assert.equal(deletingPitch.deleteRequestedAt != null, true);
+  assert.equal(deletingPitch.purgeAfter, membership.purge_after,
+    'the UI receives the authoritative grace deadline without secret material');
+
+  const cancelBody = { operationId: crypto.randomUUID(), appId: 'pitch' };
+  response = await handleRequest(jsonRequest(
+    '/v2/accounts/memberships/pitch/delete/cancel', cancelBody,
+    { credential: targetApp.credential }
+  ), env);
+  assert.equal(response.status, 401, 'an app credential alone cannot cancel app deletion');
+  response = await handleRequest(jsonRequest(
+    '/v2/accounts/memberships/pitch/delete/cancel', cancelBody, { credential }
+  ), env);
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  assert.equal((await response.json()).operation, 'cancelled');
+  response = await handleRequest(jsonRequest(
+    '/v2/accounts/memberships/pitch/delete/cancel', cancelBody, { credential }
+  ), env);
+  assert.equal(response.status, 200, 'exact delete-cancel retry is idempotent');
+  assert.equal((await response.json()).operation, 'existing');
+  assert.deepEqual({ ...db.raw.prepare(`SELECT state, purge_after FROM sync_account_memberships
+    WHERE id = ?`).get(membership.id) }, { state: 'active', purge_after: null });
+  assert.deepEqual({ ...db.raw.prepare(`SELECT state, purge_after FROM sync_users
+    WHERE id = ?`).get(membership.sync_user_id) }, { state: 'active', purge_after: null });
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) count FROM sync_devices
+    WHERE user_id = ? AND revoked_at IS NULL`).get(membership.sync_user_id).count, 0,
+  'cancelling deletion does not revive the old app environment');
+
+  response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations', {
+    operationId: crypto.randomUUID(), invitationId: crypto.randomUUID(),
+    appId: 'pitch', joinCode: createAppJoinCode()
+  }, { credential }), env);
+  assert.equal(response.status, 201, 'a new Join Code is available only after cancellation succeeds');
+  db.close();
+});
+
 test('Port-to-Port Join is exact-origin, rate-limited, one-time and secret-free', async () => {
   const db = createSqliteD1();
   enableLifecycleControl(db);

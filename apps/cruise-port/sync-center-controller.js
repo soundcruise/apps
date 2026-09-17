@@ -11,6 +11,7 @@ const MEMBERSHIP_STATES = Object.freeze({
     unset: Object.freeze({ key: 'unset', label: '未設定', action: 'setup' }),
     prepared: Object.freeze({ key: 'prepared', label: '準備済み', action: 'open' }),
     detached: Object.freeze({ key: 'detached', label: '未接続', action: 'setup' }),
+    connecting: Object.freeze({ key: 'connecting', label: '接続中', action: 'open' }),
     initial: Object.freeze({ key: 'initial', label: '初回同期が必要', action: 'open' }),
     synced: Object.freeze({ key: 'synced', label: '同期済み', action: 'open' }),
     attention: Object.freeze({ key: 'attention', label: '確認が必要', action: 'open' }),
@@ -46,17 +47,34 @@ export function readSyncCenterConfig(globalObject = globalThis) {
     }
 }
 
-export function membershipPresentation(membership) {
+function isAppDeleteGrace(membership, accountDeleting, now = Date.now()) {
+    return membership?.state === 'deleting' && !accountDeleting &&
+        membership.deletedAt == null && safeCount(membership.deleteRequestedAt) != null &&
+        safeCount(membership.purgeAfter) != null && membership.purgeAfter > now;
+}
+
+export function membershipPresentation(membership, { accountDeleting = true, now = Date.now() } = {}) {
     if (!membership) return MEMBERSHIP_STATES.unset;
+    if (isAppDeleteGrace(membership, accountDeleting, now)) {
+        return MEMBERSHIP_STATES.detached;
+    }
     if (membership.deletedAt != null || ['deleting', 'deleted'].includes(membership.state)) {
         return MEMBERSHIP_STATES.deleting;
     }
-    if (['pending', 'prepared'].includes(membership.state)) return MEMBERSHIP_STATES.prepared;
+    const activeDevices = safeCount(membership.activeAppDeviceCount);
+    if (['pending', 'prepared'].includes(membership.state)) {
+        return activeDevices === 0 ? MEMBERSHIP_STATES.detached
+            : activeDevices > 0 ? MEMBERSHIP_STATES.connecting : MEMBERSHIP_STATES.prepared;
+    }
     if (membership.state !== 'active') return MEMBERSHIP_STATES.attention;
-    if (membership.dataset?.state === 'ready' && membership.activeAppDeviceCount === 0) {
+    if (membership.dataset?.state === 'ready' && activeDevices === 0) {
         return MEMBERSHIP_STATES.detached;
     }
     if (membership.dataset?.state === 'ready') return MEMBERSHIP_STATES.synced;
+    if (activeDevices > 0 && (!membership.dataset ||
+        ['initializing', 'migrating', 'empty'].includes(membership.dataset.state))) {
+        return MEMBERSHIP_STATES.connecting;
+    }
     if (!membership.dataset || ['initializing', 'migrating', 'empty'].includes(membership.dataset.state)) {
         return MEMBERSHIP_STATES.initial;
     }
@@ -67,9 +85,10 @@ function safeCount(value) {
     return Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
-function normalizeApp(app, membership) {
-    const status = membershipPresentation(membership);
+function normalizeApp(app, membership, appEnvironments = [], accountDeleting = false, now = Date.now()) {
+    const status = membershipPresentation(membership, { accountDeleting, now });
     const activeAppDeviceCount = safeCount(membership?.activeAppDeviceCount);
+    const deleteGrace = isAppDeleteGrace(membership, accountDeleting, now);
     return Object.freeze({
         id: app.id,
         name: app.name,
@@ -79,6 +98,8 @@ function normalizeApp(app, membership) {
         recordCount: safeCount(membership?.dataset?.recordCount),
         schemaVersion: safeCount(membership?.dataset?.schemaVersion),
         activeAppDeviceCount,
+        deleteGrace,
+        environments: Object.freeze(appEnvironments),
         // This does not change four-app progress: it represents a second
         // browser/PWA/container for an already ready app dataset.
         canAddEnvironment: status.key === 'synced' && (activeAppDeviceCount || 0) > 0
@@ -93,10 +114,10 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
     const byApp = new Map(rawMemberships
         .filter((item) => item && typeof item.appId === 'string')
         .map((item) => [item.appId, item]));
-    const apps = Object.freeze(SYNC_CENTER_APPS.map((app) => normalizeApp(app, byApp.get(app.id))));
     const deleting = account.deletedAt != null || account.deleteRequestedAt != null ||
         ['deleting', 'deleted'].includes(account.state);
     const accountState = deleting ? 'deleting' : account.state === 'active' ? 'active' : 'attention';
+    const now = Date.now();
     const rawDevices = Array.isArray(devicesResponse?.devices) ? devicesResponse.devices : [];
     const environments = Object.freeze(rawDevices.map((device) => Object.freeze({
         id: typeof device?.id === 'string' ? device.id : null,
@@ -110,6 +131,22 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
             ? device.relatedApps.filter((appId) => SYNC_CENTER_APPS.some((app) => app.id === appId))
             : [])
     })));
+    const rawAppDevices = Array.isArray(devicesResponse?.appDevices) ? devicesResponse.appDevices : [];
+    const appEnvironments = rawAppDevices.filter((device) => device?.revokedAt == null &&
+        SYNC_CENTER_APPS.some((app) => app.id === device?.appId)).map((device) => Object.freeze({
+        id: typeof device?.id === 'string' ? device.id : null,
+        appId: device.appId,
+        label: typeof device?.label === 'string' && device.label.trim()
+            ? device.label.trim() : '名前のない環境',
+        isCurrent: device?.isCurrent === true,
+        state: 'active',
+        createdAt: safeCount(device?.createdAt),
+        lastSeenAt: safeCount(device?.lastSeenAt)
+    }));
+    const apps = Object.freeze(SYNC_CENTER_APPS.map((app) => normalizeApp(
+        app, byApp.get(app.id), appEnvironments.filter((environment) => environment.appId === app.id),
+        deleting, now
+    )));
     return Object.freeze({
         kind: 'ready',
         accountState,

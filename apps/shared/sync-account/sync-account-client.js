@@ -473,6 +473,32 @@
       return Object.freeze(result);
     }
 
+    async revokeAppEnvironment({ accountCredential, appId, appDeviceId, operationId }) {
+      if (!this.core.validAccountCredential(accountCredential) ||
+          !this.core.ACCOUNT_APPS.includes(appId) || typeof appDeviceId !== 'string' ||
+          typeof operationId !== 'string') {
+        throw new Error('account_app_environment_revoke_invalid');
+      }
+      return Object.freeze(await this.request(
+        `/v2/accounts/memberships/${encodeURIComponent(appId)}/devices/revoke`, {
+          method: 'POST', accountCredential,
+          body: { operationId, appId, appDeviceId }
+        }
+      ));
+    }
+
+    async cancelAppDelete({ accountCredential, appId, operationId }) {
+      if (!this.core.validAccountCredential(accountCredential) ||
+          !this.core.ACCOUNT_APPS.includes(appId) || typeof operationId !== 'string') {
+        throw new Error('account_app_delete_cancel_invalid');
+      }
+      return Object.freeze(await this.request(
+        `/v2/accounts/memberships/${encodeURIComponent(appId)}/delete/cancel`, {
+          method: 'POST', accountCredential, body: { operationId, appId }
+        }
+      ));
+    }
+
     async resumePendingDetach() {
       const pending = await this.storage.getPendingDetach?.();
       if (!pending) return Object.freeze({ status: 'none' });

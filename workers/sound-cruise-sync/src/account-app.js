@@ -44,6 +44,8 @@ import {
   validateAccountDeleteCommitPayload,
   validateAccountDeleteIntentPayload,
   validateAccountAppDetachPayload,
+  validateAccountAppDeleteCancelPayload,
+  validateAccountAppEnvironmentRevokePayload,
   validateAccountDeviceRevokePayload,
   validateCurrentAppEnvironmentDetachPayload,
   validateCurrentEnvironmentDetachPayload,
@@ -181,6 +183,26 @@ const ACCOUNT_ROUTES = Object.freeze({
 const QA_HEADER = 'x-sound-cruise-qa-authorization';
 
 function resolvedRoute(pathname, method) {
+  const appDeleteCancel = pathname.match(
+    /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/delete\/cancel$/
+  );
+  if (appDeleteCancel) {
+    return {
+      method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+      headers: ['content-type', 'authorization', 'x-d1-bookmark'],
+      appId: appDeleteCancel[1]
+    };
+  }
+  const appEnvironmentRevoke = pathname.match(
+    /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/devices\/revoke$/
+  );
+  if (appEnvironmentRevoke) {
+    return {
+      method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+      headers: ['content-type', 'authorization', 'x-d1-bookmark'],
+      appId: appEnvironmentRevoke[1]
+    };
+  }
   const membershipDetach = pathname.match(/^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/detach$/);
   if (membershipDetach) {
     return {
@@ -556,8 +578,12 @@ async function handleDevices(request, env, origin, route, dependencies, url) {
     const repository = (
       dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
     )(context.session);
-    const devices = await repository.listEnvironments(context.identity);
-    return jsonResponse(200, { ok: true, devices }, origin, route, bookmarkHeader(context.session));
+    const [devices, appDevices] = await Promise.all([
+      repository.listEnvironments(context.identity),
+      repository.listAppEnvironments(context.identity)
+    ]);
+    return jsonResponse(200, { ok: true, devices, appDevices }, origin, route,
+      bookmarkHeader(context.session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
   }
@@ -1125,6 +1151,75 @@ async function handleAppDetach(request, env, origin, route, dependencies, appId)
     if (result.status !== 'detached') return errorResponse(409, 'membership_state_invalid', origin, route);
     return jsonResponse(200, { ok: true, operation: 'detached', ...result },
       origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAppEnvironmentRevoke(request, env, origin, route, dependencies, appId) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountAppEnvironmentRevokePayload(parsed.value);
+  if (!validation.ok || validation.value.appId !== appId) {
+    return errorResponse(400, 'invalid_request', origin, route);
+  }
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const value = validation.value;
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )(['account-app-environment-revoke', context.identity.accountId, appId,
+      value.appDeviceId, dependencies.admissionProvenance]);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(context.session);
+    const result = await repository.revokeAppEnvironment(context.identity, {
+      operationId: value.operationId, requestFingerprint, appId,
+      appDeviceId: value.appDeviceId, now: Date.now()
+    });
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'revoked') return errorResponse(409, 'environment_detach_unavailable', origin, route);
+    return jsonResponse(200, {
+      ok: true, operation: result.alreadyRevoked ? 'existing' : 'revoked', ...result
+    }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAppDeleteCancel(request, env, origin, route, dependencies, appId) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountAppDeleteCancelPayload(parsed.value);
+  if (!validation.ok || validation.value.appId !== appId) {
+    return errorResponse(400, 'invalid_request', origin, route);
+  }
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const value = validation.value;
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )(['account-app-delete-cancel', context.identity.accountId, appId,
+      dependencies.admissionProvenance]);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(context.session);
+    const result = await repository.cancelAppDelete(context.identity, {
+      operationId: value.operationId, requestFingerprint, appId, now: Date.now()
+    });
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'active') return errorResponse(409, 'delete_cancellation_unavailable', origin, route);
+    return jsonResponse(200, {
+      ok: true, operation: result.alreadyCancelled ? 'existing' : 'cancelled', ...result
+    }, origin, route, bookmarkHeader(context.session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
   }
@@ -2138,6 +2233,20 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   );
   if (membershipDetach) {
     return handleAppDetach(request, env, origin, route, dependencies, membershipDetach[1]);
+  }
+  const appEnvironmentRevoke = url.pathname.match(
+    /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/devices\/revoke$/
+  );
+  if (appEnvironmentRevoke) {
+    return handleAppEnvironmentRevoke(
+      request, env, origin, route, dependencies, appEnvironmentRevoke[1]
+    );
+  }
+  const appDeleteCancel = url.pathname.match(
+    /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/delete\/cancel$/
+  );
+  if (appDeleteCancel) {
+    return handleAppDeleteCancel(request, env, origin, route, dependencies, appDeleteCancel[1]);
   }
   if (url.pathname === '/v2/accounts/recovery/prepare') {
     return handleAccountRecoveryPrepare(request, env, origin, route, dependencies);

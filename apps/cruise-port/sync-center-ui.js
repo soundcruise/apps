@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.4';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.40.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -65,6 +65,10 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
                 });
             }
         }
+        if (needsInitialConnection && app.deleteGrace) {
+            action.dataset.syncAppDeleteGrace = 'true';
+            action.dataset.syncAppName = app.name;
+        }
         if (canRemoveAppSync) {
             action.type = 'button';
             action.dataset.syncAppDetach = app.id;
@@ -92,27 +96,29 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
     list.replaceChildren(...rows);
 }
 
-function renderAddEnvironmentRows(root, presentation, edition, orchestrationEnabled) {
+function renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled) {
     const list = root.querySelector('#sync-center-add-environments');
     if (!list) return;
     const activeAccount = presentation.accountState === 'active';
+    const portEnvironments = presentation.environments.filter((environment) =>
+        environment.state === 'active' && environment.isPortEnvironment);
     const entries = [
         {
             id: 'port', name: 'Cruise Port',
             icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png`,
             available: activeAccount,
-            detail: activeAccount ? '別の端末やブラウザを追加' : 'アカウント作成後に利用できます'
+            environments: portEnvironments
         },
         ...presentation.apps.map((app) => ({
             ...app,
             icon: CRUISE_APP_ICONS[app.id][edition === 'pro' ? 'pro' : 'standard'],
-            available: activeAccount && app.canAddEnvironment,
-            detail: app.canAddEnvironment ? '別の端末やブラウザを追加' : app.statusLabel
+            available: activeAccount && app.canAddEnvironment && !app.deleteGrace,
+            environments: Array.isArray(app.environments) ? app.environments : []
         }))
     ];
     const rows = entries.map((entry) => {
         const row = document.createElement('li');
-        row.className = 'sync-center-app';
+        row.className = 'sync-center-app sync-center-environment-group';
         const image = document.createElement('img');
         image.src = entry.icon;
         image.alt = '';
@@ -122,58 +128,63 @@ function renderAddEnvironmentRows(root, presentation, edition, orchestrationEnab
         copy.className = 'sync-center-app-copy';
         const name = document.createElement('strong');
         name.textContent = entry.name;
-        const detail = document.createElement('span');
-        detail.textContent = entry.detail;
-        copy.append(name, detail);
-        const action = document.createElement('button');
-        action.type = 'button';
-        action.className = 'sync-center-app-action secondary';
-        action.textContent = '追加コード';
-        action.disabled = !orchestrationEnabled || !entry.available;
-        action.setAttribute('aria-label', `${entry.name}の追加コードを表示`);
-        if (entry.id === 'port') action.dataset.syncPortAddEnvironment = 'true';
-        else action.dataset.syncAppAddEnvironment = entry.id;
-        row.append(image, copy, action);
-        return row;
-    });
-    list.replaceChildren(...rows);
-}
-
-function renderEnvironments(root, presentation) {
-    const list = root.querySelector('#sync-center-environments');
-    if (!list) return;
-    const activePortCount = presentation.environments.filter((environment) =>
-        environment.state === 'active' && environment.isPortEnvironment).length;
-    const rows = presentation.environments.length
-        ? presentation.environments.map((environment) => {
+        copy.append(name);
+        const actions = document.createElement('div');
+        actions.className = 'sync-center-app-row-actions sync-center-environment-actions';
+        const count = document.createElement('button');
+        count.type = 'button';
+        count.className = 'sync-center-environment-count';
+        count.textContent = `${entry.environments.length}環境${entry.environments.length ? '⌄' : ''}`;
+        count.disabled = entry.environments.length === 0;
+        count.dataset.syncEnvironmentToggle = entry.id;
+        count.setAttribute('aria-expanded', 'false');
+        count.setAttribute('aria-label', `${entry.name}の環境一覧を表示`);
+        const add = document.createElement('button');
+        add.type = 'button';
+        add.className = 'sync-center-app-action secondary';
+        add.textContent = '追加コード';
+        add.disabled = !orchestrationEnabled || !entry.available;
+        add.setAttribute('aria-label', `${entry.name}の追加コードを表示`);
+        if (entry.id === 'port') add.dataset.syncPortAddEnvironment = 'true';
+        else add.dataset.syncAppAddEnvironment = entry.id;
+        actions.append(count, add);
+        const details = document.createElement('ul');
+        details.className = 'sync-center-environments sync-center-environment-list';
+        details.dataset.syncEnvironmentDetails = entry.id;
+        details.hidden = true;
+        const environmentRows = entry.environments.map((environment) => {
             const item = document.createElement('li');
             const copy = document.createElement('span');
-            const related = environment.relatedApps.length
-                ? `・${environment.relatedApps.map((appId) => ({ chord: 'コード', pitch: '音感', fretboard: '指板', rhythm: 'リズム' })[appId]).join(' / ')}`
-                : '';
-            copy.textContent = `${environment.label}${environment.isCurrent ? '（この環境）' : ''}・${environment.state === 'active' ? '接続中' : '解除済み'}${related}`;
+            copy.textContent = `${environment.label}${environment.isCurrent ? '（この環境）' : ''}`;
             const metadata = document.createElement('small');
-            const created = environment.createdAt == null ? '不明' : new Date(environment.createdAt).toLocaleString('ja-JP');
             const lastSeen = environment.lastSeenAt == null ? '不明' : new Date(environment.lastSeenAt).toLocaleString('ja-JP');
-            metadata.textContent = `作成 ${created}・最終利用 ${lastSeen}`;
+            metadata.textContent = `最終利用 ${lastSeen}`;
             copy.append(metadata);
             item.append(copy);
-            if (environment.state === 'active' && environment.id) {
+            if (environment.id) {
                 const revoke = document.createElement('button');
                 revoke.type = 'button';
                 revoke.className = 'action-button secondary-action';
-                revoke.dataset.syncEnvironmentRevoke = environment.id;
+                revoke.textContent = '解除';
                 revoke.dataset.syncEnvironmentCurrent = environment.isCurrent ? 'true' : 'false';
-                if (environment.isCurrent && environment.isPortEnvironment) {
-                    revoke.dataset.syncCurrentEnvironmentDetach = 'true';
-                    revoke.dataset.syncCurrentEnvironmentLastPort = String(activePortCount === 1);
-                    revoke.textContent = 'この環境の接続を解除';
-                } else revoke.textContent = environment.isCurrent ? 'この環境の同期を解除' : '同期を解除';
+                if (entry.id === 'port') {
+                    revoke.dataset.syncEnvironmentRevoke = environment.id;
+                    if (environment.isCurrent) {
+                        revoke.dataset.syncCurrentEnvironmentDetach = 'true';
+                        revoke.dataset.syncCurrentEnvironmentLastPort = String(portEnvironments.length === 1);
+                    }
+                } else {
+                    revoke.dataset.syncAppEnvironmentRevoke = environment.id;
+                    revoke.dataset.syncAppEnvironmentApp = entry.id;
+                }
                 item.append(revoke);
             }
             return item;
-        })
-        : [Object.assign(document.createElement('li'), { textContent: '同期中の環境情報はありません。' })];
+        });
+        details.replaceChildren(...environmentRows);
+        row.append(image, copy, actions, details);
+        return row;
+    });
     list.replaceChildren(...rows);
 }
 
@@ -183,7 +194,7 @@ function renderDangerActions(root, presentation) {
     root.querySelectorAll('[data-sync-app-delete]').forEach((button) => {
         const app = presentation.apps.find((item) => item.id === button.dataset.syncAppDelete);
         button.disabled = presentation.accountState !== 'active' ||
-            !app || ['unset', 'prepared', 'deleting'].includes(app.status);
+            !app || app.deleteGrace || ['unset', 'prepared', 'deleting'].includes(app.status);
     });
 }
 
@@ -298,6 +309,41 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
     dialog.showModal();
 }
 
+function confirmDeleteCancellation(root, appName) {
+    return new Promise((resolve) => {
+        const dialog = document.createElement('dialog');
+        dialog.className = 'sync-center-help-dialog';
+        const panel = document.createElement('div');
+        panel.className = 'sync-center-join-panel';
+        const title = document.createElement('h2');
+        title.textContent = '削除を取り消して再接続';
+        const copy = document.createElement('p');
+        copy.textContent = `${appName}の同期データは削除待ちです。再接続すると削除を取り消し、現在のクラウドデータを引き続き使用します。`;
+        const confirm = document.createElement('button');
+        confirm.type = 'button';
+        confirm.className = 'action-button primary-action';
+        confirm.textContent = '削除を取り消して同期コードを表示';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'action-button secondary-action';
+        cancel.textContent = 'キャンセル';
+        const actions = document.createElement('div');
+        actions.className = 'sync-center-join-actions';
+        actions.append(confirm, cancel);
+        panel.append(title, copy, actions);
+        dialog.append(panel);
+        root.append(dialog);
+        let accepted = false;
+        confirm.addEventListener('click', () => { accepted = true; dialog.close(); }, { once: true });
+        cancel.addEventListener('click', () => dialog.close(), { once: true });
+        dialog.addEventListener('close', () => {
+            dialog.remove();
+            resolve(accepted);
+        }, { once: true });
+        dialog.showModal();
+    });
+}
+
 export function renderSyncCenter(root, presentation, {
     edition = 'standard', orchestrationEnabled = false, onAppAction = null
 } = {}) {
@@ -345,8 +391,7 @@ export function renderSyncCenter(root, presentation, {
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }
     renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction);
-    renderAddEnvironmentRows(root, presentation, edition, orchestrationEnabled);
-    renderEnvironments(root, presentation);
+    renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled);
     renderDangerActions(root, presentation);
 }
 
@@ -632,8 +677,17 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const issueAppJoin = async (button) => {
         if (!button || !orchestrator?.enabled) return;
         button.disabled = true;
+        const deleting = button.dataset.syncAppDeleteGrace === 'true';
         try {
-            const result = await orchestrator.launch(button.dataset.syncAppAction);
+            if (deleting) {
+                const confirmed = await confirmDeleteCancellation(
+                    root, button.dataset.syncAppName || 'このアプリ'
+                );
+                if (!confirmed) { button.disabled = false; return; }
+            }
+            const result = deleting
+                ? await orchestrator.cancelAppDeleteAndLaunch(button.dataset.syncAppAction)
+                : await orchestrator.launch(button.dataset.syncAppAction);
             if (result?.kind === 'join') {
                 showJoinCode(root, result, edition, async () => {
                     try { await orchestrator.cancelJoin(result.invitationId); }
@@ -645,17 +699,20 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         }
         catch (_) {
             button.disabled = false;
+            if (deleting) await refresh();
             setText(root, '#sync-center-action-status', '同期コードを表示できませんでした。同期状態を確認してください。');
         }
     };
     root?.addEventListener?.('click', async (event) => {
-        const environmentToggle = event.target.closest?.('[data-sync-environments-toggle]');
+        const environmentToggle = event.target.closest?.('[data-sync-environment-toggle]');
         if (environmentToggle) {
-            const details = root.querySelector('#sync-center-environments-details');
+            const environmentId = environmentToggle.dataset.syncEnvironmentToggle;
+            const details = root.querySelector(`[data-sync-environment-details="${environmentId}"]`);
             if (details) {
                 details.hidden = !details.hidden;
                 environmentToggle.setAttribute('aria-expanded', String(!details.hidden));
-                environmentToggle.textContent = details.hidden ? '詳細⌄' : '詳細を閉じる⌃';
+                const count = details.children.length;
+                environmentToggle.textContent = `${count}環境${details.hidden ? '⌄' : '⌃'}`;
             }
             return;
         }
@@ -855,6 +912,17 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         lifecycleDialog.showModal();
     };
     root?.addEventListener?.('click', (event) => {
+        const appEnvironment = event.target.closest?.('[data-sync-app-environment-revoke]');
+        if (appEnvironment) {
+            openLifecycle({
+                kind: 'app-environment',
+                appId: appEnvironment.dataset.syncAppEnvironmentApp,
+                appDeviceId: appEnvironment.dataset.syncAppEnvironmentRevoke,
+                title: 'この環境の同期を解除',
+                summary: 'この環境の同期を解除しますか？クラウド上と端末内のデータ、ほかの環境は削除されません。'
+            });
+            return;
+        }
         const environment = event.target.closest?.('[data-sync-environment-revoke]');
         if (environment) {
             if (environment.dataset.syncCurrentEnvironmentDetach === 'true') {
@@ -933,6 +1001,15 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             await ensureQaAdmission();
             if (lifecycleAction.kind === 'environment') {
                 await orchestrator.revokeEnvironment(lifecycleAction.accountDeviceId);
+                lifecycleDialog.close();
+                lifecycleAction = null;
+                await refresh();
+                return;
+            }
+            if (lifecycleAction.kind === 'app-environment') {
+                await orchestrator.revokeAppEnvironment(
+                    lifecycleAction.appId, lifecycleAction.appDeviceId
+                );
                 lifecycleDialog.close();
                 lifecycleAction = null;
                 await refresh();

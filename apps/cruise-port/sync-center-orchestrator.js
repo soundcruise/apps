@@ -1,6 +1,6 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.4';
-import { createPortAccountJoin } from './port-account-join.js?v=0.39.4';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.40.0';
+import { createPortAccountJoin } from './port-account-join.js?v=0.40.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -149,6 +149,14 @@ export function createSyncCenterOrchestrator({
                 operationId: accountRoot.core.createOperationId()
             });
         },
+        async revokeAppEnvironment(appId, appDeviceId) {
+            if (!SYNC_CENTER_APPS.some((app) => app.id === appId) ||
+                typeof appDeviceId !== 'string' || !appDeviceId) throw new Error('app_environment_invalid');
+            return client.revokeAppEnvironment({
+                accountCredential: await credential(), appId, appDeviceId,
+                operationId: accountRoot.core.createOperationId()
+            });
+        },
         async detachCurrentEnvironment() {
             return client.detachCurrentEnvironment({
                 accountCredential: await credential(), operationId: accountRoot.core.createOperationId()
@@ -159,6 +167,20 @@ export function createSyncCenterOrchestrator({
             return client.detachApp({
                 accountCredential: await credential(), appId,
                 operationId: accountRoot.core.createOperationId()
+            });
+        },
+        async cancelAppDeleteAndLaunch(appId) {
+            if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');
+            const accountCredential = await credential();
+            await client.cancelAppDelete({
+                accountCredential, appId, operationId: accountRoot.core.createOperationId()
+            });
+            const material = accountRoot.core.createJoinMaterial();
+            const issued = await client.issueJoinInvitation({ accountCredential, appId, material });
+            return Object.freeze({
+                kind: 'join', appId, invitationId: issued.invitationId,
+                displayJoinCode: issued.displayJoinCode, expiresAt: issued.expiresAt,
+                appUrl: appUrl(appId)
             });
         },
         async issueDelete(scope, appId = null) {

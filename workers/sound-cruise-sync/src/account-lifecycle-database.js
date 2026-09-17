@@ -585,6 +585,30 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     }));
   }
 
+  async function listAppEnvironments(identity) {
+    const rows = await db.prepare(`
+      SELECT ad.id, ad.app_id, ad.label, ad.created_at, ad.last_seen_at, ad.revoked_at,
+             l.account_device_id
+      FROM sync_membership_device_links l
+      JOIN sync_account_memberships m
+        ON m.id = l.membership_id AND m.account_id = l.account_id
+      JOIN sync_devices ad ON ad.id = l.app_device_id
+      WHERE l.account_id = ?
+      ORDER BY CASE m.app_id WHEN 'pitch' THEN 1 WHEN 'fretboard' THEN 2
+        WHEN 'rhythm' THEN 3 WHEN 'chord' THEN 4 ELSE 5 END,
+        ad.created_at ASC, ad.id ASC
+    `).bind(identity.accountId).all();
+    return (rows?.results || []).map((row) => ({
+      id: row.id,
+      appId: row.app_id,
+      label: row.label,
+      createdAt: Number(row.created_at),
+      lastSeenAt: Number(row.last_seen_at),
+      revokedAt: row.revoked_at == null ? null : Number(row.revoked_at),
+      isCurrent: row.account_device_id === identity.accountDeviceId
+    }));
+  }
+
   async function revokeEnvironment(identity, input) {
     const previous = await operation(input.operationId);
     if (previous) {
@@ -1008,6 +1032,205 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     }
   }
 
+  async function revokeAppEnvironment(identity, input) {
+    const previous = await operation(input.operationId);
+    if (previous) {
+      const result = lifecycleResult(previous);
+      if (previous.admission_provenance !== (identity.admissionProvenance || 'qa') ||
+          previous.request_fingerprint !== input.requestFingerprint ||
+          previous.kind !== 'device_revoke' || result?.scope !== 'app_environment' ||
+          result?.appId !== input.appId ||
+          result?.appDeviceId !== input.appDeviceId) return { status: 'conflict' };
+      return { status: 'revoked', ...result, alreadyRevoked: true };
+    }
+    const target = await db.prepare(`
+      SELECT ad.id, ad.revoked_at, m.id AS membership_id, m.state AS membership_state,
+             a.state AS account_state, a.generation AS account_generation
+      FROM sync_membership_device_links l
+      JOIN sync_account_memberships m
+        ON m.id = l.membership_id AND m.account_id = l.account_id
+      JOIN sync_accounts a ON a.id = l.account_id
+      JOIN sync_devices ad ON ad.id = l.app_device_id
+      WHERE l.account_id = ? AND m.app_id = ? AND ad.id = ?
+    `).bind(identity.accountId, input.appId, input.appDeviceId).first();
+    if (!target || target.account_state !== 'active' || target.membership_state !== 'active' ||
+        target.revoked_at != null) return { status: 'invalid' };
+    const resultBody = { scope: 'app_environment', appId: input.appId,
+      appDeviceId: input.appDeviceId };
+    const accountCas = db.prepare(`
+      UPDATE sync_accounts SET generation = generation + 1, updated_at = ?
+      WHERE id = ? AND state = 'active' AND deleted_at IS NULL AND generation = ?
+    `).bind(input.now, identity.accountId, target.account_generation);
+    const accountGuard = db.prepare(`
+      UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END WHERE id = ?
+    `).bind(identity.accountId);
+    const revoke = db.prepare(`
+      UPDATE sync_devices SET revoked_at = ?
+      WHERE id = ? AND app_id = ? AND revoked_at IS NULL
+        AND EXISTS (SELECT 1 FROM sync_membership_device_links l
+          JOIN sync_account_memberships m ON m.id = l.membership_id
+          WHERE l.account_id = ? AND l.app_device_id = sync_devices.id
+            AND m.app_id = ? AND m.state = 'active')
+    `).bind(input.now, input.appDeviceId, input.appId, identity.accountId, input.appId);
+    const revokeGuard = db.prepare(`
+      UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END WHERE id = ?
+    `).bind(identity.accountId);
+    const revokeQa = db.prepare(`
+      UPDATE sync_account_qa_sessions SET revoked_at = COALESCE(revoked_at, ?)
+      WHERE account_id = ? AND scope = 'app' AND app_id = ? AND app_device_id = ?
+    `).bind(input.now, identity.accountId, input.appId, input.appDeviceId);
+    const record = db.prepare(`
+      INSERT INTO sync_account_lifecycle_operations (
+        operation_id, request_fingerprint, account_id, kind, target_id, result_json, created_at
+      ) VALUES (?, ?, ?, 'device_revoke', ?, ?, ?)
+    `).bind(input.operationId, input.requestFingerprint, identity.accountId,
+      input.appDeviceId, JSON.stringify(resultBody), input.now);
+    const statements = [accountCas, accountGuard, revoke, revokeGuard, revokeQa, record];
+    try {
+      const results = await db.batch(statements);
+      if (!batchSucceeded(results, statements.length) || changes(results[0]) !== 1 ||
+          changes(results[1]) !== 1 || changes(results[2]) !== 1 ||
+          changes(results[3]) !== 1 || changes(results[5]) !== 1) {
+        throw new Error('D1 app environment revoke compare-and-swap failed');
+      }
+      return { status: 'revoked', ...resultBody, alreadyRevoked: false };
+    } catch (error) {
+      const raced = await operation(input.operationId);
+      const result = lifecycleResult(raced);
+      if (raced?.admission_provenance === (identity.admissionProvenance || 'qa') &&
+          raced?.request_fingerprint === input.requestFingerprint &&
+          raced?.kind === 'device_revoke' && result?.scope === 'app_environment' &&
+          result?.appDeviceId === input.appDeviceId) {
+        return { status: 'revoked', ...result, alreadyRevoked: true };
+      }
+      const current = await db.prepare(`
+        SELECT a.state AS account_state, a.generation AS account_generation,
+               m.state AS membership_state, ad.revoked_at
+        FROM sync_membership_device_links l
+        JOIN sync_account_memberships m ON m.id = l.membership_id
+        JOIN sync_accounts a ON a.id = l.account_id
+        JOIN sync_devices ad ON ad.id = l.app_device_id
+        WHERE l.account_id = ? AND m.app_id = ? AND ad.id = ?
+      `).bind(identity.accountId, input.appId, input.appDeviceId).first();
+      if (!current || current.account_state !== 'active' ||
+          current.membership_state !== 'active' || current.revoked_at != null ||
+          Number(current.account_generation) !== Number(target.account_generation)) {
+        return { status: 'invalid' };
+      }
+      throw error;
+    }
+  }
+
+  async function cancelAppDelete(identity, input) {
+    const previous = await operation(input.operationId);
+    if (previous) {
+      const result = lifecycleResult(previous);
+      if (previous.admission_provenance !== (identity.admissionProvenance || 'qa') ||
+          previous.request_fingerprint !== input.requestFingerprint ||
+          previous.kind !== 'app_delete' || result?.action !== 'cancel' ||
+          result?.appId !== input.appId) {
+        return { status: 'conflict' };
+      }
+      return { status: 'active', ...result, alreadyCancelled: true };
+    }
+    const target = await db.prepare(`
+      SELECT m.id, m.sync_user_id, m.generation AS membership_generation,
+             m.purge_after AS membership_purge_after,
+             u.state AS user_state, u.purge_after AS user_purge_after,
+             d.state AS dataset_state,
+             a.state AS account_state, a.generation AS account_generation
+      FROM sync_account_memberships m
+      JOIN sync_accounts a ON a.id = m.account_id
+      JOIN sync_users u ON u.id = m.sync_user_id
+      JOIN sync_datasets d ON d.user_id = m.sync_user_id AND d.app_id = m.app_id
+      WHERE m.account_id = ? AND m.app_id = ? AND m.state = 'deleting'
+    `).bind(identity.accountId, input.appId).first();
+    if (!target || target.account_state !== 'active' || target.user_state !== 'deleting' ||
+        target.dataset_state !== 'ready' || target.membership_purge_after == null ||
+        target.user_purge_after == null || Number(target.membership_purge_after) <= input.now ||
+        Number(target.user_purge_after) <= input.now) return { status: 'invalid' };
+    const resultBody = { action: 'cancel', scope: 'app', appId: input.appId,
+      membershipId: target.id, syncUserId: target.sync_user_id };
+    const accountCas = db.prepare(`
+      UPDATE sync_accounts SET generation = generation + 1, updated_at = ?
+      WHERE id = ? AND state = 'active' AND deleted_at IS NULL AND generation = ?
+    `).bind(input.now, identity.accountId, target.account_generation);
+    const accountGuard = db.prepare(`
+      UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END WHERE id = ?
+    `).bind(identity.accountId);
+    const membershipCas = db.prepare(`
+      UPDATE sync_account_memberships
+      SET state = 'active', delete_requested_at = NULL, purge_after = NULL,
+          deleted_at = NULL, updated_at = ?, generation = generation + 1
+      WHERE id = ? AND account_id = ? AND app_id = ? AND state = 'deleting'
+        AND generation = ? AND purge_after > ?
+    `).bind(input.now, target.id, identity.accountId, input.appId,
+      target.membership_generation, input.now);
+    const membershipGuard = db.prepare(`
+      UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END WHERE id = ?
+    `).bind(identity.accountId);
+    const userCas = db.prepare(`
+      UPDATE sync_users
+      SET state = 'active', delete_requested_at = NULL, purge_after = NULL,
+          deleted_at = NULL, updated_at = ?
+      WHERE id = ? AND state = 'deleting' AND purge_after > ?
+    `).bind(input.now, target.sync_user_id, input.now);
+    const userGuard = db.prepare(`
+      UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END WHERE id = ?
+    `).bind(identity.accountId);
+    const record = db.prepare(`
+      INSERT INTO sync_account_lifecycle_operations (
+        operation_id, request_fingerprint, account_id, kind, target_id, result_json, created_at
+      ) VALUES (?, ?, ?, 'app_delete', ?, ?, ?)
+    `).bind(input.operationId, input.requestFingerprint, identity.accountId,
+      target.id, JSON.stringify(resultBody), input.now);
+    const statements = [accountCas, accountGuard, membershipCas, membershipGuard,
+      userCas, userGuard, record];
+    try {
+      const results = await db.batch(statements);
+      if (!batchSucceeded(results, statements.length) ||
+          [0, 1, 2, 3, 4, 5, 6].some((index) => changes(results[index]) !== 1)) {
+        throw new Error('D1 app delete cancellation compare-and-swap failed');
+      }
+      return { status: 'active', ...resultBody, alreadyCancelled: false };
+    } catch (error) {
+      const raced = await operation(input.operationId);
+      const result = lifecycleResult(raced);
+      if (raced?.admission_provenance === (identity.admissionProvenance || 'qa') &&
+          raced?.request_fingerprint === input.requestFingerprint &&
+          raced?.kind === 'app_delete' && result?.action === 'cancel' &&
+          result?.appId === input.appId) {
+        return { status: 'active', ...result, alreadyCancelled: true };
+      }
+      const current = await db.prepare(`
+        SELECT a.state AS account_state, a.generation AS account_generation,
+               m.state AS membership_state, m.generation AS membership_generation,
+               m.purge_after AS membership_purge_after,
+               u.state AS user_state, u.purge_after AS user_purge_after,
+               d.state AS dataset_state
+        FROM sync_account_memberships m
+        JOIN sync_accounts a ON a.id = m.account_id
+        JOIN sync_users u ON u.id = m.sync_user_id
+        JOIN sync_datasets d ON d.user_id = m.sync_user_id AND d.app_id = m.app_id
+        WHERE m.account_id = ? AND m.app_id = ?
+      `).bind(identity.accountId, input.appId).first();
+      const unchanged = current?.account_state === 'active' &&
+        Number(current.account_generation) === Number(target.account_generation) &&
+        current.membership_state === 'deleting' &&
+        Number(current.membership_generation) === Number(target.membership_generation) &&
+        current.user_state === 'deleting' && current.dataset_state === 'ready' &&
+        Number(current.membership_purge_after) > input.now &&
+        Number(current.user_purge_after) > input.now;
+      if (unchanged) throw error;
+      return { status: 'invalid' };
+    }
+  }
+
   async function issueDeleteIntent(identity, input) {
     const existing = await db.prepare(`
       SELECT intent_id, intent_verifier, issue_fingerprint, expires_at, consumed_at, cancelled_at,
@@ -1235,11 +1458,12 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   return Object.freeze({
     resolveRecoveryPrepare, reserveRecoveryAttempt, prepareRecovery, commitRecovery,
     resolveRecoveryRotationPrepare, prepareRecoveryRotation, commitRecoveryRotation,
-    listEnvironments, revokeEnvironment, resolveRevokeAfterCredentialLoss,
+    listEnvironments, listAppEnvironments, revokeEnvironment, revokeAppEnvironment,
+    resolveRevokeAfterCredentialLoss,
     resolveCurrentEnvironmentDetachRetry, resolveCurrentEnvironmentDetachAfterCredentialLoss,
     detachCurrentEnvironment, resolveCurrentAppEnvironmentDetachRetry,
     resolveCurrentAppEnvironmentDetachAfterCredentialLoss, detachCurrentAppEnvironment,
-    resolveAppDetachRetry, detachApp, issueDeleteIntent,
+    resolveAppDetachRetry, detachApp, cancelAppDelete, issueDeleteIntent,
     commitDelete, resolveDeleteAfterCredentialLoss, operation
   });
 }

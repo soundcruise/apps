@@ -59,15 +59,14 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
         assert.match(html, /クラウド同期を開く/);
         assert.match(html, /次の手順で設定します。/);
         assert.match(html, /設定から「Cruise Portと接続」を押す/);
-        assert.match(html, /同期中の環境/);
+        assert.match(html, /3\. 環境を管理/);
         assert.match(html, /復旧とセキュリティ/);
-        assert.match(html, /data-sync-section-help-toggle="sync-center-environments-help"/);
+        assert.match(html, /data-sync-section-help-toggle="sync-center-add-environments-help"/);
         assert.match(html, /data-sync-section-help-toggle="sync-center-recovery-help"/);
         assert.match(html, /data-sync-section-help-toggle="sync-center-danger-help"/);
         assert.match(html, /id="sync-center-recovery-help"[^>]*hidden/);
         assert.doesNotMatch(html, /id="sync-center-account-description"/);
-        assert.match(html, /data-sync-environments-toggle[^>]*aria-expanded="false"/);
-        assert.match(html, /id="sync-center-environments-details"[^>]*hidden/);
+        assert.doesNotMatch(html, /id="sync-center-environments-title"/);
         assert.doesNotMatch(html, /id="sync-center-help"/,
             'Port Help is rendered by the shared accordion rather than an always-expanded static dialog');
         assert.match(html, /クラウド同期をはじめる/);
@@ -83,7 +82,7 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     assert.match(app, /PORT_SYNC_HELP_SECTIONS/);
     assert.match(app, /openPortSyncHelp/);
     assert.equal((app.match(/flowSteps: true/g) || []).length, 1);
-    for (const category of ['最初の接続', '別の環境を追加', '復旧コード', '同期中の環境', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
+    for (const category of ['最初の接続', '環境を管理', '復旧コード', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
         assert.match(app, new RegExp(`title: '${category}'`));
     }
 });
@@ -137,7 +136,7 @@ test('App rows separate ordinary status chips from record counts without changin
 });
 
 test('current Port detach is distinct from generic environment revoke and leaves Section 2 informational when Account is unset', () => {
-    assert.match(ui, /dataset\.syncCurrentEnvironmentDetach = 'true'/);
+    assert.match(ui, /dataset\.syncEnvironmentRevoke = environment\.id/);
     assert.match(ui, /kind: 'current-environment'/);
     assert.match(ui, /await orchestrator\.detachCurrentEnvironment\(\)/);
     assert.match(ui, /先にアカウントを作成または接続してください/);
@@ -153,11 +152,12 @@ test('Sync Code rows bind the existing launch callback after every render', () =
     assert.match(source, /action\.addEventListener\('click', \(event\) => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*void onAppAction\(action\)/);
     assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin \}\)/);
     assert.match(app, /onAppAction: syncCenterActions\?\.onAppAction/);
-    assert.match(source, /const result = await orchestrator\.launch\(button\.dataset\.syncAppAction\)/);
+    assert.match(source, /await orchestrator\.launch\(button\.dataset\.syncAppAction\)/);
+    assert.match(source, /await orchestrator\.cancelAppDeleteAndLaunch\(button\.dataset\.syncAppAction\)/);
     assert.match(source, /if \(result\?\.kind === 'join'\) \{[\s\S]*showJoinCode\(root, result/);
     for (const html of [root, pro]) {
         assert.match(html, /2\. アプリを接続[\s\S]*data-sync-section-help-toggle="sync-center-apps-help"/);
-        assert.match(html, /id="sync-center-apps-help"[\s\S]*接続するアプリの「同期コード」を押す[\s\S]*コードを貼り付けて「接続する」/);
+        assert.match(html, /id="sync-center-apps-help"[\s\S]*最初に使うアプリを接続します。[\s\S]*そのアプリの全環境を解除します。/);
     }
     assert.match(styles, /\.sync-center-account-actions\s*\{[\s\S]*flex-wrap:\s*wrap/);
     assert.match(styles, /\.sync-center-account-action\s*\{[\s\S]*min-height:\s*38px[\s\S]*padding:\s*7px 14px/);
@@ -217,37 +217,36 @@ test('Recovery execution copy is concise and its dialog prevents iOS input zoom'
     assert.match(css, /\.sync-center-help-dialog[\s\S]*box-sizing:\s*border-box[\s\S]*width:\s*min\(560px, calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)\)[\s\S]*max-width:\s*calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)[\s\S]*max-height:\s*min\(calc\(100dvh - 24px\), 720px\)[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/);
 });
 
-test('Sync Help separates first connection from Port and Pro additional environments', () => {
+test('Sync Help separates initial connection from environment management', () => {
     const firstStart = app.indexOf("title: '最初の接続'");
-    const additionalStart = app.indexOf("title: '別の環境を追加'");
+    const additionalStart = app.indexOf("title: '環境を管理'");
     const nextSection = app.indexOf("title: '復旧コード'", additionalStart);
     const first = app.slice(firstStart, additionalStart);
     const additional = app.slice(additionalStart, nextSection);
     assert.match(first, /'1\. Cruise Portで対象アプリの「同期コード」を押す'/);
     assert.match(first, /'6\. コードを入力して「接続する」を押す'/);
-    assert.match(additional, /Cruise Port自身と4つのProアプリ/);
+    assert.match(additional, /端末やブラウザを追加・確認・解除/);
     assert.match(additional, /Cruise Port: 「追加コード」/);
     assert.match(additional, /Proアプリ: 対象アプリの「追加コード」/);
-    assert.match(additional, /復旧ではなく/);
+    assert.match(additional, /最初のアプリ接続/);
 });
 
 test('Section 2 is initial-only and Section 3 owns Port plus four app additions', () => {
     for (const html of [root, pro]) {
         const section2Start = html.indexOf('aria-labelledby="sync-center-apps-title"');
         const section3Start = html.indexOf('aria-labelledby="sync-center-add-environments-title"');
-        const environmentsStart = html.indexOf('aria-labelledby="sync-center-environments-title"');
+        const environmentsStart = html.indexOf('aria-labelledby="sync-center-recovery-title"');
         const section2 = html.slice(section2Start, section3Start);
         const section3 = html.slice(section3Start, environmentsStart);
         assert.match(section2, /2\. アプリを接続/);
         assert.doesNotMatch(section2, /別の環境を追加/);
-        assert.match(section3, /3\. 別の環境を追加/);
+        assert.match(section3, /3\. 環境を管理/);
         assert.match(section3, /sync-center-add-environments/);
-        assert.match(section3, /Cruise Portの「追加コード」/);
-        assert.match(section3, /対象アプリの「追加コード」/);
+        assert.match(section3, /端末やブラウザを追加・確認・解除/);
         assert.match(html, /id="sync-center-port-connect"/);
         assert.match(html, /data-sensitive="port-addition-code"/);
     }
-    assert.match(ui, /function renderAddEnvironmentRows/);
+    assert.match(ui, /function renderEnvironmentManagementRows/);
     assert.match(ui, /id: 'port', name: 'Cruise Port'/);
     assert.match(ui, /dataset\.syncPortAddEnvironment = 'true'/);
     assert.match(ui, /dataset\.syncAppAddEnvironment = entry\.id/);
@@ -425,13 +424,36 @@ test('App detach stays in its row while app cloud deletion moves into a closed D
         for (const appId of ['pitch', 'fretboard', 'rhythm', 'chord']) {
             assert.match(html, new RegExp(`data-sync-app-delete="${appId}"`));
         }
-        assert.match(html, /接続済みのアプリは、各行の「同期を解除」からそのアプリだけクラウド同期を解除できます。/);
+        assert.match(html, /「同期を解除」ではクラウドデータを残したまま、そのアプリの全環境を解除します。/);
         assert.match(html, /id="sync-center-account-delete"[^>]*>アカウントを削除<\/button>/);
         assert.match(html, /Sound Cruise Syncアカウントと4つのアプリすべてのクラウド同期データを削除対象にします。/);
         assert.doesNotMatch(html, /すべてのクラウドデータを削除/);
     }
     assert.match(source, /title: 'Sound Cruise Syncアカウントを削除'/);
     assert.match(source, /削除を確定すると同期中の環境は解除され/);
+});
+
+test('delete grace reconnect is explicit and Section 3 owns counts, lists and scoped revoke', () => {
+    const source = read('./sync-center-ui.js');
+    const styles = read('./style.css');
+    assert.match(source, /dataset\.syncAppDeleteGrace = 'true'/);
+    assert.match(source, /削除を取り消して再接続/);
+    assert.match(source, /削除を取り消して同期コードを表示/);
+    assert.match(source, /cancelAppDeleteAndLaunch/);
+    assert.match(source, /if \(deleting\) await refresh\(\)/);
+    assert.match(source, /!app \|\| app\.deleteGrace \|\| \['unset', 'prepared', 'deleting'\]\.includes\(app\.status\)/);
+    assert.match(source, /count\.textContent = `\$\{entry\.environments\.length\}環境/);
+    assert.match(source, /count\.disabled = entry\.environments\.length === 0/);
+    assert.match(source, /dataset\.syncAppEnvironmentRevoke = environment\.id/);
+    assert.match(source, /revoke\.dataset\.syncCurrentEnvironmentDetach = 'true'/);
+    assert.match(source, /await orchestrator\.revokeAppEnvironment/);
+    assert.match(styles, /\.sync-center-environment-count/);
+    assert.match(styles, /\.sync-center-environment-list\[hidden\]/);
+    for (const html of [root, pro]) {
+        assert.match(html, /3\. 環境を管理/);
+        assert.doesNotMatch(html, /<h2 id="sync-center-environments-title">同期中の環境<\/h2>/);
+        assert.match(html, /最初の接続は「2\. アプリを接続」から行います。/);
+    }
 });
 
 test('official four-app routes are reused and no all-data-upload promise is made', () => {
@@ -450,15 +472,14 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(source, /close\.className = 'action-button secondary-action'/);
     assert.match(source, /actions\.className = 'sync-center-join-actions'/);
     assert.match(source, /data-sync-app-add-environment/);
-    assert.match(source, /別の環境を追加/);
-    assert.match(source, /function renderAddEnvironmentRows/);
-    assert.match(source, /available: activeAccount && app\.canAddEnvironment/);
-    assert.match(source, /action\.textContent = '追加コード'/);
+    assert.match(source, /function renderEnvironmentManagementRows/);
+    assert.match(source, /available: activeAccount && app\.canAddEnvironment && !app\.deleteGrace/);
+    assert.match(source, /add\.textContent = '追加コード'/);
     assert.match(source, /const needsInitialConnection = \['unset', 'prepared', 'detached'\]\.includes\(app\.status\)/);
     assert.match(source, /function bindSectionHelp\(root\)/);
     assert.match(source, /button\.setAttribute\('aria-expanded', String\(!help\.hidden\)\)/);
-    assert.match(source, /const environmentToggle = event\.target\.closest\?\.\('\[data-sync-environments-toggle\]'\)/);
-    assert.match(source, /environmentToggle\.textContent = details\.hidden \? '詳細⌄' : '詳細を閉じる⌃'/);
+    assert.match(source, /const environmentToggle = event\.target\.closest\?\.\('\[data-sync-environment-toggle\]'\)/);
+    assert.match(source, /environmentToggle\.textContent = `\$\{count\}環境\$\{details\.hidden \? '⌄' : '⌃'\}`/);
     assert.match(source, /このアプリを接続/);
     assert.match(source, /以下の手順で接続します。/);
     assert.match(source, /sync-center-join-steps/);

@@ -855,6 +855,43 @@ test('app detach persists only its operation metadata and response-loss resumes 
   assert.equal(pending, null);
 });
 
+test('app environment revoke and delete cancellation use Account-authorized scoped routes', async () => {
+  const account = load([coreSource, clientSource]);
+  const credential = account.core.createAccountCredential().accountCredential;
+  const operationId = account.core.createOperationId();
+  const appDeviceId = account.core.createAppCredential().appDeviceId;
+  const requests = [];
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage: {}, core: account.core,
+    fetchImpl: async (url, options) => {
+      requests.push({
+        path: new URL(url).pathname,
+        authorization: options.headers.get('Authorization'),
+        body: JSON.parse(options.body)
+      });
+      return Response.json({ ok: true });
+    }
+  });
+  await client.revokeAppEnvironment({
+    accountCredential: credential, appId: 'pitch', appDeviceId, operationId
+  });
+  await client.cancelAppDelete({
+    accountCredential: credential, appId: 'pitch', operationId
+  });
+  assert.deepEqual(requests, [
+    {
+      path: '/v2/accounts/memberships/pitch/devices/revoke',
+      authorization: `Bearer ${credential}`,
+      body: { operationId, appId: 'pitch', appDeviceId }
+    },
+    {
+      path: '/v2/accounts/memberships/pitch/delete/cancel',
+      authorization: `Bearer ${credential}`,
+      body: { operationId, appId: 'pitch' }
+    }
+  ]);
+});
+
 test('current environment detach keeps local Account state until the server confirms, then resumes response loss once', async () => {
   const account = load([coreSource, clientSource]);
   const credential = account.core.createAccountCredential().accountCredential;
