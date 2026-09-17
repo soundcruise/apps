@@ -31,7 +31,7 @@ test('recording and every non-Live icon definition remain present', () => {
     }
 });
 
-test('SP6.14 central rendering routes remain covered in Cruise Port 0.40.4', () => {
+test('SP6.14 central rendering routes remain covered in Cruise Port 0.40.5', () => {
     assert.equal((source.match(/\n    live:/g) || []).length, 1);
     assert.match(source, /calendarNoteIconSelection\.replaceChildren\(createPracticeCalendarIcon\(icon\.value\)/);
     assert.match(source, /button\.append\(createPracticeCalendarIcon\(value\), text\)/);

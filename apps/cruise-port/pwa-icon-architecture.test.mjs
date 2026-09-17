@@ -29,7 +29,7 @@ function assertManifest({ manifestDirectory, expectedId, expectedName, expectedP
         ['512x512', 'maskable']
     ]);
     for (const icon of manifest.icons) {
-        assert.match(icon.src, new RegExp(`${expectedPrefix}/icon(?:-maskable)?-(?:192|512)\\.png\\?v=0\\.32\\.4$`));
+        assert.match(icon.src, new RegExp(`${expectedPrefix}/icon(?:-maskable)?-(?:192|512)\\.png\\?v=0\\.40\\.5$`));
         const relativePath = icon.src.split('?')[0];
         const target = path.resolve(manifestDirectory, relativePath);
         assert.equal(existsSync(target), true, `manifest icon exists: ${icon.src}`);
@@ -54,12 +54,12 @@ test('Standard and Pro manifests use distinct edition identities and icon sets',
 });
 
 test('each edition references only its formal favicon, Apple icon, and cache-busted manifest', () => {
-    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.32\.4">/);
-    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.32\.4/);
-    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.32\.4/);
-    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.32\.4">/);
-    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.32\.4/);
-    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.32\.4/);
+    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.40\.5">/);
+    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.40\.5/);
+    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.40\.5/);
+    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.40\.5">/);
+    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.40\.5/);
+    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.40\.5/);
     assert.doesNotMatch(standardHtml, /data:,/);
     assert.doesNotMatch(proHtml, /data:,/);
 });
@@ -86,5 +86,16 @@ test('the normal and Android maskable icon asset dimensions are complete for bot
             const size = readPngSize(path.join(assetDirectory, name));
             assert.deepEqual(size, { width: expected, height: expected }, `${edition}/${name} is square`);
         }
+    }
+});
+
+test('Android maskable icons are dedicated assets with a safe-zone composition', () => {
+    for (const edition of ['standard', 'pro']) {
+        const assetDirectory = path.join(directory, 'assets', 'app-icons', edition);
+        assert.notDeepEqual(
+            readFileSync(path.join(assetDirectory, 'icon-512.png')),
+            readFileSync(path.join(assetDirectory, 'icon-maskable-512.png')),
+            `${edition} keeps its Android maskable icon distinct from the iOS/any icon`
+        );
     }
 });
