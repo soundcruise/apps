@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.40.8';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.40.9';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -445,12 +445,26 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const recoverySecret = recoveryInput && globalThis.SoundCruiseSyncAccount?.core
         ?.createSensitiveInputController?.(recoveryInput);
     const portConnectDialog = root?.querySelector?.('#sync-center-port-connect');
+    const portConnectDescription = root?.querySelector?.('#sync-center-port-connect-description');
+    const portConnectLabel = root?.querySelector?.('#sync-center-port-connect-label');
     const portConnectInput = root?.querySelector?.('#sync-center-port-connect-input');
     const portConnectConfirm = root?.querySelector?.('#sync-center-port-connect-confirm');
     const portConnectCancel = root?.querySelector?.('#sync-center-port-connect-cancel');
+    const portConnectClose = root?.querySelector?.('#sync-center-port-connect-close');
     const portConnectStatus = root?.querySelector?.('#sync-center-port-connect-status');
     const portConnectSecret = portConnectInput && globalThis.SoundCruiseSyncAccount?.core
         ?.createSensitiveInputController?.(portConnectInput);
+    const setPortConnectPhase = (phase) => {
+        const inputPhase = phase === 'input';
+        const successPhase = phase === 'complete';
+        if (portConnectDialog) portConnectDialog.dataset.syncPhase = phase;
+        if (portConnectDescription) portConnectDescription.hidden = !inputPhase;
+        if (portConnectLabel) portConnectLabel.hidden = !inputPhase;
+        if (portConnectInput) portConnectInput.hidden = !inputPhase;
+        if (portConnectConfirm) portConnectConfirm.hidden = !inputPhase;
+        if (portConnectCancel) portConnectCancel.hidden = !inputPhase;
+        if (portConnectClose) portConnectClose.hidden = !successPhase;
+    };
     const lifecycleDialog = root?.querySelector?.('#sync-center-lifecycle-confirm');
     const lifecycleTitle = root?.querySelector?.('#sync-center-lifecycle-title');
     const lifecycleSummary = root?.querySelector?.('#sync-center-lifecycle-summary');
@@ -546,10 +560,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     };
     root?.querySelector?.('#sync-center-port-connect-open')?.addEventListener('click', () => {
         portConnectSecret?.resolve();
-        portConnectDialog.dataset.syncPhase = 'input';
-        if (portConnectInput) portConnectInput.hidden = false;
-        if (portConnectConfirm) { portConnectConfirm.hidden = false; portConnectConfirm.textContent = '接続する'; }
-        if (portConnectCancel) portConnectCancel.hidden = false;
+        setPortConnectPhase('input');
         if (portConnectStatus) portConnectStatus.textContent = '';
         portConnectDialog?.showModal();
         portConnectInput?.focus();
@@ -559,36 +570,26 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         if (portConnectStatus) portConnectStatus.textContent = '';
         portConnectDialog?.close();
     });
+    portConnectClose?.addEventListener('click', () => {
+        portConnectDialog?.close();
+        setText(root, '#sync-center-action-status', '既存のアカウントに接続しました。');
+    });
     portConnectConfirm?.addEventListener('click', async () => {
         if (!orchestrator?.enabled) return;
-        if (portConnectDialog.dataset.syncPhase === 'complete') {
-            portConnectDialog.close();
-            setText(root, '#sync-center-action-status', '既存のアカウントに接続しました。');
-            return;
-        }
         portConnectConfirm.disabled = true;
         try {
             const joinCode = portConnectSecret?.take();
             if (!joinCode) throw new Error('port_join_code_required');
-            portConnectDialog.dataset.syncPhase = 'working';
-            if (portConnectInput) portConnectInput.hidden = true;
-            portConnectConfirm.hidden = true;
-            if (portConnectCancel) portConnectCancel.hidden = true;
+            setPortConnectPhase('working');
             if (portConnectStatus) portConnectStatus.textContent = '既存のアカウントに接続しています…';
             await orchestrator.connectExistingAccount(joinCode);
             portConnectSecret.resolve();
-            portConnectDialog.dataset.syncPhase = 'complete';
+            setPortConnectPhase('complete');
             if (portConnectStatus) portConnectStatus.textContent = '接続しました。';
-            portConnectConfirm.hidden = false;
-            portConnectConfirm.textContent = '閉じる';
-            portConnectConfirm.dataset.syncAction = 'close-port-join';
             await refresh();
         } catch (error) {
             portConnectSecret?.reject(error);
-            portConnectDialog.dataset.syncPhase = 'input';
-            if (portConnectInput) portConnectInput.hidden = false;
-            portConnectConfirm.hidden = false;
-            if (portConnectCancel) portConnectCancel.hidden = false;
+            setPortConnectPhase('input');
             if (portConnectStatus) {
                 portConnectStatus.textContent = '接続できませんでした。コードの有効期限と入力内容を確認してください。';
             }

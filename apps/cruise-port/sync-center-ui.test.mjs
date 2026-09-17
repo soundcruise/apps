@@ -269,6 +269,25 @@ test('Section 2 is initial-only and Section 3 owns Port plus four app additions'
     assert.match(ui, /orchestrator\.connectExistingAccount\(joinCode\)/);
 });
 
+test('Existing-account join dialog presents only the success acknowledgement after connecting', () => {
+    for (const html of [root, pro]) {
+        assert.match(html, /id="sync-center-port-connect-description">別のCruise Portに表示された追加コードを入力してください。/);
+        assert.match(html, /id="sync-center-port-connect-label" for="sync-center-port-connect-input">追加コード/);
+        assert.match(html, /id="sync-center-port-connect-close"[^>]*hidden>閉じる/);
+    }
+    assert.match(ui, /const setPortConnectPhase = \(phase\) => \{/);
+    assert.match(ui, /portConnectDescription\.hidden = !inputPhase/);
+    assert.match(ui, /portConnectLabel\.hidden = !inputPhase/);
+    assert.match(ui, /portConnectInput\.hidden = !inputPhase/);
+    assert.match(ui, /portConnectConfirm\.hidden = !inputPhase/);
+    assert.match(ui, /portConnectCancel\.hidden = !inputPhase/);
+    assert.match(ui, /portConnectClose\.hidden = !successPhase/);
+    assert.match(ui, /setPortConnectPhase\('working'\)/);
+    assert.match(ui, /setPortConnectPhase\('complete'\)[\s\S]*portConnectStatus\.textContent = '接続しました。'/);
+    assert.match(ui, /portConnectClose\?\.addEventListener\('click', \(\) => \{[\s\S]*portConnectDialog\?\.close\(\)/);
+    assert.match(ui, /catch \(error\) \{[\s\S]*setPortConnectPhase\('input'\)/);
+});
+
 test('QA Enrollment and Account start request distinct Turnstile actions', () => {
     const source = read('./sync-center-ui.js');
     assert.match(source, /tokenProvider\('sound_cruise_account_qa_enroll'\)/);

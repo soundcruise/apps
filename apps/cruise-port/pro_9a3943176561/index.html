@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート Pro</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.40.8">
-    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.40.8">
-    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.40.8">
+    <link rel="manifest" href="./manifest.json?v=0.40.9">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.40.9">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.40.9">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.40.8">
+    <link rel="stylesheet" href="../style.css?v=0.40.9">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=18">
     <script>
@@ -28,7 +28,7 @@
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.40.8"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.40.9"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -285,13 +285,14 @@
             </dialog>
             <dialog id="sync-center-port-connect" class="sync-center-help-dialog" aria-labelledby="sync-center-port-connect-title">
                 <h2 id="sync-center-port-connect-title">既存のアカウントに接続</h2>
-                <p>別のCruise Portに表示された追加コードを入力してください。</p>
-                <label for="sync-center-port-connect-input">追加コード</label>
+                <p id="sync-center-port-connect-description">別のCruise Portに表示された追加コードを入力してください。</p>
+                <label id="sync-center-port-connect-label" for="sync-center-port-connect-input">追加コード</label>
                 <input id="sync-center-port-connect-input" data-sensitive="port-addition-code" type="text" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="text">
                 <p id="sync-center-port-connect-status" role="alert" aria-live="polite"></p>
                 <div class="sync-center-actions">
                     <button id="sync-center-port-connect-confirm" class="action-button primary-action" type="button">接続する</button>
                     <button id="sync-center-port-connect-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                    <button id="sync-center-port-connect-close" class="action-button primary-action" type="button" hidden>閉じる</button>
                 </div>
             </dialog>
             <dialog id="sync-center-recovery" class="sync-center-help-dialog" aria-labelledby="sync-center-recovery-dialog-title" data-sync-phase="input">
