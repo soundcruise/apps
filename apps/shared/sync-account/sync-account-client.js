@@ -412,6 +412,38 @@
       return Object.freeze(result);
     }
 
+    async detachCurrentEnvironment({ accountCredential, operationId }) {
+      if (!this.core.validAccountCredential(accountCredential) || typeof operationId !== 'string') {
+        throw new Error('account_environment_detach_invalid');
+      }
+      const existing = await this.storage.getPendingEnvironmentDetach?.();
+      const pending = existing || {
+        path: '/v2/accounts/environments/current/detach', body: { operationId }
+      };
+      if (!existing) await this.storage.setPendingEnvironmentDetach?.(pending);
+      const result = await this.request(pending.path, {
+        method: 'POST', accountCredential, body: pending.body
+      });
+      await this.storage.clearAccount();
+      await this.storage.clearPendingEnvironmentDetach?.();
+      return Object.freeze(result);
+    }
+
+    async resumePendingEnvironmentDetach() {
+      const pending = await this.storage.getPendingEnvironmentDetach?.();
+      if (!pending) return Object.freeze({ status: 'none' });
+      const saved = await this.storage.getAccount?.();
+      if (!saved || !this.core.validAccountCredential(saved.accountCredential)) {
+        throw new Error('account_auth_required');
+      }
+      const result = await this.request(pending.path, {
+        method: 'POST', accountCredential: saved.accountCredential, body: pending.body
+      });
+      await this.storage.clearAccount();
+      await this.storage.clearPendingEnvironmentDetach?.();
+      return Object.freeze({ status: 'committed', result });
+    }
+
     async detachApp({ accountCredential, appId, operationId }) {
       if (!this.core.validAccountCredential(accountCredential) ||
           !this.core.ACCOUNT_APPS.includes(appId) || typeof operationId !== 'string') {

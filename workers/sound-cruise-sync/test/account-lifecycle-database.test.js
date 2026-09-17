@@ -528,6 +528,104 @@ test('environment revoke invalidates linked app credentials without deleting loc
   db.close();
 });
 
+test('current Port environment detach follows invitation issuer links only and preserves Account data', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  db.raw.prepare(`UPDATE sync_accounts SET admission_provenance = 'production' WHERE id = ?`).run(IDS.account);
+  const portA = '10000000-0000-4000-8000-000000000010';
+  const portB = '10000000-0000-4000-8000-000000000011';
+  for (const [id, verifier, label] of [[portA, hex('1'), 'Port A'], [portB, hex('2'), 'Port B']]) {
+    db.raw.prepare(`INSERT INTO sync_account_devices (
+      id, account_id, credential_version, credential_verifier, label, created_at, last_seen_at, revoked_at
+    ) VALUES (?, ?, 1, ?, ?, 1000, 1000, NULL)`).run(id, IDS.account, verifier, label);
+  }
+  const owned = [
+    ['chord', IDS.chordMembership, IDS.chordUser], ['pitch', IDS.pitchMembership, IDS.pitchUser],
+    ['fretboard', IDS.fretboardMembership, IDS.fretboardUser], ['rhythm', IDS.rhythmMembership, IDS.rhythmUser]
+  ];
+  for (const [index, [appId, membershipId, userId]] of owned.entries()) {
+    const suffix = String(index + 20).padStart(12, '0');
+    const accountDeviceId = `10000000-0000-4000-8000-${suffix}`;
+    const appDeviceId = `40000000-0000-4000-8000-${suffix}`;
+    const invitationId = `50000000-0000-4000-8000-${suffix}`;
+    const issueId = `60000000-0000-4000-8000-${suffix}`;
+    const consumeId = `70000000-0000-4000-8000-${suffix}`;
+    db.raw.prepare(`INSERT INTO sync_account_devices (
+      id, account_id, credential_version, credential_verifier, label, created_at, last_seen_at, revoked_at
+    ) VALUES (?, ?, 1, ?, ?, 1000, 1000, NULL)`).run(accountDeviceId, IDS.account, hex(String(index + 3)), `${appId} A`);
+    db.raw.prepare(`INSERT INTO sync_devices (
+      id, user_id, app_id, credential_version, credential_verifier, label, last_cursor,
+      created_at, last_seen_at, revoked_at, pairing_pending_at, paired_at
+    ) VALUES (?, ?, ?, 1, ?, ?, 0, 1000, 1000, NULL, NULL, 1000)`).run(appDeviceId, userId, appId, hex(String(index + 4)), `${appId} A`);
+    db.raw.prepare(`INSERT INTO sync_membership_device_links (
+      account_id, membership_id, app_device_id, account_device_id, linked_at
+    ) VALUES (?, ?, ?, ?, 1000)`).run(IDS.account, membershipId, appDeviceId, accountDeviceId);
+    db.raw.prepare(`INSERT INTO sync_app_join_invitations (
+      invitation_id, code_verifier, account_id, membership_id, target_app_id, admission_provenance,
+      created_by_account_device_id, claimed_by_app_device_id, claimed_by_account_device_id,
+      created_at, expires_at, consumed_at, cancelled_at, issue_operation_id, issue_fingerprint,
+      consume_operation_id, consume_fingerprint, consume_mode, cancelled_by_account_device_id,
+      qa_issuer_session_id, qa_app_session_id
+    ) VALUES (?, ?, ?, ?, ?, 'production', ?, ?, ?, 1000, 2000, 1100, NULL, ?, ?, ?, ?, 'new_app', NULL, NULL, NULL)`)
+      .run(invitationId, hex(String(index + 5)), IDS.account, membershipId, appId, portA,
+        appDeviceId, accountDeviceId, issueId, hex(String(index + 6)), consumeId, hex(String(index + 7)));
+  }
+  const before = {
+    records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+    changes: db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count,
+    tombstones: db.raw.prepare('SELECT COUNT(*) count FROM sync_records WHERE deleted_at IS NOT NULL').get().count,
+    recovery: db.raw.prepare('SELECT recovery_version version FROM sync_accounts WHERE id = ?').get(IDS.account).version
+  };
+  const repository = createD1AccountLifecycleRepository(db);
+  const result = await repository.detachCurrentEnvironment(
+    { accountId: IDS.account, accountDeviceId: portA, admissionProvenance: 'production' },
+    { operationId: '90000000-0000-4000-8000-000000000010', requestFingerprint: hex('f'), now: 2100 }
+  );
+  assert.equal(result.status, 'detached');
+  assert.equal(result.revokedAccountDeviceCount, 5);
+  assert.equal(result.revokedAppDeviceCount, 4);
+  assert.equal(result.isLastPort, false);
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_account_devices WHERE id = ?').get(portA).revoked_at, 2100);
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_account_devices WHERE id = ?').get(portB).revoked_at, null);
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_account_devices WHERE id = ?').get(IDS.accountA).revoked_at, null,
+    'an app Account Device not claimed from Port A is preserved');
+  for (let index = 0; index < owned.length; index += 1) {
+    const suffix = String(index + 20).padStart(12, '0');
+    assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_account_devices WHERE id = ?')
+      .get(`10000000-0000-4000-8000-${suffix}`).revoked_at, 2100);
+    assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_devices WHERE id = ?')
+      .get(`40000000-0000-4000-8000-${suffix}`).revoked_at, 2100);
+  }
+  assert.deepEqual({
+    records: db.raw.prepare('SELECT COUNT(*) count FROM sync_records').get().count,
+    changes: db.raw.prepare('SELECT COUNT(*) count FROM sync_changes').get().count,
+    tombstones: db.raw.prepare('SELECT COUNT(*) count FROM sync_records WHERE deleted_at IS NOT NULL').get().count,
+    recovery: db.raw.prepare('SELECT recovery_version version FROM sync_accounts WHERE id = ?').get(IDS.account).version
+  }, before);
+  const retry = await repository.detachCurrentEnvironment(
+    { accountId: IDS.account, accountDeviceId: portA, admissionProvenance: 'production' },
+    { operationId: '90000000-0000-4000-8000-000000000010', requestFingerprint: hex('f'), now: 2101 }
+  );
+  assert.equal(retry.alreadyDetached, true);
+  db.close();
+});
+
+test('current Port environment detach identifies the last Port from formal device links', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const port = '10000000-0000-4000-8000-000000000012';
+  db.raw.prepare(`INSERT INTO sync_account_devices (
+    id, account_id, credential_version, credential_verifier, label, created_at, last_seen_at, revoked_at
+  ) VALUES (?, ?, 1, ?, 'Only Port', 1000, 1000, NULL)`).run(port, IDS.account, hex('1'));
+  const result = await createD1AccountLifecycleRepository(db).detachCurrentEnvironment(
+    { accountId: IDS.account, accountDeviceId: port },
+    { operationId: '90000000-0000-4000-8000-000000000011', requestFingerprint: hex('e'), now: 2100 }
+  );
+  assert.equal(result.status, 'detached');
+  assert.equal(result.isLastPort, true);
+  db.close();
+});
+
 test('app detach revokes every target app environment while preserving membership, dataset and durable data', async () => {
   const db = createSqliteD1();
   seedAccount(db);

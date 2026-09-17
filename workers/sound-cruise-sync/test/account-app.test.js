@@ -455,6 +455,27 @@ test('current environment revoke is response-loss safe after its credential is i
   db.close();
 });
 
+test('current Port environment detach is response-loss safe and leaves Account data active', async () => {
+  const db = createSqliteD1();
+  enableLifecycleControl(db);
+  const env = environment(db);
+  const started = await startAccount(db, env, ['chord', 'pitch']);
+  const body = { operationId: crypto.randomUUID() };
+  const options = { credential: started.candidate.account.credential };
+  let response = await handleRequest(jsonRequest('/v2/accounts/environments/current/detach', body, options), env);
+  assert.equal(response.status, 200);
+  const first = await response.json();
+  assert.equal(first.scope, 'current_environment');
+  assert.equal(first.isLastPort, true);
+  response = await handleRequest(jsonRequest('/v2/accounts/environments/current/detach', body, options), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).alreadyDetached, true);
+  assert.equal(db.raw.prepare('SELECT state FROM sync_accounts').get().state, 'active');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_memberships').get().count, 2);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count, 0);
+  db.close();
+});
+
 test('cross-container app Join Code activates once without echoing or storing plaintext', async () => {
   const db = createSqliteD1();
   enableAccountControl(db);

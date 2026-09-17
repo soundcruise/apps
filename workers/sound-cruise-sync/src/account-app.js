@@ -44,6 +44,7 @@ import {
   validateAccountDeleteIntentPayload,
   validateAccountAppDetachPayload,
   validateAccountDeviceRevokePayload,
+  validateCurrentEnvironmentDetachPayload,
   validateAccountRecoveryCommitPayload,
   validateAccountRecoveryPreparePayload,
   validateAccountRecoveryRotationCommitPayload,
@@ -93,6 +94,10 @@ const ACCOUNT_ROUTES = Object.freeze({
     headers: ['authorization', 'x-d1-bookmark']
   },
   '/v2/accounts/devices/revoke': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
+  '/v2/accounts/environments/current/detach': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
     headers: ['content-type', 'authorization', 'x-d1-bookmark']
   },
@@ -898,6 +903,68 @@ async function handleEnvironmentRevoke(request, env, origin, route, dependencies
     if (result.status === 'not_found') return errorResponse(404, 'account_device_not_found', origin, route);
     if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
     return jsonResponse(200, { ok: true, ...result }, origin, route, bookmarkHeader(session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleCurrentEnvironmentDetach(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateCurrentEnvironmentDetachPayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  let session;
+  let identity;
+  try {
+    session = createSession(env, request);
+    if (!session) return errorResponse(400, 'invalid_bookmark', origin, route);
+    identity = await (dependencies.authenticateAccountDevice || authenticateAccountDevice)(
+      session, request.headers.get('Authorization'), env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  try {
+    const value = validation.value;
+    const rawCredential = String(request.headers.get('Authorization') || '').replace(/^Bearer /, '');
+    const accountDevice = parseAccountCredential(rawCredential);
+    if (!accountDevice) return errorResponse(401, 'invalid_account_credential', origin, route);
+    const credentialVerifier = await (
+      dependencies.accountCredentialVerifier || accountCredentialVerifier
+    )(rawCredential, env.SYNC_ACCOUNT_CREDENTIAL_PEPPER);
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(session);
+    if (!identity) {
+      const exact = await repository.resolveCurrentEnvironmentDetachAfterCredentialLoss({
+        operationId: value.operationId,
+        accountDeviceId: accountDevice.deviceId,
+        accountCredentialVerifier: credentialVerifier,
+        admissionProvenance: dependencies.admissionProvenance
+      });
+      if (exact.status !== 'detached') {
+        return errorResponse(401, 'invalid_account_credential', origin, route);
+      }
+      return jsonResponse(200, { ok: true, operation: 'existing', ...exact }, origin, route,
+        bookmarkHeader(session));
+    }
+    if (identity.admissionProvenance !== dependencies.admissionProvenance) {
+      return errorResponse(403, 'account_admission_mismatch', origin, route);
+    }
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )(['account-current-environment-detach', identity.accountId, identity.accountDeviceId,
+      dependencies.admissionProvenance]);
+    const result = await repository.detachCurrentEnvironment(identity, {
+      operationId: value.operationId, requestFingerprint, now: Date.now()
+    });
+    if (result.status === 'invalid') return errorResponse(409, 'environment_detach_unavailable', origin, route);
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    return jsonResponse(200, { ok: true, operation: result.alreadyDetached ? 'existing' : 'detached', ...result },
+      origin, route, bookmarkHeader(session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
   }
@@ -1938,6 +2005,9 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   if (url.pathname === '/v2/accounts/devices') return handleDevices(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v2/accounts/devices/revoke') {
     return handleEnvironmentRevoke(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/environments/current/detach') {
+    return handleCurrentEnvironmentDetach(request, env, origin, route, dependencies);
   }
   const membershipDetach = url.pathname.match(
     /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/detach$/

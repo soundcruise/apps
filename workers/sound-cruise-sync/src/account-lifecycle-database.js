@@ -563,6 +563,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   async function listEnvironments(identity) {
     const rows = await db.prepare(`
       SELECT d.id, d.label, d.credential_version, d.created_at, d.last_seen_at, d.revoked_at,
+             CASE WHEN COUNT(l.app_device_id) = 0 THEN 1 ELSE 0 END AS is_port_environment,
              GROUP_CONCAT(DISTINCT m.app_id) AS related_apps
       FROM sync_account_devices d
       LEFT JOIN sync_membership_device_links l ON l.account_device_id = d.id
@@ -579,6 +580,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       lastSeenAt: Number(row.last_seen_at),
       revokedAt: row.revoked_at == null ? null : Number(row.revoked_at),
       isCurrent: row.id === identity.accountDeviceId,
+      isPortEnvironment: Number(row.is_port_environment) === 1,
       relatedApps: row.related_apps ? String(row.related_apps).split(',').sort() : []
     }));
   }
@@ -651,6 +653,143 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     if (!row || (input.requestFingerprint != null &&
         row.request_fingerprint !== input.requestFingerprint)) return { status: 'invalid' };
     return { status: 'revoked', ...lifecycleResult(row), alreadyRevoked: true };
+  }
+
+  async function resolveCurrentEnvironmentDetachRetry(identity, input) {
+    const previous = await operation(input.operationId);
+    if (!previous) return null;
+    const result = lifecycleResult(previous);
+    if (previous.admission_provenance !== (identity.admissionProvenance || 'qa') ||
+        previous.request_fingerprint !== input.requestFingerprint ||
+        previous.kind !== 'device_revoke' || result?.scope !== 'current_environment' ||
+        result?.accountDeviceId !== identity.accountDeviceId) return { status: 'conflict' };
+    return { status: 'detached', ...result, alreadyDetached: true };
+  }
+
+  async function resolveCurrentEnvironmentDetachAfterCredentialLoss(input) {
+    const row = await db.prepare(`
+      SELECT o.request_fingerprint, o.kind, o.result_json
+      FROM sync_account_lifecycle_operations o
+      JOIN sync_account_devices d ON d.account_id = o.account_id AND d.id = o.target_id
+      JOIN sync_accounts a ON a.id = o.account_id
+      WHERE o.operation_id = ? AND o.kind = 'device_revoke' AND o.target_id = ?
+        AND d.credential_verifier = ? AND d.revoked_at IS NOT NULL
+        AND a.admission_provenance = ?
+    `).bind(input.operationId, input.accountDeviceId, input.accountCredentialVerifier,
+      input.admissionProvenance).first();
+    const result = lifecycleResult(row);
+    if (!row || result?.scope !== 'current_environment') return { status: 'invalid' };
+    return { status: 'detached', ...result, alreadyDetached: true };
+  }
+
+  async function detachCurrentEnvironment(identity, input) {
+    const retry = await resolveCurrentEnvironmentDetachRetry(identity, input);
+    if (retry) return retry;
+
+    // A Port environment is the formal, unlinked Account Device created by
+    // account start or Port join. App environments always create a membership
+    // device link as part of consuming an app invitation.
+    const target = await db.prepare(`
+      SELECT d.id, d.revoked_at,
+             (SELECT COUNT(*) FROM sync_account_devices p
+                WHERE p.account_id = d.account_id AND p.revoked_at IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM sync_membership_device_links l
+                    WHERE l.account_id = p.account_id AND l.account_device_id = p.id))
+               AS active_port_count,
+             (SELECT COUNT(DISTINCT h.claimed_by_account_device_id)
+                FROM sync_app_join_invitations h
+                JOIN sync_account_devices child ON child.id = h.claimed_by_account_device_id
+                  AND child.account_id = h.account_id AND child.revoked_at IS NULL
+                WHERE h.account_id = d.account_id
+                  AND h.created_by_account_device_id = d.id
+                  AND h.consumed_at IS NOT NULL
+                  AND h.claimed_by_account_device_id IS NOT NULL) AS linked_account_device_count,
+             (SELECT COUNT(DISTINCT h.claimed_by_app_device_id)
+                FROM sync_app_join_invitations h
+                JOIN sync_devices child ON child.id = h.claimed_by_app_device_id
+                  AND child.revoked_at IS NULL
+                WHERE h.account_id = d.account_id
+                  AND h.created_by_account_device_id = d.id
+                  AND h.consumed_at IS NOT NULL
+                  AND h.claimed_by_app_device_id IS NOT NULL) AS linked_app_device_count
+      FROM sync_account_devices d
+      JOIN sync_accounts a ON a.id = d.account_id
+      WHERE d.id = ? AND d.account_id = ? AND d.revoked_at IS NULL
+        AND a.state = 'active' AND a.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM sync_membership_device_links l
+          WHERE l.account_id = d.account_id AND l.account_device_id = d.id)
+    `).bind(identity.accountDeviceId, identity.accountId).first();
+    if (!target) return { status: 'invalid' };
+
+    const resultBody = {
+      scope: 'current_environment', accountDeviceId: identity.accountDeviceId,
+      revokedAccountDeviceCount: 1 + Number(target.linked_account_device_count || 0),
+      revokedAppDeviceCount: Number(target.linked_app_device_count || 0),
+      isLastPort: Number(target.active_port_count || 0) === 1
+    };
+    const revokePort = db.prepare(`
+      UPDATE sync_account_devices SET revoked_at = ?
+      WHERE id = ? AND account_id = ? AND revoked_at IS NULL
+    `).bind(input.now, identity.accountDeviceId, identity.accountId);
+    const revokeLinkedAccountDevices = db.prepare(`
+      UPDATE sync_account_devices SET revoked_at = COALESCE(revoked_at, ?)
+      WHERE account_id = ? AND id IN (
+        SELECT DISTINCT h.claimed_by_account_device_id
+        FROM sync_app_join_invitations h
+        WHERE h.account_id = ? AND h.created_by_account_device_id = ?
+          AND h.consumed_at IS NOT NULL AND h.claimed_by_account_device_id IS NOT NULL
+      )
+    `).bind(input.now, identity.accountId, identity.accountId, identity.accountDeviceId);
+    const revokeLinkedAppDevices = db.prepare(`
+      UPDATE sync_devices SET revoked_at = COALESCE(revoked_at, ?)
+      WHERE id IN (
+        SELECT DISTINCT h.claimed_by_app_device_id
+        FROM sync_app_join_invitations h
+        WHERE h.account_id = ? AND h.created_by_account_device_id = ?
+          AND h.consumed_at IS NOT NULL AND h.claimed_by_app_device_id IS NOT NULL
+      )
+    `).bind(input.now, identity.accountId, identity.accountDeviceId);
+    const revokeLinkedQaSessions = db.prepare(`
+      UPDATE sync_account_qa_sessions SET revoked_at = COALESCE(revoked_at, ?)
+      WHERE account_id = ? AND scope = 'app' AND revoked_at IS NULL
+        AND app_device_id IN (
+          SELECT DISTINCT h.claimed_by_app_device_id
+          FROM sync_app_join_invitations h
+          WHERE h.account_id = ? AND h.created_by_account_device_id = ?
+            AND h.consumed_at IS NOT NULL AND h.claimed_by_app_device_id IS NOT NULL
+        )
+    `).bind(input.now, identity.accountId, identity.accountId, identity.accountDeviceId);
+    const cancelAppJoins = db.prepare(`
+      UPDATE sync_app_join_invitations SET cancelled_at = COALESCE(cancelled_at, ?),
+        cancelled_by_account_device_id = COALESCE(cancelled_by_account_device_id, ?)
+      WHERE account_id = ? AND created_by_account_device_id = ?
+        AND consumed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, identity.accountDeviceId, identity.accountId, identity.accountDeviceId);
+    const cancelPortJoins = db.prepare(`
+      UPDATE sync_port_join_invitations SET cancelled_at = COALESCE(cancelled_at, ?),
+        cancelled_by_account_device_id = COALESCE(cancelled_by_account_device_id, ?)
+      WHERE account_id = ? AND created_by_account_device_id = ?
+        AND consumed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, identity.accountDeviceId, identity.accountId, identity.accountDeviceId);
+    const cancelHandoffs = db.prepare(`
+      UPDATE sync_membership_handoffs SET cancelled_at = COALESCE(cancelled_at, ?)
+      WHERE account_id = ? AND created_by_account_device_id = ?
+        AND consumed_at IS NULL AND cancelled_at IS NULL
+    `).bind(input.now, identity.accountId, identity.accountDeviceId);
+    const record = db.prepare(`
+      INSERT INTO sync_account_lifecycle_operations (
+        operation_id, request_fingerprint, account_id, kind, target_id, result_json, created_at
+      ) VALUES (?, ?, ?, 'device_revoke', ?, ?, ?)
+    `).bind(input.operationId, input.requestFingerprint, identity.accountId,
+      identity.accountDeviceId, JSON.stringify(resultBody), input.now);
+    const statements = [revokePort, revokeLinkedAccountDevices, revokeLinkedAppDevices,
+      revokeLinkedQaSessions, cancelAppJoins, cancelPortJoins, cancelHandoffs, record];
+    const results = await db.batch(statements);
+    if (!batchSucceeded(results, statements.length) || changes(results[0]) !== 1 ||
+        changes(results[7]) !== 1) {
+      throw new Error('D1 current Port environment detach failed');
+    }
+    return { status: 'detached', ...resultBody, alreadyDetached: false };
   }
 
   async function resolveAppDetachRetry(identity, input) {
@@ -1009,6 +1148,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     resolveRecoveryPrepare, reserveRecoveryAttempt, prepareRecovery, commitRecovery,
     resolveRecoveryRotationPrepare, prepareRecoveryRotation, commitRecoveryRotation,
     listEnvironments, revokeEnvironment, resolveRevokeAfterCredentialLoss,
+    resolveCurrentEnvironmentDetachRetry, resolveCurrentEnvironmentDetachAfterCredentialLoss,
+    detachCurrentEnvironment,
     resolveAppDetachRetry, detachApp, issueDeleteIntent,
     commitDelete, resolveDeleteAfterCredentialLoss, operation
   });

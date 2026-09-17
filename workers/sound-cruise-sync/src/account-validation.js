@@ -271,6 +271,15 @@ export function validateAccountDeviceRevokePayload(value) {
     ? { ok: true, value: normalized } : { ok: false };
 }
 
+// This endpoint always acts on the authenticated Port Account Device.  Keeping
+// the body to the idempotency key prevents a caller from selecting another
+// environment by label, time, or a client-supplied device id.
+export function validateCurrentEnvironmentDetachPayload(value) {
+  if (!exactObject(value, ['operationId'])) return { ok: false };
+  const normalized = { operationId: operationId(value.operationId) };
+  return normalized.operationId ? { ok: true, value: normalized } : { ok: false };
+}
+
 export function validateAccountAppDetachPayload(value) {
   if (!exactObject(value, ['operationId', 'appId'])) return { ok: false };
   const normalized = {

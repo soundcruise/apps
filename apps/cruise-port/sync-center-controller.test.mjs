@@ -75,12 +75,22 @@ test('summary normalization exposes only the stable display Account ID, never ra
     assert.equal(model.totalCount, 4);
     assert.deepEqual(model.environments, [{
         id: 'secret-device-id', label: 'iPhone', isCurrent: true, state: 'active',
-        createdAt: null, lastSeenAt: null, relatedApps: []
+        isPortEnvironment: false, createdAt: null, lastSeenAt: null, relatedApps: []
     }]);
     const serialized = JSON.stringify(model);
     assert.doesNotMatch(serialized, /secret-account-id|secret-hash/);
     assert.match(model.accountDisplayId, /^SC-[0-9A-F]{10}$/);
     assert.doesNotMatch(serialized, /lastSync|lastSyncedAt/);
+});
+
+test('environment normalization retains only the server-derived Port classification', () => {
+    const model = normalizeSyncCenterSummary(activeSummary, { devices: [
+        { id: 'port-device', label: 'Port', isCurrent: true, isPortEnvironment: true, revokedAt: null },
+        { id: 'app-device', label: 'App', isCurrent: false, isPortEnvironment: false, revokedAt: null }
+    ] }, () => 'SC-123456789A');
+    assert.deepEqual(model.environments.map(({ id, isPortEnvironment }) => [id, isPortEnvironment]), [
+        ['port-device', true], ['app-device', false]
+    ]);
 });
 
 test('only a ready active membership with an existing app device can add another environment', () => {

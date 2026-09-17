@@ -855,6 +855,41 @@ test('app detach persists only its operation metadata and response-loss resumes 
   assert.equal(pending, null);
 });
 
+test('current environment detach keeps local Account state until the server confirms, then resumes response loss once', async () => {
+  const account = load([coreSource, clientSource]);
+  const credential = account.core.createAccountCredential().accountCredential;
+  const operationId = account.core.createOperationId();
+  let pending = null;
+  let cleared = 0;
+  let calls = 0;
+  const storage = {
+    async getAccount() { return { accountCredential: credential }; },
+    async getPendingEnvironmentDetach() { return pending; },
+    async setPendingEnvironmentDetach(value) { pending = structuredClone(value); },
+    async clearPendingEnvironmentDetach() { pending = null; },
+    async clearAccount() { cleared += 1; }
+  };
+  const client = new account.AccountClient({
+    endpoint: 'https://sync.example', storage, core: account.core,
+    fetchImpl: async (_url, options) => {
+      calls += 1;
+      assert.equal(options.headers.get('Authorization'), `Bearer ${credential}`);
+      if (calls === 1) throw new TypeError('response_lost');
+      return Response.json({ ok: true, scope: 'current_environment', revokedAppDeviceCount: 4 });
+    }
+  });
+  await assert.rejects(client.detachCurrentEnvironment({ accountCredential: credential, operationId }));
+  assert.deepEqual(pending.body, { operationId });
+  assert.equal(JSON.stringify(pending).includes(credential), false);
+  assert.equal(cleared, 0, 'network failure preserves the Port Account binding');
+  const resumed = await client.resumePendingEnvironmentDetach();
+  assert.equal(resumed.status, 'committed');
+  assert.equal(resumed.result.revokedAppDeviceCount, 4);
+  assert.equal(pending, null);
+  assert.equal(cleared, 1);
+  assert.equal(calls, 2);
+});
+
 test('consume response-loss recovery proves committed state with candidate Account auth, not handoff persistence', async () => {
   const writes = [];
   const account = load([coreSource, clientSource]);

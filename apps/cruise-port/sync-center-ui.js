@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.38.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -29,16 +29,17 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
         const actions = document.createElement('div');
         actions.className = 'sync-center-app-row-actions';
         const needsInitialConnection = ['unset', 'prepared', 'detached'].includes(app.status);
+        const accountReady = presentation.accountState === 'active';
         const canRemoveAppSync = Number(app.activeAppDeviceCount || 0) > 0 &&
             app.status !== 'deleting' && orchestrationEnabled;
         const action = document.createElement(needsInitialConnection
-            ? (orchestrationEnabled ? 'button' : 'a')
+            ? (accountReady && !orchestrationEnabled ? 'a' : 'button')
             : canRemoveAppSync ? 'button' : 'span');
         action.className = canRemoveAppSync
             ? 'sync-center-app-action sync-center-app-remove'
             : 'sync-center-app-action';
-        if (needsInitialConnection && !orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
-        else if (needsInitialConnection) {
+        if (needsInitialConnection && accountReady && !orchestrationEnabled) action.href = resolveCruiseAppHref(app.id, edition);
+        else if (needsInitialConnection && accountReady) {
             action.type = 'button';
             action.dataset.syncAppAction = app.id;
             if (typeof onAppAction === 'function') {
@@ -56,10 +57,15 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
         // Prepared memberships use the same launch callback as normal rows, but
         // opening them issues the initial connection code. Keep that callback
         // contract intact while making the next action clear in the UI.
-        const actionLabel = needsInitialConnection ? '同期コード' : canRemoveAppSync ? '同期を解除' : app.statusLabel;
+        const actionLabel = needsInitialConnection && !accountReady
+            ? '先にアカウントを作成または接続してください'
+            : needsInitialConnection ? '同期コード' : canRemoveAppSync ? '同期を解除' : app.statusLabel;
         action.textContent = actionLabel;
         action.setAttribute('aria-label', `${app.name}で${actionLabel}（${app.statusLabel}）`);
-        if (app.action === 'none' || (!needsInitialConnection && !canRemoveAppSync)) {
+        if (needsInitialConnection && !accountReady) {
+            action.disabled = true;
+            action.setAttribute('aria-disabled', 'true');
+        } else if (app.action === 'none' || (!needsInitialConnection && !canRemoveAppSync)) {
             action.removeAttribute('href');
             action.setAttribute('aria-disabled', 'true');
         }
@@ -120,6 +126,8 @@ function renderAddEnvironmentRows(root, presentation, edition, orchestrationEnab
 function renderEnvironments(root, presentation) {
     const list = root.querySelector('#sync-center-environments');
     if (!list) return;
+    const activePortCount = presentation.environments.filter((environment) =>
+        environment.state === 'active' && environment.isPortEnvironment).length;
     const rows = presentation.environments.length
         ? presentation.environments.map((environment) => {
             const item = document.createElement('li');
@@ -140,7 +148,11 @@ function renderEnvironments(root, presentation) {
                 revoke.className = 'action-button secondary-action';
                 revoke.dataset.syncEnvironmentRevoke = environment.id;
                 revoke.dataset.syncEnvironmentCurrent = environment.isCurrent ? 'true' : 'false';
-                revoke.textContent = environment.isCurrent ? 'この環境の同期を解除' : '同期を解除';
+                if (environment.isCurrent && environment.isPortEnvironment) {
+                    revoke.dataset.syncCurrentEnvironmentDetach = 'true';
+                    revoke.dataset.syncCurrentEnvironmentLastPort = String(activePortCount === 1);
+                    revoke.textContent = 'この環境の接続を解除';
+                } else revoke.textContent = environment.isCurrent ? 'この環境の同期を解除' : '同期を解除';
                 item.append(revoke);
             }
             return item;
@@ -279,6 +291,7 @@ export function renderSyncCenter(root, presentation, {
     const setupOpen = root.querySelector('#sync-center-setup-open');
     const portConnectOpen = root.querySelector('#sync-center-port-connect-open');
     const accountRecoveryOpen = root.querySelector('#sync-center-account-recovery-open');
+    const currentEnvironmentDetach = root.querySelector('#sync-center-current-environment-detach');
     const accountRecoveryHelpToggle = root.querySelector('#sync-center-account-recovery-help-toggle');
     const accountRecoveryHelp = root.querySelector('#sync-center-account-recovery-help');
     const accountState = presentation.accountState;
@@ -295,6 +308,14 @@ export function renderSyncCenter(root, presentation, {
     if (accountRecoveryOpen) {
         accountRecoveryOpen.hidden = accountState !== 'active';
         accountRecoveryOpen.textContent = '復旧コードを更新';
+    }
+    if (currentEnvironmentDetach) {
+        const activePortCount = presentation.environments.filter((environment) =>
+            environment.state === 'active' && environment.isPortEnvironment).length;
+        const currentPort = presentation.environments.some((environment) =>
+            environment.isCurrent && environment.isPortEnvironment && environment.state === 'active');
+        currentEnvironmentDetach.hidden = accountState !== 'active' || !currentPort;
+        currentEnvironmentDetach.dataset.syncCurrentEnvironmentLastPort = String(currentPort && activePortCount === 1);
     }
     if (accountRecoveryHelpToggle) {
         accountRecoveryHelpToggle.hidden = accountState !== 'active';
@@ -793,7 +814,8 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
         lifecycleAction = action;
         lifecycleDialog.dataset.syncPhase = 'review';
         lifecycleConfirm.dataset.syncAction = action.kind === 'delete'
-            ? 'issue-delete-intent' : action.kind === 'detach' ? 'detach-app' : 'revoke-environment';
+            ? 'issue-delete-intent' : action.kind === 'detach' ? 'detach-app'
+                : action.kind === 'current-environment' ? 'detach-current-environment' : 'revoke-environment';
         lifecycleConfirm.textContent = action.kind === 'delete' ? '削除内容を確認' : '同期を解除';
         if (lifecycleDeleteNote) lifecycleDeleteNote.hidden = action.kind !== 'delete';
         if (lifecycleTitle) lifecycleTitle.textContent = action.title || '操作内容を確認';
@@ -803,6 +825,17 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     root?.addEventListener?.('click', (event) => {
         const environment = event.target.closest?.('[data-sync-environment-revoke]');
         if (environment) {
+            if (environment.dataset.syncCurrentEnvironmentDetach === 'true') {
+                const lastPort = environment.dataset.syncCurrentEnvironmentLastPort === 'true';
+                openLifecycle({
+                    kind: 'current-environment',
+                    title: 'この環境の接続を解除',
+                    summary: lastPort
+                        ? 'この環境が最後のCruise Portです。接続を解除した後、このアカウントへ再び接続するには保存済みの復旧コードが必要です。クラウド上と端末内のデータは削除されません。'
+                        : 'このCruise Portと、この環境で接続しているアプリをアカウントから解除します。クラウド上と端末内のデータは削除されません。他の環境はそのまま利用できます。'
+                });
+                return;
+            }
             openLifecycle({
                 kind: 'environment', accountDeviceId: environment.dataset.syncEnvironmentRevoke,
                 summary: environment.dataset.syncEnvironmentCurrent === 'true'
@@ -831,6 +864,17 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             });
         }
     });
+    root?.querySelector?.('#sync-center-current-environment-detach')?.addEventListener('click', () => {
+        const button = root.querySelector('#sync-center-current-environment-detach');
+        const lastPort = button?.dataset?.syncCurrentEnvironmentLastPort === 'true';
+        openLifecycle({
+            kind: 'current-environment',
+            title: 'この環境の接続を解除',
+            summary: lastPort
+                ? 'この環境が最後のCruise Portです。接続を解除した後、このアカウントへ再び接続するには保存済みの復旧コードが必要です。クラウド上と端末内のデータは削除されません。'
+                : 'このCruise Portと、この環境で接続しているアプリをアカウントから解除します。クラウド上と端末内のデータは削除されません。他の環境はそのまま利用できます。'
+        });
+    });
     root?.querySelector?.('[data-sync-app-delete-toggle]')?.addEventListener('click', (event) => {
         const details = root.querySelector('#sync-center-app-delete-actions');
         if (!details) return;
@@ -857,6 +901,13 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             await ensureQaAdmission();
             if (lifecycleAction.kind === 'environment') {
                 await orchestrator.revokeEnvironment(lifecycleAction.accountDeviceId);
+                lifecycleDialog.close();
+                lifecycleAction = null;
+                await refresh();
+                return;
+            }
+            if (lifecycleAction.kind === 'current-environment') {
+                await orchestrator.detachCurrentEnvironment();
                 lifecycleDialog.close();
                 lifecycleAction = null;
                 await refresh();

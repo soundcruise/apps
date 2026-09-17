@@ -61,6 +61,10 @@ function fixture() {
             if (membership) memberships.set(appId, { ...membership, activeAppDeviceCount: 0 });
             return { status: 'detached', appId, revokedAppDeviceCount: 1 };
         }
+        async detachCurrentEnvironment({ operationId }) {
+            calls.push(['detach-current-environment', operationId]);
+            return { status: 'detached', scope: 'current_environment', revokedAppDeviceCount: 4 };
+        }
     }
     let operation = 0;
     const accountRoot = {
@@ -213,6 +217,14 @@ test('app detach uses Account authority once and immediate rejoin reuses the act
     assert.equal(memberships.get('rhythm').id, 'm-rhythm');
     assert.equal(memberships.get('rhythm').dataset.state, 'ready');
     assert.equal(calls.filter(([kind, appId]) => kind === 'prepare' && appId === 'rhythm').length, 0);
+});
+
+test('current Port detach uses only the stored Account authority and does not issue a Join or Delete intent', async () => {
+    const { orchestrator, calls } = fixture();
+    const result = await orchestrator.detachCurrentEnvironment();
+    assert.equal(result.scope, 'current_environment');
+    assert.equal(calls.filter(([kind]) => kind === 'detach-current-environment').length, 1);
+    assert.equal(calls.some(([kind]) => kind === 'join' || kind === 'prepare'), false);
 });
 
 test('Port can cancel a displayed cross-container Join invitation', async () => {

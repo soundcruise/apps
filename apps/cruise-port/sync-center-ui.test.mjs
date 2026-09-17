@@ -98,6 +98,7 @@ test('Account section presents step title, status chip and state-specific CTA', 
         assert.match(account, /アカウントの作成/);
         assert.match(account, /既存のアカウントに接続/);
         assert.match(account, /復旧コードを更新/);
+        assert.match(account, /id="sync-center-current-environment-detach"[^>]*hidden>この環境の接続を解除/);
         assert.match(account, /sync-center-account-actions/);
         assert.match(account, /sync-center-account-recovery-help-toggle/);
         assert.match(account, /id="sync-center-account-recovery-help"[^>]*hidden/);
@@ -111,10 +112,21 @@ test('Account section presents step title, status chip and state-specific CTA', 
     assert.match(ui, /accountState === 'active' \? '作成済み'/);
     assert.match(ui, /setupOpen\.hidden = accountState !== 'unset'/);
     assert.match(ui, /accountRecoveryOpen\.hidden = accountState !== 'active'/);
+    assert.match(ui, /currentEnvironmentDetach\.hidden = accountState !== 'active'/);
     assert.match(ui, /accountRecoveryHelpToggle\.hidden = accountState !== 'active'/);
     assert.match(ui, /setupOpen\.textContent = 'アカウントの作成'/);
     assert.match(ui, /accountRecoveryOpen\.textContent = '復旧コードを更新'/);
     assert.doesNotMatch(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
+});
+
+test('current Port detach is distinct from generic environment revoke and leaves Section 2 informational when Account is unset', () => {
+    assert.match(ui, /dataset\.syncCurrentEnvironmentDetach = 'true'/);
+    assert.match(ui, /kind: 'current-environment'/);
+    assert.match(ui, /await orchestrator\.detachCurrentEnvironment\(\)/);
+    assert.match(ui, /先にアカウントを作成または接続してください/);
+    assert.match(ui, /needsInitialConnection && !accountReady[\s\S]*action\.disabled = true/);
+    assert.match(ui, /この環境が最後のCruise Portです。/);
+    assert.doesNotMatch(ui, /orchestrator\.commitDelete\(.*current-environment/);
 });
 
 test('Sync Code rows bind the existing launch callback after every render', () => {
