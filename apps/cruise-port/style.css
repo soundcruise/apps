@@ -2122,8 +2122,8 @@ textarea:focus-visible {
 }
 .sync-center-account-actions {
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 8px;
 }
 .sync-center-account-status-chip,
