@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.37.0';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.37.0';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.37.0';
+} from './sync-center-controller.js?v=0.37.1';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.37.1';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.37.1';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.37.0';
+} from './sync-center-navigation.js?v=0.37.1';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.37.0';
+} from './app-version.js?v=0.37.1';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -3510,8 +3510,14 @@ async function renderSyncCenterView() {
     const sequence = ++syncCenterRenderSequence;
     showView(elements.syncCenterView);
     elements.syncCenterTitle.focus({ preventScroll: true });
+    if (!syncCenterResumeChecked && syncCenterOrchestrator.enabled) {
+        syncCenterResumeChecked = true;
+        try { await syncCenterOrchestrator.resume(); } catch (_) { /* no pending committed Account */ }
+    }
     try {
-        await syncCenterActions?.ensureQaAdmission?.();
+        if (await syncCenterOrchestrator.hasConfiguredAccount?.()) {
+            await syncCenterActions?.ensureQaAdmission?.();
+        }
     } catch (error) {
         if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
         showNotice(elements.syncCenterView.querySelector('#sync-center-alert'),
@@ -3519,10 +3525,6 @@ async function renderSyncCenterView() {
                 ? '認証を完了してからQAを開始してください。'
                 : 'QA Enrollmentを完了してから同期情報を確認してください。');
         return;
-    }
-    if (!syncCenterResumeChecked && syncCenterOrchestrator.enabled) {
-        syncCenterResumeChecked = true;
-        try { await syncCenterOrchestrator.resume(); } catch (_) { /* no pending committed Account */ }
     }
     const presentation = await syncCenterController.load();
     if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;

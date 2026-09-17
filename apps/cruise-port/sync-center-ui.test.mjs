@@ -231,6 +231,8 @@ test('QA Enrollment and Account start request distinct Turnstile actions', () =>
     assert.match(source, /tokenProvider\('sound_cruise_account_qa_enroll'\)/);
     assert.match(source, /requestSetupTurnstileToken\('sound_cruise_account_start'\)/);
     assert.match(app, /await syncCenterActions\?\.ensureQaAdmission\?\.\(\)/);
+    assert.match(app, /if \(await syncCenterOrchestrator\.hasConfiguredAccount\?\.\(\)\)/);
+    assert.ok(app.indexOf('syncCenterOrchestrator.resume()') < app.indexOf('await syncCenterActions?.ensureQaAdmission?.()'));
     assert.ok(app.indexOf('await syncCenterActions?.ensureQaAdmission?.()') < app.indexOf('syncCenterController.load()'));
 });
 

@@ -62,6 +62,8 @@ function fixture() {
         AccountApiError: class AccountApiError extends Error {},
         storage,
         core: {
+            validAccountCredential: (value) => typeof value === 'string' && value.startsWith('sca1.'),
+            validQaCredential: (value) => typeof value === 'string' && value.startsWith('scq1.'),
             createAccountMaterial: () => ({ recoveryCode: 'secret', accountCredential: 'sca1.account' }),
             formatRecoveryCode: () => 'DISPLAY-ONLY',
             createOperationId: () => `op-${++operation}`,
@@ -98,6 +100,13 @@ test('Account creation requires the one-time Recovery confirmation', async () =>
     );
     await orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken: 'verified' });
     assert.equal(calls.filter(([kind]) => kind === 'start').length, 1);
+});
+
+test('fresh QA receiver can render before enrollment while configured Accounts remain gated', async () => {
+    const fixtureState = fixture();
+    assert.equal(await fixtureState.orchestrator.hasConfiguredAccount(), true);
+    fixtureState.setSavedAccount(null);
+    assert.equal(await fixtureState.orchestrator.hasConfiguredAccount(), false);
 });
 
 test('duplicate Account submit shares one in-flight operation', async () => {

@@ -1,6 +1,6 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.37.0';
-import { createPortAccountJoin } from './port-account-join.js?v=0.37.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.37.1';
+import { createPortAccountJoin } from './port-account-join.js?v=0.37.1';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -44,6 +44,10 @@ export function createSyncCenterOrchestrator({
     return Object.freeze({
         enabled: true,
         qaAdmissionRequired: config.qaAdmissionRequired === true,
+        async hasConfiguredAccount() {
+            const saved = await account();
+            return accountRoot.core.validAccountCredential(saved?.accountCredential);
+        },
         async hasQaAdmission() {
             const value = await accountRoot.storage.getQaAdmission('port');
             return accountRoot.core.validQaCredential(value?.qaCredential) && value.expiresAt > Date.now();
