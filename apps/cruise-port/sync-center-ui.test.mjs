@@ -99,6 +99,7 @@ test('Account section presents step title, status chip and state-specific CTA', 
         assert.match(account, /復旧コードを更新/);
         assert.match(account, /id="sync-center-current-environment-detach"[^>]*hidden>この環境の接続を解除/);
         assert.match(account, /sync-center-account-actions/);
+        assert.match(account, /sync-center-account-action-row/);
         assert.match(account, /sync-center-section-heading[\s\S]*1\. アカウント作成[\s\S]*id="sync-center-account-help-toggle"/);
         assert.match(account, /id="sync-center-account-help"[^>]*hidden/);
         assert.match(account, /アカウントについて/);
@@ -159,8 +160,9 @@ test('Sync Code rows bind the existing launch callback after every render', () =
         assert.match(html, /2\. アプリを接続[\s\S]*data-sync-section-help-toggle="sync-center-apps-help"/);
         assert.match(html, /id="sync-center-apps-help"[\s\S]*最初に使うアプリを接続します。[\s\S]*そのアプリの全環境を解除します。/);
     }
-    assert.match(styles, /\.sync-center-account-actions\s*\{[\s\S]*flex-wrap:\s*wrap/);
-    assert.match(styles, /\.sync-center-account-action\s*\{[\s\S]*min-height:\s*38px[\s\S]*padding:\s*7px 14px/);
+    assert.match(styles, /\.sync-center-account-action-row\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.35fr\)\s+minmax\(0, 1fr\)/);
+    assert.match(styles, /\.sync-center-account-action-row\[data-sync-account-state="unset"\][\s\S]*grid-template-columns:\s*minmax\(0, 360px\)/);
+    assert.match(styles, /\.sync-center-account-action\s*\{[\s\S]*min-height:\s*48px[\s\S]*padding:\s*7px 14px/);
 });
 
 test('Recovery-code update uses authenticated rotation without opening Recovery execution', () => {

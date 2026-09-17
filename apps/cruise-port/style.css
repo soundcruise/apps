@@ -2138,6 +2138,9 @@ textarea:focus-visible {
     gap: 9px;
     width: min(100%, 430px);
 }
+.sync-center-account-action-row[data-sync-account-state="unset"] {
+    grid-template-columns: minmax(0, 360px);
+}
 .sync-center-account-status-chip,
 .sync-center-app-status-chip {
     flex: 0 0 auto;
@@ -2164,7 +2167,7 @@ textarea:focus-visible {
     background: rgba(205, 205, 205, 0.16);
 }
 .sync-center-account-action {
-    min-height: 38px;
+    min-height: 48px;
     padding: 7px 14px;
     border: 1px solid rgba(205, 180, 116, 0.38);
     border-radius: 10px;
