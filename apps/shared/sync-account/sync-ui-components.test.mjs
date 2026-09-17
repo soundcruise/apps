@@ -16,7 +16,7 @@ const appHtml = [
 
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
-    assert.match(html, /sync-ui-components\.js\?v=12/);
+    assert.match(html, /sync-ui-components\.js\?v=13/);
     assert.match(html, /multi-app-sync\.css\?v=18/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);

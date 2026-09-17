@@ -225,10 +225,10 @@ test('Sync Help separates initial connection from environment management', () =>
     const additional = app.slice(additionalStart, nextSection);
     assert.match(first, /'1\. Cruise Portで対象アプリの「同期コード」を押す'/);
     assert.match(first, /'6\. コードを入力して「接続する」を押す'/);
-    assert.match(additional, /端末やブラウザを追加・確認・解除/);
-    assert.match(additional, /Cruise Port: 「追加コード」/);
-    assert.match(additional, /Proアプリ: 対象アプリの「追加コード」/);
-    assert.match(additional, /最初のアプリ接続/);
+    assert.match(additional, /同じクラウドデータを使う端末やブラウザを、追加・確認・解除できます。/);
+    assert.match(additional, /環境を追加/);
+    assert.match(additional, /接続中の環境を確認/);
+    assert.match(additional, /環境の同期を解除/);
 });
 
 test('Section 2 is initial-only and Section 3 owns Port plus four app additions', () => {
@@ -242,7 +242,7 @@ test('Section 2 is initial-only and Section 3 owns Port plus four app additions'
         assert.doesNotMatch(section2, /別の環境を追加/);
         assert.match(section3, /3\. 環境を管理/);
         assert.match(section3, /sync-center-add-environments/);
-        assert.match(section3, /端末やブラウザを追加・確認・解除/);
+        assert.match(section3, /同じクラウドデータを使う端末やブラウザを、追加・確認・解除できます。/);
         assert.match(html, /id="sync-center-port-connect"/);
         assert.match(html, /data-sensitive="port-addition-code"/);
     }
@@ -452,7 +452,7 @@ test('delete grace reconnect is explicit and Section 3 owns counts, lists and sc
     for (const html of [root, pro]) {
         assert.match(html, /3\. 環境を管理/);
         assert.doesNotMatch(html, /<h2 id="sync-center-environments-title">同期中の環境<\/h2>/);
-        assert.match(html, /最初の接続は「2\. アプリを接続」から行います。/);
+        assert.match(html, /まだ一度も接続していないアプリは、「2\. アプリを接続」から接続してください。/);
     }
 });
 

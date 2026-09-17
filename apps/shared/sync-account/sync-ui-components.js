@@ -96,6 +96,10 @@
         content.setAttribute('aria-labelledby', headingId);
         content.hidden = true;
         section.paragraphs?.forEach((paragraph) => appendText(document, content, 'p', '', paragraph));
+        section.items?.forEach((item) => {
+          appendText(document, content, 'h4', '', item.title);
+          appendText(document, content, 'p', '', item.body);
+        });
         if (section.steps) appendSteps(document, content, section.steps, { flow: section.flowSteps === true });
         if (section.secondaryTitle) appendText(document, content, 'h4', '', section.secondaryTitle);
         if (section.secondarySteps) appendSteps(document, content, section.secondarySteps, { flow: section.secondaryFlowSteps === true });

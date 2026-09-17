@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.32.4">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.32.4">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.40.0">
+    <link rel="stylesheet" href="../style.css?v=0.40.1">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=18">
     <script>
@@ -25,10 +25,10 @@
     <script defer src="../../shared/sync-account/sync-account-core.js?v=6"></script>
     <script defer src="../../shared/sync-account/sync-account-db.js?v=8"></script>
     <script defer src="../../shared/sync-account/sync-account-client.js?v=14"></script>
-    <script defer src="../../shared/sync-account/sync-ui-components.js?v=12"></script>
+    <script defer src="../../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.40.0"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.40.1"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -223,8 +223,10 @@
                         <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-add-environments-help" aria-expanded="false" aria-controls="sync-center-add-environments-help" aria-label="環境の管理方法を表示">?</button>
                     </div>
                     <div id="sync-center-add-environments-help" class="sync-center-section-help-copy" hidden>
-                        <p>同じクラウドデータを使う端末やブラウザを追加・確認・解除できます。</p>
-                        <p>最初の接続は「2. アプリを接続」から行います。</p>
+                        <p>同じクラウドデータを使う端末やブラウザを、追加・確認・解除できます。</p>
+                        <h3>環境を追加</h3><p>2台目以降の端末やブラウザを追加するときは、「追加コード」を使います。まだ一度も接続していないアプリは、「2. アプリを接続」から接続してください。</p>
+                        <h3>接続中の環境を確認</h3><p>「○環境」を押すと、現在接続している環境を確認できます。</p>
+                        <h3>環境の同期を解除</h3><p>環境一覧の「解除」を押すと、その環境だけを同期から外せます。クラウド上と端末内のデータ、ほかの環境は削除されません。後から再接続できます。</p>
                     </div>
                     <ul id="sync-center-add-environments" class="sync-center-apps" aria-live="polite"></ul>
                 </section>
