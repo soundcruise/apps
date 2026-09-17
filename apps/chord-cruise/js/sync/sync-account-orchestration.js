@@ -118,12 +118,9 @@
             kind: 'primary',
             run: function () { options.action.click(); }
           } : null,
-          secondaryAction: options.manage ? {
-            id: 'manage', label: 'Cruise Portで管理', kind: 'secondary',
-            run: function () {
-              if (syncUi?.openPortManagement) syncUi.openPortManagement({ portUrl: settings.portUrl });
-              else global.location.assign(settings.portUrl);
-            }
+          secondaryAction: options.detach ? {
+            id: 'current-environment-detach', label: 'この環境の同期を解除', kind: 'secondary',
+            run: options.detach
           } : null
         });
         return true;
@@ -151,7 +148,28 @@
     }
 
     function showConnectedJoinSettings() {
-      renderJoinSettings({ state: 'ready', status: '同期済み', action: null, manage: true });
+      renderJoinSettings({ state: 'ready', status: '同期済み', action: null,
+        detach: openCurrentEnvironmentDetach });
+    }
+
+    function openCurrentEnvironmentDetach() {
+      if (!syncUi?.openCurrentEnvironmentDetachDialog) return;
+      syncUi.openCurrentEnvironmentDetachDialog({
+        document: document,
+        onConfirm: async function () {
+          var store = await chordClient.openStore();
+          var current = await store.getMeta('deviceCredential');
+          if (await store.getMeta('accountManagedSetup') !== true || !current?.credential) {
+            throw new Error('account_environment_detach_unavailable');
+          }
+          await accountClient.detachCurrentAppEnvironment({
+            appCredential: current.credential, operationId: accountRoot.core.createOperationId()
+          });
+          var cleared = await chordClient.clearCloudState();
+          if (!cleared?.ok) throw new Error(cleared?.code || 'client_storage_failed');
+          installJoinEntry();
+        }
+      });
     }
 
     function isTerminalSyncCode(code) {
@@ -322,13 +340,21 @@
     }
 
     function completeJoinDialog(dialog, summary, start, resume, result) {
+      if (syncUi?.completeJoinDialog) {
+        syncUi.completeJoinDialog(dialog, {
+          title: result?.requiresConfirmation ? 'クラウド同期の確認が必要です' : 'クラウド同期'
+        });
+        return;
+      }
       if (resume) resume.remove();
       summary.textContent = result?.requiresConfirmation
         ? '接続を保存しました。設定の「クラウド同期」で統合内容を確認してください。'
         : 'クラウド同期を設定しました。';
       start.hidden = true;
       dialog.querySelector('[data-sync-action="continue"]').hidden = false;
-      dialog.querySelector('[data-sync-action="return"]').hidden = false;
+      dialog.querySelector('[data-sync-action="continue"]').textContent = '閉じる';
+      dialog.querySelector('[data-sync-action="return"]').hidden = true;
+      dialog.querySelector('[data-sync-action="cancel"]').hidden = true;
     }
 
     function showJoinAttention(dialog, summary, start, input, joinSecret, resumeKind) {
@@ -404,7 +430,6 @@
         const joinSecret = accountRoot.core.createSensitiveInputController(input);
         start.textContent = '接続する';
         start.addEventListener('click', async () => {
-          start.disabled = true;
           const joinCode = joinSecret.take();
           if (!joinCode) {
             dialog.querySelector('[data-sync-error]').hidden = false;
@@ -412,19 +437,25 @@
             start.disabled = false;
             return;
           }
+          start.disabled = true;
+          syncUi?.setJoinProcessing?.(dialog, {
+            title: 'クラウド同期を設定しています…',
+            description: '保存内容を確認しています。しばらくお待ちください。'
+          });
           try {
             var connected = await connectWithJoin(joinCode);
             joinSecret.resolve();
             input.remove();
             if (connected?.requiresConfirmation) showAttentionSettings();
             else showConnectedJoinSettings();
-            completeJoinDialog(dialog, summary, start, null, connected);
+            syncUi?.completeJoinDialog?.(dialog);
           } catch (reason) {
             if (reason && reason.accountJoinCommitted === true) {
               showJoinAttention(dialog, summary, start, input, joinSecret, reason.accountJoinResume);
               return;
             }
             joinSecret.reject(reason);
+            syncUi?.restoreJoinInput?.(dialog);
             error.hidden = false;
             error.textContent = joinFailureMessage(reason);
             start.disabled = false;
@@ -510,8 +541,10 @@
     const errorText = dialog.querySelector('[data-sync-error]');
     start.addEventListener('click', async () => {
       start.disabled = true;
-      dialog.dataset.syncPhase = 'working';
-      summaryText.textContent = '既存の同期状態を確認しています…';
+      syncUi?.setJoinProcessing?.(dialog, {
+        title: 'クラウド同期を設定しています…',
+        description: '保存内容を確認しています。しばらくお待ちください。'
+      });
       try {
         var setupResult = null;
         const chordStore = await chordClient.openStore();
@@ -544,19 +577,17 @@
         handoffToken = null;
         if (setupResult?.requiresConfirmation) showAttentionSettings();
         else showConnectedJoinSettings();
-        dialog.dataset.syncPhase = 'complete';
-        summaryText.textContent = setupResult?.requiresConfirmation
-          ? '接続を保存しました。設定の「クラウド同期」で統合内容を確認してください。'
-          : 'クラウド同期を設定しました。';
-        start.hidden = true;
-        dialog.querySelector('[data-sync-action="continue"]').hidden = false;
-        dialog.querySelector('[data-sync-action="return"]').hidden = false;
+        completeJoinDialog(dialog, summaryText, start, null, setupResult);
       } catch (error) {
-        dialog.dataset.syncPhase = 'attention';
         if (error && error.accountJoinCommitted === true) {
           showJoinAttention(dialog, summaryText, start, null, null, error.accountJoinResume);
           return;
         }
+        syncUi?.restoreJoinInput?.(dialog, {
+          title: 'クラウド同期',
+          description: '接続を完了できませんでした。データは削除していません。'
+        });
+        dialog.dataset.syncPhase = 'attention';
         errorText.hidden = false;
         errorText.textContent = '接続を完了できませんでした。データは削除していません。Cruise Portから再度お試しください。';
         start.disabled = false;

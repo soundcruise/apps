@@ -119,6 +119,33 @@
       return true;
     }
 
+    async detachCurrentEnvironment() {
+      const credential = await this.credential();
+      if (!this.accountCore.validAppCredential(credential)) {
+        throw new MultiAppSyncError('app_auth_required', 401);
+      }
+      const pending = await this.store.readMeta('pendingCurrentEnvironmentDetach');
+      const operationId = typeof pending?.operationId === 'string'
+        ? pending.operationId : this.randomOperationId();
+      if (!pending) await this.store.setMeta('pendingCurrentEnvironmentDetach', { operationId });
+      this.setState('disconnecting');
+      const result = await this.accountClient.detachCurrentAppEnvironment({
+        appCredential: credential, operationId
+      });
+      // Server success is the only condition that clears the local binding.
+      // clearCloudState deliberately leaves the app's ordinary local data alone.
+      await this.store.clearCloudState();
+      this.setState('credential_invalid', { reason: 'current_environment_detached', terminal: true });
+      return Object.freeze(result);
+    }
+
+    async resumeCurrentEnvironmentDetach() {
+      const pending = await this.store.readMeta('pendingCurrentEnvironmentDetach');
+      if (!pending?.operationId) return Object.freeze({ status: 'none' });
+      const result = await this.detachCurrentEnvironment();
+      return Object.freeze({ status: 'committed', result });
+    }
+
     async request(method, path, body) {
       const credential = await this.credential();
       const qaCredential = await this.qaCredential();

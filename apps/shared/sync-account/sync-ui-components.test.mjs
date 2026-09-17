@@ -16,7 +16,7 @@ const appHtml = [
 
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
-    assert.match(html, /sync-ui-components\.js\?v=10/);
+    assert.match(html, /sync-ui-components\.js\?v=11/);
     assert.match(html, /multi-app-sync\.css\?v=18/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
@@ -25,7 +25,7 @@ test('four Pro apps load one renderer and one card stylesheet contract', () => {
   assert.match(renderer, /sound-cruise-sync-settings-testing-badge/);
   assert.doesNotMatch(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
-  for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=18/);
+  for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=19/);
   assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v24/);
   assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.9/);
   assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v11/);
@@ -39,7 +39,8 @@ test('shared status, description and button copy is exact', () => {
     assert.match(renderer, new RegExp(copy));
   }
   assert.doesNotMatch(`${renderer}\n${bootstrap}`, /Cruise Portからこのアプリを接続できます。/);
-  assert.match(bootstrap, /Cruise Portで管理/);
+  assert.doesNotMatch(`${renderer}\n${bootstrap}`, /Cruise Portで管理/);
+  assert.match(bootstrap, /この環境の同期を解除/);
   assert.match(bootstrap, /内容を確認/);
   assert.match(bootstrap, /もう一度確認/);
 });
@@ -55,26 +56,25 @@ test('connected Pro cards show the shared opaque Account ID only inside the expa
     'the collapsed header never includes the Account ID');
 });
 
-test('standalone PWA management is explicit while browser navigation stays direct', () => {
-  assert.match(renderer, /function isStandalonePwa/);
-  assert.match(renderer, /global\.navigator\?\.standalone/);
-  assert.match(renderer, /display-mode: standalone/);
-  assert.match(renderer, /ホーム画面版のCruise Portを開いてクラウド同期を管理してください。/);
-  assert.match(renderer, /SafariでCruise Portを開く/);
-  assert.match(bootstrap, /syncUi\?\.openPortManagement/);
+test('connected cards offer only a current-environment detach action', () => {
+  assert.match(renderer, /openCurrentEnvironmentDetachDialog/);
+  assert.match(bootstrap, /detachCurrentEnvironment/);
+  assert.match(bootstrap, /この環境の同期を解除/);
+  assert.doesNotMatch(bootstrap, /openPortManagement/);
 });
 
-test('Help has a summary, five product categories, procedures and privacy link', () => {
+test('Help has four short product categories, a Port note and privacy link', () => {
   assert.match(renderer, /APP_HELP_SUMMARY/);
   assert.match(renderer, /このアプリの対応データをクラウドに保存し、複数の環境で同期できます。/);
-  for (const title of ['接続方法', '復旧と環境管理', 'オフライン・競合・エラー', '解除・削除', 'データとプライバシー']) {
+  for (const title of ['クラウド同期', '接続方法', 'この環境の同期を解除', '困ったとき']) {
     assert.match(renderer, new RegExp(`title: '${title}'`));
   }
-  assert.equal((renderer.match(/title: '/g) || []).length, 5);
+  const helpDefinition = renderer.slice(
+    renderer.indexOf('const HELP_SECTIONS'), renderer.indexOf('let cardSequence')
+  );
+  assert.equal((helpDefinition.match(/title: '/g) || []).length, 4);
   assert.doesNotMatch(renderer, /title: 'はじめに'/);
-  for (const step of ['接続コードを表示', 'コードをコピー', '普段使っているこのアプリを開く', '別の環境を追加', 'Cruise Portと接続', 'コードを貼り付けて「接続する」を押す']) {
-    assert.match(renderer, new RegExp(step));
-  }
+  assert.match(renderer, /復旧コード、別環境の追加、同期データの削除などの詳しい管理はCruise Portで行います。/);
   assert.match(renderer, /プライバシーポリシーを確認/);
   assert.match(renderer, /sound-cruise-sync-help-toggle/);
   assert.match(renderer, /aria-expanded/);
@@ -86,8 +86,6 @@ test('Help has a summary, five product categories, procedures and privacy link',
     'all accordion sections start closed whenever Help opens');
   assert.match(renderer, /sections = HELP_SECTIONS/);
   assert.match(renderer, /sound-cruise-sync-help-summary/);
-  assert.match(renderer, /flow: section\.flowSteps === true/);
-  assert.match(css, /\.sound-cruise-sync-help-steps--flow\s*\{\s*padding-left:\s*0;\s*list-style:\s*none/);
 });
 
 test('width and interaction tokens stay identical at supported viewport widths', () => {
@@ -228,7 +226,7 @@ test('loading prevents duplicates and temporary feedback uses one five-second ru
 
 test('Join failures, secret removal and conflict choices retain explicit contracts', () => {
   for (const code of ['app_join_expired', 'app_join_cancelled', 'app_join_consumed']) assert.match(bootstrap, new RegExp(code));
-  assert.match(bootstrap, /joinField\.remove\(\)/);
+  assert.match(bootstrap, /completeJoinDialog/);
   const conflict = read('./multi-app-conflict-ui.js');
   for (const label of ['この環境のデータを使う', 'クラウドのデータを使う', 'あとで確認']) assert.match(conflict, new RegExp(label));
 });

@@ -792,6 +792,94 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     return { status: 'detached', ...resultBody, alreadyDetached: false };
   }
 
+  async function resolveCurrentAppEnvironmentDetachRetry(identity, input) {
+    const previous = await operation(input.operationId);
+    if (!previous) return null;
+    const result = lifecycleResult(previous);
+    if (previous.admission_provenance !== (identity.admissionProvenance || 'qa') ||
+        previous.request_fingerprint !== input.requestFingerprint ||
+        previous.kind !== 'device_revoke' || result?.scope !== 'current_app_environment' ||
+        result?.appDeviceId !== identity.appDeviceId || result?.accountDeviceId !== identity.accountDeviceId) {
+      return { status: 'conflict' };
+    }
+    return { status: 'detached', ...result, alreadyDetached: true };
+  }
+
+  async function resolveCurrentAppEnvironmentDetachAfterCredentialLoss(input) {
+    const row = await db.prepare(`
+      SELECT o.request_fingerprint, o.kind, o.result_json
+      FROM sync_account_lifecycle_operations o
+      JOIN sync_devices d ON d.id = o.target_id
+      JOIN sync_accounts a ON a.id = o.account_id
+      WHERE o.operation_id = ? AND o.kind = 'device_revoke' AND o.target_id = ?
+        AND d.credential_verifier = ? AND d.revoked_at IS NOT NULL
+        AND a.admission_provenance = ?
+    `).bind(input.operationId, input.appDeviceId, input.appCredentialVerifier,
+      input.admissionProvenance).first();
+    const result = lifecycleResult(row);
+    if (!row || result?.scope !== 'current_app_environment') return { status: 'invalid' };
+    return { status: 'detached', ...result, alreadyDetached: true };
+  }
+
+  async function detachCurrentAppEnvironment(identity, input) {
+    const retry = await resolveCurrentAppEnvironmentDetachRetry(identity, input);
+    if (retry) return retry;
+
+    // An Account app environment consists of exactly one app device and the
+    // Account Device linked to it when the invitation was consumed.  Refuse a
+    // malformed shared Account Device rather than widening the revoke scope.
+    const target = await db.prepare(`
+      SELECT l.account_id, l.membership_id, l.app_device_id, l.account_device_id,
+             m.app_id, m.state AS membership_state, a.state AS account_state,
+             ad.revoked_at AS app_revoked_at, cd.revoked_at AS account_revoked_at,
+             (SELECT COUNT(*) FROM sync_membership_device_links x
+                WHERE x.account_id = l.account_id AND x.account_device_id = l.account_device_id) AS account_link_count
+      FROM sync_membership_device_links l
+      JOIN sync_account_memberships m ON m.id = l.membership_id
+      JOIN sync_accounts a ON a.id = l.account_id
+      JOIN sync_devices ad ON ad.id = l.app_device_id
+      JOIN sync_account_devices cd ON cd.id = l.account_device_id AND cd.account_id = l.account_id
+      WHERE l.account_id = ? AND l.membership_id = ? AND l.app_device_id = ?
+        AND l.account_device_id = ? AND m.app_id = ?
+    `).bind(identity.accountId, identity.membershipId, identity.appDeviceId,
+      identity.accountDeviceId, identity.appId).first();
+    if (!target || target.account_state !== 'active' || target.membership_state !== 'active' ||
+        target.app_revoked_at != null || target.account_revoked_at != null ||
+        Number(target.account_link_count) !== 1) return { status: 'invalid' };
+
+    const resultBody = {
+      scope: 'current_app_environment', appId: identity.appId,
+      membershipId: identity.membershipId, appDeviceId: identity.appDeviceId,
+      accountDeviceId: identity.accountDeviceId, revokedAppDeviceCount: 1,
+      revokedAccountDeviceCount: 1
+    };
+    const revokeApp = db.prepare(`
+      UPDATE sync_devices SET revoked_at = ?
+      WHERE id = ? AND app_id = ? AND revoked_at IS NULL
+    `).bind(input.now, identity.appDeviceId, identity.appId);
+    const revokeAccount = db.prepare(`
+      UPDATE sync_account_devices SET revoked_at = ?
+      WHERE id = ? AND account_id = ? AND revoked_at IS NULL
+    `).bind(input.now, identity.accountDeviceId, identity.accountId);
+    const revokeQa = db.prepare(`
+      UPDATE sync_account_qa_sessions SET revoked_at = COALESCE(revoked_at, ?)
+      WHERE account_id = ? AND scope = 'app' AND app_device_id = ? AND revoked_at IS NULL
+    `).bind(input.now, identity.accountId, identity.appDeviceId);
+    const record = db.prepare(`
+      INSERT INTO sync_account_lifecycle_operations (
+        operation_id, request_fingerprint, account_id, kind, target_id, result_json, created_at
+      ) VALUES (?, ?, ?, 'device_revoke', ?, ?, ?)
+    `).bind(input.operationId, input.requestFingerprint, identity.accountId,
+      identity.appDeviceId, JSON.stringify(resultBody), input.now);
+    const statements = [revokeApp, revokeAccount, revokeQa, record];
+    const results = await db.batch(statements);
+    if (!batchSucceeded(results, statements.length) || changes(results[0]) !== 1 ||
+        changes(results[1]) !== 1 || changes(results[3]) !== 1) {
+      throw new Error('D1 current app environment detach failed');
+    }
+    return { status: 'detached', ...resultBody, alreadyDetached: false };
+  }
+
   async function resolveAppDetachRetry(identity, input) {
     const previous = await operation(input.operationId);
     if (!previous) return null;
@@ -1149,7 +1237,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     resolveRecoveryRotationPrepare, prepareRecoveryRotation, commitRecoveryRotation,
     listEnvironments, revokeEnvironment, resolveRevokeAfterCredentialLoss,
     resolveCurrentEnvironmentDetachRetry, resolveCurrentEnvironmentDetachAfterCredentialLoss,
-    detachCurrentEnvironment,
+    detachCurrentEnvironment, resolveCurrentAppEnvironmentDetachRetry,
+    resolveCurrentAppEnvironmentDetachAfterCredentialLoss, detachCurrentAppEnvironment,
     resolveAppDetachRetry, detachApp, issueDeleteIntent,
     commitDelete, resolveDeleteAfterCredentialLoss, operation
   });

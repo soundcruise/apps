@@ -14,58 +14,29 @@
     reconnect: Object.freeze({ label: '再接続が必要', description: 'Cruise Portから接続し直してください。' })
   });
 
-  const APP_HELP_SUMMARY = 'このアプリの対応データをクラウドに保存し、複数の環境で同期できます。詳しい使い方は下の項目から確認できます。';
+  const APP_HELP_SUMMARY = 'このアプリの対応データをクラウドに保存し、複数の環境で同期できます。';
 
   const HELP_SECTIONS = Object.freeze([
     Object.freeze({
+      title: 'クラウド同期',
+      paragraphs: Object.freeze(['このアプリの対応データをクラウドに保存し、複数の環境で同期できます。'])
+    }),
+    Object.freeze({
       title: '接続方法',
-      paragraphs: Object.freeze(['最初の接続では、Cruise Portで「接続コードを表示」を押し、普段使っているこのアプリで入力します。']),
-      steps: Object.freeze([
-        'Cruise Portで対象アプリの「接続コードを表示」を押す',
-        '「コードをコピー」を押す',
-        '普段使っているこのアプリを開く',
-        '設定 → クラウド同期 → 「Cruise Portと接続」を押す',
-        'コードを貼り付けて「接続する」を押す'
-      ]),
-      secondaryTitle: '別の環境を追加',
-      secondarySteps: Object.freeze([
-        'Cruise Portで接続済みアプリの「別の環境を追加」を押す',
-        '「コードをコピー」を押す',
-        '追加したいブラウザやPWAでこのアプリを開く',
-        '設定 → クラウド同期 → 「Cruise Portと接続」を押す',
-        'コードを貼り付けて「接続する」を押す'
+      paragraphs: Object.freeze(['Cruise Portで同期コードを表示し、このアプリの「Cruise Portと接続」から入力します。'])
+    }),
+    Object.freeze({
+      title: 'この環境の同期を解除',
+      paragraphs: Object.freeze([
+        '今開いているこの環境だけをクラウド同期から外します。',
+        'クラウド上と端末内のデータ、ほかの同期環境は残ります。後から再接続できます。'
       ])
     }),
     Object.freeze({
-      title: '復旧と環境管理',
+      title: '困ったとき',
       paragraphs: Object.freeze([
-        '復旧コードは、同期中の環境をすべて失った場合にクラウド同期を取り戻すためのコードです。現在有効なコードは1つだけです。新しいコードを発行すると、以前のコードは使えなくなります。運営者へ送らず、安全な場所へ保存してください。',
-        '環境とは、同期に接続したブラウザ、ブラウザプロファイル、またはホーム画面版/PWAです。同じ端末でも保存領域が異なる場合は別の環境として表示されます。環境を解除しても、端末内とクラウドのデータは削除されません。',
-        '復旧コードと同期中の環境の両方を失った場合、クラウド同期を復旧できないことがあります。'
-      ])
-    }),
-    Object.freeze({
-      title: 'オフライン・競合・エラー',
-      paragraphs: Object.freeze([
-        'オフライン中の変更はこの環境に保存され、接続が戻ると自動で同期を再開します。',
-        '同じ項目がこの環境とクラウドの両方で変更された場合は、自動で上書きせず確認画面で停止します。内容を比較して残す側を選んでください。',
-        '「確認が必要」「一時停止中」「再接続が必要」と表示された場合は、画面の案内に沿って確認または再接続してください。'
-      ])
-    }),
-    Object.freeze({
-      title: '解除・削除',
-      paragraphs: Object.freeze([
-        '環境の同期解除は、その環境の同期資格だけを無効にします。',
-        'アプリ単位の削除は対象アプリのクラウドデータ、Account全体の削除は4アプリすべてのクラウドデータを対象にします。削除を確定すると同期中の環境は解除され、クラウドデータは7日後に完全削除の対象になります。',
-        '環境の解除やクラウドデータの削除を行っても、端末内のデータは自動では削除されません。'
-      ])
-    }),
-    Object.freeze({
-      title: 'データとプライバシー',
-      paragraphs: Object.freeze([
-        '氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。',
-        'クラウド同期を利用すると、アプリ内で保存した同期対象データと、同期に必要な識別子・更新日時などの技術情報がクラウドに保存されます。',
-        '同期の提供、保護、不正利用防止のため、Cloudflare Workers、Cloudflare D1、Cloudflare Turnstileを利用します。'
+        'オフライン中の変更は端末に保持され、接続が戻ると同期を再開します。',
+        '競合など確認が必要な場合は、自動で上書きせず案内を表示します。'
       ])
     })
   ]);
@@ -128,10 +99,6 @@
         if (section.steps) appendSteps(document, content, section.steps, { flow: section.flowSteps === true });
         if (section.secondaryTitle) appendText(document, content, 'h4', '', section.secondaryTitle);
         if (section.secondarySteps) appendSteps(document, content, section.secondarySteps, { flow: section.secondaryFlowSteps === true });
-        if (section.title === 'データとプライバシー') {
-          const link = appendText(document, content, 'a', 'sound-cruise-sync-help-link', 'プライバシーポリシーを確認');
-          link.href = privacyHref;
-        }
         toggle.addEventListener('click', () => {
           const willOpen = toggle.getAttribute('aria-expanded') !== 'true';
           body.querySelectorAll('.sound-cruise-sync-help-toggle[aria-expanded="true"]').forEach((openToggle) => {
@@ -149,6 +116,10 @@
         group.append(content);
         body.append(group);
       });
+      appendText(document, body, 'p', 'sound-cruise-sync-help-note',
+        '復旧コード、別環境の追加、同期データの削除などの詳しい管理はCruise Portで行います。');
+      const privacy = appendText(document, body, 'a', 'sound-cruise-sync-help-link', 'プライバシーポリシーを確認');
+      privacy.href = privacyHref;
       const footer = document.createElement('footer');
       footer.className = 'sound-cruise-sync-help-footer';
       const close = appendText(document, footer, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--primary', '閉じる');
@@ -368,6 +339,84 @@
     return dialog;
   }
 
+  function setJoinProcessing(dialog, { title = '接続しています…', description = 'しばらくお待ちください。' } = {}) {
+    if (!dialog) return;
+    dialog.dataset.syncPhase = 'working';
+    const panel = dialog.querySelector('.sound-cruise-sync-setup-panel');
+    panel?.querySelectorAll('[data-sync-join-field], [data-sync-action="start"], [data-sync-action="cancel"], [data-sync-action="continue"], [data-sync-action="return"], [data-sync-error]')
+      .forEach((node) => { node.hidden = true; });
+    const heading = panel?.querySelector('h2');
+    const summary = panel?.querySelector('[data-sync-summary]');
+    if (heading) heading.textContent = title;
+    if (summary) summary.textContent = description;
+    let indicator = panel?.querySelector('[data-sync-processing]');
+    if (!indicator && panel) {
+      indicator = appendText(panel.ownerDocument, panel, 'p', 'sound-cruise-sync-processing', '処理中…');
+      indicator.dataset.syncProcessing = '';
+      indicator.setAttribute('role', 'status');
+      indicator.setAttribute('aria-live', 'polite');
+    }
+  }
+
+  function restoreJoinInput(dialog, { title = '接続コードを入力', description = 'Cruise Portに表示された接続コードを入力してください。' } = {}) {
+    if (!dialog) return;
+    dialog.dataset.syncPhase = 'attention';
+    const panel = dialog.querySelector('.sound-cruise-sync-setup-panel');
+    panel?.querySelector('[data-sync-processing]')?.remove();
+    const heading = panel?.querySelector('h2');
+    const summary = panel?.querySelector('[data-sync-summary]');
+    if (heading) heading.textContent = title;
+    if (summary) summary.textContent = description;
+    panel?.querySelectorAll('[data-sync-join-field], [data-sync-action="start"], [data-sync-action="cancel"]')
+      .forEach((node) => { node.hidden = false; });
+  }
+
+  function completeJoinDialog(dialog, { title = 'クラウド同期を設定しました。' } = {}) {
+    if (!dialog) return;
+    dialog.dataset.syncPhase = 'complete';
+    const panel = dialog.querySelector('.sound-cruise-sync-setup-panel');
+    panel?.querySelectorAll('[data-sync-join-field], [data-sync-action="start"], [data-sync-action="cancel"], [data-sync-action="return"], [data-sync-error], [data-sync-processing]')
+      .forEach((node) => { node.hidden = true; });
+    const heading = panel?.querySelector('h2');
+    const summary = panel?.querySelector('[data-sync-summary]');
+    if (heading) heading.textContent = 'クラウド同期';
+    if (summary) summary.textContent = title;
+    const close = panel?.querySelector('[data-sync-action="continue"]');
+    if (close) { close.hidden = false; close.textContent = '閉じる'; }
+  }
+
+  function openCurrentEnvironmentDetachDialog({ document = global.document, onConfirm } = {}) {
+    if (!document?.body || typeof onConfirm !== 'function') return null;
+    const dialog = document.createElement('dialog');
+    dialog.className = 'sound-cruise-sync-setup';
+    dialog.dataset.syncPhase = 'confirm';
+    const panel = document.createElement('section');
+    panel.className = 'sound-cruise-sync-setup-panel';
+    appendText(document, panel, 'h2', '', 'この環境の同期を解除');
+    appendText(document, panel, 'p', '', '今開いているこの環境だけをクラウド同期から解除します。\n\nクラウド上と端末内のデータ、ほかの同期環境は削除されません。\n\n後から再接続できます。').dataset.syncSummary = '';
+    const error = appendText(document, panel, 'p', 'sound-cruise-sync-error', '');
+    error.dataset.syncError = ''; error.hidden = true;
+    const confirm = appendText(document, panel, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--secondary', '同期を解除');
+    confirm.type = 'button'; confirm.dataset.syncAction = 'start';
+    const cancel = appendText(document, panel, 'button', 'sound-cruise-sync-button sound-cruise-sync-button--secondary', 'キャンセル');
+    cancel.type = 'button'; cancel.dataset.syncAction = 'cancel';
+    cancel.addEventListener('click', () => dialog.close());
+    confirm.addEventListener('click', async () => {
+      setJoinProcessing(dialog, { title: 'この環境の同期を解除中…', description: '同期の接続を安全に解除しています。' });
+      try { await onConfirm(); dialog.close(); }
+      catch (_) {
+        restoreJoinInput(dialog, { title: 'この環境の同期を解除', description: '接続を解除できませんでした。通信状態を確認してもう一度お試しください。' });
+        error.hidden = false;
+        error.textContent = '接続を解除できませんでした。データは削除していません。';
+      }
+    });
+    panel.append(confirm, cancel);
+    dialog.append(panel); document.body.append(dialog); bindSetupViewport(dialog);
+    dialog.addEventListener('close', () => dialog.remove(), { once: true });
+    dialog.showModal();
+    return dialog;
+  }
+
   function isStandalonePwa() {
     return Boolean(global.navigator?.standalone || global.matchMedia?.('(display-mode: standalone)')?.matches);
   }
@@ -404,6 +453,7 @@
 
   global.SoundCruiseSyncUI = Object.freeze({
     STATUS, APP_HELP_SUMMARY, HELP_SECTIONS, renderCard, openHelp, createJoinDialog,
+    setJoinProcessing, restoreJoinInput, completeJoinDialog, openCurrentEnvironmentDetachDialog,
     isStandalonePwa, openPortManagement,
     temporaryFeedbackMs: 5000
   });

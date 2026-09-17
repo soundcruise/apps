@@ -162,7 +162,8 @@ test('all four app Join inputs use the shared transient-secret lifecycle', () =>
   assert.match(bootstrap, /joinSecret\?\.take\(\)/);
   assert.match(bootstrap, /joinSecret\?\.resolve\(\)/);
   assert.match(bootstrap, /joinSecret\?\.reject\(reason\)/);
-  assert.match(bootstrap, /joinField\.remove\(\)/);
+  assert.match(bootstrap, /setJoinProcessing/);
+  assert.match(bootstrap, /completeJoinDialog/);
   assert.match(chord, /data-sync-sensitive', 'join-code-input'/);
   assert.match(chord, /createSensitiveInputController\(input\)/);
   assert.match(chord, /joinSecret\.take\(\)/);
@@ -200,10 +201,10 @@ test('connected startup and successful Join immediately replace Join UI with a s
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
   const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
   const pairing = read('apps/chord-cruise/js/sync/sync-pairing-ui.js');
-  assert.match(bootstrap, /showConnectedSettings\(result\.accountId\);[\s\S]{0,180}dialog\.dataset\.syncPhase = 'complete'/,
+  assert.match(bootstrap, /showConnectedSettings\(result\.accountId\);[\s\S]{0,180}completeJoinDialog/,
     'shared Join success updates settings without reload');
-  assert.match(bootstrap, /joinSecret\?\.resolve\(\);[\s\S]{0,180}joinField\.remove\(\)/,
-    'successful Join destroys the retry secret and input field');
+  assert.match(bootstrap, /joinSecret\?\.resolve\(\);[\s\S]{0,180}completeJoinDialog/,
+    'successful Join clears the sensitive entry and switches to completion');
   assert.match(bootstrap, /state: 'ready', status: '同期済み', action: null/);
   assert.match(bootstrap, /restored\.state === 'connected'[\s\S]{0,220}showConnectedSettings\(\)/,
     'reload restores synced state without Join entry');

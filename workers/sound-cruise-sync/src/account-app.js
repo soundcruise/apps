@@ -1,5 +1,6 @@
 import { authenticateAccountDevice, inspectAccountCredential } from './account-auth.js';
 import { authenticateDevice, isRetiredLegacyDeviceCredential } from './auth.js';
+import { timingSafeHexEqual } from './crypto.js';
 import {
   accountAppCredentialVerifier,
   accountCredentialVerifier,
@@ -44,6 +45,7 @@ import {
   validateAccountDeleteIntentPayload,
   validateAccountAppDetachPayload,
   validateAccountDeviceRevokePayload,
+  validateCurrentAppEnvironmentDetachPayload,
   validateCurrentEnvironmentDetachPayload,
   validateAccountRecoveryCommitPayload,
   validateAccountRecoveryPreparePayload,
@@ -100,6 +102,10 @@ const ACCOUNT_ROUTES = Object.freeze({
   '/v2/accounts/environments/current/detach': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
     headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
+  '/v2/accounts/apps/current/detach': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+    headers: ['content-type', 'x-sound-cruise-app-authorization', 'x-d1-bookmark']
   },
   '/v2/accounts/recovery/prepare': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_RECOVERY,
@@ -965,6 +971,112 @@ async function handleCurrentEnvironmentDetach(request, env, origin, route, depen
     if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
     return jsonResponse(200, { ok: true, operation: result.alreadyDetached ? 'existing' : 'detached', ...result },
       origin, route, bookmarkHeader(session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function currentAppEnvironmentContext(request, env, dependencies) {
+  if (!env.SYNC_DB || !env.SYNC_CREDENTIAL_PEPPER) {
+    return { error: 'account_server_unavailable', status: 503 };
+  }
+  const session = createSession(env, request);
+  if (!session) return { error: 'invalid_bookmark', status: 400 };
+  const rawCredential = String(request.headers.get('X-Sound-Cruise-App-Authorization') || '')
+    .replace(/^Bearer /, '');
+  const parsed = parseAccountAppCredential(rawCredential);
+  if (!parsed) return { error: 'invalid_app_credential', status: 401 };
+  const verifier = await (dependencies.accountAppCredentialVerifier || accountAppCredentialVerifier)(
+    rawCredential, env.SYNC_CREDENTIAL_PEPPER
+  );
+  const row = await session.prepare(`
+    SELECT d.id AS app_device_id, d.app_id, d.credential_verifier, d.revoked_at AS app_revoked_at,
+           l.account_id, l.membership_id, l.account_device_id,
+           a.state AS account_state, a.admission_provenance,
+           m.state AS membership_state, cd.revoked_at AS account_revoked_at
+    FROM sync_devices d
+    JOIN sync_membership_device_links l ON l.app_device_id = d.id
+    JOIN sync_accounts a ON a.id = l.account_id
+    JOIN sync_account_memberships m ON m.id = l.membership_id
+    JOIN sync_account_devices cd ON cd.id = l.account_device_id AND cd.account_id = l.account_id
+    WHERE d.id = ?
+  `).bind(parsed.deviceId).first();
+  const stored = row?.credential_verifier || '0'.repeat(64);
+  if (!row || !timingSafeHexEqual(verifier, stored)) {
+    return { error: 'invalid_app_credential', status: 401 };
+  }
+  if (row.admission_provenance !== dependencies.admissionProvenance) {
+    return { error: 'account_admission_mismatch', status: 403 };
+  }
+  if (row.account_state !== 'active') return { error: `account_${row.account_state}`, status: 410 };
+  if (row.membership_state !== 'active') return { error: `membership_${row.membership_state}`, status: 410 };
+  // Do this before QA validation so the server can reconcile the exact
+  // response-loss retry after the app-scoped QA session was revoked with it.
+  if (row.app_revoked_at != null || row.account_revoked_at != null) {
+    return { error: 'app_device_revoked', status: 410, session, parsed, verifier };
+  }
+  if (dependencies.admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA) {
+    const qa = await (dependencies.authenticateQaRequest || authenticateQaRequest)(
+      session, request.headers.get('X-Sound-Cruise-QA-Authorization'), env,
+      { scope: 'app', accountId: row.account_id, appId: row.app_id, appDeviceId: row.app_device_id },
+      dependencies
+    );
+    if (!qa) return { error: 'qa_admission_required', status: 403 };
+  }
+  return {
+    session, parsed, verifier,
+    identity: {
+      accountId: row.account_id, membershipId: row.membership_id,
+      accountDeviceId: row.account_device_id, appDeviceId: row.app_device_id,
+      appId: row.app_id, admissionProvenance: row.admission_provenance
+    }
+  };
+}
+
+async function handleCurrentAppEnvironmentDetach(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateCurrentAppEnvironmentDetachPayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await currentAppEnvironmentContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  const value = validation.value;
+  const repository = context.session
+    ? (dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository)(context.session)
+    : null;
+  if (context.error) {
+    // A response-loss retry is the only accepted use of a just-revoked app
+    // credential. It can prove the exact prior operation, but cannot select a
+    // target or begin another revoke.
+    if (context.error === 'app_device_revoked' && context.parsed && context.verifier) {
+      try {
+        const exact = await repository.resolveCurrentAppEnvironmentDetachAfterCredentialLoss({
+          operationId: value.operationId, appDeviceId: context.parsed.deviceId,
+          appCredentialVerifier: context.verifier, admissionProvenance: dependencies.admissionProvenance
+        });
+        if (exact.status === 'detached') {
+          return jsonResponse(200, { ok: true, operation: 'existing', ...exact }, origin, route,
+            bookmarkHeader(context.session));
+        }
+      } catch { return errorResponse(503, 'account_server_error', origin, route); }
+    }
+    return errorResponse(context.status, context.error, origin, route);
+  }
+  try {
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )(['account-current-app-environment-detach', context.identity.accountId,
+      context.identity.membershipId, context.identity.appDeviceId,
+      context.identity.accountDeviceId, dependencies.admissionProvenance]);
+    const result = await repository.detachCurrentAppEnvironment(context.identity, {
+      operationId: value.operationId, requestFingerprint, now: Date.now()
+    });
+    if (result.status === 'invalid') return errorResponse(409, 'environment_detach_unavailable', origin, route);
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    return jsonResponse(200, { ok: true, operation: result.alreadyDetached ? 'existing' : 'detached', ...result },
+      origin, route, bookmarkHeader(context.session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
   }
@@ -1938,7 +2050,16 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
     return handleQaEnrollment(request, env, origin, route, dependencies);
   }
 
-  if (url.pathname !== '/v2/accounts/handoffs/consume' &&
+  if (url.pathname === '/v2/accounts/apps/current/detach') {
+    // This route authenticates an active app QA session after it resolves the
+    // credential-bound environment. A just-revoked credential may only replay
+    // its exact persisted operation, so it must bypass the normal preflight.
+    dependencies = {
+      ...dependencies,
+      admissionProvenance: request.headers.get('X-Sound-Cruise-QA-Authorization') !== null
+        ? ACCOUNT_ADMISSION_PROVENANCE.QA : ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION
+    };
+  } else if (url.pathname !== '/v2/accounts/handoffs/consume' &&
       url.pathname !== '/v2/accounts/app-join-invitations/consume' &&
       url.pathname !== '/v2/accounts/port-join-invitations/consume') {
     const qaHeader = request.headers.get('X-Sound-Cruise-QA-Authorization');
@@ -2008,6 +2129,9 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   }
   if (url.pathname === '/v2/accounts/environments/current/detach') {
     return handleCurrentEnvironmentDetach(request, env, origin, route, dependencies);
+  }
+  if (url.pathname === '/v2/accounts/apps/current/detach') {
+    return handleCurrentAppEnvironmentDetach(request, env, origin, route, dependencies);
   }
   const membershipDetach = url.pathname.match(
     /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/detach$/

@@ -223,6 +223,33 @@ test('definitive terminal auth detaches only sync state, preserves local data, a
   }
 });
 
+test('current-environment detach is server-first, preserves local app data and leaves a resumable operation on failure', async () => {
+  const localRecord = record('local-detach', 'Local detach');
+  const fixture = runtimeFixture([localRecord], 'pitch', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('migrationState', 'complete');
+  let calls = 0;
+  fixture.accountClient.detachCurrentAppEnvironment = async ({ appCredential, operationId }) => {
+    calls += 1;
+    assert.equal(appCredential, 'scd1.valid');
+    assert.equal(operationId, 'op-1');
+    return { ok: true, scope: 'current_app_environment' };
+  };
+  await fixture.runtime.detachCurrentEnvironment();
+  assert.equal(calls, 1);
+  assert.equal(await fixture.store.readMeta('credential'), null);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'credential_invalid');
+  assert.deepEqual(fixture.local.records, [localRecord], 'ordinary local app data is untouched');
+
+  const retry = runtimeFixture([localRecord], 'pitch', 'production');
+  await retry.store.setMeta('credential', 'scd1.valid');
+  retry.accountClient.detachCurrentAppEnvironment = async () => { throw new Error('network_error'); };
+  await assert.rejects(retry.runtime.detachCurrentEnvironment());
+  assert.equal(await retry.store.readMeta('credential'), 'scd1.valid', 'failure never clears the binding');
+  assert.deepEqual(await retry.store.readMeta('pendingCurrentEnvironmentDetach'), { operationId: 'op-1' });
+  assert.deepEqual(retry.local.records, [localRecord]);
+});
+
 test('generic auth, network failure, offline state, and an active identity never detach or silently replace', async () => {
   const fixture = runtimeFixture([record('local')], 'pitch', 'production');
   await fixture.store.setMeta('credential', 'scd1.valid');

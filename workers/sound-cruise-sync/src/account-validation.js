@@ -280,6 +280,14 @@ export function validateCurrentEnvironmentDetachPayload(value) {
   return normalized.operationId ? { ok: true, value: normalized } : { ok: false };
 }
 
+// A Pro app can only detach the environment authenticated by its own app
+// credential.  The request intentionally carries no device or Account id.
+export function validateCurrentAppEnvironmentDetachPayload(value) {
+  if (!exactObject(value, ['operationId'])) return { ok: false };
+  const normalized = { operationId: operationId(value.operationId) };
+  return normalized.operationId ? { ok: true, value: normalized } : { ok: false };
+}
+
 export function validateAccountAppDetachPayload(value) {
   if (!exactObject(value, ['operationId', 'appId'])) return { ok: false };
   const normalized = {

@@ -84,13 +84,87 @@ function jsonRequest(path, body, options = {}) {
   const headers = new Headers({ Origin: options.origin || origin });
   if (body !== undefined) headers.set('Content-Type', 'application/json');
   if (options.credential) headers.set('Authorization', `Bearer ${options.credential}`);
-  headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qa.credential}`);
+  if (options.appCredential) headers.set('X-Sound-Cruise-App-Authorization', `Bearer ${options.appCredential}`);
+  headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${(options.qaCredential || qa.credential)}`);
   return new Request(`https://sync.example${path}`, {
     method: options.method || (body === undefined ? 'GET' : 'POST'),
     headers,
     body: body === undefined ? undefined : JSON.stringify(body)
   });
 }
+
+test('an app credential can detach only its current environment and safely replay response loss', async () => {
+  const db = createSqliteD1();
+  const env = environment(db);
+  enableLifecycleControl(db);
+  const started = await startAccount(db, env, ['pitch']);
+  assert.equal(started.response.status, 201);
+  const issuer = started.candidate.account.credential;
+
+  async function joinPitchEnvironment(label) {
+    const invitationId = crypto.randomUUID();
+    const joinCode = createAppJoinCode();
+    let response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations', {
+      operationId: crypto.randomUUID(), invitationId, appId: 'pitch', joinCode
+    }, { credential: issuer }), env);
+    assert.equal(response.status, 201);
+    const account = createAccountCredential();
+    const app = await createIdentityMaterial(appPepper);
+    const appQa = createQaCredential();
+    response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations/consume', {
+      operationId: crypto.randomUUID(), appId: 'pitch', joinCode,
+      accountCredential: account.credential, appDeviceCredential: app.credential,
+      qaCredential: appQa.credential, deviceLabel: label, consumeMode: 'new_app'
+    }), env);
+    assert.equal(response.status, 201);
+    db.raw.prepare(`
+      INSERT OR IGNORE INTO sync_datasets (
+        user_id, app_id, state, schema_version, record_count, manifest_hash,
+        min_change_seq, initialized_at, updated_at, last_change_seq
+      ) SELECT sync_user_id, 'pitch', 'ready', 1, 0, NULL, 0, 1, 1, 0
+        FROM sync_account_memberships WHERE account_id = ? AND app_id = 'pitch'
+    `).run(started.payload.accountId);
+    db.raw.prepare(`
+      UPDATE sync_datasets SET state = 'ready', initialized_at = COALESCE(initialized_at, updated_at)
+      WHERE user_id = (SELECT sync_user_id FROM sync_account_memberships
+        WHERE account_id = ? AND app_id = 'pitch') AND app_id = 'pitch'
+    `).run(started.payload.accountId);
+    return { app, appQa };
+  }
+
+  const current = await joinPitchEnvironment('Pitch current');
+  const other = await joinPitchEnvironment('Pitch other');
+  const membership = db.raw.prepare(`
+    SELECT id, sync_user_id, state FROM sync_account_memberships
+    WHERE account_id = ? AND app_id = 'pitch'
+  `).get(started.payload.accountId);
+  const operationId = crypto.randomUUID();
+  let response = await handleRequest(jsonRequest('/v2/accounts/apps/current/detach', { operationId }, {
+    appCredential: current.app.credential, qaCredential: current.appQa.credential
+  }), env);
+  assert.equal(response.status, 200, JSON.stringify(await response.clone().json()));
+  const result = await response.json();
+  assert.equal(result.scope, 'current_app_environment');
+  assert.equal(result.revokedAppDeviceCount, 1);
+  assert.equal(result.revokedAccountDeviceCount, 1);
+  assert.equal(db.raw.prepare('SELECT state FROM sync_account_memberships WHERE id = ?').get(membership.id).state, 'active');
+  assert.equal(db.raw.prepare('SELECT state FROM sync_datasets WHERE user_id = ? AND app_id = ?')
+    .get(membership.sync_user_id, 'pitch').state, 'ready');
+  assert.notEqual(db.raw.prepare('SELECT revoked_at FROM sync_devices WHERE id = ?').get(current.app.deviceId).revoked_at, null);
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_devices WHERE id = ?').get(other.app.deviceId).revoked_at, null,
+    'another Pitch environment stays active');
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) AS count FROM sync_membership_device_links l
+    JOIN sync_devices d ON d.id = l.app_device_id
+    WHERE l.membership_id = ? AND d.revoked_at IS NULL
+  `).get(membership.id).count, 1);
+  response = await handleRequest(jsonRequest('/v2/accounts/apps/current/detach', { operationId }, {
+    appCredential: current.app.credential, qaCredential: current.appQa.credential
+  }), env);
+  assert.equal(response.status, 200, 'only the exact operation may replay after credential revocation');
+  assert.equal((await response.json()).operation, 'existing');
+  db.close();
+});
 
 function startCandidate(appIds = ['chord']) {
   const account = createAccountCredential();

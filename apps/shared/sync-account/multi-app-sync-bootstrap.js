@@ -14,6 +14,8 @@
   let settingsObserver = null;
   let settingsRevision = 0;
   let connectedAccountDisplayId = null;
+  let activeRuntime = null;
+  let activeConfig = null;
 
   let handoffToken = null;
   try { handoffToken = accountRoot?.core?.takeHandoffFromLocation() || null; }
@@ -84,11 +86,9 @@
           kind: 'primary',
           run: settingsPresentation.action.run
         } : null,
-        secondaryAction: settingsPresentation.manage ? {
-          id: 'manage', label: 'Cruise Portで管理', kind: 'secondary',
-          run: () => syncUi?.openPortManagement
-            ? syncUi.openPortManagement({ portUrl: settingsPresentation.manage })
-            : global.location.assign(settingsPresentation.manage)
+        secondaryAction: settingsPresentation.detach ? {
+          id: 'current-environment-detach', label: 'この環境の同期を解除', kind: 'secondary',
+          run: settingsPresentation.detach
         } : null
       });
       host.dataset.syncJoinUiAction = settingsPresentation.action?.label || '';
@@ -139,11 +139,22 @@
   }
 
   function showConnectedSettings(accountId = null) {
-    const config = readConfig();
     if (accountId) connectedAccountDisplayId = accountRoot?.core?.formatAccountDisplayId?.(accountId) || null;
     setSettingsPresentation({
-      state: 'ready', status: '同期済み', action: null, manage: config?.portUrl,
+      state: 'ready', status: '同期済み', action: null, detach: openCurrentEnvironmentDetach,
       accountDisplayId: connectedAccountDisplayId
+    });
+  }
+
+  function openCurrentEnvironmentDetach() {
+    if (!activeRuntime || !activeConfig || !syncUi?.openCurrentEnvironmentDetachDialog) return;
+    syncUi.openCurrentEnvironmentDetachDialog({
+      document,
+      onConfirm: async () => {
+        await activeRuntime.detachCurrentEnvironment();
+        connectedAccountDisplayId = null;
+        installJoinEntry(activeConfig, activeRuntime);
+      }
     });
   }
 
@@ -156,7 +167,7 @@
 
   function bindSettingsRuntime(runtime, conflictController, config) {
     const connectedPresentation = (presentation) => ({
-      ...presentation, manage: config.portUrl, accountDisplayId: connectedAccountDisplayId
+      ...presentation, detach: openCurrentEnvironmentDetach, accountDisplayId: connectedAccountDisplayId
     });
     const show = (state, detail = {}) => {
       if (state === 'ready') return showConnectedSettings();
@@ -206,10 +217,6 @@
     })[reason?.code] || '初回同期を完了できませんでした。コードと通信状態を確認してください。';
     continueButton.addEventListener('click', () => dialog.close());
     startButton.addEventListener('click', async () => {
-      startButton.disabled = true;
-      dialog.dataset.syncPhase = 'working';
-      summary.textContent = '保存内容を確認し、初回同期を進めています…';
-      error.hidden = true;
       const code = joinSecret?.take();
       if (mode === 'join' && !code) {
         dialog.dataset.syncPhase = 'attention';
@@ -218,6 +225,12 @@
         startButton.disabled = false;
         return;
       }
+      startButton.disabled = true;
+      syncUi?.setJoinProcessing?.(dialog, {
+        title: 'クラウド同期を設定しています…',
+        description: '保存内容を確認しています。しばらくお待ちください。'
+      });
+      error.hidden = true;
       try {
         const result = mode === 'join'
           ? await runtime.consumeInvitation(code, `${config.appId} app`)
@@ -225,17 +238,11 @@
         handoffToken = null;
         if (!result.ok) throw new Error(result.code || 'setup_failed');
         joinSecret?.resolve();
-        if (joinField) joinField.remove();
-        dialog.querySelectorAll('[data-sync-copy-join-code]').forEach((node) => node.remove());
         showConnectedSettings(result.accountId);
-        dialog.dataset.syncPhase = 'complete';
-        summary.textContent = 'クラウド同期を設定しました。';
-        startButton.hidden = true;
-        continueButton.hidden = false;
-        returnLink.hidden = false;
+        syncUi?.completeJoinDialog?.(dialog);
       } catch (reason) {
         joinSecret?.reject(reason);
-        dialog.dataset.syncPhase = 'attention';
+        syncUi?.restoreJoinInput?.(dialog);
         error.hidden = false;
         error.textContent = reason?.code === 'merge_conflict'
           ? '自動統合できない変更があります。データは変更せず停止しました。'
@@ -326,10 +333,22 @@
       adapter: new AdapterClass(), store, accountClient, accountCore: accountRoot.core,
       admissionMode: config.admissionMode
     });
+    activeRuntime = runtime;
+    activeConfig = config;
     const conflictController = syncRoot.installConflictResolutionUi?.(runtime, document);
     bindSettingsRuntime(runtime, conflictController, config);
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
     syncRoot.runtimes[config.appId] = runtime;
+    try {
+      const resumedDetach = await runtime.resumeCurrentEnvironmentDetach();
+      if (resumedDetach?.status === 'committed') {
+        installJoinEntry(config, runtime);
+        return;
+      }
+    } catch (_) {
+      // Keep the durable binding intact after a transient failure. The regular
+      // startup path below can still safely resume normal synchronization.
+    }
     const restored = await resolveStartupState(runtime, store, accountClient, accountRoot.core);
     if (['connected', 'migration_pending'].includes(restored.state)) {
       try {

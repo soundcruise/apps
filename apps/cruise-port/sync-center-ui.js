@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.2';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.39.3';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -418,9 +418,11 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     recoveryCopy?.addEventListener('click', () => copySensitiveOutput(recoveryCopy, recoveryCopyStatus, recoveryCandidate?.textContent || ''));
     const setPhase = (phase) => {
         setup.dataset.syncPhase = phase;
+        const processing = ['starting', 'preparing-memberships'].includes(phase);
         if (setupTitle) setupTitle.textContent = phase === 'recovery'
-            ? '復旧コードを保存' : phase === 'complete' ? 'アカウント作成が完了しました' : 'クラウド同期をはじめる';
-        if (setupClose) setupClose.hidden = phase === 'complete';
+            ? '復旧コードを保存' : phase === 'complete' ? 'アカウント作成が完了しました'
+                : processing ? 'アカウントを作成しています…' : 'クラウド同期をはじめる';
+        if (setupClose) setupClose.hidden = phase === 'complete' || processing;
         const introduction = phase === 'introduction';
         if (setupIntro) setupIntro.hidden = !introduction;
         if (setupSteps) setupSteps.hidden = !introduction;
@@ -475,6 +477,10 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     };
     root?.querySelector?.('#sync-center-port-connect-open')?.addEventListener('click', () => {
         portConnectSecret?.resolve();
+        portConnectDialog.dataset.syncPhase = 'input';
+        if (portConnectInput) portConnectInput.hidden = false;
+        if (portConnectConfirm) { portConnectConfirm.hidden = false; portConnectConfirm.textContent = '接続する'; }
+        if (portConnectCancel) portConnectCancel.hidden = false;
         if (portConnectStatus) portConnectStatus.textContent = '';
         portConnectDialog?.showModal();
         portConnectInput?.focus();
@@ -486,18 +492,34 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     });
     portConnectConfirm?.addEventListener('click', async () => {
         if (!orchestrator?.enabled) return;
+        if (portConnectDialog.dataset.syncPhase === 'complete') {
+            portConnectDialog.close();
+            setText(root, '#sync-center-action-status', '既存のアカウントに接続しました。');
+            return;
+        }
         portConnectConfirm.disabled = true;
         try {
             const joinCode = portConnectSecret?.take();
             if (!joinCode) throw new Error('port_join_code_required');
+            portConnectDialog.dataset.syncPhase = 'working';
+            if (portConnectInput) portConnectInput.hidden = true;
+            portConnectConfirm.hidden = true;
+            if (portConnectCancel) portConnectCancel.hidden = true;
+            if (portConnectStatus) portConnectStatus.textContent = '既存のアカウントに接続しています…';
             await orchestrator.connectExistingAccount(joinCode);
             portConnectSecret.resolve();
-            if (portConnectStatus) portConnectStatus.textContent = '';
-            portConnectDialog.close();
-            setText(root, '#sync-center-action-status', '既存のアカウントに接続しました。');
+            portConnectDialog.dataset.syncPhase = 'complete';
+            if (portConnectStatus) portConnectStatus.textContent = '接続しました。';
+            portConnectConfirm.hidden = false;
+            portConnectConfirm.textContent = '閉じる';
+            portConnectConfirm.dataset.syncAction = 'close-port-join';
             await refresh();
         } catch (error) {
             portConnectSecret?.reject(error);
+            portConnectDialog.dataset.syncPhase = 'input';
+            if (portConnectInput) portConnectInput.hidden = false;
+            portConnectConfirm.hidden = false;
+            if (portConnectCancel) portConnectCancel.hidden = false;
             if (portConnectStatus) {
                 portConnectStatus.textContent = '接続できませんでした。コードの有効期限と入力内容を確認してください。';
             }

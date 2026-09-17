@@ -429,6 +429,15 @@
       return Object.freeze(result);
     }
 
+    async detachCurrentAppEnvironment({ appCredential, operationId }) {
+      if (!this.core.validAppCredential(appCredential) || typeof operationId !== 'string') {
+        throw new Error('account_app_environment_detach_invalid');
+      }
+      return Object.freeze(await this.request('/v2/accounts/apps/current/detach', {
+        method: 'POST', appCredential, body: { operationId }
+      }));
+    }
+
     async resumePendingEnvironmentDetach() {
       const pending = await this.storage.getPendingEnvironmentDetach?.();
       if (!pending) return Object.freeze({ status: 'none' });
