@@ -2250,6 +2250,11 @@ textarea:focus-visible {
 .sync-center-app img { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; }
 .sync-center-app-copy { display: grid; min-width: 0; gap: 4px; }
 .sync-center-app-copy strong { overflow-wrap: anywhere; font-size: calc(0.87rem * var(--font-scale)); }
+.sync-center-app-subtitle {
+    color: var(--port-muted);
+    font-size: calc(0.72rem * var(--font-scale));
+    line-height: 1.35;
+}
 .sync-center-app-status-line {
     display: flex;
     align-items: center;

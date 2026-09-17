@@ -92,21 +92,21 @@ test('Account section presents step title, status chip and state-specific CTA', 
         const start = html.indexOf('<section class="sync-center-account"');
         const end = html.indexOf('</section>', start);
         const account = html.slice(start, end);
-        assert.match(account, /1\. アカウント作成/);
+        assert.match(account, /1\. アカウント/);
         assert.match(account, /sync-center-account-status/);
         assert.match(account, /アカウントの作成/);
         assert.match(account, /既存のアカウントに接続/);
-        assert.match(account, /復旧コードを更新/);
-        assert.match(account, /id="sync-center-current-environment-detach"[^>]*hidden>この環境の接続を解除/);
+        assert.doesNotMatch(account, /復旧コードを更新/);
+        assert.doesNotMatch(account, /この環境の接続を解除/);
         assert.match(account, /sync-center-account-actions/);
         assert.match(account, /sync-center-account-action-row/);
-        assert.match(account, /sync-center-section-heading[\s\S]*1\. アカウント作成[\s\S]*id="sync-center-account-help-toggle"/);
+        assert.match(account, /sync-center-section-heading[\s\S]*1\. アカウント[\s\S]*id="sync-center-account-help-toggle"/);
         assert.match(account, /id="sync-center-account-help"[^>]*hidden/);
-        assert.match(account, /アカウントについて/);
-        assert.match(account, /復旧コードについて/);
-        assert.match(account, /この環境の接続を解除/);
+        assert.match(account, /<h3>アカウント<\/h3>/);
+        assert.match(account, /アカウントを作成/);
+        assert.match(account, /既存アカウントに接続/);
         assert.doesNotMatch(account, /account-recovery-help/);
-        assert.match(account, /Cruise Portに接続できている間は、現在のコードを知らなくても新しいコードに更新できます。/);
+        assert.doesNotMatch(account, /復旧コード/);
         assert.doesNotMatch(account, /復旧コードの確認/);
         assert.doesNotMatch(account, /Sound Cruise Sync 接続済み/);
         assert.doesNotMatch(account, /アプリの同期設定が完了/);
@@ -116,9 +116,10 @@ test('Account section presents step title, status chip and state-specific CTA', 
     assert.match(ui, /accountState === 'active' \? '作成済み'/);
     assert.match(ui, /setupOpen\.hidden = accountState !== 'unset'/);
     assert.match(ui, /accountRecoveryOpen\.hidden = accountState !== 'active'/);
-    assert.match(ui, /currentEnvironmentDetach\.hidden = accountState !== 'active'/);
+    assert.match(ui, /recoveryOpen\.hidden = accountState !== 'unset'/);
     assert.match(ui, /setupOpen\.textContent = 'アカウントの作成'/);
     assert.match(ui, /accountRecoveryOpen\.textContent = '復旧コードを更新'/);
+    assert.doesNotMatch(ui, /querySelector\('#sync-center-current-environment-detach'\)/);
     assert.doesNotMatch(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
 });
 
@@ -140,9 +141,13 @@ test('current Port detach is distinct from generic environment revoke and leaves
     assert.match(ui, /dataset\.syncEnvironmentRevoke = environment\.id/);
     assert.match(ui, /kind: 'current-environment'/);
     assert.match(ui, /await orchestrator\.detachCurrentEnvironment\(\)/);
+    assert.equal((ui.match(/await orchestrator\.detachCurrentEnvironment\(\)/g) || []).length, 1);
+    assert.equal((ui.match(/await orchestrator\.revokeEnvironment\(lifecycleAction\.accountDeviceId\)/g) || []).length, 1);
     assert.match(ui, /先にアカウントを作成または接続してください/);
     assert.match(ui, /needsInitialConnection && !accountReady[\s\S]*action\.disabled = true/);
     assert.match(ui, /この環境が最後のCruise Portです。/);
+    assert.match(ui, /syncCurrentEnvironmentDetach = 'true'/);
+    assert.match(ui, /await orchestrator\.revokeEnvironment\(lifecycleAction\.accountDeviceId\)/);
     assert.doesNotMatch(ui, /orchestrator\.commitDelete\(.*current-environment/);
 });
 
@@ -172,10 +177,17 @@ test('Recovery-code update uses authenticated rotation without opening Recovery 
         assert.match(html, /新しい復旧コードを発行します。発行すると、現在の復旧コードは使えなくなります。/);
         assert.match(html, /id="sync-center-recovery-rotate-confirm"[^>]*>新しい復旧コードを発行<\/button>/);
         assert.match(html, /id="sync-center-recovery-rotate-cancel"[^>]*>キャンセル<\/button>/);
-        assert.match(html, /Cruise Portでアカウントに接続できている間は、現在の復旧コードを紛失しても、新しい復旧コードを発行できます。/);
-        assert.match(html, /Cruise Portへの接続も失った場合は、保存してある復旧コードが必要です。/);
-        assert.equal((html.match(/以前のコードは使えなくなります/g) || []).length, 1);
+        const recoveryStart = html.indexOf('aria-labelledby="sync-center-recovery-title"');
+        const dangerStart = html.indexOf('aria-labelledby="sync-center-danger-title"');
+        const recoverySection = html.slice(recoveryStart, dangerStart);
+        assert.match(recoverySection, /id="sync-center-account-recovery-open"[^>]*hidden>復旧コードを更新/);
+        assert.match(recoverySection, /id="sync-center-recovery-open"[^>]*hidden>復旧コードで復旧/);
     }
+    assert.match(ui, /復旧コードは、アカウントを失ったときに元のクラウドデータへ戻るために使います。/);
+    assert.match(ui, /安全のため現在のコードは再表示できません。/);
+    assert.match(ui, /保存してある復旧コードを使って、既存のSound Cruise Syncアカウントを復旧できます。/);
+    assert.match(ui, /accountRecoveryOpen\.hidden = accountState !== 'active'/);
+    assert.match(ui, /recoveryOpen\.hidden = accountState !== 'unset'/);
     assert.match(ui, /#sync-center-account-recovery-open'\)\?\.addEventListener\('click', \(\) => \{[\s\S]*recoveryRotateConfirmDialog\?\.showModal\(\)/);
     assert.match(ui, /tokenProvider\('sound_cruise_recovery_rotation'\)/);
     assert.match(ui, /await orchestrator\.prepareRecoveryRotation\(\{ turnstileToken \}\)/);
@@ -227,10 +239,10 @@ test('Sync Help separates initial connection from environment management', () =>
     const additional = app.slice(additionalStart, nextSection);
     assert.match(first, /'1\. Cruise Portで対象アプリの「同期コード」を押す'/);
     assert.match(first, /'6\. コードを入力して「接続する」を押す'/);
-    assert.match(additional, /同じクラウドデータを使う端末やブラウザを、追加・確認・解除できます。/);
+    assert.match(additional, /Cruise Portや各アプリで使う端末・ブラウザを追加・確認・解除できます。/);
+    assert.match(additional, /Cruise Portでは、このアカウントを使う環境を管理します。/);
     assert.match(additional, /環境を追加/);
-    assert.match(additional, /接続中の環境を確認/);
-    assert.match(additional, /環境の同期を解除/);
+    assert.match(additional, /環境を確認・解除/);
 });
 
 test('Section 2 is initial-only and Section 3 owns Port plus four app additions', () => {
@@ -244,12 +256,13 @@ test('Section 2 is initial-only and Section 3 owns Port plus four app additions'
         assert.doesNotMatch(section2, /別の環境を追加/);
         assert.match(section3, /3\. 環境を管理/);
         assert.match(section3, /sync-center-add-environments/);
-        assert.match(section3, /同じクラウドデータを使う端末やブラウザを、追加・確認・解除できます。/);
+        assert.match(section3, /Cruise Portや各アプリで使う端末・ブラウザを追加・確認・解除できます。/);
         assert.match(html, /id="sync-center-port-connect"/);
         assert.match(html, /data-sensitive="port-addition-code"/);
     }
     assert.match(ui, /function renderEnvironmentManagementRows/);
     assert.match(ui, /id: 'port', name: 'Cruise Port'/);
+    assert.match(ui, /subtitle: 'アカウント管理'/);
     assert.match(ui, /dataset\.syncPortAddEnvironment = 'true'/);
     assert.match(ui, /dataset\.syncAppAddEnvironment = entry\.id/);
     assert.match(ui, /orchestrator\.issuePortAddition\(\)/);
@@ -454,7 +467,7 @@ test('delete grace reconnect is explicit and Section 3 owns counts, lists and sc
     for (const html of [root, pro]) {
         assert.match(html, /3\. 環境を管理/);
         assert.doesNotMatch(html, /<h2 id="sync-center-environments-title">同期中の環境<\/h2>/);
-        assert.match(html, /まだ一度も接続していないアプリは、「2\. アプリを接続」から接続してください。/);
+        assert.match(html, /アプリの最初の接続は「2\. アプリを接続」から行います。/);
     }
 });
 

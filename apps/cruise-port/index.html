@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.40.7">
-    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.40.7">
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.40.7">
-    <link rel="stylesheet" href="./style.css?v=0.40.7">
+    <link rel="manifest" href="./manifest.json?v=0.40.8">
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.40.8">
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.40.8">
+    <link rel="stylesheet" href="./style.css?v=0.40.8">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=18">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -19,7 +19,7 @@
     <script defer src="../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="./practice-menu-app.js?v=0.40.7"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.40.8"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -177,7 +177,7 @@
                 </div>
                 <section class="sync-center-account" aria-labelledby="sync-center-account-title">
                     <div class="sync-center-section-heading">
-                        <h2 id="sync-center-account-title">1. アカウント作成</h2>
+                        <h2 id="sync-center-account-title">1. アカウント</h2>
                         <button id="sync-center-account-help-toggle" class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-account-help" aria-expanded="false" aria-controls="sync-center-account-help" aria-label="アカウントの説明を表示">?</button>
                     </div>
                     <div class="sync-center-account-actions">
@@ -188,17 +188,15 @@
                         <div class="sync-center-account-action-row">
                             <button id="sync-center-setup-open" class="sync-center-account-action" type="button" hidden>アカウントの作成</button>
                             <button id="sync-center-port-connect-open" class="sync-center-account-action" type="button" hidden>既存のアカウントに接続</button>
-                            <button id="sync-center-current-environment-detach" class="sync-center-account-action secondary-action" type="button" hidden>この環境の接続を解除</button>
-                            <button id="sync-center-account-recovery-open" class="sync-center-account-action" type="button" hidden>復旧コードを更新</button>
                         </div>
                     </div>
                     <div id="sync-center-account-help" class="sync-center-section-help-copy" hidden>
-                        <h3>アカウントについて</h3>
-                        <p>クラウド同期を使うための共通アカウントです。同じアカウントに接続したCruise PortやProアプリで、同じクラウドデータを利用できます。</p>
-                        <h3>復旧コードについて</h3>
-                        <p>復旧コードは、Cruise Portへの接続を失ったときにアカウントを取り戻すためのコードです。Cruise Portに接続できている間は、現在のコードを知らなくても新しいコードに更新できます。新しいコードを発行すると、以前のものは使えなくなります。</p>
-                        <h3>この環境の接続を解除</h3>
-                        <p>今使っているCruise Portと、この環境に紐づくProアプリの接続だけを解除します。クラウド上と端末内のデータ、ほかの環境は削除されません。</p>
+                        <h3>アカウント</h3>
+                        <p>クラウド同期を使うためのSound Cruise Syncアカウントです。</p>
+                        <h3>アカウントを作成</h3>
+                        <p>初めて使う場合は、新しいアカウントを作成します。</p>
+                        <h3>既存アカウントに接続</h3>
+                        <p>別のCruise Portで使っている既存アカウントへ接続できます。</p>
                     </div>
                     <p id="sync-center-alert" class="notice notice-error" role="alert" hidden></p>
                 </section>
@@ -218,10 +216,10 @@
                         <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-add-environments-help" aria-expanded="false" aria-controls="sync-center-add-environments-help" aria-label="環境の管理方法を表示">?</button>
                     </div>
                     <div id="sync-center-add-environments-help" class="sync-center-section-help-copy" hidden>
-                        <p>同じクラウドデータを使う端末やブラウザを、追加・確認・解除できます。</p>
-                        <h3>環境を追加</h3><p>2台目以降の端末やブラウザを追加するときは、「追加コード」を使います。まだ一度も接続していないアプリは、「2. アプリを接続」から接続してください。</p>
-                        <h3>接続中の環境を確認</h3><p>「○環境」を押すと、現在接続している環境を確認できます。</p>
-                        <h3>環境の同期を解除</h3><p>環境一覧の「解除」を押すと、その環境だけを同期から外せます。クラウド上と端末内のデータ、ほかの環境は削除されません。後から再接続できます。</p>
+                        <p>Cruise Portや各アプリで使う端末・ブラウザを追加・確認・解除できます。</p>
+                        <h3>Cruise Port</h3><p>Cruise Portでは、このアカウントを使う環境を管理します。</p>
+                        <h3>環境を確認・解除</h3><p>「○環境」を開くと、接続中の環境を確認・解除できます。</p>
+                        <h3>環境を追加</h3><p>2台目以降の環境は「追加コード」から追加します。アプリの最初の接続は「2. アプリを接続」から行います。</p>
                     </div>
                     <ul id="sync-center-add-environments" class="sync-center-apps" aria-live="polite"></ul>
                 </section>
@@ -230,9 +228,10 @@
                         <h2 id="sync-center-recovery-title">復旧とセキュリティ</h2>
                         <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-recovery-help" aria-expanded="false" aria-controls="sync-center-recovery-help" aria-label="復旧とセキュリティの説明を表示">?</button>
                     </div>
-                    <p id="sync-center-recovery-help" class="sync-center-section-help-copy" hidden>Cruise Portでアカウントに接続できている間は、現在の復旧コードを紛失しても、新しい復旧コードを発行できます。Cruise Portへの接続も失った場合は、保存してある復旧コードが必要です。新しい復旧コードを発行すると、以前のコードは使えなくなります。</p>
+                    <p id="sync-center-recovery-help" class="sync-center-section-help-copy" hidden>保存してある復旧コードを使って、既存のSound Cruise Syncアカウントを復旧できます。</p>
                     <div class="sync-center-actions">
-                        <button id="sync-center-recovery-open" class="action-button secondary-action" type="button">復旧コードで復旧</button>
+                        <button id="sync-center-account-recovery-open" class="action-button secondary-action" type="button" hidden>復旧コードを更新</button>
+                        <button id="sync-center-recovery-open" class="action-button secondary-action" type="button" hidden>復旧コードで復旧</button>
                     </div>
                 </section>
                 <section class="sync-center-section sync-center-danger" aria-labelledby="sync-center-danger-title">

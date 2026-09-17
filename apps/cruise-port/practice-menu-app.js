@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.40.7';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.40.7';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.40.7';
+} from './sync-center-controller.js?v=0.40.8';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.40.8';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.40.8';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.40.7';
+} from './sync-center-navigation.js?v=0.40.8';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -169,7 +169,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.40.7';
+} from './app-version.js?v=0.40.8';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.25.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
@@ -265,11 +265,11 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     }),
     Object.freeze({
         title: '環境を管理',
-        paragraphs: Object.freeze(['同じクラウドデータを使う端末やブラウザを、追加・確認・解除できます。']),
+        paragraphs: Object.freeze(['Cruise Portや各アプリで使う端末・ブラウザを追加・確認・解除できます。']),
         items: Object.freeze([
-            Object.freeze({ title: '環境を追加', body: '2台目以降の端末やブラウザを追加するときは、「追加コード」を使います。まだ一度も接続していないアプリは、「2. アプリを接続」から接続してください。' }),
-            Object.freeze({ title: '接続中の環境を確認', body: '「○環境」を押すと、現在接続している環境を確認できます。' }),
-            Object.freeze({ title: '環境の同期を解除', body: '環境一覧の「解除」を押すと、その環境だけを同期から外せます。クラウド上と端末内のデータ、ほかの環境は削除されません。後から再接続できます。' })
+            Object.freeze({ title: 'Cruise Port', body: 'Cruise Portでは、このアカウントを使う環境を管理します。' }),
+            Object.freeze({ title: '環境を確認・解除', body: '「○環境」を開くと、接続中の環境を確認・解除できます。' }),
+            Object.freeze({ title: '環境を追加', body: '2台目以降の環境は「追加コード」から追加します。アプリの最初の接続は「2. アプリを接続」から行います。' })
         ])
     }),
     Object.freeze({

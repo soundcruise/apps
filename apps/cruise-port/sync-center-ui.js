@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.40.7';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.40.8';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -105,6 +105,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
     const entries = [
         {
             id: 'port', name: 'Cruise Port',
+            subtitle: 'アカウント管理',
             icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png`,
             available: activeAccount,
             environments: portEnvironments
@@ -129,6 +130,12 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         const name = document.createElement('strong');
         name.textContent = entry.name;
         copy.append(name);
+        if (entry.subtitle) {
+            const subtitle = document.createElement('span');
+            subtitle.className = 'sync-center-app-subtitle';
+            subtitle.textContent = entry.subtitle;
+            copy.append(subtitle);
+        }
         const actions = document.createElement('div');
         actions.className = 'sync-center-app-row-actions sync-center-environment-actions';
         const count = document.createElement('button');
@@ -353,7 +360,8 @@ export function renderSyncCenter(root, presentation, {
     const setupOpen = root.querySelector('#sync-center-setup-open');
     const portConnectOpen = root.querySelector('#sync-center-port-connect-open');
     const accountRecoveryOpen = root.querySelector('#sync-center-account-recovery-open');
-    const currentEnvironmentDetach = root.querySelector('#sync-center-current-environment-detach');
+    const recoveryOpen = root.querySelector('#sync-center-recovery-open');
+    const recoveryHelp = root.querySelector('#sync-center-recovery-help');
     const accountActionRow = root.querySelector('.sync-center-account-action-row');
     const accountState = presentation.accountState;
     if (accountActionRow) accountActionRow.dataset.syncAccountState = accountState || 'unknown';
@@ -372,13 +380,11 @@ export function renderSyncCenter(root, presentation, {
         accountRecoveryOpen.hidden = accountState !== 'active';
         accountRecoveryOpen.textContent = '復旧コードを更新';
     }
-    if (currentEnvironmentDetach) {
-        const activePortCount = presentation.environments.filter((environment) =>
-            environment.state === 'active' && environment.isPortEnvironment).length;
-        const currentPort = presentation.environments.some((environment) =>
-            environment.isCurrent && environment.isPortEnvironment && environment.state === 'active');
-        currentEnvironmentDetach.hidden = accountState !== 'active' || !currentPort;
-        currentEnvironmentDetach.dataset.syncCurrentEnvironmentLastPort = String(currentPort && activePortCount === 1);
+    if (recoveryOpen) recoveryOpen.hidden = accountState !== 'unset';
+    if (recoveryHelp) {
+        recoveryHelp.textContent = accountState === 'active'
+            ? '復旧コードは、アカウントを失ったときに元のクラウドデータへ戻るために使います。安全のため現在のコードは再表示できません。必要な場合は「復旧コードを更新」から新しいコードを発行できます。'
+            : '保存してある復旧コードを使って、既存のSound Cruise Syncアカウントを復旧できます。';
     }
     if (accountDisplayId) {
         accountDisplayId.textContent = presentation.accountDisplayId
@@ -965,17 +971,6 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 summary: `${appName}のクラウド上の同期データを削除対象にします。端末内のデータは削除されません。削除を確定すると、7日後に完全削除の対象になります。他の3アプリとSound Cruise Syncアカウントは維持されます。`
             });
         }
-    });
-    root?.querySelector?.('#sync-center-current-environment-detach')?.addEventListener('click', () => {
-        const button = root.querySelector('#sync-center-current-environment-detach');
-        const lastPort = button?.dataset?.syncCurrentEnvironmentLastPort === 'true';
-        openLifecycle({
-            kind: 'current-environment',
-            title: 'この環境の接続を解除',
-            summary: lastPort
-                ? 'この環境が最後のCruise Portです。接続を解除した後、このアカウントへ再び接続するには保存済みの復旧コードが必要です。クラウド上と端末内のデータは削除されません。'
-                : 'このCruise Portと、この環境で接続しているアプリをアカウントから解除します。クラウド上と端末内のデータは削除されません。他の環境はそのまま利用できます。'
-        });
     });
     root?.querySelector?.('[data-sync-app-delete-toggle]')?.addEventListener('click', (event) => {
         const details = root.querySelector('#sync-center-app-delete-actions');
