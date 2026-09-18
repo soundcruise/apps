@@ -170,6 +170,13 @@ test('production Account client creates no QA material and sends no QA authoriza
     fetchImpl: async (url, options) => {
       const body = JSON.parse(options.body);
       requests.push({ url, body, qaHeader: options.headers.get('X-Sound-Cruise-QA-Authorization') });
+      if (url.endsWith('/v2/accounts/handoffs')) {
+        return Response.json({ ok: true, handoffId: body.handoffToken.split('.')[1], expiresAt: 300000 },
+          { status: 201 });
+      }
+      if (url.endsWith('/v2/accounts/handoffs/cancel')) {
+        return Response.json({ ok: true, cancelled: true });
+      }
       return Response.json({
         ok: true, operation: 'activated', accountId: crypto.randomUUID(),
         membershipId: crypto.randomUUID(), accountDeviceId: body.accountCredential.split('.')[1],
@@ -188,9 +195,17 @@ test('production Account client creates no QA material and sends no QA authoriza
   assert.equal(Object.hasOwn(result, 'qaCredential'), false);
   await assert.rejects(client.enrollQa({ enrollmentCode: 'unused', turnstileToken: 'unused' }),
     /qa_admission_not_applicable/);
-  await assert.rejects(async () => client.issueHandoff({}), /production_handoff_unavailable/);
-  await assert.rejects(async () => client.cancelHandoff({}), /production_handoff_unavailable/);
-  await assert.rejects(async () => client.consumeHandoff({}), /production_handoff_unavailable/);
+  const handoff = account.core.createHandoffMaterial();
+  await client.issueHandoff({
+    accountCredential: 'sca1.account', appId: 'rhythm', appUrl: 'https://app.example/rhythm',
+    material: handoff
+  });
+  await client.cancelHandoff({ accountCredential: 'sca1.account', handoffId: handoff.handoffId });
+  await client.consumeHandoff({ handoffToken: handoff.handoffToken, appId: 'rhythm' });
+  assert.equal(requests.length, 4);
+  assert.equal(requests.every((request) => request.qaHeader === null), true);
+  assert.equal(requests.every((request) => !Object.hasOwn(request.body, 'qaCredential')), true);
+  assert.equal(JSON.stringify(writes).includes(handoff.handoffToken), false);
 });
 
 test('credential storage is Account-specific IndexedDB and rejects transient Recovery/handoff secrets', async () => {

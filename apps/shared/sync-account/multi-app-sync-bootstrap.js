@@ -265,6 +265,35 @@
     });
   }
 
+  async function consumeAutoRejoin(config, runtime) {
+    showPendingSettings();
+    setSettingsPresentation({
+      state: 'connecting', status: '再接続しています…', action: null,
+      accountDisplayId: connectedAccountDisplayId
+    });
+    const token = handoffToken;
+    handoffToken = null;
+    try {
+      const result = await runtime.consumeHandoff(token, `${config.appId} app`);
+      if (!result?.ok) throw new Error(result?.code || 'setup_failed');
+      showConnectedSettings(result.accountId);
+      return true;
+    } catch (reason) {
+      // The grant is intentionally one-time. A failed automatic path keeps all
+      // local/cloud data intact and returns to the existing manual Join entry.
+      if (reason?.code === 'app_environment_limit') {
+        setSettingsPresentation({
+          state: 'attention', status: '環境の上限です',
+          description: 'Cruise Portで使っていない環境の同期を解除してから、もう一度お試しください。',
+          action: { label: 'Cruise Portで環境を管理', run: () => global.location.assign(config.portUrl) }
+        });
+        return false;
+      }
+      installJoinEntry(config, runtime);
+      return false;
+    }
+  }
+
   function installRestoreAttention() {
     setSettingsPresentation({
       state: 'attention', status: '確認が必要',
@@ -317,9 +346,6 @@
   async function start() {
     const config = readConfig();
     if (!config || !accountRoot?.AccountClient || !syncRoot.MultiAppSyncRuntime || !syncRoot.dataStorage) return;
-    // Production admission uses only verifier-backed Join invitations. A stale
-    // QA handoff fragment must never select the unsupported handoff path.
-    if (config.admissionMode === 'production') handoffToken = null;
     const [namespace, Adapter] = APP_ROOTS[config.appId];
     const AdapterClass = global[namespace]?.[Adapter];
     if (typeof AdapterClass !== 'function') return;
@@ -383,9 +409,7 @@
       installJoinEntry(config, runtime);
       return;
     }
-    const dialog = createLanding(config.appId, config.portUrl);
-    bindLanding(dialog, config, runtime, 'handoff');
-    dialog.showModal();
+    await consumeAutoRejoin(config, runtime);
   }
 
   // Exposed for deterministic bootstrap contract tests; no credentials or

@@ -137,7 +137,7 @@ test('completed Account-managed Chord containers suppress the Join entry across 
   const source = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
   const completeGuard = source.indexOf("accountManagedSetup === true && migrationState === 'complete' && existing?.credential");
   const restoringGuard = source.indexOf("accountManagedSetup === true && migrationState !== 'complete' && existing?.credential");
-  const genericJoin = source.lastIndexOf('installJoinEntry();');
+  const genericJoin = source.indexOf('installJoinEntry();', restoringGuard);
   assert(completeGuard >= 0, 'a completed Account-managed credential is authoritative over generic Join UI');
   assert(restoringGuard > completeGuard, 'the completed guard runs before the restoring/pending branch');
   assert(genericJoin > restoringGuard, 'the generic Join entry remains only as the final unconnected fallback');
@@ -253,8 +253,10 @@ test('production startup restores an app credential without creating or requirin
   assert.equal(pendingResumeCalls, 0);
   const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
   const chord = read('apps/chord-cruise/js/sync/sync-account-orchestration.js');
-  assert.match(bootstrap, /config\.admissionMode === 'production'\) handoffToken = null/);
-  assert.match(chord, /settings\.admissionMode === 'production'\) handoffToken = null/);
+  assert.doesNotMatch(bootstrap, /config\.admissionMode === 'production'\) handoffToken = null/);
+  assert.doesNotMatch(chord, /settings\.admissionMode === 'production'\) handoffToken = null/);
+  assert.match(bootstrap, /consumeAutoRejoin\(config, runtime\)/);
+  assert.match(chord, /status: '再接続しています…'/);
 });
 
 test('delayed credential restore never falls through to not-connected', async () => {

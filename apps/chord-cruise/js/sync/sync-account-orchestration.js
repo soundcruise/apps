@@ -50,7 +50,6 @@
   async function run() {
     const settings = config();
     if (!settings || !accountRoot?.AccountClient || !accountRoot?.ChordAccountBridgeClient) return;
-    if (settings.admissionMode === 'production') handoffToken = null;
     const ready = await global.ChordCruiseSyncPilot?.ready;
     const chordClient = global.ChordCruiseSync?.pilotClient;
     if (!ready?.enabled || !chordClient) return;
@@ -478,6 +477,14 @@
     global.addEventListener?.('soundcruise:sync-terminal', function () {
       showTerminalReconnect();
     });
+    if (handoffToken) {
+      const launchStore = await chordClient.openStore();
+      const launchCredential = await launchStore.getMeta('deviceCredential');
+      // Any existing Chord identity wins over a transient Port grant. This
+      // preserves both Account-managed and Legacy environments and guarantees
+      // that a normal Port launch never replaces a usable local identity.
+      if (launchCredential?.credential) handoffToken = null;
+    }
     if (!handoffToken) {
       const chordStore = await chordClient.openStore();
       let existing = await chordStore.getMeta('deviceCredential');
@@ -535,65 +542,29 @@
       installJoinEntry();
       return;
     }
-    const dialog = landing(settings.portUrl);
-    const start = dialog.querySelector('[data-sync-action="start"]');
-    const summaryText = dialog.querySelector('[data-sync-summary]');
-    const errorText = dialog.querySelector('[data-sync-error]');
-    start.addEventListener('click', async () => {
-      start.disabled = true;
-      syncUi?.setJoinProcessing?.(dialog, {
-        title: 'クラウド同期を設定しています…',
-        description: '保存内容を確認しています。しばらくお待ちください。'
+    renderJoinSettings({ state: 'connecting', status: '再接続しています…', action: null });
+    const launchToken = handoffToken;
+    handoffToken = null;
+    try {
+      const consumed = await accountClient.consumeHandoff({
+        handoffToken: launchToken, appId: 'chord', deviceLabel: 'Chord Cruise',
+        consumeMode: 'new_app', preservePending: true
       });
-      try {
-        var setupResult = null;
-        const chordStore = await chordClient.openStore();
-        const existing = await chordStore.getMeta('deviceCredential');
-        if (existing?.credential) {
-          try {
-            const consumed = await accountClient.consumeHandoff({
-              handoffToken, appId: 'chord', deviceLabel: 'Chord Cruise',
-              consumeMode: 'existing_chord', existingAppCredential: existing.credential,
-              preservePending: true
-            });
-            if (consumed.operation !== 'bridge_required') throw new Error('bridge_required');
-            await finishExistingBridge(existing, consumed);
-          } catch (reason) {
-            if (!canRetryAsNewChordEnvironment(reason)) throw reason;
-            const appMaterial = await prepareRetiredLegacyReplacement(existing);
-            const consumed = await accountClient.consumeHandoff({
-              handoffToken, appId: 'chord', deviceLabel: 'Chord Cruise', consumeMode: 'new_app',
-              preservePending: true, appMaterial
-            });
-            setupResult = await promoteNewAppConsume(consumed);
-          }
-        } else {
-          const consumed = await accountClient.consumeHandoff({
-            handoffToken, appId: 'chord', deviceLabel: 'Chord Cruise', consumeMode: 'new_app',
-            preservePending: true
-          });
-          setupResult = await promoteNewAppConsume(consumed);
-        }
-        handoffToken = null;
-        if (setupResult?.requiresConfirmation) showAttentionSettings();
-        else showConnectedJoinSettings();
-        completeJoinDialog(dialog, summaryText, start, null, setupResult);
-      } catch (error) {
-        if (error && error.accountJoinCommitted === true) {
-          showJoinAttention(dialog, summaryText, start, null, null, error.accountJoinResume);
-          return;
-        }
-        syncUi?.restoreJoinInput?.(dialog, {
-          title: 'クラウド同期',
-          description: '接続を完了できませんでした。データは削除していません。'
-        });
-        dialog.dataset.syncPhase = 'attention';
-        errorText.hidden = false;
-        errorText.textContent = '接続を完了できませんでした。データは削除していません。Cruise Portから再度お試しください。';
-        start.disabled = false;
+      const setupResult = await promoteNewAppConsume(consumed);
+      if (setupResult?.requiresConfirmation) showAttentionSettings();
+      else showConnectedJoinSettings();
+    } catch (error) {
+      if (error?.accountJoinCommitted === true) showPendingJoinAttention();
+      else if (error?.code === 'app_environment_limit') {
+        showAttentionSettings(
+          'Cruise Portで使っていない環境の同期を解除してから、もう一度お試しください。',
+          uiAction('Cruise Portで環境を管理', function () {
+            global.location.assign(settings.portUrl);
+          })
+        );
       }
-    });
-    dialog.showModal();
+      else installJoinEntry();
+    }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run, { once: true });
