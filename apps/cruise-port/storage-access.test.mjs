@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { loadPracticeMenus, savePracticeMenus } from './practice-menu-store.js';
 import { loadPracticeProgress, savePracticeProgress, createEmptyPracticeProgress } from './practice-menu-progress-store.js';
 import { loadPracticeHistory, savePracticeHistory, createEmptyPracticeHistory } from './practice-menu-history-store.js';
@@ -14,7 +15,20 @@ import { loadTunerSettings, saveTunerSettings, TUNER_DEFAULTS } from './tuner-st
 import { createPracticeAttachmentStore } from './practice-menu-attachment-store.js';
 import { createGearPhotoStore } from './gear-photo-store.js';
 import { createMyAppsIconStore } from './my-apps-icon-store.js';
-import { acceptRemoteStorageValues, assertStorageUnchanged } from './storage-conflict.js';
+import { acceptRemoteStorageValues, acceptStorageValues, assertStorageUnchanged } from './storage-conflict.js';
+
+test('every storage module imports the current conflict coordinator cache key', () => {
+    for (const file of [
+        'practice-menu-store.js', 'practice-menu-progress-store.js',
+        'practice-menu-history-store.js', 'practice-menu-calendar-store.js',
+        'practice-menu-timer-store.js', 'my-apps-store.js', 'gear-list-store.js',
+        'gear-category-store.js', 'settings-store.js', 'metronome-store.js',
+        'metronome-presets-store.js', 'tuner-store.js'
+    ]) {
+        const source = readFileSync(new URL(file, import.meta.url), 'utf8');
+        assert.match(source, /storage-conflict\.js\?v=0\.41\.1/, file);
+    }
+});
 
 test('blocked localStorage getter returns recoverable failures for every store, without uncaught exceptions', () => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
@@ -89,4 +103,25 @@ test('a verified cloud apply advances the local conflict baseline without creati
     storage.setItem('cruisePort.settings', JSON.stringify({ ...DEFAULT_SETTINGS, displaySize: 'small' }));
     acceptRemoteStorageValues(storage, ['cruisePort.settings']);
     assert.doesNotThrow(() => assertStorageUnchanged(storage, ['cruisePort.settings']));
+});
+
+test('managed local saves notify Port sync once while verified remote applies stay silent', () => {
+    const storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+    const previousSync = globalThis.SoundCruiseMultiAppSync;
+    const previousManagedKeys = globalThis.SoundCruisePortSync.MANAGED_KEYS;
+    const storage = { getItem: () => null };
+    const calls = [];
+    Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: storage });
+    globalThis.SoundCruisePortSync.MANAGED_KEYS = ['cruisePort.settings'];
+    globalThis.SoundCruiseMultiAppSync = { notifyLocalSave: (appId) => calls.push(appId) };
+    try {
+        acceptStorageValues(storage, ['cruisePort.settings']);
+        acceptRemoteStorageValues(storage, ['cruisePort.settings']);
+        assert.deepEqual(calls, ['port']);
+    } finally {
+        globalThis.SoundCruisePortSync.MANAGED_KEYS = previousManagedKeys;
+        globalThis.SoundCruiseMultiAppSync = previousSync;
+        if (storageDescriptor) Object.defineProperty(globalThis, 'localStorage', storageDescriptor);
+        else delete globalThis.localStorage;
+    }
 });
