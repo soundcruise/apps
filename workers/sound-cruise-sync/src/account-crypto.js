@@ -180,7 +180,7 @@ export async function accountDeleteIntentVerifier(value, pepper, cryptoImpl = cr
 
 export async function accountManagedRecoveryVerifier(accountVerifier, appId, pepper, cryptoImpl = crypto) {
   if (typeof accountVerifier !== 'string' || !/^[a-f0-9]{64}$/.test(accountVerifier) ||
-      !['chord', 'pitch', 'fretboard', 'rhythm'].includes(appId)) {
+      !['chord', 'pitch', 'fretboard', 'rhythm', 'port'].includes(appId)) {
     throw new Error('Invalid Account membership Recovery input');
   }
   return hmacVerifier(

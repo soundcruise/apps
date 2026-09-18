@@ -16,6 +16,12 @@ const FRETBOARD_RECORD_TYPES = Object.freeze([
   'settings', 'custom_route', 'custom_quiz', 'builtin_route_override',
   'builtin_quiz_override', 'stage_order', 'progress'
 ]);
+const PORT_RECORD_TYPES = Object.freeze([
+  'settings', 'metronome_settings', 'metronome_preset', 'tuner_settings',
+  'gear_category', 'gear_category_order', 'gear_item', 'gear_order',
+  'calendar_event', 'practice_menu', 'practice_menu_order',
+  'practice_history_event', 'practice_cycle', 'my_app', 'my_app_order'
+]);
 const PITCH_BUILTIN_CHORD_KEYS = new Set([
   'builtin:chord:c', 'builtin:chord:dm', 'builtin:chord:em',
   'builtin:chord:f', 'builtin:chord:g', 'builtin:chord:am'
@@ -25,7 +31,8 @@ const APP_RECORD_TYPES = Object.freeze({
   chord: CHORD_RECORD_TYPES,
   pitch: PITCH_RECORD_TYPES,
   rhythm: RHYTHM_RECORD_TYPES,
-  fretboard: FRETBOARD_RECORD_TYPES
+  fretboard: FRETBOARD_RECORD_TYPES,
+  port: PORT_RECORD_TYPES
 });
 
 function isPlainObject(value) {
@@ -49,6 +56,46 @@ function reference(value) {
 
 function finiteNumber(value) {
   return typeof value === 'number' && Number.isFinite(value);
+}
+
+const PORT_SINGLETON_IDS = Object.freeze({
+  settings: 'global',
+  metronome_settings: 'default',
+  tuner_settings: 'default',
+  gear_category_order: 'default',
+  practice_menu_order: 'default',
+  practice_cycle: 'current',
+  my_app_order: 'default'
+});
+const PORT_FORBIDDEN_KEYS = /(?:credential|verifier|password|secret|token|recovery.?code|join.?code|blob|base64|binary)/iu;
+const PORT_DATA_URL = /^data:/iu;
+
+function validatePortJson(value, depth = 0, budget = { nodes: 0 }) {
+  budget.nodes += 1;
+  if (budget.nodes > 4096 || depth > 12) return false;
+  if (value === null || typeof value === 'boolean') return true;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (typeof value === 'string') return value.length <= 20_000 &&
+    !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value) &&
+    !PORT_DATA_URL.test(value);
+  if (Array.isArray(value)) {
+    return value.length <= 2000 && value.every((item) => validatePortJson(item, depth + 1, budget));
+  }
+  if (!isPlainObject(value) || Object.keys(value).length > 200) return false;
+  return Object.entries(value).every(([key, item]) =>
+    string(key, 120) && !PORT_FORBIDDEN_KEYS.test(key) &&
+    validatePortJson(item, depth + 1, budget));
+}
+
+function validatePortPayload(recordType, recordId, payload) {
+  if (!isPlainObject(payload) || !onlyKeys(payload, ['id', 'value']) ||
+      payload.id !== recordId || !string(recordId, 200) || !validatePortJson(payload.value)) {
+    return false;
+  }
+  const singletonId = PORT_SINGLETON_IDS[recordType];
+  if (singletonId) return recordId === singletonId;
+  if (recordType === 'gear_order') return /^(?:owned|wishlist|sold)$/u.test(recordId);
+  return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(recordId);
 }
 
 function validatePitchSettings(payload) {
@@ -348,10 +395,11 @@ export function validateRecordPayload(appId, recordType, recordId, payload) {
   }
   if (appId === 'pitch') return validatePitchPayload(recordType, recordId, payload);
   if (appId === 'rhythm') return validateRhythmPayload(recordType, recordId, payload);
+  if (appId === 'port') return validatePortPayload(recordType, recordId, payload);
   return validateFretboardPayload(recordType, recordId, payload);
 }
 
 export {
   APP_RECORD_TYPES, CHORD_RECORD_TYPES, PITCH_RECORD_TYPES, RHYTHM_RECORD_TYPES,
-  FRETBOARD_RECORD_TYPES, SCHEMA_VERSION
+  FRETBOARD_RECORD_TYPES, PORT_RECORD_TYPES, SCHEMA_VERSION
 };

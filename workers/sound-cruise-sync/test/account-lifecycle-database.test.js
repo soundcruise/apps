@@ -574,6 +574,29 @@ test('current Port environment detach follows invitation issuer links only and p
       id, account_id, credential_version, credential_verifier, label, created_at, last_seen_at, revoked_at
     ) VALUES (?, ?, 1, ?, ?, 1000, 1000, NULL)`).run(id, IDS.account, verifier, label);
   }
+  const portMembership = '20000000-0000-4000-8000-000000000010';
+  const portUser = '30000000-0000-4000-8000-000000000010';
+  const portDevice = '40000000-0000-4000-8000-000000000010';
+  db.raw.prepare(`INSERT INTO sync_users (
+    id, state, recovery_version, recovery_verifier, created_at, updated_at
+  ) VALUES (?, 'active', 1, ?, 1000, 1000)`).run(portUser, hex('a'));
+  db.raw.prepare(`INSERT INTO sync_account_memberships (
+    id, account_id, app_id, state, sync_user_id, recovery_mode,
+    generation, created_at, activated_at, updated_at, deleted_at
+  ) VALUES (?, ?, 'port', 'active', ?, 'account', 1, 1000, 1000, 1000, NULL)`)
+    .run(portMembership, IDS.account, portUser);
+  db.raw.prepare(`INSERT INTO sync_devices (
+    id, user_id, app_id, credential_version, credential_verifier, label, last_cursor,
+    created_at, last_seen_at, revoked_at, pairing_pending_at, paired_at
+  ) VALUES (?, ?, 'port', 1, ?, 'Port A', 0, 1000, 1000, NULL, NULL, 1000)`)
+    .run(portDevice, portUser, hex('b'));
+  db.raw.prepare(`INSERT INTO sync_datasets (
+    user_id, app_id, state, schema_version, record_count, manifest_hash,
+    min_change_seq, initialized_at, updated_at, last_change_seq
+  ) VALUES (?, 'port', 'ready', 1, 0, ?, 0, 1000, 1000, 0)`).run(portUser, hex('c'));
+  db.raw.prepare(`INSERT INTO sync_membership_device_links (
+    account_id, membership_id, app_device_id, account_device_id, linked_at
+  ) VALUES (?, ?, ?, ?, 1000)`).run(IDS.account, portMembership, portDevice, portA);
   const owned = [
     ['chord', IDS.chordMembership, IDS.chordUser], ['pitch', IDS.pitchMembership, IDS.pitchUser],
     ['fretboard', IDS.fretboardMembership, IDS.fretboardUser], ['rhythm', IDS.rhythmMembership, IDS.rhythmUser]
@@ -618,10 +641,12 @@ test('current Port environment detach follows invitation issuer links only and p
   );
   assert.equal(result.status, 'detached');
   assert.equal(result.revokedAccountDeviceCount, 5);
-  assert.equal(result.revokedAppDeviceCount, 4);
+  assert.equal(result.revokedAppDeviceCount, 5);
   assert.equal(result.isLastPort, false);
   assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_account_devices WHERE id = ?').get(portA).revoked_at, 2100);
   assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_account_devices WHERE id = ?').get(portB).revoked_at, null);
+  assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_devices WHERE id = ?').get(portDevice).revoked_at, 2100,
+    'the hidden Port App Device linked to this Port environment is revoked');
   assert.equal(db.raw.prepare('SELECT revoked_at FROM sync_account_devices WHERE id = ?').get(IDS.accountA).revoked_at, null,
     'an app Account Device not claimed from Port A is preserved');
   for (let index = 0; index < owned.length; index += 1) {

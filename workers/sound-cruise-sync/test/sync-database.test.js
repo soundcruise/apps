@@ -249,3 +249,29 @@ test('Fretboard records use the shared revision-safe data plane with a Fretboard
     await (await import('../src/records.js')).manifestHash(snapshot.records, 1, crypto, 'rhythm'));
   db.close();
 });
+
+test('Port records use the shared revision-safe data plane with a Port-scoped manifest', async () => {
+  const db = createSqliteD1();
+  const identity = seedIdentity(db, {
+    userId: '123e4567-e89b-42d3-a456-426614174069',
+    deviceId: '123e4567-e89b-42d3-a456-426614174068', appId: 'port'
+  });
+  const repository = createD1SyncRepository(db, () => 100);
+  const value = {
+    operationId: '123e4567-e89b-52d3-a456-426614174067',
+    recordType: 'settings', recordId: 'global', schemaVersion: 1, baseRevision: 0,
+    payload: { id: 'global', value: { displaySize: 'small' } }, payloadHash: '', deleted: false
+  };
+  value.payloadHash = await hashRecord(value, crypto, 'port');
+  const checked = await validateOperation(value, crypto, 'port');
+  assert.equal(checked.ok, true);
+  assert.equal((await repository.applyOperation(identity, checked.operation)).status, 'applied');
+  assert.equal((await repository.applyOperation(identity, checked.operation)).status, 'duplicate');
+  const snapshot = await repository.readSnapshot(identity);
+  assert.equal(snapshot.recordCount, 1);
+  assert.equal(snapshot.manifestHash,
+    await (await import('../src/records.js')).manifestHash(snapshot.records, 1, crypto, 'port'));
+  assert.notEqual(snapshot.manifestHash,
+    await (await import('../src/records.js')).manifestHash(snapshot.records, 1, crypto, 'fretboard'));
+  db.close();
+});

@@ -27,9 +27,9 @@ test('production Worker remains exact-origin, observable, and secret-free in rep
   assert.equal(config.vars.TURNSTILE_PAIR_EXPECTED_ACTION, 'sound_cruise_sync_pair');
   assert.equal(config.vars.TURNSTILE_RECOVER_EXPECTED_ACTION, 'sound_cruise_sync_recover');
   assert.equal(config.vars.SYNC_ALLOWED_APP_IDS, 'chord');
-  assert.equal(config.vars.SYNC_QA_ALLOWED_APP_IDS, 'chord,pitch,rhythm,fretboard');
+  assert.equal(config.vars.SYNC_QA_ALLOWED_APP_IDS, 'chord,pitch,rhythm,fretboard,port');
   assert.equal(config.vars.SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED, 'true');
-  assert.equal(config.vars.SYNC_ACCOUNT_PUBLIC_APP_IDS, 'chord,pitch,fretboard,rhythm');
+  assert.equal(config.vars.SYNC_ACCOUNT_PUBLIC_APP_IDS, 'chord,pitch,fretboard,rhythm,port');
   assert.deepEqual(config.ratelimits.map((entry) => entry.name), [
     'START_RATE_LIMITER', 'SYNC_RATE_LIMITER', 'PAIRING_ISSUE_RATE_LIMITER', 'PAIR_RATE_LIMITER', 'RECOVERY_RATE_LIMITER',
     'ACCOUNT_QA_ENROLL_RATE_LIMITER', 'ACCOUNT_START_RATE_LIMITER', 'ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER',

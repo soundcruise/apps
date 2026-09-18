@@ -208,7 +208,10 @@ async function authenticatedContext(request, env, appId, dependencies) {
         session,
         request.headers.get('X-Sound-Cruise-QA-Authorization'),
         env,
-        { scope: 'app', appId, appDeviceId: identity.deviceId, ...(accountId ? { accountId } : {}) },
+        appId === 'port'
+          ? { scope: 'port', ...(accountId ? { accountId } : {}) }
+          : { scope: 'app', appId, appDeviceId: identity.deviceId,
+              ...(accountId ? { accountId } : {}) },
         dependencies
       );
     } catch {

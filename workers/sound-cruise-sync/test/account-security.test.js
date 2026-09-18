@@ -23,7 +23,7 @@ test('Account implementation has no plaintext logging or browser key-value secre
   assert.equal(sharedSources.includes('transient_secret_persistence_blocked'), true);
 });
 
-test('M10 keeps Standard unintegrated and wires OFF-first Account orchestration only into Pro apps', () => {
+test('Account orchestration stays Pro-only in apps while both Port editions load the Port data plane', () => {
   const editions = [
     ['apps/chord-cruise/standard/index.html', 'apps/chord-cruise/pro_k7m4q9v2x8/index.html'],
     ['apps/pitch-cruise/standard/index.html', 'apps/pitch-cruise/pro_x9v7q2m8/index.html'],
@@ -43,7 +43,9 @@ test('M10 keeps Standard unintegrated and wires OFF-first Account orchestration 
   for (const source of [standardPort, proPort]) {
     assert.equal((source.match(/shared\/sync-account\/sync-account-(?:core|db|client)\.js/gu) || []).length, 3);
     assert.equal(source.includes('chord-account-bridge'), false);
-    assert.equal(source.includes('sync-app-backup'), false);
+    assert.equal(source.includes('sync-app-backup'), true);
+    assert.equal(source.includes('port-sync-adapter'), true);
+    assert.equal(source.includes('port-sync-controller'), true);
   }
   const controller = fs.readFileSync(path.join(repositoryRoot, 'apps/cruise-port/sync-center-controller.js'), 'utf8');
   assert.match(controller, /client\.summary/u);
@@ -74,7 +76,7 @@ test('production config exposes every independent Account-operation limiter', ()
     assert.match(config, new RegExp(`"name"\\s*:\\s*"${name}"[\\s\\S]*?"namespace_id"\\s*:\\s*"${namespaceId}"[\\s\\S]*?"limit"\\s*:\\s*5[\\s\\S]*?"period"\\s*:\\s*60`, 'u'));
   }
   assert.match(config, /"SYNC_ALLOWED_APP_IDS"\s*:\s*"chord"/u);
-  assert.match(config, /"SYNC_QA_ALLOWED_APP_IDS"\s*:\s*"chord,pitch,rhythm,fretboard"/u);
+  assert.match(config, /"SYNC_QA_ALLOWED_APP_IDS"\s*:\s*"chord,pitch,rhythm,fretboard,port"/u);
   assert.match(config, /"SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED"\s*:\s*"true"/u);
-  assert.match(config, /"SYNC_ACCOUNT_PUBLIC_APP_IDS"\s*:\s*"chord,pitch,fretboard,rhythm"/u);
+  assert.match(config, /"SYNC_ACCOUNT_PUBLIC_APP_IDS"\s*:\s*"chord,pitch,fretboard,rhythm,port"/u);
 });

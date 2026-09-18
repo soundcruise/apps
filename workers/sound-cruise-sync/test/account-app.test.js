@@ -250,6 +250,76 @@ test('Account create is gated, Turnstile/rate-limited, verifier-only and respons
   db.close();
 });
 
+test('authenticated Port device provisioning activates the hidden membership once and links the current environment', async () => {
+  const db = createSqliteD1();
+  const env = environment(db);
+  enableAccountControl(db);
+  const started = await startAccount(db, env, ['pitch']);
+  assert.equal(started.response.status, 201);
+  assert.deepEqual(started.payload.memberships.map(({ appId }) => appId), ['pitch'], 'Port remains hidden publicly');
+  const hidden = db.raw.prepare(`
+    SELECT id, state, sync_user_id FROM sync_account_memberships
+    WHERE account_id = ? AND app_id = 'port'
+  `).get(started.payload.accountId);
+  assert.equal(hidden.state, 'pending');
+
+  const app = await createIdentityMaterial(appPepper);
+  const body = {
+    operationId: crypto.randomUUID(), appDeviceCredential: app.credential,
+    deviceLabel: 'Cruise Port QA'
+  };
+  let response = await handleRequest(jsonRequest('/v2/accounts/port-device', body, {
+    credential: started.candidate.account.credential
+  }), env);
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const provisioned = await response.json();
+  assert.equal(provisioned.appId, 'port');
+  assert.equal(provisioned.appDeviceId, app.deviceId);
+  assert.equal(provisioned.membershipState, 'active');
+  assert.equal(JSON.stringify(provisioned).includes(app.credential), false);
+  assert.equal(db.raw.prepare(`
+    SELECT state FROM sync_account_memberships WHERE id = ?
+  `).get(hidden.id).state, 'active');
+  assert.equal(db.raw.prepare(`
+    SELECT COUNT(*) count FROM sync_membership_device_links
+    WHERE membership_id = ? AND account_device_id = ? AND app_device_id = ?
+  `).get(hidden.id, started.payload.accountDeviceId, app.deviceId).count, 1);
+
+  response = await handleRequest(jsonRequest('/v2/accounts/port-device', body, {
+    credential: started.candidate.account.credential
+  }), env);
+  assert.equal(response.status, 200, 'response-loss retry is idempotent');
+  assert.equal((await response.json()).operation, 'existing');
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) count FROM sync_devices WHERE app_id = 'port'`).get().count, 1);
+
+  const second = await createIdentityMaterial(appPepper);
+  response = await handleRequest(jsonRequest('/v2/accounts/port-device', {
+    ...body, appDeviceCredential: second.credential
+  }, { credential: started.candidate.account.credential }), env);
+  assert.equal(response.status, 409, 'one operation ID cannot provision another credential');
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) count FROM sync_devices WHERE app_id = 'port'`).get().count, 1);
+
+  const secondPort = createAccountCredential();
+  db.raw.prepare(`INSERT INTO sync_account_devices (
+    id, account_id, credential_version, credential_verifier,
+    label, created_at, last_seen_at, revoked_at
+  ) VALUES (?, ?, 1, ?, 'Cruise Port B', 2, 2, NULL)`).run(
+    secondPort.deviceId,
+    started.payload.accountId,
+    await accountCredentialVerifier(secondPort.credential, accountCredentialPepper)
+  );
+  response = await handleRequest(jsonRequest('/v2/accounts/port-device', {
+    operationId: crypto.randomUUID(), appDeviceCredential: second.credential,
+    deviceLabel: 'Cruise Port B'
+  }, { credential: secondPort.credential }), env);
+  assert.equal(response.status, 201, 'a second Port can join before the shared dataset is bootstrapped');
+  const secondProvisioned = await response.json();
+  assert.equal(secondProvisioned.membershipId, provisioned.membershipId);
+  assert.equal(secondProvisioned.syncUserId, provisioned.syncUserId);
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) count FROM sync_devices WHERE app_id = 'port' AND revoked_at IS NULL`).get().count, 2);
+  db.close();
+});
+
 test('Account Recovery API prepares a secret-free summary, rotates once and resolves response loss', async () => {
   const db = createSqliteD1();
   enableLifecycleControl(db);
@@ -397,7 +467,7 @@ test('authenticated Recovery rotation requires active Account authority and pres
   assert.equal(db.raw.prepare(`
     SELECT COUNT(*) AS count FROM sync_account_memberships
     WHERE account_id = ? AND state = 'pending'
-  `).get(accountId).count, 2);
+  `).get(accountId).count, 3, 'the hidden Port membership remains pending');
 
   const recoveryCandidate = createAccountCredential();
   const oldClaim = createAccountRecoveryClaim();
@@ -545,7 +615,7 @@ test('current Port environment detach is response-loss safe and leaves Account d
   assert.equal(response.status, 200);
   assert.equal((await response.json()).alreadyDetached, true);
   assert.equal(db.raw.prepare('SELECT state FROM sync_accounts').get().state, 'active');
-  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_memberships').get().count, 2);
+  assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_account_memberships').get().count, 3);
   assert.equal(db.raw.prepare('SELECT COUNT(*) count FROM sync_datasets').get().count, 0);
   db.close();
 });

@@ -58,6 +58,23 @@ export function validateAccountStartPayload(value) {
   return { ok: true, value: { ...value, appIds, deviceLabel } };
 }
 
+export function validatePortDeviceProvisionPayload(value) {
+  if (!exactObject(value, ['operationId', 'appDeviceCredential', 'deviceLabel'])) {
+    return { ok: false };
+  }
+  const deviceLabel = label(value.deviceLabel);
+  const appDevice = parseAccountAppCredential(value.appDeviceCredential);
+  if (!operationId(value.operationId) || !appDevice || deviceLabel === undefined) {
+    return { ok: false };
+  }
+  return { ok: true, value: {
+    operationId: value.operationId,
+    appDeviceCredential: value.appDeviceCredential,
+    appDeviceId: appDevice.deviceId,
+    deviceLabel
+  } };
+}
+
 export function validateQaEnrollmentPayload(value) {
   const keys = ['enrollmentCode', 'qaCredential', 'turnstileToken'];
   if (!exactObject(value, keys) || !normalizeQaEnrollmentCode(value.enrollmentCode) ||

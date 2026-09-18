@@ -3,7 +3,7 @@ import {
   accountGateDecision
 } from './account-rollout-control.js';
 
-export const ACCOUNT_APP_IDS = Object.freeze(['chord', 'pitch', 'fretboard', 'rhythm']);
+export const ACCOUNT_APP_IDS = Object.freeze(['chord', 'pitch', 'fretboard', 'rhythm', 'port']);
 
 const HEX_VERIFIER = /^[a-f0-9]{64}$/;
 const SAFE_ID = /^[A-Za-z0-9_-]{1,128}$/;

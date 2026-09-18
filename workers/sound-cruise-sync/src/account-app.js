@@ -22,6 +22,7 @@ import { createD1AccountLifecycleRepository } from './account-lifecycle-database
 import { createD1AccountHandoffRepository } from './account-handoff-database.js';
 import { createD1AppJoinRepository } from './account-join-database.js';
 import { createD1PortJoinRepository } from './account-port-join-database.js';
+import { createD1PortDeviceRepository } from './account-port-device-database.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { createD1AccountQaRepository } from './account-qa-database.js';
 import {
@@ -61,6 +62,7 @@ import {
   validatePortJoinConsumePayload,
   validatePortJoinIssuePayload,
   validatePortJoinStatusQuery,
+  validatePortDeviceProvisionPayload,
   validateAccountStartPayload,
   validateHandoffCancelPayload,
   validateHandoffConsumePayload,
@@ -84,6 +86,10 @@ const ACCOUNT_ROUTES = Object.freeze({
   '/v2/accounts/start': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_ADMISSION,
     headers: ['content-type', 'x-d1-bookmark']
+  },
+  '/v2/accounts/port-device': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.MEMBERSHIP_ADMISSION,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
   },
   '/v2/accounts/summary': {
     method: 'GET', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_READ,
@@ -181,6 +187,10 @@ const ACCOUNT_ROUTES = Object.freeze({
 });
 
 const QA_HEADER = 'x-sound-cruise-qa-authorization';
+
+function publicMemberships(memberships) {
+  return (memberships || []).filter((membership) => membership.appId !== 'port');
+}
 
 function resolvedRoute(pathname, method) {
   const appDeleteCancel = pathname.match(
@@ -489,7 +499,7 @@ async function handleStart(request, env, origin, route, dependencies) {
         accountId: previous.accountId,
         accountDeviceId: previous.accountDeviceId,
         recoveryVersion: 1,
-        memberships: previous.memberships
+        memberships: publicMemberships(previous.memberships)
       }, origin, route, bookmarkHeader(session));
     }
 
@@ -511,7 +521,7 @@ async function handleStart(request, env, origin, route, dependencies) {
 
     const now = Date.now();
     const accountId = crypto.randomUUID();
-    const memberships = value.appIds.map((membershipAppId) => ({
+    const memberships = [...value.appIds, 'port'].map((membershipAppId) => ({
       id: crypto.randomUUID(),
       appId: membershipAppId
     }));
@@ -536,7 +546,7 @@ async function handleStart(request, env, origin, route, dependencies) {
       accountId: created.accountId,
       accountDeviceId: created.accountDeviceId,
       recoveryVersion: 1,
-      memberships: created.memberships
+      memberships: publicMemberships(created.memberships)
     }, origin, route, bookmarkHeader(session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
@@ -554,14 +564,73 @@ async function handleSummary(request, env, origin, route, dependencies, url, mem
     const summary = await context.repository.getAccountSummary(context.identity.accountId);
     if (!summary) return errorResponse(404, 'account_not_found', origin, route);
     const body = membershipOnly
-      ? { ok: true, memberships: summary.memberships }
+      ? { ok: true, memberships: publicMemberships(summary.memberships) }
       : {
-          ok: true, ...summary,
+          ok: true, ...summary, memberships: publicMemberships(summary.memberships),
           ...(dependencies.qaIdentity
             ? { qaSessionExpiresAt: dependencies.qaIdentity.expiresAt }
             : {})
         };
     return jsonResponse(200, body, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handlePortDeviceProvision(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validatePortDeviceProvisionPayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_RECOVERY_PEPPER) {
+    return errorResponse(503, 'account_server_unavailable', origin, route);
+  }
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const value = validation.value;
+    const appCredentialVerifier = await (
+      dependencies.accountAppCredentialVerifier || accountAppCredentialVerifier
+    )(value.appDeviceCredential, env.SYNC_CREDENTIAL_PEPPER);
+    const requestFingerprint = await (
+      dependencies.accountOperationFingerprint || accountOperationFingerprint
+    )([
+      'port-device', context.identity.accountId, context.identity.accountDeviceId,
+      value.appDeviceId, appCredentialVerifier, value.deviceLabel || '',
+      dependencies.admissionProvenance
+    ]);
+    const repository = (
+      dependencies.createPortDeviceRepository || createD1PortDeviceRepository
+    )(context.session);
+    const result = await repository.provision(context.identity, {
+      operationId: value.operationId,
+      requestFingerprint,
+      membershipId: crypto.randomUUID(),
+      syncUserId: crypto.randomUUID(),
+      appDeviceId: value.appDeviceId,
+      appCredentialVerifier,
+      accountRecoveryPepper: env.SYNC_ACCOUNT_RECOVERY_PEPPER,
+      deviceLabel: value.deviceLabel,
+      now: Date.now()
+    });
+    if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
+    if (result.status !== 'active') {
+      return errorResponse(409, 'port_membership_unavailable', origin, route);
+    }
+    return jsonResponse(result.alreadyProvisioned ? 200 : 201, {
+      ok: true,
+      operation: result.alreadyProvisioned ? 'existing' : 'created',
+      appId: 'port',
+      accountId: result.accountId,
+      accountDeviceId: result.accountDeviceId,
+      membershipId: result.membershipId,
+      syncUserId: result.syncUserId,
+      appDeviceId: result.appDeviceId,
+      membershipState: 'active'
+    }, origin, route, bookmarkHeader(context.session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
   }
@@ -811,7 +880,7 @@ async function handleAccountRecoveryPrepare(request, env, origin, route, depende
         recoveryVersion: summary.recoveryVersion,
         activeDeviceCount: summary.activeDeviceCount,
         updatedAt: summary.updatedAt,
-        memberships: summary.memberships
+        memberships: publicMemberships(summary.memberships)
       }
     }, origin, route, bookmarkHeader(session));
   } catch {
@@ -2172,6 +2241,7 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
             url.pathname === '/v2/accounts/handoffs/cancel' || url.pathname === '/v2/accounts/memberships' ||
             url.pathname === '/v2/accounts/app-join-invitations' ||
             url.pathname === '/v2/accounts/app-join-invitations/cancel' ||
+            url.pathname === '/v2/accounts/port-device' ||
             url.pathname === '/v2/accounts/port-join-invitations' ||
             url.pathname === '/v2/accounts/port-join-invitations/cancel'
             ? { scope: 'port' }
@@ -2217,6 +2287,9 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   }
 
   if (url.pathname === '/v2/accounts/start') return handleStart(request, env, origin, route, dependencies);
+  if (url.pathname === '/v2/accounts/port-device') {
+    return handlePortDeviceProvision(request, env, origin, route, dependencies);
+  }
   if (url.pathname === '/v2/accounts/summary') return handleSummary(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v2/accounts/devices') return handleDevices(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v2/accounts/devices/revoke') {

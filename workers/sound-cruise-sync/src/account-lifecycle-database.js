@@ -563,8 +563,9 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   async function listEnvironments(identity) {
     const rows = await db.prepare(`
       SELECT d.id, d.label, d.credential_version, d.created_at, d.last_seen_at, d.revoked_at,
-             CASE WHEN COUNT(l.app_device_id) = 0 THEN 1 ELSE 0 END AS is_port_environment,
-             GROUP_CONCAT(DISTINCT m.app_id) AS related_apps
+             CASE WHEN SUM(CASE WHEN m.app_id <> 'port' THEN 1 ELSE 0 END) = 0
+               THEN 1 ELSE 0 END AS is_port_environment,
+             GROUP_CONCAT(DISTINCT CASE WHEN m.app_id <> 'port' THEN m.app_id END) AS related_apps
       FROM sync_account_devices d
       LEFT JOIN sync_membership_device_links l ON l.account_device_id = d.id
       LEFT JOIN sync_account_memberships m ON m.id = l.membership_id
@@ -593,7 +594,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       JOIN sync_account_memberships m
         ON m.id = l.membership_id AND m.account_id = l.account_id
       JOIN sync_devices ad ON ad.id = l.app_device_id
-      WHERE l.account_id = ?
+      WHERE l.account_id = ? AND m.app_id <> 'port'
       ORDER BY CASE m.app_id WHEN 'pitch' THEN 1 WHEN 'fretboard' THEN 2
         WHEN 'rhythm' THEN 3 WHEN 'chord' THEN 4 ELSE 5 END,
         ad.created_at ASC, ad.id ASC
@@ -710,15 +711,20 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     const retry = await resolveCurrentEnvironmentDetachRetry(identity, input);
     if (retry) return retry;
 
-    // A Port environment is the formal, unlinked Account Device created by
-    // account start or Port join. App environments always create a membership
+    // A Port environment may have its hidden Port App Device link, but never a
+    // visible app link. App environments always create a non-Port membership
     // device link as part of consuming an app invitation.
     const target = await db.prepare(`
       SELECT d.id, d.revoked_at,
              (SELECT COUNT(*) FROM sync_account_devices p
                 WHERE p.account_id = d.account_id AND p.revoked_at IS NULL
-                  AND NOT EXISTS (SELECT 1 FROM sync_membership_device_links l
-                    WHERE l.account_id = p.account_id AND l.account_device_id = p.id))
+                  AND NOT EXISTS (
+                    SELECT 1 FROM sync_membership_device_links l
+                    JOIN sync_account_memberships m ON m.id = l.membership_id
+                      AND m.account_id = l.account_id
+                    WHERE l.account_id = p.account_id AND l.account_device_id = p.id
+                      AND m.app_id <> 'port'
+                  ))
                AS active_port_count,
              (SELECT COUNT(DISTINCT h.claimed_by_account_device_id)
                 FROM sync_app_join_invitations h
@@ -736,19 +742,32 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
                   AND h.created_by_account_device_id = d.id
                   AND h.consumed_at IS NOT NULL
                   AND h.claimed_by_app_device_id IS NOT NULL) AS linked_app_device_count
+             ,(SELECT COUNT(DISTINCT l.app_device_id)
+                FROM sync_membership_device_links l
+                JOIN sync_account_memberships m ON m.id = l.membership_id
+                  AND m.account_id = l.account_id AND m.app_id = 'port'
+                JOIN sync_devices pd ON pd.id = l.app_device_id AND pd.revoked_at IS NULL
+                WHERE l.account_id = d.account_id AND l.account_device_id = d.id)
+               AS port_app_device_count
       FROM sync_account_devices d
       JOIN sync_accounts a ON a.id = d.account_id
       WHERE d.id = ? AND d.account_id = ? AND d.revoked_at IS NULL
         AND a.state = 'active' AND a.deleted_at IS NULL
-        AND NOT EXISTS (SELECT 1 FROM sync_membership_device_links l
-          WHERE l.account_id = d.account_id AND l.account_device_id = d.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM sync_membership_device_links l
+          JOIN sync_account_memberships m ON m.id = l.membership_id
+            AND m.account_id = l.account_id
+          WHERE l.account_id = d.account_id AND l.account_device_id = d.id
+            AND m.app_id <> 'port'
+        )
     `).bind(identity.accountDeviceId, identity.accountId).first();
     if (!target) return { status: 'invalid' };
 
     const resultBody = {
       scope: 'current_environment', accountDeviceId: identity.accountDeviceId,
       revokedAccountDeviceCount: 1 + Number(target.linked_account_device_count || 0),
-      revokedAppDeviceCount: Number(target.linked_app_device_count || 0),
+      revokedAppDeviceCount: Number(target.linked_app_device_count || 0) +
+        Number(target.port_app_device_count || 0),
       isLastPort: Number(target.active_port_count || 0) === 1
     };
     const revokePort = db.prepare(`
@@ -767,12 +786,19 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     const revokeLinkedAppDevices = db.prepare(`
       UPDATE sync_devices SET revoked_at = COALESCE(revoked_at, ?)
       WHERE id IN (
+        SELECT l.app_device_id
+        FROM sync_membership_device_links l
+        JOIN sync_account_memberships m ON m.id = l.membership_id
+          AND m.account_id = l.account_id AND m.app_id = 'port'
+        WHERE l.account_id = ? AND l.account_device_id = ?
+        UNION
         SELECT DISTINCT h.claimed_by_app_device_id
         FROM sync_app_join_invitations h
         WHERE h.account_id = ? AND h.created_by_account_device_id = ?
           AND h.consumed_at IS NOT NULL AND h.claimed_by_app_device_id IS NOT NULL
       )
-    `).bind(input.now, identity.accountId, identity.accountDeviceId);
+    `).bind(input.now, identity.accountId, identity.accountDeviceId,
+      identity.accountId, identity.accountDeviceId);
     const revokeLinkedQaSessions = db.prepare(`
       UPDATE sync_account_qa_sessions SET revoked_at = COALESCE(revoked_at, ?)
       WHERE account_id = ? AND scope = 'app' AND revoked_at IS NULL

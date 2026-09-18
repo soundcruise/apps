@@ -24,6 +24,7 @@ const migration17 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration18 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0018_add_account_admission_provenance.sql'), 'utf8');
 const migration19 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0019_add_authenticated_recovery_rotation.sql'), 'utf8');
 const migration20 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0020_add_port_join_invitations.sql'), 'utf8');
+const migration21 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0021_add_port_data_plane.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -50,7 +51,60 @@ function migrate(db) {
   db.exec(migration18);
   db.exec(migration19);
   db.exec(migration20);
+  db.exec(migration21);
 }
+
+function migrateThrough20(db) {
+  migrateThrough17(db);
+  db.exec(migration18);
+  db.exec(migration19);
+  db.exec(migration20);
+}
+
+test('M21 preserves populated Account links and durable records while adding Port', () => {
+  const db = new DatabaseSync(':memory:');
+  migrateThrough20(db);
+  db.prepare(`INSERT INTO sync_users
+    (id,state,recovery_version,recovery_verifier,created_at,updated_at,recovery_created_at,recovery_rotated_at)
+    VALUES ('user-1','active',1,?,1,1,1,1)`).run('1'.repeat(64));
+  db.prepare(`INSERT INTO sync_devices
+    (id,user_id,app_id,credential_version,credential_verifier,last_cursor,created_at,last_seen_at,paired_at)
+    VALUES ('app-device-1','user-1','pitch',1,?,0,1,1,1)`).run('2'.repeat(64));
+  db.prepare(`INSERT INTO sync_accounts
+    (id,state,recovery_version,recovery_verifier,generation,created_at,updated_at,recovery_created_at,recovery_rotated_at,admission_provenance)
+    VALUES ('account-1','active',1,?,1,1,1,1,1,'qa')`).run('3'.repeat(64));
+  db.prepare(`INSERT INTO sync_account_devices
+    (id,account_id,credential_version,credential_verifier,created_at,last_seen_at)
+    VALUES ('account-device-1','account-1',1,?,1,1)`).run('4'.repeat(64));
+  db.exec(`INSERT INTO sync_account_memberships
+    (id,account_id,app_id,state,sync_user_id,recovery_mode,generation,created_at,activated_at,updated_at)
+    VALUES ('membership-1','account-1','pitch','active','user-1','account',1,1,1,1);
+    INSERT INTO sync_membership_device_links
+    (account_id,membership_id,app_device_id,account_device_id,linked_at)
+    VALUES ('account-1','membership-1','app-device-1','account-device-1',1);
+    INSERT INTO sync_account_managed_users
+    (sync_user_id,account_id,membership_id,app_id,created_at)
+    VALUES ('user-1','account-1','membership-1','pitch',1);
+    INSERT INTO sync_records
+    (user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,deleted_at,updated_by_device_id,last_operation_id,schema_version)
+    VALUES ('user-1','pitch','settings','settings','{}','hash',1,1,NULL,'app-device-1','operation-1',1);
+    INSERT INTO sync_changes
+    (user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,payload_json,payload_hash,deleted_at,changed_at,schema_version)
+    VALUES ('user-1','pitch','settings','settings',1,'operation-1','operation-hash','{}','hash',NULL,1,1);`);
+
+  db.exec(migration21);
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM sync_account_memberships').get().count, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM sync_membership_device_links').get().count, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM sync_account_managed_users').get().count, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM sync_records').get().count, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM sync_changes').get().count, 1);
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  db.prepare(`INSERT INTO sync_account_memberships
+    (id,account_id,app_id,state,recovery_mode,generation,created_at,updated_at)
+    VALUES ('port-membership','account-1','port','pending','account',1,2,2)`).run();
+  assert.equal(db.prepare("SELECT app_id FROM sync_account_memberships WHERE id='port-membership'").get().app_id, 'port');
+  db.close();
+});
 
 test('fresh migration creates the isolated sync schema and indexes', () => {
   const db = new DatabaseSync(':memory:');
@@ -65,7 +119,7 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     'sync_account_start_operations', 'sync_accounts',
     'sync_app_join_invitations',
     'sync_changes', 'sync_chord_account_bridges', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
-    'sync_membership_device_links', 'sync_membership_handoffs', 'sync_port_join_invitations', 'sync_records',
+    'sync_membership_device_links', 'sync_membership_handoffs', 'sync_port_device_operations', 'sync_port_join_invitations', 'sync_records',
     'sync_runtime_control', 'sync_users'
   ]);
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='pairing_codes'").get());
@@ -80,6 +134,11 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     created_by_account_device_id, expected_recovery_version, expected_account_generation,
     issue_operation_id, consume_operation_id FROM sync_port_join_invitations LIMIT 1`));
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_port_join_active_issuer'").get());
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_port_device_operations_account'").get());
+  assert.match(db.prepare(`SELECT sql FROM sqlite_master
+    WHERE type = 'table' AND name = 'sync_account_memberships'`).get().sql, /'port'/);
+  assert.match(db.prepare(`SELECT sql FROM sqlite_master
+    WHERE type = 'table' AND name = 'sync_records'`).get().sql, /'practice_cycle'/);
   assert(db.prepare("SELECT admission_provenance FROM sync_accounts LIMIT 1"));
   assert(db.prepare('SELECT delete_requested_at, purge_after FROM sync_account_memberships LIMIT 1'));
   assert(db.prepare(`SELECT prepare_operation_id, prepare_fingerprint,

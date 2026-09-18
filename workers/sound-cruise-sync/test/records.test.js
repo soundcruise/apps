@@ -232,3 +232,52 @@ test('Fretboard validation rejects drafts, device settings, bad graph values and
     assert.equal((await validateOperation(input, crypto, 'fretboard')).ok, false, recordType);
   }
 });
+
+test('Port registry accepts structured text records and stays isolated from the four public apps', async () => {
+  const cases = [
+    ['settings', 'global', { displaySize: 'small' }],
+    ['metronome_settings', 'default', { bpm: 120 }],
+    ['metronome_preset', 'preset-1', { item: { id: 'preset-1', name: '練習' }, order: 0 }],
+    ['tuner_settings', 'default', { thresholdDb: -80 }],
+    ['gear_category', 'guitar', { id: 'guitar', name: 'ギター' }],
+    ['gear_category_order', 'default', ['guitar']],
+    ['gear_item', 'gear-1', { item: { id: 'gear-1', name: 'Guitar' }, asset: { present: true, crop: { x: 0.2 } } }],
+    ['gear_order', 'wishlist', ['gear-1']],
+    ['calendar_event', 'event-1', { id: 'event-1', text: '練習' }],
+    ['practice_menu', 'menu-1', { id: 'menu-1', name: '基礎' }],
+    ['practice_menu_order', 'default', ['menu-1']],
+    ['practice_history_event', 'history-1', { id: 'history-1', type: 'cycle-completed' }],
+    ['practice_cycle', 'current', { cycleId: 'cycle-1' }],
+    ['my_app', 'app-1', { item: { id: 'app-1', name: 'Music' }, asset: { present: false, crop: null } }],
+    ['my_app_order', 'default', ['app-1']]
+  ];
+  for (const [recordType, recordId, value] of cases) {
+    const input = {
+      operationId: ID, recordType, recordId, schemaVersion: 1, baseRevision: 0,
+      payload: { id: recordId, value }, payloadHash: '', deleted: false
+    };
+    input.payloadHash = await hashRecord(input, crypto, 'port');
+    assert.equal((await validateOperation(input, crypto, 'port')).ok, true, recordType);
+    for (const appId of ['chord', 'pitch', 'rhythm', 'fretboard']) {
+      assert.equal((await validateOperation(input, crypto, appId)).ok, false, `${recordType} is not ${appId}`);
+    }
+  }
+});
+
+test('Port registry rejects binary, secret-shaped, oversized and invalid-ID payloads', async () => {
+  const cases = [
+    ['settings', 'global', { credential: 'nope' }],
+    ['settings', 'global', { image: 'data:image/png;base64,AAAA' }],
+    ['gear_item', 'bad id', { name: 'bad' }],
+    ['gear_order', 'other', []],
+    ['settings', 'wrong', { displaySize: 'small' }]
+  ];
+  for (const [recordType, recordId, value] of cases) {
+    const input = {
+      operationId: ID, recordType, recordId, schemaVersion: 1, baseRevision: 0,
+      payload: { id: recordId, value }, payloadHash: '', deleted: false
+    };
+    input.payloadHash = await hashRecord(input, crypto, 'port');
+    assert.equal((await validateOperation(input, crypto, 'port')).ok, false, `${recordType}/${recordId}`);
+  }
+});
