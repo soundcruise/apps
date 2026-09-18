@@ -208,7 +208,7 @@ test('production data-plane requests require only app authority and never send Q
 });
 
 test('definitive terminal auth detaches only sync state, preserves local data, and allows safe rejoin for three shared apps', async () => {
-  for (const appId of ['pitch', 'fretboard', 'rhythm']) {
+  for (const appId of ['pitch', 'fretboard', 'rhythm', 'port']) {
     const localRecord = record(`local-${appId}`, `Local ${appId}`);
     const fixture = runtimeFixture([localRecord], appId, 'production');
     await fixture.store.setMeta('credential', 'scd1.valid');
@@ -274,7 +274,7 @@ function record(id, name = id, recordType = 'custom_record') {
 }
 
 test('handoff migration, durable-save push, tombstone and remote pull share one safe runtime', async () => {
-  for (const appId of ['pitch', 'rhythm', 'fretboard']) {
+  for (const appId of ['pitch', 'rhythm', 'fretboard', 'port']) {
     const a = { recordType: 'custom_record', recordId: 'a', schemaVersion: 1, payload: { name: 'A' }, payloadHash: 'hash-a' };
     const fixture = runtimeFixture([a], appId);
     assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true, `${appId} migration`);
@@ -295,7 +295,7 @@ test('handoff migration, durable-save push, tombstone and remote pull share one 
 });
 
 test('cross-container Join Code converges on the same migration runtime without shared Port storage', async () => {
-  for (const appId of ['pitch', 'rhythm', 'fretboard']) {
+  for (const appId of ['pitch', 'rhythm', 'fretboard', 'port']) {
     const localRecord = { recordType: 'custom_record', recordId: 'local', schemaVersion: 1,
       payload: { name: 'local' }, payloadHash: 'hash-local' };
     const fixture = runtimeFixture([localRecord], appId);
@@ -304,6 +304,26 @@ test('cross-container Join Code converges on the same migration runtime without 
     assert.equal(fixture.server.records.size, 1, appId);
     assert.equal(await fixture.store.readMeta('migrationState'), 'complete', appId);
   }
+});
+
+test('Port item deletion creates isolated tombstones for every mutable collection family', async () => {
+  const initial = [
+    record('gear-1', 'Gear', 'gear_item'),
+    record('preset-1', 'Preset', 'metronome_preset'),
+    record('calendar-1', 'Calendar', 'calendar_event'),
+    record('practice-1', 'Practice', 'practice_menu'),
+    record('app-1', 'App', 'my_app')
+  ];
+  const fixture = runtimeFixture(initial, 'port');
+  assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true);
+  fixture.local.records = [];
+  assert.equal((await fixture.runtime.sync('save')).ok, true);
+  for (const item of initial) {
+    const remote = fixture.server.records.get(`${item.recordType}/${item.recordId}`);
+    assert.ok(remote.deletedAt != null, `${item.recordType} is tombstoned`);
+  }
+  assert.equal(fixture.server.records.size, initial.length);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
 });
 
 test('failed Join hydrate restores the exact local snapshot and retains its pre-apply backup', async () => {

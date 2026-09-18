@@ -4,7 +4,7 @@
   const root = global.SoundCruiseMultiAppSync = global.SoundCruiseMultiAppSync || {};
   const VERSION = 1;
   const STORES = Object.freeze(['meta', 'outbox', 'shadow', 'conflicts']);
-  const APPS = new Set(['pitch', 'rhythm', 'fretboard']);
+  const APPS = new Set(['pitch', 'rhythm', 'fretboard', 'port']);
 
   function requestResult(request) {
     return new Promise((resolve, reject) => {

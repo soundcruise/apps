@@ -2,7 +2,7 @@
   'use strict';
 
   const root = global.SoundCruiseMultiAppSync = global.SoundCruiseMultiAppSync || {};
-  const ACCOUNT_APPS = Object.freeze(['pitch', 'rhythm', 'fretboard']);
+  const ACCOUNT_APPS = Object.freeze(['pitch', 'rhythm', 'fretboard', 'port']);
   const PAUSE_CODES = new Set(['sync_write_paused', 'sync_read_paused', 'rollout_control_unavailable']);
   const TERMINAL_CODES = new Set([
     'account_deleting', 'account_deleted', 'account_device_revoked',

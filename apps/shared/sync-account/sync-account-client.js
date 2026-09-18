@@ -412,6 +412,17 @@
       return Object.freeze(result);
     }
 
+    async provisionPortDevice({ accountCredential, appDeviceCredential, operationId, deviceLabel = null }) {
+      if (!this.core.validAccountCredential(accountCredential) ||
+          !this.core.validAppCredential(appDeviceCredential) || typeof operationId !== 'string') {
+        throw new Error('port_device_provision_invalid');
+      }
+      return Object.freeze(await this.request('/v2/accounts/port-device', {
+        method: 'POST', accountCredential,
+        body: { operationId, appDeviceCredential, deviceLabel }
+      }));
+    }
+
     async detachCurrentEnvironment({ accountCredential, operationId }) {
       if (!this.core.validAccountCredential(accountCredential) || typeof operationId !== 'string') {
         throw new Error('account_environment_detach_invalid');
