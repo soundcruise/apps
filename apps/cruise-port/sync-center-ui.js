@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.44.1';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.44.2';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -857,6 +857,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 const prepared = await orchestrator.prepareRecovery({ recoveryCode, turnstileToken });
                 recoveryDialog.dataset.syncPhase = 'summary';
                 recoveryConfirm.dataset.syncAction = 'show-recovery-candidate';
+                if (recoveryInput) recoveryInput.hidden = true;
                 const memberships = prepared.summary.memberships || [];
                 const ready = memberships.filter((item) => item.dataset?.state === 'ready').length;
                 const records = memberships.reduce((total, item) => total + Number(item.dataset?.recordCount || 0), 0);
@@ -890,7 +891,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 recoveryConfirm.dataset.syncAction = 'close';
                 recoveryConfirm.textContent = '閉じる';
                 if (recoveryClose) recoveryClose.hidden = true;
-                await refresh();
+                try { await refresh(); } catch (_) {}
                 return;
             }
             closeRecovery();

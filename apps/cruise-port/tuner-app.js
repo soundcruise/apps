@@ -9,7 +9,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=0.44.1';
+} from './tuner-store.js?v=0.44.2';
 import {
     TUNER_CAPO_MAX,
     TUNER_CAPO_MIN,

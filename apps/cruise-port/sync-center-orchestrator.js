@@ -1,6 +1,6 @@
-import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.44.1';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.44.1';
-import { createPortAccountJoin } from './port-account-join.js?v=0.44.1';
+import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.44.2';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.44.2';
+import { createPortAccountJoin } from './port-account-join.js?v=0.44.2';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -149,9 +149,9 @@ export function createSyncCenterOrchestrator({
                 recoverySaved
             });
             recoveryMaterial = null;
-            await portSync?.clearCloudState?.();
-            await portSync?.ensure?.();
-            return result;
+            try { await portSync?.clearCloudState?.(); } catch (_) {}
+            const portSyncState = await settlePortSync();
+            return Object.freeze({ ...result, portSyncState });
         },
         discardRecoveryCandidate() { recoveryMaterial = null; },
         async prepareRecoveryRotation({ turnstileToken }) {

@@ -35,6 +35,14 @@ function fixture({ portSync = null } = {}) {
             throw new Error('unexpected_request');
         }
         async startAccount(input) { calls.push(['start', input]); return { ok: true }; }
+        async prepareAccountRecovery() {
+            calls.push(['prepare-recovery']);
+            return { summary: { memberships: [], activeDeviceCount: 0 } };
+        }
+        async commitAccountRecovery() {
+            calls.push(['commit-recovery']);
+            return { accountId: 'account-1', accountDeviceId: 'port-device-recovered', recoveryVersion: 2 };
+        }
         async summary() { return { account: { id: 'account-1', state: 'active' }, memberships: [...memberships.values()] }; }
         async prepareMembership({ appId }) {
             calls.push(['prepare', appId]);
@@ -85,6 +93,9 @@ function fixture({ portSync = null } = {}) {
             validAccountCredential: (value) => typeof value === 'string' && value.startsWith('sca1.'),
             validQaCredential: (value) => typeof value === 'string' && value.startsWith('scq1.'),
             createAccountMaterial: () => ({ recoveryCode: 'secret', accountCredential: 'sca1.account' }),
+            createAccountRecoveryMaterial: () => ({
+                nextRecoveryCode: 'next-secret', claimToken: 'claim', accountCredential: 'sca1.recovered'
+            }),
             formatRecoveryCode: () => 'DISPLAY-ONLY',
             createOperationId: () => `op-${++operation}`,
             createHandoffMaterial: () => ({ operationId: `op-${++operation}`, handoffToken: 'opaque' }),
@@ -163,6 +174,20 @@ test('committed existing-Account Join remains successful when Port structured sy
     assert.deepEqual(result.portSyncState, { ok: false, code: 'port_sync_pending' });
     assert.equal(current.getSavedAccount().accountDeviceId, 'port-device-2');
     assert.equal(current.getPendingConsume(), null);
+});
+
+test('committed Account recovery remains successful when Port structured sync is temporarily unavailable', async () => {
+    const current = fixture({
+        portSync: {
+            async clearCloudState() { throw new Error('temporary_clear_failure'); },
+            async ensure() { throw new Error('temporary_sync_failure'); }
+        }
+    });
+    await current.orchestrator.prepareRecovery({ recoveryCode: 'saved-code', turnstileToken: 'verified' });
+    const result = await current.orchestrator.commitRecovery({ recoverySaved: true });
+    assert.equal(result.accountDeviceId, 'port-device-recovered');
+    assert.deepEqual(result.portSyncState, { ok: false, code: 'port_sync_pending' });
+    assert.equal(current.calls.filter(([kind]) => kind === 'commit-recovery').length, 1);
 });
 
 test('four-app preparation keeps successes and retries only the failed membership', async () => {

@@ -449,6 +449,8 @@ test('Recovery plaintext is ephemeral and Sync Center never persists credentials
     assert.match(ui, /recoverySecret\?\.take\(\)/);
     assert.match(ui, /recoverySecret\.resolve\(\)/);
     assert.match(ui, /recoveryCandidate\.textContent = ''[\s\S]*commitRecovery/);
+    assert.match(ui, /prepareRecovery\([\s\S]*recoveryInput\) recoveryInput\.hidden = true/);
+    assert.match(ui, /commitRecovery\([\s\S]*try \{ await refresh\(\); \} catch \(_\) \{\}/);
 });
 
 test('Lifecycle UI separates danger actions and enforces stable two-step sensitive phases', () => {
