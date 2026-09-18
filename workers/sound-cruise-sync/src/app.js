@@ -19,6 +19,11 @@ import { createD1PairingRepository } from './pairing-database.js';
 import { createD1RecoveryRepository } from './recovery-database.js';
 import { decodeCursor, encodeCursor } from './records.js';
 import { createD1SyncRepository } from './sync-database.js';
+import { createD1AssetRepository } from './asset-database.js';
+import {
+  ASSET_KINDS, inspectImageMetadata, sha256Hex,
+  validateAssetCommit, validateAssetPrepare, validateAssetUnreference
+} from './asset-validation.js';
 import { verifyTurnstileToken } from './turnstile.js';
 import { gateDecision, readRuntimeControl } from './rollout-control.js';
 import { productionAccountAppAllowed } from './account-admission.js';
@@ -59,6 +64,14 @@ const ROUTES = Object.freeze({
   '/v1/sync/snapshot': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] }
 });
 
+const ASSET_ROUTES = Object.freeze({
+  '/v1/sync/assets/prepare': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
+  '/v1/sync/assets/commit': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
+  '/v1/sync/assets/unreference': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
+  content: { method: 'PUT', headers: ['content-type', 'authorization', 'x-d1-bookmark', 'x-sound-cruise-operation-id', 'x-content-sha256'] },
+  download: { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] }
+});
+
 const QA_HEADER = 'x-sound-cruise-qa-authorization';
 
 function configuredOrigins(env) {
@@ -80,7 +93,7 @@ function corsHeaders(origin, route) {
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': `${route.method}, OPTIONS`,
     'Access-Control-Allow-Headers': allowedHeaders.map(headerCase).join(', '),
-    'Access-Control-Expose-Headers': 'X-D1-Bookmark',
+    'Access-Control-Expose-Headers': 'X-D1-Bookmark, X-Asset-SHA256, ETag',
     'Access-Control-Max-Age': '600',
     'Vary': 'Origin'
   });
@@ -180,9 +193,13 @@ async function authenticatedContext(request, env, appId, dependencies) {
   const qaApps = new Set(String(env.SYNC_QA_ALLOWED_APP_IDS || '').split(',').map((value) => value.trim()));
   const accountManagedApp = qaApps.has(appId) || productionAccountAppAllowed(env, appId);
   const managed = accountManagedApp ? await session.prepare(`
-      SELECT am.account_id, a.admission_provenance
+      SELECT am.account_id, am.membership_id, a.admission_provenance,
+             a.state AS account_state, m.state AS membership_state,
+             d.state AS dataset_state
       FROM sync_account_managed_users am
       JOIN sync_accounts a ON a.id = am.account_id
+      JOIN sync_account_memberships m ON m.id = am.membership_id
+      LEFT JOIN sync_datasets d ON d.user_id = am.sync_user_id AND d.app_id = am.app_id
       WHERE am.sync_user_id = ? AND am.app_id = ?
     `).bind(identity.userId, appId).first() : null;
   if (managed) {
@@ -220,7 +237,174 @@ async function authenticatedContext(request, env, appId, dependencies) {
     if (!qa) return { error: 'qa_admission_required', status: 403 };
   }
   const createRepository = dependencies.createRepository || createD1SyncRepository;
-  return { session, identity, repository: createRepository(session) };
+  return {
+    session, identity, repository: createRepository(session),
+    authority: managed ? Object.freeze({
+      accountId: managed.account_id, membershipId: managed.membership_id,
+      accountState: managed.account_state, membershipState: managed.membership_state,
+      datasetState: managed.dataset_state
+    }) : null
+  };
+}
+
+function assetRoute(pathname) {
+  if (ASSET_ROUTES[pathname]) return { ...ASSET_ROUTES[pathname], gatePath: pathname };
+  const content = pathname.match(/^\/v1\/sync\/assets\/([0-9a-f-]{36})\/content$/u);
+  if (content) return { ...ASSET_ROUTES.content, gatePath: '/v1/sync/assets/content', assetId: content[1] };
+  const download = pathname.match(/^\/v1\/sync\/assets\/([0-9a-f-]{36})$/u);
+  if (download) return { ...ASSET_ROUTES.download, gatePath: '/v1/sync/assets/download', assetId: download[1] };
+  return null;
+}
+
+async function assetContext(request, env, dependencies) {
+  const context = await authenticatedContext(request, env, 'port', dependencies);
+  if (context.error) return context;
+  if (!context.authority || context.authority.accountState !== 'active' ||
+      context.authority.membershipState !== 'active' || context.authority.datasetState !== 'ready') {
+    return { error: 'asset_membership_unavailable', status: 409 };
+  }
+  return context;
+}
+
+async function fingerprintAsset(input) {
+  return sha256Hex(new TextEncoder().encode(JSON.stringify([
+    input.assetId, input.operationId, input.kind, input.hash, input.mime,
+    input.byteSize, input.width, input.height
+  ])));
+}
+
+function assetRepository(context, dependencies) {
+  return (dependencies.createAssetRepository || createD1AssetRepository)(context.session);
+}
+
+async function handleAssetPrepare(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const input = validateAssetPrepare(parsed.value);
+  if (!input) return errorResponse(400, 'asset_invalid', origin, route);
+  let context;
+  try { context = await assetContext(request, env, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const result = await assetRepository(context, dependencies).prepare(context.identity, context.authority, {
+      ...input, fingerprint: await fingerprintAsset(input),
+      objectKey: `assets/${context.authority.accountId}/${context.identity.userId}/${input.assetId}/${input.kind}`,
+      now: Date.now()
+    });
+    if (result.status === 'quota') return errorResponse(409, 'asset_quota_exceeded', origin, route);
+    if (result.status === 'conflict') return errorResponse(409, 'asset_operation_conflict', origin, route);
+    return jsonResponse(result.status === 'prepared' ? 201 : 200, {
+      ok: true, phase: result.status, asset: result.asset
+    }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch { return errorResponse(503, 'server_error', origin, route); }
+}
+
+async function handleAssetUpload(request, env, origin, route, dependencies, assetId) {
+  const operationId = request.headers.get('X-Sound-Cruise-Operation-Id');
+  const claimedHash = request.headers.get('X-Content-SHA256');
+  let context;
+  try { context = await assetContext(request, env, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  if (!env.SYNC_ASSETS?.put) return errorResponse(503, 'asset_storage_unavailable', origin, route);
+  try {
+    const repository = assetRepository(context, dependencies);
+    const target = await repository.uploadTarget(context.identity, context.authority, assetId, operationId);
+    if (!target || target.content_hash !== claimedHash) return errorResponse(404, 'asset_not_found', origin, route);
+    const contentLength = Number(request.headers.get('Content-Length') || 0);
+    if (contentLength > Number(target.byte_size) || contentLength > ASSET_KINDS[target.kind].maxBytes) {
+      return errorResponse(413, 'asset_too_large', origin, route);
+    }
+    const buffer = await request.arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    if (bytes.byteLength !== Number(target.byte_size) || bytes.byteLength > ASSET_KINDS[target.kind].maxBytes) {
+      return errorResponse(400, 'asset_size_mismatch', origin, route);
+    }
+    const detected = inspectImageMetadata(bytes);
+    if (!detected || detected.mime !== target.mime_type || request.headers.get('Content-Type') !== target.mime_type) {
+      return errorResponse(415, 'asset_mime_invalid', origin, route);
+    }
+    if (detected.width !== Number(target.width) || detected.height !== Number(target.height)) {
+      return errorResponse(400, 'asset_dimensions_mismatch', origin, route);
+    }
+    if (await sha256Hex(buffer) !== target.content_hash) return errorResponse(400, 'asset_hash_mismatch', origin, route);
+    await env.SYNC_ASSETS.put(target.object_key, buffer, {
+      httpMetadata: { contentType: target.mime_type },
+      customMetadata: { hash: target.content_hash, assetId: target.asset_id, kind: target.kind }
+    });
+    const result = await repository.markUploaded(target, Date.now());
+    return jsonResponse(200, { ok: true, phase: result.status, asset: result.asset }, origin, route,
+      { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch {
+    return errorResponse(503, 'server_error', origin, route);
+  }
+}
+
+async function handleAssetCommit(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const input = validateAssetCommit(parsed.value);
+  if (!input) return errorResponse(400, 'asset_invalid', origin, route);
+  let context;
+  try { context = await assetContext(request, env, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  if (!env.SYNC_ASSETS?.head) return errorResponse(503, 'asset_storage_unavailable', origin, route);
+  try {
+    const repository = assetRepository(context, dependencies);
+    const target = await repository.uploadTarget(context.identity, context.authority, input.assetId, input.operationId);
+    if (!target || target.content_hash !== input.hash) return errorResponse(404, 'asset_not_found', origin, route);
+    if (target.state !== 'available') {
+      const object = await env.SYNC_ASSETS.head(target.object_key);
+      if (!object || Number(object.size) !== Number(target.byte_size) || object.customMetadata?.hash !== target.content_hash) {
+        return errorResponse(409, 'asset_upload_incomplete', origin, route);
+      }
+    }
+    const result = await repository.commit(context.identity, context.authority, { ...input, now: Date.now() });
+    if (result.status !== 'available') return errorResponse(409, `asset_${result.status}`, origin, route);
+    return jsonResponse(200, { ok: true, phase: 'available', asset: result.asset }, origin, route,
+      { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch { return errorResponse(503, 'server_error', origin, route); }
+}
+
+async function handleAssetDownload(request, env, origin, route, dependencies, assetId) {
+  let context;
+  try { context = await assetContext(request, env, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  if (!env.SYNC_ASSETS?.get) return errorResponse(503, 'asset_storage_unavailable', origin, route);
+  try {
+    const row = await assetRepository(context, dependencies).available(context.identity, context.authority, assetId);
+    if (!row) return errorResponse(404, 'asset_not_found', origin, route);
+    const object = await env.SYNC_ASSETS.get(row.object_key);
+    if (!object?.body || Number(object.size) !== Number(row.byte_size) || object.customMetadata?.hash !== row.content_hash) {
+      return errorResponse(503, 'asset_unavailable', origin, route);
+    }
+    const headers = corsHeaders(origin, route);
+    headers.set('Content-Type', row.mime_type);
+    headers.set('Content-Length', String(row.byte_size));
+    headers.set('ETag', `"sha256-${row.content_hash}"`);
+    headers.set('Cache-Control', 'private, no-store');
+    headers.set('X-Content-Type-Options', 'nosniff');
+    headers.set('X-Asset-SHA256', row.content_hash);
+    return new Response(object.body, { status: 200, headers });
+  } catch {
+    return errorResponse(503, 'server_error', origin, route);
+  }
+}
+
+async function handleAssetUnreference(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const input = validateAssetUnreference(parsed.value);
+  if (!input) return errorResponse(400, 'asset_invalid', origin, route);
+  let context;
+  try { context = await assetContext(request, env, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const changed = await assetRepository(context, dependencies).unreference(
+      context.identity, context.authority, input.assetIds, Date.now()
+    );
+    return jsonResponse(200, { ok: true, unreferenced: changed }, origin, route,
+      { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch { return errorResponse(503, 'server_error', origin, route); }
 }
 
 async function legacyGuard(session, userId, operation, dependencies) {
@@ -803,7 +987,8 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if (url.pathname === '/v2/accounts' || url.pathname.startsWith('/v2/accounts/')) {
     return handleAccountApiRequest(request, env, _ctx, dependencies);
   }
-  const route = ROUTES[url.pathname];
+  const resolvedAssetRoute = assetRoute(url.pathname);
+  const route = ROUTES[url.pathname] || resolvedAssetRoute;
   if (!route) return errorResponse(404, 'not_found');
   const origin = requestOrigin(request, env);
   const originAllowed = Boolean(origin && configuredOrigins(env).has(origin));
@@ -828,7 +1013,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   const runtimeReader = dependencies.readRuntimeControl || readRuntimeControl;
   let runtimeControl = null;
   try { runtimeControl = await runtimeReader(env.SYNC_DB); } catch {}
-  const gate = gateDecision(url.pathname, runtimeControl);
+  const gate = gateDecision(resolvedAssetRoute?.gatePath || url.pathname, runtimeControl);
   if (!gate.allowed) return errorResponse(gate.status, gate.code, origin, route);
   if (url.pathname !== '/v1/sync/start' && await isRateLimited(env.SYNC_RATE_LIMITER, `sync-api:${requestIp(request)}`)) {
     return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
@@ -846,11 +1031,39 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if (url.pathname === '/v1/sync/push') return handlePush(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/changes') return handleChanges(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v1/sync/snapshot') return handleSnapshot(request, env, origin, route, dependencies, url);
+  if (url.pathname === '/v1/sync/assets/prepare') return handleAssetPrepare(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/assets/commit') return handleAssetCommit(request, env, origin, route, dependencies);
+  if (url.pathname === '/v1/sync/assets/unreference') return handleAssetUnreference(request, env, origin, route, dependencies);
+  if (resolvedAssetRoute?.method === 'PUT') {
+    return handleAssetUpload(request, env, origin, route, dependencies, resolvedAssetRoute.assetId);
+  }
+  if (resolvedAssetRoute?.method === 'GET') {
+    return handleAssetDownload(request, env, origin, route, dependencies, resolvedAssetRoute.assetId);
+  }
   return handleMigrationComplete(request, env, origin, route, dependencies);
 }
 
 export async function handleScheduled(_event, env = {}, dependencies = {}) {
   if (!env.SYNC_DB || typeof env.SYNC_DB.prepare !== 'function') return;
+  if (env.SYNC_ASSETS?.delete) {
+    try {
+      const assets = (dependencies.createAssetRepository || createD1AssetRepository)(env.SYNC_DB);
+      const now = Date.now();
+      const candidates = await assets.cleanupCandidates(
+        now, 30 * 24 * 60 * 60 * 1000, 24 * 60 * 60 * 1000, 100
+      );
+      for (const asset of candidates) {
+        if (asset.state === 'unreferenced' && await assets.isReferenced(asset)) {
+          await assets.restoreReferenced(asset.asset_id, now);
+          continue;
+        }
+        await env.SYNC_ASSETS.delete(asset.object_key);
+        await assets.markDeleted(asset.asset_id, now);
+      }
+    } catch {
+      // Asset cleanup is eventual and must never interrupt established D1 cleanup.
+    }
+  }
   const repository = (dependencies.createCleanupRepository || createD1CleanupRepository)(env.SYNC_DB);
   await repository.cleanup(Date.now());
 }

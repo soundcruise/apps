@@ -38,6 +38,12 @@
       "migrations_dir": "migrations"
     }
   ],
+  "r2_buckets": [
+    {
+      "binding": "SYNC_ASSETS",
+      "bucket_name": "sound-cruise-sync-assets"
+    }
+  ],
   "ratelimits": [
     {
       "name": "START_RATE_LIMITER",

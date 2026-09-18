@@ -8,7 +8,8 @@ export const ACCOUNT_ADMISSION_PROVENANCE = Object.freeze({
 export function productionAccountAppIds(env = {}) {
   if (typeof env.SYNC_ACCOUNT_PUBLIC_APP_IDS !== 'string') return null;
   const values = env.SYNC_ACCOUNT_PUBLIC_APP_IDS.split(',').map((value) => value.trim());
-  if (!values.length || values.some((value) => !ACCOUNT_API_APP_IDS.includes(value)) ||
+  const dataPlaneIds = new Set([...ACCOUNT_API_APP_IDS, 'port']);
+  if (!values.length || values.some((value) => !dataPlaneIds.has(value)) ||
       new Set(values).size !== values.length) return null;
   return new Set(values);
 }
