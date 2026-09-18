@@ -1,6 +1,6 @@
-import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.42.0';
-import { createPortAccountJoin } from './port-account-join.js?v=0.42.0';
+import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.43.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.43.0';
+import { createPortAccountJoin } from './port-account-join.js?v=0.43.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -41,6 +41,14 @@ export function createSyncCenterOrchestrator({
         return saved.accountCredential;
     }
     async function summary() { return client.summary(await credential()); }
+    async function launchWithHandoff(accountCredential, appId) {
+        const material = accountRoot.core.createHandoffMaterial();
+        const issued = await client.issueHandoff({
+            accountCredential, appId, appUrl: appUrl(appId), material
+        });
+        navigate(issued.url);
+        return Object.freeze({ kind: 'handoff', appId, expiresAt: issued.expiresAt });
+    }
 
     return Object.freeze({
         enabled: true,
@@ -194,13 +202,7 @@ export function createSyncCenterOrchestrator({
             await client.cancelAppDelete({
                 accountCredential, appId, operationId: accountRoot.core.createOperationId()
             });
-            const material = accountRoot.core.createJoinMaterial();
-            const issued = await client.issueJoinInvitation({ accountCredential, appId, material });
-            return Object.freeze({
-                kind: 'join', appId, invitationId: issued.invitationId,
-                displayJoinCode: issued.displayJoinCode, expiresAt: issued.expiresAt,
-                appUrl: appUrl(appId)
-            });
+            return launchWithHandoff(accountCredential, appId);
         },
         async issueDelete(scope, appId = null) {
             deleteMaterial = accountRoot.core.createAccountDeleteMaterial();
@@ -258,7 +260,10 @@ export function createSyncCenterOrchestrator({
                 membership = current.memberships?.find((item) => item.appId === appId);
             }
             if (!membership || membership.state === 'deleted') throw new Error('membership_unavailable');
-            if (membership.state === 'active' && Number(membership.activeAppDeviceCount || 0) > 0) {
+            if (membership.state === 'active' && membership.dataset?.state === 'ready') {
+                return launchWithHandoff(accountCredential, appId);
+            }
+            if (membership.state === 'active') {
                 const url = appUrl(appId);
                 navigate(url);
                 return Object.freeze({ kind: 'open', appId, url });
@@ -270,6 +275,22 @@ export function createSyncCenterOrchestrator({
                 displayJoinCode: issued.displayJoinCode, expiresAt: issued.expiresAt,
                 appUrl: appUrl(appId)
             });
+        },
+        async launchFromHome(appId) {
+            if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');
+            const url = appUrl(appId);
+            const saved = await account();
+            if (!accountRoot.core.validAccountCredential(saved?.accountCredential)) {
+                navigate(url);
+                return Object.freeze({ kind: 'open', appId, url });
+            }
+            const current = await client.summary(saved.accountCredential);
+            const membership = current.memberships?.find((item) => item.appId === appId);
+            if (membership?.state === 'active' && membership.dataset?.state === 'ready') {
+                return launchWithHandoff(saved.accountCredential, appId);
+            }
+            navigate(url);
+            return Object.freeze({ kind: 'open', appId, url });
         },
         async addEnvironment(appId) {
             if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');
@@ -302,13 +323,7 @@ export function createSyncCenterOrchestrator({
         },
         async launchSameContainer(appId) {
             if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');
-            const accountCredential = await credential();
-            const material = accountRoot.core.createHandoffMaterial();
-            const issued = await client.issueHandoff({
-                accountCredential, appId, appUrl: appUrl(appId), material
-            });
-            navigate(issued.url);
-            return Object.freeze({ kind: 'handoff', appId, expiresAt: issued.expiresAt });
+            return launchWithHandoff(await credential(), appId);
         },
         async cancelJoin(invitationId) {
             if (typeof invitationId !== 'string' || !invitationId) throw new Error('app_join_invalid');

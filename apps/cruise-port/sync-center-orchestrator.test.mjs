@@ -168,7 +168,22 @@ test('initial Join Code remains the default while active memberships reopen dire
     assert.equal(navigations.at(-1), 'https://apps.example/chord/pro/');
 });
 
-test('active ready memberships can explicitly add a separate environment without changing the open action', async () => {
+test('Home launch issues Auto Rejoin only for an active ready membership', async () => {
+    const { orchestrator, calls, memberships, navigations } = fixture();
+    const pending = await orchestrator.launchFromHome('chord');
+    assert.equal(pending.kind, 'open');
+    assert.equal(calls.filter(([kind]) => kind === 'join' || kind === 'handoff').length, 0);
+    memberships.set('chord', {
+        id: 'm-chord', appId: 'chord', state: 'active', activeAppDeviceCount: 1,
+        dataset: { state: 'ready' }
+    });
+    const ready = await orchestrator.launchFromHome('chord');
+    assert.equal(ready.kind, 'handoff');
+    assert.equal(calls.filter(([kind]) => kind === 'handoff').length, 1);
+    assert.equal(navigations.length, 2);
+});
+
+test('active ready memberships keep manual Add Environment and use a one-time launch handoff', async () => {
     const { orchestrator, calls, memberships, navigations } = fixture();
     memberships.set('pitch', {
         id: 'm-pitch', appId: 'pitch', state: 'active', activeAppDeviceCount: 1,
@@ -181,8 +196,9 @@ test('active ready memberships can explicitly add a separate environment without
     assert.equal(navigations.length, 0);
 
     const opened = await orchestrator.launch('pitch');
-    assert.equal(opened.kind, 'open');
-    assert.equal(navigations.at(-1), 'https://apps.example/pitch/pro/');
+    assert.equal(opened.kind, 'handoff');
+    assert.match(navigations.at(-1), /^https:\/\/apps\.example\/pitch\/pro\/#sc_handoff=opaque$/);
+    assert.deepEqual(calls.filter(([kind]) => kind === 'handoff'), [['handoff', 'pitch']]);
 });
 
 test('add environment rejects pending, incomplete, and device-less memberships', async () => {
@@ -201,16 +217,16 @@ test('add environment rejects pending, incomplete, and device-less memberships',
     assert.equal(calls.filter(([kind]) => kind === 'join').length, 0);
 });
 
-test('Recovery-revoked membership gets a reconnect invitation without recreating its dataset', async () => {
+test('Recovery-revoked membership gets an automatic handoff without recreating its dataset', async () => {
     const { orchestrator, calls, memberships, navigations } = fixture();
     memberships.set('chord', {
         id: 'm-chord', appId: 'chord', state: 'active', activeAppDeviceCount: 0,
         dataset: { state: 'ready', recordCount: 12 }
     });
     const reconnect = await orchestrator.launch('chord');
-    assert.equal(reconnect.kind, 'join');
-    assert.equal(calls.filter(([kind]) => kind === 'join').length, 1);
-    assert.equal(navigations.length, 0);
+    assert.equal(reconnect.kind, 'handoff');
+    assert.equal(calls.filter(([kind]) => kind === 'handoff').length, 1);
+    assert.equal(navigations.length, 1);
 });
 
 test('app detach uses Account authority once and immediate rejoin reuses the active ready membership', async () => {
@@ -223,23 +239,23 @@ test('app detach uses Account authority once and immediate rejoin reuses the act
     assert.equal(detached.revokedAppDeviceCount, 1);
     assert.equal(calls.filter(([kind]) => kind === 'detach').length, 1);
     const rejoin = await orchestrator.launch('rhythm');
-    assert.equal(rejoin.kind, 'join');
+    assert.equal(rejoin.kind, 'handoff');
     assert.equal(memberships.get('rhythm').id, 'm-rhythm');
     assert.equal(memberships.get('rhythm').dataset.state, 'ready');
     assert.equal(calls.filter(([kind, appId]) => kind === 'prepare' && appId === 'rhythm').length, 0);
 });
 
-test('delete cancellation completes before issuing a reconnect code and app environment revoke stays scoped', async () => {
+test('delete cancellation completes before issuing a launch handoff and app environment revoke stays scoped', async () => {
     const { orchestrator, calls, memberships } = fixture();
     memberships.set('pitch', {
         id: 'm-pitch', appId: 'pitch', state: 'deleting', activeAppDeviceCount: 0,
         dataset: { state: 'ready', recordCount: 4 }
     });
     const join = await orchestrator.cancelAppDeleteAndLaunch('pitch');
-    assert.equal(join.kind, 'join');
-    assert.deepEqual(calls.filter(([kind]) => ['cancel-app-delete', 'join'].includes(kind))
+    assert.equal(join.kind, 'handoff');
+    assert.deepEqual(calls.filter(([kind]) => ['cancel-app-delete', 'handoff'].includes(kind))
         .map(([kind, appId]) => [kind, appId]), [
-        ['cancel-app-delete', 'pitch'], ['join', 'pitch']
+        ['cancel-app-delete', 'pitch'], ['handoff', 'pitch']
     ]);
     await orchestrator.revokeAppEnvironment('pitch', 'app-device-1');
     assert.deepEqual(calls.find(([kind]) => kind === 'revoke-app-environment').slice(0, 3),

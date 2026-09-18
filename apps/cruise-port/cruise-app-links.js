@@ -36,3 +36,20 @@ export function applyHomeCruiseLinks(documentObject = document, edition = getEdi
         if (image && CRUISE_APP_ICONS[link.dataset.cruiseApp]) image.src = CRUISE_APP_ICONS[link.dataset.cruiseApp][edition === 'pro' ? 'pro' : 'standard'];
     });
 }
+
+export function bindHomeCruiseLaunch(orchestrator, documentObject = document) {
+    if (!orchestrator?.enabled || typeof orchestrator.launchFromHome !== 'function') return;
+    documentObject.querySelectorAll('[data-cruise-app]').forEach((link) => {
+        if (link.dataset.portLaunchBound === '1') return;
+        link.dataset.portLaunchBound = '1';
+        link.addEventListener('click', (event) => {
+            if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey ||
+                event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            void orchestrator.launchFromHome(link.dataset.cruiseApp).catch(() => {
+                const href = link.getAttribute('href');
+                if (href) globalThis.location.assign(href);
+            });
+        });
+    });
+}
