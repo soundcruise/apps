@@ -92,7 +92,7 @@ assert.match(source, /createPracticeSessionEvent\(transition\.session\)/);
 assert.match(source, /openPracticeCalendar\(PRACTICE_CALENDAR_ENTRY_SOURCE\.practice\)/);
 assert.match(source, /deleteAttachmentsForPractice\(item\.id\)/);
 assert.match(source, /cleanupPracticeAttachmentObjectUrls\(\)/);
-assert.match(source, /getAttachmentCounts\(state\.items\.map/);
+assert.match(source, /Promise\.all\(state\.items\.map[\s\S]*portAssetSync\.listPracticeAttachments\(item\.id\)/);
 assert.match(source, /action\.dataset\.practiceAction === 'files'/);
 assert.match(source, /preparePracticeFileWindow\(window\)/);
 assert.match(source, /navigatePreparedPracticeFileWindow\(preparedWindow, objectUrl\)/);

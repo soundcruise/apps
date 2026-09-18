@@ -1,7 +1,8 @@
 import {
     PRACTICE_ATTACHMENT_LIMITS,
-    isSafePracticeImagePreview
-} from './practice-menu-attachment-store.js?v=0.27.0';
+    isSafePracticeImagePreview,
+    isSupportedPracticeAttachmentMime
+} from './practice-menu-attachment-store.js?v=0.28.0';
 
 function createPendingAttachmentId() {
     return globalThis.crypto?.randomUUID
@@ -12,6 +13,7 @@ function createPendingAttachmentId() {
 export function validatePendingPracticeAttachment(file) {
     if (!(file instanceof Blob) || !file.size) return { ok: false, reason: 'empty-file' };
     const mimeType = typeof file.type === 'string' ? file.type.toLowerCase() : '';
+    if (!isSupportedPracticeAttachmentMime(mimeType)) return { ok: false, reason: 'unsupported-type' };
     const image = isSafePracticeImagePreview(mimeType);
     const limit = image ? PRACTICE_ATTACHMENT_LIMITS.imageBytes : PRACTICE_ATTACHMENT_LIMITS.fileBytes;
     if (file.size > limit) return { ok: false, reason: image ? 'image-too-large' : 'file-too-large' };

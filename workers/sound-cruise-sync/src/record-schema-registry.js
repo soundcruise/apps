@@ -20,6 +20,7 @@ const PORT_RECORD_TYPES = Object.freeze([
   'settings', 'metronome_settings', 'metronome_preset', 'tuner_settings',
   'gear_category', 'gear_category_order', 'gear_item', 'gear_order',
   'calendar_event', 'practice_menu', 'practice_menu_order',
+  'practice_attachment', 'practice_attachment_set',
   'practice_history_event', 'practice_cycle', 'my_app', 'my_app_order'
 ]);
 const PITCH_BUILTIN_CHORD_KEYS = new Set([
@@ -69,6 +70,8 @@ const PORT_SINGLETON_IDS = Object.freeze({
 });
 const PORT_FORBIDDEN_KEYS = /(?:credential|verifier|password|secret|token|recovery.?code|join.?code|blob|base64|binary)/iu;
 const PORT_DATA_URL = /^data:/iu;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
+const SHA256 = /^[0-9a-f]{64}$/u;
 
 function validatePortJson(value, depth = 0, budget = { nodes: 0 }) {
   budget.nodes += 1;
@@ -95,6 +98,39 @@ function validatePortPayload(recordType, recordId, payload) {
   const singletonId = PORT_SINGLETON_IDS[recordType];
   if (singletonId) return recordId === singletonId;
   if (recordType === 'gear_order') return /^(?:owned|wishlist|sold)$/u.test(recordId);
+  if (recordType === 'practice_attachment_set') {
+    return Array.isArray(payload.value) && payload.value.length <= 10 &&
+      payload.value.every((id) => typeof id === 'string' && UUID.test(id)) &&
+      new Set(payload.value).size === payload.value.length;
+  }
+  if (recordType === 'practice_attachment') {
+    const value = payload.value;
+    const asset = value?.asset;
+    const expectedAssetKind = value?.kind === 'image' ? 'practice_attachment_image'
+      : value?.mimeType === 'application/pdf' ? 'practice_attachment_pdf'
+        : value?.mimeType === 'text/plain' ? 'practice_attachment_text' : null;
+    const maxBytes = value?.kind === 'image' ? 15 * 1024 * 1024 : 20 * 1024 * 1024;
+    return UUID.test(recordId) && isPlainObject(value) && onlyKeys(value, [
+      'practiceId', 'fileName', 'kind', 'mimeType', 'byteSize', 'createdAt', 'updatedAt', 'asset'
+    ]) && string(value.practiceId, 200) && /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(value.practiceId) &&
+      string(value.fileName, 255) && !/[\\/]/u.test(value.fileName) &&
+      ['image', 'file'].includes(value.kind) &&
+      ['image/webp', 'image/png', 'image/jpeg', 'application/pdf', 'text/plain'].includes(value.mimeType) &&
+      (value.kind === 'image' ? value.mimeType.startsWith('image/') : ['application/pdf', 'text/plain'].includes(value.mimeType)) &&
+      Number.isSafeInteger(value.byteSize) && value.byteSize > 0 && value.byteSize <= maxBytes &&
+      string(value.createdAt, 40) && Number.isFinite(Date.parse(value.createdAt)) &&
+      string(value.updatedAt, 40) && Number.isFinite(Date.parse(value.updatedAt)) &&
+      isPlainObject(asset) && onlyKeys(asset, [
+        'assetId', 'kind', 'hash', 'mime', 'byteSize', 'width', 'height', 'objectVersion',
+        'availability', 'ownerRecordId', 'originalFilename'
+      ]) && UUID.test(asset.assetId || '') && asset.kind === expectedAssetKind &&
+      SHA256.test(asset.hash || '') && asset.mime === value.mimeType &&
+      Number.isSafeInteger(asset.byteSize) && asset.byteSize === value.byteSize &&
+      Number.isSafeInteger(asset.width) && asset.width > 0 && Number.isSafeInteger(asset.height) && asset.height > 0 &&
+      Number.isSafeInteger(asset.objectVersion) && asset.objectVersion >= 1 &&
+      asset.availability === 'available' && asset.ownerRecordId === value.practiceId &&
+      asset.originalFilename === value.fileName;
+  }
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(recordId);
 }
 

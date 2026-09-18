@@ -9,7 +9,8 @@
     'cruisePort.settings', 'cruisePort.metronome', 'cruisePort.metronomePresets',
     'cruisePort.tuner', 'cruisePort.gearList', 'cruisePort.gearCategories',
     'cruisePort.practiceCalendar', 'cruisePort.schemaVersion', 'cruisePort.practiceMenus',
-    'cruisePort.practiceProgress', 'cruisePort.practiceHistory', 'cruisePort.myApps'
+    'cruisePort.practiceProgress', 'cruisePort.practiceHistory', 'cruisePort.myApps',
+    ASSET_METADATA_KEY
   ]);
   const SINGLETONS = Object.freeze([
     ['cruisePort.settings', 'settings', 'global'],
@@ -78,7 +79,15 @@
   }
   function assetMetadata(storage) {
     const value = parse(storage, ASSET_METADATA_KEY, null);
-    return value?.version === 2 ? value : { version: 2, gear: {}, myApps: {}, releaseQueue: [] };
+    if (![2, 3].includes(value?.version)) {
+      return { version: 3, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [] };
+    }
+    return {
+      version: 3, gear: clone(value.gear || {}), myApps: clone(value.myApps || {}),
+      attachments: clone(value.attachments || {}),
+      releaseQueue: [...new Set(value.releaseQueue || [])],
+      discardQueue: [...new Set(value.discardQueue || [])]
+    };
   }
   function assetFor(item, kind, metadata) {
     const idKey = kind === 'gear' ? 'photoId' : 'iconId';
@@ -110,6 +119,24 @@
     const menus = parse(storage, 'cruisePort.practiceMenus', { items: [] });
     itemValues(menus).forEach((item, index) => records.push(record('practice_menu', item.id, item)));
     if (itemValues(menus).length) records.push(record('practice_menu_order', 'default', itemValues(menus).map(({ id }) => id)));
+    Object.entries(assets.attachments || {}).forEach(([logicalId, entry]) => {
+      if (entry?.published?.availability !== 'available' || !entry.published.asset?.assetId) return;
+      records.push(record('practice_attachment', logicalId, {
+        practiceId: entry.practiceId, fileName: entry.fileName, kind: entry.kind,
+        mimeType: entry.mimeType, byteSize: entry.byteSize,
+        createdAt: entry.createdAt, updatedAt: entry.updatedAt,
+        asset: clone(entry.published.asset)
+      }));
+    });
+    const attachmentSets = new Map();
+    records.filter((item) => item.recordType === 'practice_attachment').forEach((item) => {
+      const practiceId = item.payload.value.practiceId;
+      if (!attachmentSets.has(practiceId)) attachmentSets.set(practiceId, []);
+      attachmentSets.get(practiceId).push(item.recordId);
+    });
+    attachmentSets.forEach((ids, practiceId) => {
+      records.push(record('practice_attachment_set', practiceId, ids.sort()));
+    });
     const history = parse(storage, 'cruisePort.practiceHistory', { events: [] });
     itemValues(history, 'events').forEach((item) => records.push(record('practice_history_event', item.id, item)));
     const categories = parse(storage, 'cruisePort.gearCategories', { categories: [] });
@@ -222,6 +249,28 @@
     write(storage, 'cruisePort.metronomePresets', { version: 1, items: presets });
     write(storage, 'cruisePort.practiceCalendar', { version: 2, notes: byType(normalized, 'calendar_event').map((item) => item.payload.value) });
     write(storage, 'cruisePort.practiceMenus', { version: 3, items: ordered(normalized, 'practice_menu', 'practice_menu_order').map((item) => item.payload.value) });
+    const remoteAttachments = new Map(byType(normalized, 'practice_attachment').map((item) => [item.recordId, item.payload.value]));
+    Object.entries(currentAssets.attachments || {}).forEach(([logicalId, entry]) => {
+      if (remoteAttachments.has(logicalId) || entry?.pending) return;
+      if (entry?.binding?.localId) currentAssets.discardQueue.push(entry.binding.localId);
+      delete currentAssets.attachments[logicalId];
+    });
+    remoteAttachments.forEach((value, logicalId) => {
+      const entry = currentAssets.attachments[logicalId] || {};
+      if (entry.binding?.assetId && entry.binding.assetId !== value.asset.assetId && entry.binding.localId) {
+        currentAssets.discardQueue.push(entry.binding.localId);
+        entry.binding = null;
+      }
+      currentAssets.attachments[logicalId] = {
+        ...entry,
+        practiceId: value.practiceId, fileName: value.fileName, kind: value.kind,
+        mimeType: value.mimeType, byteSize: value.byteSize,
+        createdAt: value.createdAt, updatedAt: value.updatedAt,
+        published: { version: 1, availability: 'available', asset: clone(value.asset) },
+        pending: null
+      };
+    });
+    currentAssets.discardQueue = [...new Set(currentAssets.discardQueue.filter(Boolean))];
     storage.setItem('cruisePort.schemaVersion', '3');
     write(storage, 'cruisePort.practiceHistory', {
       version: 4, events: byType(normalized, 'practice_history_event').map((item) => item.payload.value),

@@ -8,7 +8,8 @@ import {
     PRACTICE_ATTACHMENT_STORE_NAME,
     createPracticeAttachmentStore as createAttachmentStore,
     isSafePracticeAttachmentInlineOpen,
-    isSafePracticeImagePreview
+    isSafePracticeImagePreview,
+    isSupportedPracticeAttachmentMime
 } from './practice-menu-attachment-store.js';
 
 const createPracticeAttachmentStore = options => createAttachmentStore({ canWrite: () => true, ...options });
@@ -47,7 +48,18 @@ function createFakeIndexedDB() {
             const transaction = { error: null };
             const store = {
                 add(record) { queueMicrotask(() => { records.set(record.id, record); transaction.oncomplete?.(); }); },
+                put(record) { queueMicrotask(() => { records.set(record.id, record); transaction.oncomplete?.(); }); },
                 delete(id) { queueMicrotask(() => { records.delete(id); transaction.oncomplete?.(); }); },
+                get(id) {
+                    const request = {};
+                    queueMicrotask(() => { request.result = records.get(id); request.onsuccess?.(); });
+                    return request;
+                },
+                getAll() {
+                    const request = {};
+                    queueMicrotask(() => { request.result = [...records.values()]; request.onsuccess?.(); });
+                    return request;
+                },
                 index(name) {
                     assert.equal(name, PRACTICE_ATTACHMENT_INDEX_NAME);
                     return {
@@ -134,10 +146,30 @@ test('size, count, malformed record, and unavailable DB fail safely', async () =
     assert.equal((await unavailable.getAttachments('practice-a')).reason, 'read-failed');
 });
 
-test('HTML and SVG are stored as files but never inline-previewed', () => {
+test('only safe image, PDF, and UTF-8 text MIME types are accepted', async () => {
     assert.equal(isSafePracticeImagePreview('image/png'), true);
     assert.equal(isSafePracticeImagePreview('image/svg+xml'), false);
     assert.equal(isSafePracticeAttachmentInlineOpen('application/pdf'), true);
     assert.equal(isSafePracticeAttachmentInlineOpen('text/html'), false);
     assert.equal(isSafePracticeAttachmentInlineOpen('image/svg+xml'), false);
+    assert.equal(isSupportedPracticeAttachmentMime('text/plain'), true);
+    assert.equal(isSupportedPracticeAttachmentMime('application/pdf'), true);
+    for (const mimeType of ['text/html', 'image/svg+xml', 'application/zip', 'audio/mpeg', 'video/mp4']) {
+        assert.equal(isSupportedPracticeAttachmentMime(mimeType), false);
+        const result = await createPracticeAttachmentStore({ indexedDBObject: createFakeIndexedDB() })
+            .addAttachment('practice-a', new Blob(['unsafe'], { type: mimeType }), { fileName: 'unsafe.bin' });
+        assert.equal(result.reason, 'invalid-record');
+    }
+});
+
+test('downloaded cloud attachment is cached under a local ID without changing its owner', async () => {
+    const indexedDBObject = createFakeIndexedDB();
+    const store = createPracticeAttachmentStore({ indexedDBObject });
+    const result = await store.cacheAttachment(new Blob(['note'], { type: 'text/plain' }), {
+        practiceId: 'practice-a', kind: 'file', mimeType: 'text/plain', fileName: 'note.txt',
+        createdAt: '2026-09-18T01:00:00.000Z', updatedAt: '2026-09-18T01:01:00.000Z'
+    }, { idFactory: () => 'local-cache-1' });
+    assert.equal(result.ok, true);
+    assert.equal((await store.getAttachment('local-cache-1')).record.practiceId, 'practice-a');
+    assert.deepEqual((await store.getAllAttachments()).records.map(({ id }) => id), ['local-cache-1']);
 });

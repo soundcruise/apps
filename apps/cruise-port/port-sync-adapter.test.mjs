@@ -99,6 +99,62 @@ test('Port merge safe-stops only same-record divergence', () => {
   assert.equal(merged.snapshot.records.length, 2);
 });
 
+test('practice attachments serialize only logical metadata and hydrate without binary download', async () => {
+  const logicalId = '123e4567-e89b-42d3-a456-426614174100';
+  const asset = {
+    assetId: '223e4567-e89b-42d3-a456-426614174100', kind: 'practice_attachment_pdf',
+    hash: 'a'.repeat(64), mime: 'application/pdf', byteSize: 20, width: 1, height: 1,
+    objectVersion: 1, availability: 'available', ownerRecordId: 'practice-a', originalFilename: 'score.pdf'
+  };
+  const sourceStorage = storage({
+    'cruisePort.practiceMenus': JSON.stringify({ version: 3, items: [{ id: 'practice-a', name: 'A' }] }),
+    'cruisePort.syncAssetMetadata': JSON.stringify({
+      version: 3, gear: {}, myApps: {}, attachments: {
+        [logicalId]: {
+          practiceId: 'practice-a', kind: 'file', mimeType: 'application/pdf', fileName: 'score.pdf', byteSize: 20,
+          createdAt: '2026-09-18T01:00:00.000Z', updatedAt: '2026-09-18T01:00:00.000Z',
+          published: { version: 1, availability: 'available', asset },
+          binding: { assetId: asset.assetId, hash: asset.hash, localId: 'device-local-id' }, pending: null
+        }
+      }, releaseQueue: [], discardQueue: []
+    })
+  });
+  const api = load(sourceStorage);
+  const snapshot = api.readLocalSnapshot(sourceStorage);
+  const attachment = snapshot.records.find((record) => record.recordType === 'practice_attachment');
+  const set = snapshot.records.find((record) => record.recordType === 'practice_attachment_set');
+  assert.equal(attachment.recordId, logicalId);
+  assert.equal(JSON.stringify(attachment).includes('device-local-id'), false);
+  assert.equal(JSON.stringify(attachment).includes('blob'), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(set.payload.value)), [logicalId]);
+
+  const target = storage({
+    'cruisePort.syncAssetMetadata': JSON.stringify({ version: 3, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [] })
+  });
+  await api.applyRemoteSnapshot(target, snapshot);
+  const hydrated = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
+  assert.equal(hydrated.attachments[logicalId].published.asset.assetId, asset.assetId);
+  assert.equal(hydrated.attachments[logicalId].binding, undefined);
+  assert.equal(Object.hasOwn(hydrated.attachments[logicalId], 'blob'), false);
+});
+
+test('concurrent edits to the same practice attachment set safe-stop as one semantic conflict', () => {
+  const api = load(storage());
+  const set = (ids) => ({
+    recordType: 'practice_attachment_set', recordId: 'practice-a', schemaVersion: 1,
+    payload: { id: 'practice-a', value: ids }
+  });
+  const localId = '123e4567-e89b-42d3-a456-426614174101';
+  const remoteId = '223e4567-e89b-42d3-a456-426614174101';
+  const result = api.mergeSnapshots(
+    { schemaVersion: 1, records: [set([localId])] },
+    { schemaVersion: 1, records: [set([remoteId])] }
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(result.conflicts)), [{
+    recordKey: 'practice_attachment_set/practice-a', reason: 'same_record_changed'
+  }]);
+});
+
 test('Port adapter rejects secret-shaped and data URL payloads', () => {
   const api = load(storage());
   assert.throws(() => api.normalizeLocalSnapshot({ schemaVersion: 1, records: [{

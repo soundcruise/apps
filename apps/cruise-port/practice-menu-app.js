@@ -11,26 +11,26 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.43.1';
+} from './practice-menu-store.js?v=0.44.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.43.1';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.44.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.43.1';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.43.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.43.1';
+} from './sync-center-controller.js?v=0.44.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.44.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.44.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.43.1';
+} from './sync-center-navigation.js?v=0.44.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -43,7 +43,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.43.1';
+} from './practice-menu-progress-store.js?v=0.44.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -57,7 +57,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.43.1';
+} from './practice-menu-history-store.js?v=0.44.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -72,7 +72,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.43.1';
+} from './practice-menu-calendar-store.js?v=0.44.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -81,17 +81,17 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.43.1';
+} from './practice-menu-timer-store.js?v=0.44.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen
-} from './practice-menu-attachment-store.js?v=0.27.0';
+} from './practice-menu-attachment-store.js?v=0.28.0';
 import {
     appendPendingPracticeAttachments,
     savePendingPracticeAttachments,
     validatePendingPracticeAttachment
-} from './practice-menu-pending-attachments.js?v=0.27.0';
+} from './practice-menu-pending-attachments.js?v=0.28.0';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -118,7 +118,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.43.1';
+} from './my-apps-store.js?v=0.44.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -169,9 +169,9 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.43.1';
+} from './app-version.js?v=0.44.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.43.1';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.44.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
 import {
     clearGearPhotoReferences,
@@ -190,7 +190,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.43.1';
+} from './gear-list-store.js?v=0.44.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -199,9 +199,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.43.1';
+} from './gear-category-store.js?v=0.44.0';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.43.1';
+import { PortAssetSync } from './port-asset-sync.js?v=0.44.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -634,12 +634,13 @@ let practiceAttachmentLightboxReturnFocus = null;
 let pendingPortCloudRefresh = false;
 const myAppsIconStore = createMyAppsIconStore();
 const gearPhotoStore = createGearPhotoStore();
+const practiceAttachmentStore = createPracticeAttachmentStore();
 const portAssetSync = new PortAssetSync({
     controller: portSyncController,
     gearPhotoStore,
-    myAppsIconStore
+    myAppsIconStore,
+    practiceAttachmentStore
 }).bind();
-const practiceAttachmentStore = createPracticeAttachmentStore();
 const practiceAttachmentObjectUrls = new Set();
 const practiceAttachmentExternalObjectUrls = new Set();
 const myAppsPlatform = detectMyAppsPlatform();
@@ -856,12 +857,14 @@ function getPracticeAttachmentCount(id) {
 }
 
 async function refreshPracticeAttachmentCounts({ renderList = true } = {}) {
-    const result = await practiceAttachmentStore.getAttachmentCounts(state.items.map((item) => item.id));
-    if (!result.ok) {
+    const results = await Promise.all(state.items.map(async (item) => [
+        item.id, await portAssetSync.listPracticeAttachments(item.id)
+    ]));
+    if (results.some(([, result]) => !result.ok)) {
         state.attachmentCounts = {};
         state.attachmentCountsReady = false;
     } else {
-        state.attachmentCounts = result.counts;
+        state.attachmentCounts = Object.fromEntries(results.map(([id, result]) => [id, result.records.length]));
         state.attachmentCountsReady = true;
     }
     if (renderList && parsePracticeRoute(location.hash)?.kind === PRACTICE_ROUTE_KIND.list) {
@@ -2955,6 +2958,16 @@ function getPracticeAttachmentFailureMessage(reason) {
     if (reason === 'empty-file') return '空のファイルは追加できません。別のファイルを選んでください。';
     if (reason === 'image-too-large') return '画像サイズが大きすぎます。15MB以下の画像を選んでください。';
     if (reason === 'file-too-large') return 'ファイルサイズが大きすぎます。20MB以下のファイルを選んでください。';
+    if (reason === 'unsupported-type') return 'JPEG・PNG・WebP・PDF・テキストファイルを選んでください。';
+    if (reason === 'asset_quota_exceeded') {
+        return 'クラウド保存容量の上限に達しました。不要な添付ファイルを削除してから、もう一度お試しください。端末内のファイルは削除されていません。';
+    }
+    if (['account_rate_limited', 'global_rate_limited'].includes(reason)) {
+        return '本日のクラウド保存回数の上限に達しました。端末内のファイルは保持されています。時間をおいて再試行してください。';
+    }
+    if (reason === 'asset_uploads_stopped' || reason === 'asset_writes_disabled') {
+        return 'クラウドへのファイル保存は一時停止中です。端末内のファイルは保持されています。時間をおいて再試行してください。';
+    }
     if (reason === 'limit-reached') {
         return `ファイルは1つの練習メニューにつき${PRACTICE_ATTACHMENT_LIMITS.countPerPractice}件までです。不要なファイルを削除してください。`;
     }
@@ -2992,14 +3005,14 @@ function createPracticeAttachmentRow(record) {
     const name = document.createElement('strong');
     const detail = document.createElement('small');
     const actions = document.createElement('span');
-    const open = document.createElement('a');
+    const open = document.createElement(record.blob ? 'a' : 'button');
     const remove = document.createElement('button');
-    const objectUrl = URL.createObjectURL(record.blob);
-    practiceAttachmentObjectUrls.add(objectUrl);
+    const objectUrl = record.blob ? URL.createObjectURL(record.blob) : null;
+    if (objectUrl) practiceAttachmentObjectUrls.add(objectUrl);
 
     row.className = 'practice-attachment-row';
     preview.className = 'practice-attachment-preview';
-    if (record.kind === 'image') {
+    if (record.kind === 'image' && objectUrl) {
         const image = document.createElement('img');
         preview.type = 'button';
         preview.dataset.attachmentAction = 'preview';
@@ -3011,7 +3024,7 @@ function createPracticeAttachmentRow(record) {
         preview.append(image);
     } else {
         preview.setAttribute('aria-hidden', 'true');
-        preview.textContent = record.mimeType === 'application/pdf' ? 'PDF' : 'FILE';
+        preview.textContent = record.kind === 'image' ? '画像' : record.mimeType === 'application/pdf' ? 'PDF' : 'FILE';
     }
     copy.className = 'practice-attachment-copy';
     name.textContent = record.fileName;
@@ -3023,9 +3036,14 @@ function createPracticeAttachmentRow(record) {
     detail.textContent = `${fileKind} ・ ${formatPracticeAttachmentSize(record.byteSize)}`;
     copy.append(name, detail);
     actions.className = 'practice-attachment-actions';
-    open.href = objectUrl;
     open.setAttribute('aria-label', `${record.fileName}を${isSafePracticeAttachmentInlineOpen(record.mimeType) ? '開く' : 'ダウンロード'}`);
-    if (isSafePracticeAttachmentInlineOpen(record.mimeType)) {
+    if (!objectUrl) {
+        open.type = 'button';
+        open.dataset.attachmentAction = 'open';
+        open.dataset.id = record.logicalId || record.id;
+        open.textContent = '開く';
+    } else if (isSafePracticeAttachmentInlineOpen(record.mimeType)) {
+        open.href = objectUrl;
         open.target = '_blank';
         open.rel = 'noopener';
         open.textContent = '開く';
@@ -3036,6 +3054,7 @@ function createPracticeAttachmentRow(record) {
     remove.type = 'button';
     remove.dataset.attachmentAction = 'delete';
     remove.dataset.id = record.id;
+    if (record.logicalId) remove.dataset.logicalId = record.logicalId;
     remove.dataset.fileName = record.fileName;
     remove.setAttribute('aria-label', `${record.fileName}を削除`);
     remove.textContent = '削除';
@@ -3101,7 +3120,7 @@ async function renderPracticeAttachments(practiceId, scope = 'detail') {
     if (!getCapabilities().practiceFileWrite) presentation.add.classList.remove('is-disabled');
     presentation.add.classList.toggle('tool-pro-locked', !getCapabilities().practiceFileWrite);
     presentation.add.setAttribute('aria-label', getCapabilities().practiceFileWrite ? 'ファイルを追加' : 'ファイルを追加（Pro版機能）');
-    const result = await practiceAttachmentStore.getAttachments(practiceId);
+    const result = await portAssetSync.listPracticeAttachments(practiceId);
     if (generation !== practiceAttachmentRenderGeneration || state.activeId !== practiceId) return;
     if (!result.ok) {
         presentation.empty.hidden = false;
@@ -3219,6 +3238,7 @@ async function handlePracticeAttachmentSelection(event, scope = 'detail') {
         }
         savedCount += 1;
     }
+    if (savedCount) portAssetSync.schedule('attachment-add');
     setPracticeAttachmentStatus(
         scope,
         failureMessage || `ファイルを${savedCount}件追加しました。`,
@@ -3242,9 +3262,30 @@ async function handlePracticeAttachmentAction(event, scope = 'detail') {
         openPracticeAttachmentLightbox(button);
         return;
     }
+    if (button.dataset.attachmentAction === 'open') {
+        let preparedWindow = null;
+        try { preparedWindow = preparePracticeFileWindow(window); } catch (_) { preparedWindow = null; }
+        setPracticeAttachmentStatus(scope, 'ファイルをダウンロードしています…');
+        const downloaded = await portAssetSync.ensurePracticeAttachment(button.dataset.id);
+        if (!downloaded?.ok || !downloaded.record) {
+            closePreparedPracticeAttachmentWindow(preparedWindow);
+            setPracticeAttachmentStatus(scope, 'ファイルをダウンロードできませんでした。オンラインで再試行してください。', { error: true });
+            return;
+        }
+        setPracticeAttachmentStatus(scope);
+        if (downloaded.record.kind === 'image') {
+            closePreparedPracticeAttachmentWindow(preparedWindow);
+            openPracticeAttachmentLightboxForRecord(downloaded.record, button);
+        } else if (!openPracticeAttachmentRecord(downloaded.record, preparedWindow)) {
+            setPracticeAttachmentStatus(scope, 'ファイルを開けませんでした。', { error: true });
+        }
+        await renderPracticeAttachments(downloaded.record.practiceId, scope);
+        return;
+    }
     const item = findItem(state.activeId);
     if (!item || !window.confirm(`「${button.dataset.fileName}」を削除しますか？`)) return;
     const result = await practiceAttachmentStore.deleteAttachment(button.dataset.id);
+    if (result.ok) portAssetSync.removePracticeAttachment({ id: button.dataset.id, logicalId: button.dataset.logicalId || null });
     setPracticeAttachmentStatus(scope, result.ok ? 'ファイルを削除しました。' : 'ファイルを削除できませんでした。', { error: !result.ok });
     await renderPracticeAttachments(item.id, scope);
     await refreshPracticeAttachmentCounts();
@@ -3263,7 +3304,7 @@ async function handlePracticeFilesAction(button, event) {
             preparedWindow = null;
         }
     }
-    const result = await practiceAttachmentStore.getAttachments(item.id);
+    const result = await portAssetSync.listPracticeAttachments(item.id);
     if (!result.ok) {
         closePreparedPracticeAttachmentWindow(preparedWindow);
         state.listNotice = 'ファイル機能を利用できません。保存設定を確認してください。';
@@ -3277,7 +3318,17 @@ async function handlePracticeFilesAction(button, event) {
         setHashRoute(`#practice-menu/${encodeURIComponent(item.id)}`);
         return;
     }
-    const [record] = result.records;
+    let [record] = result.records;
+    if (!record.blob) {
+        const downloaded = await portAssetSync.ensurePracticeAttachment(record.logicalId || record.id);
+        if (!downloaded?.ok || !downloaded.record) {
+            closePreparedPracticeAttachmentWindow(preparedWindow);
+            state.listNotice = 'ファイルをダウンロードできませんでした。オンラインで再試行してください。';
+            renderPracticeList({ focus: false });
+            return;
+        }
+        record = downloaded.record;
+    }
     if (record.kind === 'image') {
         closePreparedPracticeAttachmentWindow(preparedWindow);
         openPracticeAttachmentLightboxForRecord(record, button);
@@ -4728,6 +4779,7 @@ async function handleSubmit(event) {
             state.pendingCreateAttachments = attachmentResult.remaining;
             await refreshPracticeAttachmentCounts({ renderList: false });
             setPracticeFormSaving(false);
+            if (attachmentResult.savedRecords.length) portAssetSync.schedule('attachment-add');
         }
         const savedCount = attachmentResult.savedRecords.length;
         if (attachmentResult.ok) {
@@ -4767,6 +4819,7 @@ async function handleDelete() {
         showNotice(elements.detailError, '削除できませんでした。保存設定を確認してください。');
         return;
     }
+    portAssetSync.removePracticeAttachments(item.id);
     const attachmentCleanup = await practiceAttachmentStore.deleteAttachmentsForPractice(item.id);
     if (!attachmentCleanup.ok) {
         state.listNotice = '練習メニューは削除しましたが、ファイルデータの整理を完了できませんでした。';
@@ -5328,6 +5381,18 @@ window.addEventListener('cruise-port-cloud-data-applied', () => {
 window.addEventListener('cruise-port-assets-applied', () => {
     pendingPortCloudRefresh = true;
     refreshAppliedPortCloudDataWhenSafe();
+});
+window.addEventListener('cruise-port-asset-sync-error', (event) => {
+    const code = event.detail?.code;
+    const message = ['asset_quota_exceeded', 'account_rate_limited', 'global_rate_limited',
+        'asset_uploads_stopped', 'asset_writes_disabled'].includes(code)
+        ? getPracticeAttachmentFailureMessage(code)
+        : code === 'practice_attachment_limit_exceeded'
+            ? getPracticeAttachmentFailureMessage('limit-reached')
+            : '';
+    if (!message) return;
+    setPracticeAttachmentStatus('detail', message, { error: true });
+    setPracticeAttachmentStatus('form', message, { error: true });
 });
 
 const loadResult = initializePracticeMenus(loadPracticeMenus());

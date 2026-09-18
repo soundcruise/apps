@@ -11,7 +11,8 @@ export const PRACTICE_ATTACHMENT_LIMITS = Object.freeze({
     fileName: 255
 });
 
-const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif']);
+const SAFE_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const SAFE_FILE_TYPES = new Set(['application/pdf', 'text/plain']);
 const SAFE_INLINE_TYPES = new Set([...SAFE_IMAGE_TYPES, 'application/pdf', 'text/plain']);
 const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
 
@@ -30,11 +31,17 @@ export function isSafePracticeImagePreview(mimeType) {
 }
 
 export function isSafePracticeAttachmentInlineOpen(mimeType) {
-    return SAFE_INLINE_TYPES.has(mimeType) || /^audio\/(mpeg|mp4|wav|ogg|webm)$/u.test(mimeType);
+    return SAFE_INLINE_TYPES.has(mimeType);
+}
+
+export function isSupportedPracticeAttachmentMime(mimeType) {
+    return SAFE_IMAGE_TYPES.has(mimeType) || SAFE_FILE_TYPES.has(mimeType);
 }
 
 function normalizeFileName(value) {
-    return typeof value === 'string' ? value.trim().slice(0, PRACTICE_ATTACHMENT_LIMITS.fileName) : '';
+    if (typeof value !== 'string') return '';
+    return (value.split(/[\\/]/u).pop() || '').normalize('NFC').trim()
+        .replace(/[\u0000-\u001f\u007f-\u009f]/gu, '').slice(0, PRACTICE_ATTACHMENT_LIMITS.fileName);
 }
 
 function normalizeMimeType(blob) {
@@ -55,7 +62,7 @@ function isValidRecord(record) {
         && ['image', 'file'].includes(record.kind)
         && record.blob instanceof Blob
         && typeof record.mimeType === 'string'
-        && record.mimeType.length > 0
+        && isSupportedPracticeAttachmentMime(record.mimeType)
         && record.mimeType.length <= 100
         && (!record.blob.type || record.blob.type.toLowerCase() === record.mimeType)
         && typeof record.fileName === 'string'
@@ -66,6 +73,7 @@ function isValidRecord(record) {
         && record.byteSize > 0
         && record.byteSize <= limit
         && isIsoDate(record.createdAt)
+        && isIsoDate(record.updatedAt || record.createdAt)
     );
 }
 
@@ -156,6 +164,33 @@ export function createPracticeAttachmentStore({ indexedDBObject, canWrite = () =
         }
     }
 
+    async function getAttachment(id) {
+        if (typeof id !== 'string' || !id) return { ok: false, record: null, reason: 'invalid-id' };
+        try {
+            const database = await getDatabase();
+            const record = await new Promise((resolve, reject) => {
+                const transaction = database.transaction(PRACTICE_ATTACHMENT_STORE_NAME, 'readonly');
+                const request = transaction.objectStore(PRACTICE_ATTACHMENT_STORE_NAME).get(id);
+                request.onsuccess = () => resolve(request.result || null);
+                request.onerror = () => reject(request.error || new Error('indexeddb-read-failed'));
+            });
+            return { ok: true, record: isValidRecord(record) ? { ...record } : null };
+        } catch (_) { return { ok: false, record: null, reason: 'read-failed' }; }
+    }
+
+    async function getAllAttachments() {
+        try {
+            const database = await getDatabase();
+            const records = await new Promise((resolve, reject) => {
+                const transaction = database.transaction(PRACTICE_ATTACHMENT_STORE_NAME, 'readonly');
+                const request = transaction.objectStore(PRACTICE_ATTACHMENT_STORE_NAME).getAll();
+                request.onsuccess = () => resolve(request.result || []);
+                request.onerror = () => reject(request.error || new Error('indexeddb-read-failed'));
+            });
+            return { ok: true, records: records.filter(isValidRecord).map((record) => ({ ...record })) };
+        } catch (_) { return { ok: false, records: [], reason: 'read-failed' }; }
+    }
+
     async function getAttachmentCounts(practiceIds) {
         const ids = [...new Set(practiceIds)].filter((practiceId) => typeof practiceId === 'string' && practiceId);
         try {
@@ -187,7 +222,8 @@ export function createPracticeAttachmentStore({ indexedDBObject, canWrite = () =
                 mimeType,
                 fileName: normalizeFileName(fileName),
                 byteSize: blob?.size,
-                createdAt: now.toISOString()
+                createdAt: now.toISOString(),
+                updatedAt: now.toISOString()
             };
             if (!isValidRecord(record)) return { ok: false, reason: 'invalid-record' };
             const existing = await getAttachments(practiceId);
@@ -205,8 +241,29 @@ export function createPracticeAttachmentStore({ indexedDBObject, canWrite = () =
             }
         },
         getAttachments,
+        getAttachment,
+        getAllAttachments,
         getAttachmentCounts,
         deleteAttachment,
+        async cacheAttachment(blob, metadata, { idFactory = createAttachmentId } = {}) {
+            const record = {
+                id: idFactory(),
+                practiceId: metadata?.practiceId,
+                kind: metadata?.kind,
+                blob,
+                mimeType: metadata?.mimeType,
+                fileName: normalizeFileName(metadata?.fileName),
+                byteSize: blob?.size,
+                createdAt: metadata?.createdAt,
+                updatedAt: metadata?.updatedAt || metadata?.createdAt
+            };
+            if (!isValidRecord(record)) return { ok: false, reason: 'invalid-record' };
+            try {
+                const database = await getDatabase();
+                await runTransaction(database, 'readwrite', (store) => store.put(record));
+                return { ok: true, record: { ...record } };
+            } catch (_) { return { ok: false, reason: 'write-failed' }; }
+        },
         async deleteAttachmentsForPractice(practiceId) {
             const existing = await getAttachments(practiceId);
             if (!existing.ok) return { ok: false, reason: 'read-failed' };

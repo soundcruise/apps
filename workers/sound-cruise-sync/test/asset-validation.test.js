@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ASSET_KINDS, ASSET_QUOTA, detectImageMime, inspectImageMetadata, validateAssetPrepare } from '../src/asset-validation.js';
+import {
+  ASSET_KINDS, ASSET_QUOTA, PRACTICE_ATTACHMENT_QUOTA,
+  detectImageMime, inspectAssetContent, inspectImageMetadata, validateAssetPrepare
+} from '../src/asset-validation.js';
 
 const assetId = '123e4567-e89b-42d3-a456-426614174000';
 const operationId = '223e4567-e89b-42d3-a456-426614174000';
@@ -22,6 +25,39 @@ test('asset contract accepts only normalized bounded image variants', () => {
   assert.equal(ASSET_QUOTA.maxBytes, 1024 * 1024 * 1024);
   assert.equal(ASSET_QUOTA.maxCount, 1000);
   assert.equal(ASSET_QUOTA.dailyNewVariants, 200);
+});
+
+test('practice attachments are separately bounded and require safe ownership metadata', () => {
+  const base = {
+    appId: 'port', assetId, operationId, hash: 'a'.repeat(64), byteSize: 100,
+    ownerRecordId: 'practice-1', originalFilename: 'score.pdf'
+  };
+  assert.equal(validateAssetPrepare({ ...base, kind: 'practice_attachment_pdf', mime: 'application/pdf', width: 1, height: 1 })?.storageCategory,
+    'practice_attachment');
+  assert.equal(validateAssetPrepare({ ...base, kind: 'practice_attachment_text', mime: 'text/plain', width: 1, height: 1,
+    originalFilename: 'notes.txt' })?.ownerRecordType, 'practice_menu');
+  assert.equal(validateAssetPrepare({ ...base, kind: 'practice_attachment_image', mime: 'image/png', width: 1200, height: 900,
+    originalFilename: 'photo.png' })?.storageCategory, 'practice_attachment');
+  assert.equal(validateAssetPrepare({ ...base, kind: 'practice_attachment_pdf', mime: 'text/html', width: 1, height: 1 }), null);
+  assert.equal(validateAssetPrepare({ ...base, kind: 'practice_attachment_pdf', mime: 'application/pdf', width: 1, height: 1,
+    originalFilename: '../score.pdf' }), null);
+  assert.equal(validateAssetPrepare({ ...base, kind: 'practice_attachment_pdf', mime: 'application/pdf', width: 1, height: 1,
+    ownerRecordId: '' }), null);
+  assert.equal(validateAssetPrepare({ ...base, kind: 'practice_attachment_image', mime: 'image/png', width: 1, height: 1,
+    byteSize: ASSET_KINDS.practice_attachment_image.maxBytes + 1, originalFilename: 'photo.png' }), null);
+  assert.equal(PRACTICE_ATTACHMENT_QUOTA.maxBytes, 2 * 1024 * 1024 * 1024);
+  assert.equal(PRACTICE_ATTACHMENT_QUOTA.maxCount, 10000);
+  assert.equal(PRACTICE_ATTACHMENT_QUOTA.countPerPractice, 10);
+});
+
+test('practice content inspection rejects MIME spoofing and unsafe bytes', () => {
+  assert.deepEqual(inspectAssetContent(new TextEncoder().encode('%PDF-1.7\n'), 'practice_attachment_pdf'),
+    { mime: 'application/pdf', width: 1, height: 1 });
+  assert.equal(inspectAssetContent(new TextEncoder().encode('<html>'), 'practice_attachment_pdf'), null);
+  assert.deepEqual(inspectAssetContent(new TextEncoder().encode('安全なノート'), 'practice_attachment_text'),
+    { mime: 'text/plain', width: 1, height: 1 });
+  assert.equal(inspectAssetContent(Uint8Array.from([0x61, 0x00, 0x62]), 'practice_attachment_text'), null);
+  assert.equal(inspectAssetContent(Uint8Array.from([0xc3, 0x28]), 'practice_attachment_text'), null);
 });
 
 test('magic byte detection does not trust the declared MIME', () => {

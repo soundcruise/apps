@@ -63,7 +63,11 @@ function metadata(input, availability) {
     return {
         assetId: input.assetId, kind: input.kind, hash: input.hash, mime: input.mime,
         byteSize: input.byteSize, width: input.width, height: input.height,
-        objectVersion: 1, availability
+        objectVersion: 1, availability,
+        ...(input.ownerRecordId ? {
+            ownerRecordId: input.ownerRecordId,
+            originalFilename: input.originalFilename
+        } : {})
     };
 }
 
@@ -220,4 +224,171 @@ test('missing IndexedDB cache is re-downloaded from the same logical asset', asy
     assert.equal(result.hydrated, true);
     assert.equal(JSON.parse(local.getItem('cruisePort.gearList')).items[0].photoId, 'restored-local');
     assert.equal(api.requests.filter((request) => request.method === 'GET').length, 1);
+});
+
+test('practice attachment uploads once, stays lazy on another Port, then downloads into a different local ID', async () => {
+    const localRecord = {
+        id: 'local-a', practiceId: 'practice-a', kind: 'file',
+        blob: new Blob(['practice notes'], { type: 'text/plain' }), mimeType: 'text/plain',
+        fileName: 'notes.txt', byteSize: 14,
+        createdAt: '2026-09-18T01:00:00.000Z', updatedAt: '2026-09-18T01:00:00.000Z'
+    };
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] }),
+        'cruisePort.practiceMenus': JSON.stringify({ version: 3, items: [{ id: 'practice-a', name: 'A' }] })
+    });
+    const api = assetApi();
+    const aController = controller();
+    const aSync = new PortAssetSync({ controller: aController, storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAllAttachments: async () => ({ ok: true, records: [localRecord] }),
+            getAttachments: async () => ({ ok: true, records: [localRecord] })
+        } });
+    assert.equal((await aSync.reconcile()).ok, true);
+    assert.deepEqual(aController.syncReasons, ['attachment-owner', 'asset-reference']);
+    const aMetadata = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+    const [logicalId, entry] = Object.entries(aMetadata.attachments)[0];
+    assert.notEqual(logicalId, localRecord.id);
+    assert.equal(entry.published.asset.kind, 'practice_attachment_text');
+    assert.equal(entry.published.asset.ownerRecordId, 'practice-a');
+    assert.equal(entry.binding.localId, 'local-a');
+
+    const remote = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] }),
+        'cruisePort.syncAssetMetadata': JSON.stringify({
+            version: 3, gear: {}, myApps: {}, attachments: {
+                [logicalId]: { ...entry, binding: null }
+            }, releaseQueue: [], discardQueue: []
+        })
+    });
+    let cached = null;
+    const bSync = new PortAssetSync({ controller: controller(), storage: remote, fetchImpl: api.fetch,
+        gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAttachments: async () => ({ ok: true, records: cached ? [cached] : [] }),
+            getAttachment: async (id) => ({ ok: true, record: cached?.id === id ? cached : null }),
+            getAllAttachments: async () => ({ ok: true, records: cached ? [cached] : [] }),
+            cacheAttachment: async (downloaded, metadataValue) => {
+                cached = { ...localRecord, id: 'local-b', blob: downloaded, ...metadataValue };
+                return { ok: true, record: cached };
+            },
+            deleteAttachment: async () => ({ ok: true })
+        } });
+    api.requests.length = 0;
+    const beforeOpen = await bSync.listPracticeAttachments('practice-a');
+    assert.equal(beforeOpen.records[0].cloudOnly, true);
+    assert.equal(api.requests.length, 0, 'remote metadata never downloads binary during startup/list rendering');
+    const opened = await bSync.ensurePracticeAttachment(logicalId);
+    assert.equal(opened.ok, true);
+    assert.equal(opened.record.id, 'local-b');
+    assert.equal(opened.record.logicalId, logicalId);
+    assert.equal(api.requests.filter((request) => request.method === 'GET').length, 1);
+});
+
+test('practice attachment deletion syncs the structured tombstone before delayed unreference', async () => {
+    const asset = metadata({
+        assetId: '123e4567-e89b-42d3-a456-426614174090', kind: 'practice_attachment_pdf',
+        hash: 'a'.repeat(64), mime: 'application/pdf', byteSize: 10, width: 1, height: 1,
+        ownerRecordId: 'practice-a', originalFilename: 'score.pdf'
+    }, 'available');
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] }),
+        'cruisePort.syncAssetMetadata': JSON.stringify({
+            version: 3, gear: {}, myApps: {}, attachments: {
+                '323e4567-e89b-42d3-a456-426614174090': {
+                    practiceId: 'practice-a', kind: 'file', mimeType: 'application/pdf', fileName: 'score.pdf',
+                    byteSize: 10, createdAt: '2026-09-18T01:00:00.000Z', updatedAt: '2026-09-18T01:00:00.000Z',
+                    published: { version: 1, availability: 'available', asset },
+                    binding: { assetId: asset.assetId, hash: asset.hash, localId: 'local-a' }, pending: null
+                }
+            }, releaseQueue: [], discardQueue: []
+        })
+    });
+    const api = assetApi();
+    const syncController = controller();
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAllAttachments: async () => ({ ok: true, records: [] }),
+            deleteAttachment: async () => ({ ok: true })
+        } });
+    assert.equal(sync.removePracticeAttachment({ id: 'local-a' }), true);
+    await sync.running;
+    assert.deepEqual(syncController.syncReasons, ['asset-release']);
+    assert.equal(api.requests.at(-1).path, '/v1/sync/assets/unreference');
+    assert.deepEqual(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).releaseQueue, []);
+});
+
+test('offline practice attachment remains local, then uploads and publishes when connectivity returns', async () => {
+    const previousNavigator = globalThis.navigator;
+    let online = false;
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, get: () => ({ onLine: online }) });
+    const file = new Blob(['offline notes'], { type: 'text/plain' });
+    const record = {
+        id: 'offline-local', practiceId: 'practice-offline', kind: 'file', blob: file,
+        mimeType: 'text/plain', fileName: 'offline.txt', byteSize: file.size,
+        createdAt: '2026-09-18T02:00:00.000Z', updatedAt: '2026-09-18T02:00:00.000Z'
+    };
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] })
+    });
+    const api = assetApi();
+    const syncController = controller();
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAllAttachments: async () => ({ ok: true, records: [record] })
+        } });
+    try {
+        assert.deepEqual(await sync.reconcile(), { ok: false, offline: true });
+        assert.equal(api.requests.length, 0);
+        assert.equal(local.getItem('cruisePort.syncAssetMetadata'), null);
+        online = true;
+        assert.equal((await sync.reconcile()).ok, true);
+        assert.deepEqual(syncController.syncReasons, ['attachment-owner', 'asset-reference']);
+        assert.equal(api.requests.some((request) => request.method === 'PUT'), true);
+        const metadataValue = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+        assert.equal(Object.values(metadataValue.attachments).length, 1);
+        assert.equal(Object.values(metadataValue.attachments)[0].binding.localId, 'offline-local');
+    } finally {
+        Object.defineProperty(globalThis, 'navigator', { configurable: true, value: previousNavigator });
+    }
+});
+
+test('practice upload response loss retries the same logical asset and operation without duplication', async () => {
+    const file = new Blob(['retry notes'], { type: 'text/plain' });
+    const record = {
+        id: 'retry-local', practiceId: 'practice-retry', kind: 'file', blob: file,
+        mimeType: 'text/plain', fileName: 'retry.txt', byteSize: file.size,
+        createdAt: '2026-09-18T03:00:00.000Z', updatedAt: '2026-09-18T03:00:00.000Z'
+    };
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] })
+    });
+    const api = assetApi();
+    const prepareBodies = [];
+    let loseFirstCommit = true;
+    const fetchImpl = async (url, options) => {
+        const path = new URL(url).pathname;
+        if (path === '/v1/sync/assets/prepare') prepareBodies.push(JSON.parse(options.body));
+        if (path === '/v1/sync/assets/commit' && loseFirstCommit) {
+            loseFirstCommit = false;
+            throw new Error('response-lost');
+        }
+        return api.fetch(url, options);
+    };
+    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl,
+        gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAllAttachments: async () => ({ ok: true, records: [record] })
+        } });
+    await assert.rejects(sync.reconcile(), /response-lost/);
+    assert.equal((await sync.reconcile()).ok, true);
+    assert.equal(prepareBodies.length, 2);
+    assert.equal(prepareBodies[0].assetId, prepareBodies[1].assetId);
+    assert.equal(prepareBodies[0].operationId, prepareBodies[1].operationId);
+    const metadataValue = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+    assert.equal(Object.keys(metadataValue.attachments).length, 1);
+    assert.equal(Object.values(metadataValue.attachments)[0].published.asset.assetId, prepareBodies[0].assetId);
 });

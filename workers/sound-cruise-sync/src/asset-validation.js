@@ -2,7 +2,19 @@ export const ASSET_KINDS = Object.freeze({
   gear_photo_final: Object.freeze({ maxBytes: 1024 * 1024, width: 512, height: 512 }),
   gear_photo_source: Object.freeze({ maxBytes: 8 * 1024 * 1024, maxDimension: 1024 }),
   my_app_icon_final: Object.freeze({ maxBytes: 512 * 1024, width: 256, height: 256 }),
-  my_app_icon_source: Object.freeze({ maxBytes: 8 * 1024 * 1024, maxDimension: 1024 })
+  my_app_icon_source: Object.freeze({ maxBytes: 8 * 1024 * 1024, maxDimension: 1024 }),
+  practice_attachment_image: Object.freeze({
+    maxBytes: 15 * 1024 * 1024, storageCategory: 'practice_attachment',
+    mimeTypes: Object.freeze(['image/webp', 'image/png', 'image/jpeg'])
+  }),
+  practice_attachment_pdf: Object.freeze({
+    maxBytes: 20 * 1024 * 1024, storageCategory: 'practice_attachment',
+    mimeTypes: Object.freeze(['application/pdf']), width: 1, height: 1
+  }),
+  practice_attachment_text: Object.freeze({
+    maxBytes: 20 * 1024 * 1024, storageCategory: 'practice_attachment',
+    mimeTypes: Object.freeze(['text/plain']), width: 1, height: 1
+  })
 });
 
 export const ASSET_STORAGE_CATEGORY = 'image';
@@ -10,6 +22,12 @@ export const ASSET_QUOTA = Object.freeze({
   maxBytes: 1024 * 1024 * 1024,
   maxCount: 1000,
   dailyNewVariants: 200
+});
+export const PRACTICE_ATTACHMENT_QUOTA = Object.freeze({
+  maxBytes: 2 * 1024 * 1024 * 1024,
+  maxCount: 10000,
+  countPerPractice: 10,
+  dailyNewVariants: 500
 });
 export const GLOBAL_ASSET_QUOTA = Object.freeze({ dailyNewVariants: 50000, hardStopBytes: 1024 ** 4 });
 export const GLOBAL_STORAGE_GUARDS = Object.freeze([
@@ -21,22 +39,60 @@ export const ASSET_MIME_TYPES = Object.freeze(['image/webp', 'image/png', 'image
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const HASH = /^[0-9a-f]{64}$/u;
+const SAFE_RECORD_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u;
+const CONTROL_CHARACTERS = /[\u0000-\u001f\u007f-\u009f]/u;
+
+export function assetStorageCategory(kind) {
+  return ASSET_KINDS[kind]?.storageCategory || ASSET_STORAGE_CATEGORY;
+}
+
+function normalizeOriginalFilename(value) {
+  if (typeof value !== 'string') return null;
+  const normalized = value.normalize('NFC').trim();
+  if (!normalized || normalized.length > 255 || CONTROL_CHARACTERS.test(normalized) || /[\\/]/u.test(normalized)) return null;
+  return normalized;
+}
 
 export function validateAssetPrepare(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) || value.appId !== 'port' ||
       !UUID.test(value.assetId || '') || !UUID.test(value.operationId || '') ||
       !HASH.test(value.hash || '') || !Object.hasOwn(ASSET_KINDS, value.kind) ||
-      !ASSET_MIME_TYPES.includes(value.mime) || !Number.isInteger(value.byteSize) ||
+      !Number.isInteger(value.byteSize) ||
       !Number.isInteger(value.width) || !Number.isInteger(value.height)) return null;
   const rule = ASSET_KINDS[value.kind];
+  const allowedMimeTypes = rule.mimeTypes || ASSET_MIME_TYPES;
+  if (!allowedMimeTypes.includes(value.mime)) return null;
   if (value.byteSize < 1 || value.byteSize > rule.maxBytes || value.width < 1 || value.height < 1) return null;
   if (rule.width && (value.width !== rule.width || value.height !== rule.height)) return null;
   if (rule.maxDimension && Math.max(value.width, value.height) > rule.maxDimension) return null;
+  const practice = assetStorageCategory(value.kind) === 'practice_attachment';
+  const ownerRecordId = practice && SAFE_RECORD_ID.test(value.ownerRecordId || '') ? value.ownerRecordId : null;
+  const originalFilename = practice ? normalizeOriginalFilename(value.originalFilename) : null;
+  if (practice && (!ownerRecordId || !originalFilename)) return null;
+  if (!practice && (value.ownerRecordId !== undefined || value.originalFilename !== undefined)) return null;
   return Object.freeze({
     appId: 'port', assetId: value.assetId, operationId: value.operationId,
     kind: value.kind, hash: value.hash, mime: value.mime,
-    byteSize: value.byteSize, width: value.width, height: value.height
+    byteSize: value.byteSize, width: value.width, height: value.height,
+    storageCategory: assetStorageCategory(value.kind),
+    ...(practice ? { ownerRecordType: 'practice_menu', ownerRecordId, originalFilename } : {})
   });
+}
+
+export function inspectAssetContent(bytes, kind) {
+  if (!(bytes instanceof Uint8Array) || !Object.hasOwn(ASSET_KINDS, kind)) return null;
+  if (kind === 'practice_attachment_pdf') {
+    const header = new TextDecoder('ascii').decode(bytes.slice(0, 5));
+    return header === '%PDF-' ? Object.freeze({ mime: 'application/pdf', width: 1, height: 1 }) : null;
+  }
+  if (kind === 'practice_attachment_text') {
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+      if (text.includes('\u0000')) return null;
+      return Object.freeze({ mime: 'text/plain', width: 1, height: 1 });
+    } catch { return null; }
+  }
+  return inspectImageMetadata(bytes);
 }
 
 export function validateAssetCommit(value) {

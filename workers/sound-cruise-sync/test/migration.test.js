@@ -29,6 +29,7 @@ const migration22 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration23 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0023_add_asset_quota_and_account_activity.sql'), 'utf8');
 const migration24 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0024_add_auto_rejoin_handoffs.sql'), 'utf8');
 const migration25 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0025_add_app_sync_safety.sql'), 'utf8');
+const migration26 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0026_add_practice_attachment_assets.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -50,7 +51,7 @@ function migrateThrough17(db) {
   db.exec(migration17);
 }
 
-function migrate(db) {
+function migrateThrough25(db) {
   migrateThrough17(db);
   db.exec(migration18);
   db.exec(migration19);
@@ -60,6 +61,11 @@ function migrate(db) {
   db.exec(migration23);
   db.exec(migration24);
   db.exec(migration25);
+}
+
+function migrate(db) {
+  migrateThrough25(db);
+  db.exec(migration26);
 }
 
 function migrateThrough20(db) {
@@ -147,9 +153,11 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_port_join_active_issuer'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_port_device_operations_account'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_assets_cleanup'").get());
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_assets_practice_owner'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_account_activity_lifecycle'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_app_device_sync_safety_membership'").get());
   assert(db.prepare('SELECT storage_category FROM sync_assets LIMIT 1'));
+  assert(db.prepare('SELECT owner_record_type, owner_record_id, original_filename FROM sync_assets LIMIT 1'));
   assert.match(db.prepare(`SELECT sql FROM sqlite_master
     WHERE type = 'table' AND name = 'sync_account_memberships'`).get().sql, /'port'/);
   assert.match(db.prepare(`SELECT sql FROM sqlite_master
@@ -193,6 +201,34 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     account_recovery_enabled: 0, account_delete_enabled: 0,
     port_orchestration_enabled: 0, generation: 1
   });
+  db.close();
+});
+
+test('M26 preserves existing image assets and idempotency operations while adding practice ownership', () => {
+  const db = new DatabaseSync(':memory:');
+  migrateThrough25(db);
+  db.prepare(`INSERT INTO sync_assets (
+    asset_id, account_id, membership_id, sync_user_id, kind, state, storage_category,
+    content_hash, mime_type, byte_size, width, height, object_key, object_version,
+    created_by_device_id, created_at, updated_at, uploaded_at, committed_at
+  ) VALUES ('123e4567-e89b-42d3-a456-426614174200', 'account-a', 'membership-a', 'user-a',
+    'gear_photo_final', 'available', 'image', ?, 'image/webp', 12, 512, 512,
+    'assets/existing-image', 1, 'device-a', 1, 2, 2, 2)`).run('a'.repeat(64));
+  db.prepare(`INSERT INTO sync_asset_operations (
+    operation_id, asset_id, account_id, sync_user_id, app_device_id,
+    request_fingerprint, created_at, updated_at
+  ) VALUES ('223e4567-e89b-42d3-a456-426614174200',
+    '123e4567-e89b-42d3-a456-426614174200', 'account-a', 'user-a', 'device-a', ?, 1, 2)`)
+    .run('b'.repeat(64));
+  db.exec(migration26);
+  const asset = db.prepare(`SELECT kind, state, storage_category, owner_record_type,
+    owner_record_id, original_filename FROM sync_assets`).get();
+  assert.deepEqual({ ...asset }, {
+    kind: 'gear_photo_final', state: 'available', storage_category: 'image',
+    owner_record_type: null, owner_record_id: null, original_filename: null
+  });
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM sync_asset_operations').get().count, 1);
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
   db.close();
 });
 

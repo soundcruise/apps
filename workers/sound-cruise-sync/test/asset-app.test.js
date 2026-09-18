@@ -32,6 +32,15 @@ function seed() {
   return db;
 }
 
+function addPractice(db, id = 'practice-a') {
+  db.raw.prepare(`INSERT INTO sync_records (
+    user_id, app_id, record_type, record_id, payload_json, payload_hash, revision,
+    updated_at, updated_by_device_id, last_operation_id, schema_version
+  ) VALUES ('port-user-a', 'port', 'practice_menu', ?, '{}', ?, 1, 1,
+    '323e4567-e89b-42d3-a456-426614174000', ?, 1)`)
+    .run(id, '4'.repeat(64), `practice-${id}`);
+}
+
 function bucket() {
   const objects = new Map();
   return {
@@ -111,6 +120,110 @@ test('private asset API performs prepare/upload/commit/download without exposing
   }), environment(db, r2), null, deps());
   assert.equal((await retry.json()).phase, 'available');
   assert.equal(r2.objects.size, 1, 'response-loss retry does not create duplicate objects');
+  db.close();
+});
+
+test('practice PDF is private, owner-scoped, downloadable by filename, and rejects spoofed bytes', async () => {
+  const db = seed();
+  addPractice(db);
+  const r2 = bucket();
+  const bytes = new TextEncoder().encode('%PDF-1.7\npractice score');
+  const hash = await sha256Hex(bytes);
+  const common = {
+    appId: 'port', assetId: '123e4567-e89b-42d3-a456-426614174030',
+    operationId: '223e4567-e89b-42d3-a456-426614174030', hash
+  };
+  let response = await handleRequest(jsonRequest('/v1/sync/assets/prepare', {
+    ...common, kind: 'practice_attachment_pdf', mime: 'application/pdf',
+    byteSize: bytes.length, width: 1, height: 1,
+    ownerRecordId: 'practice-a', originalFilename: "譜面's.pdf"
+  }), environment(db, r2), null, deps());
+  assert.equal(response.status, 201);
+  response = await handleRequest(new Request(`https://sync.example/v1/sync/assets/${common.assetId}/content`, {
+    method: 'PUT', headers: { Origin: ORIGIN, Authorization: `Bearer ${credential}`,
+      'Content-Type': 'application/pdf', 'X-Sound-Cruise-Operation-Id': common.operationId,
+      'X-Content-SHA256': hash }, body: bytes
+  }), environment(db, r2), null, deps());
+  assert.equal(response.status, 200);
+  response = await handleRequest(jsonRequest('/v1/sync/assets/commit', common), environment(db, r2), null, deps());
+  assert.equal(response.status, 200);
+  response = await handleRequest(new Request(`https://sync.example/v1/sync/assets/${common.assetId}`, {
+    headers: { Origin: ORIGIN, Authorization: `Bearer ${credential}` }
+  }), environment(db, r2), null, deps());
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('Cache-Control'), 'private, no-store');
+  assert.equal(response.headers.get('X-Content-Type-Options'), 'nosniff');
+  assert.match(response.headers.get('Content-Disposition'), /^attachment; filename\*=UTF-8''/u);
+  assert.match(response.headers.get('Content-Disposition'), /%27/u, 'special filename characters stay header-safe');
+
+  const unsafeBytes = new TextEncoder().encode('<html><script>alert(1)</script>');
+  const unsafeHash = await sha256Hex(unsafeBytes);
+  const unsafe = {
+    appId: 'port', assetId: '123e4567-e89b-42d3-a456-426614174031',
+    operationId: '223e4567-e89b-42d3-a456-426614174031', hash: unsafeHash
+  };
+  response = await handleRequest(jsonRequest('/v1/sync/assets/prepare', {
+    ...unsafe, kind: 'practice_attachment_pdf', mime: 'application/pdf',
+    byteSize: unsafeBytes.length, width: 1, height: 1,
+    ownerRecordId: 'practice-a', originalFilename: 'unsafe.pdf'
+  }), environment(db, r2), null, deps());
+  assert.equal(response.status, 201);
+  response = await handleRequest(new Request(`https://sync.example/v1/sync/assets/${unsafe.assetId}/content`, {
+    method: 'PUT', headers: { Origin: ORIGIN, Authorization: `Bearer ${credential}`,
+      'Content-Type': 'application/pdf', 'X-Sound-Cruise-Operation-Id': unsafe.operationId,
+      'X-Content-SHA256': unsafeHash }, body: unsafeBytes
+  }), environment(db, r2), null, deps());
+  assert.equal(response.status, 415);
+  assert.equal(r2.objects.size, 1, 'spoofed content is never written to R2');
+
+  response = await handleRequest(jsonRequest('/v1/sync/assets/prepare', {
+    appId: 'port', assetId: '123e4567-e89b-42d3-a456-426614174032',
+    operationId: '223e4567-e89b-42d3-a456-426614174032', hash: 'a'.repeat(64),
+    kind: 'practice_attachment_text', mime: 'text/plain', byteSize: 4, width: 1, height: 1,
+    ownerRecordId: 'missing-practice', originalFilename: 'note.txt'
+  }), environment(db, r2), null, deps());
+  assert.equal(response.status, 409);
+  assert.equal((await response.json()).code, 'practice_relation_missing');
+  db.close();
+});
+
+test('practice image and UTF-8 text complete the same private upload contract', async () => {
+  const db = seed();
+  addPractice(db);
+  const r2 = bucket();
+  const variants = [
+    {
+      assetId: '123e4567-e89b-42d3-a456-426614174040',
+      operationId: '223e4567-e89b-42d3-a456-426614174040',
+      kind: 'practice_attachment_image', mime: 'image/webp', filename: 'photo.webp',
+      bytes: webp(32, 24), width: 32, height: 24
+    },
+    {
+      assetId: '123e4567-e89b-42d3-a456-426614174041',
+      operationId: '223e4567-e89b-42d3-a456-426614174041',
+      kind: 'practice_attachment_text', mime: 'text/plain', filename: 'notes.txt',
+      bytes: new TextEncoder().encode('練習メモ'), width: 1, height: 1
+    }
+  ];
+  for (const variant of variants) {
+    const hash = await sha256Hex(variant.bytes);
+    const common = { appId: 'port', assetId: variant.assetId, operationId: variant.operationId, hash };
+    let response = await handleRequest(jsonRequest('/v1/sync/assets/prepare', {
+      ...common, kind: variant.kind, mime: variant.mime, byteSize: variant.bytes.length,
+      width: variant.width, height: variant.height,
+      ownerRecordId: 'practice-a', originalFilename: variant.filename
+    }), environment(db, r2), null, deps());
+    assert.equal(response.status, 201, variant.kind);
+    response = await handleRequest(new Request(`https://sync.example/v1/sync/assets/${variant.assetId}/content`, {
+      method: 'PUT', headers: { Origin: ORIGIN, Authorization: `Bearer ${credential}`,
+        'Content-Type': variant.mime, 'X-Sound-Cruise-Operation-Id': variant.operationId,
+        'X-Content-SHA256': hash }, body: variant.bytes
+    }), environment(db, r2), null, deps());
+    assert.equal(response.status, 200, variant.kind);
+    response = await handleRequest(jsonRequest('/v1/sync/assets/commit', common), environment(db, r2), null, deps());
+    assert.equal(response.status, 200, variant.kind);
+  }
+  assert.equal(r2.objects.size, 2);
   db.close();
 });
 

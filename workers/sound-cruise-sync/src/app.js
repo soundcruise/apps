@@ -21,7 +21,7 @@ import { decodeCursor, encodeCursor } from './records.js';
 import { createD1SyncRepository } from './sync-database.js';
 import { createD1AssetRepository } from './asset-database.js';
 import {
-  ASSET_KINDS, inspectImageMetadata, sha256Hex,
+  ASSET_KINDS, inspectAssetContent, sha256Hex,
   validateAssetCommit, validateAssetPrepare, validateAssetUnreference
 } from './asset-validation.js';
 import { verifyTurnstileToken } from './turnstile.js';
@@ -275,12 +275,18 @@ async function assetContext(request, env, dependencies) {
 async function fingerprintAsset(input) {
   return sha256Hex(new TextEncoder().encode(JSON.stringify([
     input.assetId, input.operationId, input.kind, input.hash, input.mime,
-    input.byteSize, input.width, input.height
+    input.byteSize, input.width, input.height, input.storageCategory,
+    input.ownerRecordType || null, input.ownerRecordId || null, input.originalFilename || null
   ])));
 }
 
 function assetRepository(context, dependencies) {
   return (dependencies.createAssetRepository || createD1AssetRepository)(context.session);
+}
+
+function encodeContentDispositionFilename(value) {
+  return encodeURIComponent(value).replace(/[!'()*]/gu, (character) =>
+    `%${character.charCodeAt(0).toString(16).toUpperCase()}`);
 }
 
 async function handleAssetPrepare(request, env, origin, route, dependencies) {
@@ -301,6 +307,8 @@ async function handleAssetPrepare(request, env, origin, route, dependencies) {
       now: Date.now()
     });
     if (result.status === 'quota') return errorResponse(409, 'asset_quota_exceeded', origin, route);
+    if (result.status === 'practice_limit') return errorResponse(409, 'practice_attachment_limit_exceeded', origin, route);
+    if (result.status === 'relation_missing') return errorResponse(409, 'practice_relation_missing', origin, route);
     if (result.status === 'account_rate_limited' || result.status === 'global_rate_limited') {
       return errorResponse(429, result.status, origin, route, { 'Retry-After': '86400' });
     }
@@ -335,7 +343,7 @@ async function handleAssetUpload(request, env, origin, route, dependencies, asse
     if (bytes.byteLength !== Number(target.byte_size) || bytes.byteLength > ASSET_KINDS[target.kind].maxBytes) {
       return errorResponse(400, 'asset_size_mismatch', origin, route);
     }
-    const detected = inspectImageMetadata(bytes);
+    const detected = inspectAssetContent(bytes, target.kind);
     if (!detected || detected.mime !== target.mime_type || request.headers.get('Content-Type') !== target.mime_type) {
       return errorResponse(415, 'asset_mime_invalid', origin, route);
     }
@@ -406,6 +414,9 @@ async function handleAssetDownload(request, env, origin, route, dependencies, as
     headers.set('Cache-Control', 'private, no-store');
     headers.set('X-Content-Type-Options', 'nosniff');
     headers.set('X-Asset-SHA256', row.content_hash);
+    headers.set('Content-Disposition', `attachment; filename*=UTF-8''${encodeContentDispositionFilename(
+      row.original_filename || 'sound-cruise-file'
+    )}`);
     return new Response(object.body, { status: 200, headers });
   } catch {
     return errorResponse(503, 'server_error', origin, route);

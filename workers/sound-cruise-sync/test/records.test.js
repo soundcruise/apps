@@ -246,6 +246,16 @@ test('Port registry accepts structured text records and stays isolated from the 
     ['calendar_event', 'event-1', { id: 'event-1', text: '練習' }],
     ['practice_menu', 'menu-1', { id: 'menu-1', name: '基礎' }],
     ['practice_menu_order', 'default', ['menu-1']],
+    ['practice_attachment', '323e4567-e89b-42d3-a456-426614174000', {
+      practiceId: 'menu-1', fileName: 'score.pdf', kind: 'file', mimeType: 'application/pdf', byteSize: 20,
+      createdAt: '2026-09-18T01:00:00.000Z', updatedAt: '2026-09-18T01:00:00.000Z',
+      asset: {
+        assetId: '423e4567-e89b-42d3-a456-426614174000', kind: 'practice_attachment_pdf', hash: 'a'.repeat(64),
+        mime: 'application/pdf', byteSize: 20, width: 1, height: 1, objectVersion: 1,
+        availability: 'available', ownerRecordId: 'menu-1', originalFilename: 'score.pdf'
+      }
+    }],
+    ['practice_attachment_set', 'menu-1', ['323e4567-e89b-42d3-a456-426614174000']],
     ['practice_history_event', 'history-1', { id: 'history-1', type: 'cycle-completed' }],
     ['practice_cycle', 'current', { cycleId: 'cycle-1' }],
     ['my_app', 'app-1', { item: { id: 'app-1', name: 'Music' }, asset: { present: false, crop: null } }],
@@ -270,7 +280,17 @@ test('Port registry rejects binary, secret-shaped, oversized and invalid-ID payl
     ['settings', 'global', { image: 'data:image/png;base64,AAAA' }],
     ['gear_item', 'bad id', { name: 'bad' }],
     ['gear_order', 'other', []],
-    ['settings', 'wrong', { displaySize: 'small' }]
+    ['settings', 'wrong', { displaySize: 'small' }],
+    ['practice_attachment_set', 'menu-1', Array(11).fill('323e4567-e89b-42d3-a456-426614174000')],
+    ['practice_attachment', '323e4567-e89b-42d3-a456-426614174000', {
+      practiceId: 'menu-1', fileName: 'unsafe.html', kind: 'file', mimeType: 'text/html', byteSize: 20,
+      createdAt: '2026-09-18T01:00:00.000Z', updatedAt: '2026-09-18T01:00:00.000Z',
+      asset: {
+        assetId: '423e4567-e89b-42d3-a456-426614174000', kind: 'practice_attachment_text', hash: 'a'.repeat(64),
+        mime: 'text/plain', byteSize: 20, width: 1, height: 1, objectVersion: 1,
+        availability: 'available', ownerRecordId: 'menu-1', originalFilename: 'unsafe.html'
+      }
+    }]
   ];
   for (const [recordType, recordId, value] of cases) {
     const input = {

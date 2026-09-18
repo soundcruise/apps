@@ -1,21 +1,25 @@
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';
-const VERSION = 2;
+const VERSION = 3;
 const MAX_ITEMS_PER_PASS = 4;
 
 function clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
 function parse(storage, key, fallback) {
     try { return JSON.parse(storage.getItem(key) || '') || clone(fallback); } catch (_) { return clone(fallback); }
 }
-function emptyMetadata() { return { version: VERSION, gear: {}, myApps: {}, releaseQueue: [] }; }
+function emptyMetadata() {
+    return { version: VERSION, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [] };
+}
 function normalizeMetadata(value) {
-    if (!value || value.version !== VERSION) return emptyMetadata();
+    if (!value || ![2, VERSION].includes(value.version)) return emptyMetadata();
     return {
         version: VERSION,
         gear: value.gear && typeof value.gear === 'object' ? clone(value.gear) : {},
         myApps: value.myApps && typeof value.myApps === 'object' ? clone(value.myApps) : {},
-        releaseQueue: Array.isArray(value.releaseQueue) ? [...new Set(value.releaseQueue.filter(Boolean))] : []
+        attachments: value.attachments && typeof value.attachments === 'object' ? clone(value.attachments) : {},
+        releaseQueue: Array.isArray(value.releaseQueue) ? [...new Set(value.releaseQueue.filter(Boolean))] : [],
+        discardQueue: Array.isArray(value.discardQueue) ? [...new Set(value.discardQueue.filter(Boolean))] : []
     };
 }
 function assetIds(asset) {
@@ -26,13 +30,20 @@ async function hashBlob(blob, cryptoImpl = globalThis.crypto) {
     const digest = await cryptoImpl.subtle.digest('SHA-256', await blob.arrayBuffer());
     return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
+function practiceAssetKind(record) {
+    if (record?.kind === 'image') return 'practice_attachment_image';
+    if (record?.mimeType === 'application/pdf') return 'practice_attachment_pdf';
+    if (record?.mimeType === 'text/plain') return 'practice_attachment_text';
+    return null;
+}
 
 export class PortAssetSync {
-    constructor({ controller, gearPhotoStore, myAppsIconStore, storage = globalThis.localStorage,
+    constructor({ controller, gearPhotoStore, myAppsIconStore, practiceAttachmentStore, storage = globalThis.localStorage,
         fetchImpl = globalThis.fetch?.bind(globalThis), cryptoImpl = globalThis.crypto } = {}) {
         this.controller = controller;
         this.gearPhotoStore = gearPhotoStore;
         this.myAppsIconStore = myAppsIconStore;
+        this.practiceAttachmentStore = practiceAttachmentStore;
         this.storage = storage;
         this.fetchImpl = fetchImpl;
         this.cryptoImpl = cryptoImpl;
@@ -89,7 +100,13 @@ export class PortAssetSync {
 
     schedule(reason) {
         if (this.running) { this.pendingAgain = true; return this.running; }
-        this.running = Promise.resolve().then(() => this.reconcile(reason)).catch(() => ({ ok: false }))
+        this.running = Promise.resolve().then(() => this.reconcile(reason)).catch((error) => {
+            const code = typeof error?.message === 'string' ? error.message : 'asset_sync_failed';
+            if (typeof globalThis.CustomEvent === 'function') {
+                globalThis.dispatchEvent?.(new CustomEvent('cruise-port-asset-sync-error', { detail: { code } }));
+            }
+            return { ok: false, code };
+        })
             .finally(() => {
                 this.running = null;
                 if (this.pendingAgain) { this.pendingAgain = false; this.schedule('pending'); }
@@ -123,11 +140,12 @@ export class PortAssetSync {
     async dimensions(blob, kind) {
         if (kind === 'gear_photo_final') return { width: 512, height: 512 };
         if (kind === 'my_app_icon_final') return { width: 256, height: 256 };
+        if (kind === 'practice_attachment_pdf' || kind === 'practice_attachment_text') return { width: 1, height: 1 };
         const image = await globalThis.createImageBitmap(blob);
         try { return { width: image.width, height: image.height }; } finally { image.close?.(); }
     }
 
-    async upload(record, kind, pending = null) {
+    async upload(record, kind, pending = null, owner = null) {
         if (!record?.blob) throw new Error('asset_local_missing');
         const hash = await hashBlob(record.blob, this.cryptoImpl);
         const dimensions = record.width && record.height
@@ -139,7 +157,8 @@ export class PortAssetSync {
         const request = {
             appId: 'port', assetId: operation.assetId, operationId: operation.operationId,
             kind, hash, mime: record.mimeType || record.blob.type, byteSize: record.blob.size,
-            width: dimensions.width, height: dimensions.height
+            width: dimensions.width, height: dimensions.height,
+            ...(owner ? { ownerRecordId: owner.practiceId, originalFilename: owner.fileName } : {})
         };
         const prepared = await this.json('/v1/sync/assets/prepare', request);
         if (prepared.phase !== 'available') {
@@ -261,6 +280,80 @@ export class PortAssetSync {
         return true;
     }
 
+    async listPracticeAttachments(practiceId) {
+        const local = await this.practiceAttachmentStore?.getAttachments(practiceId);
+        if (!local?.ok) return { ok: false, records: [], reason: local?.reason || 'read-failed' };
+        const metadata = this.readMetadata();
+        const localById = new Map(local.records.map((record) => [record.id, record]));
+        const records = [];
+        for (const [logicalId, entry] of Object.entries(metadata.attachments)) {
+            if (entry.practiceId !== practiceId || !entry.published?.asset || entry.published.availability !== 'available') continue;
+            const cached = entry.binding?.localId ? localById.get(entry.binding.localId) : null;
+            if (cached) localById.delete(cached.id);
+            records.push(cached ? { ...cached, logicalId } : {
+                id: logicalId, logicalId, practiceId: entry.practiceId, kind: entry.kind,
+                mimeType: entry.mimeType, fileName: entry.fileName, byteSize: entry.byteSize,
+                createdAt: entry.createdAt, updatedAt: entry.updatedAt, blob: null, cloudOnly: true
+            });
+        }
+        localById.forEach((record) => records.push({ ...record, logicalId: null }));
+        records.sort((left, right) => String(left.createdAt).localeCompare(String(right.createdAt)));
+        return { ok: true, records };
+    }
+
+    async ensurePracticeAttachment(id) {
+        const metadata = this.readMetadata();
+        const pair = Object.entries(metadata.attachments).find(([logicalId, entry]) =>
+            logicalId === id || entry.binding?.localId === id);
+        if (!pair) return this.practiceAttachmentStore?.getAttachment(id);
+        const [logicalId, entry] = pair;
+        if (entry.binding?.localId) {
+            const cached = await this.practiceAttachmentStore.getAttachment(entry.binding.localId);
+            if (cached?.record) return { ok: true, record: { ...cached.record, logicalId } };
+        }
+        if (!entry.published?.asset || entry.published.availability !== 'available') {
+            return { ok: false, record: null, reason: 'not-available' };
+        }
+        const blob = await this.download(entry.published.asset);
+        const saved = await this.practiceAttachmentStore.cacheAttachment(blob, entry);
+        if (!saved.ok) return { ok: false, record: null, reason: saved.reason || 'write-failed' };
+        entry.binding = { assetId: entry.published.asset.assetId, hash: entry.published.asset.hash, localId: saved.record.id };
+        metadata.attachments[logicalId] = entry;
+        this.writeMetadata(metadata);
+        return { ok: true, record: { ...saved.record, logicalId } };
+    }
+
+    removePracticeAttachment({ id, logicalId = null } = {}) {
+        const metadata = this.readMetadata();
+        const pair = Object.entries(metadata.attachments).find(([candidateId, entry]) =>
+            candidateId === logicalId || candidateId === id || entry.binding?.localId === id);
+        if (!pair) return false;
+        const [candidateId, entry] = pair;
+        if (entry.published?.asset?.assetId) metadata.releaseQueue.push(entry.published.asset.assetId);
+        delete metadata.attachments[candidateId];
+        metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
+        this.writeMetadata(metadata);
+        this.schedule('attachment-delete');
+        return true;
+    }
+
+    removePracticeAttachments(practiceId) {
+        const metadata = this.readMetadata();
+        let changed = false;
+        for (const [logicalId, entry] of Object.entries(metadata.attachments)) {
+            if (entry.practiceId !== practiceId) continue;
+            if (entry.published?.asset?.assetId) metadata.releaseQueue.push(entry.published.asset.assetId);
+            delete metadata.attachments[logicalId];
+            changed = true;
+        }
+        if (changed) {
+            metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
+            this.writeMetadata(metadata);
+            this.schedule('practice-delete');
+        }
+        return changed;
+    }
+
     async reconcile() {
         if (!this.controller?.enabled || globalThis.navigator?.onLine === false) return { ok: false, offline: true };
         const metadata = this.readMetadata();
@@ -270,6 +363,11 @@ export class PortAssetSync {
         let publishedChanged = false;
         let hydrated = false;
         let processed = 0;
+        if (metadata.discardQueue.length && this.practiceAttachmentStore) {
+            for (const localId of metadata.discardQueue) await this.practiceAttachmentStore.deleteAttachment(localId);
+            metadata.discardQueue = [];
+            changedMetadata = true;
+        }
         const process = async (items, bucketName, kind) => {
             for (const item of items) {
                 if (processed >= MAX_ITEMS_PER_PASS) { this.pendingAgain = true; break; }
@@ -299,6 +397,51 @@ export class PortAssetSync {
         };
         await process(gearData.items || [], 'gear', 'gear');
         await process(appData.items || [], 'myApps', 'myApps');
+        const localAttachments = await this.practiceAttachmentStore?.getAllAttachments();
+        if (localAttachments?.ok) {
+            let ownerSynced = false;
+            for (const record of localAttachments.records) {
+                if (processed >= MAX_ITEMS_PER_PASS) { this.pendingAgain = true; break; }
+                let pair = Object.entries(metadata.attachments).find(([, entry]) =>
+                    entry.binding?.localId === record.id || entry.pending?.localId === record.id);
+                const logicalId = pair?.[0] || uuid();
+                const entry = pair?.[1] || {
+                    practiceId: record.practiceId, kind: record.kind, mimeType: record.mimeType,
+                    fileName: record.fileName, byteSize: record.byteSize,
+                    createdAt: record.createdAt, updatedAt: record.updatedAt || record.createdAt,
+                    published: null, binding: null, pending: null
+                };
+                if (entry.published?.asset && entry.binding?.localId === record.id &&
+                    entry.binding.hash === entry.published.asset.hash) continue;
+                const assetKind = practiceAssetKind(record);
+                if (!assetKind) continue;
+                if (!ownerSynced) {
+                    const ownerResult = await this.controller.sync('attachment-owner');
+                    if (ownerResult?.ok === false) return { ok: false, code: ownerResult.code || 'attachment_owner_sync_failed' };
+                    ownerSynced = true;
+                }
+                processed += 1;
+                entry.pending = entry.pending?.localId === record.id ? entry.pending : {
+                    localId: record.id, assetId: uuid(), operationId: uuid(),
+                    hash: await hashBlob(record.blob, this.cryptoImpl)
+                };
+                metadata.attachments[logicalId] = entry;
+                this.writeMetadata(metadata);
+                const uploaded = await this.upload(record, assetKind, entry.pending, {
+                    practiceId: record.practiceId, fileName: record.fileName
+                });
+                if (entry.published?.asset?.assetId && entry.published.asset.assetId !== uploaded.asset.assetId) {
+                    metadata.releaseQueue.push(entry.published.asset.assetId);
+                }
+                entry.published = { version: 1, availability: 'available', asset: uploaded.asset };
+                entry.binding = { assetId: uploaded.asset.assetId, hash: uploaded.asset.hash, localId: record.id };
+                entry.pending = null;
+                entry.updatedAt = record.updatedAt || record.createdAt;
+                metadata.attachments[logicalId] = entry;
+                changedMetadata = true;
+                publishedChanged = true;
+            }
+        }
         if (changedMetadata) {
             metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
             this.writeMetadata(metadata);
