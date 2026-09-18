@@ -25,4 +25,19 @@ export function assertStorageUnchanged(storage, keys) {
 
 export function acceptStorageValues(storage, keys) {
     keys.forEach((key) => readStorageValue(storage, key));
+    let defaultStorage = null;
+    try { defaultStorage = globalThis.localStorage; } catch (_) { /* storage remains usable through the explicit handle */ }
+    if (defaultStorage && storage === defaultStorage) {
+        const managed = globalThis.SoundCruisePortSync?.MANAGED_KEYS || [];
+        if (keys.some((key) => managed.includes(key))) {
+            globalThis.SoundCruiseMultiAppSync?.notifyLocalSave?.('port');
+        }
+    }
 }
+
+export function acceptRemoteStorageValues(storage, keys) {
+    keys.forEach((key) => readStorageValue(storage, key));
+}
+
+globalThis.SoundCruisePortSync = globalThis.SoundCruisePortSync || {};
+globalThis.SoundCruisePortSync.acceptRemoteStorageValues = acceptRemoteStorageValues;

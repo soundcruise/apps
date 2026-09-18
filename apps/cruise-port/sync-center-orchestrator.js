@@ -1,6 +1,6 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.40.10';
-import { createPortAccountJoin } from './port-account-join.js?v=0.40.10';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.41.0';
+import { createPortAccountJoin } from './port-account-join.js?v=0.41.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -12,7 +12,8 @@ export function createSyncCenterOrchestrator({
         if (config?.qaAdmissionRequired) url.searchParams.set('sound-cruise-qa', '1');
         return url.toString();
     },
-    deviceLabel = () => 'Cruise Port'
+    deviceLabel = () => 'Cruise Port',
+    portSync = null
 } = {}) {
     if (!config?.enabled || !accountRoot?.AccountClient || !accountRoot?.core || !accountRoot?.storage) {
         return Object.freeze({ enabled: false });
@@ -72,6 +73,7 @@ export function createSyncCenterOrchestrator({
                     material: accountMaterial, recoverySaved: true
                 });
                 accountMaterial = null;
+                await portSync?.ensure?.();
                 return result;
             })();
             try { return await accountStartPromise; }
@@ -80,19 +82,32 @@ export function createSyncCenterOrchestrator({
         discardAccountCandidate() { accountMaterial = null; },
         async resume() {
             const joinedPort = await portJoin.resume();
-            if (joinedPort.status === 'committed') return joinedPort.summary;
+            if (joinedPort.status === 'committed') {
+                await portSync?.ensure?.();
+                return joinedPort.summary;
+            }
             const recovered = await client.resumePendingRecovery?.();
-            if (recovered?.status === 'committed') return summary();
+            if (recovered?.status === 'committed') {
+                await portSync?.clearCloudState?.();
+                await portSync?.ensure?.();
+                return summary();
+            }
             const detached = await client.resumePendingDetach?.();
             if (detached?.status === 'committed') return summary();
             const environmentDetached = await client.resumePendingEnvironmentDetach?.();
-            if (environmentDetached?.status === 'committed') return Object.freeze({ accountDetached: true });
+            if (environmentDetached?.status === 'committed') {
+                await portSync?.clearCloudState?.();
+                return Object.freeze({ accountDetached: true });
+            }
             const deleted = await client.resumePendingDelete?.();
             if (deleted?.status === 'committed' && deleted.result?.scope === 'account') {
+                await portSync?.clearCloudState?.();
                 return Object.freeze({ accountDeleted: true });
             }
             const resumed = await client.resumePendingStart();
-            return resumed.status === 'committed' ? resumed.summary : summary();
+            const result = resumed.status === 'committed' ? resumed.summary : await summary();
+            await portSync?.ensure?.();
+            return result;
         },
         async prepareRecovery({ recoveryCode, turnstileToken }) {
             recoveryMaterial = accountRoot.core.createAccountRecoveryMaterial();
@@ -114,6 +129,8 @@ export function createSyncCenterOrchestrator({
                 recoverySaved
             });
             recoveryMaterial = null;
+            await portSync?.clearCloudState?.();
+            await portSync?.ensure?.();
             return result;
         },
         discardRecoveryCandidate() { recoveryMaterial = null; },
@@ -158,9 +175,11 @@ export function createSyncCenterOrchestrator({
             });
         },
         async detachCurrentEnvironment() {
-            return client.detachCurrentEnvironment({
+            const result = await client.detachCurrentEnvironment({
                 accountCredential: await credential(), operationId: accountRoot.core.createOperationId()
             });
+            await portSync?.clearCloudState?.();
+            return result;
         },
         async detachApp(appId) {
             if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');
@@ -196,6 +215,7 @@ export function createSyncCenterOrchestrator({
                 material: deleteMaterial, confirmed: true
             });
             deleteMaterial = null;
+            if (scope === 'account') await portSync?.clearCloudState?.();
             return result;
         },
         discardDeleteCandidate() { deleteMaterial = null; },
@@ -276,7 +296,9 @@ export function createSyncCenterOrchestrator({
             return portJoin.cancel(await credential(), invitationId);
         },
         async connectExistingAccount(joinCode) {
-            return portJoin.consume(joinCode);
+            const result = await portJoin.consume(joinCode);
+            await portSync?.ensure?.();
+            return result;
         },
         async launchSameContainer(appId) {
             if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');

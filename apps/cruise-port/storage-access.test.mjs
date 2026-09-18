@@ -14,6 +14,7 @@ import { loadTunerSettings, saveTunerSettings, TUNER_DEFAULTS } from './tuner-st
 import { createPracticeAttachmentStore } from './practice-menu-attachment-store.js';
 import { createGearPhotoStore } from './gear-photo-store.js';
 import { createMyAppsIconStore } from './my-apps-icon-store.js';
+import { acceptRemoteStorageValues, assertStorageUnchanged } from './storage-conflict.js';
 
 test('blocked localStorage getter returns recoverable failures for every store, without uncaught exceptions', () => {
     const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
@@ -78,4 +79,14 @@ test('stale tab saves are rejected per key while independent stores and fresh re
         load(stale);
         assert.equal(save(initial, stale).ok, true, 'reload acknowledges current state');
     }
+});
+
+test('a verified cloud apply advances the local conflict baseline without creating a false stale-tab failure', () => {
+    const values = new Map();
+    const storage = { getItem: key => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
+    loadSettings(storage);
+    storage.setItem('cruisePort.settings', JSON.stringify({ ...DEFAULT_SETTINGS, displaySize: 'small' }));
+    acceptRemoteStorageValues(storage, ['cruisePort.settings']);
+    assert.doesNotThrow(() => assertStorageUnchanged(storage, ['cruisePort.settings']));
 });
