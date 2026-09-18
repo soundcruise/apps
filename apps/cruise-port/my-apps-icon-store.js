@@ -1,4 +1,4 @@
-import { createSecureId } from './my-apps-store.js?v=0.41.2';
+import { createSecureId } from './my-apps-store.js?v=0.42.0';
 import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';
 
 export const MY_APPS_ICON_DB_NAME = 'cruisePortMyApps';
@@ -103,6 +103,24 @@ export function createMyAppsIconStore({ indexedDBObject, canWrite = () => getCap
                 const database = await getDatabase();
                 if (!canWrite()) return { ok: false, reason: 'pro-required' };
                 await runTransaction(database, 'readwrite', (store) => store.add(record));
+                return { ok: true, record: { ...record } };
+            } catch (_) {
+                return { ok: false, reason: 'write-failed' };
+            }
+        },
+
+        async cacheIcon(blob, { now = new Date(), idFactory = createSecureId } = {}) {
+            if (!(blob instanceof Blob) || !OUTPUT_MIME_TYPES.includes(blob.type) || blob.size < 1) {
+                return { ok: false, reason: 'invalid-blob' };
+            }
+            const record = {
+                id: idFactory(), blob, mimeType: blob.type, byteSize: blob.size,
+                createdAt: now.toISOString()
+            };
+            if (!isValidRecord(record)) return { ok: false, reason: 'invalid-record' };
+            try {
+                const database = await getDatabase();
+                await runTransaction(database, 'readwrite', (store) => store.put(record));
                 return { ok: true, record: { ...record } };
             } catch (_) {
                 return { ok: false, reason: 'write-failed' };

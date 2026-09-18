@@ -113,6 +113,21 @@ export function createGearPhotoStore({ indexedDBObject, canWrite = () => getCapa
             }
         },
 
+        async cachePhoto(blob, { kind, width, height, now = new Date(), idFactory = createPhotoId } = {}) {
+            const record = {
+                id: idFactory(), kind, blob, mimeType: blob?.type, byteSize: blob?.size,
+                width, height, createdAt: now.toISOString()
+            };
+            if (!isValidRecord(record)) return { ok: false, reason: 'invalid-record' };
+            try {
+                const database = await getDatabase();
+                await runTransaction(database, 'readwrite', (store) => store.put(record));
+                return { ok: true, record: { ...record } };
+            } catch (_) {
+                return { ok: false, reason: 'write-failed' };
+            }
+        },
+
         async getPhoto(id) {
             if (typeof id !== 'string' || !id) return { ok: false, record: null, reason: 'invalid-id' };
             try {

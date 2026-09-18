@@ -2,7 +2,7 @@ import {
     METRONOME_DEFAULTS,
     METRONOME_LIMITS,
     clampInteger
-} from './metronome-store.js?v=0.41.2';
+} from './metronome-store.js?v=0.42.0';
 
 export const METRONOME_METER_INFO = Object.freeze({
     '2/4': Object.freeze({ beats: 2, compound: false, label: '4分の2拍子' }),

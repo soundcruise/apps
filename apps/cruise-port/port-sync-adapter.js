@@ -76,10 +76,18 @@
     });
     return result;
   }
-  function assetFor(item, kind) {
+  function assetMetadata(storage) {
+    const value = parse(storage, ASSET_METADATA_KEY, null);
+    return value?.version === 2 ? value : { version: 2, gear: {}, myApps: {}, releaseQueue: [] };
+  }
+  function assetFor(item, kind, metadata) {
     const idKey = kind === 'gear' ? 'photoId' : 'iconId';
     const sourceKey = kind === 'gear' ? 'photoSourceId' : 'iconSourceId';
     const cropKey = kind === 'gear' ? 'photoCrop' : 'iconCrop';
+    const entry = metadata?.[kind === 'gear' ? 'gear' : 'myApps']?.[item?.id];
+    if (entry?.published?.availability === 'available' && entry.published.final?.assetId) {
+      return clone(entry.published);
+    }
     return {
       present: Boolean(item?.[idKey] || item?.[sourceKey]),
       crop: item?.[cropKey] ? clone(item[cropKey]) : null
@@ -90,6 +98,7 @@
   }
   function readLocalSnapshot(storage = global.localStorage) {
     const records = [];
+    const assets = assetMetadata(storage);
     SINGLETONS.forEach(([key, type, id]) => {
       const value = parse(storage, key);
       if (value != null) records.push(record(type, id, value));
@@ -110,7 +119,7 @@
     }
     const gear = parse(storage, 'cruisePort.gearList', { items: [] });
     itemValues(gear).forEach((item) => records.push(record('gear_item', item.id, {
-      item: without(item, ['photoId', 'photoSourceId', 'photoCrop']), asset: assetFor(item, 'gear')
+      item: without(item, ['photoId', 'photoSourceId', 'photoCrop']), asset: assetFor(item, 'gear', assets)
     })));
     ['owned', 'wishlist', 'sold'].forEach((status) => {
       const ids = itemValues(gear).filter((item) => item.status === status)
@@ -119,7 +128,7 @@
     });
     const myApps = parse(storage, 'cruisePort.myApps', { items: [] });
     itemValues(myApps).forEach((item) => records.push(record('my_app', item.id, {
-      item: without(item, ['iconId', 'iconSourceId', 'iconCrop']), asset: assetFor(item, 'app')
+      item: without(item, ['iconId', 'iconSourceId', 'iconCrop']), asset: assetFor(item, 'app', assets)
     })));
     if (itemValues(myApps).length) records.push(record('my_app_order', 'default', itemValues(myApps).map(({ id }) => id)));
     return { schemaVersion: SCHEMA_VERSION, records };
@@ -176,15 +185,23 @@
     const rank = new Map(order.map((id, index) => [id, index]));
     return items.sort((a, b) => (rank.get(a.recordId) ?? Number.MAX_SAFE_INTEGER) - (rank.get(b.recordId) ?? Number.MAX_SAFE_INTEGER));
   }
-  function restoreAsset(remoteValue, localItem, kind) {
+  function restoreAsset(remoteValue, localItem, kind, entry) {
     const idKey = kind === 'gear' ? 'photoId' : 'iconId';
     const sourceKey = kind === 'gear' ? 'photoSourceId' : 'iconSourceId';
     const cropKey = kind === 'gear' ? 'photoCrop' : 'iconCrop';
     const asset = remoteValue.asset || { present: false, crop: null };
+    const cloudAsset = asset?.availability === 'available' && asset.final?.assetId ? asset : null;
+    const pendingLocal = Boolean(entry?.pending);
+    const bindingMatches = Boolean(cloudAsset && entry?.binding?.final?.assetId === cloudAsset.final.assetId &&
+      entry.binding.final.hash === cloudAsset.final.hash);
     return {
       ...clone(remoteValue.item),
-      [idKey]: asset.present && localItem?.[idKey] ? localItem[idKey] : null,
-      [sourceKey]: asset.present && localItem?.[sourceKey] ? localItem[sourceKey] : null,
+      [idKey]: pendingLocal && localItem?.[idKey] ? localItem[idKey]
+        : bindingMatches ? entry.binding.final.localId : (!cloudAsset && asset.present && localItem?.[idKey] ? localItem[idKey] : null),
+      [sourceKey]: pendingLocal && localItem?.[sourceKey] ? localItem[sourceKey]
+        : bindingMatches && cloudAsset.source && entry.binding?.source?.assetId === cloudAsset.source.assetId
+          ? entry.binding.source.localId
+          : (!cloudAsset && asset.present && localItem?.[sourceKey] ? localItem[sourceKey] : null),
       [cropKey]: asset.crop ? clone(asset.crop) : null
     };
   }
@@ -194,6 +211,7 @@
     const normalized = normalizeSnapshot(snapshot);
     const currentGear = itemValues(parse(storage, 'cruisePort.gearList', { items: [] }));
     const currentApps = itemValues(parse(storage, 'cruisePort.myApps', { items: [] }));
+    const currentAssets = assetMetadata(storage);
     const currentHistory = parse(storage, 'cruisePort.practiceHistory', { version: 4, events: [] });
     SINGLETONS.forEach(([key, type, id]) => {
       const found = byType(normalized, type).find((item) => item.recordId === id);
@@ -214,17 +232,23 @@
     byType(normalized, 'gear_order').forEach((order) => order.payload.value.forEach((id, index) => gearRank.set(id, index)));
     write(storage, 'cruisePort.gearList', { version: 4, items: byType(normalized, 'gear_item').map((entry) => {
       const local = currentGear.find((item) => item.id === entry.recordId);
-      return { ...restoreAsset(entry.payload.value, local, 'gear'), order: gearRank.get(entry.recordId) ?? 0 };
+      const metadataEntry = currentAssets.gear[entry.recordId] || {};
+      metadataEntry.published = entry.payload.value.asset?.availability === 'available'
+        ? clone(entry.payload.value.asset) : null;
+      if (metadataEntry.binding?.final?.assetId !== metadataEntry.published?.final?.assetId) metadataEntry.binding = null;
+      currentAssets.gear[entry.recordId] = metadataEntry;
+      return { ...restoreAsset(entry.payload.value, local, 'gear', metadataEntry), order: gearRank.get(entry.recordId) ?? 0 };
     }) });
     write(storage, 'cruisePort.myApps', { version: 6, items: ordered(normalized, 'my_app', 'my_app_order').map((entry) => {
       const local = currentApps.find((item) => item.id === entry.recordId);
-      return restoreAsset(entry.payload.value, local, 'app');
+      const metadataEntry = currentAssets.myApps[entry.recordId] || {};
+      metadataEntry.published = entry.payload.value.asset?.availability === 'available'
+        ? clone(entry.payload.value.asset) : null;
+      if (metadataEntry.binding?.final?.assetId !== metadataEntry.published?.final?.assetId) metadataEntry.binding = null;
+      currentAssets.myApps[entry.recordId] = metadataEntry;
+      return restoreAsset(entry.payload.value, local, 'app', metadataEntry);
     }) });
-    write(storage, ASSET_METADATA_KEY, {
-      version: 1,
-      gear: byType(normalized, 'gear_item').map((item) => ({ id: item.recordId, asset: item.payload.value.asset })),
-      myApps: byType(normalized, 'my_app').map((item) => ({ id: item.recordId, asset: item.payload.value.asset }))
-    });
+    write(storage, ASSET_METADATA_KEY, currentAssets);
     root.acceptRemoteStorageValues?.(storage, MANAGED_KEYS);
     const changed = MANAGED_KEYS.some((key) => storage.getItem(key) !== before.get(key));
     return Object.freeze({ ok: true, changed });

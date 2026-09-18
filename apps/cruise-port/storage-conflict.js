@@ -30,6 +30,9 @@ export function acceptStorageValues(storage, keys) {
     if (defaultStorage && storage === defaultStorage) {
         const managed = globalThis.SoundCruisePortSync?.MANAGED_KEYS || [];
         if (keys.some((key) => managed.includes(key))) {
+            globalThis.dispatchEvent?.(new CustomEvent('cruise-port-local-data-changed', {
+                detail: Object.freeze({ keys: keys.filter((key) => managed.includes(key)) })
+            }));
             globalThis.SoundCruiseMultiAppSync?.notifyLocalSave?.('port');
         }
     }
