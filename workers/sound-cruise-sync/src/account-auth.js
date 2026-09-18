@@ -3,6 +3,7 @@ import {
   parseAccountCredential
 } from './account-crypto.js';
 import { timingSafeHexEqual } from './crypto.js';
+import { touchAccountActivity } from './account-activity.js';
 
 const LAST_SEEN_WRITE_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -51,6 +52,7 @@ export async function inspectAccountCredential(db, authorization, pepper, now = 
       `).bind(now, row.device_id, row.account_id, row.last_seen_at).run();
       if (result?.success === false) throw new Error('Account device touch failed');
     }
+    await touchAccountActivity(db, row.account_id, now);
   } catch {
     throw new Error('Account authentication database failure');
   }

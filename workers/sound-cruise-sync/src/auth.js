@@ -1,4 +1,5 @@
 import { hmacVerifier, parseDeviceCredential, timingSafeHexEqual } from './crypto.js';
+import { touchAccountActivity } from './account-activity.js';
 
 const LAST_SEEN_WRITE_INTERVAL_MS = 60 * 60 * 1000;
 
@@ -49,7 +50,7 @@ export async function inspectDeviceCredential(db, authorization, expectedAppId, 
     row = await db.prepare(`
       SELECT d.id AS device_id, d.user_id, d.app_id, d.credential_verifier,
              d.revoked_at, d.last_seen_at, d.paired_at, u.state AS user_state,
-             a.state AS account_state, m.state AS membership_state
+             a.state AS account_state, am.account_id, m.state AS membership_state
       FROM sync_devices d
       JOIN sync_users u ON u.id = d.user_id
       LEFT JOIN sync_account_managed_users am ON am.sync_user_id = d.user_id
@@ -86,6 +87,7 @@ export async function inspectDeviceCredential(db, authorization, expectedAppId, 
       WHERE id = ? AND user_id = ? AND revoked_at IS NULL AND ?
     `).bind(shouldWriteLastSeen ? 1 : 0, now, now, row.device_id, row.user_id, shouldTouch ? 1 : 0).run();
     if (claim?.success === false) throw new Error('Device claim failed');
+    await touchAccountActivity(db, row.account_id, now);
   } catch {
     throw new Error('Device authentication database failure');
   }

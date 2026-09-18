@@ -1,4 +1,5 @@
 import { authenticateAccountDevice, inspectAccountCredential } from './account-auth.js';
+import { touchAccountActivity } from './account-activity.js';
 import { authenticateDevice, isRetiredLegacyDeviceCredential } from './auth.js';
 import { timingSafeHexEqual } from './crypto.js';
 import {
@@ -928,6 +929,7 @@ async function handleAccountRecoveryCommit(request, env, origin, route, dependen
     });
     if (result.status === 'conflict') return errorResponse(409, 'operation_conflict', origin, route);
     if (result.status !== 'recovered') return errorResponse(400, 'account_recovery_invalid', origin, route);
+    await touchAccountActivity(session, result.accountId, Date.now());
     return jsonResponse(result.alreadyRecovered ? 200 : 201, {
       ok: true,
       operation: result.alreadyRecovered ? 'existing' : 'recovered',

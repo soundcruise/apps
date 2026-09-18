@@ -11,8 +11,67 @@ export const CLEANUP_RETENTION = Object.freeze({
   accountAppJoinMs: 24 * 60 * 60 * 1000,
   accountPortJoinMs: 24 * 60 * 60 * 1000,
   accountLifecycleOperationMs: 30 * 24 * 60 * 60 * 1000,
+  accountDormantMs: 365 * 24 * 60 * 60 * 1000,
+  accountInactivePurgeMs: 455 * 24 * 60 * 60 * 1000,
   batchSize: 100
 });
+
+async function updateDormantAccounts(db, now) {
+  // Populate newly created Accounts that were added after migration 0023, but
+  // never re-create activity for a manually deleting Account.
+  await db.prepare(`INSERT OR IGNORE INTO sync_account_activity
+    (account_id, state, last_activity_at, dormant_at, inactive_purge_after, updated_at)
+    SELECT id, 'active', updated_at, NULL, NULL, updated_at FROM sync_accounts
+    WHERE state = 'active' AND deleted_at IS NULL`).run();
+  const result = await db.prepare(`UPDATE sync_account_activity
+    SET state = 'dormant', dormant_at = last_activity_at + ?,
+        inactive_purge_after = last_activity_at + ?, updated_at = ?
+    WHERE state = 'active' AND last_activity_at <= ?
+      AND EXISTS (SELECT 1 FROM sync_accounts a
+        WHERE a.id = sync_account_activity.account_id AND a.state = 'active' AND a.deleted_at IS NULL)`)
+    .bind(CLEANUP_RETENTION.accountDormantMs, CLEANUP_RETENTION.accountInactivePurgeMs,
+      now, now - CLEANUP_RETENTION.accountDormantMs).run();
+  return Number(result?.meta?.changes || 0);
+}
+
+async function startInactiveAccountPurges(db, now, limit) {
+  const selected = await db.prepare(`SELECT aa.account_id FROM sync_account_activity aa
+    JOIN sync_accounts a ON a.id = aa.account_id
+    WHERE aa.state = 'dormant' AND aa.inactive_purge_after <= ?
+      AND a.state = 'active' AND a.deleted_at IS NULL
+    ORDER BY aa.inactive_purge_after ASC LIMIT ${limit}`).bind(now).all();
+  let started = 0;
+  for (const row of selected.results || []) {
+    // This is intentionally separate from the user-driven seven-day delete
+    // contract: inactivity reaches its own final boundary before this batch
+    // changes Account state and hands deletion to the established purge path.
+    const statements = [
+      db.prepare(`UPDATE sync_accounts SET state = 'deleting', delete_requested_at = ?,
+        purge_after = ?, updated_at = ?, generation = generation + 1
+        WHERE id = ? AND state = 'active' AND deleted_at IS NULL`).bind(now, now, now, row.account_id),
+      db.prepare(`UPDATE sync_account_memberships SET state = 'deleting', delete_requested_at = ?,
+        purge_after = ?, updated_at = ?, generation = generation + 1
+        WHERE account_id = ? AND state = 'active'`).bind(now, now, now, row.account_id),
+      db.prepare(`UPDATE sync_account_memberships SET state = 'deleted', delete_requested_at = ?,
+        purge_after = ?, deleted_at = ?, updated_at = ?, generation = generation + 1
+        WHERE account_id = ? AND state = 'pending'`).bind(now, now, now, now, row.account_id),
+      db.prepare(`UPDATE sync_users SET state = 'deleting', delete_requested_at = ?, purge_after = ?,
+        deleted_at = ?, updated_at = ? WHERE id IN
+        (SELECT sync_user_id FROM sync_account_memberships WHERE account_id = ?) AND state = 'active'`)
+        .bind(now, now, now, now, row.account_id),
+      db.prepare(`UPDATE sync_account_devices SET revoked_at = COALESCE(revoked_at, ?) WHERE account_id = ?`)
+        .bind(now, row.account_id),
+      db.prepare(`UPDATE sync_devices SET revoked_at = COALESCE(revoked_at, ?) WHERE id IN
+        (SELECT app_device_id FROM sync_membership_device_links WHERE account_id = ?)`)
+        .bind(now, row.account_id)
+    ];
+    const results = await db.batch(statements);
+    if (results.every((result) => result?.success !== false) && Number(results[0]?.meta?.changes || 0) === 1) {
+      started += 1;
+    }
+  }
+  return started;
+}
 
 async function deleteLimited(db, selectSql, deleteSql, values) {
   const selected = await db.prepare(selectSql).bind(...values).all();
@@ -178,6 +237,8 @@ export function createD1CleanupRepository(db, clock = Date.now) {
       results.accountPortJoins = 0;
     }
     try {
+      results.accountsDormant = await updateDormantAccounts(db, now);
+      results.inactiveAccountPurgesStarted = await startInactiveAccountPurges(db, now, limit);
       results.accountRecoveryAttempts = await deleteLimited(
         db,
         `SELECT recovery_verifier AS id FROM sync_account_recovery_attempts

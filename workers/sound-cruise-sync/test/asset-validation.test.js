@@ -17,8 +17,11 @@ test('asset contract accepts only normalized bounded image variants', () => {
     byteSize: ASSET_KINDS.gear_photo_final.maxBytes + 1 }), null);
   assert.equal(validateAssetPrepare({ ...base, kind: 'practice_attachment', width: 1, height: 1 }), null);
   assert.equal(validateAssetPrepare({ ...base, kind: 'gear_photo_final', width: 512, height: 512, mime: 'image/svg+xml' }), null);
-  assert.equal(ASSET_QUOTA.maxBytes, 100 * 1024 * 1024);
-  assert.equal(ASSET_QUOTA.maxCount, 500);
+  assert.equal(ASSET_KINDS.gear_photo_source.maxBytes, 8 * 1024 * 1024);
+  assert.equal(ASSET_KINDS.my_app_icon_source.maxBytes, 8 * 1024 * 1024);
+  assert.equal(ASSET_QUOTA.maxBytes, 1024 * 1024 * 1024);
+  assert.equal(ASSET_QUOTA.maxCount, 1000);
+  assert.equal(ASSET_QUOTA.dailyNewVariants, 200);
 });
 
 test('magic byte detection does not trust the declared MIME', () => {

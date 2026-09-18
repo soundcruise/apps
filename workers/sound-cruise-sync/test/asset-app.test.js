@@ -148,6 +148,46 @@ test('asset endpoints fail closed for invalid bytes, unknown IDs, and revoked cr
   db.close();
 });
 
+test('binary feature switches are independent: write stop preserves downloads and cleanup stop preserves objects', async () => {
+  const db = seed();
+  const r2 = bucket();
+  const bytes = webp(512, 512);
+  const hash = await sha256Hex(bytes);
+  const common = { appId: 'port', assetId, operationId, hash };
+  let response = await handleRequest(jsonRequest('/v1/sync/assets/prepare', {
+    ...common, kind: 'gear_photo_final', mime: 'image/webp', byteSize: bytes.length, width: 512, height: 512
+  }), environment(db, r2), null, deps());
+  assert.equal(response.status, 201);
+  response = await handleRequest(new Request(`https://sync.example/v1/sync/assets/${assetId}/content`, {
+    method: 'PUT', headers: { Origin: ORIGIN, Authorization: `Bearer ${credential}`,
+      'Content-Type': 'image/webp', 'X-Sound-Cruise-Operation-Id': operationId, 'X-Content-SHA256': hash }, body: bytes
+  }), environment(db, r2), null, deps());
+  assert.equal(response.status, 200);
+  response = await handleRequest(jsonRequest('/v1/sync/assets/commit', common), environment(db, r2), null, deps());
+  assert.equal(response.status, 200);
+
+  const writesOff = { ...environment(db, r2), SYNC_ASSET_WRITE_ENABLED: 'false' };
+  response = await handleRequest(jsonRequest('/v1/sync/assets/prepare', {
+    ...common, assetId: '423e4567-e89b-42d3-a456-426614174000', operationId: '523e4567-e89b-42d3-a456-426614174000',
+    kind: 'gear_photo_final', mime: 'image/webp', byteSize: bytes.length, width: 512, height: 512
+  }), writesOff, null, deps());
+  assert.equal(response.status, 503);
+  response = await handleRequest(new Request(`https://sync.example/v1/sync/assets/${assetId}`, {
+    headers: { Origin: ORIGIN, Authorization: `Bearer ${credential}` }
+  }), writesOff, null, deps());
+  assert.equal(response.status, 200, 'write stop does not interrupt an existing private download');
+
+  response = await handleRequest(new Request(`https://sync.example/v1/sync/assets/${assetId}`, {
+    headers: { Origin: ORIGIN, Authorization: `Bearer ${credential}` }
+  }), { ...environment(db, r2), SYNC_ASSET_DOWNLOAD_ENABLED: 'false' }, null, deps());
+  assert.equal(response.status, 503);
+  db.raw.prepare(`UPDATE sync_assets SET state='unreferenced',unreferenced_at=created_at WHERE asset_id=?`).run(assetId);
+  await handleScheduled({}, { ...environment(db, r2), SYNC_ASSET_CLEANUP_ENABLED: 'false' },
+    { createCleanupRepository: () => ({ cleanup: async () => ({ ok: true }) }) });
+  assert.equal(r2.objects.size, 1, 'cleanup switch is independent of write and download switches');
+  db.close();
+});
+
 test('scheduled cleanup respects grace, preserves deleting Accounts, and removes assets after Account purge', async () => {
   const db = seed();
   const r2 = bucket();

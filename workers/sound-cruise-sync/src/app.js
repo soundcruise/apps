@@ -74,6 +74,11 @@ const ASSET_ROUTES = Object.freeze({
 
 const QA_HEADER = 'x-sound-cruise-qa-authorization';
 
+// These binary-only switches deliberately default to enabled for the Phase 1
+// production contract. Set a variable to the literal string "false" to stop
+// just that operation without affecting structured sync or the four Pro apps.
+function assetFeatureEnabled(env, name) { return env[name] !== 'false'; }
+
 function configuredOrigins(env) {
   return new Set(String(env.ALLOWED_ORIGINS || '').split(',').map((value) => value.trim()).filter(Boolean));
 }
@@ -278,6 +283,9 @@ function assetRepository(context, dependencies) {
 }
 
 async function handleAssetPrepare(request, env, origin, route, dependencies) {
+  if (!assetFeatureEnabled(env, 'SYNC_ASSET_WRITE_ENABLED')) {
+    return errorResponse(503, 'asset_writes_disabled', origin, route);
+  }
   const parsed = await readJson(request, MAX_BODY_BYTES);
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const input = validateAssetPrepare(parsed.value);
@@ -292,14 +300,21 @@ async function handleAssetPrepare(request, env, origin, route, dependencies) {
       now: Date.now()
     });
     if (result.status === 'quota') return errorResponse(409, 'asset_quota_exceeded', origin, route);
+    if (result.status === 'account_rate_limited' || result.status === 'global_rate_limited') {
+      return errorResponse(429, result.status, origin, route, { 'Retry-After': '86400' });
+    }
+    if (result.status === 'global_guard') return errorResponse(503, 'asset_uploads_stopped', origin, route);
     if (result.status === 'conflict') return errorResponse(409, 'asset_operation_conflict', origin, route);
     return jsonResponse(result.status === 'prepared' ? 201 : 200, {
-      ok: true, phase: result.status, asset: result.asset
+      ok: true, phase: result.status, asset: result.asset, storageGuard: result.storageGuard || 'normal'
     }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
   } catch { return errorResponse(503, 'server_error', origin, route); }
 }
 
 async function handleAssetUpload(request, env, origin, route, dependencies, assetId) {
+  if (!assetFeatureEnabled(env, 'SYNC_ASSET_WRITE_ENABLED')) {
+    return errorResponse(503, 'asset_writes_disabled', origin, route);
+  }
   const operationId = request.headers.get('X-Sound-Cruise-Operation-Id');
   const claimedHash = request.headers.get('X-Content-SHA256');
   let context;
@@ -340,6 +355,9 @@ async function handleAssetUpload(request, env, origin, route, dependencies, asse
 }
 
 async function handleAssetCommit(request, env, origin, route, dependencies) {
+  if (!assetFeatureEnabled(env, 'SYNC_ASSET_WRITE_ENABLED')) {
+    return errorResponse(503, 'asset_writes_disabled', origin, route);
+  }
   const parsed = await readJson(request, MAX_BODY_BYTES);
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const input = validateAssetCommit(parsed.value);
@@ -366,6 +384,9 @@ async function handleAssetCommit(request, env, origin, route, dependencies) {
 }
 
 async function handleAssetDownload(request, env, origin, route, dependencies, assetId) {
+  if (!assetFeatureEnabled(env, 'SYNC_ASSET_DOWNLOAD_ENABLED')) {
+    return errorResponse(503, 'asset_downloads_disabled', origin, route);
+  }
   let context;
   try { context = await assetContext(request, env, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
@@ -1045,7 +1066,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
 
 export async function handleScheduled(_event, env = {}, dependencies = {}) {
   if (!env.SYNC_DB || typeof env.SYNC_DB.prepare !== 'function') return;
-  if (env.SYNC_ASSETS?.delete) {
+  if (assetFeatureEnabled(env, 'SYNC_ASSET_CLEANUP_ENABLED') && env.SYNC_ASSETS?.delete) {
     try {
       const assets = (dependencies.createAssetRepository || createD1AssetRepository)(env.SYNC_DB);
       const now = Date.now();

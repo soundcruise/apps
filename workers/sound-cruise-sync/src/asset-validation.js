@@ -1,11 +1,22 @@
 export const ASSET_KINDS = Object.freeze({
   gear_photo_final: Object.freeze({ maxBytes: 1024 * 1024, width: 512, height: 512 }),
-  gear_photo_source: Object.freeze({ maxBytes: 4 * 1024 * 1024, maxDimension: 1024 }),
+  gear_photo_source: Object.freeze({ maxBytes: 8 * 1024 * 1024, maxDimension: 1024 }),
   my_app_icon_final: Object.freeze({ maxBytes: 512 * 1024, width: 256, height: 256 }),
-  my_app_icon_source: Object.freeze({ maxBytes: 4 * 1024 * 1024, maxDimension: 1024 })
+  my_app_icon_source: Object.freeze({ maxBytes: 8 * 1024 * 1024, maxDimension: 1024 })
 });
 
-export const ASSET_QUOTA = Object.freeze({ maxBytes: 100 * 1024 * 1024, maxCount: 500 });
+export const ASSET_STORAGE_CATEGORY = 'image';
+export const ASSET_QUOTA = Object.freeze({
+  maxBytes: 1024 * 1024 * 1024,
+  maxCount: 1000,
+  dailyNewVariants: 200
+});
+export const GLOBAL_ASSET_QUOTA = Object.freeze({ dailyNewVariants: 50000, hardStopBytes: 1024 ** 4 });
+export const GLOBAL_STORAGE_GUARDS = Object.freeze([
+  Object.freeze({ name: 'notice', bytes: 100 * 1024 ** 3 }),
+  Object.freeze({ name: 'warning', bytes: 250 * 1024 ** 3 }),
+  Object.freeze({ name: 'strong_warning', bytes: 500 * 1024 ** 3 })
+]);
 export const ASSET_MIME_TYPES = Object.freeze(['image/webp', 'image/png', 'image/jpeg']);
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;

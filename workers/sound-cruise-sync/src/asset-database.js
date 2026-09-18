@@ -1,4 +1,6 @@
-import { ASSET_QUOTA } from './asset-validation.js';
+import {
+  ASSET_QUOTA, ASSET_STORAGE_CATEGORY, GLOBAL_ASSET_QUOTA, GLOBAL_STORAGE_GUARDS
+} from './asset-validation.js';
 
 function changes(result) { return Number(result?.meta?.changes || 0); }
 
@@ -10,6 +12,13 @@ function publicAsset(row) {
     width: Number(row.width), height: Number(row.height),
     objectVersion: Number(row.object_version), availability: row.state === 'available' ? 'available' : row.state
   });
+}
+
+function dayKey(now) { return new Date(now).toISOString().slice(0, 10); }
+
+function globalStorageGuard(totalBytes) {
+  if (totalBytes >= GLOBAL_ASSET_QUOTA.hardStopBytes) return 'upload_stopped';
+  return [...GLOBAL_STORAGE_GUARDS].reverse().find((guard) => totalBytes >= guard.bytes)?.name || 'normal';
 }
 
 export function createD1AssetRepository(db) {
@@ -33,22 +42,76 @@ export function createD1AssetRepository(db) {
     const collision = await db.prepare('SELECT account_id, sync_user_id FROM sync_assets WHERE asset_id = ?')
       .bind(input.assetId).first();
     if (collision) return { status: 'conflict' };
+    const override = await db.prepare(`SELECT storage_limit_bytes, asset_variant_limit, daily_new_variant_limit
+      FROM sync_account_asset_quotas WHERE account_id = ? AND storage_category = ?`)
+      .bind(authority.accountId, ASSET_STORAGE_CATEGORY).first();
+    const policy = {
+      maxBytes: Number(override?.storage_limit_bytes || ASSET_QUOTA.maxBytes),
+      maxCount: Number(override?.asset_variant_limit || ASSET_QUOTA.maxCount),
+      dailyNewVariants: Number(override?.daily_new_variant_limit || ASSET_QUOTA.dailyNewVariants)
+    };
     const quota = await db.prepare(`
       SELECT COUNT(*) AS asset_count, COALESCE(SUM(byte_size), 0) AS total_bytes
-      FROM sync_assets WHERE account_id = ? AND state <> 'deleted'
-    `).bind(authority.accountId).first();
-    if (Number(quota?.asset_count || 0) >= ASSET_QUOTA.maxCount ||
-        Number(quota?.total_bytes || 0) + input.byteSize > ASSET_QUOTA.maxBytes) return { status: 'quota' };
+      FROM sync_assets WHERE account_id = ? AND storage_category = ? AND state <> 'deleted'
+    `).bind(authority.accountId, ASSET_STORAGE_CATEGORY).first();
+    if (Number(quota?.asset_count || 0) >= policy.maxCount ||
+        Number(quota?.total_bytes || 0) + input.byteSize > policy.maxBytes) return { status: 'quota' };
+    const global = await db.prepare(`SELECT COALESCE(SUM(byte_size), 0) AS total_bytes
+      FROM sync_assets WHERE storage_category = ? AND state <> 'deleted'`)
+      .bind(ASSET_STORAGE_CATEGORY).first();
+    const projectedGlobalBytes = Number(global?.total_bytes || 0) + input.byteSize;
+    const guard = globalStorageGuard(projectedGlobalBytes);
+    if (guard === 'upload_stopped') return { status: 'global_guard', storageGuard: guard };
     const now = input.now;
+    const day = dayKey(now);
+    const accountDaily = await db.prepare(`SELECT variant_count FROM sync_asset_daily_variant_counts
+      WHERE scope = 'account' AND scope_id = ? AND storage_category = ? AND day_key = ?`)
+      .bind(authority.accountId, ASSET_STORAGE_CATEGORY, day).first();
+    const globalDaily = await db.prepare(`SELECT variant_count FROM sync_asset_daily_variant_counts
+      WHERE scope = 'global' AND scope_id = 'global' AND storage_category = ? AND day_key = ?`)
+      .bind(ASSET_STORAGE_CATEGORY, day).first();
+    if (Number(accountDaily?.variant_count || 0) >= policy.dailyNewVariants) return { status: 'account_rate_limited' };
+    if (Number(globalDaily?.variant_count || 0) >= GLOBAL_ASSET_QUOTA.dailyNewVariants) return { status: 'global_rate_limited' };
     const statements = [
+      db.prepare(`INSERT INTO sync_asset_daily_variant_counts
+        (scope, scope_id, storage_category, day_key, variant_count, updated_at)
+        VALUES ('account', ?, ?, ?, 1, ?)
+        ON CONFLICT(scope, scope_id, storage_category, day_key) DO UPDATE SET
+          variant_count = variant_count + 1, updated_at = excluded.updated_at
+        WHERE sync_asset_daily_variant_counts.variant_count < ?`)
+        .bind(authority.accountId, ASSET_STORAGE_CATEGORY, day, now, policy.dailyNewVariants),
+      // A zero-row conditional counter update must roll back the entire batch,
+      // rather than permit a concurrent prepare to pass a stale pre-read.
+      db.prepare(`UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END WHERE id = ?`).bind(authority.accountId),
+      db.prepare(`INSERT INTO sync_asset_daily_variant_counts
+        (scope, scope_id, storage_category, day_key, variant_count, updated_at)
+        VALUES ('global', 'global', ?, ?, 1, ?)
+        ON CONFLICT(scope, scope_id, storage_category, day_key) DO UPDATE SET
+          variant_count = variant_count + 1, updated_at = excluded.updated_at
+        WHERE sync_asset_daily_variant_counts.variant_count < ?`)
+        .bind(ASSET_STORAGE_CATEGORY, day, now, GLOBAL_ASSET_QUOTA.dailyNewVariants),
+      db.prepare(`UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END WHERE id = ?`).bind(authority.accountId),
       db.prepare(`INSERT INTO sync_assets (
         asset_id, account_id, membership_id, sync_user_id, kind, state,
-        content_hash, mime_type, byte_size, width, height, object_key,
+        storage_category, content_hash, mime_type, byte_size, width, height, object_key,
         object_version, created_by_device_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, 'prepared', ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`)
+      ) SELECT ?, ?, ?, ?, ?, 'prepared', ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?
+        WHERE (SELECT COUNT(*) FROM sync_assets
+          WHERE account_id = ? AND storage_category = ? AND state <> 'deleted') < ?
+          AND (SELECT COALESCE(SUM(byte_size), 0) FROM sync_assets
+            WHERE account_id = ? AND storage_category = ? AND state <> 'deleted') + ? <= ?
+          AND (SELECT COALESCE(SUM(byte_size), 0) FROM sync_assets
+            WHERE storage_category = ? AND state <> 'deleted') + ? <= ?`)
         .bind(input.assetId, authority.accountId, authority.membershipId, identity.userId,
-          input.kind, input.hash, input.mime, input.byteSize, input.width, input.height,
-          input.objectKey, identity.deviceId, now, now),
+          input.kind, ASSET_STORAGE_CATEGORY, input.hash, input.mime, input.byteSize, input.width, input.height,
+          input.objectKey, identity.deviceId, now, now,
+          authority.accountId, ASSET_STORAGE_CATEGORY, policy.maxCount,
+          authority.accountId, ASSET_STORAGE_CATEGORY, input.byteSize, policy.maxBytes,
+          ASSET_STORAGE_CATEGORY, input.byteSize, GLOBAL_ASSET_QUOTA.hardStopBytes),
+      db.prepare(`UPDATE sync_accounts SET updated_at = CASE WHEN changes() = 1
+        THEN updated_at ELSE created_at - 1 END WHERE id = ?`).bind(authority.accountId),
       db.prepare(`INSERT INTO sync_asset_operations (
         operation_id, asset_id, account_id, sync_user_id, app_device_id,
         request_fingerprint, created_at, updated_at
@@ -68,7 +131,7 @@ export function createD1AssetRepository(db) {
       throw error;
     }
     const row = await operation(input.operationId);
-    return { status: 'prepared', asset: publicAsset(row) };
+    return { status: 'prepared', asset: publicAsset(row), storageGuard: guard };
   }
 
   async function uploadTarget(identity, authority, assetId, operationId) {
@@ -146,4 +209,4 @@ export function createD1AssetRepository(db) {
     cleanupCandidates, isReferenced, restoreReferenced, markDeleted });
 }
 
-export { publicAsset };
+export { publicAsset, dayKey, globalStorageGuard };
