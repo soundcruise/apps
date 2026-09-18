@@ -1,6 +1,6 @@
-import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.44.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.44.0';
-import { createPortAccountJoin } from './port-account-join.js?v=0.44.0';
+import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.44.1';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.44.1';
+import { createPortAccountJoin } from './port-account-join.js?v=0.44.1';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -41,6 +41,18 @@ export function createSyncCenterOrchestrator({
         return saved.accountCredential;
     }
     async function summary() { return client.summary(await credential()); }
+    async function settlePortSync() {
+        if (typeof portSync?.ensure !== 'function') return Object.freeze({ ok: true });
+        try {
+            const result = await portSync.ensure();
+            return Object.freeze({ ok: result?.ok !== false });
+        } catch (_) {
+            // Account/Port-Join authority has already committed at this point.
+            // Structured Port sync is reconciled independently and must never
+            // turn a durable Account success into a misleading failure screen.
+            return Object.freeze({ ok: false, code: 'port_sync_pending' });
+        }
+    }
     async function launchWithHandoff(accountCredential, appId) {
         const material = accountRoot.core.createHandoffMaterial();
         const issued = await client.issueHandoff({
@@ -81,8 +93,8 @@ export function createSyncCenterOrchestrator({
                     material: accountMaterial, recoverySaved: true
                 });
                 accountMaterial = null;
-                await portSync?.ensure?.();
-                return result;
+                const portSyncState = await settlePortSync();
+                return Object.freeze({ ...result, portSyncState });
             })();
             try { return await accountStartPromise; }
             finally { accountStartPromise = null; }
@@ -91,7 +103,7 @@ export function createSyncCenterOrchestrator({
         async resume() {
             const joinedPort = await portJoin.resume();
             if (joinedPort.status === 'committed') {
-                await portSync?.ensure?.();
+                await settlePortSync();
                 return joinedPort.summary;
             }
             const recovered = await client.resumePendingRecovery?.();
@@ -114,7 +126,7 @@ export function createSyncCenterOrchestrator({
             }
             const resumed = await client.resumePendingStart();
             const result = resumed.status === 'committed' ? resumed.summary : await summary();
-            await portSync?.ensure?.();
+            await settlePortSync();
             return result;
         },
         async prepareRecovery({ recoveryCode, turnstileToken }) {
@@ -318,8 +330,8 @@ export function createSyncCenterOrchestrator({
         },
         async connectExistingAccount(joinCode) {
             const result = await portJoin.consume(joinCode);
-            await portSync?.ensure?.();
-            return result;
+            const portSyncState = await settlePortSync();
+            return Object.freeze({ ...result, portSyncState });
         },
         async launchSameContainer(appId) {
             if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');

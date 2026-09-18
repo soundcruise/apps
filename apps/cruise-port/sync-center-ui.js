@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.44.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.44.1';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -516,6 +516,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             ? '復旧コードを保存' : phase === 'complete' ? 'アカウント作成が完了しました'
                 : processing ? 'アカウントを作成しています…' : 'クラウド同期をはじめる';
         if (setupClose) setupClose.hidden = phase === 'complete' || processing;
+        if (confirm) confirm.hidden = processing;
         const introduction = phase === 'introduction';
         if (setupIntro) setupIntro.hidden = !introduction;
         if (setupSteps) setupSteps.hidden = !introduction;
@@ -596,7 +597,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             portConnectSecret.resolve();
             setPortConnectPhase('complete');
             if (portConnectStatus) portConnectStatus.textContent = '接続しました。';
-            await refresh();
+            try { await refresh(); } catch (_) { /* committed Join remains successful */ }
         } catch (error) {
             portConnectSecret?.reject(error);
             setPortConnectPhase('input');
@@ -648,7 +649,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 setPhase('complete');
                 if (summary) summary.textContent = '続いて、各アプリの初回同期を完了してください。';
                 confirm.textContent = '閉じる';
-                await refresh();
+                try { await refresh(); } catch (_) { /* Account is already authoritative */ }
                 return;
             }
             if (!['recovery', 'start-uncertain'].includes(setup.dataset.syncPhase)) {
@@ -670,7 +671,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
             setPhase('complete');
             if (summary) summary.textContent = '続いて、各アプリの初回同期を完了してください。';
             confirm.textContent = '閉じる';
-            await refresh();
+            try { await refresh(); } catch (_) { /* Account is already authoritative */ }
         } catch (error) {
             const failedPhase = setup.dataset.syncPhase;
             setup.dataset.syncError = safeErrorCode(error);

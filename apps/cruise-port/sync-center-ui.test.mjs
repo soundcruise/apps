@@ -10,7 +10,12 @@ const app = read('./practice-menu-app.js');
 const ui = read('./sync-center-ui.js');
 const controller = read('./sync-center-controller.js');
 
-function accountSetupFixture({ completeAccountSetup, prepareAll = async () => ({ ok: true }), tokenProvider = async () => 'verified' }) {
+function accountSetupFixture({
+    completeAccountSetup,
+    prepareAll = async () => ({ ok: true }),
+    tokenProvider = async () => 'verified',
+    refresh = async () => {}
+}) {
     const listeners = {};
     const element = (overrides = {}) => ({
         dataset: {}, hidden: false, disabled: false, textContent: '',
@@ -47,7 +52,7 @@ function accountSetupFixture({ completeAccountSetup, prepareAll = async () => ({
         prepareAll,
         createAccountCandidate() { throw new Error('must_not_replace_saved_candidate'); }
     };
-    bindSyncCenterActions(root, { orchestrator, tokenProvider });
+    bindSyncCenterActions(root, { orchestrator, tokenProvider, refresh });
     return { setup, confirm, setupClose, recovery, summary, status, click: () => confirm.listeners.click() };
 }
 
@@ -220,6 +225,34 @@ test('Account completion keeps only its existing close action', async () => {
     assert.equal(ui.setup.closeCount, 1);
 });
 
+test('Account processing hides the saved confirmation and prevents a second submit', async () => {
+    let release;
+    const inFlight = new Promise((resolve) => { release = resolve; });
+    const ui = accountSetupFixture({ completeAccountSetup: () => inFlight });
+    const click = ui.click();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(ui.setup.dataset.syncPhase, 'starting');
+    assert.equal(ui.confirm.hidden, true);
+    assert.equal(ui.confirm.disabled, true);
+    release({ ok: true });
+    await click;
+    assert.equal(ui.setup.dataset.syncPhase, 'complete');
+    assert.equal(ui.confirm.hidden, false);
+    assert.equal(ui.confirm.disabled, false);
+    assert.equal(ui.confirm.textContent, '閉じる');
+});
+
+test('post-commit screen refresh failure does not replace Account success with a failure phase', async () => {
+    const ui = accountSetupFixture({
+        completeAccountSetup: async () => ({ ok: true }),
+        refresh: async () => { throw new Error('summary_temporarily_unavailable'); }
+    });
+    await ui.click();
+    assert.equal(ui.setup.dataset.syncPhase, 'complete');
+    assert.equal(ui.confirm.textContent, '閉じる');
+    assert.equal(ui.setup.dataset.syncError, undefined);
+});
+
 test('Recovery execution copy is concise and its dialog prevents iOS input zoom', () => {
     for (const html of [root, pro]) {
         assert.match(html, /保存してある復旧コードを入力してください。/);
@@ -284,6 +317,7 @@ test('Existing-account join dialog presents only the success acknowledgement aft
     assert.match(ui, /portConnectClose\.hidden = !successPhase/);
     assert.match(ui, /setPortConnectPhase\('working'\)/);
     assert.match(ui, /setPortConnectPhase\('complete'\)[\s\S]*portConnectStatus\.textContent = '接続しました。'/);
+    assert.match(ui, /try \{ await refresh\(\); \} catch \(_\) \{ \/\* committed Join remains successful \*\//);
     assert.match(ui, /portConnectClose\?\.addEventListener\('click', \(\) => \{[\s\S]*portConnectDialog\?\.close\(\)/);
     assert.match(ui, /catch \(error\) \{[\s\S]*setPortConnectPhase\('input'\)/);
 });

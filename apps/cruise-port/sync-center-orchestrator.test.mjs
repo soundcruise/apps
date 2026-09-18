@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js';
 
-function fixture() {
+function fixture({ portSync = null } = {}) {
     const calls = [];
     let savedAccount = { accountCredential: 'sca1.account' };
     let pendingConsume = null;
@@ -99,6 +99,7 @@ function fixture() {
     const orchestrator = createSyncCenterOrchestrator({
         config: { enabled: true, endpoint: 'https://sync.example' },
         accountRoot,
+        portSync,
         navigate: (url) => navigations.push(url),
         appUrl: (appId) => `https://apps.example/${appId}/pro/`
     });
@@ -137,6 +138,31 @@ test('duplicate Account submit shares one in-flight operation', async () => {
     const [left, right] = await Promise.all([first, second]);
     assert.equal(left, right);
     assert.equal(calls.filter(([kind]) => kind === 'start').length, 1);
+});
+
+test('committed Account creation remains successful when Port structured sync is temporarily unavailable', async () => {
+    let ensureCalls = 0;
+    const { orchestrator, calls } = fixture({
+        portSync: { async ensure() { ensureCalls += 1; throw new Error('temporary_sync_failure'); } }
+    });
+    orchestrator.createAccountCandidate();
+    const result = await orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken: 'verified' });
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.portSyncState, { ok: false, code: 'port_sync_pending' });
+    assert.equal(calls.filter(([kind]) => kind === 'start').length, 1);
+    assert.equal(ensureCalls, 1);
+});
+
+test('committed existing-Account Join remains successful when Port structured sync is temporarily unavailable', async () => {
+    const current = fixture({
+        portSync: { async ensure() { throw new Error('temporary_sync_failure'); } }
+    });
+    current.setSavedAccount(null);
+    const result = await current.orchestrator.connectExistingAccount('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
+    assert.equal(result.accountId, 'account-1');
+    assert.deepEqual(result.portSyncState, { ok: false, code: 'port_sync_pending' });
+    assert.equal(current.getSavedAccount().accountDeviceId, 'port-device-2');
+    assert.equal(current.getPendingConsume(), null);
 });
 
 test('four-app preparation keeps successes and retries only the failed membership', async () => {

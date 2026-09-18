@@ -11,14 +11,18 @@ function fixture({ admissionMode = 'qa', consume = async () => ({
     qaSessionId: 'qa-2', qaExpiresAt: 999999
 }), summary = async () => ({
     account: { id: 'account-1', recoveryVersion: 4 }, memberships: [], qaSessionExpiresAt: 999999
-}) } = {}) {
+}), setAccount = null } = {}) {
     let account = null;
     let pending = null;
     let qa = null;
     const writes = [];
     const storage = {
         async getAccount() { return account; },
-        async setAccount(value) { account = structuredClone(value); writes.push(['account', account]); },
+        async setAccount(value) {
+            if (setAccount) await setAccount(value);
+            account = structuredClone(value);
+            writes.push(['account', account]);
+        },
         async getPendingConsume() { return pending && structuredClone(pending); },
         async setPendingConsume(value) { pending = structuredClone(value); writes.push(['pending', pending]); },
         async clearPendingConsume() { pending = null; writes.push(['clear']); },
@@ -51,8 +55,11 @@ function fixture({ admissionMode = 'qa', consume = async () => ({
     };
 }
 
-test('Port receiver persists only response-loss credentials, never the addition code', async () => {
-    const current = fixture({ consume: async () => { throw new Error('network_error'); } });
+test('Port receiver preserves one response-loss candidate without persisting the addition code', async () => {
+    const current = fixture({
+        consume: async () => { throw new Error('network_error'); },
+        summary: async () => { throw new Error('network_error'); }
+    });
     await assert.rejects(
         current.join.consume('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE'),
         /network_error/
@@ -63,14 +70,59 @@ test('Port receiver persists only response-loss credentials, never the addition 
     assert.equal(JSON.stringify(current.writes).includes('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE'), false);
 });
 
-test('response-loss resume adopts the exact new Account Device without Recovery', async () => {
+test('response-loss is reconciled immediately with the exact new Account Device', async () => {
     const current = fixture({ consume: async () => { throw new Error('network_error'); } });
-    await assert.rejects(current.join.consume('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE'));
-    const resumed = await current.join.resume();
-    assert.equal(resumed.status, 'committed');
+    const result = await current.join.consume('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
+    assert.equal(result.reconciled, true);
     assert.equal(current.values().account.accountId, 'account-1');
     assert.equal(current.values().account.recoveryVersion, 4);
     assert.equal(current.values().qa.scope, 'port');
+    assert.equal(current.values().pending, null);
+});
+
+test('retry reconciles the original pending credential without a duplicate consume or Account Device', async () => {
+    let consumeCalls = 0;
+    let summaryCalls = 0;
+    const current = fixture({
+        consume: async () => { consumeCalls += 1; throw new Error('network_error'); },
+        summary: async () => {
+            summaryCalls += 1;
+            if (summaryCalls === 1) throw new Error('network_error');
+            return {
+                account: { id: 'account-1', recoveryVersion: 4 },
+                memberships: [], qaSessionExpiresAt: 999999
+            };
+        }
+    });
+    await assert.rejects(current.join.consume('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE'), /network_error/);
+    const pendingDevice = current.values().pending.accountDeviceId;
+    const result = await current.join.consume('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
+    assert.equal(result.reconciled, true);
+    assert.equal(current.values().account.accountDeviceId, pendingDevice);
+    assert.equal(consumeCalls, 1);
+    assert.equal(current.writes.filter(([kind]) => kind === 'pending').length, 1);
+});
+
+test('post-consume local persistence failure reconciles without a duplicate consume', async () => {
+    let consumeCalls = 0;
+    let accountWrites = 0;
+    const current = fixture({
+        consume: async () => {
+            consumeCalls += 1;
+            return {
+                accountId: 'account-1', accountDeviceId: 'device-2', recoveryVersion: 4,
+                qaSessionId: 'qa-2', qaExpiresAt: 999999
+            };
+        },
+        setAccount: async () => {
+            accountWrites += 1;
+            if (accountWrites === 1) throw new Error('account_storage_write_failed');
+        }
+    });
+    const result = await current.join.consume('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
+    assert.equal(result.reconciled, true);
+    assert.equal(consumeCalls, 1);
+    assert.equal(accountWrites, 2);
     assert.equal(current.values().pending, null);
 });
 
@@ -80,7 +132,7 @@ test('definitively uncommitted candidate is cleared and can be entered again', a
         summary: async () => { throw new AccountApiError('invalid_account_credential'); }
     });
     await assert.rejects(current.join.consume('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE'));
-    assert.equal((await current.join.resume()).status, 'not_committed');
+    assert.equal((await current.join.resume()).status, 'none');
     assert.equal(current.values().pending, null);
 });
 
