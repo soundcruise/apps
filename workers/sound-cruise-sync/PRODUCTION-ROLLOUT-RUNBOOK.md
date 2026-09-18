@@ -49,8 +49,10 @@ After bootstrap, Account summary/device/lifecycle routes require the Account
 credential, data-plane routes require the app credential, and Recovery requires
 the verifier-only Recovery authority. Turning new public admission OFF does not
 disable existing production credentials, data access, Recovery or delete exit
-paths. Production handoff remains unsupported; production uses the five-minute
-verifier-only App Join path.
+paths. Initial cross-container setup continues to use the five-minute
+verifier-only App Join path. Production handoff is limited to Port-authorized
+rejoin of an already-active membership and exact ready dataset; it cannot create
+a new membership or dataset.
 
 ## Release-day preflight
 

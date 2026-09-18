@@ -106,11 +106,17 @@ export function validateHandoffIssuePayload(value) {
 }
 
 export function validateHandoffConsumePayload(value) {
-  const keys = [
+  const requiredKeys = [
     'operationId', 'appId', 'handoffToken', 'accountCredential',
-    'appDeviceCredential', 'qaCredential', 'deviceLabel', 'consumeMode'
+    'appDeviceCredential', 'deviceLabel', 'consumeMode'
   ];
-  if (!exactObject(value, keys)) return { ok: false };
+  const keys = Object.keys(value || {}).sort();
+  const expected = requiredKeys.filter((key) => key !== 'qaCredential').sort();
+  const withQa = [...expected, 'qaCredential'].sort();
+  if (keys.length !== expected.length && keys.length !== withQa.length) return { ok: false };
+  if (!keys.every((key, index) => key === (keys.length === expected.length ? expected : withQa)[index])) {
+    return { ok: false };
+  }
   const deviceLabel = label(value.deviceLabel);
   const normalized = {
     ...value,
@@ -125,7 +131,7 @@ export function validateHandoffConsumePayload(value) {
     parseAccountHandoff(normalized.handoffToken) &&
     parseAccountCredential(normalized.accountCredential) &&
     parseAccountAppCredential(normalized.appDeviceCredential) &&
-    parseQaCredential(normalized.qaCredential) &&
+    (normalized.qaCredential === undefined || parseQaCredential(normalized.qaCredential)) &&
     deviceLabel !== undefined ? { ok: true, value: normalized } : { ok: false };
 }
 

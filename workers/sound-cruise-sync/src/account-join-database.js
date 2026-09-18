@@ -3,6 +3,7 @@ import { accountManagedRecoveryVerifier } from './account-crypto.js';
 import { ACCOUNT_QA } from './account-qa-crypto.js';
 
 export const ACCOUNT_APP_JOIN_TTL_MS = 5 * 60 * 1000;
+export const ACCOUNT_MAX_APP_ENVIRONMENTS = 10;
 
 function changes(result) {
   return Number(result?.meta?.changes || 0);
@@ -466,13 +467,27 @@ export function createD1AppJoinRepository(db) {
         WHERE u.id = ? AND u.state = 'active' AND u.deleted_at IS NULL
       `).bind(input.appId, row.account_id, row.membership_id, input.appId, row.sync_user_id).first();
       if (!reconnectable) return { status: 'membership_unavailable' };
+      const activeCount = await db.prepare(`
+        SELECT COUNT(*) AS count
+        FROM sync_membership_device_links l
+        JOIN sync_devices d ON d.id = l.app_device_id
+        WHERE l.account_id = ? AND l.membership_id = ? AND d.revoked_at IS NULL
+      `).bind(row.account_id, row.membership_id).first();
+      if (Number(activeCount?.count || 0) >= ACCOUNT_MAX_APP_ENVIRONMENTS) {
+        return { status: 'device_limit' };
+      }
       const insertAppDevice = db.prepare(`
         INSERT INTO sync_devices (
           id, user_id, app_id, credential_version, credential_verifier, label,
           last_cursor, created_at, last_seen_at, revoked_at, pairing_pending_at, paired_at
-        ) VALUES (?, ?, ?, 1, ?, ?, 0, ?, ?, NULL, NULL, ?)
+        )
+        SELECT ?, ?, ?, 1, ?, ?, 0, ?, ?, NULL, NULL, ?
+        WHERE (SELECT COUNT(*) FROM sync_membership_device_links l
+          JOIN sync_devices d ON d.id = l.app_device_id
+          WHERE l.account_id = ? AND l.membership_id = ? AND d.revoked_at IS NULL) < ?
       `).bind(input.appDeviceId, row.sync_user_id, input.appId,
-        input.appCredentialVerifier, input.deviceLabel, input.now, input.now, input.now);
+        input.appCredentialVerifier, input.deviceLabel, input.now, input.now, input.now,
+        row.account_id, row.membership_id, ACCOUNT_MAX_APP_ENVIRONMENTS);
       const insertAccountDevice = db.prepare(`
         INSERT INTO sync_account_devices (
           id, account_id, credential_version, credential_verifier,
@@ -534,6 +549,14 @@ export function createD1AppJoinRepository(db) {
             accountDeviceId: finalState.claimed_by_account_device_id,
             qaSessionId: finalState.qa_app_session_id, alreadyActivated: true
           };
+        }
+        const count = await db.prepare(`
+          SELECT COUNT(*) AS count FROM sync_membership_device_links l
+          JOIN sync_devices d ON d.id = l.app_device_id
+          WHERE l.account_id = ? AND l.membership_id = ? AND d.revoked_at IS NULL
+        `).bind(row.account_id, row.membership_id).first();
+        if (Number(count?.count || 0) >= ACCOUNT_MAX_APP_ENVIRONMENTS) {
+          return { status: 'device_limit' };
         }
         throw error;
       }

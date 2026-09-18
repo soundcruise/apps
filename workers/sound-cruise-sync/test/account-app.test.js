@@ -85,7 +85,9 @@ function jsonRequest(path, body, options = {}) {
   if (body !== undefined) headers.set('Content-Type', 'application/json');
   if (options.credential) headers.set('Authorization', `Bearer ${options.credential}`);
   if (options.appCredential) headers.set('X-Sound-Cruise-App-Authorization', `Bearer ${options.appCredential}`);
-  headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${(options.qaCredential || qa.credential)}`);
+  if (options.noQa !== true) {
+    headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${(options.qaCredential || qa.credential)}`);
+  }
   return new Request(`https://sync.example${path}`, {
     method: options.method || (body === undefined ? 'GET' : 'POST'),
     headers,
@@ -1221,6 +1223,76 @@ test('secure handoff issue/consume activates one app reservation and exact retry
   assert.equal(db.raw.prepare(`
     SELECT state FROM sync_account_memberships WHERE account_id = ? AND app_id = 'chord'
   `).get(started.payload.accountId).state, 'active');
+  db.close();
+});
+
+test('production Auto Rejoin creates one new app environment on the existing ready dataset', async () => {
+  const db = createSqliteD1();
+  enableAccountControl(db);
+  const env = environment(db);
+  env.SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED = 'true';
+  env.SYNC_ACCOUNT_PUBLIC_APP_IDS = 'chord,pitch,fretboard,rhythm,port';
+  const started = await startAccount(db, env, ['pitch']);
+  const invitationId = crypto.randomUUID();
+  const joinCode = createAppJoinCode();
+  let response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations', {
+    operationId: crypto.randomUUID(), invitationId, appId: 'pitch', joinCode
+  }, { credential: started.candidate.account.credential }), env);
+  assert.equal(response.status, 201);
+  const originalAccount = createAccountCredential();
+  const originalApp = await createIdentityMaterial(appPepper);
+  const originalQa = createQaCredential();
+  response = await handleRequest(jsonRequest('/v2/accounts/app-join-invitations/consume', {
+    operationId: crypto.randomUUID(), appId: 'pitch', joinCode,
+    accountCredential: originalAccount.credential,
+    appDeviceCredential: originalApp.credential,
+    qaCredential: originalQa.credential,
+    deviceLabel: 'Pitch original', consumeMode: 'new_app'
+  }), env);
+  assert.equal(response.status, 201);
+  const initial = await response.json();
+  db.raw.prepare(`INSERT INTO sync_datasets
+    (user_id,app_id,state,schema_version,record_count,manifest_hash,min_change_seq,last_change_seq,initialized_at,updated_at)
+    VALUES (?, 'pitch', 'ready', 1, 4, ?, 0, 0, 1, 1)`)
+    .run(initial.syncUserId, '0'.repeat(64));
+  db.raw.prepare(`UPDATE sync_accounts SET admission_provenance = 'production' WHERE id = ?`)
+    .run(started.payload.accountId);
+
+  const handoff = createAccountHandoff();
+  response = await handleRequest(jsonRequest('/v2/accounts/handoffs', {
+    operationId: crypto.randomUUID(), appId: 'pitch', handoffToken: handoff.handoffToken
+  }, { credential: started.candidate.account.credential, noQa: true }), env);
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const replacementAccount = createAccountCredential();
+  const replacementApp = await createIdentityMaterial(appPepper);
+  const consumeBody = {
+    operationId: crypto.randomUUID(), appId: 'pitch', handoffToken: handoff.handoffToken,
+    accountCredential: replacementAccount.credential,
+    appDeviceCredential: replacementApp.credential,
+    deviceLabel: 'Pitch replacement', consumeMode: 'new_app'
+  };
+  response = await handleRequest(jsonRequest('/v2/accounts/handoffs/consume', {
+    ...consumeBody, appId: 'chord'
+  }, { noQa: true }), env);
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).code, 'wrong_app');
+  response = await handleRequest(jsonRequest('/v2/accounts/handoffs/consume', consumeBody,
+    { noQa: true }), env);
+  assert.equal(response.status, 201, JSON.stringify(await response.clone().json()));
+  const rejoined = await response.json();
+  assert.equal(rejoined.syncUserId, initial.syncUserId);
+  assert.equal(rejoined.datasetState, 'ready');
+  assert.equal(db.raw.prepare('SELECT COUNT(*) AS count FROM sync_users').get().count, 1);
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) AS count FROM sync_datasets
+    WHERE user_id = ? AND app_id = 'pitch'`).get(initial.syncUserId).count, 1);
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) AS count FROM sync_devices
+    WHERE user_id = ? AND app_id = 'pitch' AND revoked_at IS NULL`).get(initial.syncUserId).count, 2);
+  response = await handleRequest(jsonRequest('/v2/accounts/handoffs/consume', consumeBody,
+    { noQa: true }), env);
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).alreadyActivated, true);
+  assert.equal(db.raw.prepare(`SELECT COUNT(*) AS count FROM sync_devices
+    WHERE user_id = ?`).get(initial.syncUserId).count, 2);
   db.close();
 });
 

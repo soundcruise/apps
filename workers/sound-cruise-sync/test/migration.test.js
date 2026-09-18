@@ -27,6 +27,7 @@ const migration20 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration21 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0021_add_port_data_plane.sql'), 'utf8');
 const migration22 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0022_add_binary_assets.sql'), 'utf8');
 const migration23 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0023_add_asset_quota_and_account_activity.sql'), 'utf8');
+const migration24 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0024_add_auto_rejoin_handoffs.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -56,6 +57,7 @@ function migrate(db) {
   db.exec(migration21);
   db.exec(migration22);
   db.exec(migration23);
+  db.exec(migration24);
 }
 
 function migrateThrough20(db) {

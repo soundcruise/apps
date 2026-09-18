@@ -82,6 +82,57 @@ async function issue(fixture, appId = 'chord', now = 100) {
   return { material, verifier, operationId, fingerprint, result };
 }
 
+async function activateMembership(fixture, appId = 'pitch', provenance = 'qa') {
+  const userId = `active-user-${appId}`;
+  const appDeviceId = `active-device-${appId}`;
+  const accountDeviceId = `active-account-device-${appId}`;
+  fixture.db.raw.prepare(`UPDATE sync_accounts SET admission_provenance = ? WHERE id = ?`)
+    .run(provenance, fixture.identity.accountId);
+  fixture.db.raw.prepare(`INSERT INTO sync_users
+    (id,state,recovery_version,recovery_verifier,created_at,updated_at,recovery_created_at,recovery_rotated_at)
+    VALUES (?, 'active', 1, ?, 1, 1, 1, 1)`).run(userId, '5'.repeat(64));
+  fixture.db.raw.prepare(`INSERT INTO sync_devices
+    (id,user_id,app_id,credential_version,credential_verifier,label,last_cursor,created_at,last_seen_at,paired_at)
+    VALUES (?, ?, ?, 1, ?, 'Existing', 0, 1, 1, 1)`)
+    .run(appDeviceId, userId, appId, '6'.repeat(64));
+  fixture.db.raw.prepare(`INSERT INTO sync_account_devices
+    (id,account_id,credential_version,credential_verifier,label,created_at,last_seen_at)
+    VALUES (?, ?, 1, ?, 'Existing app', 1, 1)`)
+    .run(accountDeviceId, fixture.identity.accountId, '7'.repeat(64));
+  fixture.db.raw.prepare(`UPDATE sync_account_memberships
+    SET state = 'active', sync_user_id = ?, activated_at = 2, updated_at = 2
+    WHERE id = ?`).run(userId, `membership-${appId}`);
+  fixture.db.raw.prepare(`INSERT INTO sync_datasets
+    (user_id,app_id,state,schema_version,record_count,manifest_hash,min_change_seq,last_change_seq,initialized_at,updated_at)
+    VALUES (?, ?, 'ready', 1, 3, ?, 0, 0, 2, 2)`)
+    .run(userId, appId, '0'.repeat(64));
+  fixture.db.raw.prepare(`INSERT INTO sync_account_managed_users
+    (sync_user_id,account_id,membership_id,app_id,created_at)
+    VALUES (?, ?, ?, ?, 2)`)
+    .run(userId, fixture.identity.accountId, `membership-${appId}`, appId);
+  fixture.db.raw.prepare(`INSERT INTO sync_membership_device_links
+    (account_id,membership_id,app_device_id,account_device_id,linked_at)
+    VALUES (?, ?, ?, ?, 2)`)
+    .run(fixture.identity.accountId, `membership-${appId}`, appDeviceId, accountDeviceId);
+  return { userId, appDeviceId, accountDeviceId };
+}
+
+async function issueRejoin(fixture, appId = 'pitch', provenance = 'qa', now = 100) {
+  const material = createAccountHandoff();
+  const verifier = await accountHandoffVerifier(material.handoffToken, handoffPepper);
+  const operationId = crypto.randomUUID();
+  const fingerprint = await accountOperationFingerprint([
+    'issue-rejoin', fixture.identity.accountId, fixture.identity.accountDeviceId,
+    appId, material.handoffId, verifier, provenance
+  ]);
+  const result = await fixture.repository.issue(fixture.identity, {
+    operationId, appId, handoffId: material.handoffId, handoffVerifier: verifier,
+    requestFingerprint: fingerprint, admissionProvenance: provenance,
+    qaIssuerSessionId: provenance === 'qa' ? fixture.qaSessionId : null, now
+  });
+  return { material, verifier, operationId, fingerprint, result };
+}
+
 async function consumeInput(issued, appId = 'chord', overrides = {}) {
   const account = createAccountCredential();
   const app = await createIdentityMaterial(appPepper);
@@ -315,5 +366,84 @@ test('same-handoff consume race activates exactly one candidate', async () => {
   assert.equal(results.filter((result) => result.status === 'used').length, 1);
   assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) AS count FROM sync_users').get().count, 1);
   assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) AS count FROM sync_account_devices').get().count, 2);
+  fixture.db.close();
+});
+
+test('active membership handoff provisions a new environment on the same ready dataset', async () => {
+  const fixture = await setup(['pitch']);
+  const active = await activateMembership(fixture, 'pitch');
+  const issued = await issueRejoin(fixture);
+  assert.equal(issued.result.status, 'issued');
+  const grant = fixture.db.raw.prepare(`SELECT handoff_kind, expected_sync_user_id,
+    admission_provenance FROM sync_membership_handoffs WHERE handoff_id = ?`)
+    .get(issued.material.handoffId);
+  assert.deepEqual({ ...grant }, {
+    handoff_kind: 'rejoin', expected_sync_user_id: active.userId, admission_provenance: 'qa'
+  });
+  const input = await consumeInput(issued, 'pitch');
+  const result = await fixture.repository.consume(input);
+  assert.equal(result.status, 'activated');
+  assert.equal(result.syncUserId, active.userId);
+  assert.equal(result.handoffKind, 'rejoin');
+  assert.equal(fixture.db.raw.prepare('SELECT COUNT(*) AS count FROM sync_users').get().count, 1);
+  assert.equal(fixture.db.raw.prepare(`SELECT COUNT(*) AS count FROM sync_datasets
+    WHERE user_id = ? AND app_id = 'pitch'`).get(active.userId).count, 1);
+  assert.equal(fixture.db.raw.prepare(`SELECT COUNT(*) AS count FROM sync_devices
+    WHERE user_id = ? AND app_id = 'pitch' AND revoked_at IS NULL`).get(active.userId).count, 2);
+  const retry = await fixture.repository.consume({ ...input, now: 201 });
+  assert.equal(retry.alreadyActivated, true);
+  assert.equal(fixture.db.raw.prepare(`SELECT COUNT(*) AS count FROM sync_devices
+    WHERE user_id = ?`).get(active.userId).count, 2);
+  fixture.db.close();
+});
+
+test('production rejoin uses no QA session and rejects provenance, lifecycle and dataset drift', async () => {
+  const fixture = await setup(['rhythm']);
+  const active = await activateMembership(fixture, 'rhythm', 'production');
+  const issued = await issueRejoin(fixture, 'rhythm', 'production');
+  assert.equal(issued.result.status, 'issued');
+  const input = await consumeInput(issued, 'rhythm', {
+    admissionProvenance: 'production', qaSessionId: null, qaCredentialVerifier: null
+  });
+  assert.equal((await fixture.repository.consume({ ...input, admissionProvenance: 'qa' })).status, 'invalid');
+  fixture.db.raw.prepare(`UPDATE sync_datasets SET state = 'initializing'
+    WHERE user_id = ? AND app_id = 'rhythm'`).run(active.userId);
+  assert.equal((await fixture.repository.consume(input)).status, 'membership_unavailable');
+  fixture.db.raw.prepare(`UPDATE sync_datasets SET state = 'ready'
+    WHERE user_id = ? AND app_id = 'rhythm'`).run(active.userId);
+  fixture.db.raw.prepare(`UPDATE sync_accounts SET state = 'deleting', delete_requested_at = 150,
+    purge_after = 999 WHERE id = ?`).run(fixture.identity.accountId);
+  assert.equal((await fixture.repository.consume(input)).status, 'membership_unavailable');
+  assert.equal(fixture.db.raw.prepare(`SELECT COUNT(*) AS count FROM sync_devices
+    WHERE user_id = ?`).get(active.userId).count, 1);
+  fixture.db.close();
+});
+
+test('Auto Rejoin refuses an eleventh active environment without revoking an older device', async () => {
+  const fixture = await setup(['fretboard']);
+  const active = await activateMembership(fixture, 'fretboard');
+  for (let index = 2; index <= 10; index += 1) {
+    const appDeviceId = `fretboard-device-${index}`;
+    const accountDeviceId = `fretboard-account-device-${index}`;
+    fixture.db.raw.prepare(`INSERT INTO sync_devices
+      (id,user_id,app_id,credential_version,credential_verifier,label,last_cursor,created_at,last_seen_at,paired_at)
+      VALUES (?, ?, 'fretboard', 1, ?, 'Extra', 0, 1, 1, 1)`)
+      .run(appDeviceId, active.userId, index.toString(16).padStart(64, '0'));
+    fixture.db.raw.prepare(`INSERT INTO sync_account_devices
+      (id,account_id,credential_version,credential_verifier,label,created_at,last_seen_at)
+      VALUES (?, ?, 1, ?, 'Extra', 1, 1)`)
+      .run(accountDeviceId, fixture.identity.accountId, (index + 20).toString(16).padStart(64, '0'));
+    fixture.db.raw.prepare(`INSERT INTO sync_membership_device_links
+      (account_id,membership_id,app_device_id,account_device_id,linked_at)
+      VALUES (?, 'membership-fretboard', ?, ?, 2)`)
+      .run(fixture.identity.accountId, appDeviceId, accountDeviceId);
+  }
+  const issued = await issueRejoin(fixture, 'fretboard');
+  const result = await fixture.repository.consume(await consumeInput(issued, 'fretboard'));
+  assert.equal(result.status, 'device_limit');
+  assert.equal(fixture.db.raw.prepare(`SELECT COUNT(*) AS count FROM sync_devices
+    WHERE user_id = ? AND revoked_at IS NULL`).get(active.userId).count, 10);
+  assert.equal(fixture.db.raw.prepare(`SELECT COUNT(*) AS count FROM sync_devices
+    WHERE user_id = ? AND revoked_at IS NOT NULL`).get(active.userId).count, 0);
   fixture.db.close();
 });

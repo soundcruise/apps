@@ -342,6 +342,8 @@ function rateError(result, origin, route, retryAfter) {
 function requiresPublicAdmission(pathname, method) {
   if (pathname === '/v2/accounts/start') return true;
   if (pathname === '/v2/accounts/memberships' && method === 'POST') return true;
+  if ((pathname === '/v2/accounts/handoffs' || pathname === '/v2/accounts/handoffs/cancel') &&
+      method === 'POST') return true;
   if (pathname === '/v2/accounts/app-join-invitations' && method === 'POST') return true;
   if (pathname === '/v2/accounts/port-join-invitations' && method === 'POST') return true;
   return pathname === '/v2/accounts/bridges/chord/prepare' ||
@@ -1572,6 +1574,7 @@ function handoffError(status, origin, route) {
     cancelled: [409, 'handoff_cancelled'],
     used: [409, 'handoff_consumed'],
     membership_unavailable: [409, 'membership_state_invalid'],
+    device_limit: [409, 'app_environment_limit'],
     qa_admission_unavailable: [403, 'qa_admission_required']
   };
   const [httpStatus, code] = errors[status] || [503, 'account_server_error'];
@@ -1583,9 +1586,12 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const validation = validateHandoffConsumePayload(parsed.value);
   if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  const admissionProvenance = dependencies.admissionProvenance || ACCOUNT_ADMISSION_PROVENANCE.QA;
   if (!env.SYNC_DB || !env.SYNC_ACCOUNT_HANDOFF_PEPPER ||
       !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_RECOVERY_PEPPER ||
-      !env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER) {
+      !env.SYNC_CREDENTIAL_PEPPER ||
+      (admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA &&
+        !env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER)) {
     return errorResponse(503, 'account_server_unavailable', origin, route);
   }
   let session;
@@ -1631,14 +1637,19 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
       value.appDeviceCredential,
       env.SYNC_CREDENTIAL_PEPPER
     );
-    const qaCredential = parseQaCredential(value.qaCredential);
-    const qaVerifier = await (dependencies.qaCredentialVerifier || qaCredentialVerifier)(
-      value.qaCredential,
-      env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER
-    );
+    const qaCredential = value.qaCredential ? parseQaCredential(value.qaCredential) : null;
+    if ((admissionProvenance === ACCOUNT_ADMISSION_PROVENANCE.QA) !== Boolean(qaCredential)) {
+      return errorResponse(403, 'qa_admission_required', origin, route);
+    }
+    const qaVerifier = qaCredential
+      ? await (dependencies.qaCredentialVerifier || qaCredentialVerifier)(
+        value.qaCredential,
+        env.SYNC_ACCOUNT_QA_CREDENTIAL_PEPPER
+      ) : null;
     const fingerprint = await (dependencies.accountOperationFingerprint || accountOperationFingerprint)([
       'handoff-consume', value.appId, handoff.handoffId, accountDevice.deviceId,
-      appDevice.deviceId, accountVerifier, appVerifier, qaVerifier, value.deviceLabel || '', value.consumeMode
+      appDevice.deviceId, accountVerifier, appVerifier, qaVerifier || '', value.deviceLabel || '',
+      value.consumeMode, admissionProvenance
     ]);
     const repository = (dependencies.createAccountHandoffRepository || createD1AccountHandoffRepository)(session);
     const consumeInput = {
@@ -1651,7 +1662,8 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
       accountCredentialVerifier: accountVerifier,
       appDeviceId: appDevice.deviceId,
       appCredentialVerifier: appVerifier,
-      qaSessionId: qaCredential.sessionId,
+      admissionProvenance,
+      qaSessionId: qaCredential?.sessionId || null,
       qaCredentialVerifier: qaVerifier,
       syncUserId: existingAppIdentity?.userId || crypto.randomUUID(),
       consumeMode: value.consumeMode,
@@ -1674,7 +1686,8 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
         qaSessionId: retry.qaSessionId,
         syncUserId: retry.syncUserId,
         membershipState: retry.status === 'bridge_required' ? 'pending' : 'active',
-        datasetState: retry.status === 'bridge_required' ? 'ready' : 'not_created',
+        datasetState: retry.status === 'bridge_required' || retry.handoffKind === 'rejoin'
+          ? 'ready' : 'not_created',
         consumeMode: value.consumeMode,
         alreadyActivated: true
       }, origin, route, bookmarkHeader(session));
@@ -1697,7 +1710,8 @@ async function handleHandoffConsume(request, env, origin, route, dependencies) {
       qaSessionId: result.qaSessionId,
       syncUserId: result.syncUserId,
       membershipState: result.status === 'bridge_required' ? 'pending' : 'active',
-      datasetState: result.status === 'bridge_required' ? 'ready' : 'not_created',
+      datasetState: result.status === 'bridge_required' || result.handoffKind === 'rejoin'
+        ? 'ready' : 'not_created',
       consumeMode: value.consumeMode,
       alreadyActivated: result.alreadyActivated
     }, origin, route, bookmarkHeader(session));
@@ -1714,6 +1728,7 @@ function appJoinError(status, origin, route) {
     cancelled: [409, 'app_join_cancelled'],
     used: [409, 'app_join_consumed'],
     membership_unavailable: [409, 'membership_state_invalid'],
+    device_limit: [409, 'app_environment_limit'],
     qa_admission_unavailable: [403, 'qa_admission_required']
   };
   const [httpStatus, code] = errors[status] || [503, 'account_server_error'];
@@ -2260,9 +2275,6 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
         admissionProvenance: ACCOUNT_ADMISSION_PROVENANCE.QA
       };
     } else {
-      if (url.pathname.startsWith('/v2/accounts/handoffs')) {
-        return errorResponse(403, 'account_public_handoff_unavailable', origin, route);
-      }
       if (requiresPublicAdmission(url.pathname, request.method) && !publicAdmissionEnabled) {
         return errorResponse(403, 'account_public_admission_closed', origin, route);
       }
@@ -2272,7 +2284,11 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
       };
     }
   } else if (url.pathname === '/v2/accounts/handoffs/consume') {
-    dependencies = { ...dependencies, admissionProvenance: ACCOUNT_ADMISSION_PROVENANCE.QA };
+    dependencies = {
+      ...dependencies,
+      admissionProvenance: request.headers.get('X-Sound-Cruise-QA-Authorization') !== null
+        ? ACCOUNT_ADMISSION_PROVENANCE.QA : ACCOUNT_ADMISSION_PROVENANCE.PRODUCTION
+    };
   }
 
   if (url.pathname === '/v2/accounts/bridges/chord' ||

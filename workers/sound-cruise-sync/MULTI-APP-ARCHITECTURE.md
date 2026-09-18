@@ -563,6 +563,20 @@ It deliberately creates no `sync_datasets` row and does not migrate payloads.
 Exact consume retries return the original IDs; a different retry is rejected as
 consumed.
 
+For an already-active Account-managed membership, the same transport also has
+an explicit `rejoin` variant. Issue binds the grant to the authenticated Port
+Account device, production/QA provenance, target app, membership and exact
+existing `sync_user_id`; the membership must still be active and its dataset
+ready when consumed. Rejoin creates only a fresh app credential container, a
+fresh Account credential container and their membership link. It never creates
+or replaces the membership, app identity or dataset. Existing usable app
+credentials take precedence client-side, so an ordinary Port launch cannot
+create another device. The five-minute grant is one-time and operation-bound;
+an exact response-loss retry returns the same device IDs. At most ten active app
+environments may be linked to one membership. Reaching the limit fails closed
+and requires explicit Environment management; no old environment is selected
+or revoked automatically.
+
 The reserved app identity is marked in `sync_account_managed_users`. Its
 internal Recovery verifier exists only to satisfy the legacy `sync_users`
 invariant and is not a user-facing app Recovery Code. M4 must explicitly reject
@@ -856,6 +870,30 @@ app, issuing Account device, and Port QA session. Issue and consume have separat
 rate-limit namespaces. Consume is transactional and one-time; exact operation
 retries recover a lost response, while replay, wrong-app use, cancellation,
 expiry, issuer revocation, and concurrent candidates fail closed.
+
+## Port-only launch and Auto Rejoin
+
+Cruise Port home cards remain normal Pro URLs when no active, ready membership
+exists. When the authenticated Port summary reports an active membership with a
+ready dataset, Port issues a short-lived rejoin handoff and navigates to the Pro
+URL. The destination app removes the fragment immediately. If its own isolated
+storage already contains a valid app credential, it ignores the transient grant
+and starts normally. If no credential exists, it consumes the grant, stores the
+new credential only in that app container, and uses the existing adapter/runtime
+hydrate path against the same dataset. A failed consume or hydrate does not
+delete local or cloud data and leaves the formal Join Code path available.
+
+This flow does not make an OS-level guarantee about whether iOS opens an
+out-of-scope URL in Safari or another installed standalone container. It does
+remove any product requirement to have an individual app icon on the Home
+Screen: the Pro URL is usable in the browser container selected by the OS, and
+that container can rejoin when it has no credential. Device-only settings,
+offline outbox entries and unresolved conflicts that existed only in a deleted
+container cannot be reconstructed from the cloud. Therefore an individual PWA
+is safe to remove only after the app reports a successful cloud sync, an empty
+outbox and zero unresolved conflicts. A dedicated Port “safe to remove”
+authority remains optional follow-up work; Port never reads another app's local
+storage or IndexedDB.
 
 Chord with a live legacy credential consumes in `existing_chord` mode and then
 uses the M4 `legacy -> dual -> account` bridge. Chord without a credential and
