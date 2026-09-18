@@ -8,6 +8,8 @@ const source = fs.readFileSync(new URL('./port-sync-controller.js', import.meta.
 function harness({ failFirst = false } = {}) {
   const meta = new Map();
   const calls = [];
+  const events = [];
+  let adapter = null;
   let failures = failFirst ? 1 : 0;
   class Client {
     constructor() { this.admissionMode = 'production'; }
@@ -18,7 +20,7 @@ function harness({ failFirst = false } = {}) {
     }
   }
   class Runtime extends EventTarget {
-    constructor() { super(); this.initialized = 0; this.synced = 0; }
+    constructor(options) { super(); this.initialized = 0; this.synced = 0; this.adapter = options.adapter; }
     async initializeDataset() { this.initialized += 1; return { ok: true }; }
     async sync() { this.synced += 1; return { ok: true }; }
     bindLifecycle() {}
@@ -33,9 +35,12 @@ function harness({ failFirst = false } = {}) {
   };
   const context = {
     EventTarget, CustomEvent, structuredClone,
-    setInterval: () => 1, clearInterval() {}, dispatchEvent() {},
+    setInterval: () => 1, clearInterval() {}, dispatchEvent: (event) => events.push(event),
     document: { visibilityState: 'visible' }, navigator: { onLine: true },
-    SoundCruisePortSync: { PortSyncAdapter: class {} },
+    SoundCruisePortSync: { PortSyncAdapter: class {
+      constructor() { adapter = this; this.changed = false; }
+      consumeRemoteApplyChanged() { const changed = this.changed; this.changed = false; return changed; }
+    } },
     SoundCruiseSyncAccount: {
       AccountClient: Client,
       storage: {
@@ -58,7 +63,7 @@ function harness({ failFirst = false } = {}) {
   const controller = context.SoundCruisePortSync.createPortSyncController({
     config: { enabled: true, environment: 'production', endpoint: 'https://sync.example' }
   });
-  return { controller, calls, meta };
+  return { controller, calls, meta, events, adapter };
 }
 
 test('Port controller provisions once, initializes once and then resumes normal sync', async () => {
@@ -93,4 +98,15 @@ test('Port detach clears only cloud binding state', async () => {
   meta.set('migrationState', 'complete');
   await controller.clearCloudState();
   assert.equal(meta.size, 0);
+});
+
+test('Port controller announces a changed hydrate only after runtime reaches ready', () => {
+  const { controller, events, adapter } = harness();
+  adapter.changed = true;
+  controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'syncing' } }));
+  assert.equal(events.some((event) => event.type === 'cruise-port-cloud-data-applied'), false);
+  controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'ready' } }));
+  assert.equal(events.filter((event) => event.type === 'cruise-port-cloud-data-applied').length, 1);
+  controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'ready' } }));
+  assert.equal(events.filter((event) => event.type === 'cruise-port-cloud-data-applied').length, 1);
 });

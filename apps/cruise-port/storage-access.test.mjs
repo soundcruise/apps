@@ -26,8 +26,17 @@ test('every storage module imports the current conflict coordinator cache key', 
         'metronome-presets-store.js', 'tuner-store.js'
     ]) {
         const source = readFileSync(new URL(file, import.meta.url), 'utf8');
-        assert.match(source, /storage-conflict\.js\?v=0\.41\.1/, file);
+        assert.match(source, /storage-conflict\.js\?v=0\.41\.2/, file);
     }
+});
+
+test('verified cloud applies refresh the visible app only after unsafe local activity is clear', () => {
+    const source = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
+    assert.match(source, /cruise-port-cloud-data-applied/u);
+    assert.match(source, /pendingPortCloudRefresh/u);
+    assert.match(source, /dialog\[open\].*role="dialog"/u);
+    assert.match(source, /state\.timer\?\.running/u);
+    assert.match(source, /reloadAppWithCacheBust\(\)/u);
 });
 
 test('blocked localStorage getter returns recoverable failures for every store, without uncaught exceptions', () => {

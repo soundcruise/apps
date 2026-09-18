@@ -21,9 +21,10 @@
       endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage, core: accountRoot.core,
       admissionMode, qaScope: 'port'
     });
+    const adapter = new namespace.PortSyncAdapter();
     const runtime = new syncRoot.MultiAppSyncRuntime({
       appId: 'port', endpoint: config.endpoint,
-      adapter: new namespace.PortSyncAdapter(), store, accountClient: client,
+      adapter, store, accountClient: client,
       accountCore: accountRoot.core, admissionMode, fetchImpl
     });
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
@@ -36,7 +37,15 @@
         detail: Object.freeze({ state, ...detail })
       }));
     }
-    runtime.addEventListener('statechange', (event) => emit(event.detail?.state || 'unknown', event.detail));
+    runtime.addEventListener('statechange', (event) => {
+      const state = event.detail?.state || 'unknown';
+      emit(state, event.detail);
+      if (state === 'ready' && adapter.consumeRemoteApplyChanged?.()) {
+        global.dispatchEvent?.(new CustomEvent('cruise-port-cloud-data-applied', {
+          detail: Object.freeze({ changed: true })
+        }));
+      }
+    });
 
     async function provision(account) {
       let pending = await store.readMeta('pendingProvision');

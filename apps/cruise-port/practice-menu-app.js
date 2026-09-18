@@ -11,7 +11,7 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.41.1';
+} from './practice-menu-store.js?v=0.41.2';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
@@ -23,14 +23,14 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.41.1';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.41.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.41.1';
+} from './sync-center-controller.js?v=0.41.2';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.41.2';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.41.2';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.41.1';
+} from './sync-center-navigation.js?v=0.41.2';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -43,7 +43,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.41.1';
+} from './practice-menu-progress-store.js?v=0.41.2';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -57,7 +57,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.41.1';
+} from './practice-menu-history-store.js?v=0.41.2';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -72,7 +72,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.41.1';
+} from './practice-menu-calendar-store.js?v=0.41.2';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -81,7 +81,7 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.41.1';
+} from './practice-menu-timer-store.js?v=0.41.2';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -118,7 +118,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.41.1';
+} from './my-apps-store.js?v=0.41.2';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -169,9 +169,9 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.41.1';
+} from './app-version.js?v=0.41.2';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.41.1';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.41.2';
 import { initTuner } from './tuner-app.js?v=0.27.0';
 import {
     clearGearPhotoReferences,
@@ -190,7 +190,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.41.1';
+} from './gear-list-store.js?v=0.41.2';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -199,7 +199,7 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.41.1';
+} from './gear-category-store.js?v=0.41.2';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
 import {
     encodePreparedGearPhoto,
@@ -249,7 +249,6 @@ applyHomeCruiseLinks();
 const syncCenterController = createSyncCenterController({ config: syncCenterConfig });
 const portSyncController = globalThis.SoundCruisePortSync?.createPortSyncController?.({ config: syncCenterConfig });
 const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController });
-portSyncController?.ensure?.().catch(() => {});
 const PORT_SYNC_HELP_SUMMARY = '4つのProアプリのデータを、Cruise Portからまとめて管理できます。知りたい項目を下から選んでください。';
 const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     Object.freeze({
@@ -630,6 +629,7 @@ let settingsStorageReady = true;
 let gearPhotoLightboxReturnFocus = null;
 let practiceAttachmentRenderGeneration = 0;
 let practiceAttachmentLightboxReturnFocus = null;
+let pendingPortCloudRefresh = false;
 const myAppsIconStore = createMyAppsIconStore();
 const gearPhotoStore = createGearPhotoStore();
 const practiceAttachmentStore = createPracticeAttachmentStore();
@@ -2096,6 +2096,7 @@ function handlePracticeTimerToggle() {
             : result.message
     );
     renderPracticeList({ focus: false });
+    if (result.ok && result.stopped) refreshAppliedPortCloudDataWhenSafe();
 }
 
 function setPracticeCompletionBackgroundInert(inert) {
@@ -4564,6 +4565,31 @@ function renderRoute() {
     syncPracticeCompletionDialog();
 }
 
+function canRefreshAppliedPortCloudData() {
+    const activeTag = document.activeElement?.tagName;
+    const inputFocused = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
+    const editingRoute = /\/(?:new|[^/]+\/edit)$/u.test(location.hash);
+    const audioToolActive = location.hash === '#tuner' || location.hash === '#metronome';
+    return !document.hidden
+        && !inputFocused
+        && !editingRoute
+        && !audioToolActive
+        && !document.querySelector('dialog[open], [role="dialog"]:not([hidden])')
+        && !state.formSaving
+        && !state.timer?.running
+        && !state.reorderMode
+        && !myAppsState.saving
+        && !myAppsState.reorderMode
+        && !gearState.saving
+        && !gearState.reorderMode;
+}
+
+function refreshAppliedPortCloudDataWhenSafe() {
+    if (!pendingPortCloudRefresh || !canRefreshAppliedPortCloudData()) return false;
+    pendingPortCloudRefresh = false;
+    return reloadAppWithCacheBust();
+}
+
 function readFormValues() {
     const namePreset = state.formMode === 'create'
         ? getPracticeNamePreset(elements.namePresetInput.value)
@@ -5255,10 +5281,16 @@ applyVersionDisplay();
 document.querySelectorAll('.port-refresh-app').forEach((button) => button.addEventListener('click', () => {
     reloadAppWithCacheBust();
 }));
-window.addEventListener('hashchange', renderRoute);
+window.addEventListener('hashchange', () => {
+    renderRoute();
+    refreshAppliedPortCloudDataWhenSafe();
+});
 document.addEventListener('visibilitychange', () => {
     if (document.hidden) metronomeController?.stopForPageHidden();
-    if (!document.hidden) ensurePracticeTimerTicking();
+    if (!document.hidden) {
+        ensurePracticeTimerTicking();
+        refreshAppliedPortCloudDataWhenSafe();
+    }
 });
 window.addEventListener('pagehide', () => {
     metronomeController?.stopForPageHidden();
@@ -5281,6 +5313,10 @@ window.addEventListener('pagehide', () => {
 window.addEventListener('pageshow', ensurePracticeTimerTicking);
 window.addEventListener('cruise-port-storage-conflict', () => {
     window.alert('別のタブで保存内容が変更されました。上書きを防ぐため、この操作は保存していません。\n入力中の内容を控えてから「ページを更新」を押してください。');
+});
+window.addEventListener('cruise-port-cloud-data-applied', () => {
+    pendingPortCloudRefresh = true;
+    refreshAppliedPortCloudDataWhenSafe();
 });
 
 const loadResult = initializePracticeMenus(loadPracticeMenus());
@@ -5322,3 +5358,4 @@ elements.tunerCard.addEventListener('click', (event) => {
 ensurePracticeTimerTicking();
 renderRoute();
 void refreshPracticeAttachmentCounts();
+portSyncController?.ensure?.().catch(() => {});

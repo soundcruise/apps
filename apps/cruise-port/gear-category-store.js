@@ -1,5 +1,5 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.41.1';
-import { isValidGearCategoryId } from './gear-list-store.js?v=0.41.1';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.41.2';
+import { isValidGearCategoryId } from './gear-list-store.js?v=0.41.2';
 
 export const GEAR_CATEGORY_STORAGE_KEY = 'cruisePort.gearCategories';
 export const GEAR_CATEGORY_SCHEMA_VERSION = 1;

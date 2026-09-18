@@ -64,6 +64,7 @@ test('Port hydrate keeps this environment asset IDs and running timer while appl
     'cruisePort.practiceTimer': timer
   });
   const api = load(target);
+  const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
   const snapshot = { schemaVersion: 1, records: [
     { recordType: 'gear_item', recordId: 'gear-1', schemaVersion: 1, payload: { id: 'gear-1', value: {
       item: { id: 'gear-1', name: 'Cloud', status: 'owned', order: 0 }, asset: { present: true, crop: { x: 0.5 } }
@@ -71,7 +72,7 @@ test('Port hydrate keeps this environment asset IDs and running timer while appl
     { recordType: 'gear_order', recordId: 'owned', schemaVersion: 1, payload: { id: 'owned', value: ['gear-1'] } },
     { recordType: 'practice_history_event', recordId: 'event-2', schemaVersion: 1, payload: { id: 'event-2', value: { id: 'event-2', type: 'cycle-completed' } } }
   ] };
-  await api.applyRemoteSnapshot(target, snapshot);
+  const firstApply = await adapter.applyRemoteSnapshot(snapshot);
   const gear = JSON.parse(target.value('cruisePort.gearList')).items[0];
   assert.equal(gear.name, 'Cloud');
   assert.equal(gear.photoId, 'local-photo');
@@ -79,6 +80,12 @@ test('Port hydrate keeps this environment asset IDs and running timer while appl
   assert.deepEqual(gear.photoCrop, { x: 0.5 });
   assert.equal(target.value('cruisePort.practiceTimer'), timer);
   assert.equal(JSON.parse(target.value('cruisePort.practiceHistory')).activeSessionTiming.sessionId, 'running');
+  assert.equal(firstApply.changed, true);
+  assert.equal(adapter.consumeRemoteApplyChanged(), true);
+  assert.equal(adapter.consumeRemoteApplyChanged(), false);
+  const duplicateApply = await adapter.applyRemoteSnapshot(snapshot);
+  assert.equal(duplicateApply.changed, false);
+  assert.equal(adapter.consumeRemoteApplyChanged(), false);
 });
 
 test('Port merge safe-stops only same-record divergence', () => {

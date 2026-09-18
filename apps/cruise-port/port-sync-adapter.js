@@ -190,6 +190,7 @@
   }
   function write(storage, key, value) { storage.setItem(key, JSON.stringify(value)); }
   async function applyRemoteSnapshot(storage, snapshot) {
+    const before = new Map(MANAGED_KEYS.map((key) => [key, storage.getItem(key)]));
     const normalized = normalizeSnapshot(snapshot);
     const currentGear = itemValues(parse(storage, 'cruisePort.gearList', { items: [] }));
     const currentApps = itemValues(parse(storage, 'cruisePort.myApps', { items: [] }));
@@ -225,6 +226,8 @@
       myApps: byType(normalized, 'my_app').map((item) => ({ id: item.recordId, asset: item.payload.value.asset }))
     });
     root.acceptRemoteStorageValues?.(storage, MANAGED_KEYS);
+    const changed = MANAGED_KEYS.some((key) => storage.getItem(key) !== before.get(key));
+    return Object.freeze({ ok: true, changed });
   }
   async function computeManifest(snapshot, cryptoImpl = global.crypto) {
     const records = await serializeRecords(snapshot, cryptoImpl);
@@ -246,7 +249,11 @@
   }
 
   class PortSyncAdapter {
-    constructor(options = {}) { this.storage = options.storage || global.localStorage; this.cryptoImpl = options.cryptoImpl || global.crypto; }
+    constructor(options = {}) {
+      this.storage = options.storage || global.localStorage;
+      this.cryptoImpl = options.cryptoImpl || global.crypto;
+      this.remoteApplyChanged = false;
+    }
     readLocalSnapshot() { return readLocalSnapshot(this.storage); }
     normalizeLocalSnapshot(value = this.readLocalSnapshot()) { return normalizeSnapshot(value); }
     validateSnapshot(value) { try { normalizeSnapshot(value); return true; } catch (_) { return false; } }
@@ -254,7 +261,16 @@
     deserializeRecords(value) { return deserializeRecords(value); }
     isMeaningfulLocalData(value = this.readLocalSnapshot()) { return normalizeSnapshot(value).records.length > 0; }
     mergeSnapshots(local, remote) { return mergeSnapshots(local, remote); }
-    applyRemoteSnapshot(value) { return applyRemoteSnapshot(this.storage, value); }
+    async applyRemoteSnapshot(value) {
+      const result = await applyRemoteSnapshot(this.storage, value);
+      this.remoteApplyChanged = this.remoteApplyChanged || result.changed;
+      return result;
+    }
+    consumeRemoteApplyChanged() {
+      const changed = this.remoteApplyChanged;
+      this.remoteApplyChanged = false;
+      return changed;
+    }
     computeManifest(value) { return computeManifest(value, this.cryptoImpl); }
     getConflictPresentation(context) { return getConflictPresentation(context); }
     assertDataPlaneContext(context) { return assertDataPlaneContext(context); }
