@@ -61,7 +61,8 @@ const ROUTES = Object.freeze({
   '/v1/sync/push': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/migration/complete': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/changes': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
-  '/v1/sync/snapshot': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] }
+  '/v1/sync/snapshot': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
+  '/v1/sync/removal-safety': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] }
 });
 
 const ASSET_ROUTES = Object.freeze({
@@ -970,6 +971,24 @@ async function handleSnapshot(request, env, origin, route, dependencies, url) {
   }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
 }
 
+async function handleRemovalSafety(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request, MAX_BODY_BYTES);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const value = parsed.value;
+  if (!value || typeof value !== 'object' || !['clean', 'pending', 'attention', 'error'].includes(value.state) ||
+      typeof value.appId !== 'string' || Object.keys(value).some((key) => !['appId', 'state'].includes(key))) {
+    return errorResponse(400, 'invalid_request', origin, route);
+  }
+  let context;
+  try { context = await authenticatedContext(request, env, value.appId, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const result = await context.repository.reportRemovalSafety(context.identity, context.authority, value.state);
+    if (result.status !== 'reported') return errorResponse(409, 'sync_safety_unavailable', origin, route);
+    return jsonResponse(200, { ok: true }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+  } catch { return errorResponse(503, 'server_error', origin, route); }
+}
+
 async function handleMigrationComplete(request, env, origin, route, dependencies) {
   const parsed = await readJson(request, MAX_BODY_BYTES);
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
@@ -1052,6 +1071,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if (url.pathname === '/v1/sync/push') return handlePush(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/changes') return handleChanges(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v1/sync/snapshot') return handleSnapshot(request, env, origin, route, dependencies, url);
+  if (url.pathname === '/v1/sync/removal-safety') return handleRemovalSafety(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/assets/prepare') return handleAssetPrepare(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/assets/commit') return handleAssetCommit(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/assets/unreference') return handleAssetUnreference(request, env, origin, route, dependencies);

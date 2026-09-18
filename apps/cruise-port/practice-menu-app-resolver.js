@@ -1,4 +1,4 @@
-import { MY_APP_PREFIX } from './practice-menu-store.js?v=0.43.0';
+import { MY_APP_PREFIX } from './practice-menu-store.js?v=0.43.1';
 import { APP_DEFINITIONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
 import { getEdition } from './cruise-port-edition.js?v=0.27.0';
 import { resolveMyAppHref } from './my-apps-launch.js?v=0.24.0';

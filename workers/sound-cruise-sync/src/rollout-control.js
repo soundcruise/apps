@@ -9,6 +9,7 @@ export const ROUTE_GATE = Object.freeze({
   '/v1/sync/migration/complete': 'write',
   '/v1/sync/changes': 'read',
   '/v1/sync/snapshot': 'read',
+  '/v1/sync/removal-safety': 'write',
   '/v1/sync/assets/prepare': 'write',
   '/v1/sync/assets/content': 'write',
   '/v1/sync/assets/commit': 'write',

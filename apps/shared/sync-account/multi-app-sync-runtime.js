@@ -220,6 +220,13 @@
       return this.request('GET', `/v1/sync/snapshot?appId=${encodeURIComponent(this.appId)}`);
     }
 
+    async reportRemovalSafety(state) {
+      // Reporting is advisory presentation for Cruise Port. It must never turn
+      // a successful local sync into a failure when the summary endpoint is
+      // temporarily unavailable.
+      try { await this.request('POST', '/v1/sync/removal-safety', { appId: this.appId, state }); } catch (_) { /* fail closed in Port */ }
+    }
+
     async localRecords() {
       const snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
       return { snapshot, records: await this.adapter.serializeRecords(snapshot) };
@@ -752,6 +759,7 @@
       const unresolved = await this.store.listConflicts();
       if (unresolved.length) {
         this.setState('attention', { reason: 'conflict', conflicts: unresolved.length });
+        await this.reportRemovalSafety('attention');
         return { ok: false, code: 'conflict_pending', conflicts: unresolved.length };
       }
       this.setState('syncing', { reason });
@@ -777,6 +785,7 @@
           shadowRecord: shadowMap.get(recordKey) || null
         });
         this.setState('attention', { reason: 'conflict' });
+        await this.reportRemovalSafety('attention');
         return { ok: false, code: 'conflict', conflicts: conflictKeys.length };
       }
       await this.queueDiff(local.records, remote.records || [], shadowRecords);
@@ -795,11 +804,16 @@
       await this.replaceShadow(afterPush.records || [], afterPush.cursor);
       await this.store.setMeta('lastSyncAt', this.now());
       this.setState('ready', { reason, recordCount: localAfterPush.records.length });
+      const [outbox, conflicts] = await Promise.all([this.store.listOutbox(), this.store.listConflicts()]);
+      await this.reportRemovalSafety(outbox.length === 0 && conflicts.length === 0 ? 'clean' :
+        conflicts.length ? 'attention' : 'pending');
       return { ok: true, recordCount: afterPush.recordCount, manifestHash: afterPush.manifestHash };
     }
 
     notifyLocalSave() {
+      void this.reportRemovalSafety('pending');
       queueMicrotask(() => this.sync('save').catch((error) => {
+        void this.reportRemovalSafety('error');
         this.setState(error instanceof MultiAppSyncError && PAUSE_CODES.has(error.code) ? 'paused' : 'retrying');
       }));
     }

@@ -2166,6 +2166,19 @@ textarea:focus-visible {
     color: var(--port-text);
     background: rgba(205, 205, 205, 0.16);
 }
+.sync-center-removal-safety {
+    flex: 0 0 auto;
+    padding: 2px 7px;
+    border: 1px solid rgba(205, 205, 205, 0.42);
+    border-radius: 999px;
+    color: var(--port-muted);
+    font-size: calc(0.68rem * var(--font-scale));
+    font-weight: 650;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+.sync-center-removal-safety--safe { border-color: rgba(107, 205, 148, .72); color: #cfe6d4; }
+.sync-center-removal-safety--attention { border-color: rgba(232, 176, 104, .72); color: #ead39b; }
 .sync-center-account-action {
     min-height: 48px;
     padding: 7px 14px;

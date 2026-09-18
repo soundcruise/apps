@@ -441,6 +441,9 @@
             if (matches) {
                 operation.localCommitted = true;
                 await store.putOutbox(operation);
+                // A local change is no longer safe to remove until a complete
+                // sync reports it clean again. Reporting is best-effort only.
+                reportRemovalSafety('pending').catch(function () {});
             }
             return {
                 enabled: true,
@@ -1819,6 +1822,15 @@
             }
         }
 
+        async function reportRemovalSafety(state) {
+            if (!enabled || ['clean', 'pending', 'attention', 'error'].indexOf(state) === -1) return;
+            try {
+                await authenticatedRequest('POST', '/v1/sync/removal-safety', {
+                    appId: core.APP_ID, state: state
+                });
+            } catch (error) { /* Port remains fail-closed when reporting is unavailable. */ }
+        }
+
         async function syncNow() {
             if (!enabled) return { enabled: false };
             var pushed = { enabled: true, sent: 0, applied: 0, duplicate: 0, conflict: 0, invalid: 0 };
@@ -1830,10 +1842,18 @@
                 pushed.duplicate += batch.duplicate || 0;
                 pushed.conflict += batch.conflict || 0;
                 pushed.invalid += batch.invalid || 0;
-                if (batch.ok === false && batch.sent) return { enabled: true, ok: false, push: batch };
+                if (batch.ok === false && batch.sent) {
+                    reportRemovalSafety(batch.conflict ? 'attention' : 'error').catch(function () {});
+                    return { enabled: true, ok: false, push: batch };
+                }
                 if (!batch.sent) break;
             }
             var pulled = await pullOnce();
+            var store = await openStore();
+            var pending = (await store.listOutbox()).filter(function (operation) { return operation && operation.localCommitted; });
+            var conflicts = typeof store.listConflicts === 'function' ? await store.listConflicts() : [];
+            var state = pulled.ok === false ? 'error' : conflicts.length ? 'attention' : pending.length ? 'pending' : 'clean';
+            reportRemovalSafety(state).catch(function () {});
             return { enabled: true, ok: pulled.ok !== false, push: pushed, pull: pulled };
         }
 

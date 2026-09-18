@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.43.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.43.1';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -41,6 +41,16 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
             count.textContent = `${app.recordCount}件`;
             detail.append(count);
         }
+        // This summary comes from each app's authenticated completed-sync
+        // report.  Port intentionally never reads browser storage directly.
+        const safety = document.createElement('span');
+        safety.className = `sync-center-removal-safety sync-center-removal-safety--${app.removalSafety || 'unknown'}`;
+        safety.textContent = app.removalSafetyLabel || '同期を確認してください';
+        safety.title = app.removalSafety === 'safe'
+            ? 'このアプリの保存データはクラウドに同期されています。Home画面から削除しても、Cruise Portから再び利用できます。'
+            : app.removalSafety === 'attention' ? 'このアプリで確認が必要な項目があります。'
+            : 'アプリを開いて同期完了を確認してください。';
+        detail.append(safety);
         copy.append(name, detail);
         const actions = document.createElement('div');
         actions.className = 'sync-center-app-row-actions';

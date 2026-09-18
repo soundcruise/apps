@@ -133,7 +133,17 @@ export function createD1AccountRepository(db) {
              d.manifest_hash, d.last_change_seq,
              (SELECT COUNT(*) FROM sync_membership_device_links l
                JOIN sync_devices ad ON ad.id = l.app_device_id
-               WHERE l.membership_id = m.id AND ad.revoked_at IS NULL) AS active_app_device_count
+               WHERE l.membership_id = m.id AND ad.revoked_at IS NULL) AS active_app_device_count,
+             (SELECT COUNT(*) FROM sync_membership_device_links l
+               JOIN sync_devices ad ON ad.id = l.app_device_id
+               JOIN sync_app_device_sync_safety s ON s.app_device_id = ad.id
+               WHERE l.membership_id = m.id AND ad.revoked_at IS NULL
+                 AND s.state = 'clean' AND s.last_successful_sync_at IS NOT NULL) AS clean_app_device_count,
+             (SELECT COUNT(*) FROM sync_membership_device_links l
+               JOIN sync_devices ad ON ad.id = l.app_device_id
+               JOIN sync_app_device_sync_safety s ON s.app_device_id = ad.id
+               WHERE l.membership_id = m.id AND ad.revoked_at IS NULL
+                 AND s.state IN ('attention', 'error')) AS attention_app_device_count
       FROM sync_account_memberships m
       LEFT JOIN sync_datasets d
         ON d.user_id = m.sync_user_id AND d.app_id = m.app_id
@@ -171,6 +181,11 @@ export function createD1AccountRepository(db) {
         purgeAfter: membership.purge_after == null ? null : Number(membership.purge_after),
         deletedAt: membership.deleted_at == null ? null : Number(membership.deleted_at),
         activeAppDeviceCount: Number(membership.active_app_device_count || 0),
+        removalSafety: membership.state === 'active' && membership.dataset_state === 'ready' &&
+          Number(membership.active_app_device_count || 0) > 0 &&
+          Number(membership.clean_app_device_count || 0) === Number(membership.active_app_device_count || 0)
+          ? 'safe'
+          : Number(membership.attention_app_device_count || 0) > 0 ? 'attention' : 'unknown',
         dataset: membership.dataset_state == null ? null : {
           state: membership.dataset_state,
           schemaVersion: Number(membership.schema_version),

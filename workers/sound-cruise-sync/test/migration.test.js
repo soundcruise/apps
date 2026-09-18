@@ -28,6 +28,7 @@ const migration21 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration22 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0022_add_binary_assets.sql'), 'utf8');
 const migration23 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0023_add_asset_quota_and_account_activity.sql'), 'utf8');
 const migration24 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0024_add_auto_rejoin_handoffs.sql'), 'utf8');
+const migration25 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0025_add_app_sync_safety.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -58,6 +59,7 @@ function migrate(db) {
   db.exec(migration22);
   db.exec(migration23);
   db.exec(migration24);
+  db.exec(migration25);
 }
 
 function migrateThrough20(db) {
@@ -125,7 +127,7 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     'sync_account_memberships', 'sync_account_qa_enrollments', 'sync_account_qa_sessions',
     'sync_account_recovery_attempts', 'sync_account_recovery_claims',
     'sync_account_recovery_rotations', 'sync_account_runtime_control',
-    'sync_account_start_operations', 'sync_accounts', 'sync_app_join_invitations',
+    'sync_account_start_operations', 'sync_accounts', 'sync_app_device_sync_safety', 'sync_app_join_invitations',
     'sync_asset_daily_variant_counts', 'sync_asset_operations', 'sync_assets',
     'sync_changes', 'sync_chord_account_bridges', 'sync_datasets', 'sync_devices', 'sync_enrollment_codes',
     'sync_membership_device_links', 'sync_membership_handoffs', 'sync_port_device_operations', 'sync_port_join_invitations', 'sync_records',
@@ -146,6 +148,7 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_port_device_operations_account'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_assets_cleanup'").get());
   assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_sync_account_activity_lifecycle'").get());
+  assert(db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name='idx_app_device_sync_safety_membership'").get());
   assert(db.prepare('SELECT storage_category FROM sync_assets LIMIT 1'));
   assert.match(db.prepare(`SELECT sql FROM sqlite_master
     WHERE type = 'table' AND name = 'sync_account_memberships'`).get().sql, /'port'/);

@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.43.0">
-    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.43.0">
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.43.0">
-    <link rel="stylesheet" href="./style.css?v=0.43.0">
+    <link rel="manifest" href="./manifest.json?v=0.43.1">
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.43.1">
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.43.1">
+    <link rel="stylesheet" href="./style.css?v=0.43.1">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=18">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -19,12 +19,12 @@
     <script defer src="../shared/sync-account/sync-app-backup.js?v=3"></script>
     <script defer src="../shared/sync-account/multi-app-sync-db.js?v=4"></script>
     <script defer src="../shared/sync-account/multi-app-sync-runtime.js?v=9"></script>
-    <script defer src="./port-sync-adapter.js?v=0.43.0"></script>
-    <script defer src="./port-sync-controller.js?v=0.43.0"></script>
+    <script defer src="./port-sync-adapter.js?v=0.43.1"></script>
+    <script defer src="./port-sync-controller.js?v=0.43.1"></script>
     <script defer src="../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="./practice-menu-app.js?v=0.43.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.43.1"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -212,6 +212,7 @@
                     </div>
                     <div id="sync-center-apps-help" hidden>
                         <p class="sync-center-section-help-copy">最初に使うアプリを接続します。未接続のアプリは「同期コード」から接続できます。「同期を解除」ではクラウドデータを残したまま、そのアプリの全環境を解除します。</p>
+                        <div class="sync-center-section-help-copy"><h3>Home画面から削除する前に</h3><p>「同期完了」と表示されたアプリは、保存データがクラウドに同期されています。Home画面から削除してもCruise Portから再び利用できます。端末の調整、Bluetooth・音声の状態、キャッシュ、未同期の端末内データ、OS固有の状態は対象外です。オフラインで変更した場合は、接続して「同期完了」を確認してから削除してください。</p></div>
                     </div>
                     <ul id="sync-center-apps" class="sync-center-apps" aria-live="polite"></ul>
                 </section>

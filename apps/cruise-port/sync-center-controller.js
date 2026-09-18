@@ -89,6 +89,8 @@ function normalizeApp(app, membership, appEnvironments = [], accountDeleting = f
     const status = membershipPresentation(membership, { accountDeleting, now });
     const activeAppDeviceCount = safeCount(membership?.activeAppDeviceCount);
     const deleteGrace = isAppDeleteGrace(membership, accountDeleting, now);
+    const safety = status.key === 'synced' && membership?.removalSafety === 'safe' ? 'safe'
+        : membership?.removalSafety === 'attention' ? 'attention' : 'unknown';
     return Object.freeze({
         id: app.id,
         name: app.name,
@@ -99,6 +101,9 @@ function normalizeApp(app, membership, appEnvironments = [], accountDeleting = f
         schemaVersion: safeCount(membership?.dataset?.schemaVersion),
         activeAppDeviceCount,
         deleteGrace,
+        removalSafety: safety,
+        removalSafetyLabel: safety === 'safe' ? '同期完了'
+            : safety === 'attention' ? '確認が必要' : '同期を確認してください',
         environments: Object.freeze(appEnvironments),
         // This does not change four-app progress: it represents a second
         // browser/PWA/container for an already ready app dataset.

@@ -236,3 +236,20 @@ test('only explicit Account terminal errors clear the stale Port binding', async
     assert.equal((await generic.load()).kind, 'error');
     assert.deepEqual(cleared, ['account'], 'generic errors retain the Account identity');
 });
+
+test('Home-screen removal safety is fail-closed unless the server reports a clean active membership', () => {
+    const summary = {
+        account: { id: 'account', state: 'active', recoveryVersion: 1 },
+        memberships: [
+            { appId: 'pitch', state: 'active', activeAppDeviceCount: 1, removalSafety: 'safe', dataset: { state: 'ready', recordCount: 1, schemaVersion: 1 } },
+            { appId: 'fretboard', state: 'active', activeAppDeviceCount: 1, removalSafety: 'attention', dataset: { state: 'ready', recordCount: 1, schemaVersion: 1 } },
+            { appId: 'rhythm', state: 'active', activeAppDeviceCount: 1, removalSafety: 'unknown', dataset: { state: 'ready', recordCount: 1, schemaVersion: 1 } },
+            { appId: 'chord', state: 'deleting', activeAppDeviceCount: 1, removalSafety: 'safe', dataset: { state: 'ready', recordCount: 1, schemaVersion: 1 } }
+        ]
+    };
+    const presentation = normalizeSyncCenterSummary(summary, { devices: [], appDevices: [] });
+    assert.equal(presentation.apps.find((app) => app.id === 'pitch').removalSafety, 'safe');
+    assert.equal(presentation.apps.find((app) => app.id === 'fretboard').removalSafety, 'attention');
+    assert.equal(presentation.apps.find((app) => app.id === 'rhythm').removalSafety, 'unknown');
+    assert.equal(presentation.apps.find((app) => app.id === 'chord').removalSafety, 'unknown');
+});
