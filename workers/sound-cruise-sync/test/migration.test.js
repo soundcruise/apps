@@ -62,6 +62,8 @@ function migrateThrough20(db) {
 }
 
 test('M21 preserves populated Account links and durable records while adding Port', () => {
+  assert.equal((migration21.match(/INSERT OR IGNORE INTO sync_(?:membership_device_links|account_recovery_claims|account_delete_intents|membership_handoffs|chord_account_bridges|app_join_invitations)/gu) || []).length, 6,
+    'deferred-cascade differences must not duplicate or omit existing lifecycle children');
   const db = new DatabaseSync(':memory:');
   migrateThrough20(db);
   db.prepare(`INSERT INTO sync_users

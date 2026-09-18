@@ -77,12 +77,15 @@ CREATE INDEX idx_sync_account_memberships_state
 CREATE INDEX idx_sync_account_memberships_purge
     ON sync_account_memberships(state, purge_after);
 
-INSERT INTO sync_membership_device_links SELECT * FROM sync_membership_device_links_m20_backup;
-INSERT INTO sync_account_recovery_claims SELECT * FROM sync_account_recovery_claims_m20_backup;
-INSERT INTO sync_account_delete_intents SELECT * FROM sync_account_delete_intents_m20_backup;
-INSERT INTO sync_membership_handoffs SELECT * FROM sync_membership_handoffs_m20_backup;
-INSERT INTO sync_chord_account_bridges SELECT * FROM sync_chord_account_bridges_m20_backup;
-INSERT INTO sync_app_join_invitations SELECT * FROM sync_app_join_invitations_m20_backup;
+-- SQLite runtimes differ on whether a deferred DROP cascades these rows before
+-- the replacement parent is renamed. Restore only rows that are absent in the
+-- active child table so both behaviours preserve the exact pre-migration set.
+INSERT OR IGNORE INTO sync_membership_device_links SELECT * FROM sync_membership_device_links_m20_backup;
+INSERT OR IGNORE INTO sync_account_recovery_claims SELECT * FROM sync_account_recovery_claims_m20_backup;
+INSERT OR IGNORE INTO sync_account_delete_intents SELECT * FROM sync_account_delete_intents_m20_backup;
+INSERT OR IGNORE INTO sync_membership_handoffs SELECT * FROM sync_membership_handoffs_m20_backup;
+INSERT OR IGNORE INTO sync_chord_account_bridges SELECT * FROM sync_chord_account_bridges_m20_backup;
+INSERT OR IGNORE INTO sync_app_join_invitations SELECT * FROM sync_app_join_invitations_m20_backup;
 DROP TABLE sync_membership_device_links_m20_backup;
 DROP TABLE sync_account_recovery_claims_m20_backup;
 DROP TABLE sync_account_delete_intents_m20_backup;
