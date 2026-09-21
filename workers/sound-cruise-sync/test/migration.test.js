@@ -30,6 +30,7 @@ const migration23 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration24 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0024_add_auto_rejoin_handoffs.sql'), 'utf8');
 const migration25 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0025_add_app_sync_safety.sql'), 'utf8');
 const migration26 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0026_add_practice_attachment_assets.sql'), 'utf8');
+const migration27 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0027_add_practice_attachment_record_types.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -66,6 +67,7 @@ function migrateThrough25(db) {
 function migrate(db) {
   migrateThrough25(db);
   db.exec(migration26);
+  db.exec(migration27);
 }
 
 function migrateThrough20(db) {
@@ -162,6 +164,8 @@ test('fresh migration creates the isolated sync schema and indexes', () => {
     WHERE type = 'table' AND name = 'sync_account_memberships'`).get().sql, /'port'/);
   assert.match(db.prepare(`SELECT sql FROM sqlite_master
     WHERE type = 'table' AND name = 'sync_records'`).get().sql, /'practice_cycle'/);
+  assert.match(db.prepare(`SELECT sql FROM sqlite_master
+    WHERE type = 'table' AND name = 'sync_records'`).get().sql, /'practice_attachment'/);
   assert(db.prepare("SELECT admission_provenance FROM sync_accounts LIMIT 1"));
   assert(db.prepare('SELECT delete_requested_at, purge_after FROM sync_account_memberships LIMIT 1'));
   assert(db.prepare(`SELECT prepare_operation_id, prepare_fingerprint,
@@ -228,6 +232,44 @@ test('M26 preserves existing image assets and idempotency operations while addin
     owner_record_type: null, owner_record_id: null, original_filename: null
   });
   assert.equal(db.prepare('SELECT COUNT(*) count FROM sync_asset_operations').get().count, 1);
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
+  db.close();
+});
+
+test('M27 preserves structured data and registers Practice attachment records and changes', () => {
+  const db = new DatabaseSync(':memory:');
+  migrateThrough25(db);
+  db.exec(migration26);
+  db.prepare(`INSERT INTO sync_users
+    (id,state,recovery_version,recovery_verifier,created_at,updated_at,recovery_created_at,recovery_rotated_at)
+    VALUES ('port-user','active',1,?,1,1,1,1)`).run('a'.repeat(64));
+  db.prepare(`INSERT INTO sync_records
+    (user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
+     deleted_at,updated_by_device_id,last_operation_id,schema_version)
+    VALUES ('port-user','port','gear_item','gear-1','{}',?,1,1,NULL,NULL,'gear-op',1)`)
+    .run('b'.repeat(64));
+  db.prepare(`INSERT INTO sync_changes
+    (change_seq,user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,
+     payload_json,payload_hash,deleted_at,changed_at,schema_version)
+    VALUES (27,'port-user','port','gear_item','gear-1',1,'gear-op',?,'{}',?,NULL,1,1)`)
+    .run('c'.repeat(64), 'b'.repeat(64));
+
+  db.exec(migration27);
+
+  assert.equal(db.prepare("SELECT COUNT(*) count FROM sync_records WHERE record_type='gear_item'").get().count, 1);
+  assert.equal(db.prepare("SELECT COUNT(*) count FROM sync_changes WHERE change_seq=27").get().count, 1);
+  const insertRecord = db.prepare(`INSERT INTO sync_records
+    (user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
+     deleted_at,updated_by_device_id,last_operation_id,schema_version)
+    VALUES ('port-user','port',?,?,'{}',?,1,2,NULL,NULL,?,1)`);
+  insertRecord.run('practice_attachment', 'attachment-1', 'd'.repeat(64), 'attachment-op');
+  insertRecord.run('practice_attachment_set', 'practice-1', 'e'.repeat(64), 'attachment-set-op');
+  db.prepare(`INSERT INTO sync_changes
+    (user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,
+     payload_json,payload_hash,deleted_at,changed_at,schema_version)
+    VALUES ('port-user','port','practice_attachment','attachment-1',1,'attachment-op',?,
+      '{}',?,NULL,2,1)`).run('f'.repeat(64), 'd'.repeat(64));
+  assert.throws(() => insertRecord.run('unregistered', 'bad-1', '0'.repeat(64), 'bad-op'));
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
   db.close();
 });

@@ -28,6 +28,7 @@ const migration23 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration24 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0024_add_auto_rejoin_handoffs.sql'), 'utf8');
 const migration25 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0025_add_app_sync_safety.sql'), 'utf8');
 const migration26 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0026_add_practice_attachment_assets.sql'), 'utf8');
+const migration27 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0027_add_practice_attachment_record_types.sql'), 'utf8');
 
 function statementWrapper(database, sql, values = []) {
   return {
@@ -71,6 +72,7 @@ export function createSqliteD1() {
   database.exec(migration24);
   database.exec(migration25);
   database.exec(migration26);
+  database.exec(migration27);
   let bookmark = 0;
   const binding = {
     prepare(sql) { return statementWrapper(database, sql); },
