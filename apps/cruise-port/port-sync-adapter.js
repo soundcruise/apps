@@ -106,6 +106,71 @@
   function itemValues(value, fallbackKey = 'items') {
     return plain(value) && Array.isArray(value[fallbackKey]) ? value[fallbackKey] : [];
   }
+  function recordKey(record) { return `${record?.recordType || ''}/${record?.recordId || ''}`; }
+  function isDeleted(record) { return record?.deletedAt != null || record?.deleted === true; }
+  function recordMap(records) {
+    return new Map((records || []).filter((item) => plain(item)).map((item) => [recordKey(item), item]));
+  }
+  function liveRecord(records, type, id) {
+    const value = records.get(`${type}/${id}`);
+    return value && !isDeleted(value) ? value : null;
+  }
+  function availablePair(value) {
+    return value?.availability === 'available' && typeof value.final?.assetId === 'string';
+  }
+  function availableAttachment(value) {
+    return value?.availability === 'available' && typeof value.asset?.assetId === 'string';
+  }
+  function missingPairReference(record) {
+    return !availablePair(record?.payload?.value?.asset);
+  }
+  function findAssetReferenceRepairs(storage, records, previousRecords) {
+    const current = recordMap(records);
+    const previous = recordMap(previousRecords);
+    const assets = assetMetadata(storage);
+    const gearItems = itemValues(parse(storage, 'cruisePort.gearList', { items: [] }));
+    const appItems = itemValues(parse(storage, 'cruisePort.myApps', { items: [] }));
+    const repairs = { gear: new Set(), myApps: new Set(), attachments: new Set() };
+    for (const item of gearItems) {
+      const entry = assets.gear[item.id];
+      const currentRecord = liveRecord(current, 'gear_item', item.id);
+      const previousRecord = liveRecord(previous, 'gear_item', item.id);
+      if (item.photoId && availablePair(entry?.published) && currentRecord && previousRecord &&
+          missingPairReference(currentRecord) && missingPairReference(previousRecord)) {
+        repairs.gear.add(item.id);
+      }
+    }
+    for (const item of appItems) {
+      const entry = assets.myApps[item.id];
+      const currentRecord = liveRecord(current, 'my_app', item.id);
+      const previousRecord = liveRecord(previous, 'my_app', item.id);
+      if (!item.iconPresetKey && item.iconId && availablePair(entry?.published) && currentRecord && previousRecord &&
+          missingPairReference(currentRecord) && missingPairReference(previousRecord)) {
+        repairs.myApps.add(item.id);
+      }
+    }
+    for (const [logicalId, entry] of Object.entries(assets.attachments)) {
+      if (!availableAttachment(entry?.published) || !liveRecord(current, 'practice_menu', entry.practiceId) ||
+          !liveRecord(previous, 'practice_menu', entry.practiceId)) continue;
+      const currentAttachment = current.get(`practice_attachment/${logicalId}`);
+      const previousAttachment = previous.get(`practice_attachment/${logicalId}`);
+      if (!currentAttachment && !previousAttachment) repairs.attachments.add(logicalId);
+    }
+    return repairs;
+  }
+  function hasAssetReferenceRepairs(repairs) {
+    return repairs.gear.size > 0 || repairs.myApps.size > 0 || repairs.attachments.size > 0;
+  }
+  function reconcileRemoteAssetReferences(storage, records, previousRecords) {
+    const repairs = findAssetReferenceRepairs(storage, records, previousRecords);
+    if (!hasAssetReferenceRepairs(repairs)) return false;
+    const assets = assetMetadata(storage);
+    if (!assets.referencePending) {
+      assets.referencePending = true;
+      storage.setItem(ASSET_METADATA_KEY, JSON.stringify(assets));
+    }
+    return true;
+  }
   function readLocalSnapshot(storage = global.localStorage) {
     const records = [];
     const assets = assetMetadata(storage);
@@ -234,12 +299,13 @@
     };
   }
   function write(storage, key, value) { storage.setItem(key, JSON.stringify(value)); }
-  async function applyRemoteSnapshot(storage, snapshot) {
+  async function applyRemoteSnapshot(storage, snapshot, previousRecords = []) {
     const before = new Map(MANAGED_KEYS.map((key) => [key, storage.getItem(key)]));
     const normalized = normalizeSnapshot(snapshot);
     const currentGear = itemValues(parse(storage, 'cruisePort.gearList', { items: [] }));
     const currentApps = itemValues(parse(storage, 'cruisePort.myApps', { items: [] }));
     const currentAssets = assetMetadata(storage);
+    const repairs = findAssetReferenceRepairs(storage, normalized.records, previousRecords);
     const currentHistory = parse(storage, 'cruisePort.practiceHistory', { version: 4, events: [] });
     SINGLETONS.forEach(([key, type, id]) => {
       const found = byType(normalized, type).find((item) => item.recordId === id);
@@ -252,7 +318,7 @@
     write(storage, 'cruisePort.practiceMenus', { version: 3, items: ordered(normalized, 'practice_menu', 'practice_menu_order').map((item) => item.payload.value) });
     const remoteAttachments = new Map(byType(normalized, 'practice_attachment').map((item) => [item.recordId, item.payload.value]));
     Object.entries(currentAssets.attachments || {}).forEach(([logicalId, entry]) => {
-      if (remoteAttachments.has(logicalId) || entry?.pending) return;
+      if (remoteAttachments.has(logicalId) || repairs.attachments.has(logicalId) || entry?.pending) return;
       if (entry?.binding?.localId) currentAssets.discardQueue.push(entry.binding.localId);
       delete currentAssets.attachments[logicalId];
     });
@@ -271,7 +337,7 @@
         pending: null
       };
     });
-    currentAssets.referencePending = false;
+    currentAssets.referencePending = currentAssets.referencePending || hasAssetReferenceRepairs(repairs);
     currentAssets.discardQueue = [...new Set(currentAssets.discardQueue.filter(Boolean))];
     storage.setItem('cruisePort.schemaVersion', '3');
     write(storage, 'cruisePort.practiceHistory', {
@@ -284,20 +350,24 @@
     write(storage, 'cruisePort.gearList', { version: 4, items: byType(normalized, 'gear_item').map((entry) => {
       const local = currentGear.find((item) => item.id === entry.recordId);
       const metadataEntry = currentAssets.gear[entry.recordId] || {};
+      const repair = repairs.gear.has(entry.recordId);
       metadataEntry.published = entry.payload.value.asset?.availability === 'available'
-        ? clone(entry.payload.value.asset) : null;
+        ? clone(entry.payload.value.asset) : repair ? metadataEntry.published : null;
       if (metadataEntry.binding?.final?.assetId !== metadataEntry.published?.final?.assetId) metadataEntry.binding = null;
       currentAssets.gear[entry.recordId] = metadataEntry;
-      return { ...restoreAsset(entry.payload.value, local, 'gear', metadataEntry), order: gearRank.get(entry.recordId) ?? 0 };
+      const value = repair ? { ...entry.payload.value, asset: clone(metadataEntry.published) } : entry.payload.value;
+      return { ...restoreAsset(value, local, 'gear', metadataEntry), order: gearRank.get(entry.recordId) ?? 0 };
     }) });
     write(storage, 'cruisePort.myApps', { version: 6, items: ordered(normalized, 'my_app', 'my_app_order').map((entry) => {
       const local = currentApps.find((item) => item.id === entry.recordId);
       const metadataEntry = currentAssets.myApps[entry.recordId] || {};
+      const repair = repairs.myApps.has(entry.recordId);
       metadataEntry.published = entry.payload.value.asset?.availability === 'available'
-        ? clone(entry.payload.value.asset) : null;
+        ? clone(entry.payload.value.asset) : repair ? metadataEntry.published : null;
       if (metadataEntry.binding?.final?.assetId !== metadataEntry.published?.final?.assetId) metadataEntry.binding = null;
       currentAssets.myApps[entry.recordId] = metadataEntry;
-      return restoreAsset(entry.payload.value, local, 'app', metadataEntry);
+      const value = repair ? { ...entry.payload.value, asset: clone(metadataEntry.published) } : entry.payload.value;
+      return restoreAsset(value, local, 'app', metadataEntry);
     }) });
     write(storage, ASSET_METADATA_KEY, currentAssets);
     root.acceptRemoteStorageValues?.(storage, MANAGED_KEYS);
@@ -330,6 +400,7 @@
       this.storage = options.storage || global.localStorage;
       this.cryptoImpl = options.cryptoImpl || global.crypto;
       this.remoteApplyChanged = false;
+      this.remoteReferenceRecords = [];
     }
     readLocalSnapshot() { return readLocalSnapshot(this.storage); }
     normalizeLocalSnapshot(value = this.readLocalSnapshot()) { return normalizeSnapshot(value); }
@@ -338,8 +409,14 @@
     deserializeRecords(value) { return deserializeRecords(value); }
     isMeaningfulLocalData(value = this.readLocalSnapshot()) { return normalizeSnapshot(value).records.length > 0; }
     mergeSnapshots(local, remote) { return mergeSnapshots(local, remote); }
+    primeRemoteReferences(records) { this.remoteReferenceRecords = clone(records || []); }
+    reconcileRemoteReferences(records) {
+      const repaired = reconcileRemoteAssetReferences(this.storage, records, this.remoteReferenceRecords);
+      this.remoteReferenceRecords = clone(records || []);
+      return repaired;
+    }
     async applyRemoteSnapshot(value) {
-      const result = await applyRemoteSnapshot(this.storage, value);
+      const result = await applyRemoteSnapshot(this.storage, value, this.remoteReferenceRecords);
       this.remoteApplyChanged = this.remoteApplyChanged || result.changed;
       return result;
     }
@@ -357,6 +434,6 @@
     APP_ID, SCHEMA_VERSION, MANAGED_KEYS, ASSET_METADATA_KEY, PortSyncAdapter,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeSnapshot, serializeRecords,
     deserializeRecords, mergeSnapshots, applyRemoteSnapshot, computeManifest,
-    assertDataPlaneContext, getConflictPresentation
+    assertDataPlaneContext, getConflictPresentation, reconcileRemoteAssetReferences
   });
 })(globalThis);

@@ -198,6 +198,51 @@ test('retries a logical asset reference after upload completed before dataset mi
     assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 1, 'retry only republishes metadata');
 });
 
+test('cold start republishes a missing current-version Gear reference without another upload', async () => {
+    const available = metadata({
+        assetId: '123e4567-e89b-42d3-a456-426614174200', kind: 'gear_photo_final',
+        hash: 'c'.repeat(64), mime: 'image/webp', byteSize: 12, width: 512, height: 512
+    }, 'available');
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [{
+            id: 'gear-current', photoId: 'local-final', photoSourceId: null
+        }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] }),
+        'cruisePort.syncAssetMetadata': JSON.stringify({
+            version: 4, gear: { 'gear-current': {
+                published: { version: 1, availability: 'available', final: available, source: null, crop: null },
+                binding: { final: { assetId: available.assetId, hash: available.hash, localId: 'local-final' }, source: null },
+                pending: null
+            } }, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false
+        })
+    });
+    const api = assetApi();
+    const syncController = controller();
+    let checked = false;
+    syncController.reconcileAssetReferences = async () => {
+        if (checked) return false;
+        checked = true;
+        const value = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+        value.referencePending = true;
+        local.setItem('cruisePort.syncAssetMetadata', JSON.stringify(value));
+        return true;
+    };
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: { getPhoto: async () => ({ ok: true, record: { id: 'local-final', blob: blob() } }) },
+        myAppsIconStore: {}, practiceAttachmentStore: { getAllAttachments: async () => ({ ok: true, records: [] }) } });
+
+    assert.equal((await sync.reconcile()).ok, true);
+    assert.deepEqual(syncController.syncReasons, ['asset-reference']);
+    assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 0);
+    assert.equal(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).gear['gear-current'].published.final.assetId,
+        available.assetId);
+    assert.equal(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).referencePending, false);
+
+    assert.equal((await sync.reconcile()).ok, true);
+    assert.deepEqual(syncController.syncReasons, ['asset-reference'], 'repeat startup is a no-op after convergence');
+    assert.equal(api.requests.length, 0);
+});
+
 test('custom My Apps source/final upload is isolated and deletion queues delayed unreference', async () => {
     const finalBlob = blob();
     const sourceBlob = blob([0x52,0x49,0x46,0x46,2,0,0,0,0x57,0x45,0x42,0x50]);

@@ -82,6 +82,7 @@
         credential = await store.readMeta('credential');
       }
       if (!accountRoot.core.validAppCredential(credential)) throw new Error('port_app_credential_required');
+      adapter.primeRemoteReferences?.(await store.listShadow?.() || []);
       const migrationState = await store.readMeta('migrationState');
       const result = migrationState === 'complete'
         ? await runtime.sync('startup')
@@ -104,6 +105,7 @@
     }
     async function clearCloudState() {
       await store.clearCloudState();
+      adapter.primeRemoteReferences?.([]);
       if (pollId) global.clearInterval(pollId);
       pollId = null;
       emit('not_connected');
@@ -137,6 +139,7 @@
 
     return Object.freeze({
       enabled: true, ensure, clearCloudState, status,
+      reconcileAssetReferences: async () => adapter.reconcileRemoteReferences?.(await store.listShadow?.() || []) === true,
       sync: (reason = 'manual') => runtime.sync(reason),
       listConflicts: () => runtime.listConflictPresentations(),
       resolveConflict: (id, choice) => runtime.resolveConflict(id, choice),

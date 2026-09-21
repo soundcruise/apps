@@ -25,6 +25,25 @@ function load(targetStorage) {
   return context.SoundCruisePortSync;
 }
 
+function pairAsset(finalId, sourceId = null) {
+  const asset = (assetId, kind) => ({
+    assetId, kind, hash: 'a'.repeat(64), mime: 'image/webp', byteSize: 12,
+    width: kind.endsWith('_final') ? 512 : 900, height: kind.endsWith('_final') ? 512 : 700,
+    objectVersion: 1, availability: 'available'
+  });
+  return {
+    version: 1, availability: 'available', final: asset(finalId, 'gear_photo_final'),
+    source: sourceId ? asset(sourceId, 'gear_photo_source') : null, crop: null
+  };
+}
+
+function remoteRecord(recordType, recordId, value, options = {}) {
+  return {
+    recordType, recordId, schemaVersion: 1, payload: options.deleted ? null : { id: recordId, value },
+    revision: 1, deletedAt: options.deleted ? 1 : null
+  };
+}
+
 test('Port adapter emits item records without binary or device-local asset identifiers', async () => {
   const target = storage({
     'cruisePort.settings': JSON.stringify({ version: 3, displaySize: 'small' }),
@@ -174,6 +193,180 @@ test('remote Practice attachment deletion removes the logical reference and queu
   assert.equal(Object.hasOwn(metadata.attachments, logicalId), false);
   assert.deepEqual(metadata.discardQueue, ['local-cache-a']);
   assert.deepEqual(metadata.releaseQueue, [], 'another Port never directly unreferences the cloud object');
+});
+
+test('current Gear metadata repairs a missing remote reference without changing asset IDs', () => {
+  const published = pairAsset('gear-final', 'gear-source');
+  const target = storage({
+    'cruisePort.gearList': JSON.stringify({ version: 4, items: [{
+      id: 'gear-repair', photoId: 'local-final', photoSourceId: 'local-source', iconPresetKey: null
+    }] }),
+    'cruisePort.syncAssetMetadata': JSON.stringify({
+      version: 4, gear: { 'gear-repair': {
+        published, binding: {
+          final: { assetId: 'gear-final', hash: 'a'.repeat(64), localId: 'local-final' },
+          source: { assetId: 'gear-source', hash: 'a'.repeat(64), localId: 'local-source' }
+        }, pending: null
+      } }, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false
+    })
+  });
+  const api = load(target);
+  const missing = remoteRecord('gear_item', 'gear-repair', {
+    item: { id: 'gear-repair', name: 'QA Gear' }, asset: { present: true, crop: null }
+  });
+  const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
+  adapter.primeRemoteReferences([missing]);
+  assert.equal(adapter.reconcileRemoteReferences([missing]), true);
+  const metadata = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
+  assert.equal(metadata.referencePending, true);
+  assert.equal(metadata.gear['gear-repair'].published.final.assetId, 'gear-final');
+  assert.equal(metadata.gear['gear-repair'].published.source.assetId, 'gear-source');
+});
+
+test('remote apply preserves a stranded Gear asset for reference-only repair', async () => {
+  const published = pairAsset('gear-final', 'gear-source');
+  const target = storage({
+    'cruisePort.gearList': JSON.stringify({ version: 4, items: [{
+      id: 'gear-repair', photoId: 'local-final', photoSourceId: 'local-source', photoCrop: null
+    }] }),
+    'cruisePort.syncAssetMetadata': JSON.stringify({
+      version: 4, gear: { 'gear-repair': {
+        published, binding: {
+          final: { assetId: 'gear-final', hash: 'a'.repeat(64), localId: 'local-final' },
+          source: { assetId: 'gear-source', hash: 'a'.repeat(64), localId: 'local-source' }
+        }, pending: null
+      } }, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false
+    })
+  });
+  const api = load(target);
+  const missing = remoteRecord('gear_item', 'gear-repair', {
+    item: { id: 'gear-repair', name: 'QA Gear' }, asset: { present: true, crop: null }
+  });
+  const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
+  adapter.primeRemoteReferences([missing]);
+  await adapter.applyRemoteSnapshot({ schemaVersion: 1, records: [missing] });
+  const metadata = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
+  const item = JSON.parse(target.value('cruisePort.gearList')).items[0];
+  assert.equal(metadata.referencePending, true);
+  assert.equal(metadata.gear['gear-repair'].published.final.assetId, 'gear-final');
+  assert.equal(item.photoId, 'local-final');
+  assert.equal(item.photoSourceId, 'local-source');
+});
+
+test('remote Gear photo removal is accepted and never mistaken for a failed publish', async () => {
+  const published = pairAsset('gear-final', 'gear-source');
+  const target = storage({
+    'cruisePort.gearList': JSON.stringify({ version: 4, items: [{
+      id: 'gear-remove', photoId: 'local-final', photoSourceId: 'local-source', photoCrop: null
+    }] }),
+    'cruisePort.syncAssetMetadata': JSON.stringify({
+      version: 4, gear: { 'gear-remove': { published, binding: null, pending: null } },
+      myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false
+    })
+  });
+  const api = load(target);
+  const previous = remoteRecord('gear_item', 'gear-remove', {
+    item: { id: 'gear-remove', name: 'Gear' }, asset: published
+  });
+  const removed = remoteRecord('gear_item', 'gear-remove', {
+    item: { id: 'gear-remove', name: 'Gear' }, asset: { present: false, crop: null }
+  });
+  const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
+  adapter.primeRemoteReferences([previous]);
+  await adapter.applyRemoteSnapshot({ schemaVersion: 1, records: [removed] });
+  const metadata = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
+  assert.equal(metadata.gear['gear-remove'].published, null);
+  assert.equal(metadata.referencePending, false);
+  assert.equal(JSON.parse(target.value('cruisePort.gearList')).items[0].photoId, null);
+});
+
+test('matching Gear and My Apps remote references remain a strict no-op', () => {
+  const gearAsset = pairAsset('gear-final', 'gear-source');
+  const appAsset = pairAsset('app-final', 'app-source');
+  appAsset.final.kind = 'my_app_icon_final';
+  appAsset.source.kind = 'my_app_icon_source';
+  const target = storage({
+    'cruisePort.gearList': JSON.stringify({ version: 4, items: [{ id: 'gear-ok', photoId: 'gear-local' }] }),
+    'cruisePort.myApps': JSON.stringify({ version: 6, items: [{ id: 'app-ok', iconId: 'app-local', iconPresetKey: null }] }),
+    'cruisePort.syncAssetMetadata': JSON.stringify({
+      version: 4,
+      gear: { 'gear-ok': { published: gearAsset, binding: null, pending: null } },
+      myApps: { 'app-ok': { published: appAsset, binding: null, pending: null } },
+      attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false
+    })
+  });
+  const api = load(target);
+  const records = [
+    remoteRecord('gear_item', 'gear-ok', { item: { id: 'gear-ok' }, asset: gearAsset }),
+    remoteRecord('my_app', 'app-ok', { item: { id: 'app-ok' }, asset: appAsset })
+  ];
+  const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
+  adapter.primeRemoteReferences(records);
+  assert.equal(adapter.reconcileRemoteReferences(records), false);
+  assert.equal(JSON.parse(target.value('cruisePort.syncAssetMetadata')).referencePending, false);
+});
+
+test('current My Apps metadata repairs a missing custom-icon reference but ignores preset icons', () => {
+  const customAsset = pairAsset('app-final', 'app-source');
+  customAsset.final.kind = 'my_app_icon_final';
+  customAsset.source.kind = 'my_app_icon_source';
+  const target = storage({
+    'cruisePort.myApps': JSON.stringify({ version: 6, items: [
+      { id: 'app-custom', iconId: 'custom-local', iconPresetKey: null },
+      { id: 'app-preset', iconId: 'stale-local', iconPresetKey: 'guitar' }
+    ] }),
+    'cruisePort.syncAssetMetadata': JSON.stringify({
+      version: 4, gear: {}, myApps: {
+        'app-custom': { published: customAsset, binding: null, pending: null },
+        'app-preset': { published: customAsset, binding: null, pending: null }
+      }, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false
+    })
+  });
+  const api = load(target);
+  const records = [
+    remoteRecord('my_app', 'app-custom', { item: { id: 'app-custom' }, asset: { present: true } }),
+    remoteRecord('my_app', 'app-preset', { item: { id: 'app-preset', iconPresetKey: 'guitar' }, asset: { present: false } })
+  ];
+  const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
+  adapter.primeRemoteReferences(records);
+  assert.equal(adapter.reconcileRemoteReferences(records), true);
+  assert.equal(JSON.parse(target.value('cruisePort.syncAssetMetadata')).referencePending, true);
+});
+
+test('Practice reference repair requires a live owner and never revives a tombstoned menu', async () => {
+  const logicalId = 'attachment-repair';
+  const published = { version: 1, availability: 'available', asset: {
+    assetId: 'attachment-asset', kind: 'practice_attachment_pdf', hash: 'b'.repeat(64),
+    mime: 'application/pdf', byteSize: 10, width: 1, height: 1, objectVersion: 1,
+    availability: 'available', ownerRecordId: 'practice-a', originalFilename: 'score.pdf'
+  } };
+  const initial = () => ({
+    'cruisePort.practiceMenus': JSON.stringify({ version: 3, items: [{ id: 'practice-a', name: 'A' }] }),
+    'cruisePort.syncAssetMetadata': JSON.stringify({
+      version: 4, gear: {}, myApps: {}, attachments: { [logicalId]: {
+        practiceId: 'practice-a', fileName: 'score.pdf', kind: 'file', mimeType: 'application/pdf',
+        byteSize: 10, published, binding: { assetId: 'attachment-asset', localId: 'local-a' }, pending: null
+      } }, releaseQueue: [], discardQueue: [], referencePending: false
+    })
+  });
+  const owner = remoteRecord('practice_menu', 'practice-a', { id: 'practice-a', name: 'A' });
+  const target = storage(initial());
+  const api = load(target);
+  const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
+  adapter.primeRemoteReferences([owner]);
+  assert.equal(adapter.reconcileRemoteReferences([owner]), true);
+  assert.equal(JSON.parse(target.value('cruisePort.syncAssetMetadata')).referencePending, true);
+
+  const deletedTarget = storage(initial());
+  const deletedApi = load(deletedTarget);
+  const deletedAdapter = new deletedApi.PortSyncAdapter({ storage: deletedTarget, cryptoImpl: webcrypto });
+  deletedAdapter.primeRemoteReferences([owner]);
+  const tombstone = remoteRecord('practice_menu', 'practice-a', null, { deleted: true });
+  assert.equal(deletedAdapter.reconcileRemoteReferences([tombstone]), false);
+  await deletedAdapter.applyRemoteSnapshot({ schemaVersion: 1, records: [] });
+  const after = JSON.parse(deletedTarget.value('cruisePort.syncAssetMetadata'));
+  assert.equal(Object.hasOwn(after.attachments, logicalId), false);
+  assert.equal(after.referencePending, false);
 });
 
 test('concurrent edits to the same practice attachment set safe-stop as one semantic conflict', () => {

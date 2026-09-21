@@ -421,6 +421,7 @@ export class PortAssetSync {
 
     async reconcile() {
         if (!this.controller?.enabled || globalThis.navigator?.onLine === false) return { ok: false, offline: true };
+        await this.controller.reconcileAssetReferences?.();
         const metadata = this.readMetadata();
         metadata.referencePending = metadata.referencePending && hasAvailablePublished(metadata);
         const gearData = parse(this.storage, GEAR_KEY, { version: 4, items: [] });

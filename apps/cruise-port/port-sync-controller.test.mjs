@@ -9,6 +9,7 @@ function harness({ failFirst = false } = {}) {
   const meta = new Map();
   const outbox = [];
   const conflicts = [];
+  const shadow = [];
   const calls = [];
   const events = [];
   let adapter = null;
@@ -35,6 +36,7 @@ function harness({ failFirst = false } = {}) {
     removeMeta: async (key) => meta.delete(key),
     listOutbox: async () => structuredClone(outbox),
     listConflicts: async () => structuredClone(conflicts),
+    listShadow: async () => structuredClone(shadow),
     clearCloudState: async () => meta.clear()
   };
   const context = {
@@ -42,7 +44,9 @@ function harness({ failFirst = false } = {}) {
     setInterval: () => 1, clearInterval() {}, dispatchEvent: (event) => events.push(event),
     document: { visibilityState: 'visible' }, navigator: { onLine: true },
     SoundCruisePortSync: { PortSyncAdapter: class {
-      constructor() { adapter = this; this.changed = false; }
+      constructor() { adapter = this; this.changed = false; this.primed = []; this.reconciled = []; }
+      primeRemoteReferences(records) { this.primed = structuredClone(records); }
+      reconcileRemoteReferences(records) { this.reconciled = structuredClone(records); return records.length > 0; }
       consumeRemoteApplyChanged() { const changed = this.changed; this.changed = false; return changed; }
     } },
     SoundCruiseSyncAccount: {
@@ -67,7 +71,7 @@ function harness({ failFirst = false } = {}) {
   const controller = context.SoundCruisePortSync.createPortSyncController({
     config: { enabled: true, environment: 'production', endpoint: 'https://sync.example' }
   });
-  return { controller, calls, meta, events, adapter, outbox, conflicts };
+  return { controller, calls, meta, events, adapter, outbox, conflicts, shadow };
 }
 
 test('Port controller provisions once, initializes once and then resumes normal sync', async () => {
@@ -128,4 +132,13 @@ test('Port controller exposes a secret-free fail-closed status summary', async (
     known: true, connected: true, migrationState: 'complete', datasetState: 'ready',
     runtimeState: 'ready', lastSyncAt: 1234, pendingCount: 1, conflictCount: 1
   });
+});
+
+test('Port controller primes and exposes remote asset-reference reconciliation from shadow state', async () => {
+  const { controller, adapter, shadow } = harness();
+  shadow.push({ recordType: 'gear_item', recordId: 'gear-a', payload: { value: { asset: { present: true } } } });
+  assert.equal((await controller.ensure()).ok, true);
+  assert.equal(adapter.primed.length, 1);
+  assert.equal(await controller.reconcileAssetReferences(), true);
+  assert.equal(adapter.reconciled[0].recordId, 'gear-a');
 });
