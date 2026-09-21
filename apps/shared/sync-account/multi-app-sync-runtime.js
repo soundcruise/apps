@@ -678,7 +678,14 @@
       const remoteLive = (remote.records || []).filter((record) => !isDeleted(record));
       const remoteSnapshot = this.adapter.deserializeRecords(remoteLive);
       let finalSnapshot = local.snapshot;
-      if (!local.records.length && remoteLive.length) {
+      const resumesOwnPartialMigration = this.appId === 'port' && remote.datasetState === 'initializing' && remoteLive.length > 0 &&
+        remoteLive.every((record) => record.ownedByCurrentDevice === true);
+      if (resumesOwnPartialMigration) {
+        // A failed initial migration can leave a partial server snapshot behind.
+        // Only the same app device may resume from its current local snapshot;
+        // records from any other device continue through normal conflict handling.
+        finalSnapshot = local.snapshot;
+      } else if (!local.records.length && remoteLive.length) {
         finalSnapshot = remoteSnapshot;
         await this.applyWithBackup(finalSnapshot, local.snapshot);
       } else if (local.records.length && remoteLive.length) {

@@ -18,6 +18,7 @@ function rowToRecord(row) {
     payload: row.payload_json == null ? null : JSON.parse(row.payload_json),
     payloadHash: row.payload_hash,
     deletedAt: row.deleted_at == null ? null : row.deleted_at,
+    updatedByDeviceId: row.updated_by_device_id || null,
     operationId: row.operation_id || row.last_operation_id || null,
     changeSeq: row.change_seq == null ? null : row.change_seq
   };
@@ -82,7 +83,7 @@ export function createD1SyncRepository(db, clock = Date.now) {
   async function getRecord(userId, appId, recordType, recordId) {
     const row = await db.prepare(`
       SELECT record_type, record_id, schema_version, revision, payload_json,
-             payload_hash, deleted_at, last_operation_id
+             payload_hash, deleted_at, updated_by_device_id, last_operation_id
       FROM sync_records
       WHERE user_id = ? AND app_id = ? AND record_type = ? AND record_id = ?
     `).bind(userId, appId, recordType, recordId).first();
@@ -220,7 +221,7 @@ export function createD1SyncRepository(db, clock = Date.now) {
   async function readSnapshot(identity) {
     const recordsStatement = db.prepare(`
       SELECT record_type, record_id, schema_version, revision, payload_json,
-             payload_hash, deleted_at, last_operation_id
+             payload_hash, deleted_at, updated_by_device_id, last_operation_id
       FROM sync_records
       WHERE user_id = ? AND app_id = ?
       ORDER BY record_type ASC, record_id ASC

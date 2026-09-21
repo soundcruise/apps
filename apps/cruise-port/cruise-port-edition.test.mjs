@@ -70,7 +70,7 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
     const expected = root.replace(/((?:src|href)=")(\.\.?\/)/g, (_, start, relative) => start + (relative === './' ? '../' : '../../'));
     const withoutGate = pro
         .replace('クルーズポート Pro</title>', 'クルーズポート</title>')
-        .replace('href="./manifest.json?v=0.44.3"', 'href="../manifest.json?v=0.44.3"')
+        .replace('href="./manifest.json?v=0.44.4"', 'href="../manifest.json?v=0.44.4"')
         .replaceAll('/app-icons/pro/', '/app-icons/standard/')
         .split('\n').filter(line => !line.includes('shared/pro-gate.')).join('\n')
         .replace(/    <script>\n        window\.__SOUNDCRUISE_PRO_GATE__[\s\S]*?<\/script>\n/, '');
@@ -82,9 +82,9 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
     for (const entry of [root, pro]) {
         assert.match(entry, /home-pro-badge[^>]*hidden>Pro/);
         assert.equal((entry.match(/data-cruise-app=/g) || []).length, 4);
-        assert.match(entry, /multi-app-sync-runtime\.js\?v=9/);
-        assert.match(entry, /port-sync-adapter\.js\?v=0\.44\.3/);
-        assert.match(entry, /port-sync-controller\.js\?v=0\.44\.3/);
+        assert.match(entry, /multi-app-sync-runtime\.js\?v=10/);
+        assert.match(entry, /port-sync-adapter\.js\?v=0\.44\.4/);
+        assert.match(entry, /port-sync-controller\.js\?v=0\.44\.4/);
         assert.doesNotMatch(entry, /data-(?:sync-)?app="port"/);
     }
     const gate = read('../shared/pro-gate.js');

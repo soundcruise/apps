@@ -33,6 +33,8 @@ test('new, update, stale conflict, duplicate retry, and tombstone are record-rev
   let result = await repository.applyOperation(identity, first);
   assert.equal(result.status, 'applied');
   assert.equal(result.record.revision, 1);
+  assert.equal((await repository.getRecord(identity.userId, identity.appId, 'chord', 'c1')).updatedByDeviceId,
+    identity.deviceId);
   result = await repository.applyOperation(identity, first);
   assert.equal(result.status, 'duplicate');
   assert.equal(result.record.revision, 1);

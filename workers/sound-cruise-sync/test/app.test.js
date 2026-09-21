@@ -309,6 +309,29 @@ test('changes, snapshot, and migration completion are credential-authenticated a
   assert.equal((await response.json()).datasetState, 'ready');
 });
 
+test('initializing snapshots disclose only same-device ownership as a boolean', async () => {
+  const owned = {
+    recordType: 'chord', recordId: 'owned', schemaVersion: 1, revision: 1,
+    payload: { id: 'owned', chordName: 'C' }, payloadHash: 'a'.repeat(64), deletedAt: null,
+    operationId: 'owned-operation', changeSeq: 1, updatedByDeviceId: DEVICE_ID
+  };
+  const other = {
+    ...owned, recordId: 'other', payload: { id: 'other', chordName: 'D' },
+    operationId: 'other-operation', updatedByDeviceId: '123e4567-e89b-42d3-a456-426614174099'
+  };
+  const repository = { readSnapshot: async () => ({
+    dataset: { state: 'initializing', schema_version: 1, last_change_seq: 2 },
+    recordCount: 2, manifestHash: 'b'.repeat(64), records: [owned, other]
+  }) };
+
+  const response = await handleRequest(authRequest('/v1/sync/snapshot?appId=chord'), env(), null, authDependencies(repository));
+  const payload = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.deepEqual(payload.records.map((record) => record.ownedByCurrentDevice), [true, false]);
+  assert.equal(JSON.stringify(payload).includes(DEVICE_ID), false, 'device identity is not exposed');
+});
+
 test('auth API rejects missing rate limiter, invalid credential, cross-app input, and oversized push', async () => {
   const valid = await pushOperation();
   const payload = { appId: 'chord', mode: 'sync', operations: [valid] };

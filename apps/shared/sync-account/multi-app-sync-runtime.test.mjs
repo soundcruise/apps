@@ -306,6 +306,49 @@ test('cross-container Join Code converges on the same migration runtime without 
   }
 });
 
+test('an interrupted initializing migration resumes only when every partial record belongs to this device', async () => {
+  const local = record('gear-1', 'Local with photo', 'gear_item');
+  const added = record('gear-2', 'New local gear', 'gear_item');
+  const fixture = runtimeFixture([local, added], 'port', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  fixture.server.state = 'initializing';
+  fixture.server.revision = 1;
+  fixture.server.records.set('gear_item/gear-1', {
+    ...record('gear-1', 'Older partial upload', 'gear_item'),
+    revision: 1, deletedAt: null, changeSeq: 1, operationId: 'old-operation',
+    ownedByCurrentDevice: true
+  });
+  fixture.local.mergeSnapshots = () => { throw new Error('own partial migration must not enter conflict merge'); };
+
+  const result = await fixture.runtime.initializeDataset();
+
+  assert.equal(result.ok, true);
+  assert.equal(fixture.server.state, 'ready');
+  assert.equal(fixture.server.records.get('gear_item/gear-1').payload.name, 'Local with photo');
+  assert.equal(fixture.server.records.get('gear_item/gear-2').payload.name, 'New local gear');
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('an initializing snapshot containing another device record remains fail-closed', async () => {
+  const local = record('gear-1', 'Local', 'gear_item');
+  const fixture = runtimeFixture([local], 'port', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  fixture.server.state = 'initializing';
+  fixture.server.records.set('gear_item/gear-1', {
+    ...record('gear-1', 'Other device', 'gear_item'), revision: 1,
+    deletedAt: null, changeSeq: 1, operationId: 'other-operation',
+    ownedByCurrentDevice: false
+  });
+  fixture.local.mergeSnapshots = () => ({ snapshot: null, conflicts: [{ recordKey: 'gear_item/gear-1', reason: 'same_record_changed' }] });
+
+  const result = await fixture.runtime.initializeDataset();
+
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'merge_conflict');
+  assert.equal(fixture.server.state, 'initializing');
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+});
+
 test('Port item deletion creates isolated tombstones for every mutable collection family', async () => {
   const initial = [
     record('gear-1', 'Gear', 'gear_item'),

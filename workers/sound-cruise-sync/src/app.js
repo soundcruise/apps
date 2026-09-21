@@ -970,6 +970,13 @@ async function handleSnapshot(request, env, origin, route, dependencies, url) {
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   let snapshot;
   try { snapshot = await context.repository.readSnapshot(context.identity); } catch { return errorResponse(503, 'server_error', origin, route); }
+  const records = snapshot.records.map((record) => {
+    const value = publicRecord(record);
+    if (snapshot.dataset.state === 'initializing') {
+      value.ownedByCurrentDevice = record.updatedByDeviceId === context.identity.deviceId;
+    }
+    return value;
+  });
   return jsonResponse(200, {
     ok: true,
     appId: context.identity.appId,
@@ -978,7 +985,7 @@ async function handleSnapshot(request, env, origin, route, dependencies, url) {
     recordCount: snapshot.recordCount,
     manifestHash: snapshot.manifestHash,
     cursor: encodeCursor(snapshot.dataset.last_change_seq),
-    records: snapshot.records.map(publicRecord)
+    records
   }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
 }
 
