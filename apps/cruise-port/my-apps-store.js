@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.1';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.2';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { getKnownApp } from './my-apps-known-apps.js?v=1.3.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';

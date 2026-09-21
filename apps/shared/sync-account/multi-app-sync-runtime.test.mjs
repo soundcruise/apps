@@ -207,6 +207,23 @@ test('production data-plane requests require only app authority and never send Q
   assert.equal(headers.has('X-Sound-Cruise-QA-Authorization'), false);
 });
 
+test('Port never reports Pro-app removal safety while Pro apps still do', async () => {
+  const port = runtimeFixture([], 'port', 'production');
+  let portCalls = 0;
+  port.runtime.request = async () => { portCalls += 1; };
+  await port.runtime.reportRemovalSafety('clean');
+  assert.equal(portCalls, 0);
+
+  const pitch = runtimeFixture([], 'pitch', 'production');
+  let request;
+  pitch.runtime.request = async (...args) => { request = args; };
+  await pitch.runtime.reportRemovalSafety('clean');
+  assert.equal(request[0], 'POST');
+  assert.equal(request[1], '/v1/sync/removal-safety');
+  assert.equal(request[2].appId, 'pitch');
+  assert.equal(request[2].state, 'clean');
+});
+
 test('definitive terminal auth detaches only sync state, preserves local data, and allows safe rejoin for three shared apps', async () => {
   for (const appId of ['pitch', 'fretboard', 'rhythm', 'port']) {
     const localRecord = record(`local-${appId}`, `Local ${appId}`);
@@ -806,6 +823,38 @@ test('Later leaves local, Remote, attention and the conflict entry unchanged', a
   assert.equal(fixture.server.records.get('custom_preset/conflict').payload.bpm, 81);
   assert.equal((await fixture.store.listConflicts()).length, 1);
   assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+});
+
+test('Port clears a stale conflict only after local and Remote have already converged', async () => {
+  const fixture = runtimeFixture([preset('converged', 80)], 'port');
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [preset('converged', 79)];
+  setRemoteVariant(fixture, 'converged', 81);
+  assert.equal((await fixture.runtime.sync('focus')).code, 'conflict');
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+
+  const pushes = fixture.server.pushCalls;
+  fixture.local.records = [preset('converged', 81)];
+  const result = await fixture.runtime.sync('focus');
+
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal(fixture.server.pushCalls, pushes, 'converged data must not create another revision');
+  assert.equal((await fixture.store.getShadow('custom_preset/converged')).payload.bpm, 81);
+});
+
+test('Port keeps a real unresolved conflict fail-closed', async () => {
+  const fixture = runtimeFixture([preset('unresolved', 80)], 'port');
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [preset('unresolved', 79)];
+  setRemoteVariant(fixture, 'unresolved', 81);
+  assert.equal((await fixture.runtime.sync('focus')).code, 'conflict');
+
+  const pushes = fixture.server.pushCalls;
+  const result = await fixture.runtime.sync('focus');
+  assert.equal(result.code, 'conflict_pending');
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  assert.equal(fixture.server.pushCalls, pushes);
 });
 
 test('Local wins fails closed when Remote changes after the resolution read', async () => {

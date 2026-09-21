@@ -224,6 +224,7 @@
       // Reporting is advisory presentation for Cruise Port. It must never turn
       // a successful local sync into a failure when the summary endpoint is
       // temporarily unavailable.
+      if (this.appId === 'port') return;
       try { await this.request('POST', '/v1/sync/removal-safety', { appId: this.appId, state }); } catch (_) { /* fail closed in Port */ }
     }
 
@@ -589,6 +590,30 @@
       return Object.freeze({ ok: true, resumed, pending: (await this.store.listConflicts()).length });
     }
 
+    async reconcileConvergedPortConflicts(conflicts) {
+      if (this.appId !== 'port' || !conflicts.length) return conflicts;
+      const [local, remote] = await Promise.all([this.localRecords(), this.serverSnapshot()]);
+      const localMap = mapRecords(local.records);
+      const remoteMap = mapRecords(remote.records || []);
+      const remaining = [];
+      for (const conflict of conflicts) {
+        const localRecord = localMap.get(conflict.recordKey) || null;
+        const remoteRecord = remoteMap.get(conflict.recordKey) || null;
+        if (!sameRecord(localRecord, remoteRecord)) {
+          remaining.push(conflict);
+          continue;
+        }
+        // A Port conflict can outlive the divergence that created it after a
+        // response-loss/reload cycle. Only clear it once both authoritative
+        // values already agree; real local/Remote differences still fail closed.
+        await this.clearConflictOutbox(conflict.recordKey);
+        if (remoteRecord) await this.store.putShadow(conflict.recordKey, clone(remoteRecord));
+        else await this.store.deleteShadow?.(conflict.recordKey);
+        await this.store.deleteConflict(conflict.id);
+      }
+      return remaining;
+    }
+
     async queueDiff(localRecords, remoteRecords, shadowRecords, { migration = false } = {}) {
       const local = mapRecords(localRecords);
       const remote = mapRecords(remoteRecords);
@@ -763,7 +788,8 @@
         this.setState('offline');
         return { ok: false, code: 'offline' };
       }
-      const unresolved = await this.store.listConflicts();
+      let unresolved = await this.store.listConflicts();
+      if (unresolved.length) unresolved = await this.reconcileConvergedPortConflicts(unresolved);
       if (unresolved.length) {
         this.setState('attention', { reason: 'conflict', conflicts: unresolved.length });
         await this.reportRemovalSafety('attention');

@@ -430,6 +430,12 @@ export class PortAssetSync {
         let publishedChanged = false;
         let hydrated = false;
         let processed = 0;
+        const persistMetadataChanges = () => {
+            if (!changedMetadata) return;
+            metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
+            this.writeMetadata(metadata);
+            changedMetadata = false;
+        };
         if (metadata.discardQueue.length && this.practiceAttachmentStore) {
             for (const localId of metadata.discardQueue) await this.practiceAttachmentStore.deleteAttachment(localId);
             metadata.discardQueue = [];
@@ -484,6 +490,9 @@ export class PortAssetSync {
                 const assetKind = practiceAssetKind(record);
                 if (!assetKind) continue;
                 if (!ownerSynced) {
+                    // Preserve completed Gear/My Apps work before the owner
+                    // preflight, which may safely pause on a structured conflict.
+                    persistMetadataChanges();
                     const ownerResult = await this.controller.sync('attachment-owner');
                     if (ownerResult?.ok === false) return { ok: false, code: ownerResult.code || 'attachment_owner_sync_failed' };
                     ownerSynced = true;
@@ -511,10 +520,7 @@ export class PortAssetSync {
                 metadata.referencePending = true;
             }
         }
-        if (changedMetadata) {
-            metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
-            this.writeMetadata(metadata);
-        }
+        persistMetadataChanges();
         if (hydrated) {
             this.storage.setItem(GEAR_KEY, JSON.stringify(gearData));
             this.storage.setItem(MY_APPS_KEY, JSON.stringify(appData));

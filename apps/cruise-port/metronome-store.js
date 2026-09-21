@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.1';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.2';
 export const METRONOME_STORAGE_KEY = 'cruisePort.metronome';
 export const METRONOME_SCHEMA_VERSION = 3;
 

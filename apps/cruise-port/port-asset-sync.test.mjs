@@ -243,6 +243,107 @@ test('cold start republishes a missing current-version Gear reference without an
     assert.equal(api.requests.length, 0);
 });
 
+test('cold start rebinds committed pending Gear assets without PUT or new asset IDs', async () => {
+    const finalBlob = blob([0x52,0x49,0x46,0x46,7,0,0,0,0x57,0x45,0x42,0x50]);
+    const sourceBlob = blob([0x52,0x49,0x46,0x46,8,0,0,0,0x57,0x45,0x42,0x50]);
+    const finalHash = await hashBlob(finalBlob);
+    const sourceHash = await hashBlob(sourceBlob);
+    const finalAssetId = '123e4567-e89b-42d3-a456-426614174210';
+    const sourceAssetId = '123e4567-e89b-42d3-a456-426614174211';
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [{
+            id: 'gear-pending', photoId: 'local-final', photoSourceId: 'local-source',
+            photoCrop: { x: 0, y: 0, size: 1 }
+        }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] }),
+        'cruisePort.syncAssetMetadata': JSON.stringify({
+            version: 4, gear: { 'gear-pending': {
+                published: null, binding: null, pending: {
+                    final: { localId: 'local-final', assetId: finalAssetId, operationId: 'final-operation', hash: finalHash },
+                    source: { localId: 'local-source', assetId: sourceAssetId, operationId: 'source-operation', hash: sourceHash }
+                }
+            } }, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false
+        })
+    });
+    const requests = [];
+    const fetchImpl = async (url, options) => {
+        const path = new URL(url).pathname;
+        requests.push({ path, method: options.method });
+        assert.equal(path, '/v1/sync/assets/prepare');
+        const body = JSON.parse(options.body);
+        return Response.json({ ok: true, phase: 'available', asset: metadata(body, 'available') });
+    };
+    const syncController = controller();
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl,
+        gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
+            id, blob: id === 'local-final' ? finalBlob : sourceBlob, mimeType: 'image/webp',
+            width: id === 'local-final' ? 512 : 900, height: id === 'local-final' ? 512 : 700
+        } }) }, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAllAttachments: async () => ({ ok: true, records: [] })
+        } });
+
+    assert.equal((await sync.reconcile()).ok, true);
+    const state = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+    assert.equal(state.gear['gear-pending'].published.final.assetId, finalAssetId);
+    assert.equal(state.gear['gear-pending'].published.source.assetId, sourceAssetId);
+    assert.equal(state.gear['gear-pending'].pending, null);
+    assert.equal(state.referencePending, false);
+    assert.equal(requests.filter((request) => request.method === 'PUT').length, 0);
+    assert.deepEqual(syncController.syncReasons, ['asset-reference']);
+});
+
+test('completed Gear rebind survives a Practice owner conflict and retries only reference publish', async () => {
+    const finalBlob = blob([0x52,0x49,0x46,0x46,9,0,0,0,0x57,0x45,0x42,0x50]);
+    const finalHash = await hashBlob(finalBlob);
+    const finalAssetId = '123e4567-e89b-42d3-a456-426614174212';
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [{
+            id: 'gear-before-owner', photoId: 'local-final', photoSourceId: null
+        }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] }),
+        'cruisePort.syncAssetMetadata': JSON.stringify({
+            version: 4, gear: { 'gear-before-owner': {
+                published: null, binding: null, pending: {
+                    final: { localId: 'local-final', assetId: finalAssetId, operationId: 'final-operation', hash: finalHash },
+                    source: null
+                }
+            } }, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false
+        })
+    });
+    const requests = [];
+    const fetchImpl = async (url, options) => {
+        const path = new URL(url).pathname;
+        requests.push({ path, method: options.method });
+        assert.equal(path, '/v1/sync/assets/prepare');
+        const body = JSON.parse(options.body);
+        return Response.json({ ok: true, phase: 'available', asset: metadata(body, 'available') });
+    };
+    const syncController = controller();
+    syncController.sync = async (reason) => {
+        syncController.syncReasons.push(reason);
+        return reason === 'attachment-owner' ? { ok: false, code: 'conflict_pending' } : { ok: true };
+    };
+    const attachmentBlob = new Blob(['owner pending'], { type: 'text/plain' });
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl,
+        gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
+            id, blob: finalBlob, mimeType: 'image/webp', width: 512, height: 512
+        } }) }, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAllAttachments: async () => ({ ok: true, records: [{
+                id: 'attachment-local', practiceId: 'practice-owner', kind: 'file', blob: attachmentBlob,
+                mimeType: 'text/plain', fileName: 'owner.txt', byteSize: attachmentBlob.size,
+                createdAt: '2026-09-22T00:00:00.000Z', updatedAt: '2026-09-22T00:00:00.000Z'
+            }] })
+        } });
+
+    assert.deepEqual(await sync.reconcile(), { ok: false, code: 'conflict_pending' });
+    const state = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+    assert.equal(state.gear['gear-before-owner'].published.final.assetId, finalAssetId);
+    assert.equal(state.gear['gear-before-owner'].pending, null);
+    assert.equal(state.referencePending, true);
+    assert.equal(requests.filter((request) => request.method === 'PUT').length, 0);
+    assert.deepEqual(syncController.syncReasons, ['attachment-owner']);
+});
+
 test('custom My Apps source/final upload is isolated and deletion queues delayed unreference', async () => {
     const finalBlob = blob();
     const sourceBlob = blob([0x52,0x49,0x46,0x46,2,0,0,0,0x57,0x45,0x42,0x50]);
