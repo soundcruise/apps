@@ -1,7 +1,7 @@
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';
-const VERSION = 3;
+const VERSION = 4;
 const MAX_ITEMS_PER_PASS = 4;
 
 function clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
@@ -9,21 +9,32 @@ function parse(storage, key, fallback) {
     try { return JSON.parse(storage.getItem(key) || '') || clone(fallback); } catch (_) { return clone(fallback); }
 }
 function emptyMetadata() {
-    return { version: VERSION, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [] };
+    return { version: VERSION, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false };
 }
 function normalizeMetadata(value) {
-    if (!value || ![2, VERSION].includes(value.version)) return emptyMetadata();
-    return {
+    if (!value || ![2, 3, VERSION].includes(value.version)) return emptyMetadata();
+    const metadata = {
         version: VERSION,
         gear: value.gear && typeof value.gear === 'object' ? clone(value.gear) : {},
         myApps: value.myApps && typeof value.myApps === 'object' ? clone(value.myApps) : {},
         attachments: value.attachments && typeof value.attachments === 'object' ? clone(value.attachments) : {},
         releaseQueue: Array.isArray(value.releaseQueue) ? [...new Set(value.releaseQueue.filter(Boolean))] : [],
-        discardQueue: Array.isArray(value.discardQueue) ? [...new Set(value.discardQueue.filter(Boolean))] : []
+        discardQueue: Array.isArray(value.discardQueue) ? [...new Set(value.discardQueue.filter(Boolean))] : [],
+        referencePending: value.referencePending === true
     };
+    // v3 could finish an upload before the dataset migration completed. Replay one
+    // structured reference publish for those legacy available assets after upgrade.
+    if (value.version < VERSION && !metadata.referencePending) {
+        metadata.referencePending = hasAvailablePublished(metadata);
+    }
+    return metadata;
 }
 function assetIds(asset) {
     return [asset?.final?.assetId, asset?.source?.assetId].filter(Boolean);
+}
+function hasAvailablePublished(metadata) {
+    return [metadata.gear, metadata.myApps, metadata.attachments]
+        .some((bucket) => Object.values(bucket).some((entry) => entry?.published?.availability === 'available'));
 }
 function uuid() { return globalThis.crypto.randomUUID(); }
 async function hashBlob(blob, cryptoImpl = globalThis.crypto) {
@@ -357,6 +368,7 @@ export class PortAssetSync {
     async reconcile() {
         if (!this.controller?.enabled || globalThis.navigator?.onLine === false) return { ok: false, offline: true };
         const metadata = this.readMetadata();
+        metadata.referencePending = metadata.referencePending && hasAvailablePublished(metadata);
         const gearData = parse(this.storage, GEAR_KEY, { version: 4, items: [] });
         const appData = parse(this.storage, MY_APPS_KEY, { version: 6, items: [] });
         let changedMetadata = false;
@@ -385,6 +397,7 @@ export class PortAssetSync {
                     metadata.releaseQueue.push(...oldIds.filter((id) => !assetIds(uploaded.published).includes(id)));
                     changedMetadata = true;
                     publishedChanged = true;
+                    metadata.referencePending = true;
                 } else if ((missingCache || !finalId) && entry.published?.final) {
                     processed += 1;
                     if (await this.hydratePair(item, entry, kind)) {
@@ -440,6 +453,7 @@ export class PortAssetSync {
                 metadata.attachments[logicalId] = entry;
                 changedMetadata = true;
                 publishedChanged = true;
+                metadata.referencePending = true;
             }
         }
         if (changedMetadata) {
@@ -452,9 +466,13 @@ export class PortAssetSync {
             globalThis.SoundCruisePortSync?.acceptRemoteStorageValues?.(this.storage, [GEAR_KEY, MY_APPS_KEY]);
             globalThis.dispatchEvent?.(new CustomEvent('cruise-port-assets-applied'));
         }
-        if (publishedChanged) {
+        if (publishedChanged || metadata.referencePending) {
             const result = await this.controller.sync('asset-reference');
             if (result?.ok === false) return { ok: false, code: result.code || 'asset_reference_sync_failed' };
+            if (metadata.referencePending) {
+                metadata.referencePending = false;
+                this.writeMetadata(metadata);
+            }
         }
         if (metadata.releaseQueue.length) {
             const result = await this.controller.sync('asset-release');

@@ -79,14 +79,15 @@
   }
   function assetMetadata(storage) {
     const value = parse(storage, ASSET_METADATA_KEY, null);
-    if (![2, 3].includes(value?.version)) {
-      return { version: 3, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [] };
+    if (![2, 3, 4].includes(value?.version)) {
+      return { version: 4, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false };
     }
     return {
-      version: 3, gear: clone(value.gear || {}), myApps: clone(value.myApps || {}),
+      version: 4, gear: clone(value.gear || {}), myApps: clone(value.myApps || {}),
       attachments: clone(value.attachments || {}),
       releaseQueue: [...new Set(value.releaseQueue || [])],
-      discardQueue: [...new Set(value.discardQueue || [])]
+      discardQueue: [...new Set(value.discardQueue || [])],
+      referencePending: value.referencePending === true
     };
   }
   function assetFor(item, kind, metadata) {
@@ -270,6 +271,7 @@
         pending: null
       };
     });
+    currentAssets.referencePending = false;
     currentAssets.discardQueue = [...new Set(currentAssets.discardQueue.filter(Boolean))];
     storage.setItem('cruisePort.schemaVersion', '3');
     write(storage, 'cruisePort.practiceHistory', {

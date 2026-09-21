@@ -167,6 +167,37 @@ test('cold-start retry uploads an existing Gear photo after Port sync becomes re
     }
 });
 
+test('retries a logical asset reference after upload completed before dataset migration', async () => {
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [{ id: 'gear-retry', photoId: 'local-final', photoSourceId: null }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] })
+    });
+    const api = assetApi();
+    const syncReasons = [];
+    let attempts = 0;
+    const syncController = {
+        ...controller(),
+        sync: async (reason) => {
+            syncReasons.push(reason);
+            attempts += 1;
+            return attempts === 1 ? { ok: false, code: 'migration_required' } : { ok: true };
+        }
+    };
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
+            id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512
+        } }) }, myAppsIconStore: {} });
+
+    assert.deepEqual(await sync.reconcile(), { ok: false, code: 'migration_required' });
+    assert.equal(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).referencePending, true);
+    assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 1);
+
+    assert.equal((await sync.reconcile()).ok, true);
+    assert.deepEqual(syncReasons, ['asset-reference', 'asset-reference']);
+    assert.equal(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).referencePending, false);
+    assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 1, 'retry only republishes metadata');
+});
+
 test('custom My Apps source/final upload is isolated and deletion queues delayed unreference', async () => {
     const finalBlob = blob();
     const sourceBlob = blob([0x52,0x49,0x46,0x46,2,0,0,0,0x57,0x45,0x42,0x50]);
