@@ -153,7 +153,27 @@ test('practice attachments serialize only logical metadata and hydrate without b
   const hydrated = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
   assert.equal(hydrated.attachments[logicalId].published.asset.assetId, asset.assetId);
   assert.equal(hydrated.attachments[logicalId].binding, undefined);
-  assert.equal(Object.hasOwn(hydrated.attachments[logicalId], 'blob'), false);
+    assert.equal(Object.hasOwn(hydrated.attachments[logicalId], 'blob'), false);
+});
+
+test('remote Practice attachment deletion removes the logical reference and queues only the local cache for discard', async () => {
+  const logicalId = '123e4567-e89b-42d3-a456-426614174110';
+  const target = storage({
+    'cruisePort.syncAssetMetadata': JSON.stringify({
+      version: 4, gear: {}, myApps: {}, attachments: {
+        [logicalId]: {
+          practiceId: 'practice-a', published: { availability: 'available', asset: { assetId: 'asset-a' } },
+          binding: { assetId: 'asset-a', localId: 'local-cache-a' }, pending: null
+        }
+      }, releaseQueue: [], discardQueue: [], referencePending: false
+    })
+  });
+  const api = load(target);
+  await api.applyRemoteSnapshot(target, { schemaVersion: 1, records: [] });
+  const metadata = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
+  assert.equal(Object.hasOwn(metadata.attachments, logicalId), false);
+  assert.deepEqual(metadata.discardQueue, ['local-cache-a']);
+  assert.deepEqual(metadata.releaseQueue, [], 'another Port never directly unreferences the cloud object');
 });
 
 test('concurrent edits to the same practice attachment set safe-stop as one semantic conflict', () => {

@@ -226,6 +226,47 @@ test('custom My Apps source/final upload is isolated and deletion queues delayed
     assert.equal(api.requests.some((request) => request.path === '/v1/sync/assets/unreference'), true);
 });
 
+test('custom My Apps icon hydrates on another Port with environment-local cache IDs', async () => {
+    const finalBlob = blob([10, 11, 12]);
+    const sourceBlob = blob([13, 14, 15]);
+    const source = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [{
+            id: 'app-hydrate', iconId: 'a-final', iconSourceId: 'a-source', iconPresetKey: null
+        }] })
+    });
+    const api = assetApi();
+    const aSync = new PortAssetSync({ controller: controller(), storage: source, fetchImpl: api.fetch,
+        gearPhotoStore: {}, myAppsIconStore: { getIcon: async (id) => ({ ok: true, record: {
+            id, blob: id === 'a-final' ? finalBlob : sourceBlob, mimeType: 'image/webp',
+            width: id === 'a-final' ? 256 : 900, height: id === 'a-final' ? 256 : 700
+        } }) } });
+    assert.equal((await aSync.reconcile()).ok, true);
+    const published = JSON.parse(source.getItem('cruisePort.syncAssetMetadata')).myApps['app-hydrate'].published;
+    const target = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [{
+            id: 'app-hydrate', iconId: null, iconSourceId: null, iconPresetKey: null
+        }] }),
+        'cruisePort.syncAssetMetadata': JSON.stringify({
+            version: 4, gear: {}, myApps: { 'app-hydrate': { published, binding: null, pending: null } },
+            attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false
+        })
+    });
+    let cached = 0;
+    const bSync = new PortAssetSync({ controller: controller(), storage: target, fetchImpl: api.fetch,
+        gearPhotoStore: {}, myAppsIconStore: {
+            cacheIcon: async () => ({ ok: true, record: { id: `b-icon-${++cached}` } })
+        }, practiceAttachmentStore: { getAllAttachments: async () => ({ ok: true, records: [] }) } });
+    api.requests.length = 0;
+    assert.equal((await bSync.reconcile()).hydrated, true);
+    const item = JSON.parse(target.getItem('cruisePort.myApps')).items[0];
+    assert.match(item.iconId, /^b-icon-/u);
+    assert.match(item.iconSourceId, /^b-icon-/u);
+    assert.equal(item.iconId === 'a-final' || item.iconSourceId === 'a-source', false);
+    assert.equal(api.requests.filter((request) => request.method === 'GET').length, 2);
+});
+
 test('hashing is content-stable and no raw binary enters metadata', async () => {
     const value = blob();
     assert.equal(await hashBlob(value), await hashBlob(value));
@@ -471,4 +512,113 @@ test('practice upload response loss retries the same logical asset and operation
     const metadataValue = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
     assert.equal(Object.keys(metadataValue.attachments).length, 1);
     assert.equal(Object.values(metadataValue.attachments)[0].published.asset.assetId, prepareBodies[0].assetId);
+});
+
+test('My Apps reference publish retries after migration without re-uploading the custom icon', async () => {
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [{
+            id: 'app-retry', iconId: 'icon-final', iconSourceId: 'icon-source', iconPresetKey: null
+        }] })
+    });
+    const api = assetApi();
+    const syncReasons = [];
+    let referenceAttempts = 0;
+    const syncController = {
+        ...controller(),
+        async sync(reason) {
+            syncReasons.push(reason);
+            if (reason === 'asset-reference' && referenceAttempts++ === 0) return { ok: false, code: 'migration_required' };
+            return { ok: true };
+        }
+    };
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: {}, myAppsIconStore: { getIcon: async (id) => ({ ok: true, record: {
+            id, blob: blob(id === 'icon-final' ? [1, 2, 3] : [4, 5, 6]), mimeType: 'image/webp',
+            width: id === 'icon-final' ? 256 : 800, height: id === 'icon-final' ? 256 : 600
+        } }) } });
+
+    assert.equal((await sync.reconcile()).code, 'migration_required');
+    assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 2);
+    assert.equal((await sync.reconcile()).ok, true);
+    assert.deepEqual(syncReasons, ['asset-reference', 'asset-reference']);
+    assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 2);
+    assert.equal(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).referencePending, false);
+});
+
+test('Practice attachment reference publish retries after migration without re-uploading the file', async () => {
+    const file = new Blob(['reference retry'], { type: 'text/plain' });
+    const record = {
+        id: 'attachment-retry', practiceId: 'practice-retry', kind: 'file', blob: file,
+        mimeType: 'text/plain', fileName: 'retry.txt', byteSize: file.size,
+        createdAt: '2026-09-21T01:00:00.000Z', updatedAt: '2026-09-21T01:00:00.000Z'
+    };
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] })
+    });
+    const api = assetApi();
+    const syncReasons = [];
+    let referenceAttempts = 0;
+    const syncController = {
+        ...controller(),
+        async sync(reason) {
+            syncReasons.push(reason);
+            if (reason === 'asset-reference' && referenceAttempts++ === 0) return { ok: false, code: 'migration_required' };
+            return { ok: true };
+        }
+    };
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAllAttachments: async () => ({ ok: true, records: [record] })
+        } });
+
+    assert.equal((await sync.reconcile()).code, 'migration_required');
+    assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 1);
+    assert.equal((await sync.reconcile()).ok, true);
+    assert.deepEqual(syncReasons, ['attachment-owner', 'asset-reference', 'asset-reference']);
+    assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 1);
+    assert.equal(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).referencePending, false);
+});
+
+test('online lifecycle retry converges an offline Gear save without another save event', async () => {
+    const previousNavigator = globalThis.navigator;
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousDispatchEvent = globalThis.dispatchEvent;
+    const listeners = new Map();
+    let online = false;
+    Object.defineProperty(globalThis, 'navigator', { configurable: true, get: () => ({ onLine: online }) });
+    globalThis.addEventListener = (type, listener) => {
+        if (!listeners.has(type)) listeners.set(type, []);
+        listeners.get(type).push(listener);
+    };
+    globalThis.dispatchEvent = (event) => {
+        for (const listener of listeners.get(event.type) || []) listener(event);
+        return true;
+    };
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [{ id: 'gear-online', photoId: 'local-final', photoSourceId: null }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] })
+    });
+    const api = assetApi();
+    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
+            id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512
+        } }) }, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAllAttachments: async () => ({ ok: true, records: [] })
+        } }).bind();
+    try {
+        assert.equal((await sync.running).offline, true);
+        online = true;
+        globalThis.dispatchEvent(new Event('online'));
+        assert.equal((await sync.running).ok, true);
+        assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 1);
+        assert.equal(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).referencePending, false);
+    } finally {
+        Object.defineProperty(globalThis, 'navigator', { configurable: true, value: previousNavigator });
+        if (previousAddEventListener) globalThis.addEventListener = previousAddEventListener;
+        else delete globalThis.addEventListener;
+        if (previousDispatchEvent) globalThis.dispatchEvent = previousDispatchEvent;
+        else delete globalThis.dispatchEvent;
+    }
 });
