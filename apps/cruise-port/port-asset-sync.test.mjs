@@ -118,6 +118,55 @@ test('Gear source/final upload publishes logical IDs, then another Port download
     assert.notEqual(bItem.photoId, 'local-final-a');
 });
 
+test('cold-start retry uploads an existing Gear photo after Port sync becomes ready', async () => {
+    const previousAddEventListener = globalThis.addEventListener;
+    const previousDispatchEvent = globalThis.dispatchEvent;
+    const listeners = new Map();
+    globalThis.addEventListener = (type, listener) => {
+        if (!listeners.has(type)) listeners.set(type, []);
+        listeners.get(type).push(listener);
+    };
+    globalThis.dispatchEvent = (event) => {
+        for (const listener of listeners.get(event.type) || []) listener(event);
+        return true;
+    };
+    const sourceBlob = blob();
+    const finalBlob = blob([0x52,0x49,0x46,0x46,3,0,0,0,0x57,0x45,0x42,0x50]);
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [{
+            id: 'gear-existing', photoId: 'local-final', photoSourceId: 'local-source',
+            photoCrop: { x: 0, y: 0, size: 1 }
+        }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [] })
+    });
+    const api = assetApi();
+    let ready = false;
+    const syncController = controller();
+    syncController.runtime.credential = async () => ready
+        ? `scd1.123e4567-e89b-42d3-a456-426614174000.${'A'.repeat(43)}`
+        : null;
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
+            id, blob: id === 'local-final' ? finalBlob : sourceBlob, mimeType: 'image/webp',
+            width: id === 'local-final' ? 512 : 900, height: id === 'local-final' ? 512 : 700
+        } }) }, myAppsIconStore: {} }).bind();
+    try {
+        assert.equal((await sync.running).code, 'asset_auth_required');
+        assert.equal(api.requests.length, 0);
+        ready = true;
+        globalThis.dispatchEvent(new CustomEvent('cruise-port-sync-state', { detail: { state: 'ready' } }));
+        assert.equal((await sync.running).ok, true);
+        assert.equal(api.requests.filter((request) => request.method === 'PUT').length, 2);
+        const state = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+        assert.equal(state.gear['gear-existing'].published.availability, 'available');
+    } finally {
+        if (previousAddEventListener) globalThis.addEventListener = previousAddEventListener;
+        else delete globalThis.addEventListener;
+        if (previousDispatchEvent) globalThis.dispatchEvent = previousDispatchEvent;
+        else delete globalThis.dispatchEvent;
+    }
+});
+
 test('custom My Apps source/final upload is isolated and deletion queues delayed unreference', async () => {
     const finalBlob = blob();
     const sourceBlob = blob([0x52,0x49,0x46,0x46,2,0,0,0,0x57,0x45,0x42,0x50]);

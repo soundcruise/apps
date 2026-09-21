@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
+import { manifestHash as workerManifestHash } from '../../workers/sound-cruise-sync/src/records.js';
 
 const source = fs.readFileSync(new URL('./port-sync-adapter.js', import.meta.url), 'utf8');
 
@@ -50,6 +51,23 @@ test('Port adapter emits item records without binary or device-local asset ident
   assert.equal(records.some((item) => item.recordType === 'gear_item'), true);
   assert.equal(records.some((item) => item.recordType === 'my_app'), true);
   assert.equal(records.every((item) => /^[a-f0-9]{64}$/u.test(item.payloadHash)), true);
+});
+
+test('Port manifest exactly matches the Worker migration-complete contract', async () => {
+  const target = storage({
+    'cruisePort.gearList': JSON.stringify({ version: 4, items: [
+      { id: 'gear-b', name: 'B', status: 'owned', order: 1 },
+      { id: 'gear-a', name: 'A', status: 'owned', order: 0 }
+    ] })
+  });
+  const api = load(target);
+  const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
+  const snapshot = adapter.readLocalSnapshot();
+  const records = await adapter.serializeRecords(snapshot);
+  assert.equal(
+    await adapter.computeManifest(snapshot),
+    await workerManifestHash(records, snapshot.schemaVersion, webcrypto, 'port')
+  );
 });
 
 test('Port hydrate keeps this environment asset IDs and running timer while applying text metadata', async () => {

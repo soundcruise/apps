@@ -304,8 +304,10 @@
   }
   async function computeManifest(snapshot, cryptoImpl = global.crypto) {
     const records = await serializeRecords(snapshot, cryptoImpl);
-    return sha256(canonical(records.map(({ recordType, recordId, schemaVersion, payloadHash }) =>
-      ({ recordType, recordId, schemaVersion, payloadHash }))), cryptoImpl);
+    const rows = records.map(({ recordType, recordId, payloadHash }) => ({
+      recordKey: `${recordType}/${recordId}`, payloadHash
+    })).sort((left, right) => left.recordKey.localeCompare(right.recordKey));
+    return sha256(canonical({ appId: APP_ID, schemaVersion: SCHEMA_VERSION, records: rows }), cryptoImpl);
   }
   function assertDataPlaneContext(context) {
     if (context?.membership?.appId !== APP_ID || context.membership.state !== 'active') throw new Error('port_membership_inactive');
