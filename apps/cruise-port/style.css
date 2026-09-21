@@ -2179,6 +2179,37 @@ textarea:focus-visible {
 }
 .sync-center-removal-safety--safe { border-color: rgba(107, 205, 148, .72); color: #cfe6d4; }
 .sync-center-removal-safety--attention { border-color: rgba(232, 176, 104, .72); color: #ead39b; }
+.sync-center-port-status {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-top: 10px;
+}
+.sync-center-port-status > p { flex: 1 1 220px; margin: 0; }
+.sync-center-port-status-chip {
+    flex: 0 0 auto;
+    padding: 3px 9px;
+    border: 1px solid rgba(205, 205, 205, 0.48);
+    border-radius: 999px;
+    color: var(--port-muted);
+    font-size: calc(0.72rem * var(--font-scale));
+    font-weight: 650;
+    line-height: 1.35;
+    white-space: nowrap;
+}
+.sync-center-port-status-chip[data-sync-port-status="complete"] {
+    border-color: rgba(107, 205, 148, .72);
+    color: #cfe6d4;
+}
+.sync-center-port-status-chip[data-sync-port-status="syncing"] {
+    border-color: rgba(232, 201, 122, .72);
+    color: var(--port-gold-bright);
+}
+.sync-center-port-status-chip[data-sync-port-status="attention"] {
+    border-color: rgba(232, 176, 104, .72);
+    color: #ead39b;
+}
 .sync-center-account-action {
     min-height: 48px;
     padding: 7px 14px;

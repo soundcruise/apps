@@ -109,8 +109,34 @@
       emit('not_connected');
     }
 
+    async function status() {
+      try {
+        const [membership, migrationState, datasetState, runtimeState, lastSyncAt, outbox, conflicts] = await Promise.all([
+          store.readMeta('membership'),
+          store.readMeta('migrationState'),
+          store.readMeta('datasetState'),
+          store.readMeta('runtimeState'),
+          store.readMeta('lastSyncAt'),
+          store.listOutbox(),
+          store.listConflicts()
+        ]);
+        return Object.freeze({
+          known: true,
+          connected: membership?.state === 'active',
+          migrationState: migrationState || 'unknown',
+          datasetState: datasetState || 'unknown',
+          runtimeState: runtimeState || 'unknown',
+          lastSyncAt: lastSyncAt != null && Number.isFinite(Number(lastSyncAt)) ? Number(lastSyncAt) : null,
+          pendingCount: Array.isArray(outbox) ? outbox.length : 0,
+          conflictCount: Array.isArray(conflicts) ? conflicts.length : 0
+        });
+      } catch (_) {
+        return Object.freeze({ known: false, connected: false, pendingCount: 0, conflictCount: 0 });
+      }
+    }
+
     return Object.freeze({
-      enabled: true, ensure, clearCloudState,
+      enabled: true, ensure, clearCloudState, status,
       sync: (reason = 'manual') => runtime.sync(reason),
       listConflicts: () => runtime.listConflictPresentations(),
       resolveConflict: (id, choice) => runtime.resolveConflict(id, choice),

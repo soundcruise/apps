@@ -142,6 +142,19 @@ test('App rows separate ordinary status chips from record counts without changin
     assert.match(styles, /\.sync-center-app-record-count/);
 });
 
+test('Cloud Sync shows a compact independent status for Cruise Port data', () => {
+    const styles = read('./style.css');
+    for (const html of [root, pro]) {
+        assert.match(html, /id="sync-center-port-data-title">Cruise Portのデータ/);
+        assert.match(html, /id="sync-center-port-status-chip"/);
+        assert.match(html, /機材リスト、練習メニュー、My AppsなどCruise Port内の保存データのクラウド同期状態です。/);
+    }
+    assert.match(ui, /function renderPortStatus/);
+    assert.match(ui, /dataset\.syncPortStatus = status\.state/);
+    assert.match(styles, /sync-center-port-status-chip\[data-sync-port-status="complete"\]/);
+    assert.doesNotMatch(root, /Cruise PortをHome画面から削除/);
+});
+
 test('current Port detach is distinct from generic environment revoke and leaves Section 2 informational when Account is unset', () => {
     assert.match(ui, /dataset\.syncEnvironmentRevoke = environment\.id/);
     assert.match(ui, /kind: 'current-environment'/);

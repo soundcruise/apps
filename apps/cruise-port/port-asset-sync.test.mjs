@@ -581,6 +581,23 @@ test('Practice attachment reference publish retries after migration without re-u
     assert.equal(JSON.parse(local.getItem('cruisePort.syncAssetMetadata')).referencePending, false);
 });
 
+test('asset status aggregates Gear, My Apps, Practice and reference pending work without exposing details', async () => {
+    const local = storage({
+        'cruisePort.gearList': JSON.stringify({ version: 4, items: [{ id: 'gear-pending', photoId: 'gear-local' }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 6, items: [{ id: 'app-pending', iconId: 'app-local', iconPresetKey: null }] }),
+        'cruisePort.syncAssetMetadata': JSON.stringify({
+            version: 4, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: true
+        })
+    });
+    const sync = new PortAssetSync({ controller: controller(), storage: local,
+        gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
+            getAllAttachments: async () => ({ ok: true, records: [{ id: 'attachment-local' }] })
+        } });
+    assert.deepEqual(await sync.status(), {
+        known: true, pendingCount: 4, running: false, error: false
+    });
+});
+
 test('online lifecycle retry converges an offline Gear save without another save event', async () => {
     const previousNavigator = globalThis.navigator;
     const previousAddEventListener = globalThis.addEventListener;

@@ -7,6 +7,8 @@ const source = fs.readFileSync(new URL('./port-sync-controller.js', import.meta.
 
 function harness({ failFirst = false } = {}) {
   const meta = new Map();
+  const outbox = [];
+  const conflicts = [];
   const calls = [];
   const events = [];
   let adapter = null;
@@ -31,6 +33,8 @@ function harness({ failFirst = false } = {}) {
     readMeta: async (key) => meta.get(key) ?? null,
     setMeta: async (key, value) => meta.set(key, structuredClone(value)),
     removeMeta: async (key) => meta.delete(key),
+    listOutbox: async () => structuredClone(outbox),
+    listConflicts: async () => structuredClone(conflicts),
     clearCloudState: async () => meta.clear()
   };
   const context = {
@@ -63,7 +67,7 @@ function harness({ failFirst = false } = {}) {
   const controller = context.SoundCruisePortSync.createPortSyncController({
     config: { enabled: true, environment: 'production', endpoint: 'https://sync.example' }
   });
-  return { controller, calls, meta, events, adapter };
+  return { controller, calls, meta, events, adapter, outbox, conflicts };
 }
 
 test('Port controller provisions once, initializes once and then resumes normal sync', async () => {
@@ -109,4 +113,19 @@ test('Port controller announces a changed hydrate only after runtime reaches rea
   assert.equal(events.filter((event) => event.type === 'cruise-port-cloud-data-applied').length, 1);
   controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'ready' } }));
   assert.equal(events.filter((event) => event.type === 'cruise-port-cloud-data-applied').length, 1);
+});
+
+test('Port controller exposes a secret-free fail-closed status summary', async () => {
+  const { controller, meta, outbox, conflicts } = harness();
+  meta.set('membership', { id: 'not-exposed', state: 'active' });
+  meta.set('migrationState', 'complete');
+  meta.set('datasetState', 'ready');
+  meta.set('runtimeState', 'ready');
+  meta.set('lastSyncAt', 1234);
+  outbox.push({ operationId: 'not-exposed' });
+  conflicts.push({ id: 'not-exposed' });
+  assert.deepEqual(JSON.parse(JSON.stringify(await controller.status())), {
+    known: true, connected: true, migrationState: 'complete', datasetState: 'ready',
+    runtimeState: 'ready', lastSyncAt: 1234, pendingCount: 1, conflictCount: 1
+  });
 });

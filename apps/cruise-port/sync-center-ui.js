@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.44.5';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.45.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -215,6 +215,20 @@ function renderDangerActions(root, presentation) {
     });
 }
 
+function renderPortStatus(root, presentation) {
+    const status = presentation.portStatus || {
+        state: 'check', label: '同期を確認してください',
+        description: 'Cruise Portの同期状態を確認できません。'
+    };
+    const chip = root.querySelector('#sync-center-port-status-chip');
+    const description = root.querySelector('#sync-center-port-status-description');
+    if (chip) {
+        chip.textContent = status.label;
+        chip.dataset.syncPortStatus = status.state;
+    }
+    if (description) description.textContent = status.description;
+}
+
 function showJoinCode(root, result, edition = 'standard', onClose = async () => {}) {
     const dialog = document.createElement('dialog');
     dialog.className = 'sync-center-help-dialog';
@@ -409,6 +423,7 @@ export function renderSyncCenter(root, presentation, {
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }
     renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction);
+    renderPortStatus(root, presentation);
     renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled);
     renderDangerActions(root, presentation);
 }

@@ -11,26 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.44.5';
+} from './practice-menu-store.js?v=0.45.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.44.5';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.45.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.44.5';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.44.5';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.44.5';
+} from './sync-center-controller.js?v=0.45.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.45.0';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.45.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.45.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.44.5';
+} from './sync-center-navigation.js?v=0.45.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -43,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.44.5';
+} from './practice-menu-progress-store.js?v=0.45.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -57,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.44.5';
+} from './practice-menu-history-store.js?v=0.45.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -72,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.44.5';
+} from './practice-menu-calendar-store.js?v=0.45.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -81,7 +82,7 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.44.5';
+} from './practice-menu-timer-store.js?v=0.45.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -118,7 +119,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.44.5';
+} from './my-apps-store.js?v=0.45.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -169,9 +170,9 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.44.5';
+} from './app-version.js?v=0.45.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.44.5';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.45.0';
 import { initTuner } from './tuner-app.js?v=0.27.0';
 import {
     clearGearPhotoReferences,
@@ -190,7 +191,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.44.5';
+} from './gear-list-store.js?v=0.45.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -199,9 +200,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.44.5';
+} from './gear-category-store.js?v=0.45.0';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.44.5';
+import { PortAssetSync } from './port-asset-sync.js?v=0.45.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -3556,6 +3557,16 @@ function renderSettings({ focus = true, storageError = '' } = {}) {
 let syncCenterRenderSequence = 0;
 let syncCenterResumeChecked = false;
 let syncCenterActions = null;
+let syncCenterStatusRefreshQueued = false;
+
+function refreshVisibleSyncCenterStatus() {
+    if (location.hash !== SYNC_CENTER_ROUTE || syncCenterStatusRefreshQueued) return;
+    syncCenterStatusRefreshQueued = true;
+    queueMicrotask(() => {
+        syncCenterStatusRefreshQueued = false;
+        if (location.hash === SYNC_CENTER_ROUTE) void renderSyncCenterView();
+    });
+}
 
 async function renderSyncCenterView() {
     if (!syncCenterController.enabled) {
@@ -3581,9 +3592,21 @@ async function renderSyncCenterView() {
                 : 'QA Enrollmentを完了してから同期情報を確認してください。');
         return;
     }
-    const presentation = await syncCenterController.load();
+    const [presentation, structuredStatus, assetStatus] = await Promise.all([
+        syncCenterController.load(),
+        portSyncController?.status?.() || Promise.resolve({ known: false }),
+        portAssetSync.status()
+    ]);
     if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
-    renderSyncCenter(elements.syncCenterView, presentation, {
+    renderSyncCenter(elements.syncCenterView, {
+        ...presentation,
+        portStatus: createPortSyncStatus({
+            accountState: presentation.accountState,
+            structured: structuredStatus,
+            assets: assetStatus,
+            online: navigator.onLine !== false
+        })
+    }, {
         edition: document.documentElement.dataset.edition,
         setupPlan: syncCenterController.planFourAppSetup(presentation),
         orchestrationEnabled: syncCenterOrchestrator.enabled === true,
@@ -5382,6 +5405,8 @@ window.addEventListener('cruise-port-assets-applied', () => {
     pendingPortCloudRefresh = true;
     refreshAppliedPortCloudDataWhenSafe();
 });
+window.addEventListener('cruise-port-sync-state', refreshVisibleSyncCenterStatus);
+window.addEventListener('cruise-port-asset-sync-state', refreshVisibleSyncCenterStatus);
 window.addEventListener('cruise-port-asset-sync-error', (event) => {
     const code = event.detail?.code;
     const message = ['asset_quota_exceeded', 'account_rate_limited', 'global_rate_limited',

@@ -61,6 +61,7 @@ export class PortAssetSync {
         this.running = null;
         this.pendingAgain = false;
         this.bound = false;
+        this.lastErrorCode = null;
     }
 
     readMetadata() { return normalizeMetadata(parse(this.storage, METADATA_KEY, emptyMetadata())); }
@@ -111,8 +112,14 @@ export class PortAssetSync {
 
     schedule(reason) {
         if (this.running) { this.pendingAgain = true; return this.running; }
-        this.running = Promise.resolve().then(() => this.reconcile(reason)).catch((error) => {
+        this.emitStatus('syncing');
+        this.running = Promise.resolve().then(() => this.reconcile(reason)).then((result) => {
+            this.lastErrorCode = result?.ok === false && !result.offline
+                ? (result.code || 'asset_sync_failed') : null;
+            return result;
+        }).catch((error) => {
             const code = typeof error?.message === 'string' ? error.message : 'asset_sync_failed';
+            this.lastErrorCode = code;
             if (typeof globalThis.CustomEvent === 'function') {
                 globalThis.dispatchEvent?.(new CustomEvent('cruise-port-asset-sync-error', { detail: { code } }));
             }
@@ -120,9 +127,56 @@ export class PortAssetSync {
         })
             .finally(() => {
                 this.running = null;
+                this.emitStatus(this.lastErrorCode ? 'error' : 'settled');
                 if (this.pendingAgain) { this.pendingAgain = false; this.schedule('pending'); }
             });
         return this.running;
+    }
+
+    emitStatus(state) {
+        if (typeof globalThis.CustomEvent !== 'function') return;
+        globalThis.dispatchEvent?.(new CustomEvent('cruise-port-asset-sync-state', {
+            detail: Object.freeze({ state })
+        }));
+    }
+
+    async status() {
+        try {
+            const metadata = this.readMetadata();
+            const gearItems = parse(this.storage, GEAR_KEY, { items: [] }).items || [];
+            const myApps = parse(this.storage, MY_APPS_KEY, { items: [] }).items || [];
+            let pendingCount = metadata.releaseQueue.length + metadata.discardQueue.length;
+            if (metadata.referencePending) pendingCount += 1;
+            for (const item of gearItems) {
+                const entry = metadata.gear[item.id];
+                if (entry?.pending || (item.photoId && (entry?.binding?.final?.localId !== item.photoId ||
+                    (item.photoSourceId || null) !== (entry?.binding?.source?.localId || null)))) pendingCount += 1;
+            }
+            for (const item of myApps) {
+                const entry = metadata.myApps[item.id];
+                if (entry?.pending || (!item.iconPresetKey && item.iconId &&
+                    (entry?.binding?.final?.localId !== item.iconId ||
+                    (item.iconSourceId || null) !== (entry?.binding?.source?.localId || null)))) pendingCount += 1;
+            }
+            const localAttachments = await this.practiceAttachmentStore?.getAllAttachments?.();
+            if (localAttachments && localAttachments.ok !== true) {
+                return Object.freeze({ known: false, pendingCount, running: Boolean(this.running), error: Boolean(this.lastErrorCode) });
+            }
+            for (const record of localAttachments?.records || []) {
+                const matched = Object.values(metadata.attachments).some((entry) =>
+                    entry.binding?.localId === record.id && entry.published?.availability === 'available');
+                if (!matched) pendingCount += 1;
+            }
+            pendingCount += Object.values(metadata.attachments).filter((entry) => entry?.pending).length;
+            return Object.freeze({
+                known: true,
+                pendingCount,
+                running: Boolean(this.running) || this.pendingAgain,
+                error: Boolean(this.lastErrorCode)
+            });
+        } catch (_) {
+            return Object.freeze({ known: false, pendingCount: 0, running: Boolean(this.running), error: true });
+        }
     }
 
     async headers(contentType = null) {
