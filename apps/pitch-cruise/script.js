@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.21.0';
+const PITCH_TRAINER_APP_VERSION = '2.22.0';
 function notifyPitchSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('pitch');
 }

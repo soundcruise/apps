@@ -694,8 +694,11 @@
     const labels = {
       custom_preset: 'カスタムプリセット', create_preset: '作成プリセット',
       custom_stage: 'カスタムステージ', settings: 'リズム設定',
-      preset_order: 'プリセット順', stage_order: 'ステージ順'
+      preset_order: 'プリセット順', stage_order: 'ステージ順',
+      builtin_stage_preferences: 'ステージ設定'
     };
+    const updatedAt = (payload) => Number.isFinite(Number(payload?.updatedAt)) && Number(payload.updatedAt) > 0
+      ? Number(payload.updatedAt) : null;
     const name = local?.name || local?.title || remote?.name || remote?.title || labels[type] || 'リズムデータ';
     const fields = [{ label: '状態', local: local ? '保存済み' : '削除済み', remote: remote ? '保存済み' : '削除済み' }];
     if (['custom_preset', 'create_preset', 'custom_stage'].includes(type)) {
@@ -708,7 +711,8 @@
         remote: value(remote, (payload) => payload.settings?.timeSignature ?? payload.timeSignature)
       });
     }
-    return Object.freeze({ title: labels[type] || 'リズムデータ', name: String(name), fields: Object.freeze(fields) });
+    return Object.freeze({ appName: 'リズムクルーズ', title: labels[type] || 'リズムデータ', name: String(name),
+      localUpdatedAt: updatedAt(local), remoteUpdatedAt: updatedAt(remote), fields: Object.freeze(fields) });
   }
 
   function assertDataPlaneContext(context) {

@@ -16,7 +16,12 @@ function presentation(id, name = id, options = {}) {
   return {
     id, state: 'attention', selection: options.selection || null,
     presentation: {
+      appName: options.appName || 'リズムクルーズ',
       title: options.title || 'カスタムプリセット', name,
+      localUpdatedAt: options.localUpdatedAt ?? 1789999200000,
+      remoteUpdatedAt: options.remoteUpdatedAt ?? 1789995600000,
+      localState: options.localState || '保存されています',
+      remoteState: options.remoteState || '保存されています',
       fields: options.fields || [{ label: 'BPM', local: '79', remote: '81' }]
     }
   };
@@ -73,7 +78,7 @@ test('bulk Local selection supports one Remote override and applies the final pl
   assert(fixture.events.some((event) => event[0] === 'close'));
 });
 
-test('bulk Cloud selection applies Remote for every conflict only after final apply', async () => {
+test('bulk Cloud action applies Remote immediately without a second confirmation', async () => {
   const api = load();
   const fixture = viewFixture();
   let items = [presentation('c1'), presentation('c2')];
@@ -88,10 +93,28 @@ test('bulk Cloud selection applies Remote for every conflict only after final ap
   };
   const controller = api.createConflictResolutionController(runtime, fixture.view);
   await controller.refresh();
-  controller.selectAll('remote');
-  assert.deepEqual(calls, [], 'selection alone never mutates data');
-  await controller.apply();
+  await controller.applyAll('remote');
   assert.deepEqual(calls, [['c1', 'remote'], ['c2', 'remote']]);
+});
+
+test('bulk Local action applies every item immediately in order', async () => {
+  const api = load();
+  const fixture = viewFixture();
+  let items = [presentation('c1'), presentation('c2'), presentation('c3')];
+  const calls = [];
+  const runtime = {
+    listConflictPresentations: async () => items,
+    resolveConflict: async (id, choice) => {
+      calls.push([id, choice]);
+      items = items.filter((item) => item.id !== id);
+      return { ok: true };
+    }
+  };
+  const controller = api.createConflictResolutionController(runtime, fixture.view);
+  await controller.refresh();
+  assert.deepEqual({ ...await controller.applyAll('local') }, { ok: true, applied: 3, remaining: 0 });
+  assert.deepEqual(calls, [['c1', 'local'], ['c2', 'local'], ['c3', 'local']]);
+  assert(fixture.events.some((event) => event[0] === 'busy' && event[2] === 'bulk-local'));
 });
 
 test('final apply fails closed while any item is unresolved', async () => {
@@ -188,13 +211,20 @@ test('tombstone presentation stays visible as a plain-language saved/deleted com
   assert.deepEqual(tombstone.presentation.fields[0], { label: '状態', local: '削除済み', remote: '保存済み' });
 });
 
-test('DOM copy uses one list, bulk choices, individual overrides, final apply and quiet Later', () => {
+test('DOM copy uses overview, immediate bulk actions, Help, closed individual accordion and quiet Later', () => {
   for (const label of [
     '変更内容を確認してください', 'この端末とクラウドの両方に新しい変更があります。',
-    'この端末の内容をすべて選ぶ', 'クラウドの内容をすべて選ぶ',
-    '残す内容', 'この内容で反映', 'あとで決める'
+    'この端末の内容でクラウドを更新', 'クラウドの内容でこの端末を更新',
+    '残す内容', '選んだ内容を反映', 'あとで決める', '個別に選択する',
+    '安全にまとめられる内容は通常の同期で自動的に反映されます。', '更新日時不明'
   ]) assert.match(source, new RegExp(label));
+  assert.match(source, /sound-cruise-sync-conflict-overview/);
   assert.match(source, /sound-cruise-sync-conflict-list/);
+  assert.match(source, /sound-cruise-sync-conflict-individual-toggle/);
+  assert.match(source, /individualBody\.hidden = true/);
+  assert.match(source, /aria-expanded/);
+  assert.match(source, /controller\.applyAll\('local'\)/);
+  assert.match(source, /controller\.applyAll\('remote'\)/);
   assert.match(source, /type = 'radio'/);
   assert.match(source, /textContent/);
   assert.doesNotMatch(source, /1件ずつ確認|この環境のデータを使う|あとで確認/);

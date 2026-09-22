@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.46.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.47.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -104,7 +104,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         {
             id: 'port', name: 'Cruise Port',
             subtitle: null,
-            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.46.0`,
+            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.47.0`,
             available: activeAccount,
             environments: portEnvironments
         },
@@ -204,6 +204,10 @@ function renderDangerActions(root, presentation) {
     });
 }
 
+export function shouldShowPortConflictAction(presentation = {}) {
+    return Number(presentation.portConflictCount) > 0;
+}
+
 function renderPortStatus(root, presentation) {
     const status = presentation.portStatus || {
         state: 'attention', label: '確認が必要'
@@ -214,6 +218,8 @@ function renderPortStatus(root, presentation) {
         chip.dataset.syncPortStatus = status.state;
         chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${status.state}`;
     }
+    const conflictsOpen = root.querySelector('#sync-center-port-conflicts-open');
+    if (conflictsOpen) conflictsOpen.hidden = !shouldShowPortConflictAction(presentation);
 }
 
 function showJoinCode(root, result, edition = 'standard', onClose = async () => {}) {
@@ -236,7 +242,7 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
         badge.className = 'sync-center-join-target';
         const icon = document.createElement('img');
         icon.src = isPortAddition
-            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.46.0`
+            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.47.0`
             : CRUISE_APP_ICONS[target.id][edition === 'pro' ? 'pro' : 'standard'];
         icon.alt = '';
         icon.width = 44;
@@ -440,7 +446,10 @@ function bindAdvancedEnvironmentManagement(root) {
     });
 }
 
-export function bindSyncCenterActions(root, { orchestrator = null, refresh = async () => {}, tokenProvider = async () => null, edition = 'standard' } = {}) {
+export function bindSyncCenterActions(root, {
+    orchestrator = null, refresh = async () => {}, tokenProvider = async () => null,
+    edition = 'standard', onPortConflictOpen = async () => {}
+} = {}) {
     bindSectionHelp(root);
     bindAdvancedEnvironmentManagement(root);
     const setup = root?.querySelector?.('#sync-center-setup');
@@ -479,6 +488,9 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
     const portConnectStatus = root?.querySelector?.('#sync-center-port-connect-status');
     const portConnectSecret = portConnectInput && globalThis.SoundCruiseSyncAccount?.core
         ?.createSensitiveInputController?.(portConnectInput);
+    root?.querySelector?.('#sync-center-port-conflicts-open')?.addEventListener('click', async () => {
+        await onPortConflictOpen();
+    });
     const setPortConnectPhase = (phase) => {
         const inputPhase = phase === 'input';
         const successPhase = phase === 'complete';

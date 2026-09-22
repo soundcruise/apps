@@ -54,7 +54,7 @@ test('shared multi-app runtime is wired only into Pro editions and explicit prod
     const standard = read(standardPath);
     const pro = read(proPath);
     assert.equal(standard.includes('multi-app-sync-runtime.js'), false, `${appId} Standard`);
-    assert.equal(pro.includes('multi-app-sync-runtime.js?v=11'), true, `${appId} Pro runtime`);
+    assert.equal(pro.includes('multi-app-sync-runtime.js?v=12'), true, `${appId} Pro runtime`);
     assert.equal(pro.includes('multi-app-conflict-ui.js'), true, `${appId} Pro conflict UI`);
     assert.equal(pro.includes('multi-app-sync-bootstrap.js'), true, `${appId} Pro bootstrap`);
     assert(pro.indexOf('multi-app-sync-runtime.js') < pro.indexOf('multi-app-conflict-ui.js'), `${appId} runtime precedes conflict UI`);

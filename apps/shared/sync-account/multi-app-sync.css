@@ -396,6 +396,8 @@
   gap: .9rem;
   box-sizing: border-box;
   max-height: calc(100dvh - 1.5rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 1rem;
 }
 .sound-cruise-sync-conflict h2,
@@ -405,6 +407,28 @@
 .sound-cruise-sync-conflict-header { display: grid; gap: .35rem; }
 .sound-cruise-sync-conflict-summary { color: #e8ddbd; }
 .sound-cruise-sync-conflict-count { color: #d7c98f; font-size: .92rem; font-weight: 700; }
+.sound-cruise-sync-conflict-overview {
+  display: grid;
+  gap: .45rem;
+  min-height: 0;
+  max-height: min(15rem, 35dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding-right: .15rem;
+}
+.sound-cruise-sync-conflict-overview-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: .45rem .8rem;
+  padding: .65rem .7rem;
+  border: 1px solid #4d4428;
+  border-radius: .7rem;
+  background: #0c0b09;
+}
+.sound-cruise-sync-conflict-overview-item h3 { font-size: .93rem; color: #f3e5b6; }
+.sound-cruise-sync-conflict-overview-item .sound-cruise-sync-conflict-name { font-size: .86rem; }
+.sound-cruise-sync-conflict-times { display: grid; align-content: center; gap: .15rem; color: #cfc6ae; font-size: .78rem; }
+.sound-cruise-sync-conflict-state { color: #e1c978; }
 .sound-cruise-sync-conflict-bulk {
   display: grid;
   gap: .5rem;
@@ -413,9 +437,20 @@
   border-radius: .8rem;
   background: #17150f;
 }
-.sound-cruise-sync-conflict-bulk > p { color: #d7c98f; font-size: .86rem; font-weight: 700; }
+.sound-cruise-sync-conflict-bulk-heading { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+.sound-cruise-sync-conflict-bulk-heading > p { color: #d7c98f; font-size: .86rem; font-weight: 700; }
+.sound-cruise-sync-conflict-help-button {
+  display: inline-grid;
+  place-items: center;
+  width: 2rem;
+  min-height: 2rem !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  background: transparent !important;
+}
 .sound-cruise-sync-conflict-bulk-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem; }
 .sound-cruise-sync-conflict-bulk button,
+.sound-cruise-sync-conflict-individual button,
 .sound-cruise-sync-conflict-footer button {
   min-height: 2.85rem;
   padding: .65rem .75rem;
@@ -426,7 +461,52 @@
   font: inherit;
   font-weight: 700;
 }
+.sound-cruise-sync-conflict-help { display: grid; gap: .2rem; padding-top: .5rem; border-top: 1px solid #4d4428; }
+.sound-cruise-sync-conflict-help[hidden] { display: none; }
+.sound-cruise-sync-conflict-help h3 { margin-top: .35rem; color: #f3e5b6; font-size: .84rem; }
+.sound-cruise-sync-conflict-help p { color: #cfc6ae; font-size: .8rem; }
+.sound-cruise-sync-conflict-individual {
+  flex: 0 0 auto;
+  min-height: 0;
+  border-top: 1px solid #4d4428;
+  border-bottom: 1px solid #4d4428;
+}
+.sound-cruise-sync-conflict-individual-toggle {
+  width: 100%;
+  min-height: 0 !important;
+  padding: .7rem .1rem;
+  border: 0 !important;
+  background: transparent !important;
+  color: #bdb49d;
+  font-size: .86rem;
+  text-align: left;
+  cursor: pointer;
+}
+.sound-cruise-sync-conflict-individual-toggle::after {
+  content: '＋';
+  float: right;
+}
+.sound-cruise-sync-conflict-individual-toggle[aria-expanded='true']::after { content: '−'; }
+.sound-cruise-sync-conflict-individual[data-open='true'] {
+  padding-bottom: .7rem;
+}
+.sound-cruise-sync-conflict-individual-toggle[aria-expanded='true'] { color: #e1c978; }
+.sound-cruise-sync-conflict-individual-body {
+  display: flex;
+  flex-direction: column;
+  gap: .65rem;
+  max-height: min(30rem, 52dvh);
+  overflow: hidden;
+}
+.sound-cruise-sync-conflict-individual-body[hidden] { display: none; }
+.sound-cruise-sync-conflict-individual-body > .sound-cruise-sync-conflict-apply {
+  flex: 0 0 auto;
+  width: 100%;
+  background: linear-gradient(180deg, #ead594, #cfad55);
+  color: #16130b;
+}
 .sound-cruise-sync-conflict-list {
+  flex: 1 1 auto;
   display: grid;
   gap: .75rem;
   min-height: 0;
@@ -445,6 +525,7 @@
 .sound-cruise-sync-conflict-card > header { display: grid; gap: .1rem; }
 .sound-cruise-sync-conflict-title { font-size: 1rem; color: #f3e5b6; }
 .sound-cruise-sync-conflict-name { color: #fff; font-weight: 700; overflow-wrap: anywhere; }
+.sound-cruise-sync-conflict-detail-times { color: #cfc6ae; font-size: .78rem; }
 .sound-cruise-sync-conflict-comparison {
   display: grid;
   overflow: hidden;
@@ -495,7 +576,7 @@
 .sound-cruise-sync-conflict-choice-option input { width: 1.05rem; height: 1.05rem; margin: 0; accent-color: #d5b95c; }
 .sound-cruise-sync-conflict-footer {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: .55rem;
   padding-top: .15rem;
   border-top: 1px solid #4d4428;
@@ -507,11 +588,6 @@
   font-size: .88rem;
 }
 .sound-cruise-sync-conflict-status.is-error { color: #ffcf87; }
-.sound-cruise-sync-conflict-footer .sound-cruise-sync-conflict-apply {
-  background: linear-gradient(180deg, #ead594, #cfad55);
-  color: #16130b;
-  font-weight: 700;
-}
 .sound-cruise-sync-conflict-footer .sound-cruise-sync-conflict-later { border-color: #5b5138; background: transparent; }
 .sound-cruise-sync-conflict button:disabled,
 .sound-cruise-sync-conflict input:disabled { opacity: .52; cursor: default; }
@@ -521,6 +597,10 @@
   .sound-cruise-sync-conflict { width: min(100% - .75rem, 32rem); max-height: calc(100dvh - .75rem); }
   .sound-cruise-sync-conflict-panel { max-height: calc(100dvh - .75rem); padding: .8rem; gap: .75rem; }
   .sound-cruise-sync-conflict-summary { font-size: .9rem; }
+  .sound-cruise-sync-conflict-overview { max-height: min(12.5rem, 30dvh); }
+  .sound-cruise-sync-conflict-overview-item { grid-template-columns: 1fr; }
+  .sound-cruise-sync-conflict-times { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sound-cruise-sync-conflict-state { grid-column: 1 / -1; }
   .sound-cruise-sync-conflict-bulk-actions { grid-template-columns: 1fr; }
   .sound-cruise-sync-conflict-card { padding: .65rem; }
   .sound-cruise-sync-conflict-row { grid-template-columns: minmax(4.5rem, .7fr) repeat(2, minmax(0, 1fr)); }

@@ -72,6 +72,33 @@ test('Port adapter emits item records without binary or device-local asset ident
   assert.equal(records.every((item) => /^[a-f0-9]{64}$/u.test(item.payloadHash)), true);
 });
 
+test('Port conflict presentation maps record names and authoritative item timestamps for people', () => {
+  const api = load(storage());
+  const localRecord = remoteRecord('gear_item', 'gear-1', {
+    item: { id: 'gear-1', name: 'Yamaha LL6', updatedAt: '2026-09-22T09:30:00.000Z' }, asset: { present: false }
+  });
+  const remote = remoteRecord('gear_item', 'gear-1', {
+    item: { id: 'gear-1', name: 'Yamaha LL6', updatedAt: '2026-09-22T08:55:00.000Z' }, asset: { present: false }
+  });
+  const result = JSON.parse(JSON.stringify(api.getConflictPresentation({ localRecord, remoteRecord: remote })));
+  assert.equal(result.appName, 'Cruise Port');
+  assert.equal(result.title, '機材リスト');
+  assert.equal(result.name, 'Yamaha LL6');
+  assert.equal(result.localUpdatedAt, '2026-09-22T09:30:00.000Z');
+  assert.equal(result.remoteUpdatedAt, '2026-09-22T08:55:00.000Z');
+  assert.doesNotMatch(JSON.stringify(result), /gear-1|payload|revision/i);
+});
+
+test('Port conflict presentation labels tombstones plainly and never invents a missing Local time', () => {
+  const api = load(storage());
+  const remote = remoteRecord('practice_menu', 'menu-1', { id: 'menu-1', name: 'ウォーミングアップ' });
+  const result = JSON.parse(JSON.stringify(api.getConflictPresentation({ localRecord: null, remoteRecord: remote })));
+  assert.equal(result.title, '練習メニュー');
+  assert.equal(result.localUpdatedAt, null);
+  assert.equal(result.remoteUpdatedAt, null);
+  assert.deepEqual(result.fields[0], { label: '状態', local: '削除済み', remote: '保存済み' });
+});
+
 test('Port adapter repairs the missing My Apps preset field across older synchronized records', async () => {
   const legacyItem = {
     id: 'app-legacy', name: 'Legacy', url: 'https://example.com/', launchMode: 'https',

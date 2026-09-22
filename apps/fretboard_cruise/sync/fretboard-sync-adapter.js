@@ -679,7 +679,11 @@
     const local = localRecord?.deletedAt != null ? null : localRecord?.payload;
     const remote = remoteRecord?.deletedAt != null ? null : remoteRecord?.payload;
     const type = localRecord?.recordType || remoteRecord?.recordType || 'fretboard';
-    const labels = { custom_route: 'カスタムルート', custom_quiz: 'カスタムクイズ', settings: '指板設定' };
+    const labels = {
+      custom_route: 'カスタムルート', custom_quiz: 'カスタムクイズ', settings: '指板設定',
+      builtin_route_override: 'ルートステージ', builtin_quiz_override: 'クイズステージ',
+      stage_order: 'ステージの並び順', progress: '学習記録'
+    };
     const value = (payload, selector) => payload ? String(selector(payload) ?? '—') : '削除済み';
     const name = local?.name || remote?.name || labels[type] || '指板データ';
     const fields = [
@@ -692,7 +696,8 @@
     if (type === 'custom_quiz') fields.push({
       label: 'グループ数', local: value(local, (payload) => payload.groups?.length), remote: value(remote, (payload) => payload.groups?.length)
     });
-    return Object.freeze({ title: labels[type] || '指板データ', name: String(name), fields: Object.freeze(fields) });
+    return Object.freeze({ appName: '指板クルーズ', title: labels[type] || '指板データ', name: String(name),
+      localUpdatedAt: null, remoteUpdatedAt: null, fields: Object.freeze(fields) });
   }
   function assertDataPlaneContext(context) {
     if (!isPlainObject(context?.membership) || context.membership.appId !== APP_ID || context.membership.state !== 'active') {

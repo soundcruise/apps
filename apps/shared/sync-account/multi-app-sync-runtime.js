@@ -60,6 +60,11 @@
     const text = String(value ?? fallback).replace(/[\u0000-\u001f\u007f-\u009f]/gu, ' ').trim();
     return text.slice(0, 120) || fallback;
   }
+  function safePresentationTimestamp(value) {
+    if (value == null || value === '') return null;
+    const timestamp = typeof value === 'number' ? value : Date.parse(String(value));
+    return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : null;
+  }
   function canonicalJson(value) {
     if (value === null || typeof value !== 'object') return JSON.stringify(value);
     if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -328,8 +333,13 @@
         label: '状態', local: stateText(context.localRecord), remote: stateText(context.remoteRecord)
       });
       return Object.freeze({
+        appName: safePresentationText(raw.appName, 'Sound Cruise'),
         title: safePresentationText(raw.title, '同期データ'),
         name: safePresentationText(raw.name, '確認が必要な項目'),
+        localUpdatedAt: safePresentationTimestamp(raw.localUpdatedAt),
+        remoteUpdatedAt: safePresentationTimestamp(raw.remoteUpdatedAt),
+        localState: stateText(context.localRecord),
+        remoteState: stateText(context.remoteRecord),
         fields: Object.freeze(fields.map(Object.freeze))
       });
     }

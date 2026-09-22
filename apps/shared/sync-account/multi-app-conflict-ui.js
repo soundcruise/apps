@@ -80,7 +80,7 @@
       return { ok: true, selected: selections.size, total: items.length };
     }
 
-    async function apply() {
+    async function apply(mode = 'individual') {
       if (busy || !items.length) return { ok: false, code: 'resolution_busy' };
       const unresolved = items.filter((item) => !selections.has(item.id));
       if (unresolved.length) {
@@ -91,7 +91,7 @@
       const plan = items.map((item) => ({ id: item.id, choice: selections.get(item.id) }));
       let applied = 0;
       busy = true;
-      view.setBusy(true, 'apply');
+      view.setBusy(true, mode);
       try {
         for (const step of plan) {
           view.showProgress(applied, plan.length);
@@ -118,6 +118,12 @@
       }
     }
 
+    async function applyAll(choice) {
+      if (busy || !['local', 'remote'].includes(choice)) return { ok: false, code: 'resolution_choice_invalid' };
+      for (const item of items) selections.set(item.id, choice);
+      return apply(choice === 'local' ? 'bulk-local' : 'bulk-remote');
+    }
+
     async function later() {
       if (busy || !items.length) return { ok: false, code: 'resolution_busy' };
       busy = true;
@@ -142,7 +148,7 @@
     }
 
     return Object.freeze({
-      refresh, select, selectAll, apply, later,
+      refresh, select, selectAll, apply, applyAll, later,
       get activeId() { return items[0]?.id || null; },
       get count() { return items.length; },
       get selectedCount() { return selections.size; }
@@ -155,6 +161,17 @@
     element.textContent = text;
     parent.append(element);
     return element;
+  }
+
+  function formatUpdatedAt(value) {
+    if (!Number.isFinite(Number(value)) || Number(value) <= 0) return '更新日時不明';
+    try {
+      return new Intl.DateTimeFormat('ja-JP', {
+        month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false
+      }).format(new Date(Number(value)));
+    } catch (_) {
+      return '更新日時不明';
+    }
   }
 
   function installConflictResolutionUi(runtime, document = global.document) {
@@ -179,38 +196,94 @@
     const count = appendTextElement(document, header, 'p', 'sound-cruise-sync-conflict-count', '');
     panel.append(header);
 
+    const overview = document.createElement('div');
+    overview.className = 'sound-cruise-sync-conflict-overview';
+    overview.setAttribute('aria-label', '確認が必要な変更');
+    panel.append(overview);
+
     const bulk = document.createElement('div');
     bulk.className = 'sound-cruise-sync-conflict-bulk';
-    appendTextElement(document, bulk, 'p', '', 'まとめて選ぶ');
+    const bulkHeading = document.createElement('div');
+    bulkHeading.className = 'sound-cruise-sync-conflict-bulk-heading';
+    appendTextElement(document, bulkHeading, 'p', '', 'まとめて選ぶ');
+    const helpButton = appendTextElement(document, bulkHeading, 'button', 'sound-cruise-sync-conflict-help-button', '?');
+    helpButton.type = 'button';
+    helpButton.setAttribute('aria-label', '選び方の説明を表示');
+    helpButton.setAttribute('aria-expanded', 'false');
     const bulkActions = document.createElement('div');
     bulkActions.className = 'sound-cruise-sync-conflict-bulk-actions';
-    const bulkLocal = appendTextElement(document, bulkActions, 'button', '', 'この端末の内容をすべて選ぶ');
-    const bulkRemote = appendTextElement(document, bulkActions, 'button', '', 'クラウドの内容をすべて選ぶ');
+    const bulkLocal = appendTextElement(document, bulkActions, 'button', '', 'この端末の内容でクラウドを更新');
+    const bulkRemote = appendTextElement(document, bulkActions, 'button', '', 'クラウドの内容でこの端末を更新');
     bulkLocal.type = bulkRemote.type = 'button';
     bulkLocal.autofocus = true;
-    bulk.append(bulkActions);
+    const help = document.createElement('div');
+    help.className = 'sound-cruise-sync-conflict-help';
+    help.hidden = true;
+    for (const [heading, copy] of [
+      ['この端末の内容でクラウドを更新', 'この端末にある変更を残し、クラウド側へ反映します。'],
+      ['クラウドの内容でこの端末を更新', 'クラウドに保存されている変更を残し、この端末へ反映します。'],
+      ['あとで決める', 'どちらも変更せず、後で再度選べます。'],
+      ['両方の変更について', '別々の項目への変更など、安全にまとめられる内容は通常の同期で自動的に反映されます。どちらかを選ぶ必要がある内容だけ、この画面に表示されます。']
+    ]) {
+      appendTextElement(document, help, 'h3', '', heading);
+      appendTextElement(document, help, 'p', '', copy);
+    }
+    bulk.append(bulkHeading, bulkActions, help);
     panel.append(bulk);
 
+    const individual = document.createElement('section');
+    individual.className = 'sound-cruise-sync-conflict-individual';
+    const individualSummary = appendTextElement(document, individual, 'button', 'sound-cruise-sync-conflict-individual-toggle', '個別に選択する');
+    individualSummary.type = 'button';
+    individualSummary.setAttribute('aria-expanded', 'false');
+    const individualBody = document.createElement('div');
+    individualBody.className = 'sound-cruise-sync-conflict-individual-body';
+    individualBody.hidden = true;
     const list = document.createElement('div');
     list.className = 'sound-cruise-sync-conflict-list';
-    list.setAttribute('aria-label', '確認が必要な変更');
-    panel.append(list);
+    list.setAttribute('aria-label', '個別に選択する変更');
+    const applyButton = appendTextElement(document, individualBody, 'button', 'sound-cruise-sync-conflict-apply', '選んだ内容を反映');
+    applyButton.type = 'button';
+    individualBody.insertBefore(list, applyButton);
+    individual.append(individualBody);
+    panel.append(individual);
 
     const footer = document.createElement('footer');
     footer.className = 'sound-cruise-sync-conflict-footer';
     const status = appendTextElement(document, footer, 'p', 'sound-cruise-sync-conflict-status', '');
     status.setAttribute('role', 'status');
     status.setAttribute('aria-live', 'polite');
-    const applyButton = appendTextElement(document, footer, 'button', 'sound-cruise-sync-conflict-apply', 'この内容で反映');
     const laterButton = appendTextElement(document, footer, 'button', 'sound-cruise-sync-conflict-later', 'あとで決める');
-    applyButton.type = laterButton.type = 'button';
+    laterButton.type = 'button';
     panel.append(footer);
     dialog.append(panel);
     document.body.append(dialog);
 
     let controller;
     let renderedInputs = [];
-    const allButtons = () => [bulkLocal, bulkRemote, applyButton, laterButton];
+    const allButtons = () => [bulkLocal, bulkRemote, helpButton, individualSummary, applyButton, laterButton];
+    const isIndividualOpen = () => !individualBody.hidden;
+
+    function renderOverviewItem(item) {
+      const presentation = item.presentation;
+      const row = document.createElement('article');
+      row.className = 'sound-cruise-sync-conflict-overview-item';
+      const copy = document.createElement('div');
+      appendTextElement(document, copy, 'h3', '', `${presentation.appName}　${presentation.title}`);
+      if (presentation.name !== presentation.title) {
+        appendTextElement(document, copy, 'p', 'sound-cruise-sync-conflict-name', presentation.name);
+      }
+      const times = document.createElement('div');
+      times.className = 'sound-cruise-sync-conflict-times';
+      appendTextElement(document, times, 'span', '', `この端末　${formatUpdatedAt(presentation.localUpdatedAt)}`);
+      appendTextElement(document, times, 'span', '', `クラウド　${formatUpdatedAt(presentation.remoteUpdatedAt)}`);
+      if (presentation.localState !== presentation.remoteState) {
+        appendTextElement(document, times, 'span', 'sound-cruise-sync-conflict-state',
+          `この端末：${presentation.localState}／クラウド：${presentation.remoteState}`);
+      }
+      row.append(copy, times);
+      return row;
+    }
 
     function renderComparison(parent, presentation) {
       const comparison = document.createElement('div');
@@ -258,7 +331,8 @@
 
     const view = {
       show(items, selections) {
-        count.textContent = `${items.length}件の変更を確認してください`;
+        count.textContent = `確認が必要な変更 ${items.length}件`;
+        overview.replaceChildren(...items.map(renderOverviewItem));
         list.replaceChildren();
         renderedInputs = [];
         items.forEach((item, index) => {
@@ -267,17 +341,21 @@
           card.className = 'sound-cruise-sync-conflict-card';
           card.dataset.syncConflictSelected = selections.get(item.id) || 'none';
           const cardHeader = document.createElement('header');
-          appendTextElement(document, cardHeader, 'h3', 'sound-cruise-sync-conflict-title', presentation.title);
+          appendTextElement(document, cardHeader, 'h3', 'sound-cruise-sync-conflict-title', `${presentation.appName}　${presentation.title}`);
           appendTextElement(document, cardHeader, 'p', 'sound-cruise-sync-conflict-name', presentation.name);
           card.append(cardHeader);
+          const times = document.createElement('p');
+          times.className = 'sound-cruise-sync-conflict-detail-times';
+          times.textContent = `この端末 ${formatUpdatedAt(presentation.localUpdatedAt)} ／ クラウド ${formatUpdatedAt(presentation.remoteUpdatedAt)}`;
+          card.append(times);
           renderComparison(card, presentation);
           renderChoice(card, item, selections.get(item.id), index);
           list.append(card);
         });
         const selectedCount = [...selections].filter(([id]) => items.some((item) => item.id === id)).length;
-        status.textContent = selectedCount === items.length
-          ? 'すべて選択済みです。内容を確認して反映してください。'
-          : `${selectedCount}/${items.length}件を選択済み`;
+        status.textContent = isIndividualOpen()
+          ? selectedCount === items.length ? 'すべて選択済みです。' : `${selectedCount}/${items.length}件を選択済み`
+          : '';
         status.classList.remove('is-error');
         applyButton.disabled = selectedCount !== items.length;
         dialog.dataset.syncConflictPhase = 'attention';
@@ -291,12 +369,13 @@
         dialog.setAttribute('aria-busy', value ? 'true' : 'false');
         if (value) {
           dialog.dataset.syncConflictPhase = choice ? `resolving-${choice}` : 'loading';
-          status.textContent = choice === 'apply' ? '選択した内容を安全に反映しています…'
+          status.textContent = choice === 'individual' ? '選択した内容を安全に反映しています…'
+            : choice === 'bulk-local' || choice === 'bulk-remote' ? '変更を安全に反映しています…'
             : choice === 'later' ? '選択を保留しています…' : '同期内容を確認しています…';
         }
       },
       showProgress(applied, total) {
-        status.textContent = `${applied}/${total}件を確認しました。安全に反映しています…`;
+        status.textContent = `${applied} / ${total}件完了　変更を反映しています…`;
       },
       showError(message) {
         dialog.dataset.syncConflictPhase = 'failure';
@@ -314,9 +393,25 @@
 
     controller = createConflictResolutionController(runtime, view);
     dialog.__soundCruiseConflictController = controller;
-    bulkLocal.addEventListener('click', () => controller.selectAll('local'));
-    bulkRemote.addEventListener('click', () => controller.selectAll('remote'));
-    applyButton.addEventListener('click', () => controller.apply());
+    bulkLocal.addEventListener('click', () => controller.applyAll('local'));
+    bulkRemote.addEventListener('click', () => controller.applyAll('remote'));
+    helpButton.addEventListener('click', () => {
+      help.hidden = !help.hidden;
+      helpButton.setAttribute('aria-expanded', String(!help.hidden));
+    });
+    individualSummary.addEventListener('click', () => {
+      if (dialog.getAttribute('aria-busy') === 'true') return;
+      individualBody.hidden = !individualBody.hidden;
+      individual.dataset.open = String(!individualBody.hidden);
+      individualSummary.setAttribute('aria-expanded', String(!individualBody.hidden));
+      if (individualBody.hidden) {
+        status.textContent = '';
+        return;
+      }
+      const selectedCount = renderedInputs.filter((input) => input.checked).length;
+      status.textContent = `${selectedCount}/${controller.count}件を選択済み`;
+    });
+    applyButton.addEventListener('click', () => controller.apply('individual'));
     laterButton.addEventListener('click', () => controller.later());
     dialog.addEventListener('cancel', (event) => {
       event.preventDefault();

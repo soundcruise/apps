@@ -713,7 +713,8 @@
     const type = localRecord?.recordType || remoteRecord?.recordType || 'pitch';
     const labels = {
       custom_chord: 'カスタムコード', custom_progression: 'カスタム進行',
-      melody_stage: 'メロディーステージ', chord_stage: 'コードステージ', settings: '音感設定'
+      melody_stage: 'メロディーステージ', chord_stage: 'コードステージ', settings: '音感設定',
+      stage_order: 'ステージの並び順', progress: '学習記録'
     };
     const value = (payload, selector) => payload ? String(selector(payload) ?? '—') : '削除済み';
     const name = local?.name || remote?.name || labels[type] || '音感データ';
@@ -726,7 +727,8 @@
       local: value(local, (payload) => payload.chordRefs?.length),
       remote: value(remote, (payload) => payload.chordRefs?.length)
     });
-    return Object.freeze({ title: labels[type] || '音感データ', name: String(name), fields: Object.freeze(fields) });
+    return Object.freeze({ appName: '音感クルーズ', title: labels[type] || '音感データ', name: String(name),
+      localUpdatedAt: null, remoteUpdatedAt: null, fields: Object.freeze(fields) });
   }
 
   function assertDataPlaneContext(context) {

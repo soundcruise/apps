@@ -17,7 +17,7 @@ const appHtml = [
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
     assert.match(html, /sync-ui-components\.js\?v=13/);
-    assert.match(html, /multi-app-sync\.css\?v=19/);
+    assert.match(html, /multi-app-sync\.css\?v=20/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
   assert.match(renderer, /sound-cruise-sync-settings-head/);
@@ -231,7 +231,7 @@ test('Join failures, secret removal and conflict choices retain explicit contrac
   for (const code of ['app_join_expired', 'app_join_cancelled', 'app_join_consumed']) assert.match(bootstrap, new RegExp(code));
   assert.match(bootstrap, /completeJoinDialog/);
   const conflict = read('./multi-app-conflict-ui.js');
-  for (const label of ['この端末の内容をすべて選ぶ', 'クラウドの内容をすべて選ぶ', 'この内容で反映', 'あとで決める']) {
+  for (const label of ['この端末の内容でクラウドを更新', 'クラウドの内容でこの端末を更新', '選んだ内容を反映', 'あとで決める']) {
     assert.match(conflict, new RegExp(label));
   }
 });

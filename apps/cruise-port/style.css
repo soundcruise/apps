@@ -2224,6 +2224,19 @@ textarea:focus-visible {
 .sync-center-removal-safety--safe { border-color: rgba(107, 205, 148, .72); color: #cfe6d4; }
 .sync-center-removal-safety--attention { border-color: rgba(232, 176, 104, .72); color: #ead39b; }
 .sync-center-port-card { margin-top: 6px; }
+.sync-center-port-conflicts-open {
+    min-height: 32px;
+    padding: 4px 10px;
+    border: 1px solid rgba(205, 180, 116, 0.58);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--port-text);
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.sync-center-port-conflicts-open[hidden] { display: none; }
 .sync-center-account-action {
     min-height: 48px;
     padding: 7px 14px;

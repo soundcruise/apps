@@ -141,16 +141,19 @@ test('conflict presentation exposes only bounded user-facing Rhythm fields', () 
   const api = load();
   const localRecord = {
     recordType: 'custom_preset', recordId: 'rccustpreset_qa', payloadHash: 'local-secret-hash',
-    payload: { id: 'rccustpreset_qa', name: 'QA-DP-RHYTHM-CONFLICT-1', settings: { bpm: 79, bars: 4, timeSignature: '4/4' } }
+    payload: { id: 'rccustpreset_qa', name: 'QA-DP-RHYTHM-CONFLICT-1', settings: { bpm: 79, bars: 4, timeSignature: '4/4' }, updatedAt: 1789999200000 }
   };
   const remoteRecord = {
     recordType: 'custom_preset', recordId: 'rccustpreset_qa', payloadHash: 'remote-secret-hash', revision: 2,
-    payload: { id: 'rccustpreset_qa', name: 'QA-DP-RHYTHM-CONFLICT-1', settings: { bpm: 81, bars: 4, timeSignature: '4/4' } }
+    payload: { id: 'rccustpreset_qa', name: 'QA-DP-RHYTHM-CONFLICT-1', settings: { bpm: 81, bars: 4, timeSignature: '4/4' }, updatedAt: 1789995600000 }
   };
   const result = api.getConflictPresentation({ localRecord, remoteRecord });
   const plain = JSON.parse(JSON.stringify(result));
   assert.equal(plain.title, 'カスタムプリセット');
   assert.equal(plain.name, 'QA-DP-RHYTHM-CONFLICT-1');
+  assert.equal(plain.appName, 'リズムクルーズ');
+  assert.equal(plain.localUpdatedAt, 1789999200000);
+  assert.equal(plain.remoteUpdatedAt, 1789995600000);
   assert.deepEqual(plain.fields.find((field) => field.label === 'BPM'), { label: 'BPM', local: '79', remote: '81' });
   assert.doesNotMatch(JSON.stringify(plain), /rccustpreset_qa|secret-hash|revision|payload/i);
 });

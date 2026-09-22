@@ -79,7 +79,10 @@ function adapter(initial = [], appId = 'pitch') {
     deserializeRecords: (remote) => ({ appId, schemaVersion: 1, records: remote.map(({ revision, deletedAt, ...record }) => record) }),
     computeManifest: async (snapshot) => `manifest-${snapshot.records.map((record) => record.recordId).sort().join('-')}`,
     getConflictPresentation: ({ localRecord, remoteRecord }) => ({
-      title: 'カスタムプリセット', name: localRecord?.payload?.name || remoteRecord?.payload?.name || '削除済みの項目',
+      appName: 'リズムクルーズ', title: 'カスタムプリセット',
+      name: localRecord?.payload?.name || remoteRecord?.payload?.name || '削除済みの項目',
+      localUpdatedAt: localRecord?.payload?.updatedAt,
+      remoteUpdatedAt: remoteRecord?.payload?.updatedAt,
       fields: [{ label: 'BPM', local: String(localRecord?.payload?.bpm ?? '削除済み'), remote: String(remoteRecord?.payload?.bpm ?? '削除済み') }]
     }),
     mergeSnapshots: (local, remote) => ({ snapshot: { ...local, records: [...local.records, ...remote.records.filter((right) => !local.records.some((left) => left.recordId === right.recordId))] }, conflicts: [] }),
@@ -781,9 +784,26 @@ test('exact BPM 80/79/81 fixture persists minimal conflict anchors and safe pres
   assert.equal(Object.hasOwn(conflict, 'payload'), false);
   const [item] = await fixture.runtime.listConflictPresentations();
   assert.equal(item.presentation.name, 'QA-DP-RHYTHM-CONFLICT-BASE');
+  assert.equal(item.presentation.appName, 'リズムクルーズ');
+  assert.equal(item.presentation.localUpdatedAt, null);
+  assert.equal(item.presentation.remoteUpdatedAt, null);
   assert.deepEqual(JSON.parse(JSON.stringify(item.presentation.fields)), [
     { label: 'BPM', local: '79', remote: '81' }
   ]);
+});
+
+test('presentation keeps only valid adapter timestamps and fails unknown timestamps closed', async () => {
+  const fixture = await conflictFixture();
+  fixture.local.records[0].payload.updatedAt = 1789999200000;
+  fixture.server.records.get('custom_preset/conflict').payload.updatedAt = '2026-09-22T09:00:00.000Z';
+  const [item] = await fixture.runtime.listConflictPresentations();
+  assert.equal(item.presentation.localUpdatedAt, 1789999200000);
+  assert.equal(item.presentation.remoteUpdatedAt, Date.parse('2026-09-22T09:00:00.000Z'));
+  fixture.local.records[0].payload.updatedAt = 'not-a-time';
+  fixture.server.records.get('custom_preset/conflict').payload.updatedAt = null;
+  const [unknown] = await fixture.runtime.listConflictPresentations();
+  assert.equal(unknown.presentation.localUpdatedAt, null);
+  assert.equal(unknown.presentation.remoteUpdatedAt, null);
 });
 
 test('Local wins uses the current Remote revision as CAS and advances exactly once', async () => {

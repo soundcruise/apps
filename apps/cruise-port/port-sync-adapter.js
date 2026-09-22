@@ -415,11 +415,36 @@
         !context.appCredential.credential.startsWith('scd1.')) throw new Error('port_app_credential_required');
     return true;
   }
+  const CONFLICT_LABELS = Object.freeze({
+    settings: '設定', metronome_settings: 'メトロノーム', metronome_preset: 'メトロノーム',
+    tuner_settings: 'チューナー設定', calendar_event: '音楽カレンダー', practice_menu: '練習メニュー',
+    practice_menu_order: '練習メニューの並び順', practice_attachment: '練習メニューの添付ファイル',
+    practice_attachment_set: '練習メニューの添付ファイル', practice_cycle: '練習サイクル',
+    practice_history_event: '練習履歴', gear_category: '機材カテゴリ',
+    gear_category_order: '機材カテゴリの並び順', gear_item: '機材リスト',
+    gear_order: '機材リストの並び順', my_app: 'My Apps', my_app_order: 'My Appsの並び順'
+  });
+  function conflictTimestamp(record) {
+    if (!record) return null;
+    if (isDeleted(record)) return record.deletedAt || null;
+    const value = record.payload?.value;
+    const candidate = value?.item?.updatedAt ?? value?.updatedAt;
+    if (typeof candidate === 'number' && Number.isFinite(candidate) && candidate > 0) return candidate;
+    if (typeof candidate === 'string' && Number.isFinite(Date.parse(candidate))) return candidate;
+    return null;
+  }
   function getConflictPresentation({ localRecord, remoteRecord }) {
-    const name = localRecord?.payload?.value?.item?.name || remoteRecord?.payload?.value?.item?.name || 'Cruise Portデータ';
-    return { title: 'Cruise Port', name: String(name), fields: [{
-      label: '状態', local: localRecord ? 'この環境に保存' : 'この環境で削除',
-      remote: remoteRecord ? 'クラウドに保存' : 'クラウドで削除'
+    const type = localRecord?.recordType || remoteRecord?.recordType || 'port';
+    const localValue = localRecord?.payload?.value;
+    const remoteValue = remoteRecord?.payload?.value;
+    const name = localValue?.item?.name || remoteValue?.item?.name || localValue?.name || remoteValue?.name ||
+      localValue?.fileName || remoteValue?.fileName || CONFLICT_LABELS[type] || 'Cruise Portデータ';
+    const localLive = localRecord && !isDeleted(localRecord);
+    const remoteLive = remoteRecord && !isDeleted(remoteRecord);
+    return { appName: 'Cruise Port', title: CONFLICT_LABELS[type] || 'Cruise Portデータ', name: String(name),
+      localUpdatedAt: conflictTimestamp(localRecord), remoteUpdatedAt: conflictTimestamp(remoteRecord), fields: [{
+      label: '状態', local: localLive ? '保存済み' : '削除済み',
+      remote: remoteLive ? '保存済み' : '削除済み'
     }] };
   }
 

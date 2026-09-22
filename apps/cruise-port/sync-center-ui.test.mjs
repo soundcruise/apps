@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { bindSyncCenterActions } from './sync-center-ui.js';
+import { bindSyncCenterActions, shouldShowPortConflictAction } from './sync-center-ui.js';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const root = read('./index.html');
@@ -108,6 +108,7 @@ test('Account section presents step title, status chip and state-specific CTA', 
         assert.match(account, /sync-center-port-card/);
         assert.match(account, /Cruise Port/);
         assert.match(account, /id="sync-center-port-status-chip"/);
+        assert.match(account, /id="sync-center-port-conflicts-open"[^>]*hidden>競合を確認する/);
         assert.match(account, /sync-center-section-heading[\s\S]*1\. アカウント[\s\S]*id="sync-center-account-help-toggle"/);
         assert.match(account, /id="sync-center-account-help"[^>]*hidden/);
         assert.match(account, /<h3>アカウントについて<\/h3>/);
@@ -157,8 +158,19 @@ test('Account section renders Cruise Port as a compact card with the shared stat
     }
     assert.match(ui, /function renderPortStatus/);
     assert.match(ui, /dataset\.syncPortStatus = status\.state/);
+    assert.match(ui, /conflictsOpen\.hidden = !shouldShowPortConflictAction\(presentation\)/);
+    assert.match(ui, /onPortConflictOpen = async \(\) => \{\}/);
+    assert.match(app, /onPortConflictOpen: async \(\) => portConflictResolutionController\?\.refresh\?\.\(\)/);
     assert.match(styles, /\.sync-center-port-card/);
     assert.doesNotMatch(root, /Cruise PortをHome画面から削除/);
+});
+
+test('Port conflict re-entry is driven only by the actual unresolved conflict count', () => {
+    assert.equal(shouldShowPortConflictAction({ portConflictCount: 3, kind: 'ready' }), true);
+    assert.equal(shouldShowPortConflictAction({ portConflictCount: 0, kind: 'error' }), false);
+    assert.equal(shouldShowPortConflictAction({ portConflictCount: 0, kind: 'offline' }), false);
+    assert.equal(shouldShowPortConflictAction({ portConflictCount: 0, portStatus: { state: 'attention' } }), false);
+    assert.equal(shouldShowPortConflictAction({}), false);
 });
 
 test('Environment management keeps the Port path compact and the app-specific path progressive', () => {
@@ -190,8 +202,8 @@ test('Environment management keeps the Port path compact and the app-specific pa
 
 test('Cruise Port installs the existing conflict resolution UI before startup sync', () => {
     for (const html of [root, pro]) {
-        assert.match(html, /multi-app-conflict-ui\.js\?v=3/);
-        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=3') < html.indexOf('practice-menu-app.js'));
+        assert.match(html, /multi-app-conflict-ui\.js\?v=4/);
+        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=4') < html.indexOf('practice-menu-app.js'));
     }
     assert.match(app, /installConflictResolutionUi\?\.\(portSyncController\?\.runtime, document\)/);
 });
