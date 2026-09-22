@@ -2342,7 +2342,8 @@ textarea:focus-visible {
     align-items: center;
     column-gap: 12px;
     row-gap: 4px;
-    min-height: 0;
+    min-height: 68px;
+    padding-block: 8px;
 }
 .sync-center-destination-primary {
     display: contents;
@@ -2361,22 +2362,22 @@ textarea:focus-visible {
     min-width: max-content;
     white-space: nowrap;
 }
-.sync-center-destination-count {
+.sync-center-destination-card .sync-center-destination-count {
     grid-area: count;
     justify-self: start;
     align-self: center;
-    min-height: 0;
-    padding: 0;
+    min-height: 28px;
+    margin-left: -8px;
+    padding: 0 8px;
     border: 0;
     border-radius: 0;
     color: var(--port-muted);
     background: transparent;
     font-size: calc(0.68rem * var(--font-scale));
-    text-decoration: underline;
-    text-decoration-color: rgba(205, 180, 116, 0.36);
-    text-underline-offset: 3px;
+    text-decoration: none;
+    white-space: nowrap;
 }
-.sync-center-destination-count:disabled { text-decoration: none; }
+.sync-center-destination-card .sync-center-destination-count:disabled { text-decoration: none; }
 .sync-center-destination-card .sync-center-environment-list { grid-area: details; width: 100%; }
 .sync-center-advanced-toggle {
     display: inline-flex;
