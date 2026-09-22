@@ -79,8 +79,8 @@ function adapter(initial = [], appId = 'pitch') {
     deserializeRecords: (remote) => ({ appId, schemaVersion: 1, records: remote.map(({ revision, deletedAt, ...record }) => record) }),
     computeManifest: async (snapshot) => `manifest-${snapshot.records.map((record) => record.recordId).sort().join('-')}`,
     getConflictPresentation: ({ localRecord, remoteRecord }) => ({
-      title: 'Custom preset', name: localRecord?.payload?.name || remoteRecord?.payload?.name || 'Deleted item',
-      fields: [{ label: 'BPM', local: String(localRecord?.payload?.bpm ?? 'deleted'), remote: String(remoteRecord?.payload?.bpm ?? 'deleted') }]
+      title: 'カスタムプリセット', name: localRecord?.payload?.name || remoteRecord?.payload?.name || '削除済みの項目',
+      fields: [{ label: 'BPM', local: String(localRecord?.payload?.bpm ?? '削除済み'), remote: String(remoteRecord?.payload?.bpm ?? '削除済み') }]
     }),
     mergeSnapshots: (local, remote) => ({ snapshot: { ...local, records: [...local.records, ...remote.records.filter((right) => !local.records.some((left) => left.recordId === right.recordId))] }, conflicts: [] }),
     applyRemoteSnapshot: async (snapshot) => { records = structuredClone(snapshot.records); return { ok: true }; },
@@ -898,6 +898,7 @@ test('Local wins response loss resumes with the same operation and never adds a 
   const [conflict] = await fixture.store.listConflicts();
   const first = await fixture.runtime.resolveConflict(conflict.id, 'local');
   assert.equal(first.ok, false);
+  assert.equal((await fixture.runtime.listConflictPresentations())[0].selection, 'local');
   assert.equal(fixture.server.records.get('custom_preset/conflict').revision, 3);
   const pushes = fixture.server.pushCalls;
   const restarted = new fixture.Runtime({
@@ -994,6 +995,10 @@ test('edit/delete and delete/edit divergences remain tombstone conflicts without
     assert.equal(result.code, 'conflict');
     assert.equal(fixture.server.pushCalls, pushes);
     assert.equal((await fixture.store.listConflicts()).length, 1);
+    const [item] = await fixture.runtime.listConflictPresentations();
+    assert.deepEqual(JSON.parse(JSON.stringify(item.presentation.fields)), [
+      { label: 'BPM', local: '79', remote: '削除済み' }
+    ]);
   });
   await t.test('local delete vs remote edit', async () => {
     const fixture = runtimeFixture([preset('conflict', 80)], 'rhythm');
@@ -1005,5 +1010,9 @@ test('edit/delete and delete/edit divergences remain tombstone conflicts without
     assert.equal(result.code, 'conflict');
     assert.equal(fixture.server.pushCalls, pushes);
     assert.equal((await fixture.store.listConflicts()).length, 1);
+    const [item] = await fixture.runtime.listConflictPresentations();
+    assert.deepEqual(JSON.parse(JSON.stringify(item.presentation.fields)), [
+      { label: 'BPM', local: '削除済み', remote: '81' }
+    ]);
   });
 });

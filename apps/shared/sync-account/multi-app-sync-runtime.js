@@ -356,6 +356,8 @@
         return Object.freeze({
           id: conflict.id,
           state: conflict.state || 'attention',
+          selection: ['local', 'remote'].includes(conflict.resolution?.choice)
+            ? conflict.resolution.choice : null,
           presentation: this.sanitizeConflictPresentation(described, context)
         });
       });
