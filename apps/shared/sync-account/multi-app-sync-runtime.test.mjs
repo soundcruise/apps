@@ -349,6 +349,30 @@ test('an interrupted initializing migration resumes only when every partial reco
   assert.equal((await fixture.store.listConflicts()).length, 0);
 });
 
+test('a conflict-resolved migration resumes from its exact remote shadow without recreating conflicts', async () => {
+  const chosen = record('order', 'Chosen local order', 'my_app_order');
+  const remote = {
+    ...record('order', 'Older remote order', 'my_app_order'),
+    revision: 2, deletedAt: null, changeSeq: 2, operationId: 'remote-operation',
+    ownedByCurrentDevice: false
+  };
+  const fixture = runtimeFixture([chosen], 'port', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  fixture.server.state = 'ready';
+  fixture.server.revision = 2;
+  fixture.server.records.set('my_app_order/order', structuredClone(remote));
+  await fixture.store.putShadow('my_app_order/order', structuredClone(remote));
+  fixture.local.mergeSnapshots = () => { throw new Error('resolved migration must not recreate the same conflict'); };
+
+  const result = await fixture.runtime.initializeDataset();
+
+  assert.equal(result.ok, true);
+  assert.equal(fixture.server.state, 'ready');
+  assert.equal(fixture.server.records.get('my_app_order/order').payload.name, 'Chosen local order');
+  assert.equal(await fixture.store.readMeta('migrationState'), 'complete');
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
 test('an initializing snapshot containing another device record remains fail-closed', async () => {
   const local = record('gear-1', 'Local', 'gear_item');
   const fixture = runtimeFixture([local], 'port', 'production');

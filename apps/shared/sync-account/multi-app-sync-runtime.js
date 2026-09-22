@@ -21,6 +21,12 @@
     return isDeleted(left) || left.payloadHash === right.payloadHash;
   }
   function mapRecords(records) { return new Map((records || []).map((record) => [keyOf(record), record])); }
+  function sameRecordAnchors(leftRecords, rightRecords) {
+    const left = mapRecords(leftRecords);
+    const right = mapRecords(rightRecords);
+    if (left.size !== right.size) return false;
+    return [...left].every(([recordKey, record]) => sameAnchor(right.get(recordKey) || null, recordAnchor(record)));
+  }
   function clone(value) { return value == null ? value : structuredClone(value); }
   function splitRecordKey(recordKey) {
     const value = String(recordKey || '');
@@ -731,13 +737,18 @@
       const remote = await this.serverSnapshot();
       const remoteLive = (remote.records || []).filter((record) => !isDeleted(record));
       const remoteSnapshot = this.adapter.deserializeRecords(remoteLive);
+      const [shadowRecords, unresolvedConflicts] = await Promise.all([
+        this.store.listShadow(), this.store.listConflicts()
+      ]);
       let finalSnapshot = local.snapshot;
       const resumesOwnPartialMigration = this.appId === 'port' && remote.datasetState === 'initializing' && remoteLive.length > 0 &&
         remoteLive.every((record) => record.ownedByCurrentDevice === true);
-      if (resumesOwnPartialMigration) {
-        // A failed initial migration can leave a partial server snapshot behind.
-        // Only the same app device may resume from its current local snapshot;
-        // records from any other device continue through normal conflict handling.
+      const resumesResolvedConflictMerge = unresolvedConflicts.length === 0 && shadowRecords.length > 0 &&
+        sameRecordAnchors(shadowRecords, remote.records || []);
+      if (resumesOwnPartialMigration || resumesResolvedConflictMerge) {
+        // Resume only from an authenticated baseline: either every partial record
+        // belongs to this device, or the saved shadow exactly matches the current
+        // remote snapshot after the last initial-merge conflict was resolved.
         finalSnapshot = local.snapshot;
       } else if (!local.records.length && remoteLive.length) {
         finalSnapshot = remoteSnapshot;
