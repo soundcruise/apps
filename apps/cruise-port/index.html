@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.45.4">
-    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.45.4">
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.45.4">
-    <link rel="stylesheet" href="./style.css?v=0.45.4">
+    <link rel="manifest" href="./manifest.json?v=0.45.5">
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.45.5">
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.45.5">
+    <link rel="stylesheet" href="./style.css?v=0.45.5">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=18">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -20,12 +20,12 @@
     <script defer src="../shared/sync-account/multi-app-sync-db.js?v=4"></script>
     <script defer src="../shared/sync-account/multi-app-sync-runtime.js?v=11"></script>
     <script defer src="../shared/sync-account/multi-app-conflict-ui.js?v=2"></script>
-    <script defer src="./port-sync-adapter.js?v=0.45.4"></script>
-    <script defer src="./port-sync-controller.js?v=0.45.4"></script>
+    <script defer src="./port-sync-adapter.js?v=0.45.5"></script>
+    <script defer src="./port-sync-controller.js?v=0.45.5"></script>
     <script defer src="../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="./practice-menu-app.js?v=0.45.4"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.45.5"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -196,6 +196,13 @@
                             <button id="sync-center-port-connect-open" class="sync-center-account-action" type="button" hidden>既存のアカウントに接続</button>
                         </div>
                     </div>
+                    <div class="sync-center-app sync-center-port-card" role="status" aria-live="polite">
+                        <img src="/apps/cruise-port/assets/app-icons/standard/icon-192.png" alt="" width="48" height="48">
+                        <div class="sync-center-app-copy">
+                            <strong>Cruise Port</strong>
+                            <span class="sync-center-app-status-line"><span id="sync-center-port-status-chip" class="sync-center-app-status-chip sync-center-app-status-chip--attention" data-sync-port-status="attention">確認が必要</span></span>
+                        </div>
+                    </div>
                     <div id="sync-center-account-help" class="sync-center-section-help-copy" hidden>
                         <h3>アカウント</h3>
                         <p>クラウド同期を使うためのSound Cruise Syncアカウントです。</p>
@@ -203,43 +210,37 @@
                         <p>初めて使う場合は、新しいアカウントを作成します。</p>
                         <h3>既存アカウントに接続</h3>
                         <p>別のCruise Portで使っている既存アカウントへ接続できます。</p>
+                        <h3>Cruise Port</h3>
+                        <p>機材リスト、練習メニュー、My Appsなど、Cruise Port内で保存したデータをクラウドに同期します。</p>
                     </div>
                     <p id="sync-center-alert" class="notice notice-error" role="alert" hidden></p>
                 </section>
-                <section class="sync-center-section sync-center-port-data" aria-labelledby="sync-center-port-data-title">
-                    <div class="sync-center-section-heading">
-                        <h2 id="sync-center-port-data-title">Cruise Portのデータ</h2>
-                        <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-port-data-help" aria-expanded="false" aria-controls="sync-center-port-data-help" aria-label="Cruise Portの同期状態の説明を表示">?</button>
-                    </div>
-                    <div class="sync-center-port-status" role="status" aria-live="polite">
-                        <span id="sync-center-port-status-chip" class="sync-center-port-status-chip" data-sync-port-status="check">同期を確認してください</span>
-                        <p id="sync-center-port-status-description">Cruise Portの同期状態を確認中です。</p>
-                    </div>
-                    <p id="sync-center-port-data-help" class="sync-center-section-help-copy" hidden>機材リスト、練習メニュー、My AppsなどCruise Port内の保存データのクラウド同期状態です。</p>
-                </section>
                 <section class="sync-center-section" aria-labelledby="sync-center-apps-title">
                     <div class="sync-center-section-heading">
-                        <h2 id="sync-center-apps-title">2. アプリを接続</h2>
+                        <h2 id="sync-center-apps-title">2. Cruiseアプリを接続</h2>
                         <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-apps-help" aria-expanded="false" aria-controls="sync-center-apps-help" aria-label="アプリの接続方法を表示">?</button>
                     </div>
                     <div id="sync-center-apps-help" hidden>
-                        <p class="sync-center-section-help-copy">最初に使うアプリを接続します。未接続のアプリは「同期コード」から接続できます。「同期を解除」ではクラウドデータを残したまま、そのアプリの全環境を解除します。</p>
-                        <div class="sync-center-section-help-copy"><h3>Home画面から削除する前に</h3><p>「同期完了」と表示されたアプリは、保存データがクラウドに同期されています。Home画面から削除してもCruise Portから再び利用できます。端末の調整、Bluetooth・音声の状態、キャッシュ、未同期の端末内データ、OS固有の状態は対象外です。オフラインで変更した場合は、接続して「同期完了」を確認してから削除してください。</p></div>
+                        <p class="sync-center-section-help-copy">Cruiseアプリ内の保存データをクラウドに同期します。同期したデータは別の同期先でも利用できます。未接続のアプリは「同期コード」から接続できます。「同期を解除」ではクラウドデータを残したまま、そのアプリの全同期先を解除します。</p>
+                        <div class="sync-center-section-help-copy"><h3>Home画面から削除する前に</h3><p>「✓ 同期済み」と表示されたアプリは、クラウド同期の対象データを安全に利用できます。Home画面から削除してもCruise Portから再び利用できます。端末の調整、Bluetooth・音声の状態、キャッシュ、未同期の端末内データ、OS固有の状態は対象外です。オフラインで変更した場合は、接続して「✓ 同期済み」を確認してから削除してください。</p></div>
                     </div>
                     <ul id="sync-center-apps" class="sync-center-apps" aria-live="polite"></ul>
                 </section>
                 <section class="sync-center-section" aria-labelledby="sync-center-add-environments-title">
                     <div class="sync-center-section-heading">
-                        <h2 id="sync-center-add-environments-title">3. 環境を管理</h2>
+                        <h2 id="sync-center-add-environments-title">3. アカウントを同期</h2>
                         <button class="sync-center-section-help" type="button" data-sync-section-help-toggle="sync-center-add-environments-help" aria-expanded="false" aria-controls="sync-center-add-environments-help" aria-label="環境の管理方法を表示">?</button>
                     </div>
                     <div id="sync-center-add-environments-help" class="sync-center-section-help-copy" hidden>
-                        <p>Cruise Portや各アプリで使う端末・ブラウザを追加・確認・解除できます。</p>
-                        <h3>Cruise Port</h3><p>Cruise Portでは、このアカウントを使う環境を管理します。</p>
-                        <h3>環境を確認・解除</h3><p>「○環境」を開くと、接続中の環境を確認・解除できます。</p>
-                        <h3>環境を追加</h3><p>2台目以降の環境は「追加コード」から追加します。アプリの最初の接続は「2. アプリを接続」から行います。</p>
+                        <p>別のスマートフォンやパソコンで同じSound Cruise Syncアカウントを使うときに追加します。</p>
+                        <h3>Cruise Port</h3><p>「別の端末を追加」から、別のCruise Portをこのアカウントに追加できます。</p>
+                        <h3>Cruiseアプリの同期先を管理</h3><p>以前使っていた端末やブラウザなど、Cruiseアプリの同期先を確認・解除できます。同じ端末でもブラウザ版とホーム画面版が別々の同期先として表示される場合があります。</p>
                     </div>
                     <ul id="sync-center-add-environments" class="sync-center-apps" aria-live="polite"></ul>
+                    <button id="sync-center-app-environments-toggle" class="sync-center-advanced-toggle" type="button" aria-expanded="false" aria-controls="sync-center-app-environments-advanced">Cruiseアプリの同期先を管理</button>
+                    <div id="sync-center-app-environments-advanced" hidden>
+                        <ul id="sync-center-app-environments" class="sync-center-apps" aria-live="polite"></ul>
+                    </div>
                 </section>
                 <section class="sync-center-section" aria-labelledby="sync-center-recovery-title">
                     <div class="sync-center-section-heading">

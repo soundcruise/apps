@@ -2166,6 +2166,31 @@ textarea:focus-visible {
     color: var(--port-text);
     background: rgba(205, 205, 205, 0.16);
 }
+.sync-center-app-status-chip--syncing {
+    border-color: rgba(232, 201, 122, 0.72);
+    color: var(--port-gold-bright);
+    background: rgba(232, 201, 122, 0.12);
+}
+.sync-center-app-status-chip--attention {
+    border-color: rgba(232, 176, 104, 0.72);
+    color: #ead39b;
+    background: rgba(232, 176, 104, 0.1);
+}
+.sync-center-app-status-chip--connecting {
+    border-color: rgba(232, 201, 122, 0.54);
+    color: #ead39b;
+    background: rgba(232, 201, 122, 0.08);
+}
+.sync-center-app-status-chip--deleting {
+    border-color: rgba(232, 111, 120, 0.72);
+    color: #ffd3d6;
+    background: rgba(117, 28, 38, 0.18);
+}
+.sync-center-app-status-chip--offline {
+    border-color: rgba(205, 205, 205, 0.62);
+    color: var(--port-muted);
+    background: rgba(205, 205, 205, 0.1);
+}
 .sync-center-removal-safety {
     flex: 0 0 auto;
     padding: 2px 7px;
@@ -2179,37 +2204,7 @@ textarea:focus-visible {
 }
 .sync-center-removal-safety--safe { border-color: rgba(107, 205, 148, .72); color: #cfe6d4; }
 .sync-center-removal-safety--attention { border-color: rgba(232, 176, 104, .72); color: #ead39b; }
-.sync-center-port-status {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    margin-top: 10px;
-}
-.sync-center-port-status > p { flex: 1 1 220px; margin: 0; }
-.sync-center-port-status-chip {
-    flex: 0 0 auto;
-    padding: 3px 9px;
-    border: 1px solid rgba(205, 205, 205, 0.48);
-    border-radius: 999px;
-    color: var(--port-muted);
-    font-size: calc(0.72rem * var(--font-scale));
-    font-weight: 650;
-    line-height: 1.35;
-    white-space: nowrap;
-}
-.sync-center-port-status-chip[data-sync-port-status="complete"] {
-    border-color: rgba(107, 205, 148, .72);
-    color: #cfe6d4;
-}
-.sync-center-port-status-chip[data-sync-port-status="syncing"] {
-    border-color: rgba(232, 201, 122, .72);
-    color: var(--port-gold-bright);
-}
-.sync-center-port-status-chip[data-sync-port-status="attention"] {
-    border-color: rgba(232, 176, 104, .72);
-    color: #ead39b;
-}
+.sync-center-port-card { margin-top: 6px; }
 .sync-center-account-action {
     min-height: 48px;
     padding: 7px 14px;
@@ -2336,6 +2331,27 @@ textarea:focus-visible {
 .sync-center-environment-actions {
     grid-template-columns: auto auto;
     align-items: center;
+}
+.sync-center-advanced-toggle {
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    margin-top: 12px;
+    padding: 5px 0;
+    border: 0;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: calc(0.78rem * var(--font-scale));
+    text-decoration: underline;
+    text-decoration-color: rgba(205, 180, 116, 0.48);
+    text-underline-offset: 4px;
+    cursor: pointer;
+}
+.sync-center-advanced-toggle:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
+#sync-center-add-environments .sync-center-app-action {
+    min-width: 106px;
+    white-space: nowrap;
 }
 .sync-center-environment-count {
     min-height: 34px;

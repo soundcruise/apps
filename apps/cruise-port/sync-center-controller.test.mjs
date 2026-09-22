@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
     createSyncCenterController,
+    appSyncStatusPresentation,
     membershipPresentation,
     normalizeSyncCenterSummary,
     readSyncCenterConfig
@@ -252,4 +253,28 @@ test('Home-screen removal safety is fail-closed unless the server reports a clea
     assert.equal(presentation.apps.find((app) => app.id === 'fretboard').removalSafety, 'attention');
     assert.equal(presentation.apps.find((app) => app.id === 'rhythm').removalSafety, 'unknown');
     assert.equal(presentation.apps.find((app) => app.id === 'chord').removalSafety, 'unknown');
+});
+
+test('app presentation status keeps safe-to-remove authority while exposing one user-facing chip', () => {
+    assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'safe' }), {
+        state: 'synced', label: '✓ 同期済み'
+    });
+    assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'unknown' }), {
+        state: 'attention', label: '確認が必要'
+    });
+    assert.deepEqual(appSyncStatusPresentation({ status: 'initial' }), {
+        state: 'syncing', label: '同期中'
+    });
+    assert.deepEqual(appSyncStatusPresentation({ status: 'detached' }), {
+        state: 'detached', label: '未接続'
+    });
+    assert.deepEqual(appSyncStatusPresentation({ status: 'connecting' }), {
+        state: 'connecting', label: '接続中'
+    });
+    assert.deepEqual(appSyncStatusPresentation({ status: 'deleting' }), {
+        state: 'deleting', label: '削除中'
+    });
+    assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'safe' }, 'offline'), {
+        state: 'offline', label: 'オフライン'
+    });
 });

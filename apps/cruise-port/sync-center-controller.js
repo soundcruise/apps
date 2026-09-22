@@ -19,6 +19,30 @@ const MEMBERSHIP_STATES = Object.freeze({
 });
 const ACCOUNT_TERMINAL_CODES = new Set(['account_deleting', 'account_deleted', 'account_device_revoked']);
 
+const APP_STATUS_PRESENTATIONS = Object.freeze({
+    synced: Object.freeze({ state: 'synced', label: '✓ 同期済み' }),
+    syncing: Object.freeze({ state: 'syncing', label: '同期中' }),
+    attention: Object.freeze({ state: 'attention', label: '確認が必要' }),
+    detached: Object.freeze({ state: 'detached', label: '未接続' }),
+    connecting: Object.freeze({ state: 'connecting', label: '接続中' }),
+    deleting: Object.freeze({ state: 'deleting', label: '削除中' }),
+    offline: Object.freeze({ state: 'offline', label: 'オフライン' })
+});
+
+// This is presentation-only.  The membership status and removal-safety
+// authority below continue to drive every existing operation and callback.
+export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
+    if (unavailableKind === 'offline') return APP_STATUS_PRESENTATIONS.offline;
+    if (unavailableKind === 'error') return APP_STATUS_PRESENTATIONS.attention;
+    if (!app || typeof app !== 'object') return APP_STATUS_PRESENTATIONS.attention;
+    if (app.status === 'deleting') return APP_STATUS_PRESENTATIONS.deleting;
+    if (app.status === 'connecting') return APP_STATUS_PRESENTATIONS.connecting;
+    if (app.status === 'initial') return APP_STATUS_PRESENTATIONS.syncing;
+    if (['unset', 'prepared', 'detached'].includes(app.status)) return APP_STATUS_PRESENTATIONS.detached;
+    if (app.status === 'synced' && app.removalSafety === 'safe') return APP_STATUS_PRESENTATIONS.synced;
+    return APP_STATUS_PRESENTATIONS.attention;
+}
+
 export function readSyncCenterConfig(globalObject = globalThis) {
     const value = globalObject?.__SOUND_CRUISE_SYNC_CENTER__;
     const location = globalObject?.location;
@@ -91,7 +115,7 @@ function normalizeApp(app, membership, appEnvironments = [], accountDeleting = f
     const deleteGrace = isAppDeleteGrace(membership, accountDeleting, now);
     const safety = status.key === 'synced' && membership?.removalSafety === 'safe' ? 'safe'
         : membership?.removalSafety === 'attention' ? 'attention' : 'unknown';
-    return Object.freeze({
+    const result = {
         id: app.id,
         name: app.name,
         status: status.key,
@@ -108,7 +132,8 @@ function normalizeApp(app, membership, appEnvironments = [], accountDeleting = f
         // This does not change four-app progress: it represents a second
         // browser/PWA/container for an already ready app dataset.
         canAddEnvironment: status.key === 'synced' && (activeAppDeviceCount || 0) > 0
-    });
+    };
+    return Object.freeze({ ...result, presentationStatus: appSyncStatusPresentation(result) });
 }
 
 export function normalizeSyncCenterSummary(summary, devicesResponse = null,

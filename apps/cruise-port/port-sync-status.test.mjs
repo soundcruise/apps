@@ -8,10 +8,10 @@ const cleanStructured = Object.freeze({
 });
 const cleanAssets = Object.freeze({ known: true, pendingCount: 0, running: false, error: false });
 
-test('Port status reports complete only when structured and binary state are clean', () => {
+test('Port status reports the unified synced presentation only when structured and binary state are clean', () => {
     assert.equal(createPortSyncStatus({
         accountState: 'active', structured: cleanStructured, assets: cleanAssets, online: true
-    }).label, '同期完了');
+    }).label, '✓ 同期済み');
 });
 
 test('Port status keeps structured, upload and reference work in progress', () => {
@@ -25,15 +25,14 @@ test('Port status keeps structured, upload and reference work in progress', () =
     }
 });
 
-test('Port status fails closed for errors, unknown state, disconnected account and offline state', () => {
+test('Port status fails closed for errors, unknown state and offline state', () => {
     for (const input of [
         { accountState: 'active', structured: cleanStructured, assets: { ...cleanAssets, error: true } },
         { accountState: 'active', structured: { ...cleanStructured, known: false }, assets: cleanAssets },
-        { accountState: 'unset', structured: cleanStructured, assets: cleanAssets },
         { accountState: 'active', structured: cleanStructured, assets: cleanAssets, online: false },
         { accountState: 'active', structured: { ...cleanStructured, lastSyncAt: null }, assets: cleanAssets }
     ]) {
-        assert.equal(createPortSyncStatus(input).label, '同期を確認してください');
+        assert.equal(createPortSyncStatus(input).label, '確認が必要');
     }
 });
 
@@ -43,5 +42,15 @@ test('Port status gives conflicts priority and recovers to complete after online
     }).label, '確認が必要');
     assert.equal(createPortSyncStatus({
         accountState: 'active', structured: cleanStructured, assets: cleanAssets, online: true
-    }).state, 'complete');
+    }).state, 'synced');
+});
+
+test('Port status distinguishes confirmed unconnected and deleting states from unknown state', () => {
+    assert.equal(createPortSyncStatus({ accountState: 'unset' }).label, '未接続');
+    assert.equal(createPortSyncStatus({
+        accountState: 'active',
+        structured: { ...cleanStructured, connected: false, runtimeState: 'not_connected' },
+        assets: cleanAssets
+    }).label, '未接続');
+    assert.equal(createPortSyncStatus({ accountState: 'deleting' }).label, '削除中');
 });

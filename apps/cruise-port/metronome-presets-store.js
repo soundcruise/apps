@@ -1,10 +1,10 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.4';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.5';
 import {
     METRONOME_RETIRED_SOUNDS,
     METRONOME_SCHEMA_VERSION,
     migrateMetronomeSound,
     normalizeMetronomeSettings
-} from './metronome-store.js?v=0.45.4';
+} from './metronome-store.js?v=0.45.5';
 
 export const METRONOME_PRESETS_STORAGE_KEY = 'cruisePort.metronomePresets';
 export const METRONOME_PRESETS_SCHEMA_VERSION = 1;

@@ -1,39 +1,35 @@
 const PRESENTATIONS = Object.freeze({
-    complete: Object.freeze({
-        state: 'complete',
-        label: '同期完了',
-        description: 'Cruise Port内で保存した変更はクラウドに同期されています。'
+    synced: Object.freeze({
+        state: 'synced',
+        label: '✓ 同期済み'
     }),
     syncing: Object.freeze({
         state: 'syncing',
-        label: '同期中',
-        description: '保存した変更をクラウドに同期しています。'
-    }),
-    check: Object.freeze({
-        state: 'check',
-        label: '同期を確認してください',
-        description: '通信状態を確認し、Cruise Portを開いたまましばらくお待ちください。'
+        label: '同期中'
     }),
     attention: Object.freeze({
         state: 'attention',
-        label: '確認が必要',
-        description: '同期で確認が必要な項目があります。'
-    })
+        label: '確認が必要'
+    }),
+    detached: Object.freeze({ state: 'detached', label: '未接続' }),
+    deleting: Object.freeze({ state: 'deleting', label: '削除中' })
 });
 
 export function createPortSyncStatus({ accountState, structured, assets, online = true } = {}) {
-    if (accountState !== 'active' || !structured?.known || !structured.connected || !assets?.known) {
-        return PRESENTATIONS.check;
-    }
+    if (accountState === 'deleting') return PRESENTATIONS.deleting;
+    if (accountState === 'unset') return PRESENTATIONS.detached;
+    if (accountState !== 'active' || !structured?.known || !assets?.known) return PRESENTATIONS.attention;
+    if (structured.connected === false && structured.runtimeState === 'not_connected') return PRESENTATIONS.detached;
+    if (!structured.connected) return PRESENTATIONS.attention;
     if (structured.conflictCount > 0 || structured.runtimeState === 'attention') return PRESENTATIONS.attention;
     if (!online || assets.error || ['paused', 'retrying', 'credential_invalid', 'not_connected'].includes(structured.runtimeState)) {
-        return PRESENTATIONS.check;
+        return PRESENTATIONS.attention;
     }
     if (structured.pendingCount > 0 || assets.pendingCount > 0 || assets.running ||
         structured.runtimeState === 'syncing' || structured.migrationState !== 'complete' ||
         structured.datasetState !== 'ready') return PRESENTATIONS.syncing;
-    if (structured.runtimeState === 'ready' && Number.isFinite(structured.lastSyncAt)) return PRESENTATIONS.complete;
-    return PRESENTATIONS.check;
+    if (structured.runtimeState === 'ready' && Number.isFinite(structured.lastSyncAt)) return PRESENTATIONS.synced;
+    return PRESENTATIONS.attention;
 }
 
 export { PRESENTATIONS as PORT_SYNC_STATUS_PRESENTATIONS };

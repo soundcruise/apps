@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.45.4';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.45.5';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -13,7 +13,10 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
     if (!list) return;
     const rows = presentation.apps.map((app) => {
         const row = document.createElement('li');
-        row.className = `sync-center-app sync-status-${app.status}`;
+        const presentationStatus = presentation.kind === 'ready'
+            ? (app.presentationStatus || appSyncStatusPresentation(app))
+            : appSyncStatusPresentation(app, presentation.kind);
+        row.className = `sync-center-app sync-status-${presentationStatus.state}`;
         const image = document.createElement('img');
         image.src = CRUISE_APP_ICONS[app.id][edition === 'pro' ? 'pro' : 'standard'];
         image.alt = '';
@@ -25,32 +28,16 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
         name.textContent = app.name;
         const detail = document.createElement('span');
         detail.className = 'sync-center-app-status-line';
-        // Ready and detached are the ordinary states users need to scan. Keep
-        // warning and deletion states in their existing text treatment.
-        if (['synced', 'detached'].includes(app.status)) {
-            const chip = document.createElement('span');
-            chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${app.status}`;
-            chip.textContent = app.statusLabel;
-            detail.append(chip);
-        } else {
-            detail.textContent = app.statusLabel;
-        }
+        const chip = document.createElement('span');
+        chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${presentationStatus.state}`;
+        chip.textContent = presentationStatus.label;
+        detail.append(chip);
         if (app.recordCount != null) {
             const count = document.createElement('span');
             count.className = 'sync-center-app-record-count';
             count.textContent = `${app.recordCount}件`;
             detail.append(count);
         }
-        // This summary comes from each app's authenticated completed-sync
-        // report.  Port intentionally never reads browser storage directly.
-        const safety = document.createElement('span');
-        safety.className = `sync-center-removal-safety sync-center-removal-safety--${app.removalSafety || 'unknown'}`;
-        safety.textContent = app.removalSafetyLabel || '同期を確認してください';
-        safety.title = app.removalSafety === 'safe'
-            ? 'このアプリの保存データはクラウドに同期されています。Home画面から削除しても、Cruise Portから再び利用できます。'
-            : app.removalSafety === 'attention' ? 'このアプリで確認が必要な項目があります。'
-            : 'アプリを開いて同期完了を確認してください。';
-        detail.append(safety);
         copy.append(name, detail);
         const actions = document.createElement('div');
         actions.className = 'sync-center-app-row-actions';
@@ -107,15 +94,16 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
 }
 
 function renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled) {
-    const list = root.querySelector('#sync-center-add-environments');
-    if (!list) return;
+    const portList = root.querySelector('#sync-center-add-environments');
+    const appList = root.querySelector('#sync-center-app-environments');
+    if (!portList || !appList) return;
     const activeAccount = presentation.accountState === 'active';
     const portEnvironments = presentation.environments.filter((environment) =>
         environment.state === 'active' && environment.isPortEnvironment);
     const entries = [
         {
             id: 'port', name: 'Cruise Port',
-            subtitle: 'アカウント管理',
+            subtitle: null,
             icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png`,
             available: activeAccount,
             environments: portEnvironments
@@ -151,7 +139,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         const count = document.createElement('button');
         count.type = 'button';
         count.className = 'sync-center-environment-count';
-        count.textContent = `${entry.environments.length}環境${entry.environments.length ? '⌄' : ''}`;
+        count.textContent = `同期先 ${entry.environments.length}件${entry.environments.length ? '⌄' : ''}`;
         count.disabled = entry.environments.length === 0;
         count.dataset.syncEnvironmentToggle = entry.id;
         count.setAttribute('aria-expanded', 'false');
@@ -159,7 +147,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         const add = document.createElement('button');
         add.type = 'button';
         add.className = 'sync-center-app-action secondary';
-        add.textContent = '追加コード';
+        add.textContent = entry.id === 'port' ? '別の端末を追加' : '追加コード';
         add.disabled = !orchestrationEnabled || !entry.available;
         add.setAttribute('aria-label', `${entry.name}の追加コードを表示`);
         if (entry.id === 'port') add.dataset.syncPortAddEnvironment = 'true';
@@ -202,7 +190,8 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         row.append(image, copy, actions, details);
         return row;
     });
-    list.replaceChildren(...rows);
+    portList.replaceChildren(rows[0]);
+    appList.replaceChildren(...rows.slice(1));
 }
 
 function renderDangerActions(root, presentation) {
@@ -217,16 +206,14 @@ function renderDangerActions(root, presentation) {
 
 function renderPortStatus(root, presentation) {
     const status = presentation.portStatus || {
-        state: 'check', label: '同期を確認してください',
-        description: 'Cruise Portの同期状態を確認できません。'
+        state: 'attention', label: '確認が必要'
     };
     const chip = root.querySelector('#sync-center-port-status-chip');
-    const description = root.querySelector('#sync-center-port-status-description');
     if (chip) {
         chip.textContent = status.label;
         chip.dataset.syncPortStatus = status.state;
+        chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${status.state}`;
     }
-    if (description) description.textContent = status.description;
 }
 
 function showJoinCode(root, result, edition = 'standard', onClose = async () => {}) {
@@ -441,8 +428,21 @@ function bindSectionHelp(root) {
     });
 }
 
+function bindAdvancedEnvironmentManagement(root) {
+    const toggle = root?.querySelector?.('#sync-center-app-environments-toggle');
+    const panel = root?.querySelector?.('#sync-center-app-environments-advanced');
+    if (!toggle || !panel || toggle.dataset.syncBound === 'true') return;
+    toggle.dataset.syncBound = 'true';
+    toggle.addEventListener('click', () => {
+        panel.hidden = !panel.hidden;
+        toggle.setAttribute('aria-expanded', String(!panel.hidden));
+        toggle.textContent = panel.hidden ? 'Cruiseアプリの同期先を管理' : 'Cruiseアプリの同期先を閉じる';
+    });
+}
+
 export function bindSyncCenterActions(root, { orchestrator = null, refresh = async () => {}, tokenProvider = async () => null, edition = 'standard' } = {}) {
     bindSectionHelp(root);
+    bindAdvancedEnvironmentManagement(root);
     const setup = root?.querySelector?.('#sync-center-setup');
     const setupTitle = root?.querySelector?.('#sync-center-setup-title');
     const setupClose = root?.querySelector?.('#sync-center-setup-close');
@@ -747,7 +747,7 @@ export function bindSyncCenterActions(root, { orchestrator = null, refresh = asy
                 details.hidden = !details.hidden;
                 environmentToggle.setAttribute('aria-expanded', String(!details.hidden));
                 const count = details.children.length;
-                environmentToggle.textContent = `${count}環境${details.hidden ? '⌄' : '⌃'}`;
+                environmentToggle.textContent = `同期先 ${count}件${details.hidden ? '⌄' : '⌃'}`;
             }
             return;
         }
