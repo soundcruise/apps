@@ -72,6 +72,27 @@ test('Port adapter emits item records without binary or device-local asset ident
   assert.equal(records.every((item) => /^[a-f0-9]{64}$/u.test(item.payloadHash)), true);
 });
 
+test('Port adapter repairs the missing My Apps preset field across older synchronized records', async () => {
+  const legacyItem = {
+    id: 'app-legacy', name: 'Legacy', url: 'https://example.com/', launchMode: 'https',
+    appKey: null, customLaunch: null, iconId: null, iconSourceId: null, iconCrop: null,
+    createdAt: '2026-09-06T00:00:00.000Z', updatedAt: '2026-09-06T00:01:00.000Z'
+  };
+  const target = storage({
+    'cruisePort.myApps': JSON.stringify({ version: 6, items: [legacyItem] })
+  });
+  const api = load(target);
+  const snapshot = api.readLocalSnapshot(target);
+  assert.equal(snapshot.records.find((item) => item.recordType === 'my_app').payload.value.item.iconPresetKey, null);
+
+  await api.applyRemoteSnapshot(target, { schemaVersion: 1, records: [
+    remoteRecord('my_app', legacyItem.id, { item: legacyItem, asset: { present: false, crop: null } }),
+    remoteRecord('my_app_order', 'default', [legacyItem.id])
+  ] });
+  const hydrated = JSON.parse(target.value('cruisePort.myApps'));
+  assert.equal(hydrated.items[0].iconPresetKey, null);
+});
+
 test('Port manifest exactly matches the Worker migration-complete contract', async () => {
   const target = storage({
     'cruisePort.gearList': JSON.stringify({ version: 4, items: [

@@ -83,6 +83,11 @@
     });
     return result;
   }
+  function normalizeMyAppItem(item) {
+    const value = clone(plain(item) ? item : {});
+    if (!Object.hasOwn(value, 'iconPresetKey')) value.iconPresetKey = null;
+    return value;
+  }
   function assetMetadata(storage) {
     const value = parse(storage, ASSET_METADATA_KEY, null);
     if (![2, 3, 4].includes(value?.version)) {
@@ -227,7 +232,7 @@
     });
     const myApps = parse(storage, 'cruisePort.myApps', { items: [] });
     itemValues(myApps).forEach((item) => records.push(record('my_app', item.id, {
-      item: without(item, ['iconId', 'iconSourceId', 'iconCrop']), asset: assetFor(item, 'app', assets)
+      item: without(normalizeMyAppItem(item), ['iconId', 'iconSourceId', 'iconCrop']), asset: assetFor(item, 'app', assets)
     })));
     if (itemValues(myApps).length) records.push(record('my_app_order', 'default', itemValues(myApps).map(({ id }) => id)));
     return { schemaVersion: SCHEMA_VERSION, records };
@@ -390,7 +395,7 @@
       if (metadataEntry.binding?.final?.assetId !== metadataEntry.published?.final?.assetId) metadataEntry.binding = null;
       currentAssets.myApps[entry.recordId] = metadataEntry;
       const value = repair ? { ...entry.payload.value, asset: clone(metadataEntry.published) } : entry.payload.value;
-      return restoreAsset(value, local, 'app', metadataEntry);
+      return normalizeMyAppItem(restoreAsset(value, local, 'app', metadataEntry));
     }) });
     write(storage, ASSET_METADATA_KEY, currentAssets);
     root.acceptRemoteStorageValues?.(storage, MANAGED_KEYS);

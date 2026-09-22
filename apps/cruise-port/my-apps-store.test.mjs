@@ -129,6 +129,18 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 }
 
 {
+    const { iconPresetKey, ...legacySyncedItem } = baseItem;
+    const raw = JSON.stringify({ version: 6, items: [legacySyncedItem] });
+    const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
+    assert.deepEqual(loadMyApps(storage), {
+        ok: true,
+        items: [baseItem],
+        migrated: true
+    }, 'v6 data synchronized before icon presets gains a null preset key in memory');
+    assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'compatibility load does not rewrite storage');
+}
+
+{
     const presetItem = { ...baseItem, iconPresetKey: 'microphone' };
     const storage = new FakeStorage();
     assert.deepEqual(saveMyApps([presetItem], storage), { ok: true }, 'known preset can be saved');

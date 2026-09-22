@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.3';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.4';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { getKnownApp } from './my-apps-known-apps.js?v=1.3.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
@@ -278,25 +278,41 @@ export function loadMyApps(storage) {
 
         const parsed = JSON.parse(rawValue);
         const storedVersion = parsed?.version;
+        let repairedMissingPresetKey = false;
+        const storedItems = Array.isArray(parsed?.items)
+            ? parsed.items.map((item) => {
+                if (
+                    storedVersion === MY_APPS_SCHEMA_VERSION
+                    && item
+                    && typeof item === 'object'
+                    && !Array.isArray(item)
+                    && !Object.hasOwn(item, 'iconPresetKey')
+                ) {
+                    repairedMissingPresetKey = true;
+                    return { ...item, iconPresetKey: null };
+                }
+                return item;
+            })
+            : null;
         if (
             !parsed
             || typeof parsed !== 'object'
             || Array.isArray(parsed)
             || ![1, 2, 3, 4, 5, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
-            || !Array.isArray(parsed.items)
-            || parsed.items.length > MY_APPS_LIMITS.items
-            || !parsed.items.every((item) => isValidItem(item, storedVersion, {
+            || !Array.isArray(storedItems)
+            || storedItems.length > MY_APPS_LIMITS.items
+            || !storedItems.every((item) => isValidItem(item, storedVersion, {
                 allowUnknownAppKey: true,
                 allowUnknownPresetKey: true,
                 allowPresetConflict: true
             }))
-            || !hasUniqueIds(parsed.items)
+            || !hasUniqueIds(storedItems)
         ) {
             return { ok: false, items: [], reason: 'invalid-data' };
         }
         let repairedLaunch = false;
         let repairedPreset = false;
-        const items = parsed.items.map((item) => {
+        const items = storedItems.map((item) => {
             const knownLaunch = storedVersion >= 4
                 && item.launchMode === 'known-app'
                 && getKnownApp(item.appKey);
@@ -334,7 +350,7 @@ export function loadMyApps(storage) {
                 iconPresetKey
             };
         });
-        return storedVersion < MY_APPS_SCHEMA_VERSION || repairedLaunch || repairedPreset
+        return storedVersion < MY_APPS_SCHEMA_VERSION || repairedMissingPresetKey || repairedLaunch || repairedPreset
             ? { ok: true, items, migrated: true }
             : { ok: true, items };
     } catch (_) {
