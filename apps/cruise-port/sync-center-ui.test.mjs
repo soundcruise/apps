@@ -60,7 +60,8 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     for (const html of [root, pro]) {
         assert.match(html, /id="settings-sync-center-entry"[^>]*hidden/);
         assert.match(html, /id="sync-center-view"[^>]*hidden/);
-        assert.match(html, /Cruise PortやCruiseアプリの保存データを、同じアカウントでクラウドに同期できます。別の端末でも続きから利用できます。/);
+        assert.doesNotMatch(html, /class="sound-cruise-sync-description"/);
+        assert.match(html, /id="sync-center-back"[^>]*>← TOPに戻る/);
         assert.match(html, /クラウド同期を開く/);
         assert.match(html, /次の手順で設定します。/);
         assert.match(html, /設定から「Cruise Portと接続」を押す/);
@@ -87,7 +88,7 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     assert.match(app, /PORT_SYNC_HELP_SECTIONS/);
     assert.match(app, /openPortSyncHelp/);
     assert.equal((app.match(/flowSteps: true/g) || []).length, 1);
-    for (const category of ['最初の接続', '端末やブラウザを追加', '復旧コード', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
+    for (const category of ['1. アカウント', '2. Cruiseアプリを接続', '3. アカウントを同期', '復旧コード', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
         assert.match(app, new RegExp(`title: '${category}'`));
     }
 });
@@ -331,14 +332,14 @@ test('Recovery execution copy is concise and its dialog prevents iOS input zoom'
 });
 
 test('Sync Help separates initial connection from adding another device or browser', () => {
-    const firstStart = app.indexOf("title: '最初の接続'");
-    const additionalStart = app.indexOf("title: '端末やブラウザを追加'");
+    const firstStart = app.indexOf("title: '2. Cruiseアプリを接続'");
+    const additionalStart = app.indexOf("title: '3. アカウントを同期'");
     const nextSection = app.indexOf("title: '復旧コード'", additionalStart);
     const first = app.slice(firstStart, additionalStart);
     const additional = app.slice(additionalStart, nextSection);
     assert.match(first, /'1\. Cruise Portで対象アプリの「同期コード」を押す'/);
     assert.match(first, /'6\. コードを入力して「接続する」を押す'/);
-    assert.match(additional, /別のスマートフォンやパソコンでも、同じアカウントの保存データを利用できます。/);
+    assert.match(additional, /別のスマートフォン、パソコン、ブラウザでも同じアカウントを使えます。/);
     assert.match(additional, /Cruise Portを追加/);
     assert.match(additional, /同期先を確認・解除/);
     assert.match(additional, /Cruiseアプリを追加/);
@@ -598,7 +599,7 @@ test('delete grace reconnect is explicit and Section 3 owns counts, lists and sc
 test('official four-app routes are reused and no all-data-upload promise is made', () => {
     assert.match(read('./sync-center-ui.js'), /resolveCruiseAppHref/);
     assert.doesNotMatch(`${root}\n${pro}\n${app}`, /今すぐ全データ|一括アップロード|自動アップロード/);
-    assert.match(app, /普段使っているCruiseアプリをCruise Portに接続する手順です。/);
+    assert.match(app, /音感・指板・リズム・コードのCruiseアプリを同じアカウントへ接続します。/);
     assert.match(app, /同期を解除してもクラウド上と端末内のデータは残ります。/);
 });
 
@@ -615,7 +616,7 @@ test('Sync Help uses current plain-language copy and keeps the browser and Home 
         assert.doesNotMatch(html, /4つのProアプリのクラウド同期を管理します。/);
         assert.doesNotMatch(html, /dataset|membership|App Device|credential|outbox|tombstone/);
     }
-    assert.match(app, /Cruise PortとCruiseアプリの保存データを、同じアカウントでクラウドに同期できます。通常はインターネット接続時に自動で同期されます。/);
+    assert.match(app, /Sound Cruise SyncアカウントでCruise PortとCruiseアプリの保存データを同期します。通常はインターネット接続時に自動で同期されます。/);
     assert.match(app, /現在のコードは再表示できません。新しいコードを発行すると以前のコードは使えなくなるため、安全な場所に保存してください。/);
     assert.match(styles, /\.settings-sync-center-card \.sound-cruise-sync-settings-head\s*\{[\s\S]*justify-content:\s*space-between/);
     assert.match(styles, /\.settings-sync-center-card \.sound-cruise-sync-help-button\s*\{[\s\S]*flex:\s*0 0 28px[\s\S]*width:\s*28px[\s\S]*min-height:\s*28px/);

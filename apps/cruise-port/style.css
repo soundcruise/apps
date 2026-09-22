@@ -5949,3 +5949,9 @@ body.metronome-preset-open {
         opacity: 0.55;
     }
 }
+.my-apps-direct-launch,
+.my-apps-custom-launch { display: none !important; }
+
+.tuner-meter[hidden] { display: none; }
+.tuner-meter-visibility { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: 10px 0 4px; color: var(--port-muted); font-size: calc(.78rem * var(--font-scale)); }
+.tuner-meter-visibility input { width: 18px; height: 18px; accent-color: var(--port-gold-bright); }

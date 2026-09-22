@@ -1,4 +1,4 @@
-import { SYNC_CENTER_ROUTE } from './sync-center-controller.js?v=0.47.7';
+import { SYNC_CENTER_ROUTE } from './sync-center-controller.js?v=0.48.0';
 
 export const SYNC_CENTER_SOURCE_KEY = 'cruisePortSyncCenterSource';
 
@@ -14,10 +14,7 @@ export function openSyncCenter(historyObject) {
 }
 
 export function returnToSyncCenterSource({ historyObject, locationObject }) {
-    if (historyObject.state?.[SYNC_CENTER_SOURCE_KEY] === 'settings') {
-        historyObject.back();
-        return 'back';
-    }
-    historyObject.replaceState(historyObject.state, '', `${locationObject.pathname}${locationObject.search}#settings`);
+    const { [SYNC_CENTER_SOURCE_KEY]: _source, ...state } = historyObject.state || {};
+    historyObject.replaceState(state, '', `${locationObject.pathname}${locationObject.search}`);
     return 'replace';
 }

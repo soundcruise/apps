@@ -217,6 +217,7 @@ function createFakeRoot() {
         'tuner-cents',
         'tuner-direction',
         'tuner-meter',
+        'tuner-meter-visibility',
         'tuner-toggle',
         'tuner-error',
         'tuner-status',

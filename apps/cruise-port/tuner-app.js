@@ -1,5 +1,6 @@
 import { createTunerAudioController } from './tuner-audio.js?v=1.1.5';
 import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.1.8';
+import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.48.0';
 import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
 import {
     TUNER_DEFAULT_THRESHOLD_DB,
@@ -9,7 +10,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=0.47.7';
+} from './tuner-store.js?v=0.48.0';
 import {
     TUNER_CAPO_MAX,
     TUNER_CAPO_MIN,
@@ -409,6 +410,7 @@ export function initTuner(root, {
         cents: root.querySelector('#tuner-cents'),
         direction: root.querySelector('#tuner-direction'),
         meter: root.querySelector('#tuner-meter'),
+        meterVisibility: root.querySelector('#tuner-meter-visibility'),
         toggle: root.querySelector('#tuner-toggle'),
         error: root.querySelector('#tuner-error'),
         status: root.querySelector('#tuner-status'),
@@ -457,6 +459,13 @@ export function initTuner(root, {
     const previewAudioController = previewAudioControllerFactory();
     const diagnosticHistory = debugEnabled ? createTunerDiagnosticHistory() : null;
     const loadResult = loadTunerSettings(storage);
+    const meterVisible = loadTunerMeterVisible(storage);
+    elements.meterVisibility.checked = meterVisible;
+    elements.meter.hidden = !meterVisible;
+    elements.meterVisibility.addEventListener('change', () => {
+        elements.meter.hidden = !elements.meterVisibility.checked;
+        saveTunerMeterVisible(elements.meterVisibility.checked, storage);
+    });
     let currentThresholdDb = loadResult.settings.thresholdDb;
     let currentTuningId = loadResult.settings.tuningId;
     const storedCapo = loadResult.settings.capo;

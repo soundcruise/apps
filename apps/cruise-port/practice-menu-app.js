@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.47.7';
+} from './practice-menu-store.js?v=0.48.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.47.7';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.48.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.47.7';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.47.7';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.47.7';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.47.7';
+} from './sync-center-controller.js?v=0.48.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.48.0';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.48.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.48.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.47.7';
+} from './sync-center-navigation.js?v=0.48.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.47.7';
+} from './practice-menu-progress-store.js?v=0.48.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.47.7';
+} from './practice-menu-history-store.js?v=0.48.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.47.7';
+} from './practice-menu-calendar-store.js?v=0.48.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -82,7 +82,7 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.47.7';
+} from './practice-menu-timer-store.js?v=0.48.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -115,11 +115,10 @@ import {
     MY_APPS_LIMITS,
     loadMyApps,
     moveMyApp,
-    normalizeCustomLaunch,
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.47.7';
+} from './my-apps-store.js?v=0.48.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -129,7 +128,7 @@ import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=0.24.0';
+} from './my-apps-launch.js?v=0.48.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -170,10 +169,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.47.7';
+} from './app-version.js?v=0.48.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.47.7';
-import { initTuner } from './tuner-app.js?v=0.27.0';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.48.0';
+import { initTuner } from './tuner-app.js?v=0.48.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -191,7 +190,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.47.7';
+} from './gear-list-store.js?v=0.48.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -200,9 +199,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.47.7';
+} from './gear-category-store.js?v=0.48.0';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.47.7';
+import { PortAssetSync } from './port-asset-sync.js?v=0.48.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -254,11 +253,15 @@ const portConflictResolutionController = globalThis.SoundCruiseMultiAppSync
     ?.installConflictResolutionUi?.(portSyncController?.runtime, document);
 const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController });
 bindHomeCruiseLaunch(syncCenterOrchestrator);
-const PORT_SYNC_HELP_SUMMARY = 'Cruise PortとCruiseアプリの保存データを、同じアカウントでクラウドに同期できます。通常はインターネット接続時に自動で同期されます。';
+const PORT_SYNC_HELP_SUMMARY = 'Sound Cruise SyncアカウントでCruise PortとCruiseアプリの保存データを同期します。通常はインターネット接続時に自動で同期されます。';
 const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     Object.freeze({
-        title: '最初の接続',
-        paragraphs: Object.freeze(['普段使っているCruiseアプリをCruise Portに接続する手順です。']),
+        title: '1. アカウント',
+        paragraphs: Object.freeze(['初めて使う場合はSound Cruise Syncアカウントを作成します。すでに使っている場合は、既存のアカウントへ接続します。'])
+    }),
+    Object.freeze({
+        title: '2. Cruiseアプリを接続',
+        paragraphs: Object.freeze(['音感・指板・リズム・コードのCruiseアプリを同じアカウントへ接続します。']),
         flowSteps: true,
         steps: Object.freeze([
             '1. Cruise Portで対象アプリの「同期コード」を押す',
@@ -270,8 +273,8 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
         ])
     }),
     Object.freeze({
-        title: '端末やブラウザを追加',
-        paragraphs: Object.freeze(['別のスマートフォンやパソコンでも、同じアカウントの保存データを利用できます。']),
+        title: '3. アカウントを同期',
+        paragraphs: Object.freeze(['別のスマートフォン、パソコン、ブラウザでも同じアカウントを使えます。']),
         items: Object.freeze([
             Object.freeze({ title: 'Cruise Portを追加', body: '「別の端末を追加」から、別のCruise Portをこのアカウントに追加できます。' }),
             Object.freeze({ title: '同期先を確認・解除', body: '「同期先 ○件」を開くと、接続中の端末やブラウザを確認・解除できます。' }),
@@ -1825,35 +1828,15 @@ function renderMyAppsForm(mode, id = null) {
 }
 
 function readMyAppsFormValues() {
-    const appKey = !elements.myAppsDirectLaunch.hidden && elements.myAppsDirectEnabled.checked
-        ? myAppsState.knownLaunchForm.activeAppKey
-        : null;
-    let launchMode = appKey ? 'known-app' : 'https';
-    let customLaunch = null;
-    if (
-        !appKey
-        && !elements.myAppsCustomLaunch.hidden
-        && elements.myAppsCustomEnabled.checked
-    ) {
-        const customResult = normalizeCustomLaunch({
-            ios: elements.myAppsCustomIosInput.value.trim() || null,
-            android: elements.myAppsCustomAndroidInput.value.trim() || null
-        });
-        if (!customResult.ok) {
-            return {
-                ok: false,
-                message: '起動用URLはHTTPSで入力してください。iPhone・iPad用またはAndroid用のどちらか1つは必要です。'
-            };
-        }
-        launchMode = 'custom';
-        customLaunch = customResult.value;
-    }
+    // Existing launch metadata remains available for synced legacy records.
+    // New entries use only the saved URL, and editing never discards old metadata.
+    const current = myAppsState.formMode === 'edit' ? findMyApp(myAppsState.activeId) : null;
     const valuesResult = validateMyAppValues({
         name: elements.myAppsNameInput.value,
         url: elements.myAppsUrlInput.value,
-        launchMode,
-        appKey,
-        customLaunch
+        launchMode: current?.launchMode || 'https',
+        appKey: current?.appKey ?? null,
+        customLaunch: current?.customLaunch ?? null
     });
     if (valuesResult.ok) return valuesResult;
     if (valuesResult.reason === 'invalid-name') {

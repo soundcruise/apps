@@ -341,7 +341,7 @@ assert.match(appSource, /myAppsIconPreview\.addEventListener\('click', handleCur
 assert.match(appSource, /myAppsIconStore\.getIcon\(item\.iconSourceId\)/);
 assert.match(appSource, /recognizeKnownAppUrl\(elements\.myAppsUrlInput\.value\)/);
 assert.match(appSource, /updateMyAppsLaunchOptions\(\)/);
-assert.match(appSource, /normalizeCustomLaunch\(\{/);
+assert.match(appSource, /launchMode: current\?\.launchMode \|\| 'https'/);
 assert.match(appSource, /link\.href = href/);
 assert.doesNotMatch(appSource, /window\.open\(/);
 assert.match(appSource, /useCurrentIconAsSource = true/);

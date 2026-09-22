@@ -1,5 +1,4 @@
 import { getKnownApp, resolveKnownAppTarget } from './my-apps-known-apps.js?v=1.3.0';
-import { normalizeCustomLaunch } from './my-apps-store.js?v=0.47.7';
 
 export function detectMyAppsPlatform(navigatorObject = globalThis.navigator) {
     const clientPlatform = navigatorObject?.userAgentData?.platform?.toLowerCase() || '';
@@ -44,30 +43,6 @@ export function getKnownLaunchUiMode(appKey, platform) {
 }
 
 export function resolveMyAppHref(item, platform) {
-    if (item?.launchMode === 'custom') {
-        const customResult = normalizeCustomLaunch(item.customLaunch);
-        if (platform === 'ios' && customResult.ok) {
-            return customResult.value.ios || item.url;
-        }
-        // Android custom targets remain metadata-only until M3.2-B device verification.
-        return item.url;
-    }
-
-    if (
-        !item
-        || item.launchMode !== 'known-app'
-        || !getKnownApp(item.appKey)
-    ) {
-        return item?.url || '';
-    }
-
-    if (platform === 'ios') {
-        return resolveKnownAppTarget(item.appKey, 'ios') || item.url;
-    }
-
-    if (platform === 'android') {
-        return resolveVerifiedAndroidTarget(getKnownApp(item.appKey).launch.android) || item.url;
-    }
-
-    return item.url;
+    // Keep legacy launch metadata in storage, but always honor the user's saved URL.
+    return item?.url || '';
 }

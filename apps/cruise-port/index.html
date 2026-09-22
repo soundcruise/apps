@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.47.7">
-    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.47.7">
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.47.7">
-    <link rel="stylesheet" href="./style.css?v=0.47.7">
+    <link rel="manifest" href="./manifest.json?v=0.48.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.48.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.48.0">
+    <link rel="stylesheet" href="./style.css?v=0.48.0">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=21">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -20,12 +20,12 @@
     <script defer src="../shared/sync-account/multi-app-sync-db.js?v=4"></script>
     <script defer src="../shared/sync-account/multi-app-sync-runtime.js?v=17"></script>
     <script defer src="../shared/sync-account/multi-app-conflict-ui.js?v=5"></script>
-    <script defer src="./port-sync-adapter.js?v=0.47.7"></script>
-    <script defer src="./port-sync-controller.js?v=0.47.7"></script>
+    <script defer src="./port-sync-adapter.js?v=0.48.0"></script>
+    <script defer src="./port-sync-controller.js?v=0.48.0"></script>
     <script defer src="../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="./practice-menu-app.js?v=0.47.7"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.48.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -121,7 +121,6 @@
                         <strong class="sound-cruise-sync-settings-title">クラウド同期</strong>
                         <button id="settings-sync-center-help" class="sound-cruise-sync-help-button" type="button" aria-label="クラウド同期のヘルプを開く">?</button>
                     </header>
-                    <p class="sound-cruise-sync-description">Cruise PortやCruiseアプリの保存データを、同じアカウントでクラウドに同期できます。別の端末でも続きから利用できます。</p>
                     <div class="sound-cruise-sync-card-actions">
                         <button id="settings-sync-center-open" class="sound-cruise-sync-button sound-cruise-sync-button--primary" type="button">クラウド同期を開く</button>
                     </div>
@@ -172,7 +171,7 @@
         </main>
 
         <main id="sync-center-view" class="port-view sync-center-view" hidden>
-            <button id="sync-center-back" class="view-back" type="button">← 設定へ戻る</button>
+            <button id="sync-center-back" class="view-back" type="button">← TOPに戻る</button>
             <section class="view-panel sync-center-panel" aria-labelledby="sync-center-title">
                 <div class="sync-center-heading">
                     <div>
@@ -197,7 +196,7 @@
                         </div>
                     </div>
                     <div class="sync-center-app sync-center-port-card" role="status" aria-live="polite">
-                        <img src="/apps/cruise-port/assets/app-icons/standard/icon-192.png?v=0.47.7" alt="" width="48" height="48">
+                        <img src="/apps/cruise-port/assets/app-icons/standard/icon-192.png?v=0.48.0" alt="" width="48" height="48">
                         <div class="sync-center-app-copy">
                             <strong>Cruise Port</strong>
                             <span class="sync-center-app-status-line"><span id="sync-center-port-status-chip" class="sync-center-app-status-chip sync-center-app-status-chip--attention" data-sync-port-status="attention">確認が必要</span><button id="sync-center-port-conflicts-open" class="sync-center-port-conflicts-open" type="button" hidden>競合を確認する</button></span>
@@ -782,7 +781,7 @@
                         </section>
                     </div>
 
-                    <div id="my-apps-direct-launch" class="my-apps-direct-launch" hidden>
+                    <div id="my-apps-direct-launch" class="my-apps-direct-launch" hidden inert aria-hidden="true">
                         <p id="my-apps-direct-recognition" class="my-apps-direct-recognition"></p>
                         <label id="my-apps-direct-toggle" class="my-apps-direct-toggle" for="my-apps-direct-enabled">
                             <input id="my-apps-direct-enabled" type="checkbox" aria-describedby="my-apps-direct-description">
@@ -791,7 +790,7 @@
                         <p id="my-apps-direct-description" class="my-apps-direct-description">対応している端末では、Webページではなくアプリを開きます。</p>
                     </div>
 
-                    <details id="my-apps-custom-launch" class="my-apps-custom-launch" hidden>
+                    <details id="my-apps-custom-launch" class="my-apps-custom-launch" hidden inert aria-hidden="true">
                         <summary>直接起動の設定（任意）</summary>
                         <div class="my-apps-custom-launch-body">
                             <p id="my-apps-custom-description" class="my-apps-custom-description">アプリが対応している公式の起動用Web URLを入力してください。設定しなくても通常どおり登録できます。</p>
@@ -977,6 +976,7 @@
                     <li><button type="button" data-tuner-string data-string="2" data-note="B3" aria-label="2弦 B3 の音を鳴らす"><span>2弦</span><strong>B3</strong></button></li>
                     <li><button type="button" data-tuner-string data-string="1" data-note="E4" aria-label="1弦 E4 の音を鳴らす"><span>1弦</span><strong>E4</strong></button></li>
                 </ul>
+                <label class="tuner-meter-visibility" for="tuner-meter-visibility"><span>メーター表示</span><input id="tuner-meter-visibility" type="checkbox" checked></label>
 
                 <p id="tuner-error" class="notice notice-error tuner-error" role="alert" hidden></p>
                 <p id="tuner-status" class="tuner-status" aria-live="polite">マイクを準備しています…</p>

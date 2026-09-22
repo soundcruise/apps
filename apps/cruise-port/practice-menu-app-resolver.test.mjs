@@ -48,9 +48,9 @@ assert.deepEqual(resolvePracticeMenuApp(null), {
     appId: null, kind: 'none', label: '使用アプリなし', href: null, launchable: false, status: 'none'
 });
 
-assert.equal(resolvePracticeMenuApp('myapp:spotify-id', { myApps: [spotify], myAppsReady: true, platform: 'ios' }).href, 'https://open.spotify.com/');
+assert.equal(resolvePracticeMenuApp('myapp:spotify-id', { myApps: [spotify], myAppsReady: true, platform: 'ios' }).href, spotify.url);
 assert.equal(resolvePracticeMenuApp('myapp:unknown-id', { myApps: [unknown], myAppsReady: true, platform: 'ios' }).href, unknown.url);
-assert.equal(resolvePracticeMenuApp('myapp:youtube-id', { myApps: [youtube], myAppsReady: true, platform: 'android' }).href, 'https://www.youtube.com/');
+assert.equal(resolvePracticeMenuApp('myapp:youtube-id', { myApps: [youtube], myAppsReady: true, platform: 'android' }).href, youtube.url);
 assert.equal(resolvePracticeMenuApp('myapp:spotify-id', { myApps: [spotify], myAppsReady: true, platform: 'android' }).href, spotify.url);
 assert.equal(resolvePracticeMenuApp('myapp:spotify-id', { myApps: [spotify], myAppsReady: true, platform: 'desktop' }).href, spotify.url);
 
@@ -61,7 +61,7 @@ const legacyCustom = {
     launchMode: 'custom',
     customLaunch: { ios: 'https://example.com/app-link', android: null }
 };
-assert.equal(resolvePracticeMenuApp('myapp:legacy-id', { myApps: [legacyCustom], myAppsReady: true, platform: 'ios' }).href, 'https://example.com/app-link');
+assert.equal(resolvePracticeMenuApp('myapp:legacy-id', { myApps: [legacyCustom], myAppsReady: true, platform: 'ios' }).href, legacyCustom.url);
 
 const missing = resolvePracticeMenuApp('myapp:deleted-id', { myApps: [spotify], myAppsReady: true, platform: 'ios' });
 assert.equal(missing.status, PRACTICE_APP_STATUS.missing);
@@ -91,7 +91,7 @@ assert.equal(resolvePracticeMenuApp('myapp:spotify-id', { myApps: [renamed], myA
 const changedUrl = { ...unknown, url: 'https://example.com/new' };
 assert.equal(resolvePracticeMenuApp('myapp:unknown-id', { myApps: [changedUrl], myAppsReady: true, platform: 'desktop' }).href, changedUrl.url);
 const directEnabled = { ...unknown, launchMode: 'known-app', appKey: 'spotify' };
-assert.equal(resolvePracticeMenuApp('myapp:unknown-id', { myApps: [directEnabled], myAppsReady: true, platform: 'ios' }).href, 'https://open.spotify.com/');
+assert.equal(resolvePracticeMenuApp('myapp:unknown-id', { myApps: [directEnabled], myAppsReady: true, platform: 'ios' }).href, directEnabled.url);
 assert.equal(resolvePracticeMenuApp('myapp:spotify-id', { myApps: [], myAppsReady: true }).status, 'missing');
 assert.equal(
     resolvePracticeMenuApp('myapp:spotify-id', { myApps: [{ ...spotify, id: 'new-id' }], myAppsReady: true }).status,

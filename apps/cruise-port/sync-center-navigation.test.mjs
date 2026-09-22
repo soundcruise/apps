@@ -22,16 +22,16 @@ test('feature-on deep link survives startup normalization while feature-off stay
     assert.deepEqual(disabled.calls, []);
 });
 
-test('settings entry pushes once and Back returns without a settings/sync loop', () => {
+test('settings entry pushes once and TOP returns to home', () => {
     const history = historyFixture({ existing: true });
     openSyncCenter(history);
     assert.deepEqual(history.calls, [['push', '#sync-center']]);
-    assert.equal(returnToSyncCenterSource({ historyObject: history, locationObject }), 'back');
-    assert.deepEqual(history.calls, [['push', '#sync-center'], ['back']]);
+    assert.equal(returnToSyncCenterSource({ historyObject: history, locationObject }), 'replace');
+    assert.deepEqual(history.calls, [['push', '#sync-center'], ['replace', '/apps/cruise-port/?qa=1']]);
 });
 
-test('direct deep link Back corrects to settings with replace', () => {
+test('direct deep link TOP returns to home with replace', () => {
     const history = historyFixture({ cruisePortSyncCenterSource: 'direct' });
     assert.equal(returnToSyncCenterSource({ historyObject: history, locationObject }), 'replace');
-    assert.deepEqual(history.calls, [['replace', '/apps/cruise-port/?qa=1#settings']]);
+    assert.deepEqual(history.calls, [['replace', '/apps/cruise-port/?qa=1']]);
 });
