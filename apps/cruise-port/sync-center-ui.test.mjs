@@ -170,11 +170,19 @@ test('Environment management keeps the Port path compact and the app-specific pa
         assert.match(html, /id="sync-center-app-environments"/);
     }
     assert.match(ui, /id: 'port', name: 'Cruise Port'[\s\S]*subtitle: null/);
-    assert.match(ui, /add\.textContent = entry\.id === 'port' \? '別の端末を追加'/);
+    assert.match(ui, /add\.textContent = entry\.id === 'port' \? '別の端末を追加' : '同期先を追加'/);
     assert.match(ui, /同期先 \$\{entry\.environments\.length\}件/);
+    assert.match(ui, /sync-center-destination-primary/);
+    assert.match(ui, /primary\.append\(image, copy\)/);
+    assert.match(ui, /row\.append\(primary, actions, details\)/);
     assert.match(styles, /\.sync-center-advanced-toggle\s*\{[\s\S]*min-height:\s*38px/);
-    assert.match(styles, /#sync-center-add-environments \.sync-center-app-action\s*\{[\s\S]*min-width:\s*106px[\s\S]*white-space:\s*nowrap/);
+    assert.match(styles, /\.sync-center-destination-card \.sync-center-app-action\s*\{[\s\S]*min-width:\s*max-content[\s\S]*white-space:\s*nowrap/);
+    assert.match(styles, /\.sync-center-destination-card\s*\{[\s\S]*grid-template-areas:[\s\S]*"primary"[\s\S]*"actions"[\s\S]*"details"/);
+    assert.match(styles, /\.sync-center-destination-primary\s*\{[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);
+    assert.match(styles, /\.sync-center-destination-primary \.sync-center-app-copy strong\s*\{[\s\S]*white-space:\s*nowrap/);
+    assert.match(styles, /\.sync-center-destination-actions\s*\{[\s\S]*grid-template-columns:\s*auto auto[\s\S]*justify-content:\s*end/);
     assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-app\s*\{[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);
+    assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-destination-primary\s*\{[\s\S]*grid-template-columns:\s*44px minmax\(0, 1fr\)/);
 });
 
 test('Cruise Port installs the existing conflict resolution UI before startup sync', () => {
@@ -590,7 +598,7 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(source, /data-sync-app-add-environment/);
     assert.match(source, /function renderEnvironmentManagementRows/);
     assert.match(source, /available: activeAccount && app\.canAddEnvironment && !app\.deleteGrace/);
-    assert.match(source, /add\.textContent = entry\.id === 'port' \? '別の端末を追加' : '追加コード'/);
+    assert.match(source, /add\.textContent = entry\.id === 'port' \? '別の端末を追加' : '同期先を追加'/);
     assert.match(source, /const needsInitialConnection = \['unset', 'prepared', 'detached'\]\.includes\(app\.status\)/);
     assert.match(source, /function bindSectionHelp\(root\)/);
     assert.match(source, /button\.setAttribute\('aria-expanded', String\(!help\.hidden\)\)/);

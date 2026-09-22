@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.45.5';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.45.6';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -117,7 +117,9 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
     ];
     const rows = entries.map((entry) => {
         const row = document.createElement('li');
-        row.className = 'sync-center-app sync-center-environment-group';
+        row.className = 'sync-center-app sync-center-environment-group sync-center-destination-card';
+        const primary = document.createElement('div');
+        primary.className = 'sync-center-destination-primary';
         const image = document.createElement('img');
         image.src = entry.icon;
         image.alt = '';
@@ -134,8 +136,9 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
             subtitle.textContent = entry.subtitle;
             copy.append(subtitle);
         }
+        primary.append(image, copy);
         const actions = document.createElement('div');
-        actions.className = 'sync-center-app-row-actions sync-center-environment-actions';
+        actions.className = 'sync-center-app-row-actions sync-center-environment-actions sync-center-destination-actions';
         const count = document.createElement('button');
         count.type = 'button';
         count.className = 'sync-center-environment-count';
@@ -147,7 +150,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         const add = document.createElement('button');
         add.type = 'button';
         add.className = 'sync-center-app-action secondary';
-        add.textContent = entry.id === 'port' ? '別の端末を追加' : '追加コード';
+        add.textContent = entry.id === 'port' ? '別の端末を追加' : '同期先を追加';
         add.disabled = !orchestrationEnabled || !entry.available;
         add.setAttribute('aria-label', `${entry.name}の追加コードを表示`);
         if (entry.id === 'port') add.dataset.syncPortAddEnvironment = 'true';
@@ -187,7 +190,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
             return item;
         });
         details.replaceChildren(...environmentRows);
-        row.append(image, copy, actions, details);
+        row.append(primary, actions, details);
         return row;
     });
     portList.replaceChildren(rows[0]);

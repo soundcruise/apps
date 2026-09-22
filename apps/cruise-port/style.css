@@ -2332,6 +2332,42 @@ textarea:focus-visible {
     grid-template-columns: auto auto;
     align-items: center;
 }
+.sync-center-destination-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+        "primary"
+        "actions"
+        "details";
+    align-items: stretch;
+    gap: 8px;
+    min-height: 0;
+}
+.sync-center-destination-primary {
+    grid-area: primary;
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+.sync-center-destination-primary .sync-center-app-copy strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.sync-center-destination-actions {
+    grid-area: actions;
+    grid-template-columns: auto auto;
+    justify-content: end;
+    gap: 7px;
+    min-width: 0;
+}
+.sync-center-destination-card .sync-center-app-action {
+    min-width: max-content;
+    white-space: nowrap;
+}
+.sync-center-destination-card .sync-center-environment-list { grid-area: details; }
 .sync-center-advanced-toggle {
     display: inline-flex;
     align-items: center;
@@ -2349,10 +2385,6 @@ textarea:focus-visible {
     cursor: pointer;
 }
 .sync-center-advanced-toggle:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
-#sync-center-add-environments .sync-center-app-action {
-    min-width: 106px;
-    white-space: nowrap;
-}
 .sync-center-environment-count {
     min-height: 34px;
     padding: 4px 9px;
@@ -2565,6 +2597,8 @@ textarea:focus-visible {
     .sync-center-app img { width: 44px; height: 44px; }
     .sync-center-app-row-actions { max-width: 118px; }
     .sync-center-environment-actions { max-width: none; }
+    .sync-center-destination-primary { grid-template-columns: 44px minmax(0, 1fr); gap: 9px; }
+    .sync-center-destination-card .sync-center-app-action { min-height: 40px; padding-inline: 9px; }
     .sync-center-app-remove { min-width: 82px; padding-inline: 8px; }
 }
 

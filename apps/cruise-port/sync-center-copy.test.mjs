@@ -29,6 +29,6 @@ test('Port action and destructive confirmation labels are explicit', () => {
     }
   }
   assert.match(ui, /Sound Cruise Syncアカウントを削除/);
-  assert.match(ui, /add\.textContent = entry\.id === 'port' \? '別の端末を追加' : '追加コード'/);
+  assert.match(ui, /add\.textContent = entry\.id === 'port' \? '別の端末を追加' : '同期先を追加'/);
   assert.match(ui, /lifecycleConfirm\.textContent = '削除を確定'/);
 });
