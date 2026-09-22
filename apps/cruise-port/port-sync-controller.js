@@ -40,6 +40,11 @@
     runtime.addEventListener('statechange', (event) => {
       const state = event.detail?.state || 'unknown';
       emit(state, event.detail);
+      if (state === 'ready' && event.detail?.reason === 'conflict_resolved') {
+        Promise.resolve().then(async () => {
+          if (await store.readMeta('migrationState') !== 'complete') await ensure();
+        }).catch(() => {});
+      }
       if (state === 'ready' && adapter.consumeRemoteApplyChanged?.()) {
         global.dispatchEvent?.(new CustomEvent('cruise-port-cloud-data-applied', {
           detail: Object.freeze({ changed: true })

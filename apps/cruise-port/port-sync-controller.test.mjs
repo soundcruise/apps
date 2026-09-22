@@ -119,6 +119,18 @@ test('Port controller announces a changed hydrate only after runtime reaches rea
   assert.equal(events.filter((event) => event.type === 'cruise-port-cloud-data-applied').length, 1);
 });
 
+test('Port controller resumes incomplete initialization after the final conflict resolves', async () => {
+  const { controller, meta } = harness();
+  meta.set('credential', 'scd1.port.secret');
+  meta.set('membership', { id: 'membership-port', appId: 'port', state: 'active' });
+  controller.runtime.dispatchEvent(new CustomEvent('statechange', {
+    detail: { state: 'ready', reason: 'conflict_resolved' }
+  }));
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(controller.runtime.initialized, 1);
+  assert.equal(controller.runtime.synced, 0);
+});
+
 test('Port controller exposes a secret-free fail-closed status summary', async () => {
   const { controller, meta, outbox, conflicts } = harness();
   meta.set('membership', { id: 'not-exposed', state: 'active' });
