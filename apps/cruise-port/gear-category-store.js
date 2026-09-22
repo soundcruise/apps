@@ -1,5 +1,5 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.48.0';
-import { isValidGearCategoryId } from './gear-list-store.js?v=0.48.0';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.49.0';
+import { isValidGearCategoryId } from './gear-list-store.js?v=0.49.0';
 
 export const GEAR_CATEGORY_STORAGE_KEY = 'cruisePort.gearCategories';
 export const GEAR_CATEGORY_SCHEMA_VERSION = 1;
@@ -10,7 +10,8 @@ export const DEFAULT_GEAR_CATEGORIES = Object.freeze([
     Object.freeze({ id: 'amp', name: 'アンプ' }),
     Object.freeze({ id: 'sound', name: 'エフェクター' }),
     Object.freeze({ id: 'recording', name: '配信・録音' }),
-    Object.freeze({ id: 'accessories', name: 'アクセサリー' })
+    Object.freeze({ id: 'accessories', name: 'アクセサリー' }),
+    Object.freeze({ id: 'other', name: 'その他' })
 ]);
 
 const RETIRED_DEFAULT_CATEGORY_NAMES = Object.freeze({
@@ -18,7 +19,7 @@ const RETIRED_DEFAULT_CATEGORY_NAMES = Object.freeze({
     recording: Object.freeze({ from: '録音・配信', to: '配信・録音' })
 });
 const PREVIOUS_DEFAULT_CATEGORY_IDS = Object.freeze(['guitar', 'sound', 'accessories']);
-const NEW_FORMAL_CATEGORY_IDS = Object.freeze(['amp', 'recording']);
+const NEW_FORMAL_CATEGORY_IDS = Object.freeze(['amp', 'recording', 'other']);
 
 const LEGACY_CATEGORY_NAMES = Object.freeze({
     guitar: 'ギター',

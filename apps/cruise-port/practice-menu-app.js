@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.48.0';
+} from './practice-menu-store.js?v=0.49.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.48.0';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.49.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.48.0';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.48.0';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.48.0';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.48.0';
+} from './sync-center-controller.js?v=0.49.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.49.0';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.49.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.49.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.48.0';
+} from './sync-center-navigation.js?v=0.49.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.48.0';
+} from './practice-menu-progress-store.js?v=0.49.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.48.0';
+} from './practice-menu-history-store.js?v=0.49.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.48.0';
+} from './practice-menu-calendar-store.js?v=0.49.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -82,7 +82,7 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.48.0';
+} from './practice-menu-timer-store.js?v=0.49.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -118,7 +118,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.48.0';
+} from './my-apps-store.js?v=0.49.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -128,7 +128,7 @@ import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=0.48.0';
+} from './my-apps-launch.js?v=0.49.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -169,10 +169,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.48.0';
+} from './app-version.js?v=0.49.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.48.0';
-import { initTuner } from './tuner-app.js?v=0.48.0';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.49.0';
+import { initTuner } from './tuner-app.js?v=0.49.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -190,7 +190,8 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.48.0';
+} from './gear-list-store.js?v=0.49.0';
+import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.49.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -199,9 +200,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.48.0';
+} from './gear-category-store.js?v=0.49.0';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.48.0';
+import { PortAssetSync } from './port-asset-sync.js?v=0.49.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -341,6 +342,8 @@ const elements = {
     settingsReset: document.querySelector('#settings-reset'),
     gearTitle: document.querySelector('#wishlist-title'),
     gearTabs: [...document.querySelectorAll('[data-gear-status]')],
+    gearGridButtons: [...document.querySelectorAll('[data-gear-columns]')],
+    gearListExport: document.querySelector('#gear-list-export'),
     gearCategorySelect: document.querySelector('#gear-category-select'),
     gearCategoryMenuWrap: document.querySelector('.gear-category-menu-wrap'),
     gearCategoryMenuToggle: document.querySelector('#gear-category-menu-toggle'),
@@ -366,6 +369,8 @@ const elements = {
     gearAdd: document.querySelector('#gear-list-add'),
     gearFormTitle: document.querySelector('#gear-form-title'),
     gearForm: document.querySelector('#gear-list-form'),
+    gearManufacturerInput: document.querySelector('#gear-manufacturer'),
+    gearSingleExport: document.querySelector('#gear-single-export'),
     gearNameInput: document.querySelector('#gear-name'),
     gearCategoryInput: document.querySelector('#gear-category'),
     gearPriceInput: document.querySelector('#gear-price'),
@@ -610,6 +615,7 @@ const gearState = {
     categoryDialogMode: null,
     activeStatus: 'all',
     activeCategory: 'all',
+    gridColumns: gearGridColumns(),
     activeId: null,
     formMode: 'create',
     reorderMode: false,
@@ -3756,8 +3762,11 @@ function renderGearCard(item) {
     const heading = document.createElement('div');
     const name = document.createElement('h3');
     card.className = `gear-card gear-card--${item.status}`;
+    card.dataset.gearCardId = item.id;
+    card.tabIndex = 0;
+    card.setAttribute('aria-label', `${gearCardLabel(item)}を編集`);
     heading.className = 'gear-card-heading';
-    name.textContent = item.name;
+    name.textContent = gearCardLabel(item);
     heading.append(name);
     card.append(heading);
 
@@ -3776,8 +3785,16 @@ function renderGearCard(item) {
         memo.textContent = item.memo;
         card.append(memo);
     }
+    const menuToggle = document.createElement('button');
+    menuToggle.type = 'button';
+    menuToggle.className = 'gear-card-menu-toggle';
+    menuToggle.dataset.gearMenuToggle = item.id;
+    menuToggle.textContent = '⋯';
+    menuToggle.setAttribute('aria-label', `${gearCardLabel(item)}の操作`);
+    menuToggle.setAttribute('aria-expanded', 'false');
     const actions = document.createElement('div');
     actions.className = 'gear-card-actions';
+    actions.hidden = true;
     if (item.status === 'wishlist') {
         actions.append(createGearAction('購入した', 'purchase', item, 'gear-purchase-action'));
     } else if (item.status === 'owned') {
@@ -3789,7 +3806,7 @@ function renderGearCard(item) {
         createGearAction('編集', 'edit', item),
         createGearAction('削除', 'delete', item, 'danger-action')
     );
-    card.append(actions);
+    card.append(menuToggle, actions);
     return card;
 }
 
@@ -3955,17 +3972,15 @@ function handleGearCategoryDelete() {
 function getGearSections() {
     if (gearState.activeStatus === 'all') {
         return [
-            { status: 'owned', title: '今持っている機材', emptyMessage: '今持っている機材はまだありません' },
-            { status: 'sold', title: '手放した機材', emptyMessage: '手放した機材はまだありません' },
-            { status: 'wishlist', title: 'ほしい機材', emptyMessage: 'ほしい機材はまだありません' }
-        ];
-    }
-    if (gearState.activeStatus === 'owned') {
-        return [
+            { status: 'wishlist', title: 'ほしい機材', emptyMessage: 'ほしい機材はまだありません' },
             { status: 'owned', title: '今持っている機材', emptyMessage: '今持っている機材はまだありません' },
             { status: 'sold', title: '手放した機材', emptyMessage: '手放した機材はまだありません' }
         ];
     }
+    if (gearState.activeStatus === 'owned') {
+        return [{ status: 'owned', title: '今持っている機材', emptyMessage: '今持っている機材はまだありません' }];
+    }
+    if (gearState.activeStatus === 'sold') return [{ status: 'sold', title: '手放した機材', emptyMessage: '手放した機材はまだありません' }];
     return [{ status: 'wishlist', title: 'ほしい機材', emptyMessage: 'ほしい機材はまだありません' }];
 }
 
@@ -3976,7 +3991,7 @@ function renderGearReorderCard(item, index, length) {
     const upButton = document.createElement('button');
     const downButton = document.createElement('button');
     card.className = `gear-card gear-card--${item.status} gear-card--reorder`;
-    name.textContent = item.name;
+    name.textContent = gearCardLabel(item);
     controls.className = 'reorder-controls gear-reorder-controls';
     [
         [upButton, '↑', -1, index === 0, '上へ移動'],
@@ -4021,6 +4036,7 @@ function renderGearSection({ status, title, emptyMessage }) {
     }
     const list = document.createElement('div');
     list.className = 'gear-list-items';
+    list.dataset.columns = String(gearState.reorderMode ? 1 : gearState.gridColumns);
     if (gearState.reorderMode && gearState.reorderStatus === status) {
         items.forEach((item, index) => list.append(renderGearReorderCard(item, index, items.length)));
     } else {
@@ -4049,6 +4065,11 @@ function renderWishlist({ focus = true } = {}) {
     elements.gearContent.setAttribute('aria-labelledby', activeTab?.id || 'gear-all-tab');
     renderGearCategoryFilter();
     elements.gearSections.replaceChildren(...getGearSections().map(renderGearSection));
+    elements.gearGridButtons.forEach((button) => {
+        button.setAttribute('aria-pressed', String(Number(button.dataset.gearColumns) === gearState.gridColumns));
+        button.disabled = gearState.reorderMode;
+    });
+    elements.gearListExport.disabled = gearState.reorderMode || !gearState.storageReady;
     elements.gearReorderActions.hidden = !gearState.reorderMode;
     elements.gearReorderStatus.hidden = !gearState.reorderMode;
     elements.gearReorderStatus.textContent = gearState.reorderMode
@@ -4286,12 +4307,14 @@ function handleGearPhotoRemove() {
 
 function fillGearForm(item = null) {
     elements.gearForm.reset();
+    elements.gearManufacturerInput.value = item?.manufacturer || '';
     elements.gearNameInput.value = item?.name || '';
     populateGearCategoryOptions(item?.category || getInitialGearCategory(gearState.activeCategory));
     elements.gearPriceInput.value = item?.priceText || '';
     elements.gearStatusInput.value = item?.status || (gearState.activeStatus === 'wishlist' ? 'wishlist' : 'owned');
     elements.gearPriorityInput.value = item?.priority || 'medium';
     elements.gearMemoInput.value = item?.memo || '';
+    elements.gearSingleExport.hidden = !item;
     updateGearPriorityVisibility();
     showNotice(elements.gearFormError);
     resetGearPhotoForm(item);
@@ -4310,7 +4333,7 @@ function renderGearForm(mode, id = null) {
     gearState.formMode = mode;
     gearState.activeId = item?.id || null;
     elements.gearFormTitle.textContent = mode === 'edit'
-        ? `${item.name}を編集`
+        ? `${gearCardLabel(item)}を編集`
         : gearState.activeStatus === 'wishlist' ? 'ほしい機材を追加' : '機材を追加';
     fillGearForm(item);
     showView(elements.gearFormView);
@@ -4326,6 +4349,7 @@ function readGearFormValues() {
         return { ok: false, field: 'category', message: 'カテゴリを選択してください。' };
     }
     return validateGearValues({
+        manufacturer: elements.gearManufacturerInput.value,
         name: elements.gearNameInput.value,
         category: elements.gearCategoryInput.value,
         priceText: elements.gearPriceInput.value,
@@ -4353,6 +4377,7 @@ async function handleGearSubmit(event) {
     if (!validation.ok) {
         showNotice(elements.gearFormError, validation.message);
         const fieldElements = {
+            manufacturer: elements.gearManufacturerInput,
             name: elements.gearNameInput,
             category: elements.gearCategoryInput,
             priceText: elements.gearPriceInput,
@@ -4424,7 +4449,7 @@ async function handleGearSubmit(event) {
         return;
     }
     gearState.items = result.items;
-    gearState.activeStatus = validation.values.status === 'wishlist' ? 'wishlist' : 'owned';
+    gearState.activeStatus = validation.values.status;
     setGearListRoute();
 }
 
@@ -4442,7 +4467,7 @@ function handleGearSell(item) {
     const result = markGearSold(gearState.items, item.id);
     if (!result.found) return;
     if (!persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。')) return;
-    gearState.activeStatus = 'owned';
+    gearState.activeStatus = 'sold';
     renderWishlist({ focus: false });
 }
 
@@ -4545,8 +4570,24 @@ function handleGearListAction(event) {
         if (photoItem) openGearPhotoLightbox(photoItem);
         return;
     }
+    const menuToggle = event.target.closest('[data-gear-menu-toggle]');
+    if (menuToggle) {
+        const opening = menuToggle.getAttribute('aria-expanded') !== 'true';
+        closeGearCardMenus();
+        if (opening) {
+            menuToggle.setAttribute('aria-expanded', 'true');
+            menuToggle.nextElementSibling.hidden = false;
+        }
+        return;
+    }
     const target = event.target.closest('[data-gear-action]');
-    if (!target) return;
+    if (!target) {
+        const card = event.target.closest('[data-gear-card-id]');
+        if (card && !event.target.closest('button, a, input, select, textarea')) {
+            setHashRoute(`#wishlist/${encodeURIComponent(card.dataset.gearCardId)}/edit`);
+        }
+        return;
+    }
     if (target.dataset.gearAction === 'reorder-move') {
         moveGearReorderItem(target.dataset.id, Number(target.dataset.direction));
         return;
@@ -4564,6 +4605,22 @@ function handleGearListAction(event) {
     } else if (target.dataset.gearAction === 'delete') {
         handleGearDelete(item);
     }
+}
+
+function closeGearCardMenus() {
+    elements.gearSections.querySelectorAll('[data-gear-menu-toggle][aria-expanded="true"]').forEach((button) => {
+        button.setAttribute('aria-expanded', 'false');
+        button.nextElementSibling.hidden = true;
+    });
+}
+
+function downloadGearExport(content, fileName, mime) {
+    const url = URL.createObjectURL(new Blob([content], { type: mime }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function renderRoute() {
@@ -4918,6 +4975,27 @@ elements.gearSections.addEventListener('click', (event) => {
     }
     handleGearListAction(event);
 });
+elements.gearSections.addEventListener('keydown', (event) => {
+    if (event.target.matches('[data-gear-card-id]') && ['Enter', ' '].includes(event.key)) {
+        event.preventDefault();
+        setHashRoute(`#wishlist/${encodeURIComponent(event.target.dataset.gearCardId)}/edit`);
+    }
+});
+elements.gearGridButtons.forEach((button) => button.addEventListener('click', () => {
+    const columns = Number(button.dataset.gearColumns);
+    if (!saveGearGridColumns(columns)) return;
+    gearState.gridColumns = columns;
+    renderWishlist({ focus: false });
+    elements.gearGridButtons.find((candidate) => Number(candidate.dataset.gearColumns) === columns)?.focus({ preventScroll: true });
+}));
+elements.gearListExport.addEventListener('click', () => {
+    const items = gearItemsForExport(gearState.items, gearState.activeStatus, gearState.activeCategory);
+    downloadGearExport(gearListCsv(items, gearState.categories), `機材リスト-${gearState.activeStatus}.csv`, 'text/csv;charset=utf-8');
+});
+elements.gearSingleExport.addEventListener('click', async () => {
+    const item = findGearItem(gearState.activeId);
+    if (item) await shareGearText(item, gearState.categories, { download: downloadGearExport });
+});
 elements.gearReorderCancel.addEventListener('click', cancelGearReorder);
 elements.gearReorderComplete.addEventListener('click', completeGearReorder);
 elements.gearTabs.forEach((tab, index) => {
@@ -4954,11 +5032,13 @@ elements.gearCategoryDelete.addEventListener('click', () => {
     handleGearCategoryDelete();
 });
 document.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-gear-card-id]')) closeGearCardMenus();
     if (!elements.gearCategoryMenu?.hidden && !elements.gearCategoryMenuWrap?.contains(event.target)) {
         closeGearCategoryMenu();
     }
 });
 document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') closeGearCardMenus();
     if (event.key === 'Escape' && elements.gearCategoryMenu && !elements.gearCategoryMenu.hidden) {
         event.preventDefault();
         closeGearCategoryMenu({ restoreFocus: true });

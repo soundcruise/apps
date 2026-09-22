@@ -63,18 +63,18 @@ function createLegacyItem(overrides = {}) {
 }
 
 function asV2(item) {
-    const { order, soldAt, photoId, photoSourceId, photoCrop, ...v2Item } = item;
+    const { manufacturer, order, soldAt, photoId, photoSourceId, photoCrop, ...v2Item } = item;
     return v2Item;
 }
 
 function asV3(item) {
-    const { photoId, photoSourceId, photoCrop, ...v3Item } = item;
+    const { manufacturer, photoId, photoSourceId, photoCrop, ...v3Item } = item;
     return v3Item;
 }
 
-test('empty storage starts with version 4 compatible empty data', () => {
+test('empty storage starts with version 5 compatible empty data', () => {
     assert.deepEqual(loadGearList(createMemoryStorage()), { ok: true, items: [] });
-    assert.equal(GEAR_LIST_SCHEMA_VERSION, 4);
+    assert.equal(GEAR_LIST_SCHEMA_VERSION, 5);
 });
 
 test('category filter accepts stable category ids except for all', () => {
@@ -123,7 +123,7 @@ test('validates priority, status, and memo', () => {
     assert.equal(validateGearValues({ ...baseValues, memo: 'x'.repeat(1001) }).field, 'memo');
 });
 
-test('creates v4 owned, wishlist, and sold items without retired fields', () => {
+test('creates v5 owned, wishlist, and sold items with manufacturer', () => {
     const wishlist = createGearItem({
         ...baseValues,
         manufacturer: 'ignored',
@@ -141,23 +141,24 @@ test('creates v4 owned, wishlist, and sold items without retired fields', () => 
     assert.equal(sold.soldAt, firstDate.toISOString());
     assert.notEqual(wishlist.id, owned.id);
     assert.deepEqual(getGearPhotoReferences(wishlist), { photoId: null, photoSourceId: null, photoCrop: null });
-    for (const retired of ['manufacturer', 'url', 'priceYen']) {
+    assert.equal(wishlist.manufacturer, 'ignored');
+    for (const retired of ['url', 'priceYen']) {
         assert.equal(Object.hasOwn(wishlist, retired), false, retired);
     }
 });
 
-test('saves and loads a version 4 payload without changing other keys', () => {
+test('saves and loads a version 5 payload without changing other keys', () => {
     const storage = createMemoryStorage({ 'cruisePort.practiceMenus': 'keep' });
     const item = createGearItem(baseValues, [], firstDate);
     assert.deepEqual(saveGearList([item], storage), { ok: true });
     assert.equal(loadGearList(storage).items[0].id, item.id);
     assert.equal(storage.snapshot()['cruisePort.practiceMenus'], 'keep');
     const payload = JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]);
-    assert.equal(payload.version, 4);
+    assert.equal(payload.version, 5);
     assert.equal(payload.items[0].priceText, '約48万円');
     assert.equal(payload.items[0].order, 0);
     assert.equal(payload.items[0].soldAt, null);
-    assert.equal(Object.hasOwn(payload.items[0], 'manufacturer'), false);
+    assert.equal(payload.items[0].manufacturer, '');
     assert.equal(Object.hasOwn(payload.items[0], 'url'), false);
     assert.equal(Object.hasOwn(payload.items[0], 'priceYen'), false);
 });
@@ -183,10 +184,10 @@ test('migrates v1 once while preserving identity, state, memo, timestamps, and r
         manufacturer: legacyItem.manufacturer,
         url: legacyItem.url
     });
-    assert.equal(Object.hasOwn(migrated, 'manufacturer'), false);
+    assert.equal(migrated.manufacturer, '');
     assert.equal(Object.hasOwn(migrated, 'url'), false);
     assert.equal(Object.hasOwn(migrated, 'priceYen'), false);
-    assert.equal(JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 4);
+    assert.equal(JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 5);
     assert.deepEqual(getGearPhotoReferences(migrated), { photoId: null, photoSourceId: null, photoCrop: null });
     assert.equal(Object.hasOwn(loadGearList(storage), 'migrated'), false);
 });
@@ -235,7 +236,7 @@ test('migration write failure restores the complete v1 payload', () => {
     assert.equal(value, raw);
 });
 
-test('migrates v2 to v4 with deterministic legacy display order', () => {
+test('migrates v2 to v5 with deterministic legacy display order', () => {
     const low = asV2(createGearItem({ ...baseValues, name: 'Low', priority: 'low' }, [], firstDate));
     const high = asV2(createGearItem({ ...baseValues, name: 'High', priority: 'high' }, [low], secondDate));
     const storage = createMemoryStorage({
@@ -246,10 +247,10 @@ test('migrates v2 to v4 with deterministic legacy display order', () => {
     assert.equal(result.migrated, true);
     assert.deepEqual(selectGearItems(result.items, { status: 'wishlist' }).map(({ name }) => name), ['High', 'Low']);
     assert.deepEqual(result.items.map(({ soldAt }) => soldAt), [null, null]);
-    assert.equal(JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 4);
+    assert.equal(JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 5);
 });
 
-test('migrates v3 to v4 and rejects malformed v3 collections', () => {
+test('migrates v3 to v5 and rejects malformed v3 collections', () => {
     const item = createGearItem(baseValues, [], firstDate);
     const oldItem = asV3(item);
     const migrationStorage = createMemoryStorage({
@@ -259,7 +260,7 @@ test('migrates v3 to v4 and rejects malformed v3 collections', () => {
     assert.equal(migrated.ok, true);
     assert.equal(migrated.migrated, true);
     assert.deepEqual(getGearPhotoReferences(migrated.items[0]), { photoId: null, photoSourceId: null, photoCrop: null });
-    assert.equal(JSON.parse(migrationStorage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 4);
+    assert.equal(JSON.parse(migrationStorage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 5);
 
     const duplicateStorage = createMemoryStorage({
         [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 3, items: [oldItem, oldItem] })
@@ -275,6 +276,31 @@ test('migrates v3 to v4 and rejects malformed v3 collections', () => {
     });
     assert.equal(loadGearList(orderStorage).ok, false);
     assert.equal(getGearCategoryLabel('custom'), 'その他');
+});
+
+test('v4 migration keeps existing names and photos while defaulting manufacturer', () => {
+    const item = createGearItem({ ...baseValues, name: 'LL6', manufacturer: 'YAMAHA' }, [], firstDate);
+    const { manufacturer, ...oldItem } = item;
+    const storage = createMemoryStorage({ [GEAR_LIST_STORAGE_KEY]: JSON.stringify({ version: 4, items: [oldItem] }) });
+    const loaded = loadGearList(storage);
+    assert.equal(loaded.ok, true);
+    assert.equal(loaded.migrated, true);
+    assert.equal(loaded.items[0].name, 'LL6');
+    assert.equal(loaded.items[0].manufacturer, '');
+    assert.deepEqual(getGearPhotoReferences(loaded.items[0]), getGearPhotoReferences(item));
+    assert.equal(JSON.parse(storage.snapshot()[GEAR_LIST_STORAGE_KEY]).version, 5);
+    assert.equal(loadGearList(storage).migrated, undefined);
+});
+
+test('manufacturer validates, saves, edits, and loads independently from required name', () => {
+    assert.equal(validateGearValues({ ...baseValues, name: '' }).field, 'name');
+    assert.equal(validateGearValues({ ...baseValues, manufacturer: 'x'.repeat(101) }).field, 'manufacturer');
+    const values = validateGearValues({ ...baseValues, manufacturer: ' YAMAHA ', name: ' LL6 ' }).values;
+    const item = createGearItem(values, [], firstDate);
+    const edited = updateGearItem([item], item.id, { ...values, manufacturer: 'Martin' }, secondDate).items[0];
+    const storage = createMemoryStorage();
+    assert.equal(saveGearList([edited], storage).ok, true);
+    assert.equal(loadGearList(storage).items[0].manufacturer, 'Martin');
 });
 
 test('save failure restores the dedicated key', () => {
@@ -443,12 +469,12 @@ test('filtered reorder changes only the selected category order within one statu
     );
 });
 
-test('v4 malformed and unknown payloads remain untouched', () => {
+test('v5 malformed and unknown payloads remain untouched', () => {
     const item = createGearItem(baseValues, [], firstDate);
     for (const raw of [
-        JSON.stringify({ version: 4, items: [{ ...item, soldAt: 'invalid' }] }),
-        JSON.stringify({ version: 5, items: [] }),
-        JSON.stringify({ version: 4, items: [{ ...item, photoId: 'final', photoSourceId: null, photoCrop: null }] })
+        JSON.stringify({ version: 5, items: [{ ...item, soldAt: 'invalid' }] }),
+        JSON.stringify({ version: 6, items: [] }),
+        JSON.stringify({ version: 5, items: [{ ...item, photoId: 'final', photoSourceId: null, photoCrop: null }] })
     ]) {
         const storage = createMemoryStorage({ [GEAR_LIST_STORAGE_KEY]: raw });
         assert.equal(loadGearList(storage).ok, false);

@@ -2754,6 +2754,37 @@ textarea:focus-visible {
     background: rgba(205, 180, 116, 0.12);
 }
 
+.gear-list-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.gear-list-tabs button {
+    font-size: calc(0.68rem * var(--font-scale));
+}
+
+.gear-display-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 10px 0 0;
+}
+
+.gear-grid-picker { display: flex; gap: 4px; }
+.gear-grid-picker button, .gear-export-button {
+    min-height: 40px;
+    padding: 6px 9px;
+    border: 1px solid rgba(207, 189, 148, 0.2);
+    border-radius: 9px;
+    color: var(--port-muted);
+    background: rgba(7, 7, 5, 0.46);
+    font: inherit;
+    font-size: calc(0.7rem * var(--font-scale));
+    cursor: pointer;
+}
+.gear-grid-picker button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(230, 210, 155, 0.5); }
+
 .gear-list-title-row {
     display: flex;
     min-width: 0;
@@ -3021,11 +3052,33 @@ textarea:focus-visible {
     gap: 10px;
 }
 
+.gear-list-items[data-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.gear-list-items[data-columns="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-inline: -12px; }
+
 .gear-card {
+    position: relative;
+    min-width: 0;
     padding: 15px;
     border: 1px solid rgba(207, 189, 148, 0.16);
     border-radius: 13px;
     background: rgba(7, 7, 5, 0.46);
+}
+
+.gear-card[data-gear-card-id] { cursor: pointer; }
+.gear-card[data-gear-card-id]:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+.gear-card-menu-toggle {
+    position: absolute;
+    top: 7px;
+    right: 7px;
+    width: 42px;
+    height: 42px;
+    border: 1px solid rgba(207, 189, 148, 0.24);
+    border-radius: 10px;
+    color: var(--port-gold-bright);
+    background: rgba(7, 7, 5, 0.86);
+    font-size: 1.3rem;
+    line-height: 1;
+    cursor: pointer;
 }
 
 .gear-card--wishlist {
@@ -3040,6 +3093,7 @@ textarea:focus-visible {
 
 .gear-card-heading {
     display: grid;
+    padding-right: 43px;
 }
 
 .gear-card-photo {
@@ -3126,12 +3180,40 @@ textarea:focus-visible {
 }
 
 .gear-card-actions {
-    clear: both;
+    position: absolute;
+    z-index: 4;
+    top: 52px;
+    right: 7px;
+    width: min(185px, calc(100vw - 60px));
     display: grid;
     margin-top: 13px;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     gap: 7px;
+    padding: 7px;
+    border: 1px solid rgba(230, 210, 155, 0.3);
+    border-radius: 11px;
+    background: #17150f;
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.55);
 }
+
+.gear-card-actions[hidden] { display: none; }
+.gear-list-items[data-columns="2"] .gear-card,
+.gear-list-items[data-columns="3"] .gear-card { padding: 6px; }
+.gear-list-items[data-columns="2"] .gear-card-photo,
+.gear-list-items[data-columns="3"] .gear-card-photo { float: none; display: block; width: 100%; height: auto; aspect-ratio: 1; margin: 0 0 8px; }
+.gear-list-items[data-columns="2"] .gear-card-heading,
+.gear-list-items[data-columns="3"] .gear-card-heading { padding-right: 0; }
+.gear-list-items[data-columns="2"] .gear-card:not(:has(.gear-card-photo)) .gear-card-heading,
+.gear-list-items[data-columns="3"] .gear-card:not(:has(.gear-card-photo)) .gear-card-heading { padding-top: 37px; }
+.gear-list-items[data-columns="2"] .gear-card h3,
+.gear-list-items[data-columns="3"] .gear-card h3 { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; font-size: calc(0.72rem * var(--font-scale)); }
+.gear-list-items[data-columns="2"] .gear-card-memo,
+.gear-list-items[data-columns="3"] .gear-card-memo,
+.gear-list-items[data-columns="2"] .gear-priority,
+.gear-list-items[data-columns="3"] .gear-priority { display: none; }
+.gear-list-items[data-columns="3"] .gear-card-metadata span { padding: 2px 4px; font-size: calc(0.56rem * var(--font-scale)); }
+.gear-list-items[data-columns="3"] .gear-card-price { font-size: calc(0.7rem * var(--font-scale)); overflow-wrap: anywhere; }
+.gear-list-items[data-columns="3"] .gear-card-menu-toggle { width: 36px; height: 36px; top: 5px; right: 5px; }
 
 .gear-card-actions .action-button {
     min-height: 44px;

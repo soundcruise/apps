@@ -1,8 +1,9 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.48.0';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.49.0';
 export const GEAR_LIST_STORAGE_KEY = 'cruisePort.gearList';
-export const GEAR_LIST_SCHEMA_VERSION = 4;
+export const GEAR_LIST_SCHEMA_VERSION = 5;
 
-const PREVIOUS_GEAR_LIST_SCHEMA_VERSION = 3;
+const PREVIOUS_GEAR_LIST_SCHEMA_VERSION = 4;
+const VERSION_WITHOUT_PHOTOS = 3;
 const VERSION_WITHOUT_ORDER = 2;
 const LEGACY_GEAR_LIST_SCHEMA_VERSION = 1;
 
@@ -23,6 +24,7 @@ export const GEAR_PRIORITIES = Object.freeze([
 ]);
 
 export const GEAR_LIMITS = Object.freeze({
+    manufacturer: 100,
     name: 100,
     priceText: 100,
     memo: 1000
@@ -107,6 +109,10 @@ function validateCommonGearValues(values) {
     if (name.length > GEAR_LIMITS.name) {
         return { ok: false, field: 'name', message: '名前は100文字以内で入力してください。' };
     }
+    const manufacturer = typeof values?.manufacturer === 'string' ? values.manufacturer.trim() : '';
+    if (manufacturer.length > GEAR_LIMITS.manufacturer) {
+        return { ok: false, field: 'manufacturer', message: 'メーカーは100文字以内で入力してください。' };
+    }
 
     const category = values?.category;
     if (!isValidGearCategoryId(category)) {
@@ -128,7 +134,7 @@ function validateCommonGearValues(values) {
         return { ok: false, field: 'memo', message: 'メモは1000文字以内で入力してください。' };
     }
 
-    return { ok: true, values: { name, category, priority, memo, status } };
+    return { ok: true, values: { manufacturer, name, category, priority, memo, status } };
 }
 
 export function validateGearValues(values) {
@@ -143,6 +149,7 @@ export function validateGearValues(values) {
     return {
         ok: true,
         values: {
+            manufacturer: common.values.manufacturer,
             name: common.values.name,
             category: common.values.category,
             priceText,
@@ -273,6 +280,15 @@ function isValidPhotoCrop(crop) {
 }
 
 export function isValidGearItem(item) {
+    const { manufacturer, ...v4Item } = item || {};
+    if (!isValidV4GearItem(v4Item)
+        || !hasOwn(item, 'manufacturer')
+        || typeof item.manufacturer !== 'string'
+        || item.manufacturer.trim() !== item.manufacturer) return false;
+    return true;
+}
+
+function isValidV4GearItem(item) {
     if (!isValidV3GearItem(item)
         || !hasOwn(item, 'photoId')
         || !hasOwn(item, 'photoSourceId')
@@ -363,7 +379,8 @@ export function loadGearList(storage) {
                 || !hasUniqueIds(payload.items)) {
                 return { ok: false, items: [], reason: 'invalid-data' };
             }
-            const items = migrateV3Items(migrateV2Items(payload.items.map(migrateLegacyGearItem)));
+            const items = migrateV3Items(migrateV2Items(payload.items.map(migrateLegacyGearItem)))
+                .map((item) => ({ ...item, manufacturer: '' }));
             const migrationSave = saveGearList(items, storage);
             if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
             return { ok: true, items: items.map(cloneGearItem), migrated: true };
@@ -375,7 +392,21 @@ export function loadGearList(storage) {
                 || !hasUniqueIds(payload.items)) {
                 return { ok: false, items: [], reason: 'invalid-data' };
             }
-            const items = migrateV3Items(migrateV2Items(payload.items));
+            const items = migrateV3Items(migrateV2Items(payload.items))
+                .map((item) => ({ ...item, manufacturer: '' }));
+            const migrationSave = saveGearList(items, storage);
+            if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
+            return { ok: true, items: items.map(cloneGearItem), migrated: true };
+        }
+
+        if (payload?.version === VERSION_WITHOUT_PHOTOS) {
+            if (!Array.isArray(payload.items)
+                || !payload.items.every(isValidV3GearItem)
+                || !hasUniqueIds(payload.items)
+                || !hasUniqueStatusOrders(payload.items)) {
+                return { ok: false, items: [], reason: 'invalid-data' };
+            }
+            const items = migrateV3Items(payload.items).map((item) => ({ ...item, manufacturer: '' }));
             const migrationSave = saveGearList(items, storage);
             if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
             return { ok: true, items: items.map(cloneGearItem), migrated: true };
@@ -383,12 +414,12 @@ export function loadGearList(storage) {
 
         if (payload?.version === PREVIOUS_GEAR_LIST_SCHEMA_VERSION) {
             if (!Array.isArray(payload.items)
-                || !payload.items.every(isValidV3GearItem)
+                || !payload.items.every(isValidV4GearItem)
                 || !hasUniqueIds(payload.items)
                 || !hasUniqueStatusOrders(payload.items)) {
                 return { ok: false, items: [], reason: 'invalid-data' };
             }
-            const items = migrateV3Items(payload.items);
+            const items = payload.items.map((item) => ({ ...cloneGearItem(item), manufacturer: '' }));
             const migrationSave = saveGearList(items, storage);
             if (!migrationSave.ok) return { ok: false, items: [], reason: 'migration-write-failed' };
             return { ok: true, items: items.map(cloneGearItem), migrated: true };
@@ -442,6 +473,7 @@ export function createGearItem(values, existingItems, now = new Date(), photoRef
     const order = getNewGearOrder(existingItems, values.status);
     return {
         id: createStableId(existingItems),
+        manufacturer: values.manufacturer || '',
         name: values.name,
         category: values.category,
         priceText: values.priceText,
@@ -500,6 +532,7 @@ export function updateGearItem(items, id, values, now = new Date()) {
         found = true;
         return {
             ...item,
+            manufacturer: values.manufacturer || '',
             name: values.name,
             category: values.category,
             priceText: values.priceText,

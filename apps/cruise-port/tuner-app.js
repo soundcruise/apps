@@ -1,6 +1,6 @@
 import { createTunerAudioController } from './tuner-audio.js?v=1.1.5';
 import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.1.8';
-import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.48.0';
+import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.49.0';
 import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
 import {
     TUNER_DEFAULT_THRESHOLD_DB,
@@ -10,7 +10,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=0.48.0';
+} from './tuner-store.js?v=0.49.0';
 import {
     TUNER_CAPO_MAX,
     TUNER_CAPO_MIN,

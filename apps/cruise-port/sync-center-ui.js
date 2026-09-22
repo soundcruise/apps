@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.48.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.49.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -104,7 +104,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         {
             id: 'port', name: 'Cruise Port',
             subtitle: null,
-            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.48.0`,
+            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.49.0`,
             available: activeAccount,
             environments: portEnvironments
         },
@@ -242,7 +242,7 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
         badge.className = 'sync-center-join-target';
         const icon = document.createElement('img');
         icon.src = isPortAddition
-            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.48.0`
+            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.49.0`
             : CRUISE_APP_ICONS[target.id][edition === 'pro' ? 'pro' : 'standard'];
         icon.alt = '';
         icon.width = 44;

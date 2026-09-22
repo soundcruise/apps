@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート Pro</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.48.0">
-    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.48.0">
-    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.48.0">
+    <link rel="manifest" href="./manifest.json?v=0.49.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.49.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.49.0">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.48.0">
+    <link rel="stylesheet" href="../style.css?v=0.49.0">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=21">
     <script>
@@ -29,12 +29,12 @@
     <script defer src="../../shared/sync-account/multi-app-sync-db.js?v=4"></script>
     <script defer src="../../shared/sync-account/multi-app-sync-runtime.js?v=17"></script>
     <script defer src="../../shared/sync-account/multi-app-conflict-ui.js?v=5"></script>
-    <script defer src="../port-sync-adapter.js?v=0.48.0"></script>
-    <script defer src="../port-sync-controller.js?v=0.48.0"></script>
+    <script defer src="../port-sync-adapter.js?v=0.49.0"></script>
+    <script defer src="../port-sync-controller.js?v=0.49.0"></script>
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.48.0"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.49.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -205,7 +205,7 @@
                         </div>
                     </div>
                     <div class="sync-center-app sync-center-port-card" role="status" aria-live="polite">
-                        <img src="/apps/cruise-port/assets/app-icons/pro/icon-192.png?v=0.48.0" alt="" width="48" height="48">
+                        <img src="/apps/cruise-port/assets/app-icons/pro/icon-192.png?v=0.49.0" alt="" width="48" height="48">
                         <div class="sync-center-app-copy">
                             <strong>Cruise Port</strong>
                             <span class="sync-center-app-status-line"><span id="sync-center-port-status-chip" class="sync-center-app-status-chip sync-center-app-status-chip--attention" data-sync-port-status="attention">確認が必要</span><button id="sync-center-port-conflicts-open" class="sync-center-port-conflicts-open" type="button" hidden>競合を確認する</button></span>
@@ -358,8 +358,9 @@
 
                 <div class="gear-list-tabs" role="tablist" aria-label="機材リストの種類">
                     <button id="gear-all-tab" type="button" role="tab" aria-selected="true" aria-controls="gear-list-content" data-gear-status="all">全て</button>
-                    <button id="gear-owned-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="owned">自分の機材</button>
                     <button id="gear-wishlist-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="wishlist">ほしい機材</button>
+                    <button id="gear-owned-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="owned">自分の機材</button>
+                    <button id="gear-sold-tab" type="button" role="tab" aria-selected="false" aria-controls="gear-list-content" data-gear-status="sold">手放した機材</button>
                 </div>
 
                 <div class="gear-category-toolbar">
@@ -380,6 +381,14 @@
                             </button>
                         </div>
                     </div>
+                </div>
+                <div class="gear-display-toolbar">
+                    <div class="gear-grid-picker" role="group" aria-label="機材カードの列数">
+                        <button type="button" data-gear-columns="1">1列</button>
+                        <button type="button" data-gear-columns="2">2列</button>
+                        <button type="button" data-gear-columns="3">3列</button>
+                    </div>
+                    <button id="gear-list-export" type="button" class="gear-export-button">この一覧をCSVで書き出す</button>
                 </div>
                 <p id="gear-list-storage-error" class="notice notice-error" role="alert" hidden></p>
 
@@ -418,6 +427,10 @@
                 <h1 id="gear-form-title" class="view-title" tabindex="-1">機材を追加</h1>
 
                 <form id="gear-list-form" novalidate>
+                    <div class="form-field">
+                        <label for="gear-manufacturer">メーカー <span class="optional-label">任意・100文字以内</span></label>
+                        <input id="gear-manufacturer" name="manufacturer" type="text" maxlength="100" autocomplete="off">
+                    </div>
                     <div class="form-field">
                         <label for="gear-name">名前 <span class="required-label">必須・100文字以内</span></label>
                         <input id="gear-name" name="name" type="text" maxlength="100" autocomplete="off" required>
@@ -476,6 +489,7 @@
                     <div class="form-actions">
                         <button class="action-button primary-action" type="submit">保存</button>
                         <button class="action-button secondary-action" type="button" data-action="gear-list">キャンセル</button>
+                        <button id="gear-single-export" class="action-button secondary-action" type="button" hidden>書き出す / 共有</button>
                     </div>
                 </form>
             </section>

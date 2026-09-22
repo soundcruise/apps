@@ -33,7 +33,7 @@ function createSharedStoragePair(initial = {}) {
     return [create(), create()];
 }
 
-test('new users receive the five formal categories in order', () => {
+test('new users receive the six formal categories in order', () => {
     const storage = createMemoryStorage();
     const result = loadGearCategories([], storage);
     assert.equal(result.ok, true);
@@ -43,7 +43,8 @@ test('new users receive the five formal categories in order', () => {
         { id: 'amp', name: 'アンプ' },
         { id: 'sound', name: 'エフェクター' },
         { id: 'recording', name: '配信・録音' },
-        { id: 'accessories', name: 'アクセサリー' }
+        { id: 'accessories', name: 'アクセサリー' },
+        { id: 'other', name: 'その他' }
     ]);
     const payload = JSON.parse(storage.snapshot()[GEAR_CATEGORY_STORAGE_KEY]);
     assert.equal(payload.version, GEAR_CATEGORY_SCHEMA_VERSION);
@@ -68,7 +69,7 @@ test('existing users retain every used legacy category without merging items', (
         { category: 'amp' }, { category: 'effects' }, { category: 'accessories' }, { category: 'guitar' }
     ]);
     assert.deepEqual(allLegacy.map(({ id }) => id), [
-        'guitar', 'amp', 'sound', 'recording', 'accessories', 'effects', 'dtm', 'other'
+        'guitar', 'amp', 'sound', 'recording', 'accessories', 'other', 'effects', 'dtm'
     ]);
 });
 
@@ -126,7 +127,7 @@ test('the formal sound category label upgrades without changing its stable id or
     assert.equal(JSON.parse(storage.snapshot()['cruisePort.gearList']).items[0].category, 'sound');
 });
 
-test('existing default categories gain amp and recording in the formal order without Gear rewrites', () => {
+test('existing default categories gain amp, recording, and other without Gear rewrites', () => {
     const storage = createMemoryStorage({
         [GEAR_CATEGORY_STORAGE_KEY]: JSON.stringify({
             version: GEAR_CATEGORY_SCHEMA_VERSION,
@@ -154,6 +155,7 @@ test('existing default categories gain amp and recording in the formal order wit
         { id: 'sound', name: 'エフェクター' },
         { id: 'recording', name: '配信・録音' },
         { id: 'accessories', name: 'アクセサリー' },
+        { id: 'other', name: 'その他' },
         { id: 'category-live', name: 'ライブ用' }
     ]);
     assert.deepEqual(JSON.parse(storage.snapshot()['cruisePort.gearList']).items, items);
@@ -234,17 +236,18 @@ test('deleting an empty category removes only its definition and permits an empt
     const snapshot = structuredClone(item);
     const removed = deleteGearCategory(DEFAULT_GEAR_CATEGORIES, 'guitar');
     assert.equal(removed.ok, true);
-    assert.deepEqual(removed.categories.map(({ id }) => id), ['amp', 'sound', 'recording', 'accessories']);
+    assert.deepEqual(removed.categories.map(({ id }) => id), ['amp', 'sound', 'recording', 'accessories', 'other']);
     assert.deepEqual(item, snapshot);
 
     const withoutAmp = deleteGearCategory(removed.categories, 'amp');
     const withoutSound = deleteGearCategory(withoutAmp.categories, 'sound');
     const withoutRecording = deleteGearCategory(withoutSound.categories, 'recording');
     const withoutAccessories = deleteGearCategory(withoutRecording.categories, 'accessories');
-    assert.equal(withoutAccessories.ok, true);
-    assert.deepEqual(withoutAccessories.categories, []);
+    const withoutOther = deleteGearCategory(withoutAccessories.categories, 'other');
+    assert.equal(withoutOther.ok, true);
+    assert.deepEqual(withoutOther.categories, []);
     const storage = createMemoryStorage();
-    assert.equal(saveGearCategories(withoutAccessories.categories, storage).ok, true);
+    assert.equal(saveGearCategories(withoutOther.categories, storage).ok, true);
     assert.deepEqual(loadGearCategories([], storage).categories, []);
 });
 
@@ -284,12 +287,12 @@ test('initialization is idempotent and does not duplicate used legacy categories
 test('a missing association is repaired without rewriting the item', () => {
     const storage = createMemoryStorage();
     loadGearCategories([], storage);
-    const item = { category: 'other' };
+    const item = { category: 'legacy-custom' };
     const result = loadGearCategories([item], storage);
     assert.equal(result.ok, true);
     assert.equal(result.repaired, true);
-    assert.equal(result.categories.some(({ id }) => id === 'other'), true);
-    assert.equal(item.category, 'other');
+    assert.equal(result.categories.some(({ id }) => id === 'legacy-custom'), true);
+    assert.equal(item.category, 'legacy-custom');
 });
 
 test('malformed category settings remain untouched and fall back safely in memory', () => {

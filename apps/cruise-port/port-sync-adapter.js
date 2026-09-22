@@ -401,7 +401,7 @@
     write(storage, 'cruisePort.gearCategories', { version: 1, categories: ordered(normalized, 'gear_category', 'gear_category_order').map((item) => item.payload.value) });
     const gearRank = new Map();
     byType(normalized, 'gear_order').forEach((order) => order.payload.value.forEach((id, index) => gearRank.set(id, index)));
-    write(storage, 'cruisePort.gearList', { version: 4, items: byType(normalized, 'gear_item').map((entry) => {
+    write(storage, 'cruisePort.gearList', { version: 5, items: byType(normalized, 'gear_item').map((entry) => {
       const local = currentGear.find((item) => item.id === entry.recordId);
       const metadataEntry = currentAssets.gear[entry.recordId] || {};
       const repair = repairs.gear.has(entry.recordId);
@@ -410,7 +410,8 @@
       if (metadataEntry.binding?.final?.assetId !== metadataEntry.published?.final?.assetId) metadataEntry.binding = null;
       currentAssets.gear[entry.recordId] = metadataEntry;
       const value = repair ? { ...entry.payload.value, asset: clone(metadataEntry.published) } : entry.payload.value;
-      return { ...restoreAsset(value, local, 'gear', metadataEntry), order: gearRank.get(entry.recordId) ?? 0 };
+      const restored = restoreAsset(value, local, 'gear', metadataEntry);
+      return { ...restored, manufacturer: restored.manufacturer ?? '', order: gearRank.get(entry.recordId) ?? 0 };
     }) });
     write(storage, 'cruisePort.myApps', { version: 6, items: ordered(normalized, 'my_app', 'my_app_order').map((entry) => {
       const local = currentApps.find((item) => item.id === entry.recordId);
