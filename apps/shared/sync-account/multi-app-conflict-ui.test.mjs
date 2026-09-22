@@ -198,6 +198,7 @@ test('tombstone presentation stays visible as a plain-language saved/deleted com
   const fixture = viewFixture();
   const tombstone = presentation('deleted', 'ウォーミングアップ', {
     title: '練習メニュー',
+    localState: '削除されています', remoteState: '保存されています',
     fields: [{ label: '状態', local: '削除済み', remote: '保存済み' }]
   });
   const runtime = {
@@ -209,6 +210,20 @@ test('tombstone presentation stays visible as a plain-language saved/deleted com
   const shown = fixture.events.find((event) => event[0] === 'show');
   assert.equal(shown[1][0], 'deleted');
   assert.deepEqual(tombstone.presentation.fields[0], { label: '状態', local: '削除済み', remote: '保存済み' });
+});
+
+test('individual cards omit the normal state table and keep only concise deletion differences', () => {
+  assert.doesNotMatch(source, /sound-cruise-sync-conflict-comparison|sound-cruise-sync-conflict-row/);
+  assert.match(source, /if \(presentation\.localState === presentation\.remoteState\) return/);
+  assert.match(source, /sound-cruise-sync-conflict-deletion-difference/);
+  assert.match(source, /\['この端末', presentation\.localState\], \['クラウド', presentation\.remoteState\]/);
+  assert.match(source, /String\(value\)\.includes\('削除'\) \? '削除済み' : '保存されています'/);
+});
+
+test('individual cards retain both timestamps and fail unknown authority closed', () => {
+  assert.match(source, /この端末　最終更新/);
+  assert.match(source, /クラウド　最終更新/);
+  assert.match(source, /return '更新日時不明'/);
 });
 
 test('DOM copy uses overview, immediate bulk actions, Help, closed individual accordion and quiet Later', () => {

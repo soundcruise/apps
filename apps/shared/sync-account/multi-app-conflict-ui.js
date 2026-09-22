@@ -285,24 +285,23 @@
       return row;
     }
 
-    function renderComparison(parent, presentation) {
-      const comparison = document.createElement('div');
-      comparison.className = 'sound-cruise-sync-conflict-comparison';
-      const headings = document.createElement('div');
-      headings.className = 'sound-cruise-sync-conflict-row sound-cruise-sync-conflict-headings';
-      appendTextElement(document, headings, 'span', '', '項目');
-      appendTextElement(document, headings, 'span', '', 'この端末');
-      appendTextElement(document, headings, 'span', '', 'クラウド');
-      comparison.append(headings);
-      for (const field of presentation.fields) {
-        const row = document.createElement('div');
-        row.className = 'sound-cruise-sync-conflict-row';
-        appendTextElement(document, row, 'span', 'sound-cruise-sync-conflict-label', field.label);
-        appendTextElement(document, row, 'span', '', field.local);
-        appendTextElement(document, row, 'span', '', field.remote);
-        comparison.append(row);
+    function conciseState(value) {
+      return String(value).includes('削除') ? '削除済み' : '保存されています';
+    }
+
+    function renderDeletionDifference(parent, presentation) {
+      if (presentation.localState === presentation.remoteState) return;
+      const states = document.createElement('div');
+      states.className = 'sound-cruise-sync-conflict-deletion-difference';
+      for (const [label, value] of [
+        ['この端末', presentation.localState], ['クラウド', presentation.remoteState]
+      ]) {
+        const side = document.createElement('div');
+        appendTextElement(document, side, 'span', '', label);
+        appendTextElement(document, side, 'strong', '', conciseState(value));
+        states.append(side);
       }
-      parent.append(comparison);
+      parent.append(states);
     }
 
     function renderChoice(parent, item, selected, index) {
@@ -344,11 +343,12 @@
           appendTextElement(document, cardHeader, 'h3', 'sound-cruise-sync-conflict-title', `${presentation.appName}　${presentation.title}`);
           appendTextElement(document, cardHeader, 'p', 'sound-cruise-sync-conflict-name', presentation.name);
           card.append(cardHeader);
-          const times = document.createElement('p');
+          const times = document.createElement('div');
           times.className = 'sound-cruise-sync-conflict-detail-times';
-          times.textContent = `この端末 ${formatUpdatedAt(presentation.localUpdatedAt)} ／ クラウド ${formatUpdatedAt(presentation.remoteUpdatedAt)}`;
+          appendTextElement(document, times, 'span', '', `この端末　最終更新 ${formatUpdatedAt(presentation.localUpdatedAt)}`);
+          appendTextElement(document, times, 'span', '', `クラウド　最終更新 ${formatUpdatedAt(presentation.remoteUpdatedAt)}`);
           card.append(times);
-          renderComparison(card, presentation);
+          renderDeletionDifference(card, presentation);
           renderChoice(card, item, selections.get(item.id), index);
           list.append(card);
         });

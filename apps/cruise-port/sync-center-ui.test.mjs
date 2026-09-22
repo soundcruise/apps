@@ -202,8 +202,8 @@ test('Environment management keeps the Port path compact and the app-specific pa
 
 test('Cruise Port installs the existing conflict resolution UI before startup sync', () => {
     for (const html of [root, pro]) {
-        assert.match(html, /multi-app-conflict-ui\.js\?v=4/);
-        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=4') < html.indexOf('practice-menu-app.js'));
+        assert.match(html, /multi-app-conflict-ui\.js\?v=5/);
+        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=5') < html.indexOf('practice-menu-app.js'));
     }
     assert.match(app, /installConflictResolutionUi\?\.\(portSyncController\?\.runtime, document\)/);
 });

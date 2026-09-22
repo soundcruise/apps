@@ -525,22 +525,27 @@
 .sound-cruise-sync-conflict-card > header { display: grid; gap: .1rem; }
 .sound-cruise-sync-conflict-title { font-size: 1rem; color: #f3e5b6; }
 .sound-cruise-sync-conflict-name { color: #fff; font-weight: 700; overflow-wrap: anywhere; }
-.sound-cruise-sync-conflict-detail-times { color: #cfc6ae; font-size: .78rem; }
-.sound-cruise-sync-conflict-comparison {
+.sound-cruise-sync-conflict-detail-times {
   display: grid;
-  overflow: hidden;
+  gap: .15rem;
+  color: #cfc6ae;
+  font-size: .78rem;
+}
+.sound-cruise-sync-conflict-deletion-difference {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: .45rem;
+}
+.sound-cruise-sync-conflict-deletion-difference > div {
+  display: grid;
+  gap: .15rem;
+  padding: .55rem .65rem;
   border: 1px solid #4d4428;
   border-radius: .65rem;
+  background: #17150f;
 }
-.sound-cruise-sync-conflict-row {
-  display: grid;
-  grid-template-columns: minmax(5rem, .8fr) repeat(2, minmax(0, 1fr));
-}
-.sound-cruise-sync-conflict-row + .sound-cruise-sync-conflict-row { border-top: 1px solid #4d4428; }
-.sound-cruise-sync-conflict-row span { padding: .55rem; font-size: .88rem; overflow-wrap: anywhere; }
-.sound-cruise-sync-conflict-row span + span { border-left: 1px solid #4d4428; }
-.sound-cruise-sync-conflict-headings,
-.sound-cruise-sync-conflict-label { font-weight: 700; background: #211d10; }
+.sound-cruise-sync-conflict-deletion-difference span { color: #cfc6ae; font-size: .76rem; }
+.sound-cruise-sync-conflict-deletion-difference strong { color: #f3e5b6; font-size: .88rem; }
 .sound-cruise-sync-conflict-choice {
   min-width: 0;
   margin: 0;
@@ -603,8 +608,6 @@
   .sound-cruise-sync-conflict-state { grid-column: 1 / -1; }
   .sound-cruise-sync-conflict-bulk-actions { grid-template-columns: 1fr; }
   .sound-cruise-sync-conflict-card { padding: .65rem; }
-  .sound-cruise-sync-conflict-row { grid-template-columns: minmax(4.5rem, .7fr) repeat(2, minmax(0, 1fr)); }
-  .sound-cruise-sync-conflict-row span { padding: .5rem .4rem; font-size: .8rem; }
   .sound-cruise-sync-conflict-footer { grid-template-columns: 1fr; }
   .sound-cruise-sync-conflict-footer button { width: 100%; }
 }
