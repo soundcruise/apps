@@ -10,6 +10,7 @@
     'app_identity_deleting', 'app_identity_deleted'
   ]);
   const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+  const MAX_PUSH_OPERATIONS = 50;
 
   function keyOf(record) { return `${record.recordType}/${record.recordId}`; }
   function isDeleted(record) { return record?.deletedAt != null || record?.deleted === true; }
@@ -671,52 +672,66 @@
 
     async flushOutbox({ migration = false, force = false } = {}) {
       const now = this.now();
-      const operations = (await this.store.listOutbox()).filter((item) =>
-        item.migration === migration && !item.conflict && !item.terminalError && (force || !item.nextRetryAt || item.nextRetryAt <= now)
-      ).slice(0, 100);
-      if (!operations.length) return { ok: true, sent: 0, conflict: 0 };
-      let payload;
-      try {
-        payload = await this.request('POST', '/v1/sync/push', {
-          appId: this.appId,
-          mode: migration ? 'migration' : 'sync',
-          operations: operations.map(({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }) =>
-            ({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }))
-        });
-      } catch (error) {
-        for (const operation of operations) {
-          const attempts = Number(operation.attempts || 0) + 1;
-          const retryable = error instanceof MultiAppSyncError && (RETRYABLE_STATUS.has(error.status) || PAUSE_CODES.has(error.code));
-          await this.store.putOutbox({
-            ...operation, attempts,
-            nextRetryAt: retryable ? now + Math.min(300000, 1000 * (2 ** Math.min(attempts, 8))) : 0,
-            ...(retryable ? {} : { terminalError: error.code || 'push_failed' })
-          });
-        }
-        throw error;
-      }
+      const initial = await this.store.listOutbox();
+      const oversizedInvalidMigration = initial.filter((item) => item.migration === true &&
+        !item.conflict && item.terminalError === 'invalid_request');
+      const recoverableIds = new Set(migration && oversizedInvalidMigration.length > MAX_PUSH_OPERATIONS
+        ? oversizedInvalidMigration.map((item) => item.operationId) : []);
+      let sent = 0;
       let conflicts = 0;
-      for (const result of payload.results || []) {
-        const operation = operations.find((item) => item.operationId === result.operationId);
-        if (!operation) throw new MultiAppSyncError('invalid_response');
-        if (['applied', 'duplicate'].includes(result.status)) await this.store.deleteOutbox(operation.operationId);
-        else if (result.status === 'conflict') {
-          conflicts += 1;
-          const recordKey = keyOf(operation);
-          const localRecord = operation.deleted ? null : {
-            recordType: operation.recordType, recordId: operation.recordId,
-            schemaVersion: operation.schemaVersion, payload: clone(operation.payload), payloadHash: operation.payloadHash
-          };
-          await this.recordConflict('push', recordKey, {
-            localRecord,
-            remoteRecord: result.record || null,
-            shadowRecord: await this.store.getShadow?.(recordKey)
+      while (true) {
+        const operations = (await this.store.listOutbox()).filter((item) =>
+          item.migration === migration && !item.conflict &&
+          (!item.terminalError || recoverableIds.has(item.operationId)) &&
+          (force || !item.nextRetryAt || item.nextRetryAt <= now)
+        ).slice(0, MAX_PUSH_OPERATIONS);
+        if (!operations.length) return { ok: conflicts === 0, sent, conflict: conflicts };
+        operations.forEach((item) => recoverableIds.delete(item.operationId));
+        let payload;
+        try {
+          payload = await this.request('POST', '/v1/sync/push', {
+            appId: this.appId,
+            mode: migration ? 'migration' : 'sync',
+            operations: operations.map(({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }) =>
+              ({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }))
           });
-          await this.store.putOutbox({ ...operation, conflict: true });
-        } else await this.store.putOutbox({ ...operation, terminalError: result.code || 'invalid' });
+        } catch (error) {
+          for (const operation of operations) {
+            const attempts = Number(operation.attempts || 0) + 1;
+            const retryable = error instanceof MultiAppSyncError && (RETRYABLE_STATUS.has(error.status) || PAUSE_CODES.has(error.code));
+            await this.store.putOutbox({
+              ...operation, attempts,
+              nextRetryAt: retryable ? now + Math.min(300000, 1000 * (2 ** Math.min(attempts, 8))) : 0,
+              ...(retryable ? {} : { terminalError: error.code || 'push_failed' })
+            });
+          }
+          throw error;
+        }
+        sent += operations.length;
+        for (const result of payload.results || []) {
+          const operation = operations.find((item) => item.operationId === result.operationId);
+          if (!operation) throw new MultiAppSyncError('invalid_response');
+          if (['applied', 'duplicate'].includes(result.status)) await this.store.deleteOutbox(operation.operationId);
+          else if (result.status === 'conflict') {
+            conflicts += 1;
+            const recordKey = keyOf(operation);
+            const localRecord = operation.deleted ? null : {
+              recordType: operation.recordType, recordId: operation.recordId,
+              schemaVersion: operation.schemaVersion, payload: clone(operation.payload), payloadHash: operation.payloadHash
+            };
+            await this.recordConflict('push', recordKey, {
+              localRecord,
+              remoteRecord: result.record || null,
+              shadowRecord: await this.store.getShadow?.(recordKey)
+            });
+            await this.store.putOutbox({ ...operation, conflict: true });
+          } else await this.store.putOutbox({ ...operation, terminalError: result.code || 'invalid' });
+        }
+        if (conflicts) {
+          this.setState('attention', { reason: 'conflict' });
+          return { ok: false, sent, conflict: conflicts };
+        }
       }
-      if (conflicts) this.setState('attention', { reason: 'conflict' });
-      return { ok: conflicts === 0, sent: operations.length, conflict: conflicts };
     }
 
     async replaceShadow(records, cursor = null) {

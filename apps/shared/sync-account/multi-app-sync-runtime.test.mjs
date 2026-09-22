@@ -95,7 +95,7 @@ function serverFetch() {
   const server = {
     state: 'missing', records: new Map(), revision: 0, paused: false,
     nextSnapshotFailure: null, nextPushFailure: null, responseLossAfterApply: false,
-    beforeNextPush: null, pushCalls: 0, pushedOperationIds: [], operations: new Map()
+    beforeNextPush: null, pushCalls: 0, pushBatchSizes: [], pushedOperationIds: [], operations: new Map()
   };
   const fetchImpl = async (url, init) => {
     const path = new URL(url).pathname;
@@ -134,6 +134,7 @@ function serverFetch() {
         await before(server);
       }
       const body = JSON.parse(init.body);
+      server.pushBatchSizes.push(body.operations.length);
       const results = body.operations.map((operation) => {
         server.pushedOperationIds.push(operation.operationId);
         const duplicate = server.operations.get(operation.operationId);
@@ -371,6 +372,25 @@ test('a conflict-resolved migration resumes from its exact remote shadow without
   assert.equal(fixture.server.records.get('my_app_order/order').payload.name, 'Chosen local order');
   assert.equal(await fixture.store.readMeta('migrationState'), 'complete');
   assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('an oversized migration retries the retained invalid-request cohort in Worker-sized batches', async () => {
+  const records = Array.from({ length: 85 }, (_, index) => record(`item-${index}`, `Item ${index}`));
+  const fixture = runtimeFixture(records, 'port', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  const local = await fixture.runtime.localRecords();
+  await fixture.runtime.queueDiff(local.records, [], [], { migration: true });
+  for (const operation of await fixture.store.listOutbox()) {
+    await fixture.store.putOutbox({ ...operation, attempts: 1, terminalError: 'invalid_request' });
+  }
+
+  const result = await fixture.runtime.initializeDataset();
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(fixture.server.pushBatchSizes, [50, 35]);
+  assert.equal(fixture.server.records.size, 85);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal(await fixture.store.readMeta('migrationState'), 'complete');
 });
 
 test('an initializing snapshot containing another device record remains fail-closed', async () => {
