@@ -2340,6 +2340,7 @@ textarea:focus-visible {
         "icon count add"
         "details details details";
     align-items: center;
+    align-content: center;
     column-gap: 12px;
     row-gap: 4px;
     min-height: 68px;
@@ -2366,16 +2367,22 @@ textarea:focus-visible {
     grid-area: count;
     justify-self: start;
     align-self: center;
-    min-height: 28px;
-    margin-left: -8px;
-    padding: 0 8px;
+    position: relative;
+    min-height: 0;
+    padding: 0;
     border: 0;
     border-radius: 0;
     color: var(--port-muted);
     background: transparent;
     font-size: calc(0.68rem * var(--font-scale));
+    line-height: 1.35;
     text-decoration: none;
     white-space: nowrap;
+}
+.sync-center-destination-card .sync-center-destination-count::before {
+    content: '';
+    position: absolute;
+    inset: -12px -8px;
 }
 .sync-center-destination-card .sync-center-destination-count:disabled { text-decoration: none; }
 .sync-center-destination-card .sync-center-environment-list { grid-area: details; width: 100%; }
@@ -2623,7 +2630,7 @@ textarea:focus-visible {
     }
     .sync-center-destination-card img { width: 40px; height: 40px; }
     .sync-center-destination-add { min-height: 38px; padding-inline: 7px; font-size: calc(0.72rem * var(--font-scale)); }
-    .sync-center-destination-count { font-size: calc(0.66rem * var(--font-scale)); }
+    .sync-center-destination-card .sync-center-destination-count { font-size: calc(0.66rem * var(--font-scale)); }
 }
 
 .settings-card h2 {

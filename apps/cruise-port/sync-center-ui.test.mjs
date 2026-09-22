@@ -180,7 +180,9 @@ test('Environment management keeps the Port path compact and the app-specific pa
     assert.match(styles, /\.sync-center-destination-card\s*\{[\s\S]*grid-template-areas:[\s\S]*"icon name add"[\s\S]*"icon count add"/);
     assert.match(styles, /\.sync-center-destination-primary\s*\{[\s\S]*display:\s*contents/);
     assert.match(styles, /\.sync-center-destination-primary \.sync-center-app-copy strong\s*\{[\s\S]*white-space:\s*nowrap/);
-    assert.match(styles, /\.sync-center-destination-card \.sync-center-destination-count\s*\{[\s\S]*grid-area:\s*count[\s\S]*justify-self:\s*start[\s\S]*min-height:\s*28px[\s\S]*border:\s*0[\s\S]*background:\s*transparent[\s\S]*text-decoration:\s*none/);
+    assert.match(styles, /\.sync-center-destination-card\s*\{[\s\S]*align-content:\s*center/);
+    assert.match(styles, /\.sync-center-destination-card \.sync-center-destination-count\s*\{[\s\S]*grid-area:\s*count[\s\S]*justify-self:\s*start[\s\S]*min-height:\s*0[\s\S]*border:\s*0[\s\S]*background:\s*transparent[\s\S]*text-decoration:\s*none/);
+    assert.match(styles, /\.sync-center-destination-card \.sync-center-destination-count::before\s*\{[\s\S]*position:\s*absolute[\s\S]*inset:\s*-12px -8px/);
     assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-app\s*\{[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);
     assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-destination-card\s*\{[\s\S]*grid-template-columns:\s*44px minmax\(0, 1fr\) max-content/);
 });
