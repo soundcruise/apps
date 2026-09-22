@@ -211,7 +211,7 @@ test('Cruise Port settings entry uses the shared card language and isolated acti
   const port = readFileSync(new URL('cruise-port/index.html', root), 'utf8');
   const portApp = readFileSync(new URL('cruise-port/practice-menu-app.js', root), 'utf8');
   assert.match(port, /id="settings-sync-center-entry" class="sound-cruise-sync-settings-card/);
-  assert.match(port, /Cruise PortやCruiseアプリの保存データを、同じアカウントでクラウドに同期できます。/);
+  assert.doesNotMatch(port, /Cruise PortやCruiseアプリの保存データを、同じアカウントでクラウドに同期できます。/);
   assert.match(port, /id="settings-sync-center-open"[\s\S]*クラウド同期を開く/);
   assert.match(port, /id="settings-sync-center-help"/);
   assert.match(portApp, /syncCenterOpen\.addEventListener\('click',[\s\S]*openSyncCenter\(history\)/);
