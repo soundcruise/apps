@@ -155,6 +155,14 @@ test('Cloud Sync shows a compact independent status for Cruise Port data', () =>
     assert.doesNotMatch(root, /Cruise PortをHome画面から削除/);
 });
 
+test('Cruise Port installs the existing conflict resolution UI before startup sync', () => {
+    for (const html of [root, pro]) {
+        assert.match(html, /multi-app-conflict-ui\.js\?v=2/);
+        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=2') < html.indexOf('practice-menu-app.js'));
+    }
+    assert.match(app, /installConflictResolutionUi\?\.\(portSyncController\?\.runtime, document\)/);
+});
+
 test('current Port detach is distinct from generic environment revoke and leaves Section 2 informational when Account is unset', () => {
     assert.match(ui, /dataset\.syncEnvironmentRevoke = environment\.id/);
     assert.match(ui, /kind: 'current-environment'/);

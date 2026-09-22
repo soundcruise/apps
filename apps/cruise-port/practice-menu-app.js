@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.45.2';
+} from './practice-menu-store.js?v=0.45.3';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.45.2';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.45.3';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.45.2';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.45.2';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.45.2';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.45.2';
+} from './sync-center-controller.js?v=0.45.3';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.45.3';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.45.3';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.45.3';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.45.2';
+} from './sync-center-navigation.js?v=0.45.3';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.45.2';
+} from './practice-menu-progress-store.js?v=0.45.3';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.45.2';
+} from './practice-menu-history-store.js?v=0.45.3';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.45.2';
+} from './practice-menu-calendar-store.js?v=0.45.3';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -82,7 +82,7 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.45.2';
+} from './practice-menu-timer-store.js?v=0.45.3';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -119,7 +119,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.45.2';
+} from './my-apps-store.js?v=0.45.3';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -170,9 +170,9 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.45.2';
+} from './app-version.js?v=0.45.3';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.45.2';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.45.3';
 import { initTuner } from './tuner-app.js?v=0.27.0';
 import {
     clearGearPhotoReferences,
@@ -191,7 +191,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.45.2';
+} from './gear-list-store.js?v=0.45.3';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -200,9 +200,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.45.2';
+} from './gear-category-store.js?v=0.45.3';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.45.2';
+import { PortAssetSync } from './port-asset-sync.js?v=0.45.3';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -250,6 +250,7 @@ applyProLinks();
 applyHomeCruiseLinks();
 const syncCenterController = createSyncCenterController({ config: syncCenterConfig });
 const portSyncController = globalThis.SoundCruisePortSync?.createPortSyncController?.({ config: syncCenterConfig });
+globalThis.SoundCruiseMultiAppSync?.installConflictResolutionUi?.(portSyncController?.runtime, document);
 const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController });
 bindHomeCruiseLaunch(syncCenterOrchestrator);
 const PORT_SYNC_HELP_SUMMARY = '4つのProアプリのデータを、Cruise Portからまとめて管理できます。知りたい項目を下から選んでください。';

@@ -18,6 +18,12 @@
     ['cruisePort.tuner', 'tuner_settings', 'default'],
     ['cruisePort.practiceProgress', 'practice_cycle', 'current']
   ]);
+  const ORDER_ITEM_TYPES = Object.freeze({
+    gear_category_order: 'gear_category',
+    gear_order: 'gear_item',
+    practice_menu_order: 'practice_menu',
+    my_app_order: 'my_app'
+  });
   const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u;
   const FORBIDDEN_KEY = /(?:credential|verifier|password|secret|token|recovery.?code|join.?code|blob|base64|binary)/iu;
 
@@ -260,6 +266,21 @@
     })) });
   }
   function keyOf(item) { return `${item.recordType}/${item.recordId}`; }
+  function mergeDisjointOrder(localRecord, remoteRecord, localRecords, remoteRecords) {
+    const itemType = ORDER_ITEM_TYPES[localRecord?.recordType];
+    const localOrder = localRecord?.payload?.value;
+    const remoteOrder = remoteRecord?.payload?.value;
+    if (!itemType || !Array.isArray(localOrder) || !Array.isArray(remoteOrder)) return null;
+    const remoteIds = new Set(remoteOrder);
+    if (localOrder.some((id) => remoteIds.has(id))) return null;
+    const localItems = new Set(localRecords.filter((item) => item.recordType === itemType).map((item) => item.recordId));
+    const remoteItems = new Set(remoteRecords.filter((item) => item.recordType === itemType).map((item) => item.recordId));
+    if (!localOrder.every((id) => localItems.has(id)) || !remoteOrder.every((id) => remoteItems.has(id))) return null;
+    return {
+      ...clone(remoteRecord),
+      payload: { ...clone(remoteRecord.payload), value: [...remoteOrder, ...localOrder] }
+    };
+  }
   function mergeSnapshots(localSnapshot, remoteSnapshot) {
     const local = normalizeSnapshot(localSnapshot); const remote = normalizeSnapshot(remoteSnapshot);
     const merged = new Map(remote.records.map((item) => [keyOf(item), item]));
@@ -267,7 +288,9 @@
     local.records.forEach((item) => {
       const current = merged.get(keyOf(item));
       if (current && canonical(current.payload) !== canonical(item.payload)) {
-        conflicts.push({ recordKey: keyOf(item), reason: 'same_record_changed' });
+        const combinedOrder = mergeDisjointOrder(item, current, local.records, remote.records);
+        if (combinedOrder) merged.set(keyOf(item), combinedOrder);
+        else conflicts.push({ recordKey: keyOf(item), reason: 'same_record_changed' });
       } else merged.set(keyOf(item), item);
     });
     return { snapshot: normalizeSnapshot({ schemaVersion: SCHEMA_VERSION, records: [...merged.values()] }), conflicts };

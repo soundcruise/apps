@@ -136,6 +136,63 @@ test('Port merge safe-stops only same-record divergence', () => {
   assert.equal(merged.snapshot.records.length, 2);
 });
 
+test('Port initial merge combines disjoint environment order records without blocking unrelated pull', () => {
+  const api = load(storage());
+  const item = (type, id, value) => ({ recordType: type, recordId: id, schemaVersion: 1, payload: { id, value } });
+  const local = {
+    schemaVersion: 1,
+    records: [
+      item('practice_menu', 'local-menu', { name: 'Local menu' }),
+      item('practice_menu_order', 'default', ['local-menu']),
+      item('my_app', 'local-app-a', { name: 'Local A' }),
+      item('my_app', 'local-app-b', { name: 'Local B' }),
+      item('my_app_order', 'default', ['local-app-a', 'local-app-b'])
+    ]
+  };
+  const remote = {
+    schemaVersion: 1,
+    records: [
+      item('practice_menu', 'remote-menu-a', { name: 'Remote A' }),
+      item('practice_menu', 'remote-menu-b', { name: 'Remote B' }),
+      item('practice_menu_order', 'default', ['remote-menu-a', 'remote-menu-b']),
+      item('my_app', 'remote-app', { name: 'Remote app' }),
+      item('my_app_order', 'default', ['remote-app'])
+    ]
+  };
+
+  const merged = api.mergeSnapshots(local, remote);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(merged.conflicts)), []);
+  const byKey = new Map(merged.snapshot.records.map((record) => [`${record.recordType}/${record.recordId}`, record]));
+  assert.deepEqual(JSON.parse(JSON.stringify(byKey.get('practice_menu_order/default').payload.value)),
+    ['remote-menu-a', 'remote-menu-b', 'local-menu']);
+  assert.deepEqual(JSON.parse(JSON.stringify(byKey.get('my_app_order/default').payload.value)),
+    ['remote-app', 'local-app-a', 'local-app-b']);
+  assert.equal(merged.snapshot.records.filter((record) => record.recordType === 'practice_menu').length, 3);
+  assert.equal(merged.snapshot.records.filter((record) => record.recordType === 'my_app').length, 3);
+});
+
+test('Port initial merge keeps overlapping order edits fail-closed', () => {
+  const api = load(storage());
+  const item = (type, id, value) => ({ recordType: type, recordId: id, schemaVersion: 1, payload: { id, value } });
+  const local = { schemaVersion: 1, records: [
+    item('practice_menu', 'shared', { name: 'Shared' }),
+    item('practice_menu', 'local', { name: 'Local' }),
+    item('practice_menu_order', 'default', ['shared', 'local'])
+  ] };
+  const remote = { schemaVersion: 1, records: [
+    item('practice_menu', 'shared', { name: 'Shared' }),
+    item('practice_menu', 'remote', { name: 'Remote' }),
+    item('practice_menu_order', 'default', ['remote', 'shared'])
+  ] };
+
+  const merged = api.mergeSnapshots(local, remote);
+
+  assert.deepEqual(JSON.parse(JSON.stringify(merged.conflicts)), [
+    { recordKey: 'practice_menu_order/default', reason: 'same_record_changed' }
+  ]);
+});
+
 test('practice attachments serialize only logical metadata and hydrate without binary download', async () => {
   const logicalId = '123e4567-e89b-42d3-a456-426614174100';
   const asset = {
