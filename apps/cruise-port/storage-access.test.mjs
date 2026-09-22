@@ -26,7 +26,7 @@ test('every storage module imports the current conflict coordinator cache key', 
         'metronome-presets-store.js', 'tuner-store.js'
     ]) {
         const source = readFileSync(new URL(file, import.meta.url), 'utf8');
-        assert.match(source, /storage-conflict\.js\?v=0\.45\.8/, file);
+        assert.match(source, /storage-conflict\.js\?v=0\.45\.9/, file);
     }
 });
 

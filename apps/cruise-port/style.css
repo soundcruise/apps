@@ -2337,11 +2337,11 @@ textarea:focus-visible {
     grid-template-columns: 48px minmax(0, 1fr) max-content;
     grid-template-areas:
         "icon name add"
-        "icon name count"
+        "icon count add"
         "details details details";
     align-items: center;
     column-gap: 12px;
-    row-gap: 5px;
+    row-gap: 4px;
     min-height: 0;
 }
 .sync-center-destination-primary {
@@ -2357,14 +2357,14 @@ textarea:focus-visible {
 .sync-center-destination-add {
     grid-area: add;
     justify-self: end;
-    align-self: end;
+    align-self: center;
     min-width: max-content;
     white-space: nowrap;
 }
 .sync-center-destination-count {
     grid-area: count;
-    justify-self: end;
-    align-self: start;
+    justify-self: start;
+    align-self: center;
     min-height: 0;
     padding: 0;
     border: 0;

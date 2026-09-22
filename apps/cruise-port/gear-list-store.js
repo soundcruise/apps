@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.8';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.45.9';
 export const GEAR_LIST_STORAGE_KEY = 'cruisePort.gearList';
 export const GEAR_LIST_SCHEMA_VERSION = 4;
 
