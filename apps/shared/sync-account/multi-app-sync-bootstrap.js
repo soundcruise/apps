@@ -277,6 +277,12 @@
       const result = await runtime.consumeHandoff(token, `${config.appId} app`);
       if (!result?.ok) throw new Error(result?.code || 'setup_failed');
       showConnectedSettings(result.accountId);
+      // Dataset hydration makes the environment usable, but removal safety is
+      // reported by the regular sync path. Start that path immediately so a
+      // successful Auto Rejoin does not remain fail-closed until a later focus,
+      // reload or local save. A transient sync failure must not undo the durable
+      // connection that was already established above.
+      runtime.sync('auto-rejoin').catch(() => {});
       return true;
     } catch (reason) {
       // The grant is intentionally one-time. A failed automatic path keeps all

@@ -259,6 +259,15 @@ test('production startup restores an app credential without creating or requirin
   assert.match(chord, /status: '再接続しています…'/);
 });
 
+test('successful Auto Rejoin immediately schedules normal sync without making connection success depend on it', () => {
+  const bootstrap = read('apps/shared/sync-account/multi-app-sync-bootstrap.js');
+  assert.match(bootstrap,
+    /showConnectedSettings\(result\.accountId\);[\s\S]{0,500}runtime\.sync\('auto-rejoin'\)\.catch\(\(\) => \{\}\);[\s\S]{0,120}return true;/,
+    'a newly hydrated environment promptly reports its clean state through the normal sync path');
+  assert.doesNotMatch(bootstrap, /await runtime\.sync\('auto-rejoin'\)/,
+    'a transient advisory sync failure cannot roll back a durable Auto Rejoin');
+});
+
 test('delayed credential restore never falls through to not-connected', async () => {
   const resolveStartupState = loadBootstrapStateResolver();
   let releaseCredential;
