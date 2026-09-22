@@ -241,6 +241,41 @@ test('Port initial merge keeps overlapping order edits fail-closed', () => {
   ]);
 });
 
+test('Remote order resolution keeps Cloud precedence while preserving Local-only items', async () => {
+  const target = storage({
+    'cruisePort.myApps': JSON.stringify({ version: 6, items: [
+      { id: 'app-a', name: 'A' }, { id: 'app-b', name: 'B' }, { id: 'app-c', name: 'C' },
+      { id: 'app-d', name: 'D' }, { id: 'app-e', name: 'E' }, { id: 'app-f', name: 'F' },
+      { id: 'app-g', name: 'G' }
+    ] })
+  });
+  const api = load(target);
+  const local = api.readLocalSnapshot(target);
+  const localOrder = local.records.find((item) => item.recordType === 'my_app_order');
+  const remoteOrder = remoteRecord('my_app_order', 'default', ['app-b', 'remote-x', 'app-a', 'remote-y']);
+  const candidate = {
+    ...local,
+    records: [...local.records.filter((item) => item.recordType !== 'my_app_order'), {
+      recordType: remoteOrder.recordType, recordId: remoteOrder.recordId,
+      schemaVersion: remoteOrder.schemaVersion, payload: remoteOrder.payload
+    }]
+  };
+  const prepared = api.prepareRemoteResolutionSnapshot(candidate, {
+    recordKey: 'my_app_order/default', localRecord: localOrder, remoteRecord: remoteOrder
+  });
+  const preparedOrder = prepared.records.find((item) => item.recordType === 'my_app_order');
+  assert.deepEqual(JSON.parse(JSON.stringify(preparedOrder.payload.value)), [
+    'app-b', 'app-a', 'app-c', 'app-d', 'app-e', 'app-f', 'app-g'
+  ]);
+
+  await api.applyRemoteSnapshot(target, prepared);
+  const roundTrip = api.readLocalSnapshot(target);
+  assert.equal(await api.computeManifest(roundTrip), await api.computeManifest(prepared));
+  assert.deepEqual(JSON.parse(target.value('cruisePort.myApps')).items.map((item) => item.id), [
+    'app-b', 'app-a', 'app-c', 'app-d', 'app-e', 'app-f', 'app-g'
+  ]);
+});
+
 test('practice attachments serialize only logical metadata and hydrate without binary download', async () => {
   const logicalId = '123e4567-e89b-42d3-a456-426614174100';
   const asset = {

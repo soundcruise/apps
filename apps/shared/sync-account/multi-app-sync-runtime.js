@@ -527,13 +527,35 @@
         const records = context.local.snapshot.records.filter((record) => keyOf(record) !== conflict.recordKey);
         const remoteLocal = localRecordFromRemote(context.remoteRecord);
         if (remoteLocal) records.push(remoteLocal);
-        const nextSnapshot = { ...clone(context.local.snapshot), records };
+        let nextSnapshot = { ...clone(context.local.snapshot), records };
+        if (typeof this.adapter.prepareRemoteResolutionSnapshot === 'function') {
+          nextSnapshot = await this.adapter.prepareRemoteResolutionSnapshot(nextSnapshot, {
+            recordKey: conflict.recordKey,
+            localRecord: context.localRecord,
+            remoteRecord: context.remoteRecord
+          });
+        }
+        nextSnapshot = this.adapter.normalizeLocalSnapshot(nextSnapshot);
+        const expectedRecords = await this.adapter.serializeRecords(nextSnapshot);
+        const expectedRecord = mapRecords(expectedRecords).get(conflict.recordKey) || null;
+        const expectedManifest = await this.adapter.computeManifest(nextSnapshot);
         await this.applyWithBackup(nextSnapshot, context.local.snapshot);
+        resolution = { ...resolution, expectedLocalRecord: recordAnchor(expectedRecord), expectedLocalManifest: expectedManifest };
+      }
+      if (!resolution.expectedLocalRecord || !resolution.expectedLocalManifest) {
+        resolution = {
+          ...resolution,
+          expectedLocalRecord: recordAnchor(context.localRecord),
+          expectedLocalManifest: await this.adapter.computeManifest(context.local.snapshot)
+        };
       }
       conflict = await this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' });
       const local = await this.localRecords();
       const localRecord = mapRecords(local.records).get(conflict.recordKey) || null;
-      if (!sameRecord(localRecord, context.remoteRecord)) {
+      const expectedLocalRecord = resolution.expectedLocalRecord || recordAnchor(context.remoteRecord);
+      const localManifest = await this.adapter.computeManifest(local.snapshot);
+      if (!sameAnchor(localRecord, expectedLocalRecord) ||
+          (resolution.expectedLocalManifest && localManifest !== resolution.expectedLocalManifest)) {
         try { await this.adapter.applyRemoteSnapshot(context.local.snapshot); } catch (_) { /* keep the conflict */ }
         throw new MultiAppSyncError('resolution_verify_failed');
       }
@@ -542,11 +564,6 @@
       if (!sameAnchor(currentRemote, resolution.expectedRemote)) {
         try { await this.adapter.applyRemoteSnapshot(context.local.snapshot); } catch (_) { /* keep the conflict */ }
         throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
-      }
-      if ((await this.store.listConflicts()).length === 1 &&
-          await this.adapter.computeManifest(local.snapshot) !== authoritative.manifestHash) {
-        try { await this.adapter.applyRemoteSnapshot(context.local.snapshot); } catch (_) { /* keep the conflict */ }
-        throw new MultiAppSyncError('resolution_manifest_mismatch');
       }
       return this.finishResolution(conflict, authoritative);
     }

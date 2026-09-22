@@ -300,6 +300,28 @@
     });
     return { snapshot: normalizeSnapshot({ schemaVersion: SCHEMA_VERSION, records: [...merged.values()] }), conflicts };
   }
+  function prepareRemoteResolutionSnapshot(snapshot, { recordKey: selectedKey, localRecord } = {}) {
+    const normalized = normalizeSnapshot(snapshot);
+    const records = new Map(normalized.records.map((item) => [keyOf(item), item]));
+    const selected = records.get(selectedKey);
+    const itemType = ORDER_ITEM_TYPES[selected?.recordType];
+    if (!selected || !itemType || !Array.isArray(selected.payload?.value)) return normalized;
+
+    const availableIds = normalized.records.filter((item) => {
+      if (item.recordType !== itemType) return false;
+      if (selected.recordType !== 'gear_order') return true;
+      return item.payload?.value?.item?.status === selected.recordId;
+    }).map((item) => item.recordId);
+    const available = new Set(availableIds);
+    const preferred = selected.payload.value.filter((id) => available.has(id));
+    const previous = Array.isArray(localRecord?.payload?.value)
+      ? localRecord.payload.value.filter((id) => available.has(id)) : [];
+    const mergedOrder = [...new Set([...preferred, ...previous, ...availableIds])];
+    records.set(selectedKey, {
+      ...clone(selected), payload: { ...clone(selected.payload), value: mergedOrder }
+    });
+    return normalizeSnapshot({ ...normalized, records: [...records.values()] });
+  }
   function byType(snapshot, type) { return snapshot.records.filter((item) => item.recordType === type); }
   function ordered(snapshot, type, orderType, orderId = 'default') {
     const items = byType(snapshot, type); const order = byType(snapshot, orderType).find((item) => item.recordId === orderId)?.payload.value || [];
@@ -479,6 +501,7 @@
       return changed;
     }
     computeManifest(value) { return computeManifest(value, this.cryptoImpl); }
+    prepareRemoteResolutionSnapshot(value, context) { return prepareRemoteResolutionSnapshot(value, context); }
     getConflictPresentation(context) { return getConflictPresentation(context); }
     assertDataPlaneContext(context) { return assertDataPlaneContext(context); }
   }
@@ -487,6 +510,7 @@
     APP_ID, SCHEMA_VERSION, MANAGED_KEYS, ASSET_METADATA_KEY, PortSyncAdapter,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeSnapshot, serializeRecords,
     deserializeRecords, mergeSnapshots, applyRemoteSnapshot, computeManifest,
-    assertDataPlaneContext, getConflictPresentation, reconcileRemoteAssetReferences
+    assertDataPlaneContext, getConflictPresentation, reconcileRemoteAssetReferences,
+    prepareRemoteResolutionSnapshot
   });
 })(globalThis);

@@ -833,6 +833,50 @@ test('Remote wins applies one record with backup and performs no Remote write', 
   assert.equal((await fixture.store.listConflicts()).length, 0);
 });
 
+test('Remote wins verifies an adapter-normalized Local projection without requiring whole-dataset equality', async () => {
+  const fixture = await conflictFixture();
+  fixture.local.prepareRemoteResolutionSnapshot = async (snapshot) => ({
+    ...structuredClone(snapshot),
+    records: snapshot.records.map((item) => item.recordId === 'conflict'
+      ? { ...structuredClone(item), payload: { ...structuredClone(item.payload), normalized: true } }
+      : structuredClone(item))
+  });
+  fixture.local.serializeRecords = async (snapshot) => snapshot.records.map((item) => ({
+    ...structuredClone(item), payloadHash: `projected-${JSON.stringify(item.payload)}`
+  }));
+  fixture.local.computeManifest = async (snapshot) => `projected-manifest-${JSON.stringify(snapshot.records)}`;
+  const pushes = fixture.server.pushCalls;
+  const [conflict] = await fixture.store.listConflicts();
+  const result = await fixture.runtime.resolveConflict(conflict.id, 'remote');
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(fixture.local.records[0].payload.bpm, 81);
+  assert.equal(fixture.local.records[0].payload.normalized, true);
+  assert.equal(fixture.server.pushCalls, pushes, 'Remote choice must not write to the server');
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('three Remote choices converge normal, order-like and tombstone conflicts without a false verification failure', async () => {
+  const fixture = runtimeFixture([
+    preset('normal', 80), preset('order-like', 80), preset('deleted', 80)
+  ], 'rhythm');
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [preset('normal', 79), preset('order-like', 79), preset('deleted', 79)];
+  setRemoteVariant(fixture, 'normal', 81);
+  setRemoteVariant(fixture, 'order-like', 81);
+  setRemoteVariant(fixture, 'deleted', 0, { deleted: true });
+  assert.equal((await fixture.runtime.sync('focus')).code, 'conflict');
+  const pushes = fixture.server.pushCalls;
+  for (const conflict of await fixture.store.listConflicts()) {
+    const result = await fixture.runtime.resolveConflict(conflict.id, 'remote');
+    assert.equal(result.ok, true, JSON.stringify(result));
+  }
+  assert.equal(fixture.local.records.find((item) => item.recordId === 'normal').payload.bpm, 81);
+  assert.equal(fixture.local.records.find((item) => item.recordId === 'order-like').payload.bpm, 81);
+  assert.equal(fixture.local.records.some((item) => item.recordId === 'deleted'), false);
+  assert.equal(fixture.server.pushCalls, pushes);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
 test('Later leaves local, Remote, attention and the conflict entry unchanged', async () => {
   const fixture = await conflictFixture();
   const [conflict] = await fixture.store.listConflicts();
