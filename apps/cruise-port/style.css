@@ -2333,42 +2333,51 @@ textarea:focus-visible {
     align-items: center;
 }
 .sync-center-destination-card {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: 48px minmax(0, 1fr) max-content;
+    grid-template-areas:
+        "icon name add"
+        "icon name count"
+        "details details details";
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 5px;
     min-height: 0;
 }
 .sync-center-destination-primary {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
+    display: contents;
 }
-.sync-center-destination-primary img { flex: 0 0 48px; }
-.sync-center-destination-primary .sync-center-app-copy { flex: 1 1 auto; }
+.sync-center-destination-primary img { grid-area: icon; }
+.sync-center-destination-primary .sync-center-app-copy { grid-area: name; min-width: 0; }
 .sync-center-destination-primary .sync-center-app-copy strong {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
 }
-.sync-center-destination-actions {
-    display: flex;
-    width: 100%;
-    max-width: none;
-    align-items: center;
-    justify-content: end;
-    flex-wrap: nowrap;
-    gap: 7px;
-    min-width: 0;
-}
-.sync-center-destination-card .sync-center-app-action {
-    flex: 0 0 auto;
+.sync-center-destination-add {
+    grid-area: add;
+    justify-self: end;
+    align-self: end;
     min-width: max-content;
     white-space: nowrap;
 }
-.sync-center-destination-card .sync-center-environment-count { flex: 0 0 auto; }
-.sync-center-destination-card .sync-center-environment-list { width: 100%; }
+.sync-center-destination-count {
+    grid-area: count;
+    justify-self: end;
+    align-self: start;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    color: var(--port-muted);
+    background: transparent;
+    font-size: calc(0.68rem * var(--font-scale));
+    text-decoration: underline;
+    text-decoration-color: rgba(205, 180, 116, 0.36);
+    text-underline-offset: 3px;
+}
+.sync-center-destination-count:disabled { text-decoration: none; }
+.sync-center-destination-card .sync-center-environment-list { grid-area: details; width: 100%; }
 .sync-center-advanced-toggle {
     display: inline-flex;
     align-items: center;
@@ -2598,10 +2607,22 @@ textarea:focus-visible {
     .sync-center-app img { width: 44px; height: 44px; }
     .sync-center-app-row-actions { max-width: 118px; }
     .sync-center-environment-actions { max-width: none; }
-    .sync-center-destination-primary { gap: 9px; }
-    .sync-center-destination-primary img { flex-basis: 44px; }
-    .sync-center-destination-card .sync-center-app-action { min-height: 40px; padding-inline: 9px; }
+    .sync-center-destination-card {
+        grid-template-columns: 44px minmax(0, 1fr) max-content;
+        column-gap: 9px;
+    }
+    .sync-center-destination-add { min-height: 40px; padding-inline: 9px; }
     .sync-center-app-remove { min-width: 82px; padding-inline: 8px; }
+}
+@media (max-width: 359px) {
+    .sync-center-destination-card {
+        grid-template-columns: 40px minmax(0, 1fr) max-content;
+        column-gap: 8px;
+        row-gap: 4px;
+    }
+    .sync-center-destination-card img { width: 40px; height: 40px; }
+    .sync-center-destination-add { min-height: 38px; padding-inline: 7px; font-size: calc(0.72rem * var(--font-scale)); }
+    .sync-center-destination-count { font-size: calc(0.66rem * var(--font-scale)); }
 }
 
 .settings-card h2 {

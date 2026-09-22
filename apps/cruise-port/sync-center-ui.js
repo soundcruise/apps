@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.45.7';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.45.8';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -137,11 +137,9 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
             copy.append(subtitle);
         }
         primary.append(image, copy);
-        const actions = document.createElement('div');
-        actions.className = 'sync-center-app-row-actions sync-center-environment-actions sync-center-destination-actions';
         const count = document.createElement('button');
         count.type = 'button';
-        count.className = 'sync-center-environment-count';
+        count.className = 'sync-center-environment-count sync-center-destination-count';
         count.textContent = `同期先 ${entry.environments.length}件${entry.environments.length ? '⌄' : ''}`;
         count.disabled = entry.environments.length === 0;
         count.dataset.syncEnvironmentToggle = entry.id;
@@ -149,13 +147,12 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         count.setAttribute('aria-label', `${entry.name}の環境一覧を表示`);
         const add = document.createElement('button');
         add.type = 'button';
-        add.className = 'sync-center-app-action secondary';
+        add.className = 'sync-center-app-action secondary sync-center-destination-add';
         add.textContent = entry.id === 'port' ? '別の端末を追加' : '同期先を追加';
         add.disabled = !orchestrationEnabled || !entry.available;
         add.setAttribute('aria-label', `${entry.name}の追加コードを表示`);
         if (entry.id === 'port') add.dataset.syncPortAddEnvironment = 'true';
         else add.dataset.syncAppAddEnvironment = entry.id;
-        actions.append(count, add);
         const details = document.createElement('ul');
         details.className = 'sync-center-environments sync-center-environment-list';
         details.dataset.syncEnvironmentDetails = entry.id;
@@ -190,7 +187,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
             return item;
         });
         details.replaceChildren(...environmentRows);
-        row.append(primary, actions, details);
+        row.append(primary, add, count, details);
         return row;
     });
     portList.replaceChildren(rows[0]);
