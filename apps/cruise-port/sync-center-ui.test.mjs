@@ -177,12 +177,12 @@ test('Environment management keeps the Port path compact and the app-specific pa
     assert.match(ui, /row\.append\(primary, actions, details\)/);
     assert.match(styles, /\.sync-center-advanced-toggle\s*\{[\s\S]*min-height:\s*38px/);
     assert.match(styles, /\.sync-center-destination-card \.sync-center-app-action\s*\{[\s\S]*min-width:\s*max-content[\s\S]*white-space:\s*nowrap/);
-    assert.match(styles, /\.sync-center-destination-card\s*\{[\s\S]*grid-template-areas:[\s\S]*"primary"[\s\S]*"actions"[\s\S]*"details"/);
-    assert.match(styles, /\.sync-center-destination-primary\s*\{[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);
+    assert.match(styles, /\.sync-center-destination-card\s*\{[\s\S]*display:\s*flex[\s\S]*flex-direction:\s*column/);
+    assert.match(styles, /\.sync-center-destination-primary\s*\{[\s\S]*display:\s*flex[\s\S]*align-items:\s*center/);
     assert.match(styles, /\.sync-center-destination-primary \.sync-center-app-copy strong\s*\{[\s\S]*white-space:\s*nowrap/);
-    assert.match(styles, /\.sync-center-destination-actions\s*\{[\s\S]*grid-template-columns:\s*auto auto[\s\S]*justify-content:\s*end/);
+    assert.match(styles, /\.sync-center-destination-actions\s*\{[\s\S]*display:\s*flex[\s\S]*max-width:\s*none[\s\S]*justify-content:\s*end[\s\S]*flex-wrap:\s*nowrap/);
     assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-app\s*\{[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);
-    assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-destination-primary\s*\{[\s\S]*grid-template-columns:\s*44px minmax\(0, 1fr\)/);
+    assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-destination-primary img\s*\{[\s\S]*flex-basis:\s*44px/);
 });
 
 test('Cruise Port installs the existing conflict resolution UI before startup sync', () => {
