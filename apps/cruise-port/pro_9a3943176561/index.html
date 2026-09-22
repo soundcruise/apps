@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート Pro</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.50.0">
-    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.50.0">
-    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.50.0">
+    <link rel="manifest" href="./manifest.json?v=0.51.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.51.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.51.0">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.50.0">
+    <link rel="stylesheet" href="../style.css?v=0.51.0">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=21">
     <script>
@@ -29,12 +29,12 @@
     <script defer src="../../shared/sync-account/multi-app-sync-db.js?v=4"></script>
     <script defer src="../../shared/sync-account/multi-app-sync-runtime.js?v=17"></script>
     <script defer src="../../shared/sync-account/multi-app-conflict-ui.js?v=5"></script>
-    <script defer src="../port-sync-adapter.js?v=0.50.0"></script>
-    <script defer src="../port-sync-controller.js?v=0.50.0"></script>
+    <script defer src="../port-sync-adapter.js?v=0.51.0"></script>
+    <script defer src="../port-sync-controller.js?v=0.51.0"></script>
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.50.0"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.51.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -205,7 +205,7 @@
                         </div>
                     </div>
                     <div class="sync-center-app sync-center-port-card" role="status" aria-live="polite">
-                        <img src="/apps/cruise-port/assets/app-icons/pro/icon-192.png?v=0.50.0" alt="" width="48" height="48">
+                        <img src="/apps/cruise-port/assets/app-icons/pro/icon-192.png?v=0.51.0" alt="" width="48" height="48">
                         <div class="sync-center-app-copy">
                             <strong>Cruise Port</strong>
                             <span class="sync-center-app-status-line"><span id="sync-center-port-status-chip" class="sync-center-app-status-chip sync-center-app-status-chip--attention" data-sync-port-status="attention">確認が必要</span><button id="sync-center-port-conflicts-open" class="sync-center-port-conflicts-open" type="button" hidden>競合を確認する</button></span>
@@ -1017,7 +1017,11 @@
                     <li><button type="button" data-tuner-string data-string="2" data-note="B3" aria-label="2弦 B3 の音を鳴らす"><span>2弦</span><strong>B3</strong></button></li>
                     <li><button type="button" data-tuner-string data-string="1" data-note="E4" aria-label="1弦 E4 の音を鳴らす"><span>1弦</span><strong>E4</strong></button></li>
                 </ul>
-                <label class="tuner-meter-visibility" for="tuner-meter-visibility"><span>メーター表示</span><input id="tuner-meter-visibility" type="checkbox" checked></label>
+                <div class="tuner-preview-controls">
+                    <button id="tuner-preview-help" class="tuner-preview-help-button" type="button" aria-label="弦のプレビュー音について" aria-controls="tuner-preview-help-text" aria-expanded="false">?</button>
+                    <label class="tuner-meter-visibility" for="tuner-meter-visibility"><span>メーター表示</span><input id="tuner-meter-visibility" type="checkbox" role="switch" checked></label>
+                </div>
+                <p id="tuner-preview-help-text" class="tuner-preview-help-text" hidden>弦の音をタップし、耳で合わせるための機能</p>
 
                 <p id="tuner-error" class="notice notice-error tuner-error" role="alert" hidden></p>
                 <p id="tuner-status" class="tuner-status" aria-live="polite">マイクを準備しています…</p>

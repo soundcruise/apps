@@ -6068,5 +6068,13 @@ body.metronome-preset-open {
 .my-apps-custom-launch { display: none !important; }
 
 .tuner-meter[hidden] { display: none; }
-.tuner-meter-visibility { display: flex; align-items: center; justify-content: flex-end; gap: 8px; margin: 10px 0 4px; color: var(--port-muted); font-size: calc(.78rem * var(--font-scale)); }
-.tuner-meter-visibility input { width: 18px; height: 18px; accent-color: var(--port-gold-bright); }
+.tuner-preview-controls { display: flex; align-items: center; justify-content: flex-end; gap: 10px; margin: 10px 0 4px; }
+.tuner-preview-help-button { display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 1px solid rgba(207, 189, 148, .4); border-radius: 50%; background: transparent; color: var(--port-muted); font-size: .78rem; cursor: pointer; }
+.tuner-preview-help-button:focus-visible, .tuner-meter-visibility input:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
+.tuner-meter-visibility { display: inline-flex; align-items: center; gap: 8px; min-height: 32px; color: var(--port-muted); font-size: calc(.78rem * var(--font-scale)); cursor: pointer; }
+.tuner-meter-visibility input { position: relative; width: 36px; height: 22px; margin: 0; appearance: none; border: 1px solid rgba(207, 189, 148, .5); border-radius: 99px; background: rgba(255, 255, 255, .1); cursor: pointer; transition: background .16s ease; }
+.tuner-meter-visibility input::before { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #aaa39a; content: ''; transition: transform .16s ease, background .16s ease; }
+.tuner-meter-visibility input:checked { background: rgba(205, 169, 91, .32); }
+.tuner-meter-visibility input:checked::before { transform: translateX(14px); background: var(--port-gold-bright); }
+.tuner-preview-help-text { margin: 0 0 8px; padding: 8px 10px; border: 1px solid rgba(207, 189, 148, .2); border-radius: 8px; color: var(--port-muted); font-size: calc(.76rem * var(--font-scale)); line-height: 1.6; }
+.tuner-preview-help-text[hidden] { display: none; }

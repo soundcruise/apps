@@ -1,6 +1,6 @@
 import { createTunerAudioController } from './tuner-audio.js?v=1.1.5';
 import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.1.8';
-import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.50.0';
+import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.51.0';
 import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
 import {
     TUNER_DEFAULT_THRESHOLD_DB,
@@ -10,7 +10,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=0.50.0';
+} from './tuner-store.js?v=0.51.0';
 import {
     TUNER_CAPO_MAX,
     TUNER_CAPO_MIN,
@@ -411,6 +411,8 @@ export function initTuner(root, {
         direction: root.querySelector('#tuner-direction'),
         meter: root.querySelector('#tuner-meter'),
         meterVisibility: root.querySelector('#tuner-meter-visibility'),
+        previewHelp: root.querySelector('#tuner-preview-help'),
+        previewHelpText: root.querySelector('#tuner-preview-help-text'),
         toggle: root.querySelector('#tuner-toggle'),
         error: root.querySelector('#tuner-error'),
         status: root.querySelector('#tuner-status'),
@@ -465,6 +467,11 @@ export function initTuner(root, {
     elements.meterVisibility.addEventListener('change', () => {
         elements.meter.hidden = !elements.meterVisibility.checked;
         saveTunerMeterVisible(elements.meterVisibility.checked, storage);
+    });
+    elements.previewHelp?.addEventListener('click', () => {
+        const expanded = elements.previewHelp.getAttribute('aria-expanded') === 'true';
+        elements.previewHelp.setAttribute('aria-expanded', String(!expanded));
+        elements.previewHelpText.hidden = expanded;
     });
     let currentThresholdDb = loadResult.settings.thresholdDb;
     let currentTuningId = loadResult.settings.tuningId;

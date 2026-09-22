@@ -1,6 +1,6 @@
-import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.50.0';
-import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.50.0';
-import { createPortAccountJoin } from './port-account-join.js?v=0.50.0';
+import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.51.0';
+import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.51.0';
+import { createPortAccountJoin } from './port-account-join.js?v=0.51.0';
 
 export function createSyncCenterOrchestrator({
     config,
