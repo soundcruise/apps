@@ -6074,9 +6074,9 @@ body.metronome-preset-open {
 .tuner-preview-help-button:focus-visible, .tuner-meter-visibility input:focus-visible + .tuner-meter-switch-track { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
 .tuner-meter-visibility { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; color: var(--port-muted); font-size: calc(.74rem * var(--font-scale)); white-space: nowrap; cursor: pointer; }
 .tuner-meter-visibility input { position: absolute; right: 0; width: 32px; height: 32px; margin: 0; opacity: 0; cursor: pointer; }
-.tuner-meter-switch-track { position: relative; box-sizing: border-box; flex: 0 0 32px; width: 32px; height: 18px; border: 1px solid rgba(207, 189, 148, .4); border-radius: 99px; background: rgba(255, 255, 255, .08); pointer-events: none; transition: background .16s ease; }
-.tuner-meter-switch-track::before { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #aaa39a; content: ''; transition: transform .16s ease, background .16s ease; }
-.tuner-meter-visibility input:checked + .tuner-meter-switch-track { background: rgba(205, 169, 91, .28); }
+.tuner-meter-switch-track { position: relative; box-sizing: border-box; flex: 0 0 32px; width: 32px; height: 18px; border: 1px solid #999; border-radius: 99px; background: #595959; pointer-events: none; transition: background .16s ease, border-color .16s ease; }
+.tuner-meter-switch-track::before { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #eee; content: ''; transition: transform .16s ease, background .16s ease; }
+.tuner-meter-visibility input:checked + .tuner-meter-switch-track { border-color: rgba(205, 169, 91, .7); background: rgba(205, 169, 91, .38); }
 .tuner-meter-visibility input:checked + .tuner-meter-switch-track::before { transform: translateX(14px); background: var(--port-gold-bright); }
 .tuner-preview-help-text { margin: 0 0 8px; padding: 8px 10px; border: 1px solid rgba(207, 189, 148, .2); border-radius: 8px; color: var(--port-muted); font-size: calc(.76rem * var(--font-scale)); line-height: 1.6; }
 .tuner-preview-help-text[hidden] { display: none; }
