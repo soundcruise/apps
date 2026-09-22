@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.47.6';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.47.7';
 export const PRACTICE_HISTORY_SCHEMA_VERSION = 4;
 export const PRACTICE_HISTORY_STORAGE_KEY = 'cruisePort.practiceHistory';
 export const PRACTICE_HISTORY_MAX_EVENTS = 8000;

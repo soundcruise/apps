@@ -438,6 +438,28 @@ test('offline local image stays pending locally without any asset request', asyn
     }
 });
 
+test('a failed asset pass does not hot-loop a queued passive retry', async () => {
+    const sync = new PortAssetSync({ controller: controller(), storage: storage(),
+        gearPhotoStore: {}, myAppsIconStore: {} });
+    let attempts = 0;
+    let release;
+    sync.reconcile = async () => {
+        attempts += 1;
+        await new Promise((resolve) => { release = resolve; });
+        throw new Error('asset_dimensions_mismatch');
+    };
+
+    const running = sync.schedule('startup');
+    await Promise.resolve();
+    sync.schedule('ready');
+    release();
+    assert.deepEqual(await running, { ok: false, code: 'asset_dimensions_mismatch' });
+    await Promise.resolve();
+    assert.equal(attempts, 1);
+    assert.equal(sync.pendingAgain, false);
+    assert.equal(sync.lastErrorCode, 'asset_dimensions_mismatch');
+});
+
 test('old published assets are not unreferenced until the structured reference sync succeeds', async () => {
     const finalBlob = blob();
     const oldAsset = metadata({ assetId: '123e4567-e89b-42d3-a456-426614174001', kind: 'gear_photo_final',

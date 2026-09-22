@@ -128,7 +128,9 @@ export class PortAssetSync {
             .finally(() => {
                 this.running = null;
                 this.emitStatus(this.lastErrorCode ? 'error' : 'settled');
-                if (this.pendingAgain) { this.pendingAgain = false; this.schedule('pending'); }
+                const shouldRetry = this.pendingAgain && !this.lastErrorCode;
+                this.pendingAgain = false;
+                if (shouldRetry) this.schedule('pending');
             });
         return this.running;
     }

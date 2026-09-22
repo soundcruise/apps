@@ -145,8 +145,37 @@ function webpDimensions(bytes) {
   return null;
 }
 
+function jpegExifOrientation(bytes, offset, length) {
+  const start = offset + 2;
+  const end = offset + length;
+  if (end - start < 14 || bytes[start] !== 0x45 || bytes[start + 1] !== 0x78 ||
+      bytes[start + 2] !== 0x69 || bytes[start + 3] !== 0x66 ||
+      bytes[start + 4] !== 0x00 || bytes[start + 5] !== 0x00) return null;
+  const tiff = start + 6;
+  const littleEndian = bytes[tiff] === 0x49 && bytes[tiff + 1] === 0x49;
+  const bigEndian = bytes[tiff] === 0x4d && bytes[tiff + 1] === 0x4d;
+  if (!littleEndian && !bigEndian) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const read16 = (position) => position + 2 <= end ? view.getUint16(position, littleEndian) : null;
+  const read32 = (position) => position + 4 <= end ? view.getUint32(position, littleEndian) : null;
+  if (read16(tiff + 2) !== 42) return null;
+  const ifdOffset = read32(tiff + 4);
+  if (ifdOffset == null) return null;
+  const ifd = tiff + ifdOffset;
+  const count = read16(ifd);
+  if (count == null || count > 256 || ifd + 2 + count * 12 > end) return null;
+  for (let index = 0; index < count; index += 1) {
+    const entry = ifd + 2 + index * 12;
+    if (read16(entry) !== 0x0112 || read16(entry + 2) !== 3 || read32(entry + 4) !== 1) continue;
+    const orientation = read16(entry + 8);
+    return orientation >= 1 && orientation <= 8 ? orientation : null;
+  }
+  return null;
+}
+
 function jpegDimensions(bytes) {
   let offset = 2;
+  let orientation = null;
   while (offset + 3 < bytes.length) {
     if (bytes[offset] !== 0xff) return null;
     while (offset < bytes.length && bytes[offset] === 0xff) offset += 1;
@@ -156,13 +185,17 @@ function jpegDimensions(bytes) {
     if (offset + 1 >= bytes.length) return null;
     const length = (bytes[offset] << 8) | bytes[offset + 1];
     if (length < 2 || offset + length > bytes.length) return null;
+    if (marker === 0xe1 && orientation == null) orientation = jpegExifOrientation(bytes, offset, length);
     const isStartOfFrame = (marker >= 0xc0 && marker <= 0xc3) ||
       (marker >= 0xc5 && marker <= 0xc7) || (marker >= 0xc9 && marker <= 0xcb) ||
       (marker >= 0xcd && marker <= 0xcf);
     if (isStartOfFrame) {
       if (length < 7) return null;
-      return { height: (bytes[offset + 3] << 8) | bytes[offset + 4],
-        width: (bytes[offset + 5] << 8) | bytes[offset + 6] };
+      const height = (bytes[offset + 3] << 8) | bytes[offset + 4];
+      const width = (bytes[offset + 5] << 8) | bytes[offset + 6];
+      return orientation >= 5 && orientation <= 8
+        ? { width: height, height: width }
+        : { width, height };
     }
     offset += length;
   }
