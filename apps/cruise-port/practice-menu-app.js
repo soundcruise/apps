@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.49.0';
+} from './practice-menu-store.js?v=0.50.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.49.0';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.50.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.49.0';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.49.0';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.49.0';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.49.0';
+} from './sync-center-controller.js?v=0.50.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.50.0';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.50.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.50.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.49.0';
+} from './sync-center-navigation.js?v=0.50.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.49.0';
+} from './practice-menu-progress-store.js?v=0.50.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.49.0';
+} from './practice-menu-history-store.js?v=0.50.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,16 +73,19 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.49.0';
+} from './practice-menu-calendar-store.js?v=0.50.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
     getPracticeTimerElapsedSeconds,
     loadPracticeTimer,
+    pausePracticeTimer,
+    resumePracticeTimer,
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.49.0';
+} from './practice-menu-timer-store.js?v=0.50.0';
+import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.50.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -118,7 +121,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.49.0';
+} from './my-apps-store.js?v=0.50.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -128,7 +131,7 @@ import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=0.49.0';
+} from './my-apps-launch.js?v=0.50.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -169,10 +172,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.49.0';
+} from './app-version.js?v=0.50.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.49.0';
-import { initTuner } from './tuner-app.js?v=0.49.0';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.50.0';
+import { initTuner } from './tuner-app.js?v=0.50.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -190,8 +193,8 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.49.0';
-import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.49.0';
+} from './gear-list-store.js?v=0.50.0';
+import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.50.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -200,9 +203,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.49.0';
+} from './gear-category-store.js?v=0.50.0';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.49.0';
+import { PortAssetSync } from './port-asset-sync.js?v=0.50.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -406,10 +409,16 @@ const elements = {
     hiddenOpen: document.querySelector('#practice-hidden-open'),
     hiddenCount: document.querySelector('#practice-hidden-count'),
     timerToggle: document.querySelector('#practice-timer-toggle'),
+    timerStop: document.querySelector('#practice-timer-stop'),
     timerIcon: document.querySelector('#practice-timer-icon'),
     timerLabel: document.querySelector('#practice-timer-label'),
     timerDisplay: document.querySelector('#practice-timer-display'),
     timerStatus: document.querySelector('#practice-timer-status'),
+    practiceTotalValue: document.querySelector('#practice-total-value'),
+    analyticsToggle: document.querySelector('#practice-analytics-toggle'),
+    analyticsDetails: document.querySelector('#practice-analytics-details'),
+    analyticsTabs: [...document.querySelectorAll('[data-analytics-mode]')],
+    analyticsList: document.querySelector('#practice-analytics-list'),
     finishButton: document.querySelector('#practice-finish'),
     cycleReset: document.querySelector('#practice-cycle-reset'),
     completionDialog: document.querySelector('#practice-completion-dialog'),
@@ -580,8 +589,11 @@ const state = {
     historyMonth: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
     historySelectedDate: toLocalDateKey(),
     calendarViewMode: 'month',
+    analyticsOpen: false,
+    analyticsMode: 'daily',
     completionActionInProgress: false
 };
+let practiceAnalyticsCache = { history: null, result: null };
 
 const myAppsState = {
     items: [],
@@ -2018,24 +2030,29 @@ function persistPracticeCalendar(nextCalendar) {
 
 function updatePracticeTimerDisplay() {
     const running = Boolean(state.timerReady && state.timer?.running);
+    const paused = running && state.timer.paused;
     const elapsedSeconds = running ? getPracticeTimerElapsedSeconds(state.timer) : 0;
     elements.timerToggle.disabled = !state.timerReady
         || !state.historyReady
         || Boolean(state.progress?.completionPending);
+    elements.timerStop.hidden = !running;
+    elements.timerStop.disabled = elements.timerToggle.disabled;
     elements.timerToggle.classList.toggle('is-running', running);
-    elements.timerToggle.setAttribute('aria-label', running ? '練習を終了する' : '練習タイマーを開始する');
-    elements.timerIcon.textContent = running ? '■' : '▶';
-    elements.timerLabel.textContent = running ? '練習終了' : '練習スタート';
+    elements.timerToggle.setAttribute('aria-label', paused ? '練習を再開する' : running ? '練習を一時停止する' : '練習タイマーを開始する');
+    elements.timerIcon.textContent = paused ? '▶' : running ? 'Ⅱ' : '▶';
+    elements.timerLabel.textContent = paused ? '再開' : running ? '一時停止' : '練習スタート';
     elements.timerDisplay.textContent = formatPracticeTimerDuration(elapsedSeconds);
     elements.timerDisplay.dateTime = `PT${elapsedSeconds}S`;
     elements.timerDisplay.classList.toggle('is-running', running);
+    elements.timerDisplay.classList.toggle('is-paused', paused);
+    elements.timerDisplay.setAttribute('aria-label', paused ? `一時停止中 ${formatPracticeTimerDuration(elapsedSeconds)}` : formatPracticeTimerDuration(elapsedSeconds));
 }
 
 function ensurePracticeTimerTicking() {
     window.clearInterval(state.timerInterval);
     state.timerInterval = null;
     updatePracticeTimerDisplay();
-    if (!state.timer?.running) return;
+    if (!state.timer?.running || state.timer.paused) return;
     state.timerInterval = window.setInterval(updatePracticeTimerDisplay, 500);
 }
 
@@ -2090,6 +2107,18 @@ function handlePracticeTimerToggle() {
         renderPracticeList({ focus: false });
         return;
     }
+    const transition = state.timer.paused ? resumePracticeTimer(state.timer) : pausePracticeTimer(state.timer);
+    if ((!transition.resumed && !transition.paused) || !savePracticeTimer(transition.timer).ok) {
+        showNotice(elements.timerStatus, 'タイマーの状態を保存できませんでした。もう一度お試しください。');
+        return;
+    }
+    state.timer = transition.timer;
+    ensurePracticeTimerTicking();
+    renderPracticeList({ focus: false });
+}
+
+function handlePracticeTimerStop() {
+    if (!state.timer?.running) return;
     const result = stopPracticeTimerWithHistory();
     showNotice(
         elements.timerStatus,
@@ -2670,6 +2699,13 @@ function renderPracticeDayHistory() {
             ? `${formatPracticeSessionDuration(displayDurationSeconds)} ・ ${new Date(event.startedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${new Date(event.endedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
             : `${event.durationMinutes}分 ・ ${new Date(event.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
         copy.append(title, detail);
+        if (session) (event.pauseIntervals || []).forEach(({ startedAt, endedAt }) => {
+            const pause = document.createElement('small');
+            pause.className = 'practice-history-pause';
+            const time = (value) => new Date(value).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
+            pause.textContent = `一時停止 ${time(startedAt)}〜${time(endedAt)}`;
+            copy.append(pause);
+        });
         row.dataset.historyEventId = event.id;
         row.append(mark, copy, createPracticeHistoryDeleteButton(event, title.textContent));
         if (session && children.length > 0) {
@@ -2828,7 +2864,48 @@ function renderPracticeHistory({ focus = true } = {}) {
     );
     renderPracticeCalendarNotes();
     renderPracticeDayHistory();
+    renderPracticeAnalytics();
     if (focus) elements.historyTitle.focus({ preventScroll: true });
+}
+
+function renderPracticeAnalytics() {
+    if (practiceAnalyticsCache.history !== state.history) {
+        practiceAnalyticsCache = { history: state.history, result: buildPracticeAnalytics(state.history) };
+    }
+    const analytics = practiceAnalyticsCache.result;
+    elements.practiceTotalValue.textContent = formatPracticeTotal(analytics.totalSeconds);
+    elements.analyticsDetails.hidden = !state.analyticsOpen;
+    elements.analyticsToggle.setAttribute('aria-expanded', String(state.analyticsOpen));
+    if (!state.analyticsOpen) return;
+    elements.analyticsTabs.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.analyticsMode === state.analyticsMode)));
+    const entries = analytics[state.analyticsMode];
+    const visible = state.analyticsMode === 'daily' ? entries.slice(0, 14)
+        : state.analyticsMode === 'weekly' ? entries.slice(0, 12) : entries;
+    elements.analyticsList.replaceChildren();
+    if (visible.length === 0) {
+        const empty = document.createElement('p');
+        empty.textContent = '計測した練習時間はまだありません。';
+        elements.analyticsList.append(empty);
+        return;
+    }
+    const maximum = Math.max(...visible.map((entry) => entry.seconds));
+    visible.forEach((entry) => {
+        const row = document.createElement('div');
+        const label = document.createElement('span');
+        const duration = document.createElement('strong');
+        const bar = document.createElement('span');
+        row.className = 'practice-analytics-row';
+        const key = entry.key;
+        label.textContent = state.analyticsMode === 'menu' ? entry.name
+            : state.analyticsMode === 'weekly' ? `${key.slice(5).replace('-', '/')}〜（月曜始まり）`
+                : state.analyticsMode === 'monthly' ? `${key.slice(0, 4)}年${Number(key.slice(5))}月`
+                    : `${Number(key.slice(5, 7))}/${Number(key.slice(8, 10))}`;
+        duration.textContent = formatPracticeTotal(entry.seconds);
+        bar.className = 'practice-analytics-bar';
+        bar.style.width = `${Math.max(3, Math.round(100 * entry.seconds / maximum))}%`;
+        row.append(label, duration, bar);
+        elements.analyticsList.append(row);
+    });
 }
 
 function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
@@ -5090,6 +5167,15 @@ elements.reorderStart.addEventListener('click', startReorder);
 elements.reorderCancel.addEventListener('click', cancelReorder);
 elements.reorderComplete.addEventListener('click', completeReorder);
 elements.timerToggle.addEventListener('click', handlePracticeTimerToggle);
+elements.timerStop.addEventListener('click', handlePracticeTimerStop);
+elements.analyticsToggle.addEventListener('click', () => {
+    state.analyticsOpen = !state.analyticsOpen;
+    renderPracticeAnalytics();
+});
+elements.analyticsTabs.forEach((button) => button.addEventListener('click', () => {
+    state.analyticsMode = button.dataset.analyticsMode;
+    renderPracticeAnalytics();
+}));
 elements.historyOpen.addEventListener('click', () => {
     state.calendarViewMode = 'month';
     openPracticeCalendar(PRACTICE_CALENDAR_ENTRY_SOURCE.practice);

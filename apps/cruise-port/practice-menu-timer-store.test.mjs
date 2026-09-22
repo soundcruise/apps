@@ -8,6 +8,8 @@ import {
     formatPracticeTimerDuration,
     getPracticeTimerElapsedSeconds,
     loadPracticeTimer,
+    pausePracticeTimer,
+    resumePracticeTimer,
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
@@ -58,4 +60,33 @@ test('stop creates one bounded session and resets active timer', () => {
     assert.equal(stopped.session.durationSeconds, 20);
     assert.equal(stopped.timer.running, false);
     assert.equal(stopPracticeTimer(stopped.timer, new Date()).stopped, false);
+});
+
+test('pause freezes active time through reload, resume, and multiple pauses', () => {
+    const storage = new FakeStorage();
+    let timer = startPracticeTimer(createStoppedPracticeTimer(), start).timer;
+    timer = pausePracticeTimer(timer, new Date(start.getTime() + 10000)).timer;
+    assert.equal(timer.paused, true);
+    assert.equal(getPracticeTimerElapsedSeconds(timer, new Date(start.getTime() + 100000)), 10);
+    assert.equal(savePracticeTimer(timer, storage).ok, true);
+    timer = loadPracticeTimer(storage).timer;
+    assert.equal(timer.paused, true);
+    assert.equal(getPracticeTimerElapsedSeconds(timer, new Date(start.getTime() + 200000)), 10);
+    timer = resumePracticeTimer(timer, new Date(start.getTime() + 200000)).timer;
+    assert.equal(getPracticeTimerElapsedSeconds(timer, new Date(start.getTime() + 205000)), 15);
+    timer = pausePracticeTimer(timer, new Date(start.getTime() + 210000)).timer;
+    const finished = stopPracticeTimer(timer, new Date(start.getTime() + 240000));
+    assert.equal(finished.session.durationSeconds, 20);
+    assert.equal(finished.session.pauseIntervals.length, 2);
+    assert.equal(finished.session.pauseIntervals[1].endedAt, new Date(start.getTime() + 240000).toISOString());
+    assert.equal(finished.timer.running, false);
+});
+
+test('v1 running timer is read without losing its elapsed time', () => {
+    const storage = new FakeStorage({ [PRACTICE_TIMER_STORAGE_KEY]: JSON.stringify({ version: 1, running: true, sessionId: 'old', startedAt: start.toISOString() }) });
+    const loaded = loadPracticeTimer(storage);
+    assert.equal(loaded.ok, true);
+    assert.equal(loaded.migrated, true);
+    assert.equal(loaded.timer.paused, false);
+    assert.equal(getPracticeTimerElapsedSeconds(loaded.timer, new Date(start.getTime() + 1000)), 1);
 });

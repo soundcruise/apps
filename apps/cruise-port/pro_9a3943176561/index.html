@@ -6,11 +6,11 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート Pro</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.49.0">
-    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.49.0">
-    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.49.0">
+    <link rel="manifest" href="./manifest.json?v=0.50.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.50.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=0.50.0">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
-    <link rel="stylesheet" href="../style.css?v=0.49.0">
+    <link rel="stylesheet" href="../style.css?v=0.50.0">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=21">
     <script>
@@ -29,12 +29,12 @@
     <script defer src="../../shared/sync-account/multi-app-sync-db.js?v=4"></script>
     <script defer src="../../shared/sync-account/multi-app-sync-runtime.js?v=17"></script>
     <script defer src="../../shared/sync-account/multi-app-conflict-ui.js?v=5"></script>
-    <script defer src="../port-sync-adapter.js?v=0.49.0"></script>
-    <script defer src="../port-sync-controller.js?v=0.49.0"></script>
+    <script defer src="../port-sync-adapter.js?v=0.50.0"></script>
+    <script defer src="../port-sync-controller.js?v=0.50.0"></script>
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="../practice-menu-app.js?v=0.49.0"></script>
+    <script type="module" src="../practice-menu-app.js?v=0.50.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -205,7 +205,7 @@
                         </div>
                     </div>
                     <div class="sync-center-app sync-center-port-card" role="status" aria-live="polite">
-                        <img src="/apps/cruise-port/assets/app-icons/pro/icon-192.png?v=0.49.0" alt="" width="48" height="48">
+                        <img src="/apps/cruise-port/assets/app-icons/pro/icon-192.png?v=0.50.0" alt="" width="48" height="48">
                         <div class="sync-center-app-copy">
                             <strong>Cruise Port</strong>
                             <span class="sync-center-app-status-line"><span id="sync-center-port-status-chip" class="sync-center-app-status-chip sync-center-app-status-chip--attention" data-sync-port-status="attention">確認が必要</span><button id="sync-center-port-conflicts-open" class="sync-center-port-conflicts-open" type="button" hidden>競合を確認する</button></span>
@@ -513,10 +513,13 @@
                     </div>
                 </div>
                 <div class="practice-timer-card">
-                    <button id="practice-timer-toggle" class="practice-timer-toggle" type="button">
-                        <span id="practice-timer-icon" aria-hidden="true">▶</span>
-                        <span id="practice-timer-label">練習スタート</span>
-                    </button>
+                    <div class="practice-timer-controls">
+                        <button id="practice-timer-toggle" class="practice-timer-toggle" type="button">
+                            <span id="practice-timer-icon" aria-hidden="true">▶</span>
+                            <span id="practice-timer-label">練習スタート</span>
+                        </button>
+                        <button id="practice-timer-stop" class="practice-timer-stop" type="button" hidden>練習終了</button>
+                    </div>
                     <time id="practice-timer-display" datetime="PT0S">00:00</time>
                 </div>
                 <p id="practice-timer-status" class="practice-saved" role="status" hidden></p>
@@ -624,6 +627,21 @@
                     <h2 id="practice-day-history-title" tabindex="-1">練習記録</h2>
                     <p id="practice-history-status" class="practice-saved" role="status" hidden></p>
                     <div id="practice-day-history-list"></div>
+                </section>
+                <section class="practice-analytics" aria-labelledby="practice-total-title">
+                    <div class="practice-total-row">
+                        <div><h2 id="practice-total-title">総練習時間</h2><strong id="practice-total-value">0分</strong></div>
+                        <button id="practice-analytics-toggle" type="button" aria-expanded="false" aria-controls="practice-analytics-details">詳細</button>
+                    </div>
+                    <div id="practice-analytics-details" hidden>
+                        <div class="practice-analytics-tabs" role="group" aria-label="練習時間の集計単位">
+                            <button type="button" data-analytics-mode="daily" aria-pressed="true">日別</button>
+                            <button type="button" data-analytics-mode="weekly" aria-pressed="false">週別</button>
+                            <button type="button" data-analytics-mode="monthly" aria-pressed="false">月別</button>
+                            <button type="button" data-analytics-mode="menu" aria-pressed="false">メニュー別</button>
+                        </div>
+                        <div id="practice-analytics-list" class="practice-analytics-list"></div>
+                    </div>
                 </section>
             </section>
         </main>

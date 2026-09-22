@@ -255,7 +255,14 @@
       const key = `${item.recordType}/${item.recordId}`;
       if (seen.has(key)) throw new Error('port_snapshot_duplicate');
       seen.add(key);
-      return clone(item);
+      const normalized = clone(item);
+      const value = normalized.payload.value;
+      if (normalized.recordType === 'gear_item' && plain(value?.item) && value.item.manufacturer === undefined) {
+        value.item.manufacturer = '';
+      }
+      if (normalized.recordType === 'practice_history_event' && value?.type === 'practice-session'
+          && value.pauseIntervals === undefined) value.pauseIntervals = [];
+      return normalized;
     }).sort((a, b) => `${a.recordType}/${a.recordId}`.localeCompare(`${b.recordType}/${b.recordId}`));
     return { schemaVersion: SCHEMA_VERSION, records };
   }
@@ -360,7 +367,7 @@
     const currentApps = itemValues(parse(storage, 'cruisePort.myApps', { items: [] }));
     const currentAssets = assetMetadata(storage);
     const repairs = findAssetReferenceRepairs(storage, normalized.records, previousRecords);
-    const currentHistory = parse(storage, 'cruisePort.practiceHistory', { version: 4, events: [] });
+    const currentHistory = parse(storage, 'cruisePort.practiceHistory', { version: 5, events: [] });
     SINGLETONS.forEach(([key, type, id]) => {
       const found = byType(normalized, type).find((item) => item.recordId === id);
       if (found) write(storage, key, found.payload.value); else storage.removeItem(key);
@@ -395,7 +402,11 @@
     currentAssets.discardQueue = [...new Set(currentAssets.discardQueue.filter(Boolean))];
     storage.setItem('cruisePort.schemaVersion', '3');
     write(storage, 'cruisePort.practiceHistory', {
-      version: 4, events: byType(normalized, 'practice_history_event').map((item) => item.payload.value),
+      version: 5, events: byType(normalized, 'practice_history_event').map((item) => {
+        const event = item.payload.value;
+        return event.type === 'practice-session' && !Array.isArray(event.pauseIntervals)
+          ? { ...event, pauseIntervals: [] } : event;
+      }),
       ...(currentHistory.activeSessionTiming ? { activeSessionTiming: currentHistory.activeSessionTiming } : {})
     });
     write(storage, 'cruisePort.gearCategories', { version: 1, categories: ordered(normalized, 'gear_category', 'gear_category_order').map((item) => item.payload.value) });

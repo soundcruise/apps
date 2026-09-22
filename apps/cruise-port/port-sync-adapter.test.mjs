@@ -173,6 +173,53 @@ test('Port hydrate keeps this environment asset IDs and running timer while appl
   assert.equal(adapter.consumeRemoteApplyChanged(), false);
 });
 
+test('Gear manufacturer and paused Practice History sync while timer remains device local', async () => {
+  const sourceStorage = storage({
+    'cruisePort.gearList': JSON.stringify({ version: 5, items: [{ id: 'gear-pause', name: 'LL6', manufacturer: 'YAMAHA', status: 'owned', order: 0,
+      photoId: null, photoSourceId: null, photoCrop: null }] }),
+    'cruisePort.practiceHistory': JSON.stringify({ version: 5, events: [{ id: 'session-pause', type: 'practice-session', sessionId: 's1',
+      durationSeconds: 3600, activeDurationSeconds: 3600,
+      pauseIntervals: [{ startedAt: '2026-09-08T14:32:00.000Z', endedAt: '2026-09-08T14:37:00.000Z' }] }] }),
+    'cruisePort.practiceTimer': 'device-a'
+  });
+  const records = load(sourceStorage).readLocalSnapshot(sourceStorage).records;
+  assert.equal(records.find((record) => record.recordType === 'gear_item').payload.value.item.manufacturer, 'YAMAHA');
+  assert.equal(records.find((record) => record.recordType === 'practice_history_event').payload.value.pauseIntervals.length, 1);
+  assert.equal(records.some((record) => JSON.stringify(record).includes('device-a')), false);
+  const target = storage({ 'cruisePort.practiceTimer': 'device-b' });
+  await load(target).applyRemoteSnapshot(target, { schemaVersion: 1, records });
+  assert.equal(JSON.parse(target.value('cruisePort.gearList')).items[0].manufacturer, 'YAMAHA');
+  assert.equal(JSON.parse(target.value('cruisePort.practiceHistory')).events[0].activeDurationSeconds, 3600);
+  assert.equal(JSON.parse(target.value('cruisePort.practiceHistory')).events[0].pauseIntervals.length, 1);
+  assert.equal(target.value('cruisePort.practiceTimer'), 'device-b');
+});
+
+test('older remote Gear and Practice events hydrate with forward schema defaults', async () => {
+  const target = storage();
+  await load(target).applyRemoteSnapshot(target, { schemaVersion: 1, records: [
+    remoteRecord('gear_item', 'old-gear', { item: { id: 'old-gear', name: 'Old', status: 'wishlist', order: 0 }, asset: { present: false } }),
+    remoteRecord('practice_history_event', 'old-session', { id: 'old-session', type: 'practice-session', sessionId: 'old', durationSeconds: 90 })
+  ] });
+  assert.equal(JSON.parse(target.value('cruisePort.gearList')).version, 5);
+  assert.equal(JSON.parse(target.value('cruisePort.gearList')).items[0].manufacturer, '');
+  assert.equal(JSON.parse(target.value('cruisePort.practiceHistory')).version, 5);
+  assert.deepEqual(JSON.parse(target.value('cruisePort.practiceHistory')).events[0].pauseIntervals, []);
+});
+
+test('schema defaults do not create false initial merge conflicts, but real manufacturer edits do', () => {
+  const api = load(storage());
+  const oldGear = remoteRecord('gear_item', 'gear-1', { item: { id: 'gear-1', name: 'LL6' }, asset: { present: false } });
+  const newGear = remoteRecord('gear_item', 'gear-1', { item: { id: 'gear-1', name: 'LL6', manufacturer: '' }, asset: { present: false } });
+  const oldSession = remoteRecord('practice_history_event', 'session-1', { id: 'session-1', type: 'practice-session', durationSeconds: 60 });
+  const newSession = remoteRecord('practice_history_event', 'session-1', { id: 'session-1', type: 'practice-session', durationSeconds: 60, pauseIntervals: [] });
+  const merged = api.mergeSnapshots({ schemaVersion: 1, records: [newGear, newSession] }, { schemaVersion: 1, records: [oldGear, oldSession] });
+  assert.equal(merged.conflicts.length, 0);
+  const changed = api.mergeSnapshots({ schemaVersion: 1, records: [
+    remoteRecord('gear_item', 'gear-1', { item: { id: 'gear-1', name: 'LL6', manufacturer: 'YAMAHA' }, asset: { present: false } })
+  ] }, { schemaVersion: 1, records: [oldGear] });
+  assert.equal(changed.conflicts.length, 1);
+});
+
 test('Port merge safe-stops only same-record divergence', () => {
   const api = load(storage());
   const item = (id, value) => ({ recordType: 'practice_menu', recordId: id, schemaVersion: 1, payload: { id, value } });

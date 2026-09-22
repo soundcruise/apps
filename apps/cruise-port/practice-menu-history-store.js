@@ -1,5 +1,6 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.48.0';
-export const PRACTICE_HISTORY_SCHEMA_VERSION = 4;
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.50.0';
+import { getActiveDurationSeconds } from './practice-menu-timer-store.js?v=0.50.0';
+export const PRACTICE_HISTORY_SCHEMA_VERSION = 5;
 export const PRACTICE_HISTORY_STORAGE_KEY = 'cruisePort.practiceHistory';
 export const PRACTICE_HISTORY_MAX_EVENTS = 8000;
 export const PRACTICE_SESSION_MAX_SECONDS = 30 * 24 * 60 * 60;
@@ -46,6 +47,19 @@ function isValidEvent(event, version = PRACTICE_HISTORY_SCHEMA_VERSION) {
     ) return false;
 
     if (event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession) {
+        if (version >= 5) {
+            if (!Array.isArray(event.pauseIntervals)) return false;
+            if (event.activeDurationSeconds !== undefined && (!Number.isSafeInteger(event.activeDurationSeconds)
+                || event.activeDurationSeconds < 0 || event.activeDurationSeconds > PRACTICE_SESSION_MAX_SECONDS)) return false;
+            let previous = Date.parse(event.startedAt);
+            for (const interval of event.pauseIntervals) {
+                if (!isIsoDate(interval?.startedAt) || !isIsoDate(interval?.endedAt)) return false;
+                const from = Date.parse(interval.startedAt);
+                const to = Date.parse(interval.endedAt);
+                if (from < previous || to < from || to > Date.parse(event.endedAt)) return false;
+                previous = to;
+            }
+        }
         return event.cycleId === null
             && typeof event.sessionId === 'string'
             && event.sessionId.length > 0
@@ -134,7 +148,9 @@ function migrateHistory(history) {
         version: PRACTICE_HISTORY_SCHEMA_VERSION,
         events: history.events.map((event) => event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceCompleted
             ? { ...event, sessionId: event.sessionId ?? null }
-            : { ...event }),
+            : event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession
+                ? { ...event, pauseIntervals: (event.pauseIntervals || []).map((interval) => ({ ...interval })) }
+                : { ...event }),
         ...(history.activeSessionTiming ? { activeSessionTiming: { ...history.activeSessionTiming } } : {})
     };
 }
@@ -153,7 +169,8 @@ export function loadPracticeHistory(storage) {
         const current = isValidPracticeHistory(parsed);
         const legacy = isValidPracticeHistoryVersion(parsed, 1)
             || isValidPracticeHistoryVersion(parsed, 2)
-            || isValidPracticeHistoryVersion(parsed, 3);
+            || isValidPracticeHistoryVersion(parsed, 3)
+            || isValidPracticeHistoryVersion(parsed, 4);
         if (!current && !legacy) return { ok: false, history: fallback, reason: 'invalid-data' };
         return legacy
             ? { ok: true, history: cloneHistory(parsed), migrated: true }
@@ -213,7 +230,7 @@ export function createCycleCompletedEvent(cycleId, now = new Date()) {
     };
 }
 
-export function createPracticeSessionEvent({ sessionId, startedAt, endedAt, durationSeconds }) {
+export function createPracticeSessionEvent({ sessionId, startedAt, endedAt, durationSeconds, pauseIntervals = [] }) {
     const endedDate = new Date(endedAt);
     return {
         id: createEventId(endedDate),
@@ -225,6 +242,8 @@ export function createPracticeSessionEvent({ sessionId, startedAt, endedAt, dura
         startedAt: new Date(startedAt).toISOString(),
         endedAt: endedDate.toISOString(),
         durationSeconds,
+        activeDurationSeconds: durationSeconds,
+        pauseIntervals: pauseIntervals.map((interval) => ({ ...interval })),
         practiceId: null,
         practiceName: null,
         durationMinutes: null,
@@ -242,7 +261,7 @@ function snapshotSessionDurations(events, session) {
         .forEach((event) => {
             const checked = Math.min(end, Math.max(previous, Date.parse(event.timestamp)));
             if (event.measuredDurationSeconds === undefined) {
-                event.measuredDurationSeconds = Math.min(PRACTICE_SESSION_MAX_SECONDS, Math.floor((checked - previous) / 1000));
+                event.measuredDurationSeconds = getActiveDurationSeconds(new Date(previous).toISOString(), new Date(checked).toISOString(), session.pauseIntervals || []);
             }
             previous = checked;
         });
@@ -299,7 +318,7 @@ export function appendPracticeHistoryEvent(history, event, runningTimer = null) 
         retainRunningSessionTiming(next, runningTimer);
         const previous = Date.parse(next.activeSessionTiming.lastCheckedAt);
         const checked = Math.max(previous, Date.parse(event.timestamp));
-        event = { ...event, measuredDurationSeconds: Math.min(PRACTICE_SESSION_MAX_SECONDS, Math.floor((checked - previous) / 1000)) };
+        event = { ...event, measuredDurationSeconds: getActiveDurationSeconds(new Date(previous).toISOString(), new Date(checked).toISOString(), runningTimer.pauseIntervals || [], runningTimer.pausedAt) };
         next.activeSessionTiming.lastCheckedAt = new Date(checked).toISOString();
     }
     next.events.push({ ...event });
@@ -346,7 +365,7 @@ export function createPracticeDayHistoryView(history, localDate) {
         children.forEach((child) => {
             const checkedTimestamp = Math.min(endedTimestamp, Math.max(previousTimestamp, Date.parse(child.event.timestamp)));
             child.measuredDurationSeconds = child.event.measuredDurationSeconds
-                ?? Math.floor((checkedTimestamp - previousTimestamp) / 1000);
+                ?? getActiveDurationSeconds(new Date(previousTimestamp).toISOString(), new Date(checkedTimestamp).toISOString(), session.pauseIntervals || []);
             previousTimestamp = checkedTimestamp;
         });
     });
@@ -370,9 +389,9 @@ export function createPracticeDayHistoryView(history, localDate) {
                 kind: 'session',
                 event,
                 children,
-                displayDurationSeconds: children.length > 0
+                displayDurationSeconds: event.activeDurationSeconds ?? (children.length > 0
                     ? children.reduce((total, child) => total + child.measuredDurationSeconds, 0)
-                    : event.durationSeconds
+                    : event.durationSeconds)
             };
         });
 }
