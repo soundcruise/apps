@@ -199,7 +199,11 @@
     Object.entries(assets.attachments || {}).forEach(([logicalId, entry]) => {
       if (entry?.published?.availability !== 'available' || !entry.published.asset?.assetId) return;
       records.push(record('practice_attachment', logicalId, {
-        practiceId: entry.practiceId, fileName: entry.fileName, kind: entry.kind,
+        practiceId: entry.practiceId,
+        // Asset prepare normalizes user-supplied filenames to NFC. Keep the
+        // structured reference byte-for-byte aligned with that authoritative
+        // metadata so decomposed iOS filenames remain valid Worker payloads.
+        fileName: entry.published.asset.originalFilename || entry.fileName, kind: entry.kind,
         mimeType: entry.mimeType, byteSize: entry.byteSize,
         createdAt: entry.createdAt, updatedAt: entry.updatedAt,
         asset: clone(entry.published.asset)

@@ -655,7 +655,7 @@
       const remote = mapRecords(remoteRecords);
       const shadow = mapRecords(shadowRecords);
       const pending = await this.store.listOutbox();
-      const pendingKeys = new Set(pending.map((item) => `${keyOf(item)}:${item.deleted === true}`));
+      const pendingByKey = new Map(pending.map((item) => [`${keyOf(item)}:${item.deleted === true}`, item]));
       for (const recordKey of new Set([...local.keys(), ...shadow.keys()])) {
         const current = local.get(recordKey);
         const previous = shadow.get(recordKey);
@@ -664,8 +664,18 @@
         if (!migration && !previous && deleted) continue;
         const source = current || previous;
         const pendingKey = `${recordKey}:${deleted}`;
-        if (pendingKeys.has(pendingKey)) continue;
         const operation = await this.operationFor(source, remote.get(recordKey)?.revision || previous?.revision || 0, deleted);
+        const pendingOperation = pendingByKey.get(pendingKey);
+        if (pendingOperation) {
+          const mutationUnchanged = pendingOperation.payloadHash === operation.payloadHash &&
+            Number(pendingOperation.baseRevision || 0) === Number(operation.baseRevision || 0) &&
+            Number(pendingOperation.schemaVersion || 0) === Number(operation.schemaVersion || 0);
+          // Terminal failures remain fail-closed until the underlying mutation
+          // actually changes. A corrected payload safely supersedes only that
+          // exact stale operation; ordinary pending/conflict work is untouched.
+          if (!pendingOperation.terminalError || mutationUnchanged) continue;
+          await this.store.deleteOutbox(pendingOperation.operationId);
+        }
         await this.store.putOutbox({ ...operation, migration });
       }
     }

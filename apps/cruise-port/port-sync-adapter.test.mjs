@@ -278,17 +278,20 @@ test('Remote order resolution keeps Cloud precedence while preserving Local-only
 
 test('practice attachments serialize only logical metadata and hydrate without binary download', async () => {
   const logicalId = '123e4567-e89b-42d3-a456-426614174100';
+  const localFileName = 'ガイド.pdf'.normalize('NFD');
+  const canonicalFileName = 'ガイド.pdf'.normalize('NFC');
+  assert.notEqual(localFileName, canonicalFileName, 'fixture preserves the iOS decomposition mismatch');
   const asset = {
     assetId: '223e4567-e89b-42d3-a456-426614174100', kind: 'practice_attachment_pdf',
     hash: 'a'.repeat(64), mime: 'application/pdf', byteSize: 20, width: 1, height: 1,
-    objectVersion: 1, availability: 'available', ownerRecordId: 'practice-a', originalFilename: 'score.pdf'
+    objectVersion: 1, availability: 'available', ownerRecordId: 'practice-a', originalFilename: canonicalFileName
   };
   const sourceStorage = storage({
     'cruisePort.practiceMenus': JSON.stringify({ version: 3, items: [{ id: 'practice-a', name: 'A' }] }),
     'cruisePort.syncAssetMetadata': JSON.stringify({
       version: 3, gear: {}, myApps: {}, attachments: {
         [logicalId]: {
-          practiceId: 'practice-a', kind: 'file', mimeType: 'application/pdf', fileName: 'score.pdf', byteSize: 20,
+          practiceId: 'practice-a', kind: 'file', mimeType: 'application/pdf', fileName: localFileName, byteSize: 20,
           createdAt: '2026-09-18T01:00:00.000Z', updatedAt: '2026-09-18T01:00:00.000Z',
           published: { version: 1, availability: 'available', asset },
           binding: { assetId: asset.assetId, hash: asset.hash, localId: 'device-local-id' }, pending: null
@@ -301,6 +304,8 @@ test('practice attachments serialize only logical metadata and hydrate without b
   const attachment = snapshot.records.find((record) => record.recordType === 'practice_attachment');
   const set = snapshot.records.find((record) => record.recordType === 'practice_attachment_set');
   assert.equal(attachment.recordId, logicalId);
+  assert.equal(attachment.payload.value.fileName, canonicalFileName);
+  assert.equal(attachment.payload.value.asset.originalFilename, canonicalFileName);
   assert.equal(JSON.stringify(attachment).includes('device-local-id'), false);
   assert.equal(JSON.stringify(attachment).includes('blob'), false);
   assert.deepEqual(JSON.parse(JSON.stringify(set.payload.value)), [logicalId]);

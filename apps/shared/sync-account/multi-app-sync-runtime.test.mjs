@@ -393,6 +393,34 @@ test('an oversized migration retries the retained invalid-request cohort in Work
   assert.equal(await fixture.store.readMeta('migrationState'), 'complete');
 });
 
+test('a corrected mutation supersedes only its stale terminal outbox operation', async () => {
+  const stale = record('attachment-1', 'decomposed filename', 'practice_attachment');
+  const corrected = record('attachment-1', 'normalized filename', 'practice_attachment');
+  const fixture = runtimeFixture([corrected], 'port', 'production');
+  const staleOperation = await fixture.runtime.operationFor(stale, 0);
+  await fixture.store.putOutbox({ ...staleOperation, migration: true, terminalError: 'invalid_payload' });
+
+  await fixture.runtime.queueDiff([corrected], [], [], { migration: true });
+
+  const outbox = await fixture.store.listOutbox();
+  assert.equal(outbox.length, 1);
+  assert.notEqual(outbox[0].operationId, staleOperation.operationId);
+  assert.equal(outbox[0].payloadHash, corrected.payloadHash);
+  assert.equal(outbox[0].terminalError, undefined);
+  assert.equal(outbox[0].migration, true);
+});
+
+test('an unchanged terminal mutation remains fail-closed', async () => {
+  const unchanged = record('attachment-1', 'same invalid payload', 'practice_attachment');
+  const fixture = runtimeFixture([unchanged], 'port', 'production');
+  const terminal = await fixture.runtime.operationFor(unchanged, 0);
+  await fixture.store.putOutbox({ ...terminal, migration: true, terminalError: 'invalid_payload' });
+
+  await fixture.runtime.queueDiff([unchanged], [], [], { migration: true });
+
+  assert.deepEqual(await fixture.store.listOutbox(), [{ ...terminal, migration: true, terminalError: 'invalid_payload' }]);
+});
+
 test('an initializing snapshot containing another device record remains fail-closed', async () => {
   const local = record('gear-1', 'Local', 'gear_item');
   const fixture = runtimeFixture([local], 'port', 'production');
