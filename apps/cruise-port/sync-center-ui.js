@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.45.11';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.45.12';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -394,7 +394,7 @@ export function renderSyncCenter(root, presentation, {
     if (recoveryOpen) recoveryOpen.hidden = accountState !== 'unset';
     if (recoveryHelp) {
         recoveryHelp.textContent = accountState === 'active'
-            ? '復旧コードは、アカウントを失ったときに元のクラウドデータへ戻るために使います。安全のため現在のコードは再表示できません。必要な場合は「復旧コードを更新」から新しいコードを発行できます。'
+            ? '復旧コードは、アカウントを取り戻すためのコードです。現在のコードは再表示できません。「復旧コードを更新」で新しいコードを発行すると、以前のコードは使えなくなります。安全な場所に保存してください。'
             : '保存してある復旧コードを使って、既存のSound Cruise Syncアカウントを復旧できます。';
     }
     if (accountDisplayId) {

@@ -2097,6 +2097,25 @@ textarea:focus-visible {
     margin-top: 28px;
     color: var(--port-text);
 }
+.settings-sync-center-card .sound-cruise-sync-settings-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.settings-sync-center-card .sound-cruise-sync-help-button {
+    position: relative;
+    flex: 0 0 28px;
+    width: 28px;
+    min-width: 28px;
+    min-height: 28px;
+    font-size: calc(0.78rem * var(--font-scale));
+}
+.settings-sync-center-card .sound-cruise-sync-help-button::before {
+    position: absolute;
+    inset: -6px;
+    content: '';
+}
 
 .sync-center-panel { display: grid; gap: 26px; }
 .sync-center-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
@@ -2258,6 +2277,12 @@ textarea:focus-visible {
     margin: 12px 0 4px;
     color: var(--port-text);
     font-size: calc(0.84rem * var(--font-scale));
+}
+.sync-center-help-note {
+    margin-top: 12px !important;
+    padding-top: 10px;
+    border-top: 1px solid var(--port-border);
+    color: var(--port-muted) !important;
 }
 .sync-center-section-help-steps {
     display: grid;

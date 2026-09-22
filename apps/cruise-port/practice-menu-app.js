@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.45.11';
+} from './practice-menu-store.js?v=0.45.12';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.45.11';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.45.12';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.45.11';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.45.11';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.45.11';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.45.11';
+} from './sync-center-controller.js?v=0.45.12';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.45.12';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.45.12';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.45.12';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.45.11';
+} from './sync-center-navigation.js?v=0.45.12';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.45.11';
+} from './practice-menu-progress-store.js?v=0.45.12';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.45.11';
+} from './practice-menu-history-store.js?v=0.45.12';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.45.11';
+} from './practice-menu-calendar-store.js?v=0.45.12';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -82,7 +82,7 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.45.11';
+} from './practice-menu-timer-store.js?v=0.45.12';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -119,7 +119,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.45.11';
+} from './my-apps-store.js?v=0.45.12';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -170,9 +170,9 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.45.11';
+} from './app-version.js?v=0.45.12';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.45.11';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.45.12';
 import { initTuner } from './tuner-app.js?v=0.27.0';
 import {
     clearGearPhotoReferences,
@@ -191,7 +191,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.45.11';
+} from './gear-list-store.js?v=0.45.12';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -200,9 +200,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.45.11';
+} from './gear-category-store.js?v=0.45.12';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.45.11';
+import { PortAssetSync } from './port-asset-sync.js?v=0.45.12';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -253,11 +253,11 @@ const portSyncController = globalThis.SoundCruisePortSync?.createPortSyncControl
 globalThis.SoundCruiseMultiAppSync?.installConflictResolutionUi?.(portSyncController?.runtime, document);
 const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController });
 bindHomeCruiseLaunch(syncCenterOrchestrator);
-const PORT_SYNC_HELP_SUMMARY = '4つのProアプリのデータを、Cruise Portからまとめて管理できます。知りたい項目を下から選んでください。';
+const PORT_SYNC_HELP_SUMMARY = 'Cruise PortとCruiseアプリの保存データを、同じアカウントでクラウドに同期できます。通常はインターネット接続時に自動で同期されます。';
 const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     Object.freeze({
         title: '最初の接続',
-        paragraphs: Object.freeze(['普段使っているProアプリをCruise Portに接続する手順です。']),
+        paragraphs: Object.freeze(['普段使っているCruiseアプリをCruise Portに接続する手順です。']),
         flowSteps: true,
         steps: Object.freeze([
             '1. Cruise Portで対象アプリの「同期コード」を押す',
@@ -269,17 +269,17 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
         ])
     }),
     Object.freeze({
-        title: '環境を管理',
-        paragraphs: Object.freeze(['Cruise Portや各アプリで使う端末・ブラウザを追加・確認・解除できます。']),
+        title: '端末やブラウザを追加',
+        paragraphs: Object.freeze(['別のスマートフォンやパソコンでも、同じアカウントの保存データを利用できます。']),
         items: Object.freeze([
-            Object.freeze({ title: 'Cruise Port', body: 'Cruise Portでは、このアカウントを使う環境を管理します。' }),
-            Object.freeze({ title: '環境を確認・解除', body: '「○環境」を開くと、接続中の環境を確認・解除できます。' }),
-            Object.freeze({ title: '環境を追加', body: '2台目以降の環境は「追加コード」から追加します。アプリの最初の接続は「2. アプリを接続」から行います。' })
+            Object.freeze({ title: 'Cruise Portを追加', body: '「別の端末を追加」から、別のCruise Portをこのアカウントに追加できます。' }),
+            Object.freeze({ title: '同期先を確認・解除', body: '「同期先 ○件」を開くと、接続中の端末やブラウザを確認・解除できます。' }),
+            Object.freeze({ title: 'Cruiseアプリを追加', body: 'まだ一度も接続していないアプリは、「2. Cruiseアプリを接続」から接続します。' })
         ])
     }),
     Object.freeze({
         title: '復旧コード',
-        paragraphs: Object.freeze(['復旧コードは、同期中の環境をすべて失った場合にクラウド同期を取り戻すためのコードです。現在有効なコードは1つだけで、新しいコードを発行すると以前のコードは使えなくなります。運営者へ送らず、安全な場所へ保存してください。'])
+        paragraphs: Object.freeze(['復旧コードは、アカウントを取り戻すためのコードです。現在のコードは再表示できません。新しいコードを発行すると以前のコードは使えなくなるため、安全な場所に保存してください。'])
     }),
     Object.freeze({
         title: 'オフライン・競合',
@@ -287,11 +287,11 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     }),
     Object.freeze({
         title: '解除・削除',
-        paragraphs: Object.freeze(['環境の同期解除、アプリ単位のクラウド削除、Account全体の削除は別の操作です。削除を確定するとクラウドデータは7日後に完全削除の対象になります。端末内のデータは自動では削除されません。'])
+        paragraphs: Object.freeze(['同期を解除してもクラウド上と端末内のデータは残ります。アプリ単位で削除すると選んだアプリだけ、アカウントを削除するとCruise Portを含むすべての同期データが削除対象になります。端末内のデータは自動では削除されません。'])
     }),
     Object.freeze({
         title: 'データとプライバシー',
-        paragraphs: Object.freeze(['クラウド同期を利用すると、アプリ内で保存した同期対象データと、同期に必要な識別子・更新日時などの技術情報がクラウドに保存されます。氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。Cloudflare Workers、Cloudflare D1、Cloudflare Turnstileを利用します。'])
+        paragraphs: Object.freeze(['同期する保存データと、同期に必要な情報をクラウドに保存します。氏名やメールアドレスの登録は必要ありません。詳しくはプライバシーポリシーをご確認ください。'])
     })
 ]);
 

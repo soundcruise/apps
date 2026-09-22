@@ -3,7 +3,7 @@ import {
     deleteMyApp,
     saveMyApps,
     updateMyApp
-} from './my-apps-store.js?v=0.45.11';
+} from './my-apps-store.js?v=0.45.12';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
 import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';

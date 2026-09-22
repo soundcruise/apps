@@ -60,7 +60,7 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     for (const html of [root, pro]) {
         assert.match(html, /id="settings-sync-center-entry"[^>]*hidden/);
         assert.match(html, /id="sync-center-view"[^>]*hidden/);
-        assert.match(html, /4つのProアプリのクラウド同期を管理します。/);
+        assert.match(html, /Cruise PortやCruiseアプリの保存データを、同じアカウントでクラウドに同期できます。別の端末でも続きから利用できます。/);
         assert.match(html, /クラウド同期を開く/);
         assert.match(html, /次の手順で設定します。/);
         assert.match(html, /設定から「Cruise Portと接続」を押す/);
@@ -87,7 +87,7 @@ test('Standard and Pro contain a feature-gated Sync Center entry and four-app sh
     assert.match(app, /PORT_SYNC_HELP_SECTIONS/);
     assert.match(app, /openPortSyncHelp/);
     assert.equal((app.match(/flowSteps: true/g) || []).length, 1);
-    for (const category of ['最初の接続', '環境を管理', '復旧コード', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
+    for (const category of ['最初の接続', '端末やブラウザを追加', '復旧コード', 'オフライン・競合', '解除・削除', 'データとプライバシー']) {
         assert.match(app, new RegExp(`title: '${category}'`));
     }
 });
@@ -110,11 +110,12 @@ test('Account section presents step title, status chip and state-specific CTA', 
         assert.match(account, /id="sync-center-port-status-chip"/);
         assert.match(account, /sync-center-section-heading[\s\S]*1\. アカウント[\s\S]*id="sync-center-account-help-toggle"/);
         assert.match(account, /id="sync-center-account-help"[^>]*hidden/);
-        assert.match(account, /<h3>アカウント<\/h3>/);
+        assert.match(account, /<h3>アカウントについて<\/h3>/);
         assert.match(account, /アカウントを作成/);
         assert.match(account, /既存アカウントに接続/);
         assert.doesNotMatch(account, /account-recovery-help/);
-        assert.doesNotMatch(account, /復旧コード/);
+        assert.match(account, /アカウントIDについて/);
+        assert.match(account, /パスワードではありません。/);
         assert.doesNotMatch(account, /復旧コードの確認/);
         assert.doesNotMatch(account, /Sound Cruise Sync 接続済み/);
         assert.doesNotMatch(account, /アプリの同期設定が完了/);
@@ -151,8 +152,8 @@ test('Account section renders Cruise Port as a compact card with the shared stat
     for (const html of [root, pro]) {
         assert.match(html, /sync-center-port-card/);
         assert.match(html, /id="sync-center-port-status-chip"/);
-        assert.match(html, /機材リスト、練習メニュー、My Appsなど、Cruise Port内で保存したデータをクラウドに同期します。/);
-        assert.doesNotMatch(html, /Cruise Portのデータ/);
+        assert.match(html, /機材リスト、練習メニュー、My Apps、カレンダー、メトロノーム、設定などを同期します。写真、カスタムアイコン、添付ファイルにも対応しています。/);
+        assert.match(html, /Cruise Portのデータ/);
     }
     assert.match(ui, /function renderPortStatus/);
     assert.match(ui, /dataset\.syncPortStatus = status\.state/);
@@ -221,7 +222,7 @@ test('Sync Code rows bind the existing launch callback after every render', () =
     assert.match(source, /if \(result\?\.kind === 'join'\) \{[\s\S]*showJoinCode\(root, result/);
     for (const html of [root, pro]) {
         assert.match(html, /2\. Cruiseアプリを接続[\s\S]*data-sync-section-help-toggle="sync-center-apps-help"/);
-        assert.match(html, /id="sync-center-apps-help"[\s\S]*Cruiseアプリ内の保存データをクラウドに同期します。[\s\S]*そのアプリの全同期先を解除します。/);
+        assert.match(html, /id="sync-center-apps-help"[\s\S]*音感・指板・リズム・コードの各Cruiseアプリで保存したデータをクラウドに同期します。[\s\S]*ホーム画面のアプリを削除したあともCruise Portから再び利用できます。/);
     }
     assert.match(styles, /\.sync-center-account-action-row\s*\{[\s\S]*grid-template-columns:\s*minmax\(0, 1\.35fr\)\s+minmax\(0, 1fr\)/);
     assert.match(styles, /\.sync-center-account-action-row\[data-sync-account-state="unset"\][\s\S]*grid-template-columns:\s*minmax\(0, 360px\)/);
@@ -241,8 +242,8 @@ test('Recovery-code update uses authenticated rotation without opening Recovery 
         assert.match(recoverySection, /id="sync-center-account-recovery-open"[^>]*hidden>復旧コードを更新/);
         assert.match(recoverySection, /id="sync-center-recovery-open"[^>]*hidden>復旧コードで復旧/);
     }
-    assert.match(ui, /復旧コードは、アカウントを失ったときに元のクラウドデータへ戻るために使います。/);
-    assert.match(ui, /安全のため現在のコードは再表示できません。/);
+    assert.match(ui, /復旧コードは、アカウントを取り戻すためのコードです。/);
+    assert.match(ui, /現在のコードは再表示できません。「復旧コードを更新」で新しいコードを発行すると、以前のコードは使えなくなります。安全な場所に保存してください。/);
     assert.match(ui, /保存してある復旧コードを使って、既存のSound Cruise Syncアカウントを復旧できます。/);
     assert.match(ui, /accountRecoveryOpen\.hidden = accountState !== 'active'/);
     assert.match(ui, /recoveryOpen\.hidden = accountState !== 'unset'/);
@@ -317,18 +318,18 @@ test('Recovery execution copy is concise and its dialog prevents iOS input zoom'
     assert.match(css, /\.sync-center-help-dialog[\s\S]*box-sizing:\s*border-box[\s\S]*width:\s*min\(560px, calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)\)[\s\S]*max-width:\s*calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)[\s\S]*max-height:\s*min\(calc\(100dvh - 24px\), 720px\)[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/);
 });
 
-test('Sync Help separates initial connection from environment management', () => {
+test('Sync Help separates initial connection from adding another device or browser', () => {
     const firstStart = app.indexOf("title: '最初の接続'");
-    const additionalStart = app.indexOf("title: '環境を管理'");
+    const additionalStart = app.indexOf("title: '端末やブラウザを追加'");
     const nextSection = app.indexOf("title: '復旧コード'", additionalStart);
     const first = app.slice(firstStart, additionalStart);
     const additional = app.slice(additionalStart, nextSection);
     assert.match(first, /'1\. Cruise Portで対象アプリの「同期コード」を押す'/);
     assert.match(first, /'6\. コードを入力して「接続する」を押す'/);
-    assert.match(additional, /Cruise Portや各アプリで使う端末・ブラウザを追加・確認・解除できます。/);
-    assert.match(additional, /Cruise Portでは、このアカウントを使う環境を管理します。/);
-    assert.match(additional, /環境を追加/);
-    assert.match(additional, /環境を確認・解除/);
+    assert.match(additional, /別のスマートフォンやパソコンでも、同じアカウントの保存データを利用できます。/);
+    assert.match(additional, /Cruise Portを追加/);
+    assert.match(additional, /同期先を確認・解除/);
+    assert.match(additional, /Cruiseアプリを追加/);
 });
 
 test('Section 2 is initial-only and Section 3 keeps Port primary with app destinations in Advanced', () => {
@@ -550,9 +551,9 @@ test('App detach stays in its row while app cloud deletion moves into a closed D
         for (const appId of ['pitch', 'fretboard', 'rhythm', 'chord']) {
             assert.match(html, new RegExp(`data-sync-app-delete="${appId}"`));
         }
-        assert.match(html, /「同期を解除」ではクラウドデータを残したまま、そのアプリの全同期先を解除します。/);
+        assert.match(html, /「同期を解除」は、クラウド上と端末内のデータを残したまま、そのアプリの同期接続を外す操作です。/);
         assert.match(html, /id="sync-center-account-delete"[^>]*>アカウントを削除<\/button>/);
-        assert.match(html, /Sound Cruise Syncアカウントと4つのアプリすべてのクラウド同期データを削除対象にします。/);
+        assert.match(html, /「アカウントを削除」は、Cruise PortとすべてのCruiseアプリのクラウドデータを削除対象にします。/);
         assert.doesNotMatch(html, /すべてのクラウドデータを削除/);
     }
     assert.match(source, /title: 'Sound Cruise Syncアカウントを削除'/);
@@ -585,8 +586,29 @@ test('delete grace reconnect is explicit and Section 3 owns counts, lists and sc
 test('official four-app routes are reused and no all-data-upload promise is made', () => {
     assert.match(read('./sync-center-ui.js'), /resolveCruiseAppHref/);
     assert.doesNotMatch(`${root}\n${pro}\n${app}`, /今すぐ全データ|一括アップロード|自動アップロード/);
-    assert.match(app, /普段使っているProアプリをCruise Portに接続する手順です。/);
-    assert.match(app, /環境の同期解除、アプリ単位のクラウド削除、Account全体の削除は別/);
+    assert.match(app, /普段使っているCruiseアプリをCruise Portに接続する手順です。/);
+    assert.match(app, /同期を解除してもクラウド上と端末内のデータは残ります。/);
+});
+
+test('Sync Help uses current plain-language copy and keeps the browser and Home Screen note', () => {
+    const styles = read('./style.css');
+    for (const html of [root, pro]) {
+        assert.match(html, /id="settings-sync-center-help"/);
+        assert.match(html, /音感・指板・リズム・コードの各Cruiseアプリで保存したデータをクラウドに同期します。/);
+        assert.match(html, /「✓ 同期済み」は、クラウドへ保存されていない変更がない状態です。/);
+        assert.match(html, /同期済みのデータは、ホーム画面のアプリを削除したあともCruise Portから再び利用できます。端末固有の設定や、まだ同期されていない変更は対象外です。/);
+        assert.match(html, /同期先には、スマートフォンやパソコンのほか、ブラウザ版やホーム画面版も個別に表示される場合があります。/);
+        assert.match(html, /同じ端末でも、ブラウザ版とホーム画面版は別の同期先として扱われる場合があります。/);
+        assert.match(html, /使わなくなった同期先や、紛失した端末の接続を解除できます。/);
+        assert.doesNotMatch(html, /4つのProアプリのクラウド同期を管理します。/);
+        assert.doesNotMatch(html, /dataset|membership|App Device|credential|outbox|tombstone/);
+    }
+    assert.match(app, /Cruise PortとCruiseアプリの保存データを、同じアカウントでクラウドに同期できます。通常はインターネット接続時に自動で同期されます。/);
+    assert.match(app, /現在のコードは再表示できません。新しいコードを発行すると以前のコードは使えなくなるため、安全な場所に保存してください。/);
+    assert.match(styles, /\.settings-sync-center-card \.sound-cruise-sync-settings-head\s*\{[\s\S]*justify-content:\s*space-between/);
+    assert.match(styles, /\.settings-sync-center-card \.sound-cruise-sync-help-button\s*\{[\s\S]*flex:\s*0 0 28px[\s\S]*width:\s*28px[\s\S]*min-height:\s*28px/);
+    assert.match(styles, /\.settings-sync-center-card \.sound-cruise-sync-help-button::before\s*\{[\s\S]*inset:\s*-6px/);
+    assert.match(styles, /\.sync-center-help-note/);
 });
 
 test('Join invitation keeps existing callbacks while rendering a concise non-secret flow', () => {
