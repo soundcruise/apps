@@ -1469,6 +1469,192 @@ test('real Pitch all-default merge removes settings and converges for three cycl
   }
 });
 
+async function realPitchDefaultChoiceFixture({ mixed = false, remoteState = 'live' } = {}) {
+  const fixture = runtimeFixture([], 'pitch');
+  const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+  vm.runInContext(readFileSync(new URL('../../pitch-cruise/sync/pitch-sync-adapter.js', import.meta.url), 'utf8'), context);
+  const data = new Map();
+  const storage = { getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => data.set(key, String(value)), removeItem: (key) => data.delete(key) };
+  const real = new context.SoundCruisePitchSync.PitchSyncAdapter({ storage, cryptoImpl: webcrypto });
+  fixture.runtime.adapter = real;
+  const make = (values) => ({ appId: 'pitch', schemaVersion: 1, records: [{
+    recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+    payload: { id: 'settings', values: real.encodeSettingsForMerge(real.effectiveSettingsForMerge(values)) }
+  }] });
+  const baseline = make({ testModeEnabled: true, noteSpeed: 1.5, ...(mixed ? { baseOctave: 4 } : {}) });
+  await real.applyRemoteSnapshot(baseline);
+  data.set('pitchTrainerTestModeEnabled', 'false');
+  data.set('pitchTrainerSettings', JSON.stringify({ ...JSON.parse(data.get('pitchTrainerSettings')),
+    noteSpeed: 1.25, ...(mixed ? { baseOctave: 3 } : {}) }));
+  const remote = make({ testModeEnabled: true, noteSpeed: 1, ...(mixed ? { baseOctave: 5 } : {}) });
+  const [shadow] = await real.serializeRecords(baseline);
+  const [incoming] = await real.serializeRecords(remote);
+  await fixture.store.putShadow('settings/settings', { ...shadow, revision: 1, deletedAt: null });
+  if (remoteState !== 'absent') fixture.server.records.set('settings/settings', {
+    ...incoming, revision: 2, operationId: 'remote-choice', changeSeq: 2,
+    ...(remoteState === 'tombstone' ? { payload: null, deletedAt: Date.now() } : { deletedAt: null })
+  });
+  fixture.server.revision = 2;
+  fixture.server.state = 'ready';
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('qaCredential', 'scq1.valid');
+  await fixture.store.setMeta('migrationState', 'complete');
+  assert.equal((await fixture.runtime.performSync('settings-conflict')).code, 'conflict');
+  const [view] = await fixture.runtime.listConflictPresentations();
+  assert(view);
+  return { ...fixture, real, data, view, shadow, incoming };
+}
+
+test('real Pitch Cloud field choice resolves all-default as no record and stays converged', async () => {
+  const fixture = await realPitchDefaultChoiceFixture();
+  assert.deepEqual(Array.from(fixture.view.settings.fields, (field) => field.path), ['/noteSpeed']);
+  assert.equal(fixture.view.settings.fields[0].local, 1.25);
+  assert.equal(fixture.view.settings.fields[0].remote, 1);
+  const result = await fixture.runtime.resolveConflict(fixture.view.id, 'merged', {
+    fieldChoices: { '/noteSpeed': 'remote' }
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(fixture.real.normalizeLocalSnapshot().records.some((record) => record.recordType === 'settings'), false);
+  assert.equal(fixture.server.records.get('settings/settings').deletedAt !== null, true);
+  const shadow = await fixture.store.getShadow('settings/settings');
+  assert.equal(shadow.deletedAt !== null, true);
+  assert.equal(shadow.payload, null);
+  assert.equal(await fixture.real.computeManifest(fixture.real.normalizeLocalSnapshot()),
+    await fixture.real.computeManifest({ appId: 'pitch', schemaVersion: 1, records: [] }));
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'ready');
+  const other = runtimeFixture([], 'pitch');
+  const otherData = new Map();
+  const otherStorage = { getItem: (key) => otherData.get(key) ?? null,
+    setItem: (key, value) => otherData.set(key, String(value)), removeItem: (key) => otherData.delete(key) };
+  const otherAdapter = new fixture.real.constructor({ storage: otherStorage, cryptoImpl: webcrypto });
+  const prior = fixture.incoming;
+  await otherAdapter.applyRemoteSnapshot({ appId: 'pitch', schemaVersion: 1, records: [{
+    recordType: prior.recordType, recordId: prior.recordId, schemaVersion: prior.schemaVersion,
+    payload: prior.payload
+  }] });
+  other.runtime.adapter = otherAdapter;
+  other.runtime.fetchImpl = fixture.fetchImpl;
+  await other.store.putShadow('settings/settings', { ...prior, revision: 2, deletedAt: null });
+  await other.store.setMeta('credential', 'scd1.valid');
+  await other.store.setMeta('qaCredential', 'scq1.valid');
+  await other.store.setMeta('migrationState', 'complete');
+  assert.equal((await other.runtime.performSync('receive-default')).ok, true);
+  assert.equal(otherAdapter.normalizeLocalSnapshot().records.some((record) => record.recordType === 'settings'), false);
+  assert.equal(await other.store.readMeta('runtimeState'), 'ready');
+  assert.equal((await other.store.listConflicts()).length, 0);
+  assert.equal((await other.store.listOutbox()).length, 0);
+  const pushes = fixture.server.pushCalls;
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    assert.equal((await fixture.runtime.performSync(`converge-${cycle}`)).ok, true);
+    assert.equal((await other.runtime.performSync(`other-converge-${cycle}`)).ok, true);
+    assert.equal(fixture.server.pushCalls, pushes);
+  }
+});
+
+test('real Pitch Local field choice keeps meaningful settings', async () => {
+  const fixture = await realPitchDefaultChoiceFixture();
+  const result = await fixture.runtime.resolveConflict(fixture.view.id, 'merged', {
+    fieldChoices: { '/noteSpeed': 'local' }
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const local = fixture.real.normalizeLocalSnapshot().records.find((record) => record.recordType === 'settings');
+  assert.equal(local.payload.values.noteSpeed, 1.25);
+  assert.equal(local.payload.values.testModeEnabled, undefined);
+  assert.equal(fixture.server.records.get('settings/settings').payload.values.noteSpeed, 1.25);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('real Pitch mixed field choices can resolve to all-default without an empty record', async () => {
+  const fixture = await realPitchDefaultChoiceFixture({ mixed: true });
+  assert.deepEqual(Array.from(fixture.view.settings.fields, (field) => field.path), ['/baseOctave', '/noteSpeed']);
+  const result = await fixture.runtime.resolveConflict(fixture.view.id, 'merged', {
+    fieldChoices: { '/baseOctave': 'local', '/noteSpeed': 'remote' }
+  });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(fixture.real.normalizeLocalSnapshot().records.some((record) => record.recordType === 'settings'), false);
+  assert.equal(fixture.server.records.get('settings/settings').deletedAt !== null, true);
+});
+
+test('real Pitch default deletion resumes after response loss without another revision', async () => {
+  const fixture = await realPitchDefaultChoiceFixture();
+  fixture.server.responseLossAfterApply = true;
+  const first = await fixture.runtime.resolveConflict(fixture.view.id, 'merged', {
+    fieldChoices: { '/noteSpeed': 'remote' }
+  });
+  assert.equal(first.ok, false);
+  assert.equal(fixture.server.records.get('settings/settings').revision, 3);
+  const pushes = fixture.server.pushCalls;
+  const restarted = new fixture.Runtime({
+    appId: 'pitch', endpoint: 'https://example.test', adapter: fixture.real,
+    store: fixture.store, accountClient: fixture.accountClient, accountCore: fixture.core,
+    fetchImpl: fixture.fetchImpl, randomOperationId: fixture.nextId
+  });
+  const resumed = await restarted.resumeConflictResolutions();
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  assert.equal(fixture.server.records.get('settings/settings').revision, 3);
+  assert.equal(fixture.server.pushCalls, pushes);
+  assert.equal(fixture.real.normalizeLocalSnapshot().records.some((record) => record.recordType === 'settings'), false);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+test('real Pitch default choice converges without a push when remote is absent or already tombstoned', async () => {
+  for (const remoteState of ['absent', 'tombstone']) {
+    const fixture = await realPitchDefaultChoiceFixture({ remoteState });
+    const pushes = fixture.server.pushCalls;
+    const result = await fixture.runtime.resolveConflict(fixture.view.id, 'merged', {
+      fieldChoices: { '/noteSpeed': 'remote' }
+    });
+    assert.equal(result.ok, true, `${remoteState}: ${JSON.stringify(result)}`);
+    assert.equal(fixture.server.pushCalls, pushes);
+    assert.equal(fixture.real.normalizeLocalSnapshot().records.some((record) => record.recordType === 'settings'), false);
+    const shadow = await fixture.store.getShadow('settings/settings');
+    if (remoteState === 'absent') assert.equal(shadow, null);
+    else assert.equal(shadow.deletedAt !== null, true);
+    assert.equal((await fixture.store.listConflicts()).length, 0);
+    assert.equal((await fixture.store.listOutbox()).length, 0);
+  }
+});
+
+test('real Pitch default choice retains an unknown future field instead of deleting settings', async () => {
+  const fixture = await realPitchDefaultChoiceFixture();
+  const incoming = fixture.server.records.get('settings/settings');
+  incoming.payload.values.futureSetting = 'keep-me';
+  const plan = fixture.runtime.settingsFieldPlan({
+    localRecord: (await fixture.runtime.localRecords()).records.find((record) => record.recordType === 'settings'),
+    remoteRecord: incoming, shadowRecord: await fixture.store.getShadow('settings/settings')
+  }, { '/noteSpeed': 'remote' });
+  assert.equal(plan.values.futureSetting, 'keep-me');
+  const pushes = fixture.server.pushCalls;
+  const result = await fixture.runtime.resolveConflict(fixture.view.id, 'merged', {
+    fieldChoices: { '/noteSpeed': 'remote' }
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'settings_field_unsupported');
+  assert.equal(fixture.server.pushCalls, pushes);
+  assert.equal(fixture.server.records.get('settings/settings').deletedAt, null);
+});
+
+test('real Pitch default deletion obeys CAS if remote changes during resolution', async () => {
+  const fixture = await realPitchDefaultChoiceFixture();
+  fixture.server.beforeNextPush = (server) => {
+    const current = server.records.get('settings/settings');
+    server.records.set('settings/settings', { ...current, revision: current.revision + 1,
+      operationId: 'concurrent-edit', changeSeq: ++server.revision });
+  };
+  const result = await fixture.runtime.resolveConflict(fixture.view.id, 'merged', {
+    fieldChoices: { '/noteSpeed': 'remote' }
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.code, 'stale_resolution');
+  assert.equal(fixture.server.records.get('settings/settings').deletedAt, null);
+  assert.equal(fixture.real.normalizeLocalSnapshot().records.some((record) => record.recordType === 'settings'), true);
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+});
+
 test('real Fretboard default versus 120 asks for tempo only and Local choice deletes stale setting', async () => {
   const fixture = runtimeFixture([], 'fretboard');
   const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });

@@ -694,54 +694,58 @@
       const choices = saved?.fieldChoices || fieldChoices;
       const plan = this.settingsFieldPlan(context, choices);
       if (!plan || plan.unresolved) throw new MultiAppSyncError('settings_selection_incomplete');
-      if (!Object.keys(plan.values).length && !context.localRecord) return this.resolveLocalConflict(conflict);
-      const desiredRecord = {
+      const desiredDeleted = !Object.keys(plan.values).length;
+      const desiredRecord = desiredDeleted ? null : {
         recordType: 'settings', recordId: context.parts.recordId,
         schemaVersion: (context.localRecord || context.remoteRecord).schemaVersion,
         payload: { id: context.parts.recordId, values: plan.values }
       };
       const candidate = {
         ...clone(context.local.snapshot),
-        records: context.local.snapshot.records.filter((item) => keyOf(item) !== conflict.recordKey).concat(desiredRecord)
+        records: context.local.snapshot.records.filter((item) => keyOf(item) !== conflict.recordKey)
+          .concat(desiredRecord ? [desiredRecord] : [])
       };
       // An older client may be unable to materialize a future settings field.
       // In that case retain both sides and stop before any cloud mutation.
       try { this.adapter.validateSnapshot(candidate); }
       catch { throw new MultiAppSyncError('settings_field_unsupported'); }
       const serialized = await this.adapter.serializeRecords(candidate);
-      const desired = mapRecords(serialized).get(conflict.recordKey);
-      if (!desired) throw new MultiAppSyncError('settings_record_invalid');
-      let resolution = stored || {
+      const desired = mapRecords(serialized).get(conflict.recordKey) || null;
+      if (!desiredDeleted && !desired) throw new MultiAppSyncError('settings_record_invalid');
+      const operationId = stored?.operationId || saved?.operationId || this.randomOperationId();
+      const source = desired || context.remoteRecord || context.localRecord || context.shadowRecord;
+      if (!source) throw new MultiAppSyncError('settings_record_invalid');
+      const operation = await this.operationFor(source, context.remoteRecord?.revision || 0,
+        desiredDeleted, operationId);
+      let resolution = stored ? { ...stored, desiredDeleted: stored.desiredDeleted === true } : {
         choice: 'merged', status: 'pending', fieldChoices: clone(choices),
-        operationId: saved?.operationId || this.randomOperationId(), startedAt: saved?.startedAt || this.now(),
+        operationId, startedAt: saved?.startedAt || this.now(),
         expectedRemote: recordAnchor(context.remoteRecord),
-        local: recordAnchor(context.localRecord), desiredHash: desired.payloadHash
+        local: recordAnchor(context.localRecord), desiredHash: operation.payloadHash, desiredDeleted,
+        remoteAlreadyAbsent: desiredDeleted && (!context.remoteRecord || isDeleted(context.remoteRecord))
       };
-      if (resolution.desiredHash !== desired.payloadHash ||
-          !sameAnchor(context.localRecord, resolution.local) && !sameRecord(context.localRecord, desired)) {
+      if (resolution.desiredHash !== operation.payloadHash || resolution.desiredDeleted !== desiredDeleted ||
+          (!sameAnchor(context.localRecord, resolution.local) && !sameRecord(context.localRecord, desired))) {
         throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
       }
-      const alreadyApplied = this.remoteMatchesAppliedIntent(context.remoteRecord, {
-        ...resolution, desiredDeleted: false
-      });
+      const alreadyApplied = this.remoteMatchesAppliedIntent(context.remoteRecord, resolution);
+      const alreadyAbsent = desiredDeleted && resolution.remoteAlreadyAbsent === true;
       if (!alreadyApplied && !sameAnchor(context.remoteRecord, resolution.expectedRemote)) {
         throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
       }
       conflict = await this.saveConflict(conflict, 'resolving_merged', resolution);
-      if (!alreadyApplied) {
+      if (!alreadyApplied && !alreadyAbsent) {
         if (!resolution.backupSaved) {
           await this.backupSnapshot(context.local.snapshot);
           resolution = { ...resolution, backupSaved: true };
           conflict = await this.saveConflict(conflict, 'resolving_merged', resolution);
         }
-        const operation = await this.operationFor(desired, resolution.expectedRemote.revision,
-          false, resolution.operationId);
         const response = await this.request('POST', '/v1/sync/push', {
           appId: this.appId, mode: 'sync', operations: [{
             operationId: operation.operationId, recordType: operation.recordType,
             recordId: operation.recordId, schemaVersion: operation.schemaVersion,
             baseRevision: operation.baseRevision, payload: operation.payload,
-            payloadHash: operation.payloadHash, deleted: false
+            payloadHash: operation.payloadHash, deleted: operation.deleted
           }]
         });
         const result = (response.results || []).find((item) => item.operationId === resolution.operationId);
@@ -754,7 +758,8 @@
       }
       const authoritative = await this.serverSnapshot();
       const remoteRecord = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
-      if (!this.remoteMatchesAppliedIntent(remoteRecord, { ...resolution, desiredDeleted: false })) {
+      if (alreadyAbsent ? !sameAnchor(remoteRecord, resolution.expectedRemote)
+        : !this.remoteMatchesAppliedIntent(remoteRecord, resolution)) {
         throw new MultiAppSyncError('resolution_verify_failed');
       }
       conflict = await this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' });
@@ -766,7 +771,8 @@
         }
         const next = {
           ...clone(current.snapshot),
-          records: current.snapshot.records.filter((item) => keyOf(item) !== conflict.recordKey).concat(desiredRecord)
+          records: current.snapshot.records.filter((item) => keyOf(item) !== conflict.recordKey)
+            .concat(desiredRecord ? [desiredRecord] : [])
         };
         await this.applyWithBackup(next, current.snapshot, { checkCurrent: true });
       }
