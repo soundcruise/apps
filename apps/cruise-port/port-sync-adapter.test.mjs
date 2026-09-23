@@ -626,7 +626,8 @@ test('Port adapter rejects secret-shaped and unsafe URL fields, while preserving
       payload: { id: 'global', value: { url } }
     }] }), /invalid/u);
   }
-  for (const text of ['Data: 次回はBPM120から', 'data: memo', 'DATABASE', 'data:image is dangerous only if URL field']) {
+  for (const text of ['Data: 次回はBPM120から', 'data: memo', 'DATABASE',
+    'data:image is dangerous only if URL field', 'data:text/plain,practice note']) {
     assert.doesNotThrow(() => api.normalizeLocalSnapshot({ schemaVersion: 1, records: [{
       recordType: 'settings', recordId: 'global', schemaVersion: 1,
       payload: { id: 'global', value: { memo: text } }
@@ -658,9 +659,13 @@ test('local tombstone proof requires a recorded user deletion', () => {
   const target = storage();
   const api = load(target);
   const previous = remoteRecord('my_app', 'app-1', { item: { id: 'app-1' } });
-  assert.equal(new api.PortSyncAdapter({ storage: target }).canDeleteRecord('my_app/app-1', previous), false);
+  const adapter = new api.PortSyncAdapter({ storage: target });
+  assert.equal(adapter.canDeleteRecord('my_app/app-1', previous), false);
+  assert.equal(adapter.canDeleteDuringMigration('my_app/app-1', previous), false);
   target.setItem('cruisePort.syncDeletionIntent.v1', JSON.stringify({ 'my_app/app-1': true }));
-  assert.equal(new api.PortSyncAdapter({ storage: target }).canDeleteRecord('my_app/app-1', previous), true);
+  assert.equal(adapter.canDeleteRecord('my_app/app-1', previous), true);
+  assert.equal(adapter.canDeleteDuringMigration('my_app/app-1', previous), true);
+  assert.equal(adapter.canDeleteDuringMigration('unknown_type/app-1', previous), false);
 });
 
 test('Port remote apply rechecks local storage at the exact write boundary', async () => {

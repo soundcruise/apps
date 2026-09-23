@@ -12,6 +12,9 @@
   const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
   const MAX_PUSH_OPERATIONS = 50;
   const REQUEST_TIMEOUT_MS = 20000;
+  const LARGE_BODY_IDLE_TIMEOUT_MS = 20000;
+  const LARGE_BODY_TOTAL_TIMEOUT_MS = 15 * 60 * 1000;
+  const MAX_LARGE_RESPONSE_BYTES = 32 * 1024 * 1024;
   function retryableError(error) {
     return error instanceof MultiAppSyncError &&
       (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status));
@@ -199,9 +202,44 @@
       let payload = null;
       let bodyTimer;
       try {
-        const bodyPromise = response.json();
+        const largeBody = method === 'GET' && /^\/v1\/sync\/(?:snapshot|changes)(?:\?|$)/u.test(path);
+        // A snapshot may take much longer than 20 seconds in total on a slow
+        // connection. Bound each idle interval instead of the whole transfer.
+        const readProgressive = async () => {
+          const reader = response.body.getReader();
+          const decoder = new global.TextDecoder();
+          let json = '';
+          let bytes = 0;
+          try {
+            while (true) {
+              let idleTimer;
+              const read = reader.read();
+              const idle = new Promise((_, reject) => {
+                idleTimer = global.setTimeout(() => {
+                  abort?.abort();
+                  reject(new MultiAppSyncError('network_error'));
+                }, LARGE_BODY_IDLE_TIMEOUT_MS);
+                idleTimer?.unref?.();
+              });
+              let chunk;
+              try { chunk = await Promise.race([read, idle]); }
+              finally { global.clearTimeout(idleTimer); }
+              if (chunk.done) break;
+              bytes += chunk.value.byteLength;
+              if (bytes > MAX_LARGE_RESPONSE_BYTES) throw new MultiAppSyncError('response_too_large');
+              json += decoder.decode(chunk.value, { stream: true });
+            }
+            return JSON.parse(json + decoder.decode());
+          } finally {
+            reader.releaseLock();
+          }
+        };
+        const progressive = largeBody && response.body?.getReader &&
+          typeof global.setTimeout === 'function' && typeof global.TextDecoder === 'function';
+        const bodyPromise = progressive ? readProgressive() : response.json();
         const timeoutPromise = typeof global.setTimeout === 'function' ? new Promise((_, reject) => {
-          bodyTimer = global.setTimeout(() => { abort?.abort(); reject(new MultiAppSyncError('network_error')); }, REQUEST_TIMEOUT_MS);
+          bodyTimer = global.setTimeout(() => { abort?.abort(); reject(new MultiAppSyncError('network_error')); },
+            largeBody ? LARGE_BODY_TOTAL_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
           bodyTimer?.unref?.();
         }) : null;
         payload = await (timeoutPromise ? Promise.race([bodyPromise, timeoutPromise]) : bodyPromise);
@@ -475,10 +513,10 @@
           (!resolution.desiredDeleted && localRecord?.payloadHash !== resolution.desiredHash)) {
         throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
       }
-      if ((await this.store.listConflicts()).length === 1 &&
-          await this.adapter.computeManifest(local.snapshot) !== authoritative.manifestHash) {
-        throw new MultiAppSyncError('resolution_manifest_mismatch');
-      }
+      // The authoritative manifest may include unrelated remote changes that
+      // have not been pulled yet. The selected record was verified above and
+      // finishResolution advances only its shadow anchor; ordinary sync pulls
+      // every other record against its original anchor.
       return this.finishResolution(conflict, authoritative);
     }
 
@@ -699,7 +737,10 @@
         const previous = shadow.get(recordKey);
         if (sameRecord(current, previous)) continue;
         const deleted = !current;
-        if (migration && deleted) continue; // Initial absence is never a user delete.
+        // Migration absence is not a deletion unless the adapter can prove an
+        // explicit user intent for this exact record. Port records use a durable
+        // deletion journal; other adapters retain the conservative behavior.
+        if (migration && deleted && this.adapter.canDeleteDuringMigration?.(recordKey, previous) !== true) continue;
         if (!migration && !previous && deleted) continue;
         if (deleted && previous && this.adapter.canDeleteRecord?.(recordKey, previous) === false) {
           await this.recordConflict('ambiguous_delete', recordKey, {

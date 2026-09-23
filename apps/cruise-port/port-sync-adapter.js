@@ -25,6 +25,10 @@
     practice_menu_order: 'practice_menu',
     my_app_order: 'my_app'
   });
+  const GUARDED_DELETE_TYPES = new Set(['metronome_preset', 'calendar_event', 'practice_menu',
+    'practice_history_event', 'gear_category', 'gear_item', 'my_app',
+    'settings', 'metronome_settings', 'tuner_settings', 'practice_cycle',
+    'practice_attachment', 'practice_attachment_set']);
   const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u;
   const FORBIDDEN_KEY = /(?:credential|verifier|password|secret|token|recovery.?code|join.?code|blob|base64|binary)/iu;
 
@@ -56,7 +60,8 @@
     if (typeof value === 'number') { if (!Number.isFinite(value)) throw new Error('port_record_invalid'); return; }
     if (typeof value === 'string') {
       if (value.length > 20000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value) ||
-          /^data:[a-z]+\/[a-z0-9.+-]+(?:;[^,]*)?,/iu.test(value)) {
+          (/^data:[a-z]+\/[a-z0-9.+-]+(?:;[^,]*)?,/iu.test(value) &&
+            !/^data:text\/plain(?:;charset=utf-8)?,/iu.test(value))) {
         throw new Error('port_record_invalid');
       }
       if (urlField && value !== '') {
@@ -176,20 +181,21 @@
   }
   function recordKey(record) { return `${record?.recordType || ''}/${record?.recordId || ''}`; }
   function canDeleteRecord(storage, key, previous) {
-    const guarded = new Set(['metronome_preset', 'calendar_event', 'practice_menu',
-      'practice_history_event', 'gear_category', 'gear_item', 'my_app',
-      'settings', 'metronome_settings', 'tuner_settings', 'practice_cycle',
-      'practice_attachment', 'practice_attachment_set']);
     const type = String(key).split('/')[0];
     const orderType = ORDER_ITEM_TYPES[type];
-    if (!guarded.has(type) && !orderType) return true;
+    if (!GUARDED_DELETE_TYPES.has(type) && !orderType) return true;
     let intents;
     try { intents = JSON.parse(storage.getItem(DELETION_INTENT_KEY) || '{}'); } catch (_) { return false; }
     if (!plain(intents)) return false;
-    if (guarded.has(type)) return intents[key] === true;
+    if (GUARDED_DELETE_TYPES.has(type)) return intents[key] === true;
     if (intents[key] === true) return true;
     const ids = previous?.payload?.value;
     return Array.isArray(ids) && ids.length > 0 && ids.every((id) => intents[`${orderType}/${id}`] === true);
+  }
+  function canDeleteDuringMigration(storage, key, previous) {
+    const type = String(key).split('/')[0];
+    if (!GUARDED_DELETE_TYPES.has(type) && !ORDER_ITEM_TYPES[type]) return false;
+    return canDeleteRecord(storage, key, previous);
   }
   function acknowledgeDelete(storage, key) {
     try {
@@ -596,6 +602,7 @@
     deserializeRecords(value) { return deserializeRecords(value); }
     isMeaningfulLocalData(value = this.readLocalSnapshot()) { return normalizeSnapshot(value).records.length > 0; }
     canDeleteRecord(key, previous) { return canDeleteRecord(this.storage, key, previous); }
+    canDeleteDuringMigration(key, previous) { return canDeleteDuringMigration(this.storage, key, previous); }
     acknowledgeDelete(key) { acknowledgeDelete(this.storage, key); }
     mergeSnapshots(local, remote) { return mergeSnapshots(local, remote); }
     primeRemoteReferences(records) { this.remoteReferenceRecords = clone(records || []); }

@@ -67,6 +67,32 @@ export class PortAssetSync {
     readMetadata() { return normalizeMetadata(parse(this.storage, METADATA_KEY, emptyMetadata())); }
     writeMetadata(metadata) { this.storage.setItem(METADATA_KEY, JSON.stringify(normalizeMetadata(metadata))); }
 
+    patchMetadataEntry(bucket, id, expected, next, { releaseIds = [], referencePending = false } = {}) {
+        const latest = this.readMetadata();
+        if (JSON.stringify(latest[bucket][id] ?? null) !== JSON.stringify(expected ?? null)) return false;
+        latest[bucket][id] = clone(next);
+        latest.releaseQueue = [...new Set([...latest.releaseQueue, ...releaseIds].filter(Boolean))];
+        latest.referencePending ||= referencePending;
+        this.writeMetadata(latest);
+        return true;
+    }
+
+    queueOrphanAssets(ids) {
+        const latest = this.readMetadata();
+        latest.releaseQueue = [...new Set([...latest.releaseQueue, ...ids].filter(Boolean))];
+        this.writeMetadata(latest);
+    }
+
+    currentVisualItem(kind, item) {
+        const key = kind === 'gear' ? GEAR_KEY : MY_APPS_KEY;
+        const latest = parse(this.storage, key, { items: [] });
+        const current = (latest.items || []).find((candidate) => candidate.id === item.id);
+        const finalKey = kind === 'gear' ? 'photoId' : 'iconId';
+        const sourceKey = kind === 'gear' ? 'photoSourceId' : 'iconSourceId';
+        return current && current[finalKey] === item[finalKey] &&
+            (current[sourceKey] || null) === (item[sourceKey] || null);
+    }
+
     recordDeletionIntents(keys) {
         const intentKey = 'cruisePort.syncDeletionIntent.v1';
         try {
@@ -272,7 +298,7 @@ export class PortAssetSync {
         return blob;
     }
 
-    async uploadPair(item, entry, kind) {
+    async uploadPair(item, entry, kind, expected) {
         const finalId = kind === 'gear' ? item.photoId : item.iconId;
         const sourceId = kind === 'gear' ? item.photoSourceId : item.iconSourceId;
         const get = (id) => kind === 'gear' ? this.gearPhotoStore.getPhoto(id) : this.myAppsIconStore.getIcon(id);
@@ -284,9 +310,8 @@ export class PortAssetSync {
                 final: { localId: finalId, assetId: uuid(), operationId: uuid(), hash: await hashBlob(finalRecord.blob, this.cryptoImpl) },
                 source: sourceRecord ? { localId: sourceId, assetId: uuid(), operationId: uuid(), hash: await hashBlob(sourceRecord.blob, this.cryptoImpl) } : null
             };
-        const metadata = this.readMetadata();
-        metadata[kind === 'gear' ? 'gear' : 'myApps'][item.id] = clone(entry);
-        this.writeMetadata(metadata);
+        if (!this.currentVisualItem(kind, item) ||
+            !this.patchMetadataEntry(kind === 'gear' ? 'gear' : 'myApps', item.id, expected, entry)) return null;
         const sourceKind = kind === 'gear' ? 'gear_photo_source' : 'my_app_icon_source';
         const finalKind = kind === 'gear' ? 'gear_photo_final' : 'my_app_icon_final';
         const source = sourceRecord ? await this.upload(sourceRecord, sourceKind, entry.pending.source) : null;
@@ -444,55 +469,56 @@ export class PortAssetSync {
         if (!this.controller?.enabled || globalThis.navigator?.onLine === false) return { ok: false, offline: true };
         await this.controller.reconcileAssetReferences?.();
         const metadata = this.readMetadata();
-        metadata.referencePending = metadata.referencePending && hasAvailablePublished(metadata);
         const gearData = parse(this.storage, GEAR_KEY, { version: 4, items: [] });
         const appData = parse(this.storage, MY_APPS_KEY, { version: 6, items: [] });
-        let changedMetadata = false;
         let publishedChanged = false;
         let hydrated = false;
         const hydratedPatches = { gear: new Map(), myApps: new Map() };
         let processed = 0;
-        const persistMetadataChanges = () => {
-            if (!changedMetadata) return;
-            metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
-            this.writeMetadata(metadata);
-            changedMetadata = false;
-        };
         if (metadata.discardQueue.length && this.practiceAttachmentStore) {
             for (const localId of metadata.discardQueue) await this.practiceAttachmentStore.deleteAttachment(localId);
-            metadata.discardQueue = [];
-            changedMetadata = true;
+            const latest = this.readMetadata();
+            const processedIds = new Set(metadata.discardQueue);
+            latest.discardQueue = latest.discardQueue.filter((id) => !processedIds.has(id));
+            this.writeMetadata(latest);
         }
         const process = async (items, bucketName, kind) => {
             for (const item of items) {
                 if (processed >= MAX_ITEMS_PER_PASS) { this.pendingAgain = true; break; }
                 const finalId = kind === 'gear' ? item.photoId : item.iconId;
                 const sourceId = kind === 'gear' ? item.photoSourceId : item.iconSourceId;
-                const entry = metadata[bucketName][item.id] || { published: null, binding: null, pending: null };
+                const entry = this.readMetadata()[bucketName][item.id] || { published: null, binding: null, pending: null };
+                const before = clone(this.readMetadata()[bucketName][item.id] || null);
                 const missingCache = await this.cachedBindingMissing(item, entry, kind);
                 if (!missingCache && finalId && (!entry.binding || entry.binding.final?.localId !== finalId ||
                     (sourceId || null) !== (entry.binding.source?.localId || null))) {
                     processed += 1;
                     const oldIds = assetIds(entry.published);
-                    const uploaded = await this.uploadPair(item, entry, kind);
+                    const uploaded = await this.uploadPair(item, entry, kind, before);
                     if (!uploaded) continue;
-                    metadata[bucketName][item.id] = { ...entry, ...uploaded, pending: null };
-                    metadata.releaseQueue.push(...oldIds.filter((id) => !assetIds(uploaded.published).includes(id)));
-                    changedMetadata = true;
+                    const uploadedIds = assetIds(uploaded.published);
+                    const currentItem = (parse(this.storage, kind === 'gear' ? GEAR_KEY : MY_APPS_KEY,
+                        { items: [] }).items || []).find((candidate) => candidate.id === item.id);
+                    uploaded.published.crop = clone(currentItem?.[kind === 'gear' ? 'photoCrop' : 'iconCrop'] || null);
+                    if (!this.currentVisualItem(kind, item) || !this.patchMetadataEntry(bucketName, item.id,
+                        entry, { ...entry, ...uploaded, pending: null }, {
+                            releaseIds: oldIds.filter((id) => !uploadedIds.includes(id)), referencePending: true
+                        })) {
+                        this.queueOrphanAssets(uploadedIds);
+                        continue;
+                    }
                     publishedChanged = true;
-                    metadata.referencePending = true;
                 } else if ((missingCache || !finalId) && entry.published?.final) {
                     processed += 1;
-                    const before = { finalId, sourceId };
+                    const visualBefore = { finalId, sourceId };
                     if (await this.hydratePair(item, entry, kind)) {
-                        metadata[bucketName][item.id] = entry;
+                        if (!this.patchMetadataEntry(bucketName, item.id, before, entry)) continue;
                         hydratedPatches[bucketName].set(item.id, {
-                            before, finalId: item[kind === 'gear' ? 'photoId' : 'iconId'],
+                            before: visualBefore, finalId: item[kind === 'gear' ? 'photoId' : 'iconId'],
                             sourceId: item[kind === 'gear' ? 'photoSourceId' : 'iconSourceId'],
                             crop: clone(item[kind === 'gear' ? 'photoCrop' : 'iconCrop'])
                         });
                         hydrated = true;
-                        changedMetadata = true;
                     }
                 }
             }
@@ -504,9 +530,10 @@ export class PortAssetSync {
             let ownerSynced = false;
             for (const record of localAttachments.records) {
                 if (processed >= MAX_ITEMS_PER_PASS) { this.pendingAgain = true; break; }
-                let pair = Object.entries(metadata.attachments).find(([, entry]) =>
+                let pair = Object.entries(this.readMetadata().attachments).find(([, entry]) =>
                     entry.binding?.localId === record.id || entry.pending?.localId === record.id);
                 const logicalId = pair?.[0] || uuid();
+                const entryBefore = clone(pair?.[1] || null);
                 const entry = pair?.[1] || {
                     practiceId: record.practiceId, kind: record.kind, mimeType: record.mimeType,
                     fileName: record.fileName, byteSize: record.byteSize,
@@ -520,7 +547,6 @@ export class PortAssetSync {
                 if (!ownerSynced) {
                     // Preserve completed Gear/My Apps work before the owner
                     // preflight, which may safely pause on a structured conflict.
-                    persistMetadataChanges();
                     const ownerResult = await this.controller.sync('attachment-owner');
                     if (ownerResult?.ok === false) return { ok: false, code: ownerResult.code || 'attachment_owner_sync_failed' };
                     ownerSynced = true;
@@ -530,25 +556,36 @@ export class PortAssetSync {
                     localId: record.id, assetId: uuid(), operationId: uuid(),
                     hash: await hashBlob(record.blob, this.cryptoImpl)
                 };
-                metadata.attachments[logicalId] = entry;
-                this.writeMetadata(metadata);
+                const before = this.readMetadata().attachments[logicalId] || null;
+                if (JSON.stringify(before) !== JSON.stringify(entryBefore)) continue;
+                const freshLocal = await this.practiceAttachmentStore.getAllAttachments();
+                if (!freshLocal?.ok) return { ok: false, code: 'attachment_local_read_failed' };
+                if (!freshLocal.records.some((item) => item.id === record.id)) continue;
+                if (!this.patchMetadataEntry('attachments', logicalId, before, entry)) continue;
+                const pendingEntry = clone(entry);
                 const uploaded = await this.upload(record, assetKind, entry.pending, {
                     practiceId: record.practiceId, fileName: record.fileName
                 });
-                if (entry.published?.asset?.assetId && entry.published.asset.assetId !== uploaded.asset.assetId) {
-                    metadata.releaseQueue.push(entry.published.asset.assetId);
+                const stillLocal = await this.practiceAttachmentStore.getAllAttachments();
+                if (!stillLocal?.ok) return { ok: false, code: 'attachment_local_read_failed' };
+                if (!stillLocal.records.some((item) => item.id === record.id)) {
+                    this.queueOrphanAssets([uploaded.asset.assetId]);
+                    continue;
                 }
+                const previousAssetId = entry.published?.asset?.assetId;
                 entry.published = { version: 1, availability: 'available', asset: uploaded.asset };
                 entry.binding = { assetId: uploaded.asset.assetId, hash: uploaded.asset.hash, localId: record.id };
                 entry.pending = null;
                 entry.updatedAt = record.updatedAt || record.createdAt;
-                metadata.attachments[logicalId] = entry;
-                changedMetadata = true;
+                if (!this.patchMetadataEntry('attachments', logicalId, pendingEntry, entry,
+                    { releaseIds: previousAssetId && previousAssetId !== uploaded.asset.assetId ? [previousAssetId] : [],
+                        referencePending: true })) {
+                    this.queueOrphanAssets([uploaded.asset.assetId]);
+                    continue;
+                }
                 publishedChanged = true;
-                metadata.referencePending = true;
             }
         }
-        persistMetadataChanges();
         if (hydrated) {
             const changedKeys = [];
             for (const [kind, key] of [['gear', GEAR_KEY], ['myApps', MY_APPS_KEY]]) {
@@ -576,21 +613,29 @@ export class PortAssetSync {
             if (changedKeys.length) globalThis.SoundCruisePortSync?.acceptRemoteStorageValues?.(this.storage, changedKeys);
             globalThis.dispatchEvent?.(new CustomEvent('cruise-port-assets-applied'));
         }
-        if (publishedChanged || metadata.referencePending) {
+        const referenceBefore = this.readMetadata();
+        const referenceStorageBefore = this.storage.getItem(METADATA_KEY);
+        if (publishedChanged || (referenceBefore.referencePending && hasAvailablePublished(referenceBefore))) {
             const result = await this.controller.sync('asset-reference');
             if (result?.ok === false) return { ok: false, code: result.code || 'asset_reference_sync_failed' };
-            if (metadata.referencePending) {
-                metadata.referencePending = false;
-                this.writeMetadata(metadata);
+            if (referenceBefore.referencePending) {
+                const latest = this.readMetadata();
+                if (this.storage.getItem(METADATA_KEY) === referenceStorageBefore) {
+                    latest.referencePending = false;
+                    this.writeMetadata(latest);
+                }
             }
         }
-        if (metadata.releaseQueue.length) {
+        const releaseBefore = this.readMetadata().releaseQueue.slice(0, 20);
+        if (releaseBefore.length) {
             const result = await this.controller.sync('asset-release');
             if (result?.ok === false) return { ok: false, code: result.code || 'asset_release_sync_failed' };
-            await this.json('/v1/sync/assets/unreference', { appId: 'port', assetIds: metadata.releaseQueue.slice(0, 20) });
-            metadata.releaseQueue = metadata.releaseQueue.slice(20);
-            this.writeMetadata(metadata);
-            if (metadata.releaseQueue.length) this.pendingAgain = true;
+            await this.json('/v1/sync/assets/unreference', { appId: 'port', assetIds: releaseBefore });
+            const latest = this.readMetadata();
+            const released = new Set(releaseBefore);
+            latest.releaseQueue = latest.releaseQueue.filter((id) => !released.has(id));
+            this.writeMetadata(latest);
+            if (latest.releaseQueue.length) this.pendingAgain = true;
         }
         return { ok: true, processed, hydrated };
     }

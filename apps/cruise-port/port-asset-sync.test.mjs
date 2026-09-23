@@ -33,7 +33,7 @@ function assetApi() {
         requests,
         async fetch(url, options) {
             const path = new URL(url).pathname;
-            requests.push({ path, method: options.method });
+            requests.push({ path, method: options.method, body: options.body });
             if (path === '/v1/sync/assets/prepare') {
                 const body = JSON.parse(options.body);
                 prepared.set(body.assetId, body);
@@ -74,6 +74,135 @@ function metadata(input, availability) {
 function blob(bytes = [0x52,0x49,0x46,0x46,0,0,0,0,0x57,0x45,0x42,0x50]) {
     return new Blob([Uint8Array.from(bytes)], { type: 'image/webp' });
 }
+
+function gatedAssetApi() {
+    const api = assetApi();
+    let resume;
+    let started;
+    const entered = new Promise((resolve) => { started = resolve; });
+    const gate = new Promise((resolve) => { resume = resolve; });
+    return { entered, resume, requests: api.requests, fetch: async (url, options) => {
+        if (options.method === 'PUT') { started(); await gate; }
+        return api.fetch(url, options);
+    } };
+}
+
+test('attachment upload preserves a concurrent deletion, release queue and remote arrival', async () => {
+    const localRecord = { id: 'local-a', practiceId: 'practice-a', kind: 'image',
+        mimeType: 'image/webp', fileName: 'a.webp', byteSize: 12,
+        width: 512, height: 512, createdAt: '2026-01-01', blob: blob() };
+    const removedAsset = { assetId: 'remote-e1', hash: 'a'.repeat(64) };
+    const local = storage({ 'cruisePort.syncAssetMetadata': JSON.stringify({ version: 4,
+        gear: {}, myApps: {}, attachments: { e1: { practiceId: 'practice-a',
+            published: { availability: 'available', asset: removedAsset },
+            binding: { localId: 'cached-e1' }, pending: null } },
+        releaseQueue: [], discardQueue: [], referencePending: false }) });
+    const gate = gatedAssetApi();
+    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: gate.fetch,
+        practiceAttachmentStore: { getAllAttachments: async () => ({ ok: true, records: [localRecord] }),
+            deleteAttachment: async () => ({ ok: true }) } });
+    sync.schedule = () => {};
+    const pass = sync.reconcile();
+    await gate.entered;
+    assert.equal(sync.removePracticeAttachment({ logicalId: 'e1' }), true);
+    const during = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+    during.attachments.remote = { practiceId: 'practice-a',
+        published: { availability: 'available', asset: { assetId: 'remote-r' } }, binding: null };
+    local.setItem('cruisePort.syncAssetMetadata', JSON.stringify(during));
+    gate.resume();
+    assert.equal((await pass).ok, true);
+    const after = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+    assert.equal(after.attachments.e1, undefined);
+    assert.equal(after.attachments.remote.published.asset.assetId, 'remote-r');
+    assert.ok(after.releaseQueue.includes('remote-e1') ||
+        gate.requests.some((request) => request.path === '/v1/sync/assets/unreference' &&
+            JSON.parse(request.body).assetIds.includes('remote-e1')));
+});
+
+for (const [kind, key, storeName, finalField, sourceField, userField] of [
+    ['gear', 'cruisePort.gearList', 'gearPhotoStore', 'photoId', 'photoSourceId', 'name'],
+    ['myApps', 'cruisePort.myApps', 'myAppsIconStore', 'iconId', 'iconSourceId', 'url']
+]) {
+    test(`${kind} upload patches only asset metadata while preserving a concurrent user edit`, async () => {
+        const local = storage({ [key]: JSON.stringify({ version: 7,
+            items: [{ id: 'item-a', name: 'Original', status: 'owned',
+                [finalField]: 'local-image', [sourceField]: null, [userField]: 'original',
+                [kind === 'gear' ? 'photoCrop' : 'iconCrop']: { x: 0, y: 0, size: 1 } }] }),
+            [kind === 'gear' ? 'cruisePort.myApps' : 'cruisePort.gearList']:
+                JSON.stringify({ version: 7, items: [] }) });
+        const gate = gatedAssetApi();
+        const photoStore = { getPhoto: async (id) => ({ ok: true, record: {
+            id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512 } }) };
+        const iconStore = { getIcon: async (id) => ({ ok: true, record: {
+            id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512 } }) };
+        const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: gate.fetch,
+            [storeName]: kind === 'gear' ? photoStore : iconStore });
+        const pass = sync.reconcile();
+        await gate.entered;
+        const latest = JSON.parse(local.getItem(key));
+        latest.items[0][userField] = 'edited during upload';
+        if (kind === 'myApps') latest.items[0].name = 'Renamed during upload';
+        if (kind === 'gear') latest.items[0].status = 'released';
+        latest.items[0][kind === 'gear' ? 'photoCrop' : 'iconCrop'] = { x: 0.1, y: 0, size: 0.9 };
+        local.setItem(key, JSON.stringify(latest));
+        gate.resume();
+        assert.equal((await pass).ok, true);
+        assert.equal(JSON.parse(local.getItem(key)).items[0][userField], 'edited during upload');
+        if (kind === 'myApps') assert.equal(JSON.parse(local.getItem(key)).items[0].name, 'Renamed during upload');
+        if (kind === 'gear') assert.equal(JSON.parse(local.getItem(key)).items[0].status, 'released');
+        const published = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'))[kind]['item-a'].published;
+        assert.ok(published.final.assetId);
+        assert.equal(published.crop.x, 0.1);
+    });
+}
+
+test('deleting the upload target does not resurrect its asset metadata', async () => {
+    const local = storage({ 'cruisePort.gearList': JSON.stringify({ version: 5,
+        items: [{ id: 'target', name: 'Target', photoId: 'local-photo', photoSourceId: null }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 7, items: [] }) });
+    const gate = gatedAssetApi();
+    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: gate.fetch,
+        gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
+            id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512 } }) } });
+    const pass = sync.reconcile();
+    await gate.entered;
+    local.setItem('cruisePort.gearList', JSON.stringify({ version: 5, items: [] }));
+    const current = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+    delete current.gear.target;
+    local.setItem('cruisePort.syncAssetMetadata', JSON.stringify(current));
+    gate.resume();
+    assert.equal((await pass).ok, true);
+    const after = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+    assert.equal(after.gear.target, undefined);
+    assert.ok(after.releaseQueue.length > 0 ||
+        gate.requests.some((request) => request.path === '/v1/sync/assets/unreference'));
+});
+
+test('reference publish preserves metadata written during controller sync', async () => {
+    const local = storage({ 'cruisePort.gearList': JSON.stringify({ version: 5,
+        items: [{ id: 'gear-a', photoId: 'local-photo', photoSourceId: null }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 7, items: [] }) });
+    const api = assetApi();
+    const syncController = controller();
+    syncController.sync = async (reason) => {
+        syncController.syncReasons.push(reason);
+        if (reason === 'asset-reference') {
+            const latest = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+            latest.attachments.remote = { practiceId: 'practice-r', published: {
+                availability: 'available', asset: { assetId: 'remote-r' } } };
+            latest.referencePending = true;
+            local.setItem('cruisePort.syncAssetMetadata', JSON.stringify(latest));
+        }
+        return { ok: true };
+    };
+    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+        gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
+            id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512 } }) } });
+    assert.equal((await sync.reconcile()).ok, true);
+    const after = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
+    assert.ok(after.attachments.remote);
+    assert.equal(after.referencePending, true);
+});
 
 test('Gear source/final upload publishes logical IDs, then another Port downloads into its own local IDs', async () => {
     const sourceBlob = blob();

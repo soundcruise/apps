@@ -277,6 +277,7 @@ test('Port registry accepts structured text records and stays isolated from the 
 test('Port permits Data: prose but rejects unsafe schemes only in URL fields', async () => {
   for (const [field, value, accepted] of [
     ['memo', 'Data: 次回はBPM120から', true],
+    ['memo', 'data:text/plain,practice note', true],
     ['name', 'data: memo', true],
     ['url', 'data:text/html,unsafe', false],
     ['website', 'javascript:alert(1)', false],

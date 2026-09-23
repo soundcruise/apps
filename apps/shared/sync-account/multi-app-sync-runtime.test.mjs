@@ -5,6 +5,8 @@ import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { validatePortLocalCollections } from '../../cruise-port/port-sync-local-validation.js';
 import { METRONOME_DEFAULTS } from '../../cruise-port/metronome-store.js';
+import { loadMetronomePresets, deleteMetronomePreset } from '../../cruise-port/metronome-presets-store.js';
+import { validateOperation as validateWorkerOperation } from '../../../workers/sound-cruise-sync/src/records.js';
 
 class CustomEventPolyfill extends Event {
   constructor(type, init = {}) { super(type); this.detail = init.detail; }
@@ -21,7 +23,8 @@ function loadRuntime(backupStorage = { async save() {} }) {
   const globalEvents = new EventTarget();
   const documentEvents = new EventTarget();
   const context = {
-    crypto: webcrypto, Headers, TextEncoder, structuredClone, EventTarget, CustomEvent: CustomEventPolyfill,
+    crypto: webcrypto, Headers, TextEncoder, TextDecoder, AbortController, setTimeout, clearTimeout,
+    structuredClone, EventTarget, CustomEvent: CustomEventPolyfill,
     navigator: { onLine: true }, queueMicrotask,
     addEventListener: globalEvents.addEventListener.bind(globalEvents),
     removeEventListener: globalEvents.removeEventListener.bind(globalEvents),
@@ -282,6 +285,68 @@ test('confirmed Port deletion cleans its intent only after response-loss recover
   await fixture.runtime.sync('retry-delete');
   assert.equal(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'), null);
   assert.ok(fixture.server.records.get('metronome_preset/preset-a').deletedAt);
+});
+
+test('real Port interrupted migration sends only an explicit deletion and completes after response loss', async () => {
+  const key = 'cruisePort.metronomePresets';
+  const make = (id) => ({ id, name: id, ...METRONOME_DEFAULTS,
+    accents: [...METRONOME_DEFAULTS.accents], createdAt: 1000, updatedAt: 1000 });
+  const fixture = realPortFixture({ [key]: JSON.stringify({ version: 1,
+    items: [make('keep'), make('delete')] }) });
+  await fixture.runtime.consumeHandoff('partial');
+  fixture.server.state = 'initializing';
+  for (const record of fixture.server.records.values()) record.ownedByCurrentDevice = true;
+  const loaded = loadMetronomePresets(fixture.storage);
+  assert.equal(loaded.ok, true);
+  assert.equal(deleteMetronomePreset({ presets: loaded.presets, id: 'delete', storage: fixture.storage }).ok, true);
+  assert.equal(JSON.parse(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'))['metronome_preset/delete'], true);
+  fixture.server.responseLossAfterApply = true;
+  await assert.rejects(fixture.runtime.initializeDataset(), (error) => error.code === 'network_error');
+  assert.equal(JSON.parse(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'))['metronome_preset/delete'], true);
+  assert.ok(fixture.server.records.get('metronome_preset/delete').deletedAt);
+  assert.equal(fixture.server.records.get('metronome_preset/keep').deletedAt, null);
+  assert.equal((await fixture.runtime.initializeDataset()).ok, true);
+  assert.equal(fixture.server.state, 'ready');
+  assert.equal(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'), null);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  const serverLive = [...fixture.server.records.values()].filter((record) => record.deletedAt == null);
+  assert.equal(await fixture.adapter.computeManifest(fixture.adapter.deserializeRecords(serverLive)),
+    await fixture.adapter.computeManifest((await fixture.runtime.localRecords()).snapshot));
+});
+
+test('real Port migration never tombstones an absent remote record without deletion intent', async () => {
+  const key = 'cruisePort.metronomePresets';
+  const fixture = realPortFixture({ [key]: JSON.stringify({ version: 1, items: [] }) });
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('qaCredential', 'scq1.valid');
+  fixture.server.state = 'initializing';
+  const remote = { id: 'remote-only', name: 'Remote', ...METRONOME_DEFAULTS,
+    accents: [...METRONOME_DEFAULTS.accents], createdAt: 1000, updatedAt: 1000 };
+  const source = realPortFixture({ [key]: JSON.stringify({ version: 1, items: [remote] }) });
+  const operation = await source.runtime.operationFor((await source.runtime.localRecords()).records
+    .find((record) => record.recordType === 'metronome_preset'), 0);
+  fixture.server.records.set('metronome_preset/remote-only', { ...operation, revision: 1,
+    deletedAt: null, changeSeq: 1, ownedByCurrentDevice: true });
+  fixture.server.revision = 1;
+  // An absent record with no intent is hydrated or retained, never deleted.
+  await fixture.runtime.initializeDataset();
+  assert.equal(fixture.server.records.get('metronome_preset/remote-only').deletedAt, null);
+});
+
+test('real Port free text data URL shape survives adapter serialization and Worker validation', async () => {
+  const key = 'cruisePort.metronomePresets';
+  const preset = { id: 'text-note', name: 'data:text/plain,practice note',
+    ...METRONOME_DEFAULTS, accents: [...METRONOME_DEFAULTS.accents],
+    createdAt: 1000, updatedAt: 1000 };
+  const fixture = realPortFixture({ [key]: JSON.stringify({ version: 1, items: [preset] }) });
+  const record = (await fixture.runtime.localRecords()).records.find((item) =>
+    item.recordType === 'metronome_preset' && item.recordId === 'text-note');
+  const { recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted } =
+    await fixture.runtime.operationFor(record, 0);
+  const operation = { operationId: webcrypto.randomUUID(), recordType, recordId,
+    schemaVersion, baseRevision, payload, payloadHash, deleted };
+  const validation = await validateWorkerOperation(operation, webcrypto, 'port');
+  assert.equal(validation.ok, true, validation.code);
 });
 
 test('production data-plane requests require only app authority and never send QA authorization', async () => {
@@ -1345,7 +1410,7 @@ test('permanent validation 4xx is terminal and cannot acquire a retry timer', as
   const fixture = runtimeFixture([record('a')], 'pitch');
   await fixture.runtime.consumeHandoff('transient');
   const timers = [];
-  fixture.context.setTimeout = (callback) => { timers.push(callback); return timers.length; };
+  fixture.context.setTimeout = (callback, delay) => { timers.push({ callback, delay }); return timers.length; };
   fixture.context.clearTimeout = () => {};
   fixture.local.records = [record('a'), record('b')];
   fixture.server.nextPushFailure = { status: 400, code: 'invalid_request' };
@@ -1419,20 +1484,187 @@ test('a hung snapshot fetch times out as a retryable network failure', async () 
   await assert.rejects(request, (error) => error.code === 'network_error');
 });
 
+test('hung snapshot releases the sync lock and a later retry succeeds', async () => {
+  const fixture = runtimeFixture([], 'pitch');
+  await fixture.runtime.consumeHandoff('base');
+  const originalFetch = fixture.runtime.fetchImpl;
+  let expire;
+  fixture.context.setTimeout = (callback, delay) => { if (delay === 20000) expire = callback; return 1; };
+  fixture.context.clearTimeout = () => {};
+  fixture.runtime.fetchImpl = async () => new Promise(() => {});
+  const first = fixture.runtime.sync('hung');
+  await new Promise((resolve) => setImmediate(resolve));
+  expire();
+  await assert.rejects(first, (error) => error.code === 'network_error');
+  assert.equal(fixture.runtime.running, null);
+  assert.ok(fixture.runtime.networkRetryAt > 0);
+  fixture.runtime.fetchImpl = originalFetch;
+  assert.equal((await fixture.runtime.sync('retry')).ok, true);
+  assert.equal(fixture.runtime.running, null);
+});
+
 test('a stalled snapshot response body also times out', async () => {
   const fixture = runtimeFixture([], 'pitch');
   await fixture.store.setMeta('credential', 'scd1.valid');
   await fixture.store.setMeta('qaCredential', 'scq1.valid');
   fixture.context.AbortController = AbortController;
   const timers = [];
-  fixture.context.setTimeout = (callback) => { timers.push(callback); return timers.length; };
+  fixture.context.setTimeout = (callback, delay) => { timers.push({ callback, delay }); return timers.length; };
   fixture.context.clearTimeout = () => {};
   fixture.runtime.fetchImpl = async () => ({ ok: true, status: 200, json: async () => new Promise(() => {}) });
   const request = fixture.runtime.serverSnapshot();
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(timers.length, 2);
-  timers[1]();
+  assert.equal(timers[1].delay, 15 * 60 * 1000);
+  timers[1].callback();
   await assert.rejects(request, (error) => error.code === 'network_error');
+});
+
+test('snapshot 400 stays terminal while 429 and 5xx retain retry scheduling', async () => {
+  for (const failure of [
+    { status: 400, code: 'invalid_request', retry: false },
+    { status: 429, code: 'rate_limited', retry: true },
+    { status: 503, code: 'service_unavailable', retry: true }
+  ]) {
+    const fixture = runtimeFixture([], 'pitch');
+    await fixture.store.setMeta('credential', 'scd1.valid');
+    await fixture.store.setMeta('qaCredential', 'scq1.valid');
+    await fixture.store.setMeta('migrationState', 'complete');
+    fixture.server.state = 'ready';
+    fixture.server.nextSnapshotFailure = failure;
+    await assert.rejects(fixture.runtime.sync('snapshot-status'),
+      (error) => error.code === failure.code && error.status === failure.status);
+    assert.equal(fixture.runtime.running, null);
+    assert.equal(fixture.runtime.networkRetryAt > 0, failure.retry, failure.code);
+  }
+});
+
+test('snapshot body progress can exceed 20 seconds in total, but an idle stream still times out', async () => {
+  const fixture = runtimeFixture([], 'pitch');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('qaCredential', 'scq1.valid');
+  let clock = 0;
+  let nextId = 0;
+  const timers = new Map();
+  fixture.context.setTimeout = (callback, delay) => {
+    const id = ++nextId;
+    timers.set(id, { callback, at: clock + delay });
+    return id;
+  };
+  fixture.context.clearTimeout = (id) => timers.delete(id);
+  const advance = async (ms) => {
+    clock += ms;
+    for (const [id, timer] of [...timers]) {
+      if (timer.at <= clock) { timers.delete(id); timer.callback(); }
+    }
+    for (let i = 0; i < 8; i += 1) await Promise.resolve();
+  };
+  let stream;
+  fixture.runtime.fetchImpl = async () => new Response(new ReadableStream({
+    start(controller) { stream = controller; }
+  }), { headers: { 'Content-Type': 'application/json' } });
+  const request = fixture.runtime.serverSnapshot();
+  await advance(0);
+  stream.enqueue(new TextEncoder().encode('{"ok":true,'));
+  await advance(10000);
+  stream.enqueue(new TextEncoder().encode('"records":[],'));
+  await advance(10000);
+  stream.enqueue(new TextEncoder().encode('"datasetState":"ready"}'));
+  await advance(10000);
+  stream.close();
+  assert.equal((await request).datasetState, 'ready');
+  assert.equal(clock, 30000);
+
+  const stalled = fixture.runtime.serverSnapshot();
+  await advance(0);
+  stream.enqueue(new TextEncoder().encode('{"ok":true'));
+  await advance(0);
+  await advance(20001);
+  await assert.rejects(stalled, (error) => error.code === 'network_error');
+});
+
+test('real Pitch, Fretboard and Rhythm adapters converge Local wins with an unrelated remote edit', async () => {
+  const definitions = [
+    { appId: 'pitch', file: '../../pitch-cruise/sync/pitch-sync-adapter.js',
+      root: 'SoundCruisePitchSync', name: 'PitchSyncAdapter',
+      records: (x, y) => [1, 2].map((stage, index) => {
+        const ref = `builtin:melody:stage-${stage}`;
+        const id = `melody:${ref}`;
+        return { recordType: 'progress', recordId: id, schemaVersion: 1,
+          payload: { id, category: 'melody', stageRef: ref,
+            clearCount: index ? y : x, lastClearedAt: null } };
+      }), x: [1, 2, 3], y: [1, 2] },
+    { appId: 'fretboard', file: '../../fretboard_cruise/sync/fretboard-sync-adapter.js',
+      root: 'SoundCruiseFretboardSync', name: 'FretboardSyncAdapter',
+      records: (x, y) => [
+        { recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+          payload: { id: 'settings', values: { tempo: x } } },
+        { recordType: 'progress', recordId: 'rules', schemaVersion: 1,
+          payload: { id: 'rules', category: 'rules', completedSteps: y === 1 ? [1] : [1, 2] } }
+      ], x: [80, 90, 100], y: [1, 2] },
+    { appId: 'rhythm', file: '../../rhythm-cruise/sync/rhythm-sync-adapter.js',
+      root: 'SoundCruiseRhythmSync', name: 'RhythmSyncAdapter',
+      records: (x, y) => [
+        { recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+          payload: { id: 'settings', values: {
+            judgePreset: x === 1 ? 'easy' : x === 2 ? 'strict' : 'veryStrict' } } },
+        { recordType: 'builtin_stage_preferences', recordId: 'builtin:stage:1', schemaVersion: 1,
+          payload: { id: 'builtin:stage:1', builtinStageRef: 'builtin:stage:1', bpm: y === 1 ? 92 : 100, bars: 6 } }
+      ], x: [1, 2, 3], y: [1, 2] }
+  ];
+  for (const definition of definitions) {
+    const fixture = runtimeFixture([], definition.appId);
+    const storageValues = new Map();
+    const storage = { getItem: (key) => storageValues.get(key) ?? null,
+      setItem: (key, value) => storageValues.set(key, String(value)),
+      removeItem: (key) => storageValues.delete(key) };
+    const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+    vm.runInContext(readFileSync(new URL(definition.file, import.meta.url), 'utf8'), context);
+    const adapter = new context[definition.root][definition.name]({ storage, cryptoImpl: webcrypto });
+    const snapshot = (x, y) => ({ appId: definition.appId, schemaVersion: 1,
+      records: definition.records(x, y) });
+    const baseline = snapshot(definition.x[0], definition.y[0]);
+    const local = snapshot(definition.x[1], definition.y[0]);
+    const remote = snapshot(definition.x[2], definition.y[1]);
+    for (const value of [baseline, local, remote]) adapter.validateSnapshot(value);
+    await adapter.applyRemoteSnapshot(baseline);
+    await adapter.applyRemoteSnapshot(local);
+    fixture.runtime.adapter = adapter;
+    await fixture.store.setMeta('credential', 'scd1.valid');
+    await fixture.store.setMeta('qaCredential', 'scq1.valid');
+    await fixture.store.setMeta('migrationState', 'complete');
+    fixture.server.state = 'ready';
+    const baseRecords = await adapter.serializeRecords(baseline);
+    for (const record of baseRecords) {
+      const cloud = { ...record, revision: 1, deletedAt: null, changeSeq: ++fixture.server.revision,
+        operationId: `base-${record.recordId}` };
+      fixture.server.records.set(`${record.recordType}/${record.recordId}`, cloud);
+      await fixture.store.putShadow(`${record.recordType}/${record.recordId}`, cloud);
+    }
+    const remoteRecords = await adapter.serializeRecords(remote);
+    for (const record of remoteRecords) {
+      fixture.server.records.set(`${record.recordType}/${record.recordId}`, {
+        ...record, revision: 2, deletedAt: null, changeSeq: ++fixture.server.revision,
+        operationId: `remote-${record.recordId}` });
+    }
+    const originalFetch = fixture.fetchImpl;
+    fixture.runtime.fetchImpl = async (url, init) => {
+      const response = await originalFetch(url, init);
+      if (new URL(url).pathname !== '/v1/sync/snapshot' || !response.ok) return response;
+      const payload = await response.json();
+      const live = payload.records.filter((record) => record.deletedAt == null);
+      payload.manifestHash = await adapter.computeManifest(adapter.deserializeRecords(live));
+      return Response.json(payload);
+    };
+    assert.equal((await fixture.runtime.sync('concurrent')).code, 'conflict', definition.appId);
+    const [conflict] = await fixture.store.listConflicts();
+    assert.equal(conflict.recordKey, `${local.records[0].recordType}/${local.records[0].recordId}`);
+    assert.equal((await fixture.runtime.resolveConflict(conflict.id, 'local')).ok, true, definition.appId);
+    assert.equal((await fixture.runtime.sync('pull-unrelated')).ok, true, definition.appId);
+    const final = await fixture.runtime.localRecords();
+    const expected = snapshot(definition.x[1], definition.y[1]);
+    assert.equal(await adapter.computeManifest(final.snapshot), await adapter.computeManifest(expected), definition.appId);
+  }
 });
 
 test('one of two conflicts resolves without changing the other local variant', async () => {

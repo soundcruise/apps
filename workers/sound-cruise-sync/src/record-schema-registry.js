@@ -80,7 +80,8 @@ function validatePortJson(value, depth = 0, budget = { nodes: 0 }, urlField = fa
   if (typeof value === 'number') return Number.isFinite(value);
   if (typeof value === 'string') {
     if (value.length > 20_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value) ||
-        /^data:[a-z]+\/[a-z0-9.+-]+(?:;[^,]*)?,/iu.test(value)) return false;
+        (/^data:[a-z]+\/[a-z0-9.+-]+(?:;[^,]*)?,/iu.test(value) &&
+          !/^data:text\/plain(?:;charset=utf-8)?,/iu.test(value))) return false;
     if (!urlField || value === '') return true;
     try {
       const url = new URL(value);
