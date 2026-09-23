@@ -22,6 +22,7 @@
     'settings', 'custom_chord', 'custom_progression', 'melody_stage',
     'chord_stage', 'stage_order', 'progress'
   ]);
+  const MELODY_NOTES = new Set(['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']);
   const DEFAULT_SETTINGS = Object.freeze({
     instrument: 'acoustic_guitar', notationStyle: 'doremi', scaleEnabled: true,
     isAnswerMode: true, keyRandomMode: false, baseOctave: 3, keyOffset: 0,
@@ -71,6 +72,13 @@
 
   function clone(value) {
     return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+  }
+
+  function validMelodyPoolEntry(value) {
+    if (typeof value === 'string') return MELODY_NOTES.has(value);
+    return isPlainObject(value) && Object.keys(value).length === 2 &&
+      Object.keys(value).every((key) => key === 'note' || key === 'octaveOffset') &&
+      MELODY_NOTES.has(value.note) && (value.octaveOffset === 0 || value.octaveOffset === 1);
   }
 
   function canonicalValue(value) {
@@ -287,7 +295,10 @@
       stageRefs.melody.set(String(slot.id), recordId);
       records.push(makeRecord('melody_stage', recordId, {
         legacyId: Number(slot.id), name: String(slot.name ?? ''),
-        pool: Array.isArray(slot.config.pool) ? slot.config.pool.map(String) : [],
+        pool: Array.isArray(slot.config.pool) ? slot.config.pool.map((entry) => {
+          if (!validMelodyPoolEntry(entry)) throw new Error('pitch_legacy_melody_pool_invalid');
+          return typeof entry === 'string' ? entry : { note: entry.note, octaveOffset: entry.octaveOffset };
+        }) : [],
         count: Number(slot.config.count), is2Octave: !!slot.config.is2Octave,
         isPianoLayout: slot.config.isPianoLayout !== false,
         answerMethod: String(slot.config.answerMethod || 'note'),
@@ -381,7 +392,8 @@
     }
     if (record.recordType === 'melody_stage') {
       return Number.isSafeInteger(payload.legacyId) && validText(payload.name, 200) &&
-        Array.isArray(payload.pool) && payload.pool.length > 0 && payload.pool.every((item) => validText(item, 20)) &&
+        Array.isArray(payload.pool) && payload.pool.length > 0 && payload.pool.length <= 128 &&
+        payload.pool.every(validMelodyPoolEntry) &&
         Number.isSafeInteger(payload.count) && payload.count > 0 && typeof payload.is2Octave === 'boolean' &&
         typeof payload.isPianoLayout === 'boolean' && validText(payload.answerMethod, 40) && validText(payload.description);
     }

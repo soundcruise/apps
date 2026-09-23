@@ -27,6 +27,7 @@ const PITCH_BUILTIN_CHORD_KEYS = new Set([
   'builtin:chord:c', 'builtin:chord:dm', 'builtin:chord:em',
   'builtin:chord:f', 'builtin:chord:g', 'builtin:chord:am'
 ]);
+const PITCH_MELODY_NOTES = new Set(['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']);
 
 const APP_RECORD_TYPES = Object.freeze({
   chord: CHORD_RECORD_TYPES,
@@ -189,7 +190,10 @@ function validatePitchPayload(recordType, recordId, payload) {
   if (recordType === 'melody_stage') {
     return onlyKeys(payload, ['id', 'legacyId', 'name', 'pool', 'count', 'is2Octave', 'isPianoLayout', 'answerMethod', 'description']) &&
       Number.isSafeInteger(payload.legacyId) && string(payload.name, 200) &&
-      Array.isArray(payload.pool) && payload.pool.length > 0 && payload.pool.length <= 128 && payload.pool.every((value) => string(value, 20)) &&
+      Array.isArray(payload.pool) && payload.pool.length > 0 && payload.pool.length <= 128 &&
+      payload.pool.every((value) => typeof value === 'string' ? PITCH_MELODY_NOTES.has(value) :
+        isPlainObject(value) && Object.keys(value).length === 2 && onlyKeys(value, ['note', 'octaveOffset']) &&
+        PITCH_MELODY_NOTES.has(value.note) && (value.octaveOffset === 0 || value.octaveOffset === 1)) &&
       Number.isSafeInteger(payload.count) && payload.count > 0 && payload.count <= 128 &&
       typeof payload.is2Octave === 'boolean' && typeof payload.isPianoLayout === 'boolean' &&
       string(payload.answerMethod, 40) && string(payload.description, 1000);

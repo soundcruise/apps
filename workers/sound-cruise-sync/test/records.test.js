@@ -83,6 +83,28 @@ test('Pitch registry accepts typed Pitch payloads while Chord remains unchanged 
   );
 });
 
+test('Pitch melody stage accepts legacy notes and two-octave entries but rejects malformed pool data', async () => {
+  const recordId = 'legacy:melody-stage:5001';
+  const payload = {
+    id: recordId, legacyId: 5001, name: 'QA melody',
+    pool: ['C', { note: 'C#', octaveOffset: 0 }, { note: 'D', octaveOffset: 1 }],
+    count: 6, is2Octave: true, isPianoLayout: true, answerMethod: 'note', description: ''
+  };
+  const input = { operationId: ID, recordType: 'melody_stage', recordId,
+    schemaVersion: 1, baseRevision: 0, payload, payloadHash: '', deleted: false };
+  const check = async (pool) => {
+    const candidate = { ...input, payload: { ...payload, pool } };
+    candidate.payloadHash = await hashRecord(candidate, crypto, 'pitch');
+    return validateOperation(candidate, crypto, 'pitch');
+  };
+  assert.equal((await check(payload.pool)).ok, true);
+  assert.equal((await check(['C', 'D'])).ok, true);
+  for (const bad of ['[object Object]', { note: 'C' }, { note: 'C', octaveOffset: 2 },
+    { note: 'C', octaveOffset: 1, extra: true }, { note: { nested: 'C' }, octaveOffset: 0 }]) {
+    assert.equal((await check([bad])).ok, false, JSON.stringify(bad));
+  }
+});
+
 test('Pitch payload validation fails closed for bad references, settings and progress', async () => {
   const cases = [
     {

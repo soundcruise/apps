@@ -126,6 +126,92 @@ test('legacy snapshot becomes typed records with stable IDs and excludes local-o
   })), 1, crypto, 'pitch'));
 });
 
+test('two-octave melody pool survives local to cloud to local without string coercion', async () => {
+  const api = load();
+  const android = new MemoryStorage(richLegacy(api));
+  const iphone = new MemoryStorage(richLegacy(api));
+  const androidStage = JSON.parse(android.getItem('pitchTrainerStagingProMelodySlots'));
+  androidStage.slots[0].config.count = 5;
+  android.setItem('pitchTrainerStagingProMelodySlots', JSON.stringify(androidStage));
+  const original = api.normalizeLocalSnapshot({ schemaVersion: 0, values: Object.fromEntries(android.values) });
+  const originalCloud = api.deserializeRecords(JSON.parse(JSON.stringify(await api.serializeRecords(original))));
+  await new api.PitchSyncAdapter({ storage: iphone }).applyRemoteSnapshot(originalCloud);
+  const initial = JSON.parse(iphone.getItem('pitchTrainerStagingProMelodySlots'));
+  assert.equal(initial.slots[0].id, 5001);
+  assert.equal(initial.slots[0].config.is2Octave, false);
+  assert.equal(initial.slots[0].config.count, 5);
+  assert.deepEqual(initial.slots[0].config.pool, ['C', 'D']);
+
+  const melody = JSON.parse(iphone.getItem('pitchTrainerStagingProMelodySlots'));
+  const pool = [{ note: 'C', octaveOffset: 0 }, { note: 'C#', octaveOffset: 1 }, 'D'];
+  melody.slots[0].config = { ...melody.slots[0].config, pool, count: 6, is2Octave: true };
+  iphone.setItem('pitchTrainerStagingProMelodySlots', JSON.stringify(melody));
+  const local = api.normalizeLocalSnapshot({ schemaVersion: 0, values: Object.fromEntries(iphone.values) });
+  const record = local.records.find((entry) => entry.recordType === 'melody_stage');
+  assert.deepEqual(JSON.parse(JSON.stringify(record.payload.pool)), pool);
+  const serialized = await api.serializeRecords(local);
+  const wire = serialized.find((entry) => entry.recordType === 'melody_stage');
+  assert.deepEqual(JSON.parse(JSON.stringify(wire.payload.pool)), pool);
+  assert.equal((await workerValidateOperation({
+    operationId: '123e4567-e89b-52d3-a456-426614174000',
+    ...wire, baseRevision: 0, deleted: false
+  }, crypto, 'pitch')).ok, true);
+  const cloud = api.deserializeRecords(JSON.parse(JSON.stringify(serialized)));
+  await new api.PitchSyncAdapter({ storage: android }).applyRemoteSnapshot(cloud);
+  const returnedSlot = JSON.parse(android.getItem('pitchTrainerStagingProMelodySlots')).slots[0];
+  const received = returnedSlot.config;
+  assert.equal(returnedSlot.id, 5001);
+  assert.equal(returnedSlot.name, 'QA melody');
+  assert.deepEqual(received.pool, pool);
+  assert.equal(received.count, 6);
+  assert.equal(received.is2Octave, true);
+  assert.equal(received.isPianoLayout, true);
+  assert.equal(received.answerMethod, 'note');
+  assert.equal(JSON.stringify(received).includes('[object Object]'), false);
+  assert.equal(await api.computeManifest(api.normalizeLocalSnapshot({ schemaVersion: 0,
+    values: Object.fromEntries(android.values) })), await api.computeManifest(cloud));
+});
+
+test('melody pool validation rejects malformed entries before serialization or remote write', async () => {
+  const api = load();
+  const malformed = [
+    '[object Object]', { note: 'C' }, { note: 'C', octaveOffset: -1 },
+    { note: 'C', octaveOffset: 2 }, { note: 'H', octaveOffset: 0 },
+    { note: 'C', octaveOffset: '1' }, { note: 'C', octaveOffset: 1, extra: true },
+    { note: { nested: 'C' }, octaveOffset: 0 }, null, []
+  ];
+  for (const bad of malformed) {
+    const values = richLegacy(api);
+    const melody = JSON.parse(values.pitchTrainerStagingProMelodySlots);
+    melody.slots[0].config.pool = [bad];
+    values.pitchTrainerStagingProMelodySlots = JSON.stringify(melody);
+    assert.throws(() => api.normalizeLocalSnapshot({ schemaVersion: 0, values }), /melody_pool_invalid|record_shape_invalid/);
+
+    const valid = api.normalizeLocalSnapshot({ schemaVersion: 0, values: richLegacy(api) });
+    valid.records.find((entry) => entry.recordType === 'melody_stage').payload.pool = [bad];
+    const storage = new MemoryStorage(richLegacy(api));
+    await assert.rejects(new api.PitchSyncAdapter({ storage }).applyRemoteSnapshot(valid), /pitch_record_invalid/);
+    assert.equal(storage.writes, 0);
+  }
+});
+
+test('two-octave stage conflicts retain typed pool and do not silently merge unrelated edits', () => {
+  const api = load();
+  const base = api.normalizeLocalSnapshot({ schemaVersion: 0, values: richLegacy(api) });
+  const left = structuredClone(base);
+  const right = structuredClone(base);
+  const leftStage = left.records.find((entry) => entry.recordType === 'melody_stage');
+  const rightStage = right.records.find((entry) => entry.recordType === 'melody_stage');
+  leftStage.payload.pool = [{ note: 'C', octaveOffset: 0 }, { note: 'D', octaveOffset: 1 }];
+  leftStage.payload.is2Octave = true;
+  rightStage.payload.count = 6;
+  const result = api.mergeSnapshots(left, right);
+  assert(result.conflicts.some((entry) => entry.recordKey.startsWith('melody_stage/') && entry.reason === 'semantic_conflict'));
+  assert.deepEqual(JSON.parse(JSON.stringify(leftStage.payload.pool)), [{ note: 'C', octaveOffset: 0 }, { note: 'D', octaveOffset: 1 }]);
+  assert.equal(rightStage.payload.count, 6);
+  assert.equal(JSON.stringify(result).includes('[object Object]'), false);
+});
+
 test('a stale Pitch editor save restores missing synced chords and progressions before pushing', async () => {
   const api = load();
   const values = richLegacy(api);
