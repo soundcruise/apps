@@ -614,6 +614,16 @@
             renderMergePreview(prepared);
         }
 
+        function conflictTitle(conflict) {
+            var local = conflict.local && conflict.local.payload;
+            var cloud = conflict.cloud && conflict.cloud.payload;
+            var payload = local || cloud || {};
+            if (conflict.recordType === 'folder') return 'フォルダ「' + (payload.name || '名前なし') + '」';
+            if (conflict.recordType === 'chord') return 'コード「' + (payload.chordName || '名前なし') + '」';
+            if (conflict.recordType === 'library_order') return '本棚の並び順';
+            return '保存データ';
+        }
+
         function renderMergePreview(prepared) {
             var plan = prepared.plan;
             setStatus('統合内容を確認', summaryLine(plan));
@@ -662,8 +672,7 @@
                     return;
                 }
                 var label = global.document.createElement('label');
-                label.textContent = (conflict.recordType === 'chord' && conflict.local && conflict.local.payload
-                    ? (conflict.local.payload.chordName || conflict.recordKey) : conflict.recordKey) + '：';
+                label.textContent = conflictTitle(conflict) + '：';
                 var select = global.document.createElement('select');
                 select.setAttribute('aria-label', '競合 ' + (index + 1) + ' の残し方');
                 var placeholder = global.document.createElement('option');

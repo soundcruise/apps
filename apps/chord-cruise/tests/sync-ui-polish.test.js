@@ -27,6 +27,8 @@ assert(ui.includes('クラウド同期とは？') && ui.includes('運営者へ�
 assert(!helpSource.includes('招待コード') && !helpSource.includes('先行テスト'), 'official Help omits cohort-only guidance');
 assert(ui.includes("if (busy || element.disabled)"), 'duplicate submissions are prevented');
 assert(ui.includes("setStatus('同期一時停止'"), 'a runtime pause has one canonical status');
+assert(ui.includes("conflictTitle(conflict) + '：'"), 'conflict headings use names instead of internal record keys');
+assert(ui.includes("フォルダ「") && ui.includes("本棚の並び順"), 'folder and order conflicts have plain-language titles');
 assert(css.includes('.cc-sync-screen') && css.includes('.cc-sync-action-group--danger'), 'the dedicated screen and danger spacing are styled');
 assert(pro.includes('sync-bootstrap.js?v='), 'Sync bootstrap remains Pro-only');
 assert(!standard.includes('sync-bootstrap.js?v='), 'Standard remains free of Sync UI');
