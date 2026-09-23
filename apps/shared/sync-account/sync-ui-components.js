@@ -172,7 +172,7 @@
 
   function displayStatusLabel(state, status, suppliedLabel) {
     if (state === 'unconnected') return '未接続';
-    if (state === 'ready') return '接続';
+    if (state === 'ready') return '✓ 同期済み';
     return suppliedLabel || status.label;
   }
 

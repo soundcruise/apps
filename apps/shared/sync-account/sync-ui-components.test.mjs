@@ -16,7 +16,7 @@ const appHtml = [
 
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
-    assert.match(html, /sync-ui-components\.js\?v=14/);
+    assert.match(html, /sync-ui-components\.js\?v=15/);
     assert.match(html, /multi-app-sync\.css\?v=22/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
@@ -133,7 +133,7 @@ test('card actions survive same-state callback replacement and Help stays isolat
 test('accordion header owns the full row and keeps compact status separate from Help', () => {
   assert.match(renderer, /function displayStatusLabel\(state, status, suppliedLabel\)/);
   assert.match(renderer, /state === 'unconnected'\) return '未接続'/);
-  assert.match(renderer, /state === 'ready'\) return '接続'/);
+  assert.match(renderer, /state === 'ready'\) return '✓ 同期済み'/);
   assert.match(renderer, /sound-cruise-sync-settings-status-chip/);
   assert.match(renderer, /header\.append\(toggle\)/,
     'the accessible toggle is the only collapsed header control');
