@@ -55,6 +55,10 @@ function createStore(options) {
         putShadow: async function (value) { shadow.set(value.recordKey, clone(value)); },
         getShadow: async function (key) { return clone(shadow.get(key)); },
         listShadow: async function () { return clone(Array.from(shadow.values())); },
+        replaceShadow: async function (records) {
+            shadow.clear();
+            records.forEach(function (record) { shadow.set(record.recordKey, clone(record)); });
+        },
         putConflict: async function (value) { conflicts.set(value.conflictId, clone(value)); },
         listConflicts: async function () { return clone(Array.from(conflicts.values())); },
         deleteConflict: async function (key) { conflicts.delete(key); },
@@ -143,6 +147,16 @@ async function makeServer(sync, seedStorage) {
                 revision: nextRevision++, deletedAt: null, operationId: 'external', changeSeq: ++cursorSequence
             });
         },
+        async replaceWithStorage(seed) {
+            var snapshot = await sync.core.snapshotLocalStorage(createStorage(seed), webcrypto);
+            records.clear();
+            snapshot.records.forEach(function (record, index) {
+                records.set(record.recordKey, Object.assign(clone(record), {
+                    revision: index + 1, deletedAt: null, operationId: 'previously-applied', changeSeq: index + 1
+                }));
+            });
+            cursorSequence += 1;
+        },
         async editCloudChord(id, name) {
             var key = 'chord/' + id;
             var previous = records.get(key);
@@ -226,6 +240,16 @@ async function pairedClient(localSeed, cloudSeed, options) {
     var accountJoin = await pairedClient(chordSeed('account-local'), {});
     var oldShadow = await accountJoin.sync.core.snapshotLocalStorage(createStorage(chordSeed('account-local')), webcrypto);
     for (var shadowRecord of oldShadow.records) await accountJoin.store.putShadow(shadowRecord);
+    var orphanShadow = await accountJoin.sync.core.snapshotLocalStorage(createStorage(chordSeed('old-replica')), webcrypto);
+    await accountJoin.store.putShadow(orphanShadow.records.find(function (record) { return record.recordType === 'folder'; }));
+    await accountJoin.store.putOutbox({
+        operationId: 'previous-account-operation', recordKey: 'folder/folder-account-local',
+        recordType: 'folder', recordId: 'folder-account-local', schemaVersion: 1,
+        baseRevision: 6, payload: oldShadow.records.find(function (record) { return record.recordType === 'folder'; }).payload,
+        payloadHash: oldShadow.records.find(function (record) { return record.recordType === 'folder'; }).payloadHash,
+        localCommitted: true, deleted: false
+    });
+    await accountJoin.store.putConflict({ conflictId: 'previous-account-conflict', recordKey: 'folder/folder-account-local' });
     await accountJoin.store.setMeta('accountManagedSetup', true);
     await accountJoin.store.setMeta('migrationState', 'pair_pending');
     var accountPreview = await accountJoin.client.preparePairingMerge();
@@ -240,6 +264,37 @@ async function pairedClient(localSeed, cloudSeed, options) {
     assert.strictEqual((await accountJoin.client.applyPairingMerge(accountPreview.sessionId, {})).ok, true);
     assert.strictEqual((await accountJoin.server.snapshotBody()).recordCount, accountPreview.plan.finalManifest.recordCount,
         'the complete local graph reaches the Account cloud');
+    assert.strictEqual((await accountJoin.store.listOutbox()).length, 0, 'old pending operations do not leak into the new Account');
+    assert.strictEqual((await accountJoin.store.listConflicts()).length, 0, 'old conflicts do not remain on the new Account');
+    assert.strictEqual((await accountJoin.store.listShadow()).length, accountPreview.plan.finalManifest.recordCount,
+        'the new shadow exactly mirrors the Account cloud');
+    assert((await accountJoin.store.listBackups()).some(function (backup) {
+        return backup.kind === 'previous_replica' && backup.outbox.length === 1 && backup.conflicts.length === 1;
+    }), 'old replica state is archived before retirement');
+
+    var interruptedJoin = await pairedClient(chordSeed('interrupted'), {});
+    await interruptedJoin.store.setMeta('accountManagedSetup', true);
+    await interruptedJoin.store.setMeta('migrationState', 'pair_pending');
+    var interruptedPreview = await interruptedJoin.client.preparePairingMerge();
+    var interruptedSession = await interruptedJoin.store.getMergeSession(interruptedPreview.sessionId);
+    interruptedSession.stage = 'pushing';
+    await interruptedJoin.store.putMergeSession(interruptedSession);
+    var interruptedChord = JSON.parse(interruptedJoin.storage.getItem('chordCruise.chord.chord-interrupted'));
+    interruptedJoin.storage.setItem('chordCruise.chords.index', JSON.stringify([{
+        id: interruptedChord.id, chordName: interruptedChord.chordName, shape: interruptedChord.shape,
+        folderId: interruptedChord.folderId, fretRange: interruptedChord.fretRange, memo: '', keyContext: null
+    }]));
+    await interruptedJoin.server.replaceWithStorage(chordSeed('interrupted'));
+    await interruptedJoin.store.putOutbox({
+        operationId: 'old-conflicted-operation', recordKey: 'folder/folder-interrupted',
+        recordType: 'folder', recordId: 'folder-interrupted', localCommitted: true, conflict: true
+    });
+    await interruptedJoin.store.putConflict({ conflictId: 'old-push-conflict', recordKey: 'folder/folder-interrupted' });
+    var resumedJoin = await interruptedJoin.client.resumePairingMerge(interruptedPreview.sessionId);
+    assert.strictEqual(resumedJoin.ok, true, 'an interrupted Account Join finishes when the complete graph is already remote: ' + JSON.stringify(resumedJoin));
+    assert.strictEqual((await interruptedJoin.store.listOutbox()).length, 0);
+    assert.strictEqual((await interruptedJoin.store.listConflicts()).length, 0);
+    assert.strictEqual((await interruptedJoin.store.getMeta('migrationState')), 'complete');
 
     var stale = await pairedClient(chordSeed('stale-local'), chordSeed('cloud'));
     var stalePreview = await stale.client.preparePairingMerge();

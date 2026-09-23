@@ -145,7 +145,7 @@ function runBootstrap(options) {
     assert.strictEqual(productionBypass.appended.length, 1);
 
     assert.strictEqual(standardHtml.includes('sync-cohort'), false, 'Standard has no activation route reference or controller');
-    assert(proHtml.includes('../js/sync/sync-cohort-activation.js?v=1.15.2'), 'Pro loads only the small activation controller');
+    assert(proHtml.includes('../js/sync/sync-cohort-activation.js?v=1.15.3'), 'Pro loads only the small activation controller');
     assert(proHtml.indexOf('sync-cohort-activation.js') < proHtml.indexOf('sync-bootstrap.js'), 'activation state is available before bootstrap');
     assert.strictEqual(proHtml.includes('クラウド同期 先行テスト'), false, 'normal Pro UI does not expose the cohort entry');
     assert(activationHtml.includes('data-app-edition="Pro"'));

@@ -166,6 +166,13 @@
                     return requestResult(store.getAll()).then(function (entries) { return clone(entries || []); });
                 });
             },
+            replaceShadow: function (records) {
+                if (!Array.isArray(records)) return Promise.reject(new TypeError('Invalid shadow records'));
+                return run(STORE_NAMES.shadow, 'readwrite', function (store) {
+                    store.clear();
+                    records.forEach(function (record) { store.put(clone(record)); });
+                });
+            },
             putConflict: function (conflict) {
                 return run(STORE_NAMES.conflicts, 'readwrite', function (store) {
                     return requestResult(store.put(clone(conflict)));

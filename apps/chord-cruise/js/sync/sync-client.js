@@ -531,9 +531,10 @@
             return { enabled: true, committed: committed, discarded: discarded, generated: generated };
         }
 
-        async function saveShadow(records) {
+        async function saveShadow(records, replace) {
             var store = await openStore();
             if (!Array.isArray(records)) throw new TypeError('Shadow records must be an array');
+            var validated = [];
             for (var index = 0; index < records.length; index += 1) {
                 var input = records[index];
                 if (!input || RECORD_TYPES.indexOf(input.recordType) === -1 || !isPositiveInteger(input.revision)) {
@@ -555,7 +556,7 @@
                     );
                     if (input.payloadHash !== tombstoneHash) throw new TypeError('Shadow tombstone hash mismatch');
                 }
-                await store.putShadow({
+                validated.push({
                     recordKey: core.recordKey(input.recordType, input.recordId),
                     recordType: input.recordType,
                     recordId: input.recordId,
@@ -564,6 +565,13 @@
                     payloadHash: input.payloadHash,
                     deletedAt: input.deletedAt == null ? null : input.deletedAt
                 });
+            }
+            if (replace === true && typeof store.replaceShadow === 'function') {
+                await store.replaceShadow(validated);
+            } else {
+                for (var shadowIndex = 0; shadowIndex < validated.length; shadowIndex += 1) {
+                    await store.putShadow(validated[shadowIndex]);
+                }
             }
             return true;
         }
@@ -1561,6 +1569,38 @@
             return changes.length;
         }
 
+        async function retirePreviousAccountReplica(store, session) {
+            if (session.mode !== 'pairing' ||
+                await store.getMeta('accountManagedSetup') !== true ||
+                await store.getMeta('migrationState') !== 'pair_pending') return;
+            var previousOutbox = (await store.listOutbox()).filter(function (operation) {
+                return operation.mergeSessionId !== session.sessionId;
+            });
+            var previousConflicts = await store.listConflicts();
+            var previousShadow = await store.listShadow();
+            if (!previousOutbox.length && !previousConflicts.length && !previousShadow.length) return;
+            var archiveId = await core.deterministicUuid(
+                'sound-cruise-sync:account-join:previous-replica:' + session.sessionId, cryptoImpl
+            );
+            if (!await store.getBackup(archiveId)) {
+                await store.putBackup({
+                    backupId: archiveId,
+                    sessionId: session.sessionId,
+                    kind: 'previous_replica',
+                    createdAt: now(),
+                    outbox: core.cloneJson(previousOutbox),
+                    conflicts: core.cloneJson(previousConflicts),
+                    shadow: core.cloneJson(previousShadow)
+                });
+            }
+            for (var oldIndex = 0; oldIndex < previousOutbox.length; oldIndex += 1) {
+                await store.deleteOutbox(previousOutbox[oldIndex].operationId);
+            }
+            for (var conflictIndex = 0; conflictIndex < previousConflicts.length; conflictIndex += 1) {
+                await store.deleteConflict(previousConflicts[conflictIndex].conflictId);
+            }
+        }
+
         async function finishMergeSession(store, session) {
             var enteringStage = session.stage;
             var local = await adapter.snapshot();
@@ -1635,24 +1675,40 @@
                         };
                     }
                 }
-                // Always retain the preview revisions as operation bases. If a remote
-                // record changed after preview, P2 returns a revision conflict rather
-                // than allowing the merge to overwrite that newer value.
-                await queueMergeChanges(store, session, session.cloudSnapshot, session.plan.finalSnapshot);
-                for (var batchIndex = 0; batchIndex < 50; batchIndex += 1) {
-                    var mergePending = (await store.listOutbox()).filter(function (operation) {
-                        return operation.mergeSessionId === session.sessionId && !operation.conflict && !operation.terminalError;
-                    });
-                    if (!mergePending.length) break;
-                    var pushed = await flushOutbox({ force: true });
-                    if (pushed.ok === false || pushed.conflict || pushed.invalid) {
-                        session.lastError = pushed.code || (pushed.conflict ? 'remote_conflict' : 'remote_invalid');
-                        session.updatedAt = now();
-                        await store.putMergeSession(session);
-                        return { enabled: true, ok: false, code: session.lastError, resumable: pushed.ok === false };
+                await retirePreviousAccountReplica(store, session);
+                var alreadyFinal = false;
+                if (enteringStage === 'pushing') {
+                    var resumedCloud = await readValidatedCloudSnapshot();
+                    if (!resumedCloud.ok) return { enabled: true, ok: false, code: resumedCloud.code, resumable: true };
+                    alreadyFinal = resumedCloud.snapshot.manifestHash === session.plan.finalManifest.manifestHash &&
+                        resumedCloud.snapshot.recordCount === session.plan.finalManifest.recordCount;
+                }
+                if (!alreadyFinal) {
+                    // Always retain the preview revisions as operation bases. If a remote
+                    // record changed after preview, P2 returns a revision conflict rather
+                    // than allowing the merge to overwrite that newer value.
+                    await queueMergeChanges(store, session, session.cloudSnapshot, session.plan.finalSnapshot);
+                    for (var batchIndex = 0; batchIndex < 50; batchIndex += 1) {
+                        var mergePending = (await store.listOutbox()).filter(function (operation) {
+                            return operation.mergeSessionId === session.sessionId && !operation.conflict && !operation.terminalError;
+                        });
+                        if (!mergePending.length) break;
+                        var pushed = await flushOutbox({ force: true });
+                        if (pushed.ok === false || pushed.conflict || pushed.invalid) {
+                            session.lastError = pushed.code || (pushed.conflict ? 'remote_conflict' : 'remote_invalid');
+                            session.updatedAt = now();
+                            await store.putMergeSession(session);
+                            return { enabled: true, ok: false, code: session.lastError, resumable: pushed.ok === false };
+                        }
                     }
                 }
                 var left = (await store.listOutbox()).filter(function (operation) { return operation.mergeSessionId === session.sessionId; });
+                if (alreadyFinal) {
+                    for (var appliedIndex = 0; appliedIndex < left.length; appliedIndex += 1) {
+                        await store.deleteOutbox(left[appliedIndex].operationId);
+                    }
+                    left = [];
+                }
                 if (left.length) return { enabled: true, ok: false, code: 'merge_push_incomplete', resumable: true };
 
                 session.stage = 'verifying';
@@ -1668,7 +1724,8 @@
                 await store.putMergeSession(session);
                 return { enabled: true, ok: false, code: session.lastError, resumable: true };
             }
-            await saveShadow(verifiedResult.snapshot.records);
+            await saveShadow(verifiedResult.snapshot.records, session.mode === 'pairing' &&
+                await store.getMeta('accountManagedSetup') === true);
             if (session.mode === 'ongoing') {
                 var resolvedConflicts = await store.listConflicts();
                 for (var conflictIndex = 0; conflictIndex < resolvedConflicts.length; conflictIndex += 1) {
