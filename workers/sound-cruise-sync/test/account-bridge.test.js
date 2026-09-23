@@ -9,6 +9,8 @@ import {
 } from '../src/account-crypto.js';
 import { createIdentityMaterial } from '../src/crypto.js';
 import { createD1RecoveryRepository } from '../src/recovery-database.js';
+import { createD1AccountRepository } from '../src/account-database.js';
+import { createD1SyncRepository } from '../src/sync-database.js';
 import { createQaCredential, qaCredentialVerifier } from '../src/account-qa-crypto.js';
 import { createSqliteD1 } from './sqlite-d1.js';
 
@@ -124,6 +126,28 @@ async function fixture(options = {}) {
     qaCredential: appQa.credential
   };
 }
+
+test('Account status counts unresolved decisions instead of the 12 cloud records', async () => {
+  const entry = await fixture();
+  const { db, app, accountId, membershipId } = entry;
+  db.raw.prepare(`UPDATE sync_account_memberships SET state='active', sync_user_id=?, activated_at=1000
+    WHERE id=?`).run(app.userId, membershipId);
+  db.raw.prepare(`UPDATE sync_datasets SET record_count=12 WHERE user_id=? AND app_id='chord'`).run(app.userId);
+  db.raw.prepare(`INSERT INTO sync_membership_device_links
+    (account_id, membership_id, app_device_id, linked_at) VALUES (?, ?, ?, 1000)`)
+    .run(accountId, membershipId, app.deviceId);
+  const repository = createD1SyncRepository(db, () => 2000);
+  const identity = { userId: app.userId, appId: 'chord', deviceId: app.deviceId };
+  const authority = { accountId, membershipId, accountState: 'active', membershipState: 'active', datasetState: 'ready' };
+  assert.equal((await repository.reportRemovalSafety(identity, authority, 'attention', 1)).status, 'reported');
+  let summary = await createD1AccountRepository(db).getAccountSummary(accountId);
+  assert.equal(summary.memberships.find((item) => item.appId === 'chord').attentionConflictCount, 1);
+  assert.equal(summary.memberships.find((item) => item.appId === 'chord').dataset.recordCount, 12);
+  await repository.reportRemovalSafety(identity, authority, 'clean');
+  summary = await createD1AccountRepository(db).getAccountSummary(accountId);
+  assert.equal(summary.memberships.find((item) => item.appId === 'chord').attentionConflictCount, 0);
+  db.close();
+});
 
 function environment(db, overrides = {}) {
   return {

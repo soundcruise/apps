@@ -9,6 +9,7 @@ var webcrypto = require('crypto').webcrypto;
 var root = path.join(__dirname, '..');
 var coreSource = fs.readFileSync(path.join(root, 'js/sync/sync-core.js'), 'utf8');
 var mergeSource = fs.readFileSync(path.join(root, 'js/sync/sync-merge.js'), 'utf8');
+var fieldMergeSource = fs.readFileSync(path.join(root, '../shared/sync-account/settings-field-merge.js'), 'utf8');
 var clientSource = fs.readFileSync(path.join(root, 'js/sync/sync-client.js'), 'utf8');
 var DEVICE_ID = '123e4567-e89b-42d3-a456-426614174000';
 var CREDENTIAL = 'scd1.' + DEVICE_ID + '.' + 'A'.repeat(43);
@@ -79,8 +80,10 @@ function loadClient(store) {
         JSON: JSON, Object: Object, Number: Number, Uint8Array: Uint8Array,
         Date: Date, Promise: Promise, setTimeout: window.setTimeout, encodeURIComponent: encodeURIComponent
     };
+    context.globalThis = window;
     vm.createContext(context);
     vm.runInContext(coreSource, context, { filename: 'sync-core.js' });
+    vm.runInContext(fieldMergeSource, context, { filename: 'settings-field-merge.js' });
     vm.runInContext(mergeSource, context, { filename: 'sync-merge.js' });
     window.ChordCruiseSync.database = { open: async function () { return store; } };
     vm.runInContext(clientSource, context, { filename: 'sync-client.js' });
@@ -139,6 +142,16 @@ async function makeServer(sync, seedStorage) {
                 payloadHash: await sync.core.hashSyncPayload('chord', 'cloud-new', payload, 1, webcrypto),
                 revision: nextRevision++, deletedAt: null, operationId: 'external', changeSeq: ++cursorSequence
             });
+        },
+        async editCloudChord(id, name) {
+            var key = 'chord/' + id;
+            var previous = records.get(key);
+            var payload = Object.assign({}, previous.payload, { chordName: name });
+            records.set(key, Object.assign({}, previous, {
+                payload: payload,
+                payloadHash: await sync.core.hashSyncPayload('chord', id, payload, 1, webcrypto),
+                revision: previous.revision + 1, operationId: 'external-edit', changeSeq: ++cursorSequence
+            }));
         },
         async fetch(url, options) {
             if (url.indexOf('/v1/sync/snapshot') !== -1) {
@@ -280,6 +293,26 @@ async function pairedClient(localSeed, cloudSeed, options) {
     var resumed = await responseLoss.client.resumePairingMerge(retryPreview.sessionId);
     assert.strictEqual(resumed.ok, true, 'same operation IDs make response-loss retry idempotent');
     assert.strictEqual((await responseLoss.store.listOutbox()).length, 0);
+
+    var ongoing = await pairedClient(chordSeed('ongoing'), chordSeed('cloud'));
+    var firstMerge = await ongoing.client.preparePairingMerge();
+    assert.strictEqual((await ongoing.client.applyPairingMerge(firstMerge.sessionId, {})).ok, true);
+    var edited = JSON.parse(ongoing.storage.getItem('chordCruise.chord.chord-ongoing'));
+    edited.chordName = 'LOCAL EDIT';
+    ongoing.storage.setItem('chordCruise.chord.chord-ongoing', JSON.stringify(edited));
+    await ongoing.server.editCloudChord('chord-ongoing', 'CLOUD EDIT');
+    await ongoing.store.putConflict({ conflictId: 'pull/ongoing', recordKey: 'chord/chord-ongoing',
+        state: 'pending', source: 'pull' });
+    var ongoingPreview = await ongoing.client.preparePairingMerge();
+    assert.strictEqual(ongoingPreview.ok, true);
+    assert.strictEqual(ongoingPreview.plan.conflicts.length, 1);
+    assert.strictEqual(ongoingPreview.plan.conflicts[0].recordKey, 'chord/chord-ongoing');
+    var ongoingChoices = {}; ongoingChoices[ongoingPreview.plan.conflicts[0].conflictId] = 'local';
+    assert.strictEqual((await ongoing.client.applyPairingMerge(ongoingPreview.sessionId, ongoingChoices)).ok, true);
+    assert.strictEqual((await ongoing.store.listConflicts()).length, 0);
+    assert.strictEqual((await ongoing.server.snapshotBody()).records.find(function (item) {
+        return item.recordType === 'chord' && item.recordId === 'chord-ongoing';
+    }).payload.chordName, 'LOCAL EDIT');
 
     var recoveryStore = createStore(); var recoverySync = loadClient(recoveryStore);
     var recoveryStorage = createStorage(chordSeed('before-crash'));

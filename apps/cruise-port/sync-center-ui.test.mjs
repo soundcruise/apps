@@ -1,7 +1,31 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { bindSyncCenterActions, shouldShowPortConflictAction } from './sync-center-ui.js';
+import { bindSyncCenterActions, renderAppRows, shouldShowPortConflictAction } from './sync-center-ui.js';
+
+test('12 cloud records and one unresolved conflict show 確認が必要 1件', () => {
+    const originalDocument = globalThis.document;
+    const makeNode = () => ({ children: [], dataset: {}, textContent: '',
+        append(...nodes) { this.children.push(...nodes); },
+        replaceChildren(...nodes) { this.children = nodes; },
+        setAttribute() {}, removeAttribute() {}, addEventListener() {} });
+    const list = makeNode();
+    globalThis.document = { createElement: makeNode };
+    try {
+        renderAppRows({ querySelector: () => list }, {
+            kind: 'ready', accountState: 'active', apps: [{
+                id: 'pitch', name: '音感クルーズ', status: 'attention', statusLabel: '確認が必要',
+                action: 'open', removalSafety: 'attention', activeAppDeviceCount: 0,
+                recordCount: 12, attentionCount: 1
+            }]
+        }, 'pro', false);
+        const chip = list.children[0].children[1].children[1].children[0];
+        assert.equal(chip.textContent, '確認が必要 1件');
+        assert.doesNotMatch(chip.textContent, /12件/);
+    } finally {
+        globalThis.document = originalDocument;
+    }
+});
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const root = read('./index.html');
@@ -134,11 +158,12 @@ test('Account section presents step title, status chip and state-specific CTA', 
     assert.doesNotMatch(ui, /#sync-center-recovery-open, #sync-center-account-recovery-open/);
 });
 
-test('App rows render one presentation status chip beside record counts', () => {
+test('App rows render one status chip with only user-attention counts', () => {
     const styles = read('./style.css');
     assert.match(ui, /sync-center-app-status-line/);
     assert.match(ui, /sync-center-app-status-chip--\$\{presentationStatus\.state\}/);
-    assert.match(ui, /sync-center-app-record-count/);
+    assert.match(ui, /app\.attentionCount > 0/);
+    assert.doesNotMatch(ui, /className = 'sync-center-app-record-count'/);
     assert.doesNotMatch(ui, /\$\{app\.statusLabel\}・\$\{app\.recordCount\}件/);
     assert.match(ui, /app\.presentationStatus \|\| appSyncStatusPresentation\(app\)/);
     assert.match(ui, /appSyncStatusPresentation\(app, presentation\.kind\)/);
@@ -146,7 +171,6 @@ test('App rows render one presentation status chip beside record counts', () => 
     assert.match(styles, /\.sync-center-app-status-chip--synced/);
     assert.match(styles, /\.sync-center-app-status-chip--detached/);
     assert.match(styles, /\.sync-center-app-status-chip--attention/);
-    assert.match(styles, /\.sync-center-app-record-count/);
 });
 
 test('Account section renders Cruise Port as a compact card with the shared status language', () => {
@@ -203,8 +227,8 @@ test('Environment management keeps the Port path compact and the app-specific pa
 
 test('Cruise Port installs the existing conflict resolution UI before startup sync', () => {
     for (const html of [root, pro]) {
-        assert.match(html, /multi-app-conflict-ui\.js\?v=5/);
-        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=5') < html.indexOf('practice-menu-app.js'));
+        assert.match(html, /multi-app-conflict-ui\.js\?v=6/);
+        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=6') < html.indexOf('practice-menu-app.js'));
     }
     assert.match(app, /installConflictResolutionUi\?\.\(portSyncController\?\.runtime, document\)/);
 });

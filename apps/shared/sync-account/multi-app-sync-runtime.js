@@ -311,7 +311,10 @@
       // a successful local sync into a failure when the summary endpoint is
       // temporarily unavailable.
       if (this.appId === 'port') return;
-      try { await this.request('POST', '/v1/sync/removal-safety', { appId: this.appId, state }); } catch (_) { /* fail closed in Port */ }
+      try {
+        const attentionCount = state === 'attention' ? (await this.store.listConflicts()).length : 0;
+        await this.request('POST', '/v1/sync/removal-safety', { appId: this.appId, state, attentionCount });
+      } catch (_) { /* fail closed in Port */ }
     }
 
     async localRecords() {
@@ -406,6 +409,15 @@
       return { parts, local, remote, shadowRecords, localRecord, remoteRecord, shadowRecord };
     }
 
+    settingsFieldPlan(context, choices = {}) {
+      if (this.appId === 'port' || context.localRecord?.recordType !== 'settings' ||
+          context.remoteRecord?.recordType !== 'settings' ||
+          isDeleted(context.localRecord) || isDeleted(context.remoteRecord) ||
+          typeof root.mergeSettingsFields !== 'function') return null;
+      return root.mergeSettingsFields(context.localRecord.payload?.values,
+        context.remoteRecord.payload?.values, context.shadowRecord?.payload?.values || null, choices);
+    }
+
     sanitizeConflictPresentation(value, context) {
       const stateText = (record) => record && !isDeleted(record) ? '保存されています' : '削除されています';
       const raw = value && typeof value === 'object' ? value : {};
@@ -448,11 +460,16 @@
         const described = typeof this.adapter.getConflictPresentation === 'function'
           ? this.adapter.getConflictPresentation(context)
           : null;
+        const settings = this.settingsFieldPlan(context, conflict.resolution?.fieldChoices || {});
         return Object.freeze({
           id: conflict.id,
           state: conflict.state || 'attention',
           selection: ['local', 'remote'].includes(conflict.resolution?.choice)
             ? conflict.resolution.choice : null,
+          settings: settings ? Object.freeze({
+            fields: settings.conflicts,
+            automaticCount: settings.automaticCount
+          }) : null,
           presentation: this.sanitizeConflictPresentation(described, context)
         });
       });
@@ -492,6 +509,11 @@
       if (authoritative.cursor) await this.store.setMeta('cursor', authoritative.cursor);
       await this.store.deleteConflict(conflict.id);
       if (!remaining.length) {
+        if (await this.store.readMeta('migrationState') !== 'complete') {
+          // The original initial merge was paused before migration completion.
+          // Resume it only after the last choice is verified on both sides.
+          return this.initializeDataset();
+        }
         this.setState('ready', { reason: 'conflict_resolved' });
       } else {
         this.setState('attention', { reason: 'conflict', conflicts: remaining.length });
@@ -651,7 +673,94 @@
       return this.finishResolution(conflict, authoritative);
     }
 
-    async performConflictResolution(conflictId, choice) {
+    async resolveMergedSettingsConflict(conflict, fieldChoices = {}) {
+      const context = await this.conflictContext(conflict);
+      const saved = conflict.resolution?.choice === 'merged' ? clone(conflict.resolution) : null;
+      const stored = saved?.expectedRemote ? saved : null;
+      const choices = saved?.fieldChoices || fieldChoices;
+      const plan = this.settingsFieldPlan(context, choices);
+      if (!plan || plan.unresolved) throw new MultiAppSyncError('settings_selection_incomplete');
+      const desiredRecord = {
+        recordType: 'settings', recordId: context.parts.recordId,
+        schemaVersion: context.localRecord.schemaVersion,
+        payload: { id: context.parts.recordId, values: plan.values }
+      };
+      const candidate = {
+        ...clone(context.local.snapshot),
+        records: context.local.snapshot.records.filter((item) => keyOf(item) !== conflict.recordKey).concat(desiredRecord)
+      };
+      // An older client may be unable to materialize a future settings field.
+      // In that case retain both sides and stop before any cloud mutation.
+      try { this.adapter.validateSnapshot(candidate); }
+      catch { throw new MultiAppSyncError('settings_field_unsupported'); }
+      const serialized = await this.adapter.serializeRecords(candidate);
+      const desired = mapRecords(serialized).get(conflict.recordKey);
+      if (!desired) throw new MultiAppSyncError('settings_record_invalid');
+      let resolution = stored || {
+        choice: 'merged', status: 'pending', fieldChoices: clone(choices),
+        operationId: saved?.operationId || this.randomOperationId(), startedAt: saved?.startedAt || this.now(),
+        expectedRemote: recordAnchor(context.remoteRecord),
+        local: recordAnchor(context.localRecord), desiredHash: desired.payloadHash
+      };
+      if (resolution.desiredHash !== desired.payloadHash ||
+          !sameAnchor(context.localRecord, resolution.local) && !sameRecord(context.localRecord, desired)) {
+        throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
+      }
+      const alreadyApplied = this.remoteMatchesAppliedIntent(context.remoteRecord, {
+        ...resolution, desiredDeleted: false
+      });
+      if (!alreadyApplied && !sameAnchor(context.remoteRecord, resolution.expectedRemote)) {
+        throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
+      }
+      conflict = await this.saveConflict(conflict, 'resolving_merged', resolution);
+      if (!alreadyApplied) {
+        if (!resolution.backupSaved) {
+          await this.backupSnapshot(context.local.snapshot);
+          resolution = { ...resolution, backupSaved: true };
+          conflict = await this.saveConflict(conflict, 'resolving_merged', resolution);
+        }
+        const operation = await this.operationFor(desired, resolution.expectedRemote.revision,
+          false, resolution.operationId);
+        const response = await this.request('POST', '/v1/sync/push', {
+          appId: this.appId, mode: 'sync', operations: [{
+            operationId: operation.operationId, recordType: operation.recordType,
+            recordId: operation.recordId, schemaVersion: operation.schemaVersion,
+            baseRevision: operation.baseRevision, payload: operation.payload,
+            payloadHash: operation.payloadHash, deleted: false
+          }]
+        });
+        const result = (response.results || []).find((item) => item.operationId === resolution.operationId);
+        if (result?.status === 'conflict') {
+          throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
+        }
+        if (!['applied', 'duplicate'].includes(result?.status)) {
+          throw new MultiAppSyncError(result?.code || 'resolution_push_failed');
+        }
+      }
+      const authoritative = await this.serverSnapshot();
+      const remoteRecord = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
+      if (!this.remoteMatchesAppliedIntent(remoteRecord, { ...resolution, desiredDeleted: false })) {
+        throw new MultiAppSyncError('resolution_verify_failed');
+      }
+      conflict = await this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' });
+      const current = await this.localRecords();
+      const currentRecord = mapRecords(current.records).get(conflict.recordKey) || null;
+      if (!sameRecord(currentRecord, desired)) {
+        if (!sameAnchor(currentRecord, resolution.local)) {
+          throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
+        }
+        const next = {
+          ...clone(current.snapshot),
+          records: current.snapshot.records.filter((item) => keyOf(item) !== conflict.recordKey).concat(desiredRecord)
+        };
+        await this.applyWithBackup(next, current.snapshot, { checkCurrent: true });
+      }
+      const verified = mapRecords((await this.localRecords()).records).get(conflict.recordKey) || null;
+      if (!sameRecord(verified, desired)) throw new MultiAppSyncError('resolution_verify_failed');
+      return this.finishResolution(conflict, authoritative);
+    }
+
+    async performConflictResolution(conflictId, choice, options = {}) {
       let conflict = await this.store.getConflict?.(conflictId) ||
         (await this.store.listConflicts()).find((item) => item.id === conflictId);
       if (!conflict) return Object.freeze({ ok: false, code: 'conflict_not_found' });
@@ -662,28 +771,30 @@
       if (global.navigator?.onLine === false) {
         const resolution = conflict.resolution?.choice === choice ? conflict.resolution : {
           choice, status: 'pending', startedAt: this.now(),
-          ...(choice === 'local' ? { operationId: this.randomOperationId() } : {})
+          ...(['local', 'merged'].includes(choice) ? { operationId: this.randomOperationId() } : {}),
+          ...(choice === 'merged' ? { fieldChoices: clone(options.fieldChoices || {}) } : {})
         };
         await this.saveConflict(conflict, 'attention', { ...resolution, lastError: 'resolution_offline' });
         return Object.freeze({ ok: false, code: 'resolution_offline' });
       }
       try {
-        return choice === 'local'
-          ? await this.resolveLocalConflict(conflict)
-          : await this.resolveRemoteConflict(conflict);
+        return choice === 'merged'
+          ? await this.resolveMergedSettingsConflict(conflict, options.fieldChoices || {})
+          : choice === 'local' ? await this.resolveLocalConflict(conflict)
+            : await this.resolveRemoteConflict(conflict);
       } catch (error) {
         conflict = await this.store.getConflict?.(conflictId) || conflict;
         return this.failResolution(conflict, error, { reset: error?.resetResolution === true });
       }
     }
 
-    resolveConflict(conflictId, choice) {
-      if (!['local', 'remote', 'later'].includes(choice)) {
+    resolveConflict(conflictId, choice, options = {}) {
+      if (!['local', 'remote', 'later', 'merged'].includes(choice)) {
         return Promise.resolve(Object.freeze({ ok: false, code: 'resolution_choice_invalid' }));
       }
       if (this.resolutionRunning) return this.resolutionRunning;
       let work;
-      work = this.performConflictResolution(conflictId, choice).finally(() => {
+      work = this.performConflictResolution(conflictId, choice, options).finally(() => {
         if (this.resolutionRunning === work) this.resolutionRunning = null;
       });
       this.resolutionRunning = work;
@@ -692,7 +803,7 @@
 
     async resumeConflictResolutions() {
       const pending = (await this.store.listConflicts()).filter((item) =>
-        ['local', 'remote'].includes(item.resolution?.choice));
+        ['local', 'remote', 'merged'].includes(item.resolution?.choice));
       let resumed = 0;
       for (const conflict of pending.slice(0, 1)) {
         const result = await this.resolveConflict(conflict.id, conflict.resolution.choice);
@@ -936,19 +1047,37 @@
         await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       } else if (local.records.length && remoteLive.length) {
         const merged = this.adapter.mergeSnapshots(local.snapshot, remoteSnapshot);
-        if (merged.conflicts.length) {
+        let mergedSnapshot = merged.snapshot;
+        let unresolved = merged.conflicts;
+        if (typeof root.mergeSettingsFields === 'function' && this.appId !== 'port') {
+          const localSettings = local.records.find((record) => record.recordType === 'settings' && record.recordId === 'settings');
+          const remoteSettings = remoteLive.find((record) => record.recordType === 'settings' && record.recordId === 'settings');
+          if (localSettings && remoteSettings) {
+            const settingsPlan = this.settingsFieldPlan({ localRecord: localSettings, remoteRecord: remoteSettings,
+              shadowRecord: null });
+            if (settingsPlan && settingsPlan.unresolved === 0) {
+              const combined = { ...clone(localSettings), payload: { ...clone(localSettings.payload), values: settingsPlan.values } };
+              mergedSnapshot = { ...mergedSnapshot, records: mergedSnapshot.records.filter((record) =>
+                !(record.recordType === 'settings' && record.recordId === 'settings')).concat(combined) };
+              unresolved = unresolved.filter((item) => item.recordKey !== 'settings/settings');
+            }
+          }
+        }
+        if (unresolved.length) {
           const localMap = mapRecords(local.records);
           const remoteMap = mapRecords(remote.records || []);
-          for (const item of merged.conflicts) await this.recordConflict('initial_merge', item.recordKey, {
+          for (const item of unresolved) await this.recordConflict('initial_merge', item.recordKey, {
             reason: item.reason,
             localRecord: localMap.get(item.recordKey) || null,
             remoteRecord: remoteMap.get(item.recordKey) || null,
             shadowRecord: null
           });
           this.setState('attention', { reason: 'conflict' });
-          return Object.freeze({ ok: false, code: 'merge_conflict', conflicts: merged.conflicts.length });
+          await this.reportRemovalSafety('attention');
+          return Object.freeze({ ok: false, code: 'merge_conflict', conflicts: unresolved.length });
         }
-        finalSnapshot = merged.snapshot;
+        finalSnapshot = mergedSnapshot;
+        this.adapter.validateSnapshot(finalSnapshot);
         await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       }
       const finalRecords = await this.adapter.serializeRecords(finalSnapshot);
@@ -969,6 +1098,7 @@
       await this.store.setMeta('lastSyncAt', this.now());
       this.setState('ready');
       this.bindLifecycle();
+      await this.reportRemovalSafety('clean');
       return Object.freeze({ ok: true, recordCount: authoritative.recordCount, manifestHash: authoritative.manifestHash });
     }
 
@@ -1025,17 +1155,27 @@
       }
       this.setState('syncing', { reason });
       const [remote, shadowRecords] = await Promise.all([this.serverSnapshot(), this.store.listShadow()]);
-      const local = await this.localRecords();
-      const localMap = mapRecords(local.records);
+      let local = await this.localRecords();
+      let localMap = mapRecords(local.records);
       const remoteMap = mapRecords(remote.records || []);
       const shadowMap = mapRecords(shadowRecords);
       const conflictKeys = [];
+      const automaticSettings = [];
       for (const recordKey of new Set([...localMap.keys(), ...remoteMap.keys(), ...shadowMap.keys()])) {
         if (isolatedKeys.has(recordKey)) continue;
         const localRecord = localMap.get(recordKey);
         const remoteRecord = remoteMap.get(recordKey);
         const shadowRecord = shadowMap.get(recordKey);
         if (!sameRecord(localRecord, shadowRecord) && !sameRecord(remoteRecord, shadowRecord) && !sameRecord(localRecord, remoteRecord)) {
+          const plan = this.settingsFieldPlan({ localRecord, remoteRecord, shadowRecord });
+          if (plan && !plan.unresolved) {
+            automaticSettings.push({ recordKey, record: {
+              recordType: 'settings', recordId: localRecord.recordId,
+              schemaVersion: localRecord.schemaVersion,
+              payload: { id: localRecord.recordId, values: plan.values }
+            } });
+            continue;
+          }
           conflictKeys.push(recordKey);
         }
       }
@@ -1048,6 +1188,24 @@
         this.setState('attention', { reason: 'conflict' });
         await this.reportRemovalSafety('attention');
         return { ok: false, code: 'conflict', conflicts: conflictKeys.length };
+      }
+      if (automaticSettings.length) {
+        const replacements = new Map(automaticSettings.map(({ recordKey, record }) => [recordKey, record]));
+        const next = { ...clone(local.snapshot), records: local.snapshot.records.map((record) =>
+          replacements.get(keyOf(record)) || record) };
+        try { this.adapter.validateSnapshot(next); }
+        catch {
+          for (const { recordKey } of automaticSettings) await this.recordConflict('pull', recordKey, {
+            reason: 'settings_field_unsupported', localRecord: localMap.get(recordKey),
+            remoteRecord: remoteMap.get(recordKey), shadowRecord: shadowMap.get(recordKey)
+          });
+          this.setState('attention', { reason: 'conflict', conflicts: automaticSettings.length });
+          await this.reportRemovalSafety('attention');
+          return { ok: false, code: 'conflict', conflicts: automaticSettings.length };
+        }
+        await this.applyWithBackup(next, local.snapshot, { checkCurrent: true });
+        local = await this.localRecords();
+        localMap = mapRecords(local.records);
       }
       await this.queueDiff(local.records, remote.records || [], shadowRecords);
       for (const conflict of await this.store.listConflicts()) {

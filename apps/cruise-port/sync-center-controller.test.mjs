@@ -243,7 +243,8 @@ test('Home-screen removal safety is fail-closed unless the server reports a clea
         account: { id: 'account', state: 'active', recoveryVersion: 1 },
         memberships: [
             { appId: 'pitch', state: 'active', activeAppDeviceCount: 1, removalSafety: 'safe', dataset: { state: 'ready', recordCount: 1, schemaVersion: 1 } },
-            { appId: 'fretboard', state: 'active', activeAppDeviceCount: 1, removalSafety: 'attention', dataset: { state: 'ready', recordCount: 1, schemaVersion: 1 } },
+            { appId: 'fretboard', state: 'active', activeAppDeviceCount: 1, removalSafety: 'attention', attentionConflictCount: 1,
+                dataset: { state: 'ready', recordCount: 12, schemaVersion: 1 } },
             { appId: 'rhythm', state: 'active', activeAppDeviceCount: 1, removalSafety: 'unknown', dataset: { state: 'ready', recordCount: 1, schemaVersion: 1 } },
             { appId: 'chord', state: 'deleting', activeAppDeviceCount: 1, removalSafety: 'safe', dataset: { state: 'ready', recordCount: 1, schemaVersion: 1 } }
         ]
@@ -251,6 +252,8 @@ test('Home-screen removal safety is fail-closed unless the server reports a clea
     const presentation = normalizeSyncCenterSummary(summary, { devices: [], appDevices: [] });
     assert.equal(presentation.apps.find((app) => app.id === 'pitch').removalSafety, 'safe');
     assert.equal(presentation.apps.find((app) => app.id === 'fretboard').removalSafety, 'attention');
+    assert.equal(presentation.apps.find((app) => app.id === 'fretboard').attentionCount, 1);
+    assert.equal(presentation.apps.find((app) => app.id === 'fretboard').recordCount, 12);
     assert.equal(presentation.apps.find((app) => app.id === 'rhythm').removalSafety, 'unknown');
     assert.equal(presentation.apps.find((app) => app.id === 'chord').removalSafety, 'unknown');
 });

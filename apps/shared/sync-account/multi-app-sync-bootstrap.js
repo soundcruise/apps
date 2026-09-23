@@ -16,6 +16,7 @@
   let connectedAccountDisplayId = null;
   let activeRuntime = null;
   let activeConfig = null;
+  let attentionRevision = 0;
 
   let handoffToken = null;
   try { handoffToken = accountRoot?.core?.takeHandoffFromLocation() || null; }
@@ -81,6 +82,7 @@
         description: settingsPresentation.description,
         accountDisplayId: settingsPresentation.accountDisplayId,
         privacyHref: '../privacy.html?edition=pro',
+        onStatusClick: settingsPresentation.state === 'attention' ? settingsPresentation.action?.run : null,
         primaryAction: settingsPresentation.action ? {
           label: settingsPresentation.action.label,
           kind: 'primary',
@@ -170,6 +172,7 @@
       ...presentation, detach: openCurrentEnvironmentDetach, accountDisplayId: connectedAccountDisplayId
     });
     const show = (state, detail = {}) => {
+      const revision = ++attentionRevision;
       if (state === 'ready') return showConnectedSettings();
       if (state === 'syncing') return setSettingsPresentation(connectedPresentation({ state: 'syncing', status: '同期中' }));
       if (state === 'paused') return setSettingsPresentation(connectedPresentation({ state: 'paused', status: '一時停止中' }));
@@ -183,12 +186,24 @@
           dialog.showModal();
         } }
       });
-      if (state === 'attention') return setSettingsPresentation(connectedPresentation({
-        state: 'attention', status: '確認が必要',
-        action: detail.reason === 'conflict' && conflictController
-          ? { label: '内容を確認', run: () => conflictController.refresh() }
-          : { label: 'もう一度確認', run: () => runtime.sync('manual_retry') }
-      }));
+      if (state === 'attention') {
+        runtime.store.listConflicts().then((conflicts) => {
+          if (revision !== attentionRevision) return;
+          const count = conflicts.length;
+          setSettingsPresentation(connectedPresentation({
+            state: 'attention', status: count ? `確認が必要 ${count}件` : '確認が必要',
+            action: count && conflictController
+              ? { label: '同期内容を確認', run: () => conflictController.refresh() }
+              : { label: 'もう一度確認', run: () => runtime.sync('manual_retry') }
+          }));
+        }).catch(() => {
+          if (revision !== attentionRevision) return;
+          setSettingsPresentation(connectedPresentation({
+            state: 'attention', status: '確認が必要',
+            action: { label: 'もう一度確認', run: () => runtime.sync('manual_retry') }
+          }));
+        });
+      }
     };
     runtime.addEventListener('statechange', (event) => show(event.detail?.state, event.detail));
     global.addEventListener?.('offline', () => setSettingsPresentation(connectedPresentation({ state: 'offline', status: 'オフライン' })));

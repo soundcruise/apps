@@ -199,7 +199,15 @@
     appendText(document, toggle, 'strong', 'sound-cruise-sync-settings-title', 'クラウド同期');
     if (testingAppearance) appendText(document, toggle, 'span', 'sound-cruise-sync-settings-testing-badge', '試験中');
     const statusLabel = displayStatusLabel(options.state, status, options.statusLabel);
-    appendText(document, toggle, 'span', 'sound-cruise-sync-settings-status-chip', statusLabel);
+    const statusChip = appendText(document, toggle, 'span', 'sound-cruise-sync-settings-status-chip', statusLabel);
+    if (typeof options.onStatusClick === 'function') {
+      statusChip.dataset.syncStatusAction = '';
+      statusChip.addEventListener('click', (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        options.onStatusClick();
+      });
+    }
     appendText(document, toggle, 'span', 'sound-cruise-sync-settings-chevron', '⌄').setAttribute('aria-hidden', 'true');
     header.append(toggle);
     const body = document.createElement('div');

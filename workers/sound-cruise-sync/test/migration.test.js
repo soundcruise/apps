@@ -31,6 +31,7 @@ const migration24 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration25 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0025_add_app_sync_safety.sql'), 'utf8');
 const migration26 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0026_add_practice_attachment_assets.sql'), 'utf8');
 const migration27 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0027_add_practice_attachment_record_types.sql'), 'utf8');
+const migration28 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0028_add_app_attention_count.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -68,6 +69,7 @@ function migrate(db) {
   migrateThrough25(db);
   db.exec(migration26);
   db.exec(migration27);
+  db.exec(migration28);
 }
 
 function migrateThrough20(db) {

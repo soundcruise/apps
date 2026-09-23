@@ -177,10 +177,19 @@
         };
     }
 
-    function mergeObject(recordType, local, cloud, base) {
+    function mergeObject(recordType, local, cloud, base, fieldChoices) {
         var localPayload = local.payload;
         var cloudPayload = cloud.payload;
         var basePayload = base && live(base) ? base.payload : null;
+        if (recordType === 'settings' && typeof global.SoundCruiseMultiAppSync?.mergeSettingsFields === 'function') {
+            var fieldPlan = global.SoundCruiseMultiAppSync.mergeSettingsFields(
+                localPayload, cloudPayload, basePayload || DEFAULT_SETTINGS, fieldChoices || {});
+            if (fieldPlan.unresolved) return { value: null, fields: fieldPlan.conflicts, automaticCount: fieldPlan.automaticCount };
+            return { value: {
+                recordType: local.recordType, recordId: local.recordId,
+                schemaVersion: local.schemaVersion, payload: fieldPlan.values
+            }, fields: [], automaticCount: fieldPlan.automaticCount };
+        }
         if (!basePayload && recordType === 'settings') basePayload = DEFAULT_SETTINGS;
         if (same(semanticPayload(localPayload), semanticPayload(cloudPayload))) return { value: cloneRecord(cloud), fields: [] };
         if (basePayload && same(semanticPayload(localPayload), semanticPayload(basePayload))) return { value: cloneRecord(cloud), fields: [] };
@@ -358,7 +367,9 @@
                 finalMap[key] = cloneRecord(cloud); operations.push({ recordKey: key, action: 'identical' }); return;
             }
             if (localLive && cloudLive) {
-                var merged = mergeObject(local.recordType, local, cloud, base);
+                var fieldChoices = choices['record/' + key];
+                var merged = mergeObject(local.recordType, local, cloud, base,
+                    fieldChoices && typeof fieldChoices === 'object' ? fieldChoices : null);
                 if (merged.value) {
                     finalMap[key] = merged.value; operations.push({ recordKey: key, action: 'merge' }); return;
                 }
@@ -370,7 +381,9 @@
                     fields: merged.fields,
                     local: cloneRecord(local),
                     cloud: cloneRecord(cloud),
-                    choices: local.recordType === 'chord' ? ['local', 'cloud', 'both'] : ['local', 'cloud']
+                    choices: local.recordType === 'settings' ? []
+                        : local.recordType === 'chord' ? ['local', 'cloud', 'both'] : ['local', 'cloud'],
+                    automaticCount: merged.automaticCount || 0
                 };
                 if (!chooseConflict(editConflict, choices[editConflict.conflictId], finalMap, bothQueue)) conflicts.push(editConflict);
                 return;

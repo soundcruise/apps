@@ -39,6 +39,7 @@ function loadRuntime(backupStorage = { async save() {} }) {
     SoundCruiseSyncAccount: { appBackupStorage: backupStorage }
   };
   context.globalThis = context;
+  vm.runInNewContext(readFileSync(new URL('./settings-field-merge.js', import.meta.url), 'utf8'), context);
   vm.runInNewContext(readFileSync(new URL('./multi-app-sync-runtime.js', import.meta.url), 'utf8'), context);
   const Runtime = context.SoundCruiseMultiAppSync.MultiAppSyncRuntime;
   Runtime.testContext = context;
@@ -82,6 +83,7 @@ function adapter(initial = [], appId = 'pitch') {
         ? `hash-${record.recordId}` : `hash-${record.recordId}-${record.payload.bpm}`)
     })),
     deserializeRecords: (remote) => ({ appId, schemaVersion: 1, records: remote.map(({ revision, deletedAt, ...record }) => record) }),
+    validateSnapshot: () => true,
     computeManifest: async (snapshot) => `manifest-${snapshot.records.map((record) => record.recordId).sort().join('-')}`,
     getConflictPresentation: ({ localRecord, remoteRecord }) => ({
       appName: 'リズムクルーズ', title: 'カスタムプリセット',
@@ -1147,6 +1149,115 @@ test('Later leaves local, Remote, attention and the conflict entry unchanged', a
   assert.equal(fixture.server.records.get('custom_preset/conflict').payload.bpm, 81);
   assert.equal((await fixture.store.listConflicts()).length, 1);
   assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+});
+
+function settingsRecord(values) {
+  const payload = { id: 'settings', values };
+  return { recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+    payload, payloadHash: `hash-${JSON.stringify(values)}` };
+}
+
+async function settingsConflictFixture() {
+  const initial = { keyRandomMode: false, noteSpeed: 1, builtinChordEnabled: { A: true } };
+  const fixture = runtimeFixture([settingsRecord(initial)], 'pitch');
+  fixture.runtime.adapter.serializeRecords = async (snapshot) => snapshot.records.map((item) =>
+    item.recordType === 'settings' ? settingsRecord(item.payload.values) : item);
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [settingsRecord({ keyRandomMode: true, noteSpeed: 3,
+    builtinChordEnabled: { A: true, B: false } })];
+  const previous = fixture.server.records.get('settings/settings');
+  fixture.server.records.set('settings/settings', { ...settingsRecord({ keyRandomMode: false,
+    noteSpeed: 2, builtinChordEnabled: { A: true, C: true }, futureOption: 'kept' }),
+    revision: previous.revision + 1, operationId: 'remote-settings', deletedAt: null,
+    changeSeq: ++fixture.server.revision });
+  assert.equal((await fixture.runtime.sync('focus')).code, 'conflict');
+  return fixture;
+}
+
+test('settings conflict presents only overlapping fields and preserves one-sided additions', async () => {
+  const fixture = await settingsConflictFixture();
+  const [item] = await fixture.runtime.listConflictPresentations();
+  assert.equal(item.settings.fields.length, 1);
+  assert.equal(item.settings.fields[0].path, '/noteSpeed');
+  assert.equal(item.settings.fields[0].local, 3);
+  assert.equal(item.settings.fields[0].remote, 2);
+  const result = await fixture.runtime.resolveConflict(item.id, 'merged',
+    { fieldChoices: { '/noteSpeed': 'local' } });
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const values = fixture.server.records.get('settings/settings').payload.values;
+  assert.equal(values.keyRandomMode, true);
+  assert.equal(values.noteSpeed, 3);
+  assert.deepEqual(values.builtinChordEnabled, { A: true, B: false, C: true });
+  assert.equal(values.futureOption, 'kept');
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal(fixture.server.records.get('settings/settings').revision, 3);
+});
+
+test('merged settings response loss resumes one operation without discarding either side', async () => {
+  const fixture = await settingsConflictFixture();
+  const [item] = await fixture.runtime.listConflictPresentations();
+  fixture.server.responseLossAfterApply = true;
+  const first = await fixture.runtime.resolveConflict(item.id, 'merged',
+    { fieldChoices: { '/noteSpeed': 'remote' } });
+  assert.equal(first.ok, false);
+  const revision = fixture.server.records.get('settings/settings').revision;
+  const resumed = await fixture.runtime.resumeConflictResolutions();
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  assert.equal(fixture.server.records.get('settings/settings').revision, revision);
+  assert.equal(fixture.server.records.get('settings/settings').payload.values.noteSpeed, 2);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('an initial settings conflict resumes migration to all 15 records after field choices', async () => {
+  const recordKey = (item) => `${item.recordType}/${item.recordId}`;
+  const localValues = { keyRandomMode: true, noteSpeed: 3, builtinChordEnabled: { local: true } };
+  const remoteValues = { keyRandomMode: false, noteSpeed: 2,
+    builtinProgressionEnabled: { remote: true } };
+  const localRecords = [settingsRecord(localValues), record('shared'),
+    record('local-a'), record('local-b'), record('local-c')];
+  const fixture = runtimeFixture(localRecords, 'pitch');
+  fixture.runtime.adapter.serializeRecords = async (snapshot) => snapshot.records.map((item) =>
+    item.recordType === 'settings' ? settingsRecord(item.payload.values) : item);
+  fixture.runtime.adapter.mergeSnapshots = (local, remote) => {
+    const merged = [...local.records, ...remote.records.filter((item) =>
+      !local.records.some((left) => recordKey(left) === recordKey(item)))];
+    const localSettings = local.records.find((item) => item.recordType === 'settings');
+    const remoteSettings = remote.records.find((item) => item.recordType === 'settings');
+    return { snapshot: { ...local, records: merged }, conflicts:
+      JSON.stringify(localSettings?.payload) === JSON.stringify(remoteSettings?.payload)
+        ? [] : [{ recordKey: 'settings/settings', reason: 'settings_field_conflict' }] };
+  };
+  const remoteRecords = [settingsRecord(remoteValues), record('shared'),
+    ...Array.from({ length: 10 }, (_, index) => record(`cloud-${index}`))];
+  remoteRecords.forEach((item, index) => fixture.server.records.set(recordKey(item), {
+    ...item, revision: 1, operationId: `cloud-${index}`, deletedAt: null, changeSeq: index + 1
+  }));
+  fixture.server.state = 'ready';
+  fixture.server.revision = 12;
+  fixture.runtime.bootstrap = async () => ({ ok: true });
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('qaCredential', 'scq1.valid');
+  await fixture.store.setMeta('membership', { id: 'm1', appId: 'pitch', state: 'active' });
+  const paused = await fixture.runtime.initializeDataset();
+  assert.equal(paused.code, 'merge_conflict');
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  assert.equal(fixture.server.records.size, 12);
+  const [item] = await fixture.runtime.listConflictPresentations();
+  assert.deepEqual(Array.from(item.settings.fields, (field) => field.path), ['/keyRandomMode', '/noteSpeed']);
+  const completed = await fixture.runtime.resolveConflict(item.id, 'merged', { fieldChoices: {
+    '/keyRandomMode': 'local', '/noteSpeed': 'remote'
+  } });
+  assert.equal(completed.ok, true, JSON.stringify(completed));
+  assert.equal(await fixture.store.readMeta('migrationState'), 'complete');
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal(fixture.server.records.size, 15);
+  assert.equal(fixture.local.records.length, 15);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  const finalSettings = fixture.server.records.get('settings/settings').payload.values;
+  assert.equal(finalSettings.keyRandomMode, true);
+  assert.equal(finalSettings.noteSpeed, 2);
+  assert.equal(finalSettings.builtinChordEnabled.local, true);
+  assert.equal(finalSettings.builtinProgressionEnabled.remote, true);
 });
 
 test('Port clears a stale conflict only after local and Remote have already converged', async () => {

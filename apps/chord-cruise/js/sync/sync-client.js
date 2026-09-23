@@ -1461,7 +1461,16 @@
             var settings = options || {};
             var store = await openStore();
             var syncState = await store.getMeta('syncState');
-            if (syncState !== 'paired_pending') return { enabled: true, ok: false, code: 'pairing_not_pending' };
+            var ongoingConflicts = syncState === 'pilot_ready' ? await store.listConflicts() : [];
+            var ongoing = syncState === 'pilot_ready' && ongoingConflicts.length > 0;
+            if (syncState !== 'paired_pending' && !ongoing) {
+                return { enabled: true, ok: false, code: 'pairing_not_pending' };
+            }
+            var activeId = await store.getMeta('activeMergeSessionId');
+            var active = activeId ? await store.getMergeSession(activeId) : null;
+            if (active && ['applying_local', 'pushing', 'verifying'].indexOf(active.stage) !== -1) {
+                return { enabled: true, ok: false, code: 'merge_in_progress' };
+            }
             var local = await adapter.snapshot();
             if (local.errors.length) return { enabled: true, ok: false, code: 'snapshot_invalid', errors: local.errors.length };
             var cloudResult = await readValidatedCloudSnapshot();
@@ -1480,6 +1489,8 @@
             }, cryptoImpl);
             var session = {
                 sessionId: sessionId,
+                mode: ongoing ? 'ongoing' : 'pairing',
+                conflictIds: ongoing ? ongoingConflicts.map(function (item) { return item.conflictId; }) : [],
                 stage: 'awaiting_confirmation',
                 createdAt: now(),
                 updatedAt: now(),
@@ -1493,6 +1504,7 @@
             if (typeof store.putMergeSession !== 'function') return { enabled: true, ok: false, code: 'merge_storage_unavailable' };
             await store.putMergeSession(session);
             await store.setMeta('activeMergeSessionId', sessionId, now());
+            if (plan.conflicts.length) reportRemovalSafety('attention').catch(function () {});
             return { enabled: true, ok: true, sessionId: sessionId, localState: plan.localState, plan: plan };
         }
 
@@ -1651,6 +1663,26 @@
                 return { enabled: true, ok: false, code: session.lastError, resumable: true };
             }
             await saveShadow(verifiedResult.snapshot.records);
+            if (session.mode === 'ongoing') {
+                var resolvedConflicts = await store.listConflicts();
+                for (var conflictIndex = 0; conflictIndex < resolvedConflicts.length; conflictIndex += 1) {
+                    var oldConflict = resolvedConflicts[conflictIndex];
+                    if (session.conflictIds.indexOf(oldConflict.conflictId) !== -1) {
+                        await store.deleteConflict(oldConflict.conflictId);
+                    }
+                }
+                var staleOutbox = await store.listOutbox();
+                var resolvedKeys = resolvedConflicts.filter(function (item) {
+                    return session.conflictIds.indexOf(item.conflictId) !== -1;
+                }).map(function (item) { return item.recordKey; });
+                for (var outboxIndex = 0; outboxIndex < staleOutbox.length; outboxIndex += 1) {
+                    if (staleOutbox[outboxIndex].conflict === true &&
+                        resolvedKeys.indexOf(core.recordKey(staleOutbox[outboxIndex].recordType,
+                            staleOutbox[outboxIndex].recordId)) !== -1) {
+                        await store.deleteOutbox(staleOutbox[outboxIndex].operationId);
+                    }
+                }
+            }
             await store.setMetaBatch([
                 { key: 'datasetState', value: 'ready' },
                 { key: 'migrationState', value: 'complete' },
@@ -1664,6 +1696,14 @@
             delete session.lastError;
             await store.putMergeSession(session);
             startBackgroundSync();
+            if (session.mode === 'ongoing') {
+                var remainingConflicts = await store.listConflicts();
+                reportRemovalSafety(remainingConflicts.length ? 'attention' : 'clean').catch(function () {});
+                global.dispatchEvent?.(new CustomEvent('soundcruise:sync-status', {
+                    detail: { appId: core.APP_ID, state: remainingConflicts.length ? 'attention' : 'clean',
+                        count: remainingConflicts.length }
+                }));
+            }
             return {
                 enabled: true,
                 ok: true,
@@ -1825,14 +1865,30 @@
         async function reportRemovalSafety(state) {
             if (!enabled || ['clean', 'pending', 'attention', 'error'].indexOf(state) === -1) return;
             try {
+                var store = await openStore();
+                var conflicts = state === 'attention' && typeof store.listConflicts === 'function'
+                    ? await store.listConflicts() : [];
+                var attentionCount = conflicts.length;
+                if (state === 'attention' && !attentionCount && await store.getMeta('syncState') === 'paired_pending') {
+                    var activeId = await store.getMeta('activeMergeSessionId');
+                    var session = activeId ? await store.getMergeSession(activeId) : null;
+                    attentionCount = session && session.stage === 'awaiting_confirmation' &&
+                        Array.isArray(session.plan?.conflicts) ? session.plan.conflicts.length : 0;
+                }
                 await authenticatedRequest('POST', '/v1/sync/removal-safety', {
-                    appId: core.APP_ID, state: state
+                    appId: core.APP_ID, state: state, attentionCount: attentionCount
                 });
             } catch (error) { /* Port remains fail-closed when reporting is unavailable. */ }
         }
 
         async function syncNow() {
             if (!enabled) return { enabled: false };
+            var mergeStore = await openStore();
+            var activeMergeId = await mergeStore.getMeta('activeMergeSessionId');
+            var activeMerge = activeMergeId ? await mergeStore.getMergeSession(activeMergeId) : null;
+            if (activeMerge && activeMerge.mode === 'ongoing' && activeMerge.stage !== 'complete') {
+                return { enabled: true, ok: false, code: 'merge_in_progress' };
+            }
             var pushed = { enabled: true, sent: 0, applied: 0, duplicate: 0, conflict: 0, invalid: 0 };
             for (var batchIndex = 0; batchIndex < 10; batchIndex += 1) {
                 await reconcile({ captureLocalDiffs: true });
@@ -1854,6 +1910,9 @@
             var conflicts = typeof store.listConflicts === 'function' ? await store.listConflicts() : [];
             var state = pulled.ok === false ? 'error' : conflicts.length ? 'attention' : pending.length ? 'pending' : 'clean';
             reportRemovalSafety(state).catch(function () {});
+            global.dispatchEvent?.(new CustomEvent('soundcruise:sync-status', {
+                detail: { appId: core.APP_ID, state: state, count: conflicts.length }
+            }));
             return { enabled: true, ok: pulled.ok !== false, push: pushed, pull: pulled };
         }
 

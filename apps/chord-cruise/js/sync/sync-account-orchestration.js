@@ -112,6 +112,8 @@
           statusLabel: options.status,
           description: options.description,
           privacyHref: '../privacy.html?edition=pro',
+          onStatusClick: options.state === 'attention' && options.action
+            ? function () { options.action.click(); } : null,
           primaryAction: options.action ? {
             label: options.action.textContent,
             kind: 'primary',
@@ -149,6 +151,9 @@
     function showConnectedJoinSettings() {
       renderJoinSettings({ state: 'ready', status: '同期済み', action: null,
         detach: openCurrentEnvironmentDetach });
+      chordClient.openStore().then(function (store) { return store.listConflicts(); }).then(function (conflicts) {
+        if (conflicts.length) showAttentionSettings(null, null, conflicts.length);
+      }).catch(function () {});
     }
 
     function openCurrentEnvironmentDetach() {
@@ -205,12 +210,23 @@
       });
     }
 
-    function showAttentionSettings(description, action) {
+    function showAttentionSettings(description, action, count) {
       renderJoinSettings({
-        state: 'attention', status: '確認が必要',
+        state: 'attention', status: count > 0 ? '確認が必要 ' + count + '件' : '確認が必要',
         description: description || '同期する内容を確認してください。',
         action: action || attentionAction(), manage: true
       });
+      if (count === undefined) chordClient.openStore().then(async function (store) {
+        const conflicts = await store.listConflicts();
+        if (conflicts.length) return conflicts.length;
+        const activeId = await store.getMeta('activeMergeSessionId');
+        const session = activeId ? await store.getMergeSession(activeId) : null;
+        return session?.stage === 'awaiting_confirmation' ? session.plan?.conflicts?.length || 0 : 0;
+      }).then(function (resolvedCount) {
+        if (resolvedCount > 0 && document.querySelector('[data-sync-join-entry-host]')?.dataset.syncJoinUiState === 'attention') {
+          showAttentionSettings(description, action, resolvedCount);
+        }
+      }).catch(function () {});
     }
 
     async function resumeAccountManagedHydrate() {
@@ -476,6 +492,16 @@
     }
     global.addEventListener?.('soundcruise:sync-terminal', function () {
       showTerminalReconnect();
+    });
+    global.addEventListener?.('soundcruise:sync-status', function (event) {
+      if (event.detail?.appId !== 'chord') return;
+      if (event.detail.state === 'attention' && event.detail.count > 0) {
+        showAttentionSettings(null, null, event.detail.count);
+      } else if (event.detail.state === 'clean') {
+        showConnectedJoinSettings();
+      } else if (event.detail.state === 'pending') {
+        renderJoinSettings({ state: 'syncing', status: '同期中', action: null });
+      }
     });
     if (handoffToken) {
       const launchStore = await chordClient.openStore();

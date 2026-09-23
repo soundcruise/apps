@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.58.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.59.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -8,7 +8,7 @@ function setText(root, selector, value) {
     if (element) element.textContent = value;
 }
 
-function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction = null) {
+export function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction = null) {
     const list = root.querySelector('#sync-center-apps');
     if (!list) return;
     const rows = presentation.apps.map((app) => {
@@ -30,14 +30,9 @@ function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppA
         detail.className = 'sync-center-app-status-line';
         const chip = document.createElement('span');
         chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${presentationStatus.state}`;
-        chip.textContent = presentationStatus.label;
+        chip.textContent = presentationStatus.state === 'attention' && app.attentionCount > 0
+            ? `${presentationStatus.label} ${app.attentionCount}件` : presentationStatus.label;
         detail.append(chip);
-        if (app.recordCount != null) {
-            const count = document.createElement('span');
-            count.className = 'sync-center-app-record-count';
-            count.textContent = `${app.recordCount}件`;
-            detail.append(count);
-        }
         copy.append(name, detail);
         const actions = document.createElement('div');
         actions.className = 'sync-center-app-row-actions';
@@ -104,7 +99,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         {
             id: 'port', name: 'Cruise Port',
             subtitle: null,
-            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.58.0`,
+            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.59.0`,
             available: activeAccount,
             environments: portEnvironments
         },
@@ -244,7 +239,7 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
         badge.className = 'sync-center-join-target';
         const icon = document.createElement('img');
         icon.src = isPortAddition
-            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.58.0`
+            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.59.0`
             : CRUISE_APP_ICONS[target.id][edition === 'pro' ? 'pro' : 'standard'];
         icon.alt = '';
         icon.width = 44;

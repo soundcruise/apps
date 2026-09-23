@@ -193,6 +193,34 @@ test('Later defers every listed conflict without changing either data choice', a
   assert(fixture.events.some((event) => event[0] === 'close'));
 });
 
+test('settings require field choices and never allow a whole-record bulk override', async () => {
+  const api = load();
+  const fixture = viewFixture();
+  let items = [{ ...presentation('settings'), settings: { automaticCount: 3, fields: [
+    { path: '/keyRandomMode', field: 'keyRandomMode', local: true, remote: false },
+    { path: '/noteSpeed', field: 'noteSpeed', local: 3, remote: 2 }
+  ] } }];
+  const calls = [];
+  const runtime = {
+    listConflictPresentations: async () => items,
+    resolveConflict: async (id, choice, options) => {
+      calls.push([id, choice, options]); items = []; return { ok: true };
+    }
+  };
+  const controller = api.createConflictResolutionController(runtime, fixture.view);
+  await controller.refresh();
+  assert.equal(controller.selectAll('local').ok, false);
+  assert.equal((await controller.applyAll('remote')).ok, false);
+  assert.equal(controller.select('settings', 'local').ok, false);
+  controller.selectField('settings', '/keyRandomMode', 'local');
+  assert.equal((await controller.apply()).code, 'resolution_selection_incomplete');
+  controller.selectField('settings', '/noteSpeed', 'remote');
+  assert.equal((await controller.apply()).ok, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [['settings', 'merged', {
+    fieldChoices: { '/keyRandomMode': 'local', '/noteSpeed': 'remote' }
+  }]]);
+});
+
 test('tombstone presentation stays visible as a plain-language saved/deleted comparison', async () => {
   const api = load();
   const fixture = viewFixture();

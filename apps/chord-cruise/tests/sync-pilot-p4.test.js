@@ -9,6 +9,7 @@ var webcrypto = require('crypto').webcrypto;
 var root = path.join(__dirname, '..');
 var coreSource = fs.readFileSync(path.join(root, 'js/sync/sync-core.js'), 'utf8');
 var mergeSource = fs.readFileSync(path.join(root, 'js/sync/sync-merge.js'), 'utf8');
+var fieldMergeSource = fs.readFileSync(path.join(root, '../shared/sync-account/settings-field-merge.js'), 'utf8');
 
 function loadMerge() {
     var window = { crypto: webcrypto };
@@ -17,8 +18,10 @@ function loadMerge() {
         JSON: JSON, Object: Object, Number: Number, Uint8Array: Uint8Array,
         Date: Date, Promise: Promise
     };
+    context.globalThis = window;
     vm.createContext(context);
     vm.runInContext(coreSource, context, { filename: 'sync-core.js' });
+    vm.runInContext(fieldMergeSource, context, { filename: 'settings-field-merge.js' });
     vm.runInContext(mergeSource, context, { filename: 'sync-merge.js' });
     return window.ChordCruiseSync;
 }
@@ -214,6 +217,28 @@ function cloudOf(local, cursor) {
     var mergedSettings = settingsMerged.finalSnapshot.records.find(function (item) { return item.recordType === 'settings'; }).payload;
     assert.strictEqual(mergedSettings.selectedKey, 4);
     assert.strictEqual(mergedSettings.scaleType, 'minor');
+
+    var settingsCloudConflictBase = await snapshot(sync, [record('settings', 'default',
+        Object.assign({}, defaultSettings, { selectedKey: 7, futureOption: 'cloud-only' }))]);
+    var settingsCloudConflict = await sync.merge.validateCloudSnapshot(cloudOf(settingsCloudConflictBase), webcrypto);
+    var settingsConflict = await sync.merge.planMerge({
+        local: settingsLocal, cloud: settingsCloudConflict,
+        shadow: settingsBase.records.map(function (item) { return Object.assign({}, cloneForTest(item), { revision: 1, deletedAt: null }); }),
+        sessionId: 'settings-conflict'
+    }, webcrypto);
+    assert.strictEqual(settingsConflict.conflicts.length, 1);
+    assert.strictEqual(JSON.stringify(settingsConflict.conflicts[0].fields.map(function (field) { return field.path; })),
+        '["/selectedKey"]');
+    var settingsChoices = { 'record/settings/default': { '/selectedKey': 'local' } };
+    var settingsResolved = await sync.merge.planMerge({
+        local: settingsLocal, cloud: settingsCloudConflict,
+        shadow: settingsBase.records.map(function (item) { return Object.assign({}, cloneForTest(item), { revision: 1, deletedAt: null }); }),
+        choices: settingsChoices, sessionId: 'settings-conflict'
+    }, webcrypto);
+    assert.strictEqual(settingsResolved.conflicts.length, 0);
+    var chosenSettings = settingsResolved.finalSnapshot.records.find(function (item) { return item.recordType === 'settings'; }).payload;
+    assert.strictEqual(chosenSettings.selectedKey, 4);
+    assert.strictEqual(chosenSettings.futureOption, 'cloud-only');
 
     var orderFolders = [folder('A', 'A'), folder('B', 'B'), folder('C', 'C')];
     var baseOrderSnapshot = await snapshot(sync, orderFolders.concat(order(['A', 'B', 'C'], { A: [], B: [], C: [] })));

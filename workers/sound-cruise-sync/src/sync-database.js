@@ -264,17 +264,18 @@ export function createD1SyncRepository(db, clock = Date.now) {
     return { status: 'ready', snapshot };
   }
 
-  async function reportRemovalSafety(identity, authority, state) {
+  async function reportRemovalSafety(identity, authority, state, attentionCount = 0) {
     if (!authority || authority.accountState !== 'active' || authority.membershipState !== 'active' ||
         authority.datasetState !== 'ready') return { status: 'unavailable' };
     const now = clock();
     const lastSuccessfulSyncAt = state === 'clean' ? now : null;
     const result = await db.prepare(`
       INSERT INTO sync_app_device_sync_safety
-        (app_device_id, account_id, membership_id, app_id, state, last_successful_sync_at, reported_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
+        (app_device_id, account_id, membership_id, app_id, state, last_successful_sync_at, reported_at, attention_count)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(app_device_id) DO UPDATE SET
         state = excluded.state,
+        attention_count = excluded.attention_count,
         last_successful_sync_at = CASE WHEN excluded.state = 'clean'
           THEN excluded.last_successful_sync_at ELSE sync_app_device_sync_safety.last_successful_sync_at END,
         reported_at = excluded.reported_at
@@ -282,7 +283,7 @@ export function createD1SyncRepository(db, clock = Date.now) {
         AND sync_app_device_sync_safety.membership_id = excluded.membership_id
         AND sync_app_device_sync_safety.app_id = excluded.app_id
     `).bind(identity.deviceId, authority.accountId, authority.membershipId, identity.appId,
-      state, lastSuccessfulSyncAt, now).run();
+      state, lastSuccessfulSyncAt, now, attentionCount).run();
     if (result?.success === false) throw new Error('D1 safety report failed');
     return { status: 'reported' };
   }

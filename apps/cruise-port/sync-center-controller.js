@@ -122,6 +122,7 @@ function normalizeApp(app, membership, appEnvironments = [], accountDeleting = f
         statusLabel: status.label,
         action: status.action,
         recordCount: safeCount(membership?.dataset?.recordCount),
+        attentionCount: safeCount(membership?.attentionConflictCount) || 0,
         schemaVersion: safeCount(membership?.dataset?.schemaVersion),
         activeAppDeviceCount,
         deleteGrace,

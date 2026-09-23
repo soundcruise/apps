@@ -994,14 +994,17 @@ async function handleRemovalSafety(request, env, origin, route, dependencies) {
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
   const value = parsed.value;
   if (!value || typeof value !== 'object' || !['clean', 'pending', 'attention', 'error'].includes(value.state) ||
-      typeof value.appId !== 'string' || Object.keys(value).some((key) => !['appId', 'state'].includes(key))) {
+      typeof value.appId !== 'string' || Object.keys(value).some((key) => !['appId', 'state', 'attentionCount'].includes(key)) ||
+      (value.attentionCount !== undefined && (!Number.isSafeInteger(value.attentionCount) ||
+        value.attentionCount < 0 || value.attentionCount > 10000))) {
     return errorResponse(400, 'invalid_request', origin, route);
   }
   let context;
   try { context = await authenticatedContext(request, env, value.appId, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   try {
-    const result = await context.repository.reportRemovalSafety(context.identity, context.authority, value.state);
+    const result = await context.repository.reportRemovalSafety(context.identity, context.authority,
+      value.state, value.state === 'attention' ? value.attentionCount || 0 : 0);
     if (result.status !== 'reported') return errorResponse(409, 'sync_safety_unavailable', origin, route);
     return jsonResponse(200, { ok: true }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
   } catch { return errorResponse(503, 'server_error', origin, route); }

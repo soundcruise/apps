@@ -449,6 +449,11 @@
             var syncState = await store.getMeta('syncState');
             var migrationState = await store.getMeta('migrationState');
             var runtimePause = await store.getMeta('runtimePause');
+            var unresolved = typeof store.listConflicts === 'function' ? await store.listConflicts() : [];
+            var activeMergeId = await store.getMeta('activeMergeSessionId');
+            var activeMerge = activeMergeId ? await store.getMergeSession(activeMergeId) : null;
+            var attentionCount = unresolved.length || (activeMerge?.stage === 'awaiting_confirmation'
+                ? activeMerge.plan?.conflicts?.length || 0 : 0);
             var accountManagedSetup = await store.getMeta('accountManagedSetup');
             if (accountIdDisplay) {
                 accountIdDisplay.hidden = true;
@@ -490,16 +495,16 @@
                 if (runtimePause && runtimePause.code) {
                     setStatus('同期一時停止', messageFor(runtimePause.code));
                     setEntryStatus('一時停止中');
-                } else if (syncState === 'paired_pending') {
+                } else if (syncState === 'paired_pending' || unresolved.length) {
                     setStatus('要確認', 'この端末とクラウドのデータ統合を確認してください。');
-                    setEntryStatus('要確認');
+                    setEntryStatus(attentionCount ? '確認が必要 ' + attentionCount + '件' : '確認が必要');
                 } else {
                     setStatus('同期済み', 'この端末のデータはクラウドと同期されています。');
                     setEntryStatus('同期済み');
                 }
-                if (syncState === 'paired_pending') {
+                if (syncState === 'paired_pending' || unresolved.length) {
                     var pending = actionGroup('', '統合内容を確認するまで、どちらのデータも変更しません。', 'cc-sync-action-group--attention');
-                    pending.appendChild(button('統合内容を確認', showMergePreview, 'cc-sync-primary-action'));
+                    pending.appendChild(button('同期内容を確認', showMergePreview, 'cc-sync-primary-action'));
                     return;
                 }
                 appendConnectedActions();
@@ -619,6 +624,43 @@
             plan.conflicts.forEach(function (conflict, index) {
                 var row = global.document.createElement('div');
                 row.className = 'cc-settings-note';
+                if (conflict.recordType === 'settings' && Array.isArray(conflict.fields) &&
+                    conflict.fields.some(function (field) { return field && typeof field === 'object'; })) {
+                    var heading = global.document.createElement('h3');
+                    heading.textContent = '設定の違いを確認';
+                    row.appendChild(heading);
+                    choices[conflict.conflictId] = {};
+                    conflict.fields.forEach(function (field, fieldIndex) {
+                        var fieldset = global.document.createElement('fieldset');
+                        var legend = global.document.createElement('legend');
+                        legend.textContent = String(field.field || field.path || '設定項目');
+                        fieldset.appendChild(legend);
+                        var comparison = global.document.createElement('p');
+                        comparison.textContent = 'この端末：' + String(field.local) + ' ／ クラウド：' + String(field.remote);
+                        fieldset.appendChild(comparison);
+                        [['local', 'この端末'], ['remote', 'クラウド']].forEach(function (entry) {
+                            var option = global.document.createElement('label');
+                            var radio = global.document.createElement('input');
+                            radio.type = 'radio';
+                            radio.name = 'cc-sync-setting-' + index + '-' + fieldIndex;
+                            radio.value = entry[0];
+                            radio.addEventListener('change', function () {
+                                choices[conflict.conflictId][field.path] = entry[0];
+                            });
+                            option.appendChild(radio);
+                            option.appendChild(global.document.createTextNode(entry[1]));
+                            fieldset.appendChild(option);
+                        });
+                        row.appendChild(fieldset);
+                    });
+                    if (conflict.automaticCount) {
+                        var automatic = global.document.createElement('p');
+                        automatic.textContent = conflict.automaticCount + '項目は自動で統合されます';
+                        row.appendChild(automatic);
+                    }
+                    form.appendChild(row);
+                    return;
+                }
                 var label = global.document.createElement('label');
                 label.textContent = (conflict.recordType === 'chord' && conflict.local && conflict.local.payload
                     ? (conflict.local.payload.chordName || conflict.recordKey) : conflict.recordKey) + '：';
@@ -665,7 +707,7 @@
                 setTransient('この端末とクラウドの内容を検証し、同期を開始しました。');
             });
             form.appendChild(confirm);
-            form.appendChild(button('今は統合しない', render));
+            form.appendChild(button('あとで決める', render));
             actions.appendChild(form);
         }
 
@@ -781,7 +823,12 @@
         refreshCurrent = refresh;
         openAttentionCurrent = function () {
             return Promise.resolve(showScreen()).then(function () {
-                return showMergePreview();
+                return client.openStore().then(function (store) {
+                    return Promise.all([store.getMeta('syncState'), store.listConflicts()]);
+                }).then(function (state) {
+                    if (state[0] === 'paired_pending' || state[1].length) return showMergePreview();
+                    return render();
+                });
             });
         };
         refresh();

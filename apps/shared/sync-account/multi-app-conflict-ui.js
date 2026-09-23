@@ -18,17 +18,30 @@
     if (!runtime || !view) throw new Error('conflict_ui_dependency_missing');
     let items = [];
     let selections = new Map();
+    let fieldSelections = new Map();
     let busy = false;
 
     function selectionSnapshot() {
-      return new Map(selections);
+      const snapshot = new Map(selections);
+      Object.defineProperty(snapshot, 'fields', { value: new Map(fieldSelections) });
+      return snapshot;
     }
 
     function replaceItems(nextItems) {
       items = Array.isArray(nextItems) ? nextItems : [];
       const currentIds = new Set(items.map((item) => item.id));
       selections = new Map([...selections].filter(([id]) => currentIds.has(id)));
+      fieldSelections = new Map([...fieldSelections].filter(([id]) => currentIds.has(id)));
       for (const item of items) {
+        if (item.settings) {
+          const saved = fieldSelections.get(item.id) || {};
+          for (const field of item.settings.fields) {
+            if (field.selected && !saved[field.path]) saved[field.path] = field.selected;
+          }
+          fieldSelections.set(item.id, saved);
+          selections.delete(item.id);
+          continue;
+        }
         if (!selections.has(item.id) && ['local', 'remote'].includes(item.selection)) {
           selections.set(item.id, item.selection);
         }
@@ -66,7 +79,7 @@
     }
 
     function select(id, choice) {
-      if (busy || !items.some((item) => item.id === id)) return { ok: false, code: 'resolution_choice_invalid' };
+      if (busy || !items.some((item) => item.id === id && !item.settings)) return { ok: false, code: 'resolution_choice_invalid' };
       if (!['local', 'remote'].includes(choice)) return { ok: false, code: 'resolution_choice_invalid' };
       selections.set(id, choice);
       render();
@@ -75,27 +88,45 @@
 
     function selectAll(choice) {
       if (busy || !['local', 'remote'].includes(choice)) return { ok: false, code: 'resolution_choice_invalid' };
+      if (items.some((item) => item.settings)) return { ok: false, code: 'settings_field_choice_required' };
       for (const item of items) selections.set(item.id, choice);
       render();
       return { ok: true, selected: selections.size, total: items.length };
     }
 
+    function selectField(id, path, choice) {
+      const item = items.find((entry) => entry.id === id);
+      if (busy || !item?.settings?.fields.some((field) => field.path === path) ||
+          !['local', 'remote'].includes(choice)) return { ok: false, code: 'resolution_choice_invalid' };
+      fieldSelections.set(id, { ...(fieldSelections.get(id) || {}), [path]: choice });
+      render();
+      return { ok: true };
+    }
+
+    function selected(item) {
+      return item.settings
+        ? item.settings.fields.every((field) => ['local', 'remote'].includes(fieldSelections.get(item.id)?.[field.path]))
+        : selections.has(item.id);
+    }
+
     async function apply(mode = 'individual') {
       if (busy || !items.length) return { ok: false, code: 'resolution_busy' };
-      const unresolved = items.filter((item) => !selections.has(item.id));
+      const unresolved = items.filter((item) => !selected(item));
       if (unresolved.length) {
         view.showError(`残す内容が未選択の項目が${unresolved.length}件あります。すべて選んでください。`);
         return { ok: false, code: 'resolution_selection_incomplete', unresolved: unresolved.length };
       }
 
-      const plan = items.map((item) => ({ id: item.id, choice: selections.get(item.id) }));
+      const plan = items.map((item) => item.settings
+        ? { id: item.id, choice: 'merged', options: { fieldChoices: fieldSelections.get(item.id) || {} } }
+        : { id: item.id, choice: selections.get(item.id) });
       let applied = 0;
       busy = true;
       view.setBusy(true, mode);
       try {
         for (const step of plan) {
           view.showProgress(applied, plan.length);
-          const result = await runtime.resolveConflict(step.id, step.choice);
+          const result = await runtime.resolveConflict(step.id, step.choice, step.options);
           if (!result?.ok) {
             await readCurrentItems();
             const prefix = applied ? `${applied}件を反映しました。残りは反映せず停止しました。` : '';
@@ -104,6 +135,7 @@
           }
           applied += 1;
           selections.delete(step.id);
+          fieldSelections.delete(step.id);
         }
         const count = await readCurrentItems();
         return { ok: true, applied, remaining: count };
@@ -120,6 +152,7 @@
 
     async function applyAll(choice) {
       if (busy || !['local', 'remote'].includes(choice)) return { ok: false, code: 'resolution_choice_invalid' };
+      if (items.some((item) => item.settings)) return { ok: false, code: 'settings_field_choice_required' };
       for (const item of items) selections.set(item.id, choice);
       return apply(choice === 'local' ? 'bulk-local' : 'bulk-remote');
     }
@@ -148,10 +181,10 @@
     }
 
     return Object.freeze({
-      refresh, select, selectAll, apply, applyAll, later,
+      refresh, select, selectField, selectAll, apply, applyAll, later,
       get activeId() { return items[0]?.id || null; },
       get count() { return items.length; },
-      get selectedCount() { return selections.size; }
+      get selectedCount() { return items.filter(selected).length; }
     });
   }
 
@@ -172,6 +205,28 @@
     } catch (_) {
       return '更新日時不明';
     }
+  }
+
+  const SETTINGS_LABELS = Object.freeze({
+    keyRandomMode: 'キーの出題', noteSpeed: '音の速さ', scaleEnabled: 'スケール出題',
+    isAnswerMode: '回答モード', testModeEnabled: 'テストモード',
+    builtinChordEnabled: '内蔵コード', builtinProgressionEnabled: '内蔵進行'
+  });
+
+  function settingLabel(field) {
+    return SETTINGS_LABELS[field.field] || String(field.field || field.path || '設定項目').slice(0, 80);
+  }
+
+  function settingValue(field, value) {
+    if (field.field === 'keyRandomMode') return value ? 'ランダム' : '順番';
+    if (field.field === 'noteSpeed' && Number.isFinite(value)) return `${value}倍`;
+    if (typeof value === 'boolean') return value ? 'オン' : 'オフ';
+    if (value === null) return '未設定';
+    if (typeof value === 'string' || typeof value === 'number') return String(value).slice(0, 100);
+    if (Array.isArray(value)) return value.slice(0, 5).map(String).join('、').slice(0, 100);
+    if (value && typeof value === 'object') return Object.entries(value).slice(0, 5)
+      .map(([key, entry]) => `${key}: ${String(entry)}`).join('、').slice(0, 100);
+    return '設定値';
   }
 
   function installConflictResolutionUi(runtime, document = global.document) {
@@ -328,10 +383,63 @@
       parent.append(fieldset);
     }
 
+    function renderSettingsChoices(parent, item, choices, index) {
+      appendTextElement(document, parent, 'p', 'sound-cruise-sync-conflict-field-count',
+        `選択が必要 ${item.settings.fields.length}項目`);
+      if (item.settings.automaticCount) appendTextElement(document, parent, 'p',
+        'sound-cruise-sync-conflict-auto', `${item.settings.automaticCount}項目は自動で統合されます`);
+      item.settings.fields.forEach((field, fieldIndex) => {
+        const section = document.createElement('section');
+        section.className = 'sound-cruise-sync-conflict-field';
+        appendTextElement(document, section, 'h4', '', settingLabel(field));
+        const values = document.createElement('div');
+        values.className = 'sound-cruise-sync-conflict-field-values';
+        appendTextElement(document, values, 'span', '', `この端末：${settingValue(field, field.local)}`);
+        appendTextElement(document, values, 'span', '', `クラウド：${settingValue(field, field.remote)}`);
+        section.append(values);
+        const fieldset = document.createElement('fieldset');
+        fieldset.className = 'sound-cruise-sync-conflict-choice';
+        appendTextElement(document, fieldset, 'legend', '', '残す内容');
+        const options = document.createElement('div');
+        options.className = 'sound-cruise-sync-conflict-choice-options';
+        for (const [choice, label] of [['local', 'この端末'], ['remote', 'クラウド']]) {
+          const option = document.createElement('label');
+          option.className = 'sound-cruise-sync-conflict-choice-option';
+          const input = document.createElement('input');
+          input.type = 'radio';
+          input.name = `sound-cruise-sync-conflict-${index}-${fieldIndex}`;
+          input.value = choice;
+          input.checked = choices[field.path] === choice;
+          input.addEventListener('change', () => controller.selectField(item.id, field.path, choice));
+          renderedInputs.push(input);
+          option.append(input);
+          appendTextElement(document, option, 'span', '', label);
+          options.append(option);
+        }
+        fieldset.append(options);
+        section.append(fieldset);
+        parent.append(section);
+      });
+    }
+
     const view = {
       show(items, selections) {
+        const hasSettings = items.some((item) => item.settings);
+        title.textContent = hasSettings ? '設定の違いを確認' : '変更内容を確認してください';
+        overview.hidden = hasSettings;
+        bulk.hidden = hasSettings;
+        if (hasSettings) {
+          individualBody.hidden = false;
+          individual.dataset.open = 'true';
+          individualSummary.hidden = true;
+          summary.textContent = 'この端末とクラウドで異なる設定だけ選んでください。同じ設定は自動で統合されます。';
+        } else {
+          individualSummary.hidden = false;
+          summary.textContent = 'この端末とクラウドの両方に新しい変更があります。残したい内容を選んでください。';
+        }
         count.textContent = `確認が必要な変更 ${items.length}件`;
         overview.replaceChildren(...items.map(renderOverviewItem));
+        const previousListScroll = list.scrollTop;
         list.replaceChildren();
         renderedInputs = [];
         items.forEach((item, index) => {
@@ -340,7 +448,8 @@
           card.className = 'sound-cruise-sync-conflict-card';
           card.dataset.syncConflictSelected = selections.get(item.id) || 'none';
           const cardHeader = document.createElement('header');
-          appendTextElement(document, cardHeader, 'h3', 'sound-cruise-sync-conflict-title', `${presentation.appName}　${presentation.title}`);
+          appendTextElement(document, cardHeader, 'h3', 'sound-cruise-sync-conflict-title',
+            `${presentation.appName}　${presentation.title}`);
           appendTextElement(document, cardHeader, 'p', 'sound-cruise-sync-conflict-name', presentation.name);
           card.append(cardHeader);
           const times = document.createElement('div');
@@ -349,10 +458,12 @@
           appendTextElement(document, times, 'span', '', `クラウド　最終更新 ${formatUpdatedAt(presentation.remoteUpdatedAt)}`);
           card.append(times);
           renderDeletionDifference(card, presentation);
-          renderChoice(card, item, selections.get(item.id), index);
+          if (item.settings) renderSettingsChoices(card, item, selections.fields.get(item.id) || {}, index);
+          else renderChoice(card, item, selections.get(item.id), index);
           list.append(card);
         });
-        const selectedCount = [...selections].filter(([id]) => items.some((item) => item.id === id)).length;
+        list.scrollTop = previousListScroll;
+        const selectedCount = controller.selectedCount;
         status.textContent = isIndividualOpen()
           ? selectedCount === items.length ? 'すべて選択済みです。' : `${selectedCount}/${items.length}件を選択済み`
           : '';
@@ -408,7 +519,7 @@
         status.textContent = '';
         return;
       }
-      const selectedCount = renderedInputs.filter((input) => input.checked).length;
+      const selectedCount = controller.selectedCount;
       status.textContent = `${selectedCount}/${controller.count}件を選択済み`;
     });
     applyButton.addEventListener('click', () => controller.apply('individual'));
