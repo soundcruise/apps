@@ -504,6 +504,41 @@ async function seedCredential(store) {
     assert.strictEqual((await rapidStore.getShadow('chord/rapid')).revision, 3);
     assert.strictEqual(JSON.parse(rapidStorage.getItem('chordCruise.chord.rapid')).chordName, 'C7');
 
+    var duplicateStore = createMemoryStore();
+    await seedCredential(duplicateStore);
+    await duplicateStore.setMeta('syncState', 'pilot_ready');
+    var duplicateSync = loadClient(duplicateStore);
+    var duplicateClient = duplicateSync.client.createClient({
+        enabled: true, localStorage: createStorage(seed), crypto: webcrypto,
+        endpoint: 'http://127.0.0.1:8787',
+        fetch: async function (url) {
+            if (url.indexOf('/v1/sync/changes') !== -1) {
+                return response(200, { ok: true, changes: [], nextCursor: 'scc1.MA', hasMore: false });
+            }
+            return response(200, { ok: true });
+        }
+    });
+    var duplicateSnapshot = await duplicateClient.captureSnapshot();
+    var duplicateShadows = duplicateSnapshot.records.map(function (record) {
+        return Object.assign({}, record, { revision: 1, deletedAt: null });
+    });
+    await duplicateClient.saveShadow(duplicateShadows);
+    var folderShadow = duplicateShadows.find(function (record) { return record.recordKey === 'folder/folder-a'; });
+    var folderServer = Object.assign({}, folderShadow, { revision: 2, changeSeq: 12 });
+    var duplicateBase = {
+        recordKey: 'folder/folder-a', local: folderShadow, shadow: folderShadow,
+        server: folderServer, state: 'pending', createdAt: 1000
+    };
+    await duplicateStore.putConflict(Object.assign({}, duplicateBase, { conflictId: 'pull/12', source: 'pull', operationId: null }));
+    await duplicateStore.putConflict(Object.assign({}, duplicateBase, {
+        conflictId: 'push/qa-operation', source: 'push', operationId: 'qa-operation',
+        server: Object.assign({}, folderServer, { changeSeq: null })
+    }));
+    await duplicateClient.syncNow();
+    var deduplicated = await duplicateStore.listConflicts();
+    assert.strictEqual(deduplicated.length, 1, 'one logical record conflict has one attention item');
+    assert.strictEqual(deduplicated[0].operationId, 'qa-operation', 'conflicted outbox link is retained');
+
     var watchedCalls = 0;
     var watchedStorage = { saveChord: function () { watchedCalls += 1; return true; } };
     assert.strictEqual(batchClient.watchLocalMutations(watchedStorage), true);

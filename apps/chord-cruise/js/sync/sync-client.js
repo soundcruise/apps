@@ -1187,6 +1187,40 @@
             };
         }
 
+        function sameConflictState(left, right) {
+            if (!left || !right || left.state !== 'pending' || right.state !== 'pending' ||
+                left.recordKey !== right.recordKey) return false;
+            if (core.canonicalJson(left.local) !== core.canonicalJson(right.local) ||
+                core.canonicalJson(left.shadow) !== core.canonicalJson(right.shadow)) return false;
+            var server = function (record) {
+                return record ? {
+                    recordType: record.recordType, recordId: record.recordId,
+                    revision: record.revision, payloadHash: record.payloadHash,
+                    deletedAt: record.deletedAt, payload: record.payload
+                } : null;
+            };
+            return core.canonicalJson(server(left.server)) === core.canonicalJson(server(right.server));
+        }
+
+        async function coalescePendingConflicts(store) {
+            var conflicts = await store.listConflicts();
+            var kept = [];
+            for (var index = 0; index < conflicts.length; index += 1) {
+                var conflict = conflicts[index];
+                var matchIndex = kept.findIndex(function (item) { return sameConflictState(item, conflict); });
+                if (matchIndex === -1) { kept.push(conflict); continue; }
+                var existing = kept[matchIndex];
+                if (conflict.operationId && !existing.operationId) {
+                    await store.putConflict(conflict);
+                    await store.deleteConflict(existing.conflictId);
+                    kept[matchIndex] = conflict;
+                } else {
+                    await store.deleteConflict(conflict.conflictId);
+                }
+            }
+            return kept;
+        }
+
         async function persistConflict(store, source, operation, serverRecord, details) {
             var recordType = operation ? operation.recordType : serverRecord.recordType;
             var recordId = operation ? operation.recordId : serverRecord.recordId;
@@ -1195,7 +1229,7 @@
             var conflictId = source === 'push'
                 ? 'push/' + operation.operationId
                 : 'pull/' + String(serverRecord.changeSeq);
-            await store.putConflict({
+            var candidate = {
                 conflictId: conflictId,
                 source: source,
                 recordKey: core.recordKey(recordType, recordId),
@@ -1206,7 +1240,18 @@
                 details: details || null,
                 createdAt: now(),
                 state: 'pending'
+            };
+            var existing = (await store.listConflicts()).find(function (item) {
+                return sameConflictState(item, candidate);
             });
+            if (existing) {
+                if (operation && !existing.operationId) {
+                    existing.operationId = operation.operationId;
+                    await store.putConflict(existing);
+                }
+                return existing.conflictId;
+            }
+            await store.putConflict(candidate);
             return conflictId;
         }
 
@@ -1469,7 +1514,7 @@
             var settings = options || {};
             var store = await openStore();
             var syncState = await store.getMeta('syncState');
-            var ongoingConflicts = syncState === 'pilot_ready' ? await store.listConflicts() : [];
+            var ongoingConflicts = syncState === 'pilot_ready' ? await coalescePendingConflicts(store) : [];
             var ongoing = syncState === 'pilot_ready' && ongoingConflicts.length > 0;
             if (syncState !== 'paired_pending' && !ongoing) {
                 return { enabled: true, ok: false, code: 'pairing_not_pending' };
@@ -1967,6 +2012,7 @@
             if (activeMerge && activeMerge.mode === 'ongoing' && activeMerge.stage !== 'complete') {
                 return { enabled: true, ok: false, code: 'merge_in_progress' };
             }
+            await coalescePendingConflicts(mergeStore);
             var pushed = { enabled: true, sent: 0, applied: 0, duplicate: 0, conflict: 0, invalid: 0 };
             for (var batchIndex = 0; batchIndex < 10; batchIndex += 1) {
                 await reconcile({ captureLocalDiffs: true });
