@@ -3088,6 +3088,7 @@ textarea:focus-visible {
     line-height: 1;
     cursor: pointer;
 }
+.gear-card-menu-toggle:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 
 .gear-card--wishlist {
     border-color: rgba(230, 210, 155, 0.22);
@@ -3239,7 +3240,29 @@ textarea:focus-visible {
 .gear-list-items[data-columns="4"] .gear-card h3 { font-size: calc(0.7rem * var(--font-scale)); line-height: 1.35; overflow-wrap: anywhere; }
 .gear-list-items[data-columns="4"] .gear-card-metadata { display: none; }
 .gear-list-items[data-columns="4"] .gear-card-price { margin-top: 5px; font-size: calc(0.66rem * var(--font-scale)); overflow-wrap: anywhere; }
-.gear-list-items[data-columns="4"] .gear-card-menu-toggle { top: 3px; right: 3px; width: 44px; height: 44px; }
+.gear-list-items[data-columns="4"] .gear-card-menu-toggle {
+    top: 3px;
+    right: 3px;
+    width: 44px;
+    height: 44px;
+    border: 0;
+    color: transparent;
+    background: transparent;
+    font-size: 0;
+}
+.gear-list-items[data-columns="4"] .gear-card-menu-toggle::after {
+    content: '⋯';
+    position: absolute;
+    inset: 8px;
+    display: grid;
+    place-items: center;
+    border: 1px solid rgba(207, 189, 148, 0.24);
+    border-radius: 8px;
+    color: var(--port-gold-bright);
+    background: rgba(7, 7, 5, 0.86);
+    font-size: 1rem;
+    line-height: 1;
+}
 .gear-list-items[data-columns="4"] .gear-card-actions { top: 45px; }
 
 .gear-card-actions .action-button {
