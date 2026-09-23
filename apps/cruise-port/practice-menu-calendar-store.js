@@ -88,17 +88,17 @@ export function createEmptyPracticeCalendar() {
 }
 
 export function isValidPracticeCalendar(calendar) {
-    return isValidPracticeCalendarVersion(calendar, PRACTICE_CALENDAR_SCHEMA_VERSION);
+    return isValidPracticeCalendarVersion(calendar, PRACTICE_CALENDAR_SCHEMA_VERSION, false);
 }
 
-function isValidPracticeCalendarVersion(calendar, version) {
+function isValidPracticeCalendarVersion(calendar, version, enforceLimit = true) {
     return Boolean(
         calendar
         && typeof calendar === 'object'
         && !Array.isArray(calendar)
         && calendar.version === version
         && Array.isArray(calendar.notes)
-        && calendar.notes.length <= PRACTICE_CALENDAR_LIMITS.notes
+        && (!enforceLimit || calendar.notes.length <= PRACTICE_CALENDAR_LIMITS.notes)
         && calendar.notes.every((note) => isValidNote(note, version))
         && new Set(calendar.notes.map((note) => note.id)).size === calendar.notes.length
     );
@@ -118,8 +118,8 @@ export function loadPracticeCalendar(storage) {
         const rawValue = readStorageValue(storage, PRACTICE_CALENDAR_STORAGE_KEY);
         if (rawValue === null) return { ok: true, calendar: fallback };
         const parsed = JSON.parse(rawValue);
-        const current = isValidPracticeCalendar(parsed);
-        const legacy = isValidPracticeCalendarVersion(parsed, 1);
+        const current = isValidPracticeCalendarVersion(parsed, PRACTICE_CALENDAR_SCHEMA_VERSION, false);
+        const legacy = isValidPracticeCalendarVersion(parsed, 1, false);
         if (!current && !legacy) return { ok: false, calendar: fallback, reason: 'invalid-data' };
         return legacy
             ? { ok: true, calendar: cloneCalendar(parsed), migrated: true }

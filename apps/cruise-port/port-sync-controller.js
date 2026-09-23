@@ -45,7 +45,7 @@
           if (await store.readMeta('migrationState') !== 'complete') await ensure();
         }).catch(() => {});
       }
-      if (['ready', 'pending'].includes(state) && adapter.consumeRemoteApplyChanged?.()) {
+      if (adapter.consumeRemoteApplyChanged?.()) {
         global.dispatchEvent?.(new CustomEvent('cruise-port-cloud-data-applied', {
           detail: Object.freeze({ changed: true })
         }));
@@ -147,6 +147,7 @@
       enabled: true, ensure, clearCloudState, status,
       reconcileAssetReferences: async () => adapter.reconcileRemoteReferences?.(await store.listShadow?.() || []) === true,
       sync: (reason = 'manual') => runtime.sync(reason),
+      retryLegacyFailures: () => runtime.retryLegacyFailures(),
       listConflicts: () => runtime.listConflictPresentations(),
       resolveConflict: (id, choice) => runtime.resolveConflict(id, choice),
       runtime, store

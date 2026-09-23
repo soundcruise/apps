@@ -72,6 +72,21 @@ test('cycle completion event is distinct and date grouping keeps both event type
     assert.equal(duplicate.history.events.length, 2);
 });
 
+test('append after a cloud merge above the local history cap preserves existing events', () => {
+    const base = createCycleCompletedEvent('cycle-0', new Date(2026, 0, 1));
+    const history = { version: 5, events: Array.from({ length: 8001 }, (_, index) => ({
+        ...base, id: `history-${index}`, cycleId: `cycle-${index}`,
+        timestamp: new Date(Date.UTC(2026, 0, 1) + index * 1000).toISOString()
+    })) };
+    const next = appendPracticeHistoryEvent(history, {
+        ...base, id: 'history-new', cycleId: 'cycle-new',
+        timestamp: new Date(Date.UTC(2026, 0, 2)).toISOString()
+    });
+    assert.equal(next.ok, true);
+    assert.equal(next.history.events.length, 8002);
+    assert.equal(next.history.events[0].id, 'history-0');
+});
+
 test('timer session history stores bounded timestamps and appears with existing events', () => {
     const startedAt = '2026-09-08T01:00:00.000Z';
     const endedAt = '2026-09-08T01:42:11.000Z';

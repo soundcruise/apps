@@ -220,6 +220,8 @@ function renderPortStatus(root, presentation) {
     }
     const conflictsOpen = root.querySelector('#sync-center-port-conflicts-open');
     if (conflictsOpen) conflictsOpen.hidden = !shouldShowPortConflictAction(presentation);
+    const legacyRetry = root.querySelector('#sync-center-port-legacy-retry');
+    if (legacyRetry) legacyRetry.hidden = !presentation.legacyRetryCount;
 }
 
 function showJoinCode(root, result, edition = 'standard', onClose = async () => {}) {

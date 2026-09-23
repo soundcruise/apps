@@ -19,20 +19,35 @@ function inspectionCopy(storage) {
 
 export function validatePortLocalCollections(storage) {
     const copy = inspectionCopy(storage);
-    const gear = loadGearList(copy);
-    const results = [
-        ['cruisePort.myApps', loadMyApps(copy)],
-        ['cruisePort.gearList', gear],
-        ['cruisePort.gearCategories', gear.ok ? loadGearCategories(gear.items, copy) : null],
-        ['cruisePort.practiceMenus', loadPracticeMenus(copy)],
-        ['cruisePort.practiceHistory', loadPracticeHistory(copy)],
-        ['cruisePort.practiceCalendar', loadPracticeCalendar(copy)],
-        ['cruisePort.metronomePresets', loadMetronomePresets(copy)]
+    const collections = [
+        ['cruisePort.myApps', 'items', loadMyApps],
+        ['cruisePort.gearList', 'items', loadGearList],
+        ['cruisePort.gearCategories', 'categories', (target) => {
+            const gear = loadGearList(target);
+            return gear.ok ? loadGearCategories(gear.items, target) : null;
+        }],
+        ['cruisePort.practiceMenus', 'items', loadPracticeMenus],
+        ['cruisePort.practiceHistory', 'events', loadPracticeHistory],
+        ['cruisePort.practiceCalendar', 'notes', loadPracticeCalendar],
+        ['cruisePort.metronomePresets', 'items', loadMetronomePresets]
     ];
-    for (const [key, result] of results) {
-        if (!result?.ok || (key === 'cruisePort.metronomePresets' && result.ignored > 0)) {
-            throw new Error(`port_storage_invalid:${key}`);
+    for (const [key, field, loader] of collections) {
+        const result = loader(copy);
+        if (result?.ok) continue;
+        // Store loaders also enforce UI limits and display-name uniqueness.
+        // Validate each record with the same store schema, without those
+        // collection-wide product policies. The adapter checks stable IDs.
+        let envelope;
+        try { envelope = JSON.parse(storage.getItem(key)); } catch (_) { /* invalid root */ }
+        if (!envelope || !Array.isArray(envelope[field])) throw new Error(`port_storage_invalid:${key}`);
+        for (const item of envelope[field]) {
+            const probe = inspectionCopy(storage);
+            probe.setItem(key, JSON.stringify({ ...envelope, [field]: [item] }));
+            if (!loader(probe)?.ok) throw new Error(`port_storage_invalid:${key}`);
         }
+        const empty = inspectionCopy(storage);
+        empty.setItem(key, JSON.stringify({ ...envelope, [field]: [] }));
+        if (!loader(empty)?.ok) throw new Error(`port_storage_invalid:${key}`);
     }
     return true;
 }

@@ -316,6 +316,18 @@ test('backup and restore are scoped to durable Pitch data and never credentials'
   assert.equal(storage.getItem('soundCruiseProAuth'), 'auth');
 });
 
+test('Pitch apply rechecks local data after its asynchronous backup', async () => {
+  const api = load();
+  const storage = new MemoryStorage(richLegacy(api));
+  const adapter = new api.PitchSyncAdapter({ storage, backupStore: { async save() {
+    storage.setItem('pitchTrainerProAccidentalDisplay', 'sharp');
+  } } });
+  const previous = adapter.readLocalSnapshot();
+  await assert.rejects(adapter.applyRemoteSnapshot(previous, { expectedSnapshot: previous }),
+    (error) => error.code === 'local_changed_during_apply');
+  assert.equal(storage.getItem('pitchTrainerProAccidentalDisplay'), 'sharp');
+});
+
 test('active Pitch membership plus Pitch app credential is the only data-plane authority', async () => {
   const api = load();
   const storage = new MemoryStorage(richLegacy(api));

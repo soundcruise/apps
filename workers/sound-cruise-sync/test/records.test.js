@@ -274,6 +274,24 @@ test('Port registry accepts structured text records and stays isolated from the 
   }
 });
 
+test('Port permits Data: prose but rejects unsafe schemes only in URL fields', async () => {
+  for (const [field, value, accepted] of [
+    ['memo', 'Data: 次回はBPM120から', true],
+    ['name', 'data: memo', true],
+    ['url', 'data:text/html,unsafe', false],
+    ['website', 'javascript:alert(1)', false],
+    ['supportUrl', 'vbscript:alert(1)', false],
+    ['urls', { web: 'https://example.com', ios: 'data:text/html,unsafe' }, false]
+  ]) {
+    const input = { operationId: ID, recordType: 'calendar_event', recordId: 'event-1',
+      schemaVersion: 1, baseRevision: 0,
+      payload: { id: 'event-1', value: { id: 'event-1', [field]: value } },
+      payloadHash: '', deleted: false };
+    input.payloadHash = await hashRecord(input, crypto, 'port');
+    assert.equal((await validateOperation(input, crypto, 'port')).ok, accepted, field);
+  }
+});
+
 test('Port registry rejects binary, secret-shaped, oversized and invalid-ID payloads', async () => {
   const cases = [
     ['settings', 'global', { credential: 'nope' }],

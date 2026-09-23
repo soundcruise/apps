@@ -67,6 +67,16 @@ export class PortAssetSync {
     readMetadata() { return normalizeMetadata(parse(this.storage, METADATA_KEY, emptyMetadata())); }
     writeMetadata(metadata) { this.storage.setItem(METADATA_KEY, JSON.stringify(normalizeMetadata(metadata))); }
 
+    recordDeletionIntents(keys) {
+        const intentKey = 'cruisePort.syncDeletionIntent.v1';
+        try {
+            const intents = JSON.parse(this.storage.getItem(intentKey) || '{}');
+            if (!intents || typeof intents !== 'object' || Array.isArray(intents)) return;
+            keys.forEach((key) => { intents[key] = true; });
+            this.storage.setItem(intentKey, JSON.stringify(intents));
+        } catch (_) { /* Missing intent safely prevents a cloud deletion. */ }
+    }
+
     markLocalRemovals() {
         const metadata = this.readMetadata();
         const gear = new Map((parse(this.storage, GEAR_KEY, { items: [] }).items || []).map((item) => [item.id, item]));
@@ -398,6 +408,11 @@ export class PortAssetSync {
         const [candidateId, entry] = pair;
         if (entry.published?.asset?.assetId) metadata.releaseQueue.push(entry.published.asset.assetId);
         delete metadata.attachments[candidateId];
+        this.recordDeletionIntents([
+            `practice_attachment/${candidateId}`,
+            ...(!Object.values(metadata.attachments).some((other) => other.practiceId === entry.practiceId)
+                ? [`practice_attachment_set/${entry.practiceId}`] : [])
+        ]);
         metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
         this.writeMetadata(metadata);
         this.schedule('attachment-delete');
@@ -407,13 +422,17 @@ export class PortAssetSync {
     removePracticeAttachments(practiceId) {
         const metadata = this.readMetadata();
         let changed = false;
+        const deletedIds = [];
         for (const [logicalId, entry] of Object.entries(metadata.attachments)) {
             if (entry.practiceId !== practiceId) continue;
             if (entry.published?.asset?.assetId) metadata.releaseQueue.push(entry.published.asset.assetId);
             delete metadata.attachments[logicalId];
+            deletedIds.push(logicalId);
             changed = true;
         }
         if (changed) {
+            this.recordDeletionIntents([...deletedIds.map((id) => `practice_attachment/${id}`),
+                `practice_attachment_set/${practiceId}`]);
             metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
             this.writeMetadata(metadata);
             this.schedule('practice-delete');
@@ -431,6 +450,7 @@ export class PortAssetSync {
         let changedMetadata = false;
         let publishedChanged = false;
         let hydrated = false;
+        const hydratedPatches = { gear: new Map(), myApps: new Map() };
         let processed = 0;
         const persistMetadataChanges = () => {
             if (!changedMetadata) return;
@@ -463,8 +483,14 @@ export class PortAssetSync {
                     metadata.referencePending = true;
                 } else if ((missingCache || !finalId) && entry.published?.final) {
                     processed += 1;
+                    const before = { finalId, sourceId };
                     if (await this.hydratePair(item, entry, kind)) {
                         metadata[bucketName][item.id] = entry;
+                        hydratedPatches[bucketName].set(item.id, {
+                            before, finalId: item[kind === 'gear' ? 'photoId' : 'iconId'],
+                            sourceId: item[kind === 'gear' ? 'photoSourceId' : 'iconSourceId'],
+                            crop: clone(item[kind === 'gear' ? 'photoCrop' : 'iconCrop'])
+                        });
                         hydrated = true;
                         changedMetadata = true;
                     }
@@ -524,9 +550,30 @@ export class PortAssetSync {
         }
         persistMetadataChanges();
         if (hydrated) {
-            this.storage.setItem(GEAR_KEY, JSON.stringify(gearData));
-            this.storage.setItem(MY_APPS_KEY, JSON.stringify(appData));
-            globalThis.SoundCruisePortSync?.acceptRemoteStorageValues?.(this.storage, [GEAR_KEY, MY_APPS_KEY]);
+            const changedKeys = [];
+            for (const [kind, key] of [['gear', GEAR_KEY], ['myApps', MY_APPS_KEY]]) {
+                const patches = hydratedPatches[kind];
+                if (!patches.size) continue;
+                const latest = parse(this.storage, key, { version: kind === 'gear' ? 5 : 7, items: [] });
+                const finalKey = kind === 'gear' ? 'photoId' : 'iconId';
+                const sourceKey = kind === 'gear' ? 'photoSourceId' : 'iconSourceId';
+                const cropKey = kind === 'gear' ? 'photoCrop' : 'iconCrop';
+                let changed = false;
+                for (const item of latest.items || []) {
+                    const patch = patches.get(item.id);
+                    if (!patch || (item[finalKey] || null) !== (patch.before.finalId || null) ||
+                        (item[sourceKey] || null) !== (patch.before.sourceId || null)) continue;
+                    item[finalKey] = patch.finalId;
+                    item[sourceKey] = patch.sourceId;
+                    item[cropKey] = patch.crop;
+                    changed = true;
+                }
+                if (changed) {
+                    this.storage.setItem(key, JSON.stringify(latest));
+                    changedKeys.push(key);
+                }
+            }
+            if (changedKeys.length) globalThis.SoundCruisePortSync?.acceptRemoteStorageValues?.(this.storage, changedKeys);
             globalThis.dispatchEvent?.(new CustomEvent('cruise-port-assets-applied'));
         }
         if (publishedChanged || metadata.referencePending) {

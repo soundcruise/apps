@@ -290,6 +290,18 @@ test('backup scope contains only managed Rhythm data and never credentials or ex
   assert.equal(JSON.stringify(backups).includes('mic_presets'), false);
 });
 
+test('Rhythm apply rechecks local data after its asynchronous backup', async () => {
+  const api = load();
+  const storage = new MemoryStorage(richLegacy(api));
+  const adapter = new api.RhythmSyncAdapter({ storage, backupStore: { async save() {
+    storage.setItem('rhythmCruiseCreatePresets:v1', '[]');
+  } } });
+  const previous = adapter.readLocalSnapshot();
+  await assert.rejects(adapter.applyRemoteSnapshot(previous, { expectedSnapshot: previous }),
+    (error) => error.code === 'local_changed_during_apply');
+  assert.equal(storage.getItem('rhythmCruiseCreatePresets:v1'), '[]');
+});
+
 test('only active Rhythm membership plus Rhythm app credential can create retry-stable migration plan', async () => {
   const api = load();
   const storage = new MemoryStorage(richLegacy(api));

@@ -672,6 +672,10 @@
     validateSnapshot(normalizeRawSnapshot(snapshot));
     const backup = await createBackup(storage, options.backupStore);
     const expectedManifest = await computeManifest(snapshot, options.cryptoImpl || global.crypto);
+    if (options.expectedSnapshot && canonicalJson(normalizeRawSnapshot(readLocalSnapshot(storage))) !==
+        canonicalJson(normalizeRawSnapshot(options.expectedSnapshot))) {
+      throw Object.assign(new Error('local_changed_during_apply'), { code: 'local_changed_during_apply' });
+    }
     try {
       const materialized = materialize(snapshot, { values: backup.values });
       for (const key of MANAGED_KEYS) storage.setItem(key, materialized[key]);
@@ -753,7 +757,7 @@
     applyRemoteSnapshot(snapshot, options = {}) {
       return applyRemoteSnapshot(this.storage, snapshot, {
         cryptoImpl: this.cryptoImpl, backupStore: options.backupStore || this.backupStore,
-        afterWrite: options.afterWrite
+        afterWrite: options.afterWrite, expectedSnapshot: options.expectedSnapshot
       });
     }
     createBackup() { return createBackup(this.storage, this.backupStore); }

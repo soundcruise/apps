@@ -3699,10 +3699,11 @@ async function renderSyncCenterView() {
                 : 'QA Enrollmentを完了してから同期情報を確認してください。');
         return;
     }
-    const [presentation, structuredStatus, assetStatus] = await Promise.all([
+    const [presentation, structuredStatus, assetStatus, portOutbox] = await Promise.all([
         syncCenterController.load(),
         portSyncController?.status?.() || Promise.resolve({ known: false }),
-        portAssetSync.status()
+        portAssetSync.status(),
+        portSyncController?.store?.listOutbox?.() || Promise.resolve([])
     ]);
     if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
     renderSyncCenter(elements.syncCenterView, {
@@ -3714,7 +3715,9 @@ async function renderSyncCenterView() {
             online: navigator.onLine !== false
         }),
         portConflictCount: Number.isFinite(Number(structuredStatus?.conflictCount))
-            ? Math.max(0, Number(structuredStatus.conflictCount)) : 0
+            ? Math.max(0, Number(structuredStatus.conflictCount)) : 0,
+        legacyRetryCount: portOutbox.filter((item) => item.terminalError === 'push_failed'
+            && !item.failureKind && !item.legacyRecoveryAttempted).length
     }, {
         edition: document.documentElement.dataset.edition,
         setupPlan: syncCenterController.planFourAppSetup(presentation),
@@ -5600,6 +5603,18 @@ if (syncCenterController.enabled) {
         if (action === 'replace') renderRoute();
     });
     elements.syncCenterHelpOpen.addEventListener('click', openPortSyncHelp);
+    elements.syncCenterView.querySelector('#sync-center-port-legacy-retry')?.addEventListener('click', async () => {
+        let message = '';
+        try {
+            const result = await portSyncController?.retryLegacyFailures?.();
+            if (!result?.ok) message = '現在の保存内容と一致する再送可能な項目はありません。競合を確認してください。';
+        } catch (_) {
+            message = '同期を再試行しました。保存できなかった項目を確認してください。';
+        } finally {
+            await renderSyncCenterView();
+            if (message) showNotice(elements.syncCenterView.querySelector('#sync-center-alert'), message);
+        }
+    });
 }
 function updateDisplaySettings(next) {
     const saveResult = saveSettings(next);
@@ -5750,7 +5765,7 @@ window.addEventListener('pagehide', () => {
 });
 window.addEventListener('pageshow', ensurePracticeTimerTicking);
 window.addEventListener('cruise-port-storage-conflict', () => {
-    window.alert('別のタブで保存内容が変更されました。上書きを防ぐため、この操作は保存していません。\n入力中の内容を控えてから「ページを更新」を押してください。');
+    window.alert('保存内容が別の端末またはタブで変更されました。上書きを防ぐため、この操作は保存していません。\n入力中の内容を控えてから「ページを更新」を押してください。');
 });
 window.addEventListener('cruise-port-cloud-data-applied', () => {
     pendingPortCloudRefresh = true;

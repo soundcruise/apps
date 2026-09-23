@@ -11,6 +11,7 @@
   ]);
   const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
   const MAX_PUSH_OPERATIONS = 50;
+  const REQUEST_TIMEOUT_MS = 20000;
   function retryableError(error) {
     return error instanceof MultiAppSyncError &&
       (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status));
@@ -117,6 +118,8 @@
       this.pendingSyncReason = null;
       this.lifecycleBound = false;
       this.retryTimer = null;
+      this.networkRetryAt = 0;
+      this.networkRetryAttempts = 0;
     }
 
     setState(state, detail = {}) {
@@ -176,17 +179,38 @@
       }
       if (body) headers.set('Content-Type', 'application/json');
       let response;
+      const abort = typeof global.AbortController === 'function' ? new global.AbortController() : null;
+      let timer;
       try {
-        response = await this.fetchImpl(`${this.endpoint}${path}`, {
+        const fetchPromise = this.fetchImpl(`${this.endpoint}${path}`, {
           method, headers, body: body ? JSON.stringify(body) : undefined,
-          credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer'
+          credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', ...(abort ? { signal: abort.signal } : {})
         });
+        const timeoutPromise = typeof global.setTimeout === 'function' ? new Promise((_, reject) => {
+          timer = global.setTimeout(() => { abort?.abort(); reject(new MultiAppSyncError('network_error')); }, REQUEST_TIMEOUT_MS);
+          timer?.unref?.();
+        }) : null;
+        response = await (timeoutPromise ? Promise.race([fetchPromise, timeoutPromise]) : fetchPromise);
       } catch (_) {
         throw new MultiAppSyncError('network_error');
+      } finally {
+        if (timer != null) global.clearTimeout(timer);
       }
       let payload = null;
-      try { payload = await response.json(); } catch (error) {
-        if (['AbortError', 'TypeError'].includes(error?.name)) throw new MultiAppSyncError('network_error');
+      let bodyTimer;
+      try {
+        const bodyPromise = response.json();
+        const timeoutPromise = typeof global.setTimeout === 'function' ? new Promise((_, reject) => {
+          bodyTimer = global.setTimeout(() => { abort?.abort(); reject(new MultiAppSyncError('network_error')); }, REQUEST_TIMEOUT_MS);
+          bodyTimer?.unref?.();
+        }) : null;
+        payload = await (timeoutPromise ? Promise.race([bodyPromise, timeoutPromise]) : bodyPromise);
+      } catch (error) {
+        if (error?.code === 'network_error' || ['AbortError', 'TypeError'].includes(error?.name)) {
+          throw new MultiAppSyncError('network_error');
+        }
+      } finally {
+        if (bodyTimer != null) global.clearTimeout(bodyTimer);
       }
       if (!response.ok || payload?.ok !== true) {
         const code = payload?.code || 'invalid_response';
@@ -422,14 +446,12 @@
     async finishResolution(conflict, authoritative) {
       await this.clearConflictOutbox(conflict.recordKey);
       const remaining = (await this.store.listConflicts()).filter((item) => item.id !== conflict.id);
-      if (!remaining.length) {
-        await this.replaceShadow(authoritative.records || [], authoritative.cursor);
-      } else {
-        const resolved = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
-        if (resolved) await this.store.putShadow(conflict.recordKey, clone(resolved));
-        else await this.store.deleteShadow?.(conflict.recordKey);
-        if (authoritative.cursor) await this.store.setMeta('cursor', authoritative.cursor);
-      }
+      // Resolution changes only this record. Other remote edits still need the
+      // ordinary three-way pull against their original shadow anchors.
+      const resolved = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
+      if (resolved) await this.store.putShadow(conflict.recordKey, clone(resolved));
+      else await this.store.deleteShadow?.(conflict.recordKey);
+      if (authoritative.cursor) await this.store.setMeta('cursor', authoritative.cursor);
       await this.store.deleteConflict(conflict.id);
       if (!remaining.length) {
         this.setState('ready', { reason: 'conflict_resolved' });
@@ -677,9 +699,14 @@
         const previous = shadow.get(recordKey);
         if (sameRecord(current, previous)) continue;
         const deleted = !current;
+        if (migration && deleted) continue; // Initial absence is never a user delete.
         if (!migration && !previous && deleted) continue;
         if (deleted && previous && this.adapter.canDeleteRecord?.(recordKey, previous) === false) {
-          throw new MultiAppSyncError('local_deletion_unconfirmed');
+          await this.recordConflict('ambiguous_delete', recordKey, {
+            reason: 'local_deletion_unconfirmed', localRecord: null,
+            remoteRecord: remote.get(recordKey) || null, shadowRecord: previous
+          });
+          continue;
         }
         const source = current || previous;
         const pendingKey = `${recordKey}:${deleted}`;
@@ -704,10 +731,11 @@
       this.retryTimer = null;
       if (typeof global.setTimeout !== 'function') return;
       const pending = await this.store.listOutbox();
-      const due = pending.filter((item) => !item.conflict &&
+      const outboxDue = pending.filter((item) => !item.conflict &&
         (!item.terminalError || (item.terminalError === 'push_failed' && item.failureKind === 'network')) &&
         Number.isFinite(item.nextRetryAt) && item.nextRetryAt > 0)
         .reduce((earliest, item) => Math.min(earliest, item.nextRetryAt), Infinity);
+      const due = Math.min(outboxDue, this.networkRetryAt || Infinity);
       if (!Number.isFinite(due)) return;
       this.retryTimer = global.setTimeout(() => {
         this.retryTimer = null;
@@ -715,6 +743,27 @@
         this.sync('retry-timer').catch(() => {});
       }, Math.max(0, due - this.now()));
       this.retryTimer?.unref?.();
+    }
+
+    async retryLegacyFailures() {
+      const local = mapRecords((await this.localRecords()).records);
+      let recovered = 0;
+      for (const item of await this.store.listOutbox()) {
+        if (item.terminalError !== 'push_failed' || item.failureKind || item.legacyRecoveryAttempted) continue;
+        const recordKey = keyOf(item);
+        const current = local.get(recordKey) || null;
+        const stillRequested = item.deleted
+          ? !current && this.adapter.canDeleteRecord?.(recordKey, item) !== false
+          : !!current && current.payloadHash === item.payloadHash &&
+            current.schemaVersion === item.schemaVersion &&
+            canonicalJson(current.payload) === canonicalJson(item.payload);
+        if (!stillRequested) continue;
+        await this.store.putOutbox({ ...item, terminalError: undefined, nextRetryAt: 0,
+          legacyRecoveryAttempted: true });
+        recovered += 1;
+      }
+      if (recovered) await this.sync('legacy-retry');
+      return Object.freeze({ ok: recovered > 0, recovered });
     }
 
     async flushOutbox({ migration = false, force = false } = {}) {
@@ -727,19 +776,23 @@
       let sent = 0;
       let conflicts = 0;
       while (true) {
+        for (const item of await this.store.listOutbox()) {
+          if (!item.deleted || item.conflict ||
+              this.adapter.canDeleteRecord?.(keyOf(item), item) !== false) continue;
+          await this.recordConflict('ambiguous_delete', keyOf(item), {
+            reason: 'local_deletion_unconfirmed', localRecord: null,
+            remoteRecord: null, shadowRecord: await this.store.getShadow?.(keyOf(item)) || null
+          });
+          await this.store.putOutbox({ ...item, conflict: true });
+        }
         const operations = (await this.store.listOutbox()).filter((item) =>
           item.migration === migration && !item.conflict &&
           (!item.terminalError || recoverableIds.has(item.operationId) ||
             (item.terminalError === 'push_failed' && item.failureKind === 'network')) &&
           (force || !item.nextRetryAt || item.nextRetryAt <= now)
-        ).slice(0, MAX_PUSH_OPERATIONS);
+        ).filter((item) => !item.deleted || this.adapter.canDeleteRecord?.(keyOf(item), item) !== false)
+          .slice(0, MAX_PUSH_OPERATIONS);
         if (!operations.length) return { ok: conflicts === 0, sent, conflict: conflicts };
-        for (const item of operations) {
-          if (item.deleted && this.adapter.canDeleteRecord?.(keyOf(item),
-              await this.store.getShadow?.(keyOf(item)) || item) === false) {
-            throw new MultiAppSyncError('local_deletion_unconfirmed');
-          }
-        }
         operations.forEach((item) => recoverableIds.delete(item.operationId));
         let payload;
         try {
@@ -771,7 +824,10 @@
         for (const result of payload.results || []) {
           const operation = operations.find((item) => item.operationId === result.operationId);
           if (!operation) throw new MultiAppSyncError('invalid_response');
-          if (['applied', 'duplicate'].includes(result.status)) await this.store.deleteOutbox(operation.operationId);
+          if (['applied', 'duplicate'].includes(result.status)) {
+            await this.store.deleteOutbox(operation.operationId);
+            if (operation.deleted) this.adapter.acknowledgeDelete?.(keyOf(operation));
+          }
           else if (result.status === 'conflict') {
             conflicts += 1;
             const recordKey = keyOf(operation);
@@ -820,11 +876,20 @@
         remoteLive.every((record) => record.ownedByCurrentDevice === true);
       const resumesResolvedConflictMerge = unresolvedConflicts.length === 0 && shadowRecords.length > 0 &&
         sameRecordAnchors(shadowRecords, remote.records || []);
-      if (resumesOwnPartialMigration || resumesResolvedConflictMerge) {
+      if (resumesOwnPartialMigration) {
         // Resume only from an authenticated baseline: either every partial record
         // belongs to this device, or the saved shadow exactly matches the current
         // remote snapshot after the last initial-merge conflict was resolved.
         finalSnapshot = local.snapshot;
+      } else if (resumesResolvedConflictMerge) {
+        // The matching saved shadow proves that earlier conflict choices were
+        // completed. Hydrate only records still absent locally; never infer a
+        // delete from those absences or re-run the original conflict merge.
+        const present = new Set(local.records.map(keyOf));
+        finalSnapshot = this.adapter.deserializeRecords([
+          ...local.records, ...remoteLive.filter((record) => !present.has(keyOf(record)))
+        ]);
+        await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       } else if (!local.records.length && remoteLive.length) {
         finalSnapshot = remoteSnapshot;
         await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
@@ -887,7 +952,12 @@
         },
         (error) => {
           if (this.running === scheduled) this.running = null;
-          if (retryableError(error)) this.setState('retrying', { reason: error.code });
+          if (retryableError(error)) {
+            this.networkRetryAttempts += 1;
+            this.networkRetryAt = this.now() + Math.min(300000, 1000 * (2 ** Math.min(this.networkRetryAttempts, 8)));
+            this.setState('retrying', { reason: error.code });
+            void this.scheduleRetryWake().catch(() => {});
+          }
           else if (!TERMINAL_CODES.has(error?.code) && !PAUSE_CODES.has(error?.code)) {
             this.setState('attention', { reason: safeErrorCode(error) });
           }
@@ -906,7 +976,8 @@
       }
       let unresolved = await this.store.listConflicts();
       if (unresolved.length) unresolved = await this.reconcileConvergedPortConflicts(unresolved);
-      if (unresolved.length) {
+      const isolatedKeys = new Set(unresolved.filter((item) => item.kind === 'ambiguous_delete').map((item) => item.recordKey));
+      if (unresolved.some((item) => item.kind !== 'ambiguous_delete')) {
         this.setState('attention', { reason: 'conflict', conflicts: unresolved.length });
         await this.reportRemovalSafety('attention');
         return { ok: false, code: 'conflict_pending', conflicts: unresolved.length };
@@ -919,6 +990,7 @@
       const shadowMap = mapRecords(shadowRecords);
       const conflictKeys = [];
       for (const recordKey of new Set([...localMap.keys(), ...remoteMap.keys(), ...shadowMap.keys()])) {
+        if (isolatedKeys.has(recordKey)) continue;
         const localRecord = localMap.get(recordKey);
         const remoteRecord = remoteMap.get(recordKey);
         const shadowRecord = shadowMap.get(recordKey);
@@ -937,6 +1009,9 @@
         return { ok: false, code: 'conflict', conflicts: conflictKeys.length };
       }
       await this.queueDiff(local.records, remote.records || [], shadowRecords);
+      for (const conflict of await this.store.listConflicts()) {
+        if (conflict.kind === 'ambiguous_delete') isolatedKeys.add(conflict.recordKey);
+      }
       await this.flushOutbox();
       const afterPush = await this.serverSnapshot();
       const localAfterPush = await this.localRecords();
@@ -948,6 +1023,7 @@
       const lateConflicts = [];
       let remoteChanged = false;
       for (const recordKey of new Set([...freshMap.keys(), ...afterMap.keys(), ...shadowMap.keys()])) {
+        if (isolatedKeys.has(recordKey)) continue;
         const current = freshMap.get(recordKey);
         const incoming = afterMap.get(recordKey);
         const previous = shadowMap.get(recordKey);
@@ -977,6 +1053,8 @@
       }
       await this.replaceShadow(afterPush.records || [], afterPush.cursor);
       await this.store.setMeta('lastSyncAt', this.now());
+      this.networkRetryAt = 0;
+      this.networkRetryAttempts = 0;
       const [outbox, conflicts] = await Promise.all([this.store.listOutbox(), this.store.listConflicts()]);
       const state = conflicts.length || outbox.some((item) => item.terminalError || item.conflict)
         ? 'attention' : outbox.length ? 'pending' : 'ready';

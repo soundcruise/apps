@@ -108,12 +108,10 @@ test('Port detach clears only cloud binding state', async () => {
   assert.equal(meta.size, 0);
 });
 
-test('Port controller announces a changed hydrate only after runtime reaches ready', () => {
+test('Port controller announces an applied hydrate even when sync needs attention', () => {
   const { controller, events, adapter } = harness();
   adapter.changed = true;
-  controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'syncing' } }));
-  assert.equal(events.some((event) => event.type === 'cruise-port-cloud-data-applied'), false);
-  controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'ready' } }));
+  controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'attention' } }));
   assert.equal(events.filter((event) => event.type === 'cruise-port-cloud-data-applied').length, 1);
   controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'ready' } }));
   assert.equal(events.filter((event) => event.type === 'cruise-port-cloud-data-applied').length, 1);

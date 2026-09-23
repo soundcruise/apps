@@ -55,7 +55,8 @@
     if (value == null || typeof value === 'boolean') return;
     if (typeof value === 'number') { if (!Number.isFinite(value)) throw new Error('port_record_invalid'); return; }
     if (typeof value === 'string') {
-      if (value.length > 20000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value)) {
+      if (value.length > 20000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value) ||
+          /^data:[a-z]+\/[a-z0-9.+-]+(?:;[^,]*)?,/iu.test(value)) {
         throw new Error('port_record_invalid');
       }
       if (urlField && value !== '') {
@@ -75,7 +76,7 @@
     if (!plain(value) || Object.keys(value).length > 200) throw new Error('port_record_invalid');
     Object.entries(value).forEach(([key, item]) => {
       if (FORBIDDEN_KEY.test(key)) throw new Error('port_secret_or_binary_blocked');
-      assertSafe(item, depth + 1, budget, urlField || /^(?:url|urls|customLaunch|href|website)$/iu.test(key));
+      assertSafe(item, depth + 1, budget, urlField || /^(?:url|urls|customLaunch|href|website|storeUrl|link|supportUrl)$/iu.test(key));
     });
   }
   function record(recordType, recordId, value) {
@@ -176,7 +177,9 @@
   function recordKey(record) { return `${record?.recordType || ''}/${record?.recordId || ''}`; }
   function canDeleteRecord(storage, key, previous) {
     const guarded = new Set(['metronome_preset', 'calendar_event', 'practice_menu',
-      'practice_history_event', 'gear_category', 'gear_item', 'my_app']);
+      'practice_history_event', 'gear_category', 'gear_item', 'my_app',
+      'settings', 'metronome_settings', 'tuner_settings', 'practice_cycle',
+      'practice_attachment', 'practice_attachment_set']);
     const type = String(key).split('/')[0];
     const orderType = ORDER_ITEM_TYPES[type];
     if (!guarded.has(type) && !orderType) return true;
@@ -187,6 +190,15 @@
     if (intents[key] === true) return true;
     const ids = previous?.payload?.value;
     return Array.isArray(ids) && ids.length > 0 && ids.every((id) => intents[`${orderType}/${id}`] === true);
+  }
+  function acknowledgeDelete(storage, key) {
+    try {
+      const intents = JSON.parse(storage.getItem(DELETION_INTENT_KEY) || '{}');
+      if (!plain(intents) || intents[key] !== true) return;
+      delete intents[key];
+      if (Object.keys(intents).length) storage.setItem(DELETION_INTENT_KEY, JSON.stringify(intents));
+      else storage.removeItem(DELETION_INTENT_KEY);
+    } catch (_) { /* Retain the intent if cleanup cannot be confirmed. */ }
   }
   function isDeleted(record) { return record?.deletedAt != null || record?.deleted === true; }
   function recordMap(records) {
@@ -489,7 +501,7 @@
         const event = item.payload.value;
         return event.type === 'practice-session' && !Array.isArray(event.pauseIntervals)
           ? { ...event, pauseIntervals: [] } : event;
-      }),
+      }).sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id)),
       ...(currentHistory.activeSessionTiming ? { activeSessionTiming: currentHistory.activeSessionTiming } : {})
     });
     write(storage, 'cruisePort.gearCategories', { version: 1, categories: ordered(normalized, 'gear_category', 'gear_category_order').map((item) => item.payload.value) });
@@ -584,6 +596,7 @@
     deserializeRecords(value) { return deserializeRecords(value); }
     isMeaningfulLocalData(value = this.readLocalSnapshot()) { return normalizeSnapshot(value).records.length > 0; }
     canDeleteRecord(key, previous) { return canDeleteRecord(this.storage, key, previous); }
+    acknowledgeDelete(key) { acknowledgeDelete(this.storage, key); }
     mergeSnapshots(local, remote) { return mergeSnapshots(local, remote); }
     primeRemoteReferences(records) { this.remoteReferenceRecords = clone(records || []); }
     reconcileRemoteReferences(records) {

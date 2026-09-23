@@ -407,6 +407,20 @@ test('backup is Fretboard-namespaced, exact and excludes credentials stored outs
   assert.equal(storage.getItem('fretboard_cruise_state'), original);
 });
 
+test('Fretboard apply rechecks local data after its asynchronous backup', async () => {
+  const api = load();
+  const storage = new MemoryStorage({ fretboard_cruise_state: JSON.stringify(longTermState(api)) });
+  const adapter = new api.FretboardSyncAdapter({ storage, backupStore: { async save() {
+    const current = JSON.parse(storage.getItem('fretboard_cruise_state'));
+    current.settings.tempo = 121;
+    storage.setItem('fretboard_cruise_state', JSON.stringify(current));
+  } } });
+  const previous = adapter.readLocalSnapshot();
+  await assert.rejects(adapter.applyRemoteSnapshot(previous, { expectedSnapshot: previous }),
+    (error) => error.code === 'local_changed_during_apply');
+  assert.equal(JSON.parse(storage.getItem('fretboard_cruise_state')).settings.tempo, 121);
+});
+
 test('only active Fretboard membership and Fretboard app credential authorize migration planning', async () => {
   const api = load();
   const adapter = new api.FretboardSyncAdapter({ storage: new MemoryStorage({

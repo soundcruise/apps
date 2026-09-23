@@ -12,6 +12,17 @@ const COLLECTIONS = Object.freeze({
     'cruisePort.gearList': ['gear_item', 'items'],
     'cruisePort.myApps': ['my_app', 'items']
 });
+const SINGLETONS = Object.freeze({
+    'cruisePort.settings': 'settings/global',
+    'cruisePort.metronome': 'metronome_settings/default',
+    'cruisePort.tuner': 'tuner_settings/default',
+    'cruisePort.practiceProgress': 'practice_cycle/current'
+});
+const ORDER_KEYS = Object.freeze({
+    'cruisePort.practiceMenus': 'practice_menu_order/default',
+    'cruisePort.gearCategories': 'gear_category_order/default',
+    'cruisePort.myApps': 'my_app_order/default'
+});
 
 function collectionIds(raw, field) {
     if (raw === null) return new Set();
@@ -23,18 +34,30 @@ function collectionIds(raw, field) {
 }
 
 function updateDeletionIntents(storage, keys, expected) {
-    const relevant = keys.filter((key) => COLLECTIONS[key] && expected?.has(key));
+    const relevant = keys.filter((key) => (COLLECTIONS[key] || SINGLETONS[key]) && expected?.has(key));
     if (!relevant.length) return;
     try {
-        const parsed = JSON.parse(storage.getItem(DELETION_INTENT_KEY) || '{}');
+        const oldRaw = storage.getItem(DELETION_INTENT_KEY);
+        const parsed = JSON.parse(oldRaw || '{}');
         const intents = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
         for (const key of relevant) {
+            if (SINGLETONS[key]) {
+                const before = expected.get(key);
+                const after = storage.getItem(key);
+                if (after !== null) delete intents[SINGLETONS[key]];
+                else if (before !== null) intents[SINGLETONS[key]] = true;
+                continue;
+            }
             const [type, field] = COLLECTIONS[key];
             const before = collectionIds(expected.get(key), field);
             const after = collectionIds(storage.getItem(key), field);
             if (!before || !after) continue;
             for (const id of after) delete intents[`${type}/${id}`];
             for (const id of before) if (!after.has(id)) intents[`${type}/${id}`] = true;
+            if (ORDER_KEYS[key]) {
+                if (after.size) delete intents[ORDER_KEYS[key]];
+                else if (before.size) intents[ORDER_KEYS[key]] = true;
+            }
             if (key === 'cruisePort.gearList') {
                 const oldItems = JSON.parse(expected.get(key) || '{"items":[]}').items;
                 const newItems = JSON.parse(storage.getItem(key) || '{"items":[]}').items;
@@ -45,7 +68,10 @@ function updateDeletionIntents(storage, keys, expected) {
                 }
             }
         }
-        storage.setItem(DELETION_INTENT_KEY, JSON.stringify(intents));
+        const nextRaw = JSON.stringify(intents);
+        if (Object.keys(intents).length) {
+            if (nextRaw !== oldRaw) storage.setItem(DELETION_INTENT_KEY, nextRaw);
+        } else if (oldRaw !== null) storage.removeItem(DELETION_INTENT_KEY);
     } catch (_) { /* Missing intent blocks cloud deletion without blocking local save. */ }
 }
 

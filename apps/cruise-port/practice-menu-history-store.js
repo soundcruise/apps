@@ -118,14 +118,14 @@ export function createEmptyPracticeHistory() {
     return { version: PRACTICE_HISTORY_SCHEMA_VERSION, events: [] };
 }
 
-function isValidPracticeHistoryVersion(history, version) {
+function isValidPracticeHistoryVersion(history, version, enforceLimit = true) {
     return Boolean(
         history
         && typeof history === 'object'
         && !Array.isArray(history)
         && history.version === version
         && Array.isArray(history.events)
-        && history.events.length <= PRACTICE_HISTORY_MAX_EVENTS
+        && (!enforceLimit || history.events.length <= PRACTICE_HISTORY_MAX_EVENTS)
         && history.events.every((event) => isValidEvent(event, version))
         && new Set(history.events.map((event) => event.id)).size === history.events.length
         && (version < 4 || history.activeSessionTiming == null || (
@@ -140,7 +140,7 @@ function isValidPracticeHistoryVersion(history, version) {
 }
 
 export function isValidPracticeHistory(history) {
-    return isValidPracticeHistoryVersion(history, PRACTICE_HISTORY_SCHEMA_VERSION);
+    return isValidPracticeHistoryVersion(history, PRACTICE_HISTORY_SCHEMA_VERSION, false);
 }
 
 function migrateHistory(history) {
@@ -166,11 +166,11 @@ export function loadPracticeHistory(storage) {
         const rawValue = readStorageValue(storage, PRACTICE_HISTORY_STORAGE_KEY);
         if (rawValue === null) return { ok: true, history: fallback };
         const parsed = JSON.parse(rawValue);
-        const current = isValidPracticeHistory(parsed);
-        const legacy = isValidPracticeHistoryVersion(parsed, 1)
-            || isValidPracticeHistoryVersion(parsed, 2)
-            || isValidPracticeHistoryVersion(parsed, 3)
-            || isValidPracticeHistoryVersion(parsed, 4);
+        const current = isValidPracticeHistoryVersion(parsed, PRACTICE_HISTORY_SCHEMA_VERSION, false);
+        const legacy = isValidPracticeHistoryVersion(parsed, 1, false)
+            || isValidPracticeHistoryVersion(parsed, 2, false)
+            || isValidPracticeHistoryVersion(parsed, 3, false)
+            || isValidPracticeHistoryVersion(parsed, 4, false);
         if (!current && !legacy) return { ok: false, history: fallback, reason: 'invalid-data' };
         return legacy
             ? { ok: true, history: cloneHistory(parsed), migrated: true }
@@ -347,7 +347,10 @@ export function appendPracticeHistoryEvent(history, event, runningTimer = null) 
     if (event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession && next.activeSessionTiming?.sessionId === event.sessionId) {
         delete next.activeSessionTiming;
     }
-    if (next.events.length > PRACTICE_HISTORY_MAX_EVENTS) {
+    // A cloud merge may legitimately exceed the local product cap. Do not
+    // turn that pre-existing overflow into a silent cloud tombstone on append.
+    if (next.events.length > PRACTICE_HISTORY_MAX_EVENTS && history.events.length <= PRACTICE_HISTORY_MAX_EVENTS) {
+        next.events.sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.id.localeCompare(b.id));
         const affectedSessions = new Set(next.events.slice(0, -PRACTICE_HISTORY_MAX_EVENTS).map((current) => current.sessionId).filter(Boolean));
         next.events.filter((current) => current.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession && affectedSessions.has(current.sessionId))
             .forEach((session) => snapshotSessionDurations(next.events, session));

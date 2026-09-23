@@ -68,16 +68,13 @@ function migrateMetronomePreset(item) {
 }
 
 function validatePresetList(presets) {
-    if (!Array.isArray(presets) || presets.length > METRONOME_PRESET_LIMITS.items) return null;
+    if (!Array.isArray(presets)) return null;
     const normalized = [];
     const ids = new Set();
-    const names = new Set();
     for (const candidate of presets) {
         const preset = normalizeMetronomePreset(candidate);
-        const normalizedName = preset ? nameKey(preset.name) : '';
-        if (!preset || ids.has(preset.id) || names.has(normalizedName)) return null;
+        if (!preset || ids.has(preset.id)) return null;
         ids.add(preset.id);
-        names.add(normalizedName);
         normalized.push(preset);
     }
     return normalized;
@@ -95,23 +92,19 @@ export function loadMetronomePresets(storage) {
         }
         const presets = [];
         const ids = new Set();
-        const names = new Set();
         let ignored = 0;
         let migrated = 0;
-        parsed.items.slice(0, METRONOME_PRESET_LIMITS.items).forEach((candidate) => {
+        parsed.items.forEach((candidate) => {
             const normalized = normalizeMetronomePreset(candidate);
             const preset = normalized || migrateMetronomePreset(candidate);
-            const normalizedName = preset ? nameKey(preset.name) : '';
-            if (!preset || ids.has(preset.id) || names.has(normalizedName)) {
+            if (!preset || ids.has(preset.id)) {
                 ignored += 1;
                 return;
             }
             if (!normalized) migrated += 1;
             ids.add(preset.id);
-            names.add(normalizedName);
             presets.push(preset);
         });
-        ignored += Math.max(0, parsed.items.length - METRONOME_PRESET_LIMITS.items);
         if (ignored === 0 && migrated > 0) {
             const result = saveMetronomePresets(presets, storage);
             if (!result.ok) {

@@ -15,7 +15,7 @@ import { loadTunerSettings, saveTunerSettings, TUNER_DEFAULTS } from './tuner-st
 import { createPracticeAttachmentStore } from './practice-menu-attachment-store.js';
 import { createGearPhotoStore } from './gear-photo-store.js';
 import { createMyAppsIconStore } from './my-apps-icon-store.js';
-import { acceptRemoteStorageValues, acceptStorageValues, assertStorageUnchanged } from './storage-conflict.js?v=0.58.0';
+import { acceptRemoteStorageValues, acceptStorageValues, assertStorageUnchanged, readStorageValue } from './storage-conflict.js?v=0.58.0';
 
 test('every storage module imports the current conflict coordinator cache key', () => {
     for (const file of [
@@ -164,4 +164,16 @@ test('a store save records explicit deletion intent for the sync adapter', () =>
     loadPracticeHistory(storage);
     assert.equal(savePracticeHistory(createEmptyPracticeHistory(), storage).ok, true);
     assert.equal(JSON.parse(storage.getItem('cruisePort.syncDeletionIntent.v1'))[`practice_history_event/${event.id}`], true);
+});
+
+test('deleting the last collection item records its order tombstone separately', () => {
+    const values = new Map([['cruisePort.myApps', JSON.stringify({ version: 7, items: [{ id: 'app-1' }] })]]);
+    const storage = { getItem: key => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
+    readStorageValue(storage, 'cruisePort.myApps');
+    storage.setItem('cruisePort.myApps', JSON.stringify({ version: 7, items: [] }));
+    acceptStorageValues(storage, ['cruisePort.myApps']);
+    const intents = JSON.parse(storage.getItem('cruisePort.syncDeletionIntent.v1'));
+    assert.equal(intents['my_app/app-1'], true);
+    assert.equal(intents['my_app_order/default'], true);
 });

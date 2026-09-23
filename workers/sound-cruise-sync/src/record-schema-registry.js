@@ -69,25 +69,31 @@ const PORT_SINGLETON_IDS = Object.freeze({
   my_app_order: 'default'
 });
 const PORT_FORBIDDEN_KEYS = /(?:credential|verifier|password|secret|token|recovery.?code|join.?code|blob|base64|binary)/iu;
-const PORT_DATA_URL = /^data:/iu;
+const PORT_URL_FIELD = /^(?:url|urls|customLaunch|href|website|storeUrl|link|supportUrl)$/iu;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
 const SHA256 = /^[0-9a-f]{64}$/u;
 
-function validatePortJson(value, depth = 0, budget = { nodes: 0 }) {
+function validatePortJson(value, depth = 0, budget = { nodes: 0 }, urlField = false) {
   budget.nodes += 1;
   if (budget.nodes > 4096 || depth > 12) return false;
   if (value === null || typeof value === 'boolean') return true;
   if (typeof value === 'number') return Number.isFinite(value);
-  if (typeof value === 'string') return value.length <= 20_000 &&
-    !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value) &&
-    !PORT_DATA_URL.test(value);
+  if (typeof value === 'string') {
+    if (value.length > 20_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value) ||
+        /^data:[a-z]+\/[a-z0-9.+-]+(?:;[^,]*)?,/iu.test(value)) return false;
+    if (!urlField || value === '') return true;
+    try {
+      const url = new URL(value);
+      return ['http:', 'https:'].includes(url.protocol) && !!url.hostname && !url.username && !url.password;
+    } catch (_) { return false; }
+  }
   if (Array.isArray(value)) {
-    return value.length <= 2000 && value.every((item) => validatePortJson(item, depth + 1, budget));
+    return value.length <= 2000 && value.every((item) => validatePortJson(item, depth + 1, budget, urlField));
   }
   if (!isPlainObject(value) || Object.keys(value).length > 200) return false;
   return Object.entries(value).every(([key, item]) =>
     string(key, 120) && !PORT_FORBIDDEN_KEYS.test(key) &&
-    validatePortJson(item, depth + 1, budget));
+    validatePortJson(item, depth + 1, budget, urlField || PORT_URL_FIELD.test(key)));
 }
 
 function validatePortPayload(recordType, recordId, payload) {

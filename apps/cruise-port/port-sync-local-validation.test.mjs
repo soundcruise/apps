@@ -55,3 +55,17 @@ test('the authoritative store validators reject malformed collections and malfor
         assert.equal(target.writes, 0);
     }
 });
+
+test('structurally valid My Apps and Calendar collections can exceed local creation limits', () => {
+    const stamp = '2026-09-23T00:00:00.000Z';
+    const target = storage({
+        'cruisePort.myApps': JSON.stringify({ version: 7, items:
+            Array.from({ length: 101 }, (_, index) => ({ ...app, id: `app-${index}` })) }),
+        'cruisePort.practiceCalendar': JSON.stringify({ version: 2, notes:
+            Array.from({ length: 1501 }, (_, index) => ({ id: `note-${index}`,
+                localDate: '2026-09-23', text: 'Data: 練習', icon: 'schedule',
+                createdAt: stamp, updatedAt: stamp })) })
+    });
+    assert.equal(validatePortLocalCollections(target), true);
+    assert.equal(target.writes, 0);
+});

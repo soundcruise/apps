@@ -340,7 +340,6 @@ export function loadMyApps(storage) {
             || Array.isArray(parsed)
             || ![1, 2, 3, 4, 5, 6, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
             || !Array.isArray(storedItems)
-            || storedItems.length > MY_APPS_LIMITS.items
             || !storedItems.every((item) => isValidItem(item, storedItemVersion(item, storedVersion), {
                 allowUnknownAppKey: true,
                 allowUnknownPresetKey: true,

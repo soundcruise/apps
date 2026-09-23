@@ -515,6 +515,41 @@ test('missing IndexedDB cache is re-downloaded from the same logical asset', asy
     assert.equal(api.requests.filter((request) => request.method === 'GET').length, 1);
 });
 
+test('asset hydration merges only photo fields into a concurrent Gear edit and cannot resurrect deletion', async () => {
+    const finalBlob = blob();
+    const api = assetApi();
+    const prepared = { appId: 'port', assetId: '123e4567-e89b-42d3-a456-426614174003',
+        operationId: '223e4567-e89b-42d3-a456-426614174003', kind: 'gear_photo_final',
+        hash: await hashBlob(finalBlob), mime: 'image/webp', byteSize: finalBlob.size, width: 512, height: 512 };
+    await api.fetch('https://sync.example/v1/sync/assets/prepare', { method: 'POST', body: JSON.stringify(prepared) });
+    await api.fetch(`https://sync.example/v1/sync/assets/${prepared.assetId}/content`, { method: 'PUT', body: finalBlob });
+    const initial = () => storage({
+        'cruisePort.gearList': JSON.stringify({ version: 5, items: [{ id: 'gear-1', name: 'Old',
+            photoId: null, photoSourceId: null }] }),
+        'cruisePort.myApps': JSON.stringify({ version: 7, items: [] }),
+        'cruisePort.syncAssetMetadata': JSON.stringify({ version: 4, gear: { 'gear-1': {
+            published: { version: 1, availability: 'available', final: metadata(prepared, 'available'),
+                source: null, crop: null }, binding: null, pending: null
+        } }, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false })
+    });
+    for (const remove of [false, true]) {
+        const local = initial();
+        const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: api.fetch,
+            gearPhotoStore: { cachePhoto: async () => {
+                local.setItem('cruisePort.gearList', JSON.stringify({ version: 5,
+                    items: remove ? [] : [{ id: 'gear-1', name: 'New', photoId: null, photoSourceId: null }] }));
+                return { ok: true, record: { id: 'cached-photo' } };
+            } }, myAppsIconStore: {} });
+        assert.equal((await sync.reconcile()).ok, true);
+        const items = JSON.parse(local.getItem('cruisePort.gearList')).items;
+        assert.equal(items.length, remove ? 0 : 1);
+        if (!remove) {
+            assert.equal(items[0].name, 'New');
+            assert.equal(items[0].photoId, 'cached-photo');
+        }
+    }
+});
+
 test('practice attachment uploads once, stays lazy on another Port, then downloads into a different local ID', async () => {
     const localRecord = {
         id: 'local-a', practiceId: 'practice-a', kind: 'file',

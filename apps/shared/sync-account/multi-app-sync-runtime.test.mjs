@@ -3,6 +3,8 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
+import { validatePortLocalCollections } from '../../cruise-port/port-sync-local-validation.js';
+import { METRONOME_DEFAULTS } from '../../cruise-port/metronome-store.js';
 
 class CustomEventPolyfill extends Event {
   constructor(type, init = {}) { super(type); this.detail = init.detail; }
@@ -196,6 +198,92 @@ function runtimeFixture(initial, appId = 'pitch', admissionMode = 'qa') {
     accountClient, core, fetchImpl, nextId: () => `op-${++id}` };
 }
 
+function realPortFixture(values, fetchImpl = null) {
+  const deviceId = fetchImpl ? 'second' : 'first';
+  const Runtime = loadRuntime();
+  const context = Runtime.testContext;
+  const data = new Map(Object.entries(values));
+  const storage = {
+    getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => data.set(key, String(value)),
+    removeItem: (key) => data.delete(key)
+  };
+  context.URL = URL;
+  context.localStorage = storage;
+  context.SoundCruisePortSync = { validateLocalStorage: validatePortLocalCollections };
+  vm.runInNewContext(readFileSync(new URL('../../cruise-port/port-sync-adapter.js', import.meta.url), 'utf8'), context);
+  const adapter = new context.SoundCruisePortSync.PortSyncAdapter({ storage, cryptoImpl: webcrypto });
+  const store = memoryStore();
+  const server = fetchImpl ? null : serverFetch();
+  let id = 0;
+  const core = { validAppCredential: (value) => value === 'scd1.valid',
+    validQaCredential: (value) => value === 'scq1.valid', createOperationId: () => `port-${deviceId}-${++id}` };
+  const accountClient = { admissionMode: 'qa', async consumeHandoff() {
+    return { consumeMode: 'new_app', membershipId: 'm1', membershipState: 'active',
+      appDeviceCredential: 'scd1.valid', qaCredential: 'scq1.valid' };
+  }, async confirmConsumePersisted() {} };
+  const runtime = new Runtime({ appId: 'port', endpoint: 'https://example.test', adapter,
+    store, accountClient, accountCore: core, fetchImpl: fetchImpl || server.fetchImpl,
+    randomOperationId: () => `port-${deviceId}-${++id}` });
+  return { runtime, adapter, storage, store, server: server?.server, fetchImpl: fetchImpl || server.fetchImpl };
+}
+
+test('real Port adapter, store validator and runtime retain same-name presets from two devices', async () => {
+  const preset = (id) => ({ id, name: 'Rock 120', ...METRONOME_DEFAULTS,
+    accents: [...METRONOME_DEFAULTS.accents], createdAt: 1000, updatedAt: 1000 });
+  const key = 'cruisePort.metronomePresets';
+  const a = realPortFixture({ [key]: JSON.stringify({ version: 1, items: [preset('preset-a')] }) });
+  await a.runtime.consumeHandoff('a');
+  const b = realPortFixture({ [key]: JSON.stringify({ version: 1, items: [preset('preset-b')] }) }, a.fetchImpl);
+  await b.runtime.consumeHandoff('b');
+  await a.runtime.sync('pull-b');
+  for (const [label, target] of [['a', a], ['b', b]]) {
+    assert.deepEqual(JSON.parse(target.storage.getItem(key)).items.map((item) => item.id).sort(),
+      ['preset-a', 'preset-b'], `${label}; cloud=${[...a.server.records.keys()].join(',')}`);
+  }
+  assert.equal([...a.server.records.values()].filter((item) => item.deletedAt != null).length, 0);
+});
+
+test('real Port two-device merge retains 7,999 history events plus two new events', async () => {
+  const event = (index) => ({ id: `history-${index}`, type: 'cycle-completed',
+    timestamp: new Date(Date.UTC(2026, 0, 1) + index * 1000).toISOString(),
+    localDate: '2026-01-01', cycleId: `cycle-${index}`,
+    practiceId: null, practiceName: null, durationMinutes: null, appId: null });
+  const key = 'cruisePort.practiceHistory';
+  const a = realPortFixture({ [key]: JSON.stringify({ version: 5,
+    events: Array.from({ length: 7999 }, (_, index) => event(index)) }) });
+  await a.runtime.consumeHandoff('a');
+  const b = realPortFixture({ [key]: JSON.stringify({ version: 5,
+    events: [event(7999), event(8000)] }) }, a.fetchImpl);
+  await b.runtime.consumeHandoff('b');
+  await a.runtime.sync('pull-b');
+  for (const target of [a, b]) {
+    const events = JSON.parse(target.storage.getItem(key)).events;
+    assert.equal(events.length, 8001);
+    assert.equal(new Set(events.map((item) => item.id)).size, 8001);
+    assert.equal(events[0].id, 'history-0');
+    assert.equal(events.at(-1).id, 'history-8000');
+  }
+  assert.equal([...a.server.records.values()].filter((item) => item.deletedAt != null).length, 0);
+});
+
+test('confirmed Port deletion cleans its intent only after response-loss recovery', async () => {
+  const key = 'cruisePort.metronomePresets';
+  const preset = { id: 'preset-a', name: 'Rock 120', ...METRONOME_DEFAULTS,
+    accents: [...METRONOME_DEFAULTS.accents], createdAt: 1000, updatedAt: 1000 };
+  const fixture = realPortFixture({ [key]: JSON.stringify({ version: 1, items: [preset] }) });
+  await fixture.runtime.consumeHandoff('base');
+  fixture.storage.setItem(key, JSON.stringify({ version: 1, items: [] }));
+  fixture.storage.setItem('cruisePort.syncDeletionIntent.v1', JSON.stringify({ 'metronome_preset/preset-a': true }));
+  fixture.server.responseLossAfterApply = true;
+  await assert.rejects(fixture.runtime.sync('delete'), (error) => error.code === 'network_error');
+  assert.equal(JSON.parse(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'))['metronome_preset/preset-a'], true);
+  fixture.runtime.now = () => Date.now() + 500000;
+  await fixture.runtime.sync('retry-delete');
+  assert.equal(fixture.storage.getItem('cruisePort.syncDeletionIntent.v1'), null);
+  assert.ok(fixture.server.records.get('metronome_preset/preset-a').deletedAt);
+});
+
 test('production data-plane requests require only app authority and never send QA authorization', async () => {
   const fixture = runtimeFixture([], 'pitch', 'production');
   await fixture.store.setMeta('credential', 'scd1.valid');
@@ -372,6 +460,20 @@ test('a conflict-resolved migration resumes from its exact remote shadow without
   assert.equal(fixture.server.records.get('my_app_order/order').payload.name, 'Chosen local order');
   assert.equal(await fixture.store.readMeta('migrationState'), 'complete');
   assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('resolved initial merge hydrates a remote-only singleton instead of deleting it', async () => {
+  const fixture = runtimeFixture([record('settings', 'local', 'settings')], 'port');
+  await fixture.runtime.consumeHandoff('base');
+  const singleton = record('default', 'tuner', 'tuner_settings');
+  const operation = await fixture.runtime.operationFor(singleton, 0);
+  fixture.server.records.set('tuner_settings/default', { ...operation, revision: 1,
+    deletedAt: null, changeSeq: ++fixture.server.revision });
+  await fixture.store.putShadow('tuner_settings/default', fixture.server.records.get('tuner_settings/default'));
+  const result = await fixture.runtime.initializeDataset();
+  assert.equal(result.ok, true);
+  assert.equal(fixture.local.records.some((item) => item.recordType === 'tuner_settings'), true);
+  assert.equal(fixture.server.records.get('tuner_settings/default').deletedAt, null);
 });
 
 test('an oversized migration retries the retained invalid-request cohort in Worker-sized batches', async () => {
@@ -907,6 +1009,25 @@ test('Remote wins applies one record with backup and performs no Remote write', 
   assert.equal((await fixture.store.listConflicts()).length, 0);
 });
 
+for (const choice of ['remote', 'local']) {
+  test(`${choice} conflict choice retains an unrelated remote edit through the next pull`, async () => {
+    const fixture = runtimeFixture([preset('x', 80), preset('y', 80)], 'rhythm');
+    await fixture.runtime.consumeHandoff('base');
+    fixture.local.records = [preset('x', 79), preset('y', 80)];
+    setRemoteVariant(fixture, 'x', 81);
+    setRemoteVariant(fixture, 'y', 82);
+    assert.equal((await fixture.runtime.sync('conflict')).code, 'conflict');
+    const [conflict] = await fixture.store.listConflicts();
+    assert.equal(conflict.recordKey, 'custom_preset/x');
+    assert.equal((await fixture.runtime.resolveConflict(conflict.id, choice)).ok, true);
+    assert.equal((await fixture.store.getShadow('custom_preset/y')).payload.bpm, 80);
+    await fixture.runtime.sync('pull-y');
+    assert.equal(fixture.local.records.find((item) => item.recordId === 'x').payload.bpm,
+      choice === 'remote' ? 81 : 79);
+    assert.equal(fixture.local.records.find((item) => item.recordId === 'y').payload.bpm, 82);
+  });
+}
+
 test('Remote wins verifies an adapter-normalized Local projection without requiring whole-dataset equality', async () => {
   const fixture = await conflictFixture();
   fixture.local.prepareRemoteResolutionSnapshot = async (snapshot) => ({
@@ -1119,14 +1240,17 @@ test('a malformed Port snapshot cannot queue or push cloud tombstones', async ()
   assert.equal(fixture.server.records.get('custom_record/x').deletedAt, null);
 });
 
-test('an unconfirmed Port deletion stops before an outbox tombstone is made', async () => {
+test('an unconfirmed Port deletion is isolated without a tombstone', async () => {
   const fixture = runtimeFixture([record('x')], 'port');
   await fixture.runtime.consumeHandoff('transient');
-  fixture.local.records = [];
+  fixture.local.records = [record('safe')];
   fixture.local.canDeleteRecord = () => false;
-  await assert.rejects(fixture.runtime.sync('unconfirmed-delete'), (error) => error.code === 'local_deletion_unconfirmed');
+  const result = await fixture.runtime.sync('unconfirmed-delete');
+  assert.equal(result.ok, true);
   assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal((await fixture.store.listConflicts())[0].kind, 'ambiguous_delete');
   assert.equal(fixture.server.records.get('custom_record/x').deletedAt, null);
+  assert.equal(fixture.server.records.get('custom_record/safe').deletedAt, null);
 });
 
 test('record reconciliation keeps an unsent local edit while pulling another remote record', async () => {
@@ -1227,7 +1351,8 @@ test('permanent validation 4xx is terminal and cannot acquire a retry timer', as
   fixture.server.nextPushFailure = { status: 400, code: 'invalid_request' };
   await assert.rejects(fixture.runtime.sync('save'), (error) => error.code === 'invalid_request');
   assert.equal((await fixture.store.listOutbox())[0].terminalError, 'invalid_request');
-  assert.equal(timers.length, 0);
+  assert.equal(fixture.runtime.retryTimer, null);
+  assert.equal(fixture.runtime.networkRetryAt, 0);
   assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
 });
 
@@ -1249,6 +1374,65 @@ test('legacy push_failed retries only with persisted network provenance', async 
   assert.equal((await fixture.store.listOutbox()).some((item) => item.operationId === unknown.operationId), true);
   assert.equal(fixture.server.records.has('custom_record/c'), false);
   assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+});
+
+test('explicit legacy retry sends one unchanged operation and never loops on permanent rejection', async () => {
+  const fixture = runtimeFixture([record('a')], 'pitch');
+  await fixture.runtime.consumeHandoff('base');
+  fixture.local.records = [record('a'), record('b')];
+  const operation = await fixture.runtime.operationFor(record('b'), 0);
+  await fixture.store.putOutbox({ ...operation, migration: false, terminalError: 'push_failed' });
+  fixture.server.nextPushFailure = { status: 400, code: 'invalid_request' };
+  await assert.rejects(fixture.runtime.retryLegacyFailures(), (error) => error.code === 'invalid_request');
+  const [retained] = await fixture.store.listOutbox();
+  assert.equal(retained.legacyRecoveryAttempted, true);
+  assert.equal(retained.terminalError, 'invalid_request');
+  assert.equal((await fixture.runtime.retryLegacyFailures()).recovered, 0);
+  assert.equal(fixture.server.records.has('custom_record/b'), false);
+});
+
+test('snapshot network failure schedules bounded retry even with an empty outbox', async () => {
+  const fixture = runtimeFixture([record('a')], 'pitch');
+  await fixture.runtime.consumeHandoff('base');
+  const timers = [];
+  fixture.context.setTimeout = (callback, delay) => { timers.push({ callback, delay }); return timers.length; };
+  fixture.context.clearTimeout = () => {};
+  fixture.server.nextSnapshotFailure = { network: true };
+  await assert.rejects(fixture.runtime.sync('snapshot-failure'), (error) => error.code === 'network_error');
+  assert.ok(fixture.runtime.networkRetryAt > 0);
+  assert.ok(timers.some((timer) => timer.delay >= 0 && timer.delay <= 300000));
+});
+
+test('a hung snapshot fetch times out as a retryable network failure', async () => {
+  const fixture = runtimeFixture([], 'pitch');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('qaCredential', 'scq1.valid');
+  fixture.context.AbortController = AbortController;
+  let wake;
+  fixture.context.setTimeout = (callback) => { wake = callback; return 1; };
+  fixture.context.clearTimeout = () => {};
+  fixture.runtime.fetchImpl = async () => new Promise(() => {});
+  const request = fixture.runtime.serverSnapshot();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(typeof wake, 'function');
+  wake();
+  await assert.rejects(request, (error) => error.code === 'network_error');
+});
+
+test('a stalled snapshot response body also times out', async () => {
+  const fixture = runtimeFixture([], 'pitch');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('qaCredential', 'scq1.valid');
+  fixture.context.AbortController = AbortController;
+  const timers = [];
+  fixture.context.setTimeout = (callback) => { timers.push(callback); return timers.length; };
+  fixture.context.clearTimeout = () => {};
+  fixture.runtime.fetchImpl = async () => ({ ok: true, status: 200, json: async () => new Promise(() => {}) });
+  const request = fixture.runtime.serverSnapshot();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(timers.length, 2);
+  timers[1]();
+  await assert.rejects(request, (error) => error.code === 'network_error');
 });
 
 test('one of two conflicts resolves without changing the other local variant', async () => {
