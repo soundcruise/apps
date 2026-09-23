@@ -3016,6 +3016,18 @@ textarea:focus-visible {
     margin-top: 20px;
 }
 
+.gear-exit-dialog-actions {
+    display: grid;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+#gear-exit-description {
+    margin: 0;
+    color: var(--port-muted);
+    line-height: 1.6;
+}
+
 .gear-list-heading h2 {
     margin: 0;
     color: var(--port-text);

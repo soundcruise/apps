@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.52.5';
+} from './practice-menu-store.js?v=0.53.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.52.5';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.53.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.52.5';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.52.5';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.52.5';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.52.5';
+} from './sync-center-controller.js?v=0.53.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.53.0';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.53.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.53.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.52.5';
+} from './sync-center-navigation.js?v=0.53.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.52.5';
+} from './practice-menu-progress-store.js?v=0.53.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.52.5';
+} from './practice-menu-history-store.js?v=0.53.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.52.5';
+} from './practice-menu-calendar-store.js?v=0.53.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -84,8 +84,8 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.52.5';
-import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.52.5';
+} from './practice-menu-timer-store.js?v=0.53.0';
+import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.53.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -121,7 +121,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.52.5';
+} from './my-apps-store.js?v=0.53.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -131,7 +131,7 @@ import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=0.52.5';
+} from './my-apps-launch.js?v=0.53.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -172,10 +172,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.52.5';
+} from './app-version.js?v=0.53.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.52.5';
-import { initTuner } from './tuner-app.js?v=0.52.5';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.53.0';
+import { initTuner } from './tuner-app.js?v=0.53.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -193,8 +193,8 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.52.5';
-import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.52.5';
+} from './gear-list-store.js?v=0.53.0';
+import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.53.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -203,9 +203,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.52.5';
+} from './gear-category-store.js?v=0.53.0';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.52.5';
+import { PortAssetSync } from './port-asset-sync.js?v=0.53.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -372,6 +372,10 @@ const elements = {
     gearAdd: document.querySelector('#gear-list-add'),
     gearFormTitle: document.querySelector('#gear-form-title'),
     gearForm: document.querySelector('#gear-list-form'),
+    gearExitDialog: document.querySelector('#gear-exit-dialog'),
+    gearExitSave: document.querySelector('#gear-exit-save'),
+    gearExitDiscard: document.querySelector('#gear-exit-discard'),
+    gearExitContinue: document.querySelector('#gear-exit-continue'),
     gearManufacturerInput: document.querySelector('#gear-manufacturer'),
     gearSingleExport: document.querySelector('#gear-single-export'),
     gearNameInput: document.querySelector('#gear-name'),
@@ -630,6 +634,7 @@ const gearState = {
     gridColumns: gearGridColumns(),
     activeId: null,
     formMode: 'create',
+    initialFormSnapshot: null,
     reorderMode: false,
     reorderStatus: null,
     reorderCategory: null,
@@ -745,6 +750,7 @@ function cleanupMyAppsFormState() {
 
 function showView(view) {
     const viewChanged = view.hidden;
+    if (view !== elements.gearFormView) closeGearExitDialog({ restoreFocus: false });
     if (view !== elements.practiceHistoryView) {
         cleanupPracticeCalendarKeyboardTracking();
         setPracticeCalendarIconDropdownOpen(false);
@@ -4417,8 +4423,41 @@ function renderGearForm(mode, id = null) {
         ? `${gearCardLabel(item)}を編集`
         : gearState.activeStatus === 'wishlist' ? 'ほしい機材を追加' : '機材を追加';
     fillGearForm(item);
+    gearState.initialFormSnapshot = gearFormSnapshot();
     showView(elements.gearFormView);
     elements.gearFormTitle.focus({ preventScroll: true });
+}
+
+function gearFormSnapshot() {
+    return JSON.stringify([
+        elements.gearManufacturerInput.value,
+        elements.gearNameInput.value,
+        elements.gearCategoryInput.value,
+        elements.gearPriceInput.value,
+        elements.gearStatusInput.value,
+        elements.gearPriorityInput.value,
+        elements.gearMemoInput.value
+    ]);
+}
+
+function closeGearExitDialog({ restoreFocus = true } = {}) {
+    if (elements.gearExitDialog.hidden) return;
+    elements.gearExitDialog.hidden = true;
+    elements.gearFormView.inert = false;
+    if (restoreFocus) elements.gearFormView.querySelector('.view-back')?.focus({ preventScroll: true });
+}
+
+function requestGearListReturn() {
+    if (gearState.saving || gearState.photoProcessing || gearState.cropSession) return;
+    if (elements.gearFormView.hidden || (
+        gearState.photoAction === 'keep' && gearFormSnapshot() === gearState.initialFormSnapshot
+    )) {
+        setGearListRoute();
+        return;
+    }
+    elements.gearExitDialog.hidden = false;
+    elements.gearFormView.inert = true;
+    elements.gearExitSave.focus({ preventScroll: true });
 }
 
 function updateGearPriorityVisibility() {
@@ -5018,6 +5057,35 @@ elements.addButton.addEventListener('click', () => {
 elements.namePresetInput.addEventListener('change', handlePracticeNamePresetChange);
 [elements.gearTitleAdd, elements.gearAdd].forEach((button) => button.addEventListener('click', () => setHashRoute('#wishlist/new')));
 elements.gearForm.addEventListener('submit', handleGearSubmit);
+elements.gearExitSave.addEventListener('click', async () => {
+    closeGearExitDialog({ restoreFocus: false });
+    await handleGearSubmit({ preventDefault() {} });
+    if (!elements.gearFormView.hidden && !elements.gearFormError.hidden && document.activeElement === document.body) {
+        elements.gearFormError.tabIndex = -1;
+        elements.gearFormError.focus({ preventScroll: true });
+    }
+});
+elements.gearExitDiscard.addEventListener('click', () => {
+    closeGearExitDialog({ restoreFocus: false });
+    setGearListRoute();
+});
+elements.gearExitContinue.addEventListener('click', () => closeGearExitDialog());
+elements.gearExitDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closeGearExitDialog();
+    } else if (event.key === 'Tab') {
+        const buttons = [elements.gearExitSave, elements.gearExitDiscard, elements.gearExitContinue];
+        const index = buttons.indexOf(document.activeElement);
+        if (event.shiftKey && index === 0) {
+            event.preventDefault();
+            buttons[buttons.length - 1].focus();
+        } else if (!event.shiftKey && index === buttons.length - 1) {
+            event.preventDefault();
+            buttons[0].focus();
+        }
+    }
+});
 elements.gearStatusInput.addEventListener('change', updateGearPriorityVisibility);
 elements.gearPhotoInput.addEventListener('change', handleGearPhotoSelection);
 elements.gearPhotoSelectLabel.addEventListener('click', () => {
@@ -5385,7 +5453,7 @@ elements.list.addEventListener('click', (event) => {
 });
 document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
 document.querySelectorAll('[data-action="practice-list"]').forEach((button) => button.addEventListener('click', setPracticeListRoute));
-document.querySelectorAll('[data-action="gear-list"]').forEach((button) => button.addEventListener('click', setGearListRoute));
+document.querySelectorAll('[data-action="gear-list"]').forEach((button) => button.addEventListener('click', requestGearListReturn));
 document.querySelectorAll('[data-action="cancel-form"]').forEach((button) => button.addEventListener('click', cancelForm));
 document.querySelectorAll('[data-action="my-apps-home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
 document.querySelectorAll('[data-action="my-apps-home-scroll"]').forEach((button) => button.addEventListener('click', setHomeRouteWithMyAppsScroll));
