@@ -15,7 +15,7 @@ import { loadTunerSettings, saveTunerSettings, TUNER_DEFAULTS } from './tuner-st
 import { createPracticeAttachmentStore } from './practice-menu-attachment-store.js';
 import { createGearPhotoStore } from './gear-photo-store.js';
 import { createMyAppsIconStore } from './my-apps-icon-store.js';
-import { acceptRemoteStorageValues, acceptStorageValues, assertStorageUnchanged, readStorageValue } from './storage-conflict.js?v=0.59.1';
+import { acceptRemoteStorageValues, acceptStorageValues, assertStorageUnchanged, readStorageValue } from './storage-conflict.js?v=0.59.2';
 
 test('every storage module imports the current conflict coordinator cache key', () => {
     for (const file of [
@@ -26,7 +26,7 @@ test('every storage module imports the current conflict coordinator cache key', 
         'metronome-presets-store.js', 'tuner-store.js'
     ]) {
         const source = readFileSync(new URL(file, import.meta.url), 'utf8');
-        assert.match(source, /storage-conflict\.js\?v=0\.59\.1/, file);
+        assert.match(source, /storage-conflict\.js\?v=0\.59\.2/, file);
     }
 });
 

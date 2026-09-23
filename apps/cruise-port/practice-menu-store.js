@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.1';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.2';
 import { APP_DEFINITIONS } from './cruise-app-links.js?v=0.27.0';
 const SCHEMA_VERSION = 3;
 const LEGACY_SCHEMA_VERSIONS = Object.freeze([1, 2]);

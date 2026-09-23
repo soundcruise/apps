@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.1';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.2';
 export const PRACTICE_CALENDAR_SCHEMA_VERSION = 2;
 export const PRACTICE_CALENDAR_STORAGE_KEY = 'cruisePort.practiceCalendar';
 export const PRACTICE_CALENDAR_LIMITS = Object.freeze({ notes: 1500, text: 500 });

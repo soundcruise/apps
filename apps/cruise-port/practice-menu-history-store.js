@@ -1,5 +1,5 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues, hasRemoteStorageChange } from './storage-conflict.js?v=0.59.1';
-import { getActiveDurationSeconds } from './practice-menu-timer-store.js?v=0.59.1';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues, hasRemoteStorageChange } from './storage-conflict.js?v=0.59.2';
+import { getActiveDurationSeconds } from './practice-menu-timer-store.js?v=0.59.2';
 export const PRACTICE_HISTORY_SCHEMA_VERSION = 5;
 export const PRACTICE_HISTORY_STORAGE_KEY = 'cruisePort.practiceHistory';
 export const PRACTICE_HISTORY_MAX_EVENTS = 8000;

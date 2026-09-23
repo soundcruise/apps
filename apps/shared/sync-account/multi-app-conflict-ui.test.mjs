@@ -240,8 +240,12 @@ test('tombstone presentation stays visible as a plain-language saved/deleted com
   assert.deepEqual(tombstone.presentation.fields[0], { label: '状態', local: '削除済み', remote: '保存済み' });
 });
 
-test('individual cards omit the normal state table and keep only concise deletion differences', () => {
+test('individual cards compare record values and keep concise deletion differences', () => {
   assert.doesNotMatch(source, /sound-cruise-sync-conflict-comparison|sound-cruise-sync-conflict-row/);
+  assert.match(source, /renderRecordComparison\(card, presentation\)/);
+  assert.match(source, /fields\.filter\(\(field\) => String\(field\.local\) !== String\(field\.remote\)\)/);
+  assert.match(source, /`この端末：\$\{field\.local\}`/);
+  assert.match(source, /`クラウド：\$\{field\.remote\}`/);
   assert.match(source, /if \(presentation\.localState === presentation\.remoteState\) return/);
   assert.match(source, /sound-cruise-sync-conflict-deletion-difference/);
   assert.match(source, /\['この端末', presentation\.localState\], \['クラウド', presentation\.remoteState\]/);

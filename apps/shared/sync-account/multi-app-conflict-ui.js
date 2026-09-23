@@ -383,6 +383,24 @@
       parent.append(fieldset);
     }
 
+    function renderRecordComparison(parent, presentation) {
+      const fields = Array.isArray(presentation.fields) ? presentation.fields : [];
+      const different = fields.filter((field) => String(field.local) !== String(field.remote));
+      const visible = different.length ? different : fields;
+      if (!visible.length) return;
+      for (const field of visible) {
+        const section = document.createElement('section');
+        section.className = 'sound-cruise-sync-conflict-field';
+        appendTextElement(document, section, 'h4', '', field.label);
+        const values = document.createElement('div');
+        values.className = 'sound-cruise-sync-conflict-field-values';
+        appendTextElement(document, values, 'span', '', `この端末：${field.local}`);
+        appendTextElement(document, values, 'span', '', `クラウド：${field.remote}`);
+        section.append(values);
+        parent.append(section);
+      }
+    }
+
     function renderSettingsChoices(parent, item, choices, index) {
       appendTextElement(document, parent, 'p', 'sound-cruise-sync-conflict-field-count',
         `選択が必要 ${item.settings.fields.length}項目`);
@@ -459,7 +477,10 @@
           card.append(times);
           renderDeletionDifference(card, presentation);
           if (item.settings) renderSettingsChoices(card, item, selections.fields.get(item.id) || {}, index);
-          else renderChoice(card, item, selections.get(item.id), index);
+          else {
+            renderRecordComparison(card, presentation);
+            renderChoice(card, item, selections.get(item.id), index);
+          }
           list.append(card);
         });
         list.scrollTop = previousListScroll;
