@@ -60,6 +60,26 @@
     return meaningfulSettings(result) ? result : {};
   }
 
+  function settingsSemanticallyEqual(left, right) {
+    if (left?.recordType !== 'settings' || right?.recordType !== 'settings' ||
+        left.recordId !== right.recordId || left.schemaVersion !== right.schemaVersion ||
+        left.deletedAt != null || right.deletedAt != null ||
+        left.deleted === true || right.deleted === true) return false;
+    return canonicalJson({ ...left.payload,
+      values: effectiveSettingsForMerge(left.payload?.values) }) ===
+      canonicalJson({ ...right.payload,
+        values: effectiveSettingsForMerge(right.payload?.values) });
+  }
+
+  function semanticSettingsSnapshot(snapshot) {
+    const canonical = normalizeRawSnapshot(snapshot);
+    return { ...canonical, records: canonical.records.map((record) =>
+      record.recordType === 'settings' ? {
+        ...record, payload: { ...record.payload,
+          values: effectiveSettingsForMerge(record.payload.values) }
+      } : record) };
+  }
+
   const BUILTIN_CHORDS = Object.freeze([
     ['c', 'C', '0', '4', '7'], ['dm', 'Dm', '2', '3', '7'],
     ['em', 'Em', '4', '3', '7'], ['f', 'F', '5', '4', '7'],
@@ -638,9 +658,75 @@
       .map((record) => `progress/${record.recordId}`)])];
   }
 
+  function planDeletedStageRevival({ recordKey, localRecords, remoteRecords } = {}) {
+    const stageRef = typeof recordKey === 'string' && recordKey.startsWith('melody_stage/')
+      ? recordKey.slice('melody_stage/'.length) : null;
+    if (!stageRef) throw new Error('pitch_revival_record_invalid');
+    const local = Array.isArray(localRecords) ? localRecords : [];
+    const remote = Array.isArray(remoteRecords) ? remoteRecords : [];
+    const live = (record) => record && record.deletedAt == null && record.deleted !== true;
+    const localStage = local.find((record) => record.recordType === 'melody_stage' &&
+      record.recordId === stageRef);
+    const remoteStage = remote.find((record) => record.recordType === 'melody_stage' &&
+      record.recordId === stageRef);
+    if (!live(localStage) || !live(remoteStage)) throw new Error('pitch_revival_stage_missing');
+    const remoteOrder = remote.find((record) => record.recordType === 'stage_order' &&
+      record.recordId === 'melody' && live(record));
+    const localOrder = local.find((record) => record.recordType === 'stage_order' &&
+      record.recordId === 'melody');
+    const orderRefs = [...(remoteOrder?.payload?.stageRefs || localOrder?.payload?.stageRefs || [])];
+    const mutations = [];
+    if (!orderRefs.includes(stageRef)) {
+      mutations.push(Object.freeze({ phase: 'order', remoteRecord: clone(remoteOrder), deleted: false,
+        record: makeRecord('stage_order', 'melody', { category: 'melody', stageRefs: [...orderRefs, stageRef] }) }));
+    }
+    const localProgress = local.filter((record) => record.recordType === 'progress' &&
+      record.payload?.stageRef === stageRef);
+    for (const progress of localProgress) {
+      const current = remote.find((record) => record.recordType === 'progress' &&
+        record.recordId === progress.recordId) || null;
+      if (!live(current)) mutations.push(Object.freeze({ phase: 'progress', remoteRecord: clone(current),
+        deleted: false, record: clone(progress) }));
+    }
+    return Object.freeze({ complete: mutations.length === 0, mutations: Object.freeze(mutations),
+      relatedKeys: Object.freeze([recordKey, 'stage_order/melody',
+        ...localProgress.map((record) => `progress/${record.recordId}`)]) });
+  }
+
+  function prepareRevivedStageLocalSnapshot(snapshot, { remoteRecords } = {}) {
+    const remoteOrder = (remoteRecords || []).find((record) => record.recordType === 'stage_order' &&
+      record.recordId === 'melody' && record.deletedAt == null && record.deleted !== true);
+    if (!remoteOrder) return snapshot;
+    const records = clone(snapshot.records || []).filter((record) =>
+      !(record.recordType === 'stage_order' && record.recordId === 'melody'));
+    records.push(makeRecord('stage_order', 'melody', { category: 'melody',
+      stageRefs: clone(remoteOrder.payload.stageRefs) }));
+    const prepared = { ...clone(snapshot), records };
+    validateSnapshot(prepared);
+    return prepared;
+  }
+
   function prepareRemoteResolutionSnapshot(snapshot, context = {}) {
-    if (context.remoteRecord?.recordType !== 'melody_stage' || context.remoteRecord.deletedAt != null) {
+    if (context.remoteRecord?.recordType !== 'melody_stage') {
       return snapshot;
+    }
+    if (context.remoteRecord.deletedAt != null || context.remoteRecord.deleted === true) {
+      const stageRef = context.remoteRecord.recordId;
+      const records = clone(snapshot.records || []).filter((record) =>
+        !(record.recordType === 'melody_stage' && record.recordId === stageRef) &&
+        !(record.recordType === 'progress' && record.payload?.stageRef === stageRef) &&
+        !(record.recordType === 'stage_order' && record.recordId === 'melody'));
+      const remoteOrder = (context.remoteRecords || []).find((record) =>
+        record.recordType === 'stage_order' && record.recordId === 'melody' &&
+        record.deletedAt == null && record.deleted !== true);
+      const localOrder = (snapshot.records || []).find((record) =>
+        record.recordType === 'stage_order' && record.recordId === 'melody');
+      const order = remoteOrder || localOrder;
+      if (order) records.push(makeRecord('stage_order', 'melody', { category: 'melody',
+        stageRefs: order.payload.stageRefs.filter((ref) => ref !== stageRef) }));
+      const prepared = { ...clone(snapshot), records };
+      validateSnapshot(prepared);
+      return prepared;
     }
     const records = clone(snapshot.records || []);
     const presentStages = new Set(records.filter((record) => record.recordType === 'melody_stage')
@@ -941,7 +1027,11 @@
       if (typeof options.afterWrite === 'function') await options.afterWrite();
       const actual = normalizeRawSnapshot(readLocalSnapshot(storage));
       const actualManifest = await computeManifest(actual, options.cryptoImpl || global.crypto);
-      if (actualManifest !== expectedManifest) throw new Error('pitch_apply_manifest_mismatch');
+      if (actualManifest !== expectedManifest &&
+          await computeManifest(semanticSettingsSnapshot(actual), options.cryptoImpl || global.crypto) !==
+          await computeManifest(semanticSettingsSnapshot(snapshot), options.cryptoImpl || global.crypto)) {
+        throw new Error('pitch_apply_manifest_mismatch');
+      }
       global.dispatchEvent?.(new Event('sound-cruise-pitch-sync-applied'));
       return Object.freeze({ ok: true, manifestHash: actualManifest, backup });
     } catch (error) {
@@ -1103,8 +1193,11 @@
       return prepareInvalidRecordDeleteLocalSnapshot(snapshot, context);
     }
     recoveryRelatedRecordKeys(context) { return recoveryRelatedRecordKeys(context); }
+    planDeletedStageRevival(context) { return planDeletedStageRevival(context); }
+    prepareRevivedStageLocalSnapshot(snapshot, context) { return prepareRevivedStageLocalSnapshot(snapshot, context); }
     effectiveSettingsForMerge(values) { return effectiveSettingsForMerge(values); }
     encodeSettingsForMerge(values) { return encodeSettingsForMerge(values); }
+    sameRecordForSync(left, right) { return settingsSemanticallyEqual(left, right); }
     applyRemoteSnapshot(snapshot, options = {}) {
       return applyRemoteSnapshot(this.storage, snapshot, {
         cryptoImpl: this.cryptoImpl, backupStore: options.backupStore || this.backupStore,
@@ -1129,7 +1222,7 @@
     serializeRecords, deserializeRecords, isMeaningfulLocalData, mergeSnapshots,
     partitionSyncRecords, normalizeLocalSnapshotForRecovery,
     prepareRemoteResolutionSnapshot, planInvalidRecordDeleteRecovery, prepareInvalidRecordDeleteLocalSnapshot,
-    recoveryRelatedRecordKeys,
+    recoveryRelatedRecordKeys, planDeletedStageRevival, prepareRevivedStageLocalSnapshot,
     applyRemoteSnapshot, createBackup, restoreBackup, repairMissingLegacyReferences,
     getConflictPresentation, computeManifest,
     assertDataPlaneContext, createInitialMigrationPlan

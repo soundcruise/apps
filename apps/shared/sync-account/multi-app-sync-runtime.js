@@ -317,6 +317,10 @@
       } catch (_) { /* fail closed in Port */ }
     }
 
+    recordsEqual(left, right) {
+      return sameRecord(left, right) || this.adapter.sameRecordForSync?.(left, right) === true;
+    }
+
     async attentionSummary() {
       const [conflicts, outbox] = await Promise.all([this.store.listConflicts(), this.store.listOutbox()]);
       if (conflicts.some((item) => item.kind === 'invalid_record')) return Object.freeze({
@@ -400,7 +404,7 @@
         const localRecord = localMap.get(conflict.recordKey) || null;
         const remoteRecord = rawRemoteMap.get(conflict.recordKey) || null;
         await this.store.deleteConflict(conflict.id);
-        if (sameRecord(localRecord, remoteRecord)) {
+        if (this.recordsEqual(localRecord, remoteRecord)) {
           await this.clearConflictOutbox(conflict.recordKey);
           if (remoteRecord) await this.store.putShadow(conflict.recordKey, clone(remoteRecord));
           else await this.store.deleteShadow?.(conflict.recordKey);
@@ -672,7 +676,61 @@
       // have not been pulled yet. The selected record was verified above and
       // finishResolution advances only its shadow anchor; ordinary sync pulls
       // every other record against its original anchor.
+      if (conflict.recordType === 'melody_stage' && resolution.expectedRemote?.deleted === true &&
+          resolution.desiredDeleted === false && typeof this.adapter.planDeletedStageRevival === 'function') {
+        return this.completeDeletedStageRevival(conflict, resolution);
+      }
       return this.finishResolution(conflict, authoritative);
+    }
+
+    async completeDeletedStageRevival(conflict, resolution) {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const context = await this.conflictContext(conflict);
+        if (!this.remoteMatchesAppliedIntent(context.remoteRecord, resolution)) {
+          throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
+        }
+        const plan = this.adapter.planDeletedStageRevival({ recordKey: conflict.recordKey,
+          localRecords: context.local.records, remoteRecords: context.remote.records || [] });
+        if (plan.complete) {
+          const next = this.adapter.prepareRevivedStageLocalSnapshot(context.local.snapshot, {
+            recordKey: conflict.recordKey, remoteRecords: context.remote.records || []
+          });
+          await this.applyWithBackup(next, context.local.snapshot, { checkCurrent: true });
+          return this.finishResolution(conflict, context.remote, plan.relatedKeys);
+        }
+        const mutation = plan.mutations.find((item) => item.phase === 'order') || plan.mutations[0];
+        const [serialized] = await this.adapter.serializeRecords({
+          appId: this.appId, schemaVersion: context.local.snapshot.schemaVersion,
+          records: [mutation.record]
+        });
+        const saved = (resolution.recoveryOperations || []).find((operation) =>
+          keyOf(operation) === keyOf(mutation.record) &&
+          Number(operation.baseRevision || 0) === Number(mutation.remoteRecord?.revision || 0) &&
+          canonicalJson(operation.payload) === canonicalJson(mutation.record.payload));
+        const operation = await this.operationFor(serialized,
+          mutation.remoteRecord?.revision || 0, false, saved?.operationId || this.randomOperationId());
+        resolution = { ...resolution, recoveryOperations: [clone(operation)], status: 'pending' };
+        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+        const response = await this.request('POST', '/v1/sync/push', {
+          appId: this.appId, mode: 'sync',
+          operations: [{ operationId: operation.operationId, recordType: operation.recordType,
+            recordId: operation.recordId, schemaVersion: operation.schemaVersion,
+            baseRevision: operation.baseRevision, payload: operation.payload,
+            payloadHash: operation.payloadHash, deleted: false }]
+        });
+        const result = (response.results || []).find((item) => item.operationId === operation.operationId);
+        if (result?.status === 'conflict') {
+          resolution = { ...resolution, recoveryOperations: [], status: 'pending' };
+          conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+          continue;
+        }
+        if (!['applied', 'duplicate'].includes(result?.status)) {
+          throw new MultiAppSyncError(result?.code || 'resolution_push_failed');
+        }
+        resolution = { ...resolution, recoveryOperations: [], status: 'pending' };
+        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+      }
+      throw new MultiAppSyncError('recovery_retry_exhausted');
     }
 
     async resolveInvalidRecordDeleteConflict(conflict) {
@@ -852,7 +910,7 @@
         if (!sameAnchor(context.remoteRecord, resolution.expectedRemote)) {
           throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
         }
-        if (!sameAnchor(context.localRecord, resolution.local) && !sameRecord(context.localRecord, context.remoteRecord)) {
+        if (!sameAnchor(context.localRecord, resolution.local) && !this.recordsEqual(context.localRecord, context.remoteRecord)) {
           throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
         }
       } else {
@@ -863,7 +921,7 @@
         };
       }
       conflict = await this.saveConflict(conflict, 'resolving_remote', resolution);
-      if (!sameRecord(context.localRecord, context.remoteRecord)) {
+      if (!this.recordsEqual(context.localRecord, context.remoteRecord)) {
         const records = context.local.snapshot.records.filter((record) => keyOf(record) !== conflict.recordKey);
         const remoteLocal = localRecordFromRemote(context.remoteRecord);
         if (remoteLocal) records.push(remoteLocal);
@@ -906,6 +964,20 @@
         try { await this.adapter.applyRemoteSnapshot(context.local.snapshot); } catch (_) { /* keep the conflict */ }
         throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
       }
+      if (context.remoteRecord?.recordType === 'melody_stage' &&
+          isDeleted(context.remoteRecord) &&
+          typeof this.adapter.prepareRemoteResolutionSnapshot === 'function') {
+        const latestLocal = await this.localRecords();
+        const refreshed = this.adapter.prepareRemoteResolutionSnapshot(latestLocal.snapshot, {
+          recordKey: conflict.recordKey, remoteRecord: currentRemote,
+          remoteRecords: authoritative.records || []
+        });
+        await this.applyWithBackup(refreshed, latestLocal.snapshot, { checkCurrent: true });
+        return this.finishResolution(conflict, authoritative, ['stage_order/melody',
+          ...latestLocal.records.filter((record) => record.recordType === 'progress' &&
+            record.payload?.stageRef === currentRemote.recordId)
+            .map((record) => keyOf(record))]);
+      }
       return this.finishResolution(conflict, authoritative);
     }
 
@@ -947,7 +1019,7 @@
         remoteAlreadyAbsent: desiredDeleted && (!context.remoteRecord || isDeleted(context.remoteRecord))
       };
       if (resolution.desiredHash !== operation.payloadHash || resolution.desiredDeleted !== desiredDeleted ||
-          (!sameAnchor(context.localRecord, resolution.local) && !sameRecord(context.localRecord, desired))) {
+          (!sameAnchor(context.localRecord, resolution.local) && !this.recordsEqual(context.localRecord, desired))) {
         throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
       }
       const alreadyApplied = this.remoteMatchesAppliedIntent(context.remoteRecord, resolution);
@@ -987,7 +1059,7 @@
       conflict = await this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' });
       const current = await this.localRecords();
       const currentRecord = mapRecords(current.records).get(conflict.recordKey) || null;
-      if (!sameRecord(currentRecord, desired)) {
+      if (!this.recordsEqual(currentRecord, desired)) {
         if (!sameAnchor(currentRecord, resolution.local)) {
           throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
         }
@@ -999,7 +1071,7 @@
         await this.applyWithBackup(next, current.snapshot, { checkCurrent: true });
       }
       const verified = mapRecords((await this.localRecords()).records).get(conflict.recordKey) || null;
-      if (!sameRecord(verified, desired)) throw new MultiAppSyncError('resolution_verify_failed');
+      if (!this.recordsEqual(verified, desired)) throw new MultiAppSyncError('resolution_verify_failed');
       return this.finishResolution(conflict, authoritative);
     }
 
@@ -1070,7 +1142,7 @@
       for (const conflict of conflicts) {
         const localRecord = localMap.get(conflict.recordKey) || null;
         const remoteRecord = remoteMap.get(conflict.recordKey) || null;
-        if (!sameRecord(localRecord, remoteRecord)) {
+        if (!this.recordsEqual(localRecord, remoteRecord)) {
           remaining.push(conflict);
           continue;
         }
@@ -1095,7 +1167,7 @@
         if (isolatedKeys.has(recordKey)) continue;
         const current = local.get(recordKey);
         const previous = shadow.get(recordKey);
-        if (sameRecord(current, previous)) continue;
+        if (this.recordsEqual(current, previous)) continue;
         const deleted = !current;
         // Migration absence is not a deletion unless the adapter can prove an
         // explicit user intent for this exact record. Port records use a durable
@@ -1442,7 +1514,8 @@
         const localRecord = localMap.get(recordKey);
         const remoteRecord = remoteMap.get(recordKey);
         const shadowRecord = shadowMap.get(recordKey);
-        if (!sameRecord(localRecord, shadowRecord) && !sameRecord(remoteRecord, shadowRecord) && !sameRecord(localRecord, remoteRecord)) {
+        if (!this.recordsEqual(localRecord, shadowRecord) && !this.recordsEqual(remoteRecord, shadowRecord) &&
+            !this.recordsEqual(localRecord, remoteRecord)) {
           const plan = this.settingsFieldPlan({ localRecord, remoteRecord, shadowRecord });
           if (plan && !plan.unresolved) {
             automaticSettings.push({ recordKey, record: Object.keys(plan.values).length ? {
@@ -1504,13 +1577,13 @@
         const current = freshMap.get(recordKey);
         const incoming = afterMap.get(recordKey);
         const previous = shadowMap.get(recordKey);
-        if (sameRecord(current, incoming)) continue;
-        if (pendingKeys.has(recordKey) && sameRecord(incoming, previous)) continue;
-        if (!pendingKeys.has(recordKey) && sameRecord(current, previous)) {
+        if (this.recordsEqual(current, incoming)) continue;
+        if (pendingKeys.has(recordKey) && this.recordsEqual(incoming, previous)) continue;
+        if (!pendingKeys.has(recordKey) && this.recordsEqual(current, previous)) {
           if (incoming && !isDeleted(incoming)) merged.set(recordKey, localRecordFromRemote(incoming));
           else merged.delete(recordKey);
           remoteChanged = true;
-        } else if (!sameRecord(incoming, previous)) {
+        } else if (!this.recordsEqual(incoming, previous)) {
           lateConflicts.push(recordKey);
         }
       }

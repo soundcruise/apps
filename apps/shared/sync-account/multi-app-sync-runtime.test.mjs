@@ -102,7 +102,8 @@ function serverFetch() {
   const server = {
     state: 'missing', records: new Map(), revision: 0, paused: false,
     nextSnapshotFailure: null, nextPushFailure: null, responseLossAfterApply: false,
-    beforeNextPush: null, pushCalls: 0, pushBatchSizes: [], pushedOperationIds: [], operations: new Map()
+    beforeNextPush: null, beforePushOperation: null, pushCalls: 0, pushBatchSizes: [],
+    pushedOperationIds: [], operations: new Map()
   };
   const fetchImpl = async (url, init) => {
     const path = new URL(url).pathname;
@@ -141,6 +142,7 @@ function serverFetch() {
         await before(server);
       }
       const body = JSON.parse(init.body);
+      if (server.beforePushOperation) await server.beforePushOperation(server, body.operations);
       server.pushBatchSizes.push(body.operations.length);
       const results = body.operations.map((operation) => {
         server.pushedOperationIds.push(operation.operationId);
@@ -2234,6 +2236,247 @@ async function prepareRealPitchBothCorrupt() {
   assert.deepEqual(conflict.recovery, { localInvalid: true, remoteInvalid: true });
   return { ...harness, snapshot, safeA, safeB, corrupt, conflict };
 }
+
+async function prepareRealPitchDeleteEditConflict({ deletionResponseLoss = false } = {}) {
+  const harness = createRealPitchRuntimeFixture();
+  const { fixture, pitch } = harness;
+  const x = pitchStage('legacy:melody-stage:8101', 8101, 'Stage X');
+  const y = pitchStage('legacy:melody-stage:8102', 8102, 'Stage Y');
+  const z = pitchStage('legacy:melody-stage:8103', 8103, 'Stage Z');
+  const baseline = { appId: 'pitch', schemaVersion: 1, records: [x, y, z,
+    pitchOrder([x.recordId, y.recordId, z.recordId]),
+    pitchProgress(x.recordId, 4), pitchProgress(y.recordId, 2)] };
+  await pitch.applyRemoteSnapshot(baseline);
+  await seedPitchCloud(fixture, pitch, baseline);
+  assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true);
+  const editedX = { ...structuredClone(x), payload: { ...structuredClone(x.payload), name: 'Stage X edited' } };
+  await pitch.applyRemoteSnapshot({ ...baseline, records: baseline.records.map((record) =>
+    record.recordType === 'melody_stage' && record.recordId === x.recordId ? editedX : record) });
+  const deletedCloud = { appId: 'pitch', schemaVersion: 1, records: [y, z,
+    pitchOrder([y.recordId, z.recordId]), pitchProgress(y.recordId, 2)] };
+  const remoteOrder = (await pitch.serializeRecords(deletedCloud)).find((record) =>
+    record.recordType === 'stage_order');
+  const oldOrder = fixture.server.records.get('stage_order/melody');
+  fixture.server.records.set('stage_order/melody', { ...oldOrder, payload: remoteOrder.payload,
+    payloadHash: remoteOrder.payloadHash, revision: oldOrder.revision + 1,
+    changeSeq: ++fixture.server.revision, operationId: 'other-delete-order' });
+  for (const key of [`progress/melody:${x.recordId}`, `melody_stage/${x.recordId}`]) {
+    const old = fixture.server.records.get(key);
+    if (deletionResponseLoss && key.startsWith('melody_stage/')) {
+      fixture.server.responseLossAfterApply = true;
+      await assert.rejects(fixture.fetchImpl('https://example.test/v1/sync/push', {
+        method: 'POST', body: JSON.stringify({ appId: 'pitch', mode: 'sync', operations: [{
+          operationId: 'other-delete-stage-response-lost', recordType: old.recordType,
+          recordId: old.recordId, schemaVersion: old.schemaVersion, baseRevision: old.revision,
+          payload: null, payloadHash: `deleted-${key}`, deleted: true
+        }] })
+      }), /response lost/u);
+      assert.equal(fixture.server.records.get(key).revision, old.revision + 1);
+      continue;
+    }
+    fixture.server.records.set(key, { ...old, payload: null, deleted: true, deletedAt: Date.now(),
+      payloadHash: `deleted-${key}`, revision: old.revision + 1,
+      changeSeq: ++fixture.server.revision, operationId: `other-delete-${key}` });
+  }
+  assert.equal((await fixture.runtime.performSync('delete-versus-edit')).code, 'conflict');
+  const [conflict] = await fixture.store.listConflicts();
+  assert.equal(conflict.recordKey, `melody_stage/${x.recordId}`);
+  return { ...harness, x, y, z, editedX, conflict };
+}
+
+test('real Pitch Cloud wins after deleting device push response loss stays deleted without duplicate revision', async () => {
+  const { fixture, x, conflict } = await prepareRealPitchDeleteEditConflict({ deletionResponseLoss: true });
+  const stageRevision = fixture.server.records.get(`melody_stage/${x.recordId}`).revision;
+  assert.equal((await fixture.runtime.resolveConflict(conflict.id, 'remote')).ok, true);
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    assert.equal((await fixture.runtime.performSync(`cloud-loss-${cycle}`)).ok, true);
+  }
+  assert.equal(fixture.server.records.get(`melody_stage/${x.recordId}`).revision, stageRevision);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+test('real Pitch Local wins resumes stage push response loss without duplicate revision', async () => {
+  const { fixture, pitch, x, conflict } = await prepareRealPitchDeleteEditConflict();
+  const stageRevision = fixture.server.records.get(`melody_stage/${x.recordId}`).revision;
+  fixture.server.responseLossAfterApply = true;
+  const first = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(first.code, 'network_error');
+  assert.equal(fixture.server.records.get(`melody_stage/${x.recordId}`).revision, stageRevision + 1);
+  const restarted = new fixture.Runtime({
+    appId: 'pitch', endpoint: 'https://example.test', adapter: pitch,
+    store: fixture.store, accountClient: fixture.accountClient, accountCore: fixture.core,
+    fetchImpl: fixture.fetchImpl, randomOperationId: fixture.nextId
+  });
+  const resumed = await restarted.resumeConflictResolutions();
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    assert.equal((await restarted.performSync(`local-loss-${cycle}`)).ok, true);
+  }
+  assert.equal(fixture.server.records.get(`melody_stage/${x.recordId}`).revision, stageRevision + 1);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+test('real Pitch Local wins resumes order push response loss without duplicate revision', async () => {
+  const { fixture, pitch, x, conflict } = await prepareRealPitchDeleteEditConflict();
+  const stageRevision = fixture.server.records.get(`melody_stage/${x.recordId}`).revision;
+  const orderRevision = fixture.server.records.get('stage_order/melody').revision;
+  fixture.server.beforePushOperation = async (server, operations) => {
+    if (!operations.some((operation) => operation.recordType === 'stage_order')) return;
+    server.beforePushOperation = null;
+    server.responseLossAfterApply = true;
+  };
+  const first = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(first.code, 'network_error');
+  assert.equal(fixture.server.records.get('stage_order/melody').revision, orderRevision + 1);
+  const restarted = new fixture.Runtime({
+    appId: 'pitch', endpoint: 'https://example.test', adapter: pitch,
+    store: fixture.store, accountClient: fixture.accountClient, accountCore: fixture.core,
+    fetchImpl: fixture.fetchImpl, randomOperationId: fixture.nextId
+  });
+  const resumed = await restarted.resumeConflictResolutions();
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    assert.equal((await restarted.performSync(`order-loss-${cycle}`)).ok, true);
+  }
+  assert.equal(fixture.server.records.get('stage_order/melody').revision, orderRevision + 1);
+  assert.equal(fixture.server.records.get(`melody_stage/${x.recordId}`).revision, stageRevision + 1);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+test('real Pitch Cloud wins refetches concurrent order edit and retains unrelated stage edit', async () => {
+  const { fixture, pitch, x, y, z, conflict } = await prepareRealPitchDeleteEditConflict();
+  const currentOrder = fixture.server.records.get('stage_order/melody');
+  fixture.server.records.set('stage_order/melody', { ...currentOrder,
+    payload: { ...currentOrder.payload, stageRefs: [z.recordId, y.recordId] },
+    revision: currentOrder.revision + 1, changeSeq: ++fixture.server.revision,
+    operationId: 'other-reorder-after-detection' });
+  const currentY = fixture.server.records.get(`melody_stage/${y.recordId}`);
+  fixture.server.records.set(`melody_stage/${y.recordId}`, { ...currentY,
+    payload: { ...currentY.payload, name: 'Stage Y remote edit' },
+    payloadHash: 'stage-y-remote-edit',
+    revision: currentY.revision + 1, changeSeq: ++fixture.server.revision,
+    operationId: 'other-stage-edit' });
+  const resolved = await fixture.runtime.resolveConflict(conflict.id, 'remote');
+  assert.equal(resolved.ok, true, JSON.stringify(resolved));
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    assert.equal((await fixture.runtime.performSync(`cloud-race-${cycle}`)).ok, true);
+  }
+  const local = await fixture.runtime.localRecords();
+  assert.deepEqual(Array.from(local.records.find((record) => record.recordType === 'stage_order').payload.stageRefs),
+    [z.recordId, y.recordId]);
+  assert.equal(local.records.find((record) => record.recordId === y.recordId).payload.name,
+    'Stage Y remote edit');
+  assert.equal(local.records.some((record) => record.recordId === x.recordId), false);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+test('real Pitch Local wins order CAS race preserving concurrent reorder and unrelated stage edit', async () => {
+  const { fixture, x, y, z, conflict } = await prepareRealPitchDeleteEditConflict();
+  fixture.server.beforePushOperation = async (server, operations) => {
+    if (!operations.some((operation) => operation.recordType === 'stage_order')) return;
+    server.beforePushOperation = null;
+    const currentOrder = server.records.get('stage_order/melody');
+    server.records.set('stage_order/melody', { ...currentOrder,
+      payload: { ...currentOrder.payload, stageRefs: [z.recordId, y.recordId] },
+      revision: currentOrder.revision + 1, changeSeq: ++server.revision,
+      operationId: 'other-reorder-during-cas' });
+    const currentY = server.records.get(`melody_stage/${y.recordId}`);
+    server.records.set(`melody_stage/${y.recordId}`, { ...currentY,
+      payload: { ...currentY.payload, name: 'Stage Y concurrent edit' },
+      payloadHash: 'stage-y-concurrent-edit',
+      revision: currentY.revision + 1, changeSeq: ++server.revision,
+      operationId: 'other-stage-edit' });
+  };
+  const resolved = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(resolved.ok, true, JSON.stringify(resolved));
+  for (let cycle = 0; cycle < 3; cycle += 1) {
+    assert.equal((await fixture.runtime.performSync(`local-race-${cycle}`)).ok, true);
+  }
+  const local = await fixture.runtime.localRecords();
+  assert.deepEqual(Array.from(local.records.find((record) => record.recordType === 'stage_order').payload.stageRefs),
+    [z.recordId, y.recordId, x.recordId]);
+  assert.equal(local.records.find((record) => record.recordId === y.recordId).payload.name,
+    'Stage Y concurrent edit');
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+for (const choice of ['remote', 'local']) {
+  test(`real Pitch delete/edit conflict ${choice} choice converges stage, order and progress`, async () => {
+    const { fixture, pitch, x, y, z, conflict } = await prepareRealPitchDeleteEditConflict();
+    const result = await fixture.runtime.resolveConflict(conflict.id, choice);
+    assert.equal(result.ok, true, JSON.stringify(result));
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      const synced = await fixture.runtime.performSync(`converge-${cycle}`);
+      assert.equal(synced.ok, true, JSON.stringify(synced));
+    }
+    const local = await fixture.runtime.localRecords();
+    const order = local.records.find((record) => record.recordType === 'stage_order').payload.stageRefs;
+    assert.deepEqual(Array.from(order), choice === 'local'
+      ? [y.recordId, z.recordId, x.recordId] : [y.recordId, z.recordId]);
+    assert.equal(local.records.some((record) => record.recordId === x.recordId), choice === 'local');
+    assert.equal(fixture.server.records.get(`melody_stage/${x.recordId}`).deletedAt == null, choice === 'local');
+    assert.equal(fixture.server.records.get(`progress/melody:${x.recordId}`).deletedAt == null, choice === 'local');
+    assert.deepEqual(Array.from(fixture.server.records.get('stage_order/melody').payload.stageRefs), Array.from(order));
+    assert.equal(local.records.find((record) => record.recordId === y.recordId).payload.name, y.payload.name);
+    assert.equal((await fixture.store.listConflicts()).length, 0);
+    assert.equal((await fixture.store.listOutbox()).length, 0);
+    assert.equal(await fixture.store.readMeta('runtimeState'), 'ready');
+    assert.match(await pitch.computeManifest(local.snapshot), /^[a-f0-9]{64}$/u);
+  });
+}
+
+for (const [label, values, expectedDisplay] of [
+  ['missing accidental and other known defaults', { noteSpeed: 2 }, 'sharp'],
+  ['explicit sharp', { noteSpeed: 2, accidentalDisplay: 'sharp' }, 'sharp'],
+  ['explicit flat', { noteSpeed: 2, accidentalDisplay: 'flat' }, 'flat']
+]) {
+  test(`real Pitch new-device join accepts ${label} without cloud rewrite or sync churn`, async () => {
+    const { fixture, pitch, storage } = createRealPitchRuntimeFixture();
+    const stage = pitchStage('legacy:melody-stage:8201', 8201, 'Older client stage');
+    const settings = { recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+      payload: { id: 'settings', values } };
+    const cloud = { appId: 'pitch', schemaVersion: 1, records: [settings, stage,
+      pitchOrder([stage.recordId]), pitchProgress(stage.recordId, 3)] };
+    await seedPitchCloud(fixture, pitch, cloud);
+    const original = structuredClone(fixture.server.records.get('settings/settings'));
+    const joined = await fixture.runtime.consumeHandoff('transient');
+    assert.equal(joined.ok, true, JSON.stringify(joined));
+    assert.equal(storage.getItem('pitchTrainerProAccidentalDisplay'), expectedDisplay);
+    assert.equal((await fixture.runtime.localRecords()).records.some((record) =>
+      record.recordType === 'progress' && record.payload.stageRef === stage.recordId), true);
+    const pushes = fixture.server.pushCalls;
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      const synced = await fixture.runtime.performSync(`settings-default-cycle-${cycle}`);
+      assert.equal(synced.ok, true, JSON.stringify(synced));
+    }
+    assert.equal(fixture.server.pushCalls, pushes);
+    assert.deepEqual(fixture.server.records.get('settings/settings'), original);
+    assert.equal((await fixture.store.listConflicts()).length, 0);
+    assert.equal((await fixture.store.listOutbox()).length, 0);
+    assert.equal(await fixture.store.readMeta('runtimeState'), 'ready');
+  });
+}
+
+test('Pitch known settings defaults compare semantically while unknown future fields stay strict', () => {
+  const { pitch } = createRealPitchRuntimeFixture();
+  const bare = { recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+    payload: { id: 'settings', values: { noteSpeed: 2 } } };
+  const knownDefaults = { ...bare, payload: { id: 'settings', values: {
+    noteSpeed: 2, accidentalDisplay: 'sharp', instrument: 'acoustic_guitar',
+    testModeEnabled: false
+  } } };
+  assert.equal(pitch.sameRecordForSync(bare, knownDefaults), true);
+  const future = { ...bare, payload: { id: 'settings', values: { noteSpeed: 2, futureMode: 'on' } } };
+  assert.equal(pitch.sameRecordForSync(bare, future), false);
+  assert.equal(pitch.sameRecordForSync(future, structuredClone(future)), true);
+  assert.equal(pitch.sameRecordForSync(bare, { ...bare,
+    payload: { ...bare.payload, futureMetadata: 'present' } }), false);
+});
 
 test('real Pitch new-device hydrate applies twenty stages, safe order and normal progress beside one corrupt stage', async () => {
   const { fixture, pitch } = createRealPitchRuntimeFixture();
