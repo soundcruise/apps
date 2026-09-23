@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.57.0';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.57.1';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { getKnownApp } from './my-apps-known-apps.js?v=1.3.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
@@ -153,6 +153,17 @@ function hasExactKeys(item, keys) {
     return Object.keys(item).length === keys.length && keys.every((key) => Object.hasOwn(item, key));
 }
 
+function sameMyAppUrls(left, right) {
+    return URL_PLATFORMS.every((platform) => left?.[platform] === right?.[platform]);
+}
+
+function storedItemVersion(item, envelopeVersion) {
+    if (envelopeVersion < 6) return envelopeVersion;
+    // An older sync adapter can hydrate a v7 record into a v6 envelope.
+    // Validate each complete item shape before migrating; never discard unknown data.
+    return item && typeof item === 'object' && Object.hasOwn(item, 'urls') ? 7 : 6;
+}
+
 function isStructurallyValidCustomLaunch(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value) || !hasExactKeys(value, ['ios', 'android'])) {
         return false;
@@ -248,7 +259,7 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, {
 
     const baseValuesResult = validateMyAppValues({ name: item.name, url: item.url, urls: version >= 7 ? item.urls : emptyMyAppUrls() });
     if (!baseValuesResult.ok || baseValuesResult.values.url !== item.url
-        || (version >= 7 && JSON.stringify(baseValuesResult.values.urls) !== JSON.stringify(item.urls))) return false;
+        || (version >= 7 && !sameMyAppUrls(baseValuesResult.values.urls, item.urls))) return false;
 
     if (version !== MY_APPS_SCHEMA_VERSION) return true;
     if (allowUnknownAppKey) {
@@ -268,7 +279,7 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, {
     return valuesResult.ok
         && valuesResult.values.url === item.url
         && JSON.stringify(valuesResult.values.customLaunch) === JSON.stringify(item.customLaunch)
-        && JSON.stringify(valuesResult.values.urls) === JSON.stringify(item.urls);
+        && sameMyAppUrls(valuesResult.values.urls, item.urls);
 }
 
 function hasUniqueIds(items) {
@@ -330,7 +341,7 @@ export function loadMyApps(storage) {
             || ![1, 2, 3, 4, 5, 6, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
             || !Array.isArray(storedItems)
             || storedItems.length > MY_APPS_LIMITS.items
-            || !storedItems.every((item) => isValidItem(item, storedVersion, {
+            || !storedItems.every((item) => isValidItem(item, storedItemVersion(item, storedVersion), {
                 allowUnknownAppKey: true,
                 allowUnknownPresetKey: true,
                 allowPresetConflict: true
@@ -339,6 +350,7 @@ export function loadMyApps(storage) {
         ) {
             return { ok: false, items: [], reason: 'invalid-data' };
         }
+        const mixedRecordShape = storedVersion === 7 && storedItems.some((item) => storedItemVersion(item, storedVersion) === 6);
         let repairedLaunch = false;
         let repairedPreset = false;
         const items = storedItems.map((item) => {
@@ -368,7 +380,9 @@ export function loadMyApps(storage) {
             if (storedPresetKey !== iconPresetKey) repairedPreset = true;
             return {
                 ...item,
-                urls: storedVersion >= 7 ? { ...item.urls } : emptyMyAppUrls(),
+                urls: storedItemVersion(item, storedVersion) === 7
+                    ? Object.fromEntries(URL_PLATFORMS.map((platform) => [platform, item.urls[platform]]))
+                    : emptyMyAppUrls(),
                 launchMode: knownLaunch ? 'known-app' : customLaunch ? 'custom' : 'https',
                 appKey: knownLaunch ? item.appKey : null,
                 customLaunch,
@@ -380,7 +394,7 @@ export function loadMyApps(storage) {
                 iconPresetKey
             };
         });
-        return storedVersion < MY_APPS_SCHEMA_VERSION || repairedMissingPresetKey || repairedLaunch || repairedPreset
+        return storedVersion < MY_APPS_SCHEMA_VERSION || mixedRecordShape || repairedMissingPresetKey || repairedLaunch || repairedPreset
             ? { ok: true, items, migrated: true }
             : { ok: true, items };
     } catch (_) {

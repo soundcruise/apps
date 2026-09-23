@@ -15,6 +15,8 @@ import {
     updateMyApp,
     validateMyAppValues
 } from './my-apps-store.js';
+import { resolveMyAppHref } from './my-apps-launch.js';
+import { createMyAppPracticeAppId, resolvePracticeMenuApp } from './practice-menu-app-resolver.js';
 
 class FakeStorage {
     constructor(entries = {}) {
@@ -61,6 +63,50 @@ const { iconId: omittedIconId, ...v1ItemValues } = v2Item;
 const v1Item = Object.freeze(v1ItemValues);
 
 assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty store loads safely');
+
+{
+    // Cloud JSON is canonicalized alphabetically, unlike the form's field order.
+    const platformUrls = { android: 'https://example.com/android', ios: 'https://example.com/ios', macos: '', web: '', windows: '' };
+    const platformItem = {
+        ...baseItem,
+        id: 'android-mixed-record',
+        url: '',
+        urls: platformUrls,
+        iconId: 'custom-icon',
+        iconSourceId: 'custom-source',
+        iconCrop: { x: 0.25, y: 0.1, size: 0.5 }
+    };
+    const deprecatedLaunchItem = {
+        ...baseItem,
+        id: 'legacy-launch',
+        launchMode: 'custom',
+        customLaunch: { android: 'https://ignored.example.com/android', ios: null }
+    };
+    const raw = JSON.stringify({ version: 6, items: [legacyBaseItem, platformItem, deprecatedLaunchItem] });
+    const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
+    const loaded = loadMyApps(storage);
+    assert.equal(loaded.ok, true, 'v6 envelope with v7 cloud item loads');
+    assert.equal(loaded.migrated, true);
+    assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'load does not mutate Android storage');
+    assert.deepEqual(loaded.items.map((item) => item.id), [legacyBaseItem.id, platformItem.id, deprecatedLaunchItem.id], 'stable IDs and order survive');
+    assert.deepEqual(loaded.items[1].urls, platformUrls, 'platform URLs survive');
+    assert.deepEqual(Object.keys(loaded.items[1].urls), ['ios', 'android', 'macos', 'windows', 'web'], 'key order is normalized without changing values');
+    assert.equal(loaded.items[1].iconId, 'custom-icon');
+    assert.equal(loaded.items[1].iconSourceId, 'custom-source');
+    assert.deepEqual(loaded.items[1].iconCrop, platformItem.iconCrop);
+    assert.equal(resolveMyAppHref(loaded.items[0], 'android'), legacyBaseItem.url, 'old URL still launches');
+    assert.equal(resolveMyAppHref(loaded.items[1], 'android'), platformUrls.android, 'Android URL wins');
+    assert.equal(resolveMyAppHref(loaded.items[2], 'android'), deprecatedLaunchItem.url, 'deprecated launch metadata is preserved but ignored');
+    const linked = resolvePracticeMenuApp(createMyAppPracticeAppId(platformItem.id), { myApps: loaded.items, myAppsReady: true, platform: 'android' });
+    assert.equal(linked.href, platformUrls.android, 'Practice stable ID links to the same URL');
+    assert.deepEqual(saveMyApps(loaded.items, storage), { ok: true });
+    assert.deepEqual(loadMyApps(storage), { ok: true, items: loaded.items }, 'migration is stable after save and reload');
+    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 7);
+    const invalid = JSON.stringify({ version: 6, items: [{ ...platformItem, urls: { ...platformUrls, android: 'javascript:alert(1)' } }] });
+    const invalidStorage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: invalid });
+    assert.equal(loadMyApps(invalidStorage).ok, false, 'invalid mixed records still fail closed');
+    assert.equal(invalidStorage.getItem(MY_APPS_STORAGE_KEY), invalid, 'invalid data remains untouched');
+}
 
 {
     const raw = JSON.stringify({ version: 6, items: [legacyBaseItem] });
