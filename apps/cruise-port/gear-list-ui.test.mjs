@@ -19,8 +19,8 @@ assert.match(markup, /data-gear-columns="1"[\s\S]*?data-gear-columns="2"[\s\S]*?
 assert.match(source, /if \(gearState\.activeStatus === 'owned'\) \{[\s\S]*?status: 'owned'[\s\S]*?status: 'sold'/);
 assert.match(styles, /\.gear-list-items\[data-columns="4"\][\s\S]*?repeat\(4, minmax\(0, 1fr\)\)/);
 assert.match(markup, /id="gear-list-export"/);
-assert.match(markup, /class="gear-display-toolbar"[\s\S]*?data-gear-columns="4"[\s\S]*?id="gear-list-export"[^>]+aria-label="この一覧をCSVで書き出す"/);
-assert.match(proMarkup, /class="gear-display-toolbar"[\s\S]*?data-gear-columns="4"[\s\S]*?id="gear-list-export"[^>]+aria-label="この一覧をCSVで書き出す"/);
+assert.match(markup, /class="gear-display-toolbar"[\s\S]*?data-gear-columns="4"[\s\S]*?id="gear-list-export"[^>]+aria-label="この一覧を書き出す"[\s\S]*?id="gear-export-csv"[\s\S]*?id="gear-export-png"/);
+assert.match(proMarkup, /class="gear-display-toolbar"[\s\S]*?data-gear-columns="4"[\s\S]*?id="gear-list-export"[^>]+aria-label="この一覧を書き出す"[\s\S]*?id="gear-export-csv"[\s\S]*?id="gear-export-png"/);
 assert.match(gearFormMarkup, /id="gear-single-export"/);
 assert.match(markup, /<select id="gear-category-select"[^>]+aria-label="カテゴリで絞り込む"/);
 assert.match(proMarkup, /<select id="gear-category-select"[^>]+aria-label="カテゴリで絞り込む"/);

@@ -2793,6 +2793,11 @@ textarea:focus-visible {
 .gear-grid-picker button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(230, 210, 155, 0.5); }
 .gear-export-button { display: grid; flex: 0 0 40px; width: 40px; padding: 6px; place-items: center; }
 .gear-export-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.gear-export-wrap { position: relative; flex: 0 0 40px; }
+.gear-export-menu { position: absolute; z-index: 80; right: 0; top: calc(100% + 6px); width: 176px; padding: 5px; border: 1px solid rgba(230, 210, 155, 0.3); border-radius: 10px; background: #17150f; box-shadow: 0 12px 24px rgba(0, 0, 0, 0.55); }
+.gear-export-menu[hidden] { display: none; }
+.gear-export-menu button { display: block; width: 100%; padding: 11px 9px; border: 0; border-radius: 6px; color: var(--port-text); background: transparent; font: inherit; font-size: calc(0.78rem * var(--font-scale)); text-align: left; cursor: pointer; }
+.gear-export-menu button:hover, .gear-export-menu button:focus-visible { background: rgba(230, 210, 155, 0.12); }
 
 .gear-list-title-row {
     display: flex;
