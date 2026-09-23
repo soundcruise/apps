@@ -463,7 +463,7 @@
           individualBody.hidden = false;
           individual.dataset.open = 'true';
           individualSummary.hidden = true;
-          summary.textContent = '読み込めないステージがあります。正常なデータを使用するか、あとで決めてください。内容を推測して修復することはありません。';
+          summary.textContent = '確認が必要な保存データがあります。安全な処理を選ぶか、あとで決めてください。内容を推測して修復することはありません。';
         } else {
           individualSummary.hidden = false;
           summary.textContent = 'この端末とクラウドの両方に新しい変更があります。残したい内容を選んでください。';

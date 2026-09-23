@@ -288,7 +288,32 @@ test('unreadable melody data is isolated without guessing notes while healthy Pi
   assert.equal(partitioned.records.some((record) => record.recordType === 'melody_stage' &&
     record.recordId === corrupt.recordId), false);
   assert.equal(partitioned.records.some((record) => record.recordType === 'custom_chord'), true);
-  assert(partitioned.isolatedKeys.includes('stage_order/melody'));
+  assert.equal(partitioned.isolatedKeys.includes('stage_order/melody'), false,
+    'the safe projected order remains available for hydrate');
+  assert(partitioned.writeIsolatedKeys.includes('stage_order/melody'));
+});
+
+test('a legitimate melody tombstone does not quarantine later order changes', async () => {
+  const api = load();
+  const snapshot = api.normalizeLocalSnapshot({ schemaVersion: 0, values: richLegacy(api) });
+  const records = await api.serializeRecords(snapshot);
+  const stage = records.find((record) => record.recordType === 'melody_stage');
+  const order = records.find((record) => record.recordType === 'stage_order' && record.recordId === 'melody');
+  const progress = records.find((record) => record.recordType === 'progress' &&
+    record.payload.stageRef === stage.recordId);
+  const convergedDelete = [
+    ...records.filter((record) => ![stage, order, progress].includes(record)),
+    { ...stage, deleted: true, deletedAt: Date.now(), payload: null },
+    { ...order, payload: { ...order.payload, stageRefs: order.payload.stageRefs.filter((ref) => ref !== stage.recordId) } },
+    { ...progress, deleted: true, deletedAt: Date.now(), payload: null }
+  ];
+
+  const partitioned = api.partitionSyncRecords(convergedDelete);
+  assert.equal(partitioned.issues.length, 0);
+  assert.deepEqual(JSON.parse(JSON.stringify(partitioned.isolatedKeys)), []);
+  assert.deepEqual(JSON.parse(JSON.stringify(partitioned.writeIsolatedKeys)), []);
+  assert.equal(partitioned.records.find((record) => record.recordType === 'stage_order' &&
+    record.recordId === 'melody').payload.stageRefs.includes(stage.recordId), false);
 });
 
 test('two-octave stage conflicts retain typed pool and do not silently merge unrelated edits', () => {

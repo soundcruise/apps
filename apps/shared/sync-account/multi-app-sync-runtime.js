@@ -351,6 +351,7 @@
       let snapshot;
       let issues = [];
       let isolatedKeys = [];
+      let writeIsolatedKeys = [];
       try {
         snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
       } catch (error) {
@@ -359,6 +360,7 @@
           snapshot = recovery.snapshot;
           issues = recovery.issues || [];
           isolatedKeys = recovery.isolatedKeys || [];
+          writeIsolatedKeys = recovery.writeIsolatedKeys || isolatedKeys;
         } else {
           if (typeof this.adapter.repairMissingLegacyReferences !== 'function' ||
               !/^pitch_legacy_(?:chord_stage|progression)_reference_invalid$/u.test(String(error?.message))) throw error;
@@ -371,17 +373,19 @@
         snapshot = { ...snapshot, records: partitioned.records };
         issues = partitioned.issues || [];
         isolatedKeys = partitioned.isolatedKeys || [];
+        writeIsolatedKeys = partitioned.writeIsolatedKeys || isolatedKeys;
       }
-      return { snapshot, records: await this.adapter.serializeRecords(snapshot), issues, isolatedKeys };
+      return { snapshot, records: await this.adapter.serializeRecords(snapshot), issues, isolatedKeys, writeIsolatedKeys };
     }
 
     partitionRemote(remote) {
       if (typeof this.adapter.partitionSyncRecords !== 'function') {
-        return { remote, issues: [], isolatedKeys: [] };
+        return { remote, issues: [], isolatedKeys: [], writeIsolatedKeys: [] };
       }
       const partitioned = this.adapter.partitionSyncRecords(remote.records || []);
       return { remote: { ...remote, records: partitioned.records },
-        issues: partitioned.issues || [], isolatedKeys: partitioned.isolatedKeys || [] };
+        issues: partitioned.issues || [], isolatedKeys: partitioned.isolatedKeys || [],
+        writeIsolatedKeys: partitioned.writeIsolatedKeys || partitioned.isolatedKeys || [] };
     }
 
     async recordRecoveryIssues(local, rawRemote, remoteIssues, localIssues) {
@@ -615,14 +619,26 @@
       }
     }
 
-    async finishResolution(conflict, authoritative) {
+    async finishResolution(conflict, authoritative, relatedKeys = []) {
       await this.clearConflictOutbox(conflict.recordKey);
       const remaining = (await this.store.listConflicts()).filter((item) => item.id !== conflict.id);
+      if (conflict.kind === 'invalid_record' && typeof this.adapter.recoveryRelatedRecordKeys === 'function') {
+        relatedKeys = [...new Set([...relatedKeys, ...this.adapter.recoveryRelatedRecordKeys({
+          recordKey: conflict.recordKey, remoteRecords: authoritative.records || []
+        })])];
+      }
       // Resolution changes only this record. Other remote edits still need the
       // ordinary three-way pull against their original shadow anchors.
       const resolved = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
       if (resolved) await this.store.putShadow(conflict.recordKey, clone(resolved));
       else await this.store.deleteShadow?.(conflict.recordKey);
+      const authoritativeMap = mapRecords(authoritative.records || []);
+      for (const recordKey of new Set(relatedKeys)) {
+        if (recordKey === conflict.recordKey) continue;
+        const record = authoritativeMap.get(recordKey) || null;
+        if (record) await this.store.putShadow(recordKey, clone(record));
+        else await this.store.deleteShadow?.(recordKey);
+      }
       if (authoritative.cursor) await this.store.setMeta('cursor', authoritative.cursor);
       await this.store.deleteConflict(conflict.id);
       if (!remaining.length) {
@@ -659,8 +675,97 @@
       return this.finishResolution(conflict, authoritative);
     }
 
+    async resolveInvalidRecordDeleteConflict(conflict) {
+      if (global.navigator?.onLine === false) throw new MultiAppSyncError('resolution_offline');
+      let resolution = conflict.resolution?.choice === 'local' &&
+          conflict.resolution?.recoveryMode === 'delete_dependencies'
+        ? clone(conflict.resolution)
+        : { choice: 'local', status: 'pending', recoveryMode: 'delete_dependencies',
+          startedAt: this.now(), backupSaved: false, recoveryOperations: [], relatedKeys: [conflict.recordKey] };
+      let context = await this.conflictContext(conflict);
+      if (context.localRecord) {
+        throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
+      }
+      conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+      if (!resolution.backupSaved) {
+        await this.backupSnapshot(context.local.snapshot);
+        resolution = { ...resolution, backupSaved: true };
+        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+      }
+
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        context = await this.conflictContext(conflict);
+        if (context.localRecord) {
+          throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
+        }
+        const plan = this.adapter.planInvalidRecordDeleteRecovery({
+          recordKey: conflict.recordKey, remoteRecords: context.remote.records || []
+        });
+        if (plan.changed) {
+          throw Object.assign(new MultiAppSyncError('recovery_target_changed'), { resetResolution: true });
+        }
+        resolution = { ...resolution,
+          relatedKeys: [...new Set([...(resolution.relatedKeys || []), ...(plan.relatedKeys || [])])] };
+        if (plan.complete) {
+          const cleanedSnapshot = typeof this.adapter.prepareInvalidRecordDeleteLocalSnapshot === 'function'
+            ? await this.adapter.prepareInvalidRecordDeleteLocalSnapshot(context.local.snapshot, {
+              recordKey: conflict.recordKey, remoteRecords: context.remote.records || []
+            }) : context.local.snapshot;
+          await this.applyWithBackup(cleanedSnapshot, context.local.snapshot, { checkCurrent: true });
+          conflict = await this.saveConflict(conflict, 'verifying', { ...resolution,
+            status: 'verifying', recoveryOperations: [] });
+          return this.finishResolution(conflict, context.remote, resolution.relatedKeys);
+        }
+
+        const phase = ['order', 'progress', 'stage'].find((value) =>
+          plan.mutations.some((mutation) => mutation.phase === value));
+        const mutations = plan.mutations.filter((mutation) => mutation.phase === phase)
+          .slice(0, MAX_PUSH_OPERATIONS);
+        const previous = new Map((resolution.recoveryOperations || []).map((operation) =>
+          [`${operation.recordType}/${operation.recordId}`, operation]));
+        const operations = [];
+        for (const mutation of mutations) {
+          const recordKey = keyOf(mutation.record);
+          const saved = previous.get(recordKey);
+          const reusable = saved && saved.deleted === mutation.deleted &&
+            Number(saved.baseRevision || 0) === Number(mutation.remoteRecord?.revision || 0) &&
+            canonicalJson(saved.payload) === canonicalJson(mutation.deleted ? null : mutation.record.payload);
+          operations.push(await this.operationFor(mutation.record,
+            mutation.remoteRecord?.revision || 0, mutation.deleted,
+            reusable ? saved.operationId : this.randomOperationId()));
+        }
+        resolution = { ...resolution, status: 'pending', phase,
+          recoveryOperations: operations.map(clone) };
+        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+        const response = await this.request('POST', '/v1/sync/push', {
+          appId: this.appId, mode: 'sync',
+          operations: operations.map(({ operationId, recordType, recordId, schemaVersion,
+            baseRevision, payload, payloadHash, deleted }) =>
+            ({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }))
+        });
+        const results = response.results || [];
+        if (operations.some((operation) => !results.some((result) =>
+          result.operationId === operation.operationId && ['applied', 'duplicate', 'conflict'].includes(result.status)))) {
+          throw new MultiAppSyncError('invalid_response');
+        }
+        if (results.some((result) => result.status === 'conflict')) {
+          resolution = { ...resolution, status: 'pending', recoveryOperations: [], lastError: 'stale_dependency' };
+          conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+          continue;
+        }
+        resolution = { ...resolution, status: 'pending', recoveryOperations: [], lastError: null };
+        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+      }
+      throw new MultiAppSyncError('recovery_retry_exhausted');
+    }
+
     async resolveLocalConflict(conflict) {
       if (global.navigator?.onLine === false) throw new MultiAppSyncError('resolution_offline');
+      if (conflict.kind === 'invalid_record' &&
+          (conflict.recovery?.localInvalid === true || conflict.reason === 'pitch_stage_dependency_inconsistent') &&
+          typeof this.adapter.planInvalidRecordDeleteRecovery === 'function') {
+        return this.resolveInvalidRecordDeleteConflict(conflict);
+      }
       let context = await this.conflictContext(conflict);
       if (conflict.kind === 'invalid_record' && conflict.recovery?.localInvalid === true &&
           !context.remoteRecord && !context.shadowRecord) {
@@ -1165,8 +1270,11 @@
       const partitioned = this.partitionRemote(rawRemote);
       const remote = partitioned.remote;
       await this.recordRecoveryIssues(local, rawRemote, partitioned.issues, local.issues);
-      const isolatedKeys = new Set([...(local.isolatedKeys || []), ...(partitioned.isolatedKeys || [])]);
-      const remoteLive = (remote.records || []).filter((record) => !isDeleted(record) && !isolatedKeys.has(keyOf(record)));
+      const hydrationIsolatedKeys = new Set([...(local.isolatedKeys || []), ...(partitioned.isolatedKeys || [])]);
+      const writeIsolatedKeys = new Set([...(local.writeIsolatedKeys || []),
+        ...(partitioned.writeIsolatedKeys || [])]);
+      const remoteLive = (remote.records || []).filter((record) =>
+        !isDeleted(record) && !hydrationIsolatedKeys.has(keyOf(record)));
       const remoteSnapshot = this.adapter.deserializeRecords(remoteLive);
       const [shadowRecords, unresolvedConflicts] = await Promise.all([
         this.store.listShadow(), this.store.listConflicts()
@@ -1229,7 +1337,9 @@
         await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       }
       const finalRecords = await this.adapter.serializeRecords(finalSnapshot);
-      await this.queueDiff(finalRecords, remote.records || [], remote.records || [], { migration: true, isolatedKeys });
+      await this.queueDiff(finalRecords, remote.records || [], remote.records || [], {
+        migration: true, isolatedKeys: writeIsolatedKeys
+      });
       await this.flushOutbox({ migration: true, force: true });
       const finalManifest = await this.adapter.computeManifest(finalSnapshot);
       const completionSnapshot = partitioned.issues.length || local.issues?.length ? await this.serverSnapshot() : null;
@@ -1320,7 +1430,8 @@
       const partitioned = this.partitionRemote(rawRemote);
       const remote = partitioned.remote;
       await this.recordRecoveryIssues(local, rawRemote, partitioned.issues, local.issues);
-      for (const key of [...(local.isolatedKeys || []), ...(partitioned.isolatedKeys || [])]) isolatedKeys.add(key);
+      for (const key of [...(local.writeIsolatedKeys || local.isolatedKeys || []),
+        ...(partitioned.writeIsolatedKeys || partitioned.isolatedKeys || [])]) isolatedKeys.add(key);
       let localMap = mapRecords(local.records);
       const remoteMap = mapRecords(remote.records || []);
       const shadowMap = mapRecords(shadowRecords);

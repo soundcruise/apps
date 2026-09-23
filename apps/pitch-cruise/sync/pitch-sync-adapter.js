@@ -490,36 +490,50 @@
     const source = Array.isArray(records) ? records : [];
     const corrupt = source.filter(corruptMelodyRecord);
     const corruptRefs = new Set(corrupt.map((record) => record.recordId));
-    const refs = new Set(corruptRefs);
+    const liveMelodyRefs = new Set(source.filter((record) => record?.recordType === 'melody_stage' &&
+      record.deletedAt == null && record.deleted !== true).map((record) => record.recordId));
+    const danglingRefs = new Set();
     for (const record of source) {
-      if (record?.recordType === 'melody_stage' && (record.deletedAt != null || record.deleted === true)) {
-        refs.add(record.recordId);
+      if (record?.recordType === 'stage_order' && record.deletedAt == null && record.deleted !== true &&
+          record.payload?.category === 'melody') {
+        for (const ref of record.payload.stageRefs || []) if (!liveMelodyRefs.has(ref)) danglingRefs.add(ref);
       }
+      if (record?.recordType === 'progress' && record.deletedAt == null && record.deleted !== true &&
+          record.payload?.category === 'melody' && !record.payload.stageRef?.startsWith('builtin:') &&
+          !liveMelodyRefs.has(record.payload.stageRef)) danglingRefs.add(record.payload.stageRef);
     }
-    if (!refs.size) return Object.freeze({ records: clone(source), issues: Object.freeze([]), isolatedKeys: Object.freeze([]) });
-    const isolatedKeys = new Set(corrupt.map((record) => `melody_stage/${record.recordId}`));
+    const unsafeRefs = new Set([...corruptRefs, ...danglingRefs]);
+    if (!unsafeRefs.size) return Object.freeze({ records: clone(source), issues: Object.freeze([]),
+      isolatedKeys: Object.freeze([]), writeIsolatedKeys: Object.freeze([]) });
+    const issues = [...unsafeRefs].map((recordId) => Object.freeze({
+      recordKey: `melody_stage/${recordId}`, recordType: 'melody_stage', recordId,
+      reason: corruptRefs.has(recordId) ? 'pitch_melody_stage_unreadable' : 'pitch_stage_dependency_inconsistent'
+    }));
+    const isolatedKeys = new Set(issues.map((issue) => issue.recordKey));
+    const writeIsolatedKeys = new Set(isolatedKeys);
     const kept = source.flatMap((record) => {
       if (corruptRefs.has(record.recordId) && record.recordType === 'melody_stage') return [];
       if (record.recordType === 'stage_order' && record.payload?.category === 'melody' &&
-          record.payload.stageRefs?.some((ref) => refs.has(ref))) {
-        isolatedKeys.add(`stage_order/${record.recordId}`);
+          record.payload.stageRefs?.some((ref) => unsafeRefs.has(ref))) {
+        // The projected order is safe to hydrate, but must not overwrite the
+        // original cloud order until the corrupt stage is explicitly resolved.
+        writeIsolatedKeys.add(`stage_order/${record.recordId}`);
         const next = clone(record);
-        next.payload.stageRefs = next.payload.stageRefs.filter((ref) => !refs.has(ref));
+        next.payload.stageRefs = next.payload.stageRefs.filter((ref) => !unsafeRefs.has(ref));
         return [next];
       }
-      if (record.recordType === 'progress' && refs.has(record.payload?.stageRef)) {
+      if (record.recordType === 'progress' && unsafeRefs.has(record.payload?.stageRef)) {
         isolatedKeys.add(`progress/${record.recordId}`);
+        writeIsolatedKeys.add(`progress/${record.recordId}`);
         return [];
       }
       return [record];
     });
     return Object.freeze({
       records: clone(kept),
-      issues: Object.freeze(corrupt.map((record) => Object.freeze({
-        recordKey: `melody_stage/${record.recordId}`, recordType: 'melody_stage', recordId: record.recordId,
-        reason: 'pitch_melody_stage_unreadable'
-      }))),
-      isolatedKeys: Object.freeze([...isolatedKeys])
+      issues: Object.freeze(issues),
+      isolatedKeys: Object.freeze([...isolatedKeys]),
+      writeIsolatedKeys: Object.freeze([...writeIsolatedKeys])
     });
   }
 
@@ -528,7 +542,8 @@
       const snapshot = normalizeRawSnapshot(rawSnapshot);
       const partitioned = partitionSyncRecords(snapshot.records);
       return Object.freeze({ snapshot: { ...snapshot, records: partitioned.records },
-        issues: partitioned.issues, isolatedKeys: partitioned.isolatedKeys });
+        issues: partitioned.issues, isolatedKeys: partitioned.isolatedKeys,
+        writeIsolatedKeys: partitioned.writeIsolatedKeys });
     } catch (error) {
       if (error?.message !== 'pitch_legacy_melody_pool_invalid') throw error;
       const values = isPlainObject(rawSnapshot?.values) ? clone(rawSnapshot.values) : clone(rawSnapshot);
@@ -558,9 +573,69 @@
       const dependentProgress = issues.map((issue) =>
         `progress/melody:${issue.recordId}`);
       return Object.freeze({ snapshot, issues: Object.freeze(issues),
-        isolatedKeys: Object.freeze([...issues.map((issue) => issue.recordKey),
+        isolatedKeys: Object.freeze([...issues.map((issue) => issue.recordKey), ...dependentProgress]),
+        writeIsolatedKeys: Object.freeze([...issues.map((issue) => issue.recordKey),
           'stage_order/melody', ...dependentProgress]) });
     }
+  }
+
+  function planInvalidRecordDeleteRecovery({ recordKey, remoteRecords } = {}) {
+    const prefix = 'melody_stage/';
+    if (typeof recordKey !== 'string' || !recordKey.startsWith(prefix)) {
+      throw new Error('pitch_recovery_record_invalid');
+    }
+    const stageRef = recordKey.slice(prefix.length);
+    const records = Array.isArray(remoteRecords) ? remoteRecords : [];
+    const live = (record) => record && record.deletedAt == null && record.deleted !== true;
+    const stage = records.find((record) => record.recordType === 'melody_stage' && record.recordId === stageRef) || null;
+    if (live(stage) && !corruptMelodyRecord(stage)) {
+      return Object.freeze({ changed: true, complete: false, mutations: Object.freeze([]),
+        relatedKeys: Object.freeze([recordKey]) });
+    }
+    const order = records.find((record) => record.recordType === 'stage_order' &&
+      record.recordId === 'melody' && live(record)) || null;
+    const orderNeedsCleanup = order?.payload?.stageRefs?.includes(stageRef) === true;
+    const progress = records.filter((record) => record.recordType === 'progress' && live(record) &&
+      record.payload?.category === 'melody' && record.payload?.stageRef === stageRef);
+    const relatedKeys = new Set([recordKey, 'stage_order/melody',
+      ...progress.map((record) => `progress/${record.recordId}`)]);
+    const mutations = [];
+    if (orderNeedsCleanup) mutations.push(Object.freeze({ phase: 'order', remoteRecord: clone(order), deleted: false,
+      record: makeRecord('stage_order', 'melody', { category: 'melody',
+        stageRefs: order.payload.stageRefs.filter((ref) => ref !== stageRef) }) }));
+    for (const record of progress) mutations.push(Object.freeze({ phase: 'progress', remoteRecord: clone(record),
+      deleted: true, record: clone(record) }));
+    if (live(stage)) mutations.push(Object.freeze({ phase: 'stage', remoteRecord: clone(stage),
+      deleted: true, record: clone(stage) }));
+    return Object.freeze({ changed: false, complete: mutations.length === 0,
+      mutations: Object.freeze(mutations), relatedKeys: Object.freeze([...relatedKeys]) });
+  }
+
+  function prepareInvalidRecordDeleteLocalSnapshot(snapshot, { recordKey, remoteRecords } = {}) {
+    const stageRef = typeof recordKey === 'string' && recordKey.startsWith('melody_stage/')
+      ? recordKey.slice('melody_stage/'.length) : null;
+    if (!stageRef) throw new Error('pitch_recovery_record_invalid');
+    const remoteOrder = (remoteRecords || []).find((record) => record.recordType === 'stage_order' &&
+      record.recordId === 'melody' && record.deletedAt == null && record.deleted !== true);
+    const records = clone(snapshot.records || []).filter((record) =>
+      !(record.recordType === 'melody_stage' && record.recordId === stageRef) &&
+      !(record.recordType === 'progress' && record.payload?.stageRef === stageRef) &&
+      !(record.recordType === 'stage_order' && record.recordId === 'melody'));
+    if (remoteOrder) records.push(makeRecord('stage_order', 'melody', {
+      category: 'melody', stageRefs: clone(remoteOrder.payload.stageRefs)
+    }));
+    const prepared = { ...clone(snapshot), records };
+    validateSnapshot(prepared);
+    return prepared;
+  }
+
+  function recoveryRelatedRecordKeys({ recordKey, remoteRecords } = {}) {
+    const stageRef = typeof recordKey === 'string' && recordKey.startsWith('melody_stage/')
+      ? recordKey.slice('melody_stage/'.length) : null;
+    if (!stageRef) return [];
+    return [...new Set([recordKey, 'stage_order/melody', ...(remoteRecords || [])
+      .filter((record) => record.recordType === 'progress' && record.payload?.stageRef === stageRef)
+      .map((record) => `progress/${record.recordId}`)])];
   }
 
   function prepareRemoteResolutionSnapshot(snapshot, context = {}) {
@@ -952,11 +1027,15 @@
     if (conflict?.kind === 'invalid_record') {
       const localBroken = conflict.recovery?.localInvalid === true;
       const remoteBroken = conflict.recovery?.remoteInvalid === true;
-      return Object.freeze({ appName: '音感クルーズ', title: '読み込めないステージ',
-        name: 'このステージの保存データを読み込めません', localUpdatedAt: null, remoteUpdatedAt: null,
+      const dependencyIssue = conflict.reason === 'pitch_stage_dependency_inconsistent';
+      return Object.freeze({ appName: '音感クルーズ',
+        title: dependencyIssue ? 'ステージの関連データを確認' : '読み込めないステージ',
+        name: dependencyIssue ? '削除されたステージの関連データが残っています' :
+          'このステージの保存データを読み込めません', localUpdatedAt: null, remoteUpdatedAt: null,
         fields: Object.freeze([{ label: '状態',
-          local: localBroken ? '読み込めません' : localRecord ? '正常なデータ' : '保存されていません',
-          remote: remoteBroken ? '読み込めません' : remoteRecord ? '正常なデータ' : '保存されていません' }]) });
+          local: dependencyIssue ? '整理できます' : localBroken ? '読み込めません' : localRecord ? '正常なデータ' : '保存されていません',
+          remote: dependencyIssue ? '関連データが残っています' : remoteBroken ? '読み込めません' :
+            remoteRecord ? '正常なデータ' : '保存されていません' }]) });
     }
     const local = localRecord?.deletedAt != null ? null : localRecord?.payload;
     const remote = remoteRecord?.deletedAt != null ? null : remoteRecord?.payload;
@@ -1019,6 +1098,11 @@
     partitionSyncRecords(records) { return partitionSyncRecords(records); }
     normalizeLocalSnapshotForRecovery(snapshot = this.readLocalSnapshot()) { return normalizeLocalSnapshotForRecovery(snapshot); }
     prepareRemoteResolutionSnapshot(snapshot, context) { return prepareRemoteResolutionSnapshot(snapshot, context); }
+    planInvalidRecordDeleteRecovery(context) { return planInvalidRecordDeleteRecovery(context); }
+    prepareInvalidRecordDeleteLocalSnapshot(snapshot, context) {
+      return prepareInvalidRecordDeleteLocalSnapshot(snapshot, context);
+    }
+    recoveryRelatedRecordKeys(context) { return recoveryRelatedRecordKeys(context); }
     effectiveSettingsForMerge(values) { return effectiveSettingsForMerge(values); }
     encodeSettingsForMerge(values) { return encodeSettingsForMerge(values); }
     applyRemoteSnapshot(snapshot, options = {}) {
@@ -1044,7 +1128,8 @@
     readLocalSnapshot, normalizeLocalSnapshot: normalizeRawSnapshot, validateSnapshot,
     serializeRecords, deserializeRecords, isMeaningfulLocalData, mergeSnapshots,
     partitionSyncRecords, normalizeLocalSnapshotForRecovery,
-    prepareRemoteResolutionSnapshot,
+    prepareRemoteResolutionSnapshot, planInvalidRecordDeleteRecovery, prepareInvalidRecordDeleteLocalSnapshot,
+    recoveryRelatedRecordKeys,
     applyRemoteSnapshot, createBackup, restoreBackup, repairMissingLegacyReferences,
     getConflictPresentation, computeManifest,
     assertDataPlaneContext, createInitialMigrationPlan

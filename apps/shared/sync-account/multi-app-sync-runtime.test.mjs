@@ -2155,6 +2155,373 @@ test('two unreadable copies can only be deleted and response-loss resume removes
   assert.equal((await fixture.store.listConflicts()).length, 0);
 });
 
+function pitchStage(id, legacyId, name = `Stage ${legacyId}`) {
+  return { recordType: 'melody_stage', recordId: id, schemaVersion: 1, payload: {
+    id, legacyId, name, pool: [{ note: 'C', octaveOffset: 0 }, { note: 'D', octaveOffset: 1 }],
+    count: 4, is2Octave: true, isPianoLayout: true, answerMethod: 'note', description: 'QA'
+  } };
+}
+
+function pitchOrder(stageRefs) {
+  return { recordType: 'stage_order', recordId: 'melody', schemaVersion: 1,
+    payload: { id: 'melody', category: 'melody', stageRefs: [...stageRefs] } };
+}
+
+function pitchProgress(stageRef, clearCount = 1) {
+  const id = `melody:${stageRef}`;
+  return { recordType: 'progress', recordId: id, schemaVersion: 1,
+    payload: { id, category: 'melody', stageRef, clearCount, lastClearedAt: null } };
+}
+
+function createRealPitchRuntimeFixture() {
+  const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+  vm.runInContext(readFileSync(new URL('../../pitch-cruise/sync/pitch-sync-adapter.js', import.meta.url), 'utf8'), context);
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: (key) => values.delete(key)
+  };
+  const pitch = new context.SoundCruisePitchSync.PitchSyncAdapter({ storage, cryptoImpl: webcrypto,
+    backupStore: { async save() {} } });
+  const fixture = runtimeFixture([], 'pitch');
+  fixture.runtime.adapter = pitch;
+  return { fixture, pitch, storage, values };
+}
+
+async function seedPitchCloud(fixture, pitch, snapshot, corruptIds = new Set()) {
+  const records = await pitch.serializeRecords(snapshot);
+  for (const source of records) {
+    const record = structuredClone(source);
+    if (record.recordType === 'melody_stage' && corruptIds.has(record.recordId)) {
+      record.payload.pool = ['[object Object]'];
+      record.payloadHash = `corrupt-${record.recordId}`;
+    }
+    fixture.server.revision += 1;
+    fixture.server.records.set(`${record.recordType}/${record.recordId}`, {
+      ...record, revision: 1, deletedAt: null, changeSeq: fixture.server.revision,
+      operationId: `remote-${record.recordType}-${record.recordId}`
+    });
+  }
+  fixture.server.state = 'ready';
+}
+
+async function prepareRealPitchBothCorrupt() {
+  const harness = createRealPitchRuntimeFixture();
+  const { fixture, pitch, storage } = harness;
+  const safeA = pitchStage('legacy:melody-stage:7101', 7101, 'Safe A');
+  const corrupt = pitchStage('legacy:melody-stage:7102', 7102, 'Corrupt target');
+  const safeB = pitchStage('legacy:melody-stage:7103', 7103, 'Safe B');
+  const snapshot = { appId: 'pitch', schemaVersion: 1, records: [
+    safeA, corrupt, safeB, pitchOrder([safeA.recordId, corrupt.recordId, safeB.recordId]),
+    pitchProgress(safeA.recordId, 2), pitchProgress(corrupt.recordId, 7), pitchProgress(safeB.recordId, 3)
+  ] };
+  await pitch.applyRemoteSnapshot(snapshot);
+  await seedPitchCloud(fixture, pitch, snapshot);
+  assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true);
+
+  const localSlots = JSON.parse(storage.getItem('pitchTrainerStagingProMelodySlots'));
+  localSlots.slots.find((slot) => Number(slot.id) === 7102).config.pool = ['[object Object]'];
+  storage.setItem('pitchTrainerStagingProMelodySlots', JSON.stringify(localSlots));
+  const remoteKey = `melody_stage/${corrupt.recordId}`;
+  const remote = fixture.server.records.get(remoteKey);
+  fixture.server.records.set(remoteKey, { ...remote,
+    payload: { ...remote.payload, pool: ['[object Object]'] }, payloadHash: 'corrupt-remote-stage',
+    revision: remote.revision + 1, changeSeq: ++fixture.server.revision, operationId: 'remote-corrupt-stage' });
+  assert.equal((await fixture.runtime.performSync('detect-corrupt')).ok, true);
+  const [conflict] = await fixture.store.listConflicts();
+  assert.equal(conflict.recordKey, remoteKey);
+  assert.deepEqual(conflict.recovery, { localInvalid: true, remoteInvalid: true });
+  return { ...harness, snapshot, safeA, safeB, corrupt, conflict };
+}
+
+test('real Pitch new-device hydrate applies twenty stages, safe order and normal progress beside one corrupt stage', async () => {
+  const { fixture, pitch } = createRealPitchRuntimeFixture();
+  const normal = Array.from({ length: 20 }, (_, index) =>
+    pitchStage(`legacy:melody-stage:${6000 + index}`, 6000 + index));
+  const corrupt = pitchStage('legacy:melody-stage:6999', 6999, 'Corrupt C');
+  const snapshot = { appId: 'pitch', schemaVersion: 1, records: [
+    ...normal, corrupt, pitchOrder([...normal.map((record) => record.recordId), corrupt.recordId]),
+    pitchProgress(normal[0].recordId, 4), pitchProgress(corrupt.recordId, 9)
+  ] };
+  await seedPitchCloud(fixture, pitch, snapshot, new Set([corrupt.recordId]));
+
+  const hydrated = await fixture.runtime.consumeHandoff('transient');
+  assert.equal(hydrated.ok, true, JSON.stringify(hydrated));
+  const local = await fixture.runtime.localRecords();
+  assert.equal(local.records.filter((record) => record.recordType === 'melody_stage').length, 20);
+  assert.equal(local.records.some((record) => record.recordType === 'melody_stage' &&
+    record.recordId === corrupt.recordId), false);
+  const order = local.records.find((record) => record.recordType === 'stage_order' && record.recordId === 'melody');
+  assert.deepEqual(Array.from(order.payload.stageRefs), normal.map((record) => record.recordId));
+  assert.equal(local.records.some((record) => record.recordType === 'progress' &&
+    record.payload.stageRef === normal[0].recordId), true);
+  assert.equal(local.records.some((record) => record.recordType === 'progress' &&
+    record.payload.stageRef === corrupt.recordId), false);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  const shadow = await fixture.store.listShadow();
+  assert.deepEqual(Array.from(shadow.find((record) => record.recordType === 'stage_order').payload.stageRefs),
+    normal.map((record) => record.recordId));
+  assert.equal(shadow.some((record) => record.recordType === 'melody_stage' && record.recordId === corrupt.recordId), false);
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  assert.equal((await fixture.runtime.attentionSummary()).kind, 'data_repair');
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+  assert.match(await pitch.computeManifest(local.snapshot), /^[a-f0-9]{64}$/u);
+  assert.equal(fixture.server.records.get(`melody_stage/${corrupt.recordId}`).payload.pool[0], '[object Object]',
+    'hydrate projection must not rewrite the cloud source');
+});
+
+test('real Pitch both-corrupt delete converges stage, order and progress without touching unrelated records', async () => {
+  const { fixture, corrupt, safeA, safeB, conflict } = await prepareRealPitchBothCorrupt();
+  const unrelatedBefore = structuredClone(fixture.server.records.get(`progress/melody:${safeA.recordId}`));
+
+  const resolved = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(resolved.ok, true, JSON.stringify(resolved));
+  const stage = fixture.server.records.get(`melody_stage/${corrupt.recordId}`);
+  const order = fixture.server.records.get('stage_order/melody');
+  const progress = fixture.server.records.get(`progress/melody:${corrupt.recordId}`);
+  assert.notEqual(stage.deletedAt, null);
+  assert.deepEqual(order.payload.stageRefs, [safeA.recordId, safeB.recordId]);
+  assert.notEqual(progress.deletedAt, null);
+  assert.deepEqual(fixture.server.records.get(`progress/melody:${safeA.recordId}`), unrelatedBefore);
+  const local = await fixture.runtime.localRecords();
+  assert.equal(local.records.some((record) => record.recordId === corrupt.recordId), false);
+  assert.deepEqual(Array.from(local.records.find((record) => record.recordType === 'stage_order').payload.stageRefs),
+    [safeA.recordId, safeB.recordId]);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  const shadow = await fixture.store.listShadow();
+  assert.notEqual(shadow.find((record) => record.recordType === 'melody_stage' &&
+    record.recordId === corrupt.recordId).deletedAt, null);
+  assert.deepEqual(Array.from(shadow.find((record) => record.recordType === 'stage_order').payload.stageRefs),
+    [safeA.recordId, safeB.recordId]);
+  assert.match(await fixture.runtime.adapter.computeManifest(local.snapshot), /^[a-f0-9]{64}$/u);
+});
+
+test('real Pitch corrupt delete resumes after order response loss without duplicate revisions', async () => {
+  const { fixture, corrupt, safeA, safeB, conflict } = await prepareRealPitchBothCorrupt();
+  const orderBefore = fixture.server.records.get('stage_order/melody').revision;
+  fixture.server.responseLossAfterApply = true;
+
+  const first = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(first.ok, false);
+  assert.equal(first.code, 'network_error');
+  assert.equal(fixture.server.records.get('stage_order/melody').revision, orderBefore + 1);
+  assert.equal(fixture.server.records.get(`melody_stage/${corrupt.recordId}`).deletedAt, null,
+    'the stage stays live until dependency cleanup is verified');
+  const restarted = new fixture.Runtime({
+    appId: 'pitch', endpoint: 'https://example.test', adapter: fixture.runtime.adapter,
+    store: fixture.store, accountClient: fixture.accountClient, accountCore: fixture.core,
+    fetchImpl: fixture.fetchImpl, randomOperationId: fixture.nextId
+  });
+  const resumed = await restarted.resumeConflictResolutions();
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  assert.equal(fixture.server.records.get('stage_order/melody').revision, orderBefore + 1);
+  assert.deepEqual(fixture.server.records.get('stage_order/melody').payload.stageRefs,
+    [safeA.recordId, safeB.recordId]);
+  assert.notEqual(fixture.server.records.get(`progress/melody:${corrupt.recordId}`).deletedAt, null);
+  assert.notEqual(fixture.server.records.get(`melody_stage/${corrupt.recordId}`).deletedAt, null);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('real Pitch corrupt delete refetches an order CAS race and preserves the newer reorder', async () => {
+  const { fixture, corrupt, safeA, safeB, conflict } = await prepareRealPitchBothCorrupt();
+  fixture.server.beforeNextPush = async (server) => {
+    const current = server.records.get('stage_order/melody');
+    server.records.set('stage_order/melody', { ...current,
+      payload: { ...current.payload, stageRefs: [safeB.recordId, corrupt.recordId, safeA.recordId] },
+      payloadHash: 'newer-reorder', revision: current.revision + 1,
+      changeSeq: ++server.revision, operationId: 'other-device-reorder' });
+  };
+
+  const resolved = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(resolved.ok, true, JSON.stringify(resolved));
+  assert.deepEqual(fixture.server.records.get('stage_order/melody').payload.stageRefs,
+    [safeB.recordId, safeA.recordId]);
+  const local = await fixture.runtime.localRecords();
+  assert.deepEqual(Array.from(local.records.find((record) => record.recordType === 'stage_order').payload.stageRefs),
+    [safeB.recordId, safeA.recordId]);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+test('real Pitch normal delete uses ordinary order conflict resolution and later reorder still pushes', async () => {
+  const { fixture, pitch } = createRealPitchRuntimeFixture();
+  const removed = pitchStage('legacy:melody-stage:7201', 7201, 'Remove normally');
+  const keptA = pitchStage('legacy:melody-stage:7202', 7202, 'Kept A');
+  const keptB = pitchStage('legacy:melody-stage:7203', 7203, 'Kept B');
+  const baseline = { appId: 'pitch', schemaVersion: 1, records: [removed, keptA, keptB,
+    pitchOrder([removed.recordId, keptA.recordId, keptB.recordId]),
+    pitchProgress(removed.recordId, 2), pitchProgress(keptA.recordId, 1)] };
+  await pitch.applyRemoteSnapshot(baseline);
+  await seedPitchCloud(fixture, pitch, baseline);
+  assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true);
+
+  const localDelete = { appId: 'pitch', schemaVersion: 1, records: [keptA, keptB,
+    pitchOrder([keptA.recordId, keptB.recordId]), pitchProgress(keptA.recordId, 1)] };
+  await pitch.applyRemoteSnapshot(localDelete);
+  const remoteOrder = fixture.server.records.get('stage_order/melody');
+  fixture.server.records.set('stage_order/melody', { ...remoteOrder,
+    payload: { ...remoteOrder.payload, stageRefs: [keptB.recordId, removed.recordId, keptA.recordId] },
+    payloadHash: 'concurrent-reorder', revision: remoteOrder.revision + 1,
+    changeSeq: ++fixture.server.revision, operationId: 'concurrent-reorder' });
+
+  const conflicted = await fixture.runtime.performSync('normal-delete-race');
+  assert.equal(conflicted.code, 'conflict');
+  const [orderConflict] = await fixture.store.listConflicts();
+  assert.equal(orderConflict.kind, 'pull');
+  assert.equal(orderConflict.recordKey, 'stage_order/melody');
+  assert.equal((await fixture.runtime.listConflictPresentations())[0].recovery, null,
+    'a normal tombstone must not enter corrupt recovery');
+  assert.equal((await fixture.runtime.resolveConflict(orderConflict.id, 'local')).ok, true);
+  assert.equal((await fixture.runtime.performSync('finish-normal-delete')).ok, true);
+  assert.notEqual(fixture.server.records.get(`melody_stage/${removed.recordId}`).deletedAt, null);
+  assert.notEqual(fixture.server.records.get(`progress/melody:${removed.recordId}`).deletedAt, null);
+  assert.deepEqual(fixture.server.records.get('stage_order/melody').payload.stageRefs,
+    [keptA.recordId, keptB.recordId]);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+
+  const later = { appId: 'pitch', schemaVersion: 1, records: [keptA, keptB,
+    pitchOrder([keptB.recordId, keptA.recordId]), pitchProgress(keptA.recordId, 1)] };
+  await pitch.applyRemoteSnapshot(later);
+  const orderRevision = fixture.server.records.get('stage_order/melody').revision;
+  assert.equal((await fixture.runtime.performSync('later-reorder')).ok, true);
+  assert.deepEqual(fixture.server.records.get('stage_order/melody').payload.stageRefs,
+    [keptB.recordId, keptA.recordId]);
+  assert.equal(fixture.server.records.get('stage_order/melody').revision, orderRevision + 1);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'ready');
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+test('real Pitch valid Local replaces a corrupt cloud stage while order and progress remain consistent', async () => {
+  const { fixture, pitch } = createRealPitchRuntimeFixture();
+  const target = pitchStage('legacy:melody-stage:7301', 7301, 'Valid Local');
+  const other = pitchStage('legacy:melody-stage:7302', 7302, 'Other');
+  const baseline = { appId: 'pitch', schemaVersion: 1, records: [target, other,
+    pitchOrder([target.recordId, other.recordId]), pitchProgress(target.recordId, 5)] };
+  await pitch.applyRemoteSnapshot(baseline);
+  await seedPitchCloud(fixture, pitch, baseline);
+  assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true);
+  const key = `melody_stage/${target.recordId}`;
+  const remote = fixture.server.records.get(key);
+  fixture.server.records.set(key, { ...remote, payload: { ...remote.payload, pool: ['[object Object]'] },
+    payloadHash: 'corrupt-cloud', revision: remote.revision + 1,
+    changeSeq: ++fixture.server.revision, operationId: 'corrupt-cloud' });
+
+  assert.equal((await fixture.runtime.performSync('detect-cloud-corrupt')).ok, true);
+  const [conflict] = await fixture.store.listConflicts();
+  assert.deepEqual(conflict.recovery, { localInvalid: false, remoteInvalid: true });
+  assert.equal((await fixture.runtime.resolveConflict(conflict.id, 'local')).ok, true);
+  assert.deepEqual(fixture.server.records.get(key).payload.pool,
+    [{ note: 'C', octaveOffset: 0 }, { note: 'D', octaveOffset: 1 }]);
+  assert.deepEqual(fixture.server.records.get('stage_order/melody').payload.stageRefs,
+    [target.recordId, other.recordId]);
+  assert.equal(fixture.server.records.get(`progress/melody:${target.recordId}`).payload.clearCount, 5);
+  const orderRevision = fixture.server.records.get('stage_order/melody').revision;
+  assert.equal((await fixture.runtime.performSync('converged-valid-local')).ok, true);
+  assert.equal(fixture.server.records.get('stage_order/melody').revision, orderRevision,
+    'recovery shadows prevent a redundant order rewrite');
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+test('real Pitch valid Cloud restores a corrupt local stage together with order and progress', async () => {
+  const { fixture, pitch, storage } = createRealPitchRuntimeFixture();
+  const target = pitchStage('legacy:melody-stage:7401', 7401, 'Valid Cloud');
+  const other = pitchStage('legacy:melody-stage:7402', 7402, 'Other');
+  const baseline = { appId: 'pitch', schemaVersion: 1, records: [target, other,
+    pitchOrder([other.recordId, target.recordId]), pitchProgress(target.recordId, 8)] };
+  await pitch.applyRemoteSnapshot(baseline);
+  await seedPitchCloud(fixture, pitch, baseline);
+  assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true);
+  const slots = JSON.parse(storage.getItem('pitchTrainerStagingProMelodySlots'));
+  slots.slots.find((slot) => Number(slot.id) === 7401).config.pool = ['[object Object]'];
+  storage.setItem('pitchTrainerStagingProMelodySlots', JSON.stringify(slots));
+
+  assert.equal((await fixture.runtime.performSync('detect-local-corrupt')).ok, true);
+  const [conflict] = await fixture.store.listConflicts();
+  assert.deepEqual(conflict.recovery, { localInvalid: true, remoteInvalid: false });
+  assert.equal((await fixture.runtime.resolveConflict(conflict.id, 'remote')).ok, true);
+  const local = await fixture.runtime.localRecords();
+  assert.deepEqual(JSON.parse(JSON.stringify(local.records.find((record) => record.recordId === target.recordId).payload.pool)),
+    [{ note: 'C', octaveOffset: 0 }, { note: 'D', octaveOffset: 1 }]);
+  assert.deepEqual(Array.from(local.records.find((record) => record.recordType === 'stage_order').payload.stageRefs),
+    [other.recordId, target.recordId]);
+  assert.equal(local.records.find((record) => record.recordType === 'progress' &&
+    record.payload.stageRef === target.recordId).payload.clearCount, 8);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('real Pitch corrupt stage does not stall an unrelated stage edit or normal progress update', async () => {
+  const { fixture, pitch, storage } = createRealPitchRuntimeFixture();
+  const safe = pitchStage('legacy:melody-stage:7501', 7501, 'Safe before');
+  const corrupt = pitchStage('legacy:melody-stage:7502', 7502, 'Corrupt');
+  const baseline = { appId: 'pitch', schemaVersion: 1, records: [safe, corrupt,
+    pitchOrder([safe.recordId, corrupt.recordId]), pitchProgress(safe.recordId, 1), pitchProgress(corrupt.recordId, 2)] };
+  await pitch.applyRemoteSnapshot(baseline);
+  await seedPitchCloud(fixture, pitch, baseline);
+  assert.equal((await fixture.runtime.consumeHandoff('transient')).ok, true);
+  const slots = JSON.parse(storage.getItem('pitchTrainerStagingProMelodySlots'));
+  slots.slots.find((slot) => Number(slot.id) === 7502).config.pool = ['[object Object]'];
+  storage.setItem('pitchTrainerStagingProMelodySlots', JSON.stringify(slots));
+  const corruptKey = `melody_stage/${corrupt.recordId}`;
+  const remoteCorrupt = fixture.server.records.get(corruptKey);
+  fixture.server.records.set(corruptKey, { ...remoteCorrupt,
+    payload: { ...remoteCorrupt.payload, pool: ['[object Object]'] }, payloadHash: 'corrupt-both',
+    revision: remoteCorrupt.revision + 1, changeSeq: ++fixture.server.revision, operationId: 'corrupt-both' });
+  assert.equal((await fixture.runtime.performSync('detect-corrupt')).ok, true);
+
+  const editedSlots = JSON.parse(storage.getItem('pitchTrainerStagingProMelodySlots'));
+  editedSlots.slots.find((slot) => Number(slot.id) === 7501).name = 'Safe edited';
+  storage.setItem('pitchTrainerStagingProMelodySlots', JSON.stringify(editedSlots));
+  const results = JSON.parse(storage.getItem('pitchTrainerTestModeResults'));
+  results.melody['custom-7501'].clearCount = 11;
+  storage.setItem('pitchTrainerTestModeResults', JSON.stringify(results));
+
+  assert.equal((await fixture.runtime.performSync('unrelated-edit')).ok, true);
+  assert.equal(fixture.server.records.get(`melody_stage/${safe.recordId}`).payload.name, 'Safe edited');
+  assert.equal(fixture.server.records.get(`progress/melody:${safe.recordId}`).payload.clearCount, 11);
+  assert.equal(fixture.server.records.get(corruptKey).payload.pool[0], '[object Object]');
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  assert.equal((await fixture.runtime.attentionSummary()).kind, 'data_repair');
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
+test('real Pitch dangling tombstone references hydrate safely and open data-repair attention', async () => {
+  const { fixture, pitch } = createRealPitchRuntimeFixture();
+  const removed = pitchStage('legacy:melody-stage:7601', 7601, 'Already removed');
+  const safe = pitchStage('legacy:melody-stage:7602', 7602, 'Safe');
+  const snapshot = { appId: 'pitch', schemaVersion: 1, records: [removed, safe,
+    pitchOrder([removed.recordId, safe.recordId]), pitchProgress(removed.recordId, 3)] };
+  await seedPitchCloud(fixture, pitch, snapshot);
+  const stageKey = `melody_stage/${removed.recordId}`;
+  const stage = fixture.server.records.get(stageKey);
+  fixture.server.records.set(stageKey, { ...stage, payload: null, deleted: true, deletedAt: Date.now(),
+    payloadHash: 'deleted-stage', revision: stage.revision + 1,
+    changeSeq: ++fixture.server.revision, operationId: 'partial-delete' });
+
+  const hydrated = await fixture.runtime.consumeHandoff('transient');
+  assert.equal(hydrated.ok, true, JSON.stringify(hydrated));
+  const local = await fixture.runtime.localRecords();
+  assert.equal(local.records.some((record) => record.recordId === removed.recordId), false);
+  assert.deepEqual(Array.from(local.records.find((record) => record.recordType === 'stage_order').payload.stageRefs),
+    [safe.recordId]);
+  assert.equal(local.records.some((record) => record.recordType === 'progress' &&
+    record.payload.stageRef === removed.recordId), false);
+  const [conflict] = await fixture.store.listConflicts();
+  assert.equal(conflict.reason, 'pitch_stage_dependency_inconsistent');
+  assert.equal((await fixture.runtime.attentionSummary()).kind, 'data_repair');
+  const [presentation] = await fixture.runtime.listConflictPresentations();
+  assert.equal(presentation.presentation.title, 'ステージの関連データを確認');
+  assert.equal(presentation.recovery.localLabel, 'このステージを削除');
+  assert.equal((await fixture.runtime.resolveConflict(conflict.id, 'local')).ok, true);
+  assert.deepEqual(fixture.server.records.get('stage_order/melody').payload.stageRefs, [safe.recordId]);
+  assert.notEqual(fixture.server.records.get(`progress/melody:${removed.recordId}`).deletedAt, null);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+});
+
 test('real Pitch recovery isolates an object-string melody while a healthy setting syncs and Cloud restores the stage', async () => {
   const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
   vm.runInContext(readFileSync(new URL('../../pitch-cruise/sync/pitch-sync-adapter.js', import.meta.url), 'utf8'), context);
