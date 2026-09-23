@@ -1475,7 +1475,13 @@
             if (local.errors.length) return { enabled: true, ok: false, code: 'snapshot_invalid', errors: local.errors.length };
             var cloudResult = await readValidatedCloudSnapshot();
             if (!cloudResult.ok) return { enabled: true, ok: false, code: cloudResult.code };
-            var shadow = await store.listShadow();
+            // Account-managed Join starts a new dataset relationship. A shadow from
+            // an earlier legacy pairing must not turn the new cloud's absence into
+            // deletions of still-present local folders, chords, or settings.
+            var accountManagedJoin = syncState === 'paired_pending' &&
+                await store.getMeta('accountManagedSetup') === true &&
+                await store.getMeta('migrationState') === 'pair_pending';
+            var shadow = accountManagedJoin ? [] : await store.listShadow();
             var sessionId = settings.sessionId || await core.deterministicUuid(
                 'sound-cruise-sync:p4:' + local.manifestHash + ':' + cloudResult.snapshot.manifestHash + ':' + cloudResult.snapshot.cursor,
                 cryptoImpl

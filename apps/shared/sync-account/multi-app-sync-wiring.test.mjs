@@ -212,6 +212,8 @@ test('connected startup and successful Join immediately replace Join UI with a s
     'pair-pending hydrate reaches synced state only after completion');
   assert.match(chord, /joinSecret\.resolve\(\);[\s\S]{0,180}input\.remove\(\);[\s\S]{0,220}(?:showAttentionSettings|showConnectedJoinSettings)\(\)/,
     'Chord Join success destroys its input before refreshing Account-managed UI');
+  assert.match(chord, /querySelector\('\[data-sync-action="continue"\]'\)\?\.addEventListener\('click', \(\) => dialog\.close\(\)\)/,
+    'Chord Join completion can close its shared dialog and expose conflict actions');
   assert.match(pairing, /querySelector\('\[data-sync-join-entry-host\]'\)/);
   assert.match(pairing, /host\.appendChild\(section\)/,
     'Chord Account-managed status replaces the Join card in the same settings host');

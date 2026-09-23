@@ -39,7 +39,7 @@
       <p data-sync-summary>コードクルーズをSound Cruise Sync Accountへ安全に接続します。</p>
       <p data-sync-error role="alert" hidden></p>
       <button type="button" data-sync-action="start">${mode === 'join' ? '接続する' : '同期を開始'}</button>
-      <button value="cancel" data-sync-action="continue" hidden>通常アプリへ進む</button>
+      <button type="button" data-sync-action="continue" hidden>通常アプリへ進む</button>
       <a href="${portUrl}" data-sync-action="return" hidden>Cruise Portに戻る</a>
       <button value="cancel" data-sync-action="cancel">キャンセル</button>
     </form>`;
@@ -428,6 +428,7 @@
       button.textContent = 'Cruise Portと接続';
       button.addEventListener('click', () => {
         const dialog = landing(settings.portUrl, 'join');
+        dialog.querySelector('[data-sync-action="continue"]')?.addEventListener('click', () => dialog.close());
         const summary = dialog.querySelector('[data-sync-summary]');
         const start = dialog.querySelector('[data-sync-action="start"]');
         const error = dialog.querySelector('[data-sync-error]');

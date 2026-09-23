@@ -223,6 +223,24 @@ async function pairedClient(localSeed, cloudSeed, options) {
     assert.strictEqual(JSON.parse(flow.storage.getItem('chordCruise.chords.index')).length, 2, 'derived index is rebuilt after canonical writes');
     assert.strictEqual((await flow.server.snapshotBody()).recordCount, applied.recordCount);
 
+    var accountJoin = await pairedClient(chordSeed('account-local'), {});
+    var oldShadow = await accountJoin.sync.core.snapshotLocalStorage(createStorage(chordSeed('account-local')), webcrypto);
+    for (var shadowRecord of oldShadow.records) await accountJoin.store.putShadow(shadowRecord);
+    await accountJoin.store.setMeta('accountManagedSetup', true);
+    await accountJoin.store.setMeta('migrationState', 'pair_pending');
+    var accountPreview = await accountJoin.client.preparePairingMerge();
+    assert.strictEqual(accountPreview.ok, true);
+    assert.strictEqual(accountPreview.plan.conflicts.length, 0, 'a prior legacy shadow cannot create false Account Join conflicts');
+    assert(accountPreview.plan.finalSnapshot.records.some(function (record) {
+        return record.recordKey === 'folder/folder-account-local';
+    }), 'the local folder survives an empty new cloud');
+    assert(accountPreview.plan.finalSnapshot.records.some(function (record) {
+        return record.recordKey === 'chord/chord-account-local';
+    }), 'the local chord survives an empty new cloud');
+    assert.strictEqual((await accountJoin.client.applyPairingMerge(accountPreview.sessionId, {})).ok, true);
+    assert.strictEqual((await accountJoin.server.snapshotBody()).recordCount, accountPreview.plan.finalManifest.recordCount,
+        'the complete local graph reaches the Account cloud');
+
     var stale = await pairedClient(chordSeed('stale-local'), chordSeed('cloud'));
     var stalePreview = await stale.client.preparePairingMerge();
     await stale.server.addCloudChord();
