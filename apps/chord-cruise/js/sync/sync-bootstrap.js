@@ -82,7 +82,7 @@
             return Promise.resolve(true);
         }
         if (!managementUiPromise) {
-            managementUiPromise = loadScript('sync-pairing-ui.js?v=1.15.3').then(function () {
+            managementUiPromise = loadScript('sync-pairing-ui.js?v=1.15.4').then(function () {
                 if (!global.ChordCruiseSync || !global.ChordCruiseSync.pairingUi) return false;
                 global.ChordCruiseSync.pairingUi.install(activeClient);
                 return true;
@@ -98,8 +98,8 @@
     if (isEnabled() && global.document && baseUrl) {
         ready = loadScript('sync-core.js')
             .then(function () { return loadScript('sync-db.js'); })
-            .then(function () { return loadScript('sync-merge.js?v=1.15.3'); })
-            .then(function () { return loadScript('sync-client.js?v=1.15.3'); })
+            .then(function () { return loadScript('sync-merge.js?v=1.15.4'); })
+            .then(function () { return loadScript('sync-client.js?v=1.15.4'); })
             .then(function () {
                 var production = isProductionHost();
                 var endpoint = production

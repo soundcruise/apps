@@ -1573,10 +1573,17 @@
             if (session.mode !== 'pairing' ||
                 await store.getMeta('accountManagedSetup') !== true ||
                 await store.getMeta('migrationState') !== 'pair_pending') return;
-            var previousOutbox = (await store.listOutbox()).filter(function (operation) {
+            var allOutbox = await store.listOutbox();
+            var currentOperationIds = Object.create(null);
+            allOutbox.forEach(function (operation) {
+                if (operation.mergeSessionId === session.sessionId) currentOperationIds[operation.operationId] = true;
+            });
+            var previousOutbox = allOutbox.filter(function (operation) {
                 return operation.mergeSessionId !== session.sessionId;
             });
-            var previousConflicts = await store.listConflicts();
+            var previousConflicts = (await store.listConflicts()).filter(function (conflict) {
+                return !conflict.operationId || !currentOperationIds[conflict.operationId];
+            });
             var previousShadow = await store.listShadow();
             if (!previousOutbox.length && !previousConflicts.length && !previousShadow.length) return;
             var archiveId = await core.deterministicUuid(
@@ -1704,8 +1711,16 @@
                 }
                 var left = (await store.listOutbox()).filter(function (operation) { return operation.mergeSessionId === session.sessionId; });
                 if (alreadyFinal) {
+                    var completedIds = Object.create(null);
                     for (var appliedIndex = 0; appliedIndex < left.length; appliedIndex += 1) {
+                        completedIds[left[appliedIndex].operationId] = true;
                         await store.deleteOutbox(left[appliedIndex].operationId);
+                    }
+                    var completedConflicts = await store.listConflicts();
+                    for (var completedIndex = 0; completedIndex < completedConflicts.length; completedIndex += 1) {
+                        if (completedIds[completedConflicts[completedIndex].operationId]) {
+                            await store.deleteConflict(completedConflicts[completedIndex].conflictId);
+                        }
                     }
                     left = [];
                 }
