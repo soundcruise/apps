@@ -187,14 +187,18 @@
         } }
       });
       if (state === 'attention') {
-        runtime.store.listConflicts().then((conflicts) => {
+        runtime.attentionSummary().then((attention) => {
           if (revision !== attentionRevision) return;
-          const count = conflicts.length;
           setSettingsPresentation(connectedPresentation({
-            state: 'attention', status: count ? `確認が必要 ${count}件` : '確認が必要',
-            action: count && conflictController
-              ? { label: '同期内容を確認', run: () => conflictController.refresh() }
-              : { label: 'もう一度確認', run: () => runtime.sync('manual_retry') }
+            state: 'attention', status: attention.status, description: attention.description,
+            action: attention.kind === 'data_repair' && attention.reviewable && conflictController
+              ? { label: '問題のデータを確認', run: () => conflictController.refresh() }
+              : attention.kind === 'conflict' && conflictController
+                ? { label: '同期内容を確認', run: () => conflictController.refresh() }
+                : attention.kind === 'retry'
+                  ? { label: 'もう一度試す', run: () => attention.count
+                    ? runtime.retryLegacyFailures() : runtime.sync('manual_retry') }
+                  : null
           }));
         }).catch(() => {
           if (revision !== attentionRevision) return;

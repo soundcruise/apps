@@ -203,6 +203,32 @@ function runtimeFixture(initial, appId = 'pitch', admissionMode = 'qa') {
     accountClient, core, fetchImpl, nextId: () => `op-${++id}` };
 }
 
+function installInvalidRecordRecovery(fixture) {
+  const invalid = (record) => record?.payload?.invalid === true && record.deletedAt == null;
+  fixture.local.normalizeLocalSnapshot = (value) => {
+    if (value.records.some(invalid)) throw new Error('synthetic_invalid_record');
+    return structuredClone(value);
+  };
+  fixture.local.normalizeLocalSnapshotForRecovery = (value) => {
+    const broken = value.records.filter(invalid);
+    return {
+      snapshot: { ...structuredClone(value), records: value.records.filter((record) => !invalid(record)) },
+      issues: broken.map((record) => ({ recordKey: `${record.recordType}/${record.recordId}`,
+        recordType: record.recordType, recordId: record.recordId, reason: 'synthetic_unreadable' })),
+      isolatedKeys: broken.map((record) => `${record.recordType}/${record.recordId}`)
+    };
+  };
+  fixture.local.partitionSyncRecords = (records) => {
+    const broken = records.filter(invalid);
+    return {
+      records: structuredClone(records.filter((record) => !invalid(record))),
+      issues: broken.map((record) => ({ recordKey: `${record.recordType}/${record.recordId}`,
+        recordType: record.recordType, recordId: record.recordId, reason: 'synthetic_unreadable' })),
+      isolatedKeys: broken.map((record) => `${record.recordType}/${record.recordId}`)
+    };
+  };
+}
+
 test('Pitch local read repairs a stale referenced chord from the saved shadow once', async () => {
   const fixture = runtimeFixture([]);
   let invalid = true;
@@ -867,6 +893,42 @@ test('multiple save, focus and online requests coalesce into one follow-up', asy
   assert.equal(fixture.server.records.get('custom_record/b')?.deletedAt, null);
 });
 
+test('retry timer firing with save and online requests coalesces without a duplicate storm', async () => {
+  const a = record('a');
+  const b = record('b');
+  const fixture = runtimeFixture([a], 'rhythm');
+  await fixture.runtime.consumeHandoff('transient');
+  const captured = deferred();
+  const release = deferred();
+  const originalLocalRecords = fixture.runtime.localRecords.bind(fixture.runtime);
+  let localCalls = 0;
+  fixture.runtime.localRecords = async () => {
+    const value = await originalLocalRecords();
+    if (++localCalls === 1) {
+      captured.resolve();
+      await release.promise;
+    }
+    return value;
+  };
+  let runs = 0;
+  const originalPerformSync = fixture.runtime.performSync.bind(fixture.runtime);
+  fixture.runtime.performSync = async (reason) => { runs += 1; return originalPerformSync(reason); };
+
+  const first = fixture.runtime.sync('startup');
+  await captured.promise;
+  fixture.local.records = [a, b];
+  fixture.runtime.sync('retry-timer');
+  fixture.runtime.sync('retry-timer');
+  fixture.runtime.sync('save');
+  fixture.runtime.sync('online');
+  release.resolve();
+  await first;
+
+  assert.equal(runs, 2);
+  assert.equal(fixture.server.records.get('custom_record/b')?.deletedAt, null);
+  assert.equal(fixture.server.revision, 2);
+});
+
 test('save at the completion boundary is not lost', async () => {
   const a = record('a');
   const b = record('b');
@@ -977,6 +1039,41 @@ test('offline save stays local and the online trigger sends the latest snapshot'
   assert.equal(fixture.server.records.get('custom_record/b')?.deletedAt, null);
 });
 
+test('an online wake-up arriving before an offline run settles sends the latest save without reload', async () => {
+  const a = record('a');
+  const b = record('b');
+  const fixture = runtimeFixture([a], 'fretboard');
+  await fixture.runtime.consumeHandoff('transient');
+  const started = deferred();
+  const release = deferred();
+  const originalPerformSync = fixture.runtime.performSync.bind(fixture.runtime);
+  let runs = 0;
+  fixture.runtime.performSync = async (reason) => {
+    runs += 1;
+    if (runs === 1) {
+      started.resolve();
+      await release.promise;
+      return { ok: false, code: 'offline' };
+    }
+    return originalPerformSync(reason);
+  };
+
+  fixture.context.navigator.onLine = false;
+  const first = fixture.runtime.sync('focus');
+  await started.promise;
+  fixture.local.records = [a, b];
+  fixture.runtime.sync('save');
+  fixture.context.navigator.onLine = true;
+  fixture.runtime.sync('online');
+  release.resolve();
+  const result = await first;
+
+  assert.equal(result.ok, true);
+  assert.equal(runs, 2);
+  assert.equal(fixture.server.records.get('custom_record/b')?.deletedAt, null);
+  assert.equal(fixture.runtime.running, null);
+});
+
 test('conflict safe-stop does not run a pending follow-up', async () => {
   const a = record('a', 'base');
   const fixture = runtimeFixture([a], 'pitch');
@@ -1000,6 +1097,30 @@ test('conflict safe-stop does not run a pending follow-up', async () => {
   assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
   assert.equal((await fixture.store.listConflicts()).length, 1);
   assert.equal(fixture.local.records[0].payload.name, 'local');
+});
+
+test('attention summary separates conflicts, retryable legacy work and data repair without using record count', async () => {
+  const fixture = runtimeFixture(Array.from({ length: 12 }, (_, index) => record(`r${index}`)), 'pitch');
+  assert.equal((await fixture.runtime.attentionSummary()).kind, 'retry');
+  await fixture.store.putConflict({ id: 'c1', kind: 'pull', recordKey: 'custom_record/r0' });
+  let summary = await fixture.runtime.attentionSummary();
+  assert.equal(summary.kind, 'conflict');
+  assert.equal(summary.count, 1);
+  assert.equal(summary.status, '確認が必要 1件');
+  await fixture.store.putConflict({ id: 'c2', kind: 'invalid_record', recordKey: 'custom_record/r1' });
+  summary = await fixture.runtime.attentionSummary();
+  assert.equal(summary.kind, 'data_repair');
+  assert.equal(summary.count, 2);
+  assert.equal(summary.reviewable, true);
+  await fixture.store.deleteConflict('c1');
+  await fixture.store.deleteConflict('c2');
+  await fixture.store.putOutbox({ operationId: 'legacy', terminalError: 'push_failed' });
+  assert.equal((await fixture.runtime.attentionSummary()).kind, 'retry');
+  await fixture.store.putOutbox({ operationId: 'invalid', terminalError: 'invalid_record', failureKind: 'terminal' });
+  summary = await fixture.runtime.attentionSummary();
+  assert.equal(summary.kind, 'data_repair');
+  assert.equal(summary.reviewable, undefined);
+  assert.match(summary.description, /保存し直してください/);
 });
 
 function preset(id, bpm) {
@@ -1883,6 +2004,204 @@ test('offline resolution persists intent without applying either side and resume
   const resumed = await fixture.runtime.resumeConflictResolutions();
   assert.equal(resumed.ok, true, JSON.stringify(resumed));
   assert.equal(fixture.local.records[0].payload.bpm, 81);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('one unreadable record is isolated while healthy records sync and Remote repair restores it', async () => {
+  const brokenBase = preset('broken', 80);
+  const safeBase = preset('safe', 90);
+  const fixture = runtimeFixture([brokenBase, safeBase], 'pitch');
+  installInvalidRecordRecovery(fixture);
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [
+    { ...preset('broken', 79), payload: { ...preset('broken', 79).payload, invalid: true } },
+    preset('safe', 91)
+  ];
+
+  const synced = await fixture.runtime.sync('save');
+  assert.equal(synced.ok, true);
+  assert.equal(fixture.server.records.get('custom_preset/broken').payload.bpm, 80,
+    'unreadable local data must never overwrite the healthy cloud record');
+  assert.equal(fixture.server.records.get('custom_preset/safe').payload.bpm, 91,
+    'unrelated healthy data continues syncing');
+  const [conflict] = await fixture.store.listConflicts();
+  assert.equal(conflict.kind, 'invalid_record');
+  assert.deepEqual(conflict.recovery, { localInvalid: true, remoteInvalid: false });
+  const [presentation] = await fixture.runtime.listConflictPresentations();
+  assert.deepEqual(JSON.parse(JSON.stringify(presentation.recovery.allowedChoices)), ['remote']);
+  assert.equal(presentation.recovery.remoteLabel, 'クラウドの正常データを使用');
+  assert.equal((await fixture.runtime.attentionSummary()).kind, 'data_repair');
+
+  const repaired = await fixture.runtime.resolveConflict(conflict.id, 'remote');
+  assert.equal(repaired.ok, true, JSON.stringify(repaired));
+  assert.equal(fixture.local.records.find((record) => record.recordId === 'broken').payload.bpm, 80);
+  assert.equal(fixture.local.records.find((record) => record.recordId === 'safe').payload.bpm, 91);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('a manually restored invalid record clears its stale recovery item only after both sides match', async () => {
+  const baseline = preset('broken', 80);
+  const fixture = runtimeFixture([baseline], 'pitch');
+  installInvalidRecordRecovery(fixture);
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [{ ...preset('broken', 79),
+    payload: { ...preset('broken', 79).payload, invalid: true } }];
+  await fixture.runtime.sync('save');
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  fixture.local.records = [baseline];
+
+  const result = await fixture.runtime.sync('focus');
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'ready');
+});
+
+test('Local repair replaces one corrupt Remote record while twenty unrelated edits continue and Later is non-destructive', async () => {
+  const brokenBase = preset('broken', 80);
+  const healthyBase = Array.from({ length: 20 }, (_, index) => preset(`healthy-${index}`, 90 + index));
+  const fixture = runtimeFixture([brokenBase, ...healthyBase], 'pitch');
+  installInvalidRecordRecovery(fixture);
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [preset('broken', 79),
+    ...healthyBase.map((record, index) => preset(record.recordId, 190 + index))];
+  const remote = fixture.server.records.get('custom_preset/broken');
+  fixture.server.revision += 1;
+  fixture.server.records.set('custom_preset/broken', { ...remote, revision: remote.revision + 1,
+    changeSeq: fixture.server.revision, operationId: 'remote-corrupt',
+    payload: { ...remote.payload, bpm: 81, invalid: true }, payloadHash: 'hash-broken-corrupt' });
+
+  assert.equal((await fixture.runtime.sync('save')).ok, true);
+  for (let index = 0; index < 20; index += 1) {
+    assert.equal(fixture.server.records.get(`custom_preset/healthy-${index}`).payload.bpm, 190 + index);
+  }
+  const [conflict] = await fixture.store.listConflicts();
+  assert.deepEqual(conflict.recovery, { localInvalid: false, remoteInvalid: true });
+  const [presentation] = await fixture.runtime.listConflictPresentations();
+  assert.deepEqual(JSON.parse(JSON.stringify(presentation.recovery.allowedChoices)), ['local']);
+  const localBefore = structuredClone(fixture.local.records);
+  const remoteBefore = structuredClone(fixture.server.records.get('custom_preset/broken'));
+  const deferred = await fixture.runtime.resolveConflict(conflict.id, 'later');
+  assert.equal(deferred.deferred, true);
+  assert.deepEqual(fixture.local.records, localBefore);
+  assert.deepEqual(fixture.server.records.get('custom_preset/broken'), remoteBefore);
+
+  const repaired = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(repaired.ok, true, JSON.stringify(repaired));
+  assert.equal(fixture.server.records.get('custom_preset/broken').payload.bpm, 79);
+  assert.equal(fixture.server.records.get('custom_preset/broken').payload.invalid, undefined);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('new-device hydrate quarantines one corrupt cloud record and still restores twenty healthy records', async () => {
+  const fixture = runtimeFixture([], 'pitch');
+  installInvalidRecordRecovery(fixture);
+  fixture.server.state = 'ready';
+  const cloud = [
+    { ...preset('broken', 80), payload: { ...preset('broken', 80).payload, invalid: true } },
+    ...Array.from({ length: 20 }, (_, index) => preset(`healthy-${index}`, 100 + index))
+  ];
+  for (const record of cloud) {
+    fixture.server.revision += 1;
+    fixture.server.records.set(`${record.recordType}/${record.recordId}`, {
+      ...record, revision: 1, deletedAt: null, changeSeq: fixture.server.revision,
+      operationId: `remote-${record.recordId}`
+    });
+  }
+
+  const hydrated = await fixture.runtime.consumeHandoff('transient');
+  assert.equal(hydrated.ok, true, JSON.stringify(hydrated));
+  assert.equal(fixture.local.records.length, 20);
+  assert.equal(fixture.local.records.some((record) => record.recordId === 'broken'), false);
+  assert.equal((await fixture.store.listConflicts()).length, 1);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+  assert.equal((await fixture.runtime.attentionSummary()).kind, 'data_repair');
+});
+
+test('two unreadable copies can only be deleted and response-loss resume removes the local copy once', async () => {
+  const baseline = preset('broken', 80);
+  const fixture = runtimeFixture([baseline], 'pitch');
+  installInvalidRecordRecovery(fixture);
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [{ ...preset('broken', 79),
+    payload: { ...preset('broken', 79).payload, invalid: true } }];
+  const remote = fixture.server.records.get('custom_preset/broken');
+  fixture.server.revision += 1;
+  fixture.server.records.set('custom_preset/broken', { ...remote, revision: remote.revision + 1,
+    changeSeq: fixture.server.revision, operationId: 'remote-corrupt',
+    payload: { ...remote.payload, bpm: 81, invalid: true }, payloadHash: 'hash-broken-corrupt' });
+
+  assert.equal((await fixture.runtime.sync('focus')).ok, true);
+  const [conflict] = await fixture.store.listConflicts();
+  const [presentation] = await fixture.runtime.listConflictPresentations();
+  assert.deepEqual(JSON.parse(JSON.stringify(presentation.recovery.allowedChoices)), ['local']);
+  assert.equal(presentation.recovery.localLabel, 'このステージを削除');
+  assert.equal((await fixture.runtime.resolveConflict(conflict.id, 'remote')).code, 'resolution_choice_invalid');
+
+  fixture.server.responseLossAfterApply = true;
+  const first = await fixture.runtime.resolveConflict(conflict.id, 'local');
+  assert.equal(first.ok, false);
+  const revision = fixture.server.records.get('custom_preset/broken').revision;
+  assert.notEqual(fixture.server.records.get('custom_preset/broken').deletedAt, null);
+  assert.equal(fixture.local.records.length, 1, 'local cleanup waits until the cloud delete is verified');
+  const restarted = new fixture.Runtime({
+    appId: 'pitch', endpoint: 'https://example.test', adapter: fixture.local,
+    store: fixture.store, accountClient: fixture.accountClient, accountCore: fixture.core,
+    fetchImpl: fixture.fetchImpl, randomOperationId: fixture.nextId
+  });
+  const resumed = await restarted.resumeConflictResolutions();
+  assert.equal(resumed.ok, true, JSON.stringify(resumed));
+  assert.equal(fixture.local.records.length, 0);
+  assert.equal(fixture.server.records.get('custom_preset/broken').revision, revision);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('real Pitch recovery isolates an object-string melody while a healthy setting syncs and Cloud restores the stage', async () => {
+  const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+  vm.runInContext(readFileSync(new URL('../../pitch-cruise/sync/pitch-sync-adapter.js', import.meta.url), 'utf8'), context);
+  const values = new Map();
+  const storage = {
+    getItem: (key) => values.get(key) ?? null,
+    setItem: (key, value) => values.set(key, String(value)),
+    removeItem: (key) => values.delete(key)
+  };
+  const pitch = new context.SoundCruisePitchSync.PitchSyncAdapter({ storage, cryptoImpl: webcrypto,
+    backupStore: { async save() {} } });
+  const stageId = 'legacy:melody-stage:5001';
+  const baseline = { appId: 'pitch', schemaVersion: 1, records: [
+    { recordType: 'melody_stage', recordId: stageId, schemaVersion: 1, payload: {
+      id: stageId, legacyId: 5001, name: 'QA recovery melody',
+      pool: [{ note: 'C', octaveOffset: 0 }, { note: 'D', octaveOffset: 1 }],
+      count: 4, is2Octave: true, isPianoLayout: true, answerMethod: 'note', description: 'QA'
+    } },
+    { recordType: 'stage_order', recordId: 'melody', schemaVersion: 1,
+      payload: { id: 'melody', category: 'melody', stageRefs: [stageId] } }
+  ] };
+  await pitch.applyRemoteSnapshot(baseline);
+  const fixture = runtimeFixture([], 'pitch');
+  fixture.runtime.adapter = pitch;
+  await fixture.runtime.consumeHandoff('transient');
+
+  const legacy = JSON.parse(storage.getItem('pitchTrainerStagingProMelodySlots'));
+  legacy.slots[0].config.pool = ['[object Object]'];
+  storage.setItem('pitchTrainerStagingProMelodySlots', JSON.stringify(legacy));
+  storage.setItem('pitchTrainerSettings', JSON.stringify({
+    instrument: 'acoustic_guitar', notationStyle: 'doremi', scaleEnabled: true,
+    isAnswerMode: true, keyRandomMode: false, baseOctave: 3, keyOffset: 0, noteSpeed: 2
+  }));
+  const result = await fixture.runtime.sync('save');
+  assert.equal(result.ok, true);
+  assert.equal(fixture.server.records.get(`melody_stage/${stageId}`).payload.pool[0].note, 'C');
+  assert.equal(fixture.server.records.get('settings/settings').payload.values.noteSpeed, 2);
+  const [conflict] = await fixture.store.listConflicts();
+  assert.equal(conflict.kind, 'invalid_record');
+  assert.equal(conflict.recordKey, `melody_stage/${stageId}`);
+  assert.equal((await fixture.runtime.attentionSummary()).kind, 'data_repair');
+
+  const repaired = await fixture.runtime.resolveConflict(conflict.id, 'remote');
+  assert.equal(repaired.ok, true, JSON.stringify(repaired));
+  const restored = JSON.parse(storage.getItem('pitchTrainerStagingProMelodySlots')).slots[0];
+  assert.deepEqual(restored.config.pool, [{ note: 'C', octaveOffset: 0 }, { note: 'D', octaveOffset: 1 }]);
+  assert.equal(JSON.parse(storage.getItem('pitchTrainerSettings')).noteSpeed, 2);
   assert.equal((await fixture.store.listConflicts()).length, 0);
 });
 

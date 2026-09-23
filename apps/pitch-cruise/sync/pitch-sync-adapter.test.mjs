@@ -156,6 +156,34 @@ test('legacy snapshot becomes typed records with stable IDs and excludes local-o
   })), 1, crypto, 'pitch'));
 });
 
+test('custom chord, progression and chord-stage serializers retain their distinct nested fields', async () => {
+  const api = load();
+  const sourceSnapshot = api.normalizeLocalSnapshot({ schemaVersion: 0, values: richLegacy(api) });
+  const wire = await api.serializeRecords(sourceSnapshot);
+  const received = api.deserializeRecords(JSON.parse(JSON.stringify(wire)));
+  const chord = received.records.find((record) => record.recordType === 'custom_chord');
+  const progression = received.records.find((record) => record.recordType === 'custom_progression');
+  const stage = received.records.find((record) => record.recordType === 'chord_stage');
+  assert.deepEqual(JSON.parse(JSON.stringify({
+    name: chord.payload.name, root: chord.payload.root, third: chord.payload.third,
+    fifth: chord.payload.fifth, seventh: chord.payload.seventh,
+    tensions: chord.payload.tensions, inversion: chord.payload.inversion,
+    isActive: chord.payload.isActive
+  })), { name: 'QA maj7', root: '0', third: '4', fifth: '7', seventh: '11',
+    tensions: ['14'], inversion: '0', isActive: true });
+  assert.equal(progression.payload.name, 'QA progression');
+  assert.deepEqual(JSON.parse(JSON.stringify(progression.payload.chordRefs)),
+    ['legacy:chord:2001', 'builtin:chord:g']);
+  assert.equal(stage.payload.name, 'QA chord');
+  assert.equal(stage.payload.proQuestionMode, 'chords');
+  assert.deepEqual(JSON.parse(JSON.stringify(stage.payload.chordRefs)),
+    ['legacy:chord:2001', 'builtin:chord:g']);
+  const storage = new MemoryStorage(richLegacy(api));
+  await new api.PitchSyncAdapter({ storage }).applyRemoteSnapshot(received);
+  assert.equal(await api.computeManifest(api.normalizeLocalSnapshot(api.readLocalSnapshot(storage))),
+    await api.computeManifest(received));
+});
+
 test('two-octave melody pool survives local to cloud to local without string coercion', async () => {
   const api = load();
   const android = new MemoryStorage(richLegacy(api));
@@ -223,6 +251,44 @@ test('melody pool validation rejects malformed entries before serialization or r
     await assert.rejects(new api.PitchSyncAdapter({ storage }).applyRemoteSnapshot(valid), /pitch_record_invalid/);
     assert.equal(storage.writes, 0);
   }
+});
+
+test('unreadable melody data is isolated without guessing notes while healthy Pitch data remains usable', async () => {
+  const api = load();
+  const values = richLegacy(api);
+  const melody = JSON.parse(values.pitchTrainerStagingProMelodySlots);
+  melody.slots.push({ id: 5002, name: 'Healthy melody', config: {
+    pool: ['E', { note: 'G', octaveOffset: 1 }], count: 3, is2Octave: true,
+    isPianoLayout: false, answerMethod: 'note', description: 'keep me'
+  } });
+  melody.order = [5002, 5001];
+  melody.slots[0].config.pool = ['[object Object]'];
+  values.pitchTrainerStagingProMelodySlots = JSON.stringify(melody);
+  const original = structuredClone(values);
+
+  const recovered = api.normalizeLocalSnapshotForRecovery({ schemaVersion: 0, values });
+  assert.equal(recovered.issues.length, 1);
+  assert.equal(recovered.issues[0].reason, 'pitch_melody_stage_unreadable');
+  assert.equal(recovered.snapshot.records.some((record) => record.payload?.name === 'QA melody'), false);
+  assert.equal(recovered.snapshot.records.some((record) => record.payload?.name === 'Healthy melody'), true);
+  assert.deepEqual(JSON.parse(JSON.stringify(recovered.snapshot.records.find((record) =>
+    record.recordType === 'stage_order' && record.recordId === 'melody').payload.stageRefs)),
+  ['legacy:melody-stage:5002']);
+  assert.equal(recovered.snapshot.records.some((record) =>
+    record.recordType === 'progress' && record.payload.stageRef === 'legacy:melody-stage:5001'), false);
+  assert.deepEqual(values, original, 'recovery projection must not rewrite local storage');
+  assert.equal(JSON.stringify(recovered).includes('[object Object]'), false);
+
+  const serialized = await api.serializeRecords(api.normalizeLocalSnapshot({ schemaVersion: 0,
+    values: richLegacy(api) }));
+  const corrupt = serialized.find((record) => record.recordType === 'melody_stage');
+  corrupt.payload.pool = ['[object Object]'];
+  const partitioned = api.partitionSyncRecords(serialized);
+  assert.equal(partitioned.issues.length, 1);
+  assert.equal(partitioned.records.some((record) => record.recordType === 'melody_stage' &&
+    record.recordId === corrupt.recordId), false);
+  assert.equal(partitioned.records.some((record) => record.recordType === 'custom_chord'), true);
+  assert(partitioned.isolatedKeys.includes('stage_order/melody'));
 });
 
 test('two-octave stage conflicts retain typed pool and do not silently merge unrelated edits', () => {

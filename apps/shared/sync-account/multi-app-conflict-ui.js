@@ -79,7 +79,10 @@
     }
 
     function select(id, choice) {
-      if (busy || !items.some((item) => item.id === id && !item.settings)) return { ok: false, code: 'resolution_choice_invalid' };
+      const item = items.find((entry) => entry.id === id && !entry.settings);
+      if (busy || !item || item.recovery && !item.recovery.allowedChoices.includes(choice)) {
+        return { ok: false, code: 'resolution_choice_invalid' };
+      }
       if (!['local', 'remote'].includes(choice)) return { ok: false, code: 'resolution_choice_invalid' };
       selections.set(id, choice);
       render();
@@ -88,7 +91,7 @@
 
     function selectAll(choice) {
       if (busy || !['local', 'remote'].includes(choice)) return { ok: false, code: 'resolution_choice_invalid' };
-      if (items.some((item) => item.settings)) return { ok: false, code: 'settings_field_choice_required' };
+      if (items.some((item) => item.settings || item.recovery)) return { ok: false, code: 'settings_field_choice_required' };
       for (const item of items) selections.set(item.id, choice);
       render();
       return { ok: true, selected: selections.size, total: items.length };
@@ -152,7 +155,7 @@
 
     async function applyAll(choice) {
       if (busy || !['local', 'remote'].includes(choice)) return { ok: false, code: 'resolution_choice_invalid' };
-      if (items.some((item) => item.settings)) return { ok: false, code: 'settings_field_choice_required' };
+      if (items.some((item) => item.settings || item.recovery)) return { ok: false, code: 'settings_field_choice_required' };
       for (const item of items) selections.set(item.id, choice);
       return apply(choice === 'local' ? 'bulk-local' : 'bulk-remote');
     }
@@ -365,7 +368,11 @@
       appendTextElement(document, fieldset, 'legend', '', '残す内容');
       const options = document.createElement('div');
       options.className = 'sound-cruise-sync-conflict-choice-options';
-      for (const [choice, label] of [['local', 'この端末'], ['remote', 'クラウド']]) {
+      const labels = item.recovery ? [['local', item.recovery.localLabel], ['remote', item.recovery.remoteLabel]]
+        : [['local', 'この端末'], ['remote', 'クラウド']];
+      const available = labels.filter(([choice]) => !item.recovery || item.recovery.allowedChoices.includes(choice));
+      if (available.length === 1) options.style.gridTemplateColumns = '1fr';
+      for (const [choice, label] of available) {
         const option = document.createElement('label');
         option.className = 'sound-cruise-sync-conflict-choice-option';
         const input = document.createElement('input');
@@ -443,14 +450,20 @@
     const view = {
       show(items, selections) {
         const hasSettings = items.some((item) => item.settings);
-        title.textContent = hasSettings ? '設定の違いを確認' : '変更内容を確認してください';
+        const hasRecovery = items.some((item) => item.recovery);
+        title.textContent = hasSettings ? '設定の違いを確認' : hasRecovery ? '問題のデータを確認' : '変更内容を確認してください';
         overview.hidden = hasSettings;
-        bulk.hidden = hasSettings;
+        bulk.hidden = hasSettings || hasRecovery;
         if (hasSettings) {
           individualBody.hidden = false;
           individual.dataset.open = 'true';
           individualSummary.hidden = true;
           summary.textContent = 'この端末とクラウドで異なる設定だけ選んでください。同じ設定は自動で統合されます。';
+        } else if (hasRecovery) {
+          individualBody.hidden = false;
+          individual.dataset.open = 'true';
+          individualSummary.hidden = true;
+          summary.textContent = '読み込めないステージがあります。正常なデータを使用するか、あとで決めてください。内容を推測して修復することはありません。';
         } else {
           individualSummary.hidden = false;
           summary.textContent = 'この端末とクラウドの両方に新しい変更があります。残したい内容を選んでください。';

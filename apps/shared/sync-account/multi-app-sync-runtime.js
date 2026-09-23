@@ -317,17 +317,110 @@
       } catch (_) { /* fail closed in Port */ }
     }
 
+    async attentionSummary() {
+      const [conflicts, outbox] = await Promise.all([this.store.listConflicts(), this.store.listOutbox()]);
+      if (conflicts.some((item) => item.kind === 'invalid_record')) return Object.freeze({
+        kind: 'data_repair', count: conflicts.length, reviewable: true,
+        status: `問題のデータがあります ${conflicts.length}件`,
+        description: '読み込めない保存データがあります。正常なデータを選ぶか、あとで決められます。'
+      });
+      if (conflicts.length) return Object.freeze({ kind: 'conflict', count: conflicts.length,
+        status: `確認が必要 ${conflicts.length}件`, description: '同期する内容を選んでください。' });
+      const terminal = outbox.filter((item) => item.terminalError || item.conflict);
+      if (terminal.length && terminal.every((item) => item.terminalError === 'push_failed' && !item.failureKind)) return Object.freeze({
+        kind: 'retry', count: terminal.length, status: '同期を再試行できます',
+        description: '以前の送信を安全にもう一度試せます。'
+      });
+      if (terminal.length) return Object.freeze({ kind: 'data_repair', count: terminal.length,
+        status: '保存データの確認が必要です',
+        description: '自動では送信できないデータがあります。対象データを開いて内容を確認し、保存し直してください。' });
+      return Object.freeze({ kind: 'retry', count: 0, status: '同期を確認できませんでした',
+        description: '通信状態を確認して、もう一度お試しください。' });
+    }
+
+    recoveryChoices(conflict) {
+      const localUsable = conflict?.recovery?.localInvalid !== true &&
+        conflict?.anchors?.local?.missing !== true && conflict?.anchors?.local?.deleted !== true;
+      const remoteUsable = conflict?.recovery?.remoteInvalid !== true &&
+        conflict?.anchors?.remote?.missing !== true && conflict?.anchors?.remote?.deleted !== true;
+      return Object.freeze({ localUsable, remoteUsable,
+        allowed: Object.freeze(localUsable ? ['local'] : remoteUsable ? ['remote'] : ['local']) });
+    }
+
     async localRecords() {
       let snapshot;
+      let issues = [];
+      let isolatedKeys = [];
       try {
         snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
       } catch (error) {
-        if (typeof this.adapter.repairMissingLegacyReferences !== 'function' ||
-            !/^pitch_legacy_(?:chord_stage|progression)_reference_invalid$/u.test(String(error?.message))) throw error;
-        await this.adapter.repairMissingLegacyReferences(await this.store.listShadow());
-        snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
+        if (typeof this.adapter.normalizeLocalSnapshotForRecovery === 'function') {
+          const recovery = this.adapter.normalizeLocalSnapshotForRecovery(this.adapter.readLocalSnapshot());
+          snapshot = recovery.snapshot;
+          issues = recovery.issues || [];
+          isolatedKeys = recovery.isolatedKeys || [];
+        } else {
+          if (typeof this.adapter.repairMissingLegacyReferences !== 'function' ||
+              !/^pitch_legacy_(?:chord_stage|progression)_reference_invalid$/u.test(String(error?.message))) throw error;
+          await this.adapter.repairMissingLegacyReferences(await this.store.listShadow());
+          snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
+        }
       }
-      return { snapshot, records: await this.adapter.serializeRecords(snapshot) };
+      if (!issues.length && typeof this.adapter.partitionSyncRecords === 'function') {
+        const partitioned = this.adapter.partitionSyncRecords(snapshot.records || []);
+        snapshot = { ...snapshot, records: partitioned.records };
+        issues = partitioned.issues || [];
+        isolatedKeys = partitioned.isolatedKeys || [];
+      }
+      return { snapshot, records: await this.adapter.serializeRecords(snapshot), issues, isolatedKeys };
+    }
+
+    partitionRemote(remote) {
+      if (typeof this.adapter.partitionSyncRecords !== 'function') {
+        return { remote, issues: [], isolatedKeys: [] };
+      }
+      const partitioned = this.adapter.partitionSyncRecords(remote.records || []);
+      return { remote: { ...remote, records: partitioned.records },
+        issues: partitioned.issues || [], isolatedKeys: partitioned.isolatedKeys || [] };
+    }
+
+    async recordRecoveryIssues(local, rawRemote, remoteIssues, localIssues) {
+      const localIssueKeys = new Set((localIssues || []).map((issue) => issue.recordKey));
+      const remoteIssueKeys = new Set((remoteIssues || []).map((issue) => issue.recordKey));
+      const localMap = mapRecords(local.records);
+      const rawRemoteMap = mapRecords(rawRemote.records || []);
+      const existing = new Map((await this.store.listConflicts()).map((item) => [item.recordKey, item]));
+      const currentKeys = new Set([...localIssueKeys, ...remoteIssueKeys]);
+      for (const conflict of existing.values()) {
+        if (conflict.kind !== 'invalid_record' || currentKeys.has(conflict.recordKey)) continue;
+        const localRecord = localMap.get(conflict.recordKey) || null;
+        const remoteRecord = rawRemoteMap.get(conflict.recordKey) || null;
+        await this.store.deleteConflict(conflict.id);
+        if (sameRecord(localRecord, remoteRecord)) {
+          await this.clearConflictOutbox(conflict.recordKey);
+          if (remoteRecord) await this.store.putShadow(conflict.recordKey, clone(remoteRecord));
+          else await this.store.deleteShadow?.(conflict.recordKey);
+        } else {
+          await this.recordConflict('pull', conflict.recordKey, { reason: 'recovered_record_changed',
+            localRecord, remoteRecord, shadowRecord: await this.store.getShadow?.(conflict.recordKey) });
+        }
+      }
+      for (const issue of [...(localIssues || []), ...(remoteIssues || [])]) {
+        const previous = existing.get(issue.recordKey);
+        const recovery = { localInvalid: localIssueKeys.has(issue.recordKey),
+          remoteInvalid: remoteIssueKeys.has(issue.recordKey) };
+        if (previous?.kind === 'invalid_record' &&
+            (previous.recovery?.localInvalid !== recovery.localInvalid ||
+             previous.recovery?.remoteInvalid !== recovery.remoteInvalid)) {
+          await this.store.deleteConflict(previous.id);
+        } else if (previous) continue;
+        await this.recordConflict('invalid_record', issue.recordKey, {
+          reason: issue.reason,
+          localRecord: localMap.get(issue.recordKey) || null,
+          remoteRecord: rawRemoteMap.get(issue.recordKey) || null,
+          recovery
+        });
+      }
     }
 
     async applyWithBackup(nextSnapshot, previousSnapshot, { checkCurrent = false } = {}) {
@@ -395,6 +488,7 @@
         reason: details.reason || existing?.reason || null,
         createdAt: existing?.createdAt || this.now(), updatedAt: this.now(),
         state: existing?.state || 'attention',
+        ...(details.recovery ? { recovery: clone(details.recovery) } : {}),
         anchors: {
           local: recordAnchor(details.localRecord),
           remote: recordAnchor(details.remoteRecord),
@@ -475,9 +569,18 @@
           ? this.adapter.getConflictPresentation(context)
           : null;
         const settings = this.settingsFieldPlan(context, conflict.resolution?.fieldChoices || {});
+        const recovery = conflict.kind === 'invalid_record' ? this.recoveryChoices(conflict) : null;
         return Object.freeze({
           id: conflict.id,
           state: conflict.state || 'attention',
+          recovery: conflict.kind === 'invalid_record' ? Object.freeze({
+            localInvalid: conflict.recovery?.localInvalid === true,
+            remoteInvalid: conflict.recovery?.remoteInvalid === true,
+            allowedChoices: recovery.allowed,
+            localLabel: !recovery.localUsable && !recovery.remoteUsable
+              ? 'このステージを削除' : 'この端末の正常データを使用',
+            remoteLabel: 'クラウドの正常データを使用'
+          }) : null,
           selection: ['local', 'remote'].includes(conflict.resolution?.choice)
             ? conflict.resolution.choice : null,
           settings: settings ? Object.freeze({
@@ -559,11 +662,20 @@
     async resolveLocalConflict(conflict) {
       if (global.navigator?.onLine === false) throw new MultiAppSyncError('resolution_offline');
       let context = await this.conflictContext(conflict);
+      if (conflict.kind === 'invalid_record' && conflict.recovery?.localInvalid === true &&
+          !context.remoteRecord && !context.shadowRecord) {
+        await this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true });
+        return this.finishResolution(conflict, context.remote);
+      }
       let resolution = conflict.resolution?.choice === 'local' ? clone(conflict.resolution) : {
         choice: 'local', status: 'pending', operationId: this.randomOperationId(), startedAt: this.now()
       };
       if (resolution.expectedRemote) {
         if (this.remoteMatchesAppliedIntent(context.remoteRecord, resolution)) {
+          if (conflict.kind === 'invalid_record' && resolution.desiredDeleted &&
+              conflict.recovery?.localInvalid === true) {
+            await this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true });
+          }
           conflict = await this.saveConflict(conflict, 'verifying', resolution);
           return this.verifyLocalResolution(conflict, resolution, context.remote);
         }
@@ -614,6 +726,10 @@
         throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
       }
       if (!['applied', 'duplicate'].includes(result?.status)) throw new MultiAppSyncError(result?.code || 'resolution_push_failed');
+      if (conflict.kind === 'invalid_record' && resolution.desiredDeleted &&
+          conflict.recovery?.localInvalid === true) {
+        await this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true });
+      }
       conflict = await this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' });
       const authoritative = await this.serverSnapshot();
       const remoteRecord = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
@@ -651,7 +767,8 @@
           nextSnapshot = await this.adapter.prepareRemoteResolutionSnapshot(nextSnapshot, {
             recordKey: conflict.recordKey,
             localRecord: context.localRecord,
-            remoteRecord: context.remoteRecord
+            remoteRecord: context.remoteRecord,
+            remoteRecords: context.remote.records || []
           });
         }
         nextSnapshot = this.adapter.normalizeLocalSnapshot(nextSnapshot);
@@ -789,6 +906,11 @@
         await this.saveConflict(conflict, 'attention', null);
         return Object.freeze({ ok: true, deferred: true, remaining: (await this.store.listConflicts()).length });
       }
+      if (conflict.kind === 'invalid_record') {
+        if (!this.recoveryChoices(conflict).allowed.includes(choice)) {
+          return Object.freeze({ ok: false, code: 'resolution_choice_invalid' });
+        }
+      }
       if (global.navigator?.onLine === false) {
         const resolution = conflict.resolution?.choice === choice ? conflict.resolution : {
           choice, status: 'pending', startedAt: this.now(),
@@ -858,13 +980,14 @@
       return remaining;
     }
 
-    async queueDiff(localRecords, remoteRecords, shadowRecords, { migration = false } = {}) {
+    async queueDiff(localRecords, remoteRecords, shadowRecords, { migration = false, isolatedKeys = new Set() } = {}) {
       const local = mapRecords(localRecords);
       const remote = mapRecords(remoteRecords);
       const shadow = mapRecords(shadowRecords);
       const pending = await this.store.listOutbox();
       const pendingByKey = new Map(pending.map((item) => [`${keyOf(item)}:${item.deleted === true}`, item]));
       for (const recordKey of new Set([...local.keys(), ...shadow.keys()])) {
+        if (isolatedKeys.has(recordKey)) continue;
         const current = local.get(recordKey);
         const previous = shadow.get(recordKey);
         if (sameRecord(current, previous)) continue;
@@ -1038,8 +1161,12 @@
       this.setState('initializing');
       const local = await this.localRecords();
       await this.bootstrap(local);
-      const remote = await this.serverSnapshot();
-      const remoteLive = (remote.records || []).filter((record) => !isDeleted(record));
+      const rawRemote = await this.serverSnapshot();
+      const partitioned = this.partitionRemote(rawRemote);
+      const remote = partitioned.remote;
+      await this.recordRecoveryIssues(local, rawRemote, partitioned.issues, local.issues);
+      const isolatedKeys = new Set([...(local.isolatedKeys || []), ...(partitioned.isolatedKeys || [])]);
+      const remoteLive = (remote.records || []).filter((record) => !isDeleted(record) && !isolatedKeys.has(keyOf(record)));
       const remoteSnapshot = this.adapter.deserializeRecords(remoteLive);
       const [shadowRecords, unresolvedConflicts] = await Promise.all([
         this.store.listShadow(), this.store.listConflicts()
@@ -1102,24 +1229,30 @@
         await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       }
       const finalRecords = await this.adapter.serializeRecords(finalSnapshot);
-      await this.queueDiff(finalRecords, remote.records || [], remote.records || [], { migration: true });
+      await this.queueDiff(finalRecords, remote.records || [], remote.records || [], { migration: true, isolatedKeys });
       await this.flushOutbox({ migration: true, force: true });
       const finalManifest = await this.adapter.computeManifest(finalSnapshot);
+      const completionSnapshot = partitioned.issues.length || local.issues?.length ? await this.serverSnapshot() : null;
+      const completionManifest = completionSnapshot?.manifestHash || finalManifest;
+      const completionRecordCount = completionSnapshot?.recordCount ?? finalRecords.length;
       const completed = await this.request('POST', '/v1/sync/migration/complete', {
         appId: this.appId, schemaVersion: finalSnapshot.schemaVersion,
-        recordCount: finalRecords.length, manifestHash: finalManifest
+        recordCount: completionRecordCount, manifestHash: completionManifest
       });
-      if (completed.datasetState !== 'ready' || completed.manifestHash !== finalManifest) {
+      if (completed.datasetState !== 'ready' || completed.manifestHash !== completionManifest) {
         throw new MultiAppSyncError('manifest_mismatch');
       }
-      const authoritative = await this.serverSnapshot();
+      const authoritativeRaw = await this.serverSnapshot();
+      const authoritative = this.partitionRemote(authoritativeRaw).remote;
       await this.replaceShadow(authoritative.records || [], authoritative.cursor);
       await this.store.setMeta('migrationState', 'complete');
       await this.store.setMeta('datasetState', 'ready');
       await this.store.setMeta('lastSyncAt', this.now());
-      this.setState('ready');
+      const remaining = await this.store.listConflicts();
+      this.setState(remaining.length ? 'attention' : 'ready', remaining.length
+        ? { reason: 'data_repair', conflicts: remaining.length } : {});
       this.bindLifecycle();
-      await this.reportRemovalSafety('clean');
+      await this.reportRemovalSafety(remaining.length ? 'attention' : 'clean');
       return Object.freeze({ ok: true, recordCount: authoritative.recordCount, manifestHash: authoritative.manifestHash });
     }
 
@@ -1140,6 +1273,12 @@
           const hasPendingRequest = this.syncRequestGeneration > generation;
           if (this.running === scheduled) this.running = null;
           if (result?.ok === true && hasPendingRequest) return this.startScheduledSync();
+          // An online event can arrive while an in-flight sync is still
+          // returning its earlier offline result. Preserve that wake-up and
+          // immediately run the coalesced save once connectivity is usable.
+          if (result?.code === 'offline' && hasPendingRequest && global.navigator?.onLine !== false) {
+            return this.startScheduledSync();
+          }
           return result;
         },
         (error) => {
@@ -1168,15 +1307,20 @@
       }
       let unresolved = await this.store.listConflicts();
       if (unresolved.length) unresolved = await this.reconcileConvergedPortConflicts(unresolved);
-      const isolatedKeys = new Set(unresolved.filter((item) => item.kind === 'ambiguous_delete').map((item) => item.recordKey));
-      if (unresolved.some((item) => item.kind !== 'ambiguous_delete')) {
+      const isolatedKinds = new Set(['ambiguous_delete', 'invalid_record']);
+      const isolatedKeys = new Set(unresolved.filter((item) => isolatedKinds.has(item.kind)).map((item) => item.recordKey));
+      if (unresolved.some((item) => !isolatedKinds.has(item.kind))) {
         this.setState('attention', { reason: 'conflict', conflicts: unresolved.length });
         await this.reportRemovalSafety('attention');
         return { ok: false, code: 'conflict_pending', conflicts: unresolved.length };
       }
       this.setState('syncing', { reason });
-      const [remote, shadowRecords] = await Promise.all([this.serverSnapshot(), this.store.listShadow()]);
+      const [rawRemote, shadowRecords] = await Promise.all([this.serverSnapshot(), this.store.listShadow()]);
       let local = await this.localRecords();
+      const partitioned = this.partitionRemote(rawRemote);
+      const remote = partitioned.remote;
+      await this.recordRecoveryIssues(local, rawRemote, partitioned.issues, local.issues);
+      for (const key of [...(local.isolatedKeys || []), ...(partitioned.isolatedKeys || [])]) isolatedKeys.add(key);
       let localMap = mapRecords(local.records);
       const remoteMap = mapRecords(remote.records || []);
       const shadowMap = mapRecords(shadowRecords);
@@ -1228,12 +1372,14 @@
         local = await this.localRecords();
         localMap = mapRecords(local.records);
       }
-      await this.queueDiff(local.records, remote.records || [], shadowRecords);
+      await this.queueDiff(local.records, remote.records || [], shadowRecords, { isolatedKeys });
       for (const conflict of await this.store.listConflicts()) {
-        if (conflict.kind === 'ambiguous_delete') isolatedKeys.add(conflict.recordKey);
+        if (isolatedKinds.has(conflict.kind)) isolatedKeys.add(conflict.recordKey);
       }
       await this.flushOutbox();
-      const afterPush = await this.serverSnapshot();
+      const rawAfterPush = await this.serverSnapshot();
+      const afterPartition = this.partitionRemote(rawAfterPush);
+      const afterPush = afterPartition.remote;
       const localAfterPush = await this.localRecords();
       const afterMap = mapRecords(afterPush.records || []);
       const freshMap = mapRecords(localAfterPush.records);

@@ -15,6 +15,7 @@ function load() {
 function presentation(id, name = id, options = {}) {
   return {
     id, state: 'attention', selection: options.selection || null,
+    ...(options.recovery ? { recovery: options.recovery } : {}),
     presentation: {
       appName: options.appName || 'リズムクルーズ',
       title: options.title || 'カスタムプリセット', name,
@@ -221,6 +222,28 @@ test('settings require field choices and never allow a whole-record bulk overrid
   }]]);
 });
 
+test('unreadable records disable bulk actions and expose only the safe recovery choice', async () => {
+  const api = load();
+  const fixture = viewFixture();
+  let items = [presentation('broken', '読み込めないステージ', { recovery: {
+    allowedChoices: ['remote'], localLabel: 'この端末の正常データを使用',
+    remoteLabel: 'クラウドの正常データを使用'
+  } })];
+  const calls = [];
+  const runtime = {
+    listConflictPresentations: async () => items,
+    resolveConflict: async (id, choice) => { calls.push([id, choice]); items = []; return { ok: true }; }
+  };
+  const controller = api.createConflictResolutionController(runtime, fixture.view);
+  await controller.refresh();
+  assert.equal(controller.selectAll('remote').ok, false);
+  assert.equal((await controller.applyAll('remote')).ok, false);
+  assert.equal(controller.select('broken', 'local').ok, false);
+  assert.equal(controller.select('broken', 'remote').ok, true);
+  assert.equal((await controller.apply()).ok, true);
+  assert.deepEqual(calls, [['broken', 'remote']]);
+});
+
 test('tombstone presentation stays visible as a plain-language saved/deleted comparison', async () => {
   const api = load();
   const fixture = viewFixture();
@@ -275,5 +298,7 @@ test('DOM copy uses overview, immediate bulk actions, Help, closed individual ac
   assert.match(source, /type = 'radio'/);
   assert.match(source, /textContent/);
   assert.doesNotMatch(source, /1件ずつ確認|この環境のデータを使う|あとで確認/);
-  assert.doesNotMatch(source, /innerHTML|JSON\.stringify|payloadHash|operationId|credential|recovery|token/i);
+  assert.doesNotMatch(source, /innerHTML|JSON\.stringify|payloadHash|operationId|credential|token/i);
+  assert.match(source, /問題のデータを確認/);
+  assert.match(source, /内容を推測して修復することはありません/);
 });

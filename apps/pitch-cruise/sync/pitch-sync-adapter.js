@@ -479,6 +479,122 @@
     return true;
   }
 
+  function corruptMelodyRecord(record) {
+    return record?.recordType === 'melody_stage' && record.deletedAt == null && record.deleted !== true &&
+      (!isPlainObject(record.payload) ||
+      !Array.isArray(record.payload.pool) || record.payload.pool.some((entry) =>
+        entry === '[object Object]' || !validMelodyPoolEntry(entry)) || !validateRecordShape(record));
+  }
+
+  function partitionSyncRecords(records) {
+    const source = Array.isArray(records) ? records : [];
+    const corrupt = source.filter(corruptMelodyRecord);
+    const corruptRefs = new Set(corrupt.map((record) => record.recordId));
+    const refs = new Set(corruptRefs);
+    for (const record of source) {
+      if (record?.recordType === 'melody_stage' && (record.deletedAt != null || record.deleted === true)) {
+        refs.add(record.recordId);
+      }
+    }
+    if (!refs.size) return Object.freeze({ records: clone(source), issues: Object.freeze([]), isolatedKeys: Object.freeze([]) });
+    const isolatedKeys = new Set(corrupt.map((record) => `melody_stage/${record.recordId}`));
+    const kept = source.flatMap((record) => {
+      if (corruptRefs.has(record.recordId) && record.recordType === 'melody_stage') return [];
+      if (record.recordType === 'stage_order' && record.payload?.category === 'melody' &&
+          record.payload.stageRefs?.some((ref) => refs.has(ref))) {
+        isolatedKeys.add(`stage_order/${record.recordId}`);
+        const next = clone(record);
+        next.payload.stageRefs = next.payload.stageRefs.filter((ref) => !refs.has(ref));
+        return [next];
+      }
+      if (record.recordType === 'progress' && refs.has(record.payload?.stageRef)) {
+        isolatedKeys.add(`progress/${record.recordId}`);
+        return [];
+      }
+      return [record];
+    });
+    return Object.freeze({
+      records: clone(kept),
+      issues: Object.freeze(corrupt.map((record) => Object.freeze({
+        recordKey: `melody_stage/${record.recordId}`, recordType: 'melody_stage', recordId: record.recordId,
+        reason: 'pitch_melody_stage_unreadable'
+      }))),
+      isolatedKeys: Object.freeze([...isolatedKeys])
+    });
+  }
+
+  function normalizeLocalSnapshotForRecovery(rawSnapshot) {
+    try {
+      const snapshot = normalizeRawSnapshot(rawSnapshot);
+      const partitioned = partitionSyncRecords(snapshot.records);
+      return Object.freeze({ snapshot: { ...snapshot, records: partitioned.records },
+        issues: partitioned.issues, isolatedKeys: partitioned.isolatedKeys });
+    } catch (error) {
+      if (error?.message !== 'pitch_legacy_melody_pool_invalid') throw error;
+      const values = isPlainObject(rawSnapshot?.values) ? clone(rawSnapshot.values) : clone(rawSnapshot);
+      const container = normalizeSlotContainer(parseJson(values.pitchTrainerStagingProMelodySlots,
+        'pitchTrainerStagingProMelodySlots', {}));
+      const issues = [];
+      const invalidIds = new Set();
+      container.slots.forEach((slot, ordinal) => {
+        if (!isPlainObject(slot) || !isPlainObject(slot.config) || !Array.isArray(slot.config.pool) ||
+            slot.config.pool.some((entry) => entry === '[object Object]' || !validMelodyPoolEntry(entry))) {
+          const recordId = normalizeLegacyId('melody-stage', slot?.id, slot, ordinal);
+          invalidIds.add(String(slot?.id));
+          issues.push(Object.freeze({ recordKey: `melody_stage/${recordId}`,
+            recordType: 'melody_stage', recordId, reason: 'pitch_melody_stage_unreadable' }));
+        }
+      });
+      if (!issues.length) throw error;
+      const cleanContainer = { slots: container.slots.filter((slot) => !invalidIds.has(String(slot?.id))),
+        order: container.order.filter((id) => !invalidIds.has(String(id))) };
+      values.pitchTrainerStagingProMelodySlots = JSON.stringify(cleanContainer);
+      const results = parseJson(values.pitchTrainerTestModeResults, 'pitchTrainerTestModeResults', {});
+      if (isPlainObject(results.melody)) {
+        for (const id of invalidIds) delete results.melody[`custom-${id}`];
+        values.pitchTrainerTestModeResults = JSON.stringify(results);
+      }
+      const snapshot = normalizeRawSnapshot({ schemaVersion: rawSnapshot.schemaVersion, values });
+      const dependentProgress = issues.map((issue) =>
+        `progress/melody:${issue.recordId}`);
+      return Object.freeze({ snapshot, issues: Object.freeze(issues),
+        isolatedKeys: Object.freeze([...issues.map((issue) => issue.recordKey),
+          'stage_order/melody', ...dependentProgress]) });
+    }
+  }
+
+  function prepareRemoteResolutionSnapshot(snapshot, context = {}) {
+    if (context.remoteRecord?.recordType !== 'melody_stage' || context.remoteRecord.deletedAt != null) {
+      return snapshot;
+    }
+    const records = clone(snapshot.records || []);
+    const presentStages = new Set(records.filter((record) => record.recordType === 'melody_stage')
+      .map((record) => record.recordId));
+    const remoteRecords = Array.isArray(context.remoteRecords) ? context.remoteRecords : [];
+    const remoteOrder = remoteRecords.find((record) => record.recordType === 'stage_order' &&
+      record.recordId === 'melody' && record.deletedAt == null);
+    const currentOrder = records.find((record) => record.recordType === 'stage_order' && record.recordId === 'melody');
+    const ordered = [];
+    for (const ref of [...(remoteOrder?.payload?.stageRefs || []), ...(currentOrder?.payload?.stageRefs || [])]) {
+      if (presentStages.has(ref) && !ordered.includes(ref)) ordered.push(ref);
+    }
+    for (const ref of presentStages) if (!ordered.includes(ref)) ordered.push(ref);
+    const next = records.filter((record) => !(record.recordType === 'stage_order' && record.recordId === 'melody'));
+    if (ordered.length) next.push(makeRecord('stage_order', 'melody', { category: 'melody', stageRefs: ordered }));
+    for (const remote of remoteRecords) {
+      if (remote.recordType !== 'progress' || remote.deletedAt != null ||
+          remote.payload?.stageRef !== context.remoteRecord.recordId) continue;
+      const record = { recordType: remote.recordType, recordId: remote.recordId,
+        schemaVersion: remote.schemaVersion, payload: clone(remote.payload) };
+      const index = next.findIndex((item) => item.recordType === record.recordType && item.recordId === record.recordId);
+      if (index >= 0) next[index] = record;
+      else next.push(record);
+    }
+    const prepared = { ...clone(snapshot), records: next };
+    validateSnapshot(prepared);
+    return prepared;
+  }
+
   function readLocalSnapshot(storage) {
     if (!storage || typeof storage.getItem !== 'function') throw new Error('pitch_storage_unavailable');
     const values = {};
@@ -736,9 +852,13 @@
     validateSnapshot(normalizeRawSnapshot(snapshot));
     const backup = await createBackup(storage, options.backupStore);
     const expectedManifest = await computeManifest(snapshot, options.cryptoImpl || global.crypto);
-    if (options.expectedSnapshot && canonicalJson(normalizeRawSnapshot(readLocalSnapshot(storage))) !==
-        canonicalJson(normalizeRawSnapshot(options.expectedSnapshot))) {
-      throw Object.assign(new Error('local_changed_during_apply'), { code: 'local_changed_during_apply' });
+    if (options.expectedSnapshot) {
+      let current;
+      try { current = normalizeRawSnapshot(readLocalSnapshot(storage)); }
+      catch (error) { current = normalizeLocalSnapshotForRecovery(readLocalSnapshot(storage)).snapshot; }
+      if (canonicalJson(current) !== canonicalJson(normalizeRawSnapshot(options.expectedSnapshot))) {
+        throw Object.assign(new Error('local_changed_during_apply'), { code: 'local_changed_during_apply' });
+      }
     }
     try {
       const materialized = materialize(snapshot, { values: backup.values });
@@ -828,7 +948,16 @@
     }
   }
 
-  function getConflictPresentation({ localRecord, remoteRecord } = {}) {
+  function getConflictPresentation({ conflict, localRecord, remoteRecord } = {}) {
+    if (conflict?.kind === 'invalid_record') {
+      const localBroken = conflict.recovery?.localInvalid === true;
+      const remoteBroken = conflict.recovery?.remoteInvalid === true;
+      return Object.freeze({ appName: '音感クルーズ', title: '読み込めないステージ',
+        name: 'このステージの保存データを読み込めません', localUpdatedAt: null, remoteUpdatedAt: null,
+        fields: Object.freeze([{ label: '状態',
+          local: localBroken ? '読み込めません' : localRecord ? '正常なデータ' : '保存されていません',
+          remote: remoteBroken ? '読み込めません' : remoteRecord ? '正常なデータ' : '保存されていません' }]) });
+    }
     const local = localRecord?.deletedAt != null ? null : localRecord?.payload;
     const remote = remoteRecord?.deletedAt != null ? null : remoteRecord?.payload;
     const type = localRecord?.recordType || remoteRecord?.recordType || 'pitch';
@@ -887,6 +1016,9 @@
     deserializeRecords(records) { return deserializeRecords(records); }
     isMeaningfulLocalData(snapshot = this.readLocalSnapshot()) { return isMeaningfulLocalData(snapshot); }
     mergeSnapshots(localSnapshot, remoteSnapshot) { return mergeSnapshots(localSnapshot, remoteSnapshot); }
+    partitionSyncRecords(records) { return partitionSyncRecords(records); }
+    normalizeLocalSnapshotForRecovery(snapshot = this.readLocalSnapshot()) { return normalizeLocalSnapshotForRecovery(snapshot); }
+    prepareRemoteResolutionSnapshot(snapshot, context) { return prepareRemoteResolutionSnapshot(snapshot, context); }
     effectiveSettingsForMerge(values) { return effectiveSettingsForMerge(values); }
     encodeSettingsForMerge(values) { return encodeSettingsForMerge(values); }
     applyRemoteSnapshot(snapshot, options = {}) {
@@ -911,6 +1043,8 @@
     BUILTIN_CHORDS, BUILTIN_PROGRESSIONS, PitchSyncAdapter,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeRawSnapshot, validateSnapshot,
     serializeRecords, deserializeRecords, isMeaningfulLocalData, mergeSnapshots,
+    partitionSyncRecords, normalizeLocalSnapshotForRecovery,
+    prepareRemoteResolutionSnapshot,
     applyRemoteSnapshot, createBackup, restoreBackup, repairMissingLegacyReferences,
     getConflictPresentation, computeManifest,
     assertDataPlaneContext, createInitialMigrationPlan
