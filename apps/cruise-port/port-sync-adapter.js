@@ -86,6 +86,7 @@
   function normalizeMyAppItem(item) {
     const value = clone(plain(item) ? item : {});
     if (!Object.hasOwn(value, 'iconPresetKey')) value.iconPresetKey = null;
+    if (!plain(value.urls)) value.urls = { ios: '', android: '', macos: '', windows: '', web: '' };
     return value;
   }
   function assetMetadata(storage) {
@@ -260,6 +261,7 @@
       if (normalized.recordType === 'gear_item' && plain(value?.item) && value.item.manufacturer === undefined) {
         value.item.manufacturer = '';
       }
+      if (normalized.recordType === 'my_app' && plain(value?.item)) value.item = normalizeMyAppItem(value.item);
       if (normalized.recordType === 'practice_history_event' && value?.type === 'practice-session'
           && value.pauseIntervals === undefined) value.pauseIntervals = [];
       return normalized;
@@ -424,7 +426,7 @@
       const restored = restoreAsset(value, local, 'gear', metadataEntry);
       return { ...restored, manufacturer: restored.manufacturer ?? '', order: gearRank.get(entry.recordId) ?? 0 };
     }) });
-    write(storage, 'cruisePort.myApps', { version: 6, items: ordered(normalized, 'my_app', 'my_app_order').map((entry) => {
+    write(storage, 'cruisePort.myApps', { version: 7, items: ordered(normalized, 'my_app', 'my_app_order').map((entry) => {
       const local = currentApps.find((item) => item.id === entry.recordId);
       const metadataEntry = currentAssets.myApps[entry.recordId] || {};
       const repair = repairs.myApps.has(entry.recordId);

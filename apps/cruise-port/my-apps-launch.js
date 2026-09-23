@@ -13,8 +13,9 @@ export function detectMyAppsPlatform(navigatorObject = globalThis.navigator) {
     ) {
         return 'ios';
     }
-    if (clientPlatform || /Macintosh|Windows|Linux|CrOS/i.test(userAgent)) return 'desktop';
-    return 'unknown';
+    if (/mac/i.test(clientPlatform) || /Macintosh|Mac OS X/i.test(userAgent) || /Mac/i.test(legacyPlatform)) return 'macos';
+    if (/windows/i.test(clientPlatform) || /Windows/i.test(userAgent) || /Win/i.test(legacyPlatform)) return 'windows';
+    return 'web';
 }
 
 export function resolveVerifiedAndroidTarget(target) {
@@ -43,6 +44,9 @@ export function getKnownLaunchUiMode(appKey, platform) {
 }
 
 export function resolveMyAppHref(item, platform) {
-    // Keep legacy launch metadata in storage, but always honor the user's saved URL.
-    return item?.url || '';
+    // `urls` is the platform authority; `url` is only the preserved v1-v6 fallback.
+    // Deprecated launchMode/appKey/customLaunch never participate in routing.
+    const urls = item?.urls || {};
+    const target = ['ios', 'android', 'macos', 'windows'].includes(platform) ? urls[platform] : '';
+    return target || urls.web || item?.url || '';
 }

@@ -10,11 +10,11 @@ const standard = getCapabilities('standard'), pro = getCapabilities('pro');
 const values = { name: 'QA', url: 'https://example.com/' };
 const items = Array.from({ length: 7 }, () => createMyApp(values, []).item);
 const storageFor = items => {
-    let value = JSON.stringify({ version: 6, items });
+    let value = JSON.stringify({ version: 7, items });
     return { getItem: () => value, setItem: (k, v) => { value = v; } };
 };
-test('My Apps creation-only policy preserves 100 technical limit and v6', () => {
-    assert.equal(MY_APPS_LIMITS.items, 100); assert.equal(MY_APPS_SCHEMA_VERSION, 6);
+test('My Apps creation-only policy preserves 100 technical limit and v7', () => {
+    assert.equal(MY_APPS_LIMITS.items, 100); assert.equal(MY_APPS_SCHEMA_VERSION, 7);
     for (let n = 0; n <= 7; n++) {
         assert.equal(canCreateMyApp(items.slice(0, n), standard), n < 5);
         assert.equal(canCreateMyApp(items.slice(0, n), pro), true);
@@ -25,7 +25,7 @@ test('My Apps creation-only policy preserves 100 technical limit and v6', () => 
 });
 test('latest creation check does not accept stale editor snapshot', async () => {
     const s = storageFor(items.slice(0, 4)); const old = loadMyApps(s).items;
-    s.setItem('', JSON.stringify({ version: 6, items: items.slice(0, 5) }));
+    s.setItem('', JSON.stringify({ version: 7, items: items.slice(0, 5) }));
     assert.equal(checkMyAppsCreation(s, standard).allowed, false);
     assert.equal((await createMyAppEntry({ items: old, values, storage: s })).reason, 'creation-blocked');
     assert.equal(saveMyApps(old, s).ok, false);

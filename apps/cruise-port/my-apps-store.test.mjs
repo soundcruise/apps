@@ -3,12 +3,14 @@ import { readFileSync } from 'node:fs';
 import {
     MY_APPS_SCHEMA_VERSION,
     MY_APPS_STORAGE_KEY,
+    emptyMyAppUrls,
     createMyApp,
     deleteMyApp,
     loadMyApps,
     moveMyApp,
     normalizeCustomLaunch,
     normalizeMyAppUrl,
+    normalizeMyAppUrls,
     saveMyApps,
     updateMyApp,
     validateMyAppValues
@@ -36,6 +38,7 @@ const baseItem = Object.freeze({
     id: 'b2cd4d9e-4f14-47e1-8cc2-9623f0a18cc9',
     name: 'Spotify',
     url: 'https://open.spotify.com/',
+    urls: emptyMyAppUrls(),
     launchMode: 'https',
     appKey: null,
     customLaunch: null,
@@ -46,7 +49,8 @@ const baseItem = Object.freeze({
     createdAt,
     updatedAt
 });
-const { iconPresetKey: omittedPresetKey, ...v5ItemValues } = baseItem;
+const { urls: omittedUrls, ...legacyBaseItem } = baseItem;
+const { iconPresetKey: omittedPresetKey, ...v5ItemValues } = legacyBaseItem;
 const { customLaunch: omittedCustomLaunch, ...v4ItemValues } = v5ItemValues;
 const v4Item = Object.freeze(v4ItemValues);
 const { launchMode: omittedLaunchMode, appKey: omittedAppKey, ...v3ItemValues } = v4Item;
@@ -59,6 +63,27 @@ const v1Item = Object.freeze(v1ItemValues);
 assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty store loads safely');
 
 {
+    const raw = JSON.stringify({ version: 6, items: [legacyBaseItem] });
+    const result = loadMyApps(new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw }));
+    assert.equal(result.ok, true);
+    assert.equal(result.migrated, true);
+    assert.deepEqual(result.items[0], baseItem, 'v6 migration preserves id, icon, timestamps and legacy URL');
+    assert.equal(result.items[0].url, 'https://open.spotify.com/');
+}
+
+{
+    const urls = { ios: 'https://apps.apple.com/app/id123', android: 'https://play.google.com/store/apps/details?id=example', macos: 'https://example.com/mac', windows: 'https://example.com/windows', web: 'https://example.com/web' };
+    const validated = validateMyAppValues({ name: 'Shared', url: '', urls });
+    assert.equal(validated.ok, true);
+    const created = createMyApp({ name: 'Shared', url: '', urls }, [], new Date(createdAt), () => 'platform-app');
+    const storage = new FakeStorage();
+    assert.equal(saveMyApps([created.item], storage).ok, true);
+    assert.deepEqual(loadMyApps(storage).items[0].urls, validated.values.urls, 'all five URLs survive save and reload');
+    assert.equal(validateMyAppValues({ name: 'Empty', url: '', urls: emptyMyAppUrls() }).reason, 'missing-url');
+    assert.equal(normalizeMyAppUrls({ ...emptyMyAppUrls(), ios: 'javascript:alert(1)' }).ok, false);
+}
+
+{
     const raw = JSON.stringify({ version: 1, items: [v1Item] });
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
@@ -68,7 +93,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     }, 'v1 metadata is migrated to v6 defaults in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v1 load does not rewrite storage');
     assert.deepEqual(saveMyApps(loadMyApps(storage).items, storage), { ok: true });
-    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 6, 'next explicit save writes v6');
+    assert.equal(JSON.parse(storage.getItem(MY_APPS_STORAGE_KEY)).version, 7, 'next explicit save writes v7');
 }
 
 {
@@ -77,7 +102,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
-        items: [{ ...v2WithIcon, launchMode: 'https', appKey: null, customLaunch: null, iconSourceId: null, iconCrop: null, iconPresetKey: null }],
+        items: [{ ...v2WithIcon, urls: emptyMyAppUrls(), launchMode: 'https', appKey: null, customLaunch: null, iconSourceId: null, iconCrop: null, iconPresetKey: null }],
         migrated: true
     }, 'v2 metadata preserves its final icon and adds null source/crop in memory');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v2 load does not rewrite storage');
@@ -94,7 +119,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
-        items: [{ ...v3WithIcon, launchMode: 'https', appKey: null, customLaunch: null, iconPresetKey: null }],
+        items: [{ ...v3WithIcon, urls: emptyMyAppUrls(), launchMode: 'https', appKey: null, customLaunch: null, iconPresetKey: null }],
         migrated: true
     }, 'v3 metadata preserves all icon data and adds safe launch defaults');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v3 load does not rewrite storage');
@@ -106,7 +131,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
         ok: true,
-        items: [{ ...v4Known, customLaunch: null, iconPresetKey: null }],
+        items: [{ ...v4Known, urls: emptyMyAppUrls(), customLaunch: null, iconPresetKey: null }],
         migrated: true
     }, 'v4 known-app metadata is preserved and gains customLaunch null');
     assert.equal(storage.getItem(MY_APPS_STORAGE_KEY), raw, 'v4 load does not rewrite storage');
@@ -129,7 +154,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 }
 
 {
-    const { iconPresetKey, ...legacySyncedItem } = baseItem;
+    const { iconPresetKey, ...legacySyncedItem } = legacyBaseItem;
     const raw = JSON.stringify({ version: 6, items: [legacySyncedItem] });
     const storage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: raw });
     assert.deepEqual(loadMyApps(storage), {
@@ -150,12 +175,12 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 }
 
 {
-    const rawUnknown = JSON.stringify({ version: 6, items: [{ ...baseItem, iconPresetKey: 'unknown-preset' }] });
+    const rawUnknown = JSON.stringify({ version: 6, items: [{ ...legacyBaseItem, iconPresetKey: 'unknown-preset' }] });
     const unknownStorage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: rawUnknown });
     assert.deepEqual(loadMyApps(unknownStorage), { ok: true, items: [baseItem], migrated: true }, 'unknown stored preset safely falls back to generic');
     assert.equal(unknownStorage.getItem(MY_APPS_STORAGE_KEY), rawUnknown, 'unknown preset is not overwritten automatically');
 
-    const rawConflict = JSON.stringify({ version: 6, items: [{ ...baseItem, iconId: 'legacy-image', iconPresetKey: 'microphone' }] });
+    const rawConflict = JSON.stringify({ version: 6, items: [{ ...legacyBaseItem, iconId: 'legacy-image', iconPresetKey: 'microphone' }] });
     const conflictStorage = new FakeStorage({ [MY_APPS_STORAGE_KEY]: rawConflict });
     assert.deepEqual(loadMyApps(conflictStorage), {
         ok: true,
@@ -210,7 +235,7 @@ assert.deepEqual(loadMyApps(new FakeStorage()), { ok: true, items: [] }, 'empty 
 for (const raw of [
     '{',
     JSON.stringify({ items: [] }),
-    JSON.stringify({ version: 7, items: [] }),
+    JSON.stringify({ version: 8, items: [] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{}] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, url: 'http://example.com/' }] }),
     JSON.stringify({ version: MY_APPS_SCHEMA_VERSION, items: [{ ...baseItem, iconId: 42 }] }),

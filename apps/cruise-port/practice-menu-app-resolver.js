@@ -1,14 +1,15 @@
-import { MY_APP_PREFIX } from './practice-menu-store.js?v=0.56.0';
+import { MY_APP_PREFIX } from './practice-menu-store.js?v=0.57.0';
 import { APP_DEFINITIONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
 import { getEdition } from './cruise-port-edition.js?v=0.27.0';
-import { resolveMyAppHref } from './my-apps-launch.js?v=0.56.0';
+import { resolveMyAppHref } from './my-apps-launch.js?v=0.57.0';
 
 export const PRACTICE_APP_STATUS = Object.freeze({
     none: 'none',
     resolved: 'resolved',
     missing: 'missing',
     storeUnavailable: 'store-unavailable',
-    unsupported: 'unsupported'
+    unsupported: 'unsupported',
+    noUrl: 'no-url'
 });
 
 const BUILTIN_GROUPS = Object.freeze([
@@ -79,7 +80,9 @@ export function resolvePracticeMenuApp(appId, {
                 status: PRACTICE_APP_STATUS.missing
             };
         }
-        return resolvedModel(appId, 'myapp', item.name, resolveMyAppHref(item, platform));
+        const href = resolveMyAppHref(item, platform);
+        if (!href) return { appId, kind: 'myapp', label: item.name, href: null, launchable: false, status: PRACTICE_APP_STATUS.noUrl };
+        return resolvedModel(appId, 'myapp', item.name, href);
     }
 
     return {
@@ -117,7 +120,7 @@ export function createPracticeAppOptionGroups(myApps = []) {
     const options = myApps.map((item) => {
         let label = item.name;
         if (nameCounts.get(item.name) > 1) {
-            label = `${truncate(item.name, 60)} — ${truncate(safeHostname(item.url), 32)}`;
+            label = `${truncate(item.name, 60)} — ${truncate(safeHostname(item.urls?.web || item.url || Object.values(item.urls || {}).find(Boolean)), 32)}`;
             const duplicateNumber = (labelCounts.get(label) || 0) + 1;
             labelCounts.set(label, duplicateNumber);
             if (duplicateNumber > 1) label = `${label} (${duplicateNumber})`;

@@ -72,6 +72,41 @@ test('Port adapter emits item records without binary or device-local asset ident
   assert.equal(records.every((item) => /^[a-f0-9]{64}$/u.test(item.payloadHash)), true);
 });
 
+test('My Apps platform URLs sync as one record and hydrate on another Port', async () => {
+  const urls = { ios: 'https://example.com/ios', android: 'https://example.com/android', macos: 'https://example.com/mac', windows: 'https://example.com/windows', web: 'https://example.com/web' };
+  const app = { id: 'shared-app', name: 'Shared', url: '', urls, launchMode: 'https', appKey: null, customLaunch: null, iconId: null, iconSourceId: null, iconCrop: null, iconPresetKey: null, createdAt: '2026-09-23T00:00:00.000Z', updatedAt: '2026-09-23T00:00:00.000Z' };
+  const portA = storage({ 'cruisePort.myApps': JSON.stringify({ version: 7, items: [app] }) });
+  const apiA = load(portA);
+  const snapshot = apiA.readLocalSnapshot(portA);
+  const myAppRecord = snapshot.records.find((record) => record.recordType === 'my_app');
+  assert.deepEqual(JSON.parse(JSON.stringify(myAppRecord.payload.value.item.urls)), urls);
+  const portB = storage();
+  const apiB = load(portB);
+  await apiB.applyRemoteSnapshot(portB, snapshot);
+  const restored = JSON.parse(portB.value('cruisePort.myApps'));
+  assert.equal(restored.version, 7);
+  assert.deepEqual(restored.items[0].urls, urls);
+});
+
+test('concurrent iOS and Android edits to one My App retain a record conflict', () => {
+  const api = load(storage());
+  const base = { ios: 'https://example.com/ios', android: 'https://example.com/android', macos: '', windows: '', web: '' };
+  const local = remoteRecord('my_app', 'same-app', { item: { id: 'same-app', urls: { ...base, ios: 'https://example.com/ios-new' } }, asset: { present: false } });
+  const remote = remoteRecord('my_app', 'same-app', { item: { id: 'same-app', urls: { ...base, android: 'https://example.com/android-new' } }, asset: { present: false } });
+  const merged = api.mergeSnapshots({ schemaVersion: 1, records: [local] }, { schemaVersion: 1, records: [remote] });
+  assert.equal(merged.conflicts.length, 1);
+});
+
+test('adding empty platform fields to a legacy cloud My App creates no false conflict', () => {
+  const api = load(storage());
+  const oldItem = { id: 'legacy', name: 'Legacy', url: 'https://example.com/', iconPresetKey: null };
+  const value = (item) => ({ item, asset: { present: false } });
+  const local = remoteRecord('my_app', 'legacy', value({ ...oldItem, urls: { ios: '', android: '', macos: '', windows: '', web: '' } }));
+  const remote = remoteRecord('my_app', 'legacy', value(oldItem));
+  const merged = api.mergeSnapshots({ schemaVersion: 1, records: [local] }, { schemaVersion: 1, records: [remote] });
+  assert.equal(merged.conflicts.length, 0);
+});
+
 test('Port conflict presentation maps record names and authoritative item timestamps for people', () => {
   const api = load(storage());
   const localRecord = remoteRecord('gear_item', 'gear-1', {

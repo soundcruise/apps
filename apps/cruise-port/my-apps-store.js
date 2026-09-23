@@ -1,9 +1,9 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.56.0';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.57.0';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { getKnownApp } from './my-apps-known-apps.js?v=1.3.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
 
-export const MY_APPS_SCHEMA_VERSION = 6;
+export const MY_APPS_SCHEMA_VERSION = 7;
 export const MY_APPS_STORAGE_KEY = 'cruisePort.myApps';
 
 export const MY_APPS_LIMITS = Object.freeze({
@@ -51,6 +51,25 @@ const ITEM_KEYS_V5 = Object.freeze([
     'updatedAt'
 ]);
 const ITEM_KEYS_V6 = Object.freeze([...ITEM_KEYS_V5.slice(0, -2), 'iconPresetKey', 'createdAt', 'updatedAt']);
+const URL_PLATFORMS = Object.freeze(['ios', 'android', 'macos', 'windows', 'web']);
+const ITEM_KEYS_V7 = Object.freeze([...ITEM_KEYS_V6, 'urls']);
+
+export function emptyMyAppUrls() {
+    return { ios: '', android: '', macos: '', windows: '', web: '' };
+}
+
+export function normalizeMyAppUrls(value) {
+    if (!value || typeof value !== 'object' || Array.isArray(value)
+        || !hasExactKeys(value, URL_PLATFORMS)) return { ok: false, reason: 'invalid-url' };
+    const urls = emptyMyAppUrls();
+    for (const platform of URL_PLATFORMS) {
+        if (value[platform] === '') continue;
+        const result = normalizeMyAppUrl(value[platform]);
+        if (!result.ok) return result;
+        urls[platform] = result.url;
+    }
+    return { ok: true, urls };
+}
 
 function isIsoDate(value) {
     return typeof value === 'string'
@@ -95,8 +114,14 @@ export function validateMyAppValues(values) {
     if (!name) return { ok: false, reason: 'invalid-name' };
     if (name.length > MY_APPS_LIMITS.name) return { ok: false, reason: 'invalid-name' };
 
-    const urlResult = normalizeMyAppUrl(values?.url);
+    const legacyUrl = values?.url ?? '';
+    const urlResult = legacyUrl === '' ? { ok: true, url: '' } : normalizeMyAppUrl(legacyUrl);
     if (!urlResult.ok) return urlResult;
+    const urlsResult = normalizeMyAppUrls(values?.urls ?? emptyMyAppUrls());
+    if (!urlsResult.ok) return urlsResult;
+    if (!urlResult.url && !Object.values(urlsResult.urls).some(Boolean)) {
+        return { ok: false, reason: 'missing-url' };
+    }
     const launchMode = values?.launchMode ?? 'https';
     const appKey = values?.appKey ?? null;
     const customLaunch = values?.customLaunch ?? null;
@@ -116,6 +141,7 @@ export function validateMyAppValues(values) {
         values: {
             name,
             url: urlResult.url,
+            urls: urlsResult.urls,
             launchMode,
             appKey,
             customLaunch: customResult?.value || null
@@ -163,7 +189,7 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, {
                     ? ITEM_KEYS_V4
                     : version === 5
                         ? ITEM_KEYS_V5
-                        : ITEM_KEYS_V6;
+                        : version === 6 ? ITEM_KEYS_V6 : ITEM_KEYS_V7;
     if (
         !item
         || typeof item !== 'object'
@@ -220,8 +246,9 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, {
         if (!validLaunch) return false;
     }
 
-    const baseValuesResult = validateMyAppValues({ name: item.name, url: item.url });
-    if (!baseValuesResult.ok || baseValuesResult.values.url !== item.url) return false;
+    const baseValuesResult = validateMyAppValues({ name: item.name, url: item.url, urls: version >= 7 ? item.urls : emptyMyAppUrls() });
+    if (!baseValuesResult.ok || baseValuesResult.values.url !== item.url
+        || (version >= 7 && JSON.stringify(baseValuesResult.values.urls) !== JSON.stringify(item.urls))) return false;
 
     if (version !== MY_APPS_SCHEMA_VERSION) return true;
     if (allowUnknownAppKey) {
@@ -240,7 +267,8 @@ function isValidItem(item, version = MY_APPS_SCHEMA_VERSION, {
     const valuesResult = validateMyAppValues(item);
     return valuesResult.ok
         && valuesResult.values.url === item.url
-        && JSON.stringify(valuesResult.values.customLaunch) === JSON.stringify(item.customLaunch);
+        && JSON.stringify(valuesResult.values.customLaunch) === JSON.stringify(item.customLaunch)
+        && JSON.stringify(valuesResult.values.urls) === JSON.stringify(item.urls);
 }
 
 function hasUniqueIds(items) {
@@ -250,6 +278,7 @@ function hasUniqueIds(items) {
 function cloneItems(items) {
     return items.map((item) => ({
         ...item,
+        urls: { ...item.urls },
         iconPresetKey: item.iconPresetKey ?? null,
         customLaunch: item.customLaunch ? { ...item.customLaunch } : null,
         iconCrop: item.iconCrop ? { ...item.iconCrop } : null
@@ -282,7 +311,7 @@ export function loadMyApps(storage) {
         const storedItems = Array.isArray(parsed?.items)
             ? parsed.items.map((item) => {
                 if (
-                    storedVersion === MY_APPS_SCHEMA_VERSION
+                    storedVersion >= 6
                     && item
                     && typeof item === 'object'
                     && !Array.isArray(item)
@@ -298,7 +327,7 @@ export function loadMyApps(storage) {
             !parsed
             || typeof parsed !== 'object'
             || Array.isArray(parsed)
-            || ![1, 2, 3, 4, 5, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
+            || ![1, 2, 3, 4, 5, 6, MY_APPS_SCHEMA_VERSION].includes(storedVersion)
             || !Array.isArray(storedItems)
             || storedItems.length > MY_APPS_LIMITS.items
             || !storedItems.every((item) => isValidItem(item, storedVersion, {
@@ -339,6 +368,7 @@ export function loadMyApps(storage) {
             if (storedPresetKey !== iconPresetKey) repairedPreset = true;
             return {
                 ...item,
+                urls: storedVersion >= 7 ? { ...item.urls } : emptyMyAppUrls(),
                 launchMode: knownLaunch ? 'known-app' : customLaunch ? 'custom' : 'https',
                 appKey: knownLaunch ? item.appKey : null,
                 customLaunch,

@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.56.0';
+} from './practice-menu-store.js?v=0.57.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.56.0';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.57.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.56.0';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.56.0';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.56.0';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.56.0';
+} from './sync-center-controller.js?v=0.57.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.57.0';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.57.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.57.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.56.0';
+} from './sync-center-navigation.js?v=0.57.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.56.0';
+} from './practice-menu-progress-store.js?v=0.57.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.56.0';
+} from './practice-menu-history-store.js?v=0.57.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.56.0';
+} from './practice-menu-calendar-store.js?v=0.57.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -84,8 +84,8 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.56.0';
-import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.56.0';
+} from './practice-menu-timer-store.js?v=0.57.0';
+import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.57.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -121,7 +121,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.56.0';
+} from './my-apps-store.js?v=0.57.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -131,7 +131,7 @@ import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=0.56.0';
+} from './my-apps-launch.js?v=0.57.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -172,10 +172,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.56.0';
+} from './app-version.js?v=0.57.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.56.0';
-import { initTuner } from './tuner-app.js?v=0.56.0';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.57.0';
+import { initTuner } from './tuner-app.js?v=0.57.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -193,10 +193,10 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.56.0';
-import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv } from './gear-list-ux.js?v=0.56.0';
-import { createGearCardPng, shareGearCardPng } from './gear-card-export.js?v=0.56.0';
-import { createGearListPng } from './gear-list-image-export.js?v=0.56.0';
+} from './gear-list-store.js?v=0.57.0';
+import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv } from './gear-list-ux.js?v=0.57.0';
+import { createGearCardPng, shareGearCardPng } from './gear-card-export.js?v=0.57.0';
+import { createGearListPng } from './gear-list-image-export.js?v=0.57.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -205,9 +205,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.56.0';
+} from './gear-category-store.js?v=0.57.0';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.56.0';
+import { PortAssetSync } from './port-asset-sync.js?v=0.57.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -531,6 +531,8 @@ const elements = {
     myAppsForm: document.querySelector('#my-apps-form'),
     myAppsNameInput: document.querySelector('#my-apps-name'),
     myAppsUrlInput: document.querySelector('#my-apps-url'),
+    myAppsPlatformUrls: Object.fromEntries(['ios', 'android', 'macos', 'windows', 'web'].map((platform) => [platform, document.querySelector(`#my-apps-${platform}-url`)])),
+    myAppsOtherUrls: document.querySelector('#my-apps-other-urls'),
     myAppsUrlHelpToggle: document.querySelector('#my-apps-url-help-toggle'),
     myAppsUrlHelp: document.querySelector('#my-apps-url-help'),
     myAppsUrlHelpClose: document.querySelector('#my-apps-url-help-close'),
@@ -1120,6 +1122,14 @@ function renderMyAppCard(item) {
 
     card.className = 'port-card skeleton-card tool-card my-app-launch-card';
     card.href = resolveMyAppHref(item, myAppsPlatform);
+    if (!resolveMyAppHref(item, myAppsPlatform)) {
+        card.href = `#my-apps/${encodeURIComponent(item.id)}/edit`;
+        card.addEventListener('click', (event) => {
+            event.preventDefault();
+            window.alert('この端末用のURLが設定されていません。編集画面でURLを追加してください。');
+            setHashRoute(`#my-apps/${encodeURIComponent(item.id)}/edit`);
+        });
+    }
     card.setAttribute('aria-label', `${item.name}を開く（外部アプリまたはWebサイト）`);
     name.className = 'card-name';
     name.textContent = item.name;
@@ -1320,6 +1330,10 @@ function fillMyAppsForm(item = null) {
     elements.myAppsForm.reset();
     elements.myAppsNameInput.value = item?.name || '';
     elements.myAppsUrlInput.value = item?.url || '';
+    for (const [platform, input] of Object.entries(elements.myAppsPlatformUrls)) {
+        input.value = item?.urls?.[platform] || (platform === 'web' ? item?.url || '' : '');
+    }
+    elements.myAppsOtherUrls.open = Boolean(item?.urls?.macos || item?.urls?.windows || item?.urls?.web || item?.url);
     const recognition = recognizeKnownAppUrl(elements.myAppsUrlInput.value);
     const initialAppKey = recognition?.app.key
         || (item?.launchMode === 'known-app' && getKnownApp(item.appKey) ? item.appKey : null);
@@ -1509,6 +1523,7 @@ function setMyAppsFormBusy(busy) {
     elements.myAppsIconPresetOpen.disabled = busy;
     elements.myAppsIconPresetPicker.querySelectorAll('button').forEach((button) => { button.disabled = busy; });
     elements.myAppsIconPreview.disabled = busy || !elements.myAppsIconPreview.dataset.adjustable;
+    Object.values(elements.myAppsPlatformUrls).forEach((input) => { input.disabled = busy; });
     elements.myAppsDirectEnabled.disabled = busy;
     elements.myAppsCustomIosInput.disabled = busy;
     elements.myAppsCustomAndroidInput.disabled = busy;
@@ -1864,7 +1879,9 @@ function readMyAppsFormValues() {
     const current = myAppsState.formMode === 'edit' ? findMyApp(myAppsState.activeId) : null;
     const valuesResult = validateMyAppValues({
         name: elements.myAppsNameInput.value,
-        url: elements.myAppsUrlInput.value,
+        // Editing a migrated record promotes its visible legacy URL to Web / 共通.
+        url: '',
+        urls: Object.fromEntries(Object.entries(elements.myAppsPlatformUrls).map(([platform, input]) => [platform, input.value.trim()])),
         launchMode: current?.launchMode || 'https',
         appKey: current?.appKey ?? null,
         customLaunch: current?.customLaunch ?? null
@@ -1873,7 +1890,8 @@ function readMyAppsFormValues() {
     if (valuesResult.reason === 'invalid-name') {
         return { ok: false, message: `アプリ名は1〜${MY_APPS_LIMITS.name}文字で入力してください。` };
     }
-    return { ok: false, message: 'HTTPS URLを入力してください。http、独自scheme、認証情報付きURLは登録できません。' };
+    if (valuesResult.reason === 'missing-url') return { ok: false, message: 'URLを1つ以上入力してください。' };
+    return { ok: false, message: 'URLはHTTPSで入力してください。http、独自scheme、認証情報付きURLは登録できません。' };
 }
 
 async function handleMyAppsSubmit(event) {
@@ -3451,6 +3469,8 @@ function renderDetail(id) {
     }
     const detailMessage = app.status === PRACTICE_APP_STATUS.missing
         ? '使用アプリが削除されています。練習メニューを編集してください。'
+        : app.status === PRACTICE_APP_STATUS.noUrl
+            ? 'この端末用のURLが設定されていません。My Appを編集してください。'
         : app.status === PRACTICE_APP_STATUS.storeUnavailable
             ? 'My Appsの保存データを読み込めないため、このアプリを開けません。'
             : app.status === PRACTICE_APP_STATUS.unsupported

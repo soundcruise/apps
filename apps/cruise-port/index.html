@@ -6,10 +6,10 @@
     <meta name="theme-color" content="#090806">
     <title>クルーズポート</title>
     <meta name="apple-mobile-web-app-title" content="クルーズポート">
-    <link rel="manifest" href="./manifest.json?v=0.56.0">
-    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.56.0">
-    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.56.0">
-    <link rel="stylesheet" href="./style.css?v=0.56.0">
+    <link rel="manifest" href="./manifest.json?v=0.57.0">
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.57.0">
+    <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=0.57.0">
+    <link rel="stylesheet" href="./style.css?v=0.57.0">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=21">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -20,12 +20,12 @@
     <script defer src="../shared/sync-account/multi-app-sync-db.js?v=4"></script>
     <script defer src="../shared/sync-account/multi-app-sync-runtime.js?v=17"></script>
     <script defer src="../shared/sync-account/multi-app-conflict-ui.js?v=5"></script>
-    <script defer src="./port-sync-adapter.js?v=0.56.0"></script>
-    <script defer src="./port-sync-controller.js?v=0.56.0"></script>
+    <script defer src="./port-sync-adapter.js?v=0.57.0"></script>
+    <script defer src="./port-sync-controller.js?v=0.57.0"></script>
     <script defer src="../shared/sync-account/sync-ui-components.js?v=13"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=7"></script>
-    <script type="module" src="./practice-menu-app.js?v=0.56.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=0.57.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -196,7 +196,7 @@
                         </div>
                     </div>
                     <div class="sync-center-app sync-center-port-card" role="status" aria-live="polite">
-                        <img src="/apps/cruise-port/assets/app-icons/standard/icon-192.png?v=0.56.0" alt="" width="48" height="48">
+                        <img src="/apps/cruise-port/assets/app-icons/standard/icon-192.png?v=0.57.0" alt="" width="48" height="48">
                         <div class="sync-center-app-copy">
                             <strong>Cruise Port</strong>
                             <span class="sync-center-app-status-line"><span id="sync-center-port-status-chip" class="sync-center-app-status-chip sync-center-app-status-chip--attention" data-sync-port-status="attention">確認が必要</span><button id="sync-center-port-conflicts-open" class="sync-center-port-conflicts-open" type="button" hidden>競合を確認する</button></span>
@@ -820,16 +820,29 @@
 
                     <div class="form-field">
                         <div class="my-apps-url-label-row">
-                            <label for="my-apps-url">URL <span class="required-label">必須・HTTPSのみ</span></label>
-                            <button id="my-apps-url-help-toggle" class="my-apps-url-help-toggle" type="button" aria-expanded="false" aria-controls="my-apps-url-help">URLの取得方法</button>
+                            <span class="form-field-label">URL <span class="optional-label">いずれか1つ必須・HTTPSのみ</span></span>
+                            <button id="my-apps-url-help-toggle" class="my-apps-url-help-toggle" type="button" aria-expanded="false" aria-controls="my-apps-url-help" aria-label="端末別URLの説明">?</button>
                         </div>
-                        <input id="my-apps-url" name="url" type="url" maxlength="2048" inputmode="url" autocomplete="url" autocapitalize="off" spellcheck="false" placeholder="https://open.spotify.com/" required>
-                        <section id="my-apps-url-help" class="my-apps-url-help" aria-label="URLの取得方法" hidden>
-                            <div class="my-apps-url-help-heading"><strong>アプリのURLをコピーして貼り付けます</strong><button id="my-apps-url-help-close" type="button" aria-label="URLの取得方法を閉じる">×</button></div>
-                            <div class="my-apps-url-help-columns">
-                                <div><h2>iPhone・iPad</h2><ol><li>ホーム画面で追加したいアプリを長押し</li><li>「アプリを共有」を選ぶ</li><li>「コピー」を選ぶ</li><li>この欄へ貼り付ける</li></ol></div>
-                                <div><h2>Android</h2><ol><li>ホーム画面で追加したいアプリのアイコンを長押し</li><li>「アプリ情報」を選ぶ</li><li>画面最下部付近の「アプリの詳細」を選ぶ</li><li>Google Playの商品ページを開く</li><li>「3点リーダー」から「共有」を選ぶ</li><li>「リンクをコピー」を選ぶ</li><li>Cruise PortのURL欄へ貼り付ける</li></ol><p>表示名や位置は端末によって異なる場合があります。</p></div>
+                        <label for="my-apps-ios-url">iPhone / iPad</label>
+                        <input id="my-apps-ios-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://apps.apple.com/…">
+                        <label for="my-apps-android-url">Android</label>
+                        <input id="my-apps-android-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://play.google.com/…">
+                        <details id="my-apps-other-urls" class="my-apps-other-urls">
+                            <summary>PC・その他のURL</summary>
+                            <div class="my-apps-other-urls-body">
+                                <label for="my-apps-macos-url">Mac</label>
+                                <input id="my-apps-macos-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://…">
+                                <label for="my-apps-windows-url">Windows</label>
+                                <input id="my-apps-windows-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://…">
+                                <label for="my-apps-web-url">Web / 共通</label>
+                                <input id="my-apps-web-url" type="url" maxlength="2048" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="https://…">
+                                <p class="my-apps-url-note">専用URLが設定されていない端末では、共通URLを使用します。</p>
                             </div>
+                        </details>
+                        <input id="my-apps-url" type="hidden">
+                        <section id="my-apps-url-help" class="my-apps-url-help" aria-label="端末別URLの説明" hidden>
+                            <div class="my-apps-url-help-heading"><strong>端末に合わせて開くURLを切り替えます</strong><button id="my-apps-url-help-close" type="button" aria-label="URLの説明を閉じる">×</button></div>
+                            <p>各端末のURLを設定できます。専用URLがない場合はWeb / 共通URLを使用します。</p>
                         </section>
                     </div>
 

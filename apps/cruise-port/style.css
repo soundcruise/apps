@@ -1478,6 +1478,16 @@ summary.tool-pro-locked > span:first-child::after {
 .my-apps-url-label-row label {
     margin-bottom: 0;
 }
+.my-apps-url-label-row .form-field-label { color: var(--port-text); font-weight: 620; }
+.my-apps-form-view #my-apps-android-url { margin-bottom: 12px; }
+.my-apps-form-view #my-apps-android-url + .my-apps-other-urls { margin-top: 12px; }
+.my-apps-form-view #my-apps-ios-url + label,
+.my-apps-other-urls-body input + label { margin-top: 15px; }
+.my-apps-other-urls { border: 1px solid rgba(207, 189, 148, 0.2); border-radius: 11px; background: rgba(205, 180, 116, 0.025); }
+.my-apps-other-urls summary { padding: 12px 14px; color: var(--port-gold-bright); font-size: calc(0.82rem * var(--font-scale)); cursor: pointer; }
+.my-apps-other-urls-body { padding: 0 14px 14px; }
+.my-apps-url-note { margin: 10px 0 0; color: var(--port-muted); font-size: calc(0.7rem * var(--font-scale)); line-height: 1.5; }
+.my-apps-url-help p { margin: 8px 0 0; color: var(--port-muted); font-size: calc(0.76rem * var(--font-scale)); line-height: 1.55; }
 
 .my-apps-url-help-toggle,
 .my-apps-url-help-heading button {
