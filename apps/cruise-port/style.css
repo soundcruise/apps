@@ -3077,9 +3077,9 @@ textarea:focus-visible {
 .gear-card[data-gear-card-id] { cursor: pointer; }
 .gear-card[data-gear-card-id]:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 .gear-card-menu-toggle {
-    position: relative;
-    flex: 0 0 42px;
-    margin-left: auto;
+    position: absolute;
+    top: 8px;
+    right: 8px;
     width: 42px;
     height: 42px;
     border: 1px solid rgba(207, 189, 148, 0.24);
@@ -3104,6 +3104,9 @@ textarea:focus-visible {
 
 .gear-card-heading {
     display: grid;
+}
+.gear-list-items[data-columns="1"] .gear-card-heading {
+    padding-right: 50px;
 }
 
 .gear-card-photo {
@@ -3210,10 +3213,25 @@ textarea:focus-visible {
 .gear-card-actions[hidden] { display: none; }
 .gear-list-items[data-columns="2"] .gear-card,
 .gear-list-items[data-columns="3"] .gear-card,
-.gear-list-items[data-columns="4"] .gear-card { padding: 6px; }
+.gear-list-items[data-columns="4"] .gear-card { display: flex; flex-direction: column; padding: 6px; }
 .gear-list-items[data-columns="2"] .gear-card-photo,
 .gear-list-items[data-columns="3"] .gear-card-photo,
-.gear-list-items[data-columns="4"] .gear-card-photo { float: none; display: block; width: 100%; height: auto; aspect-ratio: 1; margin: 0 0 8px; }
+.gear-list-items[data-columns="4"] .gear-card-photo { order: 0; float: none; display: block; width: 100%; height: auto; aspect-ratio: 1; margin: 0; }
+.gear-list-items[data-columns="2"] .gear-card-heading,
+.gear-list-items[data-columns="3"] .gear-card-heading,
+.gear-list-items[data-columns="4"] .gear-card-heading { order: 2; }
+.gear-list-items[data-columns="2"] .gear-card-price,
+.gear-list-items[data-columns="3"] .gear-card-price,
+.gear-list-items[data-columns="4"] .gear-card-price { order: 3; }
+.gear-list-items[data-columns="2"] .gear-card-metadata,
+.gear-list-items[data-columns="3"] .gear-card-metadata,
+.gear-list-items[data-columns="4"] .gear-card-metadata { order: 1; justify-content: flex-end; margin: 4px 0 6px; }
+.gear-list-items[data-columns="2"] .gear-card-metadata span,
+.gear-list-items[data-columns="3"] .gear-card-metadata span,
+.gear-list-items[data-columns="4"] .gear-card-metadata span { display: none; }
+.gear-list-items[data-columns="2"] .gear-card-menu-toggle,
+.gear-list-items[data-columns="3"] .gear-card-menu-toggle,
+.gear-list-items[data-columns="4"] .gear-card-menu-toggle { position: relative; top: auto; right: auto; width: 32px; height: 32px; font-size: 1.1rem; }
 .gear-list-items[data-columns="2"] .gear-card h3,
 .gear-list-items[data-columns="3"] .gear-card h3,
 .gear-list-items[data-columns="4"] .gear-card h3 { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 3; font-size: calc(0.72rem * var(--font-scale)); }
@@ -3223,38 +3241,11 @@ textarea:focus-visible {
 .gear-list-items[data-columns="2"] .gear-priority,
 .gear-list-items[data-columns="3"] .gear-priority,
 .gear-list-items[data-columns="4"] .gear-priority { display: none; }
-.gear-list-items[data-columns="2"] .gear-card-metadata,
-.gear-list-items[data-columns="3"] .gear-card-metadata { flex-wrap: nowrap; }
-.gear-list-items[data-columns="2"] .gear-category-badge,
-.gear-list-items[data-columns="3"] .gear-category-badge,
-.gear-list-items[data-columns="4"] .gear-category-badge {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-.gear-list-items[data-columns="3"] .gear-card-metadata span { padding: 2px 4px; font-size: calc(0.56rem * var(--font-scale)); }
 .gear-list-items[data-columns="3"] .gear-card-price { font-size: calc(0.7rem * var(--font-scale)); overflow-wrap: anywhere; }
-.gear-list-items[data-columns="3"] .gear-card-menu-toggle { flex-basis: 36px; width: 36px; height: 36px; }
 .gear-list-items[data-columns="4"] .gear-card { padding: 4px; border-radius: 9px; }
-.gear-list-items[data-columns="4"] .gear-card-photo { margin-bottom: 5px; }
 .gear-list-items[data-columns="4"] .gear-card h3 { font-size: calc(0.7rem * var(--font-scale)); line-height: 1.35; overflow-wrap: anywhere; }
-.gear-list-items[data-columns="4"] .gear-card-metadata {
-    margin-top: 5px;
-    flex-wrap: nowrap;
-    gap: 2px;
-}
-.gear-list-items[data-columns="4"] .gear-card-metadata span {
-    max-width: 100%;
-    overflow: hidden;
-    padding: 2px 3px;
-    font-size: calc(0.5rem * var(--font-scale));
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
 .gear-list-items[data-columns="4"] .gear-card-price { margin-top: 5px; font-size: calc(0.66rem * var(--font-scale)); overflow-wrap: anywhere; }
 .gear-list-items[data-columns="4"] .gear-card-menu-toggle {
-    flex-basis: 28px;
     width: 28px;
     height: 28px;
     border-radius: 8px;

@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.52.3';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.52.4';
 export const SETTINGS_STORAGE_KEY = 'cruisePort.settings';
 export const SETTINGS_SCHEMA_VERSION = 3;
 export const DISPLAY_SIZES = Object.freeze(['large', 'standard', 'small', 'xsmall']);
