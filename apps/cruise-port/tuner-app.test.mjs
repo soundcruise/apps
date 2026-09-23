@@ -213,7 +213,6 @@ function createFakeRoot() {
         'tuner-note',
         'tuner-note-string',
         'tuner-note-value',
-        'tuner-live-feedback',
         'tuner-frequency',
         'tuner-cents',
         'tuner-direction',
@@ -513,14 +512,22 @@ assert.equal(inputLevelPercentage(0), 100);
     const meterVisibility = root.elements.get('tuner-meter-visibility');
     meterVisibility.checked = false;
     await meterVisibility.dispatch('change');
-    assert.equal(root.elements.get('tuner-live-feedback').hidden, true, 'meter off hides all live pitch feedback');
+    assert.equal(note.textContent, '—', 'meter off returns to the same neutral layout');
+    assert.equal(root.elements.get('tuner-direction').textContent, 'メーターOFF');
+    assert.equal(root.elements.get('tuner-frequency').textContent, '— Hz');
+    assert(root.elements.get('tuner-meter').classList.contains('is-neutral'));
     assert(root.strings.every((element) => !element.classList.contains('is-active')), 'meter off clears pitch hints on string buttons');
     callbacks.onResult(result(E2_FREQUENCY));
+    assert.equal(note.textContent, '—', 'meter off ignores microphone pitch updates');
+    assert.equal(root.elements.get('tuner-direction').textContent, 'メーターOFF');
     assert(root.strings.every((element) => !element.classList.contains('is-active')), 'meter off keeps pitch hints hidden during input');
     meterVisibility.checked = true;
     await meterVisibility.dispatch('change');
-    assert.equal(root.elements.get('tuner-live-feedback').hidden, false, 'meter on restores live pitch feedback');
-    callbacks.onResult(result(E2_FREQUENCY));
+    assert.equal(root.elements.get('tuner-direction').textContent, '入力待ち');
+    for (let index = 0; index < 3; index += 1) {
+        callbacks.onResult(result(E2_FREQUENCY));
+        clock += 50;
+    }
     assert(root.strings[0].classList.contains('is-active'));
 
     root.elements.get('tuner-tuning').value = 'whole-step-down';

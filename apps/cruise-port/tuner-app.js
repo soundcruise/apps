@@ -1,6 +1,6 @@
 import { createTunerAudioController } from './tuner-audio.js?v=1.1.5';
 import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.1.8';
-import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.54.0';
+import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.54.1';
 import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
 import {
     TUNER_DEFAULT_THRESHOLD_DB,
@@ -10,7 +10,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=0.54.0';
+} from './tuner-store.js?v=0.54.1';
 import {
     TUNER_CAPO_MAX,
     TUNER_CAPO_MIN,
@@ -406,7 +406,6 @@ export function initTuner(root, {
         title: root.querySelector('#tuner-title'),
         noteString: root.querySelector('#tuner-note-string'),
         noteValue: root.querySelector('#tuner-note-value'),
-        liveFeedback: root.querySelector('#tuner-live-feedback'),
         frequency: root.querySelector('#tuner-frequency'),
         cents: root.querySelector('#tuner-cents'),
         direction: root.querySelector('#tuner-direction'),
@@ -464,10 +463,8 @@ export function initTuner(root, {
     const loadResult = loadTunerSettings(storage);
     const meterVisible = loadTunerMeterVisible(storage);
     elements.meterVisibility.checked = meterVisible;
-    elements.liveFeedback.hidden = !meterVisible;
     elements.meterVisibility.addEventListener('change', () => {
-        elements.liveFeedback.hidden = !elements.meterVisibility.checked;
-        if (!elements.meterVisibility.checked) clearStringHighlight();
+        renderNeutral();
         saveTunerMeterVisible(elements.meterVisibility.checked, storage);
     });
     elements.previewHelp?.addEventListener('click', () => {
@@ -574,14 +571,15 @@ export function initTuner(root, {
         renderDetectedNote('—');
         elements.frequency.textContent = '— Hz';
         elements.cents.textContent = '—';
-        elements.direction.textContent = '入力待ち';
+        const waitingLabel = elements.meterVisibility.checked ? '入力待ち' : 'メーターOFF';
+        elements.direction.textContent = waitingLabel;
         elements.direction.dataset.state = 'neutral';
         elements.meter.classList.add('is-neutral');
         elements.meter.classList.remove('is-off-target');
         elements.meter.style.setProperty('--tuner-position', '50%');
         elements.meter.setAttribute('aria-valuenow', '0');
-        elements.meter.setAttribute('aria-valuetext', '入力待ち');
-        elements.meter.setAttribute('aria-label', '音程メーター、入力待ち');
+        elements.meter.setAttribute('aria-valuetext', waitingLabel);
+        elements.meter.setAttribute('aria-label', `音程メーター、${waitingLabel}`);
         clearStringHighlight();
     }
 
@@ -779,6 +777,7 @@ export function initTuner(root, {
     const audioController = audioControllerFactory({
         onResult(result) {
             if (!viewActive || audioStatus !== 'running') return;
+            if (!elements.meterVisibility.checked) return;
             const reading = smoother.push(result, now());
             currentReading = reading;
             const targetString = renderReading(reading);
