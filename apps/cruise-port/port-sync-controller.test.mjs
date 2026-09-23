@@ -142,7 +142,7 @@ test('Port controller exposes a secret-free fail-closed status summary', async (
   conflicts.push({ id: 'not-exposed' });
   assert.deepEqual(JSON.parse(JSON.stringify(await controller.status())), {
     known: true, connected: true, migrationState: 'complete', datasetState: 'ready',
-    runtimeState: 'ready', lastSyncAt: 1234, pendingCount: 1, conflictCount: 1
+    runtimeState: 'ready', lastSyncAt: 1234, pendingCount: 1, terminalCount: 0, conflictCount: 1
   });
 });
 

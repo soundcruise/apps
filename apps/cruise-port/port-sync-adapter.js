@@ -5,6 +5,7 @@
   const APP_ID = 'port';
   const SCHEMA_VERSION = 1;
   const ASSET_METADATA_KEY = 'cruisePort.syncAssetMetadata';
+  const DELETION_INTENT_KEY = 'cruisePort.syncDeletionIntent.v1';
   const MANAGED_KEYS = Object.freeze([
     'cruisePort.settings', 'cruisePort.metronome', 'cruisePort.metronomePresets',
     'cruisePort.tuner', 'cruisePort.gearList', 'cruisePort.gearCategories',
@@ -40,7 +41,7 @@
   }
   function parse(storage, key, fallback = null) {
     const raw = storage.getItem(key);
-    if (raw == null || raw === '') return clone(fallback);
+    if (raw == null) return clone(fallback);
     try { return JSON.parse(raw); } catch (_) { throw new Error(`port_storage_invalid:${key}`); }
   }
   function safeId(value) {
@@ -48,26 +49,33 @@
     if (!SAFE_ID.test(id)) throw new Error('port_record_id_invalid');
     return id;
   }
-  function assertSafe(value, depth = 0, budget = { count: 0 }) {
+  function assertSafe(value, depth = 0, budget = { count: 0 }, urlField = false) {
     budget.count += 1;
     if (budget.count > 4096 || depth > 12) throw new Error('port_record_too_large');
     if (value == null || typeof value === 'boolean') return;
     if (typeof value === 'number') { if (!Number.isFinite(value)) throw new Error('port_record_invalid'); return; }
     if (typeof value === 'string') {
-      if (value.length > 20000 || /^data:/iu.test(value) || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value)) {
+      if (value.length > 20000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f-\u009f]/u.test(value)) {
         throw new Error('port_record_invalid');
+      }
+      if (urlField && value !== '') {
+        let url;
+        try { url = new global.URL(value); } catch (_) { throw new Error('port_record_invalid'); }
+        if (!['http:', 'https:'].includes(url.protocol) || !url.hostname || url.username || url.password) {
+          throw new Error('port_record_invalid');
+        }
       }
       return;
     }
     if (Array.isArray(value)) {
       if (value.length > 2000) throw new Error('port_record_too_large');
-      value.forEach((item) => assertSafe(item, depth + 1, budget));
+      value.forEach((item) => assertSafe(item, depth + 1, budget, urlField));
       return;
     }
     if (!plain(value) || Object.keys(value).length > 200) throw new Error('port_record_invalid');
     Object.entries(value).forEach(([key, item]) => {
       if (FORBIDDEN_KEY.test(key)) throw new Error('port_secret_or_binary_blocked');
-      assertSafe(item, depth + 1, budget);
+      assertSafe(item, depth + 1, budget, urlField || /^(?:url|urls|customLaunch|href|website)$/iu.test(key));
     });
   }
   function record(recordType, recordId, value) {
@@ -91,8 +99,22 @@
   }
   function assetMetadata(storage) {
     const value = parse(storage, ASSET_METADATA_KEY, null);
-    if (![2, 3, 4].includes(value?.version)) {
+    if (value === null) {
       return { version: 4, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: false };
+    }
+    if (!plain(value) || ![2, 3, 4].includes(value.version) ||
+        ['gear', 'myApps', 'attachments'].some((key) => value[key] !== undefined && !plain(value[key])) ||
+        ['releaseQueue', 'discardQueue'].some((key) => value[key] !== undefined && !Array.isArray(value[key]))) {
+      throw new Error(`port_storage_invalid:${ASSET_METADATA_KEY}`);
+    }
+    for (const [bucket, assetKey] of [['gear', 'final'], ['myApps', 'final'], ['attachments', 'asset']]) {
+      for (const entry of Object.values(value[bucket] || {})) {
+        if (!plain(entry) || (entry.published != null &&
+            (!plain(entry.published) || entry.published.availability !== 'available' ||
+              typeof entry.published[assetKey]?.assetId !== 'string'))) {
+          throw new Error(`port_storage_invalid:${ASSET_METADATA_KEY}`);
+        }
+      }
     }
     return {
       version: 4, gear: clone(value.gear || {}), myApps: clone(value.myApps || {}),
@@ -115,10 +137,57 @@
       crop: item?.[cropKey] ? clone(item[cropKey]) : null
     };
   }
-  function itemValues(value, fallbackKey = 'items') {
-    return plain(value) && Array.isArray(value[fallbackKey]) ? value[fallbackKey] : [];
+  function itemValues(value, fallbackKey = 'items', storageKey = fallbackKey) {
+    if (!plain(value) || !Array.isArray(value[fallbackKey])) throw new Error(`port_storage_invalid:${storageKey}`);
+    const ids = new Set();
+    for (const item of value[fallbackKey]) {
+      if (!plain(item) || typeof item.id !== 'string' || !SAFE_ID.test(item.id) || ids.has(item.id)) {
+        throw new Error(`port_storage_invalid:${storageKey}`);
+      }
+      ids.add(item.id);
+      assertSafe(item);
+    }
+    return value[fallbackKey];
+  }
+  const COLLECTION_VERSIONS = Object.freeze({
+    'cruisePort.metronomePresets': [1], 'cruisePort.practiceCalendar': [1, 2],
+    'cruisePort.practiceMenus': [1, 2, 3], 'cruisePort.practiceHistory': [1, 2, 3, 4, 5],
+    'cruisePort.gearCategories': [1], 'cruisePort.gearList': [1, 2, 3, 4, 5],
+    'cruisePort.myApps': [1, 2, 3, 4, 5, 6, 7]
+  });
+  function collection(storage, key, fallbackKey = 'items') {
+    const value = parse(storage, key, { version: COLLECTION_VERSIONS[key].at(-1), [fallbackKey]: [] });
+    if (!plain(value) || !COLLECTION_VERSIONS[key].includes(value.version)) {
+      throw new Error(`port_storage_invalid:${key}`);
+    }
+    const items = itemValues(value, fallbackKey, key);
+    if (key === 'cruisePort.myApps') {
+      for (const item of items) {
+        if ((Object.hasOwn(item, 'urls') && (!plain(item.urls) ||
+              !['ios', 'android', 'macos', 'windows', 'web'].every((platform) => typeof item.urls[platform] === 'string'))) ||
+            (value.version >= 6 && Object.hasOwn(item, 'iconPresetKey') &&
+              item.iconPresetKey !== null && typeof item.iconPresetKey !== 'string')) {
+          throw new Error(`port_storage_invalid:${key}`);
+        }
+      }
+    }
+    return value;
   }
   function recordKey(record) { return `${record?.recordType || ''}/${record?.recordId || ''}`; }
+  function canDeleteRecord(storage, key, previous) {
+    const guarded = new Set(['metronome_preset', 'calendar_event', 'practice_menu',
+      'practice_history_event', 'gear_category', 'gear_item', 'my_app']);
+    const type = String(key).split('/')[0];
+    const orderType = ORDER_ITEM_TYPES[type];
+    if (!guarded.has(type) && !orderType) return true;
+    let intents;
+    try { intents = JSON.parse(storage.getItem(DELETION_INTENT_KEY) || '{}'); } catch (_) { return false; }
+    if (!plain(intents)) return false;
+    if (guarded.has(type)) return intents[key] === true;
+    if (intents[key] === true) return true;
+    const ids = previous?.payload?.value;
+    return Array.isArray(ids) && ids.length > 0 && ids.every((id) => intents[`${orderType}/${id}`] === true);
+  }
   function isDeleted(record) { return record?.deletedAt != null || record?.deleted === true; }
   function recordMap(records) {
     return new Map((records || []).filter((item) => plain(item)).map((item) => [recordKey(item), item]));
@@ -140,8 +209,8 @@
     const current = recordMap(records);
     const previous = recordMap(previousRecords);
     const assets = assetMetadata(storage);
-    const gearItems = itemValues(parse(storage, 'cruisePort.gearList', { items: [] }));
-    const appItems = itemValues(parse(storage, 'cruisePort.myApps', { items: [] }));
+    const gearItems = itemValues(collection(storage, 'cruisePort.gearList'));
+    const appItems = itemValues(collection(storage, 'cruisePort.myApps'));
     const repairs = { gear: new Set(), myApps: new Set(), attachments: new Set() };
     for (const item of gearItems) {
       const entry = assets.gear[item.id];
@@ -184,17 +253,18 @@
     return true;
   }
   function readLocalSnapshot(storage = global.localStorage) {
+    root.validateLocalStorage?.(storage);
     const records = [];
     const assets = assetMetadata(storage);
     SINGLETONS.forEach(([key, type, id]) => {
       const value = parse(storage, key);
       if (value != null) records.push(record(type, id, value));
     });
-    const presets = parse(storage, 'cruisePort.metronomePresets', { items: [] });
+    const presets = collection(storage, 'cruisePort.metronomePresets');
     itemValues(presets).forEach((item, index) => records.push(record('metronome_preset', item.id, { item, order: index })));
-    const calendar = parse(storage, 'cruisePort.practiceCalendar', { notes: [] });
+    const calendar = collection(storage, 'cruisePort.practiceCalendar', 'notes');
     itemValues(calendar, 'notes').forEach((item) => records.push(record('calendar_event', item.id, item)));
-    const menus = parse(storage, 'cruisePort.practiceMenus', { items: [] });
+    const menus = collection(storage, 'cruisePort.practiceMenus');
     itemValues(menus).forEach((item, index) => records.push(record('practice_menu', item.id, item)));
     if (itemValues(menus).length) records.push(record('practice_menu_order', 'default', itemValues(menus).map(({ id }) => id)));
     Object.entries(assets.attachments || {}).forEach(([logicalId, entry]) => {
@@ -219,14 +289,14 @@
     attachmentSets.forEach((ids, practiceId) => {
       records.push(record('practice_attachment_set', practiceId, ids.sort()));
     });
-    const history = parse(storage, 'cruisePort.practiceHistory', { events: [] });
+    const history = collection(storage, 'cruisePort.practiceHistory', 'events');
     itemValues(history, 'events').forEach((item) => records.push(record('practice_history_event', item.id, item)));
-    const categories = parse(storage, 'cruisePort.gearCategories', { categories: [] });
+    const categories = collection(storage, 'cruisePort.gearCategories', 'categories');
     itemValues(categories, 'categories').forEach((item) => records.push(record('gear_category', item.id, item)));
     if (itemValues(categories, 'categories').length) {
       records.push(record('gear_category_order', 'default', itemValues(categories, 'categories').map(({ id }) => id)));
     }
-    const gear = parse(storage, 'cruisePort.gearList', { items: [] });
+    const gear = collection(storage, 'cruisePort.gearList');
     itemValues(gear).forEach((item) => records.push(record('gear_item', item.id, {
       item: without(item, ['photoId', 'photoSourceId', 'photoCrop']), asset: assetFor(item, 'gear', assets)
     })));
@@ -235,7 +305,7 @@
         .sort((left, right) => Number(left.order || 0) - Number(right.order || 0)).map(({ id }) => id);
       if (ids.length) records.push(record('gear_order', status, ids));
     });
-    const myApps = parse(storage, 'cruisePort.myApps', { items: [] });
+    const myApps = collection(storage, 'cruisePort.myApps');
     itemValues(myApps).forEach((item) => records.push(record('my_app', item.id, {
       item: without(normalizeMyAppItem(item), ['iconId', 'iconSourceId', 'iconCrop']), asset: assetFor(item, 'app', assets)
     })));
@@ -262,6 +332,11 @@
         value.item.manufacturer = '';
       }
       if (normalized.recordType === 'my_app' && plain(value?.item)) value.item = normalizeMyAppItem(value.item);
+      if (normalized.recordType === 'my_app' && plain(value?.item)) {
+        const urls = [value.item.url, ...Object.values(value.item.urls || {}),
+          ...Object.values(value.item.customLaunch || {})].filter((url) => typeof url === 'string' && url !== '');
+        if (urls.some((url) => !url.startsWith('https://'))) throw new Error('port_record_invalid');
+      }
       if (normalized.recordType === 'practice_history_event' && value?.type === 'practice-session'
           && value.pauseIntervals === undefined) value.pauseIntervals = [];
       return normalized;
@@ -362,14 +437,20 @@
     };
   }
   function write(storage, key, value) { storage.setItem(key, JSON.stringify(value)); }
-  async function applyRemoteSnapshot(storage, snapshot, previousRecords = []) {
+  async function applyRemoteSnapshot(storage, snapshot, previousRecords = [], expectedSnapshot = null) {
+    if (expectedSnapshot && canonical(normalizeSnapshot(readLocalSnapshot(storage))) !==
+        canonical(normalizeSnapshot(expectedSnapshot))) {
+      const error = new Error('local_changed_during_apply');
+      error.code = 'local_changed_during_apply';
+      throw error;
+    }
     const before = new Map(MANAGED_KEYS.map((key) => [key, storage.getItem(key)]));
     const normalized = normalizeSnapshot(snapshot);
-    const currentGear = itemValues(parse(storage, 'cruisePort.gearList', { items: [] }));
-    const currentApps = itemValues(parse(storage, 'cruisePort.myApps', { items: [] }));
+    const currentGear = itemValues(collection(storage, 'cruisePort.gearList'));
+    const currentApps = itemValues(collection(storage, 'cruisePort.myApps'));
     const currentAssets = assetMetadata(storage);
     const repairs = findAssetReferenceRepairs(storage, normalized.records, previousRecords);
-    const currentHistory = parse(storage, 'cruisePort.practiceHistory', { version: 5, events: [] });
+    const currentHistory = collection(storage, 'cruisePort.practiceHistory', 'events');
     SINGLETONS.forEach(([key, type, id]) => {
       const found = byType(normalized, type).find((item) => item.recordId === id);
       if (found) write(storage, key, found.payload.value); else storage.removeItem(key);
@@ -438,8 +519,9 @@
       return normalizeMyAppItem(restoreAsset(value, local, 'app', metadataEntry));
     }) });
     write(storage, ASSET_METADATA_KEY, currentAssets);
-    root.acceptRemoteStorageValues?.(storage, MANAGED_KEYS);
-    const changed = MANAGED_KEYS.some((key) => storage.getItem(key) !== before.get(key));
+    const changedKeys = MANAGED_KEYS.filter((key) => storage.getItem(key) !== before.get(key));
+    root.acceptRemoteStorageValues?.(storage, changedKeys);
+    const changed = changedKeys.length > 0;
     return Object.freeze({ ok: true, changed });
   }
   async function computeManifest(snapshot, cryptoImpl = global.crypto) {
@@ -501,6 +583,7 @@
     serializeRecords(value) { return serializeRecords(value, this.cryptoImpl); }
     deserializeRecords(value) { return deserializeRecords(value); }
     isMeaningfulLocalData(value = this.readLocalSnapshot()) { return normalizeSnapshot(value).records.length > 0; }
+    canDeleteRecord(key, previous) { return canDeleteRecord(this.storage, key, previous); }
     mergeSnapshots(local, remote) { return mergeSnapshots(local, remote); }
     primeRemoteReferences(records) { this.remoteReferenceRecords = clone(records || []); }
     reconcileRemoteReferences(records) {
@@ -508,8 +591,8 @@
       this.remoteReferenceRecords = clone(records || []);
       return repaired;
     }
-    async applyRemoteSnapshot(value) {
-      const result = await applyRemoteSnapshot(this.storage, value, this.remoteReferenceRecords);
+    async applyRemoteSnapshot(value, options = {}) {
+      const result = await applyRemoteSnapshot(this.storage, value, this.remoteReferenceRecords, options?.expectedSnapshot);
       this.remoteApplyChanged = this.remoteApplyChanged || result.changed;
       return result;
     }

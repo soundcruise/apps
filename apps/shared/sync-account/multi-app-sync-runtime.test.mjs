@@ -592,11 +592,13 @@ test('save during pull schedules one follow-up after the captured snapshot', asy
   fixture.runtime.performSync = async (reason) => { runs += 1; return originalPerformSync(reason); };
 
   const pulling = fixture.runtime.sync('focus');
-  await Promise.all([localCaptured.promise, remoteCaptured.promise]);
+  await remoteCaptured.promise;
   fixture.local.records = [a, b];
   fixture.runtime.sync('save');
   releasePull.resolve();
   await pulling;
+
+  await localCaptured.promise;
 
   assert.equal(runs, 2);
   assert.equal(fixture.server.records.get('custom_record/b')?.deletedAt, null);
@@ -1104,6 +1106,149 @@ test('offline resolution persists intent without applying either side and resume
   assert.equal(resumed.ok, true, JSON.stringify(resumed));
   assert.equal(fixture.local.records[0].payload.bpm, 81);
   assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('a malformed Port snapshot cannot queue or push cloud tombstones', async () => {
+  const fixture = runtimeFixture([record('x')], 'port');
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.readLocalSnapshot = () => { throw new Error('port_storage_invalid:cruisePort.myApps'); };
+  const pushCalls = fixture.server.pushCalls;
+  await assert.rejects(fixture.runtime.sync('invalid-local'), /port_storage_invalid/u);
+  assert.equal(fixture.server.pushCalls, pushCalls);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal(fixture.server.records.get('custom_record/x').deletedAt, null);
+});
+
+test('an unconfirmed Port deletion stops before an outbox tombstone is made', async () => {
+  const fixture = runtimeFixture([record('x')], 'port');
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [];
+  fixture.local.canDeleteRecord = () => false;
+  await assert.rejects(fixture.runtime.sync('unconfirmed-delete'), (error) => error.code === 'local_deletion_unconfirmed');
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal(fixture.server.records.get('custom_record/x').deletedAt, null);
+});
+
+test('record reconciliation keeps an unsent local edit while pulling another remote record', async () => {
+  const fixture = runtimeFixture([record('x', 'X0'), record('y', 'Y0')], 'port');
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [record('x', 'X1'), record('y', 'Y0')];
+  const remoteY = fixture.server.records.get('custom_record/y');
+  fixture.server.records.set('custom_record/y', { ...remoteY, payload: { name: 'Y1' },
+    payloadHash: 'hash-y-Y1', revision: remoteY.revision + 1, changeSeq: ++fixture.server.revision });
+  const result = await fixture.runtime.sync('remote-y');
+  assert.equal(result.ok, true);
+  assert.equal(fixture.local.records.find((item) => item.recordId === 'x').payload.name, 'X1');
+  assert.equal(fixture.local.records.find((item) => item.recordId === 'y').payload.name, 'Y1');
+  assert.equal(fixture.server.records.get('custom_record/x').deletedAt, null);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('an edit made after the initial snapshot survives the remote apply', async () => {
+  const fixture = runtimeFixture([record('x', 'X0'), record('y', 'Y0')], 'port');
+  await fixture.runtime.consumeHandoff('transient');
+  const remoteY = fixture.server.records.get('custom_record/y');
+  fixture.server.records.set('custom_record/y', { ...remoteY, payload: { name: 'Y1' },
+    payloadHash: 'hash-y-Y1', revision: remoteY.revision + 1, changeSeq: ++fixture.server.revision });
+  const originalFlush = fixture.runtime.flushOutbox.bind(fixture.runtime);
+  fixture.runtime.flushOutbox = async (...args) => {
+    fixture.local.records = [record('x', 'X1'), record('y', 'Y0')];
+    return originalFlush(...args);
+  };
+  await fixture.runtime.sync('mid-sync-edit');
+  assert.equal(fixture.local.records.find((item) => item.recordId === 'x').payload.name, 'X1');
+  assert.equal(fixture.local.records.find((item) => item.recordId === 'y').payload.name, 'Y1');
+});
+
+test('a save during the backup gap stops the apply before overwriting that save', async () => {
+  const fixture = runtimeFixture([record('x', 'X0'), record('y', 'Y0')], 'port');
+  await fixture.runtime.consumeHandoff('transient');
+  const remoteY = fixture.server.records.get('custom_record/y');
+  fixture.server.records.set('custom_record/y', { ...remoteY, payload: { name: 'Y1' },
+    payloadHash: 'hash-y-Y1', revision: remoteY.revision + 1, changeSeq: ++fixture.server.revision });
+  fixture.context.SoundCruiseSyncAccount.appBackupStorage.save = async () => {
+    fixture.local.records = [record('x', 'X1'), record('y', 'Y0')];
+  };
+  await assert.rejects(fixture.runtime.sync('backup-gap'), (error) => error.code === 'local_changed_during_apply');
+  assert.equal(fixture.local.records.find((item) => item.recordId === 'x').payload.name, 'X1');
+  assert.equal(fixture.local.records.find((item) => item.recordId === 'y').payload.name, 'Y0');
+  assert.equal((await fixture.store.listShadow()).find((item) => item.recordId === 'y').payload.name, 'Y0');
+});
+
+test('network TypeError keeps the outbox retryable and the saved timer wakes it', async () => {
+  const fixture = runtimeFixture([record('a')], 'pitch');
+  await fixture.runtime.consumeHandoff('transient');
+  let now = 100_000;
+  fixture.runtime.now = () => now;
+  const timers = [];
+  fixture.context.setTimeout = (callback, delay) => { timers.push({ callback, delay }); return timers.length; };
+  fixture.context.clearTimeout = () => {};
+  fixture.local.records = [record('a'), record('b')];
+  const originalFetch = fixture.runtime.fetchImpl;
+  let failed = false;
+  fixture.runtime.fetchImpl = async (url, init) => {
+    if (!failed && new URL(url).pathname === '/v1/sync/push') {
+      failed = true;
+      throw new TypeError('Load failed');
+    }
+    return originalFetch(url, init);
+  };
+  await assert.rejects(fixture.runtime.sync('save'), (error) => error.code === 'network_error');
+  const [pending] = await fixture.store.listOutbox();
+  assert.equal(pending.terminalError, undefined);
+  assert.ok(pending.nextRetryAt > now);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'retrying');
+  assert.ok(timers.length > 0);
+  await fixture.runtime.sync('before-retry-due');
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'pending');
+  now = pending.nextRetryAt;
+  timers.at(-1).callback();
+  await Promise.resolve();
+  await fixture.runtime.running;
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal(fixture.server.records.get('custom_record/b').deletedAt, null);
+});
+
+test('an aborted fetch is normalized as a retryable network error', async () => {
+  const fixture = runtimeFixture([], 'pitch', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  fixture.runtime.fetchImpl = async () => { throw Object.assign(new Error('timed out'), { name: 'AbortError' }); };
+  await assert.rejects(fixture.runtime.request('GET', '/v1/sync/snapshot?appId=pitch'),
+    (error) => error.code === 'network_error' && error.status === 0);
+});
+
+test('permanent validation 4xx is terminal and cannot acquire a retry timer', async () => {
+  const fixture = runtimeFixture([record('a')], 'pitch');
+  await fixture.runtime.consumeHandoff('transient');
+  const timers = [];
+  fixture.context.setTimeout = (callback) => { timers.push(callback); return timers.length; };
+  fixture.context.clearTimeout = () => {};
+  fixture.local.records = [record('a'), record('b')];
+  fixture.server.nextPushFailure = { status: 400, code: 'invalid_request' };
+  await assert.rejects(fixture.runtime.sync('save'), (error) => error.code === 'invalid_request');
+  assert.equal((await fixture.store.listOutbox())[0].terminalError, 'invalid_request');
+  assert.equal(timers.length, 0);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
+});
+
+test('legacy push_failed retries only with persisted network provenance', async () => {
+  const fixture = runtimeFixture([record('a')], 'pitch');
+  await fixture.runtime.consumeHandoff('transient');
+  fixture.local.records = [record('a'), record('b')];
+  const operation = await fixture.runtime.operationFor(record('b'), 0);
+  await fixture.store.putOutbox({ ...operation, migration: false, terminalError: 'push_failed', failureKind: 'network' });
+  const result = await fixture.runtime.sync('recovered');
+  assert.equal(result.ok, true);
+  assert.equal((await fixture.store.listOutbox()).length, 0);
+  assert.equal(fixture.server.records.get('custom_record/b').deletedAt, null);
+
+  fixture.local.records = [record('a'), record('b'), record('c')];
+  const unknown = await fixture.runtime.operationFor(record('c'), 0);
+  await fixture.store.putOutbox({ ...unknown, migration: false, terminalError: 'push_failed' });
+  await fixture.runtime.sync('unknown-provenance');
+  assert.equal((await fixture.store.listOutbox()).some((item) => item.operationId === unknown.operationId), true);
+  assert.equal(fixture.server.records.has('custom_record/c'), false);
+  assert.equal(await fixture.store.readMeta('runtimeState'), 'attention');
 });
 
 test('one of two conflicts resolves without changing the other local variant', async () => {

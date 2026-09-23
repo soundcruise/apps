@@ -21,12 +21,14 @@ export function createPortSyncStatus({ accountState, structured, assets, online 
     if (accountState !== 'active' || !structured?.known || !assets?.known) return PRESENTATIONS.attention;
     if (structured.connected === false && structured.runtimeState === 'not_connected') return PRESENTATIONS.detached;
     if (!structured.connected) return PRESENTATIONS.attention;
-    if (structured.conflictCount > 0 || structured.runtimeState === 'attention') return PRESENTATIONS.attention;
-    if (!online || assets.error || ['paused', 'retrying', 'credential_invalid', 'not_connected'].includes(structured.runtimeState)) {
+    if (structured.conflictCount > 0 || structured.terminalCount > 0 || structured.runtimeState === 'attention') {
+        return PRESENTATIONS.attention;
+    }
+    if (!online || assets.error || ['paused', 'credential_invalid', 'not_connected'].includes(structured.runtimeState)) {
         return PRESENTATIONS.attention;
     }
     if (structured.pendingCount > 0 || assets.pendingCount > 0 || assets.running ||
-        structured.runtimeState === 'syncing' || structured.migrationState !== 'complete' ||
+        ['syncing', 'pending', 'retrying'].includes(structured.runtimeState) || structured.migrationState !== 'complete' ||
         structured.datasetState !== 'ready') return PRESENTATIONS.syncing;
     if (structured.runtimeState === 'ready' && Number.isFinite(structured.lastSyncAt)) return PRESENTATIONS.synced;
     return PRESENTATIONS.attention;

@@ -1,5 +1,5 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.57.2';
-import { getActiveDurationSeconds } from './practice-menu-timer-store.js?v=0.57.2';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues, hasRemoteStorageChange } from './storage-conflict.js?v=0.58.0';
+import { getActiveDurationSeconds } from './practice-menu-timer-store.js?v=0.58.0';
 export const PRACTICE_HISTORY_SCHEMA_VERSION = 5;
 export const PRACTICE_HISTORY_STORAGE_KEY = 'cruisePort.practiceHistory';
 export const PRACTICE_HISTORY_MAX_EVENTS = 8000;
@@ -180,16 +180,38 @@ export function loadPracticeHistory(storage) {
     }
 }
 
-export function savePracticeHistory(history, storage) {
+function mergeRemoteHistoryAppend(base, next, current) {
+    if (!isValidPracticeHistory(base) || !isValidPracticeHistory(next) || !isValidPracticeHistory(current)) return null;
+    const baseEvents = new Map(base.events.map((event) => [event.id, event]));
+    const nextEvents = new Map(next.events.map((event) => [event.id, event]));
+    // This path is reserved for timer completion, which only appends events.
+    if ([...baseEvents].some(([id, event]) => JSON.stringify(nextEvents.get(id)) !== JSON.stringify(event))) return null;
+    const merged = current.events.slice();
+    const currentEvents = new Map(merged.map((event) => [event.id, event]));
+    for (const [id, event] of nextEvents) {
+        if (baseEvents.has(id)) continue;
+        if (currentEvents.has(id)) {
+            if (JSON.stringify(currentEvents.get(id)) !== JSON.stringify(event)) return null;
+        } else merged.push(event);
+    }
+    const result = { ...current, events: merged };
+    return isValidPracticeHistory(result) ? result : null;
+}
+
+export function savePracticeHistory(history, storage, options = {}) {
     if (!isValidPracticeHistory(history)) return { ok: false, reason: 'invalid-data' };
     let previousValue;
     try {
         if (storage === undefined) storage = globalThis.localStorage;
-        assertStorageUnchanged(storage, [PRACTICE_HISTORY_STORAGE_KEY]);
+        const remoteAppend = hasRemoteStorageChange(storage, PRACTICE_HISTORY_STORAGE_KEY) && options.baseHistory;
+        if (!remoteAppend) assertStorageUnchanged(storage, [PRACTICE_HISTORY_STORAGE_KEY]);
         previousValue = storage.getItem(PRACTICE_HISTORY_STORAGE_KEY);
-        storage.setItem(PRACTICE_HISTORY_STORAGE_KEY, JSON.stringify(history));
+        const value = remoteAppend
+            ? mergeRemoteHistoryAppend(options.baseHistory, history, JSON.parse(previousValue)) : history;
+        if (!value) return { ok: false, reason: 'write-conflict' };
+        storage.setItem(PRACTICE_HISTORY_STORAGE_KEY, JSON.stringify(value));
         acceptStorageValues(storage, [PRACTICE_HISTORY_STORAGE_KEY]);
-        return { ok: true };
+        return remoteAppend ? { ok: true, history: value } : { ok: true };
     } catch (error) {
         try {
             if (previousValue === null) storage.removeItem(PRACTICE_HISTORY_STORAGE_KEY);

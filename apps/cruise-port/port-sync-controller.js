@@ -45,7 +45,7 @@
           if (await store.readMeta('migrationState') !== 'complete') await ensure();
         }).catch(() => {});
       }
-      if (state === 'ready' && adapter.consumeRemoteApplyChanged?.()) {
+      if (['ready', 'pending'].includes(state) && adapter.consumeRemoteApplyChanged?.()) {
         global.dispatchEvent?.(new CustomEvent('cruise-port-cloud-data-applied', {
           detail: Object.freeze({ changed: true })
         }));
@@ -135,6 +135,7 @@
           runtimeState: runtimeState || 'unknown',
           lastSyncAt: lastSyncAt != null && Number.isFinite(Number(lastSyncAt)) ? Number(lastSyncAt) : null,
           pendingCount: Array.isArray(outbox) ? outbox.length : 0,
+          terminalCount: Array.isArray(outbox) ? outbox.filter((item) => item.terminalError || item.conflict).length : 0,
           conflictCount: Array.isArray(conflicts) ? conflicts.length : 0
         });
       } catch (_) {

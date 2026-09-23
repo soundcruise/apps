@@ -11,6 +11,10 @@
   ]);
   const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
   const MAX_PUSH_OPERATIONS = 50;
+  function retryableError(error) {
+    return error instanceof MultiAppSyncError &&
+      (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status));
+  }
 
   function keyOf(record) { return `${record.recordType}/${record.recordId}`; }
   function isDeleted(record) { return record?.deletedAt != null || record?.deleted === true; }
@@ -112,6 +116,7 @@
       this.syncRequestGeneration = 0;
       this.pendingSyncReason = null;
       this.lifecycleBound = false;
+      this.retryTimer = null;
     }
 
     setState(state, detail = {}) {
@@ -170,12 +175,19 @@
         headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qaCredential}`);
       }
       if (body) headers.set('Content-Type', 'application/json');
-      const response = await this.fetchImpl(`${this.endpoint}${path}`, {
-        method, headers, body: body ? JSON.stringify(body) : undefined,
-        credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer'
-      });
+      let response;
+      try {
+        response = await this.fetchImpl(`${this.endpoint}${path}`, {
+          method, headers, body: body ? JSON.stringify(body) : undefined,
+          credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer'
+        });
+      } catch (_) {
+        throw new MultiAppSyncError('network_error');
+      }
       let payload = null;
-      try { payload = await response.json(); } catch (_) { /* handled below */ }
+      try { payload = await response.json(); } catch (error) {
+        if (['AbortError', 'TypeError'].includes(error?.name)) throw new MultiAppSyncError('network_error');
+      }
       if (!response.ok || payload?.ok !== true) {
         const code = payload?.code || 'invalid_response';
         if (await this.detachTerminalIdentity(code)) throw new MultiAppSyncError(code, response.status);
@@ -245,11 +257,15 @@
       return { snapshot, records: await this.adapter.serializeRecords(snapshot) };
     }
 
-    async applyWithBackup(nextSnapshot, previousSnapshot) {
+    async applyWithBackup(nextSnapshot, previousSnapshot, { checkCurrent = false } = {}) {
       await this.backupSnapshot(previousSnapshot);
+      if (checkCurrent && canonicalJson((await this.localRecords()).snapshot) !== canonicalJson(previousSnapshot)) {
+        throw new MultiAppSyncError('local_changed_during_apply');
+      }
       try {
-        await this.adapter.applyRemoteSnapshot(nextSnapshot);
+        await this.adapter.applyRemoteSnapshot(nextSnapshot, checkCurrent ? { expectedSnapshot: previousSnapshot } : undefined);
       } catch (error) {
+        if (error?.code === 'local_changed_during_apply') throw error;
         try { await this.adapter.applyRemoteSnapshot(previousSnapshot); } catch (_) { /* preserve original failure */ }
         throw error;
       }
@@ -662,6 +678,9 @@
         if (sameRecord(current, previous)) continue;
         const deleted = !current;
         if (!migration && !previous && deleted) continue;
+        if (deleted && previous && this.adapter.canDeleteRecord?.(recordKey, previous) === false) {
+          throw new MultiAppSyncError('local_deletion_unconfirmed');
+        }
         const source = current || previous;
         const pendingKey = `${recordKey}:${deleted}`;
         const operation = await this.operationFor(source, remote.get(recordKey)?.revision || previous?.revision || 0, deleted);
@@ -680,6 +699,24 @@
       }
     }
 
+    async scheduleRetryWake() {
+      if (this.retryTimer != null) global.clearTimeout?.(this.retryTimer);
+      this.retryTimer = null;
+      if (typeof global.setTimeout !== 'function') return;
+      const pending = await this.store.listOutbox();
+      const due = pending.filter((item) => !item.conflict &&
+        (!item.terminalError || (item.terminalError === 'push_failed' && item.failureKind === 'network')) &&
+        Number.isFinite(item.nextRetryAt) && item.nextRetryAt > 0)
+        .reduce((earliest, item) => Math.min(earliest, item.nextRetryAt), Infinity);
+      if (!Number.isFinite(due)) return;
+      this.retryTimer = global.setTimeout(() => {
+        this.retryTimer = null;
+        if (global.navigator?.onLine === false) return;
+        this.sync('retry-timer').catch(() => {});
+      }, Math.max(0, due - this.now()));
+      this.retryTimer?.unref?.();
+    }
+
     async flushOutbox({ migration = false, force = false } = {}) {
       const now = this.now();
       const initial = await this.store.listOutbox();
@@ -692,10 +729,17 @@
       while (true) {
         const operations = (await this.store.listOutbox()).filter((item) =>
           item.migration === migration && !item.conflict &&
-          (!item.terminalError || recoverableIds.has(item.operationId)) &&
+          (!item.terminalError || recoverableIds.has(item.operationId) ||
+            (item.terminalError === 'push_failed' && item.failureKind === 'network')) &&
           (force || !item.nextRetryAt || item.nextRetryAt <= now)
         ).slice(0, MAX_PUSH_OPERATIONS);
         if (!operations.length) return { ok: conflicts === 0, sent, conflict: conflicts };
+        for (const item of operations) {
+          if (item.deleted && this.adapter.canDeleteRecord?.(keyOf(item),
+              await this.store.getShadow?.(keyOf(item)) || item) === false) {
+            throw new MultiAppSyncError('local_deletion_unconfirmed');
+          }
+        }
         operations.forEach((item) => recoverableIds.delete(item.operationId));
         let payload;
         try {
@@ -708,12 +752,18 @@
         } catch (error) {
           for (const operation of operations) {
             const attempts = Number(operation.attempts || 0) + 1;
-            const retryable = error instanceof MultiAppSyncError && (RETRYABLE_STATUS.has(error.status) || PAUSE_CODES.has(error.code));
+            const retryable = error instanceof MultiAppSyncError &&
+              (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status) || PAUSE_CODES.has(error.code));
             await this.store.putOutbox({
               ...operation, attempts,
               nextRetryAt: retryable ? now + Math.min(300000, 1000 * (2 ** Math.min(attempts, 8))) : 0,
-              ...(retryable ? {} : { terminalError: error.code || 'push_failed' })
+              ...(retryable ? { terminalError: undefined, failureKind: error.code === 'network_error' ? 'network' : undefined }
+                : { terminalError: error.code || 'push_failed' })
             });
+          }
+          if (error instanceof MultiAppSyncError &&
+              (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status) || PAUSE_CODES.has(error.code))) {
+            await this.scheduleRetryWake();
           }
           throw error;
         }
@@ -777,7 +827,7 @@
         finalSnapshot = local.snapshot;
       } else if (!local.records.length && remoteLive.length) {
         finalSnapshot = remoteSnapshot;
-        await this.applyWithBackup(finalSnapshot, local.snapshot);
+        await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       } else if (local.records.length && remoteLive.length) {
         const merged = this.adapter.mergeSnapshots(local.snapshot, remoteSnapshot);
         if (merged.conflicts.length) {
@@ -793,7 +843,7 @@
           return Object.freeze({ ok: false, code: 'merge_conflict', conflicts: merged.conflicts.length });
         }
         finalSnapshot = merged.snapshot;
-        await this.applyWithBackup(finalSnapshot, local.snapshot);
+        await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       }
       const finalRecords = await this.adapter.serializeRecords(finalSnapshot);
       await this.queueDiff(finalRecords, remote.records || [], remote.records || [], { migration: true });
@@ -837,7 +887,8 @@
         },
         (error) => {
           if (this.running === scheduled) this.running = null;
-          if (!TERMINAL_CODES.has(error?.code) && !PAUSE_CODES.has(error?.code)) {
+          if (retryableError(error)) this.setState('retrying', { reason: error.code });
+          else if (!TERMINAL_CODES.has(error?.code) && !PAUSE_CODES.has(error?.code)) {
             this.setState('attention', { reason: safeErrorCode(error) });
           }
           throw error;
@@ -861,9 +912,8 @@
         return { ok: false, code: 'conflict_pending', conflicts: unresolved.length };
       }
       this.setState('syncing', { reason });
-      const [local, remote, shadowRecords] = await Promise.all([
-        this.localRecords(), this.serverSnapshot(), this.store.listShadow()
-      ]);
+      const [remote, shadowRecords] = await Promise.all([this.serverSnapshot(), this.store.listShadow()]);
+      const local = await this.localRecords();
       const localMap = mapRecords(local.records);
       const remoteMap = mapRecords(remote.records || []);
       const shadowMap = mapRecords(shadowRecords);
@@ -891,20 +941,48 @@
       const afterPush = await this.serverSnapshot();
       const localAfterPush = await this.localRecords();
       const afterMap = mapRecords(afterPush.records || []);
-      const shadowBefore = mapRecords(shadowRecords);
-      const remoteChanged = [...afterMap.keys()].some((recordKey) =>
-        !sameRecord(afterMap.get(recordKey), shadowBefore.get(recordKey)) && sameRecord(localMap.get(recordKey), shadowBefore.get(recordKey))
-      ) || [...shadowBefore.keys()].some((recordKey) => !afterMap.has(recordKey) && localMap.has(recordKey));
+      const freshMap = mapRecords(localAfterPush.records);
+      const pending = await this.store.listOutbox();
+      const pendingKeys = new Set(pending.map(keyOf));
+      const merged = new Map(localAfterPush.records.map((record) => [keyOf(record), record]));
+      const lateConflicts = [];
+      let remoteChanged = false;
+      for (const recordKey of new Set([...freshMap.keys(), ...afterMap.keys(), ...shadowMap.keys()])) {
+        const current = freshMap.get(recordKey);
+        const incoming = afterMap.get(recordKey);
+        const previous = shadowMap.get(recordKey);
+        if (sameRecord(current, incoming)) continue;
+        if (pendingKeys.has(recordKey) && sameRecord(incoming, previous)) continue;
+        if (!pendingKeys.has(recordKey) && sameRecord(current, previous)) {
+          if (incoming && !isDeleted(incoming)) merged.set(recordKey, localRecordFromRemote(incoming));
+          else merged.delete(recordKey);
+          remoteChanged = true;
+        } else if (!sameRecord(incoming, previous)) {
+          lateConflicts.push(recordKey);
+        }
+      }
+      if (lateConflicts.length) {
+        for (const recordKey of lateConflicts) await this.recordConflict('pull', recordKey, {
+          localRecord: freshMap.get(recordKey) || null,
+          remoteRecord: afterMap.get(recordKey) || null,
+          shadowRecord: shadowMap.get(recordKey) || null
+        });
+        this.setState('attention', { reason: 'conflict', conflicts: lateConflicts.length });
+        await this.reportRemovalSafety('attention');
+        return { ok: false, code: 'conflict', conflicts: lateConflicts.length };
+      }
       if (remoteChanged) {
-        const live = (afterPush.records || []).filter((record) => !isDeleted(record));
-        await this.applyWithBackup(this.adapter.deserializeRecords(live), localAfterPush.snapshot);
+        const next = this.adapter.deserializeRecords([...merged.values()]);
+        await this.applyWithBackup(next, localAfterPush.snapshot, { checkCurrent: true });
       }
       await this.replaceShadow(afterPush.records || [], afterPush.cursor);
       await this.store.setMeta('lastSyncAt', this.now());
-      this.setState('ready', { reason, recordCount: localAfterPush.records.length });
       const [outbox, conflicts] = await Promise.all([this.store.listOutbox(), this.store.listConflicts()]);
-      await this.reportRemovalSafety(outbox.length === 0 && conflicts.length === 0 ? 'clean' :
-        conflicts.length ? 'attention' : 'pending');
+      const state = conflicts.length || outbox.some((item) => item.terminalError || item.conflict)
+        ? 'attention' : outbox.length ? 'pending' : 'ready';
+      this.setState(state, { reason, recordCount: localAfterPush.records.length });
+      await this.reportRemovalSafety(state === 'ready' ? 'clean' : state === 'attention' ? 'attention' : 'pending');
+      await this.scheduleRetryWake();
       return { ok: true, recordCount: afterPush.recordCount, manifestHash: afterPush.manifestHash };
     }
 
@@ -912,13 +990,15 @@
       void this.reportRemovalSafety('pending');
       queueMicrotask(() => this.sync('save').catch((error) => {
         void this.reportRemovalSafety('error');
-        this.setState(error instanceof MultiAppSyncError && PAUSE_CODES.has(error.code) ? 'paused' : 'retrying');
+        this.setState(error instanceof MultiAppSyncError && PAUSE_CODES.has(error.code) ? 'paused' :
+          retryableError(error) ? 'retrying' : 'attention');
       }));
     }
 
     bindLifecycle() {
       if (this.lifecycleBound || !global.addEventListener) return;
       this.lifecycleBound = true;
+      this.scheduleRetryWake().catch(() => {});
       global.addEventListener('focus', () => this.sync('focus').catch(() => {}));
       global.addEventListener('online', () => this.resumeConflictResolutions()
         .then(() => this.sync('online')).catch(() => {}));

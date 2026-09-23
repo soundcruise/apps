@@ -1,4 +1,4 @@
-import { normalizeDisplaySize, normalizeSectionOrder } from './settings-store.js?v=0.57.2';
+import { normalizeDisplaySize, normalizeSectionOrder } from './settings-store.js?v=0.58.0';
 
 export function applyHomeDisplaySize(homeView, displaySize) {
     const normalized = normalizeDisplaySize(displaySize);

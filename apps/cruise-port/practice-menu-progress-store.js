@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.57.2';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.58.0';
 export const PRACTICE_PROGRESS_SCHEMA_VERSION = 3;
 export const PRACTICE_PROGRESS_STORAGE_KEY = 'cruisePort.practiceProgress';
 

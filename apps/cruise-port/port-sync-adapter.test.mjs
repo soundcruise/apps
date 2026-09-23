@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { manifestHash as workerManifestHash } from '../../workers/sound-cruise-sync/src/records.js';
+import { validatePortLocalCollections } from './port-sync-local-validation.js';
 
 const source = fs.readFileSync(new URL('./port-sync-adapter.js', import.meta.url), 'utf8');
 
@@ -19,7 +20,7 @@ function storage(values = {}) {
 }
 
 function load(targetStorage) {
-  const context = { crypto: webcrypto, TextEncoder, structuredClone, localStorage: targetStorage };
+  const context = { crypto: webcrypto, TextEncoder, structuredClone, URL, localStorage: targetStorage };
   context.globalThis = context;
   vm.runInNewContext(source, context);
   return context.SoundCruisePortSync;
@@ -613,16 +614,65 @@ test('concurrent edits to the same practice attachment set safe-stop as one sema
   }]);
 });
 
-test('Port adapter rejects secret-shaped and data URL payloads', () => {
+test('Port adapter rejects secret-shaped and unsafe URL fields, while preserving free text', () => {
   const api = load(storage());
   assert.throws(() => api.normalizeLocalSnapshot({ schemaVersion: 1, records: [{
     recordType: 'settings', recordId: 'global', schemaVersion: 1,
     payload: { id: 'global', value: { recoveryCode: 'forbidden' } }
   }] }), /blocked/u);
-  assert.throws(() => api.normalizeLocalSnapshot({ schemaVersion: 1, records: [{
-    recordType: 'settings', recordId: 'global', schemaVersion: 1,
-    payload: { id: 'global', value: { image: 'data:image/png;base64,AAAA' } }
-  }] }), /invalid/u);
+  for (const url of ['data:image/png;base64,AAAA', 'javascript:alert(1)', 'vbscript:msgbox(1)', 'ftp://example.com']) {
+    assert.throws(() => api.normalizeLocalSnapshot({ schemaVersion: 1, records: [{
+      recordType: 'settings', recordId: 'global', schemaVersion: 1,
+      payload: { id: 'global', value: { url } }
+    }] }), /invalid/u);
+  }
+  for (const text of ['Data: 次回はBPM120から', 'data: memo', 'DATABASE', 'data:image is dangerous only if URL field']) {
+    assert.doesNotThrow(() => api.normalizeLocalSnapshot({ schemaVersion: 1, records: [{
+      recordType: 'settings', recordId: 'global', schemaVersion: 1,
+      payload: { id: 'global', value: { memo: text } }
+    }] }));
+  }
+});
+
+test('malformed local collections and items fail closed before any deletion diff', () => {
+  for (const [key, value] of [
+    ['cruisePort.myApps', { version: 7, items: { broken: true } }],
+    ['cruisePort.gearList', { version: 5, items: { broken: true } }],
+    ['cruisePort.practiceHistory', { version: 5, events: { broken: true } }],
+    ['cruisePort.practiceMenus', { version: 3, items: [null] }],
+    ['cruisePort.myApps', { version: 6, items: [{ id: 'app-a', urls: 42 }] }]
+  ]) {
+    const target = storage({ [key]: JSON.stringify(value) });
+    assert.throws(() => load(target).readLocalSnapshot(target), /port_storage_invalid/u, key);
+  }
+});
+
+test('Port snapshot invokes the store validators before serializing an otherwise plausible item', () => {
+  const target = storage({ 'cruisePort.myApps': JSON.stringify({ version: 7, items: [{ id: 'app-1', name: 123 }] }) });
+  const api = load(target);
+  api.validateLocalStorage = validatePortLocalCollections;
+  assert.throws(() => api.readLocalSnapshot(target), /port_storage_invalid:cruisePort.myApps/u);
+});
+
+test('local tombstone proof requires a recorded user deletion', () => {
+  const target = storage();
+  const api = load(target);
+  const previous = remoteRecord('my_app', 'app-1', { item: { id: 'app-1' } });
+  assert.equal(new api.PortSyncAdapter({ storage: target }).canDeleteRecord('my_app/app-1', previous), false);
+  target.setItem('cruisePort.syncDeletionIntent.v1', JSON.stringify({ 'my_app/app-1': true }));
+  assert.equal(new api.PortSyncAdapter({ storage: target }).canDeleteRecord('my_app/app-1', previous), true);
+});
+
+test('Port remote apply rechecks local storage at the exact write boundary', async () => {
+  const target = storage({ 'cruisePort.settings': JSON.stringify({ version: 3, displaySize: 'normal' }) });
+  const api = load(target);
+  const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
+  const expectedSnapshot = adapter.readLocalSnapshot();
+  target.setItem('cruisePort.settings', JSON.stringify({ version: 3, displaySize: 'small' }));
+  const currentRaw = target.value('cruisePort.settings');
+  await assert.rejects(adapter.applyRemoteSnapshot(expectedSnapshot, { expectedSnapshot }),
+    (error) => error.code === 'local_changed_during_apply');
+  assert.equal(target.value('cruisePort.settings'), currentRaw);
 });
 
 test('Port adapter round-trips every structured record family and preserves ordering', async () => {

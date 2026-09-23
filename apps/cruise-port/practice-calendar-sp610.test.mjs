@@ -107,6 +107,6 @@ test('SP6.7 auto-follow and keyboard protection remain transient', () => {
     assert.doesNotMatch(store, /calendarNoteUserEdited/);
 });
 
-test('SP6.10 UI remains covered in Cruise Port 0.57.2', () => {
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.57\.2'/);
+test('SP6.10 UI remains covered in Cruise Port 0.58.0', () => {
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.58\.0'/);
 });

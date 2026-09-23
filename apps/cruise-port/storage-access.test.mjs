@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { loadPracticeMenus, savePracticeMenus } from './practice-menu-store.js';
 import { loadPracticeProgress, savePracticeProgress, createEmptyPracticeProgress } from './practice-menu-progress-store.js';
-import { loadPracticeHistory, savePracticeHistory, createEmptyPracticeHistory } from './practice-menu-history-store.js';
+import { loadPracticeHistory, savePracticeHistory, createEmptyPracticeHistory, createCycleCompletedEvent, createPracticeSessionEvent } from './practice-menu-history-store.js';
 import { loadPracticeCalendar, savePracticeCalendar, createEmptyPracticeCalendar } from './practice-menu-calendar-store.js';
 import { loadPracticeTimer, savePracticeTimer, createStoppedPracticeTimer } from './practice-menu-timer-store.js';
 import { loadMyApps, saveMyApps } from './my-apps-store.js';
@@ -15,7 +15,7 @@ import { loadTunerSettings, saveTunerSettings, TUNER_DEFAULTS } from './tuner-st
 import { createPracticeAttachmentStore } from './practice-menu-attachment-store.js';
 import { createGearPhotoStore } from './gear-photo-store.js';
 import { createMyAppsIconStore } from './my-apps-icon-store.js';
-import { acceptRemoteStorageValues, acceptStorageValues, assertStorageUnchanged } from './storage-conflict.js';
+import { acceptRemoteStorageValues, acceptStorageValues, assertStorageUnchanged } from './storage-conflict.js?v=0.58.0';
 
 test('every storage module imports the current conflict coordinator cache key', () => {
     for (const file of [
@@ -26,7 +26,7 @@ test('every storage module imports the current conflict coordinator cache key', 
         'metronome-presets-store.js', 'tuner-store.js'
     ]) {
         const source = readFileSync(new URL(file, import.meta.url), 'utf8');
-        assert.match(source, /storage-conflict\.js\?v=0\.57\.2/, file);
+        assert.match(source, /storage-conflict\.js\?v=0\.58\.0/, file);
     }
 });
 
@@ -104,14 +104,14 @@ test('stale tab saves are rejected per key while independent stores and fresh re
     }
 });
 
-test('a verified cloud apply advances the local conflict baseline without creating a false stale-tab failure', () => {
+test('a verified cloud apply blocks stale in-memory writes until the page reloads', () => {
     const values = new Map();
     const storage = { getItem: key => values.get(key) ?? null,
         setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
     loadSettings(storage);
     storage.setItem('cruisePort.settings', JSON.stringify({ ...DEFAULT_SETTINGS, displaySize: 'small' }));
     acceptRemoteStorageValues(storage, ['cruisePort.settings']);
-    assert.doesNotThrow(() => assertStorageUnchanged(storage, ['cruisePort.settings']));
+    assert.throws(() => assertStorageUnchanged(storage, ['cruisePort.settings']), /storage-write-conflict/u);
 });
 
 test('managed local saves notify Port sync once while verified remote applies stay silent', () => {
@@ -133,4 +133,35 @@ test('managed local saves notify Port sync once while verified remote applies st
         if (storageDescriptor) Object.defineProperty(globalThis, 'localStorage', storageDescriptor);
         else delete globalThis.localStorage;
     }
+});
+
+test('deferred cloud history and a timer completion append both survive', () => {
+    const values = new Map();
+    const storage = { getItem: key => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
+    const base = createEmptyPracticeHistory();
+    assert.equal(savePracticeHistory(base, storage).ok, true);
+    const loaded = loadPracticeHistory(storage).history;
+    const remoteEvent = createCycleCompletedEvent('remote-cycle', new Date('2026-09-23T01:00:00.000Z'));
+    storage.setItem('cruisePort.practiceHistory', JSON.stringify({ ...base, events: [remoteEvent] }));
+    acceptRemoteStorageValues(storage, ['cruisePort.practiceHistory']);
+    const localEvent = createPracticeSessionEvent({ sessionId: 'local-session',
+        startedAt: '2026-09-23T01:01:00.000Z', endedAt: '2026-09-23T01:02:00.000Z', durationSeconds: 60 });
+    const candidate = { ...loaded, events: [localEvent] };
+    const saved = savePracticeHistory(candidate, storage, { baseHistory: loaded });
+    assert.equal(saved.ok, true);
+    assert.deepEqual(new Set(saved.history.events.map((event) => event.id)), new Set([remoteEvent.id, localEvent.id]));
+    assert.deepEqual(new Set(JSON.parse(storage.getItem('cruisePort.practiceHistory')).events.map((event) => event.id)),
+        new Set([remoteEvent.id, localEvent.id]));
+});
+
+test('a store save records explicit deletion intent for the sync adapter', () => {
+    const values = new Map();
+    const storage = { getItem: key => values.get(key) ?? null,
+        setItem: (key, value) => values.set(key, String(value)), removeItem: key => values.delete(key) };
+    const event = createCycleCompletedEvent('cycle-1', new Date('2026-09-23T01:00:00.000Z'));
+    assert.equal(savePracticeHistory({ ...createEmptyPracticeHistory(), events: [event] }, storage).ok, true);
+    loadPracticeHistory(storage);
+    assert.equal(savePracticeHistory(createEmptyPracticeHistory(), storage).ok, true);
+    assert.equal(JSON.parse(storage.getItem('cruisePort.syncDeletionIntent.v1'))[`practice_history_event/${event.id}`], true);
 });

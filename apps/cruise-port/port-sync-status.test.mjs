@@ -43,6 +43,9 @@ test('Port status gives conflicts priority and recovers to complete after online
     assert.equal(createPortSyncStatus({
         accountState: 'active', structured: cleanStructured, assets: cleanAssets, online: true
     }).state, 'synced');
+    assert.equal(createPortSyncStatus({
+        accountState: 'active', structured: { ...cleanStructured, pendingCount: 1, terminalCount: 1 }, assets: cleanAssets
+    }).label, '確認が必要');
 });
 
 test('Port status distinguishes confirmed unconnected and deleting states from unknown state', () => {
