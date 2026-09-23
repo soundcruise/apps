@@ -28,6 +28,34 @@
     isAnswerMode: true, keyRandomMode: false, baseOctave: 3, keyOffset: 0,
     noteSpeed: 1
   });
+  function effectiveSettingsForMerge(values) {
+    const result = clone(values || {});
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      if (!Object.prototype.hasOwnProperty.call(result, key)) result[key] = value;
+    }
+    if (!Object.prototype.hasOwnProperty.call(result, 'testModeEnabled')) result.testModeEnabled = false;
+    if (!Object.prototype.hasOwnProperty.call(result, 'accidentalDisplay')) result.accidentalDisplay = 'sharp';
+    for (const [field, refs] of [['builtinChordEnabled', BUILTIN_CHORDS],
+      ['builtinProgressionEnabled', BUILTIN_PROGRESSIONS]]) {
+      const enabled = isPlainObject(result[field]) ? result[field] : {};
+      result[field] = { ...enabled };
+      refs.forEach(({ key }) => { if (!Object.prototype.hasOwnProperty.call(enabled, key)) result[field][key] = true; });
+    }
+    return result;
+  }
+  function encodeSettingsForMerge(values) {
+    const result = clone(values);
+    if (!meaningfulSettings(result)) return {};
+    if (result.testModeEnabled === false) delete result.testModeEnabled;
+    for (const [field, refs] of [['builtinChordEnabled', BUILTIN_CHORDS],
+      ['builtinProgressionEnabled', BUILTIN_PROGRESSIONS]]) {
+      if (isPlainObject(result[field])) {
+        refs.forEach(({ key }) => { if (result[field][key] === true) delete result[field][key]; });
+        if (!Object.keys(result[field]).length) delete result[field];
+      }
+    }
+    return result;
+  }
 
   const BUILTIN_CHORDS = Object.freeze([
     ['c', 'C', '0', '4', '7'], ['dm', 'Dm', '2', '3', '7'],
@@ -856,6 +884,8 @@
     deserializeRecords(records) { return deserializeRecords(records); }
     isMeaningfulLocalData(snapshot = this.readLocalSnapshot()) { return isMeaningfulLocalData(snapshot); }
     mergeSnapshots(localSnapshot, remoteSnapshot) { return mergeSnapshots(localSnapshot, remoteSnapshot); }
+    effectiveSettingsForMerge(values) { return effectiveSettingsForMerge(values); }
+    encodeSettingsForMerge(values) { return encodeSettingsForMerge(values); }
     applyRemoteSnapshot(snapshot, options = {}) {
       return applyRemoteSnapshot(this.storage, snapshot, {
         cryptoImpl: this.cryptoImpl, backupStore: options.backupStore || this.backupStore,

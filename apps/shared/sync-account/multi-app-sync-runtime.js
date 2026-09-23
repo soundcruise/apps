@@ -418,12 +418,18 @@
     }
 
     settingsFieldPlan(context, choices = {}) {
-      if (this.appId === 'port' || context.localRecord?.recordType !== 'settings' ||
-          context.remoteRecord?.recordType !== 'settings' ||
-          isDeleted(context.localRecord) || isDeleted(context.remoteRecord) ||
-          typeof root.mergeSettingsFields !== 'function') return null;
-      return root.mergeSettingsFields(context.localRecord.payload?.values,
-        context.remoteRecord.payload?.values, context.shadowRecord?.payload?.values || null, choices);
+      if (this.appId === 'port' || typeof root.mergeSettingsFields !== 'function') return null;
+      const { localRecord, remoteRecord, shadowRecord } = context;
+      if ([localRecord, remoteRecord, shadowRecord].some((record) => record && record.recordType !== 'settings') ||
+          (!localRecord && !remoteRecord)) return null;
+      if ((!this.adapter.effectiveSettingsForMerge && (!localRecord || !remoteRecord)) ||
+          (!shadowRecord && (!localRecord || !remoteRecord))) return null;
+      const effective = (values) => this.adapter.effectiveSettingsForMerge?.(values) || values;
+      const plan = root.mergeSettingsFields(effective(isDeleted(localRecord) ? {} : localRecord?.payload?.values || {}),
+        effective(isDeleted(remoteRecord) ? {} : remoteRecord?.payload?.values || {}), shadowRecord ?
+          effective(shadowRecord.payload?.values) : null, choices);
+      return plan.values === null ? plan : Object.freeze({ ...plan,
+        values: this.adapter.encodeSettingsForMerge?.(plan.values) || plan.values });
     }
 
     sanitizeConflictPresentation(value, context) {
@@ -688,9 +694,10 @@
       const choices = saved?.fieldChoices || fieldChoices;
       const plan = this.settingsFieldPlan(context, choices);
       if (!plan || plan.unresolved) throw new MultiAppSyncError('settings_selection_incomplete');
+      if (!Object.keys(plan.values).length && !context.localRecord) return this.resolveLocalConflict(conflict);
       const desiredRecord = {
         recordType: 'settings', recordId: context.parts.recordId,
-        schemaVersion: context.localRecord.schemaVersion,
+        schemaVersion: (context.localRecord || context.remoteRecord).schemaVersion,
         payload: { id: context.parts.recordId, values: plan.values }
       };
       const candidate = {
@@ -1177,11 +1184,11 @@
         if (!sameRecord(localRecord, shadowRecord) && !sameRecord(remoteRecord, shadowRecord) && !sameRecord(localRecord, remoteRecord)) {
           const plan = this.settingsFieldPlan({ localRecord, remoteRecord, shadowRecord });
           if (plan && !plan.unresolved) {
-            automaticSettings.push({ recordKey, record: {
-              recordType: 'settings', recordId: localRecord.recordId,
-              schemaVersion: localRecord.schemaVersion,
-              payload: { id: localRecord.recordId, values: plan.values }
-            } });
+            automaticSettings.push({ recordKey, record: Object.keys(plan.values).length ? {
+              recordType: 'settings', recordId: (localRecord || remoteRecord).recordId,
+              schemaVersion: (localRecord || remoteRecord).schemaVersion,
+              payload: { id: (localRecord || remoteRecord).recordId, values: plan.values }
+            } : null });
             continue;
           }
           conflictKeys.push(recordKey);
@@ -1199,8 +1206,8 @@
       }
       if (automaticSettings.length) {
         const replacements = new Map(automaticSettings.map(({ recordKey, record }) => [recordKey, record]));
-        const next = { ...clone(local.snapshot), records: local.snapshot.records.map((record) =>
-          replacements.get(keyOf(record)) || record) };
+        const next = { ...clone(local.snapshot), records: local.snapshot.records.filter((record) =>
+          !replacements.has(keyOf(record))).concat([...replacements.values()].filter(Boolean)) };
         try { this.adapter.validateSnapshot(next); }
         catch {
           for (const { recordKey } of automaticSettings) await this.recordConflict('pull', recordKey, {

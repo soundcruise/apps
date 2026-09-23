@@ -281,6 +281,15 @@
     });
     return result;
   }
+  function effectiveSettingsForMerge(values) {
+    return { ...clone(values || {}), ...Object.fromEntries(SYNC_SETTINGS.map((key) =>
+      [key, values && Object.prototype.hasOwnProperty.call(values, key) ? clone(values[key]) : DEFAULT_SETTINGS[key]])) };
+  }
+  function encodeSettingsForMerge(values) {
+    const result = clone(values);
+    SYNC_SETTINGS.forEach((key) => { if (canonicalJson(result[key]) === canonicalJson(DEFAULT_SETTINGS[key])) delete result[key]; });
+    return result;
+  }
   function normalizeRawSnapshot(rawSnapshot) {
     if (!isPlainObject(rawSnapshot)) throw new Error('fretboard_snapshot_invalid');
     if (rawSnapshot.appId !== undefined || rawSnapshot.records !== undefined) {
@@ -738,6 +747,8 @@
     deserializeRecords(records) { return deserializeRecords(records); }
     isMeaningfulLocalData(snapshot = this.readLocalSnapshot()) { return isMeaningfulLocalData(snapshot); }
     mergeSnapshots(localSnapshot, remoteSnapshot) { return mergeSnapshots(localSnapshot, remoteSnapshot); }
+    effectiveSettingsForMerge(values) { return effectiveSettingsForMerge(values); }
+    encodeSettingsForMerge(values) { return encodeSettingsForMerge(values); }
     applyRemoteSnapshot(snapshot, options = {}) {
       return applyRemoteSnapshot(this.storage, snapshot, {
         cryptoImpl: this.cryptoImpl, backupStore: options.backupStore || this.backupStore,

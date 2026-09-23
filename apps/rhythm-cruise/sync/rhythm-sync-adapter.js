@@ -26,6 +26,31 @@
     tapLayout: 'lr', tapUnified: true, inputMode: 'tap', judgePreset: 'semiStrict',
     clickRange: 'always', clickBeats: 'all', clickOffbeat: false
   });
+  function effectiveSettingsForMerge(values) {
+    const result = clone(values || {});
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      if (!Object.prototype.hasOwnProperty.call(result, key)) result[key] = value;
+    }
+    const enabled = isPlainObject(result.builtinSampleEnabled) ? result.builtinSampleEnabled : {};
+    result.builtinSampleEnabled = { ...enabled };
+    BUILTIN_SAMPLE_STAGES.forEach(({ key }) => {
+      if (!Object.prototype.hasOwnProperty.call(enabled, key)) result.builtinSampleEnabled[key] = true;
+    });
+    return result;
+  }
+  function encodeSettingsForMerge(values) {
+    const result = clone(values);
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      if (canonicalJson(result[key]) === canonicalJson(value)) delete result[key];
+    }
+    if (isPlainObject(result.builtinSampleEnabled)) {
+      BUILTIN_SAMPLE_STAGES.forEach(({ key }) => {
+        if (result.builtinSampleEnabled[key] === true) delete result.builtinSampleEnabled[key];
+      });
+      if (!Object.keys(result.builtinSampleEnabled).length) delete result.builtinSampleEnabled;
+    }
+    return result;
+  }
   const RECORD_TYPES = new Set([
     'settings', 'custom_stage', 'create_preset', 'custom_preset',
     'stage_order', 'preset_order', 'builtin_stage_preferences'
@@ -754,6 +779,8 @@
     deserializeRecords(records) { return deserializeRecords(records); }
     isMeaningfulLocalData(snapshot = this.readLocalSnapshot()) { return isMeaningfulLocalData(snapshot); }
     mergeSnapshots(localSnapshot, remoteSnapshot) { return mergeSnapshots(localSnapshot, remoteSnapshot); }
+    effectiveSettingsForMerge(values) { return effectiveSettingsForMerge(values); }
+    encodeSettingsForMerge(values) { return encodeSettingsForMerge(values); }
     applyRemoteSnapshot(snapshot, options = {}) {
       return applyRemoteSnapshot(this.storage, snapshot, {
         cryptoImpl: this.cryptoImpl, backupStore: options.backupStore || this.backupStore,

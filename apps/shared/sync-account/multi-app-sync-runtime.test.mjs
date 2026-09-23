@@ -1228,6 +1228,218 @@ test('merged settings response loss resumes one operation without discarding eit
   assert.equal((await fixture.store.listConflicts()).length, 0);
 });
 
+test('real adapters merge sparse default resets with unrelated edits and expose true conflicts', () => {
+  const cases = [
+    { appId: 'fretboard', file: '../../fretboard_cruise/sync/fretboard-sync-adapter.js',
+      root: 'SoundCruiseFretboardSync', name: 'FretboardSyncAdapter',
+      raw: { fretboard_cruise_state: JSON.stringify({ settings: { tempo: 75 } }) },
+      shadow: { tempo: 96 }, remote: { tempo: 96, quizTimeLimit: 6 },
+      conflict: { tempo: 120 }, resetKey: 'tempo', resetValue: 75, unrelatedKey: 'quizTimeLimit', unrelatedValue: 6 },
+    { appId: 'pitch', file: '../../pitch-cruise/sync/pitch-sync-adapter.js',
+      root: 'SoundCruisePitchSync', name: 'PitchSyncAdapter',
+      raw: { pitchTrainerTestModeEnabled: 'false' },
+      shadow: { testModeEnabled: true }, remote: { testModeEnabled: true, noteSpeed: 2 },
+      conflict: { testModeEnabled: true }, resetKey: 'testModeEnabled', resetValue: false,
+      unrelatedKey: 'noteSpeed', unrelatedValue: 2 },
+    { appId: 'rhythm', file: '../../rhythm-cruise/sync/rhythm-sync-adapter.js',
+      root: 'SoundCruiseRhythmSync', name: 'RhythmSyncAdapter',
+      raw: { rhythmCruiseSettings: JSON.stringify({}), 'rhythmCruiseClickSettings:v1': JSON.stringify({ offbeat: false }) },
+      shadow: { clickOffbeat: true }, remote: { clickOffbeat: true, judgePreset: 'strict' },
+      conflict: { clickOffbeat: true }, resetKey: 'clickOffbeat', resetValue: false,
+      unrelatedKey: 'judgePreset', unrelatedValue: 'strict' }
+  ];
+  for (const item of cases) {
+    const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+    vm.runInContext(readFileSync(new URL(item.file, import.meta.url), 'utf8'), context);
+    const real = new context[item.root][item.name]({ cryptoImpl: webcrypto });
+    const localSnapshot = real.normalizeLocalSnapshot({ schemaVersion: 0, values: item.raw });
+    const localRecord = localSnapshot.records.find((record) => record.recordType === 'settings') || null;
+    assert.equal(localRecord?.payload.values[item.resetKey], undefined, item.appId);
+    const fixture = runtimeFixture([], item.appId);
+    fixture.runtime.adapter = real;
+    const make = (values) => ({ recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+      payload: { id: 'settings', values } });
+    const shadowRecord = make(item.shadow);
+    const remoteRecord = make(item.remote);
+    const plan = fixture.runtime.settingsFieldPlan({ localRecord, remoteRecord, shadowRecord });
+    assert.equal(plan.unresolved, 0, item.appId);
+    assert.equal(real.effectiveSettingsForMerge(plan.values)[item.resetKey], item.resetValue, item.appId);
+    assert.equal(plan.values[item.unrelatedKey], item.unrelatedValue, item.appId);
+    const disputed = fixture.runtime.settingsFieldPlan({ localRecord,
+      remoteRecord: make({ ...item.shadow, ...item.conflict }), shadowRecord });
+    // Boolean defaults have only two states, so a three-way same-field dispute
+    // requires a third value; number and enum cases are covered separately.
+    if (item.appId === 'fretboard') {
+      assert.equal(disputed.unresolved, 1);
+      assert.equal(disputed.conflicts[0].path, '/tempo');
+      assert.equal(disputed.conflicts[0].local, 75);
+      assert.equal(disputed.conflicts[0].remote, 120);
+    }
+    if (item.appId === 'pitch' || item.appId === 'rhythm') {
+      const key = item.appId === 'pitch' ? 'noteSpeed' : 'judgePreset';
+      const before = item.appId === 'pitch' ? 1 : 'semiStrict';
+      const left = item.appId === 'pitch' ? 2 : 'easy';
+      const right = item.appId === 'pitch' ? 3 : 'strict';
+      const sameField = fixture.runtime.settingsFieldPlan({
+        localRecord: make({ [key]: left }), remoteRecord: make({ [key]: right }),
+        shadowRecord: make({ [key]: before })
+      });
+      assert.equal(sameField.unresolved, 1, item.appId);
+      assert.equal(sameField.conflicts[0].path, `/${key}`);
+      assert.equal(sameField.conflicts[0].local, left);
+      assert.equal(sameField.conflicts[0].remote, right);
+    }
+  }
+});
+
+test('real adapter semantics retain future fields and nested enable flags', () => {
+  const fixture = runtimeFixture([], 'rhythm');
+  const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+  vm.runInContext(readFileSync(new URL('../../rhythm-cruise/sync/rhythm-sync-adapter.js', import.meta.url), 'utf8'), context);
+  const api = context.SoundCruiseRhythmSync;
+  fixture.runtime.adapter = new api.RhythmSyncAdapter({ cryptoImpl: webcrypto });
+  const sample = api.BUILTIN_SAMPLE_STAGES[0].key;
+  const make = (values) => ({ recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+    payload: { id: 'settings', values } });
+  const plan = fixture.runtime.settingsFieldPlan({
+    localRecord: make({ builtinSampleEnabled: { [sample]: false, 'future:sample': true } }),
+    remoteRecord: make({ judgePreset: 'strict', futureSetting: ['a', { b: 1 }] }),
+    shadowRecord: make({})
+  });
+  assert.equal(plan.unresolved, 0);
+  assert.equal(plan.values.builtinSampleEnabled[sample], false);
+  assert.equal(plan.values.builtinSampleEnabled['future:sample'], true);
+  assert.equal(plan.values.judgePreset, 'strict');
+  assert.deepEqual(JSON.parse(JSON.stringify(plan.values.futureSetting)), ['a', { b: 1 }]);
+  const reenabled = fixture.runtime.settingsFieldPlan({
+    localRecord: make({}), remoteRecord: make({ builtinSampleEnabled: { [sample]: false }, judgePreset: 'strict' }),
+    shadowRecord: make({ builtinSampleEnabled: { [sample]: false } })
+  });
+  assert.equal(reenabled.unresolved, 0);
+  assert.equal(reenabled.values.builtinSampleEnabled, undefined);
+  assert.equal(reenabled.values.judgePreset, 'strict');
+});
+
+test('real Fretboard reset and remote edit complete sync without restoring old tempo', async () => {
+  const fixture = runtimeFixture([], 'fretboard');
+  const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+  vm.runInContext(readFileSync(new URL('../../fretboard_cruise/sync/fretboard-sync-adapter.js', import.meta.url), 'utf8'), context);
+  const data = new Map();
+  const storage = { getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => data.set(key, String(value)), removeItem: (key) => data.delete(key) };
+  const real = new context.SoundCruiseFretboardSync.FretboardSyncAdapter({ storage, cryptoImpl: webcrypto });
+  fixture.runtime.adapter = real;
+  const make = (values) => ({ appId: 'fretboard', schemaVersion: 1, records: [{
+    recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+    payload: { id: 'settings', values }
+  }] });
+  const baseline = make({ tempo: 96 });
+  const remote = make({ tempo: 96, quizTimeLimit: 6 });
+  await real.applyRemoteSnapshot(baseline);
+  data.set('fretboard_cruise_state', JSON.stringify({ settings: { tempo: 75 } }));
+  assert.equal(real.normalizeLocalSnapshot().records.some((record) => record.recordType === 'settings'), false);
+  const [shadow] = await real.serializeRecords(baseline);
+  const [incoming] = await real.serializeRecords(remote);
+  await fixture.store.putShadow('settings/settings', { ...shadow, revision: 1, deletedAt: null });
+  fixture.server.records.set('settings/settings', { ...incoming, revision: 2,
+    operationId: 'remote-edit', deletedAt: null, changeSeq: 2 });
+  fixture.server.revision = 2;
+  fixture.server.state = 'ready';
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('qaCredential', 'scq1.valid');
+  await fixture.store.setMeta('migrationState', 'complete');
+  const result = await fixture.runtime.performSync('semantic-reset');
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.equal(fixture.server.records.get('settings/settings').payload.values.tempo, undefined);
+  assert.equal(fixture.server.records.get('settings/settings').payload.values.quizTimeLimit, 6);
+  assert.equal(JSON.parse(data.get('fretboard_cruise_state')).settings.tempo, 75);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
+test('real Pitch OFF and Rhythm reset survive unrelated remote edits through sync', async () => {
+  for (const item of [
+    { appId: 'pitch', file: '../../pitch-cruise/sync/pitch-sync-adapter.js', root: 'SoundCruisePitchSync',
+      name: 'PitchSyncAdapter', baseline: { testModeEnabled: true },
+      incoming: { testModeEnabled: true, noteSpeed: 2 },
+      reset: (data) => data.set('pitchTrainerTestModeEnabled', 'false'),
+      check: (data) => assert.equal(data.get('pitchTrainerTestModeEnabled'), 'false'),
+      absent: 'testModeEnabled', present: 'noteSpeed', expected: 2 },
+    { appId: 'rhythm', file: '../../rhythm-cruise/sync/rhythm-sync-adapter.js', root: 'SoundCruiseRhythmSync',
+      name: 'RhythmSyncAdapter', baseline: { clickOffbeat: true },
+      incoming: { clickOffbeat: true, judgePreset: 'strict' },
+      reset: (data) => data.set('rhythmCruiseClickSettings:v1', JSON.stringify({ offbeat: false })),
+      check: (data) => assert.equal(JSON.parse(data.get('rhythmCruiseClickSettings:v1')).offbeat, false),
+      absent: 'clickOffbeat', present: 'judgePreset', expected: 'strict' }
+  ]) {
+    const fixture = runtimeFixture([], item.appId);
+    const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+    vm.runInContext(readFileSync(new URL(item.file, import.meta.url), 'utf8'), context);
+    const data = new Map();
+    const storage = { getItem: (key) => data.get(key) ?? null,
+      setItem: (key, value) => data.set(key, String(value)), removeItem: (key) => data.delete(key) };
+    const real = new context[item.root][item.name]({ storage, cryptoImpl: webcrypto });
+    fixture.runtime.adapter = real;
+    const make = (values) => ({ appId: item.appId, schemaVersion: 1, records: [{
+      recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+      payload: { id: 'settings', values }
+    }] });
+    const baseline = make(real.encodeSettingsForMerge(real.effectiveSettingsForMerge(item.baseline)));
+    await real.applyRemoteSnapshot(baseline);
+    item.reset(data);
+    const [shadow] = await real.serializeRecords(baseline);
+    const [incoming] = await real.serializeRecords(make(
+      real.encodeSettingsForMerge(real.effectiveSettingsForMerge(item.incoming))));
+    await fixture.store.putShadow('settings/settings', { ...shadow, revision: 1, deletedAt: null });
+    fixture.server.records.set('settings/settings', { ...incoming, revision: 2,
+      operationId: 'remote-edit', deletedAt: null, changeSeq: 2 });
+    fixture.server.revision = 2;
+    fixture.server.state = 'ready';
+    await fixture.store.setMeta('credential', 'scd1.valid');
+    await fixture.store.setMeta('qaCredential', 'scq1.valid');
+    await fixture.store.setMeta('migrationState', 'complete');
+    const result = await fixture.runtime.performSync('semantic-reset');
+    assert.equal(result.ok, true, `${item.appId}: ${JSON.stringify(result)}`);
+    assert.equal(fixture.server.records.get('settings/settings').payload.values[item.absent], undefined, item.appId);
+    assert.equal(fixture.server.records.get('settings/settings').payload.values[item.present], item.expected, item.appId);
+    item.check(data);
+    assert.equal((await fixture.store.listConflicts()).length, 0, item.appId);
+  }
+});
+
+test('real Fretboard default versus 120 asks for tempo only and Local choice deletes stale setting', async () => {
+  const fixture = runtimeFixture([], 'fretboard');
+  const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+  vm.runInContext(readFileSync(new URL('../../fretboard_cruise/sync/fretboard-sync-adapter.js', import.meta.url), 'utf8'), context);
+  const data = new Map([['fretboard_cruise_state', JSON.stringify({ settings: { tempo: 75 } })]]);
+  const storage = { getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => data.set(key, String(value)), removeItem: (key) => data.delete(key) };
+  const real = new context.SoundCruiseFretboardSync.FretboardSyncAdapter({ storage, cryptoImpl: webcrypto });
+  fixture.runtime.adapter = real;
+  const make = (tempo) => ({ appId: 'fretboard', schemaVersion: 1, records: [{
+    recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+    payload: { id: 'settings', values: { tempo } }
+  }] });
+  const [shadow] = await real.serializeRecords(make(96));
+  const [incoming] = await real.serializeRecords(make(120));
+  await fixture.store.putShadow('settings/settings', { ...shadow, revision: 1, deletedAt: null });
+  fixture.server.records.set('settings/settings', { ...incoming, revision: 2,
+    operationId: 'remote-edit', deletedAt: null, changeSeq: 2 });
+  fixture.server.revision = 2;
+  fixture.server.state = 'ready';
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  await fixture.store.setMeta('qaCredential', 'scq1.valid');
+  await fixture.store.setMeta('migrationState', 'complete');
+  assert.equal((await fixture.runtime.performSync('true-conflict')).code, 'conflict');
+  const [view] = await fixture.runtime.listConflictPresentations();
+  assert.equal(view.settings.fields.length, 1);
+  assert.equal(view.settings.fields[0].local, 75);
+  assert.equal(view.settings.fields[0].remote, 120);
+  const resolved = await fixture.runtime.resolveConflict(view.id, 'merged', { fieldChoices: { '/tempo': 'local' } });
+  assert.equal(resolved.ok, true, JSON.stringify(resolved));
+  assert.equal(fixture.server.records.get('settings/settings').deletedAt !== null, true);
+  assert.equal((await fixture.store.listConflicts()).length, 0);
+});
+
 test('an initial settings conflict resumes migration to all 15 records after field choices', async () => {
   const recordKey = (item) => `${item.recordType}/${item.recordId}`;
   const localValues = { keyRandomMode: true, noteSpeed: 3, builtinChordEnabled: { local: true } };
