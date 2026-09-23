@@ -1,7 +1,7 @@
-import { MY_APP_PREFIX } from './practice-menu-store.js?v=0.54.1';
+import { MY_APP_PREFIX } from './practice-menu-store.js?v=0.55.0';
 import { APP_DEFINITIONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.27.0';
 import { getEdition } from './cruise-port-edition.js?v=0.27.0';
-import { resolveMyAppHref } from './my-apps-launch.js?v=0.54.1';
+import { resolveMyAppHref } from './my-apps-launch.js?v=0.55.0';
 
 export const PRACTICE_APP_STATUS = Object.freeze({
     none: 'none',

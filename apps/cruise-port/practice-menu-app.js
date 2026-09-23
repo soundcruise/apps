@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.54.1';
+} from './practice-menu-store.js?v=0.55.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.54.1';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.55.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.54.1';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.54.1';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.54.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.54.1';
+} from './sync-center-controller.js?v=0.55.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.55.0';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.55.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.55.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.54.1';
+} from './sync-center-navigation.js?v=0.55.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.54.1';
+} from './practice-menu-progress-store.js?v=0.55.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.54.1';
+} from './practice-menu-history-store.js?v=0.55.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.54.1';
+} from './practice-menu-calendar-store.js?v=0.55.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -84,8 +84,8 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.54.1';
-import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.54.1';
+} from './practice-menu-timer-store.js?v=0.55.0';
+import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.55.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -121,7 +121,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.54.1';
+} from './my-apps-store.js?v=0.55.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -131,7 +131,7 @@ import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=0.54.1';
+} from './my-apps-launch.js?v=0.55.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -172,10 +172,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.54.1';
+} from './app-version.js?v=0.55.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.54.1';
-import { initTuner } from './tuner-app.js?v=0.54.1';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.55.0';
+import { initTuner } from './tuner-app.js?v=0.55.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -193,8 +193,9 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.54.1';
-import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.54.1';
+} from './gear-list-store.js?v=0.55.0';
+import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv } from './gear-list-ux.js?v=0.55.0';
+import { createGearCardPng, shareGearCardPng } from './gear-card-export.js?v=0.55.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -203,9 +204,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.54.1';
+} from './gear-category-store.js?v=0.55.0';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.54.1';
+import { PortAssetSync } from './port-asset-sync.js?v=0.55.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -635,6 +636,8 @@ const gearState = {
     activeId: null,
     formMode: 'create',
     initialFormSnapshot: null,
+    exportCardGeneration: 0,
+    exportCardBlob: null,
     reorderMode: false,
     reorderStatus: null,
     reorderCategory: null,
@@ -4402,6 +4405,8 @@ function fillGearForm(item = null) {
     elements.gearPriorityInput.value = item?.priority || 'medium';
     elements.gearMemoInput.value = item?.memo || '';
     elements.gearSingleExport.hidden = !item;
+    elements.gearSingleExport.disabled = Boolean(item);
+    elements.gearSingleExport.textContent = item ? '画像を準備中…' : '画像で書き出す / 共有';
     updateGearPriorityVisibility();
     showNotice(elements.gearFormError);
     resetGearPhotoForm(item);
@@ -4425,7 +4430,31 @@ function renderGearForm(mode, id = null) {
     fillGearForm(item);
     gearState.initialFormSnapshot = gearFormSnapshot();
     showView(elements.gearFormView);
+    void prepareGearCardExport(item);
     elements.gearFormTitle.focus({ preventScroll: true });
+}
+
+async function prepareGearCardExport(item) {
+    const generation = ++gearState.exportCardGeneration;
+    gearState.exportCardBlob = null;
+    if (!item) return;
+    try {
+        let photoBlob = null;
+        if (item.photoId) {
+            const result = await gearPhotoStore.getPhoto(item.photoId);
+            if (!result.ok || !result.record?.blob) throw new Error('photo-unavailable');
+            photoBlob = result.record.blob;
+        }
+        const blob = await createGearCardPng(item, gearState.categories, photoBlob);
+        if (generation !== gearState.exportCardGeneration) return;
+        gearState.exportCardBlob = blob;
+        elements.gearSingleExport.disabled = false;
+        elements.gearSingleExport.textContent = '画像で書き出す / 共有';
+    } catch (_) {
+        if (generation !== gearState.exportCardGeneration) return;
+        elements.gearSingleExport.disabled = true;
+        elements.gearSingleExport.textContent = '画像を準備できませんでした';
+    }
 }
 
 function gearFormSnapshot() {
@@ -4752,7 +4781,11 @@ window.addEventListener('scroll', closeGearCardMenus, { capture: true, passive: 
 window.addEventListener('resize', closeGearCardMenus);
 
 function downloadGearExport(content, fileName, mime) {
-    const url = URL.createObjectURL(new Blob([content], { type: mime }));
+    downloadGearBlob(new Blob([content], { type: mime }), fileName);
+}
+
+function downloadGearBlob(blob, fileName) {
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
     link.download = fileName;
@@ -5160,7 +5193,12 @@ elements.gearListExport.addEventListener('click', () => {
 });
 elements.gearSingleExport.addEventListener('click', async () => {
     const item = findGearItem(gearState.activeId);
-    if (item) await shareGearText(item, gearState.categories, { download: downloadGearExport });
+    if (!item || !gearState.exportCardBlob) return;
+    if (gearState.photoAction !== 'keep' || gearFormSnapshot() !== gearState.initialFormSnapshot) {
+        showNotice(elements.gearFormError, '変更を保存してから画像を書き出してください。');
+        return;
+    }
+    await shareGearCardPng(gearState.exportCardBlob, item, { downloadBlob: downloadGearBlob });
 });
 elements.gearReorderCancel.addEventListener('click', cancelGearReorder);
 elements.gearReorderComplete.addEventListener('click', completeGearReorder);
