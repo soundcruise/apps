@@ -4095,7 +4095,7 @@ textarea:focus-visible {
     font-size: calc(0.86rem * var(--font-scale));
     line-height: 1.5;
 }
-.practice-history-event .practice-history-pause { color: var(--port-gold-bright); }
+.practice-history-event .practice-history-pause { color: var(--port-muted); font-weight: 400; font-size: calc(0.8rem * var(--font-scale)); }
 
 .practice-analytics { margin-top: 26px; padding-top: 18px; border-top: 1px solid rgba(207, 189, 148, 0.16); }
 .practice-total-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }

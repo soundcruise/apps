@@ -10,6 +10,9 @@ const categoryStore = readFileSync(new URL('./gear-category-store.js', import.me
 const gearFormMarkup = markup.match(/<form id="gear-list-form"[\s\S]*?<\/form>/)?.[0] || '';
 const gearSource = source.match(/function findGearItem[\s\S]*?function renderRoute/)?.[0] || '';
 
+assert.match(markup, /<h2 id="cruise-apps-heading">クルーズapps<\/h2>/);
+assert.match(proMarkup, /<h2 id="cruise-apps-heading">クルーズapps<\/h2>/);
+
 assert.match(markup, /id="wishlist-card" href="#wishlist"/);
 assert.match(markup, /id="gear-all-tab"[\s\S]*?role="tab"[\s\S]*?全て/);
 assert.match(markup, /id="gear-owned-tab"[\s\S]*?role="tab"[\s\S]*?自分の機材/);
@@ -23,6 +26,7 @@ assert.match(markup, /class="gear-display-toolbar"[\s\S]*?data-gear-columns="4"[
 assert.match(proMarkup, /class="gear-display-toolbar"[\s\S]*?data-gear-columns="4"[\s\S]*?id="gear-list-export"[^>]+aria-label="この一覧を書き出す"[\s\S]*?id="gear-export-csv"[\s\S]*?id="gear-export-png"/);
 assert.match(gearFormMarkup, /id="gear-single-export"/);
 assert.match(markup, /<select id="gear-category-select"[^>]+aria-label="カテゴリで絞り込む"/);
+assert.match(source, /const categories = \[\{ id: 'all', name: '全てのカテゴリ' \}, \.\.\.gearState\.categories\]/);
 assert.match(proMarkup, /<select id="gear-category-select"[^>]+aria-label="カテゴリで絞り込む"/);
 assert.match(markup, /class="gear-category-toolbar"[\s\S]*?id="gear-category-select"[\s\S]*?id="gear-category-menu-toggle"[\s\S]*?id="gear-category-menu"[\s\S]*?id="gear-category-add"[\s\S]*?id="gear-category-rename"[\s\S]*?id="gear-category-delete"/);
 assert.match(markup, /id="gear-category-menu-toggle"[^>]+aria-label="カテゴリメニューを開く"[^>]+title="カテゴリメニュー"[^>]+aria-haspopup="menu"/);
