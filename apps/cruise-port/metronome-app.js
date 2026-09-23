@@ -5,14 +5,14 @@ import {
     defaultAccentsForMeter,
     loadMetronomeSettings,
     saveMetronomeSettings
-} from './metronome-store.js?v=0.52.2';
+} from './metronome-store.js?v=0.52.3';
 import {
     METRONOME_PRESET_LIMITS,
     createMetronomePreset,
     deleteMetronomePreset,
     loadMetronomePresets,
     settingsFromMetronomePreset
-} from './metronome-presets-store.js?v=0.52.2';
+} from './metronome-presets-store.js?v=0.52.3';
 import {
     beatsForMeter,
     compatibleRhythm,

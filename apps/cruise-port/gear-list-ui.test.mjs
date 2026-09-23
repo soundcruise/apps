@@ -19,6 +19,8 @@ assert.match(markup, /data-gear-columns="1"[\s\S]*?data-gear-columns="2"[\s\S]*?
 assert.match(source, /if \(gearState\.activeStatus === 'owned'\) \{[\s\S]*?status: 'owned'[\s\S]*?status: 'sold'/);
 assert.match(styles, /\.gear-list-items\[data-columns="4"\][\s\S]*?repeat\(4, minmax\(0, 1fr\)\)/);
 assert.match(markup, /id="gear-list-export"/);
+assert.match(markup, /class="gear-display-toolbar"[\s\S]*?data-gear-columns="4"[\s\S]*?id="gear-list-export"[^>]+aria-label="この一覧をCSVで書き出す"/);
+assert.match(proMarkup, /class="gear-display-toolbar"[\s\S]*?data-gear-columns="4"[\s\S]*?id="gear-list-export"[^>]+aria-label="この一覧をCSVで書き出す"/);
 assert.match(gearFormMarkup, /id="gear-single-export"/);
 assert.match(markup, /<select id="gear-category-select"[^>]+aria-label="カテゴリで絞り込む"/);
 assert.match(proMarkup, /<select id="gear-category-select"[^>]+aria-label="カテゴリで絞り込む"/);
@@ -104,7 +106,7 @@ assert.match(source, /\$\{item\.name\}を機材リストから削除しますか
 assert.match(source, /\$\{item\.name\}をほしい機材から削除しますか？/);
 assert.match(source, /price\.textContent = item\.priceText/);
 assert.match(source, /heading\.append\(name\);/);
-assert.match(source, /card\.append\(createGearMetadata\(item\)\);/);
+assert.match(source, /const metadata = createGearMetadata\(item\);[\s\S]*?metadata\.append\(menuToggle, actions\);[\s\S]*?card\.append\(metadata\);/);
 assert.match(source, /getGearSections\(\)/);
 assert.match(source, /activeStatus: 'all'/);
 assert.match(source, /elements\.gearCategorySelect\.disabled = gearState\.reorderMode/);

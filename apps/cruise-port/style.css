@@ -2773,12 +2773,12 @@ textarea:focus-visible {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     gap: 8px;
     margin: 10px 0 0;
 }
 
-.gear-grid-picker { display: flex; gap: 4px; }
+.gear-grid-picker { display: flex; min-width: 0; gap: 4px; }
 .gear-grid-picker button, .gear-export-button {
     min-height: 40px;
     padding: 6px 9px;
@@ -2791,6 +2791,8 @@ textarea:focus-visible {
     cursor: pointer;
 }
 .gear-grid-picker button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(230, 210, 155, 0.5); }
+.gear-export-button { display: grid; flex: 0 0 40px; width: 40px; padding: 6px; place-items: center; }
+.gear-export-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 
 .gear-list-title-row {
     display: flex;
@@ -3066,7 +3068,7 @@ textarea:focus-visible {
 .gear-card {
     position: relative;
     min-width: 0;
-    padding: 15px 15px 57px;
+    padding: 15px;
     border: 1px solid rgba(207, 189, 148, 0.16);
     border-radius: 13px;
     background: rgba(7, 7, 5, 0.46);
@@ -3075,9 +3077,9 @@ textarea:focus-visible {
 .gear-card[data-gear-card-id] { cursor: pointer; }
 .gear-card[data-gear-card-id]:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 .gear-card-menu-toggle {
-    position: absolute;
-    bottom: 7px;
-    right: 7px;
+    position: relative;
+    flex: 0 0 42px;
+    margin-left: auto;
     width: 42px;
     height: 42px;
     border: 1px solid rgba(207, 189, 148, 0.24);
@@ -3142,6 +3144,8 @@ textarea:focus-visible {
 .gear-card-metadata {
     display: flex;
     margin-top: 9px;
+    min-width: 0;
+    align-items: center;
     flex-wrap: wrap;
     gap: 6px;
 }
@@ -3206,7 +3210,7 @@ textarea:focus-visible {
 .gear-card-actions[hidden] { display: none; }
 .gear-list-items[data-columns="2"] .gear-card,
 .gear-list-items[data-columns="3"] .gear-card,
-.gear-list-items[data-columns="4"] .gear-card { padding: 6px 6px 52px; }
+.gear-list-items[data-columns="4"] .gear-card { padding: 6px; }
 .gear-list-items[data-columns="2"] .gear-card-photo,
 .gear-list-items[data-columns="3"] .gear-card-photo,
 .gear-list-items[data-columns="4"] .gear-card-photo { float: none; display: block; width: 100%; height: auto; aspect-ratio: 1; margin: 0 0 8px; }
@@ -3219,36 +3223,42 @@ textarea:focus-visible {
 .gear-list-items[data-columns="2"] .gear-priority,
 .gear-list-items[data-columns="3"] .gear-priority,
 .gear-list-items[data-columns="4"] .gear-priority { display: none; }
+.gear-list-items[data-columns="2"] .gear-card-metadata,
+.gear-list-items[data-columns="3"] .gear-card-metadata { flex-wrap: nowrap; }
+.gear-list-items[data-columns="2"] .gear-category-badge,
+.gear-list-items[data-columns="3"] .gear-category-badge,
+.gear-list-items[data-columns="4"] .gear-category-badge {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .gear-list-items[data-columns="3"] .gear-card-metadata span { padding: 2px 4px; font-size: calc(0.56rem * var(--font-scale)); }
 .gear-list-items[data-columns="3"] .gear-card-price { font-size: calc(0.7rem * var(--font-scale)); overflow-wrap: anywhere; }
-.gear-list-items[data-columns="3"] .gear-card-menu-toggle { width: 36px; height: 36px; bottom: 5px; right: 5px; }
-.gear-list-items[data-columns="4"] .gear-card { padding: 4px 4px 50px; border-radius: 9px; }
+.gear-list-items[data-columns="3"] .gear-card-menu-toggle { flex-basis: 36px; width: 36px; height: 36px; }
+.gear-list-items[data-columns="4"] .gear-card { padding: 4px; border-radius: 9px; }
 .gear-list-items[data-columns="4"] .gear-card-photo { margin-bottom: 5px; }
 .gear-list-items[data-columns="4"] .gear-card h3 { font-size: calc(0.7rem * var(--font-scale)); line-height: 1.35; overflow-wrap: anywhere; }
-.gear-list-items[data-columns="4"] .gear-card-metadata { display: none; }
+.gear-list-items[data-columns="4"] .gear-card-metadata {
+    margin-top: 5px;
+    flex-wrap: nowrap;
+    gap: 2px;
+}
+.gear-list-items[data-columns="4"] .gear-card-metadata span {
+    max-width: 100%;
+    overflow: hidden;
+    padding: 2px 3px;
+    font-size: calc(0.5rem * var(--font-scale));
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
 .gear-list-items[data-columns="4"] .gear-card-price { margin-top: 5px; font-size: calc(0.66rem * var(--font-scale)); overflow-wrap: anywhere; }
 .gear-list-items[data-columns="4"] .gear-card-menu-toggle {
-    bottom: 3px;
-    right: 3px;
-    width: 44px;
-    height: 44px;
-    border: 0;
-    color: transparent;
-    background: transparent;
-    font-size: 0;
-}
-.gear-list-items[data-columns="4"] .gear-card-menu-toggle::after {
-    content: '⋯';
-    position: absolute;
-    inset: 8px;
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(207, 189, 148, 0.24);
+    flex-basis: 28px;
+    width: 28px;
+    height: 28px;
     border-radius: 8px;
-    color: var(--port-gold-bright);
-    background: rgba(7, 7, 5, 0.86);
     font-size: 1rem;
-    line-height: 1;
 }
 
 .gear-card-actions .action-button {
