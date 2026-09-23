@@ -126,6 +126,31 @@ test('legacy snapshot becomes typed records with stable IDs and excludes local-o
   })), 1, crypto, 'pitch'));
 });
 
+test('a stale Pitch editor save restores missing synced chords and progressions before pushing', async () => {
+  const api = load();
+  const values = richLegacy(api);
+  const shadow = await api.serializeRecords(api.normalizeLocalSnapshot({ schemaVersion: 0, values }));
+  const stale = JSON.parse(values.pitchTrainerProData);
+  stale.customChords = stale.customChords.filter((chord) => chord.id !== 2001);
+  stale.customChords.push({ id: 3001, name: 'V2QA', root: '0', third: '4', fifth: '7',
+    seventh: 'null', tensions: [], inversion: '0', isActive: true });
+  stale.customProgressions = stale.customProgressions.filter((progression) => progression.id !== 2101);
+  const storage = new MemoryStorage({ ...values, pitchTrainerProData: JSON.stringify(stale) });
+  const backups = [];
+  const adapter = new api.PitchSyncAdapter({ storage, backupStore: { async save(value) { backups.push(value); } } });
+  assert.throws(() => adapter.normalizeLocalSnapshot(), /pitch_legacy_chord_stage_reference_invalid/);
+  await assert.rejects(adapter.repairMissingLegacyReferences([]), /pitch_legacy_repair_unavailable/);
+  assert.equal(storage.getItem('pitchTrainerProData'), JSON.stringify(stale));
+  assert.equal(await adapter.repairMissingLegacyReferences(shadow), true);
+  const repaired = JSON.parse(storage.getItem('pitchTrainerProData'));
+  assert(repaired.customChords.some((chord) => chord.id === 2001 && chord.name === 'QA maj7'));
+  assert(repaired.customChords.some((chord) => chord.id === 3001 && chord.name === 'V2QA'));
+  assert(repaired.customProgressions.some((progression) => progression.id === 2101));
+  assert.equal(backups.length, 1);
+  assert.equal(adapter.normalizeLocalSnapshot().records.some((record) => record.payload?.name === 'V2QA'), true);
+  assert.equal(await adapter.repairMissingLegacyReferences(shadow), false);
+});
+
 test('a user-created duplicate of a built-in shape is not mistaken for generated built-in content', () => {
   const api = load();
   const data = defaultData(api);

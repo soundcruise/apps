@@ -318,7 +318,15 @@
     }
 
     async localRecords() {
-      const snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
+      let snapshot;
+      try {
+        snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
+      } catch (error) {
+        if (typeof this.adapter.repairMissingLegacyReferences !== 'function' ||
+            !/^pitch_legacy_(?:chord_stage|progression)_reference_invalid$/u.test(String(error?.message))) throw error;
+        await this.adapter.repairMissingLegacyReferences(await this.store.listShadow());
+        snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
+      }
       return { snapshot, records: await this.adapter.serializeRecords(snapshot) };
     }
 

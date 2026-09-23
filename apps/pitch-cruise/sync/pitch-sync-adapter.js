@@ -704,7 +704,81 @@
       const actual = normalizeRawSnapshot(readLocalSnapshot(storage));
       const actualManifest = await computeManifest(actual, options.cryptoImpl || global.crypto);
       if (actualManifest !== expectedManifest) throw new Error('pitch_apply_manifest_mismatch');
+      global.dispatchEvent?.(new Event('sound-cruise-pitch-sync-applied'));
       return Object.freeze({ ok: true, manifestHash: actualManifest, backup });
+    } catch (error) {
+      await restoreBackup(storage, backup);
+      throw error;
+    }
+  }
+
+  async function repairMissingLegacyReferences(storage, shadowRecords, backupStore) {
+    const before = readLocalSnapshot(storage);
+    try {
+      normalizeRawSnapshot(before);
+      return false;
+    } catch (error) {
+      if (!/pitch_legacy_(?:chord_stage|progression)_reference_invalid/u.test(String(error?.message))) throw error;
+    }
+    const data = parseJson(before.values.pitchTrainerProData, 'pitchTrainerProData', {});
+    if (!Array.isArray(data.customChords) || !Array.isArray(data.customProgressions)) {
+      throw new Error('pitch_legacy_repair_data_invalid');
+    }
+    const existingChords = new Set(data.customChords.map((chord) => String(chord.id)));
+    const existingProgressions = new Set(data.customProgressions.map((progression) => String(progression.id)));
+    const restoredChords = [];
+    const restoredProgressions = [];
+    for (const record of shadowRecords || []) {
+      if (record.deletedAt != null || !isPlainObject(record.payload)) continue;
+      const payload = record.payload;
+      if (!Number.isSafeInteger(Number(payload.legacyId))) continue;
+      if (record.recordType === 'custom_chord' && !existingChords.has(String(payload.legacyId))) {
+        restoredChords.push({
+          id: Number(payload.legacyId), name: payload.name, root: payload.root,
+          third: payload.third, fifth: payload.fifth, seventh: payload.seventh,
+          tensions: clone(payload.tensions), inversion: payload.inversion,
+          isActive: payload.isActive
+        });
+        existingChords.add(String(payload.legacyId));
+      }
+      if (record.recordType === 'custom_progression' && !existingProgressions.has(String(payload.legacyId))) {
+        restoredProgressions.push({
+          id: Number(payload.legacyId), name: payload.name,
+          chords: clone(payload.chordRefs), isActive: payload.isActive
+        });
+      }
+    }
+    // Progression references use legacy IDs, so resolve the saved record refs
+    // against the complete shadow before writing anything.
+    const legacyIdByRef = new Map((shadowRecords || []).filter((record) =>
+      record.recordType === 'custom_chord' && record.deletedAt == null &&
+      Number.isSafeInteger(Number(record.payload?.legacyId))).map((record) =>
+      [record.recordId, Number(record.payload.legacyId)]));
+    for (const progression of restoredProgressions) {
+      progression.chords = progression.chords.map((ref) => {
+        if (ref.startsWith('builtin:chord:')) {
+          const current = data.customChords.find((chord) => builtinChordRef(chord) === ref);
+          return current?.id;
+        }
+        return legacyIdByRef.get(ref);
+      });
+      if (progression.chords.some((id) => id === undefined)) throw new Error('pitch_legacy_repair_reference_missing');
+    }
+    if (!restoredChords.length && !restoredProgressions.length) throw new Error('pitch_legacy_repair_unavailable');
+    const repaired = { ...data,
+      customChords: [...data.customChords, ...restoredChords],
+      customProgressions: [...data.customProgressions, ...restoredProgressions] };
+    const candidate = { ...before, values: { ...before.values, pitchTrainerProData: JSON.stringify(repaired) } };
+    normalizeRawSnapshot(candidate);
+    const backup = await createBackup(storage, backupStore);
+    if (canonicalJson(readLocalSnapshot(storage)) !== canonicalJson(before)) {
+      throw new Error('local_changed_during_apply');
+    }
+    try {
+      storage.setItem('pitchTrainerProData', candidate.values.pitchTrainerProData);
+      normalizeRawSnapshot(readLocalSnapshot(storage));
+      global.dispatchEvent?.(new Event('sound-cruise-pitch-sync-applied'));
+      return true;
     } catch (error) {
       await restoreBackup(storage, backup);
       throw error;
@@ -777,6 +851,9 @@
       });
     }
     createBackup() { return createBackup(this.storage, this.backupStore); }
+    repairMissingLegacyReferences(shadowRecords) {
+      return repairMissingLegacyReferences(this.storage, shadowRecords, this.backupStore);
+    }
     restoreBackup(backup) { return restoreBackup(this.storage, backup); }
     getConflictPresentation(context) { return getConflictPresentation(context); }
     computeManifest(snapshot) { return computeManifest(snapshot, this.cryptoImpl); }
@@ -789,7 +866,8 @@
     BUILTIN_CHORDS, BUILTIN_PROGRESSIONS, PitchSyncAdapter,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeRawSnapshot, validateSnapshot,
     serializeRecords, deserializeRecords, isMeaningfulLocalData, mergeSnapshots,
-    applyRemoteSnapshot, createBackup, restoreBackup, getConflictPresentation, computeManifest,
+    applyRemoteSnapshot, createBackup, restoreBackup, repairMissingLegacyReferences,
+    getConflictPresentation, computeManifest,
     assertDataPlaneContext, createInitialMigrationPlan
   });
 })(globalThis);

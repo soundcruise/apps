@@ -203,6 +203,26 @@ function runtimeFixture(initial, appId = 'pitch', admissionMode = 'qa') {
     accountClient, core, fetchImpl, nextId: () => `op-${++id}` };
 }
 
+test('Pitch local read repairs a stale referenced chord from the saved shadow once', async () => {
+  const fixture = runtimeFixture([]);
+  let invalid = true;
+  let repairs = 0;
+  fixture.local.normalizeLocalSnapshot = (value) => {
+    if (invalid) throw new Error('pitch_legacy_chord_stage_reference_invalid');
+    return value;
+  };
+  fixture.local.repairMissingLegacyReferences = async (shadow) => {
+    assert.equal(shadow.length, 1);
+    repairs += 1;
+    invalid = false;
+    return true;
+  };
+  await fixture.store.putShadow('custom_chord/qa', { recordType: 'custom_chord', recordId: 'qa' });
+  assert.equal((await fixture.runtime.localRecords()).records.length, 0);
+  assert.equal((await fixture.runtime.localRecords()).records.length, 0);
+  assert.equal(repairs, 1);
+});
+
 function realPortFixture(values, fetchImpl = null) {
   const deviceId = fetchImpl ? 'second' : 'first';
   const Runtime = loadRuntime();

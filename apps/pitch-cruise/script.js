@@ -1,5 +1,5 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.23.1';
+const PITCH_TRAINER_APP_VERSION = '2.23.2';
 function notifyPitchSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('pitch');
 }
@@ -1713,6 +1713,18 @@ class Game {
         this.loadSettings();   // Initialize general settings from localStorage
         this.loadStagingProMelodySlots();
         this.loadStagingProChordSlots();
+        if (isPitchTrainerPro()) {
+            window.addEventListener('sound-cruise-pitch-sync-applied', () => {
+                this.loadCustomData();
+                this.loadSettings();
+                this.loadStagingProMelodySlots();
+                this.loadStagingProChordSlots();
+                if (this.proChordSettingsModal && !this.proChordSettingsModal.classList.contains('hidden')) {
+                    this.renderCustomChordList();
+                    this.renderCustomProgressionList();
+                }
+            });
+        }
 
         // Event Listeners
         document.querySelectorAll('[data-stage]:not(.custom-stage-btn)').forEach(btn => {
