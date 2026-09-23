@@ -128,6 +128,31 @@ test('legacy Rhythm data becomes deterministic typed records and Worker-compatib
   })), 1, crypto, 'rhythm'));
 });
 
+test('custom stage and settings use distinct serializers and survive one cloud round-trip together', async () => {
+  const api = load();
+  const snapshot = api.normalizeLocalSnapshot({ schemaVersion: 0, values: richLegacy(api) });
+  const wire = await api.serializeRecords(snapshot);
+  const received = api.deserializeRecords(JSON.parse(JSON.stringify(wire)));
+  const stage = received.records.find((record) => record.recordType === 'custom_stage' && !record.payload.builtinKey);
+  assert.deepEqual(JSON.parse(JSON.stringify({
+    title: stage.payload.title, grid: stage.payload.grid, timeSignature: stage.payload.timeSignature,
+    patternBars: stage.payload.patternBars, bars: stage.payload.bars, bpm: stage.payload.bpm,
+    clickMode: stage.payload.clickMode, rhythmFeel: stage.payload.rhythmFeel,
+    pattern: stage.payload.pattern
+  })), { title: 'QA stage', grid: 'eighth', timeSignature: '4/4', patternBars: 1,
+    bars: 8, bpm: 96, clickMode: 'downbeat', rhythmFeel: 'straight',
+    pattern: customStage().pattern });
+  const settings = received.records.find((record) => record.recordType === 'settings').payload.values;
+  assert.deepEqual(JSON.parse(JSON.stringify(settings)), {
+    tapLayout: 'ud', tapUnified: false, inputMode: 'stroke', judgePreset: 'strict',
+    clickRange: 'alternateBars', clickBeats: 'beats13', clickOffbeat: true
+  });
+  const storage = new MemoryStorage(richLegacy(api));
+  const adapter = new api.RhythmSyncAdapter({ storage });
+  await adapter.applyRemoteSnapshot(received);
+  assert.equal(await adapter.computeManifest(adapter.normalizeLocalSnapshot()), await adapter.computeManifest(received));
+});
+
 test('same-name presets remain distinct because stable IDs never use display names', () => {
   const api = load();
   const snapshot = api.normalizeLocalSnapshot({ schemaVersion: 0, values: richLegacy(api) });

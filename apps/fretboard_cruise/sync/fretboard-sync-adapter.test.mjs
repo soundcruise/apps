@@ -169,6 +169,48 @@ test('long-term state extracts deterministic typed durable records and excludes 
     'bluetoothRhythmAssistLevel', 'scrollLeft', 'unknownFutureLocalField']) assert.equal(json.includes(excluded), false, excluded);
 });
 
+test('custom quiz round-trip retains target range order and quiz fields', async () => {
+  const api = load();
+  const snapshot = api.normalizeLocalSnapshot(legacy(longTermState(api)));
+  const wire = await api.serializeRecords(snapshot);
+  const received = api.deserializeRecords(JSON.parse(JSON.stringify(wire)));
+  const quiz = received.records.find((record) => record.recordType === 'custom_quiz');
+  assert.deepEqual(JSON.parse(JSON.stringify({
+    name: quiz.payload.name, key: quiz.payload.key, capo: quiz.payload.capo,
+    scale: quiz.payload.scale, displayMode: quiz.payload.displayMode,
+    doMode: quiz.payload.doMode, maxFret: quiz.payload.maxFret, groups: quiz.payload.groups
+  })), { name: 'Quiz', key: 2, capo: 1, scale: 'dorian', displayMode: 'note',
+    doMode: 'fixed', maxFret: 18,
+    groups: [{ name: 'Group', notes: [{ stringName: 1, fret: 5 }] }] });
+  const order = received.records.find((record) => record.recordType === 'stage_order' &&
+    record.payload.category === 'quiz');
+  assert(order.payload.stageRefs.includes(quiz.recordId));
+  const settings = received.records.find((record) => record.recordType === 'settings').payload.values;
+  assert.equal(settings.quizTimeLimit, 6);
+  assert.equal(settings.quizQuestionLimit, 15);
+  const storage = new MemoryStorage({ fretboard_cruise_state: JSON.stringify(longTermState(api)) });
+  await new api.FretboardSyncAdapter({ storage }).applyRemoteSnapshot(received);
+  assert.equal(await api.computeManifest(api.readLocalSnapshot(storage)), await api.computeManifest(received));
+});
+
+test('built-in stage overrides round-trip and reset to shipped defaults without a semantic residue', async () => {
+  const api = load();
+  const state = { settings: { ...builtins(api), cruiseProCustomStages: [], quizProCustomStages: [] } };
+  state.settings.cruiseStageRoutes['1'][0].fret = 4;
+  state.settings.quizStageEditorSettings['1'].groups[0].notes[0].fret = 2;
+  const overrides = api.normalizeLocalSnapshot(legacy(state));
+  const storage = new MemoryStorage({ fretboard_cruise_state: JSON.stringify(state) });
+  const adapter = new api.FretboardSyncAdapter({ storage });
+  await adapter.applyRemoteSnapshot(api.deserializeRecords(await api.serializeRecords(overrides)));
+  assert.equal(adapter.normalizeLocalSnapshot().records.filter((record) =>
+    record.recordType.includes('builtin_')).length, 2);
+  const reset = { appId: 'fretboard', schemaVersion: 1, records: [] };
+  await adapter.applyRemoteSnapshot(reset);
+  assert.equal(adapter.normalizeLocalSnapshot().records.some((record) =>
+    record.recordType.includes('builtin_')), false);
+  assert.equal(await adapter.computeManifest(adapter.normalizeLocalSnapshot()), await adapter.computeManifest(reset));
+});
+
 test('shipped payloads are omitted while saved official edits become stable built-in overrides', () => {
   const api = load();
   const state = { settings: { ...builtins(api), cruiseProCustomStages: [], quizProCustomStages: [] } };
