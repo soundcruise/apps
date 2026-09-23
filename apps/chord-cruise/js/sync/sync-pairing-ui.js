@@ -592,12 +592,14 @@
         }
 
         function summaryLine(plan) {
-            var finalCount = plan.finalManifest ? plan.finalManifest.recordCount : '確認後に確定';
+            var finalCount = plan.finalManifest
+                ? '統合後 ' + plan.finalManifest.recordCount + '件。'
+                : '統合後の件数は選択後に確定します。';
             return (plan.localState === 'empty' ? '空の端末へクラウドデータを導入' : 'この端末とクラウドのデータを統合') +
                 'します。この端末 ' + plan.source.localRecordCount + '件、クラウド ' + plan.source.cloudRecordCount +
                 '件。同一 ' + plan.summary.identical + '件、この端末から追加 ' + plan.summary.local_only +
                 '件、クラウドから追加 ' + plan.summary.cloud_only + '件、競合 ' + plan.conflicts.length +
-                '件、ID調整 ' + plan.idRemaps.length + '件、統合後 ' + finalCount + '件。';
+                '件、ID調整 ' + plan.idRemaps.length + '件、' + finalCount;
         }
 
         async function showMergePreview() {

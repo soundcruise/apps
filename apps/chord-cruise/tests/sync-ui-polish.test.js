@@ -29,6 +29,7 @@ assert(ui.includes("if (busy || element.disabled)"), 'duplicate submissions are 
 assert(ui.includes("setStatus('同期一時停止'"), 'a runtime pause has one canonical status');
 assert(ui.includes("conflictTitle(conflict) + '：'"), 'conflict headings use names instead of internal record keys');
 assert(ui.includes("フォルダ「") && ui.includes("本棚の並び順"), 'folder and order conflicts have plain-language titles');
+assert(ui.includes('統合後の件数は選択後に確定します。'), 'unselected conflict count is phrased as a complete sentence');
 assert(css.includes('.cc-sync-screen') && css.includes('.cc-sync-action-group--danger'), 'the dedicated screen and danger spacing are styled');
 assert(pro.includes('sync-bootstrap.js?v='), 'Sync bootstrap remains Pro-only');
 assert(!standard.includes('sync-bootstrap.js?v='), 'Standard remains free of Sync UI');
