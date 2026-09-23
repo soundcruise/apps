@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.51.2';
+} from './practice-menu-store.js?v=0.52.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.51.2';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.52.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.51.2';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.51.2';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.51.2';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.51.2';
+} from './sync-center-controller.js?v=0.52.0';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.52.0';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.52.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.52.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.51.2';
+} from './sync-center-navigation.js?v=0.52.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.51.2';
+} from './practice-menu-progress-store.js?v=0.52.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.51.2';
+} from './practice-menu-history-store.js?v=0.52.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.51.2';
+} from './practice-menu-calendar-store.js?v=0.52.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -84,8 +84,8 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.51.2';
-import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.51.2';
+} from './practice-menu-timer-store.js?v=0.52.0';
+import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.52.0';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -121,7 +121,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.51.2';
+} from './my-apps-store.js?v=0.52.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -131,7 +131,7 @@ import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=0.51.2';
+} from './my-apps-launch.js?v=0.52.0';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -172,10 +172,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.51.2';
+} from './app-version.js?v=0.52.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.51.2';
-import { initTuner } from './tuner-app.js?v=0.51.2';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.52.0';
+import { initTuner } from './tuner-app.js?v=0.52.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -193,8 +193,8 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.51.2';
-import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.51.2';
+} from './gear-list-store.js?v=0.52.0';
+import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.52.0';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -203,9 +203,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.51.2';
+} from './gear-category-store.js?v=0.52.0';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.51.2';
+import { PortAssetSync } from './port-asset-sync.js?v=0.52.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -4049,15 +4049,17 @@ function handleGearCategoryDelete() {
 function getGearSections() {
     if (gearState.activeStatus === 'all') {
         return [
-            { status: 'wishlist', title: 'ほしい機材', emptyMessage: 'ほしい機材はまだありません' },
+            { status: 'owned', title: '今持っている機材', emptyMessage: '今持っている機材はまだありません' },
+            { status: 'sold', title: '手放した機材', emptyMessage: '手放した機材はまだありません' },
+            { status: 'wishlist', title: 'ほしい機材', emptyMessage: 'ほしい機材はまだありません' }
+        ];
+    }
+    if (gearState.activeStatus === 'owned') {
+        return [
             { status: 'owned', title: '今持っている機材', emptyMessage: '今持っている機材はまだありません' },
             { status: 'sold', title: '手放した機材', emptyMessage: '手放した機材はまだありません' }
         ];
     }
-    if (gearState.activeStatus === 'owned') {
-        return [{ status: 'owned', title: '今持っている機材', emptyMessage: '今持っている機材はまだありません' }];
-    }
-    if (gearState.activeStatus === 'sold') return [{ status: 'sold', title: '手放した機材', emptyMessage: '手放した機材はまだありません' }];
     return [{ status: 'wishlist', title: 'ほしい機材', emptyMessage: 'ほしい機材はまだありません' }];
 }
 
@@ -4526,7 +4528,7 @@ async function handleGearSubmit(event) {
         return;
     }
     gearState.items = result.items;
-    gearState.activeStatus = validation.values.status;
+    gearState.activeStatus = validation.values.status === 'sold' ? 'owned' : validation.values.status;
     setGearListRoute();
 }
 
@@ -4544,7 +4546,7 @@ function handleGearSell(item) {
     const result = markGearSold(gearState.items, item.id);
     if (!result.found) return;
     if (!persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。')) return;
-    gearState.activeStatus = 'sold';
+    gearState.activeStatus = 'owned';
     renderWishlist({ focus: false });
 }
 
