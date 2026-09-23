@@ -11,27 +11,27 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.52.1';
+} from './practice-menu-store.js?v=0.52.2';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.52.1';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.52.2';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.52.1';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.52.1';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.52.1';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.52.1';
+} from './sync-center-controller.js?v=0.52.2';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.52.2';
+import { createPortSyncStatus } from './port-sync-status.js?v=0.52.2';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.52.2';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.52.1';
+} from './sync-center-navigation.js?v=0.52.2';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -44,7 +44,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.52.1';
+} from './practice-menu-progress-store.js?v=0.52.2';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -58,7 +58,7 @@ import {
     loadPracticeHistory,
     savePracticeHistory,
     toLocalDateKey
-} from './practice-menu-history-store.js?v=0.52.1';
+} from './practice-menu-history-store.js?v=0.52.2';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -73,7 +73,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.52.1';
+} from './practice-menu-calendar-store.js?v=0.52.2';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -84,8 +84,8 @@ import {
     savePracticeTimer,
     startPracticeTimer,
     stopPracticeTimer
-} from './practice-menu-timer-store.js?v=0.52.1';
-import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.52.1';
+} from './practice-menu-timer-store.js?v=0.52.2';
+import { buildPracticeAnalytics, formatPracticeTotal } from './practice-analytics.js?v=0.52.2';
 import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
@@ -121,7 +121,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.52.1';
+} from './my-apps-store.js?v=0.52.2';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -131,7 +131,7 @@ import {
     getKnownLaunchUiMode,
     detectMyAppsPlatform,
     resolveMyAppHref
-} from './my-apps-launch.js?v=0.52.1';
+} from './my-apps-launch.js?v=0.52.2';
 import {
     createCustomLaunchTestState,
     createKnownLaunchFormState,
@@ -172,10 +172,10 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.52.1';
+} from './app-version.js?v=0.52.2';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.52.1';
-import { initTuner } from './tuner-app.js?v=0.52.1';
+import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.52.2';
+import { initTuner } from './tuner-app.js?v=0.52.2';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -193,8 +193,8 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.52.1';
-import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.52.1';
+} from './gear-list-store.js?v=0.52.2';
+import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv, shareGearText } from './gear-list-ux.js?v=0.52.2';
 import {
     GEAR_CATEGORY_NAME_LIMIT,
     addGearCategory,
@@ -203,9 +203,9 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.52.1';
+} from './gear-category-store.js?v=0.52.2';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.52.1';
+import { PortAssetSync } from './port-asset-sync.js?v=0.52.2';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -4655,7 +4655,21 @@ function handleGearListAction(event) {
         closeGearCardMenus();
         if (opening) {
             menuToggle.setAttribute('aria-expanded', 'true');
-            menuToggle.nextElementSibling.hidden = false;
+            const actions = menuToggle.nextElementSibling;
+            actions.hidden = false;
+            const toggleRect = menuToggle.getBoundingClientRect();
+            const menuWidth = actions.offsetWidth;
+            const menuHeight = actions.offsetHeight;
+            const gap = 6;
+            const gutter = 8;
+            const left = Math.max(gutter, Math.min(toggleRect.right - menuWidth, window.innerWidth - menuWidth - gutter));
+            const below = toggleRect.bottom + gap;
+            const above = toggleRect.top - menuHeight - gap;
+            const top = below + menuHeight + gutter <= window.innerHeight ? below
+                : above >= gutter ? above
+                    : Math.max(gutter, window.innerHeight - menuHeight - gutter);
+            actions.style.left = `${left}px`;
+            actions.style.top = `${top}px`;
         }
         return;
     }
@@ -4692,6 +4706,9 @@ function closeGearCardMenus() {
         button.nextElementSibling.hidden = true;
     });
 }
+
+window.addEventListener('scroll', closeGearCardMenus, { capture: true, passive: true });
+window.addEventListener('resize', closeGearCardMenus);
 
 function downloadGearExport(content, fileName, mime) {
     const url = URL.createObjectURL(new Blob([content], { type: mime }));

@@ -1,4 +1,4 @@
-export const CRUISE_PORT_APP_VERSION = '0.52.1';
+export const CRUISE_PORT_APP_VERSION = '0.52.2';
 
 let reloadInProgress = false;
 
