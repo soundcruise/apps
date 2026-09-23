@@ -12,11 +12,24 @@ const source = fs.readFileSync(path.join(import.meta.dirname, 'fretboard-sync-ad
 const appSource = fs.readFileSync(path.resolve(import.meta.dirname, '../script.js'), 'utf8');
 const fretboardRoot = path.resolve(import.meta.dirname, '..');
 
-function load() {
-  const context = vm.createContext({ crypto, TextEncoder, structuredClone, URL, console });
+function load(overrides = {}) {
+  const context = vm.createContext({ crypto, TextEncoder, structuredClone, URL, console, ...overrides });
   vm.runInContext(source, context);
   return context.SoundCruiseFretboardSync;
 }
+
+test('verified remote apply refreshes the mounted Fretboard editor state', async () => {
+  const events = [];
+  const api = load({
+    Event: class { constructor(type) { this.type = type; } },
+    dispatchEvent: (event) => events.push(event.type)
+  });
+  const storage = new MemoryStorage({ fretboard_cruise_state: JSON.stringify({ settings: {} }) });
+  await new api.FretboardSyncAdapter({ storage }).applyRemoteSnapshot({ appId: 'fretboard', schemaVersion: 1, records: [] });
+  assert.deepEqual(events, ['sound-cruise-fretboard-sync-applied']);
+  assert.match(appSource, /window\.addEventListener\('sound-cruise-fretboard-sync-applied', refreshFretboardStateAfterSync\)/);
+  assert.match(appSource, /state\.settings = loaded\.settings/);
+});
 
 class MemoryStorage {
   constructor(values = {}) { this.values = new Map(Object.entries(values)); this.writes = 0; this.failAt = null; }

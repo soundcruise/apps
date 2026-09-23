@@ -673,6 +673,9 @@
       if (typeof options.afterWrite === 'function') await options.afterWrite();
       const actualManifest = await computeManifest(readLocalSnapshot(storage), options.cryptoImpl || global.crypto);
       if (actualManifest !== expectedManifest) throw new Error('fretboard_apply_manifest_mismatch');
+      if (typeof global.Event === 'function') {
+        global.dispatchEvent?.(new global.Event('sound-cruise-fretboard-sync-applied'));
+      }
       return Object.freeze({ ok: true, manifestHash: actualManifest, backup });
     } catch (error) {
       await restoreBackup(storage, backup);

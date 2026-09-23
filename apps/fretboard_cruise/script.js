@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.19.2';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.19.2';
+const FRETBOARD_CRUISE_APP_VERSION = '2.19.3';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.19.3';
 function notifyFretboardSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
 }
@@ -1834,6 +1834,29 @@ function saveState() {
     localStorage.setItem('fretboard_cruise_state', JSON.stringify(getStateForPersistence()));
     notifyFretboardSyncSave();
 }
+
+function refreshFretboardStateAfterSync() {
+    if (!isProEdition()) return;
+    let loaded;
+    try {
+        loaded = JSON.parse(localStorage.getItem('fretboard_cruise_state') || 'null');
+    } catch (error) {
+        console.error('Failed to refresh synced Fretboard state:', error);
+        return;
+    }
+    if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) return;
+    if (loaded.settings && typeof loaded.settings === 'object' && !Array.isArray(loaded.settings)) {
+        state.settings = loaded.settings;
+    }
+    if (loaded.rules && typeof loaded.rules === 'object' && !Array.isArray(loaded.rules)) {
+        state.rules = loaded.rules;
+    }
+    if (state.course === null || state.course === 'stageSelect' || state.course === 'settings') {
+        renderApp();
+    }
+}
+
+window.addEventListener('sound-cruise-fretboard-sync-applied', refreshFretboardStateAfterSync);
 
 function blurActiveElement() {
     const active = document.activeElement;
