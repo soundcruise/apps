@@ -1,4 +1,4 @@
-import { gearCardLabel } from './gear-list-ux.js?v=0.59.2';
+import { gearCardLabel } from './gear-list-ux.js?v=0.59.3';
 
 const WIDTH = 1200;
 const PAD = 48;

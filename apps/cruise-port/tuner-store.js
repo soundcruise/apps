@@ -1,4 +1,4 @@
-import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.2';
+import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 import { isValidCapo, isValidTuningId } from './tuner-tuning.js?v=1.1.6';
 
 export const TUNER_STORAGE_KEY = 'cruisePort.tuner';
