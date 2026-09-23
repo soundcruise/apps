@@ -45,7 +45,6 @@
   }
   function encodeSettingsForMerge(values) {
     const result = clone(values);
-    if (!meaningfulSettings(result)) return {};
     if (result.testModeEnabled === false) delete result.testModeEnabled;
     for (const [field, refs] of [['builtinChordEnabled', BUILTIN_CHORDS],
       ['builtinProgressionEnabled', BUILTIN_PROGRESSIONS]]) {
@@ -54,7 +53,11 @@
         if (!Object.keys(result[field]).length) delete result[field];
       }
     }
-    return result;
+    // The app omits a settings record when every effective value is a default.
+    // Check after removing default-only flags; the expanded true maps are not
+    // evidence of a custom setting. Keep scalar defaults when a record remains:
+    // the app writes them into pitchTrainerSettings on every materialization.
+    return meaningfulSettings(result) ? result : {};
   }
 
   const BUILTIN_CHORDS = Object.freeze([

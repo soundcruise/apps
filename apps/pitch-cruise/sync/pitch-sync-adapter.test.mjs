@@ -32,6 +32,36 @@ class MemoryStorage {
   removeItem(key) { this.values.delete(key); }
 }
 
+test('semantic settings encoding matches Pitch storage through default and enabled cycles', async () => {
+  const api = load();
+  const storage = new MemoryStorage();
+  const adapter = new api.PitchSyncAdapter({ storage });
+  const builtin = api.BUILTIN_CHORDS[0].key;
+  for (const { values, present } of [
+    { values: {}, present: false },
+    { values: { noteSpeed: 2 }, present: true },
+    { values: { noteSpeed: 1 }, present: false },
+    { values: { testModeEnabled: true }, present: true },
+    { values: { testModeEnabled: false }, present: false },
+    { values: { builtinChordEnabled: { [builtin]: false } }, present: true },
+    { values: { builtinChordEnabled: { [builtin]: true } }, present: false }
+  ]) {
+    const encoded = adapter.encodeSettingsForMerge(adapter.effectiveSettingsForMerge(values));
+    const snapshot = { appId: 'pitch', schemaVersion: 1, records: Object.keys(encoded).length ? [{
+      recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+      payload: { id: 'settings', values: encoded }
+    }] : [] };
+    await adapter.applyRemoteSnapshot(snapshot);
+    const actual = adapter.normalizeLocalSnapshot();
+    assert.equal(actual.records.some((record) => record.recordType === 'settings'), present);
+    assert.equal(await adapter.computeManifest(actual), await adapter.computeManifest(snapshot));
+  }
+  const future = adapter.encodeSettingsForMerge(adapter.effectiveSettingsForMerge({
+    futureSetting: ['new', { nested: true }]
+  }));
+  assert.deepEqual(JSON.parse(JSON.stringify(future.futureSetting)), ['new', { nested: true }]);
+});
+
 function defaultData(api, base = 1000) {
   const chordIds = new Map(api.BUILTIN_CHORDS.map((chord, index) => [chord.key, base + index]));
   return {

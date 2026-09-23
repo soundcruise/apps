@@ -1406,6 +1406,69 @@ test('real Pitch OFF and Rhythm reset survive unrelated remote edits through syn
   }
 });
 
+test('real Pitch all-default merge removes settings and converges for three cycles, including response loss', async () => {
+  for (const loseResponse of [false, true]) {
+    const fixture = runtimeFixture([], 'pitch');
+    const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
+    vm.runInContext(readFileSync(new URL('../../pitch-cruise/sync/pitch-sync-adapter.js', import.meta.url), 'utf8'), context);
+    const data = new Map();
+    const storage = { getItem: (key) => data.get(key) ?? null,
+      setItem: (key, value) => data.set(key, String(value)), removeItem: (key) => data.delete(key) };
+    const real = new context.SoundCruisePitchSync.PitchSyncAdapter({ storage, cryptoImpl: webcrypto });
+    fixture.runtime.adapter = real;
+    const make = (values) => ({ appId: 'pitch', schemaVersion: 1, records: [{
+      recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+      payload: { id: 'settings', values: real.encodeSettingsForMerge(real.effectiveSettingsForMerge(values)) }
+    }] });
+    const baseline = make({ testModeEnabled: true, noteSpeed: 1.5 });
+    const remote = make({ testModeEnabled: true, noteSpeed: 1 });
+    await real.applyRemoteSnapshot(baseline);
+    data.set('pitchTrainerTestModeEnabled', 'false');
+    data.set('pitchTrainerSettings', JSON.stringify({ ...JSON.parse(data.get('pitchTrainerSettings')), noteSpeed: 1 }));
+    assert.equal(real.normalizeLocalSnapshot().records.some((record) => record.recordType === 'settings'), false);
+    const [shadow] = await real.serializeRecords(baseline);
+    const [incoming] = await real.serializeRecords(remote);
+    const plan = fixture.runtime.settingsFieldPlan({ localRecord: null, remoteRecord: incoming, shadowRecord: shadow });
+    assert.equal(plan.unresolved, 0);
+    assert.deepEqual(JSON.parse(JSON.stringify(plan.values)), {});
+    await fixture.store.putShadow('settings/settings', { ...shadow, revision: 1, deletedAt: null });
+    fixture.server.records.set('settings/settings', { ...incoming, revision: 2,
+      operationId: 'remote-default', deletedAt: null, changeSeq: 2 });
+    fixture.server.revision = 2;
+    fixture.server.state = 'ready';
+    await fixture.store.setMeta('credential', 'scd1.valid');
+    await fixture.store.setMeta('qaCredential', 'scq1.valid');
+    await fixture.store.setMeta('migrationState', 'complete');
+    fixture.server.responseLossAfterApply = loseResponse;
+    if (loseResponse) {
+      await assert.rejects(fixture.runtime.performSync('all-default'), (error) => error.code === 'network_error');
+      assert.equal((await fixture.store.listOutbox()).length, 1);
+      fixture.runtime.now = () => Date.now() + 10000;
+    }
+    const result = loseResponse ? await fixture.runtime.performSync('retry')
+      : await fixture.runtime.performSync('all-default');
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.equal(fixture.server.records.get('settings/settings').deletedAt !== null, true);
+    assert.equal(fixture.server.records.get('settings/settings').revision, 3);
+    if (loseResponse) assert.equal(fixture.server.pushCalls, 2);
+    const canonical = real.normalizeLocalSnapshot();
+    assert.equal(canonical.records.some((record) => record.recordType === 'settings'), false);
+    assert.equal(await real.computeManifest(canonical), await real.computeManifest({ appId: 'pitch', schemaVersion: 1, records: [] }));
+    assert.equal((await fixture.store.listOutbox()).length, 0);
+    assert.equal((await fixture.store.listConflicts()).length, 0);
+    assert.equal(await fixture.store.readMeta('runtimeState'), 'ready');
+    const pushes = fixture.server.pushCalls;
+    for (let cycle = 0; cycle < 3; cycle += 1) {
+      const again = await fixture.runtime.performSync(`convergence-${cycle}`);
+      assert.equal(again.ok, true, JSON.stringify(again));
+      assert.equal(fixture.server.pushCalls, pushes);
+      assert.equal(real.normalizeLocalSnapshot().records.some((record) => record.recordType === 'settings'), false);
+      assert.equal((await fixture.store.listOutbox()).length, 0);
+      assert.equal((await fixture.store.listConflicts()).length, 0);
+    }
+  }
+});
+
 test('real Fretboard default versus 120 asks for tempo only and Local choice deletes stale setting', async () => {
   const fixture = runtimeFixture([], 'fretboard');
   const context = vm.createContext({ crypto: webcrypto, TextEncoder, structuredClone, URL, console });
