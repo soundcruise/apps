@@ -15,22 +15,28 @@ test('both Port entries load the current release of practice-menu-app', () => {
   }
 });
 
-test('Sync Center modules are requested under the current release key along the whole chain', () => {
+test('the release module and the Sync Center chain are each requested under one consistent key', () => {
+  const appEdges = imports(read('./practice-menu-app.js'));
+  assert.equal(appEdges.find((edge) => edge.name === 'app-version.js')?.key, CRUISE_PORT_APP_VERSION,
+    'practice-menu-app loads the current release of app-version');
   const chain = {
     'practice-menu-app.js': ['sync-center-ui.js', 'sync-center-controller.js', 'sync-center-refresh.js',
-      'sync-center-orchestrator.js', 'sync-center-navigation.js', 'app-version.js'],
+      'sync-center-orchestrator.js', 'sync-center-navigation.js'],
     'sync-center-ui.js': ['sync-center-controller.js'],
     'sync-center-orchestrator.js': ['sync-center-controller.js'],
     'sync-center-navigation.js': ['sync-center-controller.js']
   };
+  const keys = new Set();
   for (const [importer, deps] of Object.entries(chain)) {
     const found = imports(read(`./${importer}`));
     for (const dep of deps) {
       const edge = found.find((item) => item.name === dep);
       assert.ok(edge, `${importer} imports ${dep}`);
-      assert.equal(edge.key, CRUISE_PORT_APP_VERSION, `${importer} -> ${dep}`);
+      keys.add(edge.key);
     }
   }
+  // Unchanged modules keep their key; a changed Sync Center module must move the whole chain together.
+  assert.equal(keys.size, 1, `Sync Center chain keys: ${[...keys].join(', ')}`);
 });
 
 test('Sync Center and launch modules have exactly one public URL each', () => {

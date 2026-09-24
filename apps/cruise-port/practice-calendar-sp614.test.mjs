@@ -37,5 +37,5 @@ test('SP6.14 central rendering routes remain covered in Cruise Port 0.59.3', () 
     assert.match(source, /button\.append\(createPracticeCalendarIcon\(value\), text\)/);
     assert.match(source, /row\.append\(createPracticeCalendarIcon\(note\.icon, 'practice-calendar-note-icon'\)\)/);
     assert.match(source, /memoMark\.append\(createPracticeCalendarIcon\(summary\.memoIcons\[0\]\)\)/);
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.61\.0'/);
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.62\.0'/);
 });
