@@ -195,7 +195,6 @@
                 </a>
                 <a class="info-link-card recommended-link-with-badge" href="./recommended-videos.html" id="recommended-videos-link">
                     <span class="info-link-title">おすすめの関連動画リスト</span>
-                    <span id="recommended-videos-new-badge" class="info-new-badge recommended-link-new-badge hidden" aria-hidden="true">New</span>
                 </a>
             </div>
             <div class="info-links-bottom">
@@ -205,7 +204,6 @@
                 </a>
                 <a class="info-link-card info-link-card--compact info-pro-access-button" id="standard-pro-access-link" href="./pro-access.html" style="display: none; position: relative;">
                     <span class="info-link-title">PRO版の入手方法</span>
-                    <span id="pro-access-new-badge" class="info-new-badge recommended-link-new-badge hidden" aria-hidden="true" style="top: -10px; right: 14px;">New</span>
                 </a>
             </div>
             <nav class="info-footer-links sound-cruise-info-links" aria-label="法務・お問い合わせ">
@@ -230,29 +228,6 @@
     </div>
     <script>
         (function () {
-            // 「New」バッジ version 管理（script.js に依存しない独立実装）
-            var INFO_NEW_VERSION_KEY = 'pitchCruiseInfoNewSeen';
-            var CURRENT_APP_VERSION = '2.3.0';
-            var proAccessNewBadge = document.getElementById('pro-access-new-badge');
-
-            try {
-                var storedVersion = localStorage.getItem(INFO_NEW_VERSION_KEY);
-                var shouldShowBadge = storedVersion !== CURRENT_APP_VERSION;
-
-                if (proAccessNewBadge) {
-                    if (shouldShowBadge) {
-                        proAccessNewBadge.classList.remove('hidden');
-                    } else {
-                        proAccessNewBadge.classList.add('hidden');
-                    }
-                }
-
-                // このページを見たので version を記録する
-                localStorage.setItem(INFO_NEW_VERSION_KEY, CURRENT_APP_VERSION);
-            } catch (error) {
-                // localStorage が使えない場合は表示制御をスキップ
-            }
-
             var backLink = document.getElementById('info-back-link');
             var homeLink = document.getElementById('info-home-link');
             var defaultHome = './standard/index.html';
@@ -260,8 +235,6 @@
             var currentUrl = new URL(window.location.href);
             var fromHome = currentUrl.searchParams.get('from') === 'home';
             var editionParam = currentUrl.searchParams.get('edition');
-            var recommendedNewBadge = document.getElementById('recommended-videos-new-badge');
-            var recommendedNewKey = 'pitchCruiseRecommendedNewSeen';
             var youtubeConfirm = document.getElementById('pitch-youtube-confirm');
             var youtubeCancel = document.getElementById('pitch-youtube-confirm-cancel');
             var youtubeOpen = document.getElementById('pitch-youtube-confirm-open');
@@ -352,21 +325,6 @@
             }
             document.getElementById('terms-link').href = './terms.html?edition=' + encodeURIComponent(resolvedEdition);
             document.getElementById('privacy-link').href = './privacy.html?edition=' + encodeURIComponent(resolvedEdition);
-            if (recommendedNewBadge) {
-                if (isProEdition) {
-                    try {
-                        if (localStorage.getItem(recommendedNewKey) !== '1') {
-                            recommendedNewBadge.classList.remove('hidden');
-                            localStorage.setItem(recommendedNewKey, '1');
-                        }
-                    } catch (error) {
-                        recommendedNewBadge.classList.remove('hidden');
-                    }
-                } else {
-                    recommendedNewBadge.style.display = 'none';
-                }
-            }
-
             backLink.addEventListener('click', function (event) {
                 if (fromHome) {
                     event.preventDefault();

@@ -26,6 +26,14 @@ test('no script path shows or tracks the removed onboarding UI', () => {
   assert.doesNotMatch(theme, /\.settings-new-badge|\.tm-new-badge/);
 });
 
+test('the Information page shows no New badges but keeps its links', () => {
+  const info = read('./info.html');
+  assert.doesNotMatch(info, /recommended-videos-new-badge|pro-access-new-badge|>New</);
+  assert.doesNotMatch(info, /pitchCruiseInfoNewSeen|pitchCruiseRecommendedNewSeen/, 'seen flags are no longer read or written');
+  assert.match(info, /id="recommended-videos-link"[\s\S]*おすすめの関連動画リスト/);
+  assert.match(info, /id="standard-pro-access-link"[\s\S]*PRO版の入手方法/);
+});
+
 test('Information, Settings and Test Mode remain available', () => {
   for (const html of [pages.standard, pages.pro]) {
     assert.match(html, /class="home-info-link icon-btn home-info-link--final"/);
