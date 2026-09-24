@@ -18,6 +18,9 @@ body {
     justify-content: center;
     align-items: center;
     min-height: 100vh;
+    /* iOS/Android browser UI makes 100vh taller than the visible area; centering in it pushes the
+       bottom of the app below the screen. 100dvh matches the visible area (same as 100vh in PWA). */
+    min-height: 100dvh;
     overflow: hidden;
 }
 

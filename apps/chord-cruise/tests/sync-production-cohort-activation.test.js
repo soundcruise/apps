@@ -150,7 +150,7 @@ function runBootstrap(options) {
     assert.strictEqual(proHtml.includes('クラウド同期 先行テスト'), false, 'normal Pro UI does not expose the cohort entry');
     assert(activationHtml.includes('data-app-edition="Pro"'));
     assert(activationHtml.includes('data-sync-cohort-page'));
-    assert(activationHtml.includes('../../shared/pro-gate.js?v=22'), 'activation route uses the formal Pro gate');
+    assert(activationHtml.includes('../../shared/pro-gate.js?v=23'), 'activation route uses the formal Pro gate');
     assert(activationHtml.includes('id="sync-cohort-enable"'));
     assert(activationHtml.includes('id="sync-cohort-disable"'));
     assert.strictEqual(source.includes('location.search'), false, 'activation controller has no query-parameter path');

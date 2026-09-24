@@ -6124,3 +6124,20 @@ body.metronome-preset-open {
 .tuner-meter-visibility input:checked + .tuner-meter-switch-track::before { transform: translateX(14px); background: var(--port-gold-bright); }
 .tuner-preview-help-text { margin: 0 0 8px; padding: 8px 10px; border: 1px solid rgba(207, 189, 148, .2); border-radius: 8px; color: var(--port-muted); font-size: calc(.76rem * var(--font-scale)); line-height: 1.6; }
 .tuner-preview-help-text[hidden] { display: none; }
+
+/* Cruiseアプリへの移動中表示（タップと同時に表示し、遷移は待たせない） */
+.port-launch { position: fixed; inset: 0; z-index: 2147482000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); background: rgba(8, 8, 6, .88); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: var(--port-text); animation: port-launch-in .16s ease-out both; }
+.port-launch[hidden] { display: none; }
+.port-launch-icons { display: flex; align-items: center; gap: 14px; }
+.port-launch-icon { width: 56px; height: 56px; border-radius: 14px; border: 1px solid var(--port-border); background: var(--port-surface); object-fit: cover; }
+.port-launch-icon--to { animation: port-launch-arrive 1.2s ease-in-out infinite; }
+.port-launch-track { position: relative; width: 56px; height: 1px; background: linear-gradient(90deg, rgba(205, 180, 116, .15), rgba(205, 180, 116, .5)); }
+.port-launch-dot { position: absolute; top: -2px; left: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--port-gold); animation: port-launch-travel 1.2s ease-in-out infinite; }
+.port-launch-text { margin: 0; color: var(--port-gold-bright); font-size: calc(.86rem * var(--font-scale)); letter-spacing: .04em; }
+@keyframes port-launch-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes port-launch-travel { from { transform: translateX(0); opacity: .35; } 50% { opacity: 1; } to { transform: translateX(51px); opacity: .35; } }
+@keyframes port-launch-arrive { 0%, 100% { opacity: .72; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .port-launch, .port-launch-icon--to, .port-launch-dot { animation: none; }
+    .port-launch-dot { left: 50%; transform: translateX(-50%); }
+}

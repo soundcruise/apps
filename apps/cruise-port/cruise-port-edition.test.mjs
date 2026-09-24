@@ -76,7 +76,7 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
         .replace(/    <script>\n        window\.__SOUNDCRUISE_PRO_GATE__[\s\S]*?<\/script>\n/, '');
     assert.equal(withoutGate, expected, 'Only explicitly allowed edition differences may diverge');
     assert.doesNotMatch(root, /pro-gate\.(?:js|css)|__SOUNDCRUISE_PRO_GATE__/);
-    assert.match(pro, /shared\/pro-gate\.js\?v=22/);
+    assert.match(pro, /shared\/pro-gate\.js\?v=23/);
     assert.match(pro, /__SOUNDCRUISE_PRO_GATE__/);
     assert.doesNotMatch(pro, /<iframe|<base|http-equiv="refresh"|location\.(?:replace|assign)/i);
     for (const entry of [root, pro]) {

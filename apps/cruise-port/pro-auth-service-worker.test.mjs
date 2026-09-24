@@ -40,7 +40,7 @@ test('new Rhythm worker does not serve old cached Pro HTML or gate JS during out
     caches: { match() { cacheReads += 1; return Promise.resolve('old-cache'); } },
     fetch() { return Promise.reject(Error('offline')); }, URL, Promise });
   for (const url of ['https://soundcruise.jp/apps/rhythm-cruise/pro_r4m8k7n2q9x/index.html',
-    'https://soundcruise.jp/apps/shared/pro-gate.js?v=22']) {
+    'https://soundcruise.jp/apps/shared/pro-gate.js?v=23']) {
     let response;
     handlers.get('fetch')({ request: { url }, respondWith(promise) { response = promise; } });
     await assert.rejects(response, /offline/);

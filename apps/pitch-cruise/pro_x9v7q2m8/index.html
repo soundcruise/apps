@@ -5,10 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>音感クルーズ</title>
-    <link rel="stylesheet" href="../../shared/style.css?v=99">
+    <link rel="stylesheet" href="../../shared/style.css?v=100">
     <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
-    <link rel="stylesheet" href="../theme.css?v=11">
-    <link rel="stylesheet" href="../../shared/pro-gate.css?v=5">
+    <link rel="stylesheet" href="../theme.css?v=12">
+    <link rel="stylesheet" href="../../shared/pro-gate.css?v=6">
+    <link rel="preconnect" href="https://sound-cruise-sync.cruise-port-requests.workers.dev" crossorigin>
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=22">
     <script src="../../shared/sync-account/production-config.js?v=2"></script>
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=15"></script>
@@ -81,6 +82,11 @@
 </head>
 
 <body>
+    <!-- Pro gate first: cover the app before its markup paints and start the access check early. -->
+    <script>window.__SOUNDCRUISE_PRO_GATE__ = { gateVersion: 8, appName: '音感クルーズ', troubleshootHref: './troubleshoot.html' };</script>
+    <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
+    <script src="../../shared/sync-account/sync-account-turnstile.js?v=8"></script>
+    <script src="../../shared/pro-gate.js?v=23"></script>
     <div class="app-container">
         <header>
             <div
@@ -848,10 +854,6 @@
         </div>
     </div>
 
-    <script>window.__SOUNDCRUISE_PRO_GATE__ = { gateVersion: 8, appName: '音感クルーズ', troubleshootHref: './troubleshoot.html' };</script>
-        <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
-    <script src="../../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-        <script src="../../shared/pro-gate.js?v=22"></script>
     <script src="../script.js?v=2.23.6"></script>
 </body>
 

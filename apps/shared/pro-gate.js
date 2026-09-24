@@ -17,6 +17,8 @@
     let releaseGateFocus = null;
     let resetInFlight = false;
     let helperPromise = null;
+    let showPasscode = null;
+    const pendingChecks = new Map();
 
     function get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
     function put(key, value) { try { localStorage.setItem(key, value); return true; } catch (_) { return false; } }
@@ -69,6 +71,16 @@
         try { body = await response.json(); } catch (_) { /* non-JSON upstream */ }
         return { status: response.status, body };
     }
+    // The boot check can start before DOMContentLoaded; the decision still waits for its result.
+    function check(path, credential) {
+        const key = path + (credential ? ' ' + credential : '');
+        if (!pendingChecks.has(key)) {
+            const pending = request(path, credential ? { headers: { Authorization: 'Bearer ' + credential } } : {});
+            pending.catch(() => { /* handled where the result is awaited */ });
+            pendingChecks.set(key, pending);
+        }
+        return pendingChecks.get(key);
+    }
     async function turnstileHelper() {
         if (window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__) return window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__;
         if (!helperPromise) helperPromise = new Promise((resolve) => {
@@ -119,7 +131,7 @@
             remove(AUTH_KEY);
         }
         clearLegacy();
-        lock();
+        lock('passcode');
         await flushPending();
     }
     window.__soundCruiseClearGate = reset;
@@ -168,15 +180,34 @@
         };
     }
 
-    function lock() {
-        if (overlay) return;
+    // 'checking' covers the app without showing the passcode until access is actually required.
+    function lock(state = 'checking') {
+        if (overlay) {
+            if (state === 'passcode') showPasscode?.();
+            return;
+        }
         overlay = document.createElement('div');
         overlay.id = 'pro-gate-overlay';
         overlay.setAttribute('role', 'dialog');
         overlay.setAttribute('aria-modal', 'true');
-        overlay.setAttribute('aria-labelledby', 'pro-gate-title');
+        overlay.setAttribute('aria-labelledby', 'pro-gate-checking-title');
+        overlay.setAttribute('aria-busy', 'true');
+        const checking = document.createElement('div');
+        checking.className = 'pro-gate-checking';
+        const checkingTitle = document.createElement('p');
+        checkingTitle.id = 'pro-gate-checking-title';
+        checkingTitle.className = 'pro-gate-checking-title';
+        checkingTitle.textContent = appName + ' PRO';
+        const checkingText = document.createElement('p');
+        checkingText.className = 'pro-gate-checking-text';
+        checkingText.setAttribute('role', 'status');
+        checkingText.textContent = '確認しています…';
+        checking.appendChild(checkingTitle);
+        checking.appendChild(checkingText);
+        overlay.appendChild(checking);
         const box = document.createElement('div');
         box.className = 'pro-gate-box';
+        box.hidden = true;
         box.innerHTML = '<div class="pro-gate-panel">' +
             '<h2 id="pro-gate-title"></h2>' +
             '<p class="pro-gate-hint">会員向けのページです。<br>4桁の番号を入力してください。</p>' +
@@ -201,7 +232,15 @@
         input.addEventListener('input', () => { message.textContent = ''; });
         input.addEventListener('keydown', (event) => { if (event.key === 'Enter') void submitCode(); });
         submit.addEventListener('click', () => { void submitCode(); });
-        input.focus();
+        showPasscode = () => {
+            if (!box.hidden) return;
+            checking.hidden = true;
+            box.hidden = false;
+            overlay.removeAttribute('aria-busy');
+            overlay.setAttribute('aria-labelledby', 'pro-gate-title');
+            input.focus();
+        };
+        if (state === 'passcode') showPasscode();
         async function submitCode() {
             const passcode = input.value;
             if (!/^[0-9]{4}$/.test(passcode)) { message.textContent = '半角数字4桁を入力してください。'; return; }
@@ -245,9 +284,15 @@
         releaseGateFocus = null;
         overlay.remove();
         overlay = null;
+        showPasscode = null;
         document.body.classList.remove('pro-gate-active');
     }
+    // Every path that leaves the gate locked ends at the passcode; only decided access unlocks.
     async function initialize() {
+        try { await resolveAccess(); } catch (_) { /* fail closed to the passcode */ }
+        if (overlay) lock('passcode');
+    }
+    async function resolveAccess() {
         lock();
         // Old service workers use this query flag for legacy invalidation. It must not revoke a v2 token.
         try {
@@ -263,7 +308,7 @@
         if (existing) {
             if (!migrated()) return;
             try {
-                const result = await request('/session', { headers: { Authorization: 'Bearer ' + existing.credential } });
+                const result = await check('/session', existing.credential);
                 if (result.status === 200 && result.body?.ok === true && Number.isSafeInteger(result.body.generation)) {
                     if (result.body.generation !== existing.generation) {
                         remove(AUTH_KEY);
@@ -285,7 +330,7 @@
         }
         if (!legacyPresent()) return;
         try {
-            const result = await request('/policy');
+            const result = await check('/policy');
             if (result.status === 200 && result.body?.ok === true) {
                 if (result.body.legacyCompatibilityEnabled === false) { retireLegacy(); return; }
                 unlock();
@@ -303,6 +348,10 @@
     }, true);
     // A cached service worker must never invalidate a server credential by its old gate version.
     if (document.body) lock();
+    // Start the same boot check early; resolveAccess() re-reads storage and applies every rule.
+    const bootAuth = auth();
+    if (bootAuth) void check('/session', bootAuth.credential);
+    else if (legacyPresent()) void check('/policy');
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });
     else void initialize();
 })();

@@ -853,3 +853,20 @@ body.test-mode-enabled .stage-clear-mark {
     justify-content: center;
     margin: 12px 0 4px;
 }
+
+/* ── ホーム: ブラウザUI付きの低い画面でもカードを枠内に収める ─────────────
+   iOSのクルーズポート（ホーム画面版）から開くとSafari風の表示になり、単独のホーム画面版より
+   表示領域が低くなる。#screen-home は info 吹き出しのため overflow: visible なので、
+   高さ上限を付けたままだと中身が枠の外へはみ出す。枠は中身に合わせて伸ばし、
+   収まらないときは #overlay 側をスクロールさせる（収まるときは従来どおり中央表示）。 */
+#overlay:has(> #screen-home:not(.hidden)) {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    padding-top: 12px;
+}
+
+#overlay > #screen-home.modal {
+    max-height: none;
+    margin: auto;
+}

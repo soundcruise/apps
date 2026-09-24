@@ -37,7 +37,7 @@ function fixture() {
         getComputedStyle: el => ({ visibility: el.visibility || 'visible' }),
         MutationObserver: class { constructor(fn) { observe = fn; } observe() {} disconnect() { disconnected = true; } },
         requestAnimationFrame: fn => { frame = fn; return 1; }, cancelAnimationFrame() {} });
-    vm.runInContext(gate.slice(gate.indexOf('    function containGateFocus'), gate.indexOf('    function lock()')), context);
+    vm.runInContext(gate.slice(gate.indexOf('    function containGateFocus'), gate.indexOf('    function lock(')), context);
     const release = context.containGateFocus(overlay);
     frame();
     function tab(shiftKey = false) {

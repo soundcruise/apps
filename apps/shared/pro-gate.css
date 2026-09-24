@@ -205,3 +205,33 @@ body.pro-gate-active {
 .pro-gate-troubleshoot-link a:hover {
     color: rgba(255, 229, 102, 0.92);
 }
+
+/* 認証確認中（パスワード入力が必要と判定されるまで入力欄は出さない） */
+.pro-gate-checking {
+    text-align: center;
+    color: rgba(255, 255, 255, 0.72);
+}
+
+.pro-gate-checking-title {
+    margin: 0 0 10px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: rgba(255, 229, 102, 0.9);
+}
+
+.pro-gate-checking-text {
+    margin: 0;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.58);
+    animation: pro-gate-checking-fade 1.6s ease-in-out infinite;
+}
+
+@keyframes pro-gate-checking-fade {
+    0%, 100% { opacity: 0.45; }
+    50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .pro-gate-checking-text { animation: none; }
+}

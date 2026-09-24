@@ -6133,3 +6133,31 @@ body:has(.pro-custom-route-editor-screen) .app-container {
         font-size: 1.02rem;
     }
 }
+
+/* ── ホーム: 右下のバージョン／ページを更新を内容の後ろへ置く ─────────────
+   iOSのクルーズポート（ホーム画面版）から開くとSafari風の表示になり、単独のホーム画面版より
+   表示領域が低くなる。右下バーが position: fixed のままだと、内容が画面に収まらないとき
+   「指板を見る」と重なる。ホームに限り、#app の内部スクロール（script.js が inline で付与）を外して
+   ページ全体をスクロールさせ、バーを通常の流れで最後に置く。収まるときは内容を中央に、バーを右下に表示する。 */
+body:has(#app > .fret-info-home-slot) {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+body:has(#app > .fret-info-home-slot) #app {
+    max-height: none !important;
+    overflow: visible !important;
+    padding-bottom: 20px !important;
+    margin-block: auto;
+    flex-shrink: 0;
+}
+
+body:has(#app > .fret-info-home-slot) #in-game-refresh-bar {
+    position: static;
+    align-self: flex-end;
+    flex-shrink: 0;
+    margin: 0 max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) 0;
+}
