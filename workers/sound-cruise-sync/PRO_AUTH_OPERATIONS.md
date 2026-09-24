@@ -1,6 +1,6 @@
 # S2-A Common Pro authentication operations
 
-S2-A Phase 1 is live. H1 progressive lockout is local only; migration 0030, its new secret, and H1 Worker code have not been applied to production.
+S2-A Phase 1 is live. Check production migration, secret-name, and Worker deployment metadata to determine H1 rollout status.
 
 ## Phase 1 initial state
 
@@ -38,10 +38,14 @@ After Phase 2, never lower the generation, restore legacy compatibility, or rest
 
 Cloudflare's Workers rate limiting binding is an abuse control, not a globally exact counter across all data centers. Existing cached client code cannot be remotely erased; the Worker never grants a new credential from legacy state and denies old generation credentials after rotation. Pending browser revocations retry when online, but a browser that permanently loses its local storage before retry cannot complete that best effort request.
 
-## H1 progressive IP lockout (local implementation only)
+## H1 progressive IP lockout
 
 H1 keeps the existing 5-attempts/minute/IP limiter and Turnstile. Only a well-formed, rate-limit-passed, Turnstile-passed wrong four-digit comparison increments the D1 counter. Five consecutive failures start a 5-minute lock, the next five after expiry start a 15-minute lock, and later groups of five start a 30-minute lock. The fifth wrong attempt remains a 401; attempts during the lock receive 429 and `Retry-After`. A successful credential issue resets the IP's failures and escalation. After 24 hours without a wrong-passcode failure, the next failure starts at level 0. The existing daily scheduled cleanup deletes stale rows.
 
 Migration 0030 stores only a 64-character HMAC key and temporary lock metadata. `PRO_LOCKOUT_PEPPER` must be a new, independent, high-entropy Worker secret of at least 32 characters. Do not reuse `PRO_CREDENTIAL_PEPPER`, store a raw IP, or put either pepper in source, logs, or a command argument. A missing pepper or lockout table makes `/verify` return 503; `/session`, `/revoke`, and legacy `/policy` remain available. The lock check precedes Turnstile so a locked request does not consume a challenge. A caller can learn only that its current source IP is locked and the remaining wait in seconds, not the failure count or escalation level. Shared public IPs share this bounded lock.
 
-For a future, separately authorized production release: independently review H1, apply migration 0030, securely configure `PRO_LOCKOUT_PEPPER`, then deploy the H1 Worker. Keep the S2-A Pro Auth API available throughout. Validate 429/`Retry-After`, successful reauthentication, session/revoke continuity, legacy UI, and aggregate error rates. This H1 local implementation does not perform those production steps.
+For production release: independently review H1, apply migration 0030, securely configure `PRO_LOCKOUT_PEPPER`, then deploy the H1 Worker. Keep the S2-A Pro Auth API available throughout. Validate 429/`Retry-After`, successful reauthentication, session/revoke continuity, legacy UI, and aggregate error rates.
+
+Rotating `PRO_LOCKOUT_PEPPER` changes every HMAC IP key, so existing lockout rows no longer match new requests and active locks are effectively reset. Do not rotate it without an operational reason. Accept that reset during an emergency rotation; bearer credentials and the Pro generation are unaffected because they use separate state and secrets.
+
+A temporary rollback from H1 to a pre-H1 S2-A Worker can leave migration 0030 and its rows in D1 safely, but that Worker does not clean stale lockout rows. A prolonged rollback pauses this cleanup. Returning to H1 resumes the existing daily cleanup; do not roll back to a pre-S2-A Worker that lacks the Pro Auth API.

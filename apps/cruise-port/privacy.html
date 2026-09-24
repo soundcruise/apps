@@ -19,5 +19,5 @@
     <section><h2>7. 削除と保持期間</h2><p>アプリ単位またはアカウント全体の削除要求後は7日間の猶予期間を経て完全削除の対象となります。変更履歴は原則90日、削除済みデータの同期用記録（tombstone）は原則365日保持します。クラウド側を削除しても端末内データは自動では削除されません。</p></section>
     <section><h2>8. 外部サービス</h2><p>Cloudflare、GitHub Pages、YouTube、Google、ブラウザ、OS等では、各提供者の規約やプライバシーポリシーが適用される場合があります。</p></section>
     <section><h2>9. お問い合わせ</h2><p><a href="mailto:soundcruise.inc@gmail.com">soundcruise.inc@gmail.com</a> までご連絡ください。</p></section>
-    <section><h2>Pro版の入室認証</h2><p>Pro版の入室認証では、入力された4桁の番号とTurnstileの確認結果をCloudflare Workerへ送信します。不正利用防止のためCloudflare TurnstileとIP単位の試行回数制限を使用します。発行された認証用資格情報はブラウザ保存領域に保存し、サーバーには検証用の値と失効状態を保存します。この認証のために練習データや新しい個人識別情報は送信しません。</p></section>
+    <section><h2>Pro版の入室認証</h2><p>Pro版の入室認証では、入力された4桁の番号とTurnstileの確認結果をCloudflare Workerへ送信します。不正利用防止のためCloudflare TurnstileとIP単位の試行回数制限を使用します。接続元IPアドレスから復元困難な識別値を生成して認証試行の制限に用い、最後の誤入力から24時間後に削除対象とします。日次の削除処理により、保存期間はおおむね最長48時間となる場合があります。元のIPアドレスそのものは、この目的でD1に保存しません。発行された認証用資格情報はブラウザ保存領域に保存し、サーバーには検証用の値と失効状態を保存します。この認証のために練習データや新しい個人識別情報は送信しません。</p></section>
 </article></main></body></html>
