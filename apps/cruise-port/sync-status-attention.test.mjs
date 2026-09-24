@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createSyncCenterController, explainAppAttention, normalizeSyncCenterSummary } from './sync-center-controller.js';
+import { createSyncCenterController } from './sync-center-controller.js';
 import { markAppRowsChecking, renderAppRows } from './sync-center-ui.js';
 import { bindSyncCenterReturnRefresh } from './sync-center-refresh.js';
 
-// Sync Center "確認が必要": fresh state on open/return, and an honest reason + next step.
+// Sync Center status: fresh state on open/return, offline/unavailable wording, and the checking state.
+// Per-target detail (ⓘ) is covered by sync-status-device-detail.test.mjs.
 const account = { id: 'acct', state: 'active', recoveryVersion: 1 };
 function membership(appId, overrides = {}) {
   return { appId, state: 'active', activeAppDeviceCount: 1, attentionConflictCount: 0,
@@ -50,8 +51,10 @@ function dom() {
   const row = (appId) => list.children.find((item) => item.children[0] && String(item.className).includes('sync-center-app')
     && item.children[1].children[0].textContent === ({ chord: 'コードクルーズ', pitch: '音感クルーズ', fretboard: '指板クルーズ', rhythm: 'リズムクルーズ' })[appId]);
   const chip = (appId) => row(appId).children[1].children[1].children[0];
-  const panel = (appId) => row(appId).children.find((child) => child.className === 'sync-center-attention-detail') || null;
-  return { root, list, row, chip, panel };
+  const toggle = (appId) => row(appId).children[1].children[1].children[1] || null;
+  const panel = (appId) => row(appId).children.find((child) => child.className === 'sync-center-app-info') || null;
+  const text = (node) => [node.textContent, ...node.children.map(text)].join('\n');
+  return { root, list, row, chip, toggle, panel, text };
 }
 
 test('A: opening Sync Center fetches the server state once per load, never from app storage', async () => {
@@ -61,41 +64,30 @@ test('A: opening Sync Center fetches the server state once per load, never from 
   assert.deepEqual(calls, { summary: 1, devices: 1 });
 });
 
-test('B: a stale attention becomes 同期済み once the server reports every environment clean', async () => {
+test('B: once every target reports clean the row reads クラウド同期 利用可能, never a device guarantee', async () => {
   const { ctrl } = controller([summary({ rhythm: { removalSafety: 'unknown' } }), summary()]);
   const before = await ctrl.load();
-  assert.equal(before.apps.find((app) => app.id === 'rhythm').presentationStatus.state, 'attention');
+  assert.equal(before.apps.find((app) => app.id === 'rhythm').presentationStatus.state, 'available',
+    'an unconfirmed target alone does not raise 確認が必要');
   const after = await ctrl.load();
-  assert.equal(after.apps.find((app) => app.id === 'rhythm').presentationStatus.state, 'synced');
   const d = dom();
   renderAppRows(d.root, after, 'pro', true);
-  assert.equal(d.chip('rhythm').tagName, 'span', '同期済み is not made tappable');
-  assert.equal(d.chip('rhythm').textContent, '✓ 同期済み');
-  assert.equal(d.panel('rhythm'), null);
+  assert.equal(d.chip('rhythm').tagName, 'span', 'the status chip is display-only');
+  assert.equal(d.chip('rhythm').textContent, 'クラウド同期 利用可能');
+  for (const phrase of ['全端末同期済み', 'すべて最新', '問題ありません', '✓ 同期済み']) {
+    assert.equal(d.text(d.row('rhythm')).includes(phrase), false, phrase);
+  }
 });
 
-test('C/D/E: a remaining attention stays attention and explains itself with an app-open action', async () => {
-  const { ctrl } = controller([summary({ chord: { removalSafety: 'unknown' } })]);
+test('C: a reported attention is the only thing that makes the row 確認が必要', async () => {
+  const { ctrl } = controller([summary({ chord: { removalSafety: 'attention', attentionConflictCount: 2 } })]);
   const presentation = await ctrl.load();
   const d = dom();
-  const opened = [];
-  renderAppRows(d.root, presentation, 'pro', true, null, { onOpenApp: (appId) => opened.push(appId), onRecheck: () => {} });
-  const chip = d.chip('chord');
-  assert.equal(chip.tagName, 'button');
-  assert.equal(chip.textContent, '確認が必要');
-  assert.equal(chip.getAttribute('aria-expanded'), 'false');
-  const panel = d.panel('chord');
-  assert.equal(panel.hidden, true);
-  chip.click();
-  assert.equal(panel.hidden, false);
-  assert.equal(chip.getAttribute('aria-expanded'), 'true');
-  assert.equal(panel.children[0].textContent, '最新の同期完了をまだ確認できていません');
-  assert.match(panel.children[1].textContent, /このアプリを一度開くと、同期状態が更新されます/);
-  const action = panel.children[2];
-  assert.equal(action.textContent, 'コードクルーズを開く');
-  action.click();
-  assert.deepEqual(opened, ['chord']);
-  assert.equal(presentation.apps.find((app) => app.id === 'chord').removalSafetyLabel, '同期を確認してください',
+  renderAppRows(d.root, presentation, 'pro', true, null, { onRecheck: () => {} });
+  assert.equal(d.chip('chord').tagName, 'span');
+  assert.equal(d.chip('chord').textContent, '確認が必要 2件');
+  assert.equal(d.chip('pitch').textContent, 'クラウド同期 利用可能');
+  assert.equal(presentation.apps.find((app) => app.id === 'chord').removalSafetyLabel, '確認が必要',
     'Safe-to-remove label and authority are unchanged');
 });
 
@@ -109,25 +101,33 @@ test('F: offline keeps the last known rows and shows offline, not a data problem
   assert.equal(calls.summary, 1, 'no request while offline');
   assert.deepEqual(presentation.apps.map((app) => app.id), known.apps.map((app) => app.id), 'last known rows are kept');
   const d = dom();
-  renderAppRows(d.root, presentation, 'pro', true);
+  renderAppRows(d.root, presentation, 'pro', true, null, { onRecheck: () => {} });
   assert.equal(d.chip('pitch').textContent, 'オフライン');
-  assert.equal(d.panel('pitch'), null);
+  d.toggle('pitch').click();
+  const panel = d.panel('pitch');
+  assert.equal(panel.hidden, false);
+  assert.match(d.text(panel), /オフラインのため、最新の状態を確認できません/);
+  assert.doesNotMatch(d.text(panel), /同期先|前回の完了報告/, 'no past target state is shown as current');
 });
 
-test('G: a Worker error is explained as a communication problem with a safe recheck', async () => {
+test('G: a summary failure reads 状態を取得できません and offers only a safe recheck', async () => {
   const { ctrl } = controller([summary(), Object.assign(new Error('server'), { status: 503 })]);
   await ctrl.load();
   const presentation = await ctrl.load();
   assert.equal(presentation.kind, 'error');
   const d = dom();
   let rechecks = 0;
-  renderAppRows(d.root, presentation, 'pro', true, null, { onOpenApp: () => {}, onRecheck: () => { rechecks += 1; } });
-  d.chip('pitch').click();
+  renderAppRows(d.root, presentation, 'pro', true, null, { onRecheck: () => { rechecks += 1; } });
+  assert.equal(d.chip('pitch').textContent, '状態を取得できません');
+  assert.notEqual(d.chip('pitch').textContent, '確認が必要');
+  d.toggle('pitch').click();
   const panel = d.panel('pitch');
-  assert.equal(panel.children[0].textContent, '最新の状態を確認できませんでした');
-  assert.match(panel.children[1].textContent, /同期データの異常ではありません/);
-  assert.equal(panel.children[2].textContent, 'もう一度確認');
-  panel.children[2].click();
+  assert.match(d.text(panel), /最新の状態を取得できませんでした/);
+  assert.doesNotMatch(d.text(panel), /クラウド上の同期データは利用できます|前回の完了報告/,
+    'cloud health is never inferred without the summary');
+  const retry = panel.children.at(-1);
+  assert.equal(retry.textContent, 'もう一度確認');
+  retry.click();
   assert.equal(rechecks, 1);
 });
 
@@ -176,42 +176,26 @@ test('H/I: return refresh is single-flight, throttled, and only while Sync Cente
 test('checking state replaces old chips with a neutral label and closes open details', async () => {
   const { ctrl } = controller([summary({ pitch: { removalSafety: 'unknown' } })]);
   const d = dom();
-  renderAppRows(d.root, await ctrl.load(), 'pro', true, null, { onOpenApp: () => {} });
-  d.chip('pitch').click();
+  renderAppRows(d.root, await ctrl.load(), 'pro', true, null, { onRecheck: () => {} });
+  d.toggle('pitch').click();
+  assert.equal(d.panel('pitch').hidden, false);
   markAppRowsChecking(d.root);
   assert.equal(d.list.getAttribute('aria-busy'), 'true');
   assert.equal(d.chip('pitch').textContent, '確認中…');
   assert.equal(d.chip('rhythm').textContent, '確認中…');
   assert.equal(d.panel('pitch').hidden, true);
+  assert.equal(d.toggle('pitch').getAttribute('aria-expanded'), 'false');
+  assert.equal(d.toggle('pitch').disabled, true, 'stale detail cannot be reopened while checking');
   renderAppRows(d.root, await controller([summary()]).ctrl.load(), 'pro', true);
   assert.equal(d.list.getAttribute('aria-busy'), null);
 });
 
-test('reason mapping follows only what the Account summary reports', () => {
-  const base = normalizeSyncCenterSummary(summary({
-    chord: { attentionConflictCount: 2, removalSafety: 'attention' },
-    pitch: { removalSafety: 'attention' },
-    fretboard: { removalSafety: 'unknown', activeAppDeviceCount: 2 },
-    rhythm: { state: 'suspended' }
-  }), null);
-  const byId = Object.fromEntries(base.apps.map((app) => [app.id, app]));
-  assert.deepEqual({ ...explainAppAttention(byId.chord) }, { reason: 'conflict', title: '同期する内容の確認が2件あります',
-    body: 'アプリを開いて、どちらの内容を残すか選んでください。', action: 'open' });
-  assert.equal(explainAppAttention(byId.pitch).reason, 'app_error');
-  assert.equal(explainAppAttention(byId.pitch).action, 'open');
-  assert.match(explainAppAttention(byId.fretboard).body, /それぞれで一度開いてください/);
-  assert.equal(explainAppAttention(byId.rhythm).reason, 'unknown');
-  assert.equal(explainAppAttention(byId.rhythm).action, 'recheck');
-  assert.equal(explainAppAttention(null).reason, 'unknown');
-  assert.equal(explainAppAttention(byId.pitch, 'error').reason, 'unavailable');
-  for (const app of base.apps) assert.equal(app.presentationStatus.state, 'attention', 'explanations never upgrade status');
-  assert.equal(byId.chord.attentionCount, 2);
-  assert.equal(byId.chord.recordCount, 12, 'record count is never shown as an attention count');
-});
-
-test('styles keep [hidden] effective and give the tappable chip an affordance', () => {
+test('styles keep [hidden] effective and give the ⓘ a focus ring', () => {
   const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
-  assert.match(css, /\.sync-center-attention-detail\[hidden\] \{ display: none; \}/);
-  assert.match(css, /\.sync-center-app-status-chip--explain::after/);
+  assert.match(css, /\.sync-center-app-info\[hidden\] \{ display: none; \}/);
+  assert.match(css, /\.sync-center-app-info-toggle:focus-visible/);
   assert.match(css, /\.sync-center-app-status-chip--checking/);
+  assert.match(css, /\.sync-center-app-status-chip--available/);
+  assert.match(css, /\.sync-center-app-status-chip--unavailable/);
+  assert.doesNotMatch(css, /sync-center-attention-detail|status-chip--explain/, 'the old chip opener is gone');
 });

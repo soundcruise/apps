@@ -6144,18 +6144,36 @@ body.metronome-preset-open {
     .port-launch-dot { left: 50%; transform: translateX(-50%); }
 }
 
-/* 同期センター: 「確認が必要」の理由表示と、最新状態の確認中表示 */
-button.sync-center-app-status-chip { font-family: inherit; cursor: pointer; appearance: none; -webkit-appearance: none; }
-.sync-center-app-status-chip--explain::after { margin-left: 4px; content: '›'; }
-.sync-center-app-status-chip--explain[aria-expanded="true"]::after { display: inline-block; transform: rotate(90deg); }
-.sync-center-app-status-chip--explain:focus-visible, .sync-center-attention-action:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+/* 同期センター: 通常行は「クラウド同期 利用可能」だけを示し、同期先ごとの報告は中立のⓘ内に置く */
+.sync-center-app-status-chip--available { border-color: rgba(232, 201, 122, 0.62); color: var(--port-gold-bright); background: rgba(232, 201, 122, 0.1); }
+.sync-center-app-status-chip--unavailable { border-color: rgba(205, 205, 205, 0.5); color: var(--port-muted); background: rgba(205, 205, 205, 0.08); }
 .sync-center-app-status-chip--checking { border-color: rgba(205, 205, 205, 0.36); color: var(--port-muted); background: transparent; }
-.sync-center-attention-detail { grid-column: 1 / -1; flex-basis: 100%; margin-top: 10px; padding: 12px 14px; border: 1px solid rgba(232, 176, 104, 0.32); border-radius: 12px; background: rgba(232, 176, 104, 0.06); color: var(--port-text); font-size: calc(0.8rem * var(--font-scale)); line-height: 1.6; }
-.sync-center-attention-detail[hidden] { display: none; }
-.sync-center-attention-detail strong { display: block; color: #ead39b; font-weight: 650; }
-.sync-center-attention-detail p { margin: 4px 0 0; color: var(--port-muted); }
-.sync-center-attention-action { margin-top: 10px; padding: 7px 14px; border: 1px solid rgba(232, 201, 122, 0.6); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 650; cursor: pointer; }
-.sync-center-attention-action:disabled { opacity: 0.55; cursor: default; }
+.sync-center-app-status-line--app { flex-wrap: nowrap; }
+@media (max-width: 359px) { .sync-center-app-status-line--app { flex-wrap: wrap; } }
+.sync-center-app-status-line--app .sync-center-app-status-chip { flex: 0 1 auto; min-width: 0; border-radius: 10px; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
+.sync-center-app-info-toggle { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; margin: -4px 0; padding: 0; border: 1px solid rgba(205, 205, 205, 0.42); border-radius: 50%; background: transparent; color: var(--port-muted); font: italic 650 calc(0.78rem * var(--font-scale)) / 1 Georgia, 'Times New Roman', serif; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.sync-center-app-info-toggle[aria-expanded="true"] { border-color: rgba(232, 201, 122, 0.62); color: var(--port-gold-bright); }
+.sync-center-app-info-toggle:disabled { opacity: 0.45; cursor: default; }
+.sync-center-app-info-toggle:focus-visible, .sync-center-app-info-retry:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+.sync-center-app-info { grid-column: 1 / -1; display: grid; gap: 12px; margin-top: 4px; padding: 12px 14px; border: 1px solid var(--port-border); border-radius: 12px; background: rgba(255, 255, 255, 0.025); color: var(--port-text); font-size: calc(0.78rem * var(--font-scale)); line-height: 1.55; }
+.sync-center-app-info[hidden] { display: none; }
+.sync-center-app-info-section { display: grid; gap: 6px; min-width: 0; }
+.sync-center-app-info-heading { margin: 0; color: var(--port-muted); font-size: calc(0.72rem * var(--font-scale)); font-weight: 650; letter-spacing: 0.04em; }
+.sync-center-app-info p { margin: 0; color: var(--port-text); font-size: inherit; line-height: inherit; overflow-wrap: anywhere; }
+.sync-center-app-info .sync-center-app-info-notice { color: #ead39b; }
+.sync-center-app-info .sync-center-app-info-footnote { color: var(--port-muted); font-size: calc(0.7rem * var(--font-scale)); }
+.sync-center-app-info-targets { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.sync-center-app-info-target { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; }
+.sync-center-app-info-mark { font-weight: 700; text-align: center; color: var(--port-muted); }
+.sync-center-app-info-target--clean .sync-center-app-info-mark { color: var(--port-gold-bright); }
+.sync-center-app-info-target--attention .sync-center-app-info-mark,
+.sync-center-app-info-target--attention .sync-center-app-info-state { color: #ead39b; }
+.sync-center-app-info-target-copy { display: grid; gap: 1px; min-width: 0; }
+.sync-center-app-info-target-copy strong { font-weight: 650; overflow-wrap: anywhere; }
+.sync-center-app-info-state { color: var(--port-text); }
+.sync-center-app-info-meta { color: var(--port-muted); font-size: calc(0.7rem * var(--font-scale)); overflow-wrap: anywhere; }
+.sync-center-app-info-retry { justify-self: start; padding: 7px 14px; border: 1px solid rgba(232, 201, 122, 0.6); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 650; cursor: pointer; }
+.sync-center-app-info-retry:disabled { opacity: 0.55; cursor: default; }
 
 /* 同期センター最下部: 不具合報告の窓口（既存の問い合わせメールを使う控えめな行） */
 .sync-center-support { margin: 22px 0 8px; padding: 14px 16px; border-top: 1px solid var(--port-border); color: var(--port-muted); font-size: calc(0.78rem * var(--font-scale)); line-height: 1.6; }

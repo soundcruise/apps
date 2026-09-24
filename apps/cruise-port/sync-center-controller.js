@@ -20,54 +20,35 @@ const MEMBERSHIP_STATES = Object.freeze({
 const ACCOUNT_TERMINAL_CODES = new Set(['account_deleting', 'account_deleted', 'account_device_revoked']);
 
 const APP_STATUS_PRESENTATIONS = Object.freeze({
-    synced: Object.freeze({ state: 'synced', label: '✓ 同期済み' }),
+    available: Object.freeze({ state: 'available', label: 'クラウド同期 利用可能' }),
     syncing: Object.freeze({ state: 'syncing', label: '同期中' }),
     attention: Object.freeze({ state: 'attention', label: '確認が必要' }),
     detached: Object.freeze({ state: 'detached', label: '未接続' }),
     connecting: Object.freeze({ state: 'connecting', label: '接続中' }),
     deleting: Object.freeze({ state: 'deleting', label: '削除中' }),
-    offline: Object.freeze({ state: 'offline', label: 'オフライン' })
+    offline: Object.freeze({ state: 'offline', label: 'オフライン' }),
+    unavailable: Object.freeze({ state: 'unavailable', label: '状態を取得できません' })
 });
 
 // This is presentation-only.  The membership status and removal-safety
 // authority below continue to drive every existing operation and callback.
+// 「クラウド同期 利用可能」 means the Account summary was received and the membership's cloud
+// dataset is ready. It does not claim every sync target is up to date: a target that has not
+// reported yet (pending / no report) stays neutral, and only a reported attention or error
+// becomes 「確認が必要」.
 export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
     if (unavailableKind === 'offline') return APP_STATUS_PRESENTATIONS.offline;
-    if (unavailableKind === 'error') return APP_STATUS_PRESENTATIONS.attention;
-    if (!app || typeof app !== 'object') return APP_STATUS_PRESENTATIONS.attention;
+    if (unavailableKind === 'error') return APP_STATUS_PRESENTATIONS.unavailable;
+    if (!app || typeof app !== 'object') return APP_STATUS_PRESENTATIONS.unavailable;
     if (app.status === 'deleting') return APP_STATUS_PRESENTATIONS.deleting;
     if (app.status === 'connecting') return APP_STATUS_PRESENTATIONS.connecting;
     if (app.status === 'initial') return APP_STATUS_PRESENTATIONS.syncing;
     if (['unset', 'prepared', 'detached'].includes(app.status)) return APP_STATUS_PRESENTATIONS.detached;
-    if (app.status === 'synced' && app.removalSafety === 'safe') return APP_STATUS_PRESENTATIONS.synced;
+    if (app.status === 'synced') {
+        return app.removalSafety === 'attention' || Number(app.attentionCount) > 0
+            ? APP_STATUS_PRESENTATIONS.attention : APP_STATUS_PRESENTATIONS.available;
+    }
     return APP_STATUS_PRESENTATIONS.attention;
-}
-
-// Explains a "確認が必要" row from what the Account summary actually reports. It never
-// upgrades a status: every reason keeps the row in attention until the server says otherwise.
-export function explainAppAttention(app, unavailableKind = 'ready') {
-    if (unavailableKind === 'error') {
-        return Object.freeze({ reason: 'unavailable', title: '最新の状態を確認できませんでした',
-            body: '同期データの異常ではありません。通信状態を確認して、もう一度確認してください。', action: 'recheck' });
-    }
-    if (!app || typeof app !== 'object' || app.status !== 'synced') {
-        return Object.freeze({ reason: 'unknown', title: '同期の状態を確認できません',
-            body: 'もう一度確認しても解消しない場合は、このアプリを開いてください。', action: 'recheck' });
-    }
-    if (Number(app.attentionCount) > 0) {
-        return Object.freeze({ reason: 'conflict', title: `同期する内容の確認が${app.attentionCount}件あります`,
-            body: 'アプリを開いて、どちらの内容を残すか選んでください。', action: 'open' });
-    }
-    if (app.removalSafety === 'attention') {
-        return Object.freeze({ reason: 'app_error', title: 'アプリ側で同期が止まっています',
-            body: 'アプリを開くと、原因の確認と同期のやり直しができます。', action: 'open' });
-    }
-    const devices = Number(app.activeAppDeviceCount || 0);
-    return Object.freeze({ reason: 'not_confirmed', title: '最新の同期完了をまだ確認できていません',
-        body: devices > 1
-            ? 'このアプリを一度開くと、同期状態が更新されます。複数の端末やブラウザで使っている場合は、それぞれで一度開いてください。'
-            : 'このアプリを一度開くと、同期状態が更新されます。',
-        action: 'open' });
 }
 
 export function readSyncCenterConfig(globalObject = globalThis) {
@@ -196,10 +177,14 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
         appId: device.appId,
         label: typeof device?.label === 'string' && device.label.trim()
             ? device.label.trim() : '名前のない環境',
+        registeredLabel: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : null,
         isCurrent: device?.isCurrent === true,
         state: 'active',
         createdAt: safeCount(device?.createdAt),
-        lastSeenAt: safeCount(device?.lastSeenAt)
+        lastSeenAt: safeCount(device?.lastSeenAt),
+        // Absent on a Worker that predates per-target reports; null when the target never reported.
+        reportKnown: device.lastReport === null || normalizeLastReport(device.lastReport) != null,
+        lastReport: normalizeLastReport(device.lastReport)
     }));
     const apps = Object.freeze(SYNC_CENTER_APPS.map((app) => normalizeApp(
         app, byApp.get(app.id), appEnvironments.filter((environment) => environment.appId === app.id),
@@ -216,7 +201,19 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
         apps,
         readyCount: apps.filter((app) => app.status === 'synced').length,
         totalCount: SYNC_CENTER_APPS.length,
-        environments
+        environments,
+        devicesState: Array.isArray(devicesResponse?.appDevices) ? 'ready' : 'unavailable'
+    });
+}
+
+const REPORT_STATES = new Set(['clean', 'pending', 'attention', 'error']);
+
+function normalizeLastReport(report) {
+    if (!report || typeof report !== 'object' || !REPORT_STATES.has(report.state)) return null;
+    return Object.freeze({
+        state: report.state,
+        reportedAt: safeCount(report.reportedAt),
+        attentionCount: safeCount(report.attentionCount) || 0
     });
 }
 
@@ -290,12 +287,19 @@ export function createSyncCenterController({
                     core: accountRoot.core,
                     admissionMode: effectiveConfig.admissionMode || 'qa'
                 });
-                const [summary, devices] = await Promise.all([
+                // The devices list only adds per-target detail. When it alone fails, the app rows
+                // still follow the Account summary instead of turning into 「確認が必要」.
+                const [summary, devices] = await Promise.allSettled([
                     client.summary(credential.accountCredential),
                     client.devices(credential.accountCredential)
                 ]);
+                if (summary.status === 'rejected') throw summary.reason;
+                if (devices.status === 'rejected' && ACCOUNT_TERMINAL_CODES.has(devices.reason?.code)) {
+                    throw devices.reason;
+                }
                 lastPresentation = normalizeSyncCenterSummary(
-                    summary, devices, accountRoot.core?.formatAccountDisplayId
+                    summary.value, devices.status === 'fulfilled' ? devices.value : null,
+                    accountRoot.core?.formatAccountDisplayId
                 );
             } catch (error) {
                 if (ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {

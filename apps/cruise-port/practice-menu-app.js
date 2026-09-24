@@ -3728,14 +3728,8 @@ async function renderSyncCenterView() {
         setupPlan: syncCenterController.planFourAppSetup(presentation),
         orchestrationEnabled: syncCenterOrchestrator.enabled === true,
         onAppAction: syncCenterActions?.onAppAction,
-        onOpenApp: openCruiseAppFromSyncCenter,
         onRecheck: renderSyncCenterView
     });
-}
-
-// Reuses the Home card launch (transition feedback, duplicate guard, Account handoff) unchanged.
-function openCruiseAppFromSyncCenter(appId) {
-    document.querySelector(`#home-view [data-cruise-app="${appId}"]`)?.click();
 }
 
 function findGearItem(id) {

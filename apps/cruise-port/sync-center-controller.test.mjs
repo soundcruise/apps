@@ -260,10 +260,16 @@ test('Home-screen removal safety is fail-closed unless the server reports a clea
 
 test('app presentation status keeps safe-to-remove authority while exposing one user-facing chip', () => {
     assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'safe' }), {
-        state: 'synced', label: '✓ 同期済み'
+        state: 'available', label: 'クラウド同期 利用可能'
     });
     assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'unknown' }), {
+        state: 'available', label: 'クラウド同期 利用可能'
+    }, 'pending or unreported targets alone stay neutral');
+    assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'attention' }), {
         state: 'attention', label: '確認が必要'
+    });
+    assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'safe' }, 'error'), {
+        state: 'unavailable', label: '状態を取得できません'
     });
     assert.deepEqual(appSyncStatusPresentation({ status: 'initial' }), {
         state: 'syncing', label: '同期中'

@@ -1,5 +1,6 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation, explainAppAttention } from './sync-center-controller.js?v=0.61.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.61.0';
+import { appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.63.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -8,29 +9,66 @@ function setText(root, selector, value) {
     if (element) element.textContent = value;
 }
 
-// Inline explanation for a "確認が必要" row. Port only points to the app's own UI; it never
-// resolves conflicts or touches app data itself.
-function createAttentionDetail(app, explanation, { onOpenApp = null, onRecheck = null } = {}) {
+function appendText(parent, tag, className, text) {
+    const element = document.createElement(tag);
+    if (className) element.className = className;
+    element.textContent = text;
+    parent.append(element);
+    return element;
+}
+
+// ⓘ detail for one app row: the cloud state, then each sync target's own last report. Port can
+// only describe targets; it cannot open a specific one, so this panel offers no app launch.
+function createSyncInfoPanel(app, detail, { onRecheck = null } = {}) {
     const panel = document.createElement('div');
-    panel.className = 'sync-center-attention-detail';
-    panel.id = `sync-center-attention-${app.id}`;
+    panel.className = 'sync-center-app-info';
+    panel.id = `sync-center-app-info-${app.id}`;
     panel.hidden = true;
-    const title = document.createElement('strong');
-    title.textContent = explanation.title;
-    const body = document.createElement('p');
-    body.textContent = explanation.body;
-    panel.append(title, body);
-    const handler = explanation.action === 'open' ? onOpenApp : onRecheck;
-    if (typeof handler === 'function') {
+    const cloud = document.createElement('section');
+    cloud.className = 'sync-center-app-info-section';
+    appendText(cloud, 'h3', 'sync-center-app-info-heading', 'クラウド');
+    appendText(cloud, 'p', 'sync-center-app-info-text', detail.cloudText);
+    panel.append(cloud);
+    if (detail.targets || detail.notice) {
+        const targets = document.createElement('section');
+        targets.className = 'sync-center-app-info-section';
+        appendText(targets, 'h3', 'sync-center-app-info-heading', '同期先');
+        if (detail.notice) appendText(targets, 'p', 'sync-center-app-info-notice', detail.notice);
+        if (detail.targets?.length) {
+            const list = document.createElement('ul');
+            list.className = 'sync-center-app-info-targets';
+            list.replaceChildren(...detail.targets.map((target) => {
+                const item = document.createElement('li');
+                item.className = `sync-center-app-info-target sync-center-app-info-target--${target.tone}`;
+                item.dataset.syncTargetState = target.state;
+                const mark = appendText(item, 'span', 'sync-center-app-info-mark', target.mark);
+                mark.setAttribute('aria-hidden', 'true');
+                const copy = document.createElement('div');
+                copy.className = 'sync-center-app-info-target-copy';
+                appendText(copy, 'strong', '', target.name);
+                appendText(copy, 'span', 'sync-center-app-info-state', target.stateText);
+                if (target.countText) appendText(copy, 'span', 'sync-center-app-info-state', target.countText);
+                if (target.meta.length) appendText(copy, 'small', 'sync-center-app-info-meta', target.meta.join('・'));
+                item.append(copy);
+                return item;
+            }));
+            targets.append(list);
+        } else if (detail.emptyText) {
+            appendText(targets, 'p', 'sync-center-app-info-text', detail.emptyText);
+        }
+        for (const text of detail.guidance || []) appendText(targets, 'p', 'sync-center-app-info-guidance', text);
+        if (detail.footnote) appendText(targets, 'p', 'sync-center-app-info-footnote', detail.footnote);
+        panel.append(targets);
+    }
+    if (detail.retry && typeof onRecheck === 'function') {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = 'sync-center-attention-action';
-        button.dataset.syncAttentionAction = explanation.action;
-        button.textContent = explanation.action === 'open' ? `${app.name}を開く` : 'もう一度確認';
+        button.className = 'sync-center-app-info-retry';
+        button.textContent = 'もう一度確認';
         button.addEventListener('click', (event) => {
             event.stopPropagation();
             button.disabled = true;
-            void Promise.resolve(handler(app.id)).finally(() => { button.disabled = false; });
+            void Promise.resolve(onRecheck(app.id)).finally(() => { button.disabled = false; });
         });
         panel.append(button);
     }
@@ -75,13 +113,16 @@ export function markAppRowsChecking(root) {
     list.querySelectorAll?.('.sync-center-app-status-chip').forEach((chip) => {
         chip.className = 'sync-center-app-status-chip sync-center-app-status-chip--checking';
         chip.textContent = '確認中…';
-        chip.disabled = true;
     });
-    list.querySelectorAll?.('.sync-center-attention-detail').forEach((panel) => { panel.hidden = true; });
+    list.querySelectorAll?.('.sync-center-app-info-toggle').forEach((toggle) => {
+        toggle.disabled = true;
+        toggle.setAttribute('aria-expanded', 'false');
+    });
+    list.querySelectorAll?.('.sync-center-app-info').forEach((panel) => { panel.hidden = true; });
 }
 
 export function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction = null,
-    { onOpenApp = null, onRecheck = null } = {}) {
+    { onRecheck = null } = {}) {
     const list = root.querySelector('#sync-center-apps');
     if (!list) return;
     list.removeAttribute('aria-busy');
@@ -101,27 +142,31 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         const name = document.createElement('strong');
         name.textContent = app.name;
         const detail = document.createElement('span');
-        detail.className = 'sync-center-app-status-line';
-        const explainable = presentationStatus.state === 'attention' &&
-            ['ready', 'error'].includes(presentation.kind);
-        const chip = document.createElement(explainable ? 'button' : 'span');
+        detail.className = 'sync-center-app-status-line sync-center-app-status-line--app';
+        // The status chip is display-only; the neutral ⓘ is the one way to open the detail.
+        const chip = document.createElement('span');
         chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${presentationStatus.state}`;
         chip.textContent = presentationStatus.state === 'attention' && app.attentionCount > 0
             ? `${presentationStatus.label} ${app.attentionCount}件` : presentationStatus.label;
         detail.append(chip);
-        let attentionDetail = null;
-        if (explainable) {
-            attentionDetail = createAttentionDetail(app, explainAppAttention(app, presentation.kind),
-                { onOpenApp, onRecheck });
-            chip.type = 'button';
-            chip.classList?.add?.('sync-center-app-status-chip--explain');
-            chip.setAttribute('aria-expanded', 'false');
-            chip.setAttribute('aria-controls', attentionDetail.id);
-            chip.addEventListener('click', (event) => {
+        let infoPanel = null;
+        if (appHasSyncDetail(app, presentation.kind)) {
+            infoPanel = createSyncInfoPanel(app, describeAppSyncDetail(app, {
+                kind: presentation.kind, devicesState: presentation.devicesState
+            }), { onRecheck });
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'sync-center-app-info-toggle';
+            toggle.textContent = 'i';
+            toggle.setAttribute('aria-label', `${app.name}の同期情報`);
+            toggle.setAttribute('aria-expanded', 'false');
+            toggle.setAttribute('aria-controls', infoPanel.id);
+            toggle.addEventListener('click', (event) => {
                 event.stopPropagation();
-                attentionDetail.hidden = !attentionDetail.hidden;
-                chip.setAttribute('aria-expanded', String(!attentionDetail.hidden));
+                infoPanel.hidden = !infoPanel.hidden;
+                toggle.setAttribute('aria-expanded', String(!infoPanel.hidden));
             });
+            detail.append(toggle);
         }
         copy.append(name, detail);
         const actions = document.createElement('div');
@@ -173,7 +218,7 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         }
         actions.append(action);
         row.append(image, copy, actions);
-        if (attentionDetail) row.append(attentionDetail);
+        if (infoPanel) row.append(infoPanel);
         return row;
     });
     list.replaceChildren(...rows);
@@ -246,7 +291,9 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         const environmentRows = entry.environments.map((environment) => {
             const item = document.createElement('li');
             const copy = document.createElement('span');
-            copy.textContent = `${environment.label}${environment.isCurrent ? '（この環境）' : ''}`;
+            // For an app target, isCurrent only means it was connected from this Cruise Port.
+            const currentNote = entry.id === 'port' ? '（この環境）' : '（このCruise Portから接続）';
+            copy.textContent = `${environment.label}${environment.isCurrent ? currentNote : ''}`;
             const metadata = document.createElement('small');
             const lastSeen = environment.lastSeenAt == null ? '不明' : new Date(environment.lastSeenAt).toLocaleString('ja-JP');
             metadata.textContent = `最終利用 ${lastSeen}`;
@@ -457,7 +504,7 @@ function confirmDeleteCancellation(root, appName) {
 }
 
 export function renderSyncCenter(root, presentation, {
-    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onOpenApp = null, onRecheck = null
+    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null
 } = {}) {
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
@@ -503,7 +550,7 @@ export function renderSyncCenter(root, presentation, {
             ? 'オフラインのため同期情報を更新できません。各アプリとCruise Portはそのまま利用できます。'
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }
-    renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction, { onOpenApp, onRecheck });
+    renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction, { onRecheck });
     renderPortStatus(root, presentation);
     renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled);
     renderDangerActions(root, presentation);
