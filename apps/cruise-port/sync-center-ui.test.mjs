@@ -258,7 +258,7 @@ test('current Port detach is distinct from generic environment revoke and leaves
 test('Sync Code rows bind the existing launch callback after every render', () => {
     const source = read('./sync-center-ui.js');
     const styles = read('./style.css');
-    assert.match(source, /function renderAppRows\(root, presentation, edition, orchestrationEnabled, onAppAction = null\)/);
+    assert.match(source, /function renderAppRows\(root, presentation, edition, orchestrationEnabled, onAppAction = null[,)]/);
     assert.match(source, /action\.addEventListener\('click', \(event\) => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*void onAppAction\(action\)/);
     assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin \}\)/);
     assert.match(app, /onAppAction: syncCenterActions\?\.onAppAction/);

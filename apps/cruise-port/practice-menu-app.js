@@ -24,7 +24,8 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=0.59.3';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.60.0';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=0.60.0';
+import { bindSyncCenterReturnRefresh } from './sync-center-refresh.js?v=0.60.0';
 import { createPortSyncStatus } from './port-sync-status.js?v=0.59.3';
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.60.0';
 import {
@@ -3665,6 +3666,7 @@ let syncCenterRenderSequence = 0;
 let syncCenterResumeChecked = false;
 let syncCenterActions = null;
 let syncCenterStatusRefreshQueued = false;
+let syncCenterReturnRefresh = null;
 
 function refreshVisibleSyncCenterStatus() {
     if (location.hash !== SYNC_CENTER_ROUTE || syncCenterStatusRefreshQueued) return;
@@ -3699,6 +3701,9 @@ async function renderSyncCenterView() {
                 : 'QA Enrollmentを完了してから同期情報を確認してください。');
         return;
     }
+    // Show a neutral "確認中…" instead of the previous result while the latest state loads.
+    markAppRowsChecking(elements.syncCenterView);
+    syncCenterReturnRefresh?.noteRefreshed();
     const [presentation, structuredStatus, assetStatus, portOutbox] = await Promise.all([
         syncCenterController.load(),
         portSyncController?.status?.() || Promise.resolve({ known: false }),
@@ -3722,8 +3727,15 @@ async function renderSyncCenterView() {
         edition: document.documentElement.dataset.edition,
         setupPlan: syncCenterController.planFourAppSetup(presentation),
         orchestrationEnabled: syncCenterOrchestrator.enabled === true,
-        onAppAction: syncCenterActions?.onAppAction
+        onAppAction: syncCenterActions?.onAppAction,
+        onOpenApp: openCruiseAppFromSyncCenter,
+        onRecheck: renderSyncCenterView
     });
+}
+
+// Reuses the Home card launch (transition feedback, duplicate guard, Account handoff) unchanged.
+function openCruiseAppFromSyncCenter(appId) {
+    document.querySelector(`#home-view [data-cruise-app="${appId}"]`)?.click();
 }
 
 function findGearItem(id) {
@@ -5592,6 +5604,10 @@ if (syncCenterController.enabled) {
             if (typeof provider?.getToken !== 'function') return null;
             return provider.getToken(action, options);
         }
+    });
+    syncCenterReturnRefresh = bindSyncCenterReturnRefresh({
+        isVisible: () => location.hash === SYNC_CENTER_ROUTE,
+        refresh: renderSyncCenterView
     });
     elements.syncCenterOpen.addEventListener('click', () => {
         openSyncCenter(history);

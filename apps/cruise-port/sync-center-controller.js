@@ -43,6 +43,33 @@ export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
     return APP_STATUS_PRESENTATIONS.attention;
 }
 
+// Explains a "確認が必要" row from what the Account summary actually reports. It never
+// upgrades a status: every reason keeps the row in attention until the server says otherwise.
+export function explainAppAttention(app, unavailableKind = 'ready') {
+    if (unavailableKind === 'error') {
+        return Object.freeze({ reason: 'unavailable', title: '最新の状態を確認できませんでした',
+            body: '同期データの異常ではありません。通信状態を確認して、もう一度確認してください。', action: 'recheck' });
+    }
+    if (!app || typeof app !== 'object' || app.status !== 'synced') {
+        return Object.freeze({ reason: 'unknown', title: '同期の状態を確認できません',
+            body: 'もう一度確認しても解消しない場合は、このアプリを開いてください。', action: 'recheck' });
+    }
+    if (Number(app.attentionCount) > 0) {
+        return Object.freeze({ reason: 'conflict', title: `同期する内容の確認が${app.attentionCount}件あります`,
+            body: 'アプリを開いて、どちらの内容を残すか選んでください。', action: 'open' });
+    }
+    if (app.removalSafety === 'attention') {
+        return Object.freeze({ reason: 'app_error', title: 'アプリ側で同期が止まっています',
+            body: 'アプリを開くと、原因の確認と同期のやり直しができます。', action: 'open' });
+    }
+    const devices = Number(app.activeAppDeviceCount || 0);
+    return Object.freeze({ reason: 'not_confirmed', title: '最新の同期完了をまだ確認できていません',
+        body: devices > 1
+            ? 'このアプリを一度開くと、同期状態が更新されます。複数の端末やブラウザで使っている場合は、それぞれで一度開いてください。'
+            : 'このアプリを一度開くと、同期状態が更新されます。',
+        action: 'open' });
+}
+
 export function readSyncCenterConfig(globalObject = globalThis) {
     const value = globalObject?.__SOUND_CRUISE_SYNC_CENTER__;
     const location = globalObject?.location;

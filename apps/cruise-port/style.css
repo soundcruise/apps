@@ -6141,3 +6141,16 @@ body.metronome-preset-open {
     .port-launch, .port-launch-icon--to, .port-launch-dot { animation: none; }
     .port-launch-dot { left: 50%; transform: translateX(-50%); }
 }
+
+/* 同期センター: 「確認が必要」の理由表示と、最新状態の確認中表示 */
+button.sync-center-app-status-chip { font-family: inherit; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.sync-center-app-status-chip--explain::after { margin-left: 4px; content: '›'; }
+.sync-center-app-status-chip--explain[aria-expanded="true"]::after { display: inline-block; transform: rotate(90deg); }
+.sync-center-app-status-chip--explain:focus-visible, .sync-center-attention-action:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+.sync-center-app-status-chip--checking { border-color: rgba(205, 205, 205, 0.36); color: var(--port-muted); background: transparent; }
+.sync-center-attention-detail { grid-column: 1 / -1; flex-basis: 100%; margin-top: 10px; padding: 12px 14px; border: 1px solid rgba(232, 176, 104, 0.32); border-radius: 12px; background: rgba(232, 176, 104, 0.06); color: var(--port-text); font-size: calc(0.8rem * var(--font-scale)); line-height: 1.6; }
+.sync-center-attention-detail[hidden] { display: none; }
+.sync-center-attention-detail strong { display: block; color: #ead39b; font-weight: 650; }
+.sync-center-attention-detail p { margin: 4px 0 0; color: var(--port-muted); }
+.sync-center-attention-action { margin-top: 10px; padding: 7px 14px; border: 1px solid rgba(232, 201, 122, 0.6); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 650; cursor: pointer; }
+.sync-center-attention-action:disabled { opacity: 0.55; cursor: default; }
