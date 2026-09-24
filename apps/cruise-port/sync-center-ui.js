@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation, explainAppAttention } from './sync-center-controller.js?v=0.59.3';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation, explainAppAttention } from './sync-center-controller.js?v=0.61.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
