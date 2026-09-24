@@ -157,8 +157,8 @@ async function runProductionLoad(hasCredential) {
     assert.strictEqual(standardHtml.includes('sync-cohort'), false, 'Standard loads no cohort activation controller');
     assert.strictEqual(standardHtml.includes('__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__'), false, 'Standard has no production Turnstile configuration');
     assert(proHtml.includes("__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr'"), 'Pro has the dedicated public production site key');
-    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.15.7'), 'Pro loads the production Turnstile provider');
-    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.15.7'), 'Pro loads the OFF-first bootstrap');
+    assert(proHtml.includes('../js/sync/sync-turnstile.js?v=1.15.8'), 'Pro loads the production Turnstile provider');
+    assert(proHtml.includes('../js/sync/sync-bootstrap.js?v=1.15.8'), 'Pro loads the OFF-first bootstrap');
     assert(proHtml.indexOf('sync-turnstile.js') < proHtml.indexOf('sync-bootstrap.js'), 'Pro installs Turnstile before Sync bootstrap');
     ['sync-core.js', 'sync-db.js', 'sync-merge.js', 'sync-client.js'].forEach(function (fileName) {
         assert.strictEqual(standardHtml.includes(fileName), false, 'Standard never loads ' + fileName);
