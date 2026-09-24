@@ -28,6 +28,14 @@ test('12 cloud records and one unresolved conflict show 確認が必要 1件', (
 });
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
+
+test('both Port editions reference the current Turnstile helper cache key', () => {
+    for (const file of ['./index.html', './pro_9a3943176561/index.html']) {
+        const html = read(file);
+        assert.match(html, /sync-account-turnstile\.js\?v=8/);
+        assert.doesNotMatch(html, /sync-account-turnstile\.js\?v=7/);
+    }
+});
 const root = read('./index.html');
 const pro = read('./pro_9a3943176561/index.html');
 const app = read('./practice-menu-app.js');
