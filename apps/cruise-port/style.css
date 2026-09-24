@@ -6156,3 +6156,11 @@ button.sync-center-app-status-chip { font-family: inherit; cursor: pointer; appe
 .sync-center-attention-detail p { margin: 4px 0 0; color: var(--port-muted); }
 .sync-center-attention-action { margin-top: 10px; padding: 7px 14px; border: 1px solid rgba(232, 201, 122, 0.6); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 650; cursor: pointer; }
 .sync-center-attention-action:disabled { opacity: 0.55; cursor: default; }
+
+/* 同期センター最下部: 不具合報告の窓口（既存の問い合わせメールを使う控えめな行） */
+.sync-center-support { margin: 22px 0 8px; padding: 14px 16px; border-top: 1px solid var(--port-border); color: var(--port-muted); font-size: calc(0.78rem * var(--font-scale)); line-height: 1.6; }
+.sync-center-support h2 { margin: 0 0 4px; color: var(--port-text); font-size: calc(0.86rem * var(--font-scale)); font-weight: 650; }
+.sync-center-support p { margin: 0; }
+.sync-center-support-link { display: inline-block; margin: 8px 0 6px; color: var(--port-gold-bright); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.sync-center-support-link:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
+.sync-center-support-note { font-size: calc(0.7rem * var(--font-scale)); }
