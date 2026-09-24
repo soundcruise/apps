@@ -37,6 +37,37 @@ function createAttentionDetail(app, explanation, { onOpenApp = null, onRecheck =
     return panel;
 }
 
+// Confirmation copy follows the Worker's revoke scope for each operation. Disconnecting sync never
+// deletes cloud or on-device data, but an app loses its pending sync state when its connection ends.
+export const RECOVERY_IMPACT = '復旧を確定すると、現在接続されているすべてのCruise Portと各Cruiseアプリ（ホーム画面版・ブラウザ版を含む）で再接続が必要になります。クラウド上の同期データは残ります。';
+export const SYNC_DETACH_NOTE = 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、「同期済み」になっていることを確認してください。';
+const LINKED_APPS = 'このCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。';
+
+export function describeLifecycleAction(kind, { appName = 'このアプリ', lastPort = false, current = false } = {}) {
+    if (kind === 'app-environment') {
+        return Object.freeze({ title: '選択した同期先を解除', severity: 'normal', syncNote: true,
+            summary: '選択した同期先1件だけの同期を解除します。同じアプリのほかの同期先、ほかのアプリ、Cruise Port、クラウド上と端末内のデータはそのまま残ります。' });
+    }
+    if (kind === 'current-environment') {
+        return Object.freeze({ title: 'このCruise Portの接続を解除', severity: 'caution', syncNote: true,
+            summary: lastPort
+                ? `このCruise Portの接続を解除します。${LINKED_APPS}これが最後のCruise Portのため、このアカウントへ再び接続するには保存済みの復旧コードが必要です。アカウントは削除されず、クラウド上と端末内のデータは残ります。`
+                : `このCruise Portの接続を解除します。${LINKED_APPS}別のCruise Portから接続した同期先と、クラウド上・端末内のデータは残ります。` });
+    }
+    if (kind === 'environment') {
+        return Object.freeze({ title: current ? 'このCruise Portの同期を解除' : '選択したCruise Portの同期を解除',
+            severity: 'caution', syncNote: true,
+            summary: current
+                ? 'このCruise Portの同期を解除します。このCruise Portに結び付いた各Cruiseアプリの同期も解除され、このCruise Portは未接続になります。ほかのCruise Portと、クラウド上・端末内のデータは残ります。'
+                : '選択したCruise Portの同期を解除します。そのCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。ほかのCruise Portとその同期先、クラウド上のデータは残ります。' });
+    }
+    if (kind === 'detach') {
+        return Object.freeze({ title: `${appName}の同期を解除`, severity: 'caution', syncNote: true,
+            summary: `${appName}の同期先すべて（ホーム画面版・ブラウザ版・ほかの端末を含む）の同期を解除します。クラウド上と端末内のデータは削除されません。解除後は同期コードからいつでも再接続できます。` });
+    }
+    return null;
+}
+
 export function markAppRowsChecking(root) {
     const list = root?.querySelector?.('#sync-center-apps');
     if (!list) return;
@@ -564,6 +595,7 @@ export function bindSyncCenterActions(root, {
     const lifecycleSummary = root?.querySelector?.('#sync-center-lifecycle-summary');
     const lifecycleConfirm = root?.querySelector?.('#sync-center-lifecycle-submit');
     const lifecycleDeleteNote = root?.querySelector?.('#sync-center-lifecycle-delete-note');
+    const lifecycleSyncNote = root?.querySelector?.('#sync-center-lifecycle-sync-note');
     let lifecycleAction = null;
     const copySensitiveOutput = async (button, status, value) => {
         if (!button || !status) return;
@@ -945,7 +977,7 @@ export function bindSyncCenterActions(root, {
                 const memberships = prepared.summary.memberships || [];
                 const ready = memberships.filter((item) => item.dataset?.state === 'ready').length;
                 const records = memberships.reduce((total, item) => total + Number(item.dataset?.recordCount || 0), 0);
-                recoverySummary.textContent = `${memberships.length}アプリ（準備完了${ready}件）、同期データ${records}件、同期中の環境${prepared.summary.activeDeviceCount}件を復旧します。`;
+                recoverySummary.textContent = `${memberships.length}アプリ（準備完了${ready}件）、同期データ${records}件を復旧します。${RECOVERY_IMPACT}`;
                 recoveryConfirm.textContent = '新しい復旧コードを確認';
                 recoverySecret.resolve();
                 return;
@@ -956,7 +988,9 @@ export function bindSyncCenterActions(root, {
                 recoveryCandidate.textContent = orchestrator.recoveryCandidateCode();
                 recoveryCandidate.hidden = false;
                 if (recoveryCopy) recoveryCopy.hidden = false;
-                recoverySummary.textContent = '新しい復旧コードを安全な場所へ保存してください。次の操作で復旧が確定します。';
+                recoverySummary.textContent = recoveryDialog.dataset.syncMode === 'rotation'
+                    ? '新しい復旧コードを安全な場所へ保存してください。次の操作で復旧コードの更新が確定します。'
+                    : `新しい復旧コードを安全な場所へ保存してください。次の操作で復旧が確定します。${RECOVERY_IMPACT}`;
                 recoveryConfirm.textContent = '保存しました';
                 return;
             }
@@ -971,7 +1005,7 @@ export function bindSyncCenterActions(root, {
                 recoveryDialog.dataset.syncPhase = 'complete';
                 recoverySummary.textContent = rotation
                     ? '復旧コードを更新しました。以前の復旧コードは使えません。'
-                    : 'Sound Cruise Syncを復旧しました。旧環境の同期資格情報は無効です。';
+                    : 'Sound Cruise Syncを復旧しました。以前接続していたCruise Portと各Cruiseアプリは、再接続が必要です。クラウド上の同期データは残っています。';
                 recoveryConfirm.dataset.syncAction = 'close';
                 recoveryConfirm.textContent = '閉じる';
                 if (recoveryClose) recoveryClose.hidden = true;
@@ -1012,6 +1046,11 @@ export function bindSyncCenterActions(root, {
                 : action.kind === 'current-environment' ? 'detach-current-environment' : 'revoke-environment';
         lifecycleConfirm.textContent = action.kind === 'delete' ? '削除内容を確認' : '同期を解除';
         if (lifecycleDeleteNote) lifecycleDeleteNote.hidden = action.kind !== 'delete';
+        if (lifecycleSyncNote) {
+            lifecycleSyncNote.textContent = SYNC_DETACH_NOTE;
+            lifecycleSyncNote.hidden = action.syncNote !== true;
+        }
+        lifecycleDialog.dataset.syncSeverity = action.severity || (action.kind === 'delete' ? 'danger' : 'normal');
         if (lifecycleTitle) lifecycleTitle.textContent = action.title || '操作内容を確認';
         lifecycleSummary.textContent = action.summary;
         lifecycleDialog.showModal();
@@ -1023,8 +1062,7 @@ export function bindSyncCenterActions(root, {
                 kind: 'app-environment',
                 appId: appEnvironment.dataset.syncAppEnvironmentApp,
                 appDeviceId: appEnvironment.dataset.syncAppEnvironmentRevoke,
-                title: 'この環境の同期を解除',
-                summary: 'この環境の同期を解除しますか？クラウド上と端末内のデータ、ほかの環境は削除されません。'
+                ...describeLifecycleAction('app-environment')
             });
             return;
         }
@@ -1034,18 +1072,13 @@ export function bindSyncCenterActions(root, {
                 const lastPort = environment.dataset.syncCurrentEnvironmentLastPort === 'true';
                 openLifecycle({
                     kind: 'current-environment',
-                    title: 'この環境の接続を解除',
-                    summary: lastPort
-                        ? 'この環境が最後のCruise Portです。接続を解除した後、このアカウントへ再び接続するには保存済みの復旧コードが必要です。クラウド上と端末内のデータは削除されません。'
-                        : 'このCruise Portと、この環境で接続しているアプリをアカウントから解除します。クラウド上と端末内のデータは削除されません。他の環境はそのまま利用できます。'
+                    ...describeLifecycleAction('current-environment', { lastPort })
                 });
                 return;
             }
             openLifecycle({
                 kind: 'environment', accountDeviceId: environment.dataset.syncEnvironmentRevoke,
-                summary: environment.dataset.syncEnvironmentCurrent === 'true'
-                    ? 'この環境の同期を解除します。解除後、このCruise Portは未接続になります。クラウドと端末内のデータは削除されません。'
-                    : '選択した環境の同期を解除します。他の環境とクラウドデータは維持されます。'
+                ...describeLifecycleAction('environment', { current: environment.dataset.syncEnvironmentCurrent === 'true' })
             });
             return;
         }
@@ -1054,8 +1087,7 @@ export function bindSyncCenterActions(root, {
             const appName = appDetach.dataset.syncAppName || 'このアプリ';
             openLifecycle({
                 kind: 'detach', appId: appDetach.dataset.syncAppDetach,
-                title: `${appName}の同期を解除`,
-                summary: `${appName}のクラウド同期接続だけを解除します。クラウド上と端末内のデータは削除されません。解除後は同期コードからいつでも再接続できます。`
+                ...describeLifecycleAction('detach', { appName })
             });
             return;
         }

@@ -6164,3 +6164,8 @@ button.sync-center-app-status-chip { font-family: inherit; cursor: pointer; appe
 .sync-center-support-link { display: inline-block; margin: 8px 0 6px; color: var(--port-gold-bright); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 .sync-center-support-link:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
 .sync-center-support-note { font-size: calc(0.7rem * var(--font-scale)); }
+
+/* 同期解除の確認: 関連する同期先まで解除される操作では、解除前の同期済み確認を控えめに添える */
+.sync-center-lifecycle-sync-note { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(232, 176, 104, 0.34); border-radius: 10px; background: rgba(232, 176, 104, 0.07); color: #ead39b; font-size: calc(0.78rem * var(--font-scale)); line-height: 1.6; }
+.sync-center-lifecycle-sync-note[hidden] { display: none; }
+#sync-center-lifecycle-confirm[data-sync-severity="caution"] #sync-center-lifecycle-title { color: #ead39b; }

@@ -249,7 +249,7 @@ test('current Port detach is distinct from generic environment revoke and leaves
     assert.equal((ui.match(/await orchestrator\.revokeEnvironment\(lifecycleAction\.accountDeviceId\)/g) || []).length, 1);
     assert.match(ui, /先にアカウントを作成または接続してください/);
     assert.match(ui, /needsInitialConnection && !accountReady[\s\S]*action\.disabled = true/);
-    assert.match(ui, /この環境が最後のCruise Portです。/);
+    assert.match(ui, /これが最後のCruise Portのため、このアカウントへ再び接続するには保存済みの復旧コードが必要です。/);
     assert.match(ui, /syncCurrentEnvironmentDetach = 'true'/);
     assert.match(ui, /await orchestrator\.revokeEnvironment\(lifecycleAction\.accountDeviceId\)/);
     assert.doesNotMatch(ui, /orchestrator\.commitDelete\(.*current-environment/);
