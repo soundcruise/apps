@@ -26,9 +26,9 @@ test('four Pro apps load one renderer and one card stylesheet contract', () => {
   assert.doesNotMatch(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
   for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=23/);
-  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v24/);
-  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-v2\.3\.9/);
-  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v11/);
+  assert.match(readFileSync(new URL('pitch-cruise/pro_x9v7q2m8/service-worker.js', root), 'utf8'), /pitch-trainer-pro-scope-v25/);
+  assert.match(readFileSync(new URL('fretboard_cruise/pro_a9f4k7q2m8z/service-worker.js', root), 'utf8'), /fretboard-cruise-pro-auth-s2a/);
+  assert.match(readFileSync(new URL('rhythm-cruise/service-worker.js', root), 'utf8'), /rhythm-cruise-v12/);
 });
 
 test('shared status, description and button copy is exact', () => {

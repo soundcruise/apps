@@ -1,4 +1,4 @@
-import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=0.27.0';
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=0.60.0';
 import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=0.27.0';
 import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';
 import { requestToolPro } from './tool-capabilities.js?v=0.27.0';
@@ -11,22 +11,22 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.59.3';
+} from './practice-menu-store.js?v=0.60.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
-import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.59.3';
+import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.60.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=0.59.3';
-import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.59.3';
+import { bindSyncCenterActions, renderSyncCenter } from './sync-center-ui.js?v=0.60.0';
 import { createPortSyncStatus } from './port-sync-status.js?v=0.59.3';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.59.3';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.60.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
@@ -106,7 +106,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=0.27.0';
+} from './practice-menu-app-resolver.js?v=0.60.0';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -172,7 +172,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.59.4';
+} from './app-version.js?v=0.60.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.59.3';
@@ -208,7 +208,7 @@ import {
 } from './gear-category-store.js?v=0.59.3';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
 import { PortAssetSync } from './port-asset-sync.js?v=0.59.3';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=0.59.3';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=0.60.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource

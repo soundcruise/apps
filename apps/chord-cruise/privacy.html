@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>コードクルーズ | プライバシーポリシー</title>
-<link rel="stylesheet" href="./theme.css?v=1.15.8">
+<link rel="stylesheet" href="./theme.css?v=1.16.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -82,6 +82,6 @@
         <section><h2>Pro版の入室認証</h2><p>Pro版の入室認証では、入力された4桁の番号とTurnstileの確認結果をCloudflare Workerへ送信します。不正利用防止のためCloudflare TurnstileとIP単位の試行回数制限を使用します。接続元IPアドレスから復元困難な識別値を生成して認証試行の制限に用い、最後の誤入力から24時間後に削除対象とします。日次の削除処理により、保存期間はおおむね最長48時間となる場合があります。元のIPアドレスそのものは、この目的でD1に保存しません。発行された認証用資格情報はブラウザ保存領域に保存し、サーバーには検証用の値と失効状態を保存します。この認証のために練習データや新しい個人識別情報は送信しません。</p></section>
 </main>
 </div>
-<script src="./info-routing.js?v=1.15.8"></script>
+<script src="./info-routing.js?v=1.16.0"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.19.5';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.19.5';
+const FRETBOARD_CRUISE_APP_VERSION = '2.20.0';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.20.0';
 function notifyFretboardSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
 }
