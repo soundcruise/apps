@@ -2,10 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handleRequest } from '../src/app.js';
 import { createSqliteD1 } from './sqlite-d1.js';
+import { cleanupProLockouts } from '../src/pro-auth-lockout.js';
 
 // Deliberately nonproduction fixture. No live passcode or secret is used here.
 const DUMMY_CODE = '0007';
 const DUMMY_PEPPER = 'test-only-pro-credential-pepper-32-bytes-minimum';
+const DUMMY_LOCKOUT_PEPPER = 'test-only-distinct-pro-lockout-pepper-32-bytes';
 const ORIGIN = 'https://soundcruise.jp';
 const BASE = 'https://example.workers.dev/v2/pro-auth';
 
@@ -16,11 +18,14 @@ function fixture(overrides = {}) {
     ALLOWED_ORIGINS: ORIGIN,
     PRO_PASSCODE_SLOT_A: DUMMY_CODE,
     PRO_CREDENTIAL_PEPPER: DUMMY_PEPPER,
+    PRO_LOCKOUT_PEPPER: DUMMY_LOCKOUT_PEPPER,
     PRO_VERIFY_RATE_LIMITER: { async limit() { return { success: true }; } },
     ...overrides
   };
   let turnstileCalls = 0;
+  let now = 1_000_000_000;
   const dependencies = {
+    now: () => now,
     async verifyProTurnstile(token, _env, options) {
       turnstileCalls += 1;
       assert.equal(options.expectedAction, 'sound_cruise_pro_verify');
@@ -42,7 +47,18 @@ function fixture(overrides = {}) {
     const response = await handleRequest(request, env, null, dependencies);
     return { status: response.status, body: await response.json(), headers: response.headers };
   }
-  return { database, env, dependencies, call, get turnstileCalls() { return turnstileCalls; } };
+  return { database, env, dependencies, call, setNow(value) { now = value; },
+    advance(ms) { now += ms; }, get now() { return now; },
+    get turnstileCalls() { return turnstileCalls; } };
+}
+
+function wrong(f, ip = '192.0.2.4') {
+  return f.call('/verify', { method: 'POST', ip,
+    body: { passcode: '0008', turnstileToken: 'nonproduction-test-turnstile' } });
+}
+
+function lockoutRow(f) {
+  return f.database.raw.prepare('SELECT * FROM pro_auth_lockouts').get();
 }
 
 async function issue(f) {
@@ -86,6 +102,7 @@ test('verify fails closed on absent/inactive secret, rate binding, and D1 errors
   for (const overrides of [
     { PRO_PASSCODE_SLOT_A: undefined },
     { PRO_CREDENTIAL_PEPPER: undefined },
+    { PRO_LOCKOUT_PEPPER: undefined },
     { PRO_VERIFY_RATE_LIMITER: undefined },
     { PRO_VERIFY_RATE_LIMITER: { async limit() { throw Error('binding unavailable'); } } },
     { PRO_VERIFY_RATE_LIMITER: { async limit() { return { success: false }; } } }
@@ -177,5 +194,149 @@ test('malformed and unknown bearer fail; strict origin, CORS, no-store, and URLs
     assert.equal(preflight.status, 204);
     assert.equal(preflight.headers.get('Cache-Control'), 'no-store');
     assert.equal((await f.call('/session', { token, origin: 'null' })).status, 403);
+  } finally { f.database.close(); }
+});
+
+test('five wrong codes lock for 5, then 15, then at most 30 minutes', async () => {
+  const f = fixture();
+  try {
+    for (const [duration, level] of [[300_000, 1], [900_000, 2], [1_800_000, 2], [1_800_000, 2]]) {
+      for (let attempt = 1; attempt <= 4; attempt += 1) {
+        assert.equal((await wrong(f)).status, 401);
+        assert.equal(lockoutRow(f).failure_count, attempt);
+        assert.equal(lockoutRow(f).locked_until, null);
+      }
+      assert.equal((await wrong(f)).status, 401);
+      const row = lockoutRow(f);
+      assert.equal(row.failure_count, 0);
+      assert.equal(row.lock_level, level);
+      assert.equal(row.locked_until, f.now + duration);
+      const beforeChallenge = f.turnstileCalls;
+      const locked = await wrong(f);
+      assert.equal(locked.status, 429);
+      assert.equal(locked.headers.get('Retry-After'), String(duration / 1000));
+      assert.deepEqual(locked.body, { ok: false, code: 'rate_limited' });
+      assert.equal(f.turnstileCalls, beforeChallenge, 'locked request does not consume Turnstile');
+      f.advance(duration);
+    }
+    assert.equal((await wrong(f)).status, 401, 'retry is possible at lock expiry');
+  } finally { f.database.close(); }
+});
+
+test('correct code resets failure and escalation only after credential issue succeeds', async () => {
+  const f = fixture();
+  try {
+    for (let i = 0; i < 5; i += 1) await wrong(f);
+    assert.equal((await f.call('/verify', { method: 'POST', body: {
+      passcode: DUMMY_CODE, turnstileToken: 'nonproduction-test-turnstile'
+    } })).status, 429, 'correct code is still locked');
+    f.advance(300_000);
+    const token = await issue(f);
+    assert.equal(lockoutRow(f), undefined);
+    assert.equal((await f.call('/session', { token })).status, 200);
+    assert.equal((await wrong(f)).status, 401);
+    assert.equal(lockoutRow(f).failure_count, 1);
+    assert.equal(lockoutRow(f).lock_level, 0);
+
+    // A failed batch cannot erase the failure state without issuing a credential.
+    f.database.raw.exec('DROP TABLE pro_credentials');
+    assert.equal((await f.call('/verify', { method: 'POST', body: {
+      passcode: DUMMY_CODE, turnstileToken: 'nonproduction-test-turnstile'
+    } })).status, 503);
+    assert.equal(lockoutRow(f).failure_count, 1);
+  } finally { f.database.close(); }
+});
+
+test('24-hour wrong-passcode inactivity resets escalation and stale rows are cleaned', async () => {
+  const f = fixture();
+  try {
+    for (let i = 0; i < 5; i += 1) await wrong(f);
+    f.advance(24 * 60 * 60 * 1000);
+    assert.equal((await wrong(f)).status, 401);
+    assert.equal(lockoutRow(f).failure_count, 1);
+    assert.equal(lockoutRow(f).lock_level, 0);
+    f.advance(24 * 60 * 60 * 1000);
+    await cleanupProLockouts(f.database, f.now);
+    assert.equal(lockoutRow(f), undefined);
+  } finally { f.database.close(); }
+});
+
+test('different IPs are isolated, while the same IP shares a lock', async () => {
+  const f = fixture();
+  try {
+    for (let i = 0; i < 5; i += 1) await wrong(f, '192.0.2.4');
+    assert.equal((await wrong(f, '192.0.2.4')).status, 429);
+    assert.equal((await wrong(f, '192.0.2.5')).status, 401);
+    assert.equal((await f.call('/verify', { method: 'POST', ip: '192.0.2.5', body: {
+      passcode: DUMMY_CODE, turnstileToken: 'nonproduction-test-turnstile'
+    } })).status, 201);
+    assert.equal(f.database.raw.prepare('SELECT COUNT(*) AS n FROM pro_auth_lockouts').get().n, 1);
+  } finally { f.database.close(); }
+});
+
+test('only Turnstile-passed wrong codes count; failed dependencies fail closed', async () => {
+  const f = fixture();
+  try {
+    const malformed = await f.call('/verify', { method: 'POST', body: {
+      passcode: '007', turnstileToken: 'nonproduction-test-turnstile'
+    } });
+    assert.equal(malformed.status, 400);
+    assert.equal((await f.call('/verify', { method: 'POST', body: {
+      passcode: '0008', turnstileToken: 'bad'
+    } })).status, 403);
+    assert.equal((await f.call('/verify', { method: 'POST', origin: 'https://wrong.example', body: {
+      passcode: '0008', turnstileToken: 'nonproduction-test-turnstile'
+    } })).status, 403);
+    assert.equal(lockoutRow(f), undefined);
+
+    f.env.PRO_VERIFY_RATE_LIMITER = { async limit() { return { success: false }; } };
+    assert.equal((await wrong(f)).status, 429);
+    assert.equal(lockoutRow(f), undefined);
+    f.env.PRO_VERIFY_RATE_LIMITER = { async limit() { return { success: true }; } };
+    f.env.PRO_LOCKOUT_PEPPER = undefined;
+    assert.equal((await wrong(f)).status, 503);
+    assert.equal(lockoutRow(f), undefined);
+    f.env.PRO_LOCKOUT_PEPPER = DUMMY_LOCKOUT_PEPPER;
+    f.database.raw.exec('DROP TABLE pro_auth_lockouts');
+    assert.equal((await wrong(f)).status, 503);
+    assert.equal(f.database.raw.prepare('SELECT COUNT(*) AS n FROM pro_credentials').get().n, 0);
+  } finally { f.database.close(); }
+});
+
+test('parallel failures cannot skip the lock threshold', async () => {
+  const f = fixture();
+  try {
+    const results = await Promise.all(Array.from({ length: 10 }, () => wrong(f)));
+    assert.equal(results.filter((result) => result.status === 401).length, 5);
+    assert.equal(results.filter((result) => result.status === 429).length, 5);
+    assert.equal(lockoutRow(f).lock_level, 1);
+    assert.equal(lockoutRow(f).failure_count, 0);
+  } finally { f.database.close(); }
+});
+
+test('lockout never affects legacy policy, Server session, or revoke', async () => {
+  const f = fixture();
+  try {
+    const token = await issue(f);
+    for (let i = 0; i < 5; i += 1) await wrong(f);
+    assert.equal((await f.call('/policy')).body.legacyCompatibilityEnabled, true);
+    assert.equal((await f.call('/session', { token })).status, 200);
+    assert.equal((await f.call('/revoke', { method: 'POST', body: {}, token })).status, 200);
+    assert.equal((await f.call('/session', { token })).status, 401);
+    assert.equal(lockoutRow(f).failure_count, 0, 'revoke does not count as a wrong passcode');
+  } finally { f.database.close(); }
+});
+
+test('lockout persistence contains HMAC only, never IP, passcode, or token', async () => {
+  const f = fixture();
+  try {
+    const token = await issue(f);
+    await wrong(f);
+    const row = lockoutRow(f);
+    assert.match(row.ip_key, /^[0-9a-f]{64}$/);
+    assert.equal(row.ip_key.includes('192.0.2.4'), false);
+    assert.equal(JSON.stringify(row).includes('0008'), false);
+    assert.equal(JSON.stringify(row).includes(token), false);
+    assert.equal(Object.keys(row).some((key) => /ip_address|passcode|token|authorization/u.test(key)), false);
   } finally { f.database.close(); }
 });

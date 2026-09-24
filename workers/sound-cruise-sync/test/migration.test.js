@@ -33,6 +33,7 @@ const migration26 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration27 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0027_add_practice_attachment_record_types.sql'), 'utf8');
 const migration28 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0028_add_app_attention_count.sql'), 'utf8');
 const migration29 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0029_add_pro_auth.sql'), 'utf8');
+const migration30 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0030_add_pro_auth_lockout.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -72,6 +73,7 @@ function migrate(db) {
   db.exec(migration27);
   db.exec(migration28);
   db.exec(migration29);
+  db.exec(migration30);
 }
 
 function migrateThrough20(db) {
@@ -109,6 +111,30 @@ test('M29 is additive, repeatable and constrains Pro credentials without changin
   assert.throws(() => db.exec("INSERT INTO pro_credentials VALUES ('bad','x',1,'global_pro',1,NULL)"));
   assert.throws(() => db.exec("INSERT INTO pro_credentials VALUES ('bad','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',1,'account',1,NULL)"));
   assert.equal(db.prepare("SELECT * FROM sync_users WHERE id='m29-existing-user'").get().id, before.id);
+  db.close();
+});
+
+test('M30 is repeatable and preserves M29 state and credentials while constraining lockouts', () => {
+  const db = new DatabaseSync(':memory:');
+  migrateThrough25(db);
+  db.exec(migration26);
+  db.exec(migration27);
+  db.exec(migration28);
+  db.exec(migration29);
+  db.prepare(`INSERT INTO pro_credentials
+    (id, verifier, generation, scope, created_at) VALUES (?, ?, 1, 'global_pro', 1)`)
+    .run('test-credential', 'a'.repeat(64));
+  const before = db.prepare('SELECT * FROM pro_auth_state').get();
+  db.exec(migration30);
+  db.exec(migration30);
+  assert.deepEqual(db.prepare('SELECT * FROM pro_auth_state').get(), before);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pro_credentials').get().n, 1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='table' AND name='pro_auth_lockouts'").get().n, 1);
+  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type='index' AND name='pro_auth_lockouts_last_failure_idx'").get().n, 1);
+  assert.throws(() => db.prepare(`INSERT INTO pro_auth_lockouts VALUES (?, 0, 0, NULL, 1, 1)`).run('192.0.2.4'));
+  assert.throws(() => db.prepare(`INSERT INTO pro_auth_lockouts VALUES (?, 5, 0, NULL, 1, 1)`).run('b'.repeat(64)));
+  assert.throws(() => db.prepare(`INSERT INTO pro_auth_lockouts VALUES (?, 0, 3, NULL, 1, 1)`).run('b'.repeat(64)));
+  assert.throws(() => db.prepare(`INSERT INTO pro_auth_lockouts VALUES (?, 0, 0, -1, 1, 1)`).run('b'.repeat(64)));
   db.close();
 });
 

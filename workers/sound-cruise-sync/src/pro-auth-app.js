@@ -1,4 +1,6 @@
 import { hmacVerifier, timingSafeHexEqual } from './crypto.js';
+import { issueProCredentialAndReset, proLockoutKey, proLockoutStatus,
+  recordWrongProPasscode } from './pro-auth-lockout.js';
 import { verifyTurnstileToken } from './turnstile.js';
 import { isJsonContentType, readBodyWithLimit } from './validation.js';
 
@@ -109,9 +111,18 @@ async function verify(request, env, origin, route, dependencies) {
   catch { return error(503, 'server_unavailable', origin, route); }
   const passcodeSecret = env[`PRO_PASSCODE_SLOT_${current.active_code_slot}`];
   if (typeof passcodeSecret !== 'string' || !/^[0-9]{4}$/u.test(passcodeSecret) ||
-      typeof env.PRO_CREDENTIAL_PEPPER !== 'string' || env.PRO_CREDENTIAL_PEPPER.length < 32) {
+      typeof env.PRO_CREDENTIAL_PEPPER !== 'string' || env.PRO_CREDENTIAL_PEPPER.length < 32 ||
+      typeof env.PRO_LOCKOUT_PEPPER !== 'string' || env.PRO_LOCKOUT_PEPPER.length < 32) {
     return error(503, 'verification_unavailable', origin, route);
   }
+  const now = dependencies.now ? dependencies.now() : Date.now();
+  let ipKey;
+  try {
+    ipKey = await proLockoutKey(ip, env.PRO_LOCKOUT_PEPPER, dependencies.cryptoImpl || crypto);
+    const retryAfter = await proLockoutStatus(session, ipKey, now);
+    if (retryAfter) return error(429, 'rate_limited', origin, route,
+      { 'Retry-After': String(retryAfter) });
+  } catch { return error(503, 'verification_unavailable', origin, route); }
   let turnstile;
   try {
     turnstile = await (dependencies.verifyProTurnstile || verifyTurnstileToken)(
@@ -121,15 +132,25 @@ async function verify(request, env, origin, route, dependencies) {
   } catch { return error(503, 'verification_unavailable', origin, route); }
   if (!turnstile?.ok) return error(turnstile?.unavailable ? 503 : 403,
     turnstile?.unavailable ? 'verification_unavailable' : 'turnstile_failed', origin, route);
-  if (!timingSafeHexEqual(parsed.body.passcode, passcodeSecret)) return error(401, 'invalid_passcode', origin, route);
+  if (!timingSafeHexEqual(parsed.body.passcode, passcodeSecret)) {
+    try {
+      const recorded = await recordWrongProPasscode(session, ipKey, now);
+      if (!recorded) {
+        const retryAfter = await proLockoutStatus(session, ipKey, now);
+        return retryAfter ? error(429, 'rate_limited', origin, route,
+          { 'Retry-After': String(retryAfter) }) : error(503, 'verification_unavailable', origin, route);
+      }
+    } catch { return error(503, 'verification_unavailable', origin, route); }
+    return error(401, 'invalid_passcode', origin, route);
+  }
   try {
     const material = await tokenMaterial(env.PRO_CREDENTIAL_PEPPER, dependencies.cryptoImpl || crypto);
-    const result = await session.prepare(`INSERT INTO pro_credentials
-      (id, verifier, generation, scope, created_at, revoked_at)
-      SELECT ?, ?, generation, 'global_pro', ?, NULL FROM pro_auth_state
-      WHERE singleton_id = 1 AND generation = ? AND active_code_slot = ?`)
-      .bind(material.id, material.verifier, Date.now(), current.generation, current.active_code_slot).run();
-    if (result?.meta?.changes !== 1) return error(409, 'policy_changed', origin, route);
+    const issued = await issueProCredentialAndReset(session, material, current, ipKey, now);
+    if (!issued) {
+      const retryAfter = await proLockoutStatus(session, ipKey, now);
+      return retryAfter ? error(429, 'rate_limited', origin, route,
+        { 'Retry-After': String(retryAfter) }) : error(409, 'policy_changed', origin, route);
+    }
     return response(201, { ok: true, credential: material.token, generation: current.generation }, origin, route);
   } catch { return error(503, 'server_unavailable', origin, route); }
 }

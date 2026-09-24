@@ -2,6 +2,7 @@ import { inspectDeviceCredential } from './auth.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { handleAccountApiRequest } from './account-app.js';
 import { handleProAuthRequest } from './pro-auth-app.js';
+import { cleanupProLockouts } from './pro-auth-lockout.js';
 import {
   legacyOperationDecision,
   readLegacyAccountPolicy,
@@ -1132,4 +1133,6 @@ export async function handleScheduled(_event, env = {}, dependencies = {}) {
   }
   const repository = (dependencies.createCleanupRepository || createD1CleanupRepository)(env.SYNC_DB);
   await repository.cleanup(Date.now());
+  try { await cleanupProLockouts(env.SYNC_DB, Date.now()); }
+  catch { /* Lockout retention must not interrupt established sync cleanup. */ }
 }
