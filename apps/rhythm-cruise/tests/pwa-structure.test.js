@@ -49,7 +49,7 @@ assert(legacyHtml.includes("navigator.serviceWorker.getRegistration('./')"), 'le
 assert(legacyHtml.includes('registration.unregister()'), 'legacy root retires its old worker registration');
 assert(legacyHtml.includes("window.location.replace('standard/'"), 'legacy root redirects to Standard after migration cleanup');
 assert(proHtml.includes('<link rel="manifest" href="manifest.json?v=4">'), 'Pro retains its own manifest');
-assert(proHtml.includes('../../shared/pro-gate.js?v=21'), 'Pro gate reference matches the current shared gate asset');
+assert(proHtml.includes('../../shared/pro-gate.js?v=22'), 'Pro gate reference matches the current shared gate asset');
 
 ['info.html', 'usage.html', 'terms.html', 'privacy.html', 'mic-correction-help.html'].forEach(function (fileName) {
     var source = read(path.join(root, fileName));

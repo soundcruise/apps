@@ -5,7 +5,7 @@
    同一オリジン上の他アプリ（pitch-cruise / fretboard_cruise / shared）の
    キャッシュには一切触れない。 */
 
-const CACHE_NAME = 'rhythm-cruise-v11';
+const CACHE_NAME = 'rhythm-cruise-v12';
 
 self.addEventListener('install', () => {
     self.skipWaiting();
@@ -23,5 +23,11 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
+    const path = new URL(e.request.url).pathname;
+    if (path.includes('/pro_') || path.endsWith('/shared/pro-gate.js') ||
+        path.endsWith('/shared/sync-account/sync-account-turnstile.js')) {
+        e.respondWith(fetch(e.request, { cache: 'no-cache' }));
+        return;
+    }
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
 });

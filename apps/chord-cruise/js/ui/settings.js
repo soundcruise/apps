@@ -157,9 +157,9 @@
         settingsEndAnchor.parentNode.insertBefore(section, settingsEndAnchor);
     }
 
-    function resetProAuthentication() {
+    async function resetProAuthentication() {
         if (typeof window.__soundCruiseClearGate === 'function') {
-            window.__soundCruiseClearGate();
+            await window.__soundCruiseClearGate();
         }
         window.location.reload();
     }

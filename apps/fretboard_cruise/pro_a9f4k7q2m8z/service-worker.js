@@ -1,15 +1,12 @@
-const GATE_VERSION = 8; // index.html の gateVersion と合わせる
-const CACHE_NAME = 'fretboard-cruise-pro-v2.3.9';
+const CACHE_NAME = 'fretboard-cruise-pro-auth-s2a';
+const CACHE_PREFIX = 'fretboard-cruise-pro-';
 
 self.addEventListener('install', () => { self.skipWaiting(); });
 
 self.addEventListener('activate', (e) => {
-    e.waitUntil(Promise.all([
-        caches.keys().then(names => Promise.all(names.map(n => caches.delete(n)))),
-        self.clients.matchAll({ includeUncontrolled: true, type: 'window' }).then(clients => {
-            clients.forEach(c => c.postMessage({ type: 'PRO_GATE_INVALIDATE', version: GATE_VERSION }));
-        })
-    ]));
+    e.waitUntil(caches.keys().then(names => Promise.all(
+        names.filter(n => n.startsWith(CACHE_PREFIX)).map(n => caches.delete(n))
+    )));
     self.clients.claim();
 });
 

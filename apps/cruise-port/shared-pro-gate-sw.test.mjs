@@ -5,112 +5,174 @@ import { readFileSync } from 'node:fs';
 
 const shared = readFileSync(new URL('../shared/pro-gate.js', import.meta.url), 'utf8');
 const pitch = readFileSync(new URL('../pitch-cruise/pro_x9v7q2m8/pro-gate-hash.js', import.meta.url), 'utf8');
-const AUTH = 'soundCruiseProAuth';
-const SW = 'soundcruise_pro_sw_gate_v';
-const token = JSON.stringify({ v: 1, at: 1, src: 'QA SP1.2' });
+const token = 'scp1.123e4567-e89b-42d3-a456-426614174000.' + 'A'.repeat(43);
+const v2 = { v: 2, credential: token, generation: 1, validatedAt: 100 };
+const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function fixture({ known, config = 8, source = shared, values = new Map([[AUTH, token], ['qa-unrelated', 'keep']]), search = '', failWrite = false } = {}) {
-    if (known !== undefined) values.set(SW, known);
-    const operations = [], navigations = [], replacements = [], docEvents = new Map(), swEvents = new Map();
-    let href = 'https://example.test/pro/?qa=1';
-    const location = { hostname: 'localhost', protocol: 'http:', pathname: '/pro/', search, hash: '', reload() { navigations.push('reload'); } };
-    Object.defineProperty(location, 'href', { get: () => href, set(value) { href = value; navigations.push(value); } });
-    const localStorage = {
-        getItem: key => values.get(key) ?? null,
-        setItem(key, value) { if (failWrite) throw Error('write unavailable'); operations.push(['set', key]); values.set(key, String(value)); },
-        removeItem(key) { operations.push(['remove', key]); values.delete(key); }
-    };
-    const document = {
-        readyState: 'loading', cookie: '',
-        addEventListener(type, listener) { docEvents.set(type, listener); },
-        getElementById() { return null; },
-        createElement() { throw Error('GATE_REQUIRED'); }
-    };
-    const window = { __SOUNDCRUISE_PRO_GATE__: { passwordHash: '0'.repeat(64), gateVersion: config }, location, TextEncoder, crypto: { subtle: {} } };
-    const context = vm.createContext({ window, location, document, localStorage, navigator: { serviceWorker: { addEventListener(type, listener) { swEvents.set(type, listener); } } },
-        history: { replaceState(...args) { replacements.push(args[2]); } }, TextEncoder, URLSearchParams, Uint8Array, ArrayBuffer });
-    vm.runInContext(source, context, { filename: source === shared ? 'shared-pro-gate.js' : 'pitch-pro-gate.js' });
-    return { values, operations, navigations, replacements, window, boot: () => docEvents.get('DOMContentLoaded')(),
-        notify: (version, resetGate = false) => swEvents.get('message')({ data: { type: 'PRO_GATE_INVALIDATE', version, resetGate } }) };
+function fixture({ values = new Map(), policy = true, session = { status: 200, body: { ok: true, generation: 1,
+  legacyCompatibilityEnabled: true } }, offline = false, source = shared, oldConfig = false,
+  missingHelper = false, cookiesUnavailable = false } = {}) {
+  const calls = [], listeners = new Map(), nodes = new Map();
+  class Element {
+    constructor(tag) { this.tagName = tag; this.listeners = new Map(); this.style = {}; this.value = ''; this.disabled = false; this.tabIndex = 0; this.attributes = new Set(); }
+    set innerHTML(_) {
+      for (const id of ['pro-gate-title', 'pro-gate-input', 'pro-gate-error', 'pro-gate-turnstile', 'pro-gate-submit']) {
+        nodes.set(id, new Element(id));
+      }
+    }
+    setAttribute(name) { this.attributes.add(name); }
+    hasAttribute(name) { return this.attributes.has(name); }
+    removeAttribute(name) { this.attributes.delete(name); }
+    matches() { return this.disabled; }
+    closest() { return false; }
+    getClientRects() { return [{}]; }
+    appendChild(child) { this.child = child; child.parentNode = this; }
+    querySelector(selector) { return nodes.get(selector.slice(1)) || null; }
+    querySelectorAll() { return [nodes.get('pro-gate-input'), nodes.get('pro-gate-submit')].filter(Boolean); }
+    contains(element) { return element === this || [...nodes.values()].includes(element); }
+    addEventListener(type, fn) { this.listeners.set(type, fn); }
+    focus() { document.activeElement = this; }
+    remove() { body.locked = false; body.children = body.children.filter(item => item !== this); }
+  }
+  const body = { locked: false, firstChild: null, children: [], insertBefore(node) { this.locked = true; this.children.unshift(node); },
+    classList: { add() {}, remove() {} } };
+  const document = { body, activeElement: null, head: { appendChild(script) {
+    if (script.src?.includes('pro-gate.js')) vm.runInContext(shared, context);
+    if (script.src?.includes('sync-account-turnstile.js')) {
+      window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__ = { async getToken() { return 'dummy-turnstile'; } };
+      script.onload?.();
+    }
+  } },
+    readyState: 'complete', cookie: '', createElement: tag => new Element(tag),
+    addEventListener(type, fn) { listeners.set(type, fn); }, removeEventListener(type) { listeners.delete(type); } };
+  if (cookiesUnavailable) Object.defineProperty(document, 'cookie', {
+    get() { throw Error('cookies unavailable'); }, set() { throw Error('cookies unavailable'); }
+  });
+  const location = { href: 'https://soundcruise.jp/apps/example/pro_test/index.html', protocol: 'https:',
+    hostname: 'soundcruise.jp', reload() { calls.push('reload'); } };
+  const storage = { getItem: key => values.get(key) ?? null, setItem(key, value) { values.set(key, String(value)); },
+    removeItem(key) { values.delete(key); } };
+  const window = { __SOUNDCRUISE_PRO_GATE__: { appName: 'Test', ...(oldConfig ? { passwordHash: 'legacy-public-placeholder' } : {}) },
+    ...(missingHelper ? {} : { __SOUND_CRUISE_ACCOUNT_TURNSTILE__: { async getToken() { return 'dummy-turnstile'; } } }),
+    location, addEventListener(type, fn) { listeners.set(type, fn); } };
+  const fetch = async (url, options) => {
+    calls.push(url.split('/').at(-1));
+    if (offline) throw Error('offline');
+    const path = url.split('/').at(-1);
+    const result = path === 'policy' ? { status: 200, body: { ok: true, legacyCompatibilityEnabled: policy } } :
+      path === 'session' ? session : path === 'verify' ? { status: 201, body: { ok: true, credential: token, generation: 1 } } :
+      { status: 200, body: { ok: true } };
+    return { status: result.status, async json() { return result.body; } };
+  };
+  const context = vm.createContext({ window, document, location, localStorage: storage, fetch, URL, AbortController,
+    setTimeout, clearTimeout, history: { replaceState() {} }, Date, console,
+    MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame() { return 1; },
+    cancelAnimationFrame() {}, getComputedStyle() { return { visibility: 'visible' }; } });
+  vm.runInContext(source, context);
+  return { values, body, calls, nodes, window, listeners, async settle() { await flush(); await flush(); },
+    async submit(code = '0007') {
+      nodes.get('pro-gate-input').value = code;
+      await nodes.get('pro-gate-submit').listeners.get('click')();
+      await flush();
+    } };
 }
 
-function preserved(f) {
-    assert.equal(f.values.get(AUTH), token);
-    assert.equal(f.operations.filter(([operation, key]) => operation === 'remove' && key === AUTH).length, 0);
-    assert.equal(f.navigations.length, 0);
-    assert.equal(f.values.get('qa-unrelated'), 'keep');
-}
+test('Phase 1 legacy UI entry never requests a Worker credential', async () => {
+  const values = new Map([['soundCruiseProAuth', JSON.stringify({ v: 1, at: 1 })]]);
+  const f = fixture({ values, oldConfig: true }); await f.settle();
+  assert.equal(f.body.locked, false);
+  assert.deepEqual(f.calls, ['policy']);
+  assert.equal(JSON.parse(values.get('soundCruiseProAuth')).v, 1);
+});
 
-test('missing SW record + current generation preserves auth without reload', () => {
-    const f = fixture(); f.notify(8, true); preserved(f); assert.equal(f.values.get(SW), '8');
+test('legacy compatibility OFF latches across outages', async () => {
+  const values = new Map([['soundCruiseProAuth', JSON.stringify({ v: 1 })]]);
+  const f = fixture({ values, policy: false }); await f.settle();
+  assert.equal(f.body.locked, true);
+  assert.equal(values.get('soundCruiseProLegacyRetired'), '1');
+  values.set('soundCruiseProAuth', JSON.stringify({ v: 1 }));
+  const offline = fixture({ values, offline: true }); await offline.settle();
+  assert.equal(offline.body.locked, true);
 });
-test('missing SW record + old Standard generation records page baseline, not old notice', () => {
-    const f = fixture(); f.notify(4); f.notify(8, true); preserved(f); assert.equal(f.values.get(SW), '8');
+
+test('manual dummy code always uses Worker and migrates shared state', async () => {
+  const values = new Map([['soundCruiseProAuth', JSON.stringify({ v: 1 })]]);
+  const f = fixture({ values }); await f.settle();
+  await f.window.__soundCruiseClearGate();
+  f.body.locked = true;
+  // A fresh page after reset presents the gate.
+  const next = fixture({ values }); await next.settle();
+  await next.submit();
+  assert(next.calls.includes('verify'));
+  assert.equal(JSON.parse(values.get('soundCruiseProAuth')).v, 2);
+  assert.equal(values.get('soundCruiseProAuthMigrated'), '1');
+  assert.equal(next.body.locked, false);
 });
-test('missing SW record + genuinely newer generation invalidates auth', () => {
-    const f = fixture(); f.notify(9, true);
-    assert.equal(f.values.has(AUTH), false); assert.equal(f.values.get(SW), '9');
-    assert.deepEqual(f.navigations, ['https://example.test/pro/?qa=1&resetGate=1']);
+
+test('same-origin v2 credential works across all five entry points without re-entry', async () => {
+  const values = new Map([['soundCruiseProAuth', JSON.stringify(v2)]]);
+  for (const app of ['port', 'pitch', 'fretboard', 'rhythm', 'chord']) {
+    const f = fixture({ values, source: app === 'pitch' ? pitch : shared });
+    await f.settle();
+    assert.equal(f.body.locked, false, app);
+    assert.deepEqual(f.calls.filter(c => c === 'verify'), []);
+  }
+  const other = fixture(); await other.settle();
+  assert.equal(other.body.locked, true);
 });
-test('known same or older notice preserves auth and known generation', () => {
-    const f = fixture({ known: '8' }); f.notify(8, true); f.notify(4, true); preserved(f); assert.equal(f.values.get(SW), '8');
+
+test('revoked or old-generation credential never falls back to legacy', async () => {
+  for (const code of ['invalid_credential', 'reauth_required']) {
+    const values = new Map([['soundCruiseProAuth', JSON.stringify(v2)], ['soundcruise_pro_gate_rotation', 'pitch-cruise-pro-gate-v8']]);
+    const f = fixture({ values, session: { status: 401, body: { ok: false, code } } }); await f.settle();
+    assert.equal(f.body.locked, true);
+    assert.equal(values.has('soundCruiseProAuth'), false);
+    assert.equal(values.get('soundCruiseProAuthMigrated'), '1');
+  }
+  const values = new Map([['soundCruiseProAuth', JSON.stringify(v2)]]);
+  const mismatch = fixture({ values, session: { status: 200, body: { ok: true, generation: 2 } } });
+  await mismatch.settle();
+  assert.equal(mismatch.body.locked, true);
+  assert.equal(values.has('soundCruiseProAuth'), false);
 });
-test('known N -> N+1 still invalidates even when the page config is already N+1', () => {
-    const f = fixture({ known: '8', config: 9 }); f.notify(9);
-    assert.equal(f.values.has(AUTH), false); assert.equal(f.values.get(SW), '9'); assert.equal(f.navigations.length, 1);
+
+test('validated v2 credential continues UI through outage without time expiry', async () => {
+  const values = new Map([['soundCruiseProAuth', JSON.stringify(v2)]]);
+  const f = fixture({ values, offline: true }); await f.settle();
+  assert.equal(f.body.locked, false);
+  const unvalidated = fixture({ values: new Map([['soundCruiseProAuth', JSON.stringify({ ...v2, validatedAt: 0 })]]), offline: true });
+  await unvalidated.settle(); assert.equal(unvalidated.body.locked, true);
 });
-test('malformed notification generations cannot write, clear, or reload', () => {
-    const f = fixture();
-    for (const value of [undefined, null, '', ' ', '8junk', '8.5', '1e2', -1, 8.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, {}, [], true]) f.notify(value, true);
-    preserved(f); assert.deepEqual(f.operations, []);
+
+test('server credential remains usable when legacy cookie access is unavailable', async () => {
+  const f = fixture({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)]]), cookiesUnavailable: true });
+  await f.settle();
+  assert.equal(f.body.locked, false);
 });
-test('malformed saved generations use the page baseline without deleting valid auth', () => {
-    for (const known of ['', ' ', 'bad', '8junk', '-1', '8.5', '9007199254740992']) {
-        const f = fixture({ known }); f.notify(8, true); preserved(f); assert.equal(f.values.get(SW), '8');
-    }
+
+test('offline reset immediately locks UI and persists pending revoke', async () => {
+  const values = new Map([['soundCruiseProAuth', JSON.stringify(v2)]]);
+  const f = fixture({ values, offline: true }); await f.settle();
+  await f.window.__soundCruiseClearGate();
+  assert.equal(f.body.locked, true);
+  assert.equal(values.has('soundCruiseProAuth'), false);
+  assert.deepEqual(JSON.parse(values.get('soundCruiseProRevokePending')), [token]);
+  const online = fixture({ values }); await online.settle();
+  assert(online.calls.includes('revoke'));
+  assert.equal(values.has('soundCruiseProRevokePending'), false);
 });
-test('malformed saved generation does not suppress a real newer notification', () => {
-    const f = fixture({ known: 'invalid' }); f.notify(9); assert.equal(f.values.has(AUTH), false); assert.equal(f.navigations.length, 1);
-});
-test('invalid page baseline cannot turn an unrecorded notice into auth deletion', () => {
-    const f = fixture({ config: 'invalid' }); f.notify(8); preserved(f); assert.deepEqual(f.operations, []);
-});
-test('explicit reset API still clears shared and legacy auth but not app data', () => {
-    const f = fixture(); f.window.__soundCruiseClearGate();
-    assert.deepEqual(f.operations, [['remove', AUTH], ['remove', 'soundcruise_pro_gate_rotation'], ['remove', 'pitchTrainerProGateOk']]);
-    assert.equal(f.values.get('qa-unrelated'), 'keep');
-});
-test('resetGate=1 still clears auth and removes only that query parameter', () => {
-    const f = fixture({ search: '?resetGate=1&keep=1' });
-    assert.throws(f.boot, /GATE_REQUIRED/); assert.equal(f.values.has(AUTH), false); assert.deepEqual(f.replacements, ['/pro/?keep=1']);
-});
-test('shared token validation is unchanged and malformed reads do not delete records', () => {
-    const f = fixture(); assert.doesNotThrow(f.boot); assert.equal(f.values.get(AUTH), token);
-    for (const value of ['bad-json', JSON.stringify({ v: 2 }), JSON.stringify({ v: '1' }), 'null']) {
-        const g = fixture({ values: new Map([[AUTH, value]]) }); assert.throws(g.boot, /GATE_REQUIRED/); assert.equal(g.values.get(AUTH), value);
-    }
-});
-test('Pitch legacy auth still recreates the existing shared token shape', () => {
-    const values = new Map([['soundcruise_pro_gate_rotation', 'pitch-cruise-pro-gate-v8']]);
-    const f = fixture({ source: pitch, values }); f.boot();
-    assert.equal(JSON.parse(values.get(AUTH)).v, 1); assert.deepEqual(Object.keys(JSON.parse(values.get(AUTH))).sort(), ['at', 'src', 'v']);
-    assert.equal(values.get('soundcruise_pro_gate_rotation'), 'pitch-cruise-pro-gate-v8');
-});
-test('Pitch shared-token startup and unknown-version behavior remain compatible', () => {
-    const f = fixture({ source: pitch }); f.boot(); f.notify(8, true); preserved(f);
-});
-test('repeated notifications do not repeatedly invalidate the same generation', () => {
-    const f = fixture(); f.notify(8); f.notify('8'); f.notify(4); preserved(f);
-    f.notify(9); f.notify(9, true); f.notify(8);
-    assert.equal(f.navigations.length, 1); assert.equal(f.operations.filter(([operation, key]) => operation === 'remove' && key === AUTH).length, 1);
-});
-test('two tabs sharing storage preserve auth on simultaneous-generation notices', () => {
-    const values = new Map([[AUTH, token], ['qa-unrelated', 'keep']]);
-    const a = fixture({ values }), b = fixture({ values });
-    a.notify(4); b.notify(8, true); a.notify(8, true); preserved(a); preserved(b);
-    a.notify(9); b.notify(9); assert.equal(values.has(AUTH), false); assert.equal(a.navigations.length + b.navigations.length, 1);
-});
-test('baseline write failure remains non-destructive; newer notices still invalidate', () => {
-    const f = fixture({ failWrite: true }); f.notify(8, true); preserved(f);
-    f.notify(9); assert.equal(f.values.has(AUTH), false); assert.equal(f.navigations.length, 1);
+
+test('old HTML with new JS ignores old hash and loads Turnstile; new HTML with cached old JS lacks verifier', async () => {
+  const f = fixture({ oldConfig: true, missingHelper: true }); await f.settle();
+  await f.submit();
+  assert.equal(f.body.locked, false);
+  for (const name of ['cruise-port', 'pitch-cruise', 'fretboard_cruise', 'rhythm-cruise', 'chord-cruise']) {
+    const html = readFileSync(new URL('../' + name + '/', import.meta.url).pathname +
+      ({ 'cruise-port': 'pro_9a3943176561', 'pitch-cruise': 'pro_x9v7q2m8',
+        'fretboard_cruise': 'pro_a9f4k7q2m8z', 'rhythm-cruise': 'pro_r4m8k7n2q9x',
+        'chord-cruise': 'pro_k7m4q9v2x8' })[name] + '/index.html', 'utf8');
+    assert.doesNotMatch(html, /passwordHash/);
+    if (name === 'pitch-cruise') assert.match(html, /shared\/pro-gate\.js\?v=22/);
+  }
+  assert.doesNotMatch(pitch, /passwordHash|sha256|AUTH_TOKEN/);
 });

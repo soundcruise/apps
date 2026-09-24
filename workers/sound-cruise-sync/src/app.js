@@ -1,6 +1,7 @@
 import { inspectDeviceCredential } from './auth.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { handleAccountApiRequest } from './account-app.js';
+import { handleProAuthRequest } from './pro-auth-app.js';
 import {
   legacyOperationDecision,
   readLegacyAccountPolicy,
@@ -1047,6 +1048,9 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   }
   if (url.pathname === '/v2/accounts' || url.pathname.startsWith('/v2/accounts/')) {
     return handleAccountApiRequest(request, env, _ctx, dependencies);
+  }
+  if (url.pathname.startsWith('/v2/pro-auth/')) {
+    return handleProAuthRequest(request, env, _ctx, dependencies);
   }
   const resolvedAssetRoute = assetRoute(url.pathname);
   const route = ROUTES[url.pathname] || resolvedAssetRoute;

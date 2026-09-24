@@ -37,7 +37,7 @@ function fixture() {
         getComputedStyle: el => ({ visibility: el.visibility || 'visible' }),
         MutationObserver: class { constructor(fn) { observe = fn; } observe() {} disconnect() { disconnected = true; } },
         requestAnimationFrame: fn => { frame = fn; return 1; }, cancelAnimationFrame() {} });
-    vm.runInContext(gate.slice(gate.indexOf('    function containGateFocus'), gate.indexOf('    function dismissOverlay')), context);
+    vm.runInContext(gate.slice(gate.indexOf('    function containGateFocus'), gate.indexOf('    function lock()')), context);
     const release = context.containGateFocus(overlay);
     frame();
     function tab(shiftKey = false) {
@@ -78,13 +78,11 @@ test('gate wraps forward/backward, excludes unavailable controls and rejects esc
     assert.equal(f.background.hasAttribute('inert'), true);
 });
 
-test('gate preserves token/hash authentication and releases containment on successful unlock', () => {
-    assert.match(gate, /SHARED_AUTH_KEY = 'soundCruiseProAuth'/);
-    assert.match(gate, /EXPECTED_SHARED_V = 1/);
-    assert.match(gate, /if \(isUnlocked\(\)\) \{\s*attachResetButton\(\);\s*return;/);
-    assert.match(gate, /inputHash !== CONFIG.passwordHash/);
-    assert.match(gate, /setSharedAuth\(\);\s*dismissOverlay\(overlay\)/);
-    assert.match(gate, /function dismissOverlay\(overlay\) \{\s*releaseGateFocus\?\.\(\)/);
+test('gate uses server authentication and releases focus containment on unlock', () => {
+    assert.match(gate, /const AUTH_KEY = 'soundCruiseProAuth'/);
+    assert.match(gate, /request\('\/verify'/);
+    assert.doesNotMatch(gate, /passwordHash|crypto\.subtle\.digest/);
+    assert.match(gate, /function unlock\(\) \{\s*if \(!overlay\) return;\s*releaseGateFocus\?\.\(\)/);
 });
 
 test('calendar uses named button groups, pressed selection and current date without an incomplete grid', () => {

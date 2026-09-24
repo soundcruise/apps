@@ -94,6 +94,6 @@ assert(saveEditorSource.includes("source: chord.source === 'custom' ? 'custom' :
 assert(saveEditorSource.includes("saveChord(record, { source: draft.source })"), 'save editor passes source to the storage boundary');
 assert(saveEditorSource.includes('作成したコードを保存するにはPro版が必要です。'), 'custom save has an independent Pro explanation');
 assert(saveEditorSource.includes('href="../pro-access.html"'), 'Standard points to the root Chord Cruise Pro access page');
-assert(proHtml.includes('../../shared/pro-gate.js?v=21'), 'the Pro entry continues into the current shared Pro gate');
+assert(proHtml.includes('../../shared/pro-gate.js?v=22'), 'the Pro entry continues into the current shared Pro gate');
 
 console.log('custom-save-pro-gate: Standard creation/view remains enabled, custom save is rejected at UI/storage, Pro save and existing record read OK');

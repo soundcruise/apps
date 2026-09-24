@@ -9,7 +9,7 @@
 </head>
 <body><main class="port-legal"><article>
     <nav aria-label="ページ移動"><a href="./#settings">← 設定へ戻る</a><a href="./terms.html">利用規約</a></nav>
-    <h1>プライバシーポリシー</h1><p>最終更新日: 2026年9月16日</p>
+    <h1>プライバシーポリシー</h1><p>最終更新日: 2026年9月24日</p>
     <section><h2>1. 基本方針と登録情報</h2><p>SOUND CRUISEは、Cruise PortおよびSound Cruise Syncの提供にあたり、利用者の情報を適切に取り扱うよう努めます。氏名・メールアドレスなど、個人を直接特定する情報の登録は必要ありません。お問い合わせ時には、連絡先や問い合わせ内容を取得する場合があります。</p></section>
     <section><h2>2. 端末内に保存されるデータ</h2><p>Cruise Portの設定、練習メニュー、機材リスト等はブラウザ保存領域に保存されます。クラウド同期を利用しないデータはSound Cruise Syncの対象ではありません。</p></section>
     <section><h2>3. Sound Cruise Sync（任意利用）</h2><p>クラウド同期を利用すると、各Proアプリ内で保存した同期対象データ（利用者が入力・作成した内容を含みます）と、同期に必要な識別子・更新日時・版・変更履歴・環境状態などの技術情報がクラウドに保存されます。各アプリのデータは分けて管理されます。</p></section>
@@ -19,4 +19,5 @@
     <section><h2>7. 削除と保持期間</h2><p>アプリ単位またはアカウント全体の削除要求後は7日間の猶予期間を経て完全削除の対象となります。変更履歴は原則90日、削除済みデータの同期用記録（tombstone）は原則365日保持します。クラウド側を削除しても端末内データは自動では削除されません。</p></section>
     <section><h2>8. 外部サービス</h2><p>Cloudflare、GitHub Pages、YouTube、Google、ブラウザ、OS等では、各提供者の規約やプライバシーポリシーが適用される場合があります。</p></section>
     <section><h2>9. お問い合わせ</h2><p><a href="mailto:soundcruise.inc@gmail.com">soundcruise.inc@gmail.com</a> までご連絡ください。</p></section>
+    <section><h2>Pro版の入室認証</h2><p>Pro版の入室認証では、入力された4桁の番号とTurnstileの確認結果をCloudflare Workerへ送信します。不正利用防止のためCloudflare TurnstileとIP単位の試行回数制限を使用します。発行された認証用資格情報はブラウザ保存領域に保存し、サーバーには検証用の値と失効状態を保存します。この認証のために練習データや新しい個人識別情報は送信しません。</p></section>
 </article></main></body></html>

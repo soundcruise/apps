@@ -58,14 +58,8 @@ pitch_trainer/staging/index.html    ← script.js?v=
 
 ---
 
-## Pro版パスワード変更手順
+## Pro版の共通認証（S2-A）
 
-パスワードを変えると、**次回ページを開いたとき自動で全員が強制退出**される。
-アプリを開きっぱなしのユーザーも即退出させたい場合は GATE_VERSION も +1 する。
+Port / Pitch / Fretboard / Rhythm / Chord のPro版は、Worker の `/v2/pro-auth` を使って共通の4桁を検証する。公開HTMLやJavaScriptへ番号・照合ハッシュを置かない。運用と将来の番号変更は `workers/sound-cruise-sync/PRO_AUTH_OPERATIONS.md` を参照する。
 
-### 音感クルーズ（apps/pitch-cruise）
-
-| ファイル | 変更箇所 | 操作 |
-|---|---|---|
-| `apps/pitch-cruise/pro_x9v7q2m8/index.html` | `window.__SOUNDCRUISE_PRO_GATE__` の `password` | 新しいパスワードに変更（これだけで次回アクセス時に全員退出） |
-| `apps/pitch-cruise/pro_x9v7q2m8/service-worker.js` | `GATE_VERSION` | +1（開きっぱなしのユーザーも即退出させたいときのみ） |
+現在のS2-Aローカル実装では、公開前の正式アプリバージョン変更を行わない。

@@ -9,7 +9,8 @@
     'sound_cruise_account_qa_enroll',
     'sound_cruise_account_start',
     'sound_cruise_account_recovery',
-    'sound_cruise_recovery_rotation'
+    'sound_cruise_recovery_rotation',
+    'sound_cruise_pro_verify'
   ]);
   let scriptPromise = null;
   let activeWidget = null;

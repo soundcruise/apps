@@ -26,6 +26,7 @@ test('production Worker remains exact-origin, observable, and secret-free in rep
   assert.equal(config.vars.TURNSTILE_EXPECTED_ACTION, 'sound_cruise_sync_start');
   assert.equal(config.vars.TURNSTILE_PAIR_EXPECTED_ACTION, 'sound_cruise_sync_pair');
   assert.equal(config.vars.TURNSTILE_RECOVER_EXPECTED_ACTION, 'sound_cruise_sync_recover');
+  assert.equal(config.vars.TURNSTILE_PRO_EXPECTED_ACTION, 'sound_cruise_pro_verify');
   assert.equal(config.vars.SYNC_ALLOWED_APP_IDS, 'chord');
   assert.equal(config.vars.SYNC_QA_ALLOWED_APP_IDS, 'chord,pitch,rhythm,fretboard,port');
   assert.equal(config.vars.SYNC_ACCOUNT_PUBLIC_ADMISSION_ENABLED, 'true');
@@ -34,35 +35,38 @@ test('production Worker remains exact-origin, observable, and secret-free in rep
     'START_RATE_LIMITER', 'SYNC_RATE_LIMITER', 'PAIRING_ISSUE_RATE_LIMITER', 'PAIR_RATE_LIMITER', 'RECOVERY_RATE_LIMITER',
     'ACCOUNT_QA_ENROLL_RATE_LIMITER', 'ACCOUNT_START_RATE_LIMITER', 'ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER',
     'ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER', 'ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER', 'ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER',
-    'ACCOUNT_RECOVERY_RATE_LIMITER', 'ACCOUNT_BRIDGE_RATE_LIMITER'
+    'ACCOUNT_RECOVERY_RATE_LIMITER', 'ACCOUNT_BRIDGE_RATE_LIMITER', 'PRO_VERIFY_RATE_LIMITER'
   ]);
-  assert.deepEqual(config.ratelimits.at(-8), {
+  assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'ACCOUNT_QA_ENROLL_RATE_LIMITER'), {
     name: 'ACCOUNT_QA_ENROLL_RATE_LIMITER', namespace_id: '32006', simple: { limit: 5, period: 60 }
   });
-  assert.deepEqual(config.ratelimits.at(-1), {
+  assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'ACCOUNT_BRIDGE_RATE_LIMITER'), {
     name: 'ACCOUNT_BRIDGE_RATE_LIMITER', namespace_id: '32013', simple: { limit: 5, period: 60 }
   });
-  assert.deepEqual(config.ratelimits.at(-2), {
+  assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'ACCOUNT_RECOVERY_RATE_LIMITER'), {
     name: 'ACCOUNT_RECOVERY_RATE_LIMITER', namespace_id: '32012', simple: { limit: 5, period: 60 }
   });
-  assert.deepEqual(config.ratelimits.at(-3), {
+  assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER'), {
     name: 'ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER', namespace_id: '32011', simple: { limit: 5, period: 60 }
   });
-  assert.deepEqual(config.ratelimits.at(-4), {
+  assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER'), {
     name: 'ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER', namespace_id: '32010', simple: { limit: 5, period: 60 }
   });
-  assert.deepEqual(config.ratelimits.at(-5), {
+  assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER'), {
     name: 'ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER', namespace_id: '32009', simple: { limit: 5, period: 60 }
   });
-  assert.deepEqual(config.ratelimits.at(-6), {
+  assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER'), {
     name: 'ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER', namespace_id: '32008', simple: { limit: 5, period: 60 }
   });
-  assert.deepEqual(config.ratelimits.at(-7), {
+  assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'ACCOUNT_START_RATE_LIMITER'), {
     name: 'ACCOUNT_START_RATE_LIMITER', namespace_id: '32007', simple: { limit: 5, period: 60 }
   });
   assert.equal(Object.hasOwn(config.vars, 'SYNC_CREDENTIAL_PEPPER'), false);
   assert.equal(Object.hasOwn(config.vars, 'SYNC_RECOVERY_PEPPER'), false);
   assert.equal(Object.hasOwn(config.vars, 'TURNSTILE_SECRET_KEY'), false);
+  assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'PRO_VERIFY_RATE_LIMITER'), {
+    name: 'PRO_VERIFY_RATE_LIMITER', namespace_id: '32014', simple: { limit: 5, period: 60 }
+  });
   assert.equal(Object.hasOwn(config.vars, 'TURNSTILE_PRODUCTION_SECRET_KEY'), false);
   assert.equal(Object.hasOwn(config.vars, 'SYNC_ENROLLMENT_PEPPER'), false);
   assert.equal(config.observability.enabled, true);

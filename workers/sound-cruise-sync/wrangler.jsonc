@@ -31,7 +31,8 @@
     "TURNSTILE_EXPECTED_HOSTNAME": "soundcruise.jp",
     "TURNSTILE_EXPECTED_ACTION": "sound_cruise_sync_start",
     "TURNSTILE_PAIR_EXPECTED_ACTION": "sound_cruise_sync_pair",
-    "TURNSTILE_RECOVER_EXPECTED_ACTION": "sound_cruise_sync_recover"
+    "TURNSTILE_RECOVER_EXPECTED_ACTION": "sound_cruise_sync_recover",
+    "TURNSTILE_PRO_EXPECTED_ACTION": "sound_cruise_pro_verify"
   },
   "d1_databases": [
     {
@@ -147,6 +148,14 @@
     {
       "name": "ACCOUNT_BRIDGE_RATE_LIMITER",
       "namespace_id": "32013",
+      "simple": {
+        "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "PRO_VERIFY_RATE_LIMITER",
+      "namespace_id": "32014",
       "simple": {
         "limit": 5,
         "period": 60

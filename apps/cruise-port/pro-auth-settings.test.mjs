@@ -24,8 +24,8 @@ test('cancel preserves auth and does not reload', () => {
     assert.equal(f.calls.length, 1); assert.equal(f.calls[0][0], 'confirm');
     assert.match(f.calls[0][1], /データは削除されません/);
 });
-test('confirmation invokes the official API before reloading', () => {
-    const f = fixture(); f.click();
+test('confirmation invokes the official API before reloading', async () => {
+    const f = fixture(); await f.click();
     assert.deepEqual(f.calls.map(c => c[0]), ['confirm', 'api', 'reload']);
 });
 test('missing shared API reports failure without a fallback deletion or reload', () => {

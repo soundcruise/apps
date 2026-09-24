@@ -5,7 +5,7 @@ export function initializeProAuthSettings(documentObject = document, windowObjec
     const button = documentObject.querySelector('#settings-pro-auth-reset');
     const error = documentObject.querySelector('#settings-pro-auth-error');
     section.hidden = !isPro();
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
         if (!isPro()) return;
         error.hidden = true;
         if (!windowObject.confirm('Pro版の認証をリセットしますか？\n練習メニューやMy Appsなどのデータは削除されません。')) return;
@@ -14,7 +14,14 @@ export function initializeProAuthSettings(documentObject = document, windowObjec
             error.hidden = false;
             return;
         }
-        windowObject.__soundCruiseClearGate();
-        windowObject.location.reload();
+        button.disabled = true;
+        try {
+            await windowObject.__soundCruiseClearGate();
+            windowObject.location.reload();
+        } catch (_) {
+            error.textContent = '認証をリセットできませんでした。ページを再読み込みしてお試しください。';
+            error.hidden = false;
+            button.disabled = false;
+        }
     });
 }

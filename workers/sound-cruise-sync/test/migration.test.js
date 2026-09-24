@@ -32,6 +32,7 @@ const migration25 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration26 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0026_add_practice_attachment_assets.sql'), 'utf8');
 const migration27 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0027_add_practice_attachment_record_types.sql'), 'utf8');
 const migration28 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0028_add_app_attention_count.sql'), 'utf8');
+const migration29 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0029_add_pro_auth.sql'), 'utf8');
 
 function migrateThrough17(db) {
   db.exec(migration);
@@ -70,6 +71,7 @@ function migrate(db) {
   db.exec(migration26);
   db.exec(migration27);
   db.exec(migration28);
+  db.exec(migration29);
 }
 
 function migrateThrough20(db) {
@@ -78,6 +80,37 @@ function migrateThrough20(db) {
   db.exec(migration19);
   db.exec(migration20);
 }
+
+test('M29 is additive, repeatable and constrains Pro credentials without changing sync data', () => {
+  const db = new DatabaseSync(':memory:');
+  migrateThrough25(db);
+  db.exec(migration26);
+  db.exec(migration27);
+  db.exec(migration28);
+  db.prepare(`INSERT INTO sync_users
+    (id,state,recovery_version,recovery_verifier,created_at,updated_at)
+    VALUES ('m29-existing-user','provisioning',0,NULL,1,1)`).run();
+  const before = db.prepare("SELECT * FROM sync_users WHERE id='m29-existing-user'").get();
+  db.exec(migration29);
+  assert.deepEqual(db.prepare("SELECT * FROM sync_users WHERE id='m29-existing-user'").get(), before);
+  assert.deepEqual({ ...db.prepare('SELECT * FROM pro_auth_state').get() }, {
+    singleton_id: 1, generation: 1, active_code_slot: 'A', legacy_compat_enabled: 1,
+    legacy_retired_at: null, updated_at: 0
+  });
+  db.exec(migration29);
+  assert.equal(db.prepare('SELECT COUNT(*) AS n FROM pro_auth_state').get().n, 1);
+  db.exec("UPDATE pro_auth_state SET generation=2, active_code_slot='B', legacy_compat_enabled=0, legacy_retired_at=2, updated_at=2");
+  db.exec(migration29);
+  assert.equal(db.prepare('SELECT generation FROM pro_auth_state').get().generation, 2);
+  assert.equal(db.prepare('SELECT legacy_compat_enabled FROM pro_auth_state').get().legacy_compat_enabled, 0);
+  assert.throws(() => db.exec("UPDATE pro_auth_state SET legacy_compat_enabled=0, legacy_retired_at=NULL"));
+  assert.throws(() => db.exec("UPDATE pro_auth_state SET generation=0"));
+  assert.throws(() => db.exec("UPDATE pro_auth_state SET active_code_slot='C'"));
+  assert.throws(() => db.exec("INSERT INTO pro_credentials VALUES ('bad','x',1,'global_pro',1,NULL)"));
+  assert.throws(() => db.exec("INSERT INTO pro_credentials VALUES ('bad','aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',1,'account',1,NULL)"));
+  assert.equal(db.prepare("SELECT * FROM sync_users WHERE id='m29-existing-user'").get().id, before.id);
+  db.close();
+});
 
 test('M21 preserves populated Account links and durable records while adding Port', () => {
   assert.equal((migration21.match(/INSERT OR IGNORE INTO sync_(?:membership_device_links|account_recovery_claims|account_delete_intents|membership_handoffs|chord_account_bridges|app_join_invitations)/gu) || []).length, 6,
