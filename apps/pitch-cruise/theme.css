@@ -745,48 +745,6 @@ body.test-mode-enabled .stage-clear-mark {
     gap: 2px;
 }
 
-/* 設定ボタン付近の New バッジ */
-.settings-new-badge {
-    display: inline-block;
-    font-size: 0.58rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    color: #fff;
-    background: linear-gradient(135deg, #b50028, #d90036);
-    border-radius: 4px;
-    padding: 1px 5px;
-    line-height: 1.5;
-    box-shadow: 0 1px 5px rgba(185, 0, 40, 0.45);
-    pointer-events: none;
-    user-select: none;
-}
-
-.settings-new-badge.hidden {
-    display: none;
-}
-
-/* テストモード項目の New バッジ */
-.tm-new-badge {
-    display: inline-block;
-    font-size: 0.58rem;
-    font-weight: 800;
-    letter-spacing: 0.04em;
-    color: #fff;
-    background: linear-gradient(135deg, #b50028, #d90036);
-    border-radius: 4px;
-    padding: 1px 5px;
-    line-height: 1.5;
-    box-shadow: 0 1px 5px rgba(185, 0, 40, 0.45);
-    pointer-events: none;
-    user-select: none;
-    vertical-align: middle;
-    margin: 0 2px;
-}
-
-.tm-new-badge.hidden {
-    display: none;
-}
-
 /* ── PROカスタムSTAGE ▼メニュー：「？」操作説明（v2.11.1）──────────────
    ボタン群 .staging-slot-actions（shared/pro-theme.css・flex-wrap）の中に
    全幅の簡易説明パネルとして表示する。表示のみで保存処理には関与しない。 */

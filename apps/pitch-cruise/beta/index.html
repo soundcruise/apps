@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>音感クルーズ ベータ</title>
     <link rel="stylesheet" href="../../shared/style.css?v=100">
-    <link rel="stylesheet" href="../theme.css?v=12">
+    <link rel="stylesheet" href="../theme.css?v=13">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -119,7 +119,6 @@
             <div id="screen-home" class="modal" style="position: relative;">
                 <div class="home-settings-btn-wrap" style="top: max(20px, env(safe-area-inset-top)); right: max(20px, env(safe-area-inset-right)); z-index: 100;">
                     <button id="home-settings-btn" class="icon-btn" title="設定">⚙️</button>
-                    <span class="settings-new-badge hidden" id="home-settings-new-badge">New</span>
                 </div>
                 <h2 class="home-title">音感クルーズ</h2>
                 <p class="beta-home-note"
@@ -236,7 +235,6 @@
                 </div>
                 <div class="setting-item">
                     <label for="test-mode-toggle">テストモード</label>
-                    <span class="tm-new-badge hidden" id="test-mode-new-badge">New</span>
                     <button type="button" class="tm-info-btn" id="test-mode-info-btn" aria-expanded="false" title="テストモードとは？">ⓘ</button>
                     <label class="toggle-switch toggle-switch--test-mode">
                         <input type="checkbox" id="test-mode-toggle">

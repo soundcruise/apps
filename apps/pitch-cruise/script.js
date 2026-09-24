@@ -16,55 +16,9 @@ const DEBUG_FORCE_PRO_STAGE_BADGE_100 = false;
 // ─────────────────────────────────────────────────────────────────────────────
 
 // ─── テストモード New バッジ既読管理 ────────────────────────────────────────
-const SETTINGS_NEW_BADGE_KEY = 'pitchCruiseSeenSettingsNewBadge_v290';
-const TEST_MODE_NEW_BADGE_KEY = 'pitchCruiseSeenTestModeNewBadge_v290';
 
 /** 検証ハブ（Staging）の Ver 表記の括弧内。小さな更新は原則ここだけ増やす（版番号の変更は別指示時のみ） */
 const PITCH_TRAINER_APP_BUILD = '43';
-
-/** インフォメーション「New」バッジ管理 */
-(function initInfoNewBadge() {
-    const INFO_NEW_VERSION_KEY = 'pitchCruiseInfoNewSeen';
-    const currentVersion = PITCH_TRAINER_APP_VERSION;
-    const lastSeenVersion = localStorage.getItem(INFO_NEW_VERSION_KEY);
-
-    // 初回起動 or バージョンアップ時のみ表示
-    window.shouldShowInfoNewBadge = !lastSeenVersion || lastSeenVersion !== currentVersion;
-
-    // Service Worker からのメッセージを受け取り
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.addEventListener('message', function(event) {
-            if (event.data && event.data.type === 'INFO_VERSION_UPDATED') {
-                localStorage.removeItem(INFO_NEW_VERSION_KEY);
-                window.shouldShowInfoNewBadge = true;
-            }
-        });
-    }
-
-    // インフォメーションページで確認時に localStorage を更新
-    window.markInfoAsViewed = function() {
-        localStorage.setItem(INFO_NEW_VERSION_KEY, currentVersion);
-        window.shouldShowInfoNewBadge = false;
-    };
-
-    // トップページで「New」バッジの表示制御
-    function updateInfoNewBadgeDisplay() {
-        var badge = document.getElementById('home-info-new-badge');
-        if (badge) {
-            if (window.shouldShowInfoNewBadge) {
-                badge.classList.remove('hidden');
-            } else {
-                badge.classList.add('hidden');
-            }
-        }
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', updateInfoNewBadgeDisplay);
-    } else {
-        updateInfoNewBadgeDisplay();
-    }
-}());
 
 /** Staging 検証（?stagingPreview=1）: メロディ Pro に「STAGEに追加」で保存したスロット ID 範囲 */
 const STAGING_PRO_MELODY_SLOT_MIN = 5001;
@@ -450,47 +404,6 @@ function _initTestModeInfoAccordion() {
         accordion.classList.toggle('open', !isOpen);
         btn.setAttribute('aria-expanded', String(!isOpen));
     });
-}
-
-/** テストモード関連の「New」バッジ初期化・既読管理 */
-function _initNewBadges() {
-    // ── 設定ボタン付近の New バッジ ─────────────────────────────────────
-    const homeSettingsNewBadge = document.getElementById('home-settings-new-badge');
-    if (homeSettingsNewBadge) {
-        const seenSettings = localStorage.getItem(SETTINGS_NEW_BADGE_KEY);
-        homeSettingsNewBadge.classList.toggle('hidden', !!seenSettings);
-
-        // 設定ボタンを押したら消す
-        ['home-settings-btn', 'melody-settings-btn', 'chord-settings-btn'].forEach(id => {
-            const btn = document.getElementById(id);
-            if (btn) {
-                btn.addEventListener('click', () => {
-                    if (!localStorage.getItem(SETTINGS_NEW_BADGE_KEY)) {
-                        try { localStorage.setItem(SETTINGS_NEW_BADGE_KEY, '1'); } catch (_) {}
-                        homeSettingsNewBadge.classList.add('hidden');
-                    }
-                });
-            }
-        });
-    }
-
-    // ── テストモード項目の New バッジ ───────────────────────────────────
-    const testModeNewBadge = document.getElementById('test-mode-new-badge');
-    if (testModeNewBadge) {
-        const seenTestMode = localStorage.getItem(TEST_MODE_NEW_BADGE_KEY);
-        testModeNewBadge.classList.toggle('hidden', !!seenTestMode);
-
-        // ⓘ ボタンを開いたら消す
-        const tmInfoBtn = document.getElementById('test-mode-info-btn');
-        if (tmInfoBtn) {
-            tmInfoBtn.addEventListener('click', () => {
-                if (!localStorage.getItem(TEST_MODE_NEW_BADGE_KEY)) {
-                    try { localStorage.setItem(TEST_MODE_NEW_BADGE_KEY, '1'); } catch (_) {}
-                    testModeNewBadge.classList.add('hidden');
-                }
-            });
-        }
-    }
 }
 
 /** 軽量 confetti：CSS アニメーションのみで紙吹雪を 2.5 秒再生して自動削除 */
@@ -1630,8 +1543,6 @@ class Game {
         this._stagingMelodyReorderMode = false;
         /** Pro: コード STAGE 選択で「順番並び替え」モード中 */
         this._stagingChordReorderMode = false;
-        this.infoIntroStorageKey = 'pitchCruiseInfoIntroSeen:1.15.8-r1';
-        this.infoNewBadgeStorageKey = 'pitchCruiseInfoNewSeen';
         if (typeof document !== 'undefined') {
             document.documentElement.classList.remove('staging-slot-drag-scroll-lock');
         }
@@ -1775,18 +1686,6 @@ class Game {
         if (document.getElementById('btn-back-melody')) document.getElementById('btn-back-melody').addEventListener('click', () => showScreen('screen-home'));
         if (document.getElementById('btn-back-chord')) document.getElementById('btn-back-chord').addEventListener('click', () => showScreen('screen-home'));
 
-        this.homeInfoIntroEl = document.getElementById('home-info-intro');
-        this.homeInfoLinkEl = document.querySelector('#screen-home .home-info-link--final');
-        this.homeInfoNewBadgeEl = document.getElementById('home-info-new-badge');
-        if (this.homeInfoLinkEl) {
-            this.homeInfoLinkEl.addEventListener('click', () => {
-                this.dismissInfoIntro();
-                this.dismissInfoNewBadge();
-            });
-        }
-        if (this.homeInfoIntroEl) {
-            this.homeInfoIntroEl.addEventListener('click', () => this.dismissInfoIntro());
-        }
 
         if (document.getElementById('confirm-settings')) {
             document.getElementById('confirm-settings').addEventListener('click', () => this.hideSettingsModal());
@@ -1814,9 +1713,8 @@ class Game {
             });
         }
 
-        // テストモード説明アコーディオン・New バッジ
+        // テストモード説明アコーディオン
         _initTestModeInfoAccordion();
-        _initNewBadges();
 
         // Octave controls
         if (isPitchTrainerPro()) {
@@ -2026,8 +1924,6 @@ class Game {
 
         this.updateProMelody2OctaveToggleLayers();
         this.updateProNoteTogglesKeyboardLayoutClass();
-        this.maybeShowInfoIntro();
-        this.maybeShowInfoNewBadge();
 
         // Chord Pattern Mode Toggle (Random vs Progression)
         document.querySelectorAll('input[name="chord-pattern-mode"]').forEach(radio => {
@@ -5649,57 +5545,6 @@ class Game {
         if (appTitle) appTitle.style.display = 'block';
 
         this.applyTranslations();
-        this.maybeShowInfoIntro();
-        this.maybeShowInfoNewBadge();
-    }
-
-    maybeShowInfoIntro() {
-        if (!this.homeInfoIntroEl) return;
-        const homeScreen = document.getElementById('screen-home');
-        if (!homeScreen || homeScreen.classList.contains('hidden')) return;
-        let seen = false;
-        try {
-            seen = localStorage.getItem(this.infoIntroStorageKey) === '1';
-        } catch (error) {
-            seen = false;
-        }
-        if (seen) {
-            this.homeInfoIntroEl.classList.add('hidden');
-            return;
-        }
-        // First-time user: record version so NEW badge shows on next version update
-        try { localStorage.setItem(this.infoNewBadgeStorageKey, PITCH_TRAINER_APP_VERSION); } catch (_) {}
-        this.homeInfoIntroEl.classList.remove('hidden');
-        try {
-            localStorage.setItem(this.infoIntroStorageKey, '1');
-        } catch (error) {
-            // ignore localStorage failures and still show once for this session
-        }
-        clearTimeout(this._infoIntroTimer);
-        this._infoIntroTimer = setTimeout(() => this.dismissInfoIntro(), 7000);
-    }
-
-    dismissInfoIntro() {
-        if (!this.homeInfoIntroEl) return;
-        this.homeInfoIntroEl.classList.add('hidden');
-        if (this._infoIntroTimer) {
-            clearTimeout(this._infoIntroTimer);
-            this._infoIntroTimer = null;
-        }
-    }
-
-    maybeShowInfoNewBadge() {
-        if (!this.homeInfoNewBadgeEl) return;
-        this.homeInfoNewBadgeEl.classList.add('hidden');
-    }
-
-    dismissInfoNewBadge() {
-        if (!this.homeInfoNewBadgeEl) return;
-        this.homeInfoNewBadgeEl.classList.add('hidden');
-        if (this._infoNewBadgeTimer) {
-            clearTimeout(this._infoNewBadgeTimer);
-            this._infoNewBadgeTimer = null;
-        }
     }
 
     /** 将来の多言語切り替え用。未定義のままだと例外になるため空実装 */
