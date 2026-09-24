@@ -54,19 +54,19 @@ test('Standard and Pro manifests use distinct edition identities and icon sets',
 });
 
 test('each edition references only its formal favicon, Apple icon, and cache-busted manifest', () => {
-    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.62\.0">/);
-    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.62\.0/);
-    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.62\.0/);
-    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.62\.0">/);
-    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.62\.0/);
-    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.62\.0/);
+    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.63\.0">/);
+    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.63\.0/);
+    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.63\.0/);
+    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.63\.0">/);
+    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.63\.0/);
+    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.63\.0/);
     assert.doesNotMatch(standardHtml, /data:,/);
     assert.doesNotMatch(proHtml, /data:,/);
 });
 
 test('every in-app Cruise Port icon uses its matching edition asset with the current cache key', () => {
-    assert.match(standardHtml, /assets\/app-icons\/standard\/icon-192\.png\?v=0\.62\.0/);
-    assert.match(proHtml, /assets\/app-icons\/pro\/icon-192\.png\?v=0\.62\.0/);
+    assert.match(standardHtml, /assets\/app-icons\/standard\/icon-192\.png\?v=0\.63\.0/);
+    assert.match(proHtml, /assets\/app-icons\/pro\/icon-192\.png\?v=0\.63\.0/);
     const syncCenterUi = readFileSync(path.join(directory, 'sync-center-ui.js'), 'utf8');
     const portIcon = /assets\/app-icons\/\$\{edition === 'pro' \? 'pro' : 'standard'\}\/icon-192\.png\?v=0\.59\.3/g;
     assert.equal([...syncCenterUi.matchAll(portIcon)].length, 2);

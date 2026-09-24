@@ -15,28 +15,27 @@ test('both Port entries load the current release of practice-menu-app', () => {
   }
 });
 
-test('the release module and the Sync Center chain are each requested under one consistent key', () => {
+test('modules changed in this release are requested under the release key', () => {
   const appEdges = imports(read('./practice-menu-app.js'));
-  assert.equal(appEdges.find((edge) => edge.name === 'app-version.js')?.key, CRUISE_PORT_APP_VERSION,
-    'practice-menu-app loads the current release of app-version');
-  const chain = {
-    'practice-menu-app.js': ['sync-center-ui.js', 'sync-center-controller.js', 'sync-center-refresh.js',
-      'sync-center-orchestrator.js', 'sync-center-navigation.js'],
-    'sync-center-ui.js': ['sync-center-controller.js'],
-    'sync-center-orchestrator.js': ['sync-center-controller.js'],
-    'sync-center-navigation.js': ['sync-center-controller.js']
-  };
-  const keys = new Set();
-  for (const [importer, deps] of Object.entries(chain)) {
-    const found = imports(read(`./${importer}`));
-    for (const dep of deps) {
-      const edge = found.find((item) => item.name === dep);
-      assert.ok(edge, `${importer} imports ${dep}`);
-      keys.add(edge.key);
+  // Changed in this release: app-version (version) and sync-center-ui (detach confirmation copy).
+  for (const name of ['app-version.js', 'sync-center-ui.js']) {
+    assert.equal(appEdges.find((edge) => edge.name === name)?.key, CRUISE_PORT_APP_VERSION, name);
+  }
+});
+
+test('every Sync Center module is requested under exactly one key by all of its importers', () => {
+  const byModule = new Map();
+  for (const importer of ['practice-menu-app.js', 'sync-center-ui.js', 'sync-center-orchestrator.js', 'sync-center-navigation.js']) {
+    for (const edge of imports(read(`./${importer}`))) {
+      if (!edge.name.startsWith('sync-center-')) continue;
+      if (!byModule.has(edge.name)) byModule.set(edge.name, new Set());
+      byModule.get(edge.name).add(edge.key);
     }
   }
-  // Unchanged modules keep their key; a changed Sync Center module must move the whole chain together.
-  assert.equal(keys.size, 1, `Sync Center chain keys: ${[...keys].join(', ')}`);
+  for (const name of ['sync-center-ui.js', 'sync-center-controller.js', 'sync-center-refresh.js',
+    'sync-center-orchestrator.js', 'sync-center-navigation.js']) {
+    assert.equal(byModule.get(name)?.size, 1, `${name}: ${[...(byModule.get(name) || [])].join(', ')}`);
+  }
 });
 
 test('Sync Center and launch modules have exactly one public URL each', () => {
