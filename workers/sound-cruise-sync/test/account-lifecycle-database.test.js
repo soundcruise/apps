@@ -563,6 +563,96 @@ test('app environment revoke targets one app device and preserves its Account en
   db.close();
 });
 
+function seedSafetyReport(db, { appDevice, accountId = IDS.account, membershipId, appId, state,
+  reportedAt = 3_000, attentionCount = 0 }) {
+  db.raw.prepare(`
+    INSERT INTO sync_app_device_sync_safety
+      (app_device_id, account_id, membership_id, app_id, state, last_successful_sync_at, reported_at, attention_count)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(appDevice, accountId, membershipId, appId, state, state === 'clean' ? reportedAt : 1_500,
+    reportedAt, attentionCount);
+}
+
+function seedExtraAppDevice(db, { id, userId, appId, membershipId, accountDevice, label, now = 1_100 }) {
+  db.raw.prepare(`
+    INSERT INTO sync_devices (
+      id, user_id, app_id, credential_version, credential_verifier,
+      label, last_cursor, created_at, last_seen_at, revoked_at,
+      pairing_pending_at, paired_at
+    ) VALUES (?, ?, ?, 1, ?, ?, 0, ?, ?, NULL, NULL, ?)
+  `).run(id, userId, appId, hex(id.slice(-1)), label, now, now, now);
+  db.raw.prepare(`
+    INSERT INTO sync_membership_device_links (
+      account_id, membership_id, app_device_id, account_device_id, linked_at
+    ) VALUES (?, ?, ?, ?, ?)
+  `).run(IDS.account, membershipId, id, accountDevice, now);
+}
+
+test('active app devices carry their own latest safety report; revoked history does not', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const chordAndroid = '40000000-0000-4000-8000-000000000011';
+  const chordIdle = '40000000-0000-4000-8000-000000000012';
+  const chordError = '40000000-0000-4000-8000-000000000013';
+  for (const [id, label] of [[chordAndroid, 'Android Chrome'], [chordIdle, 'chord'], [chordError, 'chord']]) {
+    seedExtraAppDevice(db, { id, userId: IDS.chordUser, appId: 'chord',
+      membershipId: IDS.chordMembership, accountDevice: IDS.accountB, label });
+  }
+  seedSafetyReport(db, { appDevice: IDS.chordDevice, membershipId: IDS.chordMembership, appId: 'chord',
+    state: 'clean', reportedAt: 3_100 });
+  seedSafetyReport(db, { appDevice: chordAndroid, membershipId: IDS.chordMembership, appId: 'chord',
+    state: 'pending', reportedAt: 3_200 });
+  seedSafetyReport(db, { appDevice: chordError, membershipId: IDS.chordMembership, appId: 'chord',
+    state: 'error', reportedAt: 3_300 });
+  seedSafetyReport(db, { appDevice: IDS.pitchDevice, membershipId: IDS.pitchMembership, appId: 'pitch',
+    state: 'attention', reportedAt: 3_400, attentionCount: 3 });
+  const repository = createD1AccountLifecycleRepository(db);
+  const listed = await repository.listAppEnvironments({ accountId: IDS.account, accountDeviceId: IDS.accountA });
+  const byId = Object.fromEntries(listed.map((device) => [device.id, device]));
+  assert.deepEqual(byId[IDS.chordDevice].lastReport, { state: 'clean', reportedAt: 3_100, attentionCount: 0 });
+  assert.deepEqual(byId[chordAndroid].lastReport, { state: 'pending', reportedAt: 3_200, attentionCount: 0 });
+  assert.deepEqual(byId[chordError].lastReport, { state: 'error', reportedAt: 3_300, attentionCount: 0 });
+  assert.deepEqual(byId[IDS.pitchDevice].lastReport, { state: 'attention', reportedAt: 3_400, attentionCount: 3 });
+  assert.equal(byId[chordIdle].lastReport, null, 'a device that never reported is null, not an error');
+  assert.equal(byId[IDS.fretboardDevice].lastReport, null);
+  assert.equal(byId[chordAndroid].label, 'Android Chrome');
+  assert.equal(byId[chordAndroid].isCurrent, false);
+  assert.equal(byId[IDS.chordDevice].isCurrent, true);
+  for (const device of listed) {
+    assert.deepEqual(Object.keys(device).sort(), ['appId', 'createdAt', 'id', 'isCurrent', 'label',
+      'lastReport', 'lastSeenAt', 'revokedAt'], 'existing fields are unchanged and only lastReport is added');
+    assert.equal('lastSuccessfulSyncAt' in (device.lastReport || {}), false);
+  }
+
+  db.raw.prepare('UPDATE sync_devices SET revoked_at = 4_000 WHERE id = ?').run(chordError);
+  const afterRevoke = await repository.listAppEnvironments({ accountId: IDS.account, accountDeviceId: IDS.accountA });
+  const revoked = afterRevoke.find((device) => device.id === chordError);
+  assert.equal(revoked.revokedAt, 4_000);
+  assert.equal('lastReport' in revoked, false, 'revoked history does not carry a report payload');
+  db.close();
+});
+
+test('the report join never mixes in another Account, membership, or app', async () => {
+  const db = createSqliteD1();
+  seedAccount(db);
+  const unrelated = seedUnrelatedAccount(db);
+  seedSafetyReport(db, { appDevice: IDS.chordDevice, accountId: unrelated.accountId,
+    membershipId: IDS.chordMembership, appId: 'chord', state: 'attention', attentionCount: 9 });
+  seedSafetyReport(db, { appDevice: IDS.fretboardDevice, membershipId: IDS.pitchMembership,
+    appId: 'fretboard', state: 'error' });
+  seedSafetyReport(db, { appDevice: IDS.rhythmDevice, membershipId: IDS.rhythmMembership,
+    appId: 'pitch', state: 'error' });
+  const repository = createD1AccountLifecycleRepository(db);
+  const listed = await repository.listAppEnvironments({ accountId: IDS.account, accountDeviceId: IDS.accountA });
+  for (const id of [IDS.chordDevice, IDS.fretboardDevice, IDS.rhythmDevice]) {
+    assert.equal(listed.find((device) => device.id === id).lastReport, null, id);
+  }
+  assert.deepEqual(await repository.listAppEnvironments({
+    accountId: unrelated.accountId, accountDeviceId: unrelated.deviceId
+  }), [], 'another Account sees none of these devices or reports');
+  db.close();
+});
+
 test('current Port environment detach follows invitation issuer links only and preserves Account data', async () => {
   const db = createSqliteD1();
   seedAccount(db);

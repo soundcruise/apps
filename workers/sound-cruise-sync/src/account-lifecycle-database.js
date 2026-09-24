@@ -586,28 +586,46 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
     }));
   }
 
+  // Active app devices also carry the latest safety report that device made for this same
+  // Account, membership, and app (lastReport: null when it has never reported). The report is
+  // only what the app last said; the time it was made is reportedAt, never lastSeenAt.
   async function listAppEnvironments(identity) {
     const rows = await db.prepare(`
       SELECT ad.id, ad.app_id, ad.label, ad.created_at, ad.last_seen_at, ad.revoked_at,
-             l.account_device_id
+             l.account_device_id,
+             s.state AS report_state, s.reported_at AS report_reported_at,
+             s.attention_count AS report_attention_count
       FROM sync_membership_device_links l
       JOIN sync_account_memberships m
         ON m.id = l.membership_id AND m.account_id = l.account_id
       JOIN sync_devices ad ON ad.id = l.app_device_id
+      LEFT JOIN sync_app_device_sync_safety s
+        ON s.app_device_id = ad.id AND s.account_id = l.account_id
+          AND s.membership_id = l.membership_id AND s.app_id = m.app_id
+          AND ad.revoked_at IS NULL
       WHERE l.account_id = ? AND m.app_id <> 'port'
       ORDER BY CASE m.app_id WHEN 'pitch' THEN 1 WHEN 'fretboard' THEN 2
         WHEN 'rhythm' THEN 3 WHEN 'chord' THEN 4 ELSE 5 END,
         ad.created_at ASC, ad.id ASC
     `).bind(identity.accountId).all();
-    return (rows?.results || []).map((row) => ({
-      id: row.id,
-      appId: row.app_id,
-      label: row.label,
-      createdAt: Number(row.created_at),
-      lastSeenAt: Number(row.last_seen_at),
-      revokedAt: row.revoked_at == null ? null : Number(row.revoked_at),
-      isCurrent: row.account_device_id === identity.accountDeviceId
-    }));
+    return (rows?.results || []).map((row) => {
+      const device = {
+        id: row.id,
+        appId: row.app_id,
+        label: row.label,
+        createdAt: Number(row.created_at),
+        lastSeenAt: Number(row.last_seen_at),
+        revokedAt: row.revoked_at == null ? null : Number(row.revoked_at),
+        isCurrent: row.account_device_id === identity.accountDeviceId
+      };
+      if (device.revokedAt != null) return device;
+      device.lastReport = row.report_state == null ? null : {
+        state: row.report_state,
+        reportedAt: Number(row.report_reported_at),
+        attentionCount: Number(row.report_attention_count || 0)
+      };
+      return device;
+    });
   }
 
   async function revokeEnvironment(identity, input) {

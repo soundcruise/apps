@@ -816,6 +816,16 @@ test('Account authority can revoke one app environment and cancel app deletion b
   assert.equal(listed.appDevices.filter((device) =>
     device.appId === 'pitch' && device.revokedAt == null).length, 1);
   assert.equal(JSON.stringify(listed).includes('credential_verifier'), false);
+  const listedPitch = listed.appDevices.find((device) => device.id === targetApp.deviceId);
+  assert.equal(listedPitch.lastReport, null, 'a newly joined device has not reported yet');
+  assert.equal(listedPitch.label, 'Pitch environment');
+  for (const forbidden of ['verifier', 'credential', 'Authorization', 'recovery', 'joinCode', 'payload',
+    'lastSuccessfulSyncAt', 'last_successful_sync_at', 'userAgent', 'ip']) {
+    assert.equal(JSON.stringify(listed.appDevices).includes(`"${forbidden}`), false, forbidden);
+  }
+  response = await handleRequest(jsonRequest('/v2/accounts/devices', undefined,
+    { credential: targetApp.credential }), env);
+  assert.equal(response.status, 401, 'an app credential cannot list Account devices or their reports');
 
   const revokeBody = {
     operationId: crypto.randomUUID(), appId: 'pitch', appDeviceId: targetApp.deviceId
