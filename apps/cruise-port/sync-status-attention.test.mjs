@@ -18,9 +18,21 @@ function summary(overrides = {}) {
 
 function controller(responses, { online = () => true } = {}) {
   const calls = { summary: 0, devices: 0 };
+  // devices mirrors the summary it was fetched with, so both describe one consistent snapshot.
+  let last = null;
   class AccountClient {
-    async summary() { calls.summary += 1; const next = responses.shift(); if (next instanceof Error) throw next; return next; }
-    async devices() { calls.devices += 1; return { devices: [], appDevices: [] }; }
+    async summary() { calls.summary += 1; const next = responses.shift(); if (next instanceof Error) throw next; last = next; return next; }
+    async devices() {
+      calls.devices += 1;
+      return { devices: [], appDevices: (last?.memberships || []).map((item) => ({
+        id: `${item.appId}-0000-target`, appId: item.appId, label: item.appId, createdAt: 1, lastSeenAt: 1,
+        revokedAt: null, isCurrent: false,
+        lastReport: item.removalSafety === 'safe' ? { state: 'clean', reportedAt: 2, attentionCount: 0 }
+          : item.removalSafety === 'attention'
+            ? { state: 'attention', reportedAt: 2, attentionCount: item.attentionConflictCount || 0 }
+            : { state: 'pending', reportedAt: 2, attentionCount: 0 }
+      })) };
+    }
   }
   const accountRoot = { AccountClient, core: {}, storage: { async getAccount() { return { accountCredential: 'dummy-credential' }; } } };
   return { calls, ctrl: createSyncCenterController({

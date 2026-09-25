@@ -27,7 +27,8 @@ const APP_STATUS_PRESENTATIONS = Object.freeze({
     connecting: Object.freeze({ state: 'connecting', label: '接続中' }),
     deleting: Object.freeze({ state: 'deleting', label: '削除中' }),
     offline: Object.freeze({ state: 'offline', label: 'オフライン' }),
-    unavailable: Object.freeze({ state: 'unavailable', label: '状態を取得できません' })
+    unavailable: Object.freeze({ state: 'unavailable', label: '状態を取得できません' }),
+    recheck: Object.freeze({ state: 'recheck', label: '状態を再確認してください' })
 });
 
 // This is presentation-only.  The membership status and removal-safety
@@ -45,6 +46,9 @@ export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
     if (app.status === 'initial') return APP_STATUS_PRESENTATIONS.syncing;
     if (['unset', 'prepared', 'detached'].includes(app.status)) return APP_STATUS_PRESENTATIONS.detached;
     if (app.status === 'synced') {
+        // The summary and the devices list disagree: neither is known to be newer, so the row
+        // claims neither 「クラウド同期 利用可能」 nor 「確認が必要」.
+        if (app.snapshot === 'mismatch') return APP_STATUS_PRESENTATIONS.recheck;
         return app.removalSafety === 'attention' || Number(app.attentionCount) > 0
             ? APP_STATUS_PRESENTATIONS.attention : APP_STATUS_PRESENTATIONS.available;
     }
@@ -117,7 +121,30 @@ function safeCount(value) {
     return Number.isSafeInteger(value) && value >= 0 ? value : null;
 }
 
-function normalizeApp(app, membership, appEnvironments = [], accountDeleting = false, now = Date.now()) {
+// The Account summary and the devices list are separate responses, not one atomic snapshot.
+// For a ready app, the targets' own reports are reduced with the Worker's removalSafety rule
+// (any attention/error → attention; every active target clean → safe; otherwise unknown) and
+// compared with the summary. 'unverified' means there is nothing reliable to compare.
+export function deriveTargetSafety(environments) {
+    if (!environments.length || environments.some((target) => !target.reportKnown)) return null;
+    const states = environments.map((target) => target.lastReport?.state || null);
+    if (states.some((state) => state === 'attention' || state === 'error')) return 'attention';
+    return states.every((state) => state === 'clean') ? 'safe' : 'unknown';
+}
+
+function snapshotConsistency(status, membership, safety, environments, devicesReady) {
+    if (status !== 'synced' || !devicesReady) return 'unverified';
+    if (safeCount(membership?.activeAppDeviceCount) !== environments.length) return 'mismatch';
+    const derived = deriveTargetSafety(environments);
+    if (derived == null) return 'unverified';
+    if (derived !== safety) return 'mismatch';
+    const reportedItems = environments.reduce((sum, target) => sum +
+        (target.lastReport?.state === 'attention' ? target.lastReport.attentionCount || 0 : 0), 0);
+    return reportedItems === (safeCount(membership?.attentionConflictCount) || 0) ? 'aligned' : 'mismatch';
+}
+
+function normalizeApp(app, membership, appEnvironments = [], accountDeleting = false, now = Date.now(),
+    devicesReady = false) {
     const status = membershipPresentation(membership, { accountDeleting, now });
     const activeAppDeviceCount = safeCount(membership?.activeAppDeviceCount);
     const deleteGrace = isAppDeleteGrace(membership, accountDeleting, now);
@@ -138,6 +165,7 @@ function normalizeApp(app, membership, appEnvironments = [], accountDeleting = f
         removalSafetyLabel: safety === 'safe' ? '同期完了'
             : safety === 'attention' ? '確認が必要' : '同期を確認してください',
         environments: Object.freeze(appEnvironments),
+        snapshot: snapshotConsistency(status.key, membership, safety, appEnvironments, devicesReady),
         // This does not change four-app progress: it represents a second
         // browser/PWA/container for an already ready app dataset.
         canAddEnvironment: status.key === 'synced' && (activeAppDeviceCount || 0) > 0
@@ -188,7 +216,7 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
     }));
     const apps = Object.freeze(SYNC_CENTER_APPS.map((app) => normalizeApp(
         app, byApp.get(app.id), appEnvironments.filter((environment) => environment.appId === app.id),
-        deleting, now
+        deleting, now, Array.isArray(devicesResponse?.appDevices)
     )));
     return Object.freeze({
         kind: 'ready',

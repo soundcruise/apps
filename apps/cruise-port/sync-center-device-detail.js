@@ -23,7 +23,7 @@ export const SYNC_DETAIL_COPY = Object.freeze({
     offline: 'オフラインのため、最新の状態を確認できません。オンラインに戻ると確認できます。',
     summaryUnavailable: '最新の状態を取得できませんでした。通信状態を確認して、もう一度確認してください。',
     devicesUnavailable: '同期先の詳細情報を取得できませんでした',
-    mismatch: '最新の同期先情報を確認できませんでした。もう一度確認してください。',
+    mismatch: 'アカウント情報と同期先の最新情報に差があります。もう一度確認してください。',
     noDevices: '同期先はありません',
     footnote: '各同期先のアプリから届いた、最後の報告を表示しています。',
     current: 'このCruise Portから接続'
@@ -133,20 +133,19 @@ export function describeAppSyncDetail(app, { kind = 'ready', devicesState = 'rea
         return Object.freeze({ cloudText, targets: null, notice: SYNC_DETAIL_COPY.devicesUnavailable,
             guidance: Object.freeze([]), retry: true });
     }
+    // Mismatched snapshots: no target is listed or singled out, only a recheck is offered.
+    if (app?.snapshot === 'mismatch') {
+        return Object.freeze({ cloudText, targets: null, notice: SYNC_DETAIL_COPY.mismatch,
+            guidance: Object.freeze([]), retry: true });
+    }
     const rows = describeTargets(app, formatTime);
-    const summaryAttention = app?.removalSafety === 'attention' || Number(app?.attentionCount) > 0;
-    const targetsReportProblem = rows.some((row) => PROBLEM_STATES.has(row.state));
-    const summaryCount = Number.isSafeInteger(app?.activeAppDeviceCount) ? app.activeAppDeviceCount : null;
-    // The two responses are separate snapshots. When they disagree, no target is singled out.
-    const mismatch = summaryAttention !== targetsReportProblem ||
-        (summaryCount != null && summaryCount !== rows.length);
     return Object.freeze({
         cloudText,
         targets: Object.freeze(rows),
         emptyText: rows.length ? null : SYNC_DETAIL_COPY.noDevices,
-        notice: mismatch ? SYNC_DETAIL_COPY.mismatch : null,
-        guidance: Object.freeze(mismatch ? [] : guidanceFor(app, rows)),
+        notice: null,
+        guidance: Object.freeze(guidanceFor(app, rows)),
         footnote: rows.length ? SYNC_DETAIL_COPY.footnote : null,
-        retry: mismatch
+        retry: false
     });
 }

@@ -280,21 +280,97 @@ test('15: summary failure never infers cloud health from devices', async () => {
   assert.doesNotMatch(d.text(d.panel), /利用できます|前回の完了報告あり/);
 });
 
-test('16: summary/devices disagreement never singles out a target', () => {
-  const allClean = chordPresentation([target('chord', IPHONE, clean(), { label: 'iPhone Safari' }),
-    target('chord', ANDROID, clean(), { label: 'Android Chrome' })], { removalSafety: 'attention', attentionConflictCount: 1 });
-  const detail = detailOf(allClean);
-  assert.equal(detail.notice, '最新の同期先情報を確認できませんでした。もう一度確認してください。');
+const MISMATCH = 'アカウント情報と同期先の最新情報に差があります。もう一度確認してください。';
+
+function assertNeutralRecheck(presentation, message) {
+  const app = chord(presentation);
+  assert.equal(app.snapshot, 'mismatch', message);
+  assert.deepEqual({ ...app.presentationStatus }, { state: 'recheck', label: '状態を再確認してください' }, message);
+  let rechecks = 0;
+  const d = renderChord(presentation, { onRecheck: () => { rechecks += 1; } });
+  assert.equal(d.chip.textContent, '状態を再確認してください');
+  const text = d.text(d.panel);
+  assert.match(text, /アカウント情報と同期先の最新情報に差があります。もう一度確認してください。/);
+  assert.doesNotMatch(text, /登録名|同期先 [0-9A-F]{4}|前回の|最新の完了報告|を開くと|を開いて|確認が必要|利用可能/,
+    'no target is listed, named, or blamed and no state is asserted');
+  const detail = detailOf(presentation);
+  assert.equal(detail.targets, null);
   assert.deepEqual([...detail.guidance], []);
-  assert.equal(detail.retry, true);
-  const newerProblem = chordPresentation([target('chord', ANDROID, attention(1), { label: 'Android Chrome' })],
-    { removalSafety: 'safe' });
-  assert.equal(chord(newerProblem).presentationStatus.state, 'available');
-  assert.equal(detailOf(newerProblem).notice, '最新の同期先情報を確認できませんでした。もう一度確認してください。');
-  assert.deepEqual([...detailOf(newerProblem).guidance], []);
-  const countDiffers = normalizeSyncCenterSummary(summary({ chord: { activeAppDeviceCount: 2 } }),
-    { devices: [], appDevices: [target('chord', IPHONE, clean())] });
-  assert.equal(detailOf(countDiffers).notice, '最新の同期先情報を確認できませんでした。もう一度確認してください。');
+  assert.equal(detail.notice, MISMATCH);
+  const retry = d.panel.children.at(-1);
+  assert.equal(retry.textContent, 'もう一度確認');
+  retry.click();
+  assert.equal(rechecks, 1);
+  assertNoLaunch(d, d.row);
+}
+
+test('16a: summary safe / targets report attention → neutral recheck, never 利用可能', () => {
+  assertNeutralRecheck(chordPresentation([target('chord', IPHONE, clean(), { label: 'iPhone Safari' }),
+    target('chord', ANDROID, attention(1), { label: 'Android Chrome' })], { removalSafety: 'safe' }), 'safe/attention');
+});
+
+test('16b: summary safe / targets report error → neutral recheck', () => {
+  assertNeutralRecheck(chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, error())],
+    { removalSafety: 'safe' }), 'safe/error');
+});
+
+test('16c: summary attention / every target clean → neutral recheck, not a stale 確認が必要', () => {
+  assertNeutralRecheck(chordPresentation([target('chord', IPHONE, clean(), { label: 'iPhone Safari' }),
+    target('chord', ANDROID, clean(), { label: 'Android Chrome' })],
+  { removalSafety: 'attention', attentionConflictCount: 1 }), 'attention/clean');
+});
+
+test('16d: summary unknown / a target reports attention → neutral recheck', () => {
+  assertNeutralRecheck(chordPresentation([target('chord', IPHONE, pending()), target('chord', ANDROID, attention(2))],
+    { removalSafety: 'unknown' }), 'unknown/attention');
+});
+
+test('16e: summary safe / a target still pending → neutral recheck (safe needs every target clean)', () => {
+  assertNeutralRecheck(chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, pending())],
+    { removalSafety: 'safe' }), 'safe/pending');
+});
+
+test('16f: attention item totals that disagree are a mismatch; record count is never used', () => {
+  assertNeutralRecheck(chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, attention(2))],
+    { removalSafety: 'attention', attentionConflictCount: 5 }), 'attention count');
+  const aligned = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, attention(2))],
+    { removalSafety: 'attention', attentionConflictCount: 2, dataset: { state: 'ready', schemaVersion: 1, recordCount: 2 } });
+  assert.equal(chord(aligned).snapshot, 'aligned');
+  assert.equal(chord(aligned).presentationStatus.label, '確認が必要');
+});
+
+test('16g: a different number of active targets is a mismatch', () => {
+  assertNeutralRecheck(normalizeSyncCenterSummary(summary({ chord: { activeAppDeviceCount: 2 } }),
+    { devices: [], appDevices: [target('chord', IPHONE, clean())] }), 'count');
+});
+
+test('aligned snapshots keep their meaning', () => {
+  const safe = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, clean())]);
+  assert.equal(chord(safe).snapshot, 'aligned');
+  assert.equal(chord(safe).presentationStatus.label, 'クラウド同期 利用可能');
+  const unknown = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, pending()),
+    target('chord', 'c0ffee00-0000-4000-8000-000000000003', null)], { removalSafety: 'unknown' });
+  assert.equal(chord(unknown).snapshot, 'aligned');
+  assert.equal(chord(unknown).presentationStatus.label, 'クラウド同期 利用可能', 'pending/no report alone is not 確認が必要');
+  const attentionAligned = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, error())],
+    { removalSafety: 'attention' });
+  assert.equal(chord(attentionAligned).snapshot, 'aligned');
+  assert.equal(chord(attentionAligned).presentationStatus.label, '確認が必要');
+  assert.equal(detailOf(attentionAligned).targets[1].state, 'error', 'agreeing snapshots show target detail');
+  const noDevices = normalizeSyncCenterSummary(summary({ chord: { removalSafety: 'unknown' } }), null);
+  assert.equal(chord(noDevices).snapshot, 'unverified', 'a devices failure is not a mismatch');
+  assert.equal(chord(noDevices).presentationStatus.label, 'クラウド同期 利用可能');
+  const legacy = normalizeSyncCenterSummary(summary(), { devices: [], appDevices: [
+    { id: IPHONE, appId: 'chord', label: 'x', createdAt: 1, lastSeenAt: 1, revokedAt: null, isCurrent: false }] });
+  assert.equal(chord(legacy).snapshot, 'unverified', 'targets without report data cannot be compared');
+});
+
+test('the recheck state is neutral, distinct from checking and offline', () => {
+  const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+  const rule = css.match(/\.sync-center-app-status-chip--recheck \{([^}]*)\}/)?.[1] || '';
+  assert.match(rule, /border-style: dashed/);
+  assert.doesNotMatch(rule, /232, 176, 104|232, 111, 120|ead39b/, 'no attention/danger colours');
+  assert.notEqual('状態を再確認してください', '確認中…');
 });
 
 test('17/18: offline and checking never show stale target detail as current', () => {
