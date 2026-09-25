@@ -101,7 +101,7 @@ test('2/3/4: pending, no report, and clean + pending stay ✓ 同期済み witho
     const text = view.text(view.panel);
     assert.doesNotMatch(text, /確認が必要|要確認|エラー|解決しない場合/);
     assert.deepEqual([...new Set(view.walk(view.panel).filter((node) => node.tagName === 'button').map((node) => node.textContent))],
-      ['名前を変更'], 'no action demanded; only the optional rename (N1)');
+      ['名前を変更', '解除'], 'no action demanded; only the optional per-target rename / detach');
   }
 });
 
@@ -304,7 +304,7 @@ test('20: no app launch CTA returns in any state', () => {
     const view = render(presentation);
     assertNoLaunch(view);
     const buttons = view.walk(view.row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-    for (const label of buttons) assert.ok(['i', 'もう一度確認', '同期を解除', '名前を変更'].includes(label), label);
+    for (const label of buttons) assert.ok(['i', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label), label);
   }
 });
 

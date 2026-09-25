@@ -77,7 +77,7 @@ function assertNoLaunch(d, row) {
     assert.equal(node.tagName === 'a' && /cruise/i.test(node.href || ''), false, 'no app link');
   }
   const buttons = d.walk(row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-  for (const label of buttons) assert.ok(['i', 'もう一度確認', '同期を解除', '名前を変更'].includes(label), label);
+  for (const label of buttons) assert.ok(['i', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label), label);
 }
 
 test('1: all targets clean — simple row, ⓘ lists each target with 前回の完了報告あり', () => {

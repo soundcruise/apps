@@ -167,6 +167,12 @@ test('ⓘ rows render the name, second line and an accessible 名前を変更 fo
   assert.deepEqual({ ...rename.dataset }, { syncTargetRename: 'app', syncTargetId: PIXEL, syncTargetApp: 'chord',
     syncTargetContext: 'コードクルーズ', syncTargetUserLabel: '<b>Pixel</b>', syncTargetRegisteredLabel: 'Android Chrome',
     syncTargetShortId: '7A3E' });
+  const revoke = dom.walk(panel).find((node) => node.dataset.syncAppEnvironmentRevoke);
+  assert.equal(revoke.textContent, '解除', 'ⓘ offers the same per-target detach as target management');
+  assert.equal(revoke.getAttribute('aria-label'), '<b>Pixel</b>を解除');
+  assert.equal(revoke.dataset.syncAppEnvironmentRevoke, PIXEL, 'revoke authority is the device ID');
+  assert.equal(revoke.dataset.syncAppEnvironmentApp, 'chord');
+  assert.equal(revoke.dataset.syncTargetLabel, '「<b>Pixel</b>」（コードクルーズ・7A3E）', 'the confirmation names the exact target');
   const ui = readFileSync(new URL('./sync-center-ui.js', import.meta.url), 'utf8');
   const rename2 = readFileSync(new URL('./sync-target-rename.js', import.meta.url), 'utf8');
   assert.doesNotMatch(ui + rename2, /innerHTML|insertAdjacentHTML|outerHTML/, 'names are only written via textContent/value');

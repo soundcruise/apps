@@ -75,9 +75,23 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
                 if (target.meta.length) appendText(copy, 'small', 'sync-center-app-info-meta', target.meta.join('・'));
                 item.append(copy);
                 if (target.id && renameEnabled) {
-                    item.append(createRenameButton({ kind: 'app', id: target.id, appId: app.id, context: app.name,
+                    const actions = document.createElement('div');
+                    actions.className = 'sync-center-app-info-target-actions';
+                    actions.append(createRenameButton({ kind: 'app', id: target.id, appId: app.id, context: app.name,
                         userLabel: target.userLabel, registeredLabel: target.registeredLabel,
                         shortId: target.shortId, name: target.name }));
+                    // Same data attributes as the target-management 解除, so the same named confirmation
+                    // (and the same device-ID revoke) is used; nothing is removed without confirming.
+                    const revoke = document.createElement('button');
+                    revoke.type = 'button';
+                    revoke.className = 'sync-center-target-revoke';
+                    revoke.textContent = '解除';
+                    revoke.setAttribute('aria-label', `${target.name}を解除`);
+                    revoke.dataset.syncAppEnvironmentRevoke = target.id;
+                    revoke.dataset.syncAppEnvironmentApp = app.id;
+                    revoke.dataset.syncTargetLabel = describeTargetForConfirm(target, app.name);
+                    actions.append(revoke);
+                    item.append(actions);
                 }
                 return item;
             }));
