@@ -66,5 +66,5 @@ test('only calendar note time grows one restrained step and storage stays v2', (
 });
 
 test('SP6.11 UI remains covered in Cruise Port 0.59.3', () => {
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.67\.0'/);
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.68\.0'/);
 });
