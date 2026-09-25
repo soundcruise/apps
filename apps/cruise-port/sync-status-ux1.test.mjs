@@ -284,8 +284,9 @@ test('18: Safe-to-remove authority and labels are unchanged', () => {
   assert.equal(flagged.removalSafetyLabel, '確認が必要');
 });
 
-test('19: detach copy is unchanged', () => {
-  assert.equal(SYNC_DETACH_NOTE, 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、「同期済み」になっていることを確認してください。');
+test('19: detach copy names the app\'s own sync status; the condition itself is unchanged', () => {
+  assert.equal(SYNC_DETACH_NOTE, 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。');
+  assert.doesNotMatch(SYNC_DETACH_NOTE, /✓|Cruise Portの/, 'Port\'s ✓ 同期済み is never the removal basis');
   const view = render(presentationFor([target(PIXEL, pending())], { removalSafety: 'unknown' }));
   assert.equal(view.action.textContent, '同期を解除');
   assert.equal(view.action.dataset.syncAppDetach, 'chord');
@@ -323,4 +324,12 @@ test('copy stays plain: no internal terms and no long disclaimer on the normal r
   assert.ok(SYNC_DETAIL_COPY.synced.length <= 45, 'the ⓘ explanation is one short sentence');
   assert.equal(describeAppSyncDetail(chordOf(presentationFor([target(PIXEL, clean())]))).support, false,
     'no support pointer on the normal status');
+});
+
+test('narrow layouts keep the app name readable next to a long disabled action', () => {
+  const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.sync-center-app-row-actions \{[^}]*max-width: 132px;/, 'wide phones cap the action column');
+  assert.match(css, /@media \(max-width: 359px\) \{[^@]*\.sync-center-app-row-actions \{ max-width: 104px; \}/,
+    '320px keeps 「未接続」 and the app name on readable lines');
+  assert.match(css, /@media \(max-width: 359px\) \{[^@]*padding-inline: 6px;/, '「再確認が必要」 fits at 320px');
 });

@@ -2389,6 +2389,8 @@ textarea:focus-visible {
     display: grid;
     gap: 7px;
     justify-items: stretch;
+    /* A long disabled label (未接続, no Account yet) must not squeeze the app name column. */
+    max-width: 132px;
 }
 .sync-center-app-row-actions .sync-center-app-action { text-align: center; }
 .sync-center-environment-actions {
@@ -6154,6 +6156,7 @@ body.metronome-preset-open {
     .sync-center-app-status-line--app { flex-wrap: wrap; }
     /* Keeps 「再確認が必要」 on one line in the 320px column. */
     .sync-center-app-status-line--app .sync-center-app-status-chip { padding-inline: 6px; }
+    .sync-center-app-row-actions { max-width: 104px; }
 }
 .sync-center-app-status-line--app .sync-center-app-status-chip { flex: 0 1 auto; min-width: 0; border-radius: 10px; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
 .sync-center-app-info-toggle { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; margin: -4px 0; padding: 0; border: 1px solid rgba(205, 205, 205, 0.42); border-radius: 50%; background: transparent; color: var(--port-muted); font: italic 650 calc(0.78rem * var(--font-scale)) / 1 Georgia, 'Times New Roman', serif; cursor: pointer; appearance: none; -webkit-appearance: none; }

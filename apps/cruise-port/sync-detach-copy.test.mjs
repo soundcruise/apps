@@ -82,7 +82,8 @@ test('misleading scope claims are gone from every disconnect confirmation', () =
 });
 
 test('the unsynced-change note is shown for disconnects, in both editions, without claiming certainty', () => {
-  assert.equal(SYNC_DETACH_NOTE, 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、「同期済み」になっていることを確認してください。');
+  assert.equal(SYNC_DETACH_NOTE, 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。');
+  assert.doesNotMatch(SYNC_DETACH_NOTE, /Cruise Port|✓/, 'the note points at the app\'s own status, not Port\'s product status');
   assert.doesNotMatch(SYNC_DETACH_NOTE, /必ず|絶対|安全です/);
   assert.match(ui, /lifecycleSyncNote\.hidden = action\.syncNote !== true;/);
   for (const path of ['./index.html', './pro_9a3943176561/index.html']) {

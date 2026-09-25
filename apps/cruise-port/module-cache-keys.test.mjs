@@ -11,19 +11,22 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// Modules whose code changed in this release (Sync status + per-target detail, 0.64.0), plus the
-// unchanged modules that import sync-center-controller and therefore changed their import line.
+// Modules whose code changed in this release (Cloud Sync UX1, 0.65.0), plus the unchanged modules
+// that import sync-center-controller and therefore changed their import line.
+// sync-center-refresh.js gained createSnapshotMismatchRetry: a new caller with a cached old copy
+// would fail to link, so it must move to the release key with the others.
 const RELEASE_MODULES = Object.freeze([
   'app-version.js',
   'sync-center-controller.js',
   'sync-center-device-detail.js',
   'sync-center-ui.js',
+  'sync-center-refresh.js',
   'sync-center-navigation.js',
   'sync-center-orchestrator.js'
 ]);
 
-test('the release is 0.64.0', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '0.64.0');
+test('the release is 0.65.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '0.65.0');
 });
 
 test('both Port entries load the current practice-menu-app and style.css', () => {
@@ -43,13 +46,16 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → controller / UI → detail', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'sync-center-controller.js'), '0.64.0');
-  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '0.64.0');
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '0.64.0');
-  assert.equal(key('sync-center-ui.js', 'sync-center-controller.js'), '0.64.0');
-  assert.equal(key('sync-center-ui.js', 'sync-center-device-detail.js'), '0.64.0');
-  assert.equal(key('sync-center-navigation.js', 'sync-center-controller.js'), '0.64.0');
-  assert.equal(key('sync-center-orchestrator.js', 'sync-center-controller.js'), '0.64.0');
+  assert.equal(key('practice-menu-app.js', 'sync-center-controller.js'), '0.65.0');
+  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '0.65.0');
+  assert.equal(key('practice-menu-app.js', 'sync-center-refresh.js'), '0.65.0');
+  assert.equal(key('practice-menu-app.js', 'sync-center-navigation.js'), '0.65.0');
+  assert.equal(key('practice-menu-app.js', 'sync-center-orchestrator.js'), '0.65.0');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '0.65.0');
+  assert.equal(key('sync-center-ui.js', 'sync-center-controller.js'), '0.65.0');
+  assert.equal(key('sync-center-ui.js', 'sync-center-device-detail.js'), '0.65.0');
+  assert.equal(key('sync-center-navigation.js', 'sync-center-controller.js'), '0.65.0');
+  assert.equal(key('sync-center-orchestrator.js', 'sync-center-controller.js'), '0.65.0');
 });
 
 test('a module that imports a release-keyed module is itself fetched under the release key', () => {
@@ -65,7 +71,7 @@ test('a module that imports a release-keyed module is itself fetched under the r
 test('no module changed in this release is still requested under an earlier key', () => {
   const sources = modules.map((name) => read(`./${name}`)).join('\n');
   for (const name of RELEASE_MODULES) {
-    for (const stale of ['0.61.0', '0.62.0', '0.63.0']) {
+    for (const stale of ['0.61.0', '0.62.0', '0.63.0', '0.64.0']) {
       assert.equal(sources.includes(`${name}?v=${stale}`), false, `${name}?v=${stale}`);
     }
   }

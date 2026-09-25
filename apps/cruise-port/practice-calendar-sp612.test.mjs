@@ -56,6 +56,6 @@ test('the other nine icons and SP6.11 navigation stay present', () => {
 });
 
 test('SP6.12 Calendar time styling remains covered in Cruise Port 0.59.3', () => {
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.64\.0'/);
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '0\.65\.0'/);
     assert.match(styles, /\.practice-calendar-note-copy time\s*\{[^}]*font-size: calc\(0\.78rem \* var\(--font-scale\)\)/);
 });

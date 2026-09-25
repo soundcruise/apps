@@ -1,6 +1,6 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.64.0';
-import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.64.0';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.65.0';
+import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.65.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -81,7 +81,8 @@ function createSyncInfoPanel(app, detail, { onRecheck = null } = {}) {
 // Confirmation copy follows the Worker's revoke scope for each operation. Disconnecting sync never
 // deletes cloud or on-device data, but an app loses its pending sync state when its connection ends.
 export const RECOVERY_IMPACT = '復旧を確定すると、現在接続されているすべてのCruise Portと各Cruiseアプリ（ホーム画面版・ブラウザ版を含む）で再接続が必要になります。クラウド上の同期データは残ります。';
-export const SYNC_DETACH_NOTE = 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、「同期済み」になっていることを確認してください。';
+// 「同期済み」 here is the target app's own sync status, not Port's 「✓ 同期済み」 product status.
+export const SYNC_DETACH_NOTE = 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。';
 const LINKED_APPS = 'このCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。';
 
 export function describeLifecycleAction(kind, { appName = 'このアプリ', lastPort = false, current = false } = {}) {
