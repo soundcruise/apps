@@ -118,6 +118,9 @@ export function markAppRowsChecking(root) {
         chip.className = 'sync-center-app-status-chip sync-center-app-status-chip--checking';
         chip.textContent = '確認中…';
     });
+    list.querySelectorAll?.('.sync-center-app-action').forEach((action) => {
+        if (action.dataset?.syncAriaBase) action.setAttribute('aria-label', `${action.dataset.syncAriaBase}（確認中…）`);
+    });
     list.querySelectorAll?.('.sync-center-app-info-toggle').forEach((toggle) => {
         toggle.disabled = true;
         toggle.setAttribute('aria-expanded', 'false');
@@ -150,8 +153,9 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         // The status chip is display-only; the neutral ⓘ is the one way to open the detail.
         const chip = document.createElement('span');
         chip.className = `sync-center-app-status-chip sync-center-app-status-chip--${presentationStatus.state}`;
-        chip.textContent = presentationStatus.state === 'attention' && app.attentionCount > 0
+        const visibleStatus = presentationStatus.state === 'attention' && app.attentionCount > 0
             ? `${presentationStatus.label} ${app.attentionCount}件` : presentationStatus.label;
+        chip.textContent = visibleStatus;
         detail.append(chip);
         let infoPanel = null;
         if (appHasSyncDetail(app, presentation.kind)) {
@@ -212,7 +216,9 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
             ? '先にアカウントを作成または接続してください'
             : needsInitialConnection ? '同期コード' : canRemoveAppSync ? '同期を解除' : app.statusLabel;
         action.textContent = actionLabel;
-        action.setAttribute('aria-label', `${app.name}で${actionLabel}（${app.statusLabel}）`);
+        // The screen reader hears the same status as the visible chip, never the membership label.
+        action.dataset.syncAriaBase = `${app.name}で${actionLabel}`;
+        action.setAttribute('aria-label', `${action.dataset.syncAriaBase}（${visibleStatus}）`);
         if (needsInitialConnection && !accountReady) {
             action.disabled = true;
             action.setAttribute('aria-disabled', 'true');
