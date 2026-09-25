@@ -100,7 +100,8 @@ test('2/3/4: pending, no report, and clean + pending stay ✓ 同期済み witho
     assert.equal(chordOf(presentation).snapshot, 'aligned');
     const text = view.text(view.panel);
     assert.doesNotMatch(text, /確認が必要|要確認|エラー|解決しない場合/);
-    assert.equal(view.walk(view.panel).some((node) => node.tagName === 'button'), false, 'no action demanded');
+    assert.deepEqual([...new Set(view.walk(view.panel).filter((node) => node.tagName === 'button').map((node) => node.textContent))],
+      ['名前を変更'], 'no action demanded; only the optional rename (N1)');
   }
 });
 
@@ -148,7 +149,7 @@ test('7: attention on targets that cannot be told apart still gets an app-wide n
   const view = render(presentationFor([target(PIXEL, attention(1)), target(MAC, clean())],
     { removalSafety: 'attention', attentionConflictCount: 1 }));
   const text = view.text(view.panel);
-  assert.match(text, /同期先 B91Cは、登録名で区別できないため/);
+  assert.match(text, /同期先 B91Cは、名前で区別できないため/);
   assert.match(text, /コードクルーズを使っている端末・ブラウザでコードクルーズを開き、同期画面を確認してください。/);
   assert.doesNotMatch(text, /同期先 7A3Eの/, 'a clean target is never pointed at');
 });
@@ -303,7 +304,7 @@ test('20: no app launch CTA returns in any state', () => {
     const view = render(presentation);
     assertNoLaunch(view);
     const buttons = view.walk(view.row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-    for (const label of buttons) assert.ok(['i', 'もう一度確認', '同期を解除'].includes(label), label);
+    for (const label of buttons) assert.ok(['i', 'もう一度確認', '同期を解除', '名前を変更'].includes(label), label);
   }
 });
 

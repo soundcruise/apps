@@ -1,3 +1,5 @@
+import { normalizeUserLabel } from './sync-target-name.js?v=0.65.0';
+
 export const SYNC_CENTER_ROUTE = '#sync-center';
 
 export const SYNC_CENTER_APPS = Object.freeze([
@@ -189,6 +191,8 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
     const environments = Object.freeze(rawDevices.map((device) => Object.freeze({
         id: typeof device?.id === 'string' ? device.id : null,
         label: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : '名前のない環境',
+        registeredLabel: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : null,
+        userLabel: receivedUserLabel(device?.userLabel),
         isCurrent: device?.isCurrent === true,
         isPortEnvironment: device?.isPortEnvironment === true,
         state: device?.revokedAt == null ? 'active' : 'revoked',
@@ -206,6 +210,7 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
         label: typeof device?.label === 'string' && device.label.trim()
             ? device.label.trim() : '名前のない環境',
         registeredLabel: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : null,
+        userLabel: receivedUserLabel(device?.userLabel),
         isCurrent: device?.isCurrent === true,
         state: 'active',
         createdAt: safeCount(device?.createdAt),
@@ -232,6 +237,13 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
         environments,
         devicesState: Array.isArray(devicesResponse?.appDevices) ? 'ready' : 'unavailable'
     });
+}
+
+// userLabel is untrusted display text from the Worker (N1). It is re-checked with the same rules
+// and only ever rendered through textContent; anything unexpected falls back to the registered name.
+function receivedUserLabel(value) {
+    const result = normalizeUserLabel(value);
+    return result.ok ? result.value : null;
 }
 
 const REPORT_STATES = new Set(['clean', 'pending', 'attention', 'error']);

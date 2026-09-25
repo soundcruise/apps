@@ -77,7 +77,7 @@ function assertNoLaunch(d, row) {
     assert.equal(node.tagName === 'a' && /cruise/i.test(node.href || ''), false, 'no app link');
   }
   const buttons = d.walk(row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-  for (const label of buttons) assert.ok(['i', 'もう一度確認', '同期を解除'].includes(label), label);
+  for (const label of buttons) assert.ok(['i', 'もう一度確認', '同期を解除', '名前を変更'].includes(label), label);
 }
 
 test('1: all targets clean — simple row, ⓘ lists each target with 前回の完了報告あり', () => {
@@ -206,16 +206,18 @@ test('11: labels are registered names only; no platform is inferred and no metad
   assert.doesNotMatch(source, /userAgent|navigator\./);
 });
 
-test('12: duplicate or empty labels fall back to a short ID and say the target cannot be identified', () => {
+test('12: duplicate labels keep the label with a short ID; empty labels use the short ID (N1 resolver)', () => {
   const presentation = chordPresentation([
     target('chord', IPHONE, clean()), target('chord', ANDROID, pending()),
     target('chord', 'c0ffee00-0000-4000-8000-000000000003', null, { label: '  ' })
   ], { removalSafety: 'unknown' });
   const detail = detailOf(presentation);
-  assert.deepEqual(detail.targets.map((row) => row.name), ['同期先 B91C', '同期先 7A3E', '同期先 C0FF']);
+  assert.deepEqual(detail.targets.map((row) => row.name), ['登録名「Chord Cruise」', '登録名「Chord Cruise」', '同期先 C0FF']);
+  assert.deepEqual(detail.targets.map((row) => row.secondary), ['同期先 B91C', '同期先 7A3E', null],
+    'same names are told apart by the short ID');
   assert.equal(detail.targets.some((row) => row.identifiable), false);
   assert.equal(detail.guidance.length, 1);
-  assert.match(detail.guidance[0], /同期先 7A3E・同期先 C0FFは、登録名で区別できないため、Cruise Portからはどの端末・ブラウザかを特定できません。/);
+  assert.match(detail.guidance[0], /同期先 7A3E・同期先 C0FFは、名前で区別できないため、Cruise Portからはどの端末・ブラウザかを特定できません。「名前を変更」で区別できる名前を付けられます。/);
   assert.doesNotMatch(detail.guidance.join(''), /B91C/, 'a clean target is never pointed at');
 });
 
@@ -226,7 +228,7 @@ test('13: short IDs grow until unique and never come from a credential', () => {
   assert.deepEqual(shortTargetIds([null, 'abcd1234']), [null, 'ABCD']);
   const presentation = chordPresentation([target('chord', 'b91c7f00-0000-4000-8000-000000000001', clean()),
     target('chord', 'b91c7f11-0000-4000-8000-000000000002', pending())], { removalSafety: 'unknown' });
-  assert.deepEqual(detailOf(presentation).targets.map((row) => row.name), ['同期先 B91C7F0', '同期先 B91C7F1']);
+  assert.deepEqual(detailOf(presentation).targets.map((row) => row.secondary), ['同期先 B91C7F0', '同期先 B91C7F1']);
 });
 
 test('14: summary succeeds and devices fail — row keeps the summary status, ⓘ explains and retries', async () => {

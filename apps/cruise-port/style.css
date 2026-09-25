@@ -6197,3 +6197,30 @@ body.metronome-preset-open {
 .sync-center-lifecycle-sync-note { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(232, 176, 104, 0.34); border-radius: 10px; background: rgba(232, 176, 104, 0.07); color: #ead39b; font-size: calc(0.78rem * var(--font-scale)); line-height: 1.6; }
 .sync-center-lifecycle-sync-note[hidden] { display: none; }
 #sync-center-lifecycle-confirm[data-sync-severity="caution"] #sync-center-lifecycle-title { color: #ead39b; }
+
+/* Sync target naming (N1) */
+.sync-center-environments li:has(> .sync-center-target-rename) { grid-template-columns: minmax(0, 1fr) auto auto; }
+.sync-center-environment-copy { display: grid; gap: 1px; min-width: 0; }
+.sync-center-environment-name { color: var(--port-text); font-weight: 650; overflow-wrap: anywhere; }
+.sync-center-environment-current { justify-self: start; padding: 0 6px; border: 1px solid rgba(205, 205, 205, 0.36); border-radius: 999px; color: var(--port-muted); font-size: calc(0.68rem * var(--font-scale)); }
+.sync-center-target-rename { justify-self: start; min-height: 32px; padding: 4px 10px; border: 1px solid rgba(205, 180, 116, 0.42); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-size: calc(0.72rem * var(--font-scale)); font-weight: 650; cursor: pointer; white-space: nowrap; }
+.sync-center-target-rename:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+.sync-center-app-info-target { grid-template-columns: 18px minmax(0, 1fr) auto; }
+.sync-center-app-info-target > .sync-center-target-rename { align-self: start; }
+@media (max-width: 380px) {
+    .sync-center-environments li:has(> .sync-center-target-rename) { grid-template-columns: minmax(0, 1fr) auto; }
+    .sync-center-environments li > .sync-center-environment-copy { grid-column: 1 / -1; }
+    .sync-center-app-info-target { grid-template-columns: 18px minmax(0, 1fr); }
+    .sync-center-app-info-target > .sync-center-target-rename { grid-column: 2; }
+}
+.sync-center-rename-form { display: grid; gap: 8px; }
+.sync-center-rename-form p { margin: 0; }
+.sync-center-rename-context { overflow-wrap: anywhere; }
+.sync-center-rename-label { margin-top: 6px; color: var(--port-text); font-weight: 650; }
+.sync-center-rename-input { box-sizing: border-box; width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid rgba(205, 180, 116, 0.48); border-radius: 10px; color: var(--port-text); background: rgba(0, 0, 0, 0.32); font: inherit; font-size: max(16px, calc(1rem * var(--font-scale))); }
+.sync-center-rename-input:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+.sync-center-rename-input[aria-invalid="true"] { border-color: rgba(232, 111, 120, 0.72); }
+.sync-center-help-dialog .sync-center-rename-counter { justify-self: end; font-variant-numeric: tabular-nums; font-size: 0.75rem; }
+.sync-center-help-dialog .sync-center-rename-error { color: #ffd3d6; }
+.sync-center-rename-error[hidden] { display: none; }
+.sync-center-rename-actions { display: grid; gap: 0; }

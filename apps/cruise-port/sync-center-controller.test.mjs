@@ -92,9 +92,10 @@ test('summary normalization exposes only the stable display Account ID, never ra
     assert.equal(model.readyCount, 1);
     assert.equal(model.totalCount, 4);
     assert.deepEqual(model.environments, [{
-        id: 'secret-device-id', label: 'iPhone', isCurrent: true, state: 'active',
+        id: 'secret-device-id', label: 'iPhone', registeredLabel: 'iPhone', userLabel: null,
+        isCurrent: true, state: 'active',
         isPortEnvironment: false, createdAt: null, lastSeenAt: null, relatedApps: []
-    }]);
+    }], 'N1 adds only the registered label and the nullable user label');
     const serialized = JSON.stringify(model);
     assert.doesNotMatch(serialized, /secret-account-id|secret-hash/);
     assert.match(model.accountDisplayId, /^SC-[0-9A-F]{10}$/);

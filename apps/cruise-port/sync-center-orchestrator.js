@@ -1,6 +1,7 @@
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=0.65.0';
 import { createPortAccountJoin } from './port-account-join.js?v=0.59.3';
+import { normalizeUserLabel } from './sync-target-name.js?v=0.65.0';
 
 export function createSyncCenterOrchestrator({
     config,
@@ -179,6 +180,25 @@ export function createSyncCenterOrchestrator({
             return result;
         },
         discardRecoveryRotationCandidate() { recoveryRotationMaterial = null; },
+        // Sync target naming (N1): display name only, Account credential only, online only (the
+        // caller checks connectivity; nothing is queued). The Account is never sent from here.
+        async renameEnvironment(accountDeviceId, userLabel) {
+            const label = normalizeUserLabel(userLabel);
+            if (!label.ok || typeof accountDeviceId !== 'string' || !accountDeviceId) throw new Error('sync_target_name_invalid');
+            return client.request('/v2/accounts/devices/name', {
+                method: 'POST', accountCredential: await credential(),
+                body: { accountDeviceId, userLabel: label.value }
+            });
+        },
+        async renameAppEnvironment(appId, appDeviceId, userLabel) {
+            const label = normalizeUserLabel(userLabel);
+            if (!label.ok || !SYNC_CENTER_APPS.some((app) => app.id === appId) ||
+                typeof appDeviceId !== 'string' || !appDeviceId) throw new Error('sync_target_name_invalid');
+            return client.request(`/v2/accounts/memberships/${encodeURIComponent(appId)}/devices/name`, {
+                method: 'POST', accountCredential: await credential(),
+                body: { appId, appDeviceId, userLabel: label.value }
+            });
+        },
         async revokeEnvironment(accountDeviceId) {
             return client.revokeEnvironment({
                 accountCredential: await credential(),

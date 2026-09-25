@@ -210,15 +210,15 @@ test('migration 0031 adds nullable user_label to both device tables and rewrites
 
 test('userLabel validation: NFC, trim, reset, 40 code points, controls, newlines, bidi, surrogates', () => {
   assert.equal(normalizeSyncTargetUserLabel('  Pixel  '), 'Pixel');
-  assert.equal(normalizeSyncTargetUserLabel('Café'), 'Café', 'NFC');
+  assert.equal(normalizeSyncTargetUserLabel('Cafe\u0301'), 'Café', 'NFC');
   assert.equal(normalizeSyncTargetUserLabel('   '), null, 'blank resets');
   assert.equal(normalizeSyncTargetUserLabel(''), null);
   assert.equal(normalizeSyncTargetUserLabel(null), null);
   assert.equal(normalizeSyncTargetUserLabel('あ'.repeat(40)), 'あ'.repeat(40));
   assert.equal(normalizeSyncTargetUserLabel('🎸'.repeat(40)), '🎸'.repeat(40), 'code points, not UTF-16 units');
   assert.equal(normalizeSyncTargetUserLabel('あ'.repeat(41)), undefined);
-  for (const bad of ['a\nb', 'a\rb', 'a\tb', 'a\u0000b', 'a\u007fb', 'a\u0085b', 'a b', 'a b',
-    'a‮b', 'a‪b', 'a⁦b', 'a⁩b', 'a‎b', 'a‏b', 'a؜b', 'a\ud800b', 7, {}, [], true]) {
+  for (const bad of ['a\nb', 'a\rb', 'a\tb', 'a\u0000b', 'a\u007fb', 'a\u0085b', 'a\u2028b', 'a\u2029b',
+    'a\u202eb', 'a\u202ab', 'a\u2066b', 'a\u2069b', 'a\u200eb', 'a\u200fb', 'a\u061cb', 'a\ud800b', 7, {}, [], true]) {
     assert.equal(normalizeSyncTargetUserLabel(bad), undefined, JSON.stringify(bad));
   }
   assert.equal(normalizeSyncTargetUserLabel('<img src=x onerror=alert(1)>'), '<img src=x onerror=alert(1)>',
@@ -247,10 +247,10 @@ test('App Device rename: Account credential only, stored trimmed/NFC, listed as 
 
   response = await renameApp(env, credential, joined.appDeviceId, '<b>"Pixel" & \'Co\'</b>');
   assert.equal((await response.json()).userLabel, '<b>"Pixel" & \'Co\'</b>', 'HTML characters round-trip as text');
-  response = await renameApp(env, credential, joined.appDeviceId, 'Café');
+  response = await renameApp(env, credential, joined.appDeviceId, 'Cafe\u0301');
   assert.equal((await response.json()).userLabel, 'Café');
 
-  for (const bad of ['a\nb', 'a‮b', 'x'.repeat(41), 42]) {
+  for (const bad of ['a\nb', 'a\u202eb', 'x'.repeat(41), 42]) {
     response = await renameApp(env, credential, joined.appDeviceId, bad);
     assert.equal(response.status, 400, JSON.stringify(bad));
   }

@@ -1,3 +1,5 @@
+import { describeSyncTargetNames, shortTargetIds } from './sync-target-name.js?v=0.65.0';
+
 // Builds the ⓘ detail for one app row: the cloud state from the Account summary, and each active
 // sync target's own last report from the devices list. It only repeats what those two responses
 // say. It never infers a platform from a label, never names a target the responses do not single
@@ -47,19 +49,7 @@ export function appHasSyncDetail(app, kind = 'ready') {
     return kind === 'ready' && INFO_APP_STATUSES.has(app?.status);
 }
 
-// Display-only short IDs from the app device ID (not a credential). Each starts at 4 characters
-// and grows only as far as needed to differ from every other target in this app's list.
-export function shortTargetIds(ids) {
-    const normalized = ids.map((id) => (typeof id === 'string' ? id.replace(/[^0-9a-z]/gi, '').toUpperCase() : ''));
-    return normalized.map((value, index) => {
-        if (!value) return null;
-        for (let length = Math.min(4, value.length); length <= value.length; length += 1) {
-            const prefix = value.slice(0, length);
-            if (!normalized.some((other, otherIndex) => otherIndex !== index && other.startsWith(prefix))) return prefix;
-        }
-        return value;
-    });
-}
+export { shortTargetIds };
 
 function reportState(target) {
     if (!target?.reportKnown) return 'unknown';
@@ -81,11 +71,9 @@ function defaultFormatTime(value) {
 
 function describeTargets(app, formatTime) {
     const targets = Array.isArray(app?.environments) ? app.environments : [];
-    const labels = targets.map((target) => target.registeredLabel || null);
-    const shortIds = shortTargetIds(targets.map((target) => target.id));
+    const names = describeSyncTargetNames(targets);
     return targets.map((target, index) => {
-        const label = labels[index];
-        const identifiable = label != null && labels.filter((value) => value === label).length === 1;
+        const naming = names[index];
         const state = reportState(target);
         const presentation = REPORT_STATES[state];
         const attentionCount = state === 'attention' && Number.isSafeInteger(target.lastReport?.attentionCount) &&
@@ -97,8 +85,15 @@ function describeTargets(app, formatTime) {
         if (target.isCurrent) meta.push(SYNC_DETAIL_COPY.current);
         return Object.freeze({
             id: target.id,
-            name: identifiable ? `登録名「${label}」` : `同期先 ${shortIds[index] || '（IDなし）'}`,
-            identifiable,
+            appId: app?.id ?? null,
+            // The report still belongs to target.id; a name only changes how it is shown.
+            name: naming.name,
+            secondary: naming.secondary,
+            reference: naming.reference,
+            userLabel: naming.userLabel,
+            registeredLabel: naming.registeredLabel,
+            shortId: naming.shortId,
+            identifiable: naming.identifiable,
             state,
             tone: presentation.tone,
             mark: presentation.mark,
@@ -118,18 +113,18 @@ function guidanceFor(app, rows, needsAction) {
     for (const row of rows) {
         if (!PROBLEM_STATES.has(row.state) && !UNCONFIRMED_STATES.has(row.state)) continue;
         if (!row.identifiable) {
-            anonymous.push(row.name);
+            anonymous.push(row.reference);
             continue;
         }
         if (PROBLEM_STATES.has(row.state)) pointed = true;
         guidance.push(row.state === 'attention'
-            ? `${row.name}の${app.name}を開き、同期画面で内容を確認してください。`
+            ? `${row.reference}の${app.name}を開き、同期画面で内容を確認してください。`
             : row.state === 'error'
-                ? `${row.name}の${app.name}を開き、同期画面を確認してください。`
-                : `${row.name}の${app.name}を開くと、最新の状態を確認できます。`);
+                ? `${row.reference}の${app.name}を開き、同期画面を確認してください。`
+                : `${row.reference}の${app.name}を開くと、最新の状態を確認できます。`);
     }
     if (anonymous.length) {
-        guidance.push(`${anonymous.join('・')}は、登録名で区別できないため、Cruise Portからはどの端末・ブラウザかを特定できません。`);
+        guidance.push(`${anonymous.join('・')}は、名前で区別できないため、Cruise Portからはどの端末・ブラウザかを特定できません。「名前を変更」で区別できる名前を付けられます。`);
     }
     if (needsAction && !pointed) {
         guidance.push(`${app.name}を使っている端末・ブラウザで${app.name}を開き、同期画面を確認してください。`);

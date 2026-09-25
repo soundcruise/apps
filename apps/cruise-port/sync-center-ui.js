@@ -1,6 +1,8 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.65.0';
 import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.65.0';
+import { describeSyncTargetNames } from './sync-target-name.js?v=0.65.0';
+import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.65.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -17,9 +19,29 @@ function appendText(parent, tag, className, text) {
     return element;
 }
 
+// 「名前を変更」 for one sync target. Every surface (ⓘ, target management) emits the same data
+// attributes and one delegated handler opens the rename dialog. Names travel as dataset strings
+// and are only ever written back through textContent / input.value.
+export function createRenameButton({ kind, id, appId = null, context, userLabel = null, registeredLabel = null,
+    shortId = null, name }) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'sync-center-target-rename';
+    button.textContent = '名前を変更';
+    button.setAttribute('aria-label', `${name}の名前を変更`);
+    button.dataset.syncTargetRename = kind;
+    button.dataset.syncTargetId = id;
+    if (appId) button.dataset.syncTargetApp = appId;
+    button.dataset.syncTargetContext = context;
+    button.dataset.syncTargetUserLabel = userLabel || '';
+    button.dataset.syncTargetRegisteredLabel = registeredLabel || '';
+    button.dataset.syncTargetShortId = shortId || '';
+    return button;
+}
+
 // ⓘ detail for one app row: the cloud state, then each sync target's own last report. Port can
 // only describe targets; it cannot open a specific one, so this panel offers no app launch.
-function createSyncInfoPanel(app, detail, { onRecheck = null } = {}) {
+function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = false } = {}) {
     const panel = document.createElement('div');
     panel.className = 'sync-center-app-info';
     panel.id = `sync-center-app-info-${app.id}`;
@@ -47,10 +69,16 @@ function createSyncInfoPanel(app, detail, { onRecheck = null } = {}) {
                 const copy = document.createElement('div');
                 copy.className = 'sync-center-app-info-target-copy';
                 appendText(copy, 'strong', '', target.name);
+                if (target.secondary) appendText(copy, 'small', 'sync-center-app-info-meta', target.secondary);
                 appendText(copy, 'span', 'sync-center-app-info-state', target.stateText);
                 if (target.countText) appendText(copy, 'span', 'sync-center-app-info-state', target.countText);
                 if (target.meta.length) appendText(copy, 'small', 'sync-center-app-info-meta', target.meta.join('・'));
                 item.append(copy);
+                if (target.id && renameEnabled) {
+                    item.append(createRenameButton({ kind: 'app', id: target.id, appId: app.id, context: app.name,
+                        userLabel: target.userLabel, registeredLabel: target.registeredLabel,
+                        shortId: target.shortId, name: target.name }));
+                }
                 return item;
             }));
             targets.append(list);
@@ -85,10 +113,11 @@ export const RECOVERY_IMPACT = '復旧を確定すると、現在接続されて
 export const SYNC_DETACH_NOTE = 'まだ同期していない変更がある場合は、解除する前に対象のアプリを開き、そのアプリ内の同期状態が「同期済み」になっていることを確認してください。';
 const LINKED_APPS = 'このCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。';
 
-export function describeLifecycleAction(kind, { appName = 'このアプリ', lastPort = false, current = false } = {}) {
+export function describeLifecycleAction(kind, { appName = 'このアプリ', lastPort = false, current = false,
+    targetLabel = null } = {}) {
     if (kind === 'app-environment') {
         return Object.freeze({ title: '選択した同期先を解除', severity: 'normal', syncNote: true,
-            summary: '選択した同期先1件だけの同期を解除します。同じアプリのほかの同期先、ほかのアプリ、Cruise Port、クラウド上と端末内のデータはそのまま残ります。' });
+            summary: `${targetLabel ? `${targetLabel}の同期だけを解除します。` : '選択した同期先1件だけの同期を解除します。'}同じアプリのほかの同期先、ほかのアプリ、Cruise Port、クラウド上と端末内のデータはそのまま残ります。` });
     }
     if (kind === 'current-environment') {
         return Object.freeze({ title: 'このCruise Portの接続を解除', severity: 'caution', syncNote: true,
@@ -101,7 +130,7 @@ export function describeLifecycleAction(kind, { appName = 'このアプリ', las
             severity: 'caution', syncNote: true,
             summary: current
                 ? 'このCruise Portの同期を解除します。このCruise Portに結び付いた各Cruiseアプリの同期も解除され、このCruise Portは未接続になります。ほかのCruise Portと、クラウド上・端末内のデータは残ります。'
-                : '選択したCruise Portの同期を解除します。そのCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。ほかのCruise Portとその同期先、クラウド上のデータは残ります。' });
+                : `${targetLabel ? `${targetLabel}の同期を解除します。` : '選択したCruise Portの同期を解除します。'}そのCruise Portから接続した各Cruiseアプリの同期も解除されます（ホーム画面版やブラウザ版のアプリが含まれる場合があります）。ほかのCruise Portとその同期先、クラウド上のデータは残ります。` });
     }
     if (kind === 'detach') {
         return Object.freeze({ title: `${appName}の同期を解除`, severity: 'caution', syncNote: true,
@@ -161,7 +190,7 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         if (appHasSyncDetail(app, presentation.kind)) {
             infoPanel = createSyncInfoPanel(app, describeAppSyncDetail(app, {
                 kind: presentation.kind, devicesState: presentation.devicesState
-            }), { onRecheck });
+            }), { onRecheck, renameEnabled: orchestrationEnabled && presentation.accountState === 'active' });
             const toggle = document.createElement('button');
             toggle.type = 'button';
             toggle.className = 'sync-center-app-info-toggle';
@@ -234,6 +263,13 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
     list.replaceChildren(...rows);
 }
 
+// 「Pixel」（コードクルーズ・EDAE） / 登録名「Chord Cruise」（コードクルーズ・B91C） / 同期先 B91C（コードクルーズ）
+export function describeTargetForConfirm(naming, context) {
+    const name = naming.userLabel ? `「${naming.userLabel}」` : naming.name;
+    const detail = naming.userLabel || naming.registeredLabel ? [context, naming.shortId].filter(Boolean) : [context];
+    return `${name}（${detail.join('・')}）`;
+}
+
 function renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled) {
     const portList = root.querySelector('#sync-center-add-environments');
     const appList = root.querySelector('#sync-center-app-environments');
@@ -298,22 +334,40 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         details.className = 'sync-center-environments sync-center-environment-list';
         details.dataset.syncEnvironmentDetails = entry.id;
         details.hidden = true;
-        const environmentRows = entry.environments.map((environment) => {
+        const targetNames = describeSyncTargetNames(entry.environments);
+        const renameEnabled = orchestrationEnabled && activeAccount;
+        const environmentRows = entry.environments.map((environment, index) => {
+            const naming = targetNames[index];
             const item = document.createElement('li');
             const copy = document.createElement('span');
+            copy.className = 'sync-center-environment-copy';
+            // The user's name and the system marker are separate: a name can never read as the marker.
             // For an app target, isCurrent only means it was connected from this Cruise Port.
-            const currentNote = entry.id === 'port' ? '（この環境）' : '（このCruise Portから接続）';
-            copy.textContent = `${environment.label}${environment.isCurrent ? currentNote : ''}`;
+            appendText(copy, 'span', 'sync-center-environment-name', naming.name);
+            if (environment.isCurrent) {
+                appendText(copy, 'span', 'sync-center-environment-current',
+                    entry.id === 'port' ? 'この環境' : 'このCruise Portから接続');
+            }
+            if (naming.secondary) appendText(copy, 'small', '', naming.secondary);
             const metadata = document.createElement('small');
             const lastSeen = environment.lastSeenAt == null ? '不明' : new Date(environment.lastSeenAt).toLocaleString('ja-JP');
             metadata.textContent = `最終利用 ${lastSeen}`;
             copy.append(metadata);
             item.append(copy);
+            if (environment.id && renameEnabled) {
+                item.append(createRenameButton({ kind: entry.id === 'port' ? 'account' : 'app', id: environment.id,
+                    appId: entry.id === 'port' ? null : entry.id, context: entry.name,
+                    userLabel: naming.userLabel, registeredLabel: naming.registeredLabel,
+                    shortId: naming.shortId, name: naming.name }));
+            }
             if (environment.id) {
                 const revoke = document.createElement('button');
                 revoke.type = 'button';
                 revoke.className = 'action-button secondary-action';
                 revoke.textContent = '解除';
+                revoke.setAttribute('aria-label', `${naming.name}を解除`);
+                // The detach confirmation names exactly this target to prevent removing the wrong one.
+                revoke.dataset.syncTargetLabel = describeTargetForConfirm(naming, entry.name);
                 revoke.dataset.syncEnvironmentCurrent = environment.isCurrent ? 'true' : 'false';
                 if (entry.id === 'port') {
                     revoke.dataset.syncEnvironmentRevoke = environment.id;
@@ -1112,14 +1166,57 @@ export function bindSyncCenterActions(root, {
         lifecycleSummary.textContent = action.summary;
         lifecycleDialog.showModal();
     };
+    // After a save the rows re-render collapsed; reopen the surface the user came from (ⓘ or the
+    // target list) so the new name is visible, and focus the same target's 名前を変更 again.
+    const refocusRenameTarget = (target, surface) => {
+        const listId = target.kind === 'account' ? 'port' : target.appId;
+        if (surface === 'info') {
+            const toggle = root.querySelector?.(`[aria-controls="sync-center-app-info-${target.appId}"]`);
+            if (toggle?.getAttribute?.('aria-expanded') === 'false' && !toggle.disabled) toggle.click();
+        } else {
+            const toggle = root.querySelector?.(`[data-sync-environment-toggle="${listId}"]`);
+            if (toggle?.getAttribute?.('aria-expanded') === 'false' && !toggle.disabled) toggle.click();
+        }
+        const scope = surface === 'info'
+            ? root.querySelector?.(`#sync-center-app-info-${target.appId}`)
+            : root.querySelector?.(`[data-sync-environment-details="${listId}"]`);
+        const next = [...(scope?.querySelectorAll?.('[data-sync-target-rename]') || [])]
+            .find((button) => button.dataset.syncTargetId === target.id);
+        next?.focus?.();
+        return Boolean(next);
+    };
+    const openRename = (trigger) => {
+        const target = renameTargetFromDataset(trigger.dataset);
+        if (!target.id || !orchestrator?.enabled) return;
+        const surface = trigger.closest?.('.sync-center-app-info') ? 'info' : 'list';
+        openSyncTargetRenameDialog(root, target, {
+            save: async (userLabel) => {
+                await ensureQaAdmission();
+                return target.kind === 'account'
+                    ? orchestrator.renameEnvironment(target.id, userLabel)
+                    : orchestrator.renameAppEnvironment(target.appId, target.id, userLabel);
+            },
+            onSaved: refresh,
+            restoreFocus: (reason) => {
+                if (reason === 'saved' && refocusRenameTarget(target, surface)) return;
+                if (trigger.isConnected) trigger.focus?.();
+            }
+        });
+    };
     root?.addEventListener?.('click', (event) => {
+        const rename = event.target.closest?.('[data-sync-target-rename]');
+        if (rename) {
+            event.stopPropagation?.();
+            openRename(rename);
+            return;
+        }
         const appEnvironment = event.target.closest?.('[data-sync-app-environment-revoke]');
         if (appEnvironment) {
             openLifecycle({
                 kind: 'app-environment',
                 appId: appEnvironment.dataset.syncAppEnvironmentApp,
                 appDeviceId: appEnvironment.dataset.syncAppEnvironmentRevoke,
-                ...describeLifecycleAction('app-environment')
+                ...describeLifecycleAction('app-environment', { targetLabel: appEnvironment.dataset.syncTargetLabel || null })
             });
             return;
         }
@@ -1135,7 +1232,8 @@ export function bindSyncCenterActions(root, {
             }
             openLifecycle({
                 kind: 'environment', accountDeviceId: environment.dataset.syncEnvironmentRevoke,
-                ...describeLifecycleAction('environment', { current: environment.dataset.syncEnvironmentCurrent === 'true' })
+                ...describeLifecycleAction('environment', { current: environment.dataset.syncEnvironmentCurrent === 'true',
+                    targetLabel: environment.dataset.syncTargetLabel || null })
             });
             return;
         }
