@@ -4,6 +4,8 @@
 // malformed output) becomes AiProviderError('ai_provider_unavailable'); no provider text, body or
 // status is ever passed on to the user or the model.
 
+import { EgressBlockedError, isProviderInputSafe } from './ai-support-egress.js';
+
 export const AI_SUPPORT_MODELS = Object.freeze({
   'gpt-oss-120b': Object.freeze({ id: '@cf/openai/gpt-oss-120b', reasoningEffort: 'low',
     price: { inputPerM: 0.35, outputPerM: 0.75 } }),
@@ -76,6 +78,8 @@ export function createWorkersAiProvider({ ai, modelKey = DEFAULT_AI_SUPPORT_MODE
       const inputs = { messages, max_tokens: maxOutputTokens, temperature: 0.2 };
       if (tools.length) inputs.tools = tools;
       if (model.reasoningEffort) inputs.reasoning = { effort: model.reasoningEffort };
+      // The final egress boundary: the exact input for AI.run, checked here and nowhere skipped.
+      if (!isProviderInputSafe(inputs)) throw new EgressBlockedError();
       let timer;
       try {
         const raw = await Promise.race([

@@ -6,7 +6,7 @@
 // rewrite it once, and otherwise returns GUARD_FALLBACK_REPLY. Only violation category names leave
 // this module; the reply text is never logged or stored.
 
-import { containsSecret } from './secret-detector.js';
+import { containsFullId, containsSecret } from './secret-detector.js';
 
 // Names the user wrote (「…」) may legitimately contain any word, so term checks skip quoted text.
 function withoutQuotedNames(text) {
@@ -30,7 +30,8 @@ const RULES = Object.freeze([
     pattern: /\b(reference|ref|snapshot|snapshotState|removalSafety|reportState|attentionCount|cloudState|displayStatus|displayLabel|nameSource|userControlledPaths|pending|clean|unverified|mismatch|attention|contractVersion|appId)\b|スナップショット/i }),
   // A reply that looks like it holds a code is never shown (it would also block the next turn,
   // since the reply comes back as history) and is never sent back to the model as-is.
-  Object.freeze({ category: 'secret_like', scope: 'full', pattern: { test: containsSecret } })
+  Object.freeze({ category: 'secret_like', scope: 'full', pattern: { test: containsSecret } }),
+  Object.freeze({ category: 'full_id', scope: 'full', pattern: { test: containsFullId } })
 ]);
 
 export const GUARD_CATEGORIES = Object.freeze([...new Set(RULES.map((rule) => rule.category))]);
@@ -57,7 +58,8 @@ const CATEGORY_HINTS = Object.freeze({
   url: 'URL やアドレスを書いた',
   tool_syntax: 'ツール名やツールの記法を書いた',
   internal_term: '英語の状態名や内部の項目名（snapshot、reference など）を書いた',
-  secret_like: '4桁の番号やコードのように見える数字・文字の並びを書いた（番号やコードは書かない）'
+  secret_like: '4桁の番号やコードのように見える数字・文字の並びを書いた（番号やコードは書かない）',
+  full_id: 'IDのように見える長い英数字の並びを書いた（IDは書かない）'
 });
 
 export function repairInstruction(violations) {

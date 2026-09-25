@@ -2,12 +2,15 @@
 // message, at most two read-only diagnostic tool calls, and diagnostics returned only as tool
 // results in the AI1-A trust envelope. Provider- and model-agnostic; nothing is stored.
 import { toModelToolResult } from './ai-diagnostics.js';
-import { EgressBlockedError, guardedProvider } from './ai-support-egress.js';
+import { EgressBlockedError, guardedProvider, isProviderInputSafe } from './ai-support-egress.js';
 import { GUARD_FALLBACK_REPLY, repairInstruction, validateSupportReply } from './ai-support-guard.js';
 import {
   AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, FALLBACK_REPLIES, SECRET_REFUSAL, containsMarkdown,
-  containsSecret, sanitizeReply, validateToolCall
+  sanitizeReply, validateToolCall
 } from './ai-support-policy.js';
+import { containsSensitive } from './secret-detector.js';
+
+const TOOL_NAMES = new Set(AI_SUPPORT_TOOLS.map((tool) => tool.function.name));
 
 // history: earlier [{ role: 'user' | 'assistant', content }] (already validated and capped).
 // Every provider call goes through guardedProvider: the egress guard on the whole request and a
@@ -41,6 +44,7 @@ async function runRounds({ provider, diagnostics, history, message }) {
     stats.usage.outputTokens += result.usage?.outputTokens || 0;
   };
 
+  let callCount = 0;
   for (let round = 0; round < AI_SUPPORT_LIMITS.maxModelRounds; round += 1) {
     const toolsAllowed = stats.toolCalls < AI_SUPPORT_LIMITS.maxToolCalls &&
       round < AI_SUPPORT_LIMITS.maxModelRounds - 1;
@@ -55,16 +59,26 @@ async function runRounds({ provider, diagnostics, history, message }) {
       return guardReply({ provider, messages, reply, stats, track });
     }
     if (!toolsAllowed) break;
+    // Nothing the model wrote around a tool call is sent back as-is. A call naming anything but
+    // one of the two fixed tools ends the turn (fail closed); otherwise the Worker writes the
+    // follow-up itself: its own call ids, the fixed tool name, and validated arguments only.
+    if (result.toolCalls.some((call) => typeof call?.name !== 'string' || !TOOL_NAMES.has(call.name))) {
+      stats.rejectedToolCalls += result.toolCalls.length;
+      return { reply: FALLBACK_REPLIES.noAnswer, stats, unsafeToolCall: true };
+    }
+    const calls = result.toolCalls.map((call) => {
+      callCount += 1;
+      return { id: `call_${callCount}`, name: call.name, valid: validateToolCall(call.name, call.arguments) };
+    });
     messages.push({
       role: 'assistant',
-      content: result.text || '',
-      tool_calls: result.toolCalls.map((call) => ({
-        id: call.id, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.arguments ?? {}) }
-      }))
+      content: '',
+      tool_calls: calls.map((call) => ({ id: call.id, type: 'function',
+        function: { name: call.name, arguments: JSON.stringify(call.valid.ok ? call.valid.args ?? {} : {}) } }))
     });
-    for (const call of result.toolCalls) {
+    for (const call of calls) {
       let content;
-      const valid = validateToolCall(call.name, call.arguments);
+      const { valid } = call;
       if (!valid.ok) {
         stats.rejectedToolCalls += 1;
         content = JSON.stringify({ kind: 'sound_cruise_sync_diagnostic_tool_error', error: 'invalid_tool_call' });
@@ -93,21 +107,23 @@ async function runRounds({ provider, diagnostics, history, message }) {
 // Every final reply passes the deterministic guard. A failing reply is never shown: the model gets
 // one fixed repair request (no tools; the conversation, tool results and its own reply stay as
 // messages, never inside the instruction), and a second failure returns the fixed fallback.
-// A reply that looks like it holds a code is left out of the repair request entirely; the fixed
-// instruction names only the category.
+// A reply that looks like it holds a code or a full ID is left out of the repair request
+// entirely; the fixed instruction names only the category. If a safe repair request cannot be
+// built, the fixed fallback is returned without another model call.
 async function guardReply({ provider, messages, reply, stats, track }) {
   const first = validateSupportReply(reply);
   if (first.ok) return { reply, stats };
   stats.guardViolations.push(...first.violations);
   stats.repairAttempted = true;
   let repaired = '';
+  const badReply = containsSensitive(reply) ? [] : [{ role: 'assistant', content: reply }];
+  const request = { messages: [...messages, ...badReply, { role: 'user', content: repairInstruction(first.violations) }], tools: [] };
+  if (!isProviderInputSafe(request)) {
+    stats.fallback = true;
+    return { reply: GUARD_FALLBACK_REPLY, stats };
+  }
   try {
-    const badReply = containsSecret(reply) ? [] : [{ role: 'assistant', content: reply }];
-    const result = await provider.complete({ messages: [
-      ...messages,
-      ...badReply,
-      { role: 'user', content: repairInstruction(first.violations) }
-    ], tools: [] });
+    const result = await provider.complete(request);
     track(result);
     if (!result.toolCalls.length) repaired = sanitizeReply(result.text);
   } catch {

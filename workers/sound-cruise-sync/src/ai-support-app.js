@@ -11,7 +11,8 @@ import { openSyncDiagnostics } from './ai-diagnostics.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { ACCOUNT_ADMISSION_PROVENANCE } from './account-admission.js';
 import { inspectProCredentialReadOnly } from './pro-auth-app.js';
-import { AI_SUPPORT_LIMITS, SECRET_REFUSAL, containsSecret } from './ai-support-policy.js';
+import { AI_SUPPORT_LIMITS, SECRET_REFUSAL } from './ai-support-policy.js';
+import { containsSensitive } from './secret-detector.js';
 import { AI_SUPPORT_MODELS, AiProviderError, DEFAULT_AI_SUPPORT_MODEL, createWorkersAiProvider } from './ai-support-provider.js';
 import { runSupportTurn } from './ai-support-chat.js';
 import { isJsonContentType, readBodyWithLimit } from './validation.js';
@@ -125,7 +126,7 @@ export async function handleAiSupportRequest(request, env = {}, _ctx, dependenci
   const validated = validateChatBody(body);
   if (!validated.ok) return fail(400, validated.code || 'invalid_request', origin);
   const { message, history } = validated.value;
-  if ([message, ...history.map((entry) => entry.content)].some(containsSecret)) {
+  if ([message, ...history.map((entry) => entry.content)].some(containsSensitive)) {
     // Refused as-is: the text is never edited, forwarded or logged.
     return respond(400, { ok: false, code: 'ai_support_secret_detected', message: SECRET_REFUSAL }, origin);
   }

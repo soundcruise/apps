@@ -8,38 +8,56 @@
 export const AI_SUPPORT_PATH = '/v2/ai-support/chat';
 export const AI_SUPPORT_LIMITS = Object.freeze({ maxTurns: 20, maxUserChars: 2000, maxAssistantChars: 4000 });
 
-// Mirrors the Worker's containsSecret (workers/sound-cruise-sync/src/secret-detector.js); a
-// parity test runs both on the same vectors. The Worker check stays the authority.
+// Mirrors the Worker's detector (workers/sound-cruise-sync/src/secret-detector.js); a parity test
+// compares the two blocks byte for byte. The Worker check stays the authority.
+// --- mirror start (keep identical in apps/cruise-port/ai-support-client.js) ---
 const CODE_ALPHABET = '0-9A-HJKMNP-TV-Z';
 const STRUCTURED_CODE = new RegExp(`(SAR1|SCJ1|SCE1|SQA1)[${CODE_ALPHABET}]{20}`, 'i');
 const CREDENTIAL_TOKEN = /\b(sca1|scd1|sch1|scq1|scr1|sdi1|sadi1|sarc1|scp1)\.[0-9a-f]{8}-/i;
 const LEGACY_RECOVERY = new RegExp(`(^|[^0-9A-Z])([${CODE_ALPHABET}]{4}[\\s-]?){4}[${CODE_ALPHABET}]{4}($|[^0-9A-Z])`, 'i');
 
-// App names contain コード; they are masked so 「コードクルーズ」 is never a code context.
+// Text is NFKC-normalized first, so full-width digits, colons, slashes and spaces are ASCII here.
 const APP_NAMES = /コード\s*クルーズ|chord\s*cruise/gi;
-const CONTEXT = /Pro|プロ|4桁|４桁|四桁|暗証|PIN|ピン|パスコード|パスワード|passcode|password|認証番号|認証コード|番号|コード|ログイン/gi;
-const DIGIT = '[0-9０-９]';
-const SEP = '[ \\t\\u3000\\-‐－./:．／：]';
-// A whole run of digits and separators; it is code-like only when it holds exactly 4 digits, so
-// dates (2026-09-25) and long numbers are one run of 8+ digits and are left alone. Runs joined by
-// . / : are versions, dates and times (0.67.0, 12/25, 13:22), never a typed code.
-const DIGIT_RUN = new RegExp(`(?<![0-9０-９])${DIGIT}(?:${SEP}{0,3}${DIGIT})*(?![0-9０-９])`, 'g');
-const DATE_TIME_JOINER = /[./:．／：]/;
-const UNIT_AFTER = /^\s*(年|月|日|件|回|円|%|％|時|分|秒|個|曲|人|行|ページ|バージョン|MB|KB|GB|ms|px)/i;
-const WINDOW = 18;
+const latin = (word) => `(?<![A-Za-z])${word}(?![A-Za-z])`;
+const STRONG_WORDS = [
+  `(?:${latin('Pro')}|プロ)版?の?(?:番号|コード|暗証番号|パスコード)`, '暗証', latin('PIN'), 'パスコード', 'パスワード',
+  latin('passcode'), latin('password'), '認証(?:番号|コード)', '接続コード', '復旧コード', '[4四]桁', 'コード\\s*(?:は|:)'
+];
+const WEAK_WORDS = [latin('Pro'), 'プロ', '番号', 'ログイン', 'ピン', 'コード(?![ァ-ヺー])'];
+const STRONG_CONTEXT = new RegExp(STRONG_WORDS.join('|'), 'gi');
+const ANY_CONTEXT = new RegExp([...STRONG_WORDS, ...WEAK_WORDS].join('|'), 'gi');
+const DIGIT_RUN = /(?<!\d)\d(?:[ \t\-‐‒–—/.:・]{0,3}\d)*(?!\d)/g;
+const JOINER = /[/.:・]/;
+const UNIT_AFTER = /^\s*(年|月|日|件|回|円|%|時|分|秒|個|曲|人|行|ページ|バージョン|MB|KB|GB|ms|px)/i;
+const SENTENCE = /[^。！？!?]+/g;
+const SPLIT_WINDOW = 18;
+const JOINED_WINDOW = 12;
 
-function codeNearContext(text) {
-  const masked = text.replace(APP_NAMES, '〓');
-  for (const context of masked.matchAll(CONTEXT)) {
-    const start = Math.max(0, context.index - WINDOW);
-    const end = Math.min(masked.length, context.index + context[0].length + WINDOW);
-    const window = masked.slice(start, end);
-    for (const run of window.matchAll(DIGIT_RUN)) {
-      if (DATE_TIME_JOINER.test(run[0]) || run[0].replace(/[^0-9０-９]/g, '').length !== 4) continue;
-      if (!UNIT_AFTER.test(window.slice(run.index + run[0].length))) return true;
+function matches(pattern, text) {
+  return [...text.matchAll(pattern)].map((match) => ({ start: match.index, end: match.index + match[0].length, text: match[0] }));
+}
+
+function sentenceHasCode(sentence) {
+  const strong = matches(STRONG_CONTEXT, sentence);
+  const any = matches(ANY_CONTEXT, sentence);
+  if (!any.length) return false;
+  for (const run of matches(DIGIT_RUN, sentence)) {
+    if (run.text.replace(/\D/g, '').length !== 4 || UNIT_AFTER.test(sentence.slice(run.end))) continue;
+    if (JOINER.test(run.text)) {
+      // 12/34, 1.2.3.4, 1:2:3:4 look like dates, versions and times, so only a strong context
+      // right before them makes them a code.
+      if (strong.some((context) => context.end <= run.start && run.start - context.end <= JOINED_WINDOW)) return true;
+    } else if (any.some((context) => (context.end <= run.start && run.start - context.end <= SPLIT_WINDOW) ||
+      (run.end <= context.start && context.start - run.end <= SPLIT_WINDOW))) {
+      return true;
     }
   }
   return false;
+}
+
+function codeNearContext(text) {
+  const normalized = text.normalize('NFKC').replace(APP_NAMES, '〓');
+  return (normalized.match(SENTENCE) || []).some(sentenceHasCode);
 }
 
 export function containsSecret(text) {
@@ -48,6 +66,20 @@ export function containsSecret(text) {
   return STRUCTURED_CODE.test(compact) || CREDENTIAL_TOKEN.test(text) || LEGACY_RECOVERY.test(text) ||
     codeNearContext(text);
 }
+
+const FULL_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const LONG_HEX = /(?<![0-9a-f])[0-9a-f]{32,}(?![0-9a-f])/i;
+export function containsFullId(text) {
+  if (typeof text !== 'string' || !text) return false;
+  const normalized = text.normalize('NFKC');
+  return FULL_UUID.test(normalized) || LONG_HEX.test(normalized);
+}
+
+// Anything that must not reach a model: a secret-like code or a full ID.
+export function containsSensitive(text) {
+  return containsSecret(text) || containsFullId(text);
+}
+// --- mirror end ---
 
 export function charCount(text) {
   return typeof text === 'string' ? [...text].length : 0;
@@ -138,7 +170,7 @@ export function createAiSupportClient({
       if (!text) return { ok: false, kind: 'failed' };
       if (charCount(text) > AI_SUPPORT_LIMITS.maxUserChars) return { ok: false, kind: 'tooLong' };
       const sentHistory = buildHistory(history);
-      if ([text, ...sentHistory.map((turn) => turn.content)].some(containsSecret)) return { ok: false, kind: 'secret' };
+      if ([text, ...sentHistory.map((turn) => turn.content)].some(containsSensitive)) return { ok: false, kind: 'secret' };
       let account;
       try { account = await accountRoot?.storage?.getAccount?.(); } catch (_) { account = null; }
       const pro = readPro();

@@ -1,4 +1,4 @@
-import { AI_SUPPORT_COPY, AI_SUPPORT_LIMITS, charCount, containsSecret } from './ai-support-client.js?v=0.67.0';
+import { AI_SUPPORT_COPY, AI_SUPPORT_LIMITS, charCount, containsSensitive } from './ai-support-client.js?v=0.67.0';
 
 // The 「AIに相談」 panel inside Sync Center's support section (AI1-C). It lives outside the rows
 // that Sync Center re-renders, so a conversation survives a status refresh but not a page reload:
@@ -148,7 +148,7 @@ export function createAiSupportPanel({
     if (!message) return;
     if (!isOnline()) { showError(AI_SUPPORT_COPY.offline); return; }
     if (charCount(message) > AI_SUPPORT_LIMITS.maxUserChars) { showError(AI_SUPPORT_COPY.tooLong); return; }
-    if (containsSecret(message)) { showError(AI_SUPPORT_COPY.secret); return; } // left unchanged for the user
+    if (containsSensitive(message)) { showError(AI_SUPPORT_COPY.secret); return; } // left unchanged for the user
     showError('');
     const history = turns.slice();
     const bubble = appendMessage('user', message);

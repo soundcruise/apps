@@ -17,7 +17,7 @@ import { createD1AccountRepository } from './account-database.js';
 import { createD1AccountLifecycleRepository } from './account-lifecycle-database.js';
 import { accountContext } from './account-app.js';
 import { normalizeSyncTargetUserLabel } from './account-validation.js';
-import { containsSecret } from './secret-detector.js';
+import { containsFullId, containsSecret } from './secret-detector.js';
 
 export const DIAGNOSTIC_CONTRACT_VERSION = 1;
 
@@ -48,19 +48,36 @@ const FORBIDDEN_TEXT = new RegExp(`[${[[0x0, 0x1f], [0x7f, 0x9f], [0x2028, 0x202
   .map(([from, to]) => `${String.fromCodePoint(from)}-${String.fromCodePoint(to)}`).join('')}]`, 'u');
 const REGISTERED_LABEL_MAX = 80;
 
-function safeRegisteredLabel(value) {
+// A name is unsafe for a model when it looks like it holds a code (「Proの番号 1234」) or an ID:
+// a UUID or 32+ hex characters (also once spaces, hyphens and similar are removed), or any known
+// internal ID of this Account in any case or separator form. An unsafe name is treated as absent,
+// so the next name in the N1 order is used and the turn continues. The user's saved name is not
+// changed, and the name itself is never sent to a model.
+function normalizeId(value) {
+  return typeof value === 'string' ? value.normalize('NFKC').toLowerCase().replace(/[^0-9a-z]/g, '') : '';
+}
+export function createNameSafety(knownIds = []) {
+  const known = [...new Set(knownIds.map(normalizeId).filter((id) => id.length >= 16))];
+  return (text) => {
+    if (containsSecret(text) || containsFullId(text)) return false;
+    const compact = normalizeId(text);
+    // compact has no separators left, so 32+ hex characters in a row is a split full ID.
+    if (/[0-9a-f]{32,}/.test(compact.replace(/[g-z]/g, '_'))) return false;
+    return !known.some((id) => compact.includes(id));
+  };
+}
+
+function safeRegisteredLabel(value, isSafeName) {
   if (typeof value !== 'string') return null;
   if (typeof value.isWellFormed === 'function' && !value.isWellFormed()) return null;
   if (FORBIDDEN_TEXT.test(value)) return null;
   const text = value.normalize('NFC').trim();
-  return text && [...text].length <= REGISTERED_LABEL_MAX && !containsSecret(text) ? text : null;
+  return text && [...text].length <= REGISTERED_LABEL_MAX && isSafeName(text) ? text : null;
 }
 
-// A name that looks like it holds a code (e.g. 「Proの番号 1234」) is treated as absent, so the next
-// name in the N1 order is used and the turn continues. The name itself is never sent to a model.
-function safeUserLabel(value) {
+function safeUserLabel(value, isSafeName) {
   const normalized = normalizeSyncTargetUserLabel(value);
-  return typeof normalized === 'string' && !containsSecret(normalized) ? normalized : null;
+  return typeof normalized === 'string' && isSafeName(normalized) ? normalized : null;
 }
 
 function count(value) {
@@ -227,7 +244,11 @@ export function createSyncDiagnostics({
       .filter((membership) => APP_IDS.has(membership.appId)).map((membership) => [membership.appId, membership]));
     // Active targets only: revoked history is not part of routine diagnosis.
     const active = (appDevices || []).filter((device) => device.revokedAt == null && APP_IDS.has(device.appId));
+    // Every raw ID this read knows (never returned; only compared against names).
+    const knownIds = [identity.accountId, identity.accountDeviceId, identity.appDeviceId,
+      ...(appDevices || []).flatMap((device) => [device.id, device.accountDeviceId, device.appDeviceId])];
     return {
+      isSafeName: createNameSafety(knownIds),
       observedAt: now(),
       accountState: accountDeleting ? 'deleting' : account.state === 'active' ? 'active' : 'attention',
       accountDeleting,
@@ -236,11 +257,11 @@ export function createSyncDiagnostics({
     };
   }
 
-  function projectTargets(appTargets) {
+  function projectTargets(appTargets, isSafeName) {
     const ids = boundedShortIds(appTargets.map((target) => target.id));
     const named = appTargets.map((target, index) => {
-      const userLabel = safeUserLabel(target.userLabel);
-      const registeredLabel = safeRegisteredLabel(target.label);
+      const userLabel = safeUserLabel(target.userLabel, isSafeName);
+      const registeredLabel = safeRegisteredLabel(target.label, isSafeName);
       const ref = refFor(target.id);
       const fallback = `同期先 ${ids[index] || ref}`;
       return {
@@ -301,7 +322,7 @@ export function createSyncDiagnostics({
         accountState: state.accountState,
         app: summary,
         // A mismatch is reported without targets so no device is singled out as the cause.
-        targets: summary.snapshotState === 'mismatch' ? [] : projectTargets(appTargets)
+        targets: summary.snapshotState === 'mismatch' ? [] : projectTargets(appTargets, state.isSafeName)
       });
     }
   });

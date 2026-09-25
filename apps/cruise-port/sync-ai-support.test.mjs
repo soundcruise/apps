@@ -274,13 +274,18 @@ test('11/32/33/34: secret-looking text is refused before sending and left unchan
     'Proの番号は1234です', '暗証番号 ４５６７', 'ABCD-EFGH-JKMN-PQRS-TVWX', '2026年から使っています', 'エラー 404 が出ます',
     '500 エラー', 'コードクルーズが反映されない', 'iPhone 15 Pro を使っています',
     'Proの番号は 12 34', '暗証番号 1 2 3 4', 'コードは12-34', 'コードは2026', 'パスコード　１２　３４', '1234 がProの番号です',
-    'HTTP 500 が出ます', 'version 1234 です', 'エラー404', 'Pro版で 2026-09-25 から', 'Port Pro 0.67.0', 'コードは2026年から'];
+    'HTTP 500 が出ます', 'version 1234 です', 'エラー404', 'Pro版で 2026-09-25 から', 'Port Pro 0.67.0', 'コードは2026年から',
+    'Proコードは12/34', '暗証番号は1.2.3.4', 'PINは1:2:3:4', '2026/09/25', '12:34', 'version 1.2.3.4', 'コードクルーズ 12/34'];
   assert.equal(workerContainsSecret, detectorContainsSecret);
   for (const vector of vectors) assert.equal(containsSecret(vector), workerContainsSecret(vector), `parity: ${vector}`);
-  for (const secret of ['Proの番号は 12 34', '暗証番号 1 2 3 4', 'コードは12-34']) assert.equal(containsSecret(secret), true, secret);
+  for (const secret of ['Proの番号は 12 34', '暗証番号 1 2 3 4', 'コードは12-34', 'Proコードは12/34', '暗証番号は1.2.3.4', 'PINは1:2:3:4']) {
+    assert.equal(containsSecret(secret), true, secret);
+  }
+  for (const safe of ['2026/09/25', '12:34', 'version 1.2.3.4', 'error 404', 'HTTP 500', 'コードクルーズ 12/34']) assert.equal(containsSecret(safe), false, safe);
   const portSource = readFileSync(new URL('./ai-support-client.js', import.meta.url), 'utf8');
   const workerSource = readFileSync(new URL('../../workers/sound-cruise-sync/src/secret-detector.js', import.meta.url), 'utf8');
-  const body = (source) => source.slice(source.indexOf('const CODE_ALPHABET'), source.indexOf('export function containsSecret'));
+  const body = (source) => source.slice(source.indexOf('// --- mirror start'), source.indexOf('// --- mirror end ---'));
+  assert.ok(body(workerSource).includes('export function containsFullId'));
   assert.equal(body(portSource), body(workerSource), 'the Port detector is a byte-for-byte mirror');
   for (const safe of ['2026年から使っています', 'エラー 404 が出ます', '500 エラー']) assert.equal(containsSecret(safe), false, safe);
 });
@@ -508,4 +513,15 @@ test('beta: a non-entitled Account sees a fixed message; the Port flag is UI dis
   }
   const standard = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
   assert.match(standard, /<div id="sync-center-ai-support" class="sync-center-ai-support" hidden><\/div>/);
+});
+
+test('AI1-C final: full IDs and slash/dot/colon codes are refused before sending', async () => {
+  let requests = 0;
+  const client = createAiSupportClient({ endpoint: 'https://sync.example', readPro: () => PRO,
+    accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
+    fetchImpl: async () => { requests += 1; return { ok: true, status: 200, json: async () => ({ ok: true, reply: 'x' }) }; } });
+  for (const message of ['4714bf0c-f6bb-4edb-a29f-01fa9ae44daa', 'B91C7F00A1B2C3D4E5F60718293A4B5C', 'PINは1:2:3:4']) {
+    assert.deepEqual(await client.send({ message }), { ok: false, kind: 'secret' }, message);
+  }
+  assert.equal(requests, 0);
 });

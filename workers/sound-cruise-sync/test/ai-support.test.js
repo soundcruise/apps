@@ -586,14 +586,48 @@ test('egress at the route: a split code is refused before auth, and a blocked tu
     assert.equal((await response.json()).code, 'ai_support_secret_detected');
   }
   assert.equal(ai.requests.length, 0);
-  // The model's own text next to a tool call is checked before the follow-up call.
-  const leaky = mockAi([{ choices: [{ message: { role: 'assistant', content: '暗証番号 1 2 3 4 を確認します',
-    tool_calls: [{ id: 'c1', type: 'function', function: { name: 'getSyncOverview', arguments: '{}' } }] } }] }, reply('never')]);
-  const blocked = await chat({ ...env, AI: leaky }, a, pro, { message: '同期できません' });
-  assert.equal(blocked.status, 400);
-  assert.deepEqual(await blocked.json(), { ok: false, code: 'ai_support_secret_detected',
-    message: '4桁の番号や復旧コードなどが相談内容に含まれている可能性があります。該当部分を削除してから、もう一度お試しください。' });
-  assert.equal(leaky.requests.length, 1);
+  for (const message of ['Proコードは12/34', '暗証番号は1.2.3.4', 'PINは1:2:3:4', `端末 ${a.appDeviceId}`]) {
+    const response = await chat({ ...env, AI: ai }, a, pro, { message });
+    assert.equal(response.status, 400, message.slice(0, 8));
+  }
+  assert.equal(ai.requests.length, 0);
+  // Tool-call metadata the model invents (ids, text around the call) is never resent.
+  const hostile = mockAi([{ choices: [{ message: { role: 'assistant', content: '暗証番号 1 2 3 4 を確認します',
+    tool_calls: [{ id: 'PIN 1234', type: 'function', function: { name: 'getSyncOverview', arguments: '{}' } }] } }] }, reply('確認しました')]);
+  const ok = await chat({ ...env, AI: hostile }, a, pro, { message: '同期できません' });
+  assert.equal(ok.status, 200);
+  assert.equal(hostile.requests.length, 2);
+  const followUp = JSON.stringify(hostile.requests[1]);
+  assert.equal(followUp.includes('PIN 1234') || followUp.includes('1 2 3 4'), false);
+  // An unknown function name ends the turn without another call.
+  const unknown = mockAi([callTools(['コードは12/34', {}]), reply('never')]);
+  const failed = await chat({ ...env, AI: unknown }, a, pro, { message: '同期できません' });
+  assert.equal(failed.status, 200);
+  assert.equal((await failed.json()).reply, 'うまく回答をまとめられませんでした。質問を短くして、もう一度お試しください。');
+  assert.equal(unknown.requests.length, 1);
+  db.close();
+});
+
+test('38: names set to full Account / Device IDs never reach the provider in any form', async () => {
+  const { db, env, a, pro } = await setup();
+  const deviceForms = idForms(a.appDeviceId);
+  const accountForms = idForms(a.accountId);
+  for (const label of [a.accountId, a.accountId.toUpperCase(), a.appDeviceId.replace(/-/g, ''), a.appDeviceId.replace(/-/g, '').toUpperCase()]) {
+    db.raw.prepare('UPDATE sync_devices SET user_label = ?, label = ? WHERE id = ?').run(label, a.accountId.replace(/-/g, ''), a.appDeviceId);
+    db.raw.prepare('UPDATE sync_account_devices SET user_label = ? WHERE account_id = ?').run(label, a.accountId);
+    const ai = mockAi([callTools(['getSyncOverview', {}], ['getAppSyncTargets', { appId: 'pitch' }]), reply('確認しました')]);
+    const response = await chat({ ...env, AI: ai }, a, pro, { message: '音感クルーズがおかしい' });
+    assert.equal(response.status, 200, 'the turn continues with a fallback name');
+    const everything = JSON.stringify(ai.requests);
+    for (const form of [...deviceForms, ...accountForms, ...a.accountDeviceIds.flatMap(idForms)]) {
+      assert.equal(everything.includes(form), false, `provider request contains ${form.slice(0, 6)}…`);
+    }
+    const targets = JSON.parse(ai.requests[1].inputs.messages.find((message) => message.name === 'getAppSyncTargets').content).data.targets;
+    assert.ok(targets.every((target) => ['shortId', 'ref'].includes(target.nameSource)), JSON.stringify(targets.map((target) => target.nameSource)));
+  }
+  // The saved names themselves are unchanged (display-only fallback for the model).
+  assert.equal(db.raw.prepare('SELECT user_label FROM sync_devices WHERE id = ?').get(a.appDeviceId).user_label,
+    a.appDeviceId.replace(/-/g, '').toUpperCase());
   db.close();
 });
 
