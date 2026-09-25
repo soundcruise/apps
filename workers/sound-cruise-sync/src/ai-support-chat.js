@@ -8,7 +8,7 @@ import {
   AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, FALLBACK_REPLIES, SECRET_REFUSAL, containsMarkdown,
   sanitizeReply, validateToolCall
 } from './ai-support-policy.js';
-import { containsSensitive } from './secret-detector.js';
+import { containsSensitive, createKnownIdMatcher } from './secret-detector.js';
 
 const TOOL_NAMES = new Set(AI_SUPPORT_TOOLS.map((tool) => tool.function.name));
 
@@ -16,10 +16,13 @@ const TOOL_NAMES = new Set(AI_SUPPORT_TOOLS.map((tool) => tool.function.name));
 // Every provider call goes through guardedProvider: the egress guard on the whole request and a
 // budget of maxModelCalls (maxModelRounds + one repair) per turn. A blocked request returns
 // SECRET_REFUSAL with egressBlocked, and nothing is sent.
-export async function runSupportTurn({ provider: rawProvider, diagnostics, history = [], message }) {
-  const provider = guardedProvider(rawProvider, { maxCalls: AI_SUPPORT_LIMITS.maxModelCalls });
+// knownIds: the authenticated Account's raw IDs (Worker-internal; never sent). Every request and
+// every reply is compared against them.
+export async function runSupportTurn({ provider: rawProvider, diagnostics, history = [], message, knownIds = [] }) {
+  const provider = guardedProvider(rawProvider, { maxCalls: AI_SUPPORT_LIMITS.maxModelCalls, knownIds });
+  const containsKnownId = createKnownIdMatcher(knownIds);
   try {
-    return await runRounds({ provider, diagnostics, history, message });
+    return await runRounds({ provider, diagnostics, history, message, containsKnownId });
   } catch (error) {
     if (error instanceof EgressBlockedError) {
       return { reply: SECRET_REFUSAL, stats: { modelCalls: provider.calls, egressBlocked: true }, egressBlocked: true };
@@ -28,7 +31,7 @@ export async function runSupportTurn({ provider: rawProvider, diagnostics, histo
   }
 }
 
-async function runRounds({ provider, diagnostics, history, message }) {
+async function runRounds({ provider, diagnostics, history, message, containsKnownId }) {
   const messages = [
     { role: 'system', content: AI_SUPPORT_SYSTEM_PROMPT },
     ...history.map(({ role, content }) => ({ role, content })),
@@ -56,7 +59,7 @@ async function runRounds({ provider, diagnostics, history, message }) {
       stats.firstAnswerMs = Date.now() - started;
       const reply = sanitizeReply(result.text);
       if (!reply) return { reply: FALLBACK_REPLIES.noAnswer, stats };
-      return guardReply({ provider, messages, reply, stats, track });
+      return guardReply({ provider, messages, reply, stats, track, containsKnownId });
     }
     if (!toolsAllowed) break;
     // Nothing the model wrote around a tool call is sent back as-is. A call naming anything but
@@ -110,15 +113,22 @@ async function runRounds({ provider, diagnostics, history, message }) {
 // A reply that looks like it holds a code or a full ID is left out of the repair request
 // entirely; the fixed instruction names only the category. If a safe repair request cannot be
 // built, the fixed fallback is returned without another model call.
-async function guardReply({ provider, messages, reply, stats, track }) {
-  const first = validateSupportReply(reply);
+// A reply holding a known internal ID in any form counts as a full_id violation.
+function checkReply(reply, containsKnownId) {
+  const { violations } = validateSupportReply(reply);
+  if (containsKnownId(reply) && !violations.includes('full_id')) violations.push('full_id');
+  return { ok: violations.length === 0, violations };
+}
+
+async function guardReply({ provider, messages, reply, stats, track, containsKnownId }) {
+  const first = checkReply(reply, containsKnownId);
   if (first.ok) return { reply, stats };
   stats.guardViolations.push(...first.violations);
   stats.repairAttempted = true;
   let repaired = '';
-  const badReply = containsSensitive(reply) ? [] : [{ role: 'assistant', content: reply }];
+  const badReply = containsSensitive(reply) || containsKnownId(reply) ? [] : [{ role: 'assistant', content: reply }];
   const request = { messages: [...messages, ...badReply, { role: 'user', content: repairInstruction(first.violations) }], tools: [] };
-  if (!isProviderInputSafe(request)) {
+  if (!isProviderInputSafe(request, { containsKnownId })) {
     stats.fallback = true;
     return { reply: GUARD_FALLBACK_REPLY, stats };
   }
@@ -129,7 +139,7 @@ async function guardReply({ provider, messages, reply, stats, track }) {
   } catch {
     repaired = '';
   }
-  const second = validateSupportReply(repaired);
+  const second = checkReply(repaired, containsKnownId);
   if (repaired && second.ok) {
     stats.repaired = true;
     return { reply: repaired, stats };

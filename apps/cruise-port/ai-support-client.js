@@ -32,6 +32,9 @@ const UNIT_AFTER = /^\s*(年|月|日|件|回|円|%|時|分|秒|個|曲|人|行|�
 const SENTENCE = /[^。！？!?]+/g;
 const SPLIT_WINDOW = 18;
 const JOINED_WINDOW = 12;
+// 「12/34がPINです」: a strong context right after the digits, joined only by spaces, light
+// punctuation, closing quotes and a topic/subject particle (が, は, も, って, とは, という).
+const REVERSE_GAP = /^[\s、,」』)）"']{0,3}(?:が|は|も|って|とは|という|=)?[\s、,]{0,3}$/;
 
 function matches(pattern, text) {
   return [...text.matchAll(pattern)].map((match) => ({ start: match.index, end: match.index + match[0].length, text: match[0] }));
@@ -46,7 +49,8 @@ function sentenceHasCode(sentence) {
     if (JOINER.test(run.text)) {
       // 12/34, 1.2.3.4, 1:2:3:4 look like dates, versions and times, so only a strong context
       // right before them makes them a code.
-      if (strong.some((context) => context.end <= run.start && run.start - context.end <= JOINED_WINDOW)) return true;
+      if (strong.some((context) => (context.end <= run.start && run.start - context.end <= JOINED_WINDOW) ||
+        (run.end <= context.start && REVERSE_GAP.test(sentence.slice(run.end, context.start))))) return true;
     } else if (any.some((context) => (context.end <= run.start && run.start - context.end <= SPLIT_WINDOW) ||
       (run.end <= context.start && context.start - run.end <= SPLIT_WINDOW))) {
       return true;

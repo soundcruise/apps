@@ -545,3 +545,22 @@ test('Pro Sync Help: the Privacy link resolves from the module URL, so it works 
   const ui = readFileSync(new URL('./ai-support-ui.js', import.meta.url), 'utf8');
   assert.match(ui, /new URL\('\.\/privacy\.html#ai-support', import\.meta\.url\)\.href/);
 });
+
+test('final blockers: reverse-context codes are refused before sending, same as the Worker', async () => {
+  const reverse = ['12/34がPINです', '1.2.3.4 が暗証番号です', '1:2:3:4 がProコードです', '12-34 が接続コードです',
+    '１２／３４がＰＩＮです', '１．２．３．４ が暗証番号です'];
+  const allow = ['2026/09/25', '12:34', 'version 1.2.3.4', 'v1.2.3.4', 'version 1234', 'error 404', 'HTTP 500', 'コードクルーズ 12/34', '2026年'];
+  for (const text of [...reverse, ...allow]) assert.equal(containsSecret(text), workerContainsSecret(text), `parity: ${text}`);
+  for (const text of reverse) assert.equal(containsSecret(text), true, text);
+  for (const text of allow) assert.equal(containsSecret(text), false, text);
+  let requests = 0;
+  const client = createAiSupportClient({ endpoint: 'https://sync.example', readPro: () => PRO,
+    accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
+    fetchImpl: async () => { requests += 1; return { ok: true, status: 200, json: async () => ({ ok: true, reply: 'x' }) }; } });
+  for (const text of reverse) {
+    assert.deepEqual(await client.send({ message: text }), { ok: false, kind: 'secret' });
+    assert.deepEqual(await client.send({ message: 'x', history: [{ role: 'user', content: 'q' }, { role: 'assistant', content: text }] }),
+      { ok: false, kind: 'secret' });
+  }
+  assert.equal(requests, 0);
+});

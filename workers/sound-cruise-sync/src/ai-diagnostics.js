@@ -17,7 +17,7 @@ import { createD1AccountRepository } from './account-database.js';
 import { createD1AccountLifecycleRepository } from './account-lifecycle-database.js';
 import { accountContext } from './account-app.js';
 import { normalizeSyncTargetUserLabel } from './account-validation.js';
-import { containsFullId, containsSecret } from './secret-detector.js';
+import { containsFullId, containsSecret, createKnownIdMatcher, normalizeIdText } from './secret-detector.js';
 
 export const DIAGNOSTIC_CONTRACT_VERSION = 1;
 
@@ -53,17 +53,12 @@ const REGISTERED_LABEL_MAX = 80;
 // internal ID of this Account in any case or separator form. An unsafe name is treated as absent,
 // so the next name in the N1 order is used and the turn continues. The user's saved name is not
 // changed, and the name itself is never sent to a model.
-function normalizeId(value) {
-  return typeof value === 'string' ? value.normalize('NFKC').toLowerCase().replace(/[^0-9a-z]/g, '') : '';
-}
 export function createNameSafety(knownIds = []) {
-  const known = [...new Set(knownIds.map(normalizeId).filter((id) => id.length >= 16))];
+  const containsKnownId = createKnownIdMatcher(knownIds);
   return (text) => {
-    if (containsSecret(text) || containsFullId(text)) return false;
-    const compact = normalizeId(text);
-    // compact has no separators left, so 32+ hex characters in a row is a split full ID.
-    if (/[0-9a-f]{32,}/.test(compact.replace(/[g-z]/g, '_'))) return false;
-    return !known.some((id) => compact.includes(id));
+    if (containsSecret(text) || containsFullId(text) || containsKnownId(text)) return false;
+    // With every separator removed, 32+ hex characters in a row is a split full ID.
+    return !/[0-9a-f]{32,}/.test(normalizeIdText(text).replace(/[g-z]/g, '_'));
   };
 }
 
@@ -227,10 +222,13 @@ export function createSyncDiagnostics({
   async function load() {
     let summary;
     let appDevices;
+    let accountDevices;
     try {
-      [summary, appDevices] = await Promise.all([
+      [summary, appDevices, accountDevices] = await Promise.all([
         accountRepository.getAccountSummary(identity.accountId),
-        lifecycleRepository.listAppEnvironments(identity)
+        lifecycleRepository.listAppEnvironments(identity),
+        // Account devices (Port environments): read only for their IDs, which are never returned.
+        typeof lifecycleRepository.listEnvironments === 'function' ? lifecycleRepository.listEnvironments(identity) : []
       ]);
     } catch {
       // A storage error is replaced by a fixed code, so no id, SQL or driver text can reach a model.
@@ -245,9 +243,11 @@ export function createSyncDiagnostics({
     // Active targets only: revoked history is not part of routine diagnosis.
     const active = (appDevices || []).filter((device) => device.revokedAt == null && APP_IDS.has(device.appId));
     // Every raw ID this read knows (never returned; only compared against names).
-    const knownIds = [identity.accountId, identity.accountDeviceId, identity.appDeviceId,
-      ...(appDevices || []).flatMap((device) => [device.id, device.accountDeviceId, device.appDeviceId])];
+    const knownIds = Object.freeze([identity.accountId, identity.accountDeviceId, identity.appDeviceId,
+      ...(appDevices || []).flatMap((device) => [device.id, device.accountDeviceId, device.appDeviceId]),
+      ...(accountDevices || []).map((device) => device?.id)].filter((id) => typeof id === 'string' && id));
     return {
+      knownIds,
       isSafeName: createNameSafety(knownIds),
       observedAt: now(),
       accountState: accountDeleting ? 'deleting' : account.state === 'active' ? 'active' : 'attention',
@@ -298,6 +298,11 @@ export function createSyncDiagnostics({
   }
 
   return Object.freeze({
+    // Worker-internal, never a model tool: the raw Account, Account device and App device IDs of
+    // this Account, so the egress guard can refuse any text that carries one in any form.
+    async knownIds() {
+      return (await load()).knownIds;
+    },
     // The whole authenticated Account: one entry per app, no per-target detail.
     async getSyncOverview() {
       const state = await load();

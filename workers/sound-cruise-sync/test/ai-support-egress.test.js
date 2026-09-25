@@ -324,3 +324,144 @@ test('42: at most 4 provider calls per turn; blocked requests add no retries', a
   await assert.rejects(guardedProvider(raw, { maxCalls: 4 }).complete({ messages: [{ role: 'user', content: 'PIN 1234' }] }), EgressBlockedError);
   assert.equal(raw.calls.length, 4, 'a blocked request is not sent');
 });
+
+// ------------------------------------------------------------------ Final focused review blockers
+
+const REVERSE = ['12/34がPINです', '1.2.3.4 が暗証番号です', '1:2:3:4 がProコードです', '12-34 が接続コードです',
+  '１２／３４がＰＩＮです', '１．２．３．４ が暗証番号です', '「12/34」がPINです', '12/34  が  復旧コードです'];
+// Every separator form of an ID: canonical, upper, hyphenless, _, /, whitespace, 4-char groups, mixed, full-width.
+function idVariants(id) {
+  const hex = id.replace(/-/g, '');
+  const groups = hex.match(/.{4}/g);
+  return [id, id.toUpperCase(), hex, hex.toUpperCase(), id.replace(/-/g, '_'), id.replace(/-/g, '/'), id.replace(/-/g, ' '),
+    groups.join('_'), groups.join(' / '), `${hex.slice(0, 8)}_${hex.slice(8, 12).toUpperCase()}/${hex.slice(12, 16)} ${hex.slice(16, 20)}-${hex.slice(20)}`,
+    id.replace(/-/g, '＿').replace(/[0-9a-f]/g, (char) => String.fromCodePoint(char.codePointAt(0) + 0xfee0))];
+}
+const APP_DEVICE_ID = 'e3f2a1b0-9c8d-4e7f-a6b5-c4d3e2f1a0b9';
+const KNOWN = [ACCOUNT_ID, ACCOUNT_DEVICE_ID, APP_DEVICE_ID];
+
+test('R1: reverse strong context blocks slash/dot/colon/hyphen codes; forward blocks and allows unchanged', () => {
+  for (const secret of [...REVERSE, 'Proコードは12/34', '暗証番号は1.2.3.4', 'PINは1:2:3:4', 'コードは12-34', 'Proの番号は 1 2 3 4']) {
+    assert.equal(containsSecret(secret), true, secret);
+  }
+  for (const safe of ['2026/09/25', '12:34', 'version 1.2.3.4', 'v1.2.3.4', 'version 1234', 'error 404', 'HTTP 500',
+    'コードクルーズ 12/34', '2026年', '12:34にPINを入力しました', '12/25のPINの変更', '12:34は私のPINを入れた時刻', '2026/09/25がPINの変更日']) {
+    assert.equal(containsSecret(safe), false, safe);
+  }
+});
+
+test('R4: reverse-context codes in the message or user/assistant history → provider call 0', async () => {
+  for (const secret of REVERSE) {
+    for (const input of [
+      { message: secret },
+      { message: '同期できません', history: [{ role: 'user', content: secret }, { role: 'assistant', content: '了解です' }] },
+      { message: '同期できません', history: [{ role: 'user', content: '質問' }, { role: 'assistant', content: secret }] }
+    ]) {
+      const p = provider([text(GOOD)]);
+      const turn = await runSupportTurn({ provider: p, diagnostics: plain(), ...input });
+      assert.equal(turn.egressBlocked, true, secret);
+      assert.equal(p.calls.length, 0);
+    }
+  }
+});
+
+test('R5: a reverse-context bad reply is never resent; fixed categories only; unsafe repair → no call', async () => {
+  const bad = '12/34がPINです。再同期ボタンを押してください。';
+  assert.deepEqual(validateSupportReply(bad).violations, ['resync_button', 'secret_like']);
+  const p = provider([tools('getSyncOverview'), text(bad), text(GOOD)]);
+  const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません' });
+  assert.equal(turn.reply, GOOD);
+  assert.equal(p.calls.length, 3, 'one repair, no extra loop');
+  assert.equal(JSON.stringify(p.calls[2]).includes('12/34'), false);
+  assert.equal(p.calls[2].messages.at(-1).content, repairInstruction(['resync_button', 'secret_like']));
+  assertCleanRequests(p.calls);
+  const twice = provider([text(bad), text(bad), text(GOOD)]);
+  const fallback = await runSupportTurn({ provider: twice, diagnostics: plain(), message: '同期できません' });
+  assert.equal(fallback.reply, GUARD_FALLBACK_REPLY);
+  assert.equal(twice.calls.length, 2);
+  // Unsafe repair context (state changed after the earlier checks) → deterministic fallback, no call.
+  const calls = [];
+  const mutating = { async complete(input) { calls.push(input); input.messages.push({ role: 'user', content: '12/34がPINです' }); return text(bad); } };
+  const closed = await runSupportTurn({ provider: mutating, diagnostics: plain(), message: '同期できません' });
+  assert.equal(closed.reply, GUARD_FALLBACK_REPLY);
+  assert.equal(calls.length, 1);
+});
+
+test('R6: known internal IDs in any separator form never reach the provider (message, history, reply)', async () => {
+  for (const id of KNOWN) {
+    for (const form of idVariants(id)) {
+      for (const input of [
+        { message: `端末は ${form} です` },
+        { message: '同期できません', history: [{ role: 'user', content: form }, { role: 'assistant', content: '了解です' }] },
+        { message: '同期できません', history: [{ role: 'user', content: '質問' }, { role: 'assistant', content: `ID ${form}` }] }
+      ]) {
+        const p = provider([text(GOOD)]);
+        const turn = await runSupportTurn({ provider: p, diagnostics: plain(), knownIds: KNOWN, ...input });
+        assert.equal(turn.egressBlocked, true, 'known ID form must be blocked');
+        assert.equal(p.calls.length, 0);
+      }
+      // A reply carrying the ID is a full_id violation and is never resent in the repair.
+      const q = provider([text(`端末 ${form} で再同期ボタンを押してください。`), text(GOOD)]);
+      const turn = await runSupportTurn({ provider: q, diagnostics: plain(), knownIds: KNOWN, message: '同期できません' });
+      assert.equal(turn.reply, GOOD);
+      assert.equal(q.calls.length, 2);
+      assert.ok(turn.stats.guardViolations.includes('full_id'));
+      assert.equal(JSON.stringify(q.calls[1]).includes(form), false);
+      assertCleanRequests(q.calls, KNOWN);
+    }
+  }
+  // Short prefixes and ordinary text stay allowed.
+  const ok = provider([text(GOOD)]);
+  await runSupportTurn({ provider: ok, diagnostics: plain(), knownIds: KNOWN, message: `同期先 ${APP_DEVICE_ID.slice(0, 8)} と T1 は？` });
+  assert.equal(ok.calls.length, 1);
+});
+
+test('R7: the final AI.run guard refuses known IDs and reverse-context codes on its own', async () => {
+  const runs = [];
+  const ai = { async run(model, inputs) { runs.push(inputs); return { choices: [{ message: { content: 'はい' } }] }; } };
+  const p = createWorkersAiProvider({ ai, knownIds: KNOWN });
+  const system = { role: 'system', content: AI_SUPPORT_SYSTEM_PROMPT };
+  for (const id of KNOWN) {
+    for (const form of idVariants(id)) {
+      await assert.rejects(p.complete({ messages: [system, { role: 'user', content: form }] }), EgressBlockedError);
+      await assert.rejects(p.complete({ messages: [system, { role: 'tool', tool_call_id: 'call_1', name: 'getSyncOverview',
+        content: JSON.stringify({ data: { note: form } }) }] }), EgressBlockedError);
+    }
+  }
+  for (const secret of REVERSE) await assert.rejects(p.complete({ messages: [system, { role: 'user', content: secret }] }), EgressBlockedError);
+  assert.equal(runs.length, 0, 'nothing reached AI.run');
+});
+
+test('R11 (LOW): unknown top-level keys are inspected like any other key', () => {
+  const messages = [{ role: 'system', content: AI_SUPPORT_SYSTEM_PROMPT }, { role: 'user', content: '同期できません' }];
+  assert.equal(isProviderInputSafe({ messages }), true);
+  assert.equal(isProviderInputSafe({ messages, 'PIN 1234': 1 }), false);
+  assert.equal(isProviderInputSafe({ messages, [ACCOUNT_ID]: true }), false);
+  assert.equal(isProviderInputSafe({ messages, [ACCOUNT_ID.replace(/-/g, '_')]: true },
+    { containsKnownId: (value) => value.replace(/[^0-9a-z]/gi, '').toLowerCase().includes(ACCOUNT_ID.replace(/-/g, '')) }), false);
+});
+
+test('R6: diagnostics know Account, Account device and App device IDs and refuse them as names in any form', async () => {
+  const d = createSyncDiagnostics({
+    session: {}, identity: { accountId: ACCOUNT_ID, accountDeviceId: ACCOUNT_DEVICE_ID }, now: () => now,
+    createAccountRepository: () => ({ async getAccountSummary() {
+      return { account: { state: 'active' }, memberships: [{ appId: 'chord', state: 'active', activeAppDeviceCount: 2,
+        attentionConflictCount: 0, removalSafety: 'safe', dataset: { state: 'ready' } }] };
+    } }),
+    createLifecycleRepository: () => ({
+      async listEnvironments() { return [{ id: ACCOUNT_DEVICE_ID }, { id: 'f00dcafe-0000-4000-8000-00000000beef' }]; },
+      async listAppEnvironments() {
+        return [APP_DEVICE_ID, ID_B].map((id, index) => ({ id, appId: 'chord', revokedAt: null, isCurrent: false,
+          lastReport: { state: 'clean', reportedAt: now, attentionCount: 0 },
+          userLabel: index ? 'f00dcafe_0000_4000_8000_00000000beef'.slice(0, 40) : APP_DEVICE_ID.replace(/-/g, '/'), label: 'iPhone Safari' }));
+      }
+    })
+  });
+  const known = await d.knownIds();
+  for (const id of [ACCOUNT_ID, ACCOUNT_DEVICE_ID, APP_DEVICE_ID, ID_B, 'f00dcafe-0000-4000-8000-00000000beef']) assert.ok(known.includes(id));
+  const result = await d.getAppSyncTargets('chord');
+  assert.deepEqual(result.targets.map((target) => [target.nameSource, target.displayName]),
+    [['registered', 'iPhone Safari'], ['registered', 'iPhone Safari']], 'ID-like names fell back');
+  const safe = createNameSafety(known);
+  for (const id of KNOWN) for (const form of idVariants(id)) assert.equal(safe(`端末 ${form}`), false);
+});

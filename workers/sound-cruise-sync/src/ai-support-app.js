@@ -1,7 +1,8 @@
 // POST /v2/ai-support/chat (AI1-B, not enabled in production).
 //
 // Order: origin/CORS → AI gate → per-IP limit → body limits → secret filter → Pro (read-only)
-// → QA (read-only) → Account (read-only, AI1-A) → beta entitlement → per-Account limit → one turn,
+// → QA (read-only) → Account (read-only, AI1-A) → beta entitlement → per-Account limit → the
+// Account's known IDs (read-only, for the egress guard only) → one turn,
 // whose every provider call passes the egress guard (ai-support-chat.js). Every D1 access on this
 // path is a SELECT; nothing is stored. The gate is AI-specific (AI_SUPPORT_MODE, default off) and
 // never shares a sync gate. Beta scope = gate 'beta' + a valid Pro credential + an Account
@@ -11,7 +12,7 @@ import { openSyncDiagnostics } from './ai-diagnostics.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { ACCOUNT_ADMISSION_PROVENANCE } from './account-admission.js';
 import { inspectProCredentialReadOnly } from './pro-auth-app.js';
-import { AI_SUPPORT_LIMITS, SECRET_REFUSAL } from './ai-support-policy.js';
+import { AI_SUPPORT_LIMITS, FALLBACK_REPLIES, SECRET_REFUSAL } from './ai-support-policy.js';
 import { containsSensitive } from './secret-detector.js';
 import { AI_SUPPORT_MODELS, AiProviderError, DEFAULT_AI_SUPPORT_MODEL, createWorkersAiProvider } from './ai-support-provider.js';
 import { runSupportTurn } from './ai-support-chat.js';
@@ -171,10 +172,16 @@ export async function handleAiSupportRequest(request, env = {}, _ctx, dependenci
   }
   if (limited?.success !== true) return fail(429, 'rate_limited', origin, { 'Retry-After': '60' });
 
+  // The Account's raw IDs, for the egress guard only (compared, never sent). If they cannot be read,
+  // no model is called (fail closed) and the fixed diagnostics-unavailable reply is returned.
+  let knownIds;
+  try { knownIds = await opened.diagnostics.knownIds(); } catch {
+    return respond(200, { ok: true, reply: FALLBACK_REPLIES.diagnosticsUnavailable }, origin);
+  }
   const provider = (dependencies.createProvider || createWorkersAiProvider)({ ai: env.AI, modelKey,
-    maxOutputTokens: AI_SUPPORT_LIMITS.maxOutputTokens });
+    maxOutputTokens: AI_SUPPORT_LIMITS.maxOutputTokens, knownIds });
   try {
-    const turn = await runSupportTurn({ provider, diagnostics: opened.diagnostics, history, message });
+    const turn = await runSupportTurn({ provider, diagnostics: opened.diagnostics, history, message, knownIds });
     if (turn.egressBlocked) {
       return respond(400, { ok: false, code: 'ai_support_secret_detected', message: SECRET_REFUSAL }, origin);
     }

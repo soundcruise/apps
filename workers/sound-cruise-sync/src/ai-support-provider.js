@@ -5,6 +5,7 @@
 // status is ever passed on to the user or the model.
 
 import { EgressBlockedError, isProviderInputSafe } from './ai-support-egress.js';
+import { createKnownIdMatcher } from './secret-detector.js';
 
 export const AI_SUPPORT_MODELS = Object.freeze({
   'gpt-oss-120b': Object.freeze({ id: '@cf/openai/gpt-oss-120b', reasoningEffort: 'low',
@@ -66,8 +67,10 @@ export function normalizeCompletion(raw) {
 }
 
 // ai: the Workers AI binding (env.AI) or a test double with run(model, inputs).
+// knownIds: the authenticated Account's raw IDs, used only to refuse inputs that contain them.
 export function createWorkersAiProvider({ ai, modelKey = DEFAULT_AI_SUPPORT_MODEL, timeoutMs = 25_000,
-  maxOutputTokens = 900 } = {}) {
+  maxOutputTokens = 900, knownIds = [] } = {}) {
+  const containsKnownId = createKnownIdMatcher(knownIds);
   const model = AI_SUPPORT_MODELS[modelKey];
   if (!model) throw new Error('ai_support_model_unknown');
   if (!ai || typeof ai.run !== 'function') throw new Error('ai_support_binding_missing');
@@ -79,7 +82,7 @@ export function createWorkersAiProvider({ ai, modelKey = DEFAULT_AI_SUPPORT_MODE
       if (tools.length) inputs.tools = tools;
       if (model.reasoningEffort) inputs.reasoning = { effort: model.reasoningEffort };
       // The final egress boundary: the exact input for AI.run, checked here and nowhere skipped.
-      if (!isProviderInputSafe(inputs)) throw new EgressBlockedError();
+      if (!isProviderInputSafe(inputs, { containsKnownId })) throw new EgressBlockedError();
       let timer;
       try {
         const raw = await Promise.race([

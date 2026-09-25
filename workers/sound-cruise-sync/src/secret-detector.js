@@ -8,7 +8,8 @@
 // code (Pro passcode, PIN) is secret only in context, within one sentence:
 // - a strong context (Proの番号, 暗証番号, PIN, パスコード, 認証番号, 接続コード, 復旧コード,
 //   コードは / コード:, 4桁 ...) before exactly 4 digits, split by spaces, hyphens, slashes,
-//   dots or colons: 「PINは1:2:3:4」「コードは1.2.3.4」「Proコードは12/34」;
+//   dots or colons: 「PINは1:2:3:4」「コードは1.2.3.4」「Proコードは12/34」, or the same strong
+//   context right after the digits with only a particle between: 「12/34がPINです」;
 // - any context word (also Pro, 番号, ログイン, a standalone コード) near exactly 4 digits split
 //   only by spaces or hyphens: 「Proの番号は 12 34」「1234 がProの番号」.
 // Numbers followed by a unit (2026年), dates, times and versions without a strong context
@@ -40,6 +41,9 @@ const UNIT_AFTER = /^\s*(年|月|日|件|回|円|%|時|分|秒|個|曲|人|行|�
 const SENTENCE = /[^。！？!?]+/g;
 const SPLIT_WINDOW = 18;
 const JOINED_WINDOW = 12;
+// 「12/34がPINです」: a strong context right after the digits, joined only by spaces, light
+// punctuation, closing quotes and a topic/subject particle (が, は, も, って, とは, という).
+const REVERSE_GAP = /^[\s、,」』)）"']{0,3}(?:が|は|も|って|とは|という|=)?[\s、,]{0,3}$/;
 
 function matches(pattern, text) {
   return [...text.matchAll(pattern)].map((match) => ({ start: match.index, end: match.index + match[0].length, text: match[0] }));
@@ -54,7 +58,8 @@ function sentenceHasCode(sentence) {
     if (JOINER.test(run.text)) {
       // 12/34, 1.2.3.4, 1:2:3:4 look like dates, versions and times, so only a strong context
       // right before them makes them a code.
-      if (strong.some((context) => context.end <= run.start && run.start - context.end <= JOINED_WINDOW)) return true;
+      if (strong.some((context) => (context.end <= run.start && run.start - context.end <= JOINED_WINDOW) ||
+        (run.end <= context.start && REVERSE_GAP.test(sentence.slice(run.end, context.start))))) return true;
     } else if (any.some((context) => (context.end <= run.start && run.start - context.end <= SPLIT_WINDOW) ||
       (run.end <= context.start && context.start - run.end <= SPLIT_WINDOW))) {
       return true;
@@ -88,3 +93,14 @@ export function containsSensitive(text) {
   return containsSecret(text) || containsFullId(text);
 }
 // --- mirror end ---
+
+// Worker-only (not mirrored): exact comparison with the IDs known for the authenticated Account.
+// Case, width and every separator are ignored (「4714BF0C_F6BB/…」 is the same ID), but only
+// those exact IDs match, so ordinary text is never turned into a false full ID.
+export function normalizeIdText(text) {
+  return typeof text === 'string' ? text.normalize('NFKC').toLowerCase().replace(/[^0-9a-z]/g, '') : '';
+}
+export function createKnownIdMatcher(ids = []) {
+  const known = [...new Set((ids || []).map(normalizeIdText).filter((id) => id.length >= 16))];
+  return (text) => typeof text === 'string' && known.length > 0 && known.some((id) => normalizeIdText(text).includes(id));
+}

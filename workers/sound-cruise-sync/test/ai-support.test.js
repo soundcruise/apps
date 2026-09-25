@@ -354,7 +354,7 @@ test('16: a diagnostic failure gives a fixed reply instead of a guess', async ()
   const body = await failed.json();
   assert.match(body.reply, /現在の同期状態を確認できませんでした/);
   assert.doesNotMatch(body.reply, /推測の回答/);
-  assert.equal(broken.AI.requests.length, 1, 'no further model call after the diagnostic failure');
+  assert.equal(broken.AI.requests.length, 0, 'no model call when the Account state (and its IDs) cannot be read');
   db.close();
 });
 
@@ -643,5 +643,48 @@ test('gate off: Cloud Sync routes work normally while AI support is off and no b
   const pro = await proToken(db);
   const ai = await chat({ ...env, AI: mockAi([]) }, a, pro, { message: 'x' });
   assert.equal(ai.status, 404);
+  db.close();
+});
+
+test('final blockers at the route: reverse-context codes and alternate-separator known IDs never reach AI.run', async () => {
+  const { db, env, a, pro } = await setup();
+  const separated = (id) => {
+    const hex = id.replace(/-/g, '');
+    return [id.replace(/-/g, '_'), id.replace(/-/g, '/'), id.replace(/-/g, ' '), hex.match(/.{4}/g).join('_').toUpperCase(),
+      `${hex.slice(0, 8)}_${hex.slice(8, 12)}/${hex.slice(12, 16)} ${hex.slice(16, 20)}-${hex.slice(20)}`];
+  };
+  const ids = [a.accountId, a.appDeviceId, ...a.accountDeviceIds];
+  const before = dump(db);
+  const ai = mockAi([]);
+  const { env: recorded, statements } = recording({ ...env, AI: ai });
+  let checked = 0;
+  for (const id of ids) {
+    for (const form of separated(id)) {
+      for (const body of [{ message: `端末 ${form}` },
+        { message: '同期できません', history: [{ role: 'user', content: '質問' }, { role: 'assistant', content: `ID ${form}` }] }]) {
+        const response = await chat(recorded, a, pro, body);
+        assert.equal(response.status, 400, 'known ID form refused');
+        assert.equal((await response.json()).code, 'ai_support_secret_detected');
+        checked += 1;
+      }
+    }
+  }
+  for (const message of ['12/34がPINです', '1.2.3.4 が暗証番号です', '1:2:3:4 がProコードです', '１２／３４がＰＩＮです']) {
+    assert.equal((await chat(recorded, a, pro, { message })).status, 400);
+    assert.equal((await chat(recorded, a, pro, { message: 'x', history: [{ role: 'user', content: message }] })).status, 400);
+  }
+  assert.ok(checked >= 20);
+  assert.equal(ai.requests.length, 0, 'AI.run was never called');
+  assert.deepEqual(dump(db), before, 'D1 byte-identical');
+  assert.ok(statements.every((statement) => statement === 'SELECT'), 'SELECT only');
+  // A bad reply carrying a known ID (alternate separators) is never resent in the repair.
+  const leak = separated(a.appDeviceId)[0];
+  const repairing = mockAi([reply(`端末 ${leak} で再同期ボタンを押してください。`), reply('同期センターでコードクルーズの行の ⓘ を開いてください。')]);
+  const repaired = await chat({ ...env, AI: repairing }, a, pro, { message: '同期できません' });
+  assert.equal(repaired.status, 200);
+  assert.equal(repairing.requests.length, 2);
+  const everything = JSON.stringify(repairing.requests).toLowerCase().replace(/[^0-9a-z]/g, '');
+  for (const id of ids) assert.equal(everything.includes(id.replace(/-/g, '').toLowerCase()), false, 'no known ID in any provider request');
+  assert.doesNotMatch(JSON.stringify(await repaired.json()), /再同期ボタン/);
   db.close();
 });
