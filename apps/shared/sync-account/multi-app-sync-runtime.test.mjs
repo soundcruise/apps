@@ -7,6 +7,7 @@ import { validatePortLocalCollections } from '../../cruise-port/port-sync-local-
 import { METRONOME_DEFAULTS } from '../../cruise-port/metronome-store.js';
 import { loadMetronomePresets, deleteMetronomePreset } from '../../cruise-port/metronome-presets-store.js';
 import { validateOperation as validateWorkerOperation } from '../../../workers/sound-cruise-sync/src/records.js';
+import { appendPracticeHistoryEvent, createManualPracticeRecord, deletePracticeHistoryEvent, loadPracticeHistory, savePracticeHistory, updatePracticeHistoryRecord } from '../../cruise-port/practice-menu-history-store.js';
 
 class CustomEventPolyfill extends Event {
   constructor(type, init = {}) { super(type); this.detail = init.detail; }
@@ -3335,4 +3336,66 @@ test('two devices changing the same setting concurrently still get a conflict; n
   assert.equal((await b.store.listConflicts()).length, 1);
   assert.equal(JSON.parse(b.storage.getItem(TUNER_KEY)).capo, 7, 'the local value is kept for the user to choose');
   assert.equal(a.server.records.get('tuner_settings/default').payload.value.capo, 5, 'the cloud value is kept');
+});
+
+// ------------------------------------------------------------ manual practice records (0.70.0)
+
+const HISTORY_KEY = 'cruisePort.practiceHistory';
+// The app's own load/save path (it also records the deletion intent that lets a delete reach the cloud).
+const readHistory = (fixture) => loadPracticeHistory(fixture.storage).history;
+const writeHistory = (fixture, history) => assert.equal(savePracticeHistory(history, fixture.storage).ok, true);
+const serverHistoryEvent = (fixture, id) => fixture.server.records.get(`practice_history_event/${id}`);
+
+test('manual practice records: add, repeated edits, an edit during its own push, and delete sync with no conflict', async () => {
+  const fixture = realPortFixture({ [HISTORY_KEY]: JSON.stringify({ version: 5, events: [] }) });
+  await fixture.runtime.consumeHandoff('history');
+  const record = createManualPracticeRecord({ localDate: '2026-09-20', practiceId: 'menu-a', practiceName: 'スケール', durationMinutes: 20 },
+    new Date(2026, 8, 26, 9));
+  writeHistory(fixture, appendPracticeHistoryEvent(readHistory(fixture), record).history);
+  assert.equal((await fixture.runtime.sync('save')).ok, true);
+  assert.equal(serverHistoryEvent(fixture, record.id).payload.value.measuredDurationSeconds, 1200, 'the manual record reaches the cloud');
+  assert.equal(serverHistoryEvent(fixture, record.id).payload.value.source, 'manual');
+  // Repeated edits of the same record from this device.
+  for (const [minutes, practiceId, localDate] of [[25, 'menu-a', '2026-09-20'], [30, 'menu-b', '2026-09-20'], [45, 'menu-b', '2026-09-21']]) {
+    const updated = updatePracticeHistoryRecord(readHistory(fixture), record.id,
+      { practiceId, practiceName: practiceId === 'menu-a' ? 'スケール' : 'アルペジオ', localDate, durationMinutes: minutes });
+    assert.equal(updated.ok, true);
+    writeHistory(fixture, updated.history);
+    const result = await fixture.runtime.sync('save');
+    assert.equal(result.ok, true, JSON.stringify(result));
+    assert.deepEqual(await fixture.store.listConflicts(), []);
+  }
+  // An edit made while this device's own push is in flight is not a conflict either.
+  writeHistory(fixture, updatePracticeHistoryRecord(readHistory(fixture), record.id,
+    { practiceId: 'menu-b', practiceName: 'アルペジオ', localDate: '2026-09-21', durationMinutes: 50 }).history);
+  fixture.server.beforePushOperation = async () => {
+    fixture.server.beforePushOperation = null;
+    writeHistory(fixture, updatePracticeHistoryRecord(readHistory(fixture), record.id,
+      { practiceId: 'menu-b', practiceName: 'アルペジオ', localDate: '2026-09-21', durationMinutes: 55 }).history);
+  };
+  assert.equal((await fixture.runtime.sync('save')).ok, true);
+  assert.deepEqual(await fixture.store.listConflicts(), []);
+  assert.equal((await fixture.runtime.sync('save')).ok, true);
+  const cloud = serverHistoryEvent(fixture, record.id).payload.value;
+  assert.deepEqual([cloud.practiceId, cloud.localDate, cloud.durationMinutes, cloud.measuredDurationSeconds], ['menu-b', '2026-09-21', 55, 3300]);
+  // Delete: the cloud record goes too.
+  writeHistory(fixture, deletePracticeHistoryEvent(readHistory(fixture), record.id).history);
+  assert.equal((await fixture.runtime.sync('save')).ok, true);
+  assert.deepEqual(await fixture.store.listConflicts(), []);
+  const deleted = serverHistoryEvent(fixture, record.id);
+  assert.ok(!deleted || deleted.deleted === true || deleted.deletedAt, 'deleted in the cloud');
+});
+
+test('manual practice records: a reload (new runtime, same stores) keeps the record and syncs cleanly; another device receives it', async () => {
+  const a = realPortFixture({ [HISTORY_KEY]: JSON.stringify({ version: 5, events: [] }) });
+  await a.runtime.consumeHandoff('history-a');
+  const record = createManualPracticeRecord({ localDate: '2026-09-22', practiceId: 'menu-a', practiceName: 'スケール', durationMinutes: 15 });
+  writeHistory(a, appendPracticeHistoryEvent(readHistory(a), record).history);
+  assert.equal((await a.runtime.sync('save')).ok, true);
+  const b = realPortFixture({ [HISTORY_KEY]: JSON.stringify({ version: 5, events: [] }) }, a.fetchImpl);
+  await b.runtime.consumeHandoff('history-b');
+  assert.equal((await b.runtime.sync('align')).ok, true);
+  const received = readHistory(b).events.find((event) => event.id === record.id);
+  assert.deepEqual({ ...received }, { ...record }, 'the other device gets the same record, source and time included');
+  assert.deepEqual(await b.store.listConflicts(), []);
 });

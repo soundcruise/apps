@@ -58,11 +58,17 @@ import {
     createPracticeCompletedEvent,
     createPracticeDayHistoryView,
     createPracticeSessionEvent,
+    createManualPracticeRecord,
     deletePracticeHistoryEvent,
     loadPracticeHistory,
+    PRACTICE_RECORD_DURATION_PRESETS,
+    PRACTICE_RECORD_SOURCE_MANUAL,
+    practiceRecordEditMode,
+    recordPracticeMinutes,
     savePracticeHistory,
-    toLocalDateKey
-} from './practice-menu-history-store.js?v=0.59.3';
+    toLocalDateKey,
+    updatePracticeHistoryRecord
+} from './practice-menu-history-store.js?v=0.70.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -212,7 +218,7 @@ import {
 } from './gear-category-store.js?v=0.59.3';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
 import { PortAssetSync } from './port-asset-sync.js?v=0.59.3';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=0.60.0';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=0.70.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -489,6 +495,16 @@ const elements = {
     calendarNoteCancel: document.querySelector('#practice-calendar-note-cancel'),
     dayHistoryTitle: document.querySelector('#practice-day-history-title'),
     dayHistoryList: document.querySelector('#practice-day-history-list'),
+    historyAdd: document.querySelector('#practice-history-add'),
+    historyForm: document.querySelector('#practice-history-form'),
+    historyFormTitle: document.querySelector('#practice-history-form-title'),
+    historyFormDate: document.querySelector('#practice-history-date'),
+    historyFormMenu: document.querySelector('#practice-history-menu'),
+    historyFormMinutes: document.querySelector('#practice-history-minutes'),
+    historyFormPresets: document.querySelector('#practice-history-presets'),
+    historyFormNote: document.querySelector('#practice-history-form-note'),
+    historyFormError: document.querySelector('#practice-history-form-error'),
+    historyFormCancel: document.querySelector('#practice-history-cancel'),
     detailTitle: document.querySelector('#practice-detail-title'),
     detailSaved: document.querySelector('#practice-detail-saved'),
     detailDuration: document.querySelector('#practice-detail-duration'),
@@ -514,6 +530,7 @@ const elements = {
     attachmentLightboxClose: document.querySelector('#practice-attachment-lightbox-close'),
     editButton: document.querySelector('#practice-edit'),
     deleteButton: document.querySelector('#practice-delete'),
+    formDeleteButton: document.querySelector('#practice-form-delete'),
     formTitle: document.querySelector('#practice-form-title'),
     form: document.querySelector('#practice-menu-form'),
     formSubmit: document.querySelector('#practice-menu-form button[type="submit"]'),
@@ -609,6 +626,7 @@ const state = {
     calendar: null,
     calendarReady: false,
     calendarNoteEditId: null,
+    historyRecordEditId: null,
     calendarNoteIcon: PRACTICE_CALENDAR_DEFAULT_ICON,
     calendarNoteIconDropdownOpen: false,
     calendarNoteUserEdited: false,
@@ -2714,6 +2732,150 @@ function createPracticeHistoryDeleteButton(event, label) {
     return button;
 }
 
+// 編集 (for editable records) next to the existing delete icon.
+function createPracticeHistoryActions(event, label) {
+    const remove = createPracticeHistoryDeleteButton(event, label);
+    if (!practiceRecordEditMode(state.history, event, state.timerReady ? state.timer : null)) return remove;
+    const actions = document.createElement('span');
+    const edit = document.createElement('button');
+    actions.className = 'practice-history-actions';
+    edit.type = 'button';
+    edit.className = 'practice-history-edit';
+    edit.dataset.historyEditId = event.id;
+    edit.textContent = '編集';
+    edit.setAttribute('aria-label', `${label}の練習記録を編集`);
+    edit.disabled = !state.historyReady;
+    actions.append(edit, remove);
+    return actions;
+}
+
+// Menu choices for a record: active menus, then hidden ones, then — for an existing record whose
+// menu was deleted — that record's own name, so history is never silently moved to another menu.
+function renderPracticeRecordMenuOptions(record = null) {
+    const select = elements.historyFormMenu;
+    select.replaceChildren();
+    const addGroup = (label, items) => {
+        if (!items.length) return;
+        const group = document.createElement('optgroup');
+        group.label = label;
+        items.forEach(({ value, text }) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = text;
+            group.append(option);
+        });
+        select.append(group);
+    };
+    addGroup('練習メニュー', state.items.filter((item) => !item.hidden).map((item) => ({ value: item.id, text: item.name })));
+    addGroup('非表示の練習メニュー', state.items.filter((item) => item.hidden).map((item) => ({ value: item.id, text: item.name })));
+    if (record && !findItem(record.practiceId)) {
+        addGroup('削除した練習メニュー', [{ value: record.practiceId, text: `${record.practiceName}（削除済み）` }]);
+    }
+    if (record) select.value = record.practiceId;
+    return select.options.length > 0;
+}
+
+function renderPracticeRecordPresets() {
+    elements.historyFormPresets.replaceChildren(...PRACTICE_RECORD_DURATION_PRESETS.map((minutes) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.dataset.minutes = String(minutes);
+        button.textContent = `${minutes}分`;
+        button.setAttribute('aria-pressed', String(Number(elements.historyFormMinutes.value) === minutes));
+        return button;
+    }));
+}
+
+function openPracticeRecordForm(record = null) {
+    if (!state.historyReady) return;
+    const mode = record ? practiceRecordEditMode(state.history, record, state.timerReady ? state.timer : null) : 'full';
+    if (!mode) return;
+    state.historyRecordEditId = record?.id || null;
+    elements.historyFormTitle.textContent = record ? '練習実績を編集' : '練習実績を追加';
+    const hasMenus = renderPracticeRecordMenuOptions(record);
+    if (!record && !hasMenus) {
+        showNotice(elements.historyError, '練習実績を追加するには、先に練習メニューを作成してください。');
+        return;
+    }
+    const selectedMenu = record ? null : state.items.find((item) => !item.hidden) || state.items[0];
+    if (selectedMenu) elements.historyFormMenu.value = selectedMenu.id;
+    elements.historyFormDate.value = record?.localDate || state.historySelectedDate;
+    elements.historyFormMinutes.value = String(record ? recordPracticeMinutes(record) : (selectedMenu?.durationMinutes || 15));
+    const timed = mode === 'menu';
+    elements.historyFormDate.disabled = timed;
+    elements.historyFormMinutes.disabled = timed;
+    elements.historyFormPresets.hidden = timed;
+    elements.historyFormNote.hidden = !timed;
+    elements.historyFormNote.textContent = timed ? 'タイマーで計測した記録のため、日付と練習時間は変更できません。' : '';
+    renderPracticeRecordPresets();
+    showNotice(elements.historyFormError);
+    elements.historyForm.hidden = false;
+    elements.historyAdd.disabled = true;
+    elements.historyFormMenu.focus();
+}
+
+function closePracticeRecordForm({ focus = false } = {}) {
+    state.historyRecordEditId = null;
+    elements.historyForm.hidden = true;
+    elements.historyAdd.disabled = !state.historyReady;
+    if (focus) elements.historyAdd.focus({ preventScroll: true });
+}
+
+function handlePracticeRecordSubmit(event) {
+    event.preventDefault();
+    if (!state.historyReady) return;
+    const practiceId = elements.historyFormMenu.value;
+    const menu = findItem(practiceId);
+    const editing = state.historyRecordEditId
+        ? state.history.events.find(({ id }) => id === state.historyRecordEditId) : null;
+    if (state.historyRecordEditId && !editing) {
+        showNotice(elements.historyFormError, 'この練習記録は見つかりませんでした。別の端末で削除された可能性があります。');
+        return;
+    }
+    const practiceName = menu?.name || (editing?.practiceId === practiceId ? editing.practiceName : '');
+    const appId = menu ? (menu.appId ?? null) : (editing?.appId ?? null);
+    const localDate = elements.historyFormDate.value;
+    const durationMinutes = Number(elements.historyFormMinutes.value);
+    if (!practiceName) {
+        showNotice(elements.historyFormError, '練習メニューを選んでください。');
+        return;
+    }
+    if (!elements.historyFormDate.disabled && !/^\d{4}-\d{2}-\d{2}$/.test(localDate)) {
+        showNotice(elements.historyFormError, '日付を選んでください。');
+        return;
+    }
+    if (!elements.historyFormMinutes.disabled && (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 999)) {
+        showNotice(elements.historyFormError, '練習時間を1〜999分で入力してください。');
+        return;
+    }
+    let result;
+    if (editing) {
+        result = updatePracticeHistoryRecord(state.history, editing.id,
+            { practiceId, practiceName, appId, localDate, durationMinutes }, state.timerReady ? state.timer : null);
+    } else {
+        const record = createManualPracticeRecord({ localDate, practiceId, practiceName, appId, durationMinutes });
+        result = record ? appendPracticeHistoryEvent(state.history, record) : { ok: false };
+    }
+    if (!result.ok || !savePracticeHistory(result.history).ok) {
+        showNotice(elements.historyFormError, '練習記録を保存できませんでした。記録は変更していません。');
+        return;
+    }
+    state.history = result.history;
+    const savedDate = elements.historyFormDate.disabled ? editing.localDate : localDate;
+    closePracticeRecordForm();
+    if (savedDate !== state.historySelectedDate) state.historySelectedDate = savedDate;
+    renderPracticeHistory({ focus: false });
+    elements.dayHistoryTitle.focus({ preventScroll: true });
+    showNotice(elements.historyStatus, editing ? '練習記録を更新しました。' : '練習記録を追加しました。');
+}
+
+function handlePracticeHistoryEdit(event) {
+    const button = event.target.closest('[data-history-edit-id]');
+    if (!button || !state.historyReady) return;
+    const record = state.history.events.find(({ id }) => id === button.dataset.historyEditId);
+    if (record) openPracticeRecordForm(record);
+}
+
 function handlePracticeHistoryDelete(event) {
     const button = event.target.closest('[data-history-delete-id]');
     if (!button || !state.historyReady) return;
@@ -2763,7 +2925,9 @@ function renderPracticeDayHistory() {
         title.textContent = session ? '練習セッション' : event.practiceName;
         detail.textContent = session
             ? `${formatPracticeSessionDuration(displayDurationSeconds)} ・ ${new Date(event.startedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}〜${new Date(event.endedAt).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`
-            : `${event.durationMinutes}分 ・ ${new Date(event.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
+            : event.source === PRACTICE_RECORD_SOURCE_MANUAL
+                ? `${recordPracticeMinutes(event)}分 ・ 手動記録`
+                : `${event.durationMinutes}分 ・ ${new Date(event.timestamp).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })}`;
         copy.append(title, detail);
         if (session) (event.pauseIntervals || []).forEach(({ startedAt, endedAt }) => {
             const pause = document.createElement('small');
@@ -2773,7 +2937,7 @@ function renderPracticeDayHistory() {
             copy.append(pause);
         });
         row.dataset.historyEventId = event.id;
-        row.append(mark, copy, createPracticeHistoryDeleteButton(event, title.textContent));
+        row.append(mark, copy, createPracticeHistoryActions(event, title.textContent));
         if (session && children.length > 0) {
             const childList = document.createElement('ul');
             childList.className = 'practice-history-session-children';
@@ -2790,7 +2954,7 @@ function renderPracticeDayHistory() {
                 childDuration.className = 'practice-history-session-duration';
                 childDuration.textContent = formatPracticeSessionDuration(child.measuredDurationSeconds);
                 childCopy.append(childName, childDuration);
-                childItem.append(childMark, childCopy, createPracticeHistoryDeleteButton(child, child.practiceName));
+                childItem.append(childMark, childCopy, createPracticeHistoryActions(child, child.practiceName));
                 childList.append(childItem);
             });
             row.append(childList);
@@ -2929,6 +3093,7 @@ function renderPracticeHistory({ focus = true } = {}) {
             : '音楽カレンダーを読み込めません。保存領域の値は変更していません。'
     );
     renderPracticeCalendarNotes();
+    elements.historyAdd.disabled = !state.historyReady || !elements.historyForm.hidden;
     renderPracticeDayHistory();
     renderPracticeAnalytics();
     if (focus) elements.historyTitle.focus({ preventScroll: true });
@@ -3635,6 +3800,9 @@ function renderForm(mode, id = null) {
     cleanupPendingPracticeAttachments();
     setPracticeFormSaving(false);
     elements.formTitle.textContent = mode === 'edit' ? '練習メニューを編集' : '練習メニューを作成';
+    // Hidden menus open straight into this form (they have no detail view), so the form offers the
+    // same delete as the detail view, for active and hidden menus alike.
+    elements.formDeleteButton.hidden = mode !== 'edit' || !item;
     fillForm(item);
     showView(elements.formView);
     if (item) void renderPracticeAttachments(item.id, 'form');
@@ -5411,6 +5579,7 @@ function openActivePracticeEditor() {
 elements.editButton.addEventListener('click', openActivePracticeEditor);
 document.querySelector('#practice-edit-top').addEventListener('click', openActivePracticeEditor);
 elements.deleteButton.addEventListener('click', handleDelete);
+elements.formDeleteButton.addEventListener('click', handleDelete);
 elements.reorderStart.addEventListener('click', startReorder);
 elements.reorderCancel.addEventListener('click', cancelReorder);
 elements.reorderComplete.addEventListener('click', completeReorder);
@@ -5555,6 +5724,17 @@ elements.calendarNoteForm.addEventListener('focusout', () => {
 });
 elements.calendarNotesList.addEventListener('click', handlePracticeCalendarNoteAction);
 elements.dayHistoryList.addEventListener('click', handlePracticeHistoryDelete);
+elements.dayHistoryList.addEventListener('click', handlePracticeHistoryEdit);
+elements.historyAdd.addEventListener('click', () => openPracticeRecordForm());
+elements.historyForm.addEventListener('submit', handlePracticeRecordSubmit);
+elements.historyFormCancel.addEventListener('click', () => closePracticeRecordForm({ focus: true }));
+elements.historyFormPresets.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-minutes]');
+    if (!button) return;
+    elements.historyFormMinutes.value = button.dataset.minutes;
+    renderPracticeRecordPresets();
+});
+elements.historyFormMinutes.addEventListener('input', renderPracticeRecordPresets);
 elements.attachmentInput.addEventListener('change', (event) => handlePracticeAttachmentSelection(event, 'detail'));
 for (const scope of ['detail', 'form']) {
     const presentation = getPracticeAttachmentPresentation(scope);

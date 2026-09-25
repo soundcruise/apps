@@ -4078,7 +4078,7 @@ textarea:focus-visible {
 .practice-history-event {
     display: grid;
     padding: 11px 2px;
-    grid-template-columns: 20px minmax(0, 1fr) 40px;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
     gap: 8px;
     border-bottom: 1px solid rgba(207, 189, 148, 0.08);
     color: rgba(205, 180, 116, 0.72);
@@ -4142,7 +4142,7 @@ textarea:focus-visible {
 
 .practice-history-session-children li {
     display: grid;
-    grid-template-columns: 18px minmax(0, 1fr) 40px;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
     gap: 5px;
     color: var(--port-text);
     font-size: calc(0.9rem * var(--font-scale));
@@ -4184,6 +4184,67 @@ textarea:focus-visible {
 }
 
 .practice-history-delete:hover { color: var(--port-text); background: rgba(205, 180, 116, 0.06); }
+
+/* Manual practice records (0.70.0): 編集 beside the delete icon, and the add/edit form. */
+.practice-history-actions { display: inline-flex; align-items: flex-start; gap: 2px; }
+.practice-history-edit {
+    min-height: 44px;
+    padding: 0 8px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    color: var(--port-gold-bright);
+    background: transparent;
+    font: inherit;
+    font-size: calc(0.76rem * var(--font-scale));
+    cursor: pointer;
+}
+.practice-history-edit:hover { background: rgba(205, 180, 116, 0.06); }
+.practice-history-edit:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+.practice-history-edit:disabled { opacity: 0.4; cursor: not-allowed; }
+.practice-history-form {
+    display: grid;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid rgba(207, 189, 148, 0.12);
+    border-radius: 12px;
+    background: rgba(205, 180, 116, 0.025);
+}
+.practice-history-form[hidden] { display: none; }
+.practice-history-form h3 { margin: 0 0 4px; color: var(--port-gold-bright); font-size: calc(0.86rem * var(--font-scale)); }
+.practice-history-form > label { margin-top: 4px; color: var(--port-text); font-size: calc(0.78rem * var(--font-scale)); font-weight: 620; }
+.practice-history-form input,
+.practice-history-form select {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 44px;
+    padding: 8px 10px;
+    border: 1px solid rgba(207, 189, 148, 0.24);
+    border-radius: 10px;
+    color: var(--port-text);
+    background: rgba(0, 0, 0, 0.3);
+    font: inherit;
+    font-size: max(16px, calc(0.9rem * var(--font-scale)));
+}
+.practice-history-form input:disabled,
+.practice-history-form select:disabled { opacity: 0.55; }
+.practice-history-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.practice-history-presets[hidden] { display: none; }
+.practice-history-presets button {
+    min-height: 36px;
+    padding: 4px 10px;
+    border: 1px solid rgba(207, 189, 148, 0.2);
+    border-radius: 999px;
+    color: var(--port-muted);
+    background: transparent;
+    font: inherit;
+    font-size: calc(0.76rem * var(--font-scale));
+    cursor: pointer;
+}
+.practice-history-presets button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(230, 210, 155, 0.5); }
+.practice-history-form-note { margin: 0; color: var(--port-muted); font-size: calc(0.76rem * var(--font-scale)); }
+.practice-history-form-note[hidden] { display: none; }
+.practice-history-form .action-button { min-height: 44px; margin: 0; }
 .practice-history-delete:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 
 .practice-history-session-duration {
@@ -4461,6 +4522,31 @@ body.practice-attachment-lightbox-open {
     border-color: rgba(194, 104, 92, 0.3);
     color: #e2aaa2;
     background: rgba(92, 35, 29, 0.14);
+}
+
+/* Delete in the practice edit form: a quiet text button, kept apart from 保存 / キャンセル. */
+.practice-form-delete-row {
+    display: flex;
+    justify-content: center;
+    margin-top: 28px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(207, 189, 148, 0.12);
+}
+
+.practice-form-delete {
+    min-height: 40px;
+    padding: 8px 14px;
+    border: 1px solid rgba(194, 104, 92, 0.3);
+    border-radius: 999px;
+    color: #e2aaa2;
+    background: transparent;
+    font: inherit;
+    font-size: calc(0.82rem * var(--font-scale));
+    cursor: pointer;
+}
+
+.practice-form-delete[hidden] {
+    display: none;
 }
 
 #practice-empty > p {

@@ -2,7 +2,7 @@ import { loadMyApps } from './my-apps-store.js?v=0.59.3';
 import { loadGearList } from './gear-list-store.js?v=0.59.3';
 import { loadGearCategories } from './gear-category-store.js?v=0.59.3';
 import { loadPracticeMenus } from './practice-menu-store.js?v=0.60.0';
-import { loadPracticeHistory } from './practice-menu-history-store.js?v=0.59.3';
+import { loadPracticeHistory } from './practice-menu-history-store.js?v=0.70.0';
 import { loadPracticeCalendar } from './practice-menu-calendar-store.js?v=0.59.3';
 import { loadMetronomePresets } from './metronome-presets-store.js?v=0.59.3';
 

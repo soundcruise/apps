@@ -359,6 +359,102 @@ export function appendPracticeHistoryEvent(history, event, runningTimer = null) 
     return { ok: true, history: next };
 }
 
+// Manual practice records (0.70.0). A manual record is an ordinary practice-completed event, so it
+// is synced, shown and totalled like any other: its practice time is measuredDurationSeconds under
+// a session id of its own ("manual:<id>", never a real session), which buildPracticeAnalytics adds
+// to the day/week/month/menu totals exactly once. `source: 'manual'` only marks user-entered time.
+export const PRACTICE_RECORD_SOURCE_MANUAL = 'manual';
+export const PRACTICE_RECORD_DURATION_PRESETS = Object.freeze([5, 10, 15, 20, 30, 45, 60, 90, 120]);
+const MANUAL_SESSION_PREFIX = 'manual:';
+
+function isValidRecordMinutes(value) {
+    return Number.isInteger(value) && value >= 1 && value <= 999;
+}
+
+// Keeps the time of day when only the date changes; a new record on today uses now, another day noon.
+function timestampForLocalDate(localDate, from = null, now = new Date()) {
+    const [year, month, day] = localDate.split('-').map(Number);
+    const base = from ? new Date(from) : (localDate === toLocalDateKey(now) ? now : null);
+    const date = base
+        ? new Date(year, month - 1, day, base.getHours(), base.getMinutes(), base.getSeconds(), base.getMilliseconds())
+        : new Date(year, month - 1, day, 12, 0, 0, 0);
+    return date.toISOString();
+}
+
+function practiceRecordFields({ practiceId, practiceName, appId = null }) {
+    const name = typeof practiceName === 'string' ? practiceName.trim().slice(0, 100) : '';
+    if (typeof practiceId !== 'string' || !practiceId || !name) return null;
+    return { practiceId, practiceName: name, appId: typeof appId === 'string' && appId ? appId : null };
+}
+
+export function createManualPracticeRecord({ localDate, practiceId, practiceName, appId = null, durationMinutes }, now = new Date()) {
+    const fields = practiceRecordFields({ practiceId, practiceName, appId });
+    if (!fields || !isValidLocalDate(localDate) || !isValidRecordMinutes(durationMinutes)) return null;
+    const id = createEventId(now);
+    return {
+        id,
+        type: PRACTICE_HISTORY_EVENT_TYPE.practiceCompleted,
+        timestamp: timestampForLocalDate(localDate, null, now),
+        localDate,
+        cycleId: `${MANUAL_SESSION_PREFIX}${id}`,
+        ...fields,
+        durationMinutes,
+        sessionId: `${MANUAL_SESSION_PREFIX}${id}`,
+        measuredDurationSeconds: durationMinutes * 60,
+        source: PRACTICE_RECORD_SOURCE_MANUAL
+    };
+}
+
+// 'full': a record outside any timer session (manual or a check without the timer) — date, menu and
+// time can change. 'menu': a check inside a timer session — its time belongs to the measured
+// session, so only the menu can change. Sessions themselves and cycle marks are not edited here.
+// A check in the session that is still running counts as in-session too.
+export function practiceRecordEditMode(history, event, runningTimer = null) {
+    if (!event || event.type !== PRACTICE_HISTORY_EVENT_TYPE.practiceCompleted) return null;
+    const inSession = Boolean(event.sessionId) && (
+        (runningTimer?.running && runningTimer.sessionId === event.sessionId)
+        || history.events.some((current) => (
+            current.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession && current.sessionId === event.sessionId
+        )));
+    return inSession ? 'menu' : 'full';
+}
+
+export function recordPracticeMinutes(event) {
+    if (event?.measuredDurationSeconds !== undefined) return Math.max(1, Math.round(event.measuredDurationSeconds / 60));
+    return event?.durationMinutes ?? null;
+}
+
+export function updatePracticeHistoryRecord(history, eventId, changes, runningTimer = null) {
+    if (!isValidPracticeHistory(history)) return { ok: false, history, reason: 'invalid-data' };
+    const index = history.events.findIndex((event) => event.id === eventId);
+    const mode = index < 0 ? null : practiceRecordEditMode(history, history.events[index], runningTimer);
+    if (!mode) return { ok: false, history, reason: 'not-found' };
+    const fields = practiceRecordFields(changes);
+    if (!fields) return { ok: false, history, reason: 'invalid-menu' };
+    const next = cloneHistory(history);
+    const current = next.events[index];
+    let updated = { ...current, ...fields };
+    if (mode === 'full') {
+        if (!isValidLocalDate(changes.localDate) || !isValidRecordMinutes(changes.durationMinutes)) {
+            return { ok: false, history, reason: 'invalid-record' };
+        }
+        updated = {
+            ...updated,
+            localDate: changes.localDate,
+            timestamp: changes.localDate === current.localDate ? current.timestamp
+                : timestampForLocalDate(changes.localDate, current.timestamp),
+            durationMinutes: changes.durationMinutes,
+            // The entered time becomes the record's practice time (counted once in the totals).
+            sessionId: current.sessionId || `${MANUAL_SESSION_PREFIX}${current.id}`,
+            measuredDurationSeconds: changes.durationMinutes * 60,
+            source: PRACTICE_RECORD_SOURCE_MANUAL
+        };
+    }
+    if (!isValidEvent(updated)) return { ok: false, history, reason: 'invalid-record' };
+    next.events[index] = updated;
+    return { ok: true, history: next, mode };
+}
+
 export function getPracticeHistoryForDate(history, localDate) {
     return history.events
         .filter((event) => event.localDate === localDate)
