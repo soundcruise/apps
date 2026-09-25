@@ -153,3 +153,25 @@ test('L/M: the unknown-cause first sentence is scoped to truly unknown cases', (
   assert.match(AI_SUPPORT_SYSTEM_PROMPT, /本当に原因も確認先も特定できないとき[^\n]*回答の最初の一文を必ず「現在の情報だけでは原因を特定できません。」とする/);
   assert.match(AI_SUPPORT_SYSTEM_PROMPT, /確認すべき同期先が分かるとき[^\n]*「現在の情報だけでは原因を特定できません」とは書かない/);
 });
+
+test('scope: the prompt handles unrelated questions by principle, without tools or hard-coded question lists', async () => {
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /# 相談の範囲/);
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /明らかに関係のない質問[^\n]*ツールを使わず、同期の話に結び付けず/);
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /範囲外と決めつけない[^\n]*短く聞き返す/);
+  assert.equal((AI_SUPPORT_SYSTEM_PROMPT.match(/# 相談の範囲\n(?:- [^\n]*\n)+/)[0].match(/\n- /g) || []).length, 3, 'three principles, not a question list');
+  // The scope reply is a normal reply: one model call, no tool call, no guard repair.
+  const scopeReply = 'このAIはCruise Portのクラウド同期に関する相談専用です。同期について困っていることがあれば教えてください。';
+  assert.equal(validateSupportReply(scopeReply).ok, true);
+  let reads = 0;
+  const counting = { async getSyncOverview() { reads += 1; return {}; }, async getAppSyncTargets() { reads += 1; return {}; } };
+  for (const message of ['今日の天気を教えて', 'ギターのCコードを教えて']) {
+    const p = provider([text(scopeReply)]);
+    const turn = await runSupportTurn({ provider: p, diagnostics: counting, message });
+    assert.equal(turn.reply, scopeReply, message);
+    assert.equal(p.calls.length, 1, message);
+    assert.equal(p.calls[0].messages[0].content, AI_SUPPORT_SYSTEM_PROMPT);
+  }
+  assert.equal(reads, 0, 'no diagnostics read when the model answers without tools');
+  // Safety rules are still in the same prompt.
+  for (const rule of ['4桁の番号', '危険な操作', 'ログイン・サインイン・パスワードの仕組みは無い']) assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes(rule), rule);
+});
