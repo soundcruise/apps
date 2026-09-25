@@ -146,7 +146,7 @@ assert.match(appSource, /resolvePracticeMenuApp\(appId,/);
 assert.match(appSource, /createPracticeAppOptionGroups\(myAppsState\.items\)/);
 assert.match(appSource, /countPracticeMenuReferences\(state\.items, item\.id\)/);
 assert.match(appSource, /このアプリは練習メニュー\$\{referenceCount\}件で使用されています/);
-assert.match(appSource, /elements\.openApp\.href = app\.href/);
+assert.match(appSource, /elements\.openApp\.href = withPracticeMenuReturn\(app\.href, item\.id\)/);
 assert.match(appSource, /elements\.openApp\.removeAttribute\('href'\)/);
 assert.doesNotMatch(appSource, /window\.open\(/);
 assert.match(markup, /<select id="practice-app" name="appId">/);
@@ -166,7 +166,8 @@ assert.match(appSource, /elements\.empty\.hidden = state\.reorderMode \|\| activ
 assert.match(appSource, /launch\.dataset\.practiceAction = 'launch'/);
 assert.match(appSource, /if \(app\.launchable\)/);
 assert.match(appSource, /if \(action\.dataset\.practiceAction === 'launch'\)[\s\S]*event\.stopPropagation/);
-assert.match(appSource, /action\.getAttribute\('href'\) === '#tuner'[\s\S]*tunerController\.startFromUserGesture/);
-assert.match(appSource, /elements\.openApp\.getAttribute\('href'\) !== '#tuner'[\s\S]*tunerController\.startFromUserGesture/);
+// Tuner launches still start audio from the user gesture, also with the practice-menu context (#tuner?from=…).
+assert.match(appSource, /isToolRoute\(action\.getAttribute\('href'\), 'tuner'\)[\s\S]*tunerController\.startFromUserGesture/);
+assert.match(appSource, /!isToolRoute\(elements\.openApp\.getAttribute\('href'\), 'tuner'\)[\s\S]*tunerController\.startFromUserGesture/);
 
 console.log('practice-menu-app-resolver: resolution, dynamic options, updates, and delete references passed');

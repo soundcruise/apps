@@ -19,6 +19,7 @@ import {
 } from './practice-menu-presets.js?v=0.27.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
 import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.60.0';
+import { isToolRoute, toolBackTarget, withPracticeMenuReturn } from './tool-return.js?v=0.69.0';
 import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
@@ -851,6 +852,16 @@ function setHashRoute(route) {
     location.hash = route;
 }
 
+// 「← 練習メニューに戻る」 when the tool was opened from the practice menu, else 「← クルーズポート」.
+function applyToolBackButton(view, hash) {
+    const button = view?.querySelector('.view-back[data-action="home"]');
+    if (!button) return;
+    const target = toolBackTarget(hash, { practiceExists: (id) => Boolean(findItem(id)) });
+    button.textContent = target.label;
+    if (target.hash) button.dataset.returnHash = target.hash;
+    else delete button.dataset.returnHash;
+}
+
 function setPracticeListRoute() {
     setHashRoute('#practice-menu');
 }
@@ -979,7 +990,7 @@ function renderPracticeCard(item) {
         const launch = document.createElement('a');
         const launchArrow = document.createElement('span');
         launch.className = 'practice-launch';
-        launch.href = app.href;
+        launch.href = withPracticeMenuReturn(app.href);
         launch.dataset.practiceAction = 'launch';
         launch.setAttribute('aria-label', `${item.name}の使用アプリ「${app.label}」を開く`);
         launch.title = `${app.label}を開く`;
@@ -3483,7 +3494,7 @@ function renderDetail(id) {
     elements.openApp.hidden = !app.launchable;
     elements.openApp.classList.toggle('is-disabled', !app.launchable);
     if (app.launchable) {
-        elements.openApp.href = app.href;
+        elements.openApp.href = withPracticeMenuReturn(app.href, item.id);
         elements.openApp.removeAttribute('aria-disabled');
         elements.openApp.removeAttribute('tabindex');
     } else {
@@ -4908,9 +4919,11 @@ function renderRoute() {
         else renderMyAppsForm('edit', id);
     } else if (practiceRoute?.kind === PRACTICE_ROUTE_KIND.create) {
         renderForm('create');
-    } else if (hash === '#tuner') {
+    } else if (isToolRoute(hash, 'tuner')) {
+        applyToolBackButton(elements.tunerView, hash);
         showView(elements.tunerView);
-    } else if (hash === '#metronome') {
+    } else if (isToolRoute(hash, 'metronome')) {
+        applyToolBackButton(elements.metronomeView, hash);
         showView(elements.metronomeView);
     } else if (practiceRoute?.kind === PRACTICE_ROUTE_KIND.edit) {
         renderForm('edit', practiceRoute.id);
@@ -4930,7 +4943,7 @@ function canRefreshAppliedPortCloudData() {
     const activeTag = document.activeElement?.tagName;
     const inputFocused = activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT';
     const editingRoute = /\/(?:new|[^/]+\/edit)$/u.test(location.hash);
-    const audioToolActive = location.hash === '#tuner' || location.hash === '#metronome';
+    const audioToolActive = isToolRoute(location.hash);
     return !document.hidden
         && !inputFocused
         && !editingRoute
@@ -5382,7 +5395,7 @@ elements.form.addEventListener('submit', handleSubmit);
 elements.countReset.addEventListener('click', handlePracticeTotalCountReset);
 elements.openApp.addEventListener('click', (event) => {
     if (
-        elements.openApp.getAttribute('href') !== '#tuner'
+        !isToolRoute(elements.openApp.getAttribute('href'), 'tuner')
         || event.defaultPrevented
         || event.button !== 0
         || event.metaKey
@@ -5575,7 +5588,7 @@ elements.list.addEventListener('click', (event) => {
     if (action.dataset.practiceAction === 'launch') {
         event.stopPropagation();
         if (
-            action.getAttribute('href') === '#tuner'
+            isToolRoute(action.getAttribute('href'), 'tuner')
             && !event.defaultPrevented
             && event.button === 0
             && !event.metaKey
@@ -5597,7 +5610,12 @@ elements.list.addEventListener('click', (event) => {
         void handlePracticeFilesAction(action, event);
     }
 });
-document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', setHomeRoute));
+// Tool back buttons carry data-return-hash when the tool was opened from the practice menu.
+document.querySelectorAll('[data-action="home"]').forEach((button) => button.addEventListener('click', () => {
+    const target = button.dataset.returnHash;
+    if (target) setHashRoute(target);
+    else setHomeRoute();
+}));
 document.querySelectorAll('[data-action="practice-list"]').forEach((button) => button.addEventListener('click', setPracticeListRoute));
 document.querySelectorAll('[data-action="gear-list"]').forEach((button) => button.addEventListener('click', requestGearListReturn));
 document.querySelectorAll('[data-action="cancel-form"]').forEach((button) => button.addEventListener('click', cancelForm));
