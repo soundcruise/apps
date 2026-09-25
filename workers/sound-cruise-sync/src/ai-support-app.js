@@ -1,9 +1,12 @@
 // POST /v2/ai-support/chat (AI1-B, not enabled in production).
 //
-// Order: origin/CORS → AI gate → body limits → secret filter → Pro (read-only) → QA (read-only)
-// → Account (read-only, AI1-A) → rate limits (per IP before auth, per Account after) → one turn. Every D1 access on this path is a
-// SELECT; nothing is stored. The gate is AI-specific (AI_SUPPORT_MODE, default off) and never
-// shares a sync gate. Beta scope = gate 'beta' + a valid Pro credential + an Account credential.
+// Order: origin/CORS → AI gate → per-IP limit → body limits → secret filter → Pro (read-only)
+// → QA (read-only) → Account (read-only, AI1-A) → beta entitlement → per-Account limit → one turn,
+// whose every provider call passes the egress guard (ai-support-chat.js). Every D1 access on this
+// path is a SELECT; nothing is stored. The gate is AI-specific (AI_SUPPORT_MODE, default off) and
+// never shares a sync gate. Beta scope = gate 'beta' + a valid Pro credential + an Account
+// credential + that Account in the AI_SUPPORT_BETA_ACCOUNT_IDS secret. The Port's
+// ?sound-cruise-ai-beta=1 flag only shows the panel; it is never part of this decision.
 import { openSyncDiagnostics } from './ai-diagnostics.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { ACCOUNT_ADMISSION_PROVENANCE } from './account-admission.js';
@@ -40,6 +43,21 @@ function respond(status, body, origin, extra = {}) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 const fail = (status, code, origin, extra) => respond(status, { ok: false, code }, origin, extra);
+
+// The limited beta is enforced here, not in the Port. AI_SUPPORT_BETA_ACCOUNT_IDS is a Worker
+// secret (never in wrangler.jsonc or the repository): Account IDs separated by commas or
+// whitespace. Missing, empty or any malformed entry → nobody is entitled (fail closed). The IDs
+// are compared only; they never reach a log, a response or a provider.
+const ACCOUNT_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+export function parseBetaAccountIds(value) {
+  if (typeof value !== 'string') return new Set();
+  const entries = value.split(/[\s,]+/).filter(Boolean);
+  if (!entries.length || entries.some((entry) => !ACCOUNT_ID.test(entry))) return new Set();
+  return new Set(entries.map((entry) => entry.toLowerCase()));
+}
+export function isBetaAccount(env, accountId) {
+  return typeof accountId === 'string' && parseBetaAccountIds(env.AI_SUPPORT_BETA_ACCOUNT_IDS).has(accountId.toLowerCase());
+}
 
 // Body: { message: string, history?: [{ role: 'user'|'assistant', content: string }] }. Nothing else.
 export function validateChatBody(body) {
@@ -143,6 +161,8 @@ export async function handleAiSupportRequest(request, env = {}, _ctx, dependenci
     return fail(503, 'ai_support_unavailable', origin);
   }
   if (opened.error) return fail(opened.status, opened.error, origin);
+  // Same answer whether the list is missing, malformed or simply without this Account.
+  if (!isBetaAccount(env, opened.scopeKey)) return fail(403, 'ai_support_not_entitled', origin);
 
   let limited;
   try { limited = await env.AI_SUPPORT_RATE_LIMITER.limit({ key: `ai-support:${opened.scopeKey}` }); } catch {
@@ -154,6 +174,9 @@ export async function handleAiSupportRequest(request, env = {}, _ctx, dependenci
     maxOutputTokens: AI_SUPPORT_LIMITS.maxOutputTokens });
   try {
     const turn = await runSupportTurn({ provider, diagnostics: opened.diagnostics, history, message });
+    if (turn.egressBlocked) {
+      return respond(400, { ok: false, code: 'ai_support_secret_detected', message: SECRET_REFUSAL }, origin);
+    }
     return respond(200, { ok: true, reply: turn.reply }, origin);
   } catch (error) {
     if (error instanceof AiProviderError) return fail(503, 'ai_provider_unavailable', origin);

@@ -8,6 +8,7 @@ import { AI_PANEL_COPY, createAiSupportPanel } from './ai-support-ui.js';
 import { createUnavailablePresentation, normalizeSyncCenterSummary } from './sync-center-controller.js';
 import { renderAppRows } from './sync-center-ui.js';
 import { containsSecret as workerContainsSecret } from '../../workers/sound-cruise-sync/src/ai-support-policy.js';
+import { containsSecret as detectorContainsSecret } from '../../workers/sound-cruise-sync/src/secret-detector.js';
 
 // Cloud Sync UX 2.0 AI1-C: the Port AI support panel and client. No real network or model.
 const PRO = `scp1.${'1'.repeat(8)}-2222-4333-8444-${'5'.repeat(12)}.${'A'.repeat(43)}`;
@@ -266,13 +267,21 @@ test('11/32/33/34: secret-looking text is refused before sending and left unchan
   view.submit();
   await tick();
   assert.equal(view.calls.length, 0);
-  assert.equal(view.error.textContent, '4桁の番号や復旧コードなどは相談文に含めないでください。該当部分を削除してから、もう一度送信してください。');
+  assert.equal(view.error.textContent, '4桁の番号や復旧コードなどが相談内容に含まれている可能性があります。該当部分を削除してから、もう一度お試しください。');
   assert.equal(view.error.getAttribute('role'), 'alert');
   assert.equal(view.input.value, secret, 'the text is not edited for the user');
   const vectors = ['SAR1QF3G6WAY5XX090XFNZFK', 'SCJ1 D2M9-FV75-J4MW-XQ0F-R0AJ', PRO, 'sca1.4714bf0c-f6bb-4edb-a29f-01fa9ae44daa.x',
     'Proの番号は1234です', '暗証番号 ４５６７', 'ABCD-EFGH-JKMN-PQRS-TVWX', '2026年から使っています', 'エラー 404 が出ます',
-    '500 エラー', 'コードクルーズが反映されない', 'iPhone 15 Pro を使っています'];
+    '500 エラー', 'コードクルーズが反映されない', 'iPhone 15 Pro を使っています',
+    'Proの番号は 12 34', '暗証番号 1 2 3 4', 'コードは12-34', 'コードは2026', 'パスコード　１２　３４', '1234 がProの番号です',
+    'HTTP 500 が出ます', 'version 1234 です', 'エラー404', 'Pro版で 2026-09-25 から', 'Port Pro 0.67.0', 'コードは2026年から'];
+  assert.equal(workerContainsSecret, detectorContainsSecret);
   for (const vector of vectors) assert.equal(containsSecret(vector), workerContainsSecret(vector), `parity: ${vector}`);
+  for (const secret of ['Proの番号は 12 34', '暗証番号 1 2 3 4', 'コードは12-34']) assert.equal(containsSecret(secret), true, secret);
+  const portSource = readFileSync(new URL('./ai-support-client.js', import.meta.url), 'utf8');
+  const workerSource = readFileSync(new URL('../../workers/sound-cruise-sync/src/secret-detector.js', import.meta.url), 'utf8');
+  const body = (source) => source.slice(source.indexOf('const CODE_ALPHABET'), source.indexOf('export function containsSecret'));
+  assert.equal(body(portSource), body(workerSource), 'the Port detector is a byte-for-byte mirror');
   for (const safe of ['2026年から使っています', 'エラー 404 が出ます', '500 エラー']) assert.equal(containsSecret(safe), false, safe);
 });
 
@@ -331,7 +340,7 @@ test('13/14/15/35: server errors map to fixed, friendly copy; raw bodies are nev
   const cases = [[404, 'ai_support_disabled', 'disabled'], [429, 'rate_limited', 'rateLimited'],
     [503, 'ai_provider_unavailable', 'unavailable'], [503, 'ai_support_unavailable', 'unavailable'],
     [400, 'ai_support_secret_detected', 'secret'], [400, 'message_too_long', 'tooLong'], [401, 'invalid_account_credential', 'auth'],
-    [403, 'pro_required', 'auth'], [410, 'account_device_revoked', 'auth'], [500, 'whatever', 'unavailable'], [400, 'invalid_request', 'failed']];
+    [403, 'pro_required', 'auth'], [403, 'ai_support_not_entitled', 'notEntitled'], [410, 'account_device_revoked', 'auth'], [500, 'whatever', 'unavailable'], [400, 'invalid_request', 'failed']];
   for (const [status, code, kind] of cases) assert.equal(errorKind(status, code), kind, code);
   for (const [status, code, kind] of cases.slice(0, 3)) {
     const view = mountPanel({ send: async () => {
@@ -428,4 +437,31 @@ test('23: 中止 aborts the wait on this device only; the message can be sent ag
   assert.equal(view.send.disabled, false);
   const ui = readFileSync(new URL('./ai-support-ui.js', import.meta.url), 'utf8');
   assert.match(ui, /the server may still finish the request/, 'no claim that the provider stops');
+});
+
+// ---------------------------------------------------------------- AI1-C security / privacy fix
+
+test('beta: a non-entitled Account sees a fixed message; the Port flag is UI discovery only; Standard is unaffected', async () => {
+  assert.equal(AI_SUPPORT_COPY.notEntitled, '現在、AI相談はこのアカウントでは利用できません。');
+  assert.equal(errorKind(403, 'ai_support_not_entitled'), 'notEntitled');
+  const view = mountPanel({ send: async () => {
+    const client = createAiSupportClient({ endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
+      fetchImpl: async () => ({ ok: false, status: 403, json: async () => ({ ok: false, code: 'ai_support_not_entitled' }) }), readPro: () => PRO });
+    return client.send({ message: 'x' });
+  } });
+  view.openButton.click();
+  view.type('同期できません');
+  view.submit();
+  await tick(); await tick();
+  assert.equal(view.error.textContent, '現在、AI相談はこのアカウントでは利用できません。');
+  const client = readFileSync(new URL('./ai-support-client.js', import.meta.url), 'utf8');
+  assert.match(client, /they are UI discovery, never authorization/);
+  // Standard never shows AI support, whatever flag or query is present.
+  const sync = { enabled: true, endpoint: 'https://sync.example', admissionMode: 'production' };
+  for (const globalObject of [{ __SOUND_CRUISE_AI_SUPPORT__: { enabled: true } },
+    { location: { hostname: 'soundcruise.jp', search: '?sound-cruise-ai-beta=1' } }]) {
+    assert.equal(readAiSupportConfig({ edition: 'standard', syncConfig: sync, globalObject }).enabled, false);
+  }
+  const standard = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+  assert.match(standard, /<div id="sync-center-ai-support" class="sync-center-ai-support" hidden><\/div>/);
 });

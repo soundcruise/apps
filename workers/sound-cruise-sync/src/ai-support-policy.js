@@ -14,6 +14,7 @@ export const AI_SUPPORT_LIMITS = Object.freeze({
   maxAssistantChars: 4000, // one earlier assistant message echoed back by the client
   maxToolCalls: 2,         // diagnostic tool executions per user turn
   maxModelRounds: 3,       // model calls per user turn (tool rounds + final answer)
+  maxModelCalls: 4,        // every provider call per user turn: maxModelRounds + one repair
   maxOutputTokens: 900,
   maxReplyChars: 2000
 });
@@ -123,24 +124,13 @@ export function validateToolCall(name, rawArguments) {
 }
 
 // --- Secret filtering (before anything reaches a provider) -------------------------------------
-// A convenience layer, not the security boundary: diagnostics never contain secrets to begin with.
-// Messages that look like they carry a code are refused unchanged (never silently edited).
+// A convenience layer, not the only boundary: diagnostics never contain secrets to begin with.
+// Messages that look like they carry a code are refused unchanged (never silently edited). The
+// detector lives in secret-detector.js so diagnostics can use it without an import cycle.
 
-const CODE_ALPHABET = '0-9A-HJKMNP-TV-Z';
-const STRUCTURED_CODE = new RegExp(`(SAR1|SCJ1|SCE1|SQA1)[${CODE_ALPHABET}]{20}`, 'i');
-const CREDENTIAL_TOKEN = /\b(sca1|scd1|sch1|scq1|scr1|sdi1|sadi1|sarc1|scp1)\.[0-9a-f]{8}-/i;
-const LEGACY_RECOVERY = new RegExp(`(^|[^0-9A-Z])([${CODE_ALPHABET}]{4}[\\s-]?){4}[${CODE_ALPHABET}]{4}($|[^0-9A-Z])`, 'i');
-const DIGITS = '[0-9０-９]';
-const PIN_CONTEXT = '(暗証|パスコード|パスワード|PIN|ピン|4桁|４桁|Pro|プロ|ログイン)';
-const PIN_NEAR = new RegExp(`${PIN_CONTEXT}[^\\n]{0,15}(^|[^0-9０-９])${DIGITS}{4}([^0-9０-９]|$)|(^|[^0-9０-９])${DIGITS}{4}([^0-9０-９]|$)[^\\n]{0,8}${PIN_CONTEXT}`, 'i');
+export { containsSecret } from './secret-detector.js';
 
-export const SECRET_REFUSAL = '番号やコードを削除してから、もう一度送ってください。復旧コード・接続コード・Pro版の4桁の番号は、サポートAIにもメールにも書かないでください。';
-
-export function containsSecret(text) {
-  if (typeof text !== 'string' || !text) return false;
-  const compact = text.replace(/[\s-]/g, '');
-  return STRUCTURED_CODE.test(compact) || CREDENTIAL_TOKEN.test(text) || LEGACY_RECOVERY.test(text) || PIN_NEAR.test(text);
-}
+export const SECRET_REFUSAL = '4桁の番号や復旧コードなどが相談内容に含まれている可能性があります。該当部分を削除してから、もう一度お試しください。';
 
 // Output hygiene: plain text only, bounded, without control characters other than newline/tab.
 const OUTPUT_CONTROL = new RegExp(`[${[[0x0, 0x8], [0xb, 0x1f], [0x7f, 0x9f], [0x202a, 0x202e], [0x2066, 0x2069]]

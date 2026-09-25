@@ -132,6 +132,8 @@ async function setup(envOverrides = {}) {
   const a = await startAccount(db, env);
   const b = await startAccount(db, env, 'B-private-name');
   const pro = await proToken(db);
+  // Synthetic test Accounts only; the real beta list is a Worker secret, never in the repository.
+  if (!('AI_SUPPORT_BETA_ACCOUNT_IDS' in envOverrides)) env.AI_SUPPORT_BETA_ACCOUNT_IDS = `${a.accountId}, ${b.accountId}`;
   return { db, env, a, b, pro };
 }
 function chat(env, who, pro, body, extraHeaders = {}) {
@@ -310,7 +312,7 @@ test('12: secret-looking messages are refused unchanged and never reach the prov
     assert.equal(response.status, 400, message.slice(0, 12));
     const body = await response.json();
     assert.equal(body.code, 'ai_support_secret_detected');
-    assert.match(body.message, /番号やコードを削除してから、もう一度送ってください/);
+    assert.equal(body.message, '4桁の番号や復旧コードなどが相談内容に含まれている可能性があります。該当部分を削除してから、もう一度お試しください。');
   }
   const history = await chat({ ...env, AI: ai }, a, pro, { message: 'x', history: [{ role: 'user', content: createAccountRecoveryCode() }] });
   assert.equal(history.status, 400);
@@ -477,4 +479,135 @@ test('replies are plain text: Markdown is removed server-side, words kept', () =
   for (const word of ['手順', 'Pixel で開く', '設定 を確認', 'メール へ']) assert.ok(plain.includes(word), word);
   assert.doesNotMatch(plain, /mailto|\*\*|```|^#/m);
   assert.equal(sanitizeReply('2026年に 404 エラー。3.5秒待つ。'), '2026年に 404 エラー。3.5秒待つ。', 'ordinary text is untouched');
+});
+
+// ---------------------------------------------------------------- AI1-C: limited beta entitlement
+
+test('entitlement A/B: only allowlisted Accounts reach the provider; others get one fixed denial, no D1 write', async () => {
+  const { db, env, a, b, pro } = await setup();
+  env.AI_SUPPORT_BETA_ACCOUNT_IDS = a.accountId;
+  const allowed = await chat({ ...env, AI: mockAi([reply('はい')]) }, a, pro, { message: '同期できません' });
+  assert.equal(allowed.status, 200, 'A: allowlisted Pro Account');
+  const ai = mockAi([]);
+  const accountLimiter = limiter();
+  const before = dump(db);
+  const { env: recorded, statements } = recording({ ...env, AI: ai, AI_SUPPORT_RATE_LIMITER: accountLimiter });
+  const denied = await chat(recorded, b, pro, { message: '同期できません' });
+  assert.equal(denied.status, 403, 'B: a valid Pro + Account that is not allowlisted');
+  const text = await denied.text();
+  assert.deepEqual(JSON.parse(text), { ok: false, code: 'ai_support_not_entitled' });
+  for (const id of [a.accountId, b.accountId]) assert.equal(text.includes(id), false);
+  assert.doesNotMatch(text, /allow|list|beta/i, 'no hint about an allowlist');
+  assert.equal(ai.requests.length, 0);
+  assert.deepEqual(accountLimiter.calls, [], 'denied before the Account limiter and the provider');
+  assert.deepEqual(dump(db), before);
+  assert.ok(statements.every((statement) => statement === 'SELECT'), statements.join(', '));
+  db.close();
+});
+
+test('entitlement C/D/E: missing or malformed list fails closed; parsing trims, dedupes and ignores empties', async () => {
+  const { db, env, a, pro } = await setup();
+  const denials = [];
+  for (const value of [undefined, null, '', ' , ,\n', 42, `${a.accountId},not-a-uuid`, `${a.accountId} ${a.accountId}x`,
+    `'${a.accountId}'`, `[${a.accountId}]`, crypto.randomUUID()]) {
+    const ai = mockAi([]);
+    const response = await chat({ ...env, AI: ai, AI_SUPPORT_BETA_ACCOUNT_IDS: value }, a, pro, { message: 'x' });
+    assert.equal(response.status, 403, String(value));
+    denials.push(await response.text());
+    assert.equal(ai.requests.length, 0);
+  }
+  assert.equal(new Set(denials).size, 1, 'missing, malformed and not-listed answer identically');
+  for (const value of [` ${a.accountId} `, `${crypto.randomUUID()},${a.accountId},`, `\n${a.accountId}\n${a.accountId}\n`,
+    `${crypto.randomUUID()} ,, ${a.accountId.toUpperCase()}`]) {
+    const response = await chat({ ...env, AI: mockAi([reply('はい')]), AI_SUPPORT_BETA_ACCOUNT_IDS: value }, a, pro, { message: 'x' });
+    assert.equal(response.status, 200, JSON.stringify(value));
+  }
+  db.close();
+});
+
+test('entitlement F/G: gate off denies even allowlisted Accounts; Standard (no Pro) is denied', async () => {
+  const { db, env, a, pro } = await setup();
+  const ai = mockAi([]);
+  for (const mode of [undefined, 'off']) {
+    const response = await chat({ ...env, AI: ai, AI_SUPPORT_MODE: mode }, a, pro, { message: 'x' });
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).code, 'ai_support_disabled');
+  }
+  const standard = await handleRequest(plainRequest('/v2/ai-support/chat', { message: 'x' }, a.auth), { ...env, AI: ai });
+  assert.equal(standard.status, 403);
+  assert.notEqual((await standard.json()).code, 'ai_support_not_entitled', 'Pro is checked before the Account list');
+  assert.equal(ai.requests.length, 0);
+  db.close();
+});
+
+test('entitlement H: the Port ?sound-cruise-ai-beta=1 flag is UI discovery only and grants nothing', async () => {
+  const { db, env, a, pro } = await setup({ AI_SUPPORT_BETA_ACCOUNT_IDS: '' });
+  const ai = mockAi([]);
+  const headers = new Headers({ Origin: origin, 'Content-Type': 'application/json', ...a.auth,
+    'X-Sound-Cruise-Pro-Authorization': `Bearer ${pro}`, 'X-Sound-Cruise-AI-Beta': '1', Referer: 'https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/?sound-cruise-ai-beta=1' });
+  const response = await handleRequest(new Request('https://sync.example/v2/ai-support/chat?sound-cruise-ai-beta=1', {
+    method: 'POST', headers, body: JSON.stringify({ message: 'x' }) }), { ...env, AI: ai });
+  assert.equal(response.status, 403);
+  assert.equal((await response.json()).code, 'ai_support_not_entitled');
+  const withBodyFlag = await chat({ ...env, AI: ai }, a, pro, { message: 'x', beta: true });
+  assert.equal(withBodyFlag.status, 400, 'no body field can ask for beta access');
+  assert.equal(ai.requests.length, 0);
+  const source = fs.readFileSync(path.join(import.meta.dirname, '../src/ai-support-app.js'), 'utf8');
+  assert.match(source, /sound-cruise-ai-beta=1 flag only shows the panel; it is never part of this decision/);
+  assert.doesNotMatch(source, /searchParams|Referer|X-Sound-Cruise-AI-Beta/i);
+  db.close();
+});
+
+test('entitlement: the real list is a secret — never in wrangler.jsonc, logs or provider input', async () => {
+  const wrangler = fs.readFileSync(path.join(import.meta.dirname, '../wrangler.jsonc'), 'utf8');
+  assert.doesNotMatch(wrangler, /AI_SUPPORT_BETA_ACCOUNT_IDS/);
+  const { db, env, a, pro } = await setup();
+  const logged = [];
+  const original = { ...console };
+  for (const level of ['log', 'info', 'warn', 'error', 'debug']) console[level] = (...args) => logged.push(args);
+  try {
+    const ai = mockAi([callTools(['getSyncOverview', {}]), reply('はい')]);
+    assert.equal((await chat({ ...env, AI: ai }, a, pro, { message: 'x' })).status, 200);
+    assert.equal(JSON.stringify(ai.requests).includes(a.accountId), false);
+    await chat({ ...env, AI: ai, AI_SUPPORT_BETA_ACCOUNT_IDS: 'broken' }, a, pro, { message: 'x' });
+  } finally {
+    Object.assign(console, original);
+  }
+  assert.deepEqual(logged, [], 'the route logs nothing');
+  db.close();
+});
+
+test('egress at the route: a split code is refused before auth, and a blocked turn answers with the fixed message', async () => {
+  const { db, env, a, pro } = await setup();
+  const ai = mockAi([]);
+  for (const body of [{ message: 'Proの番号は 12 34 です' }, { message: 'x', history: [{ role: 'user', content: '質問' }, { role: 'assistant', content: 'コードは12-34' }] }]) {
+    const response = await chat({ ...env, AI: ai }, a, pro, body);
+    assert.equal(response.status, 400);
+    assert.equal((await response.json()).code, 'ai_support_secret_detected');
+  }
+  assert.equal(ai.requests.length, 0);
+  // The model's own text next to a tool call is checked before the follow-up call.
+  const leaky = mockAi([{ choices: [{ message: { role: 'assistant', content: '暗証番号 1 2 3 4 を確認します',
+    tool_calls: [{ id: 'c1', type: 'function', function: { name: 'getSyncOverview', arguments: '{}' } }] } }] }, reply('never')]);
+  const blocked = await chat({ ...env, AI: leaky }, a, pro, { message: '同期できません' });
+  assert.equal(blocked.status, 400);
+  assert.deepEqual(await blocked.json(), { ok: false, code: 'ai_support_secret_detected',
+    message: '4桁の番号や復旧コードなどが相談内容に含まれている可能性があります。該当部分を削除してから、もう一度お試しください。' });
+  assert.equal(leaky.requests.length, 1);
+  db.close();
+});
+
+test('gate off: Cloud Sync routes work normally while AI support is off and no beta list exists', async () => {
+  const db = createSqliteD1();
+  db.raw.prepare(`UPDATE sync_account_runtime_control SET rollout_mode = 'open', account_admission_enabled = 1,
+    membership_admission_enabled = 1, account_read_enabled = 1, generation = generation + 1, updated_at = 2
+    WHERE singleton_id = 1`).run();
+  const env = environment(db, { AI_SUPPORT_MODE: 'off', AI_SUPPORT_RATE_LIMITER: undefined, AI_SUPPORT_IP_RATE_LIMITER: undefined });
+  const a = await startAccount(db, env, 'Pixel');
+  const summary = await handleRequest(plainRequest('/v2/accounts/summary', undefined, a.auth), env);
+  assert.equal(summary.status, 200, 'the sync body is unaffected');
+  const pro = await proToken(db);
+  const ai = await chat({ ...env, AI: mockAi([]) }, a, pro, { message: 'x' });
+  assert.equal(ai.status, 404);
+  db.close();
 });

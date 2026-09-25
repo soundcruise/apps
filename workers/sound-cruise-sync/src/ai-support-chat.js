@@ -2,14 +2,30 @@
 // message, at most two read-only diagnostic tool calls, and diagnostics returned only as tool
 // results in the AI1-A trust envelope. Provider- and model-agnostic; nothing is stored.
 import { toModelToolResult } from './ai-diagnostics.js';
+import { EgressBlockedError, guardedProvider } from './ai-support-egress.js';
 import { GUARD_FALLBACK_REPLY, repairInstruction, validateSupportReply } from './ai-support-guard.js';
 import {
-  AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, FALLBACK_REPLIES, containsMarkdown, sanitizeReply,
-  validateToolCall
+  AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, FALLBACK_REPLIES, SECRET_REFUSAL, containsMarkdown,
+  containsSecret, sanitizeReply, validateToolCall
 } from './ai-support-policy.js';
 
 // history: earlier [{ role: 'user' | 'assistant', content }] (already validated and capped).
-export async function runSupportTurn({ provider, diagnostics, history = [], message }) {
+// Every provider call goes through guardedProvider: the egress guard on the whole request and a
+// budget of maxModelCalls (maxModelRounds + one repair) per turn. A blocked request returns
+// SECRET_REFUSAL with egressBlocked, and nothing is sent.
+export async function runSupportTurn({ provider: rawProvider, diagnostics, history = [], message }) {
+  const provider = guardedProvider(rawProvider, { maxCalls: AI_SUPPORT_LIMITS.maxModelCalls });
+  try {
+    return await runRounds({ provider, diagnostics, history, message });
+  } catch (error) {
+    if (error instanceof EgressBlockedError) {
+      return { reply: SECRET_REFUSAL, stats: { modelCalls: provider.calls, egressBlocked: true }, egressBlocked: true };
+    }
+    throw error;
+  }
+}
+
+async function runRounds({ provider, diagnostics, history, message }) {
   const messages = [
     { role: 'system', content: AI_SUPPORT_SYSTEM_PROMPT },
     ...history.map(({ role, content }) => ({ role, content })),
@@ -77,6 +93,8 @@ export async function runSupportTurn({ provider, diagnostics, history = [], mess
 // Every final reply passes the deterministic guard. A failing reply is never shown: the model gets
 // one fixed repair request (no tools; the conversation, tool results and its own reply stay as
 // messages, never inside the instruction), and a second failure returns the fixed fallback.
+// A reply that looks like it holds a code is left out of the repair request entirely; the fixed
+// instruction names only the category.
 async function guardReply({ provider, messages, reply, stats, track }) {
   const first = validateSupportReply(reply);
   if (first.ok) return { reply, stats };
@@ -84,9 +102,10 @@ async function guardReply({ provider, messages, reply, stats, track }) {
   stats.repairAttempted = true;
   let repaired = '';
   try {
+    const badReply = containsSecret(reply) ? [] : [{ role: 'assistant', content: reply }];
     const result = await provider.complete({ messages: [
       ...messages,
-      { role: 'assistant', content: reply },
+      ...badReply,
       { role: 'user', content: repairInstruction(first.violations) }
     ], tools: [] });
     track(result);

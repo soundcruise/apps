@@ -17,6 +17,7 @@ import { createD1AccountRepository } from './account-database.js';
 import { createD1AccountLifecycleRepository } from './account-lifecycle-database.js';
 import { accountContext } from './account-app.js';
 import { normalizeSyncTargetUserLabel } from './account-validation.js';
+import { containsSecret } from './secret-detector.js';
 
 export const DIAGNOSTIC_CONTRACT_VERSION = 1;
 
@@ -52,12 +53,14 @@ function safeRegisteredLabel(value) {
   if (typeof value.isWellFormed === 'function' && !value.isWellFormed()) return null;
   if (FORBIDDEN_TEXT.test(value)) return null;
   const text = value.normalize('NFC').trim();
-  return text && [...text].length <= REGISTERED_LABEL_MAX ? text : null;
+  return text && [...text].length <= REGISTERED_LABEL_MAX && !containsSecret(text) ? text : null;
 }
 
+// A name that looks like it holds a code (e.g. 「Proの番号 1234」) is treated as absent, so the next
+// name in the N1 order is used and the turn continues. The name itself is never sent to a model.
 function safeUserLabel(value) {
   const normalized = normalizeSyncTargetUserLabel(value);
-  return typeof normalized === 'string' ? normalized : null;
+  return typeof normalized === 'string' && !containsSecret(normalized) ? normalized : null;
 }
 
 function count(value) {
