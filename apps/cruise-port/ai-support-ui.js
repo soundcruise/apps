@@ -183,9 +183,8 @@ export function createAiSupportPanel({
     const doc = globalThis.document?.documentElement;
     if (!doc || !element?.getBoundingClientRect || !room.style) return;
     room.style.height = '0px'; // measure without the old room (the page may have been clamped by it)
-    const rect = element.getBoundingClientRect();
     const height = Math.max(viewport?.height || 0, globalThis.innerHeight || 0, doc.clientHeight || 0);
-    const top = rect.top + (globalThis.scrollY || 0);
+    const top = pageTopOf(element);
     const missing = Math.ceil(top + height - doc.scrollHeight);
     room.style.height = `${Math.max(0, missing)}px`;
   }
@@ -211,21 +210,42 @@ export function createAiSupportPanel({
     const value = parseFloat(globalThis.getComputedStyle?.(form)?.scrollMarginTop);
     return Number.isFinite(value) ? value : 16;
   }
-  function growRoomBelow(element) {
+  // Positions in page (document) coordinates. Taking the difference of two getBoundingClientRect
+  // values cancels whatever viewport iOS measures them against (layout or visual), which differs
+  // when the page is scrolled to its end and iOS pans the visible part instead of the page.
+  function pageTopOf(element) {
     const doc = globalThis.document?.documentElement;
-    const rect = element.getBoundingClientRect?.();
-    if (!doc || !rect || !room.style) return;
+    const docTop = doc?.getBoundingClientRect?.().top ?? -(globalThis.scrollY || 0);
+    return element.getBoundingClientRect().top - docTop;
+  }
+  function visiblePageTop() {
+    if (Number.isFinite(viewport?.pageTop)) return viewport.pageTop;
+    return (globalThis.scrollY || 0) + (viewport?.offsetTop || 0);
+  }
+  function growRoomBelow(target) {
+    const doc = globalThis.document?.documentElement;
+    if (!doc || !room.style) return;
     const height = Math.max(viewport?.height || 0, globalThis.innerHeight || 0, doc.clientHeight || 0);
-    const missing = Math.ceil(rect.top + (globalThis.scrollY || 0) + height - (doc.scrollHeight || 0));
+    const missing = Math.ceil(target + height - (doc.scrollHeight || 0));
     if (missing > 0) room.style.height = `${(parseFloat(room.style.height) || 0) + missing}px`;
+  }
+  // Moves the page by the distance between the visible top and the block; returns that distance.
+  function moveComposerToTop() {
+    const target = pageTopOf(form) - topMargin();
+    growRoomBelow(target);
+    const delta = target - visiblePageTop();
+    if (Math.abs(delta) > 2) globalThis.scrollBy?.(0, delta);
+    return delta;
   }
   function placeComposer() {
     if (panel.hidden || !keepComposerVisible || composerPlaced || !keyboardOpen()) return;
     if (globalThis.document?.activeElement !== input || !form.getBoundingClientRect) return;
     composerPlaced = true;
-    growRoomBelow(form);
-    const delta = form.getBoundingClientRect().top - ((viewport.offsetTop || 0) + topMargin());
-    if (Math.abs(delta) > 2) globalThis.scrollBy?.(0, delta);
+    if (Math.abs(moveComposerToTop()) <= 2) return;
+    // One check on the next frame in case iOS clamped or adjusted the move; never more than that.
+    const verify = () => { if (keepComposerVisible && !panel.hidden && keyboardOpen()) moveComposerToTop(); };
+    if (globalThis.requestAnimationFrame) globalThis.requestAnimationFrame(verify);
+    else verify();
   }
   viewport?.addEventListener?.('resize', () => {
     if (!keyboardOpen()) { composerPlaced = false; return; } // closed: the next opening moves it again
