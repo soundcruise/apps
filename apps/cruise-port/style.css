@@ -6256,5 +6256,7 @@ body.metronome-preset-open {
 .sync-center-ai-counter--over { color: #ffd3d6; }
 .sync-center-ai-actions .action-button { width: auto; min-width: 88px; margin: 0; }
 .sync-center-ai-cancel[hidden] { display: none; }
-.sync-center-ai-mail { color: var(--port-gold-bright); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.sync-center-ai-mail, .sync-center-ai-privacy-link { color: var(--port-gold-bright); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.sync-center-ai-privacy-link:focus-visible, .sync-center-ai-mail:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+.sync-center-support .sync-center-ai-codes { margin: 0; color: #ffe2a8; font-size: calc(0.7rem * var(--font-scale)); overflow-wrap: anywhere; }
 .sync-center-app-info-ai { justify-self: start; padding: 7px 14px; border: 1px solid rgba(232, 201, 122, 0.6); border-radius: 999px; background: rgba(232, 201, 122, 0.1); color: var(--port-gold-bright); font: inherit; font-weight: 650; cursor: pointer; }

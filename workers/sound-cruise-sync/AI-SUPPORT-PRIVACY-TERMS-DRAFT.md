@@ -1,35 +1,35 @@
-# AI相談（Cloud Sync UX 2.0 AI1）— プライバシーポリシー・利用規約 追記案
+# AI相談（Cloud Sync UX 2.0 AI1）— プライバシーポリシー・利用規約
 
-状態：下書き（AI1-C）。`apps/cruise-port/privacy.html` / `terms.html` にはまだ反映していない。
-AIのβ公開前に、内容を確認してから反映する。
+状態：AI1-C Security / Privacy Blocker Fix で `apps/cruise-port/privacy.html#ai-support` と
+`apps/cruise-port/terms.html#ai-support` に反映済み（ローカルのみ・未公開）。本文の正はこの2ページで、
+このファイルは根拠と公開前チェックの記録。
 
-## プライバシーポリシー 追記案
+## 実装との対応（本文の各項目が何に基づくか）
 
-### AI相談（Pro版・β）
+| 本文 | 実装 |
+|---|---|
+| 任意機能・β期間中は Pro 版の対象アカウントのみ | Worker: `AI_SUPPORT_MODE === 'beta'` → Pro 認証 → Account 認証 → `AI_SUPPORT_BETA_ACCOUNT_IDS`（Worker secret）。Port の `?sound-cruise-ai-beta=1` は表示のみで権限ではない |
+| 相談内容・直近の会話・同期状態の要約・同期先の表示名（または短い識別子） | `runSupportTurn` の messages（system / history / message）と `getSyncOverview` / `getAppSyncTargets` のツール結果。ID は最大8文字の shortId か会話内の T 参照 |
+| 同期データの中身・完全な ID は送らない | `ai-diagnostics.js` の射影（テスト：provider request に ID・credential・payload が無い） |
+| 認証情報の自動検出・遮断 | `secret-detector.js` + `ai-support-egress.js`（全 provider 呼び出しの直前に検査、該当時は送信しない）。番号らしい同期先名は使わず次の名前にフォールバック |
+| Cruise は D1・ブラウザ保存領域に保存しない | ルートは SELECT のみ（D1 byte-identical テスト）。Port は会話をクロージャ内のメモリにのみ保持 |
+| Cloudflare の条件 | 「Cloudflareのサービス条件・データ利用方針に従います」とだけ記載。Cloudflare 側の保存・学習について独自の断定はしない |
+| 送信回数の一時的な計数 | `AI_SUPPORT_RATE_LIMITER`（Account 単位）/ `AI_SUPPORT_IP_RATE_LIMITER`（IP 単位）。相談内容は含まない |
+| 回答は誤り得る・画面表示が優先・メール窓口 | パネルの注記、ガード＋修正1回＋固定フォールバック、フッターのメールリンク |
 
-- AI相談は任意の機能です。使わなくても、クラウド同期やアプリはこれまでどおり利用できます。
-- AI相談を使うと、入力した相談内容と、問題の解決に必要なクラウド同期の状態（各アプリの同期状態、同期先の表示名、前回の同期報告の種類と日時など）を、Cloudflare, Inc. が提供する Cloudflare Workers AI で処理します。
-- Cloudflare Workers AI へは、アカウントや端末の認証情報、復旧コード、接続コード、Pro版の4桁の番号、同期しているデータの中身（練習メニュー、メモ、写真、保存したURLなど）は送りません。端末やアカウントを示す完全なIDも送りません（同期先は会話の中だけで使う番号などで区別します）。
-- 相談内容と回答は、Sound Cruise のサーバー（クラウド同期のデータベースを含む）には保存しません。会話はお使いの端末の画面の中にだけあり、ページを閉じたり更新したりすると消えます。
-- Cloudflare Workers AI での処理は、Cloudflare の利用規約とプライバシーポリシーに従います。（β公開前に、プロンプトの保存・学習への利用の有無など、Cloudflare 側の現在の条件を確認して具体的に記載する。）
-- 不正利用を防ぐため、送信回数を一時的に数えることがあります（アカウント・接続元ごと）。この記録に相談内容は含みません。
-- AIの回答は誤ることがあります。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。
+参照した Cloudflare 公式情報（2026-09-25 確認）：
+https://developers.cloudflare.com/workers-ai/platform/data-usage/
+本文では上記の内容を要約・断定せず、「Cloudflareのサービス条件・データ利用方針に従います」とする。
 
-## 利用規約 追記案
+## パネル内の表示
 
-### AI相談について
-
-- AI相談の回答は、クラウド同期の問題解決を補助するための参考情報です。正確性・完全性を保証するものではありません。
-- 同期の解除、データの削除、アカウントの復旧など、元に戻せない操作は、AIの回答だけで判断せず、Cruise Port の同期センターの画面と確認画面の説明に従って行ってください。AI相談はこれらの操作を代わりに行いません。
-- 相談内容に、パスワード・各種コード・Pro版の番号・他人の個人情報を含めないでください。
-- AI相談は β 版として提供しており、予告なく内容の変更・一時停止・終了をすることがあります。
-
-## Sync Center ヘルプ（実装済み・AIβ有効時のみ表示）
-
-「AIに相談（Pro版のβ）」の短い説明を `openPortSyncHelp` に追加済み。法務的な長文はメイン画面に出さない。
+- 開示文：送信すると、相談内容・直近の会話・同期状態の要約・同期先の表示名などを Cloudflare Workers AI で処理する旨と、番号やコードは自動検出して送らない旨。
+- 「プライバシーポリシー」リンク（`privacy.html#ai-support`、Standard / Pro 共通）。
+- 入力欄の直前：「4桁の番号・復旧コード・接続コードなどは入力しないでください。」
+- 初回同意モーダルは無し。「送信」を押すことが能動的な同意。
 
 ## β公開前の確認事項（未完了）
 
-- Cloudflare Workers AI のデータ取り扱い条件（保存・学習利用）を確認し、上の「Cloudflare側の条件」を具体化する。
+- 公開日に合わせて privacy.html / terms.html の最終更新日を確認する。
+- `AI_SUPPORT_BETA_ACCOUNT_IDS` を Worker secret として設定する（リポジトリ・wrangler.jsonc・ログには書かない）。
 - AI Gateway を使う場合は、プロンプト／レスポンスのログ保存をオフにしてから使う（現在は使っていない）。
-- 利用者向けのβ案内（対象：Pro版の希望者、?sound-cruise-ai-beta=1 などでの有効化方法）。

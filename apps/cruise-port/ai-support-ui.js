@@ -9,9 +9,12 @@ export const AI_PANEL_COPY = Object.freeze({
   open: 'AIに相談',
   title: 'AIに相談',
   subtitle: 'クラウド同期の状態を確認しながら、解決方法をご案内します。',
-  privacy: '入力した相談内容と、問題解決に必要な同期状態・同期先の表示名などを、Cloudflare Workers AI で処理します。4桁の番号、復旧コード、接続コードは入力しないでください。',
-  memory: '相談内容は保存されません。ページを閉じたり更新したりすると消えます。AIの回答は誤ることがあります。',
+  // Mirrors privacy.html#ai-support. Pressing 送信 is the consent; there is no separate dialog.
+  privacy: '送信すると、相談内容・直近の会話・同期状態の要約・同期先の表示名などを、Cloudflare Workers AI で処理します。4桁の番号や復旧コードなどが含まれる場合は、自動で検出してAIへ送りません。',
+  privacyLink: 'プライバシーポリシー',
+  memory: 'Cruiseは相談内容をサーバーにも端末にも保存しません。ページを閉じたり更新したりすると会話は消えます。AIの回答は誤ることがあります。',
   inputLabel: '相談内容',
+  codesWarning: '4桁の番号・復旧コード・接続コードなどは入力しないでください。',
   placeholder: '例：コードクルーズが「確認が必要」になっています',
   send: '送信',
   sending: 'AIが同期状態を確認しています…',
@@ -33,10 +36,14 @@ function node(tag, className, text) {
 }
 
 // container: the empty element in the support section. client: createAiSupportClient().
+// privacy.html sits next to this module in both editions (Standard and Pro).
+const DEFAULT_PRIVACY_HREF = new URL('./privacy.html#ai-support', import.meta.url).href;
+
 export function createAiSupportPanel({
   container,
   client,
   mailHref,
+  privacyHref = DEFAULT_PRIVACY_HREF,
   isOnline = () => globalThis.navigator?.onLine !== false,
   enterSends = () => !globalThis.matchMedia?.('(pointer: coarse)')?.matches
 }) {
@@ -64,6 +71,11 @@ export function createAiSupportPanel({
   closeButton.setAttribute('aria-label', 'AI相談を閉じる');
   header.append(titles, closeButton);
   const privacy = node('p', 'sync-center-ai-privacy', AI_PANEL_COPY.privacy);
+  const privacyLink = node('a', 'sync-center-ai-privacy-link', AI_PANEL_COPY.privacyLink);
+  privacyLink.href = privacyHref;
+  privacyLink.target = '_blank';
+  privacyLink.rel = 'noopener';
+  privacy.append(' ', privacyLink);
   const memory = node('p', 'sync-center-ai-memory', AI_PANEL_COPY.memory);
   const log = node('div', 'sync-center-ai-log');
   log.setAttribute('role', 'log');
@@ -87,7 +99,9 @@ export function createAiSupportPanel({
   input.setAttribute('enterkeyhint', 'send');
   const counter = node('span', 'sync-center-ai-counter', `0/${AI_SUPPORT_LIMITS.maxUserChars}`);
   counter.id = `${id}-counter`;
-  input.setAttribute('aria-describedby', `${id}-counter`);
+  const codesWarning = node('p', 'sync-center-ai-codes', AI_PANEL_COPY.codesWarning);
+  codesWarning.id = `${id}-codes`;
+  input.setAttribute('aria-describedby', `${id}-codes ${id}-counter`);
   const sendButton = node('button', 'action-button primary-action sync-center-ai-send', AI_PANEL_COPY.send);
   sendButton.type = 'submit';
   const cancelButton = node('button', 'action-button secondary-action sync-center-ai-cancel', AI_PANEL_COPY.cancel);
@@ -95,7 +109,7 @@ export function createAiSupportPanel({
   cancelButton.hidden = true;
   const actions = node('div', 'sync-center-ai-actions');
   actions.append(counter, cancelButton, sendButton);
-  form.append(label, input, actions);
+  form.append(label, codesWarning, input, actions);
 
   const footer = node('p', 'sync-center-ai-footer');
   const mail = node('a', 'sync-center-ai-mail', AI_PANEL_COPY.footerLink);

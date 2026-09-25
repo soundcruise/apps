@@ -159,8 +159,8 @@ test('4: the panel starts closed, opens with focus in the input, and returns foc
   assert.equal(view.dom.doc.activeElement, rowButton, 'opened from ⓘ, focus returns to that button');
   const text = view.dom.text(view.section);
   assert.match(text, /Cloudflare Workers AI/);
-  assert.match(text, /4桁の番号、復旧コード、接続コードは入力しないでください/);
-  assert.match(text, /ページを閉じたり更新したりすると消えます/);
+  assert.match(text, /4桁の番号・復旧コード・接続コードなどは入力しないでください/);
+  assert.match(text, /ページを閉じたり更新したりすると会話は消えます/);
 });
 
 test('5/6: conversation is memory-only; a new panel (page reload) starts empty', async () => {
@@ -440,6 +440,50 @@ test('23: 中止 aborts the wait on this device only; the message can be sent ag
 });
 
 // ---------------------------------------------------------------- AI1-C security / privacy fix
+
+test('privacy: the panel links to privacy.html#ai-support and keeps the codes warning next to the input', () => {
+  const view = mountPanel();
+  const find = (name) => view.dom.walk(view.container).find((node) => String(node.className).split(' ').includes(name));
+  const link = find('sync-center-ai-privacy-link');
+  assert.equal(link.tagName, 'a');
+  assert.equal(link.textContent, 'プライバシーポリシー');
+  assert.match(link.href, /\/apps\/cruise-port\/privacy\.html#ai-support$/, 'resolved next to the module, so Standard and Pro share one page');
+  assert.equal(link.rel, 'noopener');
+  assert.equal(link.parent, find('sync-center-ai-privacy'));
+  const codes = find('sync-center-ai-codes');
+  assert.equal(codes.textContent, '4桁の番号・復旧コード・接続コードなどは入力しないでください。');
+  const form = view.form.children;
+  assert.equal(form.indexOf(codes) + 1, form.indexOf(view.input), 'the warning sits right above the input');
+  assert.match(view.input.getAttribute('aria-describedby'), /sync-center-ai-codes/);
+  // The disclosure matches the Privacy text: consultation, recent history, a sync-state summary, names.
+  for (const phrase of ['送信すると', '相談内容', '直近の会話', '同期状態の要約', '同期先の表示名', 'Cloudflare Workers AI', '自動で検出']) {
+    assert.ok(AI_PANEL_COPY.privacy.includes(phrase), phrase);
+  }
+  assert.match(AI_PANEL_COPY.memory, /Cruiseは相談内容をサーバーにも端末にも保存しません/);
+  const ui = readFileSync(new URL('./ai-support-ui.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(ui, /confirm\(|showModal|同意する/, 'no first-use modal; pressing 送信 is the consent');
+});
+
+test('privacy/terms pages carry the AI clauses that match the implementation', () => {
+  const privacy = readFileSync(new URL('./privacy.html', import.meta.url), 'utf8');
+  const section = privacy.slice(privacy.indexOf('<section id="ai-support">'));
+  assert.ok(section.length > 100, 'privacy.html#ai-support exists');
+  for (const phrase of ['任意の機能', 'Pro版の対象アカウントに限って', '入力した相談内容', '直近の会話', 'クラウド同期の状態の要約',
+    '同期先の表示名', '会話の中だけで使う短い識別子', 'Cloudflare Workers AI',
+    '4桁の番号、復旧コード、接続コードなどの認証情報をAIへ送らないよう自動検出・遮断する仕組みを設けています。これらを相談文へ入力しないでください。',
+    'Cloudflare D1', 'ブラウザの保存領域にも保存しません', 'ページを閉じたり更新したりすると消えます',
+    'Cloudflareのサービス条件・データ利用方針に従います', 'AIの回答は誤ることがあります', '画面表示と確認画面を優先', 'メールでお問い合わせ']) {
+    assert.ok(section.includes(phrase), phrase);
+  }
+  assert.doesNotMatch(section, /学習に(は)?(利用|使用)(しません|されません)|保存されません（Cloudflare|削除されます/, 'no claims about Cloudflare beyond its terms');
+  const terms = readFileSync(new URL('./terms.html', import.meta.url), 'utf8');
+  const clause = terms.slice(terms.indexOf('<section id="ai-support">'), terms.indexOf('</section>', terms.indexOf('<section id="ai-support">')));
+  for (const phrase of ['補助する任意の機能', '正確性・完全性を保証するものではありません', '画面表示と確認画面の説明が優先',
+    '利用者ご自身が', '代わりに行うことはありません', 'クラウド同期は利用できます', 'メールでお問い合わせ']) {
+    assert.ok(clause.includes(phrase), phrase);
+  }
+  assert.deepEqual([...terms.matchAll(/<h2>(\d+)\./g)].map((match) => Number(match[1])), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+});
 
 test('beta: a non-entitled Account sees a fixed message; the Port flag is UI discovery only; Standard is unaffected', async () => {
   assert.equal(AI_SUPPORT_COPY.notEntitled, '現在、AI相談はこのアカウントでは利用できません。');
