@@ -1,4 +1,4 @@
-import { authenticateAccountDevice, inspectAccountCredential } from './account-auth.js';
+import { authenticateAccountDevice, inspectAccountCredential, inspectAccountCredentialReadOnly } from './account-auth.js';
 import { touchAccountActivity } from './account-activity.js';
 import { authenticateDevice, isRetiredLegacyDeviceCredential } from './auth.js';
 import { timingSafeHexEqual } from './crypto.js';
@@ -368,14 +368,25 @@ function requiresPublicAdmission(pathname, method) {
     pathname === '/v2/accounts/bridges/chord/finalize';
 }
 
-async function accountContext(request, env, dependencies) {
+// readOnly: true uses the write-free verification (inspectAccountCredentialReadOnly) with exactly
+// the same provenance and QA checks below. Only AI diagnostics use it; every existing route keeps
+// the normal, activity-recording path.
+export async function accountContext(request, env, dependencies, { readOnly = false } = {}) {
   if (!env.SYNC_DB || !env.SYNC_ACCOUNT_CREDENTIAL_PEPPER) {
     return { error: 'account_server_unavailable', status: 503 };
   }
   const session = createSession(env, request);
   if (!session) return { error: 'invalid_bookmark', status: 400 };
   let identity;
-  if (dependencies.authenticateAccountDevice) {
+  if (readOnly) {
+    const inspected = await inspectAccountCredentialReadOnly(
+      session,
+      request.headers.get('Authorization'),
+      env.SYNC_ACCOUNT_CREDENTIAL_PEPPER
+    );
+    if (inspected?.error) return { error: inspected.error, status: 410 };
+    identity = inspected?.identity || null;
+  } else if (dependencies.authenticateAccountDevice) {
     identity = await dependencies.authenticateAccountDevice(
       session,
       request.headers.get('Authorization'),

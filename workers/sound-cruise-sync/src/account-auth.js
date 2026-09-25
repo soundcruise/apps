@@ -12,7 +12,10 @@ export async function authenticateAccountDevice(db, authorization, pepper, now =
   return inspected?.identity || null;
 }
 
-export async function inspectAccountCredential(db, authorization, pepper, now = Date.now()) {
+// Shared verification core. It only reads: parse, one SELECT, timing-safe verifier compare, and
+// the same revocation / Account-state decisions for every caller. Returns { row }, an { error },
+// or null. Both entry points below use it, so read-only access can never drift from normal auth.
+async function verifyAccountCredential(db, authorization, pepper) {
   if (!db || typeof db.prepare !== 'function' || typeof authorization !== 'string' ||
       !authorization.startsWith('Bearer ') || typeof pepper !== 'string') return null;
   const credential = authorization.slice(7);
@@ -42,7 +45,26 @@ export async function inspectAccountCredential(db, authorization, pepper, now = 
   if (row.account_state === 'deleted') return Object.freeze({ error: 'account_deleted' });
   if (row.revoked_at != null) return Object.freeze({ error: 'account_device_revoked' });
   if (row.account_state !== 'active') return null;
+  return { row };
+}
 
+function identityFromRow(row) {
+  return Object.freeze({ identity: Object.freeze({
+    accountId: row.account_id,
+    accountDeviceId: row.device_id,
+    accountState: row.account_state,
+    recoveryVersion: Number(row.recovery_version),
+    generation: Number(row.generation),
+    admissionProvenance: row.admission_provenance
+  }) });
+}
+
+// Normal Account authorization: verification, then the existing last_seen_at / Account activity
+// touch. Behaviour is unchanged by the read-only split.
+export async function inspectAccountCredential(db, authorization, pepper, now = Date.now()) {
+  const verified = await verifyAccountCredential(db, authorization, pepper);
+  if (!verified?.row) return verified;
+  const { row } = verified;
   try {
     if (!Number.isFinite(row.last_seen_at) || now - Number(row.last_seen_at) >= LAST_SEEN_WRITE_INTERVAL_MS) {
       const result = await db.prepare(`
@@ -56,13 +78,14 @@ export async function inspectAccountCredential(db, authorization, pepper, now = 
   } catch {
     throw new Error('Account authentication database failure');
   }
+  return identityFromRow(row);
+}
 
-  return Object.freeze({ identity: Object.freeze({
-    accountId: row.account_id,
-    accountDeviceId: row.device_id,
-    accountState: row.account_state,
-    recoveryVersion: Number(row.recovery_version),
-    generation: Number(row.generation),
-    admissionProvenance: row.admission_provenance
-  }) });
+// Strict read-only Account authorization (AI diagnostics). The same verification, revocation and
+// Account-state checks as inspectAccountCredential, with zero D1 writes: no last_seen_at, no
+// activity, no session or credential change. A diagnostic read is therefore not Account activity.
+export async function inspectAccountCredentialReadOnly(db, authorization, pepper) {
+  const verified = await verifyAccountCredential(db, authorization, pepper);
+  if (!verified?.row) return verified;
+  return identityFromRow(verified.row);
 }
