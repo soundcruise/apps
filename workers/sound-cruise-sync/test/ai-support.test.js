@@ -462,7 +462,7 @@ test('production config candidate: AI binding present but AI_SUPPORT_MODE is "of
 
 test('system prompt states the real UI and forbids invented flows, Markdown and field names', () => {
   for (const fact of ['同期コード', 'Cruise Portと接続', 'ログイン・サインイン・パスワードの仕組みは無い', 'URL を作らない',
-    '「もう一度確認」はアプリ単位', 'Markdown', 'cloudState', '現在の情報だけでは原因を特定できません',
+    '「もう一度確認」はアプリ単位', 'Markdown', 'cloudState', '回答の最初の一文を必ず「現在の情報だけでは原因を特定できません。」とする',
     '同期先を案内する前に必ずそのアプリの getAppSyncTargets を呼ぶ', '概要だけから同期先の名前を推測しない',
     '「1.」「-」「・」で始まる箇条書き', 'mismatch、cloudState、snapshotState、removalSafety', '表示されていれば押してください']) {
     assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes(fact), fact);
