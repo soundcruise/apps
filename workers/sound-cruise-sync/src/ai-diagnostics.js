@@ -8,7 +8,7 @@
 // - Only two existing SELECT-only repository reads are used (getAccountSummary and
 //   listAppEnvironments). There is no SQL, D1 access, fetch or URL here.
 // - Output is a stable, minimal contract. Device ids become per-session refs (T1, T2, ...), names
-//   follow the N1 order (userLabel → registered label → short ID), and every name is untrusted
+//   follow the N1 order (userLabel → registered label → bounded short ID → ref), every name is untrusted
 //   data, never instructions. No credential, verifier, code, full id, raw row or sync payload.
 // - Status semantics mirror Cruise Port UX1 (sync-center-controller.js); a parity test runs the
 //   Port module on the same fixtures. displayStatus 「✓ 同期済み」 is NOT removal safety.
@@ -64,16 +64,23 @@ function count(value) {
   return Number.isSafeInteger(value) && value >= 0 ? value : 0;
 }
 
-// Display-only short IDs, as in Cruise Port: 4+ characters, grown only until unique in the list.
-function shortIds(ids) {
+// Bounded short IDs for the model. A device ID is 32 hex characters; the model never needs it, so
+// only 4, 6 or at most 8 leading characters are ever shown, and never the whole normalized ID.
+// If 8 characters still do not tell a target apart, shortId is null and the session-local ref
+// (T1, T2, ...) is the identifier instead. There is no longer-prefix or full-ID fallback.
+export const SHORT_ID_LENGTHS = Object.freeze([4, 6, 8]);
+export const SHORT_ID_MAX = SHORT_ID_LENGTHS.at(-1);
+
+function boundedShortIds(ids) {
   const normalized = ids.map((id) => (typeof id === 'string' ? id.replace(/[^0-9a-z]/gi, '').toUpperCase() : ''));
   return normalized.map((value, index) => {
-    if (!value) return null;
-    for (let length = Math.min(4, value.length); length <= value.length; length += 1) {
+    for (const length of SHORT_ID_LENGTHS) {
+      // Strictly shorter than the ID itself, so even a short or malformed ID is never shown whole.
+      if (value.length <= length) return null;
       const prefix = value.slice(0, length);
       if (!normalized.some((other, otherIndex) => otherIndex !== index && other.startsWith(prefix))) return prefix;
     }
-    return value;
+    return null;
   });
 }
 
@@ -198,10 +205,17 @@ export function createSyncDiagnostics({
   };
 
   async function load() {
-    const [summary, appDevices] = await Promise.all([
-      accountRepository.getAccountSummary(identity.accountId),
-      lifecycleRepository.listAppEnvironments(identity)
-    ]);
+    let summary;
+    let appDevices;
+    try {
+      [summary, appDevices] = await Promise.all([
+        accountRepository.getAccountSummary(identity.accountId),
+        lifecycleRepository.listAppEnvironments(identity)
+      ]);
+    } catch {
+      // A storage error is replaced by a fixed code, so no id, SQL or driver text can reach a model.
+      throw new Error('sync_diagnostics_unavailable');
+    }
     if (!summary) throw new Error('sync_diagnostics_account_unavailable');
     const account = summary.account;
     const accountDeleting = account.deletedAt != null || account.deleteRequestedAt != null ||
@@ -220,25 +234,36 @@ export function createSyncDiagnostics({
   }
 
   function projectTargets(appTargets) {
-    const ids = shortIds(appTargets.map((target) => target.id));
+    const ids = boundedShortIds(appTargets.map((target) => target.id));
     const named = appTargets.map((target, index) => {
       const userLabel = safeUserLabel(target.userLabel);
       const registeredLabel = safeRegisteredLabel(target.label);
+      const ref = refFor(target.id);
+      const fallback = `同期先 ${ids[index] || ref}`;
       return {
+        ref,
         userLabel,
         registeredLabel,
-        displayName: userLabel || registeredLabel || `同期先 ${ids[index] || '?'}`,
-        nameSource: userLabel ? 'user' : registeredLabel ? 'registered' : 'shortId'
+        displayName: userLabel || registeredLabel || fallback,
+        fallback,
+        nameSource: userLabel ? 'user' : registeredLabel ? 'registered' : ids[index] ? 'shortId' : 'ref'
       };
     });
     return appTargets.map((target, index) => {
       const name = named[index];
       const reportState = reportStateOf(target);
+      const nameIsUnique = named.filter((other) => other.displayName === name.displayName).length === 1;
+      // How guidance should refer to this target: a unique user name, a unique registered name, the
+      // bounded short ID, or the session ref, in that order. Never a longer piece of the device ID.
+      const reference = nameIsUnique && name.nameSource === 'user' ? name.userLabel
+        : nameIsUnique && name.nameSource === 'registered' ? `登録名「${name.registeredLabel}」`
+          : name.fallback;
       return {
-        ref: refFor(target.id),
+        ref: name.ref,
         displayName: name.displayName,
         nameSource: name.nameSource,
-        nameIsUnique: named.filter((other) => other.displayName === name.displayName).length === 1,
+        nameIsUnique,
+        reference,
         shortId: ids[index],
         connectedFromThisPort: target.isCurrent === true,
         reportState,
@@ -287,13 +312,39 @@ export async function openSyncDiagnostics(request, env, dependencies = {}) {
   return { diagnostics: createSyncDiagnostics({ session: context.session, identity: context.identity }) };
 }
 
-// The envelope a provider tool result would carry (AI1-B). Names stay inside JSON string values
-// and are declared untrusted; nothing here is ever concatenated into instructions.
+export const TOOL_RESULT_KIND = 'sound_cruise_sync_diagnostic_tool_result';
+const TOOLS = new Set(['getSyncOverview', 'getAppSyncTargets']);
+
+// JSON Pointers (RFC 6901, relative to the envelope) of every value that came from a user: a name
+// the user typed or a label registered by an app. Only names can carry user text; every other
+// field is an enum, number, boolean or fixed Japanese label produced here.
+export function userControlledPaths(result) {
+  const paths = [];
+  (result?.targets || []).forEach((target, index) => {
+    if (target.nameSource === 'user' || target.nameSource === 'registered') {
+      paths.push(`/data/targets/${index}/displayName`, `/data/targets/${index}/reference`);
+    }
+  });
+  return paths;
+}
+
+// The only shape a diagnostic ever takes toward a model (AI1-B). Trusted text (instructions, the
+// tool schema) is never built here, and user text is never concatenated into it: diagnostic data
+// is one JSON value under "data", produced by JSON.stringify so quotes, backslashes and newlines
+// are escaped, and "trust.userControlledPaths" lists exactly which values are user-written.
+// This marks the boundary; it does not by itself prevent prompt injection. AI1-B must still send
+// this only as a tool/function result (never inside the system prompt), keep a strict tool schema,
+// instruct the model to treat those paths as data, and evaluate the model against hostile names.
 export function toModelToolResult(tool, result) {
+  if (!TOOLS.has(tool)) throw new Error('sync_diagnostics_unknown_tool');
   return JSON.stringify({
-    kind: 'sound_cruise_sync_diagnostic',
+    kind: TOOL_RESULT_KIND,
+    contractVersion: DIAGNOSTIC_CONTRACT_VERSION,
     tool,
-    untrustedStringFields: ['targets[].displayName'],
+    trust: {
+      dataRole: 'tool_data',
+      userControlledPaths: userControlledPaths(result)
+    },
     data: result
   });
 }
