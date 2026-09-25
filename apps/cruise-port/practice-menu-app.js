@@ -25,7 +25,7 @@ import {
     readSyncCenterConfig
 } from './sync-center-controller.js?v=0.64.0';
 import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=0.64.0';
-import { bindSyncCenterReturnRefresh } from './sync-center-refresh.js?v=0.61.0';
+import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=0.61.0';
 import { createPortSyncStatus } from './port-sync-status.js?v=0.59.3';
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.64.0';
 import {
@@ -3667,6 +3667,7 @@ let syncCenterResumeChecked = false;
 let syncCenterActions = null;
 let syncCenterStatusRefreshQueued = false;
 let syncCenterReturnRefresh = null;
+const syncCenterMismatchRetry = createSnapshotMismatchRetry();
 
 function refreshVisibleSyncCenterStatus() {
     if (location.hash !== SYNC_CENTER_ROUTE || syncCenterStatusRefreshQueued) return;
@@ -3704,13 +3705,18 @@ async function renderSyncCenterView() {
     // Show a neutral "確認中…" instead of the previous result while the latest state loads.
     markAppRowsChecking(elements.syncCenterView);
     syncCenterReturnRefresh?.noteRefreshed();
-    const [presentation, structuredStatus, assetStatus, portOutbox] = await Promise.all([
+    let [presentation, structuredStatus, assetStatus, portOutbox] = await Promise.all([
         syncCenterController.load(),
         portSyncController?.status?.() || Promise.resolve({ known: false }),
         portAssetSync.status(),
         portSyncController?.store?.listOutbox?.() || Promise.resolve([])
     ]);
     if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
+    // The rows are still 「確認中…」, so the one automatic retry of a mismatch shows nothing stale.
+    if (syncCenterMismatchRetry.shouldRetry(presentation)) {
+        presentation = await syncCenterController.load();
+        if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
+    }
     renderSyncCenter(elements.syncCenterView, {
         ...presentation,
         portStatus: createPortSyncStatus({
@@ -4836,6 +4842,7 @@ function downloadGearBlob(blob, fileName) {
 
 function renderRoute() {
     const hash = location.hash;
+    if (hash === SYNC_CENTER_ROUTE && lastRenderedHash !== SYNC_CENTER_ROUTE) syncCenterMismatchRetry.reset();
     if (hash === PRO_INFO_ROUTE && lastRenderedHash !== PRO_INFO_ROUTE) {
         proAccessHasPreviousRoute = lastRenderedHash !== null;
     }

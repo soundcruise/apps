@@ -20,7 +20,7 @@ const MEMBERSHIP_STATES = Object.freeze({
 const ACCOUNT_TERMINAL_CODES = new Set(['account_deleting', 'account_deleted', 'account_device_revoked']);
 
 const APP_STATUS_PRESENTATIONS = Object.freeze({
-    available: Object.freeze({ state: 'available', label: 'クラウド同期 利用可能' }),
+    available: Object.freeze({ state: 'available', label: '✓ 同期済み' }),
     syncing: Object.freeze({ state: 'syncing', label: '同期中' }),
     attention: Object.freeze({ state: 'attention', label: '確認が必要' }),
     detached: Object.freeze({ state: 'detached', label: '未接続' }),
@@ -28,15 +28,15 @@ const APP_STATUS_PRESENTATIONS = Object.freeze({
     deleting: Object.freeze({ state: 'deleting', label: '削除中' }),
     offline: Object.freeze({ state: 'offline', label: 'オフライン' }),
     unavailable: Object.freeze({ state: 'unavailable', label: '状態を取得できません' }),
-    recheck: Object.freeze({ state: 'recheck', label: '状態を再確認してください' })
+    recheck: Object.freeze({ state: 'recheck', label: '再確認が必要' })
 });
 
 // This is presentation-only.  The membership status and removal-safety
 // authority below continue to drive every existing operation and callback.
-// 「クラウド同期 利用可能」 means the Account summary was received and the membership's cloud
-// dataset is ready. It does not claim every sync target is up to date: a target that has not
-// reported yet (pending / no report) stays neutral, and only a reported attention or error
-// becomes 「確認が必要」.
+// 「✓ 同期済み」 is a product status: cloud sync can be used normally and nothing known needs the
+// user's action. It is not a technical guarantee that every sync target is up to date, and it is
+// never a reason that removal is safe. A target that has not reported yet (pending / no report)
+// stays neutral, and only a reported attention or error becomes 「確認が必要」.
 export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
     if (unavailableKind === 'offline') return APP_STATUS_PRESENTATIONS.offline;
     if (unavailableKind === 'error') return APP_STATUS_PRESENTATIONS.unavailable;
@@ -47,7 +47,7 @@ export function appSyncStatusPresentation(app, unavailableKind = 'ready') {
     if (['unset', 'prepared', 'detached'].includes(app.status)) return APP_STATUS_PRESENTATIONS.detached;
     if (app.status === 'synced') {
         // The summary and the devices list disagree: neither is known to be newer, so the row
-        // claims neither 「クラウド同期 利用可能」 nor 「確認が必要」.
+        // claims neither 「✓ 同期済み」 nor 「確認が必要」.
         if (app.snapshot === 'mismatch') return APP_STATUS_PRESENTATIONS.recheck;
         return app.removalSafety === 'attention' || Number(app.attentionCount) > 0
             ? APP_STATUS_PRESENTATIONS.attention : APP_STATUS_PRESENTATIONS.available;

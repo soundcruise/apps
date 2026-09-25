@@ -83,7 +83,7 @@ function assertNoLaunch(d, row) {
 test('1: all targets clean — simple row, ⓘ lists each target with 前回の完了報告あり', () => {
   const presentation = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, clean(), { label: 'Android Chrome' })]);
   const d = renderChord(presentation);
-  assert.equal(d.chip.textContent, 'クラウド同期 利用可能');
+  assert.equal(d.chip.textContent, '✓ 同期済み');
   assert.equal(d.toggle.tagName, 'button');
   assert.equal(d.toggle.getAttribute('aria-label'), 'コードクルーズの同期情報');
   assert.equal(d.toggle.getAttribute('aria-expanded'), 'false');
@@ -107,7 +107,7 @@ test('2/5: pending and never-reported targets stay neutral and are not called er
   const presentation = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, pending()),
     target('chord', 'c0ffee00-0000-4000-8000-000000000003', null)], { removalSafety: 'unknown' });
   const d = renderChord(presentation);
-  assert.equal(d.chip.textContent, 'クラウド同期 利用可能');
+  assert.equal(d.chip.textContent, '✓ 同期済み');
   const text = d.text(d.panel);
   assert.match(text, /最新の完了報告は未確認/);
   assert.match(text, /完了報告はまだ確認できていません/);
@@ -148,17 +148,17 @@ test('6: several non-clean targets are all listed; no single culprit is assumed'
   assert.deepEqual(detail.targets.map((row) => row.state), ['pending', 'attention', 'error']);
   assert.equal(detail.guidance.length, 3);
   assert.match(detail.guidance[0], /登録名「iPhone Safari」のコードクルーズを開くと、最新の状態を確認できます/);
-  assert.match(detail.guidance[1], /登録名「Android Chrome」のコードクルーズを開いて、同期の状態を確認してください/);
+  assert.match(detail.guidance[1], /登録名「Android Chrome」のコードクルーズを開き、同期画面で内容を確認してください/);
   assert.match(detail.guidance[2], /登録名「Mac Safari」/);
 });
 
-test('7: Android pending + iPhone clean stays クラウド同期 利用可能 and guides by registered name only', () => {
+test('7: Android pending + iPhone clean stays ✓ 同期済み and guides by registered name only', () => {
   const presentation = chordPresentation([
     target('chord', IPHONE, clean(), { label: 'iPhone Safari', isCurrent: true }),
     target('chord', ANDROID, pending(), { label: 'Android Chrome' })
   ], { removalSafety: 'unknown' });
   const d = renderChord(presentation, { onRecheck: () => {} });
-  assert.equal(d.chip.textContent, 'クラウド同期 利用可能');
+  assert.equal(d.chip.textContent, '✓ 同期済み');
   assert.notEqual(d.chip.textContent, '確認が必要');
   const text = d.text(d.panel);
   assert.match(text, /✓\n+登録名「iPhone Safari」\n前回の完了報告あり/);
@@ -178,7 +178,7 @@ test('8: Android attention + iPhone clean is 確認が必要 with the attention 
   const detail = detailOf(presentation);
   assert.equal(detail.targets[0].state, 'clean');
   assert.equal(detail.targets[1].state, 'attention');
-  assert.deepEqual([...detail.guidance], ['登録名「Android Chrome」のコードクルーズを開いて、同期の状態を確認してください。']);
+  assert.deepEqual([...detail.guidance], ['登録名「Android Chrome」のコードクルーズを開き、同期画面で内容を確認してください。']);
   assertNoLaunch(d, d.row);
 });
 
@@ -242,7 +242,7 @@ test('14: summary succeeds and devices fail — row keeps the summary status, �
   assert.equal(presentation.devicesState, 'unavailable');
   let rechecks = 0;
   const d = renderChord(presentation, { onRecheck: () => { rechecks += 1; } });
-  assert.equal(d.chip.textContent, 'クラウド同期 利用可能', 'a devices failure is never turned into 確認が必要');
+  assert.equal(d.chip.textContent, '✓ 同期済み', 'a devices failure is never turned into 確認が必要');
   const text = d.text(d.panel);
   assert.match(text, /クラウド上の同期データは利用できます/);
   assert.match(text, /同期先の詳細情報を取得できませんでした/);
@@ -280,18 +280,18 @@ test('15: summary failure never infers cloud health from devices', async () => {
   assert.doesNotMatch(d.text(d.panel), /利用できます|前回の完了報告あり/);
 });
 
-const MISMATCH = 'アカウント情報と同期先の最新情報に差があります。もう一度確認してください。';
+const MISMATCH = '状態を確定できませんでした。最新情報をもう一度確認してください。';
 
 function assertNeutralRecheck(presentation, message) {
   const app = chord(presentation);
   assert.equal(app.snapshot, 'mismatch', message);
-  assert.deepEqual({ ...app.presentationStatus }, { state: 'recheck', label: '状態を再確認してください' }, message);
+  assert.deepEqual({ ...app.presentationStatus }, { state: 'recheck', label: '再確認が必要' }, message);
   let rechecks = 0;
   const d = renderChord(presentation, { onRecheck: () => { rechecks += 1; } });
-  assert.equal(d.chip.textContent, '状態を再確認してください');
+  assert.equal(d.chip.textContent, '再確認が必要');
   const text = d.text(d.panel);
-  assert.match(text, /アカウント情報と同期先の最新情報に差があります。もう一度確認してください。/);
-  assert.doesNotMatch(text, /登録名|同期先 [0-9A-F]{4}|前回の|最新の完了報告|を開くと|を開いて|確認が必要|利用可能/,
+  assert.match(text, /状態を確定できませんでした。最新情報をもう一度確認してください。/);
+  assert.doesNotMatch(text, /登録名|同期先 [0-9A-F]{4}|前回の|最新の完了報告|を開くと|を開き|確認が必要|同期済み/,
     'no target is listed, named, or blamed and no state is asserted');
   const detail = detailOf(presentation);
   assert.equal(detail.targets, null);
@@ -304,7 +304,7 @@ function assertNeutralRecheck(presentation, message) {
   assertNoLaunch(d, d.row);
 }
 
-test('16a: summary safe / targets report attention → neutral recheck, never 利用可能', () => {
+test('16a: summary safe / targets report attention → neutral recheck, never 同期済み', () => {
   assertNeutralRecheck(chordPresentation([target('chord', IPHONE, clean(), { label: 'iPhone Safari' }),
     target('chord', ANDROID, attention(1), { label: 'Android Chrome' })], { removalSafety: 'safe' }), 'safe/attention');
 });
@@ -347,11 +347,11 @@ test('16g: a different number of active targets is a mismatch', () => {
 test('aligned snapshots keep their meaning', () => {
   const safe = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, clean())]);
   assert.equal(chord(safe).snapshot, 'aligned');
-  assert.equal(chord(safe).presentationStatus.label, 'クラウド同期 利用可能');
+  assert.equal(chord(safe).presentationStatus.label, '✓ 同期済み');
   const unknown = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, pending()),
     target('chord', 'c0ffee00-0000-4000-8000-000000000003', null)], { removalSafety: 'unknown' });
   assert.equal(chord(unknown).snapshot, 'aligned');
-  assert.equal(chord(unknown).presentationStatus.label, 'クラウド同期 利用可能', 'pending/no report alone is not 確認が必要');
+  assert.equal(chord(unknown).presentationStatus.label, '✓ 同期済み', 'pending/no report alone is not 確認が必要');
   const attentionAligned = chordPresentation([target('chord', IPHONE, clean()), target('chord', ANDROID, error())],
     { removalSafety: 'attention' });
   assert.equal(chord(attentionAligned).snapshot, 'aligned');
@@ -359,7 +359,7 @@ test('aligned snapshots keep their meaning', () => {
   assert.equal(detailOf(attentionAligned).targets[1].state, 'error', 'agreeing snapshots show target detail');
   const noDevices = normalizeSyncCenterSummary(summary({ chord: { removalSafety: 'unknown' } }), null);
   assert.equal(chord(noDevices).snapshot, 'unverified', 'a devices failure is not a mismatch');
-  assert.equal(chord(noDevices).presentationStatus.label, 'クラウド同期 利用可能');
+  assert.equal(chord(noDevices).presentationStatus.label, '✓ 同期済み');
   const legacy = normalizeSyncCenterSummary(summary(), { devices: [], appDevices: [
     { id: IPHONE, appId: 'chord', label: 'x', createdAt: 1, lastSeenAt: 1, revokedAt: null, isCurrent: false }] });
   assert.equal(chord(legacy).snapshot, 'unverified', 'targets without report data cannot be compared');
@@ -370,7 +370,7 @@ test('the recheck state is neutral, distinct from checking and offline', () => {
   const rule = css.match(/\.sync-center-app-status-chip--recheck \{([^}]*)\}/)?.[1] || '';
   assert.match(rule, /border-style: dashed/);
   assert.doesNotMatch(rule, /232, 176, 104|232, 111, 120|ead39b/, 'no attention/danger colours');
-  assert.notEqual('状態を再確認してください', '確認中…');
+  assert.notEqual('再確認が必要', '確認中…');
 });
 
 test('17/18: offline and checking never show stale target detail as current', () => {

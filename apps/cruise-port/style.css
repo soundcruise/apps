@@ -6150,7 +6150,11 @@ body.metronome-preset-open {
 .sync-center-app-status-chip--recheck { border-style: dashed; border-color: rgba(205, 205, 205, 0.62); color: var(--port-text); background: transparent; }
 .sync-center-app-status-chip--checking { border-color: rgba(205, 205, 205, 0.36); color: var(--port-muted); background: transparent; }
 .sync-center-app-status-line--app { flex-wrap: nowrap; }
-@media (max-width: 359px) { .sync-center-app-status-line--app { flex-wrap: wrap; } }
+@media (max-width: 359px) {
+    .sync-center-app-status-line--app { flex-wrap: wrap; }
+    /* Keeps 「再確認が必要」 on one line in the 320px column. */
+    .sync-center-app-status-line--app .sync-center-app-status-chip { padding-inline: 6px; }
+}
 .sync-center-app-status-line--app .sync-center-app-status-chip { flex: 0 1 auto; min-width: 0; border-radius: 10px; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
 .sync-center-app-info-toggle { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; margin: -4px 0; padding: 0; border: 1px solid rgba(205, 205, 205, 0.42); border-radius: 50%; background: transparent; color: var(--port-muted); font: italic 650 calc(0.78rem * var(--font-scale)) / 1 Georgia, 'Times New Roman', serif; cursor: pointer; appearance: none; -webkit-appearance: none; }
 .sync-center-app-info-toggle[aria-expanded="true"] { border-color: rgba(232, 201, 122, 0.62); color: var(--port-gold-bright); }
@@ -6163,6 +6167,8 @@ body.metronome-preset-open {
 .sync-center-app-info p { margin: 0; color: var(--port-text); font-size: inherit; line-height: inherit; overflow-wrap: anywhere; }
 .sync-center-app-info .sync-center-app-info-notice { color: var(--port-text); }
 .sync-center-app-info .sync-center-app-info-footnote { color: var(--port-muted); font-size: calc(0.7rem * var(--font-scale)); }
+.sync-center-app-info .sync-center-app-info-summary { font-weight: 650; }
+.sync-center-app-info .sync-center-app-info-support { color: var(--port-muted); }
 .sync-center-app-info-targets { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .sync-center-app-info-target { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; align-items: start; }
 .sync-center-app-info-mark { font-weight: 700; text-align: center; color: var(--port-muted); }

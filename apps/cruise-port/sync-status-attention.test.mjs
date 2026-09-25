@@ -76,7 +76,7 @@ test('A: opening Sync Center fetches the server state once per load, never from 
   assert.deepEqual(calls, { summary: 1, devices: 1 });
 });
 
-test('B: once every target reports clean the row reads クラウド同期 利用可能, never a device guarantee', async () => {
+test('B: once every target reports clean the row reads ✓ 同期済み, never a device guarantee', async () => {
   const { ctrl } = controller([summary({ rhythm: { removalSafety: 'unknown' } }), summary()]);
   const before = await ctrl.load();
   assert.equal(before.apps.find((app) => app.id === 'rhythm').presentationStatus.state, 'available',
@@ -85,8 +85,8 @@ test('B: once every target reports clean the row reads クラウド同期 利用
   const d = dom();
   renderAppRows(d.root, after, 'pro', true);
   assert.equal(d.chip('rhythm').tagName, 'span', 'the status chip is display-only');
-  assert.equal(d.chip('rhythm').textContent, 'クラウド同期 利用可能');
-  for (const phrase of ['全端末同期済み', 'すべて最新', '問題ありません', '✓ 同期済み']) {
+  assert.equal(d.chip('rhythm').textContent, '✓ 同期済み');
+  for (const phrase of ['全端末同期済み', 'すべて最新', '問題ありません', '削除して']) {
     assert.equal(d.text(d.row('rhythm')).includes(phrase), false, phrase);
   }
 });
@@ -98,7 +98,7 @@ test('C: a reported attention is the only thing that makes the row 確認が必�
   renderAppRows(d.root, presentation, 'pro', true, null, { onRecheck: () => {} });
   assert.equal(d.chip('chord').tagName, 'span');
   assert.equal(d.chip('chord').textContent, '確認が必要 2件');
-  assert.equal(d.chip('pitch').textContent, 'クラウド同期 利用可能');
+  assert.equal(d.chip('pitch').textContent, '✓ 同期済み');
   assert.equal(presentation.apps.find((app) => app.id === 'chord').removalSafetyLabel, '確認が必要',
     'Safe-to-remove label and authority are unchanged');
 });

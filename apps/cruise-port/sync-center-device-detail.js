@@ -13,21 +13,34 @@ const REPORT_STATES = Object.freeze({
 });
 const PROBLEM_STATES = new Set(['attention', 'error']);
 const UNCONFIRMED_STATES = new Set(['pending', 'none']);
-const INFO_APP_STATUSES = new Set(['synced', 'attention', 'connecting', 'initial']);
+const INFO_APP_STATUSES = new Set(['synced', 'attention', 'connecting', 'initial', 'deleting']);
 
 export const SYNC_DETAIL_COPY = Object.freeze({
+    // 「✓ 同期済み」 is a product status, not a per-target guarantee (see appSyncStatusPresentation).
+    synced: '「同期済み」は、クラウド同期を通常利用でき、現在確認されている問題がない状態です。',
+    reportedError: '前回の同期報告でエラーが報告されています。',
+    reportedAttention: '前回の同期報告に確認事項があります。',
+    membershipAttention: '同期の状態に確認が必要な点があります。時間をおいて、もう一度確認してください。',
+    progress: '接続したアプリを開くと、初回の同期が進みます。Cruise Portに戻ると表示が更新されます。',
+    deleting: '削除を処理しています。完了まで、しばらくお待ちください。',
     cloudReady: 'クラウド上の同期データは利用できます',
     cloudUnknown: 'クラウド上の同期データの状態を確認できません',
     cloudConnecting: 'クラウド同期の接続を完了しています',
     cloudInitial: '初回の同期がまだ完了していません',
-    offline: 'オフラインのため、最新の状態を確認できません。オンラインに戻ると確認できます。',
+    cloudDeleting: 'クラウド上の同期データを削除しています',
+    offline: 'オフラインのため、最新の状態を確認できません。インターネットに接続すると、自動で状態を確認します。',
     summaryUnavailable: '最新の状態を取得できませんでした。通信状態を確認して、もう一度確認してください。',
     devicesUnavailable: '同期先の詳細情報を取得できませんでした',
-    mismatch: 'アカウント情報と同期先の最新情報に差があります。もう一度確認してください。',
+    mismatch: '状態を確定できませんでした。最新情報をもう一度確認してください。',
     noDevices: '同期先はありません',
     footnote: '各同期先のアプリから届いた、最後の報告を表示しています。',
-    current: 'このCruise Portから接続'
+    current: 'このCruise Portから接続',
+    support: '解決しない場合は、画面下の「クラウド同期で困ったときは」からお知らせください。'
 });
+
+export function attentionCountText(count) {
+    return Number.isSafeInteger(count) && count > 0 ? `確認する内容が${count}件あります。` : null;
+}
 
 export function appHasSyncDetail(app, kind = 'ready') {
     if (kind === 'offline' || kind === 'error') return true;
@@ -96,56 +109,91 @@ function describeTargets(app, formatTime) {
     });
 }
 
-function guidanceFor(app, rows) {
+// Per-target next steps, by registered name only. A target that cannot be told apart is never
+// guessed at; when no reported problem can be pointed at, the app-wide step is given instead.
+function guidanceFor(app, rows, needsAction) {
     const guidance = [];
     const anonymous = [];
+    let pointed = false;
     for (const row of rows) {
         if (!PROBLEM_STATES.has(row.state) && !UNCONFIRMED_STATES.has(row.state)) continue;
         if (!row.identifiable) {
             anonymous.push(row.name);
             continue;
         }
-        guidance.push(PROBLEM_STATES.has(row.state)
-            ? `${row.name}の${app.name}を開いて、同期の状態を確認してください。`
-            : `${row.name}の${app.name}を開くと、最新の状態を確認できます。`);
+        if (PROBLEM_STATES.has(row.state)) pointed = true;
+        guidance.push(row.state === 'attention'
+            ? `${row.name}の${app.name}を開き、同期画面で内容を確認してください。`
+            : row.state === 'error'
+                ? `${row.name}の${app.name}を開き、同期画面を確認してください。`
+                : `${row.name}の${app.name}を開くと、最新の状態を確認できます。`);
     }
     if (anonymous.length) {
         guidance.push(`${anonymous.join('・')}は、登録名で区別できないため、Cruise Portからはどの端末・ブラウザかを特定できません。`);
     }
+    if (needsAction && !pointed) {
+        guidance.push(`${app.name}を使っている端末・ブラウザで${app.name}を開き、同期画面を確認してください。`);
+    }
     return guidance;
+}
+
+// The one-line meaning of the row's main status, shown first in ⓘ.
+function statusTextFor(app, presentationState, rows) {
+    if (presentationState === 'available') return SYNC_DETAIL_COPY.synced;
+    if (presentationState === 'syncing' || presentationState === 'connecting') return SYNC_DETAIL_COPY.progress;
+    if (presentationState === 'deleting') return SYNC_DETAIL_COPY.deleting;
+    if (presentationState !== 'attention') return null;
+    if (app?.status !== 'synced') return SYNC_DETAIL_COPY.membershipAttention;
+    return attentionCountText(app.attentionCount) ||
+        (rows?.some((row) => row.state === 'error') ? SYNC_DETAIL_COPY.reportedError : SYNC_DETAIL_COPY.reportedAttention);
+}
+
+function detail(fields) {
+    return Object.freeze({ statusText: null, targets: null, notice: null, guidance: Object.freeze([]),
+        retry: false, support: false, ...fields });
 }
 
 // kind: the Account summary result ('ready' | 'offline' | 'error').
 // devicesState: whether the devices list for this snapshot was received ('ready' | 'unavailable').
+// Every state other than 「✓ 同期済み」 carries its next step here: a target to open, a recheck,
+// waiting, or (when that does not resolve it) the support section at the bottom of Sync Center.
 export function describeAppSyncDetail(app, { kind = 'ready', devicesState = 'ready', formatTime = defaultFormatTime } = {}) {
     if (kind === 'offline') {
-        return Object.freeze({ cloudText: SYNC_DETAIL_COPY.offline, targets: null, notice: null,
-            guidance: Object.freeze([]), retry: false });
+        return detail({ cloudText: SYNC_DETAIL_COPY.offline });
     }
     if (kind !== 'ready') {
-        return Object.freeze({ cloudText: SYNC_DETAIL_COPY.summaryUnavailable, targets: null, notice: null,
-            guidance: Object.freeze([]), retry: true });
+        return detail({ cloudText: SYNC_DETAIL_COPY.summaryUnavailable, retry: true, support: true });
     }
+    const presentationState = app?.presentationStatus?.state || null;
     const cloudText = app?.status === 'synced' ? SYNC_DETAIL_COPY.cloudReady
         : app?.status === 'connecting' ? SYNC_DETAIL_COPY.cloudConnecting
-            : app?.status === 'initial' ? SYNC_DETAIL_COPY.cloudInitial : SYNC_DETAIL_COPY.cloudUnknown;
+            : app?.status === 'initial' ? SYNC_DETAIL_COPY.cloudInitial
+                : app?.status === 'deleting' ? SYNC_DETAIL_COPY.cloudDeleting : SYNC_DETAIL_COPY.cloudUnknown;
+    if (app?.status === 'deleting') {
+        return detail({ statusText: SYNC_DETAIL_COPY.deleting, cloudText });
+    }
+    const inProgress = presentationState === 'syncing' || presentationState === 'connecting';
+    const membershipAttention = presentationState === 'attention' && app?.status !== 'synced';
+    const reportedAttention = presentationState === 'attention' && !membershipAttention;
     if (devicesState !== 'ready') {
-        return Object.freeze({ cloudText, targets: null, notice: SYNC_DETAIL_COPY.devicesUnavailable,
-            guidance: Object.freeze([]), retry: true });
+        return detail({ statusText: statusTextFor(app, presentationState, null), cloudText,
+            notice: SYNC_DETAIL_COPY.devicesUnavailable,
+            guidance: Object.freeze(reportedAttention ? guidanceFor(app, [], true) : []),
+            retry: true, support: true });
     }
     // Mismatched snapshots: no target is listed or singled out, only a recheck is offered.
     if (app?.snapshot === 'mismatch') {
-        return Object.freeze({ cloudText, targets: null, notice: SYNC_DETAIL_COPY.mismatch,
-            guidance: Object.freeze([]), retry: true });
+        return detail({ cloudText, notice: SYNC_DETAIL_COPY.mismatch, retry: true, support: true });
     }
     const rows = describeTargets(app, formatTime);
-    return Object.freeze({
+    return detail({
+        statusText: statusTextFor(app, presentationState, rows),
         cloudText,
         targets: Object.freeze(rows),
         emptyText: rows.length ? null : SYNC_DETAIL_COPY.noDevices,
-        notice: null,
-        guidance: Object.freeze(guidanceFor(app, rows)),
+        guidance: Object.freeze(guidanceFor(app, rows, reportedAttention)),
         footnote: rows.length ? SYNC_DETAIL_COPY.footnote : null,
-        retry: false
+        retry: inProgress || membershipAttention,
+        support: presentationState === 'attention'
     });
 }

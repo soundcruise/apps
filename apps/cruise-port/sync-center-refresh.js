@@ -39,3 +39,20 @@ export function bindSyncCenterReturnRefresh({
         noteRefreshed() { lastRefreshAt = now(); }
     });
 }
+
+// A summary/devices mismatch usually means the two responses straddled an update. The first one
+// seen during a Sync Center visit is fetched again once, automatically; after that the row shows
+// 「再確認が必要」 and waits for the user's recheck. No loop, no polling.
+export function createSnapshotMismatchRetry() {
+    let used = false;
+    return Object.freeze({
+        shouldRetry(presentation) {
+            if (used || presentation?.kind !== 'ready' ||
+                !presentation.apps?.some((app) => app.snapshot === 'mismatch')) return false;
+            used = true;
+            return true;
+        },
+        // A new visit to Sync Center allows one automatic retry again.
+        reset() { used = false; }
+    });
+}

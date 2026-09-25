@@ -1,6 +1,6 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=0.64.0';
-import { appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.64.0';
+import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.64.0';
 
 const TEMPORARY_FEEDBACK_MS = globalThis.SoundCruiseSyncUI?.temporaryFeedbackMs || 5000;
 
@@ -24,6 +24,7 @@ function createSyncInfoPanel(app, detail, { onRecheck = null } = {}) {
     panel.className = 'sync-center-app-info';
     panel.id = `sync-center-app-info-${app.id}`;
     panel.hidden = true;
+    if (detail.statusText) appendText(panel, 'p', 'sync-center-app-info-summary', detail.statusText);
     const cloud = document.createElement('section');
     cloud.className = 'sync-center-app-info-section';
     appendText(cloud, 'h3', 'sync-center-app-info-heading', 'クラウド');
@@ -60,6 +61,8 @@ function createSyncInfoPanel(app, detail, { onRecheck = null } = {}) {
         if (detail.footnote) appendText(targets, 'p', 'sync-center-app-info-footnote', detail.footnote);
         panel.append(targets);
     }
+    // Points at the existing support section instead of adding a mail button to every row.
+    if (detail.support) appendText(panel, 'p', 'sync-center-app-info-support', SYNC_DETAIL_COPY.support);
     if (detail.retry && typeof onRecheck === 'function') {
         const button = document.createElement('button');
         button.type = 'button';
