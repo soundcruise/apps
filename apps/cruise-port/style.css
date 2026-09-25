@@ -6193,6 +6193,7 @@ body.metronome-preset-open {
 .sync-center-support-link { display: inline-block; margin: 8px 0 6px; color: var(--port-gold-bright); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 .sync-center-support-link:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
 .sync-center-support-note { font-size: calc(0.7rem * var(--font-scale)); }
+.sync-center-support-link[hidden], .sync-center-support p[hidden] { display: none; }
 
 /* 同期解除の確認: 関連する同期先まで解除される操作では、解除前の同期済み確認を控えめに添える */
 .sync-center-lifecycle-sync-note { margin: 10px 0 0; padding: 10px 12px; border: 1px solid rgba(232, 176, 104, 0.34); border-radius: 10px; background: rgba(232, 176, 104, 0.07); color: #ead39b; font-size: calc(0.78rem * var(--font-scale)); line-height: 1.6; }
@@ -6245,7 +6246,10 @@ body.metronome-preset-open {
 .sync-center-ai-details[hidden] { display: none; }
 .sync-center-ai-close { flex: 0 0 auto; min-height: 36px; padding: 4px 12px; border: 1px solid rgba(205, 205, 205, 0.36); border-radius: 999px; background: transparent; color: var(--port-text); font: inherit; cursor: pointer; }
 .sync-center-support .sync-center-ai-privacy, .sync-center-support .sync-center-ai-memory { margin: 0; color: var(--port-muted); font-size: calc(0.78rem * var(--font-scale)); line-height: 1.65; overflow-wrap: anywhere; }
-.sync-center-ai-log { display: grid; gap: 8px; max-height: min(52vh, 420px); overflow-y: auto; overscroll-behavior: contain; }
+/* The conversation flows in the page (no inner scroll box), so each new bubble can be scrolled to the top. */
+.sync-center-ai-log { display: grid; gap: 8px; }
+.sync-center-ai-room { margin-top: -10px; pointer-events: none; }
+.sync-center-ai-message, .sync-center-ai-form { scroll-margin-top: max(16px, calc(env(safe-area-inset-top) + 12px)); scroll-margin-bottom: 12px; }
 .sync-center-ai-log:empty { display: none; }
 .sync-center-ai-message { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; min-width: 0; }
 .sync-center-ai-message--user { justify-self: end; max-width: 88%; background: rgba(232, 201, 122, 0.12); border: 1px solid rgba(232, 201, 122, 0.28); }
@@ -6274,5 +6278,8 @@ body.metronome-preset-open {
 .sync-center-ai-cancel[hidden] { display: none; }
 .sync-center-ai-mail, .sync-center-ai-privacy-link { color: var(--port-gold-bright); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 .sync-center-ai-privacy-link:focus-visible, .sync-center-ai-mail:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
-.sync-center-support .sync-center-ai-codes { margin: 0; color: #ffe2a8; font-size: calc(0.78rem * var(--font-scale)); overflow-wrap: anywhere; }
+/* One line on common phone widths (360–430px): proportional punctuation ("palt") plus a size that
+   follows the width, never below 11px. Larger font settings or narrower screens simply wrap. */
+.sync-center-support .sync-center-ai-codes { margin: 0; color: #ffe2a8; font-size: calc(clamp(11px, calc((100vw - 60px) / 27.5), 0.74rem) * var(--font-scale)); font-feature-settings: "palt"; line-height: 1.5; overflow-wrap: anywhere; }
+.sync-center-ai-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
 .sync-center-app-info-ai { justify-self: start; min-height: 36px; padding: 6px 14px; border: 1px solid rgba(232, 201, 122, 0.36); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 600; cursor: pointer; }

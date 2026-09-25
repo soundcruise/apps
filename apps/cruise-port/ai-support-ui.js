@@ -20,8 +20,8 @@ export const AI_PANEL_COPY = Object.freeze({
   codesWarning: '4桁の番号・復旧コード・接続コードなどは入力しないでください。',
   placeholder: '例：コードクルーズが「確認が必要」になっています',
   send: '送信',
-  sending: 'AIが同期状態を確認しています…',
-  thinking: '回答を確認しています…',
+  // Read by screen readers only; the pending bubble shows three quiet dots instead of text.
+  thinking: '回答を作成しています',
   cancel: '中止',
   close: '閉じる',
   you: 'あなた',
@@ -49,7 +49,8 @@ export function createAiSupportPanel({
   mailHref,
   privacyHref = DEFAULT_PRIVACY_HREF,
   isOnline = () => globalThis.navigator?.onLine !== false,
-  enterSends = () => !globalThis.matchMedia?.('(pointer: coarse)')?.matches
+  enterSends = () => !globalThis.matchMedia?.('(pointer: coarse)')?.matches,
+  viewport = globalThis.visualViewport || null
 }) {
   const turns = []; // { role: 'user' | 'assistant', content } — memory only
   let sending = null; // { controller } while a request is in flight (single-flight)
@@ -133,7 +134,11 @@ export function createAiSupportPanel({
   footer.append(AI_PANEL_COPY.footerLead, mail, AI_PANEL_COPY.footerTail);
 
   panel.append(header, summary, details, log, status, error, form, footer);
-  container.append(openButton, panel);
+  // Empty room under the panel, sized only when needed so a bubble near the end of the page can
+  // still be scrolled up to the top of the screen.
+  const room = node('div', 'sync-center-ai-room');
+  room.setAttribute('aria-hidden', 'true');
+  container.append(openButton, panel, room);
 
   function showError(message) {
     error.textContent = message || '';
@@ -154,23 +159,78 @@ export function createAiSupportPanel({
     item.append(node('p', 'sync-center-ai-text', content)); // textContent only
     if (unsent) item.append(node('span', 'sync-center-ai-unsent', AI_PANEL_COPY.unsent));
     log.append(item);
-    log.scrollTop = log.scrollHeight;
     return item;
   }
 
-  // A visible "thinking" bubble while the reply is on its way (status text alone was easy to miss).
+  // A quiet "thinking" bubble (three dots, no visible text) while the reply is on its way.
   function appendPending() {
     const item = node('div', 'sync-center-ai-message sync-center-ai-message--ai sync-center-ai-message--pending');
-    item.setAttribute('aria-hidden', 'true'); // the status line already announces it
     item.append(node('span', 'sync-center-ai-speaker', AI_PANEL_COPY.ai));
     const line = node('p', 'sync-center-ai-thinking');
     const dots = node('span', 'sync-center-ai-dots');
+    dots.setAttribute('aria-hidden', 'true');
     dots.append(node('span', null, ''), node('span', null, ''), node('span', null, ''));
-    line.append(dots, node('span', 'sync-center-ai-thinking-text', AI_PANEL_COPY.thinking));
+    line.append(dots, node('span', 'sync-center-ai-sr-only', AI_PANEL_COPY.thinking));
     item.append(line);
     log.append(item);
-    log.scrollTop = log.scrollHeight;
     return item;
+  }
+
+  // Scrolling. The conversation flows in the page (the log has no scroll box of its own), so a
+  // bubble is brought to the top with scrollIntoView; CSS scroll-margin-top keeps it clear of the
+  // safe area. Nothing here touches location/history or moves focus.
+  const reduceMotion = () => Boolean(globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches);
+  function makeRoomBelow(element) {
+    const doc = globalThis.document?.documentElement;
+    if (!doc || !element?.getBoundingClientRect || !room.style) return;
+    room.style.height = '0px'; // measure without the old room (the page may have been clamped by it)
+    const rect = element.getBoundingClientRect();
+    const height = viewport?.height || globalThis.innerHeight || 0;
+    const top = rect.top + (globalThis.scrollY || 0);
+    const missing = Math.ceil(top + height - doc.scrollHeight);
+    room.style.height = `${Math.max(0, missing)}px`;
+  }
+  function scrollToTop(element) {
+    makeRoomBelow(element);
+    element?.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
+  }
+  // Keeps the input and 送信 above the software keyboard. visualViewport is the part of the page
+  // left visible by the keyboard (iOS Safari / Home Screen and Android Chrome both report it).
+  let keepComposerVisible = false;
+  function revealComposer() {
+    if (panel.hidden) return;
+    const rect = actions.getBoundingClientRect?.();
+    const view = viewport;
+    if (!rect || !view) { form.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); return; }
+    const top = view.offsetTop || 0;
+    const bottom = top + view.height;
+    const margin = 12;
+    if (rect.bottom + margin > bottom) globalThis.scrollBy?.(0, rect.bottom + margin - bottom);
+    else {
+      const inputTop = input.getBoundingClientRect?.().top;
+      if (inputTop != null && inputTop - margin < top) globalThis.scrollBy?.(0, inputTop - margin - top);
+    }
+  }
+  viewport?.addEventListener?.('resize', () => {
+    if (keepComposerVisible && globalThis.document?.activeElement === input) globalThis.requestAnimationFrame?.(revealComposer) ?? revealComposer();
+  });
+  input.addEventListener('focus', () => { keepComposerVisible = true; });
+  input.addEventListener('blur', () => { keepComposerVisible = false; });
+
+  // While a reply is pending: did the user scroll somewhere on purpose? Then the finished reply
+  // does not yank the page back unless the conversation is still on screen.
+  let userScrolled = false;
+  const markUserScroll = () => { userScrolled = true; };
+  function watchUserScroll(on) {
+    const method = on ? 'addEventListener' : 'removeEventListener';
+    for (const type of ['wheel', 'touchmove']) globalThis[method]?.(type, markUserScroll, { passive: true });
+  }
+  function isOnScreen(element) {
+    const rect = element?.getBoundingClientRect?.();
+    if (!rect) return true;
+    const height = viewport?.height || globalThis.innerHeight || 0;
+    const top = viewport?.offsetTop || 0;
+    return rect.bottom > top && rect.top < top + height;
   }
 
   async function send() {
@@ -186,23 +246,31 @@ export function createAiSupportPanel({
     input.value = '';
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     sending = { controller };
-    status.textContent = AI_PANEL_COPY.sending;
     panel.setAttribute('aria-busy', 'true');
     const pending = appendPending();
     refreshControls();
+    // Start reading from the question just sent; the dots and then the reply follow below it.
+    keepComposerVisible = false;
+    scrollToTop(bubble);
+    userScrolled = false;
+    watchUserScroll(true);
     let result;
     try {
       result = await client.send({ message, history, signal: controller?.signal });
     } catch (_) {
       result = { ok: false, kind: 'failed' };
     }
+    watchUserScroll(false);
+    const followConversation = !userScrolled || isOnScreen(pending);
     pending.remove?.();
     sending = null;
     panel.removeAttribute('aria-busy');
     status.textContent = '';
     if (result.ok) {
       turns.push({ role: 'user', content: message }, { role: 'assistant', content: result.reply });
-      appendMessage('assistant', result.reply);
+      const reply = appendMessage('assistant', result.reply);
+      // Long replies are read from their first line, not from the end.
+      if (followConversation) scrollToTop(reply);
     } else {
       // The unanswered message stays visible, is not part of the history, and is offered again.
       bubble.append(node('span', 'sync-center-ai-unsent', AI_PANEL_COPY.unsent));
@@ -210,7 +278,11 @@ export function createAiSupportPanel({
       showError(AI_SUPPORT_COPY[result.kind] || AI_SUPPORT_COPY.failed);
     }
     refreshControls();
-    if (panel.contains?.(globalThis.document?.activeElement) || globalThis.document?.activeElement === sendButton) input.focus();
+    // Back to the input for the next question (preventScroll, so the reply stays at the top). On
+    // touch screens this would reopen the keyboard over the reply, so the user taps the input instead.
+    if (enterSends() && (panel.contains?.(globalThis.document?.activeElement) || globalThis.document?.activeElement === sendButton)) {
+      input.focus({ preventScroll: true });
+    }
   }
 
   function open(from = openButton) {
@@ -218,11 +290,16 @@ export function createAiSupportPanel({
     panel.hidden = false;
     openButton.setAttribute('aria-expanded', 'true');
     refreshControls();
-    panel.scrollIntoView?.({ block: 'nearest' });
-    input.focus();
+    // Focus inside the tap itself (iOS opens the keyboard only then), then bring the input and
+    // 送信 into view; the visualViewport resize above repeats this once the keyboard is up.
+    input.focus({ preventScroll: true });
+    keepComposerVisible = true;
+    form.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
+    globalThis.requestAnimationFrame?.(revealComposer);
   }
   function close() {
     panel.hidden = true;
+    if (room.style) room.style.height = '0px';
     openButton.setAttribute('aria-expanded', 'false');
     const target = opener && opener.isConnected !== false ? opener : openButton;
     opener = null;

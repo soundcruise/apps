@@ -28,7 +28,7 @@ import {
 import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=0.69.0';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=0.65.0';
 import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=0.69.0';
-import { createAiSupportPanel } from './ai-support-ui.js?v=0.69.0';
+import { createAiSupportPanel } from './ai-support-ui.js?v=0.69.1';
 import { createPortSyncStatus } from './port-sync-status.js?v=0.59.3';
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.66.0';
 import {
@@ -176,7 +176,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.69.0';
+} from './app-version.js?v=0.69.1';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -5635,6 +5635,7 @@ if (syncCenterController.enabled) {
         const container = elements.syncCenterView.querySelector('#sync-center-ai-support');
         const intro = elements.syncCenterView.querySelector('#sync-center-support-intro');
         const mailLink = elements.syncCenterView.querySelector('.sync-center-support-link');
+        const mailNote = elements.syncCenterView.querySelector('.sync-center-support-note');
         if (container) {
             container.hidden = false;
             aiSupportPanel = createAiSupportPanel({
@@ -5642,7 +5643,9 @@ if (syncCenterController.enabled) {
                 mailHref: mailLink?.getAttribute('href') || null,
                 client: createAiSupportClient({ endpoint: aiSupportConfig.endpoint, admissionMode: aiSupportConfig.admissionMode })
             });
-            if (intro) intro.textContent = 'AIで解決しない場合は、メールでお知らせください。返信でやりとりできます。';
+            // The panel carries its own 「メールで報告」 (same mailto), so the section's mail block would
+            // only repeat it. Hidden, not removed: without AI support the block stays as the contact.
+            for (const duplicate of [intro, mailLink, mailNote]) if (duplicate) duplicate.hidden = true;
             // ⓘ of a row that needs attention opens the same panel.
             elements.syncCenterView.addEventListener('click', (event) => {
                 const trigger = event.target.closest?.('[data-sync-ai-support-open]');

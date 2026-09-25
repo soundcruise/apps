@@ -112,7 +112,12 @@ test('2: both entries keep the mail support and ship the AI container hidden', (
   }
   const app = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
   assert.match(app, /if \(aiSupportConfig\.enabled\) \{/);
-  assert.match(app, /AIで解決しない場合は、メールでお知らせください。/);
+  // With AI on, the panel's own 「メールで報告」 is the mail route; the section's block is hidden, not removed.
+  assert.match(app, /mailHref: mailLink\?\.getAttribute\('href'\)/);
+  assert.match(app, /for \(const duplicate of \[intro, mailLink, mailNote\]\) if \(duplicate\) duplicate\.hidden = true;/);
+  assert.doesNotMatch(app, /AIで解決しない場合は、メールでお知らせください。/);
+  const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.sync-center-support-link\[hidden\], \.sync-center-support p\[hidden\] \{ display: none; \}/);
 });
 
 test('3: only rows that need attention offer 「AIに相談」 in ⓘ, and only when AI support is on', () => {
@@ -214,7 +219,7 @@ test('8/24: single-flight — a second submit while sending is ignored and repli
   assert.equal(view.send.disabled, true, 'send is disabled while sending');
   assert.equal(view.cancel.hidden, false);
   assert.equal(view.section.getAttribute('aria-busy'), 'true');
-  assert.equal(view.status.textContent, AI_PANEL_COPY.sending);
+  assert.equal(view.status.textContent, '', 'no status sentence while waiting');
   view.type('質問B');
   view.submit();
   view.input.dispatch('keydown', { key: 'Enter' });
@@ -608,8 +613,12 @@ test('AI UX: short disclosure with ⓘ details, quiet open button, visible think
   await tick();
   const pending = find('sync-center-ai-message--pending');
   assert.ok(pending, 'pending bubble shown');
-  assert.equal(find('sync-center-ai-thinking-text').textContent, '回答を確認しています…');
-  assert.equal(view.status.textContent, AI_PANEL_COPY.sending, 'still announced via the status line');
+  // Dots only on screen; the words are for screen readers (the log is aria-live).
+  assert.equal(find('sync-center-ai-dots').getAttribute('aria-hidden'), 'true');
+  assert.equal(find('sync-center-ai-sr-only').textContent, '回答を作成しています');
+  assert.equal(pending.getAttribute('aria-hidden'), null);
+  assert.equal(view.status.textContent, '');
+  assert.doesNotMatch(view.dom.text(view.container), /AIが同期状態を確認しています|回答を確認しています/);
   release({ ok: true, reply: 'はい、同期済みです。' });
   await tick(); await tick();
   assert.equal(find('sync-center-ai-message--pending'), undefined, 'removed after the reply');
@@ -644,4 +653,109 @@ test('A-2: legacy (v1) Pro access gets the renew guidance; other cases keep thei
   assert.match(pro, /<h2 id="settings-pro-auth-title">Pro版の認証<\/h2>/);
   assert.match(pro, /id="settings-pro-auth-reset"[^>]*>Pro版の認証をリセット<\/button>/);
   assert.equal(errorKind(403, 'pro_required'), 'auth', 'server denials keep the generic message');
+});
+
+test('scroll UX: open reveals the input, a sent question and then the reply start at the top', async () => {
+  let release;
+  const view = mountPanel({ send: () => new Promise((resolve) => { release = resolve; }) });
+  const scrolls = [];
+  const record = (node, name) => { node.scrollIntoView = (options) => scrolls.push([name, options]); };
+  record(view.form, 'form');
+  const frames = [];
+  globalThis.requestAnimationFrame = (fn) => { frames.push(fn); return frames.length; };
+  const originalHistory = globalThis.history;
+  try {
+    view.openButton.click();
+    assert.equal(view.dom.doc.activeElement, view.input, 'focused inside the tap (iOS keyboard)');
+    assert.deepEqual(scrolls.shift(), ['form', { block: 'nearest', inline: 'nearest', behavior: 'auto' }]);
+    assert.equal(frames.length, 1, 'one re-check on the next frame, no timers');
+    view.type('コードクルーズだけ同期されません');
+    // Record the bubbles' scrolls as they are created.
+    const append = view.log.append.bind(view.log);
+    view.log.append = (...nodes) => { for (const item of nodes) record(item, String(item.className)); append(...nodes); };
+    view.submit();
+    const [first] = scrolls.splice(0);
+    assert.match(first[0], /sync-center-ai-message--user/);
+    assert.equal(first[1].block, 'start');
+    assert.equal(first[1].inline, 'nearest');
+    release({ ok: true, reply: 'コードクルーズの行にある ⓘ を開いてください。' });
+    await tick(); await tick();
+    const [second] = scrolls.splice(0);
+    assert.match(second[0], /sync-center-ai-message--ai/);
+    assert.doesNotMatch(second[0], /pending/);
+    assert.equal(second[1].block, 'start', 'the reply is read from its first line');
+    assert.equal(globalThis.history, originalHistory);
+  } finally {
+    delete globalThis.requestAnimationFrame;
+  }
+  const source = readFileSync(new URL('./ai-support-ui.js', import.meta.url), 'utf8').split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+  assert.doesNotMatch(source, /location|history\.|setTimeout|scrollTop = /, 'no route, history or timer-based scrolling');
+  assert.match(source, /input\.focus\(\{ preventScroll: true \}\)/);
+  const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.sync-center-ai-log \{ display: grid; gap: 8px; \}/, 'no inner scroll box');
+  assert.match(css, /\.sync-center-ai-message, \.sync-center-ai-form \{ scroll-margin-top: max\(16px, calc\(env\(safe-area-inset-top\) \+ 12px\)\)/);
+});
+
+test('scroll UX: a user who scrolled away while waiting is not pulled back; touch keeps the keyboard closed', async () => {
+  let release;
+  const listeners = new Map();
+  globalThis.addEventListener = (type, fn) => listeners.set(type, fn);
+  globalThis.removeEventListener = (type) => listeners.delete(type);
+  const view = mountPanel({ send: () => new Promise((resolve) => { release = resolve; }), enterSends: () => false });
+  try {
+    view.openButton.click();
+    const appended = [];
+    const append = view.log.append.bind(view.log);
+    view.log.append = (...nodes) => { for (const item of nodes) { item.scrollIntoView = () => appended.push(item.className); item.getBoundingClientRect = () => ({ top: -900, bottom: -800 }); } append(...nodes); };
+    view.type('同期できません');
+    view.submit();
+    assert.equal(appended.length, 1);
+    listeners.get('touchmove')?.();
+    view.dom.doc.activeElement = view.send;
+    release({ ok: true, reply: '回答です。' });
+    await tick(); await tick();
+    assert.equal(appended.length, 1, 'no jump when the conversation is off screen after a manual scroll');
+    assert.equal(listeners.has('touchmove'), false, 'scroll watching stops after the reply');
+    assert.equal(view.dom.doc.activeElement, view.send, 'touch screens: the keyboard is not reopened over the reply');
+  } finally {
+    delete globalThis.addEventListener; delete globalThis.removeEventListener;
+  }
+});
+
+test('code warning: smaller, fits one line on common phones, other text unchanged', () => {
+  const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.sync-center-support \.sync-center-ai-codes \{[^}]*font-size: calc\(clamp\(11px, calc\(\(100vw - 60px\) \/ 27\.5\), 0\.74rem\) \* var\(--font-scale\)\); font-feature-settings: "palt"/);
+  assert.match(css, /\.sync-center-support \.sync-center-ai-text \{[^}]*font-size: calc\(0\.94rem/);
+  assert.match(css, /\.sync-center-support \.sync-center-ai-summary-text \{[^}]*font-size: calc\(0\.8rem/);
+  assert.equal(AI_PANEL_COPY.codesWarning, '4桁の番号・復旧コード・接続コードなどは入力しないでください。');
+});
+
+test('scroll UX: when the keyboard shrinks the visual viewport, the input and 送信 are scrolled back into view', () => {
+  const dom = installDom();
+  const container = new dom.Node('div');
+  dom.root.append(container);
+  const handlers = {};
+  const viewport = { height: 800, offsetTop: 0, addEventListener: (type, fn) => { handlers[type] = fn; } };
+  const scrolled = [];
+  globalThis.scrollBy = (x, y) => scrolled.push(y);
+  globalThis.requestAnimationFrame = (fn) => { fn(); return 1; };
+  try {
+    createAiSupportPanel({ container, client: { send: async () => ({ ok: true, reply: 'x' }) }, mailHref: MAIL, viewport, enterSends: () => false });
+    const byClass = (name) => dom.walk(container).find((node) => String(node.className).split(' ').includes(name));
+    const actions = byClass('sync-center-ai-actions');
+    const input = byClass('sync-center-ai-input');
+    actions.getBoundingClientRect = () => ({ top: 700, bottom: 760 });
+    input.getBoundingClientRect = () => ({ top: 560, bottom: 650 });
+    byClass('sync-center-ai-open').click();
+    assert.deepEqual(scrolled, [], 'already visible: no scroll');
+    viewport.height = 420; // software keyboard opened
+    handlers.resize();
+    assert.deepEqual(scrolled, [760 + 12 - 420], 'the 送信 row sits just above the keyboard');
+    input.dispatch('blur');
+    viewport.height = 300;
+    handlers.resize();
+    assert.equal(scrolled.length, 1, 'no scrolling once the input is left');
+  } finally {
+    delete globalThis.scrollBy; delete globalThis.requestAnimationFrame;
+  }
 });
