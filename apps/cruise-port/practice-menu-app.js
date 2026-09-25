@@ -23,16 +23,16 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=0.61.0';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=0.63.0';
+} from './sync-center-controller.js?v=0.64.0';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=0.64.0';
 import { bindSyncCenterReturnRefresh } from './sync-center-refresh.js?v=0.61.0';
 import { createPortSyncStatus } from './port-sync-status.js?v=0.59.3';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.61.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.64.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=0.61.0';
+} from './sync-center-navigation.js?v=0.64.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -173,7 +173,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.63.0';
+} from './app-version.js?v=0.64.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.59.3';

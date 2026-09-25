@@ -8,46 +8,76 @@ import { CRUISE_PORT_APP_VERSION } from './app-version.js';
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const modules = readdirSync(new URL('.', import.meta.url)).filter((name) => name.endsWith('.js') && !name.includes('.test.'));
 const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=([0-9.]+)'/g)].map(([, name, key]) => ({ name, key }));
+const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
+const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-test('both Port entries load the current release of practice-menu-app', () => {
+// Modules whose code changed in this release (Sync status + per-target detail, 0.64.0), plus the
+// unchanged modules that import sync-center-controller and therefore changed their import line.
+const RELEASE_MODULES = Object.freeze([
+  'app-version.js',
+  'sync-center-controller.js',
+  'sync-center-device-detail.js',
+  'sync-center-ui.js',
+  'sync-center-navigation.js',
+  'sync-center-orchestrator.js'
+]);
+
+test('the release is 0.64.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '0.64.0');
+});
+
+test('both Port entries load the current practice-menu-app and style.css', () => {
   for (const html of [read('./index.html'), read('./pro_9a3943176561/index.html')]) {
-    assert.match(html, new RegExp(`practice-menu-app\\.js\\?v=${CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.')}"`));
+    assert.match(html, new RegExp(`practice-menu-app\\.js\\?v=${escaped}"`));
+    assert.match(html, new RegExp(`style\\.css\\?v=${escaped}"`));
   }
 });
 
-test('modules changed in this release are requested under the release key', () => {
-  const appEdges = imports(read('./practice-menu-app.js'));
-  // Changed in this release: app-version (version) and sync-center-ui (detach confirmation copy).
-  for (const name of ['app-version.js', 'sync-center-ui.js']) {
-    assert.equal(appEdges.find((edge) => edge.name === name)?.key, CRUISE_PORT_APP_VERSION, name);
+test('every import of a module changed in this release uses the release key', () => {
+  for (const name of RELEASE_MODULES) {
+    const incoming = edges.filter((edge) => edge.name === name);
+    assert.ok(incoming.length > 0, `${name} is imported`);
+    for (const edge of incoming) assert.equal(edge.key, CRUISE_PORT_APP_VERSION, `${edge.importer} → ${name}`);
   }
 });
 
-test('every Sync Center module is requested under exactly one key by all of its importers', () => {
-  const byModule = new Map();
-  for (const importer of ['practice-menu-app.js', 'sync-center-ui.js', 'sync-center-orchestrator.js', 'sync-center-navigation.js']) {
-    for (const edge of imports(read(`./${importer}`))) {
-      if (!edge.name.startsWith('sync-center-')) continue;
-      if (!byModule.has(edge.name)) byModule.set(edge.name, new Set());
-      byModule.get(edge.name).add(edge.key);
+test('the exact release edges: entry → app → controller / UI → detail', () => {
+  const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
+  assert.equal(key('practice-menu-app.js', 'sync-center-controller.js'), '0.64.0');
+  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '0.64.0');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '0.64.0');
+  assert.equal(key('sync-center-ui.js', 'sync-center-controller.js'), '0.64.0');
+  assert.equal(key('sync-center-ui.js', 'sync-center-device-detail.js'), '0.64.0');
+  assert.equal(key('sync-center-navigation.js', 'sync-center-controller.js'), '0.64.0');
+  assert.equal(key('sync-center-orchestrator.js', 'sync-center-controller.js'), '0.64.0');
+});
+
+test('a module that imports a release-keyed module is itself fetched under the release key', () => {
+  // Otherwise its cached copy keeps pointing at the old child URL.
+  for (const edge of edges.filter((item) => item.key === CRUISE_PORT_APP_VERSION)) {
+    if (edge.importer === 'practice-menu-app.js') continue; // loaded by both entry HTMLs, checked above
+    for (const parent of edges.filter((item) => item.name === edge.importer)) {
+      assert.equal(parent.key, CRUISE_PORT_APP_VERSION, `${parent.importer} → ${edge.importer} (imports ${edge.name})`);
     }
   }
-  for (const name of ['sync-center-ui.js', 'sync-center-controller.js', 'sync-center-refresh.js',
-    'sync-center-orchestrator.js', 'sync-center-navigation.js']) {
-    assert.equal(byModule.get(name)?.size, 1, `${name}: ${[...(byModule.get(name) || [])].join(', ')}`);
+});
+
+test('no module changed in this release is still requested under an earlier key', () => {
+  const sources = modules.map((name) => read(`./${name}`)).join('\n');
+  for (const name of RELEASE_MODULES) {
+    for (const stale of ['0.61.0', '0.62.0', '0.63.0']) {
+      assert.equal(sources.includes(`${name}?v=${stale}`), false, `${name}?v=${stale}`);
+    }
   }
 });
 
 test('Sync Center and launch modules have exactly one public URL each', () => {
   const keys = new Map();
-  for (const name of modules) {
-    for (const edge of imports(read(`./${name}`))) {
-      if (!keys.has(edge.name)) keys.set(edge.name, new Set());
-      keys.get(edge.name).add(edge.key);
-    }
+  for (const edge of edges) {
+    if (!keys.has(edge.name)) keys.set(edge.name, new Set());
+    keys.get(edge.name).add(edge.key);
   }
-  for (const name of ['sync-center-controller.js', 'sync-center-ui.js', 'sync-center-refresh.js',
-    'sync-center-orchestrator.js', 'sync-center-navigation.js', 'cruise-app-links.js', 'app-version.js']) {
+  for (const name of [...RELEASE_MODULES, 'sync-center-refresh.js', 'cruise-app-links.js']) {
     assert.equal(keys.get(name)?.size, 1, `${name} is imported under ${[...(keys.get(name) || [])].join(', ')}`);
   }
 });
