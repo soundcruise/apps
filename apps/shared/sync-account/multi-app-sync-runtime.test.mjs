@@ -3234,3 +3234,105 @@ test('edit/delete and delete/edit divergences remain tombstone conflicts without
     ]);
   });
 });
+
+// ------------------------------------------------------------ same-device false conflicts (tuner)
+
+const TUNER_KEY = 'cruisePort.tuner';
+const tunerValue = (patch = {}) => JSON.stringify({ version: 3, thresholdDb: -80, tuningId: 'standard', capo: 0, ...patch });
+const serverTuner = (fixture) => fixture.server.records.get('tuner_settings/default')?.payload?.value;
+async function tunerFixture() {
+  const fixture = realPortFixture({ [TUNER_KEY]: tunerValue() });
+  await fixture.runtime.consumeHandoff('tuner');
+  return fixture;
+}
+
+test('one device: capo 1 → 2 → 3, tuning, free mode and threshold sync with no conflict', async () => {
+  const fixture = await tunerFixture();
+  for (const patch of [{ capo: 1 }, { capo: 2 }, { capo: 3 }, { capo: 3, tuningId: 'drop-d' },
+    { capo: 3, tuningId: 'free' }, { capo: 3, tuningId: 'free', thresholdDb: -70 }]) {
+    fixture.storage.setItem(TUNER_KEY, tunerValue(patch));
+    const result = await fixture.runtime.sync('save');
+    assert.equal(result.ok, true, JSON.stringify(patch));
+    assert.deepEqual(await fixture.store.listConflicts(), []);
+  }
+  assert.deepEqual({ ...serverTuner(fixture) }, { version: 3, thresholdDb: -70, tuningId: 'free', capo: 3 });
+});
+
+test('one device: a change made while its own push is in flight is not a conflict; the last value wins', async () => {
+  const fixture = await tunerFixture();
+  fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 1 }));
+  // While capo 1 is being pushed, the user taps to capo 2 and then capo 3.
+  fixture.server.beforePushOperation = async () => {
+    fixture.server.beforePushOperation = null;
+    fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 2 }));
+    fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 3 }));
+  };
+  const first = await fixture.runtime.sync('save');
+  assert.equal(first.ok, true, JSON.stringify(first));
+  assert.deepEqual(await fixture.store.listConflicts(), [], 'our own push is not a remote change');
+  const second = await fixture.runtime.sync('save');
+  assert.equal(second.ok, true);
+  assert.equal(serverTuner(fixture).capo, 3, 'the final value reaches the cloud');
+  assert.deepEqual(await fixture.store.listConflicts(), []);
+});
+
+test('one device: a sync that stops after its push does not make the next change a conflict', async () => {
+  const fixture = await tunerFixture();
+  fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 4 }));
+  // The push is applied, then the follow-up snapshot fails (network): the sync ends early.
+  let snapshots = 0;
+  const original = fixture.server.beforePushOperation;
+  fixture.server.beforePushOperation = async () => { fixture.server.beforePushOperation = original; fixture.server.nextSnapshotFailure = { network: true }; };
+  await assert.rejects(fixture.runtime.sync('save'));
+  assert.equal(serverTuner(fixture).capo, 4, 'the push itself was applied');
+  fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 5 }));
+  const next = await fixture.runtime.sync('save');
+  assert.equal(next.ok, true, JSON.stringify(next));
+  assert.deepEqual(await fixture.store.listConflicts(), []);
+  assert.equal(serverTuner(fixture).capo, 5);
+  void snapshots;
+});
+
+test('one device: response loss after an applied push retries without a conflict', async () => {
+  const fixture = await tunerFixture();
+  fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 6 }));
+  fixture.server.responseLossAfterApply = true;
+  await assert.rejects(fixture.runtime.sync('save'), (error) => error.code === 'network_error');
+  fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 7 }));
+  fixture.runtime.now = () => Date.now() + 500000;
+  const retry = await fixture.runtime.sync('retry');
+  assert.equal(retry.ok, true, JSON.stringify(retry));
+  const after = await fixture.runtime.sync('save');
+  assert.equal(after.ok, true);
+  assert.deepEqual(await fixture.store.listConflicts(), []);
+  assert.equal(serverTuner(fixture).capo, 7);
+});
+
+test('one device: local change → reload (new runtime, same stores) → sync is clean', async () => {
+  const fixture = await tunerFixture();
+  fixture.storage.setItem(TUNER_KEY, tunerValue({ capo: 8 }));
+  const Runtime = fixture.runtime.constructor;
+  const reloaded = new Runtime({ appId: 'port', endpoint: 'https://example.test', adapter: fixture.runtime.adapter,
+    store: fixture.store, accountClient: fixture.runtime.accountClient, accountCore: fixture.runtime.accountCore,
+    fetchImpl: fixture.fetchImpl, randomOperationId: () => `reload-${Math.random()}` });
+  const result = await reloaded.sync('reload');
+  assert.equal(result.ok, true, JSON.stringify(result));
+  assert.deepEqual(await fixture.store.listConflicts(), []);
+  assert.equal(serverTuner(fixture).capo, 8);
+});
+
+test('two devices changing the same setting concurrently still get a conflict; nothing is lost', async () => {
+  const a = await tunerFixture();
+  const b = realPortFixture({ [TUNER_KEY]: tunerValue() }, a.fetchImpl);
+  await b.runtime.consumeHandoff('tuner-b');
+  await a.runtime.sync('align');
+  await b.runtime.sync('align');
+  a.storage.setItem(TUNER_KEY, tunerValue({ capo: 5 }));
+  assert.equal((await a.runtime.sync('save')).ok, true);
+  b.storage.setItem(TUNER_KEY, tunerValue({ capo: 7 }));
+  const result = await b.runtime.sync('save');
+  assert.equal(result.ok, false, 'a real concurrent edit from another device stays a conflict');
+  assert.equal((await b.store.listConflicts()).length, 1);
+  assert.equal(JSON.parse(b.storage.getItem(TUNER_KEY)).capo, 7, 'the local value is kept for the user to choose');
+  assert.equal(a.server.records.get('tuner_settings/default').payload.value.capo, 5, 'the cloud value is kept');
+});

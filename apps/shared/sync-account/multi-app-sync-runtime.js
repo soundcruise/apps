@@ -1239,6 +1239,35 @@
       return Object.freeze({ ok: recovered > 0, recovered });
     }
 
+    // The cloud record this device itself just produced is the new common ancestor of local and
+    // cloud for that record. Advancing the shadow to it (only when the server confirms our exact
+    // payload) keeps a later edit on this device from looking like "both changed". A real change
+    // from another device still differs from this shadow and still becomes a conflict.
+    async acknowledgeOwnRecord(operation, record) {
+      if (!record || isDeleted(record) || operation.deleted ||
+          keyOf(record) !== keyOf(operation) || record.payloadHash !== operation.payloadHash) return false;
+      await this.store.putShadow(keyOf(operation), clone(record));
+      return true;
+    }
+
+    // After a lost push response the outbox still holds an operation the server already applied.
+    // If the cloud record carries that same operation id and payload, it is our own echo: complete
+    // the operation and advance the shadow instead of treating the cloud as changed elsewhere.
+    async acknowledgeOwnEchoes(remoteRecords) {
+      const remote = mapRecords(remoteRecords);
+      let acknowledged = 0;
+      for (const item of await this.store.listOutbox()) {
+        if (item.deleted || item.conflict) continue;
+        const record = remote.get(keyOf(item));
+        if (!record || !item.operationId || record.operationId !== item.operationId) continue;
+        if (await this.acknowledgeOwnRecord(item, record)) {
+          await this.store.deleteOutbox(item.operationId);
+          acknowledged += 1;
+        }
+      }
+      return acknowledged;
+    }
+
     async flushOutbox({ migration = false, force = false } = {}) {
       const now = this.now();
       const initial = await this.store.listOutbox();
@@ -1300,6 +1329,7 @@
           if (['applied', 'duplicate'].includes(result.status)) {
             await this.store.deleteOutbox(operation.operationId);
             if (operation.deleted) this.adapter.acknowledgeDelete?.(keyOf(operation));
+            else await this.acknowledgeOwnRecord(operation, result.record);
           }
           else if (result.status === 'conflict') {
             conflicts += 1;
@@ -1497,7 +1527,9 @@
         return { ok: false, code: 'conflict_pending', conflicts: unresolved.length };
       }
       this.setState('syncing', { reason });
-      const [rawRemote, shadowRecords] = await Promise.all([this.serverSnapshot(), this.store.listShadow()]);
+      const rawRemote = await this.serverSnapshot();
+      await this.acknowledgeOwnEchoes(this.partitionRemote(rawRemote).remote.records || []);
+      const shadowRecords = await this.store.listShadow();
       let local = await this.localRecords();
       const partitioned = this.partitionRemote(rawRemote);
       const remote = partitioned.remote;
@@ -1561,6 +1593,8 @@
         if (isolatedKinds.has(conflict.kind)) isolatedKeys.add(conflict.recordKey);
       }
       await this.flushOutbox();
+      // Records this device just pushed now have their confirmed cloud version as the shadow.
+      const shadowAfterPush = mapRecords(await this.store.listShadow());
       const rawAfterPush = await this.serverSnapshot();
       const afterPartition = this.partitionRemote(rawAfterPush);
       const afterPush = afterPartition.remote;
@@ -1572,11 +1606,11 @@
       const merged = new Map(localAfterPush.records.map((record) => [keyOf(record), record]));
       const lateConflicts = [];
       let remoteChanged = false;
-      for (const recordKey of new Set([...freshMap.keys(), ...afterMap.keys(), ...shadowMap.keys()])) {
+      for (const recordKey of new Set([...freshMap.keys(), ...afterMap.keys(), ...shadowAfterPush.keys()])) {
         if (isolatedKeys.has(recordKey)) continue;
         const current = freshMap.get(recordKey);
         const incoming = afterMap.get(recordKey);
-        const previous = shadowMap.get(recordKey);
+        const previous = shadowAfterPush.get(recordKey);
         if (this.recordsEqual(current, incoming)) continue;
         if (pendingKeys.has(recordKey) && this.recordsEqual(incoming, previous)) continue;
         if (!pendingKeys.has(recordKey) && this.recordsEqual(current, previous)) {
@@ -1591,7 +1625,7 @@
         for (const recordKey of lateConflicts) await this.recordConflict('pull', recordKey, {
           localRecord: freshMap.get(recordKey) || null,
           remoteRecord: afterMap.get(recordKey) || null,
-          shadowRecord: shadowMap.get(recordKey) || null
+          shadowRecord: shadowAfterPush.get(recordKey) || null
         });
         this.setState('attention', { reason: 'conflict', conflicts: lateConflicts.length });
         await this.reportRemovalSafety('attention');
