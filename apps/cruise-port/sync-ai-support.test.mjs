@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  AI_SUPPORT_COPY, buildHistory, containsSecret, createAiSupportClient, errorKind, readAiSupportConfig, readProCredential
+  AI_SUPPORT_COPY, buildHistory, containsSecret, createAiSupportClient, errorKind, readAiSupportConfig, readProCredential, readProAuthState
 } from './ai-support-client.js';
 import { AI_PANEL_COPY, createAiSupportPanel } from './ai-support-ui.js';
 import { createUnavailablePresentation, normalizeSyncCenterSummary } from './sync-center-controller.js';
@@ -37,6 +37,7 @@ function installDom() {
       }
     }
     replaceChildren(...nodes) { this.children = []; this.append(...nodes); }
+    remove() { if (this.parent) this.parent.children = this.parent.children.filter((child) => child !== this); this.parent = null; }
     setAttribute(name, value) { this.attributes.set(name, String(value)); }
     getAttribute(name) { return this.attributes.get(name) ?? null; }
     removeAttribute(name) { this.attributes.delete(name); }
@@ -179,7 +180,11 @@ test('5/6: conversation is memory-only; a new panel (page reload) starts empty',
   const ui = readFileSync(new URL('./ai-support-ui.js', import.meta.url), 'utf8');
   assert.doesNotMatch(ui, /localStorage/, 'the panel never touches Web Storage');
   const client = readFileSync(new URL('./ai-support-client.js', import.meta.url), 'utf8');
-  assert.equal((client.match(/getItem(\?\.)?\(/g) || []).length, 1, 'the client only reads the Pro credential');
+  // Read-only: only the Pro credential key and the legacy (v1) Pro marker are ever read.
+  const reads = [...client.matchAll(/getItem(?:\?\.)?\(([A-Z_]+)\)/g)].map((match) => match[1]);
+  assert.deepEqual([...new Set(reads)].sort(), ['PRO_AUTH_KEY', 'PRO_LEGACY_ROTATION_KEY'], 'the client only reads Pro state');
+  assert.equal((client.match(/getItem(\?\.)?\(/g) || []).length, reads.length);
+  assert.doesNotMatch(client, /removeItem|setItem/);
 });
 
 test('7: send shows both messages, passes earlier turns only, and keeps focus in the input', async () => {
@@ -573,4 +578,70 @@ test('four-digit false positive: Port and Worker agree on benign numbers and sec
     'Proの番号は1234です', '1234がProの番号です', '認証番号は1234です', '1234が認証番号です', '接続コードは1234です', '復旧コードは1234です'];
   for (const text of benign) { assert.equal(containsSecret(text), false, text); assert.equal(workerContainsSecret(text), false, text); }
   for (const text of secret) { assert.equal(containsSecret(text), true, text); assert.equal(workerContainsSecret(text), true, text); }
+});
+
+test('AI UX: short disclosure with ⓘ details, quiet open button, visible thinking state', async () => {
+  let release;
+  const view = mountPanel({ send: () => new Promise((resolve) => { release = resolve; }) });
+  const find = (name) => view.dom.walk(view.container).find((node) => String(node.className).split(' ').includes(name));
+  // The open button is no longer a primary action.
+  assert.equal(view.openButton.className, 'sync-center-ai-open');
+  view.openButton.click();
+  // Short summary always visible; full disclosure (privacy + link + memory) under ⓘ.
+  const summary = find('sync-center-ai-summary-text');
+  assert.equal(summary.textContent, '送信した内容は Cloudflare Workers AI で処理され、Cruiseには保存されません。');
+  const toggle = find('sync-center-ai-info-toggle');
+  const details = find('sync-center-ai-details');
+  assert.equal(details.hidden, true);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  assert.equal(find('sync-center-ai-privacy').parent, details);
+  assert.equal(find('sync-center-ai-memory').parent, details);
+  assert.equal(find('sync-center-ai-privacy-link').parent, find('sync-center-ai-privacy'));
+  toggle.click();
+  assert.equal(details.hidden, false);
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  // The codes warning stays next to the input, visible.
+  assert.equal(find('sync-center-ai-codes').textContent, '4桁の番号・復旧コード・接続コードなどは入力しないでください。');
+  // Thinking: a pending bubble appears while the reply is on its way and goes away after.
+  view.type('同期できていますか？');
+  view.submit();
+  await tick();
+  const pending = find('sync-center-ai-message--pending');
+  assert.ok(pending, 'pending bubble shown');
+  assert.equal(find('sync-center-ai-thinking-text').textContent, '回答を確認しています…');
+  assert.equal(view.status.textContent, AI_PANEL_COPY.sending, 'still announced via the status line');
+  release({ ok: true, reply: 'はい、同期済みです。' });
+  await tick(); await tick();
+  assert.equal(find('sync-center-ai-message--pending'), undefined, 'removed after the reply');
+  assert.match(view.dom.text(view.log), /はい、同期済みです。/);
+  const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\) \{ \.sync-center-ai-dots span \{ animation: none;/);
+  assert.match(css, /\.sync-center-support \.sync-center-ai-text \{[^}]*font-size: calc\(0\.94rem/);
+});
+
+test('A-2: legacy (v1) Pro access gets the renew guidance; other cases keep their own messages', async () => {
+  const storage = (entries) => ({ getItem: (key) => entries[key] ?? null });
+  assert.equal(readProAuthState(storage({ soundCruiseProAuth: JSON.stringify({ v: 1 }) })), 'legacy');
+  assert.equal(readProAuthState(storage({ soundcruise_pro_gate_rotation: 'pitch-cruise-pro-gate-v8' })), 'legacy');
+  assert.equal(readProAuthState(storage({})), 'none');
+  assert.equal(readProAuthState(storage({ soundCruiseProAuth: '{broken' })), 'none');
+  assert.equal(readProAuthState(storage({ soundCruiseProAuth: JSON.stringify({ v: 2, credential: PRO }) })), 'current');
+  const account = { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } };
+  let requests = 0;
+  const fetchImpl = async () => { requests += 1; return { ok: true, status: 200, json: async () => ({ ok: true, reply: 'x' }) }; };
+  const legacy = createAiSupportClient({ endpoint: 'https://x', accountRoot: account, fetchImpl, readPro: () => null, readProState: () => 'legacy' });
+  assert.deepEqual(await legacy.send({ message: '同期できません' }), { ok: false, kind: 'proUpdate' });
+  const none = createAiSupportClient({ endpoint: 'https://x', accountRoot: account, fetchImpl, readPro: () => null, readProState: () => 'none' });
+  assert.deepEqual(await none.send({ message: '同期できません' }), { ok: false, kind: 'auth' });
+  const noAccount = createAiSupportClient({ endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return null; } } },
+    fetchImpl, readPro: () => null, readProState: () => 'legacy' });
+  assert.deepEqual(await noAccount.send({ message: '同期できません' }), { ok: false, kind: 'notConfigured' }, 'Account not connected stays its own case');
+  assert.equal(requests, 0);
+  assert.equal(AI_SUPPORT_COPY.proUpdate,
+    'Pro版の認証を更新してください。設定の「Pro版の認証」で「Pro版の認証をリセット」を押し、パスワードを入力し直してから、もう一度お試しください。');
+  // The named UI really exists in the Pro page.
+  const pro = readFileSync(new URL('./pro_9a3943176561/index.html', import.meta.url), 'utf8');
+  assert.match(pro, /<h2 id="settings-pro-auth-title">Pro版の認証<\/h2>/);
+  assert.match(pro, /id="settings-pro-auth-reset"[^>]*>Pro版の認証をリセット<\/button>/);
+  assert.equal(errorKind(403, 'pro_required'), 'auth', 'server denials keep the generic message');
 });

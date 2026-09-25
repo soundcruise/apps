@@ -9,6 +9,9 @@ export const AI_PANEL_COPY = Object.freeze({
   open: 'AIに相談',
   title: 'AIに相談',
   subtitle: 'クラウド同期の状態を確認しながら、解決方法をご案内します。',
+  // Always visible, short. The full disclosure (privacy, memory) is one tap away under ⓘ.
+  summary: '送信した内容は Cloudflare Workers AI で処理され、Cruiseには保存されません。',
+  infoToggle: 'AI相談について',
   // Mirrors privacy.html#ai-support. Pressing 送信 is the consent; there is no separate dialog.
   privacy: '送信すると、相談内容・直近の会話・同期状態の要約・同期先の表示名などを、Cloudflare Workers AI で処理します。4桁の番号や復旧コードなどが含まれる場合は、自動で検出してAIへ送りません。',
   privacyLink: 'プライバシーポリシー',
@@ -18,6 +21,7 @@ export const AI_PANEL_COPY = Object.freeze({
   placeholder: '例：コードクルーズが「確認が必要」になっています',
   send: '送信',
   sending: 'AIが同期状態を確認しています…',
+  thinking: '回答を確認しています…',
   cancel: '中止',
   close: '閉じる',
   you: 'あなた',
@@ -52,7 +56,8 @@ export function createAiSupportPanel({
   let opener = null;
   const id = 'sync-center-ai';
 
-  const openButton = node('button', 'action-button primary-action sync-center-ai-open', AI_PANEL_COPY.open);
+  // Deliberately quiet: Cloud Sync's own actions stay the main controls.
+  const openButton = node('button', 'sync-center-ai-open', AI_PANEL_COPY.open);
   openButton.type = 'button';
   openButton.setAttribute('aria-expanded', 'false');
   openButton.setAttribute('aria-controls', `${id}-panel`);
@@ -70,6 +75,16 @@ export function createAiSupportPanel({
   closeButton.type = 'button';
   closeButton.setAttribute('aria-label', 'AI相談を閉じる');
   header.append(titles, closeButton);
+  const summary = node('div', 'sync-center-ai-summary');
+  const infoToggle = node('button', 'sync-center-ai-info-toggle', 'ⓘ');
+  infoToggle.type = 'button';
+  infoToggle.setAttribute('aria-label', AI_PANEL_COPY.infoToggle);
+  infoToggle.setAttribute('aria-expanded', 'false');
+  infoToggle.setAttribute('aria-controls', `${id}-details`);
+  summary.append(node('p', 'sync-center-ai-summary-text', AI_PANEL_COPY.summary), infoToggle);
+  const details = node('div', 'sync-center-ai-details');
+  details.id = `${id}-details`;
+  details.hidden = true;
   const privacy = node('p', 'sync-center-ai-privacy', AI_PANEL_COPY.privacy);
   const privacyLink = node('a', 'sync-center-ai-privacy-link', AI_PANEL_COPY.privacyLink);
   privacyLink.href = privacyHref;
@@ -77,6 +92,7 @@ export function createAiSupportPanel({
   privacyLink.rel = 'noopener';
   privacy.append(' ', privacyLink);
   const memory = node('p', 'sync-center-ai-memory', AI_PANEL_COPY.memory);
+  details.append(privacy, memory);
   const log = node('div', 'sync-center-ai-log');
   log.setAttribute('role', 'log');
   log.setAttribute('aria-live', 'polite');
@@ -116,7 +132,7 @@ export function createAiSupportPanel({
   if (mailHref) mail.href = mailHref;
   footer.append(AI_PANEL_COPY.footerLead, mail, AI_PANEL_COPY.footerTail);
 
-  panel.append(header, privacy, memory, log, status, error, form, footer);
+  panel.append(header, summary, details, log, status, error, form, footer);
   container.append(openButton, panel);
 
   function showError(message) {
@@ -142,6 +158,21 @@ export function createAiSupportPanel({
     return item;
   }
 
+  // A visible "thinking" bubble while the reply is on its way (status text alone was easy to miss).
+  function appendPending() {
+    const item = node('div', 'sync-center-ai-message sync-center-ai-message--ai sync-center-ai-message--pending');
+    item.setAttribute('aria-hidden', 'true'); // the status line already announces it
+    item.append(node('span', 'sync-center-ai-speaker', AI_PANEL_COPY.ai));
+    const line = node('p', 'sync-center-ai-thinking');
+    const dots = node('span', 'sync-center-ai-dots');
+    dots.append(node('span', null, ''), node('span', null, ''), node('span', null, ''));
+    line.append(dots, node('span', 'sync-center-ai-thinking-text', AI_PANEL_COPY.thinking));
+    item.append(line);
+    log.append(item);
+    log.scrollTop = log.scrollHeight;
+    return item;
+  }
+
   async function send() {
     if (sending) return; // single-flight: one request at a time, replies in order
     const message = input.value.trim();
@@ -157,6 +188,7 @@ export function createAiSupportPanel({
     sending = { controller };
     status.textContent = AI_PANEL_COPY.sending;
     panel.setAttribute('aria-busy', 'true');
+    const pending = appendPending();
     refreshControls();
     let result;
     try {
@@ -164,6 +196,7 @@ export function createAiSupportPanel({
     } catch (_) {
       result = { ok: false, kind: 'failed' };
     }
+    pending.remove?.();
     sending = null;
     panel.removeAttribute('aria-busy');
     status.textContent = '';
@@ -197,6 +230,10 @@ export function createAiSupportPanel({
   }
 
   openButton.addEventListener('click', () => (panel.hidden ? open(openButton) : close()));
+  infoToggle.addEventListener('click', () => {
+    details.hidden = !details.hidden;
+    infoToggle.setAttribute('aria-expanded', String(!details.hidden));
+  });
   closeButton.addEventListener('click', close);
   cancelButton.addEventListener('click', () => {
     // Stops waiting on this device; the server may still finish the request.

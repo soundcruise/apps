@@ -93,6 +93,22 @@ export function charCount(text) {
 
 // The Pro credential saved by shared/pro-gate.js (read-only; same shape check as the gate).
 const PRO_AUTH_KEY = 'soundCruiseProAuth';
+const PRO_LEGACY_ROTATION_KEY = 'soundcruise_pro_gate_rotation';
+const PRO_LEGACY_ROTATION_TOKEN = 'pitch-cruise-pro-gate-v8';
+
+// 'legacy' when this browser still uses the old (v1) Pro access, which has no server credential:
+// AI support needs the current Pro authentication, so the user is told how to renew it. Only
+// the two legacy markers count; no stored Pro state at all is reported as 'none'.
+export function readProAuthState(storage = globalThis.localStorage) {
+  if (readProCredential(storage)) return 'current';
+  try {
+    if (JSON.parse(storage?.getItem?.(PRO_AUTH_KEY) || 'null')?.v === 1) return 'legacy';
+  } catch (_) { /* unreadable: not legacy */ }
+  try {
+    if (storage?.getItem?.(PRO_LEGACY_ROTATION_KEY) === PRO_LEGACY_ROTATION_TOKEN) return 'legacy';
+  } catch (_) { /* storage unavailable */ }
+  return 'none';
+}
 const PRO_TOKEN = /^scp1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/;
 export function readProCredential(storage = globalThis.localStorage) {
   try {
@@ -145,6 +161,8 @@ export const AI_SUPPORT_COPY = Object.freeze({
   rateLimited: '短時間に多く送信されました。1分ほど待ってから、もう一度お試しください。',
   unavailable: 'AIが応答できませんでした。少し時間をおいてもう一度お試しいただくか、メールでお知らせください。',
   auth: 'Cruise Portの接続またはPro版の確認が必要です。同期センターの状態を確認してから、もう一度お試しください。',
+  // Only real UI: 設定 → 「Pro版の認証」 → 「Pro版の認証をリセット」, then the Pro password prompt.
+  proUpdate: 'Pro版の認証を更新してください。設定の「Pro版の認証」で「Pro版の認証をリセット」を押し、パスワードを入力し直してから、もう一度お試しください。',
   notConfigured: 'クラウド同期のアカウントが未設定のため、AI相談は利用できません。',
   cancelled: '送信を中止しました。',
   failed: '送信できませんでした。もう一度お試しいただくか、メールでお知らせください。'
@@ -167,7 +185,8 @@ export function createAiSupportClient({
   admissionMode = 'qa',
   accountRoot = globalThis.SoundCruiseSyncAccount,
   fetchImpl = globalThis.fetch?.bind(globalThis),
-  readPro = () => readProCredential()
+  readPro = () => readProCredential(),
+  readProState = () => readProAuthState()
 } = {}) {
   return Object.freeze({
     // Returns { ok: true, reply } or { ok: false, kind }. Never throws for expected failures.
@@ -181,7 +200,7 @@ export function createAiSupportClient({
       try { account = await accountRoot?.storage?.getAccount?.(); } catch (_) { account = null; }
       const pro = readPro();
       if (!account?.accountCredential) return { ok: false, kind: 'notConfigured' };
-      if (!pro) return { ok: false, kind: 'auth' };
+      if (!pro) return { ok: false, kind: readProState() === 'legacy' ? 'proUpdate' : 'auth' };
       const headers = new Headers({ 'Content-Type': 'application/json', Accept: 'application/json',
         Authorization: `Bearer ${account.accountCredential}`, 'X-Sound-Cruise-Pro-Authorization': `Bearer ${pro}` });
       if (admissionMode === 'qa') {
