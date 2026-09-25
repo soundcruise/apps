@@ -23,7 +23,7 @@ const dry = args.dry === true;
 const TARGETED = Object.freeze({ S3: [0, 2], S4: [0, 1], S2: [0, 1], S6: [1, 2], S9: [0, 1], S10: [0, 2] });
 const targeted = args.targeted === true;
 const MAX_CASES = targeted ? 12 : 30; // 10 scenarios × 3 phrasings, or the targeted 12
-const MAX_AI_RUNS = targeted ? 40 : 100; // ≤3 model calls per case + ≤1 retry of a few cases; hard stop beyond this
+const MAX_AI_RUNS = targeted ? 50 : 100; // targeted: up to 4 calls per case with one repair // ≤3 model calls per case + ≤1 retry of a few cases; hard stop beyond this
 const label = typeof args.label === 'string' ? `.${args.label.replace(/[^a-z0-9-]/gi, '')}` : '';
 const outDir = path.join(import.meta.dirname, 'results');
 
@@ -103,6 +103,13 @@ const tokens = results.reduce((sum, result) => ({
 const summary = {
   model: AI_SUPPORT_MODELS[modelKey].id, dry, targeted, cases: results.length, aiRuns,
   rawModelMarkdown: results.filter((result) => result.stats?.rawMarkdown).length,
+  repairs: results.filter((result) => result.stats?.repairAttempted).length,
+  repaired: results.filter((result) => result.stats?.repaired).length,
+  fallbacks: results.filter((result) => result.stats?.fallback).length,
+  guardViolations: results.flatMap((result) => (result.stats?.guardViolations || []).map((category) => `${result.scenario}:${category}`)),
+  knownTargetFalseUnknown: results.filter((result) => result.score.flags.includes('known_target_false_unknown')).length,
+  s9ExactFirstSentence: `${results.filter((result) => result.scenario === 'S9' && !result.score.flags.includes('first_sentence_mismatch') && result.reply).length}/${results.filter((result) => result.scenario === 'S9').length}`,
+  avgFirstAnswerMs: Math.round(results.reduce((sum, result) => sum + (result.stats?.firstAnswerMs || 0), 0) / Math.max(1, results.length)),
   quality: results.reduce((tally, result) => {
     for (const name of result.score.quality || []) tally[name] += 1;
     return tally;
