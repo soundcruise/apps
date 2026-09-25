@@ -2198,8 +2198,10 @@ textarea:focus-visible {
     line-height: 1.35;
     white-space: nowrap;
 }
+/* 「✓ 同期済み」 looks the same in 1 (Cruise Port) and 2 (each Cruise app). */
 .sync-center-account-status-chip[data-sync-account-state="active"],
-.sync-center-app-status-chip--synced {
+.sync-center-app-status-chip--synced,
+.sync-center-app-status-chip--available {
     border-color: rgba(232, 201, 122, 0.72);
     color: #241d0d;
     background: rgba(232, 201, 122, 0.88);
@@ -6147,7 +6149,6 @@ body.metronome-preset-open {
 }
 
 /* 同期センター: 通常行は「クラウド同期 利用可能」だけを示し、同期先ごとの報告は中立のⓘ内に置く */
-.sync-center-app-status-chip--available { border-color: rgba(232, 201, 122, 0.62); color: var(--port-gold-bright); background: rgba(232, 201, 122, 0.1); }
 .sync-center-app-status-chip--unavailable { border-color: rgba(205, 205, 205, 0.5); color: var(--port-muted); background: rgba(205, 205, 205, 0.08); }
 .sync-center-app-status-chip--recheck { border-style: dashed; border-color: rgba(205, 205, 205, 0.62); color: var(--port-text); background: transparent; }
 .sync-center-app-status-chip--checking { border-color: rgba(205, 205, 205, 0.36); color: var(--port-muted); background: transparent; }
