@@ -1,4 +1,4 @@
-import { AI_SUPPORT_COPY, AI_SUPPORT_LIMITS, charCount, containsSensitive } from './ai-support-client.js?v=0.69.0';
+import { AI_SUPPORT_COPY, AI_SUPPORT_LIMITS, charCount, containsSensitive } from './ai-support-client.js?v=0.70.0';
 
 // The 「AIに相談」 panel inside Sync Center's support section (AI1-C). It lives outside the rows
 // that Sync Center re-renders, so a conversation survives a status refresh but not a page reload:
