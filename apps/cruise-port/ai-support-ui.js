@@ -9,15 +9,15 @@ export const AI_PANEL_COPY = Object.freeze({
   open: 'AIに相談',
   title: 'AIに相談',
   subtitle: 'クラウド同期の状態を確認しながら、解決方法をご案内します。',
-  // Always visible, short. The full disclosure (privacy, memory) is one tap away under ⓘ.
+  // The disclosure (processing, privacy, memory) is one tap away under this button, next to the title.
+  infoToggle: '送信内容の取り扱い',
   summary: '送信した内容は Cloudflare Workers AI で処理され、Cruiseには保存されません。',
-  infoToggle: 'AI相談について',
   // Mirrors privacy.html#ai-support. Pressing 送信 is the consent; there is no separate dialog.
   privacy: '送信すると、相談内容・直近の会話・同期状態の要約・同期先の表示名などを、Cloudflare Workers AI で処理します。4桁の番号や復旧コードなどが含まれる場合は、自動で検出してAIへ送りません。',
   privacyLink: 'プライバシーポリシー',
   memory: 'Cruiseは相談内容をサーバーにも端末にも保存しません。ページを閉じたり更新したりすると会話は消えます。AIの回答は誤ることがあります。',
   inputLabel: '相談内容',
-  codesWarning: '4桁の番号・復旧コード・接続コードなどは入力しないでください。',
+  codesWarning: '復旧コード・接続コードなどは入力しないでください。',
   placeholder: '例：コードクルーズが「確認が必要」になっています',
   send: '送信',
   // Read by screen readers only; the pending bubble shows three quiet dots instead of text.
@@ -77,12 +77,11 @@ export function createAiSupportPanel({
   closeButton.setAttribute('aria-label', 'AI相談を閉じる');
   header.append(titles, closeButton);
   const summary = node('div', 'sync-center-ai-summary');
-  const infoToggle = node('button', 'sync-center-ai-info-toggle', 'ⓘ');
+  const infoToggle = node('button', 'sync-center-ai-info-toggle', AI_PANEL_COPY.infoToggle);
   infoToggle.type = 'button';
-  infoToggle.setAttribute('aria-label', AI_PANEL_COPY.infoToggle);
   infoToggle.setAttribute('aria-expanded', 'false');
   infoToggle.setAttribute('aria-controls', `${id}-details`);
-  summary.append(node('p', 'sync-center-ai-summary-text', AI_PANEL_COPY.summary), infoToggle);
+  summary.append(infoToggle);
   const details = node('div', 'sync-center-ai-details');
   details.id = `${id}-details`;
   details.hidden = true;
@@ -93,7 +92,7 @@ export function createAiSupportPanel({
   privacyLink.rel = 'noopener';
   privacy.append(' ', privacyLink);
   const memory = node('p', 'sync-center-ai-memory', AI_PANEL_COPY.memory);
-  details.append(privacy, memory);
+  details.append(node('p', 'sync-center-ai-summary-text', AI_PANEL_COPY.summary), privacy, memory);
   const log = node('div', 'sync-center-ai-log');
   log.setAttribute('role', 'log');
   log.setAttribute('aria-live', 'polite');
@@ -185,7 +184,7 @@ export function createAiSupportPanel({
     if (!doc || !element?.getBoundingClientRect || !room.style) return;
     room.style.height = '0px'; // measure without the old room (the page may have been clamped by it)
     const rect = element.getBoundingClientRect();
-    const height = viewport?.height || globalThis.innerHeight || 0;
+    const height = Math.max(viewport?.height || 0, globalThis.innerHeight || 0, doc.clientHeight || 0);
     const top = rect.top + (globalThis.scrollY || 0);
     const missing = Math.ceil(top + height - doc.scrollHeight);
     room.style.height = `${Math.max(0, missing)}px`;
@@ -194,28 +193,50 @@ export function createAiSupportPanel({
     makeRoomBelow(element);
     element?.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
   }
-  // Keeps the input and 送信 above the software keyboard. visualViewport is the part of the page
+  // Keeps the input and 送信 clear of the software keyboard. visualViewport is the part of the page
   // left visible by the keyboard (iOS Safari / Home Screen and Android Chrome both report it).
+  // With the keyboard up, the 相談内容 block is aligned to the top of that visible part, so the
+  // input and 送信 sit well above the keyboard (and Safari's floating address bar), in the same
+  // place every time. iOS does not shrink the page for the keyboard, so room is added below first.
   let keepComposerVisible = false;
-  function revealComposer() {
-    if (panel.hidden) return;
-    const rect = actions.getBoundingClientRect?.();
-    const view = viewport;
-    if (!rect || !view) { form.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); return; }
-    const top = view.offsetTop || 0;
-    const bottom = top + view.height;
-    const margin = 12;
-    if (rect.bottom + margin > bottom) globalThis.scrollBy?.(0, rect.bottom + margin - bottom);
-    else {
-      const inputTop = input.getBoundingClientRect?.().top;
-      if (inputTop != null && inputTop - margin < top) globalThis.scrollBy?.(0, inputTop - margin - top);
-    }
+  const KEYBOARD_MIN_PX = 120;
+  function keyboardOpen() {
+    const layout = globalThis.document?.documentElement?.clientHeight || globalThis.innerHeight || 0;
+    return Boolean(viewport) && layout - viewport.height > KEYBOARD_MIN_PX;
   }
-  viewport?.addEventListener?.('resize', () => {
-    if (keepComposerVisible && globalThis.document?.activeElement === input) globalThis.requestAnimationFrame?.(revealComposer) ?? revealComposer();
-  });
+  function topMargin() {
+    const value = parseFloat(globalThis.getComputedStyle?.(form)?.scrollMarginTop);
+    return Number.isFinite(value) ? value : 16;
+  }
+  function revealComposer() {
+    if (panel.hidden || !keepComposerVisible) return;
+    if (!viewport || !form.getBoundingClientRect) { form.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); return; }
+    const visibleTop = viewport.offsetTop || 0;
+    if (keyboardOpen()) {
+      makeRoomBelow(form);
+      const delta = form.getBoundingClientRect().top - (visibleTop + topMargin());
+      if (Math.abs(delta) > 2) globalThis.scrollBy?.(0, delta);
+      return;
+    }
+    const bottom = visibleTop + viewport.height;
+    const rect = actions.getBoundingClientRect();
+    if (rect.bottom + 12 > bottom) globalThis.scrollBy?.(0, rect.bottom + 12 - bottom);
+  }
+  function scheduleReveal() {
+    if (!keepComposerVisible || globalThis.document?.activeElement !== input) return;
+    if (globalThis.requestAnimationFrame) globalThis.requestAnimationFrame(revealComposer);
+    else revealComposer();
+  }
+  // resize: the keyboard opened or closed. scroll: iOS panned to the caret after focusing; this
+  // settles once more (revealComposer does nothing when already in place, so it cannot loop).
+  viewport?.addEventListener?.('resize', scheduleReveal);
+  viewport?.addEventListener?.('scroll', scheduleReveal);
   input.addEventListener('focus', () => { keepComposerVisible = true; });
   input.addEventListener('blur', () => { keepComposerVisible = false; });
+  // The user scrolls by hand: stop repositioning until the input is focused again.
+  const releaseComposer = () => { keepComposerVisible = false; };
+  globalThis.addEventListener?.('touchmove', releaseComposer, { passive: true });
+  globalThis.addEventListener?.('wheel', releaseComposer, { passive: true });
 
   // While a reply is pending: did the user scroll somewhere on purpose? Then the finished reply
   // does not yank the page back unless the conversation is still on screen.
@@ -295,7 +316,7 @@ export function createAiSupportPanel({
     input.focus({ preventScroll: true });
     keepComposerVisible = true;
     form.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
-    globalThis.requestAnimationFrame?.(revealComposer);
+    scheduleReveal();
   }
   function close() {
     panel.hidden = true;

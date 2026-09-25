@@ -165,7 +165,7 @@ test('4: the panel starts closed, opens with focus in the input, and returns foc
   assert.equal(view.dom.doc.activeElement, rowButton, 'opened from ⓘ, focus returns to that button');
   const text = view.dom.text(view.section);
   assert.match(text, /Cloudflare Workers AI/);
-  assert.match(text, /4桁の番号・復旧コード・接続コードなどは入力しないでください/);
+  assert.match(text, /復旧コード・接続コードなどは入力しないでください/);
   assert.match(text, /ページを閉じたり更新したりすると会話は消えます/);
 });
 
@@ -466,7 +466,7 @@ test('privacy: the panel links to privacy.html#ai-support and keeps the codes wa
   assert.equal(link.rel, 'noopener');
   assert.equal(link.parent, find('sync-center-ai-privacy'));
   const codes = find('sync-center-ai-codes');
-  assert.equal(codes.textContent, '4桁の番号・復旧コード・接続コードなどは入力しないでください。');
+  assert.equal(codes.textContent, '復旧コード・接続コードなどは入力しないでください。');
   const form = view.form.children;
   assert.equal(form.indexOf(codes) + 1, form.indexOf(view.input), 'the warning sits right above the input');
   assert.match(view.input.getAttribute('aria-describedby'), /sync-center-ai-codes/);
@@ -585,18 +585,22 @@ test('four-digit false positive: Port and Worker agree on benign numbers and sec
   for (const text of secret) { assert.equal(containsSecret(text), true, text); assert.equal(workerContainsSecret(text), true, text); }
 });
 
-test('AI UX: short disclosure with ⓘ details, quiet open button, visible thinking state', async () => {
+test('AI UX: disclosure behind 「送信内容の取り扱い」, quiet open button, visible thinking state', async () => {
   let release;
   const view = mountPanel({ send: () => new Promise((resolve) => { release = resolve; }) });
   const find = (name) => view.dom.walk(view.container).find((node) => String(node.className).split(' ').includes(name));
   // The open button is no longer a primary action.
   assert.equal(view.openButton.className, 'sync-center-ai-open');
   view.openButton.click();
-  // Short summary always visible; full disclosure (privacy + link + memory) under ⓘ.
-  const summary = find('sync-center-ai-summary-text');
-  assert.equal(summary.textContent, '送信した内容は Cloudflare Workers AI で処理され、Cruiseには保存されません。');
+  // A labelled button opens the whole disclosure: the summary sentence, privacy + link, and memory.
   const toggle = find('sync-center-ai-info-toggle');
   const details = find('sync-center-ai-details');
+  assert.equal(toggle.textContent, '送信内容の取り扱い');
+  assert.equal(toggle.getAttribute('aria-controls'), details.id);
+  const summary = find('sync-center-ai-summary-text');
+  assert.equal(summary.textContent, '送信した内容は Cloudflare Workers AI で処理され、Cruiseには保存されません。');
+  assert.equal(summary.parent, details, 'the summary sentence lives inside the disclosure');
+  assert.equal(details.children[0], summary);
   assert.equal(details.hidden, true);
   assert.equal(toggle.getAttribute('aria-expanded'), 'false');
   assert.equal(find('sync-center-ai-privacy').parent, details);
@@ -606,7 +610,7 @@ test('AI UX: short disclosure with ⓘ details, quiet open button, visible think
   assert.equal(details.hidden, false);
   assert.equal(toggle.getAttribute('aria-expanded'), 'true');
   // The codes warning stays next to the input, visible.
-  assert.equal(find('sync-center-ai-codes').textContent, '4桁の番号・復旧コード・接続コードなどは入力しないでください。');
+  assert.equal(find('sync-center-ai-codes').textContent, '復旧コード・接続コードなどは入力しないでください。');
   // Thinking: a pending bubble appears while the reply is on its way and goes away after.
   view.type('同期できていますか？');
   view.submit();
@@ -722,40 +726,55 @@ test('scroll UX: a user who scrolled away while waiting is not pulled back; touc
   }
 });
 
-test('code warning: smaller, fits one line on common phones, other text unchanged', () => {
+test('code warning: short, smaller, other text unchanged', () => {
   const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
-  assert.match(css, /\.sync-center-support \.sync-center-ai-codes \{[^}]*font-size: calc\(clamp\(11px, calc\(\(100vw - 60px\) \/ 27\.5\), 0\.74rem\) \* var\(--font-scale\)\); font-feature-settings: "palt"/);
+  assert.match(css, /\.sync-center-support \.sync-center-ai-codes \{[^}]*font-size: calc\(0\.74rem \* var\(--font-scale\)\)/);
+  assert.doesNotMatch(AI_PANEL_COPY.codesWarning, /4桁/, 'the ambiguous 「4桁の番号」 is gone from the warning');
   assert.match(css, /\.sync-center-support \.sync-center-ai-text \{[^}]*font-size: calc\(0\.94rem/);
   assert.match(css, /\.sync-center-support \.sync-center-ai-summary-text \{[^}]*font-size: calc\(0\.8rem/);
-  assert.equal(AI_PANEL_COPY.codesWarning, '4桁の番号・復旧コード・接続コードなどは入力しないでください。');
+  assert.equal(AI_PANEL_COPY.codesWarning, '復旧コード・接続コードなどは入力しないでください。');
 });
 
-test('scroll UX: when the keyboard shrinks the visual viewport, the input and 送信 are scrolled back into view', () => {
+test('scroll UX: with the keyboard up, the 相談内容 block is aligned to the top of the visible area', () => {
   const dom = installDom();
   const container = new dom.Node('div');
   dom.root.append(container);
   const handlers = {};
   const viewport = { height: 800, offsetTop: 0, addEventListener: (type, fn) => { handlers[type] = fn; } };
   const scrolled = [];
+  const winListeners = {};
+  const page = { clientHeight: 800, scrollHeight: 2000 };
+  Object.defineProperty(globalThis.document, 'documentElement', { value: page, configurable: true });
   globalThis.scrollBy = (x, y) => scrolled.push(y);
   globalThis.requestAnimationFrame = (fn) => { fn(); return 1; };
+  globalThis.getComputedStyle = () => ({ scrollMarginTop: '16px' });
+  globalThis.addEventListener = (type, fn) => { winListeners[type] = fn; };
   try {
     createAiSupportPanel({ container, client: { send: async () => ({ ok: true, reply: 'x' }) }, mailHref: MAIL, viewport, enterSends: () => false });
     const byClass = (name) => dom.walk(container).find((node) => String(node.className).split(' ').includes(name));
+    const form = byClass('sync-center-ai-form');
     const actions = byClass('sync-center-ai-actions');
-    const input = byClass('sync-center-ai-input');
-    actions.getBoundingClientRect = () => ({ top: 700, bottom: 760 });
-    input.getBoundingClientRect = () => ({ top: 560, bottom: 650 });
+    let formTop = 540;
+    form.getBoundingClientRect = () => ({ top: formTop, bottom: formTop + 220 });
+    actions.getBoundingClientRect = () => ({ top: formTop + 160, bottom: formTop + 210 });
     byClass('sync-center-ai-open').click();
-    assert.deepEqual(scrolled, [], 'already visible: no scroll');
+    assert.deepEqual(scrolled, [], 'no keyboard and already visible: no scroll');
     viewport.height = 420; // software keyboard opened
     handlers.resize();
-    assert.deepEqual(scrolled, [760 + 12 - 420], 'the 送信 row sits just above the keyboard');
-    input.dispatch('blur');
-    viewport.height = 300;
+    assert.deepEqual(scrolled, [540 - 16], 'the block starts at the top of what is visible');
+    // iOS pans the visual viewport afterwards: the next scroll event settles it relative to that.
+    formTop = 16; viewport.offsetTop = 30;
+    handlers.scroll();
+    assert.deepEqual(scrolled, [524, 16 - 46]);
+    formTop = 46;
+    handlers.scroll();
+    assert.equal(scrolled.length, 2, 'already in place: no further scrolling (no loop)');
+    // The user scrolls by hand: no more repositioning until the input is focused again.
+    winListeners.touchmove();
+    formTop = 300;
     handlers.resize();
-    assert.equal(scrolled.length, 1, 'no scrolling once the input is left');
+    assert.equal(scrolled.length, 2);
   } finally {
-    delete globalThis.scrollBy; delete globalThis.requestAnimationFrame;
+    delete globalThis.scrollBy; delete globalThis.requestAnimationFrame; delete globalThis.getComputedStyle; delete globalThis.addEventListener;
   }
 });
