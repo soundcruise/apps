@@ -1,13 +1,16 @@
-// POST /v2/ai-support/chat (AI1-B, not enabled in production).
+// POST /v2/ai-support/chat.
 //
 // Order: origin/CORS → AI gate → per-IP limit → body limits → secret filter → Pro (read-only)
 // → QA (read-only) → Account (read-only, AI1-A) → beta entitlement → per-Account limit → the
 // Account's known IDs (read-only, for the egress guard only) → one turn,
 // whose every provider call passes the egress guard (ai-support-chat.js). Every D1 access on this
 // path is a SELECT; nothing is stored. The gate is AI-specific (AI_SUPPORT_MODE, default off) and
-// never shares a sync gate. Beta scope = gate 'beta' + a valid Pro credential + an Account
-// credential + that Account in the AI_SUPPORT_BETA_ACCOUNT_IDS secret. The Port's
-// ?sound-cruise-ai-beta=1 flag only shows the panel; it is never part of this decision.
+// never shares a sync gate, so the AI can be stopped alone:
+//   off (or anything else) → nobody;
+//   beta → a valid Pro credential + an Account credential + that Account in the
+//          AI_SUPPORT_BETA_ACCOUNT_IDS secret (limited tests);
+//   pro  → a valid Pro credential + an Account credential (every Pro member; no allowlist).
+// The Port shows the panel in the Pro edition only; that is never part of this decision.
 import { openSyncDiagnostics } from './ai-diagnostics.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { ACCOUNT_ADMISSION_PROVENANCE } from './account-admission.js';
@@ -45,6 +48,12 @@ function respond(status, body, origin, extra = {}) {
   return new Response(JSON.stringify(body), { status, headers });
 }
 const fail = (status, code, origin, extra) => respond(status, { ok: false, code }, origin, extra);
+
+export const AI_SUPPORT_MODES = Object.freeze({ beta: 'beta', pro: 'pro' });
+export function aiSupportMode(env) {
+  return env?.AI_SUPPORT_MODE === AI_SUPPORT_MODES.pro ? AI_SUPPORT_MODES.pro
+    : env?.AI_SUPPORT_MODE === AI_SUPPORT_MODES.beta ? AI_SUPPORT_MODES.beta : null;
+}
 
 // The limited beta is enforced here, not in the Port. AI_SUPPORT_BETA_ACCOUNT_IDS is a Worker
 // secret (never in wrangler.jsonc or the repository): Account IDs separated by commas or
@@ -103,8 +112,9 @@ export async function handleAiSupportRequest(request, env = {}, _ctx, dependenci
   if (request.method !== 'POST') return fail(405, 'method_not_allowed', originAllowed ? origin : null, { Allow: 'POST, OPTIONS' });
   if (!originAllowed) return fail(403, 'invalid_origin', null);
   if (!isJsonContentType(request.headers.get('Content-Type'))) return fail(415, 'invalid_content_type', origin);
-  // AI-only gate. Anything but an explicit 'beta' is off, and the AI can be stopped alone.
-  if (env.AI_SUPPORT_MODE !== 'beta') return fail(404, 'ai_support_disabled', origin);
+  // AI-only gate. Anything but an explicit 'beta' or 'pro' is off, and the AI can be stopped alone.
+  const mode = aiSupportMode(env);
+  if (!mode) return fail(404, 'ai_support_disabled', origin);
   const modelKey = env.AI_SUPPORT_MODEL || DEFAULT_AI_SUPPORT_MODEL;
   if (!AI_SUPPORT_MODELS[modelKey] || !env.AI || !env.AI_SUPPORT_RATE_LIMITER?.limit ||
       !env.AI_SUPPORT_IP_RATE_LIMITER?.limit) {
@@ -163,8 +173,11 @@ export async function handleAiSupportRequest(request, env = {}, _ctx, dependenci
     return fail(503, 'ai_support_unavailable', origin);
   }
   if (opened.error) return fail(opened.status, opened.error, origin);
-  // Same answer whether the list is missing, malformed or simply without this Account.
-  if (!isBetaAccount(env, opened.scopeKey)) return fail(403, 'ai_support_not_entitled', origin);
+  // beta only: same answer whether the list is missing, malformed or simply without this Account.
+  // pro: the valid Pro and Account credentials above are the entitlement.
+  if (mode === AI_SUPPORT_MODES.beta && !isBetaAccount(env, opened.scopeKey)) {
+    return fail(403, 'ai_support_not_entitled', origin);
+  }
 
   let limited;
   try { limited = await env.AI_SUPPORT_RATE_LIMITER.limit({ key: `ai-support:${opened.scopeKey}` }); } catch {

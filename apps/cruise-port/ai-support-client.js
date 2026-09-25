@@ -120,23 +120,18 @@ export function readProCredential(storage = globalThis.localStorage) {
   }
 }
 
-// AI support is a Pro beta. The Port shows it only on the Pro edition, with Sync Center enabled,
-// and only when the beta is explicitly switched on for this page (a config flag, or the
-// ?sound-cruise-ai-beta=1 opt-in on soundcruise.jp). These switches only make the panel visible —
-// they are UI discovery, never authorization. Who may use AI is decided by the Worker alone:
-// AI_SUPPORT_MODE, the Pro credential, the Account credential and the beta Account allowlist.
+// AI support is a Pro feature. The Port shows it on the Pro edition with Sync Center enabled; the
+// Standard edition never shows it. A page config of { enabled: false } hides it (e.g. for tests).
+// Showing the panel is UI only, never authorization. Who may use AI is decided by the Worker alone:
+// AI_SUPPORT_MODE (off / beta / pro), the Pro credential, the Account credential and, in beta
+// mode, the Account allowlist. When the Worker has AI switched off, the panel says so.
 export function readAiSupportConfig({ globalObject = globalThis, edition, syncConfig } = {}) {
   if (edition !== 'pro' || syncConfig?.enabled !== true || !syncConfig.endpoint) return Object.freeze({ enabled: false });
-  const flag = globalObject?.__SOUND_CRUISE_AI_SUPPORT__?.enabled === true;
-  const location = globalObject?.location;
-  const optIn = location?.hostname === 'soundcruise.jp' &&
-    new URLSearchParams(location.search || '').get('sound-cruise-ai-beta') === '1';
-  return Object.freeze({ enabled: flag || optIn, endpoint: syncConfig.endpoint,
+  const hidden = globalObject?.__SOUND_CRUISE_AI_SUPPORT__?.enabled === false;
+  return Object.freeze({ enabled: !hidden, endpoint: syncConfig.endpoint,
     admissionMode: syncConfig.admissionMode || 'qa' });
 }
 
-// Earlier turns in the server contract: user/assistant only, exact keys, bounded, most recent
-// user turns kept (the current message is the 20th). Anything else is dropped, never sent.
 export function buildHistory(turns) {
   const clean = [];
   for (const turn of Array.isArray(turns) ? turns : []) {

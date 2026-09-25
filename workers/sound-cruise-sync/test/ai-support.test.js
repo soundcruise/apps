@@ -455,7 +455,7 @@ test('production config candidate: AI binding present but AI_SUPPORT_MODE is "of
   assert.match(wrangler, /"ai": \{\s*"binding": "AI"\s*\}/);
   assert.doesNotMatch(wrangler, /gateway/i, 'no AI Gateway (no prompt logging) in the candidate');
   const source = fs.readFileSync(path.join(import.meta.dirname, '../src/ai-support-app.js'), 'utf8');
-  assert.match(source, /env\.AI_SUPPORT_MODE !== 'beta'/);
+  assert.match(source, /const mode = aiSupportMode\(env\);\s*if \(!mode\) return fail\(404, 'ai_support_disabled', origin\);/);
   assert.doesNotMatch(source, /console\.|\.prepare\(|INSERT|UPDATE /, 'no logging and no SQL in the route');
   const chatSource = fs.readFileSync(path.join(import.meta.dirname, '../src/ai-support-chat.js'), 'utf8');
   assert.doesNotMatch(chatSource, /AI_SUPPORT_SYSTEM_PROMPT\s*\+|\+\s*AI_SUPPORT_SYSTEM_PROMPT|`[^`]*\$\{AI_SUPPORT_SYSTEM_PROMPT/,
@@ -553,7 +553,7 @@ test('entitlement H: the Port ?sound-cruise-ai-beta=1 flag is UI discovery only 
   assert.equal(withBodyFlag.status, 400, 'no body field can ask for beta access');
   assert.equal(ai.requests.length, 0);
   const source = fs.readFileSync(path.join(import.meta.dirname, '../src/ai-support-app.js'), 'utf8');
-  assert.match(source, /sound-cruise-ai-beta=1 flag only shows the panel; it is never part of this decision/);
+  assert.match(source, /The Port shows the panel in the Pro edition only; that is never part of this decision/);
   assert.doesNotMatch(source, /searchParams|Referer|X-Sound-Cruise-AI-Beta/i);
   db.close();
 });
@@ -707,5 +707,72 @@ test('production reproduction: 「同期先の番号は1234です」 + a 「!」
   const repaired = mockAi([bang, reply('同期先の番号についてですね。何を確認したいか教えてください。')]);
   const ok = await chat({ ...env, AI: repaired }, a, pro, { message: '同期先の番号は1234です' });
   assert.equal((await ok.json()).reply, '同期先の番号についてですね。何を確認したいか教えてください。');
+  db.close();
+});
+
+test('all-Pro mode: every valid Pro + Account can use AI support, with or without the beta list', async () => {
+  // A and B are synthetic test Accounts; B is never on any list here.
+  for (const list of [undefined, '', 'not-a-uuid', crypto.randomUUID()]) {
+    const { db, env, a, b, pro } = await setup({ AI_SUPPORT_BETA_ACCOUNT_IDS: list });
+    for (const who of [a, b]) {
+      const before = dump(db);
+      const { env: recorded, statements } = recording({ ...env, AI_SUPPORT_MODE: 'pro', AI: mockAi([reply('はい、同期済みです。')]) });
+      const response = await chat(recorded, who, pro, { message: '同期できていますか？' });
+      assert.equal(response.status, 200, `${String(list)} / ${who === a ? 'A' : 'B'}`);
+      assert.deepEqual(await response.json(), { ok: true, reply: 'はい、同期済みです。' });
+      assert.deepEqual(dump(db), before, 'still write-free');
+      assert.ok(statements.every((statement) => statement === 'SELECT'), statements.join(', '));
+    }
+    db.close();
+  }
+});
+
+test('all-Pro mode keeps every other gate: Pro and Account required, cross-account isolation, off still stops it', async () => {
+  const { db, env, a, b, pro } = await setup({ AI_SUPPORT_BETA_ACCOUNT_IDS: '' });
+  const proEnv = { ...env, AI_SUPPORT_MODE: 'pro' };
+  const ai = mockAi([]);
+  // Standard (no Pro credential), a revoked Pro credential, and no Account credential are refused before the model.
+  const standard = await handleRequest(plainRequest('/v2/ai-support/chat', { message: 'x' }, a.auth), { ...proEnv, AI: ai });
+  assert.equal(standard.status, 403);
+  const revoked = await chat({ ...proEnv, AI: ai }, a, await proToken(db, { revoked: true }), { message: 'x' });
+  assert.equal(revoked.status, 403);
+  const noAccount = await handleRequest(plainRequest('/v2/ai-support/chat', { message: 'x' },
+    { 'X-Sound-Cruise-Pro-Authorization': `Bearer ${pro}` }), { ...proEnv, AI: ai });
+  assert.ok([401, 403].includes(noAccount.status), String(noAccount.status));
+  assert.equal(ai.requests.length, 0);
+  // Tools only ever see the caller's Account.
+  const tools = mockAi([callTools(['getAppSyncTargets', { appId: 'pitch' }]), reply('ok')]);
+  assert.equal((await chat({ ...proEnv, AI: tools }, a, pro, { message: '音感クルーズ' })).status, 200);
+  assert.equal(JSON.stringify(tools.requests).includes('B-private-name'), false);
+  void b;
+  // The kill switch: off (or any unknown value) stops it for everyone, with nothing sent to the model.
+  for (const mode of ['off', undefined, 'PRO', 'Pro', 'all', 'true', 'beta ']) {
+    const response = await chat({ ...env, AI_SUPPORT_MODE: mode, AI: ai }, a, pro, { message: 'x' });
+    assert.equal(response.status, 404, String(mode));
+    assert.equal((await response.json()).code, 'ai_support_disabled');
+  }
+  assert.equal(ai.requests.length, 0);
+  // Secrets and full IDs are refused before auth in every mode.
+  for (const message of ['Pro版の番号は4821です', `IDは${a.accountId}です`]) {
+    const response = await chat({ ...proEnv, AI: ai }, a, pro, { message });
+    assert.equal(response.status, 400, message);
+    assert.equal((await response.json()).code, 'ai_support_secret_detected');
+  }
+  assert.equal(ai.requests.length, 0);
+  // beta mode still limits to the list.
+  const betaDenied = await chat({ ...env, AI_SUPPORT_MODE: 'beta', AI: ai }, a, pro, { message: 'x' });
+  assert.equal(betaDenied.status, 403);
+  assert.equal((await betaDenied.json()).code, 'ai_support_not_entitled');
+  db.close();
+});
+
+test('all-Pro mode: a 「!」-only model answer is still replaced (degenerate guard) within 4 model calls', async () => {
+  const { db, env, a, pro } = await setup({ AI_SUPPORT_BETA_ACCOUNT_IDS: '' });
+  const ai = mockAi([reply('!'.repeat(80)), reply('!'.repeat(80)), reply('!'.repeat(80)), reply('!'.repeat(80)), reply('!'.repeat(80))]);
+  const response = await chat({ ...env, AI_SUPPORT_MODE: 'pro', AI: ai }, a, pro, { message: '同期先の番号は1234です' });
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.doesNotMatch(body.reply, /!{5,}/);
+  assert.ok(ai.requests.length <= AI_SUPPORT_LIMITS.maxModelCalls);
   db.close();
 });

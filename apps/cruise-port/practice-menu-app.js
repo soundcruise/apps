@@ -265,7 +265,7 @@ initializeProAuthSettings();
 applyProLinks();
 applyHomeCruiseLinks();
 const syncCenterController = createSyncCenterController({ config: syncCenterConfig });
-// AI support (AI1-C): Pro beta only, explicitly opted in; the Worker gate still decides.
+// AI support: Pro edition only (Standard never shows it); the Worker gate (off / beta / pro) decides.
 const aiSupportConfig = readAiSupportConfig({ edition: document.documentElement.dataset.edition, syncConfig: syncCenterConfig });
 let aiSupportPanel = null;
 if (globalThis.SoundCruisePortSync) {
@@ -323,7 +323,7 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
 ]);
 
 const PORT_AI_SUPPORT_HELP_SECTION = Object.freeze({
-    title: 'AIに相談（Pro版のβ）',
+    title: 'AIに相談（Pro版）',
     paragraphs: Object.freeze([
         '同期センター下部の「AIに相談」から、同期状態を確認しながら解決方法の案内を受けられます。送信すると、相談内容・直近の会話・同期状態の要約・同期先の表示名などを Cloudflare Workers AI で処理します。',
         'Cruiseは相談内容を保存せず、ページを閉じたり更新したりすると会話は消えます。AIの回答は誤ることがあるため、解除や削除などは同期センターの確認画面をよく読んで行ってください。4桁の番号・復旧コード・接続コードなどは入力しないでください。'

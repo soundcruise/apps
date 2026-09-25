@@ -91,13 +91,12 @@ const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 // ---------------------------------------------------------------- tests
 
-test('1: AI support is Pro-only and needs an explicit beta opt-in', () => {
+test('1: AI support shows for every Pro user (no opt-in flag); Standard and no-sync never show it', () => {
   const sync = { enabled: true, endpoint: 'https://sync.example', admissionMode: 'production' };
   const at = (hostname, search = '') => ({ location: { hostname, search } });
   assert.equal(readAiSupportConfig({ edition: 'standard', syncConfig: sync, globalObject: { __SOUND_CRUISE_AI_SUPPORT__: { enabled: true } } }).enabled, false);
-  assert.equal(readAiSupportConfig({ edition: 'pro', syncConfig: sync, globalObject: at('soundcruise.jp') }).enabled, false, 'off by default');
-  assert.equal(readAiSupportConfig({ edition: 'pro', syncConfig: sync, globalObject: at('soundcruise.jp', '?sound-cruise-ai-beta=1') }).enabled, true);
-  assert.equal(readAiSupportConfig({ edition: 'pro', syncConfig: sync, globalObject: at('evil.example', '?sound-cruise-ai-beta=1') }).enabled, false);
+  assert.equal(readAiSupportConfig({ edition: 'pro', syncConfig: sync, globalObject: at('soundcruise.jp') }).enabled, true, 'Pro: on without any flag');
+  assert.equal(readAiSupportConfig({ edition: 'pro', syncConfig: sync, globalObject: { __SOUND_CRUISE_AI_SUPPORT__: { enabled: false } } }).enabled, false, 'a page config can hide it');
   assert.equal(readAiSupportConfig({ edition: 'pro', syncConfig: { enabled: false }, globalObject: { __SOUND_CRUISE_AI_SUPPORT__: { enabled: true } } }).enabled, false);
   const enabled = readAiSupportConfig({ edition: 'pro', syncConfig: sync, globalObject: { __SOUND_CRUISE_AI_SUPPORT__: { enabled: true } } });
   assert.deepEqual({ ...enabled }, { enabled: true, endpoint: 'https://sync.example', admissionMode: 'production' });
@@ -483,7 +482,7 @@ test('privacy/terms pages carry the AI clauses that match the implementation', (
   const privacy = readFileSync(new URL('./privacy.html', import.meta.url), 'utf8');
   const section = privacy.slice(privacy.indexOf('<section id="ai-support">'));
   assert.ok(section.length > 100, 'privacy.html#ai-support exists');
-  for (const phrase of ['任意の機能', 'Pro版の対象アカウントに限って', '入力した相談内容', '直近の会話', 'クラウド同期の状態の要約',
+  for (const phrase of ['任意の機能', 'Pro版で、クラウド同期のアカウントを設定している方に提供します', '入力した相談内容', '直近の会話', 'クラウド同期の状態の要約',
     '同期先の表示名', '会話の中だけで使う短い識別子', 'Cloudflare Workers AI',
     '4桁の番号、復旧コード、接続コードなどの認証情報をAIへ送らないよう自動検出・遮断する仕組みを設けています。これらを相談文へ入力しないでください。',
     'Cloudflare D1', 'ブラウザの保存領域にも保存しません', 'ページを閉じたり更新したりすると消えます',
@@ -498,6 +497,9 @@ test('privacy/terms pages carry the AI clauses that match the implementation', (
     assert.ok(clause.includes(phrase), phrase);
   }
   assert.deepEqual([...terms.matchAll(/<h2>(\d+)\./g)].map((match) => Number(match[1])), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  // All-Pro release: no creator-only / β-limited wording remains; the processing description stays.
+  for (const page of [privacy, terms]) assert.doesNotMatch(page, /β|対象アカウントに限って/);
+  assert.match(clause, /Pro版で、クラウド同期のアカウントを設定している方に提供します/);
 });
 
 test('beta: a non-entitled Account sees a fixed message; the Port flag is UI discovery only; Standard is unaffected', async () => {
@@ -514,7 +516,8 @@ test('beta: a non-entitled Account sees a fixed message; the Port flag is UI dis
   await tick(); await tick();
   assert.equal(view.error.textContent, '現在、AI相談はこのアカウントでは利用できません。');
   const client = readFileSync(new URL('./ai-support-client.js', import.meta.url), 'utf8');
-  assert.match(client, /they are UI discovery, never authorization/);
+  assert.match(client, /Showing the panel is UI only, never authorization/);
+  assert.doesNotMatch(client, /sound-cruise-ai-beta/, 'the creator-only discovery flag is gone');
   // Standard never shows AI support, whatever flag or query is present.
   const sync = { enabled: true, endpoint: 'https://sync.example', admissionMode: 'production' };
   for (const globalObject of [{ __SOUND_CRUISE_AI_SUPPORT__: { enabled: true } },
