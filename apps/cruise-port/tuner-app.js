@@ -1,5 +1,5 @@
 import { createTunerAudioController } from './tuner-audio.js?v=1.1.5';
-import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.1.8';
+import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=0.69.0';
 import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.59.3';
 import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
 import {

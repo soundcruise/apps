@@ -11,11 +11,13 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// Modules whose code changed in this release (creator-only AI support beta, 0.68.0):
-// app-version.js, sync-center-ui.js (ⓘ 「AIに相談」) and the new ai-support-client.js /
-// ai-support-ui.js. Their importers are practice-menu-app.js and ai-support-ui.js.
-const RELEASE_MODULES = Object.freeze(['app-version.js', 'sync-center-ui.js', 'ai-support-client.js', 'ai-support-ui.js']);
-// Unchanged in 0.68.0, so they keep their earlier keys rather than being bumped for no reason.
+// Modules whose code changed in this release (0.69.0): app-version.js, sync-center-ui.js (icons),
+// ai-support-client.js / ai-support-ui.js (guidance and panel), tuner-preview-audio.js (reference
+// pitch) and its importer tuner-app.js, and the new tool-return.js. Their importers are
+// practice-menu-app.js, ai-support-ui.js and tuner-app.js.
+const RELEASE_MODULES = Object.freeze(['app-version.js', 'sync-center-ui.js', 'ai-support-client.js', 'ai-support-ui.js',
+  'tuner-preview-audio.js', 'tuner-app.js', 'tool-return.js']);
+// Unchanged in 0.69.0, so they keep their earlier keys rather than being bumped for no reason.
 const UNCHANGED_KEYS = Object.freeze({
   'sync-target-name.js': '0.66.0',
   'sync-target-rename.js': '0.66.0',
@@ -26,8 +28,8 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 0.68.0', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '0.68.0');
+test('the release is 0.69.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '0.69.0');
 });
 
 test('both Port entries load the current practice-menu-app and style.css', () => {
@@ -47,11 +49,11 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '0.68.0');
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '0.68.0');
-  assert.equal(key('practice-menu-app.js', 'ai-support-client.js'), '0.68.0');
-  assert.equal(key('practice-menu-app.js', 'ai-support-ui.js'), '0.68.0');
-  assert.equal(key('ai-support-ui.js', 'ai-support-client.js'), '0.68.0');
+  for (const name of ['sync-center-ui.js', 'app-version.js', 'ai-support-client.js', 'ai-support-ui.js', 'tuner-app.js', 'tool-return.js']) {
+    assert.equal(key('practice-menu-app.js', name), '0.69.0', name);
+  }
+  assert.equal(key('ai-support-ui.js', 'ai-support-client.js'), '0.69.0');
+  assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '0.69.0');
   for (const [name, expected] of Object.entries(UNCHANGED_KEYS)) {
     const incoming = edges.filter((edge) => edge.name === name);
     assert.ok(incoming.length > 0, `${name} is imported`);
@@ -81,7 +83,7 @@ test('a module that imports a release-keyed module is itself fetched under the r
 test('no module changed in this release is still requested under an earlier key', () => {
   const sources = modules.map((name) => read(`./${name}`)).join('\n');
   for (const name of RELEASE_MODULES) {
-    for (const stale of ['0.61.0', '0.62.0', '0.63.0', '0.64.0', '0.65.0', '0.66.0', '0.67.0']) {
+    for (const stale of ['0.61.0', '0.62.0', '0.63.0', '0.64.0', '0.65.0', '0.66.0', '0.67.0', '0.68.0', '0.59.3', '1.1.8']) {
       assert.equal(sources.includes(`${name}?v=${stale}`), false, `${name}?v=${stale}`);
     }
   }
