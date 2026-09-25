@@ -26,6 +26,8 @@ import {
 } from './sync-center-controller.js?v=0.66.0';
 import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=0.67.0';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=0.65.0';
+import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=0.67.0';
+import { createAiSupportPanel } from './ai-support-ui.js?v=0.67.0';
 import { createPortSyncStatus } from './port-sync-status.js?v=0.59.3';
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=0.66.0';
 import {
@@ -256,6 +258,9 @@ initializeProAuthSettings();
 applyProLinks();
 applyHomeCruiseLinks();
 const syncCenterController = createSyncCenterController({ config: syncCenterConfig });
+// AI support (AI1-C): Pro beta only, explicitly opted in; the Worker gate still decides.
+const aiSupportConfig = readAiSupportConfig({ edition: document.documentElement.dataset.edition, syncConfig: syncCenterConfig });
+let aiSupportPanel = null;
 if (globalThis.SoundCruisePortSync) {
     globalThis.SoundCruisePortSync.validateLocalStorage = validatePortLocalCollections;
 }
@@ -310,12 +315,20 @@ const PORT_SYNC_HELP_SECTIONS = Object.freeze([
     })
 ]);
 
+const PORT_AI_SUPPORT_HELP_SECTION = Object.freeze({
+    title: 'AIに相談（Pro版のβ）',
+    paragraphs: Object.freeze([
+        '同期センター下部の「AIに相談」から、同期状態を確認しながら解決方法の案内を受けられます。相談内容と、解決に必要な同期状態・同期先の表示名などを Cloudflare Workers AI で処理します。',
+        '相談内容は保存されず、ページを閉じると消えます。AIの回答は誤ることがあるため、解除や削除などは同期センターの確認画面をよく読んで行ってください。4桁の番号、復旧コード、接続コードは入力しないでください。'
+    ])
+});
+
 function openPortSyncHelp() {
     globalThis.SoundCruiseSyncUI?.openHelp?.({
         document,
         privacyHref: './privacy.html',
         summary: PORT_SYNC_HELP_SUMMARY,
-        sections: PORT_SYNC_HELP_SECTIONS
+        sections: aiSupportConfig?.enabled ? [...PORT_SYNC_HELP_SECTIONS, PORT_AI_SUPPORT_HELP_SECTION] : PORT_SYNC_HELP_SECTIONS
     });
 }
 
@@ -3734,7 +3747,8 @@ async function renderSyncCenterView() {
         setupPlan: syncCenterController.planFourAppSetup(presentation),
         orchestrationEnabled: syncCenterOrchestrator.enabled === true,
         onAppAction: syncCenterActions?.onAppAction,
-        onRecheck: renderSyncCenterView
+        onRecheck: renderSyncCenterView,
+        aiSupport: Boolean(aiSupportPanel)
     });
 }
 
@@ -5595,6 +5609,25 @@ elements.homeCalendarButton.addEventListener('click', () => {
 elements.homeSettingsButton.addEventListener('click', () => setHashRoute('#settings'));
 elements.syncCenterEntry.hidden = !syncCenterController.enabled;
 if (syncCenterController.enabled) {
+    if (aiSupportConfig.enabled) {
+        const container = elements.syncCenterView.querySelector('#sync-center-ai-support');
+        const intro = elements.syncCenterView.querySelector('#sync-center-support-intro');
+        const mailLink = elements.syncCenterView.querySelector('.sync-center-support-link');
+        if (container) {
+            container.hidden = false;
+            aiSupportPanel = createAiSupportPanel({
+                container,
+                mailHref: mailLink?.getAttribute('href') || null,
+                client: createAiSupportClient({ endpoint: aiSupportConfig.endpoint, admissionMode: aiSupportConfig.admissionMode })
+            });
+            if (intro) intro.textContent = 'AIで解決しない場合は、メールでお知らせください。返信でやりとりできます。';
+            // ⓘ of a row that needs attention opens the same panel.
+            elements.syncCenterView.addEventListener('click', (event) => {
+                const trigger = event.target.closest?.('[data-sync-ai-support-open]');
+                if (trigger) aiSupportPanel.open(trigger);
+            });
+        }
+    }
     syncCenterActions = bindSyncCenterActions(elements.syncCenterView, {
         orchestrator: syncCenterOrchestrator,
         edition: document.documentElement.dataset.edition,

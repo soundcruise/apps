@@ -41,7 +41,7 @@ export function createRenameButton({ kind, id, appId = null, context, userLabel 
 
 // ⓘ detail for one app row: the cloud state, then each sync target's own last report. Port can
 // only describe targets; it cannot open a specific one, so this panel offers no app launch.
-function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = false } = {}) {
+function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = false, aiSupport = false } = {}) {
     const panel = document.createElement('div');
     panel.className = 'sync-center-app-info';
     panel.id = `sync-center-app-info-${app.id}`;
@@ -105,6 +105,16 @@ function createSyncInfoPanel(app, detail, { onRecheck = null, renameEnabled = fa
     }
     // Points at the existing support section instead of adding a mail button to every row.
     if (detail.support) appendText(panel, 'p', 'sync-center-app-info-support', SYNC_DETAIL_COPY.support);
+    // Pro beta: a status that needs attention can go straight to the same AI support panel.
+    if (detail.support && aiSupport) {
+        const ask = document.createElement('button');
+        ask.type = 'button';
+        ask.className = 'sync-center-app-info-ai';
+        ask.textContent = 'AIに相談';
+        ask.setAttribute('aria-label', `${app.name}についてAIに相談`);
+        ask.dataset.syncAiSupportOpen = app.id;
+        panel.append(ask);
+    }
     if (detail.retry && typeof onRecheck === 'function') {
         const button = document.createElement('button');
         button.type = 'button';
@@ -172,7 +182,7 @@ export function markAppRowsChecking(root) {
 }
 
 export function renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction = null,
-    { onRecheck = null } = {}) {
+    { onRecheck = null, aiSupport = false } = {}) {
     const list = root.querySelector('#sync-center-apps');
     if (!list) return;
     list.removeAttribute('aria-busy');
@@ -204,7 +214,7 @@ export function renderAppRows(root, presentation, edition, orchestrationEnabled,
         if (appHasSyncDetail(app, presentation.kind)) {
             infoPanel = createSyncInfoPanel(app, describeAppSyncDetail(app, {
                 kind: presentation.kind, devicesState: presentation.devicesState
-            }), { onRecheck, renameEnabled: orchestrationEnabled && presentation.accountState === 'active' });
+            }), { onRecheck, aiSupport, renameEnabled: orchestrationEnabled && presentation.accountState === 'active' });
             const toggle = document.createElement('button');
             toggle.type = 'button';
             toggle.className = 'sync-center-app-info-toggle';
@@ -582,7 +592,7 @@ function confirmDeleteCancellation(root, appName) {
 }
 
 export function renderSyncCenter(root, presentation, {
-    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null
+    edition = 'standard', orchestrationEnabled = false, onAppAction = null, onRecheck = null, aiSupport = false
 } = {}) {
     if (!root || !presentation || presentation.kind === 'disabled') return;
     root.dataset.syncState = presentation.kind;
@@ -628,7 +638,7 @@ export function renderSyncCenter(root, presentation, {
             ? 'オフラインのため同期情報を更新できません。各アプリとCruise Portはそのまま利用できます。'
             : presentation.kind === 'error' ? '同期情報を確認できません。時間をおいて再読み込みしてください。' : '';
     }
-    renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction, { onRecheck });
+    renderAppRows(root, presentation, edition, orchestrationEnabled, onAppAction, { onRecheck, aiSupport });
     renderPortStatus(root, presentation);
     renderEnvironmentManagementRows(root, presentation, edition, orchestrationEnabled);
     renderDangerActions(root, presentation);

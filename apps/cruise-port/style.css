@@ -6224,3 +6224,37 @@ body.metronome-preset-open {
 .sync-center-help-dialog .sync-center-rename-error { color: #ffd3d6; }
 .sync-center-rename-error[hidden] { display: none; }
 .sync-center-rename-actions { display: grid; gap: 0; }
+
+/* AI support (AI1-C, Pro beta) */
+.sync-center-ai-support { display: grid; gap: 10px; margin: 10px 0 14px; }
+.sync-center-ai-support[hidden], .sync-center-ai-panel[hidden] { display: none; }
+.sync-center-ai-open { justify-self: stretch; }
+.sync-center-ai-panel { display: grid; gap: 10px; padding: 12px; border: 1px solid rgba(205, 180, 116, 0.34); border-radius: 12px; background: rgba(255, 255, 255, 0.025); color: var(--port-text); }
+.sync-center-ai-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.sync-center-ai-titles { display: grid; gap: 2px; min-width: 0; }
+.sync-center-support .sync-center-ai-title { margin: 0; color: var(--port-gold-bright); font-size: calc(0.9rem * var(--font-scale)); }
+.sync-center-support .sync-center-ai-subtitle { color: var(--port-muted); }
+.sync-center-ai-close { flex: 0 0 auto; min-height: 36px; padding: 4px 12px; border: 1px solid rgba(205, 205, 205, 0.36); border-radius: 999px; background: transparent; color: var(--port-text); font: inherit; cursor: pointer; }
+.sync-center-support .sync-center-ai-privacy, .sync-center-support .sync-center-ai-memory { color: var(--port-muted); font-size: calc(0.7rem * var(--font-scale)); overflow-wrap: anywhere; }
+.sync-center-ai-log { display: grid; gap: 8px; max-height: min(52vh, 420px); overflow-y: auto; overscroll-behavior: contain; }
+.sync-center-ai-log:empty { display: none; }
+.sync-center-ai-message { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; min-width: 0; }
+.sync-center-ai-message--user { justify-self: end; max-width: 88%; background: rgba(232, 201, 122, 0.12); border: 1px solid rgba(232, 201, 122, 0.28); }
+.sync-center-ai-message--ai { justify-self: start; max-width: 100%; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--port-border); }
+.sync-center-ai-speaker { color: var(--port-muted); font-size: calc(0.66rem * var(--font-scale)); font-weight: 650; }
+.sync-center-support .sync-center-ai-text { color: var(--port-text); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.65; }
+.sync-center-ai-unsent { color: #ffd3d6; font-size: calc(0.68rem * var(--font-scale)); }
+.sync-center-support .sync-center-ai-status { color: var(--port-muted); min-height: 1.2em; }
+.sync-center-support .sync-center-ai-error { padding: 8px 10px; border: 1px solid rgba(232, 111, 120, 0.5); border-radius: 10px; color: #ffd3d6; background: rgba(117, 28, 38, 0.18); }
+.sync-center-ai-error[hidden] { display: none; }
+.sync-center-ai-form { display: grid; gap: 6px; }
+.sync-center-ai-label { color: var(--port-text); font-weight: 650; }
+.sync-center-ai-input { box-sizing: border-box; width: 100%; min-height: 84px; padding: 10px 12px; resize: vertical; border: 1px solid rgba(205, 180, 116, 0.48); border-radius: 10px; color: var(--port-text); background: rgba(0, 0, 0, 0.32); font: inherit; font-size: max(16px, calc(1rem * var(--font-scale))); line-height: 1.5; }
+.sync-center-ai-input:focus-visible, .sync-center-ai-close:focus-visible, .sync-center-app-info-ai:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+.sync-center-ai-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.sync-center-ai-counter { margin-right: auto; color: var(--port-muted); font-size: calc(0.7rem * var(--font-scale)); font-variant-numeric: tabular-nums; }
+.sync-center-ai-counter--over { color: #ffd3d6; }
+.sync-center-ai-actions .action-button { width: auto; min-width: 88px; margin: 0; }
+.sync-center-ai-cancel[hidden] { display: none; }
+.sync-center-ai-mail { color: var(--port-gold-bright); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.sync-center-app-info-ai { justify-self: start; padding: 7px 14px; border: 1px solid rgba(232, 201, 122, 0.6); border-radius: 999px; background: rgba(232, 201, 122, 0.1); color: var(--port-gold-bright); font: inherit; font-weight: 650; cursor: pointer; }
