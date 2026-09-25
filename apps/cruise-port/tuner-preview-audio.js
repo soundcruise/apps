@@ -6,6 +6,88 @@ export const TUNER_PREVIEW_DEFAULTS = Object.freeze({
     releaseSeconds: 0.06
 });
 
+// Phase delay (in samples) of the string's averaging filter H(z) = c + (1 − c)·z⁻¹ at ω rad/sample.
+function averagingPhaseDelay(coefficient, omega) {
+    const phase = Math.atan2(-(1 - coefficient) * Math.sin(omega), coefficient + (1 - coefficient) * Math.cos(omega));
+    return -phase / omega;
+}
+
+// Phase delay of the first-order all-pass A(z) = (C + z⁻¹) / (1 + C·z⁻¹) at ω.
+function allpassPhaseDelay(coefficient, omega) {
+    const numerator = Math.atan2(-Math.sin(omega), coefficient + Math.cos(omega));
+    const denominator = Math.atan2(-coefficient * Math.sin(omega), 1 + coefficient * Math.cos(omega));
+    return -(numerator - denominator) / omega;
+}
+
+// The all-pass coefficient whose phase delay at ω is `delay` samples (0.1 ≤ delay < 1.1). The phase
+// delay falls monotonically as C rises, so bisection converges to double precision.
+function solveAllpassCoefficient(delay, omega) {
+    let low = -0.999;
+    let high = 0.999;
+    for (let step = 0; step < 80; step += 1) {
+        const middle = (low + high) / 2;
+        if (allpassPhaseDelay(middle, omega) > delay) low = middle;
+        else high = middle;
+    }
+    return (low + high) / 2;
+}
+
+// Reference pluck (Karplus–Strong), tuned exactly. The loop is an integer delay line, the averaging
+// filter and a fractional-delay all-pass; together their phase delay at the target fundamental is
+// exactly sampleRate / frequency samples, so the tone sounds at the equal-tempered target (A4 = 440)
+// at any sample rate. The all-pass has unit gain, so the timbre (excitation, filter, decay, pick and
+// fade) is the same as before. There is no random detune: this is a reference pitch.
+export function synthesizeReferencePluck({ sampleRate, frequency, random = Math.random } = {}) {
+    const { duration, sustainTime, velocity } = TUNER_PREVIEW_DEFAULTS;
+    const sustainSamples = Math.ceil(sampleRate * sustainTime);
+    const totalSamples = Math.ceil(sampleRate * (duration + sustainTime));
+    const output = new Float32Array(totalSamples);
+    const excitationAmplitude = 0.5 + velocity * 0.5;
+    const filterCoeff = 0.40 + velocity * 0.20;
+    const freqDecayCorrection = 1.0 - (frequency / 8000) * 0.05;
+    const decayFactor = Math.pow(0.001, 1 / sustainSamples) * freqDecayCorrection;
+
+    const omega = (2 * Math.PI * frequency) / sampleRate;
+    const period = sampleRate / frequency;
+    const filterDelay = averagingPhaseDelay(filterCoeff, omega);
+    const delayLength = Math.max(2, Math.floor(period - filterDelay - 0.1));
+    const allpassCoeff = solveAllpassCoefficient(period - delayLength - filterDelay, omega);
+    const delayLine = new Float32Array(delayLength);
+
+    for (let index = 0; index < delayLength; index += 1) {
+        delayLine[index] = (random() * 2 - 1) * excitationAmplitude;
+    }
+
+    let writePosition = 0;
+    let previousSample = 0;
+    let allpassInput = 0;
+    let allpassOutput = 0;
+    for (let index = 0; index < totalSamples; index += 1) {
+        const currentSample = delayLine[writePosition];
+        const filtered = filterCoeff * currentSample + (1 - filterCoeff) * previousSample;
+        previousSample = currentSample;
+        const tuned = allpassCoeff * filtered + allpassInput - allpassCoeff * allpassOutput;
+        allpassInput = filtered;
+        allpassOutput = tuned;
+        delayLine[writePosition] = tuned * decayFactor;
+        output[index] = currentSample;
+        writePosition = (writePosition + 1) % delayLength;
+    }
+
+    const pickSamples = Math.min(Math.ceil(sampleRate * 0.006), totalSamples);
+    for (let index = 0; index < pickSamples; index += 1) {
+        const envelope = Math.exp(-index / Math.max(1, sampleRate * 0.0018));
+        output[index] += (random() * 2 - 1) * (0.055 + velocity * 0.06) * envelope;
+    }
+
+    const fadeStartSample = Math.floor(totalSamples * 0.80);
+    for (let index = fadeStartSample; index < totalSamples; index += 1) {
+        const position = (index - fadeStartSample) / (totalSamples - fadeStartSample);
+        output[index] *= 0.5 * (1 + Math.cos(Math.PI * position));
+    }
+    return output;
+}
+
 function defaultEnvironment() {
     const globalObject = globalThis;
     return {
@@ -62,48 +144,8 @@ export function createTunerPreviewAudioController({ environment = {} } = {}) {
     }
 
     function buildBuffer(audioContext, frequency) {
-        const { duration, sustainTime, velocity } = TUNER_PREVIEW_DEFAULTS;
-        const sampleRate = audioContext.sampleRate;
-        const detuneRatio = 1 + (Math.random() - 0.5) * 0.003;
-        const freq = frequency * detuneRatio;
-        const sustainSamples = Math.ceil(sampleRate * sustainTime);
-        const totalSamples = Math.ceil(sampleRate * (duration + sustainTime));
-        const delayLength = Math.max(2, Math.round(sampleRate / freq));
-        const output = new Float32Array(totalSamples);
-        const delayLine = new Float32Array(delayLength);
-        const excitationAmplitude = 0.5 + velocity * 0.5;
-        const filterCoeff = 0.40 + velocity * 0.20;
-        const freqDecayCorrection = 1.0 - (freq / 8000) * 0.05;
-        const decayFactor = Math.pow(0.001, 1 / sustainSamples) * freqDecayCorrection;
-
-        for (let index = 0; index < delayLength; index += 1) {
-            delayLine[index] = (Math.random() * 2 - 1) * excitationAmplitude;
-        }
-
-        let writePosition = 0;
-        let previousSample = 0;
-        for (let index = 0; index < totalSamples; index += 1) {
-            const currentSample = delayLine[writePosition];
-            const filtered = filterCoeff * currentSample + (1 - filterCoeff) * previousSample;
-            previousSample = currentSample;
-            delayLine[writePosition] = filtered * decayFactor;
-            output[index] = currentSample;
-            writePosition = (writePosition + 1) % delayLength;
-        }
-
-        const pickSamples = Math.min(Math.ceil(sampleRate * 0.006), totalSamples);
-        for (let index = 0; index < pickSamples; index += 1) {
-            const envelope = Math.exp(-index / Math.max(1, sampleRate * 0.0018));
-            output[index] += (Math.random() * 2 - 1) * (0.055 + velocity * 0.06) * envelope;
-        }
-
-        const fadeStartSample = Math.floor(totalSamples * 0.80);
-        for (let index = fadeStartSample; index < totalSamples; index += 1) {
-            const position = (index - fadeStartSample) / (totalSamples - fadeStartSample);
-            output[index] *= 0.5 * (1 + Math.cos(Math.PI * position));
-        }
-
-        const buffer = audioContext.createBuffer(1, totalSamples, sampleRate);
+        const output = synthesizeReferencePluck({ sampleRate: audioContext.sampleRate, frequency });
+        const buffer = audioContext.createBuffer(1, output.length, audioContext.sampleRate);
         buffer.copyToChannel(output, 0);
         return buffer;
     }
