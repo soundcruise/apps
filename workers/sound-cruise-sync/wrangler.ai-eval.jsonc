@@ -1,0 +1,9 @@
+// AI1-B evaluation only. Used by scripts/ai-eval/run-eval.mjs through getPlatformProxy to reach
+// Workers AI with synthetic data. It is not the production Worker config (wrangler.jsonc), has no
+// D1, secrets, routes or other bindings, and is never deployed.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "sound-cruise-sync-ai-eval",
+  "compatibility_date": "2026-09-01",
+  "ai": { "binding": "AI", "remote": true }
+}

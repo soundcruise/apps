@@ -442,3 +442,10 @@ test('no production config change: no AI binding in wrangler.jsonc; AI gate defa
   assert.doesNotMatch(chatSource, /AI_SUPPORT_SYSTEM_PROMPT\s*\+|\+\s*AI_SUPPORT_SYSTEM_PROMPT|`[^`]*\$\{AI_SUPPORT_SYSTEM_PROMPT/,
     'the system prompt is never concatenated with anything');
 });
+
+test('system prompt states the real UI and forbids invented flows, Markdown and field names', () => {
+  for (const fact of ['同期コード', 'Cruise Portと接続', 'ログイン・サインイン・パスワードの仕組みは無い', 'URL を作らない',
+    '「もう一度確認」はアプリ単位', 'Markdown', 'cloudState', '原因はここからは分かりません']) {
+    assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes(fact), fact);
+  }
+});
