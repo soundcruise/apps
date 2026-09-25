@@ -192,72 +192,26 @@ export function createAiSupportPanel({
     makeRoomBelow(element);
     element?.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: reduceMotion() ? 'auto' : 'smooth' });
   }
-  // Keeps the input and 送信 clear of the software keyboard. visualViewport is the part of the page
-  // left visible by the keyboard (iOS Safari / Home Screen and Android Chrome both report it).
-  // Each time the keyboard opens, the 相談内容 block is moved once to the top of that visible
-  // part, so the input and 送信 sit well above the keyboard (and Safari's floating address bar).
-  // Exactly one move per opening: re-checking on every viewport event fought iOS's own panning and
-  // made the page shake. iOS does not shrink the page for the keyboard, so room is added below
-  // first, and only ever grown here, so the page height never jumps back and forth.
-  let keepComposerVisible = false;
-  let composerPlaced = false;
-  const KEYBOARD_MIN_PX = 120;
-  function keyboardOpen() {
-    const layout = globalThis.document?.documentElement?.clientHeight || globalThis.innerHeight || 0;
-    return Boolean(viewport) && layout - viewport.height > KEYBOARD_MIN_PX;
-  }
-  function topMargin() {
-    const value = parseFloat(globalThis.getComputedStyle?.(form)?.scrollMarginTop);
-    return Number.isFinite(value) ? value : 16;
-  }
-  // Positions in page (document) coordinates. Taking the difference of two getBoundingClientRect
-  // values cancels whatever viewport iOS measures them against (layout or visual), which differs
-  // when the page is scrolled to its end and iOS pans the visible part instead of the page.
+  // Positions in page (document) coordinates: the difference of two getBoundingClientRect values.
   function pageTopOf(element) {
     const doc = globalThis.document?.documentElement;
     const docTop = doc?.getBoundingClientRect?.().top ?? -(globalThis.scrollY || 0);
     return element.getBoundingClientRect().top - docTop;
   }
-  function visiblePageTop() {
-    if (Number.isFinite(viewport?.pageTop)) return viewport.pageTop;
-    return (globalThis.scrollY || 0) + (viewport?.offsetTop || 0);
-  }
-  function growRoomBelow(target) {
+  // Grows (never shrinks) the room below so the page can scroll far enough for `element` to reach
+  // the top of the screen. Growing only keeps the page height from jumping while the keyboard is up.
+  function growRoomBelow(element) {
     const doc = globalThis.document?.documentElement;
-    if (!doc || !room.style) return;
+    if (!doc || !element?.getBoundingClientRect || !room.style) return;
     const height = Math.max(viewport?.height || 0, globalThis.innerHeight || 0, doc.clientHeight || 0);
-    const missing = Math.ceil(target + height - (doc.scrollHeight || 0));
+    const missing = Math.ceil(pageTopOf(element) + height - (doc.scrollHeight || 0));
     if (missing > 0) room.style.height = `${(parseFloat(room.style.height) || 0) + missing}px`;
   }
-  // Moves the page by the distance between the visible top and the block; returns that distance.
-  function moveComposerToTop() {
-    const target = pageTopOf(form) - topMargin();
-    growRoomBelow(target);
-    const delta = target - visiblePageTop();
-    if (Math.abs(delta) > 2) globalThis.scrollBy?.(0, delta);
-    return delta;
-  }
-  function placeComposer() {
-    if (panel.hidden || !keepComposerVisible || composerPlaced || !keyboardOpen()) return;
-    if (globalThis.document?.activeElement !== input || !form.getBoundingClientRect) return;
-    composerPlaced = true;
-    if (Math.abs(moveComposerToTop()) <= 2) return;
-    // One check on the next frame in case iOS clamped or adjusted the move; never more than that.
-    const verify = () => { if (keepComposerVisible && !panel.hidden && keyboardOpen()) moveComposerToTop(); };
-    if (globalThis.requestAnimationFrame) globalThis.requestAnimationFrame(verify);
-    else verify();
-  }
-  viewport?.addEventListener?.('resize', () => {
-    if (!keyboardOpen()) { composerPlaced = false; return; } // closed: the next opening moves it again
-    if (globalThis.requestAnimationFrame) globalThis.requestAnimationFrame(placeComposer);
-    else placeComposer();
-  });
-  input.addEventListener('focus', () => { keepComposerVisible = true; });
-  input.addEventListener('blur', () => { keepComposerVisible = false; });
-  // The user scrolls by hand: never move the page for them while they do.
-  const releaseComposer = () => { keepComposerVisible = false; };
-  globalThis.addEventListener?.('touchmove', releaseComposer, { passive: true });
-  globalThis.addEventListener?.('wheel', releaseComposer, { passive: true });
+  // The keyboard itself is left to the browser: the input is brought near the top of the screen
+  // before it opens (see open()), and tapping the input later only makes sure there is room below,
+  // so iOS / Android can lift it above the keyboard even at the end of the page. No viewport math:
+  // on iOS it depends on which viewport a value is measured against, and it overshot on device.
+  input.addEventListener('focus', () => growRoomBelow(form));
 
   // While a reply is pending: did the user scroll somewhere on purpose? Then the finished reply
   // does not yank the page back unless the conversation is still on screen.
@@ -292,7 +246,6 @@ export function createAiSupportPanel({
     const pending = appendPending();
     refreshControls();
     // Start reading from the question just sent; the dots and then the reply follow below it.
-    keepComposerVisible = false;
     scrollToTop(bubble);
     userScrolled = false;
     watchUserScroll(true);
@@ -332,14 +285,12 @@ export function createAiSupportPanel({
     panel.hidden = false;
     openButton.setAttribute('aria-expanded', 'true');
     refreshControls();
-    // Focus inside the tap itself (iOS opens the keyboard only then), then bring the input and
-    // 送信 into view; the visualViewport resize above repeats this once the keyboard is up.
+    // Before the keyboard exists the screen and the visible area are the same, so this is exact:
+    // bring 相談内容 to the top of the screen, then focus inside the tap (iOS opens the keyboard only
+    // then). The input and 送信 are then already above where the keyboard will be.
+    makeRoomBelow(form);
+    form.scrollIntoView?.({ block: 'start', inline: 'nearest', behavior: 'auto' });
     input.focus({ preventScroll: true });
-    keepComposerVisible = true;
-    composerPlaced = false;
-    form.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
-    // Keyboard already up (e.g. reopened while typing elsewhere): place it now, once.
-    if (keyboardOpen()) placeComposer();
   }
   function close() {
     panel.hidden = true;

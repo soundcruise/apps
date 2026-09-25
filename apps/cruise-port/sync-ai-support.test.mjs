@@ -671,7 +671,7 @@ test('scroll UX: open reveals the input, a sent question and then the reply star
   try {
     view.openButton.click();
     assert.equal(view.dom.doc.activeElement, view.input, 'focused inside the tap (iOS keyboard)');
-    assert.deepEqual(scrolls.shift(), ['form', { block: 'nearest', inline: 'nearest', behavior: 'auto' }]);
+    assert.deepEqual(scrolls.shift(), ['form', { block: 'start', inline: 'nearest', behavior: 'auto' }]);
     assert.equal(frames.length, 0, 'no keyboard: no follow-up moves, no timers');
     view.type('コードクルーズだけ同期されません');
     // Record the bubbles' scrolls as they are created.
@@ -735,70 +735,37 @@ test('code warning: short, smaller, other text unchanged', () => {
   assert.equal(AI_PANEL_COPY.codesWarning, '復旧コード・接続コードなどは入力しないでください。');
 });
 
-function keyboardHarness({ rectsAgainst }) {
-  // A tiny page model: the form sits at a fixed page position; the layout viewport scrolls
-  // (scrollY) and, like iOS at the end of a page, the visible part can be panned (offsetTop).
+test('scroll UX: opening brings 相談内容 to the top before focusing; no keyboard/viewport math', () => {
   const dom = installDom();
   const container = new dom.Node('div');
   dom.root.append(container);
-  const handlers = {};
-  const state = { scrollY: 0, offsetTop: 0, formPage: 1500, moves: [] };
-  const viewport = { height: 800, get offsetTop() { return state.offsetTop; }, get pageTop() { return state.scrollY + state.offsetTop; },
-    addEventListener: (type, fn) => { handlers[type] = fn; } };
-  const origin = () => (rectsAgainst === 'visual' ? viewport.pageTop : state.scrollY);
-  const page = { clientHeight: 800, scrollHeight: 2000, getBoundingClientRect: () => ({ top: -origin() }) };
+  const viewportListeners = [];
+  const viewport = { height: 800, offsetTop: 0, addEventListener: (type) => viewportListeners.push(type) };
+  let roomStyle = null;
+  const page = { clientHeight: 800, get scrollHeight() { return 1000 + (parseFloat(roomStyle?.height) || 0); }, getBoundingClientRect: () => ({ top: -600 }) };
   Object.defineProperty(globalThis.document, 'documentElement', { value: page, configurable: true });
-  globalThis.scrollBy = (x, y) => { state.moves.push(y); state.scrollY += y; };
-  globalThis.requestAnimationFrame = (fn) => { fn(); return 1; };
-  globalThis.getComputedStyle = () => ({ scrollMarginTop: '16px' });
-  const winListeners = {};
-  globalThis.addEventListener = (type, fn) => { winListeners[type] = fn; };
-  createAiSupportPanel({ container, client: { send: async () => ({ ok: true, reply: 'x' }) }, mailHref: MAIL, viewport, enterSends: () => false });
-  const byClass = (name) => dom.walk(container).find((node) => String(node.className).split(' ').includes(name));
-  const form = byClass('sync-center-ai-form');
-  byClass('sync-center-ai-room').style = {};
-  form.getBoundingClientRect = () => ({ top: state.formPage - origin(), bottom: state.formPage - origin() + 220 });
-  return { state, viewport, handlers, winListeners, byClass, visibleOffset: () => state.formPage - viewport.pageTop };
-}
-function cleanupKeyboardHarness() {
-  delete globalThis.scrollBy; delete globalThis.requestAnimationFrame; delete globalThis.getComputedStyle; delete globalThis.addEventListener;
-}
-
-test('scroll UX: the 相談内容 block lands at the top of the visible area, mid-page and at the page end (iOS pan)', () => {
-  for (const rectsAgainst of ['layout', 'visual']) {
-    for (const scenario of ['mid-page', 'page-end']) {
-      const h = keyboardHarness({ rectsAgainst });
-      try {
-        h.state.scrollY = scenario === 'mid-page' ? 900 : 1200;
-        h.byClass('sync-center-ai-open').click();
-        assert.equal(h.handlers.scroll, undefined, 'no visualViewport scroll listener (it fought iOS panning)');
-        // Keyboard opens; at the page end iOS pans the visible part instead of scrolling the page.
-        h.viewport.height = 420;
-        if (scenario === 'page-end') h.state.offsetTop = 380;
-        h.handlers.resize();
-        assert.equal(h.visibleOffset(), 16, `${rectsAgainst} / ${scenario}: block starts 16px below the visible top`);
-        assert.ok(h.state.moves.length <= 2, 'at most one move and one check');
-      } finally { cleanupKeyboardHarness(); }
-    }
-  }
-});
-
-test('scroll UX: one placement per keyboard opening, none after a manual scroll (no loop)', () => {
-  const h = keyboardHarness({ rectsAgainst: 'layout' });
+  const order = [];
   try {
-    h.state.scrollY = 900;
-    h.byClass('sync-center-ai-open').click();
-    h.viewport.height = 420; h.handlers.resize();
-    const moves = h.state.moves.length;
-    assert.equal(moves, 1);
-    h.state.scrollY += 50; h.viewport.height = 380; h.handlers.resize(); h.handlers.resize();
-    assert.equal(h.state.moves.length, moves, 'further events while the keyboard is up never move it again');
-    h.viewport.height = 800; h.handlers.resize(); // closed
-    h.viewport.height = 420; h.handlers.resize(); // opened again
-    assert.equal(h.state.moves.length, moves + 1, 'one move per opening');
-    h.winListeners.touchmove();
-    h.state.scrollY += 200;
-    h.viewport.height = 800; h.handlers.resize(); h.viewport.height = 420; h.handlers.resize();
-    assert.equal(h.state.moves.length, moves + 1, 'a manual scroll stops repositioning');
-  } finally { cleanupKeyboardHarness(); }
+    createAiSupportPanel({ container, client: { send: async () => ({ ok: true, reply: 'x' }) }, mailHref: MAIL, viewport, enterSends: () => false });
+    const byClass = (name) => dom.walk(container).find((node) => String(node.className).split(' ').includes(name));
+    const form = byClass('sync-center-ai-form');
+    const input = byClass('sync-center-ai-input');
+    const room = byClass('sync-center-ai-room');
+    room.style = {};
+    roomStyle = room.style;
+    // The panel sits at the end of the page: form at page y 900, page 1000 tall, screen 800.
+    form.getBoundingClientRect = () => ({ top: 300, bottom: 520 });
+    form.scrollIntoView = (options) => order.push(['scroll', options, room.style.height]);
+    const focus = input.focus.bind(input);
+    input.focus = (options) => { order.push(['focus', options]); focus(); input.dispatch('focus'); };
+    byClass('sync-center-ai-open').click();
+    assert.deepEqual(order[0], ['scroll', { block: 'start', inline: 'nearest', behavior: 'auto' }, '700px'],
+      'room is added first (900 + 800 − 1000), then 相談内容 goes to the top');
+    assert.deepEqual(order[1], ['focus', { preventScroll: true }], 'then focus, inside the tap');
+    assert.equal(dom.doc.activeElement, input);
+    assert.deepEqual(viewportListeners, [], 'no visualViewport listeners: the keyboard is left to the browser');
+    assert.equal(room.style.height, '700px', 'focusing only ever grows the room');
+  } finally {}
+  const source = readFileSync(new URL('./ai-support-ui.js', import.meta.url), 'utf8').split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
+  assert.doesNotMatch(source, /scrollBy|\.pageTop|'resize'/, 'no keyboard-driven scrolling');
 });
