@@ -31,8 +31,35 @@ const RULES = Object.freeze([
   // A reply that looks like it holds a code is never shown (it would also block the next turn,
   // since the reply comes back as history) and is never sent back to the model as-is.
   Object.freeze({ category: 'secret_like', scope: 'full', pattern: { test: containsSecret } }),
-  Object.freeze({ category: 'full_id', scope: 'full', pattern: { test: containsFullId } })
+  Object.freeze({ category: 'full_id', scope: 'full', pattern: { test: containsFullId } }),
+  // Output that is not a sentence at all (e.g. 900 「!」 in a row, seen in production).
+  Object.freeze({ category: 'degenerate_output', scope: 'full', pattern: { test: (text) => isDegenerateReply(text) } })
 ]);
+
+// Degenerate model output: only obviously broken text, never style. Whitespace is ignored; a
+// "meaningful" character is any letter or digit in any script (kana, kanji, ー, Latin, digits).
+// A reply is degenerate when one non-meaningful character repeats 20+ times in a row (「!!!…」,
+// 「！！！…」, 「! ! ! …」), when 20+ characters hold no meaningful character at all, or when 40+
+// characters are less than 10% meaningful. 「はい！」「確認が必要です！」 and normal sentences pass.
+const MEANINGFUL = /[\p{L}\p{N}]/u;
+const DEGENERATE_RUN = 20;
+export function isDegenerateReply(text) {
+  const chars = [...String(text ?? '').replace(/\s+/gu, '')];
+  if (!chars.length) return false;
+  let run = 0;
+  let meaningful = 0;
+  for (let index = 0; index < chars.length; index += 1) {
+    if (MEANINGFUL.test(chars[index])) {
+      meaningful += 1;
+      run = 0;
+      continue;
+    }
+    run = index > 0 && chars[index] === chars[index - 1] ? run + 1 : 1;
+    if (run >= DEGENERATE_RUN) return true;
+  }
+  if (chars.length >= 20 && meaningful === 0) return true;
+  return chars.length >= 40 && meaningful / chars.length < 0.1;
+}
 
 export const GUARD_CATEGORIES = Object.freeze([...new Set(RULES.map((rule) => rule.category))]);
 
@@ -59,7 +86,8 @@ const CATEGORY_HINTS = Object.freeze({
   tool_syntax: 'ツール名やツールの記法を書いた',
   internal_term: '英語の状態名や内部の項目名（snapshot、reference など）を書いた',
   secret_like: '4桁の番号やコードのように見える数字・文字の並びを書いた（番号やコードは書かない）',
-  full_id: 'IDのように見える長い英数字の並びを書いた（IDは書かない）'
+  full_id: 'IDのように見える長い英数字の並びを書いた（IDは書かない）',
+  degenerate_output: '意味のある文章になっていなかった（記号だけが続いた）。質問の意図が分かりにくい場合は、何を確認したいかを短く尋ねる'
 });
 
 export function repairInstruction(violations) {
@@ -75,4 +103,7 @@ export function repairInstruction(violations) {
 
 // Shown when the repaired reply still fails. It claims nothing about the diagnostics (no cause,
 // no data loss, no stopped sync) and names only UI that exists.
+// Shown instead of a degenerate reply that could not be repaired: short, no cause, no UI claims.
+export const DEGENERATE_FALLBACK_REPLY = 'うまく回答を作成できませんでした。何を確認したいか、もう少し具体的に教えてください。';
+
 export const GUARD_FALLBACK_REPLY = '正確な操作手順をまとめられませんでした。Cruise Port の同期センターで、対象アプリの行にある ⓘ を開いて状態を確認してください。「もう一度確認」が表示されている場合はタップしてください。解決しない場合は、同期センター下部の「クラウド同期で困ったときは」からメールでお問い合わせください。';

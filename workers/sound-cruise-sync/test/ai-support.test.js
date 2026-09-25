@@ -688,3 +688,24 @@ test('final blockers at the route: reverse-context codes and alternate-separator
   assert.doesNotMatch(JSON.stringify(await repaired.json()), /再同期ボタン/);
   db.close();
 });
+
+test('production reproduction: 「同期先の番号は1234です」 + a 「!」-only answer never reaches the user', async () => {
+  const { db, env, a, pro } = await setup();
+  const before = dump(db);
+  const bang = reply('!'.repeat(900), { prompt_tokens: 2200, completion_tokens: 900 });
+  const ai = mockAi([bang, reply('!'.repeat(900))]);
+  const { env: recorded, statements } = recording({ ...env, AI: ai });
+  const response = await chat(recorded, a, pro, { message: '同期先の番号は1234です' });
+  assert.equal(response.status, 200, 'the benign 4-digit input is accepted');
+  const body = await response.json();
+  assert.equal(body.reply, 'うまく回答を作成できませんでした。何を確認したいか、もう少し具体的に教えてください。');
+  assert.doesNotMatch(body.reply, /!{3}|！{3}/);
+  assert.equal(ai.requests.length, 2, 'one repair only');
+  assert.equal(JSON.stringify(ai.requests[1]).includes('!!!!!!!!!!'), false, 'the broken answer is not sent back');
+  assert.deepEqual(dump(db), before);
+  assert.ok(statements.every((statement) => statement === 'SELECT'));
+  const repaired = mockAi([bang, reply('同期先の番号についてですね。何を確認したいか教えてください。')]);
+  const ok = await chat({ ...env, AI: repaired }, a, pro, { message: '同期先の番号は1234です' });
+  assert.equal((await ok.json()).reply, '同期先の番号についてですね。何を確認したいか教えてください。');
+  db.close();
+});

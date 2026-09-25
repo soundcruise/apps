@@ -498,3 +498,77 @@ test('FP: benign four-digit display names are kept; secret-like and ID-like name
     assert.equal(safe(name), false, 'unsafe name falls back');
   }
 });
+
+// ------------------------------------------------------------------ Degenerate output guard
+
+import { DEGENERATE_FALLBACK_REPLY, isDegenerateReply } from '../src/ai-support-guard.js';
+
+const DEGENERATE = ['!'.repeat(900), '！'.repeat(300), '?'.repeat(40), `\n${'! '.repeat(200)}\n`, `  ${'。'.repeat(30)}  `];
+const NORMAL_REPLIES = ['はい！', 'いいえ。', '同期済みです！', '同期済みです。', 'Pixel側を確認してください。', '確認が必要です！',
+  '「同期済み」と表示されています。', 'エラー404が表示されている場合は、もう一度状態を確認してください。', 'T1を確認してください。', GOOD,
+  'まず同期センターでコードクルーズの行にある ⓘ を開いてください。次に Pixel でアプリを開き、設定 → クラウド同期を確認してください。'];
+
+test('DG1-4 / 5-10: only obviously broken output is degenerate', () => {
+  for (const bad of DEGENERATE) {
+    assert.equal(isDegenerateReply(bad), true, JSON.stringify(bad.slice(0, 8)));
+    assert.deepEqual(validateSupportReply(bad).violations, ['degenerate_output']);
+  }
+  for (const ok of NORMAL_REPLIES) {
+    assert.equal(isDegenerateReply(ok), false, ok);
+    assert.equal(validateSupportReply(ok).ok, true, ok);
+  }
+  assert.equal(validateSupportReply(DEGENERATE_FALLBACK_REPLY).ok, true, 'the fallback passes the guard itself');
+  assert.doesNotMatch(DEGENERATE_FALLBACK_REPLY, /エラー|provider|AI|番号|コード|ボタン/, 'no internal cause, no UI claim, no code request');
+  assert.match(repairInstruction(['degenerate_output']), /意味のある文章になっていなかった/);
+});
+
+test('Case A: degenerate → one repair (bad reply not resent) → only the repaired reply reaches the user', async () => {
+  const p = provider([text('!'.repeat(900)), text(GOOD)]);
+  const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期先の番号は1234です' });
+  assert.equal(turn.reply, GOOD);
+  assert.equal(p.calls.length, 2);
+  assert.deepEqual(turn.stats.guardViolations, ['degenerate_output']);
+  const repair = p.calls[1];
+  assert.equal(repair.messages.some((message) => message.role === 'assistant'), false, 'the degenerate reply is not sent back');
+  assert.equal(repair.messages.at(-1).content, repairInstruction(['degenerate_output']));
+  assert.equal(p.calls[0].messages.at(-1).content, '同期先の番号は1234です', 'the benign 4-digit input still reaches the model');
+  assertCleanRequests(p.calls);
+});
+
+test('Case B: degenerate twice → short fixed reply, no further call', async () => {
+  for (const second of [text('！'.repeat(300)), text('?'.repeat(40)), new Error('provider down'), text('')]) {
+    const p = provider([text('!'.repeat(900)), second, text(GOOD)]);
+    const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期先の番号は1234です' });
+    assert.equal(turn.reply, DEGENERATE_FALLBACK_REPLY);
+    assert.equal(p.calls.length, 2, 'one repair only');
+    assert.equal(turn.stats.fallback, true);
+  }
+});
+
+test('Case C: no call left in the budget → fixed reply without a model call; never more than 4 calls', async () => {
+  const p = provider([tools('getSyncOverview'), tools('getAppSyncTargets'), text('!'.repeat(900)), text(GOOD)]);
+  const turn = await runSupportTurn({ provider: p, diagnostics: plain(), message: '同期できません', maxModelCalls: 3 });
+  assert.equal(turn.reply, DEGENERATE_FALLBACK_REPLY);
+  assert.equal(p.calls.length, 3, 'no repair call without budget');
+  assert.equal(turn.stats.repairAttempted, false);
+  // Full budget: tool, tool, degenerate, repair = 4, and a degenerate repair adds nothing.
+  const worst = provider([tools('getSyncOverview'), tools('getAppSyncTargets'), text('!'.repeat(900)), text('!'.repeat(900)), text(GOOD)]);
+  const full = await runSupportTurn({ provider: worst, diagnostics: plain(), message: '同期できません' });
+  assert.equal(worst.calls.length, 4);
+  assert.equal(full.reply, DEGENERATE_FALLBACK_REPLY);
+  // The budget can only be lowered, never raised.
+  const raised = provider(Array.from({ length: 8 }, () => tools('getSyncOverview')).concat([text('!'.repeat(50)), text(GOOD)]));
+  await runSupportTurn({ provider: raised, diagnostics: plain(), message: '同期できません', maxModelCalls: 99 });
+  assert.ok(raised.calls.length <= 4);
+});
+
+test('Case D: a degenerate reply carrying a code or a known ID is never resent', async () => {
+  for (const bad of [`${'!'.repeat(60)} PINは1:2:3:4`, `${'!'.repeat(60)} ${ACCOUNT_ID.replace(/-/g, '_')}`]) {
+    const p = provider([text(bad), text(GOOD)]);
+    const turn = await runSupportTurn({ provider: p, diagnostics: plain(), knownIds: KNOWN, message: '同期できません' });
+    assert.equal(turn.reply, GOOD);
+    assert.equal(p.calls.length, 2);
+    assert.equal(JSON.stringify(p.calls[1]).includes('!!!!!'), false);
+    assertCleanRequests(p.calls, KNOWN);
+  }
+});

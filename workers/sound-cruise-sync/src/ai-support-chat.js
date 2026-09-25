@@ -3,7 +3,7 @@
 // results in the AI1-A trust envelope. Provider- and model-agnostic; nothing is stored.
 import { toModelToolResult } from './ai-diagnostics.js';
 import { EgressBlockedError, guardedProvider, isProviderInputSafe } from './ai-support-egress.js';
-import { GUARD_FALLBACK_REPLY, repairInstruction, validateSupportReply } from './ai-support-guard.js';
+import { DEGENERATE_FALLBACK_REPLY, GUARD_FALLBACK_REPLY, repairInstruction, validateSupportReply } from './ai-support-guard.js';
 import {
   AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, FALLBACK_REPLIES, SECRET_REFUSAL, containsMarkdown,
   sanitizeReply, validateToolCall
@@ -18,11 +18,15 @@ const TOOL_NAMES = new Set(AI_SUPPORT_TOOLS.map((tool) => tool.function.name));
 // SECRET_REFUSAL with egressBlocked, and nothing is sent.
 // knownIds: the authenticated Account's raw IDs (Worker-internal; never sent). Every request and
 // every reply is compared against them.
-export async function runSupportTurn({ provider: rawProvider, diagnostics, history = [], message, knownIds = [] }) {
-  const provider = guardedProvider(rawProvider, { maxCalls: AI_SUPPORT_LIMITS.maxModelCalls, knownIds });
+// maxModelCalls can only lower the budget (tests); it is never raised above the policy limit.
+export async function runSupportTurn({ provider: rawProvider, diagnostics, history = [], message, knownIds = [],
+  maxModelCalls = AI_SUPPORT_LIMITS.maxModelCalls }) {
+  const maxCalls = Math.min(Number.isSafeInteger(maxModelCalls) && maxModelCalls > 0 ? maxModelCalls : 0,
+    AI_SUPPORT_LIMITS.maxModelCalls);
+  const provider = guardedProvider(rawProvider, { maxCalls, knownIds });
   const containsKnownId = createKnownIdMatcher(knownIds);
   try {
-    return await runRounds({ provider, diagnostics, history, message, containsKnownId });
+    return await runRounds({ provider, diagnostics, history, message, containsKnownId, maxCalls });
   } catch (error) {
     if (error instanceof EgressBlockedError) {
       return { reply: SECRET_REFUSAL, stats: { modelCalls: provider.calls, egressBlocked: true }, egressBlocked: true };
@@ -31,7 +35,7 @@ export async function runSupportTurn({ provider: rawProvider, diagnostics, histo
   }
 }
 
-async function runRounds({ provider, diagnostics, history, message, containsKnownId }) {
+async function runRounds({ provider, diagnostics, history, message, containsKnownId, maxCalls }) {
   const messages = [
     { role: 'system', content: AI_SUPPORT_SYSTEM_PROMPT },
     ...history.map(({ role, content }) => ({ role, content })),
@@ -59,7 +63,7 @@ async function runRounds({ provider, diagnostics, history, message, containsKnow
       stats.firstAnswerMs = Date.now() - started;
       const reply = sanitizeReply(result.text);
       if (!reply) return { reply: FALLBACK_REPLIES.noAnswer, stats };
-      return guardReply({ provider, messages, reply, stats, track, containsKnownId });
+      return guardReply({ provider, messages, reply, stats, track, containsKnownId, maxCalls });
     }
     if (!toolsAllowed) break;
     // Nothing the model wrote around a tool call is sent back as-is. A call naming anything but
@@ -120,17 +124,27 @@ function checkReply(reply, containsKnownId) {
   return { ok: violations.length === 0, violations };
 }
 
-async function guardReply({ provider, messages, reply, stats, track, containsKnownId }) {
+// A degenerate reply (only symbols, e.g. 「!!!…」) is never shown and never sent back either; if it
+// cannot be repaired, a short fixed reply asks what the user wants to check.
+async function guardReply({ provider, messages, reply, stats, track, containsKnownId, maxCalls }) {
   const first = checkReply(reply, containsKnownId);
   if (first.ok) return { reply, stats };
   stats.guardViolations.push(...first.violations);
+  const degenerate = first.violations.includes('degenerate_output');
+  const fallback = degenerate ? DEGENERATE_FALLBACK_REPLY : GUARD_FALLBACK_REPLY;
+  // No call left in the turn budget: fixed fallback, no model call.
+  if (provider.calls >= maxCalls) {
+    stats.fallback = true;
+    return { reply: fallback, stats };
+  }
   stats.repairAttempted = true;
   let repaired = '';
-  const badReply = containsSensitive(reply) || containsKnownId(reply) ? [] : [{ role: 'assistant', content: reply }];
+  const badReply = degenerate || containsSensitive(reply) || containsKnownId(reply)
+    ? [] : [{ role: 'assistant', content: reply }];
   const request = { messages: [...messages, ...badReply, { role: 'user', content: repairInstruction(first.violations) }], tools: [] };
   if (!isProviderInputSafe(request, { containsKnownId })) {
     stats.fallback = true;
-    return { reply: GUARD_FALLBACK_REPLY, stats };
+    return { reply: fallback, stats };
   }
   try {
     const result = await provider.complete(request);
@@ -146,5 +160,5 @@ async function guardReply({ provider, messages, reply, stats, track, containsKno
   }
   if (repaired) stats.guardViolations.push(...second.violations);
   stats.fallback = true;
-  return { reply: GUARD_FALLBACK_REPLY, stats };
+  return { reply: fallback, stats };
 }
