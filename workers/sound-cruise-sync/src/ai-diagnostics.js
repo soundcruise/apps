@@ -309,7 +309,9 @@ export function createSyncDiagnostics({
 export async function openSyncDiagnostics(request, env, dependencies = {}) {
   const context = await accountContext(request, env, dependencies, { readOnly: true });
   if (context.error) return { error: context.error, status: context.status };
-  return { diagnostics: createSyncDiagnostics({ session: context.session, identity: context.identity }) };
+  // scopeKey is Worker-internal (rate-limit key); it never enters diagnostics or model input.
+  return { diagnostics: createSyncDiagnostics({ session: context.session, identity: context.identity }),
+    scopeKey: context.identity.accountId };
 }
 
 export const TOOL_RESULT_KIND = 'sound_cruise_sync_diagnostic_tool_result';

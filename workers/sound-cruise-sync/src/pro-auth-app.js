@@ -80,13 +80,33 @@ async function tokenMaterial(pepper, cryptoImpl) {
   return { id, token, verifier: await hmacVerifier(`sound-cruise-pro:v1:${token}`, pepper, cryptoImpl) };
 }
 
-async function bearer(request, pepper, cryptoImpl) {
-  const value = request.headers.get('Authorization');
+async function parseProBearer(value, pepper, cryptoImpl) {
   if (!value || !/^Bearer /u.test(value)) return null;
   const token = value.slice(7);
   const match = TOKEN_RE.exec(token);
   if (!match) return null;
   return { id: match[1], verifier: await hmacVerifier(`sound-cruise-pro:v1:${token}`, pepper, cryptoImpl) };
+}
+
+async function bearer(request, pepper, cryptoImpl) {
+  return parseProBearer(request.headers.get('Authorization'), pepper, cryptoImpl);
+}
+
+// Read-only Pro check for other Worker routes (AI support beta): the same token parsing, verifier
+// compare, scope, revocation and generation rules as GET /v2/pro-auth/session, with SELECTs only.
+// Returns { ok: true } or { ok: false, code }. Throws only when the Pro store is unavailable.
+export async function inspectProCredentialReadOnly(headerValue, env, dependencies = {}) {
+  if (typeof env.PRO_CREDENTIAL_PEPPER !== 'string' || env.PRO_CREDENTIAL_PEPPER.length < 32) {
+    throw new Error('Pro verification unavailable');
+  }
+  const parsed = await parseProBearer(headerValue, env.PRO_CREDENTIAL_PEPPER, dependencies.cryptoImpl || crypto);
+  if (!parsed) return { ok: false, code: 'pro_required' };
+  const session = db(env);
+  const current = await state(session);
+  const row = await credential(session, parsed);
+  if (!row || row.scope !== 'global_pro' || row.revoked_at !== null) return { ok: false, code: 'pro_required' };
+  if (row.generation !== current.generation) return { ok: false, code: 'pro_reauth_required' };
+  return { ok: true };
 }
 
 async function credential(session, parsed) {

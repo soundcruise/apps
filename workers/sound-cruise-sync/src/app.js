@@ -1,3 +1,4 @@
+import { AI_SUPPORT_ROUTE, handleAiSupportRequest } from './ai-support-app.js';
 import { inspectDeviceCredential } from './auth.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { handleAccountApiRequest } from './account-app.js';
@@ -1052,6 +1053,9 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   }
   if (url.pathname.startsWith('/v2/pro-auth/')) {
     return handleProAuthRequest(request, env, _ctx, dependencies);
+  }
+  if (url.pathname === AI_SUPPORT_ROUTE) {
+    return handleAiSupportRequest(request, env, _ctx, dependencies);
   }
   const resolvedAssetRoute = assetRoute(url.pathname);
   const route = ROUTES[url.pathname] || resolvedAssetRoute;
