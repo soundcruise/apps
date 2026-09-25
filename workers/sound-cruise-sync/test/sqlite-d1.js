@@ -32,6 +32,7 @@ const migration27 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration28 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0028_add_app_attention_count.sql'), 'utf8');
 const migration29 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0029_add_pro_auth.sql'), 'utf8');
 const migration30 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0030_add_pro_auth_lockout.sql'), 'utf8');
+const migration31 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0031_add_sync_target_user_labels.sql'), 'utf8');
 
 function statementWrapper(database, sql, values = []) {
   return {
@@ -79,6 +80,7 @@ export function createSqliteD1() {
   database.exec(migration28);
   database.exec(migration29);
   database.exec(migration30);
+  database.exec(migration31);
   let bookmark = 0;
   const binding = {
     prepare(sql) { return statementWrapper(database, sql); },

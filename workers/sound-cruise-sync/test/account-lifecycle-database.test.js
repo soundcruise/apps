@@ -620,7 +620,9 @@ test('active app devices carry their own latest safety report; revoked history d
   assert.equal(byId[IDS.chordDevice].isCurrent, true);
   for (const device of listed) {
     assert.deepEqual(Object.keys(device).sort(), ['appId', 'createdAt', 'id', 'isCurrent', 'label',
-      'lastReport', 'lastSeenAt', 'revokedAt'], 'existing fields are unchanged and only lastReport is added');
+      'lastReport', 'lastSeenAt', 'revokedAt', 'userLabel'],
+    'existing fields are unchanged; lastReport and the nullable userLabel (N1) are added');
+    assert.equal(device.userLabel, null, 'no user label until the user sets one');
     assert.equal('lastSuccessfulSyncAt' in (device.lastReport || {}), false);
   }
 

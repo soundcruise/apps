@@ -48,6 +48,8 @@ import {
   validateAccountAppDetachPayload,
   validateAccountAppDeleteCancelPayload,
   validateAccountAppEnvironmentRevokePayload,
+  validateAccountAppEnvironmentRenamePayload,
+  validateAccountDeviceRenamePayload,
   validateAccountDeviceRevokePayload,
   validateCurrentAppEnvironmentDetachPayload,
   validateCurrentEnvironmentDetachPayload,
@@ -105,6 +107,11 @@ const ACCOUNT_ROUTES = Object.freeze({
     headers: ['authorization', 'x-d1-bookmark']
   },
   '/v2/accounts/devices/revoke': {
+    method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+    headers: ['content-type', 'authorization', 'x-d1-bookmark']
+  },
+  // Rename is a device-management write, so it pauses with revoke/detach.
+  '/v2/accounts/devices/name': {
     method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
     headers: ['content-type', 'authorization', 'x-d1-bookmark']
   },
@@ -202,6 +209,16 @@ function resolvedRoute(pathname, method) {
       method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
       headers: ['content-type', 'authorization', 'x-d1-bookmark'],
       appId: appDeleteCancel[1]
+    };
+  }
+  const appEnvironmentRename = pathname.match(
+    /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/devices\/name$/
+  );
+  if (appEnvironmentRename) {
+    return {
+      method: 'POST', action: ACCOUNT_GATE_ACTIONS.ACCOUNT_DELETE,
+      headers: ['content-type', 'authorization', 'x-d1-bookmark'],
+      appId: appEnvironmentRename[1]
     };
   }
   const appEnvironmentRevoke = pathname.match(
@@ -1224,6 +1241,60 @@ async function handleAppDetach(request, env, origin, route, dependencies, appId)
     if (result.status !== 'detached') return errorResponse(409, 'membership_state_invalid', origin, route);
     return jsonResponse(200, { ok: true, operation: 'detached', ...result },
       origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+// Sync target naming (N1). Account credential only: the Account comes from the credential, the
+// target must be an active one it owns, and only the display name changes. It is never logged.
+async function handleEnvironmentRename(request, env, origin, route, dependencies) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountDeviceRenamePayload(parsed.value);
+  if (!validation.ok) return errorResponse(400, 'invalid_request', origin, route);
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(context.session);
+    const result = await repository.renameEnvironment(context.identity, validation.value);
+    if (result.status === 'not_found') return errorResponse(404, 'account_device_not_found', origin, route);
+    if (result.status !== 'renamed') return errorResponse(409, 'device_rename_unavailable', origin, route);
+    return jsonResponse(200, {
+      ok: true, accountDeviceId: result.accountDeviceId, userLabel: result.userLabel
+    }, origin, route, bookmarkHeader(context.session));
+  } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+}
+
+async function handleAppEnvironmentRename(request, env, origin, route, dependencies, appId) {
+  const parsed = await readJson(request);
+  if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
+  const validation = validateAccountAppEnvironmentRenamePayload(parsed.value);
+  if (!validation.ok || validation.value.appId !== appId) {
+    return errorResponse(400, 'invalid_request', origin, route);
+  }
+  let context;
+  try { context = await accountContext(request, env, dependencies); } catch {
+    return errorResponse(503, 'account_server_error', origin, route);
+  }
+  if (context.error) return errorResponse(context.status, context.error, origin, route);
+  try {
+    const repository = (
+      dependencies.createAccountLifecycleRepository || createD1AccountLifecycleRepository
+    )(context.session);
+    const result = await repository.renameAppEnvironment(context.identity, validation.value);
+    if (result.status === 'not_found') return errorResponse(404, 'app_device_not_found', origin, route);
+    if (result.status !== 'renamed') return errorResponse(409, 'device_rename_unavailable', origin, route);
+    return jsonResponse(200, {
+      ok: true, appId: result.appId, appDeviceId: result.appDeviceId, userLabel: result.userLabel
+    }, origin, route, bookmarkHeader(context.session));
   } catch {
     return errorResponse(503, 'account_server_error', origin, route);
   }
@@ -2313,6 +2384,9 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   if (url.pathname === '/v2/accounts/devices/revoke') {
     return handleEnvironmentRevoke(request, env, origin, route, dependencies);
   }
+  if (url.pathname === '/v2/accounts/devices/name') {
+    return handleEnvironmentRename(request, env, origin, route, dependencies);
+  }
   if (url.pathname === '/v2/accounts/environments/current/detach') {
     return handleCurrentEnvironmentDetach(request, env, origin, route, dependencies);
   }
@@ -2324,6 +2398,14 @@ export async function handleAccountApiRequest(request, env = {}, _ctx, dependenc
   );
   if (membershipDetach) {
     return handleAppDetach(request, env, origin, route, dependencies, membershipDetach[1]);
+  }
+  const appEnvironmentRename = url.pathname.match(
+    /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/devices\/name$/
+  );
+  if (appEnvironmentRename) {
+    return handleAppEnvironmentRename(
+      request, env, origin, route, dependencies, appEnvironmentRename[1]
+    );
   }
   const appEnvironmentRevoke = url.pathname.match(
     /^\/v2\/accounts\/memberships\/(chord|pitch|fretboard|rhythm)\/devices\/revoke$/

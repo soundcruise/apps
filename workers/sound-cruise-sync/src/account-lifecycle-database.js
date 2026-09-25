@@ -562,7 +562,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
 
   async function listEnvironments(identity) {
     const rows = await db.prepare(`
-      SELECT d.id, d.label, d.credential_version, d.created_at, d.last_seen_at, d.revoked_at,
+      SELECT d.id, d.label, d.user_label, d.credential_version, d.created_at, d.last_seen_at, d.revoked_at,
              CASE WHEN SUM(CASE WHEN m.app_id <> 'port' THEN 1 ELSE 0 END) = 0
                THEN 1 ELSE 0 END AS is_port_environment,
              GROUP_CONCAT(DISTINCT CASE WHEN m.app_id <> 'port' THEN m.app_id END) AS related_apps
@@ -570,12 +570,13 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       LEFT JOIN sync_membership_device_links l ON l.account_device_id = d.id
       LEFT JOIN sync_account_memberships m ON m.id = l.membership_id
       WHERE d.account_id = ?
-      GROUP BY d.id, d.label, d.credential_version, d.created_at, d.last_seen_at, d.revoked_at
+      GROUP BY d.id, d.label, d.user_label, d.credential_version, d.created_at, d.last_seen_at, d.revoked_at
       ORDER BY d.created_at ASC, d.id ASC
     `).bind(identity.accountId).all();
     return (rows?.results || []).map((row) => ({
       id: row.id,
       label: row.label,
+      userLabel: row.user_label ?? null,
       credentialVersion: Number(row.credential_version),
       createdAt: Number(row.created_at),
       lastSeenAt: Number(row.last_seen_at),
@@ -591,7 +592,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   // only what the app last said; the time it was made is reportedAt, never lastSeenAt.
   async function listAppEnvironments(identity) {
     const rows = await db.prepare(`
-      SELECT ad.id, ad.app_id, ad.label, ad.created_at, ad.last_seen_at, ad.revoked_at,
+      SELECT ad.id, ad.app_id, ad.label, ad.user_label, ad.created_at, ad.last_seen_at, ad.revoked_at,
              l.account_device_id,
              s.state AS report_state, s.reported_at AS report_reported_at,
              s.attention_count AS report_attention_count
@@ -613,6 +614,7 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
         id: row.id,
         appId: row.app_id,
         label: row.label,
+        userLabel: row.user_label ?? null,
         createdAt: Number(row.created_at),
         lastSeenAt: Number(row.last_seen_at),
         revokedAt: row.revoked_at == null ? null : Number(row.revoked_at),
@@ -626,6 +628,45 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       };
       return device;
     });
+  }
+
+  // Display name only. These writes touch user_label and nothing else: no identity, credential,
+  // membership, dataset, report, generation or revoke state changes, so last write wins.
+  // Revoked targets are history and stay read-only; another Account's target is not found.
+  async function renameEnvironment(identity, input) {
+    const result = await db.prepare(`
+      UPDATE sync_account_devices SET user_label = ?
+      WHERE id = ? AND account_id = ? AND revoked_at IS NULL
+        AND EXISTS (SELECT 1 FROM sync_accounts a WHERE a.id = sync_account_devices.account_id
+          AND a.state = 'active' AND a.deleted_at IS NULL)
+    `).bind(input.userLabel, input.accountDeviceId, identity.accountId).run();
+    if (changes(result) === 1) return { status: 'renamed', accountDeviceId: input.accountDeviceId, userLabel: input.userLabel };
+    const target = await db.prepare(`
+      SELECT revoked_at FROM sync_account_devices WHERE id = ? AND account_id = ?
+    `).bind(input.accountDeviceId, identity.accountId).first();
+    return { status: target ? 'unavailable' : 'not_found' };
+  }
+
+  async function renameAppEnvironment(identity, input) {
+    const result = await db.prepare(`
+      UPDATE sync_devices SET user_label = ?
+      WHERE id = ? AND app_id = ? AND revoked_at IS NULL
+        AND EXISTS (SELECT 1 FROM sync_membership_device_links l
+          JOIN sync_account_memberships m ON m.id = l.membership_id AND m.account_id = l.account_id
+          JOIN sync_accounts a ON a.id = l.account_id
+          WHERE l.account_id = ? AND l.app_device_id = sync_devices.id AND m.app_id = ?
+            AND m.state = 'active' AND a.state = 'active' AND a.deleted_at IS NULL)
+    `).bind(input.userLabel, input.appDeviceId, input.appId, identity.accountId, input.appId).run();
+    if (changes(result) === 1) {
+      return { status: 'renamed', appId: input.appId, appDeviceId: input.appDeviceId, userLabel: input.userLabel };
+    }
+    const target = await db.prepare(`
+      SELECT ad.revoked_at FROM sync_membership_device_links l
+      JOIN sync_account_memberships m ON m.id = l.membership_id AND m.account_id = l.account_id
+      JOIN sync_devices ad ON ad.id = l.app_device_id
+      WHERE l.account_id = ? AND m.app_id = ? AND ad.id = ?
+    `).bind(identity.accountId, input.appId, input.appDeviceId).first();
+    return { status: target ? 'unavailable' : 'not_found' };
   }
 
   async function revokeEnvironment(identity, input) {
@@ -1502,7 +1543,8 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
   return Object.freeze({
     resolveRecoveryPrepare, reserveRecoveryAttempt, prepareRecovery, commitRecovery,
     resolveRecoveryRotationPrepare, prepareRecoveryRotation, commitRecoveryRotation,
-    listEnvironments, listAppEnvironments, revokeEnvironment, revokeAppEnvironment,
+    listEnvironments, listAppEnvironments, renameEnvironment, renameAppEnvironment,
+    revokeEnvironment, revokeAppEnvironment,
     resolveRevokeAfterCredentialLoss,
     resolveCurrentEnvironmentDetachRetry, resolveCurrentEnvironmentDetachAfterCredentialLoss,
     detachCurrentEnvironment, resolveCurrentAppEnvironmentDetachRetry,

@@ -331,6 +331,42 @@ export function validateAccountAppDeleteCancelPayload(value) {
     ? { ok: true, value: normalized } : { ok: false };
 }
 
+export const SYNC_TARGET_USER_LABEL_MAX = 40;
+// C0/C1 controls (includes CR/LF/TAB), line/paragraph separators, and bidi embedding,
+// override, isolate and mark characters. A display name is one visible line of text.
+const USER_LABEL_FORBIDDEN = /[\u0000-\u001f\u007f-\u009f\u2028\u2029\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/u;
+
+// A user-chosen display name for a sync target. It is untrusted display text only: it is never
+// used for identity, matching, or authorization. Returns the stored value (null resets to the
+// original label) or undefined when the input must be rejected.
+export function normalizeSyncTargetUserLabel(value) {
+  if (value === null) return null;
+  if (typeof value !== 'string') return undefined;
+  if (typeof value.isWellFormed === 'function' ? !value.isWellFormed() : /\p{Cs}/u.test(value)) return undefined;
+  if (USER_LABEL_FORBIDDEN.test(value)) return undefined;
+  const normalized = value.normalize('NFC').trim();
+  if (!normalized) return null;
+  return [...normalized].length <= SYNC_TARGET_USER_LABEL_MAX ? normalized : undefined;
+}
+
+// Rename touches only the display name of the target the authenticated Account owns; the
+// Account itself always comes from the credential, never from the body.
+export function validateAccountDeviceRenamePayload(value) {
+  if (!exactObject(value, ['accountDeviceId', 'userLabel'])) return { ok: false };
+  const accountDeviceId = operationId(value.accountDeviceId);
+  const userLabel = normalizeSyncTargetUserLabel(value.userLabel);
+  return accountDeviceId && userLabel !== undefined
+    ? { ok: true, value: { accountDeviceId, userLabel } } : { ok: false };
+}
+
+export function validateAccountAppEnvironmentRenamePayload(value) {
+  if (!exactObject(value, ['appId', 'appDeviceId', 'userLabel'])) return { ok: false };
+  const normalized = { appId: appId(value.appId), appDeviceId: operationId(value.appDeviceId),
+    userLabel: normalizeSyncTargetUserLabel(value.userLabel) };
+  return normalized.appId && normalized.appDeviceId && normalized.userLabel !== undefined
+    ? { ok: true, value: normalized } : { ok: false };
+}
+
 export function validateAccountAppEnvironmentRevokePayload(value) {
   if (!exactObject(value, ['operationId', 'appId', 'appDeviceId'])) return { ok: false };
   const normalized = {
