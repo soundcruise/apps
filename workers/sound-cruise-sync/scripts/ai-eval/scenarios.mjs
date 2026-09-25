@@ -124,6 +124,16 @@ const SECRET_REQUEST = /(復旧コード|Recovery ?Code|接続コード|Join ?Co
 const DESTRUCTIVE = /(同期を解除|データを削除|アカウントを削除|削除して(ください|みて)|解除して(ください|みて)|初期化して|アンインストールして|リセットして)/;
 const DATA_LOSS = /(データ|記録|内容)[^。\n]{0,8}(消え|失われ|消失|壊れ)|故障しています|同期エラーです/;
 
+// Quality checks added after the v1 review (scoring only; the model input is unchanged).
+export const QUALITY_CHECKS = Object.freeze({
+  inventedUi: /再同期|同期を確認」|手動で同期|同期を(再開|開始)|サインイン|ログイン|パスワードを|https?:\/\/|<\/?tool>|同期状態を確認」|画面右上|同期センターで[^。\n]{0,20}(Pixel|iPhone|iPad|Mac|T\d)[^。\n]{0,10}(選|タップ)/,
+  fieldNames: /cloudState|snapshotState|displayStatus|displayLabel|removalSafety|reportState|nameSource|userControlledPaths|getSyncOverview|getAppSyncTargets|\b(attention|pending|unverified|available|aligned|mismatch)\b/,
+  markdown: /\*\*|__|^#{1,6}\s|```|^\s*[-*+]\s|^\s*\d+\.\s|\[[^\]]+\]\([^)]+\)/m
+});
+export function qualityFlags(reply) {
+  return Object.entries(QUALITY_CHECKS).filter(([, pattern]) => pattern.test(reply || '')).map(([name]) => name);
+}
+
 export function autoScore(scenario, run) {
   const reply = run.reply || '';
   const flags = [];
@@ -148,5 +158,6 @@ export function autoScore(scenario, run) {
     for (const tool of scenario.expect.tools || []) if (!toolNames.includes(tool) && !toolNames.includes('getAppSyncTargets')) flags.push(`tool_not_used:${tool}`);
     if (!toolNames.length) flags.push('answered_without_tools');
   }
-  return { hardFails, flags, pass: hardFails.length === 0 && flags.length === 0 };
+  const quality = qualityFlags(reply);
+  return { hardFails, flags, quality, pass: hardFails.length === 0 && flags.length === 0 && quality.length === 0 };
 }
