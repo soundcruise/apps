@@ -195,10 +195,13 @@ export function createAiSupportPanel({
   }
   // Keeps the input and 送信 clear of the software keyboard. visualViewport is the part of the page
   // left visible by the keyboard (iOS Safari / Home Screen and Android Chrome both report it).
-  // With the keyboard up, the 相談内容 block is aligned to the top of that visible part, so the
-  // input and 送信 sit well above the keyboard (and Safari's floating address bar), in the same
-  // place every time. iOS does not shrink the page for the keyboard, so room is added below first.
+  // Each time the keyboard opens, the 相談内容 block is moved once to the top of that visible
+  // part, so the input and 送信 sit well above the keyboard (and Safari's floating address bar).
+  // Exactly one move per opening: re-checking on every viewport event fought iOS's own panning and
+  // made the page shake. iOS does not shrink the page for the keyboard, so room is added below
+  // first, and only ever grown here, so the page height never jumps back and forth.
   let keepComposerVisible = false;
+  let composerPlaced = false;
   const KEYBOARD_MIN_PX = 120;
   function keyboardOpen() {
     const layout = globalThis.document?.documentElement?.clientHeight || globalThis.innerHeight || 0;
@@ -208,32 +211,30 @@ export function createAiSupportPanel({
     const value = parseFloat(globalThis.getComputedStyle?.(form)?.scrollMarginTop);
     return Number.isFinite(value) ? value : 16;
   }
-  function revealComposer() {
-    if (panel.hidden || !keepComposerVisible) return;
-    if (!viewport || !form.getBoundingClientRect) { form.scrollIntoView?.({ block: 'nearest', inline: 'nearest' }); return; }
-    const visibleTop = viewport.offsetTop || 0;
-    if (keyboardOpen()) {
-      makeRoomBelow(form);
-      const delta = form.getBoundingClientRect().top - (visibleTop + topMargin());
-      if (Math.abs(delta) > 2) globalThis.scrollBy?.(0, delta);
-      return;
-    }
-    const bottom = visibleTop + viewport.height;
-    const rect = actions.getBoundingClientRect();
-    if (rect.bottom + 12 > bottom) globalThis.scrollBy?.(0, rect.bottom + 12 - bottom);
+  function growRoomBelow(element) {
+    const doc = globalThis.document?.documentElement;
+    const rect = element.getBoundingClientRect?.();
+    if (!doc || !rect || !room.style) return;
+    const height = Math.max(viewport?.height || 0, globalThis.innerHeight || 0, doc.clientHeight || 0);
+    const missing = Math.ceil(rect.top + (globalThis.scrollY || 0) + height - (doc.scrollHeight || 0));
+    if (missing > 0) room.style.height = `${(parseFloat(room.style.height) || 0) + missing}px`;
   }
-  function scheduleReveal() {
-    if (!keepComposerVisible || globalThis.document?.activeElement !== input) return;
-    if (globalThis.requestAnimationFrame) globalThis.requestAnimationFrame(revealComposer);
-    else revealComposer();
+  function placeComposer() {
+    if (panel.hidden || !keepComposerVisible || composerPlaced || !keyboardOpen()) return;
+    if (globalThis.document?.activeElement !== input || !form.getBoundingClientRect) return;
+    composerPlaced = true;
+    growRoomBelow(form);
+    const delta = form.getBoundingClientRect().top - ((viewport.offsetTop || 0) + topMargin());
+    if (Math.abs(delta) > 2) globalThis.scrollBy?.(0, delta);
   }
-  // resize: the keyboard opened or closed. scroll: iOS panned to the caret after focusing; this
-  // settles once more (revealComposer does nothing when already in place, so it cannot loop).
-  viewport?.addEventListener?.('resize', scheduleReveal);
-  viewport?.addEventListener?.('scroll', scheduleReveal);
+  viewport?.addEventListener?.('resize', () => {
+    if (!keyboardOpen()) { composerPlaced = false; return; } // closed: the next opening moves it again
+    if (globalThis.requestAnimationFrame) globalThis.requestAnimationFrame(placeComposer);
+    else placeComposer();
+  });
   input.addEventListener('focus', () => { keepComposerVisible = true; });
   input.addEventListener('blur', () => { keepComposerVisible = false; });
-  // The user scrolls by hand: stop repositioning until the input is focused again.
+  // The user scrolls by hand: never move the page for them while they do.
   const releaseComposer = () => { keepComposerVisible = false; };
   globalThis.addEventListener?.('touchmove', releaseComposer, { passive: true });
   globalThis.addEventListener?.('wheel', releaseComposer, { passive: true });
@@ -315,8 +316,10 @@ export function createAiSupportPanel({
     // 送信 into view; the visualViewport resize above repeats this once the keyboard is up.
     input.focus({ preventScroll: true });
     keepComposerVisible = true;
+    composerPlaced = false;
     form.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: 'auto' });
-    scheduleReveal();
+    // Keyboard already up (e.g. reopened while typing elsewhere): place it now, once.
+    if (keyboardOpen()) placeComposer();
   }
   function close() {
     panel.hidden = true;

@@ -672,7 +672,7 @@ test('scroll UX: open reveals the input, a sent question and then the reply star
     view.openButton.click();
     assert.equal(view.dom.doc.activeElement, view.input, 'focused inside the tap (iOS keyboard)');
     assert.deepEqual(scrolls.shift(), ['form', { block: 'nearest', inline: 'nearest', behavior: 'auto' }]);
-    assert.equal(frames.length, 1, 'one re-check on the next frame, no timers');
+    assert.equal(frames.length, 0, 'no keyboard: no follow-up moves, no timers');
     view.type('コードクルーズだけ同期されません');
     // Record the bubbles' scrolls as they are created.
     const append = view.log.append.bind(view.log);
@@ -735,7 +735,7 @@ test('code warning: short, smaller, other text unchanged', () => {
   assert.equal(AI_PANEL_COPY.codesWarning, '復旧コード・接続コードなどは入力しないでください。');
 });
 
-test('scroll UX: with the keyboard up, the 相談内容 block is aligned to the top of the visible area', () => {
+test('scroll UX: each keyboard opening moves the 相談内容 block once to the top of the visible area (no loop)', () => {
   const dom = installDom();
   const container = new dom.Node('div');
   dom.root.append(container);
@@ -753,27 +753,34 @@ test('scroll UX: with the keyboard up, the 相談内容 block is aligned to the 
     createAiSupportPanel({ container, client: { send: async () => ({ ok: true, reply: 'x' }) }, mailHref: MAIL, viewport, enterSends: () => false });
     const byClass = (name) => dom.walk(container).find((node) => String(node.className).split(' ').includes(name));
     const form = byClass('sync-center-ai-form');
-    const actions = byClass('sync-center-ai-actions');
+    const room = byClass('sync-center-ai-room');
+    room.style = {};
     let formTop = 540;
     form.getBoundingClientRect = () => ({ top: formTop, bottom: formTop + 220 });
-    actions.getBoundingClientRect = () => ({ top: formTop + 160, bottom: formTop + 210 });
     byClass('sync-center-ai-open').click();
-    assert.deepEqual(scrolled, [], 'no keyboard and already visible: no scroll');
-    viewport.height = 420; // software keyboard opened
+    assert.equal(handlers.scroll, undefined, 'no visualViewport scroll listener (it fought iOS panning)');
+    assert.deepEqual(scrolled, [], 'no keyboard yet: no move');
+    viewport.height = 420; // software keyboard opening (several resize events while it animates)
     handlers.resize();
-    assert.deepEqual(scrolled, [540 - 16], 'the block starts at the top of what is visible');
-    // iOS pans the visual viewport afterwards: the next scroll event settles it relative to that.
-    formTop = 16; viewport.offsetTop = 30;
-    handlers.scroll();
-    assert.deepEqual(scrolled, [524, 16 - 46]);
-    formTop = 46;
-    handlers.scroll();
-    assert.equal(scrolled.length, 2, 'already in place: no further scrolling (no loop)');
-    // The user scrolls by hand: no more repositioning until the input is focused again.
+    assert.deepEqual(scrolled, [540 - 16], 'moved once so the block starts at the top of what is visible');
+    formTop = 90; viewport.offsetTop = 30; viewport.height = 380;
+    handlers.resize(); handlers.resize();
+    assert.equal(scrolled.length, 1, 'further events while the keyboard is up never move it again');
+    viewport.height = 800; handlers.resize(); // keyboard closed
+    viewport.height = 420; viewport.offsetTop = 0; formTop = 300; handlers.resize(); // opened again
+    assert.deepEqual(scrolled, [524, 284], 'one move per opening');
+    // The user scrolls by hand: no more moves, even when the keyboard opens again.
     winListeners.touchmove();
-    formTop = 300;
-    handlers.resize();
+    viewport.height = 800; handlers.resize(); viewport.height = 420; handlers.resize();
     assert.equal(scrolled.length, 2);
+    // Room below only grows, so the page height never flips back and forth.
+    const heights = [];
+    let value = '';
+    Object.defineProperty(room.style, 'height', { get: () => value, set: (next) => { heights.push(next); value = next; }, configurable: true });
+    page.scrollHeight = 900; formTop = 700;
+    byClass('sync-center-ai-input').dispatch('focus');
+    viewport.height = 800; handlers.resize(); viewport.height = 420; handlers.resize();
+    assert.ok(heights.every((height) => height !== '0px'), `grow-only: ${heights}`);
   } finally {
     delete globalThis.scrollBy; delete globalThis.requestAnimationFrame; delete globalThis.getComputedStyle; delete globalThis.addEventListener;
   }
