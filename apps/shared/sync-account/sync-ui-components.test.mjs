@@ -217,7 +217,8 @@ test('Cruise Port settings entry uses the shared card language and isolated acti
   assert.match(portApp, /syncCenterOpen\.addEventListener\('click',[\s\S]*openSyncCenter\(history\)/);
   assert.match(portApp, /syncCenterEntryHelp\?\.addEventListener\('click', openPortSyncHelp\)/);
   assert.match(portApp, /syncCenterHelpOpen\.addEventListener\('click', openPortSyncHelp\)/);
-  assert.match(portApp, /sections: PORT_SYNC_HELP_SECTIONS/);
+  // The AI help section is added only when AI support is on; otherwise the plain sync sections.
+  assert.match(portApp, /sections: aiSupportConfig\?\.enabled \? \[\.\.\.PORT_SYNC_HELP_SECTIONS, PORT_AI_SUPPORT_HELP_SECTION\] : PORT_SYNC_HELP_SECTIONS/);
 });
 
 test('loading prevents duplicates and temporary feedback uses one five-second rule', () => {
