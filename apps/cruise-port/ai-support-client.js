@@ -23,7 +23,9 @@ const STRONG_WORDS = [
   `(?:${latin('Pro')}|プロ)版?の?(?:番号|コード|暗証番号|パスコード)`, '暗証', latin('PIN'), 'パスコード', 'パスワード',
   latin('passcode'), latin('password'), '認証(?:番号|コード)', '接続コード', '復旧コード', '[4四]桁', 'コード\\s*(?:は|:)'
 ];
-const WEAK_WORDS = [latin('Pro'), 'プロ', '番号', 'ログイン', 'ピン', 'コード(?![ァ-ヺー])'];
+// A bare 番号 is not a context: 同期先の番号, 端末番号, 管理番号 are ordinary. Secret numbers are
+// named explicitly above (Proの番号, 暗証番号, 認証番号, 4桁の番号 ...).
+const WEAK_WORDS = [latin('Pro'), 'プロ', 'ログイン', 'ピン', 'コード(?![ァ-ヺー])'];
 const STRONG_CONTEXT = new RegExp(STRONG_WORDS.join('|'), 'gi');
 const ANY_CONTEXT = new RegExp([...STRONG_WORDS, ...WEAK_WORDS].join('|'), 'gi');
 const DIGIT_RUN = /(?<!\d)\d(?:[ \t\-‐‒–—/.:・]{0,3}\d)*(?!\d)/g;

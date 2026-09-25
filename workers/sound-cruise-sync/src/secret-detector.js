@@ -10,7 +10,7 @@
 //   コードは / コード:, 4桁 ...) before exactly 4 digits, split by spaces, hyphens, slashes,
 //   dots or colons: 「PINは1:2:3:4」「コードは1.2.3.4」「Proコードは12/34」, or the same strong
 //   context right after the digits with only a particle between: 「12/34がPINです」;
-// - any context word (also Pro, 番号, ログイン, a standalone コード) near exactly 4 digits split
+// - any context word (also Pro, ログイン, a standalone コード; never a bare 番号) near exactly 4 digits split
 //   only by spaces or hyphens: 「Proの番号は 12 34」「1234 がProの番号」.
 // Numbers followed by a unit (2026年), dates, times and versions without a strong context
 // (2026/09/25, 12:34, v1.2.3.4) and context-free numbers (エラー404, HTTP 500) are not secret.
@@ -32,7 +32,9 @@ const STRONG_WORDS = [
   `(?:${latin('Pro')}|プロ)版?の?(?:番号|コード|暗証番号|パスコード)`, '暗証', latin('PIN'), 'パスコード', 'パスワード',
   latin('passcode'), latin('password'), '認証(?:番号|コード)', '接続コード', '復旧コード', '[4四]桁', 'コード\\s*(?:は|:)'
 ];
-const WEAK_WORDS = [latin('Pro'), 'プロ', '番号', 'ログイン', 'ピン', 'コード(?![ァ-ヺー])'];
+// A bare 番号 is not a context: 同期先の番号, 端末番号, 管理番号 are ordinary. Secret numbers are
+// named explicitly above (Proの番号, 暗証番号, 認証番号, 4桁の番号 ...).
+const WEAK_WORDS = [latin('Pro'), 'プロ', 'ログイン', 'ピン', 'コード(?![ァ-ヺー])'];
 const STRONG_CONTEXT = new RegExp(STRONG_WORDS.join('|'), 'gi');
 const ANY_CONTEXT = new RegExp([...STRONG_WORDS, ...WEAK_WORDS].join('|'), 'gi');
 const DIGIT_RUN = /(?<!\d)\d(?:[ \t\-‐‒–—/.:・]{0,3}\d)*(?!\d)/g;

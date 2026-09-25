@@ -564,3 +564,13 @@ test('final blockers: reverse-context codes are refused before sending, same as 
   }
   assert.equal(requests, 0);
 });
+
+test('four-digit false positive: Port and Worker agree on benign numbers and secret contexts', () => {
+  const benign = ['同期先の番号は1234です', '同期先番号は1234です', '端末の番号は1234です', '端末番号は1234です', '機器番号は1234です',
+    '管理番号は1234です', '対象番号は1234です', '同期先1234で同期に不具合があるみたいなんですが、解消の仕方がわかりません',
+    '同期先 1234 だけ同期されません', '端末ID 1234を確認したいです', 'エラー1234が表示されました'];
+  const secret = ['PINは1234です', '1234がPINです', '暗証番号は1234です', '1234が暗証番号です', 'Proコードは1234です', '1234がProコードです',
+    'Proの番号は1234です', '1234がProの番号です', '認証番号は1234です', '1234が認証番号です', '接続コードは1234です', '復旧コードは1234です'];
+  for (const text of benign) { assert.equal(containsSecret(text), false, text); assert.equal(workerContainsSecret(text), false, text); }
+  for (const text of secret) { assert.equal(containsSecret(text), true, text); assert.equal(workerContainsSecret(text), true, text); }
+});

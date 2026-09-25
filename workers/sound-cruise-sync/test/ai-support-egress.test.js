@@ -465,3 +465,36 @@ test('R6: diagnostics know Account, Account device and App device IDs and refuse
   const safe = createNameSafety(known);
   for (const id of KNOWN) for (const form of idVariants(id)) assert.equal(safe(`端末 ${form}`), false);
 });
+
+// ------------------------------------------------------------------ Four-digit false positive fix
+
+const BENIGN_FOUR_DIGITS = ['同期先の番号は1234です', '同期先番号は1234です', '端末の番号は1234です', '端末番号は1234です',
+  '機器番号は1234です', '管理番号は1234です', '対象番号は1234です',
+  '同期先1234で同期に不具合があるみたいなんですが、解消の仕方がわかりません', '同期先 1234 だけ同期されません',
+  '端末ID 1234を確認したいです', 'エラー1234が表示されました'];
+const SECRET_FOUR_DIGITS = ['PINは1234です', '1234がPINです', '暗証番号は1234です', '1234が暗証番号です', 'Proコードは1234です',
+  '1234がProコードです', 'Proの番号は1234です', '1234がProの番号です', '認証番号は1234です', '1234が認証番号です',
+  '接続コードは1234です', '復旧コードは1234です', 'Proコードは12/34', '12/34がPINです', '1.2.3.4 が暗証番号です', '1:2:3:4 がProコードです'];
+
+test('FP: a bare 番号 is not a secret context; explicit secret contexts still block', async () => {
+  for (const benign of BENIGN_FOUR_DIGITS) assert.equal(containsSecret(benign), false, benign);
+  for (const secret of SECRET_FOUR_DIGITS) assert.equal(containsSecret(secret), true, secret);
+  // The direct regression reaches the model; Proの番号 does not.
+  const ok = provider([text(GOOD)]);
+  const turn = await runSupportTurn({ provider: ok, diagnostics: plain(), message: '同期先の番号は1234です' });
+  assert.equal(turn.reply, GOOD);
+  assert.equal(ok.calls.length, 1);
+  for (const secret of ['Proの番号は1234です', '認証番号は1234です']) {
+    const p = provider([text(GOOD)]);
+    assert.equal((await runSupportTurn({ provider: p, diagnostics: plain(), message: secret })).egressBlocked, true);
+    assert.equal(p.calls.length, 0);
+  }
+});
+
+test('FP: benign four-digit display names are kept; secret-like and ID-like names fall back', () => {
+  const safe = createNameSafety(KNOWN);
+  for (const name of ['同期先の番号は1234', '同期先1234', 'iPhone 1234', 'Pixel 1234', 'MacBook 1234']) assert.equal(safe(name), true, name);
+  for (const name of ['PIN 1234', '暗証番号1234', 'Proの番号1234', ACCOUNT_ID, ID_A, APP_DEVICE_ID.replace(/-/g, '_')]) {
+    assert.equal(safe(name), false, 'unsafe name falls back');
+  }
+});
