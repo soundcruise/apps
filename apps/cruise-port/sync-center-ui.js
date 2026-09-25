@@ -305,7 +305,7 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
         {
             id: 'port', name: 'Cruise Port',
             subtitle: null,
-            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.59.3`,
+            icon: `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.69.0`,
             available: activeAccount,
             environments: portEnvironments
         },
@@ -465,7 +465,7 @@ function showJoinCode(root, result, edition = 'standard', onClose = async () => 
         badge.className = 'sync-center-join-target';
         const icon = document.createElement('img');
         icon.src = isPortAddition
-            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.59.3`
+            ? `/apps/cruise-port/assets/app-icons/${edition === 'pro' ? 'pro' : 'standard'}/icon-192.png?v=0.69.0`
             : CRUISE_APP_ICONS[target.id][edition === 'pro' ? 'pro' : 'standard'];
         icon.alt = '';
         icon.width = 44;

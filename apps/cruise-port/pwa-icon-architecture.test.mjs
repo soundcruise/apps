@@ -29,7 +29,7 @@ function assertManifest({ manifestDirectory, expectedId, expectedName, expectedP
         ['512x512', 'maskable']
     ]);
     for (const icon of manifest.icons) {
-        assert.match(icon.src, new RegExp(`${expectedPrefix}/icon(?:-maskable)?-(?:192|512)\\.png\\?v=0\\.59\\.3$`));
+        assert.match(icon.src, new RegExp(`${expectedPrefix}/icon(?:-maskable)?-(?:192|512)\\.png\\?v=0\\.69\\.0$`));
         const relativePath = icon.src.split('?')[0];
         const target = path.resolve(manifestDirectory, relativePath);
         assert.equal(existsSync(target), true, `manifest icon exists: ${icon.src}`);
@@ -54,23 +54,23 @@ test('Standard and Pro manifests use distinct edition identities and icon sets',
 });
 
 test('each edition references only its formal favicon, Apple icon, and cache-busted manifest', () => {
-    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.64\.0">/);
-    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.64\.0/);
-    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.64\.0/);
-    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.64\.0">/);
-    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.64\.0/);
-    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.64\.0/);
+    assert.match(standardHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.69\.0">/);
+    assert.match(standardHtml, /apple-touch-icon[^>]+assets\/app-icons\/standard\/apple-touch-icon-180\.png\?v=0\.69\.0/);
+    assert.match(standardHtml, /rel="icon"[^>]+assets\/app-icons\/standard\/favicon-32\.png\?v=0\.69\.0/);
+    assert.match(proHtml, /<link rel="manifest" href="\.\/manifest\.json\?v=0\.69\.0">/);
+    assert.match(proHtml, /apple-touch-icon[^>]+assets\/app-icons\/pro\/apple-touch-icon-180\.png\?v=0\.69\.0/);
+    assert.match(proHtml, /rel="icon"[^>]+assets\/app-icons\/pro\/favicon-32\.png\?v=0\.69\.0/);
     assert.doesNotMatch(standardHtml, /data:,/);
     assert.doesNotMatch(proHtml, /data:,/);
 });
 
 test('every in-app Cruise Port icon uses its matching edition asset with the current cache key', () => {
-    assert.match(standardHtml, /assets\/app-icons\/standard\/icon-192\.png\?v=0\.64\.0/);
-    assert.match(proHtml, /assets\/app-icons\/pro\/icon-192\.png\?v=0\.64\.0/);
+    assert.match(standardHtml, /assets\/app-icons\/standard\/icon-192\.png\?v=0\.69\.0/);
+    assert.match(proHtml, /assets\/app-icons\/pro\/icon-192\.png\?v=0\.69\.0/);
     const syncCenterUi = readFileSync(path.join(directory, 'sync-center-ui.js'), 'utf8');
-    const portIcon = /assets\/app-icons\/\$\{edition === 'pro' \? 'pro' : 'standard'\}\/icon-192\.png\?v=0\.59\.3/g;
+    const portIcon = /assets\/app-icons\/\$\{edition === 'pro' \? 'pro' : 'standard'\}\/icon-192\.png\?v=0\.69\.0/g;
     assert.equal([...syncCenterUi.matchAll(portIcon)].length, 2);
-    assert.doesNotMatch(syncCenterUi, /assets\/app-icons\/(?:standard|pro)\/icon-192\.png(?!\?v=0\.59\.3)/);
+    assert.doesNotMatch(syncCenterUi, /assets\/app-icons\/(?:standard|pro)\/icon-192\.png(?!\?v=0\.69\.0)/);
 });
 
 test('home screen names are unified while browser titles retain Edition distinction', () => {
@@ -119,5 +119,29 @@ test('Standard and Pro formal assets stay distinct for every exported icon size'
             readFileSync(path.join(directory, 'assets', 'app-icons', 'pro', name)),
             `${name} does not cross-contaminate Standard and Pro editions`
         );
+    }
+});
+
+test('0.69.0 icons: generated from the final sources, full-bleed where the OS masks, metadata-free', () => {
+    for (const edition of ['standard', 'pro']) {
+        const dir = path.join(directory, 'assets', 'app-icons', edition);
+        for (const name of ['icon-192.png', 'icon-512.png', 'icon-maskable-192.png', 'icon-maskable-512.png',
+            'apple-touch-icon-180.png', 'favicon-32.png']) {
+            const bytes = readFileSync(path.join(dir, name));
+            const chunks = [];
+            for (let offset = 8; offset < bytes.length;) {
+                const length = bytes.readUInt32BE(offset);
+                chunks.push(bytes.toString('latin1', offset + 4, offset + 8));
+                offset += 12 + length;
+            }
+            assert.deepEqual([...new Set(chunks)].filter((type) => !['IHDR', 'IDAT', 'IEND'].includes(type)), [],
+                `${edition}/${name} carries no metadata chunks`);
+        }
+    }
+    for (const manifest of [readFileSync(path.join(directory, 'manifest.json'), 'utf8'),
+        readFileSync(path.join(directory, 'pro_9a3943176561', 'manifest.json'), 'utf8')]) {
+        const icons = JSON.parse(manifest).icons;
+        assert.deepEqual(icons.map((icon) => icon.purpose), ['any', 'any', 'maskable', 'maskable']);
+        assert.ok(icons.every((icon) => icon.src.endsWith('?v=0.69.0')), 'new images are fetched under a new key');
     }
 });
