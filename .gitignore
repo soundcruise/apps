@@ -1,3 +1,5 @@
 .DS_Store
 .venv/
 /.wrangler/
+# Local Wrangler state/cache (e.g. getPlatformProxy for AI evaluation)
+workers/sound-cruise-sync/.wrangler/

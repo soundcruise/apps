@@ -1,7 +1,7 @@
 // POST /v2/ai-support/chat (AI1-B, not enabled in production).
 //
 // Order: origin/CORS → AI gate → body limits → secret filter → Pro (read-only) → QA (read-only)
-// → Account (read-only, AI1-A) → rate limit → one support turn. Every D1 access on this path is a
+// → Account (read-only, AI1-A) → rate limits (per IP before auth, per Account after) → one turn. Every D1 access on this path is a
 // SELECT; nothing is stored. The gate is AI-specific (AI_SUPPORT_MODE, default off) and never
 // shares a sync gate. Beta scope = gate 'beta' + a valid Pro credential + an Account credential.
 import { openSyncDiagnostics } from './ai-diagnostics.js';
@@ -86,9 +86,19 @@ export async function handleAiSupportRequest(request, env = {}, _ctx, dependenci
   // AI-only gate. Anything but an explicit 'beta' is off, and the AI can be stopped alone.
   if (env.AI_SUPPORT_MODE !== 'beta') return fail(404, 'ai_support_disabled', origin);
   const modelKey = env.AI_SUPPORT_MODEL || DEFAULT_AI_SUPPORT_MODEL;
-  if (!AI_SUPPORT_MODELS[modelKey] || !env.AI || !env.AI_SUPPORT_RATE_LIMITER?.limit) {
+  if (!AI_SUPPORT_MODELS[modelKey] || !env.AI || !env.AI_SUPPORT_RATE_LIMITER?.limit ||
+      !env.AI_SUPPORT_IP_RATE_LIMITER?.limit) {
     return fail(503, 'ai_support_unavailable', origin);
   }
+  // Per-IP limit first (before any D1 read); the per-Account limit follows authentication.
+  let ipLimited;
+  try {
+    ipLimited = await env.AI_SUPPORT_IP_RATE_LIMITER.limit({
+      key: `ai-support-ip:${request.headers.get('CF-Connecting-IP') || 'missing'}` });
+  } catch {
+    return fail(503, 'ai_support_unavailable', origin);
+  }
+  if (ipLimited?.success !== true) return fail(429, 'rate_limited', origin, { 'Retry-After': '60' });
 
   const read = await readBodyWithLimit(request, MAX_BODY_BYTES);
   if (!read.ok) return fail(read.tooLarge ? 413 : 400, read.tooLarge ? 'payload_too_large' : 'invalid_json', origin);

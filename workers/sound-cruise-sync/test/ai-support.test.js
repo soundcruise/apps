@@ -8,6 +8,7 @@ import { createIdentityMaterial, hmacVerifier } from '../src/crypto.js';
 import { createQaCredential, qaCredentialVerifier } from '../src/account-qa-crypto.js';
 import { AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, containsSecret, validateToolCall } from '../src/ai-support-policy.js';
 import { normalizeCompletion } from '../src/ai-support-provider.js';
+import { sanitizeReply, containsMarkdown } from '../src/ai-support-policy.js';
 import { createSqliteD1 } from './sqlite-d1.js';
 
 // Cloud Sync UX 2.0 Phase AI1-B: the AI support route with a mock Workers AI binding. No real
@@ -67,6 +68,7 @@ function environment(db, overrides = {}) {
     TURNSTILE_PRODUCTION_SECRET_KEY: 'test-only-turnstile-secret',
     AI_SUPPORT_MODE: 'beta',
     AI_SUPPORT_RATE_LIMITER: limiter(),
+    AI_SUPPORT_IP_RATE_LIMITER: limiter(),
     ...overrides
   };
 }
@@ -218,6 +220,7 @@ test('6: AI gate off by default, beta requires Pro, limiter and a known model; n
     assert.equal((await response.json()).code, 'ai_support_disabled');
   }
   assert.equal((await chat({ ...env, AI: ai, AI_SUPPORT_RATE_LIMITER: undefined }, a, pro, { message: 'x' })).status, 503);
+  assert.equal((await chat({ ...env, AI: ai, AI_SUPPORT_IP_RATE_LIMITER: undefined }, a, pro, { message: 'x' })).status, 503);
   assert.equal((await chat({ ...env, AI: undefined }, a, pro, { message: 'x' })).status, 503);
   assert.equal((await chat({ ...env, AI: ai, AI_SUPPORT_MODEL: 'gpt-9' }, a, pro, { message: 'x' })).status, 503);
   let response = await handleRequest(plainRequest('/v2/ai-support/chat', { message: 'x' }, a.auth), { ...env, AI: ai });
@@ -398,12 +401,23 @@ test('cross-account: tools only ever see the caller\'s Account', async () => {
   db.close();
 });
 
-test('rate limit is per Account and uses the AI-only limiter', async () => {
+test('rate limits: per IP before any D1 read, then per Account; AI-only limiters', async () => {
   const { db, env, a, pro } = await setup();
   const limited = limiter(false);
-  const response = await chat({ ...env, AI: mockAi([]), AI_SUPPORT_RATE_LIMITER: limited }, a, pro, { message: 'x' });
+  let response = await chat({ ...env, AI: mockAi([]), AI_SUPPORT_RATE_LIMITER: limited }, a, pro, { message: 'x' });
   assert.equal(response.status, 429);
   assert.deepEqual(limited.calls, [{ key: `ai-support:${a.accountId}` }]);
+  const ipLimited = limiter(false);
+  const { env: recorded, statements } = recording({ ...env, AI: mockAi([]), AI_SUPPORT_IP_RATE_LIMITER: ipLimited });
+  response = await handleRequest(plainRequest('/v2/ai-support/chat', { message: 'x' }, {
+    ...a.auth, 'X-Sound-Cruise-Pro-Authorization': `Bearer ${pro}`, 'CF-Connecting-IP': '203.0.113.9' }), recorded);
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get('Retry-After'), '60');
+  assert.deepEqual(ipLimited.calls, [{ key: 'ai-support-ip:203.0.113.9' }]);
+  assert.deepEqual(statements, [], 'an IP-limited request never reaches D1');
+  const wrangler = fs.readFileSync(path.join(import.meta.dirname, '../wrangler.jsonc'), 'utf8');
+  assert.match(wrangler, /"name": "AI_SUPPORT_RATE_LIMITER",\s*"namespace_id": "32015",\s*"simple": \{\s*"limit": 6,\s*"period": 60/);
+  assert.match(wrangler, /"name": "AI_SUPPORT_IP_RATE_LIMITER",\s*"namespace_id": "32016",\s*"simple": \{\s*"limit": 20,\s*"period": 60/);
   db.close();
 });
 
@@ -432,9 +446,12 @@ test('provider normalization accepts chat-completions, classic and Responses sha
   assert.throws(() => normalizeCompletion(null), /ai_provider_unavailable/);
 });
 
-test('no production config change: no AI binding in wrangler.jsonc; AI gate defaults off', () => {
+test('production config candidate: AI binding present but AI_SUPPORT_MODE is "off"', () => {
   const wrangler = fs.readFileSync(path.join(import.meta.dirname, '../wrangler.jsonc'), 'utf8');
-  assert.doesNotMatch(wrangler, /"ai"\s*:|AI_SUPPORT_MODE"\s*:\s*"beta"/);
+  assert.match(wrangler, /"AI_SUPPORT_MODE": "off"/);
+  assert.doesNotMatch(wrangler, /AI_SUPPORT_MODE"\s*:\s*"beta"/);
+  assert.match(wrangler, /"ai": \{\s*"binding": "AI"\s*\}/);
+  assert.doesNotMatch(wrangler, /gateway/i, 'no AI Gateway (no prompt logging) in the candidate');
   const source = fs.readFileSync(path.join(import.meta.dirname, '../src/ai-support-app.js'), 'utf8');
   assert.match(source, /env\.AI_SUPPORT_MODE !== 'beta'/);
   assert.doesNotMatch(source, /console\.|\.prepare\(|INSERT|UPDATE /, 'no logging and no SQL in the route');
@@ -445,7 +462,19 @@ test('no production config change: no AI binding in wrangler.jsonc; AI gate defa
 
 test('system prompt states the real UI and forbids invented flows, Markdown and field names', () => {
   for (const fact of ['同期コード', 'Cruise Portと接続', 'ログイン・サインイン・パスワードの仕組みは無い', 'URL を作らない',
-    '「もう一度確認」はアプリ単位', 'Markdown', 'cloudState', '原因はここからは分かりません']) {
+    '「もう一度確認」はアプリ単位', 'Markdown', 'cloudState', '現在の情報だけでは原因を特定できません',
+    '同期先を案内する前に必ずそのアプリの getAppSyncTargets を呼ぶ', '概要だけから同期先の名前を推測しない',
+    '「1.」「-」「・」で始まる箇条書き', 'mismatch、cloudState、snapshotState、removalSafety', '表示されていれば押してください']) {
     assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes(fact), fact);
   }
+});
+
+test('replies are plain text: Markdown is removed server-side, words kept', () => {
+  const raw = '## 手順\n1. **Pixel** で開く\n- __設定__ を確認\n```js\nx\n```\n[メール](mailto:x@example.com) へ';
+  assert.equal(containsMarkdown(raw), true);
+  const plain = sanitizeReply(raw);
+  assert.equal(containsMarkdown(plain), false, plain);
+  for (const word of ['手順', 'Pixel で開く', '設定 を確認', 'メール へ']) assert.ok(plain.includes(word), word);
+  assert.doesNotMatch(plain, /mailto|\*\*|```|^#/m);
+  assert.equal(sanitizeReply('2026年に 404 エラー。3.5秒待つ。'), '2026年に 404 エラー。3.5秒待つ。', 'ordinary text is untouched');
 });

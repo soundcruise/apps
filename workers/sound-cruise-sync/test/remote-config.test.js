@@ -35,8 +35,13 @@ test('production Worker remains exact-origin, observable, and secret-free in rep
     'START_RATE_LIMITER', 'SYNC_RATE_LIMITER', 'PAIRING_ISSUE_RATE_LIMITER', 'PAIR_RATE_LIMITER', 'RECOVERY_RATE_LIMITER',
     'ACCOUNT_QA_ENROLL_RATE_LIMITER', 'ACCOUNT_START_RATE_LIMITER', 'ACCOUNT_HANDOFF_ISSUE_RATE_LIMITER',
     'ACCOUNT_HANDOFF_CONSUME_RATE_LIMITER', 'ACCOUNT_APP_JOIN_ISSUE_RATE_LIMITER', 'ACCOUNT_APP_JOIN_CONSUME_RATE_LIMITER',
-    'ACCOUNT_RECOVERY_RATE_LIMITER', 'ACCOUNT_BRIDGE_RATE_LIMITER', 'PRO_VERIFY_RATE_LIMITER'
+    'ACCOUNT_RECOVERY_RATE_LIMITER', 'ACCOUNT_BRIDGE_RATE_LIMITER', 'PRO_VERIFY_RATE_LIMITER',
+    'AI_SUPPORT_RATE_LIMITER', 'AI_SUPPORT_IP_RATE_LIMITER'
   ]);
+  // AI support (AI1): binding and limiters are present, but the route stays off until "beta".
+  assert.equal(config.vars.AI_SUPPORT_MODE, 'off');
+  assert.equal(config.vars.AI_SUPPORT_MODEL, 'gpt-oss-120b');
+  assert.deepEqual(config.ai, { binding: 'AI' });
   assert.deepEqual(config.ratelimits.find((entry) => entry.name === 'ACCOUNT_QA_ENROLL_RATE_LIMITER'), {
     name: 'ACCOUNT_QA_ENROLL_RATE_LIMITER', namespace_id: '32006', simple: { limit: 5, period: 60 }
   });

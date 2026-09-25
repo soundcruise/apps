@@ -249,7 +249,7 @@ test('the diagnostic layer has no SQL, D1 access, fetch, URL or storage of its o
   const migrations = fs.readdirSync(path.join(import.meta.dirname, '../migrations'));
   assert.equal(migrations.at(-1), '0031_add_sync_target_user_labels.sql', 'no new migration');
   const wrangler = fs.readFileSync(path.join(import.meta.dirname, '../wrangler.jsonc'), 'utf8');
-  assert.doesNotMatch(wrangler, /"ai"\s*:|"binding"\s*:\s*"AI"/, 'no AI binding');
+  assert.match(wrangler, /"AI_SUPPORT_MODE": "off"/, 'the AI binding exists only behind the AI gate, off by default');
   const app = fs.readFileSync(path.join(import.meta.dirname, '../src/account-app.js'), 'utf8');
   assert.doesNotMatch(app, /ai-diagnostics|'\/v2\/ai|openSyncDiagnostics|getSyncOverview/, 'no public diagnostics route');
   const index = fs.readFileSync(path.join(import.meta.dirname, '../src/app.js'), 'utf8');

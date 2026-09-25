@@ -18,8 +18,13 @@ const args = Object.fromEntries(process.argv.slice(2).map((arg, index, all) =>
 const modelKey = args.model;
 if (!AI_SUPPORT_MODELS[modelKey]) throw new Error(`--model must be one of ${Object.keys(AI_SUPPORT_MODELS).join(', ')}`);
 const dry = args.dry === true;
-const MAX_CASES = 30; // 10 scenarios × 3 phrasings
-const MAX_AI_RUNS = 100; // ≤3 model calls per case + ≤1 retry of a few cases; hard stop beyond this
+// --targeted: the 12 cases used to check a prompt change (2 phrasings each of attention, error,
+// pending, mismatch, unknown and hostile names) instead of the full 30.
+const TARGETED = Object.freeze({ S3: [0, 2], S4: [0, 1], S2: [0, 1], S6: [1, 2], S9: [0, 1], S10: [0, 2] });
+const targeted = args.targeted === true;
+const MAX_CASES = targeted ? 12 : 30; // 10 scenarios × 3 phrasings, or the targeted 12
+const MAX_AI_RUNS = targeted ? 40 : 100; // ≤3 model calls per case + ≤1 retry of a few cases; hard stop beyond this
+const label = typeof args.label === 'string' ? `.${args.label.replace(/[^a-z0-9-]/gi, '')}` : '';
 const outDir = path.join(import.meta.dirname, 'results');
 
 let aiRuns = 0;
@@ -61,7 +66,9 @@ function tracked(diagnostics, calls) {
 const results = [];
 try {
   for (const scenario of SCENARIOS) {
-    for (const phrasing of scenario.phrasings) {
+    if (targeted && !TARGETED[scenario.id]) continue;
+    for (const [phrasingIndex, phrasing] of scenario.phrasings.entries()) {
+      if (targeted && !TARGETED[scenario.id].includes(phrasingIndex)) continue;
       if (results.length >= MAX_CASES) break;
       let attempt = 0;
       let run;
@@ -94,7 +101,12 @@ const tokens = results.reduce((sum, result) => ({
   input: sum.input + (result.stats?.usage.inputTokens || 0), output: sum.output + (result.stats?.usage.outputTokens || 0)
 }), { input: 0, output: 0 });
 const summary = {
-  model: AI_SUPPORT_MODELS[modelKey].id, dry, cases: results.length, aiRuns,
+  model: AI_SUPPORT_MODELS[modelKey].id, dry, targeted, cases: results.length, aiRuns,
+  rawModelMarkdown: results.filter((result) => result.stats?.rawMarkdown).length,
+  quality: results.reduce((tally, result) => {
+    for (const name of result.score.quality || []) tally[name] += 1;
+    return tally;
+  }, { inventedUi: 0, fieldNames: 0, markdown: 0 }),
   autoPass: results.filter((result) => result.score.pass).length,
   hardFails: results.flatMap((result) => result.score.hardFails.map((fail) => `${result.scenario}:${fail}`)),
   flagged: results.filter((result) => result.score.flags.length).map((result) => `${result.scenario}:${result.score.flags.join('|')}`),
@@ -104,5 +116,5 @@ const summary = {
   approxCostUsd: Number(((tokens.input / 1e6) * price.inputPerM + (tokens.output / 1e6) * price.outputPerM).toFixed(4))
 };
 fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(path.join(outDir, `${modelKey}${dry ? '.dry' : ''}.json`), `${JSON.stringify({ summary, results }, null, 2)}\n`);
+fs.writeFileSync(path.join(outDir, `${modelKey}${label}${dry ? '.dry' : ''}.json`), `${JSON.stringify({ summary, results }, null, 2)}\n`);
 process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);

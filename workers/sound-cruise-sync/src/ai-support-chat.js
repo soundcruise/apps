@@ -3,7 +3,8 @@
 // results in the AI1-A trust envelope. Provider- and model-agnostic; nothing is stored.
 import { toModelToolResult } from './ai-diagnostics.js';
 import {
-  AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, FALLBACK_REPLIES, sanitizeReply, validateToolCall
+  AI_SUPPORT_LIMITS, AI_SUPPORT_SYSTEM_PROMPT, AI_SUPPORT_TOOLS, FALLBACK_REPLIES, containsMarkdown, sanitizeReply,
+  validateToolCall
 } from './ai-support-policy.js';
 
 // history: earlier [{ role: 'user' | 'assistant', content }] (already validated and capped).
@@ -26,6 +27,8 @@ export async function runSupportTurn({ provider, diagnostics, history = [], mess
     const result = await provider.complete({ messages, tools: toolsAllowed ? AI_SUPPORT_TOOLS : [] });
     track(result);
     if (!result.toolCalls.length) {
+      // Recorded for evaluation: whether the model itself produced Markdown before it was removed.
+      stats.rawMarkdown = containsMarkdown(result.text);
       const reply = sanitizeReply(result.text);
       return { reply: reply || FALLBACK_REPLIES.noAnswer, stats };
     }

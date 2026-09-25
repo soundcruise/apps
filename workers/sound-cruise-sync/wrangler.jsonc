@@ -32,7 +32,12 @@
     "TURNSTILE_EXPECTED_ACTION": "sound_cruise_sync_start",
     "TURNSTILE_PAIR_EXPECTED_ACTION": "sound_cruise_sync_pair",
     "TURNSTILE_RECOVER_EXPECTED_ACTION": "sound_cruise_sync_recover",
-    "TURNSTILE_PRO_EXPECTED_ACTION": "sound_cruise_pro_verify"
+    "TURNSTILE_PRO_EXPECTED_ACTION": "sound_cruise_pro_verify",
+    "AI_SUPPORT_MODE": "off",
+    "AI_SUPPORT_MODEL": "gpt-oss-120b"
+  },
+  "ai": {
+    "binding": "AI"
   },
   "d1_databases": [
     {
@@ -158,6 +163,22 @@
       "namespace_id": "32014",
       "simple": {
         "limit": 5,
+        "period": 60
+      }
+    },
+    {
+      "name": "AI_SUPPORT_RATE_LIMITER",
+      "namespace_id": "32015",
+      "simple": {
+        "limit": 6,
+        "period": 60
+      }
+    },
+    {
+      "name": "AI_SUPPORT_IP_RATE_LIMITER",
+      "namespace_id": "32016",
+      "simple": {
+        "limit": 20,
         "period": 60
       }
     }
