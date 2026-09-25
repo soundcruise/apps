@@ -1,4 +1,4 @@
-import { describeSyncTargetNames, shortTargetIds } from './sync-target-name.js?v=0.65.0';
+import { describeSyncTargetNames, shortTargetIds } from './sync-target-name.js?v=0.66.0';
 
 // Builds the ⓘ detail for one app row: the cloud state from the Account summary, and each active
 // sync target's own last report from the devices list. It only repeats what those two responses

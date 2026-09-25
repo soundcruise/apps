@@ -1,4 +1,4 @@
-import { normalizeUserLabel } from './sync-target-name.js?v=0.65.0';
+import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
 
 export const SYNC_CENTER_ROUTE = '#sync-center';
 

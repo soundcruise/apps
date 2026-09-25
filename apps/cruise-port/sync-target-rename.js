@@ -1,4 +1,4 @@
-import { USER_LABEL_MAX, normalizeUserLabel, userLabelLength } from './sync-target-name.js?v=0.65.0';
+import { USER_LABEL_MAX, normalizeUserLabel, userLabelLength } from './sync-target-name.js?v=0.66.0';
 
 // The rename dialog for one sync target (N1). It changes only the display name. It is online-only:
 // nothing is queued, and a failure leaves the dialog open with the user's text intact.
