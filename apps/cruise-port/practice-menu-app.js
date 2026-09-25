@@ -323,10 +323,14 @@ const PORT_AI_SUPPORT_HELP_SECTION = Object.freeze({
     ])
 });
 
+// privacy.html sits next to this module; resolving from the module URL works from the Standard
+// entry and from the Pro folder alike (a page-relative './privacy.html' breaks under pro_*/).
+const PORT_PRIVACY_HREF = new URL('./privacy.html', import.meta.url).href;
+
 function openPortSyncHelp() {
     globalThis.SoundCruiseSyncUI?.openHelp?.({
         document,
-        privacyHref: './privacy.html',
+        privacyHref: PORT_PRIVACY_HREF,
         summary: PORT_SYNC_HELP_SUMMARY,
         sections: aiSupportConfig?.enabled ? [...PORT_SYNC_HELP_SECTIONS, PORT_AI_SUPPORT_HELP_SECTION] : PORT_SYNC_HELP_SECTIONS
     });

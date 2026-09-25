@@ -525,3 +525,23 @@ test('AI1-C final: full IDs and slash/dot/colon codes are refused before sending
   }
   assert.equal(requests, 0);
 });
+
+test('Pro Sync Help: the Privacy link resolves from the module URL, so it works under pro_*/', () => {
+  const app = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
+  assert.match(app, /const PORT_PRIVACY_HREF = new URL\('\.\/privacy\.html', import\.meta\.url\)\.href;/);
+  assert.match(app, /privacyHref: PORT_PRIVACY_HREF,/);
+  assert.doesNotMatch(app, /privacyHref: '\.\/privacy\.html'/);
+  const standard = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
+  const pro = readFileSync(new URL('./pro_9a3943176561/index.html', import.meta.url), 'utf8');
+  const moduleSrc = (html) => html.match(/<script type="module" src="([^"]*practice-menu-app\.js[^"]*)"/)[1];
+  for (const [page, html] of [['https://soundcruise.jp/apps/cruise-port/', standard],
+    ['https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/', pro], ['https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/index.html', pro]]) {
+    const moduleUrl = new URL(moduleSrc(html), page);
+    const privacy = new URL('./privacy.html', moduleUrl);
+    assert.equal(privacy.pathname, '/apps/cruise-port/privacy.html', page);
+    assert.ok(readFileSync(new URL('./privacy.html', import.meta.url), 'utf8').includes('<h1>プライバシーポリシー</h1>'));
+  }
+  // The AI panel link keeps its own (already correct) module-relative resolution.
+  const ui = readFileSync(new URL('./ai-support-ui.js', import.meta.url), 'utf8');
+  assert.match(ui, /new URL\('\.\/privacy\.html#ai-support', import\.meta\.url\)\.href/);
+});
