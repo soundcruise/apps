@@ -68,7 +68,7 @@ import {
     savePracticeHistory,
     toLocalDateKey,
     updatePracticeHistoryRecord
-} from './practice-menu-history-store.js?v=0.70.0';
+} from './practice-menu-history-store.js?v=0.70.1';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -182,7 +182,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=0.70.0';
+} from './app-version.js?v=0.70.1';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -218,7 +218,7 @@ import {
 } from './gear-category-store.js?v=0.59.3';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
 import { PortAssetSync } from './port-asset-sync.js?v=0.59.3';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=0.70.0';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=0.70.1';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
