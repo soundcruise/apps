@@ -772,3 +772,14 @@ test('scroll UX: opening brings 相談内容 to the top before focusing; no keyb
   const source = readFileSync(new URL('./ai-support-ui.js', import.meta.url), 'utf8').split('\n').filter((line) => !line.trim().startsWith('//')).join('\n');
   assert.doesNotMatch(source, /scrollBy|\.pageTop|'resize'/, 'no keyboard-driven scrolling');
 });
+
+test('UI mail route stays: the panel footer links to mail, and failure messages still point to mail', () => {
+  const view = mountPanel();
+  assert.equal(view.mail.tagName, 'a');
+  assert.equal(view.mail.textContent, 'メールで報告');
+  assert.equal(view.mail.href, MAIL);
+  assert.match(view.dom.text(view.section), /解決しない場合は、\nメールで報告\nからご相談ください。/);
+  for (const kind of ['disabled', 'unavailable', 'failed']) assert.match(AI_SUPPORT_COPY[kind], /メール/, kind);
+  const app = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
+  assert.match(app, /mailHref: mailLink\?\.getAttribute\('href'\)/, 'the same mailto as the section link');
+});

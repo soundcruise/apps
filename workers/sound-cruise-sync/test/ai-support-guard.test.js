@@ -175,3 +175,36 @@ test('scope: the prompt handles unrelated questions by principle, without tools 
   // Safety rules are still in the same prompt.
   for (const rule of ['4桁の番号', '危険な操作', 'ログイン・サインイン・パスワードの仕組みは無い']) assert.ok(AI_SUPPORT_SYSTEM_PROMPT.includes(rule), rule);
 });
+
+test('mail guidance: the UI owns the mail route, so the prompt no longer asks replies to repeat it', () => {
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /メールでの問い合わせ導線は相談画面に常設されているので、回答本文ではメールでの問い合わせを案内しない。URL を作らない。/);
+  assert.doesNotMatch(AI_SUPPORT_SYSTEM_PROMPT, /メールで問い合わせられると添える|メールでの問い合わせだけを案内/, 'no instruction to add mail guidance');
+  assert.equal((AI_SUPPORT_SYSTEM_PROMPT.match(/メール/g) || []).length, 2, 'one short principle, not a list of banned phrases');
+  // Unknown cause: the fixed first sentence and the real ⓘ/もう一度確認 route stay; a short question is allowed.
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /本当に原因も確認先も特定できないとき[^\n]*「もう一度確認」（表示されている場合）だけを案内し、必要なら何を確認したいかを短く尋ねる/);
+  // Scope handling and named-target guidance are unchanged.
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /このAIはCruise Portのクラウド同期に関する相談専用です/);
+  assert.match(AI_SUPPORT_SYSTEM_PROMPT, /その同期先を reference の表記で名指しし、その端末でアプリを開いて「設定 → クラウド同期」を確認するよう案内する/);
+  // The fixed fallbacks for failures are untouched (the guard is not part of this change).
+  assert.match(GUARD_FALLBACK_REPLY, /クラウド同期で困ったときは/);
+});
+
+test('mail guidance: plain replies without mail pass the guard in one call; the degenerate guard still applies', async () => {
+  const replies = [
+    'コードクルーズの行にある ⓘ を開き、「もう一度確認」が表示されている場合はタップしてください。Pixel でコードクルーズを開き、設定 → クラウド同期を確認してください。',
+    '現在の情報だけでは原因を特定できません。コードクルーズの行にある ⓘ を開き、「もう一度確認」が表示されている場合はタップしてください。どの端末で起きているか教えていただけますか？',
+    'このAIはCruise Portのクラウド同期に関する相談専用です。同期について困っていることがあれば教えてください。'
+  ];
+  for (const reply of replies) {
+    assert.equal(validateSupportReply(reply).ok, true, reply);
+    assert.doesNotMatch(reply, /メール/);
+    const p = provider([text(reply)]);
+    const turn = await runSupportTurn({ provider: p, diagnostics: diagnostics(), message: '同期できません' });
+    assert.equal(turn.reply, reply);
+    assert.equal(p.calls.length, 1);
+  }
+  const bang = provider(Array.from({ length: 5 }, () => text('!'.repeat(60))));
+  const turn = await runSupportTurn({ provider: bang, diagnostics: diagnostics(), message: '同期できません' });
+  assert.doesNotMatch(turn.reply, /!{5,}/);
+  assert.ok(bang.calls.length <= 4);
+});
