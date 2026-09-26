@@ -2800,13 +2800,16 @@ function openPracticeRecordForm(record = null) {
     const selectedMenu = record ? null : state.items.find((item) => !item.hidden) || state.items[0];
     if (selectedMenu) elements.historyFormMenu.value = selectedMenu.id;
     elements.historyFormDate.value = record?.localDate || state.historySelectedDate;
-    elements.historyFormMinutes.value = String(record ? recordPracticeMinutes(record) : (selectedMenu?.durationMinutes || 15));
-    const timed = mode === 'menu';
-    elements.historyFormDate.disabled = timed;
-    elements.historyFormMinutes.disabled = timed;
-    elements.historyFormPresets.hidden = timed;
-    elements.historyFormNote.hidden = !timed;
-    elements.historyFormNote.textContent = timed ? 'タイマーで計測した記録のため、日付と練習時間は変更できません。' : '';
+    elements.historyFormMinutes.value = String(record ? recordPracticeMinutes(record, state.history) : (selectedMenu?.durationMinutes || 15));
+    // timed: a finished timer record — the measured time is only a starting value and can be
+    // corrected; its date stays with its session. menu: the session is still running.
+    const live = mode === 'menu';
+    elements.historyFormDate.disabled = mode !== 'full';
+    elements.historyFormMinutes.disabled = live;
+    elements.historyFormPresets.hidden = live;
+    elements.historyFormNote.hidden = mode === 'full';
+    elements.historyFormNote.textContent = live ? '計測中の練習の記録のため、練習メニューだけ変更できます。'
+        : mode === 'timed' ? 'タイマーで計測した記録です。練習時間は実際の時間に合わせて修正できます（日付は変更できません）。' : '';
     renderPracticeRecordPresets();
     showNotice(elements.historyFormError);
     elements.historyForm.hidden = false;

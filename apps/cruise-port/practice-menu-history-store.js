@@ -406,21 +406,29 @@ export function createManualPracticeRecord({ localDate, practiceId, practiceName
 }
 
 // 'full': a record outside any timer session (manual or a check without the timer) — date, menu and
-// time can change. 'menu': a check inside a timer session — its time belongs to the measured
-// session, so only the menu can change. Sessions themselves and cycle marks are not edited here.
-// A check in the session that is still running counts as in-session too.
+// time can change. 'timed': a check inside a finished timer session — menu and time can change; the
+// date stays with its session. 'menu': a check in the session that is still running — only the
+// menu, so the live timer is never rewritten. Sessions themselves and cycle marks are not edited.
 export function practiceRecordEditMode(history, event, runningTimer = null) {
     if (!event || event.type !== PRACTICE_HISTORY_EVENT_TYPE.practiceCompleted) return null;
-    const inSession = Boolean(event.sessionId) && (
-        (runningTimer?.running && runningTimer.sessionId === event.sessionId)
-        || history.events.some((current) => (
-            current.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession && current.sessionId === event.sessionId
-        )));
-    return inSession ? 'menu' : 'full';
+    if (!event.sessionId) return 'full';
+    if (runningTimer?.running && runningTimer.sessionId === event.sessionId) return 'menu';
+    const finished = history.events.some((current) => (
+        current.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession && current.sessionId === event.sessionId
+    ));
+    return finished ? 'timed' : 'full';
 }
 
-export function recordPracticeMinutes(event) {
+// Minutes shown for a record: its own time when it has one, else the time the timer measured for it
+// inside its session, else the menu's planned minutes.
+export function recordPracticeMinutes(event, history = null) {
     if (event?.measuredDurationSeconds !== undefined) return Math.max(1, Math.round(event.measuredDurationSeconds / 60));
+    if (history && event?.sessionId) {
+        for (const entry of createPracticeDayHistoryView(history, event.localDate)) {
+            const child = entry.kind === 'session' && entry.children.find(({ id }) => id === event.id);
+            if (child) return Math.max(1, Math.round(child.measuredDurationSeconds / 60));
+        }
+    }
     return event?.durationMinutes ?? null;
 }
 
@@ -431,13 +439,12 @@ export function updatePracticeHistoryRecord(history, eventId, changes, runningTi
     if (!mode) return { ok: false, history, reason: 'not-found' };
     const fields = practiceRecordFields(changes);
     if (!fields) return { ok: false, history, reason: 'invalid-menu' };
+    if (mode !== 'menu' && !isValidRecordMinutes(changes.durationMinutes)) return { ok: false, history, reason: 'invalid-record' };
     const next = cloneHistory(history);
-    const current = next.events[index];
+    let current = next.events[index];
     let updated = { ...current, ...fields };
     if (mode === 'full') {
-        if (!isValidLocalDate(changes.localDate) || !isValidRecordMinutes(changes.durationMinutes)) {
-            return { ok: false, history, reason: 'invalid-record' };
-        }
+        if (!isValidLocalDate(changes.localDate)) return { ok: false, history, reason: 'invalid-record' };
         updated = {
             ...updated,
             localDate: changes.localDate,
@@ -449,9 +456,24 @@ export function updatePracticeHistoryRecord(history, eventId, changes, runningTi
             measuredDurationSeconds: changes.durationMinutes * 60,
             source: PRACTICE_RECORD_SOURCE_MANUAL
         };
+    } else if (mode === 'timed') {
+        // The session holds the day/week/month total; the record holds its share (menu totals).
+        // Freeze every record's measured share first, so changing one never shifts the others,
+        // then move the session total by exactly the change: 65 → 40 minutes removes 25 minutes
+        // once, and nothing is recomputed back to the timer value on reload or sync.
+        const session = next.events.find((event) => event.type === PRACTICE_HISTORY_EVENT_TYPE.practiceSession
+            && event.sessionId === current.sessionId);
+        snapshotSessionDurations(next.events, session);
+        current = next.events[index];
+        const seconds = changes.durationMinutes * 60;
+        const delta = seconds - current.measuredDurationSeconds;
+        const sessionTotal = session.activeDurationSeconds ?? session.durationSeconds;
+        session.activeDurationSeconds = Math.min(PRACTICE_SESSION_MAX_SECONDS, Math.max(0, sessionTotal + delta));
+        updated = { ...current, ...fields, durationMinutes: changes.durationMinutes, measuredDurationSeconds: seconds };
     }
     if (!isValidEvent(updated)) return { ok: false, history, reason: 'invalid-record' };
     next.events[index] = updated;
+    if (!isValidPracticeHistory(next)) return { ok: false, history, reason: 'invalid-record' };
     return { ok: true, history: next, mode };
 }
 

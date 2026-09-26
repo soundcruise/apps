@@ -7,7 +7,8 @@ import { validatePortLocalCollections } from '../../cruise-port/port-sync-local-
 import { METRONOME_DEFAULTS } from '../../cruise-port/metronome-store.js';
 import { loadMetronomePresets, deleteMetronomePreset } from '../../cruise-port/metronome-presets-store.js';
 import { validateOperation as validateWorkerOperation } from '../../../workers/sound-cruise-sync/src/records.js';
-import { appendPracticeHistoryEvent, createManualPracticeRecord, deletePracticeHistoryEvent, loadPracticeHistory, savePracticeHistory, updatePracticeHistoryRecord } from '../../cruise-port/practice-menu-history-store.js';
+import { appendPracticeHistoryEvent, createManualPracticeRecord, createPracticeCompletedEvent, createPracticeSessionEvent, deletePracticeHistoryEvent, loadPracticeHistory, savePracticeHistory, updatePracticeHistoryRecord } from '../../cruise-port/practice-menu-history-store.js';
+import { buildPracticeAnalytics } from '../../cruise-port/practice-analytics.js';
 
 class CustomEventPolyfill extends Event {
   constructor(type, init = {}) { super(type); this.detail = init.detail; }
@@ -3398,4 +3399,36 @@ test('manual practice records: a reload (new runtime, same stores) keeps the rec
   const received = readHistory(b).events.find((event) => event.id === record.id);
   assert.deepEqual({ ...received }, { ...record }, 'the other device gets the same record, source and time included');
   assert.deepEqual(await b.store.listConflicts(), []);
+});
+
+test('timed practice record: 65 → 40 syncs to another device, 40 → 55 again with no false conflict; nothing reverts to the timer value', async () => {
+  const menu = { id: 'menu-a', name: 'スケール', durationMinutes: 30, appId: null };
+  const sessionId = 'session-65';
+  const child = createPracticeCompletedEvent(menu, 'cycle-9', new Date(2026, 8, 18, 20, 5), sessionId);
+  const session = createPracticeSessionEvent({ sessionId, startedAt: new Date(2026, 8, 18, 19, 0), endedAt: new Date(2026, 8, 18, 20, 5), durationSeconds: 65 * 60 });
+  const a = realPortFixture({ [HISTORY_KEY]: JSON.stringify({ version: 5, events: [] }) });
+  await a.runtime.consumeHandoff('timed-a');
+  writeHistory(a, appendPracticeHistoryEvent(appendPracticeHistoryEvent(readHistory(a), child).history, session).history);
+  assert.equal((await a.runtime.sync('save')).ok, true);
+  const b = realPortFixture({ [HISTORY_KEY]: JSON.stringify({ version: 5, events: [] }) }, a.fetchImpl);
+  await b.runtime.consumeHandoff('timed-b');
+  assert.equal((await b.runtime.sync('align')).ok, true);
+  assert.equal(buildPracticeAnalytics(readHistory(b)).totalSeconds, 65 * 60);
+  const edit = (fixture, minutes) => writeHistory(fixture, updatePracticeHistoryRecord(readHistory(fixture), child.id,
+    { practiceId: menu.id, practiceName: menu.name, durationMinutes: minutes }).history);
+  edit(a, 40);
+  assert.equal((await a.runtime.sync('save')).ok, true);
+  assert.deepEqual(await a.store.listConflicts(), []);
+  assert.equal((await b.runtime.sync('align')).ok, true);
+  assert.equal(buildPracticeAnalytics(readHistory(b)).totalSeconds, 40 * 60, 'the other device shows 40 minutes');
+  assert.deepEqual(await b.store.listConflicts(), []);
+  edit(a, 55);
+  assert.equal((await a.runtime.sync('save')).ok, true);
+  assert.deepEqual(await a.store.listConflicts(), [], 'repeated same-device edit: no false conflict');
+  assert.equal((await a.runtime.sync('align')).ok, true, 'a later sync keeps the edited value');
+  assert.equal(buildPracticeAnalytics(readHistory(a)).totalSeconds, 55 * 60);
+  assert.equal((await b.runtime.sync('align')).ok, true);
+  assert.equal(buildPracticeAnalytics(readHistory(b)).totalSeconds, 55 * 60);
+  const cloudChild = a.server.records.get(`practice_history_event/${child.id}`).payload.value;
+  assert.deepEqual([cloudChild.durationMinutes, cloudChild.measuredDurationSeconds], [55, 3300]);
 });
