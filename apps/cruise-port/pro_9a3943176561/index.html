@@ -10,7 +10,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="../assets/app-icons/pro/favicon-32.png?v=0.69.0">
     <link rel="apple-touch-icon" sizes="180x180" href="../assets/app-icons/pro/apple-touch-icon-180.png?v=1.0.1">
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=6">
-    <link rel="stylesheet" href="../style.css?v=1.1.1">
+    <link rel="stylesheet" href="../style.css?v=1.2.1">
     <link rel="stylesheet" href="../../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=22">
     <script>
@@ -33,7 +33,7 @@
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=15"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="../practice-menu-app.js?v=1.2.0"></script>
+    <script type="module" src="../practice-menu-app.js?v=1.2.1"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -755,7 +755,7 @@
                         <label id="practice-name-label" for="practice-name-preset">メニュー名 <span class="required-label">必須</span></label>
                         <div class="practice-name-controls">
                             <select id="practice-name-preset" name="namePreset"></select>
-                            <input id="practice-name" name="name" type="text" maxlength="100" autocomplete="off" required>
+                            <input id="practice-name" aria-labelledby="practice-name-label" name="name" type="text" maxlength="100" autocomplete="off" required>
                         </div>
                     </div>
 
@@ -820,6 +820,18 @@
                 </form>
             </section>
         </main>
+
+        <div id="practice-exit-dialog" class="gear-category-dialog" role="dialog" aria-modal="true" aria-labelledby="practice-exit-title" aria-describedby="practice-exit-description" hidden>
+            <section class="gear-category-dialog-panel">
+                <h2 id="practice-exit-title">変更を保存しますか？</h2>
+                <p id="practice-exit-description">練習メニューの編集内容がまだ保存されていません。</p>
+                <div class="gear-exit-dialog-actions">
+                    <button id="practice-exit-save" class="action-button primary-action" type="button">保存して戻る</button>
+                    <button id="practice-exit-discard" class="action-button secondary-action" type="button">保存せずに戻る</button>
+                    <button id="practice-exit-continue" class="action-button secondary-action" type="button">編集を続ける</button>
+                </div>
+            </section>
+        </div>
 
         <main id="my-apps-manage-view" class="port-view my-apps-manage-view" hidden>
             <button class="view-back" type="button" data-action="my-apps-home">← クルーズポート</button>

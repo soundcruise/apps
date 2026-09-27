@@ -120,7 +120,7 @@ test('Standard and Pro share the create preset and preserve the edit text input'
     for (const file of ['index.html', 'pro_9a3943176561/index.html']) {
         const markup = read(file);
         assert.match(markup, /id="practice-name-preset" name="namePreset"/);
-        assert.match(markup, /id="practice-name" name="name" type="text" maxlength="100"/);
+        assert.match(markup, /id="practice-name" aria-labelledby="practice-name-label" name="name" type="text" maxlength="100"/);
     }
     assert.match(source, /elements\.namePresetInput\.hidden = !isCreate/);
     assert.match(source, /elements\.nameInput\.hidden = isCreate && !customName/);
@@ -140,5 +140,5 @@ test('schema, pending files, Live icon and edition limits stay unchanged', () =>
     assert.match(source, /savePendingPracticeAttachments\(practiceAttachmentStore, item\.id, pending\)/);
     assert.match(source, /live: \[\['path',[\s\S]*M3\.3 20\.2c-1-1-1-2\.5/);
     assert.match(source, /guardPracticeCreation\(\)/);
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '1\.2\.0'/);
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '1\.2\.1'/);
 });

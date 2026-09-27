@@ -1,3 +1,4 @@
+import { getPracticeCrossDayNotice } from './practice-cross-day-display.js?v=1.2.1';
 import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=0.60.0';
 import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=0.27.0';
 import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';
@@ -183,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.2.0';
+} from './app-version.js?v=1.2.1';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -534,6 +535,10 @@ const elements = {
     formDeleteButton: document.querySelector('#practice-form-delete'),
     formTitle: document.querySelector('#practice-form-title'),
     form: document.querySelector('#practice-menu-form'),
+    practiceExitDialog: document.querySelector('#practice-exit-dialog'),
+    practiceExitSave: document.querySelector('#practice-exit-save'),
+    practiceExitDiscard: document.querySelector('#practice-exit-discard'),
+    practiceExitContinue: document.querySelector('#practice-exit-continue'),
     formSubmit: document.querySelector('#practice-menu-form button[type="submit"]'),
     nameLabel: document.querySelector('#practice-name-label'),
     namePresetInput: document.querySelector('#practice-name-preset'),
@@ -616,6 +621,7 @@ const state = {
     storageReady: false,
     activeId: null,
     formMode: 'create',
+    initialFormSnapshot: null,
     reorderMode: false,
     reorderItems: [],
     savedNotice: null,
@@ -801,6 +807,7 @@ function cleanupMyAppsFormState() {
 
 function showView(view) {
     const viewChanged = view.hidden;
+    if (view !== elements.formView) closePracticeExitDialog({ restoreFocus: false });
     if (view !== elements.gearFormView) closeGearExitDialog({ restoreFocus: false });
     if (view !== elements.practiceHistoryView) {
         cleanupPracticeCalendarKeyboardTracking();
@@ -2911,7 +2918,14 @@ function renderPracticeDayHistory() {
     elements.dayHistoryTitle.textContent = `${month}月${day}日の練習記録`;
     const entries = createPracticeDayHistoryView(state.history, state.historySelectedDate);
     elements.dayHistoryList.replaceChildren();
-    if (entries.length === 0) {
+    const crossDayNotice = getPracticeCrossDayNotice(state.history, state.historySelectedDate);
+    if (crossDayNotice) {
+        const notice = document.createElement('p');
+        notice.className = 'practice-history-empty';
+        notice.textContent = crossDayNotice;
+        elements.dayHistoryList.append(notice);
+    }
+    if (entries.length === 0 && !crossDayNotice) {
         const empty = document.createElement('p');
         empty.className = 'practice-history-empty';
         empty.textContent = 'この日の練習記録はありません。';
@@ -3810,6 +3824,7 @@ function renderForm(mode, id = null) {
     // same delete as the detail view, for active and hidden menus alike.
     elements.formDeleteButton.hidden = mode !== 'edit' || !item;
     fillForm(item);
+    state.initialFormSnapshot = practiceFormSnapshot();
     showView(elements.formView);
     if (item) void renderPracticeAttachments(item.id, 'form');
     else renderPendingPracticeAttachments();
@@ -5285,7 +5300,70 @@ async function handleSubmit(event) {
     }
 }
 
+function practiceFormSnapshot() {
+    return JSON.stringify([
+        elements.nameInput.value,
+        elements.durationInput.value,
+        elements.appInput.value,
+        elements.memoInput.value,
+        elements.hiddenInput.checked
+    ]);
+}
+
+function closePracticeExitDialog({ restoreFocus = true } = {}) {
+    if (elements.practiceExitDialog.hidden) return;
+    elements.practiceExitDialog.hidden = true;
+    elements.formView.inert = false;
+    if (restoreFocus) elements.formView.querySelector('.view-back')?.focus({ preventScroll: true });
+}
+
 function cancelForm() {
+    if (state.formSaving) return;
+    if (state.formMode === 'edit' && practiceFormSnapshot() !== state.initialFormSnapshot) {
+        elements.practiceExitDialog.hidden = false;
+        elements.formView.inert = true;
+        elements.practiceExitSave.focus({ preventScroll: true });
+        return;
+    }
+    leavePracticeForm();
+}
+
+async function savePracticeFormAndReturn() {
+    closePracticeExitDialog();
+    // Reuse validation, stale-save protection, hidden-menu routing and persistence unchanged.
+    await handleSubmit({ preventDefault() {} });
+    if (!elements.formView.hidden) {
+        if (elements.formError.hidden) {
+            showNotice(elements.formError, '保存できませんでした。ブラウザの空き容量や保存設定を確認してください。');
+        }
+        elements.formError.tabIndex = -1;
+        elements.formError.focus({ preventScroll: true });
+    }
+}
+
+function discardPracticeFormAndReturn() {
+    closePracticeExitDialog({ restoreFocus: false });
+    leavePracticeForm();
+}
+
+function handlePracticeExitKeydown(event) {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        closePracticeExitDialog();
+    } else if (event.key === 'Tab') {
+        const buttons = [elements.practiceExitSave, elements.practiceExitDiscard, elements.practiceExitContinue];
+        const index = buttons.indexOf(document.activeElement);
+        if (event.shiftKey && index === 0) {
+            event.preventDefault();
+            buttons[buttons.length - 1].focus();
+        } else if (!event.shiftKey && index === buttons.length - 1) {
+            event.preventDefault();
+            buttons[0].focus();
+        }
+    }
+}
+
+function leavePracticeForm() {
     if (state.formMode === 'edit' && state.activeId) {
         const item = findItem(state.activeId);
         setHashRoute(item?.hidden
@@ -5566,6 +5644,10 @@ elements.gearCategoryDialog.addEventListener('keydown', (event) => {
     }
 });
 elements.form.addEventListener('submit', handleSubmit);
+elements.practiceExitSave.addEventListener('click', savePracticeFormAndReturn);
+elements.practiceExitDiscard.addEventListener('click', discardPracticeFormAndReturn);
+elements.practiceExitContinue.addEventListener('click', () => closePracticeExitDialog());
+elements.practiceExitDialog.addEventListener('keydown', handlePracticeExitKeydown);
 elements.countReset.addEventListener('click', handlePracticeTotalCountReset);
 elements.openApp.addEventListener('click', (event) => {
     if (

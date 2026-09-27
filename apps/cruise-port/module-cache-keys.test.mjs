@@ -11,10 +11,12 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.2.0 changes current checks and new-menu presets only.
-const RELEASE_MODULES = Object.freeze(['app-version.js', 'practice-menu-progress-store.js', 'practice-menu-presets.js']);
+// 1.2.1 changes practice form safety and adds a display-only cross-day helper.
+const RELEASE_MODULES = Object.freeze(['app-version.js', 'practice-cross-day-display.js']);
 // Other modules retain the cache key of their last real change.
 const UNCHANGED_KEYS = Object.freeze({
+  'practice-menu-progress-store.js': '1.2.0',
+  'practice-menu-presets.js': '1.2.0',
   'practice-menu-history-store.js': '0.70.1',
   'port-sync-local-validation.js': '0.70.1',
   'ai-support-client.js': '0.70.0',
@@ -29,14 +31,14 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.2.0', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.2.0');
+test('the release is 1.2.1', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.2.1');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
   for (const html of [read('./index.html'), read('./pro_9a3943176561/index.html')]) {
     assert.match(html, new RegExp(`practice-menu-app\\.js\\?v=${escaped}"`), 'the entry moves, so no user keeps the 0.70.1 app');
-    assert.match(html, /style\.css\?v=1\.1\.1"/, 'unchanged Sync Center styles keep their cache key');
+    assert.match(html, /style\.css\?v=1\.2\.1"/, 'updated Practice dialog description style gets a new cache key');
     assert.match(html, /sync-account-core\.js\?v=7"/, 'shared credential helper uses a new cache key');
   }
 });
@@ -59,7 +61,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.2.0');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.2.1');
   assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '1.1.3');
   assert.equal(key('practice-menu-app.js', 'sync-center-controller.js'), '1.1.3');
   for (const name of ['sync-center-orchestrator.js', 'sync-center-navigation.js']) {
