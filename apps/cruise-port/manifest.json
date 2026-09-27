@@ -1,7 +1,7 @@
 {
   "id": "/apps/cruise-port/",
-  "name": "クルーズポート",
-  "short_name": "クルーズポート",
+  "name": "Cruise Port",
+  "short_name": "Cruise Port",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
