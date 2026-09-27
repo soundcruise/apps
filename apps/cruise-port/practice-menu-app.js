@@ -16,7 +16,7 @@ import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
     getPracticeNamePreset
-} from './practice-menu-presets.js?v=0.27.0';
+} from './practice-menu-presets.js?v=1.2.0';
 import { applyEditionDisplay } from './cruise-port-edition.js?v=0.27.0';
 import { applyHomeCruiseLinks, bindHomeCruiseLaunch } from './cruise-app-links.js?v=0.60.0';
 import { isToolRoute, toolBackTarget, withPracticeMenuReturn } from './tool-return.js?v=0.69.0';
@@ -41,6 +41,7 @@ import {
     beginPracticeCompletion,
     canCompletePracticeCycle,
     clearPracticeCurrentCheck,
+    clearAllPracticeCurrentChecks,
     finishPracticeCompletion,
     loadPracticeProgress,
     removePracticeFromProgress,
@@ -48,7 +49,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=0.59.3';
+} from './practice-menu-progress-store.js?v=1.2.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -182,7 +183,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.1.3';
+} from './app-version.js?v=1.2.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -2204,9 +2205,11 @@ function handlePracticeTimerToggle() {
 function handlePracticeTimerStop() {
     if (!state.timer?.running) return;
     const result = stopPracticeTimerWithHistory();
+    const checksReset = !result.ok || !result.stopped || (state.progressReady &&
+        persistPracticeProgress(clearAllPracticeCurrentChecks(state.progress)));
     showNotice(
         elements.timerStatus,
-        result.ok
+        !checksReset ? '練習時間は記録しましたが、チェックをリセットできませんでした。' : result.ok
             ? `練習時間 ${formatPracticeSessionDuration(result.displayDurationSeconds)}を記録しました。`
             : result.message
     );
@@ -2341,7 +2344,7 @@ function handlePracticeFinishEarly() {
         PRACTICE_COMPLETION_TYPE.partial,
         activeIds
     );
-    if (!transition.started || !persistPracticeProgress(transition.progress)) {
+    if (!transition.started || !persistPracticeProgress(clearAllPracticeCurrentChecks(transition.progress))) {
         state.listNotice = '練習終了の状態を保存できませんでした。現在の進捗は変更していません。';
         renderPracticeList({ focus: false });
         return;

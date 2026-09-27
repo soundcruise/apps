@@ -204,6 +204,12 @@ export function finishPracticeCompletion(progress, now = new Date()) {
     };
 }
 
+export function clearAllPracticeCurrentChecks(progress) {
+    const next = cloneProgress(progress);
+    next.checkedPracticeIds = [];
+    return next;
+}
+
 export function clearPracticeCurrentCheck(progress, practiceId) {
     const next = cloneProgress(progress);
     next.checkedPracticeIds = next.checkedPracticeIds.filter((id) => id !== practiceId);

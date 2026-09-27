@@ -105,13 +105,13 @@ test('initial 曲練 remains editable, deletable and counts toward the Standard 
     assert.equal(canCreatePractice(Array(5).fill(item), { practiceMenuCreateLimit: 5 }), false);
 });
 
-test('name presets have the formal order and only three builtin app suggestions', () => {
+test('name presets have the formal order and four builtin app suggestions', () => {
     assert.equal(PRACTICE_NAME_PRESET_CUSTOM, 'custom');
     assert.deepEqual(PRACTICE_NAME_PRESETS.map(({ label }) => label), [
-        '自由記入', '音感練', 'リズム練', '指板練', '基礎練習', 'スケール練', '曲練', '作曲', '譜面作り'
+        '自由記入', '音感クルーズ', 'リズムクルーズ', '指板クルーズ', 'コードクルーズ', '基礎練習', 'スケール練', '曲練', '作曲', '譜面作り'
     ]);
     assert.deepEqual(PRACTICE_NAME_PRESETS.map(({ appId }) => appId ?? null), [
-        null, 'pitch', 'rhythm', 'fretboard', null, null, null, null, null
+        null, 'pitch', 'rhythm', 'fretboard', 'chord', null, null, null, null, null
     ]);
     assert.equal(getPracticeNamePreset('invalid').value, PRACTICE_NAME_PRESET_CUSTOM);
 });
@@ -140,5 +140,5 @@ test('schema, pending files, Live icon and edition limits stay unchanged', () =>
     assert.match(source, /savePendingPracticeAttachments\(practiceAttachmentStore, item\.id, pending\)/);
     assert.match(source, /live: \[\['path',[\s\S]*M3\.3 20\.2c-1-1-1-2\.5/);
     assert.match(source, /guardPracticeCreation\(\)/);
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '1\.1\.3'/);
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '1\.2\.0'/);
 });
