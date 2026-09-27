@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.2.1';
+} from './app-version.js?v=1.2.2';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -2794,6 +2794,14 @@ function renderPracticeRecordPresets() {
         button.setAttribute('aria-pressed', String(Number(elements.historyFormMinutes.value) === minutes));
         return button;
     }));
+}
+
+function syncPracticeRecordDurationFromSelectedMenu() {
+    if (state.historyRecordEditId !== null) return;
+    const menu = findItem(elements.historyFormMenu.value);
+    if (!menu) return;
+    elements.historyFormMinutes.value = String(menu.durationMinutes);
+    renderPracticeRecordPresets();
 }
 
 function openPracticeRecordForm(record = null) {
@@ -5816,6 +5824,7 @@ elements.dayHistoryList.addEventListener('click', handlePracticeHistoryEdit);
 elements.historyAdd.addEventListener('click', () => openPracticeRecordForm());
 elements.historyForm.addEventListener('submit', handlePracticeRecordSubmit);
 elements.historyFormCancel.addEventListener('click', () => closePracticeRecordForm({ focus: true }));
+elements.historyFormMenu.addEventListener('change', syncPracticeRecordDurationFromSelectedMenu);
 elements.historyFormPresets.addEventListener('click', (event) => {
     const button = event.target.closest('[data-minutes]');
     if (!button) return;
