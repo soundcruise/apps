@@ -43,6 +43,10 @@
       UUID_PATTERN.test(parts[1]) && TOKEN_SECRET_PATTERN.test(parts[2]);
   }
 
+  function accountDeviceIdFromCredential(value) {
+    return validToken(value, 'sca1') ? value.split('.')[1] : null;
+  }
+
   function createAccountMaterial(cryptoImpl = global.crypto, btoaImpl = global.btoa.bind(global)) {
     const account = createCredential('sca1', cryptoImpl, btoaImpl);
     const recovery = new Uint8Array(20);
@@ -238,6 +242,7 @@
     sensitiveFailureIsRetryable,
     takeHandoffFromLocation,
     validAccountCredential: (value) => validToken(value, 'sca1'),
+    accountDeviceIdFromCredential,
     validAccountRecoveryClaim: (value) => validToken(value, 'sarc1'),
     validAccountDeleteIntent: (value) => validToken(value, 'sadi1'),
     validAppCredential: (value) => validToken(value, 'scd1'),

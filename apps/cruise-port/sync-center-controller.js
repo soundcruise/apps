@@ -175,9 +175,26 @@ function normalizeApp(app, membership, appEnvironments = [], accountDeleting = f
     return Object.freeze({ ...result, presentationStatus: appSyncStatusPresentation(result) });
 }
 
+function currentAccountDeviceIdFromResponse(devices, credentialDeviceId) {
+    if (devices.some((device) => device?.isCurrent === true && device?.revokedAt != null)) return null;
+    const active = devices.filter((device) => typeof device?.id === 'string' && device.revokedAt == null);
+    const serverCurrent = active.filter((device) => device.isCurrent === true);
+    if (serverCurrent.length > 1) return null;
+    if (serverCurrent.length === 1) {
+        // A valid credential and the authenticated Worker must agree. A disagreement is unsafe
+        // for current-device detach, so do not mark either target as current.
+        return active.filter((device) => device.id === serverCurrent[0].id).length !== 1 ||
+            (credentialDeviceId && serverCurrent[0].id !== credentialDeviceId)
+            ? null : serverCurrent[0].id;
+    }
+    // Older responses may omit isCurrent. The validated credential still identifies its row.
+    return credentialDeviceId && active.filter((device) => device.id === credentialDeviceId).length === 1
+        ? credentialDeviceId : null;
+}
+
 export function normalizeSyncCenterSummary(summary, devicesResponse = null,
     formatAccountDisplayId = globalThis.SoundCruiseSyncAccount?.core?.formatAccountDisplayId,
-    currentAccountDeviceId = null) {
+    credentialDeviceId = null) {
     const account = summary?.account;
     if (!account || typeof account !== 'object') throw new Error('account_summary_invalid');
     const rawMemberships = Array.isArray(summary.memberships) ? summary.memberships : [];
@@ -189,14 +206,14 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
     const accountState = deleting ? 'deleting' : account.state === 'active' ? 'active' : 'attention';
     const now = Date.now();
     const rawDevices = Array.isArray(devicesResponse?.devices) ? devicesResponse.devices : [];
+    const currentAccountDeviceId = currentAccountDeviceIdFromResponse(rawDevices, credentialDeviceId);
     const environments = Object.freeze(rawDevices.map((device) => Object.freeze({
         id: typeof device?.id === 'string' ? device.id : null,
         label: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : '名前のない環境',
         registeredLabel: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : null,
         userLabel: receivedUserLabel(device?.userLabel),
-        // The saved Account credential identifies this browser/PWA environment. The Worker
-        // also derives isCurrent from the same ID; keep that as a fallback for older storage.
-        isCurrent: currentAccountDeviceId ? device?.id === currentAccountDeviceId : device?.isCurrent === true,
+        isCurrent: currentAccountDeviceId !== null && device?.revokedAt == null &&
+            device?.id === currentAccountDeviceId,
         isPortEnvironment: device?.isPortEnvironment === true,
         state: device?.revokedAt == null ? 'active' : 'revoked',
         createdAt: safeCount(device?.createdAt),
@@ -343,7 +360,7 @@ export function createSyncCenterController({
                 lastPresentation = normalizeSyncCenterSummary(
                     summary.value, devices.status === 'fulfilled' ? devices.value : null,
                     accountRoot.core?.formatAccountDisplayId,
-                    credential.accountDeviceId
+                    accountRoot.core?.accountDeviceIdFromCredential?.(credential.accountCredential) || null
                 );
             } catch (error) {
                 if (ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {

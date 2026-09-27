@@ -112,13 +112,13 @@ test('environment normalization retains only the server-derived Port classificat
     ]);
 });
 
-test('current Account Device follows the saved credential ID, never names or list order', () => {
+test('current Account Device follows matching credential and Worker IDs, never names or list order', () => {
     const safari = 'b91c7f00-0000-4000-8000-000000000001';
     const pwa = '7a3e5d00-0000-4000-8000-000000000002';
     const devices = [
-        { id: safari, label: 'iPhone', userLabel: '寝室iPhone', isCurrent: true,
+        { id: safari, label: 'iPhone', userLabel: '寝室iPhone', isCurrent: false,
             isPortEnvironment: true, revokedAt: null },
-        { id: pwa, label: 'iPhone', userLabel: '寝室iPhone', isCurrent: false,
+        { id: pwa, label: 'iPhone', userLabel: '寝室iPhone', isCurrent: true,
             isPortEnvironment: true, revokedAt: null }
     ];
     for (const ordered of [devices, [...devices].reverse()]) {
@@ -126,7 +126,7 @@ test('current Account Device follows the saved credential ID, never names or lis
         assert.deepEqual(model.environments.filter((device) => device.isCurrent).map((device) => device.id), [pwa],
             'Safari and Home Screen can share a name while only the credential-matched environment is current');
         assert.equal(model.environments.find((device) => device.id === safari).isCurrent, false,
-            'the local ID overrides a conflicting server marker');
+            'the other same-name environment stays unmarked');
     }
     const fallback = normalizeSyncCenterSummary(activeSummary, { devices: devices.map((device) => ({
         ...device, userLabel: null
@@ -135,14 +135,53 @@ test('current Account Device follows the saved credential ID, never names or lis
         'registered-label fallback never changes the marker');
 });
 
-test('controller supplies the saved Account Device ID to the presentation', async () => {
-    const devices = [{ id: 'safari', label: 'iPhone', isCurrent: true, isPortEnvironment: true },
-        { id: 'pwa', label: 'iPhone', isCurrent: false, isPortEnvironment: true }];
+test('authenticated Worker marker wins over a stale saved ID without writing storage', async () => {
+    const devices = [{ id: 'safari', label: 'iPhone', isCurrent: false, isPortEnvironment: true },
+        { id: 'pwa', label: 'iPhone', isCurrent: true, isPortEnvironment: true }];
     const controller = createSyncCenterController({ config: { enabled: true, endpoint },
-        accountRoot: accountRoot({ account: { accountCredential: 'opaque', accountDeviceId: 'pwa' },
+        accountRoot: accountRoot({ account: { accountCredential: 'opaque', accountDeviceId: 'safari' },
             devices: { devices } }), online: () => true });
     const presentation = await controller.load();
     assert.deepEqual(presentation.environments.filter((device) => device.isCurrent).map((device) => device.id), ['pwa']);
+});
+
+test('saved ID correct, missing or stale cannot override the authenticated current target', async () => {
+    const devices = [{ id: 'stale', label: 'iPhone', isCurrent: false, isPortEnvironment: true },
+        { id: 'credential', label: 'iPhone', isCurrent: true, isPortEnvironment: true }];
+    for (const savedId of ['credential', null, 'stale']) {
+        let writes = 0;
+        const root = accountRoot({ account: { accountCredential: 'credential-token', accountDeviceId: savedId },
+            devices: { devices } });
+        root.core.accountDeviceIdFromCredential = () => 'credential';
+        root.storage.setAccount = async () => { writes += 1; };
+        const presentation = await createSyncCenterController({ config: { enabled: true, endpoint },
+            accountRoot: root, online: () => true }).load();
+        assert.deepEqual(presentation.environments.filter((device) => device.isCurrent).map((device) => device.id),
+            ['credential'], `saved ID ${savedId || 'missing'} cannot hide the authenticated target`);
+        assert.equal(writes, 0, 'display resolution never rewrites IndexedDB');
+    }
+});
+
+test('current Account marker fails safe on credential/Worker conflict, duplicates, or revocation', () => {
+    const device = (id, isCurrent = false, revokedAt = null) =>
+        ({ id, label: 'iPhone', isCurrent, revokedAt, isPortEnvironment: true });
+    const current = (devices, credentialId = null) => normalizeSyncCenterSummary(activeSummary,
+        { devices }, () => null, credentialId).environments.filter((entry) => entry.isCurrent).map((entry) => entry.id);
+    assert.deepEqual(current([device('stale'), device('credential', true)], 'credential'), ['credential']);
+    assert.deepEqual(current([device('stale'), device('credential', true)]), ['credential'],
+        'a missing saved ID does not hide the authenticated Worker marker');
+    assert.deepEqual(current([device('stale', true), device('credential')], 'credential'), [],
+        'credential and Worker disagreement marks neither target');
+    assert.deepEqual(current([device('credential')], 'credential'), ['credential'],
+        'a legacy response without a marker can use the validated credential ID');
+    assert.deepEqual(current([device('stale')], 'credential'), [],
+        'a credential target absent from the response is not guessed');
+    assert.deepEqual(current([device('credential', true, 1)], 'credential'), [],
+        'a revoked target is never current');
+    assert.deepEqual(current([device('credential', true), device('credential')], 'credential'), [],
+        'duplicate IDs do not mark two rows');
+    assert.deepEqual(current([device('first', true), device('second', true)]), [],
+        'two Worker markers fail closed');
 });
 
 test('app environment metadata is grouped by app and excludes revoked environments', () => {

@@ -37,6 +37,9 @@ test('client-generated credentials are distinct and handoff secret uses a cleare
   const app = account.core.createAppCredential();
   const handoff = account.core.createHandoffMaterial();
   assert.equal(account.core.validAccountCredential(material.accountCredential), true);
+  assert.equal(account.core.accountDeviceIdFromCredential(material.accountCredential), material.accountDeviceId);
+  assert.equal(account.core.accountDeviceIdFromCredential('sca1.invalid.secret'), null);
+  assert.equal(account.core.accountDeviceIdFromCredential(null), null);
   assert.equal(account.core.validAppCredential(app.appDeviceCredential), true);
   assert.equal(account.core.validHandoffToken(handoff.handoffToken), true);
   assert.match(account.core.formatRecoveryCode(material.recoveryCode), /^SAR1(?:-[0-9A-Z]{4}){5}$/);

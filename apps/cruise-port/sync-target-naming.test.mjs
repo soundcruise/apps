@@ -273,6 +273,42 @@ test('Account card and Section 3 use the same target rows and stay aligned after
   assert.equal(syncTargetsTabLabel(100), '同期先100件');
 });
 
+test('resolved current identity drives the same marker and detach route in Sections 1 and 3', () => {
+  const dom = installDom();
+  const accountSection = new dom.Node('div');
+  const accountTrigger = new dom.Node('span');
+  const accountTargets = new dom.Node('div');
+  accountSection.append(accountTrigger, accountTargets);
+  const nodes = { '#sync-center-apps': new dom.Node('ul'), '#sync-center-add-environments': new dom.Node('ul'),
+    '#sync-center-app-environments': new dom.Node('ul'), '#sync-center-account-targets': accountTargets,
+    '#sync-center-account-targets-trigger': accountTrigger };
+  const root = { dataset: {}, querySelector: (selector) => nodes[selector] || null, querySelectorAll: () => [] };
+  const devices = (serverCurrent) => [
+    { id: MAC, label: 'iPhone', userLabel: '同じ名前', isCurrent: serverCurrent === MAC,
+      isPortEnvironment: true, revokedAt: null },
+    { id: IPHONE, label: 'iPhone', userLabel: '同じ名前', isCurrent: serverCurrent === IPHONE,
+      isPortEnvironment: true, revokedAt: null }
+  ];
+  const render = (serverCurrent) => {
+    const model = normalizeSyncCenterSummary({ account, memberships: [] },
+      { devices: devices(serverCurrent), appDevices: [] }, () => null, IPHONE);
+    renderSyncCenter(root, model, { edition: 'pro', orchestrationEnabled: true });
+    return [accountSection, nodes['#sync-center-add-environments'].children[0]];
+  };
+  for (const section of render(IPHONE)) {
+    const current = dom.walk(section).filter((node) => node.className.includes('sync-center-environment-current--account'));
+    const safeDetach = dom.walk(section).filter((node) => node.dataset.syncCurrentEnvironmentDetach === 'true');
+    assert.equal(current.length, 1);
+    assert.equal(safeDetach.length, 1);
+    assert.equal(safeDetach[0].dataset.syncEnvironmentRevoke, IPHONE);
+  }
+  for (const section of render(MAC)) {
+    assert.equal(dom.walk(section).filter((node) => node.className.includes('sync-center-environment-current--account')).length, 0);
+    assert.equal(dom.walk(section).filter((node) => node.dataset.syncCurrentEnvironmentDetach === 'true').length, 0,
+      'a credential/Worker conflict cannot enter the current-device detach flow');
+  }
+});
+
 test('all four app tabs show their own target count and keep the existing detail actions', () => {
   const dom = installDom();
   const apps = ['pitch', 'fretboard', 'rhythm', 'chord'];
