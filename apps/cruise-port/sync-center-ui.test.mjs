@@ -622,13 +622,33 @@ test('delete grace reconnect is explicit and Section 3 owns counts, lists and sc
     assert.match(source, /dataset\.syncAppEnvironmentRevoke = environment\.id/);
     assert.match(source, /revoke\.dataset\.syncCurrentEnvironmentDetach = 'true'/);
     assert.match(source, /await orchestrator\.revokeAppEnvironment/);
-    assert.match(styles, /\.sync-center-environment-count/);
+    assert.match(styles, /\.sync-center-targets-tab/);
     assert.match(styles, /\.sync-center-environment-list\[hidden\]/);
     for (const html of [root, pro]) {
         assert.match(html, /3\. アカウントを同期/);
         assert.doesNotMatch(html, /<h2 id="sync-center-environments-title">同期中の環境<\/h2>/);
         assert.match(html, /別のスマートフォンやパソコンで同じSound Cruise Syncアカウントを使うときに追加します。/);
     }
+});
+
+test('target controls use the old borderless style and only Sections 1 and 2 are inline', () => {
+    const styles = read('./style.css');
+    for (const html of [root, pro]) {
+        assert.match(html, /sync-center-status-and-targets[^>]*><span id="sync-center-port-status-chip"[\s\S]*?<span id="sync-center-account-targets-trigger"/);
+        assert.match(html, /<div id="sync-center-account-targets" class="sync-center-account-targets"><\/div>/);
+    }
+    assert.match(ui, /accountTrigger\.replaceChildren\(count\)/);
+    assert.match(ui, /accountTargets\.replaceChildren\(details\)/);
+    assert.match(styles, /\.sync-center-app-status-line--app\s*\{[^}]*flex-wrap:\s*nowrap/);
+    assert.match(styles, /\.sync-center-status-and-targets\s*\{[^}]*inline-flex[^}]*white-space:\s*nowrap/);
+    assert.match(styles, /\.sync-center-destination-card\s*\{[\s\S]*"icon name add"[\s\S]*"icon count add"/);
+    const targetRule = styles.match(/\.sync-center-targets-tab\s*\{([^}]*)\}/)?.[1] || '';
+    assert.match(targetRule, /min-height:\s*36px/);
+    assert.match(targetRule, /border:\s*0/);
+    assert.match(targetRule, /background:\s*transparent/);
+    assert.match(targetRule, /color:\s*var\(--port-muted\)/);
+    assert.match(styles, /\.sync-center-targets-tab:focus-visible/);
+    assert.match(styles, /\.sync-center-environment-current--account\s*\{[^}]*background:\s*rgba\(232, 201, 122/);
 });
 
 test('official four-app routes are reused and no all-data-upload promise is made', () => {

@@ -194,7 +194,7 @@ test('management list: same names, separate current marker, rename for Port and 
   const copy = current.children[0];
   assert.equal(copy.children[0].className, 'sync-center-environment-name');
   assert.equal(copy.children[0].textContent, 'このCruise Port', 'a user name that looks like the marker is still just a name');
-  assert.equal(copy.children[1].className, 'sync-center-environment-current');
+  assert.equal(copy.children[1].className, 'sync-center-environment-current sync-center-environment-current--account');
   assert.equal(copy.children[1].textContent, 'この端末', 'the real marker is a separate element');
   const portRename = current.children.find((node) => node.dataset.syncTargetRename);
   assert.equal(portRename.dataset.syncTargetRename, 'account');
@@ -227,20 +227,25 @@ test('management list: same names, separate current marker, rename for Port and 
 
 test('Account card and Section 3 use the same target rows and stay aligned after rename and detach', () => {
   const dom = installDom();
+  const accountSection = new dom.Node('div');
+  const accountTrigger = new dom.Node('span');
+  const accountTargets = new dom.Node('div');
+  accountSection.append(accountTrigger, accountTargets);
   const nodes = { '#sync-center-apps': new dom.Node('ul'), '#sync-center-add-environments': new dom.Node('ul'),
-    '#sync-center-app-environments': new dom.Node('ul'), '#sync-center-account-targets': new dom.Node('div') };
+    '#sync-center-app-environments': new dom.Node('ul'), '#sync-center-account-targets': accountTargets,
+    '#sync-center-account-targets-trigger': accountTrigger };
   const root = { dataset: {}, querySelector: (selector) => nodes[selector] || null, querySelectorAll: () => [] };
   const device = (id, userLabel, isCurrent = false) => ({ id, label: 'iPhone', userLabel,
     isCurrent, isPortEnvironment: true, revokedAt: null });
   const render = (devices) => renderSyncCenter(root, presentation([], {}, devices),
     { edition: 'pro', orchestrationEnabled: true });
   const sections = () => {
-    const account = nodes['#sync-center-account-targets'];
+    const account = accountSection;
     const section3 = nodes['#sync-center-add-environments'].children[0];
     return [account, section3];
   };
   const targets = (section) => dom.walk(section).filter((node) => node.className === 'sync-center-environment-name');
-  const markers = (section) => dom.walk(section).filter((node) => node.className === 'sync-center-environment-current');
+  const markers = (section) => dom.walk(section).filter((node) => node.className.includes('sync-center-environment-current--account'));
   const actions = (section, key) => dom.walk(section).filter((node) => node.dataset[key]);
   render([device(MAC, 'iPhone'), device(IPHONE, 'iPhone', true), device(PIXEL, null)]);
   for (const section of sections()) {

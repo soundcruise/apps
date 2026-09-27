@@ -2453,20 +2453,6 @@ textarea:focus-visible {
     cursor: pointer;
 }
 .sync-center-advanced-toggle:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
-.sync-center-environment-count {
-    min-height: 34px;
-    padding: 4px 9px;
-    border: 1px solid rgba(205, 205, 205, 0.42);
-    border-radius: 999px;
-    color: var(--port-text);
-    background: rgba(205, 205, 205, 0.08);
-    font: inherit;
-    font-size: calc(0.72rem * var(--font-scale));
-    white-space: nowrap;
-    cursor: pointer;
-}
-.sync-center-environment-count:disabled { color: var(--port-muted); opacity: 0.62; cursor: default; }
-.sync-center-environment-count:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
 .sync-center-environment-list {
     grid-column: 1 / -1;
     width: 100%;
@@ -6221,7 +6207,7 @@ body.metronome-preset-open {
 .sync-center-app-status-chip--unavailable { border-color: rgba(205, 205, 205, 0.5); color: var(--port-muted); background: rgba(205, 205, 205, 0.08); }
 .sync-center-app-status-chip--recheck { border-style: dashed; border-color: rgba(205, 205, 205, 0.62); color: var(--port-text); background: transparent; }
 .sync-center-app-status-chip--checking { border-color: rgba(205, 205, 205, 0.36); color: var(--port-muted); background: transparent; }
-.sync-center-app-status-line--app { flex-wrap: wrap; }
+.sync-center-app-status-line--app { flex-wrap: nowrap; gap: 2px; }
 @media (max-width: 359px) {
     .sync-center-app-status-line--app { flex-wrap: wrap; }
     /* Keeps 「再確認が必要」 on one line in the 320px column. */
@@ -6229,16 +6215,21 @@ body.metronome-preset-open {
     .sync-center-app-row-actions { max-width: 104px; }
 }
 .sync-center-app-status-line--app .sync-center-app-status-chip { flex: 0 1 auto; min-width: 0; border-radius: 10px; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
-.sync-center-account-targets { grid-column: 1 / -1; display: grid; justify-items: start; width: 100%; }
-.sync-center-account-targets:empty { display: none; }
+.sync-center-app-status-line--app .sync-center-app-status-chip--available { flex: 0 0 auto; padding-inline: 7px; white-space: nowrap; }
+.sync-center-status-and-targets { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+#sync-center-account-targets-trigger:empty { display: none; }
+.sync-center-account-targets { grid-column: 1 / -1; min-width: 0; width: 100%; }
+.sync-center-account-targets:empty,
+.sync-center-account-targets:has(> .sync-center-environment-list[hidden]) { display: none; }
 .sync-center-account-targets .sync-center-environment-list { box-sizing: border-box; width: 100%; }
-.sync-center-targets-tab { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 36px; padding: 5px 10px; border: 1px solid rgba(205, 205, 205, 0.42); border-radius: 999px; color: var(--port-text); background: rgba(205, 205, 205, 0.08); font: inherit; font-size: calc(0.72rem * var(--font-scale)); line-height: 1.2; white-space: nowrap; cursor: pointer; appearance: none; -webkit-appearance: none; }
-.sync-center-targets-tab::after { content: '⌄'; color: var(--port-muted); }
+.sync-center-targets-tab { display: inline-flex; align-items: center; justify-content: center; gap: 2px; min-height: 36px; padding: 4px 2px; border: 0; border-radius: 0; color: var(--port-muted); background: transparent; font: inherit; font-size: calc(0.68rem * var(--font-scale)); font-variant-numeric: tabular-nums; line-height: 1.2; white-space: nowrap; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.sync-center-targets-tab::after { content: '⌄'; color: inherit; }
 .sync-center-targets-tab[aria-expanded="true"]::after { content: '⌃'; }
 .sync-center-targets-tab:disabled { color: var(--port-muted); opacity: 0.62; cursor: default; }
 .sync-center-targets-tab:disabled::after { content: ''; }
-.sync-center-app-info-toggle { flex: 0 0 auto; }
-.sync-center-app-info-toggle[aria-expanded="true"] { border-color: rgba(232, 201, 122, 0.62); color: var(--port-gold-bright); }
+.sync-center-targets-tab:hover:not(:disabled),
+.sync-center-targets-tab[aria-expanded="true"] { color: var(--port-text); text-decoration: underline; text-decoration-color: rgba(205, 205, 205, 0.48); text-underline-offset: 3px; }
+.sync-center-app-info-toggle { flex: 0 0 auto; padding-inline: 1px; font-size: calc(0.66rem * var(--font-scale)); }
 .sync-center-app-info-toggle:disabled { opacity: 0.45; cursor: default; }
 .sync-center-targets-tab:focus-visible, .sync-center-app-info-retry:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 .sync-center-app-info { grid-column: 1 / -1; display: grid; gap: 12px; margin-top: 4px; padding: 12px 14px; border: 1px solid var(--port-border); border-radius: 12px; background: rgba(255, 255, 255, 0.025); color: var(--port-text); font-size: calc(0.78rem * var(--font-scale)); line-height: 1.55; }
@@ -6282,6 +6273,7 @@ body.metronome-preset-open {
 .sync-center-environment-copy { display: grid; gap: 1px; min-width: 0; }
 .sync-center-environment-name { color: var(--port-text); font-weight: 650; overflow-wrap: anywhere; }
 .sync-center-environment-current { justify-self: start; padding: 0 6px; border: 1px solid rgba(205, 205, 205, 0.36); border-radius: 999px; color: var(--port-muted); font-size: calc(0.68rem * var(--font-scale)); }
+.sync-center-environment-current--account { padding: 1px 7px; border-color: rgba(232, 201, 122, 0.5); color: #ead39b; background: rgba(232, 201, 122, 0.14); font-weight: 650; }
 .sync-center-target-rename { justify-self: start; min-height: 32px; padding: 4px 10px; border: 1px solid rgba(205, 180, 116, 0.42); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-size: calc(0.72rem * var(--font-scale)); font-weight: 650; cursor: pointer; white-space: nowrap; }
 .sync-center-target-rename:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 /* Target actions sit under the text at every width so the name and report keep the full line. */

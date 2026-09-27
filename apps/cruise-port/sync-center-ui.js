@@ -331,7 +331,9 @@ function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, list
             // For an app target, isCurrent only means it was connected from this Cruise Port.
             appendText(copy, 'span', 'sync-center-environment-name', naming.name);
             if (environment.isCurrent) {
-                appendText(copy, 'span', 'sync-center-environment-current',
+                appendText(copy, 'span', entry.id === 'port'
+                    ? 'sync-center-environment-current sync-center-environment-current--account'
+                    : 'sync-center-environment-current',
                     entry.id === 'port' ? 'この端末' : 'このCruise Portから接続');
             }
             if (naming.secondary) appendText(copy, 'small', '', naming.secondary);
@@ -438,13 +440,15 @@ function renderEnvironmentManagementRows(root, presentation, edition, orchestrat
     portList.replaceChildren(rows[0]);
     appList.replaceChildren(...rows.slice(1));
     const accountTargets = root.querySelector('#sync-center-account-targets');
-    if (accountTargets) {
+    const accountTrigger = root.querySelector('#sync-center-account-targets-trigger');
+    if (accountTargets && accountTrigger) {
         const entry = entries[0];
         const count = createSyncTargetsTab({ name: entry.name, count: entry.environments.length,
             listId: 'port-account', disabled: entry.environments.length === 0 });
         const details = createEnvironmentDetails({ entry, portEnvironments,
             renameEnabled: orchestrationEnabled && activeAccount, listId: 'port-account' });
-        accountTargets.replaceChildren(count, details);
+        accountTrigger.replaceChildren(count);
+        accountTargets.replaceChildren(details);
     }
 }
 

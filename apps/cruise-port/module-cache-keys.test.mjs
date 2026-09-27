@@ -11,12 +11,14 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.1.0 changes only Port Sync Center presentation, its direct importers, and app-version.js.
-// The entry module and stylesheet move to the release key in both editions.
-const RELEASE_MODULES = Object.freeze(['app-version.js', 'sync-center-controller.js',
-  'sync-center-ui.js', 'sync-center-orchestrator.js', 'sync-center-navigation.js']);
+// 1.1.1 changes the Sync Center presentation and app-version.js. The entry module and
+// stylesheet move to this release key; unchanged Sync Center modules keep their 1.1.0 URLs.
+const RELEASE_MODULES = Object.freeze(['app-version.js', 'sync-center-ui.js']);
 // Other modules retain the cache key of their last real change.
 const UNCHANGED_KEYS = Object.freeze({
+  'sync-center-controller.js': '1.1.0',
+  'sync-center-orchestrator.js': '1.1.0',
+  'sync-center-navigation.js': '1.1.0',
   'practice-menu-history-store.js': '0.70.1',
   'port-sync-local-validation.js': '0.70.1',
   'ai-support-client.js': '0.70.0',
@@ -31,14 +33,14 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.1.0', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.1.0');
+test('the release is 1.1.1', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.1.1');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
   for (const html of [read('./index.html'), read('./pro_9a3943176561/index.html')]) {
     assert.match(html, new RegExp(`practice-menu-app\\.js\\?v=${escaped}"`), 'the entry moves, so no user keeps the 0.70.1 app');
-    assert.match(html, /style\.css\?v=1\.1\.0"/, 'changed Sync Center styles use the release key');
+    assert.match(html, /style\.css\?v=1\.1\.1"/, 'changed Sync Center styles use the release key');
   }
 });
 
@@ -52,9 +54,9 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.1.0');
-  for (const name of ['sync-center-controller.js', 'sync-center-ui.js',
-    'sync-center-orchestrator.js', 'sync-center-navigation.js']) {
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.1.1');
+  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '1.1.1');
+  for (const name of ['sync-center-controller.js', 'sync-center-orchestrator.js', 'sync-center-navigation.js']) {
     assert.equal(key('practice-menu-app.js', name), '1.1.0');
   }
   assert.equal(key('practice-menu-app.js', 'practice-menu-history-store.js'), '0.70.1');
@@ -89,7 +91,7 @@ test('a module that imports a release-keyed module is itself fetched under the r
 test('no module changed in this release is still requested under an earlier key', () => {
   const sources = modules.map((name) => read(`./${name}`)).join('\n');
   for (const name of RELEASE_MODULES) {
-    for (const stale of ['0.61.0', '0.62.0', '0.63.0', '0.64.0', '0.65.0', '0.66.0', '0.67.0', '0.68.0', '0.69.0', '0.69.1', '0.69.2', '0.69.3', '0.69.4', '0.69.5', '0.70.0', '0.70.1', '0.60.0', '0.59.3', '1.0.0', '1.0.1', '1.1.8']) {
+    for (const stale of ['0.61.0', '0.62.0', '0.63.0', '0.64.0', '0.65.0', '0.66.0', '0.67.0', '0.68.0', '0.69.0', '0.69.1', '0.69.2', '0.69.3', '0.69.4', '0.69.5', '0.70.0', '0.70.1', '0.60.0', '0.59.3', '1.0.0', '1.0.1', '1.1.0', '1.1.8']) {
       assert.equal(sources.includes(`${name}?v=${stale}`), false, `${name}?v=${stale}`);
     }
   }
