@@ -141,6 +141,9 @@ test('Account section presents step title, status chip and state-specific CTA', 
         assert.match(account, /sync-center-port-card/);
         assert.match(account, /Cruise Port/);
         assert.match(account, /id="sync-center-port-status-chip"/);
+        assert.match(account, /id="sync-center-port-status-chip"[^>]*role="status" aria-live="polite"/,
+            'the live status belongs to the chip, not to its interactive target list');
+        assert.doesNotMatch(account, /sync-center-port-card" role="status"/);
         assert.match(account, /id="sync-center-port-conflicts-open"[^>]*hidden>競合を確認する/);
         assert.match(account, /sync-center-section-heading[\s\S]*1\. アカウント[\s\S]*id="sync-center-account-help-toggle"/);
         assert.match(account, /id="sync-center-account-help"[^>]*hidden/);
@@ -217,7 +220,7 @@ test('Environment management keeps the Port path compact and the app-specific pa
     }
     assert.match(ui, /id: 'port', name: 'Cruise Port'[\s\S]*subtitle: null/);
     assert.match(ui, /add\.textContent = entry\.id === 'port' \? '別の端末を追加' : '同期先を追加'/);
-    assert.match(ui, /同期先 \$\{entry\.environments\.length\}件/);
+    assert.match(ui, /createSyncTargetsTab\(\{ name: entry\.name, count: entry\.environments\.length/);
     assert.match(ui, /sync-center-destination-primary/);
     assert.match(ui, /primary\.append\(image, copy\)/);
     assert.match(ui, /row\.append\(primary, add, count, details\)/);
@@ -227,8 +230,8 @@ test('Environment management keeps the Port path compact and the app-specific pa
     assert.match(styles, /\.sync-center-destination-primary\s*\{[\s\S]*display:\s*contents/);
     assert.match(styles, /\.sync-center-destination-primary \.sync-center-app-copy strong\s*\{[\s\S]*white-space:\s*nowrap/);
     assert.match(styles, /\.sync-center-destination-card\s*\{[\s\S]*align-content:\s*center/);
-    assert.match(styles, /\.sync-center-destination-card \.sync-center-destination-count\s*\{[\s\S]*grid-area:\s*count[\s\S]*justify-self:\s*start[\s\S]*min-height:\s*0[\s\S]*border:\s*0[\s\S]*background:\s*transparent[\s\S]*text-decoration:\s*none/);
-    assert.match(styles, /\.sync-center-destination-card \.sync-center-destination-count::before\s*\{[\s\S]*position:\s*absolute[\s\S]*inset:\s*-12px -8px/);
+    assert.match(styles, /\.sync-center-destination-card \.sync-center-destination-count\s*\{[\s\S]*grid-area:\s*count[\s\S]*justify-self:\s*start/);
+    assert.match(styles, /\.sync-center-targets-tab\s*\{[^}]*min-height:\s*36px/);
     assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-app\s*\{[\s\S]*grid-template-columns:\s*48px minmax\(0, 1fr\)/);
     assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-destination-card\s*\{[\s\S]*grid-template-columns:\s*44px minmax\(0, 1fr\) max-content/);
 });
@@ -614,8 +617,8 @@ test('delete grace reconnect is explicit and Section 3 owns counts, lists and sc
     assert.match(source, /cancelAppDeleteAndLaunch/);
     assert.match(source, /if \(deleting\) await refresh\(\)/);
     assert.match(source, /!app \|\| app\.deleteGrace \|\| \['unset', 'prepared', 'deleting'\]\.includes\(app\.status\)/);
-    assert.match(source, /count\.textContent = `同期先 \$\{entry\.environments\.length\}件/);
-    assert.match(source, /count\.disabled = entry\.environments\.length === 0/);
+    assert.match(source, /createSyncTargetsTab\(\{ name: entry\.name, count: entry\.environments\.length/);
+    assert.match(source, /listId: entry\.id, disabled: entry\.environments\.length === 0/);
     assert.match(source, /dataset\.syncAppEnvironmentRevoke = environment\.id/);
     assert.match(source, /revoke\.dataset\.syncCurrentEnvironmentDetach = 'true'/);
     assert.match(source, /await orchestrator\.revokeAppEnvironment/);
@@ -674,7 +677,7 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
     assert.match(source, /function bindSectionHelp\(root\)/);
     assert.match(source, /button\.setAttribute\('aria-expanded', String\(!help\.hidden\)\)/);
     assert.match(source, /const environmentToggle = event\.target\.closest\?\.\('\[data-sync-environment-toggle\]'\)/);
-    assert.match(source, /environmentToggle\.textContent = `同期先 \$\{count\}件\$\{details\.hidden \? '⌄' : '⌃'\}`/);
+    assert.match(source, /environmentToggle\.textContent = syncTargetsTabLabel\(count\)/);
     assert.match(source, /このアプリを接続/);
     assert.match(source, /以下の手順で接続します。/);
     assert.match(source, /sync-center-join-steps/);

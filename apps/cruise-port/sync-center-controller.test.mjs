@@ -112,6 +112,39 @@ test('environment normalization retains only the server-derived Port classificat
     ]);
 });
 
+test('current Account Device follows the saved credential ID, never names or list order', () => {
+    const safari = 'b91c7f00-0000-4000-8000-000000000001';
+    const pwa = '7a3e5d00-0000-4000-8000-000000000002';
+    const devices = [
+        { id: safari, label: 'iPhone', userLabel: '寝室iPhone', isCurrent: true,
+            isPortEnvironment: true, revokedAt: null },
+        { id: pwa, label: 'iPhone', userLabel: '寝室iPhone', isCurrent: false,
+            isPortEnvironment: true, revokedAt: null }
+    ];
+    for (const ordered of [devices, [...devices].reverse()]) {
+        const model = normalizeSyncCenterSummary(activeSummary, { devices: ordered }, () => null, pwa);
+        assert.deepEqual(model.environments.filter((device) => device.isCurrent).map((device) => device.id), [pwa],
+            'Safari and Home Screen can share a name while only the credential-matched environment is current');
+        assert.equal(model.environments.find((device) => device.id === safari).isCurrent, false,
+            'the local ID overrides a conflicting server marker');
+    }
+    const fallback = normalizeSyncCenterSummary(activeSummary, { devices: devices.map((device) => ({
+        ...device, userLabel: null
+    })) }, () => null, pwa);
+    assert.equal(fallback.environments.find((device) => device.id === pwa).isCurrent, true,
+        'registered-label fallback never changes the marker');
+});
+
+test('controller supplies the saved Account Device ID to the presentation', async () => {
+    const devices = [{ id: 'safari', label: 'iPhone', isCurrent: true, isPortEnvironment: true },
+        { id: 'pwa', label: 'iPhone', isCurrent: false, isPortEnvironment: true }];
+    const controller = createSyncCenterController({ config: { enabled: true, endpoint },
+        accountRoot: accountRoot({ account: { accountCredential: 'opaque', accountDeviceId: 'pwa' },
+            devices: { devices } }), online: () => true });
+    const presentation = await controller.load();
+    assert.deepEqual(presentation.environments.filter((device) => device.isCurrent).map((device) => device.id), ['pwa']);
+});
+
 test('app environment metadata is grouped by app and excludes revoked environments', () => {
     const model = normalizeSyncCenterSummary(activeSummary, {
         devices: [],

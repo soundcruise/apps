@@ -108,7 +108,7 @@ test('2/3/4: pending, no report, and clean + pending stay ✓ 同期済み witho
 test('ⓘ explains 「同期済み」 briefly and keeps the Phase 1B technical detail', () => {
   const view = render(presentationFor([target(PIXEL, clean()), target(MAC, pending(), { label: 'Mac Safari' })],
     { removalSafety: 'unknown' }));
-  assert.equal(view.toggle.textContent, 'i', 'the same neutral affordance');
+  assert.equal(view.toggle.textContent, '同期先2件', 'the tab shows the app target count');
   const summaryLine = view.panel.children[0];
   assert.equal(summaryLine.className, 'sync-center-app-info-summary');
   assert.equal(summaryLine.textContent, '「同期済み」は、クラウド同期を通常利用でき、現在確認されている問題がない状態です。');
@@ -304,7 +304,7 @@ test('20: no app launch CTA returns in any state', () => {
     const view = render(presentation);
     assertNoLaunch(view);
     const buttons = view.walk(view.row).filter((node) => node.tagName === 'button').map((node) => node.textContent);
-    for (const label of buttons) assert.ok(['i', 'もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label), label);
+    for (const label of buttons) assert.ok((/^同期先\d+件$/.test(label) || ['もう一度確認', '同期を解除', '名前を変更', '解除'].includes(label)), label);
   }
 });
 

@@ -176,7 +176,8 @@ function normalizeApp(app, membership, appEnvironments = [], accountDeleting = f
 }
 
 export function normalizeSyncCenterSummary(summary, devicesResponse = null,
-    formatAccountDisplayId = globalThis.SoundCruiseSyncAccount?.core?.formatAccountDisplayId) {
+    formatAccountDisplayId = globalThis.SoundCruiseSyncAccount?.core?.formatAccountDisplayId,
+    currentAccountDeviceId = null) {
     const account = summary?.account;
     if (!account || typeof account !== 'object') throw new Error('account_summary_invalid');
     const rawMemberships = Array.isArray(summary.memberships) ? summary.memberships : [];
@@ -193,7 +194,9 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
         label: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : '名前のない環境',
         registeredLabel: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : null,
         userLabel: receivedUserLabel(device?.userLabel),
-        isCurrent: device?.isCurrent === true,
+        // The saved Account credential identifies this browser/PWA environment. The Worker
+        // also derives isCurrent from the same ID; keep that as a fallback for older storage.
+        isCurrent: currentAccountDeviceId ? device?.id === currentAccountDeviceId : device?.isCurrent === true,
         isPortEnvironment: device?.isPortEnvironment === true,
         state: device?.revokedAt == null ? 'active' : 'revoked',
         createdAt: safeCount(device?.createdAt),
@@ -339,7 +342,8 @@ export function createSyncCenterController({
                 }
                 lastPresentation = normalizeSyncCenterSummary(
                     summary.value, devices.status === 'fulfilled' ? devices.value : null,
-                    accountRoot.core?.formatAccountDisplayId
+                    accountRoot.core?.formatAccountDisplayId,
+                    credential.accountDeviceId
                 );
             } catch (error) {
                 if (ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { normalizeSyncCenterSummary } from './sync-center-controller.js';
 import { describeAppSyncDetail } from './sync-center-device-detail.js';
-import { describeLifecycleAction, describeTargetForConfirm, renderSyncCenter } from './sync-center-ui.js';
+import { describeLifecycleAction, describeTargetForConfirm, renderSyncCenter, syncTargetsTabLabel } from './sync-center-ui.js';
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js';
 import { USER_LABEL_MAX, describeSyncTargetNames, normalizeUserLabel } from './sync-target-name.js';
 import { RENAME_COPY, openSyncTargetRenameDialog, renameErrorMessage } from './sync-target-rename.js';
@@ -195,7 +195,7 @@ test('management list: same names, separate current marker, rename for Port and 
   assert.equal(copy.children[0].className, 'sync-center-environment-name');
   assert.equal(copy.children[0].textContent, 'このCruise Port', 'a user name that looks like the marker is still just a name');
   assert.equal(copy.children[1].className, 'sync-center-environment-current');
-  assert.equal(copy.children[1].textContent, 'この環境', 'the real marker is a separate element');
+  assert.equal(copy.children[1].textContent, 'この端末', 'the real marker is a separate element');
   const portRename = current.children.find((node) => node.dataset.syncTargetRename);
   assert.equal(portRename.dataset.syncTargetRename, 'account');
   assert.equal(portRename.dataset.syncTargetContext, 'Cruise Port');
@@ -223,6 +223,73 @@ test('management list: same names, separate current marker, rename for Port and 
     p, { edition: 'pro', orchestrationEnabled: false });
   assert.equal(readOnly.walk(lists2['#sync-center-add-environments']).some((node) => node.dataset.syncTargetRename), false,
     'no rename without Port orchestration');
+});
+
+test('Account card and Section 3 use the same target rows and stay aligned after rename and detach', () => {
+  const dom = installDom();
+  const nodes = { '#sync-center-apps': new dom.Node('ul'), '#sync-center-add-environments': new dom.Node('ul'),
+    '#sync-center-app-environments': new dom.Node('ul'), '#sync-center-account-targets': new dom.Node('div') };
+  const root = { dataset: {}, querySelector: (selector) => nodes[selector] || null, querySelectorAll: () => [] };
+  const device = (id, userLabel, isCurrent = false) => ({ id, label: 'iPhone', userLabel,
+    isCurrent, isPortEnvironment: true, revokedAt: null });
+  const render = (devices) => renderSyncCenter(root, presentation([], {}, devices),
+    { edition: 'pro', orchestrationEnabled: true });
+  const sections = () => {
+    const account = nodes['#sync-center-account-targets'];
+    const section3 = nodes['#sync-center-add-environments'].children[0];
+    return [account, section3];
+  };
+  const targets = (section) => dom.walk(section).filter((node) => node.className === 'sync-center-environment-name');
+  const markers = (section) => dom.walk(section).filter((node) => node.className === 'sync-center-environment-current');
+  const actions = (section, key) => dom.walk(section).filter((node) => node.dataset[key]);
+  render([device(MAC, 'iPhone'), device(IPHONE, 'iPhone', true), device(PIXEL, null)]);
+  for (const section of sections()) {
+    assert.equal(dom.walk(section).find((node) => node.dataset.syncEnvironmentToggle)?.textContent, '同期先3件');
+    assert.deepEqual(targets(section).map((node) => node.textContent),
+      ['iPhone', 'iPhone', '登録名「iPhone」']);
+    assert.equal(markers(section).length, 1);
+    assert.equal(actions(section, 'syncTargetRename').length, 3);
+    assert.equal(actions(section, 'syncEnvironmentRevoke').length, 3);
+    assert.equal(actions(section, 'syncCurrentEnvironmentDetach').length, 1,
+      'the current target keeps the existing safe confirmation route');
+  }
+  assert.equal(actions(sections()[0], 'syncTargetRename')[1].dataset.syncTargetSurface, 'port-account');
+  assert.equal(actions(sections()[1], 'syncTargetRename')[1].dataset.syncTargetSurface, 'port');
+  render([device(MAC, 'iPhone'), device(IPHONE, '寝室iPhone', true), device(PIXEL, null)]);
+  for (const section of sections()) {
+    assert.ok(targets(section).some((node) => node.textContent === '寝室iPhone'));
+    assert.equal(markers(section).length, 1, 'renaming does not move the current marker');
+  }
+  render([device(MAC, 'iPhone'), device(IPHONE, '寝室iPhone', true)]);
+  for (const section of sections()) {
+    assert.equal(dom.walk(section).find((node) => node.dataset.syncEnvironmentToggle)?.textContent, '同期先2件');
+    assert.equal(targets(section).length, 2, 'a refreshed detach changes both lists');
+  }
+  assert.equal(syncTargetsTabLabel(100), '同期先100件');
+});
+
+test('all four app tabs show their own target count and keep the existing detail actions', () => {
+  const dom = installDom();
+  const apps = ['pitch', 'fretboard', 'rhythm', 'chord'];
+  const appDevices = apps.flatMap((appId, index) => Array.from({ length: index + 1 }, (_, n) => ({
+    id: `${appId}-${n}`, appId, label: `${appId} device`, revokedAt: null, lastReport: clean()
+  })));
+  const model = normalizeSyncCenterSummary({ account, memberships: apps.map((appId, index) =>
+    membership(appId, { activeAppDeviceCount: index + 1 })) }, { devices: [], appDevices });
+  const lists = { '#sync-center-apps': new dom.Node('ul'), '#sync-center-add-environments': new dom.Node('ul'),
+    '#sync-center-app-environments': new dom.Node('ul') };
+  renderSyncCenter({ dataset: {}, querySelector: (selector) => lists[selector] || null, querySelectorAll: () => [] },
+    model, { edition: 'pro', orchestrationEnabled: true });
+  for (const [index, appId] of apps.entries()) {
+    const app = model.apps.find((item) => item.id === appId);
+    const row = lists['#sync-center-apps'].children.find((item) => item.children[1].children[0].textContent === app.name);
+    const tab = dom.walk(row).find((node) => node.className.includes('sync-center-app-info-toggle'));
+    const panel = dom.walk(row).find((node) => node.className === 'sync-center-app-info');
+    assert.equal(tab.textContent, `同期先${index + 1}件`);
+    assert.equal(tab.getAttribute('aria-controls'), panel.id);
+    assert.equal(dom.walk(panel).filter((node) => node.dataset.syncTargetRename).length, index + 1);
+    assert.equal(dom.walk(panel).filter((node) => node.dataset.syncAppEnvironmentRevoke).length, index + 1);
+  }
 });
 
 test('detach confirmation names the exact target; app-wide detach copy is unchanged', () => {

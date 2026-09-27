@@ -205,7 +205,7 @@ test('checking state replaces old chips with a neutral label and closes open det
 test('styles keep [hidden] effective and give the ⓘ a focus ring', () => {
   const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
   assert.match(css, /\.sync-center-app-info\[hidden\] \{ display: none; \}/);
-  assert.match(css, /\.sync-center-app-info-toggle:focus-visible/);
+  assert.match(css, /\.sync-center-targets-tab:focus-visible/);
   assert.match(css, /\.sync-center-app-status-chip--checking/);
   assert.match(css, /\.sync-center-app-status-chip--available/);
   assert.match(css, /\.sync-center-app-status-chip--unavailable/);
