@@ -447,3 +447,83 @@ test('Auto Rejoin refuses an eleventh active environment without revoking an old
     WHERE user_id = ? AND revoked_at IS NOT NULL`).get(active.userId).count, 0);
   fixture.db.close();
 });
+
+test('Port identity survives a real handoff and shared Account storage replacement', async () => {
+  const { createD1PortDeviceRepository } = await import('../src/account-port-device-database.js');
+  const { createD1AccountLifecycleRepository } = await import('../src/account-lifecycle-database.js');
+  const { normalizeSyncCenterSummary } = await import('../../../apps/cruise-port/sync-center-controller.js');
+  const { readFileSync } = await import('node:fs');
+  const vm = await import('node:vm');
+  const fixture = await setup(['pitch']);
+  const port = await createIdentityMaterial(appPepper);
+  const provisioned = await createD1PortDeviceRepository(fixture.db).provision(fixture.identity, {
+    operationId: crypto.randomUUID(), requestFingerprint: '1'.repeat(64),
+    membershipId: crypto.randomUUID(), syncUserId: crypto.randomUUID(),
+    appDeviceId: port.deviceId, appCredentialVerifier: port.credentialVerifier,
+    deviceLabel: 'Same name', now: 2, accountRecoveryPepper
+  });
+  assert.equal(provisioned.status, 'active');
+  const issued = await issue(fixture, 'pitch');
+  const input = await consumeInput(issued, 'pitch');
+  const context = vm.createContext({ crypto, btoa, URL, URLSearchParams, TextEncoder,
+    Headers, Response, AbortController, setTimeout, clearTimeout });
+  for (const file of ['sync-account-core.js', 'sync-account-client.js']) {
+    vm.runInContext(readFileSync(new URL(`../../../apps/shared/sync-account/${file}`, import.meta.url), 'utf8'), context);
+  }
+  const root = context.SoundCruiseSyncAccount;
+  let saved = { accountDeviceId: fixture.identity.accountDeviceId };
+  const storage = { getAccount: async () => saved, setAccount: async (value) => { saved = value; },
+    setPendingConsume: async () => {}, clearPendingConsume: async () => {} };
+  const client = new root.AccountClient({ endpoint: 'https://sync.example.test', storage,
+    core: root.core, admissionMode: 'production', fetchImpl: async () => { throw new Error('unexpected network'); } });
+  client.request = async (_route, { body }) => {
+    input.accountDeviceId = root.core.accountDeviceIdFromCredential(body.accountCredential);
+    input.appDeviceId = body.appDeviceCredential.split('.')[1];
+    const result = await fixture.repository.consume(input);
+    assert.equal(result.status, 'activated');
+    return result;
+  };
+  await client.consumeHandoff({ handoffToken: issued.material.handoffToken, appId: 'pitch' });
+  assert.notEqual(saved.accountDeviceId, fixture.identity.accountDeviceId);
+  assert.equal(saved.accountDeviceId, root.core.accountDeviceIdFromCredential(saved.accountCredential));
+  const repo = createD1AccountLifecycleRepository(fixture.db);
+  const identityB = { ...fixture.identity, accountDeviceId: saved.accountDeviceId };
+  const devices = await repo.listEnvironments(identityB);
+  const a = devices.find((row) => row.id === fixture.identity.accountDeviceId);
+  const b = devices.find((row) => row.id === saved.accountDeviceId);
+  assert.equal(a.isPortEnvironment, true);
+  assert.equal(a.isCurrent, false);
+  assert.equal(b.isPortEnvironment, false);
+  assert.equal(b.isCurrent, true);
+  assert.equal(devices.filter((row) => row.isPortEnvironment && row.isCurrent).length, 0,
+    'exact 1.1.2 reproduction: correct Account current flag is filtered out');
+  assert.deepEqual(a.portAppDeviceIds, [port.deviceId]);
+  const response = { devices, appDevices: await repo.listAppEnvironments(identityB) };
+  const model = normalizeSyncCenterSummary({ account: { id: fixture.identity.accountId, state: 'active' } },
+    response, () => null, saved.accountDeviceId, port.deviceId);
+  assert.deepEqual(model.environments.filter((row) => row.isCurrentPortEnvironment).map((row) => row.id),
+    [fixture.identity.accountDeviceId]);
+  assert.equal(model.environments.find((row) => row.id === fixture.identity.accountDeviceId).isCurrent, false,
+    'Port marker must never grant current-Account detach authority');
+  // Issuance history is transient and does not prove which container consumed it.
+  fixture.db.raw.prepare('DELETE FROM sync_membership_handoffs').run();
+  assert.deepEqual((await repo.listEnvironments(identityB)).find((row) => row.id === a.id).portAppDeviceIds,
+    [port.deviceId], 'the durable Port membership binding survives history cleanup');
+  assert.deepEqual(await repo.listEnvironments({ accountId: 'unrelated-account' }), [],
+    'bindings never escape the authenticated Account');
+  const renamed = await repo.renameEnvironment(identityB, {
+    accountDeviceId: a.id, userLabel: 'Renamed Port'
+  });
+  assert.equal(renamed.status, 'renamed');
+  assert.deepEqual((await repo.listEnvironments(identityB)).find((row) => row.id === a.id).portAppDeviceIds,
+    [port.deviceId], 'rename cannot move the marker');
+  fixture.db.raw.prepare('UPDATE sync_devices SET revoked_at = 300 WHERE id = ?').run(port.deviceId);
+  assert.deepEqual((await repo.listEnvironments(identityB)).find((row) => row.id === a.id).portAppDeviceIds, [],
+    'revoked Port credential cannot identify a current environment');
+  fixture.db.raw.prepare('UPDATE sync_devices SET revoked_at = NULL WHERE id = ?').run(port.deviceId);
+  fixture.db.raw.prepare("UPDATE sync_account_memberships SET state = 'deleting' WHERE id = ?")
+    .run(provisioned.membershipId);
+  assert.deepEqual((await repo.listEnvironments(identityB)).find((row) => row.id === a.id).portAppDeviceIds, [],
+    'inactive membership cannot identify a current environment');
+  fixture.db.close();
+});

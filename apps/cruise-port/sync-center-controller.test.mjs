@@ -93,7 +93,7 @@ test('summary normalization exposes only the stable display Account ID, never ra
     assert.equal(model.totalCount, 4);
     assert.deepEqual(model.environments, [{
         id: 'secret-device-id', label: 'iPhone', registeredLabel: 'iPhone', userLabel: null,
-        isCurrent: true, state: 'active',
+        isCurrent: true, isCurrentPortEnvironment: false, state: 'active',
         isPortEnvironment: false, createdAt: null, lastSeenAt: null, relatedApps: []
     }], 'N1 adds only the registered label and the nullable user label');
     const serialized = JSON.stringify(model);
@@ -362,4 +362,59 @@ test('app presentation status keeps safe-to-remove authority while exposing one 
     assert.deepEqual(appSyncStatusPresentation({ status: 'synced', removalSafety: 'safe', snapshot: 'mismatch' }), {
         state: 'recheck', label: '再確認が必要'
     });
+});
+
+test('Port marker resolves the exact local Port binding independently of Account current', () => {
+    const devices = [
+        { id: 'port-a', isPortEnvironment: true, portAppDeviceIds: ['safari-port'], userLabel: 'same' },
+        { id: 'port-c', isPortEnvironment: true, portAppDeviceIds: ['pwa-port'], userLabel: 'same' },
+        { id: 'app-b', isPortEnvironment: false, isCurrent: true, portAppDeviceIds: [], userLabel: 'same' }
+    ];
+    const model = (rows, local) => normalizeSyncCenterSummary(activeSummary,
+        { devices: rows, appDevices: [] }, () => null, 'app-b', local);
+    const marked = (rows, local) => model(rows, local).environments
+        .filter((row) => row.isCurrentPortEnvironment).map((row) => row.id);
+    assert.deepEqual(marked(devices, 'safari-port'), ['port-a']);
+    assert.deepEqual(marked(devices, 'pwa-port'), ['port-c'], 'separate containers use their own Port credential');
+    assert.deepEqual(marked(devices, null), [], 'no formal binding and app-only Account: no guess');
+    assert.deepEqual(marked(devices, 'unknown'), []);
+    assert.deepEqual(marked(devices, false), [], 'unreadable/invalid local credential fails closed');
+    assert.deepEqual(marked([...devices, { id: 'other', isPortEnvironment: true,
+        portAppDeviceIds: ['safari-port'] }], 'safari-port'), [], 'multiple bindings fail closed');
+    assert.deepEqual(marked(devices.map((row) => row.id === 'port-a'
+        ? { ...row, revokedAt: 5 } : row), 'safari-port'), []);
+    assert.deepEqual(marked(devices.map((row) => row.id === 'port-a'
+        ? { ...row, portAppDeviceIds: ['safari-port', 'safari-port'] } : row), 'safari-port'), []);
+    assert.deepEqual(marked([...devices, { ...devices[0], portAppDeviceIds: [] }], 'safari-port'), []);
+    assert.equal(model(devices, 'safari-port').environments.find((row) => row.id === 'port-a').isCurrent, false);
+    assert.equal(model(devices, 'safari-port').environments.find((row) => row.id === 'app-b').isCurrent, true);
+    assert.deepEqual(marked(devices.map(({ portAppDeviceIds, ...row }) => row), 'safari-port'), [],
+        'older Worker response cannot resolve a different Port');
+    const portOnly = [{ id: 'app-b', isCurrent: true, isPortEnvironment: true, portAppDeviceIds: ['own-port'] }];
+    assert.deepEqual(marked(portOnly, 'own-port'), ['app-b']);
+    assert.deepEqual(marked(portOnly, null), ['app-b'], 'pre-provisioning uses exact own Account only');
+    assert.deepEqual(marked(portOnly, false), []);
+});
+
+test('controller reads the local Port credential without changing shared Account storage', async () => {
+    let credentialRead = 0;
+    const controller = createSyncCenterController({
+        config: { enabled: true, endpoint, admissionMode: 'production' },
+        readPortCredential: async () => { credentialRead++; return 'scd1.port-local.secret'; },
+        accountRoot: {
+            storage: { getAccount: async () => ({ accountCredential: 'account-b', accountDeviceId: 'stale' }) },
+            core: { accountDeviceIdFromCredential: () => 'b', validAppCredential: () => true },
+            AccountClient: class {
+                async summary() { return activeSummary; }
+                async devices() { return { appDevices: [], devices: [
+                    { id: 'a', isPortEnvironment: true, portAppDeviceIds: ['port-local'] },
+                    { id: 'b', isCurrent: true, isPortEnvironment: false }
+                ] }; }
+            }
+        }
+    });
+    const result = await controller.load();
+    assert.equal(credentialRead, 1);
+    assert.deepEqual(result.environments.filter((row) => row.isCurrentPortEnvironment).map((row) => row.id), ['a']);
+    assert.equal(result.environments[0].isCurrent, false);
 });

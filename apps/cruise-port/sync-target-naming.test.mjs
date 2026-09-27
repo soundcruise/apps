@@ -488,3 +488,31 @@ test('orchestrator rename sends only the display name with the Account credentia
   await assert.rejects(orchestrator.renameAppEnvironment('port', PIXEL, 'x'), /sync_target_name_invalid/);
   assert.equal(requests.length, 2, 'invalid input is never sent');
 });
+
+test('Port binding marker in Sections 1/3 cannot change current-Account detach authority', () => {
+  const dom = installDom();
+  const accountTargets = new dom.Node('div');
+  const nodes = { '#sync-center-apps': new dom.Node('ul'), '#sync-center-add-environments': new dom.Node('ul'),
+    '#sync-center-app-environments': new dom.Node('ul'), '#sync-center-account-targets': accountTargets,
+    '#sync-center-account-targets-trigger': new dom.Node('span') };
+  const root = { dataset: {}, querySelector: (selector) => nodes[selector] || null, querySelectorAll: () => [] };
+  const model = normalizeSyncCenterSummary({ account, memberships: [] }, { appDevices: [], devices: [
+    { id: IPHONE, label: 'Same name', isPortEnvironment: true, portAppDeviceIds: ['local-port'] },
+    { id: MAC, label: 'Same name', isPortEnvironment: true, portAppDeviceIds: ['other-port'] },
+    { id: PIXEL, label: 'Same name', isPortEnvironment: false, isCurrent: true }
+  ] }, () => null, PIXEL, 'local-port');
+  renderSyncCenter(root, model, { edition: 'pro', orchestrationEnabled: true });
+  for (const section of [accountTargets, nodes['#sync-center-add-environments'].children[0]]) {
+    const all = dom.walk(section);
+    const markers = all.filter((node) => node.className.includes('sync-center-environment-current--account'));
+    assert.equal(markers.length, 1);
+    const row = markers[0].parent.parent;
+    const revoke = dom.walk(row).find((node) => node.dataset.syncEnvironmentRevoke);
+    assert.equal(revoke.dataset.syncEnvironmentRevoke, IPHONE, 'explicit revoke targets the displayed Port A');
+    assert.equal(revoke.dataset.syncCurrentEnvironmentDetach, undefined, 'must not detach credential B');
+    assert.equal(revoke.dataset.syncEnvironmentCurrent, 'false');
+    const rename = dom.walk(row).find((node) => node.dataset.syncTargetRename);
+    assert.ok(rename, 'rename remains available');
+    assert.equal(all.filter((node) => node.dataset.syncEnvironmentRevoke).length, 2, 'target count unchanged');
+  }
+});

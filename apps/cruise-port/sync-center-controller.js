@@ -192,9 +192,28 @@ function currentAccountDeviceIdFromResponse(devices, credentialDeviceId) {
         ? credentialDeviceId : null;
 }
 
+function currentPortDeviceIdFromResponse(devices, currentAccountDeviceId, portAppDeviceId) {
+    if (!currentAccountDeviceId || portAppDeviceId === false) return null;
+    if (portAppDeviceId) {
+        const candidates = devices.filter((device) => Array.isArray(device?.portAppDeviceIds) &&
+            device.portAppDeviceIds.includes(portAppDeviceId));
+        if (candidates.length !== 1) return null;
+        const candidate = candidates[0];
+        return candidate.revokedAt == null && candidate.isPortEnvironment === true &&
+            typeof candidate.id === 'string' &&
+            devices.filter((device) => device?.id === candidate.id).length === 1 &&
+            candidate.portAppDeviceIds.filter((id) => id === portAppDeviceId).length === 1
+            ? candidate.id : null;
+    }
+    // Before Port provisioning, only its own exact Account identity can be used.
+    // Never infer a container from a handoff issuer, a name, a user agent or list order.
+    return devices.find((device) => device?.id === currentAccountDeviceId &&
+        device.revokedAt == null && device.isPortEnvironment === true)?.id || null;
+}
+
 export function normalizeSyncCenterSummary(summary, devicesResponse = null,
     formatAccountDisplayId = globalThis.SoundCruiseSyncAccount?.core?.formatAccountDisplayId,
-    credentialDeviceId = null) {
+    credentialDeviceId = null, portAppDeviceId = null) {
     const account = summary?.account;
     if (!account || typeof account !== 'object') throw new Error('account_summary_invalid');
     const rawMemberships = Array.isArray(summary.memberships) ? summary.memberships : [];
@@ -207,6 +226,7 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
     const now = Date.now();
     const rawDevices = Array.isArray(devicesResponse?.devices) ? devicesResponse.devices : [];
     const currentAccountDeviceId = currentAccountDeviceIdFromResponse(rawDevices, credentialDeviceId);
+    const currentPortDeviceId = currentPortDeviceIdFromResponse(rawDevices, currentAccountDeviceId, portAppDeviceId);
     const environments = Object.freeze(rawDevices.map((device) => Object.freeze({
         id: typeof device?.id === 'string' ? device.id : null,
         label: typeof device?.label === 'string' && device.label.trim() ? device.label.trim() : '名前のない環境',
@@ -214,6 +234,7 @@ export function normalizeSyncCenterSummary(summary, devicesResponse = null,
         userLabel: receivedUserLabel(device?.userLabel),
         isCurrent: currentAccountDeviceId !== null && device?.revokedAt == null &&
             device?.id === currentAccountDeviceId,
+        isCurrentPortEnvironment: currentPortDeviceId !== null && device?.id === currentPortDeviceId,
         isPortEnvironment: device?.isPortEnvironment === true,
         state: device?.revokedAt == null ? 'active' : 'revoked',
         createdAt: safeCount(device?.createdAt),
@@ -310,6 +331,7 @@ export function createUnavailablePresentation(kind = 'error', previous = null) {
 export function createSyncCenterController({
     config,
     accountRoot = globalThis.SoundCruiseSyncAccount,
+    readPortCredential = () => globalThis.SoundCruiseMultiAppSync?.runtimes?.port?.store?.readMeta('credential'),
     indexedDb = globalThis.indexedDB,
     online = () => globalThis.navigator?.onLine !== false,
     fetchImpl = globalThis.fetch?.bind(globalThis)
@@ -349,9 +371,10 @@ export function createSyncCenterController({
                 });
                 // The devices list only adds per-target detail. When it alone fails, the app rows
                 // still follow the Account summary instead of turning into 「確認が必要」.
-                const [summary, devices] = await Promise.allSettled([
+                const [summary, devices, portCredential] = await Promise.allSettled([
                     client.summary(credential.accountCredential),
-                    client.devices(credential.accountCredential)
+                    client.devices(credential.accountCredential),
+                    Promise.resolve().then(readPortCredential)
                 ]);
                 if (summary.status === 'rejected') throw summary.reason;
                 if (devices.status === 'rejected' && ACCOUNT_TERMINAL_CODES.has(devices.reason?.code)) {
@@ -360,7 +383,11 @@ export function createSyncCenterController({
                 lastPresentation = normalizeSyncCenterSummary(
                     summary.value, devices.status === 'fulfilled' ? devices.value : null,
                     accountRoot.core?.formatAccountDisplayId,
-                    accountRoot.core?.accountDeviceIdFromCredential?.(credential.accountCredential) || null
+                    accountRoot.core?.accountDeviceIdFromCredential?.(credential.accountCredential) || null,
+                    portCredential.status === 'rejected' ? false
+                        : portCredential.value == null ? null
+                        : accountRoot.core?.validAppCredential?.(portCredential.value)
+                            ? portCredential.value.split('.')[1] : false
                 );
             } catch (error) {
                 if (ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {

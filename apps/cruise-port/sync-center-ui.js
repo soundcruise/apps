@@ -1,5 +1,5 @@
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
-import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.1.2';
+import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.1.3';
 import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
 import { describeSyncTargetNames } from './sync-target-name.js?v=0.66.0';
 import { openSyncTargetRenameDialog, renameTargetFromDataset } from './sync-target-rename.js?v=0.66.0';
@@ -330,7 +330,7 @@ function createEnvironmentDetails({ entry, portEnvironments, renameEnabled, list
             // The user's name and the system marker are separate: a name can never read as the marker.
             // For an app target, isCurrent only means it was connected from this Cruise Port.
             appendText(copy, 'span', 'sync-center-environment-name', naming.name);
-            if (environment.isCurrent) {
+            if (entry.id === 'port' ? environment.isCurrentPortEnvironment : environment.isCurrent) {
                 appendText(copy, 'span', entry.id === 'port'
                     ? 'sync-center-environment-current sync-center-environment-current--account'
                     : 'sync-center-environment-current',

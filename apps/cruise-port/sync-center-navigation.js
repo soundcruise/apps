@@ -1,4 +1,4 @@
-import { SYNC_CENTER_ROUTE } from './sync-center-controller.js?v=1.1.2';
+import { SYNC_CENTER_ROUTE } from './sync-center-controller.js?v=1.1.3';
 
 export const SYNC_CENTER_SOURCE_KEY = 'cruisePortSyncCenterSource';
 

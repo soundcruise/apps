@@ -565,7 +565,16 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       SELECT d.id, d.label, d.user_label, d.credential_version, d.created_at, d.last_seen_at, d.revoked_at,
              CASE WHEN SUM(CASE WHEN m.app_id <> 'port' THEN 1 ELSE 0 END) = 0
                THEN 1 ELSE 0 END AS is_port_environment,
-             GROUP_CONCAT(DISTINCT CASE WHEN m.app_id <> 'port' THEN m.app_id END) AS related_apps
+             GROUP_CONCAT(DISTINCT CASE WHEN m.app_id <> 'port' THEN m.app_id END) AS related_apps,
+             (SELECT GROUP_CONCAT(pd.id)
+              FROM sync_membership_device_links pl
+              JOIN sync_account_memberships pm ON pm.id = pl.membership_id
+                AND pm.account_id = pl.account_id AND pm.app_id = 'port'
+                AND pm.state = 'active' AND pm.deleted_at IS NULL
+              JOIN sync_devices pd ON pd.id = pl.app_device_id AND pd.app_id = 'port'
+                AND pd.user_id = pm.sync_user_id AND pd.revoked_at IS NULL
+              WHERE pl.account_device_id = d.id AND pl.account_id = d.account_id
+                AND d.revoked_at IS NULL) AS port_app_device_ids
       FROM sync_account_devices d
       LEFT JOIN sync_membership_device_links l ON l.account_device_id = d.id
       LEFT JOIN sync_account_memberships m ON m.id = l.membership_id
@@ -583,6 +592,9 @@ export function createD1AccountLifecycleRepository(db, clock = Date.now) {
       revokedAt: row.revoked_at == null ? null : Number(row.revoked_at),
       isCurrent: row.id === identity.accountDeviceId,
       isPortEnvironment: Number(row.is_port_environment) === 1,
+      // Durable membership binding, not handoff/join issuance history. A Port instance can
+      // match its local app credential without changing the Account auth/detach identity.
+      portAppDeviceIds: row.port_app_device_ids ? String(row.port_app_device_ids).split(',') : [],
       relatedApps: row.related_apps ? String(row.related_apps).split(',').sort() : []
     }));
   }
