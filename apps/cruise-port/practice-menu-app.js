@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.2.2';
+} from './app-version.js?v=1.3.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -827,6 +827,7 @@ function showView(view) {
     [
         proAccessView,
         elements.homeView,
+        document.getElementById('news-view'),
         elements.settingsView,
         elements.syncCenterView,
         elements.wishlistView,
@@ -2062,7 +2063,20 @@ async function handleMyAppsDelete() {
     setHashRoute('#my-apps/manage');
 }
 
+// Dynamic boundary: missing/broken NEWS modules cannot abort the Port bootstrap.
+async function renderNewsSafely() {
+    try {
+        const news = await import('./news-ui.js?v=1.3.0');
+        const { loadNews } = await import('./news-provider.js?v=1.3.0');
+        news.renderNews({ items: await loadNews() });
+    } catch (error) {
+        document.getElementById('news-ticker').hidden = true;
+        document.getElementById('news-content').textContent = error?.name === 'NewsDisabledError' ? 'ニュースは現在公開を停止しています。' : 'ニュースを読み込めませんでした。';
+    }
+}
+
 function renderHome() {
+    void renderNewsSafely();
     showView(elements.homeView);
     renderMyAppsHome();
     const targetId = pendingHomeScrollTarget;
@@ -5084,6 +5098,10 @@ function renderRoute() {
         }
         showView(proAccessView);
         proAccessView.querySelector('h1').focus({ preventScroll: true });
+    } else if (hash === '#news') {
+        showView(document.getElementById('news-view'));
+        document.getElementById('news-title').focus({ preventScroll: true });
+        void renderNewsSafely();
     } else if (hash === '#settings') {
         renderSettings();
     } else if (hash === SYNC_CENTER_ROUTE) {
