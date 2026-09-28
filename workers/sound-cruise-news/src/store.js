@@ -1,0 +1,36 @@
+import { DAY } from './policy.js';
+export class NewsStore {
+ constructor(db){this.db=db;}
+ async controls(){return await this.db.prepare('SELECT * FROM news_controls WHERE id=1').first()||{collection_enabled:0,api_enabled:0,revision:0};}
+ async state(id){const s=await this.db.prepare('SELECT * FROM source_state WHERE source_id=?').bind(id).first();return s?{disabled:!!s.disabled||!!s.takedown,nextAt:s.next_at,failures:s.failures,robotsHash:s.robots_hash,etag:s.etag,lastModified:s.last_modified,lastDiscoveryAt:s.last_discovery_at||0}:{};}
+ async lease(id,now){
+  await this.db.prepare('INSERT OR IGNORE INTO source_state(source_id) VALUES(?)').bind(id).run();
+  const r=await this.db.prepare('UPDATE source_state SET lease_until=? WHERE source_id=? AND disabled=0 AND lease_until<=? AND next_at<=?').bind(now+3600000,id,now,now).run();
+  return r.meta.changes===1;
+ }
+ async saveState(id,s){
+  const statements=[this.db.prepare('UPDATE source_state SET disabled=MAX(disabled,?), next_at=?, failures=?, robots_hash=?, etag=?, last_modified=?, last_discovery_at=?, lease_until=0 WHERE source_id=?').bind(s.disabled?1:0,s.nextAt||0,s.failures||0,s.robotsHash||null,s.etag||null,s.lastModified||null,s.lastDiscoveryAt||0,id)];
+  if(s.disabled)statements.push(this.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1'));
+  await this.db.batch(statements);
+ }
+ async put(i){
+  const expiry=Math.min(Date.parse(i.collectedAt)+90*DAY,i.publishedAt?Date.parse(i.publishedAt)+90*DAY:Infinity);
+  const r=await this.db.prepare(`INSERT OR IGNORE INTO candidate_items(id,source_id,source_name,source_url,normalized_url,published_at,category,label,topic_key,collected_at,review_status,review_reason,expires_at,title_fingerprint,event_type,product_facts,feed_published_at)
+   SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1))`)
+   .bind(i.id,i.sourceId,i.sourceName,i.sourceUrl,i.normalizedUrl,i.publishedAt,i.category,i.label,i.topicKey,i.collectedAt,'pending',i.reviewReason,expiry,i.titleFingerprint||null,i.eventType||'other',i.productFacts?JSON.stringify(i.productFacts):null,i.feedPublishedAt||null,i.id,i.sourceId).run();
+  return r.meta.changes===1;
+ }
+ async log(r){await this.db.prepare('INSERT INTO collection_runs VALUES(?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),r.sourceId,r.startedAt,r.requests,r.candidates,r.pending,r.rejected,r.duplicates,r.outcome,r.durationMs).run();}
+ async purge(now,{leadMs=0}={}){
+  const result=await this.db.batch([
+   this.db.prepare('DELETE FROM candidate_items WHERE expires_at <= ?').bind(now+leadMs),
+   this.db.prepare('DELETE FROM collection_runs WHERE collected_at <= ?').bind(now-90*DAY),
+   this.db.prepare('DELETE FROM news_admin_audit WHERE occurred_at <= ?').bind(now-365*DAY),
+   this.db.prepare('DELETE FROM news_takedowns WHERE expires_at <= ?').bind(now),
+   this.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1')
+  ]);
+  return {news:result[0].meta.changes,runs:result[1].meta.changes,audit:result[2].meta.changes,takedowns:result[3].meta.changes};
+ }
+ async candidates(){return (await this.db.prepare('SELECT * FROM candidate_items ORDER BY published_at DESC,id').all()).results;}
+
+}

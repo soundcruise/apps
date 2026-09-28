@@ -1,0 +1,25 @@
+{
+  "name": "sound-cruise-news",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "dev": "wrangler dev --local --ip 127.0.0.1 --port 8795",
+    "migrate:local": "wrangler d1 migrations apply NEWS_DB --local",
+    "collect:local": "node scripts/collect-local.mjs",
+    "review:local": "node scripts/review-local.mjs",
+    "admin:local": "node scripts/admin-local.mjs",
+    "admin:plan": "node scripts/admin-plan.mjs"
+  },
+  "dependencies": {
+    "fast-xml-parser": "5.5.8",
+    "htmlparser2": "10.0.0",
+    "robots-parser": "3.0.1"
+  },
+  "devDependencies": {
+    "miniflare": "5.20260911.0-alpha",
+    "undici": "7.29.0",
+    "wrangler": "4.131.1"
+  }
+}
