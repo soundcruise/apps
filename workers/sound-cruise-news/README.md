@@ -1,4 +1,11 @@
-# Sound Cruise NEWS 0.1.0 — collection foundation
+# Sound Cruise NEWS 0.2.0 — automatic NEWS release candidate
+
+NEWS-FINAL preparation is implemented locally. Live validation is time-gated until
+2026-09-30 08:16:26 JST; production creation/deploy/enable are still pending.
+Use [PRODUCTION-OPERATIONS.md](PRODUCTION-OPERATIONS.md) for the guarded rollout,
+automatic publication boundary, operator CLI, kill/takedown and Port integration.
+The sections below also retain the earlier pilot history; production automatic
+publication supersedes the earlier requirement to manually approve every item.
 
 Source is committed with Port 1.3.0's static 23-item NEWS beta release.
 The NEWS Worker is **not deployed**. No remote D1 operation or production Cron activation.
@@ -238,12 +245,16 @@ URL scraper. htmlparser2 parses strings without executing scripts or loading ass
 Raw publisher HTML/title must never be saved as fixtures, snapshots, logs or traces.
 Tests use authored synthetic HTML; structural observations contain no publisher text.
 
-Expected structure: a product-news h1/h2 in a section/main, anchored ul/li cards
-with visible h3/date/category badge. Non-card h3 captions are ignored. Missing or
-malformed card data, out-of-order dates or ambiguous sections fail closed, with
-source disabled for review. No fallback to other sections. Generic content,
-sale/campaign, tutorial, stock/store notices and unrelated categories are excluded.
-Only exact allowed dated Update! article URLs become candidates; no article fetch.
+The JP2B-8 offline parser requires one visible product-news listing h1/h2 but does
+not assume that the heading and cards share a section. It scans visible anchors
+outside navigation/header/footer and accepts only same-origin numeric article URLs
+under the allowed guitar/bass, amp/effector and DTM/recording paths. A visible
+title and date are expected. An isolated missing date or category mismatch stays
+pending for review. Loss of page identity, article paths, most dates, or a sane
+article count fails closed. Clearly unrelated and tutorial content
+is rejected. On this Shimamura product-news listing, sale/campaign items are
+outside the reviewed source scope and stay excluded (see the 1.5.0 sale rules below
+for other sources). No article fetch occurs.
 
 Collector enforces 24h per source, one robots + one listing request, no pagination,
 512000 bytes, conditional GET/304, existing SSRF/redirect/timeout/backoff/kill rules.
@@ -251,15 +262,77 @@ Only ETag/Last-Modified and a successful discovery timestamp persist, not HTML.
 Migration 0004 adds the timestamp. Date-only metadata uses one JST-day overlap.
 Raw titles are cleared after the pending-only sink; N-1 HMAC/N-2 rules remain.
 
-Current state: NOT READY. Official listing/path/policy/robots evidence is now
-recorded, but the final live parser probe failed on an unanticipated non-card h3.
-The corrected card selector passes synthetic tests; live revalidation awaits a
-later authorized session (no further request beyond the current total of 3).
-`localPilotEnabled`, `enabled`, `productionEnabled` are all false. Policy approval
-is internal documented-silence judgment, not publisher permission. API/collection
-production flags and Cron remain OFF/empty. See LISTING-READINESS.md.
+Current state: **READY FOR PRODUCTION NEWS INFRA** after the authorized
+2026-09-30 08:39:30 JST final validation. Exactly one listing GET returned
+HTTP 200 / 127022 bytes; the unchanged parser extracted 11 metadata-complete
+candidates (3 AUTO_PUBLISHABLE, 8 PUBLISH_REVIEW). Source Health is healthy.
+`discoveryValid=true`; `localPilotEnabled`, `enabled`, `productionEnabled` remain
+false. This is WIP readiness only, with no production collection or deployment.
+Shimamura SALE is still unapproved. Policy approval remains an internal
+DOCUMENTED SILENCE judgment, not publisher permission. No raw HTML or original
+headline was persisted. Next eligible listing: 2026-10-01 08:39:30.960 JST.
+See FINAL-LIVE-VALIDATION.md; earlier phase records below are historical.
+
+JP2B-8 also records a future `AUTO_PUBLISHABLE` / `PUBLISH_REVIEW` / `REJECT`
+content decision. This is advisory: every collected candidate still has manual
+review status `pending`, and pilot publication still requires human approval.
+Missing brand, uncertain classification or factual headline similarity routes a
+relevant item to review; compliance failures remain hard gates. The keyed headline
+fingerprint stays secret-derived, and only deterministic fact templates can be
+generated. No raw source title, body or HTML is stored.
+
+Migration 0005 adds structured source health and state-transition alerts. Use the
+local `npm run health:local` CLI to inspect them after local DB setup. Alert rows
+contain only source, status, reason and time; repeated states are deduped and
+recovery is visible. No public health API or Port admin UI is exposed because a
+safe operator-only auth path has not been established. Email/in-app delivery can
+be added after that access boundary is defined.
 
 Dependency audit: the added htmlparser2 dependency has no reported advisory in
 this run. npm audit still reports the pre-existing fast-xml-parser XMLBuilder
 moderate advisory; XMLBuilder is not used by this implementation. No unrelated
 forced dependency upgrades were made.
+
+## NEWS 1.5.0: sale candidates (offline)
+
+`src/sale.js` assesses sale signals: event (fixed vocabulary), scope
+(broad/brand/shop/unknown), seller (registry name for official/retailer/distributor
+sources), equipment (fixed vocabulary), start/end dates (JST) and nature
+(sale/campaign). Major equipment sales are eligible (`category: sale`). Coupon,
+points, shipping-only, novelty/lottery, trade-in, single-item/used markdowns, small
+weekend or single-shop promotions and ended sales are rejected. Everything else is
+recall-first `PUBLISH_REVIEW` with a `sale_*` decision reason, unless the source's
+sale capability is approved and the sale is broad, dated, equipment-specific and
+from a clear seller, in which case it is `AUTO_PUBLISHABLE`. Labels never contain
+publisher copy or hype wording (`validLabel` rejects hype terms). Registry fields
+`contentTypes` and `saleCollection` record per-source sale capability; `soundhouse`
+(UNKNOWN) and `ikebe` are `pending_evidence` and disabled.
+
+
+### SALE safety closure (2026-09-29, offline; Port 1.5.0 WIP)
+
+The current registry's common evidence AND explicit `contentTypes: [..., "sale"]` /
+`saleCollection: approved` are checked again immediately before automatic approval.
+Missing, malformed, pending or revoked SALE capability is not authority. Source
+health, collection/publication controls, disable/takedown and keyed provenance stay
+in the shared publication boundary. Unapprovable AUTO candidates remain pending.
+
+Explicit benefit-only promotions and single-item markdowns take precedence over
+Black Friday/settlement/anniversary wording. An event name alone is not a price sale
+or broad scope. Compound terms (guitar effects, amp-simulator plugins) are not
+independent equipment lists. Unknown shop/brand scope stays `PUBLISH_REVIEW`;
+clearly small promotions are rejected. Ambiguous mixed benefits/price text stays
+in review; separately clear broad price reductions remain eligible.
+
+Migration 0007 projects an inclusive nullable `sale_ends_at` display deadline from
+SALE facts (`endDate`, optional `endTime`). JST date-only lasts through 23:59:59.999;
+explicit HH:mm ends at that instant, inclusive. SQL filters expiry before page/ticker
+selection; additive keyset `nextCursor` prevents expiry-induced offset skips. Cache
+entries cannot outlive the next sale transition. Port receives `saleEndsAt`, validates
+and filters it, and refreshes an open screen at expiry/on wake without a request.
+Unknown deadlines follow normal 90-day visibility. Expiry does not delete rows.
+
+Closure tests: NEWS 120, Port 885; all eight suites total 1,794 PASS with outbound
+network blocked, external attempts 0. Production Port baseline 1.4.3; NEWS remains
+uncommitted 1.5.0 WIP. No source enablement, live fetch, deployment or production
+mutation occurred. Shimamura final live validation remains the next separate phase.

@@ -79,8 +79,9 @@ test('Shimamura: readiness requires complete fresh evidence, validated Feed/robo
 test('Shimamura: narrow Gear paths only, shops/sale/campaign/events/lessons/used notices excluded',async()=>{
  const source=getSource('shimamura'),p={isAllowed:()=>true};
  for(const path of ['/shops/a','/update/sale/a','/update/campaign/a','/update/event/a','/update/dtm-recording/../../shops/a','/update/generic/a','/update/amp-effector/sale/a','/update/guitar-bass/%75sed/a'])assert.equal(allowedArticlePath(source.baseUrl.slice(0,-1)+path,source),false);
- const entry={listingSection:'product_news',listingCategory:'amp-effector',title:'BOSS GX-1 新製品を発表しました',url:source.baseUrl+'update/amp-effector/2026/09/probe/',date:'2026-09-28'};
+ const entry={listingSection:'product_news',listingCategory:'amp-effector',title:'BOSS GX-1 新製品を発表しました',url:source.baseUrl+'update/amp-effector/2026/09/80421/',date:'2026-09-28'};
  assert.equal((await candidateFrom(entry,source,p,now,pepper)).item.category,'amps_effects');
  assert.equal((await candidateFrom({...entry,title:'ギターライブ開催'},source,p,now,pepper)).reason,'artist_or_lifestyle');
- for(const term of ['sale','coupon','used','campaign','event','lesson','recruit','営業時間','店舗案内','入荷情報'])assert.equal((await candidateFrom({...entry,title:entry.title+' '+term},source,p,now,pepper)).item,undefined,term);
+ for(const term of ['sale','coupon','used','event','lesson','recruit','営業時間','店舗案内','入荷情報'])assert.equal((await candidateFrom({...entry,title:entry.title+' '+term},source,p,now,pepper)).item,undefined,term);
+ assert.equal((await candidateFrom({...entry,title:entry.title+' campaign'},source,p,now,pepper)).item.publicationDecision,'PUBLISH_REVIEW');
 });

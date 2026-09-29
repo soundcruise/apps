@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.4.3';
+} from './app-version.js?v=1.5.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -2117,12 +2117,18 @@ async function handleMyAppsDelete() {
 }
 
 // Dynamic boundary: missing/broken NEWS modules cannot abort the Port bootstrap.
+let newsLoadRevision = 0;
 async function renderNewsSafely() {
+    const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.3.0');
-        const { loadNews } = await import('./news-provider.js?v=1.3.0');
-        news.renderNews({ items: await loadNews() });
+        const news = await import('./news-ui.js?v=1.5.0');
+        if (revision !== newsLoadRevision) return;
+        news.stopNewsUpdates();
+        const { loadConfiguredNews } = await import('./news-provider.js?v=1.5.0');
+        const result = await loadConfiguredNews();
+        if (revision === newsLoadRevision) news.renderNews(result);
     } catch (error) {
+        if (revision !== newsLoadRevision) return;
         document.getElementById('news-ticker').hidden = true;
         document.getElementById('news-content').textContent = error?.name === 'NewsDisabledError' ? 'ニュースは現在公開を停止しています。' : 'ニュースを読み込めませんでした。';
     }

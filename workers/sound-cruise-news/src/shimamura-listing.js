@@ -10,7 +10,7 @@ function visibleText(node){if(hidden(node))return '';if(node.type==='text')retur
 const text=n=>visibleText(n).replace(/\s+/g,' ').trim();
 export function listingArticleUrl(raw){
  try{const u=new URL(raw,SHIMAMURA_LISTING_URL);if(u.origin!=='https://www.shimamura.co.jp'||u.username||u.password||u.port||u.search||u.hash)return null;
-  if(!/^\/update\/(guitar-bass|amp-effector|dtm-recording)\/20\d{2}\/(0[1-9]|1[0-2])\/[a-z0-9_-]+\/$/i.test(u.pathname))return null;return u.href;
+  if(!/^\/update\/(guitar-bass|amp-effector|dtm-recording)\/20\d{2}\/(0[1-9]|1[0-2])\/[0-9]+\/$/i.test(u.pathname))return null;return u.href;
  }catch{return null;}
 }
 export function listingDate(value){
@@ -21,17 +21,29 @@ export function listingDate(value){
 }
 export function listingExclusion(title){
  const t=title.normalize('NFKC');
+ const productNews=/新製品|新登場|発売|発表|リリース|アップデート|ファームウェア|価格改定|リコール|生産終了|販売終了|\b(?:new product|new model|release|announce|update|firmware|recall)\b/i.test(t);
  for(const [reason,re] of [
   ['tutorial',/チュートリアル|使い方|入門|初心者|基礎講座|活用術|\b(?:tutorial|how[ -]to|beginner|tips)\b/i],
-  ['sale_campaign',/セール|キャンペーン|クーポン|中古|特価|買取|下取り|\b(?:sale|campaign|coupon|used)\b/i],
+  ['sale_campaign',/セール|クーポン|中古|特価|買取|下取り|\b(?:sale|coupon|used)\b/i],
+  ['campaign_only',/キャンペーン|\bcampaign\b/i],
   ['event_or_shop',/イベント|フェア|試奏会|体験会|展示会|セミナー|ワークショップ|レッスン|求人|採用|入荷|在庫|営業時間|営業案内|店舗案内|開店|閉店|休業|\b(?:event|fair|seminar|workshop|lesson|recruit|stock|store notice)\b/i],
   ['comparison_evergreen',/比較|選び方|完全ガイド|とは[?？]|おすすめ|\b(?:comparison|versus|evergreen|guide)\b/i],
   ['artist_or_lifestyle',/ライブ(?!ラリ)|コンサート|ツアー|新曲|旅行|料理|\b(?:concert|tour|lifestyle)\b/i]
- ])if(re.test(t))return reason;
+ ])if(re.test(t)&&!(reason==='campaign_only'&&productNews))return reason;
  return null;
 }
-// This only parses the fixed official product-news listing. Never execute scripts or fetch links.
-// Returned titles are transient inputs to the HMAC/label pipeline, never persistence records.
+const excludedContainers=new Set(['header','footer','nav','aside','form']);
+function isNavigation(node){
+ for(let n=node;n;n=n.parent)if(excludedContainers.has(n.name)||n.attribs?.role==='navigation')return true;
+ return false;
+}
+const categoryBadge={
+ 'guitar-bass':/ギター|ベース/,
+ 'amp-effector':/アンプ|エフェクター/,
+ 'dtm-recording':/DTM|レコーディング/i
+};
+// Fixed official listing only. The page heading and article anchors need not share a section.
+// Titles remain transient and are cleared by the caller; no scripts/assets/links are loaded.
 export function parseShimamuraListing(html,url=SHIMAMURA_LISTING_URL,{since=0}={}){
  if(url!==SHIMAMURA_LISTING_URL)throw Error('listing_url_blocked');
  if(typeof html!=='string'||new TextEncoder().encode(html).length>LISTING_MAX_BYTES)throw Error('listing_too_large');
@@ -39,39 +51,36 @@ export function parseShimamuraListing(html,url=SHIMAMURA_LISTING_URL,{since=0}={
  try{
   if(tags(doc,()=>true).length>20000)throw Error('listing_structure_changed');
   if(tags(doc,n=>n.name==='meta'&&/^(robots|SoundCruiseNewsBot)$/i.test(n.attribs?.name||'')).some(n=>optOut(n.attribs?.content||'')))throw Error('listing_optout');
-  const headings=tags(doc,n=>/^h[12]$/.test(n.name)&&!hidden(n)&&text(n).includes('製品ニュース'));
-  if(headings.length!==1)throw Error('listing_structure_changed');
-  let section=headings[0];while(section&&section.name!=='section'&&section.name!=='main')section=section.parent;
-  if(!section)throw Error('listing_structure_changed');
-  // The listing also has a non-card h3 section caption. Only anchored list cards count.
-  const cards=tags(section,n=>{
-   if(n.name!=='h3'||hidden(n))return false;
-   for(let p=n.parent;p&&p!==section;p=p.parent)if(p.name==='a')return p.parent?.name==='li'&&p.parent.parent?.name==='ul';
-   return false;
-  });
-  if(cards.length<3||cards.length>60)throw Error('listing_structure_changed');
-  const entries=[],reasons={},seen=new Set();let lastDate=Infinity,valid=0;
+  const identity=tags(doc,n=>/^h[12]$/.test(n.name)&&!hidden(n)&&/製品ニュース/.test(text(n))&&/記事一覧/.test(text(n)));
+  if(identity.length!==1)throw Error('listing_structure_changed');
+  const cards=tags(doc,n=>n.name==='a'&&n.attribs?.href&&!hidden(n)&&!isNavigation(n)&&listingArticleUrl(n.attribs.href));
+  if(cards.length<1||cards.length>100)throw Error('listing_structure_changed');
+  const entries=[],reasons={},seen=new Set();let validDates=0,usable=0;
   const reject=reason=>{reasons[reason]=(reasons[reason]||0)+1;};
-  for(const heading of cards){
-   let card=heading;while(card&&card!==section&&card.name!=='a')card=card.parent;
-   if(!card||card===section||!card.attribs?.href)throw Error('listing_structure_changed');
-   const dates=tags(card,n=>n.name==='date'&&!hidden(n));
+  for(const card of cards){
+   const titleNodes=tags(card,n=>/^h[2-4]$/.test(n.name)&&!hidden(n));
+   const title=titleNodes.length===1?text(titleNodes[0]):'';
+   if(!title||title.length>512){reject('malformed_card');continue;}
+   usable++;
+   const dateNodes=tags(card,n=>['date','time'].includes(n.name)&&!hidden(n));
+   const dateText=dateNodes.length===1?text(dateNodes[0]):text(card);
+   const match=/(?:公開\s*[：:]?\s*)?(20\d{2}\/\d{2}\/\d{2})/.exec(dateText);
+   const date=match?listingDate(match[1]):null;
+   if(date)validDates++;
    const badges=tags(card,n=>/\bbtn-cat-[\w-]+\b/.test(n.attribs?.class||'')&&!hidden(n));
-   const title=text(heading),date=dates.length===1?listingDate(text(dates[0])):null;
-   if(!date||!title||title.length>512||badges.length!==1)throw Error('listing_structure_changed');
-   const stamp=Date.parse(date);if(stamp>lastDate)throw Error('listing_structure_changed');lastDate=stamp;valid++;
-   // Date-only metadata: overlap one JST calendar day to avoid missing late same-day additions.
-   if(since&&stamp<Math.floor((since+9*3600000)/86400000)*86400000-9*3600000-86400000)break;
    const article=listingArticleUrl(card.attribs.href);
-   if(!article){reject('url_or_category');continue;}
    if(seen.has(article)){reject('duplicate_url');continue;}seen.add(article);
-   const path=new URL(article).pathname.split('/')[2],badge=text(badges[0]);
-   const matches={'guitar-bass':/ギター|ベース/,'amp-effector':/アンプ|エフェクター/,'dtm-recording':/DTM|レコーディング/i};
-   if(!matches[path].test(badge))throw Error('listing_structure_changed');
+   const path=new URL(article).pathname.split('/')[2];
+   const mismatch=badges.length>1||(badges.length===1&&!categoryBadge[path].test(text(badges[0])));
    const reason=listingExclusion(title);if(reason){reject(reason);continue;}
-   entries.push({url:article,date,title,listingSection:'product_news',listingCategory:path});
+   // A single malformed/missing date or conflicting badge needs review, not source shutdown.
+   const uncertainty=!date?'missing_date':mismatch?'category_mismatch':'';
+   const stamp=date?Date.parse(date):null;
+   // Date-only metadata overlaps one JST day; undated records stay pending for review.
+   if(since&&stamp!==null&&stamp<Math.floor((since+9*3600000)/86400000)*86400000-9*3600000-86400000)continue;
+   entries.push({url:article,date:date||'',title,listingSection:'product_news',listingCategory:path,listingUncertainty:uncertainty});
   }
-  if(valid<1)throw Error('listing_structure_changed');
+  if(usable<1||validDates<Math.max(1,Math.ceil(cards.length/2)))throw Error('listing_structure_changed');
   return {entries,reasons,cards:cards.length};
  }finally{doc=null;}
 }

@@ -1,4 +1,5 @@
 exclude:
+  - workers
   - AGENTS.md
   - CLAUDE.md
   - apps/chord-cruise/tests

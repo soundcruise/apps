@@ -1,0 +1,21 @@
+{
+  "name": "sound-cruise-news",
+  "account_id": "a9f2a3e9fcb6d0f68fd2eaa9df909e33",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-09-29",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "NEWS_COLLECTION_MODE": "production",
+    "NEWS_API_MODE": "production",
+    "NEWS_SOURCE_IDS": "[\"shimamura\"]"
+  },
+  "triggers": { "crons": ["0 21 * * *", "17 * * * *"] },
+  "d1_databases": [{
+    "binding": "NEWS_DB",
+    "database_name": "sound-cruise-news",
+    "database_id": "REQUIRES_LIVE_VALIDATION_AND_D1_CREATION",
+    "migrations_dir": "migrations"
+  }],
+  "observability": { "enabled": true, "traces": { "enabled": true } }
+}

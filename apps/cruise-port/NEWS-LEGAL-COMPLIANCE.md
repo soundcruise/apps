@@ -97,6 +97,7 @@ SAFE-ENOUGHは法的保証ではない。コードの分類キーはSAFE / CONTA
 | tft | THE FIRST TIMES | UNKNOWN | false |
 | takamine | Takamine | DO_NOT_USE | false |
 | kurosawa | クロサワ楽器 | DO_NOT_USE | false |
+| soundhouse | サウンドハウス（1.5.0 sale候補・未審査） | UNKNOWN | false |
 
 Artist/Liveはギター関連の明示的根拠が必要。ピアノのみ、一般ツアー、一般芸能記事は除外。
 
@@ -136,7 +137,7 @@ run diagnosticsは90日、item再取得抑止hashは90日、内容を含まな�
 
 ## 15. AI
 
-今回は外部AIを呼ばない。既知製品辞書、word boundary、event分類、source別allowedPaths/deniedPathsでdeterministicに候補化する。tutorial/evergreen/sale/coupon/usedを除外し、不明な製品・出来事はlabel_requiredのpendingとする。
+今回は外部AIを呼ばない。既知製品辞書、word boundary、event分類、source別allowedPaths/deniedPathsでdeterministicに候補化する。tutorial/evergreenを除外する。1.5.0から大型の機材セールはNEWS対象（下記「NEWS-1.5.0」）で、coupon/points/送料無料/単品・中古1点/小規模販促/終了済みセールのみ除外する。不明な製品・出来事・セール規模はlabel_requiredまたはsale_*理由のpendingとする。
 Raw headlines stay in memory. NFKC/case/whitespace/punctuation normalization precedes secret-keyed HMAC-SHA256. Persist only a domain-separated exact signature, key ID, gram count and at most 64 bottom-k 3-gram signatures. NEWS_HEADLINE_PEPPER is externally injected; never persist it, raw headlines or unsalted title_hash in D1/logs/reports/API. Missing or mismatched keys fail closed. Migration 0003 clears old fingerprints and quarantines old non-rejected rows as legacy pending, without conversion. DB-only gram dictionary enumeration is prevented under an uncompromised high-entropy key assumption; length/equality leak and key compromise remain limitations. This is neither an absolute non-reversibility guarantee nor a complete plagiarism detector.
 承認はoperator/manual/admin識別子、関連性/事実/opt-out/重複/日付/source policy/labelの各booleanを要求。記事別にmeta robots、bot-specific meta、X-Robots-Tag、公開アクセス、link/reuse notice、canonical、公開日、独自label、ギター/機材関連、一次情報置換のcode値を必須とする。未確認・拒否状態では承認できない。内容crawlerは作らない。
 pending→approved/rejected、rejected→明示reopen→reopened→approved/rejected。日付がFeed値と異なる場合はdateOverrideReasonを必須とし、approved topicKey重複はDB unique indexでも拒否する。
@@ -240,3 +241,65 @@ This section supersedes the JP2B-5 Feed dependency for Shimamura only.
 When collection is separately authorized, select for **relevant-news recall**: reject clearly out-of-scope items, and hold uncertain items for factual review instead of silently discarding them. Missing brand identification, medium/low confidence, a slightly ambiguous article type, or similarity between an independently written factual label and a source headline is not alone a rejection reason. Shared facts such as brand, product, model, release/announcement/update, price and date may appear in a label. Never copy a publisher's catch copy, evaluation, metaphor or other creative expression. This editorial policy does not relax robots, Terms, source gating, human approval, or the current production OFF state.
 
 Future collection operations must notify the operator/user when robots change or Disallow applies, Terms review expires, a source policy changes, HTTP 401/403/451 occurs, 429 repeats, listing/feed structure changes, a source auto-disables, global collection stops, or retention purge fails. Record the reason and affected source without publisher content or secrets. A notification backend belongs to a later phase; none is activated by Port 1.3.0.
+
+## NEWS-JP2B-7E: Shimamura one-time early validation (2026-09-29 JST)
+
+修正版の公式listing adapterを実ページで単発確認するため、Sound Cruiseが自主設定した24時間間隔に今回限りの例外を適用した。法令または媒体規約上の間隔要件を解除したものではない。固定listingへのGETは1回、robots再取得は0回。2026-09-29 08:16:26 JSTのアクセスを新しい基準とし、次回listing GETは2026-09-30 08:16:26 JST以降とする。以後は通常の24時間間隔に戻す。
+
+HTTP 200・126358 bytesだったが、見出しの直近sectionにカード・日付・カテゴリが見つからず`listing_structure_changed`で停止した。2回目の取得は行わず、sourceはOFF、discoveryValid=false、PHASE-1 READY=NOを維持。原HTML・原見出し・秘密情報を保存・出力せず、候補承認・本番配信も行っていない。自動収集の明示許可は確認しておらず、DOCUMENTED SILENCEの判断は変わらない。
+
+## NEWS-JP2B-8: offline parser / recall / source health (2026-09-29 JST)
+
+同一sectionを前提にした抽出を廃止し、ページ識別子・同一originの許可記事URL形・可視タイトル/日付・カテゴリを組み合わせる。構造全体の破損時は停止し、個別の不確実な関連記事は審査待ちに残す。この段階では人工HTMLのテストのみ実施し、媒体への追加requestは0件。実ページへの適合は未確認で、sourceはOFFのまま。
+
+Content recallとCompliance gateを分離する。ブランド未特定、分類の不確実性、事実だけで組み立てた独自labelとの類似は、それだけで関連記事を破棄しない。Similarity guardは独自labelの再生成または審査signalとし、媒体固有の宣伝文句・評価・比喩・創作的表現はコピーしない。HMAC fingerprintの秘密と原見出しは保存しない。推測で欠けた製品情報を補わない。robots/Terms/opt-out/停止状態などの法務・技術ゲートは従来どおり優先する。
+
+将来の自動収集・自動掲載向けに`AUTO_PUBLISHABLE`、`PUBLISH_REVIEW`、`REJECT`の判定を保存できるようにした。ただし初期pilotの候補はすべて`pending`で、掲載には人の承認を要する。Source healthは定型の状態・理由・日時を保存し、状態遷移時のみoperator alertを作る。原HTMLや外部本文は保存しない。安全な管理者専用認証がPortに確認できないため、公開UI/APIは設けずローカル運用CLIにとどめる。メール・アプリ内通知は後続phaseで接続する。本番fixture 23件、News Worker未配備、収集/公開OFFは変わらない。
+
+## NEWS-FINAL: automatic publication boundary (prepared 2026-09-29 JST)
+
+最新のユーザー指示に基づき、正常収集できた`AUTO_PUBLISHABLE`を自動掲載する経路を準備した。ブランド・製品・出来事を確認できる定型の事実labelに限り、見出しとの事実上の一致は掲載を妨げない。HMACの形式と鍵の一致は引き続き検証し、類似度signalとは区別する。不明確な候補は`PUBLISH_REVIEW`として保持する。
+
+自動経路の根拠は許可された一覧の可視metadata、robotsの対象パス、HTTP header、一覧metaのopt-outである。禁止されている個別記事HTMLへアクセスせず、未確認のarticle-level checklistを確認済みとは記録しない。手動審査の既存checklistは維持する。規約・robots・source停止・日付/URL・削除要求はContent recallより優先する。
+
+運用者は既存Cloudflare認証を使うCLIから本番D1の状態・異常alert・審査候補を確認する。一般利用者のPro/Account状態を管理権限に流用しない。新しいメールサービスや秘密は導入しない。API停止時はPortに古いニュースを復活表示させない。本文・画像・原HTML・原見出しの保存禁止、90日保持、問い合わせ・takedownは維持する。
+
+本番移行は1回のlive validation成功後に限定する。2026-09-29の準備段階ではpublisherへの追加request、本番D1作成、Worker deploy、collection ONは実施していない。最終結果はWorkerのPRODUCTION-OPERATIONS.mdおよびNEWS-FINALの完了報告に追記する。
+
+## NEWS-1.5.0: sale eligibility (prepared 2026-09-29 JST, offline)
+
+旧規則「sale-only / campaign-only は一律REJECT」を撤廃した。**大型の楽器・DTM・録音機材セールはNEWS対象**で、判定基準は「ニュースとして知らせる価値のある規模か」である。カテゴリー `sale`（表示名「セール」）を正式に追加した。広告・Sponsored・購入推奨の扱いにはせず、affiliateは実装しない。
+
+- 掲載候補：大型楽器店の全店規模・決算・周年・ブラックフライデー・年末年始・サマー等のセール、複数ブランド／複数カテゴリの値下げ、DTM/録音機材の大型セール、メーカー公式の期間限定・多数製品の値下げ、価格メリットのある多数製品キャンペーン。
+- AUTO_PUBLISHABLE：sale取得の証拠が承認済みのsource（`contentTypes`に`sale`、`saleCollection: approved`）で、販売元が明確・終了日が明確で未終了・対象機材が明確・規模が十分広く、掲載日がある場合のみ。
+- PUBLISH_REVIEW（recall-first）：規模不明、特定brand限定、店舗限定だが大量、campaignとsaleの境界が曖昧、終了日不明、販売元不明（media）、sale取得が未審査のsource。曖昧さだけでは除外しない。
+- REJECT：単品・1点・中古品の値下げ、couponのみ、ポイント倍率のみ、送料無料のみ、ノベルティ・抽選のみ、下取り・買取、小規模な週末・当日限りの販促、小規模な1店舗販促、終了済みセール、lesson/recruit/店舗案内（従来どおり）。
+- ラベル：販売元（registry名）・固定語彙のイベント名・日付・固定語彙の対象機材・既知brandのみで生成する（例「イケベ楽器、決算セールを10月31日まで開催。ギター・エフェクターなどが対象」）。publisherの広告コピーや煽り語（衝撃・激安・爆安・史上最大・見逃し厳禁・超お得・今だけ等）は使わず、含むlabelは保存・承認できない。
+- 保存：本文・HTML・原見出し・画像・OGPは従来どおり保存しない。セールの事実は既存 `product_facts` 列に構造化値（seller/event/scope/equipment/startDate/endDate）として保持する。表示期限の投影列はmigration 0007で追加する（本番適用は未実施）。
+- 終了日：終了済みセールは候補化せず、自動公開時にも終了日を再確認する。
+- Source：Sound House（`soundhouse`）を未審査候補として追加（UNKNOWN、enabled=false、discovery未設定）。Ikebe（`ikebe`）は既存登録を再利用し、sale対応は `pending_evidence`。どちらも terms/robots/listing・feed の証拠がなく、収集もsale自動公開もできない。registryに存在するだけでは一切fetchしない。本phaseでpublisherへのアクセスは行っていない。
+- 島村楽器：承認済み証拠は製品ニュースlistingのみ。listing上の `sale_campaign` 除外はこのsource範囲の規則として維持し、島村楽器のセールを扱う場合は別途証拠が必要。
+- Source health（robots変更、policy期限切れ、401/403/451、429反復、listing構造変化、source停止）はsale sourceにもそのまま適用する。
+
+
+## NEWS SALE safety closure（2026-09-29、offline）
+
+本番baselineはPort 1.4.3 (`be28371f`)、NEWS 1.5.0は未コミットWIPであり未公開。
+SALE候補作成時の承認を永続的な許可とせず、自動承認直前に現在の共通証拠・SALE取得承認・source状態・healthを再確認する。承認欠落／不正／撤回／期限切れでは掲載せずpendingを保持する。
+
+決算／Black Friday等の名称より、coupon・points・送料無料・景品抽選・買取だけの販促と単品値下げの除外を優先する。機材の複合語を複数カテゴリと数えず、規模不明の店舗限定やbrand限定はREVIEWに残す。曖昧な値下げと特典の混在も自動掲載しない。
+
+表示期限と保存期限を分離した。終了日だけの場合はJST当日23:59:59.999まで、明示時刻がある場合はその時刻まで表示する。期限ちょうどは表示し、その後API・一覧・カテゴリ一覧・tickerから除外する。終了日不明は通常の90日表示規則に従う。SQLでページ分割前に除外し、継続位置・cache期限・Portの期限到達／復帰時描画も整合させる。D1から即削除せず、従来の90日physical retentionとtakedownを維持する。
+
+publisherアクセス0、外部接続試行0。全8suite 1,794 PASS。Sound House／Ikebe SALEは無効、島村楽器のparser・証拠・readinessは変更なし。原見出し・本文・画像を保存しない方針、HMACとブランド／製品照合、既存Source Healthは維持。本番D1・Worker・Pagesの変更は実施していない。
+
+
+## Shimamura final live validation — 2026-09-30 JST
+
+08:39:30 JSTに許可されたlisting GETを1回だけ実行。HTTP 200、127022 bytes、
+現行parserで11件の必要metadataを確認し、技術的なPHASE-1 READYを確認した。
+robots・記事・画像・feed・他publisherへの追加GETは0。原HTML・原見出しは
+メモリ内のみで処理・破棄し、本文は取得していない。既存robots/policy evidence
+は有効で、DOCUMENTED SILENCE・明示的自動収集許可なしの判断を維持する。
+SALE収集承認は追加しない。source/production/local pilotはOFFのまま。
+本番化は別phase。詳細はworkers/sound-cruise-news/FINAL-LIVE-VALIDATION.md。

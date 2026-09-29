@@ -1,8 +1,14 @@
-import { NEWS_MODE, NEWS_CATEGORIES, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.3.0';
+import { NEWS_MODE, NEWS_CATEGORIES, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.5.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
-export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS, mode = NEWS_MODE, now = Date.now() } = {}) {
+const renderCleanup = new WeakMap();
+export function stopNewsUpdates(doc = document) {
+    renderCleanup.get(doc)?.();
+    renderCleanup.delete(doc);
+}
+export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS, mode = NEWS_MODE, clock = () => Date.now(), now = clock(), category = '' } = {}) {
     const doc = documentObject;
+    stopNewsUpdates(doc);
     const ticker = doc.getElementById('news-ticker');
     const entry = doc.getElementById('news-entry');
     const content = doc.getElementById('news-content');
@@ -41,11 +47,12 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
         Object.entries(NEWS_CATEGORIES).forEach(([key, title]) => {
             const option = node('option', title); option.value = key; select.append(option);
         });
+        select.value = Object.hasOwn(NEWS_CATEGORIES, category) ? category : '';
         label.append(select); content.append(label);
         const list = node('div', undefined, 'news-list'); content.append(list);
-        const draw = () => {
+        const draw = (at = now) => {
             list.replaceChildren();
-            const groups = groupNews(news, select.value);
+            const groups = groupNews(prepareNews(items, { now: at, mode }), select.value, at);
             if (!groups.length) list.append(node('p', '表示できるニュースはありません。', 'news-empty'));
             for (const [day, records] of groups) {
                 const section = node('section');
@@ -60,7 +67,23 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
                 list.append(section);
             }
         };
-        select.addEventListener('change', draw); draw();
+        select.addEventListener('change', () => draw(clock())); draw();
+        // No network: expire the already loaded list/ticker at the deadline, including on wake.
+        const view = doc.defaultView;
+        if (view?.setTimeout) {
+            const refresh = () => renderNews({ documentObject: doc, items, mode, clock, now: clock(), category: select.value });
+            const wake = () => { if (!doc.hidden) refresh(); };
+            const deadlines = news.filter(item => item.category === 'sale' && Number.isSafeInteger(item.saleEndsAt)).map(item => item.saleEndsAt + 1);
+            const next = Math.min(...deadlines);
+            const timer = Number.isFinite(next) ? view.setTimeout(refresh, Math.max(1, Math.min(2147483647, next - now))) : null;
+            doc.addEventListener?.('visibilitychange', wake);
+            view.addEventListener?.('pageshow', wake);
+            renderCleanup.set(doc, () => {
+                if (timer !== null) view.clearTimeout(timer);
+                doc.removeEventListener?.('visibilitychange', wake);
+                view.removeEventListener?.('pageshow', wake);
+            });
+        }
     } catch {
         ticker.hidden = true;
         content.replaceChildren(node('p', 'ニュースを読み込めませんでした。'));

@@ -1,6 +1,6 @@
 import { SOURCES, legalGate } from './registry.js';
-import { validLabel, CATEGORIES, allowedArticlePath } from './metadata.js';
-import { headlineSimilarity } from './fingerprint.js';
+import { validLabel, CATEGORIES, allowedArticlePath, factualLabel } from './metadata.js';
+import { headlineSimilarity, validatedFingerprint } from './fingerprint.js';
 import { DAY, sourceUrl } from './policy.js';
 export const REQUIRED_CHECKS=['relevanceChecked','factsChecked','articleOptOutChecked','duplicateChecked','dateChecked','sourcePolicyChecked','labelChecked'];
 export const ARTICLE_CHECKS={
@@ -26,7 +26,9 @@ export async function reviewCandidate(store,input,now=Date.now(),registry=SOURCE
  if(item.expires_at<=now)throw new Error('expired_candidate');
  if(REQUIRED_CHECKS.some(k=>input.checks?.[k]!==true))throw new Error('review_checks_required');
  if(Object.entries(ARTICLE_CHECKS).some(([key,codes])=>!codes.includes(input.articleChecks?.[key])))throw new Error('article_checks_required');
- if(!validLabel(input.label)||/審査待ち|要確認/.test(input.label)||!CATEGORIES.includes(input.category)||await headlineSimilarity(input.label,item.title_fingerprint,pepper))throw new Error('label_or_similarity_invalid');
+ let facts;try{facts=JSON.parse(item.product_facts);}catch{}
+ const safeFacts=input.label===factualLabel(facts,item.event_type)&&input.category===facts?.category;
+ if(!validLabel(input.label)||/審査待ち|要確認/.test(input.label)||!CATEGORIES.includes(input.category)||!await validatedFingerprint(item.title_fingerprint,pepper)||(!safeFacts&&await headlineSimilarity(input.label,item.title_fingerprint,pepper)))throw new Error('label_or_similarity_invalid');
  if(['artist_guitar','live_guitar'].includes(input.category)||source.guitarEvidenceRequired){if(input.checks.guitarEvidenceChecked!==true||input.articleChecks.relevance!=='guitar')throw new Error('guitar_evidence_required');}
  if(source.artistOnly&&!['artist_guitar','live_guitar'].includes(input.category))throw new Error('source_scope');
  const published=Date.parse(input.publishedAt);

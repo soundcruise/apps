@@ -2,6 +2,7 @@ import {listingArticleUrl,listingExclusion} from './shimamura-listing.js';
 import { fingerprint, headlineSimilarity } from './fingerprint.js';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { sourceUrl, optOut, hash, DAY } from './policy.js';
+import { assessSale, saleLabel, hasHype } from './sale.js';
 const array=v=>v===undefined?[]:Array.isArray(v)?v:[v];
 const string=v=>typeof v==='string'?v:typeof v?.['#text']==='string'?v['#text']:'';
 export function parseMetadata(xml,type) {
@@ -21,7 +22,7 @@ export function parseMetadata(xml,type) {
   optOut:optOut(string(n.robots))||array(n.meta).some(m=>/robots/i.test(m['@_name']||'')&&optOut(m['@_content']))
  }));
 }
-export const CATEGORIES=['acoustic_guitar','electric_guitar_bass','amps_effects','recording_audio','dtm_software','creator_streaming','artist_guitar','live_guitar','media_other'];
+export const CATEGORIES=['acoustic_guitar','electric_guitar_bass','amps_effects','recording_audio','dtm_software','creator_streaming','artist_guitar','live_guitar','media_other','sale'];
 const PRODUCTS = [
  {brandRe:/\bBOSS\b/,re:/\bEX-4\b/,brand:'BOSS',product:'EX-4',category:'amps_effects'},
  {brandRe:/\bVOX\b/i,re:/\bAC MINI\b/i,brand:'VOX',product:'AC MINI',category:'amps_effects'},
@@ -57,7 +58,9 @@ export function classify(title) {
  return null;
 }
 export function contentType(title) {
- if(/セール|クーポン|中古|キャンペーン|下取り|買取|特価|\b(?:sale|coupon|used|campaign)\b/i.test(title))return 'sale';
+ // A sale signal routes to sale assessment (NEWS 1.5.0); it is no longer an automatic rejection.
+ if(/セール|クーポン|中古|下取り|買取|特価|プライスダウン|送料無料|ブラック\s*フライデー|サイバー\s*マンデー|決算|期間限定.{0,20}(?:値下げ|割引|オフ)|ポイント.{0,8}倍|\b(?:sale|coupon|used|black\s*friday|cyber\s*monday|price\s*down)\b|\d+\s*%\s*(?:off|オフ)/i.test(title))return 'sale';
+ if(/キャンペーン|\bcampaign\b/i.test(title)&&!/新製品|新登場|発売|発表|リリース|アップデート|ファームウェア|価格改定|リコール|生産終了|販売終了|\b(?:new product|new model|release|announce|update|firmware|recall)\b/i.test(title))return 'sale';
  if(/イベント|体験会|試奏会|展示会|レッスン|生徒募集|採用|求人|店舗から|店舗案内|営業案内|営業時間|開店|閉店|休業|入荷情報|\b(?:event|lesson|recruit|workshop|shop notice)\b/i.test(title))return 'event_or_shop';
  if(/チュートリアル|使い方|入門|基礎講座|活用術|\b(?:tutorial|how to|beginner|tips)\b/i.test(title))return 'tutorial';
  if(/とは[？?]|選び方|完全ガイド|\bevergreen\b/i.test(title))return 'evergreen';
@@ -74,40 +77,71 @@ export function allowedArticlePath(url,source) {
  return !(source.deniedPaths||[]).some(p=>path.startsWith(p))&&(!(source.allowedPaths||[]).length||source.allowedPaths.some(p=>path.startsWith(p)));
 }
 const actions={new_product:'を発表',release:'を発売',update:'を更新',firmware:'のファームウェア更新',price_change:'の価格改定',discontinued:'の販売終了',recall:'のリコール情報',review:'の製品レビュー'};
+export function factualLabel(facts,eventType){
+ if(eventType==='sale')return saleLabel(facts);
+ if(!facts||eventType==='review'||!actions[eventType]||!PRODUCTS.some(p=>p.brand===facts.brand&&p.product===facts.product&&p.category===facts.category)||facts.version!==null&&facts.version!==undefined&&!/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(facts.version))return null;
+ return `${facts.brand}、${facts.product}${facts.version?' '+facts.version:''}${actions[eventType]}`;
+}
 export function validLabel(label,original='') {
- return typeof label==='string'&&label.trim().length>=4&&label.length<=140&&!/[<>\x00-\x1f]/.test(label)&&label.trim()!==original.trim();
+ return typeof label==='string'&&label.trim().length>=4&&label.length<=140&&!/[<>\x00-\x1f]/.test(label)&&label.trim()!==original.trim()&&!hasHype(label);
+}
+// Major equipment sales are NEWS-eligible. Small promotions, coupons, points, single items and
+// ended sales are rejected; anything uncertain goes to human review (recall-first).
+async function saleCandidateFrom(entry,source,url,now,pepper,hasDate,timestamp) {
+ if(source.artistOnly)return {decision:'REJECT',reason:'source_scope'};
+ const sale=assessSale(entry,source,now,{hasDate,known:!!productFacts(entry.title)});
+ if(sale.decision==='REJECT')return sale;
+ const titleFingerprint=await fingerprint(entry.title,pepper);
+ const factual=saleLabel(sale.facts);
+ const label=factual||'審査待ち（セールの販売元・期間・対象の確認が必要）';
+ if(!validLabel(label))return {decision:'REJECT',reason:'label_invalid'};
+ const auto=sale.decision==='AUTO_PUBLISHABLE'&&!!factual;
+ const factualSimilarity=auto&&await headlineSimilarity(label,titleFingerprint,pepper);
+ const id=await hash(url);
+ return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,
+  publishedAt:hasDate?new Date(timestamp).toISOString():null,category:'sale',label,
+  topicKey:id,collectedAt:new Date(now).toISOString(),
+  eventType:'sale',productFacts:sale.facts,titleFingerprint:JSON.stringify(titleFingerprint),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
+  publicationDecision:auto?'AUTO_PUBLISHABLE':'PUBLISH_REVIEW',
+  decisionReason:auto?(factualSimilarity?'factual_label_similarity':'factual_label_ready'):sale.decisionReason,
+  manualReviewStatus:'pending',reviewReason:auto?'structured_review_required':sale.decisionReason}};
 }
 export async function candidateFrom(entry,source,robots,now,pepper) {
  const url=sourceUrl(entry.url,source);
- if(!url||!allowedArticlePath(url,source)||entry.optOut||robots.isAllowed(url,'SoundCruiseNewsBot')!==true)return {reason:'url_or_optout'};
- if(source.discoveryType==='shimamura_listing'&&(entry.listingSection!=='product_news'||!listingArticleUrl(url)))return {reason:'listing_entry_invalid'};
+ if(!url||!allowedArticlePath(url,source)||entry.optOut||robots.isAllowed(url,'SoundCruiseNewsBot')!==true)return {decision:'REJECT',reason:'url_or_optout'};
+ if(source.discoveryType==='shimamura_listing'&&(entry.listingSection!=='product_news'||!listingArticleUrl(url)))return {decision:'REJECT',reason:'listing_entry_invalid'};
  const timestamp=Date.parse(entry.date);const hasDate=Number.isFinite(timestamp);
- if(hasDate&&(timestamp>now||now-timestamp>90*DAY))return {reason:'date_outside_window'};
- if(typeof entry.title!=='string'||!entry.title.trim()||entry.title.length>512)return {reason:'title_invalid'};
- if(source.discoveryType==='shimamura_listing'){const reason=listingExclusion(entry.title);if(reason)return {reason};}
+ if(hasDate&&(timestamp>now||now-timestamp>90*DAY))return {decision:'REJECT',reason:'date_outside_window'};
+ if(typeof entry.title!=='string'||!entry.title.trim()||entry.title.length>512)return {decision:'REJECT',reason:'title_invalid'};
+ if(source.discoveryType==='shimamura_listing'){const reason=listingExclusion(entry.title);if(reason)return {decision:'REJECT',reason};}
  const eventType=contentType(entry.title);
- if(['tutorial','evergreen','sale','event_or_shop'].includes(eventType))return {reason:eventType};
+ if(['tutorial','evergreen','event_or_shop'].includes(eventType))return {decision:'REJECT',reason:eventType};
+ if(eventType==='sale')return saleCandidateFrom(entry,source,url,now,pepper,hasDate,timestamp);
  const facts=productFacts(entry.title);
  let category=classify(entry.title);
  if(!category&&entry.listingSection==='product_news'&&source.discoveryType==='shimamura_listing'){
   if(entry.listingCategory==='amp-effector')category='amps_effects';
   if(entry.listingCategory==='guitar-bass')category='electric_guitar_bass';
-  if(entry.listingCategory==='dtm-recording')category=null;
+  if(entry.listingCategory==='dtm-recording')category='recording_audio';
  }
- if(source.gearOnly&&['artist_guitar','live_guitar','media_other'].includes(category))return {reason:'source_scope'};
- if(source.artistOnly&&!['artist_guitar','live_guitar'].includes(category))return {reason:'source_scope'};
- if(!category && entry.title)return {reason:'not_relevant'};
+ if(source.gearOnly&&['artist_guitar','live_guitar','media_other'].includes(category))return {decision:'REJECT',reason:'source_scope'};
+ if(source.artistOnly&&!['artist_guitar','live_guitar'].includes(category))return {decision:'REJECT',reason:'source_scope'};
+ if(!category)return {decision:'REJECT',reason:'not_relevant'};
  // Conservative deterministic template. No source phrase or instructions interpolated.
  // Detailed product labels require local human editing, never automatic publication.
- let confident=facts&&actions[eventType];
+ let confident=!!(facts&&['new_product','release','update','firmware','price_change','discontinued','recall'].includes(eventType)&&hasDate&&!entry.listingUncertainty&&!/キャンペーン|\bcampaign\b/i.test(entry.title));
  const titleFingerprint=await fingerprint(entry.title,pepper);
- let label=confident?`${facts.brand?facts.brand+'、':''}${facts.product}${facts.version?' '+facts.version:''}${actions[eventType]}`:facts?`${facts.product}${facts.version?' '+facts.version:''}の製品情報（要確認）`:'審査待ち（製品名と出来事の確認が必要）';
- if(confident&&await headlineSimilarity(label,titleFingerprint,pepper)){label=`${facts.product}の製品情報（要確認）`;confident=false;}
- if(!validLabel(label,entry.title))return {reason:'label_invalid'};
+ let label=confident?factualLabel(facts,eventType):facts?`${facts.product}${facts.version?' '+facts.version:''}の製品情報（要確認）`:'審査待ち（製品名と出来事の確認が必要）';
+ // A verified facts-only template remains safe even when the source states the same facts.
+ const factualSimilarity=confident&&await headlineSimilarity(label,titleFingerprint,pepper);
+ if(!validLabel(label))return {decision:'REJECT',reason:'label_invalid'};
+ const decision=confident?'AUTO_PUBLISHABLE':'PUBLISH_REVIEW';
+ const decisionReason=!hasDate?'missing_date':entry.listingUncertainty|| (!facts||!actions[eventType]?'label_required':'classification_uncertain');
  const id=await hash(url);
  return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,
   publishedAt:hasDate?new Date(timestamp).toISOString():null,category:category||'media_other',label,
   topicKey:id,collectedAt:new Date(now).toISOString(),
   eventType,productFacts:facts,titleFingerprint:JSON.stringify(titleFingerprint),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
-  manualReviewStatus:'pending',reviewReason:!confident?'label_required':hasDate?'structured_review_required':'publication_date_and_optout_review'}};
+  publicationDecision:decision,decisionReason:confident?(factualSimilarity?'factual_label_similarity':'factual_label_ready'):decisionReason,
+  manualReviewStatus:'pending',reviewReason:confident?'structured_review_required':decisionReason}};
 }

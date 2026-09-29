@@ -1,5 +1,51 @@
 # Sound Cruise NEWS-JP2B-6 Shimamura Listing Readiness
 
+## Current acceptance — 2026-09-30 JST
+
+**READY FOR PRODUCTION NEWS INFRA / PHASE-1 READY: YES.**
+At 08:39:30 JST, one authorized listing GET returned HTTP 200 / text/html /
+127022 bytes. The unchanged parser found 11 valid candidates from 117 links;
+106 structural links were excluded. All 11 had title/date/category/URL metadata.
+The memory-only pipeline classified 3 AUTO_PUBLISHABLE and 8 PUBLISH_REVIEW.
+Local Source Health is healthy. Raw HTML and original titles were discarded.
+Source enabled/productionEnabled/localPilotEnabled remain false; SALE stays
+unapproved. Next eligible listing access: 2026-10-01 08:39:30.960 JST.
+See [FINAL-LIVE-VALIDATION.md](FINAL-LIVE-VALIDATION.md) for the current report.
+The sections below are historical phase records, not the current readiness verdict.
+
+
+## JP2B-8 offline redesign (2026-09-29 JST)
+
+The same-section heading/card assumption has been removed. The parser now uses
+the visible product-news page identity plus same-origin numeric article paths,
+visible title/date and allowed categories. Navigation, pagination, footer and
+external links are excluded; isolated uncertain records remain pending. Authored
+synthetic fixtures pass. **No publisher request was made in JP2B-8**, so real-page
+compatibility is still unverified. Source and global collection remain OFF,
+`discoveryValid=false`, and PHASE-1 READY remains NO. The next allowed listing
+GET is no earlier than 2026-09-30 08:16:26 JST and is not authorized by this phase.
+
+## JP2B-7E one-time validation update (2026-09-29 JST)
+
+The user authorized one early GET solely to validate the corrected listing
+adapter. Robots evidence was still current, so no robots request was made.
+The fixed official listing returned HTTP 200 and 126358 bytes at
+2026-09-29 08:16:26 JST. Parsing again stopped at `listing_structure_changed`:
+one product-news heading was visible, while its nearest section contained zero
+h3, date or category nodes. This is a heading-to-card container assumption
+mismatch; the complete card relationship cannot be confirmed without another
+request. The single-request budget was exhausted, so no selector was guessed,
+no candidate was saved and no immediate revalidation was attempted.
+
+This was a one-time exception to Sound Cruise's voluntary 24-hour interval,
+not a change to law, publisher Terms or routine crawl frequency. The new
+last-access baseline is 2026-09-29 08:16:26 JST; the next listing GET is no
+earlier than **2026-09-30 08:16:26 JST**. Normal 24-hour operation resumes.
+The source remains disabled and PHASE-1 READY remains NO. No raw HTML or raw
+headline was written to D1, SQLite, WAL, a file, log, report, trace or fixture.
+The 41 pre-existing local state files were hash-identical before and after the
+request. No article, image, OGP or additional publisher URL was fetched.
+
 ## Overall Verdict
 
 **SOURCE STILL NOT READY**
@@ -121,7 +167,7 @@ pending labels. These are test outputs, not claimed live Shimamura news.
 ## 11. Rejected Content
 
 Live article-level counts unavailable because structural validation stopped first.
-Tested exclusion reasons: tutorial, sale_campaign, event_or_shop,
+Tested exclusion reasons (Shimamura listing scope; 1.5.0 sale rules for other sources are in README): tutorial, sale_campaign, event_or_shop,
 comparison_evergreen, artist_or_lifestyle, url_or_category, duplicate_url,
 date_outside_window. Normal catalog/affiliate/external URLs are not accepted.
 
@@ -260,3 +306,21 @@ commit, push or deploy. Known untracked directories left untouched.
 | Production changed | NO |
 | Existing Sync Worker changed | NO |
 | Git safety followed | YES |
+
+
+## SALE safety closure — offline supplement (2026-09-29)
+
+Current production baseline: Port 1.4.3 (`be28371f`); NEWS candidate/WIP: 1.5.0.
+All eight offline suites: 1,794 PASS (News 120 / Port 885 / Shared 226 / Sync 394 /
+Pitch 30 / Fretboard 25 / Rhythm 19 / Chord 95). Publisher requests and monitored
+external attempts: 0. No commit, push, deployment or production DB mutation.
+
+This closure changes common SALE authorization/classification/display expiry only.
+Shimamura's parser, adapter, source policy/evidence, last/next access timestamps and
+readiness are unchanged: `discoveryValid=false`, `parserLiveValidated=false`,
+PHASE-1 READY=NO, source OFF. Listing regression tests pass. Product-listing evidence
+does not authorize Shimamura SALE collection. Sound House and Ikebe remain disabled.
+
+SALE code is ready for the separate final live validation phase; this is not a claim
+of live parser acceptance. The next earliest listing access remains the existing
+recorded gate, 2026-09-30 08:16:26 JST. The previous automatic continuation is PAUSED.

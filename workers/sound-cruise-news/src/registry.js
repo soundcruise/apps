@@ -29,8 +29,13 @@ const entries = [
  ['amass','amass','https://amass.jp/','media',null,'UNKNOWN'],
  ['tft','THE FIRST TIMES','https://www.thefirsttimes.jp/','media',null,'UNKNOWN'],
  ['takamine','Takamine','https://www.takamineguitars.co.jp/','official',null,'DO_NOT_USE'],
- ['kurosawa','クロサワ楽器','https://www.kurosawagakki.com/','retailer_editorial',null,'DO_NOT_USE']
+ ['kurosawa','クロサワ楽器','https://www.kurosawagakki.com/','retailer_editorial',null,'DO_NOT_USE'],
+ // NEWS 1.5.0 sale-source planning. Not in the JP1-B whitelist: unreviewed, never collected.
+ ['soundhouse','サウンドハウス','https://www.soundhouse.co.jp/','retailer_editorial',null,'UNKNOWN']
 ];
+// Sale capability is per source and separate from product news. 'pending_evidence' means the sale
+// listing/feed, terms and robots have not been reviewed: sales from it can never auto-publish.
+const SALE_SOURCES=Object.freeze(['ikebe','soundhouse']);
 export const SOURCES = Object.freeze(entries.map(([id,name,baseUrl,sourceKind,feed,legalStatus='SAFE'])=>Object.freeze({
  id,name,baseUrl,sourceKind,legalStatus,enabled:false,productionEnabled:false,localPilotEnabled:false,
  discoveryUrl:id==='shimamura'?SHIMAMURA_LISTING_URL:feed?new URL(feed,baseUrl).href:null,discoveryType:id==='shimamura'?'shimamura_listing':feed?'rss':'unconfigured',
@@ -41,6 +46,8 @@ export const SOURCES = Object.freeze(entries.map(([id,name,baseUrl,sourceKind,fe
  gearOnly:id==='shimamura',
  deniedPathSegments:id==='shimamura'?['shops','sale','campaign','event','lesson','recruit','coupon','used']:[],
  artistOnly:['natalie','skream'].includes(id),guitarEvidenceRequired:['natalie','skream'].includes(id),
+ contentTypes:['natalie','skream'].includes(id)?['artist']:SALE_SOURCES.includes(id)?['product','sale']:['product'],
+ saleCollection:SALE_SOURCES.includes(id)?'pending_evidence':'none',
  robotsUrl:new URL('/robots.txt',baseUrl).href,lastPolicyReviewAt:'2026-09-28',
  policyEvidence:'User supplied JP1-B whitelist; local prototype only. Specific Terms URL and expert review required before production.',
  crawlIntervalHours:24,priority:['official','distributor','retailer_editorial','media'].indexOf(sourceKind),
@@ -62,7 +69,7 @@ export function evidenceGate(source,now) {
  return null;
 }
 export function legalGate(source,state={},now=Date.now(),mode='off',registry=SOURCES) {
- if(mode!=='local')return 'collection_off';
+ if(mode!=='local'&&!(mode==='production'&&source?.productionEnabled&&source?.enabled))return 'collection_off';
  if(!source||!registry.includes(source))return 'not_registry_source';
  const evidence=evidenceGate(source,now);if(evidence)return evidence;
  if((!source.enabled&&!(source.localPilotEnabled&&phaseOneSourceReady(source,now)))||state.disabled)return 'source_disabled';

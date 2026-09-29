@@ -33,7 +33,7 @@ test('dedupe selects official, then distributor, retailer, media', () => {
  for(let count=4; count>0;count--) assert.equal(prepareNews(all.slice(0,count),{now})[0].id,all[count-1].id);
 });
 test('modes, empty and malformed data', () => {
- assert.equal(NEWS_MODE,'beta'); assert.equal(Object.keys(NEWS_CATEGORIES).length,9);
+ assert.equal(NEWS_MODE,'beta'); assert.equal(Object.keys(NEWS_CATEGORIES).length,10);
  assert.deepEqual(prepareNews(null,{mode:'off'}),[]);
  for(const mode of ['beta','on']) assert.equal(prepareNews([make()],{now,mode}).length,1);
  assert.throws(()=>prepareNews({items:[]},{now})); assert.throws(()=>prepareNews([],{mode:'invalid'}));
@@ -53,7 +53,7 @@ test('runtime source contains no outbound acquisition or HTML sinks', () => {
  assert.match(html,/id="news-view"[^>]*hidden/);
  }
  const app=readFileSync(new URL('practice-menu-app.js',import.meta.url),'utf8');
- assert.match(app,/await import\('\.\/news-ui.js\?v=1.3.0'\)/);
+ assert.match(app,/await import\('\.\/news-ui.js\?v=1.5.0'\)/);
 });
 
 test('real manual fixture is valid, unique, safe-source only and fact-label only', () => {

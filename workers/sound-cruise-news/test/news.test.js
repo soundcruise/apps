@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {SOURCES,getSource,legalGate,evidenceGate,PHASE_ONE_CANDIDATES} from '../src/registry.js';
+import {SOURCES,getSource,legalGate,evidenceGate,phaseOneSourceReady,PHASE_ONE_CANDIDATES} from '../src/registry.js';
 import {robotsPolicy,sourceUrl,optOut,retryAt,boundedFetch,DAY} from '../src/policy.js';
 import {parseMetadata,candidateFrom,validLabel,classify,contentType} from '../src/metadata.js';
 import {collectSource,collectAll} from '../src/collector.js';
@@ -15,10 +15,19 @@ import {pepper,source,registry,now,robots,feed,response,mock,store,options,appro
 const collect=s=>collectSource(source.id,s,options());
 const request=(s,path='/v1/news',opts={},cache)=>handleNewsRequest(new Request('http://localhost'+path,opts),env(s.db),now,{registry,cache});
 
-test('H1: real registry remains OFF; incomplete discovery/evidence cannot collect',()=>{
+test('H1: validated Shimamura remains OFF; incomplete evidence cannot collect',()=>{
  assert.equal(SOURCES.filter(s=>s.legalStatus==='SAFE').length,18);assert.ok(SOURCES.every(s=>s.enabled===false));
  for(const s of SOURCES.filter(s=>s.legalStatus==='SAFE')){
-  if(s.id==='shimamura'){assert.equal(legalGate(s,{},Date.parse('2026-09-29T12:00:00Z'),'local'),'source_disabled');assert.equal(s.discoveryValid,false);}
+  if(s.id==='shimamura'){
+   const reviewed=Date.parse(s.discoveryReviewedAt);
+   assert.equal(phaseOneSourceReady(s,reviewed),true);
+   assert.equal(phaseOneSourceReady({...s,discoveryValid:false},reviewed),false);
+   assert.equal(legalGate(s,{},reviewed,'local'),'source_disabled');
+   assert.equal(legalGate(s,{},reviewed,'production'),'collection_off');
+   assert.equal(s.localPilotEnabled,false);assert.equal(s.productionEnabled,false);
+   assert.equal(s.discoveryValid,true);assert.equal(s.listingEvidence.parserLiveValidated,true);
+   assert.equal(s.saleCollection,'none');assert.deepEqual(s.contentTypes,['product']);
+  }
   else assert.equal(legalGate(s,{},now,'local'),'evidence_missing');
  }
  assert.deepEqual(PHASE_ONE_CANDIDATES,['shimamura','sleepfreaks','hookup']);
@@ -214,8 +223,8 @@ test('runtime publisher stop invalidates cached API, not only operator takedown'
  await s.saveState(source.id,{...(await s.state(source.id)),disabled:true});
  assert.equal((await (await request(s,'/v1/news',{},cache)).json()).items.length,0);
 });
-test('generated punctuation-equivalent headline is not persisted as candidate label',async()=>{
+test('facts-only equivalent label remains an automatic candidate with advisory similarity',async()=>{
  const entry={...parseMetadata(feed,'rss')[0],title:'Universal Audio LUNA 3を更新！'};
  const {item}=await candidateFrom(entry,source,robotsPolicy(robots,source),now,pepper);
- assert.equal(item.reviewReason,'label_required');assert.ok(item.label.includes('要確認'));
+ assert.equal(item.publicationDecision,'AUTO_PUBLISHABLE');assert.equal(item.decisionReason,'factual_label_similarity');
 });

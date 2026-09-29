@@ -1,6 +1,6 @@
 {
   "name": "sound-cruise-news",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,7 +10,12 @@
     "collect:local": "node scripts/collect-local.mjs",
     "review:local": "node scripts/review-local.mjs",
     "admin:local": "node scripts/admin-local.mjs",
-    "admin:plan": "node scripts/admin-plan.mjs"
+    "admin:plan": "node scripts/admin-plan.mjs",
+    "health:local": "node scripts/health-local.mjs",
+    "validate:final": "node scripts/final-validation.mjs",
+    "operator": "node scripts/operator.mjs",
+    "rollout": "node scripts/rollout.mjs",
+    "deploy:production": "node scripts/rollout.mjs deploy"
   },
   "dependencies": {
     "fast-xml-parser": "5.5.8",

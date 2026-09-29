@@ -28,7 +28,7 @@ const assert=require('node:assert/strict');
  assert.equal(await page.locator('.news-beta-note').textContent(),'Beta · 手動確認済みのニュース');
  const expected=await page.evaluate(async()=>{
   const {NEWS_BETA_ITEMS}=await import('./data/news-beta.js?v=1.3.0');
-  const {prepareNews,tickerNews}=await import('./news-data.js?v=1.3.0');
+  const {prepareNews,tickerNews}=await import('./news-data.js?v=1.5.0');
   const ready=prepareNews(NEWS_BETA_ITEMS);
   return {ready,ticker:tickerNews(ready),now:new Date().toISOString()};
  });
@@ -51,7 +51,7 @@ const assert=require('node:assert/strict');
  await page.emulateMedia({reducedMotion:'no-preference'});
  const now=Date.parse('2026-09-28T12:00:00Z');
  const rows=Array.from({length:9},(_,i)=>({id:`test-${i}`, label:`テスト用：ギター・録音機材の製品情報 ${i+1}`,sourceName:'架空のテスト公式',sourceUrl:'https://example.invalid/product', publishedAt:new Date(now-i*86400000).toISOString(),createdAt:'2026-09-28T00:00:00Z',updatedAt:'2026-09-28T00:00:00Z',category:['acoustic_guitar','electric_guitar_bass','amps_effects','recording_audio','dtm_software','creator_streaming','artist_guitar','live_guitar','media_other'][i],topicKey:`test-${i}`,sourceKind:'official',sourceSafety:'safe',manualReviewStatus:'approved',guitarEvidence:'guitar_performance'}));
- const render=async(items=rows,mode='beta')=>page.evaluate(async({items,mode,now})=>{ const {renderNews}=await import('./news-ui.js?v=1.3.0');renderNews({items,mode,now});},{items,mode,now});
+ const render=async(items=rows,mode='beta')=>page.evaluate(async({items,mode,now})=>{ const {renderNews}=await import('./news-ui.js?v=1.5.0');renderNews({items,mode,now});},{items,mode,now});
  await render([]);
  await page.locator('#news-content').getByText('表示できるニュースはありません。').waitFor();
  external.length=0;
@@ -90,7 +90,7 @@ const assert=require('node:assert/strict');
  assert.equal(await page.locator('#home-view').isVisible(),true);
  // Future API emergency stop must clear ticker and show a specific fallback.
  await page.unroute('**/news-ui.js*');
- await page.route('**/news-provider.js*',route=>route.fulfill({contentType:'text/javascript',body:'export async function loadNews(){const e=new Error("news_disabled");e.name="NewsDisabledError";throw e;}'}));
+ await page.route('**/news-provider.js*',route=>route.fulfill({contentType:'text/javascript',body:'export async function loadConfiguredNews(){const e=new Error("news_disabled");e.name="NewsDisabledError";throw e;}'}));
  await page.reload();await page.evaluate(()=>location.hash='#news');
  await page.locator('#news-content').getByText('ニュースは現在公開を停止しています。').waitFor();
  assert.equal(await page.locator('#news-ticker').isVisible(),false);
