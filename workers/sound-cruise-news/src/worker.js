@@ -2,6 +2,7 @@ import { SOURCES, evidenceGate } from './registry.js';
 import { NewsStore } from './store.js';
 import { scheduledNews } from './scheduled.js';
 import { runtimeSources } from './runtime.js';
+import { CATEGORIES } from './metadata.js';
 const DAY=86400000;
 const localHost=url=>['localhost','127.0.0.1','[::1]'].includes(url.hostname);
 const json=(body,status=200)=>Response.json(body,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
@@ -31,6 +32,8 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
   catch{return finish(json({ok:false,error:'news_unavailable'},503));}
  }
  if(!['/v1/news','/v1/news/ticker'].includes(url.pathname))return finish(json({error:'not_found'},404));
+ const category=url.searchParams.get('category');
+ if(category!==null&&!CATEGORIES.includes(category))return finish(json({error:'invalid_category'},400));
  let cursor=null;
  if(url.searchParams.has('cursor')){
   try{const raw=url.searchParams.get('cursor');if(raw.length>400)throw Error();cursor=JSON.parse(raw);
@@ -52,7 +55,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
    AND COALESCE(s.disabled,0)=0 AND COALESCE(s.takedown,0)=0 AND c.source_id IN (${active.map(()=>'?').join(',')})`).bind(now,now,...active).first();
   const validUntil=Math.min(now+300000,boundary?.deadline==null?Infinity:boundary.deadline+1);
   // Read controls before cache. Every takedown changes revision atomically, invalidating all old keys.
-  const key=new Request('https://news-cache.invalid'+url.pathname+'?'+new URLSearchParams({limit:String(limit),offset:String(offset),cursor:JSON.stringify(cursor),format:'sale-visibility-1',revision:String(controls.revision),sources:active.join(','),bucket:String(Math.floor(now/300000))}));
+  const key=new Request('https://news-cache.invalid'+url.pathname+'?'+new URLSearchParams({limit:String(limit),offset:String(offset),cursor:JSON.stringify(cursor),category:category||'',format:'sale-visibility-1',revision:String(controls.revision),sources:active.join(','),bucket:String(Math.floor(now/300000))}));
   const hit=await cache?.match(key);if(hit&&Number(hit.headers.get('X-News-Valid-Until'))>now)return finish(hit);
   const ticker=url.pathname.endsWith('/ticker');
   const select=async(days,count,start)=>{
@@ -60,10 +63,11 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
     LEFT JOIN source_state s ON s.source_id=c.source_id
     WHERE c.review_status='approved' AND c.expires_at>? AND c.published_at<=? AND c.published_at>=?
     AND (c.sale_ends_at IS NULL OR c.sale_ends_at>=?)
+    ${category?'AND c.category=?':''}
     ${cursor&&!ticker?'AND (c.published_at<? OR (c.published_at=? AND c.id>?))':''}
     AND COALESCE(s.disabled,0)=0 AND COALESCE(s.takedown,0)=0 AND c.source_id IN (${active.map(()=>'?').join(',')})
     ORDER BY c.published_at DESC,c.id LIMIT ? OFFSET ?`)
-   .bind(now,new Date(now).toISOString(),new Date(now-days*DAY).toISOString(),now,...(cursor&&!ticker?[cursor[0],cursor[0],cursor[1]]:[]),...active,count,start).all();
+   .bind(now,new Date(now).toISOString(),new Date(now-days*DAY).toISOString(),now,...(category?[category]:[]),...(cursor&&!ticker?[cursor[0],cursor[0],cursor[1]]:[]),...active,count,start).all();
    return results;
   };
   let rows=await select(ticker?7:90,ticker?5:limit+1,ticker?0:offset);

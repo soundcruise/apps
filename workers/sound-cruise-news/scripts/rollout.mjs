@@ -1,10 +1,11 @@
 import {readFile,writeFile} from 'node:fs/promises';
 import {getSource,phaseOneSourceReady} from '../src/registry.js';
-import {productionConfig,checkedConfig,wrangler,remoteSql,sqlLiteral} from './remote-db.mjs';
+import {productionConfig,checkedConfig,infrastructureConfig,wrangler,remoteSql,sqlLiteral} from './remote-db.mjs';
 const [action]=process.argv.slice(2),now=Date.now();
 const report=JSON.parse(await readFile('.local/final-validation.json','utf8'));
 if(!report.ready||report.requests.listing!==1||report.requests.article!==0||report.at<Date.parse('2026-09-30T08:16:26+09:00')||report.at>now||!phaseOneSourceReady(getSource('shimamura'),now))throw Error('live_acceptance_required');
 if(action==='provision'){
+ infrastructureConfig(JSON.parse(await readFile(productionConfig,'utf8')));
  let databases=wrangler(['d1','list','--json'],{json:true});
  if(!databases.some(d=>d.name==='sound-cruise-news')){
   console.log(wrangler(['d1','create','sound-cruise-news','--location','apac','--update-config=false']));
@@ -16,10 +17,22 @@ if(action==='provision'){
  await writeFile(productionConfig,JSON.stringify(config,null,2)+'\n');await checkedConfig();
  console.log(wrangler(['d1','migrations','apply','NEWS_DB','--remote']));
 }else if(action==='deploy'){
- await checkedConfig();const secrets=JSON.parse(await readFile('.local/production-secrets.json','utf8'));
+ infrastructureConfig(await checkedConfig());
+ const preflight=await remoteSql('SELECT collection_enabled,publication_enabled FROM news_controls WHERE id=1;');
+ if(preflight[0]?.results?.[0]?.collection_enabled!==0||preflight[0]?.results?.[0]?.publication_enabled!==0)throw Error('production_collection_and_publication_must_be_off');
+ const secrets=JSON.parse(await readFile('.local/production-secrets.json','utf8'));
  if(typeof secrets.NEWS_HEADLINE_PEPPER!=='string'||secrets.NEWS_HEADLINE_PEPPER.length<32)throw Error('secret_required');
  console.log(wrangler(['deploy','--secrets-file','.local/production-secrets.json']));
+}else if(action==='prepare-infrastructure'){
+ infrastructureConfig(await checkedConfig());
+ const result=await remoteSql('SELECT COUNT(*) AS count FROM candidate_items; SELECT collection_enabled,publication_enabled FROM news_controls WHERE id=1;');
+ if(result[0]?.results?.[0]?.count!==0||result[1]?.results?.[0]?.collection_enabled!==0||result[1]?.results?.[0]?.publication_enabled!==0)throw Error('empty_stopped_infrastructure_required');
+ const next=report.at+86400000;
+ // Access interval only: this is not a collected run or an imported candidate bootstrap.
+ console.log(JSON.stringify(await remoteSql(`INSERT INTO source_state(source_id,next_at,robots_hash) VALUES('shimamura',${next},${sqlLiteral(getSource('shimamura').robotsHash)}) ON CONFLICT(source_id) DO UPDATE SET next_at=MAX(next_at,excluded.next_at);
+ INSERT INTO source_health(source_id,status,reason_code,last_checked_at,next_eligible_run_at,failure_count) VALUES('shimamura','paused','global_collection_off',${now},${next},0) ON CONFLICT(source_id) DO NOTHING;`)));
 }else if(action==='bootstrap'){
+ if((await checkedConfig()).vars.NEWS_COLLECTION_MODE==='off')throw Error('initial_collection_phase_not_enabled');
  const snapshot=JSON.parse(await readFile('.local/production-bootstrap.json','utf8'));
  if(snapshot.at!==report.at||!snapshot.rows.length||snapshot.rows.some(r=>r.source_id!=='shimamura'))throw Error('bootstrap_mismatch');
  const columns=['id','source_id','source_name','source_url','normalized_url','published_at','category','label','topic_key','collected_at','review_status','review_reason','reviewed_at','expires_at','title_fingerprint','event_type','product_facts','feed_published_at','reviewed_by','review_checks','article_checks','date_override_reason','publication_decision','decision_reason','sale_ends_at'];
@@ -31,8 +44,8 @@ if(action==='provision'){
  sql.push(`INSERT OR IGNORE INTO collection_runs VALUES('initial-live-validation','shimamura',${snapshot.at},1,${report.candidates},${report.pending},${report.rejected},${report.duplicates},'collected',0)`);
  console.log(JSON.stringify(await remoteSql(sql.join(';\n')+';')));
 }else if(action==='enable'){
- await checkedConfig();
+ if((await checkedConfig()).vars.NEWS_COLLECTION_MODE==='off')throw Error('initial_collection_phase_not_enabled');
  const result=await remoteSql("SELECT COUNT(*) AS count FROM candidate_items WHERE review_status='approved' AND publication_decision='AUTO_PUBLISHABLE';");
  if(!result[0]?.results?.[0]?.count)throw Error('no_automatic_items_for_production_smoke');
  console.log(JSON.stringify(await remoteSql('UPDATE news_controls SET collection_enabled=1,publication_enabled=1,api_enabled=1,revision=revision+1 WHERE id=1;')));
-}else throw Error('Use provision | deploy | bootstrap | enable');
+}else throw Error('Use provision | deploy | prepare-infrastructure | bootstrap | enable');

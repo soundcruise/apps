@@ -4,9 +4,16 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 export const productionConfig=new URL('../wrangler.production.jsonc',import.meta.url);
 export const workerDirectory=new URL('../',import.meta.url);
+export function infrastructureConfig(config){
+ if(config.name!=='sound-cruise-news'||config.account_id!=='a9f2a3e9fcb6d0f68fd2eaa9df909e33'||
+    config.vars?.NEWS_COLLECTION_MODE!=='off'||config.vars?.NEWS_API_MODE!=='production'||
+    config.vars?.NEWS_SOURCE_IDS!=='["shimamura"]'||!Array.isArray(config.triggers?.crons)||config.triggers.crons.length||
+    config.d1_databases?.length!==1||config.d1_databases[0].binding!=='NEWS_DB'||config.d1_databases[0].database_name!=='sound-cruise-news')throw Error('infrastructure_must_remain_collection_off_without_cron');
+ return config;
+}
 export async function checkedConfig(){
  const config=JSON.parse(await readFile(productionConfig,'utf8'));
- if(config.name!=='sound-cruise-news'||config.account_id!=='a9f2a3e9fcb6d0f68fd2eaa9df909e33'||config.d1_databases?.length!==1||config.d1_databases[0].database_name!=='sound-cruise-news'||!/^[a-f0-9-]{36}$/.test(config.d1_databases[0].database_id))throw Error('production_news_binding_not_ready');
+ if(config.name!=='sound-cruise-news'||config.account_id!=='a9f2a3e9fcb6d0f68fd2eaa9df909e33'||config.d1_databases?.length!==1||config.d1_databases[0].binding!=='NEWS_DB'||config.d1_databases[0].database_name!=='sound-cruise-news'||!/^[a-f0-9-]{36}$/.test(config.d1_databases[0].database_id)||config.d1_databases[0].database_id==='e37759f8-df08-4d2a-92b0-ffdd50de66df')throw Error('production_news_binding_not_ready');
  return config;
 }
 export function wrangler(args,{json=false}={}){
