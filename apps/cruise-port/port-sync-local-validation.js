@@ -5,6 +5,7 @@ import { loadPracticeMenus } from './practice-menu-store.js?v=0.60.0';
 import { loadPracticeHistory } from './practice-menu-history-store.js?v=0.70.1';
 import { loadPracticeCalendar } from './practice-menu-calendar-store.js?v=0.59.3';
 import { loadMetronomePresets } from './metronome-presets-store.js?v=0.59.3';
+import { loadPracticeMenuSets } from './practice-menu-sets-store.js?v=1.4.0';
 
 // Legacy loaders may migrate on read. Give them a private copy so validation
 // follows the exact store rules without rewriting the user's original bytes.
@@ -29,7 +30,8 @@ export function validatePortLocalCollections(storage) {
         ['cruisePort.practiceMenus', 'items', loadPracticeMenus],
         ['cruisePort.practiceHistory', 'events', loadPracticeHistory],
         ['cruisePort.practiceCalendar', 'notes', loadPracticeCalendar],
-        ['cruisePort.metronomePresets', 'items', loadMetronomePresets]
+        ['cruisePort.metronomePresets', 'items', loadMetronomePresets],
+        ['cruisePort.practiceMenuSets', 'items', loadPracticeMenuSets]
     ];
     for (const [key, field, loader] of collections) {
         const result = loader(copy);

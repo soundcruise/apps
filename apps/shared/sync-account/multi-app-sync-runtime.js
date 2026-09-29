@@ -302,8 +302,24 @@
       return this.initializeDataset();
     }
 
+    // Record types gated behind a capability are only exchanged when the adapter
+    // declares it. Adapters without capabilities send byte-identical requests.
+    syncCapabilities() {
+      const values = this.adapter?.syncCapabilities;
+      return Array.isArray(values)
+        ? values.filter((value) => typeof value === 'string' && /^[a-z][a-z0-9_]{0,63}$/u.test(value)).slice(0, 16)
+        : [];
+    }
+
+    withSyncCapabilities(body) {
+      const capabilities = this.syncCapabilities();
+      return capabilities.length ? { ...body, capabilities } : body;
+    }
+
     async serverSnapshot() {
-      return this.request('GET', `/v1/sync/snapshot?appId=${encodeURIComponent(this.appId)}`);
+      const capabilities = this.syncCapabilities();
+      return this.request('GET', `/v1/sync/snapshot?appId=${encodeURIComponent(this.appId)}${capabilities.length
+        ? `&capabilities=${encodeURIComponent(capabilities.join(','))}` : ''}`);
     }
 
     async reportRemovalSafety(state) {
@@ -711,13 +727,13 @@
           mutation.remoteRecord?.revision || 0, false, saved?.operationId || this.randomOperationId());
         resolution = { ...resolution, recoveryOperations: [clone(operation)], status: 'pending' };
         conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
-        const response = await this.request('POST', '/v1/sync/push', {
+        const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
           appId: this.appId, mode: 'sync',
           operations: [{ operationId: operation.operationId, recordType: operation.recordType,
             recordId: operation.recordId, schemaVersion: operation.schemaVersion,
             baseRevision: operation.baseRevision, payload: operation.payload,
             payloadHash: operation.payloadHash, deleted: false }]
-        });
+        }));
         const result = (response.results || []).find((item) => item.operationId === operation.operationId);
         if (result?.status === 'conflict') {
           resolution = { ...resolution, recoveryOperations: [], status: 'pending' };
@@ -795,12 +811,12 @@
         resolution = { ...resolution, status: 'pending', phase,
           recoveryOperations: operations.map(clone) };
         conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
-        const response = await this.request('POST', '/v1/sync/push', {
+        const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
           appId: this.appId, mode: 'sync',
           operations: operations.map(({ operationId, recordType, recordId, schemaVersion,
             baseRevision, payload, payloadHash, deleted }) =>
             ({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }))
-        });
+        }));
         const results = response.results || [];
         if (operations.some((operation) => !results.some((result) =>
           result.operationId === operation.operationId && ['applied', 'duplicate', 'conflict'].includes(result.status)))) {
@@ -876,14 +892,14 @@
       const operation = await this.operationFor(
         source, resolution.expectedRemote.revision, resolution.desiredDeleted, resolution.operationId
       );
-      const response = await this.request('POST', '/v1/sync/push', {
+      const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
         appId: this.appId, mode: 'sync',
         operations: [{
           operationId: operation.operationId, recordType: operation.recordType, recordId: operation.recordId,
           schemaVersion: operation.schemaVersion, baseRevision: operation.baseRevision,
           payload: operation.payload, payloadHash: operation.payloadHash, deleted: operation.deleted
         }]
-      });
+      }));
       const result = (response.results || []).find((item) => item.operationId === resolution.operationId);
       if (result?.status === 'conflict') {
         throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
@@ -1034,14 +1050,14 @@
           resolution = { ...resolution, backupSaved: true };
           conflict = await this.saveConflict(conflict, 'resolving_merged', resolution);
         }
-        const response = await this.request('POST', '/v1/sync/push', {
+        const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
           appId: this.appId, mode: 'sync', operations: [{
             operationId: operation.operationId, recordType: operation.recordType,
             recordId: operation.recordId, schemaVersion: operation.schemaVersion,
             baseRevision: operation.baseRevision, payload: operation.payload,
             payloadHash: operation.payloadHash, deleted: operation.deleted
           }]
-        });
+        }));
         const result = (response.results || []).find((item) => item.operationId === resolution.operationId);
         if (result?.status === 'conflict') {
           throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
@@ -1298,12 +1314,12 @@
         operations.forEach((item) => recoverableIds.delete(item.operationId));
         let payload;
         try {
-          payload = await this.request('POST', '/v1/sync/push', {
+          payload = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
             appId: this.appId,
             mode: migration ? 'migration' : 'sync',
             operations: operations.map(({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }) =>
               ({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }))
-          });
+          }));
         } catch (error) {
           for (const operation of operations) {
             const attempts = Number(operation.attempts || 0) + 1;
@@ -1447,10 +1463,10 @@
       const completionSnapshot = partitioned.issues.length || local.issues?.length ? await this.serverSnapshot() : null;
       const completionManifest = completionSnapshot?.manifestHash || finalManifest;
       const completionRecordCount = completionSnapshot?.recordCount ?? finalRecords.length;
-      const completed = await this.request('POST', '/v1/sync/migration/complete', {
+      const completed = await this.request('POST', '/v1/sync/migration/complete', this.withSyncCapabilities({
         appId: this.appId, schemaVersion: finalSnapshot.schemaVersion,
         recordCount: completionRecordCount, manifestHash: completionManifest
-      });
+      }));
       if (completed.datasetState !== 'ready' || completed.manifestHash !== completionManifest) {
         throw new MultiAppSyncError('manifest_mismatch');
       }

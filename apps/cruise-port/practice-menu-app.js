@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.3.0';
+} from './app-version.js?v=1.4.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -220,7 +220,20 @@ import {
 } from './gear-category-store.js?v=0.59.3';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
 import { PortAssetSync } from './port-asset-sync.js?v=0.59.3';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=0.70.1';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.4.0';
+import {
+    ALL_PRACTICE_MENUS_SET_ID,
+    createPracticeMenuSet,
+    deletePracticeMenuSet,
+    findPracticeMenuSet,
+    getPracticeMenuSetItems,
+    loadPracticeMenuSetSelection,
+    loadPracticeMenuSets,
+    resolvePracticeMenuSetSelection,
+    savePracticeMenuSetSelection,
+    savePracticeMenuSets,
+    updatePracticeMenuSet
+} from './practice-menu-sets-store.js?v=1.4.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -467,6 +480,22 @@ const elements = {
     completionError: document.querySelector('#practice-completion-error'),
     completionEnd: document.querySelector('#practice-completion-end'),
     completionCalendar: document.querySelector('#practice-completion-calendar'),
+    completionPractice: document.querySelector('#practice-completion-practice'),
+    setBar: document.querySelector('#practice-set-bar'),
+    setSelect: document.querySelector('#practice-set-select'),
+    setCreate: document.querySelector('#practice-set-create'),
+    setEdit: document.querySelector('#practice-set-edit'),
+    setEmpty: document.querySelector('#practice-set-empty'),
+    setDialog: document.querySelector('#practice-set-dialog'),
+    setDialogTitle: document.querySelector('#practice-set-dialog-title'),
+    setForm: document.querySelector('#practice-set-form'),
+    setName: document.querySelector('#practice-set-name'),
+    setItemList: document.querySelector('#practice-set-item-list'),
+    setItemsEmpty: document.querySelector('#practice-set-items-empty'),
+    setHiddenNote: document.querySelector('#practice-set-hidden-note'),
+    setError: document.querySelector('#practice-set-error'),
+    setCancel: document.querySelector('#practice-set-cancel'),
+    setDelete: document.querySelector('#practice-set-delete'),
     hiddenTitle: document.querySelector('#practice-hidden-title'),
     hiddenList: document.querySelector('#practice-hidden-list'),
     hiddenEmpty: document.querySelector('#practice-hidden-empty'),
@@ -650,7 +679,16 @@ const state = {
     calendarViewMode: 'month',
     analyticsOpen: false,
     analyticsMode: 'daily',
-    completionActionInProgress: false
+    completionActionInProgress: false,
+    // Practice menu sets (UI: プリセット). Check state stays in progress for every set.
+    practiceSets: [],
+    practiceSetsReady: false,
+    selectedSetId: ALL_PRACTICE_MENUS_SET_ID,
+    setDialogEditId: null,
+    setDialogInitial: null,
+    setDialogHiddenIds: [],
+    setDialogReturnFocus: null,
+    completionSetName: null
 };
 let practiceAnalyticsCache = { history: null, result: null };
 
@@ -2099,6 +2137,37 @@ function getHiddenPracticeItems() {
     return state.items.filter((item) => item.hidden);
 }
 
+function getSelectedPracticeSet() {
+    return findPracticeMenuSet(state.practiceSets, state.selectedSetId);
+}
+
+// The menus of the current selection, in master order and with the existing
+// visibility rule. 「全ての練習メニュー」 is the unchanged active list.
+function getDisplayedPracticeItems() {
+    return getPracticeMenuSetItems(getActivePracticeItems(), getSelectedPracticeSet());
+}
+
+function selectPracticeSet(id) {
+    const nextId = resolvePracticeMenuSetSelection(state.practiceSets, id);
+    state.selectedSetId = nextId;
+    savePracticeMenuSetSelection(nextId);
+}
+
+function renderPracticeSetBar() {
+    if (!getSelectedPracticeSet() && state.selectedSetId !== ALL_PRACTICE_MENUS_SET_ID) {
+        selectPracticeSet(ALL_PRACTICE_MENUS_SET_ID);
+    }
+    const options = [new Option('全ての練習メニュー', ALL_PRACTICE_MENUS_SET_ID)];
+    state.practiceSets.forEach((set) => options.push(new Option(set.name, set.id)));
+    elements.setSelect.replaceChildren(...options);
+    elements.setSelect.value = state.selectedSetId;
+    elements.setSelect.disabled = !state.practiceSetsReady || !state.storageReady;
+    elements.setCreate.disabled = !state.practiceSetsReady || !state.storageReady || getActivePracticeItems().length === 0;
+    elements.setEdit.hidden = !getSelectedPracticeSet();
+    elements.setEdit.disabled = !state.practiceSetsReady;
+    elements.setBar.hidden = state.reorderMode;
+}
+
 function mergeReorderedActiveItems(items, reorderedActiveItems) {
     let activeIndex = 0;
     return items.map((item) => item.hidden ? item : reorderedActiveItems[activeIndex++]);
@@ -2262,9 +2331,12 @@ function syncPracticeCompletionDialog({ focus = true } = {}) {
     elements.completionDialog.classList.toggle('is-partial', !complete);
     elements.completionTitle.textContent = complete ? 'お疲れさまでした！' : 'お疲れさまでした';
     elements.completionDescription.textContent = complete
-        ? '今日の練習メニューをすべて完了しました。'
+        ? state.completionSetName
+            ? `「${state.completionSetName}」の練習メニューをすべて完了しました。`
+            : '今日の練習メニューをすべて完了しました。'
         : '今日の練習、おつかれさまでした。';
     elements.completionEnd.disabled = state.completionActionInProgress;
+    elements.completionPractice.disabled = state.completionActionInProgress;
     elements.completionCalendar.disabled = state.completionActionInProgress;
     const wasHidden = elements.completionDialog.hidden;
     elements.completionDialog.hidden = false;
@@ -2298,8 +2370,11 @@ function persistPracticeCheck(item, checked) {
     }
 
     let completionStarted = false;
-    const activeIds = getActivePracticeItems().map((activeItem) => activeItem.id);
-    if (checked && canCompletePracticeCycle(nextProgress, activeIds)) {
+    // Completion covers the menus of the selected set only (all active menus for
+    // 「全ての練習メニュー」) and fires only when this check completes that scope.
+    // An empty scope never completes.
+    const activeIds = getDisplayedPracticeItems().map((activeItem) => activeItem.id);
+    if (checked && activeIds.includes(item.id) && canCompletePracticeCycle(nextProgress, activeIds)) {
         const completion = beginPracticeCompletion(
             nextProgress,
             PRACTICE_COMPLETION_TYPE.complete,
@@ -2318,6 +2393,7 @@ function persistPracticeCheck(item, checked) {
             completionStarted = true;
         }
     }
+    if (completionStarted) state.completionSetName = getSelectedPracticeSet()?.name || null;
 
     const persisted = historyChanged
         ? persistPracticeActivity(nextProgress, nextHistory)
@@ -2397,7 +2473,14 @@ function handlePracticeCompletionAction(destination) {
     }
 
     state.completionActionInProgress = false;
+    state.completionSetName = null;
     closePracticeCompletionDialog();
+    // 練習画面に戻る: the same completion commit as the other buttons; only the destination differs.
+    if (destination === 'practice') {
+        if (parsePracticeRoute(location.hash)?.kind === PRACTICE_ROUTE_KIND.list) renderPracticeList();
+        else setPracticeListRoute();
+        return;
+    }
     if (destination === 'calendar') {
         setPracticeCalendarSelectedDate(new Date());
         state.calendarViewMode = 'month';
@@ -2405,6 +2488,135 @@ function handlePracticeCompletionAction(destination) {
         return;
     }
     setHomeRoute();
+}
+
+function readPracticeSetDialogValues() {
+    return {
+        name: elements.setName.value,
+        itemIds: [...elements.setItemList.querySelectorAll('input[type="checkbox"]')]
+            .filter((input) => input.checked)
+            .map((input) => input.value)
+    };
+}
+
+function practiceSetDialogSnapshot() {
+    const values = readPracticeSetDialogValues();
+    return JSON.stringify([values.name, values.itemIds]);
+}
+
+function isPracticeSetDialogDirty() {
+    return !elements.setDialog.hidden && practiceSetDialogSnapshot() !== state.setDialogInitial;
+}
+
+function openPracticeSetDialog(mode) {
+    if (!state.practiceSetsReady || !state.storageReady || state.reorderMode) return;
+    const set = mode === 'edit' ? getSelectedPracticeSet() : null;
+    if (mode === 'edit' && !set) return;
+    const included = new Set(set?.itemIds || []);
+    const activeItems = getActivePracticeItems();
+    state.setDialogEditId = set?.id || null;
+    // Hidden memberships are kept untouched; missing ids are dropped on save.
+    state.setDialogHiddenIds = getHiddenPracticeItems().filter((item) => included.has(item.id)).map((item) => item.id);
+    elements.setDialogTitle.textContent = set ? 'プリセットを編集' : 'プリセットを作成';
+    elements.setName.value = set?.name || '';
+    elements.setItemList.replaceChildren(...activeItems.map((item) => {
+        const label = document.createElement('label');
+        label.className = 'practice-set-item';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = item.id;
+        input.checked = included.has(item.id);
+        const name = document.createElement('span');
+        name.textContent = item.name;
+        label.append(input, name);
+        return label;
+    }));
+    elements.setItemsEmpty.hidden = activeItems.length > 0;
+    elements.setHiddenNote.textContent = state.setDialogHiddenIds.length
+        ? `非表示中の練習メニュー${state.setDialogHiddenIds.length}件もこのプリセットに含まれています。表示に戻すと一覧に表示されます。`
+        : '';
+    elements.setHiddenNote.hidden = state.setDialogHiddenIds.length === 0;
+    elements.setDelete.hidden = !set;
+    showNotice(elements.setError);
+    state.setDialogInitial = practiceSetDialogSnapshot();
+    state.setDialogReturnFocus = document.activeElement;
+    elements.setDialog.hidden = false;
+    elements.practiceListView.inert = true;
+    requestAnimationFrame(() => elements.setName.focus());
+}
+
+function closePracticeSetDialog({ restoreFocus = true } = {}) {
+    if (elements.setDialog.hidden) return;
+    elements.setDialog.hidden = true;
+    elements.practiceListView.inert = false;
+    state.setDialogEditId = null;
+    state.setDialogInitial = null;
+    state.setDialogHiddenIds = [];
+    const target = state.setDialogReturnFocus;
+    state.setDialogReturnFocus = null;
+    if (restoreFocus) {
+        (target?.isConnected && !target.hidden ? target : elements.setSelect).focus({ preventScroll: true });
+    }
+}
+
+function requestClosePracticeSetDialog() {
+    if (isPracticeSetDialogDirty() && !window.confirm('変更を保存せずに閉じますか？')) return;
+    closePracticeSetDialog();
+}
+
+function persistPracticeSets(items) {
+    const result = savePracticeMenuSets(items);
+    if (!result.ok) return false;
+    state.practiceSets = items;
+    return true;
+}
+
+function handlePracticeSetSubmit(event) {
+    event.preventDefault();
+    const values = readPracticeSetDialogValues();
+    const editId = state.setDialogEditId;
+    const itemIds = [...values.itemIds, ...state.setDialogHiddenIds];
+    const result = editId
+        ? updatePracticeMenuSet(state.practiceSets, editId, { name: values.name, itemIds: values.itemIds.length ? itemIds : [] }, state.items)
+        : createPracticeMenuSet({ name: values.name, itemIds: values.itemIds }, state.practiceSets, state.items);
+    if (!result.ok) {
+        const message = result.reason === 'name-required'
+            ? 'プリセット名を入力してください。'
+            : result.reason === 'items-required'
+                ? '練習メニューを1つ以上選んでください。'
+                : 'プリセットが見つかりません。';
+        showNotice(elements.setError, message);
+        (result.reason === 'items-required'
+            ? elements.setItemList.querySelector('input') || elements.setName
+            : elements.setName).focus();
+        return;
+    }
+    if (!persistPracticeSets(result.items)) {
+        showNotice(elements.setError, '保存できませんでした。ブラウザの空き容量や保存設定を確認してください。');
+        return;
+    }
+    // Selecting a set never changes checks, counts or history and never opens the completion card.
+    selectPracticeSet(result.set.id);
+    state.listNotice = editId ? 'プリセットを保存しました。' : `プリセット「${result.set.name}」を作成しました。`;
+    closePracticeSetDialog({ restoreFocus: false });
+    renderPracticeList({ focus: false });
+    elements.setSelect.focus({ preventScroll: true });
+}
+
+function handlePracticeSetDelete() {
+    const set = findPracticeMenuSet(state.practiceSets, state.setDialogEditId);
+    if (!set) return;
+    if (!window.confirm('このプリセットを削除しますか？\n練習メニュー自体は削除されません。')) return;
+    const result = deletePracticeMenuSet(state.practiceSets, set.id);
+    if (!result.found || !persistPracticeSets(result.items)) {
+        showNotice(elements.setError, 'プリセットを削除できませんでした。もう一度お試しください。');
+        return;
+    }
+    selectPracticeSet(ALL_PRACTICE_MENUS_SET_ID);
+    state.listNotice = 'プリセットを削除しました。練習メニューはそのまま残っています。';
+    closePracticeSetDialog({ restoreFocus: false });
+    renderPracticeList({ focus: false });
+    elements.setSelect.focus({ preventScroll: true });
 }
 
 function renderPracticeHiddenList() {
@@ -3184,8 +3396,10 @@ function renderPracticeAnalytics() {
 function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
     showView(elements.practiceListView);
     elements.list.replaceChildren();
+    renderPracticeSetBar();
     const activeItems = getActivePracticeItems();
-    const visibleItems = state.reorderMode ? state.reorderItems : activeItems;
+    const selectedSet = state.reorderMode ? null : getSelectedPracticeSet();
+    const visibleItems = state.reorderMode ? state.reorderItems : getDisplayedPracticeItems();
 
     visibleItems.forEach((item, index) => {
         elements.list.append(
@@ -3193,11 +3407,14 @@ function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
         );
     });
     elements.empty.hidden = state.reorderMode || activeItems.length > 0 || !state.storageReady;
+    // A set whose menus were all deleted or hidden stays usable: show why and allow editing.
+    elements.setEmpty.hidden = !selectedSet || activeItems.length === 0 || visibleItems.length > 0;
 
-    elements.reorderStart.hidden = state.reorderMode || activeItems.length < 2;
+    // Sets follow the master order, so reordering and adding happen in 「全ての練習メニュー」.
+    elements.reorderStart.hidden = state.reorderMode || Boolean(selectedSet) || activeItems.length < 2;
     elements.reorderActions.hidden = !state.reorderMode;
     elements.historyOpen.hidden = state.reorderMode;
-    elements.addButton.hidden = state.reorderMode;
+    elements.addButton.hidden = state.reorderMode || Boolean(selectedSet);
     elements.addButton.disabled = !state.storageReady;
     elements.addButton.classList.toggle('tool-pro-locked', !canCreatePractice(state.items));
     elements.addButton.setAttribute('aria-label', canCreatePractice(state.items)
@@ -3232,6 +3449,8 @@ function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
                 ? '進捗または履歴を読み込めないため、チェック機能を停止しています。既存データは変更していません。'
                 : !state.calendarReady || !state.timerReady
                     ? 'カレンダーまたはタイマーの保存データを読み込めません。該当機能を停止し、既存データは変更していません。'
+                : !state.practiceSetsReady
+                    ? 'プリセットの保存データを読み込めないため、「全ての練習メニュー」を表示しています。既存データは変更していません。'
                 : ''
     );
     if (focusCheckId) {
@@ -5717,6 +5936,37 @@ elements.finishButton.addEventListener('click', handlePracticeFinishEarly);
 elements.cycleReset.addEventListener('click', handlePracticeCycleReset);
 elements.completionEnd.addEventListener('click', () => handlePracticeCompletionAction('home'));
 elements.completionCalendar.addEventListener('click', () => handlePracticeCompletionAction('calendar'));
+elements.completionPractice.addEventListener('click', () => handlePracticeCompletionAction('practice'));
+elements.setSelect.addEventListener('change', () => {
+    selectPracticeSet(elements.setSelect.value);
+    renderPracticeList({ focus: false });
+});
+elements.setCreate.addEventListener('click', () => openPracticeSetDialog('create'));
+elements.setEdit.addEventListener('click', () => openPracticeSetDialog('edit'));
+elements.setForm.addEventListener('submit', handlePracticeSetSubmit);
+elements.setCancel.addEventListener('click', requestClosePracticeSetDialog);
+elements.setDelete.addEventListener('click', handlePracticeSetDelete);
+elements.setDialog.addEventListener('click', (event) => {
+    if (event.target === elements.setDialog) requestClosePracticeSetDialog();
+});
+elements.setDialog.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+        event.preventDefault();
+        requestClosePracticeSetDialog();
+        return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [...elements.setDialog.querySelectorAll('input, button')]
+        .filter((element) => !element.disabled && !element.hidden && element.getClientRects().length > 0);
+    const currentIndex = focusable.indexOf(document.activeElement);
+    if (event.shiftKey && currentIndex <= 0) {
+        event.preventDefault();
+        focusable.at(-1)?.focus();
+    } else if (!event.shiftKey && currentIndex === focusable.length - 1) {
+        event.preventDefault();
+        focusable[0]?.focus();
+    }
+});
 elements.completionDialog.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
         event.preventDefault();
@@ -5724,7 +5974,7 @@ elements.completionDialog.addEventListener('keydown', (event) => {
         return;
     }
     if (event.key !== 'Tab') return;
-    const focusable = [elements.completionEnd, elements.completionCalendar]
+    const focusable = [elements.completionEnd, elements.completionPractice, elements.completionCalendar]
         .filter((element) => !element.disabled);
     if (focusable.length === 0) {
         event.preventDefault();
@@ -6163,6 +6413,10 @@ window.addEventListener('cruise-port-asset-sync-error', (event) => {
 const loadResult = initializePracticeMenus(loadPracticeMenus());
 state.items = loadResult.items;
 state.storageReady = loadResult.ok;
+const practiceSetsLoadResult = loadPracticeMenuSets();
+state.practiceSets = practiceSetsLoadResult.items;
+state.practiceSetsReady = practiceSetsLoadResult.ok;
+state.selectedSetId = resolvePracticeMenuSetSelection(state.practiceSets, loadPracticeMenuSetSelection());
 const progressLoadResult = loadPracticeProgress();
 state.progress = progressLoadResult.progress;
 state.progressReady = progressLoadResult.ok;

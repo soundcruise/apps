@@ -9,7 +9,7 @@
     <link rel="manifest" href="./manifest.json?v=1.0.1">
     <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.69.0">
     <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=1.0.1">
-    <link rel="stylesheet" href="./style.css?v=1.3.0">
+    <link rel="stylesheet" href="./style.css?v=1.4.0">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=22">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -18,14 +18,14 @@
     <script defer src="../shared/sync-account/sync-account-client.js?v=16"></script>
     <script defer src="../shared/sync-account/sync-app-backup.js?v=3"></script>
     <script defer src="../shared/sync-account/multi-app-sync-db.js?v=4"></script>
-    <script defer src="../shared/sync-account/multi-app-sync-runtime.js?v=22"></script>
+    <script defer src="../shared/sync-account/multi-app-sync-runtime.js?v=23"></script>
     <script defer src="../shared/sync-account/multi-app-conflict-ui.js?v=8"></script>
-    <script defer src="./port-sync-adapter.js?v=0.64.0"></script>
+    <script defer src="./port-sync-adapter.js?v=1.4.0"></script>
     <script defer src="./port-sync-controller.js?v=0.64.0"></script>
     <script defer src="../shared/sync-account/sync-ui-components.js?v=15"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="./practice-menu-app.js?v=1.3.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.4.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -557,6 +557,16 @@
                     <time id="practice-timer-display" datetime="PT0S">00:00</time>
                 </div>
                 <p id="practice-timer-status" class="practice-saved" role="status" hidden></p>
+                <div id="practice-set-bar" class="practice-set-bar">
+                    <label class="practice-set-label" for="practice-set-select">プリセット</label>
+                    <div class="practice-set-controls">
+                        <select id="practice-set-select">
+                            <option value="all">全ての練習メニュー</option>
+                        </select>
+                        <button id="practice-set-create" class="practice-set-add" type="button" aria-label="プリセットを作成" title="プリセットを作成"><span aria-hidden="true">＋</span></button>
+                    </div>
+                    <button id="practice-set-edit" class="practice-set-edit" type="button" hidden>プリセットを編集</button>
+                </div>
                 <div class="practice-overview">
                     <div class="practice-overview-links" aria-label="練習メニューの補助機能">
                         <button id="practice-hidden-open" type="button">非表示 <span id="practice-hidden-count">0</span></button>
@@ -572,6 +582,10 @@
                         <p>まだ練習メニューがありません</p>
                         <span>下のボタンから、最初の練習メニューを作成できます。</span>
                     </div>
+                    <div id="practice-set-empty" class="practice-empty" hidden>
+                        <p>このプリセットに表示できる練習メニューがありません</p>
+                        <span>「プリセットを編集」から、含める練習メニューを選んでください。</span>
+                    </div>
                     <div id="practice-menu-list"></div>
                     <button id="practice-menu-add" class="practice-row add-row" type="button">
                         <span class="add-symbol" aria-hidden="true">＋</span>
@@ -584,6 +598,29 @@
                 </div>
             </section>
         </main>
+
+        <div id="practice-set-dialog" class="practice-set-dialog" role="dialog" aria-modal="true" aria-labelledby="practice-set-dialog-title" hidden>
+            <section class="practice-set-dialog-panel">
+                <p class="view-kicker">練習メニュー</p>
+                <h2 id="practice-set-dialog-title" tabindex="-1">プリセットを作成</h2>
+                <form id="practice-set-form" novalidate>
+                    <label for="practice-set-name">プリセット名 <span class="required-label">必須</span></label>
+                    <input id="practice-set-name" name="practiceSetName" type="text" maxlength="100" autocomplete="off" required>
+                    <fieldset class="practice-set-items">
+                        <legend>含める練習メニュー <span class="required-label">1つ以上</span></legend>
+                        <div id="practice-set-item-list" class="practice-set-item-list"></div>
+                        <p id="practice-set-items-empty" class="practice-set-note" hidden>表示中の練習メニューがありません。</p>
+                        <p id="practice-set-hidden-note" class="practice-set-note" hidden></p>
+                    </fieldset>
+                    <p id="practice-set-error" class="notice notice-error" role="alert" hidden></p>
+                    <div class="practice-set-dialog-actions">
+                        <button id="practice-set-save" class="action-button primary-action" type="submit">保存</button>
+                        <button id="practice-set-cancel" class="action-button secondary-action" type="button">キャンセル</button>
+                    </div>
+                    <button id="practice-set-delete" class="practice-set-delete" type="button" hidden>このプリセットを削除</button>
+                </form>
+            </section>
+        </div>
 
         <main id="practice-hidden-view" class="port-view practice-hidden-view" hidden>
             <button class="view-back" type="button" data-action="practice-list">← 練習メニュー</button>
@@ -1342,6 +1379,7 @@
                 <p id="practice-completion-error" class="notice notice-error" role="alert" hidden></p>
                 <div class="practice-completion-actions">
                     <button id="practice-completion-end" class="action-button primary-action" type="button">練習を終了する</button>
+                    <button id="practice-completion-practice" class="action-button secondary-action" type="button">練習画面に戻る</button>
                     <button id="practice-completion-calendar" class="action-button secondary-action" type="button">音楽カレンダーを見る</button>
                 </div>
             </section>

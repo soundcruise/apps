@@ -11,8 +11,11 @@
     'cruisePort.tuner', 'cruisePort.gearList', 'cruisePort.gearCategories',
     'cruisePort.practiceCalendar', 'cruisePort.schemaVersion', 'cruisePort.practiceMenus',
     'cruisePort.practiceProgress', 'cruisePort.practiceHistory', 'cruisePort.myApps',
-    ASSET_METADATA_KEY
+    'cruisePort.practiceMenuSets', ASSET_METADATA_KEY
   ]);
+  // Record types the Worker only exchanges with clients declaring the capability.
+  // Older Port builds never see these records, so they can never delete them.
+  const SYNC_CAPABILITIES = Object.freeze(['practice_menu_sets_v1']);
   const SINGLETONS = Object.freeze([
     ['cruisePort.settings', 'settings', 'global'],
     ['cruisePort.metronome', 'metronome_settings', 'default'],
@@ -28,7 +31,7 @@
   const GUARDED_DELETE_TYPES = new Set(['metronome_preset', 'calendar_event', 'practice_menu',
     'practice_history_event', 'gear_category', 'gear_item', 'my_app',
     'settings', 'metronome_settings', 'tuner_settings', 'practice_cycle',
-    'practice_attachment', 'practice_attachment_set']);
+    'practice_attachment', 'practice_attachment_set', 'practice_menu_set']);
   const SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u;
   const FORBIDDEN_KEY = /(?:credential|verifier|password|secret|token|recovery.?code|join.?code|blob|base64|binary)/iu;
 
@@ -159,7 +162,7 @@
     'cruisePort.metronomePresets': [1], 'cruisePort.practiceCalendar': [1, 2],
     'cruisePort.practiceMenus': [1, 2, 3], 'cruisePort.practiceHistory': [1, 2, 3, 4, 5],
     'cruisePort.gearCategories': [1], 'cruisePort.gearList': [1, 2, 3, 4, 5],
-    'cruisePort.myApps': [1, 2, 3, 4, 5, 6, 7]
+    'cruisePort.myApps': [1, 2, 3, 4, 5, 6, 7], 'cruisePort.practiceMenuSets': [1]
   });
   function collection(storage, key, fallbackKey = 'items') {
     const value = parse(storage, key, { version: COLLECTION_VERSIONS[key].at(-1), [fallbackKey]: [] });
@@ -285,6 +288,9 @@
     const menus = collection(storage, 'cruisePort.practiceMenus');
     itemValues(menus).forEach((item, index) => records.push(record('practice_menu', item.id, item)));
     if (itemValues(menus).length) records.push(record('practice_menu_order', 'default', itemValues(menus).map(({ id }) => id)));
+    // Sets reference practice_menu ids only; their order follows the menus, so no order record.
+    const menuSets = collection(storage, 'cruisePort.practiceMenuSets');
+    itemValues(menuSets).forEach((item) => records.push(record('practice_menu_set', item.id, item)));
     Object.entries(assets.attachments || {}).forEach(([logicalId, entry]) => {
       if (entry?.published?.availability !== 'available' || !entry.published.asset?.assetId) return;
       records.push(record('practice_attachment', logicalId, {
@@ -478,6 +484,12 @@
     write(storage, 'cruisePort.metronomePresets', { version: 1, items: presets });
     write(storage, 'cruisePort.practiceCalendar', { version: 2, notes: byType(normalized, 'calendar_event').map((item) => item.payload.value) });
     write(storage, 'cruisePort.practiceMenus', { version: 3, items: ordered(normalized, 'practice_menu', 'practice_menu_order').map((item) => item.payload.value) });
+    const menuSets = byType(normalized, 'practice_menu_set').map((item) => item.payload.value)
+      .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)) || String(a.id).localeCompare(String(b.id)));
+    // Users without sets keep no storage key at all.
+    if (menuSets.length || storage.getItem('cruisePort.practiceMenuSets') !== null) {
+      write(storage, 'cruisePort.practiceMenuSets', { version: 1, items: menuSets });
+    }
     const remoteAttachments = new Map(byType(normalized, 'practice_attachment').map((item) => [item.recordId, item.payload.value]));
     Object.entries(currentAssets.attachments || {}).forEach(([logicalId, entry]) => {
       if (remoteAttachments.has(logicalId) || repairs.attachments.has(logicalId) || entry?.pending) return;
@@ -560,7 +572,7 @@
     tuner_settings: 'チューナー設定', calendar_event: '音楽カレンダー', practice_menu: '練習メニュー',
     practice_menu_order: '練習メニューの並び順', practice_attachment: '練習メニューの添付ファイル',
     practice_attachment_set: '練習メニューの添付ファイル', practice_cycle: '練習サイクル',
-    practice_history_event: '練習履歴', gear_category: '機材カテゴリ',
+    practice_history_event: '練習履歴', practice_menu_set: '練習メニューのプリセット', gear_category: '機材カテゴリ',
     gear_category_order: '機材カテゴリの並び順', gear_item: '機材リスト',
     gear_order: '機材リストの並び順', my_app: 'My Apps', my_app_order: 'My Appsの並び順'
   });
@@ -594,6 +606,7 @@
       this.cryptoImpl = options.cryptoImpl || global.crypto;
       this.remoteApplyChanged = false;
       this.remoteReferenceRecords = [];
+      this.syncCapabilities = SYNC_CAPABILITIES;
     }
     readLocalSnapshot() { return readLocalSnapshot(this.storage); }
     normalizeLocalSnapshot(value = this.readLocalSnapshot()) { return normalizeSnapshot(value); }
@@ -628,7 +641,7 @@
   }
 
   Object.assign(root, {
-    APP_ID, SCHEMA_VERSION, MANAGED_KEYS, ASSET_METADATA_KEY, PortSyncAdapter,
+    APP_ID, SCHEMA_VERSION, MANAGED_KEYS, ASSET_METADATA_KEY, SYNC_CAPABILITIES, PortSyncAdapter,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeSnapshot, serializeRecords,
     deserializeRecords, mergeSnapshots, applyRemoteSnapshot, computeManifest,
     assertDataPlaneContext, getConflictPresentation, reconcileRemoteAssetReferences,
