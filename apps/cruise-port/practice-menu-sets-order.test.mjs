@@ -142,7 +142,7 @@ test('非表示 and 並び替え sit under チェックをすべてリセット 
     }
 });
 
-test('練習終了 reuses the 練習スタート primary gold style without changing behavior', () => {
+test('練習終了 reuses the 練習スタート primary gold style and the shared manual finish', () => {
     const css = read('./style.css');
     for (const path of ['./index.html', './pro_9a3943176561/index.html']) {
         assert.match(read(path), /<button id="practice-timer-stop" class="practice-timer-toggle practice-timer-stop" type="button" hidden>練習終了<\/button>/);
@@ -152,7 +152,8 @@ test('練習終了 reuses the 練習スタート primary gold style without chan
     assert.match(css, /\.practice-timer-toggle \{[^}]*background: linear-gradient\(180deg, #dbc68f, #b89d5e\);/);
     assert.match(app, /elements\.timerToggle\.classList\.toggle\('is-running', running\);/, 'only the start/pause button dims while running');
     assert.doesNotMatch(app, /timerStop\.classList/);
-    assert.match(app, /elements\.timerStop\.addEventListener\('click', handlePracticeTimerStop\);/, 'same handler');
-    assert.match(body('handlePracticeTimerStop'), /stopPracticeTimerWithHistory\(\)[\s\S]*clearAllPracticeCurrentChecks/, 'same finish semantics');
+    // 1.4.3: 練習終了 runs the same manual finish as ここで練習終了.
+    assert.match(app, /elements\.timerStop\.addEventListener\('click', handlePracticeFinishEarly\);/);
+    assert.match(app, /elements\.finishButton\.addEventListener\('click', handlePracticeFinishEarly\);/);
     assert.match(read('./index.html'), /id="practice-finish" class="practice-finish-action"/, 'ここで練習終了 keeps its own style');
 });

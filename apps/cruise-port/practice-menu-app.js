@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.4.2';
+} from './app-version.js?v=1.4.3';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -502,7 +502,8 @@ const elements = {
     setItemsRequirement: document.querySelector('#practice-set-items-requirement'),
     formSets: document.querySelector('#practice-form-sets'),
     formSetList: document.querySelector('#practice-form-set-list'),
-    formSetsEmpty: document.querySelector('#practice-form-sets-empty'),
+    formSetToggle: document.querySelector('#practice-form-set-toggle'),
+    formSetSummary: document.querySelector('#practice-form-set-summary'),
     formSetCreate: document.querySelector('#practice-form-set-create'),
     hiddenTitle: document.querySelector('#practice-hidden-title'),
     hiddenList: document.querySelector('#practice-hidden-list'),
@@ -700,6 +701,8 @@ const state = {
     setDialogReturnFocus: null,
     // 'list' (＋ / プリセットを編集) or 'form' (＋ プリセットを作成 in 練習メニューを追加).
     setDialogHost: 'list',
+    // 追加するプリセット starts collapsed each time 練習メニューを追加 opens.
+    formSetsExpanded: false,
     completionSetName: null
 };
 let practiceAnalyticsCache = { history: null, result: null };
@@ -2304,21 +2307,6 @@ function handlePracticeTimerToggle() {
     renderPracticeList({ focus: false });
 }
 
-function handlePracticeTimerStop() {
-    if (!state.timer?.running) return;
-    const result = stopPracticeTimerWithHistory();
-    const checksReset = !result.ok || !result.stopped || (state.progressReady &&
-        persistPracticeProgress(clearAllPracticeCurrentChecks(state.progress)));
-    showNotice(
-        elements.timerStatus,
-        !checksReset ? '練習時間は記録しましたが、チェックをリセットできませんでした。' : result.ok
-            ? `練習時間 ${formatPracticeSessionDuration(result.displayDurationSeconds)}を記録しました。`
-            : result.message
-    );
-    renderPracticeList({ focus: false });
-    if (result.ok && result.stopped) refreshAppliedPortCloudDataWhenSafe();
-}
-
 function setPracticeCompletionBackgroundInert(inert) {
     document.querySelectorAll('.port-view, .port-global-refresh-bar, .port-footer').forEach((element) => {
         element.inert = inert;
@@ -2442,12 +2430,16 @@ function handlePracticeCycleReset() {
     renderPracticeList({ focus: false });
 }
 
+// The single manual finish shared by ここで練習終了 and the gold 練習終了: the checks
+// are cleared into a pending partial completion (the お疲れさまでした card), then the
+// running timer is stopped and its session recorded exactly once. The card's buttons
+// find the timer already stopped, so they never record a second session.
 function handlePracticeFinishEarly() {
     if (!state.progressReady || state.progress.completionPending) return;
     const activeIds = getActivePracticeItems().map((item) => item.id);
-    const hasActivity = Boolean(state.timerReady && state.timer?.running)
-        || state.progress.checkedPracticeIds.length > 0;
-    if (activeIds.length === 0 || !hasActivity) return;
+    const timerRunning = Boolean(state.timerReady && state.timer?.running);
+    const hasActivity = timerRunning || state.progress.checkedPracticeIds.length > 0;
+    if ((activeIds.length === 0 && !timerRunning) || !hasActivity) return;
     const transition = beginPracticeCompletion(
         state.progress,
         PRACTICE_COMPLETION_TYPE.partial,
@@ -2458,8 +2450,11 @@ function handlePracticeFinishEarly() {
         renderPracticeList({ focus: false });
         return;
     }
+    // If recording fails the timer keeps running and the card's buttons retry the stop.
+    const timerResult = timerRunning ? stopPracticeTimerWithHistory() : { ok: true };
     renderPracticeList({ focus: false });
     syncPracticeCompletionDialog();
+    if (!timerResult.ok) showNotice(elements.completionError, timerResult.message);
 }
 
 function handlePracticeCompletionAction(destination) {
@@ -2623,8 +2618,9 @@ function handlePracticeSetSubmit(event) {
         closePracticeSetDialog({ restoreFocus: false });
         renderPracticeFormSets(checked);
         showNotice(elements.formStatus, `プリセット「${result.set.name}」を作成し、追加先に選びました。`);
-        [...elements.formSetList.querySelectorAll('input')].find((input) => input.value === result.set.id)
-            ?.focus({ preventScroll: true });
+        (state.formSetsExpanded
+            ? [...elements.formSetList.querySelectorAll('input')].find((input) => input.value === result.set.id)
+            : elements.formSetToggle)?.focus({ preventScroll: true });
         return;
     }
     // Selecting a set never changes checks, counts or history and never opens the completion card.
@@ -4109,7 +4105,41 @@ function readPracticeFormSetIds() {
         .map((input) => input.value);
 }
 
-function renderPracticeFormSets(checkedIds = []) {
+// Collapsed, the selector shows the chosen presets as chips (or a placeholder);
+// expanded, it shows the existing checkbox list.
+function renderPracticeFormSetSummary() {
+    const names = state.practiceSets
+        .filter((set) => readPracticeFormSetIds().includes(set.id))
+        .map((set) => set.name);
+    const empty = state.practiceSets.length === 0;
+    const content = names.length
+        ? names.map((name) => {
+            const chip = document.createElement('span');
+            chip.className = 'practice-form-set-chip';
+            chip.textContent = name;
+            return chip;
+        })
+        : [Object.assign(document.createElement('span'), {
+            className: 'practice-form-set-placeholder',
+            textContent: empty ? '追加先のプリセットはありません' : 'プリセットを選択'
+        })];
+    elements.formSetSummary.replaceChildren(...content);
+    elements.formSetToggle.disabled = empty;
+    elements.formSetToggle.setAttribute('aria-label', empty
+        ? '追加先のプリセットはありません'
+        : names.length
+            ? `追加するプリセット：${names.join('、')}。選択を変更`
+            : '追加するプリセットを選択');
+}
+
+function setPracticeFormSetsExpanded(expanded) {
+    state.formSetsExpanded = Boolean(expanded) && state.practiceSets.length > 0;
+    elements.formSetList.hidden = !state.formSetsExpanded;
+    elements.formSetToggle.setAttribute('aria-expanded', state.formSetsExpanded ? 'true' : 'false');
+    elements.formSetToggle.classList.toggle('is-expanded', state.formSetsExpanded);
+}
+
+function renderPracticeFormSets(checkedIds = [], { expanded = state.formSetsExpanded } = {}) {
     const checked = new Set(checkedIds);
     elements.formSets.hidden = state.formMode !== 'create' || !state.practiceSetsReady;
     elements.formSetList.replaceChildren(...state.practiceSets.map((set) => {
@@ -4124,8 +4154,8 @@ function renderPracticeFormSets(checkedIds = []) {
         label.append(input, name);
         return label;
     }));
-    elements.formSetList.hidden = state.practiceSets.length === 0;
-    elements.formSetsEmpty.hidden = state.practiceSets.length > 0;
+    setPracticeFormSetsExpanded(expanded);
+    renderPracticeFormSetSummary();
 }
 
 function renderForm(mode, id = null) {
@@ -4154,7 +4184,8 @@ function renderForm(mode, id = null) {
     fillForm(item);
     state.initialFormSnapshot = practiceFormSnapshot();
     // The selected custom set is pre-checked; All (or a set missing after sync) checks nothing.
-    renderPracticeFormSets(mode === 'create' && getSelectedPracticeSet() ? [getSelectedPracticeSet().id] : []);
+    renderPracticeFormSets(mode === 'create' && getSelectedPracticeSet() ? [getSelectedPracticeSet().id] : [],
+        { expanded: false });
     showView(elements.formView);
     if (item) void renderPracticeAttachments(item.id, 'form');
     else renderPendingPracticeAttachments();
@@ -6028,7 +6059,8 @@ elements.reorderStart.addEventListener('click', startReorder);
 elements.reorderCancel.addEventListener('click', cancelReorder);
 elements.reorderComplete.addEventListener('click', completeReorder);
 elements.timerToggle.addEventListener('click', handlePracticeTimerToggle);
-elements.timerStop.addEventListener('click', handlePracticeTimerStop);
+// 練習終了 (gold) and ここで練習終了 are the same manual finish.
+elements.timerStop.addEventListener('click', handlePracticeFinishEarly);
 elements.analyticsToggle.addEventListener('click', () => {
     state.analyticsOpen = !state.analyticsOpen;
     renderPracticeAnalytics();
@@ -6054,6 +6086,14 @@ elements.setSelect.addEventListener('change', () => {
 });
 elements.setCreate.addEventListener('click', () => openPracticeSetDialog('create'));
 elements.formSetCreate.addEventListener('click', () => openPracticeSetDialog('create', { host: 'form' }));
+elements.formSetToggle.addEventListener('click', () => setPracticeFormSetsExpanded(!state.formSetsExpanded));
+elements.formSetList.addEventListener('change', renderPracticeFormSetSummary);
+elements.formSetList.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    setPracticeFormSetsExpanded(false);
+    elements.formSetToggle.focus({ preventScroll: true });
+});
 elements.setEdit.addEventListener('click', () => openPracticeSetDialog('edit'));
 elements.setForm.addEventListener('submit', handlePracticeSetSubmit);
 elements.setCancel.addEventListener('click', requestClosePracticeSetDialog);

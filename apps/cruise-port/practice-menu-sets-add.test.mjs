@@ -86,8 +86,7 @@ test('both entries add 追加するプリセット as a labelled checkbox fields
         const fieldset = form.slice(form.indexOf('<fieldset id="practice-form-sets"'), form.indexOf('</fieldset>', form.indexOf('<fieldset id="practice-form-sets"')));
         assert.match(fieldset, /class="form-field practice-form-sets" hidden/, path);
         assert.match(fieldset, /<legend>追加するプリセット/);
-        assert.match(fieldset, /id="practice-form-set-list" class="practice-set-item-list"/, 'reuses the preset checkbox list');
-        assert.match(fieldset, /追加先のプリセットはありません。/);
+        assert.match(fieldset, /id="practice-form-set-list" class="practice-set-item-list practice-form-set-list" hidden/, 'reuses the preset checkbox list, collapsed');
         assert.match(fieldset, /<button id="practice-form-set-create" class="practice-form-set-create" type="button"><span aria-hidden="true">＋<\/span> プリセットを作成<\/button>/);
         assert.ok(form.indexOf('id="practice-memo"') < form.indexOf('id="practice-form-sets"'));
         assert.ok(form.indexOf('id="practice-form-sets"') < form.indexOf('type="submit"'));
@@ -99,7 +98,7 @@ test('custom sets only, in the existing order, with the selected set as the only
     assert.match(render, /elements\.formSets\.hidden = state\.formMode !== 'create' \|\| !state\.practiceSetsReady;/, 'new menus only');
     assert.match(render, /state\.practiceSets\.map\(\(set\) =>/, 'existing set order, no All option');
     assert.doesNotMatch(render, /ALL_PRACTICE_MENUS_SET_ID|全ての練習メニュー/);
-    assert.match(body('renderForm'), /renderPracticeFormSets\(mode === 'create' && getSelectedPracticeSet\(\) \? \[getSelectedPracticeSet\(\)\.id\] : \[\]\);/,
+    assert.match(body('renderForm'), /renderPracticeFormSets\(mode === 'create' && getSelectedPracticeSet\(\) \? \[getSelectedPracticeSet\(\)\.id\] : \[\],\s*\{ expanded: false \}\);/,
         'All (or a missing selection) checks nothing; a custom selection checks only itself');
 });
 

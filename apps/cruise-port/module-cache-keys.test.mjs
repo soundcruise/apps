@@ -11,10 +11,12 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.4.2 lets 練習メニューを追加 assign the new menu to presets; the set store and its importer move.
-const RELEASE_MODULES = Object.freeze(['app-version.js', 'practice-menu-sets-store.js', 'port-sync-local-validation.js']);
+// 1.4.3 refines the add-form preset selector and unifies the finish flow (app and styles only).
+const RELEASE_MODULES = Object.freeze(['app-version.js']);
 // Other modules retain the cache key of their last real change.
 const UNCHANGED_KEYS = Object.freeze({
+  'practice-menu-sets-store.js': '1.4.2',
+  'port-sync-local-validation.js': '1.4.2',
   'news-data.js': '1.3.0',
   'practice-cross-day-display.js': '1.2.1',
   'practice-menu-progress-store.js': '1.2.0',
@@ -32,14 +34,14 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.4.2', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.4.2');
+test('the release is 1.4.3', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.4.3');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
   for (const html of [read('./index.html'), read('./pro_9a3943176561/index.html')]) {
     assert.match(html, new RegExp(`practice-menu-app\\.js\\?v=${escaped}"`), 'the entry moves, so no user keeps the 0.70.1 app');
-    assert.match(html, /style\.css\?v=1\.4\.2"/, 'add-form preset styles get a new cache key');
+    assert.match(html, /style\.css\?v=1\.4\.3"/, 'selector styles get a new cache key');
     assert.match(html, /sync-account-core\.js\?v=7"/, 'shared credential helper uses a new cache key');
   }
 });
@@ -62,7 +64,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.4.2');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.4.3');
   assert.equal(key('practice-menu-app.js', 'practice-menu-sets-store.js'), '1.4.2');
   assert.equal(key('port-sync-local-validation.js', 'practice-menu-sets-store.js'), '1.4.2');
   assert.equal(key('practice-menu-app.js', 'practice-menu-presets.js'), '1.2.0', 'name suggestions are a separate module');
@@ -104,7 +106,7 @@ test('a module that imports a release-keyed module is itself fetched under the r
 test('no module changed in this release is still requested under an earlier key', () => {
   const sources = modules.map((name) => read(`./${name}`)).join('\n');
   for (const name of RELEASE_MODULES) {
-    for (const stale of ['0.61.0', '0.62.0', '0.63.0', '0.64.0', '0.65.0', '0.66.0', '0.67.0', '0.68.0', '0.69.0', '0.69.1', '0.69.2', '0.69.3', '0.69.4', '0.69.5', '0.70.0', '0.70.1', '0.60.0', '0.59.3', '1.0.0', '1.0.1', '1.1.0', '1.1.1', '1.1.8', '1.3.0', '1.4.0', '1.4.1']) {
+    for (const stale of ['0.61.0', '0.62.0', '0.63.0', '0.64.0', '0.65.0', '0.66.0', '0.67.0', '0.68.0', '0.69.0', '0.69.1', '0.69.2', '0.69.3', '0.69.4', '0.69.5', '0.70.0', '0.70.1', '0.60.0', '0.59.3', '1.0.0', '1.0.1', '1.1.0', '1.1.1', '1.1.8', '1.3.0', '1.4.0', '1.4.1', '1.4.2']) {
       assert.equal(sources.includes(`${name}?v=${stale}`), false, `${name}?v=${stale}`);
     }
   }

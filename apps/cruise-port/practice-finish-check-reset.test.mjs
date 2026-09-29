@@ -52,71 +52,81 @@ function fixture(failKey = null) {
         formatPracticeSessionDuration: value => String(value)
     });
     vm.runInContext(['persistPracticeProgress', 'getActivePracticeItems', 'stopPracticeTimerWithHistory',
-        'handlePracticeTimerStop', 'handlePracticeFinishEarly', 'handlePracticeCompletionAction']
+        'handlePracticeFinishEarly', 'handlePracticeCompletionAction']
         .map(functionSource).join('\n'), context);
     return { state, before: structuredClone(state), context, values, writes, messages, destinations };
 }
 
-test('timer finish clears only checks; history/calendar retain completions plus the existing session', () => {
-    const f = fixture();
-    f.context.handlePracticeTimerStop();
-    assert.deepEqual(f.state.progress, { ...f.before.progress, checkedPracticeIds: [] });
-    assert.deepEqual(f.state.history.events.filter(e => e.type === 'practice-completed'), f.before.history.events);
-    assert.equal(f.state.history.events.length, f.before.history.events.length + 1);
-    assert.equal(f.state.timer.running, false);
-    const sessions = history.createPracticeDayHistoryView(f.state.history, history.toLocalDateKey(end));
-    assert.equal(sessions.filter(e => e.kind === 'session').length, 1);
-    assert.equal(sessions.find(e => e.kind === 'session').event.durationSeconds, 60);
-    for (const id of ['a', 'b']) {
-        const again = progress.setPracticeChecked(f.state.progress, id, true);
-        assert.equal(again.countAdded, false);
-        f.state.progress = again.progress;
-    }
-    assert.deepEqual(f.state.progress.totalCounts, f.before.progress.totalCounts);
-    assert.equal(f.state.history.events.filter(e => e.type === 'practice-completed').length, 2);
-});
+const sessionsOf = (h) => h.events.filter(e => e.type === 'practice-session').length;
+const completedOf = (h) => h.events.filter(e => e.type === 'practice-completed').length;
 
-test('timer history save failure leaves checks and running timer unchanged', () => {
-    const f = fixture(history.PRACTICE_HISTORY_STORAGE_KEY);
-    f.context.handlePracticeTimerStop();
-    assert.deepEqual(f.state.progress, f.before.progress);
-    assert.deepEqual(f.state.history, f.before.history);
-    assert.deepEqual(f.state.timer, f.before.timer);
-    assert.equal(f.writes.includes(progress.PRACTICE_PROGRESS_STORAGE_KEY), false);
-});
-
-test('timer save success followed by check-save failure never rolls back timer history', () => {
-    const f = fixture(progress.PRACTICE_PROGRESS_STORAGE_KEY);
-    f.context.handlePracticeTimerStop();
-    assert.deepEqual(f.state.progress, f.before.progress);
-    assert.equal(f.state.timer.running, false);
-    assert.equal(JSON.parse(f.values.get(timer.PRACTICE_TIMER_STORAGE_KEY)).running, false);
-    assert.equal(JSON.parse(f.values.get(history.PRACTICE_HISTORY_STORAGE_KEY)).events.length, 3);
-    assert.equal(f.writes.filter(key => key === history.PRACTICE_HISTORY_STORAGE_KEY).length, 1);
-    assert.ok(f.messages.includes('練習時間は記録しましたが、チェックをリセットできませんでした。'));
-});
-
-for (const destination of ['home', 'calendar']) test(`bottom finish retains pending completion and existing ${destination} flow`, () => {
+// 1.4.3: the gold 練習終了 and ここで練習終了 both call handlePracticeFinishEarly.
+for (const destination of ['home', 'calendar']) test(`manual finish stops the timer once, opens the card and keeps the ${destination} flow`, () => {
     const f = fixture();
     const expected = progress.beginPracticeCompletion(f.before.progress,
         progress.PRACTICE_COMPLETION_TYPE.partial, ['a', 'b', 'c'], end);
     f.context.handlePracticeFinishEarly();
-    assert.deepEqual(f.state.progress, { ...expected.progress, checkedPracticeIds: [] });
-    assert.deepEqual(f.state.history, f.before.history);
-    assert.deepEqual(f.state.timer, f.before.timer);
+    assert.deepEqual(f.state.progress, { ...expected.progress, checkedPracticeIds: [] }, 'pending partial, checks cleared');
+    assert.equal(f.state.timer.running, false, 'the timer stops at finish, not later');
+    assert.equal(JSON.parse(f.values.get(timer.PRACTICE_TIMER_STORAGE_KEY)).running, false);
+    assert.equal(sessionsOf(f.state.history), 1, 'exactly one session');
+    const sessions = history.createPracticeDayHistoryView(f.state.history, history.toLocalDateKey(end));
+    assert.equal(sessions.find(e => e.kind === 'session').event.durationSeconds, 60);
     const oldResult = progress.finishPracticeCompletion(expected.progress, end);
     f.context.handlePracticeCompletionAction(destination);
     assert.deepEqual(f.state.progress.checkedPracticeIds, oldResult.progress.checkedPracticeIds);
     assert.deepEqual(f.state.progress.countedPracticeIds, oldResult.progress.countedPracticeIds);
-    assert.deepEqual(f.state.progress.totalCounts, oldResult.progress.totalCounts);
+    assert.deepEqual(f.state.progress.totalCounts, f.before.progress.totalCounts, 'no double count');
     assert.equal(f.state.progress.completionPending, null);
     assert.notEqual(f.state.progress.cycleId, f.before.progress.cycleId);
     assert.deepEqual(f.destinations, [destination]);
-    assert.equal(f.state.history.events.filter(e => e.type === 'practice-completed').length, 2);
-    assert.equal(f.state.history.events.filter(e => e.type === 'practice-session').length, 1);
+    assert.equal(completedOf(f.state.history), 2);
+    assert.equal(sessionsOf(f.state.history), 1, 'the card action does not record a second session');
+    assert.equal(f.writes.filter(key => key === history.PRACTICE_HISTORY_STORAGE_KEY).length, 1);
 });
 
-test('bottom progress-save failure preserves checks and never stops timer', () => {
+test('a second finish while the card is open does nothing', () => {
+    const f = fixture();
+    f.context.handlePracticeFinishEarly();
+    const afterFirst = structuredClone(f.state);
+    const writes = f.writes.length;
+    f.context.handlePracticeFinishEarly();
+    assert.deepEqual(f.state.progress, afterFirst.progress);
+    assert.deepEqual(f.state.history, afterFirst.history);
+    assert.equal(f.writes.length, writes);
+});
+
+test('manual finish without a running timer records no session', () => {
+    const f = fixture();
+    f.state.timer = timer.createStoppedPracticeTimer();
+    f.context.handlePracticeFinishEarly();
+    assert.equal(f.state.progress.completionPending.type, progress.PRACTICE_COMPLETION_TYPE.partial);
+    f.context.handlePracticeCompletionAction('home');
+    assert.equal(sessionsOf(f.state.history), 0);
+});
+
+test('a running timer can be finished even when no menu is active', () => {
+    const f = fixture();
+    f.state.items = f.state.items.map(item => ({ ...item, hidden: true }));
+    f.context.handlePracticeFinishEarly();
+    assert.equal(f.state.progress.completionPending.type, progress.PRACTICE_COMPLETION_TYPE.partial);
+    assert.equal(f.state.timer.running, false);
+    assert.equal(sessionsOf(f.state.history), 1);
+});
+
+test('history save failure keeps the card pending and the timer running for a retry', () => {
+    const f = fixture(history.PRACTICE_HISTORY_STORAGE_KEY);
+    f.context.handlePracticeFinishEarly();
+    assert.equal(f.state.progress.completionPending.type, progress.PRACTICE_COMPLETION_TYPE.partial);
+    assert.deepEqual(f.state.history, f.before.history);
+    assert.deepEqual(f.state.timer, f.before.timer, 'the timer keeps running');
+    assert.ok(f.messages.includes('練習記録を保存できませんでした。タイマーは継続しています。'));
+    f.context.handlePracticeCompletionAction('home');
+    assert.notEqual(f.state.progress.completionPending, null, 'the card stays until the session is recorded');
+    assert.deepEqual(f.destinations, []);
+});
+
+test('progress-save failure preserves checks and never stops the timer', () => {
     const f = fixture(progress.PRACTICE_PROGRESS_STORAGE_KEY);
     f.context.handlePracticeFinishEarly();
     assert.deepEqual(f.state.progress, f.before.progress);

@@ -668,8 +668,72 @@ summary.tool-pro-locked > span:first-child::after {
     font-weight: 400;
 }
 
-.practice-form-sets .practice-set-note {
-    margin-top: 0;
+/* Collapsed 追加するプリセット selector: chips for the chosen presets. */
+.practice-form-set-toggle {
+    width: 100%;
+    min-height: 48px;
+    display: flex;
+    padding: 8px 12px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    border: 1px solid rgba(207, 189, 148, 0.2);
+    border-radius: 11px;
+    color: var(--port-text);
+    background: #090907;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+
+.practice-form-set-toggle:disabled {
+    cursor: default;
+}
+
+.practice-form-set-summary {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.practice-form-set-placeholder {
+    color: var(--port-muted);
+    font-size: calc(0.86rem * var(--font-scale));
+}
+
+.practice-form-set-chip {
+    max-width: 100%;
+    padding: 3px 10px;
+    border: 1px solid rgba(207, 189, 148, 0.26);
+    border-radius: 10px;
+    color: rgba(232, 219, 181, 0.92);
+    background: rgba(205, 180, 116, 0.06);
+    font-size: calc(0.78rem * var(--font-scale));
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+
+.practice-form-set-caret {
+    flex: 0 0 auto;
+    color: var(--port-muted);
+}
+
+.practice-form-set-toggle.is-expanded .practice-form-set-caret {
+    transform: rotate(180deg);
+}
+
+.practice-form-set-toggle:disabled .practice-form-set-caret {
+    visibility: hidden;
+}
+
+.practice-form-set-list {
+    margin-top: 8px;
+}
+
+.practice-form-set-toggle:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
 }
 
 .practice-form-set-create {

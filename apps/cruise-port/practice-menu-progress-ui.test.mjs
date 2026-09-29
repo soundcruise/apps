@@ -104,7 +104,9 @@ assert.match(source, /practice-history-session-children/);
 assert.match(source, /practice-history-session-duration/);
 assert.match(source, /formatPracticeSessionDuration\(child\.measuredDurationSeconds\)/);
 assert.match(source, /formatPracticeSessionDuration\(displayDurationSeconds\)/);
-assert.match(source, /formatPracticeSessionDuration\(result\.displayDurationSeconds\)/);
+// 1.4.3: the gold 練習終了 is the manual finish; its old in-page 「…を記録しました」 notice is gone.
+assert.doesNotMatch(source, /formatPracticeSessionDuration\(result\.displayDurationSeconds\)|function handlePracticeTimerStop/);
+assert.match(source, /elements\.timerStop\.addEventListener\('click', handlePracticeFinishEarly\);/);
 assert.match(source, /state\.calendarViewMode === 'week'/);
 assert.match(source, /state\.calendarViewMode === 'day'/);
 assert.match(source, /createPracticeCalendarKeyboard/);
