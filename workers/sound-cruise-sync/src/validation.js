@@ -1,5 +1,8 @@
 import { SHA256_PATTERN, validateOperation } from './records.js';
 import { normalizeEnrollmentCode, normalizePairingCode, normalizeRecoveryCode } from './crypto.js';
+import {
+  isRecordTypeAllowed, parseBodyCapabilities, parseQueryCapabilities
+} from './sync-capabilities.js';
 
 export const MAX_BODY_BYTES = 8 * 1024;
 export const MAX_PUSH_BODY_BYTES = 256 * 1024;
@@ -200,16 +203,21 @@ export function validateAccountDeletePayload(payload, env) {
 }
 
 export async function validatePushPayload(payload, env, cryptoImpl = crypto) {
-  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'mode', 'operations']) ||
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'mode', 'operations', 'capabilities']) ||
       !validateAppId(payload.appId, env) || !['sync', 'migration'].includes(payload.mode) ||
       !Array.isArray(payload.operations) || payload.operations.length < 1 ||
       payload.operations.length > MAX_PUSH_OPERATIONS) {
     return { ok: false, reason: 'shape' };
   }
+  const capabilities = parseBodyCapabilities(payload.capabilities, payload.appId);
   const operations = [];
   for (let index = 0; index < payload.operations.length; index += 1) {
     const input = payload.operations[index];
-    const result = await validateOperation(input, cryptoImpl, payload.appId);
+    // Gated record types (including their deletes) require the client capability.
+    const result = isPlainObject(input) && typeof input.recordType === 'string' &&
+      !isRecordTypeAllowed(payload.appId, input.recordType, capabilities)
+      ? { ok: false, code: 'capability_required' }
+      : await validateOperation(input, cryptoImpl, payload.appId);
     operations.push(result.ok
       ? { ok: true, operation: result.operation, index }
       : {
@@ -221,25 +229,27 @@ export async function validatePushPayload(payload, env, cryptoImpl = crypto) {
           index
         });
   }
-  return { ok: true, value: { appId: payload.appId, mode: payload.mode, operations } };
+  return { ok: true, value: { appId: payload.appId, mode: payload.mode, operations, capabilities } };
 }
 
 export function validateMigrationCompletePayload(payload, env) {
-  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'schemaVersion', 'recordCount', 'manifestHash']) ||
+  if (!isPlainObject(payload) ||
+      !hasOnlyKeys(payload, ['appId', 'schemaVersion', 'recordCount', 'manifestHash', 'capabilities']) ||
       !validateAppId(payload.appId, env) || payload.schemaVersion !== 1 ||
       !Number.isInteger(payload.recordCount) || payload.recordCount < 0 || payload.recordCount > 10000 ||
       typeof payload.manifestHash !== 'string' || !SHA256_PATTERN.test(payload.manifestHash)) {
     return { ok: false, reason: 'shape' };
   }
-  return { ok: true, value: { ...payload } };
+  const { capabilities, ...value } = payload;
+  return { ok: true, value: { ...value, capabilities: parseBodyCapabilities(capabilities, payload.appId) } };
 }
 
-export function validateReadQuery(url, env, allowCursor) {
-  const allowed = allowCursor ? ['appId', 'cursor'] : ['appId'];
+export function validateReadQuery(url, env, allowCursor, { allowCapabilities = false } = {}) {
+  const allowed = [...(allowCursor ? ['appId', 'cursor'] : ['appId']), ...(allowCapabilities ? ['capabilities'] : [])];
   if ([...url.searchParams.keys()].some((key) => !allowed.includes(key))) return { ok: false };
   const appId = url.searchParams.get('appId');
   if (!validateAppId(appId, env)) return { ok: false };
   const cursor = url.searchParams.get('cursor');
   if (!allowCursor && cursor !== null) return { ok: false };
-  return { ok: true, appId, cursor };
+  return { ok: true, appId, cursor, capabilities: parseQueryCapabilities(url, appId) };
 }

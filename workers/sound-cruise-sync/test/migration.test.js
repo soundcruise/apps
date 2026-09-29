@@ -31,6 +31,8 @@ const migration24 = fs.readFileSync(path.join(import.meta.dirname, '../migration
 const migration25 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0025_add_app_sync_safety.sql'), 'utf8');
 const migration26 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0026_add_practice_attachment_assets.sql'), 'utf8');
 const migration27 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0027_add_practice_attachment_record_types.sql'), 'utf8');
+const migrationsDir = path.join(import.meta.dirname, '../migrations');
+const migration32 = fs.readFileSync(path.join(migrationsDir, '0032_add_practice_menu_set_record_type.sql'), 'utf8');
 const migration28 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0028_add_app_attention_count.sql'), 'utf8');
 const migration29 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0029_add_pro_auth.sql'), 'utf8');
 const migration30 = fs.readFileSync(path.join(import.meta.dirname, '../migrations/0030_add_pro_auth_lockout.sql'), 'utf8');
@@ -777,5 +779,51 @@ test('record types, revisions, tombstones, idempotency, and foreign keys are con
   insertRecord('chord', '{}', 1, null);
   db.prepare("INSERT INTO sync_changes (user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,payload_json,payload_hash,deleted_at,changed_at) VALUES ('u1','chord','chord','x',1,'op-1','oh','{}','ph',NULL,1)").run();
   assert.throws(() => db.prepare("INSERT INTO sync_changes (user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,payload_json,payload_hash,deleted_at,changed_at) VALUES ('u1','chord','chord','y',1,'op-1','oh','{}','ph',NULL,1)").run());
+  db.close();
+});
+
+test('M32 preserves every row, revision and change sequence and registers practice_menu_set only', () => {
+  const db = new DatabaseSync(':memory:');
+  for (const file of fs.readdirSync(migrationsDir).filter((name) => name.endsWith('.sql')).sort()) {
+    if (file.startsWith('0032_')) break;
+    db.exec(fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
+  }
+  db.prepare(`INSERT INTO sync_users
+    (id,state,recovery_version,recovery_verifier,created_at,updated_at,recovery_created_at,recovery_rotated_at)
+    VALUES ('port-user','active',1,?,1,1,1,1)`).run('a'.repeat(64));
+  const insertRecord = db.prepare(`INSERT INTO sync_records
+    (user_id,app_id,record_type,record_id,payload_json,payload_hash,revision,updated_at,
+     deleted_at,updated_by_device_id,last_operation_id,schema_version)
+    VALUES ('port-user',?,?,?,?,?,?,?,?,NULL,?,1)`);
+  insertRecord.run('port', 'practice_menu', 'menu-1', '{"id":"menu-1"}', 'b'.repeat(64), 4, 10, null, 'menu-op');
+  insertRecord.run('port', 'practice_history_event', 'event-1', null, 'c'.repeat(64), 2, 11, 11, 'event-op');
+  insertRecord.run('chord', 'chord', 'c1', '{"id":"c1"}', 'd'.repeat(64), 1, 12, null, 'chord-op');
+  const insertChange = db.prepare(`INSERT INTO sync_changes
+    (change_seq,user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,
+     payload_json,payload_hash,deleted_at,changed_at,schema_version)
+    VALUES (?,'port-user',?,?,?,1,?,?,'{}',?,NULL,1,1)`);
+  insertChange.run(40, 'port', 'practice_menu', 'menu-1', 'menu-op', 'e'.repeat(64), 'b'.repeat(64));
+  insertChange.run(41, 'chord', 'chord', 'c1', 'chord-op', 'f'.repeat(64), 'd'.repeat(64));
+  const records = db.prepare('SELECT * FROM sync_records ORDER BY record_id').all();
+  const changes = db.prepare('SELECT * FROM sync_changes ORDER BY change_seq').all();
+  const objects = db.prepare(`SELECT type, name FROM sqlite_master
+    WHERE tbl_name IN ('sync_records','sync_changes') ORDER BY name`).all();
+
+  db.exec(migration32);
+
+  assert.deepEqual(db.prepare('SELECT * FROM sync_records ORDER BY record_id').all(), records);
+  assert.deepEqual(db.prepare('SELECT * FROM sync_changes ORDER BY change_seq').all(), changes);
+  assert.deepEqual(db.prepare(`SELECT type, name FROM sqlite_master
+    WHERE tbl_name IN ('sync_records','sync_changes') ORDER BY name`).all(), objects, 'indexes are recreated');
+  insertRecord.run('port', 'practice_menu_set', 'set-1', '{"id":"set-1"}', '0'.repeat(64), 1, 20, null, 'set-op');
+  db.prepare(`INSERT INTO sync_changes
+    (user_id,app_id,record_type,record_id,revision,operation_id,operation_hash,
+     payload_json,payload_hash,deleted_at,changed_at,schema_version)
+    VALUES ('port-user','port','practice_menu_set','set-1',1,'set-op',?,'{}',?,NULL,2,1)`)
+    .run('1'.repeat(64), '0'.repeat(64));
+  assert.equal(db.prepare("SELECT change_seq FROM sync_changes WHERE operation_id='set-op'").get().change_seq, 42,
+    'change sequence continues after the preserved maximum');
+  assert.throws(() => insertRecord.run('port', 'practice_menu_preset', 'x', '{}', '2'.repeat(64), 1, 1, null, 'x-op'));
+  assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), []);
   db.close();
 });

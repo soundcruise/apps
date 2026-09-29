@@ -172,8 +172,9 @@ function snapshot(db) {
 test('migration 0031 adds nullable user_label to both device tables and rewrites nothing', () => {
   const database = new DatabaseSync(':memory:');
   const files = fs.readdirSync(migrationsDir).filter((name) => name.endsWith('.sql')).sort();
-  assert.equal(files.at(-1), '0031_add_sync_target_user_labels.sql', 'forward-only: appended last');
-  for (const file of files.slice(0, -1)) database.exec(fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
+  const index = files.indexOf('0031_add_sync_target_user_labels.sql');
+  assert.deepEqual(files.slice(index + 1), ['0032_add_practice_menu_set_record_type.sql'], 'forward-only: appended in order');
+  for (const file of files.slice(0, index)) database.exec(fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
   database.prepare(`INSERT INTO sync_users (id, state, recovery_version, recovery_verifier, created_at, updated_at)
     VALUES ('u1', 'active', 1, ?, 1, 1)`).run('a'.repeat(64));
   database.prepare(`INSERT INTO sync_devices (id, user_id, app_id, credential_version, credential_verifier,
@@ -186,7 +187,7 @@ test('migration 0031 adds nullable user_label to both device tables and rewrites
     label, created_at, last_seen_at, revoked_at) VALUES ('ad1', 'a1', 1, ?, 'QA Browser', 1, 1, NULL)`)
     .run('d'.repeat(64));
   const before = [database.prepare('SELECT * FROM sync_devices').all(), database.prepare('SELECT * FROM sync_account_devices').all()];
-  const sql = fs.readFileSync(path.join(migrationsDir, files.at(-1)), 'utf8');
+  const sql = fs.readFileSync(path.join(migrationsDir, files[index]), 'utf8');
   assert.doesNotMatch(sql, /\b(UPDATE|DELETE|DROP|INSERT|RENAME|CREATE TABLE)\b/i, 'add-column only');
   database.exec(sql);
   const after = [database.prepare('SELECT * FROM sync_devices').all(), database.prepare('SELECT * FROM sync_account_devices').all()];

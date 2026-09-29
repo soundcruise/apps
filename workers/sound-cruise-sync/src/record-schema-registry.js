@@ -21,7 +21,9 @@ const PORT_RECORD_TYPES = Object.freeze([
   'gear_category', 'gear_category_order', 'gear_item', 'gear_order',
   'calendar_event', 'practice_menu', 'practice_menu_order',
   'practice_attachment', 'practice_attachment_set',
-  'practice_history_event', 'practice_cycle', 'my_app', 'my_app_order'
+  'practice_history_event', 'practice_cycle', 'my_app', 'my_app_order',
+  // Capability-gated: see sync-capabilities.js (practice_menu_sets_v1).
+  'practice_menu_set'
 ]);
 const PITCH_BUILTIN_CHORD_KEYS = new Set([
   'builtin:chord:c', 'builtin:chord:dm', 'builtin:chord:em',
@@ -98,6 +100,25 @@ function validatePortJson(value, depth = 0, budget = { nodes: 0 }, urlField = fa
     validatePortJson(item, depth + 1, budget, urlField || PORT_URL_FIELD.test(key)));
 }
 
+const PORT_SAFE_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u;
+const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u;
+
+function isoTimestamp(value) {
+  return typeof value === 'string' && ISO_TIMESTAMP.test(value) && Number.isFinite(Date.parse(value));
+}
+
+// A practice menu set only references practice_menu record ids; it never copies menus.
+function validatePracticeMenuSet(recordId, value) {
+  return PORT_SAFE_ID.test(recordId) && isPlainObject(value) &&
+    onlyKeys(value, ['id', 'name', 'itemIds', 'createdAt', 'updatedAt']) &&
+    value.id === recordId &&
+    string(value.name, 100) && value.name.trim().length > 0 &&
+    Array.isArray(value.itemIds) && value.itemIds.length <= 2000 &&
+    value.itemIds.every((id) => typeof id === 'string' && PORT_SAFE_ID.test(id)) &&
+    new Set(value.itemIds).size === value.itemIds.length &&
+    isoTimestamp(value.createdAt) && isoTimestamp(value.updatedAt);
+}
+
 function validatePortPayload(recordType, recordId, payload) {
   if (!isPlainObject(payload) || !onlyKeys(payload, ['id', 'value']) ||
       payload.id !== recordId || !string(recordId, 200) || !validatePortJson(payload.value)) {
@@ -111,6 +132,7 @@ function validatePortPayload(recordType, recordId, payload) {
       payload.value.every((id) => typeof id === 'string' && UUID.test(id)) &&
       new Set(payload.value).size === payload.value.length;
   }
+  if (recordType === 'practice_menu_set') return validatePracticeMenuSet(recordId, payload.value);
   if (recordType === 'practice_attachment') {
     const value = payload.value;
     const asset = value?.asset;

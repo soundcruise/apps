@@ -20,7 +20,8 @@ import { createD1CleanupRepository } from './cleanup-database.js';
 import { createProvisioningIdentity } from './database.js';
 import { createD1PairingRepository } from './pairing-database.js';
 import { createD1RecoveryRepository } from './recovery-database.js';
-import { decodeCursor, encodeCursor } from './records.js';
+import { decodeCursor, encodeCursor, manifestHash } from './records.js';
+import { visibleRecords } from './sync-capabilities.js';
 import { createD1SyncRepository } from './sync-database.js';
 import { createD1AssetRepository } from './asset-database.js';
 import {
@@ -941,7 +942,7 @@ async function handlePush(request, env, origin, route, dependencies) {
 }
 
 async function handleChanges(request, env, origin, route, dependencies, url) {
-  const query = validateReadQuery(url, env, true);
+  const query = validateReadQuery(url, env, true, { allowCapabilities: true });
   if (!query.ok) return errorResponse(400, 'invalid_request', origin, route);
   const sequence = decodeCursor(query.cursor);
   if (sequence === null) return errorResponse(400, 'invalid_cursor', origin, route);
@@ -954,8 +955,9 @@ async function handleChanges(request, env, origin, route, dependencies, url) {
   if (sequence < dataset.min_change_seq) return errorResponse(409, 'cursor_expired', origin, route);
   let page;
   try { page = await context.repository.listChanges(context.identity, sequence, 100); } catch { return errorResponse(503, 'server_error', origin, route); }
-  const changes = page.changes.map(publicRecord);
-  const nextSequence = changes.length ? changes[changes.length - 1].changeSeq : sequence;
+  // The cursor advances past gated changes the client cannot see.
+  const nextSequence = page.changes.length ? page.changes[page.changes.length - 1].changeSeq : sequence;
+  const changes = visibleRecords(context.identity.appId, page.changes, query.capabilities).map(publicRecord);
   return jsonResponse(200, {
     ok: true,
     appId: context.identity.appId,
@@ -966,13 +968,14 @@ async function handleChanges(request, env, origin, route, dependencies, url) {
 }
 
 async function handleSnapshot(request, env, origin, route, dependencies, url) {
-  const query = validateReadQuery(url, env, false);
+  const query = validateReadQuery(url, env, false, { allowCapabilities: true });
   if (!query.ok) return errorResponse(400, 'invalid_request', origin, route);
   let context;
   try { context = await authenticatedContext(request, env, query.appId, dependencies); } catch { return errorResponse(503, 'server_error', origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   let snapshot;
   try { snapshot = await context.repository.readSnapshot(context.identity); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { snapshot = await visibleSnapshot(snapshot, context.identity.appId, query.capabilities); } catch { return errorResponse(503, 'server_error', origin, route); }
   const records = snapshot.records.map((record) => {
     const value = publicRecord(record);
     if (snapshot.dataset.state === 'initializing') {
@@ -990,6 +993,20 @@ async function handleSnapshot(request, env, origin, route, dependencies, url) {
     cursor: encodeCursor(snapshot.dataset.last_change_seq),
     records
   }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
+}
+
+// Clients see only record types they declared they understand. Count and manifest
+// describe exactly the records returned so older clients stay self-consistent.
+async function visibleSnapshot(snapshot, appId, capabilities) {
+  const records = visibleRecords(appId, snapshot.records, capabilities);
+  if (records.length === snapshot.records.length) return snapshot;
+  const liveRecords = records.filter((record) => record.deletedAt == null);
+  return {
+    ...snapshot,
+    records,
+    recordCount: liveRecords.length,
+    manifestHash: await manifestHash(liveRecords, snapshot.dataset.schema_version, crypto, appId)
+  };
 }
 
 async function handleRemovalSafety(request, env, origin, route, dependencies) {

@@ -1,4 +1,5 @@
 import { canonicalJson, manifestHash } from './records.js';
+import { hasGatedRecordTypes, visibleRecords } from './sync-capabilities.js';
 
 function resultsOf(result) {
   return Array.isArray(result?.results) ? result.results : [];
@@ -245,10 +246,26 @@ export function createD1SyncRepository(db, clock = Date.now) {
     };
   }
 
+  // The client can only attest to the records it is allowed to see. The dataset
+  // itself still stores the full count and manifest.
+  async function visibleSummary(identity, snapshot, capabilities) {
+    if (!hasGatedRecordTypes(identity.appId)) return snapshot;
+    const records = visibleRecords(identity.appId, snapshot.records, capabilities);
+    if (records.length === snapshot.records.length) return snapshot;
+    const liveRecords = records.filter((record) => record.deletedAt == null);
+    return {
+      ...snapshot,
+      records,
+      recordCount: liveRecords.length,
+      manifestHash: await manifestHash(liveRecords, snapshot.dataset.schema_version, crypto, identity.appId)
+    };
+  }
+
   async function completeMigration(identity, expected) {
     const snapshot = await readSnapshot(identity);
-    if (snapshot.recordCount !== expected.recordCount || snapshot.manifestHash !== expected.manifestHash) {
-      return { status: 'mismatch', snapshot };
+    const visible = await visibleSummary(identity, snapshot, expected.capabilities);
+    if (visible.recordCount !== expected.recordCount || visible.manifestHash !== expected.manifestHash) {
+      return { status: 'mismatch', snapshot: visible };
     }
     const now = clock();
     const result = await db.prepare(`
@@ -261,7 +278,7 @@ export function createD1SyncRepository(db, clock = Date.now) {
     ).run();
     if (result?.success === false) throw new Error('D1 migration completion failed');
     if ((result?.meta?.changes ?? 1) < 1) return { status: 'retry' };
-    return { status: 'ready', snapshot };
+    return { status: 'ready', snapshot: visible };
   }
 
   async function reportRemovalSafety(identity, authority, state, attentionCount = 0) {
