@@ -31,7 +31,10 @@ test('Practice heading and utility row contain the reorganized existing actions'
         const heading = section.slice(section.indexOf('class="practice-heading-row"'), section.indexOf('class="practice-timer-card"'));
         assert.ok(heading.indexOf('id="practice-heading"') < heading.indexOf('id="practice-history-open"'));
         assert.match(heading, /id="practice-history-open"[\s\S]*音楽カレンダー/);
-        const utility = section.slice(section.indexOf('class="practice-overview"'), section.indexOf('id="practice-storage-error"'));
+        // 1.4.1: 非表示 / 並び替え moved to the card bottom, under チェックをすべてリセット.
+        const actions = section.slice(section.indexOf('class="practice-cycle-actions"'), section.indexOf('</main>'));
+        const utility = actions.slice(actions.indexOf('class="practice-overview"'));
+        assert.ok(actions.indexOf('id="practice-cycle-reset"') < actions.indexOf('class="practice-overview"'));
         assert.ok(utility.indexOf('id="practice-hidden-open"') < utility.indexOf('id="practice-reorder-start"'));
     }
     assert.match(source, /elements\.historyOpen\.hidden = state\.reorderMode/);
@@ -108,5 +111,5 @@ test('SP6.7 auto-follow and keyboard protection remain transient', () => {
 });
 
 test('SP6.10 UI remains covered in Cruise Port 0.59.3', () => {
-    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '1\.4\.0'/);
+    assert.match(read('app-version.js'), /CRUISE_PORT_APP_VERSION = '1\.4\.1'/);
 });

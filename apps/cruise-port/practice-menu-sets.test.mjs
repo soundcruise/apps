@@ -137,14 +137,18 @@ test('delete removes only the set, records the cloud deletion intent, and the se
     assert.equal(MENUS.length, 5, 'practice menus are untouched');
 });
 
-test('filtering follows master order, visibility, renames and ignores missing ids', () => {
+test('filtering follows the set order, visibility and renames and ignores missing ids', () => {
     const { set } = created('混在', ['stroke', 'melody', 'secret', 'chord']);
-    const withMissing = { ...set, itemIds: [...set.itemIds, 'deleted-menu'] };
-    assert.deepEqual(ids(getPracticeMenuSetItems(visible(), withMissing)), ['melody', 'chord', 'stroke'],
-        'master order, hidden menus stay hidden, missing ids are skipped');
+    assert.deepEqual(set.itemIds, ['melody', 'chord', 'stroke', 'secret'], 'a new set starts in master order');
+    const withMissing = { ...set, itemIds: ['stroke', 'deleted-menu', 'melody', 'secret', 'chord'] };
+    assert.deepEqual(ids(getPracticeMenuSetItems(visible(), withMissing)), ['stroke', 'melody', 'chord'],
+        'the set order is used, hidden menus stay hidden, missing ids are skipped');
     let reordered = MENUS;
     for (let step = 0; step < 3; step += 1) reordered = movePracticeMenu(reordered, 'stroke', -1).items;
-    assert.deepEqual(ids(getPracticeMenuSetItems(visible(reordered), set)), ['stroke', 'melody', 'chord'], 'master reorder is reflected');
+    assert.deepEqual(ids(getPracticeMenuSetItems(visible(reordered), set)), ['melody', 'chord', 'stroke'],
+        'a master reorder does not change the set order');
+    assert.deepEqual(ids(getPracticeMenuSetItems(visible(reordered), null)), ['stroke', 'melody', 'chord-ear', 'chord'],
+        'All follows the master order');
     const renamed = updatePracticeMenu(MENUS, 'chord', { name: 'コード練習（改）' }, NOW).items;
     assert.equal(getPracticeMenuSetItems(visible(renamed), set).find((item) => item.id === 'chord').name, 'コード練習（改）');
     const allGone = deletePracticeMenu(deletePracticeMenu(deletePracticeMenu(MENUS, 'stroke').items, 'melody').items, 'chord').items;

@@ -769,17 +769,7 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .practice-timer-controls { display: flex; flex-wrap: wrap; gap: 6px; }
-.practice-timer-stop {
-    min-height: 48px;
-    padding: 9px 12px;
-    border: 1px solid rgba(229, 204, 139, 0.25);
-    border-radius: 11px;
-    color: var(--port-muted);
-    background: rgba(7, 7, 5, 0.55);
-    font: inherit;
-    font-size: calc(0.78rem * var(--font-scale));
-    cursor: pointer;
-}
+/* 練習終了 reuses the .practice-timer-toggle primary gold style (it never gets .is-running). */
 .practice-timer-stop[hidden] { display: none; }
 
 .practice-timer-toggle {
@@ -1098,6 +1088,20 @@ summary.tool-pro-locked > span:first-child::after {
 
 .practice-cycle-actions .action-button {
     margin: 0;
+}
+
+/* 非表示 / 並び替え sit under チェックをすべてリセット at the bottom of the card. */
+.practice-cycle-actions .practice-overview {
+    margin: 2px 0 0;
+    justify-content: center;
+}
+
+.practice-cycle-actions .practice-overview-links {
+    width: auto;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
 }
 
 .practice-finish-action {

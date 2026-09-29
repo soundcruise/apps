@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.4.0';
+} from './app-version.js?v=1.4.1';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -220,7 +220,7 @@ import {
 } from './gear-category-store.js?v=0.59.3';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
 import { PortAssetSync } from './port-asset-sync.js?v=0.59.3';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.4.0';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.4.1';
 import {
     ALL_PRACTICE_MENUS_SET_ID,
     createPracticeMenuSet,
@@ -231,9 +231,10 @@ import {
     loadPracticeMenuSets,
     resolvePracticeMenuSetSelection,
     savePracticeMenuSetSelection,
+    reorderPracticeMenuSet,
     savePracticeMenuSets,
     updatePracticeMenuSet
-} from './practice-menu-sets-store.js?v=1.4.0';
+} from './practice-menu-sets-store.js?v=1.4.1';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -653,6 +654,8 @@ const state = {
     initialFormSnapshot: null,
     reorderMode: false,
     reorderItems: [],
+    // null: the master order (全ての練習メニュー); otherwise the set whose itemIds order is edited.
+    reorderSetId: null,
     savedNotice: null,
     listNotice: '',
     progress: null,
@@ -3410,8 +3413,12 @@ function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
     // A set whose menus were all deleted or hidden stays usable: show why and allow editing.
     elements.setEmpty.hidden = !selectedSet || activeItems.length === 0 || visibleItems.length > 0;
 
-    // Sets follow the master order, so reordering and adding happen in 「全ての練習メニュー」.
-    elements.reorderStart.hidden = state.reorderMode || Boolean(selectedSet) || activeItems.length < 2;
+    // 並び替え edits the master order for All and the selected set's own order otherwise.
+    // Adding menus still happens in 「全ての練習メニュー」.
+    elements.reorderStart.hidden = state.reorderMode || visibleItems.length < 2;
+    elements.reorderStart.setAttribute('aria-label', selectedSet
+        ? `プリセット「${selectedSet.name}」を並び替え`
+        : '全ての練習メニューを並び替え');
     elements.reorderActions.hidden = !state.reorderMode;
     elements.historyOpen.hidden = state.reorderMode;
     elements.addButton.hidden = state.reorderMode || Boolean(selectedSet);
@@ -3419,9 +3426,12 @@ function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
     elements.addButton.classList.toggle('tool-pro-locked', !canCreatePractice(state.items));
     elements.addButton.setAttribute('aria-label', canCreatePractice(state.items)
         ? '練習メニューを追加' : '練習メニューを追加（Pro版では登録枠を拡張できます）');
-    elements.reorderStatus.textContent = state.reorderMode
-        ? '並び替え中です。上下のボタンで順序を変更し、完了で保存します。'
-        : '';
+    const reorderSet = state.reorderMode ? findPracticeMenuSet(state.practiceSets, state.reorderSetId) : null;
+    elements.reorderStatus.textContent = !state.reorderMode
+        ? ''
+        : reorderSet
+            ? `プリセット「${reorderSet.name}」の並び順を変更中です。上下のボタンで順序を変更し、完了で保存します。全ての練習メニューと他のプリセットの順番は変わりません。`
+            : '並び替え中です。上下のボタンで順序を変更し、完了で保存します。';
     elements.reorderStatus.hidden = !state.reorderMode;
     elements.hiddenCount.textContent = String(getHiddenPracticeItems().length);
     const completionPending = Boolean(state.progress?.completionPending);
@@ -3463,10 +3473,12 @@ function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
 }
 
 function startReorder() {
-    const activeItems = getActivePracticeItems();
-    if (!state.storageReady || activeItems.length < 2) return;
+    const selectedSet = getSelectedPracticeSet();
+    const items = getDisplayedPracticeItems();
+    if (!state.storageReady || (selectedSet && !state.practiceSetsReady) || items.length < 2) return;
     state.reorderMode = true;
-    state.reorderItems = [...activeItems];
+    state.reorderSetId = selectedSet?.id || null;
+    state.reorderItems = [...items];
     showNotice(elements.reorderNotice);
     renderPracticeList();
 }
@@ -3474,6 +3486,7 @@ function startReorder() {
 function cancelReorder() {
     state.reorderMode = false;
     state.reorderItems = [];
+    state.reorderSetId = null;
     showNotice(elements.reorderNotice);
     renderPracticeList();
 }
@@ -3488,8 +3501,27 @@ function moveReorderItem(id, direction) {
         ?.focus();
 }
 
+// A set reorder changes only that set's itemIds order: never the master order,
+// other sets, menus, checks, counts or history, and it never opens the completion card.
+function completePracticeSetReorder() {
+    const result = reorderPracticeMenuSet(
+        state.practiceSets,
+        state.reorderSetId,
+        state.reorderItems.map((item) => item.id)
+    );
+    if (!result.ok || (result.changed && !persistPracticeSets(result.items))) {
+        showNotice(elements.reorderNotice, '並び順を保存できませんでした。元の順番は変更していません。');
+        return;
+    }
+    cancelReorder();
+}
+
 function completeReorder() {
     if (!state.reorderMode) return;
+    if (state.reorderSetId) {
+        completePracticeSetReorder();
+        return;
+    }
     const activeItems = getActivePracticeItems();
     if (sameOrder(activeItems, state.reorderItems)) {
         cancelReorder();
@@ -3505,6 +3537,7 @@ function completeReorder() {
     state.items = candidateItems;
     state.reorderMode = false;
     state.reorderItems = [];
+    state.reorderSetId = null;
     showNotice(elements.reorderNotice);
     renderPracticeList();
 }

@@ -9,7 +9,7 @@
     <link rel="manifest" href="./manifest.json?v=1.0.1">
     <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.69.0">
     <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=1.0.1">
-    <link rel="stylesheet" href="./style.css?v=1.4.0">
+    <link rel="stylesheet" href="./style.css?v=1.4.1">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=22">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -25,7 +25,7 @@
     <script defer src="../shared/sync-account/sync-ui-components.js?v=15"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="./practice-menu-app.js?v=1.4.0"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.4.1"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -552,7 +552,7 @@
                             <span id="practice-timer-icon" aria-hidden="true">▶</span>
                             <span id="practice-timer-label">練習スタート</span>
                         </button>
-                        <button id="practice-timer-stop" class="practice-timer-stop" type="button" hidden>練習終了</button>
+                        <button id="practice-timer-stop" class="practice-timer-toggle practice-timer-stop" type="button" hidden>練習終了</button>
                     </div>
                     <time id="practice-timer-display" datetime="PT0S">00:00</time>
                 </div>
@@ -566,12 +566,6 @@
                         <button id="practice-set-create" class="practice-set-add" type="button" aria-label="プリセットを作成" title="プリセットを作成"><span aria-hidden="true">＋</span></button>
                     </div>
                     <button id="practice-set-edit" class="practice-set-edit" type="button" hidden>プリセットを編集</button>
-                </div>
-                <div class="practice-overview">
-                    <div class="practice-overview-links" aria-label="練習メニューの補助機能">
-                        <button id="practice-hidden-open" type="button">非表示 <span id="practice-hidden-count">0</span></button>
-                        <button id="practice-reorder-start" class="practice-sort-button" type="button" hidden><span aria-hidden="true">↕</span> 並び替え</button>
-                    </div>
                 </div>
                 <p id="practice-storage-error" class="notice notice-error" role="alert" hidden></p>
                 <p id="practice-list-notice" class="practice-saved" role="status" hidden></p>
@@ -595,6 +589,12 @@
                 <div class="practice-cycle-actions">
                     <button id="practice-finish" class="practice-finish-action" type="button" disabled>ここで練習終了</button>
                     <button id="practice-cycle-reset" class="practice-quiet-action" type="button" disabled>チェックをすべてリセット</button>
+                    <div class="practice-overview">
+                        <div class="practice-overview-links" aria-label="練習メニューの補助機能">
+                            <button id="practice-hidden-open" type="button">非表示 <span id="practice-hidden-count">0</span></button>
+                            <button id="practice-reorder-start" class="practice-sort-button" type="button" aria-label="全ての練習メニューを並び替え" hidden><span aria-hidden="true">↕</span> 並び替え</button>
+                        </div>
+                    </div>
                 </div>
             </section>
         </main>

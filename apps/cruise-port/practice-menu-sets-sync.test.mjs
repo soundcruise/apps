@@ -307,3 +307,30 @@ test('only adapters that declare a capability send one; other apps send unchange
     const pushes = server.requests.slice(0, before).filter((item) => item.path === '/v1/sync/push');
     assert.ok(pushes.length > 0 && pushes.every((item) => item.body.capabilities?.[0] === 'practice_menu_sets_v1'));
 });
+
+test('1.4.1: a preset order set on device A arrives unchanged on device B, independent of other sets', async () => {
+    const { server, fetchImpl } = gatedServer();
+    const a = device({ [MENUS]: menus }, fetchImpl);
+    await a.runtime.consumeHandoff('a');
+    a.writeSets([set('set-1', '音感練', ['menu-a', 'menu-b', 'menu-c']), set('set-2', '朝練', ['menu-b', 'menu-a'])]);
+    await a.runtime.sync('create');
+    const b = device({}, fetchImpl);
+    await b.runtime.consumeHandoff('b');
+    assert.deepEqual(b.sets().map((item) => item.itemIds), [['menu-a', 'menu-b', 'menu-c'], ['menu-b', 'menu-a']]);
+
+    // Device A reorders 音感練 to C → A → B (only that set's itemIds change).
+    a.writeSets([set('set-1', '音感練', ['menu-c', 'menu-a', 'menu-b'], '2026-09-30T00:00:00.000Z'), set('set-2', '朝練', ['menu-b', 'menu-a'])]);
+    await a.runtime.sync('reorder');
+    await b.runtime.sync('pull');
+    assert.deepEqual(b.sets().map((item) => [item.name, item.itemIds]),
+        [['音感練', ['menu-c', 'menu-a', 'menu-b']], ['朝練', ['menu-b', 'menu-a']]]);
+    assert.deepEqual(JSON.parse(b.storage.getItem(MENUS)).items.map((item) => item.id), ['menu-a', 'menu-b', 'menu-c'],
+        'the master order is unchanged');
+    assert.equal(server.records.get('practice_menu_set/set-2').revision, 1, 'the other set was not rewritten');
+
+    // Renaming on device B keeps the order everywhere.
+    b.writeSets([set('set-1', '朝の音感練', ['menu-c', 'menu-a', 'menu-b'], '2026-09-30T01:00:00.000Z'), set('set-2', '朝練', ['menu-b', 'menu-a'])]);
+    await b.runtime.sync('rename');
+    await a.runtime.sync('pull');
+    assert.deepEqual(a.sets()[0].itemIds, ['menu-c', 'menu-a', 'menu-b']);
+});

@@ -2,8 +2,9 @@ import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from '.
 
 // Practice menu sets are the user-facing "プリセット" of the Practice Menu. They are
 // unrelated to practice-menu-presets.js (name suggestions for new menus).
-// A set only references practice menu ids; menu names, order and visibility always
-// come from cruisePort.practiceMenus, and check state stays in practiceProgress.
+// A set only references practice menu ids; menu names and visibility come from
+// cruisePort.practiceMenus, and check state stays in practiceProgress. The order of
+// itemIds is the set's own display order (independent of the master order).
 export const PRACTICE_MENU_SETS_SCHEMA_VERSION = 1;
 export const PRACTICE_MENU_SETS_STORAGE_KEY = 'cruisePort.practiceMenuSets';
 // Device-local UI preference; deliberately not a Cloud Sync managed key.
@@ -151,10 +152,15 @@ function createSetId(existingIds) {
     return id;
 }
 
-// A new set must include at least one existing practice menu.
+// Selected ids in master Practice Menu order; unknown ids are dropped.
+function inMasterOrder(itemIds, practiceMenus) {
+    const selected = new Set(Array.isArray(itemIds) ? itemIds : []);
+    return practiceMenus.map((item) => item.id).filter((id) => selected.has(id));
+}
+
+// A new set must include at least one existing practice menu. It starts in master order.
 export function createPracticeMenuSet({ name, itemIds }, existingSets, practiceMenus, now = new Date()) {
-    const menuIds = new Set(practiceMenus.map((item) => item.id));
-    const selected = uniqueIds(Array.isArray(itemIds) ? itemIds : []).filter((id) => menuIds.has(id));
+    const selected = inMasterOrder(itemIds, practiceMenus);
     if (!isValidPracticeMenuSetName(name)) return { ok: false, reason: 'name-required' };
     if (selected.length === 0) return { ok: false, reason: 'items-required' };
     const timestamp = now.toISOString();
@@ -168,16 +174,40 @@ export function createPracticeMenuSet({ name, itemIds }, existingSets, practiceM
     return { ok: true, set, items: [...existingSets.map(cloneSet), set] };
 }
 
-// Saving an edit also drops references to menus that no longer exist.
+// Editing keeps the set's own order: remaining menus stay where they were and newly
+// added menus follow at the end in master order. Saving also drops references to
+// menus that no longer exist.
 export function updatePracticeMenuSet(existingSets, id, { name, itemIds }, practiceMenus, now = new Date()) {
     const current = existingSets.find((set) => set.id === id);
     if (!current) return { ok: false, reason: 'not-found' };
     const menuIds = new Set(practiceMenus.map((item) => item.id));
-    const selected = uniqueIds(Array.isArray(itemIds) ? itemIds : []).filter((itemId) => menuIds.has(itemId));
+    const wanted = new Set(uniqueIds(Array.isArray(itemIds) ? itemIds : []).filter((itemId) => menuIds.has(itemId)));
+    const kept = current.itemIds.filter((itemId) => wanted.has(itemId));
+    const added = inMasterOrder([...wanted].filter((itemId) => !kept.includes(itemId)), practiceMenus);
+    const selected = [...kept, ...added];
     if (!isValidPracticeMenuSetName(name)) return { ok: false, reason: 'name-required' };
     if (selected.length === 0) return { ok: false, reason: 'items-required' };
     const set = { ...cloneSet(current), name: name.trim(), itemIds: selected, updatedAt: now.toISOString() };
     return { ok: true, set, items: existingSets.map((item) => item.id === id ? set : cloneSet(item)) };
+}
+
+// Reorders only the menus shown in the set. Hidden or missing references keep their
+// slots, so un-hiding a menu returns it to its previous place in the set.
+export function reorderPracticeMenuSet(existingSets, id, orderedVisibleIds, now = new Date()) {
+    const current = existingSets.find((set) => set.id === id);
+    if (!current) return { ok: false, reason: 'not-found' };
+    const visible = new Set(orderedVisibleIds);
+    const shown = current.itemIds.filter((itemId) => visible.has(itemId));
+    if (shown.length !== orderedVisibleIds.length || new Set(orderedVisibleIds).size !== orderedVisibleIds.length) {
+        return { ok: false, reason: 'invalid-order' };
+    }
+    let next = 0;
+    const itemIds = current.itemIds.map((itemId) => visible.has(itemId) ? orderedVisibleIds[next++] : itemId);
+    if (itemIds.every((itemId, index) => itemId === current.itemIds[index])) {
+        return { ok: true, changed: false, set: cloneSet(current), items: existingSets.map(cloneSet) };
+    }
+    const set = { ...cloneSet(current), itemIds, updatedAt: now.toISOString() };
+    return { ok: true, changed: true, set, items: existingSets.map((item) => item.id === id ? set : cloneSet(item)) };
 }
 
 export function deletePracticeMenuSet(existingSets, id) {
@@ -189,13 +219,13 @@ export function findPracticeMenuSet(sets, id) {
     return id && id !== ALL_PRACTICE_MENUS_SET_ID ? sets.find((set) => set.id === id) || null : null;
 }
 
-// Menus shown for a selection, always in the master Practice Menu order.
-// `visibleMenus` is the existing 「全ての練習メニュー」 list (hidden menus excluded).
-// Missing ids are ignored and never crash; the set itself is kept.
+// Menus shown for a selection. 「全ての練習メニュー」 uses the master order; a set
+// uses its own itemIds order. `visibleMenus` is the existing All list (hidden menus
+// excluded). Missing ids are ignored and never crash; the set itself is kept.
 export function getPracticeMenuSetItems(visibleMenus, set) {
     if (!set) return visibleMenus;
-    const included = new Set(set.itemIds);
-    return visibleMenus.filter((item) => included.has(item.id));
+    const byId = new Map(visibleMenus.map((item) => [item.id, item]));
+    return set.itemIds.map((id) => byId.get(id)).filter(Boolean);
 }
 
 // Stale selections (deleted locally, removed by sync, never existed) fall back to All.
