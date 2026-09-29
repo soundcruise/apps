@@ -334,3 +334,28 @@ test('1.4.1: a preset order set on device A arrives unchanged on device B, indep
     await a.runtime.sync('pull');
     assert.deepEqual(a.sets()[0].itemIds, ['menu-c', 'menu-a', 'menu-b']);
 });
+
+test('1.4.2: a menu added on device A with preset membership arrives on device B at the end of each set', async () => {
+    const { server, fetchImpl } = gatedServer();
+    const a = device({ [MENUS]: menus }, fetchImpl);
+    await a.runtime.consumeHandoff('a');
+    a.writeSets([set('set-1', '音感練', ['menu-c', 'menu-a']), set('set-2', '朝練', ['menu-b']), set('set-3', 'ギター練', ['menu-a'])]);
+    await a.runtime.sync('sets');
+    const b = device({}, fetchImpl);
+    await b.runtime.consumeHandoff('b');
+
+    // As 練習メニューを追加 does: save the menu first, then append it to the chosen sets.
+    const items = JSON.parse(a.storage.getItem(MENUS)).items;
+    a.storage.setItem(MENUS, JSON.stringify({ version: 3, items: [...items, menu('menu-new', 'ボイトレ')] }));
+    a.writeSets([set('set-1', '音感練', ['menu-c', 'menu-a', 'menu-new'], '2026-10-01T00:00:00.000Z'),
+        set('set-2', '朝練', ['menu-b', 'menu-new'], '2026-10-01T00:00:00.000Z'), set('set-3', 'ギター練', ['menu-a'])]);
+    await a.runtime.sync('add-menu');
+    await b.runtime.sync('pull');
+    assert.ok(JSON.parse(b.storage.getItem(MENUS)).items.some((item) => item.id === 'menu-new'), 'the menu syncs');
+    assert.deepEqual(b.sets().map((item) => [item.name, item.itemIds]), [
+        ['音感練', ['menu-c', 'menu-a', 'menu-new']],
+        ['朝練', ['menu-b', 'menu-new']],
+        ['ギター練', ['menu-a']]
+    ]);
+    assert.equal(server.records.get('practice_menu_set/set-3').revision, 1, 'unchosen sets are not rewritten');
+});

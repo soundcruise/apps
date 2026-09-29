@@ -645,6 +645,58 @@ summary.tool-pro-locked > span:first-child::after {
     display: none;
 }
 
+/* 練習メニューを追加: 追加するプリセット (reuses the preset checkbox list). */
+.practice-form-sets {
+    min-width: 0;
+    margin-inline: 0;
+    padding: 0;
+    border: 0;
+}
+
+.practice-form-sets legend {
+    margin-bottom: 8px;
+    padding: 0;
+    color: var(--port-text);
+    font-size: calc(0.84rem * var(--font-scale));
+    font-weight: 620;
+}
+
+.practice-form-sets .practice-set-item {
+    display: grid;
+    margin: 0;
+    font-size: inherit;
+    font-weight: 400;
+}
+
+.practice-form-sets .practice-set-note {
+    margin-top: 0;
+}
+
+.practice-form-set-create {
+    min-height: 44px;
+    margin-top: 8px;
+    padding: 6px 4px;
+    border: 0;
+    color: rgba(232, 219, 181, 0.88);
+    background: transparent;
+    font: inherit;
+    font-size: calc(0.78rem * var(--font-scale));
+    text-decoration: underline;
+    text-decoration-color: rgba(205, 180, 116, 0.38);
+    text-underline-offset: 4px;
+    cursor: pointer;
+}
+
+.practice-form-set-create:disabled {
+    cursor: not-allowed;
+    opacity: 0.42;
+}
+
+.practice-form-set-create:focus-visible {
+    outline: 2px solid var(--port-gold-bright);
+    outline-offset: 3px;
+}
+
 /* Set create/edit/delete notices sit directly above the list; keep them from overlapping it. */
 .practice-list-view #practice-list-notice {
     margin-bottom: 12px;

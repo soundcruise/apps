@@ -50,8 +50,9 @@ test('the editor is an accessible modal with name, menu checkboxes, save, cancel
     const keydown = app.slice(app.indexOf("elements.setDialog.addEventListener('keydown'"), app.indexOf("elements.setDialog.addEventListener('keydown'") + 900);
     assert.match(keydown, /event\.key === 'Escape'[\s\S]*requestClosePracticeSetDialog\(\)/, 'Escape closes (with unsaved confirmation)');
     assert.match(keydown, /event\.key !== 'Tab'[\s\S]*focusable\.at\(-1\)\?\.focus\(\)[\s\S]*focusable\[0\]\?\.focus\(\)/, 'focus stays inside');
-    assert.match(functionBody('openPracticeSetDialog'), /elements\.practiceListView\.inert = true[\s\S]*elements\.setName\.focus\(\)/);
-    assert.match(functionBody('closePracticeSetDialog'), /elements\.practiceListView\.inert = false[\s\S]*\.focus\(\{ preventScroll: true \}\)/, 'focus is restored');
+    assert.match(functionBody('openPracticeSetDialog'), /getPracticeSetDialogHostView\(\)\.inert = true[\s\S]*elements\.setName\.focus\(\)/);
+    assert.match(functionBody('closePracticeSetDialog'), /getPracticeSetDialogHostView\(\)\.inert = false[\s\S]*\.focus\(\{ preventScroll: true \}\)/, 'focus is restored');
+    assert.match(functionBody('getPracticeSetDialogHostView'), /state\.setDialogHost === 'form' \? elements\.formView : elements\.practiceListView/);
     assert.match(functionBody('requestClosePracticeSetDialog'), /isPracticeSetDialogDirty\(\) && !window\.confirm\('変更を保存せずに閉じますか？'\)/);
     assert.match(functionBody('handlePracticeSetDelete'), /window\.confirm\('このプリセットを削除しますか？\\n練習メニュー自体は削除されません。'\)[\s\S]*selectPracticeSet\(ALL_PRACTICE_MENUS_SET_ID\)/);
     for (const selector of ['.practice-set-add:focus-visible', '.practice-set-edit:focus-visible', '.practice-set-item input:focus-visible']) {

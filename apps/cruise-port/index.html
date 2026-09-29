@@ -9,7 +9,7 @@
     <link rel="manifest" href="./manifest.json?v=1.0.1">
     <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.69.0">
     <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=1.0.1">
-    <link rel="stylesheet" href="./style.css?v=1.4.1">
+    <link rel="stylesheet" href="./style.css?v=1.4.2">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=22">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -25,7 +25,7 @@
     <script defer src="../shared/sync-account/sync-ui-components.js?v=15"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="./practice-menu-app.js?v=1.4.1"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.4.2"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -607,9 +607,10 @@
                     <label for="practice-set-name">プリセット名 <span class="required-label">必須</span></label>
                     <input id="practice-set-name" name="practiceSetName" type="text" maxlength="100" autocomplete="off" required>
                     <fieldset class="practice-set-items">
-                        <legend>含める練習メニュー <span class="required-label">1つ以上</span></legend>
+                        <legend>含める練習メニュー <span id="practice-set-items-requirement" class="required-label">1つ以上</span></legend>
                         <div id="practice-set-item-list" class="practice-set-item-list"></div>
                         <p id="practice-set-items-empty" class="practice-set-note" hidden>表示中の練習メニューがありません。</p>
+                        <p id="practice-set-form-note" class="practice-set-note" hidden>いま追加中の練習メニューは、保存するとこのプリセットに入ります。既存の練習メニューの選択は任意です。</p>
                         <p id="practice-set-hidden-note" class="practice-set-note" hidden></p>
                     </fieldset>
                     <p id="practice-set-error" class="notice notice-error" role="alert" hidden></p>
@@ -832,6 +833,13 @@
                         <label for="practice-memo">メモ <span class="optional-label">任意・1000文字以内</span></label>
                         <textarea id="practice-memo" name="memo" maxlength="1000" rows="6"></textarea>
                     </div>
+
+                    <fieldset id="practice-form-sets" class="form-field practice-form-sets" hidden>
+                        <legend>追加するプリセット <span class="optional-label">任意・複数選択可</span></legend>
+                        <div id="practice-form-set-list" class="practice-set-item-list"></div>
+                        <p id="practice-form-sets-empty" class="practice-set-note" hidden>追加先のプリセットはありません。</p>
+                        <button id="practice-form-set-create" class="practice-form-set-create" type="button"><span aria-hidden="true">＋</span> プリセットを作成</button>
+                    </fieldset>
 
                     <div id="practice-hidden-field" class="form-field practice-hidden-field" hidden>
                         <label class="practice-hidden-toggle" for="practice-hidden">

@@ -159,10 +159,12 @@ function inMasterOrder(itemIds, practiceMenus) {
 }
 
 // A new set must include at least one existing practice menu. It starts in master order.
-export function createPracticeMenuSet({ name, itemIds }, existingSets, practiceMenus, now = new Date()) {
+// `allowEmpty` is used only from 「練習メニューを追加」, where the menu being created
+// joins the set when it is saved.
+export function createPracticeMenuSet({ name, itemIds }, existingSets, practiceMenus, now = new Date(), { allowEmpty = false } = {}) {
     const selected = inMasterOrder(itemIds, practiceMenus);
     if (!isValidPracticeMenuSetName(name)) return { ok: false, reason: 'name-required' };
-    if (selected.length === 0) return { ok: false, reason: 'items-required' };
+    if (selected.length === 0 && !allowEmpty) return { ok: false, reason: 'items-required' };
     const timestamp = now.toISOString();
     const set = {
         id: createSetId(new Set(existingSets.map((item) => item.id))),
@@ -208,6 +210,20 @@ export function reorderPracticeMenuSet(existingSets, id, orderedVisibleIds, now 
     }
     const set = { ...cloneSet(current), itemIds, updatedAt: now.toISOString() };
     return { ok: true, changed: true, set, items: existingSets.map((item) => item.id === id ? set : cloneSet(item)) };
+}
+
+// A newly created practice menu joins the chosen sets at the end of each set's own
+// order. Unknown set ids (e.g. deleted by a sync) are ignored.
+export function addPracticeMenuToSets(existingSets, setIds, practiceMenuId, now = new Date()) {
+    const chosen = new Set(Array.isArray(setIds) ? setIds : []);
+    const timestamp = now.toISOString();
+    const updatedIds = [];
+    const items = existingSets.map((set) => {
+        if (!chosen.has(set.id) || set.itemIds.includes(practiceMenuId)) return cloneSet(set);
+        updatedIds.push(set.id);
+        return { ...cloneSet(set), itemIds: [...set.itemIds, practiceMenuId], updatedAt: timestamp };
+    });
+    return { changed: updatedIds.length > 0, updatedIds, items };
 }
 
 export function deletePracticeMenuSet(existingSets, id) {

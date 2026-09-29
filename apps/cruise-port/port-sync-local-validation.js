@@ -5,7 +5,7 @@ import { loadPracticeMenus } from './practice-menu-store.js?v=0.60.0';
 import { loadPracticeHistory } from './practice-menu-history-store.js?v=0.70.1';
 import { loadPracticeCalendar } from './practice-menu-calendar-store.js?v=0.59.3';
 import { loadMetronomePresets } from './metronome-presets-store.js?v=0.59.3';
-import { loadPracticeMenuSets } from './practice-menu-sets-store.js?v=1.4.1';
+import { loadPracticeMenuSets } from './practice-menu-sets-store.js?v=1.4.2';
 
 // Legacy loaders may migrate on read. Give them a private copy so validation
 // follows the exact store rules without rewriting the user's original bytes.

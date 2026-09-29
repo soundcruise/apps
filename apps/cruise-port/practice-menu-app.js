@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.4.1';
+} from './app-version.js?v=1.4.2';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -220,9 +220,10 @@ import {
 } from './gear-category-store.js?v=0.59.3';
 import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
 import { PortAssetSync } from './port-asset-sync.js?v=0.59.3';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.4.1';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.4.2';
 import {
     ALL_PRACTICE_MENUS_SET_ID,
+    addPracticeMenuToSets,
     createPracticeMenuSet,
     deletePracticeMenuSet,
     findPracticeMenuSet,
@@ -234,7 +235,7 @@ import {
     reorderPracticeMenuSet,
     savePracticeMenuSets,
     updatePracticeMenuSet
-} from './practice-menu-sets-store.js?v=1.4.1';
+} from './practice-menu-sets-store.js?v=1.4.2';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -497,6 +498,12 @@ const elements = {
     setError: document.querySelector('#practice-set-error'),
     setCancel: document.querySelector('#practice-set-cancel'),
     setDelete: document.querySelector('#practice-set-delete'),
+    setFormNote: document.querySelector('#practice-set-form-note'),
+    setItemsRequirement: document.querySelector('#practice-set-items-requirement'),
+    formSets: document.querySelector('#practice-form-sets'),
+    formSetList: document.querySelector('#practice-form-set-list'),
+    formSetsEmpty: document.querySelector('#practice-form-sets-empty'),
+    formSetCreate: document.querySelector('#practice-form-set-create'),
     hiddenTitle: document.querySelector('#practice-hidden-title'),
     hiddenList: document.querySelector('#practice-hidden-list'),
     hiddenEmpty: document.querySelector('#practice-hidden-empty'),
@@ -691,6 +698,8 @@ const state = {
     setDialogInitial: null,
     setDialogHiddenIds: [],
     setDialogReturnFocus: null,
+    // 'list' (＋ / プリセットを編集) or 'form' (＋ プリセットを作成 in 練習メニューを追加).
+    setDialogHost: 'list',
     completionSetName: null
 };
 let practiceAnalyticsCache = { history: null, result: null };
@@ -2511,7 +2520,7 @@ function isPracticeSetDialogDirty() {
     return !elements.setDialog.hidden && practiceSetDialogSnapshot() !== state.setDialogInitial;
 }
 
-function openPracticeSetDialog(mode) {
+function openPracticeSetDialog(mode, { host = 'list' } = {}) {
     if (!state.practiceSetsReady || !state.storageReady || state.reorderMode) return;
     const set = mode === 'edit' ? getSelectedPracticeSet() : null;
     if (mode === 'edit' && !set) return;
@@ -2540,18 +2549,26 @@ function openPracticeSetDialog(mode) {
         : '';
     elements.setHiddenNote.hidden = state.setDialogHiddenIds.length === 0;
     elements.setDelete.hidden = !set;
+    elements.setFormNote.hidden = host !== 'form';
+    elements.setItemsRequirement.textContent = host === 'form' ? '任意' : '1つ以上';
     showNotice(elements.setError);
+    state.setDialogHost = host;
     state.setDialogInitial = practiceSetDialogSnapshot();
     state.setDialogReturnFocus = document.activeElement;
     elements.setDialog.hidden = false;
-    elements.practiceListView.inert = true;
+    getPracticeSetDialogHostView().inert = true;
     requestAnimationFrame(() => elements.setName.focus());
+}
+
+function getPracticeSetDialogHostView() {
+    return state.setDialogHost === 'form' ? elements.formView : elements.practiceListView;
 }
 
 function closePracticeSetDialog({ restoreFocus = true } = {}) {
     if (elements.setDialog.hidden) return;
     elements.setDialog.hidden = true;
-    elements.practiceListView.inert = false;
+    getPracticeSetDialogHostView().inert = false;
+    state.setDialogHost = 'list';
     state.setDialogEditId = null;
     state.setDialogInitial = null;
     state.setDialogHiddenIds = [];
@@ -2581,7 +2598,8 @@ function handlePracticeSetSubmit(event) {
     const itemIds = [...values.itemIds, ...state.setDialogHiddenIds];
     const result = editId
         ? updatePracticeMenuSet(state.practiceSets, editId, { name: values.name, itemIds: values.itemIds.length ? itemIds : [] }, state.items)
-        : createPracticeMenuSet({ name: values.name, itemIds: values.itemIds }, state.practiceSets, state.items);
+        : createPracticeMenuSet({ name: values.name, itemIds: values.itemIds }, state.practiceSets, state.items,
+            new Date(), { allowEmpty: state.setDialogHost === 'form' });
     if (!result.ok) {
         const message = result.reason === 'name-required'
             ? 'プリセット名を入力してください。'
@@ -2596,6 +2614,17 @@ function handlePracticeSetSubmit(event) {
     }
     if (!persistPracticeSets(result.items)) {
         showNotice(elements.setError, '保存できませんでした。ブラウザの空き容量や保存設定を確認してください。');
+        return;
+    }
+    if (state.setDialogHost === 'form') {
+        // Back to 練習メニューを追加 with its input intact; the new set becomes a chosen
+        // destination there. The list's current selection is not switched.
+        const checked = [...readPracticeFormSetIds(), result.set.id];
+        closePracticeSetDialog({ restoreFocus: false });
+        renderPracticeFormSets(checked);
+        showNotice(elements.formStatus, `プリセット「${result.set.name}」を作成し、追加先に選びました。`);
+        [...elements.formSetList.querySelectorAll('input')].find((input) => input.value === result.set.id)
+            ?.focus({ preventScroll: true });
         return;
     }
     // Selecting a set never changes checks, counts or history and never opens the completion card.
@@ -3414,14 +3443,13 @@ function renderPracticeList({ focus = true, focusCheckId = null } = {}) {
     elements.setEmpty.hidden = !selectedSet || activeItems.length === 0 || visibleItems.length > 0;
 
     // 並び替え edits the master order for All and the selected set's own order otherwise.
-    // Adding menus still happens in 「全ての練習メニュー」.
     elements.reorderStart.hidden = state.reorderMode || visibleItems.length < 2;
     elements.reorderStart.setAttribute('aria-label', selectedSet
         ? `プリセット「${selectedSet.name}」を並び替え`
         : '全ての練習メニューを並び替え');
     elements.reorderActions.hidden = !state.reorderMode;
     elements.historyOpen.hidden = state.reorderMode;
-    elements.addButton.hidden = state.reorderMode || Boolean(selectedSet);
+    elements.addButton.hidden = state.reorderMode;
     elements.addButton.disabled = !state.storageReady;
     elements.addButton.classList.toggle('tool-pro-locked', !canCreatePractice(state.items));
     elements.addButton.setAttribute('aria-label', canCreatePractice(state.items)
@@ -4074,6 +4102,32 @@ function setPracticeFormSaving(saving) {
     if (state.formMode === 'create') renderPendingPracticeAttachments();
 }
 
+// 「追加するプリセット」: custom sets only (All always contains a new menu).
+function readPracticeFormSetIds() {
+    return [...elements.formSetList.querySelectorAll('input[type="checkbox"]')]
+        .filter((input) => input.checked)
+        .map((input) => input.value);
+}
+
+function renderPracticeFormSets(checkedIds = []) {
+    const checked = new Set(checkedIds);
+    elements.formSets.hidden = state.formMode !== 'create' || !state.practiceSetsReady;
+    elements.formSetList.replaceChildren(...state.practiceSets.map((set) => {
+        const label = document.createElement('label');
+        label.className = 'practice-set-item';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.value = set.id;
+        input.checked = checked.has(set.id);
+        const name = document.createElement('span');
+        name.textContent = set.name;
+        label.append(input, name);
+        return label;
+    }));
+    elements.formSetList.hidden = state.practiceSets.length === 0;
+    elements.formSetsEmpty.hidden = state.practiceSets.length > 0;
+}
+
 function renderForm(mode, id = null) {
     if (mode === 'create' && !guardPracticeCreation()) {
         replacePracticeListRoute();
@@ -4099,6 +4153,8 @@ function renderForm(mode, id = null) {
     elements.formDeleteButton.hidden = mode !== 'edit' || !item;
     fillForm(item);
     state.initialFormSnapshot = practiceFormSnapshot();
+    // The selected custom set is pre-checked; All (or a set missing after sync) checks nothing.
+    renderPracticeFormSets(mode === 'create' && getSelectedPracticeSet() ? [getSelectedPracticeSet().id] : []);
     showView(elements.formView);
     if (item) void renderPracticeAttachments(item.id, 'form');
     else renderPendingPracticeAttachments();
@@ -5553,7 +5609,11 @@ async function handleSubmit(event) {
 
     if (!guardPracticeCreation()) return;
     const item = createPracticeMenu(formResult.values, state.items);
+    const chosenSetIds = readPracticeFormSetIds();
     if (persist([...state.items, item])) {
+        // The menu is saved first, so a set never references a menu that does not exist.
+        const setNotice = addNewPracticeMenuToSets(item, chosenSetIds);
+        if (setNotice) state.listNotice = setNotice;
         const pending = [...state.pendingCreateAttachments];
         let attachmentResult = { ok: true, savedRecords: [], remaining: [] };
         if (pending.length > 0) {
@@ -5572,10 +5632,28 @@ async function handleSubmit(event) {
         state.savedNotice = {
             id: item.id,
             message: savedCount > 0 ? `保存しました。ファイルを${savedCount}件追加しました。` : '保存しました。',
-            error: `「${attachmentResult.failed.fileName}」以降のファイルを保存できませんでした。${getPracticeAttachmentFailureMessage(attachmentResult.reason)}`
+            error: `「${attachmentResult.failed.fileName}」以降のファイルを保存できませんでした。${getPracticeAttachmentFailureMessage(attachmentResult.reason)}${setNotice ? ` ${setNotice}` : ''}`
         };
         replacePracticeDetailRoute(item.id);
     }
+}
+
+// Appends the saved menu to the end of each chosen set in one batch write. Sets
+// removed meanwhile are skipped. Returns a notice for the list, or ''.
+function addNewPracticeMenuToSets(item, setIds) {
+    if (!state.practiceSetsReady || setIds.length === 0) return notInSelectedSetNotice(item.id);
+    const result = addPracticeMenuToSets(state.practiceSets, setIds, item.id);
+    if (result.changed && !persistPracticeSets(result.items)) {
+        return '練習メニューは保存しましたが、プリセットに追加できませんでした。「プリセットを編集」から追加してください。';
+    }
+    return notInSelectedSetNotice(item.id);
+}
+
+function notInSelectedSetNotice(itemId) {
+    const selectedSet = getSelectedPracticeSet();
+    return selectedSet && !selectedSet.itemIds.includes(itemId)
+        ? `保存しました。「${selectedSet.name}」には含まれていないため、「全ての練習メニュー」に表示されます。`
+        : '';
 }
 
 function practiceFormSnapshot() {
@@ -5975,6 +6053,7 @@ elements.setSelect.addEventListener('change', () => {
     renderPracticeList({ focus: false });
 });
 elements.setCreate.addEventListener('click', () => openPracticeSetDialog('create'));
+elements.formSetCreate.addEventListener('click', () => openPracticeSetDialog('create', { host: 'form' }));
 elements.setEdit.addEventListener('click', () => openPracticeSetDialog('edit'));
 elements.setForm.addEventListener('submit', handlePracticeSetSubmit);
 elements.setCancel.addEventListener('click', requestClosePracticeSetDialog);
