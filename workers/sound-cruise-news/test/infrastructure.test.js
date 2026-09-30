@@ -10,7 +10,7 @@ import {publishAutomatic} from '../src/automatic.js';
 import {administer} from '../src/admin.js';
 import {NewsStore} from '../src/store.js';
 import {database,pepper} from './helpers.js';
-const config=JSON.parse(readFileSync(new URL('../wrangler.production.jsonc',import.meta.url)));
+const config=JSON.parse(readFileSync(new URL('../wrangler.infrastructure.jsonc',import.meta.url)));
 const now=Date.parse('2026-09-30T10:00:00+09:00');
 test('infrastructure: Wrangler upload progress cannot obscure or truncate a JSON result',()=>{
  const value=[{success:true,results:[{count:0}]}];

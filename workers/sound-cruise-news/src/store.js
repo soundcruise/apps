@@ -4,14 +4,19 @@ import { HEALTH_STATUSES,HEALTH_REASONS } from './source-health.js';
 export class NewsStore {
  constructor(db){this.db=db;}
  async controls(){return await this.db.prepare('SELECT * FROM news_controls WHERE id=1').first()||{collection_enabled:0,api_enabled:0,revision:0};}
- async state(id){const s=await this.db.prepare('SELECT * FROM source_state WHERE source_id=?').bind(id).first();return s?{disabled:!!s.disabled||!!s.takedown,nextAt:s.next_at,failures:s.failures,robotsHash:s.robots_hash,etag:s.etag,lastModified:s.last_modified,lastDiscoveryAt:s.last_discovery_at||0}:{};}
- async lease(id,now){
+ async state(id){const s=await this.db.prepare('SELECT * FROM source_state WHERE source_id=?').bind(id).first();return s?{disabled:!!s.disabled||!!s.takedown,nextAt:s.next_at,failures:s.failures,robotsHash:s.robots_hash,etag:s.etag,lastModified:s.last_modified,lastDiscoveryAt:s.last_discovery_at||0,lastPublisherRequestAt:s.last_publisher_request_at||0}:{};}
+ async lease(id,now,minIntervalMs=86400000){
   await this.db.prepare('INSERT OR IGNORE INTO source_state(source_id) VALUES(?)').bind(id).run();
-  const r=await this.db.prepare('UPDATE source_state SET lease_until=? WHERE source_id=? AND disabled=0 AND lease_until<=? AND next_at<=?').bind(now+3600000,id,now,now).run();
+  const r=await this.db.prepare('UPDATE source_state SET lease_until=? WHERE source_id=? AND disabled=0 AND lease_until<=? AND next_at<=? AND (last_publisher_request_at=0 OR last_publisher_request_at<=?)').bind(now+3600000,id,now,now,now-minIntervalMs).run();
   return r.meta.changes===1;
  }
+ async publisherAttempt(id,at,minIntervalMs){
+  if(!Number.isSafeInteger(at)||!Number.isSafeInteger(minIntervalMs)||minIntervalMs<=0)throw Error('publisher_attempt_invalid');
+  const result=await this.db.prepare('UPDATE source_state SET last_publisher_request_at=MAX(last_publisher_request_at,?),next_at=MAX(next_at,?) WHERE source_id=? AND disabled=0 AND takedown=0').bind(at,at+minIntervalMs,id).run();
+  if(result.meta.changes!==1)throw Error('access_stopped');
+ }
  async saveState(id,s){
-  const statements=[this.db.prepare('UPDATE source_state SET disabled=MAX(disabled,?), next_at=?, failures=?, robots_hash=?, etag=?, last_modified=?, last_discovery_at=?, lease_until=0 WHERE source_id=?').bind(s.disabled?1:0,s.nextAt||0,s.failures||0,s.robotsHash||null,s.etag||null,s.lastModified||null,s.lastDiscoveryAt||0,id)];
+  const statements=[this.db.prepare('UPDATE source_state SET disabled=MAX(disabled,?), next_at=MAX(next_at,?), failures=?, robots_hash=?, etag=?, last_modified=?, last_discovery_at=?, lease_until=0 WHERE source_id=?').bind(s.disabled?1:0,s.nextAt||0,s.failures||0,s.robotsHash||null,s.etag||null,s.lastModified||null,s.lastDiscoveryAt||0,id)];
   if(s.disabled)statements.push(this.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1'));
   await this.db.batch(statements);
  }

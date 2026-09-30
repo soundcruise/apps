@@ -21,6 +21,6 @@ export function database(){
 export async function store(db=database()){
  const s=new NewsStore(db);await administer(s,{action:'collection-on',reason:'review_complete'},now);await administer(s,{action:'api-on',reason:'review_complete'},now);return s;
 }
-export const options=(extra={})=>({mode:'local',now,registry,pepper,fetcher:mock(),sleep:async()=>{},...extra});
+export const options=(extra={})=>{const value={mode:'local',now,registry,pepper,fetcher:mock(),sleep:async()=>{},...extra};return {...value,clock:()=>value.now};};
 export const approval=item=>({id:item.id,action:'approve',label:'LUNA 3の更新情報を確認する',category:'dtm_software',publishedAt:item.published_at,reviewedBy:'operator',checks:Object.fromEntries(REQUIRED_CHECKS.map(k=>[k,true])),articleChecks:Object.fromEntries(Object.entries(ARTICLE_CHECKS).map(([k,values])=>[k,values[0]]))});
 export const env=db=>({NEWS_DB:db,NEWS_API_MODE:'local',NEWS_LOCAL_ORIGINS:'["http://localhost:8765"]'});

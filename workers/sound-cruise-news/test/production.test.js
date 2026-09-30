@@ -19,7 +19,7 @@ const html='<main><section><h1>製品ニュース 記事一覧</h1></section><di
 ].map(([title,date],i)=>`<a href="/update/amp-effector/2026/09/${90000+i}/"><h3>${title}</h3><date>${date}</date></a>`).join('')+'</div></main>';
 const setup=async()=>{const db=database(),s=await store(db);await administer(s,{action:'publish-on',reason:'review_complete'},now);return {db,s,env:{...config,NEWS_DB:db}};};
 const options={registry:[source],sleep:async()=>{},fetcher:async url=>new Response(url.endsWith('robots.txt')?robots:html,{headers:{'content-type':url.endsWith('robots.txt')?'text/plain':'text/html'}})};
-const run=(env,at=now,overrides={})=>scheduledNews({cron:COLLECTION_CRON},env,{},at,{...options,...overrides});
+const run=(env,at=now,overrides={})=>scheduledNews({cron:COLLECTION_CRON},env,{},at,{...options,clock:()=>at,...overrides});
 
 test('production: only a single live-validated source may be enabled',()=>{
  assert.equal(runtimeSources(config,[source],now)[0].enabled,true);

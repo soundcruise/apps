@@ -4,7 +4,7 @@ import { SOURCES, legalGate } from './registry.js';
 import { boundedFetch, sourceUrl, robotsPolicy, retryAt, hash, optOut, BOT } from './policy.js';
 import { parseMetadata, candidateFrom } from './metadata.js';
 import { healthForOutcome } from './source-health.js';
-export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),registry=SOURCES,pepper}={}) {
+export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),registry=SOURCES,pepper,clock}={}) {
  const started=Date.now(),source=registry.find(s=>s.id===id),state=await store.state(id);
  const listing=source?.discoveryType==='shimamura_listing';
  const report={sourceId:id,startedAt:now,requests:0,candidates:0,pending:0,rejected:0,duplicates:0,outcome:'',durationMs:0,robots:'not_requested',requestCounts:{robots:0,listing:0,feed:0}};
@@ -13,13 +13,17 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
  if(listing&&(id!=='shimamura'||source.discoveryUrl!==SHIMAMURA_LISTING_URL)){report.outcome='listing_url_blocked';return report;}
  try{requirePepper(pepper);}catch{report.outcome='headline_pepper_required';await store.recordHealth({sourceId:id,status:'error',reasonCode:report.outcome,checkedAt:now});return report;}
  if(!(await store.controls()).collection_enabled){report.outcome='global_collection_off';await store.recordHealth({sourceId:id,...healthForOutcome(report.outcome),checkedAt:now});return report;}
- if(!await store.lease(id,now)){report.outcome='lease_busy';return report;}
+ const intervalMs=Math.max(listing?24:6,source.crawlIntervalHours)*3600000;
+ if(!await store.lease(id,now,intervalMs)){report.outcome='lease_busy';return report;}
  let next={...state,nextAt:now+Math.max(listing?24:6,source.crawlIntervalHours)*3600000};
  const request=async(url,options={})=>{
   if(!(await store.controls()).collection_enabled)throw new Error('global_collection_off');
   if((await store.state(id)).disabled)throw new Error('access_stopped');
   if(!sourceUrl(url,source))throw new Error('url_blocked');
   if(listing&&(report.requests>=2||![source.robotsUrl,SHIMAMURA_LISTING_URL].includes(url)))throw Error('listing_request_budget');
+  const attemptedAt=clock?clock():now+Date.now()-started;
+  await store.publisherAttempt(id,attemptedAt,intervalMs);
+  next.nextAt=Math.max(next.nextAt,attemptedAt+intervalMs);
   report.requests++;report.requestCounts[url===source.robotsUrl?'robots':listing?'listing':'feed']++;
   let response;try{response=await boundedFetch(url,{fetcher,...options});}catch(error){if(listing&&url===SHIMAMURA_LISTING_URL&&error.message==='response_too_large')throw Error('listing_too_large');if(error.name==='TimeoutError'||error.name==='AbortError')throw Error('request_timeout');throw error;}
   if([401,403,451].includes(response.status)){next.disabled=true;throw new Error('http_'+response.status);}
@@ -75,7 +79,7 @@ export async function collectAll(ids,store,options){await store.purge(options.no
 // Shared pending-only sink. Inputs are transient metadata, never HTML. Recheck kill/policy at the boundary.
 export async function persistDiscoveredEntries(entries,source,store,robots,now,pepper,registry,report){
  try{
-  if(legalGate(source,{...await store.state(source.id),nextAt:0},now,'local',registry))throw Error('access_stopped');
+  if(legalGate(source,{...await store.state(source.id),nextAt:0,lastPublisherRequestAt:0},now,'local',registry))throw Error('access_stopped');
   requirePepper(pepper);
   for(const entry of entries){
    const {item,reason}=await candidateFrom(entry,source,robots,now,pepper);

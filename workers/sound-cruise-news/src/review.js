@@ -22,7 +22,7 @@ export async function reviewCandidate(store,input,now=Date.now(),registry=SOURCE
  if(input.action!=='approve'){
   await store.db.batch([store.db.prepare('UPDATE candidate_items SET review_status=?,reviewed_by=?,reviewed_at=? WHERE id=? AND review_status=?').bind(input.action==='reject'?'rejected':'reopened',input.reviewedBy,stamp,item.id,item.review_status),revision,audit]);return;
  }
- if(legalGate(source,{...state,nextAt:0},now,'local',registry))throw new Error('review_gate');
+ if(legalGate(source,{...state,nextAt:0,lastPublisherRequestAt:0},now,'local',registry))throw new Error('review_gate');
  if(item.expires_at<=now)throw new Error('expired_candidate');
  if(REQUIRED_CHECKS.some(k=>input.checks?.[k]!==true))throw new Error('review_checks_required');
  if(Object.entries(ARTICLE_CHECKS).some(([key,codes])=>!codes.includes(input.articleChecks?.[key])))throw new Error('article_checks_required');

@@ -16,7 +16,7 @@ const card=(id,title='BOSS EX-4 新製品を発表しました',date='2026/09/28
  return `<li><a href="https://www.shimamura.co.jp/update/${path}/2026/09/${numericId}/"><img src="https://example.invalid/never-load.png"><div><span class="btn-cat-red">${path==='amp-effector'?'アンプ／エフェクター':path==='guitar-bass'?'ギター／ベース':'DTM／レコーディング'}</span><h3>${title}</h3><div><span><date>${date}</date></span></div>${extra}</div></a></li>`;
 };
 const listing=(cards=[card('a'),card('b'),card('c')],extra='')=>`<!doctype html><html><head>${extra}</head><body><section><div><h2>「製品ニュース」の記事一覧</h2></div><div><h3>合成の一覧説明</h3><ul>${cards.join('')}</ul></div></section><footer>${card('unrelated','使い方')}</footer></body></html>`;
-const options=(extra={})=>({mode:'local',now,registry,pepper,sleep:async()=>{},fetcher:async url=>url.endsWith('/robots.txt')?response(ROBOTS):response(listing(),200,{'content-type':'text/html',etag:'synthetic-v1'}),...extra});
+const options=(extra={})=>({clock:()=>extra.now??now,mode:'local',now,registry,pepper,sleep:async()=>{},fetcher:async url=>url.endsWith('/robots.txt')?response(ROBOTS):response(listing(),200,{'content-type':'text/html',etag:'synthetic-v1'}),...extra});
 test('listing: fixed product-news section, title/date/category; scripts and images never execute',()=>{
  const parsed=parseShimamuraListing(listing(undefined,'<script>globalThis.listingExecuted=true</script>'));
  assert.equal(parsed.cards,3);assert.equal(parsed.entries.length,3);assert.equal(parsed.entries[0].listingCategory,'amp-effector');assert.equal(parsed.entries[0].date,'2026-09-28T00:00:00+09:00');assert.equal(globalThis.listingExecuted,undefined);

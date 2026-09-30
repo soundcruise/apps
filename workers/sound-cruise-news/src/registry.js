@@ -73,7 +73,7 @@ export function legalGate(source,state={},now=Date.now(),mode='off',registry=SOU
  if(!source||!registry.includes(source))return 'not_registry_source';
  const evidence=evidenceGate(source,now);if(evidence)return evidence;
  if((!source.enabled&&!(source.localPilotEnabled&&phaseOneSourceReady(source,now)))||state.disabled)return 'source_disabled';
- if(state.nextAt>now)return 'backoff';
+ if(state.nextAt>now||state.lastPublisherRequestAt>0&&state.lastPublisherRequestAt+Math.max(6,source.crawlIntervalHours)*3600000>now)return 'backoff';
  return null;
 }
 
