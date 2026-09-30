@@ -1,0 +1,277 @@
+{
+  "at": "2026-09-30T22:32:22.412Z",
+  "result": "PASS",
+  "health": {
+    "ok": true,
+    "version": "0.7.0",
+    "collection": true,
+    "publication": true,
+    "api": true
+  },
+  "visibleTotal": 33,
+  "sourceCounts": {
+    "AHS": 1,
+    "APU Software": 1,
+    "Discover chuya": 2,
+    "Hookup": 1,
+    "IK Multimedia": 2,
+    "SONICWIRE": 2,
+    "Yamaha": 1,
+    "ZOOM": 3,
+    "amass": 1,
+    "キクタニ": 2,
+    "島村楽器": 11,
+    "池部楽器": 6
+  },
+  "categoryCounts": {
+    "acoustic_guitar": 6,
+    "electric_guitar_bass": 7,
+    "amps_effects": 8,
+    "recording_audio": 3,
+    "dtm_software": 5,
+    "sale": 1,
+    "artist_guitar": 1,
+    "live_guitar": 2
+  },
+  "sourceHealth": [
+    {
+      "source_id": "amass",
+      "status": "healthy",
+      "reason_code": "ok",
+      "last_successful_run_at": 1790802072288,
+      "last_checked_at": 1790802072288,
+      "next_eligible_run_at": 1790888400000,
+      "failure_count": 0
+    },
+    {
+      "source_id": "collection",
+      "status": "warning",
+      "reason_code": "network_or_internal_error",
+      "last_successful_run_at": 1790802072288,
+      "last_checked_at": 1790802072288,
+      "next_eligible_run_at": 0,
+      "failure_count": 0
+    },
+    {
+      "source_id": "ik",
+      "status": "healthy",
+      "reason_code": "ok",
+      "last_successful_run_at": 1790802072288,
+      "last_checked_at": 1790802072288,
+      "next_eligible_run_at": 1790888400000,
+      "failure_count": 0
+    },
+    {
+      "source_id": "ikebe",
+      "status": "healthy",
+      "reason_code": "ok",
+      "last_successful_run_at": 1790802072288,
+      "last_checked_at": 1790802072288,
+      "next_eligible_run_at": 1790888400000,
+      "failure_count": 0
+    },
+    {
+      "source_id": "kikutani",
+      "status": "healthy",
+      "reason_code": "ok",
+      "last_successful_run_at": 1790802072288,
+      "last_checked_at": 1790802072288,
+      "next_eligible_run_at": 1790888400000,
+      "failure_count": 0
+    },
+    {
+      "source_id": "natalie",
+      "status": "paused",
+      "reason_code": "source_disabled",
+      "last_successful_run_at": 1790752565542,
+      "last_checked_at": 1790759489715,
+      "next_eligible_run_at": 1790802000000,
+      "failure_count": 0
+    },
+    {
+      "source_id": "retention",
+      "status": "healthy",
+      "reason_code": "ok",
+      "last_successful_run_at": 1790806670160,
+      "last_checked_at": 1790806670160,
+      "next_eligible_run_at": 0,
+      "failure_count": 0
+    },
+    {
+      "source_id": "shimamura",
+      "status": "healthy",
+      "reason_code": "ok",
+      "last_successful_run_at": 1790802072288,
+      "last_checked_at": 1790802072288,
+      "next_eligible_run_at": 1790888400000,
+      "failure_count": 0
+    },
+    {
+      "source_id": "sleepfreaks",
+      "status": "http_blocked",
+      "reason_code": "http_403",
+      "last_successful_run_at": 1790759579953,
+      "last_checked_at": 1790802072288,
+      "next_eligible_run_at": 1790888473130,
+      "failure_count": 1
+    },
+    {
+      "source_id": "zoom",
+      "status": "healthy",
+      "reason_code": "ok",
+      "last_successful_run_at": 1790802072288,
+      "last_checked_at": 1790802072288,
+      "next_eligible_run_at": 1790888400000,
+      "failure_count": 0
+    }
+  ],
+  "scheduledRequestCounts": {
+    "ik": 2,
+    "ikebe": 2,
+    "amass": 2,
+    "zoom": 2,
+    "sleepfreaks": 1,
+    "kikutani": 2,
+    "shimamura": 2
+  },
+  "manualRecords": [
+    {
+      "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+      "source_id": "manual-ikebe",
+      "source_url": "https://www.ikebe-gakki.com/blog/20261013-1101-tak-matsumoto/",
+      "published_at": "2026-09-27T15:00:00.000Z",
+      "category": "live_guitar",
+      "label": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+      "origin": "operator_manual_add",
+      "sale_ends_at": null
+    },
+    {
+      "id": "067fbea16f1b4202c57e8b88e4a761e97bf243a1180fc5f5fb77416b0cc3bd68",
+      "source_id": "manual-apu",
+      "source_url": "https://apu.software/",
+      "published_at": "2026-09-21T15:00:00.000Z",
+      "category": "sale",
+      "label": "APU Software、対象製品の期間限定値下げを10月11日まで実施。DTM製品などが対象",
+      "origin": "operator_manual_add",
+      "sale_ends_at": 1791730799999
+    }
+  ],
+  "pagination": true,
+  "cors": true,
+  "unauthorizedApproval": false,
+  "expiryAcceptance": {
+    "result": "PASS",
+    "productionSaleId": "067fbea16f1b4202c57e8b88e4a761e97bf243a1180fc5f5fb77416b0cc3bd68",
+    "deadline": "2026-10-11T14:59:59.999Z",
+    "deadlineJst": "2026-10-11 23:59:59.999 JST",
+    "apiCategoryAndCacheAtDeadline": true,
+    "hiddenOneMillisecondLater": true,
+    "portExpiredCachedPayloadHidden": true,
+    "productionMutation": false,
+    "publisherRequests": 0
+  },
+  "qualityGate": {
+    "pass": true,
+    "reasons": [],
+    "current": {
+      "at": "2026-09-30T22:34:21.619Z",
+      "counts": {
+        "HIGH VALUE": 6,
+        "USEFUL": 20,
+        "LOW VALUE": 5,
+        "NOISE": 0
+      },
+      "genericLabels": 5,
+      "categoriesCovered": [
+        "acoustic_guitar",
+        "amps_effects",
+        "dtm_software",
+        "electric_guitar_bass",
+        "live_guitar",
+        "recording_audio"
+      ],
+      "reviewBurden": 22,
+      "tickerTop5": [
+        {
+          "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+          "label": "Fender American Acoustasonicに限定モデル5種",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+          "label": "Jackson PC1-E、Phil Collenシグネチャーモデル",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+          "label": "ヤマハRS20MM、Matteo Mancusoシグネチャーモデル",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+          "label": "Gretsch G6138 Bo Diddleyの限定復刻モデル",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+          "label": "Fender Player Fusionの限定モデル情報",
+          "quality": "HIGH VALUE"
+        }
+      ]
+    },
+    "candidate": {
+      "at": "2026-09-30T22:34:21.619Z",
+      "counts": {
+        "HIGH VALUE": 8,
+        "USEFUL": 20,
+        "LOW VALUE": 5,
+        "NOISE": 0
+      },
+      "genericLabels": 5,
+      "categoriesCovered": [
+        "acoustic_guitar",
+        "amps_effects",
+        "dtm_software",
+        "electric_guitar_bass",
+        "live_guitar",
+        "recording_audio",
+        "sale"
+      ],
+      "reviewBurden": 22,
+      "tickerTop5": [
+        {
+          "id": "0",
+          "label": "Fender American Acoustasonicに限定モデル5種",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "1",
+          "label": "Jackson PC1-E、Phil Collenシグネチャーモデル",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "2",
+          "label": "ヤマハRS20MM、Matteo Mancusoシグネチャーモデル",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "3",
+          "label": "Gretsch G6138 Bo Diddleyの限定復刻モデル",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "4",
+          "label": "Fender Player Fusionの限定モデル情報",
+          "quality": "HIGH VALUE"
+        }
+      ]
+    }
+  },
+  "screens": [
+    375,
+    393,
+    1440
+  ],
+  "publisherRequests": 0,
+  "workerVersionId": "829b0eaa-2fbd-4feb-a2bc-7e3e1a48f793"
+}

@@ -29,3 +29,5 @@ test('research unknown/raw fields and normalized or near original copy fail befo
 test('research facts cannot hide nested raw content or original keys',()=>{for(const record of [{facts:{artist:{body:'hidden'}}},{counts:{'Synthetic original headline':1}},{status:700},{reasonCodes:'not-an-array'}])assert.throws(()=>guardedResearchArtifact([record]));});
 
 test('manual evidence accepts the Oct1 JST morning before Oct1 UTC begins',async()=>{const morning=Date.parse('2026-09-30T21:00:00Z');assert.equal(manualEvidenceGate(MANUAL_SOURCES[1],morning),null);assert.equal((await manualCandidate(sale(),morning)).category,'sale');});
+
+test('research normalized headline in a count key also fails before retaining',()=>{assert.throws(()=>guardedResearchArtifact([{counts:{syntheticguitarannouncement:1}}],{originalTitles:['Synthetic Guitar Announcement']}),/headline_match/);assert.throws(()=>guardedResearchArtifact([{timestamp:false}]));});

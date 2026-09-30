@@ -1,6 +1,6 @@
 # Manual NEWS ingestion — operator operations
 
-NEWS 0.7.0 / Cruise Port 1.9.0. Authenticated Cloudflare OAuth CLI only. Public HTTP has no mutation endpoint. No publisher requests are made by this CLI.
+NEWS 0.7.1 / Cruise Port 1.9.0. Authenticated Cloudflare OAuth CLI only. Public HTTP has no mutation endpoint. No publisher requests are made by this CLI.
 
 ## Scope and source review
 

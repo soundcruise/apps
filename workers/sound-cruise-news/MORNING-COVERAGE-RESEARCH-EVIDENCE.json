@@ -125,5 +125,39 @@
       "conservative_jst_expiry",
       "timestamp_rounded"
     ]
+  },
+  {
+    "canonicalUrl": "https://www.rittor-music.co.jp/agreement/",
+    "timestamp": "2026-09-30T22:37:30Z",
+    "facts": {
+      "sourceId": "agm-rittor",
+      "policyScope": "parent_host_only",
+      "policyFinding": "links_welcome_content_reuse_restricted_agm_scope_robots_and_discovery_incomplete"
+    },
+    "counts": {
+      "direct_requests": 0
+    },
+    "reasonCodes": [
+      "search_primary_policy_review",
+      "timestamp_rounded",
+      "no_automatic_enable"
+    ]
+  },
+  {
+    "canonicalUrl": "https://acousticguitarmagazine.jp/",
+    "timestamp": "2026-09-30T22:38:00Z",
+    "facts": {
+      "sourceId": "agm-rittor",
+      "discoveryType": "interview_and_news",
+      "policyFinding": "high_signal_surface_identified_robots_and_applicable_scope_not_completed"
+    },
+    "counts": {
+      "direct_requests": 0
+    },
+    "reasonCodes": [
+      "search_primary_discovery_review",
+      "timestamp_rounded",
+      "no_automatic_enable"
+    ]
   }
 ]
