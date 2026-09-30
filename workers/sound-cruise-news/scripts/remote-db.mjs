@@ -1,7 +1,5 @@
 import {execFileSync} from 'node:child_process';
-import {readFile,mkdtemp,writeFile,rm} from 'node:fs/promises';
-import {tmpdir} from 'node:os';
-import {join} from 'node:path';
+import {readFile} from 'node:fs/promises';
 export const productionConfig=new URL('../wrangler.production.jsonc',import.meta.url);
 export const workerDirectory=new URL('../',import.meta.url);
 export function infrastructureConfig(config){
@@ -32,7 +30,8 @@ export function wrangler(args,{json=false}={}){
 export const sqlLiteral=value=>value===null?'NULL':typeof value==='number'&&Number.isFinite(value)?String(value):typeof value==='string'?"'"+value.replaceAll("'","''")+"'":(()=>{throw Error('sql_value_invalid')})();
 // Authenticated through Wrangler OAuth. No public admin route or browser secret.
 export async function remoteSql(sql){
- await checkedConfig();const dir=await mkdtemp(join(tmpdir(),'news-sql-'));
- try{const file=join(dir,'query.sql');await writeFile(file,sql,{mode:0o600});return wrangler(['d1','execute','NEWS_DB','--remote','--file',file,'--json'],{json:true});}
- finally{await rm(dir,{recursive:true,force:true});}
+ await checkedConfig();
+ // --file uses D1 bulk import and returns import statistics, not SELECT rows.
+ // Operator SQL contains only news facts/IDs/state; secrets never enter this path.
+ return wrangler(['d1','execute','NEWS_DB','--remote','--command',sql,'--json'],{json:true});
 }
