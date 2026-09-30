@@ -16,9 +16,18 @@ export async function checkedConfig(){
  if(config.name!=='sound-cruise-news'||config.account_id!=='a9f2a3e9fcb6d0f68fd2eaa9df909e33'||config.d1_databases?.length!==1||config.d1_databases[0].binding!=='NEWS_DB'||config.d1_databases[0].database_name!=='sound-cruise-news'||!/^[a-f0-9-]{36}$/.test(config.d1_databases[0].database_id)||config.d1_databases[0].database_id==='e37759f8-df08-4d2a-92b0-ffdd50de66df')throw Error('production_news_binding_not_ready');
  return config;
 }
+export function parseWranglerJson(output){
+ try{return JSON.parse(output);}catch{}
+ // Remote --file execution may print upload progress even with --json.
+ // Accept only a complete trailing JSON document, never an arbitrary partial result.
+ for(const match of output.matchAll(/^[ \t]*[\[{]/gm)){
+  try{return JSON.parse(output.slice(match.index));}catch{}
+ }
+ throw Error('wrangler_json_result_missing');
+}
 export function wrangler(args,{json=false}={}){
  const output=execFileSync(new URL('../node_modules/.bin/wrangler',import.meta.url).pathname,[...args,'--config',productionConfig.pathname],{cwd:workerDirectory,encoding:'utf8',maxBuffer:10*1024*1024,env:{...process.env,CI:'true',WRANGLER_SEND_METRICS:'false'}});
- return json?JSON.parse(output):output;
+ return json?parseWranglerJson(output):output;
 }
 export const sqlLiteral=value=>value===null?'NULL':typeof value==='number'&&Number.isFinite(value)?String(value):typeof value==='string'?"'"+value.replaceAll("'","''")+"'":(()=>{throw Error('sql_value_invalid')})();
 // Authenticated through Wrangler OAuth. No public admin route or browser secret.

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import worker,{handleNewsRequest} from '../src/worker.js';
-import {infrastructureConfig} from '../scripts/remote-db.mjs';
+import {infrastructureConfig,parseWranglerJson} from '../scripts/remote-db.mjs';
 import {runtimeSources} from '../src/runtime.js';
 import {collectSource} from '../src/collector.js';
 import {scheduledNews,COLLECTION_CRON} from '../src/scheduled.js';
@@ -12,6 +12,13 @@ import {NewsStore} from '../src/store.js';
 import {database,pepper} from './helpers.js';
 const config=JSON.parse(readFileSync(new URL('../wrangler.production.jsonc',import.meta.url)));
 const now=Date.parse('2026-09-30T10:00:00+09:00');
+test('infrastructure: Wrangler upload progress cannot obscure or truncate a JSON result',()=>{
+ const value=[{success:true,results:[{count:0}]}];
+ assert.deepEqual(parseWranglerJson(JSON.stringify(value)),value);
+ assert.deepEqual(parseWranglerJson('├ Checking file\n├ Uploading\n'+JSON.stringify(value,null,2)),value);
+ assert.throws(()=>parseWranglerJson('upload failed\n[{"success":true}'),/wrangler_json_result_missing/);
+ assert.throws(()=>parseWranglerJson(JSON.stringify(value)+'\ntrailing error'),/wrangler_json_result_missing/);
+});
 test('infrastructure: deployed config requires collection hard OFF and explicitly empty Cron',()=>{
  assert.equal(infrastructureConfig(config),config);
  for(const patch of [{vars:{...config.vars,NEWS_COLLECTION_MODE:'production'}},{triggers:{crons:['0 21 * * *']}},{triggers:{}},{d1_databases:[{...config.d1_databases[0],binding:'SYNC_DB'}]}])assert.throws(()=>infrastructureConfig({...config,...patch}));
