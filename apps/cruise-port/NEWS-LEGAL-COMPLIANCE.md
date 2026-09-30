@@ -2,6 +2,8 @@
 
 調査日: 2026-09-28 / 更新日: 2026-09-30 / 対象: Port 1.5.0・NEWS自動収集／公開（島村楽器の製品ニュースのみ）
 
+現在のproduction状態は本書末尾の「Production launch」を参照。日付付きphase節は当時の判断・実行履歴であり、過去のOFF表示を現行状態と混同しない。
+
 ## 1. Purpose
 
 NEWSの設計根拠、source追加時の審査、運用条件、掲載停止と定期再確認の基準を恒久記録する。
@@ -139,7 +141,7 @@ run diagnosticsは90日、item再取得抑止hashは90日、内容を含まな�
 
 今回は外部AIを呼ばない。既知製品辞書、word boundary、event分類、source別allowedPaths/deniedPathsでdeterministicに候補化する。tutorial/evergreenを除外する。1.5.0から大型の機材セールはNEWS対象（下記「NEWS-1.5.0」）で、coupon/points/送料無料/単品・中古1点/小規模販促/終了済みセールのみ除外する。不明な製品・出来事・セール規模はlabel_requiredまたはsale_*理由のpendingとする。
 Raw headlines stay in memory. NFKC/case/whitespace/punctuation normalization precedes secret-keyed HMAC-SHA256. Persist only a domain-separated exact signature, key ID, gram count and at most 64 bottom-k 3-gram signatures. NEWS_HEADLINE_PEPPER is externally injected; never persist it, raw headlines or unsalted title_hash in D1/logs/reports/API. Missing or mismatched keys fail closed. Migration 0003 clears old fingerprints and quarantines old non-rejected rows as legacy pending, without conversion. DB-only gram dictionary enumeration is prevented under an uncompromised high-entropy key assumption; length/equality leak and key compromise remain limitations. This is neither an absolute non-reversibility guarantee nor a complete plagiarism detector.
-承認はoperator/manual/admin識別子、関連性/事実/opt-out/重複/日付/source policy/labelの各booleanを要求。記事別にmeta robots、bot-specific meta、X-Robots-Tag、公開アクセス、link/reuse notice、canonical、公開日、独自label、ギター/機材関連、一次情報置換のcode値を必須とする。未確認・拒否状態では承認できない。内容crawlerは作らない。
+手動承認はoperator/manual/admin識別子、関連性/事実/opt-out/重複/日付/source policy/labelの各booleanを要求。記事別にmeta robots、bot-specific meta、X-Robots-Tag、公開アクセス、link/reuse notice、canonical、公開日、独自label、ギター/機材関連、一次情報置換のcode値を必須とする。未確認・拒否状態では承認できない。内容crawlerは作らない。
 pending→approved/rejected、rejected→明示reopen→reopened→approved/rejected。日付がFeed値と異なる場合はdateOverrideReasonを必須とし、approved topicKey重複はDB unique indexでも拒否する。
 将来AIを使う場合も分類等の補助だけ。外部textを命令として扱わず、ツール・秘密情報を与えない。事実の追加や長い再生成は禁止。
 
@@ -147,8 +149,8 @@ pending→approved/rejected、rejected→明示reopen→reopened→approved/reje
 
 各sourceは24時間間隔（コード下限6時間）。直列収集、source lease、localプロセスlockを使用。
 robotsとdiscoveryの間は最低1秒、Crawl-delayが長ければそれに従う。60秒を超える指定は再審査待ちとして取得しない。
-Feed/Atom metadataおよび島村の限定された公式listing parserのみ。記事本文・sitemap indexの再帰巡回は未実装。現時点の本番収集はOFF。
-ETag/If-Modified-Sinceを送る。403/401/451とFeed拒否ヘッダーは停止、429はRetry-Afterか24時間の長い方、5xxは指数backoff（最大7日）。
+Feed/Atom metadataおよび島村の限定された公式listing parserのみ。記事本文・sitemap indexの再帰巡回は未実装。本番は島村楽器の製品一覧だけを承認allowlistで収集する。他sourceと全SALE収集はOFF。
+ETag/If-Modified-Sinceを送る。403/401/451とFeed拒否ヘッダーは停止、429はRetry-Afterか24時間の長い方、5xxは指数backoff（最大7日）と最後の試行から24時間の長い方まで待つ。
 robots失敗と未審査404はfail closed。redirectは0回、サイズはrobots 512KB / discovery 1MB、15秒timeout、最大100候補/回。
 
 ## 17. Prohibited engineering shortcuts

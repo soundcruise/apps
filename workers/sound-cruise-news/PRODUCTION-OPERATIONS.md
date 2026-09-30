@@ -64,7 +64,7 @@ migration has been executed.
 The old `news-final` automatic continuation remains PAUSED. Live validation is a
 separate next phase; do not resume the stale automatic release prompt implicitly.
 
-## Authorized rollout
+## Historical authorized rollout (superseded by completion CLI)
 
 Run in `workers/sound-cruise-news`. Use installed Wrangler 4.131.1 and the existing
 Cloudflare OAuth account. Never point these commands at the Sync Worker/DB.

@@ -1,3 +1,10 @@
+> Production completion — 2026-09-30: Port 1.5.0 uses the dedicated real News API.
+> News Worker 0.3.0 / D1 migrations 0001–0008 / guarded hourly collection and automatic
+> publication are ON for Shimamura product news only. Initial listing GET was exactly one;
+> REVIEW remains pending. SALE sources remain disabled. Current operations:
+> [PRODUCTION-COMPLETION-OPERATIONS.md](PRODUCTION-COMPLETION-OPERATIONS.md).
+> Earlier phase descriptions below are historical; do not run snapshot bootstrap.
+
 # Sound Cruise NEWS 0.2.0 — automatic NEWS release candidate
 
 NEWS-FINAL preparation is implemented locally. Live validation is time-gated until
