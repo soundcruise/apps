@@ -162,7 +162,7 @@ Actual production API and Cloudflare account/NEWS DB/vars/secret presence/deploy
 
 ## 22. Legal / Copyright Safety
 
-All enabled sources retain policy/evidence/robots/health/rate-limit gates. No login, access-control bypass, arbitrary crawler, sitemap crawling, article body/excerpt/image storage or full headline storage. One necessary Kikutani article was checked in memory because listing pedal type was ambiguous; only CANOPUS/bearing/no-explicit-guitar-evidence facts and response metadata were retained. No opt-out was overridden. Legacy backfill authorizes exactly the user-approved fixture only. Pending/rejected candidates obey 90d; audit/health/feedback 365d; hourly physical purge continues. Keyed headline sketches remain private and are not in public API/queue. Policy silence is a bounded internal assessment, not publisher permission or a legal guarantee.
+All enabled sources retain policy/evidence/robots/health/rate-limit gates. The production pipeline uses no login, access-control bypass, arbitrary crawler, sitemap crawling, article body/excerpt/image storage or full headline storage. One necessary Kikutani article was checked in memory because listing pedal type was ambiguous; only CANOPUS/bearing/no-explicit-guitar-evidence facts and response metadata were retained. No opt-out was overridden. Legacy backfill authorizes exactly the user-approved fixture only. Pending/rejected candidates obey 90d; audit/health/feedback 365d; hourly physical purge continues. An initial research helper briefly wrote news-link anchor labels and image URL references to an intermediate temporary metadata log. Those fields were removed immediately before evidence retention; no publisher image was fetched, and none entered the repository, production D1 or API. A final recursive check of 10 retained research logs found no title/headline/body/HTML/excerpt/image fields. The helper was not used again in that form. Keyed headline sketches remain private and are not in public API/queue. Policy silence is a bounded internal assessment, not publisher permission or a legal guarantee.
 
 ## 23. Publisher Request Counts
 
@@ -234,7 +234,7 @@ Major SALE and named guitar/弾き語り artists are absent. Fresh manufacturer 
 | evidence gate preserved for every enabled source | YES |
 | robots policy preserved | YES |
 | raw article HTML stored | NO |
-| original headlines stored | NO |
+| original headlines stored | NO (current repo/D1/retained logs; corrected temporary research-helper issue disclosed above) |
 | publisher images stored | NO |
 | Source Health covers new sources | YES |
 | production API returns multi-source news | YES |
