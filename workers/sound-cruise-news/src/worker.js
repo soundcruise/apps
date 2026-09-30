@@ -30,7 +30,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
  if(request.method==='OPTIONS')return finish(new Response(null,{status:204}));
  if(request.method!=='GET')return finish(json({error:'method_not_allowed'},405));
  if(url.pathname==='/health'){
-  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.6.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
+  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.6.1',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
   catch{return finish(json({ok:false,error:'news_unavailable'},503));}
  }
  if(!['/v1/news','/v1/news/ticker'].includes(url.pathname))return finish(json({error:'not_found'},404));
@@ -58,7 +58,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
    AND COALESCE(s.disabled,0)=0 AND COALESCE(s.takedown,0)=0 AND ${eligible}`).bind(now,now,...activeBindings).first();
   const validUntil=Math.min(now+300000,boundary?.deadline==null?Infinity:boundary.deadline+1);
   // Read controls before cache. Every takedown changes revision atomically, invalidating all old keys.
-  const key=new Request('https://news-cache.invalid'+url.pathname+'?'+new URLSearchParams({limit:String(limit),offset:String(offset),cursor:JSON.stringify(cursor),category:category||'',format:'legacy-recovery-1',revision:String(controls.revision),sources:active.join(','),bucket:String(Math.floor(now/300000))}));
+  const key=new Request('https://news-cache.invalid'+url.pathname+'?'+new URLSearchParams({limit:String(limit),offset:String(offset),cursor:JSON.stringify(cursor),category:category||'',format:'legacy-recovery-2',revision:String(controls.revision),sources:active.join(','),bucket:String(Math.floor(now/300000))}));
   const hit=await cache?.match(key);if(hit&&Number(hit.headers.get('X-News-Valid-Until'))>now)return finish(hit);
   const ticker=url.pathname.endsWith('/ticker');
   const select=async(days,count,start)=>{

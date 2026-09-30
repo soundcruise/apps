@@ -17,7 +17,7 @@ export function labelInformationScore(label){
 function independentTopicItems(row){
  let facts;try{facts=typeof row.product_facts==='string'?JSON.parse(row.product_facts):row.product_facts;}catch{return [];}
  return NEWS_BETA_ITEMS.filter(i=>i.category===row.category&&['other','new_product','release'].includes(row.event_type||'other')&&Math.abs(Date.parse(i.publishedAt)-Date.parse(row.published_at))<=14*86400000&&
-  (i.sourceUrl===row.source_url||(!facts?.version&&pairs[i.id]?.[0]===facts?.brand&&pairs[i.id]?.[1]===facts?.product&&['other','new_product','release'].includes(row.event_type)))&&
+  (i.sourceUrl===row.source_url||(pairs[i.id]&&typeof facts?.brand==='string'&&typeof facts?.product==='string'&&!facts.version&&pairs[i.id][0]===facts.brand&&pairs[i.id][1]===facts.product&&['other','new_product','release'].includes(row.event_type)))&&
   !(row.event_type==='release'&&/発売予定/.test(i.label)));
 }
 export function independentTopicUrls(row){return independentTopicItems(row).map(i=>i.sourceUrl);}
