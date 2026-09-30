@@ -1,9 +1,11 @@
+import {parseLegacyListing} from './legacy-listing.js';
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
 const find=(node,test)=>DomUtils.findAll(n=>!!n.name&&test(n),node.children||[]);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['nav','footer','header','script','style','noscript','template','svg'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:(n.children||[]).map(text).join('');
 export function parseOfficialListing(html,source){
+ if(['ikebe','ik'].includes(source.id))return parseLegacyListing(html,source);
  if(source.id==='zoom')return parseZoomListing(html,source);
  if(source.id!=='kikutani'||source.discoveryUrl!=='https://www.kikutani.co.jp/news/')throw Error('listing_url_blocked');
  if(new TextEncoder().encode(html).length>512000)throw Error('listing_too_large');

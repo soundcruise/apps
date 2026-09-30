@@ -1,3 +1,4 @@
+import {RECOVERY_EVIDENCE} from './recovery-evidence.js';
 import {QUALITY_EVIDENCE} from './quality-evidence.js';
 import {COVERAGE_EVIDENCE} from './coverage-evidence.js';
 import { SHIMAMURA_LISTING_URL,SHIMAMURA_PATHS } from './shimamura-listing.js';
@@ -55,7 +56,8 @@ export const SOURCES = Object.freeze(entries.map(([id,name,baseUrl,sourceKind,fe
  crawlIntervalHours:24,priority:['official','distributor','retailer_editorial','media'].indexOf(sourceKind),
  robots404Reviewed:false,notes:feed?'Discovery known; collection disabled pending complete policy evidence.':'Disabled pending discovery and per-source policy review.',
  ...(COVERAGE_EVIDENCE[id]||{}),
- ...(QUALITY_EVIDENCE[id]||{})
+ ...(QUALITY_EVIDENCE[id]||{}),
+ ...(RECOVERY_EVIDENCE[id]||{})
 })));
 export function getSource(id) { return SOURCES.find(s=>s.id===id); }
 export const PHASE_ONE_CANDIDATES = Object.freeze(['shimamura','sleepfreaks','hookup']);

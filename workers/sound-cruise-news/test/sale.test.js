@@ -15,6 +15,7 @@ const evidence={termsUrl:'https://example.invalid/terms',linkPolicyUrl:'https://
  reviewedBy:'operator',reviewedAt:'2026-09-28',robotsReviewedAt:'2026-09-28',discoveryReviewedAt:'2026-09-28',policyDecision:'approved'};
 // Synthetic sale-approved sources. The real registry entries stay disabled and pending.
 const retailer=Object.freeze({...getSource('ikebe'),...evidence,discoveryUrl:'https://www.ikebe-gakki-pb.com/feed/',discoveryType:'rss',
+ allowedPaths:['/news/'],deniedPaths:['/private/'],articlePathPattern:null,allowedEventTypes:undefined,
  enabled:true,productionEnabled:true,saleCollection:'approved'});
 const maker=Object.freeze({...getSource('roland'),...evidence,discoveryUrl:'https://www.roland.com/feed/',discoveryType:'rss',
  contentTypes:['product','sale'],saleCollection:'approved',enabled:true,productionEnabled:true});
@@ -138,7 +139,9 @@ test('Sound House and Ikebe are represented but disabled; registry presence neve
   for(const mode of ['local','production'])assert.notEqual(legalGate(s,{},now,mode),null);
  }
  assert.equal(soundhouse.legalStatus,'UNKNOWN');assert.equal(evidenceGate(soundhouse,now),'legal_block');
- assert.equal(evidenceGate(ikebe,now),'evidence_missing');
+ assert.equal(evidenceGate(ikebe,now),'policy_expired');
+ assert.equal(evidenceGate(ikebe,Date.parse('2026-09-30T12:00:00Z')),null);
+ assert.equal(ikebe.saleCollection,'pending_evidence');
  assert.ok(SOURCES.filter(s=>!['ikebe','soundhouse'].includes(s.id)).every(s=>s.saleCollection==='none'));
  const s=await store();let calls=0;
  for(const id of ['soundhouse','ikebe'])for(const mode of ['local','production']){

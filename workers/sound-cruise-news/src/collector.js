@@ -94,5 +94,5 @@ export async function persistDiscoveredEntries(entries,source,store,robots,now,p
    if(!item){report.rejected++;report.reasons??={};report.reasons[reason]=(report.reasons[reason]||0)+1;continue;}
    if(await store.put(item))report.pending++;else report.duplicates++;
   }
- }finally{for(const entry of entries)entry.title='';entries.length=0;}
+ }finally{for(const entry of entries){entry.title='';if('eventTitle' in entry)entry.eventTitle='';}entries.length=0;}
 }

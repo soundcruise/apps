@@ -21,7 +21,7 @@ export async function publishAutomatic(store,source,registry,now,pepper){
   const sale=isSaleRecord(row,facts),deadline=saleEndsAt(facts?.endDate,facts?.endTime);
   if(sale&&(!saleAuthorized(source)||row.category!=='sale'||row.event_type!=='sale'||facts?.kind!=='sale'||
    facts.seller!==source.name||facts.scope!=='broad'||facts.nature!=='sale'||!facts.equipment?.length||!Number.isFinite(deadline)||deadline<now))continue;
-  if(!label||row.label!==label||row.category!==facts.category||!Number.isFinite(stamp)||stamp>now||now-stamp>=90*DAY||row.expires_at<=now||!sourceUrl(row.source_url,source)||!allowedArticlePath(row.source_url,source))continue;
+  if(row.event_type==='other'||!label||row.label!==label||row.category!==facts.category||!Number.isFinite(stamp)||stamp>now||now-stamp>=90*DAY||row.expires_at<=now||!sourceUrl(row.source_url,source)||!allowedArticlePath(row.source_url,source))continue;
   // Validate keyed provenance; similarity is advisory for this facts-only label.
   if(!await validatedFingerprint(row.title_fingerprint,pepper))continue;
   // Recheck immediately before approval; DB controls/health/state are checked atomically below.

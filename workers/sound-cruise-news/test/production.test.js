@@ -35,7 +35,7 @@ test('production: scheduled collection auto-publishes facts; review retained; co
  const rows=await s.candidates();assert.equal(rows.length,2);assert.equal(rows.filter(r=>r.review_status==='approved').length,1);assert.equal(rows.filter(r=>r.publication_decision==='PUBLISH_REVIEW').length,1);
  assert.ok(!JSON.stringify(rows).includes('夢のような響き'));assert.ok(!JSON.stringify(rows).includes(pepper));
  const response=await handleNewsRequest(new Request('https://news.example/v1/news'),env,now,{registry:runtimeSources(env,[source],now)});
- const data=await response.json();assert.equal(data.items.length,1);assert.equal(data.items[0].label,'BOSS、EX-4を発表');assert.equal(data.items[0].reviewed_by,undefined);
+ const data=await response.json();assert.equal(data.items.length,1);assert.equal(data.items[0].label,'BOSS EX-4 Effects Expander、年内発売予定');assert.equal(data.items[0].reviewed_by,undefined);
  assert.equal((await s.sourceHealth()).find(h=>h.source_id==='shimamura').status,'healthy');
 });
 test('production: backoff is not an abnormal transition; URL dedupe and takedown prevent resurrection',async()=>{

@@ -44,7 +44,7 @@ test('coverage: distinctive software model publishes no invented manufacturer; a
 });
 test('coverage: explicit brand/model aliases survive trademark glyphs and correct category',async()=>{
  const source={...getSource('shimamura'),enabled:true},p=robotsPolicy('User-agent: *\nAllow: /',source);
- const {item}=await candidateFrom({title:'HISTORY HSLC- 合成のギター情報',url:'https://www.shimamura.co.jp/update/guitar-bass/2026/09/80000/',date:'2026-09-30T00:00:00+09:00',listingSection:'product_news',listingCategory:'guitar-bass'},source,p,now,pepper);
+ const {item}=await candidateFrom({title:'HISTORY HSLC- 合成の新製品発表',url:'https://www.shimamura.co.jp/update/guitar-bass/2026/09/80000/',date:'2026-09-30T00:00:00+09:00',listingSection:'product_news',listingCategory:'guitar-bass'},source,p,now,pepper);
  assert.equal(item.category,'electric_guitar_bass');assert.equal(item.publicationDecision,'AUTO_PUBLISHABLE');
  assert.equal(productFacts('Jackson PC1™-E 発表').product,'PC1-E');
 });

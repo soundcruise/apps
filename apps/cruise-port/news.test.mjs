@@ -53,7 +53,7 @@ test('runtime source contains no outbound acquisition or HTML sinks', () => {
  assert.match(html,/id="news-view"[^>]*hidden/);
  }
  const app=readFileSync(new URL('practice-menu-app.js',import.meta.url),'utf8');
- assert.match(app,/await import\('\.\/news-ui.js\?v=1.7.0'\)/);
+ assert.match(app,/await import\('\.\/news-ui.js\?v=1.8.0'\)/);
 });
 
 test('real manual fixture is valid, unique, safe-source only and fact-label only', () => {
@@ -75,4 +75,15 @@ test('real manual fixture is valid, unique, safe-source only and fact-label only
  assert.equal(groupNews(ready).find(([day])=>day==='2026-09-18')[1].filter(i=>i.sourceName==='Yamaha').length,1);
  assert.equal(ready.find(i=>i.topicKey==='caj-acdc-vii').sourceUrl,'https://www.shimamura.co.jp/update/amp-effector/2026/09/80794/');
  assert.equal(ready.find(i=>i.topicKey==='ahs-instrumentx-101').sourceUrl,'https://www.ah-soft.com/inst-x/setup/');
+});
+
+
+test('rich independent duplicate wins and low-value bulk stays below useful ticker news',()=>{
+ const rich=make(2,{label:'BOSS EX-4 Effects Expander、年内発売予定',id:'rich',sourceKind:'retailer_editorial'});
+ const generic=make(1,{label:'BOSS、EX-4の製品情報',id:'generic',sourceKind:'official'});
+ assert.equal(prepareNews([generic,rich],{now})[0].id,'rich');
+ const bulk=Array.from({length:12},(_,i)=>make(0,{id:'low'+i,topicKey:'low'+i,label:'合成メーカーの製品情報'}));
+ const useful=make(3,{id:'useful',topicKey:'useful',label:'Xotic、XXP-1を発表'});
+ assert.equal(tickerNews([...bulk,useful],now)[0].id,'useful');
+ assert.equal(tickerNews([make(15,{label:rich.label})],now).length,0);
 });

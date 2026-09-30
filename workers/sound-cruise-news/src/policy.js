@@ -6,7 +6,13 @@ export function sourceUrl(raw,source) {
  try {
   const u=new URL(raw);const base=new URL(source.baseUrl);
   if(u.protocol!=='https:'||u.username||u.password||u.port||u.hostname!==base.hostname||u.hostname==='localhost'||!/[a-z]/i.test(u.hostname)||u.hostname.includes(':')||/\.(local|internal|localhost)$/.test(u.hostname))return null;
-  u.hash='';for(const k of [...u.searchParams.keys()])if(/^utm_|^(fbclid|gclid)$/i.test(k))u.searchParams.delete(k);
+  if(/^(?:twitter\.com|x\.com|facebook\.com|line\.me)$/.test(u.hostname)||/\/(?:share|intent)(?:\/|$)/.test(u.pathname))return null;
+  u.hash='';for(const k of [...u.searchParams.keys()]){
+   if(/^(?:text|title|headline|body|description)$/i.test(k))return null;
+   const allowed=(source.id==='ik'&&u.pathname==='/news/')?['item_id']:(source.allowedQueryKeys||[]);
+   if(!allowed.includes(k))u.searchParams.delete(k);
+   else if(!/^[A-Za-z0-9_-]{1,64}$/.test(u.searchParams.get(k)||'')||u.searchParams.getAll(k).length!==1)return null;
+  }
   return u.href;
  }catch{return null;}
 }

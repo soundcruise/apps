@@ -31,6 +31,11 @@ export function normalizeNewsItem(input) {
         'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'guitarEvidence', 'saleEndsAt']
         .filter(key => input[key] !== undefined).map(key => [key, input[key]]).concat([['sourceUrl', url.href]]));
 }
+export function labelInformationScore(label) {
+    if (typeof label !== 'string' || /審査待ち|要確認|の製品情報$|、(?:ギター|音楽)に関する話題$/.test(label)) return 0;
+    if (/演奏に関する話題$/.test(label)) return 1;
+    return /総単板|限定|発売予定|復刻|シグネチャー|小型|追加ボイス|プラグイン\d+製品/.test(label) ? 4 : 3;
+}
 export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) {
     if (mode === 'off') return [];
     if (!['beta', 'on'].includes(mode) || !Array.isArray(input) || !Number.isFinite(now)) throw new TypeError('Invalid news input');
@@ -41,15 +46,16 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
         const age = now - Date.parse(item.publishedAt);
         if (age < 0 || age > 90 * DAY) continue;
         const previous = topics.get(item.topicKey);
-        if (!previous || PRIORITY.indexOf(item.sourceKind) < PRIORITY.indexOf(previous.sourceKind) ||
-            (item.sourceKind === previous.sourceKind && item.publishedAt > previous.publishedAt)) topics.set(item.topicKey, item);
+        if (!previous || labelInformationScore(item.label) > labelInformationScore(previous.label) ||
+            (labelInformationScore(item.label) === labelInformationScore(previous.label) && (PRIORITY.indexOf(item.sourceKind) < PRIORITY.indexOf(previous.sourceKind) ||
+            (item.sourceKind === previous.sourceKind && item.publishedAt > previous.publishedAt)))) topics.set(item.topicKey, item);
     }
     return [...topics.values()].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id));
 }
 export function tickerNews(items, now = Date.now()) {
     const recent = days => items.filter(item => saleVisible(item, now) && now - Date.parse(item.publishedAt) >= 0 && now - Date.parse(item.publishedAt) <= days * DAY);
     const week = recent(7);
-    return (week.length ? week : recent(14)).slice(0, 5);
+    return (week.length ? week : recent(14)).sort((a, b) => labelInformationScore(b.label) - labelInformationScore(a.label) || b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id)).slice(0, 5);
 }
 export function groupNews(items, category = '', now = Date.now()) {
     const groups = new Map();
