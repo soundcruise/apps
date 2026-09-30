@@ -1,0 +1,1431 @@
+{
+  "phase": "Legacy High-Value Source Recovery Sprint",
+  "overallVerdict": "PARTIAL RECOVERY",
+  "verifiedAt": "2026-09-30T14:17:08.541Z",
+  "baseline": {
+    "commit": "1acd951657051ac76f98508cd415c9ac5873746a",
+    "branch": "codex/news-blocked-source-recovery",
+    "ahead": 0,
+    "behind": 0,
+    "trackedModified": 2,
+    "staged": 0,
+    "untracked": 5,
+    "versions": {
+      "port": "1.7.0",
+      "news": "0.5.0"
+    },
+    "tests": 1833,
+    "publicCount": 35,
+    "preservedFiles": {
+      "apps/cruise-port/NEWS-LEGAL-COMPLIANCE.md": "7ca0f92f1fcb9b1a0e6a01fc911b0ce3d2d563ca53e9af0816787c6240181634",
+      "apps/cruise-port/NEWS-PROTOTYPE.md": "14ea700145addf7c309c7c7ab76996ff891daab910c340f41159fd7634ad2a91",
+      "workers/sound-cruise-news/BLOCKED-SOURCE-RECOVERY-REPORT.md": "93a336a3a39126bbbd6c24ba4ecf46fb39e1454efc6923db530f3c297c7a52d2",
+      "workers/sound-cruise-news/BLOCKED-SOURCE-RECOVERY-EVIDENCE.json": "3b1244b96d58034374c4d95746d89eca148d95223f9f6d2b45a637dc649e60cc",
+      "workers/sound-cruise-news/BALANCED-SOURCE-POLICY.md": "cec77df1b2c0f53ea099bc5e6ce68d02b4b84800b3b95ce6f36bbd68d85c3e43",
+      "workers/sound-cruise-news/LEGACY-BETA-ACQUISITION-EVIDENCE.json": "acaaf730eb3a50a952d7db77b9ea084a64b337184b41e20a834d776d9cd088a1",
+      "workers/sound-cruise-news/LEGACY-BETA-ACQUISITION-REPORT.md": "0ced5c84084e5fe55de626021a8139013808e3d394ecf2dbb6389731bf4217d5"
+    }
+  },
+  "release": {
+    "port": "1.8.0",
+    "news": "0.6.1",
+    "codeCommit": "c19d05b7de4a80a546b3d4e9e379ff6ee1ec66ff",
+    "implementationCommit": "27b0e619e3123f6149bcfe40596deb3d1e9b6f85",
+    "duplicateGuardCommit": "a042bdbf08f64a1393ed1d74fb36a21c53b926f8",
+    "workerVersionId": "4e77c1ac-0aab-4601-bd4b-b6fd44e88898",
+    "workerDeploymentId": "bdd99ab6-d805-44a9-985f-6dd67e19b2d1",
+    "bindings": [
+      {
+        "type": "plain_text",
+        "name": "NEWS_API_MODE",
+        "value": "production"
+      },
+      {
+        "type": "plain_text",
+        "name": "NEWS_COLLECTION_MODE",
+        "value": "production"
+      },
+      {
+        "type": "d1",
+        "name": "NEWS_DB",
+        "id": "13267817-d259-4fde-80d3-37766f8f3f11"
+      },
+      {
+        "type": "secret_text",
+        "name": "NEWS_HEADLINE_PEPPER"
+      },
+      {
+        "type": "plain_text",
+        "name": "NEWS_SOURCE_IDS",
+        "value": "[\"shimamura\",\"kikutani\",\"sleepfreaks\",\"zoom\",\"amass\",\"ikebe\",\"ik\"]"
+      }
+    ],
+    "schedules": {
+      "schedules": [
+        {
+          "cron": "0 21 * * *",
+          "created_on": "2026-09-30T07:17:34.727964Z",
+          "modified_on": "2026-09-30T14:15:38.784042Z"
+        },
+        {
+          "cron": "17 * * * *",
+          "created_on": "2026-09-30T04:57:08.432873Z",
+          "modified_on": "2026-09-30T14:15:38.784042Z"
+        }
+      ]
+    },
+    "pagesAssetProof": {
+      "result": "PASS",
+      "assets": [
+        {
+          "path": "apps/cruise-port/app-version.js",
+          "sha256": "bc38fc38f92f8034062e476744bea0f689022be4bc1a7ce171c7c356095a0eac",
+          "match": true
+        },
+        {
+          "path": "apps/cruise-port/index.html",
+          "sha256": "e05aea9494e6a6580f03a8c535c6c280bfb81cd19c3dd1d8c9396ee8b58e4f82",
+          "match": true
+        },
+        {
+          "path": "apps/cruise-port/pro_9a3943176561/index.html",
+          "sha256": "2c1fa159a086fa4aff02976876a5f913033e68c5c34064a892250fca23105731",
+          "match": true
+        },
+        {
+          "path": "apps/cruise-port/practice-menu-app.js",
+          "sha256": "bbd71c524c667a25b21588ea684ab904d817c3a8783a5dea86ae69abd87b3ad7",
+          "match": true
+        },
+        {
+          "path": "apps/cruise-port/news-provider.js",
+          "sha256": "896d8a74ef290984b1f91d1a36a9ad5b93830e2f6630ba65677c9d5b70da5a5e",
+          "match": true
+        },
+        {
+          "path": "apps/cruise-port/news-ui.js",
+          "sha256": "d6d43db6c0f8f879f9c7ead52dd0e60fa85fa01a5456ddaab085220289da6142",
+          "match": true
+        },
+        {
+          "path": "apps/cruise-port/news-data.js",
+          "sha256": "bb0ea02f6a178e8453fd471790020467475beff26215130b4ad659230b42079b",
+          "match": true
+        }
+      ],
+      "privatePaths": "404"
+    },
+    "scheduledDailyWithNewSourcesObserved": false
+  },
+  "sourceAssessments": {
+    "ikebe": {
+      "reviewedBy": "operator",
+      "reviewedAt": "2026-09-30",
+      "robotsReviewedAt": "2026-09-30",
+      "discoveryReviewedAt": "2026-09-30",
+      "policyDecision": "approved",
+      "sourceRulesReviewed": true,
+      "automationPolicy": "documented_silence",
+      "explicitAutomationPermission": false,
+      "evidenceScope": "public_factual_metadata_only",
+      "assessmentBasis": "bounded_internal_assessment",
+      "crawlIntervalHours": 24,
+      "gearOnly": true,
+      "artistOnly": false,
+      "guitarEvidenceRequired": false,
+      "termsUrl": "https://www.ikebe-gakki.com/Page/agreement.aspx",
+      "linkPolicyUrl": "https://www.ikebe-gakki.com/Page/agreement.aspx",
+      "policySummary": "Internal ALLOWED WITH BOUNDS review for PB fixed new-product listing. Official parent links establish the PB relationship; parent membership/purchase terms preserve rights and prohibit infringement, but no applicable mandatory consent, deep-link, automation or facts aggregation prohibition was established. No separate PB link policy found; parent agreement is a scoped finding, not a metadata license. Missing robots 404 explicitly reviewed for this host. Daily listing facts only, two requests maximum, direct attribution/link, 90-day expiry and kill/takedown. Commercial expansion contact recommended, not a readiness prerequisite.",
+      "policyDigest": "28df2c4c031771f0dedf974e13b1be1a9ed44fa97926c8598c2d004cc158463b",
+      "robotsValid": true,
+      "robots404Reviewed": true,
+      "robotsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "discoveryValid": true,
+      "discoveryUrl": "https://www.ikebe-gakki-pb.com/new_product/",
+      "discoveryType": "official_listing",
+      "allowedPaths": [
+        "/new_product/"
+      ],
+      "articlePathPattern": "^/new_product/[0-9]+/$",
+      "deniedPaths": [
+        "/new_product/category/",
+        "/new_product/page/",
+        "/blog/",
+        "/sale/"
+      ],
+      "deniedPathSegments": [
+        "category",
+        "page",
+        "sale",
+        "campaign",
+        "event",
+        "lesson",
+        "used",
+        "coupon"
+      ],
+      "saleCollection": "pending_evidence",
+      "allowedEventTypes": [
+        "new_product",
+        "release",
+        "update",
+        "firmware",
+        "price_change",
+        "discontinued",
+        "recall",
+        "other"
+      ],
+      "labelValidation": "live_and_synthetic",
+      "discoveryProof": {
+        "id": "ikebe",
+        "type": "listing",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/",
+        "at": "2026-09-30T13:25:04.521Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 119797,
+        "hash": "6611ebedb1009a3981ba48c03db0d1699cc5b9099c3fac8d004a1cd60960893f",
+        "headerOptOut": false,
+        "discovered": 16,
+        "relevant": 15,
+        "useful": 2,
+        "auto": 2,
+        "review": 13,
+        "reject": 1,
+        "duplicates": 5
+      }
+    },
+    "ik": {
+      "reviewedBy": "operator",
+      "reviewedAt": "2026-09-30",
+      "robotsReviewedAt": "2026-09-30",
+      "discoveryReviewedAt": "2026-09-30",
+      "policyDecision": "approved",
+      "sourceRulesReviewed": true,
+      "automationPolicy": "documented_silence",
+      "explicitAutomationPermission": false,
+      "evidenceScope": "public_factual_metadata_only",
+      "assessmentBasis": "bounded_internal_assessment",
+      "crawlIntervalHours": 24,
+      "gearOnly": true,
+      "artistOnly": false,
+      "guitarEvidenceRequired": false,
+      "termsUrl": "https://www.ikmultimedia.com/legal/index.php?R=terms-and-conditions&PSEL=terms-and-conditions",
+      "linkPolicyUrl": "https://www.ikmultimedia.com/legal/index.php?R=terms-and-conditions&PSEL=terms-and-conditions",
+      "policySummary": "Internal ALLOWED WITH BOUNDS assessment for fixed public Press. The first-party Legal hub and its linked General Terms were actually read: sales contracts, payment/delivery/warranty and software license obligations; section 9 protects purchased software/documentation, not a grant or prohibition for independent public Press facts/link use. No dedicated metadata/link/automation/aggregation restriction established in the reviewed policy scope. Privacy candidates redirect and were not treated as permission or read successfully. Explicit copyright restrictions remain intact. Daily two-request listing-only budget, verified publication dates and manufacturer models, independent labels, direct attribution, 90-day expiry, opt-out/kill/takedown. Larger commercial expansion contact recommended, not required by a verified provision.",
+      "robotsValid": true,
+      "robots404Reviewed": false,
+      "robotsHash": "eb0715e3718f3488eef91113a4a469707dbfdb937be727127bac093fca894fa3",
+      "discoveryValid": true,
+      "discoveryUrl": "https://www.ikmultimedia.com/press/",
+      "discoveryType": "official_listing",
+      "allowedPaths": [
+        "/news/"
+      ],
+      "articlePathPattern": "^/news/$",
+      "allowedQueryKeys": [
+        "item_id"
+      ],
+      "deniedPaths": [
+        "/promos/",
+        "/shop/",
+        "/support/",
+        "/faq/",
+        "/press/"
+      ],
+      "saleCollection": "none",
+      "allowedEventTypes": [
+        "new_product",
+        "release",
+        "update",
+        "firmware",
+        "price_change",
+        "discontinued",
+        "recall",
+        "other"
+      ],
+      "labelValidation": "live_and_synthetic",
+      "discoveryProof": {
+        "id": "ik",
+        "type": "listing",
+        "url": "https://www.ikmultimedia.com/press/",
+        "at": "2026-09-30T13:25:05.916Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 136725,
+        "hash": "0953eff0bf0657a3c13d52d31cf489b74d88b29b0151d21a4f2b18dd503d67da",
+        "headerOptOut": false,
+        "discovered": 12,
+        "relevant": 4,
+        "useful": 2,
+        "auto": 2,
+        "review": 2,
+        "reject": 8,
+        "duplicates": 1
+      },
+      "policyDigest": "3e24747c7f28aae30d257e196ea63f9f860e312b7bc773862892f0f215bb0c91",
+      "policyScope": "purchase_and_software_license_terms_reviewed_no_news_specific_rule",
+      "policyProof": {
+        "id": "ik",
+        "type": "policy",
+        "url": "https://www.ikmultimedia.com/legal/index.php?R=terms-and-conditions&PSEL=terms-and-conditions",
+        "at": "2026-09-30T13:39:12.850Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 131082,
+        "hash": "3e24747c7f28aae30d257e196ea63f9f860e312b7bc773862892f0f215bb0c91"
+      }
+    },
+    "hookup": {
+      "reviewedBy": "operator",
+      "reviewedAt": "2026-09-30",
+      "robotsReviewedAt": "2026-09-30",
+      "discoveryReviewedAt": "2026-09-30",
+      "policyDecision": "approved",
+      "sourceRulesReviewed": true,
+      "automationPolicy": "documented_silence",
+      "explicitAutomationPermission": false,
+      "evidenceScope": "public_factual_metadata_only",
+      "assessmentBasis": "bounded_internal_assessment",
+      "crawlIntervalHours": 24,
+      "gearOnly": true,
+      "artistOnly": false,
+      "guitarEvidenceRequired": false,
+      "termsUrl": "https://hookup.co.jp/about/tac",
+      "linkPolicyUrl": "https://hookup.co.jp/about/tac",
+      "policySummary": "Public official blog RSS only. First-party site terms reserve reproduction rights with statutory exceptions; no applicable mandatory consent or facts/link automation prohibition established. Bounded internal assessment, not publisher permission. New product/distributor announcements only; tutorial/interview/how-to/support excluded; support oversized feed not retried. Technical RSS parse passes but current sample has no new verified AUTO product: discovery readiness withheld.",
+      "policyDigest": "c0ea584b8c59589d49c6bb46f812695c2445d5597a4282065dc4c5d5e1c12c70",
+      "robotsValid": true,
+      "robots404Reviewed": true,
+      "robotsHash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "discoveryValid": false,
+      "discoveryFailure": "structured_product_facts_missing",
+      "discoveryUrl": "https://hookup.co.jp/blog/feed.rss",
+      "discoveryType": "rss",
+      "allowedPaths": [
+        "/blog/"
+      ],
+      "articlePathPattern": "^/blog/[0-9]+$",
+      "deniedPaths": [
+        "/support/",
+        "/blog/feed.rss",
+        "/about/"
+      ],
+      "allowedEventTypes": [
+        "new_product",
+        "release"
+      ],
+      "saleCollection": "none",
+      "labelValidation": "live_and_synthetic",
+      "discoveryProof": {
+        "id": "hookup",
+        "type": "feed",
+        "url": "https://hookup.co.jp/blog/feed.rss",
+        "at": "2026-09-30T13:14:47.564Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 232192,
+        "hash": "6e65f0c37963d3699a1e330646adc2ffe386224e505de226e4ed05bebdfb41ab",
+        "headerOptOut": false,
+        "discovered": 100,
+        "relevant": 1,
+        "useful": 0,
+        "auto": 0,
+        "review": 1,
+        "reject": 99,
+        "duplicates": 1
+      }
+    }
+  },
+  "chuya": {
+    "state": "NEEDS EVIDENCE",
+    "reason": "robots_format_ambiguous",
+    "publisherExplicitDenial": false,
+    "safeParser": false,
+    "productionEnabled": false,
+    "robots": {
+      "status": 200,
+      "bytes": 282,
+      "hash": "0cf16622d34a3c47978ffd06ac2b5560cb49cc214c18a3c03fec1bb5a3a2e25a",
+      "at": "2026-09-30T12:11:23.632Z"
+    },
+    "requestCountThisSprint": 0
+  },
+  "developmentPilots": [
+    {
+      "id": "ikebe",
+      "proof": {
+        "id": "ikebe",
+        "type": "listing",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/",
+        "at": "2026-09-30T13:25:04.521Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 119797,
+        "hash": "6611ebedb1009a3981ba48c03db0d1699cc5b9099c3fac8d004a1cd60960893f",
+        "headerOptOut": false
+      },
+      "stats": {
+        "discovered": 16,
+        "relevant": 15,
+        "useful": 2,
+        "auto": 2,
+        "review": 13,
+        "reject": 1,
+        "duplicates": 5
+      },
+      "items": [
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172605/",
+          "date": "2026-09-29T00:00:00+09:00",
+          "category": "electric_guitar_bass",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172597/",
+          "date": "2026-09-28T00:00:00+09:00",
+          "category": "amps_effects",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172586/",
+          "date": "2026-09-28T00:00:00+09:00",
+          "decision": "REJECT",
+          "reason": "source_event_scope",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172573/",
+          "date": "2026-09-25T00:00:00+09:00",
+          "category": "electric_guitar_bass",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "relevance_uncertain",
+          "facts": {
+            "brand": "Gretsch",
+            "product": "G6138",
+            "version": null,
+            "category": "electric_guitar_bass",
+            "identifierBasis": "explicit_model_code"
+          },
+          "label": "G6138の製品情報（要確認）",
+          "duplicate": true
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172542/",
+          "date": "2026-09-25T00:00:00+09:00",
+          "category": "electric_guitar_bass",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172547/",
+          "date": "2026-09-25T00:00:00+09:00",
+          "category": "electric_guitar_bass",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": true
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172536/",
+          "date": "2026-09-25T00:00:00+09:00",
+          "category": "amps_effects",
+          "decision": "AUTO_PUBLISHABLE",
+          "reason": "factual_label_ready",
+          "facts": {
+            "brand": "Xotic",
+            "product": "XXP-1",
+            "category": "amps_effects",
+            "version": null,
+            "identifierBasis": "reviewed_listing_model",
+            "listingSource": "ikebe"
+          },
+          "label": "Xotic、XXP-1を発表",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172531/",
+          "date": "2026-09-24T00:00:00+09:00",
+          "category": "amps_effects",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": {
+            "brand": "BOSS",
+            "product": "EX-4",
+            "category": "amps_effects",
+            "version": null,
+            "identifierBasis": "reviewed_listing_model",
+            "listingSource": "ikebe"
+          },
+          "label": "EX-4の製品情報（要確認）",
+          "duplicate": true
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172516/",
+          "date": "2026-09-24T00:00:00+09:00",
+          "category": "amps_effects",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": true
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172252/",
+          "date": "2026-09-23T00:00:00+09:00",
+          "category": "amps_effects",
+          "decision": "AUTO_PUBLISHABLE",
+          "reason": "factual_label_similarity",
+          "facts": {
+            "brand": "VOX",
+            "product": "AC MINI",
+            "category": "amps_effects",
+            "version": null,
+            "identifierBasis": "reviewed_listing_model",
+            "listingSource": "ikebe"
+          },
+          "label": "VOX、AC MINIを発表",
+          "duplicate": true
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172505/",
+          "date": "2026-09-18T00:00:00+09:00",
+          "category": "electric_guitar_bass",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172492/",
+          "date": "2026-09-18T00:00:00+09:00",
+          "category": "amps_effects",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172481/",
+          "date": "2026-09-18T00:00:00+09:00",
+          "category": "recording_audio",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "relevance_uncertain",
+          "facts": {
+            "brand": "KIKUTANI",
+            "product": "KTT-01",
+            "version": null,
+            "category": "recording_audio",
+            "identifierBasis": "explicit_model_code"
+          },
+          "label": "KTT-01の製品情報（要確認）",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172475/",
+          "date": "2026-09-17T00:00:00+09:00",
+          "category": "amps_effects",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172417/",
+          "date": "2026-09-17T00:00:00+09:00",
+          "category": "amps_effects",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikebe-gakki-pb.com/new_product/172461/",
+          "date": "2026-09-17T00:00:00+09:00",
+          "category": "electric_guitar_bass",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": null,
+          "label": "審査待ち（製品名と出来事の確認が必要）",
+          "duplicate": false
+        }
+      ]
+    },
+    {
+      "id": "ik",
+      "proof": {
+        "id": "ik",
+        "type": "listing",
+        "url": "https://www.ikmultimedia.com/press/",
+        "at": "2026-09-30T13:25:05.916Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 136725,
+        "hash": "0953eff0bf0657a3c13d52d31cf489b74d88b29b0151d21a4f2b18dd503d67da",
+        "headerOptOut": false
+      },
+      "stats": {
+        "discovered": 12,
+        "relevant": 4,
+        "useful": 2,
+        "auto": 2,
+        "review": 2,
+        "reject": 8,
+        "duplicates": 1
+      },
+      "items": [
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19792",
+          "date": "2026-09-17T00:00:00Z",
+          "category": "dtm_software",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": {
+            "brand": "IK Multimedia",
+            "product": "ReSing",
+            "version": null,
+            "category": "dtm_software",
+            "identifierBasis": "official_manufacturer_model",
+            "manufacturerSource": "ik"
+          },
+          "label": "ReSingの製品情報（要確認）",
+          "duplicate": true
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19753",
+          "date": "2026-09-03T00:00:00Z",
+          "category": "amps_effects",
+          "decision": "AUTO_PUBLISHABLE",
+          "reason": "factual_label_similarity",
+          "facts": {
+            "brand": "IK Multimedia",
+            "product": "TONEX Board",
+            "version": null,
+            "category": "amps_effects",
+            "identifierBasis": "official_manufacturer_model",
+            "manufacturerSource": "ik"
+          },
+          "label": "IK Multimedia、TONEX Boardを発売",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19725",
+          "date": "2026-08-27T00:00:00Z",
+          "category": "dtm_software",
+          "decision": "AUTO_PUBLISHABLE",
+          "reason": "factual_label_similarity",
+          "facts": {
+            "brand": "IK Multimedia",
+            "product": "SINPHONICA",
+            "version": null,
+            "category": "dtm_software",
+            "identifierBasis": "official_manufacturer_model",
+            "manufacturerSource": "ik"
+          },
+          "label": "IK Multimedia、SINPHONICAを発表",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19726",
+          "date": "2026-08-25T00:00:00Z",
+          "decision": "REJECT",
+          "reason": "not_relevant",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19651",
+          "date": "2026-08-07T00:00:00Z",
+          "decision": "REJECT",
+          "reason": "not_relevant",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19629",
+          "date": "2026-07-28T00:00:00Z",
+          "decision": "REJECT",
+          "reason": "not_relevant",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19588",
+          "date": "2026-07-16T00:00:00Z",
+          "decision": "REJECT",
+          "reason": "not_relevant",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19570",
+          "date": "2026-07-09T00:00:00Z",
+          "category": "dtm_software",
+          "decision": "PUBLISH_REVIEW",
+          "reason": "label_required",
+          "facts": {
+            "brand": "IK Multimedia",
+            "product": "ReSing",
+            "version": null,
+            "category": "dtm_software",
+            "identifierBasis": "official_manufacturer_model",
+            "manufacturerSource": "ik"
+          },
+          "label": "ReSingの製品情報（要確認）",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19540",
+          "date": "2026-06-23T00:00:00Z",
+          "decision": "REJECT",
+          "reason": "date_outside_window",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19514",
+          "date": "2026-06-18T00:00:00Z",
+          "decision": "REJECT",
+          "reason": "date_outside_window",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19456",
+          "date": "2026-06-04T00:00:00Z",
+          "decision": "REJECT",
+          "reason": "date_outside_window",
+          "duplicate": false
+        },
+        {
+          "url": "https://www.ikmultimedia.com/news/?item_id=19337",
+          "date": "2026-05-29T00:00:00Z",
+          "decision": "REJECT",
+          "reason": "date_outside_window",
+          "duplicate": false
+        }
+      ]
+    }
+  ],
+  "finalClassification": {
+    "ikebe": {
+      "discovered": 16,
+      "relevant": 15,
+      "useful": 2,
+      "auto": 2,
+      "review": 13,
+      "reject": 1,
+      "duplicateTopics": 6
+    },
+    "ik": {
+      "discovered": 12,
+      "relevant": 6,
+      "useful": 2,
+      "auto": 2,
+      "review": 4,
+      "reject": 6,
+      "duplicateTopics": 2
+    },
+    "hookup": {
+      "id": "hookup",
+      "type": "feed",
+      "url": "https://hookup.co.jp/blog/feed.rss",
+      "at": "2026-09-30T13:14:47.564Z",
+      "requests": 1,
+      "status": 200,
+      "bytes": 232192,
+      "hash": "6e65f0c37963d3699a1e330646adc2ffe386224e505de226e4ed05bebdfb41ab",
+      "headerOptOut": false,
+      "discovered": 100,
+      "relevant": 1,
+      "useful": 0,
+      "auto": 0,
+      "review": 1,
+      "reject": 99,
+      "duplicates": 1,
+      "pilotOverallPassed": false
+    }
+  },
+  "publisherRequests": {
+    "bySource": {
+      "ikebe": {
+        "development": 6,
+        "production": 2,
+        "total": 8
+      },
+      "chuya": {
+        "development": 0,
+        "production": 0,
+        "total": 0
+      },
+      "ik": {
+        "development": 14,
+        "production": 2,
+        "total": 16
+      },
+      "hookup": {
+        "development": 1,
+        "production": 0,
+        "total": 1
+      }
+    },
+    "total": 25,
+    "development": [
+      {
+        "id": "ikebe",
+        "type": "listing",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/",
+        "at": "2026-09-30T13:07:36.790Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 119797,
+        "hash": "6611ebedb1009a3981ba48c03db0d1699cc5b9099c3fac8d004a1cd60960893f",
+        "headerOptOut": false
+      },
+      {
+        "id": "ikebe",
+        "type": "listing",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/",
+        "at": "2026-09-30T13:08:41.285Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 119797,
+        "hash": "6611ebedb1009a3981ba48c03db0d1699cc5b9099c3fac8d004a1cd60960893f",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "listing",
+        "url": "https://www.ikmultimedia.com/press/",
+        "at": "2026-09-30T13:08:41.560Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 136725,
+        "hash": "0953eff0bf0657a3c13d52d31cf489b74d88b29b0151d21a4f2b18dd503d67da",
+        "headerOptOut": false
+      },
+      {
+        "id": "ikebe",
+        "type": "listing",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/",
+        "at": "2026-09-30T13:14:46.398Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 119797,
+        "hash": "6611ebedb1009a3981ba48c03db0d1699cc5b9099c3fac8d004a1cd60960893f",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "listing",
+        "url": "https://www.ikmultimedia.com/press/",
+        "at": "2026-09-30T13:14:46.723Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 136725,
+        "hash": "0953eff0bf0657a3c13d52d31cf489b74d88b29b0151d21a4f2b18dd503d67da",
+        "headerOptOut": false
+      },
+      {
+        "id": "hookup",
+        "type": "feed",
+        "url": "https://hookup.co.jp/blog/feed.rss",
+        "at": "2026-09-30T13:14:47.564Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 232192,
+        "hash": "6e65f0c37963d3699a1e330646adc2ffe386224e505de226e4ed05bebdfb41ab",
+        "headerOptOut": false
+      },
+      {
+        "id": "ikebe",
+        "type": "listing",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/",
+        "at": "2026-09-30T13:15:47.786Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 119797,
+        "hash": "6611ebedb1009a3981ba48c03db0d1699cc5b9099c3fac8d004a1cd60960893f",
+        "headerOptOut": false
+      },
+      {
+        "id": "ikebe",
+        "type": "listing",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/",
+        "at": "2026-09-30T13:21:33.882Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 119797,
+        "hash": "6611ebedb1009a3981ba48c03db0d1699cc5b9099c3fac8d004a1cd60960893f",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "listing",
+        "url": "https://www.ikmultimedia.com/press/",
+        "at": "2026-09-30T13:21:34.011Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 136725,
+        "hash": "0953eff0bf0657a3c13d52d31cf489b74d88b29b0151d21a4f2b18dd503d67da",
+        "headerOptOut": false
+      },
+      {
+        "id": "ikebe",
+        "type": "listing",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/",
+        "at": "2026-09-30T13:25:04.521Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 119797,
+        "hash": "6611ebedb1009a3981ba48c03db0d1699cc5b9099c3fac8d004a1cd60960893f",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "listing",
+        "url": "https://www.ikmultimedia.com/press/",
+        "at": "2026-09-30T13:25:05.916Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 136725,
+        "hash": "0953eff0bf0657a3c13d52d31cf489b74d88b29b0151d21a4f2b18dd503d67da",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "policy",
+        "url": "https://www.ikmultimedia.com/privacyusa",
+        "at": "2026-09-30T13:25:08.508Z",
+        "requests": 1,
+        "blocker": "redirect_blocked"
+      },
+      {
+        "id": "ik",
+        "type": "policy_surface",
+        "url": "https://www.ikmultimedia.com/press/",
+        "at": "2026-09-30T13:28:32.185Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 136725,
+        "hash": "0953eff0bf0657a3c13d52d31cf489b74d88b29b0151d21a4f2b18dd503d67da",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "policy",
+        "url": "https://www.ikmultimedia.com/legal/",
+        "at": "2026-09-30T13:29:14.276Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 123548,
+        "hash": "d15ed14d4b1f956330846dd53577bb3493cfe6520b6d15755758e9ba405614ad",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "policy_detail",
+        "url": "https://www.ikmultimedia.com/legal/",
+        "at": "2026-09-30T13:30:13.269Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 123548,
+        "hash": "d15ed14d4b1f956330846dd53577bb3493cfe6520b6d15755758e9ba405614ad",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "policy_discovery",
+        "url": "https://www.ikmultimedia.com/legal/",
+        "at": "2026-09-30T13:31:34.314Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 123548,
+        "hash": "d15ed14d4b1f956330846dd53577bb3493cfe6520b6d15755758e9ba405614ad",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "policy_discovery",
+        "url": "https://www.ikmultimedia.com/legal/",
+        "at": "2026-09-30T13:32:32.849Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 123548,
+        "hash": "d15ed14d4b1f956330846dd53577bb3493cfe6520b6d15755758e9ba405614ad",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "policy_discovery",
+        "url": "https://www.ikmultimedia.com/legal/",
+        "at": "2026-09-30T13:33:18.458Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 123548,
+        "hash": "d15ed14d4b1f956330846dd53577bb3493cfe6520b6d15755758e9ba405614ad",
+        "headerOptOut": false
+      },
+      {
+        "id": "ik",
+        "type": "policy",
+        "url": "https://www.ikmultimedia.com/legal/index.php?R=terms-and-conditions&PSEL=terms-and-conditions",
+        "at": "2026-09-30T13:33:45.227Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 131082,
+        "hash": "3e24747c7f28aae30d257e196ea63f9f860e312b7bc773862892f0f215bb0c91"
+      },
+      {
+        "id": "ik",
+        "type": "policy",
+        "url": "https://www.ikmultimedia.com/legal/index.php?R=terms-and-conditions&PSEL=terms-and-conditions",
+        "at": "2026-09-30T13:37:42.326Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 131082,
+        "hash": "3e24747c7f28aae30d257e196ea63f9f860e312b7bc773862892f0f215bb0c91"
+      },
+      {
+        "id": "ik",
+        "type": "policy",
+        "url": "https://www.ikmultimedia.com/legal/index.php?R=terms-and-conditions&PSEL=terms-and-conditions",
+        "at": "2026-09-30T13:39:12.850Z",
+        "requests": 1,
+        "status": 200,
+        "bytes": 131082,
+        "hash": "3e24747c7f28aae30d257e196ea63f9f860e312b7bc773862892f0f215bb0c91"
+      }
+    ],
+    "production": {
+      "ikebe": {
+        "sourceId": "ikebe",
+        "requestMode": "operator_validation",
+        "startedAt": 1790777093477,
+        "requests": 2,
+        "candidates": 16,
+        "pending": 12,
+        "rejected": 1,
+        "duplicates": 3,
+        "outcome": "collected",
+        "durationMs": 24442,
+        "robots": "allow",
+        "requestCounts": {
+          "robots": 1,
+          "listing": 1,
+          "feed": 0
+        },
+        "robotsCached": false,
+        "sitemaps": [],
+        "reasons": {
+          "source_event_scope": 1
+        },
+        "published": 0,
+        "wireRequests": 2
+      },
+      "ik": {
+        "sourceId": "ik",
+        "requestMode": "operator_validation",
+        "startedAt": 1790777175381,
+        "requests": 2,
+        "candidates": 12,
+        "pending": 5,
+        "rejected": 6,
+        "duplicates": 1,
+        "outcome": "collected",
+        "durationMs": 14850,
+        "robots": "allow",
+        "requestCounts": {
+          "robots": 1,
+          "listing": 1,
+          "feed": 0
+        },
+        "robotsCached": false,
+        "sitemaps": [
+          "https://www.ikmultimedia.com/sitemap.xml"
+        ],
+        "reasons": {
+          "not_relevant": 2,
+          "date_outside_window": 4
+        },
+        "published": 1,
+        "wireRequests": 2
+      }
+    },
+    "notes": "Every attempt counted, including policy redirect and helper/projection retries; reused prior-phase same-day robots/policy proofs excluded from current-sprint wire count."
+  },
+  "production": {
+    "count": 36,
+    "added": [
+      {
+        "id": "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+        "label": "IK Multimedia、TONEX Boardを発売",
+        "sourceName": "IK Multimedia",
+        "sourceUrl": "https://www.ikmultimedia.com/news/?item_id=19753",
+        "publishedAt": "2026-09-03T00:00:00.000Z",
+        "category": "amps_effects",
+        "publishable": true
+      }
+    ],
+    "labelChanges": [
+      {
+        "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/87963/",
+        "before": "Fender、FSR American Acoustasonic Telecasterを発表",
+        "after": "Fender American Acoustasonicに限定モデル5種",
+        "publishedAtUnchanged": true,
+        "sourceUrlUnchanged": true
+      },
+      {
+        "id": "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+        "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/87167/",
+        "before": "BOSS、EX-4を発表",
+        "after": "BOSS EX-4 Effects Expander、年内発売予定",
+        "publishedAtUnchanged": true,
+        "sourceUrlUnchanged": true
+      },
+      {
+        "id": "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+        "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/81190/",
+        "before": "VOX、AC MINIを発表",
+        "after": "VOX AC-MINI、小型ギターアンプの製品情報",
+        "publishedAtUnchanged": true,
+        "sourceUrlUnchanged": true
+      }
+    ],
+    "sourceCounts": {
+      "amass": 1,
+      "池部楽器": 5,
+      "島村楽器": 11,
+      "キクタニ": 2,
+      "Discover chuya": 2,
+      "SONICWIRE": 2,
+      "Sleepfreaks": 5,
+      "Hookup": 1,
+      "Yamaha": 1,
+      "IK Multimedia": 2,
+      "AHS": 1,
+      "ZOOM": 3
+    },
+    "categoryCounts": {
+      "artist_guitar": 1,
+      "amps_effects": 9,
+      "acoustic_guitar": 6,
+      "live_guitar": 1,
+      "electric_guitar_bass": 7,
+      "dtm_software": 9,
+      "recording_audio": 3
+    },
+    "pending": {
+      "review": 13,
+      "autoDuplicateSuppressed": 3,
+      "total": 16
+    },
+    "sourceHealth": [
+      {
+        "source_id": "amass",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790759619198,
+        "last_checked_at": 1790759619198,
+        "next_eligible_run_at": 1790802000000,
+        "failure_count": 0
+      },
+      {
+        "source_id": "collection",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790751616465,
+        "last_checked_at": 1790751616465,
+        "next_eligible_run_at": 0,
+        "failure_count": 0
+      },
+      {
+        "source_id": "ik",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790777175381,
+        "last_checked_at": 1790777175381,
+        "next_eligible_run_at": 1790802000000,
+        "failure_count": 0
+      },
+      {
+        "source_id": "ikebe",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790777093477,
+        "last_checked_at": 1790777093477,
+        "next_eligible_run_at": 1790802000000,
+        "failure_count": 0
+      },
+      {
+        "source_id": "kikutani",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790759563706,
+        "last_checked_at": 1790759563706,
+        "next_eligible_run_at": 1790802000000,
+        "failure_count": 0
+      },
+      {
+        "source_id": "natalie",
+        "status": "paused",
+        "reason_code": "source_disabled",
+        "last_successful_run_at": 1790752565542,
+        "last_checked_at": 1790759489715,
+        "next_eligible_run_at": 1790802000000,
+        "failure_count": 0
+      },
+      {
+        "source_id": "retention",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790774249289,
+        "last_checked_at": 1790774249289,
+        "next_eligible_run_at": 0,
+        "failure_count": 0
+      },
+      {
+        "source_id": "shimamura",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790759536596,
+        "last_checked_at": 1790759536596,
+        "next_eligible_run_at": 1790802000000,
+        "failure_count": 0
+      },
+      {
+        "source_id": "sleepfreaks",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790759579953,
+        "last_checked_at": 1790759579953,
+        "next_eligible_run_at": 1790802000000,
+        "failure_count": 0
+      },
+      {
+        "source_id": "zoom",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790759600247,
+        "last_checked_at": 1790759600247,
+        "next_eligible_run_at": 1790802000000,
+        "failure_count": 0
+      }
+    ],
+    "tickerLabels": [
+      "Fender American Acoustasonicに限定モデル5種",
+      "Jackson PC1-E、Phil Collenシグネチャーモデル",
+      "ヤマハRS20MM、Matteo Mancusoシグネチャーモデル",
+      "Gretsch G6138 Bo Diddleyの限定復刻モデル",
+      "Fender Player Fusionの限定モデル情報"
+    ],
+    "browser": {
+      "result": "PASS",
+      "base": "https://soundcruise.jp",
+      "api": "production",
+      "widths": [
+        375,
+        393,
+        1440
+      ],
+      "count": 36,
+      "sources": [
+        "amass",
+        "池部楽器",
+        "島村楽器",
+        "キクタニ",
+        "Discover chuya",
+        "SONICWIRE",
+        "Sleepfreaks",
+        "Hookup",
+        "Yamaha",
+        "IK Multimedia",
+        "AHS",
+        "ZOOM"
+      ],
+      "categories": {
+        "acoustic_guitar": 6,
+        "electric_guitar_bass": 7,
+        "amps_effects": 9,
+        "recording_audio": 3,
+        "dtm_software": 9,
+        "sale": 0,
+        "artist_guitar": 1,
+        "live_guitar": 1
+      },
+      "ticker": "NEWSFender American Acoustasonicに限定モデル5種Jackson PC1-E、Phil CollenシグネチャーモデルヤマハRS20MM、Matteo MancusoシグネチャーモデルGretsch G6138 Bo Diddleyの限定復刻モデルFender Player Fusionの限定モデル情報",
+      "legacyVisible": true,
+      "operatorApprovedVisible": true,
+      "apiFailureIsolation": true,
+      "tools": [
+        "#practice-menu",
+        "#practice-menu/calendar",
+        "#tuner",
+        "#metronome",
+        "#wishlist",
+        "#my-apps/manage",
+        "#settings"
+      ],
+      "presets": true,
+      "externalLinkSafety": true,
+      "images": 0,
+      "publisherRequests": 0,
+      "pageErrors": [],
+      "unexpectedRequests": []
+    },
+    "apiSmoke": {
+      "at": "2026-09-30T14:17:08.541Z",
+      "result": "PASS",
+      "health": {
+        "ok": true,
+        "version": "0.6.1",
+        "collection": true,
+        "publication": true,
+        "api": true
+      },
+      "count": 36,
+      "sources": [
+        "amass",
+        "池部楽器",
+        "島村楽器",
+        "キクタニ",
+        "Discover chuya",
+        "SONICWIRE",
+        "Sleepfreaks",
+        "Hookup",
+        "Yamaha",
+        "IK Multimedia",
+        "AHS",
+        "ZOOM"
+      ],
+      "categories": {
+        "acoustic_guitar": 6,
+        "electric_guitar_bass": 7,
+        "amps_effects": 9,
+        "recording_audio": 3,
+        "dtm_software": 9,
+        "sale": 0,
+        "artist_guitar": 1,
+        "live_guitar": 1
+      },
+      "tickerCount": 5,
+      "tickerLabels": [
+        "Fender American Acoustasonicに限定モデル5種",
+        "Jackson PC1-E、Phil Collenシグネチャーモデル",
+        "ヤマハRS20MM、Matteo Mancusoシグネチャーモデル",
+        "Gretsch G6138 Bo Diddleyの限定復刻モデル",
+        "Fender Player Fusionの限定モデル情報"
+      ],
+      "pagination": true,
+      "cors": true,
+      "cache": true,
+      "unauthorizedApproval": false,
+      "expiration": "all live rows under 90d; exact expiry/sale deadline tests PASS",
+      "publisherRequests": 0
+    },
+    "allPriorStoredRecordsUnchanged": 41,
+    "immutableLegacyFixtureCount": 23,
+    "storageIntegrity": {
+      "result": "PASS",
+      "existingRecordsChecked": 41,
+      "existingStoredFieldsUnchanged": true,
+      "labelBugAffected": "API projection only",
+      "persistentDataCorruption": false,
+      "publishedNewRecords": 1,
+      "baselineHash": "f638f25a31f2322e225d2bafd962c7f8bf5c5ee8787d93fe86d17207f0b86fbe",
+      "publisherRequests": 0
+    }
+  },
+  "incident": {
+    "kind": "API projection label mismatch",
+    "observedRecord": "AHS Instrument X 1.0.1",
+    "incorrectIndependentLabel": "Rupert Neve Designsからプラグイン3製品",
+    "cause": "Absent product facts and absent label dictionary pair both compared as undefined; unintended product match.",
+    "persistentStorageChanged": false,
+    "response": "Rolled Worker back to 0.5.0 version while fixing; added all-23 legacy missing-facts regression; released 0.6.1 and isolated cache format; verified all 35 original public records.",
+    "rollbackVersion": "3d249ff7-f4fa-4c2b-a273-ac48e0740955",
+    "resolved": true
+  },
+  "tests": {
+    "suites": {
+      "port": {
+        "tests": 887,
+        "pass": 887,
+        "fail": 0
+      },
+      "shared": {
+        "tests": 226,
+        "pass": 226,
+        "fail": 0
+      },
+      "sync": {
+        "tests": 393,
+        "pass": 393,
+        "fail": 0
+      },
+      "pitch": {
+        "tests": 30,
+        "pass": 30,
+        "fail": 0
+      },
+      "fretboard": {
+        "tests": 25,
+        "pass": 25,
+        "fail": 0
+      },
+      "rhythm": {
+        "tests": 19,
+        "pass": 19,
+        "fail": 0
+      },
+      "chord": {
+        "tests": 95,
+        "pass": 95,
+        "fail": 0
+      },
+      "news": {
+        "tests": 180,
+        "pass": 180,
+        "fail": 0
+      }
+    },
+    "total": 1855,
+    "fail": 0,
+    "syntax": "PASS",
+    "diffCheck": "PASS",
+    "secretScan": "PASS",
+    "publisherWireRequests": 0
+  },
+  "dataPolicy": {
+    "rawHTMLStored": false,
+    "originalPublisherHeadlinesStored": false,
+    "publisherImagesStored": false,
+    "articleBodiesFetched": false,
+    "ogpFetched": false,
+    "socialShareQueryRetained": false,
+    "urlQueries": "allowlist only: numeric item_id for IK news; verified R/PSEL identifiers for actual legal terms evidence"
+  },
+  "git": {
+    "preservedExistingFiles": 7,
+    "existingDirtyStateRetained": true,
+    "scopedStagingOnly": true,
+    "normalPush": true,
+    "forcePush": false,
+    "resetHard": false,
+    "clean": false,
+    "stash": false,
+    "finalHeadMainOriginExpectedEqual": true,
+    "temporaryOwnNodeModuleSymlinksRemovedBeforeFinalGit": true
+  },
+  "releaseBlocking": 0
+}
