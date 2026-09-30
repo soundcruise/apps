@@ -1,4 +1,12 @@
-# NEWS-FINAL production operations
+# NEWS 1.5.0 production operations
+
+## Current completion phase — 2026-09-30
+
+Current release operations are in [PRODUCTION-COMPLETION-OPERATIONS.md](PRODUCTION-COMPLETION-OPERATIONS.md).
+They use the one-time initial production collection (not a validation snapshot bootstrap),
+migration 0008 attempt timestamps, stored-only publication and hourly guarded Cron.
+The sections below retain historical acceptance; do not execute the old bootstrap sequence.
+
 
 ## Production infrastructure accepted — 2026-09-30
 
@@ -116,16 +124,16 @@ review retains its more detailed checklist; the automatic path does not forge it
 
 ## Schedule and retention
 
-`0 21 * * *` means 06:00 JST; `17 * * * *` is an independent hourly purge.
+`0 * * * *` wakes collection hourly (UTC); `17 * * * *` is an independent hourly purge.
+The per-source actual-attempt 24h guard determines eligibility, including after failures.
 [Cloudflare documents UTC schedules and up to 15-minute trigger propagation](https://developers.cloudflare.com/workers/configuration/cron-triggers/).
 Both triggers run physical retention before other work. A one-hour lead avoids
 retaining items beyond 90 days between hourly purges. Published/query dates remain
 bounded to 90 days. Source alerts/audit (structured operational codes only) have a
 365-day lifetime; raw publisher HTML/title/body/image is never stored.
 
-The first 06:00 run after an 08:16 validation may be skipped because 24 hours have
-not elapsed. Do not lower the interval to force it. Initial accepted news is already
-imported, and the following eligible daily run resumes collection.
+The initial production launch exception is consumed once. All later manual/Cron/retry
+requests respect the last publisher-attempt timestamp; no force-retry or permanent bypass.
 
 ## Operator visibility and controls
 

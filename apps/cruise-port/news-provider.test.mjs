@@ -52,3 +52,10 @@ test('API provider follows stable cursors without offsets and rejects cursor loo
  assert.equal(result.items.length,2);assert.equal(calls[1].searchParams.get('cursor'),cursor);assert.equal(calls[1].searchParams.has('offset'),false);
  await assert.rejects(loadConfiguredNews({provider:'api',fetcher:async()=>Response.json({contractVersion:1,items:[],nextCursor:cursor})}),/pagination/);
 });
+
+test('production configured default is real API, with no silent fixture fallback',async()=>{
+ const urls=[];const result=await loadConfiguredNews({fetcher:async url=>{urls.push(url);return Response.json({contractVersion:1,items:[],nextCursor:null});}});
+ assert.equal(result.mode,'on');assert.deepEqual(result.items,[]);assert.equal(urls.length,1);
+ assert.match(urls[0],/^https:\/\/sound-cruise-news\.cruise-port-requests\.workers\.dev\/v1\/news\?/);
+ await assert.rejects(loadConfiguredNews({fetcher:async()=>{throw Error('production unavailable');}}),/production unavailable/);
+});

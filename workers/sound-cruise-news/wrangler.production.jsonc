@@ -6,12 +6,15 @@
   "workers_dev": true,
   "preview_urls": false,
   "vars": {
-    "NEWS_COLLECTION_MODE": "off",
+    "NEWS_COLLECTION_MODE": "production",
     "NEWS_API_MODE": "production",
     "NEWS_SOURCE_IDS": "[\"shimamura\"]"
   },
   "triggers": {
-    "crons": []
+    "crons": [
+      "0 * * * *",
+      "17 * * * *"
+    ]
   },
   "d1_databases": [
     {

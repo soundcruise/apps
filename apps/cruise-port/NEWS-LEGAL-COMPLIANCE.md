@@ -1,6 +1,6 @@
 # Cruise Port NEWS Legal & Compliance Policy
 
-調査日: 2026-09-28 / 更新日: 2026-09-29 / 対象: Port 1.3.0 fixture beta・NEWS collection foundation / 本番収集: OFF
+調査日: 2026-09-28 / 更新日: 2026-09-30 / 対象: Port 1.5.0・NEWS自動収集／公開（島村楽器の製品ニュースのみ）
 
 ## 1. Purpose
 
@@ -13,7 +13,7 @@ NEWSの設計根拠、source追加時の審査、運用条件、掲載停止と�
 ギター・DTM・録音機材とギター弾き語り関連情報の所在・新着案内。
 表示は独自の短い事実label、source、公開日、category、original URL。
 本文、記事HTML、原見出し、長いsnippet、OGP/RSS画像、外部記事画像、iframeは使用しない。
-Port 1.3.0は23件の手動fixtureを本番ベータとして表示する。NEWS Workerの自動収集・APIは本番OFFで、Portへ自動配信しない。
+Port 1.5.0は専用News APIを正本として表示する。23件fixtureは明示的な開発・テスト用途に残し、本番エラー時の無期限fallbackにしない。島村楽器の承認済み製品ニュース一覧metadataだけを自動収集し、独自の事実templateに適合したAUTO候補だけを公開する。REVIEWは保留。SALEは本番source未承認のため収集・公開しない。
 
 ## 3. Copyright Act Article 47-5
 
@@ -27,7 +27,7 @@ Port 1.3.0は23件の手動fixtureを本番ベータとして表示する。NEWS
 [施行規則4条の4](https://laws.e-gov.go.jp/law/345M50000080026/)は、一般の慣行に従うrobots.txtやHTML等の収集禁止措置に係る情報を提供しないことを定める。
 実装ではrobots取得不能/未承認404はfail closed、対象URLの拒否は保存しない。非空なのにUA groupがない、directive連結やコメント後のdirective等はrobots_unparseableとして人の再審査まで停止する。CR/CRLFは正規化し、空robotsは有効とする。
 robots.txt自身のX-Robots-Tag noindex/nofollow等は、そのファイルの索引指定として扱い、source全体の収集禁止にしない。FeedのX-Robots-TagまたはFeed metadata内のnoindex/noarchive/nosnippet/nofollow/noneは保守的に拒否する。記事側の指定は承認時に人が確認し、拒否指定があれば承認しない。
-HTML記事を取得しないため、個別記事のmetaは自動確認できない。候補はpendingに限定し、人が公開ページの拒否設定を確認しない限りapprovedにできない。確認で拒否が判明した場合はrejectに留めず削除すること。
+HTML記事を取得しないため、個別記事のmetaは自動確認できず、確認済みとは表明しない。承認済み一覧metadata・robots path・HTTP header・一覧opt-outを満たす製品候補だけをfacts-only自動公開境界へ進める。独自labelを生成できない候補はpendingで人の審査を待つ。手動審査のarticleチェックは維持し、自動経路で実施済みに偽装しない。拒否が判明した場合は削除・停止する。
 **robots Allowは利用規約上の商用利用許可ではない。** Sitemap宣言も取得許可とはみなさない。
 
 ## 5. Pre-compliance review
@@ -67,7 +67,7 @@ login突破、CAPTCHA回避、アクセス制御・403・rate limitの回避、�
 ## 10. Source classifications
 
 SAFE-ENOUGHは法的保証ではない。コードの分類キーはSAFE / CONTACT / UNKNOWN / DO_NOT_USE。
-下表はregistryとの整合性テスト対象。enabledは**ローカル収集候補**の設定であり、DBの停止状態も優先する。本番は全件OFF。
+下表はregistryとの整合性テスト対象。enabledは**ローカル収集候補**の設定であり、DBの停止状態も優先する。表のenabledは静的registry値（false）のまま。production runtimeの明示allowlistで島村楽器だけを有効化する。
 
 | id | Source | Status | Enabled |
 |---|---|---|---|
@@ -303,3 +303,11 @@ robots・記事・画像・feed・他publisherへの追加GETは0。原HTML・�
 は有効で、DOCUMENTED SILENCE・明示的自動収集許可なしの判断を維持する。
 SALE収集承認は追加しない。source/production/local pilotはOFFのまま。
 本番化は別phase。詳細はworkers/sound-cruise-news/FINAL-LIVE-VALIDATION.md。
+
+## Production launch / voluntary interval — 2026-09-30
+
+Port 1.5.0の初回立ち上げに限り、ユーザーは自主的24時間待機のone-time exceptionを明示承認した。法令に定められた待機時間の変更ではない。operator専用CLIが日付・理由・一意なD1 audit・空DB・停止状態を検証し、listing GET最大1回のみを許可する。public/Cron経路や恒久bypass flagは存在しない。robots、規約evidence、source authorizationとhealthは緩和しない。
+
+migration 0008のlast_publisher_request_atを通常guardの基準とし、HTTP失敗・timeoutでも24時間待機する。Cronは毎時起動するが、eligible sourceだけを収集する。初回保存後は収集OFFで保存済みAUTOを公開し、本番D1を使う拒否fetchテストで0回を確認してから通常運用ONへ進める。Source Health異常・opt-out・policy変更時は停止。独自label／URL／日付／分類／HMAC sketch以外のHTML・原見出し・本文・画像は保持しない。
+
+実運用と一回限りの監査記録は[NEWS production completion operations](../../workers/sound-cruise-news/PRODUCTION-COMPLETION-OPERATIONS.md)および最終Production Completion Reportを参照する。Sound HouseとIkebe SALEは無効のまま。

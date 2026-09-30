@@ -8,7 +8,7 @@ function validItem(item) {
     if(item.category==='sale'&&!validSaleDeadline(item.saleEndsAt))return false;
     try {const u=new URL(item.sourceUrl);return u.protocol==='https:'&&!u.username&&!u.password&&!u.port&&!['localhost','127.0.0.1','[::1]'].includes(u.hostname)&&/[a-z]/i.test(u.hostname)&&!u.hostname.endsWith('.local');}catch{return false;}
 }
-// Fixture remains default. Only trusted application code can supply an API transport.
+// Low-level fixture loading is explicit in dev/tests; configured production loading uses the API.
 export async function loadNews({ provider = 'fixture', transport } = {}) {
     if (provider === 'fixture') return NEWS_BETA_ITEMS;
     if (provider !== 'api' || typeof transport !== 'function') throw new TypeError('News provider unavailable');

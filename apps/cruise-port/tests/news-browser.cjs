@@ -12,6 +12,7 @@ const assert=require('node:assert/strict');
   if(!route.request().url().startsWith('http://127.0.0.1:8765')) {external.push(route.request().url());return route.abort();}
   return route.continue();
  });
+ await page.route('**/news-config.js*',route=>route.fulfill({contentType:'text/javascript',body:"export const NEWS_PROVIDER='fixture';export const NEWS_API_BASE='https://sound-cruise-news.cruise-port-requests.workers.dev';"}));
  await page.goto('http://127.0.0.1:8765/apps/cruise-port/');
  await page.locator('#news-entry').waitFor({state:'visible'});
  // Real fixture with actual browser clock; no publication-date rewriting.
