@@ -1,0 +1,129 @@
+[
+  {
+    "canonicalUrl": "https://www.ikebe-gakki.com/blog/feed/",
+    "timestamp": "2026-09-30T21:55:00Z",
+    "status": 200,
+    "counts": {
+      "requests": 1
+    },
+    "reasonCodes": [
+      "rss",
+      "headline_guard_write_rejected"
+    ],
+    "facts": {
+      "sourceId": "ikebe-main"
+    }
+  },
+  {
+    "canonicalUrl": "https://www.ikebe-gakki.com/blog/20261013-1101-tak-matsumoto/",
+    "timestamp": "2026-09-30T21:55:00Z",
+    "status": 200,
+    "counts": {
+      "requests": 1
+    },
+    "reasonCodes": [
+      "official_event",
+      "headline_guard_write_rejected"
+    ],
+    "facts": {
+      "sourceId": "ikebe-main",
+      "artist": "松本孝弘",
+      "publishedAt": "2026-09-28",
+      "eventType": "exhibition",
+      "eventName": "使用ギター・機材展示",
+      "eventDate": "2026-10-13",
+      "endDate": "2026-11-01",
+      "venue": "イケシブSHOWCASE（渋谷）",
+      "relevanceReason": "guitar_event"
+    }
+  },
+  {
+    "canonicalUrl": "https://apu.software/robots.txt",
+    "timestamp": "2026-09-30T21:58:16.071Z",
+    "counts": {
+      "requests": 1
+    },
+    "reasonCodes": [
+      "robots"
+    ],
+    "facts": {
+      "sourceId": "apu",
+      "optOut": false
+    },
+    "status": 200,
+    "hash": "abfaf1480e3bdf8be7fddcd693e8adaa3938fe7076c8f157efb449a5c9eaa97d"
+  },
+  {
+    "canonicalUrl": "https://apu.software/",
+    "timestamp": "2026-09-30T21:58:16.511Z",
+    "counts": {
+      "requests": 1
+    },
+    "reasonCodes": [
+      "official_campaign"
+    ],
+    "facts": {
+      "sourceId": "apu",
+      "saleType": "unknown",
+      "benefit": "price_reduction",
+      "policyFinding": "deadline_not_verified",
+      "policyScope": "https://apu.software/privacy-policy/ https://apu.software/terms-of-service/ https://apu.software/refunds/"
+    },
+    "status": 200,
+    "hash": "c8a31d44fba8ea135f72bcbda52eed2becf220042a9453782ff97e13d6c12d76"
+  },
+  {
+    "canonicalUrl": "https://www.ikebe-gakki.com/blog/20261013-1101-tak-matsumoto/",
+    "timestamp": "2026-09-30T22:20:12.745Z",
+    "status": 200,
+    "hash": "4ac081df2f772dc655b4c8cf23d8ec22a6efe2cd8f4d2869625a31469b561caa",
+    "counts": {
+      "requests": 1
+    },
+    "facts": {
+      "sourceId": "manual-ikebe",
+      "robotsAllowed": true,
+      "optOut": false,
+      "policyFinding": "article_meta_canonical_access_verified"
+    },
+    "reasonCodes": [
+      "manual_prepublication_checks"
+    ]
+  },
+  {
+    "canonicalUrl": "https://apu.software/",
+    "timestamp": "2026-09-30T22:20:13.144Z",
+    "status": 200,
+    "hash": "c8a31d44fba8ea135f72bcbda52eed2becf220042a9453782ff97e13d6c12d76",
+    "counts": {
+      "requests": 1
+    },
+    "facts": {
+      "sourceId": "manual-apu",
+      "robotsAllowed": true,
+      "optOut": false,
+      "policyFinding": "article_meta_canonical_access_verified"
+    },
+    "reasonCodes": [
+      "manual_prepublication_checks"
+    ]
+  },
+  {
+    "canonicalUrl": "https://www.kvraudio.com/forum/viewtopic.php?t=633574",
+    "timestamp": "2026-09-30T22:17:00Z",
+    "facts": {
+      "sourceId": "manual-apu",
+      "publishedAt": "2026-09-22",
+      "endDate": "2026-10-11",
+      "policyFinding": "manufacturer_official_support_post_deadline_verified"
+    },
+    "counts": {
+      "direct_requests": 0
+    },
+    "reasonCodes": [
+      "search_primary_evidence",
+      "conservative_jst_expiry",
+      "timestamp_rounded"
+    ]
+  }
+]

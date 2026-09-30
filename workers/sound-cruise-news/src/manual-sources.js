@@ -1,0 +1,16 @@
+// Separate, operator-only scope assessments. These never authorize automatic collection.
+import {sourceUrl,DAY} from './policy.js';
+const common={manualEnabled:true,automaticEnabled:false,reviewedAt:'2026-10-01',reviewedBy:'operator',policyDecision:'approved',robotsValid:true,accessPublic:true,deepLinksAllowed:true,explicitAutomationPermission:false,assessmentBasis:'bounded_internal_manual_facts_and_link',allowedQueryKeys:[]};
+export const MANUAL_SOURCES=Object.freeze([
+ Object.freeze({...common,id:'manual-ikebe',name:'池部楽器',baseUrl:'https://www.ikebe-gakki.com/',sourceKind:'retailer_editorial',contentTypes:['artist'],articlePathPattern:'^/blog/[a-zA-Z0-9-]+/$',termsUrl:'https://www.ikebe-gakki.com/Page/agreement.aspx',linkPolicyUrl:'https://www.ikebe-gakki.com/Page/agreement.aspx',policySummary:'Main-host public guitar event facts/link only, separately assessed from PB product scope. Membership/purchase terms preserve rights; no applicable mandatory consent or facts/link prohibition established. Public blog event information verified; robots allowed in Sep30 evidence. No article expression/images, no automated discovery authorization. Opt-out, takedown, 90-day retention apply.',robotsReviewedAt:'2026-09-30',policyReviewedAt:'2026-10-01'}),
+ Object.freeze({...common,id:'manual-apu',name:'APU Software',baseUrl:'https://apu.software/',sourceKind:'official',contentTypes:['sale'],saleCollection:'approved',articlePathPattern:'^/$',termsUrl:'https://apu.software/terms-of-service/',linkPolicyUrl:'https://apu.software/terms-of-service/',policySummary:'Official public product price facts/link only. TOS actually reviewed: software license, payment/refund, disclaimer and jurisdiction; no applicable mandatory link consent or independent fact/link prohibition established. Current public manufacturer prices corroborated by its official support post. No automated discovery authorization. Robots home path allowed on Oct1; opt-out/takedown and expiry required.',robotsReviewedAt:'2026-10-01',policyReviewedAt:'2026-10-01'})
+]);
+// Scope review dates are JST calendar dates, including the 06:00 operator run.
+const fresh=(date,now)=>{const at=typeof date==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(date)?Date.parse(date+'T00:00:00+09:00'):NaN;return Number.isFinite(at)&&at<=now&&now-at<=90*DAY;};
+export function manualEvidenceGate(s,now){return !s||!MANUAL_SOURCES.includes(s)||s.manualEnabled!==true||s.automaticEnabled!==false||s.policyDecision!=='approved'||!s.policySummary||!s.termsUrl||!s.linkPolicyUrl||s.robotsValid!==true||s.accessPublic!==true||s.deepLinksAllowed!==true||![s.reviewedAt,s.robotsReviewedAt,s.policyReviewedAt].every(d=>fresh(d,now))?'manual_source_evidence_required':null;}
+export function manualUrl(raw,s){const url=sourceUrl(raw,s);if(!url||url!==raw||!new RegExp(s.articlePathPattern).test(new URL(url).pathname))throw Error('manual_official_url_required');return url;}
+export function manualPredicate(now,alias='c'){
+ if(!/^[a-z]$/.test(alias))throw Error('sql_alias_invalid');
+ const ids=MANUAL_SOURCES.filter(s=>!manualEvidenceGate(s,now)).map(s=>s.id);
+ return `(${alias}.origin='operator_manual_add' AND ${alias}.reviewed_by='operator' AND ${alias}.decision_reason='manual_facts_verified' AND ${alias}.source_id IN (${(ids.length?ids:['__none__']).map(id=>"'"+id+"'").join(',')}))`;
+}

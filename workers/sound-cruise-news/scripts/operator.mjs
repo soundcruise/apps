@@ -1,3 +1,4 @@
+import {MANUAL_SOURCES} from '../src/manual-sources.js';
 import {adminStatements} from '../src/admin.js';
 import {runtimeSources} from '../src/runtime.js';
 import {checkedConfig,remoteSql,sqlLiteral} from './remote-db.mjs';
@@ -8,7 +9,7 @@ else if(command==='candidates')sql="SELECT id,source_name,source_url,published_a
 else if(command==='runs')sql='SELECT * FROM collection_runs ORDER BY collected_at DESC LIMIT 20;';
 else if(command==='control'){
  const config=await checkedConfig();
- const statements=adminStatements({action,target,reason},Date.now(),runtimeSources(config.vars));
+ const statements=adminStatements({action,target,reason},Date.now(),[...runtimeSources(config.vars),...MANUAL_SOURCES]);
  // Fail closed across interrupted CLI statements. Re-enable API explicitly after a takedown.
  sql='UPDATE news_controls SET api_enabled=0,revision=revision+1 WHERE id=1;\n'+statements.map(s=>{let i=0;return s.sql.replace(/\?/g,()=>sqlLiteral(s.args[i++]));}).join(';\n')+';';
 }else throw Error('Use status | candidates | runs | control ACTION TARGET REASON');

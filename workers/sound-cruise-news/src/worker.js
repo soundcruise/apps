@@ -1,4 +1,5 @@
 import {preferredIndependentLabel,labelInformationScore} from './label-quality.js';
+import {manualPredicate} from './manual-sources.js';
 import {legacyPredicate} from './legacy.js';
 import { SOURCES, evidenceGate } from './registry.js';
 import { NewsStore } from './store.js';
@@ -30,7 +31,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
  if(request.method==='OPTIONS')return finish(new Response(null,{status:204}));
  if(request.method!=='GET')return finish(json({error:'method_not_allowed'},405));
  if(url.pathname==='/health'){
-  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.6.1',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
+  try{const controls=await new NewsStore(env.NEWS_DB).controls();return finish(json({ok:true,version:'0.7.0',collection:env.NEWS_COLLECTION_MODE==='production'&&!!controls.collection_enabled,publication:!!controls.publication_enabled,api:!!controls.api_enabled}));}
   catch{return finish(json({ok:false,error:'news_unavailable'},503));}
  }
  if(!['/v1/news','/v1/news/ticker'].includes(url.pathname))return finish(json({error:'not_found'},404));
@@ -48,7 +49,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
   const controls=await new NewsStore(env.NEWS_DB).controls();
   if(!controls.api_enabled)return finish(json({disabled:true,items:[]},503));
   const active=registry.filter(s=>s.enabled&&!evidenceGate(s,now)).map(s=>s.id);
-  const eligible=`(c.source_id IN (${(active.length?active:['__none__']).map(()=>'?').join(',')}) OR ${legacyPredicate()})`;
+  const eligible=`(c.source_id IN (${(active.length?active:['__none__']).map(()=>'?').join(',')}) OR ${legacyPredicate()} OR ${manualPredicate(now)})`;
   const activeBindings=active.length?active:['__none__'];
   // A page can change when any preceding sale expires. Bound all cached pages by that
   // transition; do not trust only the deadlines of the rows returned on this page.
@@ -58,7 +59,7 @@ export async function handleNewsRequest(request,env,now=Date.now(),{registry=SOU
    AND COALESCE(s.disabled,0)=0 AND COALESCE(s.takedown,0)=0 AND ${eligible}`).bind(now,now,...activeBindings).first();
   const validUntil=Math.min(now+300000,boundary?.deadline==null?Infinity:boundary.deadline+1);
   // Read controls before cache. Every takedown changes revision atomically, invalidating all old keys.
-  const key=new Request('https://news-cache.invalid'+url.pathname+'?'+new URLSearchParams({limit:String(limit),offset:String(offset),cursor:JSON.stringify(cursor),category:category||'',format:'legacy-recovery-2',revision:String(controls.revision),sources:active.join(','),bucket:String(Math.floor(now/300000))}));
+  const key=new Request('https://news-cache.invalid'+url.pathname+'?'+new URLSearchParams({limit:String(limit),offset:String(offset),cursor:JSON.stringify(cursor),category:category||'',format:'manual-coverage-1',revision:String(controls.revision),sources:active.join(','),manual:manualPredicate(now),bucket:String(Math.floor(now/300000))}));
   const hit=await cache?.match(key);if(hit&&Number(hit.headers.get('X-News-Valid-Until'))>now)return finish(hit);
   const ticker=url.pathname.endsWith('/ticker');
   const select=async(days,count,start)=>{
