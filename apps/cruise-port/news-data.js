@@ -32,9 +32,11 @@ export function normalizeNewsItem(input) {
         .filter(key => input[key] !== undefined).map(key => [key, input[key]]).concat([['sourceUrl', url.href]]));
 }
 export function labelInformationScore(label) {
-    if (typeof label !== 'string' || /審査待ち|要確認|の製品情報$|、(?:ギター|音楽)に関する話題$/.test(label)) return 0;
+    if (typeof label !== 'string' || /審査待ち|要確認/.test(label)) return 0;
+    if (/総単板|限定|発売予定|復刻|シグネチャー|小型|追加ボイス|プラグイン\d+製品|エクスプレッションペダル/.test(label)) return 4;
+    if (/の製品情報$|、(?:ギター|音楽)に関する話題$/.test(label)) return 0;
     if (/演奏に関する話題$/.test(label)) return 1;
-    return /総単板|限定|発売予定|復刻|シグネチャー|小型|追加ボイス|プラグイン\d+製品/.test(label) ? 4 : 3;
+    return 3;
 }
 export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) {
     if (mode === 'off') return [];
