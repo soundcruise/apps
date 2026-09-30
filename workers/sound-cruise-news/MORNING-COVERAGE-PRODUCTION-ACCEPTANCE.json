@@ -273,5 +273,23 @@
     1440
   ],
   "publisherRequests": 0,
-  "workerVersionId": "829b0eaa-2fbd-4feb-a2bc-7e3e1a48f793"
+  "workerVersionId": "829b0eaa-2fbd-4feb-a2bc-7e3e1a48f793",
+  "finalWorkerVerification": {
+    "at": "2026-09-30T22:53:41.337Z",
+    "health": {
+      "ok": true,
+      "version": "0.7.1",
+      "collection": true,
+      "publication": true,
+      "api": true
+    },
+    "workerVersionId": "d650965e-b73d-467d-8abd-924a6f4c1e23",
+    "deployTimes": {
+      "startedAt": "2026-09-30T22:52:59.446Z",
+      "finishedAt": "2026-09-30T22:53:03.960Z"
+    },
+    "publicPayloadUnchanged": true,
+    "visibleTotal": 33,
+    "scheduledPublisherRequests": 13
+  }
 }
