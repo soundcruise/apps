@@ -1,3 +1,9 @@
+> Coverage Expansion Phase 1 — 2026-09-30: Port 1.6.0 / News Worker 0.4.0.
+> Four-source production allowlist: Shimamura, Kikutani, Sleepfreaks, Music Natalie.
+> Daily 06:00 JST collection; hourly physical retention. Exact legacy fixture grants restore old news without live collection permission.
+> Review uses authenticated Wrangler CLI only; no public admin. SALE sources remain OFF and named-artist coverage remains incomplete.
+> Current operations: [COVERAGE-OPERATIONS.md](COVERAGE-OPERATIONS.md). Earlier instructions below are historical; do not rerun initial bootstrap or hourly/single-source completion commands.
+
 > Production completion — 2026-09-30: Port 1.5.0 uses the dedicated real News API.
 > News Worker 0.3.0 / D1 migrations 0001–0008 / guarded hourly collection and automatic
 > publication are ON for Shimamura product news only. Initial listing GET was exactly one;
