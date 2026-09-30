@@ -33,8 +33,9 @@ export async function publishAutomatic(store,source,registry,now,pepper){
    AND EXISTS(SELECT 1 FROM source_health WHERE source_id=? AND status='healthy' AND last_successful_run_at=?)
    AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1))
    AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)
-   AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE topic_key=? AND review_status='approved')`)
-   .bind(new Date(now).toISOString(),row.id,source.id,health.last_successful_run_at,source.id,row.id,row.topic_key);
+   AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE topic_key=? AND review_status='approved')
+   AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE review_status='approved' AND (? IS NULL OR json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.brand')=?) AND json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.product')=? AND COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.version'),'')=? AND (event_type=? OR event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`)
+   .bind(new Date(now).toISOString(),row.id,source.id,health.last_successful_run_at,source.id,row.id,row.topic_key,facts.brand||null,facts.brand||null,facts.product||null,facts.version||'',row.event_type,row.event_type);
   const result=await store.db.batch([update,store.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1')]);
   published+=result[0].meta.changes;
  }

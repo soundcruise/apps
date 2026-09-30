@@ -1,3 +1,4 @@
+import {COVERAGE_EVIDENCE} from './coverage-evidence.js';
 import { SHIMAMURA_LISTING_URL,SHIMAMURA_PATHS } from './shimamura-listing.js';
 import { SHIMAMURA_EVIDENCE } from './shimamura-evidence.js';
 import { policyRecord } from './source-policies.js';
@@ -51,7 +52,8 @@ export const SOURCES = Object.freeze(entries.map(([id,name,baseUrl,sourceKind,fe
  robotsUrl:new URL('/robots.txt',baseUrl).href,lastPolicyReviewAt:'2026-09-28',
  policyEvidence:'User supplied JP1-B whitelist; local prototype only. Specific Terms URL and expert review required before production.',
  crawlIntervalHours:24,priority:['official','distributor','retailer_editorial','media'].indexOf(sourceKind),
- robots404Reviewed:false,notes:feed?'Discovery known; collection disabled pending complete policy evidence.':'Disabled pending discovery and per-source policy review.'
+ robots404Reviewed:false,notes:feed?'Discovery known; collection disabled pending complete policy evidence.':'Disabled pending discovery and per-source policy review.',
+ ...(COVERAGE_EVIDENCE[id]||{})
 })));
 export function getSource(id) { return SOURCES.find(s=>s.id===id); }
 export const PHASE_ONE_CANDIDATES = Object.freeze(['shimamura','sleepfreaks','hookup']);
@@ -68,12 +70,14 @@ export function evidenceGate(source,now) {
  if(source.id==='shimamura'&&(source.discoveryType!=='shimamura_listing'||source.discoveryUrl!==SHIMAMURA_LISTING_URL||source.automationPolicy!=='documented_silence'||source.explicitAutomationPermission!==false))return 'evidence_missing';
  return null;
 }
-export function legalGate(source,state={},now=Date.now(),mode='off',registry=SOURCES) {
+export function legalGate(source,state={},now=Date.now(),mode='off',registry=SOURCES,{requestMode='normal'}={}) {
  if(mode!=='local'&&!(mode==='production'&&source?.productionEnabled&&source?.enabled))return 'collection_off';
  if(!source||!registry.includes(source))return 'not_registry_source';
  const evidence=evidenceGate(source,now);if(evidence)return evidence;
  if((!source.enabled&&!(source.localPilotEnabled&&phaseOneSourceReady(source,now)))||state.disabled)return 'source_disabled';
- if(state.nextAt>now||state.lastPublisherRequestAt>0&&state.lastPublisherRequestAt+Math.max(6,source.crawlIntervalHours)*3600000>now)return 'backoff';
+ if(state.backoffUntil>now||state.failures>0&&state.nextAt>now)return 'backoff';
+ if(requestMode==='normal'&&(state.nextAt>now||state.lastPublisherRequestAt>0&&state.lastPublisherRequestAt+Math.max(6,source.crawlIntervalHours)*3600000>now))return 'backoff';
+ if(!['normal','scheduled','operator_validation'].includes(requestMode))return 'configuration_invalid';
  return null;
 }
 

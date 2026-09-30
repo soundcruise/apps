@@ -21,7 +21,7 @@ const setup=async()=>{const db=database(),s=await store(db);await administer(s,{
 const options={registry:[source],sleep:async()=>{},fetcher:async url=>new Response(url.endsWith('robots.txt')?robots:html,{headers:{'content-type':url.endsWith('robots.txt')?'text/plain':'text/html'}})};
 const run=(env,at=now,overrides={})=>scheduledNews({cron:COLLECTION_CRON},env,{},at,{...options,clock:()=>at,...overrides});
 
-test('production: only a single live-validated source may be enabled',()=>{
+test('production: only live-validated unique allowlisted sources may be enabled',()=>{
  assert.equal(runtimeSources(config,[source],now)[0].enabled,true);
  assert.equal(runtimeSources(config,[{...source,discoveryValid:false}],now)[0].enabled,false);
  for(const ids of ['[]','["unknown"]','["shimamura","shimamura"]','bad'])assert.equal(runtimeSources({...config,NEWS_SOURCE_IDS:ids},[source],now)[0].enabled,false);

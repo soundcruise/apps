@@ -5,7 +5,8 @@ import {runtimeSources,selectedSourceIds} from './runtime.js';
 import {collectSource} from './collector.js';
 import {publishAutomatic} from './automatic.js';
 import {healthForOutcome} from './source-health.js';
-export const COLLECTION_CRON='0 * * * *'; // Hourly wake-up; source attempt guard decides eligibility.
+export const COLLECTION_CRON='0 21 * * *'; // Cloudflare UTC: daily 06:00 Asia/Tokyo.
+export const jstCollectionDay=at=>new Date(at+9*3600000).toISOString().slice(0,10);
 export const RETENTION_CRON='17 * * * *';
 export async function scheduledNews(event,env,ctx,now=Date.now(),{registry=SOURCES,fetcher=fetch,sleep,clock}={}){
  // Physical retention runs even when collection is stopped, with its own failure signal.
@@ -22,12 +23,12 @@ export async function scheduledNews(event,env,ctx,now=Date.now(),{registry=SOURC
  for(const id of ids){
   const source=active.find(s=>s.id===id),reason=evidenceGate(source,now)||(!source.productionEnabled?'source_disabled':null);
   if(reason){await store.recordHealth({sourceId:id,...healthForOutcome(reason),checkedAt:now});results.push({sourceId:id,outcome:reason,published:0});continue;}
-  const report=await collectSource(id,store,{mode:'production',now,registry:active,fetcher,sleep,pepper:env.NEWS_HEADLINE_PEPPER,clock});
+  const report=await collectSource(id,store,{mode:'production',now,registry:active,fetcher,sleep,pepper:env.NEWS_HEADLINE_PEPPER,clock,requestMode:'scheduled',jstDay:jstCollectionDay(event.scheduledTime||now)});
   report.published=0;
   if(['collected','not_modified'].includes(report.outcome))report.published=await publishAutomatic(store,source,active,now,env.NEWS_HEADLINE_PEPPER);
   results.push(report);
  }
- await store.recordHealth({sourceId:'collection',status:'healthy',reasonCode:'ok',checkedAt:now,successfulAt:now});
+ await store.recordHealth({sourceId:'collection',status:results.some(r=>!['collected','not_modified','backoff','scheduled_day_or_lease_busy'].includes(r.outcome))?'warning':'healthy',reasonCode:results.some(r=>!['collected','not_modified','backoff','scheduled_day_or_lease_busy'].includes(r.outcome))?'network_or_internal_error':'ok',checkedAt:now,successfulAt:now});
  console.log(JSON.stringify({event:'news_collection',results:results.map(({sourceId,outcome,pending,published})=>({sourceId,outcome,pending,published}))}));
  return {purged:true,results};
 }

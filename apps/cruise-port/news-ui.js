@@ -1,4 +1,4 @@
-import { NEWS_MODE, NEWS_CATEGORIES, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.5.0';
+import { NEWS_MODE, NEWS_CATEGORIES, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.6.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
 const renderCleanup = new WeakMap();
@@ -39,6 +39,7 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
             ticker.setAttribute('aria-label', `ニュース一覧へ。${recent[0].label}`);
             ticker.hidden = false;
         }
+        if (mode === 'on') content.append(node('p', '毎朝6:00更新（日本時間）', 'news-beta-note'));
         if (mode === 'beta') content.append(node('p', 'Beta · 手動確認済みのニュース', 'news-beta-note'));
         const label = node('label', 'カテゴリ', 'news-filter');
         const select = node('select');

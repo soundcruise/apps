@@ -8,11 +8,11 @@
   "vars": {
     "NEWS_COLLECTION_MODE": "production",
     "NEWS_API_MODE": "production",
-    "NEWS_SOURCE_IDS": "[\"shimamura\"]"
+    "NEWS_SOURCE_IDS": "[\"shimamura\",\"kikutani\",\"sleepfreaks\",\"natalie\"]"
   },
   "triggers": {
     "crons": [
-      "0 * * * *",
+      "0 21 * * *",
       "17 * * * *"
     ]
   },

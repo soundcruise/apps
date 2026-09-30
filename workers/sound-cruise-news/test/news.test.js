@@ -28,7 +28,10 @@ test('H1: validated Shimamura remains OFF; incomplete evidence cannot collect',(
    assert.equal(s.discoveryValid,true);assert.equal(s.listingEvidence.parserLiveValidated,true);
    assert.equal(s.saleCollection,'none');assert.deepEqual(s.contentTypes,['product']);
   }
-  else assert.equal(legalGate(s,{},now,'local'),'evidence_missing');
+  else{
+   const incomplete={...s,policyDecision:'incomplete'};assert.equal(legalGate(incomplete,{},now,'local',[incomplete]),'evidence_missing');
+   assert.equal(legalGate(s,{},now,'local'),s.policyDecision==='approved'?'policy_expired':'evidence_missing');
+  }
  }
  assert.deepEqual(PHASE_ONE_CANDIDATES,['shimamura','sleepfreaks','hookup']);
 });

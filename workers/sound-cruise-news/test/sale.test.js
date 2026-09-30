@@ -82,7 +82,7 @@ test('REJECT: single items, coupons, points and minor promotions; ended sales', 
   const result=await judge(retailer,title);
   assert.equal(result.item,undefined,title);assert.equal(result.reason,reason,title);
  }
- assert.equal((await judge({...getSource('natalie'),...evidence,enabled:true},'ギターセール 10月31日まで')).reason,'source_scope');
+ assert.equal((await judge({...getSource('natalie'),...evidence,allowedPaths:['/news/'],deniedPaths:[],enabled:true},'ギターセール 10月31日まで')).reason,'source_scope');
 });
 
 test('labels use facts only: no publisher copy or hype wording', async()=>{

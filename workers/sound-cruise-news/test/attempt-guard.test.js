@@ -17,14 +17,17 @@ const config={NEWS_COLLECTION_MODE:'production',NEWS_API_MODE:'production',NEWS_
 const active=runtimeSources(config,[source],at);
 const options={mode:'production',now:at,clock:()=>at,registry:active,pepper,sleep:async()=>{},fetcher:async url=>new Response(url.endsWith('robots.txt')?robots:html,{headers:{'content-type':url.endsWith('robots.txt')?'text/plain':'text/html'}})};
 
-test('attempt guard: normal manual and Cron fetch zero inside 24h even if next_at was reset',async()=>{
+test('attempt guard: normal manual retains 24h; scheduled uses JST day and does not repeat',async()=>{
  const s=await store();await s.lease('shimamura',at);await s.publisherAttempt('shimamura',at,DAY);
  await s.db.prepare("UPDATE source_state SET next_at=0,lease_until=0 WHERE source_id='shimamura'").run();
  let calls=0;const fetcher=async()=>{calls++;throw Error('must not request');};
  assert.equal((await collectSource('shimamura',s,{...options,now:at+1000,fetcher})).outcome,'backoff');
- const result=await scheduledNews({cron:COLLECTION_CRON},{...config,NEWS_DB:s.db},{},at+2000,{registry:[source],fetcher});
- assert.equal(result.results[0].outcome,'backoff');assert.equal(calls,0);
- assert.equal(legalGate(active[0],await s.state('shimamura'),at+DAY,'production',active),null);
+ await s.db.prepare("UPDATE source_state SET lease_until=0 WHERE source_id='shimamura'").run();
+ const result=await scheduledNews({cron:COLLECTION_CRON},{...config,NEWS_DB:s.db},{},at+2000,{registry:[source],fetcher:options.fetcher,sleep:async()=>{},clock:()=>at+2000});
+ assert.equal(result.results[0].outcome,'collected');
+ const repeated=await scheduledNews({cron:COLLECTION_CRON},{...config,NEWS_DB:s.db},{},at+3000,{registry:[source],fetcher});
+ assert.equal(repeated.results[0].outcome,'scheduled_day_or_lease_busy');assert.equal(calls,0);
+ assert.equal(legalGate(active[0],await s.state('shimamura'),at+DAY+2000,'production',active),null);
 });
 
 test('attempt guard: HTTP 500 and timeout start 24h; immediate retry never reaches fetch',async()=>{

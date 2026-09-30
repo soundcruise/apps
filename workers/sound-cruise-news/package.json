@@ -1,6 +1,6 @@
 {
   "name": "sound-cruise-news",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -15,7 +15,9 @@
     "validate:final": "node scripts/final-validation.mjs",
     "operator": "node scripts/operator.mjs",
     "rollout": "node scripts/rollout.mjs",
-    "deploy:production": "node scripts/rollout.mjs deploy"
+    "deploy:production": "node scripts/rollout.mjs deploy",
+    "review:production": "node scripts/review-production.mjs",
+    "collect:production": "node scripts/collect-production.mjs"
   },
   "dependencies": {
     "fast-xml-parser": "5.5.8",
