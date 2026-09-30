@@ -336,3 +336,14 @@ Closure tests: NEWS 120, Port 885; all eight suites total 1,794 PASS with outbou
 network blocked, external attempts 0. Production Port baseline 1.4.3; NEWS remains
 uncommitted 1.5.0 WIP. No source enablement, live fetch, deployment or production
 mutation occurred. Shimamura final live validation remains the next separate phase.
+
+
+## Production infrastructure — 2026-09-30
+
+News D1 and Worker/API are deployed with collection hard OFF, automatic publication
+OFF and Cron=[]. The production API returns a valid empty contract (200).
+`?category=` accepts only the existing NEWS category allowlist, uses bound SQL,
+and isolates category cache keys; invalid categories return 400. Operator CLI
+and API kill were tested on the empty News DB. There are no candidates or runs,
+and no publisher request occurred. Port Pages remains 1.4.3.
+See PRODUCTION-INFRASTRUCTURE.md and the current section of PRODUCTION-OPERATIONS.md.

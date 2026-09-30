@@ -1,5 +1,40 @@
 # NEWS-FINAL production operations
 
+## Production infrastructure accepted — 2026-09-30
+
+The dedicated News D1 (13267817-d259-4fde-80d3-37766f8f3f11) has migrations
+0001–0007. Worker version 91b4207b-a150-4e37-a414-52e8f0c226b4 is deployed.
+Collection is hard OFF in env and D1, publication is OFF, API is ON, Cron is [].
+Candidate count and collection-run count are both zero. No validation snapshot or
+23-item static fixture was seeded. Shimamura is ready but not yet collected;
+Source Health is paused/global_collection_off, with no production success timestamp.
+The validation access interval is recorded in production source_state.next_at.
+Next safe publisher access: **2026-10-01 08:39:30.960 JST**.
+
+Main/Pages was not pushed or deployed. All WIP is recoverable on the local
+codex/news-1-5-production-infra branch. The phase report is
+[PRODUCTION-INFRASTRUCTURE.md](PRODUCTION-INFRASTRUCTURE.md).
+
+Infrastructure deployment uses `rollout.mjs deploy` only with collection OFF and
+an explicitly empty Cron list; it checks D1 publication/collection are OFF first.
+`prepare-infrastructure` records readiness/interval metadata only, not candidates.
+`bootstrap` and `enable` are refused while the infrastructure config is hard OFF.
+Future collection/publication/Cron activation requires the next phase's config
+and acceptance work. The later historical release instructions are not actions
+performed in this infrastructure phase.
+
+Remote operator SQL uses Wrangler `d1 execute --command --json`: bulk `--file`
+execution returns import statistics rather than SELECT rows. No secret is passed
+in SQL. Secrets use the ignored private secrets file and Worker secret binding.
+The production smoke (`scripts/smoke-production.mjs`) now asserts an empty API,
+collection/publication OFF, no Cron, CORS/kill/operator controls and zero collection.
+It leaves the API ON, a reserved QA tombstone and the audit trail, with no news item.
+
+Port 1.5.0 is still a frontend WIP using fixture by default. On its separate release,
+set NEWS_PROVIDER to api after API content acceptance. API errors/kill responses
+show a NEWS-only message; no static fixture resurrection or persistent client cache.
+
+
 Preparation status (2026-09-29, offline SALE safety closure): **Production Port
 baseline = 1.4.3 (`be28371f`); NEWS candidate / uncommitted WIP = 1.5.0**.
 News Worker candidate is 0.2.0. No News Worker/D1/Cron has been created in this phase.
