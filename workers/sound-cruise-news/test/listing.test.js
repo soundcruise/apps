@@ -141,3 +141,12 @@ test('listing: even a freshly reviewed Disallow stops before listing fetch',asyn
  const s=await store(),r=await collectSource('shimamura',s,options({registry:[denied],fetcher:async()=>response(body)}));
  assert.equal(r.outcome,'robots_disallow');assert.equal(r.requests,1);assert.equal((await s.state('shimamura')).disabled,true);
 });
+
+// Audited recheck reads the same bounded surface; normal incremental collection is unchanged.
+test('listing: operator recheck can enrich old pending candidates without an incremental watermark hiding them',async()=>{
+ for(const requestMode of ['normal','operator_validation']){
+  const s=await store();await s.lease('shimamura',now);await s.saveState('shimamura',{lastDiscoveryAt:now});
+  const report=await collectSource('shimamura',s,options({requestMode,auditReason:requestMode==='operator_validation'?'operator_recheck':'',fetcher:async url=>url.endsWith('/robots.txt')?response(ROBOTS):response(listing([card('older-a','BOSS EX-4 新製品を発表しました','2026/09/24'),card('older-b','BOSS EX-4 新製品を発表しました','2026/09/24'),card('older-c','BOSS EX-4 新製品を発表しました','2026/09/24')]),200,{'content-type':'text/html'})}));
+  assert.equal(report.outcome,'collected');assert.equal(report.requests,2);assert.equal((await s.candidates()).length,requestMode==='normal'?0:3);
+ }
+});

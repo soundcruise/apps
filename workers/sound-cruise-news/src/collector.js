@@ -61,7 +61,7 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
    let entries;
    if(listing){
     if(!/text\/html/i.test(discovery.headers.get('content-type')||''))throw Error('listing_structure_changed');
-    let parsed;try{parsed=shimListing?parseShimamuraListing(discovery.text,source.discoveryUrl,{since:state.lastDiscoveryAt||0}):parseOfficialListing(discovery.text,source);}finally{discovery.text='';}
+    let parsed;try{parsed=shimListing?parseShimamuraListing(discovery.text,source.discoveryUrl,{since:requestMode==='operator_validation'?0:state.lastDiscoveryAt||0}):parseOfficialListing(discovery.text,source);}finally{discovery.text='';}
     entries=parsed.entries;report.candidates=parsed.cards;report.reasons=parsed.reasons;report.rejected=Object.values(parsed.reasons).reduce((a,b)=>a+b,0);
    }else{
     if(!/xml|rss|atom/i.test(discovery.headers.get('content-type')||''))throw new Error('non_metadata_response');
