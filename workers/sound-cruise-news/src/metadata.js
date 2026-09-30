@@ -41,7 +41,7 @@ const PRODUCTS = [
 ];
 // Identifiers, not headline phrases. Explicit brand + model (or reviewed alias) is mandatory.
 const BRANDS=Object.freeze([
- ['ESP','electric_guitar_bass',['ESP']],['HISTORY','electric_guitar_bass',['HISTORY']],['Jackson','electric_guitar_bass',['Jackson']],['Gretsch','electric_guitar_bass',['Gretsch']],
+ ['LAVA MUSIC','amps_effects',['LAVA MUSIC','LAVA']],['ESP','electric_guitar_bass',['ESP']],['HISTORY','electric_guitar_bass',['HISTORY']],['Jackson','electric_guitar_bass',['Jackson']],['Gretsch','electric_guitar_bass',['Gretsch']],
  ['Headway','acoustic_guitar',['Headway','ヘッドウェイ']],['Bacchus','electric_guitar_bass',['Bacchus','バッカス']],['Momose','electric_guitar_bass',['Momose','momose']],
  ['Godin','acoustic_guitar',['Godin','ゴダン']],['KIKUTANI','recording_audio',['KIKUTANI','キクタニ']],['JAM Pedals','amps_effects',['JAM Pedals']],
  ['dBTechnologies','recording_audio',['dBTechnologies']],['DE','recording_audio',['DE']],
@@ -53,6 +53,7 @@ const BRANDS=Object.freeze([
  ['Roland','recording_audio',['Roland']],['SHURE','recording_audio',['SHURE']],['AKG','recording_audio',['AKG']],['Sennheiser','recording_audio',['Sennheiser']],['MOTU','recording_audio',['MOTU']]
 ]);
 const IDENTIFIERS=Object.freeze([
+ ['LAVA MUSIC',/\bLAVA\s+(?:MUSIC\s+)?STUDIO\b/i,'LAVA STUDIO','amps_effects'],
  ['ESP',/PA-MF-10(?:[^A-Za-z0-9]|$)/,'PA-MF-10','electric_guitar_bass'],['ESP',/PA-MF-08(?:[^A-Za-z0-9]|$)/,'PA-MF-08','electric_guitar_bass'],
  ['HISTORY',/\bHSLC-/,'HSLCシリーズ','electric_guitar_bass'],['Jackson',/Flex\s*A-Frame\s*Stand/i,'Flex A-Frame Stand','electric_guitar_bass'],
  ['Jackson',/\bPC1-E\b/i,'PC1-E','electric_guitar_bass'],['Gretsch',/Logo\s*Barstool/i,'Logo Barstool','electric_guitar_bass'],
@@ -85,8 +86,15 @@ const SOFTWARE_MODELS=Object.freeze([
 function modelOnlyFacts(title){const t=normalizeIdentifier(title);if(/LUNA\s+SEA|新曲|バンド|MV公開/i.test(t))return null;
  for(const [product,re,context] of SOFTWARE_MODELS){const m=re.exec(t);if(m&&(!context||context.test(t)))return {brand:null,product,version:m[1]||null,category:'dtm_software',identifierBasis:'distinctive_software_model'};}return null;
 }
+const ZOOM_MODELS=Object.freeze(['F6','TCA-1','H2essential','WLM-1','H1essential','H5studio','H6studio','H6essential']);
+function manufacturerFacts(entry,source){
+ if(source.id!=='zoom'||source.sourceKind!=='official'||source.discoveryUrl!=='https://zoomcorp.com/ja/jp/news/'||entry.listingSection!=='official_news')return null;
+ const product=ZOOM_MODELS.find(m=>new RegExp('(?:^|[^A-Za-z0-9])'+m+'(?:[^A-Za-z0-9]|$)','i').test(entry.title));
+ return product?{brand:'ZOOM',product,version:null,category:'recording_audio',identifierBasis:'official_manufacturer_model',manufacturerSource:'zoom'}:null;
+}
 export function validatedProductFacts(facts){
  if(!facts)return false;
+ if(facts.identifierBasis==='official_manufacturer_model')return facts.manufacturerSource==='zoom'&&facts.brand==='ZOOM'&&facts.category==='recording_audio'&&ZOOM_MODELS.includes(facts.product);
  if(facts.brand===null&&facts.category==='dtm_software'&&facts.identifierBasis==='distinctive_software_model')return SOFTWARE_MODELS.some(([p])=>p===facts.product);
  if(PRODUCTS.some(p=>p.brand===facts.brand&&p.product===facts.product&&p.category===facts.category))return true;
  if(facts.identifierBasis==='reviewed_alias')return IDENTIFIERS.some(([b,,p,c])=>b===facts.brand&&p===facts.product&&c===facts.category);
@@ -103,16 +111,26 @@ export function guitarEventFacts(title,source){
  const t=normalizeIdentifier(title);
  if(/ピアノ弾き語り|piano/i.test(t)&&!/ギター|guitar/i.test(t))return null;
  for(const [name,re] of GUITAR_EVENTS)if(re.test(t)&&/開催|出展|公演|出演/.test(t))return {kind:'guitar_event',category:'live_guitar',event:name,evidence:'guitar_gear',action:/出展/.test(t)?'exhibiting':'information'};
+ if(source.id==='kikutani'&&/ギター|guitar/i.test(t)&&/リサイタル|\brecital\b/i.test(t)&&!/中止|延期|ピアノ|piano/i.test(t))return {kind:'guitar_event',category:'live_guitar',event:'ギターリサイタル',evidence:'explicit_guitar_recital',action:'information'};
  if(!/ギター|guitar|弾き語り/i.test(t)||!/ライブ|公演|開催|出演|弾き語り/.test(t))return null;
  const artist=ARTISTS.find(name=>t.startsWith(name+'、')||t.startsWith(name+'が')||t.startsWith(name+' '));
  return artist?{kind:'guitar_event',category:'live_guitar',event:artist,evidence:/弾き語り/.test(t)?'acoustic_guitar_vocal':'guitar_performance',action:'performance'}:null;
 }
 export function guitarEventLabel(facts){
  if(facts?.kind!=='guitar_event'||facts.category!=='live_guitar')return null;
+ if(facts.event==='ギターリサイタル'&&facts.evidence==='explicit_guitar_recital'&&facts.action==='information')return 'ギターリサイタルの開催情報';
  if(GUITAR_EVENTS.some(([name])=>name===facts.event)&&facts.evidence==='guitar_gear'&&['information','exhibiting'].includes(facts.action))return facts.event+'、ギター関連イベントの'+(facts.action==='exhibiting'?'出展情報':'開催情報');
  if(ARTISTS.includes(facts.event)&&['acoustic_guitar_vocal','guitar_performance'].includes(facts.evidence)&&facts.action==='performance')return facts.event+'、ギター'+(facts.evidence==='acoustic_guitar_vocal'?'弾き語り':'演奏')+'の公演情報';
  return null;
 }
+const GUITARIST_ALIASES=Object.freeze([['リック・ニールセン',['リック・ニールセン','Rick Nielsen']]]);
+function artistFacts(title,source){
+ if(source.id!=='amass'||source.discoveryUrl!=='https://amass.jp/rss/3745'||!source.artistOnly)return null;
+ const t=normalizeIdentifier(title);if(!/ギター|guitar/i.test(t)||/ゴシップ|不倫|逮捕|ピアノ|piano/i.test(t))return null;
+ const performer=GUITARIST_ALIASES.find(([,aliases])=>aliases.some(a=>t.toLowerCase().includes(a.toLowerCase())));
+ return performer?{kind:'guitar_artist',category:'artist_guitar',performer:performer[0],evidence:'named_guitarist_and_instrument',action:'guitar_information'}:null;
+}
+function artistLabel(facts){return facts?.kind==='guitar_artist'&&facts.category==='artist_guitar'&&facts.evidence==='named_guitarist_and_instrument'&&facts.action==='guitar_information'&&GUITARIST_ALIASES.some(([name])=>name===facts.performer)?facts.performer+'、ギター演奏に関する話題':null;}
 export function productFacts(title) {
  const normalized=normalizeIdentifier(title);
  // Require both names in the same headline. Product aliases never supply a missing brand.
@@ -139,7 +157,7 @@ export function contentType(title) {
  if(/キャンペーン|\bcampaign\b/i.test(title)&&!/新製品|新登場|発売|発表|リリース|アップデート|ファームウェア|価格改定|リコール|生産終了|販売終了|\b(?:new product|new model|release|announce|update|firmware|recall)\b/i.test(title))return 'sale';
  if(/イベント|体験会|試奏会|展示会|レッスン|生徒募集|採用|求人|店舗から|店舗案内|営業案内|営業時間|開店|閉店|休業|入荷情報|\b(?:event|lesson|recruit|workshop|shop notice)\b/i.test(title))return 'event_or_shop';
  if(/チュートリアル|使い方|入門|基礎講座|活用術|\b(?:tutorial|how to|beginner|tips)\b/i.test(title))return 'tutorial';
- if(/とは[？?]|選び方|完全ガイド|\bevergreen\b/i.test(title))return 'evergreen';
+ if(/開発秘話|開発ストーリー|歴史|とは[？?]|選び方|完全ガイド|\bevergreen\b/i.test(title))return 'evergreen';
  for(const [type,re] of [
  ['recall',/リコール|\brecall\b/i],['discontinued',/生産終了|販売終了|\bdiscontinued\b/i],
  ['firmware',/ファームウェア|\bfirmware\b/i],['price_change',/価格改定|値上げ|値下げ|\bprice change\b/i],
@@ -149,6 +167,7 @@ export function contentType(title) {
 }
 export function allowedArticlePath(url,source) {
  let path;try{path=decodeURIComponent(new URL(url).pathname);}catch{return false;}
+ if(source.articlePathPattern&&!new RegExp(source.articlePathPattern).test(path))return false;
  if(path.split('/').some(segment=>(source.deniedPathSegments||[]).includes(segment.toLowerCase())))return false;
  return !(source.deniedPaths||[]).some(p=>path.startsWith(p))&&(!(source.allowedPaths||[]).length||source.allowedPaths.some(p=>path.startsWith(p)));
 }
@@ -156,6 +175,7 @@ const actions={other:'の製品情報',new_product:'を発表',release:'を発�
 export function factualLabel(facts,eventType){
  if(eventType==='sale')return saleLabel(facts);
  if(eventType==='guitar_event')return guitarEventLabel(facts);
+ if(eventType==='guitar_artist')return artistLabel(facts);
  if(!facts||eventType==='review'||!actions[eventType]||!validatedProductFacts(facts)||facts.version!==null&&facts.version!==undefined&&!/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(facts.version))return null;
  return `${facts.brand?facts.brand+'、':''}${facts.product}${facts.version?' '+facts.version:''}${actions[eventType]}`;
 }
@@ -192,11 +212,13 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(typeof entry.title!=='string'||!entry.title.trim()||entry.title.length>512)return {decision:'REJECT',reason:'title_invalid'};
  if(source.discoveryType==='shimamura_listing'){const reason=listingExclusion(entry.title);if(reason)return {decision:'REJECT',reason};}
  const guitarEvent=guitarEventFacts(entry.title,source);
- const eventType=guitarEvent?'guitar_event':contentType(entry.title);
+ const guitarArtist=artistFacts(entry.title,source);
+ const eventType=guitarEvent?'guitar_event':guitarArtist?'guitar_artist':contentType(entry.title);
+ if(source.allowedEventTypes&&!source.allowedEventTypes.includes(eventType))return {decision:'REJECT',reason:'source_event_scope'};
  if(['tutorial','evergreen','event_or_shop'].includes(eventType))return {decision:'REJECT',reason:eventType};
  if(eventType==='sale')return saleCandidateFrom(entry,source,url,now,pepper,hasDate,timestamp);
- const titleFacts=productFacts(entry.title);
- const facts=guitarEvent||titleFacts;
+ const titleFacts=productFacts(entry.title)||manufacturerFacts(entry,source);
+ const facts=guitarEvent||guitarArtist||titleFacts;
  let category=guitarEvent?'live_guitar':classify(entry.title);
  if(!category&&entry.listingSection==='product_news'&&source.discoveryType==='shimamura_listing'){
   if(entry.listingCategory==='amp-effector')category='amps_effects';
@@ -211,7 +233,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  // Detailed product labels require local human editing, never automatic publication.
  const informationalUncertain=/機能一覧|仕様一覧|スペック一覧/.test(entry.title);
  const relevanceUncertain=facts?.brand==='DE'||facts?.brand==='dBTechnologies'||facts?.product==='Logo Barstool';
- let confident=!!(!relevanceUncertain&&!informationalUncertain&&facts&&(!!titleFacts||!!guitarEvent||eventType!=='other')&&['new_product','release','update','firmware','price_change','discontinued','recall','other','guitar_event'].includes(eventType)&&hasDate&&!entry.listingUncertainty&&!/キャンペーン|\bcampaign\b/i.test(entry.title));
+ let confident=!!(!relevanceUncertain&&!informationalUncertain&&facts&&(!!titleFacts||!!guitarEvent||!!guitarArtist||eventType!=='other')&&['new_product','release','update','firmware','price_change','discontinued','recall','other','guitar_event','guitar_artist'].includes(eventType)&&hasDate&&!entry.listingUncertainty&&!/キャンペーン|\bcampaign\b/i.test(entry.title));
  const titleFingerprint=await fingerprint(entry.title,pepper);
  let label=confident?factualLabel(facts,eventType):facts?`${facts.product}${facts.version?' '+facts.version:''}の製品情報（要確認）`:'審査待ち（製品名と出来事の確認が必要）';
  // A verified facts-only template remains safe even when the source states the same facts.
@@ -222,7 +244,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  const id=await hash(url);
  return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,
   publishedAt:hasDate?new Date(timestamp).toISOString():null,category:category||'media_other',label,
-  topicKey:facts?.kind==='guitar_event'?id:facts?factualTopicKey(facts,eventType):id,collectedAt:new Date(now).toISOString(),
+  topicKey:['guitar_event','guitar_artist'].includes(facts?.kind)?id:facts?factualTopicKey(facts,eventType):id,collectedAt:new Date(now).toISOString(),
   eventType,productFacts:facts,titleFingerprint:JSON.stringify(titleFingerprint),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
   publicationDecision:decision,decisionReason:confident?(factualSimilarity?'factual_label_similarity':'factual_label_ready'):decisionReason,
   manualReviewStatus:'pending',reviewReason:confident?'structured_review_required':decisionReason}};

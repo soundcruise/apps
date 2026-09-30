@@ -51,7 +51,7 @@ test('N1: migration quarantines legacy approved records without converting signa
 test('N2: brand and product must both be explicit, common words cannot supply facts',()=>{
  assert.equal(productFacts('Universal Audio LUNA 3 update').brand,'Universal Audio');
  assert.equal(productFacts('BOSS GX-1 新製品を発売').product,'GX-1');
- for(const text of ['LUNA SEA 新曲をリリース','Luna guitar released','LUNA 3 update','BOSS 新製品','boss gave me a GX-1','Reason Logic Studio update','LAVA STUDIO new product','Lunacy NOVA update','Universal Audio unknown product'])assert.equal(productFacts(text),null,text);
+ for(const text of ['LUNA SEA 新曲をリリース','Luna guitar released','LUNA 3 update','BOSS 新製品','boss gave me a GX-1','Reason Logic Studio update','LAVA band STUDIO recording','Lunacy NOVA update','Universal Audio unknown product'])assert.equal(productFacts(text),null,text);
 });
 test('N2: unknown brand/product/event stays label_required and pending without fabricated facts',async()=>{
  const p=robotsPolicy(robots,source);

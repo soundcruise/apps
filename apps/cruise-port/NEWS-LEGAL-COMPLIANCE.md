@@ -1,3 +1,5 @@
+> Phase 2, 2026-09-30: amass is internally assessed SAFE **only for the official Rick Nielsen tag RSS** (`https://amass.jp/rss/3745`). This replaces UNKNOWN for this restricted factual-metadata scope; it is not publisher permission or a commercial republication license. First-party RSS guidance offers artist/genre tag consumption. Privacy/copyright information remains binding. Generic music feed, bodies, excerpts and images remain excluded. ZOOM uses only its official fixed public news listing and recorder/firmware facts. Full assessments: `workers/sound-cruise-news/src/quality-evidence.js` and `QUALITY-COVERAGE-PHASE2.md`.
+
 # Cruise Port NEWS Legal & Compliance Policy
 
 調査日: 2026-09-28 / 更新日: 2026-09-30 / 対象: Port 1.5.0・NEWS自動収集／公開（島村楽器の製品ニュースのみ）
@@ -95,7 +97,7 @@ SAFE-ENOUGHは法的保証ではない。コードの分類キーはSAFE / CONTA
 | korg | KORG / VOX | CONTACT | false |
 | esp | ESP / BIGBOSS | CONTACT | false |
 | yamaha-newsroom | Yamahaニュースルーム | CONTACT | false |
-| amass | amass | UNKNOWN | false |
+| amass | amass | SAFE | false |
 | tft | THE FIRST TIMES | UNKNOWN | false |
 | takamine | Takamine | DO_NOT_USE | false |
 | kurosawa | クロサワ楽器 | DO_NOT_USE | false |

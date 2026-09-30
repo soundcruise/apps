@@ -1,3 +1,5 @@
+> Quality + Coverage Phase 2 — 2026-09-30: Port 1.7.0 / NEWS Worker 0.5.0. Production allowlist: Shimamura, Kikutani, Sleepfreaks, ZOOM, amass (one guitarist tag RSS). Generic Music Natalie is OFF because the evaluated surface supplies no eligible guitar news. Daily collection remains 06:00 JST. Sale coverage remains an explicit unresolved gap. See [Phase 2 quality/evidence decisions](QUALITY-COVERAGE-PHASE2.md).
+
 > Coverage Expansion Phase 1 — 2026-09-30: Port 1.6.0 / News Worker 0.4.0.
 > Four-source production allowlist: Shimamura, Kikutani, Sleepfreaks, Music Natalie.
 > Daily 06:00 JST collection; hourly physical retention. Exact legacy fixture grants restore old news without live collection permission.

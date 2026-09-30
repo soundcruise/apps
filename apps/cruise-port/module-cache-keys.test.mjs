@@ -11,7 +11,7 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.6.0 is the NEWS release: API-ready provider/config and the sale category.
+// 1.7.0 is the NEWS release: API-ready provider/config and the sale category.
 const RELEASE_MODULES = Object.freeze(['app-version.js', 'news-data.js', 'news-config.js']);
 // Loaded with dynamic import() from practice-menu-app.js; checked separately below.
 const DYNAMIC_RELEASE_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
@@ -35,8 +35,8 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.6.0', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.6.0');
+test('the release is 1.7.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.7.0');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -65,7 +65,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.6.0');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.7.0');
   assert.equal(key('practice-menu-app.js', 'practice-menu-sets-store.js'), '1.4.2');
   assert.equal(key('port-sync-local-validation.js', 'practice-menu-sets-store.js'), '1.4.2');
   assert.equal(key('practice-menu-app.js', 'practice-menu-presets.js'), '1.2.0', 'name suggestions are a separate module');

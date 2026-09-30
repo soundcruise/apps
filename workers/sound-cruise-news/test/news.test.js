@@ -16,7 +16,7 @@ const collect=s=>collectSource(source.id,s,options());
 const request=(s,path='/v1/news',opts={},cache)=>handleNewsRequest(new Request('http://localhost'+path,opts),env(s.db),now,{registry,cache});
 
 test('H1: validated Shimamura remains OFF; incomplete evidence cannot collect',()=>{
- assert.equal(SOURCES.filter(s=>s.legalStatus==='SAFE').length,18);assert.ok(SOURCES.every(s=>s.enabled===false));
+ assert.equal(SOURCES.filter(s=>s.legalStatus==='SAFE').length,19);assert.ok(SOURCES.every(s=>s.enabled===false));
  for(const s of SOURCES.filter(s=>s.legalStatus==='SAFE')){
   if(s.id==='shimamura'){
    const reviewed=Date.parse(s.discoveryReviewedAt);
