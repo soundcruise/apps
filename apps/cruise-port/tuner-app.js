@@ -1,5 +1,5 @@
-import { createTunerAudioController } from './tuner-audio.js?v=1.12.2';
-import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=0.69.0';
+import { createTunerAudioController } from './tuner-audio.js?v=1.12.3';
+import { createTunerPreviewAudioController } from './tuner-preview-audio.js?v=1.12.3';
 import { loadTunerMeterVisible, saveTunerMeterVisible } from './tuner-meter-preference.js?v=0.59.3';
 import { frequencyToNoteInfo } from './tuner-engine.js?v=1.1.4';
 import {
@@ -400,6 +400,8 @@ export function initTuner(root, {
     now = () => globalThis.performance?.now?.() ?? Date.now(),
     debugEnabled = isTunerDebugEnabled(),
     navigatorObject = globalThis.navigator,
+    documentTarget = globalThis.document,
+    windowTarget = globalThis.window,
     storage
 } = {}) {
     const elements = {
@@ -482,6 +484,10 @@ export function initTuner(root, {
     let viewActive = false;
     let audioStatus = 'idle';
     let lastAudioError = '';
+    let previewGeneration = 0;
+    let previewPaused = false;
+    let resumeCaptureAfterPreview = false;
+    let destroyed = false;
     let latestDiagnostic = null;
     let latestDiagnosticSummary = diagnosticHistory?.summary(0) || null;
     let latestDiagnosticDisplay = { state: 'neutral', note: null, frequency: null };
@@ -641,6 +647,11 @@ export function initTuner(root, {
     function renderAudioState(state) {
         audioStatus = state.status;
         if (!viewActive) return;
+        // Keep the existing controls and their geometry while capture is paused/resuming.
+        if (previewPaused) {
+            elements.status.textContent = 'マイク一時停止中';
+            return;
+        }
 
         if (state.status === 'starting') {
             renderNeutral();
@@ -672,7 +683,7 @@ export function initTuner(root, {
     }
 
     function renderInputLevel(level) {
-        if (!viewActive || audioStatus !== 'running') return;
+        if (!viewActive || previewPaused || audioStatus !== 'running') return;
         const smoothedDbfs = inputLevelSmoother.push(level.rmsDbfs, now());
         const percentage = inputLevelPercentage(smoothedDbfs);
         elements.inputLevel.style.setProperty('--tuner-input-level-position', `${percentage.toFixed(1)}%`);
@@ -776,7 +787,7 @@ export function initTuner(root, {
 
     const audioController = audioControllerFactory({
         onResult(result) {
-            if (!viewActive || audioStatus !== 'running') return;
+            if (!viewActive || previewPaused || audioStatus !== 'running') return;
             if (!elements.meterVisibility.checked) return;
             const reading = smoother.push(result, now());
             currentReading = reading;
@@ -790,7 +801,7 @@ export function initTuner(root, {
                 : { ...latestDiagnosticDisplay, state: 'neutral' };
         },
         onDiagnostic(diagnostic) {
-            if (!viewActive || audioStatus !== 'running') return;
+            if (!viewActive || previewPaused || audioStatus !== 'running') return;
             renderDiagnostic(diagnostic, now());
         },
         onInputLevel(level) {
@@ -807,10 +818,73 @@ export function initTuner(root, {
         rmsThreshold: thresholdDbToRms(currentThresholdDb)
     });
 
+    function isCurrentPreview(token) {
+        return !destroyed && viewActive && !documentTarget?.hidden && token === previewGeneration;
+    }
+
+    async function finishPreview(token) {
+        if (!isCurrentPreview(token)) return;
+        if (resumeCaptureAfterPreview) {
+            // onStateChange stays in the fixed pause presentation until capture has succeeded
+            // (or failed once, in which case the existing microphone error/retry UI takes over).
+            await audioController.start();
+        } else {
+            await audioController.stop();
+        }
+        if (!isCurrentPreview(token)) return;
+        previewPaused = false;
+        renderAudioState(audioController.getState());
+    }
+
+    async function playReference(target) {
+        if (!viewActive || destroyed || documentTarget?.hidden) return;
+        const token = ++previewGeneration;
+        if (!previewPaused) resumeCaptureAfterPreview = audioStatus === 'running' || audioStatus === 'starting';
+        previewPaused = true;
+        elements.status.textContent = 'マイク一時停止中';
+        previewAudioController.stop();
+        // Resume the dedicated output context within the tap's user activation, before awaiting
+        // capture cleanup. Session selection and source.start happen only after tracks end.
+        try {
+            const prepared = previewAudioController.prepare?.();
+            const [stopped] = await Promise.all([audioController.pauseForPreview(), prepared]);
+            if (!isCurrentPreview(token)) return;
+            if (!stopped) {
+                resumeCaptureAfterPreview = false;
+                throw new Error('Microphone tracks are still active.');
+            }
+            const played = await previewAudioController.play(target, { onEnded: () => { void finishPreview(token); } });
+            if (!played && isCurrentPreview(token)) await finishPreview(token);
+        } catch (_) {
+            if (!isCurrentPreview(token)) return;
+            previewAudioController.stop(0);
+            await finishPreview(token);
+            if (isCurrentPreview(token)) showError('基準音を再生できませんでした。もう一度お試しください。');
+        }
+    }
+
+    function cancelPreview() {
+        previewGeneration += 1;
+        previewPaused = false;
+        resumeCaptureAfterPreview = false;
+        elements.status.textContent = 'マイクは停止中です';
+        previewAudioController.stop(0);
+        void previewAudioController.suspend();
+        void audioController.stop();
+        renderAudioState(audioController.getState());
+    }
+
+    const handlePreviewVisibility = () => {
+        if (documentTarget?.hidden) cancelPreview();
+    };
+    const handlePreviewPageHide = () => { cancelPreview(); };
+    documentTarget?.addEventListener?.('visibilitychange', handlePreviewVisibility);
+    windowTarget?.addEventListener?.('pagehide', handlePreviewPageHide);
+
     elements.strings.forEach((element, index) => {
         element.addEventListener('click', () => {
             const target = currentTargets[index];
-            if (target) void previewAudioController.play(target);
+            if (target) return playReference(target);
         });
     });
 
@@ -904,6 +978,7 @@ export function initTuner(root, {
     });
 
     function startAudio() {
+        if (previewPaused || destroyed) return Promise.resolve(false);
         if (audioStatus === 'starting' || audioStatus === 'running') return audioController.start();
         lastAudioError = '';
         if (viewActive) showError();
@@ -926,12 +1001,11 @@ export function initTuner(root, {
             return startAudio();
         },
         setActive(active) {
+            if (destroyed) return;
             const wasActive = viewActive;
             viewActive = active;
             if (!active) {
-                void audioController.stop();
-                previewAudioController.stop();
-                void previewAudioController.suspend();
+                cancelPreview();
                 audioStatus = 'idle';
                 resetDiagnostic();
                 showError();
@@ -951,6 +1025,16 @@ export function initTuner(root, {
             renderAudioState({ status: audioController.getState().status });
             elements.title.focus({ preventScroll: true });
             if (!wasActive) void startAudio();
+        },
+        destroy() {
+            if (destroyed) return Promise.resolve();
+            destroyed = true;
+            viewActive = false;
+            cancelPreview();
+            documentTarget?.removeEventListener?.('visibilitychange', handlePreviewVisibility);
+            windowTarget?.removeEventListener?.('pagehide', handlePreviewPageHide);
+            previewAudioController.destroy?.();
+            return audioController.destroy();
         }
     };
 }

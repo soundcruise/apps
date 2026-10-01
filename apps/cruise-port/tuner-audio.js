@@ -144,8 +144,10 @@ export function createTunerAudioController({
     let diagnosticSupportedConstraints = {};
     let callbackErrorReported = false;
     let captureSessionNeedsReset = false;
+    let previewSessionHeld = false;
     let pendingCaptureRequests = 0;
     const captureStreams = new Set();
+    const pendingStarts = new Set();
     const levelEnabled = typeof onInputLevel === 'function';
     const detailedDetectionEnabled = diagnosticEnabled || levelEnabled;
     const trackListeners = new Map();
@@ -203,7 +205,7 @@ export function createTunerAudioController({
     function resetPlaybackAudioSessionAfterCapture() {
         // A cancelled permission request can still return a live stream. Wait for it, and never
         // let an older request's cleanup reset a newer capture that is already running.
-        if (!captureSessionNeedsReset || pendingCaptureRequests || captureStreams.size) return;
+        if (!captureSessionNeedsReset || previewSessionHeld || pendingCaptureRequests || captureStreams.size) return;
         captureSessionNeedsReset = false;
         try {
             const audioSession = platform.navigatorObject?.audioSession;
@@ -221,7 +223,8 @@ export function createTunerAudioController({
         resetPlaybackAudioSessionAfterCapture();
     }
 
-    function releaseResources() {
+    function releaseResources({ preserveSession = false } = {}) {
+        if (!preserveSession) previewSessionHeld = false;
         generation += 1;
         clearAnalysisTimer();
 
@@ -252,6 +255,19 @@ export function createTunerAudioController({
         const closePromise = releaseResources();
         if (status !== TUNER_AUDIO_STATES.destroyed) setStatus(TUNER_AUDIO_STATES.idle);
         return closePromise;
+    }
+
+    async function pauseForPreview() {
+        if (status === TUNER_AUDIO_STATES.destroyed) return false;
+        // A permission request may still resolve after cancellation. Do not hand the session to
+        // playback until that request has settled and every owned stream has actually stopped.
+        const pendingStart = Promise.all([...pendingStarts]);
+        previewSessionHeld = true;
+        captureSessionNeedsReset = true;
+        const closing = releaseResources({ preserveSession: true });
+        if (status !== TUNER_AUDIO_STATES.destroyed) setStatus(TUNER_AUDIO_STATES.idle);
+        await Promise.all([closing, pendingStart]);
+        return pendingCaptureRequests === 0 && captureStreams.size === 0;
     }
 
     function fail(error, fallbackCode) {
@@ -467,14 +483,17 @@ export function createTunerAudioController({
         if (status === TUNER_AUDIO_STATES.running) return Promise.resolve(true);
         if (status === TUNER_AUDIO_STATES.starting && startPromise) return startPromise;
 
+        previewSessionHeld = false;
         const startGeneration = ++generation;
         callbackErrorReported = false;
         setStatus(TUNER_AUDIO_STATES.starting);
         const pending = startInternal(startGeneration);
         startPromise = pending.finally(() => {
+            pendingStarts.delete(wrapped);
             if (startPromise === wrapped) startPromise = null;
         });
         const wrapped = startPromise;
+        pendingStarts.add(wrapped);
         return wrapped;
     }
 
@@ -510,5 +529,5 @@ export function createTunerAudioController({
         return closePromise;
     }
 
-    return { start, stop, destroy, getState, setRmsThreshold };
+    return { start, stop, pauseForPreview, destroy, getState, setRmsThreshold };
 }

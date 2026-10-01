@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
     createInputLevelSmoother,
@@ -294,6 +295,7 @@ assert.equal(inputLevelPercentage(0), 100);
     const controller = {
         start: async () => true,
         stop: async () => {},
+        pauseForPreview: async () => true,
         getState: () => ({ status: 'idle' }),
         setRmsThreshold: () => true
     };
@@ -306,6 +308,7 @@ assert.equal(inputLevelPercentage(0), 100);
         })
     });
 
+    app.setActive(true);
     for (const card of root.strings) await card.dispatch('click');
     assert.deepEqual(
         playedTargets.map(({ note, targetFrequency }) => ({ note, targetFrequency })),
@@ -353,8 +356,9 @@ assert.equal(inputLevelPercentage(0), 100);
     await root.strings[0].dispatch('click');
     assert.equal(playedTargets.at(-1).note, 'C2', 'free cards never request a preview sound');
 
+    const previousStops = previewStopCalls;
     app.setActive(false);
-    assert.equal(previewStopCalls, 1, 'route leave stops the active preview');
+    assert.equal(previewStopCalls, previousStops + 1, 'route leave stops the active preview');
     assert.equal(previewSuspendCalls, 1, 'route leave suspends the preview context');
 }
 
@@ -960,7 +964,7 @@ assert.equal(inputLevelPercentage(0), 100);
         capabilities: getCapabilities('standard'),
         requestPro: key=>prompts.push(key),
         storage: { getItem:()=>raw, setItem:(_,value)=>{raw=value;} },
-        audioControllerFactory:options=>{callbacks=options;return {start:async()=>true,stop:async()=>{},getState:()=>({status:'running'}),setRmsThreshold:()=>true};},
+        audioControllerFactory:options=>{callbacks=options;return {start:async()=>true,stop:async()=>{},pauseForPreview:async()=>true,getState:()=>({status:'running'}),setRmsThreshold:()=>true};},
         previewAudioControllerFactory:()=>({play:async target=>{played.push(target);return true;},stop(){},suspend:async()=>{}})
     });
     assert.equal(root.strings[0].querySelector('strong').textContent,'E2');
@@ -985,3 +989,192 @@ assert.equal(inputLevelPercentage(0), 100);
     assert.equal(JSON.parse(raw).capo,5);
 }
 console.log('tuner-app: all UI-controller and smoothing tests passed');
+
+const flushPreview = async () => { for (let step = 0; step < 12; step += 1) await Promise.resolve(); };
+function waitForPreviewTest() {
+    let resolve;
+    const promise = new Promise((done) => { resolve = done; });
+    return { promise, resolve };
+}
+function previewUiHarness() {
+    const root = createFakeRoot();
+    const events = [], sources = [];
+    const lifecycle = () => {
+        const listeners = new Map();
+        return {
+            hidden: false, listeners,
+            addEventListener(name, callback) { if (!listeners.has(name)) listeners.set(name, new Set()); listeners.get(name).add(callback); },
+            removeEventListener(name, callback) { listeners.get(name)?.delete(callback); },
+            dispatch(name) { for (const callback of listeners.get(name) || []) callback(); }
+        };
+    };
+    const documentTarget = lifecycle(), windowTarget = lifecycle();
+    const control = { starts: 0, pauses: 0, pauseWait: null, resumeWait: null, denyResume: false, pauseFails: false, playFails: false };
+    let callbacks, status = 'idle', captureGeneration = 0;
+    const state = (next) => { if (status === next) return; status = next; callbacks.onStateChange({ status }); };
+    const audio = {
+        async start() {
+            const token = ++captureGeneration;
+            control.starts += 1;
+            events.push('capture:start');
+            state('starting');
+            if (control.resumeWait) await control.resumeWait;
+            if (token !== captureGeneration) return false;
+            if (control.denyResume) {
+                state('error'); callbacks.onError({ code: 'permission-denied' }); return false;
+            }
+            state('running'); return true;
+        },
+        async pauseForPreview() {
+            captureGeneration += 1; control.pauses += 1; events.push('capture:pause'); state('idle');
+            if (control.pauseWait) await control.pauseWait;
+            events.push('tracks:ended'); return !control.pauseFails;
+        },
+        async stop() { captureGeneration += 1; events.push('capture:stop'); state('idle'); },
+        async destroy() { await this.stop(); state('destroyed'); },
+        getState: () => ({ status }), setRmsThreshold: () => true
+    };
+    const preview = {
+        prepare() { events.push('output:prepare'); return Promise.resolve(); },
+        async play(target, options) { events.push(`play:${target.note}`); if (control.playThrows) throw new Error('Source start failed'); if (control.playFails) return false; sources.push({ target, ...options }); return true; },
+        stop() { events.push('output:stop'); }, suspend: async () => {}, destroy() { events.push('output:destroy'); }
+    };
+    const app = initTuner(root, { documentTarget, windowTarget, audioControllerFactory(options) { callbacks = options; return audio; }, previewAudioControllerFactory: () => preview });
+    app.setActive(true);
+    return { root, app, control, events, sources, documentTarget, windowTarget };
+}
+
+test('preview waits for stopped tracks, preserves visible controls, and resumes only on real source end', async () => {
+    const h = previewUiHarness();
+    const waiting = waitForPreviewTest();
+    h.control.pauseWait = waiting.promise;
+    const visibility = () => ['tuner-toggle', 'tuner-input-level-wrap'].map((id) => h.root.elements.get(id).hidden);
+    const before = visibility();
+    const click = h.root.strings[0].dispatch('click');
+    assert.equal(h.sources.length, 0);
+    assert.equal(h.root.elements.get('tuner-status').textContent, 'マイク一時停止中');
+    assert.deepEqual(visibility(), before);
+    waiting.resolve(); await click;
+    assert.ok(h.events.indexOf('tracks:ended') < h.events.indexOf('play:E2'));
+    assert.equal(h.control.starts, 1, 'no timeout-based resume');
+    h.sources[0].onEnded(); await flushPreview();
+    assert.equal(h.control.starts, 2);
+    assert.equal(h.root.elements.get('tuner-status').textContent, 'マイク入力中');
+    assert.deepEqual(visibility(), before);
+    await h.app.destroy();
+});
+
+test('E2 A2 D3 taps keep capture paused and ignore old completion callbacks', async () => {
+    const h = previewUiHarness();
+    for (const card of h.root.strings.slice(0, 3)) await card.dispatch('click');
+    assert.deepEqual(h.sources.map((source) => source.target.note), ['E2', 'A2', 'D3']);
+    h.sources[0].onEnded(); h.sources[1].onEnded(); await flushPreview();
+    assert.equal(h.control.starts, 1);
+    h.sources[2].onEnded(); await flushPreview();
+    assert.equal(h.control.starts, 2);
+    await h.app.destroy();
+});
+
+test('overlapping taps while capture stops schedule only the latest target', async () => {
+    const h = previewUiHarness();
+    const wait = waitForPreviewTest(); h.control.pauseWait = wait.promise;
+    const taps = h.root.strings.slice(0, 3).map((card) => card.dispatch('click'));
+    wait.resolve(); await Promise.all(taps);
+    assert.deepEqual(h.sources.map((source) => source.target.note), ['D3']);
+    h.sources[0].onEnded(); await flushPreview();
+    assert.equal(h.control.starts, 2);
+    await h.app.destroy();
+});
+
+test('tap during microphone resume cancels that resume and retains the pause display', async () => {
+    const h = previewUiHarness();
+    await h.root.strings[0].dispatch('click');
+    const wait = waitForPreviewTest(); h.control.resumeWait = wait.promise;
+    h.sources[0].onEnded(); await flushPreview();
+    assert.equal(h.root.elements.get('tuner-status').textContent, 'マイク一時停止中');
+    await h.root.strings[1].dispatch('click');
+    wait.resolve(); await flushPreview();
+    assert.equal(h.root.elements.get('tuner-status').textContent, 'マイク一時停止中');
+    h.control.resumeWait = null; h.sources[1].onEnded(); await flushPreview();
+    assert.equal(h.root.elements.get('tuner-status').textContent, 'マイク入力中');
+    await h.app.destroy();
+});
+
+for (const operation of ['route', 'pagehide', 'visibilitychange', 'destroy']) {
+    test(`preview completion after ${operation} cannot restart capture`, async () => {
+        const h = previewUiHarness();
+        await h.root.strings[0].dispatch('click');
+        if (operation === 'route') h.app.setActive(false);
+        else if (operation === 'pagehide') h.windowTarget.dispatch(operation);
+        else if (operation === 'destroy') await h.app.destroy();
+        else { h.documentTarget.hidden = true; h.documentTarget.dispatch(operation); }
+        h.sources[0].onEnded(); await flushPreview();
+        assert.equal(h.control.starts, 1);
+        assert.notEqual(h.root.elements.get('tuner-status').textContent, 'マイク一時停止中');
+        if (operation === 'pagehide' || operation === 'visibilitychange') {
+            assert.equal(h.root.elements.get('tuner-toggle').hidden, false, 'idle cancellation must still expose manual restart');
+            assert.equal(h.root.elements.get('tuner-input-level-wrap').hidden, true);
+        }
+        if (operation === 'route') {
+            h.app.setActive(true); await flushPreview();
+            assert.equal(h.control.starts, 2);
+            assert.equal(h.root.elements.get('tuner-status').textContent, 'マイク入力中');
+        }
+        await h.app.destroy();
+        assert.equal(h.documentTarget.listeners.get('visibilitychange').size, 0);
+    });
+}
+
+test('leave while capture pause is pending cancels both playback and auto resume', async () => {
+    const h = previewUiHarness();
+    const wait = waitForPreviewTest(); h.control.pauseWait = wait.promise;
+    const click = h.root.strings[0].dispatch('click');
+    h.app.setActive(false); wait.resolve(); await click;
+    assert.equal(h.sources.length, 0);
+    assert.equal(h.control.starts, 1);
+    await h.app.destroy();
+});
+
+test('resume denial shows existing microphone error and retry once; pause indicator clears', async () => {
+    const h = previewUiHarness();
+    await h.root.strings[0].dispatch('click'); h.control.denyResume = true;
+    h.sources[0].onEnded(); await flushPreview();
+    assert.equal(h.control.starts, 2);
+    assert.equal(h.root.elements.get('tuner-status').textContent, 'マイクを開始できませんでした');
+    assert.equal(h.root.elements.get('tuner-toggle').textContent, 'マイクを再試行');
+    assert.equal(h.root.elements.get('tuner-error').hidden, false);
+    h.control.denyResume = false;
+    await h.root.elements.get('tuner-toggle').dispatch('click');
+    assert.equal(h.root.elements.get('tuner-status').textContent, 'マイク入力中');
+    await h.app.destroy();
+});
+
+test('failed preview returns capture to running rather than leaving it paused', async () => {
+    const h = previewUiHarness(); h.control.playFails = true;
+    await h.root.strings[0].dispatch('click');
+    assert.equal(h.control.starts, 2);
+    assert.equal(h.root.elements.get('tuner-status').textContent, 'マイク入力中');
+    await h.app.destroy();
+});
+
+test('preview exception stops partial playback before restoring capture', async () => {
+    const h = previewUiHarness(); h.control.playThrows = true;
+    await h.root.strings[0].dispatch('click');
+    assert.equal(h.control.starts, 2);
+    const failedPlay = h.events.indexOf('play:E2');
+    const cleanup = h.events.indexOf('output:stop', failedPlay);
+    assert.ok(cleanup > failedPlay && cleanup < h.events.lastIndexOf('capture:start'));
+    assert.equal(h.root.elements.get('tuner-status').textContent, 'マイク入力中');
+    assert.equal(h.root.elements.get('tuner-error').hidden, false);
+    await h.app.destroy();
+});
+
+test('unconfirmed track stop refuses playback and does not restart capture', async () => {
+    const h = previewUiHarness(); h.control.pauseFails = true;
+    await h.root.strings[0].dispatch('click');
+    assert.equal(h.sources.length, 0);
+    assert.equal(h.control.starts, 1);
+    assert.equal(h.root.elements.get('tuner-error').hidden, false);
+    assert.notEqual(h.root.elements.get('tuner-status').textContent, 'マイク一時停止中');
+    await h.app.destroy();
+});

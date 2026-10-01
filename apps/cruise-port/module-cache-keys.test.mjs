@@ -11,8 +11,8 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.12.2 repairs microphone session cleanup; the capture module and its importer get new keys.
-const RELEASE_MODULES = Object.freeze(['app-version.js', 'tuner-audio.js', 'tuner-app.js']);
+// 1.12.3 pauses capture for reference playback; both audio controllers and their importer change.
+const RELEASE_MODULES = Object.freeze(['app-version.js', 'tuner-audio.js', 'tuner-preview-audio.js', 'tuner-app.js']);
 // NEWS modules are loaded with dynamic import() from practice-menu-app.js and did not change in 1.12.0.
 const UNCHANGED_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
 // Other modules retain the cache key of their last real change.
@@ -30,7 +30,6 @@ const UNCHANGED_KEYS = Object.freeze({
   'practice-menu-history-store.js': '0.70.1',
   'ai-support-client.js': '0.70.0',
   'ai-support-ui.js': '0.70.0',
-  'tuner-preview-audio.js': '0.69.0',
   'tool-return.js': '0.69.0',
   'practice-analytics.js': '0.59.3',
   'sync-target-name.js': '0.66.0',
@@ -39,8 +38,8 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.12.2', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.12.2');
+test('the release is 1.12.3', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.12.3');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -69,9 +68,10 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.12.2');
-  assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.12.2');
-  assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.2');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.12.3');
+  assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.12.3');
+  assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
+  assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
   assert.equal(key('practice-menu-app.js', 'settings-store.js'), '1.12.0');
   assert.equal(key('practice-menu-app.js', 'home-display.js'), '1.12.0');
   assert.equal(key('home-display.js', 'settings-store.js'), '1.12.0');

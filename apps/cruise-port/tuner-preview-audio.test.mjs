@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
 import {
     TUNER_PREVIEW_DEFAULTS,
     createTunerPreviewAudioController
@@ -161,12 +162,71 @@ class FakeAudioContext {
             navigatorObject: { audioSession }
         }
     });
-    assert.equal(await controller.play({ targetFrequency: 82.4068892282175 }), true, 'preview plays while microphone capture owns the session');
-    assert.equal(audioSession.type, 'play-and-record', 'preview does not replace an active capture session with playback');
+    assert.equal(await controller.play({ targetFrequency: 82.4068892282175 }), true, 'caller has stopped capture before handing the session to preview');
+    assert.equal(audioSession.type, 'playback', 'preview takes the playback session after capture pause');
     controller.stop(0);
     assert.equal(await controller.play({ targetFrequency: 110 }), true, 'preview still plays after microphone stop without an extra session transition');
-    assert.equal(audioSession.type, 'play-and-record');
+    assert.equal(audioSession.type, 'playback');
     controller.destroy();
 }
 
 console.log('tuner-preview-audio: acoustic guitar preview and lifecycle tests passed');
+
+test('only the latest source end notifies the caller; stop invalidates old callbacks', async () => {
+    const controller = createTunerPreviewAudioController({ environment: { AudioContextClass: FakeAudioContext } });
+    const ended = [];
+    await controller.play({ targetFrequency: 82.4 }, { onEnded: () => ended.push('E2') });
+    await controller.play({ targetFrequency: 110 }, { onEnded: () => ended.push('A2') });
+    const context = FakeAudioContext.instances.at(-1);
+    context.sources[0].onended();
+    assert.deepEqual(ended, []);
+    assert.equal(controller.getState().playing, true);
+    context.sources[1].onended();
+    context.sources[1].onended();
+    assert.deepEqual(ended, ['A2']);
+    await controller.play({ targetFrequency: 146.8 }, { onEnded: () => ended.push('D3') });
+    controller.stop();
+    context.sources[2].onended();
+    assert.deepEqual(ended, ['A2']);
+    controller.destroy();
+});
+
+test('pending context resume cannot schedule a stale tone after stop or destroy', async () => {
+    for (const operation of ['stop', 'destroy']) {
+        let resume;
+        class WaitingContext extends FakeAudioContext {
+            async resume() { await new Promise((resolve) => { resume = resolve; }); this.state = 'running'; }
+        }
+        const controller = createTunerPreviewAudioController({ environment: { AudioContextClass: WaitingContext } });
+        const pending = controller.play({ targetFrequency: 82.4 });
+        const context = FakeAudioContext.instances.at(-1);
+        controller[operation]();
+        resume();
+        assert.equal(await pending, false);
+        assert.equal(context.sources.length, 0);
+        controller.destroy();
+    }
+});
+
+test('output preparation resumes within the tap without changing session or starting a source', async () => {
+    const audioSession = { type: 'play-and-record' };
+    const controller = createTunerPreviewAudioController({ environment: { AudioContextClass: FakeAudioContext, navigatorObject: { audioSession } } });
+    const preparing = controller.prepare();
+    const context = FakeAudioContext.instances.at(-1);
+    assert.equal(context.resumeCalls, 1);
+    assert.equal(context.sources.length, 0);
+    assert.equal(audioSession.type, 'play-and-record');
+    await preparing;
+    controller.destroy();
+});
+
+test('optional playback session assignment failure does not break playback or completion', async () => {
+    const audioSession = {};
+    Object.defineProperty(audioSession, 'type', { get: () => 'auto', set() { throw new Error('unsupported assignment'); } });
+    let ends = 0;
+    const controller = createTunerPreviewAudioController({ environment: { AudioContextClass: FakeAudioContext, navigatorObject: { audioSession } } });
+    assert.equal(await controller.play({ targetFrequency: 82.4 }, { onEnded: () => { ends += 1; } }), true);
+    FakeAudioContext.instances.at(-1).sources[0].onended();
+    assert.equal(ends, 1);
+    controller.destroy();
+});

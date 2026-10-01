@@ -1,5 +1,6 @@
 // Usage: NODE_PATH=<Playwright runtime> node apps/cruise-port/tests/tuner-audio-session-browser.cjs [output-dir] [production-origin]
-// Isolated storage, synthetic microphone tracks and a mocked AudioSession: never a device-volume test.
+// Phase B: isolated storage, synthetic microphone tracks, real source endings and mocked sessions.
+// Includes Phase A cleanup, baseline pixels/styles, pause geometry and OfflineAudioContext levels.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -10,7 +11,7 @@ const { chromium } = require('playwright');
 const root = path.resolve(__dirname, '../../..');
 const out = path.resolve(process.argv[2] || '/tmp/cruise-port-phase-a');
 const production = process.argv[3];
-const baseline = '9e728e226bb54363738a29d588d674c25b5d0851';
+const baseline = 'a3717eb897b9e4c3525f400a4f73cd1d4d4ea4c8';
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.png': 'image/png', '.svg': 'image/svg+xml' };
 
@@ -34,9 +35,9 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
     let browser;
     const result = { mode: production ? 'production' : 'local', baseline, themes: [], levels: [], functional: [], pageErrors: [] };
     try {
-        browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' });
-        async function open(kind, theme, supported = true) {
-            const context = await browser.newContext({ viewport: { width: 393, height: 852 }, reducedMotion: 'reduce' });
+        browser = await chromium.launch({ headless: true, executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--disable-gpu', '--force-color-profile=srgb'] });
+        async function open(kind, theme, supported = true, width = 393) {
+            const context = await browser.newContext({ viewport: { width, height: width > 500 ? 1000 : 852 }, reducedMotion: 'reduce' });
             await context.addInitScript(({ theme, supported }) => {
                 localStorage.setItem('cruisePort.settings', JSON.stringify({ version: 3, displaySize: 'standard', fontSize: 'medium', sectionOrder: ['cruiseApps', 'tools', 'myApps'], theme }));
                 const qa = window.phaseA = { events: [], streams: [], permission: 'granted', hidden: false, type: 'auto' };
@@ -44,6 +45,15 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
                 const session = {};
                 Object.defineProperty(session, 'type', { get: () => qa.type, set: (type) => { qa.events.push(`session:${type}`); qa.type = type; } });
                 Object.defineProperty(navigator, 'audioSession', { configurable: true, value: supported ? session : undefined });
+                const createSource = AudioContext.prototype.createBufferSource;
+                let sourceId = 0;
+                AudioContext.prototype.createBufferSource = function () {
+                    const source = createSource.call(this), id = ++sourceId;
+                    const start = source.start.bind(source);
+                    source.start = (...args) => { qa.events.push(`tone:start:${id}`); return start(...args); };
+                    source.addEventListener('ended', () => { qa.events.push(`tone:end:${id}`); });
+                    return source;
+                };
                 navigator.mediaDevices.getUserMedia = async () => {
                     qa.events.push('getUserMedia');
                     if (qa.permission === 'denied') throw new DOMException('QA denied', 'NotAllowedError');
@@ -84,47 +94,94 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
             assert.equal(value.live, 0);
             if (supported) {
                 assert.equal(value.type, 'auto');
-                assert.deepEqual(value.events.slice(-3), ['tracks:ended', 'session:playback', 'session:auto']);
+                assert.deepEqual(value.events.filter((event) => event.startsWith('session:')).slice(-2), ['session:playback', 'session:auto']);
             }
         }
+        const selectors = ['.tuner-panel', '#tuner-note', '#tuner-meter', '.tuner-strings', '#tuner-input-level-wrap', '#tuner-toggle', '#tuner-status', '#tuner-tuning', '#tuner-capo-up', '#tuner-input-settings-toggle'];
+        const presentation = (page, styles = false) => page.evaluate(({ selectors, styles }) => Object.fromEntries(selectors.map((selector) => {
+            const element = document.querySelector(selector), rect = element.getBoundingClientRect();
+            const value = { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+            if (styles) { const computed = getComputedStyle(element); value.styles = Object.fromEntries([...computed].map((key) => [key, computed.getPropertyValue(key)])); }
+            return [selector, value];
+        })), { selectors, styles });
         for (const theme of ['dark', 'gray', 'light']) {
-            const old = await open('baseline', theme);
-            const current = await open('current', theme);
-            const oldPng = await old.page.locator('#tuner-view').screenshot({ animations: 'disabled', path: path.join(out, `${theme}-baseline.png`) });
-            const newPng = await current.page.locator('#tuner-view').screenshot({ animations: 'disabled', path: path.join(out, `${theme}-current.png`) });
+          for (const width of [375, 393, 1024]) {
+            const old = await open('baseline', theme, true, width);
+            const current = await open('current', theme, true, width);
+            const oldPng = await old.page.locator('#tuner-view').screenshot({ animations: 'disabled', path: path.join(out, `${theme}-${width}-baseline.png`) });
+            const newPng = await current.page.locator('#tuner-view').screenshot({ animations: 'disabled', path: path.join(out, `${theme}-${width}-current.png`) });
             assert.equal(digest(newPng), digest(oldPng), `${theme}: tuner UI pixels are unchanged`);
-            result.themes.push({ theme, pixelsIdentical: true });
+            assert.deepEqual(await presentation(current.page, true), await presentation(old.page, true));
+            const before = await presentation(current.page);
             await current.page.locator('[data-tuner-string][data-string="6"]').click();
-            assert.equal((await state(current.page)).type, 'play-and-record', 'preview keeps capture active');
-            assert.equal((await state(current.page)).live, 1);
+            await current.page.waitForFunction(() => phaseA.type === 'playback' && phaseA.events.some((event) => event.startsWith('tone:start:')));
+            const paused = await state(current.page);
+            assert.equal(paused.live, 0);
+            assert.ok(paused.events.indexOf('tracks:ended') < paused.events.indexOf('session:playback'));
+            assert.ok(paused.events.indexOf('session:playback') < paused.events.findIndex((event) => event.startsWith('tone:start:')));
+            assert.equal(await current.page.locator('#tuner-status').textContent(), 'マイク一時停止中');
+            assert.deepEqual(await presentation(current.page), before, 'pause changes no measured rectangle');
+            await current.page.locator('#tuner-view').screenshot({ animations: 'disabled', path: path.join(out, `${theme}-${width}-paused.png`) });
+            await current.page.locator('[data-tuner-string][data-string="5"]').click();
+            await current.page.locator('[data-tuner-string][data-string="4"]').click();
+            assert.equal((await state(current.page)).events.filter((event) => event === 'getUserMedia').length, 1, 'no microphone restart between taps');
+            assert.deepEqual(await presentation(current.page), before);
+            await current.page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイク入力中');
+            const resumed = await state(current.page);
+            assert.equal(resumed.live, 1);
+            assert.equal(resumed.type, 'play-and-record');
+            assert.equal(resumed.events.filter((event) => event === 'getUserMedia').length, 2);
+            assert.ok(resumed.events.findIndex((event) => event === 'tone:end:3') < resumed.events.lastIndexOf('getUserMedia'), 'actual final source end precedes microphone resume');
+            assert.deepEqual(await presentation(current.page), before, 'resume changes no measured rectangle');
+            result.themes.push({ theme, width, pixelsIdentical: true, computedStylesIdentical: true, pauseRectanglesDiff: 0, resumeRectanglesDiff: 0 });
+            await current.page.locator('[data-tuner-string][data-string="6"]').click();
+            await current.page.waitForFunction(() => phaseA.type === 'playback');
             await leave(current.page);
+            const count = (await state(current.page)).events.filter((event) => event === 'getUserMedia').length;
             await current.page.locator('#metronome-card').click();
             await current.page.locator('#metronome-toggle').click();
             await current.page.waitForFunction(() => document.getElementById('metronome-toggle').getAttribute('aria-pressed') === 'true');
             assert.equal((await state(current.page)).type, 'auto');
             await current.page.locator('#metronome-toggle').click();
             await current.page.locator('#metronome-view [data-action="home"]').click();
+            assert.equal((await state(current.page)).events.filter((event) => event === 'getUserMedia').length, count, 'leave during preview does not restart capture');
             await current.page.locator('#tuner-card').click();
             await current.page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイク入力中');
             assert.equal((await state(current.page)).type, 'play-and-record');
             await leave(current.page);
-            result.functional.push(`${theme}: open / preview / leave / metronome / reopen PASS`);
+            result.functional.push(`${theme}/${width}: pause / E2-A2-D3 / natural end / resume / leave / Phase A / reopen PASS`);
             await old.context.close();
             await current.context.close();
+          }
         }
         const { page, context, base } = await open('current', 'dark');
         await page.setViewportSize({ width: 375, height: 812 });
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        await page.locator('[data-tuner-string][data-string="6"]').click();
+        await page.waitForFunction(() => phaseA.type === 'playback');
         await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
         assert.equal((await state(page)).type, 'auto');
         assert.equal((await state(page)).live, 0);
         await page.locator('#tuner-toggle').click();
         await page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイク入力中');
+        await page.locator('[data-tuner-string][data-string="6"]').click();
+        await page.waitForFunction(() => phaseA.type === 'playback');
         await page.evaluate(() => { phaseA.hidden = true; document.dispatchEvent(new Event('visibilitychange')); });
         assert.equal((await state(page)).type, 'auto');
         assert.equal((await state(page)).live, 0);
         await page.evaluate(() => { phaseA.hidden = false; document.dispatchEvent(new Event('visibilitychange')); });
-        await leave(page, false);
+        const stoppedCount = (await state(page)).events.filter((event) => event === 'getUserMedia').length;
+        await page.locator('#tuner-toggle').click();
+        await page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイク入力中');
+        assert.equal((await state(page)).events.filter((event) => event === 'getUserMedia').length, stoppedCount + 1, 'no hidden/pagehide callback resumes microphone');
+        await page.locator('[data-tuner-string][data-string="6"]').click();
+        await page.waitForFunction(() => phaseA.type === 'playback');
+        await page.evaluate(() => { phaseA.permission = 'denied'; });
+        await page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイクを開始できませんでした');
+        assert.equal((await state(page)).type, 'auto');
+        assert.equal((await state(page)).live, 0);
+        assert.equal(await page.locator('#tuner-toggle').textContent(), 'マイクを再試行');
+        await leave(page);
         await page.evaluate(() => { phaseA.permission = 'denied'; });
         await page.locator('#tuner-card').click();
         await page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイクを開始できませんでした');
@@ -135,7 +192,7 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
         await leave(page);
         result.functional.push('375px / pagehide / visibility / permission deny / retry PASS');
         result.levels = await page.evaluate(async () => {
-            const { createTunerPreviewAudioController } = await import('./tuner-preview-audio.js?v=0.69.0');
+            const { createTunerPreviewAudioController } = await import('./tuner-preview-audio.js?v=1.12.3');
             const references = [[44100, 40, 0.47419464588165283, 0.06624024105525961], [44100, 64, 0.46254459023475647, 0.028559644177134923], [48000, 40, 0.5244203805923462, 0.06627980837153452], [48000, 64, 0.4581543207168579, 0.026876924777881433]];
             const rows = [];
             for (const [sampleRate, midi, expectedPeak, expectedRms] of references) {
@@ -160,6 +217,10 @@ const mime = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css
         }
         await context.close();
         const unsupported = await open('current', 'dark', false);
+        await unsupported.page.locator('[data-tuner-string][data-string="6"]').click();
+        await unsupported.page.waitForFunction(() => phaseA.events.some((event) => event.startsWith('tone:start:')));
+        assert.equal((await state(unsupported.page)).live, 0);
+        await unsupported.page.waitForFunction(() => document.getElementById('tuner-status').textContent === 'マイク入力中');
         await leave(unsupported.page, false);
         assert.equal((await state(unsupported.page)).events.some((event) => event.startsWith('session:')), false);
         await unsupported.context.close();

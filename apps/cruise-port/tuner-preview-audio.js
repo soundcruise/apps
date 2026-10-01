@@ -106,17 +106,20 @@ export function createTunerPreviewAudioController({ environment = {} } = {}) {
     const platform = { ...defaultEnvironment(), ...environment };
     let context = null;
     let activePlayback = null;
+    let generation = 0;
+    let destroyed = false;
 
     function requestPlaybackAudioSession() {
         try {
             const audioSession = platform.navigatorObject?.audioSession;
-            if (audioSession && 'type' in audioSession && audioSession.type !== 'play-and-record') {
+            if (audioSession && 'type' in audioSession) {
                 audioSession.type = 'playback';
             }
         } catch (_) { /* Audio Session is optional. */ }
     }
 
     async function ensureContext() {
+        if (destroyed) return null;
         if (!platform.AudioContextClass) return null;
         if (!context || context.state === 'closed') context = new platform.AudioContextClass();
         if (context.state === 'suspended' && typeof context.resume === 'function') {
@@ -126,6 +129,7 @@ export function createTunerPreviewAudioController({ environment = {} } = {}) {
     }
 
     function stop(releaseSeconds = TUNER_PREVIEW_DEFAULTS.releaseSeconds) {
+        generation += 1;
         if (!activePlayback || !context) return false;
         const playback = activePlayback;
         activePlayback = null;
@@ -150,12 +154,13 @@ export function createTunerPreviewAudioController({ environment = {} } = {}) {
         return buffer;
     }
 
-    async function play(target) {
+    async function play(target, { onEnded } = {}) {
         if (!Number.isFinite(target?.targetFrequency) || target.targetFrequency <= 0) return false;
+        stop();
+        const playGeneration = generation;
         requestPlaybackAudioSession();
         const audioContext = await ensureContext();
-        if (!audioContext) return false;
-        stop();
+        if (!audioContext || destroyed || generation !== playGeneration) return false;
 
         const source = audioContext.createBufferSource();
         source.buffer = buildBuffer(audioContext, target.targetFrequency);
@@ -186,7 +191,9 @@ export function createTunerPreviewAudioController({ environment = {} } = {}) {
         const playback = { source, outputGain, outputGainValue };
         activePlayback = playback;
         source.onended = () => {
-            if (activePlayback === playback) activePlayback = null;
+            if (activePlayback !== playback) return;
+            activePlayback = null;
+            safelyCall(onEnded);
         };
         source.start(startTime);
         source.stop(startTime + TUNER_PREVIEW_DEFAULTS.duration + TUNER_PREVIEW_DEFAULTS.sustainTime);
@@ -207,6 +214,8 @@ export function createTunerPreviewAudioController({ environment = {} } = {}) {
     platform.windowTarget?.addEventListener?.('pagehide', stopForPageHide);
 
     return {
+        // Called in the original tap gesture before awaiting microphone teardown (iOS activation).
+        prepare: ensureContext,
         play,
         stop,
         suspend,
@@ -216,6 +225,7 @@ export function createTunerPreviewAudioController({ environment = {} } = {}) {
             contextState: context?.state || 'none'
         }),
         destroy() {
+            destroyed = true;
             stop();
             platform.documentTarget?.removeEventListener?.('visibilitychange', stopForHiddenDocument);
             platform.windowTarget?.removeEventListener?.('pagehide', stopForPageHide);

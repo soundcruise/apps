@@ -61,6 +61,94 @@ function createStream(sampleRate = 48000, settings = {}) {
     };
 }
 
+test('preview pause ends capture without auto reset; resume reacquires normally', async () => {
+    const trace = sessionTrace();
+    const streams = [trace.tracedStream(), trace.tracedStream()];
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: async () => streams.shift() });
+    await harness.controller.start();
+    assert.equal(await harness.controller.pauseForPreview(), true);
+    assert.equal(harness.controller.getState().status, 'idle');
+    assert.equal(harness.timers.size, 0);
+    assert.deepEqual(trace.events, ['session:play-and-record', 'stop:mic']);
+    trace.audioSession.type = 'playback';
+    assert.equal(await harness.controller.start(), true);
+    assert.equal(trace.audioSession.type, 'play-and-record');
+    await harness.controller.stop();
+    assert.equal(trace.audioSession.type, 'auto');
+});
+
+test('preview pause waits for pending permission and stops the late stream', async () => {
+    const pending = deferred();
+    const trace = sessionTrace();
+    const stream = trace.tracedStream();
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: () => pending.promise });
+    const starting = harness.controller.start();
+    let paused = false;
+    const pause = harness.controller.pauseForPreview().then((value) => { paused = true; return value; });
+    await Promise.resolve();
+    assert.equal(paused, false);
+    pending.resolve(stream);
+    assert.equal(await pause, true);
+    assert.equal(await starting, false);
+    assert.equal(stream.track.readyState, 'ended');
+    assert.equal(trace.events.includes('session:auto'), false);
+    await harness.controller.stop();
+    assert.equal(trace.audioSession.type, 'auto');
+});
+
+test('preview pause waits for every cancelled permission request', async () => {
+    const first = deferred(), second = deferred();
+    let calls = 0;
+    const harness = createHarness({ getUserMedia: () => ++calls === 1 ? first.promise : second.promise });
+    const a = harness.controller.start();
+    await harness.controller.stop();
+    const b = harness.controller.start();
+    let finished = false;
+    const pause = harness.controller.pauseForPreview().then((result) => { finished = true; return result; });
+    second.resolve(createStream());
+    await b;
+    assert.equal(finished, false);
+    first.resolve(createStream());
+    await a;
+    assert.equal(await pause, true);
+    await harness.controller.stop();
+});
+
+test('failed track stop never hands capture to preview', async () => {
+    const trace = sessionTrace();
+    const stream = trace.tracedStream();
+    stream.track.stop = () => { throw new Error('stop failed'); };
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: async () => stream });
+    await harness.controller.start();
+    assert.equal(await harness.controller.pauseForPreview(), false);
+    await harness.controller.stop();
+    assert.equal(trace.audioSession.type, 'play-and-record');
+});
+
+for (const event of ['pagehide', 'visibilitychange', 'destroy']) {
+    test(`preview-held session is released by ${event} without microphone restart`, async () => {
+        const trace = sessionTrace();
+        const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: async () => trace.tracedStream() });
+        await harness.controller.start();
+        await harness.controller.pauseForPreview();
+        trace.audioSession.type = 'playback';
+        if (event === 'destroy') await harness.controller.destroy();
+        else if (event === 'pagehide') harness.windowTarget.dispatch(event);
+        else { harness.documentTarget.hidden = true; harness.documentTarget.dispatch(event); }
+        assert.equal(trace.audioSession.type, 'auto');
+        assert.equal(harness.getUserMediaCalls, 1);
+    });
+}
+
+test('preview can release playback even when capture was idle', async () => {
+    const trace = sessionTrace();
+    const harness = createHarness({ audioSession: trace.audioSession });
+    assert.equal(await harness.controller.pauseForPreview(), true);
+    trace.audioSession.type = 'playback';
+    await harness.controller.stop();
+    assert.equal(trace.audioSession.type, 'auto');
+});
+
 function createTimers() {
     let nextId = 1;
     const callbacks = new Map();
