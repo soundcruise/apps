@@ -53,7 +53,7 @@ test('runtime source contains no outbound acquisition or HTML sinks', () => {
  assert.match(html,/id="news-view"[^>]*hidden/);
  }
  const app=readFileSync(new URL('practice-menu-app.js',import.meta.url),'utf8');
- assert.match(app,/await import\('\.\/news-ui.js\?v=1.11.0'\)/);
+ assert.match(app,/await import\('\.\/news-ui.js\?v=1.11.1'\)/);
 });
 
 test('real manual fixture is valid, unique, safe-source only and fact-label only', () => {
@@ -86,4 +86,16 @@ test('rich independent duplicate wins and low-value bulk stays below useful tick
  const useful=make(3,{id:'useful',topicKey:'useful',label:'Xotic、XXP-1を発表'});
  assert.equal(tickerNews([...bulk,useful],now)[0].id,'useful');
  assert.equal(tickerNews([make(15,{label:rich.label})],now).length,0);
+});
+
+// Category terminology does not rewrite the saved API key or independently authored article labels.
+test('event category display retains live_guitar filtering and actual live performance text',()=>{
+ assert.equal(NEWS_CATEGORIES.live_guitar,'イベント');
+ assert.equal(Object.hasOwn(NEWS_CATEGORIES,'event_guitar'),false);
+ const label='テスト奏者、ギター弾き語りライブを開催';
+ const event=make(1,{id:'event',topicKey:'event',category:'live_guitar',guitarEvidence:'guitar_performance',label});
+ const items=prepareNews([event,make(1,{id:'gear',topicKey:'gear'})],{now});
+ const filtered=groupNews(items,'live_guitar',now).flatMap(([,rows])=>rows);
+ assert.equal(filtered.length,1); assert.equal(filtered[0].category,'live_guitar');
+ assert.equal(filtered[0].label,label); assert.equal(tickerNews([filtered[0]],now)[0].label,label);
 });

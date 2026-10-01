@@ -1,12 +1,12 @@
-import {labelInformationScore,compareTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.11.0';
-export {labelInformationScore} from './news-quality.js?v=1.11.0';
+import {labelInformationScore,compareTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.11.1';
+export {labelInformationScore} from './news-quality.js?v=1.11.1';
 // Manual ingestion boundary. No collector, persistence or network access.
 export const NEWS_MODE = 'beta';
 export const NEWS_CATEGORIES = Object.freeze({
     acoustic_guitar: 'アコギ', electric_guitar_bass: 'ギター・ベース',
     amps_effects: 'アンプ・エフェクター', recording_audio: '録音・オーディオ',
     dtm_software: 'DTM', creator_streaming: '配信・クリエイター',
-    artist_guitar: 'アーティスト', live_guitar: 'ライブ', sale: 'セール', media_other: 'その他'
+    artist_guitar: 'アーティスト', live_guitar: 'イベント', sale: 'セール', media_other: 'その他'
 });
 const PRIORITY = ['official', 'distributor', 'retailer_editorial', 'media'];
 const GUITAR_EVIDENCE = ['acoustic_guitar_vocal', 'guitar_performance', 'guitar_gear', 'guitar_recording', 'manual_guitar_review'];
