@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.15.0';
+const RHYTHM_CRUISE_VERSION = '1.16.0';
 function notifyRhythmSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
 }
@@ -822,6 +822,34 @@ const MIC_WAVE_WINDOW_MS = 4000;
 
 /* 設定の保存キーと初期値 */
 const SETTINGS_KEY = 'rhythmCruiseSettings';
+/* カラーテーマ（アプリ単位・端末ローカル）。欠落/不正値はダーク。設定で選んだときだけ保存する。
+   起動時は index.html の head 内 bootstrap が描画前に適用する。 */
+const RHYTHM_THEMES = ['dark', 'charcoal', 'gray', 'light'];
+const RHYTHM_THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: '#f6f4ef' };
+function resolveRhythmTheme(value) {
+    return RHYTHM_THEMES.includes(value) ? value : 'dark';
+}
+function applyRhythmTheme(value) {
+    const theme = resolveRhythmTheme(value);
+    document.documentElement.setAttribute('data-theme', theme);
+    let meta = document.querySelector('meta[data-rc-theme-color]');
+    if (theme === 'dark') {
+        if (meta) meta.remove();
+    } else {
+        if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('name', 'theme-color');
+            meta.setAttribute('data-rc-theme-color', '');
+            document.head.insertBefore(meta, document.head.querySelector('meta[name="theme-color"]'));
+        }
+        meta.setAttribute('content', RHYTHM_THEME_META_COLORS[theme]);
+    }
+    document.querySelectorAll('#rc-theme-seg [data-theme-choice]').forEach((button) => {
+        const active = button.getAttribute('data-theme-choice') === theme;
+        button.classList.toggle('is-active', active);
+        button.setAttribute('aria-pressed', String(active));
+    });
+}
 /* マイク設定プリセット（名前をつけて保存／呼び出し）。v0.9.61 */
 const MIC_PRESETS_KEY = 'soundcruise_rhythm_mic_presets';
 const SETTINGS_DEFAULTS = { threshold: 0.025, cooldownMs: 200, clickGuardMs: 60, timingOffsetMs: -80, clickVolume: 70 };
@@ -23903,6 +23931,8 @@ function recoRawThresholdForEffectiveLine(targetEff) {
 function loadSettings() {
     let s = {};
     try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
+    state.theme = s.theme; // 保存値はそのまま保持（読み込み時に書き戻さない）
+    applyRhythmTheme(state.theme);
     mic.threshold = clampNum(s.threshold, THR_MIN, THR_MAX, SETTINGS_DEFAULTS.threshold);
     // v0.9.60：'auto'は廃止。保存値がauto/未知ならnormalへ正規化（以後はnormal/headphoneのみ保存）。
     mic.inputType = (s.inputType === 'headphone') ? 'headphone' : 'normal';
@@ -23960,6 +23990,7 @@ function loadSettings() {
 function saveSettings() {
     try {
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+            theme: state.theme, // 明示的に選ばれたときだけ値がある（undefined は保存されない）
             threshold: mic.threshold,
             inputType: mic.inputType,
             headphoneType: mic.headphoneType,
@@ -30999,6 +31030,14 @@ function bind() {
     }));
     if (els.settingsResetBtn) els.settingsResetBtn.addEventListener('click', resetSettings);
     if (els.settingsResetAllBtn) els.settingsResetAllBtn.addEventListener('click', resetAllRhythmCruiseData);
+    const rhythmThemeSeg = document.getElementById('rc-theme-seg');
+    if (rhythmThemeSeg) rhythmThemeSeg.addEventListener('click', (e) => {
+        const button = e.target.closest('[data-theme-choice]');
+        if (!button) return;
+        state.theme = resolveRhythmTheme(button.getAttribute('data-theme-choice'));
+        applyRhythmTheme(state.theme);
+        saveSettings();
+    });
     if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
     // マイク設定TOP（下部・手動設定内）：いつでもマイク設定トップ画面へ戻る（v0.9.70）
     if (els.micSettingsTopBtn) els.micSettingsTopBtn.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));

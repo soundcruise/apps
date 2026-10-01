@@ -28,8 +28,8 @@ continue from the first phase that is not marked DONE.
 |---|---|---|---|---|
 | 0 | Baseline check | DONE | (this file) | — |
 | 1 | Fretboard 4 themes (local-only) | DONE (deployed, prod smoke PASS) | 330e3b29 | 2.21.0 |
-| 2 | Pitch 4 themes (LOCAL_ONLY_SETTINGS) | DONE (pending deploy check) | see git log | 2.26.0 |
-| 3 | Rhythm 4 themes (local-only) | TODO | | |
+| 2 | Pitch 4 themes (LOCAL_ONLY_SETTINGS) | DONE (deployed, prod smoke PASS) | d18930e1 | 2.26.0 |
+| 3 | Rhythm 4 themes (local-only) | DONE (pending deploy check) | see git log | 1.16.0 |
 | 4 | Reader-first Sync (Worker + 3 clients accept theme, no send) | TODO | | |
 | 5 | Port + Charcoal | TODO | | |
 | 6 | Chord + Charcoal (app + info pages) | TODO | | |
@@ -50,3 +50,6 @@ continue from the first phase that is not marked DONE.
 - Pitch: beta page has its own layer (`theme-colors-beta.css`, no pro-theme.css). Pro gate backdrop shows the
   themed page through its blur (max channel delta 8/255); the gate card itself stays Dark.
 - Pitch contrast exceptions: piano key labels (object colors identical, checker misreads bg), gradient titles.
+- Rhythm: canvases / VexFlow draw light ink for a dark ground, so only the panels around them stay Dark
+  (lanes, calibration lanes, review, result graphs, score editor; opaque grounds #090d13 / #10141a measured from
+  Dark). Surrounding UI is themed. Theming the canvas drawing itself is a follow-up (154 JS color sites).

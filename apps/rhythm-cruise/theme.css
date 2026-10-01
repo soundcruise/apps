@@ -8835,3 +8835,21 @@ body[data-rc-theme="clean-pro"] #tap-area .tap-unify {
     border-color: rgba(255, 159, 28, 0.55);
     background: rgba(255, 159, 28, 0.12);
 }
+
+/* カラーテーマ（設定・全タブ共通カード）：4択を1行に収める */
+#rc-theme-seg {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 4px;
+}
+#rc-theme-seg .ss-seg {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 6px 4px;
+    white-space: nowrap;
+}
+.rc-theme-card .stage-set-row {
+    flex-wrap: wrap;
+}
+

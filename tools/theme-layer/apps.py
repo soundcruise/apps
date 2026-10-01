@@ -103,3 +103,52 @@ APPS['pitch-beta'] = dict(PITCH_COMMON, **{
         {'path': 'apps/pitch-cruise/theme.css'},
     ],
 })
+
+APPS['rhythm'] = {
+    'name': 'Rhythm Cruise (リズムクルーズ)',
+    'output': 'apps/rhythm-cruise/theme-colors.css',
+    'dark_bg': '#070b11',
+    'dark_surface': '#10161d',
+    'dark_text': '#efe8dc',  # clean-pro panel ink
+    'palette': {
+        'charcoal': dict(NEUTRAL_CHARCOAL),
+        'gray': dict(NEUTRAL_GRAY),
+        'light': {
+            'bg': '#f6f4ef', 'surface': '#ffffff', 'raised': '#f0ede6',
+            'text': '#1c1a17', 'muted': '#544f48', 'ink': '#1c1a17', 'scrim': 'rgba(22, 20, 17, 0.40)',
+        },
+    },
+    'sources': [
+        {'path': 'apps/rhythm-cruise/theme.css'},
+        {'path': 'apps/shared/pro-gate.css', 'identity': True},
+        {'path': 'apps/shared/sync-account/multi-app-sync.css'},
+        {'path': 'apps/rhythm-cruise/standard/index.html', 'inline_style': True},
+    ],
+    # Functional panels whose canvases / VexFlow draw light ink for a dark ground stay Dark (minimum
+    # parts only): judgement lanes, calibration / test lanes, result graphs, recording review, waveforms
+    # and score layers. Judgement colors (early / just / late) never change.
+    'object_selectors': (
+        r'(?:\.(?:lane-wrap|test-lane-wrap|lane-judge|result-graph-scroll|review-wrap|review-playhead|pt-review-scroll|'
+        r'custom-test-preview-score|android-latency-live|early|just|late|pro-gate|pro-badge)(?![\w-])|'
+        r'\.pce-vex-[\w-]+|\.pce-(?:arrow|beat-cell|tap-cell)[\w-]*|\.(?:custom|review)-flow-score[\w-]*|'
+        r'#(?:tap-pad|lane-canvas|lane-judge-overlay|tap-cal-lane-[\w-]+|test-lane-canvas|review-playhead-canvas|'
+        r'hp-cal-lane-[\w-]+|bt-cal-lane-[\w-]+|pt-lane-[\w-]+|pt-review-(?:scroll|canvas)|review-canvas|'
+        r'graph-canvas|results-mic-canvas|mic-preview-canvas|wizard-android-wave-[\w-]+)(?![\w-]))'
+    ),
+    # class selectors only: an id here would outrank the panels' own declared colors
+    'pin_color': False,  # notation / canvas colors are explicit; panels only keep the Dark surface tokens
+    'object_pins': ['.lane-wrap', '.test-lane-wrap', '.pt-review-scroll', '.review-wrap', '.result-graph-scroll',
+                    '.custom-test-preview-score', '.custom-flow-score-layer', '.review-flow-score-layer', '.pce-vex-scroll'],
+    # Lanes are drawn on translucent gradients over the Dark page; keep that page color under them.
+    # Colors are the measured Dark composites behind each panel (page vs. card ground).
+    'object_panel_bg': [
+        {'color': '#090d13', 'selectors': ['.lane-wrap', '#tap-cal-lane-wrap', '#hp-cal-lane-wrap', '#bt-cal-lane-wrap',
+                                           '#pt-lane-wrap', '.pt-review-scroll', '.review-wrap']},
+        {'color': '#10141a', 'selectors': ['.result-graph-scroll', '.pce-vex-scroll']},
+    ],
+    'identity_vars': ['--primary-color', '--secondary-color', '--accent-cool', '--error-color',
+                      '--early-color', '--just-color', '--late-color'],
+    'var_roles': {'--bg-color': 'bg', '--surface-color': 'bg', '--surface-raised': 'bg', '--text-color': 'text',
+                  '--muted-color': 'text'},
+    'named_text_tokens': {'--tl-accent-text': '#ff9f1c', '--tl-gold-text': '#dec27a'},
+}

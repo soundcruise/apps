@@ -15,7 +15,7 @@
 - 通常版PWA URL: `https://soundcruise.jp/apps/rhythm-cruise/standard/`
 - 旧通常版URL（互換入口）: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_r4m8k7n2q9x/`
-- 現在のバージョン: `1.3.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
+- 現在のバージョン: `1.16.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
@@ -90,6 +90,18 @@
 - **基本的な使い方ページ**（`usage.html`）: `info.html` から遷移。
 - **補正テスト動画ヘルプページ**（`mic-correction-help.html`）: マイク設定カードの`?`ボタンから遷移。
 - **利用規約/プライバシーポリシー**（`terms.html` / `privacy.html`）: `info.html` から遷移。
+
+---
+
+## カラーテーマ（1.16.0〜）
+
+- 設定画面の全タブ共通エリア（「全てを初期化する」の上）に「カラーテーマ」: ダーク / チャコール / グレー / ライト。タブは増やしていない。タップで即反映・保存。「全てを初期化する」でダークに戻る（設定キーごと削除されるため）。タブ別の「デフォルトに戻す」はテーマを変えない。
+- 保存先: `rhythmCruiseSettings.theme`。`saveSettings()` は毎回作り直すため `theme: state.theme` を明示的に含める（未選択なら undefined で保存されない）。欠落・不正値はダーク。
+- 起動時: 各 `index.html` の `<head>` 先頭の bootstrap が `html[data-theme]` を設定し、Dark 以外は既存 theme-color（#070b11）より前に meta を追加。
+- 見た目: Dark は既存CSSそのまま。Charcoal / Gray / Light は `theme-colors.css`（`tools/theme-layer/generate.py rhythm` で自動生成、手修正は末尾の Hand-tuned overrides のみ）。
+- 判定レーン・補正テストのレーン・結果グラフ・録音レビュー・譜面レイヤーは Canvas/VexFlow が暗い地向けの明るい線で描くため、そのパネルだけ Dark のまま（`#080c12` の下地を敷く）。周囲のカード・タップパッド・ボタン・設定はテーマ追従。early / just / late の判定色は不変。
+- Cloud Sync: theme は端末ローカル（`SYNC_SETTINGS` に含めない。`materialize` は現在の設定を clone するので同期適用で消えない）。
+- テスト: `node apps/rhythm-cruise/tests/theme.test.js`
 
 ---
 

@@ -5,8 +5,8 @@ var fs = require('fs');
 var path = require('path');
 
 var root = path.join(__dirname, '..');
-var expectedVersion = '1.15.0';
-var expectedThemeVersion = '1.5.1';
+var expectedVersion = '1.16.0';
+var expectedThemeVersion = '1.5.2';
 var script = fs.readFileSync(path.join(root, 'script.js'), 'utf8');
 var standardHtml = fs.readFileSync(path.join(root, 'standard', 'index.html'), 'utf8');
 var proHtml = fs.readFileSync(path.join(root, 'pro_r4m8k7n2q9x', 'index.html'), 'utf8');

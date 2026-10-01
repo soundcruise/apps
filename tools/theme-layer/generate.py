@@ -810,11 +810,17 @@ class Generator:
         pins = self.app.get('object_pins', [])
         if pins:
             body.append('/* ── object roots keep the Dark ink and surface tokens they inherit ── */')
-            decl = ['color: %s' % self.app['dark_text'], 'color-scheme: %s' % self.app.get('dark_color_scheme', 'normal')]
+            decl = (['color: %s' % self.app['dark_text']] if self.app.get('pin_color', True) else []) + \
+                ['color-scheme: %s' % self.app.get('dark_color_scheme', 'normal')]
             for var in self.app.get('var_roles', {}):
                 if var in self.all_root_vars:
                     decl.append('%s: %s' % (var, self.all_root_vars[var]))
             body.append('%s {\n    %s;\n}' % (',\n'.join(self.scoped_selector(x) for x in pins), ';\n    '.join(decl)))
+        panels = self.app.get('object_panel_bg')
+        if panels:
+            body.append('/* ── functional panels keep an opaque Dark ground under their own gradients ── */')
+            for panel in (panels if isinstance(panels, list) else [panels]):
+                body.append('%s {\n    background-color: %s !important;\n}' % (',\n'.join(self.scoped_selector(x) for x in panel['selectors']), panel['color']))
         frames = []
         self.keyframes(frames)
         token_blocks = []
