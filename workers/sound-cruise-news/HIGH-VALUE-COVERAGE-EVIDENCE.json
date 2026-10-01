@@ -1,0 +1,2244 @@
+{
+  "publisher-attempts": [
+    {
+      "url": "https://www.ikebe-gakki-pb.com/new_product/172481/",
+      "kind": "pending",
+      "startedAt": "2026-10-01T01:58:43.746Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "404208a52da2230266e8c024f37f6587f6b12bda9119fcb43ae7b4fb1e1c43d8",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T01:58:44.256Z"
+    },
+    {
+      "url": "https://www.ikebe-gakki-pb.com/new_product/172475/",
+      "kind": "pending",
+      "startedAt": "2026-10-01T01:58:44.271Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "f749d33592a2e5b5ba33b210e6bb1aa39e567f39f3f70f0c93ab566a681dd84f",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T01:58:44.481Z"
+    },
+    {
+      "url": "https://www.ikebe-gakki-pb.com/new_product/172461/",
+      "kind": "pending",
+      "startedAt": "2026-10-01T01:58:44.488Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "68ab659ec0a7aae0a425fda74a0720054fbc3d25b679b039ccdc028bfead9c96",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T01:58:44.680Z"
+    },
+    {
+      "url": "https://www.ikmultimedia.com/news/?item_id=19651",
+      "kind": "pending",
+      "startedAt": "2026-10-01T01:59:03.008Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "688660a2eecf390dccf169da6b8c0933d797bf3f4a7d1945614dca12fdcc5abf",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T01:59:03.784Z"
+    },
+    {
+      "url": "https://www.ikmultimedia.com/news/?item_id=19790",
+      "kind": "pending",
+      "startedAt": "2026-10-01T01:59:03.789Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "9d7c7f48f73963fac9c3443395f881d7f8d256a90b79218fecf5da0d66b1fa58",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T01:59:04.070Z"
+    },
+    {
+      "url": "https://www.ikmultimedia.com/news/?item_id=19650",
+      "kind": "pending",
+      "startedAt": "2026-10-01T01:59:04.074Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "88d023652f52411baac6658a4a8389f6e959b53a6d69b455d0edb7db15776935",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T01:59:04.397Z"
+    },
+    {
+      "url": "https://acousticguitarmagazine.jp/robots.txt",
+      "kind": "robots",
+      "startedAt": "2026-10-01T02:04:55.647Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "e47c326daac7f7581c14be1ac3bcb47de3210809ac756e06efe0d8a750dd76d5",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/plain; charset=utf-8",
+        "x-robots-tag": "noindex, follow"
+      },
+      "finishedAt": "2026-10-01T02:04:55.976Z",
+      "error": "optOut is not defined"
+    },
+    {
+      "url": "https://www.rittor-music.co.jp/agreement/",
+      "kind": "policy",
+      "startedAt": "2026-10-01T02:04:55.976Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "56257551f51e59249b1cc62e817747d1a39d7fefcd3b0813d6ef55e69dd77d86",
+      "headers": {
+        "server": "Apache",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:04:56.096Z",
+      "error": "optOut is not defined"
+    },
+    {
+      "url": "https://acousticguitarmagazine.jp/interview/",
+      "kind": "listing",
+      "startedAt": "2026-10-01T02:06:05.832Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "dbf021da1b92b830baa00fbea92167f01a7884ecccb4782a329df61b7a457f7d",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:06:06.175Z"
+    },
+    {
+      "url": "https://www.ikebe-gakki.com/robots.txt",
+      "kind": "robots",
+      "startedAt": "2026-10-01T02:06:37.071Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "c0f0d32be91a8f6702e93139edb26d77770f085b2108ed79bf3239c093fed083",
+      "headers": {
+        "server": "Microsoft-IIS/10.0",
+        "content-type": "text/plain"
+      },
+      "finishedAt": "2026-10-01T02:06:37.233Z"
+    },
+    {
+      "url": "https://hookup.co.jp/robots.txt",
+      "kind": "robots",
+      "startedAt": "2026-10-01T02:06:37.235Z",
+      "requests": 1,
+      "status": 404,
+      "hash": null,
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:06:37.385Z"
+    },
+    {
+      "url": "https://hookup.co.jp/about/tac",
+      "kind": "policy",
+      "startedAt": "2026-10-01T02:06:37.385Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "c0ea584b8c59589d49c6bb46f812695c2445d5597a4282065dc4c5d5e1c12c70",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:06:37.463Z"
+    },
+    {
+      "url": "https://www.ikebe-gakki.com/Page/agreement.aspx",
+      "kind": "policy",
+      "startedAt": "2026-10-01T02:07:50.346Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "e1eb436fd1d3b529c097a55d4533a7f2d90c8490e92fdb288988d9ca17b9218a",
+      "headers": {
+        "content-type": "text/html; charset=utf-8"
+      },
+      "finishedAt": "2026-10-01T02:07:51.018Z"
+    },
+    {
+      "url": "https://www.ikebe-gakki.com/blog/category/event/",
+      "kind": "listing",
+      "startedAt": "2026-10-01T02:07:51.033Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "17ff445c4668afb7ed047155c0c8e9ec4aee63cdee570474f0c1cdaaa1cdda12",
+      "headers": {
+        "server": "Microsoft-IIS/10.0",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:07:51.350Z"
+    },
+    {
+      "url": "https://hookup.co.jp/blog/feed.rss",
+      "kind": "listing",
+      "startedAt": "2026-10-01T02:07:51.354Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "17bfb6596b13e9b8aa4079d70adb86e25267bc2288cd06e9b4691bf3908068ec",
+      "headers": {
+        "server": "nginx",
+        "content-type": "application/rss+xml; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:07:51.542Z"
+    },
+    {
+      "url": "https://zoomcorp.com/robots.txt",
+      "kind": "robots",
+      "startedAt": "2026-10-01T02:10:05.130Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "0170f36052a23f03528b2fbc7a27f2f9fecbde1fbbd3e2da998b47e963af88f8",
+      "headers": {
+        "server": "cloudflare",
+        "content-type": "text/plain"
+      },
+      "finishedAt": "2026-10-01T02:10:05.388Z"
+    },
+    {
+      "url": "https://zoomcorp.com/ja/jp/news/",
+      "kind": "listing",
+      "startedAt": "2026-10-01T02:10:05.389Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "0f816b0a9cbf01daefc7f987a5f98cacd586a5d4842ff201a731b42e38123bc8",
+      "headers": {
+        "server": "cloudflare",
+        "content-type": "text/html; charset=utf-8"
+      },
+      "finishedAt": "2026-10-01T02:10:05.590Z"
+    },
+    {
+      "url": "https://acousticguitarmagazine.jp/interview/feed/",
+      "kind": "listing",
+      "startedAt": "2026-10-01T02:11:49.669Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "e66d4250d6e310b476bbdbd8c366e620c0286548d515574102539a19875478be",
+      "headers": {
+        "server": "nginx",
+        "content-type": "application/rss+xml; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:11:50.398Z"
+    },
+    {
+      "url": "https://hookup.co.jp/blog/1606595",
+      "kind": "sample",
+      "startedAt": "2026-10-01T02:15:22.938Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "f4c2fc894ad73b1284913123aedbc47ace8322f7b9e36860d8ef3498754d3c8f",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:15:23.313Z"
+    },
+    {
+      "url": "https://www.ikebe-gakki.com/blog/20261024-eg-workshop/",
+      "kind": "sample",
+      "startedAt": "2026-10-01T02:15:23.317Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "d313343c4fb4153b73046ba53afde11bede7c38a3929db8c683dde7617031795",
+      "headers": {
+        "server": "Microsoft-IIS/10.0",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:15:23.784Z"
+    },
+    {
+      "url": "https://www.soundhouse.co.jp/robots.txt",
+      "kind": "robots",
+      "startedAt": "2026-10-01T02:22:34.569Z",
+      "requests": 1,
+      "error": "The operation was aborted due to timeout",
+      "finishedAt": "2026-10-01T02:22:49.572Z"
+    },
+    {
+      "url": "https://atdistribution.net/robots.txt",
+      "kind": "robots",
+      "startedAt": "2026-10-01T02:22:49.574Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "10332c6868650950fe5b78298fa4b83f2ecbf063b60d1f5c9c6ef89ee581576c",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/plain; charset=utf-8",
+        "x-robots-tag": "noindex, follow"
+      },
+      "finishedAt": "2026-10-01T02:22:50.089Z"
+    },
+    {
+      "url": "https://atdistribution.net/information/1047/",
+      "kind": "sample",
+      "startedAt": "2026-10-01T02:23:17.547Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "a7e7cb642608ec0804950e97056559ecc71a7d239ac4c34abdaf1371b50deaa8",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:23:17.677Z"
+    },
+    {
+      "url": "https://atdistribution.net/information/",
+      "kind": "listing",
+      "startedAt": "2026-10-01T02:23:17.678Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "40f38beb6501a0b2b12650bc89497cdd0fde3c2a84bf550fee0fa7d19d368f01",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:23:17.750Z"
+    },
+    {
+      "url": "https://atdistribution.net/privacy/",
+      "kind": "policy",
+      "startedAt": "2026-10-01T02:23:58.745Z",
+      "requests": 1,
+      "status": 200,
+      "hash": "903b7c5ca49b4ac3ba7dbed0402d7f0957b370e36873afac6d1c76cb00254edc",
+      "headers": {
+        "server": "nginx",
+        "content-type": "text/html; charset=UTF-8"
+      },
+      "finishedAt": "2026-10-01T02:23:58.857Z"
+    }
+  ],
+  "pilot-quality": [
+    {
+      "sourceId": "agm",
+      "total": 10,
+      "discovered": 4,
+      "outside": 6,
+      "rejected": 2,
+      "reasons": {
+        "interview_guitar_evidence_missing": 2
+      },
+      "auto": 2,
+      "review": 0,
+      "items": [
+        {
+          "url": "https://acousticguitarmagazine.jp/interview/2026-0909-oishi-masayoshi/",
+          "date": "2026-09-09T10:00:00.000Z",
+          "facts": {
+            "kind": "guitar_artist",
+            "category": "artist_guitar",
+            "artist": "大石昌良",
+            "eventType": "interview",
+            "topic": "acoustic_expression",
+            "evidence": "assessed_domestic_acoustic_interview"
+          },
+          "label": "大石昌良、アコギ表現を語るインタビュー",
+          "decision": "AUTO_PUBLISHABLE"
+        },
+        {
+          "url": "https://acousticguitarmagazine.jp/interview/2026-0824-takeuchi-annna/",
+          "date": "2026-08-24T10:00:00.000Z",
+          "facts": {
+            "kind": "guitar_artist",
+            "category": "artist_guitar",
+            "artist": "竹内アンナ",
+            "eventType": "interview",
+            "topic": "acoustic_expression",
+            "evidence": "assessed_domestic_acoustic_interview"
+          },
+          "label": "竹内アンナ、アコギ表現を語るインタビュー",
+          "decision": "AUTO_PUBLISHABLE"
+        }
+      ]
+    },
+    {
+      "sourceId": "ikebe-event",
+      "total": 4,
+      "discovered": 4,
+      "outside": 0,
+      "rejected": 2,
+      "reasons": {
+        "guitar_event_evidence_missing": 2
+      },
+      "auto": 0,
+      "review": 2,
+      "items": [
+        {
+          "url": "https://www.ikebe-gakki.com/blog/20261024-eg-workshop/",
+          "date": "2026-09-29T15:00:00.000Z",
+          "facts": null,
+          "label": "審査待ち（人物・日時・会場の確認が必要）",
+          "decision": "PUBLISH_REVIEW"
+        },
+        {
+          "url": "https://www.ikebe-gakki.com/blog/20261021-aco-workshop/",
+          "date": "2026-09-17T15:00:00.000Z",
+          "facts": null,
+          "label": "審査待ち（人物・日時・会場の確認が必要）",
+          "decision": "PUBLISH_REVIEW"
+        }
+      ]
+    },
+    {
+      "sourceId": "at-distribution",
+      "total": 12,
+      "discovered": 7,
+      "outside": 5,
+      "rejected": 6,
+      "reasons": {
+        "recording_launch_scope": 5,
+        "high_value_scope": 1
+      },
+      "auto": 1,
+      "review": 0,
+      "items": [
+        {
+          "url": "https://atdistribution.net/information/1047/",
+          "date": "2026-08-18T15:00:00.000Z",
+          "facts": {
+            "brand": "Harrison Audio",
+            "product": "FLEX 10",
+            "version": null,
+            "category": "recording_audio",
+            "identifierBasis": "assessed_recording_listing",
+            "manufacturerSource": "at-distribution"
+          },
+          "label": "Harrison Audio、FLEX 10を発表",
+          "decision": "AUTO_PUBLISHABLE"
+        }
+      ]
+    }
+  ],
+  "pilot-projection": [
+    {
+      "canonicalUrl": "https://acousticguitarmagazine.jp/interview/2026-0909-oishi-masayoshi/",
+      "timestamp": "2026-10-01T02:11:50.398Z",
+      "status": 200,
+      "hash": "e66d4250d6e310b476bbdbd8c366e620c0286548d515574102539a19875478be",
+      "facts": {
+        "sourceId": "agm",
+        "publishedAt": "2026-09-09T10:00:00.000Z",
+        "artist": "大石昌良",
+        "eventType": "interview",
+        "eventDate": null,
+        "venue": null,
+        "equipment": [],
+        "brands": [],
+        "policyFinding": "大石昌良、アコギ表現を語るインタビュー"
+      },
+      "reasonCodes": [
+        "factual_label_ready"
+      ]
+    },
+    {
+      "canonicalUrl": "https://acousticguitarmagazine.jp/interview/2026-0824-takeuchi-annna/",
+      "timestamp": "2026-10-01T02:11:50.398Z",
+      "status": 200,
+      "hash": "e66d4250d6e310b476bbdbd8c366e620c0286548d515574102539a19875478be",
+      "facts": {
+        "sourceId": "agm",
+        "publishedAt": "2026-08-24T10:00:00.000Z",
+        "artist": "竹内アンナ",
+        "eventType": "interview",
+        "eventDate": null,
+        "venue": null,
+        "equipment": [],
+        "brands": [],
+        "policyFinding": "竹内アンナ、アコギ表現を語るインタビュー"
+      },
+      "reasonCodes": [
+        "factual_label_ready"
+      ]
+    },
+    {
+      "canonicalUrl": "https://www.ikebe-gakki.com/blog/20261024-eg-workshop/",
+      "timestamp": "2026-10-01T02:07:51.350Z",
+      "status": 200,
+      "hash": "17ff445c4668afb7ed047155c0c8e9ec4aee63cdee570474f0c1cdaaa1cdda12",
+      "facts": {
+        "sourceId": "ikebe-event",
+        "publishedAt": "2026-09-29T15:00:00.000Z",
+        "artist": null,
+        "eventType": "guitar_event",
+        "eventDate": null,
+        "venue": null,
+        "equipment": [],
+        "brands": [],
+        "policyFinding": "審査待ち（人物・日時・会場の確認が必要）"
+      },
+      "reasonCodes": [
+        "classification_uncertain"
+      ]
+    },
+    {
+      "canonicalUrl": "https://www.ikebe-gakki.com/blog/20261021-aco-workshop/",
+      "timestamp": "2026-10-01T02:07:51.350Z",
+      "status": 200,
+      "hash": "17ff445c4668afb7ed047155c0c8e9ec4aee63cdee570474f0c1cdaaa1cdda12",
+      "facts": {
+        "sourceId": "ikebe-event",
+        "publishedAt": "2026-09-17T15:00:00.000Z",
+        "artist": null,
+        "eventType": "guitar_event",
+        "eventDate": null,
+        "venue": null,
+        "equipment": [],
+        "brands": [],
+        "policyFinding": "審査待ち（人物・日時・会場の確認が必要）"
+      },
+      "reasonCodes": [
+        "classification_uncertain"
+      ]
+    },
+    {
+      "canonicalUrl": "https://atdistribution.net/information/1047/",
+      "timestamp": "2026-10-01T02:23:17.750Z",
+      "status": 200,
+      "hash": "40f38beb6501a0b2b12650bc89497cdd0fde3c2a84bf550fee0fa7d19d368f01",
+      "facts": {
+        "sourceId": "at-distribution",
+        "publishedAt": "2026-08-18T15:00:00.000Z",
+        "artist": null,
+        "eventType": "new_product",
+        "eventDate": null,
+        "venue": null,
+        "equipment": [
+          "FLEX 10"
+        ],
+        "brands": [
+          "Harrison Audio"
+        ],
+        "policyFinding": "Harrison Audio、FLEX 10を発表"
+      },
+      "reasonCodes": [
+        "factual_label_ready"
+      ]
+    }
+  ],
+  "article-recoveries": [
+    {
+      "input": {
+        "id": "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055",
+        "sourceId": "ikebe",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172461/",
+        "publishedAt": "2026-09-16T15:00:00.000Z",
+        "category": "electric_guitar_bass",
+        "eventType": "new_product",
+        "productFacts": {
+          "brand": "KORG",
+          "product": "TM-1",
+          "version": null,
+          "category": "electric_guitar_bass",
+          "identifierBasis": "reviewed_listing_model",
+          "listingSource": "ikebe"
+        }
+      },
+      "proof": {
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172461/",
+        "status": 200,
+        "headerOptOut": false,
+        "articleScoped": true,
+        "articleChecksComplete": true,
+        "hash": "68ab659ec0a7aae0a425fda74a0720054fbc3d25b679b039ccdc028bfead9c96",
+        "at": "2026-10-01T01:58:44.680Z"
+      }
+    },
+    {
+      "input": {
+        "id": "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c",
+        "sourceId": "ik",
+        "sourceUrl": "https://www.ikmultimedia.com/news/?item_id=19651",
+        "publishedAt": "2026-08-07T00:00:00.000Z",
+        "category": "dtm_software",
+        "eventType": "update",
+        "productFacts": {
+          "brand": "IK Multimedia",
+          "product": "TONEX software",
+          "version": "2.0",
+          "category": "dtm_software",
+          "identifierBasis": "verified_article_facts",
+          "articleSource": "ik"
+        }
+      },
+      "proof": {
+        "sourceUrl": "https://www.ikmultimedia.com/news/?item_id=19651",
+        "status": 200,
+        "headerOptOut": false,
+        "articleScoped": true,
+        "articleChecksComplete": true,
+        "hash": "688660a2eecf390dccf169da6b8c0933d797bf3f4a7d1945614dca12fdcc5abf",
+        "at": "2026-10-01T01:59:03.784Z"
+      }
+    },
+    {
+      "input": {
+        "id": "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf",
+        "sourceId": "ikebe-event",
+        "sourceUrl": "https://www.ikebe-gakki.com/blog/20261024-eg-workshop/",
+        "publishedAt": "2026-09-29T15:00:00.000Z",
+        "category": "live_guitar",
+        "eventType": "guitar_event",
+        "productFacts": {
+          "kind": "guitar_event",
+          "category": "live_guitar",
+          "artist": "阿部学",
+          "eventType": "workshop",
+          "eventDate": "2026-10-24",
+          "venue": "イケシブ",
+          "evidence": "assessed_named_guitar_event"
+        }
+      },
+      "proof": {
+        "sourceUrl": "https://www.ikebe-gakki.com/blog/20261024-eg-workshop/",
+        "status": 200,
+        "headerOptOut": false,
+        "articleScoped": true,
+        "articleChecksComplete": true,
+        "hash": "d313343c4fb4153b73046ba53afde11bede7c38a3929db8c683dde7617031795",
+        "at": "2026-10-01T02:15:23.784Z"
+      }
+    }
+  ],
+  "gates": {
+    "result": "PASS",
+    "preservedFiles": 7,
+    "syntax": "PASS",
+    "diffCheck": "PASS",
+    "secretScan": "PASS",
+    "files": [
+      "apps/cruise-port/app-version.js",
+      "apps/cruise-port/app-version.test.mjs",
+      "apps/cruise-port/index.html",
+      "apps/cruise-port/module-cache-keys.test.mjs",
+      "apps/cruise-port/news-data.js",
+      "apps/cruise-port/news-provider.js",
+      "apps/cruise-port/news-ui.js",
+      "apps/cruise-port/news.test.mjs",
+      "apps/cruise-port/practice-calendar-sp610.test.mjs",
+      "apps/cruise-port/practice-calendar-sp611.test.mjs",
+      "apps/cruise-port/practice-calendar-sp612.test.mjs",
+      "apps/cruise-port/practice-calendar-sp613.test.mjs",
+      "apps/cruise-port/practice-calendar-sp614.test.mjs",
+      "apps/cruise-port/practice-menu-app.js",
+      "apps/cruise-port/practice-menu-sp615.test.mjs",
+      "apps/cruise-port/pro_9a3943176561/index.html",
+      "workers/sound-cruise-news/package-lock.json",
+      "workers/sound-cruise-news/package.json",
+      "workers/sound-cruise-news/src/automatic.js",
+      "workers/sound-cruise-news/src/metadata.js",
+      "workers/sound-cruise-news/src/official-listing.js",
+      "workers/sound-cruise-news/src/pending-replay.js",
+      "workers/sound-cruise-news/src/registry.js",
+      "workers/sound-cruise-news/src/store.js",
+      "workers/sound-cruise-news/src/worker.js",
+      "workers/sound-cruise-news/test/news.test.js",
+      "workers/sound-cruise-news/wrangler.production.jsonc",
+      "workers/sound-cruise-news/HIGH-VALUE-SOURCE-POLICY.md",
+      "workers/sound-cruise-news/src/high-value-evidence.js",
+      "workers/sound-cruise-news/src/high-value.js",
+      "workers/sound-cruise-news/test/high-value.test.js"
+    ],
+    "tests": {
+      "port": 887,
+      "shared": 226,
+      "sync": 393,
+      "pitch": 30,
+      "fretboard": 25,
+      "rhythm": 19,
+      "chord": 95,
+      "news": 326
+    },
+    "total": 2001,
+    "publisherAttempts": 25,
+    "testPublisherRequests": 0
+  },
+  "shadow": {
+    "result": "PASS",
+    "resultDetails": {
+      "recovered": [
+        {
+          "recovered": true,
+          "label": "KORG、TM-1を発表",
+          "publisherRequests": 0,
+          "id": "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055"
+        },
+        {
+          "recovered": true,
+          "label": "IK Multimedia、TONEX software 2.0を更新",
+          "publisherRequests": 0,
+          "id": "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c"
+        },
+        {
+          "recovered": true,
+          "label": "阿部学、10月24日にイケシブでギターワークショップ",
+          "publisherRequests": 0,
+          "id": "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf"
+        }
+      ],
+      "published": [
+        {
+          "id": "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055",
+          "action": "approve",
+          "reason": "useful_product",
+          "at": 1790822728892,
+          "publisherRequests": 0
+        },
+        {
+          "id": "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c",
+          "action": "approve",
+          "reason": "useful_product",
+          "at": 1790822728893,
+          "publisherRequests": 0
+        },
+        {
+          "sourceId": "agm",
+          "count": 2
+        },
+        {
+          "sourceId": "at-distribution",
+          "count": 1
+        },
+        {
+          "id": "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf",
+          "action": "approve",
+          "reason": "useful_product",
+          "at": 1790822728896,
+          "publisherRequests": 0
+        }
+      ],
+      "inserted": [
+        "d17f8ffefa249f6b74cb8bd0168704a27892f675881b42bb89c6669cab2618fd",
+        "82efc284d57e00dff8a9399c2a4dd6ef07d69bcec238e1b77c9d98a67deeede6",
+        "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf",
+        "3a6dd027f7b38e59be5d4f7914d47d278c1794f806409b62d38a81a949571f08",
+        "b994db455d3791f75cd80d2464b0bc168490be77943da9863d02e7257fb1cd8f"
+      ],
+      "rejected": [
+        {
+          "id": "4fab311436315e48a879a1a59fed33cc1c9575a6c78ad2614d2c3a589d7721bf",
+          "action": "reject",
+          "reason": "not_relevant",
+          "at": 1790822728888,
+          "publisherRequests": 0
+        }
+      ]
+    },
+    "visible": 48,
+    "approved": 48,
+    "pending": 4,
+    "rejected": 19,
+    "rows": 71,
+    "categories": {
+      "live_guitar": 3,
+      "artist_guitar": 3,
+      "electric_guitar_bass": 10,
+      "amps_effects": 12,
+      "acoustic_guitar": 6,
+      "dtm_software": 10,
+      "recording_audio": 4
+    },
+    "gate": {
+      "pass": true,
+      "reasons": [],
+      "current": {
+        "at": "2026-10-01T02:45:28.916Z",
+        "counts": {
+          "HIGH VALUE": 30,
+          "USEFUL": 8,
+          "LOW VALUE": 4,
+          "NOISE": 0
+        },
+        "genericLabels": 7,
+        "categoriesCovered": [
+          "acoustic_guitar",
+          "amps_effects",
+          "dtm_software",
+          "electric_guitar_bass",
+          "live_guitar",
+          "recording_audio"
+        ],
+        "reviewBurden": 6,
+        "visibleIds": [
+          "48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd",
+          "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+          "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+          "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+          "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+          "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+          "4a818ebef7d1ce438926275be97be3302d4407a9d1f80e7c5069b05a54a6191f",
+          "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+          "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+          "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+          "6743f48dc247ce49cd1e81a3ec52a415eb1fcb1f0051b682e945df88344ac7e4",
+          "6996cda04135ca70f4cb480c90b83aba220499d3158811b6a6b8d43f586aadf8",
+          "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+          "78c7568a8fb1c49b4158dfeaa603f175df20a79cb98962613969dfb9063d3875",
+          "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+          "d348508497550e8d67a94e8d5cd648aed1bdb84a4b4eb1710d4935760a3bbb48",
+          "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+          "c67e0180eae9c4019f00d553869b3011b0b6371013110873f1354878b6485ce3",
+          "ca003c8a5353bf1af7837c20ef13222ecc3a7d796d7c445235018450de476eae",
+          "e2e2240cf3d3e0e284a1465a0fdc1dbb1b6368c34135fbf98f340c4beef06922",
+          "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+          "53f1d8c22d50660e1f24d3b7c95b08d4e935c3c2039431ec4b72acd3df2378ec",
+          "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+          "a96e292e7370611c58c8f6db7af8c8d1d57a17d3eeab70c9eeae15722c008acc",
+          "b7d35c4750a6712448950d2d5b73ef7254544fd712366102a6fe6ec9d010d188",
+          "d8d38a2b5b77752ebc8da98dc34c8a7093a3a3d19ed2768a4c6f2e3321b6e7c0",
+          "41ace56b12a95818a284af8f8de60c87992437c478ee8d9d403db1df1934d2f2",
+          "83bd63bced3aff277eec6344c04d9c6de8121d1aa3422ba90994b7224af647ab",
+          "bfc2b95d77b618b783689078455cc22a90dc92cf6bcc953740eeb44d9ff82c7c",
+          "e2266b3c52fa665fa070bd9ebf45dbb2478040bbc7857d1de29eede75794fb5d",
+          "6306784f40ad5ba6490183003007002df7c827ffe91b725fddd62574c2b0b982",
+          "80aefd3c6f3a8215a08a9a0e7f802706e9f43c70de2c15a857c1a9f5dafd97eb",
+          "3f6bd754cf451aeca029ca3ce2ea549b9535bda068eae3a69a093d1105b5f28b",
+          "24030dfef30cee5465e15548142cb979f918afc2a7b9c2b65b57f1ceed14a4a1",
+          "de3c913ffeec365c4230fcf2a325711ee08e49b00b2f032c32328bcba9eddc8a",
+          "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+          "049a692a2e22733e2583e62487a7304e3c99bf678355277b4e3ecbf105f717fe",
+          "129529642a22e1c4bc999493d8baeb1be7658cb2ba0b81593cabb0e91f31607e",
+          "04536a7aa6e0f45584f9ecf7b32cee66c415ce93af343055e030ffe7ac69a907",
+          "a285cfa9785273b32066f3af195d062b25abd645b3507a6cf47980a8499bdf74",
+          "6ff518e4e7269aeb2d29be1799ea79a90cde43bd0797aac6be2f63e159231a56",
+          "8c933e48a324eea0d39c2bf1249df67013a61ca80694a89bfa7cc550399f30d3"
+        ],
+        "sourceCounts": {
+          "amass": 1,
+          "池部楽器": 11,
+          "島村楽器": 11,
+          "キクタニ": 2,
+          "Discover chuya": 2,
+          "SONICWIRE": 2,
+          "Sleepfreaks": 5,
+          "Hookup": 1,
+          "Yamaha": 1,
+          "IK Multimedia": 2,
+          "AHS": 1,
+          "ZOOM": 3
+        },
+        "freshUseful24h": 0,
+        "freshUseful7d": 13,
+        "expiredEvents": [],
+        "visibleDuplicates": 0,
+        "tickerOmissions": [],
+        "tickerTop5": [
+          {
+            "id": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+            "label": "Ibanez、j.custom RG8570EM-NTを発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+            "label": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+            "label": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+            "label": "Fortin Amplification、3.33を発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+            "label": "Fender American Acoustasonicに限定モデル5種",
+            "quality": "HIGH VALUE"
+          }
+        ]
+      },
+      "candidate": {
+        "at": "2026-10-01T02:45:28.916Z",
+        "counts": {
+          "HIGH VALUE": 32,
+          "USEFUL": 12,
+          "LOW VALUE": 4,
+          "NOISE": 0
+        },
+        "genericLabels": 7,
+        "categoriesCovered": [
+          "acoustic_guitar",
+          "amps_effects",
+          "artist_guitar",
+          "dtm_software",
+          "electric_guitar_bass",
+          "live_guitar",
+          "recording_audio"
+        ],
+        "reviewBurden": 4,
+        "visibleIds": [
+          "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf",
+          "48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd",
+          "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+          "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+          "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+          "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+          "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+          "4a818ebef7d1ce438926275be97be3302d4407a9d1f80e7c5069b05a54a6191f",
+          "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+          "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+          "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+          "6743f48dc247ce49cd1e81a3ec52a415eb1fcb1f0051b682e945df88344ac7e4",
+          "6996cda04135ca70f4cb480c90b83aba220499d3158811b6a6b8d43f586aadf8",
+          "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+          "78c7568a8fb1c49b4158dfeaa603f175df20a79cb98962613969dfb9063d3875",
+          "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+          "d348508497550e8d67a94e8d5cd648aed1bdb84a4b4eb1710d4935760a3bbb48",
+          "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+          "c67e0180eae9c4019f00d553869b3011b0b6371013110873f1354878b6485ce3",
+          "ca003c8a5353bf1af7837c20ef13222ecc3a7d796d7c445235018450de476eae",
+          "e2e2240cf3d3e0e284a1465a0fdc1dbb1b6368c34135fbf98f340c4beef06922",
+          "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+          "53f1d8c22d50660e1f24d3b7c95b08d4e935c3c2039431ec4b72acd3df2378ec",
+          "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+          "a96e292e7370611c58c8f6db7af8c8d1d57a17d3eeab70c9eeae15722c008acc",
+          "b7d35c4750a6712448950d2d5b73ef7254544fd712366102a6fe6ec9d010d188",
+          "d8d38a2b5b77752ebc8da98dc34c8a7093a3a3d19ed2768a4c6f2e3321b6e7c0",
+          "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055",
+          "41ace56b12a95818a284af8f8de60c87992437c478ee8d9d403db1df1934d2f2",
+          "83bd63bced3aff277eec6344c04d9c6de8121d1aa3422ba90994b7224af647ab",
+          "bfc2b95d77b618b783689078455cc22a90dc92cf6bcc953740eeb44d9ff82c7c",
+          "e2266b3c52fa665fa070bd9ebf45dbb2478040bbc7857d1de29eede75794fb5d",
+          "6306784f40ad5ba6490183003007002df7c827ffe91b725fddd62574c2b0b982",
+          "80aefd3c6f3a8215a08a9a0e7f802706e9f43c70de2c15a857c1a9f5dafd97eb",
+          "3f6bd754cf451aeca029ca3ce2ea549b9535bda068eae3a69a093d1105b5f28b",
+          "d17f8ffefa249f6b74cb8bd0168704a27892f675881b42bb89c6669cab2618fd",
+          "24030dfef30cee5465e15548142cb979f918afc2a7b9c2b65b57f1ceed14a4a1",
+          "de3c913ffeec365c4230fcf2a325711ee08e49b00b2f032c32328bcba9eddc8a",
+          "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+          "049a692a2e22733e2583e62487a7304e3c99bf678355277b4e3ecbf105f717fe",
+          "129529642a22e1c4bc999493d8baeb1be7658cb2ba0b81593cabb0e91f31607e",
+          "82efc284d57e00dff8a9399c2a4dd6ef07d69bcec238e1b77c9d98a67deeede6",
+          "b994db455d3791f75cd80d2464b0bc168490be77943da9863d02e7257fb1cd8f",
+          "04536a7aa6e0f45584f9ecf7b32cee66c415ce93af343055e030ffe7ac69a907",
+          "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c",
+          "a285cfa9785273b32066f3af195d062b25abd645b3507a6cf47980a8499bdf74",
+          "6ff518e4e7269aeb2d29be1799ea79a90cde43bd0797aac6be2f63e159231a56",
+          "8c933e48a324eea0d39c2bf1249df67013a61ca80694a89bfa7cc550399f30d3"
+        ],
+        "sourceCounts": {
+          "池部楽器 Events": 1,
+          "amass": 1,
+          "池部楽器": 12,
+          "島村楽器": 11,
+          "キクタニ": 2,
+          "Discover chuya": 2,
+          "SONICWIRE": 2,
+          "Sleepfreaks": 5,
+          "Hookup": 1,
+          "Yamaha": 1,
+          "IK Multimedia": 3,
+          "AHS": 1,
+          "AGM / Rittor Music": 2,
+          "AT Distribution": 1,
+          "ZOOM": 3
+        },
+        "freshUseful24h": 0,
+        "freshUseful7d": 14,
+        "expiredEvents": [],
+        "visibleDuplicates": 0,
+        "tickerOmissions": [],
+        "tickerTop5": [
+          {
+            "id": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+            "label": "Ibanez、j.custom RG8570EM-NTを発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+            "label": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+            "label": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+            "label": "Fortin Amplification、3.33を発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+            "label": "Fender American Acoustasonicに限定モデル5種",
+            "quality": "HIGH VALUE"
+          }
+        ]
+      }
+    }
+  },
+  "local-browser": {
+    "result": "PASS",
+    "base": "http://127.0.0.1:8771",
+    "api": "local fixture projection + validated metadata",
+    "widths": [
+      375,
+      393,
+      1440
+    ],
+    "count": 48,
+    "sources": [
+      "池部楽器 Events",
+      "amass",
+      "池部楽器",
+      "島村楽器",
+      "キクタニ",
+      "Discover chuya",
+      "SONICWIRE",
+      "Sleepfreaks",
+      "Hookup",
+      "Yamaha",
+      "IK Multimedia",
+      "AHS",
+      "AGM / Rittor Music",
+      "AT Distribution",
+      "ZOOM"
+    ],
+    "categories": {
+      "acoustic_guitar": 6,
+      "electric_guitar_bass": 10,
+      "amps_effects": 12,
+      "recording_audio": 4,
+      "dtm_software": 10,
+      "sale": 0,
+      "artist_guitar": 3,
+      "live_guitar": 3
+    },
+    "ticker": "NEWSIbanez、j.custom RG8570EM-NTを発表松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示JAM Pedals Wahcko mk.2、ワウペダルの新モデルFortin Amplification、3.33を発表Fender American Acoustasonicに限定モデル5種",
+    "legacyVisible": true,
+    "operatorApprovedVisible": true,
+    "apiFailureIsolation": true,
+    "tools": [
+      "#practice-menu",
+      "#practice-menu/calendar",
+      "#tuner",
+      "#metronome",
+      "#wishlist",
+      "#my-apps/manage",
+      "#settings"
+    ],
+    "presets": true,
+    "externalLinkSafety": true,
+    "images": 0,
+    "publisherRequests": 0,
+    "pageErrors": [],
+    "unexpectedRequests": []
+  },
+  "production-browser": {
+    "result": "PASS",
+    "base": "https://soundcruise.jp",
+    "api": "production",
+    "widths": [
+      375,
+      393,
+      1440
+    ],
+    "count": 48,
+    "sources": [
+      "池部楽器 Events",
+      "amass",
+      "池部楽器",
+      "島村楽器",
+      "キクタニ",
+      "Discover chuya",
+      "SONICWIRE",
+      "Sleepfreaks",
+      "Hookup",
+      "Yamaha",
+      "IK Multimedia",
+      "AHS",
+      "AGM / Rittor Music",
+      "AT Distribution",
+      "ZOOM"
+    ],
+    "categories": {
+      "acoustic_guitar": 6,
+      "electric_guitar_bass": 10,
+      "amps_effects": 12,
+      "recording_audio": 4,
+      "dtm_software": 10,
+      "sale": 0,
+      "artist_guitar": 3,
+      "live_guitar": 3
+    },
+    "ticker": "NEWSIbanez、j.custom RG8570EM-NTを発表松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示JAM Pedals Wahcko mk.2、ワウペダルの新モデルFortin Amplification、3.33を発表Fender American Acoustasonicに限定モデル5種",
+    "legacyVisible": true,
+    "operatorApprovedVisible": true,
+    "apiFailureIsolation": true,
+    "tools": [
+      "#practice-menu",
+      "#practice-menu/calendar",
+      "#tuner",
+      "#metronome",
+      "#wishlist",
+      "#my-apps/manage",
+      "#settings"
+    ],
+    "presets": true,
+    "externalLinkSafety": true,
+    "images": 0,
+    "publisherRequests": 0,
+    "pageErrors": [],
+    "unexpectedRequests": []
+  },
+  "production-apply": {
+    "result": "PASS",
+    "at": "2026-10-01T02:47:43.180Z",
+    "changes": {
+      "recovered": [
+        {
+          "recovered": true,
+          "label": "KORG、TM-1を発表",
+          "publisherRequests": 0,
+          "id": "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055"
+        },
+        {
+          "recovered": true,
+          "label": "IK Multimedia、TONEX software 2.0を更新",
+          "publisherRequests": 0,
+          "id": "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c"
+        },
+        {
+          "recovered": true,
+          "label": "阿部学、10月24日にイケシブでギターワークショップ",
+          "publisherRequests": 0,
+          "id": "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf"
+        }
+      ],
+      "published": [
+        {
+          "id": "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055",
+          "action": "approve",
+          "reason": "useful_product",
+          "at": 1790822821484,
+          "publisherRequests": 0
+        },
+        {
+          "id": "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c",
+          "action": "approve",
+          "reason": "useful_product",
+          "at": 1790822826099,
+          "publisherRequests": 0
+        },
+        {
+          "sourceId": "agm",
+          "count": 2
+        },
+        {
+          "sourceId": "at-distribution",
+          "count": 1
+        },
+        {
+          "id": "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf",
+          "action": "approve",
+          "reason": "useful_product",
+          "at": 1790822854115,
+          "publisherRequests": 0
+        }
+      ],
+      "inserted": [
+        "d17f8ffefa249f6b74cb8bd0168704a27892f675881b42bb89c6669cab2618fd",
+        "82efc284d57e00dff8a9399c2a4dd6ef07d69bcec238e1b77c9d98a67deeede6",
+        "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf",
+        "3a6dd027f7b38e59be5d4f7914d47d278c1794f806409b62d38a81a949571f08",
+        "b994db455d3791f75cd80d2464b0bc168490be77943da9863d02e7257fb1cd8f"
+      ],
+      "rejected": [
+        {
+          "id": "4fab311436315e48a879a1a59fed33cc1c9575a6c78ad2614d2c3a589d7721bf",
+          "action": "reject",
+          "reason": "not_relevant",
+          "at": 1790822815849,
+          "publisherRequests": 0
+        }
+      ]
+    },
+    "visible": 48,
+    "counts": {
+      "approved": 48,
+      "pending": 4,
+      "rejected": 19,
+      "rows": 71
+    },
+    "pending": [
+      {
+        "id": "3a6dd027f7b38e59be5d4f7914d47d278c1794f806409b62d38a81a949571f08",
+        "source": "ikebe-event",
+        "url": "https://www.ikebe-gakki.com/blog/20261021-aco-workshop/",
+        "reason": "classification_uncertain"
+      },
+      {
+        "id": "b5c0c40743312c4f6c874924662b353ee970947208e4e070d12bd3ce0c129c23",
+        "source": "ik",
+        "url": "https://www.ikmultimedia.com/news/?item_id=19790",
+        "reason": "label_required"
+      },
+      {
+        "id": "5343ab1aabd9de0661c790a89e4e53e2748f345a46981377b04d6457415f13b1",
+        "source": "ikebe",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/172475/",
+        "reason": "classification_uncertain"
+      },
+      {
+        "id": "a740971f365a8fdcce2e32ddd03c6c4f0f7d301db127e50a71a10075b1cc3cdb",
+        "source": "ik",
+        "url": "https://www.ikmultimedia.com/news/?item_id=19650",
+        "reason": "label_required"
+      }
+    ],
+    "gate": {
+      "pass": true,
+      "reasons": [],
+      "current": {
+        "at": "2026-10-01T02:47:43.172Z",
+        "counts": {
+          "HIGH VALUE": 30,
+          "USEFUL": 8,
+          "LOW VALUE": 4,
+          "NOISE": 0
+        },
+        "genericLabels": 7,
+        "categoriesCovered": [
+          "acoustic_guitar",
+          "amps_effects",
+          "dtm_software",
+          "electric_guitar_bass",
+          "live_guitar",
+          "recording_audio"
+        ],
+        "reviewBurden": 6,
+        "visibleIds": [
+          "48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd",
+          "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+          "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+          "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+          "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+          "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+          "4a818ebef7d1ce438926275be97be3302d4407a9d1f80e7c5069b05a54a6191f",
+          "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+          "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+          "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+          "6743f48dc247ce49cd1e81a3ec52a415eb1fcb1f0051b682e945df88344ac7e4",
+          "6996cda04135ca70f4cb480c90b83aba220499d3158811b6a6b8d43f586aadf8",
+          "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+          "78c7568a8fb1c49b4158dfeaa603f175df20a79cb98962613969dfb9063d3875",
+          "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+          "d348508497550e8d67a94e8d5cd648aed1bdb84a4b4eb1710d4935760a3bbb48",
+          "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+          "c67e0180eae9c4019f00d553869b3011b0b6371013110873f1354878b6485ce3",
+          "ca003c8a5353bf1af7837c20ef13222ecc3a7d796d7c445235018450de476eae",
+          "e2e2240cf3d3e0e284a1465a0fdc1dbb1b6368c34135fbf98f340c4beef06922",
+          "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+          "53f1d8c22d50660e1f24d3b7c95b08d4e935c3c2039431ec4b72acd3df2378ec",
+          "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+          "a96e292e7370611c58c8f6db7af8c8d1d57a17d3eeab70c9eeae15722c008acc",
+          "b7d35c4750a6712448950d2d5b73ef7254544fd712366102a6fe6ec9d010d188",
+          "d8d38a2b5b77752ebc8da98dc34c8a7093a3a3d19ed2768a4c6f2e3321b6e7c0",
+          "41ace56b12a95818a284af8f8de60c87992437c478ee8d9d403db1df1934d2f2",
+          "83bd63bced3aff277eec6344c04d9c6de8121d1aa3422ba90994b7224af647ab",
+          "bfc2b95d77b618b783689078455cc22a90dc92cf6bcc953740eeb44d9ff82c7c",
+          "e2266b3c52fa665fa070bd9ebf45dbb2478040bbc7857d1de29eede75794fb5d",
+          "6306784f40ad5ba6490183003007002df7c827ffe91b725fddd62574c2b0b982",
+          "80aefd3c6f3a8215a08a9a0e7f802706e9f43c70de2c15a857c1a9f5dafd97eb",
+          "3f6bd754cf451aeca029ca3ce2ea549b9535bda068eae3a69a093d1105b5f28b",
+          "24030dfef30cee5465e15548142cb979f918afc2a7b9c2b65b57f1ceed14a4a1",
+          "de3c913ffeec365c4230fcf2a325711ee08e49b00b2f032c32328bcba9eddc8a",
+          "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+          "049a692a2e22733e2583e62487a7304e3c99bf678355277b4e3ecbf105f717fe",
+          "129529642a22e1c4bc999493d8baeb1be7658cb2ba0b81593cabb0e91f31607e",
+          "04536a7aa6e0f45584f9ecf7b32cee66c415ce93af343055e030ffe7ac69a907",
+          "a285cfa9785273b32066f3af195d062b25abd645b3507a6cf47980a8499bdf74",
+          "6ff518e4e7269aeb2d29be1799ea79a90cde43bd0797aac6be2f63e159231a56",
+          "8c933e48a324eea0d39c2bf1249df67013a61ca80694a89bfa7cc550399f30d3"
+        ],
+        "sourceCounts": {
+          "amass": 1,
+          "池部楽器": 11,
+          "島村楽器": 11,
+          "キクタニ": 2,
+          "Discover chuya": 2,
+          "SONICWIRE": 2,
+          "Sleepfreaks": 5,
+          "Hookup": 1,
+          "Yamaha": 1,
+          "IK Multimedia": 2,
+          "AHS": 1,
+          "ZOOM": 3
+        },
+        "freshUseful24h": 0,
+        "freshUseful7d": 13,
+        "expiredEvents": [],
+        "visibleDuplicates": 0,
+        "tickerOmissions": [],
+        "tickerTop5": [
+          {
+            "id": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+            "label": "Ibanez、j.custom RG8570EM-NTを発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+            "label": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+            "label": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+            "label": "Fortin Amplification、3.33を発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+            "label": "Fender American Acoustasonicに限定モデル5種",
+            "quality": "HIGH VALUE"
+          }
+        ]
+      },
+      "candidate": {
+        "at": "2026-10-01T02:47:43.179Z",
+        "counts": {
+          "HIGH VALUE": 32,
+          "USEFUL": 12,
+          "LOW VALUE": 4,
+          "NOISE": 0
+        },
+        "genericLabels": 7,
+        "categoriesCovered": [
+          "acoustic_guitar",
+          "amps_effects",
+          "artist_guitar",
+          "dtm_software",
+          "electric_guitar_bass",
+          "live_guitar",
+          "recording_audio"
+        ],
+        "reviewBurden": 4,
+        "visibleIds": [
+          "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf",
+          "48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd",
+          "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+          "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+          "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+          "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+          "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+          "4a818ebef7d1ce438926275be97be3302d4407a9d1f80e7c5069b05a54a6191f",
+          "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+          "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+          "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+          "6743f48dc247ce49cd1e81a3ec52a415eb1fcb1f0051b682e945df88344ac7e4",
+          "6996cda04135ca70f4cb480c90b83aba220499d3158811b6a6b8d43f586aadf8",
+          "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+          "78c7568a8fb1c49b4158dfeaa603f175df20a79cb98962613969dfb9063d3875",
+          "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+          "d348508497550e8d67a94e8d5cd648aed1bdb84a4b4eb1710d4935760a3bbb48",
+          "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+          "c67e0180eae9c4019f00d553869b3011b0b6371013110873f1354878b6485ce3",
+          "ca003c8a5353bf1af7837c20ef13222ecc3a7d796d7c445235018450de476eae",
+          "e2e2240cf3d3e0e284a1465a0fdc1dbb1b6368c34135fbf98f340c4beef06922",
+          "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+          "53f1d8c22d50660e1f24d3b7c95b08d4e935c3c2039431ec4b72acd3df2378ec",
+          "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+          "a96e292e7370611c58c8f6db7af8c8d1d57a17d3eeab70c9eeae15722c008acc",
+          "b7d35c4750a6712448950d2d5b73ef7254544fd712366102a6fe6ec9d010d188",
+          "d8d38a2b5b77752ebc8da98dc34c8a7093a3a3d19ed2768a4c6f2e3321b6e7c0",
+          "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055",
+          "41ace56b12a95818a284af8f8de60c87992437c478ee8d9d403db1df1934d2f2",
+          "83bd63bced3aff277eec6344c04d9c6de8121d1aa3422ba90994b7224af647ab",
+          "bfc2b95d77b618b783689078455cc22a90dc92cf6bcc953740eeb44d9ff82c7c",
+          "e2266b3c52fa665fa070bd9ebf45dbb2478040bbc7857d1de29eede75794fb5d",
+          "6306784f40ad5ba6490183003007002df7c827ffe91b725fddd62574c2b0b982",
+          "80aefd3c6f3a8215a08a9a0e7f802706e9f43c70de2c15a857c1a9f5dafd97eb",
+          "3f6bd754cf451aeca029ca3ce2ea549b9535bda068eae3a69a093d1105b5f28b",
+          "d17f8ffefa249f6b74cb8bd0168704a27892f675881b42bb89c6669cab2618fd",
+          "24030dfef30cee5465e15548142cb979f918afc2a7b9c2b65b57f1ceed14a4a1",
+          "de3c913ffeec365c4230fcf2a325711ee08e49b00b2f032c32328bcba9eddc8a",
+          "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+          "049a692a2e22733e2583e62487a7304e3c99bf678355277b4e3ecbf105f717fe",
+          "129529642a22e1c4bc999493d8baeb1be7658cb2ba0b81593cabb0e91f31607e",
+          "82efc284d57e00dff8a9399c2a4dd6ef07d69bcec238e1b77c9d98a67deeede6",
+          "b994db455d3791f75cd80d2464b0bc168490be77943da9863d02e7257fb1cd8f",
+          "04536a7aa6e0f45584f9ecf7b32cee66c415ce93af343055e030ffe7ac69a907",
+          "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c",
+          "a285cfa9785273b32066f3af195d062b25abd645b3507a6cf47980a8499bdf74",
+          "6ff518e4e7269aeb2d29be1799ea79a90cde43bd0797aac6be2f63e159231a56",
+          "8c933e48a324eea0d39c2bf1249df67013a61ca80694a89bfa7cc550399f30d3"
+        ],
+        "sourceCounts": {
+          "池部楽器 Events": 1,
+          "amass": 1,
+          "池部楽器": 12,
+          "島村楽器": 11,
+          "キクタニ": 2,
+          "Discover chuya": 2,
+          "SONICWIRE": 2,
+          "Sleepfreaks": 5,
+          "Hookup": 1,
+          "Yamaha": 1,
+          "IK Multimedia": 3,
+          "AHS": 1,
+          "AGM / Rittor Music": 2,
+          "AT Distribution": 1,
+          "ZOOM": 3
+        },
+        "freshUseful24h": 0,
+        "freshUseful7d": 14,
+        "expiredEvents": [],
+        "visibleDuplicates": 0,
+        "tickerOmissions": [],
+        "tickerTop5": [
+          {
+            "id": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+            "label": "Ibanez、j.custom RG8570EM-NTを発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+            "label": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+            "label": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+            "label": "Fortin Amplification、3.33を発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+            "label": "Fender American Acoustasonicに限定モデル5種",
+            "quality": "HIGH VALUE"
+          }
+        ]
+      }
+    },
+    "sleepUnchanged": true,
+    "allPriorDecisionsDatesExpiryPreserved": true
+  },
+  "final-production-audit": {
+    "result": "PASS",
+    "at": "2026-10-01T02:51:13.461Z",
+    "health": {
+      "ok": true,
+      "version": "0.9.0",
+      "collection": true,
+      "publication": true,
+      "api": true
+    },
+    "counts": {
+      "rows": 71,
+      "approved": 48,
+      "pending": 4,
+      "rejected": 19,
+      "visible": 48
+    },
+    "pendingBySource": {
+      "ikebe": 1,
+      "ik": 2,
+      "ikebe-event": 1
+    },
+    "priorDecisionsPreserved": true,
+    "datesExpiryPreserved": true,
+    "otherSourceStatesPreserved": true,
+    "legacyGrantsPreserved": true,
+    "takedownsPreserved": true,
+    "sleepState": {
+      "source_id": "sleepfreaks",
+      "disabled": 1,
+      "next_at": 1790888473130,
+      "failures": 1,
+      "robots_hash": "7da3dee3bdb23cf23d105d7b1e2e23f79e0871f52caf7b2c058ea79475740acd",
+      "etag": null,
+      "last_modified": "Tue, 29 Sep 2026 12:39:16 GMT",
+      "lease_until": 0,
+      "takedown": 0,
+      "last_discovery_at": 1790759579953,
+      "last_publisher_request_at": 1790802073130,
+      "scheduled_jst_day": "2026-10-01",
+      "backoff_until": 1790888473130,
+      "publication_blocked": 0
+    },
+    "sleepVisible": 5,
+    "pagination": {
+      "pages": [
+        10,
+        10,
+        10,
+        10,
+        8
+      ],
+      "count": 48,
+      "unique": 48,
+      "offset": true,
+      "cursor": true
+    },
+    "categories": {
+      "acoustic_guitar": 6,
+      "electric_guitar_bass": 10,
+      "amps_effects": 12,
+      "recording_audio": 4,
+      "dtm_software": 10,
+      "sale": 0,
+      "artist_guitar": 3,
+      "live_guitar": 3
+    },
+    "ticker": [
+      {
+        "id": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+        "label": "Ibanez、j.custom RG8570EM-NTを発表",
+        "sourceName": "池部楽器",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172605/",
+        "publishedAt": "2026-09-28T15:00:00.000Z",
+        "category": "electric_guitar_bass",
+        "publishable": true
+      },
+      {
+        "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+        "label": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+        "sourceName": "池部楽器",
+        "sourceUrl": "https://www.ikebe-gakki.com/blog/20261013-1101-tak-matsumoto/",
+        "publishedAt": "2026-09-27T15:00:00.000Z",
+        "category": "live_guitar",
+        "publishable": true,
+        "eventEndsAt": 1793545199999
+      },
+      {
+        "id": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+        "label": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+        "sourceName": "池部楽器",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172586/",
+        "publishedAt": "2026-09-27T15:00:00.000Z",
+        "category": "amps_effects",
+        "publishable": true
+      },
+      {
+        "id": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+        "label": "Fortin Amplification、3.33を発表",
+        "sourceName": "池部楽器",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172597/",
+        "publishedAt": "2026-09-27T15:00:00.000Z",
+        "category": "amps_effects",
+        "publishable": true
+      },
+      {
+        "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+        "label": "Fender American Acoustasonicに限定モデル5種",
+        "sourceName": "島村楽器",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/87963/",
+        "publishedAt": "2026-09-25T15:00:00.000Z",
+        "category": "acoustic_guitar",
+        "publishable": true
+      }
+    ],
+    "qualityGate": {
+      "pass": true,
+      "reasons": [],
+      "current": {
+        "at": "2026-10-01T02:51:13.447Z",
+        "counts": {
+          "HIGH VALUE": 30,
+          "USEFUL": 8,
+          "LOW VALUE": 4,
+          "NOISE": 0
+        },
+        "genericLabels": 7,
+        "categoriesCovered": [
+          "acoustic_guitar",
+          "amps_effects",
+          "dtm_software",
+          "electric_guitar_bass",
+          "live_guitar",
+          "recording_audio"
+        ],
+        "reviewBurden": 6,
+        "visibleIds": [
+          "48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd",
+          "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+          "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+          "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+          "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+          "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+          "4a818ebef7d1ce438926275be97be3302d4407a9d1f80e7c5069b05a54a6191f",
+          "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+          "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+          "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+          "6743f48dc247ce49cd1e81a3ec52a415eb1fcb1f0051b682e945df88344ac7e4",
+          "6996cda04135ca70f4cb480c90b83aba220499d3158811b6a6b8d43f586aadf8",
+          "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+          "78c7568a8fb1c49b4158dfeaa603f175df20a79cb98962613969dfb9063d3875",
+          "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+          "d348508497550e8d67a94e8d5cd648aed1bdb84a4b4eb1710d4935760a3bbb48",
+          "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+          "c67e0180eae9c4019f00d553869b3011b0b6371013110873f1354878b6485ce3",
+          "ca003c8a5353bf1af7837c20ef13222ecc3a7d796d7c445235018450de476eae",
+          "e2e2240cf3d3e0e284a1465a0fdc1dbb1b6368c34135fbf98f340c4beef06922",
+          "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+          "53f1d8c22d50660e1f24d3b7c95b08d4e935c3c2039431ec4b72acd3df2378ec",
+          "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+          "a96e292e7370611c58c8f6db7af8c8d1d57a17d3eeab70c9eeae15722c008acc",
+          "b7d35c4750a6712448950d2d5b73ef7254544fd712366102a6fe6ec9d010d188",
+          "d8d38a2b5b77752ebc8da98dc34c8a7093a3a3d19ed2768a4c6f2e3321b6e7c0",
+          "41ace56b12a95818a284af8f8de60c87992437c478ee8d9d403db1df1934d2f2",
+          "83bd63bced3aff277eec6344c04d9c6de8121d1aa3422ba90994b7224af647ab",
+          "bfc2b95d77b618b783689078455cc22a90dc92cf6bcc953740eeb44d9ff82c7c",
+          "e2266b3c52fa665fa070bd9ebf45dbb2478040bbc7857d1de29eede75794fb5d",
+          "6306784f40ad5ba6490183003007002df7c827ffe91b725fddd62574c2b0b982",
+          "80aefd3c6f3a8215a08a9a0e7f802706e9f43c70de2c15a857c1a9f5dafd97eb",
+          "3f6bd754cf451aeca029ca3ce2ea549b9535bda068eae3a69a093d1105b5f28b",
+          "24030dfef30cee5465e15548142cb979f918afc2a7b9c2b65b57f1ceed14a4a1",
+          "de3c913ffeec365c4230fcf2a325711ee08e49b00b2f032c32328bcba9eddc8a",
+          "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+          "049a692a2e22733e2583e62487a7304e3c99bf678355277b4e3ecbf105f717fe",
+          "129529642a22e1c4bc999493d8baeb1be7658cb2ba0b81593cabb0e91f31607e",
+          "04536a7aa6e0f45584f9ecf7b32cee66c415ce93af343055e030ffe7ac69a907",
+          "a285cfa9785273b32066f3af195d062b25abd645b3507a6cf47980a8499bdf74",
+          "6ff518e4e7269aeb2d29be1799ea79a90cde43bd0797aac6be2f63e159231a56",
+          "8c933e48a324eea0d39c2bf1249df67013a61ca80694a89bfa7cc550399f30d3"
+        ],
+        "sourceCounts": {
+          "amass": 1,
+          "池部楽器": 11,
+          "島村楽器": 11,
+          "キクタニ": 2,
+          "Discover chuya": 2,
+          "SONICWIRE": 2,
+          "Sleepfreaks": 5,
+          "Hookup": 1,
+          "Yamaha": 1,
+          "IK Multimedia": 2,
+          "AHS": 1,
+          "ZOOM": 3
+        },
+        "freshUseful24h": 0,
+        "freshUseful7d": 13,
+        "expiredEvents": [],
+        "visibleDuplicates": 0,
+        "tickerOmissions": [],
+        "tickerTop5": [
+          {
+            "id": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+            "label": "Ibanez、j.custom RG8570EM-NTを発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+            "label": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+            "label": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+            "label": "Fortin Amplification、3.33を発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+            "label": "Fender American Acoustasonicに限定モデル5種",
+            "quality": "HIGH VALUE"
+          }
+        ]
+      },
+      "candidate": {
+        "at": "2026-10-01T02:51:13.459Z",
+        "counts": {
+          "HIGH VALUE": 32,
+          "USEFUL": 12,
+          "LOW VALUE": 4,
+          "NOISE": 0
+        },
+        "genericLabels": 7,
+        "categoriesCovered": [
+          "acoustic_guitar",
+          "amps_effects",
+          "artist_guitar",
+          "dtm_software",
+          "electric_guitar_bass",
+          "live_guitar",
+          "recording_audio"
+        ],
+        "reviewBurden": 4,
+        "visibleIds": [
+          "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf",
+          "48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd",
+          "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+          "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+          "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+          "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+          "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+          "4a818ebef7d1ce438926275be97be3302d4407a9d1f80e7c5069b05a54a6191f",
+          "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+          "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+          "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+          "6743f48dc247ce49cd1e81a3ec52a415eb1fcb1f0051b682e945df88344ac7e4",
+          "6996cda04135ca70f4cb480c90b83aba220499d3158811b6a6b8d43f586aadf8",
+          "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+          "78c7568a8fb1c49b4158dfeaa603f175df20a79cb98962613969dfb9063d3875",
+          "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+          "d348508497550e8d67a94e8d5cd648aed1bdb84a4b4eb1710d4935760a3bbb48",
+          "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+          "c67e0180eae9c4019f00d553869b3011b0b6371013110873f1354878b6485ce3",
+          "ca003c8a5353bf1af7837c20ef13222ecc3a7d796d7c445235018450de476eae",
+          "e2e2240cf3d3e0e284a1465a0fdc1dbb1b6368c34135fbf98f340c4beef06922",
+          "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+          "53f1d8c22d50660e1f24d3b7c95b08d4e935c3c2039431ec4b72acd3df2378ec",
+          "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+          "a96e292e7370611c58c8f6db7af8c8d1d57a17d3eeab70c9eeae15722c008acc",
+          "b7d35c4750a6712448950d2d5b73ef7254544fd712366102a6fe6ec9d010d188",
+          "d8d38a2b5b77752ebc8da98dc34c8a7093a3a3d19ed2768a4c6f2e3321b6e7c0",
+          "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055",
+          "41ace56b12a95818a284af8f8de60c87992437c478ee8d9d403db1df1934d2f2",
+          "83bd63bced3aff277eec6344c04d9c6de8121d1aa3422ba90994b7224af647ab",
+          "bfc2b95d77b618b783689078455cc22a90dc92cf6bcc953740eeb44d9ff82c7c",
+          "e2266b3c52fa665fa070bd9ebf45dbb2478040bbc7857d1de29eede75794fb5d",
+          "6306784f40ad5ba6490183003007002df7c827ffe91b725fddd62574c2b0b982",
+          "80aefd3c6f3a8215a08a9a0e7f802706e9f43c70de2c15a857c1a9f5dafd97eb",
+          "3f6bd754cf451aeca029ca3ce2ea549b9535bda068eae3a69a093d1105b5f28b",
+          "d17f8ffefa249f6b74cb8bd0168704a27892f675881b42bb89c6669cab2618fd",
+          "24030dfef30cee5465e15548142cb979f918afc2a7b9c2b65b57f1ceed14a4a1",
+          "de3c913ffeec365c4230fcf2a325711ee08e49b00b2f032c32328bcba9eddc8a",
+          "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+          "049a692a2e22733e2583e62487a7304e3c99bf678355277b4e3ecbf105f717fe",
+          "129529642a22e1c4bc999493d8baeb1be7658cb2ba0b81593cabb0e91f31607e",
+          "82efc284d57e00dff8a9399c2a4dd6ef07d69bcec238e1b77c9d98a67deeede6",
+          "b994db455d3791f75cd80d2464b0bc168490be77943da9863d02e7257fb1cd8f",
+          "04536a7aa6e0f45584f9ecf7b32cee66c415ce93af343055e030ffe7ac69a907",
+          "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c",
+          "a285cfa9785273b32066f3af195d062b25abd645b3507a6cf47980a8499bdf74",
+          "6ff518e4e7269aeb2d29be1799ea79a90cde43bd0797aac6be2f63e159231a56",
+          "8c933e48a324eea0d39c2bf1249df67013a61ca80694a89bfa7cc550399f30d3"
+        ],
+        "sourceCounts": {
+          "池部楽器 Events": 1,
+          "amass": 1,
+          "池部楽器": 12,
+          "島村楽器": 11,
+          "キクタニ": 2,
+          "Discover chuya": 2,
+          "SONICWIRE": 2,
+          "Sleepfreaks": 5,
+          "Hookup": 1,
+          "Yamaha": 1,
+          "IK Multimedia": 3,
+          "AHS": 1,
+          "AGM / Rittor Music": 2,
+          "AT Distribution": 1,
+          "ZOOM": 3
+        },
+        "freshUseful24h": 0,
+        "freshUseful7d": 14,
+        "expiredEvents": [],
+        "visibleDuplicates": 0,
+        "tickerOmissions": [],
+        "tickerTop5": [
+          {
+            "id": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+            "label": "Ibanez、j.custom RG8570EM-NTを発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+            "label": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+            "label": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+            "label": "Fortin Amplification、3.33を発表",
+            "quality": "HIGH VALUE"
+          },
+          {
+            "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+            "label": "Fender American Acoustasonicに限定モデル5種",
+            "quality": "HIGH VALUE"
+          }
+        ]
+      }
+    },
+    "metadata": {
+      "worker": "sound-cruise-news",
+      "account": "a9f2a3e9fcb6d0f68fd2eaa9df909e33",
+      "bindings": [
+        {
+          "type": "plain_text",
+          "name": "NEWS_API_MODE",
+          "value": "production"
+        },
+        {
+          "type": "plain_text",
+          "name": "NEWS_COLLECTION_MODE",
+          "value": "production"
+        },
+        {
+          "type": "d1",
+          "name": "NEWS_DB",
+          "id": "13267817-d259-4fde-80d3-37766f8f3f11"
+        },
+        {
+          "type": "secret_text",
+          "name": "NEWS_HEADLINE_PEPPER"
+        },
+        {
+          "type": "plain_text",
+          "name": "NEWS_SOURCE_IDS",
+          "value": "[\"shimamura\",\"kikutani\",\"sleepfreaks\",\"zoom\",\"amass\",\"ikebe\",\"ik\",\"agm\",\"ikebe-event\",\"at-distribution\"]"
+        }
+      ],
+      "schedules": {
+        "schedules": [
+          {
+            "cron": "0 21 * * *",
+            "created_on": "2026-09-30T07:17:34.727964Z",
+            "modified_on": "2026-10-01T02:45:34.857964Z"
+          },
+          {
+            "cron": "17 * * * *",
+            "created_on": "2026-09-30T04:57:08.432873Z",
+            "modified_on": "2026-10-01T02:45:34.857964Z"
+          }
+        ]
+      },
+      "deployments": {
+        "deployments": [
+          {
+            "id": "ac04d1e8-7718-41b8-8843-ab409a714385",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/message": "High-value domestic acoustic interview, guitar event and recording coverage",
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "251fd0b2-7dde-4388-b41e-374478c5b375",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-10-01T02:45:33.306926Z"
+          },
+          {
+            "id": "6c43688e-a50d-4285-9619-b7952c340433",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/message": "Existing-source completion: explicit Ikebe nouns and bounded pending facts recovery",
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "3b03a62a-5473-4f04-acd4-81d8fd62dfb9",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-10-01T00:58:52.692088Z"
+          },
+          {
+            "id": "77ad9a14-5b11-43cf-9abe-b027e6ebe8cd",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/message": "Core quality repair: inclusive event expiry, shared ticker ranking, safe IK storage dedupe, collection-only pause",
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "7cd66ffb-bbec-40f6-aee0-1cad83d92090",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-10-01T00:09:16.094538Z"
+          },
+          {
+            "id": "4e962474-8eb5-4cc8-adaf-b3373b3d3a27",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/message": "Core quality repair: inclusive event expiry, shared ticker ranking, safe IK storage dedupe, collection-only pause",
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "07ef2a73-1d14-49a6-bbee-d57afc1e9c64",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-09-30T23:55:44.487583Z"
+          },
+          {
+            "id": "7476de0e-16ab-43b6-a8b9-3a40d507e2e1",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/message": "Verified manual Sale and guitar event coverage; release/retention guards",
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "d650965e-b73d-467d-8abd-924a6f4c1e23",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-09-30T22:53:04.309278Z"
+          },
+          {
+            "id": "cef83c2a-8662-4512-8d5f-d3722faa538d",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/message": "Verified manual Sale and guitar event coverage; release/retention guards",
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "829b0eaa-2fbd-4feb-a2bc-7e3e1a48f793",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-09-30T22:28:00.298299Z"
+          },
+          {
+            "id": "bdd99ab6-d805-44a9-985f-6dd67e19b2d1",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "4e77c1ac-0aab-4601-bd4b-b6fd44e88898",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-09-30T14:15:36.045209Z"
+          },
+          {
+            "id": "10ab4e66-150d-4cff-bc48-ccfc4ccbc419",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/message": "Restore previous API projection while correcting missing-facts label match",
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "3d249ff7-f4fa-4c2b-a273-ac48e0740955",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-09-30T14:11:10.286653Z"
+          },
+          {
+            "id": "8b16e945-0526-4a7e-9b99-e9759f1086e7",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "4710e73f-71f6-4b2a-b55a-75c307a19300",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-09-30T14:03:43.453311Z"
+          },
+          {
+            "id": "b0833ee9-e30a-4181-b590-5fc9378e3d4c",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "3d249ff7-f4fa-4c2b-a273-ac48e0740955",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-09-30T09:10:34.434682Z"
+          }
+        ]
+      }
+    },
+    "tests": {
+      "port": 887,
+      "shared": 226,
+      "sync": 393,
+      "pitch": 30,
+      "fretboard": 25,
+      "rhythm": 19,
+      "chord": 95,
+      "news": 326
+    },
+    "testTotal": 2001,
+    "publisherRequestsThisAudit": 0,
+    "sourceHealth": [
+      {
+        "source_id": "agm",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790820710398,
+        "last_checked_at": 1790820710398,
+        "next_eligible_run_at": 1790907109669,
+        "failure_count": 0
+      },
+      {
+        "source_id": "ikebe-event",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790820471350,
+        "last_checked_at": 1790820471350,
+        "next_eligible_run_at": 1790906871033,
+        "failure_count": 0
+      },
+      {
+        "source_id": "at-distribution",
+        "status": "healthy",
+        "reason_code": "ok",
+        "last_successful_run_at": 1790821397750,
+        "last_checked_at": 1790821397750,
+        "next_eligible_run_at": 1790907797678,
+        "failure_count": 0
+      }
+    ],
+    "preservedFiles": 7
+  },
+  "pages-build": {
+    "commit": "9d155a83492c2a9a5e19ffe905c091a8af171517",
+    "created_at": "2026-10-01T02:44:43Z",
+    "error": {
+      "message": null
+    },
+    "status": "built",
+    "updated_at": "2026-10-01T02:45:16Z"
+  },
+  "factProjections": {
+    "ik19650-review-facts.json": [
+      {
+        "canonicalUrl": "https://www.ikmultimedia.com/news/?item_id=19650",
+        "timestamp": "2026-10-01T01:59:04.397Z",
+        "status": 200,
+        "hash": "88d023652f52411baac6658a4a8389f6e959b53a6d69b455d0edb7db15776935",
+        "facts": {
+          "sourceId": "ik",
+          "eventType": "unverified",
+          "policyFinding": "Saved item URL returned a general news listing; item identity and context remain unverified."
+        },
+        "reasonCodes": [
+          "article_body_missing",
+          "review_retained"
+        ]
+      }
+    ],
+    "tm-facts.json": [
+      {
+        "canonicalUrl": "https://www.ikebe-gakki-pb.com/new_product/172461/",
+        "timestamp": "2026-10-01T01:58:44.680Z",
+        "status": 200,
+        "hash": "68ab659ec0a7aae0a425fda74a0720054fbc3d25b679b039ccdc028bfead9c96",
+        "facts": {
+          "sourceId": "ikebe",
+          "equipment": [
+            "TM-1",
+            "tuner",
+            "metronome"
+          ],
+          "brands": [
+            "KORG"
+          ],
+          "eventType": "new_product",
+          "relevanceReason": "guitar_practice_accessory"
+        },
+        "reasonCodes": [
+          "product_identity_verified",
+          "guitar_relevance_verified"
+        ]
+      }
+    ],
+    "bds-facts.json": [
+      {
+        "canonicalUrl": "https://www.ikebe-gakki-pb.com/new_product/172475/",
+        "timestamp": "2026-10-01T01:58:44.481Z",
+        "status": 200,
+        "hash": "f749d33592a2e5b5ba33b210e6bb1aa39e567f39f3f70f0c93ab566a681dd84f",
+        "facts": {
+          "sourceId": "ikebe",
+          "equipment": [
+            "Nu:Tekt NuTube OD-KIT CUSTOM CRAFT BD-S",
+            "effect_kit"
+          ],
+          "brands": [
+            "KORG"
+          ],
+          "eventType": "assembly_product_information"
+        },
+        "reasonCodes": [
+          "release_context_unverified"
+        ]
+      }
+    ],
+    "flex10-facts.json": [
+      {
+        "canonicalUrl": "https://atdistribution.net/information/1047/",
+        "timestamp": "2026-10-01T02:23:17.677Z",
+        "status": 200,
+        "hash": "a7e7cb642608ec0804950e97056559ecc71a7d239ac4c34abdaf1371b50deaa8",
+        "facts": {
+          "sourceId": "at-distribution",
+          "equipment": [
+            "FLEX 10",
+            "audio_interface",
+            "microphone_preamp"
+          ],
+          "brands": [
+            "Harrison Audio"
+          ],
+          "eventType": "new_product",
+          "relevanceReason": "recording_hardware",
+          "publishedAt": "2026-08-19"
+        },
+        "reasonCodes": [
+          "announcement_not_shipping",
+          "publication_date_preserved"
+        ]
+      }
+    ],
+    "ktt-facts.json": [
+      {
+        "canonicalUrl": "https://www.ikebe-gakki-pb.com/new_product/172481/",
+        "timestamp": "2026-10-01T01:58:44.256Z",
+        "status": 200,
+        "hash": "404208a52da2230266e8c024f37f6587f6b12bda9119fcb43ae7b4fb1e1c43d8",
+        "facts": {
+          "sourceId": "ikebe",
+          "equipment": [
+            "KTT-01",
+            "tuner",
+            "wind_instrument_training"
+          ],
+          "brands": [
+            "KIKUTANI"
+          ],
+          "relevanceReason": "guitar_scope_not_established"
+        },
+        "reasonCodes": [
+          "not_recording_hardware",
+          "guitar_scope_not_established"
+        ]
+      }
+    ],
+    "tonex-facts.json": [
+      {
+        "canonicalUrl": "https://www.ikmultimedia.com/news/?item_id=19651",
+        "timestamp": "2026-10-01T01:59:03.784Z",
+        "status": 200,
+        "hash": "688660a2eecf390dccf169da6b8c0933d797bf3f4a7d1945614dca12fdcc5abf",
+        "facts": {
+          "sourceId": "ik",
+          "equipment": [
+            "TONEX software",
+            "2.0"
+          ],
+          "brands": [
+            "IK Multimedia"
+          ],
+          "eventType": "update",
+          "relevanceReason": "major_guitar_software_update"
+        },
+        "reasonCodes": [
+          "software_not_hardware",
+          "major_version_verified"
+        ]
+      }
+    ],
+    "ik19790-review-facts.json": [
+      {
+        "canonicalUrl": "https://www.ikmultimedia.com/news/?item_id=19790",
+        "timestamp": "2026-10-01T01:59:04.070Z",
+        "status": 200,
+        "hash": "9d7c7f48f73963fac9c3443395f881d7f8d256a90b79218fecf5da0d66b1fa58",
+        "facts": {
+          "sourceId": "ik",
+          "eventType": "unverified",
+          "policyFinding": "Saved item URL returned a general news listing; individual article context was not present."
+        },
+        "reasonCodes": [
+          "article_body_missing",
+          "review_retained"
+        ]
+      }
+    ],
+    "abe-facts.json": [
+      {
+        "canonicalUrl": "https://www.ikebe-gakki.com/blog/20261024-eg-workshop/",
+        "timestamp": "2026-10-01T02:15:23.784Z",
+        "status": 200,
+        "hash": "d313343c4fb4153b73046ba53afde11bede7c38a3929db8c683dde7617031795",
+        "facts": {
+          "sourceId": "ikebe-event",
+          "artist": "阿部学",
+          "eventType": "workshop",
+          "eventDate": "2026-10-24",
+          "venue": "イケシブ",
+          "relevanceReason": "guitar_event"
+        },
+        "reasonCodes": [
+          "article_event_date_verified"
+        ]
+      }
+    ]
+  },
+  "implementationCommit": "9d155a83492c2a9a5e19ffe905c091a8af171517",
+  "reportScope": "facts, independent labels, measured counts and deployment evidence only; no publisher expression or secrets",
+  "gitPreservationHashes": {
+    "apps/cruise-port/NEWS-LEGAL-COMPLIANCE.md": "7ca0f92f1fcb9b1a0e6a01fc911b0ce3d2d563ca53e9af0816787c6240181634",
+    "apps/cruise-port/NEWS-PROTOTYPE.md": "14ea700145addf7c309c7c7ab76996ff891daab910c340f41159fd7634ad2a91",
+    "workers/sound-cruise-news/BALANCED-SOURCE-POLICY.md": "cec77df1b2c0f53ea099bc5e6ce68d02b4b84800b3b95ce6f36bbd68d85c3e43",
+    "workers/sound-cruise-news/BLOCKED-SOURCE-RECOVERY-EVIDENCE.json": "3b1244b96d58034374c4d95746d89eca148d95223f9f6d2b45a637dc649e60cc",
+    "workers/sound-cruise-news/BLOCKED-SOURCE-RECOVERY-REPORT.md": "93a336a3a39126bbbd6c24ba4ecf46fb39e1454efc6923db530f3c297c7a52d2",
+    "workers/sound-cruise-news/LEGACY-BETA-ACQUISITION-EVIDENCE.json": "acaaf730eb3a50a952d7db77b9ea084a64b337184b41e20a834d776d9cd088a1",
+    "workers/sound-cruise-news/LEGACY-BETA-ACQUISITION-REPORT.md": "0ced5c84084e5fe55de626021a8139013808e3d394ecf2dbb6389731bf4217d5"
+  }
+}
