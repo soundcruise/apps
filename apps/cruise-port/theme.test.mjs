@@ -8,7 +8,8 @@ import {
     loadSettings, normalizeSettings, resolveTheme, saveSettings
 } from './settings-store.js';
 import { validateRecordPayload } from '../../workers/sound-cruise-sync/src/record-schema-registry.js';
-import { THEME_SECTION_MARKER, darkRootTokens, readStyle } from './theme-test-support.mjs';
+import { createHash } from 'node:crypto';
+import { THEME_SECTION_MARKER, darkRootTokens, readDarkStyle, readStyle } from './theme-test-support.mjs';
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const entries = [['standard', read('./index.html')], ['pro', read('./pro_9a3943176561/index.html')]];
@@ -222,12 +223,93 @@ test('CSS: Dark is the attribute-free default; Gray/Light only override tokens u
     assert.equal(tokens['--port-accent-rgb'], '205, 180, 116');
 });
 
-test('Dark-fixed functional panels redeclare exactly the production Dark tokens', () => {
-    const themePart = css.slice(css.indexOf(THEME_SECTION_MARKER));
-    const start = themePart.indexOf(':is(.tuner-panel, #home-view .tool-card:not(.my-app-launch-card) .skeleton-icon) {');
-    assert.ok(start > 0, 'tuner panel and tool icon tiles are Dark-fixed');
-    const block = themePart.slice(start, themePart.indexOf('}', start));
-    assert.match(block, /color-scheme: dark;/);
-    const declared = Object.fromEntries([...block.matchAll(/(--port-[a-z0-9-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+const themePart = () => css.slice(css.indexOf(THEME_SECTION_MARKER));
+const T = ':root:is([data-theme="gray"], [data-theme="light"])';
+const ruleBody = (selector) => {
+    const part = themePart();
+    const start = part.indexOf(`${selector} {`);
+    assert.ok(start >= 0, selector);
+    return part.slice(start + selector.length + 2, part.indexOf('}', start));
+};
+const declarations = (body) => Object.fromEntries([...body.matchAll(/([a-z-]+|--port-[a-z0-9-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
+
+test('Dark CSS is byte-identical to the 1.12.0 production Dark (theme polish touches Gray/Light only)', () => {
+    const dark = css.slice(0, css.indexOf(THEME_SECTION_MARKER));
+    assert.equal(createHash('sha256').update(dark).digest('hex'), '027117253bcfd0cf18d43862b9a78b86e55da008da4f9f1b298f2bcf59fbb360');
+});
+
+test('Gray/Light rules only change colors: no sizing, spacing or layout property is themed', () => {
+    const allowed = /^(?:--port-[a-z0-9-]+|color|color-scheme|background|background-color|border-color|outline-color|box-shadow|filter|accent-color|border-radius)$/;
+    for (const [, name] of themePart().matchAll(/^\s*([a-z-]+|--port-[a-z0-9-]+):/gm)) assert.match(name, allowed, name);
+    // border-radius is used only to shape the tool icon tile like the Cruise app icons.
+    assert.equal([...themePart().matchAll(/border-radius:/g)].length, 1);
+    assert.match(themePart(), /#home-view \.tool-card:not\(\.my-app-launch-card\) \.skeleton-icon \{ border-radius: 23%; \}/);
+});
+
+test('Tool and My Apps icons sit on a Dark plate in Gray/Light with the exact production Dark tokens', () => {
+    const body = ruleBody(`${T} :is(#home-view .tool-card .skeleton-icon, .my-app-icon)`);
+    const declared = declarations(body);
     for (const [name, value] of Object.entries(darkRootTokens(css))) assert.equal(declared[name], value, name);
+    assert.equal(declared['color-scheme'], 'dark');
+    assert.equal(declared.background, 'var(--port-surface)', 'plate is the Dark surface #12110f');
+    assert.equal(declared.color, 'rgba(var(--port-accent-soft-rgb), 0.68)', 'icon ink equals the Dark .skeleton-icon color');
+    for (const layout of ['width', 'height', 'padding', 'margin', 'object-fit', 'border-radius']) {
+        assert.equal(Object.hasOwn(declared, layout), false, `${layout}: My Apps sizing and image crop stay as they are`);
+    }
+    // Specificity beats the transparent home-grid icon rule, so the plate shows on the card.
+    assert.match(css, /#home-view\[data-display-size\] \.home-card-grid \.skeleton-icon \{\n    border: 0;\n    background: transparent;/);
+});
+
+test('the tuner is no longer Dark-fixed in Gray/Light and follows the theme', () => {
+    const part = themePart();
+    assert.doesNotMatch(part, /:is\(\.tuner-panel/, 'tuner is not in the Dark-fixed plate list');
+    assert.doesNotMatch(part, /\.tuner-panel[^{]*\{[^}]*color-scheme: dark/, 'tuner controls use the light scheme');
+    const remap = declarations(ruleBody(`${T} .tuner-panel`));
+    assert.deepEqual(remap, {
+        '--port-gold-bright': 'var(--port-tuner-accent)',
+        '--port-accent-text': 'var(--port-tuner-accent)',
+        '--port-accent-text-strong': 'var(--port-tuner-accent)',
+        '--port-accent-rgb': 'var(--port-tuner-accent-rgb)',
+        '--port-accent-soft-rgb': 'var(--port-tuner-accent-rgb)',
+        '--port-accent-switch-rgb': 'var(--port-tuner-accent-rgb)'
+    });
+    assert.deepEqual(declarations(ruleBody(`${T} .tuner-panel .primary-action`)),
+        { 'border-color': 'var(--port-tuner-accent)', color: 'var(--port-tuner-on-accent)', background: 'var(--port-tuner-accent)' });
+    assert.match(part, /\.tuner-strings :where\(button\) \{ border-color: rgba\(var\(--port-line-rgb\), 0\.2\); background: var\(--port-field\); \}/);
+    assert.match(part, /\.tuner-direction\[data-state="in-tune"\] \{ color: var\(--port-tuner-in-tune\); \}/);
+    assert.match(part, /\.notice-error, \.tuner-settings-error, \.tuner-threshold-error,/, 'tuner errors use the theme danger text');
+});
+
+const luminance = (hex) => {
+    const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+        .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+};
+const contrast = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+
+test('Gray/Light tuner tokens: dark neutral accent, semantic green and readable contrast', () => {
+    const tokens = (theme) => {
+        const part = themePart();
+        const all = {};
+        for (const [, body] of part.matchAll(new RegExp(`:root\\[data-theme="${theme}"\\] \\{([^}]*)\\}`, 'g'))) Object.assign(all, declarations(body));
+        return all;
+    };
+    for (const [theme, accent, surface, field] of [['gray', '#1d1f23', '#d8dbdf', '#eef0f2'], ['light', '#1c1b18', '#ffffff', '#ffffff']]) {
+        const t = tokens(theme);
+        assert.equal(t['--port-tuner-accent'], accent, `${theme}: accent is the theme text, not gold`);
+        assert.equal(t['--port-surface'], surface);
+        assert.ok(contrast(t['--port-tuner-accent'], surface) >= 4.5, `${theme} accent on panel`);
+        assert.ok(contrast(t['--port-tuner-accent'], field) >= 4.5, `${theme} accent on strings/select`);
+        assert.ok(contrast(t['--port-tuner-on-accent'], t['--port-tuner-accent']) >= 4.5, `${theme} button text`);
+        assert.ok(contrast(t['--port-tuner-in-tune'], surface) >= 4.5, `${theme} in-tune green`);
+        assert.ok(contrast(t['--port-tuner-in-tune'], field) >= 4.5, `${theme} active string`);
+        const [r, g, b] = t['--port-tuner-in-tune-rgb'].split(',').map(Number);
+        assert.ok(g > r && g > b, `${theme}: in-tune stays green`);
+    }
+    assert.match(themePart(), /:root\[data-theme="gray"\] \.tuner-panel \{ --port-danger-text: #7a2029; \}/);
+    // Dark keeps its own functional colors.
+    const dark = readDarkStyle();
+    for (const literal of ['.tuner-direction[data-state="in-tune"] {\n    color: #9fc8a8;', 'border-color: rgba(174, 218, 184, 0.78);', 'color: #e5aca4;']) {
+        assert.ok(dark.includes(literal), literal);
+    }
 });

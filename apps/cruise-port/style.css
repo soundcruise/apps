@@ -6909,7 +6909,7 @@ body.metronome-preset-open {
     .sync-center-help-dialog .danger-action, .sync-center-target-revoke, .sync-center-help-dialog .sync-center-rename-error,
     .sync-center-ai-unsent, .sync-center-support .sync-center-ai-error, .sync-center-ai-counter--over,
     .sync-center-danger-toggle, .sync-center-join-warning, .practice-attachment-status.is-error, .danger-action,
-    .practice-form-delete, #practice-empty > p, .notice-error:not(.tuner-error),
+    .practice-form-delete, #practice-empty > p, .notice-error, .tuner-settings-error, .tuner-threshold-error,
     .practice-count-reset-section button, .practice-attachment-actions button, .practice-set-delete,
     .metronome-preset-delete) { color: var(--port-danger-text); }
 :root:is([data-theme="gray"], [data-theme="light"]) .sync-center-danger-toggle:focus-visible { outline-color: var(--port-danger-text); }
@@ -6980,11 +6980,12 @@ body.metronome-preset-open {
 :root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-button, .sound-cruise-sync-settings-toggle, .sound-cruise-sync-help-toggle,
     .sound-cruise-sync-conflict button, .sound-cruise-sync-conflict input):focus-visible { outline-color: var(--port-accent-text); }
 
-/* ── Dark-fixed functional panels ─────────────────────────────────────────────────────────
-   The tuner (reading, meter, strings, input level, diagnostics) and the tool icon plates keep the
-   production Dark appearance in every theme. Tokens below are an exact copy of the :root Dark
-   values (verified by tests); the panel is a self-contained Dark island. */
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.tuner-panel, #home-view .tool-card:not(.my-app-launch-card) .skeleton-icon) {
+/* ── Dark-fixed icon plates ───────────────────────────────────────────────────────────────
+   Tool icons and My Apps icons (preset, generic and uploaded) are drawn for Dark: gold lines,
+   white details and glow. In Gray/Light their own icon box becomes a Dark plate; the card stays
+   in the page theme. Tokens below are an exact copy of the :root Dark values (verified by tests),
+   so the icon inside renders exactly as in Dark. Sizes, radii and image cropping are unchanged. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(#home-view .tool-card .skeleton-icon, .my-app-icon) {
     color-scheme: dark;
     --port-bg: #080806;
     --port-surface: #12110f;
@@ -7034,13 +7035,52 @@ body.metronome-preset-open {
     --port-bg-top: #0a0a08;
     --port-bg-bottom: #060604;
     --port-accent-text: var(--port-gold-bright);
-    color: var(--port-text);
-}
-/* Tool icons carry white and glow details drawn for Dark; their own box becomes a Dark tile shaped
-   like the Cruise app icons (same size, no layout change). */
-:root:is([data-theme="gray"], [data-theme="light"]) #home-view .tool-card:not(.my-app-launch-card) .skeleton-icon {
-    border-radius: 23%;
-    background: var(--port-surface);
     color: rgba(var(--port-accent-soft-rgb), 0.68);
+    background: var(--port-surface);
 }
-:root:is([data-theme="gray"], [data-theme="light"]) .tuner-panel select { color-scheme: dark; }
+/* Tool icon tiles take the Cruise app icon shape; My Apps icons keep their own radius. */
+:root:is([data-theme="gray"], [data-theme="light"]) #home-view .tool-card:not(.my-app-launch-card) .skeleton-icon { border-radius: 23%; }
+
+/* ── Tuner in Gray / Light ────────────────────────────────────────────────────────────────
+   The tuner follows the page theme. Gold used for functional text, lines, meter and controls
+   becomes the theme's dark neutral; semantic colors (in tune, active string, errors) keep their
+   meaning in a deeper step of the same hue. Dark keeps the production tuner unchanged. */
+:root[data-theme="gray"] {
+    --port-tuner-accent: #1d1f23;
+    --port-tuner-accent-rgb: 29, 31, 35;
+    --port-tuner-on-accent: #f4f5f6;
+    --port-tuner-in-tune: #22592f;
+    --port-tuner-in-tune-rgb: 34, 89, 47;
+}
+:root[data-theme="light"] {
+    --port-tuner-accent: #1c1b18;
+    --port-tuner-accent-rgb: 28, 27, 24;
+    --port-tuner-on-accent: #ffffff;
+    --port-tuner-in-tune: #2c6438;
+    --port-tuner-in-tune-rgb: 44, 100, 56;
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .tuner-panel {
+    --port-gold-bright: var(--port-tuner-accent);
+    --port-accent-text: var(--port-tuner-accent);
+    --port-accent-text-strong: var(--port-tuner-accent);
+    --port-accent-rgb: var(--port-tuner-accent-rgb);
+    --port-accent-soft-rgb: var(--port-tuner-accent-rgb);
+    --port-accent-switch-rgb: var(--port-tuner-accent-rgb);
+}
+/* Gray's pink error notice inside the tuner needs one deeper step of the same red. */
+:root[data-theme="gray"] .tuner-panel { --port-danger-text: #7a2029; }
+:root:is([data-theme="gray"], [data-theme="light"]) .tuner-panel .primary-action {
+    border-color: var(--port-tuner-accent);
+    color: var(--port-tuner-on-accent);
+    background: var(--port-tuner-accent);
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .tuner-threshold-control input[type="range"] { accent-color: var(--port-tuner-accent); }
+:root:is([data-theme="gray"], [data-theme="light"]) .tuner-direction[data-state="in-tune"] { color: var(--port-tuner-in-tune); }
+:root:is([data-theme="gray"], [data-theme="light"]) .tuner-strings :where(button) { border-color: rgba(var(--port-line-rgb), 0.2); background: var(--port-field); }
+:root:is([data-theme="gray"], [data-theme="light"]) .tuner-strings button.is-active {
+    border-color: rgba(var(--port-tuner-in-tune-rgb), 0.62);
+    color: var(--port-tuner-in-tune);
+    background: rgba(var(--port-tuner-in-tune-rgb), 0.14);
+    box-shadow: inset 0 0 0 1px rgba(var(--port-tuner-in-tune-rgb), 0.2), 0 4px 10px rgba(var(--port-tuner-in-tune-rgb), 0.1);
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .tuner-strings button.is-active :is(strong, span) { color: var(--port-tuner-in-tune); }
