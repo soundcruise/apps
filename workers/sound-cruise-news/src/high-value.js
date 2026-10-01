@@ -29,8 +29,9 @@ export function parseHighValueListing(html,source){
    if(event){const times=find(card,n=>n.name==='time'&&/Published/.test(plain(n)));if(times.length===1){const raw=times[0].attribs.datetime||'';const m=/^(20\d{2})-(\d{2})-(\d{2})/.exec(raw);if(m)day=date(m[1],m[2],m[3])||'';}}
    else {const m=/(20\d{2})[.](\d{2})[.](\d{2})/.exec(plain(card));if(m)day=date(m[1],m[2],m[3])||'';}
    if(day)dated++;seen.add(urls[0]);
-   const context=plain(card);
-   entries.push({title,url:urls[0],date:day?day+'T00:00:00+09:00':'',listingSection:event?'guitar_events':'recording_news',listingUncertainty:day?'':'missing_date',eventVenue:event&&context.includes('イケシブ')?'イケシブ':event&&context.includes('リボレ秋葉原')?'リボレ秋葉原':null});
+   // Shop/category tags are discovery context, not proof of the event venue.
+   const venue=event&&/(?:会場[：:]? ?イケシブ|イケシブ(?:LIVES|SHOWCASE)?で)/.test(title)?'イケシブ':event&&/(?:会場[：:]? ?リボレ秋葉原|リボレ秋葉原で)/.test(title)?'リボレ秋葉原':null;
+   entries.push({title,url:urls[0],date:day?day+'T00:00:00+09:00':'',listingSection:event?'guitar_events':'recording_news',listingUncertainty:day?'':'missing_date',eventVenue:venue});
   }
   if(!entries.length||dated<Math.ceil(cards.length/2))throw Error('listing_structure_changed');
   return {entries,cards:cards.length,reasons:{}};
