@@ -5,6 +5,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>指板クルーズ | プライバシーポリシー</title>
+    <script>
+        // Fretboard color theme before first paint. Reads only fretboard_cruise_state.settings.theme;
+        // anything else is Dark. Dark keeps the page as before (no theme-color meta).
+        (function () {
+            var colors = { charcoal: '#424346', gray: '#c8cbd0', light: '#f4f6f9' };
+            var theme = 'dark';
+            try {
+                var saved = JSON.parse(localStorage.getItem('fretboard_cruise_state') || 'null');
+                var value = saved && saved.settings && saved.settings.theme;
+                if (value === 'charcoal' || value === 'gray' || value === 'light') theme = value;
+            } catch (_) { theme = 'dark'; }
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme !== 'dark') {
+                var meta = document.createElement('meta');
+                meta.setAttribute('name', 'theme-color');
+                meta.setAttribute('data-fb-theme-color', '');
+                meta.setAttribute('content', colors[theme]);
+                document.head.appendChild(meta);
+            }
+        }());
+    </script>
     <link rel="stylesheet" href="../shared/style.css?v=100">
     <link rel="stylesheet" href="../shared/pro-theme.css?v=98">
     <link rel="stylesheet" href="./theme.css?v=407">
@@ -118,6 +139,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="./theme-colors-legal.css?v=2.21.3">
 </head>
 
 <body class="legal-page">

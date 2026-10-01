@@ -182,3 +182,53 @@ test('reader-first: received theme values are accepted, never sent, never delete
   assert.equal(JSON.parse(values.get('fretboard_cruise_state')).settings.themeCloudMirror, undefined);
   assert.equal(JSON.parse(values.get('fretboard_cruise_state')).settings.theme, 'gray');
 });
+
+// ── Information pages ─────────────────────────────────────────────────────────────────────
+// Normal information pages follow the app theme with the same bootstrap and a page-group layer.
+// Their content is untouched: removing the bootstrap and the layer link gives the original file.
+// Pro acquisition / gate pages stay Dark and are byte-identical. The fretboard itself is not involved.
+const SCOPE_RE = /^:root(\[data-theme="(charcoal|gray|light)"\]|:is\((\[data-theme="(charcoal|gray|light)"\](, )?)+\))/;
+const INFO_PAGES = {
+  'info.html': ['./theme-colors-info.css?v=', '9ba11eb2a1164603a81c591c96ab78d9b3955ac5d8f4823de2c213b24efae216'],
+  'terms.html': ['./theme-colors-legal.css?v=', 'a01f0f228a518be240f7a1244c99fe5e1cf364750ca1adc6ec0d9444a5c8fbfd'],
+  'privacy.html': ['./theme-colors-legal.css?v=', '6a8daf899225d393885f6dcd4a765c76d1b84a91cef6ddaefcc1312f92e1a9dc'],
+  'apps.html': ['./theme-colors-apps.css?v=', '045b0f297d2e313dbf5b9435ff46020a92a88041e73ed9b7c650eb291c81a19b']
+};
+const DARK_PAGES = {
+  'pro-access.html': '5c496092202ba3d961939d5b12db9a442b1dbc6fc06548662ab66b3c05877930',
+  'iphone-safari-guide.html': 'f6f8ddc844f38cb1efa04097a0865a2e5ee4d46daa89bb0da69213c3d99a5da9',
+  'pro_a9f4k7q2m8z/troubleshoot.html': '3682331cacedb40a002db601e43158515274f0a76e60b0ebcd010121a4b9e47a'
+};
+const sha256 = async (text) => (await import('node:crypto')).createHash('sha256').update(text).digest('hex');
+
+test('information pages follow the theme with the app bootstrap; content is unchanged', async () => {
+  const appBoot = entries[0][1].match(BOOT_RE)[0];
+  for (const [file, [layerHref, originalHash]] of Object.entries(INFO_PAGES)) {
+    const html = read(file);
+    const boot = html.match(BOOT_RE);
+    assert.ok(boot, file);
+    assert.equal(boot[0].replace(/\n\s+/g, '\n'), appBoot.replace(/\n\s+/g, '\n'), `${file}: same bootstrap as the app`);
+    assert.ok(html.indexOf(boot[0]) < html.indexOf('rel="stylesheet"'), `${file}: bootstrap before any stylesheet`);
+    const link = html.match(/\n *<link rel="stylesheet" href="(\.\/theme-colors-[a-z]+\.css)\?v=([\d.]+)">/);
+    assert.ok(link && (link[1] + '?v=') === layerHref, `${file}: loads ${layerHref}`);
+    assert.ok(html.indexOf(link[0]) > html.lastIndexOf('</style>'), `${file}: layer after the page styles`);
+    for (const [value, theme, meta] of [[null, 'dark', null], ['{broken', 'dark', null], [state({ theme: 'sepia' }), 'dark', null],
+      [state({ theme: 'dark' }), 'dark', null], [state({ theme: 'charcoal' }), 'charcoal', '#424346'],
+      [state({ theme: 'gray' }), 'gray', '#c8cbd0'], [state({ theme: 'light' }), 'light', '#f4f6f9']]) {
+      assert.deepEqual(runBootstrap(html, value), { theme, meta }, `${file} ${value}`);
+    }
+    assert.equal(runBootstrap(html, null, true).theme, 'dark', `${file}: storage error is Dark`);
+    const original = html.replace(new RegExp('\\n *' + BOOT_RE.source), '').replace(link[0], '');
+    assert.equal(await sha256(original), originalHash, `${file}: text, links and navigation unchanged`);
+    const css = read(layerHref.slice(2, -3));
+    assert.doesNotMatch(css, /\.neck-|\.note-marker|\.fret-wire|\.string-line/, `${layerHref}: no fretboard object rules`);
+    for (const block of css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map((b) => b.trim().replace(/^@media[^{]*\{\s*/, '')).filter((b) => b.includes('{') && !b.startsWith('@keyframes') && !/^(from|to|\d)/.test(b))) {
+      for (const sel of block.slice(0, block.indexOf('{')).split(/,\n/)) {
+        assert.match(sel.trim(), SCOPE_RE, `${layerHref}: ${sel.trim().slice(0, 80)}`);
+      }
+    }
+  }
+  for (const [file, hash] of Object.entries(DARK_PAGES)) {
+    assert.equal(await sha256(read(file)), hash, `${file}: Pro acquisition / gate page stays Dark and unchanged`);
+  }
+});

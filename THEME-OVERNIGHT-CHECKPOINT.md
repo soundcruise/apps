@@ -110,8 +110,8 @@ A = normal information page → follows the app theme. B = Pro acquisition / acc
 |---|---|---|---|---|
 | F0 | Preflight + safety window | DONE | (this file) | — |
 | F1 | Information page inventory | DONE | (this file) | — |
-| F2 | Pitch information pages theme | DONE pending deploy check (this commit) | see git log | Pitch 2.26.3 |
-| F3 | Fretboard information pages theme | TODO | | |
+| F2 | Pitch information pages theme | DONE (deployed, prod info smoke 120/120) | e7f500ae | Pitch 2.26.3 |
+| F3 | Fretboard information pages theme | DONE pending deploy check (this commit) | see git log | Fretboard 2.21.3 |
 | F4 | Rhythm information pages theme | TODO | | |
 | F5 | Information pages full QA | TODO | | |
 | F6 | Five-app theme QA | TODO | | |
