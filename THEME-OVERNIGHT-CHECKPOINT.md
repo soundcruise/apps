@@ -112,14 +112,52 @@ A = normal information page → follows the app theme. B = Pro acquisition / acc
 | F1 | Information page inventory | DONE | (this file) | — |
 | F2 | Pitch information pages theme | DONE (deployed, prod info smoke 120/120) | e7f500ae | Pitch 2.26.3 |
 | F3 | Fretboard information pages theme | DONE (deployed, prod info smoke 120/120) | e97dd879 | Fretboard 2.21.3 |
-| F4 | Rhythm information pages theme | DONE pending deploy check (this commit) | see git log | Rhythm 1.16.3 |
-| F5 | Information pages full QA | TODO | | |
-| F6 | Five-app theme QA | TODO | | |
-| F7 | Writer eligibility gate | TODO | | |
-| F8 | Fretboard writer | TODO | | |
-| F9 | Rhythm writer | TODO | | |
-| F10 | Pitch writer | TODO | | |
-| F11 | Writer production verification | TODO | | |
-| F12 | Final full regression | TODO | | |
-| F13 | Production smoke | TODO | | |
-| F14 | Final cleanup / report | TODO | | |
+| F4 | Rhythm information pages theme | DONE (deployed, prod info smoke 144/144) | 60830d3a | Rhythm 1.16.3 |
+| F5 | Information pages full QA | DONE (Dark 0/0/0, content hash, contrast) | (this file) | — |
+| F6 | Five-app theme QA | DONE (prod cross-app 285/285, audio hashes identical) | (this file) | — |
+| F7 | Writer eligibility gate | NOT MET at 2026-10-01T22:16Z (18h05m left) — STOP | (this file) | — |
+| F8 | Fretboard writer | WAITING (not before eligible_after) | | |
+| F9 | Rhythm writer | WAITING | | |
+| F10 | Pitch writer | WAITING | | |
+| F11 | Writer production verification | WAITING | | |
+| F12 | Final full regression | DONE for the theme-complete state (all suites PASS) | (this file) | — |
+| F13 | Production smoke | DONE for the theme-complete state | (this file) | — |
+| F14 | Final cleanup / report | DONE (report CRUISE-APP-THEME-FINALIZATION-REPORT.md) | (this file) | — |
+
+### Results (theme-complete state, 2026-10-01)
+
+- Info pages: Dark / unset / invalid / broken vs production = style 0, layout 0, pixel 0 (3 apps x 3 widths).
+  Charcoal / Gray / Light: layout 0, text + links identical, Pro acquisition pages pixel 0. Contrast: no real
+  regression (flags only for background-clip:text titles, real stops >= 5.49; and SVG labels measured via
+  `color` while drawn with the unchanged `fill`). Rhythm microphone diagrams pinned Dark on #1d1b1a.
+- Production: info smoke Pitch 120/120, Fretboard 120/120, Rhythm 144/144; cross-app 285/285 (5 rounds incl.
+  Port Light / Chord Charcoal / Pitch Dark / Fretboard Gray / Rhythm Charcoal; apps + info pages; FOUC none).
+- Dark app screens vs 137ebd4e: style 0 for Pitch / Rhythm; Fretboard only the new theme row divider and the
+  random quiz target (known). Port / Chord unchanged since c01933d5.
+- Audio: Port audio files 11/11 identical; P/F/R audio lines 113/128/308 hash-identical; Port AudioSession /
+  tuner / metronome tests 159/159.
+- Tests: Port 952, Shared 226, Pitch 37, Fretboard 32, Rhythm 17 + 3 files, Chord 96 files, Sync Worker 397,
+  NEWS 327, Requests 65, runtime simulation 132 - all PASS.
+
+### Writer activation plan (F8-F11, only after eligible_after = 2026-10-02T16:22:11Z)
+
+Resume: re-run preflight (main, Pages versions, Worker 7245c2e6 still 100%, time >= eligible_after), then F8.
+
+Order: Fretboard (F8, 2.22.0) -> Rhythm (F9, 1.17.0) -> Pitch (F10, 2.27.0); one commit + deploy + smoke each.
+Worker, D1, schema version and record types stay unchanged (Worker already accepts the 4 values).
+
+Adapter rules (all three apps):
+1. Snapshot `theme` = explicit local theme if valid; else `themeCloudMirror` if valid; else omitted
+   (unset never becomes an explicit "dark", so it cannot overwrite a cloud choice).
+2. Materialize / remote apply: a valid received theme becomes the local explicit theme (the app re-applies it)
+   and `themeCloudMirror` is dropped; when the merged values carry no theme, the local theme is left as is
+   (never deleted). Fretboard / Rhythm currently rebuild SYNC_SETTINGS as `values[key] ?? DEFAULT` and Pitch
+   resets to DEFAULT_SETTINGS - theme must be handled outside that loop, as above.
+3. Pitch: remove `theme` from LOCAL_ONLY_SETTINGS and send it through the same rule 1 (not via DEFAULT).
+4. App load: if `theme` is unset and `themeCloudMirror` is valid, adopt the mirror once (explicit save) so the
+   device shows the account theme even before the next sync.
+5. Old payloads without theme, theme + other settings changed at once, simultaneous edits on two devices:
+   per-field merge (shared settings-field-merge) keeps unrelated settings; no duplicate conflict.
+Tests per app: A Light -> B Light; B Charcoal -> A Charcoal; A Gray -> B Gray; reset Dark -> B Dark; local unset
++ cloud Light; old payload without theme; theme + other setting together; simultaneous edits; no other app touched.
+Rollback: revert the writer commit (reader-first stays compatible with any theme already in the cloud).
