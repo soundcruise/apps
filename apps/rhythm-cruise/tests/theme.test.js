@@ -164,3 +164,58 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
     console.log('theme: reader-first receive OK (accepts 4 values, never sends, never deletes)');
 }()).catch(function (error) { console.error(error); process.exit(1); });
 
+
+// ── Information pages ────────────────────────────────────────────────────────────────────────────
+// Normal information / help pages follow the app theme with the same bootstrap and a page-group layer.
+// Their content is untouched: removing the bootstrap and the layer link gives the original file.
+// Pro acquisition pages stay Dark and byte-identical. The microphone diagrams stay Dark objects.
+(function () {
+    var crypto = require('crypto');
+    var sha256 = function (text) { return crypto.createHash('sha256').update(text).digest('hex'); };
+    var INFO_PAGES = {
+        'info.html': ['./theme-colors-info.css', 'bdbcca3ff4d2d0c5f94c15b34535a75e621c171cc6666992a84f7065d133547f'],
+        'terms.html': ['./theme-colors-legal.css', '7180771fb19f7bd0d78d427fc9519299892a31d8e0028dd99a41703efbb5a0fe'],
+        'privacy.html': ['./theme-colors-legal.css', 'b53df1059a9a3a5e1bd94682a13f03a110af010d9f2ad05cb8445c558432a033'],
+        'usage.html': ['./theme-colors-help.css', '46e6bd4a09e2e4f066f8948b851e83c135ce8e79a4f845b08701a86069524d3b'],
+        'mic-correction-help.html': ['./theme-colors-help.css', '4088e435b8799aa0197e7a9fa3168de1d442c9a2fce2bb583c2a7a7bed1382b3'],
+        'click-input-help.html': ['./theme-colors-click-help.css', '3f9b035f2d03903410fee9775cc88387708f2f4a8f89d0febd95d5754871cce5'],
+        'mic-restart-help.html': ['./theme-colors-mic-help.css', '5593fd5838dfbc2bf37d40646b711ae2946f9105a5137c97bed0eaf3d72b9bad']
+    };
+    var DARK_PAGES = {
+        'pro-access.html': '0adc9147d138a10cff56e4f7602a0a2958907a05b317bfa9befe116cca23a2c1',
+        'iphone-safari-guide.html': 'e9ae187776fae0f407c76b30a0272318f5fe8c91cea5bbd7c890983af93c496c'
+    };
+    var appBoot = pages[0][1].match(BOOT_RE)[0].replace(/\n\s+/g, '\n');
+    Object.keys(INFO_PAGES).forEach(function (file) {
+        var html = read(file);
+        var boot = html.match(BOOT_RE);
+        assert(boot, file);
+        assert.strictEqual(boot[0].replace(/\n\s+/g, '\n'), appBoot, file + ': same bootstrap as the app');
+        assert(html.indexOf(boot[0]) < html.indexOf('rel="stylesheet"'), file + ': bootstrap before any stylesheet');
+        var darkMeta = html.indexOf('<meta name="theme-color"');
+        assert(darkMeta < 0 || html.indexOf(boot[0]) < darkMeta, file + ': themed meta is added ahead of the Dark one');
+        var link = html.match(/\n *<link rel="stylesheet" href="(\.\/theme-colors-[a-z-]+\.css)\?v=([\d.]+)">/);
+        assert(link && link[1] === INFO_PAGES[file][0], file + ': loads ' + INFO_PAGES[file][0]);
+        [[null, 'dark', null], ['{broken', 'dark', null], [saved({ theme: 'sepia' }), 'dark', null], [saved({ theme: 'dark' }), 'dark', null],
+            [saved({ theme: 'charcoal' }), 'charcoal', '#424346'], [saved({ theme: 'gray' }), 'gray', '#c8cbd0'],
+            [saved({ theme: 'light' }), 'light', '#f6f4ef']].forEach(function (c) {
+            assert.deepStrictEqual(runBootstrap(html, c[0]), { theme: c[1], meta: c[2] }, file + ' ' + c[0]);
+        });
+        assert.strictEqual(runBootstrap(html, null, true).theme, 'dark', file + ': storage error is Dark');
+        var original = html.replace(new RegExp('\\n *' + BOOT_RE.source), '').replace(link[0], '');
+        assert.strictEqual(sha256(original), INFO_PAGES[file][1], file + ': text, links and navigation unchanged');
+        var css = read(link[1].slice(2));
+        css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map(function (b) { return b.trim().replace(/^@media[^{]*\{\s*/, ''); })
+            .filter(function (b) { return b.indexOf('{') > 0 && b.indexOf('@keyframes') !== 0 && !/^(from|to|\d)/.test(b); })
+            .forEach(function (block) {
+                block.slice(0, block.indexOf('{')).split(/,\n/).forEach(function (sel) { assert(SCOPE_RE.test(sel.trim()), link[1] + ': ' + sel.trim().slice(0, 80)); });
+            });
+    });
+    var clickLayer = read('theme-colors-click-help.css');
+    assert(clickLayer.indexOf(SCOPE + ':not(:has(> body.pro-gate-active)) .click-help-figure {\n    background-color: #1d1b1a !important;\n}') > 0, 'diagrams keep the measured Dark ground');
+    assert(/\.click-help-figure text \{\n    fill: #fdf6ee;/.test(clickLayer), 'diagram labels keep their Dark ink');
+    Object.keys(DARK_PAGES).forEach(function (file) {
+        assert.strictEqual(sha256(read(file)), DARK_PAGES[file], file + ': Pro acquisition page stays Dark and unchanged');
+    });
+    console.log('theme: information pages follow the theme; content and Pro acquisition pages unchanged OK');
+}());

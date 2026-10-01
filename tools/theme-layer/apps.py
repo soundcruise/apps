@@ -196,5 +196,12 @@ APPS['rhythm-help'] = _info('rhythm', 'Rhythm Cruise usage / help pages', 'apps/
                             _RC_CSS, ['apps/rhythm-cruise/usage.html', 'apps/rhythm-cruise/mic-correction-help.html'])
 APPS['rhythm-click-help'] = _info('rhythm', 'Rhythm Cruise click input help page', 'apps/rhythm-cruise/theme-colors-click-help.css',
                                   _RC_CSS, ['apps/rhythm-cruise/click-input-help.html'])
+# The microphone diagrams are drawn in white / orange SVG strokes for a dark ground: keep them Dark
+# (identity colors on the measured opaque Dark composite behind the figure).
+APPS['rhythm-click-help'].update({
+    'object_selectors': APPS['rhythm']['object_selectors'][:-1] + r'|\.click-help-figure(?![\w-]))',
+    'object_pins': ['.click-help-figure'],
+    'object_panel_bg': [{'color': '#1d1b1a', 'selectors': ['.click-help-figure']}],
+})
 APPS['rhythm-mic-help'] = _info('rhythm', 'Rhythm Cruise mic restart help page', 'apps/rhythm-cruise/theme-colors-mic-help.css',
                                 _RC_CSS, ['apps/rhythm-cruise/mic-restart-help.html'])

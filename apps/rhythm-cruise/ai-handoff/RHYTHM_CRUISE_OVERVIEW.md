@@ -15,7 +15,7 @@
 - 通常版PWA URL: `https://soundcruise.jp/apps/rhythm-cruise/standard/`
 - 旧通常版URL（互換入口）: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_r4m8k7n2q9x/`
-- 現在のバージョン: `1.16.2`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
+- 現在のバージョン: `1.16.3`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
