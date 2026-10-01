@@ -2,5 +2,6 @@ exclude:
   - workers
   - AGENTS.md
   - CLAUDE.md
+  - THEME-OVERNIGHT-CHECKPOINT.md
   - apps/chord-cruise/tests
   - apps/chord-cruise/ai-handoff
