@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.16.3';
+const RHYTHM_CRUISE_VERSION = '1.17.0';
 function notifyRhythmSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
 }
@@ -829,6 +829,13 @@ const RHYTHM_THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: 
 function resolveRhythmTheme(value) {
     return RHYTHM_THEMES.includes(value) ? value : 'dark';
 }
+// The device's theme: its explicit choice, else a cloud theme kept from the reader-first release
+// (adopted as the explicit choice on the next Cloud Sync apply). Display only; nothing is written.
+function rhythmThemeOf(settings) {
+    if (settings && RHYTHM_THEMES.includes(settings.theme)) return settings.theme;
+    return settings && RHYTHM_THEMES.includes(settings.themeCloudMirror) ? settings.themeCloudMirror : undefined;
+}
+
 function applyRhythmTheme(value) {
     const theme = resolveRhythmTheme(value);
     document.documentElement.setAttribute('data-theme', theme);
@@ -23932,7 +23939,7 @@ function loadSettings() {
     let s = {};
     try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
     state.theme = s.theme; // 保存値はそのまま保持（読み込み時に書き戻さない）
-    applyRhythmTheme(state.theme);
+    applyRhythmTheme(rhythmThemeOf(s));
     mic.threshold = clampNum(s.threshold, THR_MIN, THR_MAX, SETTINGS_DEFAULTS.threshold);
     // v0.9.60：'auto'は廃止。保存値がauto/未知ならnormalへ正規化（以後はnormal/headphoneのみ保存）。
     mic.inputType = (s.inputType === 'headphone') ? 'headphone' : 'normal';
@@ -31040,6 +31047,14 @@ function bind() {
         state.theme = resolveRhythmTheme(button.getAttribute('data-theme-choice'));
         applyRhythmTheme(state.theme);
         saveSettings();
+    });
+    // Cloud Sync applied a received theme: make it the current theme so a later settings save keeps it.
+    // Only the theme is re-read; every other setting stays as it is in memory.
+    window.addEventListener('sound-cruise-rhythm-sync-applied', () => {
+        let s = {};
+        try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
+        state.theme = s.theme;
+        applyRhythmTheme(rhythmThemeOf(s));
     });
     if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
     // マイク設定TOP（下部・手動設定内）：いつでもマイク設定トップ画面へ戻る（v0.9.70）

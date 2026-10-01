@@ -22,6 +22,11 @@
     'tapLayout', 'tapUnified', 'inputMode', 'judgePreset',
     'clickRange', 'clickBeats', 'clickOffbeat', 'builtinSampleEnabled'
   ]);
+  // Color theme is a synced settings field too, but it has no default: an unset theme is never sent and a
+  // settings record without theme never clears it, so it is handled outside the default-based code.
+  const SYNC_OPTIONAL_SETTINGS = Object.freeze(['theme']);
+  // Tells the Sync Worker this client understands a settings theme (older clients never receive it).
+  const SYNC_CAPABILITIES = Object.freeze(['settings_theme_v1']);
   const DEFAULT_SETTINGS = Object.freeze({
     tapLayout: 'lr', tapUnified: true, inputMode: 'tap', judgePreset: 'semiStrict',
     clickRange: 'always', clickBeats: 'all', clickOffbeat: false
@@ -236,10 +241,13 @@
     };
   }
 
-  // Color theme, reader-first: the device's own `theme` is never sent. A theme received from the cloud is
-  // kept verbatim in settings.themeCloudMirror and echoed back as `theme`, so local and cloud snapshots
-  // stay identical (no apply/manifest mismatch) and other devices' theme is never deleted.
+  // Color theme (writer): the device sends its explicit theme; a theme kept by the reader-first release in
+  // themeCloudMirror stands in for an unset one. Unset and no mirror: nothing is sent.
   const CLOUD_THEMES = Object.freeze(['dark', 'charcoal', 'gray', 'light']);
+  function syncedTheme(main) {
+    if (CLOUD_THEMES.includes(main.theme)) return main.theme;
+    return CLOUD_THEMES.includes(main.themeCloudMirror) ? main.themeCloudMirror : undefined;
+  }
   function meaningfulSettings(values) {
     return Object.entries(values).some(([key, value]) => {
       if (key === 'builtinSampleEnabled') return Object.keys(value).length > 0;
@@ -347,7 +355,8 @@
         records.push(makeRecord('builtin_stage_preferences', ref, { builtinStageRef: ref, bpm, bars }));
       }
     });
-    if (CLOUD_THEMES.includes(main.themeCloudMirror)) settingsValues.theme = main.themeCloudMirror;
+    const theme = syncedTheme(main);
+    if (theme) settingsValues.theme = theme;
     if (meaningfulSettings(settingsValues)) records.push(makeRecord('settings', 'settings', { values: settingsValues }));
     records.sort((left, right) => `${left.recordType}/${left.recordId}`.localeCompare(`${right.recordType}/${right.recordId}`));
     const snapshot = { appId: APP_ID, schemaVersion: SCHEMA_VERSION, records };
@@ -373,9 +382,9 @@
     const payload = record.payload;
     if (record.recordType === 'settings') {
       if (!onlyKeys(payload, ['id', 'values']) || !isPlainObject(payload.values) ||
-          !onlyKeys(payload.values, [...SYNC_SETTINGS, 'theme'])) return false;
+          !onlyKeys(payload.values, [...SYNC_SETTINGS, ...SYNC_OPTIONAL_SETTINGS])) return false;
       const values = payload.values;
-      // theme (reader-first): accepted when received, not in SYNC_SETTINGS so it is never sent yet.
+      // theme: an optional synced field (SYNC_OPTIONAL_SETTINGS).
       if (values.theme !== undefined && !CLOUD_THEMES.includes(values.theme)) return false;
       if (values.tapLayout !== undefined && !['lr', 'ud'].includes(values.tapLayout)) return false;
       if (values.tapUnified !== undefined && typeof values.tapUnified !== 'boolean') return false;
@@ -626,8 +635,12 @@
     nextMain.tapUnified = values.tapUnified ?? DEFAULT_SETTINGS.tapUnified;
     nextMain.inputMode = values.inputMode ?? DEFAULT_SETTINGS.inputMode;
     nextMain.judgePreset = values.judgePreset ?? DEFAULT_SETTINGS.judgePreset;
-    if (CLOUD_THEMES.includes(values.theme)) nextMain.themeCloudMirror = values.theme;
-    else delete nextMain.themeCloudMirror;
+    // A received theme becomes this device's explicit theme (the reader-first mirror is retired).
+    // Without one, the local theme and mirror are kept: absence never clears a theme.
+    if (CLOUD_THEMES.includes(values.theme)) {
+      nextMain.theme = values.theme;
+      delete nextMain.themeCloudMirror;
+    }
     nextMain.rhythmProCustomStages = orderedStages;
 
     const currentCreate = parseJson(currentRaw.values['rhythmCruiseCreatePresets:v1'], 'rhythmCruiseCreatePresets:v1', []);
@@ -717,6 +730,8 @@
       const actual = normalizeRawSnapshot(readLocalSnapshot(storage));
       const actualManifest = await computeManifest(actual, options.cryptoImpl || global.crypto);
       if (actualManifest !== expectedManifest) throw new Error('rhythm_apply_manifest_mismatch');
+      // Lets the open app pick up a received theme (it re-reads only the theme).
+      if (typeof global.Event === 'function') global.dispatchEvent?.(new global.Event('sound-cruise-rhythm-sync-applied'));
       return Object.freeze({ ok: true, manifestHash: actualManifest, backup });
     } catch (error) {
       await restoreBackup(storage, backup);
@@ -780,6 +795,7 @@
       this.storage = options.storage || global.localStorage;
       this.cryptoImpl = options.cryptoImpl || global.crypto;
       this.backupStore = options.backupStore || global.SoundCruiseSyncAccount?.appBackupStorage || null;
+      this.syncCapabilities = SYNC_CAPABILITIES;
     }
     readLocalSnapshot() { return readLocalSnapshot(this.storage); }
     normalizeLocalSnapshot(snapshot = this.readLocalSnapshot()) { return normalizeRawSnapshot(snapshot); }
@@ -805,7 +821,7 @@
   }
 
   Object.assign(root, {
-    APP_ID, SCHEMA_VERSION, MANAGED_KEYS, EXCLUDED_KEYS, SYNC_SETTINGS, DEFAULT_SETTINGS,
+    APP_ID, SCHEMA_VERSION, MANAGED_KEYS, EXCLUDED_KEYS, SYNC_SETTINGS, SYNC_OPTIONAL_SETTINGS, SYNC_CAPABILITIES, DEFAULT_SETTINGS,
     BUILTIN_SAMPLE_STAGES, BUILTIN_STAGE_DEFAULTS, RhythmSyncAdapter,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeRawSnapshot, validateSnapshot,
     serializeRecords, deserializeRecords, isMeaningfulLocalData, mergeSnapshots,

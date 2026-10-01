@@ -15,7 +15,7 @@
 - 通常版PWA URL: `https://soundcruise.jp/apps/rhythm-cruise/standard/`
 - 旧通常版URL（互換入口）: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_r4m8k7n2q9x/`
-- 現在のバージョン: `1.16.3`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
+- 現在のバージョン: `1.17.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
@@ -100,8 +100,11 @@
 - 起動時: 各 `index.html` の `<head>` 先頭の bootstrap が `html[data-theme]` を設定し、Dark 以外は既存 theme-color（#070b11）より前に meta を追加。
 - 見た目: Dark は既存CSSそのまま。Charcoal / Gray / Light は `theme-colors.css`（`tools/theme-layer/generate.py rhythm` で自動生成、手修正は末尾の Hand-tuned overrides のみ）。
 - 判定レーン・補正テストのレーン・結果グラフ・録音レビュー・譜面レイヤーは Canvas/VexFlow が暗い地向けの明るい線で描くため、そのパネルだけ Dark のまま（`#080c12` の下地を敷く）。周囲のカード・タップパッド・ボタン・設定はテーマ追従。early / just / late の判定色は不変。
-- Cloud Sync: theme は端末ローカル（`SYNC_SETTINGS` に含めない。`materialize` は現在の設定を clone するので同期適用で消えない）。
-- Reader-first（Worker 7245c2e6 以降）: クラウドの settings に `theme`（dark/charcoal/gray/light）が来ても受理する。受け取った値は `themeCloudMirror` にそのまま写し、ローカルのスナップショットではその値だけを `theme` として返す（照合一致・他端末の theme を消さない）。端末自身の `theme` は送らない。送信（writer）は別途承認後。
+- Cloud Sync（1.17.0〜、writer）: theme は settings の同期項目（`SYNC_OPTIONAL_SETTINGS`。既定値を持たないので既定値ベースの処理の外で扱う）。
+  - 送信: 明示保存された theme → なければ旧 reader 版の `themeCloudMirror` → どちらも無ければ送らない（未設定をダークとして送らない）。
+  - 受信: 有効な theme はこの端末の明示 theme として保存し、`themeCloudMirror` は解消する。theme の無い settings ではローカルの theme を消さない。適用後に `sound-cruise-rhythm-sync-applied` を発行し、本体は theme だけを読み直す（`state.theme` も更新するので、その後の設定保存で受信テーマが戻らない）。
+  - アダプタは `syncCapabilities = ['settings_theme_v1']` を宣言する。宣言しない旧クライアント（1.16.3 以前）には Worker が theme を見せず、その書き込みでもクラウドの theme を保持する。
+  - 表示: `rhythmThemeOf(settings)` が明示 theme（なければミラー）を返す。読み込み時に書き戻さない。
 - テスト: `node apps/rhythm-cruise/tests/theme.test.js`
 
 ---

@@ -1,7 +1,7 @@
 'use strict';
 
 // Rhythm Cruise color theme (Dark / Charcoal / Gray / Light): bootstrap, settings contract, generated
-// theme layer scope, Dark-fixed functional panels and local-only Cloud Sync behaviour.
+// theme layer scope, Dark-fixed functional panels and Cloud Sync (writer) behaviour.
 var assert = require('assert');
 var fs = require('fs');
 var path = require('path');
@@ -119,51 +119,56 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
     assert(/\.result-graph-scroll,[\s\S]*?\.pce-vex-scroll \{\n    background-color: #10141a !important;/.test(layer), 'graphs and score editor keep their Dark ground');
 }());
 
-// ── Cloud Sync: local only ──────────────────────────────────────────────────────────────────
+// ── Cloud Sync writer: explicit theme sent, unset never sent, received theme adopted, absence keeps it ──
 (async function () {
     var source = read('sync/rhythm-sync-adapter.js');
-    var context = vm.createContext({ crypto: require('crypto').webcrypto, TextEncoder: TextEncoder, structuredClone: structuredClone, URL: URL, console: console, Event: function () {}, dispatchEvent: function () {} });
+    var events = [];
+    var context = vm.createContext({ crypto: require('crypto').webcrypto, TextEncoder: TextEncoder, structuredClone: structuredClone, URL: URL, console: console,
+        Event: function (type) { this.type = type; }, dispatchEvent: function (event) { events.push(event.type); } });
     vm.runInContext(source, context);
     var api = context.SoundCruiseRhythmSync;
-    assert(api.SYNC_SETTINGS.indexOf('theme') < 0, 'theme is not sent');
-    var values = new Map([['rhythmCruiseSettings', saved({ theme: 'charcoal' })]]);
-    var storage = { getItem: function (k) { return values.has(k) ? values.get(k) : null; }, setItem: function (k, v) { values.set(k, String(v)); }, removeItem: function (k) { values.delete(k); } };
-    assert(JSON.stringify(api.normalizeLocalSnapshot(api.readLocalSnapshot(storage))).indexOf('"theme"') < 0, 'theme never enters the sync snapshot');
-    await new api.RhythmSyncAdapter({ storage: storage }).applyRemoteSnapshot({ appId: 'rhythm', schemaVersion: 1, records: [] });
-    assert.strictEqual(JSON.parse(values.get('rhythmCruiseSettings')).theme, 'charcoal', 'remote apply keeps the local theme');
-    console.log('theme: Dark/Charcoal/Gray/Light bootstrap, settings, layer scope, functional panels and local-only sync OK');
-}()).catch(function (error) { console.error(error); process.exit(1); });
-
-// ── Reader-first: received theme is accepted, never sent, never deleted, local theme kept ──────
-(async function () {
-    var source = read('sync/rhythm-sync-adapter.js');
-    var context = vm.createContext({ crypto: require('crypto').webcrypto, TextEncoder: TextEncoder, structuredClone: structuredClone, URL: URL, console: console, Event: function () {}, dispatchEvent: function () {} });
-    vm.runInContext(source, context);
-    var api = context.SoundCruiseRhythmSync;
+    assert.deepStrictEqual(Array.from(api.SYNC_CAPABILITIES), ['settings_theme_v1']);
+    assert.deepStrictEqual(Array.from(api.SYNC_OPTIONAL_SETTINGS), ['theme']);
+    assert(api.SYNC_SETTINGS.indexOf('theme') < 0, 'theme has no default, so it stays out of the default-based list');
+    var mem = function (settings) {
+        var values = new Map([['rhythmCruiseSettings', JSON.stringify(settings)]]);
+        return { values: values, storage: { getItem: function (k) { return values.has(k) ? values.get(k) : null; }, setItem: function (k, v) { values.set(k, String(v)); }, removeItem: function (k) { values.delete(k); } },
+            settings: function () { return JSON.parse(values.get('rhythmCruiseSettings')); } };
+    };
+    var sent = function (settings) {
+        var record = api.normalizeLocalSnapshot(api.readLocalSnapshot(mem(settings).storage)).records.find(function (r) { return r.recordType === 'settings'; });
+        return record ? record.payload.values : undefined;
+    };
+    assert.deepStrictEqual(Array.from(new api.RhythmSyncAdapter({ storage: mem({}).storage }).syncCapabilities), ['settings_theme_v1']);
+    assert.strictEqual(sent({ theme: 'charcoal', tapLayout: 'ud' }).theme, 'charcoal');
+    assert.strictEqual(sent({ theme: 'dark', tapLayout: 'ud' }).theme, 'dark', 'an explicit Dark (after reset) is sent');
+    assert.strictEqual(sent({ tapLayout: 'ud' }).theme, undefined, 'unset is never sent as dark');
+    assert.strictEqual(sent({ tapLayout: 'ud', themeCloudMirror: 'light' }).theme, 'light', 'mirror stands in for an unset theme');
+    assert.strictEqual(sent({ theme: 'gray', tapLayout: 'ud', themeCloudMirror: 'light' }).theme, 'gray');
+    assert.strictEqual(sent({ theme: 'sepia', tapLayout: 'ud' }).theme, undefined);
+    assert.deepStrictEqual(JSON.parse(JSON.stringify(sent({ theme: 'gray' }))), { theme: 'gray' }, 'a theme-only settings record');
+    assert.strictEqual(sent({}), undefined, 'nothing to send: no settings record');
     var remote = function (values) { return { appId: 'rhythm', schemaVersion: 1, records: [{ recordType: 'settings', recordId: 'settings', schemaVersion: 1, payload: { id: 'settings', values: values } }] }; };
     ['dark', 'charcoal', 'gray', 'light'].forEach(function (theme) { api.validateSnapshot(remote({ tapLayout: 'ud', theme: theme })); });
     assert.throws(function () { api.validateSnapshot(remote({ tapLayout: 'ud', theme: 'sepia' })); });
     var merged = api.mergeSnapshots(remote({ tapLayout: 'ud' }), remote({ tapLayout: 'ud', theme: 'gray' }));
     assert.strictEqual(merged.conflicts.length, 0);
     assert.strictEqual(merged.snapshot.records.find(function (r) { return r.recordType === 'settings'; }).payload.values.theme, 'gray', 'remote theme survives');
-    var values = new Map([['rhythmCruiseSettings', JSON.stringify({ theme: 'charcoal', tapLayout: 'ud' })]]);
-    var storage = { getItem: function (k) { return values.has(k) ? values.get(k) : null; }, setItem: function (k, v) { values.set(k, String(v)); }, removeItem: function (k) { values.delete(k); } };
-    var adapter = new api.RhythmSyncAdapter({ storage: storage });
-    assert(JSON.stringify(api.normalizeLocalSnapshot(api.readLocalSnapshot(storage))).indexOf('"theme"') < 0, 'device theme is never sent');
-    await adapter.applyRemoteSnapshot(remote({ tapLayout: 'ud', theme: 'light' })); // no apply / manifest mismatch
-    var after = JSON.parse(values.get('rhythmCruiseSettings'));
-    assert.strictEqual(after.theme, 'charcoal', 'local theme kept');
-    assert.strictEqual(after.themeCloudMirror, 'light', 'received theme mirrored verbatim');
-    var echoed = api.normalizeLocalSnapshot(api.readLocalSnapshot(storage)).records.find(function (r) { return r.recordType === 'settings'; });
-    assert.strictEqual(echoed.payload.values.theme, 'light', 'local snapshot echoes only the cloud value');
-    after.theme = 'gray'; values.set('rhythmCruiseSettings', JSON.stringify(after));
-    assert.strictEqual(api.normalizeLocalSnapshot(api.readLocalSnapshot(storage)).records.find(function (r) { return r.recordType === 'settings'; }).payload.values.theme, 'light');
-    await adapter.applyRemoteSnapshot(remote({ tapLayout: 'ud' }));
-    assert.strictEqual(JSON.parse(values.get('rhythmCruiseSettings')).themeCloudMirror, undefined, 'mirror cleared when cloud has no theme');
-    assert.strictEqual(JSON.parse(values.get('rhythmCruiseSettings')).theme, 'gray');
-    console.log('theme: reader-first receive OK (accepts 4 values, never sends, never deletes)');
+    var device = mem({ theme: 'charcoal', tapLayout: 'ud', threshold: 0.05 });
+    await new api.RhythmSyncAdapter({ storage: device.storage }).applyRemoteSnapshot(remote({ tapLayout: 'ud', theme: 'light' }));
+    assert.strictEqual(device.settings().theme, 'light', 'a received theme becomes the device theme');
+    assert.strictEqual(device.settings().themeCloudMirror, undefined);
+    assert.strictEqual(device.settings().threshold, 0.05, 'device-only settings are untouched');
+    assert.deepStrictEqual(events, ['sound-cruise-rhythm-sync-applied'], 'the open app is told to re-read the theme');
+    var mirrored = mem({ tapLayout: 'ud', themeCloudMirror: 'gray' });
+    await new api.RhythmSyncAdapter({ storage: mirrored.storage }).applyRemoteSnapshot(remote({ tapLayout: 'ud', theme: 'gray' }));
+    assert.strictEqual(mirrored.settings().theme, 'gray', 'the mirror is adopted as the explicit theme');
+    assert.strictEqual(mirrored.settings().themeCloudMirror, undefined, 'and retired');
+    // App side: the listener re-reads only the theme; the display falls back to the kept cloud theme.
+    assert(/window\.addEventListener\('sound-cruise-rhythm-sync-applied', \(\) => \{\n        let s = \{\};\n        try \{ s = JSON\.parse\(localStorage\.getItem\(SETTINGS_KEY\)\) \|\| \{\}; \} catch \(_\) \{ s = \{\}; \}\n        state\.theme = s\.theme;\n        applyRhythmTheme\(rhythmThemeOf\(s\)\);\n    \}\);/.test(script), 'theme-only refresh after a Cloud Sync apply');
+    assert(/applyRhythmTheme\(rhythmThemeOf\(s\)\);/.test(script.slice(script.indexOf('function loadSettings()'))), 'load shows the device theme');
+    console.log('theme: Cloud Sync writer OK (explicit sent, unset never sent, received adopted, absence keeps it)');
 }()).catch(function (error) { console.error(error); process.exit(1); });
-
 
 // ── Information pages ────────────────────────────────────────────────────────────────────────────
 // Normal information / help pages follow the app theme with the same bootstrap and a page-group layer.
