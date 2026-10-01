@@ -3074,6 +3074,13 @@ textarea:focus-visible {
     -webkit-tap-highlight-color: transparent;
 }
 
+/* カラーテーマ: four labels (チャコール is the longest) stay on one line. */
+.settings-choices[aria-label="カラーテーマ"] .settings-choice {
+    font-size: calc(0.8rem * var(--font-scale));
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
 .settings-choice small {
     color: inherit;
     font-size: calc(0.66rem * var(--font-scale));
@@ -6856,6 +6863,46 @@ body.metronome-preset-open {
     --port-success-text: #2c6438;
 }
 
+/* Charcoal: between Dark and Gray. A dark-scheme theme, so it keeps Dark's bright gold accents,
+   status colors and Dark-only rules; only the surfaces, wells and ink tokens are lifted. */
+:root[data-theme="charcoal"] {
+    color-scheme: dark;
+    --port-bg: #424346;
+    --port-surface: #4c4e52;
+    --port-surface-deep: #46474b;
+    --port-surface-deep-alt: #46474b;
+    --port-text: #f2f1ed;
+    --port-muted: #d2cec5;
+    --port-border: rgba(207, 189, 148, 0.22);
+    --port-ink-rgb: 242, 241, 237;
+    --port-dim-rgb: 205, 200, 188;
+    --port-faint-rgb: 212, 208, 197;
+    --port-well-rgb: 54, 55, 58;
+    --port-well-alt-rgb: 52, 53, 56;
+    --port-well-deep-rgb: 46, 47, 50;
+    --port-well-cool-rgb: 50, 52, 55;
+    --port-well-warm-rgb: 55, 54, 52;
+    --port-chrome-rgb: 72, 73, 77;
+    --port-panel: #505256;
+    --port-panel-alt: #505256;
+    --port-panel-deep: #45464a;
+    --port-control: #56585c;
+    --port-control-hover: #5e6065;
+    --port-control-quiet: #515357;
+    --port-control-active: #5a5c61;
+    --port-field: #3a3b3e;
+    --port-menu: #5a5c60;
+    --port-menu-alt: #5a5c60;
+    --port-menu-deep: #4a4c50;
+    --port-card-press-top: #5e6064;
+    --port-card-press-bottom: #515357;
+    --port-bg-top: #46474a;
+    --port-bg-bottom: #3e3f42;
+    --port-overlay: rgba(15, 15, 16, 0.55);
+    --port-shadow-alpha: 0.3;
+    --port-danger-text: #ffc2c2;
+}
+
 /* Form controls follow the page scheme; a fixed-dark panel below switches them back. */
 :root:is([data-theme="gray"], [data-theme="light"]) :is(select, .practice-calendar-note-times select) { color-scheme: light; }
 
@@ -6979,6 +7026,63 @@ body.metronome-preset-open {
 :root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-footer .sound-cruise-sync-conflict-later { border-color: rgba(var(--port-line-rgb), 0.3); }
 :root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-button, .sound-cruise-sync-settings-toggle, .sound-cruise-sync-help-toggle,
     .sound-cruise-sync-conflict button, .sound-cruise-sync-conflict input):focus-visible { outline-color: var(--port-accent-text); }
+
+/* Charcoal: the same Port-scoped Sync component colors on Charcoal surfaces (Dark gold text). */
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-settings-card, .sound-cruise-sync-setup, .sound-cruise-sync-help,
+    .sound-cruise-sync-restore-attention, .sound-cruise-sync-conflict) {
+    border-color: rgba(var(--port-accent-rgb), 0.45);
+    background: var(--port-panel);
+    color: var(--port-text);
+    box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, var(--port-shadow-alpha));
+}
+:root[data-theme="charcoal"] .sound-cruise-sync-settings-card { box-shadow: none; }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-setup, .sound-cruise-sync-help, .sound-cruise-sync-conflict)::backdrop { background: var(--port-overlay); }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-button, .sound-cruise-sync-join-entry, .sound-cruise-sync-help-button,
+    .sound-cruise-sync-setup button, .sound-cruise-sync-setup a, .sound-cruise-sync-restore-attention button,
+    .sound-cruise-sync-conflict-bulk button, .sound-cruise-sync-conflict-individual button) {
+    border-color: rgba(var(--port-accent-rgb), 0.6);
+    background: var(--port-control);
+    color: var(--port-text);
+}
+:root[data-theme="charcoal"] .sound-cruise-sync-button--primary { border-color: rgba(var(--port-accent-rgb), 0.85); background: rgba(var(--port-accent-rgb), 0.16); }
+:root[data-theme="charcoal"] .sound-cruise-sync-button--danger { color: var(--port-danger-text); background: rgba(207, 90, 99, 0.1); }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-settings-status-chip, .sound-cruise-sync-description, .sound-cruise-sync-help-summary,
+    .sound-cruise-sync-help-section p, .sound-cruise-sync-help-steps, .sound-cruise-sync-help-link,
+    .sound-cruise-sync-conflict-summary, .sound-cruise-sync-conflict-overview-item h3, .sound-cruise-sync-conflict-help h3,
+    .sound-cruise-sync-conflict-field h4, .sound-cruise-sync-conflict-field-values, .sound-cruise-sync-conflict-field-count,
+    .sound-cruise-sync-conflict-title, .sound-cruise-sync-conflict-name, .sound-cruise-sync-conflict-deletion-difference strong) { color: var(--port-text); }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-account-id, .sound-cruise-sync-conflict-times, .sound-cruise-sync-conflict-help p,
+    .sound-cruise-sync-conflict-auto, .sound-cruise-sync-conflict-detail-times, .sound-cruise-sync-conflict-deletion-difference span,
+    .sound-cruise-sync-conflict-individual-toggle) { color: var(--port-muted); }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-settings-chevron, .sound-cruise-sync-feedback, .sound-cruise-sync-help-toggle,
+    .sound-cruise-sync-help-section h4, .sound-cruise-sync-conflict-count, .sound-cruise-sync-conflict-state,
+    .sound-cruise-sync-conflict-bulk-heading > p, .sound-cruise-sync-conflict-individual-toggle[aria-expanded='true'],
+    .sound-cruise-sync-conflict-choice legend, .sound-cruise-sync-conflict-status) { color: var(--port-accent-text); }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-setup [data-sync-error], .sound-cruise-sync-feedback[data-sync-feedback="error"],
+    .sound-cruise-sync-conflict-status.is-error) { color: var(--port-danger-text); }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-help-header, .sound-cruise-sync-help-footer, .sound-cruise-sync-help-section,
+    .sound-cruise-sync-conflict-overview-item, .sound-cruise-sync-conflict-bulk, .sound-cruise-sync-conflict-help,
+    .sound-cruise-sync-conflict-individual, .sound-cruise-sync-conflict-field, .sound-cruise-sync-conflict-deletion-difference > div,
+    .sound-cruise-sync-conflict-footer, .sound-cruise-sync-conflict-card) { border-color: rgba(var(--port-line-rgb), 0.18); }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-help-footer) { background: var(--port-panel); }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-help-section, .sound-cruise-sync-conflict-bulk, .sound-cruise-sync-conflict-deletion-difference > div,
+    .sound-cruise-sync-conflict-choice-option, .sound-cruise-sync-conflict-overview-item, .sound-cruise-sync-conflict-card) { background: var(--port-surface-deep); }
+:root[data-theme="charcoal"] .sound-cruise-sync-conflict-choice-option { border-color: rgba(var(--port-line-rgb), 0.24); }
+:root[data-theme="charcoal"] .sound-cruise-sync-conflict-choice-option:has(input:checked) {
+    border-color: rgba(var(--port-accent-rgb), 0.85);
+    background: rgba(var(--port-accent-rgb), 0.14);
+    box-shadow: inset 0 0 0 1px rgba(var(--port-accent-rgb), 0.33);
+}
+:root[data-theme="charcoal"] .sound-cruise-sync-conflict-footer .sound-cruise-sync-conflict-later { border-color: rgba(var(--port-line-rgb), 0.3); }
+:root[data-theme="charcoal"] :is(.sound-cruise-sync-help-button, .sound-cruise-sync-settings-toggle, .sound-cruise-sync-help-toggle,
+    .sound-cruise-sync-conflict button, .sound-cruise-sync-conflict input):focus-visible { outline-color: var(--port-accent-text); }
+
+/* Charcoal text steps: Dark's translucent gold / dim ink sink on the lifted ground, so the same
+   hues are drawn opaque (or one step brighter) to keep at least Dark's legibility. */
+:root[data-theme="charcoal"] :is(.practice-card-count, .practice-arrow, .my-app-external-mark) { color: var(--port-gold-bright); }
+:root[data-theme="charcoal"] .port-refresh-btn { color: #f3e6c2; }
+:root[data-theme="charcoal"] :is(.practice-card-memo, .practice-calendar-weekdays span, .tempo-slider-limits) { color: rgb(var(--port-dim-rgb)); }
+:root[data-theme="charcoal"] .news-contact a { color: #c8c8ff; }
 
 /* ── Dark-fixed icon plates ───────────────────────────────────────────────────────────────
    Tool icons and My Apps icons (preset, generic and uploaded) are drawn for Dark: gold lines,

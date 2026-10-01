@@ -32,7 +32,7 @@ function storage(values = {}) {
 const v3 = (extra = {}) => JSON.stringify({ version: 3, displaySize: 'small', fontSize: 'large', sectionOrder: ['tools', 'cruiseApps', 'myApps'], ...extra });
 
 test('theme values, Dark default and the unchanged settings schema version', () => {
-    assert.deepEqual([...THEMES], ['dark', 'gray', 'light']);
+    assert.deepEqual([...THEMES], ['dark', 'charcoal', 'gray', 'light']);
     assert.equal(DEFAULT_THEME, 'dark');
     assert.equal(SETTINGS_SCHEMA_VERSION, 3, 'the schema version must never move for the theme');
     assert.equal(Object.hasOwn(DEFAULT_SETTINGS, 'theme'), false, 'defaults never inject a theme into saved settings');
@@ -113,8 +113,8 @@ test('Settings UI: カラーテーマ radiogroup reuses the existing choices, ri
         assert.match(section, /<h2 id="color-theme-title">カラーテーマ<\/h2>/);
         assert.match(section, /class="settings-choices" role="radiogroup" aria-label="カラーテーマ"/);
         const buttons = [...section.matchAll(/<button type="button" class="settings-choice" data-theme-choice="([a-z]+)" role="radio" aria-checked="(true|false)">([^<]+)<\/button>/g)];
-        assert.deepEqual(buttons.map(([, value, , label]) => [value, label]), [['dark', 'ダーク'], ['gray', 'グレー'], ['light', 'ライト']], name);
-        assert.deepEqual(buttons.map(([, , checked]) => checked), ['true', 'false', 'false'], `${name}: Dark is the initial state`);
+        assert.deepEqual(buttons.map(([, value, , label]) => [value, label]), [['dark', 'ダーク'], ['charcoal', 'チャコール'], ['gray', 'グレー'], ['light', 'ライト']], name);
+        assert.deepEqual(buttons.map(([, , checked]) => checked), ['true', 'false', 'false', 'false'], `${name}: Dark is the initial state`);
     }
 });
 
@@ -143,7 +143,7 @@ test('startup bootstrap applies the saved theme before the stylesheet, Dark for 
             [{}, 'dark'], [{ [SETTINGS_STORAGE_KEY]: v3() }, 'dark'], [{ [SETTINGS_STORAGE_KEY]: v3({ theme: 'sepia' }) }, 'dark'],
             [{ [SETTINGS_STORAGE_KEY]: '{not json' }, 'dark'], [{ [SETTINGS_STORAGE_KEY]: 'null' }, 'dark'],
             [{ [SETTINGS_STORAGE_KEY]: v3({ theme: 'dark' }) }, 'dark'], [{ [SETTINGS_STORAGE_KEY]: v3({ theme: 'gray' }) }, 'gray'],
-            [{ [SETTINGS_STORAGE_KEY]: v3({ theme: 'light' }) }, 'light'],
+            [{ [SETTINGS_STORAGE_KEY]: v3({ theme: 'light' }) }, 'light'], [{ [SETTINGS_STORAGE_KEY]: v3({ theme: 'charcoal' }) }, 'charcoal'],
             // Another app's settings never influence Port.
             [{ pitchTrainerSettings: JSON.stringify({ theme: 'light' }), 'chordCruise.settings': JSON.stringify({ theme: 'gray' }) }, 'dark']
         ];
@@ -158,7 +158,7 @@ test('startup bootstrap applies the saved theme before the stylesheet, Dark for 
     }
     assert.equal(entries[0][1].match(/<script>\s*\/\/ Port color theme[\s\S]*?<\/script>/)[0],
         entries[1][1].match(/<script>\s*\/\/ Port color theme[\s\S]*?<\/script>/)[0], 'Standard and Pro share one bootstrap');
-    assert.deepEqual({ ...THEME_META_COLORS }, { dark: '#090806', gray: '#c8cbd0', light: '#f7f6f2' });
+    assert.deepEqual({ ...THEME_META_COLORS }, { dark: '#090806', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' });
 });
 
 test('Cloud Sync carries the theme inside settings/global without any Worker or adapter change', async () => {
@@ -210,7 +210,7 @@ test('CSS: Dark is the attribute-free default; Gray/Light only override tokens u
     const themePart = css.slice(themeStart);
     for (const block of themePart.match(/^[^\n{]+\{/gm)) {
         if (block.startsWith('/*') || block.startsWith('    ')) continue;
-        assert.match(block, /^:root(?:\[data-theme="(?:gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/, block);
+        assert.match(block, /^:root(?:\[data-theme="(?:charcoal|gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/, block);
     }
     for (const theme of ['gray', 'light']) {
         const block = themePart.slice(themePart.indexOf(`:root[data-theme="${theme}"] {`));
@@ -233,9 +233,12 @@ const ruleBody = (selector) => {
 };
 const declarations = (body) => Object.fromEntries([...body.matchAll(/([a-z-]+|--port-[a-z0-9-]+):\s*([^;]+);/g)].map(([, name, value]) => [name, value.trim()]));
 
-test('Dark CSS is byte-identical to the 1.12.0 production Dark (theme polish touches Gray/Light only)', () => {
+test('Dark CSS is byte-identical to the 1.12.0 production Dark apart from the new theme-button layout rule', () => {
     const dark = css.slice(0, css.indexOf(THEME_SECTION_MARKER));
-    assert.equal(createHash('sha256').update(dark).digest('hex'), '027117253bcfd0cf18d43862b9a78b86e55da008da4f9f1b298f2bcf59fbb360');
+    const rule = /\/\* カラーテーマ: four labels[\s\S]*?\n\}\n\n/;
+    const added = dark.match(rule)[0];
+    assert.match(added, /^\/\*[^\n]*\*\/\n\.settings-choices\[aria-label="カラーテーマ"\] \.settings-choice \{\n    font-size: calc\(0\.8rem \* var\(--font-scale\)\);\n    letter-spacing: 0;\n    white-space: nowrap;\n\}\n\n$/, 'only the new theme buttons get a one-line label');
+    assert.equal(createHash('sha256').update(dark.replace(rule, '')).digest('hex'), '027117253bcfd0cf18d43862b9a78b86e55da008da4f9f1b298f2bcf59fbb360');
 });
 
 test('Gray/Light rules only change colors: no sizing, spacing or layout property is themed', () => {
@@ -313,3 +316,41 @@ test('Gray/Light tuner tokens: dark neutral accent, semantic green and readable 
         assert.ok(dark.includes(literal), literal);
     }
 });
+
+test('Charcoal: one token block between Dark and Gray; Dark-scheme, bright gold kept, no Gray/Light-only rules', () => {
+    const part = themePart();
+    const start = part.indexOf(':root[data-theme="charcoal"] {');
+    assert.ok(start > 0, 'charcoal token block');
+    const body = part.slice(start, part.indexOf('}', start));
+    const declared = declarations(body);
+    assert.equal(declared['color-scheme'], 'dark');
+    for (const name of Object.keys(declared)) assert.match(name, /^(?:color-scheme|--port-[a-z0-9-]+)$/, `${name}: tokens only`);
+    for (const name of ['--port-accent-rgb', '--port-gold-bright', '--port-accent-text', '--port-gold']) {
+        assert.equal(Object.hasOwn(declared, name), false, `${name}: Charcoal keeps the Dark gold`);
+    }
+    // Charcoal appears only in its token block and the Port-scoped Sync component block; Gray/Light-only rules
+    // (deep gold text, icon plates, tuner remap, status remaps) never apply to it.
+    const sync = part.slice(part.indexOf('/* Charcoal: the same Port-scoped Sync component colors'), part.indexOf('/* ── Dark-fixed icon plates'));
+    assert.equal([...part.matchAll(/charcoal/g)].length, 1 + [...sync.matchAll(/charcoal/g)].length, 'no other charcoal rules');
+    for (const line of sync.split('\n').filter((l) => l.startsWith(':root'))) assert.match(line, /^:root\[data-theme="charcoal"\] /, line);
+    assert.doesNotMatch(sync, /accent-text-strong|tuner|plate/);
+    // Charcoal text steps: Dark's translucent gold / dim ink drawn opaque on the lifted ground.
+    assert.match(sync, /:root\[data-theme="charcoal"\] :is\(\.practice-card-count, \.practice-arrow, \.my-app-external-mark\) \{ color: var\(--port-gold-bright\); \}/);
+    assert.match(sync, /:root\[data-theme="charcoal"\] :is\(\.practice-card-memo, \.practice-calendar-weekdays span, \.tempo-slider-limits\) \{ color: rgb\(var\(--port-dim-rgb\)\); \}/);
+    assert.match(sync, /:root\[data-theme="charcoal"\] \.news-contact a \{ color: #c8c8ff; \}/);
+    const lum = (hex) => {
+        const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - m); return (x + 0.05) / (y + 0.05); };
+    const gold = darkRootTokens(css)['--port-gold-bright'];
+    for (const surface of [declared['--port-bg'], declared['--port-surface'], declared['--port-panel'], declared['--port-control']]) {
+        assert.ok(ratio(declared['--port-text'], surface) >= 4.5, `text on ${surface}`);
+        assert.ok(ratio(declared['--port-muted'], surface) >= 4.5, `muted on ${surface}`);
+        assert.ok(ratio(gold, surface) >= 4.5, `gold text ${gold} on ${surface}`);
+    }
+    assert.ok(declared['--port-danger-text'] && ratio(declared['--port-danger-text'], declared['--port-panel']) >= 4.5, 'danger text readable on Charcoal');
+    // Lighter than Dark, darker than Gray.
+    assert.ok(lum(declared['--port-bg']) > lum(darkRootTokens(css)['--port-bg']) && lum(declared['--port-bg']) < lum('#c8cbd0'));
+});
+

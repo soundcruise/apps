@@ -12,10 +12,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
 });
 // Color theme is Port-only (never shared with other Cruise apps). It is stored only after an
 // explicit choice; a missing or invalid value is Dark at runtime and is never written back on load.
-export const THEMES = Object.freeze(['dark', 'gray', 'light']);
+export const THEMES = Object.freeze(['dark', 'charcoal', 'gray', 'light']);
 export const DEFAULT_THEME = 'dark';
 // Keep in sync with the inline startup bootstrap in both entry HTMLs.
-export const THEME_META_COLORS = Object.freeze({ dark: '#090806', gray: '#c8cbd0', light: '#f7f6f2' });
+export const THEME_META_COLORS = Object.freeze({ dark: '#090806', charcoal: '#424346', gray: '#c8cbd0', light: '#f7f6f2' });
 
 const RETIRED_ICON_SCALE_PREVIEW_STORAGE_KEYS = Object.freeze([
     'cruisePort.cruiseIconScalePreview',

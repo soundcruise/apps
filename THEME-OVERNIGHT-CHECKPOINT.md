@@ -31,8 +31,8 @@ continue from the first phase that is not marked DONE.
 | 2 | Pitch 4 themes (LOCAL_ONLY_SETTINGS) | DONE (deployed, prod smoke PASS) | d18930e1 | 2.26.0 |
 | 3 | Rhythm 4 themes (local-only) | DONE (deployed, prod smoke PASS) | 356c7bba | 1.16.0 |
 | 3b | Pro gate fully Dark while shown (layer off via :has(body.pro-gate-active)) | DONE (deployed, gate pixel parity 0) | 69af8ef3 | F 2.21.1 / P 2.26.1 / R 1.16.1 |
-| 4 | Reader-first Sync (Worker + 3 clients accept theme, no send) | Worker DONE (7245c2e6 from 6c19d296); clients pending deploy check | see git log | F 2.21.2 / P 2.26.2 / R 1.16.2 |
-| 5 | Port + Charcoal | TODO | | |
+| 4 | Reader-first Sync (Worker + 3 clients accept theme, no send) | DONE (Worker 7245c2e6 from 6c19d296; clients deployed, prod smoke PASS) | 6c19d296 / 2e71d1ea | F 2.21.2 / P 2.26.2 / R 1.16.2 |
+| 5 | Port + Charcoal | DONE pending deploy check (this commit) | see git log | Port 1.13.0 |
 | 6 | Chord + Charcoal (app + info pages) | TODO | | |
 | 7 | Cross-app QA | TODO | | |
 | 8 | Final full regression + report | TODO | | |
@@ -57,3 +57,8 @@ continue from the first phase that is not marked DONE.
   `theme` in their sync snapshot (apply/manifest stays exact, other devices' theme is never deleted, the device's
   own theme is never sent). Old production clients (before 2.26.2 / 2.21.2 / 1.16.2) reject a theme payload →
   writers must wait until those tabs are gone.
+- Port Charcoal: one token block + the Port-scoped Sync block + four text-step rules (translucent gold / dim ink
+  drawn opaque). Gray/Light rules untouched; tuner follows Charcoal through the shared tokens (no Dark-fixed panel);
+  My Apps icons need no Dark plate (Charcoal is a dark scheme). Charcoal contrast BELOW = 0 (Dark has 1: `↗`).
+- Port mixed-version window: a 1.12.x Port that receives `theme: 'charcoal'` shows Dark (safe fallback); if it then
+  saves another setting it writes settings without theme, so the other device falls back to Dark. No corruption.

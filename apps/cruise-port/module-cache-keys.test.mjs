@@ -11,14 +11,16 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.12.3 pauses capture for reference playback; both audio controllers and their importer change.
-const RELEASE_MODULES = Object.freeze(['app-version.js', 'tuner-audio.js', 'tuner-preview-audio.js', 'tuner-app.js']);
+// 1.13.0 adds the Charcoal color theme: the settings store (theme list) and its importers change.
+const RELEASE_MODULES = Object.freeze(['app-version.js', 'settings-store.js', 'home-display.js']);
 // NEWS modules are loaded with dynamic import() from practice-menu-app.js and did not change in 1.12.0.
 const UNCHANGED_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
 // Other modules retain the cache key of their last real change.
 const UNCHANGED_KEYS = Object.freeze({
-  'settings-store.js': '1.12.0',
-  'home-display.js': '1.12.0',
+  // 1.12.3 audio controllers are untouched by the theme release and keep their key.
+  'tuner-audio.js': '1.12.3',
+  'tuner-preview-audio.js': '1.12.3',
+  'tuner-app.js': '1.12.3',
   'news-data.js': '1.11.1',
   'news-config.js': '1.11.1',
   'news-quality.js': '1.11.1',
@@ -38,14 +40,14 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.12.3', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.12.3');
+test('the release is 1.13.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.13.0');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
   for (const html of [read('./index.html'), read('./pro_9a3943176561/index.html')]) {
     assert.match(html, new RegExp(`practice-menu-app\\.js\\?v=${escaped}"`), 'the entry moves, so no user keeps the 0.70.1 app');
-    assert.match(html, /style\.css\?v=1\.12\.1"/, 'polished theme styles get a new cache key');
+    assert.match(html, /style\.css\?v=1\.13\.0"/, 'Charcoal theme styles get a new cache key');
     assert.match(html, /sync-account-core\.js\?v=7"/, 'shared credential helper uses a new cache key');
   }
 });
@@ -68,13 +70,13 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.12.3');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.13.0');
   assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
-  assert.equal(key('practice-menu-app.js', 'settings-store.js'), '1.12.0');
-  assert.equal(key('practice-menu-app.js', 'home-display.js'), '1.12.0');
-  assert.equal(key('home-display.js', 'settings-store.js'), '1.12.0');
+  assert.equal(key('practice-menu-app.js', 'settings-store.js'), '1.13.0');
+  assert.equal(key('practice-menu-app.js', 'home-display.js'), '1.13.0');
+  assert.equal(key('home-display.js', 'settings-store.js'), '1.13.0');
   assert.equal(key('practice-menu-app.js', 'practice-menu-sets-store.js'), '1.4.2');
   assert.equal(key('port-sync-local-validation.js', 'practice-menu-sets-store.js'), '1.4.2');
   assert.equal(key('practice-menu-app.js', 'practice-menu-presets.js'), '1.2.0', 'name suggestions are a separate module');
