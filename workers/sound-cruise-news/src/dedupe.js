@@ -5,6 +5,7 @@ export function canonicalIdentity(i){try{const u=new URL(field(i,'sourceUrl','so
 export function factualIdentity(i){
  if(field(i,'sourceId','source_id')!=='ik')return null;
  const f=facts(i),event=field(i,'eventType','event_type'),stamp=Date.parse(field(i,'publishedAt','published_at'));
+ if(field(i,'decisionReason','decision_reason')==='label_required')return null;
  if(!validatedProductFacts(f)||f.scopeUncertain||!Number.isFinite(stamp)||!['new_product','release','other','firmware','update','recall','discontinued','price_change'].includes(event))return null;
  // Do not compare an update without a version, or collapse different-date launches/packs.
  if(['update','firmware'].includes(event)&&!f.version)return null;

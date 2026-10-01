@@ -101,7 +101,7 @@ const IKEBE_TYPES=Object.freeze([
  ['electric_guitar_bass',/ギタースタンド|ギター用|ギターケース|ピックアップ|\b(?:guitar stand|guitar case|pickup)\b/i,'guitar_accessory']
 ]);
 export function ikebeListingFacts(entry,source){
- if(source.id!=='ikebe'||source.discoveryUrl!=='https://www.ikebe-gakki-pb.com/new_product/'||entry.listingSection!=='product_news')return null;
+ if(source.id!=='ikebe'||source.baseUrl!=='https://www.ikebe-gakki-pb.com/'||source.discoveryUrl!=='https://www.ikebe-gakki-pb.com/new_product/'||entry.listingSection!=='product_news')return null;
  const title=normalizeIdentifier(entry.title),type=IKEBE_TYPES.find(([,re])=>re.test(title));if(!type)return null;
  const brands=IKEBE_BRANDS.filter(([, ,aliases])=>brandMention(title,aliases));if(brands.length!==1)return null;
  const [brand,,aliases]=brands[0];const at=aliases.map(a=>title.toLowerCase().indexOf(a.toLowerCase())).filter(n=>n>=0).sort((a,b)=>a-b)[0];
@@ -275,7 +275,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(!category)return {decision:'REJECT',reason:'not_relevant'};
  // Conservative deterministic template. No source phrase or instructions interpolated.
  // Detailed product labels require local human editing, never automatic publication.
- const informationalUncertain=/機能一覧|仕様一覧|スペック一覧|発売予定|年内|発売(?:が)?決定/.test(entry.title)||(source.id==='ik'&&/\b(?:pack|collection|presets?|tone models?|for|vol(?:ume)?)\b/i.test(entry.title));
+ const informationalUncertain=/機能一覧|仕様一覧|スペック一覧|発売予定|年内|発売(?:が)?決定/.test(entry.title)||(source.id==='ik'&&/パック|プリセット|トーンモデル|コレクション|追加(?:ボイス|音色)|拡張|\b(?:pack|collection|presets?|tone models?|for|vol(?:ume)?)\b/i.test(entry.title));
  if(facts&&source.id==='ik'&&informationalUncertain)facts={...facts,scopeUncertain:true};
  const relevanceUncertain=(source.id==='ikebe'&&facts?.identifierBasis==='explicit_model_code')||facts?.brand==='DE'||facts?.brand==='dBTechnologies'||facts?.product==='Logo Barstool';
  let confident=!!(guitarArtist?.action!=='guitar_information'&&!relevanceUncertain&&!informationalUncertain&&facts&&(!!titleFacts||!!guitarEvent||!!guitarArtist||eventType!=='other')&&eventType!=='other'&&['new_product','release','update','firmware','price_change','discontinued','recall','other','guitar_event','guitar_artist'].includes(eventType)&&hasDate&&!entry.listingUncertainty&&!/キャンペーン|\bcampaign\b/i.test(entry.title));

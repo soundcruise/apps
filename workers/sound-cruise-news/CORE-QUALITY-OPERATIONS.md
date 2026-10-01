@@ -1,4 +1,4 @@
-# NEWS Core Quality controls (0.8.0 / Port 1.10.0)
+# NEWS Core Quality controls (0.8.1 / Port 1.10.0)
 
 ## Collection versus publication
 
@@ -27,7 +27,7 @@ Sale labels can include validated integer percentages and allowlisted brand/equi
 
 Ikebe AUTO requires an explicitly present brand, adjacent bounded model identifier, product type and clear event/date on the assessed listing. Unknown names, planned releases, unrelated numbers and uncertain context remain REVIEW. No brand owner or model is supplied from a missing source fact.
 
-IK storage dedupe compares canonical identity and validated same-source model/category/version/event family/JST publication day. Different dates/products/versions, underspecified packs and unversioned updates are preserved. Collector leases and an atomic insert predicate protect concurrent writes. Rejected rows are never resurrected.
+IK storage dedupe compares canonical identity and validated same-source model/category/version/event family/JST publication day. Different dates/products/versions, underspecified packs (including translated pack names and older `label_required` records) and unversioned updates are preserved. Collector leases and an atomic insert predicate protect concurrent writes. Rejected rows are never resurrected.
 
 `replayPendingFacts` is an authenticated operator-side function over stored pending facts only. It cannot reconstruct original text from an HMAC, fetch a publisher, or reopen rejected rows. This sprint's nine remaining Ikebe rows contain eight missing identifiers and one uncertain use: none can safely be promoted from retained evidence alone.
 
