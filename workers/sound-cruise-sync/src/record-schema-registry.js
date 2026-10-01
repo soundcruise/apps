@@ -164,11 +164,19 @@ function validatePortPayload(recordType, recordId, payload) {
   return /^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/u.test(recordId);
 }
 
+// Color theme (reader-first): settings payloads may carry an optional per-app theme. Only these four
+// values are accepted; clients start sending it in a later writer phase.
+const SETTINGS_THEMES = ['dark', 'charcoal', 'gray', 'light'];
+
+function validSettingsTheme(values) {
+  return values.theme === undefined || SETTINGS_THEMES.includes(values.theme);
+}
+
 function validatePitchSettings(payload) {
   const allowedValues = [
     'instrument', 'notationStyle', 'scaleEnabled', 'isAnswerMode', 'keyRandomMode',
     'baseOctave', 'keyOffset', 'noteSpeed', 'accidentalDisplay', 'testModeEnabled',
-    'builtinChordEnabled', 'builtinProgressionEnabled'
+    'builtinChordEnabled', 'builtinProgressionEnabled', 'theme'
   ];
   if (!onlyKeys(payload, ['id', 'values']) || payload.id !== 'settings' || !isPlainObject(payload.values) ||
       !onlyKeys(payload.values, allowedValues)) return false;
@@ -183,6 +191,7 @@ function validatePitchSettings(payload) {
   if (values.noteSpeed !== undefined && !finiteNumber(values.noteSpeed)) return false;
   if (values.accidentalDisplay !== undefined && !['sharp', 'flat'].includes(values.accidentalDisplay)) return false;
   if (values.testModeEnabled !== undefined && typeof values.testModeEnabled !== 'boolean') return false;
+  if (!validSettingsTheme(values)) return false;
   for (const key of ['builtinChordEnabled', 'builtinProgressionEnabled']) {
     if (values[key] !== undefined && (!isPlainObject(values[key]) ||
         Object.entries(values[key]).some(([id, enabled]) => !reference(id) || typeof enabled !== 'boolean'))) return false;
@@ -268,7 +277,7 @@ function validateRhythmStage(value) {
 function validateRhythmSettings(payload) {
   const allowedValues = [
     'tapLayout', 'tapUnified', 'inputMode', 'judgePreset',
-    'clickRange', 'clickBeats', 'clickOffbeat', 'builtinSampleEnabled'
+    'clickRange', 'clickBeats', 'clickOffbeat', 'builtinSampleEnabled', 'theme'
   ];
   if (!onlyKeys(payload, ['id', 'values']) || payload.id !== 'settings' || !isPlainObject(payload.values) ||
       !onlyKeys(payload.values, allowedValues)) return false;
@@ -280,6 +289,7 @@ function validateRhythmSettings(payload) {
   if (values.clickRange !== undefined && !['always', 'firstBar', 'alternateBars', 'countOnly'].includes(values.clickRange)) return false;
   if (values.clickBeats !== undefined && !['all', 'beat1', 'beats13', 'beats24'].includes(values.clickBeats)) return false;
   if (values.clickOffbeat !== undefined && typeof values.clickOffbeat !== 'boolean') return false;
+  if (!validSettingsTheme(values)) return false;
   if (values.builtinSampleEnabled !== undefined && (!isPlainObject(values.builtinSampleEnabled) ||
       Object.entries(values.builtinSampleEnabled).some(([key, enabled]) =>
         !RHYTHM_SAMPLE_KEYS.has(key) || typeof enabled !== 'boolean'))) return false;
@@ -380,7 +390,7 @@ function validateFretboardCommon(payload, extra) {
 function validateFretboardSettings(payload) {
   if (!onlyKeys(payload, ['id', 'values']) || payload.id !== 'settings' ||
       !isPlainObject(payload.values) || !Object.keys(payload.values).length ||
-      !onlyKeys(payload.values, FRETBOARD_SETTINGS)) return false;
+      !onlyKeys(payload.values, [...FRETBOARD_SETTINGS, 'theme'])) return false;
   const values = payload.values;
   if (values.tempo !== undefined && (!Number.isSafeInteger(values.tempo) || values.tempo < 40 || values.tempo > 200)) return false;
   if (values.quizTimeLimit !== undefined && (!Number.isSafeInteger(values.quizTimeLimit) || values.quizTimeLimit < 1 || values.quizTimeLimit > 10)) return false;
@@ -392,6 +402,7 @@ function validateFretboardSettings(payload) {
   if (values.cruiseProgression !== undefined && !['auto', 'tap'].includes(values.cruiseProgression)) return false;
   if (values.cruiseTapBeats !== undefined && !['half', 'full'].includes(values.cruiseTapBeats)) return false;
   if (values.cruiseRhythmSoundType !== undefined && !['default', 'kick_only', 'hihat_only', 'soft', 'silent'].includes(values.cruiseRhythmSoundType)) return false;
+  if (!validSettingsTheme(values)) return false;
   return true;
 }
 
