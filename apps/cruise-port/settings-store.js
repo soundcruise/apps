@@ -10,6 +10,12 @@ export const DEFAULT_SETTINGS = Object.freeze({
     fontSize: 'medium',
     sectionOrder: HOME_SECTIONS
 });
+// Color theme is Port-only (never shared with other Cruise apps). It is stored only after an
+// explicit choice; a missing or invalid value is Dark at runtime and is never written back on load.
+export const THEMES = Object.freeze(['dark', 'gray', 'light']);
+export const DEFAULT_THEME = 'dark';
+// Keep in sync with the inline startup bootstrap in both entry HTMLs.
+export const THEME_META_COLORS = Object.freeze({ dark: '#090806', gray: '#c8cbd0', light: '#f7f6f2' });
 
 const RETIRED_ICON_SCALE_PREVIEW_STORAGE_KEYS = Object.freeze([
     'cruisePort.cruiseIconScalePreview',
@@ -31,13 +37,20 @@ export function normalizeDisplaySize(value) {
     return DISPLAY_SIZES.includes(value) ? value : DEFAULT_SETTINGS.displaySize;
 }
 
+export function resolveTheme(value) {
+    return THEMES.includes(value) ? value : DEFAULT_THEME;
+}
+
 export function normalizeSettings(value) {
-    return {
+    const settings = {
         version: SETTINGS_SCHEMA_VERSION,
         displaySize: normalizeDisplaySize(value?.displaySize),
         fontSize: FONT_SIZES.includes(value?.fontSize) ? value.fontSize : DEFAULT_SETTINGS.fontSize,
         sectionOrder: normalizeSectionOrder(value?.sectionOrder)
     };
+    // Only an explicit, valid choice is kept; absence stays absence.
+    if (THEMES.includes(value?.theme)) settings.theme = value.theme;
+    return settings;
 }
 
 export function normalizeSectionOrder(value) {

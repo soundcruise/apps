@@ -4,12 +4,26 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <meta name="theme-color" content="#090806">
+    <script>
+        // Port color theme before first paint. Reads only cruisePort.settings; anything else is Dark.
+        (function () {
+            var colors = { dark: '#090806', gray: '#c8cbd0', light: '#f7f6f2' };
+            var theme = 'dark';
+            try {
+                var saved = JSON.parse(localStorage.getItem('cruisePort.settings') || 'null');
+                if (saved && (saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
+            } catch (_) { theme = 'dark'; }
+            document.documentElement.setAttribute('data-theme', theme);
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', colors[theme]);
+        }());
+    </script>
     <title>クルーズポート</title>
     <meta name="apple-mobile-web-app-title" content="Cruise Port">
     <link rel="manifest" href="./manifest.json?v=1.0.1">
     <link rel="icon" type="image/png" sizes="32x32" href="./assets/app-icons/standard/favicon-32.png?v=0.69.0">
     <link rel="apple-touch-icon" sizes="180x180" href="./assets/app-icons/standard/apple-touch-icon-180.png?v=1.0.1">
-    <link rel="stylesheet" href="./style.css?v=1.4.3">
+    <link rel="stylesheet" href="./style.css?v=1.12.0">
     <link rel="stylesheet" href="../shared/legal-links.css?v=1">
     <link rel="stylesheet" href="../shared/sync-account/multi-app-sync.css?v=22">
     <script src="../shared/sync-account/production-config.js?v=2"></script>
@@ -25,7 +39,7 @@
     <script defer src="../shared/sync-account/sync-ui-components.js?v=15"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="./practice-menu-app.js?v=1.11.1"></script>
+    <script type="module" src="./practice-menu-app.js?v=1.12.0"></script>
 </head>
 <body>
     <div class="port-shell">
@@ -156,6 +170,14 @@
                         <button type="button" class="settings-choice" data-font-size="medium" role="radio" aria-checked="true">中</button>
                         <button type="button" class="settings-choice" data-font-size="large" role="radio" aria-checked="false">大</button>
                         <button type="button" class="settings-choice" data-font-size="xlarge" role="radio" aria-checked="false">特大</button>
+                    </div>
+                </section>
+                <section class="settings-card" aria-labelledby="color-theme-title">
+                    <h2 id="color-theme-title">カラーテーマ</h2>
+                    <div class="settings-choices" role="radiogroup" aria-label="カラーテーマ">
+                        <button type="button" class="settings-choice" data-theme-choice="dark" role="radio" aria-checked="true">ダーク</button>
+                        <button type="button" class="settings-choice" data-theme-choice="gray" role="radio" aria-checked="false">グレー</button>
+                        <button type="button" class="settings-choice" data-theme-choice="light" role="radio" aria-checked="false">ライト</button>
                     </div>
                 </section>
                 <section class="settings-card" aria-labelledby="section-order-title">

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { readDarkStyle } from './theme-test-support.mjs';
 
 const markup = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
 const proMarkup = readFileSync(new URL('./pro_9a3943176561/index.html', import.meta.url), 'utf8');
 const source = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
-const styles = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+const styles = readDarkStyle();
 const store = readFileSync(new URL('./gear-list-store.js', import.meta.url), 'utf8');
 const categoryStore = readFileSync(new URL('./gear-category-store.js', import.meta.url), 'utf8');
 const gearFormMarkup = markup.match(/<form id="gear-list-form"[\s\S]*?<\/form>/)?.[0] || '';

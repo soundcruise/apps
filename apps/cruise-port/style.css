@@ -9,6 +9,49 @@
     --port-text: #f3f0e8;
     --port-muted: #9b968a;
     --port-border: rgba(207, 189, 148, 0.16);
+    /* Color theme tokens. These Dark values are the production literals 1:1 (never merged or
+       rounded); Gray/Light override them at the end of this file. Channels feed rgba(var(), a). */
+    --port-accent-rgb: 205, 180, 116;
+    --port-line-rgb: 207, 189, 148;
+    --port-accent-soft-rgb: 230, 210, 155;
+    --port-accent-warm-rgb: 232, 201, 122;
+    --port-accent-line-rgb: 229, 204, 139;
+    --port-accent-hover-rgb: 241, 218, 153;
+    --port-accent-chrome-rgb: 228, 198, 124;
+    --port-accent-press-rgb: 212, 175, 55;
+    --port-accent-plate-rgb: 217, 189, 114;
+    --port-accent-code-rgb: 214, 180, 79;
+    --port-accent-switch-rgb: 205, 169, 91;
+    --port-cream-rgb: 232, 219, 181;
+    --port-ink-rgb: 243, 240, 232;
+    --port-dim-rgb: 180, 174, 158;
+    --port-faint-rgb: 190, 185, 170;
+    --port-neutral-rgb: 205, 205, 205;
+    --port-hi-rgb: 255, 255, 255;
+    --port-well-rgb: 8, 8, 6;
+    --port-well-alt-rgb: 7, 7, 5;
+    --port-well-deep-rgb: 4, 4, 3;
+    --port-well-cool-rgb: 5, 6, 6;
+    --port-well-warm-rgb: 8, 7, 5;
+    --port-chrome-rgb: 20, 19, 17;
+    --port-surface-deep-alt: #0d0c0a;
+    --port-panel: #11100d;
+    --port-panel-alt: #11100c;
+    --port-panel-deep: #090806;
+    --port-control: #151410;
+    --port-control-hover: #1b1914;
+    --port-control-quiet: #12110e;
+    --port-control-active: #181611;
+    --port-field: #090907;
+    --port-menu: #17150f;
+    --port-menu-alt: #171611;
+    --port-menu-deep: #0d0c09;
+    --port-card-press-top: #1c1913;
+    --port-card-press-bottom: #12100d;
+    --port-bg-top: #0a0a08;
+    --port-bg-bottom: #060604;
+    /* Gold used as text, focus ring or thin line. Dark keeps --port-gold-bright. */
+    --port-accent-text: var(--port-gold-bright);
 }
 
 :root[data-font-size="small"] { --font-scale: 0.9; }
@@ -41,8 +84,8 @@ body {
     color: var(--port-text);
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", sans-serif;
     background:
-        radial-gradient(circle at 50% -18%, rgba(205, 180, 116, 0.075), transparent 38%),
-        linear-gradient(180deg, #0a0a08 0%, var(--port-bg) 58%, #060604 100%);
+        radial-gradient(circle at 50% -18%, rgba(var(--port-accent-rgb), 0.075), transparent 38%),
+        linear-gradient(180deg, var(--port-bg-top) 0%, var(--port-bg) 58%, var(--port-bg-bottom) 100%);
     -webkit-font-smoothing: antialiased;
 }
 
@@ -75,17 +118,17 @@ body {
     width: 100%;
     margin: 18px auto 0;
     padding: 10px 4px 0;
-    border-top: 1px solid rgba(205, 180, 116, 0.12);
+    border-top: 1px solid rgba(var(--port-accent-rgb), 0.12);
     opacity: 0.8;
 }
 
 .port-refresh-btn {
     min-height: 38px;
     padding: 7px 14px;
-    border: 1px solid rgba(205, 180, 116, 0.48);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.48);
     border-radius: 10px;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.1);
+    background: rgba(var(--port-accent-rgb), 0.1);
     font: inherit;
     font-size: calc(0.8rem * var(--font-scale));
     font-weight: 700;
@@ -95,7 +138,7 @@ body {
 
 .port-refresh-btn:active {
     transform: scale(0.97);
-    background: rgba(205, 180, 116, 0.18);
+    background: rgba(var(--port-accent-rgb), 0.18);
 }
 
 .port-refresh-btn:disabled {
@@ -132,10 +175,10 @@ body {
     align-items: center;
     gap: 5px;
     padding: 8px 15px;
-    border: 1px solid rgba(228, 198, 124, 0.34);
+    border: 1px solid rgba(var(--port-accent-chrome-rgb), 0.34);
     border-radius: 999px;
     color: var(--port-text);
-    background: rgba(20, 19, 17, 0.88);
+    background: rgba(var(--port-chrome-rgb), 0.88);
     font-family: inherit;
     font-size: calc(0.84rem * var(--font-scale));
     font-weight: 700;
@@ -175,7 +218,7 @@ body {
 .port-settings-button:active,
 .port-calendar-button:active {
     transform: scale(0.95);
-    background: rgba(212, 175, 55, 0.16);
+    background: rgba(var(--port-accent-press-rgb), 0.16);
 }
 
 h1 {
@@ -191,7 +234,7 @@ h1::after {
     width: 28px;
     height: 1px;
     margin: 14px auto 14px;
-    background: linear-gradient(90deg, transparent, rgba(205, 180, 116, 0.72), transparent);
+    background: linear-gradient(90deg, transparent, rgba(var(--port-accent-rgb), 0.72), transparent);
     content: "";
 }
 
@@ -248,7 +291,7 @@ summary.tool-pro-locked > span:first-child::after {
     background: rgba(0, 0, 0, 0.75);
 }
 .port-pro-prompt[hidden] { display: none; }
-.port-pro-prompt .view-panel { width: min(100%, 420px); max-height: 90dvh; overflow: auto; background: #11100c; }
+.port-pro-prompt .view-panel { width: min(100%, 420px); max-height: 90dvh; overflow: auto; background: var(--port-panel-alt); }
 .port-pro-prompt p { color: var(--port-muted); line-height: 1.7; }
 .port-pro-prompt .action-button { display: block; margin-top: 16px; text-align: center; }
 
@@ -284,7 +327,7 @@ summary.tool-pro-locked > span:first-child::after {
     height: 1px;
     width: 26px;
     flex: none;
-    background: linear-gradient(90deg, rgba(205, 180, 116, 0.48), transparent);
+    background: linear-gradient(90deg, rgba(var(--port-accent-rgb), 0.48), transparent);
     content: "";
 }
 
@@ -308,7 +351,7 @@ summary.tool-pro-locked > span:first-child::after {
     border-radius: 17px;
     color: var(--port-text);
     background:
-        linear-gradient(150deg, rgba(255, 255, 255, 0.025), transparent 48%),
+        linear-gradient(150deg, rgba(var(--port-hi-rgb), 0.025), transparent 48%),
         linear-gradient(180deg, var(--port-surface), var(--port-surface-deep));
     box-shadow: 0 10px 24px rgba(0, 0, 0, 0.24);
     font: inherit;
@@ -340,8 +383,8 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .app-card:active {
-    border-color: rgba(230, 210, 155, 0.48);
-    background: linear-gradient(180deg, #1c1913, #12100d);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.48);
+    background: linear-gradient(180deg, var(--port-card-press-top), var(--port-card-press-bottom));
     transform: translateY(1px);
 }
 
@@ -350,8 +393,8 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .tool-card:active {
-    border-color: rgba(230, 210, 155, 0.48);
-    background: linear-gradient(180deg, #1c1913, #12100d);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.48);
+    background: linear-gradient(180deg, var(--port-card-press-top), var(--port-card-press-bottom));
     transform: translateY(1px);
 }
 
@@ -363,10 +406,10 @@ summary.tool-pro-locked > span:first-child::after {
 
 .skeleton-card {
     position: relative;
-    border-color: rgba(207, 189, 148, 0.12);
+    border-color: rgba(var(--port-line-rgb), 0.12);
     background:
-        linear-gradient(150deg, rgba(205, 180, 116, 0.03), transparent 52%),
-        linear-gradient(180deg, #12110f, #0d0c0a);
+        linear-gradient(150deg, rgba(var(--port-accent-rgb), 0.03), transparent 52%),
+        linear-gradient(180deg, var(--port-surface), var(--port-surface-deep-alt));
 }
 
 .skeleton-icon {
@@ -374,10 +417,10 @@ summary.tool-pro-locked > span:first-child::after {
     width: 70px;
     height: 70px;
     place-items: center;
-    border: 1px solid rgba(217, 189, 114, 0.2);
+    border: 1px solid rgba(var(--port-accent-plate-rgb), 0.2);
     border-radius: 20px;
-    color: rgba(230, 210, 155, 0.68);
-    background: rgba(205, 180, 116, 0.04);
+    color: rgba(var(--port-accent-soft-rgb), 0.68);
+    background: rgba(var(--port-accent-rgb), 0.04);
 }
 
 .skeleton-icon svg {
@@ -426,10 +469,10 @@ summary.tool-pro-locked > span:first-child::after {
     width: 54px;
     height: 54px;
     place-items: center;
-    border: 1px solid rgba(205, 180, 116, 0.2);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.2);
     border-radius: 50%;
     color: var(--port-gold);
-    background: rgba(205, 180, 116, 0.035);
+    background: rgba(var(--port-accent-rgb), 0.035);
     font-size: 1.8rem;
     font-weight: 260;
     line-height: 1;
@@ -493,10 +536,10 @@ summary.tool-pro-locked > span:first-child::after {
     display: grid;
     place-items: center;
     padding: 0;
-    border: 1px solid rgba(207, 189, 148, 0.24);
+    border: 1px solid rgba(var(--port-line-rgb), 0.24);
     border-radius: 11px;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.05);
+    background: rgba(var(--port-accent-rgb), 0.05);
     font: inherit;
     font-size: 1.2rem;
     line-height: 1;
@@ -504,7 +547,7 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .practice-set-add:hover:not(:disabled) {
-    border-color: rgba(230, 210, 155, 0.42);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.42);
 }
 
 .practice-set-add:disabled,
@@ -518,12 +561,12 @@ summary.tool-pro-locked > span:first-child::after {
     justify-self: end;
     padding: 6px 4px;
     border: 0;
-    color: rgba(232, 219, 181, 0.88);
+    color: rgba(var(--port-cream-rgb), 0.88);
     background: transparent;
     font: inherit;
     font-size: calc(0.74rem * var(--font-scale));
     text-decoration: underline;
-    text-decoration-color: rgba(205, 180, 116, 0.38);
+    text-decoration-color: rgba(var(--port-accent-rgb), 0.38);
     text-underline-offset: 4px;
     cursor: pointer;
 }
@@ -551,9 +594,9 @@ summary.tool-pro-locked > span:first-child::after {
     max-height: 100%;
     overflow-y: auto;
     padding: 22px;
-    border: 1px solid rgba(230, 210, 155, 0.3);
+    border: 1px solid rgba(var(--port-accent-soft-rgb), 0.3);
     border-radius: 22px;
-    background: #11100d;
+    background: var(--port-panel);
     box-shadow: 0 22px 60px rgba(0, 0, 0, 0.48);
 }
 
@@ -599,7 +642,7 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .practice-set-item + .practice-set-item {
-    border-top: 1px solid rgba(207, 189, 148, 0.09);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.09);
 }
 
 .practice-set-item input {
@@ -677,10 +720,10 @@ summary.tool-pro-locked > span:first-child::after {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 11px;
     color: var(--port-text);
-    background: #090907;
+    background: var(--port-field);
     font: inherit;
     text-align: left;
     cursor: pointer;
@@ -705,10 +748,10 @@ summary.tool-pro-locked > span:first-child::after {
 .practice-form-set-chip {
     max-width: 100%;
     padding: 3px 10px;
-    border: 1px solid rgba(207, 189, 148, 0.26);
+    border: 1px solid rgba(var(--port-line-rgb), 0.26);
     border-radius: 10px;
-    color: rgba(232, 219, 181, 0.92);
-    background: rgba(205, 180, 116, 0.06);
+    color: rgba(var(--port-cream-rgb), 0.92);
+    background: rgba(var(--port-accent-rgb), 0.06);
     font-size: calc(0.78rem * var(--font-scale));
     line-height: 1.5;
     overflow-wrap: anywhere;
@@ -741,12 +784,12 @@ summary.tool-pro-locked > span:first-child::after {
     margin-top: 8px;
     padding: 6px 4px;
     border: 0;
-    color: rgba(232, 219, 181, 0.88);
+    color: rgba(var(--port-cream-rgb), 0.88);
     background: transparent;
     font: inherit;
     font-size: calc(0.78rem * var(--font-scale));
     text-decoration: underline;
-    text-decoration-color: rgba(205, 180, 116, 0.38);
+    text-decoration-color: rgba(var(--port-accent-rgb), 0.38);
     text-underline-offset: 4px;
     cursor: pointer;
 }
@@ -813,9 +856,9 @@ summary.tool-pro-locked > span:first-child::after {
     align-items: center;
     justify-content: center;
     gap: 8px;
-    border: 1px solid rgba(207, 189, 148, 0.16);
-    color: rgba(232, 219, 181, 0.92);
-    background: rgba(205, 180, 116, 0.035);
+    border: 1px solid rgba(var(--port-line-rgb), 0.16);
+    color: rgba(var(--port-cream-rgb), 0.92);
+    background: rgba(var(--port-accent-rgb), 0.035);
     font: inherit;
     font-size: calc(0.77rem * var(--font-scale));
     font-weight: 620;
@@ -858,7 +901,7 @@ summary.tool-pro-locked > span:first-child::after {
 
 .practice-sort-button:hover {
     color: var(--port-text);
-    background: rgba(205, 180, 116, 0.055);
+    background: rgba(var(--port-accent-rgb), 0.055);
 }
 
 @media (max-width: 340px) {
@@ -879,9 +922,9 @@ summary.tool-pro-locked > span:first-child::after {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
     gap: 12px;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 14px;
-    background: linear-gradient(145deg, rgba(205, 180, 116, 0.075), rgba(205, 180, 116, 0.018));
+    background: linear-gradient(145deg, rgba(var(--port-accent-rgb), 0.075), rgba(var(--port-accent-rgb), 0.018));
 }
 
 .practice-timer-controls { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -895,7 +938,7 @@ summary.tool-pro-locked > span:first-child::after {
     align-items: center;
     justify-content: center;
     gap: 9px;
-    border: 1px solid rgba(229, 204, 139, 0.4);
+    border: 1px solid rgba(var(--port-accent-line-rgb), 0.4);
     border-radius: 11px;
     color: #17140e;
     background: linear-gradient(180deg, #dbc68f, #b89d5e);
@@ -907,7 +950,7 @@ summary.tool-pro-locked > span:first-child::after {
 
 .practice-timer-toggle.is-running {
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.055);
+    background: rgba(var(--port-accent-rgb), 0.055);
 }
 
 .practice-timer-toggle:disabled {
@@ -938,14 +981,14 @@ summary.tool-pro-locked > span:first-child::after {
 .practice-calendar-today:hover,
 .practice-count-reset-section button:hover {
     color: var(--port-text);
-    background: rgba(205, 180, 116, 0.055);
+    background: rgba(var(--port-accent-rgb), 0.055);
 }
 
 .practice-empty {
     padding: 22px 18px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 15px;
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
     text-align: center;
 }
 
@@ -978,10 +1021,10 @@ summary.tool-pro-locked > span:first-child::after {
 .reorder-button,
 .reorder-move {
     min-height: 38px;
-    border: 1px solid rgba(207, 189, 148, 0.18);
+    border: 1px solid rgba(var(--port-line-rgb), 0.18);
     border-radius: 10px;
     color: var(--port-muted);
-    background: rgba(205, 180, 116, 0.035);
+    background: rgba(var(--port-accent-rgb), 0.035);
     font: inherit;
     font-size: 0.76rem;
     font-weight: 620;
@@ -995,7 +1038,7 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .reorder-button-primary {
-    border-color: rgba(230, 210, 155, 0.38);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.38);
     color: var(--port-gold-bright);
 }
 
@@ -1018,10 +1061,10 @@ summary.tool-pro-locked > span:first-child::after {
     padding: 12px 14px;
     align-items: center;
     gap: 13px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 15px;
     color: var(--port-text);
-    background: linear-gradient(180deg, #12110f, #0d0c0a);
+    background: linear-gradient(180deg, var(--port-surface), var(--port-surface-deep-alt));
     font: inherit;
     text-align: left;
     text-decoration: none;
@@ -1048,7 +1091,7 @@ summary.tool-pro-locked > span:first-child::after {
     display: -webkit-box;
     margin-top: 5px;
     overflow: hidden;
-    color: rgba(180, 174, 158, 0.82);
+    color: rgba(var(--port-dim-rgb), 0.82);
     font-size: calc(0.7rem * var(--font-scale));
     line-height: 1.5;
     overflow-wrap: anywhere;
@@ -1073,10 +1116,10 @@ summary.tool-pro-locked > span:first-child::after {
     display: grid;
     padding: 0;
     place-items: center;
-    border: 1px solid rgba(207, 189, 148, 0.18);
+    border: 1px solid rgba(var(--port-line-rgb), 0.18);
     border-radius: 50%;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
     font: inherit;
     text-decoration: none;
     cursor: pointer;
@@ -1103,7 +1146,7 @@ summary.tool-pro-locked > span:first-child::after {
     flex: none;
     padding: 7px 11px;
     align-self: flex-start;
-    border-color: rgba(207, 189, 148, 0.16);
+    border-color: rgba(var(--port-line-rgb), 0.16);
     color: var(--port-muted);
     font-size: calc(0.76rem * var(--font-scale));
 }
@@ -1114,8 +1157,8 @@ summary.tool-pro-locked > span:first-child::after {
 #practice-menu-add .add-symbol { width: auto; height: auto; border: 0; background: transparent; }
 
 .practice-check[aria-pressed="true"] {
-    border-color: rgba(229, 204, 139, 0.45);
-    background: rgba(205, 180, 116, 0.12);
+    border-color: rgba(var(--port-accent-line-rgb), 0.45);
+    background: rgba(var(--port-accent-rgb), 0.12);
     font-size: 1rem;
 }
 
@@ -1132,7 +1175,7 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .practice-card-link:focus-visible {
-    outline: 2px solid rgba(229, 204, 139, 0.72);
+    outline: 2px solid rgba(var(--port-accent-line-rgb), 0.72);
     outline-offset: 2px;
 }
 
@@ -1160,10 +1203,10 @@ summary.tool-pro-locked > span:first-child::after {
     align-items: center;
     justify-content: center;
     gap: 4px;
-    border: 1px solid rgba(207, 189, 148, 0.18);
+    border: 1px solid rgba(var(--port-line-rgb), 0.18);
     border-radius: 10px;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
     font-size: calc(0.7rem * var(--font-scale));
     font-weight: 620;
     text-decoration: none;
@@ -1181,7 +1224,7 @@ summary.tool-pro-locked > span:first-child::after {
 .practice-card-count {
     display: block;
     margin-top: 4px;
-    color: rgba(205, 180, 116, 0.7);
+    color: rgba(var(--port-accent-rgb), 0.7);
     font-size: calc(0.68rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
@@ -1223,10 +1266,10 @@ summary.tool-pro-locked > span:first-child::after {
 .practice-finish-action {
     min-height: 46px;
     padding: 9px 12px;
-    border: 1px solid rgba(207, 189, 148, 0.16);
+    border: 1px solid rgba(var(--port-line-rgb), 0.16);
     border-radius: 10px;
-    color: rgba(232, 219, 181, 0.88);
-    background: rgba(205, 180, 116, 0.025);
+    color: rgba(var(--port-cream-rgb), 0.88);
+    background: rgba(var(--port-accent-rgb), 0.025);
     font: inherit;
     font-size: calc(0.76rem * var(--font-scale));
     font-weight: 620;
@@ -1234,8 +1277,8 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .practice-finish-action:hover {
-    border-color: rgba(229, 204, 139, 0.26);
-    background: rgba(205, 180, 116, 0.055);
+    border-color: rgba(var(--port-accent-line-rgb), 0.26);
+    background: rgba(var(--port-accent-rgb), 0.055);
 }
 
 .practice-finish-action:disabled,
@@ -1270,10 +1313,10 @@ summary.tool-pro-locked > span:first-child::after {
     padding: 27px 24px 22px;
     place-items: center;
     overflow-y: auto;
-    border: 1px solid rgba(229, 204, 139, 0.3);
+    border: 1px solid rgba(var(--port-accent-line-rgb), 0.3);
     border-radius: 19px;
     background: linear-gradient(155deg, rgba(31, 28, 21, 0.99), rgba(14, 14, 12, 0.99));
-    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.58), 0 0 42px rgba(205, 180, 116, 0.08);
+    box-shadow: 0 25px 70px rgba(0, 0, 0, 0.58), 0 0 42px rgba(var(--port-accent-rgb), 0.08);
     text-align: center;
     animation: practice-completion-panel-in 240ms ease-out both;
 }
@@ -1284,11 +1327,11 @@ summary.tool-pro-locked > span:first-child::after {
     display: grid;
     margin-bottom: 12px;
     place-items: center;
-    border: 1px solid rgba(229, 204, 139, 0.52);
+    border: 1px solid rgba(var(--port-accent-line-rgb), 0.52);
     border-radius: 50%;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.07);
-    box-shadow: 0 0 28px rgba(205, 180, 116, 0.13);
+    background: rgba(var(--port-accent-rgb), 0.07);
+    box-shadow: 0 0 28px rgba(var(--port-accent-rgb), 0.13);
     font-size: 1.12rem;
 }
 
@@ -1332,7 +1375,7 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .practice-completion-dialog:not(.is-partial) .practice-completion-panel {
-    border-color: rgba(229, 204, 139, 0.58);
+    border-color: rgba(var(--port-accent-line-rgb), 0.58);
     background: radial-gradient(ellipse at 50% 0%, rgba(197, 158, 78, 0.17), transparent 68%),
         linear-gradient(155deg, #201e17, #0e0e0c);
 }
@@ -1382,7 +1425,7 @@ summary.tool-pro-locked > span:first-child::after {
 
 .reorder-handle {
     flex: 0 0 auto;
-    color: rgba(205, 180, 116, 0.62);
+    color: rgba(var(--port-accent-rgb), 0.62);
     font-size: 1.35rem;
     line-height: 1;
 }
@@ -1409,7 +1452,7 @@ summary.tool-pro-locked > span:first-child::after {
 
 .practice-arrow {
     flex: 0 0 auto;
-    color: rgba(205, 180, 116, 0.66);
+    color: rgba(var(--port-accent-rgb), 0.66);
     font-size: 1rem;
 }
 
@@ -1698,7 +1741,7 @@ summary.tool-pro-locked > span:first-child::after {
     position: absolute;
     top: 10px;
     right: 12px;
-    color: rgba(205, 180, 116, 0.48);
+    color: rgba(var(--port-accent-rgb), 0.48);
     font-size: 0.82rem;
     line-height: 1;
 }
@@ -1753,10 +1796,10 @@ summary.tool-pro-locked > span:first-child::after {
     grid-column: 1 / -1;
     justify-self: end;
     padding: 8px 10px;
-    border: 1px solid rgba(207, 189, 148, 0.18);
+    border: 1px solid rgba(var(--port-line-rgb), 0.18);
     border-radius: 10px;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.035);
+    background: rgba(var(--port-accent-rgb), 0.035);
     font: inherit;
     font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
@@ -1784,9 +1827,9 @@ summary.tool-pro-locked > span:first-child::after {
 .my-apps-direct-launch {
     margin-top: 20px;
     padding: 14px 15px;
-    border: 1px solid rgba(207, 189, 148, 0.15);
+    border: 1px solid rgba(var(--port-line-rgb), 0.15);
     border-radius: 13px;
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
 }
 
 .my-apps-url-label-row {
@@ -1805,7 +1848,7 @@ summary.tool-pro-locked > span:first-child::after {
 .my-apps-form-view #my-apps-android-url + .my-apps-other-urls { margin-top: 12px; }
 .my-apps-form-view #my-apps-ios-url + label,
 .my-apps-other-urls-body input + label { margin-top: 15px; }
-.my-apps-other-urls { border: 1px solid rgba(207, 189, 148, 0.2); border-radius: 11px; background: rgba(205, 180, 116, 0.025); }
+.my-apps-other-urls { border: 1px solid rgba(var(--port-line-rgb), 0.2); border-radius: 11px; background: rgba(var(--port-accent-rgb), 0.025); }
 .my-apps-other-urls summary { padding: 12px 14px; color: var(--port-gold-bright); font-size: calc(0.82rem * var(--font-scale)); cursor: pointer; }
 .my-apps-other-urls-body { padding: 0 14px 14px; }
 .my-apps-url-note { margin: 10px 0 0; color: var(--port-muted); font-size: calc(0.7rem * var(--font-scale)); line-height: 1.5; }
@@ -1823,7 +1866,7 @@ summary.tool-pro-locked > span:first-child::after {
 .my-apps-url-help-toggle {
     min-height: 34px;
     padding: 5px 8px;
-    border: 1px solid rgba(207, 189, 148, 0.24);
+    border: 1px solid rgba(var(--port-line-rgb), 0.24);
     border-radius: 9px;
     font-size: calc(0.69rem * var(--font-scale));
     white-space: nowrap;
@@ -1832,9 +1875,9 @@ summary.tool-pro-locked > span:first-child::after {
 .my-apps-url-help {
     margin-top: 10px;
     padding: 13px;
-    border: 1px solid rgba(207, 189, 148, 0.18);
+    border: 1px solid rgba(var(--port-line-rgb), 0.18);
     border-radius: 12px;
-    background: rgba(205, 180, 116, 0.035);
+    background: rgba(var(--port-accent-rgb), 0.035);
 }
 
 .my-apps-url-help-heading {
@@ -1864,7 +1907,7 @@ summary.tool-pro-locked > span:first-child::after {
 
 .my-apps-url-help h2 {
     margin: 0;
-    color: rgba(230, 210, 155, 0.86);
+    color: rgba(var(--port-accent-soft-rgb), 0.86);
     font-size: calc(0.72rem * var(--font-scale));
 }
 
@@ -1887,7 +1930,7 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .my-apps-direct-recognition {
-    color: rgba(230, 210, 155, 0.82);
+    color: rgba(var(--port-accent-soft-rgb), 0.82);
     font-size: calc(0.74rem * var(--font-scale));
 }
 
@@ -1928,9 +1971,9 @@ summary.tool-pro-locked > span:first-child::after {
 
 .my-apps-custom-launch {
     margin-top: 18px;
-    border: 1px solid rgba(207, 189, 148, 0.14);
+    border: 1px solid rgba(var(--port-line-rgb), 0.14);
     border-radius: 13px;
-    background: rgba(205, 180, 116, 0.018);
+    background: rgba(var(--port-accent-rgb), 0.018);
 }
 
 .my-apps-custom-launch summary {
@@ -1940,7 +1983,7 @@ summary.tool-pro-locked > span:first-child::after {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    color: rgba(243, 240, 232, 0.86);
+    color: rgba(var(--port-ink-rgb), 0.86);
     font-size: calc(0.8rem * var(--font-scale));
     font-weight: 620;
     cursor: pointer;
@@ -1969,7 +2012,7 @@ summary.tool-pro-locked > span:first-child::after {
 
 .my-apps-custom-launch-body {
     padding: 2px 15px 15px;
-    border-top: 1px solid rgba(207, 189, 148, 0.09);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.09);
 }
 
 .my-apps-custom-description {
@@ -1997,10 +2040,10 @@ summary.tool-pro-locked > span:first-child::after {
     display: inline-flex;
     padding: 5px 10px;
     align-items: center;
-    border: 1px solid rgba(207, 189, 148, 0.22);
+    border: 1px solid rgba(var(--port-line-rgb), 0.22);
     border-radius: 9px;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.035);
+    background: rgba(var(--port-accent-rgb), 0.035);
     font-size: calc(0.72rem * var(--font-scale));
     font-weight: 620;
     text-decoration: none;
@@ -2031,9 +2074,9 @@ summary.tool-pro-locked > span:first-child::after {
     padding: 14px;
     align-items: center;
     gap: 16px;
-    border: 1px solid rgba(207, 189, 148, 0.14);
+    border: 1px solid rgba(var(--port-line-rgb), 0.14);
     border-radius: 14px;
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
 }
 
 .my-apps-icon-preview-wrap {
@@ -2083,7 +2126,7 @@ summary.tool-pro-locked > span:first-child::after {
 .my-apps-icon-adjust-hint {
     display: block;
     margin-top: 7px;
-    color: rgba(230, 210, 155, 0.72);
+    color: rgba(var(--port-accent-soft-rgb), 0.72);
     font-size: calc(0.62rem * var(--font-scale));
     line-height: 1.35;
     white-space: nowrap;
@@ -2112,10 +2155,10 @@ summary.tool-pro-locked > span:first-child::after {
     padding: 8px 12px;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(207, 189, 148, 0.22);
+    border: 1px solid rgba(var(--port-line-rgb), 0.22);
     border-radius: 10px;
     color: var(--port-gold-bright);
-    background: #151410;
+    background: var(--port-control);
     font: inherit;
     font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
@@ -2130,7 +2173,7 @@ summary.tool-pro-locked > span:first-child::after {
 
 .my-apps-icon-preset-open {
     color: var(--port-text);
-    background: rgba(205, 180, 116, 0.08);
+    background: rgba(var(--port-accent-rgb), 0.08);
 }
 
 .my-apps-icon-select.is-disabled,
@@ -2156,9 +2199,9 @@ summary.tool-pro-locked > span:first-child::after {
     padding: 10px;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 8px;
-    border: 1px solid rgba(207, 189, 148, 0.16);
+    border: 1px solid rgba(var(--port-line-rgb), 0.16);
     border-radius: 14px;
-    background: rgba(205, 180, 116, 0.02);
+    background: rgba(var(--port-accent-rgb), 0.02);
 }
 
 .my-apps-preset-option {
@@ -2169,7 +2212,7 @@ summary.tool-pro-locked > span:first-child::after {
     gap: 3px;
     border: 1px solid transparent;
     border-radius: 11px;
-    color: rgba(243, 240, 232, 0.82);
+    color: rgba(var(--port-ink-rgb), 0.82);
     background: transparent;
     font: inherit;
     font-size: calc(0.57rem * var(--font-scale));
@@ -2191,9 +2234,9 @@ summary.tool-pro-locked > span:first-child::after {
 }
 
 .my-apps-preset-option.is-selected {
-    border-color: rgba(230, 210, 155, 0.72);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.72);
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.09);
+    background: rgba(var(--port-accent-rgb), 0.09);
 }
 
 .my-apps-icon-status {
@@ -2232,9 +2275,9 @@ body.gear-photo-lightbox-open {
 .my-apps-crop-panel {
     width: min(100%, 390px);
     padding: clamp(18px, 5vw, 26px);
-    border: 1px solid rgba(207, 189, 148, 0.24);
+    border: 1px solid rgba(var(--port-line-rgb), 0.24);
     border-radius: 20px;
-    background: linear-gradient(180deg, #12110f, #090806);
+    background: linear-gradient(180deg, var(--port-surface), var(--port-panel-deep));
     box-shadow: 0 28px 70px rgba(0, 0, 0, 0.58);
 }
 
@@ -2255,15 +2298,15 @@ body.gear-photo-lightbox-open {
 .my-apps-crop-stage-wrap {
     width: min(100%, 320px);
     margin: 0 auto;
-    border: 1px solid rgba(241, 218, 153, 0.58);
+    border: 1px solid rgba(var(--port-accent-hover-rgb), 0.58);
     border-radius: 8px;
     overflow: hidden;
-    background-color: #12110f;
+    background-color: var(--port-surface);
     background-image:
-        linear-gradient(45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
-        linear-gradient(-45deg, rgba(255, 255, 255, 0.035) 25%, transparent 25%),
-        linear-gradient(45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%),
-        linear-gradient(-45deg, transparent 75%, rgba(255, 255, 255, 0.035) 75%);
+        linear-gradient(45deg, rgba(var(--port-hi-rgb), 0.035) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(var(--port-hi-rgb), 0.035) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(var(--port-hi-rgb), 0.035) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(var(--port-hi-rgb), 0.035) 75%);
     background-position: 0 0, 0 8px, 8px -8px, -8px 0;
     background-size: 16px 16px;
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.72), 0 14px 34px rgba(0, 0, 0, 0.32);
@@ -2473,10 +2516,10 @@ textarea:focus-visible {
     height: 44px;
     padding: 0;
     place-items: center;
-    border: 1px solid rgba(205, 180, 116, 0.42);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.42);
     border-radius: 50%;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.08);
+    background: rgba(var(--port-accent-rgb), 0.08);
     font: inherit;
     font-weight: 700;
     cursor: pointer;
@@ -2511,7 +2554,7 @@ textarea:focus-visible {
 .sync-center-app-status-chip {
     flex: 0 0 auto;
     padding: 2px 8px;
-    border: 1px solid rgba(205, 205, 205, 0.42);
+    border: 1px solid rgba(var(--port-neutral-rgb), 0.42);
     border-radius: 999px;
     color: var(--port-muted);
     background: transparent;
@@ -2524,20 +2567,20 @@ textarea:focus-visible {
 .sync-center-account-status-chip[data-sync-account-state="active"],
 .sync-center-app-status-chip--synced,
 .sync-center-app-status-chip--available {
-    border-color: rgba(232, 201, 122, 0.72);
+    border-color: rgba(var(--port-accent-warm-rgb), 0.72);
     color: #241d0d;
-    background: rgba(232, 201, 122, 0.88);
+    background: rgba(var(--port-accent-warm-rgb), 0.88);
 }
 .sync-center-account-status-chip[data-sync-account-state="unset"],
 .sync-center-app-status-chip--detached {
-    border-color: rgba(205, 205, 205, 0.62);
+    border-color: rgba(var(--port-neutral-rgb), 0.62);
     color: var(--port-text);
-    background: rgba(205, 205, 205, 0.16);
+    background: rgba(var(--port-neutral-rgb), 0.16);
 }
 .sync-center-app-status-chip--syncing {
-    border-color: rgba(232, 201, 122, 0.72);
+    border-color: rgba(var(--port-accent-warm-rgb), 0.72);
     color: var(--port-gold-bright);
-    background: rgba(232, 201, 122, 0.12);
+    background: rgba(var(--port-accent-warm-rgb), 0.12);
 }
 .sync-center-app-status-chip--attention {
     border-color: rgba(232, 176, 104, 0.72);
@@ -2545,9 +2588,9 @@ textarea:focus-visible {
     background: rgba(232, 176, 104, 0.1);
 }
 .sync-center-app-status-chip--connecting {
-    border-color: rgba(232, 201, 122, 0.54);
+    border-color: rgba(var(--port-accent-warm-rgb), 0.54);
     color: #ead39b;
-    background: rgba(232, 201, 122, 0.08);
+    background: rgba(var(--port-accent-warm-rgb), 0.08);
 }
 .sync-center-app-status-chip--deleting {
     border-color: rgba(232, 111, 120, 0.72);
@@ -2555,14 +2598,14 @@ textarea:focus-visible {
     background: rgba(117, 28, 38, 0.18);
 }
 .sync-center-app-status-chip--offline {
-    border-color: rgba(205, 205, 205, 0.62);
+    border-color: rgba(var(--port-neutral-rgb), 0.62);
     color: var(--port-muted);
-    background: rgba(205, 205, 205, 0.1);
+    background: rgba(var(--port-neutral-rgb), 0.1);
 }
 .sync-center-removal-safety {
     flex: 0 0 auto;
     padding: 2px 7px;
-    border: 1px solid rgba(205, 205, 205, 0.42);
+    border: 1px solid rgba(var(--port-neutral-rgb), 0.42);
     border-radius: 999px;
     color: var(--port-muted);
     font-size: calc(0.68rem * var(--font-scale));
@@ -2576,7 +2619,7 @@ textarea:focus-visible {
 .sync-center-port-conflicts-open {
     min-height: 32px;
     padding: 4px 10px;
-    border: 1px solid rgba(205, 180, 116, 0.58);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.58);
     border-radius: 999px;
     background: transparent;
     color: var(--port-text);
@@ -2589,10 +2632,10 @@ textarea:focus-visible {
 .sync-center-account-action {
     min-height: 48px;
     padding: 7px 14px;
-    border: 1px solid rgba(205, 180, 116, 0.38);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.38);
     border-radius: 10px;
     color: var(--port-text);
-    background: rgba(8, 8, 6, 0.38);
+    background: rgba(var(--port-well-rgb), 0.38);
     font: inherit;
     font-size: calc(0.78rem * var(--font-scale));
     font-weight: 650;
@@ -2625,10 +2668,10 @@ textarea:focus-visible {
     height: 30px;
     padding: 0;
     place-items: center;
-    border: 1px solid rgba(205, 180, 116, 0.42);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.42);
     border-radius: 50%;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.08);
+    background: rgba(var(--port-accent-rgb), 0.08);
     font: inherit;
     font-size: calc(0.9rem * var(--font-scale));
     font-weight: 700;
@@ -2671,7 +2714,7 @@ textarea:focus-visible {
     padding: 10px;
     border: 1px solid var(--port-border);
     border-radius: 13px;
-    background: rgba(8, 8, 6, 0.38);
+    background: rgba(var(--port-well-rgb), 0.38);
 }
 .sync-center-app img { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; }
 .sync-center-app-copy { display: grid; min-width: 0; gap: 4px; }
@@ -2703,7 +2746,7 @@ textarea:focus-visible {
     align-items: center;
     justify-content: center;
     padding: 8px 10px;
-    border: 1px solid rgba(205, 180, 116, 0.38);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.38);
     border-radius: 10px;
     color: var(--port-gold-bright);
     font-size: calc(0.75rem * var(--font-scale));
@@ -2770,7 +2813,7 @@ textarea:focus-visible {
     font: inherit;
     font-size: calc(0.78rem * var(--font-scale));
     text-decoration: underline;
-    text-decoration-color: rgba(205, 180, 116, 0.48);
+    text-decoration-color: rgba(var(--port-accent-rgb), 0.48);
     text-underline-offset: 4px;
     cursor: pointer;
 }
@@ -2850,7 +2893,7 @@ textarea:focus-visible {
     display: block;
     margin: 14px 0;
     padding: 14px;
-    border: 1px solid rgba(214, 180, 79, 0.6);
+    border: 1px solid rgba(var(--port-accent-code-rgb), 0.6);
     border-radius: 12px;
     color: var(--port-gold-bright);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -2867,7 +2910,7 @@ textarea:focus-visible {
     width: 100%;
     min-height: 48px;
     margin: 10px 0;
-    border: 1px solid rgba(205, 180, 116, 0.48);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.48);
     border-radius: 10px;
     color: var(--port-text);
     background: rgba(0, 0, 0, 0.32);
@@ -2882,10 +2925,10 @@ textarea:focus-visible {
     padding: clamp(16px, 5vw, 24px);
     overflow-x: hidden;
     overflow-y: auto;
-    border: 1px solid rgba(205, 180, 116, 0.34);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.34);
     border-radius: 16px;
     color: var(--port-text);
-    background: #11100d;
+    background: var(--port-panel);
 }
 .sync-center-help-dialog::backdrop { background: rgba(0, 0, 0, 0.76); }
 .sync-center-help-dialog h2 { margin-top: 0; color: var(--port-gold-bright); font-size: 1.1rem; }
@@ -2903,7 +2946,7 @@ textarea:focus-visible {
 .sync-center-turnstile {
     margin: 14px 0;
     padding: 12px;
-    border: 1px solid rgba(205, 180, 116, 0.4);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.4);
     border-radius: 12px;
     background: rgba(0, 0, 0, 0.2);
 }
@@ -2948,10 +2991,10 @@ textarea:focus-visible {
     width: 100%;
     box-sizing: border-box;
     padding: 14px;
-    border: 1px solid rgba(214, 180, 79, 0.6);
+    border: 1px solid rgba(var(--port-accent-code-rgb), 0.6);
     border-radius: 12px;
     color: var(--port-gold-bright);
-    background: rgba(8, 8, 6, 0.48);
+    background: rgba(var(--port-well-rgb), 0.48);
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
     font-size: clamp(0.8rem, 3.5vw, 1rem);
     line-height: 1.55;
@@ -3019,10 +3062,10 @@ textarea:focus-visible {
     place-items: center;
     align-content: center;
     gap: 3px;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 11px;
     color: var(--port-muted);
-    background: rgba(8, 8, 6, 0.42);
+    background: rgba(var(--port-well-rgb), 0.42);
     font: inherit;
     font-size: calc(0.88rem * var(--font-scale));
     font-weight: 650;
@@ -3038,10 +3081,10 @@ textarea:focus-visible {
 }
 
 .settings-choice.is-selected {
-    border-color: rgba(230, 210, 155, 0.62);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.62);
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.12);
-    box-shadow: inset 0 0 0 1px rgba(230, 210, 155, 0.1);
+    background: rgba(var(--port-accent-rgb), 0.12);
+    box-shadow: inset 0 0 0 1px rgba(var(--port-accent-soft-rgb), 0.1);
 }
 
 .gear-list-tabs {
@@ -3050,9 +3093,9 @@ textarea:focus-visible {
     padding: 4px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 4px;
-    border: 1px solid rgba(207, 189, 148, 0.17);
+    border: 1px solid rgba(var(--port-line-rgb), 0.17);
     border-radius: 12px;
-    background: rgba(4, 4, 3, 0.38);
+    background: rgba(var(--port-well-deep-rgb), 0.38);
 }
 
 .gear-list-tabs button {
@@ -3069,9 +3112,9 @@ textarea:focus-visible {
 }
 
 .gear-list-tabs button.is-selected {
-    border-color: rgba(230, 210, 155, 0.36);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.36);
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.12);
+    background: rgba(var(--port-accent-rgb), 0.12);
 }
 
 .gear-display-toolbar {
@@ -3087,22 +3130,22 @@ textarea:focus-visible {
 .gear-grid-picker button, .gear-export-button {
     min-height: 40px;
     padding: 6px 9px;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 9px;
     color: var(--port-muted);
-    background: rgba(7, 7, 5, 0.46);
+    background: rgba(var(--port-well-alt-rgb), 0.46);
     font: inherit;
     font-size: calc(0.7rem * var(--font-scale));
     cursor: pointer;
 }
-.gear-grid-picker button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(230, 210, 155, 0.5); }
+.gear-grid-picker button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(var(--port-accent-soft-rgb), 0.5); }
 .gear-export-button { display: grid; flex: 0 0 40px; width: 40px; padding: 6px; place-items: center; }
 .gear-export-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .gear-export-wrap { position: relative; flex: 0 0 40px; }
-.gear-export-menu { position: absolute; z-index: 80; right: 0; top: calc(100% + 6px); width: 176px; padding: 5px; border: 1px solid rgba(230, 210, 155, 0.3); border-radius: 10px; background: #17150f; box-shadow: 0 12px 24px rgba(0, 0, 0, 0.55); }
+.gear-export-menu { position: absolute; z-index: 80; right: 0; top: calc(100% + 6px); width: 176px; padding: 5px; border: 1px solid rgba(var(--port-accent-soft-rgb), 0.3); border-radius: 10px; background: var(--port-menu); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.55); }
 .gear-export-menu[hidden] { display: none; }
 .gear-export-menu button { display: block; width: 100%; padding: 11px 9px; border: 0; border-radius: 6px; color: var(--port-text); background: transparent; font: inherit; font-size: calc(0.78rem * var(--font-scale)); text-align: left; cursor: pointer; }
-.gear-export-menu button:hover, .gear-export-menu button:focus-visible { background: rgba(230, 210, 155, 0.12); }
+.gear-export-menu button:hover, .gear-export-menu button:focus-visible { background: rgba(var(--port-accent-soft-rgb), 0.12); }
 
 .gear-list-title-row {
     display: flex;
@@ -3121,10 +3164,10 @@ textarea:focus-visible {
     flex: 0 0 auto;
     min-height: 44px;
     padding: 8px 11px;
-    border: 1px solid rgba(207, 189, 148, 0.28);
+    border: 1px solid rgba(var(--port-line-rgb), 0.28);
     border-radius: 11px;
     color: var(--port-gold-bright);
-    background: rgba(8, 8, 6, 0.38);
+    background: rgba(var(--port-well-rgb), 0.38);
     font: inherit;
     font-size: calc(0.7rem * var(--font-scale));
     font-weight: 650;
@@ -3155,10 +3198,10 @@ textarea:focus-visible {
     margin: 0;
     padding: 7px 38px 7px 13px;
     box-sizing: border-box;
-    border: 1px solid rgba(207, 189, 148, 0.17);
+    border: 1px solid rgba(var(--port-line-rgb), 0.17);
     border-radius: 12px;
     color: var(--port-muted);
-    background: rgba(8, 8, 6, 0.5);
+    background: rgba(var(--port-well-rgb), 0.5);
     font: inherit;
     font-size: calc(1rem * var(--font-scale));
     font-weight: 650;
@@ -3168,9 +3211,9 @@ textarea:focus-visible {
 
 .gear-category-select:focus-visible,
 .gear-category-menu-toggle:focus-visible {
-    border-color: rgba(230, 210, 155, 0.52);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.52);
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.12);
+    background: rgba(var(--port-accent-rgb), 0.12);
 }
 
 .gear-category-select:disabled {
@@ -3195,10 +3238,10 @@ textarea:focus-visible {
     height: 44px;
     place-items: center;
     padding: 0;
-    border: 1px solid rgba(207, 189, 148, 0.24);
+    border: 1px solid rgba(var(--port-line-rgb), 0.24);
     border-radius: 12px;
     color: var(--port-gold-bright);
-    background: rgba(8, 8, 6, 0.5);
+    background: rgba(var(--port-well-rgb), 0.5);
     cursor: pointer;
 }
 
@@ -3218,9 +3261,9 @@ textarea:focus-visible {
     gap: 3px;
     padding: 7px;
     box-sizing: border-box;
-    border: 1px solid rgba(207, 189, 148, 0.42);
+    border: 1px solid rgba(var(--port-line-rgb), 0.42);
     border-radius: 14px;
-    background: #171611;
+    background: var(--port-menu-alt);
     box-shadow: 0 16px 34px rgba(0, 0, 0, 0.46);
 }
 
@@ -3251,7 +3294,7 @@ textarea:focus-visible {
 
 .gear-category-menu-item:hover:not(:disabled),
 .gear-category-menu-item:focus-visible:not(:disabled) {
-    background: rgba(205, 180, 116, 0.12);
+    background: rgba(var(--port-accent-rgb), 0.12);
 }
 
 .gear-category-menu-item svg {
@@ -3296,9 +3339,9 @@ textarea:focus-visible {
 .gear-category-dialog-panel {
     width: min(100%, 420px);
     padding: 24px;
-    border: 1px solid rgba(230, 210, 155, 0.3);
+    border: 1px solid rgba(var(--port-accent-soft-rgb), 0.3);
     border-radius: 22px;
-    background: #11100d;
+    background: var(--port-panel);
     box-shadow: 0 22px 60px rgba(0, 0, 0, 0.48);
 }
 
@@ -3392,9 +3435,9 @@ textarea:focus-visible {
     position: relative;
     min-width: 0;
     padding: 15px;
-    border: 1px solid rgba(207, 189, 148, 0.16);
+    border: 1px solid rgba(var(--port-line-rgb), 0.16);
     border-radius: 13px;
-    background: rgba(7, 7, 5, 0.46);
+    background: rgba(var(--port-well-alt-rgb), 0.46);
 }
 
 .gear-card[data-gear-card-id] { cursor: pointer; }
@@ -3405,10 +3448,10 @@ textarea:focus-visible {
     right: 8px;
     width: 42px;
     height: 42px;
-    border: 1px solid rgba(207, 189, 148, 0.24);
+    border: 1px solid rgba(var(--port-line-rgb), 0.24);
     border-radius: 10px;
     color: var(--port-gold-bright);
-    background: rgba(7, 7, 5, 0.86);
+    background: rgba(var(--port-well-alt-rgb), 0.86);
     font-size: 1.3rem;
     line-height: 1;
     cursor: pointer;
@@ -3416,13 +3459,13 @@ textarea:focus-visible {
 .gear-card-menu-toggle:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 
 .gear-card--wishlist {
-    border-color: rgba(230, 210, 155, 0.22);
-    background: linear-gradient(135deg, rgba(205, 180, 116, 0.07), rgba(7, 7, 5, 0.46) 44%);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.22);
+    background: linear-gradient(135deg, rgba(var(--port-accent-rgb), 0.07), rgba(var(--port-well-alt-rgb), 0.46) 44%);
 }
 
 .gear-card--sold {
-    border-color: rgba(207, 189, 148, 0.12);
-    background: rgba(7, 7, 5, 0.32);
+    border-color: rgba(var(--port-line-rgb), 0.12);
+    background: rgba(var(--port-well-alt-rgb), 0.32);
 }
 
 .gear-card-heading {
@@ -3439,7 +3482,7 @@ textarea:focus-visible {
     margin: 0 13px 10px 0;
     padding: 0;
     overflow: hidden;
-    border: 1px solid rgba(230, 210, 155, 0.24);
+    border: 1px solid rgba(var(--port-accent-soft-rgb), 0.24);
     border-radius: 11px;
     background: rgba(2, 2, 2, 0.54);
     cursor: pointer;
@@ -3478,7 +3521,7 @@ textarea:focus-visible {
 
 .gear-card-metadata span {
     padding: 4px 8px;
-    border: 1px solid rgba(207, 189, 148, 0.17);
+    border: 1px solid rgba(var(--port-line-rgb), 0.17);
     border-radius: 999px;
     color: var(--port-muted);
     font-size: calc(0.65rem * var(--font-scale));
@@ -3486,12 +3529,12 @@ textarea:focus-visible {
 }
 
 .gear-card-metadata .gear-priority--high {
-    border-color: rgba(230, 210, 155, 0.43);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.43);
     color: var(--port-gold-bright);
 }
 
 .gear-card-metadata .gear-priority--medium {
-    color: rgba(230, 210, 155, 0.86);
+    color: rgba(var(--port-accent-soft-rgb), 0.86);
 }
 
 .gear-card-price,
@@ -3527,9 +3570,9 @@ textarea:focus-visible {
     grid-template-columns: 1fr;
     gap: 7px;
     padding: 7px;
-    border: 1px solid rgba(230, 210, 155, 0.3);
+    border: 1px solid rgba(var(--port-accent-soft-rgb), 0.3);
     border-radius: 11px;
-    background: #17150f;
+    background: var(--port-menu);
     box-shadow: 0 12px 24px rgba(0, 0, 0, 0.55);
 }
 
@@ -3583,9 +3626,9 @@ textarea:focus-visible {
 }
 
 .gear-purchase-action {
-    border-color: rgba(230, 210, 155, 0.28);
-    color: rgba(230, 210, 155, 0.92);
-    background: rgba(205, 180, 116, 0.075);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.28);
+    color: rgba(var(--port-accent-soft-rgb), 0.92);
+    background: rgba(var(--port-accent-rgb), 0.075);
 }
 
 .gear-card--reorder {
@@ -3607,7 +3650,7 @@ textarea:focus-visible {
 .gear-list-empty {
     margin-top: 12px;
     padding: 24px 14px;
-    border: 1px dashed rgba(207, 189, 148, 0.16);
+    border: 1px dashed rgba(var(--port-line-rgb), 0.16);
     border-radius: 12px;
     color: var(--port-muted);
     text-align: center;
@@ -3658,10 +3701,10 @@ textarea:focus-visible {
     padding: 0;
     place-items: center;
     overflow: hidden;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 14px;
     color: var(--port-muted);
-    background: rgba(4, 4, 3, 0.48);
+    background: rgba(var(--port-well-deep-rgb), 0.48);
     font: inherit;
     font-size: calc(0.76rem * var(--font-scale));
 }
@@ -3738,7 +3781,7 @@ textarea:focus-visible {
     border: 1px solid var(--port-border);
     border-radius: 18px;
     background:
-        linear-gradient(150deg, rgba(255, 255, 255, 0.025), transparent 46%),
+        linear-gradient(150deg, rgba(var(--port-hi-rgb), 0.025), transparent 46%),
         linear-gradient(180deg, var(--port-surface), var(--port-surface-deep));
     box-shadow: 0 16px 36px rgba(0, 0, 0, 0.3);
 }
@@ -3783,10 +3826,10 @@ textarea:focus-visible {
 .practice-history-empty {
     margin: 24px 0 0;
     padding: 18px;
-    border: 1px solid rgba(207, 189, 148, 0.1);
+    border: 1px solid rgba(var(--port-line-rgb), 0.1);
     border-radius: 13px;
     color: var(--port-muted);
-    background: rgba(205, 180, 116, 0.02);
+    background: rgba(var(--port-accent-rgb), 0.02);
     font-size: calc(0.76rem * var(--font-scale));
     line-height: 1.6;
     text-align: center;
@@ -3803,9 +3846,9 @@ textarea:focus-visible {
     align-items: center;
     justify-content: space-between;
     gap: 18px;
-    border: 1px solid rgba(207, 189, 148, 0.14);
+    border: 1px solid rgba(var(--port-line-rgb), 0.14);
     border-radius: 13px;
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
     cursor: pointer;
 }
 
@@ -3840,8 +3883,8 @@ textarea:focus-visible {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    border-top: 1px solid rgba(207, 189, 148, 0.11);
-    border-bottom: 1px solid rgba(207, 189, 148, 0.11);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.11);
+    border-bottom: 1px solid rgba(var(--port-line-rgb), 0.11);
 }
 
 .practice-count-reset-section > div {
@@ -3879,9 +3922,9 @@ textarea:focus-visible {
     padding: 3px;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 3px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 12px;
-    background: rgba(5, 6, 6, 0.42);
+    background: rgba(var(--port-well-cool-rgb), 0.42);
 }
 
 .practice-calendar-view-tabs button {
@@ -3899,8 +3942,8 @@ textarea:focus-visible {
 
 .practice-calendar-view-tabs button[aria-pressed="true"] {
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.1);
-    box-shadow: inset 0 0 0 1px rgba(229, 204, 139, 0.12);
+    background: rgba(var(--port-accent-rgb), 0.1);
+    box-shadow: inset 0 0 0 1px rgba(var(--port-accent-line-rgb), 0.12);
 }
 
 .practice-calendar-heading strong {
@@ -3914,10 +3957,10 @@ textarea:focus-visible {
     width: 44px;
     height: 44px;
     padding: 0;
-    border: 1px solid rgba(207, 189, 148, 0.14);
+    border: 1px solid rgba(var(--port-line-rgb), 0.14);
     border-radius: 50%;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
     font: inherit;
     font-size: calc(1.25rem * var(--font-scale));
     cursor: pointer;
@@ -3937,7 +3980,7 @@ textarea:focus-visible {
 
 .practice-calendar-weekdays span {
     padding: 8px 0 7px;
-    color: rgba(180, 174, 158, 0.76);
+    color: rgba(var(--port-dim-rgb), 0.76);
     font-size: 0.8rem;
     font-weight: 560;
     text-align: center;
@@ -3988,7 +4031,7 @@ textarea:focus-visible {
     display: inline-flex;
     width: 12px;
     height: 12px;
-    color: rgba(232, 219, 181, 0.88);
+    color: rgba(var(--port-cream-rgb), 0.88);
 }
 
 .practice-calendar-markers b svg {
@@ -4025,9 +4068,9 @@ textarea:focus-visible {
     padding: 20px;
     place-items: center;
     gap: 8px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 14px;
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
     text-align: center;
 }
 
@@ -4049,7 +4092,7 @@ textarea:focus-visible {
 .practice-calendar-notes {
     margin-top: 26px;
     padding-top: 20px;
-    border-top: 1px solid rgba(207, 189, 148, 0.12);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.12);
 }
 
 .practice-calendar-section-heading,
@@ -4074,10 +4117,10 @@ textarea:focus-visible {
     padding: 8px 12px;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(207, 189, 148, 0.17);
+    border: 1px solid rgba(var(--port-line-rgb), 0.17);
     border-radius: 10px;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.035);
+    background: rgba(var(--port-accent-rgb), 0.035);
     font: inherit;
     font-size: calc(0.72rem * var(--font-scale));
     font-weight: 620;
@@ -4104,7 +4147,7 @@ textarea:focus-visible {
     grid-template-columns: 24px minmax(0, 1fr) auto;
     align-items: center;
     gap: 10px;
-    border-bottom: 1px solid rgba(207, 189, 148, 0.08);
+    border-bottom: 1px solid rgba(var(--port-line-rgb), 0.08);
 }
 
 .practice-calendar-note-icon {
@@ -4155,16 +4198,16 @@ textarea:focus-visible {
 #practice-calendar-note-form {
     margin-top: 14px;
     padding: 14px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 12px;
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
 }
 
 .practice-calendar-note-icon-field {
     min-width: 0;
     margin: 0 0 15px;
     padding: 13px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 11px;
 }
 
@@ -4187,10 +4230,10 @@ textarea:focus-visible {
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    border: 1px solid rgba(229, 204, 139, 0.42);
+    border: 1px solid rgba(var(--port-accent-line-rgb), 0.42);
     border-radius: 10px;
     color: var(--port-gold-bright);
-    background: rgba(5, 6, 6, 0.45);
+    background: rgba(var(--port-well-cool-rgb), 0.45);
     font: inherit;
     font-size: calc(0.78rem * var(--font-scale));
     font-weight: 620;
@@ -4228,9 +4271,9 @@ textarea:focus-visible {
     max-height: min(410px, 55dvh);
     padding: 5px;
     overflow-y: auto;
-    border: 1px solid rgba(229, 204, 139, 0.48);
+    border: 1px solid rgba(var(--port-accent-line-rgb), 0.48);
     border-radius: 10px;
-    background: #0d0c09;
+    background: var(--port-menu-deep);
     box-shadow: 0 14px 30px rgba(0, 0, 0, 0.48);
 }
 
@@ -4240,7 +4283,7 @@ textarea:focus-visible {
     padding: 7px 10px;
     border: 0;
     border-radius: 7px;
-    color: rgba(232, 219, 181, 0.9);
+    color: rgba(var(--port-cream-rgb), 0.9);
     background: transparent;
     font: inherit;
     font-size: calc(0.75rem * var(--font-scale));
@@ -4257,7 +4300,7 @@ textarea:focus-visible {
 
 .practice-calendar-note-icons button[aria-selected="true"] {
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.14);
+    background: rgba(var(--port-accent-rgb), 0.14);
 }
 
 .practice-calendar-note-icons button[aria-selected="true"]::after {
@@ -4274,7 +4317,7 @@ textarea:focus-visible {
     min-width: 0;
     margin: 0 0 15px;
     padding: 13px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 11px;
 }
 
@@ -4346,19 +4389,19 @@ textarea:focus-visible {
 }
 
 .practice-calendar-day.is-today {
-    border-color: rgba(207, 189, 148, 0.16);
+    border-color: rgba(var(--port-line-rgb), 0.16);
 }
 
 .practice-calendar-day[aria-pressed="true"] {
-    border-color: rgba(229, 204, 139, 0.35);
+    border-color: rgba(var(--port-accent-line-rgb), 0.35);
     color: var(--port-text);
-    background: rgba(205, 180, 116, 0.09);
+    background: rgba(var(--port-accent-rgb), 0.09);
 }
 
 .practice-day-history {
     margin-top: 26px;
     padding-top: 20px;
-    border-top: 1px solid rgba(207, 189, 148, 0.12);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.12);
 }
 
 .practice-day-history h2 {
@@ -4372,8 +4415,8 @@ textarea:focus-visible {
     padding: 11px 2px;
     grid-template-columns: 20px minmax(0, 1fr) auto;
     gap: 8px;
-    border-bottom: 1px solid rgba(207, 189, 148, 0.08);
-    color: rgba(205, 180, 116, 0.72);
+    border-bottom: 1px solid rgba(var(--port-line-rgb), 0.08);
+    color: rgba(var(--port-accent-rgb), 0.72);
 }
 
 .practice-history-event > span:nth-child(2) {
@@ -4395,20 +4438,20 @@ textarea:focus-visible {
 }
 .practice-history-event .practice-history-pause { color: var(--port-muted); font-weight: 400; font-size: calc(0.8rem * var(--font-scale)); }
 
-.practice-analytics { margin-top: 26px; padding-top: 18px; border-top: 1px solid rgba(207, 189, 148, 0.16); }
+.practice-analytics { margin-top: 26px; padding-top: 18px; border-top: 1px solid rgba(var(--port-line-rgb), 0.16); }
 .practice-total-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .practice-total-row h2 { margin: 0 0 5px; color: var(--port-muted); font-size: calc(0.8rem * var(--font-scale)); }
 .practice-total-row strong { color: var(--port-gold-bright); font-size: calc(1.3rem * var(--font-scale)); }
 .practice-total-row button { min-height: 44px; padding: 6px 10px; border: 0; color: var(--port-muted); background: transparent; font: inherit; font-size: calc(0.78rem * var(--font-scale)); cursor: pointer; }
 .practice-analytics-tabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; margin-top: 18px; }
-.practice-analytics-tabs button { min-height: 42px; padding: 5px 2px; border: 1px solid rgba(207, 189, 148, 0.2); border-radius: 8px; color: var(--port-muted); background: rgba(7, 7, 5, 0.4); font: inherit; font-size: calc(0.7rem * var(--font-scale)); cursor: pointer; }
-.practice-analytics-tabs button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(230, 210, 155, 0.42); }
+.practice-analytics-tabs button { min-height: 42px; padding: 5px 2px; border: 1px solid rgba(var(--port-line-rgb), 0.2); border-radius: 8px; color: var(--port-muted); background: rgba(var(--port-well-alt-rgb), 0.4); font: inherit; font-size: calc(0.7rem * var(--font-scale)); cursor: pointer; }
+.practice-analytics-tabs button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(var(--port-accent-soft-rgb), 0.42); }
 .practice-analytics-list { display: grid; gap: 4px; margin-top: 10px; }
 .practice-analytics-list > p { color: var(--port-muted); font-size: calc(0.8rem * var(--font-scale)); }
-.practice-analytics-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; padding: 7px 0; border-bottom: 1px solid rgba(207, 189, 148, 0.1); font-size: calc(0.78rem * var(--font-scale)); }
+.practice-analytics-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; padding: 7px 0; border-bottom: 1px solid rgba(var(--port-line-rgb), 0.1); font-size: calc(0.78rem * var(--font-scale)); }
 .practice-analytics-row > span:first-child { min-width: 0; overflow-wrap: anywhere; color: var(--port-text); }
 .practice-analytics-row strong { color: var(--port-gold-bright); font-weight: 600; }
-.practice-analytics-bar { grid-column: 1 / -1; height: 3px; border-radius: 3px; background: rgba(205, 180, 116, 0.65); }
+.practice-analytics-bar { grid-column: 1 / -1; height: 3px; border-radius: 3px; background: rgba(var(--port-accent-rgb), 0.65); }
 
 .practice-history-event.is-cycle-complete {
     color: var(--port-gold-bright);
@@ -4417,9 +4460,9 @@ textarea:focus-visible {
 .practice-history-event.is-session {
     margin-top: 5px;
     padding: 14px 10px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 12px;
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
 }
 
 .practice-history-session-children {
@@ -4428,7 +4471,7 @@ textarea:focus-visible {
     margin: 5px 0 0;
     padding: 9px 0 0;
     gap: 7px;
-    border-top: 1px solid rgba(207, 189, 148, 0.09);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.09);
     list-style: none;
 }
 
@@ -4475,7 +4518,7 @@ textarea:focus-visible {
     stroke-linejoin: round;
 }
 
-.practice-history-delete:hover { color: var(--port-text); background: rgba(205, 180, 116, 0.06); }
+.practice-history-delete:hover { color: var(--port-text); background: rgba(var(--port-accent-rgb), 0.06); }
 
 /* Manual practice records (0.70.0): 編集 beside the delete icon, and the add/edit form. */
 .practice-history-actions { display: inline-flex; align-items: flex-start; gap: 2px; }
@@ -4490,7 +4533,7 @@ textarea:focus-visible {
     font-size: calc(0.76rem * var(--font-scale));
     cursor: pointer;
 }
-.practice-history-edit:hover { background: rgba(205, 180, 116, 0.06); }
+.practice-history-edit:hover { background: rgba(var(--port-accent-rgb), 0.06); }
 .practice-history-edit:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 .practice-history-edit:disabled { opacity: 0.4; cursor: not-allowed; }
 .practice-history-form {
@@ -4498,9 +4541,9 @@ textarea:focus-visible {
     gap: 8px;
     margin-top: 14px;
     padding: 14px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 12px;
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
 }
 .practice-history-form[hidden] { display: none; }
 .practice-history-form h3 { margin: 0 0 4px; color: var(--port-gold-bright); font-size: calc(0.86rem * var(--font-scale)); }
@@ -4511,7 +4554,7 @@ textarea:focus-visible {
     width: 100%;
     min-height: 44px;
     padding: 8px 10px;
-    border: 1px solid rgba(207, 189, 148, 0.24);
+    border: 1px solid rgba(var(--port-line-rgb), 0.24);
     border-radius: 10px;
     color: var(--port-text);
     background: rgba(0, 0, 0, 0.3);
@@ -4525,7 +4568,7 @@ textarea:focus-visible {
 .practice-history-presets button {
     min-height: 36px;
     padding: 4px 10px;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 999px;
     color: var(--port-muted);
     background: transparent;
@@ -4533,7 +4576,7 @@ textarea:focus-visible {
     font-size: calc(0.76rem * var(--font-scale));
     cursor: pointer;
 }
-.practice-history-presets button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(230, 210, 155, 0.5); }
+.practice-history-presets button[aria-pressed="true"] { color: var(--port-gold-bright); border-color: rgba(var(--port-accent-soft-rgb), 0.5); }
 .practice-history-form-note { margin: 0; color: var(--port-muted); font-size: calc(0.76rem * var(--font-scale)); }
 .practice-history-form-note[hidden] { display: none; }
 .practice-history-form .action-button { min-height: 44px; margin: 0; }
@@ -4559,10 +4602,10 @@ textarea:focus-visible {
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    border: 1px solid rgba(207, 189, 148, 0.18);
+    border: 1px solid rgba(var(--port-line-rgb), 0.18);
     border-radius: 10px;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.03);
+    background: rgba(var(--port-accent-rgb), 0.03);
     font-size: calc(0.72rem * var(--font-scale));
     font-weight: 620;
     line-height: 1.2;
@@ -4572,7 +4615,7 @@ textarea:focus-visible {
 .practice-attachments {
     margin-top: 24px;
     padding-top: 20px;
-    border-top: 1px solid rgba(207, 189, 148, 0.12);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.12);
 }
 
 .practice-attachment-status {
@@ -4590,9 +4633,9 @@ textarea:focus-visible {
 
 .practice-form-attachments {
     padding: 14px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 12px;
-    background: rgba(205, 180, 116, 0.022);
+    background: rgba(var(--port-accent-rgb), 0.022);
 }
 
 .practice-attachments-list {
@@ -4608,9 +4651,9 @@ textarea:focus-visible {
     grid-template-columns: 48px minmax(0, 1fr) auto;
     align-items: center;
     gap: 9px;
-    border: 1px solid rgba(207, 189, 148, 0.1);
+    border: 1px solid rgba(var(--port-line-rgb), 0.1);
     border-radius: 12px;
-    background: rgba(205, 180, 116, 0.018);
+    background: rgba(var(--port-accent-rgb), 0.018);
 }
 
 .practice-attachment-preview {
@@ -4620,7 +4663,7 @@ textarea:focus-visible {
     padding: 0;
     place-items: center;
     overflow: hidden;
-    border: 1px solid rgba(207, 189, 148, 0.13);
+    border: 1px solid rgba(var(--port-line-rgb), 0.13);
     border-radius: 9px;
     color: var(--port-muted);
     background: rgba(0, 0, 0, 0.26);
@@ -4726,10 +4769,10 @@ button.practice-attachment-preview {
     width: 44px;
     height: 44px;
     flex: 0 0 auto;
-    border: 1px solid rgba(207, 189, 148, 0.22);
+    border: 1px solid rgba(var(--port-line-rgb), 0.22);
     border-radius: 50%;
     color: var(--port-text);
-    background: rgba(205, 180, 116, 0.06);
+    background: rgba(var(--port-accent-rgb), 0.06);
     font: inherit;
     font-size: calc(1.2rem * var(--font-scale));
     cursor: pointer;
@@ -4750,7 +4793,7 @@ body.practice-attachment-lightbox-open {
 
 .detail-list > div {
     padding: 18px 0;
-    border-top: 1px solid rgba(207, 189, 148, 0.12);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.12);
 }
 
 .detail-list dt {
@@ -4799,15 +4842,15 @@ body.practice-attachment-lightbox-open {
 }
 
 .primary-action {
-    border-color: rgba(230, 210, 155, 0.46);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.46);
     color: #171208;
     background: linear-gradient(180deg, #e8d49d, #bfa25a);
 }
 
 .secondary-action {
-    border-color: rgba(207, 189, 148, 0.18);
+    border-color: rgba(var(--port-line-rgb), 0.18);
     color: var(--port-text);
-    background: #151410;
+    background: var(--port-control);
 }
 
 .danger-action {
@@ -4822,7 +4865,7 @@ body.practice-attachment-lightbox-open {
     justify-content: center;
     margin-top: 28px;
     padding-top: 16px;
-    border-top: 1px solid rgba(207, 189, 148, 0.12);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.12);
 }
 
 .practice-form-delete {
@@ -4893,10 +4936,10 @@ select,
 textarea {
     width: 100%;
     max-width: 100%;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 11px;
     color: var(--port-text);
-    background: #090907;
+    background: var(--port-field);
     font: inherit;
     font-size: max(1rem, calc(1rem * var(--font-scale)));
 }
@@ -4931,7 +4974,7 @@ select {
 }
 
 .btn-primary {
-    border: 1px solid rgba(241, 218, 153, 0.54);
+    border: 1px solid rgba(var(--port-accent-hover-rgb), 0.54);
     border-radius: 10px;
     color: #171208;
     background: linear-gradient(180deg, #f4dfa3, #c9a850);
@@ -5040,9 +5083,9 @@ select {
 
 .metronome-panel input[type="range"]::-webkit-slider-runnable-track {
     height: 5px;
-    border: 1px solid rgba(230, 210, 155, 0.22);
+    border: 1px solid rgba(var(--port-accent-soft-rgb), 0.22);
     border-radius: 999px;
-    background: rgba(207, 189, 148, 0.14);
+    background: rgba(var(--port-line-rgb), 0.14);
 }
 
 .metronome-panel input[type="range"]::-webkit-slider-thumb {
@@ -5058,9 +5101,9 @@ select {
 
 .metronome-panel input[type="range"]::-moz-range-track {
     height: 5px;
-    border: 1px solid rgba(230, 210, 155, 0.22);
+    border: 1px solid rgba(var(--port-accent-soft-rgb), 0.22);
     border-radius: 999px;
-    background: rgba(207, 189, 148, 0.14);
+    background: rgba(var(--port-line-rgb), 0.14);
 }
 
 .metronome-panel input[type="range"]::-moz-range-thumb {
@@ -5076,7 +5119,7 @@ select {
     display: flex;
     margin-top: -5px;
     justify-content: space-between;
-    color: rgba(180, 174, 158, 0.72);
+    color: rgba(var(--port-dim-rgb), 0.72);
     font-size: calc(0.66rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
@@ -5091,10 +5134,10 @@ select {
     min-width: 0;
     min-height: 48px;
     padding: 8px 4px;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 11px;
     color: var(--port-text);
-    background: #151410;
+    background: var(--port-control);
     font: inherit;
     font-size: calc(0.92rem * var(--font-scale));
     font-weight: 650;
@@ -5129,9 +5172,9 @@ select {
 }
 
 .metronome-toggle.is-playing {
-    border-color: rgba(230, 210, 155, 0.28);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.28);
     color: var(--port-text);
-    background: #181611;
+    background: var(--port-control-active);
 }
 
 .metronome-visual-rhythm {
@@ -5155,23 +5198,23 @@ select {
     width: 16px;
     height: 16px;
     display: block;
-    border: 1px solid rgba(230, 210, 155, 0.4);
+    border: 1px solid rgba(var(--port-accent-soft-rgb), 0.4);
     border-radius: 50%;
-    background: rgba(205, 180, 116, 0.08);
+    background: rgba(var(--port-accent-rgb), 0.08);
     transition: transform 70ms ease, background-color 70ms ease, border-color 70ms ease, box-shadow 70ms ease;
 }
 
 .visual-beat-dot.is-accented {
     width: 20px;
     height: 20px;
-    border-color: rgba(241, 218, 153, 0.68);
-    box-shadow: inset 0 0 0 3px rgba(205, 180, 116, 0.12);
+    border-color: rgba(var(--port-accent-hover-rgb), 0.68);
+    box-shadow: inset 0 0 0 3px rgba(var(--port-accent-rgb), 0.12);
 }
 
 .visual-beat-dot.is-current {
     border-color: var(--port-gold-bright);
     background: var(--port-gold-bright);
-    box-shadow: 0 0 0 5px rgba(205, 180, 116, 0.09);
+    box-shadow: 0 0 0 5px rgba(var(--port-accent-rgb), 0.09);
     transform: scale(1.16);
 }
 
@@ -5191,12 +5234,12 @@ select {
     width: 4px;
     height: 4px;
     border-radius: 50%;
-    background: rgba(180, 174, 158, 0.28);
+    background: rgba(var(--port-dim-rgb), 0.28);
     transition: background-color 55ms ease, transform 55ms ease;
 }
 
 .visual-subdivision-display span.is-current {
-    background: rgba(241, 218, 153, 0.82);
+    background: rgba(var(--port-accent-hover-rgb), 0.82);
     transform: scale(1.4);
 }
 
@@ -5204,7 +5247,7 @@ select {
     display: grid;
     margin-top: 14px;
     padding: 14px 2px 10px;
-    border-bottom: 1px solid rgba(207, 189, 148, 0.1);
+    border-bottom: 1px solid rgba(var(--port-line-rgb), 0.1);
     gap: 8px;
     text-align: left;
 }
@@ -5226,10 +5269,10 @@ select {
 .metronome-preset-controls button {
     min-width: 0;
     min-height: 46px;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 10px;
     color: var(--port-text);
-    background: #12110e;
+    background: var(--port-control-quiet);
     font: inherit;
     font-size: calc(0.76rem * var(--font-scale));
 }
@@ -5292,9 +5335,9 @@ body.metronome-preset-open {
 .metronome-preset-dialog-panel {
     width: min(100%, 360px);
     padding: 22px;
-    border: 1px solid rgba(207, 189, 148, 0.22);
+    border: 1px solid rgba(var(--port-line-rgb), 0.22);
     border-radius: 18px;
-    background: #11100d;
+    background: var(--port-panel);
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.58);
     text-align: left;
 }
@@ -5345,8 +5388,8 @@ body.metronome-preset-open {
     min-height: 48px;
     display: flex;
     padding: 11px 3px;
-    border-top: 1px solid rgba(207, 189, 148, 0.12);
-    border-bottom: 1px solid rgba(207, 189, 148, 0.12);
+    border-top: 1px solid rgba(var(--port-line-rgb), 0.12);
+    border-bottom: 1px solid rgba(var(--port-line-rgb), 0.12);
     align-items: center;
     justify-content: space-between;
     color: var(--port-muted);
@@ -5392,10 +5435,10 @@ body.metronome-preset-open {
 .metronome-section {
     display: grid;
     padding: 15px;
-    border: 1px solid rgba(207, 189, 148, 0.13);
+    border: 1px solid rgba(var(--port-line-rgb), 0.13);
     border-radius: 14px;
     gap: 11px;
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
 }
 
 .metronome-section h2,
@@ -5416,7 +5459,7 @@ body.metronome-preset-open {
 
 .metronome-section-heading span,
 .metronome-section-note {
-    color: rgba(180, 174, 158, 0.78);
+    color: rgba(var(--port-dim-rgb), 0.78);
     font-size: calc(0.68rem * var(--font-scale));
     line-height: 1.55;
 }
@@ -5454,10 +5497,10 @@ body.metronome-preset-open {
     min-width: 0;
     min-height: 45px;
     padding: 8px 6px;
-    border: 1px solid rgba(207, 189, 148, 0.18);
+    border: 1px solid rgba(var(--port-line-rgb), 0.18);
     border-radius: 10px;
     color: var(--port-text);
-    background: #12110e;
+    background: var(--port-control-quiet);
     font: inherit;
     font-size: calc(0.76rem * var(--font-scale));
     cursor: pointer;
@@ -5465,9 +5508,9 @@ body.metronome-preset-open {
 }
 
 .metronome-choice-grid button.is-selected {
-    border-color: rgba(241, 218, 153, 0.58);
+    border-color: rgba(var(--port-accent-hover-rgb), 0.58);
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.1);
+    background: rgba(var(--port-accent-rgb), 0.1);
 }
 
 .metronome-choice-grid button:disabled {
@@ -5488,12 +5531,12 @@ body.metronome-preset-open {
     min-height: 58px;
     display: grid;
     padding: 5px;
-    border: 1px solid rgba(230, 210, 155, 0.2);
+    border: 1px solid rgba(var(--port-accent-soft-rgb), 0.2);
     border-radius: 12px;
     place-items: center;
     gap: 0;
     color: var(--port-muted);
-    background: #11100d;
+    background: var(--port-panel);
     font: inherit;
     cursor: pointer;
     transition: border-color 55ms ease, background-color 55ms ease, transform 55ms ease;
@@ -5501,19 +5544,19 @@ body.metronome-preset-open {
 }
 
 .beat-mark {
-    color: rgba(205, 180, 116, 0.52);
+    color: rgba(var(--port-accent-rgb), 0.52);
     font-size: 1.28rem;
     line-height: 1;
 }
 
 .beat-number {
-    color: rgba(180, 174, 158, 0.78);
+    color: rgba(var(--port-dim-rgb), 0.78);
     font-size: calc(0.66rem * var(--font-scale));
     font-variant-numeric: tabular-nums;
 }
 
 .beat-button.is-accented {
-    border-color: rgba(230, 210, 155, 0.5);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.5);
 }
 
 .beat-button.is-accented .beat-mark {
@@ -5522,8 +5565,8 @@ body.metronome-preset-open {
 
 .beat-button.is-current {
     border-color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.1);
-    box-shadow: 0 0 0 3px rgba(205, 180, 116, 0.07);
+    background: rgba(var(--port-accent-rgb), 0.1);
+    box-shadow: 0 0 0 3px rgba(var(--port-accent-rgb), 0.07);
     transform: scale(1.04);
 }
 
@@ -5615,9 +5658,9 @@ body.metronome-preset-open {
     grid-template-columns: 44px minmax(48px, auto) 44px;
     align-items: center;
     overflow: hidden;
-    border: 1px solid rgba(207, 189, 148, 0.2);
+    border: 1px solid rgba(var(--port-line-rgb), 0.2);
     border-radius: 11px;
-    background: #090907;
+    background: var(--port-field);
 }
 
 .tuner-capo-control button {
@@ -5635,7 +5678,7 @@ body.metronome-preset-open {
 }
 
 .tuner-capo-control button:disabled {
-    color: rgba(190, 185, 170, 0.28);
+    color: rgba(var(--port-faint-rgb), 0.28);
     cursor: default;
 }
 
@@ -5751,9 +5794,9 @@ body.metronome-preset-open {
     border-radius: 2px;
     background: linear-gradient(
         90deg,
-        rgba(205, 180, 116, 0.34),
-        rgba(230, 210, 155, 0.74) 50%,
-        rgba(205, 180, 116, 0.34)
+        rgba(var(--port-accent-rgb), 0.34),
+        rgba(var(--port-accent-soft-rgb), 0.74) 50%,
+        rgba(var(--port-accent-rgb), 0.34)
     );
     content: "";
 }
@@ -5764,7 +5807,7 @@ body.metronome-preset-open {
     left: 50%;
     width: 2px;
     height: 23px;
-    background: rgba(243, 240, 232, 0.72);
+    background: rgba(var(--port-ink-rgb), 0.72);
     transform: translateX(-50%);
 }
 
@@ -5777,7 +5820,7 @@ body.metronome-preset-open {
     border: 2px solid #171208;
     border-radius: 50%;
     background: var(--port-gold-bright);
-    box-shadow: 0 0 0 3px rgba(230, 210, 155, 0.16);
+    box-shadow: 0 0 0 3px rgba(var(--port-accent-soft-rgb), 0.16);
     transform: translateX(-50%);
     transition: left 90ms ease, opacity 120ms ease;
 }
@@ -5846,10 +5889,10 @@ body.metronome-preset-open {
     padding: 6px 2px;
     align-content: center;
     gap: 4px;
-    border: 1px solid rgba(207, 189, 148, 0.12);
+    border: 1px solid rgba(var(--port-line-rgb), 0.12);
     border-radius: 9px;
     color: var(--port-muted);
-    background: rgba(205, 180, 116, 0.025);
+    background: rgba(var(--port-accent-rgb), 0.025);
     font: inherit;
     text-align: inherit;
     appearance: none;
@@ -5872,15 +5915,15 @@ body.metronome-preset-open {
 
 @media (hover: hover) {
     .tuner-strings button:not(:disabled):hover {
-        border-color: rgba(230, 210, 155, 0.28);
+        border-color: rgba(var(--port-accent-soft-rgb), 0.28);
         color: var(--port-text);
-        background: rgba(205, 180, 116, 0.075);
+        background: rgba(var(--port-accent-rgb), 0.075);
     }
 }
 
 .tuner-strings button:not(:disabled):active {
-    border-color: rgba(230, 210, 155, 0.42);
-    background: rgba(205, 180, 116, 0.12);
+    border-color: rgba(var(--port-accent-soft-rgb), 0.42);
+    background: rgba(var(--port-accent-rgb), 0.12);
 }
 
 .tuner-strings button:focus-visible {
@@ -5910,7 +5953,7 @@ body.metronome-preset-open {
 
 .tuner-input-settings {
     margin-top: 22px;
-    border-top: 1px solid rgba(205, 180, 116, 0.14);
+    border-top: 1px solid rgba(var(--port-accent-rgb), 0.14);
     text-align: left;
 }
 
@@ -5976,7 +6019,7 @@ body.metronome-preset-open {
     margin-top: 8px;
     overflow: visible;
     border-radius: 3px;
-    background: rgba(230, 210, 155, 0.08);
+    background: rgba(var(--port-accent-soft-rgb), 0.08);
 }
 
 .tuner-input-level-fill {
@@ -5984,7 +6027,7 @@ body.metronome-preset-open {
     width: var(--tuner-input-level-position);
     height: 100%;
     border-radius: inherit;
-    background: rgba(205, 180, 116, 0.66);
+    background: rgba(var(--port-accent-rgb), 0.66);
     transition: width 70ms linear;
 }
 
@@ -5995,8 +6038,8 @@ body.metronome-preset-open {
     bottom: -3px;
     left: var(--tuner-threshold-position);
     width: 1px;
-    background: rgba(243, 240, 232, 0.88);
-    box-shadow: 0 0 0 1px rgba(8, 7, 5, 0.5);
+    background: rgba(var(--port-ink-rgb), 0.88);
+    box-shadow: 0 0 0 1px rgba(var(--port-well-warm-rgb), 0.5);
     pointer-events: none;
 }
 
@@ -6075,10 +6118,10 @@ body.metronome-preset-open {
     --diagnostic-threshold-position: 24.4%;
     margin-top: 28px;
     padding: 18px;
-    border: 1px solid rgba(205, 180, 116, 0.18);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.18);
     border-radius: 14px;
     color: var(--port-muted);
-    background: rgba(8, 7, 5, 0.72);
+    background: rgba(var(--port-well-warm-rgb), 0.72);
     text-align: left;
 }
 
@@ -6119,14 +6162,14 @@ body.metronome-preset-open {
     margin-top: 7px;
     overflow: hidden;
     border-radius: 5px;
-    background: rgba(230, 210, 155, 0.09);
+    background: rgba(var(--port-accent-soft-rgb), 0.09);
 }
 
 .diagnostic-level-fill {
     display: block;
     width: var(--diagnostic-level-position);
     height: 100%;
-    background: rgba(205, 180, 116, 0.72);
+    background: rgba(var(--port-accent-rgb), 0.72);
     transition: width 80ms linear;
 }
 
@@ -6136,7 +6179,7 @@ body.metronome-preset-open {
     bottom: 0;
     left: var(--diagnostic-threshold-position);
     width: 1px;
-    background: rgba(243, 240, 232, 0.84);
+    background: rgba(var(--port-ink-rgb), 0.84);
 }
 
 .diagnostic-threshold-label {
@@ -6173,7 +6216,7 @@ body.metronome-preset-open {
 .diagnostic-environment {
     margin-top: 16px;
     padding-top: 12px;
-    border-top: 1px solid rgba(205, 180, 116, 0.1);
+    border-top: 1px solid rgba(var(--port-accent-rgb), 0.1);
 }
 
 .diagnostic-environment p {
@@ -6195,10 +6238,10 @@ body.metronome-preset-open {
     width: 100%;
     min-height: 42px;
     margin-top: 18px;
-    border: 1px solid rgba(205, 180, 116, 0.25);
+    border: 1px solid rgba(var(--port-accent-rgb), 0.25);
     border-radius: 10px;
     color: var(--port-gold-bright);
-    background: rgba(205, 180, 116, 0.05);
+    background: rgba(var(--port-accent-rgb), 0.05);
     font: inherit;
     font-size: calc(0.72rem * var(--font-scale));
 }
@@ -6220,40 +6263,40 @@ body.metronome-preset-open {
     }
 
     .app-card:hover {
-        border-color: rgba(241, 218, 153, 0.48);
+        border-color: rgba(var(--port-accent-hover-rgb), 0.48);
         box-shadow: 0 15px 30px rgba(0, 0, 0, 0.32);
         transform: translateY(-2px);
     }
 
     .tool-card:hover {
-        border-color: rgba(241, 218, 153, 0.4);
+        border-color: rgba(var(--port-accent-hover-rgb), 0.4);
         box-shadow: 0 15px 30px rgba(0, 0, 0, 0.32);
         transform: translateY(-2px);
     }
 
     .my-app-launch-card:hover {
-        border-color: rgba(241, 218, 153, 0.4);
+        border-color: rgba(var(--port-accent-hover-rgb), 0.4);
         box-shadow: 0 15px 30px rgba(0, 0, 0, 0.32);
         transform: translateY(-2px);
     }
 
     .tempo-steps button:hover {
-        border-color: rgba(230, 210, 155, 0.36);
-        background: #1b1914;
+        border-color: rgba(var(--port-accent-soft-rgb), 0.36);
+        background: var(--port-control-hover);
     }
 
     .practice-menu-card:hover,
     .add-row:hover {
-        border-color: rgba(230, 210, 155, 0.3);
-        background: #151410;
+        border-color: rgba(var(--port-accent-soft-rgb), 0.3);
+        background: var(--port-control);
     }
 
     .practice-check:hover,
     .practice-launch:hover,
     .practice-files-button:hover,
     .practice-calendar-heading button:hover {
-        border-color: rgba(230, 210, 155, 0.34);
-        background: rgba(205, 180, 116, 0.08);
+        border-color: rgba(var(--port-accent-soft-rgb), 0.34);
+        background: rgba(var(--port-accent-rgb), 0.08);
     }
 }
 
@@ -6498,24 +6541,24 @@ body.metronome-preset-open {
 
 .tuner-preview-controls { display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin: 10px 0 4px; }
 .tuner-preview-help-button { position: relative; z-index: 0; display: inline-grid; flex: 0 0 30px; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; background: transparent; color: var(--port-muted); font-size: .68rem; cursor: pointer; }
-.tuner-preview-help-button::before { position: absolute; z-index: -1; width: 18px; height: 18px; border: 1px solid rgba(207, 189, 148, .35); border-radius: 50%; content: ''; }
+.tuner-preview-help-button::before { position: absolute; z-index: -1; width: 18px; height: 18px; border: 1px solid rgba(var(--port-line-rgb), .35); border-radius: 50%; content: ''; }
 .tuner-preview-help-button:focus-visible, .tuner-meter-visibility input:focus-visible + .tuner-meter-switch-track { outline: 2px solid var(--port-gold-bright); outline-offset: 3px; }
 .tuner-meter-visibility { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; color: var(--port-muted); font-size: calc(.74rem * var(--font-scale)); white-space: nowrap; cursor: pointer; }
 .tuner-meter-visibility input { position: absolute; right: 0; width: 32px; height: 32px; margin: 0; opacity: 0; cursor: pointer; }
 .tuner-meter-switch-track { position: relative; box-sizing: border-box; flex: 0 0 32px; width: 32px; height: 18px; border: 1px solid #999; border-radius: 99px; background: #595959; pointer-events: none; transition: background .16s ease, border-color .16s ease; }
 .tuner-meter-switch-track::before { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #eee; content: ''; transition: transform .16s ease, background .16s ease; }
-.tuner-meter-visibility input:checked + .tuner-meter-switch-track { border-color: rgba(205, 169, 91, .7); background: rgba(205, 169, 91, .38); }
+.tuner-meter-visibility input:checked + .tuner-meter-switch-track { border-color: rgba(var(--port-accent-switch-rgb), .7); background: rgba(var(--port-accent-switch-rgb), .38); }
 .tuner-meter-visibility input:checked + .tuner-meter-switch-track::before { transform: translateX(14px); background: var(--port-gold-bright); }
-.tuner-preview-help-text { margin: 0 0 8px; padding: 8px 10px; border: 1px solid rgba(207, 189, 148, .2); border-radius: 8px; color: var(--port-muted); font-size: calc(.76rem * var(--font-scale)); line-height: 1.6; }
+.tuner-preview-help-text { margin: 0 0 8px; padding: 8px 10px; border: 1px solid rgba(var(--port-line-rgb), .2); border-radius: 8px; color: var(--port-muted); font-size: calc(.76rem * var(--font-scale)); line-height: 1.6; }
 .tuner-preview-help-text[hidden] { display: none; }
 
 /* Cruiseアプリへの移動中表示（タップと同時に表示し、遷移は待たせない） */
-.port-launch { position: fixed; inset: 0; z-index: 2147482000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); background: rgba(8, 8, 6, .88); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: var(--port-text); animation: port-launch-in .16s ease-out both; }
+.port-launch { position: fixed; inset: 0; z-index: 2147482000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom)); background: rgba(var(--port-well-rgb), .88); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); color: var(--port-text); animation: port-launch-in .16s ease-out both; }
 .port-launch[hidden] { display: none; }
 .port-launch-icons { display: flex; align-items: center; gap: 14px; }
 .port-launch-icon { width: 56px; height: 56px; border-radius: 14px; border: 1px solid var(--port-border); background: var(--port-surface); object-fit: cover; }
 .port-launch-icon--to { animation: port-launch-arrive 1.2s ease-in-out infinite; }
-.port-launch-track { position: relative; width: 56px; height: 1px; background: linear-gradient(90deg, rgba(205, 180, 116, .15), rgba(205, 180, 116, .5)); }
+.port-launch-track { position: relative; width: 56px; height: 1px; background: linear-gradient(90deg, rgba(var(--port-accent-rgb), .15), rgba(var(--port-accent-rgb), .5)); }
 .port-launch-dot { position: absolute; top: -2px; left: 0; width: 5px; height: 5px; border-radius: 50%; background: var(--port-gold); animation: port-launch-travel 1.2s ease-in-out infinite; }
 .port-launch-text { margin: 0; color: var(--port-gold-bright); font-size: calc(.86rem * var(--font-scale)); letter-spacing: .04em; }
 @keyframes port-launch-in { from { opacity: 0; } to { opacity: 1; } }
@@ -6527,9 +6570,9 @@ body.metronome-preset-open {
 }
 
 /* 同期センター: 通常行は「クラウド同期 利用可能」だけを示し、同期先ごとの報告は同期先タブ内に置く */
-.sync-center-app-status-chip--unavailable { border-color: rgba(205, 205, 205, 0.5); color: var(--port-muted); background: rgba(205, 205, 205, 0.08); }
-.sync-center-app-status-chip--recheck { border-style: dashed; border-color: rgba(205, 205, 205, 0.62); color: var(--port-text); background: transparent; }
-.sync-center-app-status-chip--checking { border-color: rgba(205, 205, 205, 0.36); color: var(--port-muted); background: transparent; }
+.sync-center-app-status-chip--unavailable { border-color: rgba(var(--port-neutral-rgb), 0.5); color: var(--port-muted); background: rgba(var(--port-neutral-rgb), 0.08); }
+.sync-center-app-status-chip--recheck { border-style: dashed; border-color: rgba(var(--port-neutral-rgb), 0.62); color: var(--port-text); background: transparent; }
+.sync-center-app-status-chip--checking { border-color: rgba(var(--port-neutral-rgb), 0.36); color: var(--port-muted); background: transparent; }
 .sync-center-app-status-line--app { flex-wrap: nowrap; gap: 2px; }
 @media (max-width: 359px) {
     .sync-center-app-status-line--app { flex-wrap: wrap; }
@@ -6551,11 +6594,11 @@ body.metronome-preset-open {
 .sync-center-targets-tab:disabled { color: var(--port-muted); opacity: 0.62; cursor: default; }
 .sync-center-targets-tab:disabled::after { content: ''; }
 .sync-center-targets-tab:hover:not(:disabled),
-.sync-center-targets-tab[aria-expanded="true"] { color: var(--port-text); text-decoration: underline; text-decoration-color: rgba(205, 205, 205, 0.48); text-underline-offset: 3px; }
+.sync-center-targets-tab[aria-expanded="true"] { color: var(--port-text); text-decoration: underline; text-decoration-color: rgba(var(--port-neutral-rgb), 0.48); text-underline-offset: 3px; }
 .sync-center-app-info-toggle { flex: 0 0 auto; padding-inline: 1px; font-size: calc(0.66rem * var(--font-scale)); }
 .sync-center-app-info-toggle:disabled { opacity: 0.45; cursor: default; }
 .sync-center-targets-tab:focus-visible, .sync-center-app-info-retry:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
-.sync-center-app-info { grid-column: 1 / -1; display: grid; gap: 12px; margin-top: 4px; padding: 12px 14px; border: 1px solid var(--port-border); border-radius: 12px; background: rgba(255, 255, 255, 0.025); color: var(--port-text); font-size: calc(0.78rem * var(--font-scale)); line-height: 1.55; }
+.sync-center-app-info { grid-column: 1 / -1; display: grid; gap: 12px; margin-top: 4px; padding: 12px 14px; border: 1px solid var(--port-border); border-radius: 12px; background: rgba(var(--port-hi-rgb), 0.025); color: var(--port-text); font-size: calc(0.78rem * var(--font-scale)); line-height: 1.55; }
 .sync-center-app-info[hidden] { display: none; }
 .sync-center-app-info-section { display: grid; gap: 6px; min-width: 0; }
 .sync-center-app-info-heading { margin: 0; color: var(--port-muted); font-size: calc(0.72rem * var(--font-scale)); font-weight: 650; letter-spacing: 0.04em; }
@@ -6574,7 +6617,7 @@ body.metronome-preset-open {
 .sync-center-app-info-target-copy strong { font-weight: 650; overflow-wrap: anywhere; }
 .sync-center-app-info-state { color: var(--port-text); }
 .sync-center-app-info-meta { color: var(--port-muted); font-size: calc(0.7rem * var(--font-scale)); overflow-wrap: anywhere; }
-.sync-center-app-info-retry { justify-self: start; padding: 7px 14px; border: 1px solid rgba(232, 201, 122, 0.6); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 650; cursor: pointer; }
+.sync-center-app-info-retry { justify-self: start; padding: 7px 14px; border: 1px solid rgba(var(--port-accent-warm-rgb), 0.6); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 650; cursor: pointer; }
 .sync-center-app-info-retry:disabled { opacity: 0.55; cursor: default; }
 
 /* 同期センター最下部: 不具合報告の窓口（既存の問い合わせメールを使う控えめな行） */
@@ -6595,9 +6638,9 @@ body.metronome-preset-open {
 .sync-center-environments li:has(> .sync-center-target-rename) { grid-template-columns: minmax(0, 1fr) auto auto; }
 .sync-center-environment-copy { display: grid; gap: 1px; min-width: 0; }
 .sync-center-environment-name { color: var(--port-text); font-weight: 650; overflow-wrap: anywhere; }
-.sync-center-environment-current { justify-self: start; padding: 0 6px; border: 1px solid rgba(205, 205, 205, 0.36); border-radius: 999px; color: var(--port-muted); font-size: calc(0.68rem * var(--font-scale)); }
-.sync-center-environment-current--account { padding: 1px 7px; border-color: rgba(232, 201, 122, 0.5); color: #ead39b; background: rgba(232, 201, 122, 0.14); font-weight: 650; }
-.sync-center-target-rename { justify-self: start; min-height: 32px; padding: 4px 10px; border: 1px solid rgba(205, 180, 116, 0.42); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-size: calc(0.72rem * var(--font-scale)); font-weight: 650; cursor: pointer; white-space: nowrap; }
+.sync-center-environment-current { justify-self: start; padding: 0 6px; border: 1px solid rgba(var(--port-neutral-rgb), 0.36); border-radius: 999px; color: var(--port-muted); font-size: calc(0.68rem * var(--font-scale)); }
+.sync-center-environment-current--account { padding: 1px 7px; border-color: rgba(var(--port-accent-warm-rgb), 0.5); color: #ead39b; background: rgba(var(--port-accent-warm-rgb), 0.14); font-weight: 650; }
+.sync-center-target-rename { justify-self: start; min-height: 32px; padding: 4px 10px; border: 1px solid rgba(var(--port-accent-rgb), 0.42); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-size: calc(0.72rem * var(--font-scale)); font-weight: 650; cursor: pointer; white-space: nowrap; }
 .sync-center-target-rename:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 /* Target actions sit under the text at every width so the name and report keep the full line. */
 .sync-center-app-info-target-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; margin-top: 2px; }
@@ -6611,7 +6654,7 @@ body.metronome-preset-open {
 .sync-center-rename-form p { margin: 0; }
 .sync-center-rename-context { overflow-wrap: anywhere; }
 .sync-center-rename-label { margin-top: 6px; color: var(--port-text); font-weight: 650; }
-.sync-center-rename-input { box-sizing: border-box; width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid rgba(205, 180, 116, 0.48); border-radius: 10px; color: var(--port-text); background: rgba(0, 0, 0, 0.32); font: inherit; font-size: max(16px, calc(1rem * var(--font-scale))); }
+.sync-center-rename-input { box-sizing: border-box; width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid rgba(var(--port-accent-rgb), 0.48); border-radius: 10px; color: var(--port-text); background: rgba(0, 0, 0, 0.32); font: inherit; font-size: max(16px, calc(1rem * var(--font-scale))); }
 .sync-center-rename-input:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 .sync-center-rename-input[aria-invalid="true"] { border-color: rgba(232, 111, 120, 0.72); }
 .sync-center-help-dialog .sync-center-rename-counter { justify-self: end; font-variant-numeric: tabular-nums; font-size: 0.75rem; }
@@ -6622,10 +6665,10 @@ body.metronome-preset-open {
 /* AI support (AI1-C, Pro beta) */
 .sync-center-ai-support { display: grid; gap: 10px; margin: 10px 0 14px; }
 .sync-center-ai-support[hidden], .sync-center-ai-panel[hidden] { display: none; }
-.sync-center-ai-open { justify-self: start; min-height: 36px; padding: 6px 14px; border: 1px solid rgba(232, 201, 122, 0.36); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-size: calc(0.82rem * var(--font-scale)); font-weight: 600; cursor: pointer; }
-.sync-center-ai-open[aria-expanded="true"] { border-color: rgba(232, 201, 122, 0.6); }
+.sync-center-ai-open { justify-self: start; min-height: 36px; padding: 6px 14px; border: 1px solid rgba(var(--port-accent-warm-rgb), 0.36); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-size: calc(0.82rem * var(--font-scale)); font-weight: 600; cursor: pointer; }
+.sync-center-ai-open[aria-expanded="true"] { border-color: rgba(var(--port-accent-warm-rgb), 0.6); }
 .sync-center-ai-open:focus-visible, .sync-center-ai-info-toggle:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
-.sync-center-ai-panel { display: grid; gap: 10px; padding: 12px; border: 1px solid rgba(205, 180, 116, 0.34); border-radius: 12px; background: rgba(255, 255, 255, 0.025); color: var(--port-text); }
+.sync-center-ai-panel { display: grid; gap: 10px; padding: 12px; border: 1px solid rgba(var(--port-accent-rgb), 0.34); border-radius: 12px; background: rgba(var(--port-hi-rgb), 0.025); color: var(--port-text); }
 .sync-center-ai-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
 .sync-center-ai-titles { display: grid; gap: 2px; min-width: 0; }
 .sync-center-support .sync-center-ai-title { margin: 0; color: var(--port-gold-bright); font-size: calc(1rem * var(--font-scale)); }
@@ -6633,13 +6676,13 @@ body.metronome-preset-open {
 .sync-center-ai-summary { display: flex; }
 .sync-center-support .sync-center-ai-summary-text { margin: 0; color: var(--port-text); font-size: calc(0.8rem * var(--font-scale)); line-height: 1.65; overflow-wrap: anywhere; }
 /* A quiet text button that opens the disclosure (replaces the long always-visible sentence). */
-.sync-center-ai-info-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 12px; border: 1px solid rgba(205, 205, 205, 0.36); border-radius: 999px; background: transparent; color: var(--port-muted); font: inherit; font-size: calc(0.76rem * var(--font-scale)); line-height: 1.2; cursor: pointer; }
+.sync-center-ai-info-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 4px 12px; border: 1px solid rgba(var(--port-neutral-rgb), 0.36); border-radius: 999px; background: transparent; color: var(--port-muted); font: inherit; font-size: calc(0.76rem * var(--font-scale)); line-height: 1.2; cursor: pointer; }
 .sync-center-ai-info-toggle::after { content: "▾"; font-size: 0.85em; transition: transform 0.15s ease; }
 .sync-center-ai-info-toggle[aria-expanded="true"]::after { transform: rotate(180deg); }
-.sync-center-ai-info-toggle[aria-expanded="true"] { color: var(--port-gold-bright); border-color: rgba(232, 201, 122, 0.6); }
-.sync-center-ai-details { display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); }
+.sync-center-ai-info-toggle[aria-expanded="true"] { color: var(--port-gold-bright); border-color: rgba(var(--port-accent-warm-rgb), 0.6); }
+.sync-center-ai-details { display: grid; gap: 6px; padding: 8px 10px; border-radius: 10px; background: rgba(var(--port-hi-rgb), 0.03); }
 .sync-center-ai-details[hidden] { display: none; }
-.sync-center-ai-close { flex: 0 0 auto; min-height: 36px; padding: 4px 12px; border: 1px solid rgba(205, 205, 205, 0.36); border-radius: 999px; background: transparent; color: var(--port-text); font: inherit; cursor: pointer; }
+.sync-center-ai-close { flex: 0 0 auto; min-height: 36px; padding: 4px 12px; border: 1px solid rgba(var(--port-neutral-rgb), 0.36); border-radius: 999px; background: transparent; color: var(--port-text); font: inherit; cursor: pointer; }
 .sync-center-support .sync-center-ai-privacy, .sync-center-support .sync-center-ai-memory { margin: 0; color: var(--port-muted); font-size: calc(0.78rem * var(--font-scale)); line-height: 1.65; overflow-wrap: anywhere; }
 /* The conversation flows in the page (no inner scroll box), so each new bubble can be scrolled to the top. */
 .sync-center-ai-log { display: grid; gap: 8px; }
@@ -6647,8 +6690,8 @@ body.metronome-preset-open {
 .sync-center-ai-message, .sync-center-ai-form { scroll-margin-top: max(16px, calc(env(safe-area-inset-top) + 12px)); scroll-margin-bottom: 12px; }
 .sync-center-ai-log:empty { display: none; }
 .sync-center-ai-message { display: grid; gap: 2px; padding: 8px 10px; border-radius: 10px; min-width: 0; }
-.sync-center-ai-message--user { justify-self: end; max-width: 88%; background: rgba(232, 201, 122, 0.12); border: 1px solid rgba(232, 201, 122, 0.28); }
-.sync-center-ai-message--ai { justify-self: start; max-width: 100%; background: rgba(255, 255, 255, 0.04); border: 1px solid var(--port-border); }
+.sync-center-ai-message--user { justify-self: end; max-width: 88%; background: rgba(var(--port-accent-warm-rgb), 0.12); border: 1px solid rgba(var(--port-accent-warm-rgb), 0.28); }
+.sync-center-ai-message--ai { justify-self: start; max-width: 100%; background: rgba(var(--port-hi-rgb), 0.04); border: 1px solid var(--port-border); }
 .sync-center-ai-speaker { color: var(--port-muted); font-size: calc(0.74rem * var(--font-scale)); font-weight: 650; }
 .sync-center-support .sync-center-ai-text { margin: 0; color: var(--port-text); font-size: calc(0.94rem * var(--font-scale)); white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7; }
 .sync-center-support .sync-center-ai-thinking { margin: 0; display: flex; align-items: center; gap: 10px; color: var(--port-muted); font-size: calc(0.88rem * var(--font-scale)); }
@@ -6664,7 +6707,7 @@ body.metronome-preset-open {
 .sync-center-ai-error[hidden] { display: none; }
 .sync-center-ai-form { display: grid; gap: 6px; }
 .sync-center-ai-label { color: var(--port-text); font-size: calc(0.88rem * var(--font-scale)); font-weight: 650; }
-.sync-center-ai-input { box-sizing: border-box; width: 100%; min-height: 84px; padding: 10px 12px; resize: vertical; border: 1px solid rgba(205, 180, 116, 0.48); border-radius: 10px; color: var(--port-text); background: rgba(0, 0, 0, 0.32); font: inherit; font-size: max(16px, calc(1rem * var(--font-scale))); line-height: 1.5; }
+.sync-center-ai-input { box-sizing: border-box; width: 100%; min-height: 84px; padding: 10px 12px; resize: vertical; border: 1px solid rgba(var(--port-accent-rgb), 0.48); border-radius: 10px; color: var(--port-text); background: rgba(0, 0, 0, 0.32); font: inherit; font-size: max(16px, calc(1rem * var(--font-scale))); line-height: 1.5; }
 .sync-center-ai-input:focus-visible, .sync-center-ai-close:focus-visible, .sync-center-app-info-ai:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
 .sync-center-ai-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .sync-center-ai-counter { margin-right: auto; color: var(--port-muted); font-size: calc(0.7rem * var(--font-scale)); font-variant-numeric: tabular-nums; }
@@ -6676,7 +6719,7 @@ body.metronome-preset-open {
 /* Slightly smaller than the label; the short sentence fits one line on common phone widths. */
 .sync-center-support .sync-center-ai-codes { margin: 0; color: #ffe2a8; font-size: calc(0.74rem * var(--font-scale)); line-height: 1.5; overflow-wrap: anywhere; }
 .sync-center-ai-sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
-.sync-center-app-info-ai { justify-self: start; min-height: 36px; padding: 6px 14px; border: 1px solid rgba(232, 201, 122, 0.36); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 600; cursor: pointer; }
+.sync-center-app-info-ai { justify-self: start; min-height: 36px; padding: 6px 14px; border: 1px solid rgba(var(--port-accent-warm-rgb), 0.36); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 600; cursor: pointer; }
 
 /* NEWS beta: local manual fixture only. */
 .news-home { margin: 0 0 12px; min-width: 0; }
@@ -6701,3 +6744,303 @@ body.metronome-preset-open {
     .news-ticker-track { animation: none; display: block; width: auto; overflow: hidden; text-overflow: ellipsis; }
     .news-ticker-track > span:not(:first-child) { display: none; }
 }
+
+/* ═══ Color themes: Gray / Light ═══════════════════════════════════════════════════════════
+   Dark is the :root default above (production values, unchanged) and is never overridden here.
+   Everything below applies only when <html data-theme="gray|light"> is set by the startup
+   bootstrap or the Settings choice. Brand gold (--port-gold) and status/functional colors stay. */
+:root[data-theme="gray"] {
+    color-scheme: light;
+    --port-bg: #c8cbd0;
+    --port-surface: #d8dbdf;
+    --port-surface-deep: #d2d5da;
+    --port-surface-deep-alt: #d2d5da;
+    --port-text: #1d1f23;
+    --port-muted: #4a4e55;
+    --port-border: rgba(29, 31, 35, 0.16);
+    --port-accent-text: #634c15;
+    --port-accent-text-strong: #3a2c08;
+    --port-gold-bright: var(--port-accent-text);
+    --port-accent-rgb: 122, 94, 30;
+    --port-line-rgb: 29, 31, 35;
+    --port-accent-soft-rgb: 99, 76, 21;
+    --port-accent-line-rgb: 122, 94, 30;
+    --port-accent-hover-rgb: 99, 76, 21;
+    --port-accent-chrome-rgb: 99, 76, 21;
+    --port-accent-code-rgb: 122, 94, 30;
+    --port-accent-switch-rgb: 122, 94, 30;
+    --port-cream-rgb: 42, 38, 30;
+    --port-ink-rgb: 29, 31, 35;
+    --port-dim-rgb: 40, 43, 48;
+    --port-faint-rgb: 29, 31, 35;
+    --port-neutral-rgb: 62, 65, 70;
+    --port-hi-rgb: 0, 0, 0;
+    --port-well-rgb: 238, 240, 242;
+    --port-well-alt-rgb: 238, 240, 242;
+    --port-well-deep-rgb: 238, 240, 242;
+    --port-well-cool-rgb: 238, 240, 242;
+    --port-well-warm-rgb: 238, 240, 242;
+    --port-chrome-rgb: 238, 240, 242;
+    --port-panel: #e3e5e8;
+    --port-panel-alt: #e3e5e8;
+    --port-panel-deep: #d8dbdf;
+    --port-control: #e3e5e8;
+    --port-control-hover: #d9dce0;
+    --port-control-quiet: #e3e5e8;
+    --port-control-active: #d5d8dc;
+    --port-field: #eef0f2;
+    --port-menu: #eef0f2;
+    --port-menu-alt: #eef0f2;
+    --port-menu-deep: #eef0f2;
+    --port-card-press-top: #d0d3d8;
+    --port-card-press-bottom: #c9ccd1;
+    --port-bg-top: #cdd0d4;
+    --port-bg-bottom: #c3c6cb;
+    --port-overlay: rgba(40, 42, 46, 0.45);
+    --port-shadow-alpha: 0.12;
+    --port-danger-text: #8c2731;
+    --port-caution-text: #6a4a06;
+    --port-success-text: #285c34;
+}
+:root[data-theme="light"] {
+    color-scheme: light;
+    --port-bg: #f7f6f2;
+    --port-surface: #ffffff;
+    --port-surface-deep: #f7f6f2;
+    --port-surface-deep-alt: #f7f6f2;
+    --port-text: #1c1b18;
+    --port-muted: #5f5b52;
+    --port-border: rgba(28, 27, 24, 0.12);
+    --port-accent-text: #6b5318;
+    --port-accent-text-strong: #4c3a0e;
+    --port-gold-bright: var(--port-accent-text);
+    --port-accent-rgb: 150, 116, 40;
+    --port-line-rgb: 28, 27, 24;
+    --port-accent-soft-rgb: 107, 83, 24;
+    --port-accent-line-rgb: 150, 116, 40;
+    --port-accent-hover-rgb: 107, 83, 24;
+    --port-accent-chrome-rgb: 107, 83, 24;
+    --port-accent-code-rgb: 150, 116, 40;
+    --port-accent-switch-rgb: 150, 116, 40;
+    --port-cream-rgb: 46, 40, 28;
+    --port-ink-rgb: 28, 27, 24;
+    --port-dim-rgb: 58, 55, 48;
+    --port-faint-rgb: 28, 27, 24;
+    --port-neutral-rgb: 90, 88, 84;
+    --port-hi-rgb: 0, 0, 0;
+    --port-well-rgb: 255, 255, 255;
+    --port-well-alt-rgb: 255, 255, 255;
+    --port-well-deep-rgb: 255, 255, 255;
+    --port-well-cool-rgb: 255, 255, 255;
+    --port-well-warm-rgb: 255, 255, 255;
+    --port-chrome-rgb: 255, 255, 255;
+    --port-panel: #ffffff;
+    --port-panel-alt: #ffffff;
+    --port-panel-deep: #f0eee8;
+    --port-control: #f0eee8;
+    --port-control-hover: #e8e5dc;
+    --port-control-quiet: #f5f3ee;
+    --port-control-active: #ebe7dd;
+    --port-field: #ffffff;
+    --port-menu: #ffffff;
+    --port-menu-alt: #ffffff;
+    --port-menu-deep: #ffffff;
+    --port-card-press-top: #f3efe4;
+    --port-card-press-bottom: #ece7da;
+    --port-bg-top: #fbfaf7;
+    --port-bg-bottom: #f2f0ea;
+    --port-overlay: rgba(20, 20, 18, 0.40);
+    --port-shadow-alpha: 0.08;
+    --port-danger-text: #9a2e38;
+    --port-caution-text: #765208;
+    --port-success-text: #2c6438;
+}
+
+/* Form controls follow the page scheme; a fixed-dark panel below switches them back. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(select, .practice-calendar-note-times select) { color-scheme: light; }
+
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.practice-history-form input, .practice-history-form select,
+    #sync-center-recovery-input, #sync-center-port-connect-input, .sync-center-rename-input, .sync-center-ai-input,
+    .sync-center-turnstile) { background: var(--port-field); }
+
+/* Soft shadows: same geometry, lighter ink. */
+:root:is([data-theme="gray"], [data-theme="light"]) .port-card { box-shadow: 0 10px 24px rgba(0, 0, 0, var(--port-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .view-panel { box-shadow: 0 16px 36px rgba(0, 0, 0, var(--port-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .app-card img { filter: drop-shadow(0 8px 13px rgba(0, 0, 0, 0.18)); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.app-card, .tool-card, .my-app-launch-card):hover { box-shadow: 0 15px 30px rgba(0, 0, 0, var(--port-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.practice-set-dialog-panel, .gear-category-dialog-panel) { box-shadow: 0 22px 60px rgba(0, 0, 0, var(--port-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.gear-export-menu, .gear-card-actions) { box-shadow: 0 12px 24px rgba(0, 0, 0, var(--port-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .gear-category-menu { box-shadow: 0 16px 34px rgba(0, 0, 0, var(--port-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .practice-calendar-note-icons { box-shadow: 0 14px 30px rgba(0, 0, 0, var(--port-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.my-apps-crop-panel, .metronome-preset-dialog-panel) { box-shadow: 0 24px 64px rgba(0, 0, 0, var(--port-shadow-alpha)); }
+
+/* Modal scrims. Photo/file lightboxes stay dark (they frame user images). */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.port-pro-prompt, .practice-set-dialog, .gear-category-dialog, .practice-completion-dialog,
+    .my-apps-crop-dialog, .metronome-preset-dialog, .port-launch) { background: var(--port-overlay); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sync-center-help-dialog::backdrop { background: var(--port-overlay); }
+
+/* Practice completion card. */
+:root:is([data-theme="gray"], [data-theme="light"]) .practice-completion-panel {
+    background: linear-gradient(155deg, var(--port-surface), var(--port-surface-deep));
+    box-shadow: 0 25px 70px rgba(0, 0, 0, var(--port-shadow-alpha)), 0 0 42px rgba(var(--port-accent-rgb), 0.08);
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .practice-completion-dialog:not(.is-partial) .practice-completion-panel {
+    background: radial-gradient(ellipse at 50% 0%, rgba(var(--port-accent-rgb), 0.12), transparent 68%),
+        linear-gradient(155deg, var(--port-surface), var(--port-surface-deep));
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .practice-completion-dialog.is-partial .practice-completion-panel { box-shadow: 0 25px 64px rgba(0, 0, 0, var(--port-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .practice-completion-sparkles i { color: var(--port-accent-text); }
+
+/* Gold read as text: deep gold of the same family. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.practice-card-count, .practice-history-event, .reorder-handle, .practice-arrow,
+    .my-app-external-mark, .beat-mark, .skeleton-icon, .add-symbol,
+    .settings-link-card > button > span:last-child, .view-kicker, .tempo-unit,
+    .beat-button.is-accented .beat-mark) { color: var(--port-accent-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) .my-apps-custom-launch summary::after { color: var(--port-accent-text); }
+
+/* The refresh bar is drawn at 0.8 opacity; its gold text needs the deeper step. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.port-refresh-btn, .sync-center-section-help) { color: var(--port-accent-text-strong); }
+
+/* Pro badge keeps its gold border; text gets the deep gold. */
+:root:is([data-theme="gray"], [data-theme="light"]) .port-pro-badge { color: var(--port-accent-text-strong); }
+
+/* Status text (error / caution / success) darkened within the same hue for light surfaces. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sync-center-app-status-chip--deleting, .sync-center-app-remove, .sync-center-danger .danger-action,
+    .sync-center-help-dialog .danger-action, .sync-center-target-revoke, .sync-center-help-dialog .sync-center-rename-error,
+    .sync-center-ai-unsent, .sync-center-support .sync-center-ai-error, .sync-center-ai-counter--over,
+    .sync-center-danger-toggle, .sync-center-join-warning, .practice-attachment-status.is-error, .danger-action,
+    .practice-form-delete, #practice-empty > p, .notice-error:not(.tuner-error),
+    .practice-count-reset-section button, .practice-attachment-actions button, .practice-set-delete,
+    .metronome-preset-delete) { color: var(--port-danger-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sync-center-danger-toggle:focus-visible { outline-color: var(--port-danger-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sync-center-app-status-chip--attention, .sync-center-app-status-chip--connecting, .sync-center-removal-safety--attention,
+    .sync-status-attention .sync-center-app-status-line, .sync-status-initial .sync-center-app-status-line,
+    .sync-center-app-info-target--attention .sync-center-app-info-mark, .sync-center-lifecycle-sync-note,
+    #sync-center-lifecycle-confirm[data-sync-severity="caution"] #sync-center-lifecycle-title,
+    .sync-center-environment-current--account, .sync-center-support .sync-center-ai-codes) { color: var(--port-caution-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sync-center-removal-safety--safe, .sync-status-synced .sync-center-app-record-count, .practice-saved) { color: var(--port-success-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sync-status-detached .sync-center-app-record-count { color: var(--port-muted); }
+
+/* NEWS keeps its own cool neutral layout colors; only the ink follows the page. */
+:root:is([data-theme="gray"], [data-theme="light"]) .news-ticker { background: var(--port-surface); border-color: rgba(var(--port-line-rgb), 0.2); color: var(--port-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.news-ticker-label, .news-entry, .news-category) { color: var(--port-accent-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.news-contact, .news-beta-note, .news-source, .news-card time, .news-day, .news-empty) { color: var(--port-muted); }
+:root:is([data-theme="gray"], [data-theme="light"]) .news-filter select { background: var(--port-field); color: var(--port-text); border-color: rgba(var(--port-line-rgb), 0.3); }
+:root:is([data-theme="gray"], [data-theme="light"]) .news-card { background: var(--port-surface); border-color: rgba(var(--port-line-rgb), 0.16); color: var(--port-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.news-ticker, .news-entry, .news-card, .news-filter select):focus-visible { outline-color: var(--port-accent-text); }
+
+/* Shared Sound Cruise Sync components (apps/shared/sync-account/multi-app-sync.css stay Dark for
+   other apps); Port-scoped colors so Settings, Sync Center, Join and conflict UI follow the theme. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-card, .sound-cruise-sync-setup, .sound-cruise-sync-help,
+    .sound-cruise-sync-restore-attention, .sound-cruise-sync-conflict) {
+    border-color: rgba(var(--port-accent-rgb), 0.45);
+    background: var(--port-panel);
+    color: var(--port-text);
+    box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, var(--port-shadow-alpha));
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-settings-card { box-shadow: none; }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-setup, .sound-cruise-sync-help, .sound-cruise-sync-conflict)::backdrop { background: var(--port-overlay); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-button, .sound-cruise-sync-join-entry, .sound-cruise-sync-help-button,
+    .sound-cruise-sync-setup button, .sound-cruise-sync-setup a, .sound-cruise-sync-restore-attention button,
+    .sound-cruise-sync-conflict-bulk button, .sound-cruise-sync-conflict-individual button) {
+    border-color: rgba(var(--port-accent-rgb), 0.6);
+    background: var(--port-control);
+    color: var(--port-text);
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-button--primary { border-color: rgba(var(--port-accent-rgb), 0.85); background: rgba(var(--port-accent-rgb), 0.16); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-button--danger { color: var(--port-danger-text); background: rgba(207, 90, 99, 0.1); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-status-chip, .sound-cruise-sync-description, .sound-cruise-sync-help-summary,
+    .sound-cruise-sync-help-section p, .sound-cruise-sync-help-steps, .sound-cruise-sync-help-link,
+    .sound-cruise-sync-conflict-summary, .sound-cruise-sync-conflict-overview-item h3, .sound-cruise-sync-conflict-help h3,
+    .sound-cruise-sync-conflict-field h4, .sound-cruise-sync-conflict-field-values, .sound-cruise-sync-conflict-field-count,
+    .sound-cruise-sync-conflict-title, .sound-cruise-sync-conflict-name, .sound-cruise-sync-conflict-deletion-difference strong) { color: var(--port-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-account-id, .sound-cruise-sync-conflict-times, .sound-cruise-sync-conflict-help p,
+    .sound-cruise-sync-conflict-auto, .sound-cruise-sync-conflict-detail-times, .sound-cruise-sync-conflict-deletion-difference span,
+    .sound-cruise-sync-conflict-individual-toggle) { color: var(--port-muted); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-chevron, .sound-cruise-sync-feedback, .sound-cruise-sync-help-toggle,
+    .sound-cruise-sync-help-section h4, .sound-cruise-sync-conflict-count, .sound-cruise-sync-conflict-state,
+    .sound-cruise-sync-conflict-bulk-heading > p, .sound-cruise-sync-conflict-individual-toggle[aria-expanded='true'],
+    .sound-cruise-sync-conflict-choice legend, .sound-cruise-sync-conflict-status) { color: var(--port-accent-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-setup [data-sync-error], .sound-cruise-sync-feedback[data-sync-feedback="error"],
+    .sound-cruise-sync-conflict-status.is-error) { color: var(--port-danger-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-header, .sound-cruise-sync-help-footer, .sound-cruise-sync-help-section,
+    .sound-cruise-sync-conflict-overview-item, .sound-cruise-sync-conflict-bulk, .sound-cruise-sync-conflict-help,
+    .sound-cruise-sync-conflict-individual, .sound-cruise-sync-conflict-field, .sound-cruise-sync-conflict-deletion-difference > div,
+    .sound-cruise-sync-conflict-footer, .sound-cruise-sync-conflict-card) { border-color: rgba(var(--port-line-rgb), 0.18); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-footer) { background: var(--port-panel); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-section, .sound-cruise-sync-conflict-bulk, .sound-cruise-sync-conflict-deletion-difference > div,
+    .sound-cruise-sync-conflict-choice-option, .sound-cruise-sync-conflict-overview-item, .sound-cruise-sync-conflict-card) { background: var(--port-surface-deep); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-choice-option { border-color: rgba(var(--port-line-rgb), 0.24); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-choice-option:has(input:checked) {
+    border-color: rgba(var(--port-accent-rgb), 0.85);
+    background: rgba(var(--port-accent-rgb), 0.14);
+    box-shadow: inset 0 0 0 1px rgba(var(--port-accent-rgb), 0.33);
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-footer .sound-cruise-sync-conflict-later { border-color: rgba(var(--port-line-rgb), 0.3); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-button, .sound-cruise-sync-settings-toggle, .sound-cruise-sync-help-toggle,
+    .sound-cruise-sync-conflict button, .sound-cruise-sync-conflict input):focus-visible { outline-color: var(--port-accent-text); }
+
+/* ── Dark-fixed functional panels ─────────────────────────────────────────────────────────
+   The tuner (reading, meter, strings, input level, diagnostics) and the tool icon plates keep the
+   production Dark appearance in every theme. Tokens below are an exact copy of the :root Dark
+   values (verified by tests); the panel is a self-contained Dark island. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.tuner-panel, #home-view .tool-card:not(.my-app-launch-card) .skeleton-icon) {
+    color-scheme: dark;
+    --port-bg: #080806;
+    --port-surface: #12110f;
+    --port-surface-deep: #0c0c0a;
+    --port-gold: #cdb474;
+    --port-gold-bright: #e6d29b;
+    --port-text: #f3f0e8;
+    --port-muted: #9b968a;
+    --port-border: rgba(207, 189, 148, 0.16);
+    --port-accent-rgb: 205, 180, 116;
+    --port-line-rgb: 207, 189, 148;
+    --port-accent-soft-rgb: 230, 210, 155;
+    --port-accent-warm-rgb: 232, 201, 122;
+    --port-accent-line-rgb: 229, 204, 139;
+    --port-accent-hover-rgb: 241, 218, 153;
+    --port-accent-chrome-rgb: 228, 198, 124;
+    --port-accent-press-rgb: 212, 175, 55;
+    --port-accent-plate-rgb: 217, 189, 114;
+    --port-accent-code-rgb: 214, 180, 79;
+    --port-accent-switch-rgb: 205, 169, 91;
+    --port-cream-rgb: 232, 219, 181;
+    --port-ink-rgb: 243, 240, 232;
+    --port-dim-rgb: 180, 174, 158;
+    --port-faint-rgb: 190, 185, 170;
+    --port-neutral-rgb: 205, 205, 205;
+    --port-hi-rgb: 255, 255, 255;
+    --port-well-rgb: 8, 8, 6;
+    --port-well-alt-rgb: 7, 7, 5;
+    --port-well-deep-rgb: 4, 4, 3;
+    --port-well-cool-rgb: 5, 6, 6;
+    --port-well-warm-rgb: 8, 7, 5;
+    --port-chrome-rgb: 20, 19, 17;
+    --port-surface-deep-alt: #0d0c0a;
+    --port-panel: #11100d;
+    --port-panel-alt: #11100c;
+    --port-panel-deep: #090806;
+    --port-control: #151410;
+    --port-control-hover: #1b1914;
+    --port-control-quiet: #12110e;
+    --port-control-active: #181611;
+    --port-field: #090907;
+    --port-menu: #17150f;
+    --port-menu-alt: #171611;
+    --port-menu-deep: #0d0c09;
+    --port-card-press-top: #1c1913;
+    --port-card-press-bottom: #12100d;
+    --port-bg-top: #0a0a08;
+    --port-bg-bottom: #060604;
+    --port-accent-text: var(--port-gold-bright);
+    color: var(--port-text);
+}
+/* Tool icons carry white and glow details drawn for Dark; their own box becomes a Dark tile shaped
+   like the Cruise app icons (same size, no layout change). */
+:root:is([data-theme="gray"], [data-theme="light"]) #home-view .tool-card:not(.my-app-launch-card) .skeleton-icon {
+    border-radius: 23%;
+    background: var(--port-surface);
+    color: rgba(var(--port-accent-soft-rgb), 0.68);
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .tuner-panel select { color-scheme: dark; }

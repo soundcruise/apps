@@ -30,7 +30,8 @@ test('settings handlers keep complete drafts, use the guarded store, and limit r
     assert.match(handlers, /saveSettings\(next\)/);
     assert.match(handlers, /\.\.\.homeSettings, \[field\]/);
     assert.match(handlers, /window\.confirm/);
-    assert.match(handlers, /updateDisplaySettings\(DEFAULT_SETTINGS\)/);
+    // Reset returns every display setting, including the color theme, to its default (Dark).
+    assert.match(handlers, /updateDisplaySettings\(\{ \.\.\.DEFAULT_SETTINGS, theme: DEFAULT_THEME \}\)/);
     assert.doesNotMatch(handlers, /localStorage|indexedDB|deleteDatabase|removeItem/);
     assert.match(app, /row\.append\(button\)/);
     assert.match(app, /button\.disabled = index \+ direction/);

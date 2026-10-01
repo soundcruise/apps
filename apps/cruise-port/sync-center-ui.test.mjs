@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { bindSyncCenterActions, renderAppRows, shouldShowPortConflictAction } from './sync-center-ui.js';
+import { readDarkStyle } from './theme-test-support.mjs';
 
 test('12 cloud records and one unresolved conflict show 確認が必要 1件', () => {
     const originalDocument = globalThis.document;
@@ -170,7 +171,7 @@ test('Account section presents step title, status chip and state-specific CTA', 
 });
 
 test('App rows render one status chip with only user-attention counts', () => {
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     assert.match(ui, /sync-center-app-status-line/);
     assert.match(ui, /sync-center-app-status-chip--\$\{presentationStatus\.state\}/);
     assert.match(ui, /app\.attentionCount > 0/);
@@ -185,7 +186,7 @@ test('App rows render one status chip with only user-attention counts', () => {
 });
 
 test('Account section renders Cruise Port as a compact card with the shared status language', () => {
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     for (const html of [root, pro]) {
         assert.match(html, /sync-center-port-card/);
         assert.match(html, /id="sync-center-port-status-chip"/);
@@ -210,7 +211,7 @@ test('Port conflict re-entry is driven only by the actual unresolved conflict co
 });
 
 test('Environment management keeps the Port path compact and the app-specific path progressive', () => {
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     for (const html of [root, pro]) {
         assert.match(html, /3\. アカウントを同期/);
         assert.match(html, /id="sync-center-add-environments"/);
@@ -260,7 +261,7 @@ test('current Port detach is distinct from generic environment revoke and leaves
 
 test('Sync Code rows bind the existing launch callback after every render', () => {
     const source = read('./sync-center-ui.js');
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     assert.match(source, /function renderAppRows\(root, presentation, edition, orchestrationEnabled, onAppAction = null[,)]/);
     assert.match(source, /action\.addEventListener\('click', \(event\) => \{[\s\S]*event\.stopPropagation\(\);[\s\S]*void onAppAction\(action\)/);
     assert.match(source, /return Object\.freeze\(\{ ensureQaAdmission, onAppAction: issueAppJoin \}\)/);
@@ -361,7 +362,7 @@ test('Recovery execution copy is concise and its dialog prevents iOS input zoom'
         assert.doesNotMatch(html, /保存済みのAccount Recovery Codeを入力してください。/);
         assert.doesNotMatch(html, /現在有効な復旧コードは1つだけです。新しい復旧コードを発行すると/);
     }
-    const css = read('./style.css');
+    const css = readDarkStyle();
     assert.match(css, /#sync-center-recovery-input,[\s\S]*#sync-center-port-connect-input\s*\{[\s\S]*box-sizing:\s*border-box[\s\S]*font-size:\s*max\(16px, calc\(1rem \* var\(--font-scale\)\)\)/);
     assert.match(css, /\.sync-center-help-dialog[\s\S]*box-sizing:\s*border-box[\s\S]*width:\s*min\(560px, calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)\)[\s\S]*max-width:\s*calc\(100vw - 24px - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)[\s\S]*max-height:\s*min\(calc\(100dvh - 24px\), 720px\)[\s\S]*overflow-x:\s*hidden[\s\S]*overflow-y:\s*auto/);
 });
@@ -581,7 +582,7 @@ test('Lifecycle UI separates danger actions and enforces stable two-step sensiti
 
 test('App detach stays in its row while app cloud deletion moves into a closed Danger accordion', () => {
     const source = read('./sync-center-ui.js');
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     assert.match(source, /const canRemoveAppSync = Number\(app\.activeAppDeviceCount \|\| 0\) > 0 &&[\s\S]*app\.status !== 'deleting' && orchestrationEnabled/);
     assert.match(source, /action\.dataset\.syncAppDetach = app\.id/);
     assert.match(source, /action\.dataset\.syncAppName = app\.name/);
@@ -610,7 +611,7 @@ test('App detach stays in its row while app cloud deletion moves into a closed D
 
 test('delete grace reconnect is explicit and Section 3 owns counts, lists and scoped revoke', () => {
     const source = read('./sync-center-ui.js');
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     assert.match(source, /dataset\.syncAppDeleteGrace = 'true'/);
     assert.match(source, /削除を取り消して再接続/);
     assert.match(source, /削除を取り消して同期コードを表示/);
@@ -632,7 +633,7 @@ test('delete grace reconnect is explicit and Section 3 owns counts, lists and sc
 });
 
 test('target controls use the old borderless style and only Sections 1 and 2 are inline', () => {
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     for (const html of [root, pro]) {
         assert.match(html, /sync-center-status-and-targets[^>]*><span id="sync-center-port-status-chip"[\s\S]*?<span id="sync-center-account-targets-trigger"/);
         assert.match(html, /<div id="sync-center-account-targets" class="sync-center-account-targets"><\/div>/);
@@ -659,7 +660,7 @@ test('official four-app routes are reused and no all-data-upload promise is made
 });
 
 test('Sync Help uses current plain-language copy and keeps the browser and Home Screen note', () => {
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     for (const html of [root, pro]) {
         assert.match(html, /id="settings-sync-center-help"/);
         assert.match(html, /音感・指板・リズム・コードの各Cruiseアプリで保存したデータをクラウドに同期します。/);
@@ -683,7 +684,7 @@ test('Sync Help uses current plain-language copy and keeps the browser and Home 
 
 test('Join invitation keeps existing callbacks while rendering a concise non-secret flow', () => {
     const source = read('./sync-center-ui.js');
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     assert.match(source, /panel\.className = 'sync-center-join-panel'/);
     assert.match(source, /code\.className = 'sync-center-join-code'/);
     assert.match(source, /copy\.className = 'action-button primary-action'/);
@@ -719,7 +720,7 @@ test('Join invitation keeps existing callbacks while rendering a concise non-sec
 });
 
 test('Join dialog identifies the target app from appId using the official icon catalog', () => {
-    const styles = read('./style.css');
+    const styles = readDarkStyle();
     assert.match(ui, /: SYNC_CENTER_APPS\.find\(\(app\) => app\.id === result\.appId\)/);
     assert.match(ui, /CRUISE_APP_ICONS\[target\.id\]\[edition === 'pro' \? 'pro' : 'standard'\]/);
     assert.match(ui, /badge\.className = 'sync-center-join-target'/);

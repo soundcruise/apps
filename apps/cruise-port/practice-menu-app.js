@@ -184,9 +184,9 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.11.1';
-import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
-import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
+} from './app-version.js?v=1.12.0';
+import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.12.0';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.12.0';
 import { initTuner } from './tuner-app.js?v=0.69.0';
 import {
     clearGearPhotoReferences,
@@ -388,6 +388,7 @@ const elements = {
     settingsStorageError: document.querySelector('#settings-storage-error'),
     settingsChoices: [...document.querySelectorAll('[data-display-size]')],
     fontChoices: [...document.querySelectorAll('button[data-font-size]')],
+    themeChoices: [...document.querySelectorAll('button[data-theme-choice]')],
     sectionOrder: document.querySelector('#settings-section-order'),
     orderStatus: document.querySelector('#settings-order-status'),
     settingsReset: document.querySelector('#settings-reset'),
@@ -4201,10 +4202,17 @@ function renderForm(mode, id = null) {
 function applyDisplaySettings() {
     applyHomeDisplaySize(elements.homeView, homeSettings.displaySize);
     document.documentElement.dataset.fontSize = homeSettings.fontSize;
+    applyColorTheme(resolveTheme(homeSettings.theme));
     applyHomeSectionOrder(elements.homeView, homeSettings.sectionOrder);
     // The edition link is auxiliary, never part of the user's section order.
     const proLink = elements.homeView.querySelector('[data-standard-pro-link]');
     if (proLink) elements.homeView.append(proLink);
+}
+
+// Mirrors the startup bootstrap in the entry HTMLs so a choice applies without reload.
+function applyColorTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', THEME_META_COLORS[theme]);
 }
 
 const homeSectionLabels = { cruiseApps: 'クルーズアプリ', tools: 'ツール', myApps: 'My Apps' };
@@ -4212,10 +4220,12 @@ const homeSectionLabels = { cruiseApps: 'クルーズアプリ', tools: 'ツー�
 function renderSettings({ focus = true, storageError = '' } = {}) {
     showView(elements.settingsView);
     applyDisplaySettings();
-    [...elements.settingsChoices, ...elements.fontChoices].forEach((button) => {
+    [...elements.settingsChoices, ...elements.fontChoices, ...elements.themeChoices].forEach((button) => {
         const selected = button.dataset.displaySize
             ? button.dataset.displaySize === homeSettings.displaySize
-            : button.dataset.fontSize === homeSettings.fontSize;
+            : button.dataset.fontSize
+                ? button.dataset.fontSize === homeSettings.fontSize
+                : button.dataset.themeChoice === resolveTheme(homeSettings.theme);
         button.classList.toggle('is-selected', selected);
         button.setAttribute('aria-checked', selected ? 'true' : 'false');
         button.tabIndex = selected ? 0 : -1;
@@ -6409,7 +6419,12 @@ function updateDisplaySettings(next) {
     updateDisplaySettings({ ...homeSettings, [field]: button.dataset[field] });
     button.focus({ preventScroll: true });
 }));
-for (const choices of [elements.settingsChoices, elements.fontChoices]) choices.forEach((button, index) => button.addEventListener('keydown', (event) => {
+// Only an explicit tap stores the theme (including Dark).
+elements.themeChoices.forEach((button) => button.addEventListener('click', () => {
+    updateDisplaySettings({ ...homeSettings, theme: button.dataset.themeChoice });
+    button.focus({ preventScroll: true });
+}));
+for (const choices of [elements.settingsChoices, elements.fontChoices, elements.themeChoices]) choices.forEach((button, index) => button.addEventListener('keydown', (event) => {
     if (!['ArrowLeft', 'ArrowUp', 'ArrowRight', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     const offset = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
@@ -6429,7 +6444,7 @@ elements.sectionOrder.addEventListener('click', (event) => {
 });
 elements.settingsReset.addEventListener('click', () => {
     if (!window.confirm('表示設定をすべてデフォルトに戻しますか？\n練習メニューやMy Appsなどのデータは削除されません。')) return;
-    const saved = updateDisplaySettings(DEFAULT_SETTINGS);
+    const saved = updateDisplaySettings({ ...DEFAULT_SETTINGS, theme: DEFAULT_THEME });
     elements.orderStatus.textContent = saved ? '表示設定をデフォルトに戻しました。' : '保存できませんでした。デフォルトは今回の表示だけに反映しています。';
     elements.settingsReset.focus({ preventScroll: true });
 });

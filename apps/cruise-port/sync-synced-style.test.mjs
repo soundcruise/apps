@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { readDarkStyle } from './theme-test-support.mjs';
 
-const css = readFileSync(new URL('./style.css', import.meta.url), 'utf8');
+const css = readDarkStyle();
 
 test('「✓ 同期済み」 in 2 (Cruise apps, --available) uses exactly the style of 1 (Cruise Port, --synced)', () => {
   const rule = css.match(/\.sync-center-app-status-chip--synced,\s*\.sync-center-app-status-chip--available \{([^}]*)\}/);
