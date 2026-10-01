@@ -1571,6 +1571,21 @@
     flex: 1 1 0;
 }
 
+.settings-theme-buttons {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 2px;
+    padding: 2px;
+}
+
+.settings-theme-buttons .mode-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 4px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
 .settings-countdown-sound-buttons {
     width: 100%;
     gap: 2px;

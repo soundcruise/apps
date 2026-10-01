@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/fretboard_cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/fretboard_cruise/standard/`（要確認: トップレベルのリダイレクトが別途あるかは未確認）
 - PRO版URL: `https://soundcruise.jp/apps/fretboard_cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `2.8.3`（`script.js` 内 `FRETBOARD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `2.21.0`（`script.js` 内 `FRETBOARD_CRUISE_APP_VERSION`）
 - 最新commit（fretboard_cruise関連、`git log --oneline -- apps/fretboard_cruise/` で確認）:
   - hash: `a75bf6dc`
   - message: `指板クルーズ通常版の設定を公式デフォルトに固定`
@@ -110,6 +110,18 @@
 - **練習モード**: 「指板をたどる」（cruise/暗記系）、「指板クイズ」（quiz系）、「指板を見る」（visualize系）の3系統。
 - **PROロック**: STAGE編集の保存・PROカスタムSTAGEの作成/編集/保存が対象（3章参照）。
 - **描画ロジックに触る時の注意点**: `script.js`は非常に大規模な単一ファイル（数万行規模）で、指板描画・STAGE進行・編集・PROロック判定が密結合している。変更前に必ず関連関数を`grep`で洗い出し、影響範囲を確認してから着手すること。「指板クルーズ通常版の設定を公式デフォルトに固定」「指板クルーズSTAGE1の保存ルートを正規化」「指板クルーズの同時タップ判定と救済Perfect表示を改善」など、細かい実機不具合対応の履歴が多数あるため、既存ロジックを壊さないよう特に慎重に扱うこと。
+
+---
+
+### カラーテーマ（2.21.0〜）
+
+- 設定「共通」タブ先頭の「カラーテーマ」: ダーク / チャコール / グレー / ライト（通常版でも選択可）。タップで即プレビュー、「決定」で保存、「キャンセル」で元に戻る。「全てリセット」はダークへ戻す。「指板の視点」のリセットはテーマを変えない。
+- 保存先: `fretboard_cruise_state.settings.theme`（明示選択時のみ保存。欠落・不正値はダーク。読み込み時に書き戻さない）。通常版は `STANDARD_EDITION_WRITABLE_SETTINGS_KEYS` に `theme` を含めて保存する。
+- 起動時: 各 `index.html` の `<head>` 先頭の bootstrap が `html[data-theme]` と theme-color meta を設定（FOUC防止）。
+- 見た目: Dark は既存CSSそのまま（無変更）。Charcoal / Gray / Light は `theme-colors.css`（最後に読み込む）だけで適用。このファイルは `tools/theme-layer/generate.py fretboard` が既存CSSから自動生成する。手で直すのは末尾の「Hand-tuned overrides」以降だけ。CSSの色を変えたら generator を再実行する。
+- 指板（木目・フレット・弦・ドット・マーカー・度数色・ルート編集のグループ色）と Pro ゲートは全テーマで Dark と同じ色。
+- Cloud Sync: theme は端末ローカルのみ（`SYNC_SETTINGS` に含めない）。同期の適用でローカルの theme は消えない。
+- テスト: `node --test apps/fretboard_cruise/theme.test.mjs`
 
 ---
 

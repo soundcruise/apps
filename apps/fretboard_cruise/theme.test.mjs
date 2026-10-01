@@ -1,0 +1,148 @@
+// Fretboard Cruise color theme (Dark / Charcoal / Gray / Light): bootstrap, settings contract,
+// generated theme layer scope and local-only Cloud Sync behaviour.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import vm from 'node:vm';
+
+const root = import.meta.dirname;
+const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
+const script = read('script.js');
+const layer = read('theme-colors.css');
+const entries = [['standard', read('standard/index.html')], ['pro', read('pro_a9f4k7q2m8z/index.html')]];
+const BOOT_RE = /<script>\s*\/\/ Fretboard color theme before first paint[\s\S]*?<\/script>/;
+
+function runBootstrap(html, value, throwOnRead = false) {
+  const code = html.match(BOOT_RE)[0].replace(/<\/?script>/g, '');
+  const attrs = {};
+  const head = [];
+  vm.runInNewContext(code, {
+    JSON,
+    localStorage: { getItem: (key) => { if (throwOnRead) throw new Error('blocked'); return key === 'fretboard_cruise_state' ? value : null; } },
+    document: {
+      documentElement: { setAttribute: (name, v) => { attrs[name] = v; } },
+      head: { appendChild: (node) => head.push(node) },
+      createElement: () => ({ attrs: {}, setAttribute(n, v) { this.attrs[n] = v; } })
+    }
+  });
+  return { theme: attrs['data-theme'], meta: head[0] ? head[0].attrs.content : null };
+}
+
+const state = (settings) => JSON.stringify({ settings: { tempo: 80, ...settings } });
+
+test('head bootstrap runs before every stylesheet and resolves only the four themes', () => {
+  for (const [name, html] of entries) {
+    const at = html.indexOf('// Fretboard color theme before first paint');
+    assert(at > 0 && at < html.indexOf('rel="stylesheet"'), `${name}: bootstrap precedes stylesheets`);
+    assert(html.indexOf('../theme-colors.css?v=') > html.lastIndexOf('rel="stylesheet" href="../theme.css'), `${name}: layer loads last`);
+    const cases = [
+      [null, 'dark', null], [state({}), 'dark', null], [state({ theme: 'sepia' }), 'dark', null],
+      ['{broken', 'dark', null], [state({ theme: 'dark' }), 'dark', null],
+      [state({ theme: 'charcoal' }), 'charcoal', '#424346'], [state({ theme: 'gray' }), 'gray', '#c8cbd0'],
+      [state({ theme: 'light' }), 'light', '#f4f6f9']
+    ];
+    for (const [value, theme, meta] of cases) {
+      const result = runBootstrap(html, value);
+      assert.equal(result.theme, theme, `${name} ${value}`);
+      assert.equal(result.meta, meta, `${name} meta ${theme}`);
+    }
+    assert.equal(runBootstrap(html, null, true).theme, 'dark', `${name}: storage error is Dark`);
+  }
+  assert.equal(entries[0][1].match(BOOT_RE)[0], entries[1][1].match(BOOT_RE)[0], 'Standard and Pro share one bootstrap');
+});
+
+test('settings expose カラーテーマ with four choices, previewed and reverted on cancel', () => {
+  assert.match(script, /const FRETBOARD_THEMES = \['dark', 'charcoal', 'gray', 'light'\];/);
+  assert.match(script, /\{ dark: 'ダーク', charcoal: 'チャコール', gray: 'グレー', light: 'ライト' \}/);
+  assert.match(script, /id="settings-theme-title">カラーテーマ</);
+  // Theme selection is allowed in Standard (no guardStandardSettingsMutation in its handler).
+  const handler = script.slice(script.indexOf("document.querySelectorAll('.settings-theme-buttons .mode-btn')"));
+  assert(!handler.slice(0, 400).includes('guardStandardSettingsMutation'), 'Standard can choose a theme');
+  // Standard persists the chosen theme; cancel restores the snapshot value in both editions.
+  assert.match(script, /'lastSettingsTab',\n    'theme'\n\];/);
+  assert.match(script, /if \(settingsSnapshot\.theme === undefined\) delete state\.settings\.theme;/);
+  // The theme is not a default setting: loading never writes it.
+  const defaults = script.slice(script.indexOf('function getDefaultSettings()'), script.indexOf('function cloneSettings('));
+  assert(!/theme/.test(defaults), 'theme is not injected by defaults');
+  // 全てリセット returns to Dark; the local 指板の視点 reset does not touch the theme.
+  assert.match(script, /state\.settings\.theme = 'dark';\n            applyFretboardTheme\('dark'\);/);
+  const viewReset = script.slice(script.indexOf("if (resetCard === 'view')"), script.indexOf("if (resetCard === 'cruise-loop')"));
+  assert(!/theme/.test(viewReset), 'view reset keeps the theme');
+});
+
+test('applyFretboardTheme sets data-theme and the theme-color meta only for non-Dark themes', () => {
+  const start = script.indexOf('const FRETBOARD_THEMES');
+  const end = script.indexOf('applyFretboardTheme(state.settings && state.settings.theme);');
+  const metas = [];
+  const doc = {
+    documentElement: { attrs: {}, setAttribute(n, v) { this.attrs[n] = v; } },
+    head: { appendChild: (m) => metas.push(m) },
+    querySelector: () => metas.find((m) => !m.removed) || null,
+    createElement: () => ({ attrs: {}, setAttribute(n, v) { this.attrs[n] = v; }, remove() { this.removed = true; } })
+  };
+  const ctx = vm.createContext({ document: doc });
+  vm.runInContext(script.slice(start, end) + '\nthis.applyFretboardTheme = applyFretboardTheme; this.resolveFretboardTheme = resolveFretboardTheme;', ctx);
+  ctx.applyFretboardTheme('charcoal');
+  assert.equal(doc.documentElement.attrs['data-theme'], 'charcoal');
+  assert.equal(metas[0].attrs.content, '#424346');
+  ctx.applyFretboardTheme('light');
+  assert.equal(metas.filter((m) => !m.removed).length, 1);
+  assert.equal(metas[0].attrs.content, '#f4f6f9');
+  ctx.applyFretboardTheme('dark');
+  assert.equal(doc.documentElement.attrs['data-theme'], 'dark');
+  assert(metas[0].removed, 'Dark removes the meta');
+  for (const bad of [undefined, null, 'sepia', 3, 'Dark']) assert.equal(ctx.resolveFretboardTheme(bad), 'dark');
+});
+
+test('generated layer only applies under Charcoal / Gray / Light and keeps objects in Dark', () => {
+  const scope = ':root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"])';
+  const body = layer.replace(/\/\*[\s\S]*?\*\//g, '');
+  let depth = 0;
+  let selector = '';
+  for (const ch of body) {
+    if (ch === '{') {
+      const sel = selector.trim();
+      if (depth === 0 || !sel.startsWith('@')) {
+        if (!/^@(media|supports|keyframes)/.test(sel) && !/^((from|to|\d+(\.\d+)?%)\s*,?\s*)+$/.test(sel)) {
+          for (const part of sel.split(/,\s*(?![^()]*\))/)) {
+            assert(part.trim().startsWith(scope) || /^:root(\[data-theme="(charcoal|gray|light)"\]|:is\((\[data-theme="(charcoal|gray|light)"\](, )?)+\))/.test(part.trim()),
+              `layer selector is theme-scoped: ${part.trim().slice(0, 120)}`);
+          }
+        }
+      }
+      depth += 1;
+      selector = '';
+    } else if (ch === '}') {
+      depth -= 1;
+      selector = '';
+    } else if (ch === ';' && depth > 0) {
+      selector = '';
+    } else {
+      selector += ch;
+    }
+  }
+  assert(!/data-theme="dark"|prefers-color-scheme/.test(layer), 'Dark and OS theme never appear in the layer');
+  // Fretboard objects are mirrored with their Dark literals (identity) and object roots keep Dark ink.
+  assert.match(layer, /\.projected-fret-wire \{\n    stroke: #bcbcbc;/);
+  assert.match(layer, /\.neck-face,\n.*\.projected-fretboard-svg \{\n    color: #f0f6fc;/);
+  assert.match(layer, /--fretboard-wood|\.fret-column::after \{\n    background-image: var\(--fret-wire\)/);
+  assert(!/--root-color:|--third-color:|--fifth-color:|--seventh-color:/.test(layer), 'degree colors are never themed');
+  for (const theme of ['charcoal', 'gray', 'light']) assert(layer.includes(`:root[data-theme="${theme}"] {`), theme);
+});
+
+test('theme is local-only: not sent to Cloud and preserved by remote apply', async () => {
+  const source = read('sync/fretboard-sync-adapter.js');
+  const context = vm.createContext({ crypto, TextEncoder, structuredClone, URL, console, Event: class {}, dispatchEvent() {} });
+  vm.runInContext(source, context);
+  const api = context.SoundCruiseFretboardSync;
+  assert(!api.SYNC_SETTINGS.includes('theme'), 'theme is not in SYNC_SETTINGS');
+  const values = new Map([['fretboard_cruise_state', JSON.stringify({ settings: { theme: 'charcoal', tempo: 96 } })]]);
+  const storage = { getItem: (k) => (values.has(k) ? values.get(k) : null), setItem: (k, v) => values.set(k, String(v)), removeItem: (k) => values.delete(k) };
+  const adapter = new api.FretboardSyncAdapter({ storage });
+  const local = adapter.readLocalSnapshot ? await adapter.readLocalSnapshot() : null;
+  const sent = JSON.stringify(local || api.readLocalSnapshot(storage));
+  assert(!/"theme"/.test(sent), 'local snapshot carries no theme');
+  await adapter.applyRemoteSnapshot({ appId: 'fretboard', schemaVersion: 1, records: [] });
+  assert.equal(JSON.parse(values.get('fretboard_cruise_state')).settings.theme, 'charcoal', 'remote apply keeps the local theme');
+});

@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.20.0';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.20.0';
+const FRETBOARD_CRUISE_APP_VERSION = '2.21.0';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.21.0';
 function notifyFretboardSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
 }
@@ -560,7 +560,8 @@ const STANDARD_EDITION_WRITABLE_SETTINGS_KEYS = [
     'cruiseStageClearCounts',
     'quizStageAttemptCounts',
     'quizStagePerfectCounts',
-    'lastSettingsTab'
+    'lastSettingsTab',
+    'theme'
 ];
 const RELOAD_TO_HOME_SESSION_KEY = 'fretboard_cruise_reload_to_home';
 
@@ -1470,6 +1471,34 @@ function isProEdition() {
     return document.documentElement?.dataset?.appEdition === 'Pro';
 }
 
+// Color theme (per app, local only). Missing or invalid values are Dark; a value is stored only
+// when the user picks one in Settings. The head bootstrap applies it before first paint.
+const FRETBOARD_THEMES = ['dark', 'charcoal', 'gray', 'light'];
+const FRETBOARD_THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: '#f4f6f9' };
+
+function resolveFretboardTheme(value) {
+    return FRETBOARD_THEMES.includes(value) ? value : 'dark';
+}
+
+function applyFretboardTheme(value) {
+    const theme = resolveFretboardTheme(value);
+    document.documentElement.setAttribute('data-theme', theme);
+    let meta = document.querySelector('meta[data-fb-theme-color]');
+    if (theme === 'dark') {
+        if (meta) meta.remove();
+        return;
+    }
+    if (!meta) {
+        meta = document.createElement('meta');
+        meta.setAttribute('name', 'theme-color');
+        meta.setAttribute('data-fb-theme-color', '');
+        document.head.appendChild(meta);
+    }
+    meta.setAttribute('content', FRETBOARD_THEME_META_COLORS[theme]);
+}
+
+applyFretboardTheme(state.settings && state.settings.theme);
+
 function isStandardEdition() {
     return !isProEdition();
 }
@@ -1847,6 +1876,7 @@ function refreshFretboardStateAfterSync() {
     if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) return;
     if (loaded.settings && typeof loaded.settings === 'object' && !Array.isArray(loaded.settings)) {
         state.settings = loaded.settings;
+        applyFretboardTheme(state.settings.theme);
     }
     if (loaded.rules && typeof loaded.rules === 'object' && !Array.isArray(loaded.rules)) {
         state.rules = loaded.rules;
@@ -12334,7 +12364,7 @@ function renderMemorize(app) {
                         ${stageStatsHtml}
                         ${(isCruiseCleared || isQuizCleared)
                             ? ''
-                            : `<div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--primary-color);">${memorizeQuestionLabel}</span> をタップ！</div>`}
+                            : `<div class="question-text memorize-question memorize-question-main">${q.stringName}弦 の <span class="memorize-question-note" style="color: var(--fb-question-note-color, var(--primary-color));">${memorizeQuestionLabel}</span> をタップ！</div>`}
                     </div>
                     <div id="feedback" class="${fbClass} memorize-feedback">${fbText}</div>
                     ${repeatHintTabsHtml}
@@ -13814,7 +13844,7 @@ function renderTroubleshooting(app) {
                         <button type="button" class="mode-btn" id="btn-audio-diagnostic-test">音声テスト</button>
                         <button type="button" class="mode-btn" id="btn-audio-diagnostic-copy">診断結果をコピー</button>
                     </div>
-                    <pre id="audio-diagnostic-output" style="box-sizing:border-box; width:100%; max-width:100%; margin:10px 0 0; padding:10px; max-height:180px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; border:1px solid rgba(255,255,255,0.14); border-radius:8px; background:rgba(0,0,0,0.18); color:rgba(255,255,255,0.82); font-size:0.72rem; line-height:1.45;">音声テストを押すと診断結果が表示されます。</pre>
+                    <pre id="audio-diagnostic-output" style="box-sizing:border-box; width:100%; max-width:100%; margin:10px 0 0; padding:10px; max-height:180px; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; word-break:break-word; border:1px solid var(--fb-diagnostic-border, rgba(255,255,255,0.14)); border-radius:8px; background:var(--fb-diagnostic-bg, rgba(0,0,0,0.18)); color:var(--fb-diagnostic-color, rgba(255,255,255,0.82)); font-size:0.72rem; line-height:1.45;">音声テストを押すと診断結果が表示されます。</pre>
                     <p class="settings-note" style="margin-top:10px;">音が聞こえない場合は、アプリを開いた状態でiPhone本体の音量ボタンを上げ、イヤフォンの接続先、Safari/PWA起動の違い、マナーモード解除時の挙動も確認してください。</p>
                 </div>
             </div>
@@ -14057,6 +14087,19 @@ function renderSettings(app) {
 
         <div class="settings-tab-panel${tabHidden('common')}" data-settings-tab-panel="common">
         <div class="settings-card settings-card--common">
+            <div class="settings-card-section settings-card-section--theme">
+                <div class="settings-card-section-header">
+                    <span class="settings-card-section-title" id="settings-theme-title">カラーテーマ</span>
+                </div>
+                <div class="mode-buttons settings-theme-buttons" role="group" aria-labelledby="settings-theme-title">
+                    ${FRETBOARD_THEMES.map(theme => {
+                        const label = { dark: 'ダーク', charcoal: 'チャコール', gray: 'グレー', light: 'ライト' }[theme];
+                        const active = resolveFretboardTheme(state.settings.theme) === theme;
+                        return `<button type="button" class="mode-btn ${active ? 'active' : ''}" data-theme-choice="${theme}" aria-pressed="${active}">${label}</button>`;
+                    }).join('')}
+                </div>
+            </div>
+
             <div class="settings-card-section">
                 <div class="settings-card-section-header">
                     <div style="display: flex; align-items: center; gap: 8px;">
@@ -14087,7 +14130,7 @@ function renderSettings(app) {
                 </div>
             </div>
 
-            <div id="tilt-setting-group" style="border-top:1px solid rgba(255,255,255,0.1); padding-top:16px; margin-top:8px;">
+            <div id="tilt-setting-group" style="border-top:1px solid var(--fb-settings-divider, rgba(255,255,255,0.1)); padding-top:16px; margin-top:8px;">
                 <div class="settings-row-between" style="margin-bottom:10px;">
                     <div style="display: flex; align-items: center; gap: 8px;">
                         <label for="fretboard-orientation-auto" class="settings-label" style="cursor:pointer;">画面の向きで自動切替</label>
@@ -14176,7 +14219,7 @@ function renderSettings(app) {
         </div>
         </div>
         <div class="settings-support-link-row" style="display:flex; justify-content:center; margin:12px 0 2px;">
-            <button type="button" id="btn-settings-troubleshooting" style="appearance:none; border:0; background:transparent; color:rgba(255,255,255,0.62); font:inherit; font-size:0.78rem; text-decoration:underline; text-underline-offset:3px; padding:6px 10px; cursor:pointer;">トラブル対応</button>
+            <button type="button" id="btn-settings-troubleshooting" style="appearance:none; border:0; background:transparent; color:var(--fb-settings-link-color, rgba(255,255,255,0.62)); font:inherit; font-size:0.78rem; text-decoration:underline; text-underline-offset:3px; padding:6px 10px; cursor:pointer;">トラブル対応</button>
         </div>
         <div class="settings-actions-footer settings-actions-footer--proposed">
             <button class="settings-bottom-btn settings-apply-btn" id="btn-settings-apply">決定</button>
@@ -14282,7 +14325,12 @@ function renderSettings(app) {
                     state.settings.lastSettingsTab = preservedTab;
                 }
             }
+        } else if (!shouldSave) {
+            // 通常版でもカラーテーマはプレビューなので、キャンセルで開いた時の値へ戻す
+            if (settingsSnapshot.theme === undefined) delete state.settings.theme;
+            else state.settings.theme = settingsSnapshot.theme;
         }
+        applyFretboardTheme(state.settings.theme);
         state.course = targetCourse;
         // 設定画面から戻ってきた場合、一時停止状態（isCruisePlaying = false）を保持
         settingsReturnCourse = null;
@@ -14426,6 +14474,15 @@ function renderSettings(app) {
             state.settings.quizQuestionLimit = QUIZ_QUESTION_LIMIT_OPTIONS.includes(v) ? v : DEFAULT_QUIZ_QUESTION_LIMIT;
             syncQuizQuestionLimitSettingsUI();
             saveState();
+        };
+    });
+
+    // カラーテーマ：通常版でも選べる。タップで即プレビューし、決定で保存・キャンセルで元に戻す。
+    document.querySelectorAll('.settings-theme-buttons .mode-btn').forEach(btn => {
+        btn.onclick = () => {
+            state.settings.theme = resolveFretboardTheme(btn.getAttribute('data-theme-choice'));
+            applyFretboardTheme(state.settings.theme);
+            syncThemeSettingsUI();
         };
     });
 
@@ -14578,6 +14635,15 @@ function renderSettings(app) {
         if (tiltGroup) tiltGroup.classList.toggle('is-zoom-locked', isZoom);
         const drag = document.getElementById('trackball-area');
         if (drag) drag.classList.toggle('is-zoom-locked', isZoom);
+    }
+
+    function syncThemeSettingsUI() {
+        const current = resolveFretboardTheme(state.settings.theme);
+        document.querySelectorAll('.settings-theme-buttons .mode-btn').forEach(b => {
+            const active = b.getAttribute('data-theme-choice') === current;
+            b.classList.toggle('active', active);
+            b.setAttribute('aria-pressed', String(active));
+        });
     }
 
     function syncNotationSettingsUI() {
@@ -14915,6 +14981,10 @@ function renderSettings(app) {
                 quizPerfects && typeof quizPerfects === 'object' && !Array.isArray(quizPerfects) ? quizPerfects : {};
             state.settings.cruiseStageClearCounts =
                 cruiseClears && typeof cruiseClears === 'object' && !Array.isArray(cruiseClears) ? cruiseClears : {};
+            // 全てリセットはカラーテーマもダークへ戻す（決定で保存、キャンセルで元に戻る）
+            state.settings.theme = 'dark';
+            applyFretboardTheme('dark');
+            syncThemeSettingsUI();
             refreshSettingsControls();
         };
     }

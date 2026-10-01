@@ -27,7 +27,7 @@ continue from the first phase that is not marked DONE.
 | Phase | Scope | Status | Commit | Version |
 |---|---|---|---|---|
 | 0 | Baseline check | DONE | (this file) | — |
-| 1 | Fretboard 4 themes (local-only) | TODO | | |
+| 1 | Fretboard 4 themes (local-only) | DONE (pending deploy check) | see git log | 2.21.0 |
 | 2 | Pitch 4 themes (LOCAL_ONLY_SETTINGS) | TODO | | |
 | 3 | Rhythm 4 themes (local-only) | TODO | | |
 | 4 | Reader-first Sync (Worker + 3 clients accept theme, no send) | TODO | | |
@@ -38,4 +38,10 @@ continue from the first phase that is not marked DONE.
 
 ## Known issues / notes
 
-- (none yet)
+- Theme layers are generated: `python3 tools/theme-layer/generate.py <app>` writes `apps/<app>/theme-colors.css`
+  (per-app config in `tools/theme-layer/apps.py`). Hand-tuned rules live after the OVERRIDES marker.
+- Charcoal palette used: bg #424346 / surface #4c4e52 / raised #58595e / text #f2f1ed / muted #c4c5c7
+  (slightly darker than the #47484b starting point so dimmed text keeps AA).
+- Fretboard info / terms / privacy / pro-access pages stay Dark (not themed tonight).
+- Fretboard contrast exceptions (same as Dark or object): `・` divider (opacity), markers measured on page bg,
+  basic-rule items under the intro overlay.

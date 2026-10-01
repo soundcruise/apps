@@ -1,5 +1,6 @@
 exclude:
   - workers
+  - tools
   - AGENTS.md
   - CLAUDE.md
   - THEME-OVERNIGHT-CHECKPOINT.md

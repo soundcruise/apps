@@ -4,6 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>指板クルーズ</title>
+    <script>
+        // Fretboard color theme before first paint. Reads only fretboard_cruise_state.settings.theme;
+        // anything else is Dark. Dark keeps the page as before (no theme-color meta).
+        (function () {
+            var colors = { charcoal: '#424346', gray: '#c8cbd0', light: '#f4f6f9' };
+            var theme = 'dark';
+            try {
+                var saved = JSON.parse(localStorage.getItem('fretboard_cruise_state') || 'null');
+                var value = saved && saved.settings && saved.settings.theme;
+                if (value === 'charcoal' || value === 'gray' || value === 'light') theme = value;
+            } catch (_) { theme = 'dark'; }
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme !== 'dark') {
+                var meta = document.createElement('meta');
+                meta.setAttribute('name', 'theme-color');
+                meta.setAttribute('data-fb-theme-color', '');
+                meta.setAttribute('content', colors[theme]);
+                document.head.appendChild(meta);
+            }
+        }());
+    </script>
     
     <link rel="manifest" href="manifest.json?v=pro-orientation-any-20260516">
     <link rel="apple-touch-icon" href="../generated-home-icons/final-selected-icon/fretboard-cruise-final-selection-180.png?v=proicon-20260514">
@@ -14,11 +35,12 @@
     
     <link rel="stylesheet" href="../../shared/style.css?v=100">
     <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
-    <link rel="stylesheet" href="../theme.css?v=407">
+    <link rel="stylesheet" href="../theme.css?v=408">
     <!-- Pro版のみ追加 -->
     <link rel="stylesheet" href="../../shared/pro-gate.css?v=6">
     <link rel="preconnect" href="https://sound-cruise-sync.cruise-port-requests.workers.dev" crossorigin>
     <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=22">
+    <link rel="stylesheet" href="../theme-colors.css?v=2.21.0">
     <script src="../../shared/sync-account/production-config.js?v=2"></script>
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=15"></script>
     <script defer src="../../shared/sync-account/sync-account-core.js?v=7"></script>
@@ -157,7 +179,7 @@
         <span id="app-version-display" class="app-version-display"></span>
         <button type="button" class="btn-secondary btn-in-game-refresh js-reload-app">ページを更新</button>
     </div>
-    <script src="../script.js?v=2.20.0"></script>
+    <script src="../script.js?v=2.21.0"></script>
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
