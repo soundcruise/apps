@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/fretboard_cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/fretboard_cruise/standard/`（要確認: トップレベルのリダイレクトが別途あるかは未確認）
 - PRO版URL: `https://soundcruise.jp/apps/fretboard_cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `2.21.3`（`script.js` 内 `FRETBOARD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `2.22.0`（`script.js` 内 `FRETBOARD_CRUISE_APP_VERSION`）
 - 最新commit（fretboard_cruise関連、`git log --oneline -- apps/fretboard_cruise/` で確認）:
   - hash: `a75bf6dc`
   - message: `指板クルーズ通常版の設定を公式デフォルトに固定`
@@ -120,8 +120,11 @@
 - 起動時: 各 `index.html` の `<head>` 先頭の bootstrap が `html[data-theme]` と theme-color meta を設定（FOUC防止）。
 - 見た目: Dark は既存CSSそのまま（無変更）。Charcoal / Gray / Light は `theme-colors.css`（最後に読み込む）だけで適用。このファイルは `tools/theme-layer/generate.py fretboard` が既存CSSから自動生成する。手で直すのは末尾の「Hand-tuned overrides」以降だけ。CSSの色を変えたら generator を再実行する。
 - 指板（木目・フレット・弦・ドット・マーカー・度数色・ルート編集のグループ色）と Pro ゲートは全テーマで Dark と同じ色。
-- Cloud Sync: theme は端末ローカルのみ（`SYNC_SETTINGS` に含めない）。同期の適用でローカルの theme は消えない。
-- Reader-first（Worker 7245c2e6 以降）: クラウドの settings に `theme`（dark/charcoal/gray/light）が来ても受理する。受け取った値は `themeCloudMirror` にそのまま写し、ローカルのスナップショットではその値だけを `theme` として返す（照合一致・他端末の theme を消さない）。端末自身の `theme` は送らない。送信（writer）は別途承認後。
+- Cloud Sync（2.22.0〜、writer）: theme は settings の同期項目（`SYNC_OPTIONAL_SETTINGS`。既定値を持たないので既定値で埋める `SYNC_SETTINGS` のループ外で扱う）。
+  - 送信: 明示保存された theme → なければ旧 reader 版の `themeCloudMirror` → どちらも無ければ送らない（未設定をダークとして送らない）。
+  - 受信: 有効な theme はこの端末の明示 theme として保存し、`themeCloudMirror` は解消する。theme の無い settings ではローカルの theme を消さない。
+  - アダプタは `syncCapabilities = ['settings_theme_v1']` を宣言する。宣言しない旧クライアント（2.21.3 以前）には Worker が theme を見せず、その書き込みでもクラウドの theme を保持する（`workers/sound-cruise-sync/src/sync-capabilities.js`）。
+  - 表示: `fretboardThemeOf(settings)` が明示 theme（なければミラー）を返す。読み込み時に書き戻さない。
 - テスト: `node --test apps/fretboard_cruise/theme.test.mjs`
 
 ---

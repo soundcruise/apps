@@ -1,5 +1,5 @@
-const FRETBOARD_CRUISE_APP_VERSION = '2.21.3';
-window.FRETBOARD_CRUISE_APP_VERSION = '2.21.3';
+const FRETBOARD_CRUISE_APP_VERSION = '2.22.0';
+window.FRETBOARD_CRUISE_APP_VERSION = '2.22.0';
 function notifyFretboardSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('fretboard');
 }
@@ -1480,6 +1480,13 @@ function resolveFretboardTheme(value) {
     return FRETBOARD_THEMES.includes(value) ? value : 'dark';
 }
 
+// The device's theme: its explicit choice, else a cloud theme kept from the reader-first release
+// (adopted as the explicit choice on the next Cloud Sync apply). Display only; nothing is written.
+function fretboardThemeOf(settings) {
+    if (settings && FRETBOARD_THEMES.includes(settings.theme)) return settings.theme;
+    return settings && FRETBOARD_THEMES.includes(settings.themeCloudMirror) ? settings.themeCloudMirror : undefined;
+}
+
 function applyFretboardTheme(value) {
     const theme = resolveFretboardTheme(value);
     document.documentElement.setAttribute('data-theme', theme);
@@ -1497,7 +1504,7 @@ function applyFretboardTheme(value) {
     meta.setAttribute('content', FRETBOARD_THEME_META_COLORS[theme]);
 }
 
-applyFretboardTheme(state.settings && state.settings.theme);
+applyFretboardTheme(fretboardThemeOf(state.settings));
 
 function isStandardEdition() {
     return !isProEdition();
@@ -1876,7 +1883,7 @@ function refreshFretboardStateAfterSync() {
     if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) return;
     if (loaded.settings && typeof loaded.settings === 'object' && !Array.isArray(loaded.settings)) {
         state.settings = loaded.settings;
-        applyFretboardTheme(state.settings.theme);
+        applyFretboardTheme(fretboardThemeOf(state.settings));
     }
     if (loaded.rules && typeof loaded.rules === 'object' && !Array.isArray(loaded.rules)) {
         state.rules = loaded.rules;
@@ -14094,7 +14101,7 @@ function renderSettings(app) {
                 <div class="mode-buttons settings-theme-buttons" role="group" aria-labelledby="settings-theme-title">
                     ${FRETBOARD_THEMES.map(theme => {
                         const label = { dark: 'ダーク', charcoal: 'チャコール', gray: 'グレー', light: 'ライト' }[theme];
-                        const active = resolveFretboardTheme(state.settings.theme) === theme;
+                        const active = resolveFretboardTheme(fretboardThemeOf(state.settings)) === theme;
                         return `<button type="button" class="mode-btn ${active ? 'active' : ''}" data-theme-choice="${theme}" aria-pressed="${active}">${label}</button>`;
                     }).join('')}
                 </div>
@@ -14638,7 +14645,7 @@ function renderSettings(app) {
     }
 
     function syncThemeSettingsUI() {
-        const current = resolveFretboardTheme(state.settings.theme);
+        const current = resolveFretboardTheme(fretboardThemeOf(state.settings));
         document.querySelectorAll('.settings-theme-buttons .mode-btn').forEach(b => {
             const active = b.getAttribute('data-theme-choice') === current;
             b.classList.toggle('active', active);

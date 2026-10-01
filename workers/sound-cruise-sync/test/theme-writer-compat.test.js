@@ -2,6 +2,7 @@
 // sync runtime and the real app sync adapters (see theme-compat-harness.js).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import { webcrypto } from 'node:crypto';
 import { hashRecord, manifestHash } from '../src/records.js';
 import { APPS, device, world } from './theme-compat-harness.js';
@@ -129,4 +130,105 @@ for (const kind of ['old', 'reader']) for (const appId of Object.keys(APPS)) {
     assert.equal(withTheme.storedTheme, 'gray', 'and the cloud theme survives');
     assert.ok(without.trace.every(([, ok]) => ok === true), JSON.stringify(without.trace));
   });
+}
+
+// ── Writer clients (current adapters that declare settings_theme_v1) ──────────────────────────────────
+const isWriter = (appId) => fs.readFileSync(new URL(`../../../apps/${APPS[appId].current}`, import.meta.url), 'utf8')
+  .includes("'settings_theme_v1'");
+const themeOf = (d) => APPS[d.item ? Object.keys(APPS).find((id) => APPS[id] === d.item) : 'pitch'].theme(d.settings());
+const setTheme = (d, theme) => d.change((settings) => { settings.theme = theme; });
+
+for (const appId of Object.keys(APPS)) {
+  const skip = isWriter(appId) ? false : 'writer not enabled for this app yet';
+  test(`${appId} writer: two devices round-trip all four themes without conflicts`, { skip }, async () => {
+    const w = world(appId);
+    const a = device(w, 'current');
+    const b = device(w, 'current');
+    assert.equal((await a.join()).ok, true);
+    assert.equal((await b.join()).ok, true);
+    assert.equal(w.stored().values.theme, undefined, 'no theme chosen: none is sent');
+    const step = async (from, to, theme) => {
+      setTheme(from, theme);
+      assert.equal((await from.sync('save')).ok, true, `push ${theme}`);
+      assert.equal(w.stored().values.theme, theme);
+      assert.equal((await to.sync('focus')).ok, true, `pull ${theme}`);
+      assert.equal(themeOf(to), theme, `${theme} arrives`);
+      assert.equal((await a.conflicts()).length + (await b.conflicts()).length, 0, `no conflicts at ${theme}`);
+    };
+    await step(a, b, 'light');
+    await step(b, a, 'charcoal');
+    await step(a, b, 'gray');
+    await step(a, b, 'dark');
+    w.close();
+  });
+
+  test(`${appId} writer: an unset device adopts the cloud theme and never sends dark for it`, { skip }, async () => {
+    const w = world(appId);
+    const item = APPS[appId];
+    const a = device(w, 'current');
+    await a.join();
+    setTheme(a, 'light');
+    await a.sync('save');
+    const b = device(w, 'current');   // fresh device, theme never chosen
+    assert.equal((await b.join()).ok, true);
+    assert.equal(themeOf(b), 'light', 'adopted as the device theme');
+    b.change((settings) => { settings[item.other.field] = item.other.to; });
+    assert.equal((await b.sync('save')).ok, true);
+    assert.equal(w.stored().values.theme, 'light', 'still light after the unset device wrote settings');
+    assert.equal(w.stored().values[item.other.field], item.other.to);
+    assert.equal((await b.conflicts()).length, 0);
+    w.close();
+  });
+
+  test(`${appId} writer: theme and unrelated settings changed on different devices both survive`, { skip }, async () => {
+    const w = world(appId);
+    const item = APPS[appId];
+    const a = device(w, 'current');
+    const b = device(w, 'current');
+    await a.join(); await b.join();
+    setTheme(a, 'charcoal');                                              // A: theme
+    b.change((settings) => { settings[item.other.field] = item.other.to; }); // B: another field, same time
+    assert.equal((await a.sync('save')).ok, true);
+    assert.equal((await b.sync('save')).ok, true);
+    assert.equal((await a.sync('focus')).ok, true);
+    assert.equal(w.stored().values.theme, 'charcoal');
+    assert.equal(w.stored().values[item.other.field], item.other.to);
+    assert.equal(themeOf(b), 'charcoal');
+    assert.equal(a.settings()[item.other.field], item.other.to);
+    assert.equal((await a.conflicts()).length + (await b.conflicts()).length, 0, 'field merge, no dialog');
+    // Same theme chosen on both devices at once: no conflict either.
+    setTheme(a, 'gray'); setTheme(b, 'gray');
+    assert.equal((await a.sync('save')).ok, true);
+    assert.equal((await b.sync('save')).ok, true);
+    assert.equal((await a.conflicts()).length + (await b.conflicts()).length, 0);
+    assert.equal(w.stored().values.theme, 'gray');
+    w.close();
+  });
+
+  for (const kind of ['old', 'reader']) {
+    test(`${appId} writer + ${kind} client: the ${kind} client syncs, its writes keep the theme, writers keep theirs`, { skip }, async () => {
+      const w = world(appId);
+      const item = APPS[appId];
+      const a = device(w, 'current');
+      await a.join();
+      setTheme(a, 'charcoal');
+      assert.equal((await a.sync('save')).ok, true);
+      const o = device(w, kind, (() => { const m = new Map(Object.entries(item.seed())); return Object.fromEntries(m); })());
+      const joined = await o.join();
+      assert.equal(joined.ok, true, `${kind} join ${JSON.stringify(joined)}`);
+      assert.equal((await o.conflicts()).length, 0);
+      o.change((settings) => { settings[item.other.field] = item.other.to; });
+      assert.equal((await o.sync('save')).ok, true, `${kind} push`);
+      assert.equal(w.stored().values.theme, 'charcoal', `${kind} client never erases the theme`);
+      assert.equal((await a.sync('focus')).ok, true);
+      assert.equal(themeOf(a), 'charcoal', 'writer keeps its theme');
+      assert.equal(a.settings()[item.other.field], item.other.to, `writer receives the ${kind} client's change`);
+      setTheme(a, 'light');
+      assert.equal((await a.sync('save')).ok, true);
+      assert.equal((await o.sync('focus')).ok, true, `${kind} client keeps syncing after a new theme`);
+      assert.equal((await o.conflicts()).length + (await a.conflicts()).length, 0);
+      assert.equal(w.stored().values.theme, 'light');
+      w.close();
+    });
+  }
 }

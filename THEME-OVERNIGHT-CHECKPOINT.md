@@ -190,9 +190,9 @@ against a cloud settings record that carries `theme`:
 |---|---|---|---|---|
 | W0 | Preflight | DONE | (this file) | — |
 | W1 | Old client audit | DONE: class C + theme erase risk | (this file) | — |
-| W2 | Worker theme field gate | DONE pending deploy check (this commit) | see git log | Worker |
+| W2 | Worker theme field gate | DONE (deployed cb6c315a 100%, health OK) | cd1a0052 | Worker cb6c315a |
 | W3 | Decision gate | CASE A (small gate, existing mechanism) | (this file) | — |
-| W4 | Fretboard writer | TODO | | 2.22.0 |
+| W4 | Fretboard writer | DONE pending deploy check (this commit) | see git log | 2.22.0 |
 | W5 | Rhythm writer | TODO | | 1.17.0 |
 | W6 | Pitch writer | TODO | | 2.27.0 |
 | W7 | Old client regression with writers | TODO | | |

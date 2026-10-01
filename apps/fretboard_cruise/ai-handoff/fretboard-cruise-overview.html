@@ -277,7 +277,7 @@
             <h1>指板クルーズ 開発概要</h1>
             <p>ギターの指板・音名理解を鍛える学習アプリの、現在地・主要機能・注意点まとめ</p>
             <div class="ov-meta">
-                <span>現在のバージョン<b>2.21.3</b></span>
+                <span>現在のバージョン<b>2.22.0</b></span>
                 <span>最新commit<b>a75bf6dc</b></span>
                 <span>最終更新日<b>2026年7月8日</b></span>
             </div>
@@ -338,7 +338,7 @@
                     <li>通常版・PRO版とも、共通の<code>script.js</code>・<code>theme.css</code>を使用しています。</li>
                     <li>共通基盤（<code>shared/</code>）にも依存しているため、共通ファイルの変更は音感クルーズにも影響します。</li>
                     <li>実機での細かい判定不具合の修正履歴が多く、指板描画・判定ロジックは慎重に扱う方針です。</li>
-                    <li>カラーテーマ（2.21.0）: 設定「共通」でダーク / チャコール / グレー / ライトを選べます（通常版も可、端末ごとに保存、クラウド同期なし）。指板の色はどのテーマでも同じです。Charcoal / Gray / Light の見た目は <code>theme-colors.css</code>（<code>tools/theme-layer/generate.py</code> で生成）です。</li>
+                    <li>カラーテーマ（2.21.0）: 設定「共通」でダーク / チャコール / グレー / ライトを選べます（通常版も可、端末ごとに保存。2.22.0 から Pro の Cloud Sync で他の端末と同期。古い版の端末には Worker が theme を見せず、消させません）。指板の色はどのテーマでも同じです。Charcoal / Gray / Light の見た目は <code>theme-colors.css</code>（<code>tools/theme-layer/generate.py</code> で生成）です。</li>
                     <li>「PRO版の入手方法」（<code>pro-access.html</code>）の手順1に、音感クルーズと同じ「⚠️ iPhoneをお使いの方」リンクを追加しました。遷移先は新規ページ<code>iphone-safari-guide.html</code>（音感クルーズ版を無改変で複製）。メンバーシップ登録URLのコピー案内のみで、PRO認証・指板機能・保存形式には影響しません。アプリ本体バージョン（2.8.3）は据え置きです。</li>
                 </ul>
                 <div class="ov-warn-box" style="margin-top: 14px;">

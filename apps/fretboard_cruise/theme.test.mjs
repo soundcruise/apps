@@ -73,7 +73,7 @@ test('settings expose カラーテーマ with four choices, previewed and revert
 
 test('applyFretboardTheme sets data-theme and the theme-color meta only for non-Dark themes', () => {
   const start = script.indexOf('const FRETBOARD_THEMES');
-  const end = script.indexOf('applyFretboardTheme(state.settings && state.settings.theme);');
+  const end = script.indexOf('applyFretboardTheme(fretboardThemeOf(state.settings));');
   const metas = [];
   const doc = {
     documentElement: { attrs: {}, setAttribute(n, v) { this.attrs[n] = v; } },
@@ -82,7 +82,7 @@ test('applyFretboardTheme sets data-theme and the theme-color meta only for non-
     createElement: () => ({ attrs: {}, setAttribute(n, v) { this.attrs[n] = v; }, remove() { this.removed = true; } })
   };
   const ctx = vm.createContext({ document: doc });
-  vm.runInContext(script.slice(start, end) + '\nthis.applyFretboardTheme = applyFretboardTheme; this.resolveFretboardTheme = resolveFretboardTheme;', ctx);
+  vm.runInContext(script.slice(start, end) + '\nthis.applyFretboardTheme = applyFretboardTheme; this.resolveFretboardTheme = resolveFretboardTheme; this.fretboardThemeOf = fretboardThemeOf;', ctx);
   ctx.applyFretboardTheme('charcoal');
   assert.equal(doc.documentElement.attrs['data-theme'], 'charcoal');
   assert.equal(metas[0].attrs.content, '#424346');
@@ -93,6 +93,10 @@ test('applyFretboardTheme sets data-theme and the theme-color meta only for non-
   assert.equal(doc.documentElement.attrs['data-theme'], 'dark');
   assert(metas[0].removed, 'Dark removes the meta');
   for (const bad of [undefined, null, 'sepia', 3, 'Dark']) assert.equal(ctx.resolveFretboardTheme(bad), 'dark');
+  assert.equal(ctx.fretboardThemeOf({ theme: 'gray', themeCloudMirror: 'light' }), 'gray');
+  assert.equal(ctx.fretboardThemeOf({ themeCloudMirror: 'light' }), 'light', 'an unset theme shows the kept cloud theme');
+  assert.equal(ctx.fretboardThemeOf({ theme: 'sepia' }), undefined);
+  assert.equal(ctx.fretboardThemeOf(undefined), undefined);
 });
 
 test('generated layer only applies under Charcoal / Gray / Light and keeps objects in Dark', () => {
@@ -131,56 +135,64 @@ test('generated layer only applies under Charcoal / Gray / Light and keeps objec
   for (const theme of ['charcoal', 'gray', 'light']) assert(layer.includes(`:root[data-theme="${theme}"] {`), theme);
 });
 
-test('theme is local-only: not sent to Cloud and preserved by remote apply', async () => {
-  const source = read('sync/fretboard-sync-adapter.js');
+function loadAdapter() {
   const context = vm.createContext({ crypto, TextEncoder, structuredClone, URL, console, Event: class {}, dispatchEvent() {} });
-  vm.runInContext(source, context);
-  const api = context.SoundCruiseFretboardSync;
-  assert(!api.SYNC_SETTINGS.includes('theme'), 'theme is not in SYNC_SETTINGS');
-  const values = new Map([['fretboard_cruise_state', JSON.stringify({ settings: { theme: 'charcoal', tempo: 96 } })]]);
-  const storage = { getItem: (k) => (values.has(k) ? values.get(k) : null), setItem: (k, v) => values.set(k, String(v)), removeItem: (k) => values.delete(k) };
-  const adapter = new api.FretboardSyncAdapter({ storage });
-  const local = adapter.readLocalSnapshot ? await adapter.readLocalSnapshot() : null;
-  const sent = JSON.stringify(local || api.readLocalSnapshot(storage));
-  assert(!/"theme"/.test(sent), 'local snapshot carries no theme');
-  await adapter.applyRemoteSnapshot({ appId: 'fretboard', schemaVersion: 1, records: [] });
-  assert.equal(JSON.parse(values.get('fretboard_cruise_state')).settings.theme, 'charcoal', 'remote apply keeps the local theme');
+  vm.runInContext(read('sync/fretboard-sync-adapter.js'), context);
+  return context.SoundCruiseFretboardSync;
+}
+function memoryStorage(settings) {
+  const values = new Map([['fretboard_cruise_state', JSON.stringify({ settings })]]);
+  return { values, storage: { getItem: (k) => (values.has(k) ? values.get(k) : null), setItem: (k, v) => values.set(k, String(v)), removeItem: (k) => values.delete(k) },
+    settings: () => JSON.parse(values.get('fretboard_cruise_state')).settings };
+}
+const remoteSettings = (values) => ({ appId: 'fretboard', schemaVersion: 1, records: [{
+  recordType: 'settings', recordId: 'settings', schemaVersion: 1, payload: { id: 'settings', values } }] });
+
+test('theme writer: an explicit theme is sent, an unset one never is, a reader-first mirror stands in', () => {
+  const api = loadAdapter();
+  assert.deepEqual([...api.SYNC_CAPABILITIES], ['settings_theme_v1']);
+  assert.deepEqual([...api.SYNC_OPTIONAL_SETTINGS], ['theme']);
+  assert(!api.SYNC_SETTINGS.includes('theme'), 'theme has no default, so it stays out of the default-filled list');
+  assert.deepEqual([...new api.FretboardSyncAdapter({ storage: memoryStorage({}).storage }).syncCapabilities], ['settings_theme_v1']);
+  const sent = (settings) => api.normalizeLocalSnapshot(api.readLocalSnapshot(memoryStorage(settings).storage))
+    .records.find((record) => record.recordType === 'settings')?.payload.values;
+  assert.equal(sent({ theme: 'charcoal', tempo: 96 }).theme, 'charcoal');
+  assert.equal(sent({ theme: 'dark', tempo: 96 }).theme, 'dark', 'an explicit Dark (e.g. after reset) is sent');
+  assert.equal(sent({ tempo: 96 }).theme, undefined, 'unset is never sent as dark');
+  assert.equal(sent({ tempo: 96, themeCloudMirror: 'light' }).theme, 'light', 'mirror stands in for an unset theme');
+  assert.equal(sent({ theme: 'gray', tempo: 96, themeCloudMirror: 'light' }).theme, 'gray', 'the explicit choice wins');
+  assert.equal(sent({ theme: 'sepia', tempo: 96 }).theme, undefined, 'invalid values are never sent');
+  assert.deepEqual({ ...sent({ theme: 'gray' }) }, { theme: 'gray' }, 'a theme-only settings record');
+  assert.equal(sent({}), undefined, 'nothing to send: no settings record');
+  for (const theme of ['dark', 'charcoal', 'gray', 'light']) api.validateSnapshot(remoteSettings({ tempo: 90, theme }));
+  assert.throws(() => api.validateSnapshot(remoteSettings({ tempo: 90, theme: 'sepia' })));
 });
 
-test('reader-first: received theme values are accepted, never sent, never deleted, local theme kept', async () => {
-  const source = read('sync/fretboard-sync-adapter.js');
-  const context = vm.createContext({ crypto, TextEncoder, structuredClone, URL, console, Event: class {}, dispatchEvent() {} });
-  vm.runInContext(source, context);
-  const api = context.SoundCruiseFretboardSync;
-  assert(!api.SYNC_SETTINGS.includes('theme'), 'theme is not in the send list');
-  const remote = (values) => ({ appId: 'fretboard', schemaVersion: 1, records: [{
-    recordType: 'settings', recordId: 'settings', schemaVersion: 1, payload: { id: 'settings', values } }] });
-  for (const theme of ['dark', 'charcoal', 'gray', 'light']) api.validateSnapshot(remote({ tempo: 90, theme }));
-  assert.throws(() => api.validateSnapshot(remote({ tempo: 90, theme: 'sepia' })));
-  // local (no theme in its snapshot) + remote theme → the remote theme survives the merge, no conflict
-  const merged = api.mergeSnapshots(remote({ tempo: 90 }), remote({ tempo: 90, theme: 'gray' }));
+test('theme writer: a received theme becomes the device theme; a missing one never clears it', async () => {
+  const api = loadAdapter();
+  const device = memoryStorage({ theme: 'charcoal', tempo: 96 });
+  const adapter = new api.FretboardSyncAdapter({ storage: device.storage });
+  await adapter.applyRemoteSnapshot(remoteSettings({ tempo: 90, theme: 'light' }));
+  assert.equal(device.settings().theme, 'light');
+  assert.equal(device.settings().themeCloudMirror, undefined);
+  // A settings record without theme (e.g. an older client changed tempo) merges into one that keeps the
+  // device theme, and applying the merge result changes only tempo.
+  const local = api.normalizeLocalSnapshot(api.readLocalSnapshot(device.storage));
+  const kept = api.mergeSnapshots(local, remoteSettings({ tempo: 91 }));
+  assert.equal(kept.conflicts.length, 1, 'tempo differs on both sides: a settings field decision');
+  const values = { ...local.records.find((r) => r.recordType === 'settings').payload.values, tempo: 91 };
+  await adapter.applyRemoteSnapshot(remoteSettings(values));
+  assert.equal(device.settings().theme, 'light', 'the device theme is kept');
+  assert.equal(device.settings().tempo, 91, 'other settings still apply');
+  const mirrored = memoryStorage({ tempo: 96, themeCloudMirror: 'gray' });
+  await new api.FretboardSyncAdapter({ storage: mirrored.storage }).applyRemoteSnapshot(remoteSettings({ tempo: 96, theme: 'gray' }));
+  assert.equal(mirrored.settings().theme, 'gray', 'the mirror is adopted as the explicit theme');
+  assert.equal(mirrored.settings().themeCloudMirror, undefined, 'and retired');
+  const merged = api.mergeSnapshots(remoteSettings({ tempo: 90 }), remoteSettings({ tempo: 90, theme: 'gray' }));
   assert.equal(merged.conflicts.length, 0);
   assert.equal(merged.snapshot.records.find((r) => r.recordType === 'settings').payload.values.theme, 'gray');
-  // applying a received theme does not error and keeps this device's local theme
-  const values = new Map([['fretboard_cruise_state', JSON.stringify({ settings: { theme: 'charcoal', tempo: 96 } })]]);
-  const storage = { getItem: (k) => (values.has(k) ? values.get(k) : null), setItem: (k, v) => values.set(k, String(v)), removeItem: (k) => values.delete(k) };
-  assert(!JSON.stringify(api.normalizeLocalSnapshot(api.readLocalSnapshot(storage))).includes('"theme"'), 'local snapshot never carries theme');
-  const adapter = new api.FretboardSyncAdapter({ storage });
-  await adapter.applyRemoteSnapshot(remote({ tempo: 90, theme: 'light' }));  // no apply / manifest mismatch
-  const after = JSON.parse(values.get('fretboard_cruise_state')).settings;
-  assert.equal(after.theme, 'charcoal', 'the device theme is kept');
-  assert.equal(after.themeCloudMirror, 'light', 'the received theme is mirrored verbatim');
-  const echoed = api.normalizeLocalSnapshot(api.readLocalSnapshot(storage)).records.find((r) => r.recordType === 'settings');
-  assert.equal(echoed.payload.values.theme, 'light', 'local snapshot echoes only the cloud value');
-  // changing the device theme never changes what sync sees
-  const raw = JSON.parse(values.get('fretboard_cruise_state'));
-  (raw.settings || raw).theme = 'gray';
-  values.set('fretboard_cruise_state', JSON.stringify(raw));
-  assert.equal(api.normalizeLocalSnapshot(api.readLocalSnapshot(storage)).records.find((r) => r.recordType === 'settings').payload.values.theme, 'light');
-  // a cloud payload without theme clears the mirror (still no error)
-  await adapter.applyRemoteSnapshot(remote({ tempo: 90 }));
-  assert.equal(JSON.parse(values.get('fretboard_cruise_state')).settings.themeCloudMirror, undefined);
-  assert.equal(JSON.parse(values.get('fretboard_cruise_state')).settings.theme, 'gray');
+  assert.match(script, /function fretboardThemeOf\(settings\)/);
+  assert.equal((script.match(/applyFretboardTheme\(fretboardThemeOf\(state\.settings\)\)/g) || []).length, 2, 'load and post-sync apply use the device theme');
 });
 
 // ── Information pages ─────────────────────────────────────────────────────────────────────
