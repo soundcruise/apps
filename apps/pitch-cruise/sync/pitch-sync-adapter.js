@@ -252,6 +252,10 @@
     return { slots: [], order: [] };
   }
 
+  // Color theme, reader-first: the device's own `theme` is never sent. A theme received from the cloud is
+  // kept verbatim in settings.themeCloudMirror and echoed back as `theme`, so local and cloud snapshots
+  // stay identical (no apply/manifest mismatch) and other devices' theme is never deleted.
+  const CLOUD_THEMES = Object.freeze(['dark', 'charcoal', 'gray', 'light']);
   function meaningfulSettings(values) {
     return Object.entries(values).some(([key, value]) => {
       if (key === 'builtinChordEnabled' || key === 'builtinProgressionEnabled') return Object.keys(value).length > 0;
@@ -333,6 +337,7 @@
 
     const syncValues = {};
     SYNC_SETTINGS.forEach((key) => { if (settings[key] !== undefined) syncValues[key] = settings[key]; });
+    if (CLOUD_THEMES.includes(settings.themeCloudMirror)) syncValues.theme = settings.themeCloudMirror;
     const accidental = values.pitchTrainerProAccidentalDisplay;
     if (accidental === 'flat' || accidental === 'sharp') syncValues.accidentalDisplay = accidental;
     if (values.pitchTrainerTestModeEnabled === 'true' || values.pitchTrainerTestModeEnabled === true) syncValues.testModeEnabled = true;
@@ -409,11 +414,13 @@
   function validateRecordShape(record) {
     const payload = record.payload;
     if (record.recordType === 'settings') {
+      // theme (reader-first): accepted when received, never sent while it stays in LOCAL_ONLY_SETTINGS.
       const allowed = new Set([...SYNC_SETTINGS, 'accidentalDisplay', 'testModeEnabled',
-        'builtinChordEnabled', 'builtinProgressionEnabled']);
+        'builtinChordEnabled', 'builtinProgressionEnabled', 'theme']);
       if (!isPlainObject(payload.values) || !Object.keys(payload.values).every((key) => allowed.has(key)) ||
           payload.values.baseHz !== undefined || payload.values.sustainTime !== undefined) return false;
       const values = payload.values;
+      if (values.theme !== undefined && !CLOUD_THEMES.includes(values.theme)) return false;
       if (values.instrument !== undefined && !validText(values.instrument, 80)) return false;
       if (values.notationStyle !== undefined && !validText(values.notationStyle, 40)) return false;
       if (values.accidentalDisplay !== undefined && !['sharp', 'flat'].includes(values.accidentalDisplay)) return false;
@@ -941,6 +948,7 @@
     LOCAL_ONLY_SETTINGS.forEach((key) => { if (currentSettings[key] !== undefined) nextSettings[key] = currentSettings[key]; });
     Object.assign(nextSettings, DEFAULT_SETTINGS);
     SYNC_SETTINGS.forEach((key) => { if (values[key] !== undefined) nextSettings[key] = values[key]; });
+    if (CLOUD_THEMES.includes(values.theme)) nextSettings.themeCloudMirror = values.theme;
 
     const makeStages = (type, category) => {
       const stageRecords = canonical.records.filter((record) => record.recordType === type);

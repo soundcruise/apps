@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.16.1';
+const RHYTHM_CRUISE_VERSION = '1.16.2';
 function notifyRhythmSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
 }
@@ -23989,8 +23989,11 @@ function loadSettings() {
 
 function saveSettings() {
     try {
+        let themeCloudMirror; // Cloud Sync が受け取ったテーマの写し（adapter 管理・reader-first）。保存値をそのまま残す
+        try { const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)); themeCloudMirror = stored && stored.themeCloudMirror; } catch (_) { themeCloudMirror = undefined; }
         localStorage.setItem(SETTINGS_KEY, JSON.stringify({
             theme: state.theme, // 明示的に選ばれたときだけ値がある（undefined は保存されない）
+            themeCloudMirror: themeCloudMirror,
             threshold: mic.threshold,
             inputType: mic.inputType,
             headphoneType: mic.headphoneType,

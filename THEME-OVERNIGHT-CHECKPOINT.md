@@ -30,8 +30,8 @@ continue from the first phase that is not marked DONE.
 | 1 | Fretboard 4 themes (local-only) | DONE (deployed, prod smoke PASS) | 330e3b29 | 2.21.0 |
 | 2 | Pitch 4 themes (LOCAL_ONLY_SETTINGS) | DONE (deployed, prod smoke PASS) | d18930e1 | 2.26.0 |
 | 3 | Rhythm 4 themes (local-only) | DONE (deployed, prod smoke PASS) | 356c7bba | 1.16.0 |
-| 3b | Pro gate fully Dark while shown (layer off via :has(body.pro-gate-active)) | DONE (pending deploy check) | see git log | F 2.21.1 / P 2.26.1 / R 1.16.1 |
-| 4 | Reader-first Sync (Worker + 3 clients accept theme, no send) | TODO | | |
+| 3b | Pro gate fully Dark while shown (layer off via :has(body.pro-gate-active)) | DONE (deployed, gate pixel parity 0) | 69af8ef3 | F 2.21.1 / P 2.26.1 / R 1.16.1 |
+| 4 | Reader-first Sync (Worker + 3 clients accept theme, no send) | Worker DONE (7245c2e6 from 6c19d296); clients pending deploy check | see git log | F 2.21.2 / P 2.26.2 / R 1.16.2 |
 | 5 | Port + Charcoal | TODO | | |
 | 6 | Chord + Charcoal (app + info pages) | TODO | | |
 | 7 | Cross-app QA | TODO | | |
@@ -53,3 +53,7 @@ continue from the first phase that is not marked DONE.
 - Rhythm: canvases / VexFlow draw light ink for a dark ground, so only the panels around them stay Dark
   (lanes, calibration lanes, review, result graphs, score editor; opaque grounds #090d13 / #10141a measured from
   Dark). Surrounding UI is themed. Theming the canvas drawing itself is a follow-up (154 JS color sites).
+- Reader-first: clients keep a received cloud theme in settings.themeCloudMirror and echo only that value as
+  `theme` in their sync snapshot (apply/manifest stays exact, other devices' theme is never deleted, the device's
+  own theme is never sent). Old production clients (before 2.26.2 / 2.21.2 / 1.16.2) reject a theme payload →
+  writers must wait until those tabs are gone.

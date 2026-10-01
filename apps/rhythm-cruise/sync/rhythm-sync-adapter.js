@@ -236,6 +236,10 @@
     };
   }
 
+  // Color theme, reader-first: the device's own `theme` is never sent. A theme received from the cloud is
+  // kept verbatim in settings.themeCloudMirror and echoed back as `theme`, so local and cloud snapshots
+  // stay identical (no apply/manifest mismatch) and other devices' theme is never deleted.
+  const CLOUD_THEMES = Object.freeze(['dark', 'charcoal', 'gray', 'light']);
   function meaningfulSettings(values) {
     return Object.entries(values).some(([key, value]) => {
       if (key === 'builtinSampleEnabled') return Object.keys(value).length > 0;
@@ -343,6 +347,7 @@
         records.push(makeRecord('builtin_stage_preferences', ref, { builtinStageRef: ref, bpm, bars }));
       }
     });
+    if (CLOUD_THEMES.includes(main.themeCloudMirror)) settingsValues.theme = main.themeCloudMirror;
     if (meaningfulSettings(settingsValues)) records.push(makeRecord('settings', 'settings', { values: settingsValues }));
     records.sort((left, right) => `${left.recordType}/${left.recordId}`.localeCompare(`${right.recordType}/${right.recordId}`));
     const snapshot = { appId: APP_ID, schemaVersion: SCHEMA_VERSION, records };
@@ -368,8 +373,10 @@
     const payload = record.payload;
     if (record.recordType === 'settings') {
       if (!onlyKeys(payload, ['id', 'values']) || !isPlainObject(payload.values) ||
-          !onlyKeys(payload.values, SYNC_SETTINGS)) return false;
+          !onlyKeys(payload.values, [...SYNC_SETTINGS, 'theme'])) return false;
       const values = payload.values;
+      // theme (reader-first): accepted when received, not in SYNC_SETTINGS so it is never sent yet.
+      if (values.theme !== undefined && !CLOUD_THEMES.includes(values.theme)) return false;
       if (values.tapLayout !== undefined && !['lr', 'ud'].includes(values.tapLayout)) return false;
       if (values.tapUnified !== undefined && typeof values.tapUnified !== 'boolean') return false;
       if (values.inputMode !== undefined && !['tap', 'stroke'].includes(values.inputMode)) return false;
@@ -619,6 +626,8 @@
     nextMain.tapUnified = values.tapUnified ?? DEFAULT_SETTINGS.tapUnified;
     nextMain.inputMode = values.inputMode ?? DEFAULT_SETTINGS.inputMode;
     nextMain.judgePreset = values.judgePreset ?? DEFAULT_SETTINGS.judgePreset;
+    if (CLOUD_THEMES.includes(values.theme)) nextMain.themeCloudMirror = values.theme;
+    else delete nextMain.themeCloudMirror;
     nextMain.rhythmProCustomStages = orderedStages;
 
     const currentCreate = parseJson(currentRaw.values['rhythmCruiseCreatePresets:v1'], 'rhythmCruiseCreatePresets:v1', []);

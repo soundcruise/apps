@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/pitch-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/pitch-cruise/standard/`
 - PRO版URL: `https://soundcruise.jp/apps/pitch-cruise/pro_x9v7q2m8/`
-- 現在のバージョン: `2.26.1`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
+- 現在のバージョン: `2.26.2`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
 - 最新commit（pitch-cruise関連、`git log --oneline -- apps/pitch-cruise/` で確認）:
   - hash: `62b4a3bf`
   - message: `音感クルーズPROカスタムSTAGEの保存導線を整理`
@@ -115,6 +115,7 @@
 - 見た目: Dark は既存CSSそのまま。Charcoal / Gray / Light は `theme-colors.css`（通常版/Pro）・`theme-colors-beta.css`（ベータ）だけで適用。どちらも `tools/theme-layer/generate.py pitch` / `pitch-beta` で自動生成（手で直すのは末尾の Hand-tuned overrides のみ）。
 - 鍵盤（白鍵・黒鍵・アクティブ鍵）・正誤色・テストモードの赤は固定。ネオングリーン/シアンを文字に使う箇所は同系色の濃淡で読みやすくする。
 - Cloud Sync: theme は `pitch-sync-adapter.js` の `LOCAL_ONLY_SETTINGS`（端末ローカル、送信しない・同期適用で消えない）。
+- Reader-first（Worker 7245c2e6 以降）: クラウドの settings に `theme`（dark/charcoal/gray/light）が来ても受理する。受け取った値は `themeCloudMirror` にそのまま写し、ローカルのスナップショットではその値だけを `theme` として返す（照合一致・他端末の theme を消さない）。端末自身の `theme` は送らない。送信（writer）は別途承認後。
 - テスト: `node --test apps/pitch-cruise/theme.test.mjs`
 
 ---

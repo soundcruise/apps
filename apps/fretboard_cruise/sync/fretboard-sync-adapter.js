@@ -274,6 +274,10 @@
         ? source.cruiseRhythmSoundType : 'default'
     };
   }
+  // Color theme, reader-first: the device's own `theme` is never sent. A theme received from the cloud is
+  // kept verbatim in settings.themeCloudMirror and echoed back as `theme`, so local and cloud snapshots
+  // stay identical (no apply/manifest mismatch) and other devices' theme is never deleted.
+  const CLOUD_THEMES = Object.freeze(['dark', 'charcoal', 'gray', 'light']);
   function nonDefaultSettings(settings) {
     const result = {};
     SYNC_SETTINGS.forEach((key) => {
@@ -309,6 +313,7 @@
     const settings = isPlainObject(state.settings) ? state.settings : {};
     const records = [];
     const shared = nonDefaultSettings(normalizedSettings(settings));
+    if (CLOUD_THEMES.includes(settings.themeCloudMirror)) shared.theme = settings.themeCloudMirror;
     if (Object.keys(shared).length) records.push(makeRecord('settings', 'settings', { values: shared }));
 
     for (let stage = 1; stage <= 6; stage += 1) {
@@ -402,8 +407,10 @@
   }
   function validateSettings(payload) {
     if (!onlyKeys(payload, ['id', 'values']) || payload.id !== 'settings' || !isPlainObject(payload.values) ||
-        !Object.keys(payload.values).length || !onlyKeys(payload.values, SYNC_SETTINGS)) return false;
+        !Object.keys(payload.values).length || !onlyKeys(payload.values, [...SYNC_SETTINGS, 'theme'])) return false;
     const values = payload.values;
+    // theme (reader-first): accepted when received, not in SYNC_SETTINGS so it is never sent yet.
+    if (values.theme !== undefined && !CLOUD_THEMES.includes(values.theme)) return false;
     if (values.tempo !== undefined && (!Number.isSafeInteger(values.tempo) || values.tempo < 40 || values.tempo > 200)) return false;
     if (values.quizTimeLimit !== undefined && (!Number.isSafeInteger(values.quizTimeLimit) || values.quizTimeLimit < 1 || values.quizTimeLimit > 10)) return false;
     if (values.quizQuestionLimit !== undefined && ![0, 5, 10, 15].includes(values.quizQuestionLimit)) return false;
@@ -587,6 +594,8 @@
     const settingsRecord = canonical.records.find((record) => record.recordType === 'settings');
     const values = settingsRecord?.payload.values || {};
     SYNC_SETTINGS.forEach((key) => { next.settings[key] = clone(values[key] ?? DEFAULT_SETTINGS[key]); });
+    if (CLOUD_THEMES.includes(values.theme)) next.settings.themeCloudMirror = values.theme;
+    else delete next.settings.themeCloudMirror;
 
     next.settings.cruiseStageRoutes = {};
     next.settings.cruiseStageRouteGroups = {};
