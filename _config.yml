@@ -4,5 +4,6 @@ exclude:
   - AGENTS.md
   - CLAUDE.md
   - THEME-OVERNIGHT-CHECKPOINT.md
+  - CRUISE-APP-OVERNIGHT-THEME-ROLLOUT-REPORT.md
   - apps/chord-cruise/tests
   - apps/chord-cruise/ai-handoff

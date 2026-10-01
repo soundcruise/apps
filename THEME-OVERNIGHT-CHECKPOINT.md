@@ -35,7 +35,7 @@ continue from the first phase that is not marked DONE.
 | 5 | Port + Charcoal | DONE (deployed, prod smoke PASS, gate parity 0) | c4fd125a | Port 1.13.0 |
 | 6 | Chord + Charcoal (app + info pages) | DONE (deployed, prod smoke PASS, gate parity 0) | 01f6df1c | Chord 1.18.0 |
 | 7 | Cross-app QA | DONE (prod cross-app 132/132, audio hashes identical) | (this file) | — |
-| 8 | Final full regression + report | TODO | | |
+| 8 | Final full regression + report | DONE (all suites PASS; report CRUISE-APP-OVERNIGHT-THEME-ROLLOUT-REPORT.md) | (this commit) | — |
 
 ## Known issues / notes
 
@@ -73,3 +73,6 @@ continue from the first phase that is not marked DONE.
   Worker 7245c2e6 at 100%; no Worker change since 6c19d296; no D1 migration, schema version or record type change;
   apps/shared untouched. Port / Chord Pro gates are opaque overlays over the themed page (pixel parity 0);
   Pitch / Fretboard / Rhythm switch the layer off while the gate is shown.
+- Phase 8 (2026-10-02): Port 952 / Shared 226 / Pitch 36 / Fretboard 31 / Rhythm 17+3 files / Chord 96 files /
+  Sync Worker 397 / NEWS Worker 327 / Requests Worker 65 / runtime simulation 132 - all PASS. Production home screens
+  of 5 apps x 4 themes reviewed. Writer activation for Pitch / Fretboard / Rhythm waits for the user's go-ahead.
