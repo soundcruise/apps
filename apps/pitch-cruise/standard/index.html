@@ -5,12 +5,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>音感クルーズ</title>
+    <script>
+        // Pitch color theme before first paint. Reads only pitchTrainerSettings.theme; anything else is Dark.
+        // Dark keeps the page exactly as before; other themes add a theme-color meta ahead of the Dark one.
+        (function () {
+            var colors = { charcoal: '#424346', gray: '#c8cbd0', light: '#f5f6f6' };
+            var theme = 'dark';
+            try {
+                var saved = JSON.parse(localStorage.getItem('pitchTrainerSettings') || 'null');
+                var value = saved && saved.theme;
+                if (value === 'charcoal' || value === 'gray' || value === 'light') theme = value;
+            } catch (_) { theme = 'dark'; }
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme !== 'dark') {
+                var meta = document.createElement('meta');
+                meta.setAttribute('name', 'theme-color');
+                meta.setAttribute('data-pitch-theme-color', '');
+                meta.setAttribute('content', colors[theme]);
+                document.head.appendChild(meta);
+            }
+        }());
+    </script>
     <link rel="stylesheet" href="../../shared/style.css?v=100">
     <link rel="stylesheet" href="../../shared/pro-theme.css?v=98">
-    <link rel="stylesheet" href="../theme.css?v=13">
+    <link rel="stylesheet" href="../theme.css?v=14">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="../theme-colors.css?v=2.26.0">
     <link rel="manifest" href="manifest.json?v=6">
     <meta name="theme-color" content="#121212">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -641,6 +663,16 @@
             <div class="modal-content">
                 <h2>設定</h2>
 
+                <div class="setting-item vertical setting-item--theme">
+                    <label id="theme-setting-label">カラーテーマ</label>
+                    <div class="theme-choice-group" role="group" aria-labelledby="theme-setting-label">
+                        <button type="button" class="theme-choice" data-theme-choice="dark" aria-pressed="true">ダーク</button>
+                        <button type="button" class="theme-choice" data-theme-choice="charcoal" aria-pressed="false">チャコール</button>
+                        <button type="button" class="theme-choice" data-theme-choice="gray" aria-pressed="false">グレー</button>
+                        <button type="button" class="theme-choice" data-theme-choice="light" aria-pressed="false">ライト</button>
+                    </div>
+                </div>
+
                 <div class="setting-item">
                     <label>音名表記</label>
                     <select id="notation-selector" class="preset-select">
@@ -797,7 +829,7 @@
             <button type="button" id="app-update-dismiss-btn" class="btn-banner-dismiss" aria-label="閉じる">×</button>
         </div>
     </div>
-    <script src="../script.js?v=2.25.0"></script>
+    <script src="../script.js?v=2.26.0"></script>
 </body>
 
 </html>

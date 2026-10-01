@@ -451,6 +451,8 @@ class Mapper:
             if ctx.get('clip_text'):
                 return c
             L = to_lab(c)[0]
+            if L < 3 and 0.9 <= a < 1 and role == 'bg':  # near-opaque black = a page surface, not a scrim
+                return self.elevate(theme, c)
             if L < 3 and a < 1:  # black overlays: scrims / wells
                 if role == 'border':
                     return c if theme == 'charcoal' else self.ink(theme, a * 0.6)
@@ -544,9 +546,41 @@ class Generator:
             i = k + 1
         return ''.join(out)
 
+    URL_RE = re.compile(r'url\((?:"[^"]*"|\'[^\']*\'|[^()]*)\)')
+    URL_COLOR_RE = re.compile(r"(?<![\w-])(?:%23[0-9a-fA-F]{6}|%23[0-9a-fA-F]{3}|#[0-9a-fA-F]{6}|#[0-9a-fA-F]{3}|white|black)(?![\w-])")
+
+    def url_token(self, url, ctx):
+        """Inline SVG icons: recolor their strokes/fills per theme as one token per url."""
+        if not self.URL_COLOR_RE.search(url):
+            return url
+        key = ('url', url, bool(ctx.get('on_fill')))
+        if key not in self.tokens:
+            self.tokens[key] = len(self.token_values)
+            vals = {}
+            for theme in THEMES:
+                def repl(m):
+                    raw = m.group(0)
+                    col = parse_color(raw.replace('%23', '#'))
+                    if col is None:
+                        return raw
+                    mapped = fmt(self.mapper.map(theme, 'text', col, ctx))
+                    if mapped.startswith('rgba'):
+                        return raw
+                    return mapped.replace('#', '%23') if raw.startswith('%23') or '%3c' in url.lower() else mapped
+                vals[theme] = self.URL_COLOR_RE.sub(repl, url)
+            self.token_values.append(vals)
+        return 'var(--tl-%d)' % self.tokens[key]
+
     def map_value(self, role, value, ctx):
         if ctx.get('identity'):
             return value
+        # protect url(...) (data: SVG icons) from the plain color pass
+        urls = []
+
+        def stash(m):
+            urls.append(self.url_token(m.group(0), ctx) if role in ('bg', 'text') else m.group(0))
+            return '\u0000%d\u0000' % (len(urls) - 1)
+        value = self.URL_RE.sub(stash, value)
         if role == 'text' and 'var(' in value:
             value = self.resolve_text_vars(value, ctx)
 
@@ -557,7 +591,8 @@ class Generator:
             if role == 'shadow' or role == 'bg' or role == 'border' or role == 'text':
                 return self.token(role, c, ctx)
             return m.group(0)
-        return COLOR_RE.sub(repl, value)
+        out = COLOR_RE.sub(repl, value)
+        return re.sub('\u0000(\\d+)\u0000', lambda m: urls[int(m.group(1))], out)
 
     def resolve_var(self, name, role, ctx):
         """Text colors given as var(--root-token) are resolved so accent text can be darkened."""
@@ -578,6 +613,7 @@ class Generator:
         if 'text' in clip:
             ctx['clip_text'] = True
         bg = values.get('background') or values.get('background-color') or values.get('background-image') or ''
+        bg = re.sub(r'var\(\s*(--[\w-]+)[^()]*\)', lambda m: self.all_root_vars.get(m.group(1), m.group(0)), bg)
         fills = [parse_color(m.group(0)) for m in COLOR_RE.finditer(bg)]
         fills = [c for c in fills if c is not None]
         if fills and not ctx.get('clip_text'):
@@ -774,7 +810,7 @@ class Generator:
         pins = self.app.get('object_pins', [])
         if pins:
             body.append('/* ── object roots keep the Dark ink and surface tokens they inherit ── */')
-            decl = ['color: %s' % self.app['dark_text']]
+            decl = ['color: %s' % self.app['dark_text'], 'color-scheme: %s' % self.app.get('dark_color_scheme', 'normal')]
             for var in self.app.get('var_roles', {}):
                 if var in self.all_root_vars:
                     decl.append('%s: %s' % (var, self.all_root_vars[var]))

@@ -13,7 +13,8 @@
     'pitchTrainerTestModeEnabled',
     'pitchTrainerTestModeResults'
   ]);
-  const LOCAL_ONLY_SETTINGS = Object.freeze(['baseHz', 'sustainTime']);
+  // theme is a per-device color choice: kept locally across remote apply, never sent (yet).
+  const LOCAL_ONLY_SETTINGS = Object.freeze(['baseHz', 'sustainTime', 'theme']);
   const SYNC_SETTINGS = Object.freeze([
     'instrument', 'notationStyle', 'scaleEnabled', 'isAnswerMode', 'keyRandomMode',
     'baseOctave', 'keyOffset', 'noteSpeed'

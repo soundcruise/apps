@@ -57,3 +57,49 @@ APPS = {
         'named_text_tokens': {'--tl-accent-text': '#4f9cf9'},
     },
 }
+
+PITCH_COMMON = {
+    'dark_bg': '#121212',
+    'dark_surface': '#1e1e1e',
+    'dark_text': '#ffffff',
+    'palette': {
+        'charcoal': dict(NEUTRAL_CHARCOAL),
+        'gray': dict(NEUTRAL_GRAY),
+        'light': {
+            'bg': '#f5f6f6', 'surface': '#ffffff', 'raised': '#eef0f0',
+            'text': '#1a1d1c', 'muted': '#4b5150', 'ink': '#1a1d1c', 'scrim': 'rgba(18, 20, 20, 0.40)',
+        },
+    },
+    # Piano keys (white/black), the active key and answer feedback colors are objects / functional.
+    'object_selectors': (
+        r'\.(?:white-key|black-key|white-keys|black-keys|piano-|keyboard-row|key-label|note-toggle(?![\w-])|'
+        r'feedback-correct|feedback-wrong|correct(?![\w-])|wrong(?![\w-])|tm-confetti|pro-gate|pro-badge)'
+    ),
+    'object_pins': ['.piano-layout', '.piano-keys-grid', '.keyboard-row'],
+    'identity_vars': ['--white-key-color', '--black-key-color', '--key-active-color', '--primary-color',
+                      '--secondary-color', '--error-color', '--tm-red', '--tm-red-glow', '--tm-red-dim'],
+    'var_roles': {'--bg-color': 'bg', '--surface-color': 'bg', '--text-color': 'text'},
+    'named_text_tokens': {'--tl-accent-text': '#00ff88', '--tl-accent2-text': '#00d2ff', '--tl-gold-text': '#ffd65e'},
+}
+
+APPS['pitch'] = dict(PITCH_COMMON, **{
+    'name': 'Pitch Cruise (音感クルーズ) Standard / Pro',
+    'output': 'apps/pitch-cruise/theme-colors.css',
+    'sources': [
+        {'path': 'apps/shared/style.css'},
+        {'path': 'apps/shared/pro-theme.css'},
+        {'path': 'apps/pitch-cruise/theme.css'},
+        {'path': 'apps/shared/pro-gate.css', 'identity': True},
+        {'path': 'apps/shared/sync-account/multi-app-sync.css'},
+        {'path': 'apps/pitch-cruise/pro_x9v7q2m8/index.html', 'inline_style': True},
+    ],
+})
+
+APPS['pitch-beta'] = dict(PITCH_COMMON, **{
+    'name': 'Pitch Cruise (音感クルーズ) Beta',
+    'output': 'apps/pitch-cruise/theme-colors-beta.css',
+    'sources': [
+        {'path': 'apps/shared/style.css'},
+        {'path': 'apps/pitch-cruise/theme.css'},
+    ],
+})

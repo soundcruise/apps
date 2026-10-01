@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/pitch-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/pitch-cruise/standard/`
 - PRO版URL: `https://soundcruise.jp/apps/pitch-cruise/pro_x9v7q2m8/`
-- 現在のバージョン: `2.11.1`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
+- 現在のバージョン: `2.26.0`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
 - 最新commit（pitch-cruise関連、`git log --oneline -- apps/pitch-cruise/` で確認）:
   - hash: `62b4a3bf`
   - message: `音感クルーズPROカスタムSTAGEの保存導線を整理`
@@ -104,6 +104,18 @@
 - **テストモード**: 設定からON/OFFできる特別モード（`test-mode-status-bar`でステータス表示）。過去にリリース後の解答不能バグ修正（v2.9.5）やクリア画面のスクロール不可バグ修正（v2.9.6）が発生した実績があり、**テストモード関連ロジックは特に慎重に扱うこと**。
 - **PROロック**: PROカスタムSTAGEの作成・保存・実プレイ、Pro設定の詳細調整。
 - **音声再生や判定に触る時の注意点**: 単音・コードの音声合成や判定ロジックは`script.js`に集約されており、変更前に関連関数を`grep`で洗い出すこと。過去に「PROカスタムSTAGEの✓バッジ位置修正・赤ボーダー追加」のような細かい表示不具合の修正履歴が複数あり、実機依存の細かい調整が積み重なっている領域であることに注意。
+
+---
+
+### カラーテーマ（2.26.0〜）
+
+- 設定モーダル先頭の「カラーテーマ」: ダーク / チャコール / グレー / ライト（通常版・Pro・ベータ）。タップで即反映・保存、「キャンセル」で開いた時の値に戻る、「デフォルトに戻す」はダーク。
+- 保存先: `pitchTrainerSettings.theme`。`saveSettings()` は毎回作り直すため `theme` を明示的に保持する（未選択なら書かない）。欠落・不正値はダーク。
+- 起動時: 各 `index.html` の `<head>` 先頭の bootstrap が `html[data-theme]` を設定し、Dark 以外は既存の theme-color（#121212）より前に meta を追加。
+- 見た目: Dark は既存CSSそのまま。Charcoal / Gray / Light は `theme-colors.css`（通常版/Pro）・`theme-colors-beta.css`（ベータ）だけで適用。どちらも `tools/theme-layer/generate.py pitch` / `pitch-beta` で自動生成（手で直すのは末尾の Hand-tuned overrides のみ）。
+- 鍵盤（白鍵・黒鍵・アクティブ鍵）・正誤色・テストモードの赤は固定。ネオングリーン/シアンを文字に使う箇所は同系色の濃淡で読みやすくする。
+- Cloud Sync: theme は `pitch-sync-adapter.js` の `LOCAL_ONLY_SETTINGS`（端末ローカル、送信しない・同期適用で消えない）。
+- テスト: `node --test apps/pitch-cruise/theme.test.mjs`
 
 ---
 

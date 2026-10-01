@@ -42,5 +42,5 @@ test('Information, Settings and Test Mode remain available', () => {
     assert.match(html, /id="test-mode-info-btn"/);
   }
   assert.match(script, /_initTestModeInfoAccordion\(\);/);
-  for (const html of Object.values(pages)) assert.match(html, /theme\.css\?v=13"/);
+  for (const html of Object.values(pages)) assert.match(html, /theme\.css\?v=14"/);
 });

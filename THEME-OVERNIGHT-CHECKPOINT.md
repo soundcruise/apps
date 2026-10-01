@@ -27,8 +27,8 @@ continue from the first phase that is not marked DONE.
 | Phase | Scope | Status | Commit | Version |
 |---|---|---|---|---|
 | 0 | Baseline check | DONE | (this file) | — |
-| 1 | Fretboard 4 themes (local-only) | DONE (pending deploy check) | see git log | 2.21.0 |
-| 2 | Pitch 4 themes (LOCAL_ONLY_SETTINGS) | TODO | | |
+| 1 | Fretboard 4 themes (local-only) | DONE (deployed, prod smoke PASS) | 330e3b29 | 2.21.0 |
+| 2 | Pitch 4 themes (LOCAL_ONLY_SETTINGS) | DONE (pending deploy check) | see git log | 2.26.0 |
 | 3 | Rhythm 4 themes (local-only) | TODO | | |
 | 4 | Reader-first Sync (Worker + 3 clients accept theme, no send) | TODO | | |
 | 5 | Port + Charcoal | TODO | | |
@@ -43,5 +43,10 @@ continue from the first phase that is not marked DONE.
 - Charcoal palette used: bg #424346 / surface #4c4e52 / raised #58595e / text #f2f1ed / muted #c4c5c7
   (slightly darker than the #47484b starting point so dimmed text keeps AA).
 - Fretboard info / terms / privacy / pro-access pages stay Dark (not themed tonight).
+- TODO Phase 7: regenerate all layers with the final generator (url() icon fix, opaque-black-as-surface);
+  Fretboard layer then changes only for unused `.preset-select` / `.overlay` rules → patch bump if regenerated.
 - Fretboard contrast exceptions (same as Dark or object): `・` divider (opacity), markers measured on page bg,
   basic-rule items under the intro overlay.
+- Pitch: beta page has its own layer (`theme-colors-beta.css`, no pro-theme.css). Pro gate backdrop shows the
+  themed page through its blur (max channel delta 8/255); the gate card itself stays Dark.
+- Pitch contrast exceptions: piano key labels (object colors identical, checker misreads bg), gradient titles.

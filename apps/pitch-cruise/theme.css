@@ -828,3 +828,39 @@ body.test-mode-enabled .stage-clear-mark {
     max-height: none;
     margin: auto;
 }
+
+/* カラーテーマ（設定モーダル先頭、4択） */
+.setting-item--theme {
+    align-items: stretch;
+}
+
+.theme-choice-group {
+    display: flex;
+    width: 100%;
+    gap: 2px;
+    padding: 3px;
+    border-radius: 10px;
+    background: rgba(0, 0, 0, 0.3);
+    box-sizing: border-box;
+}
+
+.theme-choice {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 8px 4px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.6);
+    font: inherit;
+    font-size: 0.82rem;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.theme-choice[aria-pressed="true"] {
+    background: rgba(255, 255, 255, 0.16);
+    color: #ffffff;
+    font-weight: 700;
+}
+

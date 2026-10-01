@@ -1,5 +1,35 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.25.0';
+const PITCH_TRAINER_APP_VERSION = '2.26.0';
+
+// Color theme (per app, local only). Missing or invalid values are Dark; the value is stored only when
+// the user picks one in Settings. The head bootstrap applies it before first paint.
+const PITCH_THEMES = ['dark', 'charcoal', 'gray', 'light'];
+const PITCH_THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: '#f5f6f6' };
+
+function resolvePitchTheme(value) {
+    return PITCH_THEMES.includes(value) ? value : 'dark';
+}
+
+function applyPitchTheme(value) {
+    const theme = resolvePitchTheme(value);
+    document.documentElement.setAttribute('data-theme', theme);
+    let meta = document.querySelector('meta[data-pitch-theme-color]');
+    if (theme === 'dark') {
+        if (meta) meta.remove();
+    } else {
+        if (!meta) {
+            meta = document.createElement('meta');
+            meta.setAttribute('name', 'theme-color');
+            meta.setAttribute('data-pitch-theme-color', '');
+            // ahead of the page's Dark theme-color so it takes precedence
+            document.head.insertBefore(meta, document.head.querySelector('meta[name="theme-color"]'));
+        }
+        meta.setAttribute('content', PITCH_THEME_META_COLORS[theme]);
+    }
+    document.querySelectorAll('#settings-modal [data-theme-choice]').forEach((button) => {
+        button.setAttribute('aria-pressed', String(button.getAttribute('data-theme-choice') === theme));
+    });
+}
 function notifyPitchSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('pitch');
 }
@@ -212,7 +242,7 @@ function updateTestModeInGameUI(game) {
     const answerLabel = document.getElementById('answer-mode-status');
     if (answerToggle) { answerToggle.disabled = true; answerToggle.checked = true; }
     if (answerLabel) {
-        answerLabel.innerHTML = '回答ON固定<br><small style="font-size:0.7em;color:rgba(255,255,255,0.5)">テスト中は変更できません</small>';
+        answerLabel.innerHTML = '回答ON固定<br><small style="font-size:0.7em;color:var(--pitch-answer-note-color, rgba(255,255,255,0.5))">テスト中は変更できません</small>';
     }
 }
 
@@ -235,10 +265,10 @@ function _setTestModeButtonRestrictions(restrict, game) {
         if (answerLabel && game) {
             if (game.isAnswerMode) {
                 answerLabel.textContent = '回答ON';
-                answerLabel.style.color = '#fff';
+                answerLabel.style.color = 'var(--pitch-answer-on-color, #fff)';
             } else {
                 answerLabel.textContent = '回答OFF (音確認のみ)';
-                answerLabel.style.color = 'rgba(255, 255, 255, 0.6)';
+                answerLabel.style.color = 'var(--pitch-answer-off-color, rgba(255, 255, 255, 0.6))';
             }
         }
     }
@@ -1699,6 +1729,15 @@ class Game {
             });
         }
 
+        // カラーテーマ：タップで即プレビュー＆保存、キャンセルで開いた時の値へ戻す
+        document.querySelectorAll('#settings-modal [data-theme-choice]').forEach((button) => {
+            button.addEventListener('click', () => {
+                this.theme = resolvePitchTheme(button.getAttribute('data-theme-choice'));
+                applyPitchTheme(this.theme);
+                this.saveSettings();
+            });
+        });
+
         // テストモード ON/OFF トグル
         const testModeToggle = document.getElementById('test-mode-toggle');
         if (testModeToggle) {
@@ -2469,6 +2508,8 @@ class Game {
             if (data) {
                 const s = JSON.parse(data);
                 this.isInitializing = true; // Add flag to prevent saveSettings during loading
+                this.theme = s.theme;
+                applyPitchTheme(this.theme);
 
                 if (isPitchTrainerPro()) {
                     if (s.baseOctave !== undefined) this.updateOctave(s.baseOctave - this.baseOctave);
@@ -2533,6 +2574,8 @@ class Game {
 
                 this.isInitializing = false;
             } else {
+                this.theme = undefined;
+                applyPitchTheme(this.theme);
                 this.updateNotation('doremi');
             }
         } catch (e) {
@@ -2565,6 +2608,8 @@ class Game {
                 scaleEnabled: this.scaleEnabled,
                 isAnswerMode: this.isAnswerMode
             };
+            // カラーテーマは明示的に選ばれた値だけを保持する（未選択なら書かない）
+            if (this.theme !== undefined) data.theme = this.theme;
             if (isPitchTrainerPro()) {
                 data.keyRandomMode = this.keyRandomMode;
                 data.baseOctave = this.baseOctave;
@@ -2597,7 +2642,8 @@ class Game {
             instrument: this.instrument,
             notationStyle: this.notationStyle,
             scaleEnabled: this.scaleEnabled,
-            isAnswerMode: this.isAnswerMode
+            isAnswerMode: this.isAnswerMode,
+            theme: this.theme
         };
         if (document.getElementById('key-random-toggle') && isPitchTrainerPro()) {
             this._settingsModalSnapshot.keyRandomMode = this.keyRandomMode;
@@ -2660,6 +2706,10 @@ class Game {
                 const answerToggle = document.getElementById('answer-mode-toggle');
                 if (answerToggle) answerToggle.checked = this.isAnswerMode;
                 this.toggleAnswerMode(this.isAnswerMode);
+            }
+            if (Object.prototype.hasOwnProperty.call(s, 'theme')) {
+                this.theme = s.theme;
+                applyPitchTheme(this.theme);
             }
         } finally {
             this.isInitializing = false;
@@ -2996,7 +3046,7 @@ class Game {
             // Subtext for chord count
             const countLabel = document.createElement('span');
             countLabel.style.fontSize = '0.75rem';
-            countLabel.style.color = 'rgba(255,255,255,0.5)';
+            countLabel.style.color = 'var(--pitch-count-label-color, rgba(255,255,255,0.5))';
             countLabel.textContent = prog.chords.length + 'コード';
 
             // Generate chords string like "C - F - G - C"
@@ -5035,6 +5085,9 @@ class Game {
         if (keyRandomToggle) keyRandomToggle.checked = false;
         this._scaleEnabledBeforeKeyRandom = undefined;
         this.updateKeyRandomDependentUi();
+        // カラーテーマもダークへ戻す
+        this.theme = 'dark';
+        applyPitchTheme(this.theme);
         this.saveSettings();
     }
 
@@ -5696,13 +5749,13 @@ class Game {
         if (this.isAnswerMode) {
             if (statusLabel) {
                 statusLabel.textContent = '回答ON';
-                statusLabel.style.color = '#fff';
+                statusLabel.style.color = 'var(--pitch-answer-on-color, #fff)';
             }
             if (this.feedbackEl) this.feedbackEl.textContent = '';
         } else {
             if (statusLabel) {
                 statusLabel.textContent = '回答OFF (音確認のみ)';
-                statusLabel.style.color = 'rgba(255, 255, 255, 0.6)';
+                statusLabel.style.color = 'var(--pitch-answer-off-color, rgba(255, 255, 255, 0.6))';
             }
             if (this.feedbackEl) this.feedbackEl.textContent = '🎶 音確認モード (回答されません)';
         }
