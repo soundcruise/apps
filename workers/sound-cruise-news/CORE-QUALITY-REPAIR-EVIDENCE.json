@@ -1,0 +1,451 @@
+{
+  "phase": "NEWS Core Quality Repair Sprint",
+  "verifiedAt": "2026-10-01T00:10:04.902Z",
+  "versions": {
+    "port": "1.10.0",
+    "news": "0.8.1"
+  },
+  "result": "QUALITY IMPROVED — MORE WORK NEEDED",
+  "baseline": {
+    "head": "931683b7",
+    "visible": 33,
+    "pending": 22,
+    "storedRows": 66
+  },
+  "cleanup": {
+    "at": "2026-09-30T23:38:58.178Z",
+    "beforePending": 22,
+    "afterPending": 13,
+    "decisions": [
+      {
+        "id": "41a5f116a0ecd9d6a8a7fe8423b11915f47c95498184ef7a0cdeb55ae2ffcfcc",
+        "action": "reject",
+        "reason": "duplicate",
+        "at": 1790811510083,
+        "publisherRequests": 0,
+        "url": "https://www.ikebe-gakki-pb.com/new_product/172536/",
+        "basis": "stored_same_product_launch_or_published_topic"
+      },
+      {
+        "id": "afca4928b98a70b02ffb71edba5fe0ba3e714e9fb9c21ba31c17492c1d3a4327",
+        "action": "reject",
+        "reason": "duplicate",
+        "at": 1790811513168,
+        "publisherRequests": 0,
+        "url": "https://www.ikebe-gakki-pb.com/new_product/172531/",
+        "basis": "stored_same_product_launch_or_published_topic"
+      },
+      {
+        "id": "8944404ac370e2227f31d4c80922ff71267c82ba7a401b8c5040d5f616ae5c96",
+        "action": "reject",
+        "reason": "duplicate",
+        "at": 1790811516078,
+        "publisherRequests": 0,
+        "url": "https://www.ikebe-gakki-pb.com/new_product/172252/",
+        "basis": "stored_same_product_launch_or_published_topic"
+      },
+      {
+        "id": "c5bf9019beae4e9b85e1491705d90704aa18e9a9f2d3f915c3e545d13365bff7",
+        "action": "reject",
+        "reason": "duplicate",
+        "at": 1790811518959,
+        "publisherRequests": 0,
+        "url": "https://www.ikmultimedia.com/news/?item_id=19751",
+        "basis": "stored_same_product_launch_or_published_topic"
+      },
+      {
+        "id": "c16f2814853dc1ba1df5b12d52650b3f88b5cd45f171d338e32d1691839bd007",
+        "action": "reject",
+        "reason": "duplicate",
+        "at": 1790811521715,
+        "publisherRequests": 0,
+        "url": "https://www.ikmultimedia.com/news/?item_id=19724",
+        "basis": "stored_same_product_launch_or_published_topic"
+      },
+      {
+        "id": "cb2ad54a072707d39a494bef046ba3775b3d6cf16f8c8270a524a908cc13c463",
+        "action": "reject",
+        "reason": "not_relevant",
+        "at": 1790811524750,
+        "publisherRequests": 0,
+        "url": "https://www.ikmultimedia.com/news/?item_id=19570",
+        "basis": "July stale incomplete low-value product/pack facts; no reconstructable user value"
+      },
+      {
+        "id": "eafa0d928b23672c97970873b124834ec51062d11bef3b8105e41e06d851ef2d",
+        "action": "reject",
+        "reason": "not_relevant",
+        "at": 1790811527606,
+        "publisherRequests": 0,
+        "url": "https://www.ikmultimedia.com/news/?item_id=19564",
+        "basis": "July stale incomplete low-value product/pack facts; no reconstructable user value"
+      },
+      {
+        "id": "035ad1ce6a8bd73f31d0ac0d4d2c299e68ab792bfbe036ca13ec2733d9281a48",
+        "action": "reject",
+        "reason": "not_relevant",
+        "at": 1790811530493,
+        "publisherRequests": 0,
+        "url": "https://www.ikmultimedia.com/news/?item_id=19588",
+        "basis": "July stale incomplete low-value product/pack facts; no reconstructable user value"
+      },
+      {
+        "id": "3182a78d5d9f33d69123a5d76188fbc6eb5e237749818efdde0e2a8779b7eb33",
+        "action": "reject",
+        "reason": "not_relevant",
+        "at": 1790811533252,
+        "publisherRequests": 0,
+        "url": "https://www.ikmultimedia.com/news/?item_id=19584",
+        "basis": "July stale incomplete low-value product/pack facts; no reconstructable user value"
+      },
+      {
+        "id": "067fbea16f1b4202c57e8b88e4a761e97bf243a1180fc5f5fb77416b0cc3bd68",
+        "action": "reject",
+        "basis": "Stored verification URL does not establish official author identity; only generic DTM scope, no verified product names"
+      }
+    ],
+    "publisherRequests": 0
+  },
+  "additionalDuplicateClose": {
+    "id": "20d3d19be3fa89df0885728bf23193b1ff45caccbee5fbaf3f752d36423e1f7c",
+    "action": "reject",
+    "reason": "duplicate",
+    "at": 1790812690608,
+    "publisherRequests": 0
+  },
+  "final": {
+    "result": "PASS",
+    "at": "2026-10-01T00:10:04.902Z",
+    "health": {
+      "ok": true,
+      "version": "0.8.1",
+      "collection": true,
+      "publication": true,
+      "api": true
+    },
+    "payloadCount": 37,
+    "pending": 12,
+    "retainedRows": 66,
+    "publisherRequests": 0,
+    "allPublisherAttemptTimesUnchanged": true,
+    "collectionRunsUnchanged": true,
+    "sleepStopped": true,
+    "sleepVisible": 5,
+    "reviewRejectAuditsAdded": 11,
+    "controls": [
+      {
+        "id": 1,
+        "collection_enabled": 1,
+        "api_enabled": 1,
+        "revision": 91,
+        "publication_enabled": 1
+      }
+    ],
+    "deploy": "0.8.1"
+  },
+  "categoryCounts": {
+    "acoustic_guitar": 6,
+    "electric_guitar_bass": 7,
+    "amps_effects": 9,
+    "recording_audio": 3,
+    "dtm_software": 9,
+    "artist_guitar": 1,
+    "live_guitar": 2,
+    "sale": 0,
+    "creator_streaming": 0,
+    "media_other": 0
+  },
+  "quality": {
+    "pass": true,
+    "reasons": [],
+    "summary": {
+      "at": "2026-09-30T23:53:25.524Z",
+      "counts": {
+        "HIGH VALUE": 25,
+        "USEFUL": 8,
+        "LOW VALUE": 4,
+        "NOISE": 0
+      },
+      "genericLabels": 7,
+      "categoriesCovered": [
+        "acoustic_guitar",
+        "amps_effects",
+        "dtm_software",
+        "electric_guitar_bass",
+        "live_guitar",
+        "recording_audio"
+      ],
+      "reviewBurden": 13,
+      "visibleIds": [
+        "48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd",
+        "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+        "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+        "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+        "4a818ebef7d1ce438926275be97be3302d4407a9d1f80e7c5069b05a54a6191f",
+        "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+        "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+        "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+        "6743f48dc247ce49cd1e81a3ec52a415eb1fcb1f0051b682e945df88344ac7e4",
+        "6996cda04135ca70f4cb480c90b83aba220499d3158811b6a6b8d43f586aadf8",
+        "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+        "78c7568a8fb1c49b4158dfeaa603f175df20a79cb98962613969dfb9063d3875",
+        "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+        "d348508497550e8d67a94e8d5cd648aed1bdb84a4b4eb1710d4935760a3bbb48",
+        "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+        "c67e0180eae9c4019f00d553869b3011b0b6371013110873f1354878b6485ce3",
+        "ca003c8a5353bf1af7837c20ef13222ecc3a7d796d7c445235018450de476eae",
+        "e2e2240cf3d3e0e284a1465a0fdc1dbb1b6368c34135fbf98f340c4beef06922",
+        "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+        "53f1d8c22d50660e1f24d3b7c95b08d4e935c3c2039431ec4b72acd3df2378ec",
+        "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+        "b7d35c4750a6712448950d2d5b73ef7254544fd712366102a6fe6ec9d010d188",
+        "41ace56b12a95818a284af8f8de60c87992437c478ee8d9d403db1df1934d2f2",
+        "bfc2b95d77b618b783689078455cc22a90dc92cf6bcc953740eeb44d9ff82c7c",
+        "e2266b3c52fa665fa070bd9ebf45dbb2478040bbc7857d1de29eede75794fb5d",
+        "6306784f40ad5ba6490183003007002df7c827ffe91b725fddd62574c2b0b982",
+        "80aefd3c6f3a8215a08a9a0e7f802706e9f43c70de2c15a857c1a9f5dafd97eb",
+        "3f6bd754cf451aeca029ca3ce2ea549b9535bda068eae3a69a093d1105b5f28b",
+        "24030dfef30cee5465e15548142cb979f918afc2a7b9c2b65b57f1ceed14a4a1",
+        "de3c913ffeec365c4230fcf2a325711ee08e49b00b2f032c32328bcba9eddc8a",
+        "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+        "049a692a2e22733e2583e62487a7304e3c99bf678355277b4e3ecbf105f717fe",
+        "129529642a22e1c4bc999493d8baeb1be7658cb2ba0b81593cabb0e91f31607e",
+        "04536a7aa6e0f45584f9ecf7b32cee66c415ce93af343055e030ffe7ac69a907",
+        "a285cfa9785273b32066f3af195d062b25abd645b3507a6cf47980a8499bdf74",
+        "6ff518e4e7269aeb2d29be1799ea79a90cde43bd0797aac6be2f63e159231a56",
+        "8c933e48a324eea0d39c2bf1249df67013a61ca80694a89bfa7cc550399f30d3"
+      ],
+      "sourceCounts": {
+        "amass": 1,
+        "池部楽器": 6,
+        "島村楽器": 11,
+        "キクタニ": 2,
+        "Discover chuya": 2,
+        "SONICWIRE": 2,
+        "Sleepfreaks": 5,
+        "Hookup": 1,
+        "Yamaha": 1,
+        "IK Multimedia": 2,
+        "AHS": 1,
+        "ZOOM": 3
+      },
+      "freshUseful24h": 0,
+      "freshUseful7d": 11,
+      "expiredEvents": [],
+      "visibleDuplicates": 0,
+      "tickerOmissions": [],
+      "tickerTop5": [
+        {
+          "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+          "label": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+          "label": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+          "label": "Fender American Acoustasonicに限定モデル5種",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+          "label": "ESP、PA-MF-10を発表",
+          "quality": "HIGH VALUE"
+        },
+        {
+          "id": "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+          "label": "Jackson PC1-E、Phil Collenシグネチャーモデル",
+          "quality": "HIGH VALUE"
+        }
+      ]
+    }
+  },
+  "authorizedVisibilityTransition": {
+    "before": 33,
+    "approvedRestored": 5,
+    "auditedRejected": 1,
+    "after": 37
+  },
+  "eventExpiry": {
+    "eventId": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+    "eventEndsAt": 1793545199999,
+    "jst": "2026-11-01 23:59:59.999",
+    "nextDayHidden": true,
+    "portHidden": true,
+    "retentionUnchanged": true
+  },
+  "replay": {
+    "sourceId": "ikebe",
+    "publisherRequests": 0,
+    "results": [
+      {
+        "id": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+        "promoted": false,
+        "reason": "stored_identifier_missing"
+      },
+      {
+        "id": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+        "promoted": false,
+        "reason": "stored_identifier_missing"
+      },
+      {
+        "id": "797ae0a85886fb6729814712d5f58b8ea94e4526740e1408f7f0379634325507",
+        "promoted": false,
+        "reason": "stored_identifier_missing"
+      },
+      {
+        "id": "4fab311436315e48a879a1a59fed33cc1c9575a6c78ad2614d2c3a589d7721bf",
+        "promoted": false,
+        "reason": "stored_context_uncertain"
+      },
+      {
+        "id": "a96e292e7370611c58c8f6db7af8c8d1d57a17d3eeab70c9eeae15722c008acc",
+        "promoted": false,
+        "reason": "stored_identifier_missing"
+      },
+      {
+        "id": "d8d38a2b5b77752ebc8da98dc34c8a7093a3a3d19ed2768a4c6f2e3321b6e7c0",
+        "promoted": false,
+        "reason": "stored_identifier_missing"
+      },
+      {
+        "id": "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055",
+        "promoted": false,
+        "reason": "stored_identifier_missing"
+      },
+      {
+        "id": "5343ab1aabd9de0661c790a89e4e53e2748f345a46981377b04d6457415f13b1",
+        "promoted": false,
+        "reason": "stored_identifier_missing"
+      },
+      {
+        "id": "83bd63bced3aff277eec6344c04d9c6de8121d1aa3422ba90994b7224af647ab",
+        "promoted": false,
+        "reason": "stored_identifier_missing"
+      }
+    ]
+  },
+  "browser": {
+    "result": "PASS",
+    "base": "https://soundcruise.jp",
+    "api": "production",
+    "widths": [
+      375,
+      393,
+      1440
+    ],
+    "count": 37,
+    "sources": [
+      "amass",
+      "池部楽器",
+      "島村楽器",
+      "キクタニ",
+      "Discover chuya",
+      "SONICWIRE",
+      "Sleepfreaks",
+      "Hookup",
+      "Yamaha",
+      "IK Multimedia",
+      "AHS",
+      "ZOOM"
+    ],
+    "categories": {
+      "acoustic_guitar": 6,
+      "electric_guitar_bass": 7,
+      "amps_effects": 9,
+      "recording_audio": 3,
+      "dtm_software": 9,
+      "sale": 0,
+      "artist_guitar": 1,
+      "live_guitar": 2
+    },
+    "ticker": "NEWS松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示JAM Pedals Wahcko mk.2、ワウペダルの新モデルFender American Acoustasonicに限定モデル5種ESP、PA-MF-10を発表Jackson PC1-E、Phil Collenシグネチャーモデル",
+    "legacyVisible": true,
+    "operatorApprovedVisible": true,
+    "apiFailureIsolation": true,
+    "tools": [
+      "#practice-menu",
+      "#practice-menu/calendar",
+      "#tuner",
+      "#metronome",
+      "#wishlist",
+      "#my-apps/manage",
+      "#settings"
+    ],
+    "presets": true,
+    "externalLinkSafety": true,
+    "images": 0,
+    "publisherRequests": 0,
+    "pageErrors": [],
+    "unexpectedRequests": []
+  },
+  "assets": {
+    "result": "PASS",
+    "assets": [
+      {
+        "path": "apps/cruise-port/index.html",
+        "match": true,
+        "sha256": "53f2fd54a6807a82707264ea3606cc7aba5acbe6facfdaaaf1f48c247e91a43e"
+      },
+      {
+        "path": "apps/cruise-port/pro_9a3943176561/index.html",
+        "match": true,
+        "sha256": "108188d5d990ffc3cf8e85a3f23e117921391cf250b542469163b786060a43b7"
+      },
+      {
+        "path": "apps/cruise-port/app-version.js",
+        "match": true,
+        "sha256": "d64d17399e835d3251e2a682c47a588f83cb6abec71b503273cf3a8bd0c1283e"
+      },
+      {
+        "path": "apps/cruise-port/practice-menu-app.js",
+        "match": true,
+        "sha256": "8674d84f3abf7eae952a503dfe538933cc1c1471a435845abb01891fa6dea870"
+      },
+      {
+        "path": "apps/cruise-port/news-data.js",
+        "match": true,
+        "sha256": "161d2ce271711a05660a8679ecdc9aafdc34439f08528dbd10ed015286777a1c"
+      },
+      {
+        "path": "apps/cruise-port/news-quality.js",
+        "match": true,
+        "sha256": "1169ae72ee47250765e349d535f1f1ffdcff4b6caea8e3b9d02a2581ff1ee6dc"
+      },
+      {
+        "path": "apps/cruise-port/news-provider.js",
+        "match": true,
+        "sha256": "44a2b182f0ab63e21ef5ef48165db694b650d36493eee30fc9974f364fdfe3b6"
+      },
+      {
+        "path": "apps/cruise-port/news-ui.js",
+        "match": true,
+        "sha256": "476776687737f71774709e7fe3efa3b263923585bc061d25d9f479b91ae972d0"
+      }
+    ],
+    "workerPrivateFiles404": true
+  },
+  "tests": {
+    "port": 887,
+    "shared": 226,
+    "sync": 393,
+    "pitch": 30,
+    "fretboard": 25,
+    "rhythm": 19,
+    "chord": 95,
+    "news": 257,
+    "total": 1932,
+    "fail": 0,
+    "added": 34
+  },
+  "workerVersionId": "7cd66ffb-bbec-40f6-aee0-1cad83d92090",
+  "codeCommits": [
+    "e5f13bd29987f5354196187719bd30b16d238e7d",
+    "e08e7141694776af34f6c51219358ccec3121eab"
+  ],
+  "publisherRequests": 0,
+  "releaseBlocking": 0
+}
