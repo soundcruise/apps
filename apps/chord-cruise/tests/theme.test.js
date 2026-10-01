@@ -231,6 +231,38 @@ entries.forEach(function (entry) {
 assert.strictEqual(entries[0][1].match(/<script>\s*\/\/ Chord color theme[\s\S]*?<\/script>/)[0],
     entries[1][1].match(/<script>\s*\/\/ Chord color theme[\s\S]*?<\/script>/)[0], 'Standard and Pro share one bootstrap');
 
+// Information pages follow the same theme contract with the same bootstrap; their content is unchanged.
+var BOOTSTRAP_RE = /<script>\s*\/\/ Chord color theme[\s\S]*?<\/script>/;
+var INFO_PAGE_HASHES = {
+    // sha256 of each page without the theme bootstrap and with ?v= normalized (1.17.0 content).
+    'info.html': '1cce0238df108ddddf6f1293758564b88744b23a565f6c9c985cf7216109aba3',
+    'usage.html': 'faafa6ce7fabed29c579e0c1c329b3211c650e3d680a5ecb635357a9114b2256',
+    'terms.html': 'ea0a40102936c97df6c301eaa0af8ce43adea1d2216ee53943a2360725a181f8',
+    'privacy.html': 'ccdfa364b18cf310a74c7a1b9181c37219b2c312e6fba607ee4d81bba2977fe5'
+};
+Object.keys(INFO_PAGE_HASHES).forEach(function (file) {
+    var html = read(file);
+    var bootstrap = html.indexOf('// Chord color theme before first paint');
+    assert(bootstrap > 0 && bootstrap < html.indexOf('rel="stylesheet"'), file + ': bootstrap runs before any stylesheet');
+    assert.strictEqual(html.match(BOOTSTRAP_RE)[0], entries[0][1].match(BOOTSTRAP_RE)[0], file + ': same bootstrap as the app');
+    [
+        [{}, 'dark', null], [{ 'chordCruise.settings': v3() }, 'dark', null],
+        [{ 'chordCruise.settings': v3({ theme: 'sepia' }) }, 'dark', null], [{ 'chordCruise.settings': '{oops' }, 'dark', null],
+        [{ 'chordCruise.settings': v3({ theme: 'dark' }) }, 'dark', null],
+        [{ 'chordCruise.settings': v3({ theme: 'gray' }) }, 'gray', '#c8cbd0'],
+        [{ 'chordCruise.settings': v3({ theme: 'light' }) }, 'light', '#f7f5ef'],
+        [{ 'cruisePort.settings': JSON.stringify({ theme: 'light' }) }, 'dark', null]
+    ].forEach(function (testCase) {
+        var result = runBootstrap(html, testCase[0]);
+        assert.strictEqual(result.theme, testCase[1], file + ' ' + JSON.stringify(testCase[0]));
+        assert.strictEqual(result.meta, testCase[2], file + ' meta ' + testCase[1]);
+    });
+    assert.strictEqual(runBootstrap(html, {}, true).theme, 'dark', file + ': storage error is Dark');
+    var rest = html.replace(new RegExp(BOOTSTRAP_RE.source + '\\n'), '').replace(/\?v=\d+\.\d+\.\d+/g, '?v=X');
+    assert.strictEqual(crypto.createHash('sha256').update(rest).digest('hex'), INFO_PAGE_HASHES[file], file + ': text, links and navigation unchanged');
+});
+assert(!BOOTSTRAP_RE.test(read('pro-access.html')), 'the PRO access page keeps the Dark Pro gate styling');
+
 // ── CSS: Dark default, color-only themes, fixed objects ───────────────────────────────
 (function cssKeepsDarkAndOnlyRecolorsGrayLight() {
     var themeStart = css.indexOf(THEME_MARKER);
@@ -239,9 +271,10 @@ assert.strictEqual(entries[0][1].match(/<script>\s*\/\/ Chord color theme[\s\S]*
     var themes = css.slice(themeStart);
     assert(!/data-theme/.test(dark), 'no Dark rule depends on data-theme');
     assert(!/prefers-color-scheme|globalTheme/.test(css), 'no OS-theme or cross-app theme');
-    var allowed = /^(?:--cc-[a-z0-9-]+|color|color-scheme|background|background-clip|-webkit-background-clip|border-color|outline-color|box-shadow)$/;
+    var allowed = /^(?:--cc-[a-z0-9-]+|color|color-scheme|background|background-color|background-clip|-webkit-background-clip|border-color|outline-color|box-shadow)$/;
     Array.from(themes.matchAll(/^\s*([a-z-]+|--cc-[a-z0-9-]+):/gm)).forEach(function (m) { assert(allowed.test(m[1]), 'Gray/Light change colors only: ' + m[1]); });
     themes.replace(/\/\*[\s\S]*?\*\//g, '').split('}').forEach(function (chunk) {
+        chunk = chunk.replace(/^\s*@media \(hover: hover\) \{/, '');
         var open = chunk.indexOf('{');
         if (open < 0) return;
         var list = [], depth = 0, current = '';
@@ -257,6 +290,14 @@ assert.strictEqual(entries[0][1].match(/<script>\s*\/\/ Chord color theme[\s\S]*
             assert(/^:root(?:\[data-theme="(?:gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/.test(selector), selector);
         });
     });
+    // Information pages: only colors and shadows are themed; the gold PRO button and badges keep their gold.
+    ['.cc-info-lead', '.cc-info-link-card:not(.cc-info-pro-access-button)', '.cc-info-youtube-confirm', ':is(.cc-info-card, .cc-legal-card)',
+        ':is(.cc-info-section p, .cc-info-section li, .cc-legal-card p, .cc-legal-card li)'].forEach(function (selector) {
+        assert(themes.includes('[data-theme="light"]) ' + selector + ' {'), 'info pages theme ' + selector);
+    });
+    assert(!/cc-info-pro-access-button \{[^}]*background/.test(themes) && !/cc-info-new-badge \{[^}]*background/.test(themes), 'gold PRO button and New badge keep their gold');
+    assert(!/cc-info-youtube-confirm__btn--open/.test(themes), 'YouTube open button keeps its gold');
+    assert(!/\.cc-info-link-card(?::hover)? \{/.test(themes), 'link-card recolors never reach the gold PRO access button');
     // Dark token values are the production literals 1:1.
     var rootDecls = css.slice(css.indexOf(':root {') + 7, css.indexOf('}\n'));
     var rootTokens = {};
@@ -368,5 +409,5 @@ function cloudOf(local) {
     assert.deepStrictEqual(ui.env.store.writes.filter(function (key) { return key.indexOf('chordCruise.') !== 0; }), []);
     Object.keys(others).forEach(function (key) { assert.strictEqual(ui.env.store.values[key], others[key], key); });
 
-    console.log('theme: Dark/Gray/Light storage, UI, bootstrap, CSS objects and per-app Cloud Sync OK');
+    console.log('theme: Dark/Gray/Light storage, UI, bootstrap, info pages, CSS objects and per-app Cloud Sync OK');
 }()).catch(function (error) { console.error(error); process.exit(1); });

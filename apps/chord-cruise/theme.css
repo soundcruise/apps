@@ -4525,6 +4525,21 @@ body.cc-settings-open {
 :root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-button, .sound-cruise-sync-settings-toggle, .sound-cruise-sync-help-toggle,
     .sound-cruise-sync-conflict button, .sound-cruise-sync-conflict input):focus-visible { outline-color: var(--cc-accent-text); }
 
+/* Information pages (info / usage / terms / privacy). Same tokens as the app; the Dark rules above
+   stay as they are. The gold PRO access button, New badge and YouTube "open" button keep their gold. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.cc-info-card, .cc-legal-card) { box-shadow: 0 24px 60px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-link-card:not(.cc-info-pro-access-button) { background: rgba(var(--cc-well-rgb), 0.7); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-pro-access-button { box-shadow: 0 4px 12px rgba(0, 0, 0, var(--cc-shadow-alpha)), inset 0 1px 1px rgba(255, 255, 255, 0.6); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-new-badge { box-shadow: 0 10px 24px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-lead { color: rgba(var(--cc-ink-rgb), 0.82); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.cc-info-section p, .cc-info-section li, .cc-legal-card p, .cc-legal-card li) { color: rgba(var(--cc-ink-rgb), 0.78); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-youtube-confirm { background: var(--cc-overlay); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-youtube-confirm__dialog { box-shadow: 0 24px 60px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-youtube-confirm__btn--cancel { background: var(--cc-surface); }
+@media (hover: hover) {
+    :root:is([data-theme="gray"], [data-theme="light"]) .cc-info-link-card:not(.cc-info-pro-access-button):hover { background-color: rgba(var(--cc-well-rgb), 1); }
+}
+
 /* ── Objects keep their production colors ────────────────────────────────────────────────
    Fretboard markers (incl. bass/tension rings), the barre, the bookshelf board and
    the books/folders are physical objects and functional colors. They redeclare the exact :root

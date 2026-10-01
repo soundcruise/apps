@@ -4,7 +4,27 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>コードクルーズ | 利用規約</title>
-<link rel="stylesheet" href="./theme.css?v=1.17.0">
+<script>
+    // Chord color theme before first paint. Reads only chordCruise.settings; anything else is Dark.
+    // Dark keeps the page as before (no theme-color meta); Gray/Light tint the browser chrome.
+    (function () {
+        var colors = { gray: '#c8cbd0', light: '#f7f5ef' };
+        var theme = 'dark';
+        try {
+            var saved = JSON.parse(localStorage.getItem('chordCruise.settings') || 'null');
+            if (saved && (saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
+        } catch (_) { theme = 'dark'; }
+        document.documentElement.setAttribute('data-theme', theme);
+        if (theme !== 'dark') {
+            var meta = document.createElement('meta');
+            meta.setAttribute('name', 'theme-color');
+            meta.setAttribute('data-cc-theme-color', '');
+            meta.setAttribute('content', colors[theme]);
+            document.head.appendChild(meta);
+        }
+    }());
+</script>
+<link rel="stylesheet" href="./theme.css?v=1.17.1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -81,6 +101,6 @@
         </section>
     </main>
 </div>
-<script src="./info-routing.js?v=1.17.0"></script>
+<script src="./info-routing.js?v=1.17.1"></script>
 </body>
 </html>
