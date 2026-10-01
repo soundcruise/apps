@@ -87,6 +87,16 @@ function modelOnlyFacts(title){const t=normalizeIdentifier(title);if(/LUNA\s+SEA
  for(const [product,re,context] of SOFTWARE_MODELS){const m=re.exec(t);if(m&&(!context||context.test(t)))return {brand:null,product,version:m[1]||null,category:'dtm_software',identifierBasis:'distinctive_software_model'};}return null;
 }
 const IKEBE_MODELS=Object.freeze([
+ // Exact manufacturer + model nouns on the assessed listing; never infer an owner
+ // from a bare model or treat unrelated nearby digits as a product identifier.
+ ['Fortin Amplification',/(?=[\s\S]*Fortin)[\s\S]*[「『【]3\.33[」』】]/i,'3.33','amps_effects'],
+ ['Ibanez',/(?:^|[^A-Za-z0-9])Ibanez\s*j\.custom\s+RG8570EM-NT(?:[^A-Za-z0-9]|$)/i,'j.custom RG8570EM-NT','electric_guitar_bass'],
+ ['Fender',/(?:^|[^A-Za-z0-9])Fender\s+MEX\s*Limited Edition Player Fusion(?: Series| Stratocaster HSS)?(?:[^A-Za-z0-9]|$)/i,'Limited Edition Player Fusion','electric_guitar_bass'],
+ ['Epiphone',/(?:^|[^A-Za-z0-9])Epiphone\s*Joan Jett Olympic Special(?:[^A-Za-z0-9]|$)/i,'Joan Jett Olympic Special','electric_guitar_bass'],
+ ['KORG',/(?:^|[^A-Za-z0-9])KORG\s*Nu\s*[:：]?\s*Tekt\s+NuTube\s+HIGH GAIN OD(?:[^A-Za-z0-9]|$)/i,'Nu:Tekt NuTube HIGH GAIN OD','amps_effects'],
+ ['KORG',/(?:^|[^A-Za-z0-9])KORG\s*Nu\s*[:：]?\s*Tekt\s+NuTube\s+OD-KIT CUSTOM CRAFT BD-S(?:[^A-Za-z0-9]|$)/i,'Nu:Tekt NuTube OD-KIT CUSTOM CRAFT BD-S','amps_effects'],
+ ['KLOWRA',/(?:^|[^A-Za-z0-9])KLOWRA\s*Leap Octave(?:[^A-Za-z0-9]|$)/i,'Leap Octave','amps_effects'],
+ ['KORG',/(?:^|[^A-Za-z0-9])KORG\s*TM-1(?:[^A-Za-z0-9]|$)/i,'TM-1','electric_guitar_bass',/チューナー|メトロノーム|\b(?:tuner|metronome)\b/i],
  ['BOSS',/(?:^|[^A-Za-z0-9])BOSS\s*EX-4(?:EffectsExpander)?(?:[^A-Za-z0-9]|$)/i,'EX-4','amps_effects'],
  ['Xotic',/(?:^|[^A-Za-z0-9])Xotic\s*XXP-1(?:[^A-Za-z0-9]|$)/i,'XXP-1','amps_effects'],
  ['Yamaha',/(?:^|[^A-Za-z0-9])Yamaha\s*RS20MM(?:[^A-Za-z0-9]|$)/i,'RS20MM','electric_guitar_bass'],
@@ -115,7 +125,7 @@ const IK_MODELS=Object.freeze([['TONEX Board','amps_effects'],['TONEX ONE Plus',
 const ZOOM_MODELS=Object.freeze(['F6','TCA-1','H2essential','WLM-1','H1essential','H5studio','H6studio','H6essential']);
 function manufacturerFacts(entry,source){
  if(source.id==='ikebe'&&source.baseUrl==='https://www.ikebe-gakki-pb.com/'&&source.discoveryUrl==='https://www.ikebe-gakki-pb.com/new_product/'&&entry.listingSection==='product_news'){
-  const t=normalizeIdentifier(entry.title),matches=IKEBE_MODELS.filter(([,re])=>re.test(t));
+  const t=normalizeIdentifier(entry.title),matches=IKEBE_MODELS.filter(([,re,,,context])=>re.test(t)&&(!context||context.test(t)));
   if(matches.length===1){const [brand,,product,category]=matches[0];return {brand,product,category,version:null,identifierBasis:'reviewed_listing_model',listingSource:'ikebe'};}
  }
  if(source.id==='ik'&&source.sourceKind==='official'&&source.discoveryUrl==='https://www.ikmultimedia.com/press/'&&entry.listingSection==='ik_press'){

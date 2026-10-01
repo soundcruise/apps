@@ -3,6 +3,7 @@ export {labelInformationScore} from '../../../apps/cruise-port/news-quality.js';
 import {NEWS_BETA_ITEMS} from '../../../apps/cruise-port/data/news-beta.js';
 // Only Sound Cruise's immutable, independently reviewed labels are reused. Never publisher text.
 const pairs=Object.freeze({
+ 'jp2a-fender-player-fusion':['Fender','Limited Edition Player Fusion'],
  'jp2a-xotic-xxp1':['Xotic','XXP-1'],'jp2a-boss-ex4':['BOSS','EX-4'],'jp2a-vox-ac-mini':['VOX','AC MINI'],
  'jp2a-fender-acoustasonic-limited':['Fender','FSR American Acoustasonic Telecaster'],
  'jp2a-lunacy-nova':['Lunacy Audio','NOVA'],'jp2a-jackson-pc1-e':['Jackson','PC1-E'],
