@@ -513,6 +513,18 @@ class Generator:
         self.colored_keyframes = {}
         self.object_re = re.compile(self.app['object_selectors']) if self.app.get('object_selectors') else None
         self.identity_files = set(self.app.get('identity_files', []))
+        # Page layers: keep only selectors whose classes / ids occur in the page source (incl. inline scripts).
+        self.page_text = None
+        if self.app.get('prune_to_html'):
+            self.page_text = '\n'.join(open(os.path.join(ROOT, p), encoding='utf-8').read() for p in self.app['prune_to_html'])
+
+    def selector_possible(self, sel):
+        if self.page_text is None:
+            return True
+        for name in re.findall(r'[.#]((?:\\.|[\w-])+)', re.sub(r'\[[^\]]*\]|"[^"]*"|\'[^\']*\'', '', sel)):
+            if not re.search(r'(?<![\w-])%s(?![\w-])' % re.escape(name.replace('\\', '')), self.page_text):
+                return False
+        return True
 
     def token(self, role, c, ctx):
         ident = ctx.get('identity', False)
@@ -753,7 +765,7 @@ class Generator:
             _, selector, decls = node
             if selector.startswith('@') or re.match(r'^(from|to|\d+(\.\d+)?%)(\s*,|$)', selector):
                 continue
-            parts = [s.strip() for s in split_top(selector, ',') if s.strip()]
+            parts = [s.strip() for s in split_top(selector, ',') if s.strip() and self.selector_possible(s.strip())]
             plain, objects = [], []
             for s in parts:
                 is_obj = file_identity or (self.object_re is not None and self.object_re.search(s))

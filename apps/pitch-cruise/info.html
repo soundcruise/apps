@@ -5,6 +5,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>音感クルーズ | インフォメーション</title>
+    <script>
+        // Pitch color theme before first paint. Reads only pitchTrainerSettings.theme; anything else is Dark.
+        // Dark keeps the page exactly as before; other themes add a theme-color meta ahead of the Dark one.
+        (function () {
+            var colors = { charcoal: '#424346', gray: '#c8cbd0', light: '#f5f6f6' };
+            var theme = 'dark';
+            try {
+                var saved = JSON.parse(localStorage.getItem('pitchTrainerSettings') || 'null');
+                var value = saved && saved.theme;
+                if (value === 'charcoal' || value === 'gray' || value === 'light') theme = value;
+            } catch (_) { theme = 'dark'; }
+            document.documentElement.setAttribute('data-theme', theme);
+            if (theme !== 'dark') {
+                var meta = document.createElement('meta');
+                meta.setAttribute('name', 'theme-color');
+                meta.setAttribute('data-pitch-theme-color', '');
+                meta.setAttribute('content', colors[theme]);
+                document.head.appendChild(meta);
+            }
+        }());
+    </script>
     <link rel="stylesheet" href="../shared/style.css?v=100">
     <link rel="stylesheet" href="../shared/pro-theme.css?v=98">
     <link rel="stylesheet" href="./theme.css?v=13">
@@ -170,6 +191,7 @@
             }
         }
     </style>
+    <link rel="stylesheet" href="./theme-colors-info.css?v=2.26.3">
 </head>
 
 <body class="info-page">

@@ -171,3 +171,51 @@ test('reader-first: received theme values are accepted, never sent, never delete
   assert.equal(JSON.parse(values.get('pitchTrainerSettings')).themeCloudMirror, undefined);
   assert.equal(JSON.parse(values.get('pitchTrainerSettings')).theme, 'gray');
 });
+
+// ── Information pages ─────────────────────────────────────────────────────────────────────
+// Normal information pages follow the app theme with the same bootstrap and a page-group layer.
+// Their content is untouched: removing the bootstrap and the layer link gives the original file.
+// Pro acquisition / gate pages stay Dark and are byte-identical.
+const INFO_PAGES = {
+  'info.html': ['./theme-colors-info.css?v=', 'b38c454af96965c95d0b6ce478bc4a1148138031c2cd8de4733c57ecaa5f453b'],
+  'terms.html': ['./theme-colors-legal.css?v=', '361bae4b2b9ba118f98df148496551e53cb89e25fd25fed3178d938cd1a77949'],
+  'privacy.html': ['./theme-colors-legal.css?v=', '953330b55617ed4d91eae1b48b10bfb5e228bed41d78768822b8ff60283706f5'],
+  'recommended-videos.html': ['./theme-colors-videos.css?v=', '19fbc867c6f070be8e7c7e46f159b9cb057c49cf45263f2b63d487d1ea08221e']
+};
+const DARK_PAGES = {
+  'pro-access.html': 'c64ee4ee0ba8e2db5c9029b79b8cf83d4a6fefc7754c70295794c4389c6ba4a2',
+  'iphone-safari-guide.html': 'f6f8ddc844f38cb1efa04097a0865a2e5ee4d46daa89bb0da69213c3d99a5da9',
+  'pro_x9v7q2m8/troubleshoot.html': '3682331cacedb40a002db601e43158515274f0a76e60b0ebcd010121a4b9e47a'
+};
+const sha256 = async (text) => (await import('node:crypto')).createHash('sha256').update(text).digest('hex');
+
+test('information pages follow the theme with the app bootstrap; content is unchanged', async () => {
+  const appBoot = pages[0][1].match(BOOT_RE)[0];
+  for (const [file, [layer, originalHash]] of Object.entries(INFO_PAGES)) {
+    const html = read(file);
+    const boot = html.match(BOOT_RE);
+    assert.ok(boot, file);
+    assert.equal(boot[0].replace(/\n\s+/g, '\n'), appBoot.replace(/\n\s+/g, '\n'), `${file}: same bootstrap as the app`);
+    assert.ok(html.indexOf(boot[0]) < html.indexOf('rel="stylesheet"'), `${file}: bootstrap before any stylesheet`);
+    const link = html.match(/\n *<link rel="stylesheet" href="(\.\/theme-colors-[a-z]+\.css)\?v=([\d.]+)">/);
+    assert.ok(link && (link[1] + '?v=') === layer, `${file}: loads ${layer}`);
+    assert.ok(html.indexOf(link[0]) > html.lastIndexOf('</style>') || !html.includes('</style>'), `${file}: layer after the page styles`);
+    for (const [value, theme, meta] of [[null, 'dark', null], ['{oops', 'dark', null], [saved({ theme: 'sepia' }), 'dark', null],
+      [saved({ theme: 'dark' }), 'dark', null], [saved({ theme: 'charcoal' }), 'charcoal', '#424346'],
+      [saved({ theme: 'gray' }), 'gray', '#c8cbd0'], [saved({ theme: 'light' }), 'light', '#f5f6f6']]) {
+      assert.deepEqual(runBootstrap(html, value), { theme, meta }, `${file} ${value}`);
+    }
+    assert.equal(runBootstrap(html, null, true).theme, 'dark', `${file}: storage error is Dark`);
+    const original = html.replace(new RegExp('\\n *' + BOOT_RE.source), '').replace(link[0], '');
+    assert.equal(await sha256(original), originalHash, `${file}: text, links and navigation unchanged`);
+    const css = read(layer.slice(2, -3));
+    for (const block of css.replace(/\/\*[\s\S]*?\*\//g, '').split('}').map((b) => b.trim().replace(/^@media[^{]*\{\s*/, '')).filter((b) => b.includes('{') && !b.startsWith('@keyframes') && !/^(from|to|\d)/.test(b))) {
+      for (const sel of block.slice(0, block.indexOf('{')).split(/,\n/)) {
+        assert.match(sel.trim(), SCOPE_RE, `${layer}: ${sel.trim().slice(0, 80)}`);
+      }
+    }
+  }
+  for (const [file, hash] of Object.entries(DARK_PAGES)) {
+    assert.equal(await sha256(read(file)), hash, `${file}: Pro acquisition / gate page stays Dark and unchanged`);
+  }
+});

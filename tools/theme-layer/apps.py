@@ -152,3 +152,49 @@ APPS['rhythm'] = {
                   '--muted-color': 'text'},
     'named_text_tokens': {'--tl-accent-text': '#ff9f1c', '--tl-gold-text': '#dec27a'},
 }
+
+
+# ── Information pages (normal, non-gate pages) ────────────────────────────────────────────
+# One layer per page-style group, built only from the stylesheets that page loads (in order) plus its own
+# <style>, and pruned to selectors whose classes / ids occur in the page. Same palette and object rules as
+# the app, so the page reads like the app in every theme. Pro acquisition / gate pages are not listed here.
+def _info(base, name, output, css, pages):
+    cfg = dict(APPS[base])
+    cfg.update({
+        'name': name,
+        'output': output,
+        'sources': [{'path': p} for p in css] + [{'path': pages[0], 'inline_style': True}],
+        'prune_to_html': pages,
+        'object_pins': [],
+        'object_panel_bg': None,
+    })
+    return cfg
+
+
+_PITCH_CSS = ['apps/shared/style.css', 'apps/shared/pro-theme.css', 'apps/pitch-cruise/theme.css']
+APPS['pitch-info'] = _info('pitch', 'Pitch Cruise info page', 'apps/pitch-cruise/theme-colors-info.css',
+                           _PITCH_CSS + ['apps/shared/legal-links.css'], ['apps/pitch-cruise/info.html'])
+APPS['pitch-legal'] = _info('pitch', 'Pitch Cruise terms / privacy pages', 'apps/pitch-cruise/theme-colors-legal.css',
+                            _PITCH_CSS, ['apps/pitch-cruise/terms.html', 'apps/pitch-cruise/privacy.html'])
+APPS['pitch-videos'] = _info('pitch', 'Pitch Cruise recommended videos page', 'apps/pitch-cruise/theme-colors-videos.css',
+                             _PITCH_CSS, ['apps/pitch-cruise/recommended-videos.html'])
+
+_FB_CSS = ['apps/shared/style.css', 'apps/shared/pro-theme.css', 'apps/fretboard_cruise/theme.css']
+APPS['fretboard-info'] = _info('fretboard', 'Fretboard Cruise info page', 'apps/fretboard_cruise/theme-colors-info.css',
+                               _FB_CSS + ['apps/shared/legal-links.css'], ['apps/fretboard_cruise/info.html'])
+APPS['fretboard-legal'] = _info('fretboard', 'Fretboard Cruise terms / privacy pages', 'apps/fretboard_cruise/theme-colors-legal.css',
+                                _FB_CSS, ['apps/fretboard_cruise/terms.html', 'apps/fretboard_cruise/privacy.html'])
+APPS['fretboard-apps'] = _info('fretboard', 'Fretboard Cruise app series page', 'apps/fretboard_cruise/theme-colors-apps.css',
+                               _FB_CSS, ['apps/fretboard_cruise/apps.html'])
+
+_RC_CSS = ['apps/rhythm-cruise/theme.css']
+APPS['rhythm-info'] = _info('rhythm', 'Rhythm Cruise info page', 'apps/rhythm-cruise/theme-colors-info.css',
+                            _RC_CSS + ['apps/shared/legal-links.css'], ['apps/rhythm-cruise/info.html'])
+APPS['rhythm-legal'] = _info('rhythm', 'Rhythm Cruise terms / privacy pages', 'apps/rhythm-cruise/theme-colors-legal.css',
+                             _RC_CSS, ['apps/rhythm-cruise/terms.html', 'apps/rhythm-cruise/privacy.html'])
+APPS['rhythm-help'] = _info('rhythm', 'Rhythm Cruise usage / help pages', 'apps/rhythm-cruise/theme-colors-help.css',
+                            _RC_CSS, ['apps/rhythm-cruise/usage.html', 'apps/rhythm-cruise/mic-correction-help.html'])
+APPS['rhythm-click-help'] = _info('rhythm', 'Rhythm Cruise click input help page', 'apps/rhythm-cruise/theme-colors-click-help.css',
+                                  _RC_CSS, ['apps/rhythm-cruise/click-input-help.html'])
+APPS['rhythm-mic-help'] = _info('rhythm', 'Rhythm Cruise mic restart help page', 'apps/rhythm-cruise/theme-colors-mic-help.css',
+                                _RC_CSS, ['apps/rhythm-cruise/mic-restart-help.html'])
