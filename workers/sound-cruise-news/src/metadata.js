@@ -1,3 +1,4 @@
+import {highValueAssessment,highValueLabel,assessedRecordingFacts} from './high-value.js';
 import {listingArticleUrl,listingExclusion} from './shimamura-listing.js';
 import { fingerprint, headlineSimilarity } from './fingerprint.js';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
@@ -138,6 +139,8 @@ function manufacturerFacts(entry,source){
 }
 export function validatedProductFacts(facts){
  if(!facts)return false;
+ if(assessedRecordingFacts(facts))return true;
+ if(facts.identifierBasis==='verified_article_facts')return facts.articleSource==='ik'&&facts.brand==='IK Multimedia'&&facts.product==='TONEX software'&&facts.category==='dtm_software'&&facts.version==='2.0';
  if(facts.identifierBasis==='explicit_listing_facts')return facts.listingSource==='ikebe'&&IKEBE_BRANDS.some(([b])=>b===facts.brand)&&safeModel(facts.product)&&IKEBE_TYPES.some(([c,,t])=>c===facts.category&&t===facts.productType);
  if(facts.identifierBasis==='reviewed_listing_model')return facts.listingSource==='ikebe'&&IKEBE_MODELS.some(([b,,p,c])=>b===facts.brand&&p===facts.product&&c===facts.category);
  if(facts.identifierBasis==='official_manufacturer_model'&&facts.manufacturerSource==='ik')return facts.brand==='IK Multimedia'&&IK_MODELS.some(([p,c])=>facts.product===p&&facts.category===c);
@@ -221,8 +224,8 @@ export function allowedArticlePath(url,source) {
 const actions={other:'の製品情報',new_product:'を発表',release:'を発売',update:'を更新',firmware:'のファームウェア更新',price_change:'の価格改定',discontinued:'の販売終了',recall:'のリコール情報',review:'の製品レビュー'};
 export function factualLabel(facts,eventType){
  if(eventType==='sale')return saleLabel(facts);
- if(eventType==='guitar_event')return guitarEventLabel(facts);
- if(eventType==='guitar_artist')return artistLabel(facts);
+ if(eventType==='guitar_event')return highValueLabel(facts,eventType)||guitarEventLabel(facts);
+ if(eventType==='guitar_artist')return highValueLabel(facts,eventType)||artistLabel(facts);
  if(!facts||eventType==='review'||!actions[eventType]||!validatedProductFacts(facts)||facts.version!==null&&facts.version!==undefined&&!/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(facts.version))return null;
  return `${facts.brand?facts.brand+'、':''}${facts.product}${facts.version?' '+facts.version:''}${actions[eventType]}`;
 }
@@ -258,6 +261,14 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(hasDate&&(timestamp>now||now-timestamp>90*DAY))return {decision:'REJECT',reason:'date_outside_window'};
  if(typeof entry.title!=='string'||!entry.title.trim()||entry.title.length>512)return {decision:'REJECT',reason:'title_invalid'};
  if(source.discoveryType==='shimamura_listing'){const reason=listingExclusion(entry.title);if(reason)return {decision:'REJECT',reason};}
+ const assessed=highValueAssessment(entry,source,now);
+ if(assessed){
+  if(assessed.reject)return {decision:'REJECT',reason:assessed.reject};
+  const {facts,category,eventType}=assessed,label=factualLabel(facts,eventType),ready=!!label&&hasDate&&!entry.listingUncertainty;
+  const id=await hash(url),titleFingerprint=JSON.stringify(await fingerprint(entry.title,pepper));
+  return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,publishedAt:hasDate?new Date(timestamp).toISOString():null,category,label:ready?label:'審査待ち（人物・日時・会場の確認が必要）',topicKey:facts?.artist?'event:'+await hash([facts.artist,facts.eventType,facts.eventDate||(hasDate?new Date(timestamp).toISOString():url),facts.venue||''].join('|')):facts?factualTopicKey(facts,eventType):id,collectedAt:new Date(now).toISOString(),eventType,productFacts:facts,titleFingerprint,feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,publicationDecision:ready?'AUTO_PUBLISHABLE':'PUBLISH_REVIEW',decisionReason:ready?'factual_label_ready':'classification_uncertain',manualReviewStatus:'pending',reviewReason:ready?'structured_review_required':'classification_uncertain'}};
+ }
+
  if(source.id==='hookup'&&/インタビュー|対談|解説|使い方|活用|\b(?:interview|how[- ]to|tutorial|support|tips)\b/i.test(entry.title))return {decision:'REJECT',reason:'hookup_editorial_scope'};
  if(source.id==='ikebe'&&source.discoveryType==='official_listing'&&entry.listingSection==='product_news'&&/ライブショッピング|店舗|レッスン|中古|クーポン|ポイント/i.test(entry.title))return {decision:'REJECT',reason:'ikebe_editorial_scope'};
  const guitarEvent=guitarEventFacts(entry.title,source);

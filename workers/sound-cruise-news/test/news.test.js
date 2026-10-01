@@ -16,7 +16,7 @@ const collect=s=>collectSource(source.id,s,options());
 const request=(s,path='/v1/news',opts={},cache)=>handleNewsRequest(new Request('http://localhost'+path,opts),env(s.db),now,{registry,cache});
 
 test('H1: validated Shimamura remains OFF; incomplete evidence cannot collect',()=>{
- assert.equal(SOURCES.filter(s=>s.legalStatus==='SAFE').length,19);assert.ok(SOURCES.every(s=>s.enabled===false));
+ assert.equal(SOURCES.filter(s=>s.legalStatus==='SAFE').length,22);assert.ok(SOURCES.every(s=>s.enabled===false));
  for(const s of SOURCES.filter(s=>s.legalStatus==='SAFE')){
   if(s.id==='shimamura'){
    const reviewed=Date.parse(s.discoveryReviewedAt);
@@ -211,7 +211,8 @@ test('retention clears all item review data, run logs and old audit without touc
 });
 test('policy document matches registry status and OFF settings',()=>{
  const doc=readFileSync(new URL('../../../apps/cruise-port/NEWS-LEGAL-COMPLIANCE.md',import.meta.url),'utf8');
- for(const s of SOURCES)assert.ok(doc.split('\n').some(line=>line.startsWith(`| ${s.id} |`)&&line.endsWith(`| ${s.legalStatus} | ${s.enabled} |`)),s.id);
+ const supplement=readFileSync(new URL('../HIGH-VALUE-SOURCE-POLICY.md',import.meta.url),'utf8');
+ for(const s of SOURCES)assert.ok((['agm','ikebe-event','at-distribution'].includes(s.id)?supplement:doc).split('\n').some(line=>line.startsWith(`| ${s.id} |`)&&line.endsWith(`| ${s.legalStatus} | ${s.enabled} |`)),s.id);
  for(const term of ['evidence_missing','robots_unparseable','Prototype fixture exception','source-policies.js'])assert.ok(doc.includes(term));
 });
 

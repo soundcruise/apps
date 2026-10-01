@@ -1,3 +1,4 @@
+import {eventEndsAt} from './event.js';
 import {duplicateOf,factualIdentity} from './dedupe.js';
 import {saleEndsAt,isSaleRecord} from './sale.js';
 import { DAY } from './policy.js';
@@ -32,16 +33,17 @@ export class NewsStore {
   if(existing.some(row=>row.id!==i.id&&duplicateOf(i,row)))return false;
   const identity=factualIdentity(i);
   const deadline=isSaleRecord(i,i.productFacts)?saleEndsAt(i.productFacts?.endDate,i.productFacts?.endTime):null;
+  const eventDeadline=eventEndsAt(i.productFacts);if(eventDeadline!==null&&!Number.isSafeInteger(eventDeadline))throw Error('event_expiry_invalid');
   const expiry=Math.min(Date.parse(i.collectedAt)+90*DAY,i.publishedAt?Date.parse(i.publishedAt)+90*DAY:Infinity);
-  const r=await this.db.prepare(`INSERT OR IGNORE INTO candidate_items(id,source_id,source_name,source_url,normalized_url,published_at,category,label,topic_key,collected_at,review_status,review_reason,expires_at,title_fingerprint,event_type,product_facts,feed_published_at,publication_decision,decision_reason,sale_ends_at,dedupe_key)
-   SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1)) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE source_id=? AND normalized_url=?) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE source_id=? AND dedupe_key=? AND id<>?)`)
-   .bind(i.id,i.sourceId,i.sourceName,i.sourceUrl,i.normalizedUrl,i.publishedAt,i.category,i.label,i.topicKey,i.collectedAt,'pending',i.reviewReason,expiry,i.titleFingerprint||null,i.eventType||'other',i.productFacts?JSON.stringify(i.productFacts):null,i.feedPublishedAt||null,i.publicationDecision||'PUBLISH_REVIEW',i.decisionReason||'legacy_review_required',Number.isFinite(deadline)?deadline:null,identity,i.id,i.sourceId,i.sourceId,i.normalizedUrl,i.sourceId,identity,i.id).run();
+  const r=await this.db.prepare(`INSERT OR IGNORE INTO candidate_items(id,source_id,source_name,source_url,normalized_url,published_at,category,label,topic_key,collected_at,review_status,review_reason,expires_at,title_fingerprint,event_type,product_facts,feed_published_at,publication_decision,decision_reason,sale_ends_at,dedupe_key,event_ends_at)
+   SELECT ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,? WHERE EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1)) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE source_id=? AND normalized_url=?) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE source_id=? AND dedupe_key=? AND id<>?)`)
+   .bind(i.id,i.sourceId,i.sourceName,i.sourceUrl,i.normalizedUrl,i.publishedAt,i.category,i.label,i.topicKey,i.collectedAt,'pending',i.reviewReason,expiry,i.titleFingerprint||null,i.eventType||'other',i.productFacts?JSON.stringify(i.productFacts):null,i.feedPublishedAt||null,i.publicationDecision||'PUBLISH_REVIEW',i.decisionReason||'legacy_review_required',Number.isFinite(deadline)?deadline:null,identity,eventDeadline,i.id,i.sourceId,i.sourceId,i.normalizedUrl,i.sourceId,identity,i.id).run();
   if(r.meta.changes===1)return true;
-  if(i.productFacts){await this.db.prepare(`UPDATE candidate_items SET product_facts=?,label=?,category=?,event_type=?,title_fingerprint=?,publication_decision=?,decision_reason=?,review_reason=?
+  if(i.productFacts){await this.db.prepare(`UPDATE candidate_items SET product_facts=?,label=?,category=?,event_type=?,title_fingerprint=?,publication_decision=?,decision_reason=?,review_reason=?,event_ends_at=?
    WHERE id=? AND review_status='pending' AND source_url=? AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1)
    AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1))
    AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)`)
-   .bind(JSON.stringify(i.productFacts),i.label,i.category,i.eventType,i.titleFingerprint,i.publicationDecision,i.decisionReason,i.reviewReason,i.id,i.sourceUrl,i.sourceId,i.id).run();}
+   .bind(JSON.stringify(i.productFacts),i.label,i.category,i.eventType,i.titleFingerprint,i.publicationDecision,i.decisionReason,i.reviewReason,eventDeadline,i.id,i.sourceUrl,i.sourceId,i.id).run();}
   return false;
  }
  async log(r){await this.db.prepare('INSERT INTO collection_runs(id,source_id,collected_at,requests,candidates,pending,rejected,duplicates,outcome,duration_ms,request_mode) VALUES(?,?,?,?,?,?,?,?,?,?,?)').bind(crypto.randomUUID(),r.sourceId,r.startedAt,r.requests,r.candidates,r.pending,r.rejected,r.duplicates,r.outcome,r.durationMs,r.requestMode||'normal').run();}

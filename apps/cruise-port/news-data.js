@@ -1,5 +1,5 @@
-import {labelInformationScore,compareTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.10.0';
-export {labelInformationScore} from './news-quality.js?v=1.10.0';
+import {labelInformationScore,compareTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.11.0';
+export {labelInformationScore} from './news-quality.js?v=1.11.0';
 // Manual ingestion boundary. No collector, persistence or network access.
 export const NEWS_MODE = 'beta';
 export const NEWS_CATEGORIES = Object.freeze({

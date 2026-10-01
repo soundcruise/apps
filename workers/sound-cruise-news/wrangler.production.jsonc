@@ -8,7 +8,7 @@
   "vars": {
     "NEWS_COLLECTION_MODE": "production",
     "NEWS_API_MODE": "production",
-    "NEWS_SOURCE_IDS": "[\"shimamura\",\"kikutani\",\"sleepfreaks\",\"zoom\",\"amass\",\"ikebe\",\"ik\"]"
+    "NEWS_SOURCE_IDS": "[\"shimamura\",\"kikutani\",\"sleepfreaks\",\"zoom\",\"amass\",\"ikebe\",\"ik\",\"agm\",\"ikebe-event\",\"at-distribution\"]"
   },
   "triggers": {
     "crons": [

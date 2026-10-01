@@ -1,6 +1,6 @@
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
-import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.10.0';
-import { NEWS_PROVIDER, NEWS_API_BASE } from './news-config.js?v=1.10.0';
+import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.11.0';
+import { NEWS_PROVIDER, NEWS_API_BASE } from './news-config.js?v=1.11.0';
 export class NewsDisabledError extends Error { constructor(){super('news_disabled');this.name='NewsDisabledError';} }
 const safeText=(value,max)=>typeof value==='string'&&value.trim().length>0&&value.length<=max&&!/[<>\u0000-\u001f]/.test(value);
 function validItem(item) {

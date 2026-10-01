@@ -1,3 +1,4 @@
+import {HIGH_VALUE_EVIDENCE} from './high-value-evidence.js';
 import {RECOVERY_EVIDENCE} from './recovery-evidence.js';
 import {QUALITY_EVIDENCE} from './quality-evidence.js';
 import {COVERAGE_EVIDENCE} from './coverage-evidence.js';
@@ -18,6 +19,8 @@ const entries = [
  ['kanda','神田商会','https://www.kandashokai.co.jp/','distributor'],
  ['zoom','ZOOM','https://zoomcorp.com/','official'],
  ['kikutani','キクタニ','https://www.kikutani.co.jp/','distributor'],
+ ['ikebe-event','池部楽器 Events','https://www.ikebe-gakki.com/','retailer_editorial'],
+ ['at-distribution','AT Distribution','https://atdistribution.net/','distributor'],
  ['ikebe','池部楽器','https://www.ikebe-gakki-pb.com/','retailer_editorial'],
  ['chuya','Discover chuya','https://discover.chuya-online.com/','retailer_editorial','feed/'],
  ['hookup','Hookup','https://hookup.co.jp/','distributor'],
@@ -57,7 +60,8 @@ export const SOURCES = Object.freeze(entries.map(([id,name,baseUrl,sourceKind,fe
  robots404Reviewed:false,notes:feed?'Discovery known; collection disabled pending complete policy evidence.':'Disabled pending discovery and per-source policy review.',
  ...(COVERAGE_EVIDENCE[id]||{}),
  ...(QUALITY_EVIDENCE[id]||{}),
- ...(RECOVERY_EVIDENCE[id]||{})
+ ...(RECOVERY_EVIDENCE[id]||{}),
+ ...(HIGH_VALUE_EVIDENCE[id]||{})
 })));
 export function getSource(id) { return SOURCES.find(s=>s.id===id); }
 export const PHASE_ONE_CANDIDATES = Object.freeze(['shimamura','sleepfreaks','hookup']);

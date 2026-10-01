@@ -1,3 +1,4 @@
+import {eventEndsAt} from './event.js';
 import {hash,sourceUrl} from './policy.js';
 import {factualLabel,validatedProductFacts,factualTopicKey,allowedArticlePath} from './metadata.js';
 import {validatedFingerprint} from './fingerprint.js';
@@ -37,4 +38,17 @@ export async function recoverPendingCandidates(store,source,registry,now,pepper,
   results.push({id:c.id,recovered:result[0].meta.changes===1,auto:result[0].meta.changes===1&&auto,reason:auto?'explicit_listing_facts':'event_review_required'});
  }
  return {sourceId:source.id,newCandidates:0,results};
+}
+
+export async function recoverOfficialArticleFacts(store,source,registry,now,pepper,input,proof){
+ if(!['ikebe','ik','ikebe-event'].includes(source.id)||proof?.sourceUrl!==input?.sourceUrl||proof.status!==200||proof.headerOptOut!==false||proof.articleScoped!==true||proof.articleChecksComplete!==true||!/^([a-f0-9]{64})$/.test(proof.hash||'')||!Number.isFinite(Date.parse(proof.at))||Date.parse(proof.at)>now||now-Date.parse(proof.at)>86400000)throw Error('article_proof_invalid');
+ if(legalGate(source,{...await store.state(source.id),nextAt:0,lastPublisherRequestAt:0},now,'production',registry))throw Error('replay_source_gate');
+ const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(input.id).first();
+ if(!row||row.review_status!=='pending'||row.source_id!==source.id)return {recovered:false,reason:'decision_preserved'};
+ const facts=input.productFacts,label=factualLabel(facts,input.eventType);
+ if(input.id!==await hash(input.sourceUrl)||input.sourceUrl!==row.source_url||!sourceUrl(input.sourceUrl,source)||!allowedArticlePath(input.sourceUrl,source)||input.publishedAt!==row.published_at||input.publishedAt!==row.feed_published_at||row.expires_at<=now||!(validatedProductFacts(facts)||source.id==='ikebe-event'&&facts?.evidence==='assessed_named_guitar_event')||!label||facts.category!==input.category||!['new_product','release','update','guitar_event'].includes(input.eventType)||!await validatedFingerprint(row.title_fingerprint,pepper))throw Error('article_facts_invalid');
+ if(source.id==='ikebe'&&!(facts.identifierBasis==='reviewed_listing_model'&&facts.listingSource==='ikebe'&&facts.brand==='KORG'&&facts.product==='TM-1')||source.id==='ik'&&!(facts.identifierBasis==='verified_article_facts'&&facts.articleSource==='ik'))throw Error('article_scope_invalid');
+ if(source.id==='ikebe-event'&&!(facts?.evidence==='assessed_named_guitar_event'&&facts.artist==='阿部学'&&input.eventType==='guitar_event'&&eventEndsAt(facts)>=now))throw Error('article_scope_invalid');
+ const result=await store.db.batch([store.db.prepare(`UPDATE candidate_items SET product_facts=?,category=?,event_type=?,label=?,topic_key=?,event_ends_at=?,publication_decision='PUBLISH_REVIEW',decision_reason='official_article_verified' WHERE id=? AND review_status='pending' AND product_facts IS ? AND published_at=? AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1)) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)`).bind(JSON.stringify(facts),input.category,input.eventType,label,source.id==='ikebe-event'?'event:'+await hash([facts.artist,facts.eventType,facts.eventDate,facts.venue].join('|')):factualTopicKey(facts,input.eventType),eventEndsAt(facts),input.id,row.product_facts,row.published_at,source.id,input.id),store.db.prepare('INSERT INTO news_admin_audit VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),'facts-article-recovery',input.id,now,'quality_review')]);
+ return {recovered:result[0].meta.changes===1,label,publisherRequests:0};
 }
