@@ -232,3 +232,31 @@ for (const appId of Object.keys(APPS)) {
     });
   }
 }
+
+// Two devices pick different themes before either syncs: the same per-field rule as every other setting
+// (a genuine two-sided change of one field is a decision for the user), and a choice resolves it.
+for (const appId of Object.keys(APPS)) {
+  test(`${appId} writer: different themes chosen on two devices at once behave like any other setting`, async () => {
+    const run = async (mutate) => {
+      const w = world(appId);
+      const a = device(w, 'current');
+      const b = device(w, 'current');
+      await a.join(); await b.join();
+      mutate(a, b);
+      const ra = await a.sync('save');
+      const rb = await b.sync('save');
+      const result = { a: ra.ok, b: rb.ok, conflicts: (await a.conflicts()).length + (await b.conflicts()).length, cloud: w.stored().values };
+      w.close();
+      return result;
+    };
+    const item = APPS[appId];
+    const viaTheme = await run((a, b) => { setTheme(a, 'gray'); setTheme(b, 'light'); });
+    const otherTo = typeof item.other.to === 'number' ? item.other.to + 1 : `${item.other.to}`;
+    const viaOther = await run((a, b) => {
+      a.change((settings) => { settings[item.other.field] = item.other.to; });
+      b.change((settings) => { settings[item.other.field] = appId === 'rhythm' ? 'veryStrict' : appId === 'fretboard' ? 130 : 'banjo'; });
+    });
+    assert.equal(viaTheme.conflicts, viaOther.conflicts, `theme: ${JSON.stringify(viaTheme)} other: ${JSON.stringify(viaOther)} (otherTo ${otherTo})`);
+    assert.equal(viaTheme.cloud.theme, 'gray', 'the first device to sync is what the cloud holds until the user decides');
+  });
+}

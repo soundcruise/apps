@@ -194,6 +194,15 @@ against a cloud settings record that carries `theme`:
 | W3 | Decision gate | CASE A (small gate, existing mechanism) | (this file) | — |
 | W4 | Fretboard writer | DONE (deployed, prod smoke PASS, gate parity 0-1px) | 465fdb3f | 2.22.0 |
 | W5 | Rhythm writer | DONE (deployed, prod smoke PASS, gate parity 0) | d49a6997 | 1.17.0 |
-| W6 | Pitch writer | DONE pending deploy check (this commit) | see git log | 2.27.0 |
-| W7 | Old client regression with writers | TODO | | |
-| W8-W12 | Two-device QA, matrix, regression, smoke, final | TODO | | |
+| W6 | Pitch writer | DONE (deployed, prod smoke 36/36, gate parity 0) | 021a937f | 2.27.0 |
+| W7 | Old client regression with writers | DONE (E2E: old + reader clients x 3 writers, theme never erased) | (this file) | — |
+| W8-W12 | Two-device QA, matrix, regression, smoke, final | DONE (E2E 30/30, all suites PASS, prod cross-app 285/285) | (this file) | — |
+
+### Final state (2026-10-01T23:5xZ)
+
+- Sync matrix: Port / Chord / Pitch / Fretboard / Rhythm = Local YES, Receive YES, Send YES.
+- Worker cb6c315a (theme field gate). Pitch 2.27.0, Fretboard 2.22.0, Rhythm 1.17.0; Port 1.13.0, Chord 1.18.0 unchanged.
+- Report: CRUISE-THEME-CLOUD-SYNC-COMPLETION-REPORT.md (repo root, excluded from Pages).
+- Known, pre-existing (not caused by theme): a fresh Pitch device joining a cloud whose settings lack
+  `accidentalDisplay` ends in manifest_mismatch (simulation); Rhythm `saveSettings` rewrites synced non-theme
+  settings from memory after an in-app Cloud Sync apply (theme itself is refreshed by the new listener).

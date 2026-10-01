@@ -6,5 +6,6 @@ exclude:
   - THEME-OVERNIGHT-CHECKPOINT.md
   - CRUISE-APP-OVERNIGHT-THEME-ROLLOUT-REPORT.md
   - CRUISE-APP-THEME-FINALIZATION-REPORT.md
+  - CRUISE-THEME-CLOUD-SYNC-COMPLETION-REPORT.md
   - apps/chord-cruise/tests
   - apps/chord-cruise/ai-handoff
