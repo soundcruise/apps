@@ -1,5 +1,5 @@
 import { canonicalJson, manifestHash } from './records.js';
-import { hasGatedRecordTypes, visibleRecords } from './sync-capabilities.js';
+import { hasGatedViews, preserveHiddenSettings, visibleRecordViews } from './sync-capabilities.js';
 
 function resultsOf(result) {
   return Array.isArray(result?.results) ? result.results : [];
@@ -91,7 +91,8 @@ export function createD1SyncRepository(db, clock = Date.now) {
     return rowToRecord(row);
   }
 
-  async function applyOperation(identity, operation) {
+  async function applyOperation(identity, requested, options = {}) {
+    let operation = requested;
     const existing = await getChangeByOperation(identity.userId, identity.appId, operation.operationId);
     if (existing) {
       return existing.operationHash === operation.operationHash
@@ -101,6 +102,8 @@ export function createD1SyncRepository(db, clock = Date.now) {
     if (operation.baseRevision !== 0) {
       const current = await getRecord(identity.userId, identity.appId, operation.recordType, operation.recordId);
       if (!current) return { status: 'conflict', record: null };
+      // Settings fields this client cannot see are carried over from the revision it was based on.
+      operation = await preserveHiddenSettings(identity.appId, operation, current, options.capabilities);
     }
     const now = clock();
     const payloadJson = operation.deleted ? null : canonicalJson(operation.payload);
@@ -249,9 +252,9 @@ export function createD1SyncRepository(db, clock = Date.now) {
   // The client can only attest to the records it is allowed to see. The dataset
   // itself still stores the full count and manifest.
   async function visibleSummary(identity, snapshot, capabilities) {
-    if (!hasGatedRecordTypes(identity.appId)) return snapshot;
-    const records = visibleRecords(identity.appId, snapshot.records, capabilities);
-    if (records.length === snapshot.records.length) return snapshot;
+    if (!hasGatedViews(identity.appId)) return snapshot;
+    const records = await visibleRecordViews(identity.appId, snapshot.records, capabilities);
+    if (records.length === snapshot.records.length && records.every((record, index) => record === snapshot.records[index])) return snapshot;
     const liveRecords = records.filter((record) => record.deletedAt == null);
     return {
       ...snapshot,

@@ -21,7 +21,7 @@ import { createProvisioningIdentity } from './database.js';
 import { createD1PairingRepository } from './pairing-database.js';
 import { createD1RecoveryRepository } from './recovery-database.js';
 import { decodeCursor, encodeCursor, manifestHash } from './records.js';
-import { visibleRecords } from './sync-capabilities.js';
+import { hasGatedViews, visibleRecordView, visibleRecordViews } from './sync-capabilities.js';
 import { createD1SyncRepository } from './sync-database.js';
 import { createD1AssetRepository } from './asset-database.js';
 import {
@@ -924,13 +924,14 @@ async function handlePush(request, env, origin, route, dependencies) {
         results.push({ index: item.index, operationId: item.operationId, status: 'invalid', code: item.code });
         continue;
       }
-      const result = await context.repository.applyOperation(context.identity, item.operation);
+      const result = await context.repository.applyOperation(context.identity, item.operation,
+        { capabilities: validation.value.capabilities });
       results.push({
         index: item.index,
         operationId: item.operation.operationId,
         status: result.status,
         code: result.code,
-        record: publicRecord(result.record)
+        record: publicRecord(await visibleRecordView(context.identity.appId, result.record, validation.value.capabilities))
       });
     }
   } catch {
@@ -957,7 +958,10 @@ async function handleChanges(request, env, origin, route, dependencies, url) {
   try { page = await context.repository.listChanges(context.identity, sequence, 100); } catch { return errorResponse(503, 'server_error', origin, route); }
   // The cursor advances past gated changes the client cannot see.
   const nextSequence = page.changes.length ? page.changes[page.changes.length - 1].changeSeq : sequence;
-  const changes = visibleRecords(context.identity.appId, page.changes, query.capabilities).map(publicRecord);
+  let changes;
+  try {
+    changes = (await visibleRecordViews(context.identity.appId, page.changes, query.capabilities)).map(publicRecord);
+  } catch { return errorResponse(503, 'server_error', origin, route); }
   return jsonResponse(200, {
     ok: true,
     appId: context.identity.appId,
@@ -995,11 +999,12 @@ async function handleSnapshot(request, env, origin, route, dependencies, url) {
   }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
 }
 
-// Clients see only record types they declared they understand. Count and manifest
-// describe exactly the records returned so older clients stay self-consistent.
+// Clients see only record types and settings fields they declared they understand. Count and
+// manifest describe exactly the records returned so older clients stay self-consistent.
 async function visibleSnapshot(snapshot, appId, capabilities) {
-  const records = visibleRecords(appId, snapshot.records, capabilities);
-  if (records.length === snapshot.records.length) return snapshot;
+  if (!hasGatedViews(appId)) return snapshot;
+  const records = await visibleRecordViews(appId, snapshot.records, capabilities);
+  if (records.length === snapshot.records.length && records.every((record, index) => record === snapshot.records[index])) return snapshot;
   const liveRecords = records.filter((record) => record.deletedAt == null);
   return {
     ...snapshot,

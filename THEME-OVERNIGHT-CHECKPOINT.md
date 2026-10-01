@@ -161,3 +161,39 @@ Adapter rules (all three apps):
 Tests per app: A Light -> B Light; B Charcoal -> A Charcoal; A Gray -> B Gray; reset Dark -> B Dark; local unset
 + cloud Light; old payload without theme; theme + other setting together; simultaneous edits; no other app touched.
 Rollback: revert the writer commit (reader-first stays compatible with any theme already in the cloud).
+
+## Theme Cloud Sync completion (writer + backward compatibility, started 2026-10-01T22:36Z)
+
+### Old client audit (W1, real code, not assumed)
+
+Pre-reader adapters (2e71d1ea^: Pitch 2.26.1 / Fretboard 2.21.1 / Rhythm 1.16.1) on the unchanged shared runtime,
+against a cloud settings record that carries `theme`:
+- steady device pulls it: whole sync throws `<app>_record_invalid` (class C); local and cloud untouched;
+- device changes another setting: push conflicts, a conflict dialog appears (choosing "this device" would push
+  settings without theme and erase the cloud theme -> loss risk);
+- a new old device joins: join throws `<app>_record_invalid`.
+=> writer cannot be enabled without a gate.
+
+### Backward compatibility gate (W2, existing capability mechanism)
+
+- `settings_theme_v1` in `sync-capabilities.js` (same mechanism as Port `practice_menu_sets_v1`).
+- Clients without it (pre-reader and reader releases) get settings without `theme` in snapshot / changes /
+  push results (hash and manifest recomputed for exactly what they receive; a theme-only record is shown as
+  removed), and their settings writes keep the stored theme of the exact base revision (a reset keeps a
+  theme-only record). No D1 migration, no schema / record type change, Port / Chord unchanged.
+- E2E proof: real Worker (SQLite D1) + real shared runtime + real adapters
+  (`test/theme-writer-compat.test.js`): old and reader clients behave identically with and without a cloud theme
+  and never erase it. Pitch-only note: a fresh device joining a cloud whose settings lack `accidentalDisplay`
+  ends in `manifest_mismatch` with or without theme (pre-existing, independent of this work).
+
+| Phase | Scope | Status | Commit | Version |
+|---|---|---|---|---|
+| W0 | Preflight | DONE | (this file) | — |
+| W1 | Old client audit | DONE: class C + theme erase risk | (this file) | — |
+| W2 | Worker theme field gate | DONE pending deploy check (this commit) | see git log | Worker |
+| W3 | Decision gate | CASE A (small gate, existing mechanism) | (this file) | — |
+| W4 | Fretboard writer | TODO | | 2.22.0 |
+| W5 | Rhythm writer | TODO | | 1.17.0 |
+| W6 | Pitch writer | TODO | | 2.27.0 |
+| W7 | Old client regression with writers | TODO | | |
+| W8-W12 | Two-device QA, matrix, regression, smoke, final | TODO | | |
