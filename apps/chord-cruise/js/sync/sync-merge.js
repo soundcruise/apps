@@ -23,7 +23,11 @@
         libraryCardDisplayMode: 'finger',
         libraryCardMonochrome: false,
         librarySortMode: 'updatedDesc',
-        lastSaveFolderId: ''
+        lastSaveFolderId: '',
+        // An explicit Dark (e.g. after reset) equals the unsaved default: it never counts as
+        // meaningful local data on first join, and a first merge without a shared base keeps
+        // the cloud's choice. Later merges use the shared base, so a new Dark still syncs.
+        theme: 'dark'
     });
     var CHORD_ATOMIC_FIELDS = Object.freeze([
         'shape', 'rootPc', 'qualityKey', 'intervals', 'tensionIntervals', 'bassPc',

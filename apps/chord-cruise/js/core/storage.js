@@ -17,6 +17,9 @@
     var FOLDER_COLOR_KEYS = ['forest', 'burgundy', 'navy', 'umber', 'charcoal', 'teal', 'violet', 'russet', 'leather', 'black-leather', 'wine', 'black-gold', 'red', 'orange', 'yellow', 'green', 'blue', 'pink', 'pastel-pink', 'pastel-blue', 'pastel-purple', 'pastel-green', 'pastel-yellow', 'pastel-orange'];
     // Phase Dで公開する9種類を、保存設定でも正式値として扱う。
     // Object.keys() の列挙順には依存せず、UI側も同じ意図の並びを明示的に使う。
+    // Color theme is Chord-only (never shared with other Cruise apps). It is kept only after an
+    // explicit choice; a missing or invalid value is Dark at runtime and is never written on load.
+    var VALID_THEMES = ['dark', 'gray', 'light'];
     var VALID_SCALE_TYPES = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian'];
 
     function isPlainObject(value) {
@@ -166,6 +169,9 @@
         }
         if (typeof normalized.lastSaveFolderId !== 'string') {
             normalized.lastSaveFolderId = '';
+        }
+        if (Object.prototype.hasOwnProperty.call(normalized, 'theme') && VALID_THEMES.indexOf(normalized.theme) === -1) {
+            delete normalized.theme;
         }
         return normalized;
     }
@@ -1048,6 +1054,7 @@
     window.ChordCruise.storage = {
         UNCATEGORIZED_ID: UNCATEGORIZED_ID,
         VALID_SCALE_TYPES: VALID_SCALE_TYPES.slice(),
+        VALID_THEMES: VALID_THEMES.slice(),
         ensureSchemaVersion: ensureSchemaVersion,
         getSettingsDefaults: getSettingsDefaults,
         normalizeSettings: normalizeSettings,

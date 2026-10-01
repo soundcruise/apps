@@ -17,6 +17,28 @@
     --cc-radius-pill: 999px;
     --cc-fret-number-size: 16px;
     --cc-chord-name-size: 34px;
+    /* Color theme tokens. These Dark values are the production literals 1:1 (never merged or
+       rounded); Gray/Light override them at the end of this file. Channels feed rgba(var(), a). */
+    --cc-accent-rgb: 212, 175, 55;
+    --cc-accent-bright-rgb: 232, 201, 122;
+    --cc-accent-line-rgb: 240, 209, 124;
+    --cc-champagne-rgb: 240, 224, 184;
+    --cc-line-rgb: 228, 198, 124;
+    --cc-ink-rgb: 244, 241, 232;
+    --cc-neutral-rgb: 190, 184, 168;
+    --cc-hi-rgb: 255, 255, 255;
+    --cc-well-rgb: 0, 0, 0;
+    --cc-chrome-rgb: 20, 19, 17;
+    --cc-overlay-bg-rgb: 11, 10, 9;
+    --cc-sheet-top: #24201a;
+    --cc-sheet-bottom: #11100e;
+    --cc-card-top: #20211f;
+    --cc-card-bottom: #141516;
+    --cc-notice-text: #e9d8ad;
+    --cc-danger-text-soft: #f2b6aa;
+    --cc-danger-text: #ffd8dc;
+    /* Gold used as text, focus ring or thin line. Dark keeps --cc-gold-bright. */
+    --cc-accent-text: var(--cc-gold-bright);
 }
 
 html[data-cc-fret-number-size="xsmall"] { --cc-fret-number-size: 12px; }
@@ -38,7 +60,7 @@ html[data-cc-chord-name-size="xlarge"] { --cc-chord-name-size: 42px; }
 body {
     margin: 0;
     background-color: var(--cc-bg);
-    background-image: radial-gradient(circle at 50% -10%, rgba(212, 175, 55, 0.07), transparent 45%);
+    background-image: radial-gradient(circle at 50% -10%, rgba(var(--cc-accent-rgb), 0.07), transparent 45%);
     color: var(--cc-text);
     font-family: 'Outfit', 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
     -webkit-font-smoothing: antialiased;
@@ -79,7 +101,7 @@ body {
     font-family: inherit;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
-    background: rgba(20, 19, 17, 0.72);
+    background: rgba(var(--cc-chrome-rgb), 0.72);
     border: 1px solid var(--cc-border-strong);
     border-radius: var(--cc-radius-pill);
     color: var(--cc-text);
@@ -101,7 +123,7 @@ body {
     padding: 8px 15px;
     border: 1px solid var(--cc-border-strong);
     border-radius: var(--cc-radius-pill);
-    background: rgba(20, 19, 17, 0.88);
+    background: rgba(var(--cc-chrome-rgb), 0.88);
     color: var(--cc-text);
     font-family: inherit;
     font-size: 0.84rem;
@@ -124,7 +146,7 @@ body {
 
 .cc-settings-corner-btn:active {
     transform: scale(0.95);
-    background: rgba(212, 175, 55, 0.16);
+    background: rgba(var(--cc-accent-rgb), 0.16);
 }
 
 .cc-settings-corner-btn--hidden {
@@ -211,15 +233,15 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     gap: 16px;
     padding: 28px 24px;
     background:
-        linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.018)),
-        linear-gradient(135deg, rgba(232, 201, 122, 0.045), transparent 52%),
-        linear-gradient(160deg, #20211f, #141516);
-    border: 1px solid rgba(240, 224, 184, 0.2);
+        linear-gradient(180deg, rgba(var(--cc-hi-rgb), 0.055), rgba(var(--cc-hi-rgb), 0.018)),
+        linear-gradient(135deg, rgba(var(--cc-accent-bright-rgb), 0.045), transparent 52%),
+        linear-gradient(160deg, var(--cc-card-top), var(--cc-card-bottom));
+    border: 1px solid rgba(var(--cc-champagne-rgb), 0.2);
     border-radius: var(--cc-radius-lg);
     text-align: center;
     box-shadow:
-        inset 0 1px 0 rgba(255, 255, 255, 0.08),
-        inset 0 0 0 1px rgba(232, 201, 122, 0.035),
+        inset 0 1px 0 rgba(var(--cc-hi-rgb), 0.08),
+        inset 0 0 0 1px rgba(var(--cc-accent-bright-rgb), 0.035),
         0 14px 30px rgba(0, 0, 0, 0.28);
     font-family: inherit;
     cursor: pointer;
@@ -230,16 +252,16 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-action-card:active {
     transform: scale(0.98);
-    border-color: rgba(232, 201, 122, 0.42);
+    border-color: rgba(var(--cc-accent-bright-rgb), 0.42);
 }
 
 @media (hover: hover) {
     .cc-action-card:hover {
         transform: translateY(-2px);
-        border-color: rgba(232, 201, 122, 0.36);
+        border-color: rgba(var(--cc-accent-bright-rgb), 0.36);
         box-shadow:
-            inset 0 1px 0 rgba(255, 255, 255, 0.1),
-            inset 0 0 0 1px rgba(232, 201, 122, 0.06),
+            inset 0 1px 0 rgba(var(--cc-hi-rgb), 0.1),
+            inset 0 0 0 1px rgba(var(--cc-accent-bright-rgb), 0.06),
             0 18px 34px rgba(0, 0, 0, 0.34);
     }
 }
@@ -248,8 +270,8 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     width: 58px;
     height: 58px;
     border-radius: 50%;
-    background: radial-gradient(circle, rgba(232, 201, 122, 0.16), rgba(212, 175, 55, 0.045) 62%, transparent 63%);
-    border: 1px solid rgba(232, 201, 122, 0.32);
+    background: radial-gradient(circle, rgba(var(--cc-accent-bright-rgb), 0.16), rgba(var(--cc-accent-rgb), 0.045) 62%, transparent 63%);
+    border: 1px solid rgba(var(--cc-accent-bright-rgb), 0.32);
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -355,7 +377,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     max-width: 600px;
     margin: 18px auto 0;
     padding: 10px 4px 0;
-    border-top: 1px solid rgba(212, 175, 55, 0.12);
+    border-top: 1px solid rgba(var(--cc-accent-rgb), 0.12);
     opacity: 0.8;
 }
 
@@ -829,7 +851,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 .cc-scale-selector:hover,
 .cc-scale-selector[aria-expanded="true"] {
     border-color: var(--cc-border-strong);
-    background: rgba(212, 175, 55, 0.09);
+    background: rgba(var(--cc-accent-rgb), 0.09);
 }
 
 .cc-scale-selector-value {
@@ -851,7 +873,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     display: inline-flex;
     border: 1px solid var(--cc-border);
     border-radius: var(--cc-radius-pill);
-    background: rgba(0, 0, 0, 0.25);
+    background: rgba(var(--cc-well-rgb), 0.25);
     padding: 3px;
     gap: 2px;
 }
@@ -940,7 +962,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-chord-btn--active {
     border-color: var(--cc-border-strong);
-    background: rgba(212, 175, 55, 0.10);
+    background: rgba(var(--cc-accent-rgb), 0.10);
     color: var(--cc-champagne);
 }
 
@@ -1000,7 +1022,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     justify-content: center;
     min-width: 2.2em;
     padding: 4px 8px;
-    background: rgba(212, 175, 55, 0.08);
+    background: rgba(var(--cc-accent-rgb), 0.08);
     border: 1px solid var(--cc-border);
     border-radius: 8px;
     font-size: 0.88rem;
@@ -1043,12 +1065,12 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 }
 
 .cc-fb-scroll::-webkit-scrollbar-thumb {
-    background: rgba(228, 198, 124, 0.25);
+    background: rgba(var(--cc-line-rgb), 0.25);
     border-radius: 999px;
 }
 
 .cc-fb-scroll::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.04);
+    background: rgba(var(--cc-hi-rgb), 0.04);
     border-radius: 999px;
 }
 
@@ -1062,12 +1084,12 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-fb-fret-number {
     font-size: var(--cc-fret-number-size);
-    fill: rgba(244, 241, 232, 0.42);
+    fill: rgba(var(--cc-ink-rgb), 0.42);
     transition: fill 0.15s ease;
 }
 
 .cc-fb-fret-number--highlighted {
-    fill: rgba(240, 224, 184, 0.88);
+    fill: rgba(var(--cc-champagne-rgb), 0.88);
 }
 
 .cc-fb-markers {
@@ -1279,7 +1301,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     padding: 12px 14px;
     border: 1px solid var(--cc-border);
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(var(--cc-well-rgb), 0.2);
 }
 
 .cc-high-fret-copy {
@@ -1315,9 +1337,9 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     width: 28px;
     height: 28px;
     padding: 0;
-    border: 1px solid rgba(212, 175, 55, 0.45);
+    border: 1px solid rgba(var(--cc-accent-rgb), 0.45);
     border-radius: 50%;
-    background: rgba(212, 175, 55, 0.08);
+    background: rgba(var(--cc-accent-rgb), 0.08);
     color: var(--cc-gold-bright);
     font: inherit;
     font-size: 0.82rem;
@@ -1331,7 +1353,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 .cc-high-fret-help-toggle:hover,
 .cc-high-fret-help-toggle[aria-expanded="true"] {
     border-color: var(--cc-gold);
-    background: rgba(212, 175, 55, 0.18);
+    background: rgba(var(--cc-accent-rgb), 0.18);
 }
 
 .cc-high-fret-help-toggle:active {
@@ -1351,7 +1373,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     padding: 0;
     border: 1px solid var(--cc-border-strong);
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(var(--cc-hi-rgb), 0.08);
     cursor: pointer;
     transition: background 0.15s ease, border-color 0.15s ease;
     -webkit-tap-highlight-color: transparent;
@@ -1370,8 +1392,8 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 }
 
 .cc-switch--on {
-    border-color: rgba(232, 201, 122, 0.75);
-    background: rgba(212, 175, 55, 0.32);
+    border-color: rgba(var(--cc-accent-bright-rgb), 0.75);
+    background: rgba(var(--cc-accent-rgb), 0.32);
 }
 
 .cc-switch--on .cc-switch-knob {
@@ -1437,8 +1459,8 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 }
 
 .cc-caged-btn--featured:not(.cc-caged-btn--active):not(.cc-caged-btn--na) {
-    border-color: rgba(232, 201, 122, 0.95);
-    box-shadow: 0 0 0 2px rgba(232, 201, 122, 0.2);
+    border-color: rgba(var(--cc-accent-bright-rgb), 0.95);
+    box-shadow: 0 0 0 2px rgba(var(--cc-accent-bright-rgb), 0.2);
     color: var(--cc-champagne);
 }
 
@@ -1447,7 +1469,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 }
 
 .cc-caged-btn--featured.cc-caged-btn--active:not(.cc-caged-btn--na) {
-    box-shadow: 0 0 0 2px var(--cc-surface), 0 0 0 4px rgba(232, 201, 122, 0.82);
+    box-shadow: 0 0 0 2px var(--cc-surface), 0 0 0 4px rgba(var(--cc-accent-bright-rgb), 0.82);
 }
 
 .cc-caged-btn--na:not(.cc-caged-btn--active) {
@@ -1491,10 +1513,10 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     justify-content: space-between;
     gap: 6px;
     padding: 5px 9px;
-    border: 1px solid rgba(232, 201, 122, 0.34);
+    border: 1px solid rgba(var(--cc-accent-bright-rgb), 0.34);
     border-radius: var(--cc-radius-pill);
-    background: rgba(212, 175, 55, 0.1);
-    color: #e9d8ad;
+    background: rgba(var(--cc-accent-rgb), 0.1);
+    color: var(--cc-notice-text);
     font: inherit;
     font-size: 0.76rem;
     font-weight: 700;
@@ -1519,10 +1541,10 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     width: 100%;
     margin-top: 6px;
     padding: 10px 12px;
-    border: 1px solid rgba(232, 201, 122, 0.22);
+    border: 1px solid rgba(var(--cc-accent-bright-rgb), 0.22);
     border-radius: 10px;
-    background: rgba(212, 175, 55, 0.06);
-    color: #e9d8ad;
+    background: rgba(var(--cc-accent-rgb), 0.06);
+    color: var(--cc-notice-text);
     font-size: 0.82rem;
     font-weight: 600;
     line-height: 1.65;
@@ -1531,23 +1553,23 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 .cc-caged-notice--limited,
 .cc-caged-notice--unavailable,
 .cc-caged-notice--range {
-    color: rgba(244, 241, 232, 0.75);
+    color: rgba(var(--cc-ink-rgb), 0.75);
 }
 
 .cc-caged-notice--limited .cc-caged-notice-toggle,
 .cc-caged-notice--unavailable .cc-caged-notice-toggle,
 .cc-caged-notice--range .cc-caged-notice-toggle {
-    border-color: rgba(190, 184, 168, 0.3);
-    background: rgba(190, 184, 168, 0.08);
-    color: rgba(244, 241, 232, 0.75);
+    border-color: rgba(var(--cc-neutral-rgb), 0.3);
+    background: rgba(var(--cc-neutral-rgb), 0.08);
+    color: rgba(var(--cc-ink-rgb), 0.75);
 }
 
 .cc-caged-notice--limited .cc-caged-notice-detail,
 .cc-caged-notice--unavailable .cc-caged-notice-detail,
 .cc-caged-notice--range .cc-caged-notice-detail {
-    border-color: rgba(190, 184, 168, 0.2);
-    background: rgba(190, 184, 168, 0.05);
-    color: rgba(244, 241, 232, 0.75);
+    border-color: rgba(var(--cc-neutral-rgb), 0.2);
+    background: rgba(var(--cc-neutral-rgb), 0.05);
+    color: rgba(var(--cc-ink-rgb), 0.75);
 }
 
 /* 保存前編集モーダル */
@@ -1613,7 +1635,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 .cc-save-section {
     margin-top: 16px;
     padding: 16px;
-    background: rgba(0, 0, 0, 0.25);
+    background: rgba(var(--cc-well-rgb), 0.25);
     border: 1px solid var(--cc-border);
     border-radius: var(--cc-radius-md);
     display: flex;
@@ -1768,9 +1790,9 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     gap: 3px;
     margin-top: 14px;
     padding: 12px 14px;
-    border: 1px solid rgba(212, 175, 55, 0.28);
+    border: 1px solid rgba(var(--cc-accent-rgb), 0.28);
     border-radius: 10px;
-    background: rgba(212, 175, 55, 0.06);
+    background: rgba(var(--cc-accent-rgb), 0.06);
     color: var(--cc-text-muted);
     font-size: 0.78rem;
     line-height: 1.45;
@@ -1885,7 +1907,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     padding: 9px 10px 9px 13px;
     border: 1px solid var(--cc-border-strong);
     border-radius: 12px;
-    background: rgba(212, 175, 55, 0.065);
+    background: rgba(var(--cc-accent-rgb), 0.065);
 }
 
 .cc-sort-row-main {
@@ -1927,10 +1949,10 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     min-width: 64px;
     min-height: 40px;
     padding: 7px 8px;
-    border: 1px solid rgba(212, 175, 55, 0.44);
+    border: 1px solid rgba(var(--cc-accent-rgb), 0.44);
     border-radius: 9px;
     color: var(--cc-text);
-    background: rgba(0, 0, 0, 0.24);
+    background: rgba(var(--cc-well-rgb), 0.24);
     font: inherit;
     font-size: 0.76rem;
     font-weight: 700;
@@ -1947,7 +1969,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-sort-step-btn:not(:disabled):active {
     transform: scale(0.96);
-    background: rgba(212, 175, 55, 0.16);
+    background: rgba(var(--cc-accent-rgb), 0.16);
 }
 
 .cc-folder-card,
@@ -2509,9 +2531,9 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     gap: 8px;
     margin: 0 0 12px;
     padding: 8px 10px;
-    border: 1px solid rgba(228, 198, 124, 0.12);
+    border: 1px solid rgba(var(--cc-line-rgb), 0.12);
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.16);
+    background: rgba(var(--cc-well-rgb), 0.16);
 }
 
 .cc-folder-shelf-columns-label {
@@ -2534,7 +2556,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     border: 1px solid var(--cc-border);
     border-radius: 7px;
     color: var(--cc-text-muted);
-    background: rgba(255, 255, 255, 0.02);
+    background: rgba(var(--cc-hi-rgb), 0.02);
     font: inherit;
     font-size: 0.7rem;
     font-weight: 700;
@@ -2542,9 +2564,9 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 }
 
 .cc-folder-shelf-columns-btn.is-selected {
-    border-color: rgba(212, 175, 55, 0.72);
+    border-color: rgba(var(--cc-accent-rgb), 0.72);
     color: var(--cc-champagne);
-    background: rgba(212, 175, 55, 0.13);
+    background: rgba(var(--cc-accent-rgb), 0.13);
 }
 
 .cc-folder-shelf-columns-btn:focus-visible,
@@ -2576,7 +2598,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-folder-card-wrap .cc-folder-card.is-managing {
     border-color: rgba(255, 231, 152, 0.96);
-    box-shadow: inset 0 0 0 2px rgba(212, 175, 55, 0.34), 0 0 0 2px rgba(212, 175, 55, 0.18), 2px 4px 8px rgba(0, 0, 0, 0.34);
+    box-shadow: inset 0 0 0 2px rgba(var(--cc-accent-rgb), 0.34), 0 0 0 2px rgba(var(--cc-accent-rgb), 0.18), 2px 4px 8px rgba(0, 0, 0, 0.34);
 }
 
 .cc-folder-card-menu {
@@ -2628,7 +2650,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     align-items: flex-end;
     justify-content: center;
     padding: 16px;
-    background: rgba(0, 0, 0, 0.58);
+    background: rgba(var(--cc-well-rgb), 0.58);
 }
 
 .cc-folder-manage-overlay--hidden {
@@ -2640,10 +2662,10 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     max-height: min(82dvh, 680px);
     overflow: auto;
     padding: 10px 14px max(14px, env(safe-area-inset-bottom));
-    border: 1px solid rgba(228, 198, 124, 0.26);
+    border: 1px solid rgba(var(--cc-line-rgb), 0.26);
     border-radius: 18px 18px 13px 13px;
     color: var(--cc-text);
-    background: linear-gradient(155deg, #24201a, #11100e 82%);
+    background: linear-gradient(155deg, var(--cc-sheet-top), var(--cc-sheet-bottom) 82%);
     box-shadow: 0 -12px 38px rgba(0, 0, 0, 0.42);
 }
 
@@ -2652,7 +2674,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     height: 4px;
     margin: 0 auto 12px;
     border-radius: 99px;
-    background: rgba(240, 224, 184, 0.34);
+    background: rgba(var(--cc-champagne-rgb), 0.34);
 }
 
 .cc-folder-manage-heading h3 {
@@ -2679,7 +2701,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     border: 1px solid var(--cc-border);
     border-radius: 10px;
     color: var(--cc-text);
-    background: rgba(255, 255, 255, 0.035);
+    background: rgba(var(--cc-hi-rgb), 0.035);
     font: inherit;
     font-size: 0.88rem;
     font-weight: 700;
@@ -2689,7 +2711,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-folder-manage-action { padding: 10px 13px; }
 .cc-folder-manage-cancel { margin-top: 10px; text-align: center; }
-.cc-folder-manage-action--danger { border-color: rgba(204, 91, 78, 0.48); color: #f2b6aa; }
+.cc-folder-manage-action--danger { border-color: rgba(204, 91, 78, 0.48); color: var(--cc-danger-text-soft); }
 .cc-folder-manage-label { display: block; margin: 0 0 5px; color: var(--cc-text-muted); font-size: 0.75rem; }
 .cc-folder-manage-confirm-actions { display: flex; gap: 8px; margin-top: 12px; }
 .cc-folder-manage-confirm-actions .cc-btn { flex: 1; }
@@ -2737,7 +2759,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     border: 1px solid var(--cc-border);
     border-radius: 10px;
     color: var(--cc-text);
-    background: rgba(255, 255, 255, 0.035);
+    background: rgba(var(--cc-hi-rgb), 0.035);
     font: inherit;
     font-size: 0.9rem;
     font-weight: 700;
@@ -2752,21 +2774,21 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     width: 8px;
     height: 8px;
     margin-top: 4px;
-    border: 1px solid rgba(240, 224, 184, 0.42);
+    border: 1px solid rgba(var(--cc-champagne-rgb), 0.42);
     border-radius: 50%;
 }
 
 .cc-scale-sheet-choice.is-selected {
-    border-color: rgba(240, 209, 124, 0.88);
+    border-color: rgba(var(--cc-accent-line-rgb), 0.88);
     color: var(--cc-champagne);
-    background: rgba(212, 175, 55, 0.15);
-    box-shadow: inset 0 0 0 1px rgba(212, 175, 55, 0.16);
+    background: rgba(var(--cc-accent-rgb), 0.15);
+    box-shadow: inset 0 0 0 1px rgba(var(--cc-accent-rgb), 0.16);
 }
 
 .cc-scale-sheet-choice.is-selected::after {
     border-color: var(--cc-gold-bright);
     background: var(--cc-gold-bright);
-    box-shadow: inset 0 0 0 2px #24201a;
+    box-shadow: inset 0 0 0 2px var(--cc-sheet-top);
 }
 
 .cc-folder-color-categories {
@@ -2921,7 +2943,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-chordthumb-card.is-managing {
     border-color: rgba(255, 231, 152, 0.96);
-    box-shadow: inset 0 0 0 2px rgba(212, 175, 55, 0.34), 0 0 0 2px rgba(212, 175, 55, 0.18), 2px 4px 8px rgba(0, 0, 0, 0.34);
+    box-shadow: inset 0 0 0 2px rgba(var(--cc-accent-rgb), 0.34), 0 0 0 2px rgba(var(--cc-accent-rgb), 0.18), 2px 4px 8px rgba(0, 0, 0, 0.34);
 }
 
 .cc-chord-card-menu {
@@ -2934,10 +2956,10 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     min-height: 27px;
     padding: 0;
     place-items: center;
-    border: 1px solid rgba(240, 209, 124, 0.42);
+    border: 1px solid rgba(var(--cc-accent-line-rgb), 0.42);
     border-radius: 7px;
     color: var(--cc-champagne);
-    background: rgba(0, 0, 0, 0.34);
+    background: rgba(var(--cc-well-rgb), 0.34);
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.24);
     font: 700 1.04rem/1 Georgia, serif;
     cursor: pointer;
@@ -2945,8 +2967,8 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-chord-card-menu:hover,
 .cc-chord-card-menu:active {
-    border-color: rgba(240, 209, 124, 0.82);
-    background: rgba(0, 0, 0, 0.52);
+    border-color: rgba(var(--cc-accent-line-rgb), 0.82);
+    background: rgba(var(--cc-well-rgb), 0.52);
 }
 
 .cc-chordthumb-grid[data-library-columns="4"] .cc-chord-card-wrap .cc-chordthumb-card {
@@ -3044,10 +3066,10 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     min-width: 28px;
     height: 28px;
     padding: 0;
-    border: 1px solid rgba(212, 175, 55, 0.44);
+    border: 1px solid rgba(var(--cc-accent-rgb), 0.44);
     border-radius: 8px;
     color: var(--cc-text);
-    background: rgba(0, 0, 0, 0.24);
+    background: rgba(var(--cc-well-rgb), 0.24);
     font: inherit;
     font-size: 0.95rem;
     font-weight: 700;
@@ -3065,7 +3087,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-chordthumb-sort-step:not(:disabled):active {
     transform: scale(0.94);
-    background: rgba(212, 175, 55, 0.16);
+    background: rgba(var(--cc-accent-rgb), 0.16);
 }
 
 .cc-chordthumb-board {
@@ -3076,9 +3098,9 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     min-height: 0;
     padding: 1px;
     overflow: hidden;
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(var(--cc-hi-rgb), 0.05);
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(var(--cc-well-rgb), 0.2);
 }
 
 /* 一覧の白黒図はSVG側の安全余白と合わせ、マーカーと番号をカード内へ収める。 */
@@ -3107,7 +3129,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     padding: 12px;
     border: 1px solid var(--cc-border);
     border-radius: 10px;
-    background: rgba(0, 0, 0, 0.16);
+    background: rgba(var(--cc-well-rgb), 0.16);
 }
 
 .cc-lib-diagram-card--monochrome {
@@ -3147,7 +3169,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     gap: 10px;
     margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid rgba(240, 224, 184, 0.14);
+    border-top: 1px solid rgba(var(--cc-champagne-rgb), 0.14);
 }
 
 .cc-lib-list-display-row {
@@ -3416,7 +3438,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
     font-weight: 700;
     color: var(--cc-champagne);
     margin-bottom: 16px;
-    background: rgba(0, 0, 0, 0.3);
+    background: rgba(var(--cc-well-rgb), 0.3);
 }
 
 .cc-builder-grid {
@@ -3461,7 +3483,7 @@ body:has(.cc-folder-manage-overlay:not(.cc-folder-manage-overlay--hidden)) .cc-s
 
 .cc-tension-label:has(input:checked) {
     border-color: var(--cc-border-strong);
-    background: rgba(212, 175, 55, 0.10);
+    background: rgba(var(--cc-accent-rgb), 0.10);
     color: var(--cc-champagne);
 }
 
@@ -3496,8 +3518,8 @@ body.cc-settings-open {
     z-index: 300;
     overflow-y: auto;
     background:
-        radial-gradient(circle at 50% -10%, rgba(212, 175, 55, 0.10), transparent 45%),
-        rgba(11, 10, 9, 0.98);
+        radial-gradient(circle at 50% -10%, rgba(var(--cc-accent-rgb), 0.10), transparent 45%),
+        rgba(var(--cc-overlay-bg-rgb), 0.98);
 }
 
 .cc-settings-overlay--hidden {
@@ -3537,7 +3559,7 @@ body.cc-settings-open {
     padding: 8px 14px;
     border: 1px solid var(--cc-border-strong);
     border-radius: var(--cc-radius-pill);
-    background: rgba(20, 19, 17, 0.88);
+    background: rgba(var(--cc-chrome-rgb), 0.88);
     color: var(--cc-text);
     font-family: inherit;
     font-size: 0.82rem;
@@ -3548,7 +3570,7 @@ body.cc-settings-open {
 
 .cc-settings-back-btn:active {
     transform: scale(0.95);
-    background: rgba(212, 175, 55, 0.16);
+    background: rgba(var(--cc-accent-rgb), 0.16);
 }
 
 .cc-settings-card {
@@ -3559,7 +3581,7 @@ body.cc-settings-open {
     border: 1px solid var(--cc-border);
     border-radius: 18px;
     background: linear-gradient(180deg, var(--cc-surface-raised), var(--cc-surface));
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 12px 26px rgba(0, 0, 0, 0.32);
+    box-shadow: inset 0 1px 0 rgba(var(--cc-hi-rgb), 0.04), 0 12px 26px rgba(0, 0, 0, 0.32);
 }
 
 .cc-settings-refresh-bar {
@@ -3569,7 +3591,7 @@ body.cc-settings-open {
     gap: 12px;
     margin-top: 14px;
     padding: 14px 4px 2px;
-    border-top: 1px solid rgba(212, 175, 55, 0.16);
+    border-top: 1px solid rgba(var(--cc-accent-rgb), 0.16);
 }
 
 .cc-app-version-display {
@@ -3583,10 +3605,10 @@ body.cc-settings-open {
 .cc-refresh-btn {
     min-height: 38px;
     padding: 7px 14px;
-    border: 1px solid rgba(212, 175, 55, 0.48);
+    border: 1px solid rgba(var(--cc-accent-rgb), 0.48);
     border-radius: 10px;
     color: var(--cc-champagne);
-    background: rgba(212, 175, 55, 0.1);
+    background: rgba(var(--cc-accent-rgb), 0.1);
     font: inherit;
     font-size: 0.8rem;
     font-weight: 700;
@@ -3596,7 +3618,7 @@ body.cc-settings-open {
 
 .cc-refresh-btn:active {
     transform: scale(0.97);
-    background: rgba(212, 175, 55, 0.18);
+    background: rgba(var(--cc-accent-rgb), 0.18);
 }
 
 .cc-refresh-btn:disabled {
@@ -3622,7 +3644,7 @@ body.cc-settings-open {
     padding: 14px;
     border: 1px solid var(--cc-border-strong);
     border-radius: 14px;
-    background: rgba(0, 0, 0, 0.22);
+    background: rgba(var(--cc-well-rgb), 0.22);
     overflow: hidden;
 }
 
@@ -3668,7 +3690,7 @@ body.cc-settings-open {
     flex-direction: column;
     gap: 10px;
     padding-top: 18px;
-    border-top: 1px solid rgba(212, 175, 55, 0.16);
+    border-top: 1px solid rgba(var(--cc-accent-rgb), 0.16);
 }
 
 .cc-settings-reset h4 {
@@ -3692,8 +3714,8 @@ body.cc-settings-open {
 .cc-settings-reset-trigger {
     align-self: flex-start;
     padding: 9px 13px;
-    border: 1px solid rgba(212, 175, 55, 0.42);
-    background: rgba(212, 175, 55, 0.08);
+    border: 1px solid rgba(var(--cc-accent-rgb), 0.42);
+    background: rgba(var(--cc-accent-rgb), 0.08);
     color: var(--cc-champagne);
 }
 
@@ -3704,7 +3726,7 @@ body.cc-settings-open {
 .cc-settings-danger-trigger {
     border-color: rgba(207, 90, 99, 0.7);
     background: var(--cc-danger-bg);
-    color: #ffd8dc;
+    color: var(--cc-danger-text);
 }
 
 .cc-settings-reset-confirm {
@@ -3712,9 +3734,9 @@ body.cc-settings-open {
     flex-direction: column;
     gap: 8px;
     padding: 13px;
-    border: 1px solid rgba(212, 175, 55, 0.32);
+    border: 1px solid rgba(var(--cc-accent-rgb), 0.32);
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.24);
+    background: rgba(var(--cc-well-rgb), 0.24);
 }
 
 .cc-settings-reset-confirm[hidden] {
@@ -3747,12 +3769,12 @@ body.cc-settings-open {
 
 .cc-settings-reset-cancel {
     border: 1px solid var(--cc-border);
-    background: rgba(255, 255, 255, 0.03);
+    background: rgba(var(--cc-hi-rgb), 0.03);
     color: var(--cc-text-muted);
 }
 
 .cc-settings-reset-confirm-btn {
-    border: 1px solid rgba(232, 201, 122, 0.7);
+    border: 1px solid rgba(var(--cc-accent-bright-rgb), 0.7);
     background: linear-gradient(135deg, #b8963a, #e8c97a);
     color: #171204;
 }
@@ -3785,7 +3807,7 @@ body.cc-settings-open {
     padding: 13px 14px;
     border: 1px solid var(--cc-border-strong);
     border-radius: 14px;
-    background: rgba(0, 0, 0, 0.18);
+    background: rgba(var(--cc-well-rgb), 0.18);
     color: var(--cc-text);
     font: inherit;
     text-align: left;
@@ -3844,8 +3866,8 @@ body.cc-settings-open {
     overflow-y: auto;
     padding: max(18px, env(safe-area-inset-top)) 20px max(40px, env(safe-area-inset-bottom));
     background:
-        radial-gradient(circle at 50% -10%, rgba(212, 175, 55, 0.10), transparent 45%),
-        rgba(11, 10, 9, 0.99);
+        radial-gradient(circle at 50% -10%, rgba(var(--cc-accent-rgb), 0.10), transparent 45%),
+        rgba(var(--cc-overlay-bg-rgb), 0.99);
 }
 
 .cc-sync-screen[hidden] {
@@ -3879,9 +3901,9 @@ body.cc-settings-open {
     width: 36px;
     min-height: 36px;
     padding: 0;
-    border: 1px solid rgba(232, 201, 122, 0.42);
+    border: 1px solid rgba(var(--cc-accent-bright-rgb), 0.42);
     border-radius: 50%;
-    background: rgba(212, 175, 55, 0.08);
+    background: rgba(var(--cc-accent-rgb), 0.08);
     color: var(--cc-gold-bright);
     font: inherit;
     font-weight: 800;
@@ -3938,9 +3960,9 @@ body.cc-settings-open {
     display: grid;
     gap: 10px;
     padding: 16px;
-    border: 1px solid rgba(212, 175, 55, 0.16);
+    border: 1px solid rgba(var(--cc-accent-rgb), 0.16);
     border-radius: 14px;
-    background: rgba(0, 0, 0, 0.16);
+    background: rgba(var(--cc-well-rgb), 0.16);
 }
 
 .cc-sync-action-group h4 {
@@ -3958,11 +3980,11 @@ body.cc-settings-open {
 
 .cc-sync-action-group--everyday,
 .cc-sync-action-group--start {
-    border-color: rgba(232, 201, 122, 0.34);
+    border-color: rgba(var(--cc-accent-bright-rgb), 0.34);
 }
 
 .cc-sync-action-group--attention {
-    border-color: rgba(232, 201, 122, 0.55);
+    border-color: rgba(var(--cc-accent-bright-rgb), 0.55);
 }
 
 .cc-sync-action-group--danger {
@@ -3974,9 +3996,9 @@ body.cc-settings-open {
     width: 100%;
     min-height: 46px;
     padding: 10px 14px;
-    border: 1px solid rgba(212, 175, 55, 0.42);
+    border: 1px solid rgba(var(--cc-accent-rgb), 0.42);
     border-radius: 11px;
-    background: rgba(212, 175, 55, 0.08);
+    background: rgba(var(--cc-accent-rgb), 0.08);
     color: var(--cc-champagne);
     font: inherit;
     font-size: 0.86rem;
@@ -3992,7 +4014,7 @@ body.cc-settings-open {
 }
 
 .cc-sync-screen .cc-sync-primary-action {
-    border-color: rgba(232, 201, 122, 0.75);
+    border-color: rgba(var(--cc-accent-bright-rgb), 0.75);
     background: linear-gradient(135deg, #b8963a, #e8c97a);
     color: #171204;
 }
@@ -4000,7 +4022,7 @@ body.cc-settings-open {
 .cc-sync-screen .cc-settings-danger-trigger {
     border-color: rgba(207, 90, 99, 0.7);
     background: var(--cc-danger-bg);
-    color: #ffd8dc;
+    color: var(--cc-danger-text);
 }
 
 .cc-sync-recovery-steps {
@@ -4066,9 +4088,9 @@ body.cc-settings-open {
     width: 28px;
     height: 28px;
     padding: 0;
-    border: 1px solid rgba(232, 201, 122, 0.32);
+    border: 1px solid rgba(var(--cc-accent-bright-rgb), 0.32);
     border-radius: 50%;
-    background: rgba(212, 175, 55, 0.08);
+    background: rgba(var(--cc-accent-rgb), 0.08);
     color: var(--cc-gold-bright);
     font: inherit;
     font-size: 0.84rem;
@@ -4081,7 +4103,7 @@ body.cc-settings-open {
 .cc-settings-help-toggle:hover,
 .cc-settings-help-toggle[aria-expanded="true"] {
     border-color: var(--cc-gold);
-    background: rgba(212, 175, 55, 0.18);
+    background: rgba(var(--cc-accent-rgb), 0.18);
 }
 
 .cc-settings-help-toggle:active {
@@ -4131,7 +4153,7 @@ body.cc-settings-open {
     padding: 4px;
     border: 1px solid var(--cc-border);
     border-radius: 12px;
-    background: rgba(0, 0, 0, 0.28);
+    background: rgba(var(--cc-well-rgb), 0.28);
 }
 
 .cc-settings-choices--four {
@@ -4164,7 +4186,7 @@ body.cc-settings-open {
 .cc-settings-choice--active {
     color: #171204;
     background: linear-gradient(135deg, #b8963a, #e8c97a);
-    box-shadow: 0 2px 10px rgba(212, 175, 55, 0.24);
+    box-shadow: 0 2px 10px rgba(var(--cc-accent-rgb), 0.24);
 }
 
 [data-fret-highlight-mode="position"] {
@@ -4193,7 +4215,7 @@ body.cc-settings-open {
     padding: 7px 3px;
     border: 1px solid var(--cc-border);
     border-radius: 9px;
-    background: rgba(0, 0, 0, 0.24);
+    background: rgba(var(--cc-well-rgb), 0.24);
     color: var(--cc-text-muted);
     font-family: inherit;
     font-size: 0.82rem;
@@ -4208,8 +4230,8 @@ body.cc-settings-open {
 }
 
 .cc-settings-fret-btn--active {
-    border-color: rgba(232, 201, 122, 0.7);
-    background: rgba(212, 175, 55, 0.22);
+    border-color: rgba(var(--cc-accent-bright-rgb), 0.7);
+    background: rgba(var(--cc-accent-rgb), 0.22);
     color: var(--cc-gold-bright);
 }
 
@@ -4355,3 +4377,196 @@ body.cc-settings-open {
         box-shadow: 0 12px 24px rgba(0, 0, 0, 0.24);
     }
 }
+
+/* ═══ Color themes: Gray / Light ═══════════════════════════════════════════════════════════
+   Dark is the :root default above (production values, unchanged) and is never overridden here.
+   Everything below applies only when <html data-theme="gray|light"> is set by the startup
+   bootstrap or the Settings choice. Brand gold (--cc-gold), the guitar fretboard, the bookshelf
+   (books, folders, shelf board), monochrome diagrams, exports and the Pro gate keep their colors. */
+:root[data-theme="gray"] {
+    color-scheme: light;
+    --cc-bg: #c8cbd0;
+    --cc-surface: #d8dbdf;
+    --cc-surface-raised: #e3e5e8;
+    --cc-border: rgba(29, 31, 35, 0.16);
+    --cc-border-strong: rgba(29, 31, 35, 0.32);
+    --cc-accent-text: #5f490f;
+    --cc-accent-text-strong: #3a2c08;
+    --cc-gold-bright: var(--cc-accent-text);
+    --cc-champagne: #4a3d1f;
+    --cc-text: #1d1f23;
+    --cc-text-muted: #43464c;
+    --cc-text-faint: #50545b;
+    --cc-danger: #8c2731;
+    --cc-accent-rgb: 122, 94, 30;
+    --cc-accent-bright-rgb: 95, 73, 15;
+    --cc-accent-line-rgb: 95, 73, 15;
+    --cc-champagne-rgb: 74, 61, 31;
+    --cc-line-rgb: 29, 31, 35;
+    --cc-ink-rgb: 29, 31, 35;
+    --cc-neutral-rgb: 62, 65, 70;
+    --cc-hi-rgb: 0, 0, 0;
+    --cc-well-rgb: 238, 240, 242;
+    --cc-chrome-rgb: 238, 240, 242;
+    --cc-overlay-bg-rgb: 200, 203, 208;
+    --cc-sheet-top: #e3e5e8;
+    --cc-sheet-bottom: #d8dbdf;
+    --cc-card-top: #e3e5e8;
+    --cc-card-bottom: #d8dbdf;
+    --cc-notice-text: #5a450e;
+    --cc-danger-text-soft: #8c2731;
+    --cc-danger-text: #8c2731;
+    --cc-overlay: rgba(40, 42, 46, 0.45);
+    --cc-shadow-alpha: 0.12;
+}
+:root[data-theme="light"] {
+    color-scheme: light;
+    --cc-bg: #f7f5ef;
+    --cc-surface: #ffffff;
+    --cc-surface-raised: #f1eee6;
+    --cc-border: rgba(28, 27, 24, 0.13);
+    --cc-border-strong: rgba(28, 27, 24, 0.28);
+    --cc-accent-text: #6b5212;
+    --cc-accent-text-strong: #4c3a0e;
+    --cc-gold-bright: var(--cc-accent-text);
+    --cc-champagne: #54451f;
+    --cc-text: #1c1b18;
+    --cc-text-muted: #55514a;
+    --cc-text-faint: #625e56;
+    --cc-danger: #9a2e38;
+    --cc-accent-rgb: 150, 116, 40;
+    --cc-accent-bright-rgb: 107, 82, 18;
+    --cc-accent-line-rgb: 107, 82, 18;
+    --cc-champagne-rgb: 84, 69, 31;
+    --cc-line-rgb: 28, 27, 24;
+    --cc-ink-rgb: 28, 27, 24;
+    --cc-neutral-rgb: 90, 88, 84;
+    --cc-hi-rgb: 0, 0, 0;
+    --cc-well-rgb: 255, 255, 255;
+    --cc-chrome-rgb: 255, 255, 255;
+    --cc-overlay-bg-rgb: 247, 245, 239;
+    --cc-sheet-top: #ffffff;
+    --cc-sheet-bottom: #f7f5ef;
+    --cc-card-top: #ffffff;
+    --cc-card-bottom: #f7f5ef;
+    --cc-notice-text: #66500f;
+    --cc-danger-text-soft: #9a2e38;
+    --cc-danger-text: #9a2e38;
+    --cc-overlay: rgba(20, 20, 18, 0.40);
+    --cc-shadow-alpha: 0.08;
+}
+
+/* Title: same gradient text, inked for a light page. */
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-home-title { background: linear-gradient(90deg, var(--cc-text), var(--cc-accent-text), var(--cc-text)); background-clip: text; -webkit-background-clip: text; }
+
+/* Small, dimmed labels need the deeper ink on a light page (colors only; opacity unchanged). */
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-app-version-display { color: var(--cc-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-refresh-btn { color: var(--cc-accent-text-strong); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-caged-btn:not(.cc-caged-btn--active) .cc-caged-btn-root { color: var(--cc-text); }
+
+/* Modal scrims. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.cc-modal-overlay, .cc-folder-manage-overlay) { background: var(--cc-overlay); }
+
+/* Soft shadows: same geometry, lighter ink. */
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-action-card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 14px 30px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-action-card:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 18px 34px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.cc-modal, .cc-confirm-card) { box-shadow: 0 24px 60px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-settings-card { box-shadow: 0 12px 26px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-folder-manage-sheet { box-shadow: 0 -12px 38px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
+
+/* Shared Sound Cruise Sync components (apps/shared/sync-account/multi-app-sync.css stays Dark for
+   other apps); Chord-scoped colors so the Pro sync card, help, Join and conflict UI follow. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-card, .sound-cruise-sync-setup, .sound-cruise-sync-help,
+    .sound-cruise-sync-restore-attention, .sound-cruise-sync-conflict) {
+    border-color: rgba(var(--cc-accent-rgb), 0.45);
+    background: var(--cc-surface);
+    color: var(--cc-text);
+    box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, var(--cc-shadow-alpha));
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-settings-card { box-shadow: none; }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-setup, .sound-cruise-sync-help, .sound-cruise-sync-conflict)::backdrop { background: var(--cc-overlay); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-button, .sound-cruise-sync-join-entry, .sound-cruise-sync-help-button,
+    .sound-cruise-sync-setup button, .sound-cruise-sync-setup a, .sound-cruise-sync-restore-attention button,
+    .sound-cruise-sync-conflict-bulk button, .sound-cruise-sync-conflict-individual button, .sound-cruise-settings-top) {
+    border-color: rgba(var(--cc-accent-rgb), 0.6);
+    background: var(--cc-surface-raised);
+    color: var(--cc-text);
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-button--primary { border-color: rgba(var(--cc-accent-rgb), 0.85); background: rgba(var(--cc-accent-rgb), 0.16); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-button--danger { color: var(--cc-danger-text); background: rgba(207, 90, 99, 0.1); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-status-chip, .sound-cruise-sync-description, .sound-cruise-sync-help-summary,
+    .sound-cruise-sync-help-section p, .sound-cruise-sync-help-steps, .sound-cruise-sync-help-link,
+    .sound-cruise-sync-conflict-summary, .sound-cruise-sync-conflict-overview-item h3, .sound-cruise-sync-conflict-help h3,
+    .sound-cruise-sync-conflict-field h4, .sound-cruise-sync-conflict-field-values, .sound-cruise-sync-conflict-field-count,
+    .sound-cruise-sync-conflict-title, .sound-cruise-sync-conflict-name, .sound-cruise-sync-conflict-deletion-difference strong) { color: var(--cc-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-account-id, .sound-cruise-sync-conflict-times, .sound-cruise-sync-conflict-help p,
+    .sound-cruise-sync-conflict-auto, .sound-cruise-sync-conflict-detail-times, .sound-cruise-sync-conflict-deletion-difference span,
+    .sound-cruise-sync-conflict-individual-toggle) { color: var(--cc-text-muted); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-chevron, .sound-cruise-sync-feedback, .sound-cruise-sync-help-toggle,
+    .sound-cruise-sync-help-section h4, .sound-cruise-sync-conflict-count, .sound-cruise-sync-conflict-state,
+    .sound-cruise-sync-conflict-bulk-heading > p, .sound-cruise-sync-conflict-individual-toggle[aria-expanded='true'],
+    .sound-cruise-sync-conflict-choice legend, .sound-cruise-sync-conflict-status) { color: var(--cc-accent-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-setup [data-sync-error], .sound-cruise-sync-feedback[data-sync-feedback="error"],
+    .sound-cruise-sync-conflict-status.is-error) { color: var(--cc-danger-text); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-header, .sound-cruise-sync-help-footer, .sound-cruise-sync-help-section,
+    .sound-cruise-sync-conflict-overview-item, .sound-cruise-sync-conflict-bulk, .sound-cruise-sync-conflict-help,
+    .sound-cruise-sync-conflict-individual, .sound-cruise-sync-conflict-field, .sound-cruise-sync-conflict-deletion-difference > div,
+    .sound-cruise-sync-conflict-footer, .sound-cruise-sync-conflict-card) { border-color: rgba(var(--cc-line-rgb), 0.18); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-help-footer { background: var(--cc-surface); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-section, .sound-cruise-sync-conflict-bulk, .sound-cruise-sync-conflict-deletion-difference > div,
+    .sound-cruise-sync-conflict-choice-option, .sound-cruise-sync-conflict-overview-item, .sound-cruise-sync-conflict-card) { background: var(--cc-surface-raised); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-choice-option { border-color: rgba(var(--cc-line-rgb), 0.24); }
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-choice-option:has(input:checked) {
+    border-color: rgba(var(--cc-accent-rgb), 0.85);
+    background: rgba(var(--cc-accent-rgb), 0.14);
+    box-shadow: inset 0 0 0 1px rgba(var(--cc-accent-rgb), 0.33);
+}
+:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-footer .sound-cruise-sync-conflict-later { border-color: rgba(var(--cc-line-rgb), 0.3); }
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-button, .sound-cruise-sync-settings-toggle, .sound-cruise-sync-help-toggle,
+    .sound-cruise-sync-conflict button, .sound-cruise-sync-conflict input):focus-visible { outline-color: var(--cc-accent-text); }
+
+/* ── Objects keep their production colors ────────────────────────────────────────────────
+   Fretboard markers (incl. bass/tension rings), the barre, the bookshelf board and
+   the books/folders are physical objects and functional colors. They redeclare the exact :root
+   Dark tokens (verified by tests) so every theme renders them identically. */
+:root:is([data-theme="gray"], [data-theme="light"]) :is(.cc-fb-marker, .cc-fb-barre, .cc-folder-card--design-a, .cc-folder-shelf-board) {
+    color-scheme: dark;
+    --cc-bg: #0b0a09;
+    --cc-surface: #141311;
+    --cc-surface-raised: #1c1a17;
+    --cc-border: rgba(228, 198, 124, 0.16);
+    --cc-border-strong: rgba(228, 198, 124, 0.34);
+    --cc-gold: #d4af37;
+    --cc-gold-bright: #e8c97a;
+    --cc-champagne: #f0e0b8;
+    --cc-text: #f4f1e8;
+    --cc-text-muted: rgba(244, 241, 232, 0.56);
+    --cc-text-faint: rgba(244, 241, 232, 0.36);
+    --cc-danger: #cf5a63;
+    --cc-danger-bg: rgba(207, 90, 99, 0.12);
+    --cc-accent-rgb: 212, 175, 55;
+    --cc-accent-bright-rgb: 232, 201, 122;
+    --cc-accent-line-rgb: 240, 209, 124;
+    --cc-champagne-rgb: 240, 224, 184;
+    --cc-line-rgb: 228, 198, 124;
+    --cc-ink-rgb: 244, 241, 232;
+    --cc-neutral-rgb: 190, 184, 168;
+    --cc-hi-rgb: 255, 255, 255;
+    --cc-well-rgb: 0, 0, 0;
+    --cc-chrome-rgb: 20, 19, 17;
+    --cc-overlay-bg-rgb: 11, 10, 9;
+    --cc-sheet-top: #24201a;
+    --cc-sheet-bottom: #11100e;
+    --cc-card-top: #20211f;
+    --cc-card-bottom: #141516;
+    --cc-notice-text: #e9d8ad;
+    --cc-danger-text-soft: #f2b6aa;
+    --cc-danger-text: #ffd8dc;
+    --cc-accent-text: var(--cc-gold-bright);
+}
+
+/* Mute marks keep their color; they can sit on the light panel (open-string column) or on the
+   wood, so Gray/Light add a thin dark edge that reads on both. */
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-fb-host:not(.cc-fb-host--monochrome) .cc-fb-mute::before,
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-fb-host:not(.cc-fb-host--monochrome) .cc-fb-mute::after { box-shadow: 0 0 0 1px rgba(28, 27, 24, 0.7); }
+:root:is([data-theme="gray"], [data-theme="light"]) .cc-folder-shelf-board { color: var(--cc-text); }

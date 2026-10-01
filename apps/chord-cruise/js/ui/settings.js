@@ -6,6 +6,7 @@
     var DEFAULT_HIGHLIGHTED_FRETS = [0, 3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
     // この右上設定画面で実際に変更できる表示設定だけを対象にする。
     var DISPLAY_SETTING_KEYS = [
+        'theme',
         'chordNameSize',
         'fretNumberSize',
         'fretboardMarkerLabelSize',
@@ -15,6 +16,10 @@
         'degreeNotationFormal',
         'cagedTabAutoChange'
     ];
+    // Chord-only color theme. Keep in sync with the inline startup bootstrap in both entry HTMLs.
+    var VALID_THEMES = ['dark', 'gray', 'light'];
+    var DEFAULT_THEME = 'dark';
+    var THEME_META_COLORS = { gray: '#c8cbd0', light: '#f7f5ef' };
     var overlayEl = null;
     var openBtn = null;
     var closeBtn = null;
@@ -186,9 +191,40 @@
         return size;
     }
 
+    function resolveTheme(value) {
+        return VALID_THEMES.indexOf(value) !== -1 ? value : DEFAULT_THEME;
+    }
+
+    // Mirrors the startup bootstrap so a choice applies without reload. Dark keeps the page
+    // exactly as before (no theme-color meta); Gray/Light tint the browser chrome.
+    function applyTheme(value) {
+        var theme = resolveTheme(value);
+        document.documentElement.setAttribute('data-theme', theme);
+        if (typeof document.querySelector !== 'function') return theme;
+        var meta = document.querySelector('meta[data-cc-theme-color]');
+        if (theme === DEFAULT_THEME) {
+            if (meta) meta.remove();
+        } else if (document.head) {
+            if (!meta) {
+                meta = document.createElement('meta');
+                meta.setAttribute('name', 'theme-color');
+                meta.setAttribute('data-cc-theme-color', '');
+                document.head.appendChild(meta);
+            }
+            meta.setAttribute('content', THEME_META_COLORS[theme]);
+        }
+        return theme;
+    }
+
     function updateControls() {
         if (!overlayEl) return;
         var settings = getSettings();
+        var activeTheme = resolveTheme(settings.theme);
+        Array.prototype.forEach.call(overlayEl.querySelectorAll('[data-theme-choice]'), function (btn) {
+            var selected = btn.getAttribute('data-theme-choice') === activeTheme;
+            btn.classList.toggle('cc-settings-choice--active', selected);
+            btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+        });
         var activeChordNameSize = normalizeChordNameSize(settings.chordNameSize);
         Array.prototype.forEach.call(overlayEl.querySelectorAll('[data-chord-name-size]'), function (btn) {
             var selected = btn.getAttribute('data-chord-name-size') === activeChordNameSize;
@@ -272,6 +308,15 @@
                 current[key] = Array.isArray(next[key]) ? next[key].slice() : next[key];
             }
         }
+        return true;
+    }
+
+    // Only an explicit tap stores the theme (including Dark).
+    function setTheme(value) {
+        var theme = resolveTheme(value);
+        if (!saveRightTopSettings({ theme: theme })) return false;
+        applyTheme(theme);
+        updateControls();
         return true;
     }
 
@@ -413,6 +458,8 @@
         DISPLAY_SETTING_KEYS.forEach(function (key) {
             next[key] = Array.isArray(defaults[key]) ? defaults[key].slice() : defaults[key];
         });
+        // The theme has no stored default; reset saves an explicit Dark so it syncs like a choice.
+        next.theme = DEFAULT_THEME;
 
         // 1回の部分保存で、右上設定の対象キー以外は保持する。
         if (storage.saveSettings(next) !== true) {
@@ -423,6 +470,7 @@
         DISPLAY_SETTING_KEYS.forEach(function (key) {
             getSettings()[key] = Array.isArray(next[key]) ? next[key].slice() : next[key];
         });
+        applyTheme(getSettings().theme);
         getSettings().fretNumberSize = applyFretNumberSize(getSettings().fretNumberSize);
         getSettings().chordNameSize = applyChordNameSize(getSettings().chordNameSize);
         getSettings().fretboardMarkerLabelSize = normalizeSize(getSettings().fretboardMarkerLabelSize);
@@ -544,6 +592,7 @@
         renderDataDeleteSection();
         applyVersionDisplay();
 
+        applyTheme(getSettings().theme);
         var initialSize = applyFretNumberSize(getSettings().fretNumberSize);
         getSettings().fretNumberSize = initialSize;
         var initialChordNameSize = applyChordNameSize(getSettings().chordNameSize);
@@ -574,6 +623,11 @@
                 if (focusTrap()) focusTrap().trapFocus(trapTarget, event);
             });
             overlayEl.addEventListener('click', function (event) {
+                var themeChoice = event.target.closest('[data-theme-choice]');
+                if (themeChoice) {
+                    setTheme(themeChoice.getAttribute('data-theme-choice'));
+                    return;
+                }
                 var choice = event.target.closest('[data-fret-number-size]');
                 if (choice) {
                     setFretNumberSize(choice.getAttribute('data-fret-number-size'));
@@ -679,6 +733,9 @@
     window.ChordCruise.ui = window.ChordCruise.ui || {};
     window.ChordCruise.ui.settings = {
         init: init,
+        applyTheme: applyTheme,
+        resolveTheme: resolveTheme,
+        setTheme: setTheme,
         open: open,
         close: close,
         applyFretNumberSize: applyFretNumberSize,

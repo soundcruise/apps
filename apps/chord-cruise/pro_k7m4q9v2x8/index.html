@@ -5,13 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>コードクルーズ</title>
 <meta name="apple-mobile-web-app-title" content="コードクルーズ">
+<script>
+    // Chord color theme before first paint. Reads only chordCruise.settings; anything else is Dark.
+    // Dark keeps the page as before (no theme-color meta); Gray/Light tint the browser chrome.
+    (function () {
+        var colors = { gray: '#c8cbd0', light: '#f7f5ef' };
+        var theme = 'dark';
+        try {
+            var saved = JSON.parse(localStorage.getItem('chordCruise.settings') || 'null');
+            if (saved && (saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
+        } catch (_) { theme = 'dark'; }
+        document.documentElement.setAttribute('data-theme', theme);
+        if (theme !== 'dark') {
+            var meta = document.createElement('meta');
+            meta.setAttribute('name', 'theme-color');
+            meta.setAttribute('data-cc-theme-color', '');
+            meta.setAttribute('content', colors[theme]);
+            document.head.appendChild(meta);
+        }
+    }());
+</script>
 <link rel="manifest" href="manifest.json?v=2">
 <link rel="apple-touch-icon" sizes="180x180" href="../icons/chord-cruise-pro-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="../icons/chord-cruise-pro-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../theme.css?v=1.16.0">
+<link rel="stylesheet" href="../theme.css?v=1.17.0">
 <link rel="stylesheet" href="../../shared/pro-gate.css?v=6">
 <link rel="preconnect" href="https://sound-cruise-sync.cruise-port-requests.workers.dev" crossorigin>
 <link rel="stylesheet" href="../../shared/sync-account/multi-app-sync.css?v=22">
@@ -105,6 +125,19 @@
             <h2 id="cc-settings-title">設定</h2>
             <span class="cc-settings-head-spacer" aria-hidden="true"></span>
         </header>
+        <section class="cc-settings-card" aria-labelledby="cc-settings-appearance-title">
+            <h3 id="cc-settings-appearance-title">画面の表示</h3>
+            <div class="cc-settings-item">
+                <div class="cc-settings-item-head">
+                    <span class="cc-settings-item-label">カラーテーマ</span>
+                </div>
+                <div class="cc-settings-choices" role="group" aria-label="カラーテーマ">
+                    <button type="button" class="cc-settings-choice" data-theme-choice="dark" aria-pressed="true">ダーク</button>
+                    <button type="button" class="cc-settings-choice" data-theme-choice="gray" aria-pressed="false">グレー</button>
+                    <button type="button" class="cc-settings-choice" data-theme-choice="light" aria-pressed="false">ライト</button>
+                </div>
+            </div>
+        </section>
         <section class="cc-settings-card" aria-labelledby="cc-settings-fretboard-title">
             <h3 id="cc-settings-fretboard-title">指板の表示</h3>
             <div class="cc-settings-item">
@@ -224,11 +257,11 @@
         </div>
     </div>
 </div>
-<script src="../js/core/feature-access.js?v=1.16.0"></script>
-<script src="../js/core/storage.js?v=1.16.0"></script>
-<script src="../js/sync/sync-cohort-activation.js?v=1.16.0"></script>
+<script src="../js/core/feature-access.js?v=1.17.0"></script>
+<script src="../js/core/storage.js?v=1.17.0"></script>
+<script src="../js/sync/sync-cohort-activation.js?v=1.17.0"></script>
 <script>window.__SOUND_CRUISE_SYNC_PRODUCTION_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
-<script src="../js/sync/sync-turnstile.js?v=1.16.0"></script>
+<script src="../js/sync/sync-turnstile.js?v=1.17.0"></script>
 <script src="../../shared/sync-account/production-config.js?v=2"></script>
 <script src="../../shared/sync-account/sync-ui-components.js?v=15"></script>
 <script src="../../shared/sync-account/settings-field-merge.js?v=1"></script>
@@ -236,21 +269,21 @@
 <script src="../../shared/sync-account/sync-account-db.js?v=8"></script>
 <script src="../../shared/sync-account/sync-account-client.js?v=16"></script>
 <script src="../../shared/sync-account/chord-account-bridge.js?v=1"></script>
-<script src="../js/sync/sync-bootstrap.js?v=1.16.0"></script>
-<script src="../js/sync/sync-account-orchestration.js?v=1.16.0"></script>
-<script src="../js/core/music-theory.js?v=1.16.0"></script>
-<script src="../js/core/caged-forms.js?v=1.16.0"></script>
-<script src="../js/core/chord-model.js?v=1.16.0"></script>
-<script src="../js/core/chord-info.js?v=1.16.0"></script>
-<script src="../js/ui/fretboard.js?v=1.16.0"></script>
-<script src="../js/ui/toast.js?v=1.16.0"></script>
-<script src="../js/ui/focus-trap.js?v=1.16.0"></script>
-<script src="../js/ui/save-editor.js?v=1.16.0"></script>
-<script src="../js/ui/chord-builder.js?v=1.16.0"></script>
-<script src="../js/ui/chord-export.js?v=1.16.0"></script>
-<script src="../js/ui/library.js?v=1.16.0"></script>
-<script src="../js/ui/explore.js?v=1.16.0"></script>
-<script src="../js/ui/settings.js?v=1.16.0"></script>
-<script src="../js/app.js?v=1.16.0"></script>
+<script src="../js/sync/sync-bootstrap.js?v=1.17.0"></script>
+<script src="../js/sync/sync-account-orchestration.js?v=1.17.0"></script>
+<script src="../js/core/music-theory.js?v=1.17.0"></script>
+<script src="../js/core/caged-forms.js?v=1.17.0"></script>
+<script src="../js/core/chord-model.js?v=1.17.0"></script>
+<script src="../js/core/chord-info.js?v=1.17.0"></script>
+<script src="../js/ui/fretboard.js?v=1.17.0"></script>
+<script src="../js/ui/toast.js?v=1.17.0"></script>
+<script src="../js/ui/focus-trap.js?v=1.17.0"></script>
+<script src="../js/ui/save-editor.js?v=1.17.0"></script>
+<script src="../js/ui/chord-builder.js?v=1.17.0"></script>
+<script src="../js/ui/chord-export.js?v=1.17.0"></script>
+<script src="../js/ui/library.js?v=1.17.0"></script>
+<script src="../js/ui/explore.js?v=1.17.0"></script>
+<script src="../js/ui/settings.js?v=1.17.0"></script>
+<script src="../js/app.js?v=1.17.0"></script>
 </body>
 </html>
