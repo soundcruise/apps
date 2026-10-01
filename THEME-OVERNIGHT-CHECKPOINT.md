@@ -33,8 +33,8 @@ continue from the first phase that is not marked DONE.
 | 3b | Pro gate fully Dark while shown (layer off via :has(body.pro-gate-active)) | DONE (deployed, gate pixel parity 0) | 69af8ef3 | F 2.21.1 / P 2.26.1 / R 1.16.1 |
 | 4 | Reader-first Sync (Worker + 3 clients accept theme, no send) | DONE (Worker 7245c2e6 from 6c19d296; clients deployed, prod smoke PASS) | 6c19d296 / 2e71d1ea | F 2.21.2 / P 2.26.2 / R 1.16.2 |
 | 5 | Port + Charcoal | DONE (deployed, prod smoke PASS, gate parity 0) | c4fd125a | Port 1.13.0 |
-| 6 | Chord + Charcoal (app + info pages) | DONE pending deploy check (this commit) | see git log | Chord 1.18.0 |
-| 7 | Cross-app QA | TODO | | |
+| 6 | Chord + Charcoal (app + info pages) | DONE (deployed, prod smoke PASS, gate parity 0) | 01f6df1c | Chord 1.18.0 |
+| 7 | Cross-app QA | DONE (prod cross-app 132/132, audio hashes identical) | (this file) | — |
 | 8 | Final full regression + report | TODO | | |
 
 ## Known issues / notes
@@ -66,3 +66,10 @@ continue from the first phase that is not marked DONE.
   token-driven Gray/Light rules widened to Charcoal (fixed objects, Sync components, modal scrims, info-page wells).
   Light-page-only rules (inked title, deep gold, white insets, mute edge) stay Gray/Light. Theme row: four buttons with
   a responsive font so チャコール fits on one line down to 320px. Worker does not validate Chord settings fields.
+- Phase 7 (2026-10-02): production cross-app run, 3 widths x 4 rotations x 5 apps x Standard/Pro = 132/132 PASS
+  (theme per app, other apps' keys untouched, no write on load, theme set before CSS arrives). Dark computed-style
+  diff vs baseline 0 in all 5 apps (only the new theme rows shift layout). Port audio files (11) and the audio lines of
+  Pitch / Fretboard / Rhythm script.js hash-identical to 137ebd4e; Port AudioSession / tuner / metronome tests 159/159.
+  Worker 7245c2e6 at 100%; no Worker change since 6c19d296; no D1 migration, schema version or record type change;
+  apps/shared untouched. Port / Chord Pro gates are opaque overlays over the themed page (pixel parity 0);
+  Pitch / Fretboard / Rhythm switch the layer off while the gate is shown.
