@@ -33,7 +33,7 @@ export async function publishAutomatic(store,source,registry,now,pepper){
    WHERE id=? AND review_status='pending' AND publication_decision='AUTO_PUBLISHABLE'
    AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND publication_enabled=1)
    AND EXISTS(SELECT 1 FROM source_health WHERE source_id=? AND status='healthy' AND last_successful_run_at=?)
-   AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1))
+   AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1))
    AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)
    AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE topic_key=? AND review_status='approved')
    AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE review_status='approved' AND source_url IN (${legacyUrls.length?legacyUrls.map(()=>'?').join(','):'NULL'}))

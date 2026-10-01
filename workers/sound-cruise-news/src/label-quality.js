@@ -1,3 +1,5 @@
+import {labelInformationScore} from '../../../apps/cruise-port/news-quality.js';
+export {labelInformationScore} from '../../../apps/cruise-port/news-quality.js';
 import {NEWS_BETA_ITEMS} from '../../../apps/cruise-port/data/news-beta.js';
 // Only Sound Cruise's immutable, independently reviewed labels are reused. Never publisher text.
 const pairs=Object.freeze({
@@ -7,13 +9,6 @@ const pairs=Object.freeze({
  'jp2a-jam-wahcko-mk2':['JAM Pedals','Wahcko mk.2'],'jp2a-godin-century-maho-eq':['Godin','Century Maho EQ'],
  'jp2a-centerone3':['Leapwing','CenterOne 3'],'jp2a-dotec-deemultiwider':['DOTEC-AUDIO','DeeMultiWider']
 });
-export function labelInformationScore(label){
- if(typeof label!=='string'||/審査待ち|要確認/.test(label))return 0;
- if(/総単板|限定|発売予定|復刻|シグネチャー|小型|追加ボイス|プラグイン\d+製品|エクスプレッションペダル/.test(label))return 4;
- if(/の製品情報$|、(?:ギター|音楽)に関する話題$/.test(label))return 0;
- if(/演奏に関する話題$/.test(label))return 1;
- return 3;
-}
 function independentTopicItems(row){
  let facts;try{facts=typeof row.product_facts==='string'?JSON.parse(row.product_facts):row.product_facts;}catch{return [];}
  return NEWS_BETA_ITEMS.filter(i=>i.category===row.category&&['other','new_product','release'].includes(row.event_type||'other')&&Math.abs(Date.parse(i.publishedAt)-Date.parse(row.published_at))<=14*86400000&&
@@ -23,5 +18,5 @@ function independentTopicItems(row){
 export function independentTopicUrls(row){return independentTopicItems(row).map(i=>i.sourceUrl);}
 export function preferredIndependentLabel(row){
  const match=independentTopicItems(row).sort((a,b)=>labelInformationScore(b.label)-labelInformationScore(a.label))[0];
- return match&&labelInformationScore(match.label)>labelInformationScore(row.label)?match.label:row.label;
+ return match&&labelInformationScore(match.label)>=labelInformationScore(row.label)?match.label:row.label;
 }

@@ -77,7 +77,7 @@ test('coverage: legacy grants cannot authorize a changed label/source, expired r
  const s=await publishedStore();await backfillLegacy(s,now);const row=(await s.candidates())[0];
  const request=()=>handleNewsRequest(new Request('https://news.example/v1/news?limit=50'),{NEWS_DB:s.db,NEWS_API_MODE:'production'},now,{registry:[],cache:null});
  await s.db.prepare('UPDATE candidate_items SET label=? WHERE id=?').bind('偽の独立label',row.id).run();assert.equal((await (await request()).json()).items.length,22);
- await s.db.prepare("INSERT INTO source_state(source_id,disabled) VALUES('yamaha',1)").run();assert.ok(!(await (await request()).json()).items.some(i=>i.sourceName==='Yamaha'));
+ await s.db.prepare("INSERT INTO source_state(source_id,publication_blocked) VALUES('yamaha',1)").run();assert.ok(!(await (await request()).json()).items.some(i=>i.sourceName==='Yamaha'));
 });
 test('coverage: legacy backfill deduplicates approved factual products and respects tombstones',async()=>{
  const s=await publishedStore();const i=legacyRows()[0],id=await hash(i.sourceUrl);await s.db.prepare('INSERT INTO news_takedowns VALUES(?,?)').bind(id,now+DAY).run();

@@ -1,4 +1,4 @@
-import { NEWS_MODE, NEWS_CATEGORIES, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.9.0';
+import { NEWS_MODE, NEWS_CATEGORIES, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.10.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
 const renderCleanup = new WeakMap();

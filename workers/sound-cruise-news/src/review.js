@@ -42,7 +42,7 @@ export async function reviewCandidate(store,input,now=Date.now(),registry=SOURCE
  const checks=Object.fromEntries([...REQUIRED_CHECKS,'guitarEvidenceChecked'].map(k=>[k,input.checks[k]===true]));
  const article=Object.fromEntries(Object.keys(ARTICLE_CHECKS).map(k=>[k,input.articleChecks[k]]));
  const update=store.db.prepare(`UPDATE candidate_items SET label=?,category=?,published_at=?,topic_key=?,review_status='approved',review_reason='structured_review_complete',reviewed_at=?,reviewed_by=?,review_checks=?,article_checks=?,date_override_reason=?,expires_at=?
- WHERE id=? AND review_status=? AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1))`)
+ WHERE id=? AND review_status=? AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1))`)
  .bind(input.label.trim(),input.category,new Date(published).toISOString(),topic,stamp,input.reviewedBy,JSON.stringify(checks),JSON.stringify(article),changedDate?input.dateOverrideReason:null,Math.min(item.expires_at,published+90*DAY),item.id,item.review_status,item.source_id);
  const result=await store.db.batch([update,revision,audit]);
  if(result[0].meta.changes!==1)throw new Error('review_state_changed');

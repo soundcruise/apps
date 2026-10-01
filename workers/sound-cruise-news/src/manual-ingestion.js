@@ -1,3 +1,4 @@
+import {eventEndsAt} from './event.js';
 // CLI only. Structured input is validated before any database write; no external fetch.
 import {MANUAL_SOURCES,manualEvidenceGate,manualUrl} from './manual-sources.js';
 import {assessSale,saleLabel,saleEndsAt,SALE_EVENTS,SALE_EQUIPMENT,SALE_BRANDS} from './sale.js';
@@ -42,17 +43,17 @@ export async function manualCandidate(input,now=Date.now()){
   label=`${input.artist}、${dateLabel(input.eventDate)}${input.endDate&&input.endDate!==input.eventDate?'〜'+dateLabel(input.endDate):''}に${input.venue}で${verbs[input.eventType]}`;
  }
  if(!validLabel(label)||/に関する話題|審査待ち|要確認/.test(label))throw Error('manual_label_invalid');const id=await hash(url);
- const item={id,sourceId:source.id,sourceName:source.name,sourceUrl:url,publishedAt:new Date(published).toISOString(),category,label,topicKey:isSale?`manual:sale:${id}`:`manual:event:${await hash(input.artist+'|'+input.eventType+'|'+input.eventDate+'|'+input.venue)}`,collectedAt:new Date(now).toISOString(),expiresAt:published+90*DAY,saleEndsAt:deadline,eventType,productFacts:facts,checks:input.checks,articleChecks:input.articleChecks,origin:MANUAL_ORIGIN};validatedItems.set(item,JSON.stringify(item));return item;
+ const item={id,sourceId:source.id,sourceName:source.name,sourceUrl:url,publishedAt:new Date(published).toISOString(),category,label,topicKey:isSale?`manual:sale:${id}`:`manual:event:${await hash(input.artist+'|'+input.eventType+'|'+input.eventDate+'|'+input.venue)}`,collectedAt:new Date(now).toISOString(),expiresAt:published+90*DAY,saleEndsAt:deadline,eventEndsAt:eventEndsAt(facts),eventType,productFacts:facts,checks:input.checks,articleChecks:input.articleChecks,origin:MANUAL_ORIGIN};validatedItems.set(item,JSON.stringify(item));return item;
 }
 export async function ingestManual(store,item,now=Date.now()){
  if(validatedItems.get(item)!==JSON.stringify(item))throw Error('manual_item_not_validated');
- const source=MANUAL_SOURCES.find(s=>s.id===item.sourceId);if(manualEvidenceGate(source,now)||item.origin!==MANUAL_ORIGIN||item.expiresAt<=now||item.saleEndsAt!==null&&item.saleEndsAt<now)throw Error('manual_source_gate');
+ const source=MANUAL_SOURCES.find(s=>s.id===item.sourceId);if(manualEvidenceGate(source,now)||item.origin!==MANUAL_ORIGIN||item.expiresAt<=now||item.saleEndsAt!==null&&item.saleEndsAt<now||item.eventEndsAt!=null&&item.eventEndsAt<now)throw Error('manual_source_gate');
  const stamp=new Date(now).toISOString();
  // Insert once; never overwrite an existing record. Controls/takedowns/duplicate topics checked at write time.
  const result=await store.db.batch([
- store.db.prepare(`INSERT OR IGNORE INTO candidate_items(id,source_id,source_name,source_url,normalized_url,published_at,category,label,topic_key,collected_at,review_status,review_reason,reviewed_at,reviewed_by,expires_at,event_type,product_facts,publication_decision,decision_reason,origin,sale_ends_at,review_checks,article_checks)
- SELECT ?,?,?,?,?,?,?,?,?,?,'approved','manual_facts_verified',?,'operator',?,?,?,'PUBLISH_REVIEW','manual_facts_verified',?,?,?,? WHERE EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1 AND publication_enabled=1) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1)) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE topic_key=? AND review_status='approved')`)
- .bind(item.id,item.sourceId,item.sourceName,item.sourceUrl,item.sourceUrl,item.publishedAt,item.category,item.label,item.topicKey,item.collectedAt,stamp,item.expiresAt,item.eventType,JSON.stringify(item.productFacts),MANUAL_ORIGIN,item.saleEndsAt,JSON.stringify(item.checks),JSON.stringify(item.articleChecks),item.sourceId,item.id,item.topicKey),
+ store.db.prepare(`INSERT OR IGNORE INTO candidate_items(id,source_id,source_name,source_url,normalized_url,published_at,category,label,topic_key,collected_at,review_status,review_reason,reviewed_at,reviewed_by,expires_at,event_type,product_facts,publication_decision,decision_reason,origin,sale_ends_at,event_ends_at,review_checks,article_checks)
+ SELECT ?,?,?,?,?,?,?,?,?,?,'approved','manual_facts_verified',?,'operator',?,?,?,'PUBLISH_REVIEW','manual_facts_verified',?,?,?,?,? WHERE EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1 AND publication_enabled=1) AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (publication_blocked=1 OR takedown=1)) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE topic_key=? AND review_status='approved')`)
+ .bind(item.id,item.sourceId,item.sourceName,item.sourceUrl,item.sourceUrl,item.publishedAt,item.category,item.label,item.topicKey,item.collectedAt,stamp,item.expiresAt,item.eventType,JSON.stringify(item.productFacts),MANUAL_ORIGIN,item.saleEndsAt,item.eventEndsAt,JSON.stringify(item.checks),JSON.stringify(item.articleChecks),item.sourceId,item.id,item.topicKey),
  store.db.prepare(`INSERT INTO news_admin_audit SELECT ?, 'manual-add',?,?, 'manual_facts_verified' WHERE EXISTS(SELECT 1 FROM candidate_items WHERE id=? AND origin=? AND reviewed_at=?) AND NOT EXISTS(SELECT 1 FROM news_admin_audit WHERE action='manual-add' AND target=?)`).bind(crypto.randomUUID(),item.id,now,item.id,MANUAL_ORIGIN,stamp,item.id),
  store.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1')]);
  return {id:item.id,inserted:result[0].meta.changes===1,publisherRequests:0};

@@ -141,11 +141,13 @@ export function saleLabel(facts) {
  if(!Array.isArray(facts.equipment)||facts.equipment.length>3||facts.equipment.some(e=>!SALE_EQUIPMENT.some(([name])=>name===e)))return null;
  if(facts.brand!==null&&facts.brand!==undefined&&!SALE_BRANDS.includes(facts.brand))return null;
  if(Number.isNaN(saleEndsAt(facts.endDate,facts.endTime))||(facts.startDate&&facts.endDate&&facts.startDate>facts.endDate))return null;
+ if(facts.percentOff!==undefined&&(!Number.isInteger(facts.percentOff)||facts.percentOff<1||facts.percentOff>100))return null;
+ if(facts.brands!==undefined&&(!Array.isArray(facts.brands)||facts.brands.length>10||facts.brands.some(b=>!SALE_BRANDS.includes(b))))return null;
  const what=facts.brand?`${facts.brand}製品の${facts.event==='期間限定セール'?'セール':facts.event}`:facts.event==='期間限定の値下げ'?'対象製品の期間限定値下げ':facts.event;
  const verb=facts.event==='期間限定の値下げ'?'実施':'開催';
  const when=facts.endDate?`を${jpDay(facts.endDate)}${facts.endTime?' '+facts.endTime:''}まで${verb}`:`を${verb}`;
  const target=facts.equipment.length?`。${facts.equipment.join('・')}などが対象`:'';
- return `${facts.seller}、${what}${when}${target}`;
+ return `${facts.seller}、${what}${when}${facts.percentOff?`（${facts.percentOff}%値下げ）`:""}${target}${facts.brands?.length?`。対象ブランド：${facts.brands.join("・")}`:""}`;
 }
 
 export function hasHype(text){return HYPE.test(String(text));}

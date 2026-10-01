@@ -93,6 +93,24 @@ const IKEBE_MODELS=Object.freeze([
  ['KORG',/(?:^|[^A-Za-z0-9])KORG\s*OD-KIT\s*CUSTOM\s*CRAFT(?:[^A-Za-z0-9]|$)/i,'OD-KIT CUSTOM CRAFT','amps_effects'],
  ['VOX',/(?:^|[^A-Za-z0-9])VOX\s*AC[- ]?MINI(?:[^A-Za-z0-9]|$)/i,'AC MINI','amps_effects']
 ]);
+const IKEBE_BRANDS=Object.freeze([...BRANDS,['MXR','amps_effects',['MXR']],['Gibson','electric_guitar_bass',['Gibson']],['KORG','amps_effects',['KORG']]]);
+const IKEBE_TYPES=Object.freeze([
+ ['acoustic_guitar',/アコースティックギター|アコギ|\bacoustic guitar\b/i,'guitar'],
+ ['amps_effects',/ギターアンプ|エフェクター|ペダル|\b(?:guitar amp|pedal|effects?)\b/i,'amp_effect'],
+ ['electric_guitar_bass',/エレキギター|エレキベース|ギター|ベース|\b(?:electric guitar|bass guitar|guitar)\b/i,'guitar'],
+ ['electric_guitar_bass',/ギタースタンド|ギター用|ギターケース|ピックアップ|\b(?:guitar stand|guitar case|pickup)\b/i,'guitar_accessory']
+]);
+export function ikebeListingFacts(entry,source){
+ if(source.id!=='ikebe'||source.discoveryUrl!=='https://www.ikebe-gakki-pb.com/new_product/'||entry.listingSection!=='product_news')return null;
+ const title=normalizeIdentifier(entry.title),type=IKEBE_TYPES.find(([,re])=>re.test(title));if(!type)return null;
+ const brands=IKEBE_BRANDS.filter(([, ,aliases])=>brandMention(title,aliases));if(brands.length!==1)return null;
+ const [brand,,aliases]=brands[0];const at=aliases.map(a=>title.toLowerCase().indexOf(a.toLowerCase())).filter(n=>n>=0).sort((a,b)=>a-b)[0];
+ const after=title.slice(at).replace(new RegExp('^'+aliases.find(a=>title.slice(at).toLowerCase().startsWith(a.toLowerCase())).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'),'');
+ // Require the model immediately after the explicit brand, never an unrelated nearby number.
+ const match=/^[\s「『“"【:：-]*([A-Z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*)(?=$|[\s」』”"】、。,.;！!（）()])/i.exec(after);
+ if(!match||!safeModel(match[1])||/^(?:USB|HDMI|IP)\d/i.test(match[1]))return null;
+ return {brand,product:match[1],version:null,category:type[0],productType:type[2],identifierBasis:'explicit_listing_facts',listingSource:'ikebe'};
+}
 const IK_MODELS=Object.freeze([['TONEX Board','amps_effects'],['TONEX ONE Plus','amps_effects'],['TONEX ONE','amps_effects'],['TONEX','amps_effects'],['iRig HD X','recording_audio'],['iRig HD 2','recording_audio'],['iRig Pro I/O','recording_audio'],['AXE I/O ONE','recording_audio'],['AXE I/O','recording_audio'],['AmpliTube 5','dtm_software'],['AmpliTube','dtm_software'],['ReSing','dtm_software'],['SINPHONICA','dtm_software'],['iLoud Sub','recording_audio'],['ARC On-Ear','recording_audio']]);
 const ZOOM_MODELS=Object.freeze(['F6','TCA-1','H2essential','WLM-1','H1essential','H5studio','H6studio','H6essential']);
 function manufacturerFacts(entry,source){
@@ -110,6 +128,7 @@ function manufacturerFacts(entry,source){
 }
 export function validatedProductFacts(facts){
  if(!facts)return false;
+ if(facts.identifierBasis==='explicit_listing_facts')return facts.listingSource==='ikebe'&&IKEBE_BRANDS.some(([b])=>b===facts.brand)&&safeModel(facts.product)&&IKEBE_TYPES.some(([c,,t])=>c===facts.category&&t===facts.productType);
  if(facts.identifierBasis==='reviewed_listing_model')return facts.listingSource==='ikebe'&&IKEBE_MODELS.some(([b,,p,c])=>b===facts.brand&&p===facts.product&&c===facts.category);
  if(facts.identifierBasis==='official_manufacturer_model'&&facts.manufacturerSource==='ik')return facts.brand==='IK Multimedia'&&IK_MODELS.some(([p,c])=>facts.product===p&&facts.category===c);
  if(facts.identifierBasis==='official_manufacturer_model')return facts.manufacturerSource==='zoom'&&facts.brand==='ZOOM'&&facts.category==='recording_audio'&&ZOOM_MODELS.includes(facts.product);
@@ -237,8 +256,8 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(source.allowedEventTypes&&!source.allowedEventTypes.includes(eventType))return {decision:'REJECT',reason:'source_event_scope'};
  if(['tutorial','evergreen','event_or_shop'].includes(eventType))return {decision:'REJECT',reason:eventType};
  if(eventType==='sale')return saleCandidateFrom(entry,source,url,now,pepper,hasDate,timestamp);
- const titleFacts=manufacturerFacts(entry,source)||productFacts(entry.title);
- const facts=guitarEvent||guitarArtist||titleFacts;
+ const titleFacts=manufacturerFacts(entry,source)||ikebeListingFacts(entry,source)||productFacts(entry.title);
+ let facts=guitarEvent||guitarArtist||titleFacts;
  let category=guitarEvent?'live_guitar':classify(entry.title);
  if(!category&&entry.listingSection==='product_news'&&source.discoveryType==='shimamura_listing'){
   if(entry.listingCategory==='amp-effector')category='amps_effects';
@@ -257,6 +276,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  // Conservative deterministic template. No source phrase or instructions interpolated.
  // Detailed product labels require local human editing, never automatic publication.
  const informationalUncertain=/機能一覧|仕様一覧|スペック一覧|発売予定|年内|発売(?:が)?決定/.test(entry.title)||(source.id==='ik'&&/\b(?:pack|collection|presets?|tone models?|for|vol(?:ume)?)\b/i.test(entry.title));
+ if(facts&&source.id==='ik'&&informationalUncertain)facts={...facts,scopeUncertain:true};
  const relevanceUncertain=(source.id==='ikebe'&&facts?.identifierBasis==='explicit_model_code')||facts?.brand==='DE'||facts?.brand==='dBTechnologies'||facts?.product==='Logo Barstool';
  let confident=!!(guitarArtist?.action!=='guitar_information'&&!relevanceUncertain&&!informationalUncertain&&facts&&(!!titleFacts||!!guitarEvent||!!guitarArtist||eventType!=='other')&&eventType!=='other'&&['new_product','release','update','firmware','price_change','discontinued','recall','other','guitar_event','guitar_artist'].includes(eventType)&&hasDate&&!entry.listingUncertainty&&!/キャンペーン|\bcampaign\b/i.test(entry.title));
  const titleFingerprint=await fingerprint(entry.title,pepper);

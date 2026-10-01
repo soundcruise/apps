@@ -1,7 +1,7 @@
 // Structured operator signals only. Never include response bodies, titles or free text.
 export const HEALTH_STATUSES=Object.freeze(['healthy','warning','paused','policy_review','robots_changed','structure_changed','http_blocked','rate_limited','error']);
 export const HEALTH_REASONS=Object.freeze([
- 'ok','not_modified','source_disabled','source_auto_disabled','global_collection_off','configuration_invalid','headline_pepper_required',
+ 'approved_mass_visibility_loss','ok','not_modified','source_disabled','source_auto_disabled','global_collection_off','configuration_invalid','headline_pepper_required',
  'policy_expired','policy_changed','evidence_missing','robots_changed_review','robots_disallow','robots_unparseable','robots_unavailable',
  'http_401','http_403','http_451','rate_limited','listing_structure_changed',
  'listing_too_large','non_metadata_response','metadata_format','collector_repeated_failure','retention_purge_failed',

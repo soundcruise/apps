@@ -73,7 +73,7 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
  }catch(error){
   const codes=['listing_structure_changed','listing_optout','listing_too_large','listing_url_blocked','listing_request_budget','request_timeout','global_collection_off','robots_unparseable','robots_unavailable','robots_changed_review','robots_disallow','crawl_delay_review','rate_limited','upstream_error','http_401','http_403','http_451','access_stopped','header_optout','redirect_blocked','response_too_large','discovery_unavailable','non_metadata_response','xml_unsafe','xml_invalid','metadata_format','url_blocked'];
   report.outcome=codes.includes(error.message)?error.message:'network_or_internal_error';
-  if(['listing_structure_changed','listing_optout','listing_too_large','robots_unparseable','redirect_blocked','header_optout','robots_changed_review','robots_disallow','http_401','http_403','http_451','access_stopped'].includes(report.outcome))next.disabled=true;
+  if(['request_timeout','upstream_error','network_or_internal_error','non_metadata_response','metadata_format','xml_invalid','listing_structure_changed','listing_optout','listing_too_large','robots_unparseable','redirect_blocked','header_optout','robots_changed_review','robots_disallow','http_401','http_403','http_451','access_stopped'].includes(report.outcome))next.disabled=true;
   if(!['rate_limited','upstream_error'].includes(report.outcome)){next.failures=(state.failures||0)+1;next.nextAt=Math.max(next.nextAt,retryAt(500,null,next.failures,now));next.backoffUntil=next.nextAt;}
  }finally{
   await store.saveState(id,next);report.durationMs=Date.now()-started;await store.log(report);

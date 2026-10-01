@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.9.0';
+} from './app-version.js?v=1.10.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=0.25.0';
 import { DEFAULT_SETTINGS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, saveSettings } from './settings-store.js?v=0.59.3';
 import { initTuner } from './tuner-app.js?v=0.69.0';
@@ -2121,10 +2121,10 @@ let newsLoadRevision = 0;
 async function renderNewsSafely() {
     const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.9.0');
+        const news = await import('./news-ui.js?v=1.10.0');
         if (revision !== newsLoadRevision) return;
         news.stopNewsUpdates();
-        const { loadConfiguredNews } = await import('./news-provider.js?v=1.9.0');
+        const { loadConfiguredNews } = await import('./news-provider.js?v=1.10.0');
         const result = await loadConfiguredNews();
         if (revision === newsLoadRevision) news.renderNews(result);
     } catch (error) {

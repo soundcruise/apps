@@ -78,7 +78,7 @@ export function legalGate(source,state={},now=Date.now(),mode='off',registry=SOU
  if(mode!=='local'&&!(mode==='production'&&source?.productionEnabled&&source?.enabled))return 'collection_off';
  if(!source||!registry.includes(source))return 'not_registry_source';
  const evidence=evidenceGate(source,now);if(evidence)return evidence;
- if((!source.enabled&&!(source.localPilotEnabled&&phaseOneSourceReady(source,now)))||state.disabled)return 'source_disabled';
+ if((!source.enabled&&!(source.localPilotEnabled&&phaseOneSourceReady(source,now)))||state.disabled||state.publicationBlocked)return 'source_disabled';
  if(state.backoffUntil>now||state.failures>0&&state.nextAt>now)return 'backoff';
  if(requestMode==='normal'&&(state.nextAt>now||state.lastPublisherRequestAt>0&&state.lastPublisherRequestAt+Math.max(6,source.crawlIntervalHours)*3600000>now))return 'backoff';
  if(!['normal','scheduled','operator_validation'].includes(requestMode))return 'configuration_invalid';

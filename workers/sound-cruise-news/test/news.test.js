@@ -219,12 +219,12 @@ test('M4: library is not live event; NOVA is recognized with brand context',()=>
  assert.equal(classify('Lunacy NOVA 音源ライブラリが登場'),'dtm_software');
 });
 
-test('runtime publisher stop invalidates cached API, not only operator takedown',async()=>{
+test('runtime collection stop invalidates cache while preserving approved visibility',async()=>{
  const s=await store();await collect(s);await reviewCandidate(s,approval((await s.candidates())[0]),now,registry,pepper);
  const map=new Map(),cache={put:async(k,v)=>map.set(k.url,v.clone()),match:async k=>map.get(k.url)?.clone()};
  assert.equal((await (await request(s,'/v1/news',{},cache)).json()).items.length,1);
  await s.saveState(source.id,{...(await s.state(source.id)),disabled:true});
- assert.equal((await (await request(s,'/v1/news',{},cache)).json()).items.length,0);
+ assert.equal((await (await request(s,'/v1/news',{},cache)).json()).items.length,1);
 });
 test('facts-only equivalent label remains an automatic candidate with advisory similarity',async()=>{
  const entry={...parseMetadata(feed,'rss')[0],title:'Universal Audio LUNA 3を更新！'};

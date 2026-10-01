@@ -1,3 +1,5 @@
+import {labelInformationScore,compareTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.10.0';
+export {labelInformationScore} from './news-quality.js?v=1.10.0';
 // Manual ingestion boundary. No collector, persistence or network access.
 export const NEWS_MODE = 'beta';
 export const NEWS_CATEGORIES = Object.freeze({
@@ -21,6 +23,7 @@ export function normalizeNewsItem(input) {
     if (!Object.hasOwn(NEWS_CATEGORIES, input.category) || !PRIORITY.includes(input.sourceKind)) return null;
     if (!['publishedAt', 'createdAt', 'updatedAt'].every(key => date(input[key]))) return null;
     if (input.category === 'sale' && !validSaleDeadline(input.saleEndsAt)) return null;
+    if (!validEventDeadline(input.eventEndsAt)) return null;
     if (input.manualReviewStatus !== 'approved' || input.sourceSafety !== 'safe') return null;
     if (['artist_guitar', 'live_guitar'].includes(input.category) && !GUITAR_EVIDENCE.includes(input.guitarEvidence)) return null;
     let url;
@@ -28,15 +31,8 @@ export function normalizeNewsItem(input) {
     if (url.protocol !== 'https:' || url.username || url.password) return null;
     // Allowlist projection prevents headline/body/image fields entering the UI model.
     return Object.fromEntries(['id', 'label', 'sourceName', 'publishedAt', 'category', 'topicKey',
-        'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'guitarEvidence', 'saleEndsAt']
+        'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'guitarEvidence', 'saleEndsAt', 'eventEndsAt']
         .filter(key => input[key] !== undefined).map(key => [key, input[key]]).concat([['sourceUrl', url.href]]));
-}
-export function labelInformationScore(label) {
-    if (typeof label !== 'string' || /審査待ち|要確認/.test(label)) return 0;
-    if (/総単板|限定|発売予定|復刻|シグネチャー|小型|追加ボイス|プラグイン\d+製品|エクスプレッションペダル/.test(label)) return 4;
-    if (/の製品情報$|、(?:ギター|音楽)に関する話題$/.test(label)) return 0;
-    if (/演奏に関する話題$/.test(label)) return 1;
-    return 3;
 }
 export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) {
     if (mode === 'off') return [];
@@ -44,7 +40,7 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
     const topics = new Map();
     for (const candidate of input) {
         const item = normalizeNewsItem(candidate);
-        if (!item || !saleVisible(item, now)) continue;
+        if (!item || !saleVisible(item, now) || !eventVisible(item, now)) continue;
         const age = now - Date.parse(item.publishedAt);
         if (age < 0 || age > 90 * DAY) continue;
         const previous = topics.get(item.topicKey);
@@ -55,13 +51,13 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
     return [...topics.values()].sort((a, b) => b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id));
 }
 export function tickerNews(items, now = Date.now()) {
-    const recent = days => items.filter(item => saleVisible(item, now) && now - Date.parse(item.publishedAt) >= 0 && now - Date.parse(item.publishedAt) <= days * DAY);
+    const recent = days => items.filter(item => saleVisible(item, now) && eventVisible(item, now) && now - Date.parse(item.publishedAt) >= 0 && now - Date.parse(item.publishedAt) <= days * DAY);
     const week = recent(7);
-    return (week.length ? week : recent(14)).sort((a, b) => labelInformationScore(b.label) - labelInformationScore(a.label) || b.publishedAt.localeCompare(a.publishedAt) || a.id.localeCompare(b.id)).slice(0, 5);
+    return (week.length ? week : recent(14)).sort((a, b) => compareTicker(a, b, now)).slice(0, 5);
 }
 export function groupNews(items, category = '', now = Date.now()) {
     const groups = new Map();
-    for (const item of items.filter(item => saleVisible(item, now) && (!category || item.category === category))) {
+    for (const item of items.filter(item => saleVisible(item, now) && eventVisible(item, now) && (!category || item.category === category))) {
         const day = new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Tokyo' }).format(new Date(item.publishedAt));
         if (!groups.has(day)) groups.set(day, []);
         groups.get(day).push(item);

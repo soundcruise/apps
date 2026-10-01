@@ -9,7 +9,7 @@ export async function reviewQueue(store){return (await store.candidates()).filte
 export async function operatorDecision(store,input,now,registry,pepper){
  if(!['approve','reject'].includes(input.action)||!FEEDBACK_REASONS.includes(input.reason||'operator_review'))throw Error('operator_decision_invalid');
  const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(input.id).first();
- if(!row||row.origin==='legacy_fixture_backfill'||!['pending','reopened'].includes(row.review_status))throw Error('review_pending_required');
+ if(!row||row.origin==='legacy_fixture_backfill'||!['pending','reopened',...(input.action==='reject'?['approved']:[])].includes(row.review_status))throw Error('review_pending_required');
  if(input.action==='reject')await reviewCandidate(store,{id:input.id,action:'reject',reviewedBy:'operator'},now,registry,pepper);
  else{
   const source=registry.find(s=>s.id===row.source_id),state=await store.state(row.source_id),health=(await store.sourceHealth()).find(h=>h.source_id===row.source_id);
@@ -20,7 +20,7 @@ export async function operatorDecision(store,input,now,registry,pepper){
   const stamp=Date.parse(row.published_at);if(!Number.isFinite(stamp)||stamp>now||now-stamp>=90*DAY||row.expires_at<=now)throw Error('expired_candidate');
   if(input.checks?.factsChecked!==true||input.checks?.relevanceChecked!==true||input.checks?.duplicateChecked!==true||input.checks?.independentLabelChecked!==true)throw Error('operator_checks_required');
   const result=await store.db.batch([
-   store.db.prepare(`UPDATE candidate_items SET review_status='approved',reviewed_by='operator',reviewed_at=?,review_reason='operator_surface_verified',review_checks=? WHERE id=? AND review_status=? AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND publication_enabled=1) AND EXISTS(SELECT 1 FROM source_health WHERE source_id=? AND status='healthy') AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1)) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE topic_key=? AND review_status='approved' AND id<>?)`)
+   store.db.prepare(`UPDATE candidate_items SET review_status='approved',reviewed_by='operator',reviewed_at=?,review_reason='operator_surface_verified',review_checks=? WHERE id=? AND review_status=? AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND publication_enabled=1) AND EXISTS(SELECT 1 FROM source_health WHERE source_id=? AND status='healthy') AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1)) AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?) AND NOT EXISTS(SELECT 1 FROM candidate_items WHERE topic_key=? AND review_status='approved' AND id<>?)`)
     .bind(new Date(now).toISOString(),JSON.stringify({basis:'validated_official_surface',factsChecked:true,relevanceChecked:true,duplicateChecked:true,independentLabelChecked:true}),row.id,row.review_status,row.source_id,row.source_id,row.id,row.topic_key,row.id),
    store.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1'),
    store.db.prepare('INSERT INTO news_admin_audit VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),'review-approve',row.id,now,input.reason||'operator_review')

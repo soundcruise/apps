@@ -37,8 +37,8 @@ test('attempt guard: HTTP 500 and timeout start 24h; immediate retry never reach
   const result=await collectSource('shimamura',s,{...options,clock:()=>attemptedAt,fetcher});
   assert.equal(result.outcome,timeout?'request_timeout':'upstream_error');assert.equal(calls,1);
   const state=await s.state('shimamura');assert.equal(state.lastPublisherRequestAt,attemptedAt);assert.equal(state.nextAt,attemptedAt+DAY);
-  assert.equal((await collectSource('shimamura',s,{...options,now:attemptedAt+DAY-1,fetcher})).outcome,'backoff');assert.equal(calls,1);
-  assert.equal(legalGate(active[0],state,attemptedAt+DAY,'production',active),null);
+  assert.equal((await collectSource('shimamura',s,{...options,now:attemptedAt+DAY-1,fetcher})).outcome,'source_disabled');assert.equal(calls,1);
+  assert.equal(legalGate(active[0],state,attemptedAt+DAY,'production',active),'source_disabled');
  }
 });
 
