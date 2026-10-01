@@ -76,3 +76,50 @@ continue from the first phase that is not marked DONE.
 - Phase 8 (2026-10-02): Port 952 / Shared 226 / Pitch 36 / Fretboard 31 / Rhythm 17+3 files / Chord 96 files /
   Sync Worker 397 / NEWS Worker 327 / Requests Worker 65 / runtime simulation 132 - all PASS. Production home screens
   of 5 apps x 4 themes reviewed. Writer activation for Pitch / Fretboard / Rhythm waits for the user's go-ahead.
+
+## Theme Finalization + Cloud Theme Writer Activation (started 2026-10-01T21:11Z)
+
+Resume rule: same as above; never enable a writer before `eligible_after`.
+
+### Reader-first safety window (Phase 0, measured)
+
+- Worker reader-first `7245c2e6` (100%), deployment created **2026-10-01T16:18:57Z** (`wrangler deployments list`).
+- Reader clients `2e71d1ea` (F 2.21.2 / P 2.26.2 / R 1.16.2), Pages run 36891368281 completed **2026-10-01T16:22:11Z**.
+- reader_deployed_at = **2026-10-01T16:22:11Z** (later of the two)
+- eligible_after = **2026-10-02T16:22:11Z** (JST 2026-10-03 01:22:11)
+- Production at preflight: Port 1.13.0 / Chord 1.18.0 / Pitch 2.26.2 / Fretboard 2.21.2 / Rhythm 1.16.2; Worker 7245c2e6.
+
+### Information page inventory (Phase 1)
+
+A = normal information page → follows the app theme. B = Pro acquisition / access-control flow → stays Dark.
+
+| App | A (theme) | B (Dark) | Out of scope |
+|---|---|---|---|
+| Pitch | info, terms, privacy, recommended-videos | pro-access, iphone-safari-guide, pro_x9v7q2m8/troubleshoot | — |
+| Fretboard | info, terms, privacy, apps | pro-access, iphone-safari-guide, pro_a9f4k7q2m8z/troubleshoot | — |
+| Rhythm | info, terms, privacy, usage, click-input-help, mic-correction-help, mic-restart-help | pro-access, iphone-safari-guide | index.html (redirect only), _poc/vexflow-lane.html (unlinked dev PoC) |
+
+- B reasons: pro-access = membership purchase path; iphone-safari-guide = membership registration step linked only from
+  pro-access; troubleshoot = opened from the Pro password gate. All use the Dark pro-gate.css design (same decision as
+  Chord pro-access).
+- Implementation: per page-style group, a generated layer (`theme-colors-<group>.css`) built only from the stylesheets
+  that page loads plus its own `<style>`, pruned to selectors whose classes/ids appear in the page; plus the app's
+  head bootstrap. Page content (text, href, mailto) is not edited.
+
+| Phase | Scope | Status | Commit | Version |
+|---|---|---|---|---|
+| F0 | Preflight + safety window | DONE | (this file) | — |
+| F1 | Information page inventory | DONE | (this file) | — |
+| F2 | Pitch information pages theme | TODO | | |
+| F3 | Fretboard information pages theme | TODO | | |
+| F4 | Rhythm information pages theme | TODO | | |
+| F5 | Information pages full QA | TODO | | |
+| F6 | Five-app theme QA | TODO | | |
+| F7 | Writer eligibility gate | TODO | | |
+| F8 | Fretboard writer | TODO | | |
+| F9 | Rhythm writer | TODO | | |
+| F10 | Pitch writer | TODO | | |
+| F11 | Writer production verification | TODO | | |
+| F12 | Final full regression | TODO | | |
+| F13 | Production smoke | TODO | | |
+| F14 | Final cleanup / report | TODO | | |
