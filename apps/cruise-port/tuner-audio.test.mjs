@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
 import { createTunerAudioController, TUNER_AUDIO_CONSTRAINTS } from './tuner-audio.js';
 import { createPitchDetector } from './tuner-engine.js';
 
@@ -693,5 +694,210 @@ for (const [isSecureContext, expectedCode] of [
     assert(Math.abs(results[0].frequency - frequency) < 0.01);
     await harness.controller.stop();
 }
+
+function sessionTrace({ throwsFor = [] } = {}) {
+    const events = [];
+    let type = 'auto';
+    const audioSession = {};
+    Object.defineProperty(audioSession, 'type', {
+        get: () => type,
+        set(value) {
+            events.push(`session:${value}`);
+            if (throwsFor.includes(value)) throw new Error(`Cannot set ${value}`);
+            type = value;
+        }
+    });
+    const tracedStream = (name = 'mic') => {
+        const stream = createStream();
+        const stop = stream.track.stop.bind(stream.track);
+        stream.track.stop = () => { events.push(`stop:${name}`); stop(); };
+        return stream;
+    };
+    return { events, audioSession, tracedStream };
+}
+
+test('capture starts before getUserMedia; user stop ends tracks before playback then auto', async () => {
+    const trace = sessionTrace();
+    const stream = trace.tracedStream();
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: async () => {
+        trace.events.push('getUserMedia'); return stream;
+    } });
+    assert.equal(await harness.controller.start(), true);
+    assert.deepEqual(trace.events, ['session:play-and-record', 'getUserMedia']);
+    await harness.controller.stop();
+    assert.deepEqual(trace.events, ['session:play-and-record', 'getUserMedia', 'stop:mic', 'session:playback', 'session:auto']);
+    assert.equal(stream.track.readyState, 'ended');
+    assert.equal(trace.audioSession.type, 'auto');
+    await harness.controller.stop();
+    assert.equal(trace.events.filter((event) => event === 'session:auto').length, 1, 'cleanup is idempotent');
+});
+
+for (const exit of ['pagehide', 'visibilitychange', 'destroy']) test(`${exit} restores the session after stopping capture`, async () => {
+    const trace = sessionTrace();
+    const stream = trace.tracedStream();
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: async () => stream });
+    await harness.controller.start();
+    if (exit === 'destroy') await harness.controller.destroy();
+    else if (exit === 'pagehide') harness.windowTarget.dispatch(exit);
+    else { harness.documentTarget.hidden = true; harness.documentTarget.dispatch(exit); }
+    assert.deepEqual(trace.events, ['session:play-and-record', 'stop:mic', 'session:playback', 'session:auto']);
+    assert.equal(stream.track.readyState, 'ended');
+});
+
+test('permission denial restores the session and retry/re-entry requests capture again', async () => {
+    const trace = sessionTrace();
+    let attempts = 0;
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: async () => {
+        if (++attempts === 1) throw Object.assign(new Error('denied'), { name: 'NotAllowedError' });
+        return trace.tracedStream(`retry${attempts}`);
+    } });
+    assert.equal(await harness.controller.start(), false);
+    assert.equal(harness.controller.getState().status, 'error');
+    assert.deepEqual(trace.events, ['session:play-and-record', 'session:playback', 'session:auto']);
+    assert.equal(await harness.controller.start(), true);
+    assert.equal(trace.audioSession.type, 'play-and-record');
+    await harness.controller.stop();
+    assert.equal(await harness.controller.start(), true);
+    assert.equal(trace.audioSession.type, 'play-and-record');
+    await harness.controller.stop();
+});
+
+test('partial audio graph initialization failure stops tracks before resetting the session', async () => {
+    const trace = sessionTrace();
+    const stream = trace.tracedStream();
+    class BrokenContext extends createContextClass() { createAnalyser() { throw new Error('graph failed'); } }
+    const harness = createHarness({ audioSession: trace.audioSession, ContextClass: BrokenContext, getUserMedia: async () => stream });
+    assert.equal(await harness.controller.start(), false);
+    assert.deepEqual(trace.events, ['session:play-and-record', 'stop:mic', 'session:playback', 'session:auto']);
+});
+
+test('context initialization failure before capture does not reset an unrelated session', async () => {
+    const trace = sessionTrace();
+    const harness = createHarness({ audioSession: trace.audioSession, ContextClass: createContextClass({ resumeError: new Error('resume failed') }) });
+    assert.equal(await harness.controller.start(), false);
+    assert.deepEqual(trace.events, []);
+});
+
+test('stop during getUserMedia waits for the late stream to end before resetting', async () => {
+    const trace = sessionTrace();
+    const pending = deferred();
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: () => pending.promise });
+    const start = harness.controller.start();
+    await harness.controller.stop();
+    assert.deepEqual(trace.events, ['session:play-and-record'], 'an unsettled capture request blocks reset');
+    const stream = trace.tracedStream('late');
+    pending.resolve(stream);
+    assert.equal(await start, false);
+    assert.deepEqual(trace.events, ['session:play-and-record', 'stop:late', 'session:playback', 'session:auto']);
+});
+
+test('destroy during getUserMedia also releases a late stream before resetting', async () => {
+    const trace = sessionTrace();
+    const pending = deferred();
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: () => pending.promise });
+    const start = harness.controller.start();
+    await harness.controller.destroy();
+    assert.deepEqual(trace.events, ['session:play-and-record']);
+    pending.resolve(trace.tracedStream('late'));
+    assert.equal(await start, false);
+    assert.deepEqual(trace.events, ['session:play-and-record', 'stop:late', 'session:playback', 'session:auto']);
+});
+
+test('a cancelled getUserMedia rejection still restores the session', async () => {
+    const trace = sessionTrace();
+    const pending = deferred();
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: () => pending.promise });
+    const start = harness.controller.start();
+    await harness.controller.stop();
+    pending.reject(Object.assign(new Error('denied'), { name: 'NotAllowedError' }));
+    assert.equal(await start, false);
+    assert.deepEqual(trace.events, ['session:play-and-record', 'session:playback', 'session:auto']);
+});
+
+for (const lateResult of ['stream', 'rejection']) test(`old pending ${lateResult} cleanup cannot reset a new running capture`, async () => {
+    const trace = sessionTrace();
+    const pending = deferred();
+    const current = trace.tracedStream('current');
+    let calls = 0;
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: () => ++calls === 1 ? pending.promise : Promise.resolve(current) });
+    const oldStart = harness.controller.start();
+    await harness.controller.stop();
+    assert.equal(await harness.controller.start(), true);
+    if (lateResult === 'stream') pending.resolve(trace.tracedStream('old'));
+    else pending.reject(new Error('late failure'));
+    assert.equal(await oldStart, false);
+    assert.equal(trace.audioSession.type, 'play-and-record');
+    assert.equal(current.track.readyState, 'live');
+    assert.equal(trace.events.includes('session:playback'), false);
+    await harness.controller.stop();
+    assert.deepEqual(trace.events.slice(-3), ['stop:current', 'session:playback', 'session:auto']);
+});
+
+test('stop while resuming an acquired stream cannot reset before its tracks stop', async () => {
+    const trace = sessionTrace();
+    const pendingResume = deferred();
+    const BaseContext = createContextClass();
+    class Context extends BaseContext { async resume() { await pendingResume.promise; this.state = 'running'; } }
+    const stream = trace.tracedStream();
+    const harness = createHarness({ audioSession: trace.audioSession, ContextClass: Context, getUserMedia: async () => {
+        BaseContext.instances[0].state = 'suspended'; return stream;
+    } });
+    const start = harness.controller.start();
+    await Promise.resolve();
+    await harness.controller.stop();
+    assert.equal(stream.track.readyState, 'live');
+    assert.deepEqual(trace.events, ['session:play-and-record']);
+    pendingResume.resolve();
+    assert.equal(await start, false);
+    assert.deepEqual(trace.events, ['session:play-and-record', 'stop:mic', 'session:playback', 'session:auto']);
+});
+
+test('all stream tracks must end before session reset', async () => {
+    const trace = sessionTrace();
+    const first = trace.tracedStream('first').track;
+    const second = trace.tracedStream('second').track;
+    const stream = { getTracks: () => [first, second], getAudioTracks: () => [first, second] };
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: async () => stream });
+    await harness.controller.start();
+    await harness.controller.stop();
+    assert.deepEqual(trace.events, ['session:play-and-record', 'stop:first', 'stop:second', 'session:playback', 'session:auto']);
+});
+
+test('a track that remains live prevents reset even when another track stops', async () => {
+    const trace = sessionTrace();
+    const first = trace.tracedStream('first').track;
+    const second = trace.tracedStream('second').track;
+    first.stop = () => { throw new Error('stop failed'); };
+    const stream = { getTracks: () => [first, second], getAudioTracks: () => [first, second] };
+    const harness = createHarness({ audioSession: trace.audioSession, getUserMedia: async () => stream });
+    await harness.controller.start();
+    await harness.controller.stop();
+    assert.equal(first.readyState, 'live');
+    assert.equal(second.readyState, 'ended');
+    assert.equal(trace.audioSession.type, 'play-and-record');
+    assert.equal(harness.controller.getState().status, 'idle');
+});
+
+for (const throwsFor of [['playback'], ['auto'], ['playback', 'auto']]) test(`cleanup tolerates assignment failure: ${throwsFor.join(', ')}`, async () => {
+    const trace = sessionTrace({ throwsFor });
+    const stream = trace.tracedStream();
+    const ContextClass = createContextClass();
+    const harness = createHarness({ audioSession: trace.audioSession, ContextClass, getUserMedia: async () => stream });
+    await harness.controller.start();
+    await harness.controller.stop();
+    assert.deepEqual(trace.events, ['session:play-and-record', 'stop:mic', 'session:playback', 'session:auto']);
+    assert.equal(ContextClass.instances[0].closeCalls, 1);
+    assert.equal(harness.timers.size, 0);
+    assert.equal(harness.controller.getState().status, 'idle');
+});
+
+test('unsupported Audio Session API leaves microphone cleanup safe', async () => {
+    const stream = createStream();
+    const harness = createHarness({ getUserMedia: async () => stream });
+    await harness.controller.start();
+    await harness.controller.stop();
+    assert.equal(stream.track.readyState, 'ended');
+    assert.equal(harness.controller.getState().status, 'idle');
+});
 
 console.log('tuner-audio: all controller tests passed');

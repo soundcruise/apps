@@ -54,12 +54,14 @@ function chooseAnalyserSize(sampleRate) {
 }
 
 function stopStreamTracks(stream) {
-    if (!stream || typeof stream.getTracks !== 'function') return;
+    if (!stream) return true;
+    if (typeof stream.getTracks !== 'function') return false;
     let tracks;
-    try { tracks = stream.getTracks(); } catch (_) { return; }
+    try { tracks = stream.getTracks(); } catch (_) { return false; }
     for (const track of tracks) {
         try { track.stop(); } catch (_) { /* Continue cleaning the remaining tracks. */ }
     }
+    return tracks.every((track) => track.readyState === 'ended');
 }
 
 function disconnectNode(node) {
@@ -141,6 +143,9 @@ export function createTunerAudioController({
     let diagnosticTrackSettings = {};
     let diagnosticSupportedConstraints = {};
     let callbackErrorReported = false;
+    let captureSessionNeedsReset = false;
+    let pendingCaptureRequests = 0;
+    const captureStreams = new Set();
     const levelEnabled = typeof onInputLevel === 'function';
     const detailedDetectionEnabled = diagnosticEnabled || levelEnabled;
     const trackListeners = new Map();
@@ -195,6 +200,27 @@ export function createTunerAudioController({
         trackListeners.clear();
     }
 
+    function resetPlaybackAudioSessionAfterCapture() {
+        // A cancelled permission request can still return a live stream. Wait for it, and never
+        // let an older request's cleanup reset a newer capture that is already running.
+        if (!captureSessionNeedsReset || pendingCaptureRequests || captureStreams.size) return;
+        captureSessionNeedsReset = false;
+        try {
+            const audioSession = platform.navigatorObject?.audioSession;
+            if (!audioSession || !('type' in audioSession)) return;
+            // Release WebKit's recording route, then return session selection to the browser.
+            // Try auto even if playback assignment fails; cleanup must remain best-effort.
+            for (const type of ['playback', 'auto']) {
+                try { audioSession.type = type; } catch (_) { /* Optional platform API. */ }
+            }
+        } catch (_) { /* Unsupported/inaccessible Audio Session API must not break cleanup. */ }
+    }
+
+    function releaseCaptureStream(captureStream) {
+        if (stopStreamTracks(captureStream)) captureStreams.delete(captureStream);
+        resetPlaybackAudioSessionAfterCapture();
+    }
+
     function releaseResources() {
         generation += 1;
         clearAnalysisTimer();
@@ -205,7 +231,7 @@ export function createTunerAudioController({
         const oldContext = context;
 
         removeTrackListeners();
-        stopStreamTracks(oldStream);
+        releaseCaptureStream(oldStream);
         disconnectNode(oldSource);
         disconnectNode(oldAnalyser);
 
@@ -293,6 +319,7 @@ export function createTunerAudioController({
     function requestCaptureAudioSession() {
         const audioSession = platform.navigatorObject?.audioSession;
         if (!audioSession || !('type' in audioSession)) return;
+        captureSessionNeedsReset = true;
         audioSession.type = 'play-and-record';
     }
 
@@ -340,9 +367,15 @@ export function createTunerAudioController({
             }
 
             requestCaptureAudioSession();
-            localStream = await mediaDevices.getUserMedia(TUNER_AUDIO_CONSTRAINTS);
+            pendingCaptureRequests += 1;
+            try {
+                localStream = await mediaDevices.getUserMedia(TUNER_AUDIO_CONSTRAINTS);
+                captureStreams.add(localStream);
+            } finally {
+                pendingCaptureRequests -= 1;
+            }
             if (!isCurrent(startGeneration)) {
-                stopStreamTracks(localStream);
+                releaseCaptureStream(localStream);
                 await closeAudioContext(localContext);
                 return false;
             }
@@ -351,15 +384,15 @@ export function createTunerAudioController({
                     await localContext.resume();
                 } catch (error) {
                     if (!isCurrent(startGeneration)) {
-                        stopStreamTracks(localStream);
+                        releaseCaptureStream(localStream);
                         return false;
                     }
-                    stopStreamTracks(localStream);
+                    releaseCaptureStream(localStream);
                     await fail(error, 'audio-resume-failed');
                     return false;
                 }
                 if (!isCurrent(startGeneration)) {
-                    stopStreamTracks(localStream);
+                    releaseCaptureStream(localStream);
                     await closeAudioContext(localContext);
                     return false;
                 }
@@ -384,7 +417,7 @@ export function createTunerAudioController({
             localSource.connect(localAnalyser);
 
             if (!isCurrent(startGeneration)) {
-                stopStreamTracks(localStream);
+                releaseCaptureStream(localStream);
                 disconnectNode(localSource);
                 disconnectNode(localAnalyser);
                 await closeAudioContext(localContext);
@@ -414,13 +447,13 @@ export function createTunerAudioController({
             return true;
         } catch (error) {
             if (!isCurrent(startGeneration)) {
-                stopStreamTracks(localStream);
+                releaseCaptureStream(localStream);
                 await closeAudioContext(localContext);
                 return false;
             }
             disconnectNode(localSource);
             disconnectNode(localAnalyser);
-            if (localStream && stream !== localStream) stopStreamTracks(localStream);
+            if (localStream && stream !== localStream) releaseCaptureStream(localStream);
             await fail(error);
             return false;
         }
