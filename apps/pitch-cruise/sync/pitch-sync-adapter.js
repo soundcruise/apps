@@ -14,7 +14,12 @@
     'pitchTrainerTestModeResults'
   ]);
   // theme is a per-device color choice: kept locally across remote apply, never sent (yet).
-  const LOCAL_ONLY_SETTINGS = Object.freeze(['baseHz', 'sustainTime', 'theme']);
+  const LOCAL_ONLY_SETTINGS = Object.freeze(['baseHz', 'sustainTime']);
+  // Color theme is a synced settings field too, but it has no default: an unset theme is never sent and a
+  // settings record without theme never clears it, so it is handled outside the DEFAULT_SETTINGS rebuild.
+  const SYNC_OPTIONAL_SETTINGS = Object.freeze(['theme']);
+  // Tells the Sync Worker this client understands a settings theme (older clients never receive it).
+  const SYNC_CAPABILITIES = Object.freeze(['settings_theme_v1']);
   const SYNC_SETTINGS = Object.freeze([
     'instrument', 'notationStyle', 'scaleEnabled', 'isAnswerMode', 'keyRandomMode',
     'baseOctave', 'keyOffset', 'noteSpeed'
@@ -252,10 +257,13 @@
     return { slots: [], order: [] };
   }
 
-  // Color theme, reader-first: the device's own `theme` is never sent. A theme received from the cloud is
-  // kept verbatim in settings.themeCloudMirror and echoed back as `theme`, so local and cloud snapshots
-  // stay identical (no apply/manifest mismatch) and other devices' theme is never deleted.
+  // Color theme (writer): the device sends its explicit theme; a theme kept by the reader-first release in
+  // settings.themeCloudMirror stands in for an unset one. Unset and no mirror: nothing is sent.
   const CLOUD_THEMES = Object.freeze(['dark', 'charcoal', 'gray', 'light']);
+  function syncedTheme(settings) {
+    if (CLOUD_THEMES.includes(settings.theme)) return settings.theme;
+    return CLOUD_THEMES.includes(settings.themeCloudMirror) ? settings.themeCloudMirror : undefined;
+  }
   function meaningfulSettings(values) {
     return Object.entries(values).some(([key, value]) => {
       if (key === 'builtinChordEnabled' || key === 'builtinProgressionEnabled') return Object.keys(value).length > 0;
@@ -337,7 +345,8 @@
 
     const syncValues = {};
     SYNC_SETTINGS.forEach((key) => { if (settings[key] !== undefined) syncValues[key] = settings[key]; });
-    if (CLOUD_THEMES.includes(settings.themeCloudMirror)) syncValues.theme = settings.themeCloudMirror;
+    const theme = syncedTheme(settings);
+    if (theme) syncValues.theme = theme;
     const accidental = values.pitchTrainerProAccidentalDisplay;
     if (accidental === 'flat' || accidental === 'sharp') syncValues.accidentalDisplay = accidental;
     if (values.pitchTrainerTestModeEnabled === 'true' || values.pitchTrainerTestModeEnabled === true) syncValues.testModeEnabled = true;
@@ -414,9 +423,9 @@
   function validateRecordShape(record) {
     const payload = record.payload;
     if (record.recordType === 'settings') {
-      // theme (reader-first): accepted when received, never sent while it stays in LOCAL_ONLY_SETTINGS.
+      // theme: an optional synced field (SYNC_OPTIONAL_SETTINGS).
       const allowed = new Set([...SYNC_SETTINGS, 'accidentalDisplay', 'testModeEnabled',
-        'builtinChordEnabled', 'builtinProgressionEnabled', 'theme']);
+        'builtinChordEnabled', 'builtinProgressionEnabled', ...SYNC_OPTIONAL_SETTINGS]);
       if (!isPlainObject(payload.values) || !Object.keys(payload.values).every((key) => allowed.has(key)) ||
           payload.values.baseHz !== undefined || payload.values.sustainTime !== undefined) return false;
       const values = payload.values;
@@ -948,7 +957,14 @@
     LOCAL_ONLY_SETTINGS.forEach((key) => { if (currentSettings[key] !== undefined) nextSettings[key] = currentSettings[key]; });
     Object.assign(nextSettings, DEFAULT_SETTINGS);
     SYNC_SETTINGS.forEach((key) => { if (values[key] !== undefined) nextSettings[key] = values[key]; });
-    if (CLOUD_THEMES.includes(values.theme)) nextSettings.themeCloudMirror = values.theme;
+    // A received theme becomes this device's explicit theme (the reader-first mirror is retired). Without
+    // one, the device keeps its theme and mirror: the DEFAULT_SETTINGS rebuild above never invents or clears it.
+    if (CLOUD_THEMES.includes(values.theme)) {
+      nextSettings.theme = values.theme;
+    } else {
+      if (currentSettings.theme !== undefined) nextSettings.theme = currentSettings.theme;
+      if (CLOUD_THEMES.includes(currentSettings.themeCloudMirror)) nextSettings.themeCloudMirror = currentSettings.themeCloudMirror;
+    }
 
     const makeStages = (type, category) => {
       const stageRecords = canonical.records.filter((record) => record.recordType === type);
@@ -1186,6 +1202,7 @@
       this.storage = options.storage || global.localStorage;
       this.cryptoImpl = options.cryptoImpl || global.crypto;
       this.backupStore = options.backupStore || global.SoundCruiseSyncAccount?.appBackupStorage || null;
+      this.syncCapabilities = SYNC_CAPABILITIES;
     }
     readLocalSnapshot() { return readLocalSnapshot(this.storage); }
     normalizeLocalSnapshot(snapshot = this.readLocalSnapshot()) { return normalizeRawSnapshot(snapshot); }
@@ -1225,7 +1242,7 @@
   }
 
   Object.assign(root, {
-    APP_ID, SCHEMA_VERSION, MANAGED_KEYS, SYNC_SETTINGS, LOCAL_ONLY_SETTINGS,
+    APP_ID, SCHEMA_VERSION, MANAGED_KEYS, SYNC_SETTINGS, LOCAL_ONLY_SETTINGS, SYNC_OPTIONAL_SETTINGS, SYNC_CAPABILITIES,
     BUILTIN_CHORDS, BUILTIN_PROGRESSIONS, PitchSyncAdapter,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeRawSnapshot, validateSnapshot,
     serializeRecords, deserializeRecords, isMeaningfulLocalData, mergeSnapshots,

@@ -121,55 +121,61 @@ test('theme layers are scoped to Charcoal / Gray / Light and keep keys and feedb
   assert(!read('theme-colors-beta.css').includes('pro-theme.css'), 'beta layer never mirrors pro-theme.css (beta does not load it)');
 });
 
-test('theme is local-only: listed in LOCAL_ONLY_SETTINGS, never sent, kept by remote apply', async () => {
-  const source = read('sync/pitch-sync-adapter.js');
-  const context = vm.createContext({ crypto, TextEncoder, structuredClone, URL, console, Event: class {}, dispatchEvent() {} });
-  vm.runInContext(source, context);
-  const api = context.SoundCruisePitchSync;
-  assert(api.LOCAL_ONLY_SETTINGS.includes('theme'));
-  assert(!api.SYNC_SETTINGS.includes('theme'));
-  const values = new Map([['pitchTrainerSettings', saved({ theme: 'light', scaleEnabled: false })]]);
-  const storage = { getItem: (k) => (values.has(k) ? values.get(k) : null), setItem: (k, v) => values.set(k, String(v)), removeItem: (k) => values.delete(k) };
-  const snapshot = api.readLocalSnapshot(storage);
-  assert(!JSON.stringify(api.normalizeLocalSnapshot(snapshot)).includes('"theme"'), 'theme never enters the sync snapshot');
-  await new api.PitchSyncAdapter({ storage }).applyRemoteSnapshot({ appId: 'pitch', schemaVersion: 1, records: [] });
-  assert.equal(JSON.parse(values.get('pitchTrainerSettings')).theme, 'light', 'remote apply keeps the local theme');
+function loadSyncApi() {
+  const events = [];
+  const context = vm.createContext({ crypto, TextEncoder, structuredClone, URL, console,
+    Event: class { constructor(type) { this.type = type; } }, dispatchEvent(event) { events.push(event.type); } });
+  vm.runInContext(read('sync/pitch-sync-adapter.js'), context);
+  return { api: context.SoundCruisePitchSync, events };
+}
+function memory(settings) {
+  const values = new Map([['pitchTrainerSettings', JSON.stringify(settings)]]);
+  return { values, storage: { getItem: (k) => (values.has(k) ? values.get(k) : null), setItem: (k, v) => values.set(k, String(v)), removeItem: (k) => values.delete(k) },
+    settings: () => JSON.parse(values.get('pitchTrainerSettings')) };
+}
+const remoteSettings = (values) => ({ appId: 'pitch', schemaVersion: 1, records: [{
+  recordType: 'settings', recordId: 'settings', schemaVersion: 1, payload: { id: 'settings', values } }] });
+
+test('theme writer: out of LOCAL_ONLY_SETTINGS; explicit theme sent, unset never sent, mirror stands in', () => {
+  const { api } = loadSyncApi();
+  assert(!api.LOCAL_ONLY_SETTINGS.includes('theme'), 'theme is no longer device-only');
+  assert.deepEqual([...api.LOCAL_ONLY_SETTINGS], ['baseHz', 'sustainTime']);
+  assert.deepEqual([...api.SYNC_OPTIONAL_SETTINGS], ['theme']);
+  assert.deepEqual([...api.SYNC_CAPABILITIES], ['settings_theme_v1']);
+  assert(!api.SYNC_SETTINGS.includes('theme'), 'theme has no default, so it stays out of the DEFAULT_SETTINGS rebuild');
+  assert.deepEqual([...new api.PitchSyncAdapter({ storage: memory({}).storage }).syncCapabilities], ['settings_theme_v1']);
+  const sent = (settings) => api.normalizeLocalSnapshot(api.readLocalSnapshot(memory(settings).storage))
+    .records.find((record) => record.recordType === 'settings')?.payload.values;
+  const base = { instrument: 'piano', notationStyle: 'cde' };
+  assert.equal(sent({ ...base, theme: 'charcoal' }).theme, 'charcoal');
+  assert.equal(sent({ ...base, theme: 'dark' }).theme, 'dark', 'an explicit Dark (after reset) is sent');
+  assert.equal(sent(base).theme, undefined, 'unset is never sent as dark');
+  assert.equal(sent({ ...base, themeCloudMirror: 'light' }).theme, 'light', 'mirror stands in for an unset theme');
+  assert.equal(sent({ ...base, theme: 'gray', themeCloudMirror: 'light' }).theme, 'gray');
+  assert.equal(sent({ ...base, theme: 'sepia' }).theme, undefined);
+  assert.equal(sent({ ...base, theme: 'gray', baseHz: 442, sustainTime: 2 }).baseHz, undefined, 'baseHz / sustainTime stay device-only');
+  for (const theme of ['dark', 'charcoal', 'gray', 'light']) api.validateSnapshot(remoteSettings({ notationStyle: 'letter', theme }));
+  assert.throws(() => api.validateSnapshot(remoteSettings({ notationStyle: 'letter', theme: 'sepia' })));
 });
 
-test('reader-first: received theme values are accepted, never sent, never deleted, local theme kept', async () => {
-  const source = read('sync/pitch-sync-adapter.js');
-  const context = vm.createContext({ crypto, TextEncoder, structuredClone, URL, console, Event: class {}, dispatchEvent() {} });
-  vm.runInContext(source, context);
-  const api = context.SoundCruisePitchSync;
-  assert(!api.SYNC_SETTINGS.includes('theme'), 'theme is not in the send list');
-  const remote = (values) => ({ appId: 'pitch', schemaVersion: 1, records: [{
-    recordType: 'settings', recordId: 'settings', schemaVersion: 1, payload: { id: 'settings', values } }] });
-  for (const theme of ['dark', 'charcoal', 'gray', 'light']) api.validateSnapshot(remote({ notationStyle: 'letter', theme }));
-  assert.throws(() => api.validateSnapshot(remote({ notationStyle: 'letter', theme: 'sepia' })));
-  // local (no theme in its snapshot) + remote theme → the remote theme survives the merge, no conflict
-  const merged = api.mergeSnapshots(remote({ notationStyle: 'letter' }), remote({ notationStyle: 'letter', theme: 'gray' }));
+test('theme writer: a received theme becomes the device theme; a missing one never clears it', async () => {
+  const { api, events } = loadSyncApi();
+  const device = memory({ theme: 'charcoal', notationStyle: 'cde', baseHz: 442, sustainTime: 2 });
+  const adapter = new api.PitchSyncAdapter({ storage: device.storage });
+  await adapter.applyRemoteSnapshot(remoteSettings({ notationStyle: 'letter', theme: 'light' }));
+  assert.equal(device.settings().theme, 'light');
+  assert.equal(device.settings().themeCloudMirror, undefined);
+  assert.equal(device.settings().baseHz, 442, 'device-only settings are kept');
+  assert.ok(events.includes('sound-cruise-pitch-sync-applied'), 'the open app reloads its settings (and theme)');
+  const mirrored = memory({ notationStyle: 'cde', themeCloudMirror: 'gray' });
+  await new api.PitchSyncAdapter({ storage: mirrored.storage }).applyRemoteSnapshot(remoteSettings({ notationStyle: 'cde', theme: 'gray' }));
+  assert.equal(mirrored.settings().theme, 'gray', 'the mirror is adopted as the explicit theme');
+  assert.equal(mirrored.settings().themeCloudMirror, undefined, 'and retired');
+  const merged = api.mergeSnapshots(remoteSettings({ notationStyle: 'letter' }), remoteSettings({ notationStyle: 'letter', theme: 'gray' }));
   assert.equal(merged.conflicts.length, 0);
   assert.equal(merged.snapshot.records.find((r) => r.recordType === 'settings').payload.values.theme, 'gray');
-  // applying a received theme does not error and keeps this device's local theme
-  const values = new Map([['pitchTrainerSettings', JSON.stringify({ theme: 'charcoal', notationStyle: 'cde' })]]);
-  const storage = { getItem: (k) => (values.has(k) ? values.get(k) : null), setItem: (k, v) => values.set(k, String(v)), removeItem: (k) => values.delete(k) };
-  assert(!JSON.stringify(api.normalizeLocalSnapshot(api.readLocalSnapshot(storage))).includes('"theme"'), 'local snapshot never carries theme');
-  const adapter = new api.PitchSyncAdapter({ storage });
-  await adapter.applyRemoteSnapshot(remote({ notationStyle: 'letter', theme: 'light' }));  // no apply / manifest mismatch
-  const after = JSON.parse(values.get('pitchTrainerSettings'));
-  assert.equal(after.theme, 'charcoal', 'the device theme is kept');
-  assert.equal(after.themeCloudMirror, 'light', 'the received theme is mirrored verbatim');
-  const echoed = api.normalizeLocalSnapshot(api.readLocalSnapshot(storage)).records.find((r) => r.recordType === 'settings');
-  assert.equal(echoed.payload.values.theme, 'light', 'local snapshot echoes only the cloud value');
-  // changing the device theme never changes what sync sees
-  const raw = JSON.parse(values.get('pitchTrainerSettings'));
-  (raw.settings || raw).theme = 'gray';
-  values.set('pitchTrainerSettings', JSON.stringify(raw));
-  assert.equal(api.normalizeLocalSnapshot(api.readLocalSnapshot(storage)).records.find((r) => r.recordType === 'settings').payload.values.theme, 'light');
-  // a cloud payload without theme clears the mirror (still no error)
-  await adapter.applyRemoteSnapshot(remote({ notationStyle: 'letter' }));
-  assert.equal(JSON.parse(values.get('pitchTrainerSettings')).themeCloudMirror, undefined);
-  assert.equal(JSON.parse(values.get('pitchTrainerSettings')).theme, 'gray');
+  assert.match(script, /function pitchThemeOf\(settings\)/);
+  assert.match(script, /applyPitchTheme\(pitchThemeOf\(s\)\);/, 'load / post-sync reload shows the device theme');
 });
 
 // ── Information pages ─────────────────────────────────────────────────────────────────────

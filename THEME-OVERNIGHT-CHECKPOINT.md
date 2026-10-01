@@ -193,7 +193,7 @@ against a cloud settings record that carries `theme`:
 | W2 | Worker theme field gate | DONE (deployed cb6c315a 100%, health OK) | cd1a0052 | Worker cb6c315a |
 | W3 | Decision gate | CASE A (small gate, existing mechanism) | (this file) | — |
 | W4 | Fretboard writer | DONE (deployed, prod smoke PASS, gate parity 0-1px) | 465fdb3f | 2.22.0 |
-| W5 | Rhythm writer | DONE pending deploy check (this commit) | see git log | 1.17.0 |
-| W6 | Pitch writer | TODO | | 2.27.0 |
+| W5 | Rhythm writer | DONE (deployed, prod smoke PASS, gate parity 0) | d49a6997 | 1.17.0 |
+| W6 | Pitch writer | DONE pending deploy check (this commit) | see git log | 2.27.0 |
 | W7 | Old client regression with writers | TODO | | |
 | W8-W12 | Two-device QA, matrix, regression, smoke, final | TODO | | |

@@ -1,7 +1,7 @@
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.26.3';
+const PITCH_TRAINER_APP_VERSION = '2.27.0';
 
-// Color theme (per app, local only). Missing or invalid values are Dark; the value is stored only when
+// Color theme (per app; synced by Pro Cloud Sync since 2.27.0). Missing or invalid values are Dark; the value is stored only when
 // the user picks one in Settings. The head bootstrap applies it before first paint.
 const PITCH_THEMES = ['dark', 'charcoal', 'gray', 'light'];
 const PITCH_THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: '#f5f6f6' };
@@ -10,6 +10,13 @@ function resolvePitchTheme(value) {
     return PITCH_THEMES.includes(value) ? value : 'dark';
 }
 
+// The device's theme: its explicit choice, else a cloud theme kept from the reader-first release
+// (adopted as the explicit choice on the next Cloud Sync apply). Display only; nothing is written.
+function pitchThemeOf(settings) {
+    if (settings && PITCH_THEMES.includes(settings.theme)) return settings.theme;
+    if (settings && PITCH_THEMES.includes(settings.themeCloudMirror)) return settings.themeCloudMirror;
+    return settings ? settings.theme : undefined;
+}
 function applyPitchTheme(value) {
     const theme = resolvePitchTheme(value);
     document.documentElement.setAttribute('data-theme', theme);
@@ -2509,7 +2516,7 @@ class Game {
                 const s = JSON.parse(data);
                 this.isInitializing = true; // Add flag to prevent saveSettings during loading
                 this.theme = s.theme;
-                applyPitchTheme(this.theme);
+                applyPitchTheme(pitchThemeOf(s));
 
                 if (isPitchTrainerPro()) {
                     if (s.baseOctave !== undefined) this.updateOctave(s.baseOctave - this.baseOctave);
