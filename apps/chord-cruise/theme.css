@@ -4193,6 +4193,14 @@ body.cc-settings-open {
     font-size: 0.76rem;
 }
 
+/* Four color themes share one row; チャコール must not wrap at 375px. */
+.cc-settings-choices[aria-label="カラーテーマ"] .cc-settings-choice {
+    padding-inline: 2px;
+    font-size: clamp(0.66rem, 3.3vw, 0.78rem);
+    letter-spacing: 0;
+    white-space: nowrap;
+}
+
 .cc-settings-custom-wrap {
     display: flex;
     flex-direction: column;
@@ -4455,6 +4463,31 @@ body.cc-settings-open {
     --cc-overlay: rgba(20, 20, 18, 0.40);
     --cc-shadow-alpha: 0.08;
 }
+/* Charcoal: between Dark and Gray. A dark-scheme theme, so it keeps Dark's gold, champagne,
+   notice and danger inks and every Dark-only rule; only the surfaces, wells and ink tokens are
+   lifted, and the translucent Dark ink becomes opaque so it keeps its legibility. */
+:root[data-theme="charcoal"] {
+    color-scheme: dark;
+    --cc-bg: #424346;
+    --cc-surface: #4c4e52;
+    --cc-surface-raised: #545559;
+    --cc-border: rgba(228, 198, 124, 0.22);
+    --cc-border-strong: rgba(228, 198, 124, 0.4);
+    --cc-text: #f2f1ed;
+    --cc-text-muted: #d2cec5;
+    --cc-text-faint: #c6c2b9;
+    --cc-ink-rgb: 242, 241, 237;
+    --cc-neutral-rgb: 205, 200, 188;
+    --cc-well-rgb: 40, 41, 44;
+    --cc-chrome-rgb: 72, 73, 77;
+    --cc-overlay-bg-rgb: 66, 67, 70;
+    --cc-sheet-top: #54565a;
+    --cc-sheet-bottom: #46474b;
+    --cc-card-top: #55575b;
+    --cc-card-bottom: #4a4c50;
+    --cc-overlay: rgba(15, 15, 16, 0.55);
+    --cc-shadow-alpha: 0.3;
+}
 
 /* Title: same gradient text, inked for a light page. */
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-home-title { background: linear-gradient(90deg, var(--cc-text), var(--cc-accent-text), var(--cc-text)); background-clip: text; -webkit-background-clip: text; }
@@ -4465,7 +4498,7 @@ body.cc-settings-open {
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-caged-btn:not(.cc-caged-btn--active) .cc-caged-btn-root { color: var(--cc-text); }
 
 /* Modal scrims. */
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.cc-modal-overlay, .cc-folder-manage-overlay) { background: var(--cc-overlay); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.cc-modal-overlay, .cc-folder-manage-overlay) { background: var(--cc-overlay); }
 
 /* Soft shadows: same geometry, lighter ink. */
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-action-card { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 14px 30px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
@@ -4476,75 +4509,75 @@ body.cc-settings-open {
 
 /* Shared Sound Cruise Sync components (apps/shared/sync-account/multi-app-sync.css stays Dark for
    other apps); Chord-scoped colors so the Pro sync card, help, Join and conflict UI follow. */
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-card, .sound-cruise-sync-setup, .sound-cruise-sync-help,
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-card, .sound-cruise-sync-setup, .sound-cruise-sync-help,
     .sound-cruise-sync-restore-attention, .sound-cruise-sync-conflict) {
     border-color: rgba(var(--cc-accent-rgb), 0.45);
     background: var(--cc-surface);
     color: var(--cc-text);
     box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, var(--cc-shadow-alpha));
 }
-:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-settings-card { box-shadow: none; }
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-setup, .sound-cruise-sync-help, .sound-cruise-sync-conflict)::backdrop { background: var(--cc-overlay); }
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-button, .sound-cruise-sync-join-entry, .sound-cruise-sync-help-button,
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-settings-card { box-shadow: none; }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-setup, .sound-cruise-sync-help, .sound-cruise-sync-conflict)::backdrop { background: var(--cc-overlay); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-button, .sound-cruise-sync-join-entry, .sound-cruise-sync-help-button,
     .sound-cruise-sync-setup button, .sound-cruise-sync-setup a, .sound-cruise-sync-restore-attention button,
     .sound-cruise-sync-conflict-bulk button, .sound-cruise-sync-conflict-individual button, .sound-cruise-settings-top) {
     border-color: rgba(var(--cc-accent-rgb), 0.6);
     background: var(--cc-surface-raised);
     color: var(--cc-text);
 }
-:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-button--primary { border-color: rgba(var(--cc-accent-rgb), 0.85); background: rgba(var(--cc-accent-rgb), 0.16); }
-:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-button--danger { color: var(--cc-danger-text); background: rgba(207, 90, 99, 0.1); }
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-status-chip, .sound-cruise-sync-description, .sound-cruise-sync-help-summary,
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-button--primary { border-color: rgba(var(--cc-accent-rgb), 0.85); background: rgba(var(--cc-accent-rgb), 0.16); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-button--danger { color: var(--cc-danger-text); background: rgba(207, 90, 99, 0.1); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-status-chip, .sound-cruise-sync-description, .sound-cruise-sync-help-summary,
     .sound-cruise-sync-help-section p, .sound-cruise-sync-help-steps, .sound-cruise-sync-help-link,
     .sound-cruise-sync-conflict-summary, .sound-cruise-sync-conflict-overview-item h3, .sound-cruise-sync-conflict-help h3,
     .sound-cruise-sync-conflict-field h4, .sound-cruise-sync-conflict-field-values, .sound-cruise-sync-conflict-field-count,
     .sound-cruise-sync-conflict-title, .sound-cruise-sync-conflict-name, .sound-cruise-sync-conflict-deletion-difference strong) { color: var(--cc-text); }
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-account-id, .sound-cruise-sync-conflict-times, .sound-cruise-sync-conflict-help p,
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-account-id, .sound-cruise-sync-conflict-times, .sound-cruise-sync-conflict-help p,
     .sound-cruise-sync-conflict-auto, .sound-cruise-sync-conflict-detail-times, .sound-cruise-sync-conflict-deletion-difference span,
     .sound-cruise-sync-conflict-individual-toggle) { color: var(--cc-text-muted); }
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-chevron, .sound-cruise-sync-feedback, .sound-cruise-sync-help-toggle,
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-settings-chevron, .sound-cruise-sync-feedback, .sound-cruise-sync-help-toggle,
     .sound-cruise-sync-help-section h4, .sound-cruise-sync-conflict-count, .sound-cruise-sync-conflict-state,
     .sound-cruise-sync-conflict-bulk-heading > p, .sound-cruise-sync-conflict-individual-toggle[aria-expanded='true'],
     .sound-cruise-sync-conflict-choice legend, .sound-cruise-sync-conflict-status) { color: var(--cc-accent-text); }
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-setup [data-sync-error], .sound-cruise-sync-feedback[data-sync-feedback="error"],
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-setup [data-sync-error], .sound-cruise-sync-feedback[data-sync-feedback="error"],
     .sound-cruise-sync-conflict-status.is-error) { color: var(--cc-danger-text); }
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-header, .sound-cruise-sync-help-footer, .sound-cruise-sync-help-section,
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-header, .sound-cruise-sync-help-footer, .sound-cruise-sync-help-section,
     .sound-cruise-sync-conflict-overview-item, .sound-cruise-sync-conflict-bulk, .sound-cruise-sync-conflict-help,
     .sound-cruise-sync-conflict-individual, .sound-cruise-sync-conflict-field, .sound-cruise-sync-conflict-deletion-difference > div,
     .sound-cruise-sync-conflict-footer, .sound-cruise-sync-conflict-card) { border-color: rgba(var(--cc-line-rgb), 0.18); }
-:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-help-footer { background: var(--cc-surface); }
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-section, .sound-cruise-sync-conflict-bulk, .sound-cruise-sync-conflict-deletion-difference > div,
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-help-footer { background: var(--cc-surface); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-section, .sound-cruise-sync-conflict-bulk, .sound-cruise-sync-conflict-deletion-difference > div,
     .sound-cruise-sync-conflict-choice-option, .sound-cruise-sync-conflict-overview-item, .sound-cruise-sync-conflict-card) { background: var(--cc-surface-raised); }
-:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-choice-option { border-color: rgba(var(--cc-line-rgb), 0.24); }
-:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-choice-option:has(input:checked) {
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-choice-option { border-color: rgba(var(--cc-line-rgb), 0.24); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-choice-option:has(input:checked) {
     border-color: rgba(var(--cc-accent-rgb), 0.85);
     background: rgba(var(--cc-accent-rgb), 0.14);
     box-shadow: inset 0 0 0 1px rgba(var(--cc-accent-rgb), 0.33);
 }
-:root:is([data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-footer .sound-cruise-sync-conflict-later { border-color: rgba(var(--cc-line-rgb), 0.3); }
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-button, .sound-cruise-sync-settings-toggle, .sound-cruise-sync-help-toggle,
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .sound-cruise-sync-conflict-footer .sound-cruise-sync-conflict-later { border-color: rgba(var(--cc-line-rgb), 0.3); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.sound-cruise-sync-help-button, .sound-cruise-sync-settings-toggle, .sound-cruise-sync-help-toggle,
     .sound-cruise-sync-conflict button, .sound-cruise-sync-conflict input):focus-visible { outline-color: var(--cc-accent-text); }
 
 /* Information pages (info / usage / terms / privacy). Same tokens as the app; the Dark rules above
    stay as they are. The gold PRO access button, New badge and YouTube "open" button keep their gold. */
 :root:is([data-theme="gray"], [data-theme="light"]) :is(.cc-info-card, .cc-legal-card) { box-shadow: 0 24px 60px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
-:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-link-card:not(.cc-info-pro-access-button) { background: rgba(var(--cc-well-rgb), 0.7); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .cc-info-link-card:not(.cc-info-pro-access-button) { background: rgba(var(--cc-well-rgb), 0.7); }
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-info-pro-access-button { box-shadow: 0 4px 12px rgba(0, 0, 0, var(--cc-shadow-alpha)), inset 0 1px 1px rgba(255, 255, 255, 0.6); }
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-info-new-badge { box-shadow: 0 10px 24px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-info-lead { color: rgba(var(--cc-ink-rgb), 0.82); }
 :root:is([data-theme="gray"], [data-theme="light"]) :is(.cc-info-section p, .cc-info-section li, .cc-legal-card p, .cc-legal-card li) { color: rgba(var(--cc-ink-rgb), 0.78); }
-:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-youtube-confirm { background: var(--cc-overlay); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .cc-info-youtube-confirm { background: var(--cc-overlay); }
 :root:is([data-theme="gray"], [data-theme="light"]) .cc-info-youtube-confirm__dialog { box-shadow: 0 24px 60px rgba(0, 0, 0, var(--cc-shadow-alpha)); }
-:root:is([data-theme="gray"], [data-theme="light"]) .cc-info-youtube-confirm__btn--cancel { background: var(--cc-surface); }
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .cc-info-youtube-confirm__btn--cancel { background: var(--cc-surface); }
 @media (hover: hover) {
-    :root:is([data-theme="gray"], [data-theme="light"]) .cc-info-link-card:not(.cc-info-pro-access-button):hover { background-color: rgba(var(--cc-well-rgb), 1); }
+    :root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) .cc-info-link-card:not(.cc-info-pro-access-button):hover { background-color: rgba(var(--cc-well-rgb), 1); }
 }
 
 /* ── Objects keep their production colors ────────────────────────────────────────────────
    Fretboard markers (incl. bass/tension rings), the barre, the bookshelf board and
    the books/folders are physical objects and functional colors. They redeclare the exact :root
    Dark tokens (verified by tests) so every theme renders them identically. */
-:root:is([data-theme="gray"], [data-theme="light"]) :is(.cc-fb-marker, .cc-fb-barre, .cc-folder-card--design-a, .cc-folder-shelf-board) {
+:root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"]) :is(.cc-fb-marker, .cc-fb-barre, .cc-folder-card--design-a, .cc-folder-shelf-board) {
     color-scheme: dark;
     --cc-bg: #0b0a09;
     --cc-surface: #141311;

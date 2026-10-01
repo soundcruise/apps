@@ -56,7 +56,7 @@ function v3(extra) {
 // ── Storage ───────────────────────────────────────────────────────────────────────────
 (function storageNormalizesThemeWithoutWritingOnLoad() {
     var empty = loadStorage();
-    assert.deepStrictEqual(Array.from(empty.storage.VALID_THEMES), ['dark', 'gray', 'light']);
+    assert.deepStrictEqual(Array.from(empty.storage.VALID_THEMES), ['dark', 'charcoal', 'gray', 'light']);
     assert.strictEqual(Object.prototype.hasOwnProperty.call(empty.storage.getSettingsDefaults(), 'theme'), false,
         'defaults never inject a theme');
     assert.strictEqual(Object.prototype.hasOwnProperty.call(empty.storage.loadSettings(), 'theme'), false, 'missing stays missing');
@@ -67,7 +67,7 @@ function v3(extra) {
         assert.strictEqual(Object.prototype.hasOwnProperty.call(env.storage.loadSettings(), 'theme'), false, 'invalid ' + value);
         assert.deepStrictEqual(env.store.writes, [], 'invalid value is not rewritten on load');
     });
-    ['dark', 'gray', 'light'].forEach(function (theme) {
+    ['dark', 'charcoal', 'gray', 'light'].forEach(function (theme) {
         var env = loadStorage({ 'chordCruise.settings': v3({ theme: theme }) });
         assert.strictEqual(env.storage.loadSettings().theme, theme);
     });
@@ -76,7 +76,7 @@ function v3(extra) {
     old.storage.saveSettings({ chordNameSize: 'small' });
     assert.strictEqual(Object.prototype.hasOwnProperty.call(JSON.parse(old.store.values[KEY]), 'theme'), false,
         'saving another setting never adds a theme');
-    ['dark', 'gray', 'light'].forEach(function (theme) {
+    ['dark', 'charcoal', 'gray', 'light'].forEach(function (theme) {
         var env = loadStorage({ 'chordCruise.settings': v3() });
         assert.strictEqual(env.storage.saveSettings({ theme: theme }), true);
         var saved = JSON.parse(env.store.values[KEY]);
@@ -101,7 +101,7 @@ function fakeButton(attribute, value) {
 
 function loadSettingsUi(seed) {
     var env = loadStorage(seed);
-    var buttons = ['dark', 'gray', 'light'].map(function (value) { return fakeButton('data-theme-choice', value); });
+    var buttons = ['dark', 'charcoal', 'gray', 'light'].map(function (value) { return fakeButton('data-theme-choice', value); });
     var htmlAttrs = {};
     var head = { children: [], appendChild: function (node) { this.children.push(node); node.parent = this; } };
     var clickHandler = null;
@@ -149,15 +149,21 @@ function loadSettingsUi(seed) {
     var ui = loadSettingsUi({ 'chordCruise.settings': v3() });
     assert.strictEqual(ui.htmlAttrs['data-theme'], 'dark', 'missing theme renders Dark');
     assert.strictEqual(ui.meta(), null, 'Dark adds no theme-color meta (unchanged page)');
-    assert.deepStrictEqual(ui.pressed(), ['true', 'false', 'false']);
+    assert.deepStrictEqual(ui.pressed(), ['true', 'false', 'false', 'false']);
     assert.deepStrictEqual(ui.env.store.writes, [], 'opening the app and settings never writes the theme');
 
     ui.tap('light');
     assert.strictEqual(ui.htmlAttrs['data-theme'], 'light', 'applies without reload');
     assert.strictEqual(ui.meta(), '#f7f5ef');
     assert.strictEqual(JSON.parse(ui.env.store.values[KEY]).theme, 'light');
-    assert.deepStrictEqual(ui.pressed(), ['false', 'false', 'true']);
-    assert(ui.buttons[2].classes.has('cc-settings-choice--active'));
+    assert.deepStrictEqual(ui.pressed(), ['false', 'false', 'false', 'true']);
+    assert(ui.buttons[3].classes.has('cc-settings-choice--active'));
+
+    ui.tap('charcoal');
+    assert.strictEqual(ui.htmlAttrs['data-theme'], 'charcoal');
+    assert.strictEqual(ui.meta(), '#424346');
+    assert.strictEqual(JSON.parse(ui.env.store.values[KEY]).theme, 'charcoal');
+    assert.deepStrictEqual(ui.pressed(), ['false', 'true', 'false', 'false']);
 
     ui.tap('gray');
     assert.strictEqual(ui.htmlAttrs['data-theme'], 'gray');
@@ -209,6 +215,7 @@ entries.forEach(function (entry) {
         [{}, 'dark', null], [{ 'chordCruise.settings': v3() }, 'dark', null],
         [{ 'chordCruise.settings': v3({ theme: 'sepia' }) }, 'dark', null], [{ 'chordCruise.settings': '{oops' }, 'dark', null],
         [{ 'chordCruise.settings': v3({ theme: 'dark' }) }, 'dark', null],
+        [{ 'chordCruise.settings': v3({ theme: 'charcoal' }) }, 'charcoal', '#424346'],
         [{ 'chordCruise.settings': v3({ theme: 'gray' }) }, 'gray', '#c8cbd0'],
         [{ 'chordCruise.settings': v3({ theme: 'light' }) }, 'light', '#f7f5ef'],
         [{ pitchTrainerSettings: JSON.stringify({ theme: 'light' }), 'cruisePort.settings': JSON.stringify({ theme: 'gray' }) }, 'dark', null]
@@ -223,10 +230,10 @@ entries.forEach(function (entry) {
     assert(card > 0 && card < html.indexOf('id="cc-settings-fretboard-title"'), name + ': カラーテーマ leads the display settings');
     var section = html.slice(card, html.indexOf('id="cc-settings-fretboard-title"'));
     assert(section.includes('<span class="cc-settings-item-label">カラーテーマ</span>'));
-    assert(section.includes('class="cc-settings-choices" role="group" aria-label="カラーテーマ"'));
+    assert(section.includes('class="cc-settings-choices cc-settings-choices--four" role="group" aria-label="カラーテーマ"'));
     var buttons = Array.from(section.matchAll(/<button type="button" class="cc-settings-choice" data-theme-choice="([a-z]+)" aria-pressed="(true|false)">([^<]+)<\/button>/g));
     assert.deepStrictEqual(buttons.map(function (m) { return [m[1], m[2], m[3]]; }),
-        [['dark', 'true', 'ダーク'], ['gray', 'false', 'グレー'], ['light', 'false', 'ライト']], name + ': three theme choices');
+        [['dark', 'true', 'ダーク'], ['charcoal', 'false', 'チャコール'], ['gray', 'false', 'グレー'], ['light', 'false', 'ライト']], name + ': four theme choices');
 });
 assert.strictEqual(entries[0][1].match(/<script>\s*\/\/ Chord color theme[\s\S]*?<\/script>/)[0],
     entries[1][1].match(/<script>\s*\/\/ Chord color theme[\s\S]*?<\/script>/)[0], 'Standard and Pro share one bootstrap');
@@ -249,6 +256,7 @@ Object.keys(INFO_PAGE_HASHES).forEach(function (file) {
         [{}, 'dark', null], [{ 'chordCruise.settings': v3() }, 'dark', null],
         [{ 'chordCruise.settings': v3({ theme: 'sepia' }) }, 'dark', null], [{ 'chordCruise.settings': '{oops' }, 'dark', null],
         [{ 'chordCruise.settings': v3({ theme: 'dark' }) }, 'dark', null],
+        [{ 'chordCruise.settings': v3({ theme: 'charcoal' }) }, 'charcoal', '#424346'],
         [{ 'chordCruise.settings': v3({ theme: 'gray' }) }, 'gray', '#c8cbd0'],
         [{ 'chordCruise.settings': v3({ theme: 'light' }) }, 'light', '#f7f5ef'],
         [{ 'cruisePort.settings': JSON.stringify({ theme: 'light' }) }, 'dark', null]
@@ -287,7 +295,7 @@ assert(!BOOTSTRAP_RE.test(read('pro-access.html')), 'the PRO access page keeps t
         list.forEach(function (selector) {
             selector = selector.trim();
             if (!selector) return;
-            assert(/^:root(?:\[data-theme="(?:gray|light)"\]|:is\(\[data-theme="gray"\], \[data-theme="light"\]\))/.test(selector), selector);
+            assert(/^:root(?:\[data-theme="(?:charcoal|gray|light)"\]|:is\((?:\[data-theme="charcoal"\], )?\[data-theme="gray"\], \[data-theme="light"\]\))/.test(selector), selector);
         });
     });
     // Information pages: only colors and shadows are themed; the gold PRO button and badges keep their gold.
@@ -321,6 +329,41 @@ assert(!BOOTSTRAP_RE.test(read('pro-access.html')), 'the PRO access page keeps t
     });
     assert(!/cc-fb-marker--(?:root|third|fifth|sixth|seventh|non-chord|other)/.test(themes), 'marker colors are untouched');
     assert(!/--monochrome/.test(themes.replace(/:not\(\.cc-fb-host--monochrome\)/g, '')), 'monochrome diagrams are untouched');
+
+    // Charcoal: one token block between Dark and Gray; a dark scheme that keeps Dark's gold and inks.
+    var CGL = ':root:is([data-theme="charcoal"], [data-theme="gray"], [data-theme="light"])';
+    var cStart = themes.indexOf(':root[data-theme="charcoal"] {');
+    assert(cStart > 0, 'charcoal token block');
+    var cBody = themes.slice(cStart, themes.indexOf('}', cStart));
+    var cTokens = {};
+    Array.from(cBody.matchAll(/^\s*([a-z-]+|--cc-[a-z0-9-]+):\s*([^;]+);/gm)).forEach(function (m) { cTokens[m[1]] = m[2].trim(); });
+    assert.strictEqual(cTokens['color-scheme'], 'dark');
+    ['--cc-gold', '--cc-gold-bright', '--cc-accent-rgb', '--cc-accent-bright-rgb', '--cc-accent-line-rgb', '--cc-accent-text', '--cc-champagne',
+        '--cc-notice-text', '--cc-danger-text', '--cc-danger-text-soft', '--cc-danger'].forEach(function (name) {
+        assert(!(name in cTokens), name + ': Charcoal keeps the Dark value');
+    });
+    var lum = function (hex) {
+        return [1, 3, 5].map(function (i) { var v = parseInt(hex.slice(i, i + 2), 16) / 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); })
+            .reduce(function (sum, v, i) { return sum + v * [0.2126, 0.7152, 0.0722][i]; }, 0);
+    };
+    var ratio = function (a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    assert(lum(cTokens['--cc-bg']) > lum(rootTokens['--cc-bg']) && lum(cTokens['--cc-bg']) < lum('#c8cbd0'), 'Charcoal sits between Dark and Gray');
+    [cTokens['--cc-bg'], cTokens['--cc-surface'], cTokens['--cc-surface-raised']].forEach(function (ground) {
+        assert(ratio(cTokens['--cc-text'], ground) >= 6, 'text on ' + ground);
+        assert(ratio(cTokens['--cc-text-muted'], ground) >= 4.5, 'muted on ' + ground);
+        assert(ratio(rootTokens['--cc-gold-bright'], ground) >= 4.5, 'Dark gold text on ' + ground);
+        // Faint is a deliberate dim step (Dark: about 3.1 on its page); Charcoal keeps it brighter than that.
+        assert(ratio(cTokens['--cc-text-faint'], ground) >= (ground === cTokens['--cc-surface-raised'] ? 3.5 : 4.5), 'faint on ' + ground);
+    });
+    // Token-driven rules shared with Gray/Light: fixed objects, Sync components, scrims and info-page wells.
+    assert(themes.includes(CGL + ' :is(.cc-fb-marker, .cc-fb-barre, .cc-folder-card--design-a, .cc-folder-shelf-board) {'), 'objects stay Dark in Charcoal');
+    assert(themes.includes(CGL + ' :is(.sound-cruise-sync-settings-card, .sound-cruise-sync-setup, .sound-cruise-sync-help,'), 'Sync components follow Charcoal');
+    assert(themes.includes(CGL + ' :is(.cc-modal-overlay, .cc-folder-manage-overlay) { background: var(--cc-overlay); }'));
+    assert(themes.includes(CGL + ' .cc-info-link-card:not(.cc-info-pro-access-button) { background: rgba(var(--cc-well-rgb), 0.7); }'));
+    // Light-page-only rules (inked title, deep gold, white inset highlights, light text steps) never apply to Charcoal.
+    ['.cc-home-title', '.cc-refresh-btn', '.cc-app-version-display', '.cc-action-card', '.cc-info-lead', '.cc-fb-mute'].forEach(function (selector) {
+        assert(!new RegExp('charcoal[^{]*' + selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).test(themes), selector + ' is Gray/Light only');
+    });
 }());
 
 (function exportAndDrawingLogicUntouchedByTheme() {
@@ -395,11 +438,16 @@ function cloudOf(local) {
     assert.strictEqual(await step(used('light'), used('gray'), used('light')), 'gray', 'A receives Gray');
     assert.strictEqual(await step(used('dark'), used('gray'), used('gray')), 'dark', 'B chooses Dark');
     assert.strictEqual(await step(used('gray'), used('dark'), used('gray')), 'dark', 'A receives Dark');
+    assert.strictEqual(await step(used('charcoal'), used('dark'), used('dark')), 'charcoal', 'B chooses Charcoal');
+    assert.strictEqual(await step(used('dark'), used('charcoal'), used('dark')), 'charcoal', 'A receives Charcoal');
+    assert.notStrictEqual(await hashOf(withTheme('charcoal')), await hashOf(withTheme('dark')), 'Charcoal is pushed');
 
     // Remote apply writes the settings record as-is into chordCruise.settings, and storage keeps it.
     assert(clientSource.includes("if (byType.settings[0]) setJsonIfChanged('chordCruise.settings', byType.settings[0].payload);"));
     var applied = loadStorage({ 'chordCruise.settings': JSON.stringify(withTheme('gray')) });
     assert.strictEqual(applied.storage.loadSettings().theme, 'gray');
+    applied = loadStorage({ 'chordCruise.settings': JSON.stringify(withTheme('charcoal')) });
+    assert.strictEqual(applied.storage.loadSettings().theme, 'charcoal');
 
     // Cross-app independence: only chordCruise.* is ever written.
     var others = { 'cruisePort.settings': '{"theme":"light"}', pitchTrainerSettings: '{"instrument":"piano"}', fretboard_cruise_state: '{"settings":{"tempo":90}}', rhythmCruiseSettings: '{"tapLayout":"ud"}' };
@@ -409,5 +457,5 @@ function cloudOf(local) {
     assert.deepStrictEqual(ui.env.store.writes.filter(function (key) { return key.indexOf('chordCruise.') !== 0; }), []);
     Object.keys(others).forEach(function (key) { assert.strictEqual(ui.env.store.values[key], others[key], key); });
 
-    console.log('theme: Dark/Gray/Light storage, UI, bootstrap, info pages, CSS objects and per-app Cloud Sync OK');
+    console.log('theme: Dark/Charcoal/Gray/Light storage, UI, bootstrap, info pages, CSS objects and per-app Cloud Sync OK');
 }()).catch(function (error) { console.error(error); process.exit(1); });

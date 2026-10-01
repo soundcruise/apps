@@ -6,13 +6,13 @@
 <title>コードクルーズ | インフォメーション</title>
 <script>
     // Chord color theme before first paint. Reads only chordCruise.settings; anything else is Dark.
-    // Dark keeps the page as before (no theme-color meta); Gray/Light tint the browser chrome.
+    // Dark keeps the page as before (no theme-color meta); Charcoal/Gray/Light tint the browser chrome.
     (function () {
-        var colors = { gray: '#c8cbd0', light: '#f7f5ef' };
+        var colors = { charcoal: '#424346', gray: '#c8cbd0', light: '#f7f5ef' };
         var theme = 'dark';
         try {
             var saved = JSON.parse(localStorage.getItem('chordCruise.settings') || 'null');
-            if (saved && (saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
+            if (saved && (saved.theme === 'charcoal' || saved.theme === 'gray' || saved.theme === 'light')) theme = saved.theme;
         } catch (_) { theme = 'dark'; }
         document.documentElement.setAttribute('data-theme', theme);
         if (theme !== 'dark') {
@@ -24,7 +24,7 @@
         }
     }());
 </script>
-<link rel="stylesheet" href="./theme.css?v=1.17.1">
+<link rel="stylesheet" href="./theme.css?v=1.18.0">
 <link rel="stylesheet" href="../shared/legal-links.css?v=1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -71,6 +71,6 @@
     </div>
 </div>
 
-<script src="./info-routing.js?v=1.17.1"></script>
+<script src="./info-routing.js?v=1.18.0"></script>
 </body>
 </html>

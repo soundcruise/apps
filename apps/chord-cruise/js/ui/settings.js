@@ -17,9 +17,9 @@
         'cagedTabAutoChange'
     ];
     // Chord-only color theme. Keep in sync with the inline startup bootstrap in both entry HTMLs.
-    var VALID_THEMES = ['dark', 'gray', 'light'];
+    var VALID_THEMES = ['dark', 'charcoal', 'gray', 'light'];
     var DEFAULT_THEME = 'dark';
-    var THEME_META_COLORS = { gray: '#c8cbd0', light: '#f7f5ef' };
+    var THEME_META_COLORS = { charcoal: '#424346', gray: '#c8cbd0', light: '#f7f5ef' };
     var overlayEl = null;
     var openBtn = null;
     var closeBtn = null;
@@ -196,7 +196,7 @@
     }
 
     // Mirrors the startup bootstrap so a choice applies without reload. Dark keeps the page
-    // exactly as before (no theme-color meta); Gray/Light tint the browser chrome.
+    // exactly as before (no theme-color meta); Charcoal/Gray/Light tint the browser chrome.
     function applyTheme(value) {
         var theme = resolveTheme(value);
         document.documentElement.setAttribute('data-theme', theme);

@@ -32,8 +32,8 @@ continue from the first phase that is not marked DONE.
 | 3 | Rhythm 4 themes (local-only) | DONE (deployed, prod smoke PASS) | 356c7bba | 1.16.0 |
 | 3b | Pro gate fully Dark while shown (layer off via :has(body.pro-gate-active)) | DONE (deployed, gate pixel parity 0) | 69af8ef3 | F 2.21.1 / P 2.26.1 / R 1.16.1 |
 | 4 | Reader-first Sync (Worker + 3 clients accept theme, no send) | DONE (Worker 7245c2e6 from 6c19d296; clients deployed, prod smoke PASS) | 6c19d296 / 2e71d1ea | F 2.21.2 / P 2.26.2 / R 1.16.2 |
-| 5 | Port + Charcoal | DONE pending deploy check (this commit) | see git log | Port 1.13.0 |
-| 6 | Chord + Charcoal (app + info pages) | TODO | | |
+| 5 | Port + Charcoal | DONE (deployed, prod smoke PASS, gate parity 0) | c4fd125a | Port 1.13.0 |
+| 6 | Chord + Charcoal (app + info pages) | DONE pending deploy check (this commit) | see git log | Chord 1.18.0 |
 | 7 | Cross-app QA | TODO | | |
 | 8 | Final full regression + report | TODO | | |
 
@@ -62,3 +62,7 @@ continue from the first phase that is not marked DONE.
   My Apps icons need no Dark plate (Charcoal is a dark scheme). Charcoal contrast BELOW = 0 (Dark has 1: `↗`).
 - Port mixed-version window: a 1.12.x Port that receives `theme: 'charcoal'` shows Dark (safe fallback); if it then
   saves another setting it writes settings without theme, so the other device falls back to Dark. No corruption.
+- Chord Charcoal: one token block (bg #424346 / surface #4c4e52 / raised #545559, opaque muted/faint ink) plus the
+  token-driven Gray/Light rules widened to Charcoal (fixed objects, Sync components, modal scrims, info-page wells).
+  Light-page-only rules (inked title, deep gold, white insets, mute edge) stay Gray/Light. Theme row: four buttons with
+  a responsive font so チャコール fits on one line down to 320px. Worker does not validate Chord settings fields.

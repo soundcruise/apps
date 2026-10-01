@@ -19,7 +19,7 @@
     // Object.keys() の列挙順には依存せず、UI側も同じ意図の並びを明示的に使う。
     // Color theme is Chord-only (never shared with other Cruise apps). It is kept only after an
     // explicit choice; a missing or invalid value is Dark at runtime and is never written on load.
-    var VALID_THEMES = ['dark', 'gray', 'light'];
+    var VALID_THEMES = ['dark', 'charcoal', 'gray', 'light'];
     var VALID_SCALE_TYPES = ['major', 'dorian', 'phrygian', 'lydian', 'mixolydian', 'minor', 'harmonic-minor', 'melodic-minor', 'locrian'];
 
     function isPlainObject(value) {
