@@ -622,37 +622,9 @@
     "diffCheck": "PASS",
     "secretScan": "PASS",
     "files": [
-      "apps/cruise-port/app-version.js",
-      "apps/cruise-port/app-version.test.mjs",
-      "apps/cruise-port/index.html",
-      "apps/cruise-port/module-cache-keys.test.mjs",
-      "apps/cruise-port/news-data.js",
-      "apps/cruise-port/news-provider.js",
-      "apps/cruise-port/news-ui.js",
-      "apps/cruise-port/news.test.mjs",
-      "apps/cruise-port/practice-calendar-sp610.test.mjs",
-      "apps/cruise-port/practice-calendar-sp611.test.mjs",
-      "apps/cruise-port/practice-calendar-sp612.test.mjs",
-      "apps/cruise-port/practice-calendar-sp613.test.mjs",
-      "apps/cruise-port/practice-calendar-sp614.test.mjs",
-      "apps/cruise-port/practice-menu-app.js",
-      "apps/cruise-port/practice-menu-sp615.test.mjs",
-      "apps/cruise-port/pro_9a3943176561/index.html",
-      "workers/sound-cruise-news/package-lock.json",
-      "workers/sound-cruise-news/package.json",
-      "workers/sound-cruise-news/src/automatic.js",
-      "workers/sound-cruise-news/src/metadata.js",
-      "workers/sound-cruise-news/src/official-listing.js",
-      "workers/sound-cruise-news/src/pending-replay.js",
-      "workers/sound-cruise-news/src/registry.js",
-      "workers/sound-cruise-news/src/store.js",
-      "workers/sound-cruise-news/src/worker.js",
-      "workers/sound-cruise-news/test/news.test.js",
-      "workers/sound-cruise-news/wrangler.production.jsonc",
-      "workers/sound-cruise-news/HIGH-VALUE-SOURCE-POLICY.md",
-      "workers/sound-cruise-news/src/high-value-evidence.js",
-      "workers/sound-cruise-news/src/high-value.js",
-      "workers/sound-cruise-news/test/high-value.test.js"
+      "workers/sound-cruise-news/HIGH-VALUE-COVERAGE-EVIDENCE.json",
+      "workers/sound-cruise-news/HIGH-VALUE-COVERAGE-REPORT.md",
+      "workers/sound-cruise-news/package-lock.json"
     ],
     "tests": {
       "port": 887,
@@ -662,9 +634,9 @@
       "fretboard": 25,
       "rhythm": 19,
       "chord": 95,
-      "news": 326
+      "news": 327
     },
-    "total": 2001,
+    "total": 2002,
     "publisherAttempts": 25,
     "testPublisherRequests": 0
   },
@@ -1442,10 +1414,10 @@
   },
   "final-production-audit": {
     "result": "PASS",
-    "at": "2026-10-01T02:51:13.461Z",
+    "at": "2026-10-01T03:13:46.223Z",
     "health": {
       "ok": true,
-      "version": "0.9.0",
+      "version": "0.9.1",
       "collection": true,
       "publication": true,
       "api": true
@@ -1559,7 +1531,7 @@
       "pass": true,
       "reasons": [],
       "current": {
-        "at": "2026-10-01T02:51:13.447Z",
+        "at": "2026-10-01T03:13:46.211Z",
         "counts": {
           "HIGH VALUE": 30,
           "USEFUL": 8,
@@ -1668,7 +1640,7 @@
         ]
       },
       "candidate": {
-        "at": "2026-10-01T02:51:13.459Z",
+        "at": "2026-10-01T03:13:46.221Z",
         "counts": {
           "HIGH VALUE": 32,
           "USEFUL": 12,
@@ -1821,17 +1793,34 @@
           {
             "cron": "0 21 * * *",
             "created_on": "2026-09-30T07:17:34.727964Z",
-            "modified_on": "2026-10-01T02:45:34.857964Z"
+            "modified_on": "2026-10-01T03:12:07.032615Z"
           },
           {
             "cron": "17 * * * *",
             "created_on": "2026-09-30T04:57:08.432873Z",
-            "modified_on": "2026-10-01T02:45:34.857964Z"
+            "modified_on": "2026-10-01T03:12:07.032615Z"
           }
         ]
       },
       "deployments": {
         "deployments": [
+          {
+            "id": "ee689313-05f7-4311-827a-963aecdfaefa",
+            "source": "wrangler",
+            "strategy": "percentage",
+            "author_email": "masaclooney@gmail.com",
+            "annotations": {
+              "workers/message": "High-value domestic acoustic interview, guitar event and recording coverage",
+              "workers/triggered_by": "deployment"
+            },
+            "versions": [
+              {
+                "version_id": "2c426635-de88-49a2-b927-9177be65a978",
+                "percentage": 100
+              }
+            ],
+            "created_on": "2026-10-01T03:12:05.264906Z"
+          },
           {
             "id": "ac04d1e8-7718-41b8-8843-ab409a714385",
             "source": "wrangler",
@@ -1982,22 +1971,6 @@
               }
             ],
             "created_on": "2026-09-30T14:03:43.453311Z"
-          },
-          {
-            "id": "b0833ee9-e30a-4181-b590-5fc9378e3d4c",
-            "source": "wrangler",
-            "strategy": "percentage",
-            "author_email": "masaclooney@gmail.com",
-            "annotations": {
-              "workers/triggered_by": "deployment"
-            },
-            "versions": [
-              {
-                "version_id": "3d249ff7-f4fa-4c2b-a273-ac48e0740955",
-                "percentage": 100
-              }
-            ],
-            "created_on": "2026-09-30T09:10:34.434682Z"
           }
         ]
       }
@@ -2010,9 +1983,9 @@
       "fretboard": 25,
       "rhythm": 19,
       "chord": 95,
-      "news": 326
+      "news": 327
     },
-    "testTotal": 2001,
+    "testTotal": 2002,
     "publisherRequestsThisAudit": 0,
     "sourceHealth": [
       {
@@ -2046,13 +2019,13 @@
     "preservedFiles": 7
   },
   "pages-build": {
-    "commit": "9d155a83492c2a9a5e19ffe905c091a8af171517",
-    "created_at": "2026-10-01T02:44:43Z",
+    "commit": "abb7437055d739993edfbaa0f43921b4805ad203",
+    "created_at": "2026-10-01T03:12:01Z",
     "error": {
       "message": null
     },
     "status": "built",
-    "updated_at": "2026-10-01T02:45:16Z"
+    "updated_at": "2026-10-01T03:12:45Z"
   },
   "factProjections": {
     "ik19650-review-facts.json": [
@@ -2240,5 +2213,15 @@
     "workers/sound-cruise-news/BLOCKED-SOURCE-RECOVERY-REPORT.md": "93a336a3a39126bbbd6c24ba4ecf46fb39e1454efc6923db530f3c297c7a52d2",
     "workers/sound-cruise-news/LEGACY-BETA-ACQUISITION-EVIDENCE.json": "acaaf730eb3a50a952d7db77b9ea084a64b337184b41e20a834d776d9cd088a1",
     "workers/sound-cruise-news/LEGACY-BETA-ACQUISITION-REPORT.md": "0ced5c84084e5fe55de626021a8139013808e3d394ecf2dbb6389731bf4217d5"
+  },
+  "venueGuardPatch": {
+    "commit": "abb7437055d739993edfbaa0f43921b4805ad203",
+    "news": "0.9.1",
+    "portUnchanged": "1.11.0",
+    "rule": "shop tags alone are not event venue proof",
+    "newRegressionTests": 43,
+    "allSuitesPass": 2002,
+    "publishedDataUnchanged": true,
+    "lockDependenciesAndEnginesUnchanged": true
   }
 }

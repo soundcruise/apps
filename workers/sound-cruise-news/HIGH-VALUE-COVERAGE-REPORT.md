@@ -57,7 +57,7 @@ amassの限定tagを維持。generic feedへの拡大なし。Artist個別crawle
 
 ## 9. Artist / Live Production Changes
 
-AGM Interview RSSとIkebe Event固定一覧を本番allowlistへ追加。1日1回の限定discovery、未確認factsのREVIEW、イベント終了時の非表示を実装しました。
+AGM Interview RSSとIkebe Event固定一覧を本番allowlistへ追加。1日1回の限定discovery、未確認factsのREVIEW、イベント終了時の非表示を実装しました。店舗タグだけでは会場を確定せず、見出しで明示されない会場はREVIEWに保つguardも追加しました。
 
 Artist：1→3件。Live：2→3件。原見出し・本文・画像を公開labelへ転用していません。
 
@@ -143,15 +143,15 @@ source/surfaceごとのrobots・適用規約・公開アクセス・opt-outを�
 
 ## 23. Tests
 
-**2,001 PASS／0 FAIL**。
+**2,002 PASS／0 FAIL**。
 
-Port 887／Shared 226／Sync 393／Pitch 30／Fretboard 25／Rhythm 19／Chord 95／NEWS 326。baseline 1,959に新規42テストを追加。
+Port 887／Shared 226／Sync 393／Pitch 30／Fretboard 25／Rhythm 19／Chord 95／NEWS 327。baseline 1,959に新規43テストを追加。
 
 parser、facts、具体的label、重複、イベント終了、REVIEW、robots変更、evidence期限、限定article回復、既存判定保持を確認。syntax、diff --check、secret scan、Worker dry-runもPASS。テスト中publisherアクセス0。
 
 ## 24. Production Smoke
 
-本番Port 1.11.0／NEWS 0.9.0を確認。375・393・1440pxでHome ticker、NEWS、全カテゴリ、外部リンクを実レンダリングしました。横はみ出し・page errorなし。
+本番Port 1.11.0／NEWS 0.9.1を確認。375・393・1440pxでHome ticker、NEWS、全カテゴリ、外部リンクを実レンダリングしました。横はみ出し・page errorなし。
 
 cursor paginationは10/10/10/10/8件、48 unique。offset順序も一致。Practice／Calendar／Tuner／Metronome／Gear／My Apps／Settingsの7画面を確認。NEWS停止・障害時も他画面を操作可能でした。
 
@@ -159,9 +159,9 @@ Sleepfreaks：収集OFF、今回アクセス0、既存5件visible。新source he
 
 ## 25. Git / Deploy
 
-新しいcoverage機能としてminor bump：Port **1.11.0**／NEWS **0.9.0**。実装commit：`9d155a83492c2a9a5e19ffe905c091a8af171517`。
+新しいcoverage機能としてminor bump：Port **1.11.0**／NEWS初回 **0.9.0**、会場証拠guardのpatch後 **0.9.1**。実装commit：`9d155a83492c2a9a5e19ffe905c091a8af171517`。会場guard修正commit：`abb7437055d739993edfbaa0f43921b4805ad203`。Portコードに追加変更はないため1.11.0を維持しました。依存パッケージ・Node engine条件は元のlock内容を保持しています。
 
-normal push・GitHub Pages build・Cloudflare NEWS Worker deployを完了。Worker version ID：`251fd0b2-7dde-4388-b41e-374478c5b375`。NEWS専用D1 bindingを確認。06:00 JST収集cron／毎時retention cronを保持。
+normal push・GitHub Pages build・Cloudflare NEWS Worker deployを完了。Worker version ID：`2c426635-de88-49a2-b927-9177be65a978`。NEWS専用D1 bindingを確認。06:00 JST収集cron／毎時retention cronを保持。
 
 最終HEAD＝main＝origin/main、ahead/behind 0/0、staged 0。既存tracked変更2・untracked 5の計7ファイルをhash一致で保持し、今回作成した依存symlinkは撤去しました。元checkoutと既知の未追跡ディレクトリは変更していません。禁止Git操作なし。
 
