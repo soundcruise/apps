@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/pitch-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/pitch-cruise/standard/`
 - PRO版URL: `https://soundcruise.jp/apps/pitch-cruise/pro_x9v7q2m8/`
-- 現在のバージョン: `2.26.0`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
+- 現在のバージョン: `2.26.1`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
 - 最新commit（pitch-cruise関連、`git log --oneline -- apps/pitch-cruise/` で確認）:
   - hash: `62b4a3bf`
   - message: `音感クルーズPROカスタムSTAGEの保存導線を整理`

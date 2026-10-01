@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/fretboard_cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/fretboard_cruise/standard/`（要確認: トップレベルのリダイレクトが別途あるかは未確認）
 - PRO版URL: `https://soundcruise.jp/apps/fretboard_cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `2.21.0`（`script.js` 内 `FRETBOARD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `2.21.1`（`script.js` 内 `FRETBOARD_CRUISE_APP_VERSION`）
 - 最新commit（fretboard_cruise関連、`git log --oneline -- apps/fretboard_cruise/` で確認）:
   - hash: `a75bf6dc`
   - message: `指板クルーズ通常版の設定を公式デフォルトに固定`
