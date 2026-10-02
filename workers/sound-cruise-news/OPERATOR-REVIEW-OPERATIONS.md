@@ -59,15 +59,16 @@ Isolated tests use `fixture` attribution. There is no new automatic approve/reje
 
 ## Authentication / deployment
 
-Operator config starts fail-closed: actual team issuer / unset app AUD, workers.dev and preview off.
-After the real Access app is approved, set exact team issuer and app AUD from the
-actual dashboard. Use a dedicated protected operator hostname, no wildcard,
-Allow policy restricted to one approved human email, no Bypass or Service Auth.
-NEWS_OPERATOR_EMAILS is a **secret**, not a public repo variable.
+Production uses the dedicated Access-protected workers.dev hostname below; preview
+URLs stay off and every asset/API also requires verified JWT authorization in the Worker.
+Set exact issuer from the actual team. Store the actual app AUD only as
+NEWS_ACCESS_AUD in the private secrets file, never in tracked vars or reports.
+Allow policy is restricted to the one approved human email, with a six-hour session,
+no wildcard, Bypass or Service Auth. NEWS_OPERATOR_EMAILS is also a **secret**.
 
 Ignored `.local/operator-secrets.json` (mode 0600) contains NEWS_HEADLINE_PEPPER
-(the existing NEWS pepper, never rotate incidentally) and NEWS_OPERATOR_EMAILS
-(JSON array string). Never paste either into a browser UI or command arguments.
+(the existing NEWS pepper, never rotate incidentally), NEWS_ACCESS_AUD and
+NEWS_OPERATOR_EMAILS (JSON array string). Never paste these into command arguments.
 `.local/operator-access-ready.json` is a recent operator-checked deployment receipt:
 origin, issuer, audience, checkedAt, humanPolicyApproved=true,
 noBypassOrServiceAuth=true. It is a deployment gate, not runtime authentication.
@@ -134,3 +135,44 @@ Phase D: separately approved limited automation. Deviser after UI operations.
   the one-human Access policy/application are approved and real AUD is recorded.
 - Existing npm audit findings (fast-xml-parser XMLBuilder, dev undici/miniflare/wrangler)
   are unchanged. jose has no reported finding. No unrelated dependency upgrade.
+
+## Production activation and operator handoff (2026-10-02 JST)
+
+- Access application is saved for this exact hostname, one approved email only,
+  six-hour application duration, policy inherits that duration. HttpOnly cookie enabled.
+- Operator URL: https://sound-cruise-news-operator.cruise-port-requests.workers.dev/
+- Operator deployment: 3fbe12cc-9f7f-4d75-bb3c-fff2e849b895.
+  Version: 064a8919-d934-4a07-a553-78ae0efb1502.
+- Public NEWS deployment: ea600034-3f15-4a75-849b-cc712f456fbb.
+  Version: 6867244e-f42c-4a5f-a733-49a34e58a829. Health reports 0.10.0;
+  Port remains 1.13.1. Activation changes only deployment config/tooling/docs;
+  the already prepared 0.10.0 application code is unchanged.
+- Anonymous root, JS/CSS, pending, detail and decision requests redirect to Access;
+  no pending content is returned. The allowed Cloudflare identity opens the UI.
+- Real JWT signature/issuer/AUD, allowed identity and 21600-second lifetime checked.
+  Wrong identity is covered by signed-token tests and a test using actual production
+  allowlist configuration; no second person's real login was performed.
+- Authenticated read-only checks: 13 pending, 12 REVIEW, one suppressed duplicate,
+  source filter, detail, empty history, original links, confirmation and reason choices.
+  No judgment was submitted. All 13 currently fail facts/duplicate publication gates.
+- Live authenticated invalid Origin, missing/invalid CSRF, malformed JSON and wrong
+  content type are denied; decision GET/PUT are denied. Assets contain no secret values.
+- 375px/393px/desktop have no horizontal overflow. No operator/Port application console
+  errors. The Cloudflare sign-in page emitted its own ViewTransition warning.
+- Public list (49) and ticker (5) payloads exactly match before deployment. Events
+  display normally and Sale is empty. All 81 candidate rows and source health are
+  identical to the activation snapshot; ledger remains 0. No new migration needed.
+- NEWS 379 / Port NEWS 27 tests PASS. CLI list and authenticated detail GET PASS.
+
+For everyday use:
+1. Open the operator URL and sign in using Cloudflare with the approved account.
+2. Browse the pending list; use REVIEW/source filters and open candidate details.
+3. Open the original article in a separate tab and check the facts and publication gates.
+4. For a publishable candidate, choose 掲載する, complete the four confirmations and
+   submit. To reject a reviewable candidate, choose 掲載しない and a reason, then confirm.
+5. Check the displayed decision history. On an uncertain network outcome, use the
+   explicit same-request retry button rather than starting a different decision.
+
+When 掲載する is disabled, required facts or another publication gate are not satisfied;
+operator permission does not override it. The UI does not complete missing facts.
+Sign in again after the six-hour Access session expires. CLI tokens must stay private.

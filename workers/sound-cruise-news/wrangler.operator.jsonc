@@ -3,7 +3,7 @@
   "account_id": "a9f2a3e9fcb6d0f68fd2eaa9df909e33",
   "main": "src/operator-worker.js",
   "compatibility_date": "2026-10-02",
-  "workers_dev": false,
+  "workers_dev": true,
   "preview_urls": false,
   "routes": [],
   "assets": {
@@ -14,7 +14,6 @@
   "vars": {
     "NEWS_OPERATOR_ORIGIN": "https://sound-cruise-news-operator.cruise-port-requests.workers.dev",
     "NEWS_ACCESS_ISSUER": "https://broken-bonus-ef27.cloudflareaccess.com",
-    "NEWS_ACCESS_AUD": "",
     "NEWS_SOURCE_IDS": "[\"shimamura\",\"kikutani\",\"sleepfreaks\",\"zoom\",\"amass\",\"ikebe\",\"ik\",\"agm\",\"ikebe-event\",\"at-distribution\"]"
   },
   "d1_databases": [
