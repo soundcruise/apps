@@ -15,3 +15,18 @@ test('JSON detail is inert; UI uses textContent and restricts URL protocols',asy
 test('operator config isolates NEWS DB and has no schedule, service, account or Sync binding',async()=>{const config=JSON.parse(await readFile(new URL('../wrangler.operator.jsonc',import.meta.url),'utf8'));assert.equal(config.workers_dev,true);assert.equal(config.vars.NEWS_ACCESS_AUD,undefined);assert.equal(config.preview_urls,false);assert.equal(config.assets.run_worker_first,true);assert.equal(config.d1_databases.length,1);assert.equal(config.d1_databases[0].binding,'NEWS_DB');assert.equal(config.triggers,undefined);assert.equal(config.services,undefined);});
 
 test('GUI verified identity is human_operator; CLI cannot label itself human',async()=>{const {s,env}=await environment(),item=await put(s),input=await approveInput(s,item),token=await jwt(),session=await (await call(env,'/api/session',token)).json();const response=await call(env,'/api/decision',token,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json','X-News-CSRF':session.csrf},body:JSON.stringify(input)});assert.equal(response.status,200);assert.equal((await s.db.prepare('SELECT actor_type FROM news_decision_ledger').first()).actor_type,'human_operator');});
+
+test('Phase B read-only endpoints require Access, preserve Origin checks and reject stale candidate context',async()=>{
+ const {s,env}=await environment(),item=await put(s),token=await jwt();
+ const detail=await (await call(env,'/api/candidates/'+item.id,token)).json();
+ for(const path of ['/api/summary','/api/human-decisions','/api/candidates/'+item.id+'/similar-decisions']){
+  assert.equal((await call(env,path,null)).status,401);assert.equal((await call(env,path,await jwt({type:'service'}))).status,403);assert.equal((await call(env,path,token,{headers:{Origin:'https://evil.fixture.test'}})).status,403);
+  const result=await call(env,path,token);assert.equal(result.status,200);assert.equal(result.headers.get('Cache-Control'),'no-store');
+ }
+ const insight=await (await call(env,'/api/candidates/'+item.id+'/similar-decisions',token)).json();assert.equal(insight.recommendation,'NO_RECOMMENDATION');assert.equal(insight.candidateRevision,detail.revision);assert.equal(insight.candidateSnapshot,detail.snapshot);
+ assert.equal((await call(env,'/api/candidates/'+item.id+'/similar-decisions?revision=99&snapshot='+detail.snapshot,token)).status,409);
+ assert.equal((await call(env,'/api/candidates/not-found/similar-decisions',token)).status,404);
+ assert.equal((await call(env,'/api/human-decisions?offset=-1',token)).status,422);
+ assert.equal((await call(env,'/api/summary',token,{method:'POST'})).status,404);
+ assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);assert.equal((await s.candidates())[0].review_status,'pending');
+});

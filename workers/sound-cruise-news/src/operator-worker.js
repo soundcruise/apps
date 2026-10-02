@@ -1,8 +1,9 @@
+import {dashboardSummary,humanDecisionHistory,similarDecisions} from './operator-insights.js';
 import {recheckFacts} from './facts-recheck.js';
 import {authenticateOperator,csrfToken,verifyCsrf} from './operator-auth.js';
 import {NewsStore} from './store.js';
 import {runtimeSources} from './runtime.js';
-import {reviewQueue,reviewDetail,operatorDecision} from './operator-review.js';
+import {reviewQueue,reviewDetail,operatorDecision,candidateSnapshot} from './operator-review.js';
 const security={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'none'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",'Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
 const json=(body,status=200)=>Response.json(body,{status,headers:security});
 async function inputJSON(request){
@@ -18,7 +19,22 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.13.1'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.14.0'});
+  if(request.method==='GET'&&url.pathname==='/api/summary')return json(await dashboardSummary(store,now));
+  if(request.method==='GET'&&url.pathname==='/api/human-decisions'){
+   const offset=url.searchParams.get('offset')||'0';if(!/^\d{1,7}$/.test(offset))throw Error('operator_query_invalid');
+   return json(await humanDecisionHistory(store,now,{offset:Number(offset)}));
+  }
+  if(request.method==='GET'&&/^\/api\/candidates\/[a-zA-Z0-9_-]{1,128}\/similar-decisions$/.test(url.pathname)){
+   const id=url.pathname.split('/')[3],detail=await reviewDetail(store,id,now,registry,env.NEWS_HEADLINE_PEPPER);
+   const expected=url.searchParams.get('snapshot'),revision=url.searchParams.get('revision');
+   if((expected!==null||revision!==null)&&(expected!==detail.snapshot||revision!==String(detail.revision)))throw Error('candidate_changed');
+   const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(id).first();
+   if(!row||await candidateSnapshot(row)!==detail.snapshot)throw Error('candidate_changed');
+   const result={...await similarDecisions(store,row,detail.validation,now),candidateId:id,candidateRevision:detail.revision,candidateSnapshot:detail.snapshot};
+   console.info(JSON.stringify({event:'news_recommendation_observed',version:result.version,candidateId:id,candidateRevision:detail.revision,candidateSnapshot:detail.snapshot,generatedAt:now,recommendation:result.recommendation,evidenceCount:result.evidenceCount,similarityLevel:result.similarityLevel,policyVersion:result.policyVersion,decisionIds:result.matches.map(m=>m.decisionId)}));
+   return json(result);
+  }
   if(request.method==='GET'&&url.pathname==='/api/pending')return json({items:await reviewQueue(store,{now,registry,pepper:env.NEWS_HEADLINE_PEPPER})});
   if(request.method==='GET'&&/^\/api\/candidates\/[a-zA-Z0-9_-]{1,128}$/.test(url.pathname))return json(await reviewDetail(store,url.pathname.split('/').at(-1),now,registry,env.NEWS_HEADLINE_PEPPER));
   if(request.method==='POST'&&url.pathname==='/api/facts-recheck'){

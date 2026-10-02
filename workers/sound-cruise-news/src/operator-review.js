@@ -1,3 +1,4 @@
+import {retainedDecisionProfile,similarDecisions} from './operator-insights.js';
 import {missingFacts,recoverySurface} from './facts-readiness.js';
 import {hash,DAY} from './policy.js';
 import {CHECKS,REASONS,DECISION_POLICY_VERSION,parseFacts,duplicatePredicate,publicationValidation} from './decision-policy.js';
@@ -44,7 +45,9 @@ export async function operatorDecision(store,input,now,registry,pepper,actor){
  const snapshotColumns=Object.keys(row).sort();if(snapshotColumns.some(k=>!/^[_a-z]+$/.test(k)))throw Error('candidate_schema_invalid');
  const snapshotWhere=snapshotColumns.map(k=>`c."${k}" IS ?`).join(' AND ');
  // No body, headline, raw HTML, product/artist names or tokens in retained features.
- const features=canonical({factsPresent:!!parseFacts(row),eventType:row.event_type,publicationDecision:row.publication_decision,hasDate:Number.isFinite(Date.parse(row.published_at)),sale:row.category==='sale',labelQuality:validation?.quality.labelInformationScore??null});
+ const insightsValidation=actor.type==='human_operator'?(validation||await publicationValidation(store,row,now,registry,pepper)):null;
+ const evaluation=actor.type==='human_operator'?await similarDecisions(store,row,insightsValidation,now):null;
+ const features=canonical({...(evaluation?{insightsProfile:await retainedDecisionProfile(row,insightsValidation,now),shadowEvaluation:{version:evaluation.version,generatedAt:now,candidateRevision:row.review_revision,recommendation:evaluation.recommendation,evidenceCount:evaluation.evidenceCount,matchedDecisionCount:evaluation.matchedDecisionCount,similarityLevel:evaluation.similarityLevel,contradictionCount:evaluation.contradictionCount,reason:evaluation.reasonSummary,policyVersion:evaluation.policyVersion,decisionIds:evaluation.matches.map(m=>m.decisionId),operatorFinalVerdict:input.action}}:{}),factsPresent:!!parseFacts(row),eventType:row.event_type,publicationDecision:row.publication_decision,hasDate:Number.isFinite(Date.parse(row.published_at)),sale:row.category==='sale',labelQuality:validation?.quality.labelInformationScore??null});
  const statement=store.db.prepare(`INSERT INTO news_decision_ledger(decision_id,candidate_id,verdict,reason,actor_type,actor_id,decided_at,source_id,category,decision_features_json,policy_version,request_id,request_payload_hash,candidate_revision,candidate_snapshot,success_state,created_at,persisted_label,checks_json)
  SELECT ?,c.id,?,?,?,?,?,c.source_id,c.category,?,?,?,?,c.review_revision,?,'committed',?,?,?
  FROM candidate_items c WHERE c.id=? AND c.review_revision=? AND c.review_status=? AND c.origin<>'legacy_fixture_backfill' AND ${snapshotWhere}
