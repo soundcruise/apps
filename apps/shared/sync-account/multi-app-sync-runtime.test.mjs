@@ -2433,7 +2433,8 @@ for (const choice of ['remote', 'local']) {
 }
 
 for (const [label, values, expectedDisplay] of [
-  ['missing accidental and other known defaults', { noteSpeed: 2 }, 'sharp'],
+  // A ♯/♭ value the cloud never had stays absent on the new device (the app shows ♯): nothing is invented.
+  ['missing accidental and other known defaults', { noteSpeed: 2 }, null],
   ['explicit sharp', { noteSpeed: 2, accidentalDisplay: 'sharp' }, 'sharp'],
   ['explicit flat', { noteSpeed: 2, accidentalDisplay: 'flat' }, 'flat']
 ]) {
@@ -2469,10 +2470,15 @@ test('Pitch known settings defaults compare semantically while unknown future fi
   const bare = { recordType: 'settings', recordId: 'settings', schemaVersion: 1,
     payload: { id: 'settings', values: { noteSpeed: 2 } } };
   const knownDefaults = { ...bare, payload: { id: 'settings', values: {
-    noteSpeed: 2, accidentalDisplay: 'sharp', instrument: 'acoustic_guitar',
-    testModeEnabled: false
+    noteSpeed: 2, instrument: 'acoustic_guitar', testModeEnabled: false
   } } };
   assert.equal(pitch.sameRecordForSync(bare, knownDefaults), true);
+  // ♯/♭ has no filled-in default: "never chosen" (missing) and an explicit choice are different records, so
+  // an explicit value is synced instead of being skipped while the cloud keeps a different literal payload
+  // (which made a joining device report a manifest the server never had).
+  const explicitSharp = { ...bare, payload: { id: 'settings', values: { noteSpeed: 2, accidentalDisplay: 'sharp' } } };
+  assert.equal(pitch.sameRecordForSync(bare, explicitSharp), false);
+  assert.equal(pitch.sameRecordForSync(explicitSharp, structuredClone(explicitSharp)), true);
   const future = { ...bare, payload: { id: 'settings', values: { noteSpeed: 2, futureMode: 'on' } } };
   assert.equal(pitch.sameRecordForSync(bare, future), false);
   assert.equal(pitch.sameRecordForSync(future, structuredClone(future)), true);

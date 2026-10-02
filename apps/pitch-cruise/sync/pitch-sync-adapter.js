@@ -13,7 +13,7 @@
     'pitchTrainerTestModeEnabled',
     'pitchTrainerTestModeResults'
   ]);
-  // theme is a per-device color choice: kept locally across remote apply, never sent (yet).
+  // Per-device sound settings: kept locally across remote apply, never sent.
   const LOCAL_ONLY_SETTINGS = Object.freeze(['baseHz', 'sustainTime']);
   // Color theme is a synced settings field too, but it has no default: an unset theme is never sent and a
   // settings record without theme never clears it, so it is handled outside the DEFAULT_SETTINGS rebuild.
@@ -40,7 +40,8 @@
       if (!Object.prototype.hasOwnProperty.call(result, key)) result[key] = value;
     }
     if (!Object.prototype.hasOwnProperty.call(result, 'testModeEnabled')) result.testModeEnabled = false;
-    if (!Object.prototype.hasOwnProperty.call(result, 'accidentalDisplay')) result.accidentalDisplay = 'sharp';
+    // accidentalDisplay is not filled in: a missing value means "never chosen" (shown as ♯) and stays missing,
+    // so a merge never turns it into an explicit 'sharp' that the cloud does not hold (manifest mismatch).
     for (const [field, refs] of [['builtinChordEnabled', BUILTIN_CHORDS],
       ['builtinProgressionEnabled', BUILTIN_PROGRESSIONS]]) {
       const enabled = isPlainObject(result[field]) ? result[field] : {};
@@ -1005,7 +1006,8 @@
     return {
       pitchTrainerProData: JSON.stringify({ customChords: [...builtins, ...customChords], customProgressions: [...builtinProgressions, ...customProgressions] }),
       pitchTrainerSettings: JSON.stringify(nextSettings),
-      pitchTrainerProAccidentalDisplay: values.accidentalDisplay || 'sharp',
+      // Only a chosen ♯/♭ is stored; "never chosen" stays absent (the app shows ♯), matching the cloud.
+      pitchTrainerProAccidentalDisplay: values.accidentalDisplay,
       pitchTrainerStagingProMelodySlots: JSON.stringify(melody),
       pitchTrainerStagingProChordSlots: JSON.stringify(chordStageData),
       pitchTrainerTestModeEnabled: String(values.testModeEnabled === true),
@@ -1048,7 +1050,10 @@
     }
     try {
       const materialized = materialize(snapshot, { values: backup.values });
-      for (const key of MANAGED_KEYS) storage.setItem(key, materialized[key]);
+      for (const key of MANAGED_KEYS) {
+        if (materialized[key] === undefined) storage.removeItem(key);
+        else storage.setItem(key, materialized[key]);
+      }
       if (typeof options.afterWrite === 'function') await options.afterWrite();
       const actual = normalizeRawSnapshot(readLocalSnapshot(storage));
       const actualManifest = await computeManifest(actual, options.cryptoImpl || global.crypto);

@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/pitch-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/pitch-cruise/standard/`
 - PRO版URL: `https://soundcruise.jp/apps/pitch-cruise/pro_x9v7q2m8/`
-- 現在のバージョン: `2.27.0`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
+- 現在のバージョン: `2.27.1`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
 - 最新commit（pitch-cruise関連、`git log --oneline -- apps/pitch-cruise/` で確認）:
   - hash: `62b4a3bf`
   - message: `音感クルーズPROカスタムSTAGEの保存導線を整理`
@@ -114,7 +114,7 @@
 - 起動時: 各 `index.html` の `<head>` 先頭の bootstrap が `html[data-theme]` を設定し、Dark 以外は既存の theme-color（#121212）より前に meta を追加。
 - 見た目: Dark は既存CSSそのまま。Charcoal / Gray / Light は `theme-colors.css`（通常版/Pro）・`theme-colors-beta.css`（ベータ）だけで適用。どちらも `tools/theme-layer/generate.py pitch` / `pitch-beta` で自動生成（手で直すのは末尾の Hand-tuned overrides のみ）。
 - 鍵盤（白鍵・黒鍵・アクティブ鍵）・正誤色・テストモードの赤は固定。ネオングリーン/シアンを文字に使う箇所は同系色の濃淡で読みやすくする。
-- Cloud Sync（2.27.0〜、writer）: theme は `LOCAL_ONLY_SETTINGS` から外し、settings の同期項目（`SYNC_OPTIONAL_SETTINGS`）にした。既定値を持たないので `DEFAULT_SETTINGS` による組み直しの外で扱う（未設定のテーマを作らない・消さない）。`baseHz` / `sustainTime` は引き続き端末ローカル。
+- Cloud Sync（2.27.1〜、writer）: theme は `LOCAL_ONLY_SETTINGS` から外し、settings の同期項目（`SYNC_OPTIONAL_SETTINGS`）にした。既定値を持たないので `DEFAULT_SETTINGS` による組み直しの外で扱う（未設定のテーマを作らない・消さない）。`baseHz` / `sustainTime` は引き続き端末ローカル。
   - 送信: 明示保存された theme → なければ旧 reader 版の `themeCloudMirror` → どちらも無ければ送らない（未設定をダークとして送らない）。
   - 受信: 有効な theme はこの端末の明示 theme として保存し、`themeCloudMirror` は解消する。theme の無い settings ではローカルの theme とミラーを残す。適用後の `sound-cruise-pitch-sync-applied` で本体が `loadSettings()` し直すので、表示と `this.theme` も更新される。
   - アダプタは `syncCapabilities = ['settings_theme_v1']` を宣言する。宣言しない旧クライアント（2.26.3 以前）には Worker が theme を見せず、その書き込みでもクラウドの theme を保持する。
