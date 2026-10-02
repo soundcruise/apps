@@ -1,3 +1,4 @@
+import {targetSurface} from './target-evidence.js';
 // Diagnostics project the existing publication policy; they do not grant eligibility.
 export function missingFacts(row,facts,validation){
  const missing=[];
@@ -8,10 +9,11 @@ export function missingFacts(row,facts,validation){
  if(facts?.scopeUncertain)missing.push('製品本体／拡張・パック等の対象範囲');
  if(row.event_type==='other')missing.push('確認済みの出来事（発表・発売・更新等）');
  if(!row.published_at)missing.push('確認済みの公開日');
- if(validation.errors.includes('facts_incomplete')&&facts&&!missing.length)missing.push('既存の識別・イベント方針を満たすfacts／label');
+ if(validation.errors.includes('facts_incomplete')&&facts&&!missing.length)missing.push(facts.kind==='guitar_event'?'確認済みの人物・イベントは、現行パイロットの掲載条件を満たしていません':'既存の識別・イベント方針を満たすfacts／label');
  return missing;
 }
 export function recoverySurface(row,source){
+ const targeted=targetSurface(row,source);if(targeted)return targeted;
  // Fixed listing-only evidence must not become permission to crawl article bodies.
  if(source?.id==='ikebe-event'&&source.discoveryUrl==='https://www.ikebe-gakki.com/blog/category/event/')return {url:row.source_url,method:'explicit_event_fields',parser:'event-article-1'};
  if(['shimamura','ikebe','ik'].includes(source?.id)&&['official_listing','shimamura_listing'].includes(source.discoveryType))return {url:source.discoveryUrl,method:'existing_listing_parser',parser:'news-metadata-1'};

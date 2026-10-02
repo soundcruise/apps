@@ -12,9 +12,9 @@ import {hash} from '../src/policy.js';
 import {localDatabase} from '../scripts/local-db.mjs';
 import {administer} from '../src/admin.js';
 const robot='User-agent: *\nAllow: /';
-const url='https://www.shimamura.co.jp/update/dtm-recording/2026/10/90252/';
+const url='https://www.shimamura.co.jp/update/dtm-recording/2026/10/90254/';
 const html=title=>`<h1>製品ニュース 記事一覧</h1><a href="${url}"><h2>${title}</h2><time>2026/10/01</time><span class="btn-cat-recording">DTM レコーディング</span></a>`;
-async function setupCase(s){s??=await setup();const a={...source,robotsHash:await hash(robot)},id=await hash(url);const item=await put(s,'90252',{id,sourceUrl:url,normalizedUrl:url,publishedAt:'2026-09-30T15:00:00.000Z',productFacts:null,eventType:'other'});return {s,a,item};}
+async function setupCase(s){s??=await setup();const a={...source,robotsHash:await hash(robot)},id=await hash(url);const item=await put(s,'90254',{id,sourceUrl:url,normalizedUrl:url,publishedAt:'2026-09-30T15:00:00.000Z',productFacts:null,eventType:'other'});return {s,a,item};}
 async function inputFor(s,id){const {requestId,snapshot,revision}=await decisionInput(s,{id});return {id,requestId,snapshot,revision};}
 const fetcher=(text=html('SHURE MV6 新製品発表'),hook)=>async (url,options)=>{assert.equal(options.redirect,'manual');assert.equal(options.credentials,'omit');if(url.endsWith('robots.txt'))return new Response(robot);if(hook)await hook();return new Response(text,{headers:{'Content-Type':'text/html'}});};
 const opts=f=>({fetcher:f,sleep:async()=>{}});

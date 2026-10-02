@@ -1,3 +1,4 @@
+import {parseTargetEvidence,targetIdentityRefinement} from './target-evidence.js';
 import {legalGate} from './registry.js';
 import {boundedFetch,robotsPolicy,hash,optOut,BOT,DAY} from './policy.js';
 import {parseShimamuraListing} from './shimamura-listing.js';
@@ -18,13 +19,13 @@ async function gate(store,source,registry,now,row){
  return state;
 }
 
-async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms))}={}){
- const surface=recoverySurface(row,source),previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(source.id).first();
+async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false}={}){
+ const surface=recoverySurface(row,source),cacheKey=surface.method==='targeted_explicit_primary_fields'?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):source.id,previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  if(previous?.checked_at>now-DAY){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
  const token=crypto.randomUUID();
  const claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) VALUES(?,?,?,?,'in_progress')
  ON CONFLICT(source_id) DO UPDATE SET lease_token=excluded.lease_token,lease_until=excluded.lease_until,checked_at=excluded.checked_at,outcome='in_progress',items_json=NULL,proof_json=NULL WHERE lease_until<=? AND checked_at<=?`)
- .bind(source.id,token,now+60000,now,now,now-DAY).run();
+ .bind(cacheKey,token,now+60000,now,now,now-DAY).run();
  if(claimed.meta.changes!==1)throw Error('facts_recheck_busy');
  let acquired=false,items=[],proof=null,outcome='facts_unavailable';
  try{
@@ -47,7 +48,8 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
   if(response.status!==200||!/text\/html/i.test(response.headers.get('content-type')||''))throw Error('facts_source_unavailable');
   proof={sourceId:source.id,sourceUrl:surface.url,verifiedAt:now,extractionMethod:surface.method,parserVersion:surface.parser,responseHash:await hash(response.text)};
   try{
-   if(surface.method==='explicit_event_fields')items=[{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:'guitar_event',productFacts:parseEventArticle(response.text,source,row.source_url)}];
+   if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseTargetEvidence(response.text,source,row)}];
+   else if(surface.method==='explicit_event_fields')items=[{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:'guitar_event',productFacts:parseEventArticle(response.text,source,row.source_url)}];
    else{
     const entries=(source.id==='shimamura'?parseShimamuraListing(response.text,surface.url):parseOfficialListing(response.text,source)).entries;
     try{for(const entry of entries){const {item}=await candidateFrom(entry,source,robots,now,pepper);if(item)items.push({id:item.id,sourceUrl:item.sourceUrl,publishedAt:item.publishedAt,category:item.category,eventType:item.eventType,productFacts:item.productFacts?{...item.productFacts,...(['relevance_uncertain','category_mismatch'].includes(item.decisionReason)?{scopeUncertain:true}:{})}:null});}}
@@ -66,9 +68,9 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
    else if(outcome==='facts_http_429'||/^facts_http_5/.test(outcome))await store.db.prepare('UPDATE source_state SET backoff_until=MAX(backoff_until,?),lease_until=0 WHERE source_id=?').bind(now+(outcome==='facts_http_429'?DAY:6*3600000),source.id).run();
    else await store.db.prepare('UPDATE source_state SET lease_until=0 WHERE source_id=?').bind(source.id).run();
   }
-  await store.db.prepare('UPDATE news_facts_sources SET lease_until=0,outcome=?,items_json=?,proof_json=? WHERE source_id=? AND lease_token=?').bind(outcome,JSON.stringify(items),proof?JSON.stringify(proof):null,source.id,token).run();
+  await store.db.prepare('UPDATE news_facts_sources SET lease_until=0,outcome=?,items_json=?,proof_json=? WHERE source_id=? AND lease_token=?').bind(outcome,JSON.stringify(items),proof?JSON.stringify(proof):null,cacheKey,token).run();
  }
- return await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(source.id).first();
+ return await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
 }
 
 export async function recheckFacts(store,input,now,registry,pepper,actor,options={}){
@@ -80,6 +82,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(input.id).first();
  if(!row)throw Error('candidate_not_found');if(!['pending','reopened'].includes(row.review_status)||row.origin==='legacy_fixture_backfill')throw Error('already_decided');
  if(row.review_revision!==input.revision||await candidateSnapshot(row)!==input.snapshot)throw Error('candidate_changed');
+ if(options.serverRepair&&(actor.type!=='system_repair'||row.source_id!=='ikebe-event'||row.source_url!=='https://www.ikebe-gakki.com/blog/20261021-aco-workshop/'))throw Error('facts_server_repair_denied');
  const source=registry.find(s=>s.id===row.source_id);await gate(store,source,registry,now,row);
  const before=await publicationValidation(store,row,now,registry,pepper);
  // Already valid and duplicate candidates need no publisher traffic or rewrite.
@@ -95,7 +98,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
    else{
     const facts=item.productFacts,old=before.facts;
     const changedIdentity=old&&['brand','product','artist','performer'].some(k=>old[k]&&facts[k]!==old[k]);
-    if(changedIdentity)outcome='facts_identity_changed';
+    if(changedIdentity&&!targetIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
     else if(canonical(facts)===canonical(old)&&item.eventType===row.event_type){outcome='facts_unchanged';provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});}
     else{
      const category=facts.category,label=factualLabel(facts,item.eventType)||row.label;

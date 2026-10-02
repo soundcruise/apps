@@ -90,9 +90,10 @@ export function parseEventArticle(html,source,url){
    let value='';for(let n=h.next;n&&!/^h[1-3]$/.test(n.name||'');n=n.next){value+=' '+plain(n);if(value.length>2000)break;}
    sections[key]=value.trim();
   }
-  // Instructor name must be the immediately following h2 and also in the title.
+  // Instructor name must be the next h2 (or sole h2 in the next WordPress
+  // instructor columns block) and also in the title. Never inspect related cards.
   const teachers=find(doc,n=>/^h[23]$/.test(n.name)&&!hidden(n)&&plain(n)==='講師');
-  let artist=null;if(teachers.length===1){let n=teachers[0].next;while(n&&(n.type==='text'||n.name==='figure'||n.name==='p'&&!plain(n)))n=n.next;const name=n?.name==='h2'?plain(n):'';if(/^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}・ 　]{2,24}$/u.test(name)&&title.includes(name))artist=name.replace(/[ 　]/g,'');}
+  let artist=null;if(teachers.length===1){let n=teachers[0].next;while(n&&(n.type==='text'||n.name==='figure'||n.name==='p'&&!plain(n)||n.name==='div'&&cls(n,'wp-block-spacer')&&!plain(n)))n=n.next;const nested=n?.name==='div'&&cls(n,'wp-block-columns')?find(n,x=>x.name==='h2'&&!hidden(x)):[];const name=n?.name==='h2'?plain(n):nested.length===1?plain(nested[0]):'';if(/^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}・ 　]{2,24}$/u.test(name)&&title.includes(name))artist=name.replace(/[ 　]/g,'');}
   const match=/^(20\d{2})年(\d{1,2})月(\d{1,2})日/.exec(sections['開催日時']||'');
   let eventDate=null;try{if(match)eventDate=date(match[1],match[2],match[3]);}catch{}
   const venue=/^(?:イケシブ)(?:POPUP SPACE|LIVES|SHOWCASE)?(?:[ （(]|$)/.test(sections['会場']||'')?'イケシブ':/^リボレ秋葉原(?:[ （(]|$)/.test(sections['会場']||'')?'リボレ秋葉原':null;

@@ -1,0 +1,4 @@
+import {sqlLiteral} from './remote-db.mjs';
+// Internal CLI only: bind values as SQL literals, never concatenate data as SQL.
+export function boundSql(sql,values){let index=0,quoted=false,out='';for(let i=0;i<sql.length;i++){const c=sql[i];if(c==="'"){out+=c;if(quoted&&sql[i+1]==="'"){out+=sql[++i];continue;}quoted=!quoted;}else if(c==='?'&&!quoted){if(index>=values.length)throw Error('sql_bind_arity');out+=sqlLiteral(values[index++]);}else out+=c;}if(quoted||index!==values.length)throw Error('sql_bind_arity');return out;}
+export function remoteFactsDatabase(execute){return {prepare(sql){let values=[];const query=async()=>{const result=await execute(boundSql(sql,values));if(result.length!==1||result[0].success===false)throw Error('remote_facts_query_failed');return result[0];};return {bind(...args){values=args;return this;},run:query,all:query,async first(){return (await query()).results[0]||null;}};}};}

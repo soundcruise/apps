@@ -199,3 +199,40 @@ See [Facts Completion Report](OPERATOR-FACTS-COMPLETION-REPORT.md) for the
 - Source cache retention: 24h. Recovery evidence retention: 90 days.
 - Rolling Worker code back does not require destructive rollback of additive D1
   tables/column. Preserve recovery evidence and existing decisions.
+
+## Phase A.6 targeted primary evidence (Operator 0.12.0)
+
+The user explicitly authorized evidence checks of four existing pending candidates.
+`target-evidence.js` enables original-page rechecks only for the exact existing
+Ikebe event, Shimamura SHURE and Ikebe KORG URLs. IK item 19790 remains on the
+existing fixed-listing workflow: its current server response does not identify
+that article, and localized item 19792 must not supply facts for it.
+
+Each targeted recheck uses the existing auth/Origin/CSRF boundary, candidate
+snapshot/revision, source kill/backoff/robots gates, shared source lease, bounded
+robots + one primary-page request and atomic facts/provenance transaction.
+Its 24-hour cache is keyed by source, parser version and candidate; it neither
+invalidates the daily listing cache nor expands scheduled collection. Repeats
+use cache and request-id replay. Parser failures keep the candidate unchanged.
+No article body, exact headline or image is retained.
+
+SHURE's three agreeing explicit signals (article heading, product heading and
+release statement) correct the incomplete MV6 identifier to MV6 Gen 2 on that
+one URL only. Other identity changes stay blocked. KORG's model heading and
+explicit introduction statement establish new_product without changing its
+identity or inventing a release date. The event's labeled instructor columns
+can establish a person, but the existing named-guitarist pilot remains unchanged.
+
+Always re-run existing publication validation. Facts recovery is not a decision:
+no approve/reject, decision ledger, teacher signal or automatic recommendation.
+Public NEWS Worker 0.11.0 and Port 1.13.1 are not redeployed for this phase.
+
+If the event-only Worker fetch rejects a redirect while the requested original
+page is accessible to the operator's server, `node scripts/recheck-event-server.mjs`
+provides a one-candidate authenticated Wrangler/D1 transport. It invokes the same
+facts service against the real DB and records the actor as system_repair, never
+human_operator. An event-only server-purpose cache allows one bounded verification
+per 24 hours without deleting or overriding the Worker cache. The CLI accepts no
+URL, candidate, namespace or decision arguments. HTTP inputs cannot request this
+transport; all ordinary robots, redirects, opt-outs, backoff, source leases,
+full-row CAS, atomic provenance and publication validation remain enforced.

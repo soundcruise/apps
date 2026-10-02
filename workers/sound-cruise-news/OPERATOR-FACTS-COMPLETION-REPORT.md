@@ -298,3 +298,142 @@ Human operator may inspect originals and reject unsuitable/duplicate items now. 
 - all tests pass: YES
 - production verification passes: YES
 - Git safety followed: YES
+
+---
+
+# NEWS Operator Review Phase A.6 — Targeted Candidate Evidence Completion Report
+
+## Overall Verdict
+
+READY FOR HUMAN DECISION: **2 candidates**. No publication rule was relaxed and no approve/reject was executed. Verified evidence was saved for three candidates; ReSing remains uncertain.
+
+## 1. Starting Baseline
+
+Measured 2026-10-02 11:39 UTC: main = origin/main = b90ad0c9b50af9d33c03a05c4000b631389d605a, ahead/behind 0/0, tracked/staged clean. Known `.claude/` and Sync node_modules preserved. NEWS / Operator / public Worker 0.11.0; Port 1.13.1. D1 approved 49 / pending 13 / rejected 19 / ledger 0; public projection 49. The initial OAuth D1 read failed once (7403); identity confirmation and the second read succeeded.
+
+## 2. Target Selection
+
+D1 corrects the two swapped IDs in the request: SHURE = b2b7643732; KORG = 5343ab1aab.
+
+| Candidate | Existing facts | Missing blocker | Recovery likelihood |
+|---|---|---|---|
+| SHURE b2b7643732 | Brand / partial MV6 identity / category | Full generation and explicit action | HIGH |
+| KORG 5343ab1aab | Full model / brand / category | Explicit introduction/action | HIGH |
+| Event 3a6dd027f7 | Date / venue / workshop / relevance | Person, assessed named-person scope | MEDIUM initially; LOW for approval after identifying an unassessed person |
+| IK b5c0c40743 | ReSing / manufacturer / category / uncertain scope | Exact target identity and scope evidence | LOW |
+| IK bd2d0be4e4, a740971f36 | No product facts | Identifier and action | LOW |
+| Ikebe 368e218d4d, b3462045cf, b44fe9ca6a, b7cb377c37 | No product facts | Identifier and action | LOW |
+| Shimamura 4020bf1b51, bf0895e203 | No product facts | Identifier and action | LOW |
+| LAVA 4632d340b4 | Existing product facts | Approved Sleepfreaks duplicate | LOW; duplicate stays blocked |
+
+## 3. Ikebe Event
+
+[Original source](https://www.ikebe-gakki.com/blog/20261021-aco-workshop/). Verified instructor **西山隆行** from the labeled instructor section, sole profile heading and article title. Guitar/workshop relevance is explicit. Date 2026-10-21, venue イケシブ and workshop type preserved.
+
+The previous parser stopped at an empty WordPress spacer before the nested instructor columns. Only this known empty spacer and the sole instructor heading are now accepted. Related people/cards, hidden content, duplicate headings and URL dates cannot supply facts.
+
+Worker transport rejected a redirect and left the candidate intact. The exact original page was available to the authenticated server-side CLI. The CLI shares all ordinary source/robots/lease/CAS/provenance gates and accepts no candidate/URL/decision arguments. Its event-only 24-hour cache records a separate bounded server purpose. No redirect-following exception was introduced.
+
+Result: artist saved, status pending, no duplicate; existing named-guitarist pilot excludes this person, so approval remains disabled. The UI describes the current pilot condition without claiming the person is still unknown.
+
+## 4. SHURE MV6
+
+[Original source](https://www.shimamura.co.jp/update/dtm-recording/2026/10/90252/). Three agreeing explicit signals identify **MV6 Gen 2**, and the main article explicitly states its release. The incomplete MV6 identifier is refined on this exact URL only; arbitrary model changes remain blocked. Published day 2026-10-01 confirmed and unchanged. Category recording_audio; event_type release; independent label `SHURE、MV6 Gen 2を発売`.
+
+Result: READY_FOR_HUMAN_DECISION, approval enabled, rejection available, pending, no duplicate. No decision executed.
+
+## 5. KORG BD-S
+
+[Original source](https://www.ikebe-gakki-pb.com/new_product/172475/). The sole main model heading agrees with the stored identity. The same main article explicitly introduces OD-KIT CUSTOM CRAFT. Under the existing classifier, introduction maps to new_product. Product identity and amps_effects category unchanged; published day 2026-09-17 confirmed, not treated as a shipping date. Independent label uses the existing factualLabel implementation.
+
+Result: READY_FOR_HUMAN_DECISION, approval enabled, rejection available, pending, no duplicate. No release date guessed.
+
+## 6. IK ReSing
+
+[Requested original source](https://www.ikmultimedia.com/news/?item_id=19790) returned the site's Japanese news listing to the server, without an identified item 19790 article. Its visible ReSing expansion card is item **19792**, not 19790. The source's fixed press listing also no longer contains 19790. Neither similar names/dates nor the load-more link establish an explicit cross-language identity relation.
+
+Result: **still uncertain**. No expansion/standalone fact stored, no scopeUncertain flag cleared, no individual IK parser added, no auto-reject. Current facts/provenance/status remain unchanged. A neighboring item's evidence must not be borrowed.
+
+## 7. Parser / Extractor Changes
+
+Exact original-page surfaces for three candidates only; visible source-specific structured sections; matching explicit publication day; deterministic action extraction; full model refinement narrowly scoped to SHURE. Shared generic listing recovery stays available for other candidates. Scheduled discovery, source policy, collection allowlist and publication validation unchanged.
+
+The original 24-hour listing cache is retained; targeted cache keys distinguish candidate/parser. Each recheck is bounded to robots plus one page, with shared source lease, rate accounting, timeout, size cap, no redirects, kill/backoff/opt-out handling, full-row CAS and atomic facts/provenance. Request replay never refetches. No raw HTML, article body, exact headline or external image retained.
+
+## 8. Provenance
+
+All saved fields have source URL, source ID, verifiedAt, extraction method, parser/version, factField and response hash. These are facts-recheck records, not decisions.
+
+| Candidate | VerifiedAt UTC | Parser | Fields with provenance |
+|---|---|---|---|
+| SHURE | 2026-10-02T11:55:00.198Z | target-evidence-1 | brand, product, version, category, identifierBasis, event_type |
+| KORG | 2026-10-02T11:56:18.632Z | target-evidence-1 | brand, product, category, version, identifierBasis, listingSource, event_type |
+| Event | 2026-10-02T12:02:55.845Z | target-evidence-2 | kind, category, artist, eventType, eventDate, venue, evidence, event_type |
+
+Each URL is the corresponding original source linked above. Method: targeted_explicit_primary_fields. Target parser version 2 adds the confirmed empty-spacer handling; the earlier successful SHURE/KORG provenance accurately retains version 1. The authoritative exact timestamps are in D1 facts_provenance.
+
+## 9. Publication Validation
+
+`decision-policy.js`, metadata eligibility, source policies and their evidence, schema and migrations unchanged. Existing publication validation rerun for every patched candidate. Recovered full SHURE identity is checked again against duplicates. LAVA remains DUPLICATE_BLOCKED. Source health was not fabricated to make candidates eligible.
+
+## 10. Current 13 Reviewability
+
+Before: 12 FACTS_RECOVERY_UNCERTAIN + 1 DUPLICATE_BLOCKED, no approval enabled.
+
+| Candidate | Before | New evidence | After | Approve | Reject |
+|---|---|---|---|---|---|
+| bd2d0be4e4 IK19855 | Uncertain | None; outside target scope | Uncertain | NO | YES |
+| 368e218d4d Ikebe172649 | Uncertain | None | Uncertain | NO | YES |
+| 4020bf1b51 Shim89868 | Uncertain | None | Uncertain | NO | YES |
+| 4632d340b4 LAVA STUDIO | Duplicate | None; protection preserved | DUPLICATE_BLOCKED | NO | YES |
+| b2b7643732 SHURE | Uncertain | MV6 Gen 2 + release | READY_FOR_HUMAN_DECISION | YES | YES |
+| b3462045cf Ikebe172622 | Uncertain | None | Uncertain | NO | YES |
+| b44fe9ca6a Ikebe172640 | Uncertain | None | Uncertain | NO | YES |
+| b7cb377c37 Ikebe172658 | Uncertain | None | Uncertain | NO | YES |
+| bf0895e203 Shim89963 | Uncertain | None | Uncertain | NO | YES |
+| 3a6dd027f7 Event | Person missing | 西山隆行 instructor | Existing pilot condition blocks publication | NO | YES |
+| b5c0c40743 ReSing | Scope uncertain | Exact target inaccessible; no facts borrowed | Uncertain | NO | YES |
+| 5343ab1aab KORG | Action missing | Explicit introduction | READY_FOR_HUMAN_DECISION | YES | YES |
+| a740971f36 IK19650 | Uncertain | None | Uncertain | NO | YES |
+
+## 11. Learning Boundary
+
+Ledger 0. No approve/reject executed. Existing legacy/operator feedback count is 22, with no entries during this phase; facts recovery writes no feedback. No human teacher signal was fabricated, and no adaptive recommendation was implemented.
+
+## 12. Tests
+
+NEWS **412/412 PASS**, including all Phase A/A.5 security, real local D1 atomicity, replay, concurrency, duplicate, source gates and transport regression. Port NEWS **27/27 PASS**. New fixtures cover explicit actions, incomplete/ambiguous/hidden/changed model statements, stale publication day, opt-out, event columns/spacer, missing IK identity, provenance, untouched candidate fields, shared cache isolation, simultaneous rechecks, server-purpose restriction and SQL binding. Syntax and diff --check pass; secret scan uses actual private values without printing them. No unrelated app full suites run.
+
+## 13. Versions / Deploy
+
+NEWS package / Operator: **0.12.0** (new operator-visible targeted evidence capability). Public NEWS Worker remains **0.11.0**; Port remains **1.13.1**. Only Operator deployed. Final Worker version ID: **a9dc0f96-caba-422b-b8c4-26599124937b**. Existing Access exact host, human-only Allow policy and 6-hour session verified read-only; no access grant or security setting changed.
+
+## 14. Production Verification
+
+D1: approved 49 / pending 13 / rejected 19 / ledger 0. Only the three target candidate rows changed; all statuses, all other 78 candidate rows, source health and takedowns unchanged. Source request timing/cache and operational audit updates are expected, not fabricated healthy runs. Public 49 article projections byte-for-byte equal before/after. Public health OK, collection/publication/API on. Unauthenticated root, JS, CSS and pending API return Access 302. Authenticated management UI confirms target facts/provenance, two approvals enabled, other approvals disabled and rejection available. No production decision executed.
+
+## 15. Git
+
+Existing work and known untracked directories preserved. Changes restricted to NEWS Operator/extraction/tests/operations/report. Explicit stage, commit and normal push only after checks; final commit SHA recorded in the user-facing closeout. No git add ., reset --hard, clean, stash or force push. No Cloud Sync, Account, Worker binding, D1 schema, Port or AI Support changes.
+
+## 16. Next Step
+
+The human operator can review SHURE and KORG and choose approve/reject with the existing four checks. This phase stops before any decision. Event requires a separately authorized named-guitarist scope review; ReSing requires primary evidence explicitly identifying item 19790. No recommendation phase started.
+
+| Final check | YES / NO |
+|---|---|
+| Ikebe Event gained verified person/relevance facts | YES |
+| SHURE MV6 gained verified event facts | YES |
+| KORG BD-S gained verified event facts | YES |
+| IK ReSing scope determined | NO |
+| publication policy relaxed | NO |
+| guessed facts stored | NO |
+| duplicate protection preserved | YES |
+| at least one candidate became safely approvable | YES — 2 |
+| current pending approved/rejected | NO |
+| decision ledger modified | NO |
+| Phase A security regressed | NO |
+| adaptive recommendation implemented | NO |
+| all tests pass | YES |
+| production verification passes | YES |
+| Git safety followed | YES |
