@@ -1114,6 +1114,14 @@
         return Object.freeze({ ok: false, code: 'resolution_offline' });
       }
       try {
+        // A settings record with a field plan is resolved field by field (as the
+        // conflict screen does). A whole-record "remote" (e.g. a choice saved by an
+        // older screen) cannot be verified for adapters that keep a device theme or
+        // fill defaults, so it is refused and the saved choice cleared.
+        if (choice === 'remote' && conflict.recordType === 'settings' &&
+            this.settingsFieldPlan(await this.conflictContext(conflict))) {
+          throw Object.assign(new MultiAppSyncError('settings_field_choice_required'), { resetResolution: true });
+        }
         return choice === 'merged'
           ? await this.resolveMergedSettingsConflict(conflict, options.fieldChoices || {})
           : choice === 'local' ? await this.resolveLocalConflict(conflict)
@@ -1427,6 +1435,16 @@
         // belongs to this device, or the saved shadow exactly matches the current
         // remote snapshot after the last initial-merge conflict was resolved.
         finalSnapshot = local.snapshot;
+        // An own record missing locally without a deletion intent is not a
+        // deletion: hydrate it, as every other join path does. Records with an
+        // intent stay out and are tombstoned by queueDiff.
+        const present = new Set(local.records.map(keyOf));
+        const hydrate = remoteLive.filter((record) => !present.has(keyOf(record)) &&
+          this.adapter.canDeleteDuringMigration?.(keyOf(record), record) !== true);
+        if (hydrate.length) {
+          finalSnapshot = this.adapter.deserializeRecords([...local.records, ...hydrate]);
+          await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
+        }
       } else if (resumesResolvedConflictMerge) {
         // The matching saved shadow proves that earlier conflict choices were
         // completed. Hydrate only records still absent locally; never infer a

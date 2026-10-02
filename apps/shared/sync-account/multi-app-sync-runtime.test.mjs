@@ -390,11 +390,12 @@ test('real Port migration never tombstones an absent remote record without delet
   fixture.server.records.set('metronome_preset/remote-only', { ...operation, revision: 1,
     deletedAt: null, changeSeq: 1, ownedByCurrentDevice: true });
   fixture.server.revision = 1;
-  // An absent record with no intent is hydrated or retained, never deleted. The
-  // own-partial resume keeps the local snapshot, so completion cannot attest to
-  // the retained record and fails closed, as the Worker's manifest check does.
-  await assert.rejects(fixture.runtime.initializeDataset(), (error) => error.code === 'manifest_mismatch');
+  // An absent record with no intent is hydrated, never deleted, and the resumed
+  // migration completes against the Worker-style manifest check.
+  assert.equal((await fixture.runtime.initializeDataset()).ok, true);
   assert.equal(fixture.server.records.get('metronome_preset/remote-only').deletedAt, null);
+  assert.deepEqual(JSON.parse(fixture.storage.getItem(key)).items.map((item) => item.id), ['remote-only']);
+  assert.equal(fixture.server.state, 'ready');
 });
 
 test('real Port free text data URL shape survives adapter serialization and Worker validation', async () => {

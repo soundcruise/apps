@@ -224,9 +224,19 @@ against a cloud settings record that carries `theme`:
   compares manifests byte for byte. Fix: initializeDataset adopts the cloud's own record when the final record is
   only semantically equal (adoptSemanticallyEqualRemote; adapters without sameRecordForSync pass through). No cloud
   write; test: workers/sound-cruise-sync/test/pitch-standard-shape-join.test.js.
-- Known, not fixed (internal API only; the conflict screen resolves settings field by field): a whole-record
-  "remote" resolution fails when the cloud settings record is Standard-shaped (Pitch), or when only this device has a
-  theme (Pitch / Fretboard / Rhythm writers).
+- Shared runtime v25 (Port 1.13.1):
+  - Port resume: an interrupted first Port migration whose own pushed record is gone locally without a deletion
+    intent now hydrates that record instead of failing migration/complete (409) forever. A journaled deletion
+    still tombstones.
+  - D': a whole-record "remote" on a P/F/R settings conflict that has a field plan is refused
+    (settings_field_choice_required) and its saved choice cleared, so it no longer retries on every start.
+    Test: workers/sound-cruise-sync/test/runtime-v25-hardening.test.js.
+- Known, NOT fixed (high priority, runtime v26 candidate): P/F/R ordered records (stage_order / preset_order).
+  - The resolved-merge resume branch hydrates items without updating the local order record.
+  - Pitch/Rhythm rejoin with a subset of the same ids gets an unresolvable ordering_conflict.
+  - Concurrent adds on two devices make the order record conflict. Choosing "this device" pushes a dangling order,
+    and both devices then fail every sync.
+  - The order rules belong in the adapters.
 - Rhythm root cause: saveSettings / saveStageClickSettings / saveRhythmStagePrefs rebuild the stored objects from
   memory, which a Cloud Sync apply does not update (tap layout, input mode, judgement, custom stages, click settings,
   stage prefs were reverted; custom stages lost). Fix: three-way saves + state hydration after apply (deferred while
