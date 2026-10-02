@@ -236,3 +236,12 @@ per 24 hours without deleting or overriding the Worker cache. The CLI accepts no
 URL, candidate, namespace or decision arguments. HTTP inputs cannot request this
 transport; all ordinary robots, redirects, opt-outs, backoff, source leases,
 full-row CAS, atomic provenance and publication validation remain enforced.
+
+## Operator UI 0.13.0 — 掲載可 / カード内詳細
+
+- 「表示」の「掲載可」は pending API が返す `validation.valid === true` のみを表示する。facts の有無から掲載可否を推測しない。既存の REVIEW / 情報源フィルターと併用できる。
+- 詳細は選んだカード内で1件ずつ展開し、「詳細を閉じる」で折りたたむ。ページ下部へのスクロール・アンカー・フォーカス移動は行わない。
+- フィルター変更時は詳細を閉じる。非同期応答が遅れても別カードや閉じた詳細に反映しない。判断済みで一覧から消えた候補の詳細は再表示しない。
+- 掲載 / 非掲載・CSRF・送信結果不明時の再送・facts 再確認は既存の手順のまま。カテゴリ・public NEWS・schema は変更なし。
+- 回帰確認: NEWS / Operator 417件、Port NEWS 27件 PASS。375px / 393px / 1280pxで横overflowなし、原記事HTTPSリンク、カード内展開・閉じる、掲載確認のチェック未完了時disabledを確認。
+- 本番の掲載・非掲載・facts再確認はこのUI確認では実行しない。
