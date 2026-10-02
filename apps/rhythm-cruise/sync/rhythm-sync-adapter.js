@@ -548,6 +548,101 @@
     return { ...clone(left), payload };
   }
 
+  // ---- Ordered records: stage_order / preset_order list every live item of their kind exactly once ----
+  // The stage list holds the enabled built-in samples (by key) and the custom stages; without a stage_order
+  // it is the samples' default order, and a stage_order is stored only when it differs from that default.
+  const ORDERED_PRESET_TYPES = Object.freeze({ create: 'create_preset', custom: 'custom_preset' });
+  function liveRecord(record) { return !!record && record.deletedAt == null && record.deleted !== true; }
+  function enabledSampleKeys(records) {
+    const settings = (records || []).find((record) => liveRecord(record) && record.recordType === 'settings');
+    const enabled = isPlainObject(settings?.payload?.values?.builtinSampleEnabled) ? settings.payload.values.builtinSampleEnabled : {};
+    return BUILTIN_SAMPLE_STAGES.map((sample) => sample.key).filter((key) => enabled[key] !== false);
+  }
+  function stageItems(records) {
+    return [...enabledSampleKeys(records), ...records.filter((record) => liveRecord(record) &&
+      record.recordType === 'custom_stage' && !record.payload?.builtinKey)
+      .map((record) => record.recordId).sort((left, right) => left.localeCompare(right))];
+  }
+  function stageOrderRefs(records, fallback) {
+    const order = (records || []).find((record) => liveRecord(record) && record.recordType === 'stage_order');
+    return Array.isArray(order?.payload?.stageRefs) ? order.payload.stageRefs : fallback;
+  }
+  function presetOrderRefs(records, category) {
+    const order = (records || []).find((record) => liveRecord(record) && record.recordType === 'preset_order' && record.recordId === category);
+    return Array.isArray(order?.payload?.presetRefs) ? order.payload.presetRefs : [];
+  }
+  // The primary order first, then the secondary order's other items, then items listed nowhere (in the
+  // order the app lists them); every live item once, nothing that does not exist.
+  function orderRefsFor(primary, secondary, live) {
+    const refs = [];
+    for (const ref of [...primary, ...secondary, ...live]) if (live.includes(ref) && !refs.includes(ref)) refs.push(ref);
+    return refs;
+  }
+  // Two sides without a common base: the items both list keep one relative order, then the other side's
+  // additions follow (disjoint lists simply concatenate). Contradicting relative orders are a choice for the user.
+  function mergeOrder(left, right) {
+    const common = left.filter((ref) => right.includes(ref));
+    if (canonicalJson(common) !== canonicalJson(right.filter((ref) => left.includes(ref)))) return null;
+    return [...left, ...right.filter((ref) => !left.includes(ref))];
+  }
+  // Against the last synced order: removals on either side stay removed, additions on both sides are kept,
+  // and the side that reordered the items all three share decides their order (both reordering differently
+  // is a choice for the user). The winning side's additions keep their places; the other side's follow.
+  function mergeOrderThreeWay(local, remote, shadow) {
+    const removed = new Set(shadow.filter((ref) => !local.includes(ref) || !remote.includes(ref)));
+    const kept = (refs) => refs.filter((ref) => !removed.has(ref));
+    const shared = (refs) => refs.filter((ref) => shadow.includes(ref) && local.includes(ref) && remote.includes(ref));
+    const same = (left, right) => canonicalJson(shared(left)) === canonicalJson(shared(right));
+    let first;
+    let second;
+    if (same(local, remote) || same(local, shadow)) [first, second] = [kept(remote), kept(local)];
+    else if (same(remote, shadow)) [first, second] = [kept(local), kept(remote)];
+    else return null;
+    return [...new Set([...first, ...second])];
+  }
+  function reconcileOrderRecords(snapshot, { remoteRecords = [], prefer = 'snapshot' } = {}) {
+    let records = [...(snapshot.records || [])];
+    const defaults = enabledSampleKeys(records);
+    const items = stageItems(records);
+    const ownStages = stageOrderRefs(records, defaults);
+    const cloudStages = stageOrderRefs(remoteRecords, []);
+    const stageRefs = prefer === 'remote' ? orderRefsFor(cloudStages, ownStages, items) : orderRefsFor(ownStages, cloudStages, items);
+    const stageIndex = records.findIndex((record) => record.recordType === 'stage_order');
+    const keepDefault = canonicalJson(stageRefs) === canonicalJson(defaults);
+    if (!(stageIndex < 0 && keepDefault) &&
+        !(stageIndex >= 0 && !keepDefault && canonicalJson(records[stageIndex].payload?.stageRefs) === canonicalJson(stageRefs))) {
+      records = records.filter((_record, position) => position !== stageIndex);
+      if (!keepDefault) records.push(makeRecord('stage_order', 'stages', { stageRefs }));
+    }
+    for (const [category, type] of Object.entries(ORDERED_PRESET_TYPES)) {
+      const live = records.filter((record) => liveRecord(record) && record.recordType === type)
+        .map((record) => record.recordId).sort((left, right) => left.localeCompare(right));
+      const own = presetOrderRefs(records, category);
+      const cloud = presetOrderRefs(remoteRecords, category);
+      const refs = prefer === 'remote' ? orderRefsFor(cloud, own, live) : orderRefsFor(own, cloud, live);
+      const index = records.findIndex((record) => record.recordType === 'preset_order' && record.recordId === category);
+      if (index < 0 && !refs.length) continue;
+      if (index >= 0 && refs.length && canonicalJson(records[index].payload?.presetRefs) === canonicalJson(refs)) continue;
+      records = records.filter((_record, position) => position !== index);
+      if (refs.length) records.push(makeRecord('preset_order', category, { category, presetRefs: refs }));
+    }
+    return { ...snapshot, records };
+  }
+  function mergeOrderRecord(local, remote, shadow, context = {}) {
+    const present = [local, remote, shadow].filter(Boolean);
+    const type = present[0]?.recordType;
+    if (!present.length || !['stage_order', 'preset_order'].includes(type) ||
+        !present.every((record) => record.recordType === type && record.recordId === present[0].recordId)) return undefined;
+    const field = type === 'stage_order' ? 'stageRefs' : 'presetRefs';
+    // A missing stage_order means the default sample order.
+    const absent = type === 'stage_order' ? enabledSampleKeys(context.localRecords || []) : [];
+    const refs = (record) => liveRecord(record) && Array.isArray(record.payload?.[field]) ? record.payload[field] : absent;
+    const merged = mergeOrderThreeWay(refs(local), refs(remote), refs(shadow));
+    if (!merged) return undefined;
+    return type === 'stage_order' ? makeRecord('stage_order', 'stages', { stageRefs: merged })
+      : makeRecord('preset_order', present[0].recordId, { category: present[0].payload?.category || present[0].recordId, presetRefs: merged });
+  }
+
   function mergeSnapshots(localSnapshot, remoteSnapshot) {
     const local = recordMap(localSnapshot);
     const remote = recordMap(remoteSnapshot);
@@ -570,11 +665,9 @@
         merged.set(key, mergeFieldRecord(left, right, conflicts, key, ['bpm', 'bars'], 'stage_preference_conflict'));
       } else if (left.recordType === 'stage_order' || left.recordType === 'preset_order') {
         const field = left.recordType === 'stage_order' ? 'stageRefs' : 'presetRefs';
-        const leftRefs = left.payload[field];
-        const rightRefs = right.payload[field];
-        if (leftRefs.every((ref) => !rightRefs.includes(ref))) {
-          const payload = { ...clone(left.payload), [field]: [...leftRefs, ...rightRefs] };
-          merged.set(key, { ...clone(left), payload });
+        const refs = mergeOrder(left.payload[field], right.payload[field]);
+        if (refs) {
+          merged.set(key, { ...clone(left), payload: { ...clone(left.payload), [field]: refs } });
         } else conflicts.push({ recordKey: key, reason: 'ordering_conflict' });
       } else if (left.recordType === 'create_preset' || left.recordType === 'custom_preset') {
         const combined = mergeTimestamped(left, right);
@@ -805,6 +898,9 @@
     isMeaningfulLocalData(snapshot = this.readLocalSnapshot()) { return isMeaningfulLocalData(snapshot); }
     mergeSnapshots(localSnapshot, remoteSnapshot) { return mergeSnapshots(localSnapshot, remoteSnapshot); }
     effectiveSettingsForMerge(values) { return effectiveSettingsForMerge(values); }
+    isOrderRecord(record) { return record?.recordType === 'stage_order' || record?.recordType === 'preset_order'; }
+    reconcileOrderRecords(snapshot, context) { return reconcileOrderRecords(snapshot, context); }
+    mergeOrderRecord(local, remote, shadow, context) { return mergeOrderRecord(local, remote, shadow, context); }
     encodeSettingsForMerge(values) { return encodeSettingsForMerge(values); }
     applyRemoteSnapshot(snapshot, options = {}) {
       return applyRemoteSnapshot(this.storage, snapshot, {

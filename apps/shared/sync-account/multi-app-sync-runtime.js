@@ -781,10 +781,14 @@
         resolution = { ...resolution,
           relatedKeys: [...new Set([...(resolution.relatedKeys || []), ...(plan.relatedKeys || [])])] };
         if (plan.complete) {
-          const cleanedSnapshot = typeof this.adapter.prepareInvalidRecordDeleteLocalSnapshot === 'function'
+          let cleanedSnapshot = typeof this.adapter.prepareInvalidRecordDeleteLocalSnapshot === 'function'
             ? await this.adapter.prepareInvalidRecordDeleteLocalSnapshot(context.local.snapshot, {
               recordKey: conflict.recordKey, remoteRecords: context.remote.records || []
             }) : context.local.snapshot;
+          if (typeof this.adapter.reconcileOrderRecords === 'function') {
+            cleanedSnapshot = { ...cleanedSnapshot, records: this.reconcileOrderRecords(cleanedSnapshot.records,
+              context.remote.records || [], 'remote') };
+          }
           await this.applyWithBackup(cleanedSnapshot, context.local.snapshot, { checkCurrent: true });
           conflict = await this.saveConflict(conflict, 'verifying', { ...resolution,
             status: 'verifying', recoveryOperations: [] });
@@ -804,7 +808,11 @@
           const reusable = saved && saved.deleted === mutation.deleted &&
             Number(saved.baseRevision || 0) === Number(mutation.remoteRecord?.revision || 0) &&
             canonicalJson(saved.payload) === canonicalJson(mutation.deleted ? null : mutation.record.payload);
-          operations.push(await this.operationFor(mutation.record,
+          // A repair write built by the adapter (e.g. an order without the broken reference) carries no
+          // payload hash yet; without one the Worker rejects it.
+          const record = mutation.deleted || mutation.record.payloadHash || typeof this.adapter.recordPayloadHash !== 'function'
+            ? mutation.record : { ...mutation.record, payloadHash: await this.adapter.recordPayloadHash(mutation.record) };
+          operations.push(await this.operationFor(record,
             mutation.remoteRecord?.revision || 0, mutation.deleted,
             reusable ? saved.operationId : this.randomOperationId()));
         }
@@ -845,6 +853,11 @@
           !context.remoteRecord && !context.shadowRecord) {
         await this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true });
         return this.finishResolution(conflict, context.remote);
+      }
+      if (!(conflict.resolution?.choice === 'local' && conflict.resolution.expectedRemote) &&
+          typeof this.adapter.reconcileOrderRecords === 'function' &&
+          this.adapter.isOrderRecord?.(context.localRecord || context.remoteRecord) === true) {
+        context = await this.prepareLocalOrderResolution(conflict, context);
       }
       let resolution = conflict.resolution?.choice === 'local' ? clone(conflict.resolution) : {
         choice: 'local', status: 'pending', operationId: this.randomOperationId(), startedAt: this.now()
@@ -950,6 +963,17 @@
             remoteRecords: context.remote.records || []
           });
         }
+        if (typeof this.adapter.reconcileOrderRecords === 'function') {
+          // Choosing the cloud's list brings in the items only the cloud has (never synced here, so not a
+          // deletion on this device); items this device added follow the cloud's order.
+          const orderChoice = this.adapter.isOrderRecord?.(context.remoteRecord || context.localRecord) === true;
+          const changes = orderChoice ? this.remoteOnlyChanges(context.local.records, context.remote.records || [],
+            context.shadowRecords, new Set([conflict.recordKey])) : new Map();
+          nextSnapshot = { ...nextSnapshot, records: this.reconcileOrderRecords(nextSnapshot.records
+            .filter((record) => !changes.has(keyOf(record))).concat([...changes.values()].filter(Boolean)),
+          context.remote.records || [], orderChoice ? 'remote' : 'snapshot') };
+          resolution = { ...resolution, relatedKeys: [...changes.keys()] };
+        }
         nextSnapshot = this.adapter.normalizeLocalSnapshot(nextSnapshot);
         const expectedRecords = await this.adapter.serializeRecords(nextSnapshot);
         const expectedRecord = mapRecords(expectedRecords).get(conflict.recordKey) || null;
@@ -994,7 +1018,7 @@
             record.payload?.stageRef === currentRemote.recordId)
             .map((record) => keyOf(record))]);
       }
-      return this.finishResolution(conflict, authoritative);
+      return this.finishResolution(conflict, authoritative, resolution.relatedKeys || []);
     }
 
     async resolveMergedSettingsConflict(conflict, fieldChoices = {}) {
@@ -1389,6 +1413,80 @@
     // locally but missing in the cloud), attest to the cloud's own record: no
     // write, and the manifests match. Adapters without semantic equality are
     // never touched.
+    // Order records (stage / preset lists) must name every live item of their kind exactly once. The
+    // adapter owns that rule; the runtime asks it to reconcile any snapshot it assembles from more than
+    // one source before the snapshot is applied or sent. Adapters without order records are untouched.
+    reconcileOrderRecords(records, remoteRecords = [], prefer = 'snapshot') {
+      if (typeof this.adapter.reconcileOrderRecords !== 'function') return records;
+      return this.adapter.reconcileOrderRecords({ appId: this.appId, records }, { remoteRecords, prefer }).records;
+    }
+
+    // Records only the cloud changed since the last sync (this device left them as synced): additions,
+    // edits and deletions, as the pull would take them. Map of record key → cloud record or null (deleted).
+    remoteOnlyChanges(localRecords, remoteRecords, shadowRecords, except = new Set()) {
+      const localMap = mapRecords(localRecords);
+      const remoteMap = mapRecords(remoteRecords);
+      const shadowMap = mapRecords(shadowRecords);
+      const changes = new Map();
+      for (const recordKey of new Set([...remoteMap.keys(), ...shadowMap.keys()])) {
+        if (except.has(recordKey)) continue;
+        const remoteRecord = remoteMap.get(recordKey);
+        const shadowRecord = shadowMap.get(recordKey);
+        if (!this.recordsEqual(localMap.get(recordKey), shadowRecord) || this.recordsEqual(remoteRecord, shadowRecord)) continue;
+        changes.set(recordKey, remoteRecord && !isDeleted(remoteRecord) ? localRecordFromRemote(remoteRecord) : null);
+      }
+      return changes;
+    }
+
+    async rememberSyncedRemote(recordKeys, remoteRecords) {
+      const remoteMap = mapRecords(remoteRecords);
+      for (const recordKey of recordKeys) {
+        const remoteRecord = remoteMap.get(recordKey);
+        if (remoteRecord) await this.store.putShadow(recordKey, clone(remoteRecord));
+        else await this.store.deleteShadow?.(recordKey);
+      }
+    }
+
+    // Keeping this device's list must still name every item the cloud holds and only items the cloud will
+    // hold: take the cloud-only changes, reconcile this device's order, and send this device's new items
+    // first, so the order pushed next never points at nothing and never leaves a cloud item out.
+    async prepareLocalOrderResolution(conflict, context) {
+      const remoteRecords = context.remote.records || [];
+      const changes = this.remoteOnlyChanges(context.local.records, remoteRecords, context.shadowRecords,
+        new Set([conflict.recordKey]));
+      const records = this.reconcileOrderRecords(context.local.snapshot.records.filter((record) =>
+        !changes.has(keyOf(record))).concat([...changes.values()].filter(Boolean)), remoteRecords, 'snapshot');
+      const next = this.adapter.deserializeRecords(records);
+      if (canonicalJson(this.adapter.normalizeLocalSnapshot(next)) !==
+          canonicalJson(this.adapter.normalizeLocalSnapshot(context.local.snapshot))) {
+        await this.applyWithBackup(next, context.local.snapshot, { checkCurrent: true });
+      }
+      await this.rememberSyncedRemote(changes.keys(), remoteRecords);
+      const local = await this.localRecords();
+      const cloudKeys = new Set(remoteRecords.filter((record) => !isDeleted(record)).map(keyOf));
+      const shadowKeys = new Set(context.shadowRecords.map(keyOf));
+      const newItems = local.records.filter((record) => keyOf(record) !== conflict.recordKey &&
+        !cloudKeys.has(keyOf(record)) && !shadowKeys.has(keyOf(record)));
+      if (newItems.length) {
+        const operations = [];
+        for (const record of newItems) operations.push(await this.operationFor(record, 0));
+        const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
+          appId: this.appId, mode: 'sync',
+          operations: operations.map(({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }) =>
+            ({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }))
+        }));
+        for (const operation of operations) {
+          const result = (response.results || []).find((item) => item.operationId === operation.operationId);
+          if (!['applied', 'duplicate'].includes(result?.status)) {
+            throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
+          }
+          await this.acknowledgeOwnRecord(operation, result.record);
+          await this.clearConflictOutbox(keyOf(operation));
+        }
+      }
+      return this.conflictContext(conflict);
+    }
+
     async adoptSemanticallyEqualRemote(snapshot, remoteLive) {
       if (typeof this.adapter.sameRecordForSync !== 'function') return snapshot;
       const remoteMap = mapRecords(remoteLive);
@@ -1450,9 +1548,10 @@
         // completed. Hydrate only records still absent locally; never infer a
         // delete from those absences or re-run the original conflict merge.
         const present = new Set(local.records.map(keyOf));
-        finalSnapshot = await this.adoptSemanticallyEqualRemote(this.adapter.deserializeRecords([
-          ...local.records, ...remoteLive.filter((record) => !present.has(keyOf(record)))
-        ]), remoteLive);
+        finalSnapshot = await this.adoptSemanticallyEqualRemote(this.adapter.deserializeRecords(
+          this.reconcileOrderRecords([
+            ...local.records, ...remoteLive.filter((record) => !present.has(keyOf(record)))
+          ], remoteLive)), remoteLive);
         await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       } else if (!local.records.length && remoteLive.length) {
         finalSnapshot = remoteSnapshot;
@@ -1487,6 +1586,9 @@
           this.setState('attention', { reason: 'conflict' });
           await this.reportRemovalSafety('attention');
           return Object.freeze({ ok: false, code: 'merge_conflict', conflicts: unresolved.length });
+        }
+        if (typeof this.adapter.reconcileOrderRecords === 'function') {
+          mergedSnapshot = { ...mergedSnapshot, records: this.reconcileOrderRecords(mergedSnapshot.records, remoteLive) };
         }
         finalSnapshot = await this.adoptSemanticallyEqualRemote(mergedSnapshot, remoteLive);
         this.adapter.validateSnapshot(finalSnapshot);
@@ -1583,7 +1685,7 @@
       this.setState('syncing', { reason });
       const rawRemote = await this.serverSnapshot();
       await this.acknowledgeOwnEchoes(this.partitionRemote(rawRemote).remote.records || []);
-      const shadowRecords = await this.store.listShadow();
+      let shadowRecords = await this.store.listShadow();
       let local = await this.localRecords();
       const partitioned = this.partitionRemote(rawRemote);
       const remote = partitioned.remote;
@@ -1595,6 +1697,7 @@
       const shadowMap = mapRecords(shadowRecords);
       const conflictKeys = [];
       const automaticSettings = [];
+      const automaticOrders = [];
       for (const recordKey of new Set([...localMap.keys(), ...remoteMap.keys(), ...shadowMap.keys()])) {
         if (isolatedKeys.has(recordKey)) continue;
         const localRecord = localMap.get(recordKey);
@@ -1611,6 +1714,14 @@
             } : null });
             continue;
           }
+          // Two devices that changed one list (e.g. each added an item) merge it three-way by the
+          // adapter's own order rule; only contradicting reorders become a choice for the user.
+          const order = this.adapter.mergeOrderRecord?.(localRecord, remoteRecord, shadowRecord,
+            { localRecords: local.records, remoteRecords: remote.records || [] });
+          if (order) {
+            automaticOrders.push({ recordKey, record: order });
+            continue;
+          }
           conflictKeys.push(recordKey);
         }
       }
@@ -1624,21 +1735,34 @@
         await this.reportRemovalSafety('attention');
         return { ok: false, code: 'conflict', conflicts: conflictKeys.length };
       }
-      if (automaticSettings.length) {
-        const replacements = new Map(automaticSettings.map(({ recordKey, record }) => [recordKey, record]));
-        const next = { ...clone(local.snapshot), records: local.snapshot.records.filter((record) =>
-          !replacements.has(keyOf(record))).concat([...replacements.values()].filter(Boolean)) };
+      if (automaticSettings.length || automaticOrders.length) {
+        const automatic = [...automaticSettings, ...automaticOrders];
+        const replacements = new Map(automatic.map(({ recordKey, record }) => [recordKey, record]));
+        // A merged order may list items only the cloud has: take the cloud's changes that this device did
+        // not touch now (as the pull would), and remember them as synced so they are not pushed back.
+        const pulled = [];
+        if (automaticOrders.length) {
+          const changes = this.remoteOnlyChanges(local.records, remote.records || [], shadowRecords,
+            new Set([...isolatedKeys, ...replacements.keys()]));
+          for (const [recordKey, record] of changes) { replacements.set(recordKey, record); pulled.push(recordKey); }
+        }
+        let records = local.snapshot.records.filter((record) =>
+          !replacements.has(keyOf(record))).concat([...replacements.values()].filter(Boolean));
+        if (automaticOrders.length) records = this.reconcileOrderRecords(records, remote.records || []);
+        const next = { ...clone(local.snapshot), records };
         try { this.adapter.validateSnapshot(next); }
         catch {
-          for (const { recordKey } of automaticSettings) await this.recordConflict('pull', recordKey, {
-            reason: 'settings_field_unsupported', localRecord: localMap.get(recordKey),
-            remoteRecord: remoteMap.get(recordKey), shadowRecord: shadowMap.get(recordKey)
+          for (const { recordKey } of automatic) await this.recordConflict('pull', recordKey, {
+            reason: automaticSettings.some((item) => item.recordKey === recordKey) ? 'settings_field_unsupported' : 'ordering_conflict',
+            localRecord: localMap.get(recordKey), remoteRecord: remoteMap.get(recordKey), shadowRecord: shadowMap.get(recordKey)
           });
-          this.setState('attention', { reason: 'conflict', conflicts: automaticSettings.length });
+          this.setState('attention', { reason: 'conflict', conflicts: automatic.length });
           await this.reportRemovalSafety('attention');
-          return { ok: false, code: 'conflict', conflicts: automaticSettings.length };
+          return { ok: false, code: 'conflict', conflicts: automatic.length };
         }
         await this.applyWithBackup(next, local.snapshot, { checkCurrent: true });
+        await this.rememberSyncedRemote(pulled, remote.records || []);
+        if (pulled.length) shadowRecords = await this.store.listShadow();
         local = await this.localRecords();
         localMap = mapRecords(local.records);
       }
@@ -1686,7 +1810,8 @@
         return { ok: false, code: 'conflict', conflicts: lateConflicts.length };
       }
       if (remoteChanged) {
-        const next = this.adapter.deserializeRecords([...merged.values()]);
+        // A pulled order may lag its items (another device mid-push, or an older client): reconcile first.
+        const next = this.adapter.deserializeRecords(this.reconcileOrderRecords([...merged.values()], afterPush.records || []));
         await this.applyWithBackup(next, localAfterPush.snapshot, { checkCurrent: true });
       }
       await this.replaceShadow(afterPush.records || [], afterPush.cursor);

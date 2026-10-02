@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/fretboard_cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/fretboard_cruise/standard/`（要確認: トップレベルのリダイレクトが別途あるかは未確認）
 - PRO版URL: `https://soundcruise.jp/apps/fretboard_cruise/pro_a9f4k7q2m8z/`
-- 現在のバージョン: `2.22.0`（`script.js` 内 `FRETBOARD_CRUISE_APP_VERSION`）
+- 現在のバージョン: `2.22.1`（`script.js` 内 `FRETBOARD_CRUISE_APP_VERSION`）
 - 最新commit（fretboard_cruise関連、`git log --oneline -- apps/fretboard_cruise/` で確認）:
   - hash: `a75bf6dc`
   - message: `指板クルーズ通常版の設定を公式デフォルトに固定`
@@ -121,6 +121,7 @@
 - 見た目: Dark は既存CSSそのまま（無変更）。Charcoal / Gray / Light は `theme-colors.css`（最後に読み込む）だけで適用。このファイルは `tools/theme-layer/generate.py fretboard` が既存CSSから自動生成する。手で直すのは末尾の「Hand-tuned overrides」以降だけ。CSSの色を変えたら generator を再実行する。
 - 指板（木目・フレット・弦・ドット・マーカー・度数色・ルート編集のグループ色）と Pro ゲートは全テーマで Dark と同じ色。
 - Cloud Sync（2.22.0〜、writer）: theme は settings の同期項目（`SYNC_OPTIONAL_SETTINGS`。既定値を持たないので既定値で埋める `SYNC_SETTINGS` のループ外で扱う）。
+- 並び順レコードの整合（2.22.1〜、共有 runtime `?v=26`）: `stage_order`（route / quiz）は生きているカスタムステージを過不足なく1回ずつ列挙する。アダプタの `reconcileOrderRecords`・`mergeOrderRecord`（三方向マージ）を runtime が途中再開・参加・push 前・pull 反映前・競合解決で呼ぶ。2者マージは既存の `mergeOrder`。回帰テスト: `workers/sound-cruise-sync/test/ordered-records-v26.test.js`。
   - 送信: 明示保存された theme → なければ旧 reader 版の `themeCloudMirror` → どちらも無ければ送らない（未設定をダークとして送らない）。
   - 受信: 有効な theme はこの端末の明示 theme として保存し、`themeCloudMirror` は解消する。theme の無い settings ではローカルの theme を消さない。
   - アダプタは `syncCapabilities = ['settings_theme_v1']` を宣言する。宣言しない旧クライアント（2.21.3 以前）には Worker が theme を見せず、その書き込みでもクラウドの theme を保持する（`workers/sound-cruise-sync/src/sync-capabilities.js`）。

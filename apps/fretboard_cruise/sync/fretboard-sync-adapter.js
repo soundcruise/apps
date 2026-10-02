@@ -539,6 +539,60 @@
     if (canonicalJson(common) !== canonicalJson(right.filter((ref) => left.includes(ref)))) return null;
     return [...left, ...right.filter((ref) => !left.includes(ref))];
   }
+  // ---- Ordered records: a stage_order lists every live custom stage of its category exactly once ----
+  const ORDERED_STAGE_TYPES = Object.freeze({ route: 'custom_route', quiz: 'custom_quiz' });
+  function liveRecord(record) { return !!record && record.deletedAt == null && record.deleted !== true; }
+  function orderRefsOf(records, category) {
+    const order = (records || []).find((record) => liveRecord(record) && record.recordType === 'stage_order' && record.recordId === category);
+    return Array.isArray(order?.payload?.stageRefs) ? order.payload.stageRefs : [];
+  }
+  // The primary order first, then the secondary order's other items, then stages listed nowhere (sorted,
+  // as ordered() places them); every live stage once, nothing that does not exist.
+  function orderRefsFor(primary, secondary, live) {
+    const refs = [];
+    for (const ref of [...primary, ...secondary, ...live]) if (live.includes(ref) && !refs.includes(ref)) refs.push(ref);
+    return refs;
+  }
+  // Against the last synced order: removals on either side stay removed, additions on both sides are kept,
+  // and the side that reordered the stages all three share decides their order (both reordering differently
+  // is a choice for the user). The winning side's additions keep their places; the other side's follow.
+  function mergeOrderThreeWay(local, remote, shadow) {
+    const removed = new Set(shadow.filter((ref) => !local.includes(ref) || !remote.includes(ref)));
+    const kept = (refs) => refs.filter((ref) => !removed.has(ref));
+    const shared = (refs) => refs.filter((ref) => shadow.includes(ref) && local.includes(ref) && remote.includes(ref));
+    const same = (left, right) => canonicalJson(shared(left)) === canonicalJson(shared(right));
+    let first;
+    let second;
+    if (same(local, remote) || same(local, shadow)) [first, second] = [kept(remote), kept(local)];
+    else if (same(remote, shadow)) [first, second] = [kept(local), kept(remote)];
+    else return null;
+    return [...new Set([...first, ...second])];
+  }
+  function reconcileOrderRecords(snapshot, { remoteRecords = [], prefer = 'snapshot' } = {}) {
+    let records = [...(snapshot.records || [])];
+    for (const [category, type] of Object.entries(ORDERED_STAGE_TYPES)) {
+      const live = records.filter((record) => liveRecord(record) && record.recordType === type)
+        .map((record) => record.recordId).sort((left, right) => left.localeCompare(right));
+      const own = orderRefsOf(records, category);
+      const cloud = orderRefsOf(remoteRecords, category);
+      const refs = prefer === 'remote' ? orderRefsFor(cloud, own, live) : orderRefsFor(own, cloud, live);
+      const index = records.findIndex((record) => record.recordType === 'stage_order' && record.recordId === category);
+      if (index < 0 && !refs.length) continue;
+      if (index >= 0 && refs.length && canonicalJson(records[index].payload?.stageRefs) === canonicalJson(refs)) continue;
+      records = records.filter((_record, position) => position !== index);
+      if (refs.length) records.push(makeRecord('stage_order', category, { category, stageRefs: refs }));
+    }
+    return { ...snapshot, records };
+  }
+  function mergeOrderRecord(local, remote, shadow) {
+    const present = [local, remote, shadow].filter(Boolean);
+    if (!present.length || !present.every((record) => record.recordType === 'stage_order')) return undefined;
+    const refs = (record) => liveRecord(record) && Array.isArray(record.payload?.stageRefs) ? record.payload.stageRefs : [];
+    const merged = mergeOrderThreeWay(refs(local), refs(remote), refs(shadow));
+    if (!merged) return undefined;
+    const category = present[0].payload?.category || present[0].recordId;
+    return makeRecord('stage_order', present[0].recordId, { category, stageRefs: merged });
+  }
   function mergeSnapshots(localSnapshot, remoteSnapshot) {
     const local = recordMap(localSnapshot);
     const remote = recordMap(remoteSnapshot);
@@ -772,6 +826,9 @@
     isMeaningfulLocalData(snapshot = this.readLocalSnapshot()) { return isMeaningfulLocalData(snapshot); }
     mergeSnapshots(localSnapshot, remoteSnapshot) { return mergeSnapshots(localSnapshot, remoteSnapshot); }
     effectiveSettingsForMerge(values) { return effectiveSettingsForMerge(values); }
+    isOrderRecord(record) { return record?.recordType === 'stage_order'; }
+    reconcileOrderRecords(snapshot, context) { return reconcileOrderRecords(snapshot, context); }
+    mergeOrderRecord(local, remote, shadow, context) { return mergeOrderRecord(local, remote, shadow, context); }
     encodeSettingsForMerge(values) { return encodeSettingsForMerge(values); }
     applyRemoteSnapshot(snapshot, options = {}) {
       return applyRemoteSnapshot(this.storage, snapshot, {

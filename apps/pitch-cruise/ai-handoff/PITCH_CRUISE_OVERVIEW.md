@@ -14,7 +14,7 @@
 - ディレクトリ: `apps/pitch-cruise/`
 - 通常版URL: `https://soundcruise.jp/apps/pitch-cruise/standard/`
 - PRO版URL: `https://soundcruise.jp/apps/pitch-cruise/pro_x9v7q2m8/`
-- 現在のバージョン: `2.27.2`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
+- 現在のバージョン: `2.27.3`（`script.js` 内 `PITCH_TRAINER_APP_VERSION`）
 - 最新commit（pitch-cruise関連、`git log --oneline -- apps/pitch-cruise/` で確認）:
   - hash: `62b4a3bf`
   - message: `音感クルーズPROカスタムSTAGEの保存導線を整理`
@@ -120,6 +120,7 @@
   - アダプタは `syncCapabilities = ['settings_theme_v1']` を宣言する。宣言しない旧クライアント（2.26.3 以前）には Worker が theme を見せず、その書き込みでもクラウドの theme を保持する。
   - 表示: `pitchThemeOf(settings)` が明示 theme（なければミラー）を返す。読み込み時に書き戻さない。
 - Cloud Sync の参加（2.27.2〜、共有 runtime `?v=24`）: 通常版が書く4項目だけの settings など、一部の項目が欠けたクラウドに全項目を持つ端末が参加しても `manifest_mismatch` にならない。最終 settings がクラウドと意味的に同じ（`sameRecordForSync`）なら、runtime の `adoptSemanticallyEqualRemote` がクラウドの実レコードをそのまま採用する（クラウド書き込み 0）。端末のストレージは従来どおり全項目。回帰テスト: `workers/sound-cruise-sync/test/pitch-standard-shape-join.test.js`。
+- 並び順レコードの整合（2.27.3〜、共有 runtime `?v=26`）: `stage_order`（melody / chord）は生きているステージを過不足なく1回ずつ列挙する。アダプタの `reconcileOrderRecords`（並び順の整合）・`mergeOrderRecord`（三方向マージ: 両側の追加を残し、共通ステージを並べ替えた側の順を採用、双方が矛盾する並べ替えのときだけ競合）を runtime が途中再開・参加・push 前・pull 反映前・競合解決で呼ぶ。2者マージ（参加）は共通部分の順序が一致すれば端末の順＋クラウドだけのステージ。存在しないステージを指すメロディ順は従来どおり「データ修復」で明示解決（`recordPayloadHash` で修復書き込みのハッシュを付ける）。回帰テスト: `workers/sound-cruise-sync/test/ordered-records-v26.test.js`。
 - テスト: `node --test apps/pitch-cruise/theme.test.mjs`
 
 ---

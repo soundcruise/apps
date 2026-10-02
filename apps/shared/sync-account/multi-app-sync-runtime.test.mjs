@@ -2610,7 +2610,7 @@ test('real Pitch corrupt delete refetches an order CAS race and preserves the ne
   assert.equal((await fixture.store.listOutbox()).length, 0);
 });
 
-test('real Pitch normal delete uses ordinary order conflict resolution and later reorder still pushes', async () => {
+test('real Pitch normal delete merges three-way with a concurrent reorder and a later reorder still pushes', async () => {
   const { fixture, pitch } = createRealPitchRuntimeFixture();
   const removed = pitchStage('legacy:melody-stage:7201', 7201, 'Remove normally');
   const keptA = pitchStage('legacy:melody-stage:7202', 7202, 'Kept A');
@@ -2631,28 +2631,22 @@ test('real Pitch normal delete uses ordinary order conflict resolution and later
     payloadHash: 'concurrent-reorder', revision: remoteOrder.revision + 1,
     changeSeq: ++fixture.server.revision, operationId: 'concurrent-reorder' });
 
-  const conflicted = await fixture.runtime.performSync('normal-delete-race');
-  assert.equal(conflicted.code, 'conflict');
-  const [orderConflict] = await fixture.store.listConflicts();
-  assert.equal(orderConflict.kind, 'pull');
-  assert.equal(orderConflict.recordKey, 'stage_order/melody');
-  assert.equal((await fixture.runtime.listConflictPresentations())[0].recovery, null,
-    'a normal tombstone must not enter corrupt recovery');
-  assert.equal((await fixture.runtime.resolveConflict(orderConflict.id, 'local')).ok, true);
-  assert.equal((await fixture.runtime.performSync('finish-normal-delete')).ok, true);
+  // The local delete and the cloud's reorder of the remaining stages do not contradict each other: the
+  // order merges three-way (the deletion stays, the cloud's reorder wins) instead of asking the user.
+  assert.equal((await fixture.runtime.performSync('normal-delete-race')).ok, true);
+  assert.equal((await fixture.store.listConflicts()).length, 0, 'no conflict, and no corrupt recovery for a normal tombstone');
   assert.notEqual(fixture.server.records.get(`melody_stage/${removed.recordId}`).deletedAt, null);
   assert.notEqual(fixture.server.records.get(`progress/melody:${removed.recordId}`).deletedAt, null);
   assert.deepEqual(fixture.server.records.get('stage_order/melody').payload.stageRefs,
-    [keptA.recordId, keptB.recordId]);
-  assert.equal((await fixture.store.listConflicts()).length, 0);
+    [keptB.recordId, keptA.recordId]);
 
   const later = { appId: 'pitch', schemaVersion: 1, records: [keptA, keptB,
-    pitchOrder([keptB.recordId, keptA.recordId]), pitchProgress(keptA.recordId, 1)] };
+    pitchOrder([keptA.recordId, keptB.recordId]), pitchProgress(keptA.recordId, 1)] };
   await pitch.applyRemoteSnapshot(later);
   const orderRevision = fixture.server.records.get('stage_order/melody').revision;
   assert.equal((await fixture.runtime.performSync('later-reorder')).ok, true);
   assert.deepEqual(fixture.server.records.get('stage_order/melody').payload.stageRefs,
-    [keptB.recordId, keptA.recordId]);
+    [keptA.recordId, keptB.recordId]);
   assert.equal(fixture.server.records.get('stage_order/melody').revision, orderRevision + 1);
   assert.equal(await fixture.store.readMeta('runtimeState'), 'ready');
   assert.equal((await fixture.store.listOutbox()).length, 0);

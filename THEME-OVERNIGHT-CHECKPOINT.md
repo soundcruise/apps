@@ -231,12 +231,15 @@ against a cloud settings record that carries `theme`:
   - D': a whole-record "remote" on a P/F/R settings conflict that has a field plan is refused
     (settings_field_choice_required) and its saved choice cleared, so it no longer retries on every start.
     Test: workers/sound-cruise-sync/test/runtime-v25-hardening.test.js.
-- Known, NOT fixed (high priority, runtime v26 candidate): P/F/R ordered records (stage_order / preset_order).
-  - The resolved-merge resume branch hydrates items without updating the local order record.
-  - Pitch/Rhythm rejoin with a subset of the same ids gets an unresolvable ordering_conflict.
-  - Concurrent adds on two devices make the order record conflict. Choosing "this device" pushes a dangling order,
-    and both devices then fail every sync.
-  - The order rules belong in the adapters.
+- Shared runtime v26 (Pitch 2.27.3 / Fretboard 2.22.1 / Rhythm 1.17.2): P/F/R ordered records (stage_order /
+  preset_order) keep every live item listed exactly once.
+  - Adapters own the rules: reconcileOrderRecords, and mergeOrderRecord for three-way merges (both sides' additions
+    kept; only contradicting reorders of shared items ask the user). The two-way join merge uses Fretboard's mergeOrder.
+  - The runtime calls them on resume, join, before push (with the cloud-only changes taken first), before a pull
+    apply (which also heals an inconsistent cloud order) and in "cloud" / "this device" resolutions. A "this
+    device" resolution sends new items before the order.
+  - Pitch's melody data-repair write now carries its payload hash (recordPayloadHash).
+  - Test: workers/sound-cruise-sync/test/ordered-records-v26.test.js.
 - Rhythm root cause: saveSettings / saveStageClickSettings / saveRhythmStagePrefs rebuild the stored objects from
   memory, which a Cloud Sync apply does not update (tap layout, input mode, judgement, custom stages, click settings,
   stage prefs were reverted; custom stages lost). Fix: three-way saves + state hydration after apply (deferred while
