@@ -2,7 +2,9 @@
 
 ## Purpose and status
 
-**Operational / Historical Reference**。既存repo記録の索引・整理であり、legal opinion、新しいauthorization、再審査、source設定変更ではありません。publisherアクセス／Web検索／robots・規約再取得は今回すべて0。Balanced Source Policyを維持します。
+**Operational / Historical Reference**。既存repo記録の索引・整理であり、legal opinion、新しいauthorization、再審査、source設定変更ではありません。2026-10-01の記録整理ではpublisherアクセス／Web検索／robots・規約再取得はすべて0。Balanced Source Policyを維持します。
+
+最新production acceptance：2026-10-02（[scheduled evidence](#production-acceptance-20261002)）。以下の開始baselineは記録整理時の履歴。
 
 記録整理日：2026-10-01。開始baseline：Port 1.11.0／NEWS 0.9.1、HEAD `92b7fc05`。既存source判断日とこの文書作成日は別です。
 
@@ -38,8 +40,8 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | [kanda](#source-kanda) | 神田商会 | OFF | NEEDS EVIDENCE — REDIRECT / DISCOVERY |
 | [zoom](#source-zoom) | ZOOM | ON | ALLOWED WITH BOUNDS |
 | [kikutani](#source-kikutani) | キクタニ | ON | ALLOWED WITH BOUNDS |
-| [ikebe-event](#source-ikebe-event) | 池部楽器 Events | ON | ALLOWED WITH BOUNDS |
-| [at-distribution](#source-at-distribution) | AT Distribution（公式代理店） | ON | ALLOWED WITH BOUNDS |
+| [ikebe-event](#source-ikebe-event) | 池部楽器 Events | ON | ACCEPTED WITH OBSERVATION |
+| [at-distribution](#source-at-distribution) | AT Distribution（公式代理店） | ON | ACCEPTED WITH OBSERVATION |
 | [ikebe](#source-ikebe) | 池部楽器 新製品情報局（PB） | ON（Product）／自動Sale OFF | ALLOWED WITH BOUNDS |
 | [chuya](#source-chuya) | Discover chuya | OFF／legacy承認済み記事は表示対象 | NEEDS EVIDENCE — ROBOTS AMBIGUITY |
 | [hookup](#source-hookup) | Hookup | OFF／legacy承認済み記事は表示対象 | BOUNDED ASSESSMENT COMPLETE / QUALITY INCOMPLETE |
@@ -47,7 +49,7 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | [sleepfreaks](#source-sleepfreaks) | Sleepfreaks | COLLECTION STOPPED／approved 5件visible | ALLOWED WITH BOUNDS history / STOPPED — WORKER HTTP 403 |
 | [ik](#source-ik) | IK Multimedia | ON | ALLOWED WITH BOUNDS |
 | [ahs](#source-ahs) | AHS | OFF／legacy承認済み記事は表示対象 | NEEDS EVIDENCE — PARSER / POLICY SCOPE |
-| [agm](#source-agm) | AGM / Rittor Music | ON（Interview限定） | ALLOWED WITH BOUNDS |
+| [agm](#source-agm) | AGM / Rittor Music | ON（Interview限定） | ACCEPTED |
 | [korg](#source-korg) | KORG / VOX（メーカー公式） | OFF | NEEDS EVIDENCE — APPLICABLE SCOPE / DISCOVERY |
 | [esp](#source-esp) | ESP / BIGBOSS | OFF | EXPLICIT PERMISSION REQUIRED — DEEP LINK EXCEPTION |
 | [yamaha-newsroom](#source-yamaha-newsroom) | Yamaha newsroom | OFF | NEEDS EVIDENCE — APPLICABLE SCOPE / DISCOVERY |
@@ -280,7 +282,7 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | Surface | https://www.ikebe-gakki.com/blog/category/event/ 固定Event一覧 |
 | Current State | ON |
 | Current Scope | 名前のあるギタリスト、イベント種別、明示年月日、会場、ギター関連性があるケース。 |
-| Decision | ALLOWED WITH BOUNDS |
+| Decision | ACCEPTED WITH OBSERVATION — production acceptance（既存ALLOWED WITH BOUNDS scopeを維持） |
 | Why | PBと別scopeでrobots/policy/qualityを確認。阿部学ワークショップは公式facts確認後operator承認。 |
 | Explicit Restriction | generic blog全体・paginationなし。店舗tagだけでは会場確定不可。 |
 | Internal Boundaries | 原見出し・本文・画像・OGP・raw HTMLを保存しない。独自facts label＋出典＋直接リンク。固定surfaceを原則1日1回、bounded fetch、robots/access/opt-out、90日retention、kill/takedownを維持。未確認factsはREVIEW。 |
@@ -288,6 +290,18 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | Evidence | [src/high-value-evidence.js](src/high-value-evidence.js)、[HIGH-VALUE-COVERAGE-REPORT.md](HIGH-VALUE-COVERAGE-REPORT.md)、[HIGH-VALUE-COVERAGE-EVIDENCE.json](HIGH-VALUE-COVERAGE-EVIDENCE.json)、[HIGH-VALUE-SOURCE-POLICY.md](HIGH-VALUE-SOURCE-POLICY.md) |
 | Decision Date | 2026-10-01 |
 | Notes | manual-ikebe：別途既存承認されたmain-hostの個別Event facts/link scopeも存在。自動化grantと混同しない。 |
+
+### Production acceptance — 2026-10-02
+
+- Previous verdict: ALLOWED WITH BOUNDS（2026-10-01の限定policy/quality判断）。New verdict: **ACCEPTED WITH OBSERVATION**。collection scope・許諾判断・source設定は変更しない。
+- Source type / intended coverage: retailer_editorial / 明示factsのあるギターイベント。
+- Primary evidence: 2026-10-02 06:00 JST production scheduled run、D1 request_mode=scheduled、actual start 06:00:51.350 JST、run ID `f713a68f-0d31-41d5-84f6-78179092f68b`。outcome=collected、2 publisher requests、4 candidates／2 reject／2 dedupe／新規0。
+- Observed articles: 阿部学10/24ワークショップ（公開日9/30、operator承認済み）を再取得。10/21アコギワークショップ（9/18）は既存REVIEWのまま、公開しない。
+- False positives: 公開記事では0。False negatives: 現行bounded scopeに合致する未取得候補0（意図的scope除外・既存REVIEW・既存manual公開を区別）。同日の元surface照合件数はscheduled candidate件数と一致。
+- Duplicate behavior: 上記dedupeは既存URLへの再取得。既存ID・公開日・承認を維持。公開URL/topicの二重掲載0。
+- Reason: 有用な実イベント1件をscheduled runで再取得し、直接URL・公開日・人物・開催日・会場を確認。店舗tagから会場を断定しない既存guardも維持。
+- Follow-up: 10/21案件は人物・会場factsの通常operator審査が必要。本日のQAでは承認操作しない。named guitarist/workshop/exhibitionに限定したpilotで、Friedmanのブランド催事は範囲外。松本孝弘の展示はmanual-ikebe承認記事1件として既に公開されており、一覧側rejectを未掲載と誤認しない。
+- Common evidence / limitations: [2026-10-02 run summary](#production-acceptance-20261002)。
 
 <a id="source-at-distribution"></a>
 
@@ -299,7 +313,7 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | Surface | https://atdistribution.net/information/ 固定listing |
 | Current State | ON |
 | Current Scope | 検証済みRecording製品の発表facts。 |
-| Decision | ALLOWED WITH BOUNDS |
+| Decision | ACCEPTED WITH OBSERVATION — production acceptance（既存ALLOWED WITH BOUNDS scopeを維持） |
 | Why | 固定1ページでHarrison FLEX 10の有用な型名・種類・公開日を検証し独自label採用。 |
 | Explicit Restriction | privacy内のsite termsは表現再利用を制限。製品説明・本文・画像を使わない。 |
 | Internal Boundaries | 原見出し・本文・画像・OGP・raw HTMLを保存しない。独自facts label＋出典＋直接リンク。固定surfaceを原則1日1回、bounded fetch、robots/access/opt-out、90日retention、kill/takedownを維持。未確認factsはREVIEW。 |
@@ -307,6 +321,18 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | Evidence | [src/high-value-evidence.js](src/high-value-evidence.js)、[HIGH-VALUE-COVERAGE-REPORT.md](HIGH-VALUE-COVERAGE-REPORT.md)、[HIGH-VALUE-COVERAGE-EVIDENCE.json](HIGH-VALUE-COVERAGE-EVIDENCE.json)、[HIGH-VALUE-SOURCE-POLICY.md](HIGH-VALUE-SOURCE-POLICY.md) |
 | Decision Date | 2026-10-01 |
 | Notes | FLEX 10は発表であり出荷を断定しない。日本Audio-Technicaの承認を流用していない。 |
+
+### Production acceptance — 2026-10-02
+
+- Previous verdict: ALLOWED WITH BOUNDS（2026-10-01の限定policy/quality判断）。New verdict: **ACCEPTED WITH OBSERVATION**。collection scope・許諾判断・source設定は変更しない。
+- Source type / intended coverage: distributor / 検証済み録音機器発表。
+- Primary evidence: 2026-10-02 06:00 JST production scheduled run、D1 request_mode=scheduled、actual start 06:00:51.350 JST、run ID `a6aa1c03-74ca-4526-96dd-7db605e62d17`。outcome=collected、2 publisher requests、12 candidates／11 reject／1 dedupe／新規0。
+- Observed articles: Harrison Audio、FLEX 10を発表（8/19）。公開済み1件を再取得、録音・オーディオ。
+- False positives: 公開記事では0。False negatives: 現行bounded scopeに合致する未取得候補0（意図的scope除外・既存REVIEW・既存manual公開を区別）。同日の元surface照合件数はscheduled candidate件数と一致。
+- Duplicate behavior: 上記dedupeは既存URLへの再取得。既存ID・公開日・承認を維持。公開URL/topicの二重掲載0。
+- Reason: 実在する録音機器発表の型名・種類・公開日・直接URLが一致。発売・出荷開始とは断定しない。古い公開日は保持され、7/14日新着へ浮上しない。
+- Follow-up: 現行parserの自動facts対象は検証済みHarrison FLEX 10のみ。他モデルの包括的自動採用ではない。今回の新着供給増分は0なので、将来の対象新着と供給量は継続観察。
+- Common evidence / limitations: [2026-10-02 run summary](#production-acceptance-20261002)。
 
 <a id="source-ikebe"></a>
 
@@ -451,7 +477,7 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | Surface | https://acousticguitarmagazine.jp/interview/feed/ 国内アコギInterview RSS |
 | Current State | ON（Interview限定） |
 | Current Scope | 検証済み国内人物＋明示アコギinterview。その他News/Gears/Lesson未構成。 |
-| Decision | ALLOWED WITH BOUNDS |
+| Decision | ACCEPTED — production acceptance（既存ALLOWED WITH BOUNDS scopeを維持） |
 | Why | 2026-10-01の限定補足審査・sampleで国内Artist gapに有用な2件を確認。 |
 | Explicit Restriction | copyright保護、表現再利用なし。親siteの「リンク歓迎」はautomation許可ではない。 |
 | Internal Boundaries | 原見出し・本文・画像・OGP・raw HTMLを保存しない。独自facts label＋出典＋直接リンク。固定surfaceを原則1日1回、bounded fetch、robots/access/opt-out、90日retention、kill/takedownを維持。未確認factsはREVIEW。 |
@@ -459,6 +485,18 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | Evidence | [src/high-value-evidence.js](src/high-value-evidence.js)、[HIGH-VALUE-COVERAGE-REPORT.md](HIGH-VALUE-COVERAGE-REPORT.md)、[HIGH-VALUE-COVERAGE-EVIDENCE.json](HIGH-VALUE-COVERAGE-EVIDENCE.json)、[HIGH-VALUE-SOURCE-POLICY.md](HIGH-VALUE-SOURCE-POLICY.md) |
 | Decision Date | 2026-10-01 |
 | Notes | 旧CONTACT計画はこのInterview surfaceだけ補足判断で更新。他surfaceへの包括承認ではない。 |
+
+### Production acceptance — 2026-10-02
+
+- Previous verdict: ALLOWED WITH BOUNDS（2026-10-01の限定policy/quality判断）。New verdict: **ACCEPTED**。collection scope・許諾判断・source設定は変更しない。
+- Source type / intended coverage: media / 国内アコギinterview。
+- Primary evidence: 2026-10-02 06:00 JST production scheduled run、D1 request_mode=scheduled、actual start 06:00:51.350 JST、run ID `c7cb11b0-3bb2-409f-b423-efaf1c4343c9`。outcome=collected、2 publisher requests、10 candidates／8 reject／2 dedupe／新規0。
+- Observed articles: 大石昌良のアコギinterview（9/9）と竹内アンナのアコギinterview（8/24）。公開済み2件を再取得、アーティスト。
+- False positives: 公開記事では0。False negatives: 現行bounded scopeに合致する未取得候補0（意図的scope除外・既存REVIEW・既存manual公開を区別）。同日の元surface照合件数はscheduled candidate件数と一致。
+- Duplicate behavior: 上記dedupeは既存URLへの再取得。既存ID・公開日・承認を維持。公開URL/topicの二重掲載0。
+- Reason: 国内アコギinterviewの実記事2件をscheduled runで識別。RSS pubDateと保存日付が一致し、原記事URLはHTTP 200、同一記事の再登録・新着化なし。
+- Follow-up: Interview固定RSS・検証済み国内人物・明示アコギinterviewの現行scopeのみ。今回は新規公開0、7/14日内の供給は0。将来の対象新着を通常scheduled runで観察し、News/Gears/Lessonへ拡張しない。
+- Common evidence / limitations: [2026-10-02 run summary](#production-acceptance-20261002)。
 
 <a id="source-korg"></a>
 
@@ -704,3 +742,37 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 既存未コミットのBalanced／Beta／Blocked資料5ファイル、およびlegal/prototypeの既存編集は保持し、今回のcommitへ混ぜません。ローカル参照として存在しますが、これら未コミット資料の公開repoへの反映を本書で保証しません。
 
 既存repo記録中に今回新しく確認した重大な法令違反・明示禁止・publisher takedown・evidence contradictionはありません。過去phaseのON/OFF変遷、内部takedown flagとpublisher要請の区別、UNKNOWNを明示して整理しました。source registry、policyDecision、authorization、D1 source stateは変更していません。
+
+<a id="production-acceptance-20261002"></a>
+
+## Production acceptance evidence — 2026-10-02 06:00 JST
+
+**Overall: ACCEPTED WITH OBSERVATIONS**。対象はregistryのHIGH_VALUE_EVIDENCE、既存各source判断、NEWS commit `9d155a83`・venue guard `abb74370`からAGM Interview RSS／Ikebe Event／AT Distributionの3つと特定。今回の正式判断は上の各source項。既存sourceの再審査・削減はしていない。
+
+### Measured baseline and scheduled evidence
+
+- main = origin/main = `8a4004d22a0c2c5b14cb08841ed2f4a96c86d5b0`、ahead/behind 0/0。開始tracked/staged clean。既知untracked `.claude/`、`workers/sound-cruise-sync/node_modules/`を保持。Port **1.13.1**、NEWS **0.9.1**。
+- Production Worker deployment `ee689313-05f7-4311-827a-963aecdfaefa`、version `2c426635-de88-49a2-b927-9177be65a978`、100%、2026-10-01 12:12:05.264 JST以後のdeploymentなし。runのWorker版はdeployment履歴との時系列照合。
+- Remote Cron: daily `0 21 * * *`（06:00 JST）、retention `17 * * * *`、変更なし。scheduled JST day=2026-10-02。D1 collection_runsの同一startedAt **1790888451350**（06:00:51.350 JST）で9 sourceのrequest_mode=scheduled記録を確認。manual/operator_validationと区別。
+- 全9 collecting source: collected / healthy / failures 0、18 publisher requests、118 candidates、10 new pending insert、1 automatic approval、最終公開 **49**（前日48）。Sleepfreaksはsource_disabledでアクセスせず、承認済み5件の表示維持。allowlist10 / collecting9 / stopped1。
+- 対象3 sourceは全てcollected（304でなく取得・parse成功）：AGM 10/8 reject/2 dedupe、Ikebe Event 4/2 reject/2 dedupe、AT 12/11 reject/1 dedupe。対象新規公開0、既存公開4＋REVIEW1を再識別。新規0をfetch失敗・NO_MATCHと混同しない。
+- 各source health・全9collection_runsではfetch/parser/timeout/繰り返し失敗なし。collection全体に既存warning `network_or_internal_error`あり。`scheduled.js`は意図的停止のSleepfreaks `source_disabled`もwarning集計するため、実際のネットワーク障害とは区別する。source別成功と停止状態に問題なし。この既存集計表示の改善は本Acceptanceの修正対象に広げない。
+- 詳細Cloudflare telemetry読み取りAPIはHTTP 403（authentication error）。console log/exceptionの独立全量確認は未完。D1の9成功記録・全体last_successful_run_at・deployment履歴・公開APIを主証拠とし、ログ閲覧できたとは報告しない。
+
+### Original/source and publication quality
+
+- 同日15:47 JSTの補助read-only照合で固定3surface HTTP 200、10/4/12 entries。scheduled件数・accepted URL/dateと一致。全5target candidate直接URLとFriedman境界URLもHTTP 200、redirectなし。原見出し・raw HTML・本文・画像は保存せず、照合factsだけを扱った。補助アクセスはcollection/manual runではない。現在surfaceとの比較は過去06:00のraw body完全一致を証明するものではない。
+- 公開対象4件：大石9/9、竹内8/24、阿部9/30、FLEX 10 8/19。AGM feed時刻は19:00 JST、listingの日付は00:00 JSTとして保存。未来日・updated日再浮上なし。開催日10/24を公開日9/30と混同しない。90日公開/retention境界、pilot60日lookbackは既存のまま。
+- Ikebe Eventの10/21ワークショップはfact不足REVIEWのまま。松本孝弘10/13–11/1展示はmanual-ikebe承認済みの単一URLで表示（一覧filter除外をexpected missと誤判定しない）。Friedmanブランド催事はnamed guitarist pilotの範囲外で不掲載。AT他モデルも現在の検証済みFLEX 10 scopeの範囲外。包括的イベント/録音製品coverageの承認ではない。
+- 公開URL49 / unique49、approved topic key重複0、同一イベントの二重掲載0。新規Shimamura LAVA STUDIOは既存Sleepfreaks同topicの公開を尊重してpendingに留まる（AUTO_PUBLISHABLE1件、要人手REVIEWと区別）。
+- 公開category: acoustic_guitar7、electric_guitar_bass10、amps_effects12、recording_audio4、dtm_software10、artist_guitar3、live_guitar3、sale0、creator_streaming0、media_other0。表示名は**イベント**、internal key live_guitarを維持。旧表示「ライブ」はカテゴリfilter/cardに残らない。Sale0は正常な0件。
+- 前日final audit（2026-10-01 12:13:46 JST）48 approved / 4 pending / 19 rejected → 49 / 13 / 19、総候補71→81。pending増分9はIkebe4、IK1、Shimamura4（うち上記duplicate-publication抑止1）。対象3 source由来のREVIEW増分0。新規公開はShimamura Yamaha RS20MM1件、facts templateが正常承認。
+- 本日06:00基準fresh useful（news-quality.jsのHIGH VALUE / USEFULのみ）7日=9、14日=21、24時間=0。前日の時点では7日14／14日24だが時間窓の移動による自然減。同じ本日cutoffで前日承認分だけを数えると7日8→9、14日20→21（正当な新規公開+1）。LOW VALUEを含む公開件数は7日10／14日24。全49件のquality内訳はHIGH VALUE33／USEFUL12／LOW VALUE4／NOISE0。対象3sourceの本日公開増分0、7日内既存1（阿部）、古いAGM/ATを新着化していない。
+- 10/1→10/2既存active6 source候補件数：Shimamura11→11、Ikebe16→16、IK12→12、Kikutani20→20、amass21→21、ZOOM12→12。全てcollected。候補数・category体系・retention・既存approved・Sleepfreaks表示に観測された回帰なし。
+
+### Verification and safety
+
+- NEWS full suite **327/327 PASS**（local D1のloopback起動制限による初回環境失敗後、権限付きで正常実行）。Port NEWS data/provider/sale **27/27 PASS**。fixture/test/source変更なし。対象外アプリfull suiteの再実行はしていない。
+- 本番Portを独立した空のChrome contextでread-only確認：Ver1.13.1、Home ticker、全49card、対象4件各1card、pending非表示、イベントfilter/card3件、Sale空表示、375/393px横はみ出しなし、direct href + target=_blank + noopener noreferrer、console/page/HTTP errors0。通信116 GET／mutation0。
+- production D1の照会は全てSELECT、rows_written0。collector/manual run・operator審査・user data変更・source state変更・schedule変更なし。OAuth/secret値・fingerprint内容は記録しない。
+- Code fixes **NONE**、version bump / commit / push / deploy **NOT REQUIRED・未実行**。変更は本正本のみ。別source decision文書・repo scratchを作成していない。残る観察は限定coverage/将来の新着供給、イベントREVIEW、集計warning、telemetry権限。
