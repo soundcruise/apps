@@ -10,7 +10,7 @@
    ※ マイク入力・本格的なストローク音検出は未実装（タップで体験確認）
 ═══════════════════════════════════════════════════════════ */
 
-const RHYTHM_CRUISE_VERSION = '1.17.0';
+const RHYTHM_CRUISE_VERSION = '1.17.1';
 function notifyRhythmSyncSave() {
     window.SoundCruiseMultiAppSync?.notifyLocalSave?.('rhythm');
 }
@@ -2247,13 +2247,22 @@ function loadRhythmStagePrefs() {
     return prefs;
 }
 let rhythmStagePrefs = loadRhythmStagePrefs();
+// Cloud Sync: the stage preferences as last read from / written to storage (see rhythmSyncedPick).
+let rhythmStagePrefsBase = rhythmSyncClone(rhythmStagePrefs.builtin);
 function saveRhythmStagePrefs() {
     try {
+        let stored = {};
+        try { const raw = JSON.parse(localStorage.getItem(RHYTHM_STAGE_PREFS_KEY) || '{}'); stored = (raw && raw.builtin) || {}; } catch (_) { stored = {}; }
         const out = { builtin: {} };
         Object.keys(RHYTHM_BUILTIN_STAGE_DEFAULT_PREFS).forEach((key) => {
-            if (!Object.prototype.hasOwnProperty.call(rhythmStagePrefs.builtin, key)) return;
-            const normalized = normalizeRhythmStagePref(Number(key), rhythmStagePrefs.builtin[key]);
+            // A stage this device did not change keeps the stored (possibly Cloud Synced) value.
+            const value = rhythmSyncedPick(rhythmStagePrefs.builtin[key], rhythmStagePrefsBase && rhythmStagePrefsBase[key], stored[key]);
+            if (value === undefined) return;
+            const normalized = normalizeRhythmStagePref(Number(key), value);
             if (normalized) out.builtin[key] = normalized;
+            if (!rhythmSyncedSame(rhythmStagePrefs.builtin[key], rhythmStagePrefsBase && rhythmStagePrefsBase[key])) {
+                rhythmStagePrefsBase = { ...(rhythmStagePrefsBase || {}), [key]: rhythmSyncClone(rhythmStagePrefs.builtin[key]) };
+            }
         });
         localStorage.setItem(RHYTHM_STAGE_PREFS_KEY, JSON.stringify(out));
         notifyRhythmSyncSave();
@@ -6578,6 +6587,7 @@ function show(screen) {
     if (screen !== 'settings') stopIosNewBtVolumeTestOnLeave('route-change');
     if (screen !== 'practice') discardPracticeRecording();
     currentScreen = screen;
+    if (rhythmSyncHydrationPending && screen !== 'practice') hydrateRhythmSyncedSettings();
     els.home.classList.toggle('hidden', screen !== 'home');
     els.practice.classList.toggle('hidden', screen !== 'practice');
     els.settings.classList.toggle('hidden', screen !== 'settings');
@@ -12629,9 +12639,17 @@ function loadStageClickSettings() {
 }
 function saveStageClickSettings() {
     try {
-        localStorage.setItem(CLICK_SETTINGS_KEY, JSON.stringify({
-            range: state.rcClickMode, beats: state.rcClickBeats, offbeat: state.rcClickOffbeat,
-        }));
+        let stored = {};
+        try { stored = JSON.parse(localStorage.getItem(CLICK_SETTINGS_KEY) || '{}') || {}; } catch (_) { stored = {}; }
+        const memory = { range: state.rcClickMode, beats: state.rcClickBeats, offbeat: state.rcClickOffbeat };
+        const base = rhythmClickBase || {};
+        const out = {};
+        // A field this device did not change keeps the stored (possibly Cloud Synced) value.
+        ['range', 'beats', 'offbeat'].forEach((key) => {
+            out[key] = rhythmSyncedPick(memory[key], base[key], stored[key]);
+            if (!rhythmSyncedSame(memory[key], base[key])) rhythmClickBase = { ...(rhythmClickBase || {}), [key]: memory[key] };
+        });
+        localStorage.setItem(CLICK_SETTINGS_KEY, JSON.stringify(out));
         notifyRhythmSyncSave();
     } catch (_) { /* 保存失敗は無視 */ }
 }
@@ -23992,13 +24010,78 @@ function loadSettings() {
     state.micPresetName = (typeof s.micPresetName === 'string') ? s.micPresetName : null;
     state.micPresetBuiltin = !!s.micPresetBuiltin;
     state.micPresetBaseline = (s.micPresetBaseline && typeof s.micPresetBaseline === 'object') ? s.micPresetBaseline : null;
+    rememberRhythmSyncedMainBase();
+}
+
+// ── Cloud Sync: synced settings stay current in memory (state hydration only) ───────────────────────
+// Synced values: theme, tap layout / unified tap, input mode, judgement, PRO custom stages, stage click
+// settings and built-in stage preferences. A Cloud Sync apply rewrites them in storage while the open app
+// keeps its own in-memory copies. Saves are three-way: a value this device has not changed since it was last
+// read keeps what storage holds (possibly Cloud Synced), so an old in-memory copy is never written back.
+// After an apply the copies are re-read for display. Device-only values (mic, calibration, volume, bars, ...)
+// are never touched, and nothing is started, stopped or re-routed. While a practice runs or its screen is
+// open, the re-read waits until the practice screen is left (saves stay safe in the meantime).
+const RHYTHM_SYNCED_MAIN_KEYS = ['tapLayout', 'tapUnified', 'inputMode', 'judgePreset', 'rhythmProCustomStages'];
+let rhythmSyncedMainBase = null;
+let rhythmClickBase = null;
+let rhythmSyncHydrationPending = false;
+function rhythmSyncClone(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
+function rhythmSyncedSame(a, b) { return JSON.stringify(a === undefined ? null : a) === JSON.stringify(b === undefined ? null : b); }
+// Unchanged on this device since it was last read → the stored value; changed here → this device's value.
+function rhythmSyncedPick(memory, base, stored) { return rhythmSyncedSame(memory, base) ? stored : memory; }
+function rhythmSyncedMainMemory() {
+    return {
+        tapLayout: state.tapLayout, tapUnified: state.tapUnified, inputMode: state.inputMode, judgePreset: state.judgePreset,
+        rhythmProCustomStages: Array.isArray(state.rhythmProCustomStages) ? state.rhythmProCustomStages : []
+    };
+}
+function rememberRhythmSyncedMainBase() { rhythmSyncedMainBase = rhythmSyncClone(rhythmSyncedMainMemory()); }
+function rhythmSyncedMainForSave() {
+    const memory = rhythmSyncedMainMemory();
+    if (!rhythmSyncedMainBase) return memory;
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { stored = {}; }
+    const out = {};
+    RHYTHM_SYNCED_MAIN_KEYS.forEach((key) => {
+        out[key] = rhythmSyncedPick(memory[key], rhythmSyncedMainBase[key], stored[key]);
+        if (!rhythmSyncedSame(memory[key], rhythmSyncedMainBase[key])) rhythmSyncedMainBase[key] = rhythmSyncClone(memory[key]);
+    });
+    return out;
+}
+function hydrateRhythmSyncedSettings() {
+    let s = {};
+    try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
+    state.theme = s.theme; // display only, so it applies right away (also mid-practice)
+    applyRhythmTheme(rhythmThemeOf(s));
+    if (state.running || currentScreen === 'practice') { rhythmSyncHydrationPending = true; return; }
+    rhythmSyncHydrationPending = false;
+    state.tapLayout = (s.tapLayout === 'ud') ? 'ud' : 'lr';
+    state.tapUnified = (s.tapUnified !== false);
+    state.inputMode = (s.inputMode === 'stroke') ? 'stroke' : 'tap';
+    state.judgePreset = normalizeJudgePreset(s.judgePreset);
+    state.rhythmProCustomStages = Array.isArray(s.rhythmProCustomStages)
+        ? s.rhythmProCustomStages.map(x => normalizeRhythmCustomStageSettings(x)).filter(Boolean)
+        : [];
+    rememberRhythmSyncedMainBase();
+    const click = loadStageClickSettings();
+    state.rcClickMode = click.range;
+    state.rcClickBeats = click.beats;
+    state.rcClickOffbeat = click.offbeat;
+    rhythmClickBase = { ...click };
+    rhythmStagePrefs = loadRhythmStagePrefs();
+    rhythmStagePrefsBase = rhythmSyncClone(rhythmStagePrefs.builtin);
+    // Display only: segment / button states. No mic, audio, playback or navigation.
+    updateInputModeUI();
+    applyTapLayout();
+    updateJudgePresetUI();
+    updateStageSettingsUI();
 }
 
 function saveSettings() {
     try {
         let themeCloudMirror; // Cloud Sync が受け取ったテーマの写し（adapter 管理・reader-first）。保存値をそのまま残す
         try { const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY)); themeCloudMirror = stored && stored.themeCloudMirror; } catch (_) { themeCloudMirror = undefined; }
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify({
+        localStorage.setItem(SETTINGS_KEY, JSON.stringify(Object.assign({
             theme: state.theme, // 明示的に選ばれたときだけ値がある（undefined は保存されない）
             themeCloudMirror: themeCloudMirror,
             threshold: mic.threshold,
@@ -24041,7 +24124,7 @@ function saveSettings() {
             micPresetName: state.micPresetName,
             micPresetBuiltin: state.micPresetBuiltin,
             micPresetBaseline: state.micPresetBaseline,
-        }));
+        }, rhythmSyncedMainForSave())));
         notifyRhythmSyncSave();
     } catch (_) { /* プライベートモード等では無視 */ }
 }
@@ -31048,14 +31131,9 @@ function bind() {
         applyRhythmTheme(state.theme);
         saveSettings();
     });
-    // Cloud Sync applied a received theme: make it the current theme so a later settings save keeps it.
-    // Only the theme is re-read; every other setting stays as it is in memory.
-    window.addEventListener('sound-cruise-rhythm-sync-applied', () => {
-        let s = {};
-        try { s = JSON.parse(localStorage.getItem(SETTINGS_KEY)) || {}; } catch (_) { s = {}; }
-        state.theme = s.theme;
-        applyRhythmTheme(rhythmThemeOf(s));
-    });
+    // Cloud Sync applied remote data: re-read the synced settings into memory (theme right away; the rest
+    // once no practice is running or shown). See hydrateRhythmSyncedSettings().
+    window.addEventListener('sound-cruise-rhythm-sync-applied', hydrateRhythmSyncedSettings);
     if (els.micResetBtn) els.micResetBtn.addEventListener('click', onMicResetClick);
     // マイク設定TOP（下部・手動設定内）：いつでもマイク設定トップ画面へ戻る（v0.9.70）
     if (els.micSettingsTopBtn) els.micSettingsTopBtn.addEventListener('click', () => guardMicSetupInterruption(() => setSettingsView('chooser')));
@@ -31395,6 +31473,7 @@ function bind() {
     state.rcClickMode = savedClick.range;
     state.rcClickBeats = savedClick.beats;
     state.rcClickOffbeat = savedClick.offbeat;
+    rhythmClickBase = { ...savedClick };
     state.rcLoop = false;                     // くり返し練習は毎回OFFから（永続化しない）
     updateStageSettingsUI();
     // カスタムテスト：再生画面ヘッダー／結果画面から元の編集画面へ戻る（v0.9.124）

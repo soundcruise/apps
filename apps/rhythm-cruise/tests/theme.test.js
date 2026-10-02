@@ -165,7 +165,8 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
     assert.strictEqual(mirrored.settings().theme, 'gray', 'the mirror is adopted as the explicit theme');
     assert.strictEqual(mirrored.settings().themeCloudMirror, undefined, 'and retired');
     // App side: the listener re-reads only the theme; the display falls back to the kept cloud theme.
-    assert(/window\.addEventListener\('sound-cruise-rhythm-sync-applied', \(\) => \{\n        let s = \{\};\n        try \{ s = JSON\.parse\(localStorage\.getItem\(SETTINGS_KEY\)\) \|\| \{\}; \} catch \(_\) \{ s = \{\}; \}\n        state\.theme = s\.theme;\n        applyRhythmTheme\(rhythmThemeOf\(s\)\);\n    \}\);/.test(script), 'theme-only refresh after a Cloud Sync apply');
+    assert(script.indexOf("window.addEventListener('sound-cruise-rhythm-sync-applied', hydrateRhythmSyncedSettings);") > 0, 'synced settings (theme included) are re-read after a Cloud Sync apply');
+    assert(/state\.theme = s\.theme; \/\/ display only[^\n]*\n    applyRhythmTheme\(rhythmThemeOf\(s\)\);/.test(script), 'the theme is refreshed right away');
     assert(/applyRhythmTheme\(rhythmThemeOf\(s\)\);/.test(script.slice(script.indexOf('function loadSettings()'))), 'load shows the device theme');
     console.log('theme: Cloud Sync writer OK (explicit sent, unset never sent, received adopted, absence keeps it)');
 }()).catch(function (error) { console.error(error); process.exit(1); });

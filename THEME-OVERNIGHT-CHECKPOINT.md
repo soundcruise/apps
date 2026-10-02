@@ -206,3 +206,20 @@ against a cloud settings record that carries `theme`:
 - Known, pre-existing (not caused by theme): a fresh Pitch device joining a cloud whose settings lack
   `accidentalDisplay` ends in manifest_mismatch (simulation); Rhythm `saveSettings` rewrites synced non-theme
   settings from memory after an in-app Cloud Sync apply (theme itself is refreshed by the new listener).
+
+## Post-Theme Sync Integrity Repair (2026-10-02)
+
+| Phase | Scope | Status | Commit | Version |
+|---|---|---|---|---|
+| R1-R3 | Pitch: join with no ♯/♭ in the cloud failed (manifest_mismatch) | DONE (deployed, prod smoke 36/36, prod adapter hash = repo) | 5ddf983d | Pitch 2.27.1 |
+| R4-R6 | Rhythm: in-memory synced settings written back over Cloud Synced values | DONE pending deploy check (this commit) | see git log | Rhythm 1.17.1 |
+
+- Pitch root cause: the merge filled a missing accidentalDisplay with 'sharp', apply stored 'sharp', and the push was
+  skipped as "semantically equal", so the joining device reported a manifest the server never had. Fix: missing means
+  "never chosen" in merge / apply / storage (shown as ♯); explicit sharp / flat sync; no read-time writeback.
+- Pitch, not fixed (pre-existing, needs a shared-runtime change): the same class of mismatch for other default-filled
+  fields when cloud settings are Standard-shaped (instrument / notationStyle / scaleEnabled / isAnswerMode only).
+- Rhythm root cause: saveSettings / saveStageClickSettings / saveRhythmStagePrefs rebuild the stored objects from
+  memory, which a Cloud Sync apply does not update (tap layout, input mode, judgement, custom stages, click settings,
+  stage prefs were reverted; custom stages lost). Fix: three-way saves + state hydration after apply (deferred while
+  a practice runs or is shown; display refresh only; no mic / audio / playback / navigation side effects).

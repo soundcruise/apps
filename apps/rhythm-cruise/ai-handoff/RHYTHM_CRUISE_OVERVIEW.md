@@ -15,7 +15,7 @@
 - 通常版PWA URL: `https://soundcruise.jp/apps/rhythm-cruise/standard/`
 - 旧通常版URL（互換入口）: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_r4m8k7n2q9x/`
-- 現在のバージョン: `1.17.0`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
+- 現在のバージョン: `1.17.1`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
 - このドキュメント更新時点の最新commit（rhythm-cruise関連）:
   - message: `リズムクルーズを正式版1.0.0に更新`
   - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
@@ -100,11 +100,15 @@
 - 起動時: 各 `index.html` の `<head>` 先頭の bootstrap が `html[data-theme]` を設定し、Dark 以外は既存 theme-color（#070b11）より前に meta を追加。
 - 見た目: Dark は既存CSSそのまま。Charcoal / Gray / Light は `theme-colors.css`（`tools/theme-layer/generate.py rhythm` で自動生成、手修正は末尾の Hand-tuned overrides のみ）。
 - 判定レーン・補正テストのレーン・結果グラフ・録音レビュー・譜面レイヤーは Canvas/VexFlow が暗い地向けの明るい線で描くため、そのパネルだけ Dark のまま（`#080c12` の下地を敷く）。周囲のカード・タップパッド・ボタン・設定はテーマ追従。early / just / late の判定色は不変。
-- Cloud Sync（1.17.0〜、writer）: theme は settings の同期項目（`SYNC_OPTIONAL_SETTINGS`。既定値を持たないので既定値ベースの処理の外で扱う）。
+- Cloud Sync（1.17.1〜、writer）: theme は settings の同期項目（`SYNC_OPTIONAL_SETTINGS`。既定値を持たないので既定値ベースの処理の外で扱う）。
   - 送信: 明示保存された theme → なければ旧 reader 版の `themeCloudMirror` → どちらも無ければ送らない（未設定をダークとして送らない）。
   - 受信: 有効な theme はこの端末の明示 theme として保存し、`themeCloudMirror` は解消する。theme の無い settings ではローカルの theme を消さない。適用後に `sound-cruise-rhythm-sync-applied` を発行し、本体は theme だけを読み直す（`state.theme` も更新するので、その後の設定保存で受信テーマが戻らない）。
   - アダプタは `syncCapabilities = ['settings_theme_v1']` を宣言する。宣言しない旧クライアント（1.16.3 以前）には Worker が theme を見せず、その書き込みでもクラウドの theme を保持する。
   - 表示: `rhythmThemeOf(settings)` が明示 theme（なければミラー）を返す。読み込み時に書き戻さない。
+- Cloud Sync 適用後のメモリ整合（1.17.1〜）: 同期対象（theme / tapLayout / tapUnified / inputMode / judgePreset / PROカスタムSTAGE / クリック設定 / 内蔵STAGE設定）は、本体のメモリにも複製がある。
+  - 保存は3-way: 最後に読んだ値（基準）からこの端末で変えていない項目はストレージの値（同期済み）を書き、変えた項目だけ端末の値を書く（`rhythmSyncedMainForSave` / `saveStageClickSettings` / `saveRhythmStagePrefs`）。古いメモリ値で同期値を巻き戻さない。
+  - `sound-cruise-rhythm-sync-applied` で `hydrateRhythmSyncedSettings()` がメモリへ読み直す（表示更新のみ。マイク・音声・再生・画面遷移は行わない）。練習中や練習画面表示中は保留し、練習画面を離れる `show()` で読み直す。theme は表示だけなので即時。
+  - マイク補正・感度・音量・小節数などの端末専用値は対象外。
 - テスト: `node apps/rhythm-cruise/tests/theme.test.js`
 
 ---
