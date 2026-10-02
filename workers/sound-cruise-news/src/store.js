@@ -2,6 +2,7 @@ import {eventEndsAt} from './event.js';
 import {duplicateOf,factualIdentity} from './dedupe.js';
 import {saleEndsAt,isSaleRecord} from './sale.js';
 import { DAY } from './policy.js';
+import {purgeDecisionLedger} from './operator-review.js';
 import { HEALTH_STATUSES,HEALTH_REASONS } from './source-health.js';
 export class NewsStore {
  constructor(db){this.db=db;}
@@ -70,6 +71,7 @@ export class NewsStore {
   if(lost.n>=3){await this.db.prepare('INSERT INTO source_health_alerts VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),sourceId,'error','approved_mass_visibility_loss',checkedAt).run();console.warn(JSON.stringify({event:'news_product_regression',sourceId,reason:'approved_mass_visibility_loss',approvedCount:lost.n}));}
  }
  async purge(now,{leadMs=0}={}){
+  await purgeDecisionLedger(this,now);
   const result=await this.db.batch([
    this.db.prepare('DELETE FROM candidate_items WHERE expires_at <= ?').bind(now+leadMs),
    this.db.prepare('DELETE FROM collection_runs WHERE collected_at <= ?').bind(now-90*DAY),

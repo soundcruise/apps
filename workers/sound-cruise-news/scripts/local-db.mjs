@@ -2,6 +2,7 @@ import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { readFile, mkdir, readdir } from 'node:fs/promises';
 import {expireReport} from './report.mjs';
 import { NewsStore } from '../src/store.js';
+import {migrationStatements} from './migration-statements.mjs';
 export async function localDatabase(persistencePath='.local/d1'){
  await mkdir('.local',{recursive:true});
  await expireReport();
@@ -13,7 +14,7 @@ export async function localDatabase(persistencePath='.local/d1'){
   for(const name of (await readdir(directory)).filter(n=>n.endsWith('.sql')).sort()) {
    if(await db.prepare('SELECT name FROM local_news_migrations WHERE name=?').bind(name).first())continue;
    const sql=await readFile(new URL(name,directory),'utf8');
-   await db.batch([...sql.split(';').map(s=>s.trim()).filter(Boolean).map(s=>db.prepare(s)),db.prepare('INSERT INTO local_news_migrations VALUES(?)').bind(name)]);
+   await db.batch([...migrationStatements(sql).map(s=>db.prepare(s)),db.prepare('INSERT INTO local_news_migrations VALUES(?)').bind(name)]);
   }
   return {mf,db,store:new NewsStore(db)};
  }catch(error){await mf.dispose();throw error;}

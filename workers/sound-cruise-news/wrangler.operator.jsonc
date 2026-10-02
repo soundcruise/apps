@@ -1,0 +1,34 @@
+{
+  "name": "sound-cruise-news-operator",
+  "account_id": "a9f2a3e9fcb6d0f68fd2eaa9df909e33",
+  "main": "src/operator-worker.js",
+  "compatibility_date": "2026-10-02",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [],
+  "assets": {
+    "directory": "operator-ui",
+    "binding": "OPERATOR_ASSETS",
+    "run_worker_first": true
+  },
+  "vars": {
+    "NEWS_OPERATOR_ORIGIN": "https://sound-cruise-news-operator.cruise-port-requests.workers.dev",
+    "NEWS_ACCESS_ISSUER": "https://broken-bonus-ef27.cloudflareaccess.com",
+    "NEWS_ACCESS_AUD": "",
+    "NEWS_SOURCE_IDS": "[\"shimamura\",\"kikutani\",\"sleepfreaks\",\"zoom\",\"amass\",\"ikebe\",\"ik\",\"agm\",\"ikebe-event\",\"at-distribution\"]"
+  },
+  "d1_databases": [
+    {
+      "binding": "NEWS_DB",
+      "database_name": "sound-cruise-news",
+      "database_id": "13267817-d259-4fde-80d3-37766f8f3f11",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "traces": {
+      "enabled": true
+    }
+  }
+}

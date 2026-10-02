@@ -1,3 +1,4 @@
+import {fixtureDecision as operatorDecision} from './operator-fixtures.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {database,store,pepper} from './helpers.js';
 import {getSource,phaseOneSourceReady,evidenceGate} from '../src/registry.js';
@@ -8,7 +9,7 @@ import {parseOfficialListing} from '../src/official-listing.js';
 import {collectSource} from '../src/collector.js';
 import {publishAutomatic} from '../src/automatic.js';
 import {recoverOfficialArticleFacts} from '../src/pending-replay.js';
-import {operatorDecision} from '../src/operator-review.js';
+import {} from '../src/operator-review.js';
 import {administer} from '../src/admin.js';
 import {eventEndsAt} from '../src/event.js';
 import {handleNewsRequest} from '../src/worker.js';

@@ -1,0 +1,38 @@
+import {authenticateOperator,csrfToken,verifyCsrf} from './operator-auth.js';
+import {NewsStore} from './store.js';
+import {runtimeSources} from './runtime.js';
+import {reviewQueue,reviewDetail,operatorDecision} from './operator-review.js';
+const security={'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','X-Frame-Options':'DENY','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'none'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",'Permissions-Policy':'camera=(), microphone=(), geolocation=()'};
+const json=(body,status=200)=>Response.json(body,{status,headers:security});
+async function inputJSON(request){
+ if(!/^application\/json(?:;\s*charset=utf-8)?$/i.test(request.headers.get('Content-Type')||''))throw Error('json_required');
+ if(Number(request.headers.get('Content-Length'))>8192)throw Error('request_too_large');
+ let bytes=0,text='';const reader=request.body?.getReader();if(!reader)throw Error('malformed_json');
+ const decoder=new TextDecoder();try{for(;;){const {done,value}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>8192){await reader.cancel();throw Error('request_too_large');}text+=decoder.decode(value,{stream:true});}text+=decoder.decode();}finally{reader.releaseLock();}
+ try{const input=JSON.parse(text);if(!input||typeof input!=='object'||Array.isArray(input))throw Error();return input;}catch{throw Error('malformed_json');}
+}
+export async function handleOperatorRequest(request,env,now=Date.now(),options={}){
+ try{
+  const identity=await authenticateOperator(request,env,now,options),url=new URL(request.url);
+  if(url.origin!==identity.config.origin)throw Error('origin_denied');
+  if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
+  const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.10.0'});
+  if(request.method==='GET'&&url.pathname==='/api/pending')return json({items:await reviewQueue(store,{now,registry,pepper:env.NEWS_HEADLINE_PEPPER})});
+  if(request.method==='GET'&&/^\/api\/candidates\/[a-zA-Z0-9_-]{1,128}$/.test(url.pathname))return json(await reviewDetail(store,url.pathname.split('/').at(-1),now,registry,env.NEWS_HEADLINE_PEPPER));
+  if(request.method==='POST'&&['/api/decision','/api/cli-decision'].includes(url.pathname)){
+   await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
+   return json(await operatorDecision(store,input,now,registry,env.NEWS_HEADLINE_PEPPER,url.pathname==='/api/cli-decision'?{...identity.actor,type:'system_repair'}:identity.actor));
+  }
+  if(request.method==='GET'&&['/','/index.html','/review.js','/review.css'].includes(url.pathname)){
+   if(!env.OPERATOR_ASSETS)throw Error('operator_not_configured');
+   const response=await env.OPERATOR_ASSETS.fetch(request),headers=new Headers(response.headers);for(const [k,v]of Object.entries(security))headers.set(k,v);return new Response(response.body,{status:response.status,headers});
+  }
+  return json({error:'not_found'},404);
+ }catch(error){
+  const code=error.message,status=code==='operator_not_configured'?503:['authentication_required','authentication_invalid'].includes(code)?401:['operator_denied','origin_denied','csrf_invalid'].includes(code)?403:code==='candidate_not_found'?404:['stale_decision','already_decided','candidate_changed','idempotency_payload_changed','duplicate'].includes(code)?409:code==='decision_transaction_failed'?503:422;
+  const known=/^(publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
+  return json({error:known?code:'operator_unavailable'},known?status:503);
+ }
+}
+export default {fetch:(request,env)=>handleOperatorRequest(request,env)};

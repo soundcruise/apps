@@ -1,10 +1,11 @@
+import {fixtureDecision as operatorDecision} from './operator-fixtures.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {database,store,pepper,source as synthetic,options} from './helpers.js';
 import {getSource,legalGate} from '../src/registry.js';import {runtimeSources} from '../src/runtime.js';
 import {jstCollectionDay,COLLECTION_CRON} from '../src/scheduled.js';import {nextDailyCollectionAt,collectSource} from '../src/collector.js';
 import {candidateFrom,productFacts,factualLabel,parseMetadata} from '../src/metadata.js';import {parseOfficialListing} from '../src/official-listing.js';
 import {robotsPolicy,DAY,hash} from '../src/policy.js';import {backfillLegacy,LEGACY_DIGEST,legacyRows} from '../src/legacy.js';
-import {operatorDecision,reviewQueue} from '../src/operator-review.js';import {publishAutomatic} from '../src/automatic.js';
+import {reviewQueue} from '../src/operator-review.js';import {publishAutomatic} from '../src/automatic.js';
 import {handleNewsRequest} from '../src/worker.js';import {administer} from '../src/admin.js';
 const now=Date.parse('2026-09-30T21:00:00Z'),robots=robotsPolicy('User-agent: *\nAllow: /',synthetic);
 const ready=id=>({...getSource(id),robotsValid:true,discoveryValid:true,sourceRulesReviewed:true,reviewedAt:'2026-09-30',robotsReviewedAt:'2026-09-30',discoveryReviewedAt:'2026-09-30',policyDecision:'approved',enabled:false,productionEnabled:false});
