@@ -16,13 +16,13 @@ const appHtml = [
 
 test('four Pro apps load one renderer and one card stylesheet contract', () => {
   for (const html of appHtml) {
-    assert.match(html, /sync-ui-components\.js\?v=15/);
-    assert.match(html, /multi-app-sync\.css\?v=22/);
+    assert.match(html, /sync-ui-components\.js\?v=16/);
+    assert.match(html, /multi-app-sync\.css\?v=23/);
   }
   assert.match(renderer, /sound-cruise-sync-settings-card/);
   assert.match(renderer, /sound-cruise-sync-settings-head/);
-  assert.match(renderer, /sound-cruise-sync-settings-card--testing/);
-  assert.match(renderer, /sound-cruise-sync-settings-testing-badge/);
+  assert.doesNotMatch(renderer, /sound-cruise-sync-settings-card--testing|試験中/);
+  assert.doesNotMatch(css, /sound-cruise-sync-settings-card--testing|sound-cruise-sync-settings-testing-badge/);
   assert.doesNotMatch(renderer, /sound-cruise-sync-status/);
   assert.match(renderer, /sound-cruise-sync-card-actions/);
   for (const html of appHtml.slice(1)) assert.match(html, /multi-app-sync-bootstrap\.js\?v=23/);
