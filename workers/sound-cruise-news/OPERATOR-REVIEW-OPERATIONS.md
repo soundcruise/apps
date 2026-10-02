@@ -364,3 +364,38 @@ Release checks: NEWS/Operator 444 tests PASS including actual workerd/D1,
 shadow-state idempotency, stale revision/time/version, six verdict comparisons,
 independence, low-N UI, auth/CSRF, atomic rollback and 365-day shadow-only expiry.
 375px/393px checks: no horizontal overflow; normal decision buttons remain guarded.
+
+
+## Operator 0.16.0 — Refresh and last successful update
+
+Every refresh freshly requests pending, summary, Shadow metrics and first-page human history, even while history is collapsed. Reads retain browser no-store and authenticated Operator response no-store; public NEWS cache is unchanged. Concurrent refreshes share one promise. Late history pagination responses cannot overwrite a newer refresh.
+
+The header timestamp is successful UI acquisition completion time in Asia/Tokyo (YYYY/MM/DD HH:mm:ss), not candidate modification or cron time. Failed acquisition preserves the last successful timestamp and prior data, and explicitly reports failure. The button shows 更新中… while requesting.
+
+### Read-only production audit — 2026-10-03 07:42 JST
+
+Baseline main/origin 1ad96c18; Port 1.14.0, Operator 0.15.0, public NEWS 0.11.0. Approved 53 / pending 17 / rejected 19 / human decisions 2. Actual approvable count **1**. The pre-change authenticated production UI also displayed one candidate with all sources after refresh. Reported zero is not reproducible here; its prior cause is not established. No publication validation change.
+
+A single remote D1 SELECT snapshot was evaluated with exact repository reviewQueue/publicationValidation/runtimeSources and configured fingerprint pepper in a private in-memory database. No secret output.
+
+| Candidate ID | Status | validation.valid | Reviewability | Blocker | Facts present | Duplicates |
+|---|---|---|---|---|---|---|
+| 2aa5995986389cd0d7a77695d0e203a49681a9722101212124ba0eea1b1201d9 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| 3999b43277c5825c8b96c8a220a7729003a53125c36e751c25128b95bc649e81 | pending | true | READY_FOR_HUMAN_DECISION | none | true | 0 |
+| 1b402c7d5e33e32b993c8109787368f3f1a0d5a6052d62d9df01fdd4b6d4ca28 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| bd2d0be4e45e696a20ad5a3b7919b8ec3261eb132ded7168d6646ae7ef6d7a4a | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| 368e218d4d5072a545f671dbf0b50dff5a7a6c21e5e6bf0fe545213cc2b9f3cb | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| 4020bf1b51afb5a9a6d290f79281834f27d30314282da0a1553d9b8b08fed92f | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| 4632d340b4ef7ea60e45df539514f767fdbc103aa6c68921d0353235a949b949 | pending | false | DUPLICATE_BLOCKED | duplicate | true | 1 |
+| b3462045cf60048fd40ed3efd260453b8d69089647e61538e7f3625d5518c88f | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| b44fe9ca6a358d9cb333956f9823903f2079b54a8dd240096c262fd5101831d5 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| b7cb377c374722cf20bc5b9da2aed032dae4e03984573ac1193eca98fc92d286 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| bf0895e2038bdbbef32652e055571dfd47f7a7065e7276f8191cfa37bcfe3c88 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| 3a6dd027f7b38e59be5d4f7914d47d278c1794f806409b62d38a81a949571f08 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | true | 0 |
+| b5c0c40743312c4f6c874924662b353ee970947208e4e070d12bd3ce0c129c23 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | true | 0 |
+| d85da4caddbcc68b4b9cab37d5527ee778675146f721c90116eca60c72254c7c | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | true | 0 |
+| a740971f365a8fdcce2e32ddd03c6c4f0f7d301db127e50a71a10075b1cc3cdb | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| c19282ac70cf8692ec98ca9eb974b74c6d87ec5082d0d6c09216387f22edae18 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | false | 0 |
+| a9f0b5e8e738478cb114ad64f771573a08541d21cdf2d5beef971b458e89e8f3 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | true | 0 |
+
+Exclusive totals: ready 1 / facts_incomplete 15 / duplicate 1 / policy or other 0. Complete candidate and ledger rows are compared before and after production checks. No production approve/reject/facts recovery/Shadow writes or migration. NEWS/Operator regression suite: 447 pass.
