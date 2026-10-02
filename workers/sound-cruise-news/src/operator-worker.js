@@ -1,3 +1,4 @@
+import {saveShadowEvaluation,evaluatePending,shadowMetrics} from './operator-shadow.js';
 import {dashboardSummary,humanDecisionHistory,similarDecisions} from './operator-insights.js';
 import {recheckFacts} from './facts-recheck.js';
 import {authenticateOperator,csrfToken,verifyCsrf} from './operator-auth.js';
@@ -19,7 +20,13 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.14.0'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.15.0'});
+  if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
+  if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
+   await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
+   if(input.scope==='pending'&&Object.keys(input).length===1)return json(await evaluatePending(store,now,registry,env.NEWS_HEADLINE_PEPPER));
+   return json(await saveShadowEvaluation(store,input,now,registry,env.NEWS_HEADLINE_PEPPER));
+  }
   if(request.method==='GET'&&url.pathname==='/api/summary')return json(await dashboardSummary(store,now));
   if(request.method==='GET'&&url.pathname==='/api/human-decisions'){
    const offset=url.searchParams.get('offset')||'0';if(!/^\d{1,7}$/.test(offset))throw Error('operator_query_invalid');

@@ -272,3 +272,95 @@ Regression: Port 953 tests and NEWS/Operator 418 tests PASS; 375px, 393px and
 - Future human decisions append `insightsProfile` and `shadowEvaluation` to the existing JSON feature column in the SAME atomic decision INSERT. The evaluation is recomputed at decision time (may differ from an earlier screen if other decisions arrived), and records final operator verdict/version/evidence/reasons/decision IDs. Nonhuman decisions retain coarse features. Historical ledger rows are not rewritten and have no retrospective shadow result.
 - Phase C can measure recommendation coverage/agreement, contradiction and approve-vs-reject mismatches using these envelopes and human verdicts. Mismatches are evaluation proxies, not objective article truth. No meaningful accuracy is claimed from the current two cases. Public Worker/Port/schema unchanged; no migration needed.
 - Release verification: NEWS/Operator 431 tests PASS, including actual local workerd/D1 atomic human evidence, JWT/Origin/CSRF, stale context, threshold/contradiction/obsolete policy, text-safe UI and human-only history. Local 375px/393px/desktop checks passed with no horizontal overflow or console errors.
+
+## Phase C — Operator 0.15.0: shadow-only measurement
+
+### Storage and timing
+
+Phase B ledger JSON stores features only when a human actually decides. It cannot
+retain an undecided candidate's first/later observation or count NONE coverage.
+Additive migration `0013_shadow_evaluation.sql` therefore adds one immutable
+`news_shadow_evaluations` table with candidate/revision and version indexes.
+It adds no candidate/ledger columns and does not backfill or relabel any record.
+
+Authenticated POST `/api/shadow-evaluate` records a single `{id,revision,snapshot}`
+or `{scope:"pending"}` (max 100; larger queues use per-ID calls). Candidate full-row
+CAS, exact snapshot and pending status are checked. Only audit rows are inserted.
+State + history-watermark + policy/rule + coarse profile determine the review
+observation ID; repeats return the first row, not a new record per timestamp.
+Detail open also saves an observation after the existing read-only similarity GET.
+Dashboard GET does not write. No schedule or collection-hook changes are added.
+
+Human decisions always recompute immediately before the existing decision INSERT.
+Their shadow envelope is inserted by a BEFORE ledger trigger in the SAME atomic
+statement as candidate/feedback/ledger updates. A failed decision rolls back that
+envelope too. Successful retry replays the existing ledger result. Old Operator
+versions without an evaluation ID remain supported during additive rollout.
+
+Envelope: evaluation ID, candidate ID/revision/snapshot, evaluated time, contract
+`shadow-v1`, policy version, recommendation rule `structured-human-v1`, recommendation
+(including NONE), reason, level, evidence/approve/reject/contradiction counts, matched
+IDs (first 50, explicit truncation) and full teacher-watermark hash, source/raw
+category/type, reviewability, validation error codes and coarse immutable profile.
+No body/HTML/original headline, product/artist names, actor identity, tokens or
+secrets are stored. Existing structured features remain name-free. Shadow rows
+have 365-day query retention and lazy physical expiry on a later insert. They do
+not depend on candidate retention or a public Worker redeploy.
+
+### Measurement contract
+
+Authenticated GET `/api/shadow-metrics` aggregates only current policy AND current
+recommendation-rule results. Raw human total and recorded-observation total are
+separate from eligible matched/independent human denominators. Legacy SHURE/KORG
+have no pre-decision shadow envelope: they stay real teachers but UNMATCHED for
+shadow comparisons. No retrospective evaluation is invented from current facts.
+
+Matching requires the ledger's own evaluation ID, exact candidate/revision/snapshot,
+current versions, evaluation not later than verdict and at most 30 minutes before
+it. The latest human decision per candidate is considered; missing/newer evaluations
+never fall back to an older verdict. Article/topic hashes collapse cross-source or
+duplicate IDs; retries/revisions do not inflate independent evidence. Human-only,
+committed, retained ledger cases are used; all automated/fixture/recovery cases
+are excluded. Similarity and recommendation threshold 5 remain unchanged.
+
+Six comparison classes distinguish agree approve/reject, false publish direction,
+missed publish direction and NONE + human approve/reject. These are comparisons
+against operator judgement, not objective truth labels. Coverage = recommendations /
+independent matched human cases; agreement = agreement / recommendations; contradiction
+rate = contradictory cases / independent matched cases. Empty denominators are null.
+Observation NONE counts include undecided candidates and do not enter agreement.
+Pattern breakdown: source/surface/display category/type/fact field shape/policy/rule.
+
+### Readiness and UI
+
+N < 10 hides percentages and says evidence is insufficient. N >= 10 still does NOT
+establish readiness. Auto-publish and auto-reject risk flags are separate. Any
+false-publish direction deserves stricter investigation for publishing; missed-publish
+for rejection. Conditions for future Phase D: sufficiently large independent sample
+per narrow pattern, stable policy/rule, sustained evidence over time, useful coverage,
+low contradiction, no/near-zero asymmetric error with uncertainty review, and explicit
+operator approval. Numeric readiness cutoffs need prospective data; do not fit them
+to the current two cases. Deterministic duplicate/expiry/out-of-scope rejection would
+need its own validation track, not category-wide activation.
+
+UI adds a small Shadow section, observation/comparison totals, low-N notice and optional
+pattern detail. It does not announce agreement after decisions or change confirmation
+buttons. No auto approve/reject, adaptive rule table, rule promotion, feedback activation
+or publication hook is present. Access/JWT/CSRF/Origin/idempotency and existing validation
+remain authoritative. Public NEWS and Port are unchanged.
+
+### Production run
+
+Use `node scripts/migrate-shadow.mjs plan`, then `apply` after tests. It checks the
+isolated NEWS DB, exports a private backup, requires exactly migration 0013 pending,
+and compares all candidate/ledger/control rows after applying. Operator deploy requires
+0011/0012/0013 and a freshly verified Access receipt. Generate current pending observations
+with the authenticated audit-only button, never with decision/recheck buttons.
+
+Phase C preflight measured 2026-10-03: approved 53 / pending 17 / rejected 19 /
+human ledger 2. The 06:01 JST existing scheduled collection added 8 records since
+Phase B (2 automatic approvals, 6 pending); none are new human teacher signals.
+Release checks: NEWS/Operator 444 tests PASS including actual workerd/D1,
+shadow-state idempotency, stale revision/time/version, six verdict comparisons,
+independence, low-N UI, auth/CSRF, atomic rollback and 365-day shadow-only expiry.
+375px/393px checks: no horizontal overflow; normal decision buttons remain guarded.
