@@ -212,7 +212,8 @@ against a cloud settings record that carries `theme`:
 | Phase | Scope | Status | Commit | Version |
 |---|---|---|---|---|
 | R1-R3 | Pitch: join with no ♯/♭ in the cloud failed (manifest_mismatch) | DONE (deployed, prod smoke 36/36, prod adapter hash = repo) | 5ddf983d | Pitch 2.27.1 |
-| R4-R6 | Rhythm: in-memory synced settings written back over Cloud Synced values | DONE pending deploy check (this commit) | see git log | Rhythm 1.17.1 |
+| R4-R6 | Rhythm: in-memory synced settings written back over Cloud Synced values | DONE (deployed, prod smoke 21/21, prod no-revert check 3 widths) | bf1e0bee | Rhythm 1.17.1 |
+| R7-R9 | Cross-sync regression, full suites, audio, production | DONE (all suites PASS, cross-app 285/285, audio identical) | (this file) | — |
 
 - Pitch root cause: the merge filled a missing accidentalDisplay with 'sharp', apply stored 'sharp', and the push was
   skipped as "semantically equal", so the joining device reported a manifest the server never had. Fix: missing means
