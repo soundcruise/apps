@@ -1375,6 +1375,26 @@
       if (cursor) await this.store.setMeta('cursor', cursor);
     }
 
+    // Migration completion compares manifests byte for byte, while the push
+    // decision skips records the adapter calls semantically equal. When a final
+    // record only means the same as the cloud record (e.g. defaults written out
+    // locally but missing in the cloud), attest to the cloud's own record: no
+    // write, and the manifests match. Adapters without semantic equality are
+    // never touched.
+    async adoptSemanticallyEqualRemote(snapshot, remoteLive) {
+      if (typeof this.adapter.sameRecordForSync !== 'function') return snapshot;
+      const remoteMap = mapRecords(remoteLive);
+      const records = await this.adapter.serializeRecords(snapshot);
+      let adopted = 0;
+      const next = records.map((record) => {
+        const remoteRecord = remoteMap.get(keyOf(record));
+        if (!remoteRecord || sameRecord(record, remoteRecord) || !this.recordsEqual(record, remoteRecord)) return record;
+        adopted += 1;
+        return localRecordFromRemote(remoteRecord);
+      });
+      return adopted ? this.adapter.deserializeRecords(next) : snapshot;
+    }
+
     async initializeDataset() {
       const membership = await this.membership();
       this.adapter.assertDataPlaneContext({
@@ -1412,9 +1432,9 @@
         // completed. Hydrate only records still absent locally; never infer a
         // delete from those absences or re-run the original conflict merge.
         const present = new Set(local.records.map(keyOf));
-        finalSnapshot = this.adapter.deserializeRecords([
+        finalSnapshot = await this.adoptSemanticallyEqualRemote(this.adapter.deserializeRecords([
           ...local.records, ...remoteLive.filter((record) => !present.has(keyOf(record)))
-        ]);
+        ]), remoteLive);
         await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       } else if (!local.records.length && remoteLive.length) {
         finalSnapshot = remoteSnapshot;
@@ -1450,7 +1470,7 @@
           await this.reportRemovalSafety('attention');
           return Object.freeze({ ok: false, code: 'merge_conflict', conflicts: unresolved.length });
         }
-        finalSnapshot = mergedSnapshot;
+        finalSnapshot = await this.adoptSemanticallyEqualRemote(mergedSnapshot, remoteLive);
         this.adapter.validateSnapshot(finalSnapshot);
         await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
       }

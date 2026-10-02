@@ -6,7 +6,7 @@ import { webcrypto } from 'node:crypto';
 import { validatePortLocalCollections } from '../../cruise-port/port-sync-local-validation.js';
 import { METRONOME_DEFAULTS } from '../../cruise-port/metronome-store.js';
 import { loadMetronomePresets, deleteMetronomePreset } from '../../cruise-port/metronome-presets-store.js';
-import { validateOperation as validateWorkerOperation } from '../../../workers/sound-cruise-sync/src/records.js';
+import { manifestHash as workerManifestHash, validateOperation as validateWorkerOperation } from '../../../workers/sound-cruise-sync/src/records.js';
 import { appendPracticeHistoryEvent, createManualPracticeRecord, createPracticeCompletedEvent, createPracticeSessionEvent, deletePracticeHistoryEvent, loadPracticeHistory, savePracticeHistory, updatePracticeHistoryRecord } from '../../cruise-port/practice-menu-history-store.js';
 import { buildPracticeAnalytics } from '../../cruise-port/practice-analytics.js';
 
@@ -170,8 +170,18 @@ function serverFetch() {
       return Response.json({ ok: true, results });
     }
     if (path === '/v1/sync/migration/complete') {
-      server.state = 'ready';
+      // Like the Worker, completion must attest to exactly what the server holds:
+      // the fixture adapter's id manifest, or the Worker's payload-hash manifest
+      // for real app adapters. Anything else is a 409 manifest_mismatch.
       const body = JSON.parse(init.body);
+      const live = [...server.records.values()].filter((record) => record.deletedAt == null);
+      const idManifest = `manifest-${live.map((record) => record.recordId).sort().join('-')}`;
+      const payloadManifest = await workerManifestHash(live, body.schemaVersion, webcrypto, body.appId);
+      if (body.recordCount !== live.length || ![idManifest, payloadManifest].includes(body.manifestHash)) {
+        return Response.json({ ok: false, code: 'manifest_mismatch', serverRecordCount: live.length,
+          serverManifestHash: payloadManifest }, { status: 409 });
+      }
+      server.state = 'ready';
       return Response.json({ ok: true, datasetState: 'ready', recordCount: body.recordCount,
         manifestHash: body.manifestHash, cursor: `c${server.revision}` });
     }
@@ -380,8 +390,10 @@ test('real Port migration never tombstones an absent remote record without delet
   fixture.server.records.set('metronome_preset/remote-only', { ...operation, revision: 1,
     deletedAt: null, changeSeq: 1, ownedByCurrentDevice: true });
   fixture.server.revision = 1;
-  // An absent record with no intent is hydrated or retained, never deleted.
-  await fixture.runtime.initializeDataset();
+  // An absent record with no intent is hydrated or retained, never deleted. The
+  // own-partial resume keeps the local snapshot, so completion cannot attest to
+  // the retained record and fails closed, as the Worker's manifest check does.
+  await assert.rejects(fixture.runtime.initializeDataset(), (error) => error.code === 'manifest_mismatch');
   assert.equal(fixture.server.records.get('metronome_preset/remote-only').deletedAt, null);
 });
 
@@ -3437,4 +3449,52 @@ test('timed practice record: 65 → 40 syncs to another device, 40 → 55 again 
   assert.equal(buildPracticeAnalytics(readHistory(b)).totalSeconds, 55 * 60);
   const cloudChild = a.server.records.get(`practice_history_event/${child.id}`).payload.value;
   assert.deepEqual([cloudChild.durationMinutes, cloudChild.measuredDurationSeconds], [55, 3300]);
+});
+
+test('migration attests to the cloud record only when it is semantically equal, and never without semantic equality', async () => {
+  const record = (recordId, payload, payloadHash) => ({ recordType: 'settings', recordId, schemaVersion: 1, payload, payloadHash });
+  const cloud = record('settings', { id: 'settings', values: { tempo: 96 } }, 'hash-cloud');
+  const remoteLive = [{ ...cloud, revision: 3, deletedAt: null }, { ...record('other', { id: 'other' }, 'hash-other'), revision: 1, deletedAt: null }];
+  const snapshot = { appId: 'pitch', schemaVersion: 1, records: [
+    record('settings', { id: 'settings', values: { tempo: 96, volume: 1 } }, 'hash-local'),
+    record('other', { id: 'other' }, 'hash-other'),
+    record('local-only', { id: 'local-only' }, 'hash-local-only')
+  ] };
+
+  // An adapter without semantic equality (Port, Fretboard, Rhythm) passes straight through.
+  const plain = runtimeFixture([]);
+  let serialized = 0;
+  const serialize = plain.local.serializeRecords;
+  plain.local.serializeRecords = async (value) => { serialized += 1; return serialize(value); };
+  assert.equal(await plain.runtime.adoptSemanticallyEqualRemote(snapshot, remoteLive), snapshot);
+  assert.equal(serialized, 0);
+
+  // With semantic equality only the equal-but-different record becomes the cloud's own record.
+  const semantic = runtimeFixture([]);
+  semantic.local.sameRecordForSync = (left, right) => left?.recordId === 'settings' && right?.recordId === 'settings' &&
+    left.payload.values.tempo === right.payload.values.tempo;
+  const adopted = await semantic.runtime.adoptSemanticallyEqualRemote(snapshot, remoteLive);
+  assert.deepEqual(adopted.records.map((item) => [item.recordId, item.payload]), [
+    ['settings', { id: 'settings', values: { tempo: 96 } }],
+    ['other', { id: 'other' }],
+    ['local-only', { id: 'local-only' }]
+  ]);
+  // A different value is never replaced, and nothing absent from the cloud is created or dropped.
+  semantic.local.sameRecordForSync = () => false;
+  assert.equal(await semantic.runtime.adoptSemanticallyEqualRemote(snapshot, remoteLive), snapshot);
+});
+
+test('the fixture server, like the Worker, rejects a completion manifest that differs from what it holds', async () => {
+  const { server, fetchImpl } = serverFetch();
+  server.records.set('settings/settings', { recordType: 'settings', recordId: 'settings', schemaVersion: 1,
+    payload: { id: 'settings', values: {} }, payloadHash: 'a'.repeat(64), revision: 1, deletedAt: null });
+  const complete = (manifestHash, recordCount = 1) => fetchImpl('https://example.test/v1/sync/migration/complete', {
+    method: 'POST', body: JSON.stringify({ appId: 'pitch', schemaVersion: 1, recordCount, manifestHash }) });
+  const rejected = await complete('manifest-other');
+  assert.equal(rejected.status, 409);
+  assert.equal((await rejected.json()).code, 'manifest_mismatch');
+  assert.equal((await complete('manifest-settings', 2)).status, 409);
+  assert.equal(server.state, 'missing');
+  assert.equal((await complete('manifest-settings')).status, 200);
+  assert.equal(server.state, 'ready');
 });

@@ -218,8 +218,15 @@ against a cloud settings record that carries `theme`:
 - Pitch root cause: the merge filled a missing accidentalDisplay with 'sharp', apply stored 'sharp', and the push was
   skipped as "semantically equal", so the joining device reported a manifest the server never had. Fix: missing means
   "never chosen" in merge / apply / storage (shown as ♯); explicit sharp / flat sync; no read-time writeback.
-- Pitch, not fixed (pre-existing, needs a shared-runtime change): the same class of mismatch for other default-filled
-  fields when cloud settings are Standard-shaped (instrument / notationStyle / scaleEnabled / isAnswerMode only).
+- Pitch Standard-shaped settings (fixed in Pitch 2.27.2, shared runtime ?v=24): when cloud settings lack any of the
+  eight synced fields (e.g. only the four the Standard page writes), a device with full settings failed its join with
+  manifest_mismatch on every retry. The migration push is skipped for semantically equal records, but completion
+  compares manifests byte for byte. Fix: initializeDataset adopts the cloud's own record when the final record is
+  only semantically equal (adoptSemanticallyEqualRemote; adapters without sameRecordForSync pass through). No cloud
+  write; test: workers/sound-cruise-sync/test/pitch-standard-shape-join.test.js.
+- Known, not fixed (internal API only; the conflict screen resolves settings field by field): a whole-record
+  "remote" resolution fails when the cloud settings record is Standard-shaped (Pitch), or when only this device has a
+  theme (Pitch / Fretboard / Rhythm writers).
 - Rhythm root cause: saveSettings / saveStageClickSettings / saveRhythmStagePrefs rebuild the stored objects from
   memory, which a Cloud Sync apply does not update (tap layout, input mode, judgement, custom stages, click settings,
   stage prefs were reverted; custom stages lost). Fix: three-way saves + state hydration after apply (deferred while
