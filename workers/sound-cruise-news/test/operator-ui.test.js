@@ -16,3 +16,12 @@ test('detail expands and collapses inside its own card without scroll/focus; dec
 test('late detail response cannot select a different card or reopen a closed detail',async()=>{const u=ui([row('a',true),row('b',true)]);await settle();u.run('api=path=>new Promise(resolve=>{globalRequests.push({path,resolve})})');u.context.globalRequests=[];const a=u.ids.list.children[0].children.at(-2),b=u.ids.list.children[1].children.at(-2);a.events.click();b.events.click();u.context.globalRequests[1].resolve(row('b',true));await settle();u.context.globalRequests[0].resolve(row('a',true));await settle();assert.equal(u.run('selected.id'),'b');b.events.click();assert.equal(u.run('selected'),null);assert.equal(u.ids.list.children[0].children.at(-1).hidden,true);});
 test('filter changes invalidate pending details and decided candidates are not reopened outside the list',async()=>{const u=ui([row('a',true)]);await settle();u.context.globalRequests=[];u.run('api=path=>new Promise(resolve=>globalRequests.push(resolve))');u.ids.list.children[0].children.at(-2).events.click();u.ids.source.value='other';u.ids.source.events.change();u.context.globalRequests[0](row('a',true));await settle();assert.equal(u.run('selected'),null);await u.run("showDetail('no-longer-pending')");assert.equal(u.context.globalRequests.length,1);});
 test('untrusted facts and labels stay text, unsafe original URLs have no link',async()=>{const u=ui([row('<img onerror=alert(1)>',true)]);await settle();assert.equal(u.ids.list.children[0].children[0].textContent,'<img onerror=alert(1)>');assert.equal(u.run("originalLink('javascript:alert(1)').tagName"),'span');assert.equal(u.run("originalLink('https://user:pass@example.com').tagName"),'span');assert(!/innerHTML|insertAdjacentHTML|eval\(/.test(code));});
+test('operator card and inline detail group recording/creator labels without changing raw candidate or decision category',async()=>{
+ for(const category of ['recording_audio','creator_streaming','dtm_software']){
+  const candidate={...row('SHURE MV6 Gen 2',true),category};const u=ui([candidate]);await settle();
+  const label=category==='dtm_software'?'DTM':'録音・配信';assert(u.ids.list.children[0].children[1].textContent.includes(label));
+  u.run('api=async()=>items[0]');await u.ids.list.children[0].children.at(-2).events.click();await settle();
+  assert(u.ids.list.children[0].children.at(-1).children.some(n=>n.className==='meta'&&n.textContent.includes(label)));
+  assert.equal(u.run('selected.category'),category);assert.equal(candidate.category,category);
+ }
+});

@@ -245,3 +245,16 @@ full-row CAS, atomic provenance and publication validation remain enforced.
 - 掲載 / 非掲載・CSRF・送信結果不明時の再送・facts 再確認は既存の手順のまま。カテゴリ・public NEWS・schema は変更なし。
 - 回帰確認: NEWS / Operator 417件、Port NEWS 27件 PASS。375px / 393px / 1280pxで横overflowなし、原記事HTTPSリンク、カード内展開・閉じる、掲載確認のチェック未完了時disabledを確認。
 - 本番の掲載・非掲載・facts再確認はこのUI確認では実行しない。
+
+## Display category grouping — Port 1.14.0 / Operator 0.13.1
+
+DTM remains separate. Both `recording_audio` and `creator_streaming` display as
+「録音・配信」. Port's display-only `recording_streaming` filter selects their
+union once per record. Old raw filter state maps to this display group; raw
+model keys and public API category filters remain separate and unchanged.
+Operator summaries use the same labels; facts/debug detail retain raw keys.
+No candidate, decision, classification, ledger or D1 migration is part of this
+change. SHURE remains `recording_audio`; KORG remains `amps_effects`, pending
+human publication. No production decision is performed for UI verification.
+Regression: Port 953 tests and NEWS/Operator 418 tests PASS; 375px, 393px and
+1280px union/DTM rendering verified with synthetic creator data.
