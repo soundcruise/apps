@@ -73,3 +73,29 @@ export function highValueLabel(f,event){
  return null;
 }
 export function assessedRecordingFacts(f){return f?.brand==='Harrison Audio'&&f.product==='FLEX 10'&&f.category==='recording_audio'&&f.version===null&&f.identifierBasis==='assessed_recording_listing'&&f.manufacturerSource==='at-distribution';}
+
+// Direct public event recheck is allowed only on the already assessed event host.
+// Exact labeled sections, not nearby paragraphs, URL dates, related cards or tags.
+export function parseEventArticle(html,source,url){
+ if(source.id!=='ikebe-event'||source.discoveryUrl!=='https://www.ikebe-gakki.com/blog/category/event/'||!/^https:\/\/www\.ikebe-gakki\.com\/blog\/[a-z0-9-]+\/$/.test(url))throw Error('facts_source_invalid');
+ if(typeof html!=='string'||new TextEncoder().encode(html).length>512000)throw Error('facts_response_too_large');
+ let doc=parseDocument(html);html='';
+ try{
+  if(find(doc,n=>n.name==='meta'&&/^(robots|SoundCruiseNewsBot)$/i.test(n.attribs.name||'')).some(n=>optOut(n.attribs.content||'')))throw Error('facts_optout');
+  const headings=find(doc,n=>n.name==='h1'&&!hidden(n)&&!!plain(n));if(headings.length!==1)throw Error('facts_parser_failure');
+  const title=plain(headings[0]);if(!/ギター|アコギ|guitar/i.test(title)||!/ワークショップ|展示|EXHIBITION/i.test(title)||/中止|延期/.test(title))throw Error('facts_scope_uncertain');
+  const sections={};
+  for(const h of find(doc,n=>/^h[23]$/.test(n.name)&&!hidden(n)&&['開催日時','会場','講師'].includes(plain(n)))){
+   const key=plain(h);if(sections[key]!==undefined)throw Error('facts_parser_failure');
+   let value='';for(let n=h.next;n&&!/^h[1-3]$/.test(n.name||'');n=n.next){value+=' '+plain(n);if(value.length>2000)break;}
+   sections[key]=value.trim();
+  }
+  // Instructor name must be the immediately following h2 and also in the title.
+  const teachers=find(doc,n=>/^h[23]$/.test(n.name)&&!hidden(n)&&plain(n)==='講師');
+  let artist=null;if(teachers.length===1){let n=teachers[0].next;while(n&&(n.type==='text'||n.name==='figure'||n.name==='p'&&!plain(n)))n=n.next;const name=n?.name==='h2'?plain(n):'';if(/^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}・ 　]{2,24}$/u.test(name)&&title.includes(name))artist=name.replace(/[ 　]/g,'');}
+  const match=/^(20\d{2})年(\d{1,2})月(\d{1,2})日/.exec(sections['開催日時']||'');
+  let eventDate=null;try{if(match)eventDate=date(match[1],match[2],match[3]);}catch{}
+  const venue=/^(?:イケシブ)(?:POPUP SPACE|LIVES|SHOWCASE)?(?:[ （(]|$)/.test(sections['会場']||'')?'イケシブ':/^リボレ秋葉原(?:[ （(]|$)/.test(sections['会場']||'')?'リボレ秋葉原':null;
+  return {kind:'guitar_event',category:'live_guitar',...(artist?{artist}:{}),eventType:/ワークショップ/.test(title)?'workshop':'exhibition',...(eventDate?{eventDate}:{}),...(venue?{venue}:{}),evidence:'assessed_named_guitar_event'};
+ }finally{doc=null;}
+}

@@ -1,3 +1,4 @@
+import {missingFacts,recoverySurface} from './facts-readiness.js';
 import {hash,DAY} from './policy.js';
 import {CHECKS,REASONS,DECISION_POLICY_VERSION,parseFacts,duplicatePredicate,publicationValidation} from './decision-policy.js';
 export const FEEDBACK_REASONS=Object.freeze([...new Set(Object.values(REASONS).flat())]);
@@ -9,7 +10,11 @@ const visibleFacts=facts=>facts?Object.fromEntries(Object.entries(facts).filter(
 export async function reviewDetail(store,id,now,registry,pepper){
  const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(id).first();if(!row)throw Error('candidate_not_found');
  const validation=await publicationValidation(store,row,now,registry,pepper);
- return {id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:row.category,publishedAt:row.published_at,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
+ const source=registry.find(s=>s.id===row.source_id),surface=recoverySurface(row,source);
+ const last=await store.db.prepare('SELECT checked_at,outcome,provenance_json FROM news_facts_rechecks WHERE candidate_id=? ORDER BY checked_at DESC LIMIT 1').bind(id).first();
+ const cached=await store.db.prepare('SELECT checked_at,outcome FROM news_facts_sources WHERE source_id=?').bind(row.source_id).first();
+ const factsReview={missing:missingFacts(row,validation.facts,validation),available:!!surface&&!validation.errors.includes('operator_source_gate')&&!validation.errors.includes('source_url_invalid')&&['pending','reopened'].includes(row.review_status),surfaceUrl:surface?.url||null,method:surface?.method||null,lastVerifiedAt:last?.checked_at||cached?.checked_at||null,outcome:last?.outcome||cached?.outcome||null,provenance:last?.provenance_json&&last.provenance_json!=='[]'?JSON.parse(last.provenance_json):row.facts_provenance?JSON.parse(row.facts_provenance):[],reviewability:validation.errors.includes('duplicate')?'DUPLICATE_BLOCKED':validation.valid?'READY_FOR_HUMAN_DECISION':validation.errors.includes('operator_source_gate')?'POLICY_BLOCKED':surface?'FACTS_RECOVERY_UNCERTAIN':'POLICY_BLOCKED'};
+ return {factsReview,id:row.id,label:row.label,source:row.source_name,sourceId:row.source_id,category:row.category,publishedAt:row.published_at,reason:row.decision_reason,reviewReason:row.review_reason,sourceUrl:row.source_url,decision:row.publication_decision,status:row.review_status,facts:visibleFacts(validation.facts),expiresAt:row.expires_at,saleEndsAt:row.sale_ends_at,eventEndsAt:row.event_ends_at,snapshot:await candidateSnapshot(row),revision:row.review_revision,validation:{...validation,facts:undefined,healthSuccessfulAt:undefined},history:await decisionHistory(store,id)};
 }
 export async function reviewQueue(store,{now=Date.now(),registry=[],pepper}={}){
  const rows=(await store.candidates()).filter(i=>i.origin!=='legacy_fixture_backfill'&&['pending','reopened'].includes(i.review_status));

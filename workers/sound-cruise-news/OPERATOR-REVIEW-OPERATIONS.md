@@ -176,3 +176,26 @@ For everyday use:
 When 掲載する is disabled, required facts or another publication gate are not satisfied;
 operator permission does not override it. The UI does not complete missing facts.
 Sign in again after the six-hour Access session expires. CLI tokens must stay private.
+
+## Phase A.5 — facts recheck (NEWS 0.11.0)
+
+See [Facts Completion Report](OPERATOR-FACTS-COMPLETION-REPORT.md) for the
+13-candidate audit and explicit readiness limits. No production approve/reject.
+
+- Additive migration 0012 is required before either 0.11.0 Worker deployment.
+- Authenticated `POST /api/facts-recheck` accepts only id/snapshot/revision/requestId.
+- This operation never writes the decision ledger or decision feedback.
+- Verified facts remain pending/PUBLISH_REVIEW; the unchanged publication validator
+  decides whether the human approval button may be enabled.
+- Listing-only policies remain listing-only. Only the assessed Ikebe Event article
+  path supports direct explicit event fields. Unsupported facts are not guessed.
+- One source surface verification per 24h, at most robots + one surface request.
+  Candidate rechecks reuse the derived facts cache; no HTML/body/headline retained.
+- Recheck failures are contained: parser/timeout/structure failure does not rewrite
+  a candidate or disable published visibility. Opt-out/access refusal/robots change
+  stops the source; 429/5xx enforce source backoff.
+- Idempotent retry repeats the exact request ID/payload. Open candidate details
+  again after a stale snapshot; never submit old approval after facts update.
+- Source cache retention: 24h. Recovery evidence retention: 90 days.
+- Rolling Worker code back does not require destructive rollback of additive D1
+  tables/column. Preserve recovery evidence and existing decisions.
