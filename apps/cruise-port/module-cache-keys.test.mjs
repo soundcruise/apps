@@ -11,13 +11,13 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.14.0 changes NEWS display grouping and its importing modules.
+// 1.15.0 changes NEWS display grouping and its importing modules.
 const RELEASE_MODULES = Object.freeze(['app-version.js', 'news-data.js']);
 // NEWS modules are loaded with dynamic import() from practice-menu-app.js and did not change in 1.12.0.
 const RELEASE_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
 // Other modules retain the cache key of their last real change.
 const UNCHANGED_KEYS = Object.freeze({
-  // 1.13.0 Charcoal theme modules are untouched by 1.14.0.
+  // 1.13.0 Charcoal theme modules are untouched by 1.15.0.
   'settings-store.js': '1.13.0',
   'home-display.js': '1.13.0',
   // 1.12.3 audio controllers are untouched by the theme release and keep their key.
@@ -42,8 +42,8 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.14.0', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.14.0');
+test('the release is 1.15.0', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.15.0');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -72,7 +72,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.14.0');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.15.0');
   assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');

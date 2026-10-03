@@ -67,6 +67,14 @@ const IDENTIFIERS=Object.freeze([
 const normalizeIdentifier=t=>t.replace(/[™®]/g,'').normalize('NFKC');
 const brandMention=(t,aliases)=>aliases.some(a=>new RegExp('(?:^|[^A-Za-z])'+a.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?:[^A-Za-z]|$)',['BOSS','DE'].includes(a)?'':'i').test(t));
 const safeModel=value=>typeof value==='string'&&value.length<=50&&/^[A-Za-z][A-Za-z0-9-]*(?:[ /][A-Za-z0-9-]+){0,3}$/.test(value)&&/\d/.test(value)&&!/^(?:IP\d+|HDMI|USB|DTM|DAW|AI)$/i.test(value);
+// Only an explicitly quoted, bounded family + generation noun is accepted.
+// A generation token alone is never a product identity. No headline adjectives are retained.
+export function quotedGenerationProduct(title) {
+ const names=[...normalizeIdentifier(title).matchAll(/[「『“"]([A-Za-z][A-Za-z0-9-]*(?: [A-Za-z][A-Za-z0-9-]*){0,2} (?:Gen ?[1-9][0-9]?|MK ?(?:II|III|IV|[1-9])|V[1-9][0-9]?|Series (?:II|III|IV)))[」』”"]/gi)]
+  .map(m=>m[1].replace(/\bGen ?([1-9][0-9]?)$/i,'Gen $1'));
+ const unique=[...new Set(names)];
+ return unique.length===1&&safeModel(unique[0])?unique[0]:null;
+}
 function extendedProductFacts(title){
  const t=normalizeIdentifier(title);
  for(const [brand,category,aliases] of BRANDS){if(!brandMention(t,aliases))continue;
@@ -74,7 +82,7 @@ function extendedProductFacts(title){
   // Model codes are bounded nouns. No adjectives, arbitrary quoted phrases or instructions.
   const at=aliases.map(a=>t.toLowerCase().indexOf(a.toLowerCase())).filter(n=>n>=0).sort((a,b)=>a-b)[0];
   const nearby=t.slice(at,at+100).match(/\b[A-Z][A-Za-z]{0,8}[-]?\d{1,4}[A-Za-z0-9-]{0,14}\b/g)||[];
-  const product=nearby.find(safeModel);if(product)return {brand,product,version:null,category,identifierBasis:'explicit_model_code'};
+  const product=quotedGenerationProduct(t.slice(at,at+200))||nearby.find(x=>safeModel(x)&&!/^Gen[0-9]+$/i.test(x));if(product)return {brand,product,version:null,category,identifierBasis:'explicit_model_code'};
  }
  return null;
 }

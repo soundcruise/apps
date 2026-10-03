@@ -4,22 +4,22 @@ export {labelInformationScore} from './news-quality.js?v=1.11.1';
 export const NEWS_MODE = 'beta';
 export const NEWS_CATEGORIES = Object.freeze({
     acoustic_guitar: 'アコギ', electric_guitar_bass: 'ギター・ベース',
-    amps_effects: 'アンプ・エフェクター', recording_audio: '録音・配信',
-    dtm_software: 'DTM', creator_streaming: '録音・配信',
+    amps_effects: 'アンプ・エフェクター', recording_audio: 'DTM・録音・配信',
+    dtm_software: 'DTM・録音・配信', creator_streaming: 'DTM・録音・配信',
     artist_guitar: 'アーティスト', live_guitar: 'イベント', sale: 'セール', media_other: 'その他'
 });
 // Display-only grouping. Raw category keys remain valid in models and API filters.
 export const RECORDING_STREAMING_GROUP = 'recording_streaming';
 export const NEWS_FILTER_GROUPS = Object.freeze(Object.fromEntries(
-    Object.entries(NEWS_CATEGORIES).filter(([key]) => key !== 'creator_streaming')
+    Object.entries(NEWS_CATEGORIES).filter(([key]) => !['creator_streaming', 'dtm_software'].includes(key))
         .map(([key, label]) => [key === 'recording_audio' ? RECORDING_STREAMING_GROUP : key, label])
 ));
 export function newsFilterGroup(category) {
-    if (category === 'recording_audio' || category === 'creator_streaming') return RECORDING_STREAMING_GROUP;
+    if (['dtm_software', 'recording_audio', 'creator_streaming', 'DTM', '録音・配信'].includes(category)) return RECORDING_STREAMING_GROUP;
     return Object.hasOwn(NEWS_FILTER_GROUPS, category) ? category : '';
 }
 const categoryMatches = (raw, filter) => !filter || (filter === RECORDING_STREAMING_GROUP
-    ? raw === 'recording_audio' || raw === 'creator_streaming' : raw === filter);
+    ? ['dtm_software', 'recording_audio', 'creator_streaming'].includes(raw) : raw === filter);
 const PRIORITY = ['official', 'distributor', 'retailer_editorial', 'media'];
 const GUITAR_EVIDENCE = ['acoustic_guitar_vocal', 'guitar_performance', 'guitar_gear', 'guitar_recording', 'manual_guitar_review'];
 const DAY = 86400000;

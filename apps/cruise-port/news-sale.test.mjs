@@ -119,24 +119,24 @@ test('wake rechecks expired sales when timers were suspended; OFF cancels old re
 
 test('recording/creator share one display filter; raw model and individual filters remain compatible',async()=>{
  const {NEWS_FILTER_GROUPS,newsFilterGroup}=await import('./news-data.js');
- assert.equal(NEWS_CATEGORIES.dtm_software,'DTM');
- for(const key of ['recording_audio','creator_streaming'])assert.equal(NEWS_CATEGORIES[key],'録音・配信');
- assert.equal(Object.values(NEWS_FILTER_GROUPS).filter(x=>x==='録音・配信').length,1);
+ assert.equal(NEWS_CATEGORIES.dtm_software,'DTM・録音・配信');
+ for(const key of ['recording_audio','creator_streaming'])assert.equal(NEWS_CATEGORIES[key],'DTM・録音・配信');
+ assert.equal(Object.values(NEWS_FILTER_GROUPS).filter(x=>x==='DTM・録音・配信').length,1);
  assert.equal(newsFilterGroup('creator_streaming'),'recording_streaming');
  assert.equal(newsFilterGroup('recording_audio'),'recording_streaming');
  assert.equal(newsFilterGroup('unknown'),'');
  const items=['recording_audio','creator_streaming','dtm_software','amps_effects'].map(category=>make({id:category,topicKey:category,category,label:category,saleEndsAt:undefined}));
  const prepared=prepareNews(items,{now});
  const ids=key=>groupNews(prepared,key,now).flatMap(([,rows])=>rows.map(r=>r.id));
- assert.deepEqual(ids('recording_streaming'),['creator_streaming','recording_audio']);
+ assert.deepEqual(ids('recording_streaming'),['creator_streaming','dtm_software','recording_audio']);
  for(const category of ['recording_audio','creator_streaming','dtm_software','amps_effects'])assert.deepEqual(ids(category),[category]);
- for(const oldKey of ['creator_streaming','recording_audio','recording_streaming']){
+ for(const oldKey of ['creator_streaming','recording_audio','dtm_software','recording_streaming','DTM','録音・配信']){
   const doc=documentFor();renderNews({documentObject:doc,items,mode:'on',now,category:oldKey});
   const nodes=doc.ids['news-content'].all(),select=nodes.find(n=>n.tagName==='select');
-  assert.equal(select.value,'recording_streaming');assert.equal(select.children.filter(n=>n.textContent==='録音・配信').length,1);
-  const cards=nodes.filter(n=>n.className==='news-card');assert.equal(cards.length,2);assert.deepEqual(cards.map(n=>n.children.find(c=>c.className==='news-label').textContent).sort(),['creator_streaming','recording_audio']);
-  assert.deepEqual(nodes.filter(n=>n.className==='news-category').map(n=>n.textContent),['録音・配信','録音・配信']);
-  select.value='dtm_software';select.listeners.change();assert.equal(doc.ids['news-content'].all().filter(n=>n.className==='news-card').length,1);
+  assert.equal(select.value,'recording_streaming');assert.equal(select.children.filter(n=>n.textContent==='DTM・録音・配信').length,1);
+  const cards=nodes.filter(n=>n.className==='news-card');assert.equal(cards.length,3);assert.deepEqual(cards.map(n=>n.children.find(c=>c.className==='news-label').textContent).sort(),['creator_streaming','dtm_software','recording_audio']);
+  assert.deepEqual(nodes.filter(n=>n.className==='news-category').map(n=>n.textContent),['DTM・録音・配信','DTM・録音・配信','DTM・録音・配信']);
+  select.value='recording_streaming';select.listeners.change();assert.equal(doc.ids['news-content'].all().filter(n=>n.className==='news-card').length,3);
  }
  assert.deepEqual(prepared.map(i=>i.category).sort(),items.map(i=>i.category).sort());
 });

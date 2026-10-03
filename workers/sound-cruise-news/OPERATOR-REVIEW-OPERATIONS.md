@@ -409,3 +409,24 @@ Surface decision buttons fetch a fresh detail snapshot before opening the existi
 Inline detail defaults to 概要; 根拠 holds facts/provenance/internal validation and the existing recheck control; 学習 holds existing similarity/recommendation and Shadow information; 履歴 holds candidate decisions. Similarity loading and the existing idempotent shadow-observation workflow happen when learning is requested, rather than when overview opens. Global Shadow and human history remain accessible in the collapsed operations area. No new recommendation, shadow, decision, facts, auth or schema logic.
 
 UI verification must never submit production decisions or facts recovery. Use synthetic local records for confirmation/learning tests. Public NEWS Worker 0.11.0 and Port 1.14.0 are unchanged; only Operator is deployed.
+
+## Volt generation correction / unified category (2026-10-03)
+
+Operator 0.17.1 and Port 1.15.0 display dtm_software, recording_audio and
+creator_streaming as DTM・録音・配信. Port's existing recording_streaming display
+filter now unions all three; raw API category filters remain separate and unchanged.
+Old raw selections and the old display labels normalize to that display filter.
+
+The shared metadata parser retains a single explicitly quoted family + generation
+name before considering bare model codes; Gen2 alone is no longer an identity.
+Publication eligibility/validation rules are unchanged. Public NEWS 0.11.1 includes
+this shared parser repair, with the existing sources, schedule and controls.
+
+`node scripts/correct-volt-product.mjs plan` verifies the explicitly authorized
+Ikebe article 172671 and robots, parses only the required primary facts in memory,
+and saves a private hashed plan without storing headline/body/images. `apply`
+requires that fresh plan, the exact unchanged pending candidate and active source
+controls. The existing facts-recheck audit/trigger atomically commits the correction
+and provenance. It never approves/rejects, changes raw category, or writes learning
+or decision tables. A changed snapshot fails closed. This one-time command is not
+imported by HTTP/Cron runtime and does not expand scheduled article fetching.

@@ -19,7 +19,7 @@ test('untrusted facts and labels stay text, unsafe original URLs have no link',a
 test('operator card and inline detail group recording/creator labels without changing raw candidate or decision category',async()=>{
  for(const category of ['recording_audio','creator_streaming','dtm_software']){
   const candidate={...row('SHURE MV6 Gen 2',true),category};const u=ui([candidate]);await settle();
-  const label=category==='dtm_software'?'DTM':'録音・配信';assert(u.ids.list.children[0].children[2].children.some(n=>n.textContent===label));
+  const label='DTM・録音・配信';assert(u.ids.list.children[0].children[2].children.some(n=>n.textContent===label));
   u.run('api=async()=>items[0]');await u.ids.list.children[0].children.at(-2).events.click();await settle();
   assert(u.ids.list.children[0].children.at(-1).children[1].children[2].children.some(n=>n.textContent===label));
   assert.equal(u.run('selected.category'),category);assert.equal(candidate.category,category);
