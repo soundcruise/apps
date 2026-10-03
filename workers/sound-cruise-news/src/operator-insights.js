@@ -12,12 +12,12 @@ const freshness=(stamp,at)=>!Number.isFinite(stamp)||stamp>at?'unknown':at-stamp
 function surface(url){try{const u=new URL(url);if(u.protocol!=='https:'||u.username||u.password)return 'unknown';const routes=['update','dtm-recording','amp-effector','guitar','new_product','information','news','news_events','products','events','event','dtm-materials'];const parts=u.pathname.split('/').filter(Boolean),prefix=[];for(const part of parts){if(!routes.includes(part))break;prefix.push(part);}return u.hostname+'/'+prefix.join('/');}catch{return 'unknown';}}
 export function decisionProfile(row,validation,now){
  const facts=parseFacts(row);
- return {version:INSIGHTS_VERSION,source:row.source_id,surface:surface(row.source_url),category:displayCategory(row.category),type:row.event_type||'other',factShape:shapeKeys.filter(k=>populated(facts?.[k])),factsVerified:validation?.valid===true,reviewReasons:[row.decision_reason,row.review_reason,...(validation?.errors||[])].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).sort(),freshness:freshness(Date.parse(row.published_at),now)};
+ return {version:INSIGHTS_VERSION,source:row.source_id,surface:surface(row.source_url),category:displayCategory(row.category),type:row.event_type||'other',articleNature:row.event_type==='firmware'?(row.review_reason==='minor_update'?'routine_minor':'significance_unconfirmed'):'not_firmware',factShape:shapeKeys.filter(k=>populated(facts?.[k])),factsVerified:validation?.valid===true,reviewReasons:[row.decision_reason,row.review_reason,...(validation?.errors||[])].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).sort(),freshness:freshness(Date.parse(row.published_at),now)};
 }
 export async function retainedDecisionProfile(row,validation,now){return {...decisionProfile(row,validation,now),articleIdentity:await hash(row.normalized_url||row.source_url||row.id),topicIdentity:row.topic_key?await hash(row.topic_key):null};}
 function teacherProfile(row){
  const features=parse(row.decision_features_json);
- if(features.insightsProfile?.version===INSIGHTS_VERSION)return features.insightsProfile;
+ if(features.insightsProfile?.version===INSIGHTS_VERSION)return {...features.insightsProfile,...(row.reason==='minor_update'&&features.policySignal?.articleNature==='routine_minor'?{articleNature:'routine_minor'}:{})};
  // Historical coarse fields are immutable evidence, never reconstructed from mutable candidates.
  return {version:'legacy_coarse',source:row.source_id,surface:'unknown',category:displayCategory(row.category),type:features.eventType||'other',factShape:[],factsVerified:false,reviewReasons:[],freshness:'unknown'};
 }
@@ -25,7 +25,8 @@ export function policyCompatibility(version){return version===DECISION_POLICY_VE
 const equal=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 export function similarity(a,b){
  const signals={source:a.source===b.source&&!!a.source,surface:a.surface===b.surface&&a.surface!=='unknown',type:a.type===b.type&&a.type!=='other',category:a.category===b.category&&!!a.category,factStructure:a.factsVerified&&b.factsVerified&&a.factShape.length>0&&equal(a.factShape,b.factShape),reviewReason:a.reviewReasons.length>0&&equal(a.reviewReasons,b.reviewReasons),freshness:a.freshness!=='unknown'&&a.freshness!=='expired'&&a.freshness===b.freshness};
- const level=signals.source&&signals.surface&&signals.type&&signals.category&&signals.factStructure?(signals.reviewReason&&signals.freshness?'EXACT_PATTERN':'STRONG_SIMILAR'):(signals.category&&(signals.source||signals.type)?'WEAK_SIMILAR':'INSUFFICIENT');
+ const firmwareNature=a.type!=='firmware'||(a.articleNature==='routine_minor'&&b.articleNature==='routine_minor');
+ const level=signals.source&&signals.surface&&signals.type&&signals.category&&signals.factStructure&&firmwareNature?(signals.reviewReason&&signals.freshness?'EXACT_PATTERN':'STRONG_SIMILAR'):(signals.category&&(signals.source||signals.type)?'WEAK_SIMILAR':'INSUFFICIENT');
  return {level,signals};
 }
 export function evaluateDecisions(profile,rows,{now=Date.now(),candidateId,validation}={}){

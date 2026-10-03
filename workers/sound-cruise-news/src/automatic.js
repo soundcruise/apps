@@ -17,6 +17,8 @@ export async function publishAutomatic(store,source,registry,now,pepper){
  const rows=(await store.db.prepare("SELECT * FROM candidate_items WHERE source_id=? AND publication_decision='AUTO_PUBLISHABLE' AND review_status='pending' ORDER BY published_at DESC,id LIMIT 100").bind(source.id).all()).results;
  let published=0;
  for(const row of rows){
+  // Firmware importance requires explicit human review, including major exceptions.
+  if(row.event_type==='firmware')continue;
   let facts;try{facts=JSON.parse(row.product_facts);}catch{continue;}
   if(facts?.evidence==='assessed_domestic_acoustic_interview'&&source.id!=='agm'||facts?.evidence==='assessed_named_guitar_event'&&source.id!=='ikebe-event'||facts?.identifierBasis==='assessed_recording_listing'&&source.id!=='at-distribution')continue;
   const stamp=Date.parse(row.published_at),label=factualLabel(facts,row.event_type);

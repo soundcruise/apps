@@ -6,7 +6,7 @@ import {saleEndsAt,saleAuthorized,isSaleRecord} from './sale.js';
 import {eventEndsAt} from './event.js';
 import {independentTopicUrls,labelInformationScore} from './label-quality.js';
 export const DECISION_POLICY_VERSION='operator-publication-1';
-export const REASONS=Object.freeze({approve:['useful_product','operator_review'],reject:['facts_identifier_missing','date_uncertain','category_uncertain','not_relevant','duplicate','policy_concern','operator_review']});
+export const REASONS=Object.freeze({approve:['useful_product','operator_review'],reject:['facts_identifier_missing','date_uncertain','category_uncertain','not_relevant','duplicate','policy_concern','minor_update','operator_review']});
 export const CHECKS=Object.freeze(['factsChecked','relevanceChecked','duplicateChecked','independentLabelChecked']);
 export const parseFacts=row=>{try{return JSON.parse(row.product_facts);}catch{return null;}};
 // Same publication identities as AUTO: topic, immutable independent article, product + version + launch family.

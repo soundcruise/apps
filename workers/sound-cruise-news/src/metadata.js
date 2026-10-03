@@ -321,13 +321,14 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  const factualSimilarity=confident&&await headlineSimilarity(label,titleFingerprint,pepper);
  if(confident&&!label){confident=false;label='審査待ち（製品名と出来事の確認が必要）';}
  if(!validLabel(label))return {decision:'REJECT',reason:'label_invalid'};
- const decision=confident?'AUTO_PUBLISHABLE':'PUBLISH_REVIEW';
+ const firmwareReview=eventType==='firmware';
+ const decision=confident&&!firmwareReview?'AUTO_PUBLISHABLE':'PUBLISH_REVIEW';
  const decisionReason=relevanceUncertain?'relevance_uncertain':informationalUncertain?'label_required':!hasDate?'missing_date':entry.listingUncertainty|| (!facts||!actions[eventType]?'label_required':'classification_uncertain');
  const id=await hash(url);
  return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,
   publishedAt:hasDate?new Date(timestamp).toISOString():null,category:category||'media_other',label,
   topicKey:['guitar_event','guitar_artist'].includes(facts?.kind)?id:facts?factualTopicKey(facts,eventType):id,collectedAt:new Date(now).toISOString(),
   eventType,productFacts:facts,titleFingerprint:JSON.stringify(titleFingerprint),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
-  publicationDecision:decision,decisionReason:confident?(factualSimilarity?'factual_label_similarity':'factual_label_ready'):decisionReason,
-  manualReviewStatus:'pending',reviewReason:confident?'structured_review_required':decisionReason}};
+  publicationDecision:decision,decisionReason:firmwareReview?'firmware_significance_review':confident?(factualSimilarity?'factual_label_similarity':'factual_label_ready'):decisionReason,
+  manualReviewStatus:'pending',reviewReason:firmwareReview?'firmware_significance_review':confident?'structured_review_required':decisionReason}};
 }
