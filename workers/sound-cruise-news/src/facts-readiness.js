@@ -1,3 +1,4 @@
+import {shimamuraEventSurface} from './shimamura-event-evidence.js';
 import {targetSurface} from './target-evidence.js';
 // Diagnostics project the existing publication policy; they do not grant eligibility.
 export function missingFacts(row,facts,validation){
@@ -13,6 +14,7 @@ export function missingFacts(row,facts,validation){
  return missing;
 }
 export function recoverySurface(row,source){
+ const event=shimamuraEventSurface(row,source);if(event)return event;
  const targeted=targetSurface(row,source);if(targeted)return targeted;
  // Fixed listing-only evidence must not become permission to crawl article bodies.
  if(source?.id==='ikebe-event'&&source.discoveryUrl==='https://www.ikebe-gakki.com/blog/category/event/')return {url:row.source_url,method:'explicit_event_fields',parser:'event-article-1'};
