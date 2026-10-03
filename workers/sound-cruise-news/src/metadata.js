@@ -1,4 +1,5 @@
 import {highValueAssessment,highValueLabel,assessedRecordingFacts} from './high-value.js';
+import {productActionSuffix,productEventFrom,validatedProductEvent,uncertainProductAction} from './product-event.js';
 import {listingArticleUrl,listingExclusion} from './shimamura-listing.js';
 import { fingerprint, headlineSimilarity } from './fingerprint.js';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
@@ -242,7 +243,8 @@ export function factualLabel(facts,eventType){
  if(eventType==='guitar_event')return highValueLabel(facts,eventType)||guitarEventLabel(facts);
  if(eventType==='guitar_artist')return highValueLabel(facts,eventType)||artistLabel(facts);
  if(!facts||eventType==='review'||!actions[eventType]||!validatedProductFacts(facts)||facts.version!==null&&facts.version!==undefined&&!/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(facts.version))return null;
- return `${facts.brand?facts.brand+'、':''}${facts.product}${facts.version?' '+facts.version:''}${actions[eventType]}`;
+ if(facts.productEvent&&(!['new_product','release','other'].includes(eventType)||!validatedProductEvent(facts.productEvent)))return null;
+ return `${facts.brand?facts.brand+'、':''}${facts.product}${facts.version?' '+facts.version:''}${facts.productEvent?productActionSuffix(facts.productEvent):actions[eventType]}`;
 }
 export function validLabel(label,original='') {
  return typeof label==='string'&&label.trim().length>=4&&label.length<=140&&!/[<>\x00-\x1f]/.test(label)&&label.trim()!==original.trim()&&!hasHype(label);
@@ -288,12 +290,20 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(source.id==='ikebe'&&source.discoveryType==='official_listing'&&entry.listingSection==='product_news'&&/ライブショッピング|店舗|レッスン|中古|クーポン|ポイント/i.test(entry.title))return {decision:'REJECT',reason:'ikebe_editorial_scope'};
  const guitarEvent=guitarEventFacts(entry.title,source);
  const guitarArtist=artistFacts(entry.title,source);
- const eventType=guitarEvent?'guitar_event':guitarArtist?'guitar_artist':contentType(entry.eventTitle||entry.title);
+ let eventType=guitarEvent?'guitar_event':guitarArtist?'guitar_artist':contentType(entry.eventTitle||entry.title);
  if(source.allowedEventTypes&&!source.allowedEventTypes.includes(eventType))return {decision:'REJECT',reason:'source_event_scope'};
  if(['tutorial','evergreen','event_or_shop'].includes(eventType))return {decision:'REJECT',reason:eventType};
  if(eventType==='sale')return saleCandidateFrom(entry,source,url,now,pepper,hasDate,timestamp);
  const titleFacts=manufacturerFacts(entry,source)||ikebeListingFacts(entry,source)||productFacts(entry.title);
  let facts=guitarEvent||guitarArtist||titleFacts;
+ const productEvent=productEventFrom(entry.eventTitle||entry.title,titleFacts,eventType);
+ const eventUncertain=!!titleFacts&&uncertainProductAction(entry.eventTitle||entry.title,eventType,productEvent);
+ if(eventUncertain)facts={...facts,scopeUncertain:true};
+ if(productEvent){
+  facts={...facts,productEvent};
+  if(eventType==='other')eventType='new_product';
+  if(source.allowedEventTypes&&!source.allowedEventTypes.includes(eventType))return {decision:'REJECT',reason:'source_event_scope'};
+ }
  let category=guitarEvent?'live_guitar':classify(entry.title);
  if(!category&&entry.listingSection==='product_news'&&source.discoveryType==='shimamura_listing'){
   if(entry.listingCategory==='amp-effector')category='amps_effects';
@@ -314,7 +324,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  const informationalUncertain=/機能一覧|仕様一覧|スペック一覧|発売予定|年内|発売(?:が)?決定/.test(entry.title)||(source.id==='ik'&&/パック|プリセット|トーンモデル|コレクション|追加(?:ボイス|音色)|拡張|\b(?:pack|collection|presets?|tone models?|for|vol(?:ume)?)\b/i.test(entry.title));
  if(facts&&source.id==='ik'&&informationalUncertain)facts={...facts,scopeUncertain:true};
  const relevanceUncertain=(source.id==='ikebe'&&facts?.identifierBasis==='explicit_model_code')||facts?.brand==='DE'||facts?.brand==='dBTechnologies'||facts?.product==='Logo Barstool';
- let confident=!!(guitarArtist?.action!=='guitar_information'&&!relevanceUncertain&&!informationalUncertain&&facts&&(!!titleFacts||!!guitarEvent||!!guitarArtist||eventType!=='other')&&eventType!=='other'&&['new_product','release','update','firmware','price_change','discontinued','recall','other','guitar_event','guitar_artist'].includes(eventType)&&hasDate&&!entry.listingUncertainty&&!/キャンペーン|\bcampaign\b/i.test(entry.title));
+ let confident=!!(guitarArtist?.action!=='guitar_information'&&!eventUncertain&&!relevanceUncertain&&!informationalUncertain&&facts&&(!!titleFacts||!!guitarEvent||!!guitarArtist||eventType!=='other')&&eventType!=='other'&&['new_product','release','update','firmware','price_change','discontinued','recall','other','guitar_event','guitar_artist'].includes(eventType)&&hasDate&&!entry.listingUncertainty&&!/キャンペーン|\bcampaign\b/i.test(entry.title));
  const titleFingerprint=await fingerprint(entry.title,pepper);
  let label=guitarArtist?.action==='guitar_information'?'審査待ち（ギター関連の出来事の確認が必要）':confident?factualLabel(facts,eventType):facts?`${facts.product}${facts.version?' '+facts.version:''}の製品情報（要確認）`:'審査待ち（製品名と出来事の確認が必要）';
  // A verified facts-only template remains safe even when the source states the same facts.
@@ -323,7 +333,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(!validLabel(label))return {decision:'REJECT',reason:'label_invalid'};
  const firmwareReview=eventType==='firmware';
  const decision=confident&&!firmwareReview?'AUTO_PUBLISHABLE':'PUBLISH_REVIEW';
- const decisionReason=relevanceUncertain?'relevance_uncertain':informationalUncertain?'label_required':!hasDate?'missing_date':entry.listingUncertainty|| (!facts||!actions[eventType]?'label_required':'classification_uncertain');
+ const decisionReason=eventUncertain?'product_event_uncertain':relevanceUncertain?'relevance_uncertain':informationalUncertain?'label_required':!hasDate?'missing_date':entry.listingUncertainty|| (!facts||!actions[eventType]?'label_required':'classification_uncertain');
  const id=await hash(url);
  return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,
   publishedAt:hasDate?new Date(timestamp).toISOString():null,category:category||'media_other',label,
