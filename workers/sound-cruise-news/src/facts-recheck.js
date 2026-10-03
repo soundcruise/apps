@@ -9,7 +9,7 @@ import {sourceUrl} from './policy.js';
 import {eventEndsAt} from './event.js';
 import {candidateSnapshot,reviewDetail} from './operator-review.js';
 import {publicationValidation} from './decision-policy.js';
-import {recoverySurface} from './facts-readiness.js';
+import {recoverySurface,recoveryCacheKey} from './facts-readiness.js';
 const canonical=v=>JSON.stringify(v,(_,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.fromEntries(Object.entries(x).sort(([a],[b])=>a.localeCompare(b))):x);
 
 async function gate(store,source,registry,now,row){
@@ -20,7 +20,7 @@ async function gate(store,source,registry,now,row){
 }
 
 async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false}={}){
- const surface=recoverySurface(row,source),cacheKey=surface.method==='targeted_explicit_primary_fields'?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):source.id,previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
+ const surface=recoverySurface(row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair}),previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  if(previous?.checked_at>now-DAY){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
  const token=crypto.randomUUID();
  const claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) VALUES(?,?,?,?,'in_progress')

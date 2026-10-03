@@ -1,0 +1,27 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {classify,productFacts,validatedProductFacts} from '../src/metadata.js';
+import {recoveryAssessment} from '../src/facts-readiness.js';
+import {rs20mmCategoryCorrection,categoryCorrectionSql,RS20MM_URL} from '../src/category-correction.js';
+import {setup,put,source,now} from './operator-case.js';import {hash} from '../src/policy.js';
+import {recheckFacts} from '../src/facts-recheck.js';import {decisionInput,fixtureActor} from './operator-fixtures.js';import {pepper} from './helpers.js';import {sqlLiteral} from '../scripts/remote-db.mjs';
+for(const words of ['acoustic design','アコースティックデザイン','vintage acoustic style','acoustic-inspired','studio recording streaming creator','ライブ ギター'])test('RS20MM identity before '+words,()=>{assert.equal(classify('Yamaha RS20MM '+words),'electric_guitar_bass');});
+test('verified families retain real acoustic, guitar, amp and software types',()=>{
+ for(const [title,category]of [['Gibson SJ-200 Hummingbird studio','acoustic_guitar'],['Yamaha FG7 アコースティックギター','acoustic_guitar'],['PRS Silver Sky acoustic design','electric_guitar_bass'],['Novation FLpad Mini FL Studio','recording_audio'],['BOSS GX-1 recording acoustic guitar','amps_effects'],['Universal Audio LUNA 3 streaming studio guitar','dtm_software']]){assert.equal(classify(title),category);assert(validatedProductFacts(productFacts(title)));}
+ assert.equal(productFacts('不明な新製品 studio recording'),null);assert.equal(productFacts('FLpad'),null);
+});
+const validation=(errors=[],facts=null)=>({valid:!errors.length,errors,facts,publishableLabel:null});
+test('recovery classes preserve duplicates, policy, readiness and uncertainty',()=>{
+ const row={id:'a',source_url:'https://example.com/a'},listing={method:'existing_listing_parser'},target={method:'targeted_explicit_primary_fields'};
+ const assess=(v,s=listing,last)=>recoveryAssessment(row,v,s,last,null).recoveryClass;
+ assert.equal(assess(validation()),'READY_FOR_HUMAN_DECISION');assert.equal(assess(validation(['duplicate','facts_incomplete'])),'DUPLICATE_BLOCKED');assert.equal(assess(validation(['operator_source_gate'])),'POLICY_BLOCKED');assert.equal(assess(validation(['facts_incomplete']),null),'NOT_SAFELY_RECOVERABLE');assert.equal(assess(validation(['facts_incomplete']),listing,{outcome:'facts_not_on_current_surface'}),'NOT_SAFELY_RECOVERABLE');assert.equal(assess(validation(['facts_incomplete']),target),'RECOVERABLE_FROM_ORIGINAL_SOURCE');assert.equal(assess(validation(['facts_incomplete'])),'RECOVERABLE_WITH_SOURCE_SPECIFIC_PARSER');assert.equal(assess(validation(['facts_incomplete'],{scope:'expansion'})),'POLICY_BLOCKED');
+});
+test('published correction is category-only and full-row CAS',async()=>{
+ const s=await setup(),facts={brand:'Yamaha',product:'RS20MM',version:null,category:'acoustic_guitar',identifierBasis:'explicit_model_code'};
+ const item=await put(s,'rs',{sourceUrl:RS20MM_URL,normalizedUrl:RS20MM_URL,category:'acoustic_guitar',productFacts:facts,publishedAt:'2026-09-30T15:00:00.000Z'});await s.db.prepare("UPDATE candidate_items SET review_status='approved' WHERE id=?").bind(item.id).run();
+ const before=await s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(item.id).first(),sql=categoryCorrectionSql(before,sqlLiteral);assert.equal((await s.db.prepare(sql).run()).meta.changes,1);const after=await s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(item.id).first();for(const key of Object.keys(before).filter(k=>!['category','product_facts'].includes(k)))assert.equal(after[key],before[key]);assert.deepEqual(JSON.parse(after.product_facts),{...facts,category:'electric_guitar_bass'});assert.equal((await s.db.prepare(sql).run()).meta.changes,0);assert.throws(()=>rs20mmCategoryCorrection({...before,review_status:'pending'}));for(const table of ['news_decision_ledger','news_operator_feedback','news_shadow_evaluations'])assert.equal((await s.db.prepare(`SELECT COUNT(*) n FROM ${table}`).first()).n,0);
+});
+for(const [title,expected]of [['Novation FLpad / FLpad Mini 新製品発売','recording_audio'],['PRS Silver Sky Defender 発売','electric_guitar_bass'],['Gibson SJ-200 Hummingbird 発売','acoustic_guitar']])test('existing bounded listing recovery: '+title,async()=>{
+ const s=await setup(),robot='User-agent: *\nAllow: /',a={...source,robotsHash:await hash(robot)},url='https://www.shimamura.co.jp/update/guitar-bass/2026/10/89868/',id=await hash(url),item=await put(s,'family',{id,sourceUrl:url,normalizedUrl:url,publishedAt:'2026-09-30T15:00:00.000Z',productFacts:null,eventType:'other'}),input=await decisionInput(s,{id:item.id});
+ const html=`<h1>製品ニュース 記事一覧</h1><a href="${url}"><h2>${title}</h2><time>2026/10/01</time><span class="btn-cat-guitar">ギター</span></a>`;
+ const r=await recheckFacts(s,{id,requestId:input.requestId,snapshot:input.snapshot,revision:input.revision},now,[a],pepper,fixtureActor,{sleep:async()=>{},fetcher:async u=>new Response(u===a.robotsUrl?robot:html,{headers:{'Content-Type':'text/html'}})});assert(r.recovered);const row=await s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(id).first();assert.equal(row.category,expected);assert.equal(row.review_status,'pending');assert(JSON.parse(row.facts_provenance).every(p=>p.sourceUrl===a.discoveryUrl));for(const table of ['news_decision_ledger','news_operator_feedback','news_shadow_evaluations'])assert.equal((await s.db.prepare(`SELECT COUNT(*) n FROM ${table}`).first()).n,0);
+});

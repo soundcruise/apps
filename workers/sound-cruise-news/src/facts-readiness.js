@@ -16,6 +16,28 @@ export function recoverySurface(row,source){
  const targeted=targetSurface(row,source);if(targeted)return targeted;
  // Fixed listing-only evidence must not become permission to crawl article bodies.
  if(source?.id==='ikebe-event'&&source.discoveryUrl==='https://www.ikebe-gakki.com/blog/category/event/')return {url:row.source_url,method:'explicit_event_fields',parser:'event-article-1'};
- if(['shimamura','ikebe','ik'].includes(source?.id)&&['official_listing','shimamura_listing'].includes(source.discoveryType))return {url:source.discoveryUrl,method:'existing_listing_parser',parser:'news-metadata-1'};
+ if(['shimamura','ikebe','ik'].includes(source?.id)&&['official_listing','shimamura_listing'].includes(source.discoveryType))return {url:source.discoveryUrl,method:'existing_listing_parser',parser:'news-metadata-2'};
  return null;
+}
+
+// A diagnostic projection of authoritative validation and verified recovery results.
+// This never supplies facts, changes policy or grants permission to publish.
+export function recoveryAssessment(row,validation,surface,last,cached){
+ const errors=validation.errors,facts=validation.facts;
+ let recoveryClass;
+ if(errors.includes('duplicate'))recoveryClass='DUPLICATE_BLOCKED';
+ else if(validation.valid)recoveryClass='READY_FOR_HUMAN_DECISION';
+ else if(errors.some(e=>['operator_source_gate','source_url_invalid','publication_policy_rejected','candidate_takedown','expired_candidate','event_validation_failed'].includes(e))||facts?.scope==='expansion'||facts?.kind==='guitar_event'&&facts.artist&&facts.eventType&&facts.eventDate&&facts.venue&&!validation.publishableLabel)recoveryClass='POLICY_BLOCKED';
+ else if(!surface||['facts_not_on_current_surface','facts_identity_changed','facts_date_changed'].includes(last?.outcome))recoveryClass='NOT_SAFELY_RECOVERABLE';
+ else if(surface.method!=='existing_listing_parser')recoveryClass='RECOVERABLE_FROM_ORIGINAL_SOURCE';
+ else {
+  let item;try{item=JSON.parse(cached?.items_json||'[]').find(i=>i.id===row.id&&i.sourceUrl===row.source_url);}catch{}
+  recoveryClass=item?.productFacts&&!item.productFacts.scopeUncertain?'RECOVERABLE_FROM_ORIGINAL_SOURCE':facts?.scopeUncertain?'NOT_SAFELY_RECOVERABLE':'RECOVERABLE_WITH_SOURCE_SPECIFIC_PARSER';
+ }
+ const nextAction={READY_FOR_HUMAN_DECISION:'事実・原記事を確認して、掲載するかご判断ください。',DUPLICATE_BLOCKED:'既存掲載との重複を確認してください。事実の補完だけでは掲載できません。',POLICY_BLOCKED:'現在の掲載方針・情報源の条件を確認してください。事実の補完だけでは掲載できません。',NOT_SAFELY_RECOVERABLE:'現在の許可済み情報では安全に確定できません。一次情報の対象・日付・出来事を追加確認してください。',RECOVERABLE_FROM_ORIGINAL_SOURCE:'許可済みの一次情報から事実を再確認できます。確認後も掲載条件を別途検証します。',RECOVERABLE_WITH_SOURCE_SPECIFIC_PARSER:'許可済み一覧で製品名・出来事を再確認してください。不足が残る場合は抽出方法の検証が必要です。'}[recoveryClass];
+ return {recoveryClass,nextAction};
+}
+
+export function recoveryCacheKey(row,source,surface,{serverRepair=false}={}){
+ return surface.method==='targeted_explicit_primary_fields'?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
 }

@@ -27,6 +27,13 @@ export function parseMetadata(xml,type) {
 }
 export const CATEGORIES=['acoustic_guitar','electric_guitar_bass','amps_effects','recording_audio','dtm_software','creator_streaming','artist_guitar','live_guitar','media_other','sale'];
 const PRODUCTS = [
+ // Primary product identities outrank brand defaults and descriptive use/design words.
+ // Sources: Yamaha RS20MM electric-guitar product page; assessed Shimamura articles
+ // 91045 (FLpad), 89868 (Silver Sky), 89963 (SJ-200 / Hummingbird).
+ {brandRe:/\bYamaha\b|ヤマハ/i,re:/\bRS20MM\b/i,brand:'Yamaha',product:'RS20MM',category:'electric_guitar_bass'},
+ {brandRe:/\bNovation\b/i,re:/\bFLpad(?:\s*Mini)?\b/i,brand:'Novation',product:'FLpad',category:'recording_audio'},
+ {brandRe:/\bPRS\b/i,re:/\bSilver Sky\b/i,brand:'PRS',product:'Silver Sky',category:'electric_guitar_bass'},
+ {brandRe:/\bGibson\b/i,re:/(?=[\s\S]*\bSJ-200\b)(?=[\s\S]*\bHummingbird\b)/i,brand:'Gibson',product:'SJ-200 / Hummingbird',category:'acoustic_guitar'},
  {brandRe:/\bBOSS\b/,re:/\bEX-4\b/,brand:'BOSS',product:'EX-4',category:'amps_effects'},
  {brandRe:/\bVOX\b/i,re:/\bAC MINI\b/i,brand:'VOX',product:'AC MINI',category:'amps_effects'},
  {brandRe:/\bKORG\b/i,re:/\bOD-KIT CUSTOM CRAFT\b/i,brand:'KORG',product:'OD-KIT CUSTOM CRAFT',category:'amps_effects'},
@@ -197,9 +204,9 @@ export function productFacts(title) {
  return extendedProductFacts(title)||modelOnlyFacts(title);
 }
 export function classify(title) {
+ const known=productFacts(title);if(known)return known.category;
  if(/ピアノ弾き語り|piano\s*(and|\+|&)\s*vocal/i.test(title)&&!/ギター|\bguitar\b/i.test(title))return null;
  if(/弾き語り|ライブ(?!ラリ)|ツアー|\b(concert|tour)\b/i.test(title))return /ギター|\bguitar\b|\bpedalboard\b/i.test(title)?'live_guitar':null;
- const known=productFacts(title);if(known)return known.category;
  for(const [category,re] of [
  ['acoustic_guitar',/アコギ|アコースティックギター|\bacoustic guitar\b|\bAcoustasonic\b|\b(?:FG7|FS7)\b/i],
  ['amps_effects',/エフェクター|ペダル|ギターアンプ|\b(?:pedal|amplifier)\b|\bBOSS\s+[A-Z]{1,4}-[0-9]/i],
