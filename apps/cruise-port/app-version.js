@@ -1,4 +1,4 @@
-export const CRUISE_PORT_APP_VERSION = '1.15.0';
+export const CRUISE_PORT_APP_VERSION = '1.16.0';
 
 let reloadInProgress = false;
 
@@ -11,7 +11,7 @@ export function buildReloadUrl(href, timestamp) {
 
 // Call once at document startup, never from the SPA route renderer.
 export function normalizeInitialHome({ historyObject = globalThis.history, locationObject = globalThis.location } = {}) {
-    if (!locationObject?.hash) return;
+    if (!locationObject?.hash || locationObject.hash === '#news' || locationObject.hash.startsWith('#news/')) return;
     historyObject.replaceState(historyObject.state, '', `${locationObject.pathname}${locationObject.search}`);
 }
 

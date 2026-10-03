@@ -1,4 +1,5 @@
-import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.15.0';
+import { articlePath } from './news-articles.js?v=1.16.0';
+import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.16.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
 const renderCleanup = new WeakMap();
@@ -60,7 +61,8 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
                 section.append(node('h2', day.replaceAll('-', '/'), 'news-day'));
                 for (const item of records) {
                     const link = node('a', undefined, 'news-card');
-                    link.href = item.sourceUrl; link.target = '_blank'; link.rel = 'noopener noreferrer';
+                    if (item.linkType === 'internal') link.href = articlePath(item.articleId);
+                    else { link.href = item.sourceUrl; link.target = '_blank'; link.rel = 'noopener noreferrer'; }
                     link.append(node('span', NEWS_CATEGORIES[item.category], 'news-category'), node('span', item.label, 'news-label'), node('span', item.sourceName, 'news-source'));
                     const time = node('time', day.replaceAll('-', '/')); time.dateTime = item.publishedAt;
                     link.append(time); section.append(link);

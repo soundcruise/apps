@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.15.0';
+} from './app-version.js?v=1.16.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.13.0';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.13.0';
 import { initTuner } from './tuner-app.js?v=1.12.3';
@@ -882,6 +882,7 @@ function showView(view) {
         proAccessView,
         elements.homeView,
         document.getElementById('news-view'),
+        document.getElementById('news-article-view'),
         elements.settingsView,
         elements.syncCenterView,
         elements.wishlistView,
@@ -2122,17 +2123,34 @@ let newsLoadRevision = 0;
 async function renderNewsSafely() {
     const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.15.0');
+        const news = await import('./news-ui.js?v=1.16.0');
         if (revision !== newsLoadRevision) return;
         news.stopNewsUpdates();
-        const { loadConfiguredNews } = await import('./news-provider.js?v=1.15.0');
+        const { loadConfiguredNews } = await import('./news-provider.js?v=1.16.0');
         const result = await loadConfiguredNews();
-        if (revision === newsLoadRevision) news.renderNews(result);
+        if (revision === newsLoadRevision) news.renderNews({ ...result, category: document.getElementById('news-category')?.value ?? '' });
     } catch (error) {
         if (revision !== newsLoadRevision) return;
         document.getElementById('news-ticker').hidden = true;
         document.getElementById('news-content').textContent = error?.name === 'NewsDisabledError' ? 'ニュースは現在公開を停止しています。' : 'ニュースを読み込めませんでした。';
     }
+}
+
+let newsArticleRevision = 0;
+async function renderNewsArticleSafely(hash) {
+    const revision = ++newsArticleRevision;
+    const title = document.getElementById('news-article-title');
+    title.textContent = '記事を読み込んでいます…';
+    document.getElementById('news-article-content').replaceChildren();
+    try {
+        const { renderNewsArticle } = await import('./news-article-ui.js?v=1.16.0');
+        if (revision !== newsArticleRevision || location.hash !== hash) return;
+        renderNewsArticle({ hash });
+    } catch (_) {
+        if (revision !== newsArticleRevision || location.hash !== hash) return;
+        title.textContent = '記事を読み込めませんでした';
+    }
+    title.focus({ preventScroll: true });
 }
 
 function renderHome() {
@@ -5457,6 +5475,9 @@ function renderRoute() {
         showView(document.getElementById('news-view'));
         document.getElementById('news-title').focus({ preventScroll: true });
         void renderNewsSafely();
+    } else if (hash.startsWith('#news/')) {
+        showView(document.getElementById('news-article-view'));
+        void renderNewsArticleSafely(hash);
     } else if (hash === '#settings') {
         renderSettings();
     } else if (hash === SYNC_CENTER_ROUTE) {
@@ -6527,6 +6548,15 @@ applyVersionDisplay();
 document.querySelectorAll('.port-refresh-app').forEach((button) => button.addEventListener('click', () => {
     reloadAppWithCacheBust();
 }));
+document.getElementById('news-article-view').addEventListener('click', async (event) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !event.target.closest('a[href="#news"]')) return;
+    event.preventDefault();
+    const { replaceNewsListRoute } = await import('./news-articles.js?v=1.16.0');
+    // A fast route change while the chunk loads must not redirect another view.
+    if (!location.hash.startsWith('#news/')) return;
+    replaceNewsListRoute();
+    renderRoute();
+});
 window.addEventListener('hashchange', () => {
     renderRoute();
     refreshAppliedPortCloudDataWhenSafe();

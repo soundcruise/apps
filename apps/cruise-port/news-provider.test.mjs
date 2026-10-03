@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {loadNews,loadConfiguredNews} from './news-provider.js';
+import {CRUISE_APPS_NEWS_ITEM as own} from './news-articles.js';
 import {NEWS_BETA_ITEMS} from './data/news-beta.js';
 test('default provider preserves JP2A fixture and never invokes transport',async()=>{
  assert.deepEqual(await loadNews({transport:()=>{throw new Error('unexpected transport');}}),NEWS_BETA_ITEMS);
@@ -27,7 +28,7 @@ test('production provider follows bounded canonical pagination without credentia
   const offset=Number(new URL(url).searchParams.get('offset'));
   return Response.json({contractVersion:1,items:Array.from({length:offset===0?50:1},(_,i)=>({...NEWS_BETA_ITEMS[0],id:`api-${offset+i}`,publishable:true})),nextOffset:offset===0?50:null});
  }});
- assert.equal(result.items.length,51);assert.equal(result.mode,'on');assert.equal(calls.length,2);
+ assert.equal(result.items.length,52);assert.equal(result.mode,'on');assert.equal(calls.length,2);
  assert.ok(calls.every(url=>new URL(url).hostname==='sound-cruise-news.cruise-port-requests.workers.dev'));
 });
 test('production failure, disabled response and invalid pagination never resurrect static fixtures',async()=>{
@@ -35,11 +36,11 @@ test('production failure, disabled response and invalid pagination never resurre
  await assert.rejects(loadConfiguredNews({provider:'api',fetcher:async()=>{throw Error('offline');}}),/offline/);
  await assert.rejects(loadConfiguredNews({provider:'api',fetcher:async()=>Response.json({contractVersion:1,items:[],nextOffset:0})}),/pagination/);
 });
-test('configured fixture mode has no request; production empty response remains empty',async()=>{
+test('configured fixture mode has no request; production empty response contains only first-party news',async()=>{
  const fixture=await loadConfiguredNews({provider:'fixture',fetcher:async()=>{throw Error('unexpected request');}});
- assert.deepEqual(fixture.items,NEWS_BETA_ITEMS);assert.equal(fixture.mode,'beta');
+ assert.deepEqual(fixture.items,[own,...NEWS_BETA_ITEMS]);assert.equal(fixture.mode,'beta');
  const live=await loadConfiguredNews({provider:'api',fetcher:async()=>Response.json({contractVersion:1,items:[],nextOffset:null})});
- assert.deepEqual(live.items,[]);assert.equal(live.mode,'on');
+ assert.deepEqual(live.items,[own]);assert.equal(live.mode,'on');
 });
 
 test('API provider follows stable cursors without offsets and rejects cursor loops',async()=>{
@@ -49,13 +50,13 @@ test('API provider follows stable cursors without offsets and rejects cursor loo
   const u=new URL(url);calls.push(u);
   return Response.json({contractVersion:1,items:[{...NEWS_BETA_ITEMS[0],id:calls.length===1?'first':'second',publishable:true}],nextOffset:calls.length===1?50:null,nextCursor:calls.length===1?cursor:null});
  }});
- assert.equal(result.items.length,2);assert.equal(calls[1].searchParams.get('cursor'),cursor);assert.equal(calls[1].searchParams.has('offset'),false);
+ assert.equal(result.items.length,3);assert.equal(calls[1].searchParams.get('cursor'),cursor);assert.equal(calls[1].searchParams.has('offset'),false);
  await assert.rejects(loadConfiguredNews({provider:'api',fetcher:async()=>Response.json({contractVersion:1,items:[],nextCursor:cursor})}),/pagination/);
 });
 
 test('production configured default is real API, with no silent fixture fallback',async()=>{
  const urls=[];const result=await loadConfiguredNews({fetcher:async url=>{urls.push(url);return Response.json({contractVersion:1,items:[],nextCursor:null});}});
- assert.equal(result.mode,'on');assert.deepEqual(result.items,[]);assert.equal(urls.length,1);
+ assert.equal(result.mode,'on');assert.deepEqual(result.items,[own]);assert.equal(urls.length,1);
  assert.match(urls[0],/^https:\/\/sound-cruise-news\.cruise-port-requests\.workers\.dev\/v1\/news\?/);
  await assert.rejects(loadConfiguredNews({fetcher:async()=>{throw Error('production unavailable');}}),/production unavailable/);
 });

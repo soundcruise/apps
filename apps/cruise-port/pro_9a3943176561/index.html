@@ -47,7 +47,8 @@
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=16"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="../practice-menu-app.js?v=1.15.0"></script>
+    <script type="module" src="../practice-menu-app.js?v=1.16.0"></script>
+    <link rel="stylesheet" href="../news-article.css?v=1.16.0">
 </head>
 <body>
     <div class="port-shell">
@@ -134,6 +135,14 @@
             </section>
             <section class="port-pro-link" data-standard-pro-link hidden>
                 <span>Cruise Port Pro</span> · <a href="#pro-access">Pro版の入手方法 →</a>
+            </section>
+        </main>
+
+        <main id="news-article-view" class="port-view" hidden>
+            <section class="view-panel" aria-labelledby="news-article-title">
+                <a class="view-back" href="#news">← ニュース一覧</a>
+                <h1 id="news-article-title" class="view-title" tabindex="-1">記事</h1>
+                <article id="news-article-content"></article>
             </section>
         </main>
 

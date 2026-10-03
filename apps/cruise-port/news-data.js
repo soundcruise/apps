@@ -1,8 +1,10 @@
+import { articlePath } from './news-articles.js?v=1.16.0';
 import {labelInformationScore,compareTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.11.1';
 export {labelInformationScore} from './news-quality.js?v=1.11.1';
 // Manual ingestion boundary. No collector, persistence or network access.
 export const NEWS_MODE = 'beta';
 export const NEWS_CATEGORIES = Object.freeze({
+    cruise_apps: 'クルーズapps',
     acoustic_guitar: 'アコギ', electric_guitar_bass: 'ギター・ベース',
     amps_effects: 'アンプ・エフェクター', recording_audio: 'DTM・録音・配信',
     dtm_software: 'DTM・録音・配信', creator_streaming: 'DTM・録音・配信',
@@ -38,6 +40,11 @@ export function normalizeNewsItem(input) {
     if (!validEventDeadline(input.eventEndsAt)) return null;
     if (input.manualReviewStatus !== 'approved' || input.sourceSafety !== 'safe') return null;
     if (['artist_guitar', 'live_guitar'].includes(input.category) && !GUITAR_EVIDENCE.includes(input.guitarEvidence)) return null;
+    if (input.linkType === 'internal') {
+        if (input.category !== 'cruise_apps' || !articlePath(input.articleId) || input.sourceName !== 'Sound Cruise' || input.sourceKind !== 'official') return null;
+        return Object.fromEntries(['id', 'label', 'sourceName', 'publishedAt', 'category', 'topicKey', 'createdAt', 'updatedAt', 'manualReviewStatus', 'sourceSafety', 'sourceKind', 'linkType', 'articleId'].map(key => [key, input[key]]));
+    }
+    if (input.category === 'cruise_apps' || (input.linkType !== undefined && input.linkType !== 'external')) return null;
     let url;
     try { url = new URL(input.sourceUrl); } catch { return null; }
     if (url.protocol !== 'https:' || url.username || url.password) return null;
