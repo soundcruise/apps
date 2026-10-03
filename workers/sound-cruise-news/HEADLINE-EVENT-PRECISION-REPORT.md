@@ -2,7 +2,7 @@
 
 ## Overall Verdict
 
-LOCAL IMPLEMENTATION / AUDIT / TESTS COMPLETE. Explicit user approval received for the five verified corrections, NEWS/Operator deployment, commit and normal push. Production execution is in progress.
+PASS — implementation, tests, five explicitly authorized production corrections, NEWS/Operator deployments and production acceptance complete. Only Gibson, PRS, Gretsch, Ibanez and Fender were corrected; all other production articles remain unchanged.
 
 ## 1. Starting Baseline
 
@@ -122,10 +122,27 @@ NEWS/Operator539/539 PASS (510 existing +29 added); Port NEWS28/28 PASS. Added c
 
 Patch correction: public NEWS0.13.0→0.13.1; Operator0.20.1→0.20.2, package/lock aligned. Port1.15.0 unchanged (no Port code/assets changed). Config/secret/auth unchanged; no migrations. The initial automatic approval review rejection was resolved by explicit user authorization. Existing infrastructure/offline scripts are not reused to upload secrets or change Access; intended deploy is code-only with existing vars/secrets retained.
 
+Production deployment succeeded with `--keep-vars`, without changing Access or uploading secrets:
+
+- Public NEWS: 22043ee8-0f66-4933-a7c3-faba2bb87f08, version0.13.1; existing schedules retained.
+- Operator: 7f4a04ab-ff33-4e6e-80cb-da206361f247, version0.20.2.
+
 ## 12. Production Verification
 
-Five authorized corrections applied to production before deployment. Exact before/after comparison passed: only label/product_facts/facts_provenance/review_revision changed in these five rows; all other rows and fields, Ledger7 and Shadow34 unchanged. Final UI/release verification to complete: five saved/public/Operator/Port labels agree; approved56/pending13/rejected20/human7/Shadow34 unchanged; all pending and non-target rows byte-for-byte unchanged; each changed row differs only in label/product_facts/provenance/review_revision; Ledger and Shadow histories unchanged; no browser console errors. No approve/reject operation is planned.
+Five authorized corrections applied to production before deployment. A fresh D1 snapshot after both deployments and browser checks passed the exact comparison: only label/product_facts/facts_provenance/review_revision changed in these five rows. All other candidate rows and fields, including all pending records, are byte-for-byte unchanged. All publication statuses and dates/categories/URLs are unchanged; approved56/pending13/rejected20/human7/Shadow34 retained. Decision Ledger7 and Shadow34 contents are byte-for-byte unchanged. Five operational correction audit records were added; corrections are not teacher decisions.
+
+The full paginated public API returns56 articles. Each of the five labels agrees with D1; its date/category/source URL and publishable state are unchanged. Health reports NEWS0.13.1 with collection/publication/API enabled. Ticker uses the refined saved labels. Port's actual production NEWS rendering contains all five corrected labels, retains Port1.15.0, and shows no console warnings/errors. Authenticated Operator renders version0.20.2, public56/pending13/human7, and the corrected Gibson card as already published. No approve/reject, facts recovery or Shadow evaluation operation was invoked during acceptance.
+
+| Target | Verified production headline |
+|---|---|
+| Gibson | Gibson、SJ-200 / Hummingbirdに特別仕様が登場 |
+| PRS | PRS、Silver Skyにコラボカラーが登場 |
+| Gretsch | Gretsch、G6136TGQM-59の限定モデルを発表 |
+| Ibanez | Ibanez、j.custom RG8570EM-NTの限定モデルを発表 |
+| Fender | Fender、FSR American Acoustasonic Telecasterの限定モデルを発表 |
+
+Private before/after D1 snapshots and the public API evidence remain outside Git in /tmp. Production-rendering screenshots are /tmp/news-event-port-production.png and /tmp/news-event-operator-production.png. Source response bodies and credentials are not committed.
 
 ## 13. Git
 
-Implementation and report are uncommitted locally. Explicit file staging only after final checks/approval. No prohibited Git operation used; known untracked preserved.
+Implementation, tests, versions and the initial execution report were explicitly staged in commit215deffd (`fix(news): distinguish verified product edition events`) and normally pushed to main. This acceptance closeout changes only this report and is saved in a follow-up documentation commit/normal push. Syntax, tests, diff checks and a targeted secret scan passed before staging/push. No prohibited Git operation used; known .claude/ and workers/sound-cruise-sync/node_modules/ remain untracked and untouched. Final main/origin equality and tracked/staged cleanliness are checked after the documentation push.
