@@ -399,3 +399,13 @@ A single remote D1 SELECT snapshot was evaluated with exact repository reviewQue
 | a9f0b5e8e738478cb114ad64f771573a08541d21cdf2d5beef971b458e89e8f3 | pending | false | FACTS_RECOVERY_UNCERTAIN | facts_incomplete | true | 0 |
 
 Exclusive totals: ready 1 / facts_incomplete 15 / duplicate 1 / policy or other 0. Complete candidate and ledger rows are compared before and after production checks. No production approve/reject/facts recovery/Shadow writes or migration. NEWS/Operator regression suite: 447 pass.
+
+## Operator 0.17.0 — Review information architecture
+
+Cards prioritize the unchanged server-generated `validation.publishableLabel`, then a safe existing label, otherwise a concise missing-title state. Display categories use the existing Port labels; unknown categories are explicitly unresolved. Status and 掲載可 counts use the pending API's authoritative validation/reviewability, never facts presence alone. All / approvable / needs review / duplicate / REVIEW and source filters remain available.
+
+Surface decision buttons fetch a fresh detail snapshot before opening the existing confirmation. Late reads and filter/detail changes cannot substitute another candidate. Existing confirmation checks, category/publishedAt/label payload, CSRF, request ID, retry, server CAS and publication validation are unchanged. No button auto-decides.
+
+Inline detail defaults to 概要; 根拠 holds facts/provenance/internal validation and the existing recheck control; 学習 holds existing similarity/recommendation and Shadow information; 履歴 holds candidate decisions. Similarity loading and the existing idempotent shadow-observation workflow happen when learning is requested, rather than when overview opens. Global Shadow and human history remain accessible in the collapsed operations area. No new recommendation, shadow, decision, facts, auth or schema logic.
+
+UI verification must never submit production decisions or facts recovery. Use synthetic local records for confirmation/learning tests. Public NEWS Worker 0.11.0 and Port 1.14.0 are unchanged; only Operator is deployed.
