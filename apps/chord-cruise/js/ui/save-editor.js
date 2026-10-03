@@ -858,7 +858,7 @@
         document.getElementById('cc-save-folder-limit-count').textContent =
             'フォルダ：' + folderCount + ' / ' + limits.maxCustomFolders;
         document.getElementById('cc-save-chord-limit-count').textContent =
-            'このフォルダ：' + chordCount + ' / ' + limits.maxChordsPerFolder;
+            'コード数：' + chordCount + ' / ' + limits.maxChordsPerFolder;
         host.hidden = false;
     }
 

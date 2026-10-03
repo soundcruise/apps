@@ -988,6 +988,24 @@
         return normalized;
     }
 
+    function folderLimitSummaryHtml(folders, countMap) {
+        if (isProEdition()) return '';
+        var limits = storage().getLibraryLimits();
+        if (limits.unlimited) return '';
+        var folderCount = folders.filter(function (item) { return item && item.id; }).length;
+        var chordCount = folders.reduce(function (total, folder) {
+            return total + chordCountIn(folder.id, countMap);
+        }, 0);
+        return '<section class="cc-save-limit-summary" id="cc-folder-limit-summary" aria-labelledby="cc-folder-limit-title">' +
+            '<strong id="cc-folder-limit-title">保存上限</strong>' +
+            '<span>フォルダ：' + folderCount + ' / ' + limits.maxCustomFolders + '</span>' +
+            '<span>コード数：' + chordCount + ' / ' +
+                (limits.maxCustomFolders * limits.maxChordsPerFolder) + '</span>' +
+            '<span class="cc-fb-hint">Pro版では保存上限がなくなります</span>' +
+            '<a href="../pro-access.html" target="_blank" rel="noopener">Pro版の入手方法</a>' +
+        '</section>';
+    }
+
     // ---- ビュー: フォルダ一覧 ----
 
     function renderFolders() {
@@ -1022,8 +1040,7 @@
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--small" id="cc-folder-create-ok">作成</button>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-folder-create-cancel">やめる</button>' +
                 '</div>' +
-                (isProEdition() ? '' :
-                    '<a class="cc-save-folder-pro-link" id="cc-folder-pro-link" href="../pro-access.html" target="_blank" rel="noopener" hidden>Pro版の入手方法</a>') +
+                folderLimitSummaryHtml(folders, countMap) +
             '</div>') +
         '</div>';
         contentEl().innerHTML = html;
