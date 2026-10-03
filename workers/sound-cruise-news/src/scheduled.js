@@ -1,3 +1,4 @@
+import {runPendingRechecks} from './pending-lifecycle.js';
 import {SOURCES,evidenceGate} from './registry.js';
 import {NewsStore} from './store.js';
 import {scheduledPurge} from './retention.js';
@@ -10,9 +11,14 @@ export const jstCollectionDay=at=>new Date(at+9*3600000).toISOString().slice(0,1
 export const RETENTION_CRON='17 * * * *';
 export async function scheduledNews(event,env,ctx,now=Date.now(),{registry=SOURCES,fetcher=fetch,sleep,clock}={}){
  // Physical retention runs even when collection is stopped, with its own failure signal.
+ let recheck=null;
+ if(event.cron===RETENTION_CRON&&env.NEWS_COLLECTION_MODE==='production'){
+  try{recheck=await runPendingRechecks(new NewsStore(env.NEWS_DB),now,runtimeSources(env,registry,now),env.NEWS_HEADLINE_PEPPER,{fetcher,sleep});}
+  catch{console.error(JSON.stringify({event:'news_pending_recheck_failed'}));}
+ }
  await scheduledPurge(event,env,ctx,now);
  const store=new NewsStore(env.NEWS_DB);
- if(event.cron!==COLLECTION_CRON)return {purged:true,results:[]};
+ if(event.cron!==COLLECTION_CRON)return {purged:true,results:[],recheck};
  const ids=selectedSourceIds(env),active=runtimeSources(env,registry,now),results=[];
  if(env.NEWS_COLLECTION_MODE!=='production'||!(await store.controls()).collection_enabled){
   await store.recordHealth({sourceId:'collection',status:'paused',reasonCode:'global_collection_off',checkedAt:now});return {purged:true,results,stopped:true};

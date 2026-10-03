@@ -83,6 +83,7 @@ export class NewsStore {
    this.db.prepare('DELETE FROM legacy_news_grants WHERE NOT EXISTS(SELECT 1 FROM candidate_items c WHERE c.id=legacy_news_grants.item_id)'),
    this.db.prepare('UPDATE news_controls SET revision=revision+1 WHERE id=1')
   ]);
+  await this.db.prepare('DELETE FROM news_pending_lifecycle WHERE NOT EXISTS(SELECT 1 FROM candidate_items c WHERE c.id=news_pending_lifecycle.candidate_id)').run();
   return {news:result[0].meta.changes,runs:result[1].meta.changes,audit:result[2].meta.changes,takedowns:result[3].meta.changes,alerts:result[4].meta.changes};
  }
  async candidates(){return (await this.db.prepare('SELECT * FROM candidate_items ORDER BY published_at DESC,id').all()).results;}

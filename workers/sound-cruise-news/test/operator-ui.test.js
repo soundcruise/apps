@@ -70,3 +70,13 @@ test('surface decision loads fresh server snapshot, invalidates stale reads and 
 test('card surface shows server missing facts and recovery guidance as safe text only',async()=>{
  const candidate={...row('blocked',false,['facts_incomplete'],null),factsReview:{missing:['製品名'],nextAction:'<img src=x onerror=alert(1)> 一次情報を確認してください。',recoveryClass:'NOT_SAFELY_RECOVERABLE'}};const u=ui([candidate]);await settle();const nodes=walk(u.ids.list.children[0]);assert(nodes.some(n=>n.textContent==='不足・未確認：製品名'));assert(nodes.some(n=>n.textContent===candidate.factsReview.nextAction));assert(!nodes.some(n=>n.tagName==='img'));assert.equal(nodes.find(n=>n.textContent==='掲載する').disabled,true);assert(!code.includes('scrollIntoView'));
 });
+test('publish interest UI is separate from decisions, cancellable, absent for ready/duplicate, history text-safe',async()=>{
+ const target={...row('interest',false,['facts_incomplete']),revision:0,snapshot:'0'.repeat(64),lifecycle:{next_recheck_at:1,recheck_attempt_count:2,user_publish_interest:0,longPending:true,history:[{result:'<img onerror=alert(1)>'}]}};
+ const u=ui([target,row('ready',true),row('duplicate',false,['duplicate'])]);await settle();
+ assert(u.ids.list.children[0].children.some(x=>x.textContent==='長期保留'));
+ const controls=u.ids.list.children[0].children.find(x=>x.className==='actions decision-actions');assert(controls.children.some(b=>b.textContent==='掲載したい'));
+ for(const c of u.ids.list.children.slice(1))assert(!c.children.find(x=>x.className==='actions decision-actions').children.some(b=>b.textContent==='掲載したい'));
+ u.context.capture=[];u.run("api=async(path,options)=>{capture.push({path,options});if(path==='/api/session')return {csrf:'test'};if(path==='/api/publish-interest'){items[0].lifecycle.user_publish_interest=JSON.parse(options.body).interest?1:0;return items[0].lifecycle;}return {};};refresh=async()=>{};");
+ await controls.children.find(b=>b.textContent==='掲載したい').events.click();assert.equal(u.context.capture.at(-1).path,'/api/publish-interest');assert.equal(JSON.parse(u.context.capture.at(-1).options.body).interest,true);assert(!u.context.capture.some(r=>r.path==='/api/decision'));
+ u.run('renderList()');const cancel=u.ids.list.children[0].children.find(x=>x.className==='actions decision-actions').children.find(b=>b.textContent==='掲載希望を取り消す');assert(cancel);await cancel.events.click();assert.equal(JSON.parse(u.context.capture.at(-1).options.body).interest,false);
+});

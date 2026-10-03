@@ -7,7 +7,7 @@ const [mode]=process.argv.slice(2);if(!['dry-run','deploy'].includes(mode))throw
 if(mode==='deploy'){
  const ack=JSON.parse(await readFile(new URL('../.local/operator-access-ready.json',import.meta.url),'utf8'));
  if(ack.origin!==runtimeConfig.NEWS_OPERATOR_ORIGIN||ack.issuer!==runtimeConfig.NEWS_ACCESS_ISSUER||ack.audience!==runtimeConfig.NEWS_ACCESS_AUD||ack.humanPolicyApproved!==true||ack.noBypassOrServiceAuth!==true||!Number.isSafeInteger(ack.checkedAt)||Date.now()-ack.checkedAt>3600000||ack.checkedAt>Date.now())throw Error('access_configuration_acceptance_required');
- const result=await remoteSql("SELECT COUNT(*) n FROM d1_migrations WHERE name='0011_operator_ledger.sql'; SELECT COUNT(*) n FROM d1_migrations WHERE name='0012_facts_recheck.sql'; SELECT COUNT(*) n FROM d1_migrations WHERE name='0013_shadow_evaluation.sql';");if(result.some(x=>x.results[0].n!==1))throw Error('operator_migration_required');
+ const result=await remoteSql("SELECT COUNT(*) n FROM d1_migrations WHERE name='0011_operator_ledger.sql'; SELECT COUNT(*) n FROM d1_migrations WHERE name='0012_facts_recheck.sql'; SELECT COUNT(*) n FROM d1_migrations WHERE name='0013_shadow_evaluation.sql'; SELECT COUNT(*) n FROM d1_migrations WHERE name='0014_pending_lifecycle.sql';");if(result.some(x=>x.results[0].n!==1))throw Error('operator_migration_required');
 }
 await mkdir(new URL('../.local/operator-build/',import.meta.url),{recursive:true});
 const args=['deploy','--config',configPath.pathname,'--secrets-file',new URL('../.local/operator-secrets.json',import.meta.url).pathname,...(mode==='dry-run'?['--dry-run','--outdir',new URL('../.local/operator-build/',import.meta.url).pathname]:[])];

@@ -1,3 +1,4 @@
+import {setPublishInterest,runPendingRechecks} from './pending-lifecycle.js';
 import {saveShadowEvaluation,evaluatePending,shadowMetrics} from './operator-shadow.js';
 import {dashboardSummary,humanDecisionHistory,similarDecisions} from './operator-insights.js';
 import {recheckFacts} from './facts-recheck.js';
@@ -20,7 +21,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.18.1'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.19.0'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
@@ -44,6 +45,13 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   }
   if(request.method==='GET'&&url.pathname==='/api/pending')return json({items:await reviewQueue(store,{now,registry,pepper:env.NEWS_HEADLINE_PEPPER})});
   if(request.method==='GET'&&/^\/api\/candidates\/[a-zA-Z0-9_-]{1,128}$/.test(url.pathname))return json(await reviewDetail(store,url.pathname.split('/').at(-1),now,registry,env.NEWS_HEADLINE_PEPPER));
+  if(request.method==='POST'&&url.pathname==='/api/publish-interest'){
+   await verifyCsrf(request,identity,env,now);return json(await setPublishInterest(store,await inputJSON(request),now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor));
+  }
+  if(request.method==='POST'&&url.pathname==='/api/pending-recheck'){
+   await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);if(input.scope!=='due'||Object.keys(input).length!==1)throw Error('operator_recheck_invalid');
+   return json(await runPendingRechecks(store,now,registry,env.NEWS_HEADLINE_PEPPER,{...options,limit:20}));
+  }
   if(request.method==='POST'&&url.pathname==='/api/facts-recheck'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
    return json(await recheckFacts(store,input,now,registry,env.NEWS_HEADLINE_PEPPER,identity.actor,options));

@@ -46,6 +46,7 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
   if(robots.isAllowed(surface.url,BOT)!==true)throw Error('facts_robots_disallow');
   const delay=Math.max(1000,(robots.getCrawlDelay(BOT)||0)*1000);if(delay>10000)throw Error('facts_crawl_delay_review');await sleep(delay);
   let response=await request(surface.url,512000);
+  if([404,410].includes(response.status))throw Error('facts_http_'+response.status);
   if(response.status!==200||!/text\/html/i.test(response.headers.get('content-type')||''))throw Error('facts_source_unavailable');
   proof={sourceId:source.id,sourceUrl:surface.url,verifiedAt:now,extractionMethod:surface.method,parserVersion:surface.parser,responseHash:await hash(response.text)};
   try{
@@ -75,7 +76,7 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
 }
 
 export async function recheckFacts(store,input,now,registry,pepper,actor,options={}){
- if(!actor||!['human_operator','system_repair','fixture'].includes(actor.type)||!/^[a-zA-Z0-9:_-]{1,128}$/.test(actor.id||''))throw Error('facts_actor_invalid');
+ if(!actor||!['human_operator','system_repair','system_recheck','fixture'].includes(actor.type)||!/^[a-zA-Z0-9:_-]{1,128}$/.test(actor.id||''))throw Error('facts_actor_invalid');
  if(!input||typeof input!=='object'||Object.keys(input).some(k=>!['id','snapshot','revision','requestId'].includes(k))||!/^[a-zA-Z0-9_-]{1,128}$/.test(input.id||'')||!/^([a-f0-9]{64})$/.test(input.snapshot||'')||!Number.isSafeInteger(input.revision)||input.revision<0||!/^[a-zA-Z0-9_-]{16,100}$/.test(input.requestId||''))throw Error('facts_request_invalid');
  const payloadHash=await hash(canonical({input,actor}));
  const replay=await store.db.prepare('SELECT * FROM news_facts_rechecks WHERE request_id=?').bind(input.requestId).first();
