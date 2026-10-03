@@ -17,9 +17,10 @@ assert(saveEditorSource.includes('if (isProEdition())') && saveEditorSource.incl
 assert(saveEditorSource.includes('proLink.hidden = isProEdition() || !text || code !== \'standard-folder-limit\';'), 'Pro hides folder-limit access links');
 assert(saveEditorSource.includes('proLink.hidden = isProEdition() || !text || code !== \'standard-folder-chord-limit\';'), 'Pro hides chord-limit access links');
 assert(saveEditorSource.includes('element.hidden = !visible || isProEdition();'), 'Pro hides the custom-save purchase prompt');
-assert(saveEditorSource.includes("(isProEdition() ? '' :\n                            '<a class=\"cc-save-folder-pro-link\" id=\"cc-save-folder-pro-link\""), 'Pro does not generate the new-folder purchase link');
-assert(saveEditorSource.includes("(isProEdition() ? '' :\n                    '<a class=\"cc-save-folder-pro-link\" id=\"cc-save-limit-pro-link\""), 'Pro does not generate the save-limit purchase link or custom-save prompt');
-assert(saveEditorSource.includes("(isProEdition() ? '' : '<a href=\"../pro-access.html\""), 'Pro does not generate the save-summary purchase link');
+assert(!saveEditorSource.includes('id="cc-save-folder-pro-link"'), 'save editor has no purchase link below new-folder creation');
+assert(!saveEditorSource.includes('id="cc-save-limit-pro-link"'), 'save editor has no purchase link below the memo');
+assert(saveEditorSource.includes("(isProEdition() ? '' :\n                        '<span class=\"cc-fb-hint\">Pro版では保存上限がなくなります</span>' +\n                        '<a href=\"../pro-access.html\" target=\"_blank\" rel=\"noopener\">Pro版の入手方法</a>')"), 'only Standard generates the summary explanation followed by the existing access link');
+assert.strictEqual((saveEditorSource.match(/>Pro版の入手方法<\/a>/g) || []).length, 1, 'save editor generates exactly one Pro access link, including rejection states');
 assert(librarySource.includes('link.hidden = isProEdition() || (code !== \'standard-folder-limit\' && code !== \'standard-folder-chord-limit\');'), 'Pro hides library folder-limit access links');
 assert(librarySource.includes("(isProEdition() ? '' :\n                    '<a class=\"cc-save-folder-pro-link\" id=\"cc-folder-pro-link\""), 'Pro does not generate the library folder-limit purchase link');
 assert(librarySource.includes('if (!isProEdition() && (!featureAccess() || !featureAccess().canAccessQuality(qualityKey)))'), 'Pro never renders library advanced-quality purchase prompts');
