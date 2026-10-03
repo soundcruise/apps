@@ -65,9 +65,10 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
   let result=null,validation=before,status=objectiveBlock(row,before,now),current=row;
   try{
    if(!status&&!before.valid){
-    const source=registry.find(s=>s.id===row.source_id),surface=recoverySurface(row,source),state=source&&await store.state(source.id);
+    const source=registry.find(s=>s.id===row.source_id),surface=recoverySurface(row,source);
     const cached=surface&&await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(recoveryCacheKey(row,source,surface)).first();
-    if(surface&&!before.errors.some(e=>['operator_source_gate','source_url_invalid'].includes(e))&&(!state.lastPublisherRequestAt||state.lastPublisherRequestAt<=now-DAY||cached?.checked_at>now-DAY)){
+    const dailyRecovery=source&&await store.db.prepare('SELECT COUNT(*) AS n FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>?').bind(source.id,source.id+':',now-DAY).first();
+    if(surface&&!before.errors.some(e=>['operator_source_gate','source_url_invalid'].includes(e))&&(cached?.checked_at>now-DAY||dailyRecovery.n===0)){
      report.attempted++;result=await recover(store,{id:row.id,revision:row.review_revision,snapshot:await candidateSnapshot(row),requestId:'autonomous-'+token},now,registry,pepper,{type:'system_recheck',id:'pending-recheck'},options);
     }else result={outcome:surface?'facts_source_gate':'facts_no_supported_surface'};
    }
