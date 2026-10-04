@@ -1,4 +1,4 @@
-import { articlePath } from './news-articles.js?v=1.16.0';
+import { articlePath } from './news-articles.js?v=1.16.1';
 import {labelInformationScore,compareTicker,eventVisible,validEventDeadline} from './news-quality.js?v=1.11.1';
 export {labelInformationScore} from './news-quality.js?v=1.11.1';
 // Manual ingestion boundary. No collector, persistence or network access.

@@ -1,4 +1,4 @@
-import { NEWS_ARTICLES, parseNewsArticleRoute } from './news-articles.js?v=1.16.0';
+import { NEWS_ARTICLES, parseNewsArticleRoute } from './news-articles.js?v=1.16.1';
 
 export function renderNewsArticle({ documentObject = document, hash } = {}) {
     const doc = documentObject, content = doc.getElementById('news-article-content');

@@ -184,7 +184,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.16.0';
+} from './app-version.js?v=1.16.1';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.13.0';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.13.0';
 import { initTuner } from './tuner-app.js?v=1.12.3';
@@ -2123,10 +2123,10 @@ let newsLoadRevision = 0;
 async function renderNewsSafely() {
     const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.16.0');
+        const news = await import('./news-ui.js?v=1.16.1');
         if (revision !== newsLoadRevision) return;
         news.stopNewsUpdates();
-        const { loadConfiguredNews } = await import('./news-provider.js?v=1.16.0');
+        const { loadConfiguredNews } = await import('./news-provider.js?v=1.16.1');
         const result = await loadConfiguredNews();
         if (revision === newsLoadRevision) news.renderNews({ ...result, category: document.getElementById('news-category')?.value ?? '' });
     } catch (error) {
@@ -2143,7 +2143,7 @@ async function renderNewsArticleSafely(hash) {
     title.textContent = '記事を読み込んでいます…';
     document.getElementById('news-article-content').replaceChildren();
     try {
-        const { renderNewsArticle } = await import('./news-article-ui.js?v=1.16.0');
+        const { renderNewsArticle } = await import('./news-article-ui.js?v=1.16.1');
         if (revision !== newsArticleRevision || location.hash !== hash) return;
         renderNewsArticle({ hash });
     } catch (_) {
@@ -6551,7 +6551,7 @@ document.querySelectorAll('.port-refresh-app').forEach((button) => button.addEve
 document.getElementById('news-article-view').addEventListener('click', async (event) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || !event.target.closest('a[href="#news"]')) return;
     event.preventDefault();
-    const { replaceNewsListRoute } = await import('./news-articles.js?v=1.16.0');
+    const { replaceNewsListRoute } = await import('./news-articles.js?v=1.16.1');
     // A fast route change while the chunk loads must not redirect another view.
     if (!location.hash.startsWith('#news/')) return;
     replaceNewsListRoute();

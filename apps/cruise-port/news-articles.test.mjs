@@ -70,7 +70,9 @@ test('theme update represents all five apps and identifies screenshots as Port e
  assert.ok(nodes.some(n=>n.tagName==='p'&&n.textContent.includes('指板クルーズでは「共通」タブ')));
  assert.ok(nodes.some(n=>n.tagName==='p'&&n.textContent.startsWith('画像はCruise Portでの表示例です。')));
  assert.deepEqual(nodes.filter(n=>n.tagName==='figcaption').map(n=>n.textContent),['ダーク','チャコール','グレー','ライト']);
- assert.equal(own.publishedAt,'2026-10-01T15:00:00.000Z');
+ assert.equal(own.publishedAt,'2026-10-02T15:00:00.000Z');
+ assert.equal(NEWS_ARTICLES['theme-colors'].dateNote,'2026年10月3日');
+ assert.equal(groupNews(prepareNews([own],{now}),'cruise_apps',now)[0][0],'2026-10-03');
  assert.equal(articlePath('theme-colors'),'#news/cruise-apps/theme-colors');
 });
 test('direct NEWS URLs survive startup without appending a history entry; both editions include article view',()=>{
