@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.2';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.3';
 import { loadMyApps } from './my-apps-store.js?v=0.59.3';
 
 export function canCreateMyApp(items, capabilities = getCapabilities()) {

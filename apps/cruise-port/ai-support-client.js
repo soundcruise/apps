@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.2';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.3';
 
 // Cruise Port side of AI support (Cloud Sync UX 2.0 AI1-C). No DOM here.
 //

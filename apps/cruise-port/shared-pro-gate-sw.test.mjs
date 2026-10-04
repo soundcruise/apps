@@ -11,7 +11,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 
 function fixture({ values = new Map(), policy = true, session = { status: 200, body: { ok: true, generation: 1,
   legacyCompatibilityEnabled: true } }, offline = false, source = shared, oldConfig = false,
-  missingHelper = false, cookiesUnavailable = false } = {}) {
+  missingHelper = false, offlineGrant = false, cookiesUnavailable = false } = {}) {
   const calls = [], listeners = new Map(), nodes = new Map();
   class Element {
     constructor(tag) { this.tagName = tag; this.listeners = new Map(); this.style = {}; this.value = ''; this.disabled = false; this.tabIndex = 0; this.attributes = new Set(); }
@@ -60,12 +60,28 @@ function fixture({ values = new Map(), policy = true, session = { status: 200, b
     if (offline) throw Error('offline');
     const path = url.split('/').at(-1);
     const result = path === 'policy' ? { status: 200, body: { ok: true, legacyCompatibilityEnabled: policy } } :
-      path === 'session' ? session : path === 'verify' ? { status: 201, body: { ok: true, credential: token, generation: 1 } } :
+      path === 'session' ? session : path === 'verify' ? { status: 201, body: { ok: true, credential: token, generation: 1, session: { fixture: true } } } :
       { status: 200, body: { ok: true } };
     return { status: result.status, async json() { return result.body; } };
   };
+  // Gate state tests isolate the session service. Real cryptography, encrypted
+  // persistence and real Worker protocol are covered by shared/pro-device-session.test.mjs.
+  window.SoundCruiseProDeviceSession = { createClient: ({ request }) => ({
+    publicKey: async () => ({ fixture: true }), accept: async () => true, forget: async () => {},
+    allowance: async () => ({ ok: true, offlineRemainingMs: 60000 }),
+    validate: async existing => {
+      try {
+        const result = await request('/session', { headers: { Authorization: 'Bearer '+existing.credential } });
+        if (result.status === 200 && result.body?.ok && result.body.generation === existing.generation)
+          return { ok: true, online: true, generation: existing.generation };
+        if (result.status === 401 || (result.status === 200 && result.body.generation !== existing.generation))
+          return { ok: false, terminal: true };
+      } catch (_) { /* use only the independently supplied sealed grant fixture */ }
+      return offlineGrant ? { ok: true, offline: true, generation: existing.generation, offlineRemainingMs: 60000 } : { ok: false };
+    }
+  }) };
   const context = vm.createContext({ window, document, location, localStorage: storage, fetch, URL, AbortController,
-    setTimeout, clearTimeout, history: { replaceState() {} }, Date, console,
+    setTimeout, clearTimeout, setInterval: () => 1, history: { replaceState() {} }, Date, console,
     MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame() { return 1; },
     cancelAnimationFrame() {}, getComputedStyle() { return { visibility: 'visible' }; } });
   vm.runInContext(source, context);
@@ -77,12 +93,12 @@ function fixture({ values = new Map(), policy = true, session = { status: 200, b
     } };
 }
 
-test('Phase 1 legacy UI entry never requests a Worker credential', async () => {
+test('legacy display flags never grant Pro access or mint a Worker credential', async () => {
   const values = new Map([['soundCruiseProAuth', JSON.stringify({ v: 1, at: 1 })]]);
   const f = fixture({ values, oldConfig: true }); await f.settle();
-  assert.equal(f.body.locked, false);
-  assert.deepEqual(f.calls, ['policy']);
-  assert.equal(JSON.parse(values.get('soundCruiseProAuth')).v, 1);
+  assert.equal(f.body.locked, true);
+  assert.deepEqual(f.calls, []);
+  assert.equal(values.has('soundCruiseProAuth'), false);
 });
 
 test('legacy compatibility OFF latches across outages', async () => {
@@ -136,9 +152,9 @@ test('revoked or old-generation credential never falls back to legacy', async ()
   assert.equal(values.has('soundCruiseProAuth'), false);
 });
 
-test('validated v2 credential continues UI through outage without time expiry', async () => {
+test('only a bounded browser grant permits offline UI; localStorage validatedAt alone does not', async () => {
   const values = new Map([['soundCruiseProAuth', JSON.stringify(v2)]]);
-  const f = fixture({ values, offline: true }); await f.settle();
+  const f = fixture({ values, offline: true, offlineGrant: true }); await f.settle();
   assert.equal(f.body.locked, false);
   const unvalidated = fixture({ values: new Map([['soundCruiseProAuth', JSON.stringify({ ...v2, validatedAt: 0 })]]), offline: true });
   await unvalidated.settle(); assert.equal(unvalidated.body.locked, true);
@@ -172,7 +188,9 @@ test('old HTML with new JS ignores old hash and loads Turnstile; new HTML with c
         'fretboard_cruise': 'pro_a9f4k7q2m8z', 'rhythm-cruise': 'pro_r4m8k7n2q9x',
         'chord-cruise': 'pro_k7m4q9v2x8' })[name] + '/index.html', 'utf8');
     assert.doesNotMatch(html, /passwordHash/);
-    if (name === 'pitch-cruise') assert.match(html, /shared\/pro-gate\.js\?v=25/);
+    if (name === 'pitch-cruise') assert.match(html, /shared\/pro-gate\.js\?v=27/);
   }
   assert.doesNotMatch(pitch, /passwordHash|sha256|AUTH_TOKEN/);
+  assert.match(pitch, /shared\/pro-device-session\.js\?v=2/);
+  assert.match(pitch, /shared\/pro-gate\.js\?v=27/);
 });

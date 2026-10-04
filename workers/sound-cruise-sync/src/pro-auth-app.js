@@ -2,12 +2,16 @@ import { hmacVerifier, timingSafeHexEqual } from './crypto.js';
 import { issueProCredentialAndReset, proLockoutKey, proLockoutStatus,
   recordWrongProPasscode } from './pro-auth-lockout.js';
 import { verifyTurnstileToken } from './turnstile.js';
+import { backendSessionDecision, canonicalDeviceKey, createSessionChallenge, deviceSessionMetadata,
+  renewDeviceSession, sessionInactive, PRO_SESSION_LEASE_MS } from './pro-device-session.js';
 import { isJsonContentType, readBodyWithLimit } from './validation.js';
 
 const ROUTES = Object.freeze({
   '/v2/pro-auth/verify': { method: 'POST', headers: ['content-type'] },
   '/v2/pro-auth/session': { method: 'GET', headers: ['authorization'] },
   '/v2/pro-auth/revoke': { method: 'POST', headers: ['authorization', 'content-type'] },
+  '/v2/pro-auth/device-session/challenge': { method: 'POST', headers: ['authorization', 'content-type'] },
+  '/v2/pro-auth/device-session/renew': { method: 'POST', headers: ['authorization', 'content-type'] },
   '/v2/pro-auth/policy': { method: 'GET', headers: [] }
 });
 const TOKEN_RE = /^scp1\.([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})\.([A-Za-z0-9_-]{43})$/u;
@@ -43,10 +47,13 @@ function db(env) {
 }
 
 async function state(session) {
-  const row = await session.prepare(`SELECT generation, active_code_slot, legacy_compat_enabled
+  const row = await session.prepare(`SELECT generation, active_code_slot, legacy_compat_enabled,
+      session_lifecycle_started_at, unbound_backend_until
     FROM pro_auth_state WHERE singleton_id = 1`).first();
   if (!row || !Number.isSafeInteger(row.generation) || row.generation < 1 ||
-      !['A', 'B'].includes(row.active_code_slot) || ![0, 1].includes(row.legacy_compat_enabled)) {
+      !['A', 'B'].includes(row.active_code_slot) || ![0, 1].includes(row.legacy_compat_enabled) ||
+      !Number.isSafeInteger(row.session_lifecycle_started_at) || row.session_lifecycle_started_at < 0 ||
+      !Number.isSafeInteger(row.unbound_backend_until) || row.unbound_backend_until < row.session_lifecycle_started_at) {
     throw new Error('Pro state unavailable');
   }
   return row;
@@ -58,10 +65,13 @@ async function parseVerifyBody(request) {
   let body;
   try { body = JSON.parse(read.text); } catch { return { error: 'invalid_json', status: 400 }; }
   if (!body || typeof body !== 'object' || Array.isArray(body) ||
-      Object.keys(body).length !== 2 || !Object.hasOwn(body, 'passcode') || !Object.hasOwn(body, 'turnstileToken') ||
+      Object.keys(body).some(key => !['passcode', 'turnstileToken', 'devicePublicKey'].includes(key)) || !Object.hasOwn(body, 'passcode') || !Object.hasOwn(body, 'turnstileToken') ||
       typeof body.passcode !== 'string' || !/^[0-9]{4}$/u.test(body.passcode) ||
       typeof body.turnstileToken !== 'string' || body.turnstileToken.length < 1 || body.turnstileToken.length > 2048) {
     return { error: 'invalid_input', status: 400 };
+  }
+  if (body.devicePublicKey !== undefined && !canonicalDeviceKey(body.devicePublicKey)) {
+    return { error: 'invalid_device_key', status: 400 };
   }
   return { body };
 }
@@ -106,12 +116,13 @@ export async function inspectProCredentialReadOnly(headerValue, env, dependencie
   const row = await credential(session, parsed);
   if (!row || row.scope !== 'global_pro' || row.revoked_at !== null) return { ok: false, code: 'pro_required' };
   if (row.generation !== current.generation) return { ok: false, code: 'pro_reauth_required' };
-  return { ok: true };
+  return backendSessionDecision(row, current, dependencies.now ? dependencies.now() : Date.now());
 }
 
 async function credential(session, parsed) {
   if (!parsed) return null;
-  const row = await session.prepare(`SELECT verifier, generation, scope, revoked_at
+  const row = await session.prepare(`SELECT verifier, generation, scope, revoked_at, created_at,
+      device_public_key, session_bound_at, last_validated_at, lease_expires_at
     FROM pro_credentials WHERE id = ?`).bind(parsed.id).first();
   return row && timingSafeHexEqual(row.verifier, parsed.verifier) ? row : null;
 }
@@ -165,13 +176,22 @@ async function verify(request, env, origin, route, dependencies) {
   }
   try {
     const material = await tokenMaterial(env.PRO_CREDENTIAL_PEPPER, dependencies.cryptoImpl || crypto);
+    material.devicePublicKey = parsed.body.devicePublicKey ? canonicalDeviceKey(parsed.body.devicePublicKey) : null;
+    if (material.devicePublicKey) {
+      try { await (dependencies.cryptoImpl || crypto).subtle.importKey('jwk', JSON.parse(material.devicePublicKey),
+        { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']); }
+      catch { return error(400, 'invalid_device_key', origin, route); }
+    }
     const issued = await issueProCredentialAndReset(session, material, current, ipKey, now);
     if (!issued) {
       const retryAfter = await proLockoutStatus(session, ipKey, now);
       return retryAfter ? error(429, 'rate_limited', origin, route,
         { 'Retry-After': String(retryAfter) }) : error(409, 'policy_changed', origin, route);
     }
-    return response(201, { ok: true, credential: material.token, generation: current.generation }, origin, route);
+    return response(201, { ok: true, credential: material.token, generation: current.generation,
+      ...(material.devicePublicKey ? { session: deviceSessionMetadata({ created_at: now,
+        device_public_key: material.devicePublicKey, session_bound_at: now, last_validated_at: now,
+        lease_expires_at: now + PRO_SESSION_LEASE_MS }, now) } : {}) }, origin, route);
   } catch { return error(503, 'server_unavailable', origin, route); }
 }
 
@@ -193,8 +213,13 @@ async function sessionRequest(request, env, origin, route, dependencies) {
     if (row.generation !== current.generation) {
       return error(401, 'reauth_required', origin, route);
     }
-    return response(200, { ok: true, generation: current.generation,
-      legacyCompatibilityEnabled: current.legacy_compat_enabled === 1 }, origin, route);
+    if (sessionInactive(row, current, dependencies.now ? dependencies.now() : Date.now())) {
+      return error(401, 'reauth_required', origin, route);
+    }
+    return response(200, { ok: true, generation: current.generation, protocol: 3,
+      deviceSessionRequired: true,
+      legacyCompatibilityEnabled: current.legacy_compat_enabled === 1 &&
+        (dependencies.now ? dependencies.now() : Date.now()) < current.unbound_backend_until }, origin, route);
   } catch { return error(503, 'server_unavailable', origin, route); }
 }
 
@@ -217,11 +242,41 @@ async function revoke(request, env, origin, route, dependencies) {
   } catch { return error(503, 'server_unavailable', origin, route); }
 }
 
-async function policy(env, origin, route) {
+async function policy(env, origin, route, dependencies) {
   try {
     const current = await state(db(env));
-    return response(200, { ok: true, protocol: 2,
-      legacyCompatibilityEnabled: current.legacy_compat_enabled === 1 }, origin, route);
+    const now = dependencies.now ? dependencies.now() : Date.now();
+    return response(200, { ok: true, protocol: 3,
+      deviceSessionRequired: true, inactiveLifetimeDays: 90, offlineGraceDays: 7,
+      serverTime: now, unboundBackendUntil: current.unbound_backend_until,
+      legacyCompatibilityEnabled: current.legacy_compat_enabled === 1 && now < current.unbound_backend_until }, origin, route);
+  } catch { return error(503, 'server_unavailable', origin, route); }
+}
+
+async function deviceSessionRequest(request, env, origin, route, dependencies) {
+  if (!env.SYNC_RATE_LIMITER?.limit) return error(503, 'server_unavailable', origin, route);
+  try {
+    const limited = await env.SYNC_RATE_LIMITER.limit({ key: 'pro-session:' + (request.headers.get('CF-Connecting-IP') || 'missing') });
+    if (limited?.success !== true) return error(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
+    if (typeof env.PRO_CREDENTIAL_PEPPER !== 'string' || env.PRO_CREDENTIAL_PEPPER.length < 32) throw Error('Missing verifier');
+    const parsed = await bearer(request, env.PRO_CREDENTIAL_PEPPER, dependencies.cryptoImpl || crypto);
+    if (!parsed) return error(401, 'invalid_credential', origin, route);
+    const session = db(env), current = await state(session), row = await credential(session, parsed);
+    const now = dependencies.now ? dependencies.now() : Date.now();
+    if (!row || row.scope !== 'global_pro' || row.revoked_at !== null) return error(401, 'invalid_credential', origin, route);
+    if (row.generation !== current.generation || sessionInactive(row, current, now)) return error(401, 'reauth_required', origin, route);
+    const read = await readBodyWithLimit(request, 4096);
+    if (!read.ok) return error(read.tooLarge ? 413 : 400, 'invalid_input', origin, route);
+    let body;
+    try { body = JSON.parse(read.text); } catch { return error(400, 'invalid_input', origin, route); }
+    const challenge = new URL(request.url).pathname.endsWith('/challenge');
+    const fields = challenge ? ['publicKey'] : ['publicKey', 'challenge', 'mac', 'signature'];
+    if (!body || Array.isArray(body) || Object.keys(body).length !== fields.length ||
+        fields.some(field => !Object.hasOwn(body, field))) return error(400, 'invalid_input', origin, route);
+    const result = challenge
+      ? await createSessionChallenge(parsed, row, current, body.publicKey, env, now, dependencies.cryptoImpl || crypto)
+      : await renewDeviceSession(session, parsed, row, current, body, env, now, dependencies.cryptoImpl || crypto);
+    return result.body ? response(result.status, result.body, origin, route) : error(result.status, result.code, origin, route);
   } catch { return error(503, 'server_unavailable', origin, route); }
 }
 
@@ -252,7 +307,8 @@ export async function handleProAuthRequest(request, env = {}, _ctx, dependencies
   if (url.pathname === '/v2/pro-auth/verify') result = await verify(request, env, origin, route, dependencies);
   else if (url.pathname === '/v2/pro-auth/session') result = await sessionRequest(request, env, origin, route, dependencies);
   else if (url.pathname === '/v2/pro-auth/revoke') result = await revoke(request, env, origin, route, dependencies);
-  else result = await policy(env, origin, route);
+  else if (url.pathname.startsWith('/v2/pro-auth/device-session/')) result = await deviceSessionRequest(request, env, origin, route, dependencies);
+  else result = await policy(env, origin, route, dependencies);
   // Wrangler invocation logs expose route/status without application payload logging.
   return result;
 }

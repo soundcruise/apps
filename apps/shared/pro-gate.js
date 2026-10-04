@@ -11,7 +11,6 @@
     const RETIRED_KEY = 'soundCruiseProLegacyRetired';
     const PENDING_KEY = 'soundCruiseProRevokePending';
     const LEGACY_COOKIE = 'soundcruise_pro_gate_rid';
-    const LEGACY_PITCH_TOKEN = 'pitch-cruise-pro-gate-v8';
     const TOKEN_RE = /^scp1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/;
     let overlay;
     let releaseGateFocus = null;
@@ -20,7 +19,14 @@
     let showPasscode = null;
     let backendAuthRequired = false;
     const backendAuthWaiters = new Set();
-    const pendingChecks = new Map();
+    let sessionClient;
+    let accessGranted = false;
+    let expiryTimer;
+    let validationPromise;
+    let authEpoch = 0;
+    let lastHandledCredential = null;
+    let bootValidation;
+    let gateMessage;
 
     function get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
     function put(key, value) { try { localStorage.setItem(key, value); return true; } catch (_) { return false; } }
@@ -44,15 +50,6 @@
             }
         } catch (_) { /* cookie access is optional for server credentials */ }
     }
-    function legacyPresent() {
-        if (get(MIGRATED_KEY) === '1' || get(RETIRED_KEY) === '1') return false;
-        try { if (JSON.parse(get(AUTH_KEY) || 'null')?.v === 1) return true; } catch (_) { /* invalid old state */ }
-        if (get('soundcruise_pro_gate_rotation') === LEGACY_PITCH_TOKEN) return true;
-        try {
-            return document.cookie.split(';').some((part) =>
-                part.trim() === LEGACY_COOKIE + '=' + encodeURIComponent(LEGACY_PITCH_TOKEN));
-        } catch (_) { return false; }
-    }
     function retireLegacy() { clearLegacy(); put(RETIRED_KEY, '1'); }
     function migrated() { clearLegacy(); return put(MIGRATED_KEY, '1'); }
     function queuePending(token) {
@@ -73,15 +70,25 @@
         try { body = await response.json(); } catch (_) { /* non-JSON upstream */ }
         return { status: response.status, body };
     }
-    // The boot check can start before DOMContentLoaded; the decision still waits for its result.
-    function check(path, credential) {
-        const key = path + (credential ? ' ' + credential : '');
-        if (!pendingChecks.has(key)) {
-            const pending = request(path, credential ? { headers: { Authorization: 'Bearer ' + credential } } : {});
-            pending.catch(() => { /* handled where the result is awaited */ });
-            pendingChecks.set(key, pending);
+    function deviceSession() {
+        if (!sessionClient) sessionClient = window.SoundCruiseProDeviceSession?.createClient({
+            request, isCurrent: existing => auth()?.credential === existing.credential && !resetInFlight
+        });
+        if (!sessionClient) throw Error('Pro session helper unavailable');
+        return sessionClient;
+    }
+    async function forget(existing) {
+        try { if (existing) await deviceSession().forget(existing); } catch (_) { /* failed storage never grants access */ }
+    }
+    function scheduleExpiry(result) {
+        clearTimeout(expiryTimer);
+        if (Number.isFinite(result.offlineRemainingMs)) {
+            expiryTimer = setTimeout(() => {
+                accessGranted = false; lock('passcode');
+                if (gateMessage) gateMessage.textContent = '認証の再確認が必要です。オンラインに接続すると自動で確認します。';
+            }, result.offlineRemainingMs);
+            expiryTimer?.unref?.();
         }
-        return pendingChecks.get(key);
     }
     async function turnstileHelper() {
         if (window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__) return window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__;
@@ -125,6 +132,7 @@
     async function reset() {
         if (resetInFlight) return;
         resetInFlight = true;
+        authEpoch++;
         const existing = auth();
         if (existing) {
             // Persist a revoke attempt before dropping UI access, including offline resets.
@@ -133,12 +141,16 @@
             remove(AUTH_KEY);
         }
         clearLegacy();
+        accessGranted = false;
+        clearTimeout(expiryTimer);
         lock('passcode');
+        await forget(existing);
         await flushPending();
+        resetInFlight = false;
     }
     window.__soundCruiseClearGate = reset;
     window.__soundCruiseRequireProBackendAuth = () => {
-        if (auth()) return Promise.resolve();
+        if (auth() && accessGranted) return Promise.resolve();
         backendAuthRequired = true;
         lock('passcode');
         return new Promise((resolve) => { backendAuthWaiters.add(resolve); });
@@ -147,14 +159,50 @@
         // A delayed response for an older token must not invalidate a new one.
         const current = auth();
         if (current && current.credential !== credential) return;
-        if (current) { remove(AUTH_KEY); put(MIGRATED_KEY, '1'); }
+        if (current) { remove(AUTH_KEY); put(MIGRATED_KEY, '1'); void forget(current); }
+        accessGranted = false;
+        clearTimeout(expiryTimer);
+        authEpoch++;
         backendAuthRequired = true;
         lock('passcode');
     };
-    window.addEventListener('online', () => { void flushPending(); });
+    window.addEventListener('online', () => { void flushPending(); if (auth()) void initialize(true); });
+    window.__soundCruiseEnsureProSession = async () => {
+        if (!auth()) { await window.__soundCruiseRequireProBackendAuth(); return accessGranted; }
+        await initialize(false);
+        return accessGranted;
+    };
+    window.addEventListener('focus', () => { if (auth()) void initialize(false); });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && auth()) void initialize(false);
+        else if (auth()) {
+            try { void deviceSession().allowance(auth()); } catch (_) { /* no grant from a missing helper */ }
+        }
+    });
+    let lastActivityCheck = -Infinity;
+    document.addEventListener('pointerdown', () => {
+        if (!accessGranted || !auth()) return;
+        const observed = window.performance?.now?.() ?? Date.now();
+        if (observed - lastActivityCheck < 5000) return;
+        lastActivityCheck = observed;
+        void initialize(false);
+    }, true);
+    // Checkpoint time during local use; the helper still throttles network renewal
+    // until 12 hours have elapsed. No password or extra server lease is issued here.
+    const renewalTimer = setInterval(() => {
+        if (document.visibilityState !== 'hidden' && auth()) void initialize(false);
+    }, 60_000);
+    renewalTimer?.unref?.();
     window.addEventListener('storage', (event) => {
         // A different Pro app/tab can complete the same shared authentication.
-        if (event.key === AUTH_KEY && backendAuthRequired && auth()) void initialize();
+        if (event.key !== AUTH_KEY) return;
+        const current = auth();
+        if (current?.credential === lastHandledCredential && accessGranted && !backendAuthRequired) return;
+        authEpoch++;
+        if (current) {
+            if (validationPromise) void validationPromise.finally(() => initialize(true));
+            else void initialize(true);
+        } else { accessGranted = false; clearTimeout(expiryTimer); lock('passcode'); }
     });
 
     function containGateFocus(overlay) {
@@ -249,6 +297,7 @@
         const input = box.querySelector('#pro-gate-input');
         const submit = box.querySelector('#pro-gate-submit');
         const message = box.querySelector('#pro-gate-error');
+        gateMessage = message;
         input.addEventListener('input', () => { message.textContent = ''; });
         input.addEventListener('keydown', (event) => { if (event.key === 'Enter') void submitCode(); });
         submit.addEventListener('click', () => { void submitCode(); });
@@ -263,6 +312,7 @@
         if (state === 'passcode') showPasscode();
         async function submitCode() {
             const passcode = input.value;
+            const submittedEpoch = authEpoch;
             if (!/^[0-9]{4}$/.test(passcode)) { message.textContent = '半角数字4桁を入力してください。'; return; }
             submit.disabled = true;
             try {
@@ -273,21 +323,42 @@
                 const turnstileToken = await turnstile?.getToken('sound_cruise_pro_verify',
                     { mount: box.querySelector('#pro-gate-turnstile'), visible: true });
                 if (!turnstileToken) { message.textContent = '確認を完了できませんでした。通信状態をご確認ください。'; return; }
+                const devicePublicKey = await deviceSession().publicKey();
                 const result = await request('/verify', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ passcode, turnstileToken })
+                    body: JSON.stringify({ passcode, turnstileToken, devicePublicKey })
                 });
+                if (submittedEpoch !== authEpoch || resetInFlight) return;
                 if (result.status === 201 && result.body?.ok === true &&
                     typeof result.body.credential === 'string' && TOKEN_RE.test(result.body.credential) &&
                     Number.isSafeInteger(result.body.generation) && result.body.generation > 0) {
                     const saved = put(AUTH_KEY, JSON.stringify({ v: 2, credential: result.body.credential,
-                        generation: result.body.generation, validatedAt: Date.now() }));
+                        generation: result.body.generation, sessionVersion: result.body.session?.version === 3 ? 3 : 2, validatedAt: Date.now() }));
                     if (!saved) { message.textContent = 'このブラウザーに認証を保存できません。'; return; }
+                    let accepted = false;
+                    try {
+                        const current = auth();
+                        accepted = result.body.session ? await deviceSession().accept(current, result.body.session) : false;
+                        if (!accepted) {
+                            const validation = await deviceSession().validate(current);
+                            accepted = validation.ok === true;
+                            if (accepted) scheduleExpiry(validation);
+                        } else {
+                            const grant = await deviceSession().allowance(current);
+                            accepted = grant.ok === true;
+                            if (accepted) scheduleExpiry(grant);
+                        }
+                    } catch (_) { /* no unchecked offline access */ }
+                    if (submittedEpoch !== authEpoch || resetInFlight ||
+                        auth()?.credential !== result.body.credential) return;
+                    if (!accepted) { message.textContent = '端末の認証を確認できません。オンラインで再度お試しください。'; return; }
+                    accessGranted = true;
                     if (!migrated()) {
                         remove(AUTH_KEY);
                         message.textContent = 'このブラウザーに認証を保存できません。';
                         return;
                     }
+                    retireLegacy();
                     unlock();
                     return;
                 }
@@ -311,16 +382,22 @@
         overlay.remove();
         overlay = null;
         showPasscode = null;
+        gateMessage = null;
         document.body.classList.remove('pro-gate-active');
     }
-    // Every path that leaves the gate locked ends at the passcode; only decided access unlocks.
-    async function initialize() {
-        try { await resolveAccess(); } catch (_) { /* fail closed to the passcode */ }
-        if (overlay) lock('passcode');
+    // Silent renewal never displays a passcode while a valid grant remains.
+    async function initialize(force = true) {
+        if (validationPromise) return validationPromise;
+        validationPromise = resolveAccess(force).catch(() => {
+            accessGranted = false;
+        }).finally(() => {
+            validationPromise = null;
+            if (!accessGranted) lock('passcode');
+        });
+        return validationPromise;
     }
-    async function resolveAccess() {
-        lock();
-        // Old service workers use this query flag for legacy invalidation. It must not revoke a v2 token.
+    async function resolveAccess(force) {
+        if (!accessGranted) lock();
         try {
             const url = new URL(location.href);
             if (url.searchParams.get('resetGate') === '1') {
@@ -331,44 +408,34 @@
         } catch (_) { /* leave gate locked */ }
         void flushPending();
         const existing = auth();
-        if (existing) {
-            if (!migrated()) return;
-            try {
-                const result = await check('/session', existing.credential);
-                // A backend denial/reset or fresh login may have changed the
-                // session while this boot check was in flight. Never restore it.
-                if (auth()?.credential !== existing.credential) return;
-                if (result.status === 200 && result.body?.ok === true && Number.isSafeInteger(result.body.generation)) {
-                    if (result.body.generation !== existing.generation) {
-                        remove(AUTH_KEY);
-                        return;
-                    }
-                    existing.generation = result.body.generation;
-                    existing.validatedAt = Date.now();
-                    put(AUTH_KEY, JSON.stringify(existing));
-                    if (!migrated()) return;
-                    if (result.body.legacyCompatibilityEnabled === false) retireLegacy();
-                    unlock();
-                    return;
-                }
-                if (result.status === 401) { remove(AUTH_KEY); put(MIGRATED_KEY, '1'); return; }
-                if (result.status < 500 && result.status !== 429) return;
-            } catch (_) { /* network outage */ }
-            if (auth()?.credential !== existing.credential) return;
-            if (Number.isFinite(existing.validatedAt) && existing.validatedAt > 0) unlock();
+        if (!existing) { accessGranted = false; retireLegacy(); return; }
+        if (!migrated()) { accessGranted = false; return; }
+        const result = bootValidation?.credential === existing.credential
+            ? await bootValidation.promise : await deviceSession().validate(existing, { force });
+        bootValidation = null;
+        // Reset, backend denial or a new login wins over every delayed result.
+        if (auth()?.credential !== existing.credential || resetInFlight || result.stale) return;
+        if (result.ok && result.generation === existing.generation) {
+            if (result.online) {
+                existing.validatedAt = Date.now(); // Informational only; never an offline grant.
+                existing.sessionVersion = result.compatibility ? 2 : 3;
+                if (!put(AUTH_KEY, JSON.stringify(existing))) { accessGranted = false; return; }
+            }
+            retireLegacy();
+            accessGranted = true;
+            lastHandledCredential = existing.credential;
+            scheduleExpiry(result);
+            unlock();
             return;
         }
-        if (!legacyPresent()) return;
-        try {
-            const result = await check('/policy');
-            if (result.status === 200 && result.body?.ok === true) {
-                if (result.body.legacyCompatibilityEnabled === false) { retireLegacy(); return; }
-                unlock();
-                return;
-            }
-            if (result.status < 500) return;
-        } catch (_) { /* network outage */ }
-        if (get(RETIRED_KEY) !== '1') unlock();
+        accessGranted = false;
+        clearTimeout(expiryTimer);
+        if (result.terminal) { remove(AUTH_KEY); put(MIGRATED_KEY, '1'); await forget(existing); }
+        if (!result.terminal) {
+            lock('passcode');
+            if (gateMessage) gateMessage.textContent = '認証の再確認が必要です。オンラインに接続すると自動で確認します。';
+        }
+        // Outages retain the credential, so coming online renews silently.
     }
     document.addEventListener('click', (event) => {
         if (!event.target.closest?.('#pro-gate-reset')) return;
@@ -378,10 +445,11 @@
     }, true);
     // A cached service worker must never invalidate a server credential by its old gate version.
     if (document.body) lock();
-    // Start the same boot check early; resolveAccess() re-reads storage and applies every rule.
     const bootAuth = auth();
-    if (bootAuth) void check('/session', bootAuth.credential);
-    else if (legacyPresent()) void check('/policy');
+    if (bootAuth) {
+        try { bootValidation = { credential: bootAuth.credential, promise: deviceSession().validate(bootAuth) };
+            bootValidation.promise.catch(() => {}); } catch (_) { /* missing storage/helper fails closed */ }
+    }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialize, { once: true });
     else void initialize();
 })();

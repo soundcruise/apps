@@ -1,4 +1,4 @@
-import { isProAccessReady } from './cruise-port-capabilities.js?v=1.18.2';
+import { isProAccessReady } from './cruise-port-capabilities.js?v=1.18.3';
 
 // Do not initialize tools, storage controllers or routes underneath a locked
 // Pro gate. Shared authentication/legacy/offline rules remain unchanged.
@@ -7,7 +7,7 @@ async function startWhenReady() {
     if (started || !isProAccessReady()) return;
     started = true;
     observer.disconnect();
-    try { await import('./practice-menu-app.js?v=1.18.2'); }
+    try { await import('./practice-menu-app.js?v=1.18.3'); }
     catch (_) {
         const notice = document.createElement('p');
         notice.setAttribute('role', 'alert');

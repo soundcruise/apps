@@ -45,12 +45,15 @@ export async function recordWrongProPasscode(session, ipKey, now) {
 export async function issueProCredentialAndReset(session, material, current, ipKey, now) {
   const results = await session.batch([
     session.prepare(`INSERT INTO pro_credentials
-      (id, verifier, generation, scope, created_at, revoked_at)
-      SELECT ?, ?, generation, 'global_pro', ?, NULL FROM pro_auth_state
+      (id, verifier, generation, scope, created_at, revoked_at,
+       device_public_key, session_bound_at, last_validated_at, lease_expires_at)
+      SELECT ?, ?, generation, 'global_pro', ?, NULL, ?, ?, ?, ? FROM pro_auth_state
       WHERE singleton_id = 1 AND generation = ? AND active_code_slot = ?
         AND NOT EXISTS (SELECT 1 FROM pro_auth_lockouts
           WHERE ip_key = ? AND last_failure_at > ? AND locked_until > ?)`)
-      .bind(material.id, material.verifier, now, current.generation, current.active_code_slot,
+      .bind(material.id, material.verifier, now, material.devicePublicKey || null,
+        material.devicePublicKey ? now : null, material.devicePublicKey ? now : null,
+        material.devicePublicKey ? now + 7 * 86400_000 : null, current.generation, current.active_code_slot,
         ipKey, now - LOCKOUT_IDLE_MS, now),
     session.prepare(`DELETE FROM pro_auth_lockouts WHERE ip_key = ?
       AND EXISTS (SELECT 1 FROM pro_credentials WHERE id = ?)`)
@@ -61,6 +64,7 @@ export async function issueProCredentialAndReset(session, material, current, ipK
 }
 
 export async function cleanupProLockouts(db, now) {
-  return db.prepare('DELETE FROM pro_auth_lockouts WHERE last_failure_at <= ?')
+  await db.prepare('DELETE FROM pro_auth_lockouts WHERE last_failure_at <= ?')
     .bind(now - LOCKOUT_IDLE_MS).run();
+  return db.prepare('DELETE FROM pro_session_proofs WHERE expires_at <= ?').bind(now).run();
 }

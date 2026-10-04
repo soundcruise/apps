@@ -247,9 +247,9 @@ test('the diagnostic layer has no SQL, D1 access, fetch, URL or storage of its o
   assert.doesNotMatch(source, /fetch\(|new URL\(|https?:\/\//);
   assert.doesNotMatch(source, /env\.AI|Workers AI|gateway|localStorage|indexedDB/i);
   const migrations = fs.readdirSync(path.join(import.meta.dirname, '../migrations'));
-  // Only the reviewed Practice menu set record type follows the diagnostics release.
+  // Later reviewed Practice menu and Pro session migrations are independent of diagnostics.
   assert.deepEqual(migrations.slice(migrations.indexOf('0031_add_sync_target_user_labels.sql') + 1),
-    ['0032_add_practice_menu_set_record_type.sql'], 'no diagnostics migration');
+    ['0032_add_practice_menu_set_record_type.sql', '0033_add_pro_device_sessions.sql'], 'no diagnostics migration');
   const wrangler = fs.readFileSync(path.join(import.meta.dirname, '../wrangler.jsonc'), 'utf8');
   assert.match(wrangler, /"AI_SUPPORT_MODE": "off"/, 'the AI binding exists only behind the AI gate, off by default');
   const app = fs.readFileSync(path.join(import.meta.dirname, '../src/account-app.js'), 'utf8');

@@ -12,6 +12,10 @@
   }
 
   async function proAuthorizationHeaders(storage = global.localStorage) {
+    if (typeof global.__soundCruiseEnsureProSession === 'function' &&
+        !await global.__soundCruiseEnsureProSession()) {
+      const error = new Error('pro_revalidation_required'); error.code = 'pro_revalidation_required'; throw error;
+    }
     let credential = readProCredential(storage);
     // UI-only legacy sessions reauthenticate through the existing Pro gate.
     // Neither an edition flag nor a legacy marker can mint a credential.

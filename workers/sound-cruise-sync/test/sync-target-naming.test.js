@@ -173,7 +173,7 @@ test('migration 0031 adds nullable user_label to both device tables and rewrites
   const database = new DatabaseSync(':memory:');
   const files = fs.readdirSync(migrationsDir).filter((name) => name.endsWith('.sql')).sort();
   const index = files.indexOf('0031_add_sync_target_user_labels.sql');
-  assert.deepEqual(files.slice(index + 1), ['0032_add_practice_menu_set_record_type.sql'], 'forward-only: appended in order');
+  assert.deepEqual(files.slice(index + 1), ['0032_add_practice_menu_set_record_type.sql', '0033_add_pro_device_sessions.sql'], 'forward-only: appended in order');
   for (const file of files.slice(0, index)) database.exec(fs.readFileSync(path.join(migrationsDir, file), 'utf8'));
   database.prepare(`INSERT INTO sync_users (id, state, recovery_version, recovery_verifier, created_at, updated_at)
     VALUES ('u1', 'active', 1, ?, 1, 1)`).run('a'.repeat(64));

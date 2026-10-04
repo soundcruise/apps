@@ -47,6 +47,18 @@ test('legacy backend access waits for the existing Pro gate to issue a real cred
   assert.equal(f.values.get('savedUserData'), 'kept');
 });
 
+test('paid requests first silently validate the browser session; expired offline grants stop before data transfer', async () => {
+  const f = context({ soundCruiseProAuth: auth(token), userData: 'kept' });
+  let checked = 0;
+  f.ctx.__soundCruiseEnsureProSession = async () => { checked++; return true; };
+  assert.equal((await f.api.proAuthorizationHeaders())['X-Sound-Cruise-Pro-Authorization'], `Bearer ${token}`);
+  assert.equal(checked, 1);
+  f.ctx.__soundCruiseEnsureProSession = async () => false;
+  await assert.rejects(f.api.proAuthorizationHeaders(), { code: 'pro_revalidation_required' });
+  assert.equal(f.values.get('userData'), 'kept');
+  assert.equal(JSON.parse(f.values.get('soundCruiseProAuth')).credential, token);
+});
+
 test('only authoritative Pro denials request reauthentication; outages and Account errors do not', () => {
   const f = context(); const invalidated = [];
   f.ctx.__soundCruiseRejectProBackendAuth = credential => invalidated.push(credential);
@@ -135,8 +147,9 @@ test('all five Pro entry points load credential forwarding before their sync cli
   for (const path of ['pitch-cruise/pro_x9v7q2m8', 'fretboard_cruise/pro_a9f4k7q2m8z',
     'rhythm-cruise/pro_r4m8k7n2q9x', 'chord-cruise/pro_k7m4q9v2x8', 'cruise-port/pro_9a3943176561']) {
     const html = read(`../${path}/index.html`);
-    assert.ok(html.indexOf('pro-backend-entitlement.js?v=1') >= 0, path);
-    assert.ok(html.indexOf('pro-backend-entitlement.js?v=1') < html.indexOf('sync-account-client.js'), path);
-    assert.match(html, /pro-gate\.js\?v=25/);
+    assert.ok(html.indexOf('pro-backend-entitlement.js?v=2') >= 0, path);
+    assert.ok(html.indexOf('pro-backend-entitlement.js?v=2') < html.indexOf('sync-account-client.js'), path);
+    assert.match(html, /pro-gate\.js\?v=27/);
+    assert.ok(html.indexOf('pro-device-session.js?v=2') < html.indexOf('pro-gate.js?v=27'), path);
   }
 });

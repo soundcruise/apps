@@ -9,10 +9,11 @@ const token = 'scp1.123e4567-e89b-42d3-a456-426614174000.' + 'A'.repeat(43);
 const v2 = { v: 2, credential: token, generation: 1, validatedAt: 100 };
 const flush = () => new Promise(resolve => setImmediate(resolve));
 
-function boot({ values = new Map(), readyState = 'loading' } = {}) {
+function boot({ values = new Map(), readyState = 'loading', offlineGrant = false, sessionOverrides = {} } = {}) {
   const requests = [];
   const listeners = new Map();
   const windowListeners = new Map();
+  const intervals = [];
   class Element {
     constructor(tag) {
       this.tagName = tag; this.children = []; this.attributes = new Map(); this.listeners = new Map();
@@ -49,12 +50,29 @@ function boot({ values = new Map(), readyState = 'loading' } = {}) {
     removeItem(key) { values.delete(key); } };
   const window = { __SOUNDCRUISE_PRO_GATE__: { appName: 'Test' }, location,
     addEventListener(type, handler) { windowListeners.set(type, handler); } };
+  const pathOf = url => url.split('/').at(-1);
   const fetch = (url) => new Promise((resolve, reject) => {
-    requests.push({ path: url.split('/').at(-1), respond(status, json) { resolve({ status, async json() { return json; } }); },
+    requests.push({ path: url.split('/').at(-1), respond(status, json) { resolve({ status, async json() { return pathOf(url) === 'verify' ? { ...json, session: { fixture: true } } : json; } }); },
       fail() { reject(Error('offline')); } });
   });
+  // Gate state tests isolate the session service. Real cryptography, encrypted
+  // persistence and real Worker protocol are covered by shared/pro-device-session.test.mjs.
+  window.SoundCruiseProDeviceSession = { createClient: ({ request }) => ({
+    publicKey: async () => ({ fixture: true }), accept: async () => true, forget: async () => {},
+    allowance: async () => ({ ok: true, offlineRemainingMs: 60000 }),
+    validate: async existing => {
+      try {
+        const result = await request('/session', { headers: { Authorization: 'Bearer '+existing.credential } });
+        if (result.status === 200 && result.body?.ok && result.body.generation === existing.generation)
+          return { ok: true, online: true, generation: existing.generation };
+        if (result.status === 401 || (result.status === 200 && result.body.generation !== existing.generation))
+          return { ok: false, terminal: true };
+      } catch (_) { /* use only the independently supplied sealed grant fixture */ }
+      return offlineGrant ? { ok: true, offline: true, generation: existing.generation, offlineRemainingMs: 60000 } : { ok: false };
+    }, ...sessionOverrides
+  }) };
   const context = vm.createContext({ window, document, location, localStorage: storage, fetch, URL, AbortController,
-    setTimeout, clearTimeout, history: { replaceState() {} }, Date, console,
+    setTimeout, clearTimeout, setInterval: (fn, ms) => { intervals.push({ fn, ms }); return 1; }, history: { replaceState() {} }, Date, console,
     MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame() { return 1; },
     cancelAnimationFrame() {}, getComputedStyle() { return { visibility: 'visible' }; } });
   vm.runInContext(gate, context);
@@ -64,6 +82,10 @@ function boot({ values = new Map(), readyState = 'loading' } = {}) {
   return {
     values, requests, window,
     storageChanged() { windowListeners.get('storage')?.({ key: 'soundCruiseProAuth' }); },
+    online() { windowListeners.get('online')?.(); },
+    activity() { listeners.get('pointerdown')?.(); },
+    heartbeat() { intervals[0]?.fn(); },
+    get heartbeatMs() { return intervals[0]?.ms; },
     async domReady() { listeners.get('DOMContentLoaded')?.(); await flush(); },
     request(path) { return requests.find(item => item.path === path); },
     async submit() {
@@ -82,24 +104,84 @@ function boot({ values = new Map(), readyState = 'loading' } = {}) {
   };
 }
 
-test('A: legacy Phase 1 user sees checking, never the passcode, then the app', async () => {
+test('A: legacy flags alone require one safe first server authentication', async () => {
   const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify({ v: 1 })]]) });
   assert.equal(g.state(), 'checking');
-  assert.equal(g.checkingVisible(), true);
-  assert.equal(g.busy(), true);
-  await g.domReady();
-  assert.equal(g.state(), 'checking');
-  g.request('policy').respond(200, { ok: true, protocol: 2, legacyCompatibilityEnabled: true });
+  await g.domReady(); await g.settle();
+  assert.equal(g.state(), 'passcode');
+  assert.equal(g.requests.length, 0);
+  assert.equal(g.values.get('soundCruiseProLegacyRetired'), '1');
+});
+
+test('a late password verification response cannot undo an explicit reset', async () => {
+  const g = boot(); await g.domReady(); await g.submit();
+  assert.ok(g.request('verify'));
+  await g.window.__soundCruiseClearGate();
+  g.request('verify').respond(201, { ok: true, credential: token, generation: 1 });
+  await g.settle();
+  assert.equal(g.state(), 'passcode');
+  assert.equal(g.values.has('soundCruiseProAuth'), false);
+});
+
+test('reset during fresh-session receipt storage cannot be undone by a late completion', async () => {
+  let finishStorage;
+  const g = boot({ sessionOverrides: { accept: () => new Promise(resolve => { finishStorage = resolve; }) } });
+  await g.domReady(); await g.submit();
+  g.request('verify').respond(201, { ok: true, credential: token, generation: 1 });
+  await g.settle(); assert.equal(typeof finishStorage, 'function');
+  const reset = g.window.__soundCruiseClearGate(); await g.settle();
+  g.request('revoke').respond(200, { ok: true }); await reset;
+  finishStorage(true); await g.settle();
+  assert.equal(g.state(), 'passcode');
+  assert.equal(g.values.has('soundCruiseProAuth'), false);
+});
+
+test('a stored fresh receipt without a valid allowance cannot unlock Pro', async () => {
+  const g = boot({ sessionOverrides: { allowance: async () => ({ ok: false }) } });
+  await g.domReady(); await g.submit();
+  g.request('verify').respond(201, { ok: true, credential: token, generation: 1 });
+  await g.settle(); assert.equal(g.state(), 'passcode');
+});
+
+test('offline grace exhaustion keeps the token so online recovery needs no password', async () => {
+  const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)]]) });
+  await g.domReady(); g.request('session').fail(); await g.settle();
+  assert.equal(g.state(), 'passcode');
+  assert.equal(JSON.parse(g.values.get('soundCruiseProAuth')).credential, token);
+  g.online(); await g.settle();
+  g.requests.filter(r => r.path === 'session').at(-1).respond(200, { ok: true, generation: 1 });
   await g.settle();
   assert.equal(g.state(), 'unlocked');
-  assert.deepEqual(g.requests.map(r => r.path), ['policy'], 'legacy never requests a Worker credential');
+  assert.equal(g.request('verify'), undefined);
+});
+
+test('active-use and minute checkpoints lock detected rollback without deleting auth; online recovery stays silent', async () => {
+  const calls = []; let blocked = false;
+  const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)], ['user-data', 'kept']]),
+    sessionOverrides: { validate: async (auth, options = { force: true }) => {
+      calls.push(options.force);
+      return blocked ? { ok: false, clockRollback: true }
+        : { ok: true, online: true, generation: auth.generation, offlineRemainingMs: 60000 };
+    } } });
+  await g.domReady(); await g.settle();
+  assert.equal(g.state(), 'unlocked');
+  assert.equal(g.heartbeatMs, 60000);
+  g.activity(); await g.settle();
+  assert.equal(calls.at(-1), false, 'local activity uses cached/revalidation checks');
+  blocked = true; g.heartbeat(); await g.settle();
+  assert.equal(g.state(), 'passcode');
+  assert.equal(JSON.parse(g.values.get('soundCruiseProAuth')).credential, token);
+  assert.equal(g.values.get('user-data'), 'kept');
+  blocked = false; g.online(); await g.settle();
+  assert.equal(calls.at(-1), true);
+  assert.equal(g.state(), 'unlocked');
+  assert.equal(g.request('verify'), undefined);
 });
 
 test('a legacy UI session cannot unlock a pending backend credential request', async () => {
   const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify({ v: 1 })], ['user-data', 'kept']]) });
   const waiting = g.window.__soundCruiseRequireProBackendAuth();
   await g.domReady();
-  g.request('policy').respond(200, { ok: true, protocol: 2, legacyCompatibilityEnabled: true });
   await g.settle();
   assert.equal(g.state(), 'passcode');
   await g.submit();
@@ -137,7 +219,6 @@ test('a delayed Pro denial cannot invalidate a freshly reauthenticated credentia
 test('another Pro tab can complete a pending backend credential request after server validation', async () => {
   const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify({ v: 1 })]]) });
   await g.domReady();
-  g.request('policy').respond(200, { ok: true, protocol: 2, legacyCompatibilityEnabled: true });
   await g.settle();
   const waiting = g.window.__soundCruiseRequireProBackendAuth();
   g.values.set('soundCruiseProAuth', JSON.stringify(v2));
@@ -205,16 +286,16 @@ test('D: 401 shows the passcode and never falls back to legacy or offline', asyn
   assert.equal(g.request('policy'), undefined);
 });
 
-test('E: outage keeps the existing offline rule (validated -> app, never validated -> passcode)', async () => {
-  for (const [validatedAt, expected] of [[100, 'unlocked'], [0, 'passcode']]) {
+test('E: outage accepts only the session service bounded grant, never localStorage timestamps', async () => {
+  for (const [offlineGrant, expected] of [[true, 'unlocked'], [false, 'passcode']]) {
     for (const outage of ['network', 503]) {
-      const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify({ ...v2, validatedAt })]]) });
+      const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify({ ...v2, validatedAt: Date.now() })]]), offlineGrant });
       await g.domReady();
       assert.equal(g.state(), 'checking');
       if (outage === 'network') g.request('session').fail();
       else g.request('session').respond(503, { ok: false });
       await g.settle();
-      assert.equal(g.state(), expected, `${outage} validatedAt=${validatedAt}`);
+      assert.equal(g.state(), expected, `${outage} boundedGrant=${offlineGrant}`);
     }
   }
 });
@@ -240,7 +321,6 @@ test('G: retired legacy never falls back, online or during an outage', async () 
   const values = new Map([['soundCruiseProAuth', JSON.stringify({ v: 1 })]]);
   const off = boot({ values });
   await off.domReady();
-  off.request('policy').respond(200, { ok: true, protocol: 2, legacyCompatibilityEnabled: false });
   await off.settle();
   assert.equal(off.state(), 'passcode');
   assert.equal(values.get('soundCruiseProLegacyRetired'), '1');
@@ -259,6 +339,7 @@ test('reset shows the passcode immediately, never the checking state', async () 
   assert.equal(g.state(), 'unlocked');
   const pending = g.window.__soundCruiseClearGate();
   assert.equal(g.state(), 'passcode');
+  await g.settle();
   g.request('revoke')?.fail();
   await pending;
 });
