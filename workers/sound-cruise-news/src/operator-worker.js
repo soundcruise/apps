@@ -1,3 +1,4 @@
+import {authenticationPage} from './operator-auth-page.js';
 import {setPublishInterest,runPendingRechecks} from './pending-lifecycle.js';
 import {saveShadowEvaluation,evaluatePending,shadowMetrics} from './operator-shadow.js';
 import {dashboardSummary,humanDecisionHistory,similarDecisions} from './operator-insights.js';
@@ -21,7 +22,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
   if(url.origin!==identity.config.origin)throw Error('origin_denied');
   if(request.headers.get('Origin')&&request.headers.get('Origin')!==identity.config.origin)throw Error('origin_denied');
   const store=new NewsStore(env.NEWS_DB),registry=runtimeSources(env,undefined,now);
-  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.20.3'});
+  if(request.method==='GET'&&url.pathname==='/api/session')return json({operator:identity.email,csrf:await csrfToken(identity,env,now),version:'0.20.4'});
   if(request.method==='GET'&&url.pathname==='/api/shadow-metrics')return json(await shadowMetrics(store,now));
   if(request.method==='POST'&&url.pathname==='/api/shadow-evaluate'){
    await verifyCsrf(request,identity,env,now);const input=await inputJSON(request);
@@ -68,6 +69,7 @@ export async function handleOperatorRequest(request,env,now=Date.now(),options={
  }catch(error){
   const code=error.message,status=code==='operator_not_configured'?503:['authentication_required','authentication_invalid'].includes(code)?401:['operator_denied','origin_denied','csrf_invalid'].includes(code)?403:code==='candidate_not_found'?404:['stale_decision','already_decided','candidate_changed','idempotency_payload_changed','duplicate','facts_recheck_busy'].includes(code)?409:['decision_transaction_failed','facts_transaction_failed'].includes(code)?503:422;
   const known=/^(publication_|operator_|authentication_|origin_|csrf_|candidate_|json_|malformed_|request_|stale_|already_|idempotency_|duplicate$|facts_|label_|verified_|expired_|sale_|event_|decision_transaction_failed)/.test(code);
+  if(request.method==='GET'&&['/','/index.html'].includes(new URL(request.url).pathname)&&['authentication_required','authentication_invalid'].includes(code))return authenticationPage(security);
   return json({error:known?code:'operator_unavailable'},known?status:503);
  }
 }

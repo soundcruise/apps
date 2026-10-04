@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {readFile} from 'node:fs/promises';import {SignJWT,generateKeyPair,exportJWK,createLocalJWKSet} from 'jose';import {handleOperatorRequest} from '../src/operator-worker.js';import {operatorClient} from '../scripts/operator-client.mjs';import {pepper} from './helpers.js';import {setup,put,approveInput,now} from './operator-case.js';
 const {publicKey,privateKey}=await generateKeyPair('RS256'),jwk={...await exportJWK(publicKey),kid:'test-key'},jwks=createLocalJWKSet({keys:[jwk]}),origin='https://operator.fixture.test',issuer='https://fixture-team.cloudflareaccess.com',aud='a'.repeat(64);
-async function jwt(extra={},key=privateKey){return new SignJWT({email:'human@fixture.test',type:'app',...extra}).setProtectedHeader({alg:'RS256',kid:'test-key'}).setIssuer(extra.iss||issuer).setAudience(extra.aud||aud).setSubject(extra.sub||'fixture-human').setIssuedAt(Math.floor(now/1000)).setExpirationTime(extra.exp||Math.floor(now/1000)+3600).sign(key);}
+async function jwt(extra={},key=privateKey){return new SignJWT({email:'human@fixture.test',type:'app',...extra}).setProtectedHeader({alg:'RS256',kid:'test-key'}).setIssuer(extra.iss||issuer).setAudience(extra.aud||aud).setSubject(extra.sub||'fixture-human').setIssuedAt(extra.iat??Math.floor(now/1000)).setExpirationTime(extra.exp||Math.floor(now/1000)+3600).sign(key);}
 async function environment(){const s=await setup();return {s,env:{NEWS_DB:s.db,NEWS_HEADLINE_PEPPER:pepper,NEWS_OPERATOR_ORIGIN:origin,NEWS_ACCESS_ISSUER:issuer,NEWS_ACCESS_AUD:aud,NEWS_OPERATOR_EMAILS:'["human@fixture.test"]',NEWS_SOURCE_IDS:'["shimamura"]',OPERATOR_ASSETS:{fetch:async request=>new Response(await readFile(new URL('../operator-ui/'+(new URL(request.url).pathname==='/'?'index.html':new URL(request.url).pathname.slice(1)),import.meta.url)),{headers:{'Content-Type':new URL(request.url).pathname.endsWith('.js')?'application/javascript':'text/html'}})}}};}
 async function call(env,path,token,options={}){return handleOperatorRequest(new Request(origin+path,{...options,headers:{...(token?{'Cf-Access-Jwt-Assertion':token}:{}),...options.headers}}),env,now,{jwks});}
 for(const [name,claims]of [['wrong issuer',{iss:'https://wrong.cloudflareaccess.com'}],['wrong audience',{aud:'b'.repeat(64)}],['expired',{exp:Math.floor(now/1000)-1}],['non operator',{email:'other@fixture.test'}],['service identity',{type:'service'}]])test(`server auth denies ${name}`,async()=>{const {env}=await environment();assert([401,403].includes((await call(env,'/api/pending',await jwt(claims))).status));});
@@ -41,3 +41,23 @@ test('pending lifecycle endpoints preserve Access/CSRF and never create approve 
  assert.equal((await call(env,'/api/pending-recheck',token,{...opts,headers:{Origin:origin,'Content-Type':'application/json'},body:'{"scope":"due"}'})).status,403);
 });
 test('published takedown retains Access/CSRF boundary; CLI cannot attribute a human takedown',async()=>{const {s,env}=await environment(),item=await put(s,'firmware',{eventType:'firmware'}),token=await jwt(),session=await(await call(env,'/api/session',token)).json(),headers={Origin:origin,'Content-Type':'application/json','X-News-CSRF':session.csrf};await call(env,'/api/decision',token,{method:'POST',headers,body:JSON.stringify(await approveInput(s,item))});const {decisionInput}=await import('./operator-fixtures.js'),body=JSON.stringify(await decisionInput(s,{id:item.id,action:'reject',reason:'minor_update',takedown:true}));assert.equal((await call(env,'/api/decision',null,{method:'POST',headers,body})).status,401);assert.equal((await call(env,'/api/decision',token,{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body})).status,403);assert.equal((await call(env,'/api/cli-decision',token,{method:'POST',headers,body})).status,422);assert.equal((await call(env,'/api/decision',token,{method:'POST',headers,body})).status,200);assert.equal((await s.candidates())[0].review_status,'rejected');});
+
+for(const hours of [23,25,48,167,168])test(`Access JWT age ${hours}h is accepted within the seven-day maximum`,async()=>{
+ const {env}=await environment();const token=await jwt({iat:Math.floor(now/1000)-hours*3600,exp:Math.floor(now/1000)+3600});
+ assert.equal((await call(env,'/api/session',token)).status,200);
+});
+test('Access JWT 168h plus one second is rejected even when exp is still valid',async()=>{
+ const {env}=await environment();assert.equal((await call(env,'/api/session',await jwt({iat:Math.floor(now/1000)-168*3600-1,exp:Math.floor(now/1000)+3600}))).status,401);
+});
+test('168h age boundary does not extend JWT exp; exp equality and past are rejected',async()=>{
+ const {env}=await environment();for(const exp of [Math.floor(now/1000),Math.floor(now/1000)-1])assert.equal((await call(env,'/api/session',await jwt({iat:Math.floor(now/1000)-167*3600,exp}))).status,401);
+});
+test('invalid authentication uses safe HTML for the entry page but preserves JSON APIs and mutation denial',async()=>{
+ const {env}=await environment(),token=await jwt({iat:Math.floor(now/1000)-169*3600});
+ for(const path of ['/','/index.html']){
+  const response=await call(env,path,token),body=await response.text();assert.equal(response.status,401);assert.match(response.headers.get('Content-Type'),/^text\/html/);assert.equal(response.headers.get('Cache-Control'),'no-store');assert.match(response.headers.get('Content-Security-Policy'),/default-src 'none'/);assert.match(body,/NEWS管理画面の認証を確認してください/);assert.match(body,/href="\/cdn-cgi\/access\/logout"/);assert.match(body,/href="\/"/);assert.match(body,/name="viewport"/);assert(!body.includes(token));assert(!/authentication_invalid|fixture-human|human@fixture|<script/.test(body));
+ }
+ const api=await call(env,'/api/session',token);assert.equal(api.status,401);assert.deepEqual(await api.json(),{error:'authentication_invalid'});
+ assert.equal((await call(env,'/api/decision',token,{method:'POST',body:'{}'})).status,401);
+ assert.equal((await call(env,'/',await jwt({email:'wrong@fixture.test'}))).status,403);
+});

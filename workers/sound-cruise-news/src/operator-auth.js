@@ -9,7 +9,7 @@ export function operatorConfig(env){
 export async function authenticateOperator(request,env,now=Date.now(),{jwks}={}){
  const config=operatorConfig(env),token=request.headers.get('Cf-Access-Jwt-Assertion');
  if(!token||token.length>16000)throw Error('authentication_required');
- let claims;try{const {payload}=await jwtVerify(token,jwks||createRemoteJWKSet(new URL(config.issuer+'/cdn-cgi/access/certs')),{issuer:config.issuer,audience:config.audience,algorithms:['RS256'],requiredClaims:['exp','iat','sub','email','type'],currentDate:new Date(now),maxTokenAge:'24h'});claims=payload;}catch{throw Error('authentication_invalid');}
+ let claims;try{const {payload}=await jwtVerify(token,jwks||createRemoteJWKSet(new URL(config.issuer+'/cdn-cgi/access/certs')),{issuer:config.issuer,audience:config.audience,algorithms:['RS256'],requiredClaims:['exp','iat','sub','email','type'],currentDate:new Date(now),maxTokenAge:'168h'});claims=payload;}catch{throw Error('authentication_invalid');}
  if(claims.type!=='app'||typeof claims.email!=='string'||typeof claims.sub!=='string'||claims.sub.length>128||!/^[a-zA-Z0-9_-]+$/.test(claims.sub)||!config.operators.includes(claims.email.toLowerCase()))throw Error('operator_denied');
  // Only a verified human Access identity is attributed as human; CLI cannot name its own actor.
  return {config,actor:{type:'human_operator',id:'access:'+claims.sub},email:claims.email,session:await hash(token)};

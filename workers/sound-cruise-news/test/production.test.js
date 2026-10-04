@@ -78,3 +78,35 @@ test('production: cached automatic items honor global kill and public endpoints 
  await administer(s,{action:'global-off',reason:'operator_stop'},now);
  assert.equal((await request('/v1/news')).status,503);assert.equal((await (await request('/health')).json()).api,false);
 });
+
+test('intentional IK/Sleepfreaks stops are healthy in collection aggregate, with no publisher requests',async()=>{
+ const {s,env}=await setup();const stopped=['ik','sleepfreaks'].map(id=>({...source,id}));
+ env.NEWS_SOURCE_IDS=JSON.stringify(stopped.map(s=>s.id));
+ for(const item of stopped)await administer(s,{action:'source-collection-stop',target:item.id,reason:'operator_stop'},now,stopped);
+ const result=await run(env,now,{registry:stopped,fetcher:async()=>{throw Error('disabled sources must not fetch');}});
+ assert(result.results.every(r=>r.outcome==='source_disabled'&&r.intentionalDisabled));
+ assert.equal((await s.sourceHealth()).find(h=>h.source_id==='collection').status,'healthy');
+ assert.equal((await s.candidates()).length,0);
+});
+test('unexpected disabled source remains a warning, including repeated scheduled checks',async()=>{
+ const {s,env}=await setup();await s.db.prepare("INSERT INTO source_state(source_id,disabled) VALUES('shimamura',1)").run();
+ for(const at of [now,now+1000]){await run(env,at,{fetcher:async()=>{throw Error('must not fetch');}});assert.equal((await s.sourceHealth()).find(h=>h.source_id==='collection').status,'warning');}
+});
+test('latest explicit enable supersedes an earlier stop for health classification',async()=>{
+ const {intentionalSourceStop}=await import('../src/source-health.js');const {s}=await setup();
+ await administer(s,{action:'source-collection-stop',target:source.id,reason:'operator_stop'},now,[source]);assert.equal(await intentionalSourceStop(s,source.id),true);
+ await s.db.prepare('INSERT INTO news_admin_audit VALUES(?,?,?,?,?)').bind('enabled-later','source-enable',source.id,now+1,'review_complete').run();assert.equal(await intentionalSourceStop(s,source.id),false);
+});
+test('aggregate preserves parser, timeout, rate-limit, fetch, unexpected disable and policy warnings',async()=>{
+ const {collectionHealth}=await import('../src/source-health.js');
+ for(const outcome of ['listing_structure_changed','metadata_format','request_timeout','rate_limited','upstream_error','network_or_internal_error','source_disabled','source_auto_disabled','policy_expired'])assert.equal(collectionHealth([{outcome}]).status,'warning',outcome);
+ assert.equal(collectionHealth([{outcome:'collected'},{outcome:'source_disabled',intentionalDisabled:true}]).status,'healthy');
+ assert.equal(collectionHealth([{outcome:'request_timeout'},{outcome:'source_disabled',intentionalDisabled:true}]).status,'warning');
+});
+
+test('registered legacy Sleepfreaks pause is intentional without an admin stop record',async()=>{
+ const {s,env}=await setup(),paused={...source,id:'sleepfreaks'};env.NEWS_SOURCE_IDS='["sleepfreaks"]';
+ await s.db.prepare("INSERT INTO source_state(source_id,disabled,failures) VALUES('sleepfreaks',1,1)").run();
+ await run(env,now,{registry:[paused],fetcher:async()=>{throw Error('must not fetch');}});
+ assert.equal((await s.sourceHealth()).find(h=>h.source_id==='collection').status,'healthy');
+});

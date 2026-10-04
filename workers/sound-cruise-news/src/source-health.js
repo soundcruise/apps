@@ -19,3 +19,15 @@ export function healthForOutcome(outcome,failures=0){
  if(failures>=3)return {status:'error',reasonCode:'collector_repeated_failure'};
  return {status:'warning',reasonCode:HEALTH_REASONS.includes(outcome)?outcome:'network_or_internal_error'};
 }
+
+// A disabled runtime is only intentional when an explicit source stop is recorded.
+export async function intentionalSourceStop(store,sourceId){
+ const row=await store.db.prepare("SELECT action FROM news_admin_audit WHERE target=? AND action IN ('source-collection-stop','source-disable','source-delete','source-enable') ORDER BY occurred_at DESC,rowid DESC LIMIT 1").bind(sourceId).first();
+ // Sleepfreaks is an explicitly maintained pause in NEWS-SOURCE-DECISION-REGISTER.md;
+ // its legacy stop predates admin stop records. A later explicit enable supersedes it.
+ return row?['source-collection-stop','source-disable','source-delete'].includes(row.action):sourceId==='sleepfreaks';
+}
+export function collectionHealth(results){
+ const abnormal=results.some(r=>!['collected','not_modified','backoff','scheduled_day_or_lease_busy'].includes(r.outcome)&&!(r.outcome==='source_disabled'&&r.intentionalDisabled===true));
+ return {status:abnormal?'warning':'healthy',reasonCode:abnormal?'network_or_internal_error':'ok'};
+}
