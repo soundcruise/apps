@@ -13,7 +13,17 @@ export function adminStatements({action,target='global',reason},now=Date.now(),r
  }else if(['source-collection-stop','source-publication-block','source-publication-unblock'].includes(action)){
   if(!registry.some(s=>s.id===target))throw Error('source_missing');
   if(action==='source-publication-unblock'&&reason!=='review_complete')throw Error('review_required');
-  if(action==='source-collection-stop')add('INSERT INTO source_state(source_id,disabled) VALUES(?,1) ON CONFLICT(source_id) DO UPDATE SET disabled=1',target);
+  if(action==='source-collection-stop'){
+   add('INSERT INTO source_state(source_id,disabled) VALUES(?,1) ON CONFLICT(source_id) DO UPDATE SET disabled=1',target);
+   // Acquisition policy closes operational work only; candidates and teacher decisions stay intact.
+   add(`INSERT INTO news_pending_lifecycle(candidate_id,assessed_revision,next_recheck_at,recheck_status,unresolved_reason,last_recheck_result,recheck_policy_version,history_json)
+    SELECT id,review_revision,NULL,'SOURCE_EXCLUDED','source_disabled','source_policy','pending-recheck-1',?
+    FROM candidate_items WHERE source_id=? AND review_status IN ('pending','reopened') AND origin<>'legacy_fixture_backfill'
+    ON CONFLICT(candidate_id) DO UPDATE SET assessed_revision=excluded.assessed_revision,next_recheck_at=NULL,recheck_status='SOURCE_EXCLUDED',unresolved_reason='source_disabled',last_recheck_result='source_policy',lease_token=NULL,lease_until=0,
+     history_json=json_insert(news_pending_lifecycle.history_json,'$[#]',json(?)) WHERE news_pending_lifecycle.recheck_status<>'SOURCE_EXCLUDED'`,
+    JSON.stringify([{at:now,actor:'source_policy',result:'SOURCE_EXCLUDED',reason:'source_disabled'}]),target,
+    JSON.stringify({at:now,actor:'source_policy',result:'SOURCE_EXCLUDED',reason:'source_disabled'}));
+  }
   else add('INSERT INTO source_state(source_id,publication_blocked) VALUES(?,?) ON CONFLICT(source_id) DO UPDATE SET publication_blocked=excluded.publication_blocked',target,action==='source-publication-block'?1:0);
  }else if(['source-disable','source-delete','source-enable'].includes(action)) {
   const source=registry.find(s=>s.id===target);if(!source)throw new Error('source_missing');
@@ -26,10 +36,10 @@ export function adminStatements({action,target='global',reason},now=Date.now(),r
   add('INSERT INTO news_takedowns(item_id,expires_at) VALUES(?,?) ON CONFLICT(item_id) DO UPDATE SET expires_at=MAX(expires_at,excluded.expires_at)',target,now+90*DAY);
   add('DELETE FROM candidate_items WHERE id=?',target);
  }else throw new Error('action_invalid');
- if(['source-disable','source-delete','global-off','collection-off'].includes(action)){
+ if(['source-collection-stop','source-disable','source-delete','global-off','collection-off'].includes(action)){
   const sourceId=target==='global'?'collection':target;
-  const status=reason==='policy_change'?'policy_review':'paused';
-  const code=reason==='policy_change'?'policy_changed':target==='global'?'global_collection_off':'source_disabled';
+  const status=action==='source-collection-stop'?'paused':reason==='policy_change'?'policy_review':'paused';
+  const code=action==='source-collection-stop'?'source_disabled':reason==='policy_change'?'policy_changed':target==='global'?'global_collection_off':'source_disabled';
   add('INSERT INTO source_health_alerts SELECT ?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM source_health WHERE source_id=? AND status=? AND reason_code=?)',crypto.randomUUID(),sourceId,status,code,now,sourceId,status,code);
   add('INSERT INTO source_health(source_id,status,reason_code,last_checked_at,failure_count) VALUES(?,?,?,?,0) ON CONFLICT(source_id) DO UPDATE SET status=excluded.status,reason_code=excluded.reason_code,last_checked_at=excluded.last_checked_at',sourceId,status,code,now);
  }

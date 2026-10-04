@@ -47,7 +47,7 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | [hookup](#source-hookup) | Hookup | OFF／legacy承認済み記事は表示対象 | BOUNDED ASSESSMENT COMPLETE / QUALITY INCOMPLETE |
 | [sonicwire](#source-sonicwire) | SONICWIRE | OFF／legacy承認済み記事は表示対象 | STOPPED — FEED OPT-OUT |
 | [sleepfreaks](#source-sleepfreaks) | Sleepfreaks | COLLECTION STOPPED／approved 5件visible | ALLOWED WITH BOUNDS history / STOPPED — WORKER HTTP 403 |
-| [ik](#source-ik) | IK Multimedia | ON | ALLOWED WITH BOUNDS |
+| [ik](#source-ik) | IK Multimedia | collection OFF／公開維持 | SOURCE POLICY EXCLUDED |
 | [ahs](#source-ahs) | AHS | OFF／legacy承認済み記事は表示対象 | NEEDS EVIDENCE — PARSER / POLICY SCOPE |
 | [agm](#source-agm) | AGM / Rittor Music | ON（Interview限定） | ACCEPTED |
 | [korg](#source-korg) | KORG / VOX（メーカー公式） | OFF | NEEDS EVIDENCE — APPLICABLE SCOPE / DISCOVERY |
@@ -437,16 +437,45 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 |---|---|
 | Source / Publisher | IK Multimedia |
 | Surface | https://www.ikmultimedia.com/press/ 固定Press listing |
-| Current State | ON |
+| Current State | collection OFF（2026-10-04）／既存公開3件維持 |
 | Current Scope | guitar／DTM／Recording製品・主要software更新。公開日とpromo終了日を区別。 |
-| Decision | ALLOWED WITH BOUNDS |
+| Decision | SOURCE POLICY EXCLUDED（収集のみ停止。従来の限定評価記録は保持） |
 | Why | General Termsを実読し販売／software義務と公開Press facts/linkを分離。固定parserと独自label検証済み。 |
 | Explicit Restriction | expression rights保持。forum、Tone.net、promos、supportへscope拡張なし。 |
 | Internal Boundaries | 原見出し・本文・画像・OGP・raw HTMLを保存しない。独自facts label＋出典＋直接リンク。固定surfaceを原則1日1回、bounded fetch、robots/access/opt-out、90日retention、kill/takedownを維持。未確認factsはREVIEW。 |
 | Permission Status | documented silence／明示的automation許諾なし。既存の限定内部判断であり、許諾の不在だけを利用不可の理由にしない。 |
 | Evidence | [src/recovery-evidence.js](src/recovery-evidence.js)、[LEGACY-SOURCE-RECOVERY-REPORT.md](LEGACY-SOURCE-RECOVERY-REPORT.md)、[LEGACY-SOURCE-RECOVERY-EVIDENCE.json](LEGACY-SOURCE-RECOVERY-EVIDENCE.json)、[HIGH-VALUE-COVERAGE-REPORT.md](HIGH-VALUE-COVERAGE-REPORT.md)、[HIGH-VALUE-COVERAGE-EVIDENCE.json](HIGH-VALUE-COVERAGE-EVIDENCE.json)、[HIGH-VALUE-SOURCE-POLICY.md](HIGH-VALUE-SOURCE-POLICY.md) |
-| Decision Date | 2026-09-30〜10-01 |
+| Decision Date | 限定収集：2026-09-30〜10-01。収集停止：2026-10-04 |
 | Notes | item_idだけidentity query許可。汎用一覧が返る個別candidateはREVIEW維持。 |
+
+
+### 2026-10-04 performance audit / acquisition retirement
+
+理由：メーカー単独監視を広く行わない編集方針と、保留率・review負担。ZOOMもメーカー単独sourceなのでIKだけが唯一とは判断しない。従来のTerms・parser評価を否定する安全性再判定ではない。
+
+保存17件（自動収集16＋旧fixture1）：公開3／保留7／非掲載7。公開率17.6%、保留率41.2%。収集分のみは公開2/16＝12.5%、保留7/16＝43.8%。retention内の観測値であり全運用期間のユニーク取得総数ではない。
+
+収集ログ5回、延べ60 candidate sightings：新規pending挿入16、policy/parser blocked 28、duplicate16（26.7%）。duplicateは同じURLの再発見も含み、別記事の重複率とは区別。最新runは12候補／duplicate7。最新保存済みserver-side publication validationは保留7件すべてfacts_incomplete、掲載可0、duplicate-blocked0。これは過去の診断であり今回の終了理由はfacts不足ではなくsource_policy。
+
+Human Decision Ledger：IK approve0／reject0。旧operator記録は公開2（旧fixture1含む）／非掲載7でhuman_operator教師へ再分類しない。Shadowは7 candidateに21 evaluations。各保留は2回再確認済みで進展なし。手動確認負担は現時点7件。
+
+| Source | 保存 | 公開 | 保留 | 非掲載 | 保留率 | sightings / duplicate | Shadow |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 島村 | 24 | 17 | 1 | 6 | 4.2% | 78 / 31 | 10 |
+| Ikebe PB | 22 | 13 | 4 | 5 | 18.2% | 89 / 59 | 17 |
+| AGM | 2 | 2 | 0 | 0 | 0% | 30 / 4 | 0 |
+| AT Distribution | 1 | 1 | 0 | 0 | 0% | 48 / 3 | 0 |
+| ZOOM | 4 | 3 | 0 | 1 | 0% | 60 / 13 | 0 |
+| amass | 1 | 1 | 0 | 0 | 0% | 105 / 4 | 0 |
+| キクタニ | 3 | 2 | 0 | 1 | 0% | 120 / 13 | 0 |
+| Ikebe Events | 2 | 1 | 1 | 0 | 50% | 18 / 6 | 4 |
+| IK | 17 | 3 | 7 | 7 | 41.2% | 60 / 16 | 21 |
+
+島村・Ikebeは複数メーカー、AGM・amassはメディア、AT・キクタニは複数ブランド取扱、Eventsは催事。ZOOMはメーカー公式の限定scope。低サンプル・収集範囲の違いがあるため率だけで順位付けしない。IKは全保留13件の7件（53.8%）、Shadow52件中21件（40.4%）を占め、停止方針は妥当。
+
+IK製品自体は対象外ではない。他source経由のIK製品ニュースは通常評価を継続。D1 disabled=1／publication_blocked=0／takedown=0。公開維持のためruntime source allowlistは削除しない。
+
+運用：source-collection-stopを使用。candidate記事・review_status・公開日・facts/provenance・Ledger・Shadowは変更しない。保留7件のoperational lifecycleのみSOURCE_EXCLUDED／source_disabled、history actor=source_policy、next_recheck_at=NULL、lease解除。保留件数は保存記録として残るが自動再確認は終了。human reject／feedback／Shadow評価は追加しない。health=paused/source_disabled、publication/API/他source/Cronは維持。再開には別途source方針レビューとlifecycle再開判断が必要。
 
 <a id="source-ahs"></a>
 
