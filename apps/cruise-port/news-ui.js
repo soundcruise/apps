@@ -1,5 +1,5 @@
 import { articlePath } from './news-articles.js?v=1.16.1';
-import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.16.1';
+import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.17.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
 const renderCleanup = new WeakMap();
@@ -46,10 +46,12 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
         const select = node('select');
         select.id = 'news-category';
         const all = node('option', 'すべて'); all.value = ''; select.append(all);
-        Object.entries(NEWS_FILTER_GROUPS).forEach(([key, title]) => {
+        const filters = Object.entries(NEWS_FILTER_GROUPS).filter(([key]) => key !== 'sale' || news.some(item => item.category === 'sale'));
+        filters.forEach(([key, title]) => {
             const option = node('option', title); option.value = key; select.append(option);
         });
-        select.value = newsFilterGroup(category);
+        const selected = newsFilterGroup(category);
+        select.value = filters.some(([key]) => key === selected) ? selected : '';
         label.append(select); content.append(label);
         const list = node('div', undefined, 'news-list'); content.append(list);
         const draw = (at = now) => {

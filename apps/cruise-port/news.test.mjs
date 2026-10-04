@@ -53,7 +53,7 @@ test('runtime source contains no outbound acquisition or HTML sinks', () => {
  assert.match(html,/id="news-view"[^>]*hidden/);
  }
  const app=readFileSync(new URL('practice-menu-app.js',import.meta.url),'utf8');
- assert.match(app,/await import\('\.\/news-ui.js\?v=1.16.1'\)/);
+ assert.match(app,/await import\('\.\/news-ui.js\?v=1.17.0'\)/);
 });
 
 test('real manual fixture is valid, unique, safe-source only and fact-label only', () => {
@@ -90,7 +90,7 @@ test('rich independent duplicate wins and low-value bulk stays below useful tick
 
 // Category terminology does not rewrite the saved API key or independently authored article labels.
 test('event category display retains live_guitar filtering and actual live performance text',()=>{
- assert.equal(NEWS_CATEGORIES.live_guitar,'イベント');
+ assert.equal(NEWS_CATEGORIES.live_guitar,'アーティスト・イベント');
  assert.equal(Object.hasOwn(NEWS_CATEGORIES,'event_guitar'),false);
  const label='テスト奏者、ギター弾き語りライブを開催';
  const event=make(1,{id:'event',topicKey:'event',category:'live_guitar',guitarEvidence:'guitar_performance',label});

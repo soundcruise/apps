@@ -8,20 +8,29 @@ export const NEWS_CATEGORIES = Object.freeze({
     acoustic_guitar: 'アコギ', electric_guitar_bass: 'ギター・ベース',
     amps_effects: 'アンプ・エフェクター', recording_audio: 'DTM・録音・配信',
     dtm_software: 'DTM・録音・配信', creator_streaming: 'DTM・録音・配信',
-    artist_guitar: 'アーティスト', live_guitar: 'イベント', sale: 'セール', media_other: 'その他'
+    artist_guitar: 'アーティスト・イベント', live_guitar: 'アーティスト・イベント', sale: 'セール', media_other: 'その他'
 });
 // Display-only grouping. Raw category keys remain valid in models and API filters.
 export const RECORDING_STREAMING_GROUP = 'recording_streaming';
-export const NEWS_FILTER_GROUPS = Object.freeze(Object.fromEntries(
-    Object.entries(NEWS_CATEGORIES).filter(([key]) => !['creator_streaming', 'dtm_software'].includes(key))
-        .map(([key, label]) => [key === 'recording_audio' ? RECORDING_STREAMING_GROUP : key, label])
-));
+export const ARTIST_EVENT_GROUP = 'artist_event';
+export const NEWS_FILTER_GROUPS = Object.freeze({
+    acoustic_guitar: NEWS_CATEGORIES.acoustic_guitar,
+    electric_guitar_bass: NEWS_CATEGORIES.electric_guitar_bass,
+    amps_effects: NEWS_CATEGORIES.amps_effects,
+    [RECORDING_STREAMING_GROUP]: NEWS_CATEGORIES.recording_audio,
+    sale: NEWS_CATEGORIES.sale,
+    [ARTIST_EVENT_GROUP]: 'アーティスト・イベント',
+    cruise_apps: NEWS_CATEGORIES.cruise_apps,
+    media_other: NEWS_CATEGORIES.media_other
+});
 export function newsFilterGroup(category) {
     if (['dtm_software', 'recording_audio', 'creator_streaming', 'DTM', '録音・配信'].includes(category)) return RECORDING_STREAMING_GROUP;
+    if (['artist_guitar', 'live_guitar'].includes(category)) return ARTIST_EVENT_GROUP;
     return Object.hasOwn(NEWS_FILTER_GROUPS, category) ? category : '';
 }
 const categoryMatches = (raw, filter) => !filter || (filter === RECORDING_STREAMING_GROUP
-    ? ['dtm_software', 'recording_audio', 'creator_streaming'].includes(raw) : raw === filter);
+    ? ['dtm_software', 'recording_audio', 'creator_streaming'].includes(raw)
+    : filter === ARTIST_EVENT_GROUP ? ['artist_guitar', 'live_guitar'].includes(raw) : raw === filter);
 const PRIORITY = ['official', 'distributor', 'retailer_editorial', 'media'];
 const GUITAR_EVIDENCE = ['acoustic_guitar_vocal', 'guitar_performance', 'guitar_gear', 'guitar_recording', 'manual_guitar_review'];
 const DAY = 86400000;

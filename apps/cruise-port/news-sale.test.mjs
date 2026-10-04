@@ -97,14 +97,15 @@ function timedDocument(){
  doc.defaultView={setTimeout:(fn,ms)=>{const id=++nextId;timers.set(id,{fn,at:at+ms});return id;},clearTimeout:id=>timers.delete(id),addEventListener:add,removeEventListener:remove};
  return {doc,clock:()=>at,advance:(time,runTimers=true)=>{at=time;if(runTimers)for(const [id,timer] of [...timers])if(timer.at<=at){timers.delete(id);timer.fn();}},wake:()=>{for(const fn of [...(listeners.get('visibilitychange')||[])])fn();},timers};
 }
-test('open NEWS screen removes expired sale automatically and preserves category selection',()=>{
+test('open NEWS screen removes expired sale automatically and hides its zero-count filter',()=>{
  const ui=timedDocument(),deadline=now+1000;
  renderNews({documentObject:ui.doc,items:[make({saleEndsAt:deadline})],mode:'on',clock:ui.clock});
  let select=ui.doc.ids['news-content'].all().find(node=>node.tagName==='select');select.value='sale';select.listeners.change();
  ui.advance(deadline);assert.equal(ui.doc.ids['news-ticker'].hidden,false);
  ui.advance(deadline+1);assert.equal(ui.doc.ids['news-ticker'].hidden,true);
  assert.equal(ui.doc.ids['news-content'].all().filter(node=>node.className==='news-card').length,0);
- select=ui.doc.ids['news-content'].all().find(node=>node.tagName==='select');assert.equal(select.value,'sale');
+ select=ui.doc.ids['news-content'].all().find(node=>node.tagName==='select');assert.equal(select.value,'');
+ assert.equal(select.children.some(option=>option.value==='sale'),false);
  assert.equal(ui.timers.size,0);
 });
 test('wake rechecks expired sales when timers were suspended; OFF cancels old rendering',async()=>{
@@ -139,4 +140,46 @@ test('recording/creator share one display filter; raw model and individual filte
   select.value='recording_streaming';select.listeners.change();assert.equal(doc.ids['news-content'].all().filter(n=>n.className==='news-card').length,3);
  }
  assert.deepEqual(prepared.map(i=>i.category).sort(),items.map(i=>i.category).sort());
+});
+
+test('artist/event UI union preserves raw keys, individual filters, dates and product order',async()=>{
+ const {ARTIST_EVENT_GROUP,NEWS_FILTER_GROUPS,newsFilterGroup}=await import('./news-data.js');
+ const at=Date.parse('2026-10-04T00:00:00Z');
+ const items=['artist_guitar','live_guitar','acoustic_guitar','media_other'].map(category=>make({id:category,topicKey:category,category,guitarEvidence:'manual_guitar_review'}));
+ const prepared=prepareNews(items,{now:at});
+ const rows=key=>groupNews(prepared,key,at).flatMap(([,rows])=>rows);
+ assert.deepEqual(rows(ARTIST_EVENT_GROUP).map(i=>i.id).sort(),['artist_guitar','live_guitar']);
+ assert.equal(rows(ARTIST_EVENT_GROUP).length,rows('artist_guitar').length+rows('live_guitar').length);
+ assert.deepEqual(prepared.map(i=>i.category).sort(),items.map(i=>i.category).sort());
+ for(const raw of ['artist_guitar','live_guitar']){
+  assert.equal(newsFilterGroup(raw),ARTIST_EVENT_GROUP);
+  assert.equal(rows(raw).length,1);
+  const d=documentFor();renderNews({documentObject:d,items,mode:'on',now:at,clock:()=>at,category:raw});
+  const nodes=d.ids['news-content'].all(),select=nodes.find(n=>n.tagName==='select');
+  assert.equal(select.value,ARTIST_EVENT_GROUP);
+  assert.equal(nodes.filter(n=>n.className==='news-card').length,2);
+  assert.deepEqual(nodes.filter(n=>n.className==='news-category').map(n=>n.textContent),['アーティスト・イベント','アーティスト・イベント']);
+ }
+ assert.deepEqual(Object.keys(NEWS_FILTER_GROUPS).slice(0,4),['acoustic_guitar','electric_guitar_bass','amps_effects','recording_streaming']);
+ assert.deepEqual(Object.values(NEWS_FILTER_GROUPS).slice(-3),['アーティスト・イベント','クルーズapps','その他']);
+});
+
+test('filter options hide zero sales; union, products, internal news, other and all switch independently',async()=>{
+ const {CRUISE_APPS_NEWS_ITEM:own}=await import('./news-articles.js');
+ const at=Date.parse('2026-10-04T00:00:00Z');
+ const items=[own,...['artist_guitar','live_guitar','acoustic_guitar','media_other'].map(category=>make({id:category,topicKey:category,category,guitarEvidence:'manual_guitar_review'}))];
+ const d=documentFor();renderNews({documentObject:d,items,mode:'on',now:at,clock:()=>at});
+ const select=d.ids['news-content'].all().find(n=>n.tagName==='select');
+ assert.equal(select.children.some(o=>o.value==='sale'),false);
+ assert.equal(select.children.some(o=>['artist_guitar','live_guitar'].includes(o.value)),false);
+ assert.deepEqual(select.children.slice(-3).map(o=>o.textContent),['アーティスト・イベント','クルーズapps','その他']);
+ for(const [category,count] of [['',5],['artist_event',2],['cruise_apps',1],['media_other',1],['acoustic_guitar',1]]){
+  select.value=category;select.listeners.change();
+  const cards=d.ids['news-content'].all().filter(n=>n.className==='news-card');assert.equal(cards.length,count);
+  for(const card of cards)if(card.href.startsWith('#'))assert.equal(card.href,'#news/cruise-apps/theme-colors');else{assert.equal(card.target,'_blank');assert.equal(card.rel,'noopener noreferrer');}
+ }
+ const saleDoc=documentFor();renderNews({documentObject:saleDoc,items:[make()],mode:'on',now,clock:()=>now});
+ const saleSelect=saleDoc.ids['news-content'].all().find(n=>n.tagName==='select');
+ assert.ok(saleSelect.children.some(o=>o.value==='sale'));
+ saleSelect.value='artist_event';saleSelect.listeners.change();assert.equal(saleDoc.ids['news-content'].all().filter(n=>n.className==='news-card').length,0,'sales never join artist/event');
 });
