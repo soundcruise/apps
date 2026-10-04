@@ -418,6 +418,60 @@ session helper before the gate. Worker deployment must continue to precede that
 atomic client release. Pages/existing-session acceptance and post-release metrics
 are recorded at closeout below; legacy remains ON while migration is observed.
 
+#### Production acceptance closeout
+
+Release commit `2a6aec9e` was normally pushed to main. GitHub Pages build
+1259476867 completed at 2026-10-04 22:11:06 JST. All 14 public HTML/shared/app
+asset probes exactly matched the release source, including all five app versions,
+helper `?v=2`, gate `?v=27`, and backend helper `?v=2` where used. The cohort
+settings-only page retains its existing lack of a data-transfer helper.
+
+Android Pixel 10 / Chrome 154 existing production session was inspected before
+the reload: valid v2 shape, generation 1, Port 1.18.2, no device-session helper.
+After Pages reload it opened Port 1.18.3 without a four-digit entry. The browser
+created nonexportable ECDSA and AES-GCM keys and one encrypted receipt. Production
+credential count stayed 68: the existing credential was bound, not replaced.
+Pitch 2.27.7 -> Fretboard 2.22.5 -> Rhythm 1.17.6 -> Chord 1.18.4 -> Port 1.18.3
+all retained the shared credential and showed no passcode overlay. USB inspection
+was interrupted; Android auto-lock was confirmed and unlocking resumed inspection.
+This was a physical inspection interruption, not an observed authentication failure.
+
+Offline acceptance used the deployed helper and existing encrypted receipt in an
+isolated auth-transport probe: only that probe's request callback threw a network
+error. It retained a valid offline grant, then a separate callback to the real
+production challenge/renew endpoints silently renewed the same credential.
+The production gate remained open and its ensure-session check returned true.
+The device clock, device Wi-Fi/mobile settings and production app data were not
+modified. This verifies auth-transport outage/recovery; it is not a claim that a
+full uncached app can first load while completely offline. Reset, revocation and
+generation rejection remain covered by the isolated real-Worker regression suite;
+no user's production session was deliberately reset or revoked.
+
+Public production smoke: policy protocol 3 and legacy ON; missing/invalid Pro
+credentials denied at session/challenge/renew, Sync and attachment endpoints;
+Account summary retains its separate Account-auth denial; AI remains disabled.
+All 12 smoke probes passed. Auth/device tokens, verifier contents and passcodes
+were never included in reports or screenshots. Temporary DevTools windows were
+closed and the Android tab was left at Cruise Port Pro.
+
+Post-acceptance census at 2026-10-04 22:29 JST: 68 total credentials, 56 valid
+current-generation credentials, 1 device-bound (1.79%), 55 not yet migrated,
+12 revoked, 0 inconsistent bound metadata. These are credential counts, not
+unique people. No persistent aggregate migration-error or forced-reauth counter
+exists, so those global totals are not measurable; neither occurred in the tested
+existing session. Original Pro state/credential/lockout fields still exactly
+matched the encrypted backup. Generation 1, slot A, legacy flag 1 and the listed
+Account/application counts were unchanged after acceptance. Only additive schema,
+device-session metadata and proof replay rows changed as intended.
+
+Production activation verdict: **PASS WITH OBSERVATION**. Legacy retirement
+verdict immediately after release: **NOT READY**. Keep compatibility ON and
+observe eligible credential migration, failed renewals and reports from cached
+clients/v1-only or storage-loss contexts over an operational observation window.
+The finite unbound window still ends 2027-01-02 21:57:35 JST; any retirement
+decision requires a separate review. Best-effort clock detection remains subject
+to the previously accepted unobserved cross-restart time limitation above.
+
 ## Phase 1 initial state
 
 Migration 0029 is additive and repeatable. It creates a single state row with generation `1`, active slot `A`, and legacy UI compatibility enabled. Applying it alone does not remove an existing browser's v1 UI entry. Until the active passcode slot, a separate 32+ character credential pepper, Turnstile secret, and rate limiter are available, `/verify` fails closed with 503. `/policy` can still report the compatibility setting.
