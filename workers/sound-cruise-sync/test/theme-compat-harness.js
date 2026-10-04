@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
-import { handleRequest } from '../src/app.js';
+import { handleProAuthorizedRequest as handleRequest } from './pro-entitlement-fixture.js';
 import { hashRecord, manifestHash } from '../src/records.js';
 import { createD1SyncRepository } from '../src/sync-database.js';
 import { createSqliteD1, seedIdentity } from './sqlite-d1.js';

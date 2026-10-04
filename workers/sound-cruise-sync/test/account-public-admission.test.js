@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleRequest } from '../src/app.js';
+import { handleProAuthorizedRequest as handleRequest } from './pro-entitlement-fixture.js';
 import {
   createAccountCredential,
   createAccountDeleteIntent,

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleRequest, handleScheduled } from '../src/app.js';
+import { handleProAuthorizedRequest as handleRequest, handleScheduled } from './pro-entitlement-fixture.js';
 import { sha256Hex } from '../src/asset-validation.js';
 import { createSqliteD1 } from './sqlite-d1.js';
 

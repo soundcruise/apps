@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { handleRequest } from '../src/app.js';
+import { handleProAuthorizedRequest as handleRequest } from './pro-entitlement-fixture.js';
 
 const ORIGIN = 'https://soundcruise.jp';
 const DEVICE_ID = '123e4567-e89b-42d3-a456-426614174000';

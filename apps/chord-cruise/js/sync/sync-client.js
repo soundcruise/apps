@@ -226,6 +226,18 @@
         var dbPromise = null;
         var adapter = storage ? createLocalAdapter(storage, cryptoImpl) : null;
 
+        async function proFetch(url, options) {
+            var proEntitlement = global.SoundCruiseProBackendEntitlement;
+            var headers = Object.assign({}, options.headers,
+                await proEntitlement?.proAuthorizationHeaders?.(storage));
+            var response = await fetchImpl(url, Object.assign({}, options, { headers: headers }));
+            if (response.status === 403 && typeof response.clone === 'function') {
+                var denial = await response.clone().json().catch(function () { return null; });
+                proEntitlement?.rejectProAuthorization?.(denial?.code, headers);
+            }
+            return response;
+        }
+
         function mergeApi() {
             var api = global.ChordCruiseSync && global.ChordCruiseSync.merge;
             if (!api) throw new Error('Sound Cruise Sync merge planner is unavailable');
@@ -598,7 +610,7 @@
                     }
                 };
                 if (enrollmentCode) startBody.enrollmentCode = enrollmentCode;
-                response = await fetchImpl(endpoint + '/v1/sync/start', {
+                response = await proFetch(endpoint + '/v1/sync/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     cache: 'no-store',
@@ -652,7 +664,7 @@
             if (typeof bookmark === 'string' && bookmark) headers['X-D1-Bookmark'] = bookmark;
             var response;
             try {
-                response = await fetchImpl(endpoint + path, {
+                response = await proFetch(endpoint + path, {
                     method: method,
                     headers: headers,
                     cache: 'no-store',
@@ -812,7 +824,7 @@
             if (snapshot.errors.length) return { ok: false, code: 'snapshot_invalid', errors: snapshot.errors.length };
             var response;
             try {
-                response = await fetchImpl(endpoint + '/v1/sync/pair', {
+                response = await proFetch(endpoint + '/v1/sync/pair', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     cache: 'no-store',
@@ -929,7 +941,7 @@
                 if (qaAdmission && typeof qaAdmission.qaCredential === 'string' && qaAdmission.scope === 'app' && qaAdmission.appId === 'chord') {
                     requestHeaders['X-Sound-Cruise-QA-Authorization'] = 'Bearer ' + qaAdmission.qaCredential;
                 }
-                response = await fetchImpl(endpoint + path, {
+                response = await proFetch(endpoint + path, {
                     method: 'GET',
                     headers: requestHeaders,
                     cache: 'no-store'

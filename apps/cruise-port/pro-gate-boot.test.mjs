@@ -12,6 +12,7 @@ const flush = () => new Promise(resolve => setImmediate(resolve));
 function boot({ values = new Map(), readyState = 'loading' } = {}) {
   const requests = [];
   const listeners = new Map();
+  const windowListeners = new Map();
   class Element {
     constructor(tag) {
       this.tagName = tag; this.children = []; this.attributes = new Map(); this.listeners = new Map();
@@ -46,7 +47,8 @@ function boot({ values = new Map(), readyState = 'loading' } = {}) {
     hostname: 'soundcruise.jp', reload() {} };
   const storage = { getItem: key => values.get(key) ?? null, setItem(key, value) { values.set(key, String(value)); },
     removeItem(key) { values.delete(key); } };
-  const window = { __SOUNDCRUISE_PRO_GATE__: { appName: 'Test' }, location, addEventListener() {} };
+  const window = { __SOUNDCRUISE_PRO_GATE__: { appName: 'Test' }, location,
+    addEventListener(type, handler) { windowListeners.set(type, handler); } };
   const fetch = (url) => new Promise((resolve, reject) => {
     requests.push({ path: url.split('/').at(-1), respond(status, json) { resolve({ status, async json() { return json; } }); },
       fail() { reject(Error('offline')); } });
@@ -61,8 +63,15 @@ function boot({ values = new Map(), readyState = 'loading' } = {}) {
   const checking = () => overlay()?.children.find(item => item.className === 'pro-gate-checking') || null;
   return {
     values, requests, window,
+    storageChanged() { windowListeners.get('storage')?.({ key: 'soundCruiseProAuth' }); },
     async domReady() { listeners.get('DOMContentLoaded')?.(); await flush(); },
     request(path) { return requests.find(item => item.path === path); },
+    async submit() {
+      window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__ = { getToken: async () => 'isolated-turnstile' };
+      box().querySelector('#pro-gate-input').value = '0007'; // Nonproduction fixture only.
+      box().querySelector('#pro-gate-submit').listeners.get('click')();
+      await flush();
+    },
     state() {
       if (!overlay()) return 'unlocked';
       return box().hidden ? 'checking' : 'passcode';
@@ -84,6 +93,59 @@ test('A: legacy Phase 1 user sees checking, never the passcode, then the app', a
   await g.settle();
   assert.equal(g.state(), 'unlocked');
   assert.deepEqual(g.requests.map(r => r.path), ['policy'], 'legacy never requests a Worker credential');
+});
+
+test('a legacy UI session cannot unlock a pending backend credential request', async () => {
+  const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify({ v: 1 })], ['user-data', 'kept']]) });
+  const waiting = g.window.__soundCruiseRequireProBackendAuth();
+  await g.domReady();
+  g.request('policy').respond(200, { ok: true, protocol: 2, legacyCompatibilityEnabled: true });
+  await g.settle();
+  assert.equal(g.state(), 'passcode');
+  await g.submit();
+  g.request('verify').respond(201, { ok: true, credential: token, generation: 1 });
+  await waiting; await g.settle();
+  assert.equal(g.state(), 'unlocked');
+  assert.equal(JSON.parse(g.values.get('soundCruiseProAuth')).credential, token);
+  assert.equal(g.values.get('user-data'), 'kept');
+});
+
+test('backend revocation reopens the existing gate without clearing saved app data', async () => {
+  const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)], ['user-data', 'kept']]) });
+  await g.domReady();
+  g.request('session').respond(200, { ok: true, generation: 1, legacyCompatibilityEnabled: true });
+  await g.settle();
+  assert.equal(g.state(), 'unlocked');
+  g.window.__soundCruiseRejectProBackendAuth(token);
+  assert.equal(g.state(), 'passcode');
+  assert.equal(g.values.has('soundCruiseProAuth'), false);
+  assert.equal(g.values.get('user-data'), 'kept');
+});
+
+test('a delayed Pro denial cannot invalidate a freshly reauthenticated credential', async () => {
+  const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)]]) });
+  await g.domReady();
+  g.request('session').respond(200, { ok: true, generation: 1, legacyCompatibilityEnabled: true });
+  await g.settle();
+  const fresh = token.replace(/A$/, 'B');
+  g.values.set('soundCruiseProAuth', JSON.stringify({ ...v2, credential: fresh }));
+  g.window.__soundCruiseRejectProBackendAuth(token);
+  assert.equal(g.state(), 'unlocked');
+  assert.equal(JSON.parse(g.values.get('soundCruiseProAuth')).credential, fresh);
+});
+
+test('another Pro tab can complete a pending backend credential request after server validation', async () => {
+  const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify({ v: 1 })]]) });
+  await g.domReady();
+  g.request('policy').respond(200, { ok: true, protocol: 2, legacyCompatibilityEnabled: true });
+  await g.settle();
+  const waiting = g.window.__soundCruiseRequireProBackendAuth();
+  g.values.set('soundCruiseProAuth', JSON.stringify(v2));
+  g.storageChanged(); await g.settle();
+  assert.equal(g.state(), 'passcode');
+  g.request('session').respond(200, { ok: true, generation: 1, legacyCompatibilityEnabled: true });
+  await waiting; await g.settle();
+  assert.equal(g.state(), 'unlocked');
 });
 
 test('B: valid Server credential is checked before DOMContentLoaded and unlocks without a passcode flash', async () => {

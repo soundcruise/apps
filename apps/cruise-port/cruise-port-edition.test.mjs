@@ -77,15 +77,15 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
         .replace(/    <script>\n        window\.__SOUNDCRUISE_PRO_GATE__[\s\S]*?<\/script>\n/, '');
     assert.equal(withoutGate, expected, 'Only explicitly allowed edition differences may diverge');
     assert.doesNotMatch(root, /pro-gate\.(?:js|css)|__SOUNDCRUISE_PRO_GATE__/);
-    assert.match(pro, /shared\/pro-gate\.js\?v=23/);
+    assert.match(pro, /shared\/pro-gate\.js\?v=24/);
     assert.match(pro, /__SOUNDCRUISE_PRO_GATE__/);
     assert.doesNotMatch(pro, /<iframe|<base|http-equiv="refresh"|location\.(?:replace|assign)/i);
     for (const entry of [root, pro]) {
         assert.match(entry, /home-pro-badge[^>]*hidden>Pro/);
         assert.equal((entry.match(/data-cruise-app=/g) || []).length, 4);
-        assert.match(entry, /multi-app-sync-runtime\.js\?v=26/);
+        assert.match(entry, /multi-app-sync-runtime\.js\?v=27/);
         assert.match(entry, /port-sync-adapter\.js\?v=1\.4\.0/);
-        assert.match(entry, /port-sync-controller\.js\?v=1\.18\.0/);
+        assert.match(entry, /port-sync-controller\.js\?v=1\.18\.1/);
         assert.doesNotMatch(entry, /data-(?:sync-)?app="port"/);
     }
     const gate = read('../shared/pro-gate.js');

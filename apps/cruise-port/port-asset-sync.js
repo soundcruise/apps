@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.1';
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';
@@ -227,6 +227,8 @@ export class PortAssetSync {
         const qaCredential = await this.controller?.runtime?.qaCredential?.();
         if (typeof credential !== 'string') throw new Error('asset_auth_required');
         const headers = new Headers({ Accept: 'application/json', Authorization: `Bearer ${credential}` });
+        const proHeaders = await globalThis.SoundCruiseProBackendEntitlement?.proAuthorizationHeaders?.();
+        for (const [name, value] of Object.entries(proHeaders || {})) headers.set(name, value);
         if (this.controller.runtime.admissionMode === 'qa') {
             if (typeof qaCredential !== 'string') throw new Error('asset_qa_required');
             headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qaCredential}`);
@@ -237,12 +239,16 @@ export class PortAssetSync {
 
     async json(path, body) {
         if (!this.canSync()) throw new Error('pro_required');
+        const headers = await this.headers('application/json');
         const response = await this.fetchImpl(`${this.controller.runtime.endpoint}${path}`, {
-            method: 'POST', headers: await this.headers('application/json'),
+            method: 'POST', headers,
             body: JSON.stringify(body), credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer'
         });
         const payload = await response.json().catch(() => null);
-        if (!response.ok || payload?.ok !== true) throw new Error(payload?.code || 'asset_request_failed');
+        if (!response.ok || payload?.ok !== true) {
+            globalThis.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(payload?.code, headers);
+            throw new Error(payload?.code || 'asset_request_failed');
+        }
         return payload;
     }
 
@@ -281,7 +287,10 @@ export class PortAssetSync {
                     { method: 'PUT', headers, body: record.blob, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' }
                 );
                 const payload = await response.json().catch(() => null);
-                if (!response.ok || payload?.ok !== true) throw new Error(payload?.code || 'asset_upload_failed');
+                if (!response.ok || payload?.ok !== true) {
+                    globalThis.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(payload?.code, headers);
+                    throw new Error(payload?.code || 'asset_upload_failed');
+                }
             }
             const committed = await this.json('/v1/sync/assets/commit', {
                 appId: 'port', assetId: operation.assetId, operationId: operation.operationId, hash
@@ -293,11 +302,16 @@ export class PortAssetSync {
 
     async download(asset) {
         if (!this.canSync()) throw new Error('pro_required');
+        const headers = await this.headers();
         const response = await this.fetchImpl(
             `${this.controller.runtime.endpoint}/v1/sync/assets/${encodeURIComponent(asset.assetId)}`,
-            { method: 'GET', headers: await this.headers(), credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' }
+            { method: 'GET', headers, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' }
         );
-        if (!response.ok) throw new Error('asset_download_failed');
+        if (!response.ok) {
+            const payload = await response.json().catch(() => null);
+            globalThis.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(payload?.code, headers);
+            throw new Error(payload?.code || 'asset_download_failed');
+        }
         if (response.headers.get('X-Asset-SHA256') !== asset.hash) throw new Error('asset_hash_mismatch');
         const blob = await response.blob();
         if (blob.size !== asset.byteSize || blob.type !== asset.mime || await hashBlob(blob, this.cryptoImpl) !== asset.hash) {

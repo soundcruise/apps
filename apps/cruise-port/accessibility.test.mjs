@@ -82,7 +82,7 @@ test('gate uses server authentication and releases focus containment on unlock',
     assert.match(gate, /const AUTH_KEY = 'soundCruiseProAuth'/);
     assert.match(gate, /request\('\/verify'/);
     assert.doesNotMatch(gate, /passwordHash|crypto\.subtle\.digest/);
-    assert.match(gate, /function unlock\(\) \{\s*if \(!overlay\) return;\s*releaseGateFocus\?\.\(\)/);
+    assert.match(gate, /if \(!overlay\) return;\s*releaseGateFocus\?\.\(\)/);
 });
 
 test('calendar uses named button groups, pressed selection and current date without an incomplete grid', () => {

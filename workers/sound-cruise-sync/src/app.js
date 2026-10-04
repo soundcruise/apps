@@ -2,7 +2,7 @@ import { AI_SUPPORT_ROUTE, handleAiSupportRequest } from './ai-support-app.js';
 import { inspectDeviceCredential } from './auth.js';
 import { authenticateQaRequest } from './account-qa-auth.js';
 import { handleAccountApiRequest } from './account-app.js';
-import { handleProAuthRequest } from './pro-auth-app.js';
+import { handleProAuthRequest, inspectProCredentialReadOnly } from './pro-auth-app.js';
 import { cleanupProLockouts } from './pro-auth-lockout.js';
 import {
   legacyOperationDecision,
@@ -78,6 +78,14 @@ const ASSET_ROUTES = Object.freeze({
 });
 
 const QA_HEADER = 'x-sound-cruise-qa-authorization';
+const PRO_HEADER = 'x-sound-cruise-pro-authorization';
+// Account/device administration and recovery remain available without Pro.
+// Every route that reads or writes app data (including bootstrap and retries)
+// requires the independent, existing server-issued global Pro credential.
+const ACCOUNT_MANAGEMENT_ROUTES = new Set([
+  '/v1/sync/recover', '/v1/sync/recovery-codes', '/v1/sync/devices',
+  '/v1/sync/devices/revoke', '/v1/sync/account/delete-intent', '/v1/sync/account'
+]);
 
 // These binary-only switches deliberately default to enabled for the Phase 1
 // production contract. Set a variable to the literal string "false" to stop
@@ -98,7 +106,7 @@ function headerCase(value) {
 }
 
 function corsHeaders(origin, route) {
-  const allowedHeaders = Array.from(new Set([...route.headers, QA_HEADER]));
+  const allowedHeaders = Array.from(new Set([...route.headers, QA_HEADER, PRO_HEADER]));
   return new Headers({
     'Access-Control-Allow-Origin': origin,
     'Access-Control-Allow-Methods': `${route.method}, OPTIONS`,
@@ -1090,7 +1098,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
     const requestedHeaders = (request.headers.get('Access-Control-Request-Headers') || '')
       .split(',').map((header) => header.trim().toLowerCase()).filter(Boolean);
     if (requestedMethod !== route.method ||
-        requestedHeaders.some((header) => ![...route.headers, QA_HEADER].includes(header))) {
+        requestedHeaders.some((header) => ![...route.headers, QA_HEADER, PRO_HEADER].includes(header))) {
       return errorResponse(403, 'invalid_origin', origin, route);
     }
     return new Response(null, { status: 204, headers: corsHeaders(origin, route) });
@@ -1109,6 +1117,21 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if (!gate.allowed) return errorResponse(gate.status, gate.code, origin, route);
   if (url.pathname !== '/v1/sync/start' && await isRateLimited(env.SYNC_RATE_LIMITER, `sync-api:${requestIp(request)}`)) {
     return errorResponse(429, 'rate_limited', origin, route, { 'Retry-After': '60' });
+  }
+  // Require Pro by default; only explicit metadata/Account-management routes
+  // are exempt, so adding another data-transfer route cannot silently bypass it.
+  if (!ACCOUNT_MANAGEMENT_ROUTES.has(url.pathname)) {
+    let entitlement;
+    try {
+      entitlement = await (dependencies.inspectProCredentialReadOnly || inspectProCredentialReadOnly)(
+        request.headers.get(PRO_HEADER), env, dependencies
+      );
+    } catch {
+      return errorResponse(503, 'pro_auth_unavailable', origin, route);
+    }
+    if (entitlement?.ok !== true) {
+      return errorResponse(403, entitlement?.code || 'pro_required', origin, route);
+    }
   }
   if (url.pathname === '/v1/sync/start') return handleStart(request, env, origin, route, dependencies, runtimeControl);
   if (url.pathname === '/v1/sync/bootstrap') return handleBootstrap(request, env, origin, route, dependencies);

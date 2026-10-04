@@ -2,6 +2,33 @@
 
 S2-A Phase 1 is live. Check production migration, secret-name, and Worker deployment metadata to determine H1 rollout status.
 
+## Pro entitlement for paid backend APIs (P0)
+
+App data-plane requests carry two independent credentials: `Authorization: Bearer <device credential>`
+and `X-Sound-Cruise-Pro-Authorization: Bearer <existing Pro credential>`. Pro validation uses
+`inspectProCredentialReadOnly`: the existing HMAC verifier, global scope, current generation and
+revocation state. It performs no Pro credential write. Device/Account ownership and all existing
+admission, origin, rate-limit and runtime gates still apply. A client edition or legacy UI marker
+does not grant entitlement.
+
+Pro is required for `/v1/sync/start`, `pair`, `pairing-codes`, `bootstrap`, `push`,
+`migration/complete`, `changes`, `snapshot`, `removal-safety`, and every asset route (including
+binary upload and download). `/v2/accounts` management/recovery/status routes and legacy device,
+recovery and Account management remain separately authenticated and do not require Pro.
+
+The existing policy has no wall-clock token TTL. Credentials expire by generation retirement
+or revocation; this repair does not introduce a new expiry policy or schema migration.
+
+Updated Pro clients forward the current v2 token from the existing shared session. Legacy UI-only
+sessions use the existing Pro gate to obtain a server credential when accessing the paid backend.
+Pro denials reopen that gate; they never detach Account/device bindings, erase records, discard
+outbox entries or resolve conflicts. Transient verification-store failures return 503 and retain
+the session. An already-open older client must reload to send the new header.
+
+For rollout, publish the additive CORS support first, then the updated client entry points, then
+enforcement. Do not turn off enforcement as an authentication workaround. Keep the Pro Auth API
+and existing secrets/bindings intact; no D1 migration or production sync write is needed.
+
 ## Phase 1 initial state
 
 Migration 0029 is additive and repeatable. It creates a single state row with generation `1`, active slot `A`, and legacy UI compatibility enabled. Applying it alone does not remove an existing browser's v1 UI entry. Until the active passcode slot, a separate 32+ character credential pepper, Turnstile secret, and rate limiter are available, `/verify` fails closed with 503. `/policy` can still report the compatibility setting.

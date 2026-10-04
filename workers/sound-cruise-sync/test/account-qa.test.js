@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { handleRequest } from '../src/app.js';
+import { handleProAuthorizedRequest as handleRequest } from './pro-entitlement-fixture.js';
 import {
   createQaCredential,
   createQaEnrollmentCode,

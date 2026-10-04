@@ -11,7 +11,7 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.18.0 adds Port access UI and guarded Pro boot; NEWS content stays unchanged.
+// 1.18.1 forwards existing Pro credentials to paid backend APIs; NEWS stays unchanged.
 const RELEASE_MODULES = Object.freeze(['app-version.js', 'cruise-port-capabilities.js', 'pro-prompt.js', 'pro-access-content.js', 'tool-capabilities.js', 'practice-capabilities.js', 'my-apps-capabilities.js', 'gear-photo-store.js', 'gear-photo-workflow.js', 'my-apps-icon-store.js', 'my-apps-icon-workflow.js', 'practice-menu-attachment-store.js', 'practice-menu-pending-attachments.js', 'tuner-app.js', 'metronome-app.js', 'sync-center-orchestrator.js', 'sync-center-ui.js', 'port-asset-sync.js', 'sync-pro-lock.js', 'ai-support-client.js', 'ai-support-ui.js', 'port-account-join.js']);
 // NEWS modules are loaded with dynamic import() from practice-menu-app.js and did not change in 1.12.0.
 const RELEASE_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
@@ -41,8 +41,8 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.18.0', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.18.0');
+test('the release is 1.18.1', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.18.1');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -72,8 +72,8 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.18.0');
-  assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.18.0');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.18.1');
+  assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.18.1');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
   assert.equal(key('practice-menu-app.js', 'settings-store.js'), '1.13.0');
@@ -82,14 +82,14 @@ test('the exact release edges: entry → app → UI, unchanged modules keep thei
   assert.equal(key('practice-menu-app.js', 'practice-menu-sets-store.js'), '1.4.2');
   assert.equal(key('port-sync-local-validation.js', 'practice-menu-sets-store.js'), '1.4.2');
   assert.equal(key('practice-menu-app.js', 'practice-menu-presets.js'), '1.2.0', 'name suggestions are a separate module');
-  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '1.18.0');
+  assert.equal(key('practice-menu-app.js', 'sync-center-ui.js'), '1.18.1');
   assert.equal(key('practice-menu-app.js', 'sync-center-controller.js'), '1.1.3');
-  assert.equal(key('practice-menu-app.js', 'sync-center-orchestrator.js'), '1.18.0');
+  assert.equal(key('practice-menu-app.js', 'sync-center-orchestrator.js'), '1.18.1');
   for (const name of ['sync-center-navigation.js']) {
     assert.equal(key('practice-menu-app.js', name), '1.1.3');
   }
   assert.equal(key('practice-menu-app.js', 'practice-menu-history-store.js'), '0.70.1');
-  assert.equal(key('ai-support-ui.js', 'ai-support-client.js'), '1.18.0');
+  assert.equal(key('ai-support-ui.js', 'ai-support-client.js'), '1.18.1');
   assert.equal(key('port-sync-local-validation.js', 'practice-menu-history-store.js'), '0.70.1');
   assert.equal(key('practice-menu-app.js', 'port-sync-local-validation.js'), '1.4.2');
   for (const [name, expected] of Object.entries(UNCHANGED_KEYS)) {

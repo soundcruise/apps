@@ -18,6 +18,8 @@
     let resetInFlight = false;
     let helperPromise = null;
     let showPasscode = null;
+    let backendAuthRequired = false;
+    const backendAuthWaiters = new Set();
     const pendingChecks = new Map();
 
     function get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
@@ -135,7 +137,25 @@
         await flushPending();
     }
     window.__soundCruiseClearGate = reset;
+    window.__soundCruiseRequireProBackendAuth = () => {
+        if (auth()) return Promise.resolve();
+        backendAuthRequired = true;
+        lock('passcode');
+        return new Promise((resolve) => { backendAuthWaiters.add(resolve); });
+    };
+    window.__soundCruiseRejectProBackendAuth = (credential) => {
+        // A delayed response for an older token must not invalidate a new one.
+        const current = auth();
+        if (current && current.credential !== credential) return;
+        if (current) { remove(AUTH_KEY); put(MIGRATED_KEY, '1'); }
+        backendAuthRequired = true;
+        lock('passcode');
+    };
     window.addEventListener('online', () => { void flushPending(); });
+    window.addEventListener('storage', (event) => {
+        // A different Pro app/tab can complete the same shared authentication.
+        if (event.key === AUTH_KEY && backendAuthRequired && auth()) void initialize();
+    });
 
     function containGateFocus(overlay) {
         const backgrounds = new Map();
@@ -279,6 +299,12 @@
         }
     }
     function unlock() {
+        if (backendAuthRequired && !auth()) return;
+        if (auth()) {
+            backendAuthRequired = false;
+            for (const resolve of backendAuthWaiters) resolve();
+            backendAuthWaiters.clear();
+        }
         if (!overlay) return;
         releaseGateFocus?.();
         releaseGateFocus = null;

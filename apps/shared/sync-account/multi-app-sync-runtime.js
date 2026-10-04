@@ -177,6 +177,8 @@
         throw new MultiAppSyncError('qa_admission_required', 403);
       }
       const headers = new Headers({ Accept: 'application/json', Authorization: `Bearer ${credential}` });
+      const proHeaders = await global.SoundCruiseProBackendEntitlement?.proAuthorizationHeaders?.();
+      for (const [name, value] of Object.entries(proHeaders || {})) headers.set(name, value);
       if (this.admissionMode === 'qa') {
         headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qaCredential}`);
       }
@@ -252,6 +254,7 @@
       }
       if (!response.ok || payload?.ok !== true) {
         const code = payload?.code || 'invalid_response';
+        global.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(code, headers);
         if (await this.detachTerminalIdentity(code)) throw new MultiAppSyncError(code, response.status);
         if (PAUSE_CODES.has(code)) this.setState('paused', { reason: code });
         throw new MultiAppSyncError(code, response.status);
