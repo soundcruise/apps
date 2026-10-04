@@ -47,6 +47,7 @@ function accountSetupFixture({
     completeAccountSetup,
     prepareAll = async () => ({ ok: true }),
     tokenProvider = async () => 'verified',
+    canSync = () => true,
     refresh = async () => {}
 }) {
     const listeners = {};
@@ -85,7 +86,7 @@ function accountSetupFixture({
         prepareAll,
         createAccountCandidate() { throw new Error('must_not_replace_saved_candidate'); }
     };
-    bindSyncCenterActions(root, { orchestrator, tokenProvider, refresh });
+    bindSyncCenterActions(root, { orchestrator, tokenProvider, refresh, canSync });
     return { setup, confirm, setupClose, recovery, summary, status, click: () => confirm.listeners.click() };
 }
 
@@ -240,9 +241,9 @@ test('Environment management keeps the Port path compact and the app-specific pa
 test('Cruise Port installs the existing conflict resolution UI before startup sync', () => {
     for (const html of [root, pro]) {
         assert.match(html, /multi-app-conflict-ui\.js\?v=8/);
-        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=8') < html.indexOf('practice-menu-app.js'));
+        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=8') < html.indexOf(html.includes('pro-app-boot.js') ? 'pro-app-boot.js' : 'practice-menu-app.js'));
     }
-    assert.match(app, /installConflictResolutionUi\?\.\(portSyncController\?\.runtime, document\)/);
+    assert.match(app, /const portConflictResolutionController = portSyncController\?\.runtime\s*\?[^;]+installConflictResolutionUi\?\.\(portSyncController\.runtime, document\)\s*: null/);
 });
 
 test('current Port detach is distinct from generic environment revoke and leaves Section 2 informational when Account is unset', () => {
@@ -727,4 +728,12 @@ test('Join dialog identifies the target app from appId using the official icon c
     assert.match(ui, /name\.textContent = target\.name/);
     assert.match(styles, /\.sync-center-join-header\s*\{[\s\S]*display:\s*flex/);
     assert.match(styles, /\.sync-center-join-target\s*\{[\s\S]*min-width:\s*0/);
+});
+
+test('Standard Account setup completes without preparing memberships or locking Account creation', async () => {
+ let starts=0, preparations=0;
+ const view=accountSetupFixture({canSync:()=>false, completeAccountSetup:async()=>{starts++;return {ok:true};},prepareAll:async()=>{preparations++;throw new Error('must not prepare sync');}});
+ await view.click();assert.equal(starts,1);assert.equal(preparations,0);
+ assert.equal(view.setup.dataset.syncPhase,'complete');assert.equal(view.confirm.disabled,false);
+ assert.match(view.summary.textContent,/アカウントを作成しました/);assert.match(view.summary.textContent,/Pro版/);
 });

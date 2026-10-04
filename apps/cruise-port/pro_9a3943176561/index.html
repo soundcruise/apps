@@ -43,12 +43,14 @@
     <script defer src="../../shared/sync-account/multi-app-sync-runtime.js?v=26"></script>
     <script defer src="../../shared/sync-account/multi-app-conflict-ui.js?v=8"></script>
     <script defer src="../port-sync-adapter.js?v=1.4.0"></script>
-    <script defer src="../port-sync-controller.js?v=0.64.0"></script>
+    <script defer src="../port-sync-controller.js?v=1.18.0"></script>
     <script defer src="../../shared/sync-account/sync-ui-components.js?v=16"></script>
     <script>window.__SOUND_CRUISE_ACCOUNT_TURNSTILE_SITE_KEY__ = '0x4AAAAAAEyUW3_hNe2DPgWr';</script>
     <script defer src="../../shared/sync-account/sync-account-turnstile.js?v=8"></script>
-    <script type="module" src="../practice-menu-app.js?v=1.17.0"></script>
+    <script type="module" src="../pro-app-boot.js?v=1.18.0"></script>
     <link rel="stylesheet" href="../news-article.css?v=1.16.0">
+    <link rel="stylesheet" href="../pro-access.css?v=1.18.0">
+    <link rel="stylesheet" href="../sync-pro-lock.css?v=1.18.0">
 </head>
 <body>
     <div class="port-shell">
@@ -67,7 +69,7 @@
             </header>
         <div class="news-home">
             <a id="news-ticker" class="news-ticker" href="#news" hidden></a>
-            <a id="news-entry" class="news-entry" href="#news" hidden>ニュース</a>
+            <a id="news-entry" class="news-entry" href="#news">ニュース</a>
         </div>
 
             <section class="port-section" data-home-section="cruiseApps" aria-labelledby="cruise-apps-heading">
@@ -206,8 +208,8 @@
                 <button id="settings-reset" class="action-button secondary-action" type="button">全てをデフォルトに戻す</button>
                 <p id="settings-storage-error" class="notice notice-error" role="alert" hidden></p>
                 <section class="settings-card port-pro-link" data-standard-pro-link hidden>
-                    <h2>Cruise Port Pro</h2>
-                    <p>Pro版では、さらに便利な機能を利用できます。</p>
+                    <h2>Pro版について</h2>
+                    <p>登録枠の拡張、写真・ファイルの追加、音の詳細設定を利用できます。</p>
                     <a href="#pro-access">Pro版の入手方法 →</a>
                 </section>
                 <section id="settings-pro-auth" class="settings-card" aria-labelledby="settings-pro-auth-title" hidden>

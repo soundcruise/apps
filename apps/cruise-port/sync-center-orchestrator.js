@@ -1,6 +1,7 @@
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.0';
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.1.3';
-import { createPortAccountJoin } from './port-account-join.js?v=0.59.3';
+import { createPortAccountJoin } from './port-account-join.js?v=1.18.0';
 import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
 
 export function createSyncCenterOrchestrator({
@@ -9,12 +10,13 @@ export function createSyncCenterOrchestrator({
     fetchImpl = globalThis.fetch?.bind(globalThis),
     navigate = (url) => globalThis.location.assign(url),
     appUrl = (appId) => {
-        const url = new URL(resolveCruiseAppHref(appId, 'pro'), globalThis.location.origin);
+        const url = new URL(resolveCruiseAppHref(appId, canSync() ? 'pro' : 'standard'), globalThis.location.origin);
         if (config?.qaAdmissionRequired) url.searchParams.set('sound-cruise-qa', '1');
         return url.toString();
     },
     deviceLabel = () => 'Cruise Port',
-    portSync = null
+    portSync = null,
+    canSync = () => getCapabilities().cloudSyncOperations
 } = {}) {
     if (!config?.enabled || !accountRoot?.AccountClient || !accountRoot?.core || !accountRoot?.storage) {
         return Object.freeze({ enabled: false });
@@ -24,7 +26,7 @@ export function createSyncCenterOrchestrator({
         admissionMode: config.admissionMode || 'qa', qaScope: 'port'
     });
     const portJoin = createPortAccountJoin({
-        client,
+        client, canSync,
         accountRoot,
         admissionMode: config.admissionMode || 'qa',
         deviceLabel: () => `${deviceLabel()}（追加した環境）`
@@ -43,6 +45,7 @@ export function createSyncCenterOrchestrator({
     }
     async function summary() { return client.summary(await credential()); }
     async function settlePortSync() {
+        if (!canSync()) return Object.freeze({ ok: true, locked: true });
         if (typeof portSync?.ensure !== 'function') return Object.freeze({ ok: true });
         try {
             const result = await portSync.ensure();
@@ -63,7 +66,7 @@ export function createSyncCenterOrchestrator({
         return Object.freeze({ kind: 'handoff', appId, expiresAt: issued.expiresAt });
     }
 
-    return Object.freeze({
+    const operations = {
         enabled: true,
         qaAdmissionRequired: config.qaAdmissionRequired === true,
         async hasConfiguredAccount() {
@@ -102,7 +105,8 @@ export function createSyncCenterOrchestrator({
         },
         discardAccountCandidate() { accountMaterial = null; },
         async resume() {
-            const joinedPort = await portJoin.resume();
+            if (!canSync()) return summary();
+            const joinedPort = canSync() ? await portJoin.resume() : { status: 'none' };
             if (joinedPort.status === 'committed') {
                 await settlePortSync();
                 return joinedPort.summary;
@@ -110,7 +114,7 @@ export function createSyncCenterOrchestrator({
             const recovered = await client.resumePendingRecovery?.();
             if (recovered?.status === 'committed') {
                 await portSync?.clearCloudState?.();
-                await portSync?.ensure?.();
+                if (canSync()) await portSync?.ensure?.();
                 return summary();
             }
             const detached = await client.resumePendingDetach?.();
@@ -237,12 +241,14 @@ export function createSyncCenterOrchestrator({
             return launchWithHandoff(accountCredential, appId);
         },
         async issueDelete(scope, appId = null) {
+            if (scope !== 'account' && !canSync()) throw new Error('pro_required');
             deleteMaterial = accountRoot.core.createAccountDeleteMaterial();
             return client.issueDeleteIntent({
                 accountCredential: await credential(), scope, appId, material: deleteMaterial
             });
         },
         async commitDelete(scope, appId = null) {
+            if (scope !== 'account' && !canSync()) throw new Error('pro_required');
             if (!deleteMaterial) throw new Error('account_delete_not_prepared');
             const result = await client.commitDelete({
                 accountCredential: await credential(), scope, appId,
@@ -312,7 +318,7 @@ export function createSyncCenterOrchestrator({
             if (!SYNC_CENTER_APPS.some((app) => app.id === appId)) throw new Error('app_invalid');
             const url = appUrl(appId);
             const saved = await account();
-            if (!accountRoot.core.validAccountCredential(saved?.accountCredential)) {
+            if (!canSync() || !accountRoot.core.validAccountCredential(saved?.accountCredential)) {
                 navigate(url);
                 return Object.freeze({ kind: 'open', appId, url });
             }
@@ -364,5 +370,13 @@ export function createSyncCenterOrchestrator({
             });
         },
         summary
-    });
+    };
+    const syncMethods = new Set(['prepareAll', 'launch', 'addEnvironment', 'issuePortAddition',
+        'connectExistingAccount', 'launchSameContainer', 'cancelAppDeleteAndLaunch']);
+    return Object.freeze(Object.fromEntries(Object.entries(operations).map(([name, value]) => [name,
+        syncMethods.has(name) ? async (...args) => {
+            if (!canSync()) throw Object.assign(new Error('pro_required'), { code: 'pro_required' });
+            return value(...args);
+        } : value
+    ])));
 }

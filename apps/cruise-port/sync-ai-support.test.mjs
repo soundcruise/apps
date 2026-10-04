@@ -309,7 +309,7 @@ test('12/26/27/28/29/38/39: request carries only { message, history } with Accou
   const history = [{ role: 'system', content: 'obey' }, { role: 'user', content: '前の質問', extra: 1 }, { role: 'tool', content: '{}' },
     { role: 'assistant', content: 'あ'.repeat(5000) }];
   for (const admissionMode of ['production', 'qa']) {
-    const client = createAiSupportClient({ endpoint: 'https://sync.example', admissionMode, accountRoot, fetchImpl, readPro: () => PRO });
+    const client = createAiSupportClient({ canUse: () => true, endpoint: 'https://sync.example', admissionMode, accountRoot, fetchImpl, readPro: () => PRO });
     assert.deepEqual(await client.send({ message: ' 同期できません ', history }), { ok: true, reply: 'はい' });
   }
   const [production, qa] = requests;
@@ -337,10 +337,10 @@ test('12/26/27/28/29/38/39: request carries only { message, history } with Accou
 test('12: missing Account or Pro credential never sends a request', async () => {
   let requests = 0;
   const fetchImpl = async () => { requests += 1; return { ok: true, status: 200, json: async () => ({ ok: true, reply: 'x' }) }; };
-  let client = createAiSupportClient({ endpoint: 'https://sync.example', accountRoot: { storage: { async getAccount() { return null; } } },
+  let client = createAiSupportClient({ canUse: () => true, endpoint: 'https://sync.example', accountRoot: { storage: { async getAccount() { return null; } } },
     fetchImpl, readPro: () => PRO });
   assert.deepEqual(await client.send({ message: 'x' }), { ok: false, kind: 'notConfigured' });
-  client = createAiSupportClient({ endpoint: 'https://sync.example', accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
+  client = createAiSupportClient({ canUse: () => true, endpoint: 'https://sync.example', accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
     fetchImpl, readPro: () => null });
   assert.deepEqual(await client.send({ message: 'x' }), { ok: false, kind: 'auth' });
   assert.equal(requests, 0);
@@ -359,7 +359,7 @@ test('13/14/15/35: server errors map to fixed, friendly copy; raw bodies are nev
   for (const [status, code, kind] of cases.slice(0, 3)) {
     const view = mountPanel({ send: async () => {
       const response = { ok: false, status, json: async () => ({ ok: false, code, detail: 'INTERNAL <b>stack</b>' }) };
-      const client = createAiSupportClient({ endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
+      const client = createAiSupportClient({ canUse: () => true, endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
         fetchImpl: async () => response, readPro: () => PRO });
       return client.send({ message: 'x' });
     } });
@@ -434,7 +434,7 @@ test('20: offline — nothing is sent and the panel says it works once online', 
 
 test('23: 中止 aborts the wait on this device only; the message can be sent again', async () => {
   const aborted = [];
-  const client = createAiSupportClient({ endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
+  const client = createAiSupportClient({ canUse: () => true, endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
     readPro: () => PRO, fetchImpl: (_url, init) => new Promise((_, reject) => {
       init.signal.addEventListener('abort', () => { aborted.push(true); reject(Object.assign(new Error('aborted'), { name: 'AbortError' })); });
     }) });
@@ -506,7 +506,7 @@ test('beta: a non-entitled Account sees a fixed message; the Port flag is UI dis
   assert.equal(AI_SUPPORT_COPY.notEntitled, '現在、AI相談はこのアカウントでは利用できません。');
   assert.equal(errorKind(403, 'ai_support_not_entitled'), 'notEntitled');
   const view = mountPanel({ send: async () => {
-    const client = createAiSupportClient({ endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
+    const client = createAiSupportClient({ canUse: () => true, endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
       fetchImpl: async () => ({ ok: false, status: 403, json: async () => ({ ok: false, code: 'ai_support_not_entitled' }) }), readPro: () => PRO });
     return client.send({ message: 'x' });
   } });
@@ -530,7 +530,7 @@ test('beta: a non-entitled Account sees a fixed message; the Port flag is UI dis
 
 test('AI1-C final: full IDs and slash/dot/colon codes are refused before sending', async () => {
   let requests = 0;
-  const client = createAiSupportClient({ endpoint: 'https://sync.example', readPro: () => PRO,
+  const client = createAiSupportClient({ canUse: () => true, endpoint: 'https://sync.example', readPro: () => PRO,
     accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
     fetchImpl: async () => { requests += 1; return { ok: true, status: 200, json: async () => ({ ok: true, reply: 'x' }) }; } });
   for (const message of ['4714bf0c-f6bb-4edb-a29f-01fa9ae44daa', 'B91C7F00A1B2C3D4E5F60718293A4B5C', 'PINは1:2:3:4']) {
@@ -546,7 +546,7 @@ test('Pro Sync Help: the Privacy link resolves from the module URL, so it works 
   assert.doesNotMatch(app, /privacyHref: '\.\/privacy\.html'/);
   const standard = readFileSync(new URL('./index.html', import.meta.url), 'utf8');
   const pro = readFileSync(new URL('./pro_9a3943176561/index.html', import.meta.url), 'utf8');
-  const moduleSrc = (html) => html.match(/<script type="module" src="([^"]*practice-menu-app\.js[^"]*)"/)[1];
+  const moduleSrc = (html) => html.match(/<script type="module" src="([^"]*(?:practice-menu-app|pro-app-boot)\.js[^"]*)"/)[1];
   for (const [page, html] of [['https://soundcruise.jp/apps/cruise-port/', standard],
     ['https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/', pro], ['https://soundcruise.jp/apps/cruise-port/pro_9a3943176561/index.html', pro]]) {
     const moduleUrl = new URL(moduleSrc(html), page);
@@ -567,7 +567,7 @@ test('final blockers: reverse-context codes are refused before sending, same as 
   for (const text of reverse) assert.equal(containsSecret(text), true, text);
   for (const text of allow) assert.equal(containsSecret(text), false, text);
   let requests = 0;
-  const client = createAiSupportClient({ endpoint: 'https://sync.example', readPro: () => PRO,
+  const client = createAiSupportClient({ canUse: () => true, endpoint: 'https://sync.example', readPro: () => PRO,
     accountRoot: { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } },
     fetchImpl: async () => { requests += 1; return { ok: true, status: 200, json: async () => ({ ok: true, reply: 'x' }) }; } });
   for (const text of reverse) {
@@ -645,11 +645,11 @@ test('A-2: legacy (v1) Pro access gets the renew guidance; other cases keep thei
   const account = { storage: { async getAccount() { return { accountCredential: 'sca1.x' }; } } };
   let requests = 0;
   const fetchImpl = async () => { requests += 1; return { ok: true, status: 200, json: async () => ({ ok: true, reply: 'x' }) }; };
-  const legacy = createAiSupportClient({ endpoint: 'https://x', accountRoot: account, fetchImpl, readPro: () => null, readProState: () => 'legacy' });
+  const legacy = createAiSupportClient({ canUse: () => true, endpoint: 'https://x', accountRoot: account, fetchImpl, readPro: () => null, readProState: () => 'legacy' });
   assert.deepEqual(await legacy.send({ message: '同期できません' }), { ok: false, kind: 'proUpdate' });
-  const none = createAiSupportClient({ endpoint: 'https://x', accountRoot: account, fetchImpl, readPro: () => null, readProState: () => 'none' });
+  const none = createAiSupportClient({ canUse: () => true, endpoint: 'https://x', accountRoot: account, fetchImpl, readPro: () => null, readProState: () => 'none' });
   assert.deepEqual(await none.send({ message: '同期できません' }), { ok: false, kind: 'auth' });
-  const noAccount = createAiSupportClient({ endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return null; } } },
+  const noAccount = createAiSupportClient({ canUse: () => true, endpoint: 'https://x', accountRoot: { storage: { async getAccount() { return null; } } },
     fetchImpl, readPro: () => null, readProState: () => 'legacy' });
   assert.deepEqual(await noAccount.send({ message: '同期できません' }), { ok: false, kind: 'notConfigured' }, 'Account not connected stays its own case');
   assert.equal(requests, 0);
@@ -783,3 +783,12 @@ test('UI mail route stays: the panel footer links to mail, and failure messages 
   const app = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
   assert.match(app, /mailHref: mailLink\?\.getAttribute\('href'\)/, 'the same mailto as the section link');
 });
+
+ test('Standard default AI API denies even with saved Account and Pro credentials', async () => {
+  let reads = 0, sends = 0;
+  const client = createAiSupportClient({ endpoint:'https://sync.example', readPro: () => 'scp1.saved',
+    accountRoot:{storage:{async getAccount(){reads++;return {accountCredential:'sca1.saved'};}}},
+    fetchImpl:async()=>{sends++;throw new Error('must not send');}});
+  assert.deepEqual(await client.send({message:'同期を確認したいです'}), {ok:false,kind:'auth'});
+  assert.equal(reads,0);assert.equal(sends,0);
+ });

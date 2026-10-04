@@ -18,3 +18,9 @@ test('clean initial URL needs no history entry; startup only, not hashchange', (
     assert.equal((source.match(/normalizeInitialHome\(\)/g)||[]).length,1);
     assert(source.indexOf('normalizeInitialHome();')<source.indexOf('function renderRoute()'));
 });
+
+test('Cloud Sync deep link keeps the page accessible in both editions', () => {
+ for (const pathname of ['/apps/cruise-port/', '/apps/cruise-port/pro_9a3943176561/']) {
+  normalizeInitialHome({locationObject:{pathname,hash:'#sync-center',search:'?edition=pro'},historyObject:{replaceState(){assert.fail('must preserve safe overview route');}}});
+ }
+});

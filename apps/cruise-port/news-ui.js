@@ -7,7 +7,7 @@ export function stopNewsUpdates(doc = document) {
     renderCleanup.get(doc)?.();
     renderCleanup.delete(doc);
 }
-export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS, mode = NEWS_MODE, clock = () => Date.now(), now = clock(), category = '' } = {}) {
+export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS, mode = NEWS_MODE, clock = () => Date.now(), now = clock(), category = '', notice = '' } = {}) {
     const doc = documentObject;
     stopNewsUpdates(doc);
     const ticker = doc.getElementById('news-ticker');
@@ -41,6 +41,7 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
             ticker.hidden = false;
         }
         if (mode === 'on') content.append(node('p', '毎朝6:00更新（日本時間）', 'news-beta-note'));
+        if (notice) content.append(node('p', notice, 'news-beta-note'));
         if (mode === 'beta') content.append(node('p', 'Beta · 手動確認済みのニュース', 'news-beta-note'));
         const label = node('label', 'カテゴリ', 'news-filter');
         const select = node('select');
@@ -76,7 +77,7 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
         // No network: expire the already loaded list/ticker at the deadline, including on wake.
         const view = doc.defaultView;
         if (view?.setTimeout) {
-            const refresh = () => renderNews({ documentObject: doc, items, mode, clock, now: clock(), category: select.value });
+            const refresh = () => renderNews({ documentObject: doc, items, mode, clock, now: clock(), category: select.value, notice });
             const wake = () => { if (!doc.hidden) refresh(); };
             const deadlines = news.filter(item => item.category === 'sale' && Number.isSafeInteger(item.saleEndsAt)).map(item => item.saleEndsAt + 1);
             const next = Math.min(...deadlines);

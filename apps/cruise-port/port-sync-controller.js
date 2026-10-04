@@ -8,7 +8,8 @@
     accountRoot = global.SoundCruiseSyncAccount,
     syncRoot = global.SoundCruiseMultiAppSync,
     fetchImpl = global.fetch?.bind(global),
-    deviceLabel = () => 'Cruise Port'
+    deviceLabel = () => 'Cruise Port',
+    canSync = () => namespace.canSync?.() === true
   } = {}) {
     if (!config?.enabled || !accountRoot?.AccountClient || !accountRoot?.core ||
         !accountRoot?.storage || !syncRoot?.MultiAppSyncRuntime || !syncRoot?.dataStorage ||
@@ -17,6 +18,15 @@
     }
     const admissionMode = config.admissionMode || (config.environment === 'production' ? 'production' : 'qa');
     const store = syncRoot.dataStorage.createStore('port');
+    const blocked = () => Promise.resolve(Object.freeze({ ok: false, code: 'pro_required' }));
+    if (!canSync()) {
+      // Read local status without constructing/provisioning an active runtime.
+      return Object.freeze({ enabled: true, restricted: true, store, status,
+        ensure: blocked, sync: blocked, retryLegacyFailures: blocked,
+        listConflicts: async () => [], resolveConflict: blocked,
+        reconcileAssetReferences: blocked,
+        clearCloudState: async () => store.clearCloudState() });
+    }
     const client = new accountRoot.AccountClient({
       endpoint: config.endpoint, fetchImpl, storage: accountRoot.storage, core: accountRoot.core,
       admissionMode, qaScope: 'port'
@@ -27,6 +37,13 @@
       adapter, store, accountClient: client,
       accountCore: accountRoot.core, admissionMode, fetchImpl
     });
+    // The shared runtime remains unchanged; every exposed Port entry point
+    // rechecks the live gate, including lifecycle callbacks after auth reset.
+    for (const name of ['sync', 'initializeDataset', 'resolveConflict', 'retryLegacyFailures', 'bindLifecycle']) {
+      if (typeof runtime[name] !== 'function') continue;
+      const original = runtime[name].bind(runtime);
+      runtime[name] = (...args) => canSync() ? original(...args) : blocked();
+    }
     syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
     syncRoot.runtimes.port = runtime;
     let ensuring = null;
@@ -53,6 +70,7 @@
     });
 
     async function provision(account) {
+      if (!canSync()) return blocked();
       let pending = await store.readMeta('pendingProvision');
       if (!pending) {
         const material = accountRoot.core.createAppCredential();
@@ -77,10 +95,12 @@
     }
 
     async function doEnsure() {
+      if (!canSync()) return blocked();
       const account = await accountRoot.storage.getAccount();
       if (!accountRoot.core.validAccountCredential(account?.accountCredential)) {
         return Object.freeze({ ok: false, code: 'account_not_configured' });
       }
+      if (!canSync()) return blocked();
       let credential = await store.readMeta('credential');
       if (!accountRoot.core.validAppCredential(credential)) {
         await provision(account);
@@ -104,6 +124,7 @@
     }
 
     function ensure() {
+      if (!canSync()) return blocked();
       if (ensuring) return ensuring;
       ensuring = doEnsure().finally(() => { ensuring = null; });
       return ensuring;
@@ -145,7 +166,9 @@
 
     return Object.freeze({
       enabled: true, ensure, clearCloudState, status,
-      reconcileAssetReferences: async () => adapter.reconcileRemoteReferences?.(await store.listShadow?.() || []) === true,
+      reconcileAssetReferences: async () => canSync()
+        ? adapter.reconcileRemoteReferences?.(await store.listShadow?.() || []) === true
+        : blocked(),
       sync: (reason = 'manual') => runtime.sync(reason),
       retryLegacyFailures: () => runtime.retryLegacyFailures(),
       listConflicts: () => runtime.listConflictPresentations(),

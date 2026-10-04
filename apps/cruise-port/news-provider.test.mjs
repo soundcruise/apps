@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {loadNews,loadConfiguredNews} from './news-provider.js';
+import {loadNews,loadConfiguredNews,loadNewsPresentation,newsRequestUrl} from './news-provider.js';
 import {CRUISE_APPS_NEWS_ITEM as own} from './news-articles.js';
 import {NEWS_BETA_ITEMS} from './data/news-beta.js';
 test('default provider preserves JP2A fixture and never invokes transport',async()=>{
@@ -59,4 +59,15 @@ test('production configured default is real API, with no silent fixture fallback
  assert.equal(result.mode,'on');assert.deepEqual(result.items,[own]);assert.equal(urls.length,1);
  assert.match(urls[0],/^https:\/\/sound-cruise-news\.cruise-port-requests\.workers\.dev\/v1\/news\?/);
  await assert.rejects(loadConfiguredNews({fetcher:async()=>{throw Error('production unavailable');}}),/production unavailable/);
+});
+
+test('loopback preview uses the fixed local public GET proxy; production stays canonical',()=>{
+ for(const hostname of ['127.0.0.1','localhost','[::1]'])assert.equal(newsRequestUrl('limit=50',{hostname}),'/__cruise_preview/news?limit=50');
+ assert.match(newsRequestUrl('limit=50',{hostname:'soundcruise.jp'}),/^https:\/\/sound-cruise-news\./);
+ assert.match(newsRequestUrl('limit=50',{hostname:'evil.example'}),/^https:/);
+});
+test('outage retains only first-party NEWS and reports degradation, never external cache/fixture',async()=>{
+ const result=await loadNewsPresentation({fetcher:async()=>{throw Error('offline');}});
+ assert.deepEqual(result.items,[own]);assert.match(result.notice,/外部ニュース/);
+ await assert.rejects(loadNewsPresentation({fetcher:async()=>Response.json({disabled:true},{status:503})}),{name:'NewsDisabledError'});
 });

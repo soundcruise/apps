@@ -16,15 +16,15 @@ test('acquisition CTA is centralized and closes the modal before navigation', ()
     }
 });
 test('acquisition uses the established Forte membership and post links without presenting Pro as a standalone product', () => {
-    const source = read('pro-prompt.js');
+    const source = read('pro-access-content.js');
     const chord = read('../chord-cruise/pro-access.html');
-    const links = source.match(/https:\/\/www.youtube.com\/[^" ]+/g);
+    const links = source.match(/https:\/\/www.youtube.com\/[^"\'\s]+/g);
     assert.equal(links.length, 2);
     links.forEach(link => assert.ok(chord.includes(link)));
     assert.match(source, /フォルテ」の特典/);
-    assert.match(source, /1\. フォルテに登録/);
-    assert.match(source, /2\. メンバー限定投稿を確認/);
-    assert.match(source, /3\. Pro版を利用/);
+    assert.match(source, /メンバーシップ「フォルテ」への登録/);
+    assert.match(source, /メンバー限定投稿を確認/);
+    assert.match(source, /Cruise Port Proを開く/);
     assert.match(source, /すでに利用資格と案内情報をお持ち/);
     assert.doesNotMatch(source, /URLとパスワード|Pro版を購入|Pro版を買う|Pro版の価格|Pro単体販売/);
     const releaseChecks = read('RELEASE-CHECKS.md');

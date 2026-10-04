@@ -1,8 +1,9 @@
+import { bindSyncProLock } from './sync-pro-lock.js?v=1.18.0';
 import { getPracticeCrossDayNotice } from './practice-cross-day-display.js?v=1.2.1';
-import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=0.60.0';
-import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=0.27.0';
-import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';
-import { requestToolPro } from './tool-capabilities.js?v=0.27.0';
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.18.0';
+import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.18.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.0';
+import { requestToolPro } from './tool-capabilities.js?v=1.18.0';
 import {
     LIMITS,
     createPracticeMenu,
@@ -26,12 +27,12 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=1.1.3';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.1.3';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.18.0';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=0.65.0';
-import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=0.70.0';
-import { createAiSupportPanel } from './ai-support-ui.js?v=0.70.0';
+import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.18.0';
+import { createAiSupportPanel } from './ai-support-ui.js?v=1.18.0';
 import { createPortSyncStatus } from './port-sync-status.js?v=0.59.3';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.1.3';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.18.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
@@ -102,12 +103,12 @@ import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen
-} from './practice-menu-attachment-store.js?v=0.28.0';
+} from './practice-menu-attachment-store.js?v=1.18.0';
 import {
     appendPendingPracticeAttachments,
     savePendingPracticeAttachments,
     validatePendingPracticeAttachment
-} from './practice-menu-pending-attachments.js?v=0.28.0';
+} from './practice-menu-pending-attachments.js?v=1.18.0';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -154,7 +155,7 @@ import {
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.1.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=0.27.0';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.18.0';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -172,22 +173,22 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=0.27.0';
+} from './my-apps-icon-workflow.js?v=1.18.0';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.4';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=0.27.0';
+import { initMetronome } from './metronome-app.js?v=1.18.0';
 import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.17.0';
+} from './app-version.js?v=1.18.0';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.13.0';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.13.0';
-import { initTuner } from './tuner-app.js?v=1.12.3';
+import { initTuner } from './tuner-app.js?v=1.18.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -218,8 +219,8 @@ import {
     renameGearCategory,
     saveGearCategories
 } from './gear-category-store.js?v=0.59.3';
-import { createGearPhotoStore } from './gear-photo-store.js?v=0.27.0';
-import { PortAssetSync } from './port-asset-sync.js?v=0.59.3';
+import { createGearPhotoStore } from './gear-photo-store.js?v=1.18.0';
+import { PortAssetSync } from './port-asset-sync.js?v=1.18.0';
 import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.4.2';
 import {
     ALL_PRACTICE_MENUS_SET_ID,
@@ -244,7 +245,7 @@ import {
     commitGearItemDeletion,
     commitGearPhotoChange,
     commitGearPhotoRemoval
-} from './gear-photo-workflow.js?v=0.27.0';
+} from './gear-photo-workflow.js?v=1.18.0';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
@@ -252,7 +253,7 @@ import {
 } from './gear-list-navigation.js?v=1.0.0';
 
 import { initializeProAuthSettings } from './pro-auth-settings.js?v=0.27.0';
-import { applyProLinks, createProAccessView, PRO_INFO_ROUTE } from './pro-prompt.js?v=0.27.0';
+import { applyProLinks, createProAccessView, PRO_INFO_ROUTE } from './pro-prompt.js?v=1.18.0';
 
 const syncCenterConfig = readSyncCenterConfig();
 const initialSyncCenterRequested = location.hash === SYNC_CENTER_ROUTE;
@@ -281,16 +282,22 @@ applyEditionDisplay();
 initializeProAuthSettings();
 applyProLinks();
 applyHomeCruiseLinks();
-const syncCenterController = createSyncCenterController({ config: syncCenterConfig });
+const syncCenterController = createSyncCenterController({
+    config: syncCenterConfig,
+    // Standard keeps device identity read-only without constructing an active sync runtime.
+    readPortCredential: () => globalThis.SoundCruiseMultiAppSync?.dataStorage?.createStore('port')?.readMeta('credential')
+});
 // AI support: Pro edition only (Standard never shows it); the Worker gate (off / beta / pro) decides.
 const aiSupportConfig = readAiSupportConfig({ edition: document.documentElement.dataset.edition, syncConfig: syncCenterConfig });
 let aiSupportPanel = null;
 if (globalThis.SoundCruisePortSync) {
     globalThis.SoundCruisePortSync.validateLocalStorage = validatePortLocalCollections;
+    globalThis.SoundCruisePortSync.canSync = () => getCapabilities().cloudSyncOperations;
 }
 const portSyncController = globalThis.SoundCruisePortSync?.createPortSyncController?.({ config: syncCenterConfig });
-const portConflictResolutionController = globalThis.SoundCruiseMultiAppSync
-    ?.installConflictResolutionUi?.(portSyncController?.runtime, document);
+const portConflictResolutionController = portSyncController?.runtime
+    ? globalThis.SoundCruiseMultiAppSync?.installConflictResolutionUi?.(portSyncController.runtime, document)
+    : null;
 const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController });
 bindHomeCruiseLaunch(syncCenterOrchestrator);
 const PORT_SYNC_HELP_SUMMARY = 'Sound Cruise SyncアカウントでCruise PortとCruiseアプリの保存データを同期します。通常はインターネット接続時に自動で同期されます。';
@@ -2121,13 +2128,14 @@ async function handleMyAppsDelete() {
 // Dynamic boundary: missing/broken NEWS modules cannot abort the Port bootstrap.
 let newsLoadRevision = 0;
 async function renderNewsSafely() {
+    document.getElementById('news-entry').hidden = false;
     const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.17.0');
+        const news = await import('./news-ui.js?v=1.18.0');
         if (revision !== newsLoadRevision) return;
         news.stopNewsUpdates();
-        const { loadConfiguredNews } = await import('./news-provider.js?v=1.17.0');
-        const result = await loadConfiguredNews();
+        const { loadNewsPresentation } = await import('./news-provider.js?v=1.18.0');
+        const result = await loadNewsPresentation();
         if (revision === newsLoadRevision) news.renderNews({ ...result, category: document.getElementById('news-category')?.value ?? '' });
     } catch (error) {
         if (revision !== newsLoadRevision) return;
@@ -4298,7 +4306,7 @@ async function renderSyncCenterView() {
     const sequence = ++syncCenterRenderSequence;
     showView(elements.syncCenterView);
     elements.syncCenterTitle.focus({ preventScroll: true });
-    if (!syncCenterResumeChecked && syncCenterOrchestrator.enabled) {
+    if (getCapabilities().cloudSyncOperations && !syncCenterResumeChecked && syncCenterOrchestrator.enabled) {
         syncCenterResumeChecked = true;
         try { await syncCenterOrchestrator.resume(); } catch (_) { /* no pending committed Account */ }
     }
@@ -6387,6 +6395,7 @@ if (syncCenterController.enabled) {
             });
         }
     }
+    bindSyncProLock(elements.syncCenterView);
     syncCenterActions = bindSyncCenterActions(elements.syncCenterView, {
         orchestrator: syncCenterOrchestrator,
         edition: document.documentElement.dataset.edition,

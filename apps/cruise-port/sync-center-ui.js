@@ -1,3 +1,4 @@
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.0';
 import { CRUISE_APP_ICONS, resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS, appSyncStatusPresentation } from './sync-center-controller.js?v=1.1.3';
 import { SYNC_DETAIL_COPY, appHasSyncDetail, describeAppSyncDetail } from './sync-center-device-detail.js?v=0.66.0';
@@ -708,7 +709,8 @@ function bindAdvancedEnvironmentManagement(root) {
 
 export function bindSyncCenterActions(root, {
     orchestrator = null, refresh = async () => {}, tokenProvider = async () => null,
-    edition = 'standard', onPortConflictOpen = async () => {}
+    edition = 'standard', onPortConflictOpen = async () => {},
+    canSync = () => getCapabilities().cloudSyncOperations
 } = {}) {
     bindSectionHelp(root);
     bindAdvancedEnvironmentManagement(root);
@@ -935,7 +937,7 @@ export function bindSyncCenterActions(root, {
                 const prepared = await orchestrator.prepareAll();
                 if (!prepared.ok) throw new Error('membership_partial');
                 setPhase('complete');
-                if (summary) summary.textContent = '続いて、各アプリの初回同期を完了してください。';
+                if (summary) summary.textContent = canSync() ? '続いて、各アプリの初回同期を完了してください。' : 'アカウントを作成しました。データ同期はPro版で利用できます。';
                 confirm.textContent = '閉じる';
                 try { await refresh(); } catch (_) { /* Account is already authoritative */ }
                 return;
@@ -952,12 +954,14 @@ export function bindSyncCenterActions(root, {
             setPhase('starting');
             if (summary) summary.textContent = 'Sound Cruise Syncアカウントを作成しています…';
             await orchestrator.completeAccountSetup({ recoverySaved: true, turnstileToken });
-            setPhase('preparing-memberships');
-            if (summary) summary.textContent = '4つのアプリの同期準備をしています…';
-            const prepared = await orchestrator.prepareAll();
-            if (!prepared.ok) throw new Error('membership_partial');
+            if (canSync()) {
+                setPhase('preparing-memberships');
+                if (summary) summary.textContent = '4つのアプリの同期準備をしています…';
+                const prepared = await orchestrator.prepareAll();
+                if (!prepared.ok) throw new Error('membership_partial');
+            }
             setPhase('complete');
-            if (summary) summary.textContent = '続いて、各アプリの初回同期を完了してください。';
+            if (summary) summary.textContent = canSync() ? '続いて、各アプリの初回同期を完了してください。' : 'アカウントを作成しました。データ同期はPro版で利用できます。';
             confirm.textContent = '閉じる';
             try { await refresh(); } catch (_) { /* Account is already authoritative */ }
         } catch (error) {

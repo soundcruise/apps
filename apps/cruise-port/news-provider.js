@@ -3,6 +3,12 @@ import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 import { NEWS_CATEGORIES, validSaleDeadline } from './news-data.js?v=1.17.0';
 import { NEWS_PROVIDER, NEWS_API_BASE } from './news-config.js?v=1.11.1';
 export class NewsDisabledError extends Error { constructor(){super('news_disabled');this.name='NewsDisabledError';} }
+// Only the loopback preview server supplies this read-only proxy. Production
+// retains the canonical API URL and its existing CORS/publication controls.
+export function newsRequestUrl(query, locationObject = globalThis.location) {
+ return ['127.0.0.1','localhost','[::1]'].includes(locationObject?.hostname)
+  ? `/__cruise_preview/news?${query}` : `${NEWS_API_BASE}/v1/news?${query}`;
+}
 const safeText=(value,max)=>typeof value==='string'&&value.trim().length>0&&value.length<=max&&!/[<>\u0000-\u001f]/.test(value);
 function validItem(item) {
     if(!item||item.publishable!==true||!safeText(item.id,128)||!safeText(item.label,140)||!safeText(item.sourceName,100)||!Object.hasOwn(NEWS_CATEGORIES,item.category)||!Number.isFinite(Date.parse(item.publishedAt)))return false;
@@ -37,7 +43,7 @@ export async function loadConfiguredNews({provider=NEWS_PROVIDER,baseUrl=NEWS_AP
   let payload;
   const records=await loadNews({provider:'api',transport:async()=>{
    const query=new URLSearchParams({limit:'50',...(cursor?{cursor}:{offset:String(offset)})});
-   const response=await fetcher(`${baseUrl}/v1/news?${query}`,{method:'GET',credentials:'omit',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(8000)});
+   const response=await fetcher(newsRequestUrl(query),{method:'GET',credentials:'omit',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(8000)});
    if(!response.ok){try{payload=await response.json();}catch{}if(payload?.disabled)throw new NewsDisabledError();throw new Error('News API unavailable');}
    payload=await response.json();return payload;
   }});
@@ -52,4 +58,13 @@ export async function loadConfiguredNews({provider=NEWS_PROVIDER,baseUrl=NEWS_AP
   offset=payload.nextOffset;
  }
  throw new Error('News pagination limit exceeded');
+}
+export async function loadNewsPresentation(options) {
+ try { return await loadConfiguredNews(options); }
+ catch (error) {
+  if (error?.name === 'NewsDisabledError') throw error;
+  // Never resurrect external fixtures/cache on an outage. First-party content
+  // is local, independently published and remains available.
+  return {items:[CRUISE_APPS_NEWS_ITEM],mode:'on',notice:'外部ニュースを読み込めませんでした。時間をおいてページを更新してください。'};
+ }
 }

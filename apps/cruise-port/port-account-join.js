@@ -1,5 +1,8 @@
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.0';
+
 export function createPortAccountJoin({
     client,
+    canSync = () => getCapabilities().cloudSyncOperations,
     accountRoot = globalThis.SoundCruiseSyncAccount,
     admissionMode = 'qa',
     deviceLabel = () => 'Cruise Port（追加）'
@@ -29,6 +32,7 @@ export function createPortAccountJoin({
     }
 
     async function resumePending() {
+        if (!canSync()) throw new Error('pro_required');
         const pending = await storage.getPendingConsume();
         if (!pending || pending.transport !== 'port_join') return Object.freeze({ status: 'none' });
         try {
@@ -57,6 +61,7 @@ export function createPortAccountJoin({
 
     return Object.freeze({
         async issue(accountCredential) {
+            if (!canSync()) throw new Error('pro_required');
             const material = core.createJoinMaterial();
             const result = await client.request('/v2/accounts/port-join-invitations', {
                 method: 'POST', accountCredential,
@@ -79,6 +84,7 @@ export function createPortAccountJoin({
             });
         },
         async consume(joinCode) {
+            if (!canSync()) throw new Error('pro_required');
             const saved = await storage.getAccount();
             if (saved?.accountCredential) throw new Error('account_already_configured');
             const existing = await storage.getPendingConsume();

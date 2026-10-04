@@ -1,3 +1,4 @@
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.0';
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';
@@ -50,7 +51,9 @@ function practiceAssetKind(record) {
 
 export class PortAssetSync {
     constructor({ controller, gearPhotoStore, myAppsIconStore, practiceAttachmentStore, storage = globalThis.localStorage,
-        fetchImpl = globalThis.fetch?.bind(globalThis), cryptoImpl = globalThis.crypto } = {}) {
+        fetchImpl = globalThis.fetch?.bind(globalThis), cryptoImpl = globalThis.crypto,
+        canSync = () => getCapabilities().cloudSyncOperations } = {}) {
+        this.canSync = canSync;
         this.controller = controller;
         this.gearPhotoStore = gearPhotoStore;
         this.myAppsIconStore = myAppsIconStore;
@@ -131,7 +134,7 @@ export class PortAssetSync {
     }
 
     bind() {
-        if (this.bound || !globalThis.addEventListener) return this;
+        if (!this.canSync() || this.bound || !globalThis.addEventListener) return this;
         this.bound = true;
         globalThis.addEventListener('cruise-port-local-data-changed', () => {
             this.markLocalRemovals();
@@ -147,6 +150,7 @@ export class PortAssetSync {
     }
 
     schedule(reason) {
+        if (!this.canSync()) return Promise.resolve({ ok: false, code: 'pro_required' });
         if (this.running) { this.pendingAgain = true; return this.running; }
         this.emitStatus('syncing');
         this.running = Promise.resolve().then(() => this.reconcile(reason)).then((result) => {
@@ -218,6 +222,7 @@ export class PortAssetSync {
     }
 
     async headers(contentType = null) {
+        if (!this.canSync()) throw new Error('pro_required');
         const credential = await this.controller?.runtime?.credential?.();
         const qaCredential = await this.controller?.runtime?.qaCredential?.();
         if (typeof credential !== 'string') throw new Error('asset_auth_required');
@@ -231,6 +236,7 @@ export class PortAssetSync {
     }
 
     async json(path, body) {
+        if (!this.canSync()) throw new Error('pro_required');
         const response = await this.fetchImpl(`${this.controller.runtime.endpoint}${path}`, {
             method: 'POST', headers: await this.headers('application/json'),
             body: JSON.stringify(body), credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer'
@@ -249,6 +255,7 @@ export class PortAssetSync {
     }
 
     async upload(record, kind, pending = null, owner = null) {
+        if (!this.canSync()) throw new Error('pro_required');
         if (!record?.blob) throw new Error('asset_local_missing');
         const hash = await hashBlob(record.blob, this.cryptoImpl);
         const dimensions = record.width && record.height
@@ -285,6 +292,7 @@ export class PortAssetSync {
     }
 
     async download(asset) {
+        if (!this.canSync()) throw new Error('pro_required');
         const response = await this.fetchImpl(
             `${this.controller.runtime.endpoint}/v1/sync/assets/${encodeURIComponent(asset.assetId)}`,
             { method: 'GET', headers: await this.headers(), credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' }
@@ -416,6 +424,7 @@ export class PortAssetSync {
         if (!entry.published?.asset || entry.published.availability !== 'available') {
             return { ok: false, record: null, reason: 'not-available' };
         }
+        if (!this.canSync()) return { ok: false, code: 'pro_required' };
         const blob = await this.download(entry.published.asset);
         const saved = await this.practiceAttachmentStore.cacheAttachment(blob, entry);
         if (!saved.ok) return { ok: false, record: null, reason: saved.reason || 'write-failed' };
@@ -466,6 +475,7 @@ export class PortAssetSync {
     }
 
     async reconcile() {
+        if (!this.canSync()) throw new Error('pro_required');
         if (!this.controller?.enabled || globalThis.navigator?.onLine === false) return { ok: false, offline: true };
         await this.controller.reconcileAssetReferences?.();
         const metadata = this.readMetadata();

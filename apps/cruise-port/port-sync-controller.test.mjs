@@ -5,7 +5,7 @@ import vm from 'node:vm';
 
 const source = fs.readFileSync(new URL('./port-sync-controller.js', import.meta.url), 'utf8');
 
-function harness({ failFirst = false } = {}) {
+function harness({ failFirst = false, canSync = () => true, useDefault = false } = {}) {
   const meta = new Map();
   const outbox = [];
   const conflicts = [];
@@ -69,6 +69,7 @@ function harness({ failFirst = false } = {}) {
   context.globalThis = context;
   vm.runInNewContext(source, context);
   const controller = context.SoundCruisePortSync.createPortSyncController({
+    ...(useDefault ? {} : {canSync}),
     config: { enabled: true, environment: 'production', endpoint: 'https://sync.example' }
   });
   return { controller, calls, meta, events, adapter, outbox, conflicts, shadow };
@@ -151,4 +152,31 @@ test('Port controller primes and exposes remote asset-reference reconciliation f
   assert.equal(adapter.primed.length, 1);
   assert.equal(await controller.reconcileAssetReferences(), true);
   assert.equal(adapter.reconciled[0].recordId, 'gear-a');
+});
+
+test('Standard controller is read only even with saved Account and app state', async () => {
+  const {controller,calls,meta} = harness({canSync:()=>false});
+  meta.set('membership',{state:'active'});meta.set('migrationState','complete');
+  assert.equal(controller.restricted,true);assert.equal(controller.runtime,undefined);
+  for (const method of ['ensure','sync','retryLegacyFailures','resolveConflict','reconcileAssetReferences']) {
+    assert.equal((await controller[method]()).code,'pro_required');
+  }
+  assert.equal((await controller.status()).connected,true);assert.deepEqual(calls,[]);
+  assert.equal(meta.get('migrationState'),'complete');
+});
+test('Port runtime entry points recheck auth after reset', async () => {
+  let allowed=true;const {controller,calls}=harness({canSync:()=>allowed});
+  await controller.ensure();const before=calls.length;allowed=false;
+  assert.equal((await controller.ensure()).code,'pro_required');
+  assert.equal((await controller.runtime.sync()).code,'pro_required');
+  assert.equal((await controller.resolveConflict('x','local')).code,'pro_required');
+  assert.equal((await controller.runtime.initializeDataset()).code,'pro_required');
+  assert.equal((await controller.reconcileAssetReferences()).code,'pro_required');
+  assert.equal(calls.length,before);
+});
+
+test('controller default fails closed before the Port capability registration', async () => {
+ const {controller,calls}=harness({useDefault:true});
+ assert.equal(controller.runtime,undefined);assert.equal((await controller.ensure()).code,'pro_required');
+ assert.equal((await controller.reconcileAssetReferences()).code,'pro_required');assert.equal(calls.length,0);
 });

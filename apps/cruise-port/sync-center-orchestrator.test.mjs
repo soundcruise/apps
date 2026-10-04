@@ -4,7 +4,7 @@ import { test } from 'node:test';
 
 import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js';
 
-function fixture({ portSync = null } = {}) {
+function fixture({ portSync = null, canSync = () => true } = {}) {
     const calls = [];
     let savedAccount = { accountCredential: 'sca1.account' };
     let pendingConsume = null;
@@ -108,6 +108,7 @@ function fixture({ portSync = null } = {}) {
     };
     const navigations = [];
     const orchestrator = createSyncCenterOrchestrator({
+        canSync,
         config: { enabled: true, endpoint: 'https://sync.example' },
         accountRoot,
         portSync,
@@ -348,4 +349,22 @@ test('Port addition issues separately and receiver stores no plaintext Join Code
 test('Port orchestrator never reads app localStorage or IndexedDB', () => {
     const source = readFileSync(new URL('./sync-center-orchestrator.js', import.meta.url), 'utf8');
     assert.equal(/\blocalStorage\b|\bsessionStorage\b|\bindexedDB\b/.test(source), false);
+});
+
+test('Standard denies all sync setup, handoff and cloud app deletion methods',async()=>{
+ const {orchestrator,calls,navigations}=fixture({canSync:()=>false});
+ for(const method of ['prepareAll','launch','addEnvironment','issuePortAddition','connectExistingAccount','launchSameContainer','cancelAppDeleteAndLaunch']) {
+  await assert.rejects(orchestrator[method]('pitch'),/pro_required/);
+ }
+ await assert.rejects(orchestrator.issueDelete('app','pitch'),/pro_required/);
+ await assert.rejects(orchestrator.commitDelete('app','pitch'),/pro_required/);
+ assert.deepEqual(calls,[]);assert.deepEqual(navigations,[]);
+});
+test('Standard keeps Account creation and readonly summary without automatic data sync',async()=>{
+ let ensures=0;const {orchestrator,calls}=fixture({canSync:()=>false,portSync:{ensure:async()=>{ensures++;}}});
+ orchestrator.createAccountCandidate();const created=await orchestrator.completeAccountSetup({recoverySaved:true,turnstileToken:'local-test'});
+ assert.equal(created.portSyncState.locked,true);assert.equal(ensures,0);
+ assert(calls.some(c=>c[0]==='start'));
+ const before=calls.length;await orchestrator.resume();
+ assert(calls.slice(before).every(c=>c[0]==='summary'));
 });

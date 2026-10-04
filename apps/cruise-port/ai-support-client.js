@@ -1,3 +1,5 @@
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.0';
+
 // Cruise Port side of AI support (Cloud Sync UX 2.0 AI1-C). No DOM here.
 //
 // The Port sends only { message, history } to our Worker (POST /v2/ai-support/chat). The Worker
@@ -177,6 +179,7 @@ export function errorKind(status, code) {
 
 export function createAiSupportClient({
   endpoint,
+  canUse = () => getCapabilities().cloudSyncOperations,
   admissionMode = 'qa',
   accountRoot = globalThis.SoundCruiseSyncAccount,
   fetchImpl = globalThis.fetch?.bind(globalThis),
@@ -186,6 +189,7 @@ export function createAiSupportClient({
   return Object.freeze({
     // Returns { ok: true, reply } or { ok: false, kind }. Never throws for expected failures.
     async send({ message, history = [], signal } = {}) {
+      if (!canUse()) return { ok: false, kind: 'auth' };
       const text = typeof message === 'string' ? message.trim() : '';
       if (!text) return { ok: false, kind: 'failed' };
       if (charCount(text) > AI_SUPPORT_LIMITS.maxUserChars) return { ok: false, kind: 'tooLong' };

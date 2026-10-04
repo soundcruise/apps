@@ -49,7 +49,7 @@ function fixture({ admissionMode = 'qa', consume = async () => ({
         }
     };
     return {
-        join: createPortAccountJoin({ client, accountRoot, admissionMode }),
+        join: createPortAccountJoin({ client, accountRoot, admissionMode, canSync: () => true }),
         storage, writes,
         values: () => ({ account, pending, qa })
     };
@@ -147,4 +147,11 @@ test('production Port addition creates no QA material', async () => {
     await current.join.consume('SCJ1-AAAA-BBBB-CCCC-DDDD-EEEE');
     assert.equal(current.values().qa, null);
     assert.equal(current.values().account.accountId, 'account-1');
+});
+
+test('Port addition default API is blocked in Standard before request or storage', async () => {
+ let reads=0,sends=0;
+ const join=createPortAccountJoin({client:{async request(){sends++;}},accountRoot:{core:{},storage:{async getAccount(){reads++;},async getPendingConsume(){reads++;}}}});
+ await assert.rejects(join.issue('saved'),/pro_required/);await assert.rejects(join.consume('saved'),/pro_required/);await assert.rejects(join.resume(),/pro_required/);
+ assert.equal(reads,0);assert.equal(sends,0);
 });

@@ -98,7 +98,7 @@ test('attachment upload preserves a concurrent deletion, release queue and remot
             binding: { localId: 'cached-e1' }, pending: null } },
         releaseQueue: [], discardQueue: [], referencePending: false }) });
     const gate = gatedAssetApi();
-    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: gate.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local, fetchImpl: gate.fetch,
         practiceAttachmentStore: { getAllAttachments: async () => ({ ok: true, records: [localRecord] }),
             deleteAttachment: async () => ({ ok: true }) } });
     sync.schedule = () => {};
@@ -135,7 +135,7 @@ for (const [kind, key, storeName, finalField, sourceField, userField] of [
             id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512 } }) };
         const iconStore = { getIcon: async (id) => ({ ok: true, record: {
             id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512 } }) };
-        const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: gate.fetch,
+        const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local, fetchImpl: gate.fetch,
             [storeName]: kind === 'gear' ? photoStore : iconStore });
         const pass = sync.reconcile();
         await gate.entered;
@@ -161,7 +161,7 @@ test('deleting the upload target does not resurrect its asset metadata', async (
         items: [{ id: 'target', name: 'Target', photoId: 'local-photo', photoSourceId: null }] }),
         'cruisePort.myApps': JSON.stringify({ version: 7, items: [] }) });
     const gate = gatedAssetApi();
-    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: gate.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local, fetchImpl: gate.fetch,
         gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
             id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512 } }) } });
     const pass = sync.reconcile();
@@ -195,7 +195,7 @@ test('reference publish preserves metadata written during controller sync', asyn
         }
         return { ok: true };
     };
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl: api.fetch,
         gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
             id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512 } }) } });
     assert.equal((await sync.reconcile()).ok, true);
@@ -213,7 +213,7 @@ test('Gear source/final upload publishes logical IDs, then another Port download
         'cruisePort.myApps': JSON.stringify({ version: 6, items: [] })
     });
     const api = assetApi();
-    const aSync = new PortAssetSync({ controller: controller(), storage: a, fetchImpl: api.fetch,
+    const aSync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: a, fetchImpl: api.fetch,
         gearPhotoStore: {
             getPhoto: async (id) => ({ ok: true, record: id.includes('source')
                 ? { id, blob: sourceBlob, mimeType: 'image/webp', width: 900, height: 700 }
@@ -236,7 +236,7 @@ test('Gear source/final upload publishes logical IDs, then another Port download
         }, myApps: {}, releaseQueue: [] })
     });
     let cached = 0;
-    const bSync = new PortAssetSync({ controller: controller(), storage: b, fetchImpl: api.fetch,
+    const bSync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: b, fetchImpl: api.fetch,
         gearPhotoStore: { cachePhoto: async () => ({ ok: true, record: { id: `local-b-${++cached}` } }) },
         myAppsIconStore: {} });
     const hydrated = await bSync.reconcile();
@@ -274,7 +274,7 @@ test('cold-start retry uploads an existing Gear photo after Port sync becomes re
     syncController.runtime.credential = async () => ready
         ? `scd1.123e4567-e89b-42d3-a456-426614174000.${'A'.repeat(43)}`
         : null;
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl: api.fetch,
         gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
             id, blob: id === 'local-final' ? finalBlob : sourceBlob, mimeType: 'image/webp',
             width: id === 'local-final' ? 512 : 900, height: id === 'local-final' ? 512 : 700
@@ -312,7 +312,7 @@ test('retries a logical asset reference after upload completed before dataset mi
             return attempts === 1 ? { ok: false, code: 'migration_required' } : { ok: true };
         }
     };
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl: api.fetch,
         gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
             id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512
         } }) }, myAppsIconStore: {} });
@@ -356,7 +356,7 @@ test('cold start republishes a missing current-version Gear reference without an
         local.setItem('cruisePort.syncAssetMetadata', JSON.stringify(value));
         return true;
     };
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl: api.fetch,
         gearPhotoStore: { getPhoto: async () => ({ ok: true, record: { id: 'local-final', blob: blob() } }) },
         myAppsIconStore: {}, practiceAttachmentStore: { getAllAttachments: async () => ({ ok: true, records: [] }) } });
 
@@ -403,7 +403,7 @@ test('cold start rebinds committed pending Gear assets without PUT or new asset 
         return Response.json({ ok: true, phase: 'available', asset: metadata(body, 'available') });
     };
     const syncController = controller();
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl,
         gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
             id, blob: id === 'local-final' ? finalBlob : sourceBlob, mimeType: 'image/webp',
             width: id === 'local-final' ? 512 : 900, height: id === 'local-final' ? 512 : 700
@@ -453,7 +453,7 @@ test('completed Gear rebind survives a Practice owner conflict and retries only 
         return reason === 'attachment-owner' ? { ok: false, code: 'conflict_pending' } : { ok: true };
     };
     const attachmentBlob = new Blob(['owner pending'], { type: 'text/plain' });
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl,
         gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
             id, blob: finalBlob, mimeType: 'image/webp', width: 512, height: 512
         } }) }, myAppsIconStore: {}, practiceAttachmentStore: {
@@ -482,7 +482,7 @@ test('custom My Apps source/final upload is isolated and deletion queues delayed
             iconSourceId: 'icon-source', iconCrop: { x: 0, y: 0, size: 1 }, iconPresetKey: null }] })
     });
     const api = assetApi();
-    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local, fetchImpl: api.fetch,
         gearPhotoStore: {}, myAppsIconStore: { getIcon: async (id) => ({ ok: true, record: {
             id, blob: id === 'icon-final' ? finalBlob : sourceBlob, mimeType: 'image/webp',
             width: id === 'icon-final' ? 256 : 800, height: id === 'icon-final' ? 256 : 600
@@ -511,7 +511,7 @@ test('custom My Apps icon hydrates on another Port with environment-local cache 
         }] })
     });
     const api = assetApi();
-    const aSync = new PortAssetSync({ controller: controller(), storage: source, fetchImpl: api.fetch,
+    const aSync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: source, fetchImpl: api.fetch,
         gearPhotoStore: {}, myAppsIconStore: { getIcon: async (id) => ({ ok: true, record: {
             id, blob: id === 'a-final' ? finalBlob : sourceBlob, mimeType: 'image/webp',
             width: id === 'a-final' ? 256 : 900, height: id === 'a-final' ? 256 : 700
@@ -529,7 +529,7 @@ test('custom My Apps icon hydrates on another Port with environment-local cache 
         })
     });
     let cached = 0;
-    const bSync = new PortAssetSync({ controller: controller(), storage: target, fetchImpl: api.fetch,
+    const bSync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: target, fetchImpl: api.fetch,
         gearPhotoStore: {}, myAppsIconStore: {
             cacheIcon: async () => ({ ok: true, record: { id: `b-icon-${++cached}` } })
         }, practiceAttachmentStore: { getAllAttachments: async () => ({ ok: true, records: [] }) } });
@@ -556,7 +556,7 @@ test('offline local image stays pending locally without any asset request', asyn
             'cruisePort.myApps': JSON.stringify({ version: 6, items: [] })
         });
         let requested = false;
-        const sync = new PortAssetSync({ controller: controller(), storage: local,
+        const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local,
             fetchImpl: async () => { requested = true; throw new Error('unexpected'); },
             gearPhotoStore: {}, myAppsIconStore: {} });
         assert.deepEqual(await sync.reconcile(), { ok: false, offline: true });
@@ -568,7 +568,7 @@ test('offline local image stays pending locally without any asset request', asyn
 });
 
 test('a failed asset pass does not hot-loop a queued passive retry', async () => {
-    const sync = new PortAssetSync({ controller: controller(), storage: storage(),
+    const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: storage(),
         gearPhotoStore: {}, myAppsIconStore: {} });
     let attempts = 0;
     let release;
@@ -602,7 +602,7 @@ test('old published assets are not unreferenced until the structured reference s
         } }, myApps: {}, releaseQueue: [] })
     });
     const api = assetApi();
-    const sync = new PortAssetSync({ controller: controller({ syncResult: { ok: false, code: 'conflict' } }),
+    const sync = new PortAssetSync({ canSync: () => true, controller: controller({ syncResult: { ok: false, code: 'conflict' } }),
         storage: local, fetchImpl: api.fetch, gearPhotoStore: { getPhoto: async () => ({ ok: true, record: {
             id: 'new-local', blob: finalBlob, mimeType: 'image/webp', width: 512, height: 512
         } }) }, myAppsIconStore: {} });
@@ -633,7 +633,7 @@ test('missing IndexedDB cache is re-downloaded from the same logical asset', asy
             binding: { final: { assetId: available.assetId, hash: available.hash, localId: 'evicted-local' }, source: null }, pending: null
         } }, myApps: {}, releaseQueue: [] })
     });
-    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local, fetchImpl: api.fetch,
         gearPhotoStore: {
             getPhoto: async () => ({ ok: true, record: null }),
             cachePhoto: async () => ({ ok: true, record: { id: 'restored-local' } })
@@ -663,7 +663,7 @@ test('asset hydration merges only photo fields into a concurrent Gear edit and c
     });
     for (const remove of [false, true]) {
         const local = initial();
-        const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: api.fetch,
+        const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local, fetchImpl: api.fetch,
             gearPhotoStore: { cachePhoto: async () => {
                 local.setItem('cruisePort.gearList', JSON.stringify({ version: 5,
                     items: remove ? [] : [{ id: 'gear-1', name: 'New', photoId: null, photoSourceId: null }] }));
@@ -693,7 +693,7 @@ test('practice attachment uploads once, stays lazy on another Port, then downloa
     });
     const api = assetApi();
     const aController = controller();
-    const aSync = new PortAssetSync({ controller: aController, storage: local, fetchImpl: api.fetch,
+    const aSync = new PortAssetSync({ canSync: () => true, controller: aController, storage: local, fetchImpl: api.fetch,
         gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
             getAllAttachments: async () => ({ ok: true, records: [localRecord] }),
             getAttachments: async () => ({ ok: true, records: [localRecord] })
@@ -717,7 +717,7 @@ test('practice attachment uploads once, stays lazy on another Port, then downloa
         })
     });
     let cached = null;
-    const bSync = new PortAssetSync({ controller: controller(), storage: remote, fetchImpl: api.fetch,
+    const bSync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: remote, fetchImpl: api.fetch,
         gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
             getAttachments: async () => ({ ok: true, records: cached ? [cached] : [] }),
             getAttachment: async (id) => ({ ok: true, record: cached?.id === id ? cached : null }),
@@ -761,7 +761,7 @@ test('practice attachment deletion syncs the structured tombstone before delayed
     });
     const api = assetApi();
     const syncController = controller();
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl: api.fetch,
         gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
             getAllAttachments: async () => ({ ok: true, records: [] }),
             deleteAttachment: async () => ({ ok: true })
@@ -789,7 +789,7 @@ test('offline practice attachment remains local, then uploads and publishes when
     });
     const api = assetApi();
     const syncController = controller();
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl: api.fetch,
         gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
             getAllAttachments: async () => ({ ok: true, records: [record] })
         } });
@@ -832,7 +832,7 @@ test('practice upload response loss retries the same logical asset and operation
         }
         return api.fetch(url, options);
     };
-    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl,
+    const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local, fetchImpl,
         gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
             getAllAttachments: async () => ({ ok: true, records: [record] })
         } });
@@ -864,7 +864,7 @@ test('My Apps reference publish retries after migration without re-uploading the
             return { ok: true };
         }
     };
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl: api.fetch,
         gearPhotoStore: {}, myAppsIconStore: { getIcon: async (id) => ({ ok: true, record: {
             id, blob: blob(id === 'icon-final' ? [1, 2, 3] : [4, 5, 6]), mimeType: 'image/webp',
             width: id === 'icon-final' ? 256 : 800, height: id === 'icon-final' ? 256 : 600
@@ -900,7 +900,7 @@ test('Practice attachment reference publish retries after migration without re-u
             return { ok: true };
         }
     };
-    const sync = new PortAssetSync({ controller: syncController, storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: syncController, storage: local, fetchImpl: api.fetch,
         gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
             getAllAttachments: async () => ({ ok: true, records: [record] })
         } });
@@ -921,7 +921,7 @@ test('asset status aggregates Gear, My Apps, Practice and reference pending work
             version: 4, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [], referencePending: true
         })
     });
-    const sync = new PortAssetSync({ controller: controller(), storage: local,
+    const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local,
         gearPhotoStore: {}, myAppsIconStore: {}, practiceAttachmentStore: {
             getAllAttachments: async () => ({ ok: true, records: [{ id: 'attachment-local' }] })
         } });
@@ -950,7 +950,7 @@ test('online lifecycle retry converges an offline Gear save without another save
         'cruisePort.myApps': JSON.stringify({ version: 6, items: [] })
     });
     const api = assetApi();
-    const sync = new PortAssetSync({ controller: controller(), storage: local, fetchImpl: api.fetch,
+    const sync = new PortAssetSync({ canSync: () => true, controller: controller(), storage: local, fetchImpl: api.fetch,
         gearPhotoStore: { getPhoto: async (id) => ({ ok: true, record: {
             id, blob: blob(), mimeType: 'image/webp', width: 512, height: 512
         } }) }, myAppsIconStore: {}, practiceAttachmentStore: {
@@ -970,4 +970,12 @@ test('online lifecycle retry converges an offline Gear save without another save
         if (previousDispatchEvent) globalThis.dispatchEvent = previousDispatchEvent;
         else delete globalThis.dispatchEvent;
     }
+});
+
+test('default Standard asset APIs neither bind nor upload/download/reconcile',async()=>{
+ let touched=0;const sync=new PortAssetSync({storage:{getItem(){touched++;throw Error('unexpected storage');}},fetchImpl:async()=>{touched++;throw Error('unexpected fetch');}});
+ assert.equal(sync.bind(),sync);assert.equal(sync.bound,false);
+ assert.equal((await sync.schedule('online')).code,'pro_required');
+ for(const method of ['reconcile','upload','download','json','headers'])await assert.rejects(sync[method](),/pro_required/);
+ assert.equal(touched,0);
 });

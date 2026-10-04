@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=0.27.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.0';
 import { loadPracticeMenus } from './practice-menu-store.js?v=0.60.0';
 
 export function canCreatePractice(items, capabilities = getCapabilities()) {

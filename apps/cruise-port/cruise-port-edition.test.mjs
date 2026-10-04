@@ -27,7 +27,7 @@ test('SP2 root is Standard; only explicit Pro route is Pro', () => {
 
 test('formal Standard and Pro policies are immutable and separate from store caps', () => {
     assert.deepEqual(getCapabilities('standard'), {
-        tunerCapo: false, metronomeAdvanced: false, metronomePresetWrite: false,
+        tunerCapo: false, cloudSyncOperations: false, metronomeAdvanced: false, metronomePresetWrite: false,
         practiceMenuCreateLimit: 5, practiceFileWrite: false, myAppsCreateLimit: 5,
         customMyAppIconWrite: false, gearPhotoWrite: false, calendarMemo: true, settings: true, directLaunch: true
     });
@@ -70,6 +70,7 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
     const expected = root.replace(/((?:src|href)=")(\.\.?\/)/g, (_, start, relative) => start + (relative === './' ? '../' : '../../'));
     const withoutGate = pro
         .replace('クルーズポート Pro</title>', 'クルーズポート</title>')
+        .replace('pro-app-boot.js', 'practice-menu-app.js')
         .replace('href="./manifest.json?v=1.0.1"', 'href="../manifest.json?v=1.0.1"')
         .replaceAll('/app-icons/pro/', '/app-icons/standard/')
         .split('\n').filter(line => !line.includes('shared/pro-gate.')).join('\n')
@@ -84,7 +85,7 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
         assert.equal((entry.match(/data-cruise-app=/g) || []).length, 4);
         assert.match(entry, /multi-app-sync-runtime\.js\?v=26/);
         assert.match(entry, /port-sync-adapter\.js\?v=1\.4\.0/);
-        assert.match(entry, /port-sync-controller\.js\?v=0\.64\.0/);
+        assert.match(entry, /port-sync-controller\.js\?v=1\.18\.0/);
         assert.doesNotMatch(entry, /data-(?:sync-)?app="port"/);
     }
     const gate = read('../shared/pro-gate.js');
