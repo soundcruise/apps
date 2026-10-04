@@ -2,7 +2,7 @@
 (function () {
     'use strict';
     const script = document.createElement('script');
-    script.src = '../../shared/pro-gate.js?v=24';
+    script.src = '../../shared/pro-gate.js?v=25';
     script.onerror = function () {
         document.body.classList.add('pro-gate-active');
     };

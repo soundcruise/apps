@@ -335,6 +335,9 @@
             if (!migrated()) return;
             try {
                 const result = await check('/session', existing.credential);
+                // A backend denial/reset or fresh login may have changed the
+                // session while this boot check was in flight. Never restore it.
+                if (auth()?.credential !== existing.credential) return;
                 if (result.status === 200 && result.body?.ok === true && Number.isSafeInteger(result.body.generation)) {
                     if (result.body.generation !== existing.generation) {
                         remove(AUTH_KEY);
@@ -351,6 +354,7 @@
                 if (result.status === 401) { remove(AUTH_KEY); put(MIGRATED_KEY, '1'); return; }
                 if (result.status < 500 && result.status !== 429) return;
             } catch (_) { /* network outage */ }
+            if (auth()?.credential !== existing.credential) return;
             if (Number.isFinite(existing.validatedAt) && existing.validatedAt > 0) unlock();
             return;
         }

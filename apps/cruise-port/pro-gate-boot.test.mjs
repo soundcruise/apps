@@ -148,6 +148,27 @@ test('another Pro tab can complete a pending backend credential request after se
   assert.equal(g.state(), 'unlocked');
 });
 
+test('a late boot success cannot restore a credential already rejected by the backend', async () => {
+  const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)], ['user-data', 'kept']]) });
+  await g.domReady();
+  g.window.__soundCruiseRejectProBackendAuth(token);
+  g.request('session').respond(200, { ok: true, generation: 1, legacyCompatibilityEnabled: true });
+  await g.settle();
+  assert.equal(g.state(), 'passcode');
+  assert.equal(g.values.has('soundCruiseProAuth'), false);
+  assert.equal(g.values.get('user-data'), 'kept');
+});
+
+test('a late offline boot result cannot unlock after a backend denial', async () => {
+  const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)]]) });
+  await g.domReady();
+  g.window.__soundCruiseRejectProBackendAuth(token);
+  g.request('session').fail();
+  await g.settle();
+  assert.equal(g.state(), 'passcode');
+  assert.equal(g.values.has('soundCruiseProAuth'), false);
+});
+
 test('B: valid Server credential is checked before DOMContentLoaded and unlocks without a passcode flash', async () => {
   const g = boot({ values: new Map([['soundCruiseProAuth', JSON.stringify(v2)]]) });
   assert.equal(g.request('session') !== undefined, true, 'session validation starts at script execution');
