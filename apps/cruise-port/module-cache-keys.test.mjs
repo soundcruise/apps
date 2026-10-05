@@ -11,12 +11,13 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.19.2 publishes legal notices; runtime behavior and NEWS data stay unchanged.
-const RELEASE_MODULES = Object.freeze(['app-version.js', 'cruise-port-capabilities.js', 'pro-prompt.js', 'pro-access-content.js', 'tool-capabilities.js', 'practice-capabilities.js', 'my-apps-capabilities.js', 'gear-photo-store.js', 'gear-photo-workflow.js', 'my-apps-icon-store.js', 'my-apps-icon-workflow.js', 'practice-menu-attachment-store.js', 'practice-menu-pending-attachments.js', 'tuner-app.js', 'metronome-app.js', 'sync-center-orchestrator.js', 'sync-center-ui.js', 'port-asset-sync.js', 'sync-pro-lock.js', 'ai-support-client.js', 'ai-support-ui.js', 'port-account-join.js']);
+// 1.19.3 adds a static NEWS test label; only app-version.js changes among ES modules.
+const RELEASE_MODULES = Object.freeze(['app-version.js']);
 // NEWS modules are loaded with dynamic import() from practice-menu-app.js and did not change in 1.12.0.
 const RELEASE_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
 // Other modules retain the cache key of their last real change.
 const UNCHANGED_KEYS = Object.freeze({
+  ...Object.fromEntries(["cruise-port-capabilities.js", "pro-prompt.js", "pro-access-content.js", "tool-capabilities.js", "practice-capabilities.js", "my-apps-capabilities.js", "gear-photo-store.js", "gear-photo-workflow.js", "my-apps-icon-store.js", "my-apps-icon-workflow.js", "practice-menu-attachment-store.js", "practice-menu-pending-attachments.js", "tuner-app.js", "metronome-app.js", "sync-center-orchestrator.js", "sync-center-ui.js", "port-asset-sync.js", "sync-pro-lock.js", "ai-support-client.js", "ai-support-ui.js", "port-account-join.js"].map(name => [name, '1.19.2'])),
   'news-articles.js': '1.16.1',
   // 1.13.0 Charcoal theme modules are untouched by 1.16.0.
   'settings-store.js': '1.13.0',
@@ -41,15 +42,15 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.19.2', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.19.2');
+test('the release is 1.19.3', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.19.3');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
   for (const html of [read('./index.html'), read('./pro_9a3943176561/index.html')]) {
     assert.match(html, new RegExp(`(?:practice-menu-app|pro-app-boot)\\.js\\?v=${escaped}"`), 'the entry moves, so no user keeps the 0.70.1 app');
     assert.match(html, /news-article\.css\?v=1\.16\.0"/, 'article-only styles have their own key');
-    assert.match(html, /style\.css\?v=1\.13\.0"/, 'Charcoal theme styles get a new cache key');
+    assert.match(html, /style\.css\?v=1\.19\.3"/, 'NEWS label styles get a new cache key');
     assert.match(html, /sync-account-core\.js\?v=7"/, 'shared credential helper uses a new cache key');
   }
 });
@@ -72,7 +73,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.19.2');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.19.3');
   assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.19.2');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
@@ -138,10 +139,10 @@ test('Sync Center and launch modules have exactly one public URL each', () => {
   }
 });
 
-test('NEWS dynamic modules use the revision release key', () => {
+test('unchanged NEWS dynamic modules retain their prior revision key', () => {
   const app = read('./practice-menu-app.js');
   for (const name of RELEASE_DYNAMIC_NEWS_MODULES) {
-    assert.match(app, new RegExp(`import\\('\\./${name.replace('.', '\\.')}\\?v=${escaped}'\\)`), name);
+    assert.match(app, new RegExp(`import\\('\\./${name.replace('.', '\\.')}\\?v=1\\.19\\.2'\\)`), name);
   }
   for (const name of ['news-ui.js', 'news-provider.js']) {
     assert.match(read(`./${name}`), /data\/news-beta\.js\?v=1\.3\.0'/, `${name} keeps the unchanged fixture key`);
