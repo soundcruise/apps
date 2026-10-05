@@ -3,6 +3,7 @@ import {productActionSuffix,productEventFrom,validatedProductEvent,uncertainProd
 import {listingArticleUrl,listingExclusion} from './shimamura-listing.js';
 import { fingerprint, headlineSimilarity } from './fingerprint.js';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
+import {validatedIkebeProductFacts,ikebeProductLabel} from './ikebe-product-evidence.js';
 import { sourceUrl, optOut, hash, DAY } from './policy.js';
 import { assessSale, saleLabel, hasHype } from './sale.js';
 const array=v=>v===undefined?[]:Array.isArray(v)?v:[v];
@@ -155,6 +156,7 @@ function manufacturerFacts(entry,source){
 }
 export function validatedProductFacts(facts){
  if(!facts)return false;
+ if(facts.identifierBasis==='explicit_article_product_fields')return validatedIkebeProductFacts(facts);
  if(assessedRecordingFacts(facts))return true;
  if(facts.identifierBasis==='verified_article_facts')return facts.articleSource==='ik'&&facts.brand==='IK Multimedia'&&facts.product==='TONEX software'&&facts.category==='dtm_software'&&facts.version==='2.0';
  if(facts.identifierBasis==='explicit_listing_facts')return facts.listingSource==='ikebe'&&IKEBE_BRANDS.some(([b])=>b===facts.brand)&&safeModel(facts.product)&&IKEBE_TYPES.some(([c,,t])=>c===facts.category&&t===facts.productType);
@@ -244,6 +246,7 @@ export function factualLabel(facts,eventType){
  if(eventType==='guitar_artist')return highValueLabel(facts,eventType)||artistLabel(facts);
  if(!facts||eventType==='review'||!actions[eventType]||!validatedProductFacts(facts)||facts.version!==null&&facts.version!==undefined&&!/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(facts.version))return null;
  if(facts.productEvent&&(!['new_product','release','other'].includes(eventType)||!validatedProductEvent(facts.productEvent)))return null;
+ const primary=ikebeProductLabel(facts,eventType);if(primary)return primary;
  return `${facts.brand?facts.brand+'、':''}${facts.product}${facts.version?' '+facts.version:''}${facts.productEvent?productActionSuffix(facts.productEvent):actions[eventType]}`;
 }
 export function validLabel(label,original='') {

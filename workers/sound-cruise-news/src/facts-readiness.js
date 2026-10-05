@@ -1,5 +1,6 @@
 import {shimamuraEventSurface} from './shimamura-event-evidence.js';
 import {targetSurface} from './target-evidence.js';
+import {ikebeProductSurface} from './ikebe-product-evidence.js';
 // Diagnostics project the existing publication policy; they do not grant eligibility.
 export function missingFacts(row,facts,validation){
  const missing=[];
@@ -16,6 +17,7 @@ export function missingFacts(row,facts,validation){
 export function recoverySurface(row,source){
  const event=shimamuraEventSurface(row,source);if(event)return event;
  const targeted=targetSurface(row,source);if(targeted)return targeted;
+ const product=ikebeProductSurface(row,source);if(product)return product;
  // Fixed listing-only evidence must not become permission to crawl article bodies.
  if(source?.id==='ikebe-event'&&source.discoveryUrl==='https://www.ikebe-gakki.com/blog/category/event/')return {url:row.source_url,method:'explicit_event_fields',parser:'event-article-1'};
  if(['shimamura','ikebe','ik'].includes(source?.id)&&['official_listing','shimamura_listing'].includes(source.discoveryType))return {url:source.discoveryUrl,method:'existing_listing_parser',parser:'news-metadata-2'};
@@ -41,5 +43,5 @@ export function recoveryAssessment(row,validation,surface,last,cached){
 }
 
 export function recoveryCacheKey(row,source,surface,{serverRepair=false}={}){
- return surface.method==='targeted_explicit_primary_fields'?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
+ return ['targeted_explicit_primary_fields','explicit_ikebe_product_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
 }

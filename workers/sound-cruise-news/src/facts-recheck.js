@@ -1,5 +1,6 @@
 import {parseShimamuraEventEvidence} from './shimamura-event-evidence.js';
 import {parseTargetEvidence,targetIdentityRefinement} from './target-evidence.js';
+import {parseIkebeProductEvidence} from './ikebe-product-evidence.js';
 import {legalGate} from './registry.js';
 import {boundedFetch,robotsPolicy,hash,optOut,BOT,DAY} from './policy.js';
 import {parseShimamuraListing} from './shimamura-listing.js';
@@ -51,6 +52,7 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
   proof={sourceId:source.id,sourceUrl:surface.url,verifiedAt:now,extractionMethod:surface.method,parserVersion:surface.parser,responseHash:await hash(response.text)};
   try{
    if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...(surface.parser==='shimamura-intro-event-2'?parseShimamuraEventEvidence(response.text,source,row):parseTargetEvidence(response.text,source,row))}];
+   else if(surface.method==='explicit_ikebe_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseIkebeProductEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_event_fields')items=[{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:'guitar_event',productFacts:parseEventArticle(response.text,source,row.source_url)}];
    else{
     const entries=(source.id==='shimamura'?parseShimamuraListing(response.text,surface.url):parseOfficialListing(response.text,source)).entries;

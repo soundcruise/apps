@@ -353,6 +353,14 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | Decision Date | 2026-09-30〜10-01 |
 | Notes | 拡大時contactはRECOMMENDED、確認済み必須条項ではない。Eventは別source。 |
 
+### 2026-10-05 — Generic pending product evidence recovery
+
+既存Ikebe pending/reopened candidateのcanonical数値記事URLだけを、既存facts再確認／Autonomous Pending Recheckの取得範囲へ追加。新しいdiscovery、巡回、source追加、掲載基準の緩和ではない。単一 `article#main` の一次見出し・公開日・メーカーtag・直下製品見出し（メーカー＋モデル）・直下説明段落を照合する。複数モデルは同一メーカー／共通製品familyの最大4件。publisherカテゴリと明示用途、出来事と近接説明の一致が必要。canonical・日付・identityが不一致、比較／再入荷／セール／旧製品／曖昧な将来情報、関連商品欄由来の情報はfactsを作らない。
+
+代表一次URL：Fulltone https://www.ikebe-gakki-pb.com/new_product/172640/ 、MONSTER CABLE https://www.ikebe-gakki-pb.com/new_product/172649/ 。両記事の公開日は10/1（JST）で保持。特定メーカー・製品のwhitelistを追加しない。前者は2モデルと日本限定発売、後者は2モデルと電源タップ新製品の明示情報を構造化。HTML／本文／原見出し／画像は永続化しない。robots・opt-out・URL制限・bounded fetch・source lease・日次記事cache・CAS・provenanceを維持。既存publication validation／duplicate／人間の最終判断を通す。再確認でREADYになってもpendingを維持し、approve/rejectを自動実行しない。複数モデルの各モデルについても既存published duplicate抑止を維持。
+
+実装・回帰証拠： [src/ikebe-product-evidence.js](src/ikebe-product-evidence.js)、[test/ikebe-product-evidence.test.js](test/ikebe-product-evidence.test.js)。既存KORGの限定一次ページrecoveryを優先し、他sourceのrecoveryは変更しない。
+
 <a id="source-chuya"></a>
 
 ## Discover chuya — chuya

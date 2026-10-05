@@ -16,6 +16,11 @@ export function duplicatePredicate(row,facts,alias='d'){
  const clauses=[`${alias}.topic_key=?`,`${alias}.normalized_url=?`,`${alias}.source_url=?`],args=[row.topic_key,row.normalized_url,row.source_url];
  if(paths.length){clauses.push(`${alias}.source_url IN (${paths.map(()=>'?').join(',')})`);args.push(...paths);}
  if(facts?.product){clauses.push(`((? IS NULL OR ${j('brand')}=? OR (?='official_manufacturer_model' AND ${j('brand')} IS NULL AND ${j('identifierBasis')}='distinctive_software_model')) AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(${j('version')},'')=? AND (${alias}.event_type=? OR ${alias}.event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`);args.push(facts.brand||null,facts.brand||null,facts.identifierBasis||'',row.category,facts.product,facts.version||'',row.event_type,row.event_type);}
+ // Multi-model primary evidence must not evade the existing product duplicate boundary.
+ if(facts?.identifierBasis==='explicit_article_product_fields'&&Array.isArray(facts.models)&&facts.models.length>0&&facts.models.length<=4&&facts.models.every(m=>typeof m==='string')){
+  clauses.push(`(${j('brand')}=? AND ${alias}.category=? AND COALESCE(${j('version')},'')=? AND ${alias}.event_type IN ('other','new_product','release') AND (${j('product')} IN (${facts.models.map(()=>'?').join(',')}) OR EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models') member WHERE member.value IN (${facts.models.map(()=>'?').join(',')}))))`);
+  args.push(facts.brand,row.category,facts.version||'',...facts.models,...facts.models);
+ }
  if(facts?.kind&&['guitar_artist','guitar_event','artist_live','sale'].includes(facts.kind)){
   const keys=facts.kind==='sale'?['seller','event','endDate']:['kind','artist','performer','event','venue','eventDate','endDate','eventType','action','topic'];
   clauses.push(`(${alias}.category=? AND ${alias}.event_type=? AND ${keys.map(k=>`COALESCE(${j(k)},'')=?`).join(' AND ')})`);args.push(row.category,row.event_type,...keys.map(k=>facts[k]||''));
@@ -30,6 +35,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
  if(!source||!sourceUrl(row.source_url,source)||!allowedArticlePath(row.source_url,source))errors.push('source_url_invalid');
  if(!facts||!label||facts.scopeUncertain||row.event_type==='other'||!validLabel(label)||facts.category!==row.category||!CATEGORIES.includes(row.category))errors.push('facts_incomplete');
  if(facts?.evidence==='assessed_domestic_acoustic_interview'&&source?.id!=='agm'||facts?.evidence==='assessed_named_guitar_event'&&source?.id!=='ikebe-event'||facts?.identifierBasis==='assessed_recording_listing'&&source?.id!=='at-distribution'||facts?.manufacturerSource&&facts.manufacturerSource!==row.source_id||facts?.listingSource&&facts.listingSource!==row.source_id)errors.push('facts_provenance_invalid');
+ if(facts?.identifierBasis==='explicit_article_product_fields'&&(row.source_id!=='ikebe'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
  if(!await validatedFingerprint(row.title_fingerprint,pepper))errors.push('label_provenance_invalid');
  const stamp=Date.parse(row.published_at);
  if(!Number.isFinite(stamp)||stamp>now||now-stamp>=90*DAY||!Number.isSafeInteger(row.expires_at)||row.expires_at<=now)errors.push('expired_candidate');
