@@ -12,7 +12,8 @@ const item=await manualCandidate(JSON.parse(inputText));
 // Facts/label must pass the same normalized/near-copy guard; only safe facts are emitted.
 const facts={...item.productFacts};for(const k of ['kind','category','sellerKind','event','nature','brand','percentOff','verificationUrl'])delete facts[k];
 if(facts.equipment===undefined)delete facts.equipment;
-guardedResearchArtifact([{canonicalUrl:item.sourceUrl,facts},{facts:{policyFinding:item.label}}],{originalTitles:titles});
+const researchFacts=item.sourceId==='manual-agm-test'?{brands:item.productFacts.brand?[item.productFacts.brand]:[],equipment:item.productFacts.models||[item.productFacts.product],...(item.productFacts.artist?{artist:item.productFacts.artist}:{}),eventType:item.productFacts.event}:facts;
+guardedResearchArtifact([{canonicalUrl:item.sourceUrl,facts:researchFacts},{facts:{policyFinding:item.label}}],{originalTitles:titles});
 if(!apply){console.log(JSON.stringify({mode:'dry-run',item,publisherRequests:0}));process.exit(0);}
 const config=await checkedConfig(),base='https://'+config.name+'.cruise-port-requests.workers.dev',get=async path=>{const r=await fetch(base+path,{headers:{Origin:'https://soundcruise.jp'},cache:'no-store',redirect:'error',signal:AbortSignal.timeout(15000)});if(!r.ok)throw Error('manual_preflight_api_'+r.status);return r.json();};
 const store=new NewsStore(remoteDatabase()),rows=await store.candidates(),burden=rows.filter(i=>['pending','reopened'].includes(i.review_status)).length;

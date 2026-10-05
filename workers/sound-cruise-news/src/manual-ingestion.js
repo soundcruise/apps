@@ -5,6 +5,7 @@ import {assessSale,saleLabel,saleEndsAt,SALE_EVENTS,SALE_EQUIPMENT,SALE_BRANDS} 
 import {validLabel} from './metadata.js';
 import {hash,DAY} from './policy.js';
 import {ARTICLE_CHECKS,REQUIRED_CHECKS} from './review.js';
+import {agmRepresentative,agmRepresentativeDuplicate} from './agm-representatives.js';
 const validatedItems=new WeakMap();
 export const MANUAL_ORIGIN='operator_manual_add';
 export const RELEVANCE_REASONS=['guitarist','acoustic_performance','singer_songwriter','guitar_centric_live','guitar_event'];
@@ -14,15 +15,20 @@ const text=(v,max=70)=>typeof v==='string'&&v.trim()===v&&v.length>0&&v.length<=
 function day(v){return typeof v==='string'&&/^20\d{2}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(saleEndsAt(v));}
 const dateLabel=v=>`${Number(v.slice(5,7))}月${Number(v.slice(8,10))}日`;
 export async function manualCandidate(input,now=Date.now()){
- const isSale=input?.kind==='sale',fields=isSale?['seller','saleType','startDate','endDate','endTime','equipment','brands','benefit','scope','percentOff','verificationUrl']:['artist','eventType','eventName','eventDate','endDate','venue','relevanceReason'];
+ const isSale=input?.kind==='sale',isRepresentative=input?.kind==='representative_test',fields=isRepresentative?[]:isSale?['seller','saleType','startDate','endDate','endTime','equipment','brands','benefit','scope','percentOff','verificationUrl']:['artist','eventType','eventName','eventDate','endDate','venue','relevanceReason'];
  exact(input,[...common,...fields]);
  const source=MANUAL_SOURCES.find(s=>s.id===input.sourceId);if(manualEvidenceGate(source,now))throw Error('manual_source_evidence_required');
- if(!source.contentTypes.includes(isSale?'sale':'artist')||!['sale','artist_live'].includes(input.kind))throw Error('manual_source_scope');
- const url=manualUrl(input.officialUrl,source);if(!day(input.publishedAt))throw Error('manual_publication_date');const published=Date.parse(input.publishedAt+'T00:00:00+09:00');if(published>now||now-published>=90*DAY)throw Error('manual_publication_date');
+ if(!source.contentTypes.includes(isRepresentative?'representative_test':isSale?'sale':'artist')||!['sale','artist_live','representative_test'].includes(input.kind))throw Error('manual_source_scope');
+ const url=manualUrl(input.officialUrl,source);if(!isRepresentative&&!day(input.publishedAt))throw Error('manual_publication_date');const published=isRepresentative?Date.parse(input.publishedAt):Date.parse(input.publishedAt+'T00:00:00+09:00');if(!Number.isFinite(published)||published>now||now-published>=90*DAY)throw Error('manual_publication_date');
  exact(input.checks,[...REQUIRED_CHECKS,'guitarEvidenceChecked']);exact(input.articleChecks,Object.keys(ARTICLE_CHECKS));
  if(REQUIRED_CHECKS.some(k=>input.checks[k]!==true)||Object.entries(ARTICLE_CHECKS).some(([k,values])=>!values.includes(input.articleChecks[k]))||input.articleChecks.primarySource!=='primary')throw Error('manual_verification_required');
  let facts,label,eventType,category,deadline=null;
- if(isSale){
+ let representative;
+ if(isRepresentative){
+  if(source.id!=='manual-agm-test'||input.checks.guitarEvidenceChecked!==true||input.articleChecks.relevance!=='guitar')throw Error('manual_source_scope');
+  representative=agmRepresentative(url,input.publishedAt);
+  ({productFacts:facts,label,eventType,category}=representative);
+ }else if(isSale){
   if(input.seller!==source.name||!SALE_EVENTS.some(([t])=>t===input.saleType)&&!['期間限定セール','期間限定の値下げ'].includes(input.saleType)||!day(input.startDate)||!day(input.endDate)||input.startDate>input.endDate||input.startDate>new Date(now+9*3600000).toISOString().slice(0,10))throw Error('manual_sale_facts');
   if(input.benefit!=='price_reduction'||input.scope!=='broad')throw Error('manual_sale_scope_or_benefit');
   if(!Array.isArray(input.equipment)||input.equipment.length<1||input.equipment.length>3||new Set(input.equipment).size!==input.equipment.length||input.equipment.some(e=>!SALE_EQUIPMENT.some(([n])=>n===e))||!Array.isArray(input.brands)||input.brands.length>10||new Set(input.brands).size!==input.brands.length||input.brands.some(b=>!SALE_BRANDS.includes(b)))throw Error('manual_sale_equipment');
@@ -43,12 +49,16 @@ export async function manualCandidate(input,now=Date.now()){
   label=`${input.artist}、${dateLabel(input.eventDate)}${input.endDate&&input.endDate!==input.eventDate?'〜'+dateLabel(input.endDate):''}に${input.venue}で${verbs[input.eventType]}`;
  }
  if(!validLabel(label)||/に関する話題|審査待ち|要確認/.test(label))throw Error('manual_label_invalid');const id=await hash(url);
- const item={id,sourceId:source.id,sourceName:source.name,sourceUrl:url,publishedAt:new Date(published).toISOString(),category,label,topicKey:isSale?`manual:sale:${id}`:`manual:event:${await hash(input.artist+'|'+input.eventType+'|'+input.eventDate+'|'+input.venue)}`,collectedAt:new Date(now).toISOString(),expiresAt:published+90*DAY,saleEndsAt:deadline,eventEndsAt:eventEndsAt(facts),eventType,productFacts:facts,checks:input.checks,articleChecks:input.articleChecks,origin:MANUAL_ORIGIN};validatedItems.set(item,JSON.stringify(item));return item;
+ const item={id,sourceId:source.id,sourceName:source.name,sourceUrl:url,publishedAt:new Date(published).toISOString(),category,label,topicKey:representative?.topic||(isSale?`manual:sale:${id}`:`manual:event:${await hash(input.artist+'|'+input.eventType+'|'+input.eventDate+'|'+input.venue)}`),collectedAt:new Date(now).toISOString(),expiresAt:published+90*DAY,saleEndsAt:deadline,eventEndsAt:eventEndsAt(facts),eventType,productFacts:facts,checks:input.checks,articleChecks:input.articleChecks,origin:MANUAL_ORIGIN};validatedItems.set(item,JSON.stringify(item));return item;
 }
 export async function ingestManual(store,item,now=Date.now()){
  if(validatedItems.get(item)!==JSON.stringify(item))throw Error('manual_item_not_validated');
  const source=MANUAL_SOURCES.find(s=>s.id===item.sourceId);if(manualEvidenceGate(source,now)||item.origin!==MANUAL_ORIGIN||item.expiresAt<=now||item.saleEndsAt!==null&&item.saleEndsAt<now||item.eventEndsAt!=null&&item.eventEndsAt<now)throw Error('manual_source_gate');
  const stamp=new Date(now).toISOString();
+ if(item.sourceId==='manual-agm-test'){
+  const duplicate=agmRepresentativeDuplicate(item,await store.candidates());
+  if(duplicate)return {id:item.id,inserted:false,reason:'duplicate_event',duplicateId:duplicate.id,publisherRequests:0};
+ }
  // Insert once; never overwrite an existing record. Controls/takedowns/duplicate topics checked at write time.
  const result=await store.db.batch([
  store.db.prepare(`INSERT OR IGNORE INTO candidate_items(id,source_id,source_name,source_url,normalized_url,published_at,category,label,topic_key,collected_at,review_status,review_reason,reviewed_at,reviewed_by,expires_at,event_type,product_facts,publication_decision,decision_reason,origin,sale_ends_at,event_ends_at,review_checks,article_checks)

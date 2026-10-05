@@ -8,6 +8,7 @@ NEWS 0.7.1 / Cruise Port 1.9.0. Authenticated Cloudflare OAuth CLI only. Public 
 
 - `manual-apu`: APU Software home, active broad paid-product price reductions. Manufacturer's official support post may verify the deadline; publisher copy is not retained.
 - `manual-ikebe`: main-host `/blog/<slug>/` guitar event/interview facts. This does not reuse PB product authorization and does not authorize automated event discovery.
+- `manual-agm-test`: four individually assessed AGM representative articles in `src/agm-representatives.js`, dated 2026-09-16–2026-10-01. `kind: representative_test` accepts only common source/URL/date/check fields; facts and independent labels come from the immutable assessment. The ISO publication timestamp must match that assessment. This is owner-authorized test-period editorial display, with no publisher permission claimed, not a News/Gears discovery grant. Existing AGM Interview RSS scope is unchanged. Cross-source matching model/artist-event evidence prevents duplicate insertion. No Decision Ledger, Shadow or human teacher writes occur; the existing manual audit and revision are used.
 
 For another source/surface, assess current public access, robots, applicable policy, direct links, opt-out and takedown first; add a bounded reviewed scope and tests. Absence of an explicit automation permission alone is not a prohibition. This registry never enables automatic collection. Scope evidence expires after 90 JST calendar days.
 

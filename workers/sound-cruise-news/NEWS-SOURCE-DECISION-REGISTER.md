@@ -303,6 +303,14 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 - Follow-up: 10/21案件は人物・会場factsの通常operator審査が必要。本日のQAでは承認操作しない。named guitarist/workshop/exhibitionに限定したpilotで、Friedmanのブランド催事は範囲外。松本孝弘の展示はmanual-ikebe承認記事1件として既に公開されており、一覧側rejectを未掲載と誤認しない。
 - Common evidence / limitations: [2026-10-02 run summary](#production-acceptance-20261002)。
 
+### Representative test display — 2026-10-06
+
+- User-authorized manual editorial display of four exact articles, not a source collection expansion: Martin / Eric Clapton signature models (10/1), Ortega R24RO / RCE24RO (9/28), 押尾コータロー album + tour (9/30), 大石昌良 Yamaha owned equipment (9/16).
+- Separate `manual-agm-test` scope; immutable individually assessed URL/date/facts/independent label records. Existing `agm` Interview RSS, registry evidence, collector, schedule and source state remain unchanged. No general News/Gears parser or discovery permission is granted.
+- Public direct article access, canonical URLs, publication metadata, no article opt-out, and robots for the exact paths verified on 10/6. Publisher author field for the three News items is AGMW-03; Gears credits 角 佳音. Parent [terms](https://www.rittor-music.co.jp/agreement/) preserve expression rights and welcome links; the latter is not automation authorization. This bounded facts/link assessment does not claim publisher permission or settle the pending use inquiry.
+- Facts-only attribution: `Acoustic Guitar Magazine`; no publisher headline/body/image/long summary stored. Martin's per-color 50-unit limit applies only to the 000-42 model; article publication dates do not substitute for product release dates.
+- Current approved candidates checked for matching products/artist-events before addition; existing Interview 2 records retained. Normal manual quality/verification/STOP/takedown/90-day retention gates apply. Origin `operator_manual_add`, reason `manual_facts_verified`, existing admin audit only; no Decision Ledger/Shadow/human teacher signal.
+
 <a id="source-at-distribution"></a>
 
 ## AT Distribution（公式代理店） — at-distribution
