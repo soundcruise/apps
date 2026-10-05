@@ -3,6 +3,7 @@
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
 import {parseEventArticle} from './high-value.js';
+import {enrichHeadlineFacts,releaseDateFields} from './headline-evidence.js';
 export const TARGET_URLS=Object.freeze({
  'ikebe-event':'https://www.ikebe-gakki.com/blog/20261021-aco-workshop/',
  shimamura:'https://www.shimamura.co.jp/update/dtm-recording/2026/10/90252/',
@@ -12,7 +13,7 @@ export const TARGET_URLS=Object.freeze({
 export function targetSurface(row,source){
  if(source?.id==='ik')return null; // Current target is absent; never borrow localized item 19792.
  if(!source||row.source_id!==source.id||row.source_url!==TARGET_URLS[source.id])return null;
- return {url:row.source_url,method:'targeted_explicit_primary_fields',parser:'target-evidence-2'};
+ return {url:row.source_url,method:'targeted_explicit_primary_fields',parser:source.id==='ikebe-event'?'target-evidence-2':'target-evidence-3'};
 }
 const find=(n,p)=>DomUtils.findAll(x=>!!x.name&&p(x),n.children||[]);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','footer','header','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
@@ -41,7 +42,8 @@ export function parseTargetEvidence(html,source,row){
    const body=articles[0],models=find(body,n=>n.name==='h2'&&!hidden(n)&&plain(n)==='MV6 Gen 2');
    const leads=find(body,n=>n.name==='p'&&!hidden(n)&&/^Shure（シュア）が、[^。]{0,120}『MV6 Gen 2』を発売します。/.test(plain(n)));
    if(!/^(?:SHURE|Shure) MV6 Gen 2(?:\s|\|)/.test(plain(titles[0]))||models.length!==1||leads.length!==1||old?.brand!=='SHURE'||!['MV6','MV6 Gen 2'].includes(old.product)||old.identifierBasis!=='explicit_model_code'||old.category!=='recording_audio')throw Error('facts_identity_changed');
-   return {productFacts:{...old,product:'MV6 Gen 2'},eventType:'release',publishedAt:row.published_at};
+   const facts=enrichHeadlineFacts({...old,product:'MV6 Gen 2'},{title:plain(titles[0]),statements:[plain(leads[0])],releaseDates:releaseDateFields(body),publishedAt:row.published_at,basis:'verified_primary_article'});
+   return {productFacts:facts,eventType:'release',publishedAt:row.published_at};
   }
   const bodies=find(doc,n=>cls(n,'main_wrap')&&!hidden(n));if(bodies.length!==1)throw Error('facts_parser_failure');
   const body=bodies[0],heads=find(body,n=>n.name==='h2'&&!hidden(n)),normalized=plain(heads[0]||{}).replace(/\s/g,'');
@@ -50,11 +52,12 @@ export function parseTargetEvidence(html,source,row){
   // Product existence, the URL /new_product/, specs and prices alone are insufficient.
   const leads=find(body,n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)&&/OD-KIT CUSTOM CRAFTが登場しました。/.test(plain(n))&&!/登場していません|登場しない|他社|過去|以前/.test(plain(n)));
   if(leads.length!==1)throw Error('facts_scope_uncertain');
-  return {productFacts:{...old},eventType:'new_product',publishedAt:row.published_at};
+  const facts=enrichHeadlineFacts({...old},{title:plain(titles[0]),statements:find(body,n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).slice(0,4).map(plain),publishedAt:row.published_at,basis:'verified_primary_article'});
+  return {productFacts:facts,eventType:'new_product',publishedAt:row.published_at};
  }finally{doc=null;}
 }
 export function targetIdentityRefinement(row,old,facts,proof){
  // Correct only the explicitly verified full generation name on this one article.
  // No general product-identity overwrite, and no change to eligibility rules.
- return row.source_id==='shimamura'&&row.source_url===TARGET_URLS.shimamura&&proof?.parserVersion==='target-evidence-2'&&proof.sourceUrl===row.source_url&&old?.brand==='SHURE'&&old.product==='MV6'&&facts.brand===old.brand&&facts.product==='MV6 Gen 2'&&facts.category===old.category&&facts.identifierBasis===old.identifierBasis&&['artist','performer'].every(k=>facts[k]===old[k]);
+ return row.source_id==='shimamura'&&row.source_url===TARGET_URLS.shimamura&&proof?.parserVersion==='target-evidence-3'&&proof.sourceUrl===row.source_url&&old?.brand==='SHURE'&&old.product==='MV6'&&facts.brand===old.brand&&facts.product==='MV6 Gen 2'&&facts.category===old.category&&facts.identifierBasis===old.identifierBasis&&['artist','performer'].every(k=>facts[k]===old[k]);
 }

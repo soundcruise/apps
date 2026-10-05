@@ -2,6 +2,7 @@ import {labelInformationScore} from '../../../apps/cruise-port/news-quality.js';
 export {labelInformationScore} from '../../../apps/cruise-port/news-quality.js';
 import {NEWS_BETA_ITEMS} from '../../../apps/cruise-port/data/news-beta.js';
 import {validatedProductEvent} from './product-event.js';
+import {validHeadlineEvidence,productTypeLabel} from './headline-evidence.js';
 // Only Sound Cruise's immutable, independently reviewed labels are reused. Never publisher text.
 const pairs=Object.freeze({
  'jp2a-fender-player-fusion':['Fender','Limited Edition Player Fusion'],
@@ -21,7 +22,7 @@ export function independentTopicUrls(row){return independentTopicItems(row).map(
 export function preferredIndependentLabel(row){
  let facts;try{facts=typeof row.product_facts==='string'?JSON.parse(row.product_facts):row.product_facts;}catch{}
  // A verified action refinement must not be replaced by a coarse legacy label.
- if(validatedProductEvent(facts?.productEvent))return row.label;
+ if(validatedProductEvent(facts?.productEvent)||validHeadlineEvidence(facts)&&(facts?.releaseEvent||productTypeLabel(facts)))return row.label;
  const match=independentTopicItems(row).sort((a,b)=>labelInformationScore(b.label)-labelInformationScore(a.label))[0];
  return match&&labelInformationScore(match.label)>=labelInformationScore(row.label)?match.label:row.label;
 }

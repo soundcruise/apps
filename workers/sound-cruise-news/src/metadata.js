@@ -4,6 +4,7 @@ import {listingArticleUrl,listingExclusion} from './shimamura-listing.js';
 import { fingerprint, headlineSimilarity } from './fingerprint.js';
 import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import {validatedIkebeProductFacts,ikebeProductLabel} from './ikebe-product-evidence.js';
+import {validHeadlineEvidence,productSubject,explicitReleaseAction,enrichHeadlineFacts,releaseSuffix,listingTypeFamily} from './headline-evidence.js';
 import { sourceUrl, optOut, hash, DAY } from './policy.js';
 import { assessSale, saleLabel, hasHype } from './sale.js';
 const array=v=>v===undefined?[]:Array.isArray(v)?v:[v];
@@ -155,11 +156,11 @@ function manufacturerFacts(entry,source){
  return product?{brand:'ZOOM',product,version:null,category:'recording_audio',identifierBasis:'official_manufacturer_model',manufacturerSource:'zoom'}:null;
 }
 export function validatedProductFacts(facts){
- if(!facts)return false;
+ if(!facts||!validHeadlineEvidence(facts))return false;
  if(facts.identifierBasis==='explicit_article_product_fields')return validatedIkebeProductFacts(facts);
  if(assessedRecordingFacts(facts))return true;
  if(facts.identifierBasis==='verified_article_facts')return facts.articleSource==='ik'&&facts.brand==='IK Multimedia'&&facts.product==='TONEX software'&&facts.category==='dtm_software'&&facts.version==='2.0';
- if(facts.identifierBasis==='explicit_listing_facts')return facts.listingSource==='ikebe'&&IKEBE_BRANDS.some(([b])=>b===facts.brand)&&safeModel(facts.product)&&IKEBE_TYPES.some(([c,,t])=>c===facts.category&&t===facts.productType);
+ if(facts.identifierBasis==='explicit_listing_facts')return facts.listingSource==='ikebe'&&IKEBE_BRANDS.some(([b])=>b===facts.brand)&&safeModel(facts.product)&&IKEBE_TYPES.some(([c,,t])=>c===facts.category&&t===(facts.productTypeEvidence?listingTypeFamily(facts.productType):facts.productType));
  if(facts.identifierBasis==='reviewed_listing_model')return facts.listingSource==='ikebe'&&IKEBE_MODELS.some(([b,,p,c])=>b===facts.brand&&p===facts.product&&c===facts.category);
  if(facts.identifierBasis==='official_manufacturer_model'&&facts.manufacturerSource==='ik')return facts.brand==='IK Multimedia'&&IK_MODELS.some(([p,c])=>facts.product===p&&facts.category===c);
  if(facts.identifierBasis==='official_manufacturer_model')return facts.manufacturerSource==='zoom'&&facts.brand==='ZOOM'&&facts.category==='recording_audio'&&ZOOM_MODELS.includes(facts.product);
@@ -226,6 +227,9 @@ export function contentType(title) {
  if(/イベント|体験会|試奏会|展示会|レッスン|生徒募集|採用|求人|店舗から|店舗案内|営業案内|営業時間|開店|閉店|休業|入荷情報|\b(?:event|lesson|recruit|workshop|shop notice)\b/i.test(title))return 'event_or_shop';
  if(/チュートリアル|使い方|入門|基礎講座|活用術|\b(?:tutorial|how to|beginner|tips)\b/i.test(title))return 'tutorial';
  if(/開発秘話|開発ストーリー|歴史|とは[？?]|選び方|完全ガイド|\bevergreen\b/i.test(title))return 'evergreen';
+ // Keep the existing product/duplicate family. The precise lifecycle is stored
+ // in releaseEvent, not a schema/category migration.
+ if(explicitReleaseAction(title))return 'release';
  for(const [type,re] of [
  ['recall',/リコール|\brecall\b/i],['discontinued',/生産終了|販売終了|\bdiscontinued\b/i],
  ['firmware',/ファームウェア|\bfirmware\b/i],['price_change',/価格改定|値上げ|値下げ|\bprice change\b/i],
@@ -246,8 +250,15 @@ export function factualLabel(facts,eventType){
  if(eventType==='guitar_artist')return highValueLabel(facts,eventType)||artistLabel(facts);
  if(!facts||eventType==='review'||!actions[eventType]||!validatedProductFacts(facts)||facts.version!==null&&facts.version!==undefined&&!/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(facts.version))return null;
  if(facts.productEvent&&(!['new_product','release','other'].includes(eventType)||!validatedProductEvent(facts.productEvent)))return null;
+ if(facts.releaseEvent&&!['release','new_product','other'].includes(eventType))return null;
+ if(facts.releaseEvent){
+  const descriptors={limited_edition:`の${facts.editionMarket==='Japan'?'日本':''}限定モデル`,special_edition:'の特別仕様',new_color:'の新色',collaboration:'のコラボモデル',reissue:'の復刻版',rerelease:'の再発売モデル',new_variant:'の新仕様'};
+  if(facts.productEvent?.signal==='explicit_limited_color')descriptors.limited_edition='の限定カラー';
+  if(facts.productEvent?.signal==='explicit_collaboration_color')descriptors.collaboration='のコラボカラー';
+  return `${facts.brand?facts.brand+'、':''}${productSubject(facts)}${facts.productEvent?descriptors[facts.productEvent.action]:''}${releaseSuffix(facts.releaseEvent)}`;
+ }
  const primary=ikebeProductLabel(facts,eventType);if(primary)return primary;
- return `${facts.brand?facts.brand+'、':''}${facts.product}${facts.version?' '+facts.version:''}${facts.productEvent?productActionSuffix(facts.productEvent):actions[eventType]}`;
+ return `${facts.brand?facts.brand+'、':''}${productSubject(facts)}${facts.productEvent?productActionSuffix(facts.productEvent):actions[eventType]}`;
 }
 export function validLabel(label,original='') {
  return typeof label==='string'&&label.trim().length>=4&&label.length<=140&&!/[<>\x00-\x1f]/.test(label)&&label.trim()!==original.trim()&&!hasHype(label);
@@ -307,6 +318,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
   if(eventType==='other')eventType='new_product';
   if(source.allowedEventTypes&&!source.allowedEventTypes.includes(eventType))return {decision:'REJECT',reason:'source_event_scope'};
  }
+ if(titleFacts)facts=enrichHeadlineFacts(facts,{title:entry.eventTitle||entry.title,publishedAt:entry.date});
  let category=guitarEvent?'live_guitar':classify(entry.title);
  if(!category&&entry.listingSection==='product_news'&&source.discoveryType==='shimamura_listing'){
   if(entry.listingCategory==='amp-effector')category='amps_effects';
@@ -324,12 +336,13 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(!category)return {decision:'REJECT',reason:'not_relevant'};
  // Conservative deterministic template. No source phrase or instructions interpolated.
  // Detailed product labels require local human editing, never automatic publication.
- const informationalUncertain=/機能一覧|仕様一覧|スペック一覧|発売予定|年内|発売(?:が)?決定/.test(entry.title)||(source.id==='ik'&&/パック|プリセット|トーンモデル|コレクション|追加(?:ボイス|音色)|拡張|\b(?:pack|collection|presets?|tone models?|for|vol(?:ume)?)\b/i.test(entry.title));
+ const informationalUncertain=!!facts?.releaseEvent||/機能一覧|仕様一覧|スペック一覧|発売予定|年内|発売(?:が)?決定/.test(entry.title)||(source.id==='ik'&&/パック|プリセット|トーンモデル|コレクション|追加(?:ボイス|音色)|拡張|\b(?:pack|collection|presets?|tone models?|for|vol(?:ume)?)\b/i.test(entry.title));
  if(facts&&source.id==='ik'&&informationalUncertain)facts={...facts,scopeUncertain:true};
  const relevanceUncertain=(source.id==='ikebe'&&facts?.identifierBasis==='explicit_model_code')||facts?.brand==='DE'||facts?.brand==='dBTechnologies'||facts?.product==='Logo Barstool';
  let confident=!!(guitarArtist?.action!=='guitar_information'&&!eventUncertain&&!relevanceUncertain&&!informationalUncertain&&facts&&(!!titleFacts||!!guitarEvent||!!guitarArtist||eventType!=='other')&&eventType!=='other'&&['new_product','release','update','firmware','price_change','discontinued','recall','other','guitar_event','guitar_artist'].includes(eventType)&&hasDate&&!entry.listingUncertainty&&!/キャンペーン|\bcampaign\b/i.test(entry.title));
  const titleFingerprint=await fingerprint(entry.title,pepper);
  let label=guitarArtist?.action==='guitar_information'?'審査待ち（ギター関連の出来事の確認が必要）':confident?factualLabel(facts,eventType):facts?`${facts.product}${facts.version?' '+facts.version:''}の製品情報（要確認）`:'審査待ち（製品名と出来事の確認が必要）';
+ if(facts?.releaseEvent&&!eventUncertain&&!relevanceUncertain&&hasDate&&!entry.listingUncertainty)label=factualLabel(facts,eventType)||label;
  // A verified facts-only template remains safe even when the source states the same facts.
  const factualSimilarity=confident&&await headlineSimilarity(label,titleFingerprint,pepper);
  if(confident&&!label){confident=false;label='審査待ち（製品名と出来事の確認が必要）';}

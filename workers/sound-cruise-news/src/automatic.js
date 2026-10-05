@@ -20,6 +20,9 @@ export async function publishAutomatic(store,source,registry,now,pepper){
   // Firmware importance requires explicit human review, including major exceptions.
   if(row.event_type==='firmware')continue;
   let facts;try{facts=JSON.parse(row.product_facts);}catch{continue;}
+  // These lifecycle refinements remain human-reviewed; evidence recovery does
+  // not convert a pending release plan/delay/reservation into an auto-approval.
+  if(facts?.releaseEvent&&facts.releaseEvent.action!=='release')continue;
   if(facts?.evidence==='assessed_domestic_acoustic_interview'&&source.id!=='agm'||facts?.evidence==='assessed_named_guitar_event'&&source.id!=='ikebe-event'||facts?.identifierBasis==='assessed_recording_listing'&&source.id!=='at-distribution')continue;
   const stamp=Date.parse(row.published_at),label=factualLabel(facts,row.event_type);
   const sale=isSaleRecord(row,facts),deadline=saleEndsAt(facts?.endDate,facts?.endTime);

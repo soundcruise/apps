@@ -3,7 +3,8 @@ import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
 import {calendarDate} from './legacy-listing.js';
 import {explicitProductAction,validatedProductEvent} from './product-event.js';
-export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-1';
+import {productSubject,enrichHeadlineFacts,validHeadlineEvidence} from './headline-evidence.js';
+export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-2';
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','header','footer','template','noscript','aside'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -29,11 +30,12 @@ const types=[
  ['studio_monitor','recording_audio','recording-pa',/スタジオモニター|モニタースピーカー|\bstudio monitor\b/i]
 ];
 export function validatedIkebeProductFacts(f){
- return !!f&&f.identifierBasis==='explicit_article_product_fields'&&f.listingSource==='ikebe'&&urlOK(f.articleUrl)&&nameOK(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(modelOK)&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.product.length<=110&&f.version===null&&types.some(([t,c])=>t===f.productType&&c===f.category)&&(!f.productEvent||validatedProductEvent(f.productEvent))&&(!f.editionMarket||f.editionMarket==='Japan'&&f.productEvent?.action==='limited_edition');
+ const parent={distortion_pedal:'effect_pedal',bass_effect_pedal:'effect_pedal',octave_pedal:'effect_pedal',usb_microphone:'microphone',wireless_microphone:'microphone'};
+ return !!f&&validHeadlineEvidence(f)&&f.identifierBasis==='explicit_article_product_fields'&&f.listingSource==='ikebe'&&urlOK(f.articleUrl)&&nameOK(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(modelOK)&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.product.length<=110&&f.version===null&&types.some(([t,c])=>(t===f.productType||f.productTypeEvidence&&t===parent[f.productType])&&c===f.category)&&(!f.productEvent||validatedProductEvent(f.productEvent))&&(!f.editionMarket||f.editionMarket==='Japan'&&f.productEvent?.action==='limited_edition');
 }
 export function ikebeProductLabel(f,eventType){
  if(!validatedIkebeProductFacts(f)||!['new_product','release'].includes(eventType))return null;
- if(f.productEvent?.action==='limited_edition')return `${f.brand}、${f.product}の${f.editionMarket==='Japan'?'日本':''}限定モデルを${eventType==='release'?'発売':'発表'}`;
+ if(f.productEvent?.action==='limited_edition')return `${f.brand}、${productSubject(f)}の${f.editionMarket==='Japan'?'日本':''}限定モデルを${eventType==='release'?'発売':'発表'}`;
  return null; // Other actions use the existing factual label vocabulary.
 }
 export function parseIkebeProductEvidence(html,source,row){
@@ -71,9 +73,10 @@ export function parseIkebeProductEvidence(html,source,row){
   const refinement=explicitProductAction(title),editionInBody=/限定(?:企画)?モデル|限定生産|limited edition/i.test(primary);
   if(/限定|特別|新色|コラボ|復刻|再発売/.test(title)&&(!refinement||!editionInBody&&refinement.action==='limited_edition'))throw Error('facts_scope_uncertain');
   const [productType,category]=typeMatches[0],eventType=/発売/.test(title)?'release':'new_product';
-  const facts={brand,models,product:models.join(' / '),version:null,category,productType,identifierBasis:'explicit_article_product_fields',listingSource:'ikebe',articleUrl:row.source_url,
+  const base={brand,models,product:models.join(' / '),version:null,category,productType,identifierBasis:'explicit_article_product_fields',listingSource:'ikebe',articleUrl:row.source_url,
    ...(refinement?{productEvent:{...refinement,basis:'verified_primary_article'}}:{}),
    ...(refinement?.action==='limited_edition'&&/日本限定/.test(title)&&/日本限定/.test(primary)?{editionMarket:'Japan'}:{})};
+  const facts=enrichHeadlineFacts(base,{title,statements:paras.slice(0,4),publishedAt:row.published_at,basis:'verified_primary_article'});
   if(!validatedIkebeProductFacts(facts))throw Error('facts_identity_changed');
   return {productFacts:facts,eventType,publishedAt:row.published_at};
  }finally{doc=null;}

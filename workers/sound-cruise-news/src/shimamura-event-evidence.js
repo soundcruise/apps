@@ -2,13 +2,14 @@
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
 import {productFacts} from './metadata.js';
+import {enrichHeadlineFacts,releaseDateFields} from './headline-evidence.js';
 const ASSESSED=Object.freeze({
  'https://www.shimamura.co.jp/update/dtm-recording/2026/10/91045/':{brand:'Novation',product:'FLpad',brandPattern:/\bNovation\b|ノベーション/i,models:[/\bFLpad\b(?!\s*Mini)/i,/\bFLpad Mini\b/i]},
  'https://www.shimamura.co.jp/update/guitar-bass/2026/10/89963/':{brand:'Gibson',product:'SJ-200 / Hummingbird',brandPattern:/\bGibson\b|ギブソン/i,models:[/\bSJ-200\b/i,/\bHummingbird\b|ハミングバード/i]}
 });
 export function shimamuraEventSurface(row,source){
  if(source?.id!=='shimamura'||row.source_id!==source.id||source.discoveryUrl!=='https://www.shimamura.co.jp/update/common/new-item/'||!ASSESSED[row.source_url])return null;
- return {url:row.source_url,method:'targeted_explicit_primary_fields',parser:'shimamura-intro-event-2'};
+ return {url:row.source_url,method:'targeted_explicit_primary_fields',parser:'shimamura-intro-event-3'};
 }
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','footer','header','template','noscript'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
@@ -43,6 +44,7 @@ export function parseShimamuraEventEvidence(html,source,row){
   if(intro.slice(1).some(n=>/発売|発表|登場|リリース|延期|中止|撤回|訂正|未発売|未発表/.test(plain(n))))throw Error('facts_scope_uncertain');
   const lead=plain(intro[0]);if(!scope.brandPattern.test(lead)||scope.models.some(re=>!re.test(lead)))throw Error('facts_identity_changed');
   const eventType=explicitIntroEvent(lead);
-  return {productFacts:{...old},eventType,publishedAt:row.published_at};
+  const facts=enrichHeadlineFacts({...old},{title:plain(headings[0]),statements:[lead],releaseDates:releaseDateFields(bodies[0]),publishedAt:row.published_at,basis:'verified_primary_article'});
+  return {productFacts:facts,eventType,publishedAt:row.published_at};
  }finally{doc=null;}
 }
