@@ -42,14 +42,14 @@ var proScope = assertManifest(path.join(proDirectory, 'manifest.json'), '/apps/r
 assert.strictEqual(proScope.indexOf(standardScope), -1, 'Standard scope does not contain the Pro path');
 assert(standardHtml.includes('<link rel="manifest" href="manifest.json?v=2">'), 'Standard links its sibling manifest');
 assert(standardHtml.includes('href="../theme.css?v=1.5.2"'), 'Standard resolves the shared theme from its parent');
-assert(standardHtml.includes('src="../script.js?v=1.18.1"'), 'Standard resolves the shared script from its parent');
+assert(standardHtml.includes('src="../script.js?v=1.18.2"'), 'Standard resolves the shared script from its parent');
 assert(standardHtml.includes("navigator.serviceWorker.register('../service-worker.js', { scope: './' })"), 'Standard registers the root worker with Standard-only scope');
 assert(!legacyHtml.includes('manifest.json'), 'legacy root does not expose a PWA manifest');
 assert(legacyHtml.includes("navigator.serviceWorker.getRegistration('./')"), 'legacy root only inspects its own worker registration');
 assert(legacyHtml.includes('registration.unregister()'), 'legacy root retires its old worker registration');
 assert(legacyHtml.includes("window.location.replace('standard/'"), 'legacy root redirects to Standard after migration cleanup');
 assert(proHtml.includes('<link rel="manifest" href="manifest.json?v=4">'), 'Pro retains its own manifest');
-assert(proHtml.includes('../../shared/pro-gate.js?v=29'), 'Pro gate reference matches the current shared gate asset');
+assert(proHtml.includes('../../shared/pro-gate.js?v=30'), 'Pro gate reference matches the current shared gate asset');
 
 ['info.html', 'usage.html', 'terms.html', 'privacy.html', 'mic-correction-help.html'].forEach(function (fileName) {
     var source = read(path.join(root, fileName));

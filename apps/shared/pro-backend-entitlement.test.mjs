@@ -147,9 +147,9 @@ test('all five Pro entry points load credential forwarding before their sync cli
   for (const path of ['pitch-cruise/pro_x9v7q2m8', 'fretboard_cruise/pro_a9f4k7q2m8z',
     'rhythm-cruise/pro_r4m8k7n2q9x', 'chord-cruise/pro_k7m4q9v2x8', 'cruise-port/pro_9a3943176561']) {
     const html = read(`../${path}/index.html`);
-    assert.ok(html.indexOf('pro-backend-entitlement.js?v=2') >= 0, path);
-    assert.ok(html.indexOf('pro-backend-entitlement.js?v=2') < html.indexOf('sync-account-client.js'), path);
-    assert.match(html, /pro-gate\.js\?v=29/);
-    assert.ok(html.indexOf('pro-device-session.js?v=2') < html.indexOf('pro-gate.js?v=29'), path);
+    assert.ok(html.indexOf('pro-backend-entitlement.js?v=3') >= 0, path);
+    assert.ok(html.indexOf('pro-backend-entitlement.js?v=3') < html.indexOf('sync-account-client.js'), path);
+    assert.match(html, /pro-gate\.js\?v=30/);
+    assert.ok(html.indexOf('pro-device-session.js?v=2') < html.indexOf('pro-gate.js?v=30'), path);
   }
 });

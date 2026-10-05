@@ -1,0 +1,47 @@
+# SOUND CRUISE Source and Third-Party Notice
+
+Copyright (c) 2026 SOUND CRUISE, for operator-owned original materials only.
+Repository publication is not an open-source license. See [LICENSE](LICENSE),
+[SECURITY-AND-AI-POLICY.md](SECURITY-AND-AI-POLICY.md), and the five app Terms.
+Third-party rights and applicable license permissions always remain in force.
+
+## Third-party inventory (2026-10-05)
+
+This inventory covers the identified bundled browser vendor, embedded music fonts,
+remote UI font, and direct Worker dependencies/tooling. It is not an assertion that
+all transitive dependencies have been relicensed or exhaustively audited. Packages
+and their dependencies retain their own LICENSE/NOTICE files and lockfile versions.
+
+| Component | License | Current notice / evidence | Change needed / treatment |
+|---|---|---|---|
+| VexFlow 4.2.3, Rhythm vendor/vexflow.js | MIT | [Original MIT](apps/rhythm-cruise/vendor/LICENSE-vexflow.txt); vendor copyright header | Preserve unchanged; exclude from proprietary scope |
+| Bravura glyphs embedded in VexFlow | SIL OFL 1.1 | [Original OFL](apps/rhythm-cruise/vendor/LICENSE-bravura-OFL.txt) | Preserve unchanged, including Reserved Font Name |
+| Petaluma glyphs embedded in VexFlow | SIL OFL 1.1 | [Upstream OFL](https://github.com/steinbergmedia/petaluma/blob/master/redist/OFL.txt) | Add [local OFL](apps/rhythm-cruise/vendor/LICENSE-petaluma-OFL.txt); no font changes |
+| Leland glyphs embedded in VexFlow | SIL OFL 1.1 | [Upstream OFL](https://github.com/musescore/MuseScore/blob/v4.1.1/fonts/leland/LICENSE.txt) | Add [local OFL](apps/rhythm-cruise/vendor/LICENSE-leland-OFL.txt); no font changes |
+| Gonville glyphs embedded in VexFlow | Font outlines: unrestricted use; generating source: MIT | [Author's licensing statement](https://www.chiark.greenend.org.uk/~sgtatham/gonville/) | Credit Simon Tatham; VexFlow conversion remains under its applicable license |
+| VexFlow Custom engraving glyphs | MIT as part of VexFlow | VexFlow MIT notice | Preserve vendor notice; not SOUND CRUISE-owned |
+| Outfit, loaded through Google Fonts | SIL OFL 1.1 | [Upstream OFL](https://github.com/google/fonts/blob/main/ofl/outfit/OFL.txt) | Add [local OFL](apps/shared/licenses/Outfit-OFL.txt); loading unchanged |
+| fast-xml-parser 5.5.8 | MIT | NEWS package-lock and installed package LICENSE | Preserve package license; no dependency change |
+| htmlparser2 10.0.0 | MIT | NEWS package-lock and installed package LICENSE | Preserve package license; no dependency change |
+| jose 6.2.12 | MIT | NEWS package-lock and installed package LICENSE | Preserve package license; no dependency change |
+| robots-parser 3.0.1 | MIT | NEWS package-lock and installed package LICENSE | Preserve package license; no dependency change |
+| Wrangler 4.131.1 / 4.129.0 (tooling) | MIT OR Apache-2.0 | Worker package-locks and package licenses | Preserve package licenses and transitive notices |
+| Miniflare (tooling) | MIT | Worker package-locks and package license | Preserve package license |
+| undici (tooling) | MIT | Worker package-locks and package license | Preserve package license |
+
+VexFlow's [4.2.3 font loader](https://github.com/0xfe/vexflow/blob/4.2.3/src/fonts/load_all.ts)
+loads Bravura, Gonville, Petaluma, Custom, and Leland. The font names are not merely
+an inventory of possible external fonts. This notice does not alter glyph data.
+
+Third-party brand names, linked NEWS articles, user-supplied media, and user data
+remain the property of their respective rightsholders. Their inclusion does not
+make them proprietary SOUND CRUISE materials. No third-party license is superseded
+by the proprietary restrictions or AI instructions in this repository.
+
+## Review boundary
+
+The operator's legal identity, chain of ownership/asset permissions, enforceability
+of Terms, and application of statutory exceptions require final legal review before
+publication. The documents do not claim retroactive withdrawal of earlier grants.
+They preserve uses permitted by applicable law, lawful quotation, permitted
+screenshots, and operator-authorized work.

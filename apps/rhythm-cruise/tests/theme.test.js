@@ -180,7 +180,7 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
     var sha256 = function (text) { return crypto.createHash('sha256').update(text).digest('hex'); };
     var INFO_PAGES = {
         'info.html': ['./theme-colors-info.css', 'bdbcca3ff4d2d0c5f94c15b34535a75e621c171cc6666992a84f7065d133547f'],
-        'terms.html': ['./theme-colors-legal.css', '7180771fb19f7bd0d78d427fc9519299892a31d8e0028dd99a41703efbb5a0fe'],
+        'terms.html': ['./theme-colors-legal.css', '8a93f75beb0c6c4ffab0b20b219b00e10d869719c30cdfb8fc588238b987ad7f'],
         'privacy.html': ['./theme-colors-legal.css', 'b53df1059a9a3a5e1bd94682a13f03a110af010d9f2ad05cb8445c558432a033'],
         'usage.html': ['./theme-colors-help.css', '46e6bd4a09e2e4f066f8948b851e83c135ce8e79a4f845b08701a86069524d3b'],
         'mic-correction-help.html': ['./theme-colors-help.css', '4088e435b8799aa0197e7a9fa3168de1d442c9a2fce2bb583c2a7a7bed1382b3'],

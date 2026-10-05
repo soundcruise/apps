@@ -4,7 +4,7 @@
     const fail = () => { document.body.classList.add('pro-gate-active'); };
     function startGate() {
         const script = document.createElement('script');
-        script.src = '../../shared/pro-gate.js?v=29';
+        script.src = '../../shared/pro-gate.js?v=30';
         script.onerror = fail;
         document.head.appendChild(script);
     }

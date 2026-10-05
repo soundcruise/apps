@@ -15,16 +15,13 @@
 - 通常版PWA URL: `https://soundcruise.jp/apps/rhythm-cruise/standard/`
 - 旧通常版URL（互換入口）: `https://soundcruise.jp/apps/rhythm-cruise/`
 - PRO版URL: `https://soundcruise.jp/apps/rhythm-cruise/pro_r4m8k7n2q9x/`
-- 現在のバージョン: `1.17.2`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
-- このドキュメント更新時点の最新commit（rhythm-cruise関連）:
-  - message: `リズムクルーズを正式版1.0.0に更新`
-  - hash: 本ドキュメント更新と同一commitでpushされるため、この記述時点では未確定（4章「リリース準備メモ」参照）
-  - ※ リポジトリ全体のHEAD/`origin/main`は、`apps/cruise-studio/`など他アプリの作業により、これより進んでいる場合があります。作業開始時は必ず `git log --oneline -- apps/rhythm-cruise/` でこのアプリ単位の最新commitを確認してください。
+- 現在のバージョン: `1.18.2`（`script.js` の `RHYTHM_CRUISE_VERSION`。PWAのStandard / PRO兄弟ディレクトリ構造へ移行済み）
+- 最新commitは作業開始時に `git log --oneline -- apps/rhythm-cruise/` で実測する。下記の旧バージョン別記録は履歴であり、現在の認証設計は5章を正とする。
 - 通常版 / PRO版の構造:
   - 通常版: `apps/rhythm-cruise/standard/index.html`（Standard専用ディレクトリ）
   - 旧通常版URLの互換入口: `apps/rhythm-cruise/index.html`。PWA manifestを公開せず、旧root scopeのService Workerだけを解除して`standard/`へ遷移する。
   - PRO版: `apps/rhythm-cruise/pro_r4m8k7n2q9x/index.html`（サブディレクトリ）
-  - PRO版のパスは意図的にランダムな英数字ディレクトリ名（`pro_r4m8k7n2q9x`）になっており、簡易的なアクセス制限として機能しています。ディレクトリ名は変更しないでください。
+  - PRO版のパスは意図的にランダムな英数字ディレクトリ名（`pro_r4m8k7n2q9x`）になっており、認証境界ではありません。共有Proゲートとサーバー側Pro資格検証で保護します。ディレクトリ名は変更しないでください。
 - `script.js` は通常版・PRO版で完全に同じファイルを共有しています（両方とも `../script.js` を参照）。編集は1箇所（ルートの `script.js`）のみで、両版に影響します。
 - `theme.css` も同様に共有しています（両方とも `../theme.css` を参照）。
 - Service Workerの扱い:
@@ -53,7 +50,7 @@
 |---|---|
 | `index.html` | 旧通常版URLの互換入口。root scopeのService Workerだけを解除後、`standard/`へ遷移する。manifestを参照しないため、新規PWAとして登録されない。 |
 | `standard/index.html` | 通常版のメインHTML。ホーム/Practice/設定の3画面をSPA的にJSで切り替える。`../script.js` と `../theme.css` を参照し、`standard/`だけをscopeにしてService Workerを登録する。 |
-| `pro_r4m8k7n2q9x/index.html` | PRO版のメインHTML。`index.html` とほぼ同一のDOM構造だが、`<html data-app-edition="Pro">` が付き、`../script.js` `../theme.css` を参照。`shared/pro-gate.css` `shared/pro-gate.js` を追加読み込みし、パスワード認証を行う。 |
+| `pro_r4m8k7n2q9x/index.html` | PRO版のメインHTML。`index.html` とほぼ同一のDOM構造だが、`<html data-app-edition="Pro">` が付き、`../script.js` `../theme.css` を参照。`apps/shared/pro-gate.css`、`pro-device-session.js`、`pro-gate-help.js`、`pro-gate.js`を読み込み、共通のサーバー認証を行う。 |
 | `script.js` | アプリ全体のロジック（画面制御・Practice判定・マイク処理・録音レビュー・PROロック・設定保存など）を1ファイルに集約。通常版/PRO版で共有。 |
 | `theme.css` | 見た目全体を1ファイルで完結（`shared/`には依存しない設計）。通常版/PRO版で共有。 |
 | `info.html` | インフォメーション入口ページ。説明動画、指板クルーズと同じURL・デザインの「YouTube Chトップ」導線、基本的な使い方・利用規約・プライバシーポリシーへのリンクを掲載。YouTubeリンクはいずれも既存の「YouTubeを開きます」確認カードを経由し、通常版／PRO版で共通。 |
@@ -122,8 +119,10 @@
       return document.documentElement?.dataset?.appEdition === 'Pro';
   }
   ```
-- PRO認証: PRO版HTMLのみ `shared/pro-gate.css` / `shared/pro-gate.js` を読み込み、`window.__SOUNDCRUISE_PRO_GATE__ = { passwordHash, gateVersion, appName }` でパスワードゲートを構成。**この認証まわりは `shared/` に属するため、リズムクルーズ側から不用意に変更しない。**
-  - **PRO認証画面の表示名（不具合修正済み）**: 以前は `shared/pro-gate.js` がゲート見出しを「指板クルーズ PRO」とハードコードしていたため、リズムクルーズPRO版でも「指板クルーズ PRO」と誤表示されていた。`shared/pro-gate.js` に汎用的な `appName` 設定を追加し（未指定時は後方互換で「指板クルーズ」にフォールバック）、リズムクルーズPRO版HTMLの `__SOUNDCRUISE_PRO_GATE__` に `appName: 'リズムクルーズ'` を渡すことで「リズムクルーズ PRO」と表示されるよう修正した。**認証判定・パスワードハッシュ・`gateVersion`・保存/セッションキー・遷移仕様はいずれも未変更**（表示名のみの修正）。`shared/pro-gate.js` を変更したため、リズムクルーズPRO版の `pro-gate.js?v=` は `18→19` に更新済み（指板クルーズ側はフォールバックで表示が変わらないため、その `?v=` は据え置き）。
+- PRO認証: PRO版HTMLの`window.__SOUNDCRUISE_PRO_GATE__`は`gateVersion`・`appName`等の表示設定のみ。番号・照合ハッシュを公開コードに置かない。
+  - `apps/shared/pro-gate.js`と`pro-device-session.js`が`/v2/pro-auth`を利用し、サーバー発行のPro資格、generation・失効検証、device-bound session、オンライン再検証を扱う。
+  - 有料backendはPro entitlementとAccount/device authorizationを別々に検証する。版表示や専用URLだけでは利用資格にならない。StandardのAccount作成・復旧・管理は利用可能。
+  - 現在の表示名は`appName: 'リズムクルーズ'`。運用手順は[`PRO_AUTH_OPERATIONS.md`](../../../workers/sound-cruise-sync/PRO_AUTH_OPERATIONS.md)を参照し、共通認証を不用意に変更しない。
 - PROロック対象（`script.js` 内 `RHYTHM_PRO_LOCK_MESSAGES` に定義。通常版でタップすると `window.alert` で案内）:
   - カスタムSTAGEの作成・保存・練習開始（`proCustomStage` / `proCustomStageStart` 等）
   - 作成したリズムの保存・練習開始・プリセット保存（`rhythmCreateSave` / `rhythmCreateStart` / `rhythmCreatePresetSave`）

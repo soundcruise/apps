@@ -244,7 +244,7 @@ var INFO_PAGE_HASHES = {
     // sha256 of each page without the theme bootstrap and with ?v= normalized (1.17.0 content).
     'info.html': '1cce0238df108ddddf6f1293758564b88744b23a565f6c9c985cf7216109aba3',
     'usage.html': 'faafa6ce7fabed29c579e0c1c329b3211c650e3d680a5ecb635357a9114b2256',
-    'terms.html': 'ea0a40102936c97df6c301eaa0af8ce43adea1d2216ee53943a2360725a181f8',
+    'terms.html': 'cf49bb380f916d9e5c8b5e21a6fab8c54f538f2860915c8dadf4293dc0dcff8b',
     'privacy.html': 'ccdfa364b18cf310a74c7a1b9181c37219b2c312e6fba607ee4d81bba2977fe5'
 };
 Object.keys(INFO_PAGE_HASHES).forEach(function (file) {

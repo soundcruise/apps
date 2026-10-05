@@ -514,9 +514,13 @@ Phase 3.5（小節ルーペ）とは独立した、紙面（`.sheet-page`）本�
 ## Phase 8: PRO版/認証/feature flag
 
 - `pro_<ランダム文字列>/index.html` を追加し `../../shared/pro-gate.css` / `pro-gate.js` に接続
-- `window.__SOUNDCRUISE_PRO_GATE__`（passwordHash / gateVersion）をインライン定義
+- `window.__SOUNDCRUISE_PRO_GATE__`は`gateVersion`・`appName`等の表示設定のみ。番号・照合ハッシュをHTML/JSへ置かない。
+- 将来の接続は現在の共有Proゲートと`pro-device-session.js`を利用し、server-issued Pro credential、generation・revocation、device-bound sessionを維持する。
+- Cloud Sync・添付等の有料backend処理を導入する場合は、Pro entitlementとAccount/device authorizationの両方をサーバーで検証する。
+- 現時点でStudioのPro認証は未実装。この節は計画であり、旧クライアント側照合方式を再導入しない。
 - PRO機能の featureFlags 設計（`cruiseStudio.appSettings` 側。曲データには入れない）
 - PRO_FEATURES.md / MODULES.md の作成はこのフェーズで
 
-**完了条件**: 既存3アプリと同じパスワード・同じ解錠状態（soundCruiseProAuth）で
-スタジオPRO版に入れる。shared のdiffがゼロ。
+**完了条件**: 同一ブラウザ・originの既存5アプリと共通のサーバー発行資格で
+スタジオPRO版に入れる。既存のgeneration・失効・device session検証とbackend entitlementを維持し、
+旧ローカル解錠マーカーを認可根拠にしない。shared のdiffがゼロ。

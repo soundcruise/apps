@@ -1,0 +1,55 @@
+SOUND CRUISE Proprietary License
+Copyright (c) 2026 SOUND CRUISE. All rights reserved in operator-owned materials.
+
+1. Scope and ownership
+This license applies only to original code, documentation, branding, UI expression,
+and assets owned by the SOUND CRUISE operator in this repository. Ownership of
+third-party materials remains with their respective rightsholders. See NOTICE.
+
+2. Public source is not an open-source license
+Public availability permits inspection; it does not itself grant permission to
+reuse, modify, redistribute, sublicense, or commercially exploit protected
+operator-owned materials. Normal use of the hosted Standard and authorized Pro
+applications is governed by each application's Terms. Rights expressly granted
+by applicable hosting-platform terms, including required viewing/forking rights,
+are not withdrawn; those rights do not imply a separate reuse license.
+
+3. Unauthorized uses
+Unless separately authorized by the operator, do not copy or redistribute
+protected materials, commercially reuse them, or reproduce substantial protected
+code, UI expression, branding, or assets to create a competing copy. Do not remove
+paid-feature restrictions, circumvent Pro authentication or access controls, or
+share credentials to give unauthorized users access. Automated extraction or
+reverse engineering for these unauthorized purposes is not permitted.
+
+4. Preserved rights and permissions
+Nothing here restricts uses permitted by applicable law or lawful quotation.
+The operator and persons or AI systems acting under the operator's authorization
+may perform development, maintenance, debugging, testing, security review,
+refactoring, deployment, and other authorized work within the explicitly approved
+scope. Authorization is defined in SECURITY-AND-AI-POLICY.md. Personal learning records, impressions,
+introductions, and screenshots/recordings remain permitted under the app Terms;
+they must not disclose credentials or distribute protected Pro content for reuse.
+
+5. Third-party priority
+Third-party components and their modifications remain governed by their own
+applicable licenses and notices. Their permissions, redistribution rights,
+copyright notices, and obligations are not overridden by this license or by the
+app Terms. In particular, VexFlow and the bundled music fonts are not claimed as
+SOUND CRUISE proprietary code or assets. See NOTICE and the original license texts.
+
+6. No technical guarantee; contact
+This notice is a rights and permissions statement, not an access-control mechanism
+or a guarantee that copying can be prevented. Additional permissions and reports:
+soundcruise.inc@gmail.com. See SECURITY-AND-AI-POLICY.md for developer/AI guidance.
+
+日本語要約（上記と併せて適用）
+本ライセンスはSOUND CRUISE運営者が権利を有する自社制作部分に限り適用します。
+ソースの公開だけでOSSとしての再利用許諾を与えるものではありません。許可なく、
+保護されるコード・UI表現・ブランド・素材を複製、再配布、商用流用し、実質的に
+コピーした競合サービスを作成することや、Pro制限・認証・アクセス制御を回避する
+ことは禁止します。引用等の法令上認められる利用と利用規約で許容する画面共有は
+妨げません。運営者本人、および運営者の明示的な承認のもとで作業する人やAIシステムは、
+承認範囲で開発・保守・デバッグ・テスト・セキュリティ確認・リファクタリング・
+デプロイその他の承認された作業を行えます。承認の定義はSECURITY-AND-AI-POLICY.mdに従います。
+第三者のOSS・フォント等の許諾は各ライセンスが優先します。

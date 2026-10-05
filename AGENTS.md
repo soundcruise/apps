@@ -42,7 +42,6 @@ apps/pitch-cruise/script.js              ← PITCH_TRAINER_APP_VERSION
 apps/pitch-cruise/standard/index.html     ← script.js?v=
 apps/pitch-cruise/beta/index.html         ← script.js?v=
 apps/pitch-cruise/pro_x9v7q2m8/index.html ← script.js?v=
-apps/pitch-cruise/staging/index.html      ← script.js?v=
 ```
 
 ### フレットボードクルーズ（apps/fretboard_cruise）の更新ファイル
@@ -50,7 +49,7 @@ apps/pitch-cruise/staging/index.html      ← script.js?v=
 ```
 apps/fretboard_cruise/script.js              ← FRETBOARD_CRUISE_APP_VERSION
 apps/fretboard_cruise/standard/index.html    ← script.js?v=
-apps/fretboard_cruise/pro_x9v7q2m8/index.html ← script.js?v=
+apps/fretboard_cruise/pro_a9f4k7q2m8z/index.html ← script.js?v=
 ```
 
 ### 共通ファイル（shared/）の ?v= 管理
@@ -80,4 +79,15 @@ apps/fretboard_cruise/pro_x9v7q2m8/index.html ← script.js?v=
 
 Port / Pitch / Fretboard / Rhythm / Chord のPro版は、Worker の `/v2/pro-auth` を使って共通の4桁を検証する。公開HTMLやJavaScriptへ番号・照合ハッシュを置かない。運用と将来の番号変更は `workers/sound-cruise-sync/PRO_AUTH_OPERATIONS.md` を参照する。
 
-現在のS2-Aローカル実装では、公開前の正式アプリバージョン変更を行わない。
+共有Proゲートはサーバー発行のPro資格、generation・失効検証、device-bound sessionを利用する。
+有料backendではPro資格とAccount/device資格を別々に検証する。クライアントの版表示やURLだけを認可根拠にしない。
+公開前のローカル候補の正式バージョン・公開操作は、その作業の指示に従う。
+
+## 自社素材の権利とAI利用方針
+
+自社コード・UI・ブランド・素材の利用方針は root の `LICENSE`、
+`SECURITY-AND-AI-POLICY.md`、`NOTICE` を参照する。
+無許可のPro制限解除・認証回避・実質的コピーへの協力は禁止。
+運営者が明示的に承認した保守・開発・セキュリティ検証は、その承認範囲で実施できる。
+法令上認められる利用は妨げず、第三者素材にはその素材のライセンスを優先する。
+この方針は技術的アクセス制御ではない。

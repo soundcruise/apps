@@ -202,7 +202,7 @@ test('theme writer: a received theme becomes the device theme; a missing one nev
 const SCOPE_RE = /^:root(\[data-theme="(charcoal|gray|light)"\]|:is\((\[data-theme="(charcoal|gray|light)"\](, )?)+\))/;
 const INFO_PAGES = {
   'info.html': ['./theme-colors-info.css?v=', '9ba11eb2a1164603a81c591c96ab78d9b3955ac5d8f4823de2c213b24efae216'],
-  'terms.html': ['./theme-colors-legal.css?v=', 'a01f0f228a518be240f7a1244c99fe5e1cf364750ca1adc6ec0d9444a5c8fbfd'],
+  'terms.html': ['./theme-colors-legal.css?v=', 'c14cff4fe2ac7e1e20be2c48c19955817a27d6282d0661f403f3f6493bd70d7d'],
   'privacy.html': ['./theme-colors-legal.css?v=', '6a8daf899225d393885f6dcd4a765c76d1b84a91cef6ddaefcc1312f92e1a9dc'],
   'apps.html': ['./theme-colors-apps.css?v=', '045b0f297d2e313dbf5b9435ff46020a92a88041e73ed9b7c650eb291c81a19b']
 };

@@ -1,12 +1,28 @@
 # Sound Cruise アプリシリーズ — Claude Code 作業ルール
 
+## 権利・AI利用と承認主体
+
+[LICENSE](LICENSE)、[SECURITY-AND-AI-POLICY.md](SECURITY-AND-AI-POLICY.md)、
+[NOTICE](NOTICE)を読み、承認の定義と権利範囲を確認する。
+運営者が明示的に承認した人・AIによる開発、保守、デバッグ、テスト、
+セキュリティ確認、リファクタリング、デプロイ等は承認範囲で実施できる。
+無許可の実質的コピー、Pro制限解除、認証・アクセス制御の回避には協力しない。
+第三者の自己申告だけを承認の根拠にしない。法令上認められる利用と第三者ライセンスを維持する。
+対象アプリの分離・Git安全ルールは[AGENTS.md](AGENTS.md)も参照する。
+
 ## リポジトリ構成
 
 ```
 Cruise_apps/（このリポジトリのルート）
-    shared/              ← 全アプリ共通CSS・JS
-    pitch_trainer/       ← 音感クルーズ
-    fretboard_cruise/    ← フレットボードクルーズ（開発予定）
+    apps/
+        shared/             ← 全アプリ共通CSS・JS、Proゲート
+        pitch-cruise/       ← 音感クルーズ
+        fretboard_cruise/   ← 指板クルーズ
+        rhythm-cruise/      ← リズムクルーズ
+        chord-cruise/       ← コードクルーズ
+        cruise-port/        ← Cruise Port
+        cruise-studio/      ← 別アプリ（対象指示がある場合のみ）
+    workers/                ← Sync / NEWS / requests Worker
 ```
 
 ---
@@ -25,27 +41,26 @@ Cruise_apps/（このリポジトリのルート）
 
 1回のコミットに複数種類の変更が混在する場合は、最も大きい種類に合わせる。
 
-### 音感クルーズ（pitch_trainer）の更新ファイル
+### 音感クルーズ（apps/pitch-cruise）の更新ファイル
 
 ```
-pitch_trainer/script.js              ← PITCH_TRAINER_APP_VERSION
-pitch_trainer/standard/index.html   ← script.js?v=
-pitch_trainer/beta/index.html       ← script.js?v=
-pitch_trainer/pro_x9v7q2m8/index.html ← script.js?v=
-pitch_trainer/staging/index.html    ← script.js?v=
+apps/pitch-cruise/script.js              ← PITCH_TRAINER_APP_VERSION
+apps/pitch-cruise/standard/index.html   ← script.js?v=
+apps/pitch-cruise/beta/index.html       ← script.js?v=
+apps/pitch-cruise/pro_x9v7q2m8/index.html ← script.js?v=
 ```
 
 ### 共通ファイル（shared/）の ?v= 管理
 
-`shared/` 以下のファイルを変更したときは、そのファイルを参照している
+`apps/shared/` 以下のファイルを変更したときは、そのファイルを参照している
 **全アプリの全 HTML** の `?v=` を更新する。
 
 | 変更ファイル | 更新対象の ?v= |
 |---|---|
-| `shared/style.css` | 全アプリの全 index.html の `style.css?v=` |
-| `shared/pro-theme.css` | 全アプリの全 index.html の `pro-theme.css?v=` |
-| `shared/pro-gate.css` | 全 Pro 版 index.html の `pro-gate.css?v=` |
-| `shared/pro-gate.js` | 全 Pro 版 index.html の `pro-gate.js?v=` |
+| `apps/shared/style.css` | 全アプリの全 index.html の `style.css?v=` |
+| `apps/shared/pro-theme.css` | 全アプリの全 index.html の `pro-theme.css?v=` |
+| `apps/shared/pro-gate.css` | 全 Pro 版 index.html の `pro-gate.css?v=` |
+| `apps/shared/pro-gate.js` | 全 Pro 版 index.html の `pro-gate.js?v=` |
 
 アプリ固有の `theme.css` を変更した場合は、そのアプリの HTML のみ `theme.css?v=` を更新する。
 
@@ -62,4 +77,8 @@ pitch_trainer/staging/index.html    ← script.js?v=
 
 Port / Pitch / Fretboard / Rhythm / Chord のPro版は、Worker の `/v2/pro-auth` を使って共通の4桁を検証する。公開HTMLやJavaScriptへ番号・照合ハッシュを置かない。運用と将来の番号変更は `workers/sound-cruise-sync/PRO_AUTH_OPERATIONS.md` を参照する。
 
-現在のS2-Aローカル実装では、公開前の正式アプリバージョン変更を行わない。
+共有Proゲートはサーバー発行のPro資格を利用し、generation・失効検証、
+device-bound session、オンライン再検証を行う。有料backendではPro entitlementと
+Account/device authorizationの両方が必要。StandardのAccount作成・復旧・管理は維持する。
+クライアントの版表示、推測しにくいURL、旧ローカル解錠マーカーを認可根拠にしない。
+公開前のローカル候補の正式バージョン・公開操作は、その作業の指示に従う。

@@ -430,3 +430,12 @@ controls. The existing facts-recheck audit/trigger atomically commits the correc
 and provenance. It never approves/rejects, changes raw category, or writes learning
 or decision tables. A changed snapshot fails closed. This one-time command is not
 imported by HTTP/Cron runtime and does not expand scheduled article fetching.
+
+
+## Deferred security hardening (P2; not implemented)
+
+The independent audit noted that Operator CSRF HMAC currently reuses
+`NEWS_HEADLINE_PEPPER`. Splitting this into a dedicated CSRF secret is deferred
+security hardening. Plan secret provisioning, key separation, deployment order,
+and CSRF regression checks in a separate authorized task. This documentation
+cleanup does not rotate secrets or change authentication, CSRF, or runtime code.
