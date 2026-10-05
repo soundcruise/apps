@@ -209,7 +209,7 @@ const INFO_PAGES = {
 const DARK_PAGES = {
   'pro-access.html': '5c496092202ba3d961939d5b12db9a442b1dbc6fc06548662ab66b3c05877930',
   'iphone-safari-guide.html': 'f6f8ddc844f38cb1efa04097a0865a2e5ee4d46daa89bb0da69213c3d99a5da9',
-  'pro_a9f4k7q2m8z/troubleshoot.html': '70ec934882122c3b04daf7743a87a335b9990629a8cea541370cabcf506491a9'
+  'pro_a9f4k7q2m8z/troubleshoot.html': 'ec5d88580d54bce79fa686864ec88098d61d00e4fa7f7ac3582d77af1aa9598b'
 };
 const sha256 = async (text) => (await import('node:crypto')).createHash('sha256').update(text).digest('hex');
 
@@ -241,6 +241,6 @@ test('information pages follow the theme with the app bootstrap; content is unch
     }
   }
   for (const [file, hash] of Object.entries(DARK_PAGES)) {
-    assert.equal(await sha256(read(file).replace('pro-gate.css?v=8', 'pro-gate.css?v=6')), hash, `${file}: Pro acquisition / shared help page stays Dark`);
+    assert.equal(await sha256(read(file).replace('pro-gate.css?v=9', 'pro-gate.css?v=6')), hash, `${file}: Pro acquisition / shared help page stays Dark`);
   }
 });

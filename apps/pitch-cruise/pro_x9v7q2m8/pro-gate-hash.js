@@ -11,7 +11,7 @@
     function loadGate() {
         if (window.SoundCruiseProPostHelp) { startGate(); return; }
         const help = document.createElement('script');
-        help.src = '../../shared/pro-gate-help.js?v=2';
+        help.src = '../../shared/pro-gate-help.js?v=3';
         help.onload = startGate;
         help.onerror = startGate; // Help availability must not change authentication behavior.
         document.head.appendChild(help);

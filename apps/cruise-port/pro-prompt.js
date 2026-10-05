@@ -1,4 +1,4 @@
-import { proAccessMarkup } from './pro-access-content.js?v=1.19.0';
+import { proAccessMarkup } from './pro-access-content.js?v=1.19.1';
 import { isProEdition } from './cruise-port-edition.js?v=0.27.0';
 
 export const PRO_INFO_ROUTE = '#pro-access';

@@ -6,8 +6,8 @@
 
     function contentMarkup() {
         return '<div class="pro-post-help-content">' +
-            '<ol class="pro-number-steps"><li>投稿URLをコピー' +
-            '<button type="button" class="pro-post-copy" data-pro-post-copy>投稿URLをコピー</button>' +
+            '<ol class="pro-number-steps"><li class="pro-number-copy-step">' +
+            '<button type="button" class="pro-post-copy" data-pro-post-copy>1. ここをタップしてURLをコピー</button>' +
             '<p class="pro-post-copy-status" data-pro-post-status role="status" aria-live="polite"></p>' +
             '<label class="pro-post-manual-copy" data-pro-post-manual hidden>投稿URL' +
             '<input type="text" readonly aria-label="投稿URL" value="' + POST_URL + '" spellcheck="false"></label>' +
@@ -30,7 +30,7 @@
 
     function helpMarkup() {
         return '<section id="pro-number-guide" class="pro-number-guide" data-pro-number-guide hidden ' +
-            'aria-labelledby="pro-number-guide-title"><h2 id="pro-number-guide-title">番号の確認方法</h2>' +
+            'aria-label="番号の案内">' +
             contentMarkup() + '</section>';
     }
 
@@ -90,7 +90,7 @@
     function mountStandalone() {
         const host = root.document?.querySelector('[data-pro-post-help-page]');
         if (!host) return;
-        host.innerHTML = '<h1>番号の確認方法</h1>' + contentMarkup() +
+        host.innerHTML = contentMarkup() +
             '<div class="pro-post-help-back"><button type="button" data-pro-post-back>← 戻る</button>' +
             '<a href="./">Pro版へ戻る</a></div>';
         bind(host);

@@ -216,14 +216,14 @@ body.pro-gate-active {
 .pro-gate-password-section button.pro-gate-password-link { font-family: inherit; cursor: pointer; }
 .pro-number-guide { margin-top: 18px; }
 .pro-number-guide[hidden] { display: none; }
-.pro-number-guide h2 {
-    margin: 0 0 16px;
-    font-size: 1rem;
-    color: #fff;
-}
-.pro-number-steps > li > .pro-post-copy { display: block; margin-top: 8px; }
+.pro-number-steps > .pro-number-copy-step { list-style: none; margin-left: -1.5em; }
+.pro-number-steps > li > .pro-post-copy { display: inline-block; margin-top: 0; }
 .pro-post-troubleshooting { text-align: left; }
 .pro-post-help-content {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 280px;
+    margin: 0 auto;
     text-align: left;
     font-size: 0.83rem;
     line-height: 1.65;

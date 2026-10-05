@@ -1,4 +1,4 @@
-import '../shared/pro-gate-help.js?v=2';
+import '../shared/pro-gate-help.js?v=3';
 import { PRO_ENTRY_PATH, CRUISE_PORT_ROOT } from './cruise-port-edition.js?v=0.27.0';
 
 // Official links already used by Port and Chord; no password or credential is published here.

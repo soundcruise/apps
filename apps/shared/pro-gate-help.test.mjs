@@ -53,8 +53,8 @@ test('all five primary actions open shared guidance instead of navigating direct
     assert.doesNotMatch(source, /m\.youtube|youtu\.be|window\.open|location\.replace|location\.href\s*=/);
     for (const entry of entries) {
         const html = read(entry);
-        assert.ok(html.includes('pro-gate-help.js?v=2'), entry);
-        assert.ok(html.indexOf('pro-gate-help.js?v=2') < html.indexOf('pro-gate.js?v=29'), entry);
+        assert.ok(html.includes('pro-gate-help.js?v=3'), entry);
+        assert.ok(html.indexOf('pro-gate-help.js?v=3') < html.indexOf('pro-gate.js?v=29'), entry);
         assert.doesNotMatch(html, /youtube\.com\/post\//, 'gate entries delegate to the shared definition');
     }
     const gate = read('pro-gate.js');
@@ -66,8 +66,9 @@ test('all five primary actions open shared guidance instead of navigating direct
 test('the shared basic guide has exactly three steps and detailed troubleshooting starts collapsed', () => {
     const markup = fixture().help.helpMarkup();
     assert.match(markup, /data-pro-number-guide hidden/);
-    assert.match(markup, /番号の確認方法/);
-    assert.equal((markup.match(/<li>/g) || []).length, 3);
+    assert.doesNotMatch(markup, /番号の確認方法|<h[12]|aria-labelledby/);
+    assert.equal((markup.match(/<li(?:\s[^>]*)?>/g) || []).length, 3);
+    assert.match(markup, /<li class="pro-number-copy-step"><button[^>]+>1\. ここをタップしてURLをコピー<\/button>/);
     assert.equal((markup.match(/<ol/g) || []).length, 1);
     assert.equal((markup.match(/data-pro-post-copy/g) || []).length, 1);
     const basic = markup.slice(0, markup.indexOf('<details'));
@@ -112,7 +113,7 @@ test('Pitch and Fretboard reuse their existing URLs with one shared page body', 
     const fretboard = read('../fretboard_cruise/pro_a9f4k7q2m8z/troubleshoot.html');
     assert.equal(pitch, fretboard);
     assert.match(pitch, /data-pro-post-help-page/);
-    assert.match(pitch, /shared\/pro-gate-help.js\?v=2/);
+    assert.match(pitch, /shared\/pro-gate-help.js\?v=3/);
     assert.doesNotMatch(pitch, /window\.open|よくある原因|<ol>|pro-gate.js/);
     assert.ok(pitch.length < 1000, 'old duplicated instructions are replaced by shared content');
     assert.match(read('../cruise-port/pro-access-content.js'), /MEMBER_POST_URL = globalThis.SoundCruiseProPostHelp.POST_URL/);
@@ -167,7 +168,7 @@ test('Escape collapses only open help and returns focus to its summary', () => {
 test('the legacy Pitch loader also loads shared help without changing its session helper', () => {
     const legacy = read('../pitch-cruise/pro_x9v7q2m8/pro-gate-hash.js');
     assert.match(legacy, /pro-device-session.js\?v=2/);
-    assert.match(legacy, /pro-gate-help.js\?v=2/);
+    assert.match(legacy, /pro-gate-help.js\?v=3/);
     assert.match(legacy, /help.onerror = startGate/);
     assert.match(legacy, /pro-gate.js\?v=29/);
 });

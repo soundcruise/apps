@@ -1,7 +1,7 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.1';
 import { resolveCruiseAppHref } from './cruise-app-links.js?v=0.60.0';
 import { SYNC_CENTER_APPS } from './sync-center-controller.js?v=1.1.3';
-import { createPortAccountJoin } from './port-account-join.js?v=1.19.0';
+import { createPortAccountJoin } from './port-account-join.js?v=1.19.1';
 import { normalizeUserLabel } from './sync-target-name.js?v=0.66.0';
 
 export function createSyncCenterOrchestrator({
