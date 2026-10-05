@@ -1,0 +1,2815 @@
+{
+  "schemaVersion": 1,
+  "purpose": "published_headline_quality_only",
+  "reviewedAt": "2026-10-05T22:27:28.300Z",
+  "expectedPublished": 59,
+  "entries": [
+    {
+      "n": 1,
+      "id": "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/85289/",
+      "publishedAt": "2026-09-25T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "new_product",
+      "before": "ESP、PA-MF-10を発表",
+      "publicBefore": "ESP、PA-MF-10を発表",
+      "classification": "A",
+      "note": "本文のシグネチュアピックと発売日9/26を確認。既存識別PA-MF-10を維持。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "e37575afd92214717855e11d7777bc95db7730791f4c42c56adc463d12328edd",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/85289/",
+        "kind": "product",
+        "brand": "ESP",
+        "product": "PA-MF-10",
+        "productType": "signature_pick",
+        "action": "release",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/85289/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238450558,
+            "responseHash": "dd3254ece719b40ffeffd0163dd7448945dc74c1f20ca4e3bdfc3cc84c8f0631",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "ESP、シグネチャーピック「PA-MF-10」を発売",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 2,
+      "id": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/87963/",
+      "publishedAt": "2026-09-25T15:00:00.000Z",
+      "category": "acoustic_guitar",
+      "eventType": "new_product",
+      "before": "Fender、FSR American Acoustasonic Telecasterの限定モデルを発表",
+      "publicBefore": "Fender、FSR American Acoustasonic Telecasterの限定モデルを発表",
+      "classification": "A",
+      "note": "本文にアコースティック／エレクトリック融合と限定生産。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "2decee95b8a83013d1ae9c53f3359111ae8c506dae204e94ea65d45e7492303d",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/87963/",
+        "kind": "product",
+        "brand": "Fender",
+        "product": "FSR American Acoustasonic Telecaster",
+        "productType": "hybrid_guitar",
+        "action": "announce",
+        "qualifier": "limited",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/87963/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238451951,
+            "responseHash": "e4b23f30613c7f71c858efb32d5139e23c0cc87c85b68c4089734e0dc4c816f6",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Fender、限定ハイブリッドギター「FSR American Acoustasonic Telecaster」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 3,
+      "id": "6743f48dc247ce49cd1e81a3ec52a415eb1fcb1f0051b682e945df88344ac7e4",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/84675/",
+      "publishedAt": "2026-09-24T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "other",
+      "before": "HISTORY、HSLCシリーズの製品情報",
+      "publicBefore": "HISTORY、HSLCシリーズの製品情報",
+      "classification": "A",
+      "note": "本文でHSLC-1がシンセティックレザークロス。発売断定は行わない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "6743f48dc247ce49cd1e81a3ec52a415eb1fcb1f0051b682e945df88344ac7e4",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/84675/",
+        "kind": "product",
+        "brand": "HISTORY",
+        "product": "HSLC-1",
+        "productType": "cleaning_cloth",
+        "action": "information",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/84675/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238453316,
+            "responseHash": "7b801fd9da4b607b88baf453d1c296186a8ca0cf9b93e921421f58ff33d9941d",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "HISTORY、楽器用クロス「HSLC-1」の製品情報",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 4,
+      "id": "6996cda04135ca70f4cb480c90b83aba220499d3158811b6a6b8d43f586aadf8",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/85571/",
+      "publishedAt": "2026-09-24T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "new_product",
+      "before": "Jackson、Flex A-Frame Standを発表",
+      "publicBefore": "Jackson、Flex A-Frame Standを発表",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "6996cda04135ca70f4cb480c90b83aba220499d3158811b6a6b8d43f586aadf8",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/85571/",
+        "kind": "product",
+        "brand": "Jackson",
+        "product": "Flex A-Frame Stand",
+        "productType": "guitar_stand",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/85571/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238454683,
+            "responseHash": "12fddc8d2a838e1758709be523958b3ee5e26067e3c14efdd7c758a7fe4963df",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Jackson、ギタースタンド「Flex A-Frame Stand」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 5,
+      "id": "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/87167/",
+      "publishedAt": "2026-09-23T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "new_product",
+      "before": "BOSS、EX-4を発表",
+      "publicBefore": "BOSS EX-4 Effects Expander、年内発売予定",
+      "classification": "A",
+      "note": "マルチ・エフェクト・ペダルと「発売予定日：決定し次第」を確認。年内という旧fixtureの日付は採用しない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "4c381cff5c7a3fc0f98d909b130a044d4568da2e217a01027f5a9bfc26ad59c9",
+        "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/87167/",
+        "kind": "product",
+        "brand": "BOSS",
+        "product": "EX-4",
+        "productType": "multi_effect_pedal",
+        "action": "scheduled_release",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/amp-effector/2026/09/87167/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238456024,
+            "responseHash": "135be011373c5fc5c51bc5253bbe327c63436b21da9da8744b1533000ce39951",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "BOSS、マルチエフェクター「EX-4」を発売予定",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 6,
+      "id": "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/81190/",
+      "publishedAt": "2026-09-22T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "new_product",
+      "before": "VOX、AC MINIを発表",
+      "publicBefore": "VOX AC-MINI、小型ギターアンプの製品情報",
+      "classification": "A",
+      "note": "本文のギターアンプと発売日9/26を確認。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "6ca060588843003db61c9a9b00d7281218b2e2b4f59378739e5bd08c2866cebb",
+        "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/81190/",
+        "kind": "product",
+        "brand": "VOX",
+        "product": "AC MINI",
+        "productType": "guitar_amp",
+        "action": "release",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/amp-effector/2026/09/81190/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238457407,
+            "responseHash": "4f70dff9faaf1b70c5fe21ba742e6af0db502aeae38d4fc8bdfbe2d602e0fb06",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "VOX、ギターアンプ「AC MINI」を発売",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 7,
+      "id": "c67e0180eae9c4019f00d553869b3011b0b6371013110873f1354878b6485ce3",
+      "source": "kikutani",
+      "sourceUrl": "https://www.kikutani.co.jp/news/godin-century-maho-eq/",
+      "publishedAt": "2026-09-23T15:00:00.000Z",
+      "category": "acoustic_guitar",
+      "eventType": "other",
+      "before": "GodinのCentury Maho EQ、総単板アコギの製品情報",
+      "publicBefore": "GodinのCentury Maho EQ、総単板アコギの製品情報",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "c67e0180eae9c4019f00d553869b3011b0b6371013110873f1354878b6485ce3",
+        "sourceUrl": "https://www.kikutani.co.jp/news/godin-century-maho-eq/",
+        "kind": "product",
+        "brand": "Godin",
+        "product": "Century Maho EQ",
+        "productType": "acoustic_guitar",
+        "action": "information",
+        "evidence": [
+          {
+            "url": "https://www.kikutani.co.jp/news/godin-century-maho-eq/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238459040,
+            "responseHash": "8c742de06dfc6a84e21fc270ae26c179edc7f53497436963807941ce1c608a2e",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Godin、アコースティックギター「Century Maho EQ」の製品情報",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 8,
+      "id": "049a692a2e22733e2583e62487a7304e3c99bf678355277b4e3ecbf105f717fe",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/gs-701376/",
+      "publishedAt": "2026-08-31T15:00:00.000Z",
+      "category": "acoustic_guitar",
+      "eventType": "other",
+      "before": "Martin 000JR Eに浜田省吾モデル",
+      "publicBefore": "Martin 000JR Eに浜田省吾モデル",
+      "classification": "A",
+      "note": "本文の特別仕様アコースティックギター、浜田省吾モデル。表示モデル名は共通部分を短縮。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "049a692a2e22733e2583e62487a7304e3c99bf678355277b4e3ecbf105f717fe",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/gs-701376/",
+        "kind": "product",
+        "brand": "Martin",
+        "product": "000JR E SHOGO HAMADA",
+        "productType": "acoustic_guitar",
+        "action": "announce",
+        "qualifier": "special",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/gs-701376/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238460458,
+            "responseHash": "b90568b7e2d85aeab43362962ed9723d3084a97bfd4d4966304e976e648340c3",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Martin、特別仕様のアコースティックギター「000JR E SHOGO HAMADA」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 9,
+      "id": "129529642a22e1c4bc999493d8baeb1be7658cb2ba0b81593cabb0e91f31607e",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/69253/",
+      "publishedAt": "2026-08-31T15:00:00.000Z",
+      "category": "acoustic_guitar",
+      "eventType": "other",
+      "before": "Headwayの新モデル、四季と桜をモチーフに",
+      "publicBefore": "Headwayの新モデル、四季と桜をモチーフに",
+      "classification": "A",
+      "note": "記事主題とモデル欄で四季桜2026・限定アコースティックギターを確認。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "129529642a22e1c4bc999493d8baeb1be7658cb2ba0b81593cabb0e91f31607e",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/69253/",
+        "kind": "product",
+        "brand": "Headway",
+        "product": "四季桜2026",
+        "productType": "acoustic_guitar",
+        "action": "announce",
+        "qualifier": "limited",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/09/69253/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238461840,
+            "responseHash": "7e4c64ad88717d9241dd4623e192f626dc3531a4b3ffa47ec7797b1318efeda9",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Headway、限定アコースティックギター「四季桜2026」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 10,
+      "id": "ca003c8a5353bf1af7837c20ef13222ecc3a7d796d7c445235018450de476eae",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki.com/blog/gibson-lrbaggs_hifi-dna/",
+      "publishedAt": "2026-09-23T15:00:00.000Z",
+      "category": "acoustic_guitar",
+      "eventType": "other",
+      "before": "Gibson J-45 StandardにHiFi DNA搭載仕様",
+      "publicBefore": "Gibson J-45 StandardにHiFi DNA搭載仕様",
+      "classification": "A",
+      "note": "9月後半入荷分からのピックアップ仕様変更。新製品発売にはしない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "ca003c8a5353bf1af7837c20ef13222ecc3a7d796d7c445235018450de476eae",
+        "sourceUrl": "https://www.ikebe-gakki.com/blog/gibson-lrbaggs_hifi-dna/",
+        "kind": "product",
+        "brand": "Gibson",
+        "product": "J-45 Standard",
+        "productType": "acoustic_guitar",
+        "action": "spec_change",
+        "feature": "Hi-Fi DNA搭載仕様",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki.com/blog/gibson-lrbaggs_hifi-dna/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238464434,
+            "responseHash": "1b52fae64c15a2d1c46759a48d154ef1879cabc56c4cecec67ae7e6c644e0940",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "feature"
+            ]
+          }
+        ]
+      },
+      "after": "Gibson、アコースティックギター「J-45 Standard」にHi-Fi DNA搭載仕様が登場",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 11,
+      "id": "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172573/",
+      "publishedAt": "2026-09-24T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "other",
+      "before": "Gretsch G6138 Bo Diddleyの限定復刻モデル",
+      "publicBefore": "Gretsch G6138 Bo Diddleyの限定復刻モデル",
+      "classification": "A",
+      "note": "一次記事でギター・限定復刻。エレキ種別までは断定しない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "6a1cc2d294beacfeea64658fabe52f080789fee5820b539c527361f4b9c25c6f",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172573/",
+        "kind": "product",
+        "brand": "Gretsch",
+        "product": "G6138 Bo Diddley",
+        "productType": "guitar",
+        "action": "reissue",
+        "qualifier": "limited",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172573/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238556950,
+            "responseHash": "27155b470146bba2891387f7a5fd9bd42467399a4b48a66ada0a1a71284c89e1",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Gretsch、限定ギター「G6138 Bo Diddley」を復刻",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 12,
+      "id": "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172547/",
+      "publishedAt": "2026-09-24T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "other",
+      "before": "ヤマハRS20MM、Matteo Mancusoシグネチャーモデル",
+      "publicBefore": "ヤマハRS20MM、Matteo Mancusoシグネチャーモデル",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "070aa5a95384c814cc95b55e1a7cfbf4e9bc2b33395a084944ddcdb04468bed9",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172547/",
+        "kind": "product",
+        "brand": "Yamaha",
+        "product": "RS20MM",
+        "productType": "electric_guitar",
+        "action": "announce",
+        "qualifier": "signature",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172547/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238558370,
+            "responseHash": "11e8e0bec7c48d511b75ab6b5c65d5f4f3ee3b290eb6f691ea340fdd0afe3748",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          },
+          {
+            "url": "https://www.yamaha.com/en/news_release/2026/26092501/",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248299,
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Yamaha、シグネチャー・エレキギター「RS20MM」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 13,
+      "id": "010d43f8b4c2b1ac0278308f772ba74e7cb6125c994f4ebf415ce4f919eae766",
+      "source": "chuya",
+      "sourceUrl": "https://discover.chuya-online.com/20260925/94854/",
+      "publishedAt": "2026-09-24T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "other",
+      "before": "Jackson PC1-E、Phil Collenシグネチャーモデル",
+      "publicBefore": "Jackson PC1-E、Phil Collenシグネチャーモデル",
+      "classification": "D",
+      "note": "元記事はrobots解析不能で取得停止。公式ページはモデル／シグネチャー仕様を確認できるが、今回の発売出来事と種別の明示が不十分。変更しない。",
+      "headlineQuality": null,
+      "after": "Jackson PC1-E、Phil Collenシグネチャーモデル",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      }
+    },
+    {
+      "n": 14,
+      "id": "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+      "source": "chuya",
+      "sourceUrl": "https://discover.chuya-online.com/20260925/94325/",
+      "publishedAt": "2026-09-24T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "other",
+      "before": "Fender Player Fusionの限定モデル情報",
+      "publicBefore": "Fender Player Fusionの限定モデル情報",
+      "classification": "B",
+      "note": "元記事の自動取得は中止。メーカー公式で限定モデルとElectric Guitarマニュアルを確認。発売時期は未確認のため製品情報。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "bd066b861793bbf0ebfdda3f7e50ee4ba675b0247a18b983c80e67f3475f4b3d",
+        "sourceUrl": "https://discover.chuya-online.com/20260925/94325/",
+        "kind": "product",
+        "brand": "Fender",
+        "product": "Player Fusion",
+        "productType": "electric_guitar",
+        "action": "information",
+        "qualifier": "limited",
+        "evidence": [
+          {
+            "url": "https://jp.fender.com/products/limited-edition-player-fusion-stratocaster-hss",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248299,
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Fender、限定エレキギター「Player Fusion」の製品情報",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 15,
+      "id": "3f6bd754cf451aeca029ca3ce2ea549b9535bda068eae3a69a093d1105b5f28b",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/84780/",
+      "publishedAt": "2026-09-10T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "other",
+      "before": "Xotic XXP-1、エクスプレッションペダルの製品情報",
+      "publicBefore": "Xotic XXP-1、エクスプレッションペダルの製品情報",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "3f6bd754cf451aeca029ca3ce2ea549b9535bda068eae3a69a093d1105b5f28b",
+        "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/84780/",
+        "kind": "product",
+        "brand": "Xotic",
+        "product": "XXP-1",
+        "productType": "expression_pedal",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/amp-effector/2026/09/84780/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238466254,
+            "responseHash": "b0219b8741c367c14dcbd689354d10a59cb1ef6d9b9b7a5f8fdd78f84e742cb9",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Xotic、エクスプレッションペダル「XXP-1」を発表",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 16,
+      "id": "de3c913ffeec365c4230fcf2a325711ee08e49b00b2f032c32328bcba9eddc8a",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/80794/",
+      "publishedAt": "2026-09-04T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "other",
+      "before": "CAJ AC/DC Station VII、ペダル用電源の新製品",
+      "publicBefore": "CAJ AC/DC Station VII、ペダル用電源の新製品",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "de3c913ffeec365c4230fcf2a325711ee08e49b00b2f032c32328bcba9eddc8a",
+        "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/80794/",
+        "kind": "product",
+        "brand": "CAJ",
+        "product": "AC/DC Station VII",
+        "productType": "pedal_power_supply",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/amp-effector/2026/09/80794/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238467609,
+            "responseHash": "1a7fc413e030fb0d93ce56936c188f1b3f33e30c0bcf26f758b5c9500f31c23d",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "CAJ、ペダル用電源「AC/DC Station VII」を発表",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 17,
+      "id": "80aefd3c6f3a8215a08a9a0e7f802706e9f43c70de2c15a857c1a9f5dafd97eb",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/83690/",
+      "publishedAt": "2026-09-11T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "other",
+      "before": "KHAN AUDIO 9VDI、9V電源で動く真空管DI",
+      "publicBefore": "KHAN AUDIO 9VDI、9V電源で動く真空管DI",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "80aefd3c6f3a8215a08a9a0e7f802706e9f43c70de2c15a857c1a9f5dafd97eb",
+        "sourceUrl": "https://www.shimamura.co.jp/update/amp-effector/2026/09/83690/",
+        "kind": "product",
+        "brand": "KHAN AUDIO",
+        "product": "9VDI",
+        "productType": "tube_di",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/amp-effector/2026/09/83690/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238468955,
+            "responseHash": "92d434cd553619eba1cdf92f61400f20f9d8646e96aa952c73110e830c7c5e39",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "KHAN AUDIO、真空管DI「9VDI」を発表",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 18,
+      "id": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172586/",
+      "publishedAt": "2026-09-27T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "other",
+      "before": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+      "publicBefore": "JAM Pedals Wahcko mk.2、ワウペダルの新モデル",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "1d8b1f604de279c8405bd3353a750f3712723b8c7df00c443d88ca16f51fff03",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172586/",
+        "kind": "product",
+        "brand": "JAM Pedals",
+        "product": "Wahcko mk.2",
+        "productType": "wah_pedal",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172586/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238559775,
+            "responseHash": "125f8c07278a03a6443a5004eefcc7ba53ba0f8132994895aded4a8a5676299e",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "JAM Pedals、ワウペダル「Wahcko mk.2」を発表",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 19,
+      "id": "e2e2240cf3d3e0e284a1465a0fdc1dbb1b6368c34135fbf98f340c4beef06922",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172516/",
+      "publishedAt": "2026-09-23T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "other",
+      "before": "MXRの新ペダル2機種、グラニュラーとフランジャー",
+      "publicBefore": "MXRの新ペダル2機種、グラニュラーとフランジャー",
+      "classification": "A",
+      "note": "記事のモデル欄でM310／M226Rとグラニュラー／フランジャー。複数モデル名を短縮表示。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "e2e2240cf3d3e0e284a1465a0fdc1dbb1b6368c34135fbf98f340c4beef06922",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172516/",
+        "kind": "product",
+        "brand": "MXR",
+        "product": "M310 / M226R",
+        "productType": "effect_pedal",
+        "action": "announce",
+        "subtypes": [
+          "granular",
+          "flanger"
+        ],
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172516/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238561593,
+            "responseHash": "270f2362ac28d0aa9c109c3baf3fddb3827a2befe70992505c9dd126df4d2bfc",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "subtypes"
+            ]
+          }
+        ]
+      },
+      "after": "MXR、グラニュラー／フランジャーエフェクター「M310 / M226R」を発表",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 20,
+      "id": "b7d35c4750a6712448950d2d5b73ef7254544fd712366102a6fe6ec9d010d188",
+      "source": "sleepfreaks",
+      "sourceUrl": "https://sleepfreaks-dtm.com/dtm-materials/lunacy_nova/",
+      "publishedAt": "2026-09-17T15:00:00.000Z",
+      "category": "dtm_software",
+      "eventType": "other",
+      "before": "Lunacy Audio NOVA、音源ライブラリ向けの新基盤",
+      "publicBefore": "Lunacy Audio NOVA、音源ライブラリ向けの新基盤",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "b7d35c4750a6712448950d2d5b73ef7254544fd712366102a6fe6ec9d010d188",
+        "sourceUrl": "https://sleepfreaks-dtm.com/dtm-materials/lunacy_nova/",
+        "kind": "product",
+        "brand": "Lunacy Audio",
+        "product": "NOVA",
+        "productType": "instrument_library",
+        "action": "release",
+        "evidence": [
+          {
+            "url": "https://sleepfreaks-dtm.com/dtm-materials/lunacy_nova/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238471113,
+            "responseHash": "d4055ade185fc39d6b693330227caf19bb1726b635de6b877add778e65967486",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Lunacy Audio、音源ライブラリ「NOVA」を発売",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 21,
+      "id": "bfc2b95d77b618b783689078455cc22a90dc92cf6bcc953740eeb44d9ff82c7c",
+      "source": "ahs",
+      "sourceUrl": "https://www.ah-soft.com/inst-x/setup/",
+      "publishedAt": "2026-09-16T15:00:00.000Z",
+      "category": "dtm_software",
+      "eventType": "other",
+      "before": "AHSがInstrument Xの1.0.1更新版を公開",
+      "publicBefore": "AHSがInstrument Xの1.0.1更新版を公開",
+      "classification": "A",
+      "note": "メーカー更新履歴1.0.1。ソフトウェアであることも製品説明で確認。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "bfc2b95d77b618b783689078455cc22a90dc92cf6bcc953740eeb44d9ff82c7c",
+        "sourceUrl": "https://www.ah-soft.com/inst-x/setup/",
+        "kind": "product",
+        "brand": "AHS",
+        "product": "Instrument X",
+        "productType": "software",
+        "action": "update",
+        "version": "1.0.1",
+        "evidence": [
+          {
+            "url": "https://www.ah-soft.com/inst-x/setup/",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248299,
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "version"
+            ]
+          }
+        ]
+      },
+      "after": "AHS、ソフトウェア「Instrument X」の1.0.1更新版を公開",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 22,
+      "id": "53f1d8c22d50660e1f24d3b7c95b08d4e935c3c2039431ec4b72acd3df2378ec",
+      "source": "hookup",
+      "sourceUrl": "https://hookup.co.jp/blog/1606531",
+      "publishedAt": "2026-09-18T15:00:00.000Z",
+      "category": "dtm_software",
+      "eventType": "other",
+      "before": "Rupert Neve Designsからプラグイン3製品",
+      "publicBefore": "Rupert Neve Designsからプラグイン3製品",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "53f1d8c22d50660e1f24d3b7c95b08d4e935c3c2039431ec4b72acd3df2378ec",
+        "sourceUrl": "https://hookup.co.jp/blog/1606531",
+        "kind": "product",
+        "brand": "Rupert Neve Designs",
+        "product": "Portico II MBP / 551 / 542",
+        "productType": "plugin",
+        "action": "release",
+        "evidence": [
+          {
+            "url": "https://hookup.co.jp/blog/1606531",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238563252,
+            "responseHash": "1e9d069555b8b8181732f366357919cc561e9a91cdad770517846febfc6acae9",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Rupert Neve Designs、プラグイン「Portico II MBP / 551 / 542」を発売",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 23,
+      "id": "78c7568a8fb1c49b4158dfeaa603f175df20a79cb98962613969dfb9063d3875",
+      "source": "sonicwire",
+      "sourceUrl": "https://sonicwire.com/news/blog/2026/09/centerone3",
+      "publishedAt": "2026-09-24T15:00:00.000Z",
+      "category": "dtm_software",
+      "eventType": "other",
+      "before": "CenterOne 3の更新情報、音像調整機能を強化",
+      "publicBefore": "CenterOne 3の更新情報、音像調整機能を強化",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "78c7568a8fb1c49b4158dfeaa603f175df20a79cb98962613969dfb9063d3875",
+        "sourceUrl": "https://sonicwire.com/news/blog/2026/09/centerone3",
+        "kind": "product",
+        "brand": "Leapwing",
+        "product": "CenterOne 3",
+        "productType": "stereo_plugin",
+        "action": "update",
+        "evidence": [
+          {
+            "url": "https://sonicwire.com/news/blog/2026/09/centerone3",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238482306,
+            "responseHash": "da805e2dab2cabdc31719ff670ff4f68d3ccba2ab85361c00b8654a0d3876ce4",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Leapwing、音像調整プラグイン「CenterOne 3」を更新",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 24,
+      "id": "e2266b3c52fa665fa070bd9ebf45dbb2478040bbc7857d1de29eede75794fb5d",
+      "source": "sonicwire",
+      "sourceUrl": "https://sonicwire.com/news/blog/2026/09/dotec-audio-5-deemultiwider",
+      "publishedAt": "2026-09-16T15:00:00.000Z",
+      "category": "dtm_software",
+      "eventType": "other",
+      "before": "DOTEC-AUDIO DeeMultiWider、5バンド対応の新製品",
+      "publicBefore": "DOTEC-AUDIO DeeMultiWider、5バンド対応の新製品",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "e2266b3c52fa665fa070bd9ebf45dbb2478040bbc7857d1de29eede75794fb5d",
+        "sourceUrl": "https://sonicwire.com/news/blog/2026/09/dotec-audio-5-deemultiwider",
+        "kind": "product",
+        "brand": "DOTEC-AUDIO",
+        "product": "DeeMultiWider",
+        "productType": "stereo_imager",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://sonicwire.com/news/blog/2026/09/dotec-audio-5-deemultiwider",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238492692,
+            "responseHash": "1a7abbfed5794edaa026a4169f4a1a0dfca268e417a8d1d7f7ca9f3ceae5b3ba",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "DOTEC-AUDIO、ステレオイメージャー「DeeMultiWider」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 25,
+      "id": "41ace56b12a95818a284af8f8de60c87992437c478ee8d9d403db1df1934d2f2",
+      "source": "ik",
+      "sourceUrl": "https://www.ikmultimedia.com/news/?item_id=19792",
+      "publishedAt": "2026-09-16T15:00:00.000Z",
+      "category": "dtm_software",
+      "eventType": "other",
+      "before": "ReSing向け追加ボイスパックにVol 2",
+      "publicBefore": "ReSing向け追加ボイスパックにVol 2",
+      "classification": "B",
+      "note": "一次ページdescriptionは追加英語ボイスを明記。発売出来事を断定せず製品情報。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "41ace56b12a95818a284af8f8de60c87992437c478ee8d9d403db1df1934d2f2",
+        "sourceUrl": "https://www.ikmultimedia.com/news/?item_id=19792",
+        "kind": "product",
+        "brand": "IK Multimedia",
+        "product": "ReSing Voices Vol 2",
+        "productType": "voice_pack",
+        "action": "information",
+        "evidence": [
+          {
+            "url": "https://www.ikmultimedia.com/news/?item_id=19792",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238494857,
+            "responseHash": "1a0eba3bc906b82296a564d07ac969c3f1abe13865c56d4faf1e4a21054c1d68",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "IK Multimedia、追加ボイスパック「ReSing Voices Vol 2」の製品情報",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 26,
+      "id": "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+      "source": "yamaha",
+      "sourceUrl": "https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html",
+      "publishedAt": "2026-09-17T15:00:00.000Z",
+      "category": "acoustic_guitar",
+      "eventType": "other",
+      "before": "Yamaha、FG7 / FS7シリーズの新モデルを発表",
+      "publicBefore": "Yamaha、FG7 / FS7シリーズの新モデルを発表",
+      "classification": "A",
+      "note": "メーカー製品ページでアコースティックギター、2026年10月発売を確認。公開日9/18とは分離。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "953fa25c80d168d1d3d53f336714b993e9f02162a2a2acf4fdfed3ac982ff4d1",
+        "sourceUrl": "https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html",
+        "kind": "product",
+        "brand": "Yamaha",
+        "product": "FG7 / FS7",
+        "productType": "acoustic_guitar",
+        "action": "scheduled_release",
+        "date": "2026-10",
+        "evidence": [
+          {
+            "url": "https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248299,
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "date"
+            ]
+          }
+        ]
+      },
+      "after": "Yamaha、アコースティックギター「FG7 / FS7」を10月に発売予定",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 27,
+      "id": "4a818ebef7d1ce438926275be97be3302d4407a9d1f80e7c5069b05a54a6191f",
+      "source": "kikutani",
+      "sourceUrl": "https://www.kikutani.co.jp/news/shinsyu-guitar-2026/",
+      "publishedAt": "2026-09-25T15:00:00.000Z",
+      "category": "live_guitar",
+      "eventType": "guitar_event",
+      "before": "信州ギター祭、ギター関連イベントの出展情報",
+      "publicBefore": "信州ギター祭、ギター関連イベントの出展情報",
+      "classification": "A",
+      "note": "出展者キクタニとVincitaを確認。開催告知／新発売にしない。保存公開日を維持。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "4a818ebef7d1ce438926275be97be3302d4407a9d1f80e7c5069b05a54a6191f",
+        "sourceUrl": "https://www.kikutani.co.jp/news/shinsyu-guitar-2026/",
+        "kind": "exhibition",
+        "brand": "キクタニ",
+        "event": "信州ギター祭り2026",
+        "exhibit": "Vincita",
+        "action": "exhibiting",
+        "evidence": [
+          {
+            "url": "https://www.kikutani.co.jp/news/shinsyu-guitar-2026/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238496480,
+            "responseHash": "fcaecee1723e12281419647aa0be7835fc8fb281a4846387079bab039bf38e85",
+            "fields": [
+              "identity",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "キクタニ、信州ギター祭り2026にVincitaを出展",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 28,
+      "id": "d348508497550e8d67a94e8d5cd648aed1bdb84a4b4eb1710d4935760a3bbb48",
+      "source": "sleepfreaks",
+      "sourceUrl": "https://sleepfreaks-dtm.com/dtm-materials/vocalign-7/",
+      "publishedAt": "2026-09-24T13:11:40.000Z",
+      "category": "dtm_software",
+      "eventType": "other",
+      "before": "VocAlign 7の製品情報",
+      "publicBefore": "VocAlign 7の製品情報",
+      "classification": "B",
+      "note": "本文でSynchro Artsとボーカル編集プラグイン。製品紹介を新発売と見なさない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "d348508497550e8d67a94e8d5cd648aed1bdb84a4b4eb1710d4935760a3bbb48",
+        "sourceUrl": "https://sleepfreaks-dtm.com/dtm-materials/vocalign-7/",
+        "kind": "product",
+        "brand": "Synchro Arts",
+        "product": "VocAlign 7",
+        "productType": "vocal_plugin",
+        "action": "information",
+        "evidence": [
+          {
+            "url": "https://sleepfreaks-dtm.com/dtm-materials/vocalign-7/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238497784,
+            "responseHash": "78d6ee927c7f407a7a859a7dd99ec40ba8ea6ade37f536f224996dca07771606",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Synchro Arts、ボーカル編集プラグイン「VocAlign 7」の製品情報",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 29,
+      "id": "6306784f40ad5ba6490183003007002df7c827ffe91b725fddd62574c2b0b982",
+      "source": "sleepfreaks",
+      "sourceUrl": "https://sleepfreaks-dtm.com/dtm-materials/luna-3/",
+      "publishedAt": "2026-09-15T07:05:05.000Z",
+      "category": "dtm_software",
+      "eventType": "update",
+      "before": "LUNA 3を更新",
+      "publicBefore": "LUNA 3を更新",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "6306784f40ad5ba6490183003007002df7c827ffe91b725fddd62574c2b0b982",
+        "sourceUrl": "https://sleepfreaks-dtm.com/dtm-materials/luna-3/",
+        "kind": "product",
+        "brand": "Universal Audio",
+        "product": "LUNA 3",
+        "productType": "daw",
+        "action": "update",
+        "evidence": [
+          {
+            "url": "https://sleepfreaks-dtm.com/dtm-materials/luna-3/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238499050,
+            "responseHash": "7e2ab31ef91ec37b2e277b0d374e974ba6a1363f481e217dc34cba367d158c1b",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Universal Audio、DAW「LUNA 3」を更新",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 30,
+      "id": "24030dfef30cee5465e15548142cb979f918afc2a7b9c2b65b57f1ceed14a4a1",
+      "source": "sleepfreaks",
+      "sourceUrl": "https://sleepfreaks-dtm.com/softsynth/sinphonica/",
+      "publishedAt": "2026-09-08T09:29:25.000Z",
+      "category": "dtm_software",
+      "eventType": "new_product",
+      "before": "SINPHONICAを発表",
+      "publicBefore": "SINPHONICAを発表",
+      "classification": "B",
+      "note": "元記事はredirectで停止。メーカー公式でオーケストラ音源を確認。ニュースの発売時期は断定しない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "24030dfef30cee5465e15548142cb979f918afc2a7b9c2b65b57f1ceed14a4a1",
+        "sourceUrl": "https://sleepfreaks-dtm.com/softsynth/sinphonica/",
+        "kind": "product",
+        "brand": "IK Multimedia",
+        "product": "SINPHONICA",
+        "productType": "orchestral_instrument",
+        "action": "information",
+        "evidence": [
+          {
+            "url": "https://www.ikmultimedia.com/products/sinphonica/index.php?p=story",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248300,
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "IK Multimedia、オーケストラ音源「SINPHONICA」の製品情報",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 31,
+      "id": "04536a7aa6e0f45584f9ecf7b32cee66c415ce93af343055e030ffe7ac69a907",
+      "source": "sleepfreaks",
+      "sourceUrl": "https://sleepfreaks-dtm.com/dtm-materials/lava-studio/",
+      "publishedAt": "2026-08-17T02:30:34.000Z",
+      "category": "amps_effects",
+      "eventType": "other",
+      "before": "LAVA MUSIC、LAVA STUDIOの製品情報",
+      "publicBefore": "LAVA MUSIC、LAVA STUDIOの製品情報",
+      "classification": "A",
+      "note": "一次記事の国内先行販売とスマートアンプを確認。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "04536a7aa6e0f45584f9ecf7b32cee66c415ce93af343055e030ffe7ac69a907",
+        "sourceUrl": "https://sleepfreaks-dtm.com/dtm-materials/lava-studio/",
+        "kind": "product",
+        "brand": "LAVA MUSIC",
+        "product": "LAVA STUDIO",
+        "productType": "smart_amp",
+        "action": "early_sale",
+        "evidence": [
+          {
+            "url": "https://sleepfreaks-dtm.com/dtm-materials/lava-studio/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238501728,
+            "responseHash": "df613246fbf06673dd6f6fb0f149126567cf195ffa176a2690ed36c38777bdc8",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "LAVA MUSIC、スマートアンプ「LAVA STUDIO」を国内先行販売",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 32,
+      "id": "a285cfa9785273b32066f3af195d062b25abd645b3507a6cf47980a8499bdf74",
+      "source": "zoom",
+      "sourceUrl": "https://zoomcorp.com/ja/jp/news/tca-1_v110/",
+      "publishedAt": "2026-08-06T15:00:00.000Z",
+      "category": "recording_audio",
+      "eventType": "firmware",
+      "before": "ZOOM、TCA-1のファームウェア更新",
+      "publicBefore": "ZOOM、TCA-1のファームウェア更新",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "a285cfa9785273b32066f3af195d062b25abd645b3507a6cf47980a8499bdf74",
+        "sourceUrl": "https://zoomcorp.com/ja/jp/news/tca-1_v110/",
+        "kind": "product",
+        "brand": "ZOOM",
+        "product": "TCA-1",
+        "productType": "timecode_adapter",
+        "action": "firmware",
+        "version": "1.10",
+        "evidence": [
+          {
+            "url": "https://zoomcorp.com/ja/jp/news/tca-1_v110/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238504178,
+            "responseHash": "a693fde8548de7507265f80b318295af7bfb45f06b9ba3d88aa9ef223e11087b",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "version"
+            ]
+          }
+        ]
+      },
+      "after": "ZOOM、タイムコード・アダプタ「TCA-1」のファームウェア 1.10を更新",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 33,
+      "id": "6ff518e4e7269aeb2d29be1799ea79a90cde43bd0797aac6be2f63e159231a56",
+      "source": "zoom",
+      "sourceUrl": "https://zoomcorp.com/ja/jp/news/h2essential_v210/",
+      "publishedAt": "2026-07-09T15:00:00.000Z",
+      "category": "recording_audio",
+      "eventType": "firmware",
+      "before": "ZOOM、H2essentialのファームウェア更新",
+      "publicBefore": "ZOOM、H2essentialのファームウェア更新",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "6ff518e4e7269aeb2d29be1799ea79a90cde43bd0797aac6be2f63e159231a56",
+        "sourceUrl": "https://zoomcorp.com/ja/jp/news/h2essential_v210/",
+        "kind": "product",
+        "brand": "ZOOM",
+        "product": "H2essential",
+        "productType": "handy_recorder",
+        "action": "firmware",
+        "version": "2.10",
+        "evidence": [
+          {
+            "url": "https://zoomcorp.com/ja/jp/news/h2essential_v210/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238505874,
+            "responseHash": "66fc9a9ccb7a0b77be1c3c94a1b3cd5803752307690db95653d7ac7d48c6642e",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "version"
+            ]
+          }
+        ]
+      },
+      "after": "ZOOM、ハンディレコーダー「H2essential」のファームウェア 2.10を更新",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 34,
+      "id": "48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd",
+      "source": "amass",
+      "sourceUrl": "https://amass.jp/192113/",
+      "publishedAt": "2026-09-29T08:08:00.000Z",
+      "category": "artist_guitar",
+      "eventType": "guitar_artist",
+      "before": "リック・ニールセン、ギター演奏に関する話題",
+      "publicBefore": "リック・ニールセン、ギター演奏に関する話題",
+      "classification": "A",
+      "note": "一次記事主題は私物コレクションのオークション。ギター演奏ニュースではない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd",
+        "sourceUrl": "https://amass.jp/192113/",
+        "kind": "auction",
+        "person": "リック・ニールセン",
+        "action": "guitar_collection_auction",
+        "evidence": [
+          {
+            "url": "https://amass.jp/192113/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238507286,
+            "responseHash": "a5e2ca08688366d1d7c61ceac7600b67e6079daa8af4ec84299f5a4f4f3fc073",
+            "fields": [
+              "identity",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "リック・ニールセン、ギターなどの個人コレクションを競売へ",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 35,
+      "id": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172605/",
+      "publishedAt": "2026-09-28T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "new_product",
+      "before": "Ibanez、j.custom RG8570EM-NTの限定モデルを発表",
+      "publicBefore": "Ibanez、j.custom RG8570EM-NTの限定モデルを発表",
+      "classification": "A",
+      "note": "一次記事の限定モデルとメーカー公式のElectric Guitars製品分類を照合。NEWS categoryによる推測ではない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "216a976c672ddd55a954af622e6b6f19bdfb1f911445f71d59a47189b207968a",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172605/",
+        "kind": "product",
+        "brand": "Ibanez",
+        "product": "j.custom RG8570EM-NT",
+        "productType": "electric_guitar",
+        "action": "announce",
+        "qualifier": "limited",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172605/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238564721,
+            "responseHash": "b46dc8e5b2ea38b6526cff0ed5e7b9d46e9c2e323bdcd323abef862dd07cfa29",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          },
+          {
+            "url": "https://www.ibanez.com/jp/products/detail/rg8570em_00_01.html",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248300,
+            "fields": [
+              "identity",
+              "productType"
+            ]
+          }
+        ]
+      },
+      "after": "Ibanez、限定エレキギター「j.custom RG8570EM-NT」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 36,
+      "id": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172597/",
+      "publishedAt": "2026-09-27T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "new_product",
+      "before": "Fortin Amplification、3.33を発表",
+      "publicBefore": "Fortin Amplification、3.33を発表",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "e7d4ee165d3685c1f8fa09b36dbf50e089836fdea82c26e2df89694b64e8728a",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172597/",
+        "kind": "product",
+        "brand": "Fortin Amplification",
+        "product": "3.33",
+        "productType": "booster_pedal",
+        "action": "announce",
+        "qualifier": "signature",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172597/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238566171,
+            "responseHash": "ed6504bf675192efc590a830e62a4c0fd96afe847de370966fcf71744c411269",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Fortin Amplification、シグネチャー・ブースターペダル「3.33」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 37,
+      "id": "a96e292e7370611c58c8f6db7af8c8d1d57a17d3eeab70c9eeae15722c008acc",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172505/",
+      "publishedAt": "2026-09-17T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "new_product",
+      "before": "Epiphone、Joan Jett Olympic Specialを発表",
+      "publicBefore": "Epiphone、Joan Jett Olympic Specialを発表",
+      "classification": "A",
+      "note": "一次記事本文のロックンロール・ギターとJoan Jettモデル。エレキ種別を追加推測しない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "a96e292e7370611c58c8f6db7af8c8d1d57a17d3eeab70c9eeae15722c008acc",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172505/",
+        "kind": "product",
+        "brand": "Epiphone",
+        "product": "Joan Jett Olympic Special",
+        "productType": "guitar",
+        "action": "announce",
+        "qualifier": "signature",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172505/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238567625,
+            "responseHash": "8db3de20354a83ac9d0cf28033c156f4bbdb3e2eb2c33d0e71d0db678e979ab7",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Epiphone、シグネチャー・ギター「Joan Jett Olympic Special」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 38,
+      "id": "d8d38a2b5b77752ebc8da98dc34c8a7093a3a3d19ed2768a4c6f2e3321b6e7c0",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172492/",
+      "publishedAt": "2026-09-17T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "new_product",
+      "before": "KORG、Nu:Tekt NuTube HIGH GAIN ODを発表",
+      "publicBefore": "KORG、Nu:Tekt NuTube HIGH GAIN ODを発表",
+      "classification": "A",
+      "note": "モデル説明の歪み／High Gain、エフェクターペダルを確認。DIYと完成品の違いを発売見出しに混ぜない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "d8d38a2b5b77752ebc8da98dc34c8a7093a3a3d19ed2768a4c6f2e3321b6e7c0",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172492/",
+        "kind": "product",
+        "brand": "KORG",
+        "product": "Nu:Tekt HIGH GAIN OD",
+        "productType": "distortion_pedal",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172492/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238569044,
+            "responseHash": "f8c6369561a475e25896d464038ced0e8eeabbd36cbeec823c05e195f748ffe5",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "KORG、歪みペダル「Nu:Tekt HIGH GAIN OD」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 39,
+      "id": "5343ab1aabd9de0661c790a89e4e53e2748f345a46981377b04d6457415f13b1",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172475/",
+      "publishedAt": "2026-09-16T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "new_product",
+      "before": "KORG、Nu:Tekt NuTube OD-KIT CUSTOM CRAFT BD-Sを発表",
+      "publicBefore": "KORG、Nu:Tekt NuTube OD-KIT CUSTOM CRAFT BD-Sを発表",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "5343ab1aabd9de0661c790a89e4e53e2748f345a46981377b04d6457415f13b1",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172475/",
+        "kind": "product",
+        "brand": "KORG",
+        "product": "Nu:Tekt BD-S",
+        "productType": "bass_effect_pedal",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172475/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238570436,
+            "responseHash": "bf1ccbd1bc57de3b5b79248145c5a894a72824ad2cb0dfe8f069edb9acb886cf",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "KORG、ベース用エフェクター「Nu:Tekt BD-S」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 40,
+      "id": "83bd63bced3aff277eec6344c04d9c6de8121d1aa3422ba90994b7224af647ab",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172417/",
+      "publishedAt": "2026-09-16T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "new_product",
+      "before": "KLOWRA、Leap Octaveを発表",
+      "publicBefore": "KLOWRA、Leap Octaveを発表",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "83bd63bced3aff277eec6344c04d9c6de8121d1aa3422ba90994b7224af647ab",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172417/",
+        "kind": "product",
+        "brand": "KLOWRA",
+        "product": "Leap Octave",
+        "productType": "octave_pedal",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172417/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238571953,
+            "responseHash": "ea2ae7365d400bdfebed7952ab0133c8e5f2d997210a8e838c87e523e20d8abf",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "KLOWRA、オクターブペダル「Leap Octave」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 41,
+      "id": "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172461/",
+      "publishedAt": "2026-09-16T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "new_product",
+      "before": "KORG、TM-1を発表",
+      "publicBefore": "KORG、TM-1を発表",
+      "classification": "A",
+      "note": "本文のチューナー機能・メトロノーム機能を確認。別売マイクを本体種別に使わない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "1465659e44e6b3e3e5a1dc7beb3c063fbf712e47a6824375c854ae98f0689055",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172461/",
+        "kind": "product",
+        "brand": "KORG",
+        "product": "TM-1",
+        "productType": "tuner_metronome",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172461/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238573364,
+            "responseHash": "066ba392f3961b1be804c41165cf94454db641b754ebd7e830b13209876f0d5d",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "KORG、チューナー・メトロノーム「TM-1」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 42,
+      "id": "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+      "source": "ik",
+      "sourceUrl": "https://www.ikmultimedia.com/news/?item_id=19753",
+      "publishedAt": "2026-09-03T00:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "release",
+      "before": "IK Multimedia、TONEX Boardを発売",
+      "publicBefore": "IK Multimedia、TONEX Boardを発売",
+      "classification": "A",
+      "note": "一次ページmetadataのlaunchと公式製品本文のアンプ／エフェクトモデリング機能を確認。「発売」断定を「発表」に修正。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "d0e410e4b694d0dda9cec458e392f6e07ae89652168377dafc0b22247a6a08a1",
+        "sourceUrl": "https://www.ikmultimedia.com/news/?item_id=19753",
+        "kind": "product",
+        "brand": "IK Multimedia",
+        "product": "TONEX Board",
+        "productType": "amp_effect_modeler",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.ikmultimedia.com/news/?item_id=19753",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238509263,
+            "responseHash": "296118569d47bc1ebb908d411cd69779938703b63a9dc9ddf6a0375880e56aaf",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          },
+          {
+            "url": "https://cn.ikmultimedia.com/products/tonexboard/",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248300,
+            "fields": [
+              "identity",
+              "productType"
+            ]
+          }
+        ]
+      },
+      "after": "IK Multimedia、アンプ・エフェクトモデラー「TONEX Board」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 43,
+      "id": "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c",
+      "source": "ik",
+      "sourceUrl": "https://www.ikmultimedia.com/news/?item_id=19651",
+      "publishedAt": "2026-08-07T00:00:00.000Z",
+      "category": "dtm_software",
+      "eventType": "update",
+      "before": "IK Multimedia、TONEX software 2.0を更新",
+      "publicBefore": "IK Multimedia、TONEX software 2.0を更新",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "ab0dece84919bb384764a4ee1b8c9816e1b1bc599688ab637bbdda365e46a98c",
+        "sourceUrl": "https://www.ikmultimedia.com/news/?item_id=19651",
+        "kind": "product",
+        "brand": "IK Multimedia",
+        "product": "TONEX 2.0",
+        "productType": "software",
+        "action": "update",
+        "evidence": [
+          {
+            "url": "https://www.ikmultimedia.com/news/?item_id=19651",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238510847,
+            "responseHash": "a36667af45e8d534d0afbe64bbf85e565e94fa9c875d758a372e308dfe86d772",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "IK Multimedia、ソフトウェア「TONEX 2.0」を更新",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 44,
+      "id": "1c1fa5ec9784525632d17a3e91d82ad4248966addee152abf11a16d30dd914ac",
+      "source": "manual-ikebe",
+      "sourceUrl": "https://www.ikebe-gakki.com/blog/20261013-1101-tak-matsumoto/",
+      "publishedAt": "2026-09-27T15:00:00.000Z",
+      "category": "live_guitar",
+      "eventType": "manual_artist_live",
+      "before": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+      "publicBefore": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+      "classification": "C",
+      "note": "使用機材展示・開催期間・会場が既に明確。既存の信頼できるイベントfactsと一次記事で照合。変更なし。",
+      "headlineQuality": null,
+      "after": "松本孝弘、10月13日〜11月1日にイケシブSHOWCASE（渋谷）で使用ギター・機材展示",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 45,
+      "id": "d17f8ffefa249f6b74cb8bd0168704a27892f675881b42bb89c6669cab2618fd",
+      "source": "agm",
+      "sourceUrl": "https://acousticguitarmagazine.jp/interview/2026-0909-oishi-masayoshi/",
+      "publishedAt": "2026-09-09T10:00:00.000Z",
+      "category": "artist_guitar",
+      "eventType": "guitar_artist",
+      "before": "大石昌良、アコギ表現を語るインタビュー",
+      "publicBefore": "大石昌良、アコギ表現を語るインタビュー",
+      "classification": "A",
+      "note": "記事リードでアコギの作曲・アレンジというインタビューテーマを確認。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "d17f8ffefa249f6b74cb8bd0168704a27892f675881b42bb89c6669cab2618fd",
+        "sourceUrl": "https://acousticguitarmagazine.jp/interview/2026-0909-oishi-masayoshi/",
+        "kind": "interview",
+        "person": "大石昌良",
+        "theme": "composition_arrangement",
+        "action": "interview",
+        "evidence": [
+          {
+            "url": "https://acousticguitarmagazine.jp/interview/2026-0909-oishi-masayoshi/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238514299,
+            "responseHash": "5c8998f9f9939ca0f382731a91dd42949db60768f628d79d9aab54ef77a324a3",
+            "fields": [
+              "identity",
+              "action",
+              "theme"
+            ]
+          }
+        ]
+      },
+      "after": "大石昌良、アコギでの作曲・アレンジを語るインタビュー",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 46,
+      "id": "82efc284d57e00dff8a9399c2a4dd6ef07d69bcec238e1b77c9d98a67deeede6",
+      "source": "agm",
+      "sourceUrl": "https://acousticguitarmagazine.jp/interview/2026-0824-takeuchi-annna/",
+      "publishedAt": "2026-08-24T10:00:00.000Z",
+      "category": "artist_guitar",
+      "eventType": "guitar_artist",
+      "before": "竹内アンナ、アコギ表現を語るインタビュー",
+      "publicBefore": "竹内アンナ、アコギ表現を語るインタビュー",
+      "classification": "A",
+      "note": "記事リードで作曲・コードメイク・アコギアレンジを確認。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "82efc284d57e00dff8a9399c2a4dd6ef07d69bcec238e1b77c9d98a67deeede6",
+        "sourceUrl": "https://acousticguitarmagazine.jp/interview/2026-0824-takeuchi-annna/",
+        "kind": "interview",
+        "person": "竹内アンナ",
+        "theme": "composition_acoustic_arrangement",
+        "action": "interview",
+        "evidence": [
+          {
+            "url": "https://acousticguitarmagazine.jp/interview/2026-0824-takeuchi-annna/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238515907,
+            "responseHash": "967ee93503fde9390438d55596f6d4872bdcc39e78d58192ff7c4af76a22631e",
+            "fields": [
+              "identity",
+              "action",
+              "theme"
+            ]
+          }
+        ]
+      },
+      "after": "竹内アンナ、作曲とアコギのアレンジを語るインタビュー",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 47,
+      "id": "01d783dfd93eb4bd3f2c99e1fadeef520343d138f5af2998e56b54e03ac90edf",
+      "source": "ikebe-event",
+      "sourceUrl": "https://www.ikebe-gakki.com/blog/20261024-eg-workshop/",
+      "publishedAt": "2026-09-29T15:00:00.000Z",
+      "category": "live_guitar",
+      "eventType": "guitar_event",
+      "before": "阿部学、10月24日にイケシブでギターワークショップ",
+      "publicBefore": "阿部学、10月24日にイケシブでギターワークショップ",
+      "classification": "C",
+      "note": "既存ワークショップfactsと一次ページの日時・会場を照合。既に明確、変更なし。",
+      "headlineQuality": null,
+      "after": "阿部学、10月24日にイケシブでギターワークショップ",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 48,
+      "id": "b994db455d3791f75cd80d2464b0bc168490be77943da9863d02e7257fb1cd8f",
+      "source": "at-distribution",
+      "sourceUrl": "https://atdistribution.net/information/1047/",
+      "publishedAt": "2026-08-18T15:00:00.000Z",
+      "category": "recording_audio",
+      "eventType": "new_product",
+      "before": "Harrison Audio、FLEX 10を発表",
+      "publicBefore": "Harrison Audio、FLEX 10を発表",
+      "classification": "A",
+      "note": "一次記事でUSBオーディオインターフェースと製品発表。予定時期の月末を実際の発売と断定しない。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "b994db455d3791f75cd80d2464b0bc168490be77943da9863d02e7257fb1cd8f",
+        "sourceUrl": "https://atdistribution.net/information/1047/",
+        "kind": "product",
+        "brand": "Harrison Audio",
+        "product": "FLEX 10",
+        "productType": "usb_audio_interface",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://atdistribution.net/information/1047/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238518712,
+            "responseHash": "a7e7cb642608ec0804950e97056559ecc71a7d239ac4c34abdaf1371b50deaa8",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Harrison Audio、USBオーディオインターフェース「FLEX 10」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 49,
+      "id": "bf0895e2038bdbbef32652e055571dfd47f7a7065e7276f8191cfa37bcfe3c88",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/89963/",
+      "publishedAt": "2026-09-30T15:00:00.000Z",
+      "category": "acoustic_guitar",
+      "eventType": "new_product",
+      "before": "Gibson、SJ-200 / Hummingbirdに特別仕様が登場",
+      "publicBefore": "Gibson、SJ-200 / Hummingbirdに特別仕様が登場",
+      "classification": "A",
+      "note": "本文のアコースティックギターと特別材仕様。既存productEventを保持。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "bf0895e2038bdbbef32652e055571dfd47f7a7065e7276f8191cfa37bcfe3c88",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/89963/",
+        "kind": "product",
+        "brand": "Gibson",
+        "product": "SJ-200 / Hummingbird",
+        "productType": "acoustic_guitar",
+        "action": "announce",
+        "qualifier": "special",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/89963/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238520136,
+            "responseHash": "2f67dbbf4703c0ebd36bdd5ef45710a673b06c5498b75a99111499dc4dfba839",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Gibson、特別仕様のアコースティックギター「SJ-200 / Hummingbird」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 50,
+      "id": "4020bf1b51afb5a9a6d290f79281834f27d30314282da0a1553d9b8b08fed92f",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/89868/",
+      "publishedAt": "2026-09-30T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "new_product",
+      "before": "PRS、Silver Skyにコラボカラーが登場",
+      "publicBefore": "PRS、Silver Skyにコラボカラーが登場",
+      "classification": "A",
+      "note": "一次記事コラボカラー、メーカー公式Electric製品ページを照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "4020bf1b51afb5a9a6d290f79281834f27d30314282da0a1553d9b8b08fed92f",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/89868/",
+        "kind": "product",
+        "brand": "PRS",
+        "product": "Silver Sky",
+        "productType": "electric_guitar",
+        "action": "collaboration_color",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/89868/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238521557,
+            "responseHash": "618e37ebad8d103d47410633e97cc3ae0650c3a158baf04b55f329e42161f81c",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          },
+          {
+            "url": "https://prsguitars.com/electrics/model/silver_sky_defender_limited_edition_2026",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248300,
+            "fields": [
+              "identity",
+              "productType"
+            ]
+          }
+        ]
+      },
+      "after": "PRS、エレキギター「Silver Sky」にコラボカラーが登場",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 51,
+      "id": "b2b7643732e29e4f0d616141ff04598228e304a8d187e5a33b3fe48db0a44536",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/10/90252/",
+      "publishedAt": "2026-09-30T15:00:00.000Z",
+      "category": "recording_audio",
+      "eventType": "release",
+      "before": "SHURE、USBマイク「MV6 Gen 2」を10月22日に発売予定",
+      "publicBefore": "SHURE、USBマイク「MV6 Gen 2」を10月22日に発売予定",
+      "classification": "A",
+      "note": "既存のUSBマイク・10/22発売予定が明確。一次記事で再確認、変更なし。",
+      "headlineQuality": null,
+      "after": "SHURE、USBマイク「MV6 Gen 2」を10月22日に発売予定",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 52,
+      "id": "f73700d290278ea94edcce0a6dbc88859b5a6f258392a849c7aebba048622426",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/89944/",
+      "publishedAt": "2026-09-30T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "new_product",
+      "before": "Yamaha、RS20MMを発表",
+      "publicBefore": "Yamaha、RS20MMを発表",
+      "classification": "A",
+      "note": "一次記事の発売日10/9とメーカー公式電気ギター／シグネチャーを照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "f73700d290278ea94edcce0a6dbc88859b5a6f258392a849c7aebba048622426",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/89944/",
+        "kind": "product",
+        "brand": "Yamaha",
+        "product": "RS20MM",
+        "productType": "electric_guitar",
+        "action": "scheduled_release",
+        "qualifier": "signature",
+        "date": "2026-10-09",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/89944/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238524317,
+            "responseHash": "27adcea5ebf569751448cb8917650b15de26e13ea59b81f1bfd392a23dcc2afa",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier",
+              "date"
+            ]
+          },
+          {
+            "url": "https://www.yamaha.com/en/news_release/2026/26092501/",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248300,
+            "fields": [
+              "identity",
+              "productType"
+            ]
+          }
+        ]
+      },
+      "after": "Yamaha、シグネチャー・エレキギター「RS20MM」を10月9日に発売予定",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 53,
+      "id": "368e218d4d5072a545f671dbf0b50dff5a7a6c21e5e6bf0fe545213cc2b9f3cb",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172649/",
+      "publishedAt": "2026-09-30T15:00:00.000Z",
+      "category": "recording_audio",
+      "eventType": "new_product",
+      "before": "MONSTER CABLE、電源タップ「MONSTER POWER 8000 / MONSTER POWER 8001」を発表",
+      "publicBefore": "MONSTER CABLE、電源タップ「MONSTER POWER 8000 / MONSTER POWER 8001」を発表",
+      "classification": "A",
+      "note": "既存の電源タップfactsを保持。表示名の共通部分のみ短縮。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "368e218d4d5072a545f671dbf0b50dff5a7a6c21e5e6bf0fe545213cc2b9f3cb",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172649/",
+        "kind": "product",
+        "brand": "MONSTER CABLE",
+        "product": "MONSTER POWER 8000 / 8001",
+        "productType": "power_distribution",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172649/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238574751,
+            "responseHash": "c694a06fec9f5a6708343a5625f005a7e6ebfaae3545a4a67a2bde13daeef2e1",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "MONSTER CABLE、電源タップ「MONSTER POWER 8000 / 8001」を発表",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 54,
+      "id": "b44fe9ca6a358d9cb333956f9823903f2079b54a8dd240096c262fd5101831d5",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172640/",
+      "publishedAt": "2026-09-30T15:00:00.000Z",
+      "category": "amps_effects",
+      "eventType": "release",
+      "before": "Fulltone、歪みペダル「Silver Limited Edition OCD V2 / Silver Limited Edition OCD GE」の日本限定モデルを発売",
+      "publicBefore": "Fulltone、歪みペダル「Silver Limited Edition OCD V2 / Silver Limited Edition OCD GE」の日本限定モデルを発売",
+      "classification": "A",
+      "note": "既存の歪みペダル・日本限定・発売を保持。表示名の共通部分のみ短縮。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "b44fe9ca6a358d9cb333956f9823903f2079b54a8dd240096c262fd5101831d5",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172640/",
+        "kind": "product",
+        "brand": "Fulltone",
+        "product": "Silver Limited Edition OCD V2 / GE",
+        "productType": "distortion_pedal",
+        "action": "release",
+        "qualifier": "japan_limited",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172640/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238576124,
+            "responseHash": "8b1735b5dfa59a008195f6900d80657e32ecf51d9b727f61ee88811af42f0fc5",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Fulltone、日本限定の歪みペダル「Silver Limited Edition OCD V2 / GE」を発売",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 55,
+      "id": "12d5f7f4e13d7c32973e3734b53e8cdc51e5d0f32c4b8ab0241aee4a0527f02d",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/90845/",
+      "publishedAt": "2026-10-01T15:00:00.000Z",
+      "category": "electric_guitar_bass",
+      "eventType": "new_product",
+      "before": "Gretsch、G6136TGQM-59の限定モデルを発表",
+      "publicBefore": "Gretsch、G6136TGQM-59の限定モデルを発表",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "12d5f7f4e13d7c32973e3734b53e8cdc51e5d0f32c4b8ab0241aee4a0527f02d",
+        "sourceUrl": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/90845/",
+        "kind": "product",
+        "brand": "Gretsch",
+        "product": "G6136TGQM-59",
+        "productType": "electric_guitar",
+        "action": "announce",
+        "qualifier": "limited",
+        "evidence": [
+          {
+            "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/10/90845/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238525725,
+            "responseHash": "6f19ca4898b86aad92945463bc0ef76523f91763df7d75e2699ff74ddaf1823c",
+            "fields": [
+              "identity",
+              "productType",
+              "action",
+              "qualifier"
+            ]
+          }
+        ]
+      },
+      "after": "Gretsch、限定エレキギター「G6136TGQM-59」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 56,
+      "id": "2aa5995986389cd0d7a77695d0e203a49681a9722101212124ba0eea1b1201d9",
+      "source": "shimamura",
+      "sourceUrl": "https://www.shimamura.co.jp/update/dtm-recording/2026/10/91045/",
+      "publishedAt": "2026-10-01T15:00:00.000Z",
+      "category": "recording_audio",
+      "eventType": "release",
+      "before": "Novation、パッドコントローラー「FLpad」を10月9日に発売予定",
+      "publicBefore": "Novation、パッドコントローラー「FLpad」を10月9日に発売予定",
+      "classification": "A",
+      "note": "既存のパッドコントローラー・10/9発売予定が明確。一次記事で再確認、変更なし。",
+      "headlineQuality": null,
+      "after": "Novation、パッドコントローラー「FLpad」を10月9日に発売予定",
+      "beforeQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 57,
+      "id": "3999b43277c5825c8b96c8a220a7729003a53125c36e751c25128b95bc649e81",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172671/",
+      "publishedAt": "2026-10-01T15:00:00.000Z",
+      "category": "dtm_software",
+      "eventType": "release",
+      "before": "Universal Audio、Volt Gen 2を発売",
+      "publicBefore": "Universal Audio、Volt Gen 2を発売",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "3999b43277c5825c8b96c8a220a7729003a53125c36e751c25128b95bc649e81",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172671/",
+        "kind": "product",
+        "brand": "Universal Audio",
+        "product": "Volt Gen 2",
+        "productType": "audio_interface",
+        "action": "release",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172671/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238577603,
+            "responseHash": "bf7c5b80ded53b72d7451ca35a761d0c80b824f804b10e7da505c690b1cfee3d",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "Universal Audio、オーディオインターフェース「Volt Gen 2」を発売",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 58,
+      "id": "1ec350d1d91745cb02fd29225e5159df13116517265fc77b64f3b779e717c8cd",
+      "source": "kikutani",
+      "sourceUrl": "https://www.kikutani.co.jp/news/kikutani-kdp-88p/",
+      "publishedAt": "2026-10-04T15:00:00.000Z",
+      "category": "recording_audio",
+      "eventType": "new_product",
+      "before": "KIKUTANI、KDP-88Pを発表",
+      "publicBefore": "KIKUTANI、KDP-88Pを発表",
+      "classification": "A",
+      "note": "記事主題・モデル欄・製品説明の明示情報を照合。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "1ec350d1d91745cb02fd29225e5159df13116517265fc77b64f3b779e717c8cd",
+        "sourceUrl": "https://www.kikutani.co.jp/news/kikutani-kdp-88p/",
+        "kind": "product",
+        "brand": "KIKUTANI",
+        "product": "KDP-88P",
+        "productType": "digital_piano",
+        "action": "announce",
+        "evidence": [
+          {
+            "url": "https://www.kikutani.co.jp/news/kikutani-kdp-88p/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238528510,
+            "responseHash": "be49fa299edee518d0b3ba65b8a6c5008622207b5bc909de4fccd21c68a7df10",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          }
+        ]
+      },
+      "after": "KIKUTANI、折りたたみ式電子ピアノ「KDP-88P」を発表",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": false,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    },
+    {
+      "n": 59,
+      "id": "6bbdb1c5a704c2764d4672e02dfb8931fac5a53a52f04e8af6bbd76ec93de0dd",
+      "source": "ikebe",
+      "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172734/",
+      "publishedAt": "2026-10-04T15:00:00.000Z",
+      "category": "acoustic_guitar",
+      "eventType": "new_product",
+      "before": "Yamaha、YAMAHAFG7を発表",
+      "publicBefore": "Yamaha、YAMAHAFG7を発表",
+      "classification": "A",
+      "note": "本文の主な出来事はピックアップ搭載機の入荷。発売／発表と混同しない。FG7の表示名だけ正規化、元識別子は保存。",
+      "headlineQuality": {
+        "schemaVersion": 1,
+        "scope": "published_admin_quality",
+        "candidateId": "6bbdb1c5a704c2764d4672e02dfb8931fac5a53a52f04e8af6bbd76ec93de0dd",
+        "sourceUrl": "https://www.ikebe-gakki-pb.com/new_product/172734/",
+        "kind": "product",
+        "brand": "Yamaha",
+        "product": "FG7",
+        "productType": "acoustic_guitar",
+        "action": "arrival",
+        "evidence": [
+          {
+            "url": "https://www.ikebe-gakki-pb.com/new_product/172734/",
+            "basis": "primary_article_review",
+            "verifiedAt": 1791238578985,
+            "responseHash": "a428943ec40e6e545d9c2c05e02736d233d49ee30047f443f171d4ca6cb9f0c9",
+            "fields": [
+              "identity",
+              "productType",
+              "action"
+            ]
+          },
+          {
+            "url": "https://jp.yamaha.com/products/musical_instruments/guitars_basses/ac_guitars/fg_series/fg_7/index.html",
+            "basis": "official_product_review",
+            "verifiedAt": 1791239248300,
+            "fields": [
+              "identity",
+              "productType"
+            ]
+          }
+        ]
+      },
+      "after": "Yamaha、アコースティックギター「FG7」の入荷情報",
+      "beforeQuality": {
+        "ambiguousType": true,
+        "ambiguousEvent": true,
+        "sufficientlyClear": false
+      },
+      "afterQuality": {
+        "ambiguousType": false,
+        "ambiguousEvent": false,
+        "sufficientlyClear": true
+      }
+    }
+  ],
+  "metricsDefinition": "Manual headline clarity: explicit equipment type/purpose plus intelligible factual action; interviews require a concrete theme. Product information is an explicit informational scope, not evidence of a launch. B retains unknown launch timing; D is not rewritten. Count overlapping ambiguities separately."
+}
