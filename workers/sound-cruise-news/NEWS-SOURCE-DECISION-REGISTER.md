@@ -311,9 +311,9 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 |---|---|
 | Source / Publisher | AT Distribution（公式代理店） |
 | Surface | https://atdistribution.net/information/ 固定listing |
-| Current State | ON |
-| Current Scope | 検証済みRecording製品の発表facts。 |
-| Decision | ACCEPTED WITH OBSERVATION — production acceptance（既存ALLOWED WITH BOUNDS scopeを維持） |
+| Current State | OFF — intentional collection retirement（2026-10-05） |
+| Current Scope | Collection OFF。既存の検証済みRecording公開記事は維持。 |
+| Decision | COLLECTION RETIRED（2026-10-05）。過去のACCEPTED WITH OBSERVATIONは取得停止判断で更新。 |
 | Why | 固定1ページでHarrison FLEX 10の有用な型名・種類・公開日を検証し独自label採用。 |
 | Explicit Restriction | privacy内のsite termsは表現再利用を制限。製品説明・本文・画像を使わない。 |
 | Internal Boundaries | 原見出し・本文・画像・OGP・raw HTMLを保存しない。独自facts label＋出典＋直接リンク。固定surfaceを原則1日1回、bounded fetch、robots/access/opt-out、90日retention、kill/takedownを維持。未確認factsはREVIEW。 |
@@ -333,6 +333,19 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 - Reason: 実在する録音機器発表の型名・種類・公開日・直接URLが一致。発売・出荷開始とは断定しない。古い公開日は保持され、7/14日新着へ浮上しない。
 - Follow-up: 現行parserの自動facts対象は検証済みHarrison FLEX 10のみ。他モデルの包括的自動採用ではない。今回の新着供給増分は0なので、将来の対象新着と供給量は継続観察。
 - Common evidence / limitations: [2026-10-02 run summary](#production-acceptance-20261002)。
+
+### Collection retirement — 2026-10-05
+
+- Decision: **collection OFF** via existing `source-collection-stop`, reason `policy_change`. This supersedes acquisition approval only; publication is not blocked.
+- Evidence: retained 2026-10-01〜10-05 collection logs show 5 runs, 60 repeated item observations, 1 unique saved candidate, 55 pre-save exclusions and 4 repeat-URL deduplications. Current approved 1, pending/reopened 0, rejected 0; human approve/reject 0. These are retained observations, not lifetime unique article counts.
+- Why: low current yield and low unique coverage, installation/promotion/corporate content predominance, and remaining secondary-use clarification cost. Harrison FLEX 10 has alternative reporting at https://www.shimamura.co.jp/update/dtm-recording/2026/08/dl-167427/ . Alternative reporting availability does not guarantee automatic ingestion by the current parser.
+- Product boundary: AT-distributed products are **not globally excluded**. Eligible products discovered through Shimamura, Ikebe or another approved source remain subject to ordinary publication validation.
+- Preservation: retain the existing Harrison Audio FLEX 10 article, headline, category, publication date, URL, facts and provenance. No candidate approve/reject, deletion, migration or human teacher decision.
+- Pending/recheck: verified pending/reopened 0 before execution. Existing stop operation closes any pending operational lifecycle as `SOURCE_EXCLUDED` / `source_disabled`, actor `source_policy`, without a human reject or teacher signal; no further fetch/lease/Shadow evaluation is warranted for this source.
+- Health: intentional `paused` / `source_disabled`; exclude from overall health warnings using the existing explicit-stop audit classification. Actual failures and unexpected disables remain abnormal.
+- Other sources, global collection/publication/API switches and public article content remain unchanged. No new permission claim is made and no publisher inquiry was sent.
+- Production verification: explicit stop audit recorded; `disabled=1`, `publication_blocked=0`, `takedown=0`, health `paused/source_disabled`, failure count 0, AT due/leased rechecks 0. All 90 candidate rows, 10 Ledger rows, 60 Shadow rows, 32 feedback rows and other-source states were identical before/after. Public API 58 articles and ticker 5 items were identical, including FLEX 10.
+- Regression: NEWS suite 582/582 PASS, including 3 AT-specific retirement cases. No runtime/config change, version bump or Worker redeploy required; production reflects the existing administration operation.
 
 <a id="source-ikebe"></a>
 
