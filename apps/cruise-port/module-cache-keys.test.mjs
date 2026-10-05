@@ -11,7 +11,7 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.19.3 adds a static NEWS test label; only app-version.js changes among ES modules.
+// 1.19.4 polishes the static NEWS test badge; only app-version.js changes among ES modules.
 const RELEASE_MODULES = Object.freeze(['app-version.js']);
 // NEWS modules are loaded with dynamic import() from practice-menu-app.js and did not change in 1.12.0.
 const RELEASE_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
@@ -42,15 +42,15 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.19.3', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.19.3');
+test('the release is 1.19.4', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.19.4');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
   for (const html of [read('./index.html'), read('./pro_9a3943176561/index.html')]) {
     assert.match(html, new RegExp(`(?:practice-menu-app|pro-app-boot)\\.js\\?v=${escaped}"`), 'the entry moves, so no user keeps the 0.70.1 app');
     assert.match(html, /news-article\.css\?v=1\.16\.0"/, 'article-only styles have their own key');
-    assert.match(html, /style\.css\?v=1\.19\.3"/, 'NEWS label styles get a new cache key');
+    assert.match(html, /style\.css\?v=1\.19\.4"/, 'NEWS label styles get a new cache key');
     assert.match(html, /sync-account-core\.js\?v=7"/, 'shared credential helper uses a new cache key');
   }
 });
@@ -73,7 +73,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.19.3');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.19.4');
   assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.19.2');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');

@@ -238,7 +238,7 @@ test('Dark CSS is byte-identical to the 1.12.0 production Dark apart from explic
     const rule = /\/\* カラーテーマ: four labels[\s\S]*?\n\}\n\n/;
     const added = dark.match(rule)[0];
     assert.match(added, /^\/\*[^\n]*\*\/\n\.settings-choices\[aria-label="カラーテーマ"\] \.settings-choice \{\n    font-size: calc\(0\.8rem \* var\(--font-scale\)\);\n    letter-spacing: 0;\n    white-space: nowrap;\n\}\n\n$/, 'only the new theme buttons get a one-line label');
-    const newsLabelRules = '.news-heading { display: flex; align-items: baseline; gap: 10px; flex-wrap: nowrap; }\n.news-heading .view-title { flex: none; white-space: nowrap; }\n.news-test-label { color: var(--port-muted); font-size: calc(0.75rem * var(--font-scale)); font-weight: 400; line-height: 1.5; white-space: nowrap; }\n';
+    const newsLabelRules = '.news-heading { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }\n.news-heading .view-title { flex: none; white-space: nowrap; }\n.news-test-label { flex: none; color: rgb(var(--port-accent-rgb)); font-size: calc(0.8125rem * var(--font-scale)); font-weight: 500; line-height: 1.5; white-space: nowrap; padding: 2px 7px; border: 1px solid rgba(var(--port-accent-line-rgb), 0.45); border-radius: 4px; background: transparent; box-shadow: none; }\n';
     assert.ok(dark.includes(newsLabelRules));
     assert.equal(createHash('sha256').update(dark.replace(rule, '').replace(newsLabelRules, '')).digest('hex'), '027117253bcfd0cf18d43862b9a78b86e55da008da4f9f1b298f2bcf59fbb360');
 });

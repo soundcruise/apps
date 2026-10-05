@@ -6729,9 +6729,9 @@ body.metronome-preset-open {
 .sync-center-app-info-ai { justify-self: start; min-height: 36px; padding: 6px 14px; border: 1px solid rgba(var(--port-accent-warm-rgb), 0.36); border-radius: 999px; background: transparent; color: var(--port-gold-bright); font: inherit; font-weight: 600; cursor: pointer; }
 
 /* NEWS beta: local manual fixture only. */
-.news-heading { display: flex; align-items: baseline; gap: 10px; flex-wrap: nowrap; }
+.news-heading { display: flex; align-items: center; gap: 10px; flex-wrap: nowrap; }
 .news-heading .view-title { flex: none; white-space: nowrap; }
-.news-test-label { color: var(--port-muted); font-size: calc(0.75rem * var(--font-scale)); font-weight: 400; line-height: 1.5; white-space: nowrap; }
+.news-test-label { flex: none; color: rgb(var(--port-accent-rgb)); font-size: calc(0.8125rem * var(--font-scale)); font-weight: 500; line-height: 1.5; white-space: nowrap; padding: 2px 7px; border: 1px solid rgba(var(--port-accent-line-rgb), 0.45); border-radius: 4px; background: transparent; box-shadow: none; }
 .news-home { margin: 0 0 12px; min-width: 0; }
 .news-ticker { display: flex; align-items: center; height: 34px; gap: 12px; padding: 0 10px; background: #101114; border: 1px solid #303238; border-radius: 8px; color: #ddd; text-decoration: none; overflow: hidden; }
 .news-ticker[hidden], .news-entry[hidden] { display: none; }

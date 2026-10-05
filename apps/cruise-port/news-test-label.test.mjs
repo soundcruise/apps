@@ -14,3 +14,14 @@ for (const path of ['index.html','pro_9a3943176561/index.html']) {
         assert.doesNotMatch(section, /aria-hidden="true"|role="alert"|試験運用|β版/);
     });
 }
+
+test('test label has a restrained outline and the heading centers it without wrapping', () => {
+    const css=readFileSync(new URL('style.css',import.meta.url),'utf8');
+    const badge=css.match(/\.news-test-label \{([^}]+)\}/)[1];
+    assert.match(badge, /border: 1px solid rgba\(var\(--port-accent-line-rgb\), 0\.45\)/);
+    assert.match(badge, /color: rgb\(var\(--port-accent-rgb\)\)/);
+    assert.match(badge, /background: transparent/);
+    assert.match(badge, /border-radius: 4px/);
+    assert.match(badge, /box-shadow: none/);
+    assert.match(css, /\.news-heading \{[^}]*align-items: center;[^}]*flex-wrap: nowrap/);
+});
