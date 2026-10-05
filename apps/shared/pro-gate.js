@@ -285,7 +285,7 @@
             '<button type="button" id="pro-gate-submit" class="btn-primary">入る</button></div>' +
             '<div class="pro-gate-password-section">' +
             '<a class="pro-gate-password-link" href="https://www.youtube.com/post/UgkxGGd0QKGyDd3-mMWvhusmK4ZvqmH8I6Er" target="_blank" rel="noopener noreferrer">番号はこちら（メンバーのみ閲覧可能）</a>' +
-            '<div class="pro-gate-password-updated">2026.5.1更新</div>' +
+            '<div class="pro-gate-password-updated">2026.10.5更新</div>' +
             (config.troubleshootHref === './troubleshoot.html'
                 ? '<div class="pro-gate-troubleshoot-link"><a href="./troubleshoot.html">メンバーなのに見られない方</a></div>' : '') +
             '</div>';

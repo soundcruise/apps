@@ -776,3 +776,23 @@ test('all-Pro mode: a 「!」-only model answer is still replaced (degenerate gu
   assert.ok(ai.requests.length <= AI_SUPPORT_LIMITS.maxModelCalls);
   db.close();
 });
+
+
+test('Pro rotation: AI refuses old generation and accepts a new generation without changing Account data', async () => {
+  const { db, env, a, pro } = await setup();
+  try {
+    const ai = mockAi([reply('はい、同期済みです。')]);
+    const proEnv = { ...env, AI_SUPPORT_MODE: 'pro', AI: ai };
+    db.raw.prepare("UPDATE pro_auth_state SET generation=generation+1,active_code_slot='B' WHERE generation=1 AND active_code_slot='A'").run();
+    const retiredState = dump(db);
+    assert.equal((await chat(proEnv, a, pro, { message: 'x' })).status, 403);
+    assert.deepEqual(dump(db), retiredState);
+    assert.equal(ai.requests.length, 0);
+    const fresh = await proToken(db);
+    db.raw.prepare('UPDATE pro_credentials SET generation=2 WHERE id=?').run(fresh.split('.')[1]);
+    const before = dump(db);
+    assert.equal((await chat(proEnv, a, fresh, { message: '状態を確認したいです' })).status, 200);
+    assert.deepEqual(dump(db), before);
+    assert.equal(db.raw.prepare('SELECT legacy_compat_enabled FROM pro_auth_state').get().legacy_compat_enabled, 1);
+  } finally { db.close(); }
+});

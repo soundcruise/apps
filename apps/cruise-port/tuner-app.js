@@ -389,8 +389,8 @@ function diagnosticDeviceLabel(navigatorObject) {
     return 'Browser';
 }
 
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.3';
-import { effectiveCapo, requestToolPro } from './tool-capabilities.js?v=1.18.3';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.18.4';
+import { effectiveCapo, requestToolPro } from './tool-capabilities.js?v=1.18.4';
 
 export function initTuner(root, {
     capabilities = getCapabilities(),

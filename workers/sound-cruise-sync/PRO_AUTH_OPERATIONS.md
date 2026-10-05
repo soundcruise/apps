@@ -500,6 +500,38 @@ After a new client has been published even once, do not roll back first to a pre
 
 Reverting GitHub Pages does not remove a new client already held by browser cache, a Service Worker, or an offline client. Therefore, publishing the old Pages files is not evidence that it is safe to remove the Pro Auth endpoints.
 
+## Credential-only rotation — legacy retirement is a separate decision
+
+For an operator-authorized credential rotation while the migration observation
+window remains open, keep `legacy_compat_enabled`, `legacy_retired_at`, lifecycle
+start and unbound transition deadline unchanged. Do not combine this operation
+with the legacy-retirement step described below.
+
+1. Record the deployed Worker version, bindings, current generation/slot and
+   credential counts. Encrypt the Pro metadata backup with a separate protected
+   key; verify decryption without printing credentials or verifier contents.
+2. Provision the inactive slot as a Worker **secret**, using secure input. Never
+   record either passcode in source, fixtures, shell arguments, logs or reports.
+   A secret update deploys a compatible Worker version; confirm its bindings.
+3. After confirming the inactive secret is deployed, use one guarded SQL UPDATE
+   to increment generation and change active slot together. Guard the expected
+   singleton, generation, previous slot and legacy flag. Require exactly one
+   changed row. Do not update credential, Account, dataset or asset rows.
+4. Verify the new state immediately. Old-generation sessions and paid backend
+   requests require reauthentication; legacy compatibility cannot issue a token.
+   Cached/offline clients cannot learn retirement until they reach the server;
+   existing bounded local-only offline grace is not extended by this operation.
+5. Publish the shared gate update date, cache references and app patch versions.
+   Test new device-bound login, cross-app sharing and independent backend gates.
+   Do not perform destructive sync or alter application data during acceptance.
+6. Prepare a membership announcement with an operator-filled placeholder. Deliver
+   the new passcode through the existing private membership channel only.
+
+Rollback must not lower generation or re-enable a leaked passcode. Keep the new
+safe slot and credential, and use a compatible Worker/client rollback or forward
+fix. If another credential must be introduced, prepare an inactive safe secret
+and increment generation again. D1 state is not rolled back with Worker code.
+
 ## Future Phase 2 rotation (not executed)
 
 Prepare the inactive slot with the new four digit value as a Worker secret. Verify its readiness without exposing the value. Change `pro_auth_state` in one D1 transaction: increment `generation`, select the prepared slot, set `legacy_compat_enabled = 0`, `legacy_retired_at` to the change time, and `updated_at` to the same time. The primary-consistent `/session` checks the credential row against current generation, so old tokens require reauthentication immediately after that state change. Do not switch the state before the inactive slot is ready. Once legacy compatibility is retired, do not turn it back on for an outage. Rotate browser assets and communicate the new code through the existing YouTube membership channel.

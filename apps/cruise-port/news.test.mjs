@@ -53,7 +53,7 @@ test('runtime source contains no outbound acquisition or HTML sinks', () => {
  assert.match(html,/id="news-view"[^>]*hidden/);
  }
  const app=readFileSync(new URL('practice-menu-app.js',import.meta.url),'utf8');
- assert.match(app,/await import\('\.\/news-ui.js\?v=1.18.3'\)/);
+ assert.match(app,/await import\('\.\/news-ui.js\?v=1.18.4'\)/);
 });
 
 test('real manual fixture is valid, unique, safe-source only and fact-label only', () => {

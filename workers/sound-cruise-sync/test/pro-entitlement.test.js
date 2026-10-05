@@ -234,3 +234,41 @@ test('entitlement denial preserves an existing nonempty dataset, record and iden
     assert.equal(f.data(), before);
   } finally { f.db.close(); }
 });
+
+
+for (const appId of APPS) {
+  test(`${appId}: slot rotation rejects old backend entitlement and freshly issued generation works`, async () => {
+    const f = await fixture(appId);
+    try {
+      f.db.raw.prepare('UPDATE sync_devices SET paired_at=1 WHERE id=?').run(f.identity.deviceId);
+      const before = f.data();
+      f.db.raw.prepare("UPDATE pro_auth_state SET generation=generation+1,active_code_slot='B' WHERE generation=1 AND active_code_slot='A'").run();
+      for (const [path, options] of [
+        [`/v1/sync/snapshot?appId=${appId}`, {}],
+        ['/v1/sync/push', { method: 'POST', body: { appId } }],
+        [`/v1/sync/assets/${ASSET_ID}/content`, { method: 'PUT', body: { appId } }],
+        [`/v1/sync/assets/${ASSET_ID}`, {}]
+      ]) {
+        const old = await f.call(path, { ...options, pro: TEST_PRO_TOKEN });
+        assert.equal(old.status, 403); assert.equal(old.body.code, 'pro_reauth_required');
+      }
+      Object.assign(f.env, { PRO_PASSCODE_SLOT_B: '0009', // Nonproduction fixture only.
+        PRO_LOCKOUT_PEPPER: 'isolated-rotation-lockout-pepper-at-least-32',
+        PRO_VERIFY_RATE_LIMITER: { limit: async () => ({ success: true }) } });
+      const issuedResponse = await handleRequest(new Request('https://sync.example/v2/pro-auth/verify', {
+        method: 'POST', headers: { Origin: ORIGIN, 'Content-Type': 'application/json', 'CF-Connecting-IP': '192.0.2.4' },
+        body: JSON.stringify({ passcode: '0009', turnstileToken: 'isolated' })
+      }), f.env, null, { ...dependencies, verifyProTurnstile: async () => ({ ok: true }) });
+      assert.equal(issuedResponse.status, 201); const issued = await issuedResponse.json();
+      assert.equal(issued.generation, 2);
+      assert.equal(f.data(), before, 'rotation and Pro issuance do not modify application data');
+      assert.equal((await f.call(`/v1/sync/snapshot?appId=${appId}`, { pro: issued.credential })).status, 200);
+      const afterRead = JSON.parse(f.data()), expected = JSON.parse(before);
+      // An authorized snapshot retains its existing device last-seen bookkeeping.
+      for (const tables of [afterRead, expected]) for (const index of [2,4]) for (const row of tables[index]) delete row.last_seen_at;
+      assert.deepEqual(afterRead, expected, 'authorized read preserves Account contents, records and assets');
+      assert.equal(f.objectWrites, 0);
+      assert.equal(f.db.raw.prepare('SELECT legacy_compat_enabled FROM pro_auth_state').get().legacy_compat_enabled, 1);
+    } finally { f.db.close(); }
+  });
+}

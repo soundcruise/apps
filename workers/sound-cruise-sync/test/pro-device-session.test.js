@@ -229,3 +229,23 @@ test('migration 0033 preserves populated application tables and existing Pro ver
     assert.equal(database.prepare('SELECT count(*) AS n FROM pro_session_proofs').get().n, 0);
   } finally { database.close(); }
 });
+
+
+test('rotation with legacy ON rejects old bound proof and accepts a fresh device-bound generation', async () => {
+  const f = await fixture();
+  try {
+    const old = await f.issue(); const oldProof = await f.proof(old.credential);
+    const before = f.db.raw.prepare('SELECT * FROM pro_credentials').all();
+    f.env.PRO_PASSCODE_SLOT_B = '0009'; // Nonproduction fixture only.
+    f.db.raw.prepare("UPDATE pro_auth_state SET generation=generation+1,active_code_slot='B',updated_at=? WHERE generation=1 AND active_code_slot='A'").run(f.now);
+    assert.equal((await f.call('/session', old.credential)).body.code, 'reauth_required');
+    assert.equal((await f.call('/device-session/renew', old.credential, oldProof)).status, 401);
+    assert.equal((await inspectProCredentialReadOnly('Bearer ' + old.credential, f.env, f.deps)).code, 'pro_reauth_required');
+    assert.deepEqual(f.db.raw.prepare('SELECT * FROM pro_credentials').all(), before);
+    const fresh = await f.call('/verify', null, { passcode: '0009', turnstileToken: 'isolated', devicePublicKey: f.publicKey });
+    assert.equal(fresh.status, 201); assert.equal(fresh.body.generation, 2); assert.equal(fresh.body.session.version, 3);
+    assert.equal((await f.renew(fresh.body.credential)).status, 200);
+    assert.equal((await inspectProCredentialReadOnly('Bearer ' + fresh.body.credential, f.env, f.deps)).ok, true);
+    assert.equal(f.db.raw.prepare('SELECT legacy_compat_enabled FROM pro_auth_state').get().legacy_compat_enabled, 1);
+  } finally { f.db.close(); }
+});

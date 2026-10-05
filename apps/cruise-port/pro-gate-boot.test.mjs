@@ -304,7 +304,7 @@ test('F: generation mismatch removes the credential and shows the passcode', asy
   const values = new Map([['soundCruiseProAuth', JSON.stringify(v2)]]);
   const g = boot({ values });
   await g.domReady();
-  g.request('session').respond(200, { ok: true, generation: 2, legacyCompatibilityEnabled: false });
+  g.request('session').respond(200, { ok: true, generation: 2, legacyCompatibilityEnabled: true });
   await g.settle();
   assert.equal(g.state(), 'passcode');
   assert.equal(values.has('soundCruiseProAuth'), false);

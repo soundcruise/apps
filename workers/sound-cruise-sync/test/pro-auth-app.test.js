@@ -340,3 +340,29 @@ test('lockout persistence contains HMAC only, never IP, passcode, or token', asy
     assert.equal(Object.keys(row).some((key) => /ip_address|passcode|token|authorization/u.test(key)), false);
   } finally { f.database.close(); }
 });
+
+
+test('slot rotation retires the old generation while preserving legacy and every existing credential', async () => {
+  const f = fixture({ PRO_PASSCODE_SLOT_B: '0009' }); // Nonproduction fixture only.
+  try {
+    const oldToken = await issue(f);
+    const oldCredentials = f.database.raw.prepare('SELECT * FROM pro_credentials ORDER BY id').all();
+    const oldState = f.database.raw.prepare('SELECT * FROM pro_auth_state').get();
+    const changed = f.database.raw.prepare("UPDATE pro_auth_state SET generation=generation+1, active_code_slot='B', updated_at=? WHERE singleton_id=1 AND generation=1 AND active_code_slot='A' AND legacy_compat_enabled=1").run(f.now);
+    assert.equal(changed.changes, 1);
+    const state = f.database.raw.prepare('SELECT * FROM pro_auth_state').get();
+    assert.deepEqual({ ...state }, { ...oldState, generation: 2, active_code_slot: 'B', updated_at: f.now });
+    assert.deepEqual(f.database.raw.prepare('SELECT * FROM pro_credentials ORDER BY id').all(), oldCredentials);
+    assert.equal((await f.call('/session', { token: oldToken })).body.code, 'reauth_required');
+    assert.equal((await f.call('/policy')).body.legacyCompatibilityEnabled, true);
+    for (const passcode of [DUMMY_CODE, '0008']) {
+      assert.equal((await f.call('/verify', { method: 'POST', body: { passcode, turnstileToken: 'nonproduction-test-turnstile' } })).status, 401);
+    }
+    const issued = await f.call('/verify', { method: 'POST', body: { passcode: '0009', turnstileToken: 'nonproduction-test-turnstile' } });
+    assert.equal(issued.status, 201); assert.equal(issued.body.generation, 2);
+    assert.equal((await f.call('/session', { token: issued.body.credential })).status, 200);
+    assert.equal((await f.call('/revoke', { method: 'POST', body: {}, token: issued.body.credential })).status, 200);
+    assert.equal((await f.call('/session', { token: issued.body.credential })).status, 401);
+    assert.deepEqual(f.database.raw.prepare('SELECT * FROM pro_credentials WHERE generation=1 ORDER BY id').all(), oldCredentials);
+  } finally { f.database.close(); }
+});
