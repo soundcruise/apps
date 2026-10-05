@@ -215,7 +215,7 @@
             }
         }
         function focusable() {
-            return [...overlay.querySelectorAll('a[href], button, input, select, textarea, [tabindex]')]
+            return [...overlay.querySelectorAll('a[href], button, input, select, textarea, summary, [tabindex]')]
                 .filter(element => element.tabIndex >= 0 && !element.matches(':disabled')
                     && !element.closest('[hidden], [inert]') && element.getClientRects().length
                     && getComputedStyle(element).visibility === 'visible');
@@ -284,11 +284,11 @@
             '<div id="pro-gate-turnstile"></div>' +
             '<button type="button" id="pro-gate-submit" class="btn-primary">入る</button></div>' +
             '<div class="pro-gate-password-section">' +
-            '<a class="pro-gate-password-link" href="https://www.youtube.com/post/UgkxGGd0QKGyDd3-mMWvhusmK4ZvqmH8I6Er" target="_blank" rel="noopener noreferrer">番号はこちら（メンバーのみ閲覧可能）</a>' +
+            (window.SoundCruiseProPostHelp?.primaryLinkMarkup() || '<p>番号の案内を表示できません。ページを更新してください。</p>') +
             '<div class="pro-gate-password-updated">2026.10.5更新</div>' +
-            (config.troubleshootHref === './troubleshoot.html'
-                ? '<div class="pro-gate-troubleshoot-link"><a href="./troubleshoot.html">メンバーなのに見られない方</a></div>' : '') +
+            (window.SoundCruiseProPostHelp?.helpMarkup() || '') +
             '</div>';
+        window.SoundCruiseProPostHelp?.bind(box);
         overlay.appendChild(box);
         box.querySelector('#pro-gate-title').textContent = appName + ' PRO';
         document.body.classList.add('pro-gate-active');

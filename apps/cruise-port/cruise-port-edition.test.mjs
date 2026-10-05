@@ -73,11 +73,11 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
         .replace('pro-app-boot.js', 'practice-menu-app.js')
         .replace('href="./manifest.json?v=1.0.1"', 'href="../manifest.json?v=1.0.1"')
         .replaceAll('/app-icons/pro/', '/app-icons/standard/')
-        .split('\n').filter(line => !line.includes('shared/pro-gate.') && !line.includes('shared/pro-device-session.js')).join('\n')
+        .split('\n').filter(line => !line.includes('shared/pro-gate.') && !line.includes('shared/pro-gate-help.js') && !line.includes('shared/pro-device-session.js')).join('\n')
         .replace(/    <script>\n        window\.__SOUNDCRUISE_PRO_GATE__[\s\S]*?<\/script>\n/, '');
     assert.equal(withoutGate, expected, 'Only explicitly allowed edition differences may diverge');
     assert.doesNotMatch(root, /pro-gate\.(?:js|css)|__SOUNDCRUISE_PRO_GATE__/);
-    assert.match(pro, /shared\/pro-gate\.js\?v=28/);
+    assert.match(pro, /shared\/pro-gate\.js\?v=29/);
     assert.match(pro, /__SOUNDCRUISE_PRO_GATE__/);
     assert.doesNotMatch(pro, /<iframe|<base|http-equiv="refresh"|location\.(?:replace|assign)/i);
     for (const entry of [root, pro]) {
@@ -85,7 +85,7 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
         assert.equal((entry.match(/data-cruise-app=/g) || []).length, 4);
         assert.match(entry, /multi-app-sync-runtime\.js\?v=27/);
         assert.match(entry, /port-sync-adapter\.js\?v=1\.4\.0/);
-        assert.match(entry, /port-sync-controller\.js\?v=1\.18\.4/);
+        assert.match(entry, /port-sync-controller\.js\?v=1\.19\.0/);
         assert.doesNotMatch(entry, /data-(?:sync-)?app="port"/);
     }
     const gate = read('../shared/pro-gate.js');

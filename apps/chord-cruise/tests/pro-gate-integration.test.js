@@ -10,10 +10,10 @@ const gate = fs.readFileSync(path.join(apps, 'shared/pro-gate.js'), 'utf8');
 
 assert(pro.includes('data-app-edition="Pro"'));
 assert(pro.includes('shared/pro-gate.css'));
-assert(pro.includes('shared/pro-gate.js?v=28'));
+assert(pro.includes('shared/pro-gate.js?v=29'));
 assert(pro.includes("appName: 'コードクルーズ'"));
-assert(pro.indexOf('window.__SOUNDCRUISE_PRO_GATE__') < pro.indexOf('shared/pro-gate.js?v=28'));
-assert(pro.indexOf('shared/pro-gate.js?v=28') < pro.indexOf('<div id="cc-app"'));
+assert(pro.indexOf('window.__SOUNDCRUISE_PRO_GATE__') < pro.indexOf('shared/pro-gate.js?v=29'));
+assert(pro.indexOf('shared/pro-gate.js?v=29') < pro.indexOf('<div id="cc-app"'));
 assert(!pro.includes('passwordHash'), 'public verifier is removed');
 assert(!standard.includes('shared/pro-gate.js'), 'Standard remains outside Pro auth');
 assert(gate.includes("const AUTH_KEY = 'soundCruiseProAuth'"));

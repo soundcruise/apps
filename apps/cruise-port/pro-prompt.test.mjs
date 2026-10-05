@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from 'node:fs';
 import { CRUISE_APP_ICONS, applyHomeCruiseLinks } from './cruise-app-links.js';
 import { applyProLinks } from './pro-prompt.js';
 import { PRO_INFO_ROUTE } from './pro-prompt.js';
+import { MEMBERSHIP_URL, MEMBER_POST_URL } from './pro-access-content.js';
 const read = name => readFileSync(new URL(name, import.meta.url), 'utf8');
 test('acquisition CTA is centralized and closes the modal before navigation', () => {
     const source = read('pro-prompt.js');
@@ -18,7 +19,7 @@ test('acquisition CTA is centralized and closes the modal before navigation', ()
 test('acquisition uses the established Forte membership and post links without presenting Pro as a standalone product', () => {
     const source = read('pro-access-content.js');
     const chord = read('../chord-cruise/pro-access.html');
-    const links = source.match(/https:\/\/www.youtube.com\/[^"\'\s]+/g);
+    const links = [MEMBERSHIP_URL, MEMBER_POST_URL];
     assert.equal(links.length, 2);
     links.forEach(link => assert.ok(chord.includes(link)));
     assert.match(source, /フォルテ」の特典/);

@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 
 // Boot sequence of the shared Pro gate: nothing protected and no passcode is shown until access is decided.
 const gate = readFileSync(new URL('../shared/pro-gate.js', import.meta.url), 'utf8');
+const help = readFileSync(new URL('../shared/pro-gate-help.js', import.meta.url), 'utf8');
 const token = 'scp1.123e4567-e89b-42d3-a456-426614174000.' + 'A'.repeat(43);
 const v2 = { v: 2, credential: token, generation: 1, validatedAt: 100 };
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -75,6 +76,7 @@ function boot({ values = new Map(), readyState = 'loading', offlineGrant = false
     setTimeout, clearTimeout, setInterval: (fn, ms) => { intervals.push({ fn, ms }); return 1; }, history: { replaceState() {} }, Date, console,
     MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame() { return 1; },
     cancelAnimationFrame() {}, getComputedStyle() { return { visibility: 'visible' }; } });
+  vm.runInContext(help, context);
   vm.runInContext(gate, context);
   const overlay = () => body.children.find(item => item.id === 'pro-gate-overlay') || null;
   const box = () => overlay()?.children.find(item => item.className === 'pro-gate-box') || null;

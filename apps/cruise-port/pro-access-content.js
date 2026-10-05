@@ -1,8 +1,9 @@
+import '../shared/pro-gate-help.js?v=2';
 import { PRO_ENTRY_PATH, CRUISE_PORT_ROOT } from './cruise-port-edition.js?v=0.27.0';
 
 // Official links already used by Port and Chord; no password or credential is published here.
 export const MEMBERSHIP_URL = 'https://www.youtube.com/channel/UC4ncQuk56I8SK6lJGZcGwJQ/join';
-export const MEMBER_POST_URL = 'https://www.youtube.com/post/UgkxGGd0QKGyDd3-mMWvhusmK4ZvqmH8I6Er';
+export const MEMBER_POST_URL = globalThis.SoundCruiseProPostHelp.POST_URL;
 export const PRO_VALUES = Object.freeze([
     '練習メニューを5件を超えて登録し、画像・PDFなどの資料を添付できます。',
     'My Appsを最大100件まで登録し、好きな画像をアイコンにできます。',

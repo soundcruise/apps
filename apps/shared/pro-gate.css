@@ -4,7 +4,7 @@
     inset: 0;
     z-index: 2147483000;
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
         max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
@@ -12,6 +12,7 @@
     background: rgba(10, 10, 12, 0.97);
     -webkit-backdrop-filter: blur(6px);
     backdrop-filter: blur(6px);
+    overflow-y: auto;
 }
 
 #pro-gate-overlay.pro-gate-overlay--missing {
@@ -33,6 +34,8 @@
     width: 100%;
     max-width: 320px;
     text-align: center;
+    margin: auto;
+    flex: 0 0 auto;
 }
 
 .pro-gate-box .pro-gate-panel {
@@ -194,7 +197,8 @@ body.pro-gate-active {
     text-align: center;
 }
 
-.pro-gate-troubleshoot-link a {
+.pro-gate-troubleshoot-link a,
+.pro-gate-troubleshoot-link summary {
     font-size: 0.75rem;
     color: rgba(255, 229, 102, 0.6);
     text-decoration: underline;
@@ -202,9 +206,98 @@ body.pro-gate-active {
     transition: color 0.3s ease;
 }
 
-.pro-gate-troubleshoot-link a:hover {
+.pro-gate-troubleshoot-link a:hover,
+.pro-gate-troubleshoot-link summary:hover {
     color: rgba(255, 229, 102, 0.92);
 }
+
+.pro-post-help summary { cursor: pointer; }
+.pro-post-help[open] summary { margin-bottom: 12px; }
+.pro-gate-password-section button.pro-gate-password-link { font-family: inherit; cursor: pointer; }
+.pro-number-guide { margin-top: 18px; }
+.pro-number-guide[hidden] { display: none; }
+.pro-number-guide h2 {
+    margin: 0 0 16px;
+    font-size: 1rem;
+    color: #fff;
+}
+.pro-number-steps > li > .pro-post-copy { display: block; margin-top: 8px; }
+.pro-post-troubleshooting { text-align: left; }
+.pro-post-help-content {
+    text-align: left;
+    font-size: 0.83rem;
+    line-height: 1.65;
+    color: rgba(255, 255, 255, 0.78);
+    overflow-wrap: anywhere;
+}
+.pro-post-help-content p { margin: 0 0 12px; }
+.pro-post-help-content ol { margin: 0 0 14px; padding-left: 1.5em; }
+.pro-post-help-content li { margin-bottom: 8px; }
+.pro-post-copy,
+.pro-post-help-back button {
+    max-width: 100%;
+    padding: 10px 14px;
+    font: inherit;
+    color: rgba(255, 229, 102, 0.92);
+    border: 1px solid rgba(255, 210, 90, 0.3);
+    border-radius: 8px;
+    background: rgba(255, 210, 90, 0.08);
+    cursor: pointer;
+    white-space: normal;
+}
+.pro-post-copy:disabled { opacity: 0.65; cursor: wait; }
+.pro-post-help-content .pro-post-copy-status {
+    margin: 8px 0 0;
+    font-size: 0.78rem;
+    color: rgba(255, 255, 255, 0.72);
+}
+.pro-post-manual-copy { display: block; margin-top: 10px; }
+.pro-post-manual-copy[hidden] { display: none; }
+.pro-post-manual-copy input {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    margin-top: 6px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    background: #111;
+    color: #fff;
+    font: inherit;
+    font-size: 16px;
+}
+.pro-post-help summary:focus-visible,
+.pro-post-copy:focus-visible,
+.pro-post-help-back a:focus-visible,
+.pro-post-help-back button:focus-visible {
+    outline: 2px solid rgba(255, 229, 102, 0.92);
+    outline-offset: 4px;
+}
+.pro-post-help-page-body { background: #0a0a0c; color: #fff; overflow: auto; }
+.pro-post-help-page {
+    box-sizing: border-box;
+    width: calc(100% - 32px);
+    max-width: 420px;
+    margin: 32px auto;
+    padding: 28px 22px;
+    border-radius: 16px;
+    background: linear-gradient(165deg, rgba(40, 40, 44, 0.98), rgba(22, 22, 26, 0.99));
+    border: 1px solid rgba(255, 210, 90, 0.35);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+.pro-post-help-page h1 {
+    margin: 0 0 20px;
+    font-size: 1.3rem;
+    color: #fff;
+    background: none;
+    -webkit-text-fill-color: #fff;
+    animation: none;
+    filter: none;
+    letter-spacing: normal;
+}
+.pro-post-help-back { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; margin-top: 20px; }
+.pro-post-help-back a { font-size: 0.85rem; color: rgba(255, 229, 102, 0.92); }
 
 /* 認証確認中（パスワード入力が必要と判定されるまで入力欄は出さない） */
 .pro-gate-checking {

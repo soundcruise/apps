@@ -2,11 +2,19 @@
 (function () {
     'use strict';
     const fail = () => { document.body.classList.add('pro-gate-active'); };
-    function loadGate() {
+    function startGate() {
         const script = document.createElement('script');
-        script.src = '../../shared/pro-gate.js?v=28';
+        script.src = '../../shared/pro-gate.js?v=29';
         script.onerror = fail;
         document.head.appendChild(script);
+    }
+    function loadGate() {
+        if (window.SoundCruiseProPostHelp) { startGate(); return; }
+        const help = document.createElement('script');
+        help.src = '../../shared/pro-gate-help.js?v=2';
+        help.onload = startGate;
+        help.onerror = startGate; // Help availability must not change authentication behavior.
+        document.head.appendChild(help);
     }
     if (window.SoundCruiseProDeviceSession) { loadGate(); return; }
     const helper = document.createElement('script');
