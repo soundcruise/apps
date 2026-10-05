@@ -2,7 +2,7 @@
 
 ## Overall Verdict
 
-全公開外部59件を一次証拠と照合し、54件の見出しと表示用facts訂正を準備。NEWS 684/684、Port NEWS 41/41、syntax、diff check、両Worker dry-run PASS。本番適用・本番確認は以下のProduction Verificationで記録する。
+PASS — 全公開外部59件を一次証拠と照合し、54件の見出しと表示用factsを本番訂正。50件にgeneric productTypeを保存。NEWS 684/684、Port NEWS 41/41、syntax、diff check、secret scan、両Worker build / deploy、本番API・通常版 / Pro版の実表示確認PASS。公開件数・日付・URL・status・Ledger・Shadow・source状態・人間判断を維持。
 
 ## 1. Starting State
 
@@ -44,15 +44,16 @@ BのPlayer Fusion / ReSing Voices Vol 2 / VocAlign 7 / SINPHONICAは発売イベ
 
 | Metric | Before | After |
 |---|---:|---:|
-| Published external articles | 59 | 59（適用後に確認） |
+| Published external articles | 59 | 59（本番確認済み） |
 | Sufficiently clear headline | 11 / 59 (18.6%) | 58 / 59 (98.3%) |
 | Ambiguous product type | 37 | 1 |
-| Ambiguous event | 17 | 1 |
+| Ambiguous event wording in headline | 17 | 1 |
+| Launch event / timing still unverified (B) | 4 | 4 |
 | Unchanged due to insufficient evidence | — | 1 |
 
 手動評価基準は「明示的な製品種別・用途と、理解できる事実行為」。Interviewは具体的テーマが必要。人物記事ではproduct typeは対象外。重複する曖昧さは個別に数えた。「製品情報」は断定しない情報紹介という範囲であり、発売イベントを確認済みと数える意味ではない。
 
-不明瞭だった48件中47件を改善（97.9%）、明瞭率+79.7ポイント。種別曖昧37→1（97.3%減）、出来事曖昧17→1（94.1%減）。B4件の実際の発売時期は依然未確認である。
+不明瞭だった48件中47件を改善（97.9%）、明瞭率+79.7ポイント。種別曖昧37→1（97.3%減）、出来事の見出し表現の曖昧さ17→1（94.1%減）。B4件の実際の発売時期・発売イベントは依然未確認であり、表現が明瞭になったことと、発売事実を確認できたことは別々に扱う。
 
 ## 8. Representative Before / After
 
@@ -86,13 +87,24 @@ BのPlayer Fusion / ReSing Voices Vol 2 / VocAlign 7 / SINPHONICAは発売イベ
 
 Portの実CSS・news-ui / news-articles / providerを使ったlocal renderingで確認（自社1＋外部59）。375px：46件が2行、14件が3行。393px：51件が2行、9件が3行。4行以上0、横overflow0、console error0。長い正式名称の3行は精度を優先。種別が早い位置に表示され、元のレイアウトを変更していない。
 
-本番Port実表示の結果はProduction Verificationに追記する。
+本番Proの375px / 393pxでもlocalと同じ行数分布。1280pxは56件が1行、4件が2行。各幅で横overflow0。通常版393pxも60件・全見出し一致・横overflow0。通常版 / Pro版 / Operatorともconsole warning / error0。実UIの全59原記事リンクとAPI sourceUrlが一致。アーティスト・イベントfilterは6件、AGM2件を含め正常。
 
 ## 11. Production Verification
 
-Pending — tests/build PASS後に、明示stage・commit・normal push・両NEWS Worker code-only deploy（--keep-vars）・期限付きCAS planによる54件訂正を実施する。
+2026-10-06 JST。tests/build PASS後に明示stage・commit・normal push。両NEWS Worker code-only deploy（--keep-vars）後、期限付きCAS planの54件を8件以内の7バッチで訂正。54件すべて成功。
 
-適用前snapshotはcandidate全94件、Ledger、Shadow、source_state、controls、takedowns、operator feedback、legacy grantsをローカルprivateファイルへ保存。適用後は全件・全column比較し、許可した54件のlabel / nested facts / provenance / review_revisionだけ、既存19grantのlabelだけ、cache revisionだけの変更であることを確認する。新しい記録はnews_admin_auditの品質訂正記録であり、teacher decisionではない。
+- 公開NEWS Worker deployment: `f7d2a94c-db08-48ec-81e0-256cc4fd9459`。
+- Operator Worker deployment: `24ace5ed-0399-4380-af86-e027d587325e`。
+- 本番health: NEWS0.20.7、collection / publication / API ON。既存Cron `0 21 * * *` / `17 * * * *` を保持。
+- 認証済みOperator UI: NEWS0.20.7、公開59 / 保留13 / 掲載可0 / 人間判断12。approve / reject / recheck / Shadow評価操作は実行していない。
+- 公開API全ページ: 59件、54見出しがmanifestと一致、残り5件は不変。ID・sourceName・sourceUrl・publishedAt・category・publishable・eventEndsAt等、見出し以外の返却fieldは全件完全一致。重複ID0。ticker5件も訂正後見出しに一致。
+- APIカテゴリ件数：recording_audio7 / acoustic_guitar8 / electric_guitar_bass13 / dtm_software11 / amps_effects14 / live_guitar3 / artist_guitar3。変更前と同じ。Portの自社1件は不変、合計60。
+
+適用前snapshotはcandidate全94件、Ledger、Shadow、source_state、controls、takedowns、operator feedback、legacy grantsをローカルprivateファイルへ保存。適用直後とUI確認後のfresh snapshotを比較し、許可した54件のlabel / nested facts / provenance / review_revisionだけ、既存19grantのlabelだけ、controlsのcache revision +7だけが変わったことを確認。
+
+全既存root product factsとその他candidate columnsは一致。変更しない5件・全pending13件・全rejected22件はrow全体が完全一致。Ledger12 / Shadow66 / source_state11 / feedback34 / takedowns2は件数・全内容が完全一致。legacy grant20件のID・source・URL・日付・category・digestは不変。新規candidate、削除、migrationなし。
+
+news_admin_auditに54件の `headline-quality-backfill` / `verified_primary_presentation_only` を記録。teacher decision / Decision Ledgerではない。collection-disabled記事も公開維持、停止状態は不変。
 
 ## 12. Versions
 
@@ -100,7 +112,9 @@ NEWS / Operator 0.20.6 → 0.20.7（表示精度のpatch修正）。Portはコ�
 
 ## 13. Git
 
-開始main / origin一致、tracked/staged clean。実装・manifest・one-time admin tool・テスト・report・Worker patch versionだけを明示stageする。禁止されたGit操作は使用しない。commit / deploy / final Gitは本番確認後に記録する。
+開始main / origin一致、tracked/staged clean。今回の実装・manifest・one-time admin tool・テスト・report・Worker patch versionの10ファイルだけを明示stage。実装commit `14d8b4a2`（`fix(news): backfill verified published headline quality`）をnormal push済み。
+
+本番確認結果の追記はこのreportだけのfollow-up documentation commit / normal pushへ保存する。禁止されたGit操作は使用していない。final main = origin/main、ahead/behind0/0、tracked/staged cleanはdocumentation push後に実測して最終返信で報告する。既知untracked `.claude/` と `workers/sound-cruise-sync/node_modules/` は保持。Port code / Pages専用変更なし、必要な2つのNEWS Workerだけをデプロイ。
 
 ## 14. Remaining Limitations
 
@@ -172,3 +186,21 @@ Jackson PC1-Eの1件は証拠不足で維持。B4件では発売時期・発表�
 | 57 | A | [ikebe](https://www.ikebe-gakki-pb.com/new_product/172671/) | audio_interface / release | Universal Audio、オーディオインターフェース「Volt Gen 2」を発売 | 記事主題・モデル欄・製品説明の明示情報を照合。 |
 | 58 | A | [kikutani](https://www.kikutani.co.jp/news/kikutani-kdp-88p/) | digital_piano / announce | KIKUTANI、折りたたみ式電子ピアノ「KDP-88P」を発表 | 記事主題・モデル欄・製品説明の明示情報を照合。 |
 | 59 | A | [ikebe](https://www.ikebe-gakki-pb.com/new_product/172734/) | acoustic_guitar / arrival | Yamaha、アコースティックギター「FG7」の入荷情報 | 本文の主な出来事はピックアップ搭載機の入荷。発売／発表と混同しない。FG7の表示名だけ正規化、元識別子は保存。 |
+
+### Final YES / NO
+
+| Check | Result |
+|---|:---:|
+| all published articles reviewed | YES |
+| verified product types backfilled | YES |
+| category used as sole product-type evidence | NO |
+| event accuracy verified | YES（断定可能なものを確認、B4件は製品情報、D1件は維持） |
+| unsupported facts guessed | NO |
+| ambiguous headlines substantially reduced | YES |
+| public article count changed | NO |
+| human teacher data changed | NO |
+| AGM Interview articles preserved | YES |
+| all tests pass | YES |
+| mobile UI verified | YES（本番375 / 393px） |
+| production verification passes | YES |
+| Git safety followed | YES |
