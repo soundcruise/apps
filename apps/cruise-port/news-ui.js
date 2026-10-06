@@ -3,6 +3,14 @@ import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepar
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
 const renderCleanup = new WeakMap();
+// Attribution is presentation-only; keep the API record and source provenance intact.
+export function newsSourceDisplayName(item) {
+    try {
+        const url = new URL(item.sourceUrl);
+        if (url.protocol === 'https:' && ['acousticguitarmagazine.jp', 'www.acousticguitarmagazine.jp'].includes(url.hostname)) return 'ACOUSTIC GUITAR MAGAZINE';
+    } catch { /* Internal articles have no external source URL. */ }
+    return item.sourceName;
+}
 export function stopNewsUpdates(doc = document) {
     renderCleanup.get(doc)?.();
     renderCleanup.delete(doc);
@@ -66,7 +74,7 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
                     const link = node('a', undefined, 'news-card');
                     if (item.linkType === 'internal') link.href = articlePath(item.articleId);
                     else { link.href = item.sourceUrl; link.target = '_blank'; link.rel = 'noopener noreferrer'; }
-                    link.append(node('span', NEWS_CATEGORIES[item.category], 'news-category'), node('span', item.label, 'news-label'), node('span', item.sourceName, 'news-source'));
+                    link.append(node('span', NEWS_CATEGORIES[item.category], 'news-category'), node('span', item.label, 'news-label'), node('span', newsSourceDisplayName(item), 'news-source'));
                     const time = node('time', day.replaceAll('-', '/')); time.dateTime = item.publishedAt;
                     link.append(time); section.append(link);
                 }
