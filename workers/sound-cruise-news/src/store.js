@@ -43,7 +43,7 @@ export class NewsStore {
   if(r.meta.changes===1)return true;
   if(i.productFacts){await this.db.prepare(`UPDATE candidate_items SET product_facts=?,label=?,category=?,event_type=?,title_fingerprint=?,publication_decision=?,decision_reason=?,review_reason=?,event_ends_at=?
    WHERE id=? AND review_status='pending' AND source_url=?
-   AND NOT(COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.evidence'),'') IN ('agm_explicit_article_v1','guitar_exhibition_article_v1') OR COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.identifierBasis'),'') IN ('explicit_article_product_fields','explicit_article_component_fields'))
+   AND NOT(COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.evidence'),'') IN ('agm_explicit_article_v1','guitar_exhibition_article_v1','explicit_named_workshop_v1') OR COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.identifierBasis'),'') IN ('explicit_article_product_fields','explicit_article_component_fields','explicit_shimamura_product_fields'))
    AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1)
    AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1))
    AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)`)

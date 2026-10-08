@@ -1,7 +1,7 @@
 import {DAY} from './policy.js';
 import {DECISION_POLICY_VERSION,publicationValidation} from './decision-policy.js';
 import {recheckFacts} from './facts-recheck.js';
-import {recoverySurface,recoveryCacheKey,missingFacts} from './facts-readiness.js';
+import {recoverySurface,recoveryCacheKey,missingFacts,resolvedRecoverySurface} from './facts-readiness.js';
 import {candidateSnapshot} from './operator-review.js';
 import {saveShadowEvaluation} from './operator-shadow.js';
 export const RECHECK_POLICY='pending-recheck-1';
@@ -66,7 +66,7 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
   let result=null,validation=before,status=objectiveBlock(row,before,now),current=row;
   try{
    if(!status&&!before.valid){
-    const source=registry.find(s=>s.id===row.source_id),surface=recoverySurface(row,source);
+    const source=registry.find(s=>s.id===row.source_id),surface=await resolvedRecoverySurface(store,row,source);
     const cached=surface&&await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(recoveryCacheKey(row,source,surface)).first();
     const dailyRecovery=source&&await store.db.prepare('SELECT COUNT(*) AS n FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>?').bind(source.id,source.id+':',now-DAY).first();
     if(surface&&!before.errors.some(e=>['operator_source_gate','source_url_invalid'].includes(e))&&(cached?.checked_at>now-DAY||dailyRecovery.n===0)){

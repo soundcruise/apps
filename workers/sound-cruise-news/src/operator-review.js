@@ -1,7 +1,7 @@
 import {lifecycleView} from './pending-lifecycle.js';
 import {retainedDecisionProfile} from './operator-insights.js';
 import {prepareShadowEvaluation} from './operator-shadow.js';
-import {missingFacts,recoverySurface,recoveryAssessment,recoveryCacheKey} from './facts-readiness.js';
+import {missingFacts,recoverySurface,resolvedRecoverySurface,recoveryAssessment,recoveryCacheKey} from './facts-readiness.js';
 import {hash,DAY} from './policy.js';
 import {CHECKS,REASONS,DECISION_POLICY_VERSION,parseFacts,duplicatePredicate,publicationValidation} from './decision-policy.js';
 export const FEEDBACK_REASONS=Object.freeze([...new Set(Object.values(REASONS).flat())]);
@@ -13,7 +13,7 @@ const visibleFacts=facts=>facts?Object.fromEntries(Object.entries(facts).filter(
 export async function reviewDetail(store,id,now,registry,pepper){
  const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(id).first();if(!row)throw Error('candidate_not_found');
  const validation=await publicationValidation(store,row,now,registry,pepper);
- const source=registry.find(s=>s.id===row.source_id),surface=recoverySurface(row,source);
+ const source=registry.find(s=>s.id===row.source_id),surface=await resolvedRecoverySurface(store,row,source);
  const last=await store.db.prepare('SELECT checked_at,outcome,provenance_json FROM news_facts_rechecks WHERE candidate_id=? ORDER BY checked_at DESC LIMIT 1').bind(id).first();
  const cached=await store.db.prepare('SELECT checked_at,outcome,items_json FROM news_facts_sources WHERE source_id=?').bind(surface?recoveryCacheKey(row,source,surface):row.source_id).first();
  const factsReview={...recoveryAssessment(row,validation,surface,last,cached),missing:missingFacts(row,validation.facts,validation),available:!!surface&&!validation.errors.includes('operator_source_gate')&&!validation.errors.includes('source_url_invalid')&&['pending','reopened'].includes(row.review_status),surfaceUrl:surface?.url||null,method:surface?.method||null,lastVerifiedAt:last?.checked_at||cached?.checked_at||null,outcome:last?.outcome||cached?.outcome||null,provenance:last?.provenance_json&&last.provenance_json!=='[]'?JSON.parse(last.provenance_json):row.facts_provenance?JSON.parse(row.facts_provenance):[],reviewability:validation.errors.includes('duplicate')?'DUPLICATE_BLOCKED':validation.valid?'READY_FOR_HUMAN_DECISION':validation.errors.includes('operator_source_gate')?'POLICY_BLOCKED':surface?'FACTS_RECOVERY_UNCERTAIN':'POLICY_BLOCKED'};

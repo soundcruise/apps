@@ -1,3 +1,5 @@
+import {parseShimamuraProductEvidence} from './shimamura-product-evidence.js';
+import {parseNamedWorkshopEvidence} from './named-workshop-evidence.js';
 import {parseGuitarExhibition} from './guitar-exhibition-evidence.js';
 import {parseAgmArticleEvidence} from './agm-article-evidence.js';
 import {parseShimamuraEventEvidence} from './shimamura-event-evidence.js';
@@ -13,7 +15,7 @@ import {sourceUrl} from './policy.js';
 import {eventEndsAt} from './event.js';
 import {candidateSnapshot,reviewDetail} from './operator-review.js';
 import {publicationValidation} from './decision-policy.js';
-import {recoverySurface,recoveryCacheKey} from './facts-readiness.js';
+import {recoverySurface,recoveryCacheKey,resolvedRecoverySurface} from './facts-readiness.js';
 const canonical=v=>JSON.stringify(v,(_,x)=>x&&typeof x==='object'&&!Array.isArray(x)?Object.fromEntries(Object.entries(x).sort(([a],[b])=>a.localeCompare(b))):x);
 
 async function gate(store,source,registry,now,row){
@@ -24,7 +26,7 @@ async function gate(store,source,registry,now,row){
 }
 
 async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false}={}){
- const surface=recoverySurface(row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair}),previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
+ const surface=await resolvedRecoverySurface(store,row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair}),previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  if(previous?.checked_at>now-DAY){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
  const token=crypto.randomUUID();
  const claimed=await store.db.prepare(`INSERT INTO news_facts_sources(source_id,lease_token,lease_until,checked_at,outcome) VALUES(?,?,?,?,'in_progress')
@@ -54,6 +56,8 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
   proof={sourceId:source.id,sourceUrl:surface.url,verifiedAt:now,extractionMethod:surface.method,parserVersion:surface.parser,responseHash:await hash(response.text)};
   try{
    if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...(surface.parser==='shimamura-intro-event-3'?parseShimamuraEventEvidence(response.text,source,row):parseTargetEvidence(response.text,source,row))}];
+   else if(surface.method==='explicit_shimamura_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseShimamuraProductEvidence(response.text,source,row)}];
+   else if(surface.method==='explicit_named_workshop_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseNamedWorkshopEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_agm_article_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseAgmArticleEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_ikebe_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseIkebeProductEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_guitar_exhibition_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseGuitarExhibition(response.text,source,row)}];

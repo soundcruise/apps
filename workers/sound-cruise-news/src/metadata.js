@@ -1,3 +1,5 @@
+import {validatedShimamuraProductFacts,shimamuraProductLabel} from './shimamura-product-evidence.js';
+import {namedWorkshopLabel} from './named-workshop-evidence.js';
 import {guitarExhibitionLabel} from './guitar-exhibition-evidence.js';
 import {agmEditorialAssessment,agmEditorialLabel} from './agm-sections.js';
 import {highValueAssessment,highValueLabel,assessedRecordingFacts} from './high-value.js';
@@ -159,6 +161,7 @@ function manufacturerFacts(entry,source){
 }
 export function validatedProductFacts(facts){
  if(!facts||!validHeadlineEvidence(facts))return false;
+ if(facts.identifierBasis==='explicit_shimamura_product_fields')return validatedShimamuraProductFacts(facts);
  if(facts.identifierBasis==='explicit_article_product_fields')return validatedIkebeProductFacts(facts);
  if(assessedRecordingFacts(facts))return true;
  if(facts.identifierBasis==='verified_article_facts')return facts.articleSource==='ik'&&facts.brand==='IK Multimedia'&&facts.product==='TONEX software'&&facts.category==='dtm_software'&&facts.version==='2.0';
@@ -249,7 +252,7 @@ const actions={other:'の製品情報',new_product:'を発表',release:'を発�
 export function factualLabel(facts,eventType){
  if(eventType==='agm_editorial')return agmEditorialLabel(facts,eventType);
  if(eventType==='sale')return saleLabel(facts);
- if(eventType==='guitar_event')return guitarExhibitionLabel(facts)||highValueLabel(facts,eventType)||guitarEventLabel(facts);
+ if(eventType==='guitar_event')return namedWorkshopLabel(facts)||guitarExhibitionLabel(facts)||highValueLabel(facts,eventType)||guitarEventLabel(facts);
  if(eventType==='guitar_artist')return highValueLabel(facts,eventType)||artistLabel(facts);
  if(!facts||eventType==='review'||!actions[eventType]||!validatedProductFacts(facts)||facts.version!==null&&facts.version!==undefined&&!/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(facts.version))return null;
  if(facts.productEvent&&(!['new_product','release','other'].includes(eventType)||!validatedProductEvent(facts.productEvent)))return null;
@@ -260,6 +263,7 @@ export function factualLabel(facts,eventType){
   if(facts.productEvent?.signal==='explicit_collaboration_color')descriptors.collaboration='のコラボカラー';
   return `${facts.brand?facts.brand+'、':''}${productSubject(facts)}${facts.productEvent?descriptors[facts.productEvent.action]:''}${releaseSuffix(facts.releaseEvent)}`;
  }
+ if(facts.identifierBasis==='explicit_shimamura_product_fields')return shimamuraProductLabel(facts,eventType);
  const primary=ikebeProductLabel(facts,eventType);if(primary)return primary;
  return `${facts.brand?facts.brand+'、':''}${productSubject(facts)}${facts.productEvent?productActionSuffix(facts.productEvent):actions[eventType]}`;
 }

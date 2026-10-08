@@ -1,3 +1,5 @@
+import {shimamuraProductSurface} from './shimamura-product-evidence.js';
+import {namedWorkshopSurface} from './named-workshop-evidence.js';
 import {guitarExhibitionSurface} from './guitar-exhibition-evidence.js';
 import {agmRecoverySurface} from './agm-article-evidence.js';
 import {shimamuraEventSurface} from './shimamura-event-evidence.js';
@@ -17,11 +19,13 @@ export function missingFacts(row,facts,validation){
  if(validation.errors.includes('facts_incomplete')&&facts&&!missing.length)missing.push(facts.kind==='guitar_event'?'確認済みの人物・イベントは、現行パイロットの掲載条件を満たしていません':'既存の識別・イベント方針を満たすfacts／label');
  return missing;
 }
-export function recoverySurface(row,source){
+export function recoverySurface(row,source,{primaryRecovery=false}={}){
  const exhibition=guitarExhibitionSurface(row,source);if(exhibition)return exhibition;
  const agm=agmRecoverySurface(row,source);if(agm)return agm;
  const event=shimamuraEventSurface(row,source);if(event)return event;
  const targeted=targetSurface(row,source);if(targeted)return targeted;
+ const shima=shimamuraProductSurface(row,source);if(primaryRecovery&&shima)return shima;
+ const workshop=namedWorkshopSurface(row,source);if(primaryRecovery&&workshop)return workshop;
  const product=ikebeProductSurface(row,source);if(product)return product;
  // Fixed listing-only evidence must not become permission to crawl article bodies.
  if(source?.id==='ikebe-event'&&source.discoveryUrl==='https://www.ikebe-gakki.com/blog/category/event/')return {url:row.source_url,method:'explicit_event_fields',parser:'event-article-1'};
@@ -37,7 +41,7 @@ export function recoveryAssessment(row,validation,surface,last,cached){
  if(errors.includes('duplicate'))recoveryClass='DUPLICATE_BLOCKED';
  else if(validation.valid)recoveryClass='READY_FOR_HUMAN_DECISION';
  else if(errors.some(e=>['operator_source_gate','source_url_invalid','publication_policy_rejected','candidate_takedown','expired_candidate','event_validation_failed'].includes(e))||facts?.scope==='expansion'||facts?.kind==='guitar_event'&&facts.artist&&facts.eventType&&facts.eventDate&&facts.venue&&!validation.publishableLabel)recoveryClass='POLICY_BLOCKED';
- else if(!surface||['facts_not_on_current_surface','facts_identity_changed','facts_date_changed'].includes(last?.outcome))recoveryClass='NOT_SAFELY_RECOVERABLE';
+ else if(!surface||['facts_not_on_current_surface','facts_identity_changed','facts_date_changed','facts_event_missing','facts_scope_uncertain'].includes(last?.outcome))recoveryClass='NOT_SAFELY_RECOVERABLE';
  else if(surface.method!=='existing_listing_parser')recoveryClass='RECOVERABLE_FROM_ORIGINAL_SOURCE';
  else {
   let item;try{item=JSON.parse(cached?.items_json||'[]').find(i=>i.id===row.id&&i.sourceUrl===row.source_url);}catch{}
@@ -48,5 +52,16 @@ export function recoveryAssessment(row,validation,surface,last,cached){
 }
 
 export function recoveryCacheKey(row,source,surface,{serverRepair=false}={}){
- return ['targeted_explicit_primary_fields','explicit_ikebe_product_fields','explicit_agm_article_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
+ return ['targeted_explicit_primary_fields','explicit_ikebe_product_fields','explicit_agm_article_fields','explicit_shimamura_product_fields','explicit_named_workshop_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
+}
+
+// Preserve supported listing extraction; escalate only after that evidence was insufficient,
+// or when a verified, per-candidate primary proof has already been acquired.
+export async function resolvedRecoverySurface(store,row,source){
+ const primary=recoverySurface(row,source,{primaryRecovery:true}),ordinary=recoverySurface(row,source);
+ if(!primary||primary.method===ordinary?.method)return ordinary;
+ const key=recoveryCacheKey(row,source,primary);
+ if(await store.db.prepare("SELECT 1 FROM news_facts_sources WHERE source_id=?").bind(key).first())return primary;
+ const prior=await store.db.prepare('SELECT outcome FROM news_facts_rechecks WHERE candidate_id=? ORDER BY checked_at DESC,rowid DESC LIMIT 1').bind(row.id).first();
+ return ['facts_not_on_current_surface','facts_not_recovered','facts_unchanged'].includes(prior?.outcome)?primary:ordinary;
 }

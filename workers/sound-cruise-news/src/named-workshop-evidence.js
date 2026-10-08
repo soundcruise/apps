@@ -1,0 +1,11 @@
+import {parseDocument,DomUtils} from 'htmlparser2';
+import {parseEventArticle} from './high-value.js';
+export const NAMED_WORKSHOP_PARSER='named-guitar-workshop-1';
+const urlOK=u=>/^https:\/\/www\.ikebe-gakki\.com\/blog\/[a-z0-9-]+\/$/.test(u||'');
+export function namedWorkshopSurface(row,source){return source?.id==='ikebe-event'&&source.discoveryUrl==='https://www.ikebe-gakki.com/blog/category/event/'&&row.source_id===source.id&&urlOK(row.source_url)?{url:row.source_url,method:'explicit_named_workshop_fields',parser:NAMED_WORKSHOP_PARSER}:null;}
+export function namedWorkshopLabel(f){if(f?.evidence!=='explicit_named_workshop_v1'||f.kind!=='guitar_event'||f.category!=='live_guitar'||f.listingSource!=='ikebe-event'||!urlOK(f.articleUrl)||f.eventType!=='workshop'||!/^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}・]{2,24}$/u.test(f.artist||'')||!['イケシブ','リボレ秋葉原'].includes(f.venue)||!/^20\d{2}-\d{2}-\d{2}$/.test(f.eventDate||'')||!Number.isFinite(Date.parse(f.eventDate))||new Date(f.eventDate).toISOString().slice(0,10)!==f.eventDate)return null;return `${f.artist}、${Number(f.eventDate.slice(5,7))}月${Number(f.eventDate.slice(8,10))}日に${f.venue}でギターワークショップを開催`;}
+export function parseNamedWorkshopEvidence(html,source,row){
+ if(!namedWorkshopSurface(row,source))throw Error('facts_source_invalid');const f=parseEventArticle(html,source,row.source_url),doc=parseDocument(html),find=p=>DomUtils.findAll(n=>!!n.name&&p(n),doc.children),articles=find(n=>n.name==='article'&&n.attribs.id==='main'),canon=find(n=>n.name==='link'&&n.attribs.rel==='canonical'),dates=(articles.length===1?DomUtils.findAll(n=>n.name==='time'&&/^Published:/.test(DomUtils.textContent(n).trim()),articles[0].children):[]);
+ if(canon.length!==1||canon[0].attribs.href!==row.source_url)throw Error('facts_source_invalid');if(dates.length!==1||dates[0].attribs.datetime!==new Date(Date.parse(row.published_at)+9*3600000).toISOString().slice(0,10))throw Error('facts_date_changed');
+ const facts={...f,evidence:'explicit_named_workshop_v1',listingSource:source.id,articleUrl:row.source_url};if(!namedWorkshopLabel(facts))throw Error('facts_scope_uncertain');return {productFacts:facts,eventType:'guitar_event',publishedAt:row.published_at};
+}
