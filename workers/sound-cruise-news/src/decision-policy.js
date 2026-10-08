@@ -21,6 +21,14 @@ export function duplicatePredicate(row,facts,alias='d'){
   clauses.push(`(${j('brand')}=? AND ${alias}.category=? AND COALESCE(${j('version')},'')=? AND ${alias}.event_type IN ('other','new_product','release') AND (${j('product')} IN (${facts.models.map(()=>'?').join(',')}) OR EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models') member WHERE member.value IN (${facts.models.map(()=>'?').join(',')}))))`);
   args.push(facts.brand,row.category,facts.version||'',...facts.models,...facts.models);
  }
+ // Exact multi-model signature launch identity, allowing only explicit color suffixes.
+ // A series qualifier is not a different manufacturer; new color/edition events stay separate.
+ if(['explicit_article_product_fields','explicit_shimamura_product_fields'].includes(facts?.identifierBasis)&&facts.signatureModel===true&&!facts.productEvent&&typeof facts.brand==='string'&&Array.isArray(facts.models)&&facts.models.length>=2&&facts.models.length<=4&&new Set(facts.models).size===facts.models.length&&facts.models.every(m=>typeof m==='string'&&/^[A-Za-z0-9][A-Za-z0-9 .&'/-]{1,99}$/.test(m))){
+  const colors=['Black','White','Arctic White','Red','Blue','Natural','Sunburst'],modelArgs=[];
+  const comparisons=facts.models.map(m=>{const variants=[m,...colors.map(c=>`${m} (${c})`)];modelArgs.push(...variants);return `EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models') signature_model WHERE signature_model.value IN (${variants.map(()=>'?').join(',')}))`;});
+  clauses.push(`(${j('identifierBasis')} IN ('explicit_article_product_fields','explicit_shimamura_product_fields') AND ${j('signatureModel')}=1 AND ${j('productEvent')} IS NULL AND ${j('brand')} IN (?,?) AND ${alias}.category=? AND COALESCE(${j('version')},'')=? AND ${alias}.event_type IN ('new_product','release') AND ? IN ('new_product','release') AND json_array_length(${j('models')})=? AND ${comparisons.join(' AND ')})`);
+  args.push(facts.brand,facts.brand+' Standard Series',row.category,facts.version||'',row.event_type,facts.models.length,...modelArgs);
+ }
  if(facts?.kind&&['guitar_artist','guitar_event','artist_live','sale'].includes(facts.kind)){
   const keys=facts.kind==='sale'?['seller','event','endDate']:['kind','artist','performer','event','venue','eventDate','endDate','eventType','action','topic'];
   clauses.push(`(${alias}.category=? AND ${alias}.event_type=? AND ${keys.map(k=>`COALESCE(${j(k)},'')=?`).join(' AND ')})`);args.push(row.category,row.event_type,...keys.map(k=>facts[k]||''));
