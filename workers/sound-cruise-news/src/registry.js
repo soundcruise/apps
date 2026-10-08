@@ -1,3 +1,4 @@
+import {AGM_PERMISSION_REF} from './agm-sections.js';
 import {HIGH_VALUE_EVIDENCE} from './high-value-evidence.js';
 import {RECOVERY_EVIDENCE} from './recovery-evidence.js';
 import {QUALITY_EVIDENCE} from './quality-evidence.js';
@@ -61,13 +62,15 @@ export const SOURCES = Object.freeze(entries.map(([id,name,baseUrl,sourceKind,fe
  ...(COVERAGE_EVIDENCE[id]||{}),
  ...(QUALITY_EVIDENCE[id]||{}),
  ...(RECOVERY_EVIDENCE[id]||{}),
- ...(HIGH_VALUE_EVIDENCE[id]||{})
+ ...(HIGH_VALUE_EVIDENCE[id]||{}),
+ ...(id==='agm'?{agmSections:true,permissionRef:AGM_PERMISSION_REF,explicitAutomationPermission:true,automationPolicy:'publisher_permission',permissionDate:'2026-10-08',name:'ACOUSTIC GUITAR MAGAZINE WEB',reviewedAt:'2026-10-08',robotsReviewedAt:'2026-10-08',discoveryReviewedAt:'2026-10-08',policySummary:'Publisher reply of 2026-10-08 grants the use described in the actual inquiry: selected useful public articles, objective facts, independent short labels, exact WEB attribution and direct article links. Six fixed sections, daily bounded discovery. No original headline/body/image reuse, logos or implied endorsement. Material changes require consultation. See NEWS-SOURCE-DECISION-REGISTER.md.',artistOnly:false,allowedPaths:['/'],deniedPaths:['/wp-admin/','/wp-json/','/author/','/tag/','/page/'],articlePathPattern:'^/(?:interview/[^/]+|(?:beginners/|lesson/|gears/|column/)?20[0-9]{2}[-_][a-zA-Z0-9_-]+)/$'}:{})
 })));
 export function getSource(id) { return SOURCES.find(s=>s.id===id); }
 export const PHASE_ONE_CANDIDATES = Object.freeze(['shimamura','sleepfreaks','hookup']);
 const fresh=(date,now)=>typeof date==='string'&&Number.isFinite(Date.parse(date))&&Date.parse(date)<=now&&now-Date.parse(date)<=90*86400000;
 const https=value=>{try {const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password;}catch{return false;}};
 export function evidenceGate(source,now) {
+ if(source.id==='agm'&&source.agmSections&&(source.permissionRef!==AGM_PERMISSION_REF||source.explicitAutomationPermission!==true||source.automationPolicy!=='publisher_permission'||source.crawlIntervalHours<24))return 'permission_required';
  if(source.legalStatus==='CONTACT'&&!source.permissionRef)return 'permission_required';
  if(source.legalStatus!=='SAFE')return 'legal_block';
  if(!https(source.termsUrl)||!https(source.linkPolicyUrl)||!source.policySummary||

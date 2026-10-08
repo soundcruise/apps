@@ -27,8 +27,8 @@ test('arbitrary articles, fields, dates, scope borrowing and missing verificatio
  for(const changes of [{officialUrl:'https://acousticguitarmagazine.jp/another-news/'},{publishedAt:'2026-10-02T10:00:00.000Z'},{sourceId:'agm'},{sourceId:'manual-ikebe'},{label:'unreviewed copy'},{body:'raw body'},{images:['https://example.com/a.png']},{checks:{...base.checks,factsChecked:false}},{articleChecks:{...base.articleChecks,primarySource:'no_primary_found'}}])await assert.rejects(manualCandidate({...base,...changes},now));
  await assert.rejects(manualCandidate(base,now+91*86400000));
 });
-test('no automatic AGM scope expansion, no new automatic source, existing Interview surface unchanged',()=>{
- const s=getSource('agm');assert.equal(s.discoveryUrl,'https://acousticguitarmagazine.jp/interview/feed/');assert.deepEqual(s.allowedPaths,['/interview/']);assert.equal(s.artistOnly,true);
+test('manual grant stays exact while explicitly permitted AGM collection retains Interview RSS',()=>{
+ const s=getSource('agm');assert.equal(s.discoveryUrl,'https://acousticguitarmagazine.jp/interview/feed/');assert.equal(s.agmSections,true);assert.equal(s.permissionRef,'agm-permission-2026-10-08');assert.equal(s.explicitAutomationPermission,true);
  assert.equal(runtimeSources({NEWS_SOURCE_IDS:'["manual-agm-test"]'},undefined,now).some(s=>s.enabled),false);
  const manual=MANUAL_SOURCES.find(s=>s.id==='manual-agm-test');assert.equal(manual.automaticEnabled,false);assert.equal(manualEvidenceGate(manual,now),null);
 });

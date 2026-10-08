@@ -1,3 +1,4 @@
+import {agmEditorialAssessment,agmEditorialLabel} from './agm-sections.js';
 import {highValueAssessment,highValueLabel,assessedRecordingFacts} from './high-value.js';
 import {productActionSuffix,productEventFrom,validatedProductEvent,uncertainProductAction} from './product-event.js';
 import {listingArticleUrl,listingExclusion} from './shimamura-listing.js';
@@ -245,6 +246,7 @@ export function allowedArticlePath(url,source) {
 }
 const actions={other:'の製品情報',new_product:'を発表',release:'を発売',update:'を更新',firmware:'のファームウェア更新',price_change:'の価格改定',discontinued:'の販売終了',recall:'のリコール情報',review:'の製品レビュー'};
 export function factualLabel(facts,eventType){
+ if(eventType==='agm_editorial')return agmEditorialLabel(facts,eventType);
  if(eventType==='sale')return saleLabel(facts);
  if(eventType==='guitar_event')return highValueLabel(facts,eventType)||guitarEventLabel(facts);
  if(eventType==='guitar_artist')return highValueLabel(facts,eventType)||artistLabel(facts);
@@ -292,6 +294,24 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
  if(hasDate&&(timestamp>now||now-timestamp>90*DAY))return {decision:'REJECT',reason:'date_outside_window'};
  if(typeof entry.title!=='string'||!entry.title.trim()||entry.title.length>512)return {decision:'REJECT',reason:'title_invalid'};
  if(source.discoveryType==='shimamura_listing'){const reason=listingExclusion(entry.title);if(reason)return {decision:'REJECT',reason};}
+ if(source.id==='agm'&&source.agmSections&&entry.agmSection){
+  const assessed=agmEditorialAssessment(entry);if(assessed.reject)return {decision:'REJECT',reason:assessed.reject};
+  // Existing product rules remain authoritative for launches; other editorial kinds
+  // are explicit human-review candidates, never permission-driven auto approvals.
+  let facts=assessed.facts,eventType='agm_editorial',category=assessed.category;
+  if(!assessed.kind&&entry.agmSection==='news'){
+   const product=productFacts(entry.title),event=contentType(entry.title);
+   if(product&&['release','new_product'].includes(event)){
+    facts=enrichHeadlineFacts({...product,...(productEventFrom(entry.title,product,event)?{productEvent:productEventFrom(entry.title,product,event)}:{})},{title:entry.title,publishedAt:entry.date});
+    eventType=event;category=facts.category;
+   }
+  }
+  const label=factualLabel(facts,eventType),id=await hash(url);
+  return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,publishedAt:hasDate?new Date(timestamp).toISOString():null,
+   category,label:label&&validLabel(label,entry.title)?label:'審査待ち（記事の対象・テーマ・出来事の確認が必要）',topicKey:eventType==='agm_editorial'?id:facts?factualTopicKey(facts,eventType):id,
+   collectedAt:new Date(now).toISOString(),eventType,productFacts:facts,titleFingerprint:JSON.stringify(await fingerprint(entry.title,pepper)),feedPublishedAt:hasDate?new Date(timestamp).toISOString():null,
+   publicationDecision:'PUBLISH_REVIEW',decisionReason:!hasDate?'missing_date':label?'agm_editorial_review':'label_required',manualReviewStatus:'pending',reviewReason:'agm_editorial_review'}};
+ }
  const assessed=highValueAssessment(entry,source,now);
  if(assessed){
   if(assessed.reject)return {decision:'REJECT',reason:assessed.reject};

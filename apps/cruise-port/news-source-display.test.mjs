@@ -14,7 +14,7 @@ test('AGM Interview and editorial sources share attribution without changing rec
     ]) {
         const item = Object.freeze({id:path, sourceName, sourceUrl:`https://acousticguitarmagazine.jp${path}`, label:'Original headline', publishedAt:'2026-10-01', category:'artist_guitar'});
         const before = JSON.stringify(item);
-        assert.equal(newsSourceDisplayName(item), 'ACOUSTIC GUITAR MAGAZINE');
+        assert.equal(newsSourceDisplayName(item), 'ACOUSTIC GUITAR MAGAZINE WEB');
         assert.equal(JSON.stringify(item), before);
     }
 });
@@ -23,5 +23,5 @@ test('other publishers, internal articles and lookalike domains retain their att
     for (const sourceUrl of [undefined, 'invalid', 'https://www.shimamura.co.jp/news/', 'https://acousticguitarmagazine.jp.evil.example/', 'https://evil.example/acousticguitarmagazine.jp', 'https://guitarmagazine.jp/']) {
         assert.equal(newsSourceDisplayName({sourceUrl, sourceName:'Original source'}), 'Original source');
     }
-    assert.equal(newsSourceDisplayName({sourceUrl:'https://www.acousticguitarmagazine.jp/news/',sourceName:'AGM'}),'ACOUSTIC GUITAR MAGAZINE');
+    assert.equal(newsSourceDisplayName({sourceUrl:'https://www.acousticguitarmagazine.jp/news/',sourceName:'AGM'}),'ACOUSTIC GUITAR MAGAZINE WEB');
 });

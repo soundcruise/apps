@@ -11,7 +11,7 @@ const imports = (source) => [...source.matchAll(/from '\.\/([a-z0-9-]+\.js)\?v=(
 const edges = modules.flatMap((importer) => imports(read(`./${importer}`)).map((edge) => ({ importer, ...edge })));
 const escaped = CRUISE_PORT_APP_VERSION.replaceAll('.', '\\.');
 
-// 1.19.5 unifies AGM attribution in NEWS presentation; data and provider remain unchanged.
+// 1.19.6 unifies AGM attribution in NEWS presentation; data and provider remain unchanged.
 const RELEASE_MODULES = Object.freeze(['app-version.js']);
 // NEWS modules are loaded with dynamic import() from practice-menu-app.js and did not change in 1.12.0.
 const RELEASE_DYNAMIC_NEWS_MODULES = Object.freeze(['news-ui.js', 'news-provider.js']);
@@ -42,8 +42,8 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.19.5', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.19.5');
+test('the release is 1.19.6', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.19.6');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -73,7 +73,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.19.5');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.19.6');
   assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.19.2');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
@@ -142,7 +142,7 @@ test('Sync Center and launch modules have exactly one public URL each', () => {
 test('unchanged NEWS dynamic modules retain their prior revision key', () => {
   const app = read('./practice-menu-app.js');
   for (const name of RELEASE_DYNAMIC_NEWS_MODULES) {
-    const expectedKey = name === 'news-ui.js' ? '1.19.5' : '1.19.2';
+    const expectedKey = name === 'news-ui.js' ? '1.19.6' : '1.19.2';
     assert.match(app, new RegExp(`import\\('\\./${name.replace('.', '\\.')}\\?v=${expectedKey.replaceAll('.', '\\.')}'\\)`), name);
   }
   for (const name of ['news-ui.js', 'news-provider.js']) {

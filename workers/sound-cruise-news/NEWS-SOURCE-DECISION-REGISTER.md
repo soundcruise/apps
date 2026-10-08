@@ -834,3 +834,86 @@ IK製品自体は対象外ではない。他source経由のIK製品ニュース�
 - 本番Portを独立した空のChrome contextでread-only確認：Ver1.13.1、Home ticker、全49card、対象4件各1card、pending非表示、イベントfilter/card3件、Sale空表示、375/393px横はみ出しなし、direct href + target=_blank + noopener noreferrer、console/page/HTTP errors0。通信116 GET／mutation0。
 - production D1の照会は全てSELECT、rows_written0。collector/manual run・operator審査・user data変更・source state変更・schedule変更なし。OAuth/secret値・fingerprint内容は記録しない。
 - Code fixes **NONE**、version bump / commit / push / deploy **NOT REQUIRED・未実行**。変更は本正本のみ。別source decision文書・repo scratchを作成していない。残る観察は限定coverage/将来の新着供給、イベントREVIEW、集計warning、telemetry権限。
+
+<a id="agm-permission-2026-10-08"></a>
+
+## 2026-10-08 — AGM publisher permission and six-section scope
+
+This entry supersedes the earlier AGM Interview-only / permission-pending assessment **for the described use only**. Earlier evidence remains historical. It does not enable other publishers or license copied publisher expression.
+
+### Primary permission evidence
+
+- Sender: 橋本修一, `hasimo-s@rittor-music.co.jp` (株式会社リットーミュージック).
+- Subject: `ACOUSTIC GUITAR MAGAZINE WEBの記事紹介について`.
+- Sent: 2026-10-08 20:17:44 JST; received 20:17:56 JST.
+- Gmail message: `msg-f:1878480153720233947` (hex `1a11b3bf481d9fdb`); thread: `FMfcgzQhWntKcxjfthNsBmMqbNzcZsNz`.
+- RFC Message-ID: `<CACt9YyDSaOOmNrhOcVY9tEvOEOg6X+HtuBEo3pXU_c6x09iyWg@mail.gmail.com>`.
+- Gmail original-message view: SPF, DKIM (`rittor-music.co.jp`), DMARC PASS. Message body is **not** copied into this repository.
+- Actual inquiry receipt: `info@rittor-music.co.jp`, 2026-10-07 08:32:38 JST, subject `当ホームページの内容／出版物についてのお問い合わせありがとうございます`, thread `FMfcgzQhWnrzfhxxplWWxDZxBljmvNNw`. This sent receipt, not an earlier unsent draft, describes useful public articles throughout AGM WEB and checking about once daily. It is not limited to three named sections.
+
+**Permission: granted, conditional.** The reply approves the use described in that inquiry: objective information from selected useful public articles, independently written short labels, attribution and direct original-article links. Required attribution is exactly **ACOUSTIC GUITAR MAGAZINE WEB**. The owner confirmed the WEB suffix on 2026-10-08. New-information checking must not cause excessive load; once/day is the inquiry's proposed operating limit, not a newly invented numeric permission in the reply.
+
+Conditions retained:
+
+- No republication/redistribution of article body, original headlines, photos/images, video, scores or other publisher content; no logo/brand asset permission.
+- No implication of partnership, cooperation, official endorsement or supervision.
+- URLs/RSS may change or cease without notice; no guarantee of maintenance, notice or compatibility.
+- Consult again for material changes to presentation, retrieval or the service.
+- Test presentation may transition to formal operation within these conditions. Permission is not a judgment of an article's editorial value.
+
+**Scope interpretation:** the email does not enumerate six section grants separately. The actual inquiry covers useful public AGM WEB articles, and the reply approves that described use. Selecting useful acoustic-guitar / singing-and-playing articles from the six official public sections below is within that scope. This is not permission for indiscriminate crawling, paid content or expression reuse. A later materially broader use requires consultation.
+
+### Fixed public surfaces and extraction contract
+
+| User section | Official section / canonical listing | Discovery | Publication date | Article types |
+|---|---|---|---|---|
+| はじめましてのアコギ入門 | Beginners — https://acousticguitarmagazine.jp/beginners/ | `/beginners/feed/` | RSS pubDate | beginner theory / technique / instrument knowledge |
+| 演奏ネタ | Lesson — https://acousticguitarmagazine.jp/lesson/ | `/lesson/feed/` | RSS pubDate | playing / arranging / rhythm |
+| 楽器情報 | Gears — https://acousticguitarmagazine.jp/gears/ | `/gears/feed/` | RSS pubDate | equipment, trial/review, product information |
+| インタビュー | Interview — https://acousticguitarmagazine.jp/interview/ | `/interview/feed/` | RSS pubDate | person plus explicit musical topic |
+| ニュース | News — https://acousticguitarmagazine.jp/news/ | fixed HTML listing, no RSS advertised | article-scoped JSON-LD datePublished / article:published_time | products / artist activity; unclear facts remain pending |
+| 読みもの | Column — https://acousticguitarmagazine.jp/column/ | `/column/feed/` | RSS pubDate | columns / explanatory features |
+
+Observed 2026-10-08: all six official listings and the five advertised feeds return HTTP 200. Section pagination exists (`/page/2/`) but is not followed. No sitemap discovery, tag traversal or whole-site crawl. robots.txt returns a parseable Allow-all group and sitemap declaration; robots is an access constraint, **not** the permission evidence. The publisher's Gmail reply supplies the permission.
+
+- At most 10 metadata items per RSS; 9 News cards and their same-host canonical article metadata; maximum 16 wire requests including robots. Minimum 1s spacing, longer Crawl-delay honored. No retries around 403/429, redirects or opt-out.
+- Exact fixed discovery endpoints; article URLs must remain on the AGM host in the selected section. News article canonical must equal the discovered URL. Dated slugs identify paths only, never dates.
+- News datePublished values must agree; absent/invalid/conflicting values stay unknown and cannot publish. RSS pubDate is distinct from product release date. Existing 90-day and future-date gates remain.
+- Metadata/HTML is transient; no article body, original headline, image or long summary is persisted. Original headline similarity uses the existing keyed fingerprint only.
+- Editorial facts retain section/type, explicit normalized topic, and a bounded named-person fact where supported by metadata. Missing identity/theme stays pending. Fixed independent labels describe the article's subject, not its full content. Product launches retain the existing product/event rules.
+- All newly discovered six-section candidates start PUBLISH_REVIEW, not AUTO. Editorial events are also explicitly barred from the automatic publication path. Existing human publication validation, fingerprint, source health, duplicate, date and category gates still apply.
+- Existing canonical URLs deduplicate against both automatic Interview and manually added test articles. Existing records, publication status, facts, provenance, dates, Ledger and Shadow are not rewritten. Port maps historical AGM source labels to the exact required WEB attribution; new automatic source labels use it directly.
+- Daily scheduler is unchanged. Permission, source metadata and collection results do not generate human approve/reject decisions or teacher records. New pending items may subsequently receive normal system Shadow observations; these are not human teacher signals.
+
+### Other-source compliance re-audit (existing evidence reused, 2026-10-08)
+
+Classification distinguishes legal rights in expression, website terms and technical access rules. No inference that robots or unprotected facts alone grants contractual permission. B is a bounded internal assessment, not an express publisher license or a guarantee that individual permission can never be necessary.
+
+| Source | Official evidence / existing confirmation | Relevant terms and present scope | Class / contact |
+|---|---|---|---|
+| AGM | Gmail evidence above, 2026-10-08; https://www.rittor-music.co.jp/agreement/ | Express conditional grant for described facts/independent-label/attribution/direct-link and low-load checking | A, no further contact for this scope; material change requires consultation |
+| 島村楽器 | https://www.shimamura.co.jp/siteusage/ ; `src/shimamura-evidence.js`, `src/source-policies.js` (2026-09-28/30) | Links permitted for commercial/noncommercial sites subject to identification, no framing and appropriate opening; recommends top page. Copyright retained. No broad automation grant established. Existing fixed product listing only | B; no new outreach; operational stop preserved |
+| 池部PB | https://www.ikebe-gakki.com/Page/agreement.aspx ; `src/recovery-evidence.js`, `LEGACY-SOURCE-RECOVERY-REPORT.md` (2026-09-30) | Parent member/purchase terms and expression rights reviewed separately from public PB factual metadata. No applicable mandatory individual-permission/automation prohibition established for current fixed surface | B; contact recommended for broader commercial reuse/scope, not newly required for current scope |
+| キクタニ | https://www.kikutani.co.jp/privacy-policy/ ; `src/coverage-evidence.js`, `COVERAGE-EXPANSION-PHASE1-REPORT.md` (2026-09-30) | Privacy/public policy is not a republication or automation license; fixed public product facts/links only, no copied expression | B; no new contact mandate established |
+| ZOOM | https://zoomcorp.com/ja/jp/privacy-policy/ ; `src/quality-evidence.js` (2026-09-30) | Existing narrow product metadata assessment; no publisher-text reuse, no blanket automation permission claimed | B; no new contact mandate established |
+| amass | https://amass.jp/rss/about , https://amass.jp/help/privacy.php ; `src/quality-evidence.js` (2026-09-30) | Official tag RSS offered, copyright retained. Only guitarist tag 3745; offering RSS does not grant general commercial republication | B; no new contact mandate established |
+| Ikebe Events | https://www.ikebe-gakki.com/Page/agreement.aspx ; `src/high-value-evidence.js`, `HIGH-VALUE-SOURCE-POLICY.md` (2026-10-01) | Same parent scope caveat; fixed named-guitarist event surface, not arbitrary commercial content | B; current operational stop preserved; wider reuse should be clarified first |
+
+No other source gained a new A classification. No new clear contradiction warranting D was established by the reused evidence. Unresolved points are the absence of an express automation/commercial-aggregation grant for B sources and the applicability of broader parent terms if scope changes; those uncertainties are not represented as an unconditional permission. AT, IK and Sleepfreaks intentional retirement/pause decisions remain unchanged and were not unnecessarily re-audited. No external permission request was sent.
+
+Runtime preflight (2026-10-08): source state enabled for AGM/amass/Ikebe/Kikutani/ZOOM; Shimamura and Ikebe Events currently disabled, separate from the scope/legal assessment. This task does not clear their stops. NEWS baseline 62 approved / 16 pending / 22 rejected; Ledger 14, Shadow 80. AGM existing six approved records comprise two `agm` and four `manual-agm-test` records.
+
+### Pre-release acceptance
+
+Live isolated run (in-memory DB seeded with a read-only production snapshot) discovered 59 metadata items: 41 new pending, 6 canonical duplicates, 12 filtered (11 outside 90 days, one unrelated merchandise promotion). All six existing approved AGM articles deduplicated; no production DB write. Maximum 16 publisher requests; all six sections succeeded. The first isolated attempt stopped safely on a News article without an h1; canonical Article JSON-LD headline support was then added and the bounded run succeeded. A tag-context regression also prevents topic/award/product tags from becoming a person's name. No raw publisher responses or original headlines were saved.
+
+| Section | Found | New pending | Duplicate | Filtered |
+|---|---:|---:|---:|---:|
+| Beginners | 10 | 6 | 0 | 4 |
+| Lesson | 10 | 7 | 0 | 3 |
+| Gears | 10 | 9 | 1 | 0 |
+| Interview | 10 | 6 | 2 | 2 |
+| News | 9 | 5 | 3 | 1 |
+| Column | 10 | 8 | 0 | 2 |
+
+Port read-only local preview uses the existing public-API proxy: 62 external articles plus one internal article; all six AGM attributions match the WEB suffix. 375/393/1280px show no horizontal overflow; direct links retain `_blank` and `noopener noreferrer`; category switching succeeds. No stored article identity/date/facts was changed to achieve the attribution update. Release targets: Port 1.19.6 (display patch), NEWS 0.22.0 (new bounded collection capability), Operator 0.21.0 (shared editorial validation/facts display). Authentication, Access, sync, account and other sources are outside this change.

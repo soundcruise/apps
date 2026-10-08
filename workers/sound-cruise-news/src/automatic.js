@@ -18,7 +18,7 @@ export async function publishAutomatic(store,source,registry,now,pepper){
  let published=0;
  for(const row of rows){
   // Firmware importance requires explicit human review, including major exceptions.
-  if(row.event_type==='firmware')continue;
+  if(row.event_type==='firmware'||row.event_type==='agm_editorial')continue;
   let facts;try{facts=JSON.parse(row.product_facts);}catch{continue;}
   // These lifecycle refinements remain human-reviewed; evidence recovery does
   // not convert a pending release plan/delay/reservation into an auto-approval.

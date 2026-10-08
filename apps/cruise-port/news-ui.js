@@ -7,7 +7,7 @@ const renderCleanup = new WeakMap();
 export function newsSourceDisplayName(item) {
     try {
         const url = new URL(item.sourceUrl);
-        if (url.protocol === 'https:' && ['acousticguitarmagazine.jp', 'www.acousticguitarmagazine.jp'].includes(url.hostname)) return 'ACOUSTIC GUITAR MAGAZINE';
+        if (url.protocol === 'https:' && ['acousticguitarmagazine.jp', 'www.acousticguitarmagazine.jp'].includes(url.hostname)) return 'ACOUSTIC GUITAR MAGAZINE WEB';
     } catch { /* Internal articles have no external source URL. */ }
     return item.sourceName;
 }

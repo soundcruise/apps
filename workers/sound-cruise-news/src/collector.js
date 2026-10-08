@@ -1,3 +1,4 @@
+import {AGM_SURFACES,agmArticleUrl,discoverAgm} from './agm-sections.js';
 import {parseOfficialListing} from './official-listing.js';
 import {parseShimamuraListing,SHIMAMURA_LISTING_URL,LISTING_MAX_BYTES} from './shimamura-listing.js';
 import { requirePepper } from './fingerprint.js';
@@ -8,6 +9,7 @@ import { healthForOutcome } from './source-health.js';
 export function nextDailyCollectionAt(now){const day=86400000,utcSixJst=Math.floor(now/day)*day+21*3600000;return utcSixJst>now?utcSixJst:utcSixJst+day;}
 export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),registry=SOURCES,pepper,clock,requestMode='normal',jstDay='',auditReason='',cachedRobots=null}={}) {
  const started=Date.now(),source=registry.find(s=>s.id===id),state=await store.state(id);
+ const agmExpanded=source?.id==='agm'&&source.agmSections===true;
  const shimListing=source?.discoveryType==='shimamura_listing',listing=shimListing||source?.discoveryType==='official_listing';
  const report={sourceId:id,requestMode,startedAt:now,requests:0,candidates:0,pending:0,rejected:0,duplicates:0,outcome:'',durationMs:0,robots:'not_requested',requestCounts:{robots:0,listing:0,feed:0}};
  const gate=legalGate(source,state,now,mode,registry,{requestMode});
@@ -26,11 +28,13 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
   if(!(await store.controls()).collection_enabled)throw new Error('global_collection_off');
   if((await store.state(id)).disabled)throw new Error('access_stopped');
   if(!sourceUrl(url,source))throw new Error('url_blocked');
+  if(agmExpanded&&(report.requests>=16||!(url===source.robotsUrl||AGM_SURFACES.some(s=>s.url===url)||agmArticleUrl(url,'news'))))throw Error('listing_request_budget');
   if(listing&&(report.requests>=2||![source.robotsUrl,source.discoveryUrl].includes(url)))throw Error('listing_request_budget');
   const attemptedAt=clock?clock():now+Date.now()-started;
   await store.publisherAttempt(id,attemptedAt,intervalMs);
   next.nextAt=Math.max(next.nextAt,attemptedAt+intervalMs);
-  report.requests++;report.requestCounts[url===source.robotsUrl?'robots':listing?'listing':'feed']++;
+  const requestKind=url===source.robotsUrl?'robots':agmExpanded&&agmArticleUrl(url,'news')?'article':listing||agmExpanded&&url.endsWith('/news/')?'listing':'feed';
+  report.requests++;report.requestCounts[requestKind]=(report.requestCounts[requestKind]||0)+1;
   let response;try{response=await boundedFetch(url,{fetcher,...options});}catch(error){if(listing&&url===SHIMAMURA_LISTING_URL&&error.message==='response_too_large')throw Error('listing_too_large');if(error.name==='TimeoutError'||error.name==='AbortError')throw Error('request_timeout');throw error;}
   if([401,403,451].includes(response.status)){next.disabled=true;throw new Error('http_'+response.status);}
   if(response.status===429||response.status>=500){next.failures=(state.failures||0)+1;next.nextAt=Math.max(next.nextAt,retryAt(response.status,response.headers.get('retry-after'),next.failures,now));next.backoffUntil=next.nextAt;throw new Error(response.status===429?'rate_limited':'upstream_error');}
@@ -42,7 +46,7 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
   const result=cached?{text:cachedRobots.text,status:200}:await request(source.robotsUrl,{maxBytes:512000});
   report.robotsCached=!!cached;
   const robots=robotsPolicy(result.text,source,result.status);const digest=await hash(result.text);
-  if((state.robotsHash && state.robotsHash!==digest)||(listing&&source.robotsHash&&source.robotsHash!==digest)){next.disabled=true;throw new Error('robots_changed_review');}
+  if((state.robotsHash && state.robotsHash!==digest)||((listing||agmExpanded)&&source.robotsHash&&source.robotsHash!==digest)){next.disabled=true;throw new Error('robots_changed_review');}
   next.robotsHash=digest;
   report.robots=robots.isAllowed(source.discoveryUrl,BOT)===true?'allow':'disallow';
   if(report.robots==='disallow'){next.disabled=true;throw new Error('robots_disallow');}
@@ -50,6 +54,15 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
   report.sitemaps=robots.getSitemaps().filter(url=>sourceUrl(url,source));
   const delay=Math.max(1000,(robots.getCrawlDelay(BOT)||0)*1000);
   if(delay>60000){next.nextAt=Math.max(next.nextAt,now+delay);throw new Error('crawl_delay_review');}
+  if(agmExpanded){
+   report.sections=[];
+   await discoverAgm({request,robots,sleep,delay,parseFeed:parseMetadata,source,onSection:async(section,entries)=>{
+    const part={section,candidates:entries.length,pending:0,rejected:0,duplicates:0};
+    await persistDiscoveredEntries(entries,source,store,robots,now,pepper,registry,part);
+    report.sections.push(part);for(const key of ['candidates','pending','rejected','duplicates'])report[key]+=part[key];
+   }});
+   next.failures=0;next.lastDiscoveryAt=now;next.etag=null;next.lastModified=null;report.outcome='collected';
+  }else{
   await sleep(delay);
   const headers={Accept:listing?'text/html':'application/rss+xml, application/atom+xml, application/xml, text/xml','Cache-Control':'no-store'};
   if(state.etag)headers['If-None-Match']=state.etag;
@@ -69,6 +82,7 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
    }
    await persistDiscoveredEntries(entries,source,store,robots,now,pepper,registry,report);
    next.etag=discovery.headers.get('etag')?.slice(0,200)||null;next.lastModified=discovery.headers.get('last-modified')?.slice(0,100)||null;next.failures=0;next.lastDiscoveryAt=now;report.outcome='collected';discovery=null;
+  }
   }
  }catch(error){
   const codes=['listing_structure_changed','listing_optout','listing_too_large','listing_url_blocked','listing_request_budget','request_timeout','global_collection_off','robots_unparseable','robots_unavailable','robots_changed_review','robots_disallow','crawl_delay_review','rate_limited','upstream_error','http_401','http_403','http_451','access_stopped','header_optout','redirect_blocked','response_too_large','discovery_unavailable','non_metadata_response','xml_unsafe','xml_invalid','metadata_format','url_blocked'];

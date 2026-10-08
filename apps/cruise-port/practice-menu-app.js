@@ -193,7 +193,7 @@ import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.19.5';
+} from './app-version.js?v=1.19.6';
 import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.13.0';
 import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.13.0';
 import { initTuner } from './tuner-app.js?v=1.19.2';
@@ -2139,7 +2139,7 @@ async function renderNewsSafely() {
     document.getElementById('news-entry').hidden = false;
     const revision = ++newsLoadRevision;
     try {
-        const news = await import('./news-ui.js?v=1.19.5');
+        const news = await import('./news-ui.js?v=1.19.6');
         if (revision !== newsLoadRevision) return;
         news.stopNewsUpdates();
         const { loadNewsPresentation } = await import('./news-provider.js?v=1.19.2');
