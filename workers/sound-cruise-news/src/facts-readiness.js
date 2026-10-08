@@ -1,9 +1,11 @@
+import {agmRecoverySurface} from './agm-article-evidence.js';
 import {shimamuraEventSurface} from './shimamura-event-evidence.js';
 import {targetSurface} from './target-evidence.js';
 import {ikebeProductSurface} from './ikebe-product-evidence.js';
 // Diagnostics project the existing publication policy; they do not grant eligibility.
 export function missingFacts(row,facts,validation){
  const missing=[];
+ if(facts?.kind==='agm_editorial'){if(!validation.publishableLabel)missing.push('確認済みの記事対象・人物・テーマ');if(!row.published_at)missing.push('確認済みの公開日');return missing;}
  if(!facts)missing.push(row.event_type==='guitar_event'?'人物・イベント種別・開催日・会場・ギターとの関連':'確認済みの製品識別情報（メーカー／製品名・型番）');
  else if(facts.kind==='guitar_event'){
   for(const [key,label]of [['artist','人物'],['eventType','イベント種別'],['eventDate','開催日'],['venue','会場'],['evidence','ギターとの関連']])if(!facts[key])missing.push(label);
@@ -15,6 +17,7 @@ export function missingFacts(row,facts,validation){
  return missing;
 }
 export function recoverySurface(row,source){
+ const agm=agmRecoverySurface(row,source);if(agm)return agm;
  const event=shimamuraEventSurface(row,source);if(event)return event;
  const targeted=targetSurface(row,source);if(targeted)return targeted;
  const product=ikebeProductSurface(row,source);if(product)return product;
@@ -43,5 +46,5 @@ export function recoveryAssessment(row,validation,surface,last,cached){
 }
 
 export function recoveryCacheKey(row,source,surface,{serverRepair=false}={}){
- return ['targeted_explicit_primary_fields','explicit_ikebe_product_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
+ return ['targeted_explicit_primary_fields','explicit_ikebe_product_fields','explicit_agm_article_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
 }

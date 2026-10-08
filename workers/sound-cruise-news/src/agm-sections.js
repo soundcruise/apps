@@ -1,3 +1,4 @@
+import {agmArticleLabel} from './agm-article-label.js';
 // Permission-scoped discovery. Publisher text is transient; only bounded facts survive.
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut,sourceUrl} from './policy.js';
@@ -26,10 +27,10 @@ export function agmArticleMetadata(html,url){const doc=document(html),canon=find
  const date=valid.length===dates.length&&new Set(valid).size===1?valid[0]:'';
  const unique=[...new Set(headlines)];const title=unique.length===1?unique[0]:!unique.length&&headings.length===1?plain(headings[0]):'';if(!title||title.length>512)throw Error('listing_structure_changed');return {url,title,date,agmSection:'news',listingUncertainty:date?'':'missing_date'};
 }
-export async function discoverAgm({request,robots,sleep,delay,parseFeed,source,onSection}){
+export async function discoverAgm({request,robots,sleep,delay,parseFeed,source,onSection,onArticle}){
  for(const surface of AGM_SURFACES){if(robots.isAllowed(surface.url,'SoundCruiseNewsBot')!==true)throw Error('robots_disallow');await sleep(delay);let response=await request(surface.url,{maxBytes:1000000,headers:{Accept:surface.type==='rss'?'application/rss+xml':'text/html','Cache-Control':'no-store'}});if(response.status!==200)throw Error('discovery_unavailable');let entries;
  try{if(surface.type==='rss'){if(!/xml|rss/i.test(response.headers.get('content-type')||''))throw Error('non_metadata_response');entries=parseFeed(response.text,'rss').slice(0,10).map(e=>({...e,agmSection:surface.section}));if(!entries.length)throw Error('listing_structure_changed');}
- else{if(!/text\/html/i.test(response.headers.get('content-type')||''))throw Error('listing_structure_changed');entries=agmNewsListing(response.text);for(let i=0;i<entries.length;i++){const url=entries[i].url;if(!sourceUrl(url,source)||robots.isAllowed(url,'SoundCruiseNewsBot')!==true)throw Error('robots_disallow');await sleep(delay);let article=await request(url,{maxBytes:1000000});if(article.status!==200)throw Error('discovery_unavailable');if(!/text\/html/i.test(article.headers.get('content-type')||''))throw Error('listing_structure_changed');entries[i]=agmArticleMetadata(article.text,url);article.text='';}}
+ else{if(!/text\/html/i.test(response.headers.get('content-type')||''))throw Error('listing_structure_changed');entries=agmNewsListing(response.text);for(let i=0;i<entries.length;i++){const url=entries[i].url;if(!sourceUrl(url,source)||robots.isAllowed(url,'SoundCruiseNewsBot')!==true)throw Error('robots_disallow');await sleep(delay);let article=await request(url,{maxBytes:1000000});if(article.status!==200)throw Error('discovery_unavailable');if(!/text\/html/i.test(article.headers.get('content-type')||''))throw Error('listing_structure_changed');entries[i]=agmArticleMetadata(article.text,url);if(onArticle)await onArticle(entries[i],article.text);article.text='';}}
  }finally{response.text='';}
  try{await onSection(surface.section,entries);}finally{for(const e of entries||[]){e.title='';e.metadataCategories=[];}}
  }
@@ -38,7 +39,7 @@ const topics=Object.freeze([
  ['half_diminished','ハーフ・ディミニッシュ',/ハーフ[・ ]?ディミニッシュ|m7\(?(?:♭|b)5/],['sharp11_flat13','♯11th・♭13th',/(?:シャープ|♯|#).{0,8}(?:イレブンス|11th).*(?:フラット|♭|b).{0,8}(?:サーティーンス|13th)/],
  ['add9','add9コード',/add9|アド[・ ]?ナインス/i],['13th','13thコード',/13th|サーティーンス/i],['11th','11thコード',/11th|イレブンス/i],['9th','9thコード',/9th|ナインス/i],
  ['chord_progression','コード進行',/コード進行|カノン進行|丸サ進行/],['bluegrass','ブルーグラス',/ブルーグラス/],['harmonics','ハーモニックス',/ハーモニックス/],['tuning','チューニング',/チューニング/],['motif','モチーフ',/モチーフ/],['flamenco','フラメンコ・ギター',/フラメンコ/],
- ['recording','録音機材',/レコーディング|録音機材/],['headphone','ヘッドホン',/ヘッドホン/],['guitar_history','ギターの歴史',/ギター.*歴史/],['reverb','リバーブ',/リバーブ/],['nails','ギター演奏の爪の手入れ',/爪.{0,5}(?:お手入れ|手入れ)/],['pickup','アコギのピックアップ',/ピックアップ.*アコギ|ピックアップ付き/],['solo','ソロ・ギター',/ソロ[・ ]?ギター|ソロギター/],['songwriting','作曲とアコースティック・ギター',/作曲法.*アコースティック/],['singing','ギター弾き語り',/弾き語り/],['acoustic','アコースティック・ギター',/アコギ|アコースティック[・ ]?ギター/]
+ ['recording','録音機材',/レコーディング|録音機材/],['headphone','ヘッドホン',/ヘッドホン|ヘッドフォン/],['guitar_history','ギターの歴史',/ギター.*歴史/],['reverb','リバーブ',/リバーブ/],['nails','ギター演奏の爪の手入れ',/爪.{0,5}(?:お手入れ|手入れ)/],['pickup','アコギのピックアップ',/ピックアップ.*アコギ|ピックアップ付き/],['solo','ソロ・ギター',/ソロ[・ ]?ギター|ソロギター/],['songwriting','作曲とアコースティック・ギター',/作曲法.*アコースティック/],['singing','ギター弾き語り',/弾き語り/],['acoustic','アコースティック・ギター',/アコギ|アコースティック[・ ]?ギター/]
 ]);
 function person(entry,t){
  const tags=(entry.metadataCategories||[]).filter(v=>typeof v==='string'&&v.length>=2&&v.length<=35&&!/[<>\n\r]/.test(v)&&!topics.some(([, ,re])=>re.test(v)));
@@ -54,7 +55,7 @@ export function agmEditorialAssessment(entry){
  const category=['interview','equipment'].includes(kind)?'artist_guitar':'media_other';
  return {kind,category,facts:kind?{kind:'agm_editorial',section,articleType:kind,...(topic?{topic:topic[0]}:{}),...(artist?{person:artist}:{}),category,articleUrl:entry.url,evidence:'agm_permission_metadata_v1'}:null};
 }
-export function agmEditorialLabel(f,event){if(event!=='agm_editorial'||f?.kind!=='agm_editorial'||f.evidence!=='agm_permission_metadata_v1'||!agmArticleUrl(f.articleUrl,f.section))return null;
+export function agmEditorialLabel(f,event){if(f?.evidence==='agm_explicit_article_v1')return agmArticleUrl(f.articleUrl,f.section)?agmArticleLabel(f,event):null;if(event!=='agm_editorial'||f?.kind!=='agm_editorial'||f.evidence!=='agm_permission_metadata_v1'||!agmArticleUrl(f.articleUrl,f.section))return null;
  const topic=topics.find(([key])=>key===f.topic);if(!topic||!['beginner','lesson','column','interview','equipment','review'].includes(f.articleType)||f.category!==(['interview','equipment'].includes(f.articleType)?'artist_guitar':'media_other'))return null;
  const person=f.person;if(person!==undefined&&(typeof person!=='string'||person.length<2||person.length>35||/[<>\x00-\x1f]/.test(person)))return null;
  if(['interview','equipment'].includes(f.articleType)&&!person)return null;

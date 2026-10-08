@@ -4,7 +4,7 @@ import {optOut} from './policy.js';
 import {calendarDate} from './legacy-listing.js';
 import {explicitProductAction,validatedProductEvent} from './product-event.js';
 import {productSubject,enrichHeadlineFacts,validHeadlineEvidence} from './headline-evidence.js';
-export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-2';
+export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-3';
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','header','footer','template','noscript','aside'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -16,7 +16,7 @@ export function ikebeProductSurface(row,source){
  return {url:row.source_url,method:'explicit_ikebe_product_fields',parser:IKEBE_PRODUCT_PARSER};
 }
 const nameOK=s=>typeof s==='string'&&s.length>=2&&s.length<=80&&/^[A-Za-z0-9][A-Za-z0-9 .&+()'/-]*$/.test(s)&&!/[\r\n]|https?:|\b(?:ignore|instruction|prompt|script)\b/i.test(s);
-const modelOK=s=>nameOK(s)&&s.length<=70&&(/\d/.test(s)||/\b[A-Z]{2,}\b/.test(s));
+const modelOK=s=>nameOK(s)&&s.length<=70&&(/\d/.test(s)||/\b[A-Z]{2,}\b/.test(s)||/^[A-Z][a-z]+(?: [A-Z][a-z]+){1,5}$/.test(s));
 const denied=/再入荷|入荷情報|再入荷予定|在庫|セール|特価|値下げ|クーポン|キャンペーン|中古|比較|レビュー|使い方|紹介します|旧製品|発売済み|以前|かつて|過去|他社|例えば|発売しない|発売していません|登場しない|登場していません|ではない|かもしれ|予定|\b(?:restock|sale|review|comparison|previous|not|might)\b/i;
 const types=[
  ['effect_pedal','amps_effects','effector',/エフェクター|ペダル|\b(?:effects? pedal|overdrive|distortion pedal)\b/i],
@@ -48,7 +48,7 @@ export function parseIkebeProductEvidence(html,source,row){
   const articles=find(doc,n=>n.name==='article'&&n.attribs.id==='main');if(articles.length!==1)throw Error('facts_parser_failure');
   const article=articles[0],bodies=find(article,n=>cls(n,'main_wrap'));if(bodies.length!==1||bodies[0].parent!==article)throw Error('facts_parser_failure');
   const body=bodies[0],headers=article.children.filter(n=>cls(n,'blog_title')&&!hidden(n));if(headers.length!==1)throw Error('facts_parser_failure');
-  const header=headers[0],titles=find(header,n=>n.name==='h1'),dates=find(header,n=>n.name==='time'&&cls(n,'sub_info_date'));
+  const header=headers[0],titles=find(header,n=>n.name==='h1'),dates=find(header,n=>n.name==='time'&&cls(n,'sub_info_date')&&/公開$/.test(plain(n)));
   if(titles.length!==1||dates.length!==1)throw Error('facts_parser_failure');
   const dm=/^(20\d{2})-(\d{2})-(\d{2})$/.exec(dates[0].attribs.datetime||''),written=/^(20\d{2})年(\d{2})月(\d{2})日公開$/.exec(plain(dates[0]));
   if(!dm||!written||dm.slice(1).join('-')!==written.slice(1).join('-')||!calendarDate(...dm.slice(1))||new Date(dm[0]+'T00:00:00+09:00').toISOString()!==row.published_at)throw Error('facts_date_changed');
@@ -58,17 +58,17 @@ export function parseIkebeProductEvidence(html,source,row){
   const products=heads.map(n=>{const parts=text(n).trim().split(/\n/).map(p=>p.replace(/\s+/g,' ').trim()).filter(Boolean);if(parts.length!==2||!nameOK(parts[0])||!modelOK(parts[1]))throw Error('facts_identity_changed');return parts;});
   const brand=products[0][0],models=products.map(p=>p[1]);if(products.some(p=>p[0]!==brand)||new Set(models).size!==models.length)throw Error('facts_identity_changed');
   if(models.some(m=>/\b(?:case|stand|cable|replacement|accessory)\b/i.test(m)))throw Error('facts_scope_uncertain');
-  if(models.length>1){const common=[];for(const [i,t] of models[0].split(' ').entries()){if(!models.every(m=>m.split(' ')[i]===t))break;common.push(t);}if(!common.some(t=>t.length>=3&&!/^(?:Silver|Limited|Edition|New|Special|Model)$/i.test(t)))throw Error('facts_identity_changed');}
+  if(models.length>1){const common=[];for(const [i,t] of models[0].split(' ').entries()){if(!models.every(m=>m.split(' ')[i]===t))break;common.push(t);}const family=models[0].match(/^([A-Z]{2,}-)\d/)?.[1];if(!common.some(t=>t.length>=3&&!/^(?:Silver|Limited|Edition|New|Special|Model)$/i.test(t))&&!(family&&models.every(m=>m.startsWith(family)&&/^\d/.test(m.slice(family.length)))))throw Error('facts_identity_changed');}
   // Manufacturer tag corroborates every product heading; a mention in prose is insufficient.
   if(!find(header,n=>n.name==='a'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/tag\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).some(n=>plain(n)===brand))throw Error('facts_identity_changed');
   const paras=body.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(Boolean);
   const primary=paras.slice(0,4).join(' ');
-  const typeMatches=types.filter(([, ,tag,re])=>find(header,n=>n.name==='li'&&cls(n,'cate-'+tag)).length&&re.test(title+' '+primary));
+  const typeMatches=types.filter(([, ,tag,re])=>(find(header,n=>n.name==='li'&&cls(n,'cate-'+tag)).length||tag==='effector'&&find(header,n=>n.name==='li'&&cls(n,'cate-bass')).length&&/歪みペダル/.test(title))&&re.test(title+' '+primary));
   if(typeMatches.length!==1)throw Error('facts_scope_uncertain');
   // Require the launch in the editorial title AND corroborated prose near product blocks.
   const linked=title.includes(brand)||models.every(m=>m.split(/\s+/).some(t=>t.length>=3&&!/^(?:Silver|Limited|Edition|POWER|Pro|New)$/i.test(t)&&title.includes(t)));
-  if(!linked||!/(?:新登場|新発売|新製品|発売|登場|発表)/.test(title))throw Error('facts_scope_uncertain');
-  const statements=paras.slice(0,4).filter(p=>!denied.test(p)&&/(?:新登場|新発売|新製品|発売|登場します|登場しました|発表)/.test(p));
+  if(!linked||!/(?:新登場|新発売|新製品|発売|登場|発表|復刻)/.test(title))throw Error('facts_scope_uncertain');
+  const statements=[...paras.slice(0,4),paras.slice(0,2).join(' ')].filter(p=>!denied.test(p)&&/(?:新登場|新発売|新製品|発売|登場(?:します|しました|！|!|。)|発表|復刻)/.test(p));
   if(!statements.length||!statements.some(p=>p.includes(brand)||models.some(m=>m.split(/\s+/).some(t=>t.length>=3&&!/^(?:Silver|Limited|Edition|POWER|Pro|New)$/i.test(t)&&p.includes(t)))))throw Error('facts_scope_uncertain');
   const refinement=explicitProductAction(title),editionInBody=/限定(?:企画)?モデル|限定生産|limited edition/i.test(primary);
   if(/限定|特別|新色|コラボ|復刻|再発売/.test(title)&&(!refinement||!editionInBody&&refinement.action==='limited_edition'))throw Error('facts_scope_uncertain');

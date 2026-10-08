@@ -41,7 +41,9 @@ export class NewsStore {
    .bind(i.id,i.sourceId,i.sourceName,i.sourceUrl,i.normalizedUrl,i.publishedAt,i.category,i.label,i.topicKey,i.collectedAt,'pending',i.reviewReason,expiry,i.titleFingerprint||null,i.eventType||'other',i.productFacts?JSON.stringify(i.productFacts):null,i.feedPublishedAt||null,i.publicationDecision||'PUBLISH_REVIEW',i.decisionReason||'legacy_review_required',Number.isFinite(deadline)?deadline:null,identity,eventDeadline,i.id,i.sourceId,i.sourceId,i.normalizedUrl,i.sourceId,identity,i.id).run();
   if(r.meta.changes===1)return true;
   if(i.productFacts){await this.db.prepare(`UPDATE candidate_items SET product_facts=?,label=?,category=?,event_type=?,title_fingerprint=?,publication_decision=?,decision_reason=?,review_reason=?,event_ends_at=?
-   WHERE id=? AND review_status='pending' AND source_url=? AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1)
+   WHERE id=? AND review_status='pending' AND source_url=?
+   AND NOT(source_id='agm' AND COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.evidence'),'')='agm_explicit_article_v1')
+   AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1)
    AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1))
    AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)`)
    .bind(JSON.stringify(i.productFacts),i.label,i.category,i.eventType,i.titleFingerprint,i.publicationDecision,i.decisionReason,i.reviewReason,eventDeadline,i.id,i.sourceUrl,i.sourceId,i.id).run();}

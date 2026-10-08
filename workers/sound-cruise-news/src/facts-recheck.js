@@ -1,3 +1,4 @@
+import {parseAgmArticleEvidence} from './agm-article-evidence.js';
 import {parseShimamuraEventEvidence} from './shimamura-event-evidence.js';
 import {parseTargetEvidence,targetIdentityRefinement} from './target-evidence.js';
 import {parseIkebeProductEvidence} from './ikebe-product-evidence.js';
@@ -46,12 +47,13 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
   if((state.robotsHash&&state.robotsHash!==digest)||(source.robotsHash&&source.robotsHash!==digest))throw Error('facts_robots_changed');
   if(robots.isAllowed(surface.url,BOT)!==true)throw Error('facts_robots_disallow');
   const delay=Math.max(1000,(robots.getCrawlDelay(BOT)||0)*1000);if(delay>10000)throw Error('facts_crawl_delay_review');await sleep(delay);
-  let response=await request(surface.url,512000);
+  let response=await request(surface.url,surface.method==='explicit_agm_article_fields'?1000000:512000);
   if([404,410].includes(response.status))throw Error('facts_http_'+response.status);
   if(response.status!==200||!/text\/html/i.test(response.headers.get('content-type')||''))throw Error('facts_source_unavailable');
   proof={sourceId:source.id,sourceUrl:surface.url,verifiedAt:now,extractionMethod:surface.method,parserVersion:surface.parser,responseHash:await hash(response.text)};
   try{
    if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...(surface.parser==='shimamura-intro-event-3'?parseShimamuraEventEvidence(response.text,source,row):parseTargetEvidence(response.text,source,row))}];
+   else if(surface.method==='explicit_agm_article_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseAgmArticleEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_ikebe_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseIkebeProductEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_event_fields')items=[{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:'guitar_event',productFacts:parseEventArticle(response.text,source,row.source_url)}];
    else{
@@ -101,7 +103,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
    else if(!item.productFacts)outcome='facts_not_recovered';
    else{
     const facts=item.productFacts,old=before.facts;
-    const changedIdentity=old&&['brand','product','artist','performer'].some(k=>old[k]&&facts[k]!==old[k]);
+    const changedIdentity=old&&['brand','product','artist','performer','person'].some(k=>old[k]&&facts[k]!==old[k]);
     if(changedIdentity&&!targetIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
     else if(canonical(facts)===canonical(old)&&item.eventType===row.event_type){outcome='facts_unchanged';provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});}
     else{

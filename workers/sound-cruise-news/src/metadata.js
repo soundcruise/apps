@@ -306,6 +306,10 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
     eventType=event;category=facts.category;
    }
   }
+  const recovered=entry.articleRecovery;
+  if(!factualLabel(facts,eventType)&&recovered?.eventType==='agm_editorial'&&hasDate&&recovered.publishedAt===new Date(timestamp).toISOString()&&recovered.productFacts?.articleUrl===url&&recovered.productFacts.section===entry.agmSection&&agmEditorialLabel(recovered.productFacts,'agm_editorial')){
+   facts=recovered.productFacts;category=facts.category;eventType='agm_editorial';
+  }
   const label=factualLabel(facts,eventType),id=await hash(url);
   return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,publishedAt:hasDate?new Date(timestamp).toISOString():null,
    category,label:label&&validLabel(label,entry.title)?label:'審査待ち（記事の対象・テーマ・出来事の確認が必要）',topicKey:eventType==='agm_editorial'?id:facts?factualTopicKey(facts,eventType):id,

@@ -1,10 +1,11 @@
+import {parseAgmArticleEvidence} from './agm-article-evidence.js';
 import {AGM_SURFACES,agmArticleUrl,discoverAgm} from './agm-sections.js';
 import {parseOfficialListing} from './official-listing.js';
 import {parseShimamuraListing,SHIMAMURA_LISTING_URL,LISTING_MAX_BYTES} from './shimamura-listing.js';
 import { requirePepper } from './fingerprint.js';
 import { SOURCES, legalGate } from './registry.js';
 import { boundedFetch, sourceUrl, robotsPolicy, retryAt, hash, optOut, BOT } from './policy.js';
-import { parseMetadata, candidateFrom } from './metadata.js';
+import { parseMetadata, candidateFrom, factualLabel } from './metadata.js';
 import { healthForOutcome } from './source-health.js';
 export function nextDailyCollectionAt(now){const day=86400000,utcSixJst=Math.floor(now/day)*day+21*3600000;return utcSixJst>now?utcSixJst:utcSixJst+day;}
 export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),registry=SOURCES,pepper,clock,requestMode='normal',jstDay='',auditReason='',cachedRobots=null}={}) {
@@ -56,7 +57,10 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
   if(delay>60000){next.nextAt=Math.max(next.nextAt,now+delay);throw new Error('crawl_delay_review');}
   if(agmExpanded){
    report.sections=[];
-   await discoverAgm({request,robots,sleep,delay,parseFeed:parseMetadata,source,onSection:async(section,entries)=>{
+   await discoverAgm({request,robots,sleep,delay,parseFeed:parseMetadata,source,onArticle:async(entry,html)=>{
+    const {item}=await candidateFrom(entry,source,robots,now,pepper);
+    if(item&&!factualLabel(item.productFacts,item.eventType)){try{entry.articleRecovery=parseAgmArticleEvidence(html,source,{source_url:entry.url,published_at:item.publishedAt,product_facts:JSON.stringify(item.productFacts)});}catch{/* Incomplete evidence stays eligible for bounded recovery; never guess. */}}
+   },onSection:async(section,entries)=>{
     const part={section,candidates:entries.length,pending:0,rejected:0,duplicates:0};
     await persistDiscoveredEntries(entries,source,store,robots,now,pepper,registry,part);
     report.sections.push(part);for(const key of ['candidates','pending','rejected','duplicates'])report[key]+=part[key];
