@@ -7,6 +7,7 @@ import { HEALTH_STATUSES,HEALTH_REASONS } from './source-health.js';
 export class NewsStore {
  constructor(db){this.db=db;}
  async controls(){return await this.db.prepare('SELECT * FROM news_controls WHERE id=1').first()||{collection_enabled:0,api_enabled:0,revision:0};}
+ async recordRedirect(id,evidence){await this.db.prepare('INSERT INTO news_admin_audit VALUES(?,?,?,?,?)').bind(crypto.randomUUID(),'redirect-blocked',id,Date.parse(evidence.timestamp),JSON.stringify(evidence)).run();}
  async state(id){const s=await this.db.prepare('SELECT * FROM source_state WHERE source_id=?').bind(id).first();return s?{disabled:!!s.disabled||!!s.takedown,publicationBlocked:!!s.publication_blocked||!!s.takedown,nextAt:s.next_at,failures:s.failures,robotsHash:s.robots_hash,etag:s.etag,lastModified:s.last_modified,lastDiscoveryAt:s.last_discovery_at||0,lastPublisherRequestAt:s.last_publisher_request_at||0,backoffUntil:s.backoff_until||0,scheduledJstDay:s.scheduled_jst_day||''}:{};}
  async lease(id,now,minIntervalMs=86400000,{requestMode='normal',jstDay=''}={}){
   await this.db.prepare('INSERT OR IGNORE INTO source_state(source_id) VALUES(?)').bind(id).run();
@@ -42,7 +43,7 @@ export class NewsStore {
   if(r.meta.changes===1)return true;
   if(i.productFacts){await this.db.prepare(`UPDATE candidate_items SET product_facts=?,label=?,category=?,event_type=?,title_fingerprint=?,publication_decision=?,decision_reason=?,review_reason=?,event_ends_at=?
    WHERE id=? AND review_status='pending' AND source_url=?
-   AND NOT(source_id='agm' AND COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.evidence'),'')='agm_explicit_article_v1')
+   AND NOT(COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.evidence'),'') IN ('agm_explicit_article_v1','guitar_exhibition_article_v1') OR COALESCE(json_extract(CASE WHEN json_valid(product_facts) THEN product_facts ELSE '{}' END,'$.identifierBasis'),'') IN ('explicit_article_product_fields','explicit_article_component_fields'))
    AND EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1)
    AND NOT EXISTS(SELECT 1 FROM source_state WHERE source_id=? AND (disabled=1 OR takedown=1 OR publication_blocked=1))
    AND NOT EXISTS(SELECT 1 FROM news_takedowns WHERE item_id=?)`)

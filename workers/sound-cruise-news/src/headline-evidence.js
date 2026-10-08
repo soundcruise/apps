@@ -3,12 +3,14 @@
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
 const types=[
+ ['wireless_headphone','ワイヤレスヘッドフォン',/ワイヤレスヘッド[フホ][ォオ]ン|Bluetooth(?:ワイヤレス)?ヘッド[フホ][ォオ]ン/i],
+ ['headphone','ヘッドフォン',/ヘッド[フホ][ォオ]ン|\bheadphones?\b/i],
  ['usb_microphone','USBマイク',/USB(?:ダイナミック)?(?:・|\s*)マイク(?:ロ[フホ]ン)?/i],
  ['wireless_microphone','ワイヤレスマイク',/ワイヤレス(?:・|\s*)マイク(?:ロ[フホ]ン)?/],
  ['pad_controller','パッドコントローラー',/パッド[・ ]?コントローラー/],
  ['signature_pick','シグネチャーピック',/シグネチャ[ーア]?(?:モデル)?[・ ]?ピック/],
  ['guitar_stand','ギタースタンド',/ギター[・ ]?スタンド/],
- ['tuner_metronome','チューナー・メトロノーム',/チューナー[・／/・と&＆ ]{1,6}メトロノーム/],
+ ['tuner_metronome','チューナー・メトロノーム',/チューナー[・／/・と&＆ ]{0,6}メトロノーム/],
  ['distortion_pedal','歪みペダル',/(?:オーバードライブ\s*[／/]\s*ディストーション|ディストーション|歪み)[・ ]?ペダル/],
  ['bass_effect_pedal','ベース用エフェクター',/ベース(?:用|専用|に特化した)[・ ]?(?:エフェクター|エフェクトペダル)/],
  ['octave_pedal','オクターブペダル',/オクターブ[・ ]?ペダル|オクターバー/],
@@ -22,7 +24,7 @@ const types=[
  ['audio_interface','オーディオインターフェース',/オーディオ[・ ]?インターフェ[イー]ス/],
  ['studio_monitor','モニタースピーカー',/スタジオモニター|モニタースピーカー/]
 ];
-const parents={usb_microphone:'microphone',wireless_microphone:'microphone',distortion_pedal:'effect_pedal',bass_effect_pedal:'effect_pedal',octave_pedal:'effect_pedal'};
+const parents={wireless_headphone:'headphone',usb_microphone:'microphone',wireless_microphone:'microphone',distortion_pedal:'effect_pedal',bass_effect_pedal:'effect_pedal',octave_pedal:'effect_pedal'};
 const norm=s=>String(s).normalize('NFKC').replace(/[™®\s]/g,'').toLowerCase();
 const keys=(v,allowed)=>Object.keys(v).every(k=>allowed.includes(k));
 const unsafe=/レビュー|比較|再入荷|在庫|セール|旧製品|以前|かつて|例えば|他社|ではない|ではなく|かもしれ|発売しない|延期しない|予約しない|延期(?:は|が)?(?:ない|ありません)|予約受付を終了|\b(?:review|comparison|restock|sale)\b/i;

@@ -1,3 +1,4 @@
+import {guitarExhibitionLabel} from './guitar-exhibition-evidence.js';
 import {agmEditorialAssessment,agmEditorialLabel} from './agm-sections.js';
 import {highValueAssessment,highValueLabel,assessedRecordingFacts} from './high-value.js';
 import {productActionSuffix,productEventFrom,validatedProductEvent,uncertainProductAction} from './product-event.js';
@@ -248,7 +249,7 @@ const actions={other:'の製品情報',new_product:'を発表',release:'を発�
 export function factualLabel(facts,eventType){
  if(eventType==='agm_editorial')return agmEditorialLabel(facts,eventType);
  if(eventType==='sale')return saleLabel(facts);
- if(eventType==='guitar_event')return highValueLabel(facts,eventType)||guitarEventLabel(facts);
+ if(eventType==='guitar_event')return guitarExhibitionLabel(facts)||highValueLabel(facts,eventType)||guitarEventLabel(facts);
  if(eventType==='guitar_artist')return highValueLabel(facts,eventType)||artistLabel(facts);
  if(!facts||eventType==='review'||!actions[eventType]||!validatedProductFacts(facts)||facts.version!==null&&facts.version!==undefined&&!/^\d{1,3}(?:\.\d{1,3}){0,2}$/.test(facts.version))return null;
  if(facts.productEvent&&(!['new_product','release','other'].includes(eventType)||!validatedProductEvent(facts.productEvent)))return null;
@@ -326,9 +327,10 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
 
  if(source.id==='hookup'&&/インタビュー|対談|解説|使い方|活用|\b(?:interview|how[- ]to|tutorial|support|tips)\b/i.test(entry.title))return {decision:'REJECT',reason:'hookup_editorial_scope'};
  if(source.id==='ikebe'&&source.discoveryType==='official_listing'&&entry.listingSection==='product_news'&&/ライブショッピング|店舗|レッスン|中古|クーポン|ポイント/i.test(entry.title))return {decision:'REJECT',reason:'ikebe_editorial_scope'};
+ const exhibitionPending=source.id==='kikutani'&&/ギター|ペダル|エフェクター/.test(entry.title)&&/出展|展示会/.test(entry.title)&&!/過去|昨年|中止|延期|レビュー|比較/.test(entry.title);
  const guitarEvent=guitarEventFacts(entry.title,source);
  const guitarArtist=artistFacts(entry.title,source);
- let eventType=guitarEvent?'guitar_event':guitarArtist?'guitar_artist':contentType(entry.eventTitle||entry.title);
+ let eventType=exhibitionPending?'guitar_event':guitarEvent?'guitar_event':guitarArtist?'guitar_artist':contentType(entry.eventTitle||entry.title);
  if(source.allowedEventTypes&&!source.allowedEventTypes.includes(eventType))return {decision:'REJECT',reason:'source_event_scope'};
  if(['tutorial','evergreen','event_or_shop'].includes(eventType))return {decision:'REJECT',reason:eventType};
  if(eventType==='sale')return saleCandidateFrom(entry,source,url,now,pepper,hasDate,timestamp);
@@ -343,7 +345,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
   if(source.allowedEventTypes&&!source.allowedEventTypes.includes(eventType))return {decision:'REJECT',reason:'source_event_scope'};
  }
  if(titleFacts)facts=enrichHeadlineFacts(facts,{title:entry.eventTitle||entry.title,publishedAt:entry.date});
- let category=guitarEvent?'live_guitar':classify(entry.title);
+ let category=guitarEvent||exhibitionPending?'live_guitar':classify(entry.title);
  if(!category&&entry.listingSection==='product_news'&&source.discoveryType==='shimamura_listing'){
   if(entry.listingCategory==='amp-effector')category='amps_effects';
   if(entry.listingCategory==='guitar-bass')category='electric_guitar_bass';

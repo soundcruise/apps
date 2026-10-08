@@ -1,5 +1,7 @@
+import {parseShimamuraListing} from './shimamura-listing.js';
+import {parseOfficialListing} from './official-listing.js';
 // One-use operator diagnostics. Fixed Sleepfreaks robots only, no collection restart.
-import {boundedFetch,hash,robotsPolicy,BOT} from './policy.js';
+import {boundedFetch,hash,robotsPolicy,BOT,robotsEvidence,optOut} from './policy.js';
 export const DIAGNOSTIC_HEADERS=Object.freeze(['server','cf-mitigated','retry-after','content-type','x-robots-tag','cf-ray','x-sucuri-id','x-sucuri-block','x-firewall-rule']);
 export async function robotsDiagnostic(source,{fetcher=fetch,now=Date.now()}={}){
  if(source.id!=='sleepfreaks'||source.robotsUrl!=='https://sleepfreaks-dtm.com/robots.txt'||source.discoveryUrl!=='https://sleepfreaks-dtm.com/feed/')throw Error('diagnostic_surface_invalid');
@@ -20,4 +22,21 @@ export function compareRobotsDiagnostics(worker,terminal){
  if(worker?.status===403&&terminal?.status===403)return {classification:'publisher_access_change_possible',collectionStopped:true,feedValidationAllowed:false};
  if(clear(worker)&&clear(terminal)&&worker.hash===terminal.hash)return {classification:'temporary_failure_possible',collectionStopped:true,feedValidationAllowed:true};
  return {classification:'unresolved_access_or_policy',collectionStopped:true,feedValidationAllowed:false};
+}
+
+// Authenticated, fixed registry surfaces only. No state changes or discovery writes.
+export async function resumeDiagnostic(source,{fetcher=fetch,now=Date.now(),sleep=ms=>new Promise(r=>setTimeout(r,ms))}={}){
+ const surfaces={shimamura:'https://www.shimamura.co.jp/update/common/new-item/','ikebe-event':'https://www.ikebe-gakki.com/blog/category/event/'};
+ if(!surfaces[source.id]||source.discoveryUrl!==surfaces[source.id])throw Error('diagnostic_surface_invalid');
+ const url=new URL(source.discoveryUrl),output={sourceId:source.id,sourceUrl:url.href,host:url.host,path:url.pathname,timestamp:new Date(now).toISOString(),status:null,location:null,robotsAllowed:false,robotsMatchesReviewed:false,parserEntries:null};
+ try{
+  const r=await boundedFetch(source.robotsUrl,{fetcher,maxBytes:512000}),robots=robotsPolicy(r.text,source,r.status),evidence=await robotsEvidence(r.text);
+  output.robotsHash=evidence.digest;output.robotsMatchesReviewed=evidence.matches(source.robotsHash);output.robotsAllowed=robots.isAllowed(url.href,BOT)===true;r.text='';
+  if(!output.robotsMatchesReviewed||!output.robotsAllowed)return {...output,reason:'robots_review_required'};
+  const delay=Math.max(1000,(robots.getCrawlDelay(BOT)||0)*1000);if(delay>10000)return {...output,reason:'crawl_delay_review'};await sleep(delay);
+  const r2=await boundedFetch(url.href,{fetcher,maxBytes:1000000,headers:{Accept:'text/html','Cache-Control':'no-store'}});output.status=r2.status;output.location=r2.headers.get('location');
+  if(r2.status!==200||!/text\/html/i.test(r2.headers.get('content-type')||'')||optOut(r2.headers.get('x-robots-tag')||''))return {...output,reason:'discovery_unavailable'};
+  const parsed=source.id==='shimamura'?parseShimamuraListing(r2.text,url.href):parseOfficialListing(r2.text,source);r2.text='';output.parserEntries=parsed.entries.length;for(const e of parsed.entries){e.title='';e.eventTitle='';}parsed.entries.length=0;
+  return {...output,reason:'resume_surface_clear'};
+ }catch(e){return {...output,...(e.redirectEvidence?{status:e.redirectEvidence.status,location:e.redirectEvidence.location,redirectEvidence:e.redirectEvidence}:{}),reason:['redirect_blocked','response_too_large','robots_unparseable','robots_unavailable','listing_structure_changed','listing_optout'].includes(e.message)?e.message:'network_or_parser_error'};}
 }

@@ -1,3 +1,4 @@
+import {guitarExhibitionSurface} from './guitar-exhibition-evidence.js';
 import {agmRecoverySurface} from './agm-article-evidence.js';
 import {shimamuraEventSurface} from './shimamura-event-evidence.js';
 import {targetSurface} from './target-evidence.js';
@@ -8,7 +9,7 @@ export function missingFacts(row,facts,validation){
  if(facts?.kind==='agm_editorial'){if(!validation.publishableLabel)missing.push('確認済みの記事対象・人物・テーマ');if(!row.published_at)missing.push('確認済みの公開日');return missing;}
  if(!facts)missing.push(row.event_type==='guitar_event'?'人物・イベント種別・開催日・会場・ギターとの関連':'確認済みの製品識別情報（メーカー／製品名・型番）');
  else if(facts.kind==='guitar_event'){
-  for(const [key,label]of [['artist','人物'],['eventType','イベント種別'],['eventDate','開催日'],['venue','会場'],['evidence','ギターとの関連']])if(!facts[key])missing.push(label);
+  for(const [key,label]of [['artist','人物'],['eventType','イベント種別'],['eventDate','開催日'],['venue','会場'],['evidence','ギターとの関連']])if(!facts[key]&&!(key==='artist'&&facts.eventName))missing.push(label);
  }else if(!facts.product&&!facts.artist&&!facts.performer&&!facts.seller)missing.push('対象を特定できる識別情報');
  if(facts?.scopeUncertain)missing.push('製品本体／拡張・パック等の対象範囲');
  if(row.event_type==='other')missing.push('確認済みの出来事（発表・発売・更新等）');
@@ -17,6 +18,7 @@ export function missingFacts(row,facts,validation){
  return missing;
 }
 export function recoverySurface(row,source){
+ const exhibition=guitarExhibitionSurface(row,source);if(exhibition)return exhibition;
  const agm=agmRecoverySurface(row,source);if(agm)return agm;
  const event=shimamuraEventSurface(row,source);if(event)return event;
  const targeted=targetSurface(row,source);if(targeted)return targeted;

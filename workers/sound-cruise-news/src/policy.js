@@ -45,10 +45,22 @@ export function retryAt(status,header,attempt,now) {
  return now+Math.min(7*DAY,6*3600000*2**Math.min(attempt,6));
 }
 export async function hash(value) {return [...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))].map(x=>x.toString(16).padStart(2,'0')).join('');}
+// Preserve directive order, case, paths and comments. Only transport whitespace is ignored.
+export function normalizeRobotsEvidence(text){return text.replace(/^\uFEFF/,'').replace(/\r\n?/g,'\n').split('\n').map(line=>line.replace(/[ \t]+$/,'')).join('\n').replace(/\n+$/,'');}
+export async function robotsEvidence(text){
+ const normalized=normalizeRobotsEvidence(text),digest='robots-v1:'+await hash(normalized);
+ // Conservative upgrade of reviewed legacy raw hashes. Never ignore an unmatched baseline.
+ const legacy=await Promise.all([...new Set([text,normalized,normalized+'\n',normalized.replaceAll('\n','\r\n'),normalized.replaceAll('\n','\r\n')+'\r\n'])].map(hash));
+ return {digest,matches:expected=>!expected||expected===digest||legacy.includes(expected)};
+}
+export function redirectEvidence(url,response,now=Date.now()){
+ const safe=value=>{try{const u=new URL(value,url);if(!['http:','https:'].includes(u.protocol))return '[invalid URL]';u.username='';u.password='';u.search='';u.hash='';return u.href.slice(0,1000);}catch{return '[invalid URL]';}};
+ return {status:response.status,location:response.headers.has('location')?safe(response.headers.get('location')):null,sourceUrl:safe(url),timestamp:new Date(now).toISOString()};
+}
 // All redirects are rejected (limit zero): no discovery URL can escape the registry.
 export async function boundedFetch(url,{fetcher=fetch,headers={},maxBytes=1000000}={}) {
  const response=await fetcher(url,{method:'GET',redirect:'manual',credentials:'omit',headers:{'User-Agent':UA,...headers},signal:AbortSignal.timeout(15000)});
- if(response.status>=300 && response.status<400 && response.status!==304){await response.body?.cancel();throw new Error('redirect_blocked');}
+ if(response.status>=300 && response.status<400 && response.status!==304){const error=new Error('redirect_blocked');error.redirectEvidence=redirectEvidence(url,response);await response.body?.cancel();throw error;}
  if(Number(response.headers.get('content-length'))>maxBytes){await response.body?.cancel();throw new Error('response_too_large');}
  if(response.status!==200){await response.body?.cancel();return {status:response.status,headers:response.headers,text:''};}
  const reader=response.body?.getReader();let total=0;const chunks=[];

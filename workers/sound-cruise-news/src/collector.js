@@ -4,7 +4,7 @@ import {parseOfficialListing} from './official-listing.js';
 import {parseShimamuraListing,SHIMAMURA_LISTING_URL,LISTING_MAX_BYTES} from './shimamura-listing.js';
 import { requirePepper } from './fingerprint.js';
 import { SOURCES, legalGate } from './registry.js';
-import { boundedFetch, sourceUrl, robotsPolicy, retryAt, hash, optOut, BOT } from './policy.js';
+import { boundedFetch, sourceUrl, robotsPolicy, retryAt, hash, optOut, BOT, robotsEvidence } from './policy.js';
 import { parseMetadata, candidateFrom, factualLabel } from './metadata.js';
 import { healthForOutcome } from './source-health.js';
 export function nextDailyCollectionAt(now){const day=86400000,utcSixJst=Math.floor(now/day)*day+21*3600000;return utcSixJst>now?utcSixJst:utcSixJst+day;}
@@ -36,19 +36,19 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
   next.nextAt=Math.max(next.nextAt,attemptedAt+intervalMs);
   const requestKind=url===source.robotsUrl?'robots':agmExpanded&&agmArticleUrl(url,'news')?'article':listing||agmExpanded&&url.endsWith('/news/')?'listing':'feed';
   report.requests++;report.requestCounts[requestKind]=(report.requestCounts[requestKind]||0)+1;
-  let response;try{response=await boundedFetch(url,{fetcher,...options});}catch(error){if(listing&&url===SHIMAMURA_LISTING_URL&&error.message==='response_too_large')throw Error('listing_too_large');if(error.name==='TimeoutError'||error.name==='AbortError')throw Error('request_timeout');throw error;}
+  let response;try{response=await boundedFetch(url,{fetcher,...options});}catch(error){if(error.redirectEvidence)await store.recordRedirect(id,error.redirectEvidence);if(listing&&url===SHIMAMURA_LISTING_URL&&error.message==='response_too_large')throw Error('listing_too_large');if(error.name==='TimeoutError'||error.name==='AbortError')throw Error('request_timeout');throw error;}
   if([401,403,451].includes(response.status)){next.disabled=true;throw new Error('http_'+response.status);}
   if(response.status===429||response.status>=500){next.failures=(state.failures||0)+1;next.nextAt=Math.max(next.nextAt,retryAt(response.status,response.headers.get('retry-after'),next.failures,now));next.backoffUntil=next.nextAt;throw new Error(response.status===429?'rate_limited':'upstream_error');}
   if(url!==source.robotsUrl&&optOut(response.headers.get('x-robots-tag')||'')){next.disabled=true;throw new Error('header_optout');}
   return response;
  };
  try {
-  const cached=cachedRobots&&requestMode==='operator_validation'&&Number.isSafeInteger(cachedRobots.checkedAt)&&cachedRobots.checkedAt<=now&&now-cachedRobots.checkedAt<=3600000&&await hash(cachedRobots.text)===source.robotsHash;
+  const cached=cachedRobots&&requestMode==='operator_validation'&&Number.isSafeInteger(cachedRobots.checkedAt)&&cachedRobots.checkedAt<=now&&now-cachedRobots.checkedAt<=3600000&&(await robotsEvidence(cachedRobots.text)).matches(source.robotsHash);
   const result=cached?{text:cachedRobots.text,status:200}:await request(source.robotsUrl,{maxBytes:512000});
   report.robotsCached=!!cached;
-  const robots=robotsPolicy(result.text,source,result.status);const digest=await hash(result.text);
-  if((state.robotsHash && state.robotsHash!==digest)||((listing||agmExpanded)&&source.robotsHash&&source.robotsHash!==digest)){next.disabled=true;throw new Error('robots_changed_review');}
-  next.robotsHash=digest;
+  const robots=robotsPolicy(result.text,source,result.status);const evidence=await robotsEvidence(result.text);
+  if(!evidence.matches(state.robotsHash)||((listing||agmExpanded)&&!evidence.matches(source.robotsHash))){next.disabled=true;throw new Error('robots_changed_review');}
+  next.robotsHash=evidence.digest;
   report.robots=robots.isAllowed(source.discoveryUrl,BOT)===true?'allow':'disallow';
   if(report.robots==='disallow'){next.disabled=true;throw new Error('robots_disallow');}
   // Recognize sitemap declarations, but never follow an arbitrary listed endpoint automatically.

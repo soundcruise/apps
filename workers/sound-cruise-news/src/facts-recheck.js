@@ -1,9 +1,10 @@
+import {parseGuitarExhibition} from './guitar-exhibition-evidence.js';
 import {parseAgmArticleEvidence} from './agm-article-evidence.js';
 import {parseShimamuraEventEvidence} from './shimamura-event-evidence.js';
 import {parseTargetEvidence,targetIdentityRefinement} from './target-evidence.js';
-import {parseIkebeProductEvidence} from './ikebe-product-evidence.js';
+import {parseIkebeProductEvidence,ikebeIdentityRefinement} from './ikebe-product-evidence.js';
 import {legalGate} from './registry.js';
-import {boundedFetch,robotsPolicy,hash,optOut,BOT,DAY} from './policy.js';
+import {boundedFetch,robotsPolicy,hash,optOut,BOT,DAY,robotsEvidence} from './policy.js';
 import {parseShimamuraListing} from './shimamura-listing.js';
 import {parseOfficialListing} from './official-listing.js';
 import {parseEventArticle} from './high-value.js';
@@ -39,12 +40,12 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
    // The server chooses exactly two URLs, never a caller-supplied URL or redirect.
    if(![source.robotsUrl,surface.url].includes(url)||!sourceUrl(url,source)||sourceUrl(url,source)!==url)throw Error('facts_source_invalid');
    await store.publisherAttempt(source.id,now,DAY);
-   const r=await boundedFetch(url,{fetcher,maxBytes,headers:{Accept:url===source.robotsUrl?'text/plain':'text/html','Cache-Control':'no-store'}});
+   let r;try{r=await boundedFetch(url,{fetcher,maxBytes,headers:{Accept:url===source.robotsUrl?'text/plain':'text/html','Cache-Control':'no-store'}});}catch(error){if(error.redirectEvidence)await store.recordRedirect(source.id,error.redirectEvidence);throw error;}
    if([401,403,451,429].includes(r.status)||r.status>=500)throw Error('facts_http_'+r.status);
    if(url!==source.robotsUrl&&optOut(r.headers.get('x-robots-tag')||''))throw Error('facts_optout');return r;
   };
-  let robotResponse=await request(source.robotsUrl,512000),robots=robotsPolicy(robotResponse.text,source,robotResponse.status),digest=await hash(robotResponse.text);robotResponse=null;
-  if((state.robotsHash&&state.robotsHash!==digest)||(source.robotsHash&&source.robotsHash!==digest))throw Error('facts_robots_changed');
+  let robotResponse=await request(source.robotsUrl,512000),robots=robotsPolicy(robotResponse.text,source,robotResponse.status),evidence=await robotsEvidence(robotResponse.text);robotResponse=null;
+  if(!evidence.matches(state.robotsHash)||!evidence.matches(source.robotsHash))throw Error('facts_robots_changed');
   if(robots.isAllowed(surface.url,BOT)!==true)throw Error('facts_robots_disallow');
   const delay=Math.max(1000,(robots.getCrawlDelay(BOT)||0)*1000);if(delay>10000)throw Error('facts_crawl_delay_review');await sleep(delay);
   let response=await request(surface.url,surface.method==='explicit_agm_article_fields'?1000000:512000);
@@ -55,6 +56,7 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
    if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...(surface.parser==='shimamura-intro-event-3'?parseShimamuraEventEvidence(response.text,source,row):parseTargetEvidence(response.text,source,row))}];
    else if(surface.method==='explicit_agm_article_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseAgmArticleEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_ikebe_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseIkebeProductEvidence(response.text,source,row)}];
+   else if(surface.method==='explicit_guitar_exhibition_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseGuitarExhibition(response.text,source,row)}];
    else if(surface.method==='explicit_event_fields')items=[{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:'guitar_event',productFacts:parseEventArticle(response.text,source,row.source_url)}];
    else{
     const entries=(source.id==='shimamura'?parseShimamuraListing(response.text,surface.url):parseOfficialListing(response.text,source)).entries;
@@ -104,7 +106,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
    else{
     const facts=item.productFacts,old=before.facts;
     const changedIdentity=old&&['brand','product','artist','performer','person'].some(k=>old[k]&&facts[k]!==old[k]);
-    if(changedIdentity&&!targetIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
+    if(changedIdentity&&!targetIdentityRefinement(row,old,facts,proof)&&!ikebeIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
     else if(canonical(facts)===canonical(old)&&item.eventType===row.event_type){outcome='facts_unchanged';provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});}
     else{
      const category=facts.category,label=factualLabel(facts,item.eventType)||row.label;
