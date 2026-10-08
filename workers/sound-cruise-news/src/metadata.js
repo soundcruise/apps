@@ -1,3 +1,4 @@
+import {productArticleLabel} from './product-article-evidence.js';
 import {validatedShimamuraProductFacts,shimamuraProductLabel} from './shimamura-product-evidence.js';
 import {namedWorkshopLabel} from './named-workshop-evidence.js';
 import {guitarExhibitionLabel} from './guitar-exhibition-evidence.js';
@@ -175,6 +176,7 @@ export function validatedProductFacts(facts){
  return facts.identifierBasis==='explicit_model_code'&&BRANDS.some(([b,c])=>b===facts.brand&&c===facts.category)&&safeModel(facts.product);
 }
 export function factualTopicKey(facts,eventType){
+ if(eventType==='product_article'&&facts.kind==='product_article')return 'article:'+JSON.stringify([facts.brand,facts.models,facts.articleType,facts.theme]).toLowerCase();
  const family=['new_product','release','other'].includes(eventType)?'product':eventType;
  return 'facts:'+(facts.brand||'unknown').toLowerCase().replace(/[^a-z0-9]/g,'')+':'+facts.product.toLowerCase().replace(/[^a-z0-9]/g,'')+':'+(facts.version||'')+':'+family;
 }
@@ -250,6 +252,7 @@ export function allowedArticlePath(url,source) {
 }
 const actions={other:'の製品情報',new_product:'を発表',release:'を発売',update:'を更新',firmware:'のファームウェア更新',price_change:'の価格改定',discontinued:'の販売終了',recall:'のリコール情報',review:'の製品レビュー'};
 export function factualLabel(facts,eventType){
+ if(eventType==='product_article')return productArticleLabel(facts);
  if(eventType==='agm_editorial')return agmEditorialLabel(facts,eventType);
  if(eventType==='sale')return saleLabel(facts);
  if(eventType==='guitar_event')return namedWorkshopLabel(facts)||guitarExhibitionLabel(facts)||highValueLabel(facts,eventType)||guitarEventLabel(facts);

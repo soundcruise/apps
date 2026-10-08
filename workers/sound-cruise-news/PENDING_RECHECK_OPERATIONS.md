@@ -44,3 +44,28 @@ Supported listing extraction remains the first path. An insufficient listing res
 Use `preparePendingResolution` again for a new operation; never accept a caller-supplied SQL plan through a public route. Apply only the reviewed plan with `applyPendingResolution` on the authenticated maintenance D1 binding. Request IDs make successful retries idempotent. The operation writes coarse `news_admin_audit` and lifecycle history, not Decision Ledger, human feedback or teaching features. This boundary avoids the human-decision trigger's feedback insertion. No migration is needed. The scheduled recheck still never approves or rejects.
 
 READY records remain pending for the owner's final publication decision. A zero raw pending count is not a safe acceptance criterion when READY or unavoidable evidence shortages remain.
+
+## Non-event product / gear articles (2026-10-09)
+
+Existing Ikebe pending articles with `other` / `review` can use the same approved,
+bounded primary-article recovery flow. `product_article` is an article classification,
+not a guessed release/announcement. A distinct manufacturer tag, explicit product
+sections, substantive functional/use descriptions, article type and one of the
+supported practice / guitar equipment themes are required. Price/shop boilerplate,
+related cards, hidden text, restock/sale-only and ambiguous identity are insufficient.
+
+The article validator requires parser-bound provenance for subject, type, models,
+theme, relevance and classification, plus all existing source/health, fingerprint,
+date, duplicate, takedown and expiry checks. Multi-product articles retain exact
+section names and explicitly described accessory roles; no alias is inferred.
+Explicit launches stay on the established event parser using the same response.
+
+Independent headlines use 紹介 / レビュー / 試奏 / 特集 / 解説 only when supported.
+Recovery uses `system_recheck`; it creates a facts receipt and current-revision
+Shadow observation, and never approves, rejects, or writes a human teacher signal.
+READY candidates remain pending until the operator decides. Weaker listing
+rediscovery cannot overwrite these verified article facts.
+
+There is no source, collection frequency, schema, Access, auth, scheduler or public
+NEWS UI change. The first acceptance targets are the two existing YAMAHA / LAVA
+holds; their published dates and identities are preserved.

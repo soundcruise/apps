@@ -1,3 +1,4 @@
+import {productArticleSurface} from './product-article-evidence.js';
 import {shimamuraProductSurface} from './shimamura-product-evidence.js';
 import {namedWorkshopSurface} from './named-workshop-evidence.js';
 import {guitarExhibitionSurface} from './guitar-exhibition-evidence.js';
@@ -8,6 +9,7 @@ import {ikebeProductSurface} from './ikebe-product-evidence.js';
 // Diagnostics project the existing publication policy; they do not grant eligibility.
 export function missingFacts(row,facts,validation){
  const missing=[];
+ if(facts?.kind==='product_article'){if(!validation.publishableLabel)missing.push('確認済みの記事対象・記事タイプ・用途と関連性');if(!row.published_at)missing.push('確認済みの公開日');return missing;}
  if(facts?.kind==='agm_editorial'){if(!validation.publishableLabel)missing.push('確認済みの記事対象・人物・テーマ');if(!row.published_at)missing.push('確認済みの公開日');return missing;}
  if(!facts)missing.push(row.event_type==='guitar_event'?'人物・イベント種別・開催日・会場・ギターとの関連':'確認済みの製品識別情報（メーカー／製品名・型番）');
  else if(facts.kind==='guitar_event'){
@@ -26,6 +28,7 @@ export function recoverySurface(row,source,{primaryRecovery=false}={}){
  const targeted=targetSurface(row,source);if(targeted)return targeted;
  const shima=shimamuraProductSurface(row,source);if(primaryRecovery&&shima)return shima;
  const workshop=namedWorkshopSurface(row,source);if(primaryRecovery&&workshop)return workshop;
+ const article=productArticleSurface(row,source);if(article)return article;
  const product=ikebeProductSurface(row,source);if(product)return product;
  // Fixed listing-only evidence must not become permission to crawl article bodies.
  if(source?.id==='ikebe-event'&&source.discoveryUrl==='https://www.ikebe-gakki.com/blog/category/event/')return {url:row.source_url,method:'explicit_event_fields',parser:'event-article-1'};
@@ -52,7 +55,7 @@ export function recoveryAssessment(row,validation,surface,last,cached){
 }
 
 export function recoveryCacheKey(row,source,surface,{serverRepair=false}={}){
- return ['targeted_explicit_primary_fields','explicit_ikebe_product_fields','explicit_agm_article_fields','explicit_shimamura_product_fields','explicit_named_workshop_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
+ return ['explicit_product_article_fields','targeted_explicit_primary_fields','explicit_ikebe_product_fields','explicit_agm_article_fields','explicit_shimamura_product_fields','explicit_named_workshop_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
 }
 
 // Preserve supported listing extraction; escalate only after that evidence was insufficient,

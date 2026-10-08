@@ -1,10 +1,11 @@
+import {parseIkebeInformationalEvidence,productArticleIdentityRefinement} from './product-article-evidence.js';
 import {parseShimamuraProductEvidence} from './shimamura-product-evidence.js';
 import {parseNamedWorkshopEvidence} from './named-workshop-evidence.js';
 import {parseGuitarExhibition} from './guitar-exhibition-evidence.js';
 import {parseAgmArticleEvidence} from './agm-article-evidence.js';
 import {parseShimamuraEventEvidence} from './shimamura-event-evidence.js';
 import {parseTargetEvidence,targetIdentityRefinement} from './target-evidence.js';
-import {parseIkebeProductEvidence,ikebeIdentityRefinement} from './ikebe-product-evidence.js';
+import {parseIkebeProductEvidence,ikebeIdentityRefinement,IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
 import {legalGate} from './registry.js';
 import {boundedFetch,robotsPolicy,hash,optOut,BOT,DAY,robotsEvidence} from './policy.js';
 import {parseShimamuraListing} from './shimamura-listing.js';
@@ -59,6 +60,17 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
    else if(surface.method==='explicit_shimamura_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseShimamuraProductEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_named_workshop_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseNamedWorkshopEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_agm_article_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseAgmArticleEvidence(response.text,source,row)}];
+   else if(surface.method==='explicit_product_article_fields'){
+    let parsed;
+    try{parsed=parseIkebeInformationalEvidence(response.text,source,row);}catch(error){
+     // Preserve the established event route using the same bounded response. A launch
+     // can never become an informational article merely because it failed validation.
+     if(error.message!=='facts_scope_uncertain'||row.event_type==='product_article')throw error;
+     parsed=parseIkebeProductEvidence(response.text,source,row);
+     proof.extractionMethod='explicit_ikebe_product_fields';proof.parserVersion=IKEBE_PRODUCT_PARSER;
+    }
+    items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
+   }
    else if(surface.method==='explicit_ikebe_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseIkebeProductEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_guitar_exhibition_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseGuitarExhibition(response.text,source,row)}];
    else if(surface.method==='explicit_event_fields')items=[{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:'guitar_event',productFacts:parseEventArticle(response.text,source,row.source_url)}];
@@ -110,7 +122,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
    else{
     const facts=item.productFacts,old=before.facts;
     const changedIdentity=old&&['brand','product','artist','performer','person'].some(k=>old[k]&&facts[k]!==old[k]);
-    if(changedIdentity&&!targetIdentityRefinement(row,old,facts,proof)&&!ikebeIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
+    if(changedIdentity&&!targetIdentityRefinement(row,old,facts,proof)&&!ikebeIdentityRefinement(row,old,facts,proof)&&!productArticleIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
     else if(canonical(facts)===canonical(old)&&item.eventType===row.event_type){outcome='facts_unchanged';provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});}
     else{
      const category=facts.category,label=factualLabel(facts,item.eventType)||row.label;
