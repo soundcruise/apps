@@ -1,3 +1,5 @@
+import {parseShimamuraReviewEvidence} from './shimamura-review-evidence.js';
+import {parseSourcePolicyEvidence} from './source-policy-evidence.js';
 import {parseIkebeInformationalEvidence,productArticleIdentityRefinement} from './product-article-evidence.js';
 import {parseShimamuraProductEvidence} from './shimamura-product-evidence.js';
 import {parseNamedWorkshopEvidence} from './named-workshop-evidence.js';
@@ -60,7 +62,9 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
    else if(surface.method==='explicit_shimamura_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseShimamuraProductEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_named_workshop_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseNamedWorkshopEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_agm_article_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseAgmArticleEvidence(response.text,source,row)}];
+   else if(surface.method==='explicit_source_policy_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseSourcePolicyEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_product_article_fields'){
+    if(source.id==='shimamura'){items=[{id:row.id,sourceUrl:row.source_url,...parseShimamuraReviewEvidence(response.text,source,row)}];}else{
     let parsed;
     try{parsed=parseIkebeInformationalEvidence(response.text,source,row);}catch(error){
      // Preserve the established event route using the same bounded response. A launch
@@ -70,6 +74,7 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
      proof.extractionMethod='explicit_ikebe_product_fields';proof.parserVersion=IKEBE_PRODUCT_PARSER;
     }
     items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
+    }
    }
    else if(surface.method==='explicit_ikebe_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseIkebeProductEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_guitar_exhibition_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseGuitarExhibition(response.text,source,row)}];

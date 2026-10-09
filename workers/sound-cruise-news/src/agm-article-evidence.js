@@ -10,7 +10,7 @@ const skip=n=>['script','style','nav','footer','aside','figure','iframe','templa
 function clean(n){for(const child of [...n.children||[]]){if(skip(child))D.removeElement(child);else clean(child);}}
 export function agmRecoverySurface(row,source){
  if(source?.id!=='agm'||!source.agmSections||source.permissionRef!==AGM_PERMISSION_REF||!source.explicitAutomationPermission)return null;
- const section=AGM_SECTIONS.find(s=>agmArticleUrl(row.source_url,s));return section?{url:row.source_url,method:'explicit_agm_article_fields',parser:'agm-article-1'}:null;
+ const section=AGM_SECTIONS.find(s=>agmArticleUrl(row.source_url,s));return section?{url:row.source_url,method:'explicit_agm_article_fields',parser:'agm-article-2'}:null;
 }
 function articleMetadata(html,url,section){
  if(section==='news')return agmArticleMetadata(html,url);
@@ -66,6 +66,11 @@ export function parseAgmArticleEvidence(html,source,row){
    f.person=intro.match(/シンガー[・]?ソングライターの([^が、。]{2,35})が/)?.[1]||f.person;
    const first=ps.map(text).find(t=>/リリースする/.test(t));const works=first?[...first.matchAll(/『([^』]{2,60})』/g)].map(m=>m[1]):[];
    if(works.length>=1&&works.length<=2&&/EP|アルバム/.test(first)){f.action='music_release';f.works=works;f.releaseType=/EP/.test(first)?'EP':'アルバム';}
+  }else if(/ツアー|コンサート/.test(title)&&/開催されることが決定|ツアー.{0,20}開催/.test(intro)){
+   const subject=title.match(/(?:シンガー[・]?ソングライター|アーティスト)[、の]([^、。の]{2,35})の/)?.[1];
+   const names=[...title.matchAll(/[“「]([^”」]{2,70})[”」]/g)].map(m=>m[1]);
+   const concert=names.find(n=>/コンサート|ツアー/.test(n)),family=concert?.replace(/20\d{2}$/,'');
+   if(subject&&intro.includes(subject)&&concert&&intro.includes(family)&&/アコースティック[・ ]?ギター|弾き語り/.test(intro)){f.person=subject;f.action='tour';f.eventName=concert;}
   }else if(/アコギ・マガジン|アコースティック・ギター・マガジン/.test(title)&&/パーラー/.test(title)&&/発売/.test(title)){
    const issue=intro.match(/アコースティック・ギター・マガジン[^』。]{0,50}(Vol\.\d{1,3})/)?.[1];if(issue){f.articleType='publication';f.category='media_other';f.topic='parlor_guitar';f.issue=issue;delete f.person;}
   }

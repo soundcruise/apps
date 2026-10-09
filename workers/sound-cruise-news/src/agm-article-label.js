@@ -11,6 +11,7 @@ export function agmArticleLabel(f,event){
  if(type==='review'&&f.section==='gears'&&f.models?.length)return `${f.models.join(' / ')}の試奏・レビュー記事を公開`;
  if(type==='equipment'&&f.section==='gears'&&f.models?.length)return `${person}、${f.models.length===1?f.models[0]+'の使用機材':f.models.length+'種類の愛用ギター'}を紹介`;
  if(type==='artist_news'&&f.section==='news'){
+  if(f.action==='tour'&&factName(f.eventName))return `${person}、ツアー「${f.eventName}」の開催情報`;
   if(f.action==='award'&&factName(f.award)&&factName(f.work))return `${person}、${f.award}で受賞`;
   if(f.action==='music_release'&&f.works?.length>=1&&f.works.length<=2&&f.works.every(factName)&&['EP','アルバム'].includes(f.releaseType))return `${person}、${f.releaseType}『${f.works.join('』『')}』のリリース情報`;
   return null;

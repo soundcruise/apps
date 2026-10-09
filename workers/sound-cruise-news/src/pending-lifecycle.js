@@ -71,7 +71,7 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
     const dailyRecovery=source&&await store.db.prepare('SELECT COUNT(*) AS n FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>?').bind(source.id,source.id+':',now-DAY).first();
     if(surface&&!before.errors.some(e=>['operator_source_gate','source_url_invalid'].includes(e))&&(cached?.checked_at>now-DAY||dailyRecovery.n===0)){
      report.attempted++;result=await recover(store,{id:row.id,revision:row.review_revision,snapshot:await candidateSnapshot(row),requestId:'autonomous-'+token},now,registry,pepper,{type:'system_recheck',id:'pending-recheck'},options);
-    }else result={outcome:surface?'facts_source_gate':'facts_no_supported_surface'};
+    }else result={outcome:!surface?'facts_no_supported_surface':before.errors.some(e=>['operator_source_gate','source_url_invalid'].includes(e))?'facts_source_gate':'facts_daily_budget_deferred'};
    }
    current=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first();
    if(!pending(current))throw Error('candidate_changed');

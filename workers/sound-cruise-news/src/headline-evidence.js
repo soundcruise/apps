@@ -22,6 +22,7 @@ const types=[
  ['bass_guitar','エレキベース',/エレキベース/],
  ['microphone','マイク',/マイクロ[フホ]ン/],
  ['audio_interface','オーディオインターフェース',/オーディオ[・ ]?インターフェ[イー]ス/],
+ ['subwoofer','サブウーファー',/サブウーファー|\bsubwoofer\b/i],
  ['studio_monitor','モニタースピーカー',/スタジオモニター|モニタースピーカー/]
 ];
 const parents={wireless_headphone:'headphone',usb_microphone:'microphone',wireless_microphone:'microphone',distortion_pedal:'effect_pedal',bass_effect_pedal:'effect_pedal',octave_pedal:'effect_pedal'};

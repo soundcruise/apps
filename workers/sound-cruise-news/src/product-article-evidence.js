@@ -1,3 +1,4 @@
+import {validatedShimamuraReview,shimamuraReviewSurface} from './shimamura-review-evidence.js';
 // Non-event editorial evidence. No release inference, model catalogue or product-specific rules.
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {calendarDate} from './legacy-listing.js';
@@ -10,14 +11,17 @@ const types=['product_information','gear_information','review','hands_on','featu
 const themes=['practice_tools','guitar_practice_recording','guitar_tone'];
 const roles=['product','accessory'];
 export function productArticleSurface(row,source){
+ const review=shimamuraReviewSurface(row,source);if(review)return review;
  if(!ikebeProductSurface(row,source)||!['other','review','product_article'].includes(row.event_type))return null;
  return {url:row.source_url,method:'explicit_product_article_fields',parser:PRODUCT_ARTICLE_PARSER};
 }
 export function validatedProductArticle(f){
+ if(validatedShimamuraReview(f))return true;
  return !!f&&f.kind==='product_article'&&f.identifierBasis==='verified_product_article_fields'&&f.listingSource==='ikebe'&&/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/[1-9][0-9]*\/$/.test(f.articleUrl||'')&&names(f.brand)&&types.includes(f.articleType)&&themes.includes(f.theme)&&f.relevance===f.theme&&f.category==='amps_effects'&&f.version===null&&!f.scopeUncertain&&!f.productEvent&&!f.releaseEvent&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(models)&&new Set(f.models).size===f.models.length&&names(f.product)&&(f.product===f.models.join(' / ')||f.product===f.models[0])&&Array.isArray(f.components)&&f.components.length===f.models.length&&f.components.every((p,i)=>p.model===f.models[i]&&roles.includes(p.role))&&f.components.some(p=>p.role==='product')&&f.articleEvidence?.basis==='explicit_editorial_article_fields'&&f.articleEvidence.subject==='structured_product_sections'&&f.articleEvidence.substance===f.theme&&(f.theme!=='practice_tools'||f.productType==='tuner_metronome')&&(f.theme!=='guitar_tone'||f.productType==='guitar_amp');
 }
 export function productArticleLabel(f){
  if(!validatedProductArticle(f))return null;
+ if(validatedShimamuraReview(f))return `${f.brand}、マルチエフェクター「${f.product}」の実機レビュー`;
  const subject=f.theme==='practice_tools'?`チューナー・メトロノーム「${f.models.join(' / ')}」`:`機材「${f.models.join(' / ')}」`;
  const action={product_information:'を紹介',gear_information:'を紹介',review:'をレビュー',hands_on:'を試奏',feature:'を特集',explainer:'を解説'}[f.articleType];
  const label=`${f.brand}、${subject}${action}`;return label.length<=140?label:null;

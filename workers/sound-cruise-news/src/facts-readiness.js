@@ -1,3 +1,4 @@
+import {sourcePolicySurface} from './source-policy-evidence.js';
 import {productArticleSurface} from './product-article-evidence.js';
 import {shimamuraProductSurface} from './shimamura-product-evidence.js';
 import {namedWorkshopSurface} from './named-workshop-evidence.js';
@@ -22,10 +23,12 @@ export function missingFacts(row,facts,validation){
  return missing;
 }
 export function recoverySurface(row,source,{primaryRecovery=false}={}){
+ const policy=sourcePolicySurface(row,source);if(policy)return policy;
  const exhibition=guitarExhibitionSurface(row,source);if(exhibition)return exhibition;
  const agm=agmRecoverySurface(row,source);if(agm)return agm;
  const event=shimamuraEventSurface(row,source);if(event)return event;
  const targeted=targetSurface(row,source);if(targeted)return targeted;
+ const review=productArticleSurface(row,source);if(review?.parser==='shimamura-review-fields-1')return review;
  const shima=shimamuraProductSurface(row,source);if(primaryRecovery&&shima)return shima;
  const workshop=namedWorkshopSurface(row,source);if(primaryRecovery&&workshop)return workshop;
  const article=productArticleSurface(row,source);if(article)return article;
@@ -55,7 +58,7 @@ export function recoveryAssessment(row,validation,surface,last,cached){
 }
 
 export function recoveryCacheKey(row,source,surface,{serverRepair=false}={}){
- return ['explicit_product_article_fields','targeted_explicit_primary_fields','explicit_ikebe_product_fields','explicit_agm_article_fields','explicit_shimamura_product_fields','explicit_named_workshop_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
+ return ['explicit_source_policy_fields','explicit_product_article_fields','targeted_explicit_primary_fields','explicit_ikebe_product_fields','explicit_agm_article_fields','explicit_shimamura_product_fields','explicit_named_workshop_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
 }
 
 // Preserve supported listing extraction; escalate only after that evidence was insufficient,
@@ -65,6 +68,10 @@ export async function resolvedRecoverySurface(store,row,source){
  if(!primary||primary.method===ordinary?.method)return ordinary;
  const key=recoveryCacheKey(row,source,primary);
  if(await store.db.prepare("SELECT 1 FROM news_facts_sources WHERE source_id=?").bind(key).first())return primary;
+ // The just-completed, permitted listing already supplied no usable identity.
+ // Do not fetch that same listing again before inspecting its primary article.
+ const discovery=await store.state(row.source_id),collected=Date.parse(row.collected_at);
+ if(!row.product_facts&&Number.isFinite(collected)&&discovery.lastDiscoveryAt>=collected)return primary;
  const prior=await store.db.prepare('SELECT outcome FROM news_facts_rechecks WHERE candidate_id=? ORDER BY checked_at DESC,rowid DESC LIMIT 1').bind(row.id).first();
  return ['facts_not_on_current_surface','facts_not_recovered','facts_unchanged'].includes(prior?.outcome)?primary:ordinary;
 }

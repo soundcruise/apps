@@ -1,3 +1,4 @@
+import {sourcePolicyReason} from './source-policy-evidence.js';
 // Explicit maintenance only. No automatic approval and no human feedback/Ledger writes.
 import {publicationValidation} from './decision-policy.js';
 import {intentionalSourceStop} from './source-health.js';
@@ -10,10 +11,10 @@ export async function preparePendingResolution(store,input,now,registry,pepper){
  if(await store.db.prepare("SELECT 1 FROM news_decision_ledger WHERE candidate_id=? AND actor_type='human_operator'").bind(row.id).first())throw Error('human_decision_protected');
  const v=await publicationValidation(store,row,now,registry,pepper),state=await store.state(row.source_id),source=registry.find(s=>s.id===row.source_id);
  const excluded=!!state.disabled&&!!source&&await intentionalSourceStop(store,row.source_id);
- const reason=excluded?'source_disabled':v.errors.includes('duplicate')?'duplicate':v.errors.includes('expired_candidate')&&Number.isSafeInteger(row.expires_at)&&row.expires_at<=now?'expired_candidate':null;
+ const reason=excluded?'source_disabled':v.errors.includes('duplicate')?'duplicate':v.errors.includes('expired_candidate')&&Number.isSafeInteger(row.expires_at)&&row.expires_at<=now?'expired_candidate':sourcePolicyReason(row,now);
  if(!reason)throw Error('resolution_requires_objective_evidence');
  const lifecycle=await store.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(row.id).first();
- const actor=excluded?'source_policy':'system_policy',status=excluded?'SOURCE_EXCLUDED':reason==='duplicate'?'DUPLICATE_CONFIRMED':'EXPIRED_CONFIRMED';
+ const actor=excluded?'source_policy':'system_policy',status=excluded?'SOURCE_EXCLUDED':reason==='duplicate'?'DUPLICATE_CONFIRMED':reason==='expired_candidate'?'EXPIRED_CONFIRMED':'POLICY_BLOCK_CONFIRMED';
  const columns=Object.keys(row),guard=`EXISTS(SELECT 1 FROM candidate_items WHERE ${columns.map(k=>k+' IS ?').join(' AND ')}) AND NOT EXISTS(SELECT 1 FROM news_decision_ledger WHERE candidate_id=? AND actor_type='human_operator')`,args=[...columns.map(k=>row[k]),row.id];
  const statements=[];
  const add=(sql,args=[])=>statements.push({sql,args});
