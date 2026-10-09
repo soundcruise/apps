@@ -69,3 +69,38 @@ rediscovery cannot overwrite these verified article facts.
 There is no source, collection frequency, schema, Access, auth, scheduler or public
 NEWS UI change. The first acceptance targets are the two existing YAMAHA / LAVA
 holds; their published dates and identities are preserved.
+
+## Registered official identity recovery (NEWS 0.26.2 / Operator 0.25.3)
+
+A Shimamura primary-product identity mismatch may use a registered official authority.
+This is the same facts-recheck path used by autonomous and operator rechecks; it does
+not approve, relax publication criteria, or create a human teacher signal.
+
+- Priority: manufacturer product, authorized distributor product, manufacturer press,
+  repeated primary subject-body identity, then listing/title. Conflicting official
+  identities/type/timing remain held even when one has higher priority. No official
+  evidence also remains held. Retailer titles alone cannot resolve a spelling mismatch.
+- Authorities are an explicitly reviewed origin/path/brand registry, separate from
+  NEWS collection sources. The initial verified registration is Hi Resolution's
+  MOTU product surface; no individual product/model is whitelisted. Manufacturer
+  and press authorities require their own registration/robots review before use.
+- Discovery is limited to registered product links bound to primary introductory
+  paragraphs, or an internal reviewed hint in `news_facts_sources`, keyed
+  `official-identity-hint:<candidate id>` with `{candidateId, sourceUrl, officialUrl}`.
+  The public recheck request cannot supply an official URL or a facts override.
+  Hints are transient maintenance evidence, not a new crawler or collection scope.
+- Canonical URL + unique Product structured identity + visible exact product heading
+  + registered brand + at least two matching primary paragraphs are required.
+  Hidden/related/comparison/accessory/restock/sale/old-product text cannot supply
+  missing identity. Ambiguous multiple launch models require review.
+- At most two registered URLs are considered. Each authority origin has a daily
+  lease/budget of one new product surface plus robots; verified evidence for the
+  same URL can be reused within that day. Existing source gates/budget remain.
+  Robots changes, disallow, opt-out, redirects, failures and conflicts fail closed.
+- Only bounded identity, authority type/URL, verification timestamp, response hash,
+  prior conflicting brand/model and explicit release period are saved. Bodies,
+  original headlines, images, prices and inferred exact release dates are not saved.
+- A recovered candidate is still evaluated by the existing duplicate/publication
+  validators. If an approved duplicate exists, the authorized maintenance resolution
+  uses `system_policy / duplicate`, stops recheck and leaves human Ledger/feedback
+  and the published original untouched.

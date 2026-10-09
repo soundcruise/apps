@@ -1,3 +1,5 @@
+import {validOfficialIdentity} from './official-identity.js';
+import {SHIMAMURA_PRODUCT_PARSER} from './shimamura-product-evidence.js';
 import {SHIMAMURA_REVIEW_PARSER,validatedShimamuraReview} from './shimamura-review-evidence.js';
 import {PRODUCT_ARTICLE_PARSER} from './product-article-evidence.js';
 import {legalGate} from './registry.js';
@@ -61,6 +63,10 @@ export async function publicationValidation(store,row,now,registry,pepper){
  if(facts?.kind==='product_article'&&(row.event_type!=='product_article'||!['ikebe','shimamura'].includes(row.source_id)||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
  if(facts?.identifierBasis==='explicit_article_product_fields'&&(row.source_id!=='ikebe'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
  if(facts?.identifierBasis==='explicit_shimamura_product_fields'&&(row.source_id!=='shimamura'||facts.articleUrl!==row.source_url)||facts?.evidence==='explicit_named_workshop_v1'&&(row.source_id!=='ikebe-event'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
+ if(facts?.officialIdentity){
+  let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
+  if(!validOfficialIdentity(facts.officialIdentity,row.source_url,facts.brand,facts.product)||facts.officialIdentity.verifiedAt>now||!Array.isArray(proof)||!proof.some(p=>p.factField==='officialIdentity'&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.parserVersion===SHIMAMURA_PRODUCT_PARSER&&p.extractionMethod==='explicit_shimamura_product_fields'&&p.verifiedAt>=facts.officialIdentity.verifiedAt&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||'')))errors.push('facts_provenance_invalid');
+ }
  if(!await validatedFingerprint(row.title_fingerprint,pepper))errors.push('label_provenance_invalid');
  const stamp=Date.parse(row.published_at);
  if(!Number.isFinite(stamp)||stamp>now||now-stamp>=90*DAY||!Number.isSafeInteger(row.expires_at)||row.expires_at<=now)errors.push('expired_candidate');

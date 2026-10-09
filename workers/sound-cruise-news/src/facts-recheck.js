@@ -1,3 +1,4 @@
+import {recoverOfficialIdentity,validOfficialIdentity} from './official-identity.js';
 import {parseShimamuraReviewEvidence} from './shimamura-review-evidence.js';
 import {parseSourcePolicyEvidence} from './source-policy-evidence.js';
 import {parseIkebeInformationalEvidence,productArticleIdentityRefinement} from './product-article-evidence.js';
@@ -59,7 +60,14 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
   proof={sourceId:source.id,sourceUrl:surface.url,verifiedAt:now,extractionMethod:surface.method,parserVersion:surface.parser,responseHash:await hash(response.text)};
   try{
    if(surface.method==='targeted_explicit_primary_fields')items=[{id:row.id,sourceUrl:row.source_url,...(surface.parser==='shimamura-intro-event-3'?parseShimamuraEventEvidence(response.text,source,row):parseTargetEvidence(response.text,source,row))}];
-   else if(surface.method==='explicit_shimamura_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseShimamuraProductEvidence(response.text,source,row)}];
+   else if(surface.method==='explicit_shimamura_product_fields'){
+    let parsed;try{parsed=parseShimamuraProductEvidence(response.text,source,row);}catch(error){
+     if(error.message!=='facts_identity_changed')throw error;
+     const officialIdentity=await recoverOfficialIdentity(store,response.text,row,now,{fetcher,sleep});
+     parsed=parseShimamuraProductEvidence(response.text,source,row,{officialIdentity});
+    }
+    items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
+   }
    else if(surface.method==='explicit_named_workshop_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseNamedWorkshopEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_agm_article_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseAgmArticleEvidence(response.text,source,row)}];
    else if(surface.method==='explicit_source_policy_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseSourcePolicyEvidence(response.text,source,row)}];
@@ -127,7 +135,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
    else{
     const facts=item.productFacts,old=before.facts;
     const changedIdentity=old&&['brand','product','artist','performer','person'].some(k=>old[k]&&facts[k]!==old[k]);
-    if(changedIdentity&&!targetIdentityRefinement(row,old,facts,proof)&&!ikebeIdentityRefinement(row,old,facts,proof)&&!productArticleIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
+    if(changedIdentity&&!validOfficialIdentity(facts.officialIdentity,row.source_url,facts.brand,facts.product)&&!targetIdentityRefinement(row,old,facts,proof)&&!ikebeIdentityRefinement(row,old,facts,proof)&&!productArticleIdentityRefinement(row,old,facts,proof))outcome='facts_identity_changed';
     else if(canonical(facts)===canonical(old)&&item.eventType===row.event_type){outcome='facts_unchanged';provenance=Object.keys(facts).map(field=>({...proof,factField:field}));provenance.push({...proof,factField:'event_type'});}
     else{
      const category=facts.category,label=factualLabel(facts,item.eventType)||row.label;

@@ -33,7 +33,8 @@ export function validHeadlineEvidence(f){
  if(f?.productTypeEvidence&&(!types.some(([t])=>t===f.productType)||f.productTypeEvidence.product!==f.product||!['explicit_primary_title','verified_primary_article'].includes(f.productTypeEvidence.basis)||!keys(f.productTypeEvidence,['product','basis'])))return false;
  const e=f?.releaseEvent;
  if(!e)return true;
- if(!['release','scheduled_release','release_delay','reservation_start'].includes(e.action)||!['explicit_primary_title','verified_primary_article'].includes(e.basis)||!keys(e,['action','basis','date','reason']))return false;
+ if(!['release','scheduled_release','release_delay','reservation_start'].includes(e.action)||!['explicit_primary_title','verified_primary_article'].includes(e.basis)||!keys(e,['action','basis','date','reason','period']))return false;
+ if(e.period!==undefined&&(e.action!=='scheduled_release'||e.date!==undefined||!validReleasePeriod(e.period)))return false;
  if(e.date!==undefined&&(!/^20\d{2}(?:-\d{2}-\d{2})?$/.test(e.date)||e.date.length===10&&(!Number.isFinite(Date.parse(e.date))||new Date(e.date+'T00:00:00Z').toISOString().slice(0,10)!==e.date)))return false;
  return e.reason===undefined||e.action==='release_delay'&&e.reason==='redesign';
 }
@@ -93,9 +94,10 @@ export function enrichHeadlineFacts(f,{title='',statements=[],releaseDates=[],pu
  }
  return result;
 }
+export function validReleasePeriod(p){return !!p&&keys(p,['year','month','part'])&&Number.isInteger(p.year)&&p.year>=2000&&p.year<=2099&&Number.isInteger(p.month)&&p.month>=1&&p.month<=12&&['early','mid','late'].includes(p.part);}
 export function releaseSuffix(e){
  if(!e)return null;
- const date=e.date?.length===10?`${Number(e.date.slice(5,7))}月${Number(e.date.slice(8,10))}日`:e.date?`${e.date}年`:null;
+ const date=e.period?`${e.period.month}月${({early:'上旬',mid:'中旬',late:'下旬'})[e.period.part]}`:e.date?.length===10?`${Number(e.date.slice(5,7))}月${Number(e.date.slice(8,10))}日`:e.date?`${e.date}年`:null;
  if(e.action==='release_delay')return `${e.reason==='redesign'?'の再設計に伴い':'の'}発売を延期${date?`（${date}予定）`:''}`;
  if(e.action==='scheduled_release')return `を${date?date+'に':''}発売予定`;
  if(e.action==='reservation_start')return `の予約受付を${date?date+'に':''}開始`;
