@@ -183,7 +183,7 @@ test('theme writer: a received theme becomes the device theme; a missing one nev
 // Content is pinned to the approved baseline, including the shared Cruise series section.
 // Pro acquisition / gate pages stay Dark and are byte-identical.
 const INFO_PAGES = {
-  'info.html': ['./theme-colors-info.css?v=', '7317ca24f480afc1ab981376b71860a43f964ed8c3594d0b45f451a281a7d00e'],
+  'info.html': ['./theme-colors-info.css?v=', 'ecb974718f510989f397606f794fe1fe0d7dd14611e33f83c056ca5533670ac5'],
   'terms.html': ['./theme-colors-legal.css?v=', '46e91e34af14cc996bb71048f0180b19de4fce63143ad37b2853296491e1ecc8'],
   'privacy.html': ['./theme-colors-legal.css?v=', '953330b55617ed4d91eae1b48b10bfb5e228bed41d78768822b8ff60283706f5'],
   'recommended-videos.html': ['./theme-colors-videos.css?v=', '19fbc867c6f070be8e7c7e46f159b9cb057c49cf45263f2b63d487d1ea08221e']

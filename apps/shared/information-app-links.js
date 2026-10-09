@@ -40,7 +40,8 @@
         var document = container.ownerDocument;
         var title = document.createElement('h2');
         title.className = 'cruise-series-title';
-        title.textContent = 'クルーズシリーズ';
+        title.textContent = 'クルーズapps';
+        container.setAttribute('aria-label', title.textContent);
         container.appendChild(title);
         var list = document.createElement('ul');
         list.className = 'cruise-series-list';

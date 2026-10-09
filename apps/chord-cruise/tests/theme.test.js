@@ -243,7 +243,7 @@ var BOOTSTRAP_RE = /<script>\s*\/\/ Chord color theme[\s\S]*?<\/script>/;
 var INFO_PAGE_HASHES = {
     // sha256 of each page without the theme bootstrap and with ?v= normalized (1.17.0 content).
     // Approved Information baseline includes the shared Cruise series section and edition routing.
-    'info.html': 'de6a7cb21b7fd2d0a468abf06542d4bf67caf510b582b41ce50a32f44494e34c',
+    'info.html': 'e1ecd87eae0fb9642aad46048d19274da437f3e1e7c07983d55fb82b7cc2a70a',
     'usage.html': 'faafa6ce7fabed29c579e0c1c329b3211c650e3d680a5ecb635357a9114b2256',
     'terms.html': 'cf49bb380f916d9e5c8b5e21a6fab8c54f538f2860915c8dadf4293dc0dcff8b',
     'privacy.html': 'ccdfa364b18cf310a74c7a1b9181c37219b2c312e6fba607ee4d81bba2977fe5'

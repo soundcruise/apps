@@ -7,7 +7,7 @@
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
 /** アプリの版表示（リリースのたびにここを更新。運用ルールは README_VERSIONS.md 参照） */
-const PITCH_TRAINER_APP_VERSION = '2.29.0';
+const PITCH_TRAINER_APP_VERSION = '2.29.1';
 
 // Color theme (per app; synced by Pro Cloud Sync since 2.27.0). Missing or invalid values are Dark; the value is stored only when
 // the user picks one in Settings. The head bootstrap applies it before first paint.

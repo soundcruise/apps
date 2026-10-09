@@ -201,7 +201,7 @@ test('theme writer: a received theme becomes the device theme; a missing one nev
 // Pro acquisition / gate pages stay Dark and are byte-identical. The fretboard itself is not involved.
 const SCOPE_RE = /^:root(\[data-theme="(charcoal|gray|light)"\]|:is\((\[data-theme="(charcoal|gray|light)"\](, )?)+\))/;
 const INFO_PAGES = {
-  'info.html': ['./theme-colors-info.css?v=', 'bb701870b3216de015f465ccf87e82040d8d9a560395cbcf3c03d04579bf1053'],
+  'info.html': ['./theme-colors-info.css?v=', '4cd693c4c32b40becb79bffc94b91d5be278d007aeb59327072cc7a63d6d65f2'],
   'terms.html': ['./theme-colors-legal.css?v=', 'c14cff4fe2ac7e1e20be2c48c19955817a27d6282d0661f403f3f6493bd70d7d'],
   'privacy.html': ['./theme-colors-legal.css?v=', '6a8daf899225d393885f6dcd4a765c76d1b84a91cef6ddaefcc1312f92e1a9dc'],
   'apps.html': ['./theme-colors-apps.css?v=', '045b0f297d2e313dbf5b9435ff46020a92a88041e73ed9b7c650eb291c81a19b']

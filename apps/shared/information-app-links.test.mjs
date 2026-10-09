@@ -39,7 +39,7 @@ for (const [id, directory] of entries.slice(1)) {
             const html = read(`../${directory}/info.html`);
             assert.match(html, /aria-label="クルーズシリーズ" hidden/);
             assert.match(html, /information-app-links\.css\?v=1/);
-            assert.match(html, /information-app-links\.js\?v=1/);
+            assert.match(html, /information-app-links\.js\?v=2/);
             assert.match(html, /利用規約/);
             assert.match(html, /プライバシーポリシー/);
             assert.match(html, /お問い合わせ/);
@@ -66,7 +66,8 @@ test('renderer creates semantic same-tab links with decorative icons, preserves 
     const container = element('nav');
     helper.render(container, 'pitch', 'pro');
     assert.equal(container.hidden, false);
-    assert.equal(container.children[0].textContent, 'クルーズシリーズ');
+    assert.equal(container.children[0].textContent, 'クルーズapps');
+    assert.equal(container.attrs['aria-label'], 'クルーズapps');
     const list = container.children[1];
     assert.equal(list.tag, 'ul');
     assert.equal(list.children.length, 4);
