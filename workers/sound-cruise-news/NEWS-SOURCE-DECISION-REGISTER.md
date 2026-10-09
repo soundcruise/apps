@@ -53,7 +53,7 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | [korg](#source-korg) | KORG / VOX（メーカー公式） | OFF | NEEDS EVIDENCE — APPLICABLE SCOPE / DISCOVERY |
 | [esp](#source-esp) | ESP / BIGBOSS | OFF | EXPLICIT PERMISSION REQUIRED — DEEP LINK EXCEPTION |
 | [yamaha-newsroom](#source-yamaha-newsroom) | Yamaha newsroom | OFF | NEEDS EVIDENCE — APPLICABLE SCOPE / DISCOVERY |
-| [amass](#source-amass) | amass | ON（限定tag） | ALLOWED WITH BOUNDS |
+| [amass](#source-amass) | amass | OFF（現行Rick Nielsen tag） | COLLECTION RETIRED |
 | [tft](#source-tft) | THE FIRST TIMES | OFF | NEEDS EVIDENCE — RELEVANCE / POLICY SCOPE |
 | [takamine](#source-takamine) | Takamine | OFF | DO NOT USE — EXISTING WHITELIST CLASSIFICATION |
 | [kurosawa](#source-kurosawa) | クロサワ楽器 | OFF | DO NOT USE — EXISTING WHITELIST CLASSIFICATION |
@@ -621,16 +621,34 @@ IK製品自体は対象外ではない。他source経由のIK製品ニュース�
 |---|---|
 | Source / Publisher | amass |
 | Surface | https://amass.jp/rss/3745 単一ギタリストtag RSS |
-| Current State | ON（限定tag） |
-| Current Scope | 名前のあるギタリスト＋明示ギター根拠のArtist／Event facts。 |
-| Decision | ALLOWED WITH BOUNDS |
-| Why | 公式artist/genre tag RSS案内、policy、robotsと限定sampleを検証。UNKNOWNから当該surfaceのみ限定判断。 |
+| Current State | OFF — intentional current-scope retirement（2026-10-09） |
+| Current Scope | Rick Nielsen tag collection OFF。既存公開1件は維持。 |
+| Decision | COLLECTION RETIRED（2026-10-09）。過去のALLOWED WITH BOUNDSを現行scopeの取得停止判断で更新。 |
+| Why | 現行Rick Nielsen単一tagの低yield／低relevance。過去の限定審査（公式RSS案内・policy・robots・sample）は履歴として維持。 |
 | Explicit Restriction | 権利留保。full-music generic RSS、tag一括拡張、原文再利用なし。 |
 | Internal Boundaries | 原見出し・本文・画像・OGP・raw HTMLを保存しない。独自facts label＋出典＋直接リンク。固定surfaceを原則1日1回、bounded fetch、robots/access/opt-out、90日retention、kill/takedownを維持。未確認factsはREVIEW。 |
-| Permission Status | 公式tag RSS提供を確認／automationと商用転載licenseは主張しない。documented silenceの内部限定審査。 |
+| Permission Status | Current collection retired before permission contact; NOT_APPLICABLE to the active-source formal launch campaign. No inquiry sent. Historic official tag RSS / documented-silence assessment is retained, not publisher permission. Existing published use is retained without a new permission claim. |
 | Evidence | [src/quality-evidence.js](src/quality-evidence.js)、[HIGH-VALUE-COVERAGE-REPORT.md](HIGH-VALUE-COVERAGE-REPORT.md)、[HIGH-VALUE-COVERAGE-EVIDENCE.json](HIGH-VALUE-COVERAGE-EVIDENCE.json)、[HIGH-VALUE-SOURCE-POLICY.md](HIGH-VALUE-SOURCE-POLICY.md) |
-| Decision Date | 2026-09-30〜10-01 |
+| Decision Date | 2026-09-30〜10-01（限定審査）；2026-10-09（現行scope停止） |
 | Notes | Brian May等の未承認追加tagはOFF。 |
+
+### Current-scope retirement / formal launch campaign — 2026-10-09
+
+- User decision: retire the **current Rick Nielsen single-tag source** after the read-only value re-audit. Use the existing `source-collection-stop` operation, reason `policy_change`, with a system/source-policy administration record; not a human/editorial reject.
+- Evidence: 2026-09-30〜10-09 retained logs contain 10 runs, 210 repeated RSS item observations, 200 pre-save exclusions and 9 repeat-URL deduplications; 1 unique saved/published article. Current pending/reopened 0, rejected 0, human approve/reject 0 and amass Shadow evaluations 0. Last 5 runs added 0 candidates. The current RSS contains 1 article inside 90 days and 20 older articles; the recent acoustic/singing-guitar A/B contribution of this scope is 0. This is not a 90-day continuous operating history or an audit of all amass content.
+- Rationale: low yield and low direct relevance of the current Rick Nielsen scope to Cruise Port's acoustic/singing-guitar focus. The retained collection-auction article is a C-value contribution for this focus. Technical instability or a high pending/review burden is **not** the reason for retirement.
+- Preservation: keep published article `48c3f8944f4eb7011e8a8d86ca10b9f1695ce382cee506f2bdb916b7dc6618fd` (https://amass.jp/192113/), including headline, source, URL, publication date, facts/provenance and approved state. Do not block publication, take down, delete or migrate candidates. No Ledger, Shadow, feedback or human teacher signal is added or modified.
+- Pending/recheck: confirm the production count again before execution. The existing stop closes any pending/reopened operational lifecycle as `SOURCE_EXCLUDED`, reason `source_disabled`, actor/result `source_policy`, next recheck NULL and leases released. Existing article review states are retained. No further recovery fetch, retry/backoff or Shadow evaluation is scheduled for this source.
+- Health: explicit administration audit classifies `paused/source_disabled` as an intentional stop, excluded from aggregate warnings. Actual failures and unexpected disables remain abnormal. Global collection/publication/API switches, cron and all other source states remain unchanged.
+- Media boundary: **amass is not globally or permanently banned**. A future acoustic-performance, singing-guitar-video or acoustic-live scope may be independently re-evaluated with its own relevance, technical and permission evidence. Verified Beck tag/RSS (https://amass.jp/tag/2111 , https://amass.jp/rss/2111) includes acoustic performance examples, but is not approved or enabled by this decision. Do not expand or replace the current tag automatically.
+- Formal launch: remove amass from `WAITING_PERMISSION` and active permission-contact targets because this collection is retired before inquiry. The user confirms other target-source inquiries were sent; their permission outcomes are not changed or treated as granted here. The prepared amass form must **not** be submitted; no Gmail inquiry is sent. This retirement does not remove the NEWS test badge or settle conditions for the retained article.
+- Production execution: existing administration operation applied with audit ID `d9f0e766-fda2-4904-9c77-2b92e4a82cc8`, reason `policy_change`. Verified `disabled=1`, `publication_blocked=0`, `takedown=0`, `paused/source_disabled`, failures 0 and pending/lifecycle/leased rechecks 0. No candidate reject was performed.
+- Production comparison: all 148 candidate rows, 70 Ledger rows, 178 Shadow rows and 92 feedback rows were identical before/after. All other source-state and health rows, global enable switches, deployed bindings, cron and Worker deployment were unchanged. Public API 116 articles and ticker 5 items were identical, including the amass article. Collection logs remain at 10 runs. The actual production scheduled gate returns `source_disabled` and the audit is recognized as intentional; the next 06:00 scheduled run has not yet occurred. The isolated real scheduled-handler test verifies zero publisher requests and healthy aggregate status.
+- Regression / release: NEWS and Operator full suite 812/812 PASS (including 3 amass retirement tests), Port NEWS 46/46 PASS, changed-file syntax, diff check and secret scan PASS. Existing administrative capability required no runtime/config changes: NEWS 0.26.0, Operator 0.25.1 and Port 1.19.6 remain unchanged; no Worker redeploy or migration required. Commit only this canonical register and the source-specific regression test.
+
+| Source | Current Status | Evidence | Contact Needed | Formal Launch Status |
+|---|---|---|---|---|
+| amass — current Rick Nielsen scope | COLLECTION RETIRED / OFF | User-approved low-yield, low-relevance retirement; published article retained | NO — do not submit prepared form or send email | NOT_APPLICABLE / EXCLUDED — removed from active permission campaign, not WAITING_PERMISSION |
 
 <a id="source-tft"></a>
 
