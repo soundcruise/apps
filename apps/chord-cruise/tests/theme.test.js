@@ -242,7 +242,8 @@ assert.strictEqual(entries[0][1].match(/<script>\s*\/\/ Chord color theme[\s\S]*
 var BOOTSTRAP_RE = /<script>\s*\/\/ Chord color theme[\s\S]*?<\/script>/;
 var INFO_PAGE_HASHES = {
     // sha256 of each page without the theme bootstrap and with ?v= normalized (1.17.0 content).
-    'info.html': '1cce0238df108ddddf6f1293758564b88744b23a565f6c9c985cf7216109aba3',
+    // Approved Information baseline includes the shared Cruise series section and edition routing.
+    'info.html': 'de6a7cb21b7fd2d0a468abf06542d4bf67caf510b582b41ce50a32f44494e34c',
     'usage.html': 'faafa6ce7fabed29c579e0c1c329b3211c650e3d680a5ecb635357a9114b2256',
     'terms.html': 'cf49bb380f916d9e5c8b5e21a6fab8c54f538f2860915c8dadf4293dc0dcff8b',
     'privacy.html': 'ccdfa364b18cf310a74c7a1b9181c37219b2c312e6fba607ee4d81bba2977fe5'

@@ -64,6 +64,7 @@
 
     var homePath = resolveHomePath();
     var resolvedEdition = isProHomePath(homePath) ? 'pro' : 'standard';
+    window.SoundCruiseInformationLinks?.render(document.getElementById('cruise-series'), 'chord', resolvedEdition);
 
     document.querySelectorAll('[data-cc-edition-home]').forEach(function (link) {
         link.href = homePath;

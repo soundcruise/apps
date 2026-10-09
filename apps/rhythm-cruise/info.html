@@ -121,6 +121,7 @@
         }
     </style>
     <link rel="stylesheet" href="./theme-colors-info.css?v=1.16.3">
+    <link rel="stylesheet" href="../shared/information-app-links.css?v=1">
 </head>
 
 <body class="rc-info-page" data-rc-theme="clean-pro">
@@ -157,6 +158,7 @@
                 <a class="rc-info-simple-link" href="./usage.html" id="rc-info-usage-link">基本的な使い方</a>
             </div>
 
+            <nav class="cruise-series" id="cruise-series" aria-label="クルーズシリーズ" hidden></nav>
             <nav class="rc-info-footer-links sound-cruise-info-links" aria-label="法務・お問い合わせ">
                 <a href="./terms.html" id="terms-link">利用規約</a>
                 <a href="./privacy.html" id="privacy-link">プライバシーポリシー</a>
@@ -176,6 +178,7 @@
         </div>
     </div>
 
+    <script src="../shared/information-app-links.js?v=1"></script>
     <script>
         (function () {
             var backLink = document.getElementById('rc-info-back-link');
@@ -223,16 +226,17 @@
 
             function resolveHomePath() {
                 if (editionParam === 'standard') return rememberEditionHome(defaultHome) || defaultHome;
+                if (editionParam === 'pro') return rememberEditionHome('./pro_r4m8k7n2q9x/index.html') || './pro_r4m8k7n2q9x/index.html';
                 var referrerHome = normalizeEditionHome(document.referrer);
                 if (referrerHome) return rememberEditionHome(referrerHome);
                 var storedHome = getStoredEditionHome();
-                if (editionParam === 'pro') return isProHomePath(storedHome) ? storedHome : defaultHome;
                 return storedHome || defaultHome;
             }
 
             var homePath = resolveHomePath();
             var resolvedEdition = isProHomePath(homePath) ? 'pro' : 'standard';
             homeLink.href = homePath;
+            window.SoundCruiseInformationLinks?.render(document.getElementById('cruise-series'), 'rhythm', resolvedEdition);
             document.getElementById('rc-info-usage-link').href = './usage.html?edition=' + encodeURIComponent(resolvedEdition);
             document.getElementById('terms-link').href = './terms.html?edition=' + encodeURIComponent(resolvedEdition);
             document.getElementById('privacy-link').href = './privacy.html?edition=' + encodeURIComponent(resolvedEdition);

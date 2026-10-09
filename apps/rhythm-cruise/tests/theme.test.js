@@ -179,7 +179,8 @@ assert(script.indexOf('RHYTHM_CRUISE_RESET_LOCAL_STORAGE_KEYS = [\n    SETTINGS_
     var crypto = require('crypto');
     var sha256 = function (text) { return crypto.createHash('sha256').update(text).digest('hex'); };
     var INFO_PAGES = {
-        'info.html': ['./theme-colors-info.css', 'bdbcca3ff4d2d0c5f94c15b34535a75e621c171cc6666992a84f7065d133547f'],
+        // Approved Information baseline includes the shared Cruise series section and edition routing.
+        'info.html': ['./theme-colors-info.css', 'fc7bafe428f8e9e6961f9dc0b99176d3925c4aee6f7bfa8a7d23603657d7f1c1'],
         'terms.html': ['./theme-colors-legal.css', '8a93f75beb0c6c4ffab0b20b219b00e10d869719c30cdfb8fc588238b987ad7f'],
         'privacy.html': ['./theme-colors-legal.css', 'b53df1059a9a3a5e1bd94682a13f03a110af010d9f2ad05cb8445c558432a033'],
         'usage.html': ['./theme-colors-help.css', '46e6bd4a09e2e4f066f8948b851e83c135ce8e79a4f845b08701a86069524d3b'],

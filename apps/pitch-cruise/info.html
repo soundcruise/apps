@@ -192,6 +192,7 @@
         }
     </style>
     <link rel="stylesheet" href="./theme-colors-info.css?v=2.26.3">
+    <link rel="stylesheet" href="../shared/information-app-links.css?v=1">
 </head>
 
 <body class="info-page">
@@ -228,6 +229,7 @@
                     <span class="info-link-title">PRO版の入手方法</span>
                 </a>
             </div>
+            <nav class="cruise-series" id="cruise-series" aria-label="クルーズシリーズ" hidden></nav>
             <nav class="info-footer-links sound-cruise-info-links" aria-label="法務・お問い合わせ">
                 <a href="./terms.html" id="terms-link">利用規約</a>
                 <a href="./privacy.html" id="privacy-link">プライバシーポリシー</a>
@@ -248,6 +250,7 @@
             </div>
         </div>
     </div>
+    <script src="../shared/information-app-links.js?v=1"></script>
     <script>
         (function () {
             var backLink = document.getElementById('info-back-link');
@@ -310,10 +313,10 @@
             function resolveHomePath() {
                 if (editionParam === 'standard') return rememberEditionHome(defaultHome) || defaultHome;
                 if (editionParam === 'beta') return rememberEditionHome('./beta/index.html') || defaultHome;
+                if (editionParam === 'pro') return rememberEditionHome('./pro_x9v7q2m8/index.html') || './pro_x9v7q2m8/index.html';
                 var referrerHome = normalizeEditionHome(document.referrer);
                 if (referrerHome) return rememberEditionHome(referrerHome);
                 var storedHome = getStoredEditionHome();
-                if (editionParam === 'pro') return isProHomePath(storedHome) ? storedHome : defaultHome;
                 return storedHome || defaultHome;
             }
 
@@ -321,6 +324,7 @@
             var isProEdition = editionParam === 'pro' || isProHomePath(homePath);
             var resolvedEdition = isProEdition ? 'pro' : (isBetaHomePath(homePath) ? 'beta' : 'standard');
             homeLink.href = homePath;
+            window.SoundCruiseInformationLinks?.render(document.getElementById('cruise-series'), 'pitch', resolvedEdition);
             var firstLink = document.getElementById('first-link');
             if (firstLink && isProEdition) {
                 firstLink.classList.remove('info-link-card--primary');
