@@ -3,6 +3,8 @@
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
 const types=[
+ ['voicebank','音声合成ソフト',/ボイスバンク|音声合成ソフト/],
+ ['signal_buffer','バッファー',/バッファ[ーァ]|\bsignal buffer\b/i],
  ['wireless_headphone','ワイヤレスヘッドフォン',/ワイヤレスヘッド[フホ][ォオ]ン|Bluetooth(?:ワイヤレス)?ヘッド[フホ][ォオ]ン/i],
  ['headphone','ヘッドフォン',/ヘッド[フホ][ォオ]ン|\bheadphones?\b/i],
  ['usb_microphone','USBマイク',/USB(?:ダイナミック)?(?:・|\s*)マイク(?:ロ[フホ]ン)?/i],
