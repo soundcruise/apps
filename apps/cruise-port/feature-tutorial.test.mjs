@@ -1,10 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { FEATURE_TUTORIAL_STEPS, findTutorialTarget, tutorialPlacement } from './feature-tutorial.js';
+import { FEATURE_TUTORIAL_STEPS, findTutorialTarget, tutorialPlacement, tutorialStepText } from './feature-tutorial.js';
 import { FEATURE_HELP } from './feature-help.js';
 import { readFileSync } from 'node:fs';
 test('both tutorials use a short ordered configuration with safe empty-state fallbacks',()=>{
- assert.equal(FEATURE_TUTORIAL_STEPS.practice.length,6);assert.equal(FEATURE_TUTORIAL_STEPS.gear.length,5);
+ assert.equal(FEATURE_TUTORIAL_STEPS.practice.length,5);assert.equal(FEATURE_TUTORIAL_STEPS.gear.length,4);
  for(const steps of Object.values(FEATURE_TUTORIAL_STEPS))for(const step of steps){assert(step.target && step.title && step.text);assert(step.text.length<140);}
 });
 test('missing or hidden dynamic cards fall back to the fixed list region',()=>{
@@ -21,7 +21,7 @@ test('bubble and cutout fit narrow, desktop, and partially offscreen targets',()
  }
 });
 test('help explains real controls and does not offer nonexistent count/URL inputs',()=>{
- assert.equal(FEATURE_HELP.practice.steps.length,5);assert.equal(FEATURE_HELP.gear.steps.length,4);
+ assert.equal(FEATURE_HELP.practice.steps.length,6);assert.equal(FEATURE_HELP.gear.steps.length,4);
  assert.match(FEATURE_HELP.practice.steps.join(''),/チェック.*通算回数/);assert.doesNotMatch(FEATURE_HELP.gear.steps.join('')+FEATURE_HELP.gear.note,/URL/);
  for(const file of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(file,import.meta.url),'utf8');assert.match(html,/data-feature-tutorial>チュートリアルを見る/);assert.match(html,/id="practice-history-open"[^>]*aria-label="音楽カレンダーを開く"/);}
 });
@@ -39,7 +39,17 @@ test('calendar reuses home SVG and preserves a bordered 44px control in both edi
  assert.match(css,/#practice-history-open[^}]*width: 44px[^}]*border: 1px solid[^}]*border-radius: 8px/);
 });
 test('help and tutorial teach all-check completion and the upper manual finish',()=>{
- const copy=FEATURE_HELP.practice.steps[4];assert.match(copy,/すべて.*チェック.*完了/);assert.match(copy,/画面上部.*練習終了/);assert.doesNotMatch(copy,/ここで練習終了/);
- const step=FEATURE_TUTORIAL_STEPS.practice[4];assert.equal(step.target,'#practice-timer-stop');assert.equal(step.fallback,'.practice-timer-card');assert.match(step.text,/すべて.*チェック.*完了/);assert.match(step.text,/タイマー開始後.*画面上部/);
+ const copy=FEATURE_HELP.practice.steps[4];assert.match(FEATURE_HELP.practice.steps[3],/すべて.*チェック.*完了/);assert.match(copy,/画面上部.*練習終了/);assert.doesNotMatch(copy,/ここで練習終了/);
+ const step=FEATURE_TUTORIAL_STEPS.practice[3];assert.equal(step.target,'#practice-timer-stop');assert.equal(step.fallback,'.practice-timer-card');assert.match(step.text,/すべて.*チェック.*完了/);assert.match(step.fallbackText,/練習スタート後.*練習終了/);
  assert(!FEATURE_TUTORIAL_STEPS.practice.some(step=>step.target==='#practice-finish'));
+});
+
+test('first-time order, empty prompts and stopped/running finish copy are accurate',()=>{
+ assert.deepEqual(FEATURE_TUTORIAL_STEPS.practice.map(s=>s.target),['#practice-menu-add','#practice-timer-toggle','.practice-check','#practice-timer-stop','#practice-history-open']);
+ assert.deepEqual(FEATURE_TUTORIAL_STEPS.gear.map(s=>s.target),['#gear-list-title-add','.gear-list-tabs','.gear-category-toolbar','.gear-card']);
+ const finish=FEATURE_TUTORIAL_STEPS.practice[3];assert.equal(tutorialStepText({},finish,{matches:()=>true}),finish.text);assert.equal(tutorialStepText({},finish,{matches:()=>false}),finish.fallbackText);
+ for(const step of [FEATURE_TUTORIAL_STEPS.practice[4],FEATURE_TUTORIAL_STEPS.gear[3]]){assert.match(tutorialStepText({querySelector:()=>null},step,{}),/まずは/);assert.equal(tutorialStepText({querySelector:()=>({})},step,{}),step.text);}
+ assert.match(FEATURE_HELP.practice.steps[0],/目安/);assert.match(FEATURE_HELP.practice.note,/制限時間ではありません/);
+ assert.match(FEATURE_HELP.gear.steps[1],/自分の機材.*今持っている機材と手放した機材/);assert.match(FEATURE_HELP.gear.steps[2],/⋮/);assert.match(FEATURE_HELP.gear.steps[3],/⋯/);
+ assert.doesNotMatch(JSON.stringify(FEATURE_HELP)+JSON.stringify(FEATURE_TUTORIAL_STEPS),/区分変更|練習リスト/);
 });

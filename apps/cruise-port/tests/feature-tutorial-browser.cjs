@@ -17,11 +17,11 @@ const production = base.startsWith('https:');
   if (edition) {
    // Synthetic gate module in the isolated local context only; production is never altered.
    await page.evaluate(() => { document.querySelector('#pro-gate-overlay')?.remove(); document.body.classList.remove('pro-gate-active'); document.querySelectorAll('[inert]').forEach(el=>el.removeAttribute('inert')); window.__SOUNDCRUISE_PRO_GATE__=true; window.__soundCruiseClearGate=()=>{}; });
-   await page.evaluate(() => import('../practice-menu-app.js?v=1.21.1'));
+   await page.evaluate(() => import('../practice-menu-app.js?v=1.21.2'));
   }
-  await page.locator('.port-app-version-display').first().filter({hasText:'1.21.1'}).waitFor();
-  for (const width of process.argv[3]==='--regression-only'?[]:[375,393,768,1280]) {
-   await page.setViewportSize({width,height:852});
+  await page.locator('.port-app-version-display').first().filter({hasText:'1.21.2'}).waitFor();
+  for (const [width,height] of process.argv[3]==='--regression-only'?[]:[[375,852],[393,852],[768,852],[1280,852],[375,667],[393,667]]) {
+   await page.setViewportSize({width,height});
    for (const [key,hash,title] of [['practice','#practice-menu','練習メニューの使い方'],['gear','#wishlist','機材リストの使い方']]) {
     await page.evaluate(hash=>location.hash=hash,hash);
     const button=page.locator(`[data-feature-help="${key}"]`);await button.waitFor({state:'visible'});
@@ -32,7 +32,7 @@ const production = base.startsWith('https:');
     assert.equal(await page.locator('#port-feature-help-title').textContent(),title);
     assert.equal(await page.locator('#port-feature-help-title').evaluate(el=>document.activeElement===el),true);
     await page.keyboard.press('Tab');assert(await dialog.evaluate(el=>el.contains(document.activeElement)));
-    const bounds=await dialog.boundingBox();assert(bounds.x>=0 && bounds.x+bounds.width<=width && bounds.y>=0 && bounds.y+bounds.height<=852);
+    const bounds=await dialog.boundingBox();assert(bounds.x>=0 && bounds.x+bounds.width<=width && bounds.y>=0 && bounds.y+bounds.height<=height);
     assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
     fs.mkdirSync('/tmp/port-feature-tutorial',{recursive:true});await page.screenshot({path:`/tmp/port-feature-tutorial/${production?'production':'local'}-${edition?'pro':'standard'}-${key}-${width}.png`});
     await page.keyboard.press('Escape');assert(await dialog.isHidden());assert(await button.evaluate(el=>document.activeElement===el));
@@ -40,11 +40,11 @@ const production = base.startsWith('https:');
     await button.click();await page.mouse.click(2,2);assert(await dialog.isHidden());
     await button.click();await page.locator('[data-feature-tutorial]').click();
     const tour=page.locator('.port-tutorial');await tour.waitFor({state:'visible'});
-    const total=key==='practice'?6:5;assert((await page.locator('.port-tutorial-progress').textContent()).includes(`1 / ${total}`));
+    const total=key==='practice'?5:4;assert((await page.locator('.port-tutorial-progress').textContent()).includes(`1 / ${total}`));
     assert(await page.locator('[data-tutorial-back]').isDisabled());
     await page.locator('[data-tutorial-next]').click();await page.locator('[data-tutorial-back]').click();assert((await page.locator('.port-tutorial-progress').textContent()).includes(`1 / ${total}`));
     for(let step=0;step<total;step++){
-     const bubbleBounds=await page.locator('.port-tutorial-bubble').boundingBox();assert(bubbleBounds.x>=0 && bubbleBounds.x+bubbleBounds.width<=width && bubbleBounds.y>=0 && bubbleBounds.y+bubbleBounds.height<=852);
+     const bubbleBounds=await page.locator('.port-tutorial-bubble').boundingBox();assert(bubbleBounds.x>=0 && bubbleBounds.x+bubbleBounds.width<=width && bubbleBounds.y>=0 && bubbleBounds.y+bubbleBounds.height<=height);
      assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
      assert(await page.locator('[data-tutorial-next]').evaluate(el=>document.activeElement===el));
      await page.keyboard.press('Tab');assert(await tour.evaluate(el=>el.contains(document.activeElement)));
@@ -78,7 +78,7 @@ const production = base.startsWith('https:');
   for(const [key,hash,cardSelector] of [['practice','#practice-menu','.practice-menu-card'],['gear','#wishlist','.gear-card']]){
    await page.evaluate(hash=>location.hash=hash,hash);const button=page.locator(`[data-feature-help="${key}"]`);
    const before=await page.evaluate(()=>JSON.stringify({...localStorage}));await button.click();await page.locator('[data-feature-tutorial]').click();
-   const total=key==='practice'?6:5;
+   const total=key==='practice'?5:4;
    for(let step=0;step<total;step++){await page.locator('[data-tutorial-next]').click();}
    await page.locator('.port-tutorial').waitFor({state:'detached'});assert.equal(await page.evaluate(()=>JSON.stringify({...localStorage})),before);assert(await page.locator(cardSelector).count()>0);
   }
@@ -87,7 +87,7 @@ const production = base.startsWith('https:');
   await page.locator('#practice-timer-stop').waitFor({state:'visible'});
   const runningBefore=await page.evaluate(()=>JSON.stringify({...localStorage}));
   await page.locator('[data-feature-help="practice"]').click();await page.locator('[data-feature-tutorial]').click();
-  for(let step=0;step<4;step++)await page.locator('[data-tutorial-next]').click();
+  for(let step=0;step<3;step++)await page.locator('[data-tutorial-next]').click();
   assert.equal(await page.locator('#port-tutorial-title').textContent(),'練習を終了');
   assert(await page.evaluate(()=>{const a=document.querySelector('#practice-timer-stop').getBoundingClientRect(),b=document.querySelector('.port-tutorial-spotlight').getBoundingClientRect();return Math.abs(a.left-b.left)<=5 && Math.abs(a.right-b.right)<=5;}));
   await page.keyboard.press('Escape');assert.equal(await page.evaluate(()=>JSON.stringify({...localStorage})),runningBefore);
@@ -99,9 +99,9 @@ const production = base.startsWith('https:');
   await page.evaluate(()=>location.hash='#practice-menu');await page.locator('[data-feature-help="practice"]').click();await page.locator('[data-feature-tutorial]').click();
   await page.waitForFunction(()=>{const r=document.getElementById('practice-menu-add').getBoundingClientRect();return r.top>=0 && r.bottom<=innerHeight && scrollY>0;});
   assert(await page.evaluate(()=>scrollY>0));await page.keyboard.press('Escape');await page.locator('.port-tutorial').waitFor({state:'detached'});
-  // A missing optional target is skipped rather than causing a broken step.
+  // A missing card still uses the safe empty-list target.
   await page.evaluate(()=>location.hash='#wishlist');await page.locator('[data-feature-help="gear"]').click();
-  await page.evaluate(()=>document.querySelector('.gear-grid-picker').hidden=true);
+  await page.evaluate(()=>document.querySelectorAll('.gear-card').forEach(el=>el.remove()));
   await page.locator('[data-feature-tutorial]').click();assert((await page.locator('.port-tutorial-progress').textContent()).includes('1 / 4'));await page.keyboard.press('Escape');await page.locator('.port-tutorial').waitFor({state:'detached'});
  }
  assert.deepEqual(errors,[]);console.log('PASS: header/help/tutorial start/next/back/final/ESC/x/end/focus/empty state/layout/storage/console; 375/393/768/1280');

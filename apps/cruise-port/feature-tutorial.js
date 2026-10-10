@@ -1,20 +1,24 @@
 export const FEATURE_TUTORIAL_STEPS = Object.freeze({
     practice: [
-        { target: '#practice-menu-add', title: '練習項目を追加', text: 'ここからメニュー名・練習時間を入力して保存します。使用アプリやメモも選べます。' },
-        { target: '#practice-set-bar', title: 'プリセットでまとめる', text: '「＋」で項目の組み合わせを作れます。選択欄から、今日使う練習リストに切り替えます。' },
-        { target: '#practice-menu-list .practice-menu-card', fallback: '.practice-list', title: '項目を確認・完了', text: '項目名から詳細・編集へ進めます。登録したアプリは「アプリへ」から開き、練習したらチェックします。項目がない場合は、先に追加してください。' },
-        { target: '.practice-timer-card', title: 'タイマーを使う', text: '「練習スタート」で開始します。同じボタンで一時停止・再開ができます。' },
-        { target: '#practice-timer-stop', fallback: '.practice-timer-card', title: '練習を終了', text: 'すべての項目にチェックが入ると練習が完了します。途中で終えるときは、タイマー開始後に画面上部へ表示される「練習終了」を押します。' },
-        { target: '#practice-history-open', title: '記録を確認', text: '音楽カレンダーで練習記録を確認できます。案内を終了してから、各ボタンを操作してください。' }
+        { target: '#practice-menu-add', title: 'まずはメニューを追加', text: 'ここから練習メニューを追加します。名前と練習時間（目安）を入力して保存します。※チュートリアル中は画面を操作できません。' },
+        { target: '#practice-timer-toggle', title: 'タイマーで計る', text: '「練習スタート」で時間を計り始めます。一時停止・再開もできます。' },
+        { target: '.practice-check', fallback: '.practice-list', title: '終わったらチェック', text: '練習したメニューは左の○でチェックします。1回の練習につき、そのメニューの通算回数が1回増えます。' },
+        { target: '#practice-timer-stop', fallback: '.practice-timer-card', title: '練習を終了', text: '途中で終えるときは、画面上部の「練習終了」を押します。表示中のすべてのメニューにチェックが入った場合は自動的に完了します。', fallbackText: '練習スタート後は、ここに「練習終了」が表示されます。途中で終えるときに使用します。表示中のすべてのメニューにチェックが入った場合も完了します。' },
+        { target: '#practice-history-open', title: '記録を見る', text: '練習の記録は、右上の音楽カレンダーから確認できます。', emptySelector: '.practice-menu-card', emptyText: '練習の記録は、右上の音楽カレンダーから確認できます。案内を終了したら、まずは練習メニューを1つ追加してみましょう。' }
     ],
     gear: [
-        { target: '.gear-list-tabs', title: 'リストを切り替える', text: '「全て」「自分の機材」「ほしい機材」で表示を切り替えます。手放した機材は「全て」の一覧にまとまります。' },
-        { target: '#gear-list-title-add', title: '機材を追加', text: 'ここから名前・リスト・カテゴリを入力して保存します。メーカー・価格・メモも必要に応じて残せます。' },
-        { target: '.gear-category-toolbar', title: 'カテゴリで整理', text: '選択欄でカテゴリを絞り込みます。「⋯」からカテゴリを追加・変更できます。' },
-        { target: '.gear-grid-picker', title: '一覧を見やすくする', text: '列数を切り替えて、一覧の見やすさを調整できます。' },
-        { target: '.gear-card', fallback: '#gear-list-content', title: '機材を確認・編集', text: 'カードを押すと編集できます。「⋯」から削除や区分変更もできます。0件の場合は、先に機材を追加してください。' }
+        { target: '#gear-list-title-add', title: '機材を追加', text: 'ここから機材を追加します。名前・カテゴリと、どのリストに入れるかを選んで保存します。※チュートリアル中は画面を操作できません。' },
+        { target: '.gear-list-tabs', title: 'リストを切り替える', text: '「自分の機材」は今持っている機材と手放した機材、「ほしい機材」はほしい機材、「全て」は全機材を表示します。' },
+        { target: '.gear-category-toolbar', title: 'カテゴリで整理', text: 'カテゴリで表示を絞り込めます。右の「⋮」からカテゴリを追加できます。' },
+        { target: '.gear-card', fallback: '#gear-list-content', title: '確認・編集', text: 'カードを押すと編集できます。「⋯」から購入・手放しなどの変更もできます。', emptySelector: '.gear-card', emptyText: 'カードを押すと編集できます。「⋯」から購入・手放しなどの変更もできます。案内を終了したら、まずは機材を1件追加してみましょう。' }
     ]
 });
+
+export function tutorialStepText(root, step, target) {
+    if (step.fallbackText && !target.matches(step.target)) return step.fallbackText;
+    if (step.emptySelector && !root.querySelector(step.emptySelector)) return step.emptyText;
+    return step.text;
+}
 
 export function findTutorialTarget(root, step) {
     const visible = (selector) => selector && [...root.querySelectorAll(selector)].find((element) => {
@@ -87,7 +91,7 @@ export function startFeatureTutorial(key, { root = globalThis.document, trigger 
         index = Math.max(0, Math.min(steps.length - 1, value));
         currentTarget = findTutorialTarget(root, steps[index]);
         if (!currentTarget) { dialog.close(); return; }
-        title.textContent = steps[index].title; text.textContent = steps[index].text;
+        title.textContent = steps[index].title; text.textContent = tutorialStepText(root, steps[index], currentTarget);
         progress.textContent = `ステップ ${index + 1} / ${steps.length}：${steps[index].title}`;
         back.disabled = index === 0; next.textContent = index === steps.length - 1 ? '完了' : '次へ';
         const rect = currentTarget.getBoundingClientRect();

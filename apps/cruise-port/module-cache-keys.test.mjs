@@ -42,8 +42,8 @@ const UNCHANGED_KEYS = Object.freeze({
   'sync-center-refresh.js': '0.65.0'
 });
 
-test('the release is 1.21.1', () => {
-  assert.equal(CRUISE_PORT_APP_VERSION, '1.21.1');
+test('the release is 1.21.2', () => {
+  assert.equal(CRUISE_PORT_APP_VERSION, '1.21.2');
 });
 
 test('both Port entries load the release practice-menu-app and the current style.css', () => {
@@ -73,7 +73,7 @@ test('every import of a module changed in this release uses the release key', ()
 
 test('the exact release edges: entry → app → UI, unchanged modules keep their keys', () => {
   const key = (importer, name) => edges.find((edge) => edge.importer === importer && edge.name === name)?.key;
-  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.21.1');
+  assert.equal(key('practice-menu-app.js', 'app-version.js'), '1.21.2');
   assert.equal(key('practice-menu-app.js', 'tuner-app.js'), '1.19.2');
   assert.equal(key('tuner-app.js', 'tuner-audio.js'), '1.12.3');
   assert.equal(key('tuner-app.js', 'tuner-preview-audio.js'), '1.12.3');
