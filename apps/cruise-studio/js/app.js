@@ -23,8 +23,40 @@
     };
     var currentScreen = 'home';
 
+    // 既存hostはwindow。ShellはworkspaceごとにMain要素を注入できる。
+    // wheel/listenerの所有は変えず、明示scrollだけをこの入口へ集約する。
+    var scrollRoots = Object.create(null);
+    function getScrollRoot(workspace) {
+        return scrollRoots[workspace] || window;
+    }
+    CS.scroll = {
+        getRoot: getScrollRoot,
+        setRoot: function (workspace, root) {
+            if (root && (typeof root.scrollTo !== 'function' || typeof root.scrollBy !== 'function')) {
+                throw new TypeError('scroll rootにはscrollTo / scrollByが必要です');
+            }
+            if (root) scrollRoots[workspace] = root;
+            else delete scrollRoots[workspace];
+        },
+        scrollToTop: function (workspace) { getScrollRoot(workspace).scrollTo(0, 0); },
+        scrollBy: function (workspace, options) { getScrollRoot(workspace).scrollBy(options); },
+        getPosition: function (workspace) {
+            var root = getScrollRoot(workspace);
+            return root === window ? { x: window.scrollX, y: window.scrollY } :
+                { x: root.scrollLeft, y: root.scrollTop };
+        },
+        restorePosition: function (workspace, position) {
+            getScrollRoot(workspace).scrollTo(position.x, position.y);
+        },
+        getViewportTop: function (workspace) {
+            var root = getScrollRoot(workspace);
+            return root === window ? 0 : root.getBoundingClientRect().top + root.clientTop;
+        }
+    };
+
     function showScreen(name) {
         if (!SCREENS[name]) return;
+        if (currentScreen === 'sheetCruise' && name !== 'sheetCruise') sheetCruise.deactivate();
         Object.keys(SCREENS).forEach(function (key) {
             var el = document.getElementById(SCREENS[key]);
             if (el) el.classList.toggle('hidden', key !== name);
@@ -32,7 +64,8 @@
         var nav = document.getElementById('app-nav');
         if (nav) nav.classList.toggle('hidden', name === 'home');
         currentScreen = name;
-        window.scrollTo(0, 0);
+        CS.scroll.scrollToTop(name);
+        if (name === 'sheetCruise') sheetCruise.activate();
     }
 
     /**
@@ -47,7 +80,8 @@
 
     function enterSheetCruise() {
         if (currentScreen !== 'sheetCruise' && !canLeaveCurrentScreen()) return;
-        sheetCruise.enter();
+        // 旧hostの画面遷移は明示reloadを維持。将来のworkspace復帰はactivateだけを使う。
+        sheetCruise.load();
         showScreen('sheetCruise');
     }
 

@@ -26,22 +26,23 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 順 | 工程 | 完了・移行条件 |
 |---|---|---|
 | 0 | baseline固定 | 次工程開始時にGit・既存表示・操作・保存データ契約を固定 |
-| 1 | Shell Contract v2.1文書化 | 本工程。最終Bレビューの追記と文書間リンクを反映 |
-| 2 | Studio-only無変化refactor | scroll / safe area / toolbar / resize / lifecycle / Esc / Pre-DTM入力境界を準備 |
-| 3 | 回帰確認 | 見た目・操作・保存形式・Safari / IME / print / MIDI既存経路を維持 |
-| 4 | Metadata / Version reader | 最小catalog、reader-first、source一致検証。mobileのversion運用は維持 |
-| 5 | PC Shell | Navigation / Main / 右pane / Dock、responsive、scroll ownership |
-| 6 | Focus / Keyboard / Modal manager | Capture / Bubble、modal優先、入力・IME保護 |
-| 7 | Structure Editing Session接続 | draft保持、Undo境界、commitId、明示command target、Pre-DTM working snapshot |
-| 8 | Metronome M1 | Standard相当BPM / Start / Stop、memory-only、音声・lease・dispose実証 |
-| 9 | Metronome M2 | 注入memory Storage、既存schema / effective設定 / 保存失敗 / stale write / conflict実証 |
-| 10 | Metronome M3 | 正式Port-owned data / presets / Pro / Account / Sync / delete intent / 2tab / mobile回帰 |
-| 11 | Chord | shared feature境界とPC presentationを追加 |
-| 12 | Practice | Port ownerと保存・同期契約を維持して追加 |
-| 13 | Tuner | mic排他・遅延request・競合音声確認・cleanupを検証 |
-| 14 | Structure機能開発再開 | F3 / F2b / G3 / F4等の残項目をShell・共有基盤整備後に再開 |
-| 15 | 五線譜 / TAB / MusicXML | domain model・安定ID・記譜・出力の設計と検証 |
-| 16 | DTM | Clock / Scheduler / Renderer、timeline / track / piano roll / recordを段階導入 |
+| 1 | Shell Contract v2.1文書化 | 完了・push済み。最終Bレビューの追記と文書間リンクを反映 |
+| 2 | Studio-only無変化refactor 第1段階 | 完了。scroll / safe area / toolbar / resize / lifecycle / Esc / Pre-DTM入力境界を準備 |
+| 3 | 第1段階の回帰確認 | 完了。Chrome変更前後比較・ユーザー実機確認で表示・操作・保存形式・Safari / IME / print / MIDIを維持 |
+| 4 | Version / Feature metadata | 次工程。最小catalog、reader-first、source一致検証。mobileのversion運用は維持 |
+| 5 | Cruise Port Theme / Design Token調査 | Portの既存実装を読み取り専用監査し、共有するsemantic tokenとテーマ非依存領域を整理 |
+| 6 | Studio Shell | Navigation / Main / 右pane / Dock、responsive、scroll ownership |
+| 7 | Focus / Keyboard / Modal manager | Capture / Bubble、modal優先、入力・IME保護 |
+| 8 | Structure Editing Session接続 | draft保持、Undo境界、commitId、明示command target、Pre-DTM working snapshot |
+| 9 | Metronome M1 | Standard相当BPM / Start / Stop、memory-only、音声・lease・dispose実証 |
+| 10 | Metronome M2 | 注入memory Storage、既存schema / effective設定 / 保存失敗 / stale write / conflict実証 |
+| 11 | Metronome M3 | 正式Port-owned data / presets / Pro / Account / Sync / delete intent / 2tab / mobile回帰 |
+| 12 | Chord | shared feature境界とPC presentationを追加 |
+| 13 | Practice | Port ownerと保存・同期契約を維持して追加 |
+| 14 | Tuner | mic排他・遅延request・競合音声確認・cleanupを検証 |
+| 15 | Structure機能開発再開 | F3 / F2b / G3 / F4等の残項目をShell・共有基盤整備後に再開 |
+| 16 | 五線譜 / TAB / MusicXML | domain model・安定ID・記譜・出力の設計と検証 |
+| 17 | DTM | Clock / Scheduler / Renderer、timeline / track / piano roll / recordを段階導入 |
 
 M1は実storage・Pro認証・Account・Sync・presetsに接続せず、製品統合完了とは扱わない。
 M2は隔離したmemory Storage facadeだけを使い、Studio専用localStorage keyを作らない。
@@ -50,13 +51,34 @@ full dataset、全writer協調、delete intent、正式資格失効、mobile lif
 確認する。全writerが協調できない場合、Studioの共有書込を有効化しない。
 詳細は[契約22〜24節](docs/SHELL_CONTRACT.md#22-metronome-m1-standard相当memory-only)を参照。
 
-## 次工程: Studio-only無変化refactor（未着手）
+## Studio-only無変化refactor 第1段階（完了・2026-10-11）
 
-scroll root abstraction、Loupe safe-area provider、Structure専用toolbar参照、ResizeObserver、
-activate / load分離、Esc gate、Pre-DTM working snapshot入力境界を準備する。
-既存hostでは見た目・データ・保存形式・操作を維持する。新しいworkspace切替やPre-DTM入力の
-動作はEditing Session接続工程で有効化し、準備だけで統合完了と報告しない。
-今回の文書更新ではコードを変更せず、APP_VERSION / schemaVersion / asset ?v=も変更しない。
+scroll root abstraction（defaultはwindow）、Loupe safe-area provider、Structure専用toolbar参照、
+ResizeObserver（hidden / 0幅で保存値を変更しない）、load / activate / deactivate分離、
+enter互換、Escape gate、Pre-DTM project source providerを実装済み。
+activateは保存projectを再読込せず、draft / selection / focus / scrollを保持可能な境界とした。
+既存hostの入口とPre-DTMの保存済みproject読込は維持し、working snapshot実接続は未実装。
+
+Chrome隔離環境で1440 / 1280 / 1024 / 800 / 680pxの変更前後を比較し、表示・操作・
+Loupe復元 / clamp / dynamic max-height、IME guard、8→16→8、mixed resolution、auto/fixed、
+鍵4状態、JSON / MIDI / print、console / 404を確認済み。Project JSON 7,946 bytes、伴奏JSON
+25,599 bytes、MIDI 813 bytesはSHA-256一致。イベント数Guitar 19 / Bass 32 / Drums 48も一致。
+印刷ラスタは完全一致し、Loupe非表示を維持した。
+ユーザー実機でもStructure / Loupe / Safari既存保護 / IMEを含む基本入力 / 8分・16分 /
+drag / resize / clamp / UI表示に問題なしと確認され、ユーザー-visible差なしの内部refactorとして承認済み。
+APP_VERSION 0.22.4、schemaVersion 1、asset ?v=、project JSON / localStorage / appSettings、
+Loupe保存形式 `{x,y,width}` は不変。Port / 他apps / shared / Account / Sync / Worker / Proは不触。
+Shell / Editing Session / working snapshotの製品統合完了とは扱わない。
+
+## 次工程とテーマ方針
+
+次はVersion / Feature metadata、その次はCruise Port Theme / Design Token調査、続いてStudio Shell。
+F3等Structure本体機能は共有基盤・Shell整備後に再開する。
+
+Cruise Studioの色・ブランドテーマはPortのテーマ体系と共通化する方向。予定テーマは
+Dark / Light / Gray / Charcoal。semantic Design Tokenを共有し、色値のStudio側手書き二重管理を避ける。
+PC UI構造はStudio向けに最適化し、Structure譜の紙面等のテーマ非依存領域は分離する。
+正式実装前にPortの既存Theme / Token実装を読み取り専用監査する。今回テーマCSS / UIは変更しない。
 
 ## 既存フェーズの履歴と残項目
 

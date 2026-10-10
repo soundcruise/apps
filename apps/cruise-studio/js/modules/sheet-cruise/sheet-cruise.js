@@ -61,6 +61,10 @@
         dirty: false,    // 未保存の変更があるか（TOP復帰時の中断確認に使う）
         selectedBarNumber: null,
         overlayFrame: null,
+        overlayRefreshRequested: false,
+        active: false,
+        workspaceScroll: null,
+        workspaceFocus: null,
         overlayComposingRowId: null,
         overlayBulkComposing: false,
         overlayBulkMessage: null,
@@ -80,10 +84,15 @@
     };
 
     var els = {};
+    var resizeObserver = null;
+    var loupeSafeAreaProvider = null;
 
     function q(id) { return document.getElementById(id); }
 
     function resolveElements() {
+        els.root = q('screen-sheet-cruise');
+        els.toolbar = els.root && els.root.querySelector('.sheet-toolbar');
+        els.nav = q('app-nav');
         els.editorDrawer = q('sc-editor-drawer');
         els.barGridDrawer = q('sc-bar-grid-drawer');
         els.projectSelect = q('sc-project-select');
@@ -193,6 +202,8 @@
 
     function setProject(project, options) {
         state.project = project;
+        state.workspaceScroll = null;
+        state.workspaceFocus = null;
         state.dirty = !!(options && options.dirty);
         state.selectedBarNumber = null;
         CS().storage.setCurrentProjectId(project.projectId);
@@ -1803,10 +1814,16 @@
         var dockRect = els.slotOverlay.getBoundingClientRect();
         var cellRect = cell.getBoundingClientRect();
         var margin = 16;
+        var scroll = CS().scroll;
+        var viewportTop = scroll ? scroll.getViewportTop('sheetCruise') : 0;
+        var scrollBy = function (options) {
+            if (scroll) scroll.scrollBy('sheetCruise', options);
+            else window.scrollBy(options);
+        };
         if (cellRect.bottom > dockRect.top - margin) {
-            window.scrollBy({ top: cellRect.bottom - (dockRect.top - margin), behavior: 'smooth' });
-        } else if (cellRect.top < 0) {
-            window.scrollBy({ top: cellRect.top - margin, behavior: 'smooth' });
+            scrollBy({ top: cellRect.bottom - (dockRect.top - margin), behavior: 'smooth' });
+        } else if (cellRect.top < viewportTop) {
+            scrollBy({ top: cellRect.top - viewportTop - margin, behavior: 'smooth' });
         }
     }
 
@@ -1830,7 +1847,7 @@
        cruiseStudio.appSettings の barLoupe キーへ保存する（storage.getAppSetting/setAppSetting）。 */
 
     function isNarrowViewport() {
-        return window.innerWidth < LOUPE_NARROW_BREAKPOINT;
+        return getLoupeSafeArea().width < LOUPE_NARROW_BREAKPOINT;
     }
 
     /**
@@ -1838,7 +1855,7 @@
      * （PCファースト。モバイル最適化は大規模には行わない）。
      */
     function clampLoupeWidth(width) {
-        var vw = window.innerWidth;
+        var vw = getLoupeSafeArea().width;
         if (isNarrowViewport()) {
             return Math.max(280, vw - LOUPE_NARROW_MARGIN);
         }
@@ -1853,7 +1870,7 @@
      * 完全に画面外へ出ることだけを防ぐ（タイトルバーの端を掴んで引き戻せる状態を保つ）。
      */
     function clampLoupeX(x, width) {
-        var vw = window.innerWidth;
+        var vw = getLoupeSafeArea().width;
         var minX = LOUPE_SIDE_VISIBLE - width;
         var maxX = vw - LOUPE_SIDE_VISIBLE;
         if (minX > maxX) return Math.round((vw - width) / 2);
@@ -1876,10 +1893,10 @@
      * （display:none等）の要素はheightが0になるため自動的に候補から外れ、
      * 既存のLOUPE_TOP_MARGINへフォールバックする。
      */
-    function getLoupeMinTop() {
+    function readDefaultLoupeSafeArea() {
         var candidates = [LOUPE_TOP_MARGIN];
 
-        var nav = document.getElementById('app-nav');
+        var nav = els.nav;
         if (nav) {
             var navRect = nav.getBoundingClientRect();
             if (navRect.height > 0) {
@@ -1887,7 +1904,7 @@
             }
         }
 
-        var toolbar = document.querySelector('.sheet-toolbar');
+        var toolbar = els.toolbar;
         if (toolbar) {
             var toolbarRect = toolbar.getBoundingClientRect();
             if (toolbarRect.height > 0) {
@@ -1898,7 +1915,31 @@
             }
         }
 
-        return Math.max.apply(null, candidates);
+        return {
+            width: window.innerWidth,
+            height: window.innerHeight,
+            top: Math.max.apply(null, candidates),
+            bottom: window.innerHeight,
+            bottomMargin: LOUPE_BOTTOM_MARGIN
+        };
+    }
+
+    // viewport座標のまま、将来Header / Dockの境界だけを注入する。
+    // providerはwidth / height / top / bottom / bottomMarginを返す。
+    function getLoupeSafeArea() {
+        return loupeSafeAreaProvider ? loupeSafeAreaProvider() : readDefaultLoupeSafeArea();
+    }
+
+    function setLoupeSafeAreaProvider(provider) {
+        if (provider !== null && typeof provider !== 'function') {
+            throw new TypeError('Loupe safe-area providerには関数またはnullが必要です');
+        }
+        loupeSafeAreaProvider = provider;
+        scheduleOverlayPosition(false);
+    }
+
+    function getLoupeMinTop() {
+        return getLoupeSafeArea().top;
     }
 
     /**
@@ -1906,9 +1947,9 @@
      * 下端はタイトルバー（閉じるボタン含む）が必ず画面内に残る位置までに制限する。
      */
     function clampLoupeY(y) {
-        var vh = window.innerHeight;
+        var bottom = getLoupeSafeArea().bottom;
         var minY = getLoupeMinTop();
-        var maxY = Math.max(minY, vh - LOUPE_HEADER_RESERVE);
+        var maxY = Math.max(minY, bottom - LOUPE_HEADER_RESERVE);
         var v = (typeof y === 'number' && isFinite(y)) ? y : minY;
         return Math.round(Math.max(minY, Math.min(maxY, v)));
     }
@@ -1945,8 +1986,9 @@
             x = clampLoupeX(saved.x, width);
             y = clampLoupeY(saved.y);
         } else {
-            x = clampLoupeX((window.innerWidth - width) / 2, width);
-            y = clampLoupeY(window.innerHeight * 0.52);
+            var safeArea = getLoupeSafeArea();
+            x = clampLoupeX((safeArea.width - width) / 2, width);
+            y = clampLoupeY(safeArea.height * 0.52);
         }
         state.loupe = { x: x, y: y, width: width };
     }
@@ -1977,9 +2019,10 @@
         // 都度設定し、CSSのmax-heightより優先させる（CSS側はJS無効時のフォールバック
         // として残す）。最低LOUPE_MIN_AVAILABLE_HEIGHTは確保し、極端に低いviewportでも
         // ヘッダー・拍ルーラー等の主要操作部には触れられるようにする。
+        var safeArea = getLoupeSafeArea();
         var availableHeight = Math.max(
             LOUPE_MIN_AVAILABLE_HEIGHT,
-            window.innerHeight - state.loupe.y - LOUPE_BOTTOM_MARGIN
+            safeArea.bottom - state.loupe.y - safeArea.bottomMargin
         );
         els.slotOverlay.style.maxHeight = availableHeight + 'px';
         els.slotOverlay.style.setProperty('--bar-loupe-scale', String(state.loupe.width / LOUPE_BASE_WIDTH));
@@ -2332,7 +2375,7 @@
      * ルーペ自体はフォーカストラップを持たない非モーダルなツールパレットとして扱う。
      */
     function onDocumentKeydownForLoupe(event) {
-        if (event.key !== 'Escape' || event.isComposing) return;
+        if (event.defaultPrevented || !isWorkspaceVisible() || event.key !== 'Escape' || event.isComposing) return;
         if (state.dockBulkOpen) {
             state.dockBulkOpen = false;
             renderSlotOverlayContent();
@@ -2533,13 +2576,49 @@
         }
     }
 
-    function scheduleOverlayPosition() {
-        if (state.overlayFrame) window.cancelAnimationFrame(state.overlayFrame);
+    function isWorkspaceVisible() {
+        return state.active && els.root && !els.root.classList.contains('hidden') &&
+            els.preview && els.preview.clientWidth > 0;
+    }
+
+    function scheduleOverlayPosition(refreshSelection) {
+        // 既存のrender/resize経路は再描画を維持。observer/activateは入力DOMを保持する。
+        if (refreshSelection !== false) state.overlayRefreshRequested = true;
+        if (state.overlayFrame) return;
         state.overlayFrame = window.requestAnimationFrame(function () {
             state.overlayFrame = null;
+            var refresh = state.overlayRefreshRequested;
+            state.overlayRefreshRequested = false;
+            if (!isWorkspaceVisible()) return;
             updateSheetScale();
-            syncSheetSelection();
+            if (refresh) syncSheetSelection();
+            else positionSlotOverlay();
             reclampLoupeOnResize(); // F1: ウィンドウサイズ変更のたびにルーペの位置・幅も再クランプする
+        });
+    }
+
+    function observeWorkspaceSize() {
+        if (!window.ResizeObserver) return; // 従来のwindow resize経路は常に残す
+        var sizes = new WeakMap();
+        resizeObserver = new ResizeObserver(function (entries) {
+            if (!isWorkspaceVisible() || window.matchMedia('print').matches) return;
+            var changed = false;
+            entries.forEach(function (entry) {
+                var width = entry.contentRect.width;
+                var height = entry.contentRect.height;
+                if (width <= 0 || height <= 0) return;
+                // preview高さはupdateSheetScale自身が書くため幅だけを監視する。
+                if (entry.target === els.preview) height = 0;
+                var previous = sizes.get(entry.target);
+                if (!previous || previous.width !== width || previous.height !== height) {
+                    sizes.set(entry.target, { width: width, height: height });
+                    changed = true;
+                }
+            });
+            if (changed) scheduleOverlayPosition(false);
+        });
+        [els.root, els.preview, els.toolbar].forEach(function (el) {
+            if (el) resizeObserver.observe(el);
         });
     }
 
@@ -2680,8 +2759,12 @@
      * currentProjectId → 最新の保存済みプロジェクト → 新規作成 の順で開く
      * （TOPのサンプル作成直後などに別の新規が開かないようにする）。
      */
-    function enter() {
+    function load(projectId) {
         var storage = CS().storage;
+        if (projectId) {
+            openProject(projectId);
+            return;
+        }
         var currentId = storage.getCurrentProjectId();
         if (currentId) {
             var res = storage.loadProject(currentId);
@@ -2699,6 +2782,35 @@
             }
         }
         setProject(CS().model.createEmptyProject(), { dirty: true, statusMessage: '新規プロジェクトを作成しました（未保存）' });
+    }
+
+    // 表示の切替はhostが担当。activateはstorageを読まず、保持したdraftのgeometryを復帰する。
+    function activate() {
+        state.active = true;
+        if (state.workspaceScroll && CS().scroll) {
+            CS().scroll.restorePosition('sheetCruise', state.workspaceScroll);
+        }
+        if (state.workspaceFocus && state.workspaceFocus.isConnected && isWorkspaceVisible()) {
+            state.workspaceFocus.focus({ preventScroll: true });
+        }
+        scheduleOverlayPosition(false);
+    }
+
+    function deactivate() {
+        if (!state.active) return;
+        state.workspaceScroll = CS().scroll ? CS().scroll.getPosition('sheetCruise') : null;
+        var focused = document.activeElement;
+        state.workspaceFocus = els.root && els.root.contains(focused) ? focused : null;
+        state.active = false;
+        if (state.overlayFrame) window.cancelAnimationFrame(state.overlayFrame);
+        state.overlayFrame = null;
+        state.overlayRefreshRequested = false;
+    }
+
+    // 公開API互換: enterは旧hostの明示reload入口。Shellの復帰にはactivateを使う。
+    function enter() {
+        load();
+        activate();
     }
 
     /**
@@ -2754,6 +2866,7 @@
 
         // ペイン幅の変化に合わせてA4紙面のスケールを追従させる
         window.addEventListener('resize', scheduleOverlayPosition);
+        observeWorkspaceSize();
         els.preview.addEventListener('click', onPreviewClick);
         els.preview.addEventListener('keydown', onPreviewKeydown);
 
@@ -2780,6 +2893,10 @@
     window.CruiseStudio.sheetCruise = {
         init: init,
         enter: enter,
+        load: load,
+        activate: activate,
+        deactivate: deactivate,
+        setLoupeSafeAreaProvider: setLoupeSafeAreaProvider,
         canLeave: canLeave
     };
 })();

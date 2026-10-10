@@ -12,9 +12,35 @@
 - commit / push はユーザーの明示指示がある時だけ行う。
 - `git add .` は禁止。stageする場合は対象ファイルを個別に明示する。
 
-## 1. 現在の最新状態（2026-10-10）
+## 1. 現在の最新状態（2026-10-11）
 
-### PC統合設計の現在地
+### Studio-only無変化refactor 第1段階の完了記録
+
+- 記録時点はcommit前。本記録と実装済みJS 3ファイルを限定commitする工程。refactorのpushは未実施。
+- Shell Contract v2.1は文書commit `f2c5ffb19848f2d687140824fff2f6363e3631c7` としてpush済み。
+- 第1段階の実装・Chrome変更前後回帰・ユーザー実機確認が完了し、ユーザー-visible差なしとして承認済み。
+- 実装: scroll root abstraction（default window）、Loupe safe-area provider、Structure専用toolbar、
+  ResizeObserver（hidden / 0幅で保存値保護）、load / activate / deactivate分離、enter互換、Escape gate、
+  Pre-DTM project source provider準備。activateは保存projectを再読込せず、draft / selection / focus / scrollを保持可能。
+- 既存画面遷移の読込結果は維持。Pre-DTMのdefaultは保存済みprojectで、Structure working snapshot実接続は未実装。
+  Shell / Editing Session / 共有Metronomeも未実装。
+- Chrome隔離環境の代表幅1440 / 1280 / 1024 / 800 / 680pxでTOP / Structure / A4 / Loupe、drag / resize /
+  復元 / clamp / dynamic max-height、IME guard、8→16→8 / mixed / auto・fixed / 鍵4状態、JSON / MIDI /
+  printを比較済み。重大consoleエラー・404なし。
+- Project JSON 7,946 bytes、伴奏JSON 25,599 bytes、MIDI 813 bytesは変更前後SHA-256一致。
+  Pre-DTMイベント数Guitar 19 / Bass 32 / Drums 48も一致。印刷ラスタ完全一致、Loupe非表示を維持。
+- ユーザー実機確認済み: Structure表示、Loupe、Safari既存保護、IMEを含む基本入力、8分 / 16分、
+  drag / resize / clamp / UI表示。問題なしとの判断を受領（Codex自身によるSafari実機検証ではない）。
+- APP_VERSION 0.22.4、schemaVersion 1、asset ?v=は維持。project JSON形式・localStorage / appSettingsの
+  キーと保存意味・Loupe保存形式 `{x,y,width}` は変更なし。Port / 他apps / shared / Account / Sync / Worker / Proは不触。
+- 次の正式ステップはVersion / Feature metadata。その次はCruise Port Theme / Design Token調査、続いてStudio Shell。
+  テーマの将来方針は[ROADMAP](../ROADMAP.md#次工程とテーマ方針)を参照。今回はテーマCSS / UIを変更しない。
+- 本工程開始時実測: HEAD = ローカルorigin/main = `f2c5ffb19848f2d687140824fff2f6363e3631c7`、
+  branch `main...origin/main`、tracked差分はStudioのJS 3ファイルだけ、staged空。
+  既存untrackedは `.claude/` と `workers/sound-cruise-sync/node_modules/`。不触。fetchなし。
+  次工程開始時にはGit状態を再測定する。
+
+### PC統合設計の経緯（v2.1文書化時の履歴）
 
 - PC実画面UI監査完了。
 - Shell v1設計完了。
@@ -26,7 +52,7 @@
 - 次はStudio-only無変化refactor。本工程はdocsだけで、Shell / Editing Session / 共有Metronomeは未実装。
 - v2.1文書化を、両レビューアによる再承認や実装試験合格として扱わない。
 
-### 実測Git baseline（本ドキュメント更新の開始時）
+### 実測Git baseline（v2.1文書化開始時の履歴）
 
 - 正式repo: `/Users/murakamimasakuni/Desktop/2.AI_Work/Cruise_apps/`
 - HEAD / ローカルorigin/main: `c3dcb4364521f625d8759d6f32e27717f265badf`
@@ -46,9 +72,9 @@ Cruise Studioは未リリースで大規模変更可能。一方、リリース�
 Cruise Sync / Accountの既存動作・保存データ・認可は破壊禁止。共有化に必要な既存側変更は別工程で対象と
 回帰条件を明示する。並行セッションの未commit差分・untrackedは勝手に変更・stageしない。
 
-旧repo / migration bundleは読み取りも禁止。本工程の変更対象はROADMAP、本ファイル、
-新規docs/SHELL_CONTRACT.mdの三つだけ。コード、CSS、HTML、JS、Worker、Sync、Account、保存データの変更、
-stage / commit / push / fetch / deployは行わない。
+旧repo / migration bundleは読み取りも禁止。v2.1文書化工程の変更対象はROADMAP、本ファイル、
+新規docs/SHELL_CONTRACT.mdの三つだけだった。今回の工程は実装済みStudio JS 3ファイルと
+ROADMAP / 本ファイルの限定commitまで。SHELL_CONTRACT / テーマCSS / UI / 他appsは変更せず、pushは行わない。
 
 ## 2. クルーズスタジオの目的
 

@@ -19,6 +19,30 @@
     };
 
     var els = {};
+    var projectSourceProvider = null;
+
+    // 同期provider(projectId) -> {ok, project, error}。既存hostは保存済みprojectを読む。
+    // 将来のworking snapshotも複製して固定し、発行元draftとmutable objectを共有しない。
+    function freezeSnapshot(value) {
+        if (value && typeof value === 'object') {
+            Object.keys(value).forEach(function (key) { freezeSnapshot(value[key]); });
+            Object.freeze(value);
+        }
+        return value;
+    }
+
+    function readProjectSource(projectId) {
+        var res = projectSourceProvider ? projectSourceProvider(projectId) : CS().storage.loadProject(projectId);
+        if (!res.ok) return res;
+        return { ok: true, project: freezeSnapshot(JSON.parse(JSON.stringify(res.project))) };
+    }
+
+    function setProjectSourceProvider(provider) {
+        if (provider !== null && typeof provider !== 'function') {
+            throw new TypeError('project source providerには関数またはnullが必要です');
+        }
+        projectSourceProvider = provider; // 次の明示読込で使用。現在のsnapshotは交換しない。
+    }
 
     function q(id) { return document.getElementById(id); }
 
@@ -135,7 +159,7 @@
 
     function loadAndRender(projectId) {
         var storage = CS().storage;
-        var res = storage.loadProject(projectId);
+        var res = readProjectSource(projectId);
         if (!res.ok) {
             setStatus(res.error, true);
             return false;
@@ -472,6 +496,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.preDtm = {
         init: init,
-        enter: enter
+        enter: enter,
+        setProjectSourceProvider: setProjectSourceProvider
     };
 })();
