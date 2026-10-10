@@ -4,7 +4,7 @@ import {optOut} from './policy.js';
 import {calendarDate} from './legacy-listing.js';
 import {explicitProductAction,validatedProductEvent} from './product-event.js';
 import {productSubject,enrichHeadlineFacts,validHeadlineEvidence} from './headline-evidence.js';
-export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-5';
+export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-6';
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','header','footer','template','noscript','aside'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -20,6 +20,7 @@ const nameOK=s=>asciiName(s)||typeof s==='string'&&s.length<=100&&/^([A-Za-z0-9]
 const modelOK=s=>nameOK(s)&&s.length<=100&&(/限定カラー/.test(s)||/\d/.test(s)||/\b[A-Z]{2,}\b/.test(s)||/^[A-Z][a-z]+(?:[A-Z][a-z]+)+$|^[A-Z][a-z]+(?: [A-Z][a-z]+){1,5}$/.test(s));
 const denied=/再入荷|入荷情報|再入荷予定|在庫|セール|特価|値下げ|クーポン|キャンペーン|中古|比較|レビュー|使い方|紹介します|旧製品|発売済み|以前|かつて|過去|他社|例えば|発売しない|発売していません|登場しない|登場していません|ではない|かもしれ|予定|\b(?:restock|sale|review|comparison|previous|not|might)\b/i;
 const types=[
+ ['signal_buffer','amps_effects','effector',/バッファ[ーァ]|\bsignal buffer\b/i],
  ['effect_pedal','amps_effects','effector',/エフェクター|ペダル|ファズ|\b(?:effects? pedal|overdrive|distortion pedal)\b/i],
  ['guitar_amp','amps_effects','amplifier',/ギターアンプ|ギタ(?:ー|リスト)[^。]{0,400}アンプ|アンプ[^。]{0,400}ギタ(?:ー|リスト)|\bguitar amplifier\b/i],
  ['acoustic_guitar','acoustic_guitar','acoustic-guitar',/アコースティックギター|\bacoustic guitar\b/i],
@@ -75,12 +76,17 @@ export function parseIkebeProductEvidence(html,source,row){
   if(models.length>1){const common=[];for(const [i,t] of models[0].split(' ').entries()){if(!models.every(m=>m.split(' ')[i]===t))break;common.push(t);}const family=models[0].match(/^([A-Za-z]{2,}-?)\d/)?.[1];if(!common.some(t=>t.length>=3&&!/^(?:Silver|Limited|Edition|New|Special|Model)$/i.test(t))&&!(family&&models.every(m=>m.startsWith(family)&&/^\d/.test(m.slice(family.length)))))throw Error('facts_identity_changed');}
   const paras=body.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(Boolean);
   const primary=paras.slice(0,4).join(' ');
-  const typeMatches=types.filter(([t, ,tag,re])=>(find(header,n=>n.name==='li'&&cls(n,'cate-'+tag)).length||tag==='recording-pa'&&find(header,n=>n.name==='li'&&cls(n,'cate-dtm')).length||tag==='effector'&&find(header,n=>n.name==='li'&&cls(n,'cate-bass')).length&&/歪みペダル/.test(title))&&(re.test(title+' '+primary)||t==='electric_guitar'&&find(header,n=>n.name==='li'&&cls(n,'cate-'+tag)).some(n=>/エレキギター/.test(plain(n)))&&blocks.every((b,i)=>modelBound(b,models[i])&&!denied.test(b))));
+  let typeMatches=types.filter(([t, ,tag,re])=>(find(header,n=>n.name==='li'&&cls(n,'cate-'+tag)).length||tag==='recording-pa'&&find(header,n=>n.name==='li'&&cls(n,'cate-dtm')).length||tag==='effector'&&find(header,n=>n.name==='li'&&cls(n,'cate-bass')).length&&/歪みペダル/.test(title))&&(re.test(title+' '+primary)||t==='electric_guitar'&&find(header,n=>n.name==='li'&&cls(n,'cate-'+tag)).some(n=>/エレキギター/.test(plain(n)))&&blocks.every((b,i)=>modelBound(b,models[i])&&!denied.test(b))));
+  // An explicitly named buffer is not an amplifier/pedal merely because its
+  // signal chain mentions an amp or pedalboard. Require model-bound proof.
+  if(typeMatches.some(([t])=>t==='signal_buffer')&&types[0][3].test(title)&&blocks.every((b,i)=>b.split(/[。!?！？]/).some(v=>modelBound(v,models[i])&&types[0][3].test(v)&&!denied.test(v))))typeMatches=typeMatches.filter(([t])=>!['guitar_amp','effect_pedal'].includes(t));
   if(typeMatches.length!==1)throw Error('facts_scope_uncertain');
   // Launches require a product-bound editorial title and corroborating article fields.
   // Facts-only extraction may retain 'other'; publication still rejects missing events.
-  const titleDescription=title.replace(/が(?:新)?登場[！!。]*$/,'').replace(/[！!。]$/,'').trim();
-  const uniqueSubject=heads.length===1&&titleDescription.length>=30&&paras[0]?.replace(/[！!。]$/,'').trim()===titleDescription&&blocks.every((b,i)=>modelBound(b,models[i])&&!denied.test(b));
+  const titleDescription=title.replace(/(?:が)?(?:新)?登場[！!。]*$/,'').replace(/[！!。]$/,'').trim();
+  const descriptiveLead=paras.slice(0,2).join(' ').replace(/[！!。]$/,'').replace(/\s/g,'');
+  const manufacturerLead=paras.slice(0,2).some(p=>p.replace(/\s/g,'').length>=24&&p.includes(brand)&&typeMatches[0][3].test(p)&&titleDescription.replace(/\s/g,'').includes(p.replace(/[！!。]$/,'').replace(/\s/g,'')));
+  const uniqueSubject=heads.length===1&&titleDescription.length>=30&&(paras[0]?.replace(/[！!。]$/,'').trim()===titleDescription||title.includes(brand)&&descriptiveLead===titleDescription.replace(/\s/g,'')||manufacturerLead)&&blocks.every((b,i)=>modelBound(b,models[i])&&!denied.test(b));
   const linked=uniqueSubject||title.includes(brand)||models.every(m=>m.split(/\s+/).some(t=>t.length>=3&&!/^(?:Silver|Limited|Edition|POWER|Pro|New)$/i.test(t)&&title.includes(t)));
   if(!linked)throw Error('facts_scope_uncertain');
   const titleSubject=models.every(m=>m.split(/[^A-Za-z0-9-]+/).filter(t=>t.length>=4&&!/^(?:master|limited|edition|model|special)$/i.test(t)).filter(t=>title.toLowerCase().includes(t.toLowerCase())).length>=2)||models.every(m=>title.toLowerCase().includes(m.toLowerCase()));
