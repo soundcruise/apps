@@ -11,8 +11,8 @@
 /* The calendar is an icon-only action on the title row, including narrow screens. */
 #practice-list-view .practice-heading-row { flex-wrap: nowrap; }
 #practice-list-view .practice-heading-row > div:first-child { flex: 1 1 auto; }
-#practice-list-view #practice-history-open { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; }
-#practice-list-view #practice-history-open svg { width: 20px; height: 20px; }
+#practice-list-view #practice-history-open { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 1px solid rgba(var(--port-accent-rgb), 0.35); border-radius: 8px; background: transparent; }
+#practice-list-view #practice-history-open svg { width: 20px; height: 20px; stroke-width: 1.6; }
 @media (max-width: 440px) { #practice-list-view .practice-heading-row #practice-heading { font-size: min(calc(1.65rem * var(--font-scale)), 1.65rem); } }
 .port-feature-help-subtitle { margin: 16px 0 6px; color: var(--port-text); font-size: .9rem; }
 .port-feature-help-dialog ol { margin: 0; padding-left: 1.4em; color: var(--port-text); font-size: .84rem; line-height: 1.7; }

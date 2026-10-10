@@ -1,4 +1,4 @@
-import { startFeatureTutorial } from './feature-tutorial.js?v=1.21.0';
+import { startFeatureTutorial } from './feature-tutorial.js?v=1.21.1';
 
 export const FEATURE_HELP = Object.freeze({
     practice: {
@@ -9,7 +9,7 @@ export const FEATURE_HELP = Object.freeze({
             '「練習スタート」でタイマーを開始します。一時停止・再開もできます。',
             '一覧の項目名から詳細を確認します。使用アプリがある項目は「アプリへ」から開けます。',
             '練習した項目にチェックを入れると、通算回数が増えます。',
-            '「ここで練習終了」でタイマーを止め、チェックを解除します。記録は音楽カレンダーで確認できます。'
+            'すべての練習項目にチェックを入れると練習が完了します。途中で終える場合は、タイマー開始後に画面上部へ表示される「練習終了」を押します。記録は音楽カレンダーで確認できます。'
         ],
         note: '詳細画面から編集できます。「並び替え」は項目が2件以上あるときに表示されます。プリセット横の「＋」で練習リストの組み合わせを作れます。'
     },

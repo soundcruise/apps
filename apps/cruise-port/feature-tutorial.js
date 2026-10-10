@@ -4,7 +4,7 @@ export const FEATURE_TUTORIAL_STEPS = Object.freeze({
         { target: '#practice-set-bar', title: 'プリセットでまとめる', text: '「＋」で項目の組み合わせを作れます。選択欄から、今日使う練習リストに切り替えます。' },
         { target: '#practice-menu-list .practice-menu-card', fallback: '.practice-list', title: '項目を確認・完了', text: '項目名から詳細・編集へ進めます。登録したアプリは「アプリへ」から開き、練習したらチェックします。項目がない場合は、先に追加してください。' },
         { target: '.practice-timer-card', title: 'タイマーを使う', text: '「練習スタート」で開始します。同じボタンで一時停止・再開ができます。' },
-        { target: '#practice-finish', title: '練習を終了', text: '「ここで練習終了」でタイマーを止め、チェックを解除します。完了チェックで増えた通算回数は残ります。' },
+        { target: '#practice-timer-stop', fallback: '.practice-timer-card', title: '練習を終了', text: 'すべての項目にチェックが入ると練習が完了します。途中で終えるときは、タイマー開始後に画面上部へ表示される「練習終了」を押します。' },
         { target: '#practice-history-open', title: '記録を確認', text: '音楽カレンダーで練習記録を確認できます。案内を終了してから、各ボタンを操作してください。' }
     ],
     gear: [

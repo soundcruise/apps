@@ -28,3 +28,18 @@ test('help explains real controls and does not offer nonexistent count/URL input
 test('tutorial engine has no storage, authentication, transfer, or navigation mutations',()=>{
  const js=readFileSync(new URL('feature-tutorial.js',import.meta.url),'utf8');assert.doesNotMatch(js,/localStorage|indexedDB|fetch\(|innerHTML|location\s*\.|\.click\(/);assert.match(js,/scrollIntoView/);assert.match(js,/hashchange/);assert.match(js,/trigger\.focus/);
 });
+
+test('calendar reuses home SVG and preserves a bordered 44px control in both editions',()=>{
+ for(const file of ['index.html','pro_9a3943176561/index.html']){
+ const html=readFileSync(new URL(file,import.meta.url),'utf8');
+ const icon=id=>html.match(new RegExp('<button id="'+id+'"[\\s\\S]*?(<svg[\\s\\S]*?</svg>)'))[1];
+ assert.equal(icon('practice-history-open'),icon('home-calendar-button'));
+ }
+ const css=readFileSync(new URL('feature-help.css',import.meta.url),'utf8');
+ assert.match(css,/#practice-history-open[^}]*width: 44px[^}]*border: 1px solid[^}]*border-radius: 8px/);
+});
+test('help and tutorial teach all-check completion and the upper manual finish',()=>{
+ const copy=FEATURE_HELP.practice.steps[4];assert.match(copy,/すべて.*チェック.*完了/);assert.match(copy,/画面上部.*練習終了/);assert.doesNotMatch(copy,/ここで練習終了/);
+ const step=FEATURE_TUTORIAL_STEPS.practice[4];assert.equal(step.target,'#practice-timer-stop');assert.equal(step.fallback,'.practice-timer-card');assert.match(step.text,/すべて.*チェック.*完了/);assert.match(step.text,/タイマー開始後.*画面上部/);
+ assert(!FEATURE_TUTORIAL_STEPS.practice.some(step=>step.target==='#practice-finish'));
+});

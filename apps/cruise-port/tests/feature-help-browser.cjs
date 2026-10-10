@@ -16,9 +16,9 @@ const production = base.startsWith('https:');
   if (edition) {
    // Synthetic gate state in the isolated local context only.
    await page.evaluate(() => { document.querySelector('#pro-gate-overlay')?.remove(); document.body.classList.remove('pro-gate-active'); document.querySelectorAll('[inert]').forEach(el=>el.removeAttribute('inert')); window.__SOUNDCRUISE_PRO_GATE__=true; window.__soundCruiseClearGate=()=>{}; });
-   await page.evaluate(() => import('../practice-menu-app.js?v=1.21.0'));
+   await page.evaluate(() => import('../practice-menu-app.js?v=1.21.1'));
   }
-  await page.locator('.port-app-version-display').first().filter({hasText:'1.21.0'}).waitFor();
+  await page.locator('.port-app-version-display').first().filter({hasText:'1.21.1'}).waitFor();
   for (const width of [375,393,768,1280]) {
    await page.setViewportSize({width,height:852});
    for (const [key,hash,title] of [['practice','#practice-menu','練習メニューの使い方'],['gear','#wishlist','機材リストの使い方']]) {

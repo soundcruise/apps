@@ -22,6 +22,6 @@ test('Tab keeps focus on close and binding is idempotent',()=>{
  const f=fixture();let prevented=false;f.dialog.events.keydown({key:'Tab',preventDefault(){prevented=true;}});assert(prevented && f.tutorial.focused);const handler=f.buttons[0].events.click;bindFeatureHelp(f.root);assert.equal(handler,f.buttons[0].events.click);
 });
 test('Standard and Pro share accessible triggers, native dialog and module',()=>{
- for(const file of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(file,import.meta.url),'utf8');for(const key of ['practice','gear'])assert(html.includes(`data-feature-help="${key}"`));for(const help of Object.values(FEATURE_HELP))assert(html.includes(`aria-label="${help.title}"`));assert.equal((html.match(/<dialog id="port-feature-help-dialog"/g)||[]).length,1);assert(html.includes('feature-help.css?v=1.21.0'));}
+ for(const file of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(file,import.meta.url),'utf8');for(const key of ['practice','gear'])assert(html.includes(`data-feature-help="${key}"`));for(const help of Object.values(FEATURE_HELP))assert(html.includes(`aria-label="${help.title}"`));assert.equal((html.match(/<dialog id="port-feature-help-dialog"/g)||[]).length,1);assert(html.includes('feature-help.css?v=1.21.1'));}
  const script=readFileSync(new URL('feature-help.js',import.meta.url),'utf8');assert.doesNotMatch(script,/localStorage|indexedDB|fetch\(|innerHTML/);
 });
