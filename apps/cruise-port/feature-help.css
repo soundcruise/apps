@@ -8,3 +8,28 @@
 #practice-list-view .practice-heading-row, .gear-list-title-row { flex-wrap: wrap; }
 #practice-list-view .practice-heading-row > div:first-child { flex: 1 0 auto; }
 .gear-list-title-row > .port-feature-title { flex: 0 0 auto; }
+/* The calendar is an icon-only action on the title row, including narrow screens. */
+#practice-list-view .practice-heading-row { flex-wrap: nowrap; }
+#practice-list-view .practice-heading-row > div:first-child { flex: 1 1 auto; }
+#practice-list-view #practice-history-open { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; min-height: 44px; padding: 0; border: 0; background: transparent; }
+#practice-list-view #practice-history-open svg { width: 20px; height: 20px; }
+@media (max-width: 440px) { #practice-list-view .practice-heading-row #practice-heading { font-size: min(calc(1.65rem * var(--font-scale)), 1.65rem); } }
+.port-feature-help-subtitle { margin: 16px 0 6px; color: var(--port-text); font-size: .9rem; }
+.port-feature-help-dialog ol { margin: 0; padding-left: 1.4em; color: var(--port-text); font-size: .84rem; line-height: 1.7; }
+.port-feature-help-dialog li + li { margin-top: 8px; }
+.port-feature-help-dialog #port-feature-help-note { font-size: .78rem; }
+.port-tutorial { position: fixed; inset: 0; margin: 0; padding: 0; width: 100vw; max-width: none; height: 100dvh; max-height: none; border: 0; background: transparent; color: var(--port-text); overflow: hidden; }
+.port-tutorial::backdrop { background: transparent; }
+.port-tutorial-shade { position: absolute; background: rgba(0, 0, 0, .6); pointer-events: none; }
+.port-tutorial-spotlight { position: absolute; border: 1px solid rgba(var(--port-accent-rgb), .65); border-radius: 8px; pointer-events: none; box-sizing: border-box; }
+.port-tutorial-bubble { position: absolute; width: min(320px, calc(100vw - 24px)); box-sizing: border-box; padding: 16px; border: 1px solid rgba(var(--port-accent-rgb), .45); border-radius: 12px; background: var(--port-panel); max-height: calc(100dvh - 24px); overflow: auto; }
+.port-tutorial-progress { display: block; padding-right: 36px; color: var(--port-muted); font-size: .75rem; }
+.port-tutorial-bubble h2 { margin: 8px 0; color: var(--port-gold-bright); font-size: 1rem; }
+.port-tutorial-bubble p { font-size: .85rem; line-height: 1.65; margin: 0 0 12px; }
+.port-tutorial-x { position: absolute; right: 5px; top: 3px; width: 44px; height: 44px; border: 0; color: var(--port-muted); background: transparent; font-size: 20px; cursor: pointer; }
+.port-tutorial-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.port-tutorial-actions button { min-height: 44px; padding: 8px 12px; border: 1px solid rgba(var(--port-accent-rgb), .35); border-radius: 7px; background: transparent; color: var(--port-text); font: inherit; font-size: .8rem; cursor: pointer; }
+.port-tutorial-actions [data-tutorial-next] { margin-left: auto; color: var(--port-gold-bright); }
+.port-tutorial-actions button:disabled { opacity: .45; cursor: default; }
+.port-tutorial button:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .port-tutorial *, .port-feature-help { animation: none; transition: none; } }
