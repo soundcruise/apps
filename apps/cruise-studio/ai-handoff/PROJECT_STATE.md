@@ -4,57 +4,65 @@
 
 - 作業開始時は、この `ai-handoff/PROJECT_STATE.md` を最初に読む。
 - 次に `ai-handoff/AI_WORKFLOW.md` を読む。
+- PC統合の責務は `docs/SHELL_CONTRACT.md`、正式実装順は `ROADMAP.md` を読む。
+- このファイルの現在地を優先し、下部の旧実装履歴の「次」「未commit」を現在の作業指示と混同しない。
 - `git status -sb` を必ず確認する。
 - 今回の作業範囲を明示してから作業する。
 - 不明点があれば、実装前にユーザーへ質問する。
 - commit / push はユーザーの明示指示がある時だけ行う。
 - `git add .` は禁止。stageする場合は対象ファイルを個別に明示する。
 
-## 1. 現在の最新状態
+## 1. 現在の最新状態（2026-10-10）
 
-- 最新push済みcommit（cruise-studio以外を含む、このリポジトリ全体の最新。origin/main。
-  chord-cruise・rhythm-cruise側の並行作業によりHEADが頻繁に進むが、cruise-studio側には
-  影響しない。作業前に必ず`git log`でcruise-studioの最新commitが祖先に含まれることを
-  確認すること）:
-  - cruise-studio側の最新push済みcommitが、リポジトリ全体でも最新とは限らない
-    （他アプリの並行commitがその後に積まれるため）
-- cruise-studioの直近push済みcommit:
-  - `3f387b18` 紙面歌詞位置と拍別固定表示を改善（`v0.22.3`）
-  - `e64cf1ee` 歌詞解像度切替時のデータ破壊を防止（`v0.22.2`）
-  - `b2772103` 歌詞最終セルのEnterで次小節へ移動（`v0.22.1 / G4`）
-  - `c9ab248f` 歌詞行に拍別8分・16分切替を追加（`v0.22.0 / G2b`）
-  - `2f5922f2` 歌詞セルの位置管理をtick基準へ移行（`v0.21.1 / G2a`）
-  - `08139d18` 小節ルーペの拍グリッド表示を統一（`v0.21.0 / G1`。表示修正2点を含む）
-  - `4e27b8c0` 譜面クルーズに歌詞セル編集とtick配置表示を追加（`v0.20.0 / F2a`）
-  - D3a・F1・F2a・G1・G2a・G2b・G4・v0.22.2・v0.22.3とも既にpush済み。
-- クルーズスタジオ側の未commit差分は、`v0.22.4 フローター入力UIのデザイントーン調整`
-  実装分のみを想定する（下記5章を参照。実装・検証済み、commit/pushはまだ
-  実施していない）。
-- chord-cruise側の並行作業によりHEADが進んでいることがあるが、cruise-studioの
-  安定点`3f387b18`はその祖先であり影響しない。
-- chord-cruise側にも別途、このセッションとは無関係な未commit差分が存在することがある。
-  cruise-studio側の作業ではchord-cruiseには一切触れない。
-- rhythm-cruise 側の差分や未追跡ファイルが出ていても、この作業では触らない。
+### PC統合設計の現在地
+
+- PC実画面UI監査完了。
+- Shell v1設計完了。
+- Astra / Claude Codeの独立レビューで、両者ともC（重要修正後に再レビュー）。
+- Shell Contract v2を作成。
+- Astra限定再レビューはB（Undo / Redo外部更新境界とcommit中cancel / destroyの追記）。
+- Claude Code最終レビューはB（ユーザー提供の最終レビュー整理に基づく）。
+- 本工程で両レビューの指定指摘を[Shell Contract v2.1](../docs/SHELL_CONTRACT.md)へ反映し正式文書化。
+- 次はStudio-only無変化refactor。本工程はdocsだけで、Shell / Editing Session / 共有Metronomeは未実装。
+- v2.1文書化を、両レビューアによる再承認や実装試験合格として扱わない。
+
+### 実測Git baseline（本ドキュメント更新の開始時）
+
+- 正式repo: `/Users/murakamimasakuni/Desktop/2.AI_Work/Cruise_apps/`
+- HEAD / ローカルorigin/main: `c3dcb4364521f625d8759d6f32e27717f265badf`
+- branch: `main...origin/main`
+- tracked差分・staged files: なし。
+- 既存untracked: `.claude/`、`workers/sound-cruise-sync/node_modules/`。本工程では触れない。
+- fetchなし。origin/mainはローカル参照であり、remoteを新たに確認した結果ではない。
+- Studio直近履歴: `be25a341`（権利・AI利用方針）、`c9904591`（フローター視認性・表示安定性）、
+  `3f387b18`（v0.22.3）、`e64cf1ee`（v0.22.2）、`b2772103`（G4）。
+- v0.22.4関連変更は`c9904591`として既に履歴に含まれる。旧「未commit」記述を現在の差分と解釈しない。
+- APP_VERSIONは0.22.4、project schemaVersionは1を維持。本工程ではコード・asset ?v=を変更しない。
+- この記録は本工程開始時のsnapshot。次工程開始時にはstatus / HEAD / origin/main / log / staged差分を再測定する。
+
+### 保護方針
+
+Cruise Studioは未リリースで大規模変更可能。一方、リリース済みPort / Chord / Pitch / Fretboard / Rhythm /
+Cruise Sync / Accountの既存動作・保存データ・認可は破壊禁止。共有化に必要な既存側変更は別工程で対象と
+回帰条件を明示する。並行セッションの未commit差分・untrackedは勝手に変更・stageしない。
+
+旧repo / migration bundleは読み取りも禁止。本工程の変更対象はROADMAP、本ファイル、
+新規docs/SHELL_CONTRACT.mdの三つだけ。コード、CSS、HTML、JS、Worker、Sync、Account、保存データの変更、
+stage / commit / push / fetch / deployは行わない。
 
 ## 2. クルーズスタジオの目的
 
-- クルーズスタジオは、サウンドクルーズ系アプリの母艦。
-- 1つの曲データ `StudioProject` を中心に、複数モジュールを展開する。
-- 含まれる主な領域:
-  - 譜面クルーズ
-  - プレDTMクルーズ
-  - 既存アプリランチャー
-- 最終的には、同じ曲データから以下へ展開する。
-  - コード譜
-  - 歌詞
-  - ドレミ
-  - ストローク
-  - メロディ五線譜
-  - コード+リズム譜
-  - MIDI / DAW準備
-- 弾き語り教材制作を強く意識した、PCファーストの制作アプリ。
+- Cruise Port / Cruise appsの機能・データ契約・Sync・Pro・Versionを正確に共有するPC制作ソフト。
+- PC専用Shellとpresentationを用意し、mobile UI / CSSを丸ごと埋め込まない。
+- Structure譜、五線譜、TAB、MusicXML、MIDI、DTMへ段階展開する。
+- StudioProject、Editing Sessionのdraft、read-only working snapshot、再生用snapshotを分離する。
+- Port-owned dataはportの所有・datasetを維持し、Studio独自datasetへ複製しない。
+- 詳細責務はShell Contract、依存順はROADMAPへ一本化する。
 
 ## 3. モジュール全体像
+
+以下は現行モジュールの概要。新しいShell / Inspector・Tool pane / Dock・Transport / shared serviceは
+まだ未実装。正式targetとlifecycleはShell Contractへ接続する。
 
 ### 譜面クルーズ
 
@@ -71,7 +79,8 @@
 
 ### プレDTMクルーズ
 
-- 譜面クルーズのプロジェクトを読み込む。
+- 現行は保存済みprojectを読む経路がある。Shell接続後は同一active projectのStructure Editing Sessionから
+  read-only working snapshotを受け取り、project選択をShell active documentへ一本化する（未実装）。
 - 伴奏イベントを生成する。
 - Bass / Drums MIDIを書き出す。
 - Acoustic Guitarは現状MIDI対象外。
@@ -84,6 +93,8 @@
 - コードクルーズ
 
 ## 4. 完了済みフェーズ
+
+以下は既存実装の履歴。新PC統合の完了を意味しない。
 
 - `v0.1.0`: クルーズスタジオ母艦と設計基盤
 - `v0.2.0`: 譜面クルーズ骨格・曲情報フォーム
@@ -400,12 +411,15 @@
     拍別/全体ボタン双方・未確定編集後の切替・IME/G4/通常ナビゲーションの回帰なし）
     すべて合格
 
-## 5. 現在作業中のフェーズ
+## 5. 旧実装フェーズの詳細履歴
+
+この章の「今回」「次」「未commit」は当時の記録として保持する。現在のGit状態・次工程は1章・6章を優先。
+現在作業はShell Contract v2.1の文書化であり、以下の機能開発を再実施しない。
 
 ### v0.22.3: 紙面歌詞位置の修正＋拍別固定表示の文言変更
 
 - 予定バージョン: `v0.22.3`
-- 実装・検証済み。commit / push はまだ未実施。
+- 実装・検証済み。反映済み履歴: `3f387b18`（当時の検証記録を以下に保持）。
 - 背景: ユーザー実機画像とFable 5の数値調査により、紙面上の歌詞が小節後半ほど
   左へずれる構造バグが確認されていた（8分配置で1セル進むごとに約-1.875px、
   4拍裏でカラム中心が約-6.56pxずれる等）。根本原因は、罫線グリッド
@@ -481,7 +495,7 @@
     枠線・背景・影・余白と合わせてまとめて評価・調整する。自動状態は数字のみ・
     固定状態だけ鍵を表示するという仕様自体、および内部ロジック（WeakMap・状態
     サイクル・IME処理等）は次フェーズでも変更しない前提とする
-- `v0.22.4 フローター入力UIのデザイントーン調整`（実装・検証済み。commit/push未実施）
+- `v0.22.4 フローター入力UIのデザイントーン調整`（実装・検証履歴。反映済みcommit: `c9904591`）
   - 背景: Codex GPT-5.6 Solが実コード・実DOM・computed style・ブラウザ上の一時CSS
     プレビューを使って設計した改善案を実装した。A案「ニュートラル・ミニマル」を
     基本に、B案のスレート系focus表現を統合。目標は洗練・大人っぽい・クール・
@@ -731,39 +745,32 @@
 
 ## 6. 次にやること
 
-1. v0.22.4実機確認（ユーザーによる目視確認。通常幅約960px・狭幅約680pxでの表示、
-   外枠オレンジ廃止・暖色面積減少・ポップ感低減・大人っぽさ/クールさ、hover/focus/
-   選択・固定状態の判別、鍵アイコンの明確さ、コントラスト、既存操作・G4・v0.22.2・
-   ドラッグ/リサイズ/バルク操作の回帰なし、印刷への影響なし。加えて後修正1
-   （入力面の見やすさ・コントラスト改善）と後修正2（フローター上端が固定ヘッダー
-   `#app-nav`の裏へ入らないこと。初回表示・ドラッグ・保存位置の復元・リロード・
-   ウィンドウ高さ変更後のいずれでも）の実機確認。**後修正4（Safariヘッダー横/縦
-   スクロールバー同時発生の修正）はユーザーSafari実機確認・一時診断コード削除まで
-   完了済み**。残るv0.22.4全体（デザイントーン調整本体・後修正1〜3）の実機確認が
-   未完了であれば、そちらを先に完了させる）
-2. v0.22.4 commit
-3. v0.22.4 push
-4. 次タスク候補: 長文歌詞セルの表示方針検討（4文字以上を1セルへ入れると隣接セル・
-   隣接小節と重なりうる。候補案: あふれセルだけフォント縮小／ellipsis／クリップ／
-   モーラ分割の入力案内強化。今回はどれも未実装）
-5. 次タスク候補: ストローク段（`.sheet-bar-strum`）の同種座標差の確認・要否判断
-   （Fable 5が潜在的な問題を指摘。今回のv0.22.3では歌詞段のみ修正し、ストロークは
-   一切変更していない）
-6. G3: ストロークの行別/拍別8分/16分切替（G2bの`prepareLyricResolutionChange`等の
-   仕組みを再利用。ストロークは`bar.strumOverride`の単一slots配列構造のため、
-   歌詞と同じ形でそのまま流用できるかは要検討）
-7. F2b: 貼り付けの自動展開、既存全文の自動分割（明示操作のみ）、小節をまたぐ自動移動、
-   「セルへ割り当て」ボタン等の新しいまとめて配置方式、行間の上下矢印移動
-8. F3: ドレミのtick位置セル編集（`setBarMelodySlot` 相当。`barNeedsSixteenthResolution` に
-   `melody` を統合。ドレミのセル化時はG1の拍グループ機構をそのまま適用する）
-9. F4: まとめて入力の自動分解配置の総仕上げ、整合仕上げ
-10. 拍単位コード編集を実装する場合も、G1の拍グループ機構（`populateBeatGroups`）を
-    そのまま適用する
-11. 上記UI再編（D1〜D3a・F1・F2a〜F4・G1〜G3）が落ち着いた後に本格記譜
-    （VexFlow / 五線譜 / MusicXML）を検討
+**次工程はStudio-only無変化refactor。F3等へ直行しない。** 正式な全工程順は
+[ROADMAP](../ROADMAP.md)、詳細条件は[Shell Contract v2.1](../docs/SHELL_CONTRACT.md)を参照する。
+
+次工程開始時にGit baselineと既存の見た目・操作・保存形式を固定し、対象をStudio内に限定する。
+予定はscroll root abstraction、Loupe safe-area provider、Structure専用toolbar参照、ResizeObserver、
+activate / load分離、Esc gate、Pre-DTM working snapshot入力境界の準備。
+
+refactor単独では既存hostの見た目・データ・保存形式・挙動を変えない。workspace切替のdraft保持や
+Pre-DTM working snapshot利用を有効にする工程は後のEditing Session接続と区別する。
+変更後はSafari、IME、Loupeドラッグ / リサイズ / 狭幅 / 高さ不足、歌詞解像度切替、G4、
+保存 / JSON / print / MIDI / 現行Pre-DTM入力の回帰を確認する。
+
+その後はMetadata / Version reader → Shell → Focus / Keyboard / Modal manager → Structure Editing Session →
+Metronome M1 → M2 → M3 → Chord → Practice → Tuner → Structure機能開発再開 → 五線譜 / TAB / MusicXML → DTM。
+
+Structure再開時の残候補は、長文歌詞セル、ストローク座標差、G3、F2b、F3、F4、拍単位コード編集、
+横4小節固定表示。既存の個別要望・検証履歴・9章の既知課題を保持し、着手時に依存順を確認する。
+v0.22.4の旧実機確認記録に未確認項目が残っている場合はbaseline / 回帰確認で扱い、今回完了したと捏造しない。
+
+本工程ではコード変更・stage・commit・pushを行わない。次工程のコード変更は別の作業指示で開始する。
 
 ## 7. 重要な設計方針
 
+- PC統合の正式sourceは `docs/SHELL_CONTRACT.md`。旧ADR / 旧ランチャー方針と異なる箇所は同契約を優先する。
+- 編集・再生・UI・認可・Syncのownerを分離し、Port datasetを複製しない。
+- mobile hostの既存lifecycleを維持し、mobile CSSをStudioへ丸ごと読まない。
 - A4紙面DOMは表示/印刷用としてきれいに保つ。
 - 直接編集感は、紙面上に重ねる編集レイヤーで実現する。
 - 印刷用DOMそのものを `input` / `contenteditable` にしない。
@@ -781,6 +788,11 @@
 
 ## 8. 触ってはいけないもの
 
+- 本工程で変更可能なのはROADMAP、本ファイル、新規docs/SHELL_CONTRACT.mdだけ。次工程も対象を明示する。
+- `apps/cruise-port`（今回の共有設計文書化はPortコード変更を許可しない）
+- Cruise Sync / Account / Worker / secrets / localStorage / IndexedDB / 保存データ
+- 他セッションの未commit差分・untracked
+- 旧repo / migration bundle（読み取りも禁止）
 - `apps/fretboard_cruise`
 - `apps/pitch-cruise`
 - `apps/rhythm-cruise`
@@ -827,8 +839,12 @@
 ## 10. 次のAIへの指示
 
 - このファイルを読んだ後、`ai-handoff/AI_WORKFLOW.md` を読む。
+- `docs/SHELL_CONTRACT.md` と `ROADMAP.md` を読み、現在の着手順を確認する。
+- AI_WORKFLOW / 旧ADRの旧ランチャー・version等の前提は、今回のユーザー指示と新契約に照らして扱う。
 - `git status -sb` を確認する。
+- HEAD / origin/main / log / staged差分を実測する。記録済みhashを現在値として流用しない。
 - 現在の未commit差分を確認する。
 - 未commit差分がある場合は、それを勝手に変更せず、まず報告する。
 - ユーザーに確認せずcommit / pushしない。
 - 触ってよい範囲を明示してから作業する。
+- 次の対象はStudio-only無変化refactor。F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。

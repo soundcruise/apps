@@ -1,9 +1,69 @@
 # クルーズスタジオ — ロードマップ
 
-各フェーズは「完了条件」を満たしてから次へ進む。
-フェーズ途中で設計を変えたくなったら docs/DECISIONS.md に記録してから変える。
+各工程は「完了条件」を満たしてから次へ進む。PC統合の詳細責務は
+[Shell Contract v2.1](docs/SHELL_CONTRACT.md)を正式sourceとする。
+この文書は今後の順序、[PROJECT_STATE](ai-handoff/PROJECT_STATE.md)は現在地を管理する。
+下部のPhase 1〜8は既存実装・計画の履歴であり、現在の着手順は次の正式実装順を優先する。
+今後の個別設計変更は、許可された作業範囲で契約・ADRへ記録する。
 
-## Phase 1: 母艦＋背骨（本フェーズ）
+## PC統合の新方針（2026-10-10正式採用）
+
+Cruise Studioは未リリースのPC向け制作ソフトとして、Cruise Port / Cruise appsの
+機能・データ契約・Sync・Pro・Versionを正確に共有し、PC専用UIとStructure譜、
+五線譜、TAB、MusicXML、MIDI、DTMへ展開する。
+
+リリース済みPort / Chord / Pitch / Fretboard / Rhythm / Cruise Sync / Accountを壊さない。
+mobile UIやstylesheetの丸ごと埋込は行わず、UI hostとdata ownerを分離する。
+Port-owned dataは既存ownerを維持し、Studio独自datasetへ複製しない。
+既存側の協調改修が必要な場合は、対象と回帰条件を明示した別工程で扱う。
+
+PC ShellはNavigation rail / Main / Inspector・Tool pane / Dock・Transportを基本とし、
+Drawer / Dialog / Separate workspaceを使い分ける。1024px以下はMain優先、800px付近は
+Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCSS寸法を優先する。
+
+## 今後の正式実装順
+
+| 順 | 工程 | 完了・移行条件 |
+|---|---|---|
+| 0 | baseline固定 | 次工程開始時にGit・既存表示・操作・保存データ契約を固定 |
+| 1 | Shell Contract v2.1文書化 | 本工程。最終Bレビューの追記と文書間リンクを反映 |
+| 2 | Studio-only無変化refactor | scroll / safe area / toolbar / resize / lifecycle / Esc / Pre-DTM入力境界を準備 |
+| 3 | 回帰確認 | 見た目・操作・保存形式・Safari / IME / print / MIDI既存経路を維持 |
+| 4 | Metadata / Version reader | 最小catalog、reader-first、source一致検証。mobileのversion運用は維持 |
+| 5 | PC Shell | Navigation / Main / 右pane / Dock、responsive、scroll ownership |
+| 6 | Focus / Keyboard / Modal manager | Capture / Bubble、modal優先、入力・IME保護 |
+| 7 | Structure Editing Session接続 | draft保持、Undo境界、commitId、明示command target、Pre-DTM working snapshot |
+| 8 | Metronome M1 | Standard相当BPM / Start / Stop、memory-only、音声・lease・dispose実証 |
+| 9 | Metronome M2 | 注入memory Storage、既存schema / effective設定 / 保存失敗 / stale write / conflict実証 |
+| 10 | Metronome M3 | 正式Port-owned data / presets / Pro / Account / Sync / delete intent / 2tab / mobile回帰 |
+| 11 | Chord | shared feature境界とPC presentationを追加 |
+| 12 | Practice | Port ownerと保存・同期契約を維持して追加 |
+| 13 | Tuner | mic排他・遅延request・競合音声確認・cleanupを検証 |
+| 14 | Structure機能開発再開 | F3 / F2b / G3 / F4等の残項目をShell・共有基盤整備後に再開 |
+| 15 | 五線譜 / TAB / MusicXML | domain model・安定ID・記譜・出力の設計と検証 |
+| 16 | DTM | Clock / Scheduler / Renderer、timeline / track / piano roll / recordを段階導入 |
+
+M1は実storage・Pro認証・Account・Sync・presetsに接続せず、製品統合完了とは扱わない。
+M2は隔離したmemory Storage facadeだけを使い、Studio専用localStorage keyを作らない。
+M3で初めて正式データへ接続する。接続前にschema前方互換、Port / Studio 2tab同時編集、
+full dataset、全writer協調、delete intent、正式資格失効、mobile lifecycle、partial snapshot防止を
+確認する。全writerが協調できない場合、Studioの共有書込を有効化しない。
+詳細は[契約22〜24節](docs/SHELL_CONTRACT.md#22-metronome-m1-standard相当memory-only)を参照。
+
+## 次工程: Studio-only無変化refactor（未着手）
+
+scroll root abstraction、Loupe safe-area provider、Structure専用toolbar参照、ResizeObserver、
+activate / load分離、Esc gate、Pre-DTM working snapshot入力境界を準備する。
+既存hostでは見た目・データ・保存形式・操作を維持する。新しいworkspace切替やPre-DTM入力の
+動作はEditing Session接続工程で有効化し、準備だけで統合完了と報告しない。
+今回の文書更新ではコードを変更せず、APP_VERSION / schemaVersion / asset ?v=も変更しない。
+
+## 既存フェーズの履歴と残項目
+
+以下の実装経緯・検証履歴・未実装要望は保持する。履歴中の「次」「今回」等は当時の作業文脈であり、
+現在の優先順は上記の正式実装順とする。F3等へ直行せず、Shell / 共有基盤整備後に再開する。
+
+## Phase 1: 母艦＋背骨（初期MVP履歴）
 
 - ディレクトリ `apps/cruise-studio/` 新設
 - 設計ドキュメント4本（APP_CONCEPT / DATA_MODEL / ROADMAP / docs/DECISIONS）
@@ -79,7 +139,7 @@
   （VexFlowや五線譜はまだ使わず、既存の↓↑・〜x表示を8分/16分グリッドに沿って
   読みやすく整形。コード段直下の余白、ストローク記号の強弱、印刷時のサイズと線色を調整。
   保存構造は変更せず、`schemaVersion` は1のまま）
-- 残: 休符記号・タイ曲線の本格記譜表示（VexFlow等。**Phase 3.5のUI再編完了後に着手**）、
+- 残: 休符記号・タイ曲線の本格記譜表示（VexFlow等。**Shell / 共有基盤整備・Structure再開後に着手**）、
   複数ページの明示分割、テンプレート、
   マリーゴールドPDFとの構造再現度の目視比較（ローカル一時入力で）
 
@@ -94,7 +154,8 @@ docs/DECISIONS.md ADR-025 の方針（譜面全幅化＋下部ドック型スロ
 段階的にUIを再編する。D3a実機確認では、機能（タイムグリッド編集）はできたものの
 「黒い編集パネルが紙面と視覚的に馴染まない」課題が判明し、以降は表示方式のFシリーズ
 （F1〜F4。ADR-027）で紙面デザインのフローティング小節ルーペへ揃えていく。
-VexFlow / 五線譜 / MusicXML（Phase 6）はこのPhase 3.5完了後に着手する。
+現在の着手順では本Phaseの残項目をShell / 共有基盤整備後に再開し、
+VexFlow / 五線譜 / TAB / MusicXML（Phase 6）はその後に扱う。
 
 - **D1（完了・v0.16.0。push済み: `19ea503e`）**: レイアウト再編のみ。`.sheet-layout` を1カラム化し、
   A4紙面プレビューをフル幅・主役表示にする。曲情報・セクション・表示設定・
@@ -144,7 +205,7 @@ VexFlow / 五線譜 / MusicXML（Phase 6）はこのPhase 3.5完了後に着手�
 - **F2b（未着手）**: 貼り付けの自動展開、既存全文の自動分割（明示操作のみ）、
   小節をまたぐ自動移動、「セルへ割り当て」ボタン等の新しいまとめて配置方式、
   行間の上下矢印移動
-- **F3（未着手）**: ドレミのtick位置セル編集（`setBarMelodySlot` 相当。
+- **F3（未着手・Shell / 共有基盤整備後に再開）**: ドレミのtick位置セル編集（`setBarMelodySlot` 相当。
   `barNeedsSixteenthResolution()` に `melody` を統合。旧・小節グリッドカードの
   ドレミinputもF2aの歌詞と同様にreadonly化する。セル化する際はG1の
   `populateBeatGroups()` をそのまま適用し、拍グループ構造を歌詞・ストロークと揃える）
@@ -235,7 +296,7 @@ VexFlow / 五線譜 / MusicXML（Phase 6）はこのPhase 3.5完了後に着手�
   - ストロークのクリック循環に「〜」を候補追加
   - 小節の最終歌詞セル（4拍目の最後、小節全体の最終セル。各拍の最後ではない）での
     Enterによる次小節先頭歌詞セルへの移動。**G4で実装済み**（上記参照）
-- **v0.22.3（実装・検証済み。commit/push未実施）: 紙面歌詞位置の修正＋拍別固定表示の
+- **v0.22.3（実装・検証済み。履歴: `3f387b18`）: 紙面歌詞位置の修正＋拍別固定表示の
   文言変更**:
   - **紙面歌詞位置の修正**: ユーザー実機画像とFable 5の数値調査により、紙面上の歌詞が
     小節後半ほど左へずれる構造バグを確認済みだった。根本原因は、罫線グリッド
@@ -295,7 +356,7 @@ VexFlow / 五線譜 / MusicXML（Phase 6）はこのPhase 3.5完了後に着手�
     （現在の4.5px等の数値を最終仕様として固定しない）。自動状態は数字のみ・
     固定状態だけ鍵を表示するという仕様自体、および内部ロジック（WeakMap・状態
     サイクル・IME処理等）は次フェーズでも変更しない前提とする
-- **v0.22.4（実装・検証済み。commit/push未実施）: フローター入力UIのデザイントーン
+- **v0.22.4（実装・検証履歴。反映済みcommit: `c9904591`）: フローター入力UIのデザイントーン
   調整**: 小節ルーペ（フローティング入力パレット）を、洗練された・大人っぽい・
   クール・シンプルなトーンへ調整した。Codex GPT-5.6 Solが実コード・実DOM・
   computed style・ブラウザ上の一時CSSプレビューを使って設計した改善案（A案
@@ -490,7 +551,7 @@ Phase 3.5（小節ルーペ）とは独立した、紙面（`.sheet-page`）本�
 
 ## Phase 6: 五線譜/TAB/MusicXML
 
-- **Phase 3.5（UI再編 D1〜D3a・F1〜F4・G1〜G3）完了後に着手する**
+- **Shell / 共有基盤整備後にStructure機能開発を再開し、その後に着手する**
 - VexFlow を `vendor/` に取り込み（rhythm-cruise の前例に倣う）
 - メロディの五線譜表示、コードダイアグラム、TAB表示
 - MusicXML書き出し（Guitar Pro 橋渡し用）
@@ -498,6 +559,9 @@ Phase 3.5（小節ルーペ）とは独立した、紙面（`.sheet-page`）本�
 **完了条件**: メロディが五線譜で表示され、MusicXML が MuseScore / Guitar Pro で開ける。
 
 ## Phase 7: 既存アプリ連携
+
+この節のランチャーは既存実装の履歴。現在の正式目標は上記PC統合であり、
+リンク起動だけを統合完了とはしない。共有機能はMetronome M1 / M2 / M3から段階導入する。
 
 - 母艦TOPから音感 / 指板 / リズムクルーズへのリンク起動
 - URLパラメータでの練習コンテキスト受け渡し検討（例: BPM）
@@ -513,14 +577,15 @@ Phase 3.5（小節ルーペ）とは独立した、紙面（`.sheet-page`）本�
 
 ## Phase 8: PRO版/認証/feature flag
 
-- `pro_<ランダム文字列>/index.html` を追加し `../../shared/pro-gate.css` / `pro-gate.js` に接続
-- `window.__SOUNDCRUISE_PRO_GATE__`は`gateVersion`・`appName`等の表示設定のみ。番号・照合ハッシュをHTML/JSへ置かない。
-- 将来の接続は現在の共有Proゲートと`pro-device-session.js`を利用し、server-issued Pro credential、generation・revocation、device-bound sessionを維持する。
-- Cloud Sync・添付等の有料backend処理を導入する場合は、Pro entitlementとAccount/device authorizationの両方をサーバーで検証する。
-- 現時点でStudioのPro認証は未実装。この節は計画であり、旧クライアント側照合方式を再導入しない。
-- PRO機能の featureFlags 設計（`cruiseStudio.appSettings` 側。曲データには入れない）
-- PRO_FEATURES.md / MODULES.md の作成はこのフェーズで
+現在の統合では[Shell ContractのPro / Account・Sync host](docs/SHELL_CONTRACT.md#19-pro--account)を優先する。
+Product policy / Runtime access state / Account・AppDevice credential / Backend authorizationを分離し、
+既存pro-gateをfeature単位の検証器としてそのまま使えるとは仮定しない。
 
-**完了条件**: 同一ブラウザ・originの既存5アプリと共通のサーバー発行資格で
-スタジオPRO版に入れる。既存のgeneration・失効・device session検証とbackend entitlementを維持し、
-旧ローカル解錠マーカーを認可根拠にしない。shared のdiffがゼロ。
+- M1はStandard相当で認証なし、M2は隔離policy / 保存契約検証、M3で正式資格とSyncを接続する。
+- server-issued資格、generation・失効、device-bound session、有料backendの二重資格検証を維持する。
+- 番号・照合ハッシュをHTML / JSへ置かず、metadata / edition / URL / appSettingsを認可根拠にしない。
+- Standardへ戻ってもstored Pro設定を削除 / 初期化しない。
+- Studio Proは未実装。feature単位UIと既存認可の接続は実装前に検証する。
+
+**完了条件**: 正式資格・失効・backend認可・Account / deviceの境界を守り、
+M3 acceptanceと影響範囲の回帰確認を通過する。既存側変更が必要なら別工程で明示する。
