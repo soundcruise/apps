@@ -7,7 +7,7 @@ async function startWhenReady() {
     if (started || !isProAccessReady()) return;
     started = true;
     observer.disconnect();
-    try { await import('./practice-menu-app.js?v=1.19.6'); }
+    try { await import('./practice-menu-app.js?v=1.20.0'); }
     catch (_) {
         const notice = document.createElement('p');
         notice.setAttribute('role', 'alert');

@@ -1,0 +1,10 @@
+.port-feature-title { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.port-feature-title .view-title { white-space: nowrap; }
+.port-feature-help { display: grid; place-items: center; flex: 0 0 44px; width: 44px; height: 44px; padding: 0; border: 0; background: transparent; color: var(--port-gold-bright); cursor: pointer; }
+.port-feature-help span { display: grid; place-items: center; width: 20px; height: 20px; border: 1px solid rgba(var(--port-accent-rgb), .45); border-radius: 50%; font-size: 12px; line-height: 1; }
+.port-feature-help:hover span, .port-feature-help:active span { background: rgba(var(--port-accent-rgb), .1); }
+.port-feature-help:focus-visible { outline: 2px solid var(--port-gold-bright); outline-offset: 1px; border-radius: 6px; }
+.port-feature-help-dialog { width: min(420px, calc(100vw - 24px)); }
+#practice-list-view .practice-heading-row, .gear-list-title-row { flex-wrap: wrap; }
+#practice-list-view .practice-heading-row > div:first-child { flex: 1 0 auto; }
+.gear-list-title-row > .port-feature-title { flex: 0 0 auto; }
