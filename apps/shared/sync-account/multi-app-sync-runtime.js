@@ -123,61 +123,127 @@
       this.retryTimer = null;
       this.networkRetryAt = 0;
       this.networkRetryAttempts = 0;
+      this.disposed = false;
+      this.assertCurrent = options.assertCurrent || (() => {});
+      this.assertCurrentAsync = options.assertCurrentAsync || (() => {});
+      this.hostLifecycle = options.hostLifecycle === true;
+      this.lifetime = new AbortController();
+      this.timers = new Set();
+      this.listeners = [];
+      this.abortControllers = new Set();
+
+    }
+
+    assertActive() {
+      if (this.disposed) throw new MultiAppSyncError('runtime_disposed');
+      this.assertCurrent();
+    }
+
+    async wait(operation) {
+      this.assertActive();
+      const signal = this.lifetime.signal;
+      let stop;
+      const cancelled = new Promise((_, reject) => {
+        stop = () => reject(new MultiAppSyncError('runtime_disposed'));
+        signal.addEventListener('abort', stop, { once: true });
+      });
+      try {
+        const result = await Promise.race([operation(), cancelled]);
+        this.assertActive();
+        return result;
+      } finally { signal.removeEventListener('abort', stop); }
+    }
+
+    setTimer(callback, delay) {
+      this.assertActive();
+      const id = global.setTimeout(() => {
+        this.timers.delete(id);
+        if (!this.disposed) callback();
+      }, delay);
+      this.timers.add(id);
+      return id;
+    }
+    clearTimer(id) { this.timers.delete(id); global.clearTimeout(id); }
+    listen(target, type, callback) {
+      this.assertActive();
+      target?.addEventListener?.(type, callback);
+      this.listeners.push(() => target?.removeEventListener?.(type, callback));
+    }
+    dispose() {
+      if (this.disposed) return;
+      this.disposed = true;
+      this.pendingSyncReason = null;
+      this.lifetime.abort();
+      for (const abort of this.abortControllers) abort.abort();
+      this.abortControllers.clear();
+      for (const id of this.timers) global.clearTimeout(id);
+      this.timers.clear();
+      for (const remove of this.listeners.splice(0)) remove();
+      this.lifecycleBound = false;
+      this.retryTimer = null;
+      if (root.runtimes?.[this.appId] === this) delete root.runtimes[this.appId];
     }
 
     setState(state, detail = {}) {
+      if (this.disposed) return;
+      this.assertActive();
       this.store.setMeta('runtimeState', state).catch(() => {});
       this.dispatchEvent(new CustomEvent('statechange', { detail: Object.freeze({ state, ...detail }) }));
     }
 
-    async credential() { return this.store.readMeta('credential'); }
-    async qaCredential() { return this.store.readMeta('qaCredential'); }
-    async membership() { return this.store.readMeta('membership'); }
+    async credential() { return this.wait(() => this.store.readMeta('credential')); }
+    async qaCredential() { return this.wait(() => this.store.readMeta('qaCredential')); }
+    async membership() { return this.wait(() => this.store.readMeta('membership')); }
 
     async detachTerminalIdentity(code) {
       if (!TERMINAL_CODES.has(code)) return false;
       if (typeof this.store.clearCloudState !== 'function') throw new MultiAppSyncError('sync_detach_unavailable');
-      await this.store.clearCloudState();
+      await this.wait(async () => (this.store.clearCloudState()));
       this.setState('credential_invalid', { reason: code, terminal: true });
       return true;
     }
 
     async detachCurrentEnvironment() {
-      const credential = await this.credential();
+      const credential = await this.wait(async () => (this.credential()));
       if (!this.accountCore.validAppCredential(credential)) {
         throw new MultiAppSyncError('app_auth_required', 401);
       }
-      const pending = await this.store.readMeta('pendingCurrentEnvironmentDetach');
+      const pending = await this.wait(async () => (this.store.readMeta('pendingCurrentEnvironmentDetach')));
       const operationId = typeof pending?.operationId === 'string'
         ? pending.operationId : this.randomOperationId();
-      if (!pending) await this.store.setMeta('pendingCurrentEnvironmentDetach', { operationId });
+      if (!pending) await this.wait(async () => (this.store.setMeta('pendingCurrentEnvironmentDetach', { operationId })));
       this.setState('disconnecting');
-      const result = await this.accountClient.detachCurrentAppEnvironment({
+      const result = await this.wait(async () => (this.accountClient.detachCurrentAppEnvironment({
         appCredential: credential, operationId
-      });
+      })));
       // Server success is the only condition that clears the local binding.
       // clearCloudState deliberately leaves the app's ordinary local data alone.
-      await this.store.clearCloudState();
+      await this.wait(async () => (this.store.clearCloudState()));
       this.setState('credential_invalid', { reason: 'current_environment_detached', terminal: true });
       return Object.freeze(result);
     }
 
     async resumeCurrentEnvironmentDetach() {
-      const pending = await this.store.readMeta('pendingCurrentEnvironmentDetach');
+      const pending = await this.wait(async () => (this.store.readMeta('pendingCurrentEnvironmentDetach')));
       if (!pending?.operationId) return Object.freeze({ status: 'none' });
-      const result = await this.detachCurrentEnvironment();
+      const result = await this.wait(async () => (this.detachCurrentEnvironment()));
       return Object.freeze({ status: 'committed', result });
     }
 
     async request(method, path, body) {
-      const credential = await this.credential();
-      const qaCredential = await this.qaCredential();
+      this.assertActive();
+      if (path === '/v1/sync/push' &&
+          (body?.operations?.length > 50 || new TextEncoder().encode(JSON.stringify(body)).byteLength > 256 * 1024)) {
+        throw new MultiAppSyncError('operation_too_large');
+      }
+      const credential = await this.wait(async () => (this.credential()));
+      const qaCredential = await this.wait(async () => (this.qaCredential()));
       if (!this.accountCore.validAppCredential(credential)) throw new MultiAppSyncError('app_auth_required', 401);
       if (this.admissionMode === 'qa' && !this.accountCore.validQaCredential(qaCredential)) {
         throw new MultiAppSyncError('qa_admission_required', 403);
       }
       const headers = new Headers({ Accept: 'application/json', Authorization: `Bearer ${credential}` });
-      const proHeaders = await global.SoundCruiseProBackendEntitlement?.proAuthorizationHeaders?.();
+      const proHeaders = await this.wait(async () => (global.SoundCruiseProBackendEntitlement?.proAuthorizationHeaders?.()));
       for (const [name, value] of Object.entries(proHeaders || {})) headers.set(name, value);
       if (this.admissionMode === 'qa') {
         headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qaCredential}`);
@@ -185,21 +251,25 @@
       if (body) headers.set('Content-Type', 'application/json');
       let response;
       const abort = typeof global.AbortController === 'function' ? new global.AbortController() : null;
+      if (abort) this.abortControllers.add(abort);
       let timer;
       try {
+        if (global.navigator?.onLine === false) throw new MultiAppSyncError('network_error');
         const fetchPromise = this.fetchImpl(`${this.endpoint}${path}`, {
           method, headers, body: body ? JSON.stringify(body) : undefined,
           credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', ...(abort ? { signal: abort.signal } : {})
         });
         const timeoutPromise = typeof global.setTimeout === 'function' ? new Promise((_, reject) => {
-          timer = global.setTimeout(() => { abort?.abort(); reject(new MultiAppSyncError('network_error')); }, REQUEST_TIMEOUT_MS);
+          timer = this.setTimer(() => { abort?.abort(); reject(new MultiAppSyncError('network_error')); }, REQUEST_TIMEOUT_MS);
           timer?.unref?.();
         }) : null;
-        response = await (timeoutPromise ? Promise.race([fetchPromise, timeoutPromise]) : fetchPromise);
-      } catch (_) {
+        response = await (this.wait(async () => (timeoutPromise ? Promise.race([fetchPromise, timeoutPromise]) : fetchPromise)));
+      } catch (error) {
+        if (abort) this.abortControllers.delete(abort);
+        if (this.disposed) throw error;
         throw new MultiAppSyncError('network_error');
       } finally {
-        if (timer != null) global.clearTimeout(timer);
+        if (timer != null) this.clearTimer(timer);
       }
       let payload = null;
       let bodyTimer;
@@ -217,15 +287,15 @@
               let idleTimer;
               const read = reader.read();
               const idle = new Promise((_, reject) => {
-                idleTimer = global.setTimeout(() => {
+                idleTimer = this.setTimer(() => {
                   abort?.abort();
                   reject(new MultiAppSyncError('network_error'));
                 }, LARGE_BODY_IDLE_TIMEOUT_MS);
                 idleTimer?.unref?.();
               });
               let chunk;
-              try { chunk = await Promise.race([read, idle]); }
-              finally { global.clearTimeout(idleTimer); }
+              try { chunk = await this.wait(async () => (Promise.race([read, idle]))); }
+              finally { this.clearTimer(idleTimer); }
               if (chunk.done) break;
               bytes += chunk.value.byteLength;
               if (bytes > MAX_LARGE_RESPONSE_BYTES) throw new MultiAppSyncError('response_too_large');
@@ -240,68 +310,94 @@
           typeof global.setTimeout === 'function' && typeof global.TextDecoder === 'function';
         const bodyPromise = progressive ? readProgressive() : response.json();
         const timeoutPromise = typeof global.setTimeout === 'function' ? new Promise((_, reject) => {
-          bodyTimer = global.setTimeout(() => { abort?.abort(); reject(new MultiAppSyncError('network_error')); },
+          bodyTimer = this.setTimer(() => { abort?.abort(); reject(new MultiAppSyncError('network_error')); },
             largeBody ? LARGE_BODY_TOTAL_TIMEOUT_MS : REQUEST_TIMEOUT_MS);
           bodyTimer?.unref?.();
         }) : null;
-        payload = await (timeoutPromise ? Promise.race([bodyPromise, timeoutPromise]) : bodyPromise);
+        payload = await (this.wait(async () => (timeoutPromise ? Promise.race([bodyPromise, timeoutPromise]) : bodyPromise)));
       } catch (error) {
         if (error?.code === 'network_error' || ['AbortError', 'TypeError'].includes(error?.name)) {
           throw new MultiAppSyncError('network_error');
         }
       } finally {
-        if (bodyTimer != null) global.clearTimeout(bodyTimer);
+        if (bodyTimer != null) this.clearTimer(bodyTimer);
+        if (abort) this.abortControllers.delete(abort);
       }
+      await this.wait(() => this.assertCurrentAsync());
       if (!response.ok || payload?.ok !== true) {
         const code = payload?.code || 'invalid_response';
         global.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(code, headers);
-        if (await this.detachTerminalIdentity(code)) throw new MultiAppSyncError(code, response.status);
+        if (await this.wait(async () => (this.detachTerminalIdentity(code)))) throw new MultiAppSyncError(code, response.status);
         if (PAUSE_CODES.has(code)) this.setState('paused', { reason: code });
         throw new MultiAppSyncError(code, response.status);
       }
       return payload;
     }
 
+    async pushRequest(body) {
+      this.assertActive();
+      const bytes = operations => new TextEncoder().encode(JSON.stringify({ ...body, operations })).byteLength;
+      for (const operation of body.operations || []) {
+        if (bytes([operation]) > 256 * 1024) throw new MultiAppSyncError('operation_too_large');
+      }
+      const chunks = []; let chunk = [];
+      for (const operation of body.operations || []) {
+        if (chunk.length === 50 || bytes([...chunk, operation]) > 256 * 1024) { chunks.push(chunk); chunk = []; }
+        chunk.push(operation);
+      }
+      if (chunk.length) chunks.push(chunk);
+      const results = [];
+      for (const operations of chunks) {
+        const response = await this.wait(() => this.request('POST', '/v1/sync/push', { ...body, operations }));
+        const ids = new Set(operations.map(item => item.operationId));
+        if (!Array.isArray(response.results) || response.results.length !== operations.length ||
+            new Set(response.results.map(item => item.operationId)).size !== operations.length ||
+            response.results.some(item => !ids.has(item.operationId))) throw new MultiAppSyncError('invalid_response');
+        results.push(...response.results);
+      }
+      return { ok: true, results };
+    }
+
     async consumeHandoff(handoffToken, deviceLabel = null) {
-      if (this.accountCore.validAppCredential(await this.credential())) {
+      if (this.accountCore.validAppCredential(await this.wait(async () => (this.credential())))) {
         throw new MultiAppSyncError('active_identity_present');
       }
       this.setState('connecting');
-      const result = await this.accountClient.consumeHandoff({
+      const result = await this.wait(async () => (this.accountClient.consumeHandoff({
         handoffToken, appId: this.appId, deviceLabel, consumeMode: 'new_app',
         preservePending: true
-      });
+      })));
       if (result.consumeMode !== 'new_app' || !this.accountCore.validAppCredential(result.appDeviceCredential)) {
         throw new MultiAppSyncError('handoff_consume_invalid');
       }
-      await this.store.setMeta('credential', result.appDeviceCredential);
-      await this.store.setMeta('qaCredential', result.qaCredential || null);
-      await this.store.setMeta('membership', {
+      await this.wait(async () => (this.store.setMeta('credential', result.appDeviceCredential)));
+      await this.wait(async () => (this.store.setMeta('qaCredential', result.qaCredential || null)));
+      await this.wait(async () => (this.store.setMeta('membership', {
         id: result.membershipId, appId: this.appId, state: result.membershipState || 'active'
-      });
+      })));
       if (typeof this.accountClient.confirmConsumePersisted === 'function') {
-        await this.accountClient.confirmConsumePersisted();
+        await this.wait(async () => (this.accountClient.confirmConsumePersisted()));
       }
       return this.initializeDataset();
     }
 
     async consumeInvitation(joinCode, deviceLabel = null) {
-      if (this.accountCore.validAppCredential(await this.credential())) {
+      if (this.accountCore.validAppCredential(await this.wait(async () => (this.credential())))) {
         throw new MultiAppSyncError('active_identity_present');
       }
       this.setState('connecting');
-      const result = await this.accountClient.consumeJoinInvitation({
+      const result = await this.wait(async () => (this.accountClient.consumeJoinInvitation({
         joinCode, appId: this.appId, deviceLabel, consumeMode: 'new_app', preservePending: true
-      });
+      })));
       if (result.consumeMode !== 'new_app' || !this.accountCore.validAppCredential(result.appDeviceCredential)) {
         throw new MultiAppSyncError('app_join_consume_invalid');
       }
-      await this.store.setMeta('credential', result.appDeviceCredential);
-      await this.store.setMeta('qaCredential', result.qaCredential || null);
-      await this.store.setMeta('membership', {
+      await this.wait(async () => (this.store.setMeta('credential', result.appDeviceCredential)));
+      await this.wait(async () => (this.store.setMeta('qaCredential', result.qaCredential || null)));
+      await this.wait(async () => (this.store.setMeta('membership', {
         id: result.membershipId, appId: this.appId, state: result.membershipState || 'active'
-      });
-      await this.accountClient.confirmConsumePersisted?.();
+      })));
+      await this.wait(async () => (this.accountClient.confirmConsumePersisted?.()));
       return this.initializeDataset();
     }
 
@@ -331,8 +427,8 @@
       // temporarily unavailable.
       if (this.appId === 'port') return;
       try {
-        const attentionCount = state === 'attention' ? (await this.store.listConflicts()).length : 0;
-        await this.request('POST', '/v1/sync/removal-safety', { appId: this.appId, state, attentionCount });
+        const attentionCount = state === 'attention' ? (await this.wait(async () => (this.store.listConflicts()))).length : 0;
+        await this.wait(async () => (this.request('POST', '/v1/sync/removal-safety', { appId: this.appId, state, attentionCount })));
       } catch (_) { /* fail closed in Port */ }
     }
 
@@ -341,7 +437,7 @@
     }
 
     async attentionSummary() {
-      const [conflicts, outbox] = await Promise.all([this.store.listConflicts(), this.store.listOutbox()]);
+      const [conflicts, outbox] = await this.wait(async () => (Promise.all([this.store.listConflicts(), this.store.listOutbox()])));
       if (conflicts.some((item) => item.kind === 'invalid_record')) return Object.freeze({
         kind: 'data_repair', count: conflicts.length, reviewable: true,
         status: `問題のデータがあります ${conflicts.length}件`,
@@ -387,7 +483,7 @@
         } else {
           if (typeof this.adapter.repairMissingLegacyReferences !== 'function' ||
               !/^pitch_legacy_(?:chord_stage|progression)_reference_invalid$/u.test(String(error?.message))) throw error;
-          await this.adapter.repairMissingLegacyReferences(await this.store.listShadow());
+          await this.wait(async () => (this.adapter.repairMissingLegacyReferences(await this.wait(async () => (this.store.listShadow())))));
           snapshot = this.adapter.normalizeLocalSnapshot(this.adapter.readLocalSnapshot());
         }
       }
@@ -398,7 +494,7 @@
         isolatedKeys = partitioned.isolatedKeys || [];
         writeIsolatedKeys = partitioned.writeIsolatedKeys || isolatedKeys;
       }
-      return { snapshot, records: await this.adapter.serializeRecords(snapshot), issues, isolatedKeys, writeIsolatedKeys };
+      return { snapshot, records: await this.wait(async () => (this.adapter.serializeRecords(snapshot))), issues, isolatedKeys, writeIsolatedKeys };
     }
 
     partitionRemote(remote) {
@@ -416,20 +512,20 @@
       const remoteIssueKeys = new Set((remoteIssues || []).map((issue) => issue.recordKey));
       const localMap = mapRecords(local.records);
       const rawRemoteMap = mapRecords(rawRemote.records || []);
-      const existing = new Map((await this.store.listConflicts()).map((item) => [item.recordKey, item]));
+      const existing = new Map((await this.wait(async () => (this.store.listConflicts()))).map((item) => [item.recordKey, item]));
       const currentKeys = new Set([...localIssueKeys, ...remoteIssueKeys]);
       for (const conflict of existing.values()) {
         if (conflict.kind !== 'invalid_record' || currentKeys.has(conflict.recordKey)) continue;
         const localRecord = localMap.get(conflict.recordKey) || null;
         const remoteRecord = rawRemoteMap.get(conflict.recordKey) || null;
-        await this.store.deleteConflict(conflict.id);
+        await this.wait(async () => (this.store.deleteConflict(conflict.id)));
         if (this.recordsEqual(localRecord, remoteRecord)) {
-          await this.clearConflictOutbox(conflict.recordKey);
-          if (remoteRecord) await this.store.putShadow(conflict.recordKey, clone(remoteRecord));
-          else await this.store.deleteShadow?.(conflict.recordKey);
+          await this.wait(async () => (this.clearConflictOutbox(conflict.recordKey)));
+          if (remoteRecord) await this.wait(async () => (this.store.putShadow(conflict.recordKey, clone(remoteRecord))));
+          else await this.wait(async () => (this.store.deleteShadow?.(conflict.recordKey)));
         } else {
-          await this.recordConflict('pull', conflict.recordKey, { reason: 'recovered_record_changed',
-            localRecord, remoteRecord, shadowRecord: await this.store.getShadow?.(conflict.recordKey) });
+          await this.wait(async () => (this.recordConflict('pull', conflict.recordKey, { reason: 'recovered_record_changed',
+            localRecord, remoteRecord, shadowRecord: await this.wait(async () => (this.store.getShadow?.(conflict.recordKey))) })));
         }
       }
       for (const issue of [...(localIssues || []), ...(remoteIssues || [])]) {
@@ -439,27 +535,27 @@
         if (previous?.kind === 'invalid_record' &&
             (previous.recovery?.localInvalid !== recovery.localInvalid ||
              previous.recovery?.remoteInvalid !== recovery.remoteInvalid)) {
-          await this.store.deleteConflict(previous.id);
+          await this.wait(async () => (this.store.deleteConflict(previous.id)));
         } else if (previous) continue;
-        await this.recordConflict('invalid_record', issue.recordKey, {
+        await this.wait(async () => (this.recordConflict('invalid_record', issue.recordKey, {
           reason: issue.reason,
           localRecord: localMap.get(issue.recordKey) || null,
           remoteRecord: rawRemoteMap.get(issue.recordKey) || null,
           recovery
-        });
+        })));
       }
     }
 
     async applyWithBackup(nextSnapshot, previousSnapshot, { checkCurrent = false } = {}) {
-      await this.backupSnapshot(previousSnapshot);
-      if (checkCurrent && canonicalJson((await this.localRecords()).snapshot) !== canonicalJson(previousSnapshot)) {
+      await this.wait(async () => (this.backupSnapshot(previousSnapshot)));
+      if (checkCurrent && canonicalJson((await this.wait(async () => (this.localRecords()))).snapshot) !== canonicalJson(previousSnapshot)) {
         throw new MultiAppSyncError('local_changed_during_apply');
       }
       try {
-        await this.adapter.applyRemoteSnapshot(nextSnapshot, checkCurrent ? { expectedSnapshot: previousSnapshot } : undefined);
+        await this.wait(async () => (this.adapter.applyRemoteSnapshot(nextSnapshot, { ...(checkCurrent ? { expectedSnapshot: previousSnapshot } : {}), assertCurrent: async () => { this.assertActive(); await this.assertCurrentAsync(); this.assertActive(); } })));
       } catch (error) {
         if (error?.code === 'local_changed_during_apply' || this.adapter.ownsRollback === true) throw error;
-        try { await this.adapter.applyRemoteSnapshot(previousSnapshot); } catch (_) { /* preserve original failure */ }
+        try { await this.wait(async () => (this.adapter.applyRemoteSnapshot(previousSnapshot))); } catch (_) { /* preserve original failure */ }
         throw error;
       }
     }
@@ -467,9 +563,9 @@
     async backupSnapshot(snapshot) {
       const backup = global.SoundCruiseSyncAccount?.appBackupStorage;
       if (!backup?.save) throw new MultiAppSyncError('app_backup_unavailable');
-      await backup.save({
+      await this.wait(async () => (backup.save({
         version: 1, appId: this.appId, createdAt: this.now(), values: clone(snapshot)
-      });
+      })));
     }
 
     async bootstrap(local) {
@@ -477,18 +573,18 @@
         appId: this.appId,
         schemaVersion: local.snapshot.schemaVersion,
         recordCount: local.records.length,
-        manifestHash: await this.adapter.computeManifest(local.snapshot)
+        manifestHash: await this.wait(async () => (this.adapter.computeManifest(local.snapshot)))
       });
     }
 
     async operationFor(record, baseRevision, deleted = false, operationId = this.randomOperationId()) {
-      const payloadHash = deleted ? await sha256(canonicalJson({
+      const payloadHash = deleted ? await this.wait(async () => (sha256(canonicalJson({
         appId: this.appId,
         payload: null,
         recordId: record.recordId,
         recordType: record.recordType,
         schemaVersion: record.schemaVersion
-      })) : record.payloadHash;
+      })))) : record.payloadHash;
       return Object.freeze({
         operationId,
         recordType: record.recordType,
@@ -508,7 +604,7 @@
     async recordConflict(kind, recordKey, details = {}) {
       const parts = splitRecordKey(recordKey);
       if (!parts) throw new MultiAppSyncError('conflict_record_invalid');
-      const existing = (await this.store.listConflicts()).find((item) => item.recordKey === recordKey);
+      const existing = (await this.wait(async () => (this.store.listConflicts()))).find((item) => item.recordKey === recordKey);
       const conflict = {
         ...(existing || {}),
         id: existing?.id || this.randomOperationId(),
@@ -523,16 +619,16 @@
           shadow: recordAnchor(details.shadowRecord)
         }
       };
-      await this.store.putConflict(conflict);
+      await this.wait(async () => (this.store.putConflict(conflict)));
       return conflict;
     }
 
     async conflictContext(conflict) {
       const parts = splitRecordKey(conflict?.recordKey);
       if (!parts) throw new MultiAppSyncError('conflict_record_invalid');
-      const [local, remote, shadowRecords] = await Promise.all([
+      const [local, remote, shadowRecords] = await this.wait(async () => (Promise.all([
         this.localRecords(), this.serverSnapshot(), this.store.listShadow()
-      ]);
+      ])));
       const localRecord = mapRecords(local.records).get(conflict.recordKey) || null;
       const remoteRecord = mapRecords(remote.records || []).get(conflict.recordKey) || null;
       const shadowRecord = mapRecords(shadowRecords).get(conflict.recordKey) || null;
@@ -578,11 +674,11 @@
     }
 
     async listConflictPresentations() {
-      const conflicts = await this.store.listConflicts();
+      const conflicts = await this.wait(async () => (this.store.listConflicts()));
       if (!conflicts.length) return Object.freeze([]);
-      const [local, remote, shadowRecords] = await Promise.all([
+      const [local, remote, shadowRecords] = await this.wait(async () => (Promise.all([
         this.localRecords(), this.serverSnapshot(), this.store.listShadow()
-      ]);
+      ])));
       const localMap = mapRecords(local.records);
       const remoteMap = mapRecords(remote.records || []);
       const shadowMap = mapRecords(shadowRecords);
@@ -623,7 +719,7 @@
 
     async saveConflict(conflict, state, resolution) {
       const next = { ...conflict, state, resolution: resolution ? clone(resolution) : null, updatedAt: this.now() };
-      await this.store.putConflict(next);
+      await this.wait(async () => (this.store.putConflict(next)));
       this.setState(state.startsWith('resolving_') || state === 'verifying' ? state : 'attention', {
         reason: 'conflict'
       });
@@ -633,19 +729,19 @@
     async failResolution(conflict, error, { reset = false } = {}) {
       const code = safeErrorCode(error);
       const resolution = reset ? null : conflict.resolution ? { ...conflict.resolution, status: 'pending', lastError: code } : null;
-      await this.saveConflict(conflict, 'attention', resolution);
+      await this.wait(async () => (this.saveConflict(conflict, 'attention', resolution)));
       return Object.freeze({ ok: false, code });
     }
 
     async clearConflictOutbox(recordKey) {
-      for (const operation of await this.store.listOutbox()) {
-        if (keyOf(operation) === recordKey) await this.store.deleteOutbox(operation.operationId);
+      for (const operation of await this.wait(async () => (this.store.listOutbox()))) {
+        if (keyOf(operation) === recordKey) await this.wait(async () => (this.store.deleteOutbox(operation.operationId)));
       }
     }
 
     async finishResolution(conflict, authoritative, relatedKeys = []) {
-      await this.clearConflictOutbox(conflict.recordKey);
-      const remaining = (await this.store.listConflicts()).filter((item) => item.id !== conflict.id);
+      await this.wait(async () => (this.clearConflictOutbox(conflict.recordKey)));
+      const remaining = (await this.wait(async () => (this.store.listConflicts()))).filter((item) => item.id !== conflict.id);
       if (conflict.kind === 'invalid_record' && typeof this.adapter.recoveryRelatedRecordKeys === 'function') {
         relatedKeys = [...new Set([...relatedKeys, ...this.adapter.recoveryRelatedRecordKeys({
           recordKey: conflict.recordKey, remoteRecords: authoritative.records || []
@@ -654,19 +750,19 @@
       // Resolution changes only this record. Other remote edits still need the
       // ordinary three-way pull against their original shadow anchors.
       const resolved = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
-      if (resolved) await this.store.putShadow(conflict.recordKey, clone(resolved));
-      else await this.store.deleteShadow?.(conflict.recordKey);
+      if (resolved) await this.wait(async () => (this.store.putShadow(conflict.recordKey, clone(resolved))));
+      else await this.wait(async () => (this.store.deleteShadow?.(conflict.recordKey)));
       const authoritativeMap = mapRecords(authoritative.records || []);
       for (const recordKey of new Set(relatedKeys)) {
         if (recordKey === conflict.recordKey) continue;
         const record = authoritativeMap.get(recordKey) || null;
-        if (record) await this.store.putShadow(recordKey, clone(record));
-        else await this.store.deleteShadow?.(recordKey);
+        if (record) await this.wait(async () => (this.store.putShadow(recordKey, clone(record))));
+        else await this.wait(async () => (this.store.deleteShadow?.(recordKey)));
       }
-      if (authoritative.cursor) await this.store.setMeta('cursor', authoritative.cursor);
-      await this.store.deleteConflict(conflict.id);
+      if (authoritative.cursor) await this.wait(async () => (this.store.setMeta('cursor', authoritative.cursor)));
+      await this.wait(async () => (this.store.deleteConflict(conflict.id)));
       if (!remaining.length) {
-        if (await this.store.readMeta('migrationState') !== 'complete') {
+        if (await this.wait(async () => (this.store.readMeta('migrationState'))) !== 'complete') {
           // The original initial merge was paused before migration completion.
           // Resume it only after the last choice is verified on both sides.
           return this.initializeDataset();
@@ -686,7 +782,7 @@
     }
 
     async verifyLocalResolution(conflict, resolution, authoritative) {
-      const local = await this.localRecords();
+      const local = await this.wait(async () => (this.localRecords()));
       const localRecord = mapRecords(local.records).get(conflict.recordKey) || null;
       if ((!localRecord) !== resolution.desiredDeleted ||
           (!resolution.desiredDeleted && localRecord?.payloadHash !== resolution.desiredHash)) {
@@ -705,7 +801,7 @@
 
     async completeDeletedStageRevival(conflict, resolution) {
       for (let attempt = 0; attempt < 8; attempt += 1) {
-        const context = await this.conflictContext(conflict);
+        const context = await this.wait(async () => (this.conflictContext(conflict)));
         if (!this.remoteMatchesAppliedIntent(context.remoteRecord, resolution)) {
           throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
         }
@@ -715,40 +811,40 @@
           const next = this.adapter.prepareRevivedStageLocalSnapshot(context.local.snapshot, {
             recordKey: conflict.recordKey, remoteRecords: context.remote.records || []
           });
-          await this.applyWithBackup(next, context.local.snapshot, { checkCurrent: true });
+          await this.wait(async () => (this.applyWithBackup(next, context.local.snapshot, { checkCurrent: true })));
           return this.finishResolution(conflict, context.remote, plan.relatedKeys);
         }
         const mutation = plan.mutations.find((item) => item.phase === 'order') || plan.mutations[0];
-        const [serialized] = await this.adapter.serializeRecords({
+        const [serialized] = await this.wait(async () => (this.adapter.serializeRecords({
           appId: this.appId, schemaVersion: context.local.snapshot.schemaVersion,
           records: [mutation.record]
-        });
+        })));
         const saved = (resolution.recoveryOperations || []).find((operation) =>
           keyOf(operation) === keyOf(mutation.record) &&
           Number(operation.baseRevision || 0) === Number(mutation.remoteRecord?.revision || 0) &&
           canonicalJson(operation.payload) === canonicalJson(mutation.record.payload));
-        const operation = await this.operationFor(serialized,
-          mutation.remoteRecord?.revision || 0, false, saved?.operationId || this.randomOperationId());
+        const operation = await this.wait(async () => (this.operationFor(serialized,
+          mutation.remoteRecord?.revision || 0, false, saved?.operationId || this.randomOperationId())));
         resolution = { ...resolution, recoveryOperations: [clone(operation)], status: 'pending' };
-        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
-        const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
+        conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
+        const response = await this.wait(async () => (this.pushRequest( this.withSyncCapabilities({
           appId: this.appId, mode: 'sync',
           operations: [{ operationId: operation.operationId, recordType: operation.recordType,
             recordId: operation.recordId, schemaVersion: operation.schemaVersion,
             baseRevision: operation.baseRevision, payload: operation.payload,
             payloadHash: operation.payloadHash, deleted: false }]
-        }));
+        }))));
         const result = (response.results || []).find((item) => item.operationId === operation.operationId);
         if (result?.status === 'conflict') {
           resolution = { ...resolution, recoveryOperations: [], status: 'pending' };
-          conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+          conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
           continue;
         }
         if (!['applied', 'duplicate'].includes(result?.status)) {
           throw new MultiAppSyncError(result?.code || 'resolution_push_failed');
         }
         resolution = { ...resolution, recoveryOperations: [], status: 'pending' };
-        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+        conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
       }
       throw new MultiAppSyncError('recovery_retry_exhausted');
     }
@@ -760,19 +856,19 @@
         ? clone(conflict.resolution)
         : { choice: 'local', status: 'pending', recoveryMode: 'delete_dependencies',
           startedAt: this.now(), backupSaved: false, recoveryOperations: [], relatedKeys: [conflict.recordKey] };
-      let context = await this.conflictContext(conflict);
+      let context = await this.wait(async () => (this.conflictContext(conflict)));
       if (context.localRecord) {
         throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
       }
-      conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+      conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
       if (!resolution.backupSaved) {
-        await this.backupSnapshot(context.local.snapshot);
+        await this.wait(async () => (this.backupSnapshot(context.local.snapshot)));
         resolution = { ...resolution, backupSaved: true };
-        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+        conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
       }
 
       for (let attempt = 0; attempt < 8; attempt += 1) {
-        context = await this.conflictContext(conflict);
+        context = await this.wait(async () => (this.conflictContext(conflict)));
         if (context.localRecord) {
           throw Object.assign(new MultiAppSyncError('local_changed_during_resolution'), { resetResolution: true });
         }
@@ -786,16 +882,16 @@
           relatedKeys: [...new Set([...(resolution.relatedKeys || []), ...(plan.relatedKeys || [])])] };
         if (plan.complete) {
           let cleanedSnapshot = typeof this.adapter.prepareInvalidRecordDeleteLocalSnapshot === 'function'
-            ? await this.adapter.prepareInvalidRecordDeleteLocalSnapshot(context.local.snapshot, {
+            ? await this.wait(async () => (this.adapter.prepareInvalidRecordDeleteLocalSnapshot(context.local.snapshot, {
               recordKey: conflict.recordKey, remoteRecords: context.remote.records || []
-            }) : context.local.snapshot;
+            }))) : context.local.snapshot;
           if (typeof this.adapter.reconcileOrderRecords === 'function') {
             cleanedSnapshot = { ...cleanedSnapshot, records: this.reconcileOrderRecords(cleanedSnapshot.records,
               context.remote.records || [], 'remote') };
           }
-          await this.applyWithBackup(cleanedSnapshot, context.local.snapshot, { checkCurrent: true });
-          conflict = await this.saveConflict(conflict, 'verifying', { ...resolution,
-            status: 'verifying', recoveryOperations: [] });
+          await this.wait(async () => (this.applyWithBackup(cleanedSnapshot, context.local.snapshot, { checkCurrent: true })));
+          conflict = await this.wait(async () => (this.saveConflict(conflict, 'verifying', { ...resolution,
+            status: 'verifying', recoveryOperations: [] })));
           return this.finishResolution(conflict, context.remote, resolution.relatedKeys);
         }
 
@@ -815,20 +911,20 @@
           // A repair write built by the adapter (e.g. an order without the broken reference) carries no
           // payload hash yet; without one the Worker rejects it.
           const record = mutation.deleted || mutation.record.payloadHash || typeof this.adapter.recordPayloadHash !== 'function'
-            ? mutation.record : { ...mutation.record, payloadHash: await this.adapter.recordPayloadHash(mutation.record) };
-          operations.push(await this.operationFor(record,
+            ? mutation.record : { ...mutation.record, payloadHash: await this.wait(async () => (this.adapter.recordPayloadHash(mutation.record))) };
+          operations.push(await this.wait(async () => (this.operationFor(record,
             mutation.remoteRecord?.revision || 0, mutation.deleted,
-            reusable ? saved.operationId : this.randomOperationId()));
+            reusable ? saved.operationId : this.randomOperationId()))));
         }
         resolution = { ...resolution, status: 'pending', phase,
           recoveryOperations: operations.map(clone) };
-        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
-        const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
+        conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
+        const response = await this.wait(async () => (this.pushRequest( this.withSyncCapabilities({
           appId: this.appId, mode: 'sync',
           operations: operations.map(({ operationId, recordType, recordId, schemaVersion,
             baseRevision, payload, payloadHash, deleted }) =>
             ({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }))
-        }));
+        }))));
         const results = response.results || [];
         if (operations.some((operation) => !results.some((result) =>
           result.operationId === operation.operationId && ['applied', 'duplicate', 'conflict'].includes(result.status)))) {
@@ -836,11 +932,11 @@
         }
         if (results.some((result) => result.status === 'conflict')) {
           resolution = { ...resolution, status: 'pending', recoveryOperations: [], lastError: 'stale_dependency' };
-          conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+          conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
           continue;
         }
         resolution = { ...resolution, status: 'pending', recoveryOperations: [], lastError: null };
-        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+        conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
       }
       throw new MultiAppSyncError('recovery_retry_exhausted');
     }
@@ -852,16 +948,16 @@
           typeof this.adapter.planInvalidRecordDeleteRecovery === 'function') {
         return this.resolveInvalidRecordDeleteConflict(conflict);
       }
-      let context = await this.conflictContext(conflict);
+      let context = await this.wait(async () => (this.conflictContext(conflict)));
       if (conflict.kind === 'invalid_record' && conflict.recovery?.localInvalid === true &&
           !context.remoteRecord && !context.shadowRecord) {
-        await this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true });
+        await this.wait(async () => (this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true })));
         return this.finishResolution(conflict, context.remote);
       }
       if (!(conflict.resolution?.choice === 'local' && conflict.resolution.expectedRemote) &&
           typeof this.adapter.reconcileOrderRecords === 'function' &&
           this.adapter.isOrderRecord?.(context.localRecord || context.remoteRecord) === true) {
-        context = await this.prepareLocalOrderResolution(conflict, context);
+        context = await this.wait(async () => (this.prepareLocalOrderResolution(conflict, context)));
       }
       let resolution = conflict.resolution?.choice === 'local' ? clone(conflict.resolution) : {
         choice: 'local', status: 'pending', operationId: this.randomOperationId(), startedAt: this.now()
@@ -870,9 +966,9 @@
         if (this.remoteMatchesAppliedIntent(context.remoteRecord, resolution)) {
           if (conflict.kind === 'invalid_record' && resolution.desiredDeleted &&
               conflict.recovery?.localInvalid === true) {
-            await this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true });
+            await this.wait(async () => (this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true })));
           }
-          conflict = await this.saveConflict(conflict, 'verifying', resolution);
+          conflict = await this.wait(async () => (this.saveConflict(conflict, 'verifying', resolution)));
           return this.verifyLocalResolution(conflict, resolution, context.remote);
         }
         if (!sameAnchor(context.remoteRecord, resolution.expectedRemote)) {
@@ -884,9 +980,9 @@
       } else {
         const source = context.localRecord || context.remoteRecord || context.shadowRecord;
         if (!source) throw new MultiAppSyncError('conflict_record_missing');
-        const generated = await this.operationFor(
+        const generated = await this.wait(async () => (this.operationFor(
           source, context.remoteRecord?.revision || 0, !context.localRecord, resolution.operationId
-        );
+        )));
         resolution = {
           ...resolution,
           expectedRemote: recordAnchor(context.remoteRecord),
@@ -899,24 +995,24 @@
           backupSaved: false
         };
       }
-      conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+      conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
       if (!resolution.backupSaved) {
-        await this.backupSnapshot(context.local.snapshot);
+        await this.wait(async () => (this.backupSnapshot(context.local.snapshot)));
         resolution = { ...resolution, backupSaved: true };
-        conflict = await this.saveConflict(conflict, 'resolving_local', resolution);
+        conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_local', resolution)));
       }
       const source = context.localRecord || context.remoteRecord || context.shadowRecord;
-      const operation = await this.operationFor(
+      const operation = await this.wait(async () => (this.operationFor(
         source, resolution.expectedRemote.revision, resolution.desiredDeleted, resolution.operationId
-      );
-      const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
+      )));
+      const response = await this.wait(async () => (this.pushRequest( this.withSyncCapabilities({
         appId: this.appId, mode: 'sync',
         operations: [{
           operationId: operation.operationId, recordType: operation.recordType, recordId: operation.recordId,
           schemaVersion: operation.schemaVersion, baseRevision: operation.baseRevision,
           payload: operation.payload, payloadHash: operation.payloadHash, deleted: operation.deleted
         }]
-      }));
+      }))));
       const result = (response.results || []).find((item) => item.operationId === resolution.operationId);
       if (result?.status === 'conflict') {
         throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
@@ -924,10 +1020,10 @@
       if (!['applied', 'duplicate'].includes(result?.status)) throw new MultiAppSyncError(result?.code || 'resolution_push_failed');
       if (conflict.kind === 'invalid_record' && resolution.desiredDeleted &&
           conflict.recovery?.localInvalid === true) {
-        await this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true });
+        await this.wait(async () => (this.applyWithBackup(context.local.snapshot, context.local.snapshot, { checkCurrent: true })));
       }
-      conflict = await this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' });
-      const authoritative = await this.serverSnapshot();
+      conflict = await this.wait(async () => (this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' })));
+      const authoritative = await this.wait(async () => (this.serverSnapshot()));
       const remoteRecord = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
       if (!this.remoteMatchesAppliedIntent(remoteRecord, resolution)) throw new MultiAppSyncError('resolution_verify_failed');
       return this.verifyLocalResolution(conflict, resolution, authoritative);
@@ -935,7 +1031,7 @@
 
     async resolveRemoteConflict(conflict) {
       if (global.navigator?.onLine === false) throw new MultiAppSyncError('resolution_offline');
-      const context = await this.conflictContext(conflict);
+      const context = await this.wait(async () => (this.conflictContext(conflict)));
       let resolution = conflict.resolution?.choice === 'remote' ? clone(conflict.resolution) : {
         choice: 'remote', status: 'pending', startedAt: this.now()
       };
@@ -953,19 +1049,19 @@
           local: recordAnchor(context.localRecord)
         };
       }
-      conflict = await this.saveConflict(conflict, 'resolving_remote', resolution);
+      conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_remote', resolution)));
       if (!this.recordsEqual(context.localRecord, context.remoteRecord)) {
         const records = context.local.snapshot.records.filter((record) => keyOf(record) !== conflict.recordKey);
         const remoteLocal = localRecordFromRemote(context.remoteRecord);
         if (remoteLocal) records.push(remoteLocal);
         let nextSnapshot = { ...clone(context.local.snapshot), records };
         if (typeof this.adapter.prepareRemoteResolutionSnapshot === 'function') {
-          nextSnapshot = await this.adapter.prepareRemoteResolutionSnapshot(nextSnapshot, {
+          nextSnapshot = await this.wait(async () => (this.adapter.prepareRemoteResolutionSnapshot(nextSnapshot, {
             recordKey: conflict.recordKey,
             localRecord: context.localRecord,
             remoteRecord: context.remoteRecord,
             remoteRecords: context.remote.records || []
-          });
+          })));
         }
         if (typeof this.adapter.reconcileOrderRecords === 'function') {
           // Choosing the cloud's list brings in the items only the cloud has (never synced here, so not a
@@ -979,44 +1075,44 @@
           resolution = { ...resolution, relatedKeys: [...changes.keys()] };
         }
         nextSnapshot = this.adapter.normalizeLocalSnapshot(nextSnapshot);
-        const expectedRecords = await this.adapter.serializeRecords(nextSnapshot);
+        const expectedRecords = await this.wait(async () => (this.adapter.serializeRecords(nextSnapshot)));
         const expectedRecord = mapRecords(expectedRecords).get(conflict.recordKey) || null;
-        const expectedManifest = await this.adapter.computeManifest(nextSnapshot);
-        await this.applyWithBackup(nextSnapshot, context.local.snapshot);
+        const expectedManifest = await this.wait(async () => (this.adapter.computeManifest(nextSnapshot)));
+        await this.wait(async () => (this.applyWithBackup(nextSnapshot, context.local.snapshot)));
         resolution = { ...resolution, expectedLocalRecord: recordAnchor(expectedRecord), expectedLocalManifest: expectedManifest };
       }
       if (!resolution.expectedLocalRecord || !resolution.expectedLocalManifest) {
         resolution = {
           ...resolution,
           expectedLocalRecord: recordAnchor(context.localRecord),
-          expectedLocalManifest: await this.adapter.computeManifest(context.local.snapshot)
+          expectedLocalManifest: await this.wait(async () => (this.adapter.computeManifest(context.local.snapshot)))
         };
       }
-      conflict = await this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' });
-      const local = await this.localRecords();
+      conflict = await this.wait(async () => (this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' })));
+      const local = await this.wait(async () => (this.localRecords()));
       const localRecord = mapRecords(local.records).get(conflict.recordKey) || null;
       const expectedLocalRecord = resolution.expectedLocalRecord || recordAnchor(context.remoteRecord);
-      const localManifest = await this.adapter.computeManifest(local.snapshot);
+      const localManifest = await this.wait(async () => (this.adapter.computeManifest(local.snapshot)));
       if (!sameAnchor(localRecord, expectedLocalRecord) ||
           (resolution.expectedLocalManifest && localManifest !== resolution.expectedLocalManifest)) {
-        try { await this.adapter.applyRemoteSnapshot(context.local.snapshot); } catch (_) { /* keep the conflict */ }
+        try { await this.wait(async () => (this.adapter.applyRemoteSnapshot(context.local.snapshot))); } catch (_) { /* keep the conflict */ }
         throw new MultiAppSyncError('resolution_verify_failed');
       }
-      const authoritative = await this.serverSnapshot();
+      const authoritative = await this.wait(async () => (this.serverSnapshot()));
       const currentRemote = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
       if (!sameAnchor(currentRemote, resolution.expectedRemote)) {
-        try { await this.adapter.applyRemoteSnapshot(context.local.snapshot); } catch (_) { /* keep the conflict */ }
+        try { await this.wait(async () => (this.adapter.applyRemoteSnapshot(context.local.snapshot))); } catch (_) { /* keep the conflict */ }
         throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
       }
       if (context.remoteRecord?.recordType === 'melody_stage' &&
           isDeleted(context.remoteRecord) &&
           typeof this.adapter.prepareRemoteResolutionSnapshot === 'function') {
-        const latestLocal = await this.localRecords();
+        const latestLocal = await this.wait(async () => (this.localRecords()));
         const refreshed = this.adapter.prepareRemoteResolutionSnapshot(latestLocal.snapshot, {
           recordKey: conflict.recordKey, remoteRecord: currentRemote,
           remoteRecords: authoritative.records || []
         });
-        await this.applyWithBackup(refreshed, latestLocal.snapshot, { checkCurrent: true });
+        await this.wait(async () => (this.applyWithBackup(refreshed, latestLocal.snapshot, { checkCurrent: true })));
         return this.finishResolution(conflict, authoritative, ['stage_order/melody',
           ...latestLocal.records.filter((record) => record.recordType === 'progress' &&
             record.payload?.stageRef === currentRemote.recordId)
@@ -1026,7 +1122,7 @@
     }
 
     async resolveMergedSettingsConflict(conflict, fieldChoices = {}) {
-      const context = await this.conflictContext(conflict);
+      const context = await this.wait(async () => (this.conflictContext(conflict)));
       const saved = conflict.resolution?.choice === 'merged' ? clone(conflict.resolution) : null;
       const stored = saved?.expectedRemote ? saved : null;
       const choices = saved?.fieldChoices || fieldChoices;
@@ -1047,14 +1143,14 @@
       // In that case retain both sides and stop before any cloud mutation.
       try { this.adapter.validateSnapshot(candidate); }
       catch { throw new MultiAppSyncError('settings_field_unsupported'); }
-      const serialized = await this.adapter.serializeRecords(candidate);
+      const serialized = await this.wait(async () => (this.adapter.serializeRecords(candidate)));
       const desired = mapRecords(serialized).get(conflict.recordKey) || null;
       if (!desiredDeleted && !desired) throw new MultiAppSyncError('settings_record_invalid');
       const operationId = stored?.operationId || saved?.operationId || this.randomOperationId();
       const source = desired || context.remoteRecord || context.localRecord || context.shadowRecord;
       if (!source) throw new MultiAppSyncError('settings_record_invalid');
-      const operation = await this.operationFor(source, context.remoteRecord?.revision || 0,
-        desiredDeleted, operationId);
+      const operation = await this.wait(async () => (this.operationFor(source, context.remoteRecord?.revision || 0,
+        desiredDeleted, operationId)));
       let resolution = stored ? { ...stored, desiredDeleted: stored.desiredDeleted === true } : {
         choice: 'merged', status: 'pending', fieldChoices: clone(choices),
         operationId, startedAt: saved?.startedAt || this.now(),
@@ -1071,21 +1167,21 @@
       if (!alreadyApplied && !sameAnchor(context.remoteRecord, resolution.expectedRemote)) {
         throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
       }
-      conflict = await this.saveConflict(conflict, 'resolving_merged', resolution);
+      conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_merged', resolution)));
       if (!alreadyApplied && !alreadyAbsent) {
         if (!resolution.backupSaved) {
-          await this.backupSnapshot(context.local.snapshot);
+          await this.wait(async () => (this.backupSnapshot(context.local.snapshot)));
           resolution = { ...resolution, backupSaved: true };
-          conflict = await this.saveConflict(conflict, 'resolving_merged', resolution);
+          conflict = await this.wait(async () => (this.saveConflict(conflict, 'resolving_merged', resolution)));
         }
-        const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
+        const response = await this.wait(async () => (this.pushRequest( this.withSyncCapabilities({
           appId: this.appId, mode: 'sync', operations: [{
             operationId: operation.operationId, recordType: operation.recordType,
             recordId: operation.recordId, schemaVersion: operation.schemaVersion,
             baseRevision: operation.baseRevision, payload: operation.payload,
             payloadHash: operation.payloadHash, deleted: operation.deleted
           }]
-        }));
+        }))));
         const result = (response.results || []).find((item) => item.operationId === resolution.operationId);
         if (result?.status === 'conflict') {
           throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
@@ -1094,14 +1190,14 @@
           throw new MultiAppSyncError(result?.code || 'resolution_push_failed');
         }
       }
-      const authoritative = await this.serverSnapshot();
+      const authoritative = await this.wait(async () => (this.serverSnapshot()));
       const remoteRecord = mapRecords(authoritative.records || []).get(conflict.recordKey) || null;
       if (alreadyAbsent ? !sameAnchor(remoteRecord, resolution.expectedRemote)
         : !this.remoteMatchesAppliedIntent(remoteRecord, resolution)) {
         throw new MultiAppSyncError('resolution_verify_failed');
       }
-      conflict = await this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' });
-      const current = await this.localRecords();
+      conflict = await this.wait(async () => (this.saveConflict(conflict, 'verifying', { ...resolution, status: 'verifying' })));
+      const current = await this.wait(async () => (this.localRecords()));
       const currentRecord = mapRecords(current.records).get(conflict.recordKey) || null;
       if (!this.recordsEqual(currentRecord, desired)) {
         if (!sameAnchor(currentRecord, resolution.local)) {
@@ -1112,20 +1208,20 @@
           records: current.snapshot.records.filter((item) => keyOf(item) !== conflict.recordKey)
             .concat(desiredRecord ? [desiredRecord] : [])
         };
-        await this.applyWithBackup(next, current.snapshot, { checkCurrent: true });
+        await this.wait(async () => (this.applyWithBackup(next, current.snapshot, { checkCurrent: true })));
       }
-      const verified = mapRecords((await this.localRecords()).records).get(conflict.recordKey) || null;
+      const verified = mapRecords((await this.wait(async () => (this.localRecords()))).records).get(conflict.recordKey) || null;
       if (!this.recordsEqual(verified, desired)) throw new MultiAppSyncError('resolution_verify_failed');
       return this.finishResolution(conflict, authoritative);
     }
 
     async performConflictResolution(conflictId, choice, options = {}) {
-      let conflict = await this.store.getConflict?.(conflictId) ||
-        (await this.store.listConflicts()).find((item) => item.id === conflictId);
+      let conflict = await this.wait(async () => (this.store.getConflict?.(conflictId))) ||
+        (await this.wait(async () => (this.store.listConflicts()))).find((item) => item.id === conflictId);
       if (!conflict) return Object.freeze({ ok: false, code: 'conflict_not_found' });
       if (choice === 'later') {
-        await this.saveConflict(conflict, 'attention', null);
-        return Object.freeze({ ok: true, deferred: true, remaining: (await this.store.listConflicts()).length });
+        await this.wait(async () => (this.saveConflict(conflict, 'attention', null)));
+        return Object.freeze({ ok: true, deferred: true, remaining: (await this.wait(async () => (this.store.listConflicts()))).length });
       }
       if (conflict.kind === 'invalid_record') {
         if (!this.recoveryChoices(conflict).allowed.includes(choice)) {
@@ -1138,7 +1234,7 @@
           ...(['local', 'merged'].includes(choice) ? { operationId: this.randomOperationId() } : {}),
           ...(choice === 'merged' ? { fieldChoices: clone(options.fieldChoices || {}) } : {})
         };
-        await this.saveConflict(conflict, 'attention', { ...resolution, lastError: 'resolution_offline' });
+        await this.wait(async () => (this.saveConflict(conflict, 'attention', { ...resolution, lastError: 'resolution_offline' })));
         return Object.freeze({ ok: false, code: 'resolution_offline' });
       }
       try {
@@ -1147,15 +1243,15 @@
         // older screen) cannot be verified for adapters that keep a device theme or
         // fill defaults, so it is refused and the saved choice cleared.
         if (choice === 'remote' && conflict.recordType === 'settings' &&
-            this.settingsFieldPlan(await this.conflictContext(conflict))) {
+            this.settingsFieldPlan(await this.wait(async () => (this.conflictContext(conflict))))) {
           throw Object.assign(new MultiAppSyncError('settings_field_choice_required'), { resetResolution: true });
         }
         return choice === 'merged'
-          ? await this.resolveMergedSettingsConflict(conflict, options.fieldChoices || {})
-          : choice === 'local' ? await this.resolveLocalConflict(conflict)
-            : await this.resolveRemoteConflict(conflict);
+          ? await this.wait(async () => (this.resolveMergedSettingsConflict(conflict, options.fieldChoices || {})))
+          : choice === 'local' ? await this.wait(async () => (this.resolveLocalConflict(conflict)))
+            : await this.wait(async () => (this.resolveRemoteConflict(conflict)));
       } catch (error) {
-        conflict = await this.store.getConflict?.(conflictId) || conflict;
+        conflict = await this.wait(async () => (this.store.getConflict?.(conflictId))) || conflict;
         return this.failResolution(conflict, error, { reset: error?.resetResolution === true });
       }
     }
@@ -1174,20 +1270,20 @@
     }
 
     async resumeConflictResolutions() {
-      const pending = (await this.store.listConflicts()).filter((item) =>
-        ['local', 'remote', 'merged'].includes(item.resolution?.choice));
+      const pending = (await this.wait(async () => (this.store.listConflicts()))).filter((item) =>
+        ['local', 'remote', 'merged'].includes(item.resolution?.choice) && item.resolution?.lastError !== 'operation_too_large');
       let resumed = 0;
       for (const conflict of pending.slice(0, 1)) {
-        const result = await this.resolveConflict(conflict.id, conflict.resolution.choice);
+        const result = await this.wait(async () => (this.resolveConflict(conflict.id, conflict.resolution.choice)));
         if (result.ok) resumed += 1;
         else return Object.freeze({ ok: false, code: result.code, resumed, pending: pending.length });
       }
-      return Object.freeze({ ok: true, resumed, pending: (await this.store.listConflicts()).length });
+      return Object.freeze({ ok: true, resumed, pending: (await this.wait(async () => (this.store.listConflicts()))).length });
     }
 
     async reconcileConvergedPortConflicts(conflicts) {
       if (this.appId !== 'port' || !conflicts.length) return conflicts;
-      const [local, remote] = await Promise.all([this.localRecords(), this.serverSnapshot()]);
+      const [local, remote] = await this.wait(async () => (Promise.all([this.localRecords(), this.serverSnapshot()])));
       const localMap = mapRecords(local.records);
       const remoteMap = mapRecords(remote.records || []);
       const remaining = [];
@@ -1201,10 +1297,10 @@
         // A Port conflict can outlive the divergence that created it after a
         // response-loss/reload cycle. Only clear it once both authoritative
         // values already agree; real local/Remote differences still fail closed.
-        await this.clearConflictOutbox(conflict.recordKey);
-        if (remoteRecord) await this.store.putShadow(conflict.recordKey, clone(remoteRecord));
-        else await this.store.deleteShadow?.(conflict.recordKey);
-        await this.store.deleteConflict(conflict.id);
+        await this.wait(async () => (this.clearConflictOutbox(conflict.recordKey)));
+        if (remoteRecord) await this.wait(async () => (this.store.putShadow(conflict.recordKey, clone(remoteRecord))));
+        else await this.wait(async () => (this.store.deleteShadow?.(conflict.recordKey)));
+        await this.wait(async () => (this.store.deleteConflict(conflict.id)));
       }
       return remaining;
     }
@@ -1213,7 +1309,7 @@
       const local = mapRecords(localRecords);
       const remote = mapRecords(remoteRecords);
       const shadow = mapRecords(shadowRecords);
-      const pending = await this.store.listOutbox();
+      const pending = await this.wait(async () => (this.store.listOutbox()));
       const pendingByKey = new Map(pending.map((item) => [`${keyOf(item)}:${item.deleted === true}`, item]));
       for (const recordKey of new Set([...local.keys(), ...shadow.keys()])) {
         if (isolatedKeys.has(recordKey)) continue;
@@ -1227,15 +1323,15 @@
         if (migration && deleted && this.adapter.canDeleteDuringMigration?.(recordKey, previous) !== true) continue;
         if (!migration && !previous && deleted) continue;
         if (deleted && previous && this.adapter.canDeleteRecord?.(recordKey, previous) === false) {
-          await this.recordConflict('ambiguous_delete', recordKey, {
+          await this.wait(async () => (this.recordConflict('ambiguous_delete', recordKey, {
             reason: 'local_deletion_unconfirmed', localRecord: null,
             remoteRecord: remote.get(recordKey) || null, shadowRecord: previous
-          });
+          })));
           continue;
         }
         const source = current || previous;
         const pendingKey = `${recordKey}:${deleted}`;
-        const operation = await this.operationFor(source, remote.get(recordKey)?.revision || previous?.revision || 0, deleted);
+        const operation = await this.wait(async () => (this.operationFor(source, remote.get(recordKey)?.revision || previous?.revision || 0, deleted)));
         const pendingOperation = pendingByKey.get(pendingKey);
         if (pendingOperation) {
           const mutationUnchanged = pendingOperation.payloadHash === operation.payloadHash &&
@@ -1245,24 +1341,24 @@
           // actually changes. A corrected payload safely supersedes only that
           // exact stale operation; ordinary pending/conflict work is untouched.
           if (!pendingOperation.terminalError || mutationUnchanged) continue;
-          await this.store.deleteOutbox(pendingOperation.operationId);
+          await this.wait(async () => (this.store.deleteOutbox(pendingOperation.operationId)));
         }
-        await this.store.putOutbox({ ...operation, migration });
+        await this.wait(async () => (this.store.putOutbox({ ...operation, migration })));
       }
     }
 
     async scheduleRetryWake() {
-      if (this.retryTimer != null) global.clearTimeout?.(this.retryTimer);
+      if (this.retryTimer != null) this.clearTimer(this.retryTimer);
       this.retryTimer = null;
-      if (typeof global.setTimeout !== 'function') return;
-      const pending = await this.store.listOutbox();
+      if (this.disposed || global.navigator?.onLine === false || (this.hostLifecycle && global.document?.visibilityState === 'hidden') || typeof global.setTimeout !== 'function') return;
+      const pending = await this.wait(async () => (this.store.listOutbox()));
       const outboxDue = pending.filter((item) => !item.conflict &&
         (!item.terminalError || (item.terminalError === 'push_failed' && item.failureKind === 'network')) &&
         Number.isFinite(item.nextRetryAt) && item.nextRetryAt > 0)
         .reduce((earliest, item) => Math.min(earliest, item.nextRetryAt), Infinity);
       const due = Math.min(outboxDue, this.networkRetryAt || Infinity);
       if (!Number.isFinite(due)) return;
-      this.retryTimer = global.setTimeout(() => {
+      this.retryTimer = this.setTimer(() => {
         this.retryTimer = null;
         if (global.navigator?.onLine === false) return;
         this.sync('retry-timer').catch(() => {});
@@ -1271,9 +1367,9 @@
     }
 
     async retryLegacyFailures() {
-      const local = mapRecords((await this.localRecords()).records);
+      const local = mapRecords((await this.wait(async () => (this.localRecords()))).records);
       let recovered = 0;
-      for (const item of await this.store.listOutbox()) {
+      for (const item of await this.wait(async () => (this.store.listOutbox()))) {
         if (item.terminalError !== 'push_failed' || item.failureKind || item.legacyRecoveryAttempted) continue;
         const recordKey = keyOf(item);
         const current = local.get(recordKey) || null;
@@ -1283,11 +1379,11 @@
             current.schemaVersion === item.schemaVersion &&
             canonicalJson(current.payload) === canonicalJson(item.payload);
         if (!stillRequested) continue;
-        await this.store.putOutbox({ ...item, terminalError: undefined, nextRetryAt: 0,
-          legacyRecoveryAttempted: true });
+        await this.wait(async () => (this.store.putOutbox({ ...item, terminalError: undefined, nextRetryAt: 0,
+          legacyRecoveryAttempted: true })));
         recovered += 1;
       }
-      if (recovered) await this.sync('legacy-retry');
+      if (recovered) await this.wait(async () => (this.sync('legacy-retry')));
       return Object.freeze({ ok: recovered > 0, recovered });
     }
 
@@ -1298,7 +1394,7 @@
     async acknowledgeOwnRecord(operation, record) {
       if (!record || isDeleted(record) || operation.deleted ||
           keyOf(record) !== keyOf(operation) || record.payloadHash !== operation.payloadHash) return false;
-      await this.store.putShadow(keyOf(operation), clone(record));
+      await this.wait(async () => (this.store.putShadow(keyOf(operation), clone(record))));
       return true;
     }
 
@@ -1308,12 +1404,12 @@
     async acknowledgeOwnEchoes(remoteRecords) {
       const remote = mapRecords(remoteRecords);
       let acknowledged = 0;
-      for (const item of await this.store.listOutbox()) {
+      for (const item of await this.wait(async () => (this.store.listOutbox()))) {
         if (item.deleted || item.conflict) continue;
         const record = remote.get(keyOf(item));
         if (!record || !item.operationId || record.operationId !== item.operationId) continue;
-        if (await this.acknowledgeOwnRecord(item, record)) {
-          await this.store.deleteOutbox(item.operationId);
+        if (await this.wait(async () => (this.acknowledgeOwnRecord(item, record)))) {
+          await this.wait(async () => (this.store.deleteOutbox(item.operationId)));
           acknowledged += 1;
         }
       }
@@ -1322,55 +1418,74 @@
 
     async flushOutbox({ migration = false, force = false } = {}) {
       const now = this.now();
-      const initial = await this.store.listOutbox();
+      const initial = await this.wait(async () => (this.store.listOutbox()));
       const oversizedInvalidMigration = initial.filter((item) => item.migration === true &&
         !item.conflict && item.terminalError === 'invalid_request');
       const recoverableIds = new Set(migration && oversizedInvalidMigration.length > MAX_PUSH_OPERATIONS
         ? oversizedInvalidMigration.map((item) => item.operationId) : []);
       let sent = 0;
       let conflicts = 0;
+      let oversized = initial.some(item => item.migration === migration && item.terminalError === 'operation_too_large');
       while (true) {
-        for (const item of await this.store.listOutbox()) {
+        for (const item of await this.wait(async () => (this.store.listOutbox()))) {
           if (!item.deleted || item.conflict ||
               this.adapter.canDeleteRecord?.(keyOf(item), item) !== false) continue;
-          await this.recordConflict('ambiguous_delete', keyOf(item), {
+          await this.wait(async () => (this.recordConflict('ambiguous_delete', keyOf(item), {
             reason: 'local_deletion_unconfirmed', localRecord: null,
-            remoteRecord: null, shadowRecord: await this.store.getShadow?.(keyOf(item)) || null
-          });
-          await this.store.putOutbox({ ...item, conflict: true });
+            remoteRecord: null, shadowRecord: await this.wait(async () => (this.store.getShadow?.(keyOf(item)))) || null
+          })));
+          await this.wait(async () => (this.store.putOutbox({ ...item, conflict: true })));
         }
-        const operations = (await this.store.listOutbox()).filter((item) =>
+        const candidates = (await this.wait(async () => (this.store.listOutbox()))).filter((item) =>
           item.migration === migration && !item.conflict &&
           (!item.terminalError || recoverableIds.has(item.operationId) ||
             (item.terminalError === 'push_failed' && item.failureKind === 'network')) &&
           (force || !item.nextRetryAt || item.nextRetryAt <= now)
         ).filter((item) => !item.deleted || this.adapter.canDeleteRecord?.(keyOf(item), item) !== false)
-          .slice(0, MAX_PUSH_OPERATIONS);
-        if (!operations.length) return { ok: conflicts === 0, sent, conflict: conflicts };
+          ;
+        const operations = [];
+        const bodyFor = items => this.withSyncCapabilities({ appId: this.appId,
+          mode: migration ? 'migration' : 'sync',
+          operations: items.map(({operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted}) =>
+            ({operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted})) });
+        for (const item of candidates) {
+          if (new TextEncoder().encode(JSON.stringify(bodyFor([item]))).byteLength > 256 * 1024) {
+            oversized = true;
+            await this.wait(() => this.store.putOutbox({ ...item, terminalError: 'operation_too_large', nextRetryAt: 0 }));
+            continue;
+          }
+          if (operations.length === MAX_PUSH_OPERATIONS ||
+              new TextEncoder().encode(JSON.stringify(bodyFor([...operations, item]))).byteLength > 256 * 1024) break;
+          operations.push(item);
+        }
+        if (!operations.length) {
+          if (oversized) throw new MultiAppSyncError('operation_too_large');
+          return { ok: conflicts === 0, sent, conflict: conflicts };
+        }
         operations.forEach((item) => recoverableIds.delete(item.operationId));
         let payload;
         try {
-          payload = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
+          payload = await this.wait(async () => (this.pushRequest( this.withSyncCapabilities({
             appId: this.appId,
             mode: migration ? 'migration' : 'sync',
             operations: operations.map(({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }) =>
               ({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }))
-          }));
+          }))));
         } catch (error) {
           for (const operation of operations) {
             const attempts = Number(operation.attempts || 0) + 1;
             const retryable = error instanceof MultiAppSyncError &&
               (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status) || PAUSE_CODES.has(error.code));
-            await this.store.putOutbox({
+            await this.wait(async () => (this.store.putOutbox({
               ...operation, attempts,
               nextRetryAt: retryable ? now + Math.min(300000, 1000 * (2 ** Math.min(attempts, 8))) : 0,
               ...(retryable ? { terminalError: undefined, failureKind: error.code === 'network_error' ? 'network' : undefined }
                 : { terminalError: error.code || 'push_failed' })
-            });
+            })));
           }
           if (error instanceof MultiAppSyncError &&
               (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status) || PAUSE_CODES.has(error.code))) {
-            await this.scheduleRetryWake();
+            await this.wait(async () => (this.scheduleRetryWake()));
           }
           throw error;
         }
@@ -1379,9 +1494,9 @@
           const operation = operations.find((item) => item.operationId === result.operationId);
           if (!operation) throw new MultiAppSyncError('invalid_response');
           if (['applied', 'duplicate'].includes(result.status)) {
-            await this.store.deleteOutbox(operation.operationId);
-            if (operation.deleted) await this.adapter.acknowledgeDelete?.(keyOf(operation), operation.deleteIntentGeneration);
-            else await this.acknowledgeOwnRecord(operation, result.record);
+            await this.wait(async () => (this.store.deleteOutbox(operation.operationId)));
+            if (operation.deleted) await this.wait(async () => (this.adapter.acknowledgeDelete?.(keyOf(operation), operation.deleteIntentGeneration)));
+            else await this.wait(async () => (this.acknowledgeOwnRecord(operation, result.record)));
           }
           else if (result.status === 'conflict') {
             conflicts += 1;
@@ -1390,13 +1505,13 @@
               recordType: operation.recordType, recordId: operation.recordId,
               schemaVersion: operation.schemaVersion, payload: clone(operation.payload), payloadHash: operation.payloadHash
             };
-            await this.recordConflict('push', recordKey, {
+            await this.wait(async () => (this.recordConflict('push', recordKey, {
               localRecord,
               remoteRecord: result.record || null,
-              shadowRecord: await this.store.getShadow?.(recordKey)
-            });
-            await this.store.putOutbox({ ...operation, conflict: true });
-          } else await this.store.putOutbox({ ...operation, terminalError: result.code || 'invalid' });
+              shadowRecord: await this.wait(async () => (this.store.getShadow?.(recordKey)))
+            })));
+            await this.wait(async () => (this.store.putOutbox({ ...operation, conflict: true })));
+          } else await this.wait(async () => (this.store.putOutbox({ ...operation, terminalError: result.code || 'invalid' })));
         }
         if (conflicts) {
           this.setState('attention', { reason: 'conflict' });
@@ -1406,9 +1521,9 @@
     }
 
     async replaceShadow(records, cursor = null) {
-      for (const record of records) await this.store.putShadow(keyOf(record), clone(record));
-      await this.store.setMeta('shadowKeys', records.map(keyOf));
-      if (cursor) await this.store.setMeta('cursor', cursor);
+      for (const record of records) await this.wait(async () => (this.store.putShadow(keyOf(record), clone(record))));
+      await this.wait(async () => (this.store.setMeta('shadowKeys', records.map(keyOf))));
+      if (cursor) await this.wait(async () => (this.store.setMeta('cursor', cursor)));
     }
 
     // Migration completion compares manifests byte for byte, while the push
@@ -1446,8 +1561,8 @@
       const remoteMap = mapRecords(remoteRecords);
       for (const recordKey of recordKeys) {
         const remoteRecord = remoteMap.get(recordKey);
-        if (remoteRecord) await this.store.putShadow(recordKey, clone(remoteRecord));
-        else await this.store.deleteShadow?.(recordKey);
+        if (remoteRecord) await this.wait(async () => (this.store.putShadow(recordKey, clone(remoteRecord))));
+        else await this.wait(async () => (this.store.deleteShadow?.(recordKey)));
       }
     }
 
@@ -1463,29 +1578,29 @@
       const next = this.adapter.deserializeRecords(records);
       if (canonicalJson(this.adapter.normalizeLocalSnapshot(next)) !==
           canonicalJson(this.adapter.normalizeLocalSnapshot(context.local.snapshot))) {
-        await this.applyWithBackup(next, context.local.snapshot, { checkCurrent: true });
+        await this.wait(async () => (this.applyWithBackup(next, context.local.snapshot, { checkCurrent: true })));
       }
-      await this.rememberSyncedRemote(changes.keys(), remoteRecords);
-      const local = await this.localRecords();
+      await this.wait(async () => (this.rememberSyncedRemote(changes.keys(), remoteRecords)));
+      const local = await this.wait(async () => (this.localRecords()));
       const cloudKeys = new Set(remoteRecords.filter((record) => !isDeleted(record)).map(keyOf));
       const shadowKeys = new Set(context.shadowRecords.map(keyOf));
       const newItems = local.records.filter((record) => keyOf(record) !== conflict.recordKey &&
         !cloudKeys.has(keyOf(record)) && !shadowKeys.has(keyOf(record)));
       if (newItems.length) {
         const operations = [];
-        for (const record of newItems) operations.push(await this.operationFor(record, 0));
-        const response = await this.request('POST', '/v1/sync/push', this.withSyncCapabilities({
+        for (const record of newItems) operations.push(await this.wait(async () => (this.operationFor(record, 0))));
+        const response = await this.wait(async () => (this.pushRequest( this.withSyncCapabilities({
           appId: this.appId, mode: 'sync',
           operations: operations.map(({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }) =>
             ({ operationId, recordType, recordId, schemaVersion, baseRevision, payload, payloadHash, deleted }))
-        }));
+        }))));
         for (const operation of operations) {
           const result = (response.results || []).find((item) => item.operationId === operation.operationId);
           if (!['applied', 'duplicate'].includes(result?.status)) {
             throw Object.assign(new MultiAppSyncError('stale_resolution'), { resetResolution: true });
           }
-          await this.acknowledgeOwnRecord(operation, result.record);
-          await this.clearConflictOutbox(keyOf(operation));
+          await this.wait(async () => (this.acknowledgeOwnRecord(operation, result.record)));
+          await this.wait(async () => (this.clearConflictOutbox(keyOf(operation))));
         }
       }
       return this.conflictContext(conflict);
@@ -1494,7 +1609,7 @@
     async adoptSemanticallyEqualRemote(snapshot, remoteLive) {
       if (typeof this.adapter.sameRecordForSync !== 'function') return snapshot;
       const remoteMap = mapRecords(remoteLive);
-      const records = await this.adapter.serializeRecords(snapshot);
+      const records = await this.wait(async () => (this.adapter.serializeRecords(snapshot)));
       let adopted = 0;
       const next = records.map((record) => {
         const remoteRecord = remoteMap.get(keyOf(record));
@@ -1506,27 +1621,27 @@
     }
 
     async initializeDataset() {
-      const membership = await this.membership();
+      const membership = await this.wait(async () => (this.membership()));
       this.adapter.assertDataPlaneContext({
         membership: membership || { appId: this.appId, state: 'active' },
-        appCredential: { appId: this.appId, credential: await this.credential() }
+        appCredential: { appId: this.appId, credential: await this.wait(async () => (this.credential())) }
       });
       this.setState('initializing');
-      const local = await this.localRecords();
-      await this.bootstrap(local);
-      const rawRemote = await this.serverSnapshot();
+      const local = await this.wait(async () => (this.localRecords()));
+      await this.wait(async () => (this.bootstrap(local)));
+      const rawRemote = await this.wait(async () => (this.serverSnapshot()));
       const partitioned = this.partitionRemote(rawRemote);
       const remote = partitioned.remote;
-      await this.recordRecoveryIssues(local, rawRemote, partitioned.issues, local.issues);
+      await this.wait(async () => (this.recordRecoveryIssues(local, rawRemote, partitioned.issues, local.issues)));
       const hydrationIsolatedKeys = new Set([...(local.isolatedKeys || []), ...(partitioned.isolatedKeys || [])]);
       const writeIsolatedKeys = new Set([...(local.writeIsolatedKeys || []),
         ...(partitioned.writeIsolatedKeys || [])]);
       const remoteLive = (remote.records || []).filter((record) =>
         !isDeleted(record) && !hydrationIsolatedKeys.has(keyOf(record)));
       const remoteSnapshot = this.adapter.deserializeRecords(remoteLive);
-      const [shadowRecords, unresolvedConflicts] = await Promise.all([
+      const [shadowRecords, unresolvedConflicts] = await this.wait(async () => (Promise.all([
         this.store.listShadow(), this.store.listConflicts()
-      ]);
+      ])));
       let finalSnapshot = local.snapshot;
       const resumesOwnPartialMigration = this.appId === 'port' && remote.datasetState === 'initializing' && remoteLive.length > 0 &&
         remoteLive.every((record) => record.ownedByCurrentDevice === true);
@@ -1545,21 +1660,21 @@
           this.adapter.canDeleteDuringMigration?.(keyOf(record), record) !== true);
         if (hydrate.length) {
           finalSnapshot = this.adapter.deserializeRecords([...local.records, ...hydrate]);
-          await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
+          await this.wait(async () => (this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true })));
         }
       } else if (resumesResolvedConflictMerge) {
         // The matching saved shadow proves that earlier conflict choices were
         // completed. Hydrate only records still absent locally; never infer a
         // delete from those absences or re-run the original conflict merge.
         const present = new Set(local.records.map(keyOf));
-        finalSnapshot = await this.adoptSemanticallyEqualRemote(this.adapter.deserializeRecords(
+        finalSnapshot = await this.wait(async () => (this.adoptSemanticallyEqualRemote(this.adapter.deserializeRecords(
           this.reconcileOrderRecords([
             ...local.records, ...remoteLive.filter((record) => !present.has(keyOf(record)))
-          ], remoteLive)), remoteLive);
-        await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
+          ], remoteLive)), remoteLive)));
+        await this.wait(async () => (this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true })));
       } else if (!local.records.length && remoteLive.length) {
         finalSnapshot = remoteSnapshot;
-        await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
+        await this.wait(async () => (this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true })));
       } else if (local.records.length && remoteLive.length) {
         const merged = this.adapter.mergeSnapshots(local.snapshot, remoteSnapshot);
         let mergedSnapshot = merged.snapshot;
@@ -1581,54 +1696,56 @@
         if (unresolved.length) {
           const localMap = mapRecords(local.records);
           const remoteMap = mapRecords(remote.records || []);
-          for (const item of unresolved) await this.recordConflict('initial_merge', item.recordKey, {
+          for (const item of unresolved) await this.wait(async () => (this.recordConflict('initial_merge', item.recordKey, {
             reason: item.reason,
             localRecord: localMap.get(item.recordKey) || null,
             remoteRecord: remoteMap.get(item.recordKey) || null,
             shadowRecord: null
-          });
+          })));
           this.setState('attention', { reason: 'conflict' });
-          await this.reportRemovalSafety('attention');
+          await this.wait(async () => (this.reportRemovalSafety('attention')));
           return Object.freeze({ ok: false, code: 'merge_conflict', conflicts: unresolved.length });
         }
         if (typeof this.adapter.reconcileOrderRecords === 'function') {
           mergedSnapshot = { ...mergedSnapshot, records: this.reconcileOrderRecords(mergedSnapshot.records, remoteLive) };
         }
-        finalSnapshot = await this.adoptSemanticallyEqualRemote(mergedSnapshot, remoteLive);
+        finalSnapshot = await this.wait(async () => (this.adoptSemanticallyEqualRemote(mergedSnapshot, remoteLive)));
         this.adapter.validateSnapshot(finalSnapshot);
-        await this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true });
+        await this.wait(async () => (this.applyWithBackup(finalSnapshot, local.snapshot, { checkCurrent: true })));
       }
-      const finalRecords = await this.adapter.serializeRecords(finalSnapshot);
-      await this.queueDiff(finalRecords, remote.records || [], remote.records || [], {
+      const finalRecords = await this.wait(async () => (this.adapter.serializeRecords(finalSnapshot)));
+      await this.wait(async () => (this.queueDiff(finalRecords, remote.records || [], remote.records || [], {
         migration: true, isolatedKeys: writeIsolatedKeys
-      });
-      await this.flushOutbox({ migration: true, force: true });
-      const finalManifest = await this.adapter.computeManifest(finalSnapshot);
-      const completionSnapshot = partitioned.issues.length || local.issues?.length ? await this.serverSnapshot() : null;
+      })));
+      await this.wait(async () => (this.flushOutbox({ migration: true, force: true })));
+      const finalManifest = await this.wait(async () => (this.adapter.computeManifest(finalSnapshot)));
+      const completionSnapshot = partitioned.issues.length || local.issues?.length ? await this.wait(async () => (this.serverSnapshot())) : null;
       const completionManifest = completionSnapshot?.manifestHash || finalManifest;
       const completionRecordCount = completionSnapshot?.recordCount ?? finalRecords.length;
-      const completed = await this.request('POST', '/v1/sync/migration/complete', this.withSyncCapabilities({
+      const completed = await this.wait(async () => (this.request('POST', '/v1/sync/migration/complete', this.withSyncCapabilities({
         appId: this.appId, schemaVersion: finalSnapshot.schemaVersion,
         recordCount: completionRecordCount, manifestHash: completionManifest
-      }));
+      }))));
       if (completed.datasetState !== 'ready' || completed.manifestHash !== completionManifest) {
         throw new MultiAppSyncError('manifest_mismatch');
       }
-      const authoritativeRaw = await this.serverSnapshot();
+      const authoritativeRaw = await this.wait(async () => (this.serverSnapshot()));
       const authoritative = this.partitionRemote(authoritativeRaw).remote;
-      await this.replaceShadow(authoritative.records || [], authoritative.cursor);
-      await this.store.setMeta('migrationState', 'complete');
-      await this.store.setMeta('datasetState', 'ready');
-      await this.store.setMeta('lastSyncAt', this.now());
-      const remaining = await this.store.listConflicts();
+      await this.wait(async () => (this.replaceShadow(authoritative.records || [], authoritative.cursor)));
+      await this.wait(async () => (this.store.setMeta('migrationState', 'complete')));
+      await this.wait(async () => (this.store.setMeta('datasetState', 'ready')));
+      await this.wait(async () => (this.store.setMeta('lastSyncAt', this.now())));
+      const remaining = await this.wait(async () => (this.store.listConflicts()));
       this.setState(remaining.length ? 'attention' : 'ready', remaining.length
         ? { reason: 'data_repair', conflicts: remaining.length } : {});
       this.bindLifecycle();
-      await this.reportRemovalSafety(remaining.length ? 'attention' : 'clean');
+      await this.wait(async () => (this.reportRemovalSafety(remaining.length ? 'attention' : 'clean')));
       return Object.freeze({ ok: true, recordCount: authoritative.recordCount, manifestHash: authoritative.manifestHash });
     }
 
     sync(reason = 'manual') {
+      if (this.disposed) return Promise.reject(new MultiAppSyncError('runtime_disposed'));
+      this.assertActive();
       this.syncRequestGeneration += 1;
       if (!this.pendingSyncReason || reason === 'save') this.pendingSyncReason = reason;
       if (this.running) return this.running;
@@ -1636,12 +1753,14 @@
     }
 
     startScheduledSync() {
+      this.assertActive();
       const generation = this.syncRequestGeneration;
       const reason = this.pendingSyncReason || 'pending';
       this.pendingSyncReason = null;
       let scheduled;
       scheduled = Promise.resolve().then(() => this.performSync(reason)).then(
         (result) => {
+          this.assertActive();
           const hasPendingRequest = this.syncRequestGeneration > generation;
           if (this.running === scheduled) this.running = null;
           if (result?.ok === true && hasPendingRequest) return this.startScheduledSync();
@@ -1654,6 +1773,7 @@
           return result;
         },
         (error) => {
+          if (this.disposed) throw error;
           if (this.running === scheduled) this.running = null;
           if (retryableError(error)) {
             this.networkRetryAttempts += 1;
@@ -1672,28 +1792,28 @@
     }
 
     async performSync(reason) {
-      if (await this.store.readMeta('migrationState') !== 'complete') return { ok: false, code: 'migration_required' };
+      if (await this.wait(async () => (this.store.readMeta('migrationState'))) !== 'complete') return { ok: false, code: 'migration_required' };
       if (global.navigator?.onLine === false) {
         this.setState('offline');
         return { ok: false, code: 'offline' };
       }
-      let unresolved = await this.store.listConflicts();
-      if (unresolved.length) unresolved = await this.reconcileConvergedPortConflicts(unresolved);
+      let unresolved = await this.wait(async () => (this.store.listConflicts()));
+      if (unresolved.length) unresolved = await this.wait(async () => (this.reconcileConvergedPortConflicts(unresolved)));
       const isolatedKinds = new Set(['ambiguous_delete', 'invalid_record']);
       const isolatedKeys = new Set(unresolved.filter((item) => isolatedKinds.has(item.kind)).map((item) => item.recordKey));
       if (unresolved.some((item) => !isolatedKinds.has(item.kind))) {
         this.setState('attention', { reason: 'conflict', conflicts: unresolved.length });
-        await this.reportRemovalSafety('attention');
+        await this.wait(async () => (this.reportRemovalSafety('attention')));
         return { ok: false, code: 'conflict_pending', conflicts: unresolved.length };
       }
       this.setState('syncing', { reason });
-      const rawRemote = await this.serverSnapshot();
-      await this.acknowledgeOwnEchoes(this.partitionRemote(rawRemote).remote.records || []);
-      let shadowRecords = await this.store.listShadow();
-      let local = await this.localRecords();
+      const rawRemote = await this.wait(async () => (this.serverSnapshot()));
+      await this.wait(async () => (this.acknowledgeOwnEchoes(this.partitionRemote(rawRemote).remote.records || [])));
+      let shadowRecords = await this.wait(async () => (this.store.listShadow()));
+      let local = await this.wait(async () => (this.localRecords()));
       const partitioned = this.partitionRemote(rawRemote);
       const remote = partitioned.remote;
-      await this.recordRecoveryIssues(local, rawRemote, partitioned.issues, local.issues);
+      await this.wait(async () => (this.recordRecoveryIssues(local, rawRemote, partitioned.issues, local.issues)));
       for (const key of [...(local.writeIsolatedKeys || local.isolatedKeys || []),
         ...(partitioned.writeIsolatedKeys || partitioned.isolatedKeys || [])]) isolatedKeys.add(key);
       let localMap = mapRecords(local.records);
@@ -1730,13 +1850,13 @@
         }
       }
       if (conflictKeys.length) {
-        for (const recordKey of conflictKeys) await this.recordConflict('pull', recordKey, {
+        for (const recordKey of conflictKeys) await this.wait(async () => (this.recordConflict('pull', recordKey, {
           localRecord: localMap.get(recordKey) || null,
           remoteRecord: remoteMap.get(recordKey) || null,
           shadowRecord: shadowMap.get(recordKey) || null
-        });
+        })));
         this.setState('attention', { reason: 'conflict' });
-        await this.reportRemovalSafety('attention');
+        await this.wait(async () => (this.reportRemovalSafety('attention')));
         return { ok: false, code: 'conflict', conflicts: conflictKeys.length };
       }
       if (automaticSettings.length || automaticOrders.length) {
@@ -1756,34 +1876,34 @@
         const next = { ...clone(local.snapshot), records };
         try { this.adapter.validateSnapshot(next); }
         catch {
-          for (const { recordKey } of automatic) await this.recordConflict('pull', recordKey, {
+          for (const { recordKey } of automatic) await this.wait(async () => (this.recordConflict('pull', recordKey, {
             reason: automaticSettings.some((item) => item.recordKey === recordKey) ? 'settings_field_unsupported' : 'ordering_conflict',
             localRecord: localMap.get(recordKey), remoteRecord: remoteMap.get(recordKey), shadowRecord: shadowMap.get(recordKey)
-          });
+          })));
           this.setState('attention', { reason: 'conflict', conflicts: automatic.length });
-          await this.reportRemovalSafety('attention');
+          await this.wait(async () => (this.reportRemovalSafety('attention')));
           return { ok: false, code: 'conflict', conflicts: automatic.length };
         }
-        await this.applyWithBackup(next, local.snapshot, { checkCurrent: true });
-        await this.rememberSyncedRemote(pulled, remote.records || []);
-        if (pulled.length) shadowRecords = await this.store.listShadow();
-        local = await this.localRecords();
+        await this.wait(async () => (this.applyWithBackup(next, local.snapshot, { checkCurrent: true })));
+        await this.wait(async () => (this.rememberSyncedRemote(pulled, remote.records || [])));
+        if (pulled.length) shadowRecords = await this.wait(async () => (this.store.listShadow()));
+        local = await this.wait(async () => (this.localRecords()));
         localMap = mapRecords(local.records);
       }
-      await this.queueDiff(local.records, remote.records || [], shadowRecords, { isolatedKeys });
-      for (const conflict of await this.store.listConflicts()) {
+      await this.wait(async () => (this.queueDiff(local.records, remote.records || [], shadowRecords, { isolatedKeys })));
+      for (const conflict of await this.wait(async () => (this.store.listConflicts()))) {
         if (isolatedKinds.has(conflict.kind)) isolatedKeys.add(conflict.recordKey);
       }
-      await this.flushOutbox();
+      await this.wait(async () => (this.flushOutbox()));
       // Records this device just pushed now have their confirmed cloud version as the shadow.
-      const shadowAfterPush = mapRecords(await this.store.listShadow());
-      const rawAfterPush = await this.serverSnapshot();
+      const shadowAfterPush = mapRecords(await this.wait(async () => (this.store.listShadow())));
+      const rawAfterPush = await this.wait(async () => (this.serverSnapshot()));
       const afterPartition = this.partitionRemote(rawAfterPush);
       const afterPush = afterPartition.remote;
-      const localAfterPush = await this.localRecords();
+      const localAfterPush = await this.wait(async () => (this.localRecords()));
       const afterMap = mapRecords(afterPush.records || []);
       const freshMap = mapRecords(localAfterPush.records);
-      const pending = await this.store.listOutbox();
+      const pending = await this.wait(async () => (this.store.listOutbox()));
       const pendingKeys = new Set(pending.map(keyOf));
       const merged = new Map(localAfterPush.records.map((record) => [keyOf(record), record]));
       const lateConflicts = [];
@@ -1804,50 +1924,52 @@
         }
       }
       if (lateConflicts.length) {
-        for (const recordKey of lateConflicts) await this.recordConflict('pull', recordKey, {
+        for (const recordKey of lateConflicts) await this.wait(async () => (this.recordConflict('pull', recordKey, {
           localRecord: freshMap.get(recordKey) || null,
           remoteRecord: afterMap.get(recordKey) || null,
           shadowRecord: shadowAfterPush.get(recordKey) || null
-        });
+        })));
         this.setState('attention', { reason: 'conflict', conflicts: lateConflicts.length });
-        await this.reportRemovalSafety('attention');
+        await this.wait(async () => (this.reportRemovalSafety('attention')));
         return { ok: false, code: 'conflict', conflicts: lateConflicts.length };
       }
       if (remoteChanged) {
         // A pulled order may lag its items (another device mid-push, or an older client): reconcile first.
         const next = this.adapter.deserializeRecords(this.reconcileOrderRecords([...merged.values()], afterPush.records || []));
-        await this.applyWithBackup(next, localAfterPush.snapshot, { checkCurrent: true });
+        await this.wait(async () => (this.applyWithBackup(next, localAfterPush.snapshot, { checkCurrent: true })));
       }
-      await this.replaceShadow(afterPush.records || [], afterPush.cursor);
-      await this.store.setMeta('lastSyncAt', this.now());
+      await this.wait(async () => (this.replaceShadow(afterPush.records || [], afterPush.cursor)));
+      await this.wait(async () => (this.store.setMeta('lastSyncAt', this.now())));
       this.networkRetryAt = 0;
       this.networkRetryAttempts = 0;
-      const [outbox, conflicts] = await Promise.all([this.store.listOutbox(), this.store.listConflicts()]);
+      const [outbox, conflicts] = await this.wait(async () => (Promise.all([this.store.listOutbox(), this.store.listConflicts()])));
       const state = conflicts.length || outbox.some((item) => item.terminalError || item.conflict)
         ? 'attention' : outbox.length ? 'pending' : 'ready';
       this.setState(state, { reason, recordCount: localAfterPush.records.length });
-      await this.reportRemovalSafety(state === 'ready' ? 'clean' : state === 'attention' ? 'attention' : 'pending');
-      await this.scheduleRetryWake();
+      await this.wait(async () => (this.reportRemovalSafety(state === 'ready' ? 'clean' : state === 'attention' ? 'attention' : 'pending')));
+      await this.wait(async () => (this.scheduleRetryWake()));
       return { ok: true, recordCount: afterPush.recordCount, manifestHash: afterPush.manifestHash };
     }
 
     notifyLocalSave() {
-      void this.reportRemovalSafety('pending');
-      queueMicrotask(() => this.sync('save').catch((error) => {
-        void this.reportRemovalSafety('error');
+      if (this.disposed) return;
+      void this.reportRemovalSafety('pending').catch(() => {});
+      queueMicrotask(() => { if (this.disposed) return; this.sync('save').catch((error) => {
+        if (this.disposed) return;
+        void this.reportRemovalSafety('error').catch(() => {});
         this.setState(error instanceof MultiAppSyncError && PAUSE_CODES.has(error.code) ? 'paused' :
           retryableError(error) ? 'retrying' : 'attention');
-      }));
+      }); });
     }
 
     bindLifecycle() {
-      if (this.lifecycleBound || !global.addEventListener) return;
+      if (this.disposed || this.hostLifecycle || this.lifecycleBound || !global.addEventListener) return;
       this.lifecycleBound = true;
       this.scheduleRetryWake().catch(() => {});
-      global.addEventListener('focus', () => this.sync('focus').catch(() => {}));
-      global.addEventListener('online', () => this.resumeConflictResolutions()
+      this.listen(global, 'focus', () => this.sync('focus').catch(() => {}));
+      this.listen(global, 'online', () => this.resumeConflictResolutions()
         .then(() => this.sync('online')).catch(() => {}));
-      global.document?.addEventListener('visibilitychange', () => {
+      this.listen(global.document, 'visibilitychange', () => {
         if (global.document.visibilityState === 'visible') this.sync('resume').catch(() => {});
       });
     }

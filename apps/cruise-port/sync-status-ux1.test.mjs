@@ -216,7 +216,7 @@ test('13: offline → オフライン with the automatic re-check on reconnectio
   assert.match(view.text(view.panel), /インターネットに接続すると、自動で状態を確認します。/);
   assertNextAction(view, 'offline');
   const refresh = readFileSync(new URL('./sync-center-refresh.js', import.meta.url), 'utf8');
-  assert.match(refresh, /addEventListener\?\.\('online', trigger\)/, 'the promise is backed by the online listener');
+  assert.match(refresh, /listen\(windowObject, 'online', trigger\)/, 'the promise is backed by the online listener');
 });
 
 test('14: unconnected rows keep their connection action', () => {

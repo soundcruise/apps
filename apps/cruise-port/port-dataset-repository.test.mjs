@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { PortDatasetRepository, PORT_DATASET_META, PORT_DELETE_INTENTS } from './port-dataset-repository.js';
-import { registerPortRepository } from './port-dataset-storage.js?v=1.21.3';
+import { registerPortRepository } from './port-dataset-storage.js?v=1.22.0';
 import { loadMetronomeSettings, saveMetronomeSettings, METRONOME_DEFAULTS } from './metronome-store.js';
 import { loadSettings, saveSettings, DEFAULT_SETTINGS } from './settings-store.js';
 const settingKey = 'cruisePort.settings', presetKey = 'cruisePort.metronomePresets';
@@ -282,4 +282,11 @@ test('unknown asset metadata shape cannot be normalized to an empty dictionary',
     const result = await repo.runWrite({ expectedRevision: 'irrelevant' }, tx => tx.setItem(key, '{"version":4,"attachments":{}}'));
     assert.equal(result.reason, 'forward-incompatible');
     assert.equal(target.getItem(key), raw);
+});
+
+test('Sync/ack publication fences an Account generation change while waiting for the dataset lock',async()=>{
+ const {repo,target}=setup();await write(repo,settingKey,DEFAULT_SETTINGS);const base=await repo.readDatasetState();const raw=target.getItem(settingKey);let current=true;
+ const result=await repo.runWrite({expectedRevision:base.revision,source:'sync',assertCurrent:async()=>{if(!current)throw Object.assign(Error('account_generation_changed'),{code:'account_generation_changed'});}},async draft=>{draft.setItem(settingKey,settings({theme:'gray'}));current=false;return {ok:true};});
+ assert.equal(result.ok,false);assert.equal(result.reason,'account_generation_changed');assert.equal(target.getItem(settingKey),raw);
+ const ack=await repo.acknowledgeDelete('metronome_preset/old','old-generation',base.revision,()=>{throw Object.assign(Error('account_generation_changed'),{code:'account_generation_changed'});});assert.equal(ack.ok,false);assert.equal(target.getItem(settingKey),raw);
 });

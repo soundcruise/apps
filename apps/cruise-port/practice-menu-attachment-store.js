@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.0';
 
 export const PRACTICE_ATTACHMENT_DB_NAME = 'cruisePortPractice';
 export const PRACTICE_ATTACHMENT_DB_VERSION = 1;

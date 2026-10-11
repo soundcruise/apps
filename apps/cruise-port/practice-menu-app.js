@@ -6,14 +6,14 @@
  * Third-party licenses and legally permitted uses remain unaffected.
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
-import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.21.3';
+import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.22.0';
 import './feature-help.js?v=1.21.2';
-import { bindSyncProLock } from './sync-pro-lock.js?v=1.21.3';
+import { bindSyncProLock } from './sync-pro-lock.js?v=1.22.0';
 import { getPracticeCrossDayNotice } from './practice-cross-day-display.js?v=1.2.1';
-import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.21.3';
-import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.21.3';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
-import { requestToolPro } from './tool-capabilities.js?v=1.21.3';
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.22.0';
+import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.22.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.0';
+import { requestToolPro } from './tool-capabilities.js?v=1.22.0';
 import {
     LIMITS,
     createPracticeMenu,
@@ -23,7 +23,7 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=1.21.3';
+} from './practice-menu-store.js?v=1.22.0';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
@@ -36,18 +36,18 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=1.1.3';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.21.3';
-import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=0.65.0';
-import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.21.3';
-import { createAiSupportPanel } from './ai-support-ui.js?v=1.21.3';
-import { createPortSyncStatus } from './port-sync-status.js?v=0.59.3';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.21.3';
+} from './sync-center-controller.js?v=1.22.0';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.22.0';
+import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.22.0';
+import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.22.0';
+import { createAiSupportPanel } from './ai-support-ui.js?v=1.22.0';
+import { createPortSyncStatus } from './port-sync-status.js?v=1.22.0';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.22.0';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=1.1.3';
+} from './sync-center-navigation.js?v=1.22.0';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -61,7 +61,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=1.21.3';
+} from './practice-menu-progress-store.js?v=1.22.0';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -81,7 +81,7 @@ import {
     savePracticeHistory,
     toLocalDateKey,
     updatePracticeHistoryRecord
-} from './practice-menu-history-store.js?v=1.21.3';
+} from './practice-menu-history-store.js?v=1.22.0';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -96,7 +96,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=1.21.3';
+} from './practice-menu-calendar-store.js?v=1.22.0';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -113,12 +113,12 @@ import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen
-} from './practice-menu-attachment-store.js?v=1.21.3';
+} from './practice-menu-attachment-store.js?v=1.22.0';
 import {
     appendPendingPracticeAttachments,
     savePendingPracticeAttachments,
     validatePendingPracticeAttachment
-} from './practice-menu-pending-attachments.js?v=1.21.3';
+} from './practice-menu-pending-attachments.js?v=1.22.0';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -129,7 +129,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=1.21.3';
+} from './practice-menu-app-resolver.js?v=1.22.0';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -144,7 +144,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=1.21.3';
+} from './my-apps-store.js?v=1.22.0';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -165,7 +165,7 @@ import {
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.1.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.21.3';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.22.0';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -183,22 +183,22 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=1.21.3';
+} from './my-apps-icon-workflow.js?v=1.22.0';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.4';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=1.21.3';
+import { initMetronome } from './metronome-app.js?v=1.22.0';
 import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.21.3';
-import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.21.3';
-import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.21.3';
-import { initTuner } from './tuner-app.js?v=1.21.3';
+} from './app-version.js?v=1.22.0';
+import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.22.0';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.22.0';
+import { initTuner } from './tuner-app.js?v=1.22.0';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -216,7 +216,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=1.21.3';
+} from './gear-list-store.js?v=1.22.0';
 import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv } from './gear-list-ux.js?v=0.59.3';
 import { createGearCardPng, shareGearCardPng } from './gear-card-export.js?v=0.59.3';
 import { createGearListPng } from './gear-list-image-export.js?v=0.59.3';
@@ -228,10 +228,10 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=1.21.3';
-import { createGearPhotoStore } from './gear-photo-store.js?v=1.21.3';
-import { PortAssetSync } from './port-asset-sync.js?v=1.21.3';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.21.3';
+} from './gear-category-store.js?v=1.22.0';
+import { createGearPhotoStore } from './gear-photo-store.js?v=1.22.0';
+import { PortAssetSync } from './port-asset-sync.js?v=1.22.0';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.0';
 import {
     ALL_PRACTICE_MENUS_SET_ID,
     addPracticeMenuToSets,
@@ -246,7 +246,7 @@ import {
     reorderPracticeMenuSet,
     savePracticeMenuSets,
     updatePracticeMenuSet
-} from './practice-menu-sets-store.js?v=1.21.3';
+} from './practice-menu-sets-store.js?v=1.22.0';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -255,7 +255,7 @@ import {
     commitGearItemDeletion,
     commitGearPhotoChange,
     commitGearPhotoRemoval
-} from './gear-photo-workflow.js?v=1.21.3';
+} from './gear-photo-workflow.js?v=1.22.0';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
@@ -305,9 +305,16 @@ if (globalThis.SoundCruisePortSync) {
     globalThis.SoundCruisePortSync.canSync = () => getCapabilities().cloudSyncOperations;
 }
 const portSyncController = globalThis.SoundCruisePortSync?.createPortSyncController?.({ config: syncCenterConfig });
-const portConflictResolutionController = portSyncController?.runtime
-    ? globalThis.SoundCruiseMultiAppSync?.installConflictResolutionUi?.(portSyncController.runtime, document)
-    : null;
+let portConflictResolutionController = null;
+let portConflictRuntime = null;
+portSyncController?.subscribe?.(() => {
+    const runtime = portSyncController.runtime;
+    if (runtime === portConflictRuntime) return;
+    portConflictResolutionController?.dispose?.();
+    portConflictRuntime = runtime;
+    portConflictResolutionController = runtime
+        ? globalThis.SoundCruiseMultiAppSync?.installConflictResolutionUi?.(runtime, document) : null;
+});
 const syncCenterOrchestrator = createSyncCenterOrchestrator({ config: syncCenterConfig, portSync: portSyncController });
 bindHomeCruiseLaunch(syncCenterOrchestrator);
 const PORT_SYNC_HELP_SUMMARY = 'Sound Cruise SyncアカウントでCruise PortとCruiseアプリの保存データを同期します。通常はインターネット接続時に自動で同期されます。';
@@ -4302,7 +4309,7 @@ function refreshVisibleSyncCenterStatus() {
     });
 }
 
-async function renderSyncCenterView() {
+async function renderSyncCenterView({ activate = false } = {}) {
     if (!syncCenterController.enabled) {
         replaceHomeRoute();
         return;
@@ -4310,34 +4317,34 @@ async function renderSyncCenterView() {
     const sequence = ++syncCenterRenderSequence;
     showView(elements.syncCenterView);
     elements.syncCenterTitle.focus({ preventScroll: true });
-    if (getCapabilities().cloudSyncOperations && !syncCenterResumeChecked && syncCenterOrchestrator.enabled) {
-        syncCenterResumeChecked = true;
-        try { await syncCenterOrchestrator.resume(); } catch (_) { /* no pending committed Account */ }
-    }
-    try {
-        if (await syncCenterOrchestrator.hasConfiguredAccount?.()) {
-            await syncCenterActions?.ensureQaAdmission?.();
-        }
-    } catch (error) {
-        if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
-        showNotice(elements.syncCenterView.querySelector('#sync-center-alert'),
-            error?.message === 'verification_required'
-                ? '認証を完了してからQAを開始してください。'
-                : 'QA Enrollmentを完了してから同期情報を確認してください。');
-        return;
+    if (activate && getCapabilities().cloudSyncOperations) {
+        await syncCenterActions?.ensureQaAdmission?.();
+        await portSyncController?.ensure?.();
     }
     // Show a neutral "確認中…" instead of the previous result while the latest state loads.
+    let start = elements.syncCenterView.querySelector('#port-sync-activate');
+    if (!start) {
+        start = document.createElement('button'); start.id = 'port-sync-activate';
+        start.type = 'button'; start.textContent = '同期を開始・最新状態を確認';
+        start.addEventListener('click', async () => {
+            start.disabled = true;
+            try { await renderSyncCenterView({ activate: true }); }
+            catch (_) { showNotice(elements.syncCenterView.querySelector('#sync-center-alert'), '同期を開始できませんでした。接続と資格を確認してください。'); }
+            finally { start.disabled = false; }
+        });
+        elements.syncCenterView.append(start);
+    }
     markAppRowsChecking(elements.syncCenterView);
     syncCenterReturnRefresh?.noteRefreshed();
     let [presentation, structuredStatus, assetStatus, portOutbox] = await Promise.all([
-        syncCenterController.load(),
+        activate ? syncCenterController.load() : syncCenterController.loadLocal(),
         portSyncController?.status?.() || Promise.resolve({ known: false }),
         portAssetSync.status(),
         portSyncController?.store?.listOutbox?.() || Promise.resolve([])
     ]);
     if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
     // The rows are still 「確認中…」, so the one automatic retry of a mismatch shows nothing stale.
-    if (syncCenterMismatchRetry.shouldRetry(presentation)) {
+    if (activate && syncCenterMismatchRetry.shouldRetry(presentation)) {
         presentation = await syncCenterController.load();
         if (sequence !== syncCenterRenderSequence || location.hash !== SYNC_CENTER_ROUTE) return;
     }
@@ -4358,7 +4365,7 @@ async function renderSyncCenterView() {
         setupPlan: syncCenterController.planFourAppSetup(presentation),
         orchestrationEnabled: syncCenterOrchestrator.enabled === true,
         onAppAction: syncCenterActions?.onAppAction,
-        onRecheck: renderSyncCenterView,
+        onRecheck: () => renderSyncCenterView({ activate: true }),
         aiSupport: Boolean(aiSupportPanel)
     });
 }
@@ -6398,7 +6405,7 @@ if (syncCenterController.enabled) {
     syncCenterActions = bindSyncCenterActions(elements.syncCenterView, {
         orchestrator: syncCenterOrchestrator,
         edition: document.documentElement.dataset.edition,
-        refresh: renderSyncCenterView,
+        refresh: () => renderSyncCenterView({ activate: true }),
         onPortConflictOpen: async () => portConflictResolutionController?.refresh?.(),
         tokenProvider: async (action, options = {}) => {
             const provider = globalThis.__SOUND_CRUISE_ACCOUNT_TURNSTILE__;
@@ -6664,4 +6671,4 @@ elements.tunerCard.addEventListener('click', (event) => {
 ensurePracticeTimerTicking();
 renderRoute();
 void refreshPracticeAttachmentCounts();
-portSyncController?.ensure?.().catch(() => {});
+// Runtime activation belongs to explicit Sync actions.

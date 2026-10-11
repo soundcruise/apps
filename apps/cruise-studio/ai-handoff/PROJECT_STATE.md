@@ -14,12 +14,20 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
+### Port Runtime & Integration Safety v1（Port 1.22.0）
+
+Port singleton host / Account generation / dispose / status-only / byte+count chunk / 新build実2tabを整備。
+[Runtime Host契約](../../cruise-port/docs/PORT_SYNC_RUNTIME_HOST.md)を参照。
+次はStudio read-only Host。cached status / read-only dataset / 独立した正式Pro statusを段階接続する。
+Studio 0.25.1の本体・M2 memory facade・Feature Metadataは不変。M3 shared writeは引き続き禁止。
+旧build policy、Port/Studio同時起動のdraft保護、正式資格・mobile/Safariは接続工程の条件として残す。
+
 ### Port Dataset Readiness Core v1（Port 1.21.3）
 
 Port側のrepository / writer coordination / forward guard / full snapshot / delete generation / rollback基盤を追加。
 検証と旧build限界は[Port Dataset Repository](../../cruise-port/docs/PORT_DATASET_REPOSITORY.md)を参照。
 Studioは0.25.1・コード不変。M3 shared writeは無効。
-次はRuntime & Integration Safety（Account generation、singleton、status/ensure、byte chunk、実2tab）。
+Runtime & Integration Safetyの進捗は上記を参照。
 Core完了をStudio Host接続やM3製品統合完了とは扱わない。
 
 ### Metronome M2（0.25.1・実装／回帰完了）

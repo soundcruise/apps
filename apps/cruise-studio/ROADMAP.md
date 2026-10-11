@@ -37,7 +37,7 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 8 | Structure Editing Session接続 | 0.24.0実装・回帰完了。saved / draft分離、commit / cancel、external conflict、Save、Pre-DTM working snapshot。domain Undoは未実装 |
 | 9 | Audio Coordinator v1 + Metronome M1 | 0.25.0実装・回帰完了。Standard相当BPM / Start / Stop、memory-only、Dock、専用context・lease・global stop実証 |
 | 10 | Metronome M2 | 0.25.1実装・回帰完了。注入memory facade、Port schema3 / migration、raw・effective分離、CAS / stale / failure / retry / forward guard実証 |
-| 11 | Metronome M3 | Port Dataset Readiness Core v1をPort 1.21.3で整備。Runtime & Integration Safetyは次工程。Studio shared writeは無効。正式Port-owned data / presets / Pro / Account / Sync / delete intent / 2tab / mobile回帰 |
+| 11 | Metronome M3 | Core v1（Port 1.21.3）とRuntime & Integration Safety v1（Port 1.22.0）を整備。次はStudio read-only Host。Studio shared writeは無効。正式Port-owned data / presets / Pro / Account / Sync / delete intent / 2tab / mobile回帰 |
 | 12 | Chord | shared feature境界とPC presentationを追加 |
 | 13 | Practice | Port ownerと保存・同期契約を維持して追加 |
 | 14 | Tuner | mic排他・遅延request・競合音声確認・cleanupを検証 |

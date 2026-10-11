@@ -202,10 +202,10 @@
     if (!GUARDED_DELETE_TYPES.has(type) && !ORDER_ITEM_TYPES[type]) return false;
     return canDeleteRecord(storage, key, previous);
   }
-  function acknowledgeDelete(storage, key, generation) {
+  function acknowledgeDelete(storage, key, generation, assertCurrent = () => {}) {
     if (root.usesPortRepository?.(storage)) {
       const repo = root.portRepository(storage);
-      return repo.readDatasetState().then(base => repo.acknowledgeDelete(key, generation, base.revision));
+      return repo.readDatasetState().then(base => repo.acknowledgeDelete(key, generation, base.revision, assertCurrent));
     }
     try {
       const intents = JSON.parse(storage.getItem(DELETION_INTENT_KEY) || '{}');
@@ -521,13 +521,13 @@
     };
   }
   function write(storage, key, value) { storage.setItem(key, JSON.stringify(value)); }
-  async function applyRemoteSnapshot(storage, snapshot, previousRecords = [], expectedSnapshot = null) {
+  async function applyRemoteSnapshot(storage, snapshot, previousRecords = [], expectedSnapshot = null, assertCurrent = () => {}) {
     assertFullSnapshot(snapshot);
     assertForwardStorage(storage);
     if (root.usesPortRepository?.(storage)) {
       const repo = root.portRepository(storage);
       const before = await repo.readDatasetState();
-      const result = await repo.runWrite({ expectedRevision: before.revision, source: 'sync' },
+      const result = await repo.runWrite({ expectedRevision: before.revision, source: 'sync', assertCurrent },
         tx => applyRemoteSnapshot(tx, snapshot, previousRecords, expectedSnapshot));
       if (!result.ok) throw Object.assign(new Error(result.reason), { code: result.reason, repositoryHandled: true });
       root.acceptRemoteStorageValues?.(storage, MANAGED_KEYS);
@@ -676,6 +676,7 @@
   class PortSyncAdapter {
     constructor(options = {}) {
       this.storage = options.storage || global.localStorage;
+      this.assertCurrent = options.assertCurrent || (() => {});
       this.cryptoImpl = options.cryptoImpl || global.crypto;
       this.remoteApplyChanged = false;
       this.remoteReferenceRecords = [];
@@ -693,13 +694,13 @@
     deleteIntentGeneration(key) {
       try { return JSON.parse(this.storage.getItem(DELETION_INTENT_KEY) || '{}')[key]?.generation || null; } catch { return null; }
     }
-    acknowledgeDelete(key, generation) { return acknowledgeDelete(this.storage, key, generation); }
+    acknowledgeDelete(key, generation) { return acknowledgeDelete(this.storage, key, generation, this.assertCurrent); }
     mergeSnapshots(local, remote) { return mergeSnapshots(local, remote); }
     primeRemoteReferences(records) { this.remoteReferenceRecords = clone(records || []); }
     reconcileRemoteReferences(records) {
       if (root.usesPortRepository?.(this.storage)) {
         const repo = root.portRepository(this.storage);
-        return repo.readDatasetState().then(base => repo.runWrite({ expectedRevision: base.revision, source: 'sync' }, tx =>
+        return repo.readDatasetState().then(base => repo.runWrite({ expectedRevision: base.revision, source: 'sync', assertCurrent: this.assertCurrent }, tx =>
           ({ ok: true, repaired: reconcileRemoteAssetReferences(tx, records, this.remoteReferenceRecords) })
         )).then(result => {
           if (!result.ok) throw new Error(result.reason);
@@ -712,7 +713,7 @@
       return repaired;
     }
     async applyRemoteSnapshot(value, options = {}) {
-      const result = await applyRemoteSnapshot(this.storage, value, this.remoteReferenceRecords, options?.expectedSnapshot);
+      const result = await applyRemoteSnapshot(this.storage, value, this.remoteReferenceRecords, options?.expectedSnapshot, options?.assertCurrent || this.assertCurrent);
       this.remoteApplyChanged = this.remoteApplyChanged || result.changed;
       return result;
     }

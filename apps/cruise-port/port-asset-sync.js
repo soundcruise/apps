@@ -1,5 +1,5 @@
-import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.21.3';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
+import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.22.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.0';
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';
@@ -67,8 +67,24 @@ export class PortAssetSync {
         this.pendingAgain = false;
         this.bound = false;
         this.lastErrorCode = null;
+        this.disposed = false;
+        this.listeners = [];
     }
 
+    async wait(operation, owner) {
+        const check = () => {
+            if (this.disposed || this.controller?.runtime !== owner || owner?.disposed) throw new Error('account_generation_changed');
+            owner?.assertActive?.();
+        };
+        check(); const result = await operation(); check();
+        await owner?.assertCurrentAsync?.(); check(); return result;
+    }
+    dispose() {
+        if (this.disposed) return;
+        this.disposed = true; this.pendingAgain = false;
+        for (const remove of this.listeners || []) remove();
+        this.listeners = []; this.bound = false;
+    }
     readMetadata() {
         const raw = this.storage.getItem(METADATA_KEY);
         const value = normalizeMetadata(parse(this.storage, METADATA_KEY, emptyMetadata()));
@@ -76,12 +92,18 @@ export class PortAssetSync {
         return value;
     }
     async coordinated(method, args, expectedValues) {
+        const runtimeOwner = this.controller?.runtime;
+
         const repo = portRepository(this.storage);
-        const base = await repo.readDatasetState();
-        const result = await repo.runWrite({ expectedRevision: base.revision, expectedValues }, async tx => {
+        const base = await this.wait(async () => (repo.readDatasetState()), runtimeOwner);
+        const result = await this.wait(async () => (repo.runWrite({ expectedRevision: base.revision, expectedValues, assertCurrent: async () => {
+            if (this.controller?.runtime !== runtimeOwner || runtimeOwner?.disposed) throw new Error('account_generation_changed');
+            await runtimeOwner?.assertCurrentAsync?.();
+            if (this.controller?.runtime !== runtimeOwner || runtimeOwner?.disposed) throw new Error('account_generation_changed');
+        } }, async tx => {
             const isolated = Object.assign(Object.create(Object.getPrototypeOf(this)), this, { storage: tx, schedule: () => {} });
-            return { ok: true, value: await isolated[method](...args) };
-        });
+            return { ok: true, value: await this.wait(async () => (isolated[method](...args)), runtimeOwner) };
+        })), runtimeOwner);
         if (!result.ok) throw Object.assign(new Error(result.reason), { code: result.reason });
         return result.value;
     }
@@ -159,9 +181,14 @@ export class PortAssetSync {
     }
 
     bind() {
-        if (!this.canSync() || this.bound || !globalThis.addEventListener) return this;
+        if (this.disposed || !this.canSync() || this.bound || !globalThis.addEventListener) return this;
         this.bound = true;
-        globalThis.addEventListener('cruise-port-local-data-changed', async () => {
+        const unsubscribe = this.controller?.subscribe?.(status => {
+            if (status.state === 'unknown') { this.lastErrorCode = null; this.pendingAgain = false; }
+        });
+        if (unsubscribe) this.listeners.push(unsubscribe);
+        const listen = (name, callback) => { globalThis.addEventListener(name, callback); this.listeners.push(() => globalThis.removeEventListener(name, callback)); };
+        listen('cruise-port-local-data-changed', async () => {
             try {
                 await this.markLocalRemovals();
                 this.schedule('local-save');
@@ -170,9 +197,9 @@ export class PortAssetSync {
                 this.emitStatus('error');
             }
         });
-        globalThis.addEventListener('cruise-port-cloud-data-applied', () => this.schedule('remote-apply'));
-        globalThis.addEventListener('online', () => this.schedule('online'));
-        globalThis.addEventListener('cruise-port-sync-state', (event) => {
+        listen('cruise-port-cloud-data-applied', () => this.schedule('remote-apply'));
+        listen('online', () => this.schedule('online'));
+        listen('cruise-port-sync-state', (event) => {
             if (event.detail?.state === 'ready') this.schedule('ready');
         });
         this.schedule('startup');
@@ -181,13 +208,21 @@ export class PortAssetSync {
 
     schedule(reason) {
         if (!this.canSync()) return Promise.resolve({ ok: false, code: 'pro_required' });
+        if (this.disposed || !this.controller?.runtime) return Promise.resolve({ ok: false, code: 'activation_required' });
+
         if (this.running) { this.pendingAgain = true; return this.running; }
+        const owner = this.controller.runtime;
         this.emitStatus('syncing');
-        this.running = Promise.resolve().then(async () => (await this.reconcile(reason))).then((result) => {
+        this.running = Promise.resolve().then(async () => {
+            if (this.disposed || this.controller.runtime !== owner) throw new Error('account_generation_changed');
+            return this.reconcile(reason);
+        }).then((result) => {
+            if (this.disposed || this.controller.runtime !== owner) return result;
             this.lastErrorCode = result?.ok === false && !result.offline
                 ? (result.code || 'asset_sync_failed') : null;
             return result;
         }).catch((error) => {
+            if (this.disposed || this.controller.runtime !== owner) return { ok: false, code: 'account_generation_changed' };
             const code = typeof error?.message === 'string' ? error.message : 'asset_sync_failed';
             this.lastErrorCode = code;
             if (typeof globalThis.CustomEvent === 'function') {
@@ -197,10 +232,10 @@ export class PortAssetSync {
         })
             .finally(() => {
                 this.running = null;
-                this.emitStatus(this.lastErrorCode ? 'error' : 'settled');
+                if (!this.disposed && this.controller.runtime === owner) this.emitStatus(this.lastErrorCode ? 'error' : 'settled');
                 const shouldRetry = this.pendingAgain && !this.lastErrorCode;
                 this.pendingAgain = false;
-                if (shouldRetry) this.schedule('pending');
+                if (!this.disposed && shouldRetry) this.schedule('pending');
             });
         return this.running;
     }
@@ -252,12 +287,14 @@ export class PortAssetSync {
     }
 
     async headers(contentType = null) {
+        const runtimeOwner = this.controller?.runtime;
+
         if (!this.canSync()) throw new Error('pro_required');
-        const credential = await this.controller?.runtime?.credential?.();
-        const qaCredential = await this.controller?.runtime?.qaCredential?.();
+        const credential = await this.wait(async () => (this.controller?.runtime?.credential?.()), runtimeOwner);
+        const qaCredential = await this.wait(async () => (this.controller?.runtime?.qaCredential?.()), runtimeOwner);
         if (typeof credential !== 'string') throw new Error('asset_auth_required');
         const headers = new Headers({ Accept: 'application/json', Authorization: `Bearer ${credential}` });
-        const proHeaders = await globalThis.SoundCruiseProBackendEntitlement?.proAuthorizationHeaders?.();
+        const proHeaders = await this.wait(async () => (globalThis.SoundCruiseProBackendEntitlement?.proAuthorizationHeaders?.()), runtimeOwner);
         for (const [name, value] of Object.entries(proHeaders || {})) headers.set(name, value);
         if (this.controller.runtime.admissionMode === 'qa') {
             if (typeof qaCredential !== 'string') throw new Error('asset_qa_required');
@@ -268,13 +305,15 @@ export class PortAssetSync {
     }
 
     async json(path, body) {
+        const runtimeOwner = this.controller?.runtime;
+
         if (!this.canSync()) throw new Error('pro_required');
-        const headers = await this.headers('application/json');
-        const response = await this.fetchImpl(`${this.controller.runtime.endpoint}${path}`, {
+        const headers = await this.wait(async () => (this.headers('application/json')), runtimeOwner);
+        const response = await this.wait(async () => (this.fetchImpl(`${this.controller.runtime.endpoint}${path}`, {
             method: 'POST', headers,
-            body: JSON.stringify(body), credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer'
-        });
-        const payload = await response.json().catch(() => null);
+            body: JSON.stringify(body), credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', signal: runtimeOwner?.lifetime?.signal
+        })), runtimeOwner);
+        const payload = await this.wait(async () => (response.json().catch(() => null)), runtimeOwner);
         if (!response.ok || payload?.ok !== true) {
             globalThis.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(payload?.code, headers);
             throw new Error(payload?.code || 'asset_request_failed');
@@ -291,12 +330,14 @@ export class PortAssetSync {
     }
 
     async upload(record, kind, pending = null, owner = null) {
+        const runtimeOwner = this.controller?.runtime;
+
         if (!this.canSync()) throw new Error('pro_required');
         if (!record?.blob) throw new Error('asset_local_missing');
-        const hash = await hashBlob(record.blob, this.cryptoImpl);
+        const hash = await this.wait(async () => (hashBlob(record.blob, this.cryptoImpl)), runtimeOwner);
         const dimensions = record.width && record.height
             ? { width: record.width, height: record.height }
-            : await this.dimensions(record.blob, kind);
+            : await this.wait(async () => (this.dimensions(record.blob, kind)), runtimeOwner);
         const operation = pending?.localId === record.id && pending?.hash === hash
             ? pending
             : { localId: record.id, assetId: uuid(), operationId: uuid(), hash };
@@ -306,45 +347,47 @@ export class PortAssetSync {
             width: dimensions.width, height: dimensions.height,
             ...(owner ? { ownerRecordId: owner.practiceId, originalFilename: owner.fileName } : {})
         };
-        const prepared = await this.json('/v1/sync/assets/prepare', request);
+        const prepared = await this.wait(async () => (this.json('/v1/sync/assets/prepare', request)), runtimeOwner);
         if (prepared.phase !== 'available') {
             if (prepared.phase !== 'uploaded') {
-                const headers = await this.headers(request.mime);
+                const headers = await this.wait(async () => (this.headers(request.mime)), runtimeOwner);
                 headers.set('X-Sound-Cruise-Operation-Id', operation.operationId);
                 headers.set('X-Content-SHA256', hash);
-                const response = await this.fetchImpl(
+                const response = await this.wait(async () => (this.fetchImpl(
                     `${this.controller.runtime.endpoint}/v1/sync/assets/${encodeURIComponent(operation.assetId)}/content`,
-                    { method: 'PUT', headers, body: record.blob, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' }
-                );
-                const payload = await response.json().catch(() => null);
+                    { method: 'PUT', headers, body: record.blob, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', signal: runtimeOwner?.lifetime?.signal }
+                )), runtimeOwner);
+                const payload = await this.wait(async () => (response.json().catch(() => null)), runtimeOwner);
                 if (!response.ok || payload?.ok !== true) {
                     globalThis.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(payload?.code, headers);
                     throw new Error(payload?.code || 'asset_upload_failed');
                 }
             }
-            const committed = await this.json('/v1/sync/assets/commit', {
+            const committed = await this.wait(async () => (this.json('/v1/sync/assets/commit', {
                 appId: 'port', assetId: operation.assetId, operationId: operation.operationId, hash
-            });
+            })), runtimeOwner);
             return { operation, asset: committed.asset };
         }
         return { operation, asset: prepared.asset };
     }
 
     async download(asset) {
+        const runtimeOwner = this.controller?.runtime;
+
         if (!this.canSync()) throw new Error('pro_required');
-        const headers = await this.headers();
-        const response = await this.fetchImpl(
+        const headers = await this.wait(async () => (this.headers()), runtimeOwner);
+        const response = await this.wait(async () => (this.fetchImpl(
             `${this.controller.runtime.endpoint}/v1/sync/assets/${encodeURIComponent(asset.assetId)}`,
-            { method: 'GET', headers, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer' }
-        );
+            { method: 'GET', headers, credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', signal: runtimeOwner?.lifetime?.signal }
+        )), runtimeOwner);
         if (!response.ok) {
-            const payload = await response.json().catch(() => null);
+            const payload = await this.wait(async () => (response.json().catch(() => null)), runtimeOwner);
             globalThis.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(payload?.code, headers);
             throw new Error(payload?.code || 'asset_download_failed');
         }
         if (response.headers.get('X-Asset-SHA256') !== asset.hash) throw new Error('asset_hash_mismatch');
-        const blob = await response.blob();
-        if (blob.size !== asset.byteSize || blob.type !== asset.mime || await hashBlob(blob, this.cryptoImpl) !== asset.hash) {
+        const blob = await this.wait(async () => (response.blob()), runtimeOwner);
+        if (blob.size !== asset.byteSize || blob.type !== asset.mime || await this.wait(async () => (hashBlob(blob, this.cryptoImpl)), runtimeOwner) !== asset.hash) {
             throw new Error('asset_integrity_failed');
         }
         return blob;
@@ -521,9 +564,11 @@ export class PortAssetSync {
     }
 
     async reconcile() {
+        const runtimeOwner = this.controller?.runtime;
+
         if (!this.canSync()) throw new Error('pro_required');
-        if (!this.controller?.enabled || globalThis.navigator?.onLine === false) return { ok: false, offline: true };
-        await this.controller.reconcileAssetReferences?.();
+        if (!this.controller?.enabled || !runtimeOwner || globalThis.navigator?.onLine === false) return { ok: false, offline: true };
+        await this.wait(async () => (this.controller.reconcileAssetReferences?.()), runtimeOwner);
         const metadata = this.readMetadata();
         const gearData = parse(this.storage, GEAR_KEY, { version: 4, items: [] });
         const appData = parse(this.storage, MY_APPS_KEY, { version: 6, items: [] });
@@ -532,11 +577,11 @@ export class PortAssetSync {
         const hydratedPatches = { gear: new Map(), myApps: new Map() };
         let processed = 0;
         if (metadata.discardQueue.length && this.practiceAttachmentStore) {
-            for (const localId of metadata.discardQueue) await this.practiceAttachmentStore.deleteAttachment(localId);
+            for (const localId of metadata.discardQueue) await this.wait(async () => (this.practiceAttachmentStore.deleteAttachment(localId)), runtimeOwner);
             const latest = this.readMetadata();
             const processedIds = new Set(metadata.discardQueue);
             latest.discardQueue = latest.discardQueue.filter((id) => !processedIds.has(id));
-            (await this.writeMetadata(latest));
+            (await this.wait(async () => (this.writeMetadata(latest)), runtimeOwner));
         }
         const process = async (items, bucketName, kind) => {
             for (const item of items) {
@@ -545,30 +590,30 @@ export class PortAssetSync {
                 const sourceId = kind === 'gear' ? item.photoSourceId : item.iconSourceId;
                 const entry = this.readMetadata()[bucketName][item.id] || { published: null, binding: null, pending: null };
                 const before = clone(this.readMetadata()[bucketName][item.id] || null);
-                const missingCache = await this.cachedBindingMissing(item, entry, kind);
+                const missingCache = await this.wait(async () => (this.cachedBindingMissing(item, entry, kind)), runtimeOwner);
                 if (!missingCache && finalId && (!entry.binding || entry.binding.final?.localId !== finalId ||
                     (sourceId || null) !== (entry.binding.source?.localId || null))) {
                     processed += 1;
                     const oldIds = assetIds(entry.published);
-                    const uploaded = await this.uploadPair(item, entry, kind, before);
+                    const uploaded = await this.wait(async () => (this.uploadPair(item, entry, kind, before)), runtimeOwner);
                     if (!uploaded) continue;
                     const uploadedIds = assetIds(uploaded.published);
                     const currentItem = (parse(this.storage, kind === 'gear' ? GEAR_KEY : MY_APPS_KEY,
                         { items: [] }).items || []).find((candidate) => candidate.id === item.id);
                     uploaded.published.crop = clone(currentItem?.[kind === 'gear' ? 'photoCrop' : 'iconCrop'] || null);
-                    if (!this.currentVisualItem(kind, item) || !(await this.patchMetadataEntry(bucketName, item.id,
+                    if (!this.currentVisualItem(kind, item) || !(await this.wait(async () => (this.patchMetadataEntry(bucketName, item.id,
                         entry, { ...entry, ...uploaded, pending: null }, {
                             releaseIds: oldIds.filter((id) => !uploadedIds.includes(id)), referencePending: true
-                        }))) {
-                        (await this.queueOrphanAssets(uploadedIds));
+                        })), runtimeOwner))) {
+                        (await this.wait(async () => (this.queueOrphanAssets(uploadedIds)), runtimeOwner));
                         continue;
                     }
                     publishedChanged = true;
                 } else if ((missingCache || !finalId) && entry.published?.final) {
                     processed += 1;
                     const visualBefore = { finalId, sourceId };
-                    if (await this.hydratePair(item, entry, kind)) {
-                        if (!(await this.patchMetadataEntry(bucketName, item.id, before, entry))) continue;
+                    if (await this.wait(async () => (this.hydratePair(item, entry, kind)), runtimeOwner)) {
+                        if (!(await this.wait(async () => (this.patchMetadataEntry(bucketName, item.id, before, entry)), runtimeOwner))) continue;
                         hydratedPatches[bucketName].set(item.id, {
                             before: visualBefore, finalId: item[kind === 'gear' ? 'photoId' : 'iconId'],
                             sourceId: item[kind === 'gear' ? 'photoSourceId' : 'iconSourceId'],
@@ -579,9 +624,9 @@ export class PortAssetSync {
                 }
             }
         };
-        await process(gearData.items || [], 'gear', 'gear');
-        await process(appData.items || [], 'myApps', 'myApps');
-        const localAttachments = await this.practiceAttachmentStore?.getAllAttachments();
+        await this.wait(async () => (process(gearData.items || [], 'gear', 'gear')), runtimeOwner);
+        await this.wait(async () => (process(appData.items || [], 'myApps', 'myApps')), runtimeOwner);
+        const localAttachments = await this.wait(async () => (this.practiceAttachmentStore?.getAllAttachments()), runtimeOwner);
         if (localAttachments?.ok) {
             let ownerSynced = false;
             for (const record of localAttachments.records) {
@@ -603,29 +648,29 @@ export class PortAssetSync {
                 if (!ownerSynced) {
                     // Preserve completed Gear/My Apps work before the owner
                     // preflight, which may safely pause on a structured conflict.
-                    const ownerResult = await this.controller.sync('attachment-owner');
+                    const ownerResult = await this.wait(async () => (this.controller.sync('attachment-owner')), runtimeOwner);
                     if (ownerResult?.ok === false) return { ok: false, code: ownerResult.code || 'attachment_owner_sync_failed' };
                     ownerSynced = true;
                 }
                 processed += 1;
                 entry.pending = entry.pending?.localId === record.id ? entry.pending : {
                     localId: record.id, assetId: uuid(), operationId: uuid(),
-                    hash: await hashBlob(record.blob, this.cryptoImpl)
+                    hash: await this.wait(async () => (hashBlob(record.blob, this.cryptoImpl)), runtimeOwner)
                 };
                 const before = this.readMetadata().attachments[logicalId] || null;
                 if (JSON.stringify(before) !== JSON.stringify(entryBefore)) continue;
-                const freshLocal = await this.practiceAttachmentStore.getAllAttachments();
+                const freshLocal = await this.wait(async () => (this.practiceAttachmentStore.getAllAttachments()), runtimeOwner);
                 if (!freshLocal?.ok) return { ok: false, code: 'attachment_local_read_failed' };
                 if (!freshLocal.records.some((item) => item.id === record.id)) continue;
-                if (!(await this.patchMetadataEntry('attachments', logicalId, before, entry))) continue;
+                if (!(await this.wait(async () => (this.patchMetadataEntry('attachments', logicalId, before, entry)), runtimeOwner))) continue;
                 const pendingEntry = clone(entry);
-                const uploaded = await this.upload(record, assetKind, entry.pending, {
+                const uploaded = await this.wait(async () => (this.upload(record, assetKind, entry.pending, {
                     practiceId: record.practiceId, fileName: record.fileName
-                });
-                const stillLocal = await this.practiceAttachmentStore.getAllAttachments();
+                })), runtimeOwner);
+                const stillLocal = await this.wait(async () => (this.practiceAttachmentStore.getAllAttachments()), runtimeOwner);
                 if (!stillLocal?.ok) return { ok: false, code: 'attachment_local_read_failed' };
                 if (!stillLocal.records.some((item) => item.id === record.id)) {
-                    (await this.queueOrphanAssets([uploaded.asset.assetId]));
+                    (await this.wait(async () => (this.queueOrphanAssets([uploaded.asset.assetId])), runtimeOwner));
                     continue;
                 }
                 const previousAssetId = entry.published?.asset?.assetId;
@@ -633,10 +678,10 @@ export class PortAssetSync {
                 entry.binding = { assetId: uploaded.asset.assetId, hash: uploaded.asset.hash, localId: record.id };
                 entry.pending = null;
                 entry.updatedAt = record.updatedAt || record.createdAt;
-                if (!(await this.patchMetadataEntry('attachments', logicalId, pendingEntry, entry,
+                if (!(await this.wait(async () => (this.patchMetadataEntry('attachments', logicalId, pendingEntry, entry,
                     { releaseIds: previousAssetId && previousAssetId !== uploaded.asset.assetId ? [previousAssetId] : [],
-                        referencePending: true }))) {
-                    (await this.queueOrphanAssets([uploaded.asset.assetId]));
+                        referencePending: true })), runtimeOwner))) {
+                    (await this.wait(async () => (this.queueOrphanAssets([uploaded.asset.assetId])), runtimeOwner));
                     continue;
                 }
                 publishedChanged = true;
@@ -665,10 +710,10 @@ export class PortAssetSync {
                 if (changed) {
                     if (usesPortRepository(this.storage)) {
                         const repo = portRepository(this.storage);
-                        const base = await repo.readDatasetState();
-                        const saved = await repo.runWrite({ expectedRevision: base.revision, expectedValues: { [key]: ownerRaw } }, tx => {
+                        const base = await this.wait(async () => (repo.readDatasetState()), runtimeOwner);
+                        const saved = await this.wait(async () => (repo.runWrite({ expectedRevision: base.revision, expectedValues: { [key]: ownerRaw } }, tx => {
                             tx.setItem(key, JSON.stringify(latest)); return { ok: true };
-                        });
+                        })), runtimeOwner);
                         if (!saved.ok) throw new Error(saved.reason);
                     } else this.storage.setItem(key, JSON.stringify(latest));
                     changedKeys.push(key);
@@ -680,25 +725,25 @@ export class PortAssetSync {
         const referenceBefore = this.readMetadata();
         const referenceStorageBefore = this.storage.getItem(METADATA_KEY);
         if (publishedChanged || (referenceBefore.referencePending && hasAvailablePublished(referenceBefore))) {
-            const result = await this.controller.sync('asset-reference');
+            const result = await this.wait(async () => (this.controller.sync('asset-reference')), runtimeOwner);
             if (result?.ok === false) return { ok: false, code: result.code || 'asset_reference_sync_failed' };
             if (referenceBefore.referencePending) {
                 const latest = this.readMetadata();
                 if (this.storage.getItem(METADATA_KEY) === referenceStorageBefore) {
                     latest.referencePending = false;
-                    (await this.writeMetadata(latest));
+                    (await this.wait(async () => (this.writeMetadata(latest)), runtimeOwner));
                 }
             }
         }
         const releaseBefore = this.readMetadata().releaseQueue.slice(0, 20);
         if (releaseBefore.length) {
-            const result = await this.controller.sync('asset-release');
+            const result = await this.wait(async () => (this.controller.sync('asset-release')), runtimeOwner);
             if (result?.ok === false) return { ok: false, code: result.code || 'asset_release_sync_failed' };
-            await this.json('/v1/sync/assets/unreference', { appId: 'port', assetIds: releaseBefore });
+            await this.wait(async () => (this.json('/v1/sync/assets/unreference', { appId: 'port', assetIds: releaseBefore })), runtimeOwner);
             const latest = this.readMetadata();
             const released = new Set(releaseBefore);
             latest.releaseQueue = latest.releaseQueue.filter((id) => !released.has(id));
-            (await this.writeMetadata(latest));
+            (await this.wait(async () => (this.writeMetadata(latest)), runtimeOwner));
             if (latest.releaseQueue.length) this.pendingAgain = true;
         }
         return { ok: true, processed, hydrated };

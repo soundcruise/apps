@@ -1172,3 +1172,32 @@ test('new and existing Account bridge paths both require explicit Recovery ackno
   });
   assert.equal(startRecoverySaved, true);
 });
+
+test('Account client rejects late summary/provision/refresh after Account generation changes', async () => {
+  for (const path of ['/v2/accounts/summary','/v2/accounts/apps/port/provision','/v2/accounts/devices']) {
+    let generation=1, resolve, started=false;
+    const gate=new Promise(r=>resolve=r);
+    const account=load([coreSource,clientSource]);
+    const client=new account.AccountClient({endpoint:'https://sync.example',admissionMode:'production',storage:{getGeneration:()=>generation},fetchImpl:async()=>{started=true;await gate;return Response.json({ok:true,account:{id:'A'},membershipId:'A-port'});}});
+    const request=client.request(path,{accountCredential:'A'});
+    while(!started) await Promise.resolve();generation++;resolve();await assert.rejects(request,error=>error.code==='account_generation_changed');
+  }
+});
+test('Account client dispose signal aborts provision and ignores a fetch implementation returning late', async () => {
+  let resolve, started=false, fetchSignal;
+  const gate=new Promise(r=>resolve=r);const lifetime=new AbortController();
+  const account=load([coreSource,clientSource]);
+  const client=new account.AccountClient({endpoint:'https://sync.example',admissionMode:'production',signal:lifetime.signal,storage:{},fetchImpl:async(url,options)=>{started=true;fetchSignal=options.signal;await gate;return Response.json({ok:true,membershipId:'old'});}});
+  const request=client.request('/v2/accounts/apps/port/provision');while(!started)await Promise.resolve();lifetime.abort();assert.equal(fetchSignal.aborted,true);resolve();await assert.rejects(request,error=>error.code==='account_generation_changed');
+});
+
+test('late pending lookup cannot start a request using a newer Account generation',async()=>{
+ let generation=1, resolve, started=false, requests=0, writes=0;const gate=new Promise(r=>resolve=r);
+ const account=load([coreSource,clientSource]);const client=new account.AccountClient({endpoint:'https://sync.example',admissionMode:'production',storage:{getGeneration:()=>generation,async getPendingStart(){started=true;await gate;return {accountCredential:'old-A'};},async setAccount(){writes++;}},fetchImpl:async()=>{requests++;return Response.json({ok:true});}});
+ const task=client.resumePendingStart();while(!started)await Promise.resolve();generation++;resolve();await assert.rejects(task,e=>e.code==='account_generation_changed');assert.equal(requests,0);assert.equal(writes,0);
+});
+test('a successful own Account commit adopts its returned generation and can finish cleanup',async()=>{
+ let generation=1, cleared=0;const account=load([coreSource,clientSource]);
+ const client=new account.AccountClient({endpoint:'https://sync.example',admissionMode:'production',storage:{getGeneration:()=>generation,async getPendingStart(){return {accountCredential:'A',accountDeviceId:'device-A'};},async setAccount(){generation+=2;return {generation};},async clearPendingStart(){cleared++;}},fetchImpl:async()=>Response.json({ok:true,account:{id:'A',recoveryVersion:1}})});
+ assert.equal((await client.resumePendingStart()).status,'committed');assert.equal(cleared,1);assert.equal(generation,3);
+});

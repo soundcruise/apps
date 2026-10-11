@@ -562,10 +562,11 @@
       event.preventDefault();
       controller.later();
     });
-    runtime.addEventListener('statechange', (event) => {
+    const stateListener = (event) => {
       if (event.detail?.state === 'attention' && event.detail?.reason === 'conflict') controller.refresh();
-    });
-    return controller;
+    };
+    runtime.addEventListener('statechange', stateListener);
+    return Object.freeze({ ...controller, dispose() { runtime.removeEventListener('statechange', stateListener); dialog.remove(); } });
   }
 
   Object.assign(root, {

@@ -35,10 +35,10 @@
     }
   }
 
-  async function open(appId, indexedDb = global.indexedDB) {
+  async function open(appId, indexedDb = global.indexedDB, namespace = '') {
     assertAppId(appId);
     if (!indexedDb?.open) throw new Error('multi_app_storage_unavailable');
-    const request = indexedDb.open(`sound-cruise-sync-data-${appId}`, VERSION);
+    const request = indexedDb.open(`sound-cruise-sync-data-${appId}${namespace}`, VERSION);
     request.onupgradeneeded = () => {
       for (const store of STORES) {
         if (!request.result.objectStoreNames.contains(store)) request.result.createObjectStore(store);
@@ -50,44 +50,59 @@
   function createStore(appId, options = {}) {
     assertAppId(appId);
     const indexedDb = options.indexedDb || global.indexedDB;
+    const namespace = options.accountId ? `-account-${encodeURIComponent(options.accountId)}` : '';
+    const check = () => { options.assertCurrent?.(); if (options.signal?.aborted) throw new Error('runtime_disposed'); };
+    async function databaseForOperation() {
+      check();
+      const database = await open(appId, indexedDb, namespace);
+      try { check(); return database; } catch (error) { database.close(); throw error; }
+    }
+    async function finish(transaction) {
+      const cancel = () => { try { transaction.abort(); } catch (_) {} };
+      options.signal?.addEventListener('abort', cancel, { once: true });
+      const done = transactionDone(transaction);
+      try { check(); await done; check(); }
+      catch (error) { cancel(); await done.catch(() => {}); throw error; }
+      finally { options.signal?.removeEventListener('abort', cancel); }
+    }
     async function get(storeName, key) {
-      const database = await open(appId, indexedDb);
+      const database = await databaseForOperation();
       try {
         return (await requestResult(database.transaction(storeName, 'readonly').objectStore(storeName).get(key))) || null;
       } finally { database.close(); }
     }
     async function put(storeName, key, value) {
       assertSafe(value);
-      const database = await open(appId, indexedDb);
+      const database = await databaseForOperation();
       try {
         const transaction = database.transaction(storeName, 'readwrite');
         transaction.objectStore(storeName).put(structuredClone(value), key);
-        await transactionDone(transaction);
+        await finish(transaction);
       } finally { database.close(); }
     }
     async function remove(storeName, key) {
-      const database = await open(appId, indexedDb);
+      const database = await databaseForOperation();
       try {
         const transaction = database.transaction(storeName, 'readwrite');
         transaction.objectStore(storeName).delete(key);
-        await transactionDone(transaction);
+        await finish(transaction);
       } finally { database.close(); }
     }
     async function values(storeName) {
-      const database = await open(appId, indexedDb);
+      const database = await databaseForOperation();
       try { return await requestResult(database.transaction(storeName, 'readonly').objectStore(storeName).getAll()); }
       finally { database.close(); }
     }
     async function clearCloudState() {
-      const database = await open(appId, indexedDb);
+      const database = await databaseForOperation();
       try {
         const transaction = database.transaction(STORES, 'readwrite');
         for (const storeName of STORES) transaction.objectStore(storeName).clear();
-        await transactionDone(transaction);
+        await finish(transaction);
       } finally { database.close(); }
     }
     return Object.freeze({
-      appId,
+      appId, accountId: options.accountId || null,
       getMeta: (key) => get('meta', key),
       setMeta: (key, value) => put('meta', key, { value, updatedAt: Date.now() }),
       readMeta: async (key) => (await get('meta', key))?.value ?? null,

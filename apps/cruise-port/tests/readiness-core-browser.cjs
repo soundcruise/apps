@@ -35,7 +35,7 @@ const output = process.argv[3] || '/private/tmp/port-readiness-core-browser.json
   const go=async(hash,selector)=>{await page.evaluate(h=>location.hash=h,hash);await page.locator(selector).waitFor({state:'visible'});};
   const saved=async(key,property,value)=>page.waitForFunction(({key,property,value})=>JSON.parse(localStorage.getItem(key)||'null')?.[property]===value,{key,property,value});
   await page.goto(origin+'/apps/cruise-port/pro_9a3943176561/',{waitUntil:'networkidle'});
-  await page.locator('.port-app-version-display').first().filter({hasText:/Ver 1\.21\./}).waitFor();
+  await page.locator('.port-app-version-display').first().filter({hasText:/Ver 1\.22\./}).waitFor();
   result.cases.push({width,case:'Home / mock formal Pro',pass:true});
   await go('#metronome','#metronome-view');await page.locator('#metronome-bpm').fill('137');await page.locator('#metronome-bpm').dispatchEvent('change');await saved('cruisePort.metronome','bpm',137);
   await page.locator('#metronome-preset-save-open').click();await page.locator('#metronome-preset-name').fill('Readiness QA');await page.locator('#metronome-preset-save').click();
@@ -65,6 +65,13 @@ const output = process.argv[3] || '/private/tmp/port-readiness-core-browser.json
   result.cases.push({width,case:'My Apps save',pass:true});
   await go('#settings','#settings-view');for(const theme of ['light','gray','charcoal','dark']) {await page.locator(`[data-theme-choice="${theme}"]`).click();await saved('cruisePort.settings','theme',theme);}
   result.cases.push({width,case:'Settings / Theme save',pass:true});
+  await page.evaluate(async()=>{
+   await SoundCruiseSyncAccount.storage.setAccount({accountId:'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',accountDeviceId:'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',accountCredential:'sca1.bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.'+'A'.repeat(43)});
+  });
+  await go('#sync-center','#sync-center-view');
+  await page.locator('#port-sync-activate').waitFor({state:'visible'});
+  assert.equal(await page.evaluate(()=>Boolean(SoundCruiseMultiAppSync.runtimes?.port)),false,'status screen must not create/start runtime');
+  result.cases.push({width,case:'Account/Sync with saved Account: status-only no activation/network',pass:true});
   await go('#home','#home-view');
   const before=await page.evaluate(()=>Object.fromEntries(Object.entries(localStorage).filter(([k])=>k.startsWith('cruisePort.'))));
   await page.reload({waitUntil:'networkidle'});await page.locator('#home-view').waitFor({state:'visible'});

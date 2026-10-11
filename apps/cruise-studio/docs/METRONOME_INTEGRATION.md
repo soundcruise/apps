@@ -112,6 +112,14 @@ Port 1.21.3でrepository / 全現行writer参加 / forward guard / full snapshot
 Studio 0.25.1の隔離M2は維持し、正式Port datasetへは未接続。
 以下の条件はPort Core部分の実装を足場とし、runtime/Account/実2tab/Studio host接続時に引き続き満たす。
 
+## Port Runtime & Integration Safety v1（2026-10-11）
+
+Port 1.22.0でsingleton / Account generation / dispose / statusとensure分離 / byte+count chunkを実装。
+新buildの実Chrome 2-tab / Sync-local / rollback raceを実証。詳細は
+[Runtime Host契約](../../cruise-port/docs/PORT_SYNC_RUNTIME_HOST.md)を参照。
+read-only consumerはensure・credential・mutable runtimeを公開しない。次はStudio read-only Host接続。
+Studio 0.25.1/M2 memory facadeは維持。旧build policyとPort/Studio dirty draft保護等の条件は残り、shared writeは未解禁。
+
 ## M3接続前の必須条件（残課題）
 
 1. forward schema guardを実Port facade・全writer・Sync applyでも維持。

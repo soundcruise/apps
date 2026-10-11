@@ -160,3 +160,13 @@ NODE_PATH=<Playwright dependencies> node apps/cruise-port/tests/readiness-core-b
 ```
 
 browser検証serverはrepository rootを配信する。既存のStudio確認用8765とは別の隔離serverを利用。
+
+## Runtime & Integration Safety v1（2026-10-11 / Port 1.22.0）
+
+[Runtime Host契約](PORT_SYNC_RUNTIME_HOST.md)でsingleton / Account generation / dispose / statusとensure / byte chunkを実装。
+repositoryのSync apply・reference reconciliation・delete ackへasync publication guardを追加。
+同じWeb Lockを待つ間やprivate writerをawaitする間にAccountが変われば、storage publication前に拒否する。
+
+新buildの実Chrome 2-tabでstale / 同時保存 / feature-cross / migration / delete-edit / Sync-local / rollback raceを確認。
+旧buildがlockへ参加しない限界は維持。Studioのshared writeはまだ無効。
+Studioの次工程はread-only Host。正式Proは独立資格service、mutable APIはowner consumerだけへ公開する。

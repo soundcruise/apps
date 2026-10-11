@@ -238,12 +238,14 @@ test('Environment management keeps the Port path compact and the app-specific pa
     assert.match(styles, /@media \(max-width:\s*420px\)[\s\S]*\.sync-center-destination-card\s*\{[\s\S]*grid-template-columns:\s*44px minmax\(0, 1fr\) max-content/);
 });
 
-test('Cruise Port installs the existing conflict resolution UI before startup sync', () => {
+test('Cruise Port attaches conflict UI to the explicitly activated runtime', () => {
     for (const html of [root, pro]) {
-        assert.match(html, /multi-app-conflict-ui\.js\?v=8/);
-        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=8') < html.indexOf(html.includes('pro-app-boot.js') ? 'pro-app-boot.js' : 'practice-menu-app.js'));
+        assert.match(html, /multi-app-conflict-ui\.js\?v=9/);
+        assert.ok(html.indexOf('multi-app-conflict-ui.js?v=9') < html.indexOf(html.includes('pro-app-boot.js') ? 'pro-app-boot.js' : 'practice-menu-app.js'));
     }
-    assert.match(app, /const portConflictResolutionController = portSyncController\?\.runtime\s*\?[^;]+installConflictResolutionUi\?\.\(portSyncController\.runtime, document\)\s*: null/);
+    assert.match(app, /portSyncController\?\.subscribe\?\./);
+    assert.match(app, /installConflictResolutionUi\?\.\(runtime, document\)/);
+    assert.match(app, /portConflictResolutionController\?\.dispose\?\./);
 });
 
 test('current Port detach is distinct from generic environment revoke and leaves Section 2 informational when Account is unset', () => {
@@ -434,8 +436,9 @@ test('QA Enrollment and Account start request distinct Turnstile actions', () =>
     assert.match(source, /tokenProvider\('sound_cruise_account_qa_enroll'\)/);
     assert.match(source, /requestSetupTurnstileToken\('sound_cruise_account_start'\)/);
     assert.match(app, /await syncCenterActions\?\.ensureQaAdmission\?\.\(\)/);
-    assert.match(app, /if \(await syncCenterOrchestrator\.hasConfiguredAccount\?\.\(\)\)/);
-    assert.ok(app.indexOf('syncCenterOrchestrator.resume()') < app.indexOf('await syncCenterActions?.ensureQaAdmission?.()'));
+    assert.match(app, /if \(activate && getCapabilities\(\)\.cloudSyncOperations\)/);
+    assert.equal(app.includes('syncCenterOrchestrator.resume()'), false);
+    assert.match(app, /activate \? syncCenterController\.load\(\) : syncCenterController\.loadLocal\(\)/);
     assert.ok(app.indexOf('await syncCenterActions?.ensureQaAdmission?.()') < app.indexOf('syncCenterController.load()'));
 });
 

@@ -12,29 +12,33 @@ export function bindSyncCenterReturnRefresh({
     let lastRefreshAt = -Infinity;
     let inFlight = null;
     let leftPort = false;
+    let disposed = false;
+    const removals = [];
+    function listen(target, type, listener) { target?.addEventListener?.(type, listener); removals.push(() => target?.removeEventListener?.(type, listener)); }
 
     function trigger() {
-        if (inFlight || !isVisible() || now() - lastRefreshAt < minIntervalMs) return false;
+        if (disposed || inFlight || !isVisible() || now() - lastRefreshAt < minIntervalMs) return false;
         lastRefreshAt = now();
-        inFlight = Promise.resolve().then(refresh).catch(() => {}).finally(() => { inFlight = null; });
+        inFlight = Promise.resolve().then(() => { if (!disposed) return refresh(); }).catch(() => {}).finally(() => { inFlight = null; });
         return true;
     }
 
-    documentObject?.addEventListener?.('visibilitychange', () => {
+    listen(documentObject, 'visibilitychange', () => {
         if (documentObject.visibilityState === 'hidden') leftPort = true;
         else if (leftPort) { leftPort = false; trigger(); }
     });
-    windowObject?.addEventListener?.('blur', () => { leftPort = true; });
-    windowObject?.addEventListener?.('focus', () => {
+    listen(windowObject, 'blur', () => { leftPort = true; });
+    listen(windowObject, 'focus', () => {
         if (!leftPort) return;
         leftPort = false;
         trigger();
     });
-    windowObject?.addEventListener?.('pageshow', (event) => { if (event?.persisted) trigger(); });
-    windowObject?.addEventListener?.('online', trigger);
+    listen(windowObject, 'pageshow', (event) => { if (event?.persisted) trigger(); });
+    listen(windowObject, 'online', trigger);
 
     return Object.freeze({
         trigger,
+        dispose() { if (disposed) return; disposed = true; for (const remove of removals.splice(0)) remove(); },
         // An explicit open/recheck counts as the latest check, so returning right after it does not repeat it.
         noteRefreshed() { lastRefreshAt = now(); }
     });

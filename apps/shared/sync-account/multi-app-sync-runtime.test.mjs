@@ -1,5 +1,5 @@
 import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
-import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.21.3';
+import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.22.0';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -3101,7 +3101,7 @@ test('snapshot body progress can exceed 20 seconds in total, but an idle stream 
     for (const [id, timer] of [...timers]) {
       if (timer.at <= clock) { timers.delete(id); timer.callback(); }
     }
-    for (let i = 0; i < 8; i += 1) await Promise.resolve();
+    for (let i = 0; i < 64; i += 1) await Promise.resolve();
   };
   let stream;
   fixture.runtime.fetchImpl = async () => new Response(new ReadableStream({
@@ -3539,4 +3539,76 @@ test('coordinated Port repository survives actual runtime delete response loss a
   await fixture.runtime.sync('retry-core');
   assert.equal(JSON.parse(fixture.storage.getItem(journalKey) || '{}')['metronome_preset/preset-core'], undefined);
   assert.ok(fixture.server.records.get('metronome_preset/preset-core').deletedAt);
+});
+
+for (const count of [49, 50, 51]) test(`push wire chunks respect count boundary ${count}`, async () => {
+  const fixture = runtimeFixture([], 'port', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid');
+  const bodies = [];
+  fixture.runtime.fetchImpl = async (url, options) => {
+    const body = JSON.parse(options.body); bodies.push(options.body);
+    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied'}))});
+  };
+  for (let i=0;i<count;i++) await fixture.store.putOutbox({operationId:'byte-'+i,recordType:'x',recordId:String(i),schemaVersion:1,baseRevision:0,payload:{text:'small'},payloadHash:'h',deleted:false,migration:false});
+  await fixture.runtime.flushOutbox();
+  assert.deepEqual(bodies.map(body=>JSON.parse(body).operations.length),count===51?[50,1]:[count]);
+  assert.ok(bodies.every(body=>new TextEncoder().encode(body).byteLength<=256*1024));
+  fixture.runtime.dispose();
+});
+
+for(const delta of [-1,0,1]) test(`serialized push UTF-8 body at 256KiB ${delta}`,async()=>{
+  const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');
+  const operation={operationId:'exact',recordType:'x',recordId:'x',schemaVersion:1,baseRevision:0,payload:{text:''},payloadHash:'h',deleted:false};
+  const envelope=ops=>fixture.runtime.withSyncCapabilities({appId:'port',mode:'sync',operations:ops});
+  const overhead=new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength;
+  operation.payload.text='a'.repeat(256*1024-overhead+delta);
+  assert.equal(new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength,256*1024+delta);
+  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate'}]});};
+  await fixture.store.putOutbox({...operation,migration:false});
+  if(delta<=0){await fixture.runtime.flushOutbox();assert.equal(calls,1);assert.equal((await fixture.store.listOutbox()).length,0);}
+  else{await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);assert.equal((await fixture.store.listOutbox())[0].terminalError,'operation_too_large');await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);}
+  fixture.runtime.dispose();
+});
+
+test('multibyte UTF-8 split measures entire envelope and retains other operations beside oversized',async()=>{
+  const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');const bodies=[];
+  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'applied'}))});};
+  for(const[id,text]of[['one','音'.repeat(45000)],['huge','音'.repeat(100000)],['two','音'.repeat(45000)]])await fixture.store.putOutbox({operationId:id,recordType:'x',recordId:id,schemaVersion:1,baseRevision:0,payload:{text},payloadHash:'h',deleted:false,migration:false});
+  await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(bodies.length,2);assert.ok(bodies.every(body=>new TextEncoder().encode(body).byteLength<=256*1024));
+  assert.deepEqual((await fixture.store.listOutbox()).map(op=>[op.operationId,op.terminalError]),[['huge','operation_too_large']]);fixture.runtime.dispose();
+});
+test('conflict/bulk push path shares byte chunking and rejects malformed partial ACK without looping',async()=>{
+  const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');const ops=Array.from({length:51},(_,i)=>({operationId:'bulk-'+i,payload:{text:'a'.repeat(7000)}}));const bodies=[];
+  fixture.runtime.fetchImpl=async(url,options)=>{bodies.push(options.body);return Response.json({ok:true,results:JSON.parse(options.body).operations.map(op=>({operationId:op.operationId,status:'duplicate'}))});};
+  assert.equal((await fixture.runtime.pushRequest({appId:'port',mode:'sync',operations:ops})).results.length,51);assert.ok(bodies.every(body=>JSON.parse(body).operations.length<=50&&new TextEncoder().encode(body).byteLength<=256*1024));
+  fixture.runtime.fetchImpl=async()=>Response.json({ok:true,results:[]});await assert.rejects(fixture.runtime.pushRequest({operations:[ops[0]]}),e=>e.code==='invalid_response');fixture.runtime.dispose();
+});
+
+for(const phase of ['pull','push','credential','bootstrap','conflict']) test(`dispose fences late ${phase}, aborts and prevents all further effects`,async()=>{
+  const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');await fixture.store.setMeta('membership',{state:'active'});const gate=deferred();let started=false, signal;
+  fixture.runtime.fetchImpl=async(url,options)=>{started=true;signal=options.signal;await gate.promise;return Response.json({ok:true,records:[],results:[{operationId:'late',status:'applied'}]});};
+  const previousState=await fixture.store.readMeta('runtimeState');
+  let task;
+  if(phase==='credential'){const read=fixture.store.readMeta;fixture.store.readMeta=async key=>{started=true;await gate.promise;return read(key);};task=fixture.runtime.credential();}
+  else if(phase==='conflict'){fixture.runtime.conflictContext=async()=>{started=true;await gate.promise;return {};};await fixture.store.putConflict({id:'late',recordKey:'x/x',kind:'push',localRecord:{},remoteRecord:{}});task=fixture.runtime.resolveConflict('late','local');}
+  else if(phase==='bootstrap')task=fixture.runtime.bootstrap({snapshot:{records:[]},records:[]});
+  else if(phase==='pull')task=fixture.runtime.serverSnapshot();
+  else{await fixture.store.putOutbox({operationId:'late',recordType:'x',recordId:'x',schemaVersion:1,baseRevision:0,payload:{},payloadHash:'h',deleted:false,migration:false});task=fixture.runtime.flushOutbox();}
+  for(let i=0;!started && i<500;i++) await Promise.resolve();assert.equal(started,true,phase);const state=previousState;fixture.runtime.dispose();fixture.runtime.dispose();gate.resolve();await assert.rejects(task,e=>e.code==='runtime_disposed');if(signal)assert.equal(signal.aborted,true);
+  assert.equal(await fixture.store.readMeta('runtimeState'),state);assert.equal(fixture.runtime.timers.size,0);assert.equal(fixture.runtime.listeners.length,0);assert.equal(fixture.runtime.abortControllers.size,0);
+  if(phase==='push')assert.equal((await fixture.store.listOutbox())[0].operationId,'late');await assert.rejects(fixture.runtime.sync(),e=>e.code==='runtime_disposed');
+});
+
+test('50 shared runtime lifecycle cycles detach focus/online/visibility and leave no retry timer',async()=>{
+  const fixture=runtimeFixture([],'pitch','production');let calls=0;
+  for(let i=0;i<50;i++){
+    const runtime=new fixture.Runtime({appId:'pitch',endpoint:'https://example.test',adapter:fixture.local,store:memoryStore(),accountClient:fixture.accountClient,accountCore:fixture.core,fetchImpl:fixture.fetchImpl});
+    runtime.sync=async()=>{calls++;return {ok:true};};runtime.bindLifecycle();await Promise.resolve();runtime.dispose();runtime.dispose();assert.equal(runtime.listeners.length,0);assert.equal(runtime.timers.size,0);
+  }
+  fixture.context.dispatchEvent(new Event('focus'));fixture.context.dispatchEvent(new Event('online'));fixture.context.document.dispatchEvent(new Event('visibilitychange'));await Promise.resolve();assert.equal(calls,0);fixture.runtime.dispose();
+});
+
+test('offline transition during credential lookup does not begin a Sync network request',async()=>{
+ const f=runtimeFixture([],'port','production');await f.store.setMeta('credential','scd1.valid');const gate=deferred();const original=f.runtime.credential.bind(f.runtime);let lookup=false,calls=0;
+ f.runtime.credential=async()=>{lookup=true;await gate.promise;return original();};f.runtime.fetchImpl=async()=>{calls++;return Response.json({ok:true});};const task=f.runtime.serverSnapshot();while(!lookup)await Promise.resolve();f.context.navigator.onLine=false;gate.resolve();await assert.rejects(task,e=>e.code==='network_error');assert.equal(calls,0);f.runtime.dispose();
 });

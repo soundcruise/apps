@@ -337,10 +337,22 @@ export function createSyncCenterController({
     fetchImpl = globalThis.fetch?.bind(globalThis)
 } = {}) {
     let lastPresentation = null;
+    let cachedGeneration = accountRoot?.storage?.getGeneration?.();
     const effectiveConfig = config || readSyncCenterConfig();
     return Object.freeze({
         enabled: effectiveConfig.enabled === true,
+        getCachedPresentation() {
+            return cachedGeneration === accountRoot?.storage?.getGeneration?.() ? lastPresentation || createUnavailablePresentation('unknown', null) : createUnavailablePresentation('unknown', null);
+        },
+        async loadLocal() {
+            const generation = accountRoot?.storage?.getGeneration?.();
+            const account = await accountRoot?.storage?.getAccount?.(indexedDb);
+            if (generation !== accountRoot?.storage?.getGeneration?.()) return createUnavailablePresentation('unknown', null);
+            if (!account?.accountCredential) return createUnsetPresentation();
+            return cachedGeneration === accountRoot?.storage?.getGeneration?.() ? lastPresentation || createUnavailablePresentation('unknown', null) : createUnavailablePresentation('unknown', null);
+        },
         async load() {
+            const generation = accountRoot?.storage?.getGeneration?.();
             if (effectiveConfig.enabled !== true) return Object.freeze({ kind: 'disabled' });
             const storage = accountRoot?.storage;
             const Client = accountRoot?.AccountClient;
@@ -380,6 +392,8 @@ export function createSyncCenterController({
                 if (devices.status === 'rejected' && ACCOUNT_TERMINAL_CODES.has(devices.reason?.code)) {
                     throw devices.reason;
                 }
+                if (generation !== storage.getGeneration?.()) return createUnavailablePresentation('unknown', null);
+                cachedGeneration = generation;
                 lastPresentation = normalizeSyncCenterSummary(
                     summary.value, devices.status === 'fulfilled' ? devices.value : null,
                     accountRoot.core?.formatAccountDisplayId,
@@ -390,6 +404,7 @@ export function createSyncCenterController({
                             ? portCredential.value.split('.')[1] : false
                 );
             } catch (error) {
+                if (generation !== storage.getGeneration?.()) return createUnavailablePresentation('unknown', null);
                 if (ACCOUNT_TERMINAL_CODES.has(error?.code) && typeof storage.clearAccount === 'function') {
                     try {
                         await storage.clearAccount(indexedDb);

@@ -20,7 +20,7 @@ export function createPortSyncStatus({ accountState, structured, assets, online 
     if (accountState === 'unset') return PRESENTATIONS.detached;
     if (accountState !== 'active' || !structured?.known || !assets?.known) return PRESENTATIONS.attention;
     if (structured.connected === false && structured.runtimeState === 'not_connected') return PRESENTATIONS.detached;
-    if (!structured.connected) return PRESENTATIONS.attention;
+    if (!structured.connected || (structured.credentialState && structured.credentialState !== 'usable')) return PRESENTATIONS.attention;
     if (structured.conflictCount > 0 || structured.terminalCount > 0 || structured.runtimeState === 'attention') {
         return PRESENTATIONS.attention;
     }

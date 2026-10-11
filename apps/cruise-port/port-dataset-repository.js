@@ -115,10 +115,11 @@ export class PortDatasetRepository {
         if (!this.sharedWriteCapable) return this.inspect();
         return this.locks.request(PORT_DATASET_LOCK, { mode: 'shared' }, () => this.inspect());
     }
-    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true } = {}, writer) {
+    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {} } = {}, writer) {
         if (!this.sharedWriteCapable) return { ok: false, status: 'rejected', reason: 'locks-unavailable' };
         try {
             return await this.locks.request(PORT_DATASET_LOCK, { mode: 'exclusive' }, async () => {
+                await assertCurrent();
                 const before = this.inspect();
                 if (expectedRevision === undefined && expectedValues === undefined) throw error('base-required');
                 if (expectedRevision !== undefined && expectedRevision !== before.revision) throw error('stale');
@@ -130,6 +131,7 @@ export class PortDatasetRepository {
                 }
                 const draft = memory(before.values);
                 const result = await writer(draft);
+                await assertCurrent();
                 if (result?.ok === false) return { ...result, status: 'rejected' };
                 assertPortForwardCompatible(draft.values);
                 for (const key of Object.keys(PORT_DATASET_CATALOG)) {
@@ -204,8 +206,8 @@ export class PortDatasetRepository {
         }
         after[PORT_DELETE_INTENTS] = Object.keys(intents).length ? JSON.stringify(intents) : null;
     }
-    async acknowledgeDelete(key, generation, expectedRevision) {
-        return this.runWrite({ expectedRevision, source: 'ack' }, draft => {
+    async acknowledgeDelete(key, generation, expectedRevision, assertCurrent = () => {}) {
+        return this.runWrite({ expectedRevision, source: 'ack', assertCurrent }, draft => {
             const intents = parseJournal(draft.getItem(PORT_DELETE_INTENTS));
             // Legacy booleans have no identity: keep them until a new coordinated delete replaces them.
             if (typeof generation !== 'string' || intents[key]?.generation !== generation) return { matched: false };

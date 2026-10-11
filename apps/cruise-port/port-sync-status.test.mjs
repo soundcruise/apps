@@ -57,3 +57,9 @@ test('Port status distinguishes confirmed unconnected and deleting states from u
     }).label, '未接続');
     assert.equal(createPortSyncStatus({ accountState: 'deleting' }).label, '削除中');
 });
+
+test('cached/stale/revoked AppDevice credential cannot be presented as synced',()=>{
+ for(const credentialState of ['unknown','stale','revoked','expired']){
+  assert.equal(createPortSyncStatus({accountState:'active',structured:{known:true,connected:true,credentialState,runtimeState:'ready',migrationState:'complete',datasetState:'ready',lastSyncAt:1000},assets:{known:true,pendingCount:0},online:true}).state,'attention');
+ }
+});

@@ -2,181 +2,117 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-
 const source = fs.readFileSync(new URL('./port-sync-controller.js', import.meta.url), 'utf8');
-
-function harness({ failFirst = false, canSync = () => true, useDefault = false } = {}) {
-  const meta = new Map();
-  const outbox = [];
-  const conflicts = [];
-  const shadow = [];
-  const calls = [];
-  const events = [];
-  let adapter = null;
-  let failures = failFirst ? 1 : 0;
+const deferred = () => { let resolve; const promise = new Promise(r => {resolve = r;}); return {promise,resolve}; };
+function harness({canSync = () => true} = {}) {
+  let account = {accountId:'A',accountCredential:'sca1.A.secret'}, generation = 0;
+  const listeners = new Set(), databases = new Map(), events=[], network=[], runtimes=[];
+  const window = new EventTarget(), document = new EventTarget(); document.visibilityState='visible';
+  const intervals = new Set(), policyListeners = new Set(); let dbReads=0, provisionGate=null, bootstrapGate=null, failFirst=false;
+  function createStore(appId, options={}) {
+    const id=options.accountId || 'legacy'; if(!databases.has(id)) databases.set(id,{meta:new Map(),outbox:[],shadow:[],conflicts:[]});
+    const data=databases.get(id);
+    const check = () => {options.assertCurrent?.();if(options.signal?.aborted)throw Error('runtime_disposed');};
+    return {accountId:options.accountId, data,
+      async readMeta(key){check();dbReads++;return data.meta.get(key)??null;},
+      async setMeta(key,value){check();data.meta.set(key,structuredClone(value));},
+      async removeMeta(key){check();data.meta.delete(key);},
+      async listOutbox(){check();dbReads++;return data.outbox;},async listShadow(){check();dbReads++;return data.shadow;},async listConflicts(){check();dbReads++;return data.conflicts;},
+      async putOutbox(op){check();data.outbox.push(op);},async putShadow(key,record){check();data.shadow.push(record);},async putConflict(conflict){check();data.conflicts.push(conflict);},
+      async clearCloudState(){check();data.meta.clear();data.outbox=[];data.shadow=[];data.conflicts=[];}
+    };
+  }
   class Client {
-    constructor() { this.admissionMode = 'production'; }
-    async provisionPortDevice(value) {
-      calls.push(value);
-      if (failures-- > 0) throw new Error('network_error');
-      return { membershipId: 'membership-port', appId: 'port', membershipState: 'active' };
-    }
+    constructor(options){Object.assign(this,options);}
+    async provisionPortDevice(value){network.push(value); if(provisionGate) await provisionGate.promise;if(failFirst){failFirst=false;throw Error('network_error');}return {membershipId:'membership-'+value.accountCredential.split('.')[1]};}
+    async devices(){return {devices:[{portAppDeviceIds:['port'],revokedAt:null}]};}
   }
   class Runtime extends EventTarget {
-    constructor(options) { super(); this.initialized = 0; this.synced = 0; this.adapter = options.adapter; }
-    async initializeDataset() { this.initialized += 1; return { ok: true }; }
-    async sync() { this.synced += 1; return { ok: true }; }
-    bindLifecycle() {}
-    listConflictPresentations() { return []; }
-    resolveConflict() { return { ok: true }; }
+    constructor(options){super();Object.assign(this,options);this.initialized=0;this.synced=0;this.disposed=false;runtimes.push(this);}
+    async initializeDataset(){this.assertCurrent();this.initialized++;if(bootstrapGate)await bootstrapGate.promise;this.assertCurrent();await this.store.setMeta('migrationState','complete');return {ok:true};}
+    async sync(){this.assertCurrent();this.synced++;return {ok:true};}
+    listConflictPresentations(){return [];}
+    async resolveConflict(){return {ok:true};}
+    async retryLegacyFailures(){return {ok:true};}
+    dispose(){this.disposed=true;}
   }
-  const store = {
-    readMeta: async (key) => meta.get(key) ?? null,
-    setMeta: async (key, value) => meta.set(key, structuredClone(value)),
-    removeMeta: async (key) => meta.delete(key),
-    listOutbox: async () => structuredClone(outbox),
-    listConflicts: async () => structuredClone(conflicts),
-    listShadow: async () => structuredClone(shadow),
-    clearCloudState: async () => meta.clear()
-  };
-  const context = {
-    EventTarget, CustomEvent, structuredClone,
-    setInterval: () => 1, clearInterval() {}, dispatchEvent: (event) => events.push(event),
-    document: { visibilityState: 'visible' }, navigator: { onLine: true },
-    SoundCruisePortSync: { PortSyncAdapter: class {
-      constructor() { adapter = this; this.changed = false; this.primed = []; this.reconciled = []; }
-      primeRemoteReferences(records) { this.primed = structuredClone(records); }
-      reconcileRemoteReferences(records) { this.reconciled = structuredClone(records); return records.length > 0; }
-      consumeRemoteApplyChanged() { const changed = this.changed; this.changed = false; return changed; }
-    } },
-    SoundCruiseSyncAccount: {
-      AccountClient: Client,
-      storage: {
-        getAccount: async () => ({ accountCredential: 'sca1.account.secret' }),
-        getQaAdmission: async () => null
-      },
-      core: {
-        validAccountCredential: (value) => value?.startsWith('sca1.'),
-        validAppCredential: (value) => value?.startsWith('scd1.'),
-        createAppCredential: () => ({ appDeviceCredential: 'scd1.port.secret' }),
-        createOperationId: () => 'operation-stable'
-      }
-    },
-    SoundCruiseMultiAppSync: {
-      dataStorage: { createStore: () => store }, MultiAppSyncRuntime: Runtime
-    }
-  };
-  context.globalThis = context;
-  vm.runInNewContext(source, context);
-  const controller = context.SoundCruisePortSync.createPortSyncController({
-    ...(useDefault ? {} : {canSync}),
-    config: { enabled: true, environment: 'production', endpoint: 'https://sync.example' }
-  });
-  return { controller, calls, meta, events, adapter, outbox, conflicts, shadow };
+  const context={EventTarget,CustomEvent,AbortController,structuredClone,Date,
+    addEventListener(type,fn){policyListeners.add(fn);window.addEventListener(type,fn);},removeEventListener(type,fn){policyListeners.delete(fn);window.removeEventListener(type,fn);},dispatchEvent:e=>events.push(e),document,
+    navigator:{onLine:true},setInterval(fn){intervals.add(fn);return fn;},clearInterval:id=>intervals.delete(id),
+    SoundCruisePortSync:{PortSyncAdapter:class {constructor(){this.changed=false;}primeRemoteReferences(records){this.primed=records;}reconcileRemoteReferences(records){return records.length>0;}consumeRemoteApplyChanged(){const value=this.changed;this.changed=false;return value;}}},
+    SoundCruiseSyncAccount:{AccountClient:Client,storage:{getAccount:async()=>account,getGeneration:()=>generation,subscribeAccount:fn=>{listeners.add(fn);return ()=>listeners.delete(fn);},getQaAdmission:async()=>null},
+      core:{validAccountCredential:x=>x?.startsWith('sca1.'),validAppCredential:x=>x?.startsWith('scd1.'),createAppCredential:()=>({appDeviceCredential:'scd1.port.secret'}),createOperationId:()=> 'stable-id'}},
+    SoundCruiseMultiAppSync:{dataStorage:{createStore},MultiAppSyncRuntime:Runtime}};
+  vm.runInNewContext(source,context);
+  const config={enabled:true,environment:'production',endpoint:'https://sync.example'};
+  const create=(readOnly=false)=>context.SoundCruisePortSync.createPortSyncController({config,canSync,readOnly}); const controller=create();
+  return {controller,create,databases,network,runtimes,events,context,intervals,listeners,policyListeners,get dbReads(){return dbReads;},
+    gateProvision(){return provisionGate=deferred();},gateBootstrap(){return bootstrapGate=deferred();},failProvision(){failFirst=true;},
+    changeAccount(id){generation++;account={accountId:id,accountCredential:'sca1.'+id+'.secret'};for(const fn of listeners)fn();},createStore};
 }
 
-test('Port controller provisions once, initializes once and then resumes normal sync', async () => {
-  const { controller, calls, meta } = harness();
-  const [first, concurrent] = await Promise.all([controller.ensure(), controller.ensure()]);
-  assert.equal(first.ok, true);
-  assert.equal(concurrent.ok, true);
-  assert.equal(calls.length, 1);
-  assert.equal(meta.get('credential'), 'scd1.port.secret');
-  assert.equal(meta.get('membership').appId, 'port');
-  assert.equal(controller.runtime.initialized, 1);
-  await meta.set('migrationState', 'complete');
-  assert.equal((await controller.ensure()).ok, true);
-  assert.equal(calls.length, 1);
-  assert.equal(controller.runtime.synced, 1);
+test('strict cached status and subscriptions neither open DB nor create runtime/network',async()=>{
+  const h=harness();let count=0;const stop=h.controller.subscribe(()=>count++);
+  for(let i=0;i<50;i++)assert.equal(h.controller.getCachedStatus().state,'unknown');
+  assert.equal(h.dbReads,0);assert.equal(h.databases.size,0);assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);assert.equal(count,0);assert.equal(h.intervals.size,0);
+  stop();assert.equal((await h.controller.readLocalStatus()).credentialState,'unknown');assert.equal(h.runtimes.length,0);assert.equal(h.network.length,0);
+});
+test('explicit ensure coalesces and shares one runtime across consumers; release is owned',async()=>{
+  const h=harness(), b=h.create();assert.equal(h.controller.runtime,null);
+  await Promise.all([h.controller.ensure(),b.ensure()]);assert.equal(h.runtimes.length,1);assert.equal(h.network.length,1);assert.equal(h.controller.runtime,b.runtime);assert.equal(h.intervals.size,1);
+  const runtime=b.runtime;h.controller.dispose();h.controller.dispose();assert.equal(runtime.disposed,false);assert.equal(h.controller.runtime,null);
+  b.release();assert.equal(runtime.disposed,true);assert.equal(h.intervals.size,0);assert.equal(h.listeners.size,0);
+  const c=h.create();await c.ensure();assert.notEqual(c.runtime,runtime);assert.ok(c.identity.generation>runtime.identity.generation);c.dispose();
+});
+test('lost provision reply retries stable credential and operationId',async()=>{
+  const h=harness();h.failProvision();await assert.rejects(h.controller.ensure(),/network_error/);
+  await h.controller.ensure();assert.deepEqual(h.network[0],h.network[1]);assert.equal(h.network.length,2);assert.equal(h.controller.runtime.initialized,1);await h.controller.ensure();assert.equal(h.network.length,2);assert.equal(h.controller.runtime.synced,1);h.controller.dispose();
+});
+test('A late provision cannot publish any credential or membership into B',async()=>{
+  const h=harness(), gate=h.gateProvision();const task=h.controller.ensure();while(!h.network.length)await Promise.resolve();
+  h.changeAccount('B');assert.equal(h.controller.getCachedStatus().state,'unknown');assert.equal(h.controller.runtime,null);gate.resolve();await assert.rejects(task,/account_generation_changed/);
+  assert.equal(h.databases.get('A').meta.has('credential'),false);await h.controller.ensure();assert.equal(h.controller.identity.accountId,'B');assert.equal(h.databases.get('B').meta.get('membership').id,'membership-B');h.controller.dispose();
+});
+test('A late bootstrap cannot complete B; Account-scoped outbox and AppDevice stay separated',async()=>{
+  const h=harness(), gate=h.gateBootstrap();const task=h.controller.ensure();while(!h.runtimes[0]?.initialized)await Promise.resolve();
+  h.databases.get('A').outbox.push({operationId:'A-op'});h.changeAccount('B');gate.resolve();await assert.rejects(task,/account_generation_changed/);
+  await h.controller.ensure();assert.equal(h.databases.get('A').meta.has('migrationState'),false);assert.equal(h.databases.get('A').outbox[0].operationId,'A-op');assert.equal(h.databases.get('B').outbox.length,0);h.controller.dispose();
+});
+test('local status is cached credential evidence, never token-existence validity',async()=>{
+  const h=harness();const s=h.createStore('port',{accountId:'A'});await s.setMeta('credential','scd1.port.secret');await s.setMeta('membership',{state:'active'});
+  const status=await h.controller.status();assert.equal(status.connected,true);assert.equal(status.credentialState,'stale');assert.equal(status.membershipKnown,true);assert.equal(h.network.length,0);
+  await s.setMeta('membership',{state:'revoked'});assert.equal((await h.controller.status()).credentialState,'revoked');h.controller.dispose();
+});
+test('offline/focus before activation never provisions; active policy is removed on dispose',async()=>{
+  const h=harness();await h.controller.resume();h.context.navigator.onLine=false;assert.equal(h.network.length,0);
+  h.context.navigator.onLine=true;await h.controller.ensure();const runtime=h.controller.runtime;runtime.synced=0;h.controller.dispose();
+  for(const fn of h.intervals)fn();assert.equal(runtime.synced,0);assert.equal(h.intervals.size,0);
+});
+test('50 create/dispose cycles remove runtime, poll and Account subscription; generation increases',async()=>{
+  const h=harness();h.controller.dispose();let generation=0;
+  for(let i=0;i<50;i++){const c=h.create();await c.ensure();assert.ok(c.identity.generation>generation);generation=c.identity.generation;c.dispose();c.dispose();assert.equal(h.intervals.size,0);assert.equal(h.listeners.size,0);assert.equal(h.policyListeners.size,0);assert.equal(c.runtime,null);}
+  assert.ok(h.runtimes.every(r=>r.disposed));
+});
+test('Standard gate blocks activation and exposed runtime entries recheck Pro reset',async()=>{
+  let allowed=false;const h=harness({canSync:()=>allowed});assert.equal(h.controller.restricted,true);assert.equal((await h.controller.ensure()).code,'pro_required');assert.equal(h.runtimes.length,0);
+  allowed=true;await h.controller.ensure();const before=h.network.length;allowed=false;
+  for(const fn of [()=>h.controller.ensure(),()=>h.controller.runtime.sync(),()=>h.controller.runtime.initializeDataset(),()=>h.controller.resolveConflict('x','local'),()=>h.controller.reconcileAssetReferences()])assert.equal((await fn()).code,'pro_required');
+  assert.equal(h.network.length,before);h.controller.dispose();
+});
+test('legacy binding is adopted only after ownership proof; cloud apply notification is retained',async()=>{
+  const h=harness();const old=h.createStore('port');await old.setMeta('credential','scd1.port.secret');await old.setMeta('membership',{state:'active'});await old.setMeta('migrationState','complete');old.data.outbox.push({operationId:'old-op'});
+  await h.controller.ensure();assert.equal(h.network.length,0);assert.equal(h.databases.get('A').outbox[0].operationId,'old-op');h.controller.runtime.adapter.changed=true;
+  h.controller.runtime.dispatchEvent(new CustomEvent('statechange',{detail:{state:'attention'}}));assert.equal(h.events.filter(e=>e.type==='cruise-port-cloud-data-applied').length,1);h.controller.dispose();
 });
 
-test('Port provisioning response loss reuses the exact operation and credential', async () => {
-  const { controller, calls, meta } = harness({ failFirst: true });
-  await assert.rejects(controller.ensure(), /network_error/u);
-  assert.equal(meta.get('pendingProvision').operationId, 'operation-stable');
-  assert.equal(meta.get('pendingProvision').appDeviceCredential, 'scd1.port.secret');
-  assert.equal((await controller.ensure()).ok, true);
-  assert.equal(calls.length, 2);
-  assert.deepEqual(calls[1], calls[0]);
-  assert.equal(meta.has('pendingProvision'), false);
+test('offline ensure never provisions; subscriptions remain inert until explicit activation',async()=>{
+ const h=harness();h.context.navigator.onLine=false;assert.equal((await h.controller.ensure()).code,'offline');assert.equal(h.network.length,0);assert.equal(h.runtimes.length,0);h.controller.dispose();
+});
+test('disposing a Port owner leaves another app runtime untouched',async()=>{
+ const h=harness();const other={appId:'pitch'};h.context.SoundCruiseMultiAppSync.runtimes={pitch:other};await h.controller.ensure();h.controller.dispose();assert.equal(h.context.SoundCruiseMultiAppSync.runtimes.pitch,other);
 });
 
-test('Port detach clears only cloud binding state', async () => {
-  const { controller, meta } = harness();
-  meta.set('credential', 'scd1.port.secret');
-  meta.set('migrationState', 'complete');
-  await controller.clearCloudState();
-  assert.equal(meta.size, 0);
-});
-
-test('Port controller announces an applied hydrate even when sync needs attention', () => {
-  const { controller, events, adapter } = harness();
-  adapter.changed = true;
-  controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'attention' } }));
-  assert.equal(events.filter((event) => event.type === 'cruise-port-cloud-data-applied').length, 1);
-  controller.runtime.dispatchEvent(new CustomEvent('statechange', { detail: { state: 'ready' } }));
-  assert.equal(events.filter((event) => event.type === 'cruise-port-cloud-data-applied').length, 1);
-});
-
-test('Port controller resumes incomplete initialization after the final conflict resolves', async () => {
-  const { controller, meta } = harness();
-  meta.set('credential', 'scd1.port.secret');
-  meta.set('membership', { id: 'membership-port', appId: 'port', state: 'active' });
-  controller.runtime.dispatchEvent(new CustomEvent('statechange', {
-    detail: { state: 'ready', reason: 'conflict_resolved' }
-  }));
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(controller.runtime.initialized, 1);
-  assert.equal(controller.runtime.synced, 0);
-});
-
-test('Port controller exposes a secret-free fail-closed status summary', async () => {
-  const { controller, meta, outbox, conflicts } = harness();
-  meta.set('membership', { id: 'not-exposed', state: 'active' });
-  meta.set('migrationState', 'complete');
-  meta.set('datasetState', 'ready');
-  meta.set('runtimeState', 'ready');
-  meta.set('lastSyncAt', 1234);
-  outbox.push({ operationId: 'not-exposed' });
-  conflicts.push({ id: 'not-exposed' });
-  assert.deepEqual(JSON.parse(JSON.stringify(await controller.status())), {
-    known: true, connected: true, migrationState: 'complete', datasetState: 'ready',
-    runtimeState: 'ready', lastSyncAt: 1234, pendingCount: 1, terminalCount: 0, conflictCount: 1
-  });
-});
-
-test('Port controller primes and exposes remote asset-reference reconciliation from shadow state', async () => {
-  const { controller, adapter, shadow } = harness();
-  shadow.push({ recordType: 'gear_item', recordId: 'gear-a', payload: { value: { asset: { present: true } } } });
-  assert.equal((await controller.ensure()).ok, true);
-  assert.equal(adapter.primed.length, 1);
-  assert.equal(await controller.reconcileAssetReferences(), true);
-  assert.equal(adapter.reconciled[0].recordId, 'gear-a');
-});
-
-test('Standard controller is read only even with saved Account and app state', async () => {
-  const {controller,calls,meta} = harness({canSync:()=>false});
-  meta.set('membership',{state:'active'});meta.set('migrationState','complete');
-  assert.equal(controller.restricted,true);assert.equal(controller.runtime,undefined);
-  for (const method of ['ensure','sync','retryLegacyFailures','resolveConflict','reconcileAssetReferences']) {
-    assert.equal((await controller[method]()).code,'pro_required');
-  }
-  assert.equal((await controller.status()).connected,true);assert.deepEqual(calls,[]);
-  assert.equal(meta.get('migrationState'),'complete');
-});
-test('Port runtime entry points recheck auth after reset', async () => {
-  let allowed=true;const {controller,calls}=harness({canSync:()=>allowed});
-  await controller.ensure();const before=calls.length;allowed=false;
-  assert.equal((await controller.ensure()).code,'pro_required');
-  assert.equal((await controller.runtime.sync()).code,'pro_required');
-  assert.equal((await controller.resolveConflict('x','local')).code,'pro_required');
-  assert.equal((await controller.runtime.initializeDataset()).code,'pro_required');
-  assert.equal((await controller.reconcileAssetReferences()).code,'pro_required');
-  assert.equal(calls.length,before);
-});
-
-test('controller default fails closed before the Port capability registration', async () => {
- const {controller,calls}=harness({useDefault:true});
- assert.equal(controller.runtime,undefined);assert.equal((await controller.ensure()).code,'pro_required');
- assert.equal((await controller.reconcileAssetReferences()).code,'pro_required');assert.equal(calls.length,0);
+test('read-only consumer has no activation/runtime/credential API and cannot keep owner network alive',async()=>{
+ const h=harness(), reader=h.create(true);assert.equal(reader.ensure,undefined);assert.equal(reader.runtime,undefined);assert.equal(reader.store,undefined);assert.equal(reader.getCachedStatus().state,'unknown');assert.equal(h.dbReads,0);
+ await h.controller.ensure();const runtime=h.controller.runtime;assert.equal(reader.identity.generation,h.controller.identity.generation);h.controller.dispose();assert.equal(runtime.disposed,true);assert.equal(reader.getCachedStatus().state,'unknown');assert.equal(h.intervals.size,0);reader.dispose();assert.equal(h.listeners.size,0);
 });

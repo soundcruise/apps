@@ -121,11 +121,42 @@
       this.qaScope = options.qaScope || 'port';
       this.qaAppId = options.qaAppId || null;
       this.requestTimeoutMs = normalizedTimeout(options.requestTimeoutMs);
+      this.assertCurrent = options.assertCurrent || (() => {});
+      this.signal = options.signal;
+    }
+
+    async accountWait(action, token, commitsAccount = false, checkAfter = true) {
+      const check = () => {
+        this.assertCurrent();
+        if (this.signal?.aborted || token.generation !== this.storage?.getGeneration?.()) {
+          throw new AccountApiError(0, 'account_generation_changed');
+        }
+      };
+      check();
+      const result = await action();
+      // Only this successful Account storage commit may adopt its new generation.
+      if (commitsAccount) token.generation = result?.generation ?? this.storage?.getGeneration?.();
+      if (checkAfter) check();
+      return result;
     }
 
     async request(path, options = {}) {
+      const generation = this.storage?.getGeneration?.();
+      const check = () => {
+        this.assertCurrent();
+        if (this.signal?.aborted || generation !== this.storage?.getGeneration?.()) {
+          throw new AccountApiError(0, 'account_generation_changed');
+        }
+      };
+      check();
       const timeoutMs = normalizedTimeout(options.timeoutMs || this.requestTimeoutMs);
       const controller = typeof global.AbortController === 'function' ? new global.AbortController() : null;
+      let cancel;
+      const cancelled = new Promise((_, reject) => {
+        cancel = () => { controller?.abort(); reject(new AccountApiError(0, 'account_generation_changed')); };
+      });
+      const unsubscribeAccount = this.storage?.subscribeAccount?.(cancel);
+      this.signal?.addEventListener('abort', cancel, { once: true });
       let timeoutId = null;
       let timedOut = false;
       const timeout = new Promise((_, reject) => {
@@ -148,6 +179,8 @@
             headers.set('X-Sound-Cruise-QA-Authorization', `Bearer ${qa.qaCredential}`);
           }
         }
+        check();
+        if (global.navigator?.onLine === false) throw new AccountApiError(0, 'network_error');
         let response;
         try {
           response = await this.fetchImpl(`${this.endpoint}${path}`, {
@@ -168,53 +201,62 @@
           if (timedOut) throw new AccountApiError(0, 'account_request_timeout');
           throw new AccountApiError(response.status, 'invalid_response');
         }
+        check();
         if (!response.ok || payload?.ok !== true) {
           throw new AccountApiError(response.status, payload?.code || 'account_api_error');
         }
         return payload;
       })();
       try {
-        return await Promise.race([operation, timeout]);
+        const result = await Promise.race([operation, timeout, cancelled]);
+        check();
+        return result;
       } finally {
         if (timeoutId !== null) global.clearTimeout(timeoutId);
+        this.signal?.removeEventListener('abort', cancel);
+        unsubscribeAccount?.();
       }
     }
 
     async enrollQa({ enrollmentCode, turnstileToken, material = null }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (this.admissionMode !== 'qa') throw new Error('qa_admission_not_applicable');
       const candidate = material || this.core.createQaCredential();
       if (!this.core.validQaCredential(candidate.qaCredential)) throw new Error('qa_material_invalid');
-      const result = await this.request('/v2/accounts/qa/enroll', {
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/qa/enroll', {
         method: 'POST', skipQa: true,
         body: { enrollmentCode, qaCredential: candidate.qaCredential, turnstileToken }
-      });
-      await this.storage.setQaAdmission({
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.setQaAdmission({
         qaSessionId: result.qaSessionId,
         qaCredential: candidate.qaCredential,
         scope: result.scope,
         expiresAt: result.expiresAt
-      });
+      })), accountOperation, false, true);
       return Object.freeze(result);
     }
 
     async startAccount({ appIds, deviceLabel, turnstileToken, material, recoverySaved }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!material || !this.core.validAccountCredential(material.accountCredential) ||
           typeof material.recoveryCode !== 'string' || typeof material.operationId !== 'string' ||
           recoverySaved !== true) {
         throw new Error('account_material_must_be_created_and_saved_first');
       }
       const candidate = material;
-      await this.storage.setPendingStart({
+      await this.accountWait(async () => (this.storage.setPendingStart({
         operationId: candidate.operationId,
         accountDeviceId: candidate.accountDeviceId,
         accountCredential: candidate.accountCredential,
         appIds,
         deviceLabel: deviceLabel || null,
         recoveryAcknowledged: true
-      });
+      })), accountOperation, false, true);
       let result;
       try {
-        result = await this.request('/v2/accounts/start', {
+        result = await this.accountWait(async () => (this.request('/v2/accounts/start', {
           method: 'POST',
           body: {
             operationId: candidate.operationId,
@@ -224,11 +266,11 @@
             turnstileToken,
             deviceLabel: deviceLabel || null
           }
-        });
+        })), accountOperation, false, true);
       } catch (error) {
         if (!uncertainStartFailure(error)) throw error;
         try {
-          const resumed = await this.resumePendingStart();
+          const resumed = await this.accountWait(async () => (this.resumePendingStart()), accountOperation, false, false);
           if (resumed.status === 'committed') {
             return Object.freeze({
               ok: true,
@@ -246,15 +288,15 @@
         }
         throw error;
       }
-      await this.storage.setAccount({
+      await this.accountWait(async () => (this.storage.setAccount({
         accountId: result.accountId,
         accountDeviceId: result.accountDeviceId,
         accountCredential: candidate.accountCredential,
         recoveryVersion: result.recoveryVersion,
         recoveryAcknowledgedVersion: result.recoveryVersion,
         recoveryAcknowledgedAt: Date.now()
-      });
-      await this.storage.clearPendingStart();
+      })), accountOperation, true, true);
+      await this.accountWait(async () => (this.storage.clearPendingStart()), accountOperation, false, true);
       return Object.freeze({ ...result, recoveryCode: candidate.recoveryCode });
     }
 
@@ -271,6 +313,8 @@
     }
 
     async prepareAccountRecovery({ recoveryCode, deviceLabel, turnstileToken, material = null }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       const candidate = material || this.core.createAccountRecoveryMaterial();
       if (typeof recoveryCode !== 'string' || !recoveryCode.trim() ||
           !this.core.validAccountRecoveryClaim(candidate.claimToken) ||
@@ -278,7 +322,7 @@
           typeof candidate.nextRecoveryCode !== 'string') {
         throw new Error('account_recovery_material_invalid');
       }
-      const result = await this.request('/v2/accounts/recovery/prepare', {
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/recovery/prepare', {
         method: 'POST',
         body: {
           operationId: candidate.prepareOperationId,
@@ -289,7 +333,7 @@
           deviceLabel: deviceLabel || null,
           turnstileToken
         }
-      });
+      })), accountOperation, false, true);
       return Object.freeze({
         ...result,
         material: candidate,
@@ -298,6 +342,8 @@
     }
 
     async commitAccountRecovery({ material, recoverySaved }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (recoverySaved !== true || !material ||
           !this.core.validAccountRecoveryClaim(material.claimToken) ||
           !this.core.validAccountCredential(material.accountCredential)) {
@@ -310,51 +356,55 @@
         accountCredential: material.accountCredential,
         recoveryAcknowledged: true
       };
-      await this.storage.setPendingRecovery(pending);
-      const result = await this.request('/v2/accounts/recovery/commit', {
+      await this.accountWait(async () => (this.storage.setPendingRecovery(pending)), accountOperation, false, true);
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/recovery/commit', {
         method: 'POST',
         body: {
           operationId: material.commitOperationId,
           claimToken: material.claimToken,
           accountCredential: material.accountCredential
         }
-      });
-      await this.storage.setAccount({
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.setAccount({
         accountId: result.accountId,
         accountDeviceId: result.accountDeviceId,
         accountCredential: material.accountCredential,
         recoveryVersion: result.recoveryVersion,
         recoveryAcknowledgedVersion: result.recoveryVersion,
         recoveryAcknowledgedAt: Date.now()
-      });
-      await this.storage.clearPendingRecovery();
+      })), accountOperation, true, true);
+      await this.accountWait(async () => (this.storage.clearPendingRecovery()), accountOperation, false, true);
       return Object.freeze(result);
     }
 
     async resumePendingRecovery() {
-      const pending = await this.storage.getPendingRecovery?.();
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
+      const pending = await this.accountWait(async () => (this.storage.getPendingRecovery?.()), accountOperation, false, true);
       if (!pending) return Object.freeze({ status: 'none' });
-      const result = await this.request('/v2/accounts/recovery/commit', {
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/recovery/commit', {
         method: 'POST',
         body: {
           operationId: pending.commitOperationId,
           claimToken: pending.claimToken,
           accountCredential: pending.accountCredential
         }
-      });
-      await this.storage.setAccount({
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.setAccount({
         accountId: result.accountId,
         accountDeviceId: result.accountDeviceId,
         accountCredential: pending.accountCredential,
         recoveryVersion: result.recoveryVersion,
         recoveryAcknowledgedVersion: result.recoveryVersion,
         recoveryAcknowledgedAt: Date.now()
-      });
-      await this.storage.clearPendingRecovery();
+      })), accountOperation, true, true);
+      await this.accountWait(async () => (this.storage.clearPendingRecovery()), accountOperation, false, true);
       return Object.freeze({ status: 'committed', result });
     }
 
     async prepareAccountRecoveryRotation({ accountCredential, turnstileToken, material = null }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       const candidate = material || this.core.createAccountRecoveryMaterial();
       if (!this.core.validAccountCredential(accountCredential) ||
           !this.core.validAccountRecoveryClaim(candidate.claimToken) ||
@@ -362,7 +412,7 @@
           typeof candidate.prepareOperationId !== 'string') {
         throw new Error('account_recovery_rotation_material_invalid');
       }
-      const result = await this.request('/v2/accounts/recovery-rotation/prepare', {
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/recovery-rotation/prepare', {
         method: 'POST', accountCredential,
         body: {
           operationId: candidate.prepareOperationId,
@@ -370,7 +420,7 @@
           nextRecoveryCode: candidate.nextRecoveryCode,
           turnstileToken
         }
-      });
+      })), accountOperation, false, true);
       return Object.freeze({
         ...result,
         material: candidate,
@@ -379,153 +429,175 @@
     }
 
     async commitAccountRecoveryRotation({ accountCredential, material, recoverySaved }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (recoverySaved !== true || !this.core.validAccountCredential(accountCredential) ||
           !material || !this.core.validAccountRecoveryClaim(material.claimToken) ||
           typeof material.commitOperationId !== 'string') {
         throw new Error('account_recovery_rotation_save_confirmation_required');
       }
-      const saved = await this.storage.getAccount?.();
+      const saved = await this.accountWait(async () => (this.storage.getAccount?.()), accountOperation, false, true);
       if (!saved || saved.accountCredential !== accountCredential) {
         throw new Error('account_auth_required');
       }
-      const result = await this.request('/v2/accounts/recovery-rotation/commit', {
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/recovery-rotation/commit', {
         method: 'POST', accountCredential,
         body: {
           operationId: material.commitOperationId,
           claimToken: material.claimToken
         }
-      });
-      await this.storage.setAccount({
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.setAccount({
         ...saved,
         recoveryVersion: result.recoveryVersion,
         recoveryAcknowledgedVersion: result.recoveryVersion,
         recoveryAcknowledgedAt: Date.now()
-      });
+      })), accountOperation, true, true);
       return Object.freeze(result);
     }
 
     async revokeEnvironment({ accountCredential, accountDeviceId, operationId }) {
-      const result = await this.request('/v2/accounts/devices/revoke', {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/devices/revoke', {
         method: 'POST', accountCredential,
         body: { operationId, accountDeviceId }
-      });
-      if (result.isCurrent) await this.storage.clearAccount();
+      })), accountOperation, false, true);
+      if (result.isCurrent) await this.accountWait(async () => (this.storage.clearAccount()), accountOperation, true, true);
       return Object.freeze(result);
     }
 
     async provisionPortDevice({ accountCredential, appDeviceCredential, operationId, deviceLabel = null }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!this.core.validAccountCredential(accountCredential) ||
           !this.core.validAppCredential(appDeviceCredential) || typeof operationId !== 'string') {
         throw new Error('port_device_provision_invalid');
       }
-      return Object.freeze(await this.request('/v2/accounts/port-device', {
+      return Object.freeze(await this.accountWait(async () => (this.request('/v2/accounts/port-device', {
         method: 'POST', accountCredential,
         body: { operationId, appDeviceCredential, deviceLabel }
-      }));
+      })), accountOperation, false, true));
     }
 
     async detachCurrentEnvironment({ accountCredential, operationId }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!this.core.validAccountCredential(accountCredential) || typeof operationId !== 'string') {
         throw new Error('account_environment_detach_invalid');
       }
-      const existing = await this.storage.getPendingEnvironmentDetach?.();
+      const existing = await this.accountWait(async () => (this.storage.getPendingEnvironmentDetach?.()), accountOperation, false, true);
       const pending = existing || {
         path: '/v2/accounts/environments/current/detach', body: { operationId }
       };
-      if (!existing) await this.storage.setPendingEnvironmentDetach?.(pending);
-      const result = await this.request(pending.path, {
+      if (!existing) await this.accountWait(async () => (this.storage.setPendingEnvironmentDetach?.(pending)), accountOperation, false, true);
+      const result = await this.accountWait(async () => (this.request(pending.path, {
         method: 'POST', accountCredential, body: pending.body
-      });
-      await this.storage.clearAccount();
-      await this.storage.clearPendingEnvironmentDetach?.();
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.clearAccount()), accountOperation, true, true);
+      await this.accountWait(async () => (this.storage.clearPendingEnvironmentDetach?.()), accountOperation, false, true);
       return Object.freeze(result);
     }
 
     async detachCurrentAppEnvironment({ appCredential, operationId }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!this.core.validAppCredential(appCredential) || typeof operationId !== 'string') {
         throw new Error('account_app_environment_detach_invalid');
       }
-      return Object.freeze(await this.request('/v2/accounts/apps/current/detach', {
+      return Object.freeze(await this.accountWait(async () => (this.request('/v2/accounts/apps/current/detach', {
         method: 'POST', appCredential, body: { operationId }
-      }));
+      })), accountOperation, false, true));
     }
 
     async resumePendingEnvironmentDetach() {
-      const pending = await this.storage.getPendingEnvironmentDetach?.();
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
+      const pending = await this.accountWait(async () => (this.storage.getPendingEnvironmentDetach?.()), accountOperation, false, true);
       if (!pending) return Object.freeze({ status: 'none' });
-      const saved = await this.storage.getAccount?.();
+      const saved = await this.accountWait(async () => (this.storage.getAccount?.()), accountOperation, false, true);
       if (!saved || !this.core.validAccountCredential(saved.accountCredential)) {
         throw new Error('account_auth_required');
       }
-      const result = await this.request(pending.path, {
+      const result = await this.accountWait(async () => (this.request(pending.path, {
         method: 'POST', accountCredential: saved.accountCredential, body: pending.body
-      });
-      await this.storage.clearAccount();
-      await this.storage.clearPendingEnvironmentDetach?.();
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.clearAccount()), accountOperation, true, true);
+      await this.accountWait(async () => (this.storage.clearPendingEnvironmentDetach?.()), accountOperation, false, true);
       return Object.freeze({ status: 'committed', result });
     }
 
     async detachApp({ accountCredential, appId, operationId }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!this.core.validAccountCredential(accountCredential) ||
           !this.core.ACCOUNT_APPS.includes(appId) || typeof operationId !== 'string') {
         throw new Error('account_app_detach_invalid');
       }
-      const existing = await this.storage.getPendingDetach?.();
+      const existing = await this.accountWait(async () => (this.storage.getPendingDetach?.()), accountOperation, false, true);
       if (existing && existing.appId !== appId) throw new Error('account_app_detach_pending');
       const pending = existing || {
         appId,
         path: `/v2/accounts/memberships/${encodeURIComponent(appId)}/detach`,
         body: { operationId, appId }
       };
-      if (!existing) await this.storage.setPendingDetach?.(pending);
-      const result = await this.request(pending.path, {
+      if (!existing) await this.accountWait(async () => (this.storage.setPendingDetach?.(pending)), accountOperation, false, true);
+      const result = await this.accountWait(async () => (this.request(pending.path, {
         method: 'POST', accountCredential, body: pending.body
-      });
-      await this.storage.clearPendingDetach?.();
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.clearPendingDetach?.()), accountOperation, false, true);
       return Object.freeze(result);
     }
 
     async revokeAppEnvironment({ accountCredential, appId, appDeviceId, operationId }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!this.core.validAccountCredential(accountCredential) ||
           !this.core.ACCOUNT_APPS.includes(appId) || typeof appDeviceId !== 'string' ||
           typeof operationId !== 'string') {
         throw new Error('account_app_environment_revoke_invalid');
       }
-      return Object.freeze(await this.request(
+      return Object.freeze(await this.accountWait(async () => (this.request(
         `/v2/accounts/memberships/${encodeURIComponent(appId)}/devices/revoke`, {
           method: 'POST', accountCredential,
           body: { operationId, appId, appDeviceId }
         }
-      ));
+      )), accountOperation, false, true));
     }
 
     async cancelAppDelete({ accountCredential, appId, operationId }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!this.core.validAccountCredential(accountCredential) ||
           !this.core.ACCOUNT_APPS.includes(appId) || typeof operationId !== 'string') {
         throw new Error('account_app_delete_cancel_invalid');
       }
-      return Object.freeze(await this.request(
+      return Object.freeze(await this.accountWait(async () => (this.request(
         `/v2/accounts/memberships/${encodeURIComponent(appId)}/delete/cancel`, {
           method: 'POST', accountCredential, body: { operationId, appId }
         }
-      ));
+      )), accountOperation, false, true));
     }
 
     async resumePendingDetach() {
-      const pending = await this.storage.getPendingDetach?.();
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
+      const pending = await this.accountWait(async () => (this.storage.getPendingDetach?.()), accountOperation, false, true);
       if (!pending) return Object.freeze({ status: 'none' });
-      const saved = await this.storage.getAccount?.();
+      const saved = await this.accountWait(async () => (this.storage.getAccount?.()), accountOperation, false, true);
       if (!saved || !this.core.validAccountCredential(saved.accountCredential)) {
         throw new Error('account_auth_required');
       }
-      const result = await this.request(pending.path, {
+      const result = await this.accountWait(async () => (this.request(pending.path, {
         method: 'POST', accountCredential: saved.accountCredential, body: pending.body
-      });
-      await this.storage.clearPendingDetach?.();
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.clearPendingDetach?.()), accountOperation, false, true);
       return Object.freeze({ status: 'committed', result });
     }
 
     async issueDeleteIntent({ accountCredential, scope, appId = null, material = null }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!['app', 'account'].includes(scope) || (scope === 'app' && !this.core.ACCOUNT_APPS.includes(appId))) {
         throw new Error('account_delete_scope_invalid');
       }
@@ -538,11 +610,13 @@
         : `/v2/accounts/memberships/${encodeURIComponent(appId)}/delete-intent`;
       const body = { operationId: candidate.issueOperationId, intentToken: candidate.intentToken };
       if (scope === 'app') body.appId = appId;
-      const result = await this.request(path, { method: 'POST', accountCredential, body });
+      const result = await this.accountWait(async () => (this.request(path, { method: 'POST', accountCredential, body })), accountOperation, false, true);
       return Object.freeze({ ...result, material: candidate });
     }
 
     async commitDelete({ accountCredential, scope, appId = null, material, confirmed }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (confirmed !== true || !material || !this.core.validAccountDeleteIntent(material.intentToken)) {
         throw new Error('account_delete_confirmation_required');
       }
@@ -551,25 +625,27 @@
         : `/v2/accounts/memberships/${encodeURIComponent(appId)}`;
       const body = { operationId: material.commitOperationId, intentToken: material.intentToken };
       if (scope === 'app') body.appId = appId;
-      await this.storage.setPendingDelete({
+      await this.accountWait(async () => (this.storage.setPendingDelete({
         scope, appId, path, body, accountCredential
-      });
-      const result = await this.request(path, {
+      })), accountOperation, false, true);
+      const result = await this.accountWait(async () => (this.request(path, {
         method: 'DELETE', accountCredential, body
-      });
-      if (scope === 'account') await this.storage.clearAccount();
-      await this.storage.clearPendingDelete();
+      })), accountOperation, false, true);
+      if (scope === 'account') await this.accountWait(async () => (this.storage.clearAccount()), accountOperation, true, true);
+      await this.accountWait(async () => (this.storage.clearPendingDelete()), accountOperation, false, true);
       return Object.freeze(result);
     }
 
     async resumePendingDelete() {
-      const pending = await this.storage.getPendingDelete?.();
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
+      const pending = await this.accountWait(async () => (this.storage.getPendingDelete?.()), accountOperation, false, true);
       if (!pending) return Object.freeze({ status: 'none' });
-      const result = await this.request(pending.path, {
+      const result = await this.accountWait(async () => (this.request(pending.path, {
         method: 'DELETE', accountCredential: pending.accountCredential, body: pending.body
-      });
-      if (pending.scope === 'account') await this.storage.clearAccount();
-      await this.storage.clearPendingDelete();
+      })), accountOperation, false, true);
+      if (pending.scope === 'account') await this.accountWait(async () => (this.storage.clearAccount()), accountOperation, true, true);
+      await this.accountWait(async () => (this.storage.clearPendingDelete()), accountOperation, false, true);
       return Object.freeze({ status: 'committed', result });
     }
 
@@ -584,19 +660,21 @@
     }
 
     async issueHandoff({ accountCredential, appId, appUrl, material }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!material || !this.core.validHandoffToken(material.handoffToken) ||
           typeof material.operationId !== 'string') {
         throw new Error('handoff_material_required');
       }
       const candidate = material;
-      const result = await this.request('/v2/accounts/handoffs', {
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/handoffs', {
         method: 'POST', accountCredential,
         body: {
           operationId: candidate.operationId,
           appId,
           handoffToken: candidate.handoffToken
         }
-      });
+      })), accountOperation, false, true);
       return Object.freeze({
         ...result,
         url: this.core.createHandoffUrl(appUrl, candidate.handoffToken)
@@ -610,11 +688,13 @@
     }
 
     async issueJoinInvitation({ accountCredential, appId, material }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!material || !this.core.validJoinCode(material.joinCode) ||
           typeof material.operationId !== 'string' || typeof material.invitationId !== 'string') {
         throw new Error('app_join_material_required');
       }
-      const result = await this.request('/v2/accounts/app-join-invitations', {
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/app-join-invitations', {
         method: 'POST', accountCredential,
         body: {
           operationId: material.operationId,
@@ -622,7 +702,7 @@
           appId,
           joinCode: material.joinCode
         }
-      });
+      })), accountOperation, false, true);
       return Object.freeze({ ...result, displayJoinCode: this.core.formatJoinCode(material.joinCode) });
     }
 
@@ -642,6 +722,8 @@
       joinCode, appId, deviceLabel, operationId, accountMaterial, appMaterial,
       consumeMode = 'new_app', existingAppCredential = null, preservePending = false
     }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       const normalizedCode = this.core.normalizeJoinCode(joinCode);
       if (!normalizedCode || !['new_app', 'existing_chord'].includes(consumeMode) ||
           (consumeMode === 'existing_chord' && appId !== 'chord')) {
@@ -655,15 +737,15 @@
       if (!this.core.validAppCredential(app.appDeviceCredential)) throw new Error('app_join_app_credential_required');
       const operation = operationId || this.core.createOperationId();
       const qa = this.admissionMode === 'qa' ? this.core.createQaCredential() : null;
-      await this.storage.setPendingConsume({
+      await this.accountWait(async () => (this.storage.setPendingConsume({
         transport: 'app_join', operationId: operation, appId, consumeMode,
         accountDeviceId: account.accountDeviceId, accountCredential: account.accountCredential,
         appDeviceId: app.appDeviceId,
         ...(qa ? { qaSessionId: qa.qaSessionId, qaCredential: qa.qaCredential } : {}),
         ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
         deviceLabel: deviceLabel || null
-      });
-      const result = await this.request('/v2/accounts/app-join-invitations/consume', {
+      })), accountOperation, false, true);
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/app-join-invitations/consume', {
         method: 'POST',
         body: {
           operationId: operation, appId, joinCode: normalizedCode,
@@ -672,18 +754,18 @@
           ...(qa ? { qaCredential: qa.qaCredential } : {}),
           deviceLabel: deviceLabel || null, consumeMode
         }
-      });
-      await this.storage.setAccount({
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.setAccount({
         accountId: result.accountId, accountDeviceId: result.accountDeviceId,
         accountCredential: account.accountCredential, membershipId: result.membershipId
-      });
+      })), accountOperation, true, true);
       if (qa) {
-        await this.storage.setQaAdmission({
+        await this.accountWait(async () => (this.storage.setQaAdmission({
           qaSessionId: result.qaSessionId, qaCredential: qa.qaCredential,
           scope: 'app', appId, accountId: result.accountId
-        });
+        })), accountOperation, false, true);
       }
-      if (!preservePending) await this.storage.clearPendingConsume();
+      if (!preservePending) await this.accountWait(async () => (this.storage.clearPendingConsume()), accountOperation, false, true);
       return Object.freeze({
         ...result, consumeMode,
         ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
@@ -695,6 +777,8 @@
       handoffToken, appId, deviceLabel, operationId, accountMaterial, appMaterial,
       consumeMode = 'new_app', existingAppCredential = null, preservePending = false
     }) {
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
       if (!['new_app', 'existing_chord'].includes(consumeMode) ||
           (consumeMode === 'existing_chord' && appId !== 'chord')) {
         throw new Error('handoff_consume_mode_invalid');
@@ -709,7 +793,7 @@
       }
       const operation = operationId || this.core.createOperationId();
       const qa = this.admissionMode === 'qa' ? this.core.createQaCredential() : null;
-      await this.storage.setPendingConsume({
+      await this.accountWait(async () => (this.storage.setPendingConsume({
         transport: 'handoff',
         operationId: operation,
         appId,
@@ -720,8 +804,8 @@
         ...(qa ? { qaSessionId: qa.qaSessionId, qaCredential: qa.qaCredential } : {}),
         ...(consumeMode === 'new_app' ? { appDeviceCredential: app.appDeviceCredential } : {}),
         deviceLabel: deviceLabel || null
-      });
-      const result = await this.request('/v2/accounts/handoffs/consume', {
+      })), accountOperation, false, true);
+      const result = await this.accountWait(async () => (this.request('/v2/accounts/handoffs/consume', {
         method: 'POST',
         body: {
           operationId: operation,
@@ -733,23 +817,23 @@
           deviceLabel: deviceLabel || null,
           consumeMode
         }
-      });
-      await this.storage.setAccount({
+      })), accountOperation, false, true);
+      await this.accountWait(async () => (this.storage.setAccount({
         accountId: result.accountId,
         accountDeviceId: result.accountDeviceId,
         accountCredential: account.accountCredential,
         membershipId: result.membershipId
-      });
+      })), accountOperation, true, true);
       if (qa) {
-        await this.storage.setQaAdmission({
+        await this.accountWait(async () => (this.storage.setQaAdmission({
           qaSessionId: result.qaSessionId,
           qaCredential: qa.qaCredential,
           scope: 'app',
           appId,
           accountId: result.accountId
-        });
+        })), accountOperation, false, true);
       }
-      if (!preservePending) await this.storage.clearPendingConsume();
+      if (!preservePending) await this.accountWait(async () => (this.storage.clearPendingConsume()), accountOperation, false, true);
       return Object.freeze({
         ...result,
         consumeMode,
@@ -759,11 +843,13 @@
     }
 
     async resumePendingStart() {
-      const pending = await this.storage.getPendingStart();
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
+      const pending = await this.accountWait(async () => (this.storage.getPendingStart()), accountOperation, false, true);
       if (!pending) return Object.freeze({ status: 'none' });
       try {
-        const summary = await this.summary(pending.accountCredential);
-        await this.storage.setAccount({
+        const summary = await this.accountWait(async () => (this.summary(pending.accountCredential)), accountOperation, false, true);
+        await this.accountWait(async () => (this.storage.setAccount({
           accountId: summary.account.id,
           accountDeviceId: pending.accountDeviceId,
           accountCredential: pending.accountCredential,
@@ -771,8 +857,8 @@
           recoveryAcknowledgedVersion: pending.recoveryAcknowledged
             ? summary.account.recoveryVersion : null,
           recoveryAcknowledgedAt: pending.recoveryAcknowledged ? Date.now() : null
-        });
-        await this.storage.clearPendingStart();
+        })), accountOperation, true, true);
+        await this.accountWait(async () => (this.storage.clearPendingStart()), accountOperation, false, true);
         return Object.freeze({ status: 'committed', summary });
       } catch (error) {
         if (error instanceof AccountApiError && error.code === 'invalid_account_credential') {
@@ -783,34 +869,36 @@
     }
 
     async resumePendingConsume({ preservePending = false } = {}) {
-      const pending = await this.storage.getPendingConsume();
+      const accountOperation = { generation: this.storage?.getGeneration?.() };
+
+      const pending = await this.accountWait(async () => (this.storage.getPendingConsume()), accountOperation, false, true);
       if (!pending) return Object.freeze({ status: 'none' });
       try {
-        const summary = await this.summary(pending.accountCredential, pending.qaCredential
+        const summary = await this.accountWait(async () => (this.summary(pending.accountCredential, pending.qaCredential
           ? { qaCredential: pending.qaCredential }
-          : null);
+          : null)), accountOperation, false, true);
         const membership = summary.memberships.find((entry) => entry.appId === pending.appId);
         const consumeMode = pending.consumeMode || 'new_app';
         const expectedState = consumeMode === 'existing_chord' ? 'pending' : 'active';
         if (!membership || membership.state !== expectedState) {
           return Object.freeze({ status: 'not_committed' });
         }
-        await this.storage.setAccount({
+        await this.accountWait(async () => (this.storage.setAccount({
           accountId: summary.account.id,
           accountDeviceId: pending.accountDeviceId,
           accountCredential: pending.accountCredential,
           membershipId: membership.id
-        });
+        })), accountOperation, true, true);
         if (pending.qaCredential) {
-          await this.storage.setQaAdmission({
+          await this.accountWait(async () => (this.storage.setQaAdmission({
             qaSessionId: pending.qaSessionId,
             qaCredential: pending.qaCredential,
             scope: 'app',
             appId: pending.appId,
             accountId: summary.account.id
-          });
+          })), accountOperation, false, true);
         }
-        if (!preservePending) await this.storage.clearPendingConsume();
+        if (!preservePending) await this.accountWait(async () => (this.storage.clearPendingConsume()), accountOperation, false, true);
         return Object.freeze({
           status: consumeMode === 'existing_chord' ? 'bridge_required' : 'committed',
           membership,

@@ -155,40 +155,50 @@
     }
   }
 
-  async function set(key, value, indexedDb) {
+  async function set(key, value, indexedDb, check = () => {}) {
     assertSafeValue(key, value);
+    const expectedGeneration = generation;
     const database = await open(indexedDb);
     try {
+      check();
+      if (expectedGeneration !== generation) throw new Error('account_generation_changed');
       const current = transaction(database, 'readwrite');
       const done = transactionDone(current);
+      const unwatch = watchTransaction(current, expectedGeneration);
       try {
         current.objectStore(STORE_NAME).put(structuredClone(value), key);
       } catch (_) {
         try { current.abort(); } catch (_) { /* already inactive */ }
         await done.catch(() => {});
+        unwatch();
         throw storageError('account_storage_write_failed');
       }
-      await done;
+      try { await done; } finally { unwatch(); }
     } catch (error) {
       closeDatabase(database);
       throw error?.category === 'storage' ? error : storageError('account_storage_write_failed');
     }
   }
 
-  async function remove(key, indexedDb) {
+  async function remove(key, indexedDb, check = () => {}) {
     if (!ALLOWED_KEYS.has(key)) throw new Error('account_storage_invalid');
+    const expectedGeneration = generation;
     const database = await open(indexedDb);
     try {
+      check();
+      if (expectedGeneration !== generation) throw new Error('account_generation_changed');
       const current = transaction(database, 'readwrite');
       const done = transactionDone(current);
+      const unwatch = watchTransaction(current, expectedGeneration);
       try {
         current.objectStore(STORE_NAME).delete(key);
       } catch (_) {
         try { current.abort(); } catch (_) { /* already inactive */ }
         await done.catch(() => {});
+        unwatch();
         throw storageError('account_storage_write_failed');
       }
-      await done;
+      try { await done; } finally { unwatch(); }
     } catch (error) {
       closeDatabase(database);
       throw error?.category === 'storage' ? error : storageError('account_storage_write_failed');
@@ -224,11 +234,42 @@
     return remove('qaAdmission', indexedDb);
   }
 
+  // Invalidate consumers before an Account write can publish. Only a notification,
+  // never credentials, travels between tabs.
+  let generation = 0;
+  const accountListeners = new Set();
+  const accountTransactions = new Map();
+  function watchTransaction(transaction, epoch) {
+    accountTransactions.set(transaction, epoch);
+    return () => accountTransactions.delete(transaction);
+  }
+  const channel = global.document && global.BroadcastChannel
+    ? new global.BroadcastChannel('sound-cruise-account-generation-v1') : null;
+  function invalidate(broadcast = true) {
+    generation += 1;
+    for (const [transaction, epoch] of accountTransactions) {
+      if (epoch !== generation) { try { transaction.abort(); } catch (_) {} }
+    }
+    for (const listener of accountListeners) { try { listener(generation); } catch (_) {} }
+    if (broadcast) channel?.postMessage({ changed: true });
+    return generation;
+  }
+  if (channel) channel.onmessage = () => invalidate(false);
+  async function changeAccount(value, indexedDb) {
+    const current = invalidate();
+    const check = () => { if (current !== generation) throw new Error('account_generation_changed'); };
+    await (value === null ? remove('account', indexedDb, check) : set('account', value, indexedDb, check));
+    if (current !== generation) throw new Error('account_generation_changed');
+    return Object.freeze({ generation: invalidate() });
+  }
+
   root.storage = Object.freeze({
     DATABASE_NAME,
+    getGeneration: () => generation,
+    subscribeAccount: listener => { accountListeners.add(listener); return () => accountListeners.delete(listener); },
     getAccount: (indexedDb) => get('account', indexedDb),
-    setAccount: (value, indexedDb) => set('account', value, indexedDb),
-    clearAccount: (indexedDb) => remove('account', indexedDb),
+    setAccount: (value, indexedDb) => changeAccount(value, indexedDb),
+    clearAccount: (indexedDb) => changeAccount(null, indexedDb),
     getQaAdmission,
     setQaAdmission,
     clearQaAdmission,
