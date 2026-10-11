@@ -20,7 +20,7 @@ const origin = process.argv[2] || 'http://127.0.0.1:8766';
    return route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({ok:true,generation:1,legacyCompatibilityEnabled:false})});
   });
   await page.goto(origin+'/apps/cruise-port/',{waitUntil:'networkidle'});
-  await page.locator('.port-app-version-display').first().filter({hasText:'1.22.0'}).waitFor();
+  await page.locator('.port-app-version-display').first().filter({hasText:'1.22.1'}).waitFor();
   await page.evaluate(async () => {
    const settings = await import('./metronome-store.js');
    const preset = {id:'baseline-preset',name:'Baseline',...settings.METRONOME_DEFAULTS,createdAt:1,updatedAt:1};

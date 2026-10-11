@@ -14,6 +14,42 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
+### Port/shared Write Gate Prerequisites v1（Port 1.22.1 / Studio 0.26.1）
+
+- 開始HEAD = origin/main = remote main: `34c9048ccff6c2e963b979e659f1f95ea7f49fe6`、main / ahead・behind0/0 / staged空。
+  前回のtracked77 + 新規5差分を保持して継続。`.claude/` / Worker node_modulesは不触。
+- 現在の正式契約・検証は[PORT_WRITE_READINESS](../../cruise-port/docs/PORT_WRITE_READINESS.md)。
+  B2 reader-first後owner bindingとB3新build間Sync Execution Lockを修正・再検証。
+  B1は未解消、production shared write OFF / canWrite=false / old-build-unknownで封じ込め。
+- ownerはendpoint / canSync / Account・Sync resolver / lifecycleを初回bind。不一致はowner_config_mismatch。
+  reader取得で設定を固定せず、最後のowner releaseでruntime / poll終了。
+- mutable Port SyncはAccount ID + appIdのnative Web Locks必須。identityなしはsync_identity_required。
+  queueDiff / outbox / push / ACK / shadow / conflict等の同Account/app操作を直列化し、別Accountは独立。
+  activation → Sync execution → dataset順。Repository lock中のnetwork awaitなし。
+- Worker30 FAILはA fixture不足（identity29 + Sync未開始conflict1）。Port/shared14 FAILはA fixture6 / B version-cache8。
+  C production regression / Dなし。Worker productionは不変更、test/theme-compat-harness.jsのみidentityと共有lockを注入。
+  認証・AppDevice・membership・Pro・CAS・operationId・tombstone・limitsを弱めない。
+- operation別readiness / formal Pro resolver / generation・private base・precommit・postcommit guardを準備。
+  dormant PortMetronomeFacadeはUI未接続、load/listはHost read model。production write拒否、fixture CASのみ。
+  M2 loadはnon-persistent。external dirty/saving/IMEはincoming pendingを保持し、3-way reapplyの依存衝突を拒否。
+  Port通知 / 再生snapshot / audioへの接続はpending。
+- subset Worker40 / Port68 PASS。全NodeはStudio314（Git clean1件はcommit後に含め全315を確認）、
+  Port/shared1417 / Worker592 / Other apps85 PASS。missing identity / identified mutable / identityなしread-onlyの3 regressionを追加。
+- Chrome: Studio97 / read-only Host10 / native Sync4 / Port desktop-mobile18 routes +20 +10 cases PASS。
+  cached DB/network/ensure/owner/provision/bootstrap/push/pull 0。実2tab同baseのlogical operation重複なし、別Account独立。
+  reader→ownerは実Host + Runtime fixture、Sync lockは実Runtime + native Locks/IDBを使用。
+- 固定baseline: Project8077 / Arrangement26991 bytesはappVersion0.26.1だけ変更。MIDI813 bytesのSHA一致。
+  紙面DOM / Pre-DTM / 4 Theme / print中保存・audio / focus / IME / lifecycleを維持。console / app404 / unhandled failure0。
+  新PDF pixel hash一致は主張しない。実Safari / OS IME / 聴感 / 実プリンターはpending。
+- Port1.22.1 / Studio0.26.1を維持。project schema1、domain schema不変更。shared runtime全HTML cache v30。
+  他アプリ本体/version不触、3 Pro HTMLだけcache query追従。Feature Metadataにruntime/storeを追加しない。
+- 本記録はcommit前検証。明示指示に従い個別stage・1 commit・全Node最終回帰・通常push。
+  commit hash / 最終315件 / remote一致は最終実測で報告する。
+- 次は強制可能なB1 authority boundary設計・独立監査。その後M3 Phase Dでmeter/rhythm/4 sounds/volume/accents、
+  preset CRUD UI、正式Pro/Account、mobile/Safariを実装・検証。Prerequisites完了をB1解消やshared write解禁と扱わない。
+
+以下は各前工程の履歴。「次」やversionは当時の値として保持し、現在地は上記を優先する。
+
 ### Studio Read-only Port Data Host v1（0.26.0）
 
 Tool paneにPort保存BPM / effective設定 / presets / Account / Sync / cached Proの読取り専用表示を追加。

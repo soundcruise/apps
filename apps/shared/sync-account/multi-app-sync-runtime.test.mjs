@@ -1,5 +1,6 @@
+import { createFixtureLocks as fixtureLocks } from './test-fixtures/web-locks.mjs';
 import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
-import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.22.0';
+import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.22.1';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -29,7 +30,7 @@ function loadRuntime(backupStorage = { async save() {} }) {
   const context = {
     crypto: webcrypto, Headers, TextEncoder, TextDecoder, AbortController, setTimeout, clearTimeout,
     structuredClone, EventTarget, CustomEvent: CustomEventPolyfill,
-    navigator: { onLine: true }, queueMicrotask,
+    navigator: { onLine: true, locks: fixtureLocks() }, queueMicrotask,
     addEventListener: globalEvents.addEventListener.bind(globalEvents),
     removeEventListener: globalEvents.removeEventListener.bind(globalEvents),
     dispatchEvent: globalEvents.dispatchEvent.bind(globalEvents),
@@ -56,6 +57,7 @@ function memoryStore() {
   const shadow = new Map();
   const conflicts = new Map();
   return {
+    accountId: 'fixture-account',
     readMeta: async (key) => meta.get(key) ?? null,
     setMeta: async (key, value) => { meta.set(key, structuredClone(value)); },
     removeMeta: async (key) => { meta.delete(key); },
@@ -2883,10 +2885,10 @@ test('an edit made after the initial snapshot survives the remote apply', async 
   const remoteY = fixture.server.records.get('custom_record/y');
   fixture.server.records.set('custom_record/y', { ...remoteY, payload: { name: 'Y1' },
     payloadHash: 'hash-y-Y1', revision: remoteY.revision + 1, changeSeq: ++fixture.server.revision });
-  const originalFlush = fixture.runtime.flushOutbox.bind(fixture.runtime);
-  fixture.runtime.flushOutbox = async (...args) => {
+  const originalFlush = fixture.runtime.flushOutbox;
+  fixture.runtime.flushOutbox = async function (...args) {
     fixture.local.records = [record('x', 'X1'), record('y', 'Y0')];
-    return originalFlush(...args);
+    return originalFlush.apply(this, args);
   };
   await fixture.runtime.sync('mid-sync-edit');
   assert.equal(fixture.local.records.find((item) => item.recordId === 'x').payload.name, 'X1');
@@ -3611,4 +3613,63 @@ test('50 shared runtime lifecycle cycles detach focus/online/visibility and leav
 test('offline transition during credential lookup does not begin a Sync network request',async()=>{
  const f=runtimeFixture([],'port','production');await f.store.setMeta('credential','scd1.valid');const gate=deferred();const original=f.runtime.credential.bind(f.runtime);let lookup=false,calls=0;
  f.runtime.credential=async()=>{lookup=true;await gate.promise;return original();};f.runtime.fetchImpl=async()=>{calls++;return Response.json({ok:true});};const task=f.runtime.serverSnapshot();while(!lookup)await Promise.resolve();f.context.navigator.onLine=false;gate.resolve();await assert.rejects(task,e=>e.code==='network_error');assert.equal(calls,0);f.runtime.dispose();
+});
+
+test('execution scopes serialize two contexts and preserve one pending operation ID (B3)',async()=>{
+ const a=runtimeFixture([],'port'),b=runtimeFixture([],'port');const locks=fixtureLocks();
+ a.runtime.executionLocks=b.runtime.executionLocks=locks;b.runtime.store=a.store;
+ const records=[record('same','value')];await Promise.all([a.runtime.queueDiff(records,[],[]),b.runtime.queueDiff(records,[],[])]);
+ const outbox=await a.store.listOutbox();assert.equal(outbox.length,1);const id=outbox[0].operationId;
+ await Promise.all([a.runtime.queueDiff(records,[],[]),b.runtime.queueDiff(records,[],[])]);
+ assert.equal((await a.store.listOutbox())[0].operationId,id);a.runtime.dispose();b.runtime.dispose();
+});
+test('execution lock serializes push selection, ACK and conflict mutation scopes',async()=>{
+ const a=runtimeFixture([],'port'),b=runtimeFixture([],'port'),locks=fixtureLocks(),gate=deferred(),trace=[];
+ a.runtime.executionLocks=b.runtime.executionLocks=locks;
+ const first=a.runtime.runExclusive(async scoped=>{trace.push('push');await gate.promise;await scoped.store.putShadow('x',{revision:1});trace.push('ack');});
+ while(!trace.length)await Promise.resolve();
+ const second=b.runtime.runExclusive(async scoped=>{trace.push('conflict');await scoped.store.putConflict({id:'x'});});
+ await Promise.resolve();assert.deepEqual(trace,['push']);gate.resolve();await Promise.all([first,second]);assert.deepEqual(trace,['push','ack','conflict']);a.runtime.dispose();b.runtime.dispose();
+});
+for(const different of ['account','app'])test(`execution lock allows a different ${different} concurrently`,async()=>{
+ const a=runtimeFixture([],'port'),b=runtimeFixture([],'port'),locks=fixtureLocks(),gate=deferred();
+ a.runtime.executionLocks=b.runtime.executionLocks=locks;
+ if(different==='account')b.runtime.executionAccountId='other';else b.runtime.appId='pitch';
+ let entered=false;const first=a.runtime.runExclusive(async()=>{entered=true;await gate.promise;});while(!entered)await Promise.resolve();
+ assert.equal(await b.runtime.runExclusive(async()=>42),42);gate.resolve();await first;a.runtime.dispose();b.runtime.dispose();
+});
+for(const stop of ['dispose','generation'])test(`execution waiter rechecks ${stop} before any mutation`,async()=>{
+ const a=runtimeFixture([],'port'),b=runtimeFixture([],'port'),locks=fixtureLocks(),gate=deferred();
+ a.runtime.executionLocks=b.runtime.executionLocks=locks;let entered=false,wrote=false;
+ const first=a.runtime.runExclusive(async()=>{entered=true;await gate.promise;});while(!entered)await Promise.resolve();
+ const pending=b.runtime.runExclusive(async()=>{wrote=true;});const rejected=assert.rejects(pending);
+ if(stop==='dispose')b.runtime.dispose();else b.runtime.assertCurrent=()=>{throw Error('account_generation_changed');};
+ gate.resolve();await first;await rejected;assert.equal(wrote,false);a.runtime.dispose();b.runtime.dispose();
+});
+test('no locks blocks mutable runtime helpers without blocking local status reads',async()=>{
+ const f=runtimeFixture([],'port');f.runtime.executionLocks=null;
+ await assert.rejects(f.runtime.queueDiff([record('a')],[],[]),e=>e.code==='sync_locks_unavailable');
+ assert.equal((await f.store.listOutbox()).length,0);await f.runtime.credential();f.runtime.dispose();
+});
+test('execution then dataset order permits nested helpers and releases for independent local writer',async()=>{
+ const f=runtimeFixture([],'port'),locks=fixtureLocks(),trace=[];f.runtime.executionLocks=locks;
+ await f.runtime.runExclusive(async scoped=>{await locks.request('dataset',{},async()=>trace.push('repository'));await scoped.queueDiff([record('a')],[],[]);});
+ await locks.request('dataset',{},async()=>trace.push('local'));
+ assert.deepEqual(trace,['repository','local']);assert.equal((await f.store.listOutbox()).length,1);f.runtime.dispose();
+});
+
+
+test('mutable Port Sync without Account identity fails closed before mutation',async()=>{
+ const f=runtimeFixture([],'port');f.runtime.executionAccountId=undefined;
+ await assert.rejects(f.runtime.queueDiff([record('no-account')],[],[]),e=>e.code==='sync_identity_required');
+ assert.equal((await f.store.listOutbox()).length,0);assert.equal(f.server.pushCalls,0);f.runtime.dispose();
+});
+test('mutable Port Sync with explicit Account identity uses the formal execution lock',async()=>{
+ const f=runtimeFixture([],'port');f.runtime.executionAccountId='identity-fixture-account';
+ await f.runtime.queueDiff([record('identified')],[],[]);
+ assert.equal((await f.store.listOutbox()).length,1);f.runtime.dispose();
+});
+test('read-only credential and status store inspection need no Account identity or Web Locks',async()=>{
+ const f=runtimeFixture([],'port');f.runtime.executionAccountId=undefined;f.runtime.executionLocks=null;
+ assert.equal(await f.runtime.credential(),null);assert.deepEqual(await f.store.listOutbox(),[]);assert.deepEqual(await f.store.listConflicts(),[]);f.runtime.dispose();
 });

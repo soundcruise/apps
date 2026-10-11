@@ -6,7 +6,7 @@
 
 ## 読み取りAPI
 
-`js/core/feature-registry.mjs?v=0.25.1`から次をimportできる。
+`js/core/feature-registry.mjs?v=0.26.1`から次をimportできる。
 
 - `getComponentMetadata(componentId)` / `getAppVersion(componentId)`
 - `getFeatureMetadata(featureId)` / `listFeatures()`
@@ -19,12 +19,12 @@
 
 | componentId | 現行appVersion | repository-relative source / symbol | 読み方 |
 |---|---|---|---|
-| cruise-port | 1.21.2 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
+| cruise-port | 1.22.1 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
 | chord-cruise | 1.20.1 | apps/chord-cruise/js/app.js / CHORD_CRUISE_APP_VERSION | source-mirror |
 | pitch-cruise | 2.29.1 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
 | fretboard-cruise | 2.24.1 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
 | rhythm-cruise | 1.19.1 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
-| cruise-studio | 0.26.0 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+| cruise-studio | 0.26.1 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
 
 元sourceが正。mirrorのpath・symbol・extraction・expectedValueを保存し、毎回source一致を検証する。
 `version-reader.mjs`は渡されたテキストのliteral宣言だけを抽出する純関数。
@@ -39,8 +39,8 @@ API / backend versionやbuildの推測値は登録しない。独立componentは
 
 ### Importとcache
 
-Studio内部importは現在のmodule cache運用に合わせ`?v=0.25.1`。
-Port元ESMへのStudio側importは既存sourceのcache key `?v=1.21.2`を使う。
+Studio内部importは現在のmodule cache運用に合わせ`?v=0.26.1`。
+Port元ESMへのStudio側importは現行sourceのcache key `?v=1.22.1`を使う。
 商品versionをcache keyから抽出することはない。既存HTML・mobileの`?v=`は変更しない。
 Portの正式release後はsource照合に加えて、このStudio側参照のcache keyを確認する。
 

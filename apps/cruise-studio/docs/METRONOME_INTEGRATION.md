@@ -3,6 +3,31 @@
 2026-10-11。Shell Contract v2.1のM1 / M2 / M3分離に従う。
 M2は保存契約の内部実証完了。正式Port data・製品統合はM3。
 
+## Port/shared Write Gate Prerequisites v1（Port 1.22.1 / Studio 0.26.1）
+
+[PORT_WRITE_READINESS](../../cruise-port/docs/PORT_WRITE_READINESS.md)に現在の契約・検証結果を記録。
+B2 reader-first後のowner設定とB3新build cross-context Sync排他を修正した。
+B1旧writer問題は未解消。production shared write OFF / canWrite=false / old-build-unknownによる封じ込めを維持。
+正式解禁には強制可能なauthority boundaryの独立設計・監査が必要。
+
+M2 loadはread / migration projection / validation / effectiveだけで、未知・永続storeへwriteしない。
+明示saveがmigrationの永続化境界。既存memoryOnly + persistProjectionOnLoadのstoreだけmemory projectionを保持できる。
+receiveExternalUpdateはdirty / saving / IME中のdraftとbaseを保持し、incoming pendingを分離する。
+inspectIncoming / keepLocal / adoptLatest / reapplyOnLatestを準備。自分のsave ACKでだけ自分のbaseを更新する。
+reapplyは3-way差分を使い、同fieldとmeter / rhythm / accentsの依存衝突を自動解決しない。
+Port通知・再生snapshot・audioへの外部更新接続は未実装。
+
+dormant PortMetronomeFacadeはUI未接続。production load/listはHost read model、writeは拒否。
+隔離fixtureだけprivate baseToken / Repository CAS / generation / operation guardを実証し、M2 storeへの直結adapterにはしない。
+Standard applyはBPMだけ、advanced applyには操作時のfresh Pro proofを要求する。
+正式Pro resolverとcached badgeを分離し、Account/AppDevice・backend認可は別。Account IDなしのmutable Syncを許可しない。
+Worker productionは不変更、test harnessにAccount identity / shared lock fixtureだけを追加。
+
+renderer parity（meter / rhythm / sound4種 / volume / accents）とpreset CRUD UIはM3 Phase Dでpending。
+現在のDockはM1 renderer + M2 memory保存を維持する。Prerequisites完了をM3製品統合完了と扱わない。
+Node314 + Port/shared1417 + Worker592 + Other apps85、Studio Chrome97 / Host10 / native Sync4 / Port48ケースPASS。
+Studio Git clean検査1件はcommit後の全315件で最終確認する。実Safari / OS IME / 聴感 / 実プリンターはpending。
+
 ## Port正本の読み取り監査
 
 | 正本 | 調査結果 / M2対応 |

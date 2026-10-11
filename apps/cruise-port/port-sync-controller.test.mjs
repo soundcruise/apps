@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 const source = fs.readFileSync(new URL('./port-sync-controller.js', import.meta.url), 'utf8');
 const deferred = () => { let resolve; const promise = new Promise(r => {resolve = r;}); return {promise,resolve}; };
-function harness({canSync = () => true} = {}) {
+function harness({canSync = () => true, readerFirst = false} = {}) {
   let account = {accountId:'A',accountCredential:'sca1.A.secret'}, generation = 0;
   const listeners = new Set(), databases = new Map(), events=[], network=[], runtimes=[];
   const window = new EventTarget(), document = new EventTarget(); document.visibilityState='visible';
@@ -31,6 +31,7 @@ function harness({canSync = () => true} = {}) {
     constructor(options){super();Object.assign(this,options);this.initialized=0;this.synced=0;this.disposed=false;runtimes.push(this);}
     async initializeDataset(){this.assertCurrent();this.initialized++;if(bootstrapGate)await bootstrapGate.promise;this.assertCurrent();await this.store.setMeta('migrationState','complete');return {ok:true};}
     async sync(){this.assertCurrent();this.synced++;return {ok:true};}
+    runExclusive(work){return work(this);}
     listConflictPresentations(){return [];}
     async resolveConflict(){return {ok:true};}
     async retryLegacyFailures(){return {ok:true};}
@@ -38,15 +39,15 @@ function harness({canSync = () => true} = {}) {
   }
   const context={EventTarget,CustomEvent,AbortController,structuredClone,Date,
     addEventListener(type,fn){policyListeners.add(fn);window.addEventListener(type,fn);},removeEventListener(type,fn){policyListeners.delete(fn);window.removeEventListener(type,fn);},dispatchEvent:e=>events.push(e),document,
-    navigator:{onLine:true},setInterval(fn){intervals.add(fn);return fn;},clearInterval:id=>intervals.delete(id),
+    navigator:{onLine:true,locks:{request:async (_name,_options,work)=>work()}},setInterval(fn){intervals.add(fn);return fn;},clearInterval:id=>intervals.delete(id),
     SoundCruisePortSync:{PortSyncAdapter:class {constructor(){this.changed=false;}primeRemoteReferences(records){this.primed=records;}reconcileRemoteReferences(records){return records.length>0;}consumeRemoteApplyChanged(){const value=this.changed;this.changed=false;return value;}}},
     SoundCruiseSyncAccount:{AccountClient:Client,storage:{getAccount:async()=>account,getGeneration:()=>generation,subscribeAccount:fn=>{listeners.add(fn);return ()=>listeners.delete(fn);},getQaAdmission:async()=>null},
       core:{validAccountCredential:x=>x?.startsWith('sca1.'),validAppCredential:x=>x?.startsWith('scd1.'),createAppCredential:()=>({appDeviceCredential:'scd1.port.secret'}),createOperationId:()=> 'stable-id'}},
     SoundCruiseMultiAppSync:{dataStorage:{createStore},MultiAppSyncRuntime:Runtime}};
   vm.runInNewContext(source,context);
   const config={enabled:true,environment:'production',endpoint:'https://sync.example'};
-  const create=(readOnly=false)=>context.SoundCruisePortSync.createPortSyncController({config,canSync,readOnly}); const controller=create();
-  return {controller,create,databases,network,runtimes,events,context,intervals,listeners,policyListeners,get dbReads(){return dbReads;},
+  const create=(readOnly=false)=>context.SoundCruisePortSync.createPortSyncController({config,canSync,readOnly}); const controller=create(readerFirst);
+  return {controller,create,acquire: options => context.SoundCruisePortSync.createPortSyncController({config,canSync,...options}), config, databases,network,runtimes,events,context,intervals,listeners,policyListeners,get dbReads(){return dbReads;},
     gateProvision(){return provisionGate=deferred();},gateBootstrap(){return bootstrapGate=deferred();},failProvision(){failFirst=true;},
     changeAccount(id){generation++;account={accountId:id,accountCredential:'sca1.'+id+'.secret'};for(const fn of listeners)fn();},createStore};
 }
@@ -115,4 +116,32 @@ test('disposing a Port owner leaves another app runtime untouched',async()=>{
 test('read-only consumer has no activation/runtime/credential API and cannot keep owner network alive',async()=>{
  const h=harness(), reader=h.create(true);assert.equal(reader.ensure,undefined);assert.equal(reader.runtime,undefined);assert.equal(reader.store,undefined);assert.equal(reader.getCachedStatus().state,'unknown');assert.equal(h.dbReads,0);
  await h.controller.ensure();const runtime=h.controller.runtime;assert.equal(reader.identity.generation,h.controller.identity.generation);h.controller.dispose();assert.equal(runtime.disposed,true);assert.equal(reader.getCachedStatus().state,'unknown');assert.equal(h.intervals.size,0);reader.dispose();assert.equal(h.listeners.size,0);
+});
+
+test('reader first cannot freeze endpoint, canSync or credential resolver; owner binds once', async () => {
+ const h=harness({readerFirst:true});
+ const ignored=h.acquire({readOnly:true,config:{enabled:true,endpoint:'https://ignored.invalid'},canSync:()=>false});
+ assert.equal(h.runtimes.length,0); assert.equal(h.network.length,0);
+ const owner=h.create(); await owner.ensure();
+ assert.equal(owner.runtime.endpoint,'https://sync.example'); assert.equal(owner.restricted,false);
+ assert.equal(owner.runtime.accountClient.storage,h.context.SoundCruiseSyncAccount.storage);
+ assert.equal(h.network.length,1); assert.equal(h.intervals.size,1);
+ const reuse=h.create(); ignored.release();h.controller.release();assert.equal(owner.runtime.disposed,false);
+ owner.release();assert.equal(reuse.runtime.disposed,false);const runtime=reuse.runtime;reuse.release();assert.equal(runtime.disposed,true);
+});
+test('reader dependency cannot freeze owner Account resolver', async () => {
+ const h=harness({readerFirst:true});const storage={...h.context.SoundCruiseSyncAccount.storage};
+ const root={...h.context.SoundCruiseSyncAccount,storage};
+ const owner=h.acquire({accountRoot:root}); await owner.ensure();assert.equal(owner.runtime.accountClient.storage,storage);
+ h.controller.release();owner.release();
+});
+test('owner mismatch fails explicitly without replacing active runtime', async () => {
+ const h=harness();await h.controller.ensure();const runtime=h.controller.runtime;
+ for(const options of [{config:{...h.config,endpoint:'https://other.invalid'}},{canSync:()=>true},{accountRoot:{...h.context.SoundCruiseSyncAccount}},{config:{...h.config,admissionMode:'qa'}}])
+   assert.throws(()=>h.acquire(options), /owner_config_mismatch/);
+ assert.equal(h.controller.runtime,runtime);assert.equal(runtime.disposed,false);h.controller.release();
+});
+test('no Web Locks rejects activation before provision while local status remains readable', async () => {
+ const h=harness();delete h.context.navigator.locks;await assert.rejects(h.controller.ensure(),/sync_locks_unavailable/);
+ assert.equal(h.network.length,0);assert.equal(h.runtimes.length,0);await h.controller.readLocalStatus();h.controller.release();
 });

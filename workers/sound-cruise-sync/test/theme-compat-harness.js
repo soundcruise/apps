@@ -3,6 +3,7 @@
 // reader-first release; they reject a settings theme, so the Worker must hide it from clients that do
 // not declare `settings_theme_v1` and keep it when they write settings.
 import fs from 'node:fs';
+import { createFixtureLocks } from '../../../apps/shared/sync-account/test-fixtures/web-locks.mjs';
 import vm from 'node:vm';
 import { webcrypto } from 'node:crypto';
 import { handleProAuthorizedRequest as handleRequest } from './pro-entitlement-fixture.js';
@@ -175,7 +176,7 @@ export function world(appId) {
       return response.json();
     }
   });
-  return { db, appId, env, dependencies, addDevice, fetchFor, stored, rawWriter, close: () => db.close() };
+  return { db, appId, accountId: 'theme-fixture-account', locks: createFixtureLocks(), env, dependencies, addDevice, fetchFor, stored, rawWriter, close: () => db.close() };
 }
 
 // A real app device: shared runtime + an app sync adapter (old fixture, current, or a given source).
@@ -183,6 +184,7 @@ export function device(w, which, values) {
   const item = APPS[w.appId];
   const deviceId = w.addDevice();
   const { Runtime, context } = loadRuntime();
+  context.navigator.locks = w.locks;
   const data = new Map(Object.entries(values ?? item.seed()));
   const storage = { getItem: (key) => data.get(key) ?? null, setItem: (key, value) => data.set(key, String(value)), removeItem: (key) => data.delete(key) };
   context.localStorage = storage;
@@ -200,7 +202,7 @@ export function device(w, which, values) {
     async consumeJoinInvitation() { return this.consumeHandoff(); },
     async confirmConsumePersisted() {}
   };
-  const runtime = new Runtime({ appId: w.appId, endpoint: ENDPOINT, adapter, store, accountClient, accountCore: core,
+  const runtime = new Runtime({ appId: w.appId, accountId: w.accountId, endpoint: ENDPOINT, adapter, store, accountClient, accountCore: core,
     fetchImpl: w.fetchFor(deviceId), admissionMode: 'qa', randomOperationId: () => webcrypto.randomUUID() });
   const safe = async (fn) => { try { return await fn(); } catch (error) { return { ok: false, code: `THROW ${error.code || error.message}` }; } };
   return {

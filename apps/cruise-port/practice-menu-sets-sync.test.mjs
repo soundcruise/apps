@@ -1,3 +1,4 @@
+import { createFixtureLocks } from '../shared/sync-account/test-fixtures/web-locks.mjs';
 import { fixtureFullSnapshot } from './tests/full-snapshot-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -120,13 +121,14 @@ function gatedServer() {
 
 let deviceCounter = 0;
 // `capable: false` models Port 1.3.0 (or a rollback): no capability is declared.
+const locksByServer = new WeakMap();
 function device(values, fetchImpl, { capable = true } = {}) {
     const deviceId = `d${++deviceCounter}`;
     const globalEvents = new EventTarget();
     const context = {
         crypto: webcrypto, Headers, TextEncoder, TextDecoder, AbortController, setTimeout, clearTimeout,
         structuredClone, EventTarget, CustomEvent: CustomEventPolyfill, URL,
-        navigator: { onLine: true }, queueMicrotask,
+        navigator: { onLine: true, locks: locksByServer.get(fetchImpl) || locksByServer.set(fetchImpl, createFixtureLocks()).get(fetchImpl) }, queueMicrotask,
         addEventListener: globalEvents.addEventListener.bind(globalEvents),
         removeEventListener: globalEvents.removeEventListener.bind(globalEvents),
         dispatchEvent: globalEvents.dispatchEvent.bind(globalEvents),
@@ -151,7 +153,7 @@ function device(values, fetchImpl, { capable = true } = {}) {
         return { consumeMode: 'new_app', membershipId: 'm1', membershipState: 'active',
             appDeviceCredential: 'scd1.valid', qaCredential: 'scq1.valid' };
     }, async confirmConsumePersisted() {} };
-    const runtime = new context.SoundCruiseMultiAppSync.MultiAppSyncRuntime({ appId: 'port',
+    const runtime = new context.SoundCruiseMultiAppSync.MultiAppSyncRuntime({ appId: 'port', accountId: 'sets-fixture-account',
         endpoint: 'https://example.test', adapter, store: memoryStore(), accountClient, accountCore: core,
         fetchImpl, randomOperationId: () => `${deviceId}-op-${++id}` });
     return {

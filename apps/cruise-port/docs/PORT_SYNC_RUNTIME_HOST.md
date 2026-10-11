@@ -1,6 +1,26 @@
 # Port Runtime & Integration Safety v1
 
-2026-10-11 / Port 1.22.0 / Studio 0.25.1（本体変更なし）。
+2026-10-11 / Port 1.22.1 / Studio 0.26.1。初期v1（Port 1.22.0）の実証履歴は下部に保持。
+
+## Write Gate Prerequisites v1（現行）
+
+[PORT_WRITE_READINESS](PORT_WRITE_READINESS.md)を現在のowner binding / Sync execution / operation gate契約とする。
+B2はreader-first後のowner設定固定を解消。B3は新build同士のcross-context mutable Sync排他を解消。
+B1は未解消。旧writerを強制排除できないため、Studio production shared writeはOFF、canWrite=false。
+
+reader acquisitionはendpoint / canSync / Account・Sync resolver / lifecycleを確定しない。
+最初のownerが正式設定をbindし、同じ正規化configと依存referenceだけreuseする。不一致はowner_config_mismatch。
+最後のowner releaseでruntime/poll終了、readerだけではactivationを保持しない。
+
+Port mutable SyncはAccount ID + appIdのnative Web Lockが必須。identityなしはsync_identity_required。
+queueDiff / outbox / push selection / ACK / shadow / conflict / bootstrap / detach / runtimeState / provisionを同scopeで調停する。
+lock順序はactivation → Sync execution → dataset。Repository lock中にnetworkを待たない。
+無関係な呼出しをnested扱いせず、同Account/appだけ直列化。別Account/appは独立する。
+
+Worker productionは不変更。test/theme-compat-harness.jsだけにsame-world Account IDと共有test lock managerを注入した。
+Account・AppDevice・membership・Pro認可、CAS / operationId / tombstone / limitsのassertionを維持。
+Port/shared1417、Worker592、Other apps85 PASS。native 2-tab Sync4ケース、Port browser18 routes + 20 + 10ケースPASS。
+reader→ownerのbrowser実証は実Host + Runtime fixture、排他実証は実Runtime + native Web Locks/IDB。
 
 Portの同期は画面表示から分離し、明示操作で開始する。Accountの切替・dispose後に古い処理を適用しない。
 ローカル保存は引き続き[Port Dataset Repository](PORT_DATASET_REPOSITORY.md)を使う。
@@ -17,7 +37,7 @@ Portの同期は画面表示から分離し、明示操作で開始する。Acco
 read-only consumerだけではnetwork ownerを維持しない。
 
 `createPortSyncReader()`はcached status / readLocalStatus / subscribe / identity / releaseのみを公開する。
-ensure・mutable runtime・credential store・write APIを公開しない。Studioへは今回接続しない。
+ensure・mutable runtime・credential store・write APIを公開しない。Studio read-only Hostから利用する。
 正式Pro statusは既存Pro gate / device-session serviceを独立に読む設計とし、Sync membershipやFeature Metadataから資格を推測しない。
 
 ## Account generation / AppDevice
@@ -120,7 +140,8 @@ formal Pro（scp1/device session/revoke/expiry/offline）、Worker、Chord/Pitch
 **旧build tabは新Web LockやAccount hostへ参加しない。旧build coexistenceを解消済みとは扱わない。**
 別JavaScript contextには独立runtimeがある。context間のdataset writeはrepository lock、activationは別lockで協調する。
 今回のbrowser実証はChrome。Safari/PWAの実機確認や、Port/Studio同時起動のdirty draft維持はStudio接続工程で必要。
-Studio Metronome M2 memory facade、Version/Feature Metadata、domain schema、Workerは変更しない。
+以下の初期v1検証時はStudio Metronome M2 memory facade、Version/Feature Metadata、domain schema、Workerを変更していない。
+現行PrerequisitesではM2のnon-persistent load/external update境界を準備し、Worker test fixtureだけを更新した。
 
 ## 検証コマンド
 

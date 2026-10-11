@@ -3,10 +3,17 @@
   const namespace = global.SoundCruisePortSync = global.SoundCruisePortSync || {};
   const hosts = new Map();
   let sequence = 0;
+  const defaultFetch = (...args) => global.fetch(...args);
+  const defaultLabel = () => 'Cruise Port';
+  const defaultCanSync = () => namespace.canSync?.() === true;
+  function bindingKey(config, admissionMode) {
+    return JSON.stringify({ enabled: config.enabled === true, endpoint: config.endpoint?.replace(/\/$/, '') || null,
+      admissionMode, lifecycle: 'explicit-owner-v1' });
+  }
 
   function createPortSyncController({ config, accountRoot = global.SoundCruiseSyncAccount,
-    syncRoot = global.SoundCruiseMultiAppSync, fetchImpl = global.fetch?.bind(global),
-    deviceLabel = () => 'Cruise Port', readOnly = false, canSync = () => namespace.canSync?.() === true } = {}) {
+    syncRoot = global.SoundCruiseMultiAppSync, fetchImpl = defaultFetch,
+    deviceLabel = defaultLabel, readOnly = false, canSync = defaultCanSync } = {}) {
     if (!config?.enabled || !accountRoot?.storage || !accountRoot?.AccountClient || !accountRoot?.core ||
         !syncRoot?.MultiAppSyncRuntime || !syncRoot?.dataStorage || !namespace.PortSyncAdapter) {
       return Object.freeze({ enabled: false, getCachedStatus: () => Object.freeze({ known: false, state: 'unavailable' }),
@@ -16,14 +23,33 @@
     const key = 'port';
     let host = hosts.get(key);
     if (!host) {
-      host = createHost({ config, accountRoot, syncRoot, fetchImpl, deviceLabel, canSync, admissionMode,
+      host = createHost({ accountRoot, syncRoot,
         onDispose: () => { if (hosts.get(key) === host) hosts.delete(key); } });
       hosts.set(key, host);
     }
+    if (!readOnly) host.bindOwner({ config, accountRoot, syncRoot, fetchImpl, deviceLabel, canSync, admissionMode });
     return host.acquire({ readOnly });
   }
 
-  function createHost({ config, accountRoot, syncRoot, fetchImpl, deviceLabel, canSync, admissionMode, onDispose }) {
+  function createHost({ accountRoot, syncRoot, onDispose }) {
+    let binding = null, config = null, fetchImpl = null, deviceLabel = null, canSync = () => false, admissionMode = null;
+    function bindOwner(next) {
+      const key = bindingKey(next.config, next.admissionMode);
+      const references = ['accountRoot', 'syncRoot', 'fetchImpl', 'deviceLabel', 'canSync'];
+      if (binding) {
+        if (binding.key !== key || references.some(name => binding[name] !== next[name])) {
+          const error = new Error('owner_config_mismatch'); error.code = 'owner_config_mismatch'; throw error;
+        }
+        return;
+      }
+      // A reader has no activation authority. The first owner supplies every
+      // activation dependency; later owners must reuse the identical contract.
+      unsubscribeAccount?.();
+      ({ accountRoot, syncRoot, fetchImpl, deviceLabel, canSync, admissionMode } = next);
+      config = Object.freeze({ ...next.config });
+      binding = { ...next, key };
+      unsubscribeAccount = accountRoot.storage.subscribeAccount?.(stop);
+    }
     let generation = ++sequence;
     let runtime = null, adapter = null, store = null, identity = null, ensuring = null;
     let active = false, disposed = false, poll = null, refs = 0, owners = 0;
@@ -49,7 +75,7 @@
       lifetime = new AbortController();
       publish(unknown());
     }
-    const unsubscribeAccount = accountRoot.storage.subscribeAccount?.(stop);
+    let unsubscribeAccount = accountRoot.storage.subscribeAccount?.(stop);
     function check(epoch, accountGeneration) {
       if (disposed || epoch !== generation || accountGeneration !== accountRoot.storage.getGeneration?.()) {
         const error = new Error('account_generation_changed'); error.code = 'account_generation_changed'; throw error;
@@ -80,6 +106,7 @@
     }
     async function activate() {
       const epoch = generation, accountGeneration = accountRoot.storage.getGeneration?.();
+      if (!global.navigator?.locks?.request) throw new Error('sync_locks_unavailable');
       const guard = () => check(epoch, accountGeneration);
       const wait = async operation => { guard(); const value = await operation(); guard(); return value; };
       const account = await wait(() => accountRoot.storage.getAccount());
@@ -107,8 +134,10 @@
           accountClient: client, accountCore: accountRoot.core, admissionMode, fetchImpl, hostLifecycle: true, assertCurrent: guard, assertCurrentAsync: accountGuard });
         runtime.identity = Object.freeze({ accountId, appId: 'port', generation: epoch });
         for (const name of ['sync', 'initializeDataset', 'resolveConflict', 'retryLegacyFailures']) {
-          const original = runtime[name]?.bind(runtime);
-          if (original) runtime[name] = (...args) => canSync() ? original(...args) : Promise.resolve({ ok: false, code: 'pro_required' });
+          const original = runtime[name];
+          if (original) runtime[name] = function (...args) {
+            return canSync() ? original.apply(this, args) : Promise.resolve({ ok: false, code: 'pro_required' });
+          };
         }
         const currentRuntime = runtime;
         const stateListener = event => {
@@ -128,6 +157,7 @@
         };
         runtime.addEventListener('statechange', stateListener);
         lifetime.signal.addEventListener('abort', () => currentRuntime.removeEventListener('statechange', stateListener), { once: true });
+        await runtime.runExclusive(async () => {
         // A pre-host database may contain pending operations. Adopt only after the
         // authenticated Account devices response proves ownership of its AppDevice.
         const legacy = syncRoot.dataStorage.createStore('port');
@@ -148,7 +178,9 @@
           }
           await wait(() => store.setMeta('legacyInspected', true));
         }
+        });
       }
+      await runtime.runExclusive(async () => {
       let credential = await wait(() => store.readMeta('credential'));
       if (!accountRoot.core.validAppCredential(credential)) {
         let pending = await wait(() => store.readMeta('pendingProvision'));
@@ -166,6 +198,7 @@
         await wait(() => store.removeMeta('pendingProvision'));
         credential = pending.appDeviceCredential;
       }
+      });
       adapter.primeRemoteReferences?.(await wait(() => store.listShadow()));
       active = true;
       syncRoot.runtimes = syncRoot.runtimes || Object.create(null);
@@ -261,15 +294,19 @@
           if (!canSync()) return { ok: false, code: 'pro_required' };
           if (!active || !adapter) return false;
           const epoch = generation, accountGeneration = accountRoot.storage.getGeneration?.();
-          const current = adapter, records = await store.listShadow(); check(epoch, accountGeneration);
-          return current.reconcileRemoteReferences?.(records);
+          return runtime.runExclusive(async () => {
+            const current = adapter, records = await store.listShadow(); check(epoch, accountGeneration);
+            return current.reconcileRemoteReferences?.(records);
+          });
         }),
-        clearCloudState: requireConsumer(async () => { const current = store; stop(); if (current) {
-          const clean = syncRoot.dataStorage.createStore('port', { accountId: current.accountId }); await clean.clearCloudState();
-        } }), release, dispose: release
+        clearCloudState: requireConsumer(async () => {
+          const current = runtime; if (!current) return;
+          try { await current.runExclusive(async scoped => { await scoped.store.clearCloudState(); }); }
+          finally { if (runtime === current) stop(); }
+        }), release, dispose: release
       });
     }
-    return { acquire };
+    return { acquire, bindOwner };
   }
   namespace.createPortSyncController = createPortSyncController;
   namespace.createPortSyncReader = options => createPortSyncController({ ...options, readOnly: true });

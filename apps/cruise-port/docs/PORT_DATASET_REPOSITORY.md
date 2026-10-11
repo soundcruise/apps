@@ -1,7 +1,21 @@
 # Port Dataset Readiness Core v1
 
-2026-10-11。Port 1.21.3 / Studio 0.25.1。Port所有の同期datasetを扱う保存基盤。
-Studio M3、Studio shared write、Account / runtime lifecycle統合はまだ無効・未実装。
+2026-10-11。現行Port 1.22.1 / Studio 0.26.1。Port所有の同期datasetを扱う保存基盤。
+初期Core（Port 1.21.3）の履歴は下部に保持。Studio shared writeは引き続き無効。
+
+## Write Gate Prerequisites v1（現行の接続境界）
+
+[PORT_WRITE_READINESS](PORT_WRITE_READINESS.md)にrepositoryProtocol=1 / writerProtocol=1、old-build-unknown、operation guardを記録。
+B2 reader→ownerとB3新build Sync排他は修正済み。B1は未解消で、production canWrite=falseによる封じ込め。
+Account ID + appIdのSync Execution Lockの内側で必要時にdataset lockを取得する。逆順やnetwork中のdataset lock保持は禁止。
+operationId / Account・Host generation / epoch・private base / Pro proofを操作に固定し、lock後・commit前・publish前に再検査する。
+commit後の条件変更はlocal-saved / sync-unconfirmedとして保存事実を保持し、publishしない。
+
+Studio read-only Hostは正式Repositoryのread modelに接続済み。dormant Metronome FacadeはUI未接続で、production writeを拒否する。
+隔離fixtureだけがprivate baseTokenとraw値・key revisionを使ってCASする。UIのhashをCAS tokenとして使わない。
+M2 load/migration projectionは永続化しない。明示saveがmigration write境界で、Port通知/audioとの接続は次工程。
+renderer parityとpreset CRUD UI、実Safari/PWA partition、強制可能な旧writer authority boundaryはpending。
+domain schema変更なし。初期Coreの全writer/rollback/forward/delete契約を弱めない。
 
 ## 所有とAPI
 

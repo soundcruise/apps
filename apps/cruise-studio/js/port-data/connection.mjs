@@ -65,6 +65,11 @@ export async function connectPortReadOnly(onChange, environment = globalThis) {
         return result.ok ? { state: 'cached-valid', validUntil: Date.now() + result.offlineRemainingMs } : result.expired ? 'expired' : result.clockRollback || result.stale ? 'stale' : 'unknown';
     };
     return {
+        readiness() {
+            try { const state = repository.inspect(); return { repositoryProtocol: state.protocol, locksAvailable: repository.sharedWriteCapable }; }
+            catch (error) { return { repositoryProtocol: error.code === 'protocol-mismatch' ? -1 : 1,
+                locksAvailable: !!g.navigator?.locks?.request, recoveryRequired: error.code === 'recovery-required', forwardIncompatible: error.code === 'forward-incompatible' }; }
+        },
         generation: () => g.SoundCruiseSyncAccount.storage.getGeneration(),
         cachedStatus: () => consumer?.getCachedStatus() || { known: false },
         account: () => readExisting(g.indexedDB, 'sound-cruise-sync-account', 'meta', 'account'),

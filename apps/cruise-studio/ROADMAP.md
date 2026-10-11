@@ -37,7 +37,7 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 8 | Structure Editing Session接続 | 0.24.0実装・回帰完了。saved / draft分離、commit / cancel、external conflict、Save、Pre-DTM working snapshot。domain Undoは未実装 |
 | 9 | Audio Coordinator v1 + Metronome M1 | 0.25.0実装・回帰完了。Standard相当BPM / Start / Stop、memory-only、Dock、専用context・lease・global stop実証 |
 | 10 | Metronome M2 | 0.25.1実装・回帰完了。注入memory facade、Port schema3 / migration、raw・effective分離、CAS / stale / failure / retry / forward guard実証 |
-| 11 | Metronome M3 | Core v1（Port 1.21.3）とRuntime & Integration Safety v1（Port 1.22.0）を整備。Studio read-only Host v1を0.26.0で実装・検証。次はM3 write条件の設計・独立監査。Studio shared writeは無効。正式Port-owned data / presets / Pro / Account / Sync / delete intent / 2tab / mobile回帰 |
+| 11 | Metronome M3 | Core / Runtime / read-only Host / Write Gate Prerequisites v1（Port 1.22.1・Studio 0.26.1）を整備・検証。B2/B3修正、B1はfail-closed封じ込め。production shared write OFF。次は強制可能なB1 authority boundary設計・独立監査、その後M3 Phase D renderer parity / presets UI / 正式資格 / mobile・Safari回帰 |
 | 12 | Chord | shared feature境界とPC presentationを追加 |
 | 13 | Practice | Port ownerと保存・同期契約を維持して追加 |
 | 14 | Tuner | mic排他・遅延request・競合音声確認・cleanupを検証 |
@@ -52,6 +52,16 @@ M3で初めて正式データへ接続する。接続前にschema前方互換、
 full dataset、全writer協調、delete intent、正式資格失効、mobile lifecycle、partial snapshot防止を
 確認する。全writerが協調できない場合、Studioの共有書込を有効化しない。
 詳細は[契約22〜24節](docs/SHELL_CONTRACT.md#22-metronome-m1-standard相当memory-only)を参照。
+
+## Write Gate Prerequisites v1（2026-10-11）
+
+[Port Write Readiness](../cruise-port/docs/PORT_WRITE_READINESS.md)が現在の契約と検証結果。
+reader-first後owner bindingとAccount ID + appIdのnative Sync Execution Lockを修正・実証。
+旧build不存在は証明していない。old-build-unknown / canWrite=falseをproduction固定し、B1解消と記録しない。
+M2 non-persistent load / external incoming・reapply、dormant Facadeのprivate base CASとoperation guardを準備。
+Port通知/audio接続・shared write・preset CRUD UIは未解禁、advanced rendererはM3 Phase D。
+Worker productionは不変更。Worker test-only Account identity / Web Locks fixtureを正式契約に追従させた。
+全Node/browser回帰PASS（Studio Git状態検査はcommit後確認）。Port1.22.1 / Studio0.26.1 / schema1。
 
 ## Studio-only無変化refactor 第1段階（完了・2026-10-11）
 

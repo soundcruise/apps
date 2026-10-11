@@ -1,6 +1,26 @@
 # Studio Read-only Port Data Host v1
 
-2026-10-11 / Studio 0.26.0 / project schemaVersion 1 / Port 1.22.0。
+2026-10-11 / Studio 0.26.1 / project schemaVersion 1 / Port 1.22.1。
+
+## Write Gate Prerequisites v1（現行）
+
+[Port Write Readiness](../../cruise-port/docs/PORT_WRITE_READINESS.md)を正式gate契約とする。
+B2 reader-first→owner bindingとB3新buildの別context Sync排他は修正済み。
+B1は未解消。unknown old writerを排除できないため、production shared write OFF、canWrite=falseを固定する。
+writerProtocol / repositoryProtocolは1。metadata capabilityはauthorizationではない。
+
+getCapabilities / getWriteReadinessはcacheのみ。checkWriteReadinessは明示local inspectionでowner取得やensureをしない。
+enableLocalWrites / activateSyncは明示userIntentを要求するが、production old-build-unknownで拒否する。
+URL / storage / debug flagで解禁しない。cached readinessからformal Pro resolverを呼ばない。
+
+dormant PortMetronomeFacadeのload/listはHost read model。M2 storeへそのまま差し替えられるadapterではない。
+production write拒否、隔離fixtureだけprivate opaque baseToken / Repository CAS / operation guardを実証。
+outbox APIやpartial Sync snapshotを作らず、UI / M2 / audioへwrite接続しない。
+
+最終回帰はStudio Node314 PASS（Git clean検査1件はcommit後確認）、Port/shared1417、Worker592、Other apps85 PASS。
+Studio Chrome97とHost10ケースPASS。cached DB/network/ensure/owner/provision/bootstrap/push/pullはすべて0。
+Project/ArrangementはappVersion0.26.1だけ変更、MIDI813 bytesのSHAは下記と一致。紙面DOM/print条件も維持。
+初期v1のPDF raster hashは履歴であり、今回の新PDF pixel比較結果として扱わない。
 
 ## 所有と境界
 
@@ -8,7 +28,7 @@ UI hostはCruise Studio、ownerAppはcruise-port、dataOwner / syncOwnerはport�
 `js/port-data/host.mjs`がread modelとgeneration、`connection.mjs`がPort repository / runtime consumer / local DB / Pro receiptへ接続する。
 `panel.mjs`が既存Tool paneへ表示する。Audio・Structure・M2 Controllerへの参照やsave接続は持たない。
 
-Host公開APIは`canRead=true`、`canWrite=false`、`getCachedStatus()`、`readLocalStatus()`、`subscribe()`、`dispose()`のみ。
+Hostは`canRead=true`、`canWrite=false`、`getCachedStatus()`、`readLocalStatus()`、`subscribe()`、`dispose()`と上記readiness / explicit intent APIを公開する。
 commit / save / ensure / provision / bootstrap / push / pull / conflict resolution / preset CRUDは公開しない。
 M2のMemoryStore → Settings Controller → Audio runtimeは従来どおり独立。Port設定・presetのapplyも今回は実装しない。
 
@@ -95,9 +115,9 @@ Dockは現在のM2 memory BPM / Start / Stopを維持。semantic tokenのみ。n
 
 旧build tabは新Web Lockへ参加しない。M3 shared write前のBlockerとして残す。
 次はM3 shared write解禁条件の設計・独立監査。old-build policy、dirty/base/playback保護、正式資格失効、mobile/Safariを検証してから判断する。
-今回read-onlyが成立してもPortReadWriteFacadeは未実装・未解禁。
+Prerequisitesではdormant PortMetronomeFacadeを準備したが、production shared writeは未解禁。
 
-## 検証
+## 初期Read-only Host v1（0.26.0）の検証履歴
 
 - Studio Node: baseline276。追加Host25件。commit前の機能300件PASS、既存の「Studio外tracked差分なし」Git状態検査1件は今回の共有変更を検出するため別扱い。commit後に全301件を確認する。
 - 既存Studio Chrome: 97 tests（親container4を含み93独立ケース）PASS。
@@ -116,7 +136,7 @@ Host browserは`node apps/cruise-studio/tests/port-data-host.browser.cjs`（bund
 共有変更はPro read-only modeと回帰testだけ。全consumer HTMLのcache queryをrootルールに従って更新した。
 Portのdomain code/version、他4 appsのdomain code/version、Worker、Studio project schema、Feature Metadataのruntime非保持を維持する。
 
-## Commit対象（26 files）
+## 初期Read-only Host v1のCommit対象（26 files・履歴）
 
 - `apps/chord-cruise/pro_k7m4q9v2x8/index.html`
 - `apps/chord-cruise/pro_k7m4q9v2x8/sync-cohort.html`

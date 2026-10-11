@@ -1,0 +1,37 @@
+// Isolated pages; native Web Locks + shared IndexedDB, real Sync runtime.
+const {chromium}=require('playwright'), assert=require('node:assert/strict'),fs=require('node:fs');
+const origin=process.argv[2]||'http://127.0.0.1:8766';
+(async()=>{const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'}),result={cases:[],errors:[],missing:[],external:[]};
+try{
+ const context=await browser.newContext();await context.route('**/*',r=>{const u=new URL(r.request().url());if(u.pathname==='/gate-fixture')return r.fulfill({contentType:'text/html',body:'<!doctype html><title>Isolated gate fixture</title>'});if(u.origin===origin)return r.continue();result.external.push(u.href);return r.abort();});
+ const a=await context.newPage(),b=await context.newPage();for(const p of [a,b]){p.on('pageerror',e=>result.errors.push(e.message));p.on('response',r=>{if(r.status()===404)result.missing.push(r.url());});await p.goto(origin+'/gate-fixture');
+ for(const file of ['sync-account-core.js','sync-account-db.js','sync-account-client.js','multi-app-sync-db.js','settings-field-merge.js','multi-app-sync-runtime.js'])await p.addScriptTag({url:origin+'/apps/shared/sync-account/'+file});
+ await p.evaluate(()=>{const sync=SoundCruiseMultiAppSync;globalThis.qa={};qa.store=sync.dataStorage.createStore('port',{accountId:'gate-fixture-account'});qa.record={recordType:'custom_record',recordId:'one',schemaVersion:1,payload:{name:'same'},payloadHash:'same'};qa.requests=[];qa.runtime=new sync.MultiAppSyncRuntime({appId:'port',endpoint:'https://isolated.invalid',admissionMode:'production',store:qa.store,adapter:{},accountClient:{},accountCore:{validAppCredential:x=>x==='scd1.fixture',createOperationId:()=>crypto.randomUUID()},fetchImpl:async(_url,init)=>{qa.requests.push(JSON.parse(init.body));if(qa.hold)await qa.hold;return Response.json({ok:true,results:JSON.parse(init.body).operations.map(op=>({operationId:op.operationId,status:'applied',record:{...op,revision:1,deletedAt:null}}))});}});});}
+ const outbox=()=>a.evaluate(()=>qa.store.listOutbox());await a.evaluate(()=>qa.runtime.runExclusive(r=>r.store.setMeta('credential','scd1.fixture')));
+ await Promise.all([a,b].map(p=>p.evaluate(()=>qa.runtime.queueDiff([qa.record],[],[]))));let rows=await outbox();assert.equal(rows.length,1);const id=rows[0].operationId;
+ await Promise.all([a,b].map(p=>p.evaluate(()=>qa.runtime.queueDiff([qa.record],[],[]))));assert.equal((await outbox())[0].operationId,id);result.cases.push('B3 two-tab queueDiff one logical operation / stable ID');
+ await a.evaluate(()=>{qa.hold=new Promise(r=>qa.release=r);qa.flushing=qa.runtime.flushOutbox();});await a.waitForFunction(()=>qa.requests.length===1);
+ await b.evaluate(()=>{qa.flushing=qa.runtime.flushOutbox();qa.conflicting=qa.runtime.recordConflict('fixture','custom_record/other',{localRecord:qa.record,remoteRecord:null,shadowRecord:null});});
+ await b.waitForFunction(async()=> (await navigator.locks.query()).pending.filter(x=>x.name.includes('sync-execution')).length>=2);
+ assert.equal(await b.evaluate(()=>qa.requests.length),0);await a.evaluate(()=>qa.release());await Promise.all([a.evaluate(()=>qa.flushing),b.evaluate(()=>Promise.all([qa.flushing,qa.conflicting]))]);
+ assert.equal((await outbox()).length,0);assert.equal(await b.evaluate(()=>qa.requests.length),0);assert.equal((await a.evaluate(()=>qa.store.listShadow())).length,1);assert.equal((await a.evaluate(()=>qa.store.listConflicts())).length,1);result.cases.push('native push selection + ACK + shadow + conflict serializes; one request');
+ // Different Accounts share the partition, but must not share an execution lock.
+ await a.evaluate(()=>{qa.entered=false;qa.independent=new Promise(r=>qa.free=r);qa.held=qa.runtime.runExclusive(async()=>{qa.entered=true;await qa.independent;});});
+ await a.waitForFunction(()=>qa.entered);
+ const independent=await b.evaluate(async()=>{const sync=SoundCruiseMultiAppSync;const runtime=new sync.MultiAppSyncRuntime({appId:'port',accountId:'other-gate-account',endpoint:'https://isolated.invalid',adapter:{},store:sync.dataStorage.createStore('port',{accountId:'other-gate-account'}),accountClient:{},accountCore:{}});try{return await runtime.runExclusive(async r=>{await r.store.setMeta('independent',true);return 'entered';});}finally{runtime.dispose();}});
+ assert.equal(independent,'entered');await a.evaluate(()=>qa.free());await a.evaluate(()=>qa.held);result.cases.push('native cross-account lock independence while same-account lock held');
+ // Reader mounts real host definitions first, then explicit owner binds a fixture Account resolver.
+ await a.addScriptTag({url:origin+'/apps/cruise-port/port-sync-adapter.js'});await a.addScriptTag({url:origin+'/apps/cruise-port/port-sync-controller.js'});
+ const owner=await a.evaluate(async()=>{
+ const ns=SoundCruisePortSync;qa.reader=ns.createPortSyncReader({config:{enabled:true,endpoint:'https://ignored.invalid',admissionMode:'production'},canSync:()=>false});
+ let network=0,ensure=0,owners=0;const readerKeys=Object.keys(qa.reader);qa.reader.getCachedStatus();qa.reader.subscribe(()=>{});const before={network,ensure,owners};
+ const account={accountId:'owner-fixture',accountCredential:'sca1.fixture'};let runtimeOptions,provisions=0;
+ class Client {constructor(o){this.options=o;}async provisionPortDevice(){provisions++;return {membershipId:'m'};}}
+ class Runtime extends EventTarget {constructor(o){super();Object.assign(this,o);runtimeOptions=o;}runExclusive(fn){return fn(this);}async initializeDataset(){await this.store.setMeta('migrationState','complete');return {ok:true};}dispose(){this.disposed=true;}}
+ const root={AccountClient:Client,storage:{getAccount:async()=>account,getGeneration:()=>1,subscribeAccount:()=>()=>{}},core:{validAccountCredential:x=>x==='sca1.fixture',validAppCredential:x=>x==='scd1.fixture',createOperationId:()=>crypto.randomUUID(),createAppCredential:()=>({appDeviceCredential:'scd1.fixture'})}};
+ const opts={config:{enabled:true,endpoint:'https://owner.invalid',admissionMode:'production'},canSync:()=>true,accountRoot:root,syncRoot:{...SoundCruiseMultiAppSync,MultiAppSyncRuntime:Runtime},fetchImpl:async()=>{network++;throw Error('unexpected');}};
+ owners++;qa.owner=ns.createPortSyncController(opts);ensure++;const value=await qa.owner.ensure();const live=qa.owner.runtime;qa.reader.dispose();const readerDetachSafe=!live.disposed;qa.owner.dispose();
+ return {before,value:value.ok,endpoint:runtimeOptions.endpoint,resolver:runtimeOptions.accountClient.options.storage===root.storage,hostLifecycle:runtimeOptions.hostLifecycle,provisions,readerDetachSafe,ownerStopped:live.disposed,readerHasEnsure:readerKeys.includes('ensure')};
+ });assert.deepEqual(owner,{before:{network:0,ensure:0,owners:0},value:true,endpoint:'https://owner.invalid',resolver:true,hostLifecycle:true,provisions:1,readerDetachSafe:true,ownerStopped:true,readerHasEnsure:false});result.cases.push('B2 reader-first / owner endpoint + resolver + canSync + lifecycle / release');result.owner=owner;
+ await Promise.all([a,b].map(p=>p.evaluate(()=>qa.runtime.dispose())));await context.close();assert.deepEqual(result.errors,[]);assert.deepEqual(result.missing,[]);assert.deepEqual(result.external,[]);result.result='PASS';
+}catch(e){result.result='FAIL';result.failure=e.stack;process.exitCode=1;}finally{fs.writeFileSync('/private/tmp/gate-write-browser.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));await browser.close();}})();

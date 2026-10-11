@@ -11,6 +11,7 @@
         var revision = 'metronome-memory:' + storeId + ':' + sequence, failure = null;
         function snapshot() { return { ok: true, data: schema.copy(data), revision: revision }; }
         return Object.freeze({
+            capabilities: Object.freeze({ memoryOnly: true, persistProjectionOnLoad: true }),
             load: async function () {
                 if (options.beforeLoad) await options.beforeLoad();
                 return snapshot();

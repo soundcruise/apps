@@ -94,6 +94,19 @@
     constructor(code, status = 0) { super(code); this.name = 'MultiAppSyncError'; this.code = code; this.status = status; }
   }
 
+  // Execution scopes are lexical receivers, never a shared "lock held" flag.
+  // Unrelated calls on the same runtime still queue behind the native lock.
+  const executionScopes = new WeakMap();
+  async function withSyncExecution({ accountId, appId, locks = global.navigator?.locks, signal, assertCurrent = () => {} }, operation) {
+    if (!accountId || typeof accountId !== 'string' || !ACCOUNT_APPS.includes(appId)) throw new MultiAppSyncError('sync_identity_required');
+    if (!locks?.request) throw new MultiAppSyncError('sync_locks_unavailable');
+    assertCurrent();
+    const name = `sound-cruise:sync-execution:v1:${encodeURIComponent(accountId)}:${appId}`;
+    return locks.request(name, { mode: 'exclusive', ...(signal ? { signal } : {}) }, async () => {
+      assertCurrent(); if (signal?.aborted) throw new MultiAppSyncError('runtime_disposed');
+      return operation();
+    });
+  }
   class MultiAppSyncRuntime extends EventTarget {
     constructor(options) {
       super();
@@ -105,6 +118,9 @@
         throw new Error('multi_app_runtime_dependency_missing');
       }
       this.appId = options.appId;
+      this.executionCoordinated = options.appId === 'port' || options.executionCoordination === true;
+      this.executionAccountId = options.accountId || options.store.accountId;
+      this.executionLocks = options.locks || global.navigator?.locks;
       this.endpoint = options.endpoint.replace(/\/$/, '');
       this.adapter = options.adapter;
       this.store = options.store;
@@ -132,6 +148,47 @@
       this.listeners = [];
       this.abortControllers = new Set();
 
+    }
+
+    async runExclusive(operation) {
+      const scope = executionScopes.get(this);
+      if (scope?.active) { this.assertActive(); return operation(this); }
+      const runtime = scope?.runtime || this;
+      if (!runtime.executionCoordinated) return operation(runtime);
+      return withSyncExecution({ accountId: runtime.executionAccountId, appId: runtime.appId,
+        locks: runtime.executionLocks, signal: runtime.lifetime.signal, assertCurrent: () => runtime.assertActive() }, async () => {
+        await runtime.assertCurrentAsync(); runtime.assertActive();
+        const state = { runtime, active: true, pending: [] };
+        const receiver = new Proxy(runtime, { get(target, key) {
+          // Nested orchestration must not await an unrelated job waiting for
+          // this lock. Timers fired after release use the normal entry points.
+          if (state.active && key === 'sync') return reason => receiver.performSync(reason);
+          if (state.active && key === 'resolveConflict') return (...args) => receiver.performConflictResolution(...args);
+          if (['dispatchEvent', 'addEventListener', 'removeEventListener'].includes(key)) return target[key].bind(target);
+          if (key === 'store') return new Proxy(Object.create(null), { get(_view, name) {
+            // The native IDB store is frozen. A separate view avoids Proxy
+            // invariants that forbid wrapping non-configurable methods.
+            const store = target.store, fn = store[name]; if (typeof fn !== 'function') return fn;
+            return (...args) => {
+              if (/^(put|set|remove|delete|clear)/.test(String(name))) {
+                if (!state.active) throw new MultiAppSyncError('execution_scope_expired');
+                runtime.assertActive();
+                const result = Promise.resolve(fn.apply(store, args));
+                state.pending.push(result); return result;
+              }
+              return fn.apply(store, args);
+            };
+          } });
+          return Reflect.get(target, key);
+        } });
+        executionScopes.set(receiver, state);
+        try { return await operation(receiver); }
+        finally {
+          // setState writes are deliberately fire-and-forget in the legacy
+          // API; include their transaction completion before releasing lock.
+          await Promise.allSettled(state.pending); state.active = false;
+        }
+      });
     }
 
     assertActive() {
@@ -187,7 +244,9 @@
     setState(state, detail = {}) {
       if (this.disposed) return;
       this.assertActive();
-      this.store.setMeta('runtimeState', state).catch(() => {});
+      const scope = executionScopes.get(this);
+      const save = current => current.store.setMeta('runtimeState', state);
+      (scope?.active || !this.executionCoordinated ? save(this) : this.runExclusive(save)).catch(() => {});
       this.dispatchEvent(new CustomEvent('statechange', { detail: Object.freeze({ state, ...detail }) }));
     }
 
@@ -1975,6 +2034,23 @@
     }
   }
 
+  // All externally callable mutable entries (including direct test/owner
+  // helpers) share the same scope. Pure readers and scheduling entry points do
+  // not acquire it. Lock order: activation -> execution -> dataset; never reverse.
+  for (const name of ['detachTerminalIdentity', 'detachCurrentEnvironment', 'resumeCurrentEnvironmentDetach',
+    'consumeHandoff', 'consumeInvitation', 'reportRemovalSafety', 'recordRecoveryIssues', 'applyWithBackup',
+    'backupSnapshot', 'bootstrap', 'recordConflict', 'saveConflict', 'failResolution', 'clearConflictOutbox',
+    'finishResolution', 'completeDeletedStageRevival', 'resolveInvalidRecordDeleteConflict', 'resolveLocalConflict',
+    'resolveRemoteConflict', 'resolveMergedSettingsConflict', 'performConflictResolution',
+    'reconcileConvergedPortConflicts', 'queueDiff', 'retryLegacyFailures', 'acknowledgeOwnRecord',
+    'acknowledgeOwnEchoes', 'flushOutbox', 'replaceShadow', 'rememberSyncedRemote', 'prepareLocalOrderResolution',
+    'adoptSemanticallyEqualRemote', 'initializeDataset', 'performSync', 'pushRequest']) {
+    const implementation = MultiAppSyncRuntime.prototype[name];
+    MultiAppSyncRuntime.prototype[name] = function (...args) {
+      return this.runExclusive(current => implementation.apply(current, args));
+    };
+  }
+  root.withSyncExecution = withSyncExecution;
   root.MultiAppSyncError = MultiAppSyncError;
   root.MultiAppSyncRuntime = MultiAppSyncRuntime;
   root.notifyLocalSave = (appId) => {

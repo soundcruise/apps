@@ -22,6 +22,23 @@ const base=process.env.HOST_ORIGIN||'http://127.0.0.1:8766';
   await p.click('#shell-tool');await p.locator('#studio-port-read').waitFor({state:'visible'});
   assert.equal(await p.locator('[data-port-sync]').innerText(),'未確認');
   result.cases.push('startup/cache/subscription zero DB/network');
+  // Once definitions are loaded, spy on activation entry points and verify an
+  // additional cached Host/pane consumer never acquires an owner or starts Sync.
+  await p.evaluate(async()=>{
+   const {createPortDataHost}=await import('/apps/cruise-studio/js/port-data/host.mjs');
+   const {connectPortReadOnly}=await import('/apps/cruise-studio/js/port-data/connection.mjs');
+   const connection=await connectPortReadOnly(()=>{});connection.dispose();
+   const counter=globalThis.__activation={owner:0,ensure:0,provision:0,bootstrap:0,push:0,pull:0};
+   const ns=SoundCruisePortSync, acquire=ns.createPortSyncController;
+   ns.createPortSyncController=function(options){if(!options?.readOnly)counter.owner++;const handle=acquire(options);if(!handle.ensure)return handle;return new Proxy(handle,{get(target,key){if(key==='ensure')return (...args)=>{counter.ensure++;return target.ensure(...args);};return target[key];}});};
+   const client=SoundCruiseSyncAccount.AccountClient.prototype;
+   const provision=client.provisionPortDevice;client.provisionPortDevice=function(...args){counter.provision++;return provision.apply(this,args);};
+   for(const name of ['bootstrap','pushRequest','serverSnapshot']){const original=SoundCruiseMultiAppSync.MultiAppSyncRuntime.prototype[name];SoundCruiseMultiAppSync.MultiAppSyncRuntime.prototype[name]=function(...args){counter[{bootstrap:'bootstrap',pushRequest:'push',serverSnapshot:'pull'}[name]]++;return original.apply(this,args);};}
+   const before={...__sentinel};const h=createPortDataHost({schema:CruiseStudio.metronomeSchema,connect:connectPortReadOnly});h.subscribe(()=>{});h.getCachedStatus();h.getCapabilities();h.getWriteReadiness();h.dispose();
+   if(JSON.stringify(before)!==JSON.stringify(__sentinel))throw Error('cached readiness has I/O');
+  });
+  assert.deepEqual(await p.evaluate(()=>__activation),{owner:0,ensure:0,provision:0,bootstrap:0,push:0,pull:0});
+
   await p.click('#studio-port-read');await p.waitForFunction(()=>CruiseStudio.portDataHost.getCachedStatus().account==='no-account-known');
   assert.equal(await p.evaluate(()=>__sentinel.writes),0);assert.equal(await p.evaluate(()=>CruiseStudio.portDataHost.getCachedStatus().pro),'standard');
   assert.deepEqual(await p.evaluate(async()=>(await indexedDB.databases()).filter(d=>/sound-cruise/.test(d.name))),[]);

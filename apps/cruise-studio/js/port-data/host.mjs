@@ -1,13 +1,15 @@
 // Port owns the data. Only narrow frozen read models cross this boundary.
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
+const closedCapabilities = freeze({ canSaveBpm: false, canSaveAdvanced: false, canListPresets: true, canApplyPreset: false, canCreatePreset: false, canDeletePreset: false, canQueueSync: false, canPushCloud: false });
 const unknown = generation => freeze({ generation, canRead: true, canWrite: false, account: 'unknown', accountId: null, sync: 'unknown', pro: 'unknown', dataset: null });
 export function createPortDataHost({ connect, schema }) {
     let state = unknown(0), generation = 0, disposed = false, connection = null, opening = null, requested = false, requestId = 0, expiryTimer = null;
     const listeners = new Set();
+    let readiness = freeze({ state: 'read-only', allowed: false, reason: 'old-build-unknown' });
     const publish = next => { state = freeze(next); for (const fn of listeners) { try { fn(state); } catch { /* An observer cannot invalidate the read. */ } } };
     const invalidate = () => {
         if (disposed) return;
-        generation++; requestId++; clearTimeout(expiryTimer); expiryTimer = null; publish(unknown(generation));
+        generation++; requestId++; readiness = freeze({ state: 'read-only', allowed: false, reason: 'old-build-unknown' }); clearTimeout(expiryTimer); expiryTimer = null; publish(unknown(generation));
         connection?.detachConsumer();
         if (requested) void readLocalStatus();
     };
@@ -54,8 +56,33 @@ export function createPortDataHost({ connect, schema }) {
         }
         return state;
     }
-    return Object.freeze({ canRead: true, canWrite: false, getCachedStatus: () => state.sync === 'synced' && connection?.cachedStatus && connection.cachedStatus().credentialState !== 'usable' ? freeze({ ...state, sync: 'unknown' }) : state, readLocalStatus,
+    async function checkWriteReadiness({ action = 'saveBpm' } = {}) {
+        if (disposed) return freeze({ state: 'blocked', allowed: false, reason: 'disposed' });
+        await readLocalStatus();
+        const epoch = generation;
+        const { evaluateWriteReadiness } = await import('../../../cruise-port/port-write-readiness.mjs');
+        if (disposed || epoch !== generation) return freeze({ state: 'blocked', allowed: false, reason: 'account-generation-changed' });
+        const facts = connection?.readiness?.() || {};
+        readiness = evaluateWriteReadiness({ ...facts, writerProtocol: 1, repositoryProtocol: facts.repositoryProtocol ?? 1,
+            forwardIncompatible: state.dataset?.state === 'forward-incompatible' || facts.forwardIncompatible,
+            conflict: state.sync === 'conflict' }, action, { allWritersCompatible: false });
+        return readiness;
+    }
+    return Object.freeze({
+        getCapabilities: () => closedCapabilities,
+        getWriteReadiness: () => readiness,
+        checkWriteReadiness,
+        async enableLocalWrites({ userIntent } = {}) {
+            if (userIntent !== true) return freeze({ state: 'blocked', allowed: false, reason: 'user-intent-required' });
+            return checkWriteReadiness({ action: 'saveBpm' });
+        },
+        async activateSync({ userIntent } = {}) {
+            if (userIntent !== true) return freeze({ state: 'blocked', allowed: false, reason: 'user-intent-required' });
+            // No owner acquisition while production compatibility is unproven.
+            return checkWriteReadiness({ action: 'pushCloud' });
+        },
+        canRead: true, canWrite: false, getCachedStatus: () => state.sync === 'synced' && connection?.cachedStatus && connection.cachedStatus().credentialState !== 'usable' ? freeze({ ...state, sync: 'unknown' }) : state, readLocalStatus,
         subscribe(fn) { if (disposed) return () => {}; listeners.add(fn); return () => listeners.delete(fn); },
-        dispose() { if (disposed) return; disposed = true; generation++; requestId++; requested = false; clearTimeout(expiryTimer); expiryTimer = null; connection?.dispose(); listeners.clear(); state = unknown(generation); }
+        dispose() { if (disposed) return; disposed = true; generation++; requestId++; requested = false; clearTimeout(expiryTimer); expiryTimer = null; connection?.dispose(); listeners.clear(); state = unknown(generation); readiness = freeze({ state: 'blocked', allowed: false, reason: 'disposed' }); }
     });
 }

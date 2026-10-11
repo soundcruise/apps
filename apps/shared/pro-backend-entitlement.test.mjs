@@ -1,3 +1,4 @@
+import { createFixtureLocks } from './sync-account/test-fixtures/web-locks.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
@@ -77,12 +78,13 @@ for (const appId of ['pitch', 'fretboard', 'rhythm', 'port']) {
   test(`${appId}: runtime forwards both credentials and preserves outbox/conflicts on Pro denial`, async () => {
     const f = context({ soundCruiseProAuth: auth(token) });
     vm.runInContext(read('./sync-account/multi-app-sync-runtime.js'), f.ctx);
+    f.ctx.navigator = { locks: createFixtureLocks() };
     const meta = new Map([['credential', device], ['pending', 'kept']]);
     const outbox = [{ operationId: 'pending' }], conflicts = [{ id: 'unresolved' }];
     let resets = 0; const requests = []; const denials = [];
     f.ctx.__soundCruiseRejectProBackendAuth = credential => denials.push(credential);
     const runtime = new f.ctx.SoundCruiseMultiAppSync.MultiAppSyncRuntime({
-      appId, endpoint: 'https://sync.example', admissionMode: 'production', adapter: {},
+      appId, accountId: 'pro-denial-fixture-account', endpoint: 'https://sync.example', admissionMode: 'production', adapter: {},
       store: { readMeta: async key => meta.get(key), clearCloudState: async () => { resets++; } },
       accountClient: {}, accountCore: { validAppCredential: value => value === device },
       fetchImpl: async (_url, options) => {
