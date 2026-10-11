@@ -463,3 +463,42 @@ DTMのbackground録音・再生は用途別policyと実機検証を必要とす�
   選択中の別projectをStructureへ暗黙ロードしない。入力統合はEditing Session工程に残す。
 - 印刷時はShell chromeを非表示にし、grid / height / overflowを解除する。A4出力内容を維持する。
 - 実装済みはShell hostのみ。Editing Session / Undo / Transport / Metronome / Account / Pro / Syncは未接続。
+
+
+## 31. Focus / Keyboard / Modal v1実装境界（0.23.1 / 2026-10-11）
+
+- `command-router.js`はid / target(context) / canExecute(context) / execute(context,event)を登録する。
+  targetを一度解決してcontextへ固定し、nullまたはcanExecute=falseなら実行しない。
+  executeは同期的に`{consumed}`を返す。将来の非同期処理・結果回収はcommand owner側の責務とする。
+  登録解除・全解除が可能。同一idの重複登録を拒否する。
+- Shellの`getCommandContext()`はactiveWorkspaceId / focusedElement / activeModal / rightPaneStateと、
+  activeDocument / selectedObject / musicalInputSession / editingSession / transport / audioOwnerを別々に返す。
+  後者6 slotは未接続のnull。ownerが`setCommandTarget(name,value)`で明示接続し、focusから推定しない。
+  Save / Undo / Redo / Playのcommandやshortcutは登録しない。既存保存ボタンの処理は変更しない。
+- `keyboard-router.js`のCaptureはactive modalのみ。composition状態の観測はCaptureで行うが、通常の
+  editor / workspace / global shortcutを先取りしない。Bubbleは局所DOM handler処理後、musical →
+  active workspace → Shell。defaultPreventedと消費済みeventを尊重し、非active workspace登録は無反応。
+- 通常Bubbleではevent経路とfocusedElementのinput / textarea / select / contenteditable / role=textboxを
+  IME判定より先に除外する。その後isComposing / keyCode229 / internal composing / justComposedを確認する。
+  compositionendの同一turnをjustComposedで守る。Structure歌詞の既存4 guardも維持する。
+- Escapeはmodal → Structure transient popover → 非modal右overlay → active workspace → Shell。
+  persistent右paneはpane内focus時のみ所有。Structure内の順序はpopover → セル編集解除 → Loupe終了を維持し、
+  右overlayが開いていればセル解除の前に閉じる。一keydownで複数layerを処理しない。
+  text controlからは局所ownerが明示委譲するEscapeだけを許可し、通常shortcut除外の例外とする。
+  Structureのchord / doremi / lyrics / strum / Loupe navigation / bulk入力がこの入口を使う。
+  独立したStructure document keydown listenerは撤去し、非active / modal / 処理済み / IME gateをadapterに残す。
+- `focus-routing.js`は存在・可視・enabled・非hidden/inert・active workspace所属を検証する。
+  workspace復帰は有効な記憶focus、無効ならworkspace root。pane close / breakpoint close / Dock collapseは
+  focusが閉じる領域内にある時だけtriggerへ戻す。trigger無効ならactive Navigation、さらにworkspace root。
+  Dockは展開中だけTab到達可能。非modal pane / Loupeにfocus trapは設けない。
+- `modal-manager.js`はsingle active native `<dialog>`。open({title,content,initialFocus,onClose})は
+  accessible nameと未接続content DOMを必須とし、role=dialog / aria-modal=true / 初期focus /
+  Tab・Shift+Tab loop / Escape / 終了後復帰を提供する。入れ子openは拒否する。
+  native top layerに加えShell backgroundのinert / aria-hiddenを保存・抑制・復元する。
+  close(reason) / native close / disposeでdialogとlistenerを除去する。キーボード側もattach冪等・dispose可能。
+  modal中はShell public navigationを抑制する。IME中と確定直後のEnter / Escapeはcloseや背面操作に使わない。
+  Ctrl / Meta / Alt付きのbrowser chordとfunction keyは奪わない。印刷でfocusが外れた後も通常Escapeで閉じられる。
+- 本番に新しいmodal画面・shortcut一覧を追加しない。既存window.confirmは同期返値の互換を維持。
+  一括入力popoverとLoupeは非modalのまま。Modal Managerの実画面テストは隔離Chrome内のfixtureで行う。
+- semantic tokenのみでmodal / focus表示を追加。modalとbackdropは非印刷。paper / music色・A4出力は維持。
+  APP_VERSION 0.23.1、schemaVersion 1。Editing Session / domain Undo / working snapshot / audio等は未接続。

@@ -706,6 +706,7 @@
             });
         });
         input.addEventListener('keydown', function (event) {
+            if (routeLocalEscape(event)) return;
             event.stopPropagation();
             if (event.isComposing || state.overlayComposingRowId === rowDef.id) return;
             if (!event.altKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
@@ -803,6 +804,7 @@
             event.stopPropagation();
         });
         button.addEventListener('keydown', function (event) {
+            if (routeLocalEscape(event)) return;
             event.stopPropagation();
         });
         return button;
@@ -1122,6 +1124,7 @@
     }
 
     function onStrumCellKeydown(event, bar, res, index, currentAction) {
+        if (routeLocalEscape(event)) return;
         if (event.isComposing) return;
         var key = event.key;
 
@@ -1454,11 +1457,11 @@
      * 歌詞セルのkeydown。IME 3層ガードの1つ目（isComposing / keyCode 229 /
      * このセルが変換中フラグ中）と、compositionend直後のjustComposedガード（Safari対策で
      * IME確定のEnterがisComposing=falseで届く場合に、セル移動として誤動作させない）。
-     * Escapeはここでは何も処理せず、document側の共通Esc階層（ポップオーバー→
-     * セル編集解除→ルーペを閉じる）へそのままbubbleさせる。
+     * Escapeだけは局所ownerとしてShell routerへ委譲する。
+     * ポップオーバー→右pane→セル編集解除→ルーペ終了の順序を中央で解決する。
      */
     function onLyricCellKeydown(event, bar) {
-        if (event.key === 'Escape') return; // 既存のEsc優先順位（onDocumentKeydownForLoupe）へ委ねる
+        if (routeLocalEscape(event)) return;
         event.stopPropagation();
 
         var input = event.currentTarget;
@@ -2329,6 +2332,7 @@
             state.overlayBulkComposing = false;
         });
         panel.addEventListener('keydown', function (event) {
+            if (routeLocalEscape(event)) return;
             event.stopPropagation();
         });
         panel.addEventListener('click', function (event) {
@@ -2377,22 +2381,37 @@
      * 3. それ以外は選択小節を解除してルーペを閉じる（既存のdeselectBar）
      * ルーペ自体はフォーカストラップを持たない非モーダルなツールパレットとして扱う。
      */
-    function onDocumentKeydownForLoupe(event) {
-        if (event.defaultPrevented || !isWorkspaceVisible() || event.key !== 'Escape' || event.isComposing) return;
-        if (state.dockBulkOpen) {
-            state.dockBulkOpen = false;
-            renderSlotOverlayContent();
-            return;
-        }
+    var escapeRouter = null;
+    function escapeBlocked(event) {
+        return event.defaultPrevented || !isWorkspaceVisible() || event.key !== 'Escape' ||
+            event.isComposing || event.keyCode === 229 || state.overlayComposingRowId !== null ||
+            state.lyricComposingTick !== null || state.lyricJustComposed || state.overlayBulkComposing ||
+            !!(CS().shellHost && CS().shellHost.getCommandContext().activeModal);
+    }
+    function closeTransient(event) {
+        if (escapeBlocked(event) || !state.dockBulkOpen) return false;
+        state.dockBulkOpen = false;
+        renderSlotOverlayContent();
+        var trigger = els.slotOverlay.querySelector('.slot-overlay-bulk-toggle');
+        if (trigger) trigger.focus({ preventScroll: true });
+        return true;
+    }
+    function handleEscape(event) {
+        if (escapeBlocked(event)) return false;
         var active = document.activeElement;
         var isEditingInLoupe = active && els.slotOverlay && els.slotOverlay.contains(active) &&
             (active.tagName === 'INPUT' || (active.classList && active.classList.contains('dock-strum-cell')));
-        if (isEditingInLoupe) {
-            active.blur();
-            return;
-        }
-        if (!state.selectedBarNumber) return;
+        if (isEditingInLoupe) { active.blur(); els.slotOverlay.focus({ preventScroll: true }); return true; }
+        if (!state.selectedBarNumber) return false;
         deselectBar();
+        els.root.focus({ preventScroll: true });
+        return true;
+    }
+    // Local editor Escape opt-in only; other text shortcuts remain control-owned.
+    function routeLocalEscape(event) {
+        if (event.key !== 'Escape') return false;
+        if (!escapeBlocked(event) && escapeRouter && els.slotOverlay.contains(event.target)) escapeRouter(event);
+        return true;
     }
 
     /**
@@ -2834,6 +2853,7 @@
         if (els.slotOverlay) {
             els.slotOverlay.setAttribute('role', 'dialog');
             els.slotOverlay.setAttribute('aria-modal', 'false');
+            els.slotOverlay.tabIndex = -1;
         }
 
         els.projectSelect.addEventListener('change', function () {
@@ -2881,7 +2901,7 @@
         // ポップオーバー→セル編集解除→ルーペを閉じる、の優先順位で処理する
         // （ドックは毎描画で作り直すため、要素にではなくdocumentへ一度だけ登録する）
         document.addEventListener('click', onDocumentClickForBulkPopover);
-        document.addEventListener('keydown', onDocumentKeydownForLoupe);
+        // Escape is registered once by Shell; no independent document key listener.
 
         // ブラウザのタブ閉じ / リロード / URL移動に対する未保存ガード。
         // 画面内のTOP/戻る/モジュール移動は既存の中断確認（canLeave）が担当する。
@@ -2900,6 +2920,9 @@
         activate: activate,
         deactivate: deactivate,
         setLoupeSafeAreaProvider: setLoupeSafeAreaProvider,
+        closeTransient: closeTransient,
+        handleEscape: handleEscape,
+        setEscapeRouter: function (router) { escapeRouter = router; },
         canLeave: canLeave
     };
 })();

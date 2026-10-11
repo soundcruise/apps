@@ -33,7 +33,7 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 5 | Cruise Port Theme / Design Token調査 | 完了。Port sourceを読み取り専用監査し、semantic token・component例外・紙面domainを整理 |
 | 5a | Theme Contract v1 + Studio Theme Projection | 実装・検証完了。4テーマ / 39 tokenのsource対応、共通resolver / bootstrap / storage。Shell / selector UI未実装 |
 | 6 | Studio Shell v1 | 0.23.0実装・回帰完了。Navigation / Main scroll / 右pane / Dock、4テーマ、workspace draft保持 |
-| 7 | Focus / Keyboard / Modal manager | Capture / Bubble、modal優先、入力・IME保護 |
+| 7 | Focus / Keyboard / Modal manager | 0.23.1実装・回帰完了。2-phase routing、Escape owner、focus復帰、single native modal、入力・IME保護 |
 | 8 | Structure Editing Session接続 | draft保持、Undo境界、commitId、明示command target、Pre-DTM working snapshot |
 | 9 | Metronome M1 | Standard相当BPM / Start / Stop、memory-only、音声・lease・dispose実証 |
 | 10 | Metronome M2 | 注入memory Storage、既存schema / effective設定 / 保存失敗 / stale write / conflict実証 |
@@ -101,7 +101,7 @@ Project JSON 8,077 bytes / Arrangement JSON 26,991 bytesはappVersionだけ更�
 A4 PDFラスタは完全一致。schemaVersion 1、既存保存形式・Port / 他apps / shared / Workerは不変。
 詳細は[Shell Contract §30](docs/SHELL_CONTRACT.md#30-shell-v1実装境界0230--2026-10-11)。
 
-次はFocus / Keyboard / Modal、その後Editing Session（Pre-DTM working snapshot接続を含む）、
+Shell v1直後の工程はFocus / Keyboard / Modal（下記で完了）。次はEditing Session（Pre-DTM working snapshot接続を含む）、
 Metronome M1 → M2 → M3。Pre-DTMは本段階では保存済みprojectを読む。上記後続機能へは未着手。
 F3等Structure本体機能は共有基盤・Shell整備後に再開する。
 
@@ -636,3 +636,18 @@ Product policy / Runtime access state / Account・AppDevice credential / Backend
 
 **完了条件**: 正式資格・失効・backend認可・Account / deviceの境界を守り、
 M3 acceptanceと影響範囲の回帰確認を通過する。既存側変更が必要なら別工程で明示する。
+
+
+## Focus / Keyboard / Modal基盤 v1（0.23.1・2026-10-11）
+
+command target / focused controlを分離し、Captureはmodal、Bubbleは既存control → musical → workspace → Shell。
+text controlをIMEより先に除外。局所Escapeだけ明示委譲し、modal / popover / 右overlay / Structureの単独ownerを決定。
+Structure独立document Escape listenerをadapter登録へ移し、入力・歌詞4 guard・load / draft保持を維持。
+Modalはsingle active native dialog基盤のみ。window.confirm / 非modal Loupe / bulk popoverは維持する。
+Save / Undo / Playは未実装。未接続targetはnull。詳細は[契約§31](docs/SHELL_CONTRACT.md#31-focus--keyboard--modal-v1実装境界0231--2026-10-11)。
+
+Nodeは既存73 + 新規27 = 100 PASS。隔離Chromeは20ケース（親test込み21）PASS。
+50回workspace往復でload各1回、document keydown Capture / Bubble各1本から増加なし。
+4幅、4テーマ、modal / pane / focus / IME合成sequenceとChrome CDP compositionを確認。
+Project / Arrangement JSONはappVersionだけ更新。MIDI 813 bytesと印刷PDFラスタ完全一致。
+Safari・OSの日本語IME実機・実プリンターは未再検証。次はStructure Editing Session接続。

@@ -7,18 +7,18 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.23.0"></script>
+    <script src="js/core/color-theme.js?v=0.23.1"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.23.0">
+    <link rel="stylesheet" href="theme-projection.css?v=0.23.1">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.23.0">
-    <link rel="stylesheet" href="shell.css?v=0.23.0">
+    <link rel="stylesheet" href="theme.css?v=0.23.1">
+    <link rel="stylesheet" href="shell.css?v=0.23.1">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.23.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.23.1" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -52,7 +52,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.23.0</span>
+                <span class="studio-version" id="studio-version">v0.23.1</span>
             </header>
 
             <section class="module-section">
@@ -438,23 +438,27 @@
             <div id="shell-inspector-content" class="studio-empty-state"><h3>選択した対象の詳細</h3><p>このパネルで編集できる項目は、まだありません。</p></div>
             <div id="shell-tool-content" class="studio-empty-state" hidden inert><h3>制作を助けるツール</h3><p>利用できるツールは、まだありません。</p></div>
         </aside>
-        <section id="studio-dock" class="studio-dock" aria-label="Dock" hidden inert>
+        <section id="studio-dock" class="studio-dock" aria-label="Dock" tabindex="0" hidden inert>
             <div data-dock-slot="transport"><h2>Transport</h2><p>再生コントロールは準備中です。</p></div>
             <div data-dock-slot="auxiliary"><h2>Auxiliary tools</h2><p>追加されたツールがここに表示されます。</p></div>
         </section>
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.23.0"></script>
-    <script src="js/core/song-model.js?v=0.23.0"></script>
-    <script src="js/core/storage.js?v=0.23.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.23.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.23.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.23.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.23.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.23.0"></script>
-    <script src="js/shell.js?v=0.23.0"></script>
-    <script src="js/app.js?v=0.23.0"></script>
+    <script src="js/core/music-theory.js?v=0.23.1"></script>
+    <script src="js/core/song-model.js?v=0.23.1"></script>
+    <script src="js/core/storage.js?v=0.23.1"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.23.1"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.23.1"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.23.1"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.23.1"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.23.1"></script>
+    <script src="js/core/command-router.js?v=0.23.1"></script>
+    <script src="js/core/focus-routing.js?v=0.23.1"></script>
+    <script src="js/core/keyboard-router.js?v=0.23.1"></script>
+    <script src="js/core/modal-manager.js?v=0.23.1"></script>
+    <script src="js/shell.js?v=0.23.1"></script>
+    <script src="js/app.js?v=0.23.1"></script>
 </body>
 
 </html>

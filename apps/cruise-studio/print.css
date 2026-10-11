@@ -168,3 +168,6 @@ html, body, #studio-shell, .studio-main {
     background: none !important;
     color-scheme: light;
 }
+
+/* Modal host is UI only, including native dialog's top-layer backdrop. */
+.studio-modal, .studio-modal::backdrop { display: none !important; }

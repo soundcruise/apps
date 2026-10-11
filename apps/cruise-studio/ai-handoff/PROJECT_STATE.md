@@ -14,7 +14,49 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
-### Studio Shell v1（0.23.0・実装／回帰完了）
+### Focus / Keyboard / Modal基盤 v1（0.23.1・実装／回帰完了）
+
+- 開始実測HEAD = origin/main = remote main: `ee9d0eaa222136a6a904a25a4b0441ba3671f650`。
+  tracked clean、staged空、ahead / behind 0 / 0。既存untracked `.claude/` とworker node_modulesは不触。
+- Studio内にcommand-router / keyboard-router / focus-routing / modal-managerを追加。
+  詳細なAPIと責務は[Shell Contract §31](../docs/SHELL_CONTRACT.md#31-focus--keyboard--modal-v1実装境界0231--2026-10-11)。
+  focused controlとactive document / selection / musical input / Editing Session / Transport / audio ownerは独立slot。
+  未接続slotはnull。Save / Undo / Redo / Playは未登録で、browser標準をpreventDefaultしない。
+- Captureはactive modalの背面抑制・focus trap・Escape。通常shortcutは既存局所handler後のBubble。
+  text controlを先に除外し、IME 4 guardsを維持。Structure Escapeは中央登録adapterへ移行。
+  modal → popover → 右overlay → Structureセル解除 / Loupe終了。同一eventは一ownerだけが消費する。
+- native dialogのsingle active基盤。name / initial focus / Tab loop / Shift+Tab / background inert /
+  aria-hidden復元 / Escape / trigger復帰 / cleanupを確認。入れ子は拒否、通常window.confirmは変更しない。
+  本番modal画面は追加せず、隔離fixtureで検証。Loupe・popover・右paneは非modalのまま。
+- focus復帰は存在・visible・enabled・active workspace所属を検証し、無効triggerは安全なNavigationへfallback。
+  workspace保持、pane close / breakpoint close / Dock collapseを保護。展開DockへTab到達可能。
+- Node: Shell 19 / Metadata 22 / Theme 32を維持、新規Keyboard / Command / Focus 27、合計100 PASS。
+  `node --test apps/cruise-studio/tests/*.test.mjs`。
+  実Chrome: `PLAYWRIGHT_MODULE=<既存Playwright絶対path> node --test apps/cruise-studio/tests/keyboard-modal.browser.cjs`。
+  20実画面ケースPASS（Node出力21には親container testを含む）。新規独立検証は27 + 20 = 47件。
+- StructureのArrow / Tab / Shift+Tab / Enter / Escape / Alt、lyrics / chord / doremi / strum / Loupe / popover /
+  8分・16分を確認。合成compositionstart → key229 → compositionupdate → compositionend → 直後Enterと、
+  Chrome CDP Input.imeSetComposition / insertTextで日本語確定を確認。modal IME中Escape / Enterで誤closeなし。
+- 50回Structure ↔ Pre-DTMでdraft / selection / focus保持、load各1回、document keydown Capture1 / Bubble1から増加なし。
+  inactive入力へTabで入らず、inactive Structure Escapeも無反応。1 EscapeでpaneとLoupeが同時に閉じない。
+- 1440×900 / 1024×768 / 800×700 / 680×700でmodal / pane / focus、breakpoint復帰を確認。
+  Dark / Light / Charcoal / Grayのfocus ring / modal / overlay、Nav / theme / workspace / pane / Dockへkeyboard到達。
+  console error / HTTP404 / ResizeObserver loopなし。modal / Shell chromeは非印刷。
+- 0.23.0 baseline同一fixture比較: Project JSON 8,077 bytes / Arrangement JSON 26,991 bytesはappVersionのみ0.23.1。
+  その他の全field一致。MIDI 813 bytes SHA-256:
+  `5c0dcbe39eaada6775119aa8b39e6e6ce56712b8fe7ac04ea992c11ed260d023`（完全一致）。
+  A4 PDFの1200pxラスタSHA-256:
+  `8cc02f7356af60a0bbccf9349148c57d0c0784f13b2588b2b3cdb107f75a406e`（完全一致）。
+- APP_VERSION 0.23.1は既存操作基盤の小変更としてpatch。schemaVersion 1維持。HTML cache / metadata mirror / testsを整合。
+  Theme / Feature Metadataの責務変更なし、それらの契約docsは前工程の記録として維持。
+  Port / 他apps / shared / Worker / Account / Sync / Pro / 音楽data処理は不触。
+- 隔離Chromeだけで検証。既存 `http://127.0.0.1:8765/index.html` 使用、新サーバーなし、検証Chrome終了。
+  Safari・OS日本語IME実機・実プリンターは未再検証。CDP IME検証をOS実機合格とは扱わない。
+- 本記録は限定commit前の検証結果。ユーザーの明示許可に基づき、Git条件が正常なら個別stage・commit・通常push。
+  commit hash / remote一致は最終Git実測で報告する。次はStructure Editing Session（working snapshot含む）。
+  Metronome / Transport / domain Undo / actual Save command等の後続工程は未着手。
+
+### Studio Shell v1（0.23.0・完了／push済み、前工程の履歴）
 
 - 開始時HEAD = origin/main = remote main: `7b4d5b75b181a4bad8b19721e4303c43cae80842`。
   tracked clean / staged空 / ahead 0・behind 0。既存untracked 2件は不触。
@@ -878,8 +920,8 @@ Port / 他apps / shared / Workerは変更しない。限定commit / 通常push�
 
 ## 6. 次にやること
 
-**次の正式工程はFocus / Keyboard / Modal。Studio Shell v1（0.23.0）は実装・回帰完了。**
-refactor / Metadata / Theme基盤はmain反映済み。Shellの限定commit / push後、
+**次の正式工程はStructure Editing Session。Focus / Keyboard / Modal v1（0.23.1）は実装・回帰完了。**
+refactor / Metadata / Theme / Shell基盤はmain反映済み。Focus / Keyboard / Modalの限定commit / push後、
 次工程開始時にGit baselineを再測定する。Editing Session / Metronomeへは未着手。
 正式な全工程順は[ROADMAP](../ROADMAP.md)、詳細条件は[Shell Contract v2.1](../docs/SHELL_CONTRACT.md)を参照する。
 Themeの詳細は[THEME_CONTRACT](../docs/THEME_CONTRACT.md)。Port ESMの隣接配信契約は維持し、
@@ -989,5 +1031,5 @@ v0.22.4の旧実機確認記録に未確認項目が残っている場合はbase
 - 未commit差分がある場合は、それを勝手に変更せず、まず報告する。
 - ユーザーに確認せずcommit / pushしない。
 - 触ってよい範囲を明示してから作業する。
-- 現在地はStudio Shell v1（0.23.0）の実装・回帰完了。次はFocus / Keyboard / Modal。
-  Shell Contract §30とTheme契約を読み、F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。
+- 現在地はFocus / Keyboard / Modal v1（0.23.1）の実装・回帰完了。次はStructure Editing Session。
+  Shell Contract §31とTheme契約を読み、F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。

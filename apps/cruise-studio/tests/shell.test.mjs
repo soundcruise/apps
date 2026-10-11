@@ -71,8 +71,8 @@ test('print hides Shell regions and removes scroll viewport height',()=>{
  for(const cls of ['studio-nav','studio-right-pane','studio-dock'])assert.match(print,new RegExp('\\.'+cls+'[\\s\\S]*?display: none !important'));
  assert.match(print,/html, body, #studio-shell, \.studio-main \{[\s\S]*?height: auto !important;[\s\S]*?overflow: visible !important/);
 });
-test('focus restoration and pane-only Escape preserve existing Structure gate',()=>{
- assert.match(source,/restoreHiddenFocus/);assert.match(source,/target\.focus\(\{ preventScroll: true \}\)/);assert.match(source,/right\.addEventListener\('keydown'/);assert.doesNotMatch(source,/doc(?:ument)?\.addEventListener\('keydown'/);
+test('focus restoration and centralized Escape preserve existing Structure gate',()=>{
+ assert.match(source,/restoreHiddenFocus/);assert.match(source,/target\.focus\(\{ preventScroll: true \}\)/);assert.match(source,/keyboard\.registerEscape\(\{ scope: 'pane'/);assert.doesNotMatch(source,/doc(?:ument)?\.addEventListener\('keydown'/);
  assert.match(read('../js/modules/sheet-cruise/sheet-cruise.js'),/event\.defaultPrevented \|\| !isWorkspaceVisible\(\)/);
 });
 test('Shell module registration is inert before explicit initialization',()=>{

@@ -55,6 +55,9 @@
         var positions = Object.create(null), focus = Object.create(null);
         var adapters = { home: {}, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {} };
         var nodes = {};
+        var focusRouting = CS.focusRouting.createFocusRouting(doc, function () { return nodes[host.getActive()]; }, function () {
+            return doc.querySelector('.studio-nav [aria-current="page"]');
+        });
         Object.keys(WORKSPACES).forEach(function (id) {
             nodes[id] = doc.getElementById(WORKSPACES[id]);
             CS.scroll.setRoot(id, main);
@@ -80,7 +83,7 @@
                 var pos = positions[id];
                 if (pos) main.scrollTo(pos.x, pos.y);
                 var target = focus[id];
-                if (target && target.isConnected && target.getClientRects().length) target.focus({ preventScroll: true });
+                if (focusRouting.valid(target)) target.focus({ preventScroll: true });
                 else nodes[id].focus({ preventScroll: true });
                 refreshGeometry();
             }
@@ -96,7 +99,7 @@
         }
         function refreshGeometry() { CS.sheetCruise.setLoupeSafeAreaProvider(safeArea); }
         function restoreHiddenFocus(region, button) {
-            if (region.contains(doc.activeElement)) button.focus({ preventScroll: true });
+            if (region.contains(doc.activeElement)) focusRouting.restore(button);
         }
         function renderLayout() {
             var s = layout.get();
@@ -127,11 +130,29 @@
         });
         doc.getElementById('shell-pane-close').addEventListener('click', function () { layout.closeRight(); renderLayout(); });
         doc.getElementById('shell-dock-toggle').addEventListener('click', function () { layout.toggleDock(); renderLayout(); });
-        // Only a focused pane consumes Escape. No document/global router or focus trap.
-        right.addEventListener('keydown', function (event) {
-            if (event.key !== 'Escape' || event.defaultPrevented || event.isComposing || event.keyCode === 229) return;
-            if (event.target.closest('input, textarea, select, [contenteditable="true"]')) return;
-            event.preventDefault(); event.stopPropagation(); layout.closeRight(); renderLayout();
+        var ime = CS.keyboard.createIMEGuard(window.setTimeout.bind(window), window.clearTimeout.bind(window));
+        var modal = CS.modals.createModalManager({ document: doc, background: shell, focus: focusRouting, canFocus: CS.focusRouting.canFocus, ime: ime });
+        // Explicit slots stay null until their owner connects them; DOM focus never assigns these targets.
+        var targets = { activeDocument: null, selectedObject: null, musicalInputSession: null, editingSession: null, transport: null, audioOwner: null };
+        function getCommandContext() {
+            return Object.freeze(Object.assign({}, targets, { activeWorkspaceId: host.getActive(), focusedElement: doc.activeElement,
+                activeModal: modal.getActive(), rightPaneState: layout.get() }));
+        }
+        var commands = CS.commands.createRouter(getCommandContext);
+        var keyboard = CS.keyboard.createKeyboardRouter({ document: doc, getContext: getCommandContext, commands: commands, ime: ime, modal: modal });
+        keyboard.registerEscape({ scope: 'transient', workspaceId: 'sheetCruise', handle: CS.sheetCruise.closeTransient });
+        keyboard.registerEscape({ scope: 'pane', handle: function () {
+            var s = layout.get();
+            if (!s.rightOpen || (s.persistent && !right.contains(doc.activeElement))) return false;
+            layout.closeRight(); renderLayout(); return true;
+        } });
+        keyboard.registerEscape({ scope: 'workspace', workspaceId: 'sheetCruise', handle: CS.sheetCruise.handleEscape });
+        CS.sheetCruise.setEscapeRouter(keyboard.localEscape);
+        keyboard.attach();
+        // Overlay is nonmodal: background clicks still reach their original controls.
+        main.addEventListener('click', function () {
+            var s = layout.get();
+            if (s.rightOpen && !s.persistent) { layout.closeRight(); renderLayout(); }
         });
         var themeControl = doc.getElementById('shell-theme');
         CS.colorTheme.listColorThemes().forEach(function (theme) {
@@ -163,7 +184,15 @@
         }
         renderLayout();
         host.activate('home');
-        return Object.freeze({ navigate: host.activate, getActiveWorkspace: host.getActive, getLayoutState: layout.get });
+        return Object.freeze({
+            navigate: function (id) { return modal.getActive() ? false : host.activate(id); },
+            getActiveWorkspace: host.getActive, getLayoutState: layout.get,
+            getCommandContext: getCommandContext, commands: commands, keyboard: keyboard, modal: modal,
+            setCommandTarget: function (name, value) {
+                if (!Object.hasOwn(targets, name)) throw new TypeError('Unknown command target');
+                targets[name] = value == null ? null : value;
+            }
+        });
     }
     return Object.freeze({ WORKSPACES: WORKSPACES, PERSISTENT_MIN: PERSISTENT_MIN, createWorkspaceHost: createWorkspaceHost, createLayoutState: createLayoutState, init: init });
 });
