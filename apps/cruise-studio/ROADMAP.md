@@ -29,7 +29,7 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 1 | Shell Contract v2.1文書化 | 完了・push済み。最終Bレビューの追記と文書間リンクを反映 |
 | 2 | Studio-only無変化refactor 第1段階 | 完了。scroll / safe area / toolbar / resize / lifecycle / Esc / Pre-DTM入力境界を準備 |
 | 3 | 第1段階の回帰確認 | 完了。Chrome変更前後比較・ユーザー実機確認で表示・操作・保存形式・Safari / IME / print / MIDIを維持 |
-| 4 | Version / Feature metadata | 次工程。最小catalog、reader-first、source一致検証。mobileのversion運用は維持 |
+| 4 | Version / Feature metadata | v1内部実装・検証完了（未commit）。6 component / 17 feature、reader-first、source一致test。既存UI未接続、mobile運用不変 |
 | 5 | Cruise Port Theme / Design Token調査 | Portの既存実装を読み取り専用監査し、共有するsemantic tokenとテーマ非依存領域を整理 |
 | 6 | Studio Shell | Navigation / Main / 右pane / Dock、responsive、scroll ownership |
 | 7 | Focus / Keyboard / Modal manager | Capture / Bubble、modal優先、入力・IME保護 |
@@ -72,7 +72,10 @@ Shell / Editing Session / working snapshotの製品統合完了とは扱わな�
 
 ## 次工程とテーマ方針
 
-次はVersion / Feature metadata、その次はCruise Port Theme / Design Token調査、続いてStudio Shell。
+Version / Feature metadata v1の内部実装・検証完了。詳細は[FEATURE_METADATA](docs/FEATURE_METADATA.md)。
+Node必須12項目と隔離ChromeのTOP / Structure / Pre-DTMを確認済み。APP_VERSION 0.22.4、schemaVersion 1、
+既存UI / storage / Syncは維持。registryのShell接続前にStudio / Portの隣接HTTP配信条件を満たす。
+次はCruise Port Theme / Design Token読み取り専用調査、続いてStudio Shell。
 F3等Structure本体機能は共有基盤・Shell整備後に再開する。
 
 Cruise Studioの色・ブランドテーマはPortのテーマ体系と共通化する方向。予定テーマは

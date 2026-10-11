@@ -14,7 +14,38 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
-### Studio-only無変化refactor 第1段階の完了記録
+### Version / Feature Metadata v1（独立レビューB・Minor修正、未stage / 未commit / 未push）
+
+- Shell Contract v2.1 §21に基づき、Studio側だけにcomponent catalog（6件）、feature catalog（17件）、
+  pure text version reader / verifierを追加。詳細は[FEATURE_METADATA](../docs/FEATURE_METADATA.md)。
+- Portは副作用のない元ESM定数import。他5件はsource path / symbol / extraction / expectedValue付きmirror。
+  sourceが正で、不一致はテスト失敗。classic script全体をversion取得目的で実行しない。
+- 読み取りAPI、未知IDのnull、deep freeze。supported候補とStudioで実装済みpresentationを分離。
+  policy keyはPort / Chord現行sourceへのaction単位参照で、資格状態・permission結果・Sync状態を持たない。
+- マイクはTuner / Rhythmの対象actionだけの静的要件。audioRoleは配列。dataOwner / syncOwnerは実adapterの
+  appIdに照合。Studioは正式Sync未参加でsyncOwnerを登録しない。Theme / backend versionは今回追加しない。
+- 初回Node必須12項目すべて合格。source一致、policy定義とconsumer、owner、immutability、未知ID、
+  DOM / storage / permission / audio / network / timerへのimport副作用なしを確認。
+- 独立レビューはB（軽微修正後commit）。指摘のMinor 2件を修正: Version宣言終端`;`を必須化し継続式を拒否、
+  metadataに依存しないfeature→owner / 必須action→policy / 必須action→microphone期待値を追加。
+  22テストすべて合格。現行6 source一致、必須項目の欠落検出、メモリ上のpolicy削除 / microphone削除 /
+  別の実在ownerへの変更を検証関数が拒否することを確認。汎用parser化・カタログ設計変更は行わない。
+- Minor修正後はrepo rootを公開する一時HTTPサーバーの正規隣接URLで軽回帰を再実施。
+  Port元ESMを含むmoduleを実HTTP経由でimportし、TOP / Structure / Pre-DTMのself-check OK、
+  console error / asset 404なし、import前後の画面画像・DOM・保存データ・global一致を確認。
+  外部fontと自動favicon要求は検証側で隔離。検証用Chromeと一時サーバーは終了済み、既存8765サーバーは不触。
+- 隔離ChromeでTOP / Structure / Pre-DTMを確認。self-check OK、console error / 404なし。
+  registry import前後の画面画像・DOM・localStorage・Project JSON・global一致。ユーザーのSafari実機再確認は本工程では未実施。
+- APP_VERSION 0.22.4、schemaVersion 1を維持。index.html / app.js / Structure / Pre-DTM / CSSを変更せず、
+  既存version表示・起動import graph・project JSON / storage / Syncは不変。新しいStudio内部module参照は?v=0.22.4。
+- 元Port ESM importにはapps/を隣接配信するHTTP topologyが必要。Studio単独rootでは新registryを直接importできない。
+  現行UIはregistry未接続なので既存単独サーバーに影響なし。Shell接続前に配信条件を満たす。
+- 開始時HEAD = ローカルorigin/main = `0f7c407f991f4894db851a4236c7986ebad6b567`、tracked clean、staged空。
+  第1段階commit `92c524341ace65792237ce1e5f4576bc0d74197f`はmain履歴に含まれる。fetchなし。
+  `.claude/` / `workers/sound-cruise-sync/node_modules/`不触。Port / 他apps / shared / Worker / Account / Pro / Sync不触。
+- 次の正式工程はCruise Port Theme / Design Token読み取り専用調査、その後Studio Shell。今回は両工程未実施。
+
+### Studio-only無変化refactor 第1段階の完了記録（前工程の履歴）
 
 - 記録時点はcommit前。本記録と実装済みJS 3ファイルを限定commitする工程。refactorのpushは未実施。
 - Shell Contract v2.1は文書commit `f2c5ffb19848f2d687140824fff2f6363e3631c7` としてpush済み。
@@ -72,9 +103,9 @@ Cruise Studioは未リリースで大規模変更可能。一方、リリース�
 Cruise Sync / Accountの既存動作・保存データ・認可は破壊禁止。共有化に必要な既存側変更は別工程で対象と
 回帰条件を明示する。並行セッションの未commit差分・untrackedは勝手に変更・stageしない。
 
-旧repo / migration bundleは読み取りも禁止。v2.1文書化工程の変更対象はROADMAP、本ファイル、
-新規docs/SHELL_CONTRACT.mdの三つだけだった。今回の工程は実装済みStudio JS 3ファイルと
-ROADMAP / 本ファイルの限定commitまで。SHELL_CONTRACT / テーマCSS / UI / 他appsは変更せず、pushは行わない。
+旧repo / migration bundleは読み取りも禁止。今回のVersion / Feature Metadata v1はStudio配下の
+新規module / test / 説明文書とROADMAP / 本ファイルのみ変更。SHELL_CONTRACT / 既存UI / 他appsは変更せず、
+stage / commit / pushを行わない。過去工程の限定commit指示を現在の許可範囲として扱わない。
 
 ## 2. クルーズスタジオの目的
 
@@ -771,6 +802,14 @@ ROADMAP / 本ファイルの限定commitまで。SHELL_CONTRACT / テーマCSS /
 
 ## 6. 次にやること
 
+**現在の工程はVersion / Feature Metadata v1のMinor修正・再検証。次の正式機能工程はTheme / Design Token読み取り専用調査。**
+Studio-only無変化refactorは完了・main反映済み。Metadata v1は独立レビューBを受けた未commit実装で、
+指定のMinor修正とドキュメント整合だけを行う。stage / commit / pushは別の明示指示後に扱う。
+正式な全工程順は[ROADMAP](../ROADMAP.md)、詳細条件は[Shell Contract v2.1](../docs/SHELL_CONTRACT.md)を参照する。
+Theme調査の後にStudio Shellへ進む。Port ESMの隣接配信契約は維持し、Shell接続前に実HTTP構成で検証する。
+
+### Shell v2.1文書化時点の次工程計画（以下は履歴・現在の作業指示ではない）
+
 **次工程はStudio-only無変化refactor。F3等へ直行しない。** 正式な全工程順は
 [ROADMAP](../ROADMAP.md)、詳細条件は[Shell Contract v2.1](../docs/SHELL_CONTRACT.md)を参照する。
 
@@ -814,7 +853,7 @@ v0.22.4の旧実機確認記録に未確認項目が残っている場合はbase
 
 ## 8. 触ってはいけないもの
 
-- 本工程で変更可能なのはROADMAP、本ファイル、新規docs/SHELL_CONTRACT.mdだけ。次工程も対象を明示する。
+- 現在のMinor修正対象はversion-reader.mjs、feature-metadata.test.mjs、本ファイル。必要な限定対応説明だけFEATURE_METADATA.mdへ追記可能。
 - `apps/cruise-port`（今回の共有設計文書化はPortコード変更を許可しない）
 - Cruise Sync / Account / Worker / secrets / localStorage / IndexedDB / 保存データ
 - 他セッションの未commit差分・untracked
@@ -873,4 +912,5 @@ v0.22.4の旧実機確認記録に未確認項目が残っている場合はbase
 - 未commit差分がある場合は、それを勝手に変更せず、まず報告する。
 - ユーザーに確認せずcommit / pushしない。
 - 触ってよい範囲を明示してから作業する。
-- 次の対象はStudio-only無変化refactor。F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。
+- 現在はMetadata v1の独立レビューBに対するMinor修正・再検証。refactorは完了・main反映済み。
+  次の正式機能工程はTheme / Design Token読み取り専用調査。F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。
