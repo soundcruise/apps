@@ -1,5 +1,13 @@
 # Studio Read-only Port Data Host v1
 
+## B1-2 / B1-3 Authority Preparation（2026-10-12）
+
+Port1.22.3 / Studio0.26.1 / project schema1。[Local Authority契約](../../cruise-port/docs/PORT_LOCAL_AUTHORITY.md)を参照。
+Port-owned prepared dataset/Sync DB/binaryは隔離fixtureで実証したが、production readerはlegacy read modelを維持。
+HostのcanWrite=false、old-build-unknown、cached side-effect 0は不変。preparedだけでStudio writeを解禁しない。
+metadataにprotocol/authority stateを追加しない。M2/Structure/audio/renderer/preset UIへ今回の変更を接続しない。
+B1未解消、enforcement OFF、production migration/cutoverなし。以下は前工程の履歴。
+
 ## B1-1 Authority Contract（2026-10-11）
 
 Port 1.22.2 / Studio 0.26.1 / Studio schemaVersion 1。

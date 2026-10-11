@@ -76,6 +76,7 @@ const ROUTES = Object.freeze({
   '/v1/sync/migration/complete': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] },
   '/v1/sync/changes': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
   '/v1/sync/snapshot': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
+  '/v1/sync/writer-authority': { method: 'GET', headers: ['authorization', 'x-d1-bookmark'] },
   '/v1/sync/removal-safety': { method: 'POST', headers: ['content-type', 'authorization', 'x-d1-bookmark'] }
 });
 
@@ -923,6 +924,20 @@ async function handlePair(request, env, origin, route, dependencies) {
   }
 }
 
+async function handleWriterAuthority(request, env, origin, route, dependencies, url) {
+  if (url.searchParams.get('appId') !== 'port' || [...url.searchParams.keys()].some(key => key !== 'appId'))
+    return errorResponse(400, 'invalid_request', origin, route);
+  try {
+    const context = await authenticatedContext(request, env, 'port', dependencies, {});
+    if (context.error) return errorResponse(context.status, context.error, origin, route);
+    if (!context.authority || context.authority.accountState !== 'active' || context.authority.membershipState !== 'active')
+      return errorResponse(409, 'account_membership_required', origin, route);
+    const meta = context.writerAdmission.metadata;
+    return jsonResponse(200, { ok: true, authority: { accountId: context.authority.accountId, appId: 'port',
+      writeEpoch: meta.write_epoch, minimumWriterProtocol: meta.minimum_writer_protocol, state: meta.authority_state } }, origin, route);
+  } catch { return errorResponse(503, 'dataset_authority_unavailable', origin, route); }
+}
+
 async function handlePush(request, env, origin, route, dependencies) {
   const parsed = await readJson(request, MAX_PUSH_BODY_BYTES);
   if (!parsed.ok) return errorResponse(parsed.status, parsed.code, origin, route);
@@ -1158,6 +1173,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
   if (url.pathname === '/v1/sync/push') return handlePush(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/changes') return handleChanges(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v1/sync/snapshot') return handleSnapshot(request, env, origin, route, dependencies, url);
+  if (url.pathname === '/v1/sync/writer-authority') return handleWriterAuthority(request, env, origin, route, dependencies, url);
   if (url.pathname === '/v1/sync/removal-safety') return handleRemovalSafety(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/assets/prepare') return handleAssetPrepare(request, env, origin, route, dependencies);
   if (url.pathname === '/v1/sync/assets/commit') return handleAssetCommit(request, env, origin, route, dependencies);

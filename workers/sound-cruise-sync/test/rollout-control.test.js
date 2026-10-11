@@ -45,6 +45,7 @@ test('route gates separate admission, writes, reads, Recovery, deletion and devi
   assert.equal(gateDecision('/v1/sync/removal-safety', emergency).code, 'sync_write_paused');
   assert.equal(gateDecision('/v1/sync/changes', emergency).code, 'sync_read_paused');
   assert.equal(gateDecision('/v1/sync/snapshot', emergency).code, 'sync_read_paused');
+  assert.equal(gateDecision('/v1/sync/writer-authority', emergency).code, 'sync_read_paused');
   assert.equal(gateDecision('/v1/sync/assets/prepare', emergency).code, 'sync_write_paused');
   assert.equal(gateDecision('/v1/sync/assets/content', emergency).code, 'sync_write_paused');
   assert.equal(gateDecision('/v1/sync/assets/commit', emergency).code, 'sync_write_paused');
@@ -59,5 +60,5 @@ test('route gates separate admission, writes, reads, Recovery, deletion and devi
   assert.equal(gateDecision('/v1/sync/recover', { ...emergency, recoveryEnabled: false }).code, 'sync_recovery_paused');
   assert.equal(gateDecision('/v1/sync/account', { ...emergency, cloudDeleteEnabled: false }).code, 'sync_cloud_delete_paused');
   assert.equal(gateDecision('/v1/sync/future-route', emergency).code, 'rollout_route_unclassified');
-  assert.equal(Object.keys(ROUTE_GATE).length, 20);
+  assert.equal(Object.keys(ROUTE_GATE).length, 21);
 });

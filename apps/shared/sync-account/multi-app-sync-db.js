@@ -35,10 +35,10 @@
     }
   }
 
-  async function open(appId, indexedDb = global.indexedDB, namespace = '') {
+  async function open(appId, indexedDb = global.indexedDB, namespace = '', name) {
     assertAppId(appId);
     if (!indexedDb?.open) throw new Error('multi_app_storage_unavailable');
-    const request = indexedDb.open(`sound-cruise-sync-data-${appId}${namespace}`, VERSION);
+    const request = indexedDb.open(name || `sound-cruise-sync-data-${appId}${namespace}`, VERSION);
     request.onupgradeneeded = () => {
       for (const store of STORES) {
         if (!request.result.objectStoreNames.contains(store)) request.result.createObjectStore(store);
@@ -50,20 +50,29 @@
   function createStore(appId, options = {}) {
     assertAppId(appId);
     const indexedDb = options.indexedDb || global.indexedDB;
-    const namespace = options.accountId ? `-account-${encodeURIComponent(options.accountId)}` : '';
-    const check = () => { options.assertCurrent?.(); if (options.signal?.aborted) throw new Error('runtime_disposed'); };
+    if (options.authorityGeneration !== undefined && (appId !== 'port' || !options.accountId ||
+        typeof options.authorityGeneration !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(options.authorityGeneration)))
+      throw new Error('local_authority_identity_required');
+    const namespace = (options.accountId ? `-account-${encodeURIComponent(options.accountId)}` : '') +
+      (options.authorityGeneration ? `-authority-v1-${encodeURIComponent(options.authorityGeneration)}` : '');
+    const databaseName = options.authorityGeneration
+      ? `sound-cruise-port-authority-sync-v1-account-${encodeURIComponent(options.accountId)}-generation-${options.authorityGeneration}`
+      : `sound-cruise-sync-data-${appId}${namespace}`;
+    const lifetime = new AbortController();
+    const check = () => { options.assertCurrent?.(); if (options.signal?.aborted || lifetime.signal.aborted) throw new Error('runtime_disposed'); };
     async function databaseForOperation() {
       check();
-      const database = await open(appId, indexedDb, namespace);
+      const database = await open(appId, indexedDb, namespace, databaseName);
       try { check(); return database; } catch (error) { database.close(); throw error; }
     }
     async function finish(transaction) {
       const cancel = () => { try { transaction.abort(); } catch (_) {} };
       options.signal?.addEventListener('abort', cancel, { once: true });
+      lifetime.signal.addEventListener('abort', cancel, { once: true });
       const done = transactionDone(transaction);
       try { check(); await done; check(); }
       catch (error) { cancel(); await done.catch(() => {}); throw error; }
-      finally { options.signal?.removeEventListener('abort', cancel); }
+      finally { options.signal?.removeEventListener('abort', cancel); lifetime.signal.removeEventListener('abort', cancel); }
     }
     async function get(storeName, key) {
       const database = await databaseForOperation();
@@ -103,6 +112,9 @@
     }
     return Object.freeze({
       appId, accountId: options.accountId || null,
+      authorityGeneration: options.authorityGeneration || null,
+      databaseName,
+      dispose: () => lifetime.abort(),
       getMeta: (key) => get('meta', key),
       setMeta: (key, value) => put('meta', key, { value, updatedAt: Date.now() }),
       readMeta: async (key) => (await get('meta', key))?.value ?? null,

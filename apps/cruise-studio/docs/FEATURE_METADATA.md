@@ -19,7 +19,7 @@
 
 | componentId | 現行appVersion | repository-relative source / symbol | 読み方 |
 |---|---|---|---|
-| cruise-port | 1.22.1 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
+| cruise-port | 1.22.3 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
 | chord-cruise | 1.20.1 | apps/chord-cruise/js/app.js / CHORD_CRUISE_APP_VERSION | source-mirror |
 | pitch-cruise | 2.29.1 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
 | fretboard-cruise | 2.24.1 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
@@ -40,7 +40,7 @@ API / backend versionやbuildの推測値は登録しない。独立componentは
 ### Importとcache
 
 Studio内部importは現在のmodule cache運用に合わせ`?v=0.26.1`。
-Port元ESMへのStudio側importは現行sourceのcache key `?v=1.22.1`を使う。
+Port元ESMへのStudio側importは現行sourceのcache key `?v=1.22.3`を使う。
 商品versionをcache keyから抽出することはない。既存HTML・mobileの`?v=`は変更しない。
 Portの正式release後はsource照合に加えて、このStudio側参照のcache keyを確認する。
 

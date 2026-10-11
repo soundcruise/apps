@@ -1,6 +1,6 @@
-import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.22.2';
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.22.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
-import { isValidGearCategoryId } from './gear-list-store.js?v=1.22.2';
+import { isValidGearCategoryId } from './gear-list-store.js?v=1.22.3';
 
 export const GEAR_CATEGORY_STORAGE_KEY = 'cruisePort.gearCategories';
 export const GEAR_CATEGORY_SCHEMA_VERSION = 1;

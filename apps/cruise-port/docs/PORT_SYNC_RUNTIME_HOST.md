@@ -1,5 +1,15 @@
 # Port Runtime & Integration Safety v1
 
+## B1-2 / B1-3（2026-10-12・現行）
+
+Port1.22.3 / Studio0.26.1。[PORT_LOCAL_AUTHORITY](PORT_LOCAL_AUTHORITY.md)を参照。
+通常owner activationはlegacy DB/wire。新client serviceのprepareは明示対応環境だけで、badge/read-onlyから呼ばない。
+認証済みserver epochをprivate固定contextへ採用し、outbox retryで変えない。旧operationはB1-4まで保持。
+Port authority Sync store factoryはbound Accountを確認し、generation別DBを明示生成する。legacy outbox copyなし。
+新local provider/binary stagingと通常runtimeを自動接続しない。Account switchはownership transferではない。
+reader→owner binding、Account generation、native Sync lock、operationId、dispose、limitsは維持。
+production default legacy / enforcement OFF / Studio shared write OFF。以下は前工程の履歴。
+
 ## B1-1 Authority Contract（2026-10-11）
 
 Port 1.22.2 / Studio 0.26.1 / Studio schemaVersion 1。

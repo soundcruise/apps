@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.2';
-import { createMyApp, loadMyApps, saveMyApps, MY_APPS_LIMITS, MY_APPS_SCHEMA_VERSION } from './my-apps-store.js?v=1.22.2';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.3';
+import { createMyApp, loadMyApps, saveMyApps, MY_APPS_LIMITS, MY_APPS_SCHEMA_VERSION } from './my-apps-store.js?v=1.22.3';
 import { createMyAppEntry, updateMyAppEntry } from './my-apps-icon-workflow.js';
 import { commitGearPhotoChange } from './gear-photo-workflow.js';
 

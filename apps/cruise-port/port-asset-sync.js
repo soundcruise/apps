@@ -1,5 +1,5 @@
-import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.22.2';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.2';
+import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.22.3';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.3';
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';
@@ -332,7 +332,8 @@ export class PortAssetSync {
 
     pendingAuthority() {
         const fields = this.controller?.runtime?.writerWireContext?.fields;
-        return fields ? { writerAuthority: { ...fields } } : {};
+        return fields ? { writerAuthority: { ...fields }, ...(this.controller.runtime.writerWireContext.context ?
+            { authorityContext: { ...this.controller.runtime.writerWireContext.context } } : {}) } : {};
     }
 
     async upload(record, kind, pending = null, owner = null) {
@@ -345,11 +346,12 @@ export class PortAssetSync {
             ? { width: record.width, height: record.height }
             : await this.wait(async () => (this.dimensions(record.blob, kind)), runtimeOwner);
         const wireFields = runtimeOwner?.writerWireContext?.fields;
-        if (pending && wireFields && JSON.stringify(pending.writerAuthority || null) !== JSON.stringify(wireFields))
+        if (pending && (JSON.stringify(pending.writerAuthority || null) !== JSON.stringify(wireFields || null) ||
+            JSON.stringify(pending.authorityContext || null) !== JSON.stringify(runtimeOwner?.writerWireContext?.context || null)))
             throw new Error('legacy_outbox_needs_migration');
         const operation = pending?.localId === record.id && pending?.hash === hash
             ? pending
-            : { localId: record.id, assetId: uuid(), operationId: uuid(), hash, ...(wireFields ? { writerAuthority: { ...wireFields } } : {}) };
+            : { localId: record.id, assetId: uuid(), operationId: uuid(), hash, ...this.pendingAuthority() };
         const request = {
             appId: 'port', assetId: operation.assetId, operationId: operation.operationId,
             kind, hash, mime: record.mimeType || record.blob.type, byteSize: record.blob.size,

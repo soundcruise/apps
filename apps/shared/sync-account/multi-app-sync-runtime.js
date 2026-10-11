@@ -131,6 +131,7 @@
       this.admissionMode = options.admissionMode || this.accountClient.admissionMode || 'qa';
       if (!['qa', 'production'].includes(this.admissionMode)) throw new Error('multi_app_runtime_admission_invalid');
       this.writerWireContext = options.writerWireContext || null;
+      this.authorityFailure = null;
       this.fetchImpl = options.fetchImpl || global.fetch.bind(global);
       this.now = options.now || Date.now;
       this.randomOperationId = options.randomOperationId || (() => this.accountCore.createOperationId());
@@ -292,8 +293,27 @@
       return Object.freeze({ status: 'committed', result });
     }
 
-    writerEnvelope(body) { return this.writerWireContext ? this.writerWireContext.envelope(body) : body; }
-    writerHeaders() { return this.writerWireContext?.headers() || {}; }
+    writerEnvelope(body) {
+      if (this.authorityFailure) throw new MultiAppSyncError(this.authorityFailure);
+      const context = this.writerWireContext?.context;
+      if (context && (context.accountId !== this.executionAccountId || context.appId !== this.appId ||
+          (context.localAuthorityGeneration && context.localAuthorityGeneration !== this.store.authorityGeneration)))
+        throw new MultiAppSyncError('dataset_authority_unavailable');
+      return this.writerWireContext ? this.writerWireContext.envelope(body) : body;
+    }
+    writerHeaders() { this.writerEnvelope({}); return this.writerWireContext?.headers() || {}; }
+    async prepareWriterAuthority(client) {
+      let context;
+      try {
+        context = await this.wait(() => client.prepare(this));
+        await this.wait(() => this.assertCurrentAsync());
+        if (context.context?.accountId !== this.executionAccountId || context.context?.appId !== this.appId ||
+            (context.context?.localAuthorityGeneration && context.context.localAuthorityGeneration !== this.store.authorityGeneration))
+          throw new MultiAppSyncError('dataset_authority_unavailable');
+      } catch (error) { this.authorityFailure = error.code || 'dataset_authority_unavailable'; this.setState('blocked', { reason: this.authorityFailure }); throw error; }
+      this.writerWireContext = context; this.authorityFailure = null;
+      return Object.freeze({ ...context.context, ...context.fields });
+    }
 
     async request(method, path, body) {
       this.assertActive();
@@ -395,7 +415,7 @@
         const code = payload?.code || 'invalid_response';
         global.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(code, headers);
         if (await this.wait(async () => (this.detachTerminalIdentity(code)))) throw new MultiAppSyncError(code, response.status);
-        if (authorityBlocked(code)) this.setState('blocked', { reason: code });
+        if (authorityBlocked(code)) { this.authorityFailure = code; this.setState('blocked', { reason: code }); }
         if (PAUSE_CODES.has(code)) this.setState('paused', { reason: code });
         throw new MultiAppSyncError(code, response.status);
       }
@@ -665,6 +685,7 @@
         deleted,
         ...(deleted && this.adapter.deleteIntentGeneration ? { deleteIntentGeneration: this.adapter.deleteIntentGeneration(keyOf(record)) } : {}),
         ...(this.writerWireContext ? { writerAuthority: { ...this.writerWireContext.fields } } : {}),
+        ...(this.writerWireContext?.context ? { authorityContext: { ...this.writerWireContext.context } } : {}),
         attempts: 0,
         nextRetryAt: 0,
         createdAt: this.now()
@@ -805,7 +826,10 @@
 
     async clearConflictOutbox(recordKey) {
       for (const operation of await this.wait(async () => (this.store.listOutbox()))) {
-        if (keyOf(operation) === recordKey) await this.wait(async () => (this.store.deleteOutbox(operation.operationId)));
+        if (keyOf(operation) === recordKey && !authorityBlocked(operation.terminalError) &&
+            canonicalJson(operation.writerAuthority || null) === canonicalJson(this.writerWireContext?.fields || null) &&
+            canonicalJson(operation.authorityContext || null) === canonicalJson(this.writerWireContext?.context || null))
+          await this.wait(async () => (this.store.deleteOutbox(operation.operationId)));
       }
     }
 
@@ -1475,7 +1499,7 @@
       const remote = mapRecords(remoteRecords);
       let acknowledged = 0;
       for (const item of await this.wait(async () => (this.store.listOutbox()))) {
-        if (item.deleted || item.conflict) continue;
+        if (item.deleted || item.conflict || authorityBlocked(item.terminalError)) continue;
         const record = remote.get(keyOf(item));
         if (!record || !item.operationId || record.operationId !== item.operationId) continue;
         if (await this.wait(async () => (this.acknowledgeOwnRecord(item, record)))) {
@@ -1506,10 +1530,11 @@
           })));
           await this.wait(async () => (this.store.putOutbox({ ...item, conflict: true })));
         }
-        if (this.writerWireContext) {
+        {
           for (const item of await this.wait(() => this.store.listOutbox())) {
-            if (canonicalJson(item.writerAuthority || null) !== canonicalJson(this.writerWireContext.fields))
-              await this.wait(() => this.store.putOutbox({ ...item, terminalError: 'legacy_outbox_needs_migration', nextRetryAt: 0 }));
+            if (canonicalJson(item.writerAuthority || null) !== canonicalJson(this.writerWireContext?.fields || null) ||
+                canonicalJson(item.authorityContext || null) !== canonicalJson(this.writerWireContext?.context || null))
+              await this.wait(() => this.store.putOutbox({ ...item, terminalError: 'legacy_outbox_needs_migration', authorityStatus: 'blocked-authority', nextRetryAt: 0 }));
           }
         }
         const candidates = (await this.wait(async () => (this.store.listOutbox()))).filter((item) =>
@@ -1556,7 +1581,8 @@
               ...operation, attempts,
               nextRetryAt: retryable ? now + Math.min(300000, 1000 * (2 ** Math.min(attempts, 8))) : 0,
               ...(retryable ? { terminalError: undefined, failureKind: error.code === 'network_error' ? 'network' : undefined }
-                : { terminalError: error.code || 'push_failed' })
+                : { terminalError: error.code || 'push_failed', ...(authorityBlocked(error.code) ? {
+                  authorityStatus: error.code === 'dataset_epoch_stale' ? 'stale-epoch' : /(?:required|outdated|unsupported)$/.test(error.code) ? 'needs-upgrade' : 'blocked-authority' } : {}) })
             })));
           }
           if (error instanceof MultiAppSyncError && !authorityBlocked(error.code) &&
@@ -1868,6 +1894,7 @@
     }
 
     async performSync(reason) {
+      if (this.authorityFailure) throw new MultiAppSyncError(this.authorityFailure);
       if (await this.wait(async () => (this.store.readMeta('migrationState'))) !== 'complete') return { ok: false, code: 'migration_required' };
       if (global.navigator?.onLine === false) {
         this.setState('offline');
@@ -2054,7 +2081,7 @@
   // All externally callable mutable entries (including direct test/owner
   // helpers) share the same scope. Pure readers and scheduling entry points do
   // not acquire it. Lock order: activation -> execution -> dataset; never reverse.
-  for (const name of ['detachTerminalIdentity', 'detachCurrentEnvironment', 'resumeCurrentEnvironmentDetach',
+  for (const name of ['prepareWriterAuthority', 'detachTerminalIdentity', 'detachCurrentEnvironment', 'resumeCurrentEnvironmentDetach',
     'consumeHandoff', 'consumeInvitation', 'reportRemovalSafety', 'recordRecoveryIssues', 'applyWithBackup',
     'backupSnapshot', 'bootstrap', 'recordConflict', 'saveConflict', 'failResolution', 'clearConflictOutbox',
     'finishResolution', 'completeDeletedStageRevival', 'resolveInvalidRecordDeleteConflict', 'resolveLocalConflict',

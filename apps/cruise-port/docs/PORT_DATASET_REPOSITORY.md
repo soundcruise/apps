@@ -1,5 +1,16 @@
 # Port Dataset Readiness Core v1
 
+## B1-3 Local Authority（2026-10-12・現行）
+
+Port1.22.3 / Studio0.26.1。[PORT_LOCAL_AUTHORITY](PORT_LOCAL_AUTHORITY.md)が正式staging契約。
+authority providerをRepositoryへ注入し、論理key/public APIを維持したままdataset/metadata/WAL/delete intentを新物理namespaceへmapping。
+full datasetのみvalidateして最後にprepared markerを公開。中断/破損/未知versionはrecovery-required。active pointer公開APIなし。
+新Sync DBはAccount+Port+authority generation、新binary DBはPort authority generationで旧領域から分離する。
+legacy candidateはread-only・candidate-only。raw/metadata/hash前後比較で観測変更を拒否し、credential/outboxを自動移行しない。
+Account ownershipはunbound-local/bound-account、switchだけで再帰属しない。production default legacy、dual-writeなし。
+B1未解消、shared write OFF。B1-4のcloud/旧outbox/binary reconcileとcontrolled publicationを別途設計する。
+以下は前工程の履歴。
+
 2026-10-11。現行Port 1.22.1 / Studio 0.26.1。Port所有の同期datasetを扱う保存基盤。
 初期Core（Port 1.21.3）の履歴は下部に保持。Studio shared writeは引き続き無効。
 

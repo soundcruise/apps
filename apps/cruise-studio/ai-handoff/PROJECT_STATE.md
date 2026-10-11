@@ -1,5 +1,21 @@
 # Cruise Studio Project State
 
+## B1-2 + B1-3 Authority Preparation（2026-10-12・最新）
+
+開始HEAD/origin/main/remoteはb4f22ba9bbe4c7ea13e866075992bd37cf985a79、tracked clean/staged空/ahead・behind0/0。
+Port1.22.3（内部patch）/ Studio0.26.1 / schema1。[Local Authority契約](../../cruise-port/docs/PORT_LOCAL_AUTHORITY.md)を現在の正式契約とする。
+new clientはshared protocol正本を参照し、明示authenticated authority readからserver epochを取得できる。
+protocol-capable != active。legacy outboxをupgrade/copyせず、retryのoperationId/protocol/epochを固定。blocked authorityを保持。
+Port-owned新namespace、prepared marker、Repository provider、generation別Sync DB/binary、固定Account ownershipとread-only candidateを実装。
+legacyとの双方向write分離と3種の旧binary delete保護をnative Chromeで検証。通常起動でnew namespace/new authority DB生成0。
+全回帰結果は上記契約のValidation節。Studio Git clean guardはcommit後の全315件に含めて確認する。
+Worker変更は認証済みread routeとrollout read分類のみ、ACCEPT_COMPAT不変。D1 schema追加/本番適用/Worker deployなし。
+production default legacy、migration/cutover/active pointer公開なし、B1未解消、Studio shared write OFF/canWrite=false。
+次はB1-4 cloud/旧outbox/binary reconciliation・ownership review・controlled publicationの設計・独立監査。
+実Safari/PWA partition、OS IME/聴感/実プリンターは未検証。renderer parity/preset CRUD UIは別Phase。
+個別stage・1 commit・通常pushはユーザー明示指示に従い全条件正常時のみ実施。hash/remote最終一致は実測で報告する。
+以下は前工程の履歴。
+
 ## B1-1 Authority Contract（2026-10-11）
 
 Port 1.22.2 / Studio 0.26.1 / Studio schemaVersion 1。

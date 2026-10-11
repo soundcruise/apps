@@ -28,12 +28,12 @@ const origin = process.argv[2] || 'http://127.0.0.1:8766';
    payload:{id:'default',value:{version:3,bpm:120,meter:'4/4',rhythm:'quarter',sound:'electronic',volume:70,accents:[true,false,false,false]}}};
   op.payloadHash=await hashRecord(op,crypto,'port');
   const output=await page.evaluate(async({op,bytes})=>{
-   const {createWriterWireContext}=await import('/apps/shared/sync-account/writer-authority.mjs');
+   const {createWriterAuthorityClient}=await import('/apps/shared/sync-account/writer-authority.mjs');
    const {PortAssetSync}=await import('/apps/cruise-port/port-asset-sync.js');
-   const wire=createWriterWireContext({expectedWriteEpoch:1});
-   const store={accountId:'account-a',readMeta:async key=>key==='credential'?'scd1.fixture':null,setMeta:async()=>{}};
+   const store={accountId:'account-a',authorityGeneration:'browser-g1',readMeta:async key=>key==='credential'?'scd1.fixture':null,setMeta:async()=>{}};
    const runtime=new SoundCruiseMultiAppSync.MultiAppSyncRuntime({appId:'port',accountId:'account-a',endpoint:'https://sync.example',
-    store,adapter:{},accountClient:{},accountCore:{validAppCredential:()=>true},admissionMode:'production',writerWireContext:wire});
+    store,adapter:{},accountClient:{},accountCore:{validAppCredential:()=>true},admissionMode:'production'});
+   await runtime.prepareWriterAuthority(createWriterAuthorityClient({runtime,readLocalAuthority:()=>({state:'prepared',owner:'port',accountId:'account-a',generation:'browser-g1'})}));
    const snapshot=await runtime.serverSnapshot();
    const summary={appId:'port',schemaVersion:1,recordCount:snapshot.recordCount,manifestHash:snapshot.manifestHash};
    await runtime.request('POST','/v1/sync/bootstrap',summary);

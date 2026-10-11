@@ -1,5 +1,15 @@
 # Port/shared Write Gate Prerequisites v1
 
+## B1-2 / B1-3の現在地（2026-10-12）
+
+Port1.22.3 / Studio0.26.1。[PORT_LOCAL_AUTHORITY](PORT_LOCAL_AUTHORITY.md)を新protocol / staging契約とする。
+shared authority writerProtocol=2 / syncProtocol=1を参照。既存local writer/repository protocol1は維持。
+new clientはprotocol-capable、明示準備で認証済みserver epochとAccount/app/generationを固定する。未確認epochを推測しない。
+legacy outboxへfield後付けなし。protocol/epoch拒否は保持・非network retry、asset pendingも同契約。
+新Authorityの準備はallWritersCompatibleのproduction解禁証拠ではない。B1未解消、production canWrite=false / old-build-unknownを維持。
+prepared != active、enforcement OFF、default legacy。次はB1-4のauthority publication/reconciliation監査。
+以下はPrerequisites v1の履歴。
+
 ## B1-1 Authority Contract（2026-10-11）
 
 Port 1.22.2 / Studio 0.26.1 / Studio schemaVersion 1。

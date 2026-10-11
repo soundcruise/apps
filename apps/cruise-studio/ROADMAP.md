@@ -1,5 +1,13 @@
 # クルーズスタジオ — ロードマップ
 
+## B1-2 + B1-3 Authority Preparation（2026-10-12）
+
+Port1.22.3 / Studio0.26.1。新client protocol対応とPort-owned local stagingの実装・隔離回帰を完了。
+[Local Authority契約](../cruise-port/docs/PORT_LOCAL_AUTHORITY.md)：dataset/metadata/WAL/delete intent・Sync DB・binary分離、固定Account binding、read-only candidate。
+production default legacy、minimum enforcement OFF、Studio shared write OFF。B1解消と扱わない。
+次はB1-4のfull candidate/cloud/旧outbox/binary reconcile・ownership review・controlled pointer publicationを設計・独立監査。
+その後B1-5 transaction fence、B1-6製品統合/action解禁。renderer parityは別Phaseで並行可能、今回は未実装。
+
 ## B1-1 Authority Contract（2026-10-11）
 
 Port 1.22.2 / Studio 0.26.1 / Studio schemaVersion 1。

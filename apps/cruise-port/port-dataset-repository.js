@@ -88,8 +88,10 @@ function parseJournal(raw) {
     return value;
 }
 export class PortDatasetRepository {
-    constructor({ storage, locks = globalThis.navigator?.locks, token = () => globalThis.crypto.randomUUID(), notify = () => {} } = {}) {
-        this.storage = storage;
+    constructor({ storage, authorityProvider, locks = globalThis.navigator?.locks, token = () => globalThis.crypto.randomUUID(), notify = () => {} } = {}) {
+        this.storage = authorityProvider?.storage || storage;
+        this.authorityProvider = authorityProvider;
+        this.lockName = authorityProvider?.lockName || PORT_DATASET_LOCK;
         this.locks = locks;
         this.token = token;
         this.notify = notify;
@@ -99,6 +101,7 @@ export class PortDatasetRepository {
     get sharedWriteCapable() { return typeof this.locks?.request === 'function' && !this.degraded; }
     subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
     inspect() {
+        this.authorityProvider?.assertReadable();
         const metaRaw = this.storage.getItem(PORT_DATASET_META);
         const values = Object.fromEntries(PORT_DATASET_KEYS.map(key => [key, this.storage.getItem(key)]));
         if (metaRaw !== this.storage.getItem(PORT_DATASET_META)) throw error('dataset-changing');
@@ -113,12 +116,13 @@ export class PortDatasetRepository {
     }
     async readDatasetState() {
         if (!this.sharedWriteCapable) return this.inspect();
-        return this.locks.request(PORT_DATASET_LOCK, { mode: 'shared' }, () => this.inspect());
+        return this.locks.request(this.lockName, { mode: 'shared' }, () => this.inspect());
     }
     async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {} } = {}, writer) {
         if (!this.sharedWriteCapable) return { ok: false, status: 'rejected', reason: 'locks-unavailable' };
         try {
-            return await this.locks.request(PORT_DATASET_LOCK, { mode: 'exclusive' }, async () => {
+            return await this.locks.request(this.lockName, { mode: 'exclusive' }, async () => {
+                this.authorityProvider?.assertWritable();
                 await assertCurrent();
                 const before = this.inspect();
                 if (expectedRevision === undefined && expectedValues === undefined) throw error('base-required');

@@ -1,5 +1,17 @@
 # Sync Writer Authority — B1-1
 
+## B1-2 + B1-3 Authority Preparation（2026-10-12・現行）
+
+Port1.22.3 / Studio0.26.1 / schema1。[Local Authority契約](../../apps/cruise-port/docs/PORT_LOCAL_AUTHORITY.md)を参照。
+数値正本はshared writer-authority.mjs。新clientは明示actionで認証済みGET /v1/sync/writer-authorityからserver epochを取得可能。
+通常production clientはlegacy wire、protocol-capableとauthority-activeを分離。preparedの固定epoch/contextはoperationへ保存する。
+legacy outboxへ後付けせず、retryでprotocol/epoch/operationIdを変更しない。authority rejectはblockedとして保持し、通常retry/cleanupから分離。
+Worker追加変更はread-only authority routeとrollout read分類のみ。Pro/AppDevice/membership/Origin認可を維持。
+D1追加schemaなし、ACCEPT_COMPAT不変更、minimum/state/epoch enforcement OFF。Worker deploy / production D1適用なし。
+新Port dataset/marker/WAL/delete intent/Sync DB/binaryをstaging領域へ分離し、production defaultはlegacy。
+B1未解消、Studio shared write OFF / canWrite=false。次はB1-4 reconcile/controlled publicationの設計・独立監査。
+以下はB1-1の契約・検証履歴。B1-2/B1-3の現在地は上記リンクを優先。
+
 2026-10-11。Port 1.22.2 / Studio 0.26.1 / Studio schemaVersion 1。
 B1-1は互換基盤だけ。B1-L/B1-C未解消、Studio shared write OFF / canWrite=false。
 Worker deploy・production D1 migrationはこの工程に含めない。
