@@ -17,7 +17,8 @@
    F2a（ADR-028）: 歌詞行をtick位置ごとのセル編集（8/16マス）へ変更。IME 3層ガード付き。
    旧小節グリッドの歌詞inputはreadonly化（クリックでルーペを開く）、まとめて入力の歌詞は
    セル編集への移行に伴い一時停止。bar.lyricsのスキーマ・schemaVersionは変更しない。
-   保存/復元/JSON/プレDTM/MIDIの経路・データ構造は変更しない。
+   F2a時点では保存/復元/JSON/プレDTM/MIDIの経路・データ構造を維持。
+   Editing Session v1（0.24.0）: draft所有・保存command・Pre-DTM working入力を接続。schemaVersion 1を維持。
    グローバル名前空間 CruiseStudio.sheetCruise に登録する。 */
 (function () {
     'use strict';
@@ -57,8 +58,7 @@
                                            // ヘッダー・拍ルーラー・最低1行程度は必ず触れる高さ
 
     var state = {
-        project: null,   // 編集中の StudioProject
-        dirty: false,    // 未保存の変更があるか（TOP復帰時の中断確認に使う）
+        session: null,   // One source of truth: session-owned observable draft
         selectedBarNumber: null,
         overlayFrame: null,
         overlayRefreshRequested: false,
@@ -83,6 +83,12 @@
         loupe: { x: 0, y: 0, width: LOUPE_DEFAULT_WIDTH } // F1: ルーペの位置/幅。UI状態のみ（projectに保存しない）
     };
 
+    Object.defineProperties(state, {
+        project: { get: function () { return state.session ? state.session.draft : null; } },
+        dirty: { get: function () { return !!(state.session && state.session.dirty); } }
+    });
+    var projectViews = new Map();
+    var compositionOwners = new WeakMap();
     var els = {};
     var resizeObserver = null;
     var loupeSafeAreaProvider = null;
@@ -159,8 +165,7 @@
     }
 
     function markDirty() {
-        state.dirty = true;
-        setSaveStatus('未保存の変更があります');
+        refreshSessionStatus();
     }
 
     /* ══════════ プロジェクト管理 ══════════ */
@@ -172,16 +177,12 @@
 
         if (!state.project) return;
 
-        var currentInList = projects.some(function (meta) {
-            return meta.projectId === state.project.projectId;
-        });
-        // 未保存の新規プロジェクトは先頭に仮エントリとして出す
-        if (!currentInList) {
-            var draft = document.createElement('option');
-            draft.value = state.project.projectId;
-            draft.textContent = (state.project.songInfo.title || '無題') + '（未保存）';
+        CS().sessions.listSessions().filter(function (session) { return session.domain === 'structure'; }).forEach(function (session) {
+            if (projects.some(function (meta) { return meta.projectId === session.target.projectId; })) return;
+            var draft = document.createElement('option'); draft.value = session.target.projectId;
+            draft.textContent = (session.draft.songInfo.title || '無題') + '（未保存）';
             els.projectSelect.appendChild(draft);
-        }
+        });
         projects.forEach(function (meta) {
             var opt = document.createElement('option');
             opt.value = meta.projectId;
@@ -200,45 +201,90 @@
         refreshProjectSelect();
     }
 
-    function setProject(project, options) {
-        state.project = project;
-        state.workspaceScroll = null;
-        state.workspaceFocus = null;
-        state.dirty = !!(options && options.dirty);
-        state.selectedBarNumber = null;
-        CS().storage.setCurrentProjectId(project.projectId);
+    function redrawSession() {
+        var focused = state.active ? document.activeElement : state.workspaceFocus;
+        var local = focused && els.root.contains(focused), selector = null;
+        if (local && focused.id) selector = '#' + focused.id;
+        else if (local && focused.classList.contains('dock-lyrics-cell')) selector = '.dock-lyrics-cell[data-slot-tick="' + focused.dataset.slotTick + '"]';
+        else if (local && focused.classList.contains('dock-strum-cell')) selector = '.dock-strum-cell[data-cell-index="' + focused.dataset.cellIndex + '"]';
+        else if (local && focused.dataset.overlayField) selector = '[data-overlay-field="' + focused.dataset.overlayField + '"]';
+        var start = local ? focused.selectionStart : null, end = local ? focused.selectionEnd : null;
+        var scroll = CS().scroll ? CS().scroll.getPosition('sheetCruise') : null;
+        if (state.selectedBarNumber && !getSelectedBar()) state.selectedBarNumber = null;
         renderAll();
-        setSaveStatus((options && options.statusMessage) || '');
+        var restored = selector ? els.root.querySelector(selector) : null;
+        if (restored && !restored.disabled) {
+            state.workspaceFocus = restored;
+            if (state.active) {
+                restored.focus({ preventScroll: true });
+                if (start != null && typeof restored.setSelectionRange === 'function') {
+                    try { restored.setSelectionRange(start, end); } catch (_) { /* number/select control */ }
+                }
+            }
+        }
+        if (scroll && CS().scroll) CS().scroll.restorePosition('sheetCruise', scroll);
     }
 
-    function confirmDiscardIfDirty() {
-        if (!state.dirty) return true;
-        if (!window.confirm('保存されていない変更があります。破棄して続けますか？')) {
-            return false;
+    function refreshSessionStatus() {
+        var session = state.session;
+        if (!session) return;
+        els.saveBtn.disabled = !session.canCommit();
+        var adopt = q('sc-adopt-external');
+        if (adopt) { adopt.hidden = !session.externalUpdatePending; adopt.disabled = session.commitInFlight || !!(session.conflict && session.conflict.deleted); }
+        if (session.conflict && session.conflict.deleted) setSaveStatus('保存対象が削除されました。未保存内容は保持しています。JSONへ書き出せます。', true);
+        else if (session.externalUpdatePending) setSaveStatus('保存済みprojectが外部で更新されています。編集中の内容を保持しています。', true);
+        else if (session.commitError) setSaveStatus(session.commitError, true);
+        else if (session.commitInFlight) setSaveStatus('保存中です。追加編集は保持されます');
+        else if (!CS().repository.canWrite()) setSaveStatus('この環境では安全な保存を利用できません。JSONへ書き出せます。', true);
+        else setSaveStatus(session.dirty ? '未保存の変更があります' : '保存済み');
+    }
+
+    function showSession(session, message) {
+        if (state.session) projectViews.set(state.session.sessionId, {
+            selectedBarNumber: state.selectedBarNumber, loupe: Object.assign({}, state.loupe),
+            dockManualRes: state.dockManualRes, overlayWarnings: state.overlayWarnings,
+            scroll: CS().scroll ? CS().scroll.getPosition('sheetCruise') : null
+        });
+        state.session = session;
+        CS().sessions.activateSession(session);
+        var view = projectViews.get(session.sessionId);
+        state.selectedBarNumber = view ? view.selectedBarNumber : null;
+        state.dockManualRes = view ? view.dockManualRes : {};
+        state.overlayWarnings = view ? view.overlayWarnings : {};
+        if (view) state.loupe = Object.assign({}, view.loupe);
+        state.dockBulkOpen = false;
+        state.workspaceFocus = null; state.workspaceScroll = view ? view.scroll : null;
+        CS().storage.setCurrentProjectId(session.target.projectId);
+        if (CS().shellHost) {
+            CS().shellHost.setCommandTarget('editingSession', session);
+            CS().shellHost.setCommandTarget('activeDocument', session.target);
         }
-        // 破棄に同意したので未保存扱いを解除する（beforeunloadガードとの整合。
-        // 次に画面へ入るときは enter() が保存済みデータから読み直す）
-        state.dirty = false;
-        return true;
+        renderAll(); refreshSessionStatus();
+        if (message && !session.externalUpdatePending) setSaveStatus(message);
+    }
+
+    function setProject(project, options) {
+        if (state.session && state.session.inputPending) { setSaveStatus('入力の確定を待ってください', true); return; }
+        var target = { type: 'project', projectId: project.projectId };
+        var session = CS().sessions.getSession('structure', target);
+        if (session && options && options.dirty) {
+            if (session.dirty || session.commitInFlight) { setSaveStatus('同じprojectの未保存内容を保持しています。保存または明示cancel後に読み込んでください。', true); return; }
+            session.replaceDraft(project);
+        }
+        if (!session) session = CS().sessions.getOrCreateSession('structure', target, options && options.dirty ? project : undefined);
+        showSession(session, options && options.statusMessage);
     }
 
     function openProject(projectId) {
-        var res = CS().storage.loadProject(projectId);
-        if (!res.ok) {
-            setSaveStatus(res.error, true);
-            refreshProjectSelect(); // 選択を現状へ戻す
-            return;
-        }
-        setProject(res.project, { statusMessage: '「' + res.project.songInfo.title + '」を開きました' });
+        if (state.session && state.session.inputPending) { setSaveStatus('入力の確定を待ってください', true); refreshProjectSelect(); return false; }
+        try {
+            var session = CS().sessions.getOrCreateSession('structure', { type: 'project', projectId: projectId });
+            showSession(session); return true;
+        } catch (error) { setSaveStatus(error.message, true); refreshProjectSelect(); return false; }
     }
 
     function createNewProject() {
-        if (!confirmDiscardIfDirty()) {
-            refreshProjectSelect();
-            return;
-        }
-        var project = CS().model.createEmptyProject();
-        setProject(project, { dirty: true, statusMessage: '新規プロジェクトを作成しました（未保存）' });
+        setProject(CS().model.createEmptyProject(), { dirty: true, statusMessage: '新規プロジェクトを作成しました（未保存）' });
     }
 
     /* ══════════ 曲情報フォーム ══════════ */
@@ -706,7 +752,7 @@
             });
         });
         input.addEventListener('keydown', function (event) {
-            if (routeLocalEscape(event)) return;
+            if (routeLocalSave(event) || routeLocalEscape(event)) return;
             event.stopPropagation();
             if (event.isComposing || state.overlayComposingRowId === rowDef.id) return;
             if (!event.altKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return;
@@ -804,7 +850,7 @@
             event.stopPropagation();
         });
         button.addEventListener('keydown', function (event) {
-            if (routeLocalEscape(event)) return;
+            if (routeLocalSave(event) || routeLocalEscape(event)) return;
             event.stopPropagation();
         });
         return button;
@@ -1124,7 +1170,7 @@
     }
 
     function onStrumCellKeydown(event, bar, res, index, currentAction) {
-        if (routeLocalEscape(event)) return;
+        if (routeLocalSave(event) || routeLocalEscape(event)) return;
         if (event.isComposing) return;
         var key = event.key;
 
@@ -1461,7 +1507,7 @@
      * ポップオーバー→右pane→セル編集解除→ルーペ終了の順序を中央で解決する。
      */
     function onLyricCellKeydown(event, bar) {
-        if (routeLocalEscape(event)) return;
+        if (routeLocalSave(event) || routeLocalEscape(event)) return;
         event.stopPropagation();
 
         var input = event.currentTarget;
@@ -2332,7 +2378,7 @@
             state.overlayBulkComposing = false;
         });
         panel.addEventListener('keydown', function (event) {
-            if (routeLocalEscape(event)) return;
+            if (routeLocalSave(event) || routeLocalEscape(event)) return;
             event.stopPropagation();
         });
         panel.addEventListener('click', function (event) {
@@ -2732,7 +2778,6 @@
         var file = event.target.files && event.target.files[0];
         event.target.value = '';
         if (!file) return;
-        if (!confirmDiscardIfDirty()) return;
         var reader = new FileReader();
         reader.onload = function () {
             var res = CS().storage.importProjectJson(String(reader.result));
@@ -2754,24 +2799,24 @@
 
     /* ══════════ 保存 ══════════ */
 
-    function save() {
-        readFormIntoProject();
-        var model = CS().model;
-        var storage = CS().storage;
+    function save(event) { if (CS().shellHost) CS().shellHost.commands.execute('studio.save', event); }
 
-        var check = model.validateProject(state.project);
-        if (!check.ok) {
-            setSaveStatus('保存できません: ' + check.errors.join(' / '), true);
-            return;
-        }
-        var res = storage.saveProject(state.project);
-        if (!res.ok) {
-            setSaveStatus(res.error, true);
-            return;
-        }
-        state.dirty = false;
-        refreshProjectSelect();
-        setSaveStatus('保存しました（' + state.project.songInfo.title + '）');
+    function commitSession(session) {
+        // UI mutations already write to the session; never read another document's form here.
+        return session.commit().then(function (result) {
+            if (state.session === session) {
+                refreshProjectSelect(); refreshSessionStatus();
+                if (result.ok && !session.dirty && !session.externalUpdatePending) setSaveStatus('保存しました（' + session.draft.songInfo.title + '）');
+            }
+            return result;
+        });
+    }
+
+    function routeLocalSave(event) {
+        if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 's') return false;
+        if (event.isComposing || event.keyCode === 229 || state.overlayComposingRowId !== null ||
+            state.lyricComposingTick !== null || state.lyricJustComposed || state.overlayBulkComposing) return false;
+        return !!(CS().shellHost && CS().shellHost.keyboard.localCommand(event, 'studio.save', 'sheetCruise'));
     }
 
     /* ══════════ 画面ライフサイクル（app.js から呼ばれる） ══════════ */
@@ -2783,27 +2828,13 @@
      */
     function load(projectId) {
         var storage = CS().storage;
-        if (projectId) {
-            openProject(projectId);
-            return;
-        }
+        if (projectId) { openProject(projectId); return; }
+        if (state.session) return;
         var currentId = storage.getCurrentProjectId();
-        if (currentId) {
-            var res = storage.loadProject(currentId);
-            if (res.ok) {
-                setProject(res.project);
-                return;
-            }
-        }
+        if (currentId && openProject(currentId)) return;
         var latest = storage.listProjects()[0];
-        if (latest) {
-            var res2 = storage.loadProject(latest.projectId);
-            if (res2.ok) {
-                setProject(res2.project);
-                return;
-            }
-        }
-        setProject(CS().model.createEmptyProject(), { dirty: true, statusMessage: '新規プロジェクトを作成しました（未保存）' });
+        if (latest && latest.projectId !== currentId && openProject(latest.projectId)) return;
+        createNewProject();
     }
 
     // 表示の切替はhostが担当。activateはstorageを読まず、保持したdraftのgeometryを復帰する。
@@ -2836,10 +2867,10 @@
     }
 
     /**
-     * 画面を離れてよいか（未保存なら中断確認: DESIGN_SYSTEM.md 5章の鉄則）。
+     * 画面切替ではsessionを保持する。ページを閉じる場合はbeforeunloadで保護する。
      */
     function canLeave() {
-        return confirmDiscardIfDirty();
+        return true; // Workspace navigation retains all sessions.
     }
 
     function init() {
@@ -2859,10 +2890,6 @@
         els.projectSelect.addEventListener('change', function () {
             var selectedId = els.projectSelect.value;
             if (state.project && selectedId === state.project.projectId) return;
-            if (!confirmDiscardIfDirty()) {
-                refreshProjectSelect();
-                return;
-            }
             openProject(selectedId);
         });
         els.newProjectBtn.addEventListener('click', createNewProject);
@@ -2876,6 +2903,25 @@
 
         els.addSectionBtn.addEventListener('click', onAddSection);
         els.saveBtn.addEventListener('click', save);
+        els.root.addEventListener('keydown', routeLocalSave);
+        // An IME buffer is not a semantic draft edit yet. Hold external adoption until it settles.
+        els.root.addEventListener('compositionstart', function (event) {
+            if (state.session) { compositionOwners.set(event.target, state.session); state.session.setInputPending(true); }
+        }, true);
+        els.root.addEventListener('compositionend', function (event) {
+            var owner = compositionOwners.get(event.target);
+            if (owner) { compositionOwners.delete(event.target); owner.setInputPending(false); }
+        });
+        CS().sessions.subscribe(function (session, kind) {
+            if (state.session !== session) return;
+            if (['external-adopt', 'cancel', 'replace'].includes(kind)) redrawSession();
+            refreshSessionStatus();
+        });
+        q('sc-adopt-external').addEventListener('click', function () {
+            var session = state.session;
+            if (!window.confirm('編集中の変更を破棄して、最新の保存済みprojectを採用しますか？')) return;
+            session.adoptExternal().then(function (result) { if (!result.ok && state.session === session) setSaveStatus(result.error, true); });
+        });
         els.printBtn.addEventListener('click', printSheet);
         els.exportBtn.addEventListener('click', downloadCurrentProjectJson);
         els.importInput.addEventListener('change', onImportJsonFile);
@@ -2904,9 +2950,9 @@
         // Escape is registered once by Shell; no independent document key listener.
 
         // ブラウザのタブ閉じ / リロード / URL移動に対する未保存ガード。
-        // 画面内のTOP/戻る/モジュール移動は既存の中断確認（canLeave）が担当する。
+        // 画面内の移動はsessionを保持し、他projectのdirty draftも閉じる前に保護する。
         window.addEventListener('beforeunload', function (e) {
-            if (!state.dirty) return;
+            if (!CS().sessions.listSessions().some(function (session) { return session.dirty || session.commitInFlight || session.inputPending; })) return;
             e.preventDefault();
             e.returnValue = ''; // ブラウザ標準の確認ダイアログを出す
         });
@@ -2923,6 +2969,8 @@
         closeTransient: closeTransient,
         handleEscape: handleEscape,
         setEscapeRouter: function (router) { escapeRouter = router; },
+        getSession: function () { return state.session; },
+        commitSession: commitSession,
         canLeave: canLeave
     };
 })();

@@ -13,6 +13,7 @@
     var SETTINGS_KEY = 'preDtmSettings'; // cruiseStudio.appSettings 内のキー
 
     var state = {
+        source: null,
         project: null,      // 閲覧中の StudioProject（読み取り専用。編集は譜面クルーズで行う）
         settings: null,     // 伴奏設定（normalizeSettings済み）
         arrangement: null   // generateArrangement の結果
@@ -34,7 +35,7 @@
     function readProjectSource(projectId) {
         var res = projectSourceProvider ? projectSourceProvider(projectId) : CS().storage.loadProject(projectId);
         if (!res.ok) return res;
-        return { ok: true, project: freezeSnapshot(JSON.parse(JSON.stringify(res.project))) };
+        return Object.assign({}, res, { ok: true, project: freezeSnapshot(JSON.parse(JSON.stringify(res.project))) });
     }
 
     function setProjectSourceProvider(provider) {
@@ -53,6 +54,7 @@
         els.exportMidiBtn = q('pd-export-midi');
         els.gotoSheetBtn = q('pd-goto-sheet');
         els.status = q('pd-status');
+        els.sourceNotice = q('pd-source-notice');
         els.empty = q('pd-empty');
         els.emptyGotoSheet = q('pd-empty-goto-sheet');
         els.content = q('pd-content');
@@ -141,11 +143,18 @@
             opt.textContent = meta.title + (meta.artist ? ' / ' + meta.artist : '');
             els.projectSelect.appendChild(opt);
         });
-        if (state.project) els.projectSelect.value = state.project.projectId;
+        if (state.project) {
+            if (!projects.some(function (meta) { return meta.projectId === state.project.projectId; })) {
+                var draftOption = document.createElement('option'); draftOption.value = state.project.projectId;
+                draftOption.textContent = state.project.songInfo.title + '（未保存）'; els.projectSelect.appendChild(draftOption);
+            }
+            els.projectSelect.value = state.project.projectId;
+        }
     }
 
     function showEmptyState() {
-        state.project = null;
+        state.project = null; state.source = null;
+        els.sourceNotice.textContent = '';
         state.arrangement = null;
         els.empty.classList.remove('hidden');
         els.content.classList.add('hidden');
@@ -164,7 +173,7 @@
             setStatus(res.error, true);
             return false;
         }
-        state.project = res.project;
+        state.project = res.project; state.source = res;
         storage.setCurrentProjectId(res.project.projectId); // 譜面クルーズと共有
         els.empty.classList.add('hidden');
         els.content.classList.remove('hidden');
@@ -195,14 +204,22 @@
         showEmptyState();
     }
 
-    // Shell controls visibility / focus / scroll. Activation never reads persisted projects.
-    function activate() {}
+    // Refresh only the selected source; activation does not reload settings or reset selection.
+    function refreshSource() {
+        if (!state.project) return;
+        var result = readProjectSource(state.project.projectId);
+        if (!result.ok) { setStatus(result.error, true); return false; }
+        if (state.source && result.version !== undefined && result.version === state.source.version && result.source === state.source.source) return true;
+        state.project = result.project; state.source = result; regenerate(); return true;
+    }
+    function activate() { refreshSource(); }
     function deactivate() {}
     function enter() { load(); activate(); } // Legacy explicit reload entry.
 
     /* ══════════ 描画 ══════════ */
 
     function renderAll() {
+        els.sourceNotice.textContent = state.source && state.source.dirty ? '未保存の変更を含む — JSON / MIDIにも反映されます' : '';
         renderSongInfo();
         renderParts();
         renderWarnings();
@@ -407,6 +424,7 @@
      * 伴奏JSON書き出し（DAW前の設計図。MIDI変換可能な情報を完全に含む）。
      */
     function exportArrangementJson() {
+        if (refreshSource() === false) return;
         if (!state.arrangement || !state.project) return;
         var arr = state.arrangement;
         var flat = CS().arrangement.flattenEvents(arr);
@@ -442,6 +460,7 @@
      * SMF(.mid) 書き出し（対象: ベース / ドラム。ADR-015）。
      */
     function exportMidi() {
+        if (refreshSource() === false) return;
         if (!state.arrangement || !state.project) return;
         var midi = CS().midi;
         var result = midi.buildMidiFile(state.arrangement);

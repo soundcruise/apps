@@ -502,3 +502,27 @@ DTMのbackground録音・再生は用途別policyと実機検証を必要とす�
   一括入力popoverとLoupeは非modalのまま。Modal Managerの実画面テストは隔離Chrome内のfixtureで行う。
 - semantic tokenのみでmodal / focus表示を追加。modalとbackdropは非印刷。paper / music色・A4出力は維持。
   APP_VERSION 0.23.1、schemaVersion 1。Editing Session / domain Undo / working snapshot / audio等は未接続。
+
+## 32. Structure Editing Session v1実装境界（0.24.0 / 2026-10-11）
+
+詳細なAPI・保証範囲・検証は[EDITING_SESSION](EDITING_SESSION.md)に記録する。
+本節が§30 / §31の「未接続Save / working snapshot / Editing Session」を更新する。
+
+- domain + stable project targetでsessionを共有。saved / base / draft / working / playbackを分離し、
+  Structureのproject / dirty stateはsessionへ接続する。workspace・project往復でdraftを破棄しない。
+- commitは固定snapshot + baseRevision + sessionId / commitId / generation。追加編集・元sessionへの結果回収を保護。
+  cancel / destroyはin-flight結果を待ち、失敗・不明ではdraftを保持する。
+- revisionは既存raw project JSON。project・indexをWeb Locksで協調排他し、全本番Studio writerをrepositoryへ接続。
+  非協調legacy writer・旧build・プロセス中断時のlocalStorage原子性を保証せず、Port / Syncへ流用しない。
+  Web Locks / storageが使えない環境では保存を有効にしない。
+- clean external adopt、dirty / in-flight / IME未確定のexternal pending、外部削除のcommit blockを実装。
+  base / draftを無断で上書きしない。conflict採用UIは最小とし、削除draftはJSON exportで保持可能。
+- Save button / Cmd・Ctrl+Sは同じ明示editingSession command。text controlからSaveだけ局所委譲する。
+  active workspace・IME・modal gateを保ち、消費時だけbrowser defaultを抑制する。
+- Pre-DTMは同じactive Structure projectだけworkingを読む。別選択projectはsaved fallback。
+  activateはloadせず選択sourceを更新し、JSON / MIDI export直前も更新。dirty由来を小さく表示する。
+  project選択UI一本化と実playbackは未実装。print / Project JSONはvisible draftを維持する。
+- domain historyは未実装。clean外部採用／明示new baseは将来reset、dirty pending／own commitは保持する。
+  Cmd/Ctrl+Z / Redo / Playは未所有。Theme / pane / modalはsession状態から独立する。
+- APP_VERSION 0.24.0、schemaVersion 1。Node161、Chrome42独立ケースPASS。
+  clean JSONはappVersionのみ差分、MIDI / A4印刷ラスタ一致。次はMetronome M1。

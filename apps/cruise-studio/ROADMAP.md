@@ -34,7 +34,7 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 5a | Theme Contract v1 + Studio Theme Projection | 実装・検証完了。4テーマ / 39 tokenのsource対応、共通resolver / bootstrap / storage。Shell / selector UI未実装 |
 | 6 | Studio Shell v1 | 0.23.0実装・回帰完了。Navigation / Main scroll / 右pane / Dock、4テーマ、workspace draft保持 |
 | 7 | Focus / Keyboard / Modal manager | 0.23.1実装・回帰完了。2-phase routing、Escape owner、focus復帰、single native modal、入力・IME保護 |
-| 8 | Structure Editing Session接続 | draft保持、Undo境界、commitId、明示command target、Pre-DTM working snapshot |
+| 8 | Structure Editing Session接続 | 0.24.0実装・回帰完了。saved / draft分離、commit / cancel、external conflict、Save、Pre-DTM working snapshot。domain Undoは未実装 |
 | 9 | Metronome M1 | Standard相当BPM / Start / Stop、memory-only、音声・lease・dispose実証 |
 | 10 | Metronome M2 | 注入memory Storage、既存schema / effective設定 / 保存失敗 / stale write / conflict実証 |
 | 11 | Metronome M3 | 正式Port-owned data / presets / Pro / Account / Sync / delete intent / 2tab / mobile回帰 |
@@ -104,6 +104,22 @@ A4 PDFラスタは完全一致。schemaVersion 1、既存保存形式・Port / �
 Shell v1直後の工程はFocus / Keyboard / Modal（下記で完了）。次はEditing Session（Pre-DTM working snapshot接続を含む）、
 Metronome M1 → M2 → M3。Pre-DTMは本段階では保存済みprojectを読む。上記後続機能へは未着手。
 F3等Structure本体機能は共有基盤・Shell整備後に再開する。
+
+## Structure Editing Session v1（0.24.0・2026-10-11）
+
+[EDITING_SESSION](docs/EDITING_SESSION.md)にcore / registry / repository / Structure adapter / Save /
+Pre-DTM入力の境界と制約を記録した。同一targetはsession共有、別project・workspace移動でdraftを保持。
+baseRevisionを外部更新で進めず、commit中追加編集・失敗・別tab競合・外部削除を保護する。
+既存raw JSONをrevisionとして利用し、Web Locksでprojectと最新indexの協調writerを排他する。
+旧build・legacy直接writerまで完全排他とは扱わず、Web Locks非対応では保存を有効化しない。
+
+Node161（既存100 + Session/repository61）、Chrome42（既存20 + Session22）PASS。
+clean Project / Arrangement JSONは0.23.1からappVersionのみ更新。MIDI813 bytes / A4 PDFラスタは一致。
+dirty Pre-DTM JSON / MIDIは同じactive Structure draftの意図した編集差を反映する。
+schemaVersion 1、Port / 他apps / shared / Worker / Sync / Accountは不触。
+
+**次の正式工程はMetronome M1。** memory-only timing/audio、Dock、start/stop、lifecycle / dispose、
+Coordinator leaseを別指示で実装する。M2 / M3、domain Undo、Transport、Syncは今回未着手。
 
 ## 既存フェーズの履歴と残項目
 

@@ -14,7 +14,46 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
-### Focus / Keyboard / Modal基盤 v1（0.23.1・実装／回帰完了）
+### Structure Editing Session v1（0.24.0・実装／回帰完了）
+
+- 開始実測HEAD = origin/main = remote main: `c5a85b77711ef976aa0b153253f2d247f613a952`。
+  main / tracked clean / staged空 / ahead・behind0/0。既存untracked `.claude/` / worker node_modulesは不触。
+- `editing-session.js` / `project-repository.js`を追加。Structureのproject / dirtyはsession getter。
+  registryはdomain + stable targetで共有し、workspace・project往復でdraftを保持する。
+  詳細は[EDITING_SESSION](../docs/EDITING_SESSION.md)と[Shell Contract §32](../docs/SHELL_CONTRACT.md#32-structure-editing-session-v1実装境界0240--2026-10-11)。
+- saved / base / draft / working / playbackを分離。raw保存JSONがrevisionであり、schema・version・timestampとは別。
+  project JSONやlocalStorage keyを追加しない。Web Locksでprojectと最新indexを協調排他する。
+  本番Structure / Home sample・import・deleteをrepositoryへ接続。旧build / legacy直接writerの完全排他や
+  強制終了時のlocalStorage transaction原子性は保証しない。Web Locks / storage不可は保存を無効にする。
+- commitは固定snapshot / baseRevision / sessionId・commitId・generation。成功後も追加入力を保持する。
+  別workspace / projectへ移っても元sessionへ結果を戻し、currentProjectIdをbackground saveで変更しない。
+  validation / 保存失敗 / stale result / 不明ではdraft・baseを維持。cancel / destroyはin-flight結果を待つ。
+- clean外部更新を採用、dirty / commit中 / IME未確定はpending。baseRevisionを進めず、draftを上書きしない。
+  外部削除はcommitをblockしdraft / JSON exportを保持。最小「保存済みを採用」UIは明示破棄確認付き。
+  same-Studio通知と同origin別tab storage eventを実装・確認。古いevent.newValueは利用しない。
+- Save button / Cmd・Ctrl+Sを同じ`studio.save` commandへ接続。明示target・active Structure / no modal / canCommit。
+  通常text shortcut除外を保ち、局所Saveだけ委譲する。focus移動でsessionを消さず、Theme・modal closeでdirty変更なし。
+- Pre-DTMは同じactive Structure projectならread-only working、別projectはsaved fallback。
+  activate / 明示再読込 / JSON・MIDI exportでsourceを更新。dirty由来を小さく表示。
+  project選択一本化、Transport実再生、domain Undo / Redo、Sync / Account / Proは未実装。
+- Node: 新規Session/repository61 + Shell19 + Metadata22 + Theme32 + Keyboard/Modal27 = 161 PASS。
+  `node --test apps/cruise-studio/tests/*.test.mjs`。
+  Chrome: `PLAYWRIGHT_MODULE=<既存Playwright絶対path> node --test apps/cruise-studio/tests/*.browser.cjs`。
+  Session22 + 既存Keyboard/Modal20 = 42独立ケースPASS（Node表示44は親container2を含む）。計203独立検証。
+- 重要4 scenario、Save / IME / modal、保存失敗retry、project切替、別tab clean / dirty / delete、未保存新規、
+  saved fallback、storageアクセス拒否、fixed playback境界、print / Theme / paneを検証。console / 404なし。
+  50往復でload各1回、draft / selection / focus保持、document keydown Capture1 / Bubble1、外部通知1回を確認。
+- 0.23.1固定baseline: Project JSON8,077 bytes / Arrangement JSON26,991 bytesはappVersionだけ0.24.0。
+  MIDI813 bytes SHA-256 `5c0dcbe39eaada6775119aa8b39e6e6ce56712b8fe7ac04ea992c11ed260d023`一致。
+  A4 PDF1200pxラスタ SHA-256 `8cc02f7356af60a0bbccf9349148c57d0c0784f13b2588b2b3cdb107f75a406e`一致。
+  dirty出力はtitle / BPM / 第1小節Dm7の編集差のみ、MIDI tempo123 / D bassを確認した。
+- APP_VERSIONはSave / draft保持 / Pre-DTMのユーザー-visible変更のためminor0.24.0。schemaVersion 1維持。
+  asset cache / Studio metadata mirror / testsを整合。Port / 他apps / shared / Workerは不触。
+- 隔離Chromeのみ使用。既存localhost:8765、新規serverなし。Safari / OS IME / 実プリンターは未再検証。
+  本記録はcommit前の検証結果。ユーザー許可に従い、全検証・Git条件正常時だけ個別stage・commit・通常push。
+  commit hash / remote一致は最終Git実測で報告する。次の正式工程はMetronome M1。
+
+### Focus / Keyboard / Modal基盤 v1（0.23.1・完了／push済み、前工程の履歴）
 
 - 開始実測HEAD = origin/main = remote main: `ee9d0eaa222136a6a904a25a4b0441ba3671f650`。
   tracked clean、staged空、ahead / behind 0 / 0。既存untracked `.claude/` とworker node_modulesは不触。
@@ -220,8 +259,8 @@ Cruise Studioは未リリースで大規模変更可能。一方、リリース�
 Cruise Sync / Accountの既存動作・保存データ・認可は破壊禁止。共有化に必要な既存側変更は別工程で対象と
 回帰条件を明示する。並行セッションの未commit差分・untrackedは勝手に変更・stageしない。
 
-旧repo / migration bundleは読み取りも禁止。本Shell工程はStudio配下のhost / CSS / HTML / lifecycle /
-print / version参照 / tests / docsに限定する。Editing Session / Undo / Transport / Metronome / Chord等は追加しない。
+旧repo / migration bundleは読み取りも禁止。本工程はStudio配下のEditing Session / repository / adapter /
+Save / Pre-DTM source / version整合 / tests / docsに限定する。domain Undo / Transport / Metronome / Chord等は追加しない。
 Port / 他apps / shared / Workerは変更しない。限定commit / 通常pushは全検証・Git条件に従う。
 後続作業へ許可を流用しない。
 
@@ -237,7 +276,7 @@ Port / 他apps / shared / Workerは変更しない。限定commit / 通常push�
 ## 3. モジュール全体像
 
 以下は現行モジュールの概要。Shell / Inspector・Tool pane host / Dock hostはv1実装済み。
-各paneの実機能、Transport / shared service / Editing Sessionは未実装。詳細はShell Contract §30。
+Structure Editing Session v1は実装済み。各paneの実機能、Transport / shared serviceは未実装。詳細はShell Contract §32。
 
 ### 譜面クルーズ
 
@@ -254,8 +293,8 @@ Port / 他apps / shared / Workerは変更しない。限定commit / 通常push�
 
 ### プレDTMクルーズ
 
-- 現行は保存済みprojectを読む経路がある。Shell接続後は同一active projectのStructure Editing Sessionから
-  read-only working snapshotを受け取り、project選択をShell active documentへ一本化する（未実装）。
+- 同じactive Structure projectはread-only working snapshot、別選択projectは保存済みprojectを読む。
+  project選択をShell active documentへ一本化するUIは未実装。
 - 伴奏イベントを生成する。
 - Bass / Drums MIDIを書き出す。
 - Acoustic Guitarは現状MIDI対象外。
@@ -920,9 +959,9 @@ Port / 他apps / shared / Workerは変更しない。限定commit / 通常push�
 
 ## 6. 次にやること
 
-**次の正式工程はStructure Editing Session。Focus / Keyboard / Modal v1（0.23.1）は実装・回帰完了。**
-refactor / Metadata / Theme / Shell基盤はmain反映済み。Focus / Keyboard / Modalの限定commit / push後、
-次工程開始時にGit baselineを再測定する。Editing Session / Metronomeへは未着手。
+**次の正式工程はMetronome M1。Structure Editing Session v1（0.24.0）は実装・回帰完了。**
+refactor / Metadata / Theme / Shell / Focus基盤はmain反映済み。本工程の限定commit / push後、
+次工程開始時にGit baselineを再測定する。M1はmemory-only。domain Undo / Transport / Sync等は未着手。
 正式な全工程順は[ROADMAP](../ROADMAP.md)、詳細条件は[Shell Contract v2.1](../docs/SHELL_CONTRACT.md)を参照する。
 Themeの詳細は[THEME_CONTRACT](../docs/THEME_CONTRACT.md)。Port ESMの隣接配信契約は維持し、
 MetadataのShell接続前に実HTTP構成で検証する。新ShellはStudio semantic tokenを利用する。
@@ -948,7 +987,8 @@ Structure再開時の残候補は、長文歌詞セル、ストローク座標�
 横4小節固定表示。既存の個別要望・検証履歴・9章の既知課題を保持し、着手時に依存順を確認する。
 v0.22.4の旧実機確認記録に未確認項目が残っている場合はbaseline / 回帰確認で扱い、今回完了したと捏造しない。
 
-本工程ではコード変更・stage・commit・pushを行わない。次工程のコード変更は別の作業指示で開始する。
+上のShell v2.1文書化計画は当時の履歴。現在の実装・限定commit / 通常push範囲は1章を参照し、
+次工程のコード変更は別の作業指示で開始する。
 
 ## 7. 重要な設計方針
 

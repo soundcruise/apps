@@ -8,7 +8,7 @@
 
     var theory = window.CruiseStudio && window.CruiseStudio.theory;
 
-    var APP_VERSION = '0.23.1';
+    var APP_VERSION = '0.24.0';
     var SCHEMA_VERSION = 1;
     var TICKS_PER_BEAT = 480;
 
@@ -601,6 +601,7 @@
         if (!pattern) {
             pattern = { id: CUSTOM_BASIC_STRUM_ID, name: '', lengthTicks: barTicks, slots: [] };
             project.strumPatterns.push(pattern);
+            pattern = findStrumPattern(project, CUSTOM_BASIC_STRUM_ID);
         }
         pattern.lengthTicks = barTicks;
         pattern.slots = built.slots;
@@ -684,6 +685,7 @@
         if (!pattern) {
             pattern = { id: patternId, name: '', lengthTicks: barTicks, slots: [] };
             project.strumPatterns.push(pattern);
+            pattern = findStrumPattern(project, patternId);
         }
         pattern.lengthTicks = barTicks;
         pattern.slots = cleanSlots;

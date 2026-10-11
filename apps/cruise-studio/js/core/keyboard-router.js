@@ -73,6 +73,14 @@
             },
             // An adapter must verify that event.target belongs to its local UI before delegation.
             localEscape: function (event) { return runEscape(event, true); },
+            localCommand: function (event, commandId, workspaceId) {
+                if (event.defaultPrevented || handled.has(event)) return false;
+                var ctx = context();
+                if (ctx.activeModal || ctx.activeWorkspaceId !== workspaceId ||
+                    (event.target.closest && event.target.closest('[hidden], [inert]')) || ime.blocked(event)) return false;
+                if (!options.commands.execute(commandId, event).consumed) return false;
+                handled.add(event); consume(event); return true;
+            },
             bubble: bubble,
             attach: function () {
                 if (attached) return; attached = true;

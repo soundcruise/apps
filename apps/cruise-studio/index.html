@@ -7,18 +7,18 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.23.1"></script>
+    <script src="js/core/color-theme.js?v=0.24.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.23.1">
+    <link rel="stylesheet" href="theme-projection.css?v=0.24.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.23.1">
-    <link rel="stylesheet" href="shell.css?v=0.23.1">
+    <link rel="stylesheet" href="theme.css?v=0.24.0">
+    <link rel="stylesheet" href="shell.css?v=0.24.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.23.1" media="print">
+    <link rel="stylesheet" href="print.css?v=0.24.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -52,7 +52,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.23.1</span>
+                <span class="studio-version" id="studio-version">v0.24.0</span>
             </header>
 
             <section class="module-section">
@@ -154,6 +154,7 @@
                         JSON読み込み<input type="file" id="sc-import-json" accept=".json,application/json">
                     </label>
                 </div>
+                <button type="button" id="sc-adopt-external" class="btn-ghost" hidden>保存済みを採用</button>
                 <span id="sc-save-status" class="save-status" aria-live="polite"></span>
             </div>
 
@@ -279,19 +280,20 @@
 
             <header class="screen-header">
                 <h1 class="screen-title">プレDTMクルーズ</h1>
-                <p class="screen-subcopy">保存済みの曲から伴奏を生成。編集内容は保存後に再読込してください。</p>
+                <p class="screen-subcopy">Structureで編集中の同じ曲は、未保存の変更も伴奏に反映します。</p>
             </header>
 
             <div class="sheet-toolbar">
                 <div class="sheet-toolbar-project">
                     <select id="pd-project-select" aria-label="プロジェクトを選ぶ"></select>
-                    <button type="button" id="pd-reload" class="btn-ghost btn-compact">保存済みを再読込</button>
+                    <button type="button" id="pd-reload" class="btn-ghost btn-compact">入力を再読込</button>
                 </div>
                 <div class="sheet-toolbar-actions">
                     <button type="button" id="pd-goto-sheet" class="btn-ghost btn-compact">Structureへ戻る</button>
                     <button type="button" id="pd-export-json" class="btn-ghost btn-compact">伴奏JSONを書き出し</button>
                     <button type="button" id="pd-export-midi" class="btn-primary btn-compact">MIDI書き出し（.mid）</button>
                 </div>
+                <span id="pd-source-notice" class="save-status" role="status"></span>
                 <span id="pd-status" class="save-status" aria-live="polite"></span>
             </div>
 
@@ -445,20 +447,22 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.23.1"></script>
-    <script src="js/core/song-model.js?v=0.23.1"></script>
-    <script src="js/core/storage.js?v=0.23.1"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.23.1"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.23.1"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.23.1"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.23.1"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.23.1"></script>
-    <script src="js/core/command-router.js?v=0.23.1"></script>
-    <script src="js/core/focus-routing.js?v=0.23.1"></script>
-    <script src="js/core/keyboard-router.js?v=0.23.1"></script>
-    <script src="js/core/modal-manager.js?v=0.23.1"></script>
-    <script src="js/shell.js?v=0.23.1"></script>
-    <script src="js/app.js?v=0.23.1"></script>
+    <script src="js/core/music-theory.js?v=0.24.0"></script>
+    <script src="js/core/song-model.js?v=0.24.0"></script>
+    <script src="js/core/storage.js?v=0.24.0"></script>
+    <script src="js/core/editing-session.js?v=0.24.0"></script>
+    <script src="js/core/project-repository.js?v=0.24.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.24.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.24.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.24.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.24.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.24.0"></script>
+    <script src="js/core/command-router.js?v=0.24.0"></script>
+    <script src="js/core/focus-routing.js?v=0.24.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.24.0"></script>
+    <script src="js/core/modal-manager.js?v=0.24.0"></script>
+    <script src="js/shell.js?v=0.24.0"></script>
+    <script src="js/app.js?v=0.24.0"></script>
 </body>
 
 </html>

@@ -10,8 +10,30 @@
     var sheetCruise = CS.sheetCruise;
     var preDtm = CS.preDtm;
 
-    // Workspace switching is non-destructive; unload/project changes keep their existing guards.
+    // Project sessions survive workspace and project selection changes.
     var shellHost;
+    var projectStorage = null;
+    try { projectStorage = window.localStorage; } catch (_) { /* repository reports unavailable storage */ }
+    CS.repository = CS.projectRepository.createRepository({ storage: projectStorage, model: model,
+        snapshot: CS.editing.snapshot, locks: navigator.locks, events: window,
+        now: function () { return new Date().toISOString(); },
+        knownTargets: function () { return CS.sessions ? CS.sessions.listSessions().map(function (session) { return session.target; }) : []; }
+    });
+    CS.sessions = CS.editing.createRegistry({ repository: CS.repository, validate: model.validateProject });
+    CS.repository.attach();
+    function workingSource(projectId) {
+        var session = CS.sessions.getActiveSession();
+        if (!session || session.domain !== 'structure' || session.target.projectId !== projectId) return null;
+        return { ok: true, project: session.workingSnapshot(), source: 'working', dirty: session.dirty,
+            version: session.snapshotVersion, sessionId: session.sessionId };
+    }
+    function projectSource(projectId) {
+        var working = workingSource(projectId);
+        if (working) return working;
+        var saved = CS.repository.read({ type: 'project', projectId: projectId });
+        return saved.ok && saved.exists ? { ok: true, project: saved.snapshot, source: 'saved', dirty: false, version: saved.revision } :
+            { ok: false, error: saved.error || 'プロジェクトが見つかりません' };
+    }
 
     // 既存hostはwindow。ShellはworkspaceごとにMain要素を注入できる。
     // wheel/listenerの所有は変えず、明示scrollだけをこの入口へ集約する。
@@ -122,10 +144,14 @@
             deleteBtn.type = 'button';
             deleteBtn.className = 'btn-mini btn-danger';
             deleteBtn.textContent = '削除';
-            deleteBtn.addEventListener('click', function () {
+            deleteBtn.addEventListener('click', async function () {
                 if (!window.confirm('「' + meta.title + '」を削除しますか？')) return;
-                var res = storage.deleteProject(meta.projectId);
+                var target = { type: 'project', projectId: meta.projectId };
+                var before = CS.repository.read(target);
+                if (!before.ok) { setStatus(before.error, true); return; }
+                var res = await CS.repository.remove(target, before.revision);
                 if (!res.ok) { setStatus(res.error, true); return; }
+                if (storage.getCurrentProjectId() === meta.projectId) storage.setCurrentProjectId(null);
                 setStatus('「' + meta.title + '」を削除しました');
                 renderProjectList();
             });
@@ -139,14 +165,15 @@
         });
     }
 
-    function onCreateSample() {
+    async function onCreateSample() {
         var project = model.createSampleProject();
         var check = model.validateProject(project);
         if (!check.ok) {
             setStatus('サンプル生成の検証エラー: ' + check.errors.join(' / '), true);
             return;
         }
-        var res = storage.saveProject(project);
+        var res = await CS.repository.save({ target: { type: 'project', projectId: project.projectId }, snapshot: project, baseRevision: null });
+        if (res.ok) storage.setCurrentProjectId(project.projectId);
         if (!res.ok) {
             setStatus(res.error, true);
             return;
@@ -161,13 +188,17 @@
         event.target.value = '';
         if (!file) return;
         var reader = new FileReader();
-        reader.onload = function () {
+        reader.onload = async function () {
             var res = storage.importProjectJson(String(reader.result));
             if (!res.ok) {
                 setStatus(res.error, true);
                 return;
             }
-            var saved = storage.saveProject(res.project);
+            var target = { type: 'project', projectId: res.project.projectId };
+            var before = CS.repository.read(target);
+            if (!before.ok) { setStatus(before.error, true); return; }
+            var saved = await CS.repository.save({ target: target, snapshot: res.project, baseRevision: before.revision });
+            if (saved.ok) storage.setCurrentProjectId(res.project.projectId);
             if (!saved.ok) {
                 setStatus(saved.error, true);
                 return;
@@ -220,9 +251,22 @@
 
         // 画面遷移
         sheetCruise.init();
+        preDtm.setProjectSourceProvider(projectSource);
         preDtm.init();
         shellHost = CS.shell.init(CS);
         CS.shellHost = shellHost;
+        CS.sessions.subscribe(function (session) {
+            if (CS.sessions.getActiveSession() !== session) return;
+            shellHost.setCommandTarget('editingSession', session);
+            shellHost.setCommandTarget('activeDocument', session.target);
+        });
+        shellHost.commands.register({ id: 'studio.save', target: function (context) { return context.editingSession; },
+            canExecute: function (context) { return context.activeWorkspaceId === 'sheetCruise' && !context.activeModal && context.target.canCommit(); },
+            execute: function (context) { sheetCruise.commitSession(context.target); return { consumed: true }; }
+        });
+        shellHost.keyboard.bind({ scope: 'shell', commandId: 'studio.save', matches: function (key) {
+            return key.primary && !key.alt && !key.shift && key.key.toLowerCase() === 's';
+        } });
         var openSheetBtn = document.getElementById('open-sheet-cruise');
         if (openSheetBtn) openSheetBtn.addEventListener('click', enterSheetCruise);
         var openPreDtmBtn = document.getElementById('open-pre-dtm');

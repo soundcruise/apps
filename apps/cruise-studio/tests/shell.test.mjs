@@ -38,8 +38,8 @@ test('real Structure activate never reads storage or calls load/enter',()=>{
  const s=read('../js/modules/sheet-cruise/sheet-cruise.js');const activate=s.slice(s.indexOf('    function activate()'),s.indexOf('    function deactivate()'));
  assert.doesNotMatch(activate,/load\(|enter\(|storage|setProject/);assert.match(activate,/restorePosition/);assert.match(activate,/scheduleOverlayPosition\(false\)/);
 });
-test('real Pre-DTM lifecycle retains a saved-source boundary',()=>{
- const s=read('../js/modules/pre-dtm-cruise/pre-dtm.js');assert.match(s,/function load\(\)/);assert.match(s,/function activate\(\) \{\}/);assert.match(s,/function deactivate\(\) \{\}/);assert.match(s,/CS\(\)\.storage\.loadProject\(projectId\)/);assert.doesNotMatch(s,/sheetCruise\./);
+test('real Pre-DTM lifecycle refreshes snapshots without re-running load',()=>{
+ const s=read('../js/modules/pre-dtm-cruise/pre-dtm.js');assert.match(s,/function load\(\)/);assert.match(s,/function activate\(\) \{ refreshSource\(\); \}/);assert.match(s,/function deactivate\(\) \{\}/);assert.match(s,/CS\(\)\.storage\.loadProject\(projectId\)/);assert.doesNotMatch(s,/sheetCruise\./);
 });
 test('Right pane starts closed; type switch and close are explicit',()=>{
  const l=createLayoutState(1440);assert.equal(l.get().rightOpen,false);l.openRight('tool');assert.equal(l.get().rightType,'tool');l.closeRight();assert.equal(l.get().rightOpen,false);assert.throws(()=>l.openRight('chord'),TypeError);
