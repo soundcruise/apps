@@ -177,7 +177,7 @@
      * 画面に入る。currentProjectId（譜面クルーズと共通）→ 保存済み先頭 の順で読み込む。
      * どちらもなければ空状態（譜面クルーズでの作成を案内）。
      */
-    function enter() {
+    function load() {
         loadSettings();
         syncSettingsUI();
         var storage = CS().storage;
@@ -194,6 +194,11 @@
         }
         showEmptyState();
     }
+
+    // Shell controls visibility / focus / scroll. Activation never reads persisted projects.
+    function activate() {}
+    function deactivate() {}
+    function enter() { load(); activate(); } // Legacy explicit reload entry.
 
     /* ══════════ 描画 ══════════ */
 
@@ -497,6 +502,9 @@
     window.CruiseStudio.preDtm = {
         init: init,
         enter: enter,
+        load: load,
+        activate: activate,
+        deactivate: deactivate,
         setProjectSourceProvider: setProjectSourceProvider
     };
 })();

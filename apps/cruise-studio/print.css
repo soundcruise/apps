@@ -14,6 +14,9 @@
 }
 
 /* 画面UIは印刷しない */
+.studio-nav,
+.studio-right-pane,
+.studio-dock,
 .app-nav,
 .studio-header,
 .screen-header,
@@ -97,6 +100,8 @@ body {
     background: #ffffff !important;
 }
 
+#studio-shell,
+.studio-main,
 .studio-container,
 .screen,
 .sheet-layout,
@@ -153,4 +158,13 @@ body {
     break-inside: avoid;
     break-after: avoid;
     page-break-after: avoid;
+}
+
+/* Release the Shell viewport and its screen palette for paged output. */
+html, body, #studio-shell, .studio-main {
+    height: auto !important;
+    overflow: visible !important;
+    position: static !important;
+    background: none !important;
+    color-scheme: light;
 }

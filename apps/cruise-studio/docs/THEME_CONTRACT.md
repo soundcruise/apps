@@ -1,7 +1,7 @@
 # Cruise Studio Theme Contract v1
 
-2026-10-11。Portを正本とする検証付きStudio projection（方式E）。Shell本体・theme選択UIは未実装。
-APP_VERSION 0.22.4、project schemaVersion 1を維持する。
+2026-10-11。Portを正本とする検証付きStudio projection（方式E）。
+基盤導入時はAPP_VERSION 0.22.4。Shell v1では0.23.0として利用し、project schemaVersion 1を維持する。
 
 ## 1. 正本と責務
 
@@ -32,9 +32,9 @@ Rootは`html[data-theme="<id>"]`。不正ID、未保存、不正JSON、record以
 `system`やOS `prefers-color-scheme`追従は導入しない。CSSの属性なしrootもDark値を持つ。
 解決規則は一つの`resolveColorTheme`と`getColorTheme`で所有し、inline側にID判定を複製しない。
 
-`colorScheme`はPortの現行値と一致する。現段階では`--studio-color-scheme`と静的metadataに保持し、
-既存画面のnative controlを変えないためhtml / bodyへ`color-scheme`を適用しない。
-Shell実装時はShell host側でこのsemantic値を使用する。
+`colorScheme`はPortの現行値と一致する。`--studio-color-scheme`と静的metadataに保持する。
+Shell v1の`#studio-shell`だけに適用し、紙面 / Loupeは固定lightを明示する。
+html / bodyへruntimeからnative schemeを一律適用しない。
 
 ## 3. Storage / runtime state
 
@@ -55,9 +55,9 @@ Portの`cruisePort.settings`を読まない・書かない。曲JSONにもtheme�
 `index.html`は次の順で読み込む。
 
 1. Darkの`theme-color` meta。
-2. 同期classic script `color-theme.js?v=1`（API登録のみ）。
+2. 同期classic script `color-theme.js?v=0.23.0`（API登録のみ）。
 3. `colorTheme.applyColorTheme(colorTheme.getColorTheme())`。
-4. `theme-projection.css?v=1`、既存`theme.css`、印刷CSS。
+4. `theme-projection.css?v=0.23.0`、既存`theme.css`、`shell.css`、印刷CSS。
 
 bootstrapと後のruntime APIは同じインスタンス・同じresolverを使う。別のinline判定式は持たない。
 applyはroot属性と既存metaだけを更新する。listener通知以外のservice起動・network・timerはない。
@@ -65,7 +65,7 @@ script登録だけではstorage / DOM更新を行わない。Node requireはpure
 
 旧meta `#120f0c`はPort契約のDark `#090806`へ揃えた。ブラウザーchromeのmeta値は変わるが、
 現行TOP / Structure / Pre-DTMのdocument配色は変えない。
-紙面alias化を含む既存CSSだけはcache keyを`0.22.4-theme-v1`へ更新。APP_VERSION bumpではない。
+基盤導入時のcache keyは`0.22.4-theme-v1`。Shell v1ではStudio内のHTML asset参照を`0.23.0`へ揃える。
 
 ## 5. 最小API
 
@@ -81,7 +81,8 @@ Browser: `CruiseStudio.colorTheme`。
 | `subscribeColorTheme(listener)` | 選択変更のみ通知。unsubscribeを返す。初期通知なし |
 
 同じIDの再適用は通知しない。subscriberの例外は他subscriberとapplyを止めない。
-まだShell rendererへ接続しない。theme選択UIは次工程のhost / settings設計で追加する。
+Shell v1ではNavigationの4択native radio groupがこのAPIを使用する。現在値・矢印キー / Tab操作・
+即時反映・保存失敗statusを提供する。Theme以外のSettingsやmodalは追加しない。
 
 ## 6. Semantic tokens（39種）
 
@@ -151,9 +152,9 @@ Charcoal rootのshadow-alpha .3を全用途へ適用せず、componentの実使�
 screen選択のみ5つをalias化: paper-selection-bg / border / shadow-edge / number、paper-focus。
 値は既存直書きと完全一致。Shell accent / focusへ接続しない。
 
-印刷CSSは変更しない。白紙、dark paper ink、A4 210×297mm、Shell UIとLoupe非表示、
+紙面の印刷規則を維持する。白紙、dark paper ink、A4 210×297mm、Shell UIとLoupe非表示、
 選択背景 / shadow除去を維持。print.cssは`--studio-*`とtheme IDに依存しない。
-将来Shellを追加した際には新Shell DOMの印刷除外をその工程で追加する。
+Shell v1では新Shell DOMの印刷除外とscroll / grid / height解除だけを追加する。
 
 ## 10. Source verification / fallback
 
@@ -169,7 +170,8 @@ CSS再出力はJSONを読み、helperの`renderProjectionCss`で`theme-projectio
 値をsourceから自動更新してテストを通す運用はしない。変更をレビューし、期待値を明示更新する。
 
 未知themeはDarkにfallbackする。欠落source / stale projectionを実行時にnetworkで補完しない。
-既存画面は新semantic tokenを消費せず、全themeで現状配色を保つ。Shell実装時に初めて利用する。
+基盤導入時の既存画面は未接続。Shell v1は`--studio-*`を使用し、既存workspace chromeの
+旧変数をsemantic値へaliasする。紙面 / music / Loupeの色は変更しない。
 
 ## 11. Metadata境界 / acceptance
 
@@ -177,7 +179,7 @@ Feature Metadataはfeature / owner / presentation / capabilityのみ。Themeを�
 Theme Contractはpalette / projection / source map、Runtime Themeはselected ID / storage / apply / listener。
 Account / Pro / Sync / transport / musical stateをThemeへ持たせない。
 
-検証結果: Theme 32 + Metadata 22 = 54 PASS。4テーマ / invalid / no-value / corrupt JSON /
+基盤導入時の検証結果: Theme 32 + Metadata 22 = 54 PASS。4テーマ / invalid / no-value / corrupt JSON /
 storage-blockedの8ケースを既存8765サーバーの実HTTPで隔離Chrome確認。
 CSS応答前とfirst-paint / first-contentful-paintでrootとruntimeが一致。全39 CSS値・固定paper・
 初期非保存を確認。通常navigationでTOP / Structure / Loupe / Pre-DTM / printの変更前後画像・
@@ -185,4 +187,5 @@ body DOM、Project JSON / storageが一致、self-check OK、console error / ass
 baselineは開始commitのHTML / CSSで固定し、スクロール完了を待って比較。外部font CSSのみ検証側で隔離。
 印刷のラスタ相当確認はprint media screenshotとcomputed A4寸法による。実プリンター / Safariは未再確認。
 
-次工程: Studio Shell v1。Navigation rail / Main / Inspector / Tool pane / Dockは本工程では未実装。
+Shell v1でNavigation / Main / Right pane / Dockを実装。Theme 32件を維持し、Shellの実画面・
+紙面全要素の色・PDFラスタ比較を追加。最新の実装範囲と検証結果はPROJECT_STATEを参照する。

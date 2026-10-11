@@ -1,5 +1,5 @@
 /* クルーズスタジオ — app.js（Phase 2A）
-   母艦シェル: 画面遷移（home ⇄ 譜面クルーズ）・共通ナビ・開発用パネル。
+   起動と既存Homeパネル。Shellのhost / layoutは js/shell.js が所有する。
    譜面クルーズのUIロジックは js/modules/sheet-cruise/sheet-cruise.js。 */
 (function () {
     'use strict';
@@ -10,18 +10,8 @@
     var sheetCruise = CS.sheetCruise;
     var preDtm = CS.preDtm;
 
-    /* ══════════ 画面遷移 ══════════
-       「TOPは絶対復帰」「戻るは一階層戻る」「作業中は中断確認」
-       （リズムクルーズ DESIGN_SYSTEM.md 5章の鉄則を継承）
-       現状は全画面がTOP直下の深さ1のため、「戻る」もTOP復帰になる。 */
-
-    var SCREENS = {
-        home: 'screen-home',
-        sheetCruise: 'screen-sheet-cruise',
-        preDtm: 'screen-pre-dtm',
-        series: 'screen-series'
-    };
-    var currentScreen = 'home';
+    // Workspace switching is non-destructive; unload/project changes keep their existing guards.
+    var shellHost;
 
     // 既存hostはwindow。ShellはworkspaceごとにMain要素を注入できる。
     // wheel/listenerの所有は変えず、明示scrollだけをこの入口へ集約する。
@@ -54,52 +44,11 @@
         }
     };
 
-    function showScreen(name) {
-        if (!SCREENS[name]) return;
-        if (currentScreen === 'sheetCruise' && name !== 'sheetCruise') sheetCruise.deactivate();
-        Object.keys(SCREENS).forEach(function (key) {
-            var el = document.getElementById(SCREENS[key]);
-            if (el) el.classList.toggle('hidden', key !== name);
-        });
-        var nav = document.getElementById('app-nav');
-        if (nav) nav.classList.toggle('hidden', name === 'home');
-        currentScreen = name;
-        CS.scroll.scrollToTop(name);
-        if (name === 'sheetCruise') sheetCruise.activate();
-    }
-
-    /**
-     * 現在の画面を離れてよいか。譜面クルーズだけは未保存の中断確認を持つ。
-     */
-    function canLeaveCurrentScreen() {
-        if (currentScreen === 'sheetCruise' && sheetCruise && !sheetCruise.canLeave()) {
-            return false;
-        }
-        return true;
-    }
-
-    function enterSheetCruise() {
-        if (currentScreen !== 'sheetCruise' && !canLeaveCurrentScreen()) return;
-        // 旧hostの画面遷移は明示reloadを維持。将来のworkspace復帰はactivateだけを使う。
-        sheetCruise.load();
-        showScreen('sheetCruise');
-    }
-
-    function enterPreDtm() {
-        if (!canLeaveCurrentScreen()) return;
-        preDtm.enter();
-        showScreen('preDtm');
-    }
-
-    function enterSeries() {
-        if (!canLeaveCurrentScreen()) return;
-        showScreen('series');
-    }
-
-    function goHome() {
-        if (!canLeaveCurrentScreen()) return;
-        showScreen('home');
-    }
+    // Shell navigation retains workspace drafts. Explicit project changes remain module-owned.
+    function enterSheetCruise() { shellHost.navigate('sheetCruise'); }
+    function enterPreDtm() { shellHost.navigate('preDtm'); }
+    function enterSeries() { shellHost.navigate('series'); }
+    function goHome() { shellHost.navigate('home'); }
 
     /* ══════════ 開発用: 保存基盤の動作確認パネル ══════════ */
 
@@ -272,6 +221,8 @@
         // 画面遷移
         sheetCruise.init();
         preDtm.init();
+        shellHost = CS.shell.init(CS);
+        CS.shellHost = shellHost;
         var openSheetBtn = document.getElementById('open-sheet-cruise');
         if (openSheetBtn) openSheetBtn.addEventListener('click', enterSheetCruise);
         var openPreDtmBtn = document.getElementById('open-pre-dtm');
@@ -279,11 +230,6 @@
         Array.prototype.forEach.call(document.querySelectorAll('.js-open-series'), function (btn) {
             btn.addEventListener('click', enterSeries);
         });
-
-        var backBtn = document.getElementById('nav-back-btn');
-        if (backBtn) backBtn.addEventListener('click', goHome); // 全画面が深さ1のため戻る=TOP
-        var topBtn = document.getElementById('nav-top-btn');
-        if (topBtn) topBtn.addEventListener('click', goHome);
 
         // 開発用パネル
         var createBtn = document.getElementById('dev-create-sample');
@@ -300,7 +246,6 @@
 
         renderProjectList();
         selfCheck();
-        showScreen('home');
     }
 
     if (document.readyState === 'loading') {

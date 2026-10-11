@@ -435,3 +435,31 @@ DTMのbackground録音・再生は用途別policyと実機検証を必要とす�
 実配信origin、全writerの排他方式・未対応環境の扱い、複数key失敗復旧、正式Pro access統合はM3接続前に確定する。draft復旧、workspace保持上限、Notation / TAB model、DTM timebase / background policyは各機能の導入前に設計する。
 
 今回指定された最終Bレビューの追記は本v2.1へ反映した。ただし、両レビューアによるv2.1の再判定や実装試験を完了したと記録しない。段階ごとのacceptanceを通過して次へ進む。
+
+
+## 30. Shell v1実装境界（0.23.0 / 2026-10-11）
+
+- `js/shell.js`が同期workspace hostとUI-only layoutを所有。Home / Structure / Pre-DTM / 既存Appsを
+  `#studio-main`にhostし、`app.js`は起動・既存Home導線を接続する。新しいglobal Headerは作らない。
+- 初回だけload。再表示はactivate、離脱はdeactivate。workspace切替で破棄確認 / reload / enterを呼ばない。
+  hidden + inert、focus / scrollの復帰をhostが管理する。Structureは既存draft・selection・Loupeを保持する。
+  Pre-DTMのactivate / deactivateはI/Oなしで、表示と復帰をhostへ委譲。再読込ボタンは明示loadとして残す。
+- Mainへscroll root abstractionを接続する。window scrollは固定し、Mainの縦scrollを唯一の主scrollとする。
+  pane / Navigationは必要時だけ独立scroll。MainやLoupeのancestorにtransform / filter / paint containmentを置かない。
+- safe-areaはMainのviewport座標境界・Structure toolbar実寸・表示中Dockを使う。collapsed Dockの高さは0。
+  providerの任意`left / right / contain`でShell内の水平containと下端の操作領域確保を指定する。
+  Loupe保存の{x,y,width}はviewport座標のまま。Mainが680px未満なら既存narrowモードに入り、
+  ヘッダーの操作列を折り返す。hidden / 0寸法 / printのobserver結果で保存値を更新しない。
+- Navigation幅176px、800px以下128px。1280px以上で右paneを開くと256pxを確保する。
+  1279px以下では非modal overlay。境界を跨いだresize時は閉じ、pane内focusを対応ボタンへ戻す。
+  初期右paneは全幅で閉。Dockも初期collapsed。Inspector / Toolの論理stateとTransport / Auxiliary slotを分離する。
+- Shellの色はTheme Contractのsemantic tokenだけ。4択native radio groupで選択・即時適用・保存失敗を表示。
+  theme以外のShell stateはmemory-only。paper / Loupe / printは独立した色domainを維持する。
+- 右paneのEscapeはそのpane内focus時だけ処理し、入力 / IME / 処理済みeventは除外する。
+  本格Keyboard Router / Modal Managerは未実装。Structureの局所Escape gateを維持する。
+- 本段階では§9のworking snapshot / active document一本化を有効化しない（今回の明示scope）。
+  Pre-DTMは保存済みprojectと独立した選択を維持し、初回 / 明示再読込 / 明示選択で読む。
+  Structureの編集中targetは切替で交換しない。Pre-DTMのリンクはworkspaceへ戻る導線とし、
+  選択中の別projectをStructureへ暗黙ロードしない。入力統合はEditing Session工程に残す。
+- 印刷時はShell chromeを非表示にし、grid / height / overflowを解除する。A4出力内容を維持する。
+- 実装済みはShell hostのみ。Editing Session / Undo / Transport / Metronome / Account / Pro / Syncは未接続。

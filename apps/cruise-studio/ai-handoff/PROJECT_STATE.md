@@ -14,7 +14,54 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
-### Theme Contract v1 + Studio Theme Projection（実装・検証完了）
+### Studio Shell v1（0.23.0・実装／回帰完了）
+
+- 開始時HEAD = origin/main = remote main: `7b4d5b75b181a4bad8b19721e4303c43cae80842`。
+  tracked clean / staged空 / ahead 0・behind 0。既存untracked 2件は不触。
+- `js/shell.js`と`shell.css`を追加。Navigation / Main / Right pane / Dockの4領域。
+  Home / Structure / Pre-DTM / 既存Appsをhostする。新しいglobal Headerは追加しない。
+- Structure / Pre-DTMは初回だけload。切替はdeactivate / activateで、Structureのdraft / selection /
+  Loupe / scroll / focusを保持。Pre-DTMのloadを分離し、activate / deactivateのI/Oはなし。
+  hostがhidden + inertと復帰を担当する。新規project / 明示読込 / tab終了の既存破棄guardは維持。
+- Mainをscroll root abstractionへ注入。window縦scrollを止め、Mainをprimary scrollにする。
+  右pane / Navigationだけ必要に応じ独立scroll。Shell ancestorにfixed Loupeの座標系を変えるtransform等なし。
+- safe-area providerはMain / Structure toolbar / 表示中Dockの実寸を返す。collapsed Dockは0。
+  任意left / right / containを追加し、LoupeをMain横幅と下端の操作可能領域へclamp。
+  保存{x,y,width}はviewport座標のまま。Main幅680px未満ではnarrow modeとヘッダー操作列折返し。
+  hidden / 0幅 / printのResizeObserverで保存値を壊さない。
+- Navigationは176px、800px以下128px。右paneは1280px以上で256px常設可能、以下では非modal overlay。
+  breakpointを跨いだ時は閉じ、pane内focusを対応ボタンへ戻す。Inspector / Toolのstateは別。
+  DockはTransport / Auxiliaryを分離したempty host。右pane / Dockは初期閉、layout stateはmemory-only。
+- 4テーマはTheme Contractのsemantic tokenだけを利用。既存workspace chromeへの最小aliasを追加。
+  紙面 / music / Loupe色は不変。Theme選択はNavigation内のnative radio group、矢印キー / Tab、
+  即時反映、保存失敗表示を確認。既存appSettings.colorThemeのみ保存し、新keyは追加しない。
+- Pre-DTMは保存済みprojectの初回 / 明示再読込 / 明示選択を維持。working snapshotは未接続。
+  別projectを選んでも保持中のStructure draftを暗黙交換しない。リンクはStructureへ戻る導線とし、
+  未保存変更が自動反映されないことを画面へ明記。active document一本化はEditing Session工程。
+- Node: Shell 19 + Theme 32 + Metadata 22 = 73 PASS。
+  隔離Chrome: Dark 1600×900 / 1440×900 / 1280×800 / 1024×768 / 900×700 / 800×700 / 680×700、
+  Charcoal / Gray / Lightは1440×900 / 1024×768 / 800×700。加えて1440×600 / 1024×500 / 680×450。
+  Loupe / toolbar / Dock境界、紙面縮尺、横overflow、非active Tab除外、pane focus復帰、Theme失敗を確認。
+- Structure: project / section・bar編集 / 保存・再読込、chord / strum / lyrics / doremi、8/16、mixed、auto / fixed、
+  鍵4状態、合成compositionによるIME guard、Loupe drag / resize / clamp / max-heightを確認。
+  未保存draft往復でload回数1・保存project再読込なし、selection / geometry / scroll / focus一致。
+  hidden中のresizeでLoupe保存値不変。紙面全要素の文字 / 背景 / 罫線 / selection色は4テーマで一致。
+- Pre-DTMのproject選択とGuitar / Bass / Drumsの出力を比較。Project JSON 8,077 bytes、
+  Arrangement JSON 26,991 bytesはappVersion 0.22.4→0.23.0だけの差。正規化後の内容は完全一致。
+  MIDI 813 bytesのSHA-256: `5c0dcbe39eaada6775119aa8b39e6e6ce56712b8fe7ac04ea992c11ed260d023`（前後一致）。
+  A4 210×297mm、Shell chrome / Loupe非印刷。PDFラスタSHA-256:
+  `8cc02f7356af60a0bbccf9349148c57d0c0784f13b2588b2b3cdb107f75a406e`（前後一致）。
+  最終console error / app 404 / ResizeObserver loop / unhandled rejectionは0。
+- APP_VERSION 0.23.0（ユーザー-visible Shellのminor更新）。source / metadata mirror / HTML asset参照 /
+  tests / docsを整合。schemaVersion 1。保存済みprojectの自動書換なし、明示exportは既存version更新規則に従う。
+  Port / 他apps / shared / Worker / Account / Pro / Syncは不触。
+- 検証は既存 `http://127.0.0.1:8765/index.html`を使用。新規サーバーなし、隔離Chromeは終了。
+  外部fontは検証側で隔離。PDF比較は同一fixture / clock、1200pxラスタ。Safari・実プリンター・実OS IMEは未再確認。
+- Shell hostのBlockerなし。次はFocus / Keyboard / Modal → Editing Session → Metronome M1 / M2 / M3。
+  本記録は限定commit前。ユーザー指示に従い全検証・Git条件が正常なら限定commit / 通常push。
+  hashとremote一致はGitを実測する。後続機能への着手許可は含まない。
+
+### Theme Contract v1 + Studio Theme Projection（完了・push済み、前工程の履歴）
 
 - 詳細は[THEME_CONTRACT](../docs/THEME_CONTRACT.md)。Portの色・settings / bootstrap / applyを
   読み取り再監査し、Studioだけに4テーマ（dark / charcoal / gray / light）のprojectionを追加。
@@ -37,8 +84,7 @@
   Feature MetadataへのTheme追加なし。Theme単体配信はMetadataのPort ESM隣接配信条件と独立。
 - 開始時HEAD = origin/main = remote mainは`3879b26ac63891908954618a056a0bdd7a2e361d`。
   tracked clean / staged空 / ahead 0・behind 0。既存`.claude/` / worker node_modules不触。
-  本記録は限定commit前。ユーザーは全検証とGit条件が正常な場合の限定commit / 通常pushを明示許可。
-  完了後のhashとremote一致はGitを実測する。本ファイルへ自分自身のcommit hashは埋め込まない。
+  `7b4d5b75b181a4bad8b19721e4303c43cae80842`としてcommit / push済み。
 - 次工程はStudio Shell v1。本工程ではShell / theme selector UIを実装していない。
   Port / 他apps / shared / Worker / Account / Pro / Syncは不触。
 
@@ -132,10 +178,10 @@ Cruise Studioは未リリースで大規模変更可能。一方、リリース�
 Cruise Sync / Accountの既存動作・保存データ・認可は破壊禁止。共有化に必要な既存側変更は別工程で対象と
 回帰条件を明示する。並行セッションの未commit差分・untrackedは勝手に変更・stageしない。
 
-旧repo / migration bundleは読み取りも禁止。本Theme工程はStudio配下のruntime / projection / test /
-契約文書 / ROADMAP / 本ファイル、bootstrapのindex.html、既存値paper aliasのtheme.cssだけを変更。
-Shell / selector UIは追加しない。Port / 他apps / shared / Workerは変更しない。
-本工程の限定commit / 通常pushはユーザーの明示指示と全検証・Git条件に従う。後続作業へ許可を流用しない。
+旧repo / migration bundleは読み取りも禁止。本Shell工程はStudio配下のhost / CSS / HTML / lifecycle /
+print / version参照 / tests / docsに限定する。Editing Session / Undo / Transport / Metronome / Chord等は追加しない。
+Port / 他apps / shared / Workerは変更しない。限定commit / 通常pushは全検証・Git条件に従う。
+後続作業へ許可を流用しない。
 
 ## 2. クルーズスタジオの目的
 
@@ -148,8 +194,8 @@ Shell / selector UIは追加しない。Port / 他apps / shared / Workerは変�
 
 ## 3. モジュール全体像
 
-以下は現行モジュールの概要。新しいShell / Inspector・Tool pane / Dock・Transport / shared serviceは
-まだ未実装。正式targetとlifecycleはShell Contractへ接続する。
+以下は現行モジュールの概要。Shell / Inspector・Tool pane host / Dock hostはv1実装済み。
+各paneの実機能、Transport / shared service / Editing Sessionは未実装。詳細はShell Contract §30。
 
 ### 譜面クルーズ
 
@@ -832,9 +878,9 @@ Shell / selector UIは追加しない。Port / 他apps / shared / Workerは変�
 
 ## 6. 次にやること
 
-**次の正式工程はStudio Shell v1。Theme Contract v1 + Studio Theme Projectionは実装・検証完了。**
-Studio-only無変化refactorとMetadata v1はmain反映済み。Theme工程の限定commit / push後、
-次工程開始時にGit baselineを再測定する。Shell本体・theme selector UIは本工程では未実装。
+**次の正式工程はFocus / Keyboard / Modal。Studio Shell v1（0.23.0）は実装・回帰完了。**
+refactor / Metadata / Theme基盤はmain反映済み。Shellの限定commit / push後、
+次工程開始時にGit baselineを再測定する。Editing Session / Metronomeへは未着手。
 正式な全工程順は[ROADMAP](../ROADMAP.md)、詳細条件は[Shell Contract v2.1](../docs/SHELL_CONTRACT.md)を参照する。
 Themeの詳細は[THEME_CONTRACT](../docs/THEME_CONTRACT.md)。Port ESMの隣接配信契約は維持し、
 MetadataのShell接続前に実HTTP構成で検証する。新ShellはStudio semantic tokenを利用する。
@@ -943,5 +989,5 @@ v0.22.4の旧実機確認記録に未確認項目が残っている場合はbase
 - 未commit差分がある場合は、それを勝手に変更せず、まず報告する。
 - ユーザーに確認せずcommit / pushしない。
 - 触ってよい範囲を明示してから作業する。
-- 現在地はTheme Contract v1 + Studio Theme Projectionの実装・検証完了。次の正式工程はStudio Shell v1。
-  refactor / Metadata v1はmain反映済み。Theme契約を読み、F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。
+- 現在地はStudio Shell v1（0.23.0）の実装・回帰完了。次はFocus / Keyboard / Modal。
+  Shell Contract §30とTheme契約を読み、F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。

@@ -7,17 +7,18 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=1"></script>
+    <script src="js/core/color-theme.js?v=0.23.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
-    <!-- Semantic variables only. Legacy screens and paper retain their current appearance. -->
-    <link rel="stylesheet" href="theme-projection.css?v=1">
+    <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
+    <link rel="stylesheet" href="theme-projection.css?v=0.23.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.22.4-theme-v1">
+    <link rel="stylesheet" href="theme.css?v=0.23.0">
+    <link rel="stylesheet" href="shell.css?v=0.23.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.20.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.23.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -25,21 +26,33 @@
 </head>
 
 <body>
-    <!-- 全画面共通ナビ（戻る / TOP）。TOPでは隠す（DESIGN_SYSTEM.md 5章の考え方を継承） -->
-    <div id="app-nav" class="app-nav hidden" aria-label="ナビゲーション">
-        <button type="button" id="nav-back-btn" class="nav-btn">← 戻る</button>
-        <button type="button" id="nav-top-btn" class="nav-btn">🏠 TOP</button>
-    </div>
-
-    <div class="studio-container">
+    <div id="studio-shell" data-right-open="false" data-pane-mode="persistent">
+        <nav class="studio-nav" aria-label="ワークスペース">
+            <div class="studio-brand">CRUISE<span>STUDIO</span></div>
+            <div class="studio-nav-workspaces">
+                <button type="button" data-workspace="home">Home</button>
+                <button type="button" data-workspace="sheetCruise">Structure<span>コード譜を編集</span></button>
+                <button type="button" data-workspace="preDtm">Pre-DTM<span>伴奏を組み立てる</span></button>
+                <button type="button" data-workspace="series">Apps<span>既存アプリを開く</span></button>
+            </div>
+            <div class="studio-nav-utilities">
+                <button type="button" id="shell-inspector" aria-controls="studio-right-pane" aria-expanded="false">Inspector</button>
+                <button type="button" id="shell-tool" aria-controls="studio-right-pane" aria-expanded="false">Tools</button>
+                <button type="button" id="shell-dock-toggle" aria-controls="studio-dock" aria-expanded="false">Dock</button>
+                <fieldset id="shell-theme" class="studio-theme-control" aria-describedby="shell-theme-status"><legend>テーマ</legend></fieldset>
+                <p id="shell-theme-status" role="status"></p>
+            </div>
+        </nav>
+        <main id="studio-main" class="studio-main" aria-label="制作ワークスペース" tabindex="-1">
+            <div class="studio-container">
 
         <!-- ══════════ 母艦TOP ══════════ -->
-        <section id="screen-home" class="screen">
+        <section id="screen-home" class="screen" tabindex="-1" aria-label="Home">
 
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.22.4</span>
+                <span class="studio-version" id="studio-version">v0.23.0</span>
             </header>
 
             <section class="module-section">
@@ -120,7 +133,7 @@
         </section>
 
         <!-- ══════════ 譜面クルーズ ══════════ -->
-        <section id="screen-sheet-cruise" class="screen hidden">
+        <section id="screen-sheet-cruise" class="screen hidden" hidden inert tabindex="-1" aria-label="Structure">
 
             <header class="screen-header">
                 <h1 class="screen-title">譜面クルーズ</h1>
@@ -262,20 +275,20 @@
         </section>
 
         <!-- ══════════ プレDTMクルーズ ══════════ -->
-        <section id="screen-pre-dtm" class="screen hidden">
+        <section id="screen-pre-dtm" class="screen hidden" hidden inert tabindex="-1" aria-label="Pre-DTM">
 
             <header class="screen-header">
                 <h1 class="screen-title">プレDTMクルーズ</h1>
-                <p class="screen-subcopy">同じ曲データから、伴奏の設計図をつくる</p>
+                <p class="screen-subcopy">保存済みの曲から伴奏を生成。編集内容は保存後に再読込してください。</p>
             </header>
 
             <div class="sheet-toolbar">
                 <div class="sheet-toolbar-project">
                     <select id="pd-project-select" aria-label="プロジェクトを選ぶ"></select>
-                    <button type="button" id="pd-reload" class="btn-ghost btn-compact">再読み込み</button>
+                    <button type="button" id="pd-reload" class="btn-ghost btn-compact">保存済みを再読込</button>
                 </div>
                 <div class="sheet-toolbar-actions">
-                    <button type="button" id="pd-goto-sheet" class="btn-ghost btn-compact">譜面クルーズで編集</button>
+                    <button type="button" id="pd-goto-sheet" class="btn-ghost btn-compact">Structureへ戻る</button>
                     <button type="button" id="pd-export-json" class="btn-ghost btn-compact">伴奏JSONを書き出し</button>
                     <button type="button" id="pd-export-midi" class="btn-primary btn-compact">MIDI書き出し（.mid）</button>
                 </div>
@@ -368,7 +381,7 @@
         </section>
 
         <!-- ══════════ Sound Cruise シリーズ（既存アプリランチャー） ══════════ -->
-        <section id="screen-series" class="screen hidden">
+        <section id="screen-series" class="screen hidden" hidden inert tabindex="-1" aria-label="Apps">
 
             <header class="screen-header">
                 <h1 class="screen-title">Sound Cruise シリーズ</h1>
@@ -418,18 +431,30 @@
         </section>
 
         <footer class="studio-footer">Sound Cruise Series</footer>
+            </div>
+        </main>
+        <aside id="studio-right-pane" class="studio-right-pane" aria-labelledby="shell-pane-title" hidden inert>
+            <div class="studio-pane-heading"><h2 id="shell-pane-title">Inspector</h2><button type="button" id="shell-pane-close" aria-label="右パネルを閉じる">×</button></div>
+            <div id="shell-inspector-content" class="studio-empty-state"><h3>選択した対象の詳細</h3><p>このパネルで編集できる項目は、まだありません。</p></div>
+            <div id="shell-tool-content" class="studio-empty-state" hidden inert><h3>制作を助けるツール</h3><p>利用できるツールは、まだありません。</p></div>
+        </aside>
+        <section id="studio-dock" class="studio-dock" aria-label="Dock" hidden inert>
+            <div data-dock-slot="transport"><h2>Transport</h2><p>再生コントロールは準備中です。</p></div>
+            <div data-dock-slot="auxiliary"><h2>Auxiliary tools</h2><p>追加されたツールがここに表示されます。</p></div>
+        </section>
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.20.0"></script>
-    <script src="js/core/song-model.js?v=0.22.4"></script>
-    <script src="js/core/storage.js?v=0.20.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.20.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.22.4"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.20.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.20.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.20.0"></script>
-    <script src="js/app.js?v=0.20.0"></script>
+    <script src="js/core/music-theory.js?v=0.23.0"></script>
+    <script src="js/core/song-model.js?v=0.23.0"></script>
+    <script src="js/core/storage.js?v=0.23.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.23.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.23.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.23.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.23.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.23.0"></script>
+    <script src="js/shell.js?v=0.23.0"></script>
+    <script src="js/app.js?v=0.23.0"></script>
 </body>
 
 </html>

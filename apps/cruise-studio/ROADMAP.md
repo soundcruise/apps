@@ -32,7 +32,7 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 4 | Version / Feature metadata | v1完了・push済み（3879b26a）。6 component / 17 feature、reader-first、22 test。既存UI未接続、mobile運用不変 |
 | 5 | Cruise Port Theme / Design Token調査 | 完了。Port sourceを読み取り専用監査し、semantic token・component例外・紙面domainを整理 |
 | 5a | Theme Contract v1 + Studio Theme Projection | 実装・検証完了。4テーマ / 39 tokenのsource対応、共通resolver / bootstrap / storage。Shell / selector UI未実装 |
-| 6 | Studio Shell | Navigation / Main / 右pane / Dock、responsive、scroll ownership |
+| 6 | Studio Shell v1 | 0.23.0実装・回帰完了。Navigation / Main scroll / 右pane / Dock、4テーマ、workspace draft保持 |
 | 7 | Focus / Keyboard / Modal manager | Capture / Bubble、modal優先、入力・IME保護 |
 | 8 | Structure Editing Session接続 | draft保持、Undo境界、commitId、明示command target、Pre-DTM working snapshot |
 | 9 | Metronome M1 | Standard相当BPM / Start / Stop、memory-only、音声・lease・dispose実証 |
@@ -85,9 +85,25 @@ Theme 32 + Metadata 22 = 54 test PASS。実HTTPの8ケース、TOP / Structure /
 printの変更前後画像・DOM・Project JSON・storage一致を確認。既存document配色とpaper / music / printは維持。
 ブラウザーchromeのtheme-colorだけはPort契約値へ揃える。APP_VERSION 0.22.4、schemaVersion 1。
 
-次の正式工程はStudio Shell v1。新Shellがsemantic tokenを利用し、Navigation rail / Main /
-Inspector・Tool pane / Dockと既存Structure / Pre-DTM hostを段階導入する。
-本工程ではShell本体・theme selector UIは未実装。F3等Structure本体機能は共有基盤・Shell整備後に再開する。
+## Studio Shell v1（0.23.0・2026-10-11）
+
+Navigation rail / Main / Inspector・Tool pane host / Dockを実装。Homeと既存Apps導線もMainへhost。
+初回loadとactivate / deactivateを分離し、workspace往復でStructure draft / selection / Loupe /
+scroll / focusを保持。Mainを主scroll rootとし、safe-area・ResizeObserverを既存境界へ接続した。
+1280px以上で右pane常設可能、狭幅はoverlay、800px以下はNavigationをcompact化。右pane / Dockは初期閉。
+4テーマをsemantic tokenから適用。Navigationのnative radio groupで即時切替・保存失敗表示を行う。
+
+Node: Shell 19 + Theme 32 + Metadata 22 = 73 PASS。Dark 7幅、他3テーマ各3幅の16画面、
+追加の低画面3サイズで確認。Structure入力・8/16・mixed / auto・fixed・鍵4状態・合成IME guard・
+Loupe drag / resize / clamp・workspace往復を確認。Safari / 実OS IMEの実機再確認は未実施。
+Pre-DTMの保存済みproject選択、Guitar / Bass / Drums、JSON / MIDIの音楽内容は維持。
+Project JSON 8,077 bytes / Arrangement JSON 26,991 bytesはappVersionだけ更新。MIDI 813 bytesと
+A4 PDFラスタは完全一致。schemaVersion 1、既存保存形式・Port / 他apps / shared / Workerは不変。
+詳細は[Shell Contract §30](docs/SHELL_CONTRACT.md#30-shell-v1実装境界0230--2026-10-11)。
+
+次はFocus / Keyboard / Modal、その後Editing Session（Pre-DTM working snapshot接続を含む）、
+Metronome M1 → M2 → M3。Pre-DTMは本段階では保存済みprojectを読む。上記後続機能へは未着手。
+F3等Structure本体機能は共有基盤・Shell整備後に再開する。
 
 ## 既存フェーズの履歴と残項目
 

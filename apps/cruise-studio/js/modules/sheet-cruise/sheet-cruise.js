@@ -1871,8 +1871,9 @@
      */
     function clampLoupeX(x, width) {
         var vw = getLoupeSafeArea().width;
-        var minX = LOUPE_SIDE_VISIBLE - width;
-        var maxX = vw - LOUPE_SIDE_VISIBLE;
+        var area = getLoupeSafeArea();
+        var minX = area.contain ? area.left + 8 : LOUPE_SIDE_VISIBLE - width;
+        var maxX = area.contain ? area.right - width - 8 : vw - LOUPE_SIDE_VISIBLE;
         if (minX > maxX) return Math.round((vw - width) / 2);
         var v = (typeof x === 'number' && isFinite(x)) ? x : (vw - width) / 2;
         return Math.round(Math.max(minX, Math.min(maxX, v)));
@@ -1949,7 +1950,9 @@
     function clampLoupeY(y) {
         var bottom = getLoupeSafeArea().bottom;
         var minY = getLoupeMinTop();
-        var maxY = Math.max(minY, bottom - LOUPE_HEADER_RESERVE);
+        var area = getLoupeSafeArea();
+        var reserve = area.contain ? LOUPE_MIN_AVAILABLE_HEIGHT + area.bottomMargin : LOUPE_HEADER_RESERVE;
+        var maxY = Math.max(minY, bottom - reserve);
         var v = (typeof y === 'number' && isFinite(y)) ? y : minY;
         return Math.round(Math.max(minY, Math.min(maxY, v)));
     }
