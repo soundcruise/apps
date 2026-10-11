@@ -14,6 +14,15 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
+### Studio Read-only Port Data Host v1（0.26.0）
+
+Tool paneにPort保存BPM / effective設定 / presets / Account / Sync / cached Proの読取り専用表示を追加。
+詳細と検証は[PORT_DATA_HOST](../docs/PORT_DATA_HOST.md)。初期cached表示はDB/networkなし、明示local readのみ。
+Port read-only consumer、generation / late result / dispose、同一origin別tab通知を実証。M2 memory / Structure / Audioは独立。
+正式Proは既存device session検証のread-only modeを使用し、鍵・session・refresh・永続writeなし。
+Studio0.26.0 / schema1、Port1.22.0。M3 shared writeは未解禁。次はold-build policy等を含むM3 write条件の設計・独立監査。
+
+
 ### Port Runtime & Integration Safety v1（Port 1.22.0）
 
 Port singleton host / Account generation / dispose / status-only / byte+count chunk / 新build実2tabを整備。

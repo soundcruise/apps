@@ -24,7 +24,7 @@
 | pitch-cruise | 2.29.1 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
 | fretboard-cruise | 2.24.1 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
 | rhythm-cruise | 1.19.1 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
-| cruise-studio | 0.25.1 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+| cruise-studio | 0.26.0 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
 
 元sourceが正。mirrorのpath・symbol・extraction・expectedValueを保存し、毎回source一致を検証する。
 `version-reader.mjs`は渡されたテキストのliteral宣言だけを抽出する純関数。

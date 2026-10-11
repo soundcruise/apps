@@ -132,3 +132,12 @@ Studio 0.25.1/M2 memory facadeは維持。旧build policyとPort/Studio dirty dr
 8. Sync apply後に全Studio reloadせず、dirty draft / baseRevision / playback snapshotを保護。
 
 M2のBlockerはなし。上記はM3の共有write・製品統合を有効化する前のBlocker。
+
+
+## Studio Read-only Port Data Host v1（0.26.0）
+
+[PORT_DATA_HOST](PORT_DATA_HOST.md)に読取り・資格・origin・無副作用検証を記録。
+Tool paneでPort saved BPM / effective設定 / presetsを確認できる。preset apply / CRUDは未実装。
+M2のMemory facadeと今回のPort read-only facadeを分離し、M2 runtime/draftを外部更新で変更しない。
+Production設定はsoundcruise.jpの同一origin配信。ローカル別originから本番保存データは読めない。
+旧build policy等のM3 write前提を残し、shared writeは引き続き禁止。

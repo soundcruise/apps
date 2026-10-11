@@ -45,10 +45,10 @@ async function fixture() {
     }
     const window = {};
     vm.runInNewContext(source, { window, TextEncoder, TextDecoder, btoa, crypto: webcrypto, Date, Uint8Array });
-    function client(otherStore = store, otherRequest = request) {
+    function client(otherStore = store, otherRequest = request, options = {}) {
         return window.SoundCruiseProDeviceSession.createClient({ store: otherStore, cryptoImpl: webcrypto,
             now: () => now + clockOffset, monotonicNow: () => monotonic,
-            request: otherRequest, isCurrent: auth => current?.credential === auth.credential });
+            request: otherRequest, isCurrent: auth => current?.credential === auth.credential, ...options });
     }
     const session = client();
     async function login(bound = true) {
@@ -348,5 +348,30 @@ test('storage unavailable fails closed; old Worker rollout supports online v2 wi
             ? { status: 404 } : { status: 200, body: { ok: true, generation: 1 } });
         assert.equal((await oldWorker.validate(auth)).compatibility, true);
         assert.equal((await oldWorker.allowance(auth)).ok, false);
+    } finally { f.db.close(); }
+});
+
+
+test('read-only session inspection has no key/session creation, mutation or request surface', async () => {
+    const f = await fixture();
+    try {
+        const auth = await f.login(), requests = f.requests.length;
+        const before = structuredClone(f.store.values);
+        const reader = f.client({ read: f.store.read, write() { throw Error('write'); }, install() { throw Error('install'); }, compareAndSwap() { throw Error('CAS'); } }, () => { throw Error('network'); }, { readOnly: true });
+        assert.deepEqual(Object.keys(reader), ['allowance']);
+        assert.equal((await reader.allowance(auth)).ok, true);
+        assert.deepEqual(f.store.values, before);
+        f.clockOffset = 8 * DAY;
+        assert.equal((await reader.allowance(auth)).expired, true);
+        f.clockOffset = 0;
+        assert.equal((await reader.allowance(auth)).ok, false, 'read-only memory observation cannot regain validity by rolling back the clock');
+        f.advance(8 * DAY);
+        assert.equal((await reader.allowance(auth)).ok, false);
+        assert.deepEqual(f.store.values, before);
+        assert.equal(f.requests.length, requests);
+        const missing = f.client({ read: async () => null }, undefined, { readOnly: true });
+        assert.equal((await missing.allowance(auth)).ok, false);
+        f.current = null;
+        assert.equal((await reader.allowance(auth)).ok, false);
     } finally { f.db.close(); }
 });

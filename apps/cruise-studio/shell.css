@@ -167,3 +167,15 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .studio-main .screen:focus-visible, .studio-main .pd-setting-field select:focus-visible {
     outline: 2px solid var(--studio-focus); outline-offset: 2px;
 }
+
+/* Read-only Port detail stays inside the Tool pane; paper and Dock are independent. */
+#studio-port-data { color: var(--studio-text-primary); text-align: start; }
+#studio-port-data p, #studio-port-data small { color: var(--studio-text-muted); }
+#studio-port-data dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .4rem .7rem; }
+#studio-port-data dd { margin: 0; overflow-wrap: anywhere; }
+#studio-port-data ol { padding-inline-start: 1.4rem; }
+#studio-port-data li { margin-block: .7rem; overflow-wrap: anywhere; }
+#studio-port-data small { display: block; }
+#studio-port-data button, #studio-port-data a { color: var(--studio-text-primary); }
+#studio-port-data button { background: var(--studio-panel); border: 1px solid var(--studio-border-default); border-radius: .4rem; padding: .5rem; }
+#studio-port-data dl, #studio-port-data ol { font-size: .8125rem; line-height: 1.6; }

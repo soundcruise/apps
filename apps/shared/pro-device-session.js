@@ -8,13 +8,13 @@
     const encode = bytes => btoa(String.fromCharCode(...new Uint8Array(bytes)))
         .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
-    function browserStore() {
+    function browserStore({ readOnly = false } = {}) {
         let opening;
         const open = () => opening ||= new Promise((resolve, reject) => {
             const request = global.indexedDB.open('sound-cruise-pro-device-session-v1', 1);
-            request.onupgradeneeded = () => request.result.createObjectStore('state');
+            request.onupgradeneeded = () => { if (readOnly) request.transaction.abort(); else request.result.createObjectStore('state'); };
             request.onsuccess = () => resolve(request.result);
-            request.onerror = () => reject(request.error);
+            request.onerror = () => { opening = null; reject(request.error); };
             request.onblocked = () => reject(Error('Pro session storage blocked'));
         });
         const sameBytes = (a, b) => {
@@ -49,19 +49,21 @@
             compareAndSwap: (key, expected, value) => transaction(key, value, false, true, expected) };
     }
 
-    function createClient({ store = browserStore(), cryptoImpl = global.crypto,
+    function createClient({ store, cryptoImpl = global.crypto,
         now = () => Date.now(), monotonicNow = () => global.performance?.now?.() ?? now(),
-        request, isCurrent = () => true } = {}) {
+        request, isCurrent = () => true, readOnly = false } = {}) {
+        store ||= browserStore({ readOnly });
         let materialPromise;
         const inflight = new Map();
         // Only useful during this document's lifetime; not a trusted cross-restart clock.
         let clockAnchor = { local: now(), monotonic: monotonicNow() };
-        let observedValidation;
+        let observedValidation, readOnlyObservation;
         const validationId = record => `${record.generation}:${record.serverValidatedAt}:${record.localTimeAtValidation}`;
         async function material() {
             if (!materialPromise) materialPromise = (async () => {
                 let keys = await store.read('device-key');
                 if (!keys) {
+                    if (readOnly) throw Error('No cached device key');
                     const pair = await cryptoImpl.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, false, ['sign', 'verify']);
                     const sealKey = await cryptoImpl.subtle.generateKey({ name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
                     const publicKey = await cryptoImpl.subtle.exportKey('jwk', pair.publicKey);
@@ -149,6 +151,13 @@
                     // clock. Its new server receipt also resets this tab's anchor.
                     if (observedValidation && observedValidation !== validation) clockAnchor = { local, monotonic };
                     observedValidation = validation;
+                    const observationKey = auth.credential + ':' + validation;
+                    if (readOnly && readOnlyObservation?.key === observationKey) {
+                        record.maxObservedLocalTime = Math.max(record.maxObservedLocalTime, readOnlyObservation.maxObservedLocalTime);
+                        record.serverObservedAt = Math.max(record.serverObservedAt, readOnlyObservation.serverObservedAt);
+                        record.clockRollbackDetected ||= readOnlyObservation.clockRollbackDetected;
+                        record.offlineExpired ||= readOnlyObservation.offlineExpired;
+                    }
                     const runningLocalTime = clockAnchor.local + Math.floor(Math.max(0, monotonic - clockAnchor.monotonic));
                     const highWater = Math.max(record.maxObservedLocalTime, runningLocalTime, local);
                     record.clockRollbackDetected ||= local < highWater - CLOCK_TOLERANCE;
@@ -158,7 +167,12 @@
                     record.offlineExpired ||= record.serverObservedAt >= record.session.offlineUntil;
                     // Persist observations even when expired/rolled back. Only a
                     // successful server validation may clear these block flags.
-                    if (!await seal(auth, record, envelope)) continue;
+                    if (readOnly) {
+                        readOnlyObservation = { key: observationKey, maxObservedLocalTime: record.maxObservedLocalTime,
+                            serverObservedAt: record.serverObservedAt, clockRollbackDetected: record.clockRollbackDetected,
+                            offlineExpired: record.offlineExpired };
+                        if (!isCurrent(auth)) return { ok: false, stale: true };
+                    } else if (!await seal(auth, record, envelope)) continue;
                     if (record.clockRollbackDetected) return { ok: false, clockRollback: true };
                     if (record.offlineExpired) return { ok: false, expired: true };
                     return { ok: true, offline: true, generation: auth.generation,
@@ -206,6 +220,9 @@
                 return { ok: false, terminal: renewed.status === 401 };
             } catch (_) { return allowance(auth); }
         }
+        // Inspection has no key/session creation, high-water persistence or network
+        // entry point. Its result is presentation evidence, never backend authority.
+        if (readOnly) return Object.freeze({ allowance });
         return Object.freeze({ publicKey: async () => (await material()).publicKey, accept, allowance,
             validate(auth, { force = true } = {}) {
                 if (!inflight.has(auth.credential)) {
@@ -217,5 +234,5 @@
             async forget(auth) { await store.write(await receiptKey(auth), null); }
         });
     }
-    global.SoundCruiseProDeviceSession = Object.freeze({ createClient });
+    global.SoundCruiseProDeviceSession = Object.freeze({ createClient, createReadOnlyClient: options => createClient({ ...options, readOnly: true }) });
 })(window);
