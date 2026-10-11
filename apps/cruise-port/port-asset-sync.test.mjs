@@ -1,3 +1,4 @@
+import { createWriterWireContext } from '../shared/sync-account/writer-authority.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PortAssetSync, hashBlob } from './port-asset-sync.js';
@@ -33,7 +34,7 @@ function assetApi() {
         requests,
         async fetch(url, options) {
             const path = new URL(url).pathname;
-            requests.push({ path, method: options.method, body: options.body });
+            requests.push({ path, method: options.method, body: options.body, headers: Object.fromEntries(new Headers(options.headers)) });
             if (path === '/v1/sync/assets/prepare') {
                 const body = JSON.parse(options.body);
                 prepared.set(body.assetId, body);
@@ -978,4 +979,20 @@ test('default Standard asset APIs neither bind nor upload/download/reconcile',as
  assert.equal((await sync.schedule('online')).code,'pro_required');
  for(const method of ['reconcile','upload','download','json','headers'])await assert.rejects(sync[method](),/pro_required/);
  assert.equal(touched,0);
+});
+
+
+test('authority asset wire pins prepare/upload/commit context and leaves downloads unchanged', async()=>{
+ const host=controller();const wire=createWriterWireContext({expectedWriteEpoch:4});
+ Object.assign(host.runtime,{writerWireContext:wire,writerEnvelope:body=>wire.envelope(body),writerHeaders:()=>wire.headers()});
+ const api=assetApi();const sync=new PortAssetSync({controller:host,storage:storage(),fetchImpl:api.fetch,canSync:()=>true});
+ const record={id:'image-new',blob:new Blob(['image'],{type:'image/webp'}),mimeType:'image/webp',width:512,height:512};
+ const result=await sync.upload(record,'gear_photo_final');
+ assert.deepEqual(result.operation.writerAuthority,wire.fields);
+ for(const call of api.requests.filter(x=>x.method==='POST')){
+  const body=JSON.parse(call.body);for(const [key,value]of Object.entries(wire.fields))assert.equal(body[key],value);
+ }
+ const put=api.requests.find(x=>x.method==='PUT');assert.equal(put.headers['x-sound-cruise-write-epoch'],'4');
+ await sync.download(result.asset);assert.equal(api.requests.at(-1).headers['x-sound-cruise-writer-protocol'],undefined);
+ await assert.rejects(sync.upload(record,'gear_photo_final',{...result.operation,writerAuthority:undefined}),/legacy_outbox_needs_migration/);
 });

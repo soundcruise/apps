@@ -1,6 +1,7 @@
+import { createWriterWireContext, AUTHORITY_ERROR_CODES } from './writer-authority.mjs';
 import { createFixtureLocks as fixtureLocks } from './test-fixtures/web-locks.mjs';
 import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
-import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.22.1';
+import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.22.2';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -3672,4 +3673,95 @@ test('mutable Port Sync with explicit Account identity uses the formal execution
 test('read-only credential and status store inspection need no Account identity or Web Locks',async()=>{
  const f=runtimeFixture([],'port');f.runtime.executionAccountId=undefined;f.runtime.executionLocks=null;
  assert.equal(await f.runtime.credential(),null);assert.deepEqual(await f.store.listOutbox(),[]);assert.deepEqual(await f.store.listConflicts(),[]);f.runtime.dispose();
+});
+
+
+test('B1-1 injected envelope covers mutations only and production defaults remain legacy', async () => {
+  const f=runtimeFixture([], 'port', 'production'); await f.store.setMeta('credential','scd1.valid');
+  const seen=[]; f.runtime.fetchImpl=async(url,options)=>{seen.push({url,body:options.body&&JSON.parse(options.body)}); return Response.json({ok:true});};
+  await f.runtime.request('POST','/v1/sync/bootstrap',{appId:'port'});
+  assert.equal(seen[0].body.writerProtocol,undefined);
+  f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:7});
+  for(const path of ['bootstrap','migration/complete','removal-safety']) await f.runtime.request('POST','/v1/sync/'+path,{appId:'port'});
+  await f.runtime.request('GET','/v1/sync/snapshot?appId=port');
+  for(const call of seen.slice(1,4)) assert.deepEqual(call.body,{appId:'port',writerProtocol:2,syncProtocol:1,expectedWriteEpoch:7});
+  assert.equal(seen.at(-1).body,undefined); f.runtime.dispose();
+});
+
+for(const code of ['writer_protocol_outdated','writer_protocol_unsupported','dataset_epoch_stale','dataset_authority_unavailable'])
+ test('B1-1 blocked outbox and identity preserved: '+code, async()=>{
+  const f=runtimeFixture([], 'port','production'); await f.store.setMeta('credential','scd1.valid');
+  f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:1});
+  const op=await f.runtime.operationFor(record('retained'),0); await f.store.putOutbox({...op,migration:false});
+  let calls=0; f.runtime.fetchImpl=async()=>{calls++;return Response.json({ok:false,code},{status:code==='dataset_authority_unavailable'?503:409});};
+  await assert.rejects(f.runtime.flushOutbox(),e=>e.code===code);
+  const pending=(await f.store.listOutbox())[0]; assert.equal(pending.operationId,op.operationId);
+  assert.equal(pending.terminalError,code); assert.equal(pending.nextRetryAt,0);
+  assert.deepEqual(pending.payload,op.payload); assert.equal(await f.store.readMeta('credential'),'scd1.valid');
+  await f.runtime.flushOutbox({force:true}); assert.equal(calls,1); assert.equal(f.runtime.retryTimer,null); f.runtime.dispose();
+});
+
+test('B1-1 cannot silently upgrade old outbox or a stale epoch',async()=>{
+  const f=runtimeFixture([], 'port','production'); await f.store.setMeta('credential','scd1.valid');
+  const op=await f.runtime.operationFor(record('old'),0); await f.store.putOutbox({...op,migration:false});
+  f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:2});
+  let calls=0; f.runtime.fetchImpl=async()=>{calls++;throw Error('must not publish');};
+  await f.runtime.flushOutbox(); assert.equal(calls,0);
+  assert.equal((await f.store.listOutbox())[0].terminalError,'legacy_outbox_needs_migration');
+  assert.equal((await f.store.listOutbox())[0].operationId,op.operationId); f.runtime.dispose();
+});
+
+test('B1-1 response loss preserves protocol context and operationId',async()=>{
+  const f=runtimeFixture([], 'port','production');await f.store.setMeta('credential','scd1.valid');
+  f.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:1});
+  const op=await f.runtime.operationFor(record('retry'),0);await f.store.putOutbox({...op,migration:false});
+  const bodies=[];f.runtime.fetchImpl=async(u,o)=>{bodies.push(JSON.parse(o.body));if(bodies.length===1)throw Error('lost');return Response.json({ok:true,results:[{operationId:op.operationId,status:'duplicate'}]});};
+  await assert.rejects(f.runtime.flushOutbox(),e=>e.code==='network_error');
+  await f.runtime.flushOutbox({force:true});assert.deepEqual(bodies[0],bodies[1]);assert.equal((await f.store.listOutbox()).length,0);f.runtime.dispose();
+});
+for (const count of [49, 50, 51]) test(`authority push wire chunks respect count boundary ${count}`, async () => {
+  const fixture = runtimeFixture([], 'port', 'production');
+  await fixture.store.setMeta('credential', 'scd1.valid'); fixture.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:1});
+  const bodies = [];
+  fixture.runtime.fetchImpl = async (url, options) => {
+    const body = JSON.parse(options.body); bodies.push(options.body);
+    return Response.json({ok:true, results:body.operations.map(op=>({operationId:op.operationId,status:'applied'}))});
+  };
+  for (let i=0;i<count;i++) await fixture.store.putOutbox({writerAuthority:{...fixture.runtime.writerWireContext.fields},operationId:'byte-'+i,recordType:'x',recordId:String(i),schemaVersion:1,baseRevision:0,payload:{text:'small'},payloadHash:'h',deleted:false,migration:false});
+  await fixture.runtime.flushOutbox();
+  assert.deepEqual(bodies.map(body=>JSON.parse(body).operations.length),count===51?[50,1]:[count]);
+  assert.ok(bodies.every(body=>new TextEncoder().encode(body).byteLength<=256*1024));
+  fixture.runtime.dispose();
+});
+
+for(const delta of [-1,0,1]) test(`authority serialized push UTF-8 body at 256KiB ${delta}`,async()=>{
+  const fixture=runtimeFixture([],'port','production');await fixture.store.setMeta('credential','scd1.valid');fixture.runtime.writerWireContext=createWriterWireContext({expectedWriteEpoch:1});
+  const operation={operationId:'exact',recordType:'x',recordId:'x',schemaVersion:1,baseRevision:0,payload:{text:''},payloadHash:'h',deleted:false};
+  const envelope=ops=>fixture.runtime.withSyncCapabilities({appId:'port',mode:'sync',operations:ops});
+  const overhead=new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength;
+  operation.payload.text='a'.repeat(256*1024-overhead+delta);
+  assert.equal(new TextEncoder().encode(JSON.stringify(envelope([operation]))).byteLength,256*1024+delta);
+  let calls=0;fixture.runtime.fetchImpl=async (url,options)=>{calls++;assert.ok(new TextEncoder().encode(options.body).byteLength<=256*1024);return Response.json({ok:true,results:[{operationId:'exact',status:'duplicate'}]});};
+  await fixture.store.putOutbox({...operation,migration:false,writerAuthority:{...fixture.runtime.writerWireContext.fields}});
+  if(delta<=0){await fixture.runtime.flushOutbox();assert.equal(calls,1);assert.equal((await fixture.store.listOutbox()).length,0);}
+  else{await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);assert.equal((await fixture.store.listOutbox())[0].terminalError,'operation_too_large');await assert.rejects(fixture.runtime.flushOutbox(),e=>e.code==='operation_too_large');assert.equal(calls,0);}
+  fixture.runtime.dispose();
+});
+
+test('B1-1 oversized legacy migration recovery cannot bypass authority blocking', async () => {
+  const f = runtimeFixture([], 'port', 'production');
+  await f.store.setMeta('credential', 'scd1.valid');
+  for (let i = 0; i < 51; i++) {
+    const op = await f.runtime.operationFor(record('legacy-' + i), 0);
+    await f.store.putOutbox({ ...op, migration: true, terminalError: 'invalid_request' });
+  }
+  f.runtime.writerWireContext = createWriterWireContext({ expectedWriteEpoch: 2 });
+  let calls = 0;
+  f.runtime.fetchImpl = async () => { calls++; throw Error('must not publish'); };
+  await f.runtime.flushOutbox({ migration: true, force: true });
+  assert.equal(calls, 0);
+  const pending = await f.store.listOutbox();
+  assert.equal(pending.length, 51);
+  assert.ok(pending.every(item => item.terminalError === 'legacy_outbox_needs_migration'));
+  f.runtime.dispose();
 });

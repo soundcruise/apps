@@ -9,6 +9,8 @@
     'membership_deleting', 'membership_deleted', 'app_device_revoked',
     'app_identity_deleting', 'app_identity_deleted'
   ]);
+  const authorityBlocked = code => /^(?:writer_protocol_|sync_protocol_|dataset_epoch_)/.test(code || '') ||
+    ['dataset_authority_unavailable', 'legacy_outbox_needs_migration'].includes(code);
   const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
   const MAX_PUSH_OPERATIONS = 50;
   const REQUEST_TIMEOUT_MS = 20000;
@@ -17,7 +19,7 @@
   const MAX_LARGE_RESPONSE_BYTES = 32 * 1024 * 1024;
   function retryableError(error) {
     return error instanceof MultiAppSyncError &&
-      (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status));
+      !authorityBlocked(error.code) && (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status));
   }
 
   function keyOf(record) { return `${record.recordType}/${record.recordId}`; }
@@ -128,6 +130,7 @@
       this.accountCore = options.accountCore;
       this.admissionMode = options.admissionMode || this.accountClient.admissionMode || 'qa';
       if (!['qa', 'production'].includes(this.admissionMode)) throw new Error('multi_app_runtime_admission_invalid');
+      this.writerWireContext = options.writerWireContext || null;
       this.fetchImpl = options.fetchImpl || global.fetch.bind(global);
       this.now = options.now || Date.now;
       this.randomOperationId = options.randomOperationId || (() => this.accountCore.createOperationId());
@@ -289,8 +292,13 @@
       return Object.freeze({ status: 'committed', result });
     }
 
+    writerEnvelope(body) { return this.writerWireContext ? this.writerWireContext.envelope(body) : body; }
+    writerHeaders() { return this.writerWireContext?.headers() || {}; }
+
     async request(method, path, body) {
       this.assertActive();
+      if (method === 'POST' && ['/v1/sync/push', '/v1/sync/bootstrap',
+        '/v1/sync/migration/complete', '/v1/sync/removal-safety'].includes(path)) body = this.writerEnvelope(body);
       if (path === '/v1/sync/push' &&
           (body?.operations?.length > 50 || new TextEncoder().encode(JSON.stringify(body)).byteLength > 256 * 1024)) {
         throw new MultiAppSyncError('operation_too_large');
@@ -387,6 +395,7 @@
         const code = payload?.code || 'invalid_response';
         global.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(code, headers);
         if (await this.wait(async () => (this.detachTerminalIdentity(code)))) throw new MultiAppSyncError(code, response.status);
+        if (authorityBlocked(code)) this.setState('blocked', { reason: code });
         if (PAUSE_CODES.has(code)) this.setState('paused', { reason: code });
         throw new MultiAppSyncError(code, response.status);
       }
@@ -395,6 +404,7 @@
 
     async pushRequest(body) {
       this.assertActive();
+      body = this.writerEnvelope(body);
       const bytes = operations => new TextEncoder().encode(JSON.stringify({ ...body, operations })).byteLength;
       for (const operation of body.operations || []) {
         if (bytes([operation]) > 256 * 1024) throw new MultiAppSyncError('operation_too_large');
@@ -471,7 +481,7 @@
 
     withSyncCapabilities(body) {
       const capabilities = this.syncCapabilities();
-      return capabilities.length ? { ...body, capabilities } : body;
+      return this.writerEnvelope(capabilities.length ? { ...body, capabilities } : body);
     }
 
     async serverSnapshot() {
@@ -654,6 +664,7 @@
         payloadHash,
         deleted,
         ...(deleted && this.adapter.deleteIntentGeneration ? { deleteIntentGeneration: this.adapter.deleteIntentGeneration(keyOf(record)) } : {}),
+        ...(this.writerWireContext ? { writerAuthority: { ...this.writerWireContext.fields } } : {}),
         attempts: 0,
         nextRetryAt: 0,
         createdAt: this.now()
@@ -1399,7 +1410,7 @@
           // Terminal failures remain fail-closed until the underlying mutation
           // actually changes. A corrected payload safely supersedes only that
           // exact stale operation; ordinary pending/conflict work is untouched.
-          if (!pendingOperation.terminalError || mutationUnchanged) continue;
+          if (!pendingOperation.terminalError || mutationUnchanged || authorityBlocked(pendingOperation.terminalError)) continue;
           await this.wait(async () => (this.store.deleteOutbox(pendingOperation.operationId)));
         }
         await this.wait(async () => (this.store.putOutbox({ ...operation, migration })));
@@ -1495,8 +1506,14 @@
           })));
           await this.wait(async () => (this.store.putOutbox({ ...item, conflict: true })));
         }
+        if (this.writerWireContext) {
+          for (const item of await this.wait(() => this.store.listOutbox())) {
+            if (canonicalJson(item.writerAuthority || null) !== canonicalJson(this.writerWireContext.fields))
+              await this.wait(() => this.store.putOutbox({ ...item, terminalError: 'legacy_outbox_needs_migration', nextRetryAt: 0 }));
+          }
+        }
         const candidates = (await this.wait(async () => (this.store.listOutbox()))).filter((item) =>
-          item.migration === migration && !item.conflict &&
+          item.migration === migration && !item.conflict && !authorityBlocked(item.terminalError) &&
           (!item.terminalError || recoverableIds.has(item.operationId) ||
             (item.terminalError === 'push_failed' && item.failureKind === 'network')) &&
           (force || !item.nextRetryAt || item.nextRetryAt <= now)
@@ -1533,7 +1550,7 @@
         } catch (error) {
           for (const operation of operations) {
             const attempts = Number(operation.attempts || 0) + 1;
-            const retryable = error instanceof MultiAppSyncError &&
+            const retryable = error instanceof MultiAppSyncError && !authorityBlocked(error.code) &&
               (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status) || PAUSE_CODES.has(error.code));
             await this.wait(async () => (this.store.putOutbox({
               ...operation, attempts,
@@ -1542,7 +1559,7 @@
                 : { terminalError: error.code || 'push_failed' })
             })));
           }
-          if (error instanceof MultiAppSyncError &&
+          if (error instanceof MultiAppSyncError && !authorityBlocked(error.code) &&
               (error.code === 'network_error' || RETRYABLE_STATUS.has(error.status) || PAUSE_CODES.has(error.code))) {
             await this.wait(async () => (this.scheduleRetryWake()));
           }
@@ -2017,7 +2034,7 @@
         if (this.disposed) return;
         void this.reportRemovalSafety('error').catch(() => {});
         this.setState(error instanceof MultiAppSyncError && PAUSE_CODES.has(error.code) ? 'paused' :
-          retryableError(error) ? 'retrying' : 'attention');
+          authorityBlocked(error.code) ? 'blocked' : retryableError(error) ? 'retrying' : 'attention');
       }); });
     }
 

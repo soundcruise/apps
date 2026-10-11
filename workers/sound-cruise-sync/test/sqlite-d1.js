@@ -86,6 +86,7 @@ export function createSqliteD1() {
   database.exec(migration31);
   database.exec(migration32);
   database.exec(migration33);
+  database.exec(fs.readFileSync(path.join(import.meta.dirname, '../migrations/0034_add_writer_authority.sql'), 'utf8'));
   let bookmark = 0;
   const binding = {
     prepare(sql) { return statementWrapper(database, sql); },

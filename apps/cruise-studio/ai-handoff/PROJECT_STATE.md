@@ -1,5 +1,16 @@
 # Cruise Studio Project State
 
+## B1-1 Authority Contract（2026-10-11）
+
+Port 1.22.2 / Studio 0.26.1 / Studio schemaVersion 1。
+[Sync Writer Authority](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を新authority wire契約とする。
+WorkerはACCEPT_COMPAT固定、legacy request許可。authority writerProtocol=2 / syncProtocol=1を受理できるが、
+既存local Repository / writer protocolは1のまま。新wire送信は明示注入だけで、production clientはlegacy envelopeを維持。
+D1はadditive metadataのみ。minimum fence OFF、local authority migration未実施、B1未解消。
+Studio shared write OFF / PortDataHost.canWrite=false / old-build-unknownを維持する。
+Worker deploy・production D1適用は未実施。次はB1-2のprotocol adoption / authority取得 / blocked UX。
+以下の既存version・検証件数は前工程の履歴。
+
 ## 0. AIエージェントへの最初の指示
 
 - 作業開始時は、この `ai-handoff/PROJECT_STATE.md` を最初に読む。

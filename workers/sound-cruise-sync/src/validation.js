@@ -1,3 +1,4 @@
+import { WRITER_FIELDS, parseWriterFields } from '../../../apps/shared/sync-account/writer-authority.mjs';
 import { SHA256_PATTERN, validateOperation } from './records.js';
 import { normalizeEnrollmentCode, normalizePairingCode, normalizeRecoveryCode } from './crypto.js';
 import {
@@ -126,7 +127,8 @@ export function validatePairingIssuePayload(payload, env) {
 }
 
 export function validateBootstrapPayload(payload, env) {
-  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'schemaVersion', 'recordCount', 'manifestHash']) ||
+  if (isPlainObject(payload)) { const writer = parseWriterFields(payload); if (!writer.ok) return writer; }
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'schemaVersion', 'recordCount', 'manifestHash', ...WRITER_FIELDS]) ||
       !validateAppId(payload.appId, env) || payload.schemaVersion !== 1 ||
       !Number.isSafeInteger(payload.recordCount) || payload.recordCount < 0 || payload.recordCount > 10000 ||
       typeof payload.manifestHash !== 'string' || !SHA256_PATTERN.test(payload.manifestHash)) {
@@ -203,7 +205,8 @@ export function validateAccountDeletePayload(payload, env) {
 }
 
 export async function validatePushPayload(payload, env, cryptoImpl = crypto) {
-  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'mode', 'operations', 'capabilities']) ||
+  if (isPlainObject(payload)) { const writer = parseWriterFields(payload); if (!writer.ok) return writer; }
+  if (!isPlainObject(payload) || !hasOnlyKeys(payload, ['appId', 'mode', 'operations', 'capabilities', ...WRITER_FIELDS]) ||
       !validateAppId(payload.appId, env) || !['sync', 'migration'].includes(payload.mode) ||
       !Array.isArray(payload.operations) || payload.operations.length < 1 ||
       payload.operations.length > MAX_PUSH_OPERATIONS) {
@@ -229,12 +232,13 @@ export async function validatePushPayload(payload, env, cryptoImpl = crypto) {
           index
         });
   }
-  return { ok: true, value: { appId: payload.appId, mode: payload.mode, operations, capabilities } };
+  return { ok: true, value: { appId: payload.appId, mode: payload.mode, operations, capabilities, ...parseWriterFields(payload).value } };
 }
 
 export function validateMigrationCompletePayload(payload, env) {
+  if (isPlainObject(payload)) { const writer = parseWriterFields(payload); if (!writer.ok) return writer; }
   if (!isPlainObject(payload) ||
-      !hasOnlyKeys(payload, ['appId', 'schemaVersion', 'recordCount', 'manifestHash', 'capabilities']) ||
+      !hasOnlyKeys(payload, ['appId', 'schemaVersion', 'recordCount', 'manifestHash', 'capabilities', ...WRITER_FIELDS]) ||
       !validateAppId(payload.appId, env) || payload.schemaVersion !== 1 ||
       !Number.isInteger(payload.recordCount) || payload.recordCount < 0 || payload.recordCount > 10000 ||
       typeof payload.manifestHash !== 'string' || !SHA256_PATTERN.test(payload.manifestHash)) {

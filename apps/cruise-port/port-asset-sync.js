@@ -1,5 +1,5 @@
-import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.22.1';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.1';
+import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.22.2';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.2';
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';
@@ -309,6 +309,7 @@ export class PortAssetSync {
 
         if (!this.canSync()) throw new Error('pro_required');
         const headers = await this.wait(async () => (this.headers('application/json')), runtimeOwner);
+        body = runtimeOwner?.writerEnvelope?.(body) || body;
         const response = await this.wait(async () => (this.fetchImpl(`${this.controller.runtime.endpoint}${path}`, {
             method: 'POST', headers,
             body: JSON.stringify(body), credentials: 'omit', cache: 'no-store', referrerPolicy: 'no-referrer', signal: runtimeOwner?.lifetime?.signal
@@ -329,6 +330,11 @@ export class PortAssetSync {
         try { return { width: image.width, height: image.height }; } finally { image.close?.(); }
     }
 
+    pendingAuthority() {
+        const fields = this.controller?.runtime?.writerWireContext?.fields;
+        return fields ? { writerAuthority: { ...fields } } : {};
+    }
+
     async upload(record, kind, pending = null, owner = null) {
         const runtimeOwner = this.controller?.runtime;
 
@@ -338,9 +344,12 @@ export class PortAssetSync {
         const dimensions = record.width && record.height
             ? { width: record.width, height: record.height }
             : await this.wait(async () => (this.dimensions(record.blob, kind)), runtimeOwner);
+        const wireFields = runtimeOwner?.writerWireContext?.fields;
+        if (pending && wireFields && JSON.stringify(pending.writerAuthority || null) !== JSON.stringify(wireFields))
+            throw new Error('legacy_outbox_needs_migration');
         const operation = pending?.localId === record.id && pending?.hash === hash
             ? pending
-            : { localId: record.id, assetId: uuid(), operationId: uuid(), hash };
+            : { localId: record.id, assetId: uuid(), operationId: uuid(), hash, ...(wireFields ? { writerAuthority: { ...wireFields } } : {}) };
         const request = {
             appId: 'port', assetId: operation.assetId, operationId: operation.operationId,
             kind, hash, mime: record.mimeType || record.blob.type, byteSize: record.blob.size,
@@ -351,6 +360,7 @@ export class PortAssetSync {
         if (prepared.phase !== 'available') {
             if (prepared.phase !== 'uploaded') {
                 const headers = await this.wait(async () => (this.headers(request.mime)), runtimeOwner);
+                for (const [name, value] of Object.entries(runtimeOwner?.writerHeaders?.() || {})) headers.set(name, value);
                 headers.set('X-Sound-Cruise-Operation-Id', operation.operationId);
                 headers.set('X-Content-SHA256', hash);
                 const response = await this.wait(async () => (this.fetchImpl(
@@ -402,8 +412,8 @@ export class PortAssetSync {
         if (!finalRecord) return null;
         entry.pending = entry.pending && entry.pending.final?.localId === finalId &&
             (entry.pending.source?.localId || null) === (sourceId || null) ? entry.pending : {
-                final: { localId: finalId, assetId: uuid(), operationId: uuid(), hash: await hashBlob(finalRecord.blob, this.cryptoImpl) },
-                source: sourceRecord ? { localId: sourceId, assetId: uuid(), operationId: uuid(), hash: await hashBlob(sourceRecord.blob, this.cryptoImpl) } : null
+                final: { localId: finalId, assetId: uuid(), operationId: uuid(), ...this.pendingAuthority(), hash: await hashBlob(finalRecord.blob, this.cryptoImpl) },
+                source: sourceRecord ? { localId: sourceId, assetId: uuid(), operationId: uuid(), ...this.pendingAuthority(), hash: await hashBlob(sourceRecord.blob, this.cryptoImpl) } : null
             };
         if (!this.currentVisualItem(kind, item) ||
             !(await this.patchMetadataEntry(kind === 'gear' ? 'gear' : 'myApps', item.id, expected, entry))) return null;
@@ -654,7 +664,7 @@ export class PortAssetSync {
                 }
                 processed += 1;
                 entry.pending = entry.pending?.localId === record.id ? entry.pending : {
-                    localId: record.id, assetId: uuid(), operationId: uuid(),
+                    localId: record.id, assetId: uuid(), operationId: uuid(), ...this.pendingAuthority(),
                     hash: await this.wait(async () => (hashBlob(record.blob, this.cryptoImpl)), runtimeOwner)
                 };
                 const before = this.readMetadata().attachments[logicalId] || null;

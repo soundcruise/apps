@@ -32,7 +32,7 @@ export function createD1AssetRepository(db) {
   async function operation(operationId) {
     return db.prepare(`
       SELECT o.operation_id, o.request_fingerprint, o.account_id, o.sync_user_id,
-             o.app_device_id, a.* FROM sync_asset_operations o
+             o.app_device_id, o.writer_protocol, o.sync_protocol, o.expected_write_epoch, o.admitted_write_epoch, a.* FROM sync_asset_operations o
       JOIN sync_assets a ON a.asset_id = o.asset_id WHERE o.operation_id = ?
     `).bind(operationId).first();
   }
@@ -146,10 +146,12 @@ export function createD1AssetRepository(db) {
         THEN updated_at ELSE created_at - 1 END WHERE id = ?`).bind(authority.accountId),
       db.prepare(`INSERT INTO sync_asset_operations (
         operation_id, asset_id, account_id, sync_user_id, app_device_id,
-        request_fingerprint, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+        request_fingerprint, created_at, updated_at, writer_protocol, sync_protocol, expected_write_epoch, admitted_write_epoch
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .bind(input.operationId, input.assetId, authority.accountId, identity.userId,
-          identity.deviceId, input.fingerprint, now, now)
+          identity.deviceId, input.fingerprint, now, now, input.writerAdmission?.fields.writerProtocol ?? null,
+          input.writerAdmission?.fields.syncProtocol ?? null, input.writerAdmission?.fields.expectedWriteEpoch ?? null,
+          input.writerAdmission?.metadata?.write_epoch ?? null)
     ];
     try {
       const results = await db.batch(statements);
