@@ -1,5 +1,13 @@
 # B1-2 + B1-3 Authority Preparation
 
+## B1-4 Migration & Cutover Engine v1（2026-10-12・現行）
+
+Port1.22.4 / Studio0.26.1。詳細は[Migration契約](PORT_AUTHORITY_MIGRATION.md)。
+provenance付きcandidate/raw救出、schema1 journal、再開可能stage、コピー先binary実読戻し、pure cloud planner、旧outbox証拠保持、
+旧→新delete generation、隔離seal/pointer/active Repository/recovery/rescueを追加。通常起動経路は未接続。
+production default legacy、Worker ACCEPT_COMPAT/enforcement OFF、Studio canWrite=false、B1未解消。
+次はB1-5の実効server transaction fenceとcutover barrier。以下のB1-2/B1-3記載・件数は前工程の履歴。
+
 2026-10-12 / Port 1.22.3 / Studio 0.26.1 / Studio schemaVersion 1。
 B1-2 client protocol対応とB1-3 Port-owned staging基盤。**B1未解消、production default legacy、enforcement OFF、Studio shared write OFF / canWrite=false**。
 Worker deploy / production D1 migration / 実ユーザーdata migration / cutover / active pointer公開は行わない。

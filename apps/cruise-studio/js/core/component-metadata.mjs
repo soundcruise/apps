@@ -1,5 +1,5 @@
 // Studio is a reader of released versions. Only this side owns the projections.
-import { CRUISE_PORT_APP_VERSION } from '../../../cruise-port/app-version.js?v=1.22.3';
+import { CRUISE_PORT_APP_VERSION } from '../../../cruise-port/app-version.js?v=1.22.4';
 
 function mirror(componentId, displayName, path, symbol, expectedValue) {
     return Object.freeze({

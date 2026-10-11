@@ -42,14 +42,14 @@ const fixtures=['acoustic_guitar','artist_guitar','live_guitar'].map((category,i
   const saved=await page.evaluate(()=>SoundCruiseSyncAccount.storage.getAccount());
   assert.equal(requests.filter(r=>r.method!=='GET').length,0,'saved Account must not start sync');
   const defaultDenial=await page.evaluate(async()=>{
-   const cap=await import('./cruise-port-capabilities.js?v=1.22.3');
+   const cap=await import('./cruise-port-capabilities.js?v=1.22.4');
    const controller=SoundCruisePortSync.createPortSyncController({config:__SOUND_CRUISE_SYNC_CENTER__});
-   const {createSyncCenterOrchestrator}=await import('./sync-center-orchestrator.js?v=1.22.3');
-   const {createPortAccountJoin}=await import('./port-account-join.js?v=1.22.3');
+   const {createSyncCenterOrchestrator}=await import('./sync-center-orchestrator.js?v=1.22.4');
+   const {createPortAccountJoin}=await import('./port-account-join.js?v=1.22.4');
    const join=createPortAccountJoin({client:{request:async()=>{throw new Error('must not request');}}});
    const joinDenials=await Promise.all(['issue','consume','resume'].map(async key=>{try{await join[key]('local-probe');return 'bypass';}catch(e){return e.message;}}));
-   const {PortAssetSync}=await import('./port-asset-sync.js?v=1.22.3');
-   const {createAiSupportClient}=await import('./ai-support-client.js?v=1.22.3');
+   const {PortAssetSync}=await import('./port-asset-sync.js?v=1.22.4');
+   const {createAiSupportClient}=await import('./ai-support-client.js?v=1.22.4');
    const o=createSyncCenterOrchestrator({config:__SOUND_CRUISE_SYNC_CENTER__,navigate:()=>{}});
    const homeLaunch=await o.launchFromHome('pitch');
    const results=await Promise.all(['prepareAll','launch','addEnvironment','issuePortAddition','connectExistingAccount','launchSameContainer'].map(async key=>{try{await o[key]('pitch');return 'bypass';}catch(e){return e.message;}}));
@@ -80,7 +80,7 @@ const fixtures=['acoustic_guitar','artist_guitar','live_guitar'].map((category,i
    await page.locator('#news-category').selectOption('cruise_apps');await page.locator('.news-card').click();await page.locator('#news-article-view').waitFor({state:'visible'});
    await hash('#sync-center');assert.equal(await page.locator('.sync-operation-locked').count(),0);await page.locator('.sync-pro-note').waitFor({state:'hidden'});assert.equal(await page.locator('[data-standard-pro-link]:visible').count(),0);await page.locator('#sync-center-ai-support').waitFor({state:'visible'});assert.equal(await page.locator('[data-sync-app-action]').first().getAttribute('aria-disabled'),null);await shot('pro-sync',width);
   }
-  assert.equal(await page.evaluate(async()=> (await import('../cruise-port-capabilities.js?v=1.22.3')).getCapabilities().cloudSyncOperations),true);
+  assert.equal(await page.evaluate(async()=> (await import('../cruise-port-capabilities.js?v=1.22.4')).getCapabilities().cloudSyncOperations),true);
   // Actual public feed, read-only via loopback proxy. Account cleared in isolated storage only.
   await page.evaluate(()=>SoundCruiseSyncAccount.storage.clearAccount());await page.setViewportSize({width:393,height:852});newsMode='public';const publicCounts={};
   for(const [edition,path] of [['standard',root],['pro',pro]]){

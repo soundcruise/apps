@@ -1,5 +1,15 @@
 # Cruise Studio Project State
 
+## B1-4 Migration & Cutover Engine v1（2026-10-12・現行）
+
+開始HEAD=origin/main=remote mainは87f85503e238214ae159f2ca04b30b95246af599。tracked clean/staged空/ahead・behind0/0を実測。
+Port1.22.4 / Studio0.26.1 / domain schema不変更 / journal schema1。[Migration契約](../../cruise-port/docs/PORT_AUTHORITY_MIGRATION.md)。
+固定出自/raw救出、journal、再開stage、binary実読戻し、pure reconciliation、旧outbox証拠保持、新delete generation、seal/隔離pointer/recovery/rescueを追加。
+新Node82件、native Chrome18項目。既存Port/Studio/Worker回帰と最終件数はMigration契約に記載。Studio Git clean guardはcommit後・push前の全315件に含める。
+production default legacy、Worker ACCEPT_COMPAT/enforcement OFF、Studio shared write OFF/canWrite=false、B1未解消。
+本番migration/cutover/deploy/D1適用なし。次はB1-5実効server transaction fence/cutover barrier。その後B1-6の製品統合を判断する。
+個別stage・限定commit・通常pushは全検証/remote一致後に実施し、hashと最終Git状態は完了報告で実測する。以下は前工程の履歴。
+
 ## B1-2 + B1-3 Authority Preparation（2026-10-12・最新）
 
 開始HEAD/origin/main/remoteはb4f22ba9bbe4c7ea13e866075992bd37cf985a79、tracked clean/staged空/ahead・behind0/0。

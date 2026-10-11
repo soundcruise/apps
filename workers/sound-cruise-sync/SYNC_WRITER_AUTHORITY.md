@@ -1,5 +1,13 @@
 # Sync Writer Authority — B1-1
 
+## B1-4隔離Migration Engine（2026-10-12・現行）
+
+Port1.22.4 / Studio0.26.1。[Migration契約](../../apps/cruise-port/docs/PORT_AUTHORITY_MIGRATION.md)。
+Port側にjournal/reconciliation/seal/publication fixtureを追加。新operationはjournalのみ、production送信なし。
+fixtureのtransactional admission/barrier/epoch/checkpoint/generation証拠を実Workerの安全性証明と扱わない。
+Worker productionコード/D1 schemaは変更なし、ACCEPT_COMPAT/enforcement OFF。本番deploy・D1適用・cutoverなし。
+B1未解消。次はB1-5のmutationと同一transactionのadmissionとcutover barrier。以下は前工程の履歴。
+
 ## B1-2 + B1-3 Authority Preparation（2026-10-12・現行）
 
 Port1.22.3 / Studio0.26.1 / schema1。[Local Authority契約](../../apps/cruise-port/docs/PORT_LOCAL_AUTHORITY.md)を参照。

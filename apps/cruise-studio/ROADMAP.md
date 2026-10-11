@@ -1,5 +1,12 @@
 # クルーズスタジオ — ロードマップ
 
+## B1-4隔離Migration Engine（2026-10-12・現行）
+
+Port1.22.4 / Studio0.26.1。[Migration契約](../cruise-port/docs/PORT_AUTHORITY_MIGRATION.md)にjournal、provenance/raw救出、binary読戻し、
+pure reconciliation、旧outbox/review/delete保護、再開、隔離publication/active/rescueを実装。
+production default legacy、Worker ACCEPT_COMPAT/enforcement OFF、Studio shared write OFF/canWrite=false、B1未解消。
+次はB1-5の実効server transaction fence/cutover barrier、その後B1-6の製品action gate。以下は前工程の履歴。
+
 ## B1-2 + B1-3 Authority Preparation（2026-10-12）
 
 Port1.22.3 / Studio0.26.1。新client protocol対応とPort-owned local stagingの実装・隔離回帰を完了。

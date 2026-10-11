@@ -1,5 +1,12 @@
 # Studio Read-only Port Data Host v1
 
+## B1-4隔離Migration Engine（2026-10-12・現行）
+
+Port1.22.4 / Studio0.26.1 / Studio schema1。[Migration契約](../../cruise-port/docs/PORT_AUTHORITY_MIGRATION.md)。
+Portのjournal/stage/reconcile/seal/recoveryを隔離検証。Hostはproduction legacy read-only、canWrite=false、cached副作用0を維持する。
+Studio本体変更はPort import cache参照だけ。M1/M2/Structure/Editing Session/Pre-DTMを移行engineへ接続しない。
+B1未解消、shared write OFF。B1-5の実効server fence後に製品gateを再判定する。以下は前工程の履歴。
+
 ## B1-2 / B1-3 Authority Preparation（2026-10-12）
 
 Port1.22.3 / Studio0.26.1 / project schema1。[Local Authority契約](../../cruise-port/docs/PORT_LOCAL_AUTHORITY.md)を参照。

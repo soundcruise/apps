@@ -117,7 +117,11 @@ export async function createPreparedPortAuthority({ storage, values, assets = []
     });
 }
 export async function captureLegacyCandidate({ storage, locks = globalThis.navigator?.locks,
-    readAssets = async () => [], readSyncInventory = async () => ({ inspected: false }) } = {}) {
+    readAssets = async () => [], readSyncInventory = async () => ({ inspected: false }), provenance } = {}) {
+    if (provenance !== undefined) {
+        const { captureMigrationCandidate } = await import('./port-migration-candidate.mjs');
+        return captureMigrationCandidate({ storage, locks, readAssets, readSyncInventory, provenance });
+    }
     const capture = () => ({ values: Object.fromEntries(PORT_DATASET_KEYS.map(key => [key, storage.getItem(key)])), repositoryMetadata: storage.getItem(PORT_DATASET_META) });
     const read = async () => {
         const before = capture();
