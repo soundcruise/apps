@@ -1,3 +1,4 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.21.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 import { APP_DEFINITIONS } from './cruise-app-links.js?v=0.60.0';
 const SCHEMA_VERSION = 3;
@@ -83,6 +84,7 @@ function restoreStorage(storage, key, previousValue) {
 }
 
 export function loadPracticeMenus(storage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadPracticeMenus(tx));
     try {
         if (storage === undefined) storage = globalThis.localStorage;
         const schemaValue = readStorageValue(storage, STORAGE_KEYS.schemaVersion);
@@ -131,6 +133,7 @@ export function loadPracticeMenus(storage) {
 }
 
 export function savePracticeMenus(items, storage) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [STORAGE_KEYS.schemaVersion, STORAGE_KEYS.practiceMenus], tx => savePracticeMenus(items, tx));
     if (!Array.isArray(items) || !items.every((item) => isValidItem(item)) || !hasUniqueIds(items)) {
         return { ok: false, reason: 'invalid-data' };
     }
@@ -187,6 +190,9 @@ export function createPracticeMenu(values, existingItems, now = new Date()) {
 }
 
 export function initializePracticeMenus(loadResult, storage, now = new Date()) {
+    if (usesPortRepository(storage)) return loadResult?.ok && loadResult.uninitialized === true
+        ? { ...loadResult, items: [createPracticeMenu({ ...INITIAL_PRACTICE_MENU_VALUES }, [], now)] }
+        : loadResult;
     if (!loadResult?.ok || loadResult.uninitialized !== true) return loadResult;
 
     const item = createPracticeMenu({ ...INITIAL_PRACTICE_MENU_VALUES }, [], now);

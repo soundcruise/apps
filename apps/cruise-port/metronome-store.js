@@ -1,3 +1,4 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.21.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 export const METRONOME_STORAGE_KEY = 'cruisePort.metronome';
 export const METRONOME_SCHEMA_VERSION = 3;
@@ -133,6 +134,7 @@ function defaultSettings() {
 }
 
 export function loadMetronomeSettings(storage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadMetronomeSettings(tx));
     try {
         if (storage === undefined) storage = globalThis.localStorage;
         const raw = readStorageValue(storage, METRONOME_STORAGE_KEY);
@@ -154,6 +156,7 @@ export function loadMetronomeSettings(storage) {
 }
 
 export function saveMetronomeSettings(settings, storage) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [METRONOME_STORAGE_KEY], tx => saveMetronomeSettings(settings, tx));
     const normalized = normalizeMetronomeSettings(settings);
     if (!normalized) return { ok: false, reason: 'invalid-data' };
     try {

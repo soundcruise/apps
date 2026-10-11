@@ -1,3 +1,4 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.21.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 export const GEAR_LIST_STORAGE_KEY = 'cruisePort.gearList';
 export const GEAR_LIST_SCHEMA_VERSION = 5;
@@ -367,6 +368,7 @@ function migrateV3Items(items) {
 }
 
 export function loadGearList(storage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadGearList(tx));
     try {
         if (storage === undefined) storage = globalThis.localStorage;
         const rawValue = readStorageValue(storage, GEAR_LIST_STORAGE_KEY);
@@ -438,6 +440,7 @@ export function loadGearList(storage) {
 }
 
 export function saveGearList(items, storage) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [GEAR_LIST_STORAGE_KEY], tx => saveGearList(items, tx));
     if (!isValidGearCollection(items)) {
         return { ok: false, reason: 'invalid-data' };
     }

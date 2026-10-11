@@ -105,7 +105,14 @@ Structure / Loupe / 8・16分 / IME / Pre-DTM選択 / working snapshot / JSON / 
 console / app404 / unhandled rejection0。既存localhost:8765を使用、隔離Chromeのみ。Safari / 聴感 / OS IME / 実印刷は未確認。
 0.25.1は内部保存基盤と小さなstate表示のpatch。project schemaVersion1 / metronome settings3維持。
 
-## M3接続前の必須条件（未実装）
+## Port側Readiness Core v1（2026-10-11）
+
+Port 1.21.3でrepository / 全現行writer参加 / forward guard / full snapshot / delete generation / rollbackを整備。
+[Port側契約と検証](../../cruise-port/docs/PORT_DATASET_REPOSITORY.md)を参照。
+Studio 0.25.1の隔離M2は維持し、正式Port datasetへは未接続。
+以下の条件はPort Core部分の実装を足場とし、runtime/Account/実2tab/Studio host接続時に引き続き満たす。
+
+## M3接続前の必須条件（残課題）
 
 1. forward schema guardを実Port facade・全writer・Sync applyでも維持。
 2. 実2tab / Port・Studio同時起動でCAS / stale / pending draft / dirty base維持を検証。

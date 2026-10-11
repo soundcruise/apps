@@ -1,3 +1,4 @@
+import { fixtureFullSnapshot } from './tests/full-snapshot-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -83,7 +84,7 @@ test('My Apps platform URLs sync as one record and hydrate on another Port', asy
   assert.deepEqual(JSON.parse(JSON.stringify(myAppRecord.payload.value.item.urls)), urls);
   const portB = storage();
   const apiB = load(portB);
-  await apiB.applyRemoteSnapshot(portB, snapshot);
+  await apiB.applyRemoteSnapshot(portB, fixtureFullSnapshot(snapshot));
   const restored = JSON.parse(portB.value('cruisePort.myApps'));
   assert.equal(restored.version, 7);
   assert.deepEqual(restored.items[0].urls, urls);
@@ -148,10 +149,10 @@ test('Port adapter repairs the missing My Apps preset field across older synchro
   const snapshot = api.readLocalSnapshot(target);
   assert.equal(snapshot.records.find((item) => item.recordType === 'my_app').payload.value.item.iconPresetKey, null);
 
-  await api.applyRemoteSnapshot(target, { schemaVersion: 1, records: [
+  await api.applyRemoteSnapshot(target, fixtureFullSnapshot({ schemaVersion: 1, records: [
     remoteRecord('my_app', legacyItem.id, { item: legacyItem, asset: { present: false, crop: null } }),
     remoteRecord('my_app_order', 'default', [legacyItem.id])
-  ] });
+  ] }));
   const hydrated = JSON.parse(target.value('cruisePort.myApps'));
   assert.equal(hydrated.items[0].iconPresetKey, null);
 });
@@ -193,7 +194,7 @@ test('Port hydrate keeps this environment asset IDs and running timer while appl
     { recordType: 'gear_order', recordId: 'owned', schemaVersion: 1, payload: { id: 'owned', value: ['gear-1'] } },
     { recordType: 'practice_history_event', recordId: 'event-2', schemaVersion: 1, payload: { id: 'event-2', value: { id: 'event-2', type: 'cycle-completed' } } }
   ] };
-  const firstApply = await adapter.applyRemoteSnapshot(snapshot);
+  const firstApply = await adapter.applyRemoteSnapshot(fixtureFullSnapshot(snapshot));
   const gear = JSON.parse(target.value('cruisePort.gearList')).items[0];
   assert.equal(gear.name, 'Cloud');
   assert.equal(gear.photoId, 'local-photo');
@@ -204,7 +205,7 @@ test('Port hydrate keeps this environment asset IDs and running timer while appl
   assert.equal(firstApply.changed, true);
   assert.equal(adapter.consumeRemoteApplyChanged(), true);
   assert.equal(adapter.consumeRemoteApplyChanged(), false);
-  const duplicateApply = await adapter.applyRemoteSnapshot(snapshot);
+  const duplicateApply = await adapter.applyRemoteSnapshot(fixtureFullSnapshot(snapshot));
   assert.equal(duplicateApply.changed, false);
   assert.equal(adapter.consumeRemoteApplyChanged(), false);
 });
@@ -223,7 +224,7 @@ test('Gear manufacturer and paused Practice History sync while timer remains dev
   assert.equal(records.find((record) => record.recordType === 'practice_history_event').payload.value.pauseIntervals.length, 1);
   assert.equal(records.some((record) => JSON.stringify(record).includes('device-a')), false);
   const target = storage({ 'cruisePort.practiceTimer': 'device-b' });
-  await load(target).applyRemoteSnapshot(target, { schemaVersion: 1, records });
+  await load(target).applyRemoteSnapshot(target, fixtureFullSnapshot({ schemaVersion: 1, records }));
   assert.equal(JSON.parse(target.value('cruisePort.gearList')).items[0].manufacturer, 'YAMAHA');
   assert.equal(JSON.parse(target.value('cruisePort.practiceHistory')).events[0].activeDurationSeconds, 3600);
   assert.equal(JSON.parse(target.value('cruisePort.practiceHistory')).events[0].pauseIntervals.length, 1);
@@ -232,10 +233,10 @@ test('Gear manufacturer and paused Practice History sync while timer remains dev
 
 test('older remote Gear and Practice events hydrate with forward schema defaults', async () => {
   const target = storage();
-  await load(target).applyRemoteSnapshot(target, { schemaVersion: 1, records: [
+  await load(target).applyRemoteSnapshot(target, fixtureFullSnapshot({ schemaVersion: 1, records: [
     remoteRecord('gear_item', 'old-gear', { item: { id: 'old-gear', name: 'Old', status: 'wishlist', order: 0 }, asset: { present: false } }),
     remoteRecord('practice_history_event', 'old-session', { id: 'old-session', type: 'practice-session', sessionId: 'old', durationSeconds: 90 })
-  ] });
+  ] }));
   assert.equal(JSON.parse(target.value('cruisePort.gearList')).version, 5);
   assert.equal(JSON.parse(target.value('cruisePort.gearList')).items[0].manufacturer, '');
   assert.equal(JSON.parse(target.value('cruisePort.practiceHistory')).version, 5);
@@ -351,7 +352,7 @@ test('Remote order resolution keeps Cloud precedence while preserving Local-only
     'app-b', 'app-a', 'app-c', 'app-d', 'app-e', 'app-f', 'app-g'
   ]);
 
-  await api.applyRemoteSnapshot(target, prepared);
+  await api.applyRemoteSnapshot(target, fixtureFullSnapshot(prepared));
   const roundTrip = api.readLocalSnapshot(target);
   assert.equal(await api.computeManifest(roundTrip), await api.computeManifest(prepared));
   assert.deepEqual(JSON.parse(target.value('cruisePort.myApps')).items.map((item) => item.id), [
@@ -396,7 +397,7 @@ test('practice attachments serialize only logical metadata and hydrate without b
   const target = storage({
     'cruisePort.syncAssetMetadata': JSON.stringify({ version: 3, gear: {}, myApps: {}, attachments: {}, releaseQueue: [], discardQueue: [] })
   });
-  await api.applyRemoteSnapshot(target, snapshot);
+  await api.applyRemoteSnapshot(target, fixtureFullSnapshot(snapshot));
   const hydrated = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
   assert.equal(hydrated.attachments[logicalId].published.asset.assetId, asset.assetId);
   assert.equal(hydrated.attachments[logicalId].binding, undefined);
@@ -416,7 +417,7 @@ test('remote Practice attachment deletion removes the logical reference and queu
     })
   });
   const api = load(target);
-  await api.applyRemoteSnapshot(target, { schemaVersion: 1, records: [] });
+  await api.applyRemoteSnapshot(target, fixtureFullSnapshot({ schemaVersion: 1, records: [] }));
   const metadata = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
   assert.equal(Object.hasOwn(metadata.attachments, logicalId), false);
   assert.deepEqual(metadata.discardQueue, ['local-cache-a']);
@@ -472,7 +473,7 @@ test('remote apply preserves a stranded Gear asset for reference-only repair', a
   });
   const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
   adapter.primeRemoteReferences([missing]);
-  await adapter.applyRemoteSnapshot({ schemaVersion: 1, records: [missing] });
+  await adapter.applyRemoteSnapshot(fixtureFullSnapshot({ schemaVersion: 1, records: [missing] }));
   const metadata = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
   const item = JSON.parse(target.value('cruisePort.gearList')).items[0];
   assert.equal(metadata.referencePending, true);
@@ -501,7 +502,7 @@ test('remote Gear photo removal is accepted and never mistaken for a failed publ
   });
   const adapter = new api.PortSyncAdapter({ storage: target, cryptoImpl: webcrypto });
   adapter.primeRemoteReferences([previous]);
-  await adapter.applyRemoteSnapshot({ schemaVersion: 1, records: [removed] });
+  await adapter.applyRemoteSnapshot(fixtureFullSnapshot({ schemaVersion: 1, records: [removed] }));
   const metadata = JSON.parse(target.value('cruisePort.syncAssetMetadata'));
   assert.equal(metadata.gear['gear-remove'].published, null);
   assert.equal(metadata.referencePending, false);
@@ -591,7 +592,7 @@ test('Practice reference repair requires a live owner and never revives a tombst
   deletedAdapter.primeRemoteReferences([owner]);
   const tombstone = remoteRecord('practice_menu', 'practice-a', null, { deleted: true });
   assert.equal(deletedAdapter.reconcileRemoteReferences([tombstone]), false);
-  await deletedAdapter.applyRemoteSnapshot({ schemaVersion: 1, records: [] });
+  await deletedAdapter.applyRemoteSnapshot(fixtureFullSnapshot({ schemaVersion: 1, records: [] }));
   const after = JSON.parse(deletedTarget.value('cruisePort.syncAssetMetadata'));
   assert.equal(Object.hasOwn(after.attachments, logicalId), false);
   assert.equal(after.referencePending, false);
@@ -718,7 +719,7 @@ test('Port adapter round-trips every structured record family and preserves orde
   const empty = storage({
     'cruisePort.practiceTimer': JSON.stringify({ version: 1, running: true, sessionId: 'local', startedAt: '2026-01-01T00:00:00.000Z' })
   });
-  await api.applyRemoteSnapshot(empty, snapshot);
+  await api.applyRemoteSnapshot(empty, fixtureFullSnapshot(snapshot));
   assert.deepEqual(JSON.parse(empty.value('cruisePort.metronomePresets')).items.map((item) => item.id), ['preset-b', 'preset-a']);
   assert.deepEqual(JSON.parse(empty.value('cruisePort.practiceMenus')).items.map((item) => item.id), ['menu-b', 'menu-a']);
   assert.deepEqual(JSON.parse(empty.value('cruisePort.gearCategories')).categories.map((item) => item.id), ['category-b', 'category-a']);

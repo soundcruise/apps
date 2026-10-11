@@ -104,7 +104,7 @@ test('attachment upload preserves a concurrent deletion, release queue and remot
     sync.schedule = () => {};
     const pass = sync.reconcile();
     await gate.entered;
-    assert.equal(sync.removePracticeAttachment({ logicalId: 'e1' }), true);
+    assert.equal(await sync.removePracticeAttachment({ logicalId: 'e1' }), true);
     const during = JSON.parse(local.getItem('cruisePort.syncAssetMetadata'));
     during.attachments.remote = { practiceId: 'practice-a',
         published: { availability: 'available', asset: { assetId: 'remote-r' } }, binding: null };
@@ -766,7 +766,7 @@ test('practice attachment deletion syncs the structured tombstone before delayed
             getAllAttachments: async () => ({ ok: true, records: [] }),
             deleteAttachment: async () => ({ ok: true })
         } });
-    assert.equal(sync.removePracticeAttachment({ id: 'local-a' }), true);
+    assert.equal(await sync.removePracticeAttachment({ id: 'local-a' }), true);
     await sync.running;
     assert.deepEqual(syncController.syncReasons, ['asset-release']);
     assert.equal(api.requests.at(-1).path, '/v1/sync/assets/unreference');

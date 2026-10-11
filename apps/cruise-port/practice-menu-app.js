@@ -6,13 +6,14 @@
  * Third-party licenses and legally permitted uses remain unaffected.
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
+import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.21.3';
 import './feature-help.js?v=1.21.2';
-import { bindSyncProLock } from './sync-pro-lock.js?v=1.19.2';
+import { bindSyncProLock } from './sync-pro-lock.js?v=1.21.3';
 import { getPracticeCrossDayNotice } from './practice-cross-day-display.js?v=1.2.1';
-import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.19.2';
-import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.19.2';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.2';
-import { requestToolPro } from './tool-capabilities.js?v=1.19.2';
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.21.3';
+import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.21.3';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
+import { requestToolPro } from './tool-capabilities.js?v=1.21.3';
 import {
     LIMITS,
     createPracticeMenu,
@@ -22,7 +23,7 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=0.60.0';
+} from './practice-menu-store.js?v=1.21.3';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
@@ -36,12 +37,12 @@ import {
     createSyncCenterController,
     readSyncCenterConfig
 } from './sync-center-controller.js?v=1.1.3';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.19.2';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.21.3';
 import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=0.65.0';
-import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.19.2';
-import { createAiSupportPanel } from './ai-support-ui.js?v=1.19.2';
+import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.21.3';
+import { createAiSupportPanel } from './ai-support-ui.js?v=1.21.3';
 import { createPortSyncStatus } from './port-sync-status.js?v=0.59.3';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.19.2';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.21.3';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
@@ -60,7 +61,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=1.2.0';
+} from './practice-menu-progress-store.js?v=1.21.3';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -80,7 +81,7 @@ import {
     savePracticeHistory,
     toLocalDateKey,
     updatePracticeHistoryRecord
-} from './practice-menu-history-store.js?v=0.70.1';
+} from './practice-menu-history-store.js?v=1.21.3';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -95,7 +96,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=0.59.3';
+} from './practice-menu-calendar-store.js?v=1.21.3';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -112,12 +113,12 @@ import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen
-} from './practice-menu-attachment-store.js?v=1.19.2';
+} from './practice-menu-attachment-store.js?v=1.21.3';
 import {
     appendPendingPracticeAttachments,
     savePendingPracticeAttachments,
     validatePendingPracticeAttachment
-} from './practice-menu-pending-attachments.js?v=1.19.2';
+} from './practice-menu-pending-attachments.js?v=1.21.3';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -128,7 +129,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=0.60.0';
+} from './practice-menu-app-resolver.js?v=1.21.3';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -143,7 +144,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=0.59.3';
+} from './my-apps-store.js?v=1.21.3';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -164,7 +165,7 @@ import {
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.1.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.19.2';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.21.3';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -182,22 +183,22 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=1.19.2';
+} from './my-apps-icon-workflow.js?v=1.21.3';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.4';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=1.19.2';
+import { initMetronome } from './metronome-app.js?v=1.21.3';
 import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.21.2';
-import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.13.0';
-import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.13.0';
-import { initTuner } from './tuner-app.js?v=1.19.2';
+} from './app-version.js?v=1.21.3';
+import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.21.3';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.21.3';
+import { initTuner } from './tuner-app.js?v=1.21.3';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -215,7 +216,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=0.59.3';
+} from './gear-list-store.js?v=1.21.3';
 import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv } from './gear-list-ux.js?v=0.59.3';
 import { createGearCardPng, shareGearCardPng } from './gear-card-export.js?v=0.59.3';
 import { createGearListPng } from './gear-list-image-export.js?v=0.59.3';
@@ -227,10 +228,10 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=0.59.3';
-import { createGearPhotoStore } from './gear-photo-store.js?v=1.19.2';
-import { PortAssetSync } from './port-asset-sync.js?v=1.19.2';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.4.2';
+} from './gear-category-store.js?v=1.21.3';
+import { createGearPhotoStore } from './gear-photo-store.js?v=1.21.3';
+import { PortAssetSync } from './port-asset-sync.js?v=1.21.3';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.21.3';
 import {
     ALL_PRACTICE_MENUS_SET_ID,
     addPracticeMenuToSets,
@@ -245,7 +246,7 @@ import {
     reorderPracticeMenuSet,
     savePracticeMenuSets,
     updatePracticeMenuSet
-} from './practice-menu-sets-store.js?v=1.4.2';
+} from './practice-menu-sets-store.js?v=1.21.3';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -254,7 +255,7 @@ import {
     commitGearItemDeletion,
     commitGearPhotoChange,
     commitGearPhotoRemoval
-} from './gear-photo-workflow.js?v=1.19.2';
+} from './gear-photo-workflow.js?v=1.21.3';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,
@@ -1434,13 +1435,13 @@ function moveMyAppsReorderItem(id, direction) {
         ?.focus();
 }
 
-function completeMyAppsReorder() {
+async function completeMyAppsReorder() {
     if (!myAppsState.reorderMode) return;
     if (sameOrder(myAppsState.items, myAppsState.reorderItems)) {
         cancelMyAppsReorder();
         return;
     }
-    const saveResult = saveMyApps(myAppsState.reorderItems);
+    const saveResult = (await saveMyApps(myAppsState.reorderItems));
     if (!saveResult.ok) {
         showNotice(elements.myAppsReorderNotice, '並び順を保存できませんでした。元の順番は変更していません。');
         return;
@@ -2230,29 +2231,23 @@ function mergeReorderedActiveItems(items, reorderedActiveItems) {
     return items.map((item) => item.hidden ? item : reorderedActiveItems[activeIndex++]);
 }
 
-function persistPracticeProgress(nextProgress) {
-    const result = savePracticeProgress(nextProgress);
+async function persistPracticeProgress(nextProgress) {
+    const result = (await savePracticeProgress(nextProgress));
     if (!result.ok) return false;
     state.progress = nextProgress;
     return true;
 }
 
-function persistPracticeActivity(nextProgress, nextHistory) {
-    const previousProgress = state.progress;
-    const progressResult = savePracticeProgress(nextProgress);
-    if (!progressResult.ok) return false;
-    const historyResult = savePracticeHistory(nextHistory);
-    if (!historyResult.ok) {
-        savePracticeProgress(previousProgress);
-        return false;
-    }
+async function persistPracticeActivity(nextProgress, nextHistory) {
+    const result = await commitPracticeActivity(nextProgress, nextHistory);
+    if (!result.ok) return false;
     state.progress = nextProgress;
     state.history = nextHistory;
     return true;
 }
 
-function persistPracticeCalendar(nextCalendar) {
-    const result = savePracticeCalendar(nextCalendar);
+async function persistPracticeCalendar(nextCalendar) {
+    const result = (await savePracticeCalendar(nextCalendar));
     if (!result.ok) return false;
     state.calendar = nextCalendar;
     return true;
@@ -2286,7 +2281,7 @@ function ensurePracticeTimerTicking() {
     state.timerInterval = window.setInterval(updatePracticeTimerDisplay, 500);
 }
 
-function stopPracticeTimerWithHistory(now = new Date()) {
+async function stopPracticeTimerWithHistory(now = new Date()) {
     if (!state.timerReady || !state.historyReady) {
         return { ok: false, message: 'タイマーまたは履歴を読み込めないため、練習を終了できません。' };
     }
@@ -2301,12 +2296,12 @@ function stopPracticeTimerWithHistory(now = new Date()) {
         return { ok: false, message: '練習記録を作成できませんでした。タイマーは継続しています。' };
     }
     const previousHistory = state.history;
-    const savedHistory = savePracticeHistory(historyResult.history, undefined, { baseHistory: previousHistory });
+    const savedHistory = (await savePracticeHistory(historyResult.history, undefined, { baseHistory: previousHistory }));
     if (!savedHistory.ok) {
         return { ok: false, message: '練習記録を保存できませんでした。タイマーは継続しています。' };
     }
     if (!savePracticeTimer(transition.timer).ok) {
-        if (!savedHistory.history) savePracticeHistory(previousHistory);
+        if (!savedHistory.history) (await savePracticeHistory(previousHistory));
         else state.history = savedHistory.history;
         return { ok: false, message: 'タイマーを終了できませんでした。計測を継続しています。' };
     }
@@ -2387,7 +2382,7 @@ function syncPracticeCompletionDialog({ focus = true } = {}) {
     if (wasHidden && focus) elements.completionEnd.focus({ preventScroll: true });
 }
 
-function persistPracticeCheck(item, checked) {
+async function persistPracticeCheck(item, checked) {
     const now = new Date();
     const transition = setPracticeChecked(state.progress, item.id, checked);
     if (!transition.changed) return { changed: false, completionStarted: false };
@@ -2438,15 +2433,15 @@ function persistPracticeCheck(item, checked) {
     if (completionStarted) state.completionSetName = getSelectedPracticeSet()?.name || null;
 
     const persisted = historyChanged
-        ? persistPracticeActivity(nextProgress, nextHistory)
-        : persistPracticeProgress(nextProgress);
+        ? (await persistPracticeActivity(nextProgress, nextHistory))
+        : (await persistPracticeProgress(nextProgress));
     return { changed: persisted, completionStarted: persisted && completionStarted, failed: !persisted };
 }
 
-function handlePracticeCheck(item) {
+async function handlePracticeCheck(item) {
     if (!state.progressReady || !state.historyReady || item.hidden || state.progress.completionPending) return;
     const checked = state.progress.checkedPracticeIds.includes(item.id);
-    const result = persistPracticeCheck(item, !checked);
+    const result = (await persistPracticeCheck(item, !checked));
     if (result.failed) {
         state.listNotice = '練習記録を保存できませんでした。チェック状態は変更していません。';
     }
@@ -2457,14 +2452,14 @@ function handlePracticeCheck(item) {
     if (result.completionStarted) syncPracticeCompletionDialog();
 }
 
-function handlePracticeCycleReset() {
+async function handlePracticeCycleReset() {
     if (!state.progressReady) return;
     const hasCycleActivity = state.progress.checkedPracticeIds.length > 0
         || state.progress.countedPracticeIds.length > 0;
     if (!hasCycleActivity) return;
     if (!window.confirm('チェックをすべてリセットして、次の練習サイクルを始めますか？\n通算回数と履歴は残ります。')) return;
     const nextProgress = startNextPracticeCycle(state.progress);
-    if (!persistPracticeProgress(nextProgress)) {
+    if (!(await persistPracticeProgress(nextProgress))) {
         state.listNotice = 'チェックをリセットできませんでした。現在の進捗は変更していません。';
     } else {
         state.listNotice = 'チェックをリセットしました。';
@@ -2476,7 +2471,7 @@ function handlePracticeCycleReset() {
 // are cleared into a pending partial completion (the お疲れさまでした card), then the
 // running timer is stopped and its session recorded exactly once. The card's buttons
 // find the timer already stopped, so they never record a second session.
-function handlePracticeFinishEarly() {
+async function handlePracticeFinishEarly() {
     if (!state.progressReady || state.progress.completionPending) return;
     const activeIds = getActivePracticeItems().map((item) => item.id);
     const timerRunning = Boolean(state.timerReady && state.timer?.running);
@@ -2487,25 +2482,25 @@ function handlePracticeFinishEarly() {
         PRACTICE_COMPLETION_TYPE.partial,
         activeIds
     );
-    if (!transition.started || !persistPracticeProgress(clearAllPracticeCurrentChecks(transition.progress))) {
+    if (!transition.started || !(await persistPracticeProgress(clearAllPracticeCurrentChecks(transition.progress)))) {
         state.listNotice = '練習終了の状態を保存できませんでした。現在の進捗は変更していません。';
         renderPracticeList({ focus: false });
         return;
     }
     // If recording fails the timer keeps running and the card's buttons retry the stop.
-    const timerResult = timerRunning ? stopPracticeTimerWithHistory() : { ok: true };
+    const timerResult = timerRunning ? (await stopPracticeTimerWithHistory()) : { ok: true };
     renderPracticeList({ focus: false });
     syncPracticeCompletionDialog();
     if (!timerResult.ok) showNotice(elements.completionError, timerResult.message);
 }
 
-function handlePracticeCompletionAction(destination) {
+async function handlePracticeCompletionAction(destination) {
     if (state.completionActionInProgress || !state.progress?.completionPending) return;
     state.completionActionInProgress = true;
     showNotice(elements.completionError);
     syncPracticeCompletionDialog({ focus: false });
 
-    const timerResult = stopPracticeTimerWithHistory();
+    const timerResult = (await stopPracticeTimerWithHistory());
     if (!timerResult.ok) {
         state.completionActionInProgress = false;
         showNotice(elements.completionError, timerResult.message);
@@ -2514,7 +2509,7 @@ function handlePracticeCompletionAction(destination) {
     }
 
     const transition = finishPracticeCompletion(state.progress);
-    if (!transition.finished || !persistPracticeProgress(transition.progress)) {
+    if (!transition.finished || !(await persistPracticeProgress(transition.progress))) {
         state.completionActionInProgress = false;
         showNotice(elements.completionError, '次の練習サイクルを開始できませんでした。もう一度お試しください。');
         syncPracticeCompletionDialog({ focus: false });
@@ -2621,14 +2616,14 @@ function requestClosePracticeSetDialog() {
     closePracticeSetDialog();
 }
 
-function persistPracticeSets(items) {
-    const result = savePracticeMenuSets(items);
+async function persistPracticeSets(items) {
+    const result = (await savePracticeMenuSets(items));
     if (!result.ok) return false;
     state.practiceSets = items;
     return true;
 }
 
-function handlePracticeSetSubmit(event) {
+async function handlePracticeSetSubmit(event) {
     event.preventDefault();
     const values = readPracticeSetDialogValues();
     const editId = state.setDialogEditId;
@@ -2649,7 +2644,7 @@ function handlePracticeSetSubmit(event) {
             : elements.setName).focus();
         return;
     }
-    if (!persistPracticeSets(result.items)) {
+    if (!(await persistPracticeSets(result.items))) {
         showNotice(elements.setError, '保存できませんでした。ブラウザの空き容量や保存設定を確認してください。');
         return;
     }
@@ -2673,12 +2668,12 @@ function handlePracticeSetSubmit(event) {
     elements.setSelect.focus({ preventScroll: true });
 }
 
-function handlePracticeSetDelete() {
+async function handlePracticeSetDelete() {
     const set = findPracticeMenuSet(state.practiceSets, state.setDialogEditId);
     if (!set) return;
     if (!window.confirm('このプリセットを削除しますか？\n練習メニュー自体は削除されません。')) return;
     const result = deletePracticeMenuSet(state.practiceSets, set.id);
-    if (!result.found || !persistPracticeSets(result.items)) {
+    if (!result.found || !(await persistPracticeSets(result.items))) {
         showNotice(elements.setError, 'プリセットを削除できませんでした。もう一度お試しください。');
         return;
     }
@@ -2957,7 +2952,7 @@ function renderPracticeCalendarNotes() {
     }
 }
 
-function handlePracticeCalendarNoteSubmit(event) {
+async function handlePracticeCalendarNoteSubmit(event) {
     event.preventDefault();
     if (!state.calendarReady) return;
     const time = elements.calendarNoteTime.value;
@@ -2993,7 +2988,7 @@ function handlePracticeCalendarNoteSubmit(event) {
         );
         return;
     }
-    if (!persistPracticeCalendar(result.calendar)) {
+    if (!(await persistPracticeCalendar(result.calendar))) {
         showNotice(elements.calendarNoteError, '予定・メモを保存できませんでした。');
         return;
     }
@@ -3001,7 +2996,7 @@ function handlePracticeCalendarNoteSubmit(event) {
     renderPracticeHistory({ focus: false });
 }
 
-function handlePracticeCalendarNoteAction(event) {
+async function handlePracticeCalendarNoteAction(event) {
     const button = event.target.closest('[data-calendar-note-action]');
     if (!button || !state.calendarReady) return;
     const note = state.calendar.notes.find(({ id }) => id === button.dataset.id);
@@ -3012,7 +3007,7 @@ function handlePracticeCalendarNoteAction(event) {
     }
     if (!window.confirm('この予定・メモを削除しますか？')) return;
     const result = deletePracticeCalendarNote(state.calendar, note.id);
-    if (!result.ok || !persistPracticeCalendar(result.calendar)) {
+    if (!result.ok || !(await persistPracticeCalendar(result.calendar))) {
         showNotice(elements.historyError, '予定・メモを削除できませんでした。');
         return;
     }
@@ -3138,7 +3133,7 @@ function closePracticeRecordForm({ focus = false } = {}) {
     if (focus) elements.historyAdd.focus({ preventScroll: true });
 }
 
-function handlePracticeRecordSubmit(event) {
+async function handlePracticeRecordSubmit(event) {
     event.preventDefault();
     if (!state.historyReady) return;
     const practiceId = elements.historyFormMenu.value;
@@ -3173,7 +3168,7 @@ function handlePracticeRecordSubmit(event) {
         const record = createManualPracticeRecord({ localDate, practiceId, practiceName, appId, durationMinutes });
         result = record ? appendPracticeHistoryEvent(state.history, record) : { ok: false };
     }
-    if (!result.ok || !savePracticeHistory(result.history).ok) {
+    if (!result.ok || !(await savePracticeHistory(result.history)).ok) {
         showNotice(elements.historyFormError, '練習記録を保存できませんでした。記録は変更していません。');
         return;
     }
@@ -3193,7 +3188,7 @@ function handlePracticeHistoryEdit(event) {
     if (record) openPracticeRecordForm(record);
 }
 
-function handlePracticeHistoryDelete(event) {
+async function handlePracticeHistoryDelete(event) {
     const button = event.target.closest('[data-history-delete-id]');
     if (!button || !state.historyReady) return;
     const target = state.history.events.find(({ id }) => id === button.dataset.historyDeleteId);
@@ -3204,7 +3199,7 @@ function handlePracticeHistoryDelete(event) {
     if (!window.confirm(`${message}\n練習メニューと通算回数は変わりません。`)) return;
     showNotice(elements.historyStatus);
     const result = deletePracticeHistoryEvent(state.history, target.id, state.timerReady ? state.timer : null);
-    if (!result.ok || !savePracticeHistory(result.history).ok) {
+    if (!result.ok || !(await savePracticeHistory(result.history)).ok) {
         showNotice(elements.historyError, '練習記録を削除できませんでした。記録は変更していません。');
         return;
     }
@@ -3569,23 +3564,23 @@ function moveReorderItem(id, direction) {
 
 // A set reorder changes only that set's itemIds order: never the master order,
 // other sets, menus, checks, counts or history, and it never opens the completion card.
-function completePracticeSetReorder() {
+async function completePracticeSetReorder() {
     const result = reorderPracticeMenuSet(
         state.practiceSets,
         state.reorderSetId,
         state.reorderItems.map((item) => item.id)
     );
-    if (!result.ok || (result.changed && !persistPracticeSets(result.items))) {
+    if (!result.ok || (result.changed && !(await persistPracticeSets(result.items)))) {
         showNotice(elements.reorderNotice, '並び順を保存できませんでした。元の順番は変更していません。');
         return;
     }
     cancelReorder();
 }
 
-function completeReorder() {
+async function completeReorder() {
     if (!state.reorderMode) return;
     if (state.reorderSetId) {
-        completePracticeSetReorder();
+        (await completePracticeSetReorder());
         return;
     }
     const activeItems = getActivePracticeItems();
@@ -3595,7 +3590,7 @@ function completeReorder() {
     }
 
     const candidateItems = mergeReorderedActiveItems(state.items, state.reorderItems);
-    const saveResult = savePracticeMenus(candidateItems);
+    const saveResult = (await savePracticeMenus(candidateItems));
     if (!saveResult.ok) {
         showNotice(elements.reorderNotice, '並び順を保存できませんでした。元の順番は変更していません。');
         return;
@@ -3945,7 +3940,7 @@ async function handlePracticeAttachmentAction(event, scope = 'detail') {
     const item = findItem(state.activeId);
     if (!item || !window.confirm(`「${button.dataset.fileName}」を削除しますか？`)) return;
     const result = await practiceAttachmentStore.deleteAttachment(button.dataset.id);
-    if (result.ok) portAssetSync.removePracticeAttachment({ id: button.dataset.id, logicalId: button.dataset.logicalId || null });
+    if (result.ok) (await portAssetSync.removePracticeAttachment({ id: button.dataset.id, logicalId: button.dataset.logicalId || null }));
     setPracticeAttachmentStatus(scope, result.ok ? 'ファイルを削除しました。' : 'ファイルを削除できませんでした。', { error: !result.ok });
     await renderPracticeAttachments(item.id, scope);
     await refreshPracticeAttachmentCounts();
@@ -4654,7 +4649,7 @@ function closeGearCategoryDialog({ restoreFocus = true } = {}) {
     target?.focus({ preventScroll: true });
 }
 
-function handleGearCategorySubmit(event) {
+async function handleGearCategorySubmit(event) {
     event.preventDefault();
     const result = gearState.categoryDialogMode === 'rename'
         ? renameGearCategory(gearState.categories, gearState.activeCategory, elements.gearCategoryName.value)
@@ -4667,7 +4662,7 @@ function handleGearCategorySubmit(event) {
         elements.gearCategoryName.focus();
         return;
     }
-    const saved = saveGearCategories(result.categories);
+    const saved = (await saveGearCategories(result.categories));
     if (!saved.ok) {
         showNotice(elements.gearCategoryError, 'カテゴリを保存できませんでした。入力内容を控えてからページを更新してください。');
         return;
@@ -4695,7 +4690,7 @@ function showGearCategoryHasItemsNotice() {
     window.alert('このカテゴリには機材が登録されています。\n削除するには、先に機材を別のカテゴリへ移動してください。');
 }
 
-function handleGearCategoryDelete() {
+async function handleGearCategoryDelete() {
     if (!gearState.categoryStorageReady || gearState.reorderMode) return;
     const category = gearState.categories.find(({ id }) => id === gearState.activeCategory);
     if (!category) return;
@@ -4721,7 +4716,7 @@ function handleGearCategoryDelete() {
 
     const result = deleteGearCategory(gearState.categories, category.id);
     if (!result.ok) return;
-    const saved = saveGearCategories(result.categories);
+    const saved = (await saveGearCategories(result.categories));
     if (!saved.ok) {
         showNotice(elements.gearStorageError, 'カテゴリを削除できませんでした。ページを更新してからもう一度お試しください。');
         return;
@@ -5185,8 +5180,8 @@ function readGearFormValues() {
     });
 }
 
-function persistGearItems(candidateItems, errorElement, message) {
-    const result = saveGearList(candidateItems);
+async function persistGearItems(candidateItems, errorElement, message) {
+    const result = (await saveGearList(candidateItems));
     if (!result.ok) {
         showNotice(errorElement, message);
         return false;
@@ -5250,18 +5245,18 @@ async function handleGearSubmit(event) {
             },
             previousReferences: getGearPhotoReferences(originalItem),
             buildItems: (references) => buildItems(references),
-            persist: (items) => saveGearList(items)
+            persist: async (items) => (await saveGearList(items))
         });
     } else if (gearState.photoAction === 'remove' && originalItem) {
         result = await commitGearPhotoRemoval({
             photoStore: gearPhotoStore,
             previousReferences: getGearPhotoReferences(originalItem),
             buildItems: () => buildItems(null, true),
-            persist: (items) => saveGearList(items)
+            persist: async (items) => (await saveGearList(items))
         });
     } else {
         const candidateItems = buildItems();
-        const persisted = saveGearList(candidateItems);
+        const persisted = (await saveGearList(candidateItems));
         result = persisted.ok ? { ok: true, items: candidateItems } : { ok: false, reason: 'metadata-write-failed' };
     }
     gearState.saving = false;
@@ -5279,29 +5274,29 @@ async function handleGearSubmit(event) {
     setGearListRoute();
 }
 
-function handleGearPurchase(item) {
+async function handleGearPurchase(item) {
     if (!window.confirm(`${item.name}を自分の機材に追加しますか？`)) return;
     const result = markGearPurchased(gearState.items, item.id);
     if (!result.found) return;
-    if (!persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。')) return;
+    if (!(await persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。'))) return;
     gearState.activeStatus = 'owned';
     renderWishlist({ focus: false });
 }
 
-function handleGearSell(item) {
+async function handleGearSell(item) {
     if (!window.confirm(`${item.name}を手放した機材へ移しますか？`)) return;
     const result = markGearSold(gearState.items, item.id);
     if (!result.found) return;
-    if (!persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。')) return;
+    if (!(await persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。'))) return;
     gearState.activeStatus = 'owned';
     renderWishlist({ focus: false });
 }
 
-function handleGearRestore(item) {
+async function handleGearRestore(item) {
     if (!window.confirm(`${item.name}を所有中の機材へ戻しますか？`)) return;
     const result = restoreGearOwned(gearState.items, item.id);
     if (!result.found) return;
-    if (!persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。')) return;
+    if (!(await persistGearItems(result.items, elements.gearStorageError, '変更を保存できませんでした。元のリストは変更していません。'))) return;
     gearState.activeStatus = 'owned';
     renderWishlist({ focus: false });
 }
@@ -5320,9 +5315,9 @@ async function handleGearDelete(item) {
             photoStore: gearPhotoStore,
             references: getGearPhotoReferences(item),
             buildItems: () => deletion.items,
-            persist: (items) => saveGearList(items)
+            persist: async (items) => (await saveGearList(items))
         })
-        : saveGearList(deletion.items).ok
+        : (await saveGearList(deletion.items)).ok
             ? { ok: true, items: deletion.items, cleanupOk: true }
             : { ok: false };
     if (!result.ok) {
@@ -5371,7 +5366,7 @@ function moveGearReorderItem(id, direction) {
         ?.focus();
 }
 
-function completeGearReorder() {
+async function completeGearReorder() {
     if (!gearState.reorderMode) return;
     const filter = { status: gearState.reorderStatus, category: gearState.reorderCategory || 'all' };
     const currentIds = selectGearItems(gearState.items, filter).map(({ id }) => id);
@@ -5380,7 +5375,7 @@ function completeGearReorder() {
         cancelGearReorder();
         return;
     }
-    if (!persistGearItems(gearState.reorderItems, elements.gearReorderNotice, '並び順を保存できませんでした。元の順番は変更していません。')) return;
+    if (!(await persistGearItems(gearState.reorderItems, elements.gearReorderNotice, '並び順を保存できませんでした。元の順番は変更していません。'))) return;
     gearState.reorderMode = false;
     gearState.reorderStatus = null;
     gearState.reorderCategory = null;
@@ -5389,7 +5384,7 @@ function completeGearReorder() {
     renderWishlist({ focus: false });
 }
 
-function handleGearListAction(event) {
+async function handleGearListAction(event) {
     const photoTarget = event.target.closest('[data-gear-photo-id]');
     if (photoTarget) {
         const photoItem = findGearItem(photoTarget.dataset.gearPhotoId);
@@ -5437,13 +5432,13 @@ function handleGearListAction(event) {
     if (target.dataset.gearAction === 'edit') {
         setHashRoute(`#wishlist/${encodeURIComponent(item.id)}/edit`);
     } else if (target.dataset.gearAction === 'purchase') {
-        handleGearPurchase(item);
+        (await handleGearPurchase(item));
     } else if (target.dataset.gearAction === 'sell') {
-        handleGearSell(item);
+        (await handleGearSell(item));
     } else if (target.dataset.gearAction === 'restore') {
-        handleGearRestore(item);
+        (await handleGearRestore(item));
     } else if (target.dataset.gearAction === 'delete') {
-        handleGearDelete(item);
+        (await handleGearDelete(item));
     }
 }
 
@@ -5611,8 +5606,8 @@ function readFormValues() {
     return { ok: true, values: { name, durationMinutes, appId, memo, hidden } };
 }
 
-function persist(candidateItems) {
-    const result = savePracticeMenus(candidateItems);
+async function persist(candidateItems) {
+    const result = (await savePracticeMenus(candidateItems));
     if (!result.ok) {
         showNotice(elements.formError, '保存できませんでした。ブラウザの空き容量や保存設定を確認してください。');
         return false;
@@ -5621,15 +5616,10 @@ function persist(candidateItems) {
     return true;
 }
 
-function persistPracticeItemsAndProgress(candidateItems, nextProgress) {
-    const previousProgress = state.progress;
+async function persistPracticeItemsAndProgress(candidateItems, nextProgress) {
     const progressChanged = nextProgress !== state.progress;
-    if (progressChanged && !savePracticeProgress(nextProgress).ok) return false;
-    const menuResult = savePracticeMenus(candidateItems);
-    if (!menuResult.ok) {
-        if (progressChanged) savePracticeProgress(previousProgress);
-        return false;
-    }
+    const result = await commitPracticeItemsAndProgress(candidateItems, nextProgress, progressChanged);
+    if (!result.ok) return false;
     state.items = candidateItems;
     if (progressChanged) state.progress = nextProgress;
     return true;
@@ -5669,7 +5659,7 @@ async function handleSubmit(event) {
         const nextProgress = !previousItem.hidden && nextItem.hidden && state.progressReady
             ? clearPracticeCurrentCheck(state.progress, state.activeId)
             : state.progress;
-        if (persistPracticeItemsAndProgress(updateResult.items, nextProgress)) {
+        if ((await persistPracticeItemsAndProgress(updateResult.items, nextProgress))) {
             if (visibilityChanged) {
                 state.listNotice = nextItem.hidden
                     ? '練習メニューを非表示にしました。'
@@ -5695,9 +5685,9 @@ async function handleSubmit(event) {
     if (!guardPracticeCreation()) return;
     const item = createPracticeMenu(formResult.values, state.items);
     const chosenSetIds = readPracticeFormSetIds();
-    if (persist([...state.items, item])) {
+    if ((await persist([...state.items, item]))) {
         // The menu is saved first, so a set never references a menu that does not exist.
-        const setNotice = addNewPracticeMenuToSets(item, chosenSetIds);
+        const setNotice = (await addNewPracticeMenuToSets(item, chosenSetIds));
         if (setNotice) state.listNotice = setNotice;
         const pending = [...state.pendingCreateAttachments];
         let attachmentResult = { ok: true, savedRecords: [], remaining: [] };
@@ -5725,10 +5715,10 @@ async function handleSubmit(event) {
 
 // Appends the saved menu to the end of each chosen set in one batch write. Sets
 // removed meanwhile are skipped. Returns a notice for the list, or ''.
-function addNewPracticeMenuToSets(item, setIds) {
+async function addNewPracticeMenuToSets(item, setIds) {
     if (!state.practiceSetsReady || setIds.length === 0) return notInSelectedSetNotice(item.id);
     const result = addPracticeMenuToSets(state.practiceSets, setIds, item.id);
-    if (result.changed && !persistPracticeSets(result.items)) {
+    if (result.changed && !(await persistPracticeSets(result.items))) {
         return '練習メニューは保存しましたが、プリセットに追加できませんでした。「プリセットを編集」から追加してください。';
     }
     return notInSelectedSetNotice(item.id);
@@ -5824,11 +5814,11 @@ async function handleDelete() {
     const nextProgress = state.progressReady
         ? removePracticeFromProgress(state.progress, item.id)
         : state.progress;
-    if (!persistPracticeItemsAndProgress(deleteResult.items, nextProgress)) {
+    if (!(await persistPracticeItemsAndProgress(deleteResult.items, nextProgress))) {
         showNotice(elements.detailError, '削除できませんでした。保存設定を確認してください。');
         return;
     }
-    portAssetSync.removePracticeAttachments(item.id);
+    (await portAssetSync.removePracticeAttachments(item.id));
     const attachmentCleanup = await practiceAttachmentStore.deleteAttachmentsForPractice(item.id);
     if (!attachmentCleanup.ok) {
         state.listNotice = '練習メニューは削除しましたが、ファイルデータの整理を完了できませんでした。';
@@ -5842,12 +5832,12 @@ async function handleDelete() {
     }
 }
 
-function handlePracticeTotalCountReset() {
+async function handlePracticeTotalCountReset() {
     const item = findItem(state.activeId);
     if (!item || !state.progressReady || !getPracticeTotalCount(item.id)) return;
     if (!window.confirm(`「${item.name}」の通算回数を0回に戻しますか？\n過去の練習履歴は残ります。`)) return;
     const nextProgress = resetPracticeTotalCount(state.progress, item.id);
-    if (!persistPracticeProgress(nextProgress)) {
+    if (!(await persistPracticeProgress(nextProgress))) {
         showNotice(elements.formError, '通算回数をリセットできませんでした。');
         return;
     }
@@ -5938,13 +5928,13 @@ elements.gearPhotoLightbox.addEventListener('keydown', (event) => {
         elements.gearPhotoLightboxClose.focus();
     }
 });
-elements.gearSections.addEventListener('click', (event) => {
+elements.gearSections.addEventListener('click', async (event) => {
     const reorderStart = event.target.closest('[data-gear-reorder-status]');
     if (reorderStart) {
         startGearReorder(reorderStart.dataset.gearReorderStatus);
         return;
     }
-    handleGearListAction(event);
+    (await handleGearListAction(event));
 });
 elements.gearSections.addEventListener('keydown', (event) => {
     if (event.target.matches('[data-gear-card-id]') && ['Enter', ' '].includes(event.key)) {
@@ -6045,9 +6035,9 @@ elements.gearCategoryRename.addEventListener('click', () => {
     closeGearCategoryMenu({ restoreFocus: false });
     openGearCategoryDialog('rename');
 });
-elements.gearCategoryDelete.addEventListener('click', () => {
+elements.gearCategoryDelete.addEventListener('click', async () => {
     closeGearCategoryMenu({ restoreFocus: false });
-    handleGearCategoryDelete();
+    (await handleGearCategoryDelete());
 });
 document.addEventListener('click', (event) => {
     if (!event.target.closest('[data-gear-card-id]')) closeGearCardMenus();
@@ -6131,9 +6121,9 @@ elements.historyBack.addEventListener('click', returnFromPracticeCalendar);
 elements.hiddenOpen.addEventListener('click', () => setHashRoute('#practice-menu/hidden'));
 elements.finishButton.addEventListener('click', handlePracticeFinishEarly);
 elements.cycleReset.addEventListener('click', handlePracticeCycleReset);
-elements.completionEnd.addEventListener('click', () => handlePracticeCompletionAction('home'));
-elements.completionCalendar.addEventListener('click', () => handlePracticeCompletionAction('calendar'));
-elements.completionPractice.addEventListener('click', () => handlePracticeCompletionAction('practice'));
+elements.completionEnd.addEventListener('click', async () => (await handlePracticeCompletionAction('home')));
+elements.completionCalendar.addEventListener('click', async () => (await handlePracticeCompletionAction('calendar')));
+elements.completionPractice.addEventListener('click', async () => (await handlePracticeCompletionAction('practice')));
 elements.setSelect.addEventListener('change', () => {
     selectPracticeSet(elements.setSelect.value);
     renderPracticeList({ focus: false });
@@ -6314,9 +6304,9 @@ for (const scope of ['detail', 'form']) {
         if (!presentation.input.disabled) presentation.input.click();
     });
 }
-elements.attachmentsList.addEventListener('click', (event) => handlePracticeAttachmentAction(event, 'detail'));
+elements.attachmentsList.addEventListener('click', async (event) => (await handlePracticeAttachmentAction(event, 'detail')));
 elements.formAttachmentInput.addEventListener('change', (event) => handlePracticeAttachmentSelection(event, 'form'));
-elements.formAttachmentsList.addEventListener('click', (event) => handlePracticeAttachmentAction(event, 'form'));
+elements.formAttachmentsList.addEventListener('click', async (event) => (await handlePracticeAttachmentAction(event, 'form')));
 elements.attachmentLightboxClose.addEventListener('click', () => closePracticeAttachmentLightbox({ restoreFocus: true }));
 elements.attachmentLightbox.addEventListener('click', (event) => {
     if (event.target === elements.attachmentLightbox) closePracticeAttachmentLightbox({ restoreFocus: true });
@@ -6328,7 +6318,7 @@ elements.attachmentLightbox.addEventListener('keydown', (event) => {
         elements.attachmentLightboxClose.focus();
     }
 });
-elements.list.addEventListener('click', (event) => {
+elements.list.addEventListener('click', async (event) => {
     const reorderButton = event.target.closest('.reorder-move');
     if (reorderButton && state.reorderMode) {
         moveReorderItem(reorderButton.dataset.id, Number(reorderButton.dataset.direction));
@@ -6355,7 +6345,7 @@ elements.list.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
         const item = findItem(action.dataset.id);
-        if (item) handlePracticeCheck(item);
+        if (item) (await handlePracticeCheck(item));
     }
     if (action.dataset.practiceAction === 'files') {
         void handlePracticeFilesAction(action, event);
@@ -6443,8 +6433,8 @@ if (syncCenterController.enabled) {
         }
     });
 }
-function updateDisplaySettings(next) {
-    const saveResult = saveSettings(next);
+async function updateDisplaySettings(next) {
+    const saveResult = (await saveSettings(next));
     homeSettings = saveResult.settings;
     applyDisplaySettings();
     renderSettings({
@@ -6453,14 +6443,14 @@ function updateDisplaySettings(next) {
     });
     return saveResult.ok;
 }
-[...elements.settingsChoices, ...elements.fontChoices].forEach((button) => button.addEventListener('click', () => {
+[...elements.settingsChoices, ...elements.fontChoices].forEach((button) => button.addEventListener('click', async () => {
     const field = button.dataset.displaySize ? 'displaySize' : 'fontSize';
-    updateDisplaySettings({ ...homeSettings, [field]: button.dataset[field] });
+    (await updateDisplaySettings({ ...homeSettings, [field]: button.dataset[field] }));
     button.focus({ preventScroll: true });
 }));
 // Only an explicit tap stores the theme (including Dark).
-elements.themeChoices.forEach((button) => button.addEventListener('click', () => {
-    updateDisplaySettings({ ...homeSettings, theme: button.dataset.themeChoice });
+elements.themeChoices.forEach((button) => button.addEventListener('click', async () => {
+    (await updateDisplaySettings({ ...homeSettings, theme: button.dataset.themeChoice }));
     button.focus({ preventScroll: true });
 }));
 for (const choices of [elements.settingsChoices, elements.fontChoices, elements.themeChoices]) choices.forEach((button, index) => button.addEventListener('keydown', (event) => {
@@ -6470,20 +6460,20 @@ for (const choices of [elements.settingsChoices, elements.fontChoices, elements.
     const next = choices[(index + offset + choices.length) % choices.length];
     next.click();
 }));
-elements.sectionOrder.addEventListener('click', (event) => {
+elements.sectionOrder.addEventListener('click', async (event) => {
     const button = event.target.closest('button[data-section-key]');
     if (!button || button.disabled) return;
     const key = button.dataset.sectionKey;
     const direction = Number(button.dataset.direction);
-    const saved = updateDisplaySettings({ ...homeSettings, sectionOrder: moveHomeSection(homeSettings.sectionOrder, key, direction) });
+    const saved = (await updateDisplaySettings({ ...homeSettings, sectionOrder: moveHomeSection(homeSettings.sectionOrder, key, direction) }));
     elements.orderStatus.textContent = `${homeSettings.sectionOrder.map(key => homeSectionLabels[key]).join('、')}の順${saved ? 'に保存しました。' : 'です。保存はできていません。'}`;
     const same = elements.sectionOrder.querySelector(`[data-section-key="${key}"][data-direction="${direction}"]`);
     const fallback = elements.sectionOrder.querySelector(`[data-section-key="${key}"]:not(:disabled)`);
     (same?.disabled ? fallback : same)?.focus({ preventScroll: true });
 });
-elements.settingsReset.addEventListener('click', () => {
+elements.settingsReset.addEventListener('click', async () => {
     if (!window.confirm('表示設定をすべてデフォルトに戻しますか？\n練習メニューやMy Appsなどのデータは削除されません。')) return;
-    const saved = updateDisplaySettings({ ...DEFAULT_SETTINGS, theme: DEFAULT_THEME });
+    const saved = (await updateDisplaySettings({ ...DEFAULT_SETTINGS, theme: DEFAULT_THEME }));
     elements.orderStatus.textContent = saved ? '表示設定をデフォルトに戻しました。' : '保存できませんでした。デフォルトは今回の表示だけに反映しています。';
     elements.settingsReset.focus({ preventScroll: true });
 });

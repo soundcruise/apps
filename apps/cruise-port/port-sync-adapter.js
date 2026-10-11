@@ -190,17 +190,23 @@
     let intents;
     try { intents = JSON.parse(storage.getItem(DELETION_INTENT_KEY) || '{}'); } catch (_) { return false; }
     if (!plain(intents)) return false;
-    if (GUARDED_DELETE_TYPES.has(type)) return intents[key] === true;
-    if (intents[key] === true) return true;
+    const confirmed = name => intents[name] === true || typeof intents[name]?.generation === 'string';
+    if (previous?.operationId && previous.deleteIntentGeneration && intents[key]?.generation !== previous.deleteIntentGeneration) return false;
+    if (GUARDED_DELETE_TYPES.has(type)) return confirmed(key);
+    if (confirmed(key)) return true;
     const ids = previous?.payload?.value;
-    return Array.isArray(ids) && ids.length > 0 && ids.every((id) => intents[`${orderType}/${id}`] === true);
+    return Array.isArray(ids) && ids.length > 0 && ids.every((id) => confirmed(`${orderType}/${id}`));
   }
   function canDeleteDuringMigration(storage, key, previous) {
     const type = String(key).split('/')[0];
     if (!GUARDED_DELETE_TYPES.has(type) && !ORDER_ITEM_TYPES[type]) return false;
     return canDeleteRecord(storage, key, previous);
   }
-  function acknowledgeDelete(storage, key) {
+  function acknowledgeDelete(storage, key, generation) {
+    if (root.usesPortRepository?.(storage)) {
+      const repo = root.portRepository(storage);
+      return repo.readDatasetState().then(base => repo.acknowledgeDelete(key, generation, base.revision));
+    }
     try {
       const intents = JSON.parse(storage.getItem(DELETION_INTENT_KEY) || '{}');
       if (!plain(intents) || intents[key] !== true) return;
@@ -264,6 +270,11 @@
     return repairs.gear.size > 0 || repairs.myApps.size > 0 || repairs.attachments.size > 0;
   }
   function reconcileRemoteAssetReferences(storage, records, previousRecords) {
+    if (root.usesPortRepository?.(storage)) {
+      const adapter = new PortSyncAdapter({ storage });
+      adapter.primeRemoteReferences(previousRecords);
+      return adapter.reconcileRemoteReferences(records);
+    }
     const repairs = findAssetReferenceRepairs(storage, records, previousRecords);
     if (!hasAssetReferenceRepairs(repairs)) return false;
     const assets = assetMetadata(storage);
@@ -273,7 +284,51 @@
     }
     return true;
   }
+  const FULL_TYPES = Object.freeze(['settings', 'metronome_settings', 'tuner_settings', 'practice_cycle',
+    'metronome_preset', 'calendar_event', 'practice_menu', 'practice_menu_order', 'practice_menu_set',
+    'practice_attachment', 'practice_attachment_set', 'practice_history_event', 'gear_category',
+    'gear_category_order', 'gear_item', 'gear_order', 'my_app', 'my_app_order']);
+  function fullSnapshot(records) {
+    return { schemaVersion: SCHEMA_VERSION, records,
+      fullDataset: { protocol: 1, types: [...FULL_TYPES], capabilities: [...SYNC_CAPABILITIES],
+        recordKeys: records.map(item => `${item.recordType}/${item.recordId}`).sort() } };
+  }
+  function assertFullSnapshot(snapshot) {
+    const expected = fullSnapshot(snapshot?.records || []).fullDataset;
+    if (!snapshot?.fullDataset || canonical(snapshot.fullDataset) !== canonical(expected)) {
+      throw new Error('port_partial_snapshot_rejected');
+    }
+    normalizeSnapshot(snapshot);
+  }
+  function assertForwardStorage(storage) {
+    const allowed = {
+      'cruisePort.metronomePresets': ['version', 'items'],
+      'cruisePort.practiceCalendar': ['version', 'notes'],
+      'cruisePort.practiceMenus': ['version', 'items'],
+      'cruisePort.practiceHistory': ['version', 'events', 'activeSessionTiming'],
+      'cruisePort.gearCategories': ['version', 'categories'],
+      'cruisePort.gearList': ['version', 'items'],
+      'cruisePort.myApps': ['version', 'items'],
+      'cruisePort.practiceMenuSets': ['version', 'items'],
+      [ASSET_METADATA_KEY]: ['version', 'gear', 'myApps', 'attachments', 'releaseQueue', 'discardQueue', 'referencePending']
+    };
+    for (const [key, fields] of Object.entries(allowed)) {
+      const envelope = parse(storage, key);
+      if (envelope && Object.keys(envelope).some(field => !fields.includes(field))) throw new Error('port_forward_incompatible');
+    }
+    for (const [key, max] of [['cruisePort.settings', 3], ['cruisePort.metronome', 3], ['cruisePort.tuner', 3], ['cruisePort.practiceProgress', 3]]) {
+      const value = parse(storage, key);
+      if (value && (!plain(value) || (value.version !== undefined && (!Number.isInteger(value.version) || value.version > max)))) {
+        throw new Error('port_forward_incompatible');
+      }
+    }
+  }
   function readLocalSnapshot(storage = global.localStorage) {
+    if (root.usesPortRepository?.(storage)) {
+      const state = root.portRepository(storage).inspect();
+      return readLocalSnapshot({ getItem: key => state.values[key] ?? null });
+    }
+    assertForwardStorage(storage);
     root.validateLocalStorage?.(storage);
     const records = [];
     const assets = assetMetadata(storage);
@@ -334,7 +389,7 @@
       item: without(normalizeMyAppItem(item), ['iconId', 'iconSourceId', 'iconCrop']), asset: assetFor(item, 'app', assets)
     })));
     if (itemValues(myApps).length) records.push(record('my_app_order', 'default', itemValues(myApps).map(({ id }) => id)));
-    return { schemaVersion: SCHEMA_VERSION, records };
+    return fullSnapshot(records);
   }
   function normalizeSnapshot(snapshot) {
     if (!plain(snapshot) || snapshot.schemaVersion !== SCHEMA_VERSION || !Array.isArray(snapshot.records)) {
@@ -346,6 +401,11 @@
           item.schemaVersion !== SCHEMA_VERSION || !plain(item.payload) || item.payload.id !== item.recordId) {
         throw new Error('port_snapshot_invalid');
       }
+      if (!FULL_TYPES.includes(item.recordType)) throw new Error('port_forward_incompatible');
+      const singletonIds = { settings: 'global', metronome_settings: 'default', tuner_settings: 'default', practice_cycle: 'current' };
+      if (singletonIds[item.recordType] && item.recordId !== singletonIds[item.recordType]) throw new Error('port_snapshot_invalid');
+      const innerMax = { settings: 3, metronome_settings: 3, tuner_settings: 3, practice_cycle: 3 }[item.recordType];
+      if (innerMax && item.payload.value?.version > innerMax) throw new Error('port_forward_incompatible');
       safeId(item.recordId); assertSafe(item.payload.value);
       const key = `${item.recordType}/${item.recordId}`;
       if (seen.has(key)) throw new Error('port_snapshot_duplicate');
@@ -365,7 +425,7 @@
           && value.pauseIntervals === undefined) value.pauseIntervals = [];
       return normalized;
     }).sort((a, b) => `${a.recordType}/${a.recordId}`.localeCompare(`${b.recordType}/${b.recordId}`));
-    return { schemaVersion: SCHEMA_VERSION, records };
+    return { schemaVersion: SCHEMA_VERSION, records, ...(snapshot.fullDataset ? { fullDataset: clone(snapshot.fullDataset) } : {}) };
   }
   async function serializeRecords(snapshot, cryptoImpl = global.crypto) {
     const normalized = normalizeSnapshot(snapshot);
@@ -377,10 +437,10 @@
     })));
   }
   function deserializeRecords(records) {
-    return normalizeSnapshot({ schemaVersion: SCHEMA_VERSION, records: (records || []).map((item) => ({
+    return normalizeSnapshot(fullSnapshot((records || []).map((item) => ({
       recordType: item.recordType, recordId: item.recordId,
       schemaVersion: item.schemaVersion, payload: clone(item.payload)
-    })) });
+    }))));
   }
   function keyOf(item) { return `${item.recordType}/${item.recordId}`; }
   function mergeDisjointOrder(localRecord, remoteRecord, localRecords, remoteRecords) {
@@ -410,7 +470,7 @@
         else conflicts.push({ recordKey: keyOf(item), reason: 'same_record_changed' });
       } else merged.set(keyOf(item), item);
     });
-    return { snapshot: normalizeSnapshot({ schemaVersion: SCHEMA_VERSION, records: [...merged.values()] }), conflicts };
+    return { snapshot: normalizeSnapshot(fullSnapshot([...merged.values()])), conflicts };
   }
   function prepareRemoteResolutionSnapshot(snapshot, { recordKey: selectedKey, localRecord } = {}) {
     const normalized = normalizeSnapshot(snapshot);
@@ -432,7 +492,7 @@
     records.set(selectedKey, {
       ...clone(selected), payload: { ...clone(selected.payload), value: mergedOrder }
     });
-    return normalizeSnapshot({ ...normalized, records: [...records.values()] });
+    return normalizeSnapshot(fullSnapshot([...records.values()]));
   }
   function byType(snapshot, type) { return snapshot.records.filter((item) => item.recordType === type); }
   function ordered(snapshot, type, orderType, orderId = 'default') {
@@ -462,6 +522,18 @@
   }
   function write(storage, key, value) { storage.setItem(key, JSON.stringify(value)); }
   async function applyRemoteSnapshot(storage, snapshot, previousRecords = [], expectedSnapshot = null) {
+    assertFullSnapshot(snapshot);
+    assertForwardStorage(storage);
+    if (root.usesPortRepository?.(storage)) {
+      const repo = root.portRepository(storage);
+      const before = await repo.readDatasetState();
+      const result = await repo.runWrite({ expectedRevision: before.revision, source: 'sync' },
+        tx => applyRemoteSnapshot(tx, snapshot, previousRecords, expectedSnapshot));
+      if (!result.ok) throw Object.assign(new Error(result.reason), { code: result.reason, repositoryHandled: true });
+      root.acceptRemoteStorageValues?.(storage, MANAGED_KEYS);
+      return result;
+    }
+
     if (expectedSnapshot && canonical(normalizeSnapshot(readLocalSnapshot(storage))) !==
         canonical(normalizeSnapshot(expectedSnapshot))) {
       const error = new Error('local_changed_during_apply');
@@ -549,6 +621,7 @@
       return normalizeMyAppItem(restoreAsset(value, local, 'app', metadataEntry));
     }) });
     write(storage, ASSET_METADATA_KEY, currentAssets);
+    root.validateLocalStorage?.(storage);
     const changedKeys = MANAGED_KEYS.filter((key) => storage.getItem(key) !== before.get(key));
     root.acceptRemoteStorageValues?.(storage, changedKeys);
     const changed = changedKeys.length > 0;
@@ -608,6 +681,7 @@
       this.remoteReferenceRecords = [];
       this.syncCapabilities = SYNC_CAPABILITIES;
     }
+    get ownsRollback() { return root.usesPortRepository?.(this.storage) === true; }
     readLocalSnapshot() { return readLocalSnapshot(this.storage); }
     normalizeLocalSnapshot(value = this.readLocalSnapshot()) { return normalizeSnapshot(value); }
     validateSnapshot(value) { try { normalizeSnapshot(value); return true; } catch (_) { return false; } }
@@ -616,10 +690,23 @@
     isMeaningfulLocalData(value = this.readLocalSnapshot()) { return normalizeSnapshot(value).records.length > 0; }
     canDeleteRecord(key, previous) { return canDeleteRecord(this.storage, key, previous); }
     canDeleteDuringMigration(key, previous) { return canDeleteDuringMigration(this.storage, key, previous); }
-    acknowledgeDelete(key) { acknowledgeDelete(this.storage, key); }
+    deleteIntentGeneration(key) {
+      try { return JSON.parse(this.storage.getItem(DELETION_INTENT_KEY) || '{}')[key]?.generation || null; } catch { return null; }
+    }
+    acknowledgeDelete(key, generation) { return acknowledgeDelete(this.storage, key, generation); }
     mergeSnapshots(local, remote) { return mergeSnapshots(local, remote); }
     primeRemoteReferences(records) { this.remoteReferenceRecords = clone(records || []); }
     reconcileRemoteReferences(records) {
+      if (root.usesPortRepository?.(this.storage)) {
+        const repo = root.portRepository(this.storage);
+        return repo.readDatasetState().then(base => repo.runWrite({ expectedRevision: base.revision, source: 'sync' }, tx =>
+          ({ ok: true, repaired: reconcileRemoteAssetReferences(tx, records, this.remoteReferenceRecords) })
+        )).then(result => {
+          if (!result.ok) throw new Error(result.reason);
+          this.remoteReferenceRecords = clone(records || []);
+          return result.repaired;
+        });
+      }
       const repaired = reconcileRemoteAssetReferences(this.storage, records, this.remoteReferenceRecords);
       this.remoteReferenceRecords = clone(records || []);
       return repaired;
@@ -641,7 +728,7 @@
   }
 
   Object.assign(root, {
-    APP_ID, SCHEMA_VERSION, MANAGED_KEYS, ASSET_METADATA_KEY, SYNC_CAPABILITIES, PortSyncAdapter,
+    APP_ID, SCHEMA_VERSION, MANAGED_KEYS, ASSET_METADATA_KEY, SYNC_CAPABILITIES, PortSyncAdapter, fullSnapshot, assertFullSnapshot,
     readLocalSnapshot, normalizeLocalSnapshot: normalizeSnapshot, serializeRecords,
     deserializeRecords, mergeSnapshots, applyRemoteSnapshot, computeManifest,
     assertDataPlaneContext, getConflictPresentation, reconcileRemoteAssetReferences,

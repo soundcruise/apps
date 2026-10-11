@@ -458,7 +458,7 @@
       try {
         await this.adapter.applyRemoteSnapshot(nextSnapshot, checkCurrent ? { expectedSnapshot: previousSnapshot } : undefined);
       } catch (error) {
-        if (error?.code === 'local_changed_during_apply') throw error;
+        if (error?.code === 'local_changed_during_apply' || this.adapter.ownsRollback === true) throw error;
         try { await this.adapter.applyRemoteSnapshot(previousSnapshot); } catch (_) { /* preserve original failure */ }
         throw error;
       }
@@ -498,6 +498,7 @@
         payload: deleted ? null : clone(record.payload),
         payloadHash,
         deleted,
+        ...(deleted && this.adapter.deleteIntentGeneration ? { deleteIntentGeneration: this.adapter.deleteIntentGeneration(keyOf(record)) } : {}),
         attempts: 0,
         nextRetryAt: 0,
         createdAt: this.now()
@@ -1379,7 +1380,7 @@
           if (!operation) throw new MultiAppSyncError('invalid_response');
           if (['applied', 'duplicate'].includes(result.status)) {
             await this.store.deleteOutbox(operation.operationId);
-            if (operation.deleted) this.adapter.acknowledgeDelete?.(keyOf(operation));
+            if (operation.deleted) await this.adapter.acknowledgeDelete?.(keyOf(operation), operation.deleteIntentGeneration);
             else await this.acknowledgeOwnRecord(operation, result.record);
           }
           else if (result.status === 'conflict') {

@@ -1,3 +1,4 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.21.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 export const SETTINGS_STORAGE_KEY = 'cruisePort.settings';
 export const SETTINGS_SCHEMA_VERSION = 3;
@@ -69,6 +70,7 @@ export function moveHomeSection(order, key, direction) {
 }
 
 export function loadSettings(storage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadSettings(tx));
     try {
         if (storage === undefined) storage = globalThis.localStorage;
         const raw = readStorageValue(storage, SETTINGS_STORAGE_KEY);
@@ -97,6 +99,7 @@ export function loadSettings(storage) {
 }
 
 export function saveSettings(settings, storage) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [SETTINGS_STORAGE_KEY], tx => saveSettings(settings, tx));
     const normalized = normalizeSettings(settings);
     try {
         if (storage === undefined) storage = globalThis.localStorage;

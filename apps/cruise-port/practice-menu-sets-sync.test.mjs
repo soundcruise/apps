@@ -1,3 +1,4 @@
+import { fixtureFullSnapshot } from './tests/full-snapshot-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -209,13 +210,13 @@ test('remote apply restores the same sets and writes nothing for users without s
     };
     const snapshot = load(source).readLocalSnapshot(source);
     const target = memoryStorage({ [MENUS]: menus });
-    await load(target).applyRemoteSnapshot(target, snapshot);
+    await load(target).applyRemoteSnapshot(target, fixtureFullSnapshot(snapshot));
     assert.deepEqual(loadPracticeMenuSets(target).items.map((item) => [item.id, item.name, item.itemIds]),
         [['set-1', '音感練', ['menu-a']], ['set-2', 'ギター練', ['menu-c']]], 'sets arrive in creation order (createdAt, then id)');
     const empty = memoryStorage({ [MENUS]: menus });
-    await load(empty).applyRemoteSnapshot(empty, { schemaVersion: 1, records: snapshot.records.filter((record) => record.recordType !== 'practice_menu_set') });
+    await load(empty).applyRemoteSnapshot(empty, fixtureFullSnapshot({ schemaVersion: 1, records: snapshot.records.filter((record) => record.recordType !== 'practice_menu_set') }));
     assert.equal(empty.getItem(SETS), null, 'no sets, no key');
-    await load(target).applyRemoteSnapshot(target, { schemaVersion: 1, records: snapshot.records.filter((record) => record.recordId !== 'set-1') });
+    await load(target).applyRemoteSnapshot(target, fixtureFullSnapshot({ schemaVersion: 1, records: snapshot.records.filter((record) => record.recordId !== 'set-1') }));
     assert.deepEqual(loadPracticeMenuSets(target).items.map((item) => item.id), ['set-2'], 'a remote delete removes the set locally');
     assert.deepEqual(JSON.parse(target.getItem(MENUS)).items.map((item) => item.id), ['menu-a', 'menu-b', 'menu-c'], 'menus untouched');
 });

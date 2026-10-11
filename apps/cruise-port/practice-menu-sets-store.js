@@ -1,3 +1,4 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.21.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 
 // Practice menu sets are the user-facing "プリセット" of the Practice Menu. They are
@@ -60,6 +61,7 @@ function cloneSet(set) {
 }
 
 export function loadPracticeMenuSets(storage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadPracticeMenuSets(tx));
     try {
         if (storage === undefined) storage = globalThis.localStorage;
         const rawValue = readStorageValue(storage, PRACTICE_MENU_SETS_STORAGE_KEY);
@@ -83,6 +85,7 @@ export function loadPracticeMenuSets(storage) {
 }
 
 export function savePracticeMenuSets(items, storage) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [PRACTICE_MENU_SETS_STORAGE_KEY], tx => savePracticeMenuSets(items, tx));
     if (!Array.isArray(items) || !items.every(isValidPracticeMenuSet) || !hasUniqueIds(items)) {
         return { ok: false, reason: 'invalid-data' };
     }

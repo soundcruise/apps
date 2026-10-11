@@ -5,14 +5,14 @@ import {
     defaultAccentsForMeter,
     loadMetronomeSettings,
     saveMetronomeSettings
-} from './metronome-store.js?v=0.59.3';
+} from './metronome-store.js?v=1.21.3';
 import {
     METRONOME_PRESET_LIMITS,
     createMetronomePreset,
     deleteMetronomePreset,
     loadMetronomePresets,
     settingsFromMetronomePreset
-} from './metronome-presets-store.js?v=0.59.3';
+} from './metronome-presets-store.js?v=1.21.3';
 import {
     beatsForMeter,
     compatibleRhythm,
@@ -22,7 +22,7 @@ import {
     meterLabel,
     scheduleEventsUntil,
     secondsPerBeat
-} from './metronome-timing.js?v=0.24.0';
+} from './metronome-timing.js?v=1.21.3';
 
 export const METRONOME_SCHEDULER_INTERVAL_MS = 25;
 export const METRONOME_SCHEDULE_AHEAD_SEC = 0.1;
@@ -417,8 +417,8 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
     };
 }
 
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.2';
-import { effectiveMetronome, mergeMetronomeSettings, requestToolPro } from './tool-capabilities.js?v=1.19.2';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
+import { effectiveMetronome, mergeMetronomeSettings, requestToolPro } from './tool-capabilities.js?v=1.21.3';
 
 export function initMetronome(root, { capabilities = getCapabilities(), requestPro = requestToolPro } = {}) {
     const elements = {
@@ -477,9 +477,9 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
         elements.storageError.hidden = !message;
     }
 
-    function saveSettings() {
+    async function saveSettings() {
         const merged = mergeMetronomeSettings(storedSettings, state.settings, capabilities);
-        const result = saveMetronomeSettings(merged);
+        const result = (await saveMetronomeSettings(merged));
         if (result.ok) storedSettings = merged;
         showStorageError(result.ok ? '' : 'メトロノーム設定を保存できませんでした。現在の操作はこの画面内だけに反映されています。');
     }
@@ -695,7 +695,7 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
         if (engine.isPlaying()) engine.reschedule(getSettings, options);
     }
 
-    function applyPreset(presetId) {
+    async function applyPreset(presetId) {
         const preset = state.presets.find((candidate) => candidate.id === presetId);
         const settings = settingsFromMetronomePreset(preset);
         if (!preset || !settings) {
@@ -711,20 +711,20 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
         engine.setVolume(state.settings.volume);
         renderControls();
         renderPresetOptions();
-        saveSettings();
+        (await saveSettings());
         showPresetError();
         showPresetStatus(`「${preset.name}」を呼び出しました。`);
         if (engine.isPlaying()) engine.reschedule(getSettings, { resetBeat: true });
         return true;
     }
 
-    function saveCurrentAsPreset() {
+    async function saveCurrentAsPreset() {
         if (!capabilities.metronomePresetWrite) { requestPro('metronomePresetWrite'); return false; }
-        const result = createMetronomePreset({
+        const result = (await createMetronomePreset({
             presets: state.presets,
             name: elements.presetName.value,
             settings: getSettings()
-        });
+        }));
         if (!result.ok) {
             if (result.reason === 'name-required') showPresetDialogError('プリセット名を入力してください。');
             else if (result.reason === 'name-too-long') showPresetDialogError(`プリセット名は${METRONOME_PRESET_LIMITS.name}文字以内で入力してください。`);
@@ -745,7 +745,7 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
         return true;
     }
 
-    function deleteSelectedPreset() {
+    async function deleteSelectedPreset() {
         const preset = state.presets.find((candidate) => candidate.id === state.selectedPresetId);
         if (!preset) return;
         if (!state.presetStorageWritable) {
@@ -753,7 +753,7 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
             return;
         }
         if (!window.confirm(`プリセット「${preset.name}」を削除しますか？\n現在のメトロノーム設定はそのまま残ります。`)) return;
-        const result = deleteMetronomePreset({ presets: state.presets, id: preset.id });
+        const result = (await deleteMetronomePreset({ presets: state.presets, id: preset.id }));
         if (!result.ok) {
             markPresetStorageUnavailable();
             return;
@@ -765,50 +765,50 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
         showPresetStatus(`「${preset.name}」を削除しました。現在の設定は変更していません。`);
     }
 
-    function setBpm(value, { persist = true } = {}) {
+    async function setBpm(value, { persist = true } = {}) {
         const bpm = clampInteger(value, METRONOME_LIMITS.bpmMin, METRONOME_LIMITS.bpmMax, state.settings.bpm);
         state.settings = { ...state.settings, bpm };
         markPresetDirty();
         elements.bpm.value = String(bpm);
         elements.bpmSlider.value = String(bpm);
         elements.bpmSlider.setAttribute('aria-valuetext', `${bpm} BPM`);
-        if (persist) saveSettings();
+        if (persist) (await saveSettings());
         rescheduleIfPlaying();
         return bpm;
     }
 
     elements.stepButtons.forEach((button) => {
-        button.addEventListener('click', () => setBpm(state.settings.bpm + Number(button.dataset.bpmDelta)));
+        button.addEventListener('click', async () => (await setBpm(state.settings.bpm + Number(button.dataset.bpmDelta))));
     });
 
-    elements.bpm.addEventListener('change', () => setBpm(elements.bpm.value));
-    elements.bpm.addEventListener('keydown', (event) => {
+    elements.bpm.addEventListener('change', async () => (await setBpm(elements.bpm.value)));
+    elements.bpm.addEventListener('keydown', async (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            setBpm(elements.bpm.value);
+            (await setBpm(elements.bpm.value));
             elements.bpm.blur();
         }
     });
-    elements.bpmSlider.addEventListener('input', () => setBpm(elements.bpmSlider.value, { persist: false }));
+    elements.bpmSlider.addEventListener('input', async () => (await setBpm(elements.bpmSlider.value, { persist: false })));
     elements.bpmSlider.addEventListener('change', saveSettings);
 
-    elements.presetSelect.addEventListener('change', () => {
+    elements.presetSelect.addEventListener('change', async () => {
         if (!elements.presetSelect.value) {
             state.selectedPresetId = '';
             elements.presetDelete.hidden = true;
             showPresetStatus();
             return;
         }
-        applyPreset(elements.presetSelect.value);
+        (await applyPreset(elements.presetSelect.value));
     });
     elements.presetSaveOpen.addEventListener('click', openPresetDialog);
     elements.presetSave.addEventListener('click', saveCurrentAsPreset);
     elements.presetCancel.addEventListener('click', () => closePresetDialog());
     elements.presetDelete.addEventListener('click', deleteSelectedPreset);
-    elements.presetName.addEventListener('keydown', (event) => {
+    elements.presetName.addEventListener('keydown', async (event) => {
         if (event.key === 'Enter') {
             event.preventDefault();
-            saveCurrentAsPreset();
+            (await saveCurrentAsPreset());
         }
     });
     elements.presetDialog.addEventListener('keydown', (event) => {
@@ -847,7 +847,7 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
         elements.presetSaveOpen.setAttribute('aria-label', '設定を保存（Pro版機能）');
     }
 
-    elements.meter.addEventListener('change', () => {
+    elements.meter.addEventListener('change', async () => {
         if (!capabilities.metronomeAdvanced) { renderControls(); requestPro('metronomeAdvanced'); return; }
         const meter = elements.meter.value;
         const rhythm = compatibleRhythm(meter, state.settings.rhythm);
@@ -861,11 +861,11 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
         state.currentBeat = -1;
         state.currentSubdivision = -1;
         renderControls();
-        saveSettings();
+        (await saveSettings());
         rescheduleIfPlaying({ resetBeat: true });
     });
 
-    elements.rhythm.addEventListener('click', (event) => {
+    elements.rhythm.addEventListener('click', async (event) => {
         if (!capabilities.metronomeAdvanced) { requestPro('metronomeAdvanced'); return; }
         const button = event.target.closest('[data-metronome-rhythm]');
         if (!button || button.disabled) return;
@@ -874,11 +874,11 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
         markPresetDirty();
         renderRhythmControls();
         rebuildVisualRhythm();
-        saveSettings();
+        (await saveSettings());
         rescheduleIfPlaying();
     });
 
-    elements.beats.addEventListener('click', (event) => {
+    elements.beats.addEventListener('click', async (event) => {
         if (!capabilities.metronomeAdvanced) { requestPro('metronomeAdvanced'); return; }
         const button = event.target.closest('[data-accent-beat]');
         if (!button) return;
@@ -889,18 +889,18 @@ export function initMetronome(root, { capabilities = getCapabilities(), requestP
         markPresetDirty();
         renderBeatState();
         renderVisualState();
-        saveSettings();
+        (await saveSettings());
         rescheduleIfPlaying();
     });
 
-    elements.sound.addEventListener('click', (event) => {
+    elements.sound.addEventListener('click', async (event) => {
         if (!capabilities.metronomeAdvanced) { requestPro('metronomeAdvanced'); return; }
         const button = event.target.closest('[data-metronome-sound]');
         if (!button) return;
         state.settings = { ...state.settings, sound: button.dataset.metronomeSound };
         markPresetDirty();
         renderSoundControls();
-        saveSettings();
+        (await saveSettings());
         rescheduleIfPlaying();
     });
 

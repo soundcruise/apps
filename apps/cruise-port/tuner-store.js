@@ -1,3 +1,4 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.21.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 import { isValidCapo, isValidTuningId } from './tuner-tuning.js?v=1.1.6';
 
@@ -61,6 +62,7 @@ function migrateV1Settings(value) {
 }
 
 export function loadTunerSettings(storage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadTunerSettings(tx));
     try {
         const targetStorage = storage ?? globalThis.localStorage;
         const raw = readStorageValue(targetStorage, TUNER_STORAGE_KEY);
@@ -77,6 +79,7 @@ export function loadTunerSettings(storage) {
 }
 
 export function saveTunerSettings(settings, storage) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [TUNER_STORAGE_KEY], tx => saveTunerSettings(settings, tx));
     const normalized = normalizeTunerSettings(settings);
     if (!normalized) return { ok: false, reason: 'invalid-data' };
     try {

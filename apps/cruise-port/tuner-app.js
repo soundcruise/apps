@@ -10,7 +10,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=0.59.3';
+} from './tuner-store.js?v=1.21.3';
 import {
     TUNER_CAPO_MAX,
     TUNER_CAPO_MIN,
@@ -389,8 +389,8 @@ function diagnosticDeviceLabel(navigatorObject) {
     return 'Browser';
 }
 
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.2';
-import { effectiveCapo, requestToolPro } from './tool-capabilities.js?v=1.19.2';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
+import { effectiveCapo, requestToolPro } from './tool-capabilities.js?v=1.21.3';
 
 export function initTuner(root, {
     capabilities = getCapabilities(),
@@ -500,13 +500,13 @@ export function initTuner(root, {
         });
     }
 
-    function saveCurrentSettings() {
-        const result = saveTunerSettings({
+    async function saveCurrentSettings() {
+        const result = (await saveTunerSettings({
             version: TUNER_SCHEMA_VERSION,
             thresholdDb: currentThresholdDb,
             tuningId: currentTuningId,
             capo: capabilities.tunerCapo ? currentCapo : storedCapo
-        }, storage);
+        }, storage));
         elements.settingsError.textContent = result.ok ? '' : 'チューナー設定を保存できませんでした。';
         return result;
     }
@@ -925,7 +925,7 @@ export function initTuner(root, {
         };
     }
 
-    elements.tuning.addEventListener('change', () => {
+    elements.tuning.addEventListener('change', async () => {
         if (!isValidTuningId(elements.tuning.value)) {
             elements.tuning.value = currentTuningId;
             return;
@@ -934,10 +934,10 @@ export function initTuner(root, {
         if (isFreeTuning(currentTuningId)) currentCapo = 0;
         renderTargetControls();
         reevaluateCurrentReading();
-        saveCurrentSettings();
+        (await saveCurrentSettings());
     });
 
-    function changeCapo(delta) {
+    async function changeCapo(delta) {
         if (!capabilities.tunerCapo) { requestPro('tunerCapo'); return; }
         if (isFreeTuning(currentTuningId)) return;
         const nextCapo = currentCapo + delta;
@@ -945,11 +945,11 @@ export function initTuner(root, {
         currentCapo = nextCapo;
         renderTargetControls();
         reevaluateCurrentReading();
-        saveCurrentSettings();
+        (await saveCurrentSettings());
     }
 
-    elements.capoDown.addEventListener('click', () => changeCapo(-1));
-    elements.capoUp.addEventListener('click', () => changeCapo(1));
+    elements.capoDown.addEventListener('click', async () => (await changeCapo(-1)));
+    elements.capoUp.addEventListener('click', async () => (await changeCapo(1)));
     root.querySelector('#tuner-capo-lock')?.addEventListener('click', () => requestPro('tunerCapo'));
 
     elements.threshold.addEventListener('input', () => {
@@ -968,8 +968,8 @@ export function initTuner(root, {
         renderThreshold();
     });
 
-    elements.threshold.addEventListener('change', () => {
-        saveCurrentSettings();
+    elements.threshold.addEventListener('change', async () => {
+        (await saveCurrentSettings());
     });
 
     elements.inputSettingsToggle.addEventListener('click', () => {

@@ -3,11 +3,11 @@ import {
     deleteMyApp,
     saveMyApps,
     updateMyApp
-} from './my-apps-store.js?v=0.59.3';
+} from './my-apps-store.js?v=1.21.3';
 import { isValidIconCrop } from './my-apps-crop.js?v=1.1.0';
 import { isKnownMyAppsIconPreset } from './my-apps-icon-presets.js?v=1.0.3';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.2';
-import { checkMyAppsCreation } from './my-apps-capabilities.js?v=1.19.2';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
+import { checkMyAppsCreation } from './my-apps-capabilities.js?v=1.21.3';
 
 async function deleteIconBestEffort(iconStore, iconId) {
     if (!iconId || !iconStore?.deleteIcon) return;
@@ -84,7 +84,7 @@ export async function createMyAppEntry({
         await deleteIconsBestEffort(iconStore, newIds);
         return { ok: false, reason: 'creation-blocked' };
     }
-    const saveResult = saveMyApps(nextItems, storage);
+    const saveResult = (await saveMyApps(nextItems, storage));
     if (!saveResult.ok) {
         await deleteIconsBestEffort(iconStore, newIds);
         return { ok: false, reason: 'metadata-write-failed' };
@@ -180,7 +180,7 @@ export async function updateMyAppEntry({
         await deleteIconsBestEffort(iconStore, newIds);
         return { ok: false, reason: 'pro-required' };
     }
-    const saveResult = saveMyApps(nextItems, storage);
+    const saveResult = (await saveMyApps(nextItems, storage));
     if (!saveResult.ok) {
         await deleteIconsBestEffort(iconStore, newIds);
         return { ok: false, reason: 'metadata-write-failed' };
@@ -195,7 +195,7 @@ export async function deleteMyAppEntry({ items, id, storage, iconStore }) {
     const currentItem = items.find((item) => item.id === id) || null;
     if (!currentItem) return { ok: false, reason: 'not-found' };
     const deleteResult = deleteMyApp(items, id);
-    const saveResult = saveMyApps(deleteResult.items, storage);
+    const saveResult = (await saveMyApps(deleteResult.items, storage));
     if (!saveResult.ok) return { ok: false, reason: 'metadata-write-failed' };
     await deleteIconsBestEffort(iconStore, [currentItem.iconId, currentItem.iconSourceId]);
     return { ok: true, items: deleteResult.items };

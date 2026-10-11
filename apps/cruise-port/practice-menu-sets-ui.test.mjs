@@ -90,7 +90,7 @@ test('both completion cards offer 練習画面に戻る through the existing com
     }
     // One dialog serves both the automatic (complete) and manual (partial) card.
     assert.match(functionBody('syncPracticeCompletionDialog'), /const complete = pending\.type === PRACTICE_COMPLETION_TYPE\.complete/);
-    assert.match(app, /elements\.completionPractice\.addEventListener\('click', \(\) => handlePracticeCompletionAction\('practice'\)\);/);
+    assert.match(app, /elements\.completionPractice\.addEventListener\('click', async \(\) => \(await handlePracticeCompletionAction\('practice'\)\)\);/);
     const action = functionBody('handlePracticeCompletionAction');
     const commit = action.indexOf('finishPracticeCompletion(state.progress)');
     const practice = action.indexOf("destination === 'practice'");

@@ -1,3 +1,4 @@
+import { fixtureFullSnapshot } from './tests/full-snapshot-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -95,7 +96,7 @@ test('reset returns the theme to Dark explicitly, within the existing display-se
 
 test('only an explicit tap stores the theme and the choice applies without reload', () => {
     assert.match(app, /themeChoices: \[\.\.\.document\.querySelectorAll\('button\[data-theme-choice\]'\)\]/);
-    assert.match(app, /elements\.themeChoices\.forEach\(\(button\) => button\.addEventListener\('click', \(\) => \{\n\s*updateDisplaySettings\(\{ \.\.\.homeSettings, theme: button\.dataset\.themeChoice \}\);/);
+    assert.match(app, /elements\.themeChoices\.forEach\(\(button\) => button\.addEventListener\('click', async \(\) => \{\n\s*\(await updateDisplaySettings\(\{ \.\.\.homeSettings, theme: button\.dataset\.themeChoice \}\)\);/);
     assert.match(app, /function applyColorTheme\(theme\) \{\n\s*document\.documentElement\.dataset\.theme = theme;\n\s*document\.querySelector\('meta\[name="theme-color"\]'\)\?\.setAttribute\('content', THEME_META_COLORS\[theme\]\);/);
     assert.match(app, /applyColorTheme\(resolveTheme\(homeSettings\.theme\)\);/);
     assert.doesNotMatch(app, /location\.reload\(\)[^\n]*theme|theme[^\n]*location\.reload/);
@@ -177,11 +178,11 @@ test('Cloud Sync carries the theme inside settings/global without any Worker or 
 
     // Another device receives the record and stores the same theme for its next start.
     const other = storage({ [SETTINGS_STORAGE_KEY]: v3({ theme: 'dark' }) });
-    await sync.applyRemoteSnapshot(other, snapshot);
+    await sync.applyRemoteSnapshot(other, fixtureFullSnapshot(snapshot));
     assert.equal(JSON.parse(other.value(SETTINGS_STORAGE_KEY)).theme, 'light');
     // An old payload without a theme stays Dark on the receiving device.
     const old = storage();
-    await sync.applyRemoteSnapshot(old, { schemaVersion: 1, records: [{ recordType: 'settings', recordId: 'global', schemaVersion: 1, payload: { id: 'global', value: JSON.parse(v3()) } }] });
+    await sync.applyRemoteSnapshot(old, fixtureFullSnapshot({ schemaVersion: 1, records: [{ recordType: 'settings', recordId: 'global', schemaVersion: 1, payload: { id: 'global', value: JSON.parse(v3()) } }] }));
     assert.equal(resolveTheme(JSON.parse(old.value(SETTINGS_STORAGE_KEY)).theme), 'dark');
 });
 

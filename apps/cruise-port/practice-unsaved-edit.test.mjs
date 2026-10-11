@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import * as menus from './practice-menu-store.js';
+import { commitPracticeItemsAndProgress } from './practice-dataset-writes.js';
+import { PortDatasetRepository, PORT_DATASET_META, PORT_DELETE_INTENTS } from './port-dataset-repository.js';
+import { registerPortRepository } from './port-dataset-storage.js?v=1.21.3';
 import * as progress from './practice-menu-progress-store.js';
 
 const source = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');
@@ -31,10 +34,13 @@ function fixture({ hidden = false, failure = null } = {}) {
         formError: { ...control(), hidden: true } };
     const routes = [];
     const route = value => { routes.push(value); elements.formView.hidden = true; };
+    registerPortRepository(storage, new PortDatasetRepository({ storage, locks: { request: async (_name, _options, fn) => fn() } }));
+    menus.loadPracticeMenus(storage);
     const context = vm.createContext({ ...menus, ...progress, elements, state, document,
         myAppsState: { items: [], storageReady: true }, isSelectablePracticeAppId: () => true,
         findItem: id => state.items.find(item => item.id === id),
         savePracticeMenus: items => menus.savePracticeMenus(items, storage),
+        commitPracticeItemsAndProgress: (items, next, changed) => commitPracticeItemsAndProgress(items, next, changed, storage),
         savePracticeProgress: () => ({ ok: true }),
         showNotice(el, message = '') { el.hidden = !message; el.textContent = message; },
         setHashRoute: route, setPracticeListRoute: () => route('list'),
@@ -101,7 +107,7 @@ test('save-and-return uses the real edit/persistence handler for visible and hid
         assert.equal(JSON.parse(f.values.get(menus.STORAGE_KEYS.practiceMenus)).items[0].memo, '変更保存');
         assert.equal(f.elements.formView.hidden, true);
         assert.equal(JSON.stringify(f.state.progress), beforeProgress);
-        assert.equal(f.writes.every(key => Object.values(menus.STORAGE_KEYS).includes(key)), true);
+        assert.equal(f.writes.every(key => [...Object.values(menus.STORAGE_KEYS), PORT_DATASET_META, PORT_DELETE_INTENTS].includes(key)), true);
         if (hidden) assert.ok(f.routes.some(route => route.endsWith('#practice-menu/hidden')));
     }
 });

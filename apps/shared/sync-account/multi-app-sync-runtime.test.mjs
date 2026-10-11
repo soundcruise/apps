@@ -1,3 +1,5 @@
+import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
+import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.21.3';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
@@ -263,7 +265,7 @@ test('Pitch local read repairs a stale referenced chord from the saved shadow on
   assert.equal(repairs, 1);
 });
 
-function realPortFixture(values, fetchImpl = null) {
+function realPortFixture(values, fetchImpl = null, coordinated = false) {
   const deviceId = fetchImpl ? 'second' : 'first';
   const Runtime = loadRuntime();
   const context = Runtime.testContext;
@@ -275,7 +277,13 @@ function realPortFixture(values, fetchImpl = null) {
   };
   context.URL = URL;
   context.localStorage = storage;
-  context.SoundCruisePortSync = { validateLocalStorage: validatePortLocalCollections };
+  if (coordinated) {
+    let pending = Promise.resolve();
+    const locks = { request(name, options, fn) { const next = pending.then(fn); pending = next.catch(() => {}); return next; } };
+    registerPortRepository(storage, new PortDatasetRepository({ storage, locks }));
+  }
+  context.SoundCruisePortSync = { validateLocalStorage: validatePortLocalCollections,
+    ...(coordinated ? { usesPortRepository, portRepository } : {}) };
   vm.runInNewContext(readFileSync(new URL('../../cruise-port/port-sync-adapter.js', import.meta.url), 'utf8'), context);
   const adapter = new context.SoundCruisePortSync.PortSyncAdapter({ storage, cryptoImpl: webcrypto });
   const store = memoryStore();
@@ -3492,4 +3500,43 @@ test('the fixture server, like the Worker, rejects a completion manifest that di
   assert.equal(server.state, 'missing');
   assert.equal((await complete('manifest-settings')).status, 200);
   assert.equal(server.state, 'ready');
+});
+
+test('repository-owned rollback failure never triggers a second destructive adapter apply', async () => {
+  const fixture = runtimeFixture([record('kept')]);
+  fixture.local.ownsRollback = true;
+  let calls = 0;
+  fixture.local.applyRemoteSnapshot = async () => { calls += 1; throw new Error('recovery-required'); };
+  const before = fixture.local.readLocalSnapshot();
+  await assert.rejects(fixture.runtime.applyWithBackup({ ...before, records: [] }, before), /recovery-required/);
+  assert.equal(calls, 1);
+  assert.equal(fixture.local.records[0].recordId, 'kept');
+});
+
+test('delete outbox carries the adapter generation while other adapters keep their legacy shape', async () => {
+  const fixture = runtimeFixture([record('removed')]);
+  fixture.local.deleteIntentGeneration = key => key === 'custom_record/removed' ? 'delete-generation-2' : null;
+  const operation = await fixture.runtime.operationFor(record('removed'), 1, true);
+  assert.equal(operation.deleteIntentGeneration, 'delete-generation-2');
+  const other = runtimeFixture([record('other')]);
+  assert.equal(Object.hasOwn(await other.runtime.operationFor(record('other'), 1, true), 'deleteIntentGeneration'), false);
+});
+
+test('coordinated Port repository survives actual runtime delete response loss and clears only its ack generation', async () => {
+  const key = 'cruisePort.metronomePresets';
+  const preset = { id: 'preset-core', name: 'Core', ...METRONOME_DEFAULTS,
+    accents: [...METRONOME_DEFAULTS.accents], createdAt: 1000, updatedAt: 1000 };
+  const fixture = realPortFixture({ [key]: JSON.stringify({ version: 1, items: [preset] }) }, null, true);
+  await fixture.runtime.consumeHandoff('core');
+  const loaded = loadMetronomePresets(fixture.storage);
+  assert.equal((await deleteMetronomePreset({ presets: loaded.presets, id: preset.id, storage: fixture.storage })).ok, true);
+  const journalKey = 'cruisePort.syncDeletionIntent.v1';
+  const generation = JSON.parse(fixture.storage.getItem(journalKey))['metronome_preset/preset-core'].generation;
+  fixture.server.responseLossAfterApply = true;
+  await assert.rejects(fixture.runtime.sync('delete-core'), error => error.code === 'network_error');
+  assert.equal(JSON.parse(fixture.storage.getItem(journalKey))['metronome_preset/preset-core'].generation, generation);
+  fixture.runtime.now = () => Date.now() + 500000;
+  await fixture.runtime.sync('retry-core');
+  assert.equal(JSON.parse(fixture.storage.getItem(journalKey) || '{}')['metronome_preset/preset-core'], undefined);
+  assert.ok(fixture.server.records.get('metronome_preset/preset-core').deletedAt);
 });

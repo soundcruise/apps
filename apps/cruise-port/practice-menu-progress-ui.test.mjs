@@ -85,7 +85,7 @@ assert.doesNotMatch(partialFinishSource, /createCycleCompletedEvent/);
 assert.match(source, /clearPracticeCurrentCheck\(state\.progress, state\.activeId\)/);
 assert.match(source, /resetPracticeTotalCount\(state\.progress, item\.id\)/);
 assert.match(source, /savePracticeProgress\(nextProgress\)/);
-assert.match(source, /savePracticeHistory\(nextHistory\)/);
+assert.match(source, /commitPracticeActivity\(nextProgress, nextHistory\)/);
 assert.match(source, /startPracticeTimer\(state\.timer\)/);
 assert.match(source, /getPracticeTimerElapsedSeconds\(state\.timer\)/);
 assert.match(source, /createPracticeSessionEvent\(transition\.session\)/);

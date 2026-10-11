@@ -167,7 +167,7 @@
     return Object.freeze({
       enabled: true, ensure, clearCloudState, status,
       reconcileAssetReferences: async () => canSync()
-        ? adapter.reconcileRemoteReferences?.(await store.listShadow?.() || []) === true
+        ? (await adapter.reconcileRemoteReferences?.(await store.listShadow?.() || [])) === true
         : blocked(),
       sync: (reason = 'manual') => runtime.sync(reason),
       retryLegacyFailures: () => runtime.retryLegacyFailures(),

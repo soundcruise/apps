@@ -11,9 +11,11 @@ const source = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 
 const start = new Date('2026-09-27T01:00:00.000Z');
 const end = new Date('2026-09-27T01:01:00.000Z');
 function functionSource(name) {
-    const from = source.indexOf(`function ${name}(`);
-    assert.ok(from >= 0);
-    return source.slice(from, source.indexOf('\nfunction ', from + 1));
+    const match = new RegExp(`^(?:async )?function ${name}\\(`, 'm').exec(source);
+    assert.ok(match);
+    const rest = source.slice(match.index);
+    const end = /\n(?:async )?function /.exec(rest);
+    return end ? rest.slice(0, end.index) : rest;
 }
 function fixture(failKey = null) {
     const values = new Map();
@@ -61,11 +63,11 @@ const sessionsOf = (h) => h.events.filter(e => e.type === 'practice-session').le
 const completedOf = (h) => h.events.filter(e => e.type === 'practice-completed').length;
 
 // 1.4.3: the gold 練習終了 and ここで練習終了 both call handlePracticeFinishEarly.
-for (const destination of ['home', 'calendar']) test(`manual finish stops the timer once, opens the card and keeps the ${destination} flow`, () => {
+for (const destination of ['home', 'calendar']) test(`manual finish stops the timer once, opens the card and keeps the ${destination} flow`, async () => {
     const f = fixture();
     const expected = progress.beginPracticeCompletion(f.before.progress,
         progress.PRACTICE_COMPLETION_TYPE.partial, ['a', 'b', 'c'], end);
-    f.context.handlePracticeFinishEarly();
+    await f.context.handlePracticeFinishEarly();
     assert.deepEqual(f.state.progress, { ...expected.progress, checkedPracticeIds: [] }, 'pending partial, checks cleared');
     assert.equal(f.state.timer.running, false, 'the timer stops at finish, not later');
     assert.equal(JSON.parse(f.values.get(timer.PRACTICE_TIMER_STORAGE_KEY)).running, false);
@@ -73,7 +75,7 @@ for (const destination of ['home', 'calendar']) test(`manual finish stops the ti
     const sessions = history.createPracticeDayHistoryView(f.state.history, history.toLocalDateKey(end));
     assert.equal(sessions.find(e => e.kind === 'session').event.durationSeconds, 60);
     const oldResult = progress.finishPracticeCompletion(expected.progress, end);
-    f.context.handlePracticeCompletionAction(destination);
+    await f.context.handlePracticeCompletionAction(destination);
     assert.deepEqual(f.state.progress.checkedPracticeIds, oldResult.progress.checkedPracticeIds);
     assert.deepEqual(f.state.progress.countedPracticeIds, oldResult.progress.countedPracticeIds);
     assert.deepEqual(f.state.progress.totalCounts, f.before.progress.totalCounts, 'no double count');
@@ -85,56 +87,56 @@ for (const destination of ['home', 'calendar']) test(`manual finish stops the ti
     assert.equal(f.writes.filter(key => key === history.PRACTICE_HISTORY_STORAGE_KEY).length, 1);
 });
 
-test('a second finish while the card is open does nothing', () => {
+test('a second finish while the card is open does nothing', async () => {
     const f = fixture();
-    f.context.handlePracticeFinishEarly();
+    await f.context.handlePracticeFinishEarly();
     const afterFirst = structuredClone(f.state);
     const writes = f.writes.length;
-    f.context.handlePracticeFinishEarly();
+    await f.context.handlePracticeFinishEarly();
     assert.deepEqual(f.state.progress, afterFirst.progress);
     assert.deepEqual(f.state.history, afterFirst.history);
     assert.equal(f.writes.length, writes);
 });
 
-test('manual finish without a running timer records no session', () => {
+test('manual finish without a running timer records no session', async () => {
     const f = fixture();
     f.state.timer = timer.createStoppedPracticeTimer();
-    f.context.handlePracticeFinishEarly();
+    await f.context.handlePracticeFinishEarly();
     assert.equal(f.state.progress.completionPending.type, progress.PRACTICE_COMPLETION_TYPE.partial);
-    f.context.handlePracticeCompletionAction('home');
+    await f.context.handlePracticeCompletionAction('home');
     assert.equal(sessionsOf(f.state.history), 0);
 });
 
-test('a running timer can be finished even when no menu is active', () => {
+test('a running timer can be finished even when no menu is active', async () => {
     const f = fixture();
     f.state.items = f.state.items.map(item => ({ ...item, hidden: true }));
-    f.context.handlePracticeFinishEarly();
+    await f.context.handlePracticeFinishEarly();
     assert.equal(f.state.progress.completionPending.type, progress.PRACTICE_COMPLETION_TYPE.partial);
     assert.equal(f.state.timer.running, false);
     assert.equal(sessionsOf(f.state.history), 1);
 });
 
-test('history save failure keeps the card pending and the timer running for a retry', () => {
+test('history save failure keeps the card pending and the timer running for a retry', async () => {
     const f = fixture(history.PRACTICE_HISTORY_STORAGE_KEY);
-    f.context.handlePracticeFinishEarly();
+    await f.context.handlePracticeFinishEarly();
     assert.equal(f.state.progress.completionPending.type, progress.PRACTICE_COMPLETION_TYPE.partial);
     assert.deepEqual(f.state.history, f.before.history);
     assert.deepEqual(f.state.timer, f.before.timer, 'the timer keeps running');
     assert.ok(f.messages.includes('練習記録を保存できませんでした。タイマーは継続しています。'));
-    f.context.handlePracticeCompletionAction('home');
+    await f.context.handlePracticeCompletionAction('home');
     assert.notEqual(f.state.progress.completionPending, null, 'the card stays until the session is recorded');
     assert.deepEqual(f.destinations, []);
 });
 
-test('progress-save failure preserves checks and never stops the timer', () => {
+test('progress-save failure preserves checks and never stops the timer', async () => {
     const f = fixture(progress.PRACTICE_PROGRESS_STORAGE_KEY);
-    f.context.handlePracticeFinishEarly();
+    await f.context.handlePracticeFinishEarly();
     assert.deepEqual(f.state.progress, f.before.progress);
     assert.deepEqual(f.state.timer, f.before.timer);
     assert.deepEqual(f.state.history, f.before.history);
 });
 
-test('all Cruise presets use the existing app suggestion handler; saved edit text is untouched', () => {
+test('all Cruise presets use the existing app suggestion handler; saved edit text is untouched', async () => {
     const elements = { namePresetInput: { value: '' }, appInput: { value: '' }, nameInput: { value: '音感練' } };
     const state = { formMode: 'create' };
     const context = vm.createContext({ elements, state, getPracticeNamePreset, syncPracticeNameControls() {} });

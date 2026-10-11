@@ -1,10 +1,11 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.21.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 import {
     METRONOME_RETIRED_SOUNDS,
     METRONOME_SCHEMA_VERSION,
     migrateMetronomeSound,
     normalizeMetronomeSettings
-} from './metronome-store.js?v=0.59.3';
+} from './metronome-store.js?v=1.21.3';
 
 export const METRONOME_PRESETS_STORAGE_KEY = 'cruisePort.metronomePresets';
 export const METRONOME_PRESETS_SCHEMA_VERSION = 1;
@@ -81,6 +82,7 @@ function validatePresetList(presets) {
 }
 
 export function loadMetronomePresets(storage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadMetronomePresets(tx));
     try {
         if (storage === undefined) storage = globalThis.localStorage;
         const raw = readStorageValue(storage, METRONOME_PRESETS_STORAGE_KEY);
@@ -125,6 +127,7 @@ export function loadMetronomePresets(storage) {
 }
 
 export function saveMetronomePresets(presets, storage) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [METRONOME_PRESETS_STORAGE_KEY], tx => saveMetronomePresets(presets, tx));
     const normalized = validatePresetList(presets);
     if (!normalized) return { ok: false, reason: 'invalid-data' };
     try {
@@ -149,6 +152,7 @@ export function createMetronomePreset({
     idFactory = defaultId,
     now = Date.now()
 }) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [METRONOME_PRESETS_STORAGE_KEY], tx => createMetronomePreset({ presets, name, settings, storage: tx, idFactory, now }));
     const normalizedPresets = validatePresetList(presets);
     if (!normalizedPresets) return { ok: false, reason: 'invalid-data' };
     const normalizedName = normalizeName(name);
@@ -183,6 +187,7 @@ export function createMetronomePreset({
 }
 
 export function deleteMetronomePreset({ presets, id, storage }) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [METRONOME_PRESETS_STORAGE_KEY], tx => deleteMetronomePreset({ presets, id, storage: tx }));
     const normalizedPresets = validatePresetList(presets);
     if (!normalizedPresets) return { ok: false, reason: 'invalid-data' };
     if (!normalizedPresets.some((preset) => preset.id === id)) return { ok: false, reason: 'not-found' };

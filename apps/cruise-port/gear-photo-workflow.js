@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.2';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
 
 async function deleteReferences(photoStore, references) {
     const ids = [references?.photoId, references?.photoSourceId].filter(Boolean);
@@ -40,7 +40,7 @@ export async function commitGearPhotoChange({ photoStore, pending, previousRefer
         return { ok: false, reason: 'pro-required' };
     }
     const candidateItems = buildItems(saved.references);
-    const persisted = persist(candidateItems);
+    const persisted = await persist(candidateItems);
     if (!persisted.ok) {
         await deleteReferences(photoStore, saved.references);
         return { ok: false, reason: 'metadata-write-failed' };
@@ -51,7 +51,7 @@ export async function commitGearPhotoChange({ photoStore, pending, previousRefer
 
 export async function commitGearPhotoRemoval({ photoStore, previousReferences, buildItems, persist }) {
     const candidateItems = buildItems();
-    const persisted = persist(candidateItems);
+    const persisted = await persist(candidateItems);
     if (!persisted.ok) return { ok: false, reason: 'metadata-write-failed' };
     const cleanupOk = await deleteReferences(photoStore, previousReferences);
     return { ok: true, items: candidateItems, cleanupOk };
@@ -59,7 +59,7 @@ export async function commitGearPhotoRemoval({ photoStore, previousReferences, b
 
 export async function commitGearItemDeletion({ photoStore, references, buildItems, persist }) {
     const candidateItems = buildItems();
-    const persisted = persist(candidateItems);
+    const persisted = await persist(candidateItems);
     if (!persisted.ok) return { ok: false, reason: 'metadata-write-failed' };
     const cleanupOk = await deleteReferences(photoStore, references);
     return { ok: true, items: candidateItems, cleanupOk };

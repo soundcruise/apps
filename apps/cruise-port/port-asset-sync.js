@@ -1,9 +1,11 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.2';
+import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.21.3';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';
 const VERSION = 4;
 const MAX_ITEMS_PER_PASS = 4;
+const metadataBases = new WeakMap();
 
 function clone(value) { return value == null ? value : JSON.parse(JSON.stringify(value)); }
 function parse(storage, key, fallback) {
@@ -67,23 +69,44 @@ export class PortAssetSync {
         this.lastErrorCode = null;
     }
 
-    readMetadata() { return normalizeMetadata(parse(this.storage, METADATA_KEY, emptyMetadata())); }
-    writeMetadata(metadata) { this.storage.setItem(METADATA_KEY, JSON.stringify(normalizeMetadata(metadata))); }
+    readMetadata() {
+        const raw = this.storage.getItem(METADATA_KEY);
+        const value = normalizeMetadata(parse(this.storage, METADATA_KEY, emptyMetadata()));
+        metadataBases.set(value, raw);
+        return value;
+    }
+    async coordinated(method, args, expectedValues) {
+        const repo = portRepository(this.storage);
+        const base = await repo.readDatasetState();
+        const result = await repo.runWrite({ expectedRevision: base.revision, expectedValues }, async tx => {
+            const isolated = Object.assign(Object.create(Object.getPrototypeOf(this)), this, { storage: tx, schedule: () => {} });
+            return { ok: true, value: await isolated[method](...args) };
+        });
+        if (!result.ok) throw Object.assign(new Error(result.reason), { code: result.reason });
+        return result.value;
+    }
+    writeMetadata(metadata) {
+        if (usesPortRepository(this.storage)) return this.coordinated('writeMetadata', [metadata],
+            { [METADATA_KEY]: metadataBases.has(metadata) ? metadataBases.get(metadata) : this.storage.getItem(METADATA_KEY) });
+        this.storage.setItem(METADATA_KEY, JSON.stringify(normalizeMetadata(metadata)));
+    }
 
-    patchMetadataEntry(bucket, id, expected, next, { releaseIds = [], referencePending = false } = {}) {
+    async patchMetadataEntry(bucket, id, expected, next, { releaseIds = [], referencePending = false } = {}) {
+        if (usesPortRepository(this.storage)) return this.coordinated('patchMetadataEntry', [bucket, id, expected, next, { releaseIds, referencePending }]);
         const latest = this.readMetadata();
         if (JSON.stringify(latest[bucket][id] ?? null) !== JSON.stringify(expected ?? null)) return false;
         latest[bucket][id] = clone(next);
         latest.releaseQueue = [...new Set([...latest.releaseQueue, ...releaseIds].filter(Boolean))];
         latest.referencePending ||= referencePending;
-        this.writeMetadata(latest);
+        (await this.writeMetadata(latest));
         return true;
     }
 
-    queueOrphanAssets(ids) {
+    async queueOrphanAssets(ids) {
+        if (usesPortRepository(this.storage)) return this.coordinated('queueOrphanAssets', [ids]);
         const latest = this.readMetadata();
         latest.releaseQueue = [...new Set([...latest.releaseQueue, ...ids].filter(Boolean))];
-        this.writeMetadata(latest);
+        (await this.writeMetadata(latest));
     }
 
     currentVisualItem(kind, item) {
@@ -97,6 +120,7 @@ export class PortAssetSync {
     }
 
     recordDeletionIntents(keys) {
+        if (usesPortRepository(this.storage)) return this.coordinated('recordDeletionIntents', [keys]);
         const intentKey = 'cruisePort.syncDeletionIntent.v1';
         try {
             const intents = JSON.parse(this.storage.getItem(intentKey) || '{}');
@@ -106,7 +130,8 @@ export class PortAssetSync {
         } catch (_) { /* Missing intent safely prevents a cloud deletion. */ }
     }
 
-    markLocalRemovals() {
+    async markLocalRemovals() {
+        if (usesPortRepository(this.storage)) return this.coordinated('markLocalRemovals', []);
         const metadata = this.readMetadata();
         const gear = new Map((parse(this.storage, GEAR_KEY, { items: [] }).items || []).map((item) => [item.id, item]));
         const apps = new Map((parse(this.storage, MY_APPS_KEY, { items: [] }).items || []).map((item) => [item.id, item]));
@@ -129,16 +154,21 @@ export class PortAssetSync {
         }
         if (changed) {
             metadata.releaseQueue = [...new Set(metadata.releaseQueue)];
-            this.writeMetadata(metadata);
+            (await this.writeMetadata(metadata));
         }
     }
 
     bind() {
         if (!this.canSync() || this.bound || !globalThis.addEventListener) return this;
         this.bound = true;
-        globalThis.addEventListener('cruise-port-local-data-changed', () => {
-            this.markLocalRemovals();
-            this.schedule('local-save');
+        globalThis.addEventListener('cruise-port-local-data-changed', async () => {
+            try {
+                await this.markLocalRemovals();
+                this.schedule('local-save');
+            } catch (error) {
+                this.lastErrorCode = error.code || 'write-failed';
+                this.emitStatus('error');
+            }
         });
         globalThis.addEventListener('cruise-port-cloud-data-applied', () => this.schedule('remote-apply'));
         globalThis.addEventListener('online', () => this.schedule('online'));
@@ -153,7 +183,7 @@ export class PortAssetSync {
         if (!this.canSync()) return Promise.resolve({ ok: false, code: 'pro_required' });
         if (this.running) { this.pendingAgain = true; return this.running; }
         this.emitStatus('syncing');
-        this.running = Promise.resolve().then(() => this.reconcile(reason)).then((result) => {
+        this.running = Promise.resolve().then(async () => (await this.reconcile(reason))).then((result) => {
             this.lastErrorCode = result?.ok === false && !result.offline
                 ? (result.code || 'asset_sync_failed') : null;
             return result;
@@ -333,7 +363,7 @@ export class PortAssetSync {
                 source: sourceRecord ? { localId: sourceId, assetId: uuid(), operationId: uuid(), hash: await hashBlob(sourceRecord.blob, this.cryptoImpl) } : null
             };
         if (!this.currentVisualItem(kind, item) ||
-            !this.patchMetadataEntry(kind === 'gear' ? 'gear' : 'myApps', item.id, expected, entry)) return null;
+            !(await this.patchMetadataEntry(kind === 'gear' ? 'gear' : 'myApps', item.id, expected, entry))) return null;
         const sourceKind = kind === 'gear' ? 'gear_photo_source' : 'my_app_icon_source';
         const finalKind = kind === 'gear' ? 'gear_photo_final' : 'my_app_icon_final';
         const source = sourceRecord ? await this.upload(sourceRecord, sourceKind, entry.pending.source) : null;
@@ -444,11 +474,12 @@ export class PortAssetSync {
         if (!saved.ok) return { ok: false, record: null, reason: saved.reason || 'write-failed' };
         entry.binding = { assetId: entry.published.asset.assetId, hash: entry.published.asset.hash, localId: saved.record.id };
         metadata.attachments[logicalId] = entry;
-        this.writeMetadata(metadata);
+        (await this.writeMetadata(metadata));
         return { ok: true, record: { ...saved.record, logicalId } };
     }
 
-    removePracticeAttachment({ id, logicalId = null } = {}) {
+    async removePracticeAttachment({ id, logicalId = null } = {}) {
+        if (usesPortRepository(this.storage)) return this.coordinated('removePracticeAttachment', [{ id, logicalId }]);
         const metadata = this.readMetadata();
         const pair = Object.entries(metadata.attachments).find(([candidateId, entry]) =>
             candidateId === logicalId || candidateId === id || entry.binding?.localId === id);
@@ -456,18 +487,19 @@ export class PortAssetSync {
         const [candidateId, entry] = pair;
         if (entry.published?.asset?.assetId) metadata.releaseQueue.push(entry.published.asset.assetId);
         delete metadata.attachments[candidateId];
-        this.recordDeletionIntents([
+        (await this.recordDeletionIntents([
             `practice_attachment/${candidateId}`,
             ...(!Object.values(metadata.attachments).some((other) => other.practiceId === entry.practiceId)
                 ? [`practice_attachment_set/${entry.practiceId}`] : [])
-        ]);
+        ]));
         metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
-        this.writeMetadata(metadata);
+        (await this.writeMetadata(metadata));
         this.schedule('attachment-delete');
         return true;
     }
 
-    removePracticeAttachments(practiceId) {
+    async removePracticeAttachments(practiceId) {
+        if (usesPortRepository(this.storage)) return this.coordinated('removePracticeAttachments', [practiceId]);
         const metadata = this.readMetadata();
         let changed = false;
         const deletedIds = [];
@@ -479,10 +511,10 @@ export class PortAssetSync {
             changed = true;
         }
         if (changed) {
-            this.recordDeletionIntents([...deletedIds.map((id) => `practice_attachment/${id}`),
-                `practice_attachment_set/${practiceId}`]);
+            (await this.recordDeletionIntents([...deletedIds.map((id) => `practice_attachment/${id}`),
+                `practice_attachment_set/${practiceId}`]));
             metadata.releaseQueue = [...new Set(metadata.releaseQueue.filter(Boolean))];
-            this.writeMetadata(metadata);
+            (await this.writeMetadata(metadata));
             this.schedule('practice-delete');
         }
         return changed;
@@ -504,7 +536,7 @@ export class PortAssetSync {
             const latest = this.readMetadata();
             const processedIds = new Set(metadata.discardQueue);
             latest.discardQueue = latest.discardQueue.filter((id) => !processedIds.has(id));
-            this.writeMetadata(latest);
+            (await this.writeMetadata(latest));
         }
         const process = async (items, bucketName, kind) => {
             for (const item of items) {
@@ -524,11 +556,11 @@ export class PortAssetSync {
                     const currentItem = (parse(this.storage, kind === 'gear' ? GEAR_KEY : MY_APPS_KEY,
                         { items: [] }).items || []).find((candidate) => candidate.id === item.id);
                     uploaded.published.crop = clone(currentItem?.[kind === 'gear' ? 'photoCrop' : 'iconCrop'] || null);
-                    if (!this.currentVisualItem(kind, item) || !this.patchMetadataEntry(bucketName, item.id,
+                    if (!this.currentVisualItem(kind, item) || !(await this.patchMetadataEntry(bucketName, item.id,
                         entry, { ...entry, ...uploaded, pending: null }, {
                             releaseIds: oldIds.filter((id) => !uploadedIds.includes(id)), referencePending: true
-                        })) {
-                        this.queueOrphanAssets(uploadedIds);
+                        }))) {
+                        (await this.queueOrphanAssets(uploadedIds));
                         continue;
                     }
                     publishedChanged = true;
@@ -536,7 +568,7 @@ export class PortAssetSync {
                     processed += 1;
                     const visualBefore = { finalId, sourceId };
                     if (await this.hydratePair(item, entry, kind)) {
-                        if (!this.patchMetadataEntry(bucketName, item.id, before, entry)) continue;
+                        if (!(await this.patchMetadataEntry(bucketName, item.id, before, entry))) continue;
                         hydratedPatches[bucketName].set(item.id, {
                             before: visualBefore, finalId: item[kind === 'gear' ? 'photoId' : 'iconId'],
                             sourceId: item[kind === 'gear' ? 'photoSourceId' : 'iconSourceId'],
@@ -585,7 +617,7 @@ export class PortAssetSync {
                 const freshLocal = await this.practiceAttachmentStore.getAllAttachments();
                 if (!freshLocal?.ok) return { ok: false, code: 'attachment_local_read_failed' };
                 if (!freshLocal.records.some((item) => item.id === record.id)) continue;
-                if (!this.patchMetadataEntry('attachments', logicalId, before, entry)) continue;
+                if (!(await this.patchMetadataEntry('attachments', logicalId, before, entry))) continue;
                 const pendingEntry = clone(entry);
                 const uploaded = await this.upload(record, assetKind, entry.pending, {
                     practiceId: record.practiceId, fileName: record.fileName
@@ -593,7 +625,7 @@ export class PortAssetSync {
                 const stillLocal = await this.practiceAttachmentStore.getAllAttachments();
                 if (!stillLocal?.ok) return { ok: false, code: 'attachment_local_read_failed' };
                 if (!stillLocal.records.some((item) => item.id === record.id)) {
-                    this.queueOrphanAssets([uploaded.asset.assetId]);
+                    (await this.queueOrphanAssets([uploaded.asset.assetId]));
                     continue;
                 }
                 const previousAssetId = entry.published?.asset?.assetId;
@@ -601,10 +633,10 @@ export class PortAssetSync {
                 entry.binding = { assetId: uploaded.asset.assetId, hash: uploaded.asset.hash, localId: record.id };
                 entry.pending = null;
                 entry.updatedAt = record.updatedAt || record.createdAt;
-                if (!this.patchMetadataEntry('attachments', logicalId, pendingEntry, entry,
+                if (!(await this.patchMetadataEntry('attachments', logicalId, pendingEntry, entry,
                     { releaseIds: previousAssetId && previousAssetId !== uploaded.asset.assetId ? [previousAssetId] : [],
-                        referencePending: true })) {
-                    this.queueOrphanAssets([uploaded.asset.assetId]);
+                        referencePending: true }))) {
+                    (await this.queueOrphanAssets([uploaded.asset.assetId]));
                     continue;
                 }
                 publishedChanged = true;
@@ -615,6 +647,7 @@ export class PortAssetSync {
             for (const [kind, key] of [['gear', GEAR_KEY], ['myApps', MY_APPS_KEY]]) {
                 const patches = hydratedPatches[kind];
                 if (!patches.size) continue;
+                const ownerRaw = this.storage.getItem(key);
                 const latest = parse(this.storage, key, { version: kind === 'gear' ? 5 : 7, items: [] });
                 const finalKey = kind === 'gear' ? 'photoId' : 'iconId';
                 const sourceKey = kind === 'gear' ? 'photoSourceId' : 'iconSourceId';
@@ -630,7 +663,14 @@ export class PortAssetSync {
                     changed = true;
                 }
                 if (changed) {
-                    this.storage.setItem(key, JSON.stringify(latest));
+                    if (usesPortRepository(this.storage)) {
+                        const repo = portRepository(this.storage);
+                        const base = await repo.readDatasetState();
+                        const saved = await repo.runWrite({ expectedRevision: base.revision, expectedValues: { [key]: ownerRaw } }, tx => {
+                            tx.setItem(key, JSON.stringify(latest)); return { ok: true };
+                        });
+                        if (!saved.ok) throw new Error(saved.reason);
+                    } else this.storage.setItem(key, JSON.stringify(latest));
                     changedKeys.push(key);
                 }
             }
@@ -646,7 +686,7 @@ export class PortAssetSync {
                 const latest = this.readMetadata();
                 if (this.storage.getItem(METADATA_KEY) === referenceStorageBefore) {
                     latest.referencePending = false;
-                    this.writeMetadata(latest);
+                    (await this.writeMetadata(latest));
                 }
             }
         }
@@ -658,7 +698,7 @@ export class PortAssetSync {
             const latest = this.readMetadata();
             const released = new Set(releaseBefore);
             latest.releaseQueue = latest.releaseQueue.filter((id) => !released.has(id));
-            this.writeMetadata(latest);
+            (await this.writeMetadata(latest));
             if (latest.releaseQueue.length) this.pendingAgain = true;
         }
         return { ok: true, processed, hydrated };

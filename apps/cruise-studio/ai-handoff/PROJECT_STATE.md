@@ -14,6 +14,14 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
+### Port Dataset Readiness Core v1（Port 1.21.3）
+
+Port側のrepository / writer coordination / forward guard / full snapshot / delete generation / rollback基盤を追加。
+検証と旧build限界は[Port Dataset Repository](../../cruise-port/docs/PORT_DATASET_REPOSITORY.md)を参照。
+Studioは0.25.1・コード不変。M3 shared writeは無効。
+次はRuntime & Integration Safety（Account generation、singleton、status/ensure、byte chunk、実2tab）。
+Core完了をStudio Host接続やM3製品統合完了とは扱わない。
+
 ### Metronome M2（0.25.1・実装／回帰完了）
 
 - 開始HEAD = origin/main = remote main: `04f5034cc4a669dddcee8dbb213d5ef396dc6c59`。

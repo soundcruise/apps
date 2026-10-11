@@ -1,5 +1,5 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.2';
-import { METRONOME_DEFAULTS } from './metronome-store.js?v=0.59.3';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
+import { METRONOME_DEFAULTS } from './metronome-store.js?v=1.21.3';
 import { createProPrompt } from './pro-prompt.js?v=1.19.2';
 
 const prompts = new WeakMap();

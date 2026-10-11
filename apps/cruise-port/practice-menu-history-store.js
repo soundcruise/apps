@@ -1,3 +1,4 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.21.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues, hasRemoteStorageChange } from './storage-conflict.js?v=0.59.3';
 import { getActiveDurationSeconds } from './practice-menu-timer-store.js?v=0.59.3';
 export const PRACTICE_HISTORY_SCHEMA_VERSION = 5;
@@ -160,6 +161,7 @@ function cloneHistory(history) {
 }
 
 export function loadPracticeHistory(storage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadPracticeHistory(tx));
     const fallback = createEmptyPracticeHistory();
     try {
         if (storage === undefined) storage = globalThis.localStorage;
@@ -199,6 +201,7 @@ function mergeRemoteHistoryAppend(base, next, current) {
 }
 
 export function savePracticeHistory(history, storage, options = {}) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [PRACTICE_HISTORY_STORAGE_KEY], tx => savePracticeHistory(history, tx, options));
     if (!isValidPracticeHistory(history)) return { ok: false, reason: 'invalid-data' };
     let previousValue;
     try {

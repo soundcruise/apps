@@ -118,12 +118,28 @@ test('each source notice uses operator authorization and resolves canonical poli
   }
 });
 
+function assertCurrentAuthContract(text, label) {
+  assert(!/passwordHash|soundCruiseProAuth|pitch_trainer\//.test(text), label);
+  for (const phrase of ['generation', 'device-bound session']) assert(text.includes(phrase), label);
+  assert(/Account\s*\/\s*device/.test(text), label);
+}
+
+test('auth contract accepts slash spacing while retaining both credentials and forbidden wording checks', () => {
+  const fixture = wording => `generation device-bound session ${wording}`;
+  for (const wording of ['Account/device', 'Account / device', 'Account/ device', 'Account /device']) {
+    assert.doesNotThrow(() => assertCurrentAuthContract(fixture(wording), wording));
+  }
+  for (const wording of ['Account only', 'device only', 'Account device',
+    'Account/device passwordHash', 'Account/device soundCruiseProAuth', 'Account/device pitch_trainer/']) {
+    assert.throws(() => assertCurrentAuthContract(fixture(wording), wording), assert.AssertionError);
+  }
+});
+
 test('current handoff docs do not instruct client-side password hash authentication', () => {
   for (const file of ['CLAUDE.md', 'apps/rhythm-cruise/ai-handoff/RHYTHM_CRUISE_OVERVIEW.md',
     'apps/cruise-studio/ROADMAP.md']) {
     const text = read(file);
-    assert(!/passwordHash|soundCruiseProAuth|pitch_trainer\//.test(text), file);
-    for (const phrase of ['generation', 'device-bound session', 'Account/device']) assert(text.includes(phrase), file);
+    assertCurrentAuthContract(text, file);
   }
   assert(!read('apps/rhythm-cruise/script.js').includes('いまは true 固定。将来は'));
 });

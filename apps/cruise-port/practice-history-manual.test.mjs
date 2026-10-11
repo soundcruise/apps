@@ -218,7 +218,7 @@ test('UI wiring: 練習実績を追加, 編集 beside the delete icon, deleted/h
     assert.match(app, /addGroup\('削除した練習メニュー', \[\{ value: record\.practiceId, text: `\$\{record\.practiceName\}（削除済み）` \}\]\)/);
     assert.match(app, /createManualPracticeRecord\(\{ localDate, practiceId, practiceName, appId, durationMinutes \}\)/);
     assert.match(app, /updatePracticeHistoryRecord\(state\.history, editing\.id,/);
-    assert.match(app, /savePracticeHistory\(result\.history\)\.ok/, 'saved through the store (records deletion intents, triggers sync)');
+    assert.match(app, /\(await savePracticeHistory\(result\.history\)\)\.ok/, 'saved through the store (records deletion intents, triggers sync)');
     assert.match(app, /`\$\{recordPracticeMinutes\(event\)\}分 ・ 手動記録`/);
     assert.match(app, /タイマーで計測した記録です。練習時間は実際の時間に合わせて修正できます（日付は変更できません）。/);
     assert.match(app, /elements\.historyFormMinutes\.disabled = live;/, 'time is locked only for the running session');

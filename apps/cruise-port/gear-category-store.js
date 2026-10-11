@@ -1,5 +1,6 @@
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.21.3';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
-import { isValidGearCategoryId } from './gear-list-store.js?v=0.59.3';
+import { isValidGearCategoryId } from './gear-list-store.js?v=1.21.3';
 
 export const GEAR_CATEGORY_STORAGE_KEY = 'cruisePort.gearCategories';
 export const GEAR_CATEGORY_SCHEMA_VERSION = 1;
@@ -138,6 +139,7 @@ function restoreStorage(storage, previousValue) {
 }
 
 export function saveGearCategories(categories, storage = globalThis.localStorage) {
+    if (usesPortRepository(storage)) return writePortStore(storage, [GEAR_CATEGORY_STORAGE_KEY], tx => saveGearCategories(categories, tx));
     if (!isValidCategoryCollection(categories)) return { ok: false, reason: 'invalid-data' };
     let previousValue;
     try {
@@ -158,6 +160,7 @@ export function saveGearCategories(categories, storage = globalThis.localStorage
 }
 
 export function loadGearCategories(items = [], storage = globalThis.localStorage) {
+    if (usesPortRepository(storage)) return readPortStore(storage, tx => loadGearCategories(items, tx));
     try {
         const rawValue = readStorageValue(storage, GEAR_CATEGORY_STORAGE_KEY);
         if (rawValue === null) {

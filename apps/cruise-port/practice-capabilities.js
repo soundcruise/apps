@@ -1,5 +1,5 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.19.2';
-import { loadPracticeMenus } from './practice-menu-store.js?v=0.60.0';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.21.3';
+import { loadPracticeMenus } from './practice-menu-store.js?v=1.21.3';
 
 export function canCreatePractice(items, capabilities = getCapabilities()) {
     return items.length < capabilities.practiceMenuCreateLimit;

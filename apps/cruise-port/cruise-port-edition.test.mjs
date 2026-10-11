@@ -83,9 +83,9 @@ test('SP2 shells allow only Pro title/gate and document-relative URL differences
     for (const entry of [root, pro]) {
         assert.match(entry, /home-pro-badge[^>]*hidden>Pro/);
         assert.equal((entry.match(/data-cruise-app=/g) || []).length, 4);
-        assert.match(entry, /multi-app-sync-runtime\.js\?v=27/);
-        assert.match(entry, /port-sync-adapter\.js\?v=1\.4\.0/);
-        assert.match(entry, /port-sync-controller\.js\?v=1\.19\.2/);
+        assert.match(entry, /multi-app-sync-runtime\.js\?v=28/);
+        assert.match(entry, /port-sync-adapter\.js\?v=1\.21\.3/);
+        assert.match(entry, /port-sync-controller\.js\?v=1\.21\.3/);
         assert.doesNotMatch(entry, /data-(?:sync-)?app="port"/);
     }
     const gate = read('../shared/pro-gate.js');

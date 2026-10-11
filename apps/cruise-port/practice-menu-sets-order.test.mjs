@@ -120,7 +120,7 @@ test('並び替え works in custom presets and targets only that set', () => {
     const start = body('startReorder');
     assert.match(start, /const items = getDisplayedPracticeItems\(\);/);
     assert.match(start, /state\.reorderSetId = selectedSet\?\.id \|\| null;/);
-    assert.match(body('completeReorder'), /if \(state\.reorderSetId\) \{\s*completePracticeSetReorder\(\);\s*return;/);
+    assert.match(body('completeReorder'), /if \(state\.reorderSetId\) \{\s*\(await completePracticeSetReorder\(\)\);\s*return;/);
     const setReorder = body('completePracticeSetReorder');
     assert.match(setReorder, /reorderPracticeMenuSet\(/);
     assert.match(setReorder, /persistPracticeSets\(result\.items\)/);
