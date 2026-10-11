@@ -5,15 +5,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>クルーズスタジオ</title>
+    <meta name="theme-color" content="#090806">
+    <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
+    <script src="js/core/color-theme.js?v=1"></script>
+    <script>
+        CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
+    </script>
+    <!-- Semantic variables only. Legacy screens and paper retain their current appearance. -->
+    <link rel="stylesheet" href="theme-projection.css?v=1">
 
-    <!-- shared/ には依存せず theme.css 1枚で構成（PCファースト。docs/DECISIONS.md ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.22.4">
+    <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
+    <link rel="stylesheet" href="theme.css?v=0.22.4-theme-v1">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
     <link rel="stylesheet" href="print.css?v=0.20.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
-    <meta name="theme-color" content="#120f0c">
     <!-- service-worker / manifest は当面作らない（ADR-002） -->
 </head>
 

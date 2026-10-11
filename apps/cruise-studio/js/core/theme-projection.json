@@ -1,0 +1,1449 @@
+{
+  "contractVersion": 1,
+  "themeIds": [
+    "dark",
+    "charcoal",
+    "gray",
+    "light"
+  ],
+  "tokens": [
+    {
+      "semanticToken": "--studio-app-bg",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-bg",
+          "literal": "#080806"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-bg",
+          "literal": "#424346"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-bg",
+          "literal": "#c8cbd0"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-bg",
+          "literal": "#f7f6f2"
+        }
+      },
+      "values": {
+        "dark": "#080806",
+        "charcoal": "#424346",
+        "gray": "#c8cbd0",
+        "light": "#f7f6f2"
+      }
+    },
+    {
+      "semanticToken": "--studio-surface",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-surface",
+          "literal": "#12110f"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-surface",
+          "literal": "#4c4e52"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-surface",
+          "literal": "#d8dbdf"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-surface",
+          "literal": "#ffffff"
+        }
+      },
+      "values": {
+        "dark": "#12110f",
+        "charcoal": "#4c4e52",
+        "gray": "#d8dbdf",
+        "light": "#ffffff"
+      }
+    },
+    {
+      "semanticToken": "--studio-surface-deep",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-surface-deep",
+          "literal": "#0c0c0a"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-surface-deep",
+          "literal": "#46474b"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-surface-deep",
+          "literal": "#d2d5da"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-surface-deep",
+          "literal": "#f7f6f2"
+        }
+      },
+      "values": {
+        "dark": "#0c0c0a",
+        "charcoal": "#46474b",
+        "gray": "#d2d5da",
+        "light": "#f7f6f2"
+      }
+    },
+    {
+      "semanticToken": "--studio-panel",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-panel",
+          "literal": "#11100d"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-panel",
+          "literal": "#505256"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-panel",
+          "literal": "#e3e5e8"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-panel",
+          "literal": "#ffffff"
+        }
+      },
+      "values": {
+        "dark": "#11100d",
+        "charcoal": "#505256",
+        "gray": "#e3e5e8",
+        "light": "#ffffff"
+      }
+    },
+    {
+      "semanticToken": "--studio-panel-alt",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-panel-alt",
+          "literal": "#11100c"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-panel-alt",
+          "literal": "#505256"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-panel-alt",
+          "literal": "#e3e5e8"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-panel-alt",
+          "literal": "#ffffff"
+        }
+      },
+      "values": {
+        "dark": "#11100c",
+        "charcoal": "#505256",
+        "gray": "#e3e5e8",
+        "light": "#ffffff"
+      }
+    },
+    {
+      "semanticToken": "--studio-panel-deep",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-panel-deep",
+          "literal": "#090806"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-panel-deep",
+          "literal": "#45464a"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-panel-deep",
+          "literal": "#d8dbdf"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-panel-deep",
+          "literal": "#f0eee8"
+        }
+      },
+      "values": {
+        "dark": "#090806",
+        "charcoal": "#45464a",
+        "gray": "#d8dbdf",
+        "light": "#f0eee8"
+      }
+    },
+    {
+      "semanticToken": "--studio-elevated",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-menu",
+          "literal": "#17150f"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-menu",
+          "literal": "#5a5c60"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-menu",
+          "literal": "#eef0f2"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-menu",
+          "literal": "#ffffff"
+        }
+      },
+      "values": {
+        "dark": "#17150f",
+        "charcoal": "#5a5c60",
+        "gray": "#eef0f2",
+        "light": "#ffffff"
+      }
+    },
+    {
+      "semanticToken": "--studio-text-primary",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-text",
+          "literal": "#f3f0e8"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-text",
+          "literal": "#f2f1ed"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-text",
+          "literal": "#1d1f23"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-text",
+          "literal": "#1c1b18"
+        }
+      },
+      "values": {
+        "dark": "#f3f0e8",
+        "charcoal": "#f2f1ed",
+        "gray": "#1d1f23",
+        "light": "#1c1b18"
+      }
+    },
+    {
+      "semanticToken": "--studio-text-muted",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-muted",
+          "literal": "#9b968a"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-muted",
+          "literal": "#d2cec5"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-muted",
+          "literal": "#4a4e55"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-muted",
+          "literal": "#5f5b52"
+        }
+      },
+      "values": {
+        "dark": "#9b968a",
+        "charcoal": "#d2cec5",
+        "gray": "#4a4e55",
+        "light": "#5f5b52"
+      }
+    },
+    {
+      "semanticToken": "--studio-border-default",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-border",
+          "literal": "rgba(207, 189, 148, 0.16)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-border",
+          "literal": "rgba(207, 189, 148, 0.22)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-border",
+          "literal": "rgba(29, 31, 35, 0.16)"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-border",
+          "literal": "rgba(28, 27, 24, 0.12)"
+        }
+      },
+      "values": {
+        "dark": "rgba(207, 189, 148, 0.16)",
+        "charcoal": "rgba(207, 189, 148, 0.22)",
+        "gray": "rgba(29, 31, 35, 0.16)",
+        "light": "rgba(28, 27, 24, 0.12)"
+      }
+    },
+    {
+      "semanticToken": "--studio-accent",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-gold",
+          "literal": "#cdb474"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-gold",
+          "literal": "#cdb474"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-gold",
+          "literal": "#cdb474"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-gold",
+          "literal": "#cdb474"
+        }
+      },
+      "values": {
+        "dark": "#cdb474",
+        "charcoal": "#cdb474",
+        "gray": "#cdb474",
+        "light": "#cdb474"
+      }
+    },
+    {
+      "semanticToken": "--studio-accent-bright",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-gold-bright",
+          "literal": "#e6d29b"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-gold-bright",
+          "literal": "#e6d29b"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-gold-bright",
+          "literal": "var(--port-accent-text)"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-gold-bright",
+          "literal": "var(--port-accent-text)"
+        }
+      },
+      "values": {
+        "dark": "#e6d29b",
+        "charcoal": "#e6d29b",
+        "gray": "#634c15",
+        "light": "#6b5318"
+      }
+    },
+    {
+      "semanticToken": "--studio-accent-text",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-accent-text",
+          "literal": "var(--port-gold-bright)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-accent-text",
+          "literal": "var(--port-gold-bright)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-accent-text",
+          "literal": "#634c15"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-accent-text",
+          "literal": "#6b5318"
+        }
+      },
+      "values": {
+        "dark": "#e6d29b",
+        "charcoal": "#e6d29b",
+        "gray": "#634c15",
+        "light": "#6b5318"
+      }
+    },
+    {
+      "semanticToken": "--studio-control",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-control",
+          "literal": "#151410"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-control",
+          "literal": "#56585c"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-control",
+          "literal": "#e3e5e8"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-control",
+          "literal": "#f0eee8"
+        }
+      },
+      "values": {
+        "dark": "#151410",
+        "charcoal": "#56585c",
+        "gray": "#e3e5e8",
+        "light": "#f0eee8"
+      }
+    },
+    {
+      "semanticToken": "--studio-control-hover",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-control-hover",
+          "literal": "#1b1914"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-control-hover",
+          "literal": "#5e6065"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-control-hover",
+          "literal": "#d9dce0"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-control-hover",
+          "literal": "#e8e5dc"
+        }
+      },
+      "values": {
+        "dark": "#1b1914",
+        "charcoal": "#5e6065",
+        "gray": "#d9dce0",
+        "light": "#e8e5dc"
+      }
+    },
+    {
+      "semanticToken": "--studio-control-active",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-control-active",
+          "literal": "#181611"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-control-active",
+          "literal": "#5a5c61"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-control-active",
+          "literal": "#d5d8dc"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-control-active",
+          "literal": "#ebe7dd"
+        }
+      },
+      "values": {
+        "dark": "#181611",
+        "charcoal": "#5a5c61",
+        "gray": "#d5d8dc",
+        "light": "#ebe7dd"
+      }
+    },
+    {
+      "semanticToken": "--studio-field",
+      "role": "root palette",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-field",
+          "literal": "#090907"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-field",
+          "literal": "#3a3b3e"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-field",
+          "literal": "#eef0f2"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-field",
+          "literal": "#ffffff"
+        }
+      },
+      "values": {
+        "dark": "#090907",
+        "charcoal": "#3a3b3e",
+        "gray": "#eef0f2",
+        "light": "#ffffff"
+      }
+    },
+    {
+      "semanticToken": "--studio-text-secondary",
+      "role": "auxiliary text",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "--port-dim-rgb",
+          "literal": "180, 174, 158",
+          "extract": "rgb"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-dim-rgb",
+          "literal": "205, 200, 188",
+          "extract": "rgb"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-dim-rgb",
+          "literal": "40, 43, 48",
+          "extract": "rgb"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-dim-rgb",
+          "literal": "58, 55, 48",
+          "extract": "rgb"
+        }
+      },
+      "values": {
+        "dark": "rgb(180, 174, 158)",
+        "charcoal": "rgb(205, 200, 188)",
+        "gray": "rgb(40, 43, 48)",
+        "light": "rgb(58, 55, 48)"
+      }
+    },
+    {
+      "semanticToken": "--studio-color-scheme",
+      "role": "future Shell native controls; never applied globally",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root",
+          "property": "color-scheme",
+          "literal": "dark"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "color-scheme",
+          "literal": "dark"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "color-scheme",
+          "literal": "light"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "color-scheme",
+          "literal": "light"
+        }
+      },
+      "values": {
+        "dark": "dark",
+        "charcoal": "dark",
+        "gray": "light",
+        "light": "light"
+      }
+    },
+    {
+      "semanticToken": "--studio-border-subtle",
+      "role": "separator",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-form-delete-row",
+          "property": "border-top",
+          "literal": "1px solid rgba(var(--port-line-rgb), 0.12)",
+          "extract": "border-color"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-form-delete-row",
+          "property": "border-top",
+          "literal": "1px solid rgba(var(--port-line-rgb), 0.12)",
+          "extract": "border-color"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-form-delete-row",
+          "property": "border-top",
+          "literal": "1px solid rgba(var(--port-line-rgb), 0.12)",
+          "extract": "border-color"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-form-delete-row",
+          "property": "border-top",
+          "literal": "1px solid rgba(var(--port-line-rgb), 0.12)",
+          "extract": "border-color"
+        }
+      },
+      "values": {
+        "dark": "rgba(207, 189, 148, 0.12)",
+        "charcoal": "rgba(207, 189, 148, 0.12)",
+        "gray": "rgba(29, 31, 35, 0.12)",
+        "light": "rgba(28, 27, 24, 0.12)"
+      }
+    },
+    {
+      "semanticToken": "--studio-border-strong",
+      "role": "dialog border",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-set-dialog-panel",
+          "property": "border",
+          "literal": "1px solid rgba(var(--port-accent-soft-rgb), 0.3)",
+          "extract": "border-color"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-set-dialog-panel",
+          "property": "border",
+          "literal": "1px solid rgba(var(--port-accent-soft-rgb), 0.3)",
+          "extract": "border-color"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-set-dialog-panel",
+          "property": "border",
+          "literal": "1px solid rgba(var(--port-accent-soft-rgb), 0.3)",
+          "extract": "border-color"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-set-dialog-panel",
+          "property": "border",
+          "literal": "1px solid rgba(var(--port-accent-soft-rgb), 0.3)",
+          "extract": "border-color"
+        }
+      },
+      "values": {
+        "dark": "rgba(230, 210, 155, 0.3)",
+        "charcoal": "rgba(230, 210, 155, 0.3)",
+        "gray": "rgba(99, 76, 21, 0.3)",
+        "light": "rgba(107, 83, 24, 0.3)"
+      }
+    },
+    {
+      "semanticToken": "--studio-field-border",
+      "role": "form control",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": "input, select, textarea",
+          "property": "border",
+          "literal": "1px solid rgba(var(--port-line-rgb), 0.2)",
+          "extract": "border-color"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": "input, select, textarea",
+          "property": "border",
+          "literal": "1px solid rgba(var(--port-line-rgb), 0.2)",
+          "extract": "border-color"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": "input, select, textarea",
+          "property": "border",
+          "literal": "1px solid rgba(var(--port-line-rgb), 0.2)",
+          "extract": "border-color"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": "input, select, textarea",
+          "property": "border",
+          "literal": "1px solid rgba(var(--port-line-rgb), 0.2)",
+          "extract": "border-color"
+        }
+      },
+      "values": {
+        "dark": "rgba(207, 189, 148, 0.2)",
+        "charcoal": "rgba(207, 189, 148, 0.2)",
+        "gray": "rgba(29, 31, 35, 0.2)",
+        "light": "rgba(28, 27, 24, 0.2)"
+      }
+    },
+    {
+      "semanticToken": "--studio-primary-action-background",
+      "role": "primary action; tuner exception excluded",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)"
+        }
+      },
+      "values": {
+        "dark": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+        "charcoal": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+        "gray": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+        "light": "linear-gradient(180deg, #e8d49d, #bfa25a)"
+      }
+    },
+    {
+      "semanticToken": "--studio-primary-action-top",
+      "role": "primary action gradient endpoint",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+          "extract": "gradient-top"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+          "extract": "gradient-top"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+          "extract": "gradient-top"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+          "extract": "gradient-top"
+        }
+      },
+      "values": {
+        "dark": "#e8d49d",
+        "charcoal": "#e8d49d",
+        "gray": "#e8d49d",
+        "light": "#e8d49d"
+      }
+    },
+    {
+      "semanticToken": "--studio-primary-action-bottom",
+      "role": "primary action gradient endpoint",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+          "extract": "gradient-bottom"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+          "extract": "gradient-bottom"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+          "extract": "gradient-bottom"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "background",
+          "literal": "linear-gradient(180deg, #e8d49d, #bfa25a)",
+          "extract": "gradient-bottom"
+        }
+      },
+      "values": {
+        "dark": "#bfa25a",
+        "charcoal": "#bfa25a",
+        "gray": "#bfa25a",
+        "light": "#bfa25a"
+      }
+    },
+    {
+      "semanticToken": "--studio-primary-action-text",
+      "role": "primary action foreground",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "color",
+          "literal": "#171208"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "color",
+          "literal": "#171208"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "color",
+          "literal": "#171208"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".primary-action",
+          "property": "color",
+          "literal": "#171208"
+        }
+      },
+      "values": {
+        "dark": "#171208",
+        "charcoal": "#171208",
+        "gray": "#171208",
+        "light": "#171208"
+      }
+    },
+    {
+      "semanticToken": "--studio-selected-bg",
+      "role": "settings selection",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "background",
+          "literal": "rgba(var(--port-accent-rgb), 0.12)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "background",
+          "literal": "rgba(var(--port-accent-rgb), 0.12)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "background",
+          "literal": "rgba(var(--port-accent-rgb), 0.12)"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "background",
+          "literal": "rgba(var(--port-accent-rgb), 0.12)"
+        }
+      },
+      "values": {
+        "dark": "rgba(205, 180, 116, 0.12)",
+        "charcoal": "rgba(205, 180, 116, 0.12)",
+        "gray": "rgba(122, 94, 30, 0.12)",
+        "light": "rgba(150, 116, 40, 0.12)"
+      }
+    },
+    {
+      "semanticToken": "--studio-selected-border",
+      "role": "settings selection",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "border-color",
+          "literal": "rgba(var(--port-accent-soft-rgb), 0.62)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "border-color",
+          "literal": "rgba(var(--port-accent-soft-rgb), 0.62)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "border-color",
+          "literal": "rgba(var(--port-accent-soft-rgb), 0.62)"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "border-color",
+          "literal": "rgba(var(--port-accent-soft-rgb), 0.62)"
+        }
+      },
+      "values": {
+        "dark": "rgba(230, 210, 155, 0.62)",
+        "charcoal": "rgba(230, 210, 155, 0.62)",
+        "gray": "rgba(99, 76, 21, 0.62)",
+        "light": "rgba(107, 83, 24, 0.62)"
+      }
+    },
+    {
+      "semanticToken": "--studio-selected-text",
+      "role": "settings selection",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "color",
+          "literal": "var(--port-gold-bright)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "color",
+          "literal": "var(--port-gold-bright)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "color",
+          "literal": "var(--port-gold-bright)"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".settings-choice.is-selected",
+          "property": "color",
+          "literal": "var(--port-gold-bright)"
+        }
+      },
+      "values": {
+        "dark": "#e6d29b",
+        "charcoal": "#e6d29b",
+        "gray": "#634c15",
+        "light": "#6b5318"
+      }
+    },
+    {
+      "semanticToken": "--studio-focus",
+      "role": "ordinary focus color",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".port-card:focus-visible",
+          "property": "outline",
+          "literal": "2px solid var(--port-gold-bright)",
+          "extract": "outline-color"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".port-card:focus-visible",
+          "property": "outline",
+          "literal": "2px solid var(--port-gold-bright)",
+          "extract": "outline-color"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".port-card:focus-visible",
+          "property": "outline",
+          "literal": "2px solid var(--port-gold-bright)",
+          "extract": "outline-color"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".port-card:focus-visible",
+          "property": "outline",
+          "literal": "2px solid var(--port-gold-bright)",
+          "extract": "outline-color"
+        }
+      },
+      "values": {
+        "dark": "#e6d29b",
+        "charcoal": "#e6d29b",
+        "gray": "#634c15",
+        "light": "#6b5318"
+      }
+    },
+    {
+      "semanticToken": "--studio-focus-primary",
+      "role": "primary button exception",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".btn-primary:focus-visible",
+          "property": "outline",
+          "literal": "2px solid #fff3bd",
+          "extract": "outline-color"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".btn-primary:focus-visible",
+          "property": "outline",
+          "literal": "2px solid #fff3bd",
+          "extract": "outline-color"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".btn-primary:focus-visible",
+          "property": "outline",
+          "literal": "2px solid #fff3bd",
+          "extract": "outline-color"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".btn-primary:focus-visible",
+          "property": "outline",
+          "literal": "2px solid #fff3bd",
+          "extract": "outline-color"
+        }
+      },
+      "values": {
+        "dark": "#fff3bd",
+        "charcoal": "#fff3bd",
+        "gray": "#fff3bd",
+        "light": "#fff3bd"
+      }
+    },
+    {
+      "semanticToken": "--studio-focus-danger",
+      "role": "danger action exception",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".sync-center-danger-toggle:focus-visible",
+          "property": "outline",
+          "literal": "2px solid #ffd3d6",
+          "extract": "outline-color"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".sync-center-danger-toggle:focus-visible",
+          "property": "outline",
+          "literal": "2px solid #ffd3d6",
+          "extract": "outline-color"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root:is([data-theme=\"gray\"], [data-theme=\"light\"]) .sync-center-danger-toggle:focus-visible",
+          "property": "outline-color",
+          "literal": "var(--port-danger-text)"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root:is([data-theme=\"gray\"], [data-theme=\"light\"]) .sync-center-danger-toggle:focus-visible",
+          "property": "outline-color",
+          "literal": "var(--port-danger-text)"
+        }
+      },
+      "values": {
+        "dark": "#ffd3d6",
+        "charcoal": "#ffd3d6",
+        "gray": "#8c2731",
+        "light": "#9a2e38"
+      }
+    },
+    {
+      "semanticToken": "--studio-success",
+      "role": "generic status text, not musical judgement",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".sync-center-removal-safety--safe",
+          "property": "color",
+          "literal": "#cfe6d4"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".sync-center-removal-safety--safe",
+          "property": "color",
+          "literal": "#cfe6d4"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-success-text",
+          "literal": "#285c34"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-success-text",
+          "literal": "#2c6438"
+        }
+      },
+      "values": {
+        "dark": "#cfe6d4",
+        "charcoal": "#cfe6d4",
+        "gray": "#285c34",
+        "light": "#2c6438"
+      }
+    },
+    {
+      "semanticToken": "--studio-warning",
+      "role": "generic status text, not musical judgement",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".sync-center-app-status-chip--attention",
+          "property": "color",
+          "literal": "#ead39b"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".sync-center-app-status-chip--attention",
+          "property": "color",
+          "literal": "#ead39b"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-caution-text",
+          "literal": "#6a4a06"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-caution-text",
+          "literal": "#765208"
+        }
+      },
+      "values": {
+        "dark": "#ead39b",
+        "charcoal": "#ead39b",
+        "gray": "#6a4a06",
+        "light": "#765208"
+      }
+    },
+    {
+      "semanticToken": "--studio-danger",
+      "role": "generic status text, not musical judgement",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".sync-center-app-status-chip--deleting",
+          "property": "color",
+          "literal": "#ffd3d6"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".sync-center-app-status-chip--deleting",
+          "property": "color",
+          "literal": "#ffd3d6"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-danger-text",
+          "literal": "#8c2731"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-danger-text",
+          "literal": "#9a2e38"
+        }
+      },
+      "values": {
+        "dark": "#ffd3d6",
+        "charcoal": "#ffd3d6",
+        "gray": "#8c2731",
+        "light": "#9a2e38"
+      }
+    },
+    {
+      "semanticToken": "--studio-overlay",
+      "role": "modal scrim; Charcoal follows Port Sync modal",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".port-pro-prompt",
+          "property": "background",
+          "literal": "rgba(0, 0, 0, 0.75)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"charcoal\"]",
+          "property": "--port-overlay",
+          "literal": "rgba(15, 15, 16, 0.55)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"gray\"]",
+          "property": "--port-overlay",
+          "literal": "rgba(40, 42, 46, 0.45)"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root[data-theme=\"light\"]",
+          "property": "--port-overlay",
+          "literal": "rgba(20, 20, 18, 0.40)"
+        }
+      },
+      "values": {
+        "dark": "rgba(0, 0, 0, 0.75)",
+        "charcoal": "rgba(15, 15, 16, 0.55)",
+        "gray": "rgba(40, 42, 46, 0.45)",
+        "light": "rgba(20, 20, 18, 0.40)"
+      }
+    },
+    {
+      "semanticToken": "--studio-shadow-low",
+      "role": "card / panel / dialog depth",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".port-card",
+          "property": "box-shadow",
+          "literal": "0 10px 24px rgba(0, 0, 0, 0.24)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".port-card",
+          "property": "box-shadow",
+          "literal": "0 10px 24px rgba(0, 0, 0, 0.24)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root:is([data-theme=\"gray\"], [data-theme=\"light\"]) .port-card",
+          "property": "box-shadow",
+          "literal": "0 10px 24px rgba(0, 0, 0, var(--port-shadow-alpha))"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root:is([data-theme=\"gray\"], [data-theme=\"light\"]) .port-card",
+          "property": "box-shadow",
+          "literal": "0 10px 24px rgba(0, 0, 0, var(--port-shadow-alpha))"
+        }
+      },
+      "values": {
+        "dark": "0 10px 24px rgba(0, 0, 0, 0.24)",
+        "charcoal": "0 10px 24px rgba(0, 0, 0, 0.24)",
+        "gray": "0 10px 24px rgba(0, 0, 0, 0.12)",
+        "light": "0 10px 24px rgba(0, 0, 0, 0.08)"
+      }
+    },
+    {
+      "semanticToken": "--studio-shadow-medium",
+      "role": "card / panel / dialog depth",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".view-panel",
+          "property": "box-shadow",
+          "literal": "0 16px 36px rgba(0, 0, 0, 0.3)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".view-panel",
+          "property": "box-shadow",
+          "literal": "0 16px 36px rgba(0, 0, 0, 0.3)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root:is([data-theme=\"gray\"], [data-theme=\"light\"]) .view-panel",
+          "property": "box-shadow",
+          "literal": "0 16px 36px rgba(0, 0, 0, var(--port-shadow-alpha))"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root:is([data-theme=\"gray\"], [data-theme=\"light\"]) .view-panel",
+          "property": "box-shadow",
+          "literal": "0 16px 36px rgba(0, 0, 0, var(--port-shadow-alpha))"
+        }
+      },
+      "values": {
+        "dark": "0 16px 36px rgba(0, 0, 0, 0.3)",
+        "charcoal": "0 16px 36px rgba(0, 0, 0, 0.3)",
+        "gray": "0 16px 36px rgba(0, 0, 0, 0.12)",
+        "light": "0 16px 36px rgba(0, 0, 0, 0.08)"
+      }
+    },
+    {
+      "semanticToken": "--studio-shadow-high",
+      "role": "card / panel / dialog depth",
+      "sources": {
+        "dark": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-set-dialog-panel",
+          "property": "box-shadow",
+          "literal": "0 22px 60px rgba(0, 0, 0, 0.48)"
+        },
+        "charcoal": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ".practice-set-dialog-panel",
+          "property": "box-shadow",
+          "literal": "0 22px 60px rgba(0, 0, 0, 0.48)"
+        },
+        "gray": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root:is([data-theme=\"gray\"], [data-theme=\"light\"]) :is(.practice-set-dialog-panel, .gear-category-dialog-panel)",
+          "property": "box-shadow",
+          "literal": "0 22px 60px rgba(0, 0, 0, var(--port-shadow-alpha))"
+        },
+        "light": {
+          "file": "apps/cruise-port/style.css",
+          "selector": ":root:is([data-theme=\"gray\"], [data-theme=\"light\"]) :is(.practice-set-dialog-panel, .gear-category-dialog-panel)",
+          "property": "box-shadow",
+          "literal": "0 22px 60px rgba(0, 0, 0, var(--port-shadow-alpha))"
+        }
+      },
+      "values": {
+        "dark": "0 22px 60px rgba(0, 0, 0, 0.48)",
+        "charcoal": "0 22px 60px rgba(0, 0, 0, 0.48)",
+        "gray": "0 22px 60px rgba(0, 0, 0, 0.12)",
+        "light": "0 22px 60px rgba(0, 0, 0, 0.08)"
+      }
+    }
+  ]
+}

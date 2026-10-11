@@ -14,7 +14,35 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
-### Version / Feature Metadata v1（独立レビューB・Minor修正、未stage / 未commit / 未push）
+### Theme Contract v1 + Studio Theme Projection（実装・検証完了）
+
+- 詳細は[THEME_CONTRACT](../docs/THEME_CONTRACT.md)。Portの色・settings / bootstrap / applyを
+  読み取り再監査し、Studioだけに4テーマ（dark / charcoal / gray / light）のprojectionを追加。
+- `js/core/theme-projection.json`に39 semantic token × 4テーマのfile / selector / property / literalを記録。
+  `theme-projection.css`は`--studio-*`だけを定義。state / gradient / focus例外 / overlay / shadowも出典を検証。
+- `js/core/color-theme.js`に最小runtime APIとpure resolver。`index.html`のstylesheet前同期bootstrapと
+  runtimeは同じインスタンスを使う。rootはhtml[data-theme]、不正 / 未保存 / storage failureはdark。
+- 既存`cruiseStudio.appSettings.colorTheme`へ明示set時だけ保存。Loupe / Pre-DTM / 未知fieldを保持し、
+  破損recordは上書きしない。Port設定は読まない・書かない。Account / Sync連動・OS追従は未導入。
+- 既存UIは新semantic token未消費。TOP / Structure / Pre-DTMの配色を維持。紙面selection / focusだけ
+  既存値のpaper tokenへalias化。print.css、paper / music / Loupeの既存色と保存形式は維持。
+  theme-color metaはPort定義へ一致させた。native color-schemeは旧画面へ適用せず将来Shell hostで使用。
+- Theme 32 + Metadata 22 = 54 test PASS。Port source一致・drift拒否、storage失敗・破損保護、
+  bootstrap/runtime一致、import時副作用、Metadata分離、paper / print境界を確認。
+- 既存8765サーバーの実HTTPで4テーマ / invalid / no-value / corrupt JSON / storage-blockedを確認。
+  CSS応答前とfirst paintのtheme一致、39 CSS値、初期非保存、console error / asset 404なし。
+  TOP / Structure / Loupe / Pre-DTM / printの変更前後画像・body DOM・Project JSON / storage一致、self-check OK。
+  印刷確認はprint media画像とcomputed A4寸法。実プリンター / Safariは本工程では未再確認。
+- APP_VERSION 0.22.4、schemaVersion 1、曲JSON / Syncは不変。Theme asset cache keyだけを更新。
+  Feature MetadataへのTheme追加なし。Theme単体配信はMetadataのPort ESM隣接配信条件と独立。
+- 開始時HEAD = origin/main = remote mainは`3879b26ac63891908954618a056a0bdd7a2e361d`。
+  tracked clean / staged空 / ahead 0・behind 0。既存`.claude/` / worker node_modules不触。
+  本記録は限定commit前。ユーザーは全検証とGit条件が正常な場合の限定commit / 通常pushを明示許可。
+  完了後のhashとremote一致はGitを実測する。本ファイルへ自分自身のcommit hashは埋め込まない。
+- 次工程はStudio Shell v1。本工程ではShell / theme selector UIを実装していない。
+  Port / 他apps / shared / Worker / Account / Pro / Syncは不触。
+
+### Version / Feature Metadata v1（完了・push済み、前工程の履歴）
 
 - Shell Contract v2.1 §21に基づき、Studio側だけにcomponent catalog（6件）、feature catalog（17件）、
   pure text version reader / verifierを追加。詳細は[FEATURE_METADATA](../docs/FEATURE_METADATA.md)。
@@ -43,7 +71,8 @@
 - 開始時HEAD = ローカルorigin/main = `0f7c407f991f4894db851a4236c7986ebad6b567`、tracked clean、staged空。
   第1段階commit `92c524341ace65792237ce1e5f4576bc0d74197f`はmain履歴に含まれる。fetchなし。
   `.claude/` / `workers/sound-cruise-sync/node_modules/`不触。Port / 他apps / shared / Worker / Account / Pro / Sync不触。
-- 次の正式工程はCruise Port Theme / Design Token読み取り専用調査、その後Studio Shell。今回は両工程未実施。
+- Metadata v1は`3879b26ac63891908954618a056a0bdd7a2e361d`としてcommit / push済み。
+  後続Theme監査とTheme基盤の現在地は上記を参照する。以下の「今回」はMetadata工程の履歴。
 
 ### Studio-only無変化refactor 第1段階の完了記録（前工程の履歴）
 
@@ -103,9 +132,10 @@ Cruise Studioは未リリースで大規模変更可能。一方、リリース�
 Cruise Sync / Accountの既存動作・保存データ・認可は破壊禁止。共有化に必要な既存側変更は別工程で対象と
 回帰条件を明示する。並行セッションの未commit差分・untrackedは勝手に変更・stageしない。
 
-旧repo / migration bundleは読み取りも禁止。今回のVersion / Feature Metadata v1はStudio配下の
-新規module / test / 説明文書とROADMAP / 本ファイルのみ変更。SHELL_CONTRACT / 既存UI / 他appsは変更せず、
-stage / commit / pushを行わない。過去工程の限定commit指示を現在の許可範囲として扱わない。
+旧repo / migration bundleは読み取りも禁止。本Theme工程はStudio配下のruntime / projection / test /
+契約文書 / ROADMAP / 本ファイル、bootstrapのindex.html、既存値paper aliasのtheme.cssだけを変更。
+Shell / selector UIは追加しない。Port / 他apps / shared / Workerは変更しない。
+本工程の限定commit / 通常pushはユーザーの明示指示と全検証・Git条件に従う。後続作業へ許可を流用しない。
 
 ## 2. クルーズスタジオの目的
 
@@ -802,11 +832,12 @@ stage / commit / pushを行わない。過去工程の限定commit指示を現�
 
 ## 6. 次にやること
 
-**現在の工程はVersion / Feature Metadata v1のMinor修正・再検証。次の正式機能工程はTheme / Design Token読み取り専用調査。**
-Studio-only無変化refactorは完了・main反映済み。Metadata v1は独立レビューBを受けた未commit実装で、
-指定のMinor修正とドキュメント整合だけを行う。stage / commit / pushは別の明示指示後に扱う。
+**次の正式工程はStudio Shell v1。Theme Contract v1 + Studio Theme Projectionは実装・検証完了。**
+Studio-only無変化refactorとMetadata v1はmain反映済み。Theme工程の限定commit / push後、
+次工程開始時にGit baselineを再測定する。Shell本体・theme selector UIは本工程では未実装。
 正式な全工程順は[ROADMAP](../ROADMAP.md)、詳細条件は[Shell Contract v2.1](../docs/SHELL_CONTRACT.md)を参照する。
-Theme調査の後にStudio Shellへ進む。Port ESMの隣接配信契約は維持し、Shell接続前に実HTTP構成で検証する。
+Themeの詳細は[THEME_CONTRACT](../docs/THEME_CONTRACT.md)。Port ESMの隣接配信契約は維持し、
+MetadataのShell接続前に実HTTP構成で検証する。新ShellはStudio semantic tokenを利用する。
 
 ### Shell v2.1文書化時点の次工程計画（以下は履歴・現在の作業指示ではない）
 
@@ -912,5 +943,5 @@ v0.22.4の旧実機確認記録に未確認項目が残っている場合はbase
 - 未commit差分がある場合は、それを勝手に変更せず、まず報告する。
 - ユーザーに確認せずcommit / pushしない。
 - 触ってよい範囲を明示してから作業する。
-- 現在はMetadata v1の独立レビューBに対するMinor修正・再検証。refactorは完了・main反映済み。
-  次の正式機能工程はTheme / Design Token読み取り専用調査。F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。
+- 現在地はTheme Contract v1 + Studio Theme Projectionの実装・検証完了。次の正式工程はStudio Shell v1。
+  refactor / Metadata v1はmain反映済み。Theme契約を読み、F3 / Port共有書込 / 正式Pro / Sync接続へ飛ばさない。

@@ -29,8 +29,9 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 1 | Shell Contract v2.1文書化 | 完了・push済み。最終Bレビューの追記と文書間リンクを反映 |
 | 2 | Studio-only無変化refactor 第1段階 | 完了。scroll / safe area / toolbar / resize / lifecycle / Esc / Pre-DTM入力境界を準備 |
 | 3 | 第1段階の回帰確認 | 完了。Chrome変更前後比較・ユーザー実機確認で表示・操作・保存形式・Safari / IME / print / MIDIを維持 |
-| 4 | Version / Feature metadata | v1内部実装・検証完了（未commit）。6 component / 17 feature、reader-first、source一致test。既存UI未接続、mobile運用不変 |
-| 5 | Cruise Port Theme / Design Token調査 | Portの既存実装を読み取り専用監査し、共有するsemantic tokenとテーマ非依存領域を整理 |
+| 4 | Version / Feature metadata | v1完了・push済み（3879b26a）。6 component / 17 feature、reader-first、22 test。既存UI未接続、mobile運用不変 |
+| 5 | Cruise Port Theme / Design Token調査 | 完了。Port sourceを読み取り専用監査し、semantic token・component例外・紙面domainを整理 |
+| 5a | Theme Contract v1 + Studio Theme Projection | 実装・検証完了。4テーマ / 39 tokenのsource対応、共通resolver / bootstrap / storage。Shell / selector UI未実装 |
 | 6 | Studio Shell | Navigation / Main / 右pane / Dock、responsive、scroll ownership |
 | 7 | Focus / Keyboard / Modal manager | Capture / Bubble、modal優先、入力・IME保護 |
 | 8 | Structure Editing Session接続 | draft保持、Undo境界、commitId、明示command target、Pre-DTM working snapshot |
@@ -72,16 +73,21 @@ Shell / Editing Session / working snapshotの製品統合完了とは扱わな�
 
 ## 次工程とテーマ方針
 
-Version / Feature metadata v1の内部実装・検証完了。詳細は[FEATURE_METADATA](docs/FEATURE_METADATA.md)。
-Node必須12項目と隔離ChromeのTOP / Structure / Pre-DTMを確認済み。APP_VERSION 0.22.4、schemaVersion 1、
-既存UI / storage / Syncは維持。registryのShell接続前にStudio / Portの隣接HTTP配信条件を満たす。
-次はCruise Port Theme / Design Token読み取り専用調査、続いてStudio Shell。
-F3等Structure本体機能は共有基盤・Shell整備後に再開する。
+Version / Feature Metadata v1は完了・push済み（3879b26a）。22 testでsource / owner / policyを検証。
+詳細は[FEATURE_METADATA](docs/FEATURE_METADATA.md)。registryのShell接続前にはStudio / Portの
+隣接HTTP配信条件を満たす。現行UIはregistry未接続、mobile運用は不変。
 
-Cruise Studioの色・ブランドテーマはPortのテーマ体系と共通化する方向。予定テーマは
-Dark / Light / Gray / Charcoal。semantic Design Tokenを共有し、色値のStudio側手書き二重管理を避ける。
-PC UI構造はStudio向けに最適化し、Structure譜の紙面等のテーマ非依存領域は分離する。
-正式実装前にPortの既存Theme / Token実装を読み取り専用監査する。今回テーマCSS / UIは変更しない。
+Theme監査を経て、[Theme Contract v1](docs/THEME_CONTRACT.md)とStudio projectionを実装・検証済み。
+Portを正本とし、dark / charcoal / gray / lightの39 semantic token × 4テーマをsource対応表と
+CSSへprojectionする。Portは読み取りのみ。既存appSettings.colorThemeを使い、Port設定と分離。
+stylesheet前bootstrapとruntimeは同じresolverを使用し、不正値 / storage失敗はdarkへfallback。
+Theme 32 + Metadata 22 = 54 test PASS。実HTTPの8ケース、TOP / Structure / Loupe / Pre-DTM /
+printの変更前後画像・DOM・Project JSON・storage一致を確認。既存document配色とpaper / music / printは維持。
+ブラウザーchromeのtheme-colorだけはPort契約値へ揃える。APP_VERSION 0.22.4、schemaVersion 1。
+
+次の正式工程はStudio Shell v1。新Shellがsemantic tokenを利用し、Navigation rail / Main /
+Inspector・Tool pane / Dockと既存Structure / Pre-DTM hostを段階導入する。
+本工程ではShell本体・theme selector UIは未実装。F3等Structure本体機能は共有基盤・Shell整備後に再開する。
 
 ## 既存フェーズの履歴と残項目
 
