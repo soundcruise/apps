@@ -14,6 +14,46 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
+### Metronome M2（0.25.1・実装／回帰完了）
+
+- 開始HEAD = origin/main = remote main: `04f5034cc4a669dddcee8dbb213d5ef396dc6c59`。
+  main / tracked clean / staged空 / ahead・behind0/0。既存untracked `.claude/` / Worker node_modules不触。
+- Port store / presets / policy / UI save / storage-conflictを読み取り調査。Port settings schema3、presetは独立schema1。
+  settings defaults / strict validation / v1・v2・廃止音色migration / effective・merge policyをpure投影、source全文一致tests。
+- 新規settings-schema / settings-store / settings-controllerをStudio内へ追加。load / save(next,{baseRevision}) /
+  getRevisionのsettings-only facade、opaque revision、同一realm memory CASを実証。appが明示注入・load。
+  reload永続化・Studio専用Metronome key・Port storage / Account / Sync / Pro credential / presetsなし。
+- original raw envelope・validated draft・Standard effective設定を分離。BPM以外のPro rawと未知JSON fieldを保持。
+  fixture downgrade / upgrade復元、prototype-like unknown keyもown fieldとして保持。metadataにruntime / storeを加えない。
+  unsupported future schemaはoriginal data保持 + read-only、fallbackを保存しない。invalidもread-only / error / safe runtime。
+- save failure / staleではdraft・baseRevision不変。A/B同revision→A保存→B staleを2runtimeで確認。
+  成功ackのrevision・data一致確認、保存中後続draftを保持して直列auto save、duplicate save抑制、retry loopなし。
+  dispose generationで遅いload / save結果のcontroller更新をblock。store受理済みwrite自体は完了し得る境界を明記。
+- number change / EnterでPort同様即保存。BPM / Start / Stop surface維持、小さなmemory保存status追加。
+  同じBPMのEnterでもfailure retry可。Enterは共通IME / just-composed gateを参照するread-only queryを追加。
+  Cmd/Ctrl+SはStructure Saveだけ。非確定input文字列をsave通知で置換しない。
+- M1 audio core / Coordinatorは無変更。BPM変更だけreschedule、保存状態通知・失敗ではaudioを止めない。
+  workspace / Dock / Theme / Structure session / project BPM / Pre-DTM working snapshotへ非干渉。
+  audio disposeはsettings購読だけ解除。hostのsettings disposeとは独立。advanced renderer/UIは未実装。
+- Node既存218 + M2追加58 = 276 PASS。
+  Chrome既存70 + M2追加23 = 93独立ケースPASS（runner97には親container4を含む）。計369独立検証。
+  最終Chromeは直列実行。M1の120/240 BPM・range・restart・scheduler・50 Start/Stop・no context/timer/listener leakを維持。
+  Save / IME / modal / focus / Loupe / 8・16分 / working snapshot・project選択 / 4テーマ / responsiveも回帰確認。
+- 0.25.0固定baseline: Project JSON8,077 bytes / Arrangement JSON26,991 bytesはappVersionのみ0.25.1。
+  MIDI813 bytes SHA-256 `5c0dcbe39eaada6775119aa8b39e6e6ce56712b8fe7ac04ea992c11ed260d023`一致。
+  save中・audio稼働中A4 PDF1200pxラスタ `8cc02f7356af60a0bbccf9349148c57d0c0784f13b2588b2b3cdb107f75a406e`一致。
+  console / app404 / unhandled rejection0。既存localhost:8765、隔離Chromeのみ。新規serverなし。
+  Safari / OS IME / 聴感 / 実OS interruption / 実プリンターはpending。
+- APP_VERSION patch0.25.1（内部保存基盤 + 小さなstate表示）。project schemaVersion1、settings schema3を維持。
+  HTML表示・cache / metadata mirror / version tests整合。Port / 他apps / shared / Worker不触。
+- [Metronome統合](../docs/METRONOME_INTEGRATION.md)にAPI、前方互換、保存race、M1 / M2 / M3境界とM3 blockerを記録。
+  AUDIO_COORDINATOR / FEATURE_METADATA / ROADMAPも更新。以下のM1記録は0.25.0時点の履歴。
+- 本記録はcommit前の検証結果。ユーザー明示指示により、全条件正常時のみ個別stage・1 commit・通常push。
+  hash / remote一致は最終実測で報告。次はM3前提確認。
+  共有write有効化前に実2tab・Port同時起動、full dataset ownership、全writer協調、delete intent、正式資格失効、
+  mobile lifecycle / Safari、partial snapshot禁止、Sync applyのdirty/base/playback保護を必ず検証する。
+  M2のBlockerなし。M3製品統合完了とは扱わない。
+
 ### Audio Coordinator v1 + Metronome M1（0.25.0・実装／回帰完了）
 
 - 開始HEAD = origin/main = remote main: `a8a9b4dc1d688b1aa1ec6bc9a1cca852afa19369`。

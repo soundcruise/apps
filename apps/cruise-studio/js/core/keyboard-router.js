@@ -73,6 +73,7 @@
             },
             // An adapter must verify that event.target belongs to its local UI before delegation.
             localEscape: function (event) { return runEscape(event, true); },
+            isIMEBlocked: function (event) { return ime.blocked(event); },
             localCommand: function (event, commandId, workspaceId) {
                 if (event.defaultPrevented || handled.has(event)) return false;
                 var ctx = context();

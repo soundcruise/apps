@@ -124,8 +124,8 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .studio-metronome-controls button { cursor: pointer; }
 .studio-metronome-controls button:hover { background: var(--studio-control-hover); }
 .studio-metronome-controls button:disabled { opacity: .5; cursor: default; }
-#studio-metronome-status { color: var(--studio-text-primary); font-size: 11px; }
-#studio-metronome[data-status="failed"] #studio-metronome-status { color: var(--studio-danger); }
+#studio-metronome-save-status, #studio-metronome-status { color: var(--studio-text-primary); font-size: 11px; }
+#studio-metronome[data-status="failed"] #studio-metronome-save-status, #studio-metronome-status { color: var(--studio-danger); }
 #shell-metronome-running { padding: 6px 10px; border: 1px solid var(--studio-border-default); border-radius: 5px; }
 #shell-metronome-running span { display: block; font-size: 10px; color: var(--studio-text-primary); }
 #shell-metronome-running button { width: 100%; min-height: 32px; padding-block: 6px; text-align: center; background: var(--studio-control); }

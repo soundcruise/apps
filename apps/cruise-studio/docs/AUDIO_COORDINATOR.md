@@ -1,6 +1,7 @@
-# Audio Coordinator v1 / Metronome M1
+# Audio Coordinator v1 / Metronome M1・M2
 
-2026-10-11、Studio 0.25.0、project schemaVersion 1。
+2026-10-11、現在Studio 0.25.1、project schemaVersion 1。
+以下のM1検証は0.25.0時点。M2の保存契約・追加検証は[Metronome統合](METRONOME_INTEGRATION.md)を参照。
 M1はPort機能をPCへ接続する最初の実証であり、製品統合完了ではない。
 
 ## Port読み取り調査と共有判断
@@ -134,8 +135,12 @@ Tuner / Rhythm / Pitch接続前にsession route owner・復帰generation・実Sa
 - Safari / OS日本語IME / 音質の聴感 / 実プリンター / 実OS interruptionは今回未確認。
   currentTimeのschedule一致を、あらゆるbackground・出力deviceでの聴感精度保証とは扱わない。
 
-M2は隔離memory Storage facade、既存schema3 / validation / migration、storedとeffective設定、Pro境界、
-保存失敗 / revision / stale / conflictを検証する。M1の予約引数から暗黙に保存を開始しない。
+M2は0.25.1で隔離memory Storage facade、既存schema3 / validation / migration、storedとeffective設定、
+保存失敗 / revision / stale / conflictを実証済み。appがmemory storeとsettings controllerを明示注入しloadする。
+settingsSource未注入のM1単独runtimeは保存しない。CoordinatorとPort timing/audio coreに変更はない。
+settings controllerの通知はBPM変更時だけaudioをrescheduleし、保存状態通知ではclockを触らない。
+settingsのsave / load / disposeとaudioのStart / Stop / disposeは独立。受理済み保存の取消保証はfacade責務で、
+controllerのgenerationは遅延結果によるdisposed state更新を防ぐ。runtime snapshot.settingsに保存状態を公開。
 M3で初めてPort-owned dataset / presets / 正式資格 / Account / Sync / delete intent /
 別tab・Port同時起動・mobile回帰へ接続する。mic full lease、Transport、project BPM link、
 count-in / seek / loop / playhead / record、Undo、他featureは未実装。全writer協調はM3 prerequisite。

@@ -36,7 +36,7 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 7 | Focus / Keyboard / Modal manager | 0.23.1実装・回帰完了。2-phase routing、Escape owner、focus復帰、single native modal、入力・IME保護 |
 | 8 | Structure Editing Session接続 | 0.24.0実装・回帰完了。saved / draft分離、commit / cancel、external conflict、Save、Pre-DTM working snapshot。domain Undoは未実装 |
 | 9 | Audio Coordinator v1 + Metronome M1 | 0.25.0実装・回帰完了。Standard相当BPM / Start / Stop、memory-only、Dock、専用context・lease・global stop実証 |
-| 10 | Metronome M2 | 注入memory Storage、既存schema / effective設定 / 保存失敗 / stale write / conflict実証 |
+| 10 | Metronome M2 | 0.25.1実装・回帰完了。注入memory facade、Port schema3 / migration、raw・effective分離、CAS / stale / failure / retry / forward guard実証 |
 | 11 | Metronome M3 | 正式Port-owned data / presets / Pro / Account / Sync / delete intent / 2tab / mobile回帰 |
 | 12 | Chord | shared feature境界とPC presentationを追加 |
 | 13 | Practice | Port ownerと保存・同期契約を維持して追加 |
@@ -46,7 +46,8 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 17 | DTM | Clock / Scheduler / Renderer、timeline / track / piano roll / recordを段階導入 |
 
 M1は実storage・Pro認証・Account・Sync・presetsに接続せず、製品統合完了とは扱わない。
-M2は隔離したmemory Storage facadeだけを使い、Studio専用localStorage keyを作らない。
+M2は隔離したmemory Storage facadeだけを使い、Studio専用localStorage keyを作らない。実装・検証完了、reload永続化は未実装。
+契約・検証・M3 blockerは[Metronome統合](docs/METRONOME_INTEGRATION.md)を参照。
 M3で初めて正式データへ接続する。接続前にschema前方互換、Port / Studio 2tab同時編集、
 full dataset、全writer協調、delete intent、正式資格失効、mobile lifecycle、partial snapshot防止を
 確認する。全writerが協調できない場合、Studioの共有書込を有効化しない。

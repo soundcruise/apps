@@ -1,12 +1,12 @@
 # Version / Feature Metadata v1
 
 [Shell Contract v2.1 §21](SHELL_CONTRACT.md#21-metadata-v1--version-reader-first)のStudio側reader。
-6 component、17 featureだけを静的に登録する。0.25.0ではport.metronomeのM1 Dock surfaceへ選択descriptorを接続する。
+6 component、17 featureだけを静的に登録する。0.25.1ではport.metronomeのM1 surface + M2隔離保存契約のDockへ選択descriptorを接続する。
 他featureの起動処理・version表示は未接続。
 
 ## 読み取りAPI
 
-`js/core/feature-registry.mjs?v=0.25.0`から次をimportできる。
+`js/core/feature-registry.mjs?v=0.25.1`から次をimportできる。
 
 - `getComponentMetadata(componentId)` / `getAppVersion(componentId)`
 - `getFeatureMetadata(featureId)` / `listFeatures()`
@@ -24,7 +24,7 @@
 | pitch-cruise | 2.29.1 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
 | fretboard-cruise | 2.24.1 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
 | rhythm-cruise | 1.19.1 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
-| cruise-studio | 0.25.0 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+| cruise-studio | 0.25.1 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
 
 元sourceが正。mirrorのpath・symbol・extraction・expectedValueを保存し、毎回source一致を検証する。
 `version-reader.mjs`は渡されたテキストのliteral宣言だけを抽出する純関数。
@@ -39,7 +39,7 @@ API / backend versionやbuildの推測値は登録しない。独立componentは
 
 ### Importとcache
 
-Studio内部importは現在のmodule cache運用に合わせ`?v=0.25.0`。
+Studio内部importは現在のmodule cache運用に合わせ`?v=0.25.1`。
 Port元ESMへのStudio側importは既存sourceのcache key `?v=1.21.2`を使う。
 商品versionをcache keyから抽出することはない。既存HTML・mobileの`?v=`は変更しない。
 Portの正式release後はsource照合に加えて、このStudio側参照のcache keyを確認する。
@@ -57,7 +57,7 @@ version literalをfeatureごとに複製しない。
 
 `supportedPresentations`はPC配置候補。rendererの実装完了・機能統合完了・アクセス許可を表さない。
 `implementedPresentations`は現行Studio内の静的実装記録で、Structure / Pre-DTMのmainと
-port.metronomeのdock（M1 surfaceのみ）。他は空配列。既存mobile UIやシリーズリンクは実装済みStudio rendererに数えない。
+port.metronomeのdock（BPM / Start / Stop surface + M2 memory保存状態）。他は空配列。既存mobile UIやシリーズリンクは実装済みStudio rendererに数えない。
 
 | feature | 配置候補 |
 |---|---|
@@ -114,11 +114,13 @@ protected apps / shared / Workerのtracked差分なしをGitで検査するた�
 その項目が失敗する。変更を消さず、所有者・作業範囲を確認する。
 
 
-## Metronome M1接続（0.25.0）
+## Metronome M1 / M2接続（0.25.1）
 
 `js/modules/metronome/metadata.js`は既存port.metronome descriptorだけのdeep-frozen projection。
 sourceはfeature-registry.mjsで、Node testで全field一致を検証する。ownerApp=cruise-port、
-dataOwner / syncOwner=portは維持し、M1でそのstorage / Syncへアクセスしない。
-Dockのimplemented記録はStandard相当BPM / Start / Stopのみ。M2 / M3やdrawer完了を意味しない。
+dataOwner / syncOwner=portは維持し、M1 / M2でそのstorage / Syncへアクセスしない。
+Dockのimplemented記録はStandard相当BPM / Start / Stopのみ。M2は注入memory settingsのみ。M3製品統合やdrawer完了を意味しない。
+M2 schema / store / controllerはregistryへ入れない。静的owner / schemaRef / action policy参照は既存Port正本のまま。
+注入access stateはeffective設定fixtureだけで、認証・認可ではない。保存契約は[Metronome統合](METRONOME_INTEGRATION.md)を参照。
 Session、lease、context、running、permission・Pro実資格はruntimeへ置く。万能registryへ拡張しない。
 詳細は[AUDIO_COORDINATOR](AUDIO_COORDINATOR.md)を参照。

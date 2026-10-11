@@ -1,4 +1,4 @@
-/* M1 free tool: memory-only settings, dedicated context, explicit resource lease. */
+/* Free tool audio lifecycle. M2 settings are explicitly injected, never implicitly loaded. */
 (function (root, factory) {
     if (typeof module === 'object' && module.exports) module.exports = factory();
     else root.CruiseStudio.metronome = factory();
@@ -8,10 +8,11 @@
         var core = options.core, coordinator = options.coordinator, env = options.environment || {};
         var bpm = core.defaults.bpm, status = 'idle', error = null, generation = 0, run = null, disposed = false, destroyed = false;
         var listeners = new Set(), pendingCloses = new Set(), failedCloses = new Set(), bindings = [];
-        // M2 can supply an explicit settings facade through options.settingsSource.
-        // M1 deliberately never reads/calls it and has no implicit storage fallback.
+        var settingsSource = options.settingsSource || null;
+        var offSettings = null;
         function snapshot() { return Object.freeze({ bpm: bpm, status: status, running: status === 'running', error: error,
-            sessionId: handle.sessionId, pendingCloseCount: pendingCloses.size + failedCloses.size, engine: run ? run.engine.snapshot() : null }); }
+            sessionId: handle.sessionId, pendingCloseCount: pendingCloses.size + failedCloses.size, engine: run ? run.engine.snapshot() : null,
+            settings: settingsSource ? settingsSource.snapshot() : null }); }
         function publish() { listeners.forEach(function (fn) { try { fn(snapshot()); } catch (_) { /* isolate UI */ } }); }
         function closeRun(old) {
             if (!old) return Promise.resolve({ ok: true });
@@ -58,6 +59,10 @@
         function settings() { return Object.assign({}, core.defaults, { bpm: bpm }); }
         function setBpm(value) {
             if (disposed) return false;
+            if (settingsSource) return settingsSource.setBpm(value);
+            return applyBpm(value);
+        }
+        function applyBpm(value) {
             bpm = core.clampInteger(value, core.limits.bpmMin, core.limits.bpmMax, bpm);
             if (run && status === 'running') {
                 try { run.engine.reschedule(settings); } catch (e) { error = String(e.message || e); stop('failed'); }
@@ -65,7 +70,7 @@
             publish(); return bpm;
         }
         function start() {
-            if (disposed) return Promise.resolve(false);
+            if (disposed || (settingsSource && (!settingsSource.snapshot().loaded || settingsSource.snapshot().saveStatus === 'loading'))) return Promise.resolve(false);
             if (run) return run.promise || Promise.resolve(status === 'running');
             if (pendingCloses.size || failedCloses.size) return Promise.resolve(false);
             error = null;
@@ -107,6 +112,14 @@
             if (!target?.addEventListener) return;
             target.addEventListener(name, fn); bindings.push(function () { target.removeEventListener(name, fn); });
         }
+        if (settingsSource) {
+            bpm = settingsSource.snapshot().effectiveSettings.bpm;
+            offSettings = settingsSource.subscribe(function (state) {
+                if (disposed) return;
+                if (state.effectiveSettings.bpm !== bpm) applyBpm(state.effectiveSettings.bpm);
+                else publish(); // Save status alone does not reschedule the audio clock.
+            });
+        }
         bind(env.windowObject, 'pagehide', function () { stop('pagehide'); });
         bind(env.windowObject, 'unload', function () { stop('unload'); });
         bind(env.document, 'visibilitychange', function () { coordinator.notify(handle, 'visibility', { hidden: env.document.hidden }); });
@@ -115,7 +128,7 @@
             subscribe: function (fn) { listeners.add(fn); return function () { listeners.delete(fn); }; },
             dispose: async function () {
                 if (destroyed) return { ok: true };
-                disposed = true; bindings.splice(0).forEach(function (off) { off(); });
+                disposed = true; if (offSettings) { offSettings(); offSettings = null; } bindings.splice(0).forEach(function (off) { off(); });
                 var result = await coordinator.disposeSession(handle);
                 if (result.ok) { destroyed = true; listeners.clear(); }
                 return result;
@@ -127,12 +140,22 @@
         var input = doc.getElementById('studio-metronome-bpm'), start = doc.getElementById('studio-metronome-start');
         var stop = doc.getElementById('studio-metronome-stop'), indicator = doc.getElementById('studio-metronome-status');
         var summary = doc.getElementById('shell-metronome-running'), summaryStop = doc.getElementById('shell-metronome-stop');
-        var off = [];
+        var off = [], renderedBpm = null;
+        var saveIndicator = doc.getElementById('studio-metronome-save-status');
         function listen(target, type, handler) { target.addEventListener(type, handler); off.push(function () { target.removeEventListener(type, handler); }); }
         function render(state) {
-            input.value = String(state.bpm);
+            // Async save notifications must not replace an uncommitted number input.
+            if (renderedBpm !== state.bpm) { input.value = String(state.bpm); renderedBpm = state.bpm; }
+            var settingsState = state.settings;
+            var loading = settingsState && (!settingsState.loaded || settingsState.saveStatus === 'loading');
+            input.disabled = !!loading;
+            if (saveIndicator && settingsState) {
+                var labels = { unloaded: '準備中', loading: '読込中', saving: 'メモリ保存中', stale: '競合：変更を保持中', error: '保存失敗：変更を保持中', 'forward-incompatible': '新しい設定形式：保存不可' };
+                saveIndicator.textContent = settingsState.readOnly ? (settingsState.forwardIncompatible ? labels['forward-incompatible'] : '設定を読めません：保存不可') : (labels[settingsState.saveStatus] || (settingsState.dirty ? '未保存' : 'メモリ内・再読込で初期化'));
+                saveIndicator.dataset.status = settingsState.saveStatus;
+            }
             root.dataset.status = state.status;
-            start.disabled = state.status === 'starting' || state.running || state.pendingCloseCount > 0;
+            start.disabled = !!loading || state.status === 'starting' || state.running || state.pendingCloseCount > 0;
             stop.disabled = !(state.running || state.status === 'starting' || state.pendingCloseCount > 0);
             if (start.disabled && doc.activeElement === start) stop.focus({ preventScroll: true });
             if (stop.disabled && doc.activeElement === stop) input.focus({ preventScroll: true });
@@ -143,8 +166,13 @@
             summary.hidden = !(state.running || state.status === 'starting');
             options.shell.setCommandTarget('audioOwner', state.running ? runtime : null);
         }
-        listen(input, 'change', function () { runtime.setBpm(input.value); });
+        listen(input, 'change', function () { runtime.setBpm(input.value); input.value = String(runtime.snapshot().bpm); });
         listen(input, 'keydown', function (event) {
+            if (event.defaultPrevented || input.closest('[hidden], [inert]') || options.shell.keyboard.isIMEBlocked(event)) return;
+            if (event.key === 'Enter') {
+                event.preventDefault(); runtime.setBpm(input.value);
+                input.value = String(runtime.snapshot().bpm); input.blur(); return;
+            }
             if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 's')
                 options.shell.keyboard.localCommand(event, 'studio.save', 'sheetCruise');
         });
