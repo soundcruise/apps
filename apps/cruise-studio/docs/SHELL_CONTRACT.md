@@ -318,7 +318,8 @@ real Port storage、Pro認証、Account、Sync、presetsには接続しない。
 | Main workspace切替 | Metronome継続 |
 | Dock折畳み | 継続。停止へ到達可能 |
 | tool終了 / destroy | stop、lease解放、dispose |
-| hidden / pagehide | stop、未完了start無効化、所有contextの適切なsuspend |
+| visibility hiddenのみ | 通知だけで継続。実context interruptionは停止・close |
+| pagehide / unload | stop、未完了start無効化、所有contextのclose・lease解放 |
 | visible復帰 | 停止状態維持 |
 | dispose | timer / frame / source / listener / 所有contextを解放 |
 
@@ -526,3 +527,25 @@ DTMのbackground録音・再生は用途別policyと実機検証を必要とす�
   Cmd/Ctrl+Z / Redo / Playは未所有。Theme / pane / modalはsession状態から独立する。
 - APP_VERSION 0.24.0、schemaVersion 1。Node161、Chrome42独立ケースPASS。
   clean JSONはappVersionのみ差分、MIDI / A4印刷ラスタ一致。次はMetronome M1。
+
+
+## 33. Audio Coordinator v1 / Metronome M1実装境界（0.25.0 / 2026-10-11）
+
+[Audio契約](AUDIO_COORDINATOR.md)にsource監査・API・parity・検証を記録した。
+Coordinatorはregistry / lease / owner / read-only borrower timebase / 通知 / cleanup / global stopのみ。
+Metronome runtimeが専用context、Port timing/audio projection、memory BPMを所有する。
+Port timingのtransitive importがSync globalを登録するため方式Cを採用し、Portは変更しない。
+BPM120 / 30〜240、25ms / 100ms / 55ms、running BPM変更のPort rescheduleを維持する。
+
+- Dock Auxiliary ToolにBPM / Start / Stopだけ。collapsed時のNavigation Stopを提供する。
+- workspace / Dock / pane / Theme / visibility hiddenだけでは継続する。従来§22のhidden停止規則は
+  今回の明示指示に合わせ、実context interruptionとpagehide / unload停止へ変更した。
+- Stopはscheduler / frame / future sourcesを同期取消、context close後にlease解放。
+  close失敗は資源を保持して新Startをblock、明示cleanup retry。pending startはgenerationで無効化する。
+- Save targetはStructure Editing Sessionのまま。BPM inputから既存Saveだけ局所委譲する。
+  transport targetはnull、audioOwnerだけを明示bindする。project BPM / dirty / draftを変更しない。
+- metadataは既存port.metronomeの選択projectionでcatalog一致を検証。runtime audio情報はcatalogへ置かない。
+- Node218、Chrome70独立ケース、計288検証。実currentTime schedule、50 Start/Stop、4テーマ・4幅、
+  Save / IME / modal / working sourceを確認。JSONはappVersion差のみ、MIDI / audio稼働中A4ラスタ一致。
+- M2 persistence / Pro、M3 Port dataset / presets / Account / Sync、mic、Transportは未実装。
+  schemaVersion1、Port / 他apps / shared / Worker無変更。Safari / 実OS interruption / 聴感検証はpending。

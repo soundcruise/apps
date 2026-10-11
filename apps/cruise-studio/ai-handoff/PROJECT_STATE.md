@@ -14,7 +14,43 @@
 
 ## 1. 現在の最新状態（2026-10-11）
 
-### Structure Editing Session v1（0.24.0・実装／回帰完了）
+### Audio Coordinator v1 + Metronome M1（0.25.0・実装／回帰完了）
+
+- 開始HEAD = origin/main = remote main: `a8a9b4dc1d688b1aa1ec6bc9a1cca852afa19369`。
+  main / tracked clean / staged空 / ahead・behind0/0。既存untracked2件不触。
+- Audio Coordinatorはregistry / lease / owner / read-only borrower timebase / interruption・devicechange通知 /
+  cleanup / global stop。音楽clock・BPM・scheduler・settings・Sync・Pro・projectを所有しない。
+- Port metronome-app / timing / store / presets / policy / storage-conflictとaudioSession経路を読み取り監査。
+  timingのtransitive importがSync global登録を持つため方式C。Studio内のpure source projectionと一致testsで
+  BPM120 / 30〜240、25ms timer / 100ms horizon / 55ms lead、Standard電子click / running BPM変更を維持。
+- Dock Auxiliary ToolはBPM / Start / Stopのみ、--studio-*だけ。Navigationにrunning / Stopを置き、collapsedでも到達可能。
+  ownerはport.metronome session、contextは専用。Metadataは既存catalogの選択descriptor projection、全field一致test。
+- duplicate / pending Startを抑制。Stopはtimer・frame・future nodeを同期取消、context close後にlease解放。
+  close失敗は未解放resourceを保持、新Startをblockし明示cleanup retry。遅いresumeが新runを壊さない。
+  Global Stopもpending startを無効化する。workspace / Dock / pane / Theme / visibility hiddenでは継続。
+  実context interruption / pagehide / unloadで停止、復帰は明示Startのみ。
+- Metronome BPMはStructure session / dirty / project BPMに入らない。BPM inputのSaveは既存studio.saveへ局所委譲し、
+  active Structure / no modal / canCommit / IME gateを維持。transport targetはnull、audioOwnerは明示runtime。
+- M1はmemory-onlyでreload時120。Port / StudioのMetronome保存、Pro / Account / Sync / presets / micは非使用。
+  settingsSource予約引数とsetBpm / snapshot / subscribeがM2 adapter境界。M2 facadeは未実装。
+- Node: 既存161 + Coordinator21 + Metronome36 = 218 PASS。
+  Chrome: 既存42 + Metronome28 = 70独立ケース（runner73には親container3を含む）。計288独立検証。
+  実AudioContext予定時刻で120 BPMの0.5秒間隔 / 240 BPMの0.25秒、beat数・順序・重複なし・restart・Stop後追加なし。
+  50実Start/Stopでlive context0 / scheduler timer0 / owned context0 / listener増加0、dispose後自listener0。
+  4テーマ / 1440・1024・800・680幅、keyboard・focus / Save / IME / modal / working sourceを確認。
+- 0.24.0固定baseline: Project JSON8,077 bytes / Arrangement JSON26,991 bytesはappVersionのみ0.25.0。
+  MIDI813 bytes SHA-256 `5c0dcbe39eaada6775119aa8b39e6e6ce56712b8fe7ac04ea992c11ed260d023`一致。
+  audio稼働中A4 PDF1200pxラスタ `8cc02f7356af60a0bbccf9349148c57d0c0784f13b2588b2b3cdb107f75a406e`一致。
+  console / app404 / unhandled rejection0。Port / 他apps / shared / Worker不触。
+- APP_VERSION minor0.25.0、schemaVersion1 / project schema不変。HTML cache・metadata mirror・tests整合。
+  [Audio契約](../docs/AUDIO_COORDINATOR.md)と[Shell §33](../docs/SHELL_CONTRACT.md#33-audio-coordinator-v1--metronome-m1実装境界0250--2026-10-11)が今回の正式境界。
+- 既存localhost:8765で隔離Chromeのみ使用。navigator.audioSessionはChrome未対応、M1では操作しない。
+  Safari / OS IME / 実OS interruption / 聴感 / 実プリンターはpending。M1を製品統合完了とは扱わない。
+- 本記録はcommit前の検証結果。明示許可に従いGit条件正常時だけ個別stage・commit・通常push。
+  commit hash / remote一致は最終実測で報告。次は隔離memory facadeを使うMetronome M2。
+  M3 dataset / presets / 正式資格 / Account / Sync、mic full lease、Transport / project BPM link / Undoは未実装。
+
+### Structure Editing Session v1（0.24.0・完了／push済み、前工程の履歴）
 
 - 開始実測HEAD = origin/main = remote main: `c5a85b77711ef976aa0b153253f2d247f613a952`。
   main / tracked clean / staged空 / ahead・behind0/0。既存untracked `.claude/` / worker node_modulesは不触。

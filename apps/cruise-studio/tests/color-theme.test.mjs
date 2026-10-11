@@ -221,7 +221,7 @@ test('script registration has no storage / DOM / timer / network / audio side ef
     assert.equal(context.CruiseStudio.colorTheme.resolveColorTheme('light'),'light');
 });
 test('actual entry bootstrap runs before stylesheets with exactly the runtime resolver', () => {
-    const src=html.indexOf('src="js/core/color-theme.js?v=0.24.0"');
+    const src=html.indexOf('src="js/core/color-theme.js?v=0.25.0"');
     const inline=html.match(/<script>\s*(CruiseStudio\.colorTheme[\s\S]*?)<\/script>/)[1];
     assert.ok(src>0 && html.indexOf(inline)<html.indexOf('rel="stylesheet"'));
     for (const value of [null,'{}',...ids.map(id=>JSON.stringify({colorTheme:id})),'{"colorTheme":"invalid"}','{bad','[]']) {
@@ -268,7 +268,7 @@ test('print remains white A4, hides Shell/Loupe/selection and has no Shell token
 test('Theme does not couple to Feature Metadata / Port runtime / Sync / project data', () => {
     assert.doesNotMatch(runtimeSource,/cruisePort\.settings|feature-registry|component-metadata|SoundCruise|fetch\(|matchMedia\(|\.reload\(/);
     for (const file of ['../js/core/feature-registry.mjs','../js/core/component-metadata.mjs']) assert.doesNotMatch(read(file),/color-theme|theme-projection/);
-    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '0.24.0'/);
+    assert.match(read('../js/core/song-model.js'),/APP_VERSION = '0.25.0'/);
     assert.match(read('../js/core/song-model.js'),/SCHEMA_VERSION = 1/);
 });
 test('Port source verification is read-only', () => {

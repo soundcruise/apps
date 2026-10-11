@@ -118,6 +118,18 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 }
 .studio-dock h2 { font-size: 11px; font-weight: 500; color: var(--studio-text-primary); }
 .studio-dock p { font-size: 11px; margin-top: 5px; color: var(--studio-text-muted); }
+.studio-metronome-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; font-size: 12px; }
+.studio-metronome-controls :is(input, button) { font: inherit; min-height: 32px; padding: 6px 10px; border: 1px solid var(--studio-field-border); border-radius: 5px; background: var(--studio-control); color: var(--studio-text-primary); }
+.studio-metronome-controls input { width: 78px; background: var(--studio-field); font-variant-numeric: tabular-nums; }
+.studio-metronome-controls button { cursor: pointer; }
+.studio-metronome-controls button:hover { background: var(--studio-control-hover); }
+.studio-metronome-controls button:disabled { opacity: .5; cursor: default; }
+#studio-metronome-status { color: var(--studio-text-primary); font-size: 11px; }
+#studio-metronome[data-status="failed"] #studio-metronome-status { color: var(--studio-danger); }
+#shell-metronome-running { padding: 6px 10px; border: 1px solid var(--studio-border-default); border-radius: 5px; }
+#shell-metronome-running span { display: block; font-size: 10px; color: var(--studio-text-primary); }
+#shell-metronome-running button { width: 100%; min-height: 32px; padding-block: 6px; text-align: center; background: var(--studio-control); }
+#shell-metronome-running button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
 @media (max-width: 1279px) { .studio-nav { padding-inline: 10px; } }
 @media (max-width: 800px) {
     #studio-shell { grid-template-columns: 128px minmax(0, 1fr); }

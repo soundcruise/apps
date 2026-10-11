@@ -255,6 +255,10 @@
         preDtm.init();
         shellHost = CS.shell.init(CS);
         CS.shellHost = shellHost;
+        CS.audio = CS.audioCoordinator.createCoordinator();
+        CS.metronomeM1 = CS.metronome.createRuntime({ core: CS.metronomeCore, coordinator: CS.audio,
+            feature: CS.metronomeMetadata, environment: { windowObject: window, document: document, mediaDevices: navigator.mediaDevices } });
+        CS.metronomeView = CS.metronome.mount({ runtime: CS.metronomeM1, shell: shellHost, document: document });
         CS.sessions.subscribe(function (session) {
             if (CS.sessions.getActiveSession() !== session) return;
             shellHost.setCommandTarget('editingSession', session);

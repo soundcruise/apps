@@ -1,11 +1,12 @@
 # Version / Feature Metadata v1
 
 [Shell Contract v2.1 §21](SHELL_CONTRACT.md#21-metadata-v1--version-reader-first)のStudio側reader。
-6 component、17 featureだけを静的に登録する。既存画面の起動処理・version表示にはまだ接続しない。
+6 component、17 featureだけを静的に登録する。0.25.0ではport.metronomeのM1 Dock surfaceへ選択descriptorを接続する。
+他featureの起動処理・version表示は未接続。
 
 ## 読み取りAPI
 
-`js/core/feature-registry.mjs?v=0.23.0`から次をimportできる。
+`js/core/feature-registry.mjs?v=0.25.0`から次をimportできる。
 
 - `getComponentMetadata(componentId)` / `getAppVersion(componentId)`
 - `getFeatureMetadata(featureId)` / `listFeatures()`
@@ -23,7 +24,7 @@
 | pitch-cruise | 2.29.1 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
 | fretboard-cruise | 2.24.1 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
 | rhythm-cruise | 1.19.1 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
-| cruise-studio | 0.23.0 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+| cruise-studio | 0.25.0 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
 
 元sourceが正。mirrorのpath・symbol・extraction・expectedValueを保存し、毎回source一致を検証する。
 `version-reader.mjs`は渡されたテキストのliteral宣言だけを抽出する純関数。
@@ -38,15 +39,16 @@ API / backend versionやbuildの推測値は登録しない。独立componentは
 
 ### Importとcache
 
-Studio内部importは現在のmodule cache運用に合わせ`?v=0.23.0`。
+Studio内部importは現在のmodule cache運用に合わせ`?v=0.25.0`。
 Port元ESMへのStudio側importは既存sourceのcache key `?v=1.21.2`を使う。
 商品versionをcache keyから抽出することはない。既存HTML・mobileの`?v=`は変更しない。
 Portの正式release後はsource照合に加えて、このStudio側参照のcache keyを確認する。
 
 元ESMは隣接する`apps/cruise-port/`への相対importで読むため、検証・将来Shell接続時は
 `apps/`またはrepo rootを公開するHTTP topologyが必要。StudioディレクトリだけをHTTP rootにすると
-この新moduleの直接importは404になる。既存index.htmlはregistryを読まないため、現在のStudio単独サーバーは継続利用できる。
-registry導入前にShell host側でこの配信条件を満たす。Port UI・policy moduleを実行してversionを取得しない。
+この新moduleの直接importは404になる。既存index.htmlはregistry全体を直接読まない。M1は選択descriptorのclassic projectionを同梱し、
+catalog完全一致testを行うため、Studio単独サーバーを継続利用できる。
+registry全体を直接導入する前にShell host側でこの配信条件を満たす。Port UI・policy moduleを実行してversionを取得しない。
 
 ## Feature descriptor
 
@@ -54,8 +56,8 @@ registry導入前にShell host側でこの配信条件を満たす。Port UI・p
 version literalをfeatureごとに複製しない。
 
 `supportedPresentations`はPC配置候補。rendererの実装完了・機能統合完了・アクセス許可を表さない。
-`implementedPresentations`は現行Studio内の静的実装記録で、Structure / Pre-DTMのmainだけ。
-他は空配列。既存mobile UIやシリーズリンクは実装済みStudio rendererに数えない。
+`implementedPresentations`は現行Studio内の静的実装記録で、Structure / Pre-DTMのmainと
+port.metronomeのdock（M1 surfaceのみ）。他は空配列。既存mobile UIやシリーズリンクは実装済みStudio rendererに数えない。
 
 | feature | 配置候補 |
 |---|---|
@@ -110,3 +112,13 @@ source更新によるVersion / policy key / consumerの不一致は失敗にな�
 テストはimport副作用、immutability、未知ID、owner、presentation、permission / schema境界も確認する。
 protected apps / shared / Workerのtracked差分なしをGitで検査するため、これらに並行変更がある場合は
 その項目が失敗する。変更を消さず、所有者・作業範囲を確認する。
+
+
+## Metronome M1接続（0.25.0）
+
+`js/modules/metronome/metadata.js`は既存port.metronome descriptorだけのdeep-frozen projection。
+sourceはfeature-registry.mjsで、Node testで全field一致を検証する。ownerApp=cruise-port、
+dataOwner / syncOwner=portは維持し、M1でそのstorage / Syncへアクセスしない。
+Dockのimplemented記録はStandard相当BPM / Start / Stopのみ。M2 / M3やdrawer完了を意味しない。
+Session、lease、context、running、permission・Pro実資格はruntimeへ置く。万能registryへ拡張しない。
+詳細は[AUDIO_COORDINATOR](AUDIO_COORDINATOR.md)を参照。

@@ -1,4 +1,4 @@
-export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.24.0';
+export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.25.0';
 
 function freeze(value) {
     if (value && typeof value === 'object') {
@@ -39,7 +39,7 @@ const features = freeze([
         actionCapabilityRequirements: { changeCapo: [portPolicy('tunerCapo')] }
     }),
     feature('port.metronome', 'cruise-port', ['dock', 'drawer'], {
-        ...portData, audioRole: ['click'],
+        ...portData, audioRole: ['click'], implementedPresentations: ['dock'],
         schemaRef: { kind: 'storage-schema', path: 'apps/cruise-port/metronome-store.js', symbol: 'METRONOME_SCHEMA_VERSION' },
         actionCapabilityRequirements: {
             changeBpm: [], advancedSettings: [portPolicy('metronomeAdvanced')],

@@ -35,7 +35,7 @@ Inspector初期閉。固定breakpointよりMain可用幅・高さ・zoom後のCS
 | 6 | Studio Shell v1 | 0.23.0実装・回帰完了。Navigation / Main scroll / 右pane / Dock、4テーマ、workspace draft保持 |
 | 7 | Focus / Keyboard / Modal manager | 0.23.1実装・回帰完了。2-phase routing、Escape owner、focus復帰、single native modal、入力・IME保護 |
 | 8 | Structure Editing Session接続 | 0.24.0実装・回帰完了。saved / draft分離、commit / cancel、external conflict、Save、Pre-DTM working snapshot。domain Undoは未実装 |
-| 9 | Metronome M1 | Standard相当BPM / Start / Stop、memory-only、音声・lease・dispose実証 |
+| 9 | Audio Coordinator v1 + Metronome M1 | 0.25.0実装・回帰完了。Standard相当BPM / Start / Stop、memory-only、Dock、専用context・lease・global stop実証 |
 | 10 | Metronome M2 | 注入memory Storage、既存schema / effective設定 / 保存失敗 / stale write / conflict実証 |
 | 11 | Metronome M3 | 正式Port-owned data / presets / Pro / Account / Sync / delete intent / 2tab / mobile回帰 |
 | 12 | Chord | shared feature境界とPC presentationを追加 |
@@ -667,3 +667,14 @@ Nodeは既存73 + 新規27 = 100 PASS。隔離Chromeは20ケース（親test込�
 4幅、4テーマ、modal / pane / focus / IME合成sequenceとChrome CDP compositionを確認。
 Project / Arrangement JSONはappVersionだけ更新。MIDI 813 bytesと印刷PDFラスタ完全一致。
 Safari・OSの日本語IME実機・実プリンターは未再検証。次はStructure Editing Session接続。
+
+
+## Audio Coordinator v1 + Metronome M1（0.25.0 / 2026-10-11）
+
+Port読み取り監査により方式Cのsource一致付きtiming/audio projectionを採用。
+registry / lease / ownerと音楽engineを分離し、Dock Auxiliary ToolへBPM / Start / Stopを接続した。
+workspace / Dock / Theme / visibility hiddenで継続、context interruption / page破棄で停止・closeする。
+Node218 + Chrome70独立ケース = 288検証。50実Start/Stop、4テーマ / 4幅、既存Save / Session /
+working source回帰、JSON appVersion差のみ、MIDI / audio稼働中A4ラスタ一致。
+詳細とpendingは[AUDIO_COORDINATOR](docs/AUDIO_COORDINATOR.md)。次の正式工程は隔離Metronome M2。
+M1は保存・Pro・Account・Sync・presets・Transportの製品統合完了ではない。
