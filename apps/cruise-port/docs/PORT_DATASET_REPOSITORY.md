@@ -1,6 +1,14 @@
 # Port Dataset Readiness Core v1
 
-## Operation-specific Commit Guard v1（2026-10-12・現行）
+## L1 cross-tab境界（2026-10-12・現行）
+
+[Cross-tab Authority Contract](CROSS_TAB_AUTHORITY_CONTRACT.md)を参照。Repositoryの実装は不変更。
+「exclusive dataset lock内のfull revision CAS」は**同一realm内でのみ**stale baseを拒否する。別tabは自tabの
+localStorage cacheでCASするため、実Chrome 2-rendererでlost update 2件・delete intent消失2件を実測した。
+他tabのWAL pending METAは`recovery-required`として一時的に観測される。legacy本番は現状維持でリスクを明記する。
+新Authorityの正本はL2以降、IndexedDBのrecords/manifests/head/oplogを1 readwrite transactionで更新する。
+
+## Operation-specific Commit Guard v1（2026-10-12）
 
 Port1.22.8 / Studio0.26.2。[共通認可契約](OPERATION_COMMIT_GUARD.md)を正式契約とする。
 runWriteにoperationId/opaque authorizationContext/同期commitGuardを限定追加。

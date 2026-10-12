@@ -1,6 +1,13 @@
 # クルーズスタジオ — ロードマップ
 
-## B1-5完了後の次工程（2026-10-12・現行）
+## Cross-tab Authority L1完了後の次工程（2026-10-12・現行）
+
+[Cross-tab Authority Contract](../cruise-port/docs/CROSS_TAB_AUTHORITY_CONTRACT.md)に従い、B1-6より前に新Authority正本をIndexedDBへ移す。
+L2a Authority store → L2b Repository IDB backend（acceptance: save/save・delete intent）→ L3 control/Operation Guard/Account協調
+→ L4 migration/recovery/GC/binary → L5 cross-process stressとSafari/iPhone/PWA実機。B1-6再開はL5後。
+Studio shared write OFF / PortDataHost.canWrite=false / Production Authority legacyを維持する。
+
+## B1-5完了後の次工程（2026-10-12）
 
 Port1.22.5 / Studio0.26.1 / Studio schema1。[Workerの正式契約](../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を参照。
 D1同一batchのabort guard、Account+Portのprepared→paused→enforced、固定migrationId/operationIdとepoch一回更新、

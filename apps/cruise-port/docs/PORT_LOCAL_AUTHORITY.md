@@ -1,6 +1,14 @@
 # B1-2 + B1-3 Authority Preparation
 
-## Operation認可とAuthorityの合成（2026-10-12・現行）
+## L1 cross-tab訂正（2026-10-12・現行）
+
+[Cross-tab Authority Contract](CROSS_TAB_AUTHORITY_CONTRACT.md)を正式契約とする。製品コードは不変更。
+本文書の「同lock参加のAuthority mutatorはcross-tab線形化される」「revoke Promise完了がcross-context失効確定」は**撤回**する。
+Web LocksはlocalStorageの可視性を同期せず、localStorage上のcontrol/journal/pointer/datasetは別tabから古いcacheで読まれ得る。
+実Repositoryでlost update・delete intent消失を実測し、control系は違反未観測だが構造上の保証はない。
+下記の単一realm内のfinal guard・WAL・epoch設計は有効。新Authorityの正本はL2以降IndexedDBの単一transactionへ移す。
+
+## Operation認可とAuthorityの合成（2026-10-12）
 
 Port1.22.8 / Studio0.26.2。[共通認可契約](OPERATION_COMMIT_GUARD.md)を参照。
 既存Authority final guard/control epoch/fence/Account bindingを保持し、同dataset lockへoperation guardを追加した。

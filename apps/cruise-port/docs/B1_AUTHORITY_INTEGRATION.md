@@ -1,6 +1,17 @@
 # B1-6 Authority Integration v4 — Pro認可と最終commitの接続競合で停止
 
-## Pro Final Commit Race限定修正（2026-10-12・現行）
+## L1 Cross-tab Authority Contract & Repository Race Evidence（2026-10-12・現行）
+
+[Cross-tab Authority Contract](CROSS_TAB_AUTHORITY_CONTRACT.md)を確定。製品コード・保存方式・versionは不変更（Port1.22.8 / Studio0.26.2）。
+実Chrome 155の別renderer 2タブで実`PortDatasetRepository`を競合させ、legacyでlost update 2件・delete intent消失2件を実測。
+dormant Authorityのsuspend/fence/Account binding変更は27ラウンドで違反未観測（下限値、保証ではない）。
+他tabのWAL pendingが`recovery-required`として一時観測される可用性欠陥も記録した。
+negative characterization driverは通常CI外、oracle/acceptance gating 5件だけを通常CIへ追加。
+新Authorityの正本はIndexedDB（records/manifests/head/control/journal/oplog/roots）、線形化点は1 readwrite transactionのcomplete。
+legacy本番は現状維持でリスク明記。Account協調・Pro margin・DB major分離・sentinel・GC・Sync導出を契約化した。
+B1-6再開とshared write解禁は不可。次はL2a（Authority store、dormant）。
+
+## Pro Final Commit Race限定修正（2026-10-12）
 
 Port1.22.8 / Studio0.26.2。[Operation Commit Guard契約](OPERATION_COMMIT_GUARD.md)を参照。
 OpusのTOCTOU/ABA/責務分散指摘に対し、既存Repositoryへ同期operation guardとprivate固定contextを追加。

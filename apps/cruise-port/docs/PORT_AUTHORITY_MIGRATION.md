@@ -1,6 +1,14 @@
 # Port Authority Migration & Cutover Engine v1 — B1-4
 
-## Local Final Commit Race修正後のEngine境界（2026-10-12・現行）
+## L1 storage契約（2026-10-12・現行）
+
+[Cross-tab Authority Contract](CROSS_TAB_AUTHORITY_CONTRACT.md)を参照。Engineの実装は不変更。
+現行Engineのstaging namespace・marker・journal・pointer・write controlはlocalStorage上にあり、cross-tab線形化を持たない。
+L4でjournal・manifest・head・controlを新Authority IndexedDBへ移し、publishを1 transactionにする。
+publish前にlocalStorage sentinelを書き読み戻し、sentinelとIDB probeにより不正pointerでlegacyへfallbackしない。
+binaryは参照commit前に永続化・検証し、journalのbinary manifestで再copy/verifyする。production defaultはlegacy。
+
+## Local Final Commit Race修正後のEngine境界（2026-10-12）
 
 Port1.22.7 / Studio0.26.1。[Local Authority契約](PORT_LOCAL_AUTHORITY.md)を優先する。
 activeRepositoryは同期commit guardを持つAuthority providerを注入する。

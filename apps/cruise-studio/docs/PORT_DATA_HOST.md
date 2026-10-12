@@ -1,6 +1,13 @@
 # Studio Read-only Port Data Host v1
 
-## Operation guard接続準備（2026-10-12・現行）
+## L1 cross-tab契約（2026-10-12・現行）
+
+Port1.22.8 / Studio0.26.2。[Cross-tab Authority Contract](../../cruise-port/docs/CROSS_TAB_AUTHORITY_CONTRACT.md)を参照。
+Web Locks + localStorageはcross-tab線形化を保証せず、実Repositoryでlost updateとdelete intent消失を実測した。
+StudioはPort-owned Authorityのconsumerのままで、HostはIndexedDB Authority（L2以降）完成までread-only・canWrite=false。
+Studio独自のdataset/IDBは作らない。Facadeのoperation guardはL3でcommit transaction内評価へ移る。
+
+## Operation guard接続準備（2026-10-12）
 
 Port1.22.8 / Studio0.26.2。[共通認可契約](../../cruise-port/docs/OPERATION_COMMIT_GUARD.md)を参照。
 dormant Facadeの固定operation contextと同期guardをPort Repositoryへ渡す。正式Pro Device Session proof、

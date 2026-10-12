@@ -1,6 +1,14 @@
 # Cruise Studio Project State
 
-## Pro Final Commit Race修正（2026-10-12・現行）
+## L1 Cross-tab Authority Contract（2026-10-12・現行）
+
+Port1.22.8 / Studio0.26.2 / domain schema不変更。製品コード不変更（テスト・文書のみ）。
+[Cross-tab Authority Contract](../../cruise-port/docs/CROSS_TAB_AUTHORITY_CONTRACT.md)が新Authority保存の正式契約。
+実Chrome別renderer 2タブで実Port Repositoryのlost update 2件・delete intent消失2件を実測（legacyは現状維持でリスク明記）。
+harness `apps/cruise-port/tests/cross-tab/`: driverは通常CI外のcharacterization/acceptance、oracle test 5件は通常CI。
+B1-6再開・shared write解禁は不可。次工程はL2a（IndexedDB Authority store、dormant）。
+
+## Pro Final Commit Race修正（2026-10-12）
 
 Port1.22.8 / Studio0.26.2 / domain schema不変更。
 [Operation Commit Guard契約](../../cruise-port/docs/OPERATION_COMMIT_GUARD.md)を現在の認可境界とする。

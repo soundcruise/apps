@@ -1,5 +1,9 @@
 # Operation Authorization Commit Contract v1
 
+**L1追記（2026-10-12）**: 本契約の保証は単一realm内。cross-tabの線形化は[Cross-tab Authority Contract](CROSS_TAB_AUTHORITY_CONTRACT.md)
+に従い、新Authorityでは同期guardをIndexedDB commit transaction内で評価する。その評価時刻を
+commit authorization pointとし、Pro期限は`deadline - now >= margin`（初期30秒）を要求する。marginは原子性の保証ではない。
+
 2026-10-12。Port **1.22.8** / Studio **0.26.2**、domain schema不変更。
 既存Repositoryへの限定拡張であり、Authority・Migration・Sync・Workerのrewriteではない。
 
