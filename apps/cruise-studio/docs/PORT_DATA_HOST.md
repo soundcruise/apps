@@ -1,5 +1,20 @@
 # Studio Read-only Port Data Host v1
 
+## L2b Repository接続（2026-10-13・現行）
+
+Port **1.22.10** / Studio **0.26.4 / schema1**。内部adapter/cache readerのpatch。通常UI・保存先は変更しない。
+Production Authority **legacy** / Worker **ACCEPT_COMPAT** / enforcement **OFF** / Studio shared write **OFF** / PortDataHost.canWrite=**false**。
+正式Pro・Account・製品controlはL3未接続。fixture controlのPASSを製品controlのPASSへ読み替えない。
+B1-6再開不可（L3→L4→L5のgateが残る）、shared write解禁不可。本番Worker/D1 deployなし。
+
+Port-owned隔離Repository backendはL2bで実証する。Studio Hostはproduction legacy readerのまま。
+独自Authority DB/書込みexecutor/製品接続を作らない。M1/M2/Structure/Editing Session/Pre-DTMも移行しない。
+reader cacheの更新と編集draft/baseを分ける。正式Pro/Account/source連携はL3、binary/migration/pointerはL4、実機はL5。
+fixture-only hydrate/CAS/intent/oplogと実証結果は[Repository契約](../../cruise-port/docs/PORT_DATASET_REPOSITORY.md)。
+read-only起動のensure/provision/bootstrap/mutation0、Host10＋Studio97 browser（Print/4Themes込み）を確認。
+
+以下は各工程当時の履歴。旧「L2b未接続」の記述は当時の状態を示す。
+
 ## L1 cross-tab契約（2026-10-12・現行）
 
 Port1.22.8 / Studio0.26.2。[Cross-tab Authority Contract](../../cruise-port/docs/CROSS_TAB_AUTHORITY_CONTRACT.md)を参照。

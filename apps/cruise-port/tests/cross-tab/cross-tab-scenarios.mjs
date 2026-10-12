@@ -6,7 +6,7 @@ export const SCENARIOS = Object.freeze(['save-save-same-key', 'save-save-differe
 export const CONTROL_SCENARIOS = Object.freeze(['save-suspend', 'save-fence-revoke', 'save-account-binding']);
 export const PAYLOADS = Object.freeze([0, 20000, 200000]);
 // legacy-localstorage: production legacy Repository. authority-localstorage: current dormant
-// Authority (localStorage namespace). indexeddb-authority: L2 acceptance target, not built yet.
+// Authority (localStorage namespace). indexeddb-authority: L2b isolated actual Repository/Store acceptance.
 export const BACKENDS = Object.freeze(['legacy-localstorage', 'authority-localstorage', 'indexeddb-authority']);
 export const KEYS = Object.freeze({ a: 'cruisePort.metronome', b: 'cruisePort.tuner',
     deleteA: 'cruisePort.metronomePresets', deleteB: 'cruisePort.myApps', intents: 'cruisePort.syncDeletionIntent.v1' });
@@ -38,7 +38,7 @@ export async function counterLoop({ repository, key, iterations, pad = '', clock
             return { ok: true };
         });
         commits.push({ ok: result.ok === true && result.status === 'committed', reason: result.reason || null,
-            grantAt: grants?.last ?? null, resolvedAt: clock(), controlEpoch: result.authorityContext?.controlEpoch ?? null });
+            grantAt: result.authorizedAt ?? grants?.last ?? null, resolvedAt: clock(), controlEpoch: result.authorityContext?.controlEpoch ?? null });
     }
     return commits;
 }

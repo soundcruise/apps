@@ -1,4 +1,4 @@
-import { PortDatasetRepository, PORT_DATASET_KEYS } from './port-dataset-repository.js?v=1.22.9';
+import { PortDatasetRepository, PORT_DATASET_KEYS } from './port-dataset-repository.js?v=1.22.10';
 const repositories = new WeakMap();
 const bases = new WeakMap();
 export function registerPortRepository(storage, repository) { repositories.set(storage, repository); bases.set(storage, new Map()); }
@@ -34,7 +34,7 @@ export async function writePortStore(storage = globalThis.localStorage, keys, wr
     const expectedValues = Object.fromEntries(keys.map(key => [key, base.has(key) ? base.get(key).raw : state.values[key]]));
     const expectedKeyRevisions = Object.fromEntries(keys.map(key => [key, base.has(key) ? base.get(key).revision : state.keyRevisions[key] ?? null]));
     const result = await repo.runWrite({ ...writeOptions, expectedValues, expectedKeyRevisions }, writer);
-    if (result.ok) {
+    if (result.ok && result.state) {
         // Use the state we committed, never a newer queued writer's state.
         const next = result.state;
         for (const key of keys) base.set(key, { raw: next.values[key], revision: next.keyRevisions[key] ?? null });

@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.9';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.10';
 
 export const GEAR_PHOTO_DB_NAME = 'cruisePortGear';
 export const GEAR_PHOTO_DB_VERSION = 1;

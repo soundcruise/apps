@@ -1,5 +1,22 @@
 # Cruise Studio Project State
 
+## L2b Repository接続（2026-10-13・現行）
+
+Port **1.22.10** / Studio **0.26.4 / schema1**。内部adapter/cache readerのpatch。通常UI・保存先は変更しない。
+Production Authority **legacy** / Worker **ACCEPT_COMPAT** / enforcement **OFF** / Studio shared write **OFF** / PortDataHost.canWrite=**false**。
+正式Pro・Account・製品controlはL3未接続。fixture controlのPASSを製品controlのPASSへ読み替えない。
+B1-6再開不可（L3→L4→L5のgateが残る）、shared write解禁不可。本番Worker/D1 deployなし。
+
+開始Gitは6e667f0e72907da4979b26ef64f1b86de7f082ffでlocal/remote一致、tracked clean/staged空。
+L2bのbackendは明示scope/open/Repository注入だけ。legacy/WALの内部順序を維持、IDBの正本はL2a Storeのtransaction.complete。
+cacheは表示用、Adapter baseはそのcommitのimmutable snapshot。CAS/intent/oplog/retry/guardと実測は
+[Repository契約](../../cruise-port/docs/PORT_DATASET_REPOSITORY.md)。
+回帰: Worker760 / Port/shared1940（追加46）/ Other186 / Studio315（commit後）/ workerd8。
+Port browser18+26+10+18、Studio97+Host10、L2a native14、正式L2b driver54round＋crash等7項目を確認してcommit/pushする。
+次はL3。B1-6保留/shared write OFF/canWrite=false。既存.claude/・worker node_modulesは変更/stageしない。
+
+以下は各工程当時の履歴。旧「L2b未接続」の記述は当時の状態を示す。
+
 ## L2a IndexedDB Authority Store v1（2026-10-12・現行）
 
 開始HEAD/origin/main/remote=`2c11f02c7e597955d7efd79eadce0f6d5a4b1ff2`、tracked/staged空、ahead/behind0/0。

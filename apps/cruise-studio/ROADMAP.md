@@ -1,5 +1,19 @@
 # クルーズスタジオ — ロードマップ
 
+## L2b Repository接続（2026-10-13・現行）
+
+Port **1.22.10** / Studio **0.26.4 / schema1**。内部adapter/cache readerのpatch。通常UI・保存先は変更しない。
+Production Authority **legacy** / Worker **ACCEPT_COMPAT** / enforcement **OFF** / Studio shared write **OFF** / PortDataHost.canWrite=**false**。
+正式Pro・Account・製品controlはL3未接続。fixture controlのPASSを製品controlのPASSへ読み替えない。
+B1-6再開不可（L3→L4→L5のgateが残る）、shared write解禁不可。本番Worker/D1 deployなし。
+
+L2b: Port-owned Repositoryへの隔離IDB backend、feature hydration/cache、正式L1 driver接続を実装。
+次は**L3 formal Authority control / Operation Guard margin / Account coordination**。
+L4 migration/recovery/GC/binary/sentinel/pointer、L5 cross-process/Safari/iPhone/PWA/durability実機gate後にB1-6再開を判定する。
+[Repositoryと実測](../cruise-port/docs/PORT_DATASET_REPOSITORY.md)を参照。fixture control PASSは製品解禁の根拠にしない。
+
+以下は各工程当時の履歴。旧「L2b未接続」の記述は当時の状態を示す。
+
 ## L2a独立Store完了範囲（2026-10-12・現行）
 
 Port1.22.9 / Studio0.26.3 / Studio schema1。[Store契約](../cruise-port/docs/INDEXEDDB_AUTHORITY_STORE.md)。

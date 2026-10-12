@@ -252,6 +252,20 @@ function makeStore(db,env,lifecycle) {
             catch(e){return Promise.resolve(rejected(errorCode(e)));}
         },
         commit,
+        // Exact historical dataset for Repository Adapter read bases. A later
+        // head must never be substituted for the operation that just completed.
+        readCommittedDataset(generation,operationId){
+            try{identifier(generation);identifier(operationId);}catch(e){return Promise.resolve(rejected(e.code));}
+            return transact(['oplog','manifests','records'],'readonly',ctx=>ctx.request(ctx.store('oplog').get([generation,operationId]),log=>{
+                if(!log){ctx.done({ok:true,result:null});return;}
+                validateOplog(log,generation,operationId);
+                ctx.request(ctx.store('manifests').get([generation,log.result.manifestId]),manifest=>{
+                    if(!manifest)throw fail('recovery-required');validateManifest(manifest);
+                    if(manifest.generation!==generation||manifest.seq!==log.result.seq||manifest.revision!==log.result.revision)throw fail('oplog-invalid');
+                    readManifestValues(ctx,generation,manifest,values=>ctx.done({ok:true,result:log.result,values,versions:manifest.versions}));
+                });
+            }));
+        },
         lookupOperation(generation,operationId){
             try{identifier(generation);identifier(operationId);}catch(e){return Promise.resolve(rejected(e.code));}
             return transact(['oplog','manifests'],'readonly',ctx=>ctx.request(ctx.store('oplog').get([generation,operationId]),log=>{

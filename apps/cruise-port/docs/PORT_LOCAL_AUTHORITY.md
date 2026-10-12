@@ -1,5 +1,81 @@
 # B1-2 + B1-3 Authority Preparation
 
+## L2b Repository接続（2026-10-13・現行）
+
+Port **1.22.10** / Studio **0.26.4 / schema1**。内部adapter/cache readerのpatch。通常UI・保存先は変更しない。
+Production Authority **legacy** / Worker **ACCEPT_COMPAT** / enforcement **OFF** / Studio shared write **OFF** / PortDataHost.canWrite=**false**。
+正式Pro・Account・製品controlはL3未接続。fixture controlのPASSを製品controlのPASSへ読み替えない。
+B1-6再開不可（L3→L4→L5のgateが残る）、shared write解禁不可。本番Worker/D1 deployなし。
+
+`port-indexeddb-repository-backend.mjs`の`openIsolatedIDBRepositoryBackend({scope,generation})`を明示openし、
+`new PortDatasetRepository({backend,locks:null})`へ注入する。scopeはL2aのloopback専用brand。
+constructorのbackend省略時は既存legacy/WAL経路。両commit engineを一本化せず、IDBは既存Storeのtransactionだけを使う。
+production起動にはStore/adapter import/open/probe、migration、pointer切替hookを追加しない。
+`port-repository-backend.mjs`は登録brandのみでDB副作用を持たない。fixture scopeはsecurity sandboxではない。
+
+`hydrate()`完了前の`inspect()`はauthority-hydrating。不在/破損/connection失効は読取・保存を拒否し、legacy値を代用しない。
+同期inspectはhydrated-display cache。別tabの未通知更新を知ったとは称さない。BroadcastChannelはhead再確認のhintだけ。
+明示readDatasetStateはStoreを再hydrate。保存はcacheの判定ではなく、Storeの最新head/control/key-version/dependency CASで決まる。
+private baseはwriter await前に固定し、cache更新で進めない。読取キー・明示dependency・expected key revisionはdependencyへ固定する。
+expectedRevision指定は全15キーCAS。無関係キーは現在headへmerge。full manifestと明示absentを維持する。
+
+feature fixtureは`registerPortRepository(storage,repository)`で既存readPortStore/writePortStoreへ接続する。
+12実store（settings/metronome/presets/tuner/Practice menus/progress/history/sets/Calendar/Gear/categories/My Apps）の同期read・非同期writeを実証。
+既存domain loaderをprivate validationに使用し、forward schema/unknown raw保持を維持。binary永続化・migration/GCの正式整合はL4。
+返す`result.state`はそのoperationのimmutable manifestを`readCommittedDataset`で読み、後続headをAdapterのread baseに代入しない。
+読戻し不能でもtransaction.completeの保存事実はokを保持しstate=null/recoveryRequiredを返す。Adapterはbaseを更新しない。
+
+control/guard/intent/record/full manifest/head/oplogはL2aの1 RW transaction内。成功はcompleteだけ。
+対象/依存key staleは拒否。intentは現在headから世代付きmerge、明示ACKはgeneration一致時だけ解除する。
+async writer/validationはtransaction外。opaque frozen contextとguard関数をdispatch時に固定し、Promise/thenable/例外/欠落はfail-closed。
+30秒marginの正式Pro guard、suspend/resume/revoke/Account switch/pointerの製品接続はL3。
+commitはpublish=falseでfixture通知からproduction Syncをwakeしない。
+
+隔離backendの`prepareWrite`/`commitPreparedWrite`と`retryWrite(originalRequest,guardOptions)`は、元base/control/changes/dependency/ACK/IDを固定する。
+response loss後はlookupOperation→元request再送。新baseへ自動移し替えない。同ID/同payloadはoplogの確定事実、異payloadは拒否。
+opaque Pro proofをrequest/oplogへserializeしない。正式資格の再取得/retag接続はL3の責務。
+
+## L2b検証（2026-10-13）
+
+開始HEAD=origin/main=remote main=`6e667f0e72907da4979b26ef64f1b86de7f082ff`、tracked clean/staged空/ahead・behind0/0。
+baseline: Worker760 / Port/shared1894 / Other186 / Studio315 / workerd8、全PASS。
+新Repository Node46件＋L2a88件、Port/shared合計1940。Worker760 / Other186 / workerd8、全PASS。
+Studio commit前314（Git clean guardのみ除外）、commit後全315を再実行してからpushする。
+
+正式L1 driver:
+```sh
+node apps/cruise-port/tests/cross-tab/cross-tab-driver.mjs --mode=acceptance --backend=indexeddb-authority --rounds=3 --iterations=200
+```
+同origin/同partition/別window 2tab。Chrome traceの各tab固有performance markのPIDで異なるrendererを確認。
+実PortDatasetRepository＋L2a Store＋native IDB。WebLocksなし、通知を全欠落させる。
+6シナリオ×payload 0/20000/200000 bytes×3round（54round）、通常save/delete loopは各tab200試行、control loopは変更前後720ms。
+**54round＋追加7項目PASS**（Chrome155.0.8059.40、対象renderer PID 5363/5365）。
+
+| シナリオ | 0KB | 20KB | 200KB | 境界 |
+|---|---|---|---|---|
+| same-key save/save | 違反0 | 違反0 | 違反0 | 最新key-version CAS、期待staleあり |
+| different-key save/save | 違反0 | 違反0 | 違反0 | 各payloadで1200成功更新を保持（2tab×200×3） |
+| delete intent race | 消失0 | 消失0 | 消失0 | 各payloadで1200削除とintentを保持 |
+| save/suspend | 誤成功0 | 誤成功0 | 誤成功0 | fixture controlのみ |
+| save/fence revoke | 誤成功0 | 誤成功0 | 誤成功0 | fixture controlのみ |
+| save/Account binding invalidation | 誤成功0 | 誤成功0 | 誤成功0 | fixture invalidation、製品Account変更は未接続 |
+
+各roundのduplicate operationId=0 / partial manifest=0。Nodeの同一key/ABA/依存stale false-commit=0。
+
+同一keyで期待stale拒否を成功消失と混同しない。別keyの必要な成功更新も最終counterで照合する。
+各roundでoplog ID重複/seq/full manifestと両tabの収束を確認する。固定回数PASSは数学的証明ではない。
+追加native Repository7項目: transaction abort、応答を観測せずrenderer終了→reopen/hydrate/lookup/同IDretry、
+異payload拒否、record callback内renderer終了、interrupted別keymerge/再送、重複/partialなし、versionchange/future拒否。
+Nodeでblocked/unexpected close/corrupt head/missing record、guard/ABA/dependency/old ACKも検証。L2a native14項目もPASS。
+
+Port browser: desktop/mobile18 routes＋4Themes/Pro、Readiness26、Runtime Safety10、Migration18、全PASS。
+通常Portの新Authority DB creation/migration/pointer publication0。Studio read-only Host10（ensure/provision/bootstrap/mutation0）、
+Shell/Structure/Editing Session/Pre-DTM/M1/M2/4Themes/Printのbrowser97、全PASS。application console/404/unexpected network write0。
+初回browser並行実行の選択保持1件は単独suite23件と順次全97件で再現せず、選択実装は変更していない。
+L5のSafari/macOS/iPhone/PWA/物理durability/OS電源断の実証とは扱わない。
+
+以下は各工程当時の履歴。旧「L2b未接続」の記述は当時の状態を示す。
+
 ## L2a IndexedDB Authority Store v1（2026-10-12・現行）
 
 Port1.22.9 / Studio0.26.3。[独立Store契約](INDEXEDDB_AUTHORITY_STORE.md)を参照。

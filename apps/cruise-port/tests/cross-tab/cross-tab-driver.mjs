@@ -1,6 +1,6 @@
 // L1 cross-tab race driver: real Chrome, two tabs in separate windows (separate
-// renderer processes under default site isolation), one loopback origin, native
-// Web Locks and localStorage, the real PortDatasetRepository / dormant Authority.
+// renderer processes verified with Chrome trace for IDB), one loopback origin.
+// Current mode uses Web Locks/localStorage; isolated L2b uses real Repository/IDB.
 //
 //   node apps/cruise-port/tests/cross-tab/cross-tab-driver.mjs [--mode=characterization|acceptance]
 //        [--backend=current|indexeddb-authority] [--rounds=3] [--iterations=200] [--payloads=0,20000,200000]
@@ -16,6 +16,7 @@ import { mkdtempSync, readFileSync, existsSync, rmSync, statSync } from 'node:fs
 import { tmpdir } from 'node:os';
 import { join, resolve, extname, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { SCENARIOS, CONTROL_SCENARIOS, PAYLOADS, classifySameKey, classifyDifferentKeys,
     classifyDeleteIntents, classifyControl, verdict } from './cross-tab-scenarios.mjs';
@@ -34,8 +35,8 @@ if (!['characterization', 'acceptance'].includes(mode) || scenarios.some(s => !S
     console.error('invalid arguments'); process.exit(2);
 }
 
-// The IndexedDB Authority backend arrives in L2; until then acceptance must fail closed.
-if (backend === 'indexeddb-authority') {
+// Unknown backends cannot pass acceptance. IDB is connected only to the explicit fixture.
+if (!['current', 'indexeddb-authority'].includes(backend)) {
     const results = scenarios.flatMap(scenario => payloads.map(payload => ({ scenario, payload, status: 'backend-unavailable' })));
     const v = verdict(mode, results);
     console.log(JSON.stringify({ mode, backend, results, verdict: v }, null, 1));
@@ -45,6 +46,7 @@ if (backend === 'indexeddb-authority') {
 const types = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.json': 'application/json', '.css': 'text/css' };
 const server = createServer((req, res) => {
     const url = new URL(req.url, 'http://127.0.0.1');
+    if (url.pathname === '/favicon.ico') { res.writeHead(204).end(); return; }
     const file = resolve(repoRoot, '.' + decodeURIComponent(url.pathname));
     const parts = file.slice(repoRoot.length).split(sep);
     if (req.method !== 'GET' || !file.startsWith(appsRoot + sep) || parts.some(p => p.startsWith('.') || p === 'node_modules')
@@ -66,8 +68,17 @@ for (let i = 0; i < 150 && !existsSync(portFile); i++) await new Promise(r => se
 const [port, path] = readFileSync(portFile, 'utf8').trim().split('\n');
 const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`);
 await new Promise((ok, fail) => { ws.addEventListener('open', ok, { once: true }); ws.addEventListener('error', fail, { once: true }); });
-let nextId = 0; const pending = new Map();
-ws.addEventListener('message', e => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); } });
+let nextId = 0; const pending = new Map(), paused = new Set(), errors = [], missing = [], networkWrites = [], traces = [];
+let traceComplete = false;
+ws.addEventListener('message', e => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
+    if (m.method === 'Debugger.paused') paused.add(m.sessionId);
+    if (m.method === 'Tracing.dataCollected') traces.push(...m.params.value);
+    if (m.method === 'Tracing.tracingComplete') traceComplete = true;
+    if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.text);
+    if (m.method === 'Log.entryAdded' && m.params.entry.level === 'error') errors.push(m.params.entry.text);
+    if (m.method === 'Network.responseReceived' && m.params.response.status === 404) missing.push(m.params.response.url);
+    if (m.method === 'Network.requestWillBeSent' && !['GET','HEAD'].includes(m.params.request.method)) networkWrites.push(m.params.request.url);
+});
 const send = (method, params = {}, sessionId) => new Promise(r => { const id = ++nextId; pending.set(id, r); ws.send(JSON.stringify({ id, method, params, sessionId })); });
 
 async function evaluate(session, expression) {
@@ -76,10 +87,13 @@ async function evaluate(session, expression) {
     return r.result.result.value;
 }
 async function openTab() {
-    const target = await send('Target.createTarget', { url: `${origin}/apps/cruise-port/tests/cross-tab/cross-tab-fixture.html`, newWindow: true });
+    const page = backend === 'indexeddb-authority' ? 'idb-repository-fixture.html' : 'cross-tab-fixture.html';
+    const target = await send('Target.createTarget', { url: 'about:blank', newWindow: true });
     const { result } = await send('Target.attachToTarget', { targetId: target.result.targetId, flatten: true });
+    for (const method of ['Runtime.enable','Log.enable','Network.enable']) await send(method, {}, result.sessionId);
+    await send('Page.navigate', { url: `${origin}/apps/cruise-port/tests/cross-tab/${page}` }, result.sessionId);
     for (let i = 0; i < 100; i++) {
-        try { if (await evaluate(result.sessionId, 'typeof crossTab') === 'object') return result.sessionId; } catch {}
+        try { if (await evaluate(result.sessionId, 'typeof crossTab') === 'object') return { session: result.sessionId, target: target.result.targetId }; } catch {}
         await new Promise(r => setTimeout(r, 100));
     }
     throw Error('fixture did not load');
@@ -88,16 +102,36 @@ async function openTab() {
 const report = { mode, backend, origin: 'loopback', profile: 'throwaway', chrome: null, rounds, iterations, payloads, results: [] };
 try {
     report.chrome = (await send('Browser.getVersion')).result?.product || null;
-    const primary = await openTab(), peer = await openTab();
+    let primaryTab = await openTab(), peerTab = await openTab();
+    let primary = primaryTab.session; const peer = peerTab.session;
     const token = randomUUID();
     await evaluate(primary, `crossTab.claim(${JSON.stringify(token)})`);
     await evaluate(peer, `crossTab.claim(${JSON.stringify(token)})`);
     const info = await send('SystemInfo.getProcessInfo');
     report.rendererProcesses = (info.result?.processInfo || []).filter(p => p.type === 'renderer').length;
+    if (report.rendererProcesses < 2) throw Error('separate renderers unavailable');
+    report.controlBoundary = backend === 'indexeddb-authority' ? 'fixture only; product L3 not connected' : 'dormant legacy';
+    report.webLocks = backend === 'indexeddb-authority' ? false : true;
+    report.notifications = backend === 'indexeddb-authority' ? 'dropped' : 'native propagation';
+    if (backend === 'indexeddb-authority') {
+        await send('Tracing.start', { categories: 'blink.user_timing', transferMode: 'ReportEvents' });
+        const marks = ['primary-'+randomUUID(), 'peer-'+randomUUID()];
+        await evaluate(primary, `performance.mark(${JSON.stringify(marks[0])})`);
+        await evaluate(peer, `performance.mark(${JSON.stringify(marks[1])})`);
+        const frames = await Promise.all([send('Page.getFrameTree', {}, primary), send('Page.getFrameTree', {}, peer)]);
+        await send('Tracing.end');
+        for (let n=0;n<100&&!traceComplete;n++) await new Promise(r=>setTimeout(r,25));
+        report.targetRendererPids = marks.map(mark=>traces.find(t=>t.name===mark)?.pid);
+        const urls = frames.map(f=>new URL(f.result.frameTree.frame.url).origin);
+        if (urls.some(url=>url!==origin)) throw Error('target origins differ');
+        if (report.targetRendererPids.some(p=>!Number.isInteger(p)) || new Set(report.targetRendererPids).size!==2)
+            throw Error('trace did not prove distinct target renderer processes');
+    }
     for (const scenario of scenarios) for (const payload of payloads) {
         const aggregate = { scenario, payload, rounds: 0, violations: 0, inconclusiveRounds: 0, details: [] };
         for (let round = 0; round < rounds; round++) {
-            const opts = role => JSON.stringify({ scenario, role, iterations, payload });
+            const generation = randomUUID();
+            const opts = role => JSON.stringify({ scenario, role, iterations, payload, generation });
             await evaluate(primary, `crossTab.prepare(${opts('primary')})`);
             await evaluate(peer, `crossTab.prepare(${opts('peer')})`);
             const [a, b] = await Promise.all([evaluate(primary, `crossTab.run(${opts('primary')})`), evaluate(peer, `crossTab.run(${opts('peer')})`)]);
@@ -109,18 +143,77 @@ try {
             else if (scenario === 'save-save-different-keys') result = classifyDifferentKeys({ commitsA: a.commits, commitsB: b.commits, finalA: seenA.counterA, finalB: seenA.counterB });
             else if (scenario === 'delete-intent') result = classifyDeleteIntents({ deletedA: a.deleted, deletedB: b.deleted, journal: seenA.journal, itemsA: seenA.itemsA, itemsB: seenA.itemsB });
             else if (CONTROL_SCENARIOS.includes(scenario)) result = classifyControl({ commits: a.commits, changedAt: b.changedAt });
+            if (!converged) result.violations++;
+            if (backend === 'indexeddb-authority' && !CONTROL_SCENARIOS.includes(scenario) &&
+                (scenario === 'delete-intent' ? !a.deleted.length || !b.deleted.length :
+                    !a.commits.some(c => c.ok) || !b.commits.some(c => c.ok))) result.inconclusive = true;
+            if (backend === 'indexeddb-authority') {
+                const integrity = await evaluate(primary, 'crossTab.integrity()');
+                const committed = scenario === 'delete-intent' ? a.deleted.length+b.deleted.length :
+                    a.commits.filter(c=>c.ok).length+(b.commits?.filter(c=>c.ok).length || 0);
+                result.duplicateOperations = integrity.logs-integrity.unique;
+                result.partialManifests = integrity.partial;
+                if (integrity.seq!==committed+1 || integrity.logs!==integrity.seq || result.duplicateOperations || integrity.partial) result.violations++;
+            }
             aggregate.rounds++;
             aggregate.violations += result.violations;
             if (result.inconclusive) aggregate.inconclusiveRounds++;
             aggregate.details.push({ ...result, converged });
         }
         report.results.push(aggregate);
+        process.stderr.write(`${scenario} payload=${payload}: rounds=${aggregate.rounds} violations=${aggregate.violations}\n`);
+    }
+    if (backend === 'indexeddb-authority') {
+        report.acceptanceCases = [];
+        const record = name => report.acceptanceCases.push({ name, pass: true });
+        const poll = async fn => { for (let i=0;i<200;i++) { if(await fn()) return; await new Promise(r=>setTimeout(r,25)); } throw Error('checkpoint timeout'); };
+        const generation = randomUUID(), options = role => JSON.stringify({ scenario: 'save-save-different-keys', role, iterations: 10, generation });
+        await evaluate(primary, `crossTab.prepare(${options('primary')})`);
+        await evaluate(peer, `crossTab.prepare(${options('peer')})`);
+        await evaluate(primary, "crossTab.preparePacket('tx-abort')");
+        assert.equal((await evaluate(primary, "crossTab.abortPacket('tx-abort')")).ok, false);
+        assert.equal((await evaluate(peer, "crossTab.lookup('tx-abort')")).result, null);
+        assert.equal((await evaluate(peer, 'crossTab.snapshot()')).head.seq, 1); record('Repository native transaction abort: head / oplog unchanged');
+        const packet = await evaluate(primary, "crossTab.preparePacket('response-loss')");
+        // Observe the fact through the peer, deliberately discard the response.
+        await send('Runtime.evaluate', { expression: "crossTab.commitPacket('response-loss'); 'dispatched'", returnByValue:true }, primary);
+        let fact;
+        await poll(async()=>{fact=await evaluate(peer,"crossTab.lookup('response-loss')");return !!fact.result;});
+        await send('Target.closeTarget',{targetId:primaryTab.target});
+        primaryTab=await openTab();primary=primaryTab.session;
+        await evaluate(primary,`crossTab.claim(${JSON.stringify(token)})`);await evaluate(primary,`crossTab.prepare(${options('peer')})`);
+        const retry=await evaluate(primary,`crossTab.retryPacket(${JSON.stringify(packet)})`);
+        assert.equal(retry.replayed,true);assert.equal(retry.seq,fact.result.seq);record('Repository response loss / renderer reopen / hydrate / lookup / same-ID replay');
+        const altered=structuredClone(packet);altered.changes['cruisePort.metronome']=JSON.stringify({...JSON.parse(altered.changes['cruisePort.metronome']),bpm:180});
+        assert.equal((await evaluate(primary,`crossTab.retryPacket(${JSON.stringify(altered)})`)).reason,'operation-id-payload-conflict');record('same ID changed payload denied');
+        const crashPacket=await evaluate(primary,"crossTab.preparePacket('terminated-before','cruisePort.metronome',{bpm:175})");
+        await evaluate(peer,"crossTab.preparePacket('unrelated-during-crash','cruisePort.tuner',{thresholdDb:-75})");
+        await send('Debugger.enable',{},primary);
+        await send('Runtime.evaluate',{expression:"crossTab.armCrash();crossTab.commitPacket('terminated-before');'started'",returnByValue:true},primary);
+        await poll(()=>paused.has(primary));await send('Target.closeTarget',{targetId:primaryTab.target});
+        assert.equal((await evaluate(peer,"crossTab.lookup('terminated-before')")).result,null);
+        assert.equal((await evaluate(peer,'crossTab.snapshot()')).head.seq,fact.result.seq);
+        const merged=await evaluate(peer,"crossTab.commitPacket('unrelated-during-crash')");assert.equal(merged.ok,true);record('renderer termination in record callback aborts; interrupted different-key save succeeds');
+        primaryTab=await openTab();primary=primaryTab.session;
+        await evaluate(primary,`crossTab.claim(${JSON.stringify(token)})`);await evaluate(primary,`crossTab.prepare(${options('peer')})`);
+        const resumed=await evaluate(primary,`crossTab.retryPacket(${JSON.stringify(crashPacket)})`);assert.equal(resumed.ok,true);
+        assert.equal(JSON.parse((await evaluate(primary,'crossTab.snapshot()')).values['cruisePort.tuner']).thresholdDb,-75);
+        assert.equal((await evaluate(primary,`crossTab.retryPacket(${JSON.stringify(crashPacket)})`)).replayed,true);record('uncommitted original request resumes after unrelated merge; retry once');
+        const integrity=await evaluate(primary,'crossTab.integrity()');
+        assert.equal(integrity.logs,integrity.unique);assert.equal(integrity.logs,integrity.seq);assert.equal(integrity.partial,0);
+        report.integrity=integrity;record('oplog duplicate 0 / partial manifest 0 / head consistency');
+        assert.equal(await evaluate(peer,'crossTab.upgrade()'),'versionchange');assert.equal(await evaluate(primary,'crossTab.status()'),'versionchange');
+        assert.equal((await evaluate(primary,'crossTab.futureOpen()')).reason,'future-schema');record('Repository versionchange / disconnected old connection / future schema fail closed');
     }
     await evaluate(primary, 'crossTab.release()');
+    await evaluate(peer, 'crossTab.release()');
+    report.errors = errors; report.missing = missing; report.networkWrites = networkWrites;
+    if (errors.length || missing.length || networkWrites.length) throw Error('application side effect/error');
 } catch (error) {
     report.harnessError = String(error.stack || error);
 }
 report.verdict = verdict(mode, report.results);
+if (report.harnessError) report.verdict.pass = false;
 console.log(JSON.stringify(report, null, 1));
 ws.close();
 cleanup();

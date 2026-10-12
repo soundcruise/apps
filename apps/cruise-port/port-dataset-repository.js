@@ -1,4 +1,5 @@
 // Port owns this dataset. This module has no Account, Pro, audio or network side effects.
+import { isIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.10';
 export const PORT_DATASET_PROTOCOL = 1;
 export const PORT_DATASET_LOCK = 'sound-cruise:port:dataset:v1';
 export const PORT_DATASET_META = 'cruisePort.datasetRepository.v1';
@@ -88,7 +89,9 @@ function parseJournal(raw) {
     return value;
 }
 export class PortDatasetRepository {
-    constructor({ storage, authorityProvider, locks = globalThis.navigator?.locks, token = () => globalThis.crypto.randomUUID(), notify = () => {} } = {}) {
+    constructor({ storage, authorityProvider, backend, locks = globalThis.navigator?.locks, token = () => globalThis.crypto.randomUUID(), notify = () => {} } = {}) {
+        if (backend !== undefined && (!isIsolatedRepositoryBackend(backend) || authorityProvider)) throw error('isolated-backend-required');
+        this.backend = backend;
         this.storage = authorityProvider?.storage || storage;
         this.authorityProvider = authorityProvider;
         this.lockName = authorityProvider?.lockName || PORT_DATASET_LOCK;
@@ -98,9 +101,10 @@ export class PortDatasetRepository {
         this.listeners = new Set();
         this.degraded = false;
     }
-    get sharedWriteCapable() { return typeof this.locks?.request === 'function' && !this.degraded; }
+    get sharedWriteCapable() { return this.backend ? this.backend.sharedWriteCapable : typeof this.locks?.request === 'function' && !this.degraded; }
     subscribe(listener) { this.listeners.add(listener); return () => this.listeners.delete(listener); }
     inspect() {
+        if (this.backend) return this.backend.inspect();
         this.authorityProvider?.assertReadable();
         const metaRaw = this.storage.getItem(PORT_DATASET_META);
         const values = Object.fromEntries(PORT_DATASET_KEYS.map(key => [key, this.storage.getItem(key)]));
@@ -115,10 +119,17 @@ export class PortDatasetRepository {
             revision: JSON.stringify([metaRaw, values]), values: Object.freeze(values), keyRevisions: Object.freeze({ ...(meta?.keyRevisions || {}) }), sharedWriteCapable: this.sharedWriteCapable });
     }
     async readDatasetState() {
+        if (this.backend) return this.backend.hydrate();
         if (!this.sharedWriteCapable) return this.inspect();
         return this.locks.request(this.lockName, { mode: 'shared' }, () => this.inspect());
     }
-    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {}, operationId, commitGuard, authorizationContext } = {}, writer) {
+    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {}, operationId, commitGuard, authorizationContext, dependencyKeys = [], acknowledgements = [] } = {}, writer) {
+        if (this.backend) return this.backend.runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source,
+            preserveUnknown, assertCurrent, operationId, commitGuard, authorizationContext, dependencyKeys, acknowledgements }, writer, event => {
+            for (const listener of this.listeners) { try { listener(event); } catch {} }
+            // Isolated Authority commits never wake the production Sync runtime.
+            try { this.notify(event, () => false); } catch {}
+        });
         if (!this.sharedWriteCapable) return { ok: false, status: 'rejected', reason: 'locks-unavailable' };
         try {
             const guarded = typeof this.authorityProvider?.captureCommitContext === 'function';
@@ -264,6 +275,13 @@ export class PortDatasetRepository {
         after[PORT_DELETE_INTENTS] = Object.keys(intents).length ? JSON.stringify(intents) : null;
     }
     async acknowledgeDelete(key, generation, expectedRevision, assertCurrent = () => {}) {
+        if (this.backend) {
+            let matched;
+            try { matched = parseJournal(this.inspect().values[PORT_DELETE_INTENTS])[key]?.generation === generation; }
+            catch (e) { return { ok: false, status: 'rejected', reason: e.code || 'read-failed' }; }
+            return this.runWrite({ expectedRevision, source: 'ack', assertCurrent,
+                acknowledgements: [{ key, generation }] }, () => ({ matched }));
+        }
         return this.runWrite({ expectedRevision, source: 'ack', assertCurrent }, draft => {
             const intents = parseJournal(draft.getItem(PORT_DELETE_INTENTS));
             // Legacy booleans have no identity: keep them until a new coordinated delete replaces them.
