@@ -1,5 +1,24 @@
 # Port Authority Migration & Cutover Engine v1 — B1-4
 
+## Generation Race修正後の接続境界（2026-10-12・現行）
+
+[Workerの正式契約](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を優先する。
+server cutover ledgerは開始時のAccount/membership identityとそれぞれのgenerationを固定する。
+local Authority generationとは別物。paused/enforcedの同D1 transactionでcurrent server rowと照合し、
+stale時はbarrier/epoch/operation/checkpoint事実を保持する。新世代への自動retagはしない。
+旧ledgerのNULL generationは現在値で補完しない。
+
+既存`dataset_authority_unavailable`（internal reason `migration_generation_stale`）を、
+隔離fixtureのfresh evidence/checkpoint境界からengineへ伝えてrecovery-requiredを確認した。
+journalの旧fenceEvidence/source/pending dataは保持し、active pointer/cloud publishへ進めない。
+過去のcommit確認は現在の操作許可と区別する。Engine実コードは変更していない。
+static isolated ticketの発行だけでは後続remote revokeを検知できないため、
+製品側でのfresh evidence取得・operator認可・Account切替・Port/Studio同時接続はB1-6の残gate。
+
+Port1.22.6 / Studio0.26.1。Production deploy / D1適用 / cutoverなし、
+ACCEPT_COMPAT / legacy / enforcement OFF / Studio shared write OFF / canWrite=false。
+B1-6未完了、B1未解消。以下は既存工程の履歴。
+
 ## Asset cleanup競合修正（2026-10-12・現行）
 
 Port1.22.6 / Studio0.26.1。詳細は[Asset Lifecycle契約](../../../workers/sound-cruise-sync/ASSET_LIFECYCLE.md)。

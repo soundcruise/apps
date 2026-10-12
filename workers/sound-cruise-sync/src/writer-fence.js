@@ -8,13 +8,15 @@ export function createIsolatedWriterPolicy(accountId) {
 }
 export function policyAllows(policy, accountId) { return typeof accountId === 'string' && policies.get(policy) === accountId; }
 export class WriterFenceError extends Error {
-  constructor(code) { super(code); this.code = code; this.status = code === 'invalid_credential' ? 401
+  constructor(code) { const generationStale = code === 'migration_generation_stale';
+    if (generationStale) code = 'dataset_authority_unavailable';
+    super(code); this.code = code; if (generationStale) this.reason = 'migration_generation_stale'; this.status = code === 'invalid_credential' ? 401
     : code.startsWith('pro_') ? 403 : code === 'dataset_authority_unavailable' ? 503 : 409; }
 }
 export function translateFenceError(error) {
   const asset = String(error?.message || '').match(/\b(asset_reference_unavailable|asset_cleanup_conflict)\b/);
   if (asset) return new WriterFenceError(asset[1]);
-  const match = String(error?.message || '').match(/b15_(dataset_authority_unavailable|writer_protocol_required|writer_protocol_outdated|dataset_epoch_stale|invalid_credential|account_membership_required|pro_required|pro_reauth_required|pro_revalidation_required)\b/);
+  const match = String(error?.message || '').match(/b15_(migration_generation_stale|dataset_authority_unavailable|writer_protocol_required|writer_protocol_outdated|dataset_epoch_stale|invalid_credential|account_membership_required|pro_required|pro_reauth_required|pro_revalidation_required)\b/);
   return match ? new WriterFenceError(match[1]) : error;
 }
 export function assertion(db, predicate, values = []) {
@@ -53,6 +55,9 @@ export function fenceQuery(admission, { operationId = null, payload = null } = {
       WHEN NOT EXISTS (SELECT 1 FROM pro_credentials p JOIN pro_auth_state ps ON ps.singleton_id=1
         WHERE p.id=x.pro_id AND now.ms < CASE WHEN p.device_public_key IS NOT NULL
           THEN p.lease_expires_at ELSE ps.unbound_backend_until END) THEN 'pro_revalidation_required'
+      WHEN c.account_id IS NOT NULL AND (c.account_generation IS NULL OR c.membership_generation IS NULL
+        OR c.account_generation IS NOT ac.generation OR c.membership_generation IS NOT m.generation)
+        THEN 'migration_generation_stale'
       WHEN typeof(m.authority_updated_at)<>'integer' OR m.authority_updated_at<0 OR m.authority_updated_at>9007199254740991 OR typeof(m.write_epoch)<>'integer' OR m.write_epoch<1 OR m.write_epoch>9007199254740991
         OR typeof(m.minimum_writer_protocol)<>'integer' OR m.minimum_writer_protocol<0
         OR m.minimum_writer_protocol>2 OR m.authority_state NOT IN ('legacy','prepared','paused','enforced')

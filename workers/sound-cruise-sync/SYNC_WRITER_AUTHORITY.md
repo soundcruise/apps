@@ -1,5 +1,75 @@
 # Sync Writer Authority — B1-5
 
+## Migration / Cutover Generation Race修正（2026-10-12・現行）
+
+B1-6停止時の再現4件を保持し、変更前4 FAIL → 修正後4 PASSを確認した。
+旧ledgerはAccount/membershipのIDとlocal Authority generationを保存していたが、
+**server Account generation / membership generationを保存・比較していなかった**。
+paused後に同じIDのgenerationが変わってもenforced / epoch2 / fresh evidenceへ進む原因だった。
+
+### 固定するidentityとtransaction guard
+
+0037はledgerへnullableな`account_generation` / `membership_generation`だけをadditiveに追加する。
+開始preparedで、isolated Account capabilityに対応するactiveなserver Account/membership rowから
+両generationを別々に取得し、既存Account/app/membership/user/migrationId/local generationへ固定する。
+clientのgeneration、login時刻、同じmigrationIdだけをidentityの根拠にしない。
+prepared→pausedでも固定値を保持し、paused→enforcedで再取得した値へ置換しない。
+
+preflight SELECTに加え、ledger INSERT/UPDATE trigger、membershipのauthority/epoch/minimum更新trigger、
+同batch終端のassertionで現在のAccount/membership identity・state・generationを照合する。
+不一致なら`RAISE(ABORT,'b15_migration_generation_stale')`で**transition全体をrollback**する。
+pausedが先に確定済みならpaused / base epoch / minimum protocolを保持する。record/asset変更は行わない。
+通常Port mutationも既存の共通fence evaluatorでpreflightと実mutation batch内に世代比較を持つ。
+read成功を将来のmutation許可と扱わず、AppDevice/Pro/verifier/revocation/CASの既存guardも維持する。
+
+D1はbatchを一transactionとして直列化する。外部Account更新がcommit前なら拒否、commit後なら
+過去のcommitは成立済みだが次のretry/read/mutationを拒否する。
+SQLiteでbatch内へgeneration更新を挿入した故障注入も、membership公開triggerにより全体rollbackする。
+これは別HTTP transactionがD1 batch途中へinterleaveするという主張ではない。
+
+### Error / retry / recovery / evidence
+
+既存client taxonomyとの互換性を保ち、`code=dataset_authority_unavailable`（503）、
+internal `reason=migration_generation_stale`へ変換する。SQL trigger名も同reasonに変換する。
+credential terminal / CAS conflict / dataset_epoch_stale / 通常network errorとは区別する。
+既存HTTP authority readはcodeを返し、internal reasonは公開しない。503というstatusだけで自動retryせず、
+既存のauthority拒否処理で停止・review/recovery-requiredにする。
+
+同migrationId / phase operationIdの通常retry、concurrent retry、response-loss回収、正常returnにも
+現在世代のtransaction assertionを実行する。世代変更後に旧成功rowをfresh成功として返さない。
+世代変更前にcommit済みのphase / operationId / checkpoint / epoch事実は破棄しない。
+scoped `recover`はその履歴へ`authorizationFresh:false` / `recoveryRequired:true` / reasonを付けて返す。
+これは再認可ではなく、retag・二重epoch更新・legacyへの降格・barrier解除はしない。
+旧generationのjournal / pending data / evidenceを保持し、authorized recoveryはB1-6の別gateとする。
+
+`readAuthorityEvidence`は一SQLでcurrent Account/membershipとledgerをjoinし、両generationと
+membership/user identityを照合する。返すfenceはAccount ID/generation、membership ID/generation、appId、
+migrationId、local generation、epoch、state、pause operationのbarrierId、checkpoint、実効guardを含む。
+再作成membershipに同じgenerationを付けても旧ledgerを継承できない。
+0037前のledgerは両columnがNULLのまま。現在値からbackfillしない。履歴を保持しread/updateをfail-closedにする。
+migrationの再実行はWranglerの`d1_migrations`を使う。生ALTER SQLの二重実行は対象外。
+
+B1-4との接続は隔離fixtureで、server evidence/checkpoint拒否をengineへ渡し、
+recovery-required / journal・source保持 / pointer未公開を検証した。
+**静的なisolated ticket自体がremote revokeを検知するものではない**。製品のfresh evidence再取得、
+operator認可、Account切替、Port/Studio同時ブラウザー接続はB1-6未完了の残工程。
+Asset Cleanupの固定claim identity/generation/epoch・R2予約・永久tombstone契約は変更しない。
+
+### 検証と公開境界
+
+- 元のgeneration再現4 PASS、追加generation/mutation/engine 26 PASS、additive migration 3 PASS。
+- Worker/Account 760 PASS、Port/shared 1588 PASS、Other apps Sync85 / 全範囲186 PASS。
+- Studio作業差分中314 PASS（tracked clean guardはcommit後に別途含めて315件確認）。
+- native workerd/D1/R2 8 PASS（既存4＋世代競合4）、元のAsset Cleanup race 2 PASS。
+- ローカルWrangler全37 migration適用成功、再実行`No migrations to apply`。
+- Chrome: Port18経路＋26ケース、Studio Host10ケース、Metronome M1/M2 53 PASS。console/404/unhandled errorなし。
+
+Port **1.22.6** / Studio **0.26.1 / schema1**据え置き。両アプリの実コード変更なし。
+production **ACCEPT_COMPAT / legacy / enforcement OFF / shared write OFF / canWrite=false**。
+Worker deploy、本番D1適用、production cutover、active pointer公開なし。
+本修正は限定generation raceの解消。**B1-6未完了 / B1未解消 / shared write解禁不可**。
+以下の各工程の記述・件数は履歴として保持する。
+
 ## Asset cleanup / reference race修正（2026-10-12・現行）
 
 詳細は[Asset Lifecycle契約](ASSET_LIFECYCLE.md)。B1-6停止時の再現2件を保持して修正した。

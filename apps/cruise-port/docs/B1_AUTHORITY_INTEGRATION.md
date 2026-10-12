@@ -1,3 +1,199 @@
+# Migration / Cutover Generation Race — 限定修正完了
+
+2026-10-12。B1-6全体の製品統合へは戻らず、世代競合だけを修正した。
+既存の再現4件と停止報告を削除・改変せず保持する。停止報告原文は本節の下部。
+commit/pushの実値は作業完了報告で別途提示する。
+
+## 原因・契約・経路監査
+
+[Worker正式契約](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)と
+[Migration Engine接続境界](PORT_AUTHORITY_MIGRATION.md)を参照。
+
+| 論点 | 修正・実証 |
+|---|---|
+| 根本原因 | ledgerにserver Account/membership generationがなく、active stateとIDだけを検証していた |
+| Account / membership | server rowから別々に取得。client申告generationを無視し、安全な正整数へ限定 |
+| ledger | migrationId/local generation/Account/app/membership/user/各phase operation/epoch/checkpointに両generationを固定 |
+| prepared→paused | 開始preparedで固定した値を再利用。paused時に現世代へbindし直さない |
+| paused→enforced | ledger trigger・membership publication trigger・終端assertionを同D1 batchで実行 |
+| stale | transition全体をrollback、paused/base epoch/minimum維持、fresh evidence禁止 |
+| retry / idempotency | 同migration/opでもcurrent世代をtransaction内で照合し、旧成功を再認可しない |
+| response loss | unchanged世代ならcommit結果を回収、世代変更後なら履歴を保持してfresh成功を拒否。epoch二重更新なし |
+| recovery | scoped capabilityで過去row＋authorizationFresh=false/recoveryRequired=trueを取得。barrier解除/retag/降格なし |
+| evidence/read | current serverと固定ledgerを同SELECTで照合、Account/member generations・barrierIdをfenceへ結合 |
+| 通常mutation | 共通evaluatorのpreflightとmutation batchで世代比較。AppDevice/Pro失効・CAS/dedupeは維持 |
+| error | code=dataset_authority_unavailable (503)、internal reason=migration_generation_stale。公開readは既存codeで非network-retry停止 |
+| B1-4 Engine | 隔離checkpoint/evidence拒否がrecovery-requiredへ伝播。旧journal/fence/source保持、pointer未公開 |
+| revoke / recreate | Account/member revoke、同ID世代増分、member ID再作成を拒否。IDが同じだけでは継続認可しない |
+| isolation | foreign Account capability/migration/opを拒否、同世代2deviceの通常CAS成功、他アプリguard対象外 |
+| Asset Cleanup | claim/object identity・各generation/epoch・R2 reservation/tombstone契約を保持。元競合2件PASS |
+| additive0037 | 新column2とguardsのみ。既存record/member/asset損失なし。旧ledger NULLをbackfillせずfail-closed |
+
+fresh read後でも将来のmutationは世代を再検証する。D1 batchは一transactionとして直列化される。
+batch内generation更新のSQLite故障注入は自transaction rollbackの検証であり、外部transactionの
+途中interleaveを主張しない。response-loss後の過去commitと現在の認可を分離する。
+
+## 開始時と最終検証
+
+開始HEAD=origin/main=remote main: `13e7d642fc4da0cdaeb02f801f24e0abdeb63f84`。
+main / ahead0 behind0 / staged空。既存未commitは本停止報告とgeneration再現テストだけ。
+既存untracked `.claude/` / `workers/sound-cruise-sync/node_modules/`は変更・stageしない。
+
+| 検証 | 結果 |
+|---|---:|
+| 元のgeneration再現4件 | 変更前4 FAIL → 修正後4 PASS。元assertion保持 |
+| 追加generation/普通mutation/engine/isolation | 26 PASS |
+| 追加additive0037 migration | 3 PASS |
+| Worker / Account全回帰 | 760 PASS（baseline727＋再現4＋追加26＋migration3） |
+| Port / shared全階層 | 1588 PASS |
+| Other apps従来Sync範囲 | 85 PASS |
+| Other apps全範囲 | 186 PASS |
+| Studio | 作業中314 PASS。tracked clean guardを含む315件はcommit後確認 |
+| native workerd / D1 / R2 | 8 PASS（既存4＋generation race4） |
+| 元Asset Cleanup race | 2 PASS（Worker総数内、単独再確認もPASS） |
+| Chrome Port desktop/mobile | 18経路＋readiness26ケースPASS、Account/Sync・Pro・Gear・My Apps・Practice |
+| Chrome Studio Read-only Host | 10ケースPASS、canWrite=false、API副作用なし |
+| Chrome Studio Metronome M1/M2 | 53 PASS、独立Audio/Settings/保存/conflict/lifecycle |
+| Browser console / 404 / unhandled | 0 |
+| ローカルWrangler migration | 一時DBへ37件適用成功、再実行No migrations to apply |
+
+SQLiteは既存データ入り0036から0037へ適用して保存内容を比較。
+旧paused ledgerは新column NULLのまま、read/update/retag拒否とepoch維持を確認。
+再実行安全性は公式Wrangler migration ledgerを使う。生ALTER SQLの重複実行はしない。
+workerd世代競合4件は実D1でprepared→paused後とenforce batch直前のAccount/member世代変更を検証する。
+production operator用のHTTP routeは追加していない。
+
+## 公開境界・残Blocker・次工程
+
+Port **1.22.6** / Studio **0.26.1 / schema1**。Worker中心のため両アプリ実コード/版は据え置き。
+本番deploy / D1適用 / cutover / enforcement変更 / shared write解禁は実施していない。
+production **ACCEPT_COMPAT / legacy / enforcement OFF**、Studio **shared write OFF / PortDataHost.canWrite=false**。
+
+限定generation raceは解消し、B1-6安全監査・統合作業の再開に進める。
+**B1-6未完了 / B1全体未解消 / shared write解禁不可**。
+残Blockerはfresh evidenceの製品接続、operator認可と旧ledgerのauthorized recovery、
+Account切替とPort/Studio同時browser、local legacy writer停止、reconciliation UX、
+実partition・cleanup claim crash回収・fence対応rollback/deployのacceptance gate。
+static isolated ticketはremote revokeを自動検知しない。isolated checkpoint拒否の検証を製品統合完了と扱わない。
+
+今回の実装選択は既知原因と限定境界の高リスク修正であり、モデル適性はSol・高を基本候補とする。
+独立B1-6統合監査はAstra・中を第一候補とし、複数仮説の深い検証が必要な場合のみ高へ上げる。
+この適性評価はタスクの性質による判断であり、実際のモデル設定を変更したという意味ではない。
+
+---
+
+以下はB1-6停止報告の原文（今回の修正前の履歴）。
+
+# B1-6 Authority Integration v2 — 世代検証不整合による停止
+
+2026-10-12。**B1-6 v2未完了、製品実装・commit・pushなし。**
+依頼の停止条件「migration/fence不整合」に該当する既存cutoverの不整合を、隔離SQLiteで再現した。
+以下に今回の実測を記録する。Asset race修正結果と、それ以前の停止報告は下部に原文を保持する。
+
+## 開始状態・baseline（報告項目1–2、30、32、34–38）
+
+- HEAD / origin/main / remote main: `13e7d642fc4da0cdaeb02f801f24e0abdeb63f84`。
+- main、tracked clean、staged空、ahead/behind 0/0。開始時にremote実値も確認した。
+- 既存untracked: `.claude/`、`workers/sound-cruise-sync/node_modules/`。変更・stage対象外。
+- Port1.22.6、Studio0.26.1、Studio schemaVersion1。
+
+| suite | 今回のbaseline実測 |
+|---|---:|
+| Worker / Account | 727 PASS |
+| Port / shared（全階層のtest.js / test.mjs） | 1588 PASS |
+| Other apps（前回と同じSync対象） | 85 PASS |
+| Other apps（全階層へ拡張した実行） | 186 PASS |
+| Studio | 315 PASS（作業差分追加前、Git cleanチェックを含む） |
+| workerd / D1 / R2 | 4 PASS（既存transaction fence1、Asset lifecycle3） |
+| 元のAsset Cleanup race | Worker727内で2 PASS。追加の単独再確認も2 PASS |
+| 新規cutover generation再現 | **4 FAIL** |
+
+Port/sharedの最初のglob実行は1552件だったため、全階層のtest.jsも含めて1588件を実行し直した。
+Other appsも最初のトップ階層のみの実行とは分け、前回と同じ85件と全階層186件を確認した。
+workerdはsandbox内の起動制約のため、ローカル実行権限で再実行して4件通過。本番へは接続していない。
+これらのbaseline成功を、新規の世代変更競合が安全である証拠とは扱わない。
+
+## 再現した停止条件（8–12、17、63）
+
+再現ファイル: `workers/sound-cruise-sync/test/authority-cutover-generation-race.test.js`。
+
+```sh
+node --test workers/sound-cruise-sync/test/authority-cutover-generation-race.test.js
+```
+
+1. Account generation=1、membership generation=1の隔離データで、既存controllerによりprepared→pausedへ進める。
+2. 同じAccount IDを維持し、Accountまたはmembershipのgenerationだけを2へ変更する。
+3. 旧migrationId / local Authority generation / operationIdでenforcedへ進める。
+4. 現実には拒否されず、ledgerはenforced、writeEpochは2になる。
+5. `readAuthorityEvidence`もenforced / transactionalAdmission=trueの証拠を返す。
+
+Account / membershipそれぞれについて、paused直後とenforce用D1 batch実行直前の2境界を検証し、計4件とも同じ失敗を確認した。
+
+```json
+{"rejected":false,"phase":"enforced","writeEpoch":2,"exposesEnforcedEvidence":true}
+```
+
+期待する安全条件は、旧世代のcutoverを拒否し、paused barrierと元のepoch=1を保持すること。
+テストは既存migrations0001–0036と本体controller / evidence readerを使う。
+世代更新は障害注入として直接SQLで行う。Account recovery / app detach等にも実在する世代無効化を分離して検証しており、
+それらの認証済みHTTP操作全体を再現したとの主張はしない。cross-accountデータ漏洩や本番での発生を実証したものでもない。
+
+原因となる境界:
+
+- `0035_add_transaction_fence.sql`のcutover ledgerにはAccount / membership generationの固定値がない。
+- `authority-cutover.js`のpreparedはmembership ID / sync user / base epochを固定するが、両generationを固定しない。
+- paused / enforcedのbatchは現在のactive状態を条件にするだけで、開始時generationとの一致を条件にしない。
+- `readAuthorityEvidence`はmembership / ledger identity、phase、epochを照合するが、開始時generationを比較できない。
+- 現状のoperationIdによる再送成功・recoverについても、修正時には同じ世代契約を適用する必要がある。
+
+通常Account APIにはcutover routeがなく、code-branded隔離capabilityでだけ再現した。
+「既存operator routeの認証回避を発見した」とは扱わない。一方、このcontrollerをそのままHost統合の正当なfence証拠へ接続できない。
+
+## 残工程と未検証範囲（3–7、13–16、18–29、31、33、39–41）
+
+| 項目 | 今回の状態 |
+|---|---|
+| Integration architecture / Port・Studio Host / readiness | 既存read-only Host・dormant Facade・operation boundaryを調査。新Authorityへの接続は未実装 |
+| Migration / fence / cutover / recovery | 上記不整合で停止。fresh checkpoint→final reconciliation→seal→pointerの結合実証なし |
+| Operator authorization / API | 既存はcode capabilityのみ、production routeなし。正式operator認可・dry-run・auditの設計実装は未完了 |
+| Asset lifecycle / cleanup | 前回修正を変更せず、元再現2件とworkerd/R2を再検証してPASS |
+| Orphan追加回収 | 遅延uploadの未公開orphan追加回収は未実装。前回の保持契約を維持 |
+| Account / Pro / Sync / full dataset / partial snapshot | 既存実装を不変更。B1-6 operation contextとHost/runtime結合の新規実証なし |
+| Port + Studio simultaneous / settings・preset・delete競合 | 今回のtwo-tab統合fixtureは未実装・未実行 |
+| Offline / Account switch / Pro失効 / External Sync | 既存baselineの範囲のみ。B1-6結合ケースの成功とは扱わない |
+| Port Chrome / Studio Chrome / console / 404 | 停止により今回未実行。前回のブラウザー件数を今回の実測として流用しない |
+| Safari/macOS・iPhone/iPad・PWA・partition・BFCache・background | 実機未確認。Chrome viewportとの同一視なし |
+
+指定文書すべての精読・更新とPhase B–Gの実装は停止により未完了。
+今回更新する文書はこの停止報告だけ。未実施の各Phaseを完了として記載しない。
+
+## Production / version / Git（42–59）
+
+製品コード・schema・設定・versionは変更なし。Port1.22.6 / Studio0.26.1 / Studio schema1を維持する。
+Worker deploy / production D1 migration / production cutover / active pointer公開 / 実ユーザー移行はすべて実施なし。
+productionのACCEPT_COMPAT / legacy / enforcement OFF / Studio shared write OFF / PortDataHost.canWrite=falseを変更していない。
+live production設定を再監査したとの主張はしない。
+
+未commit差分は、この文書と新規再現テストの2ファイルだけ。
+stage・commit・pushは行わないため、新commit hash・commit files・push前検査は該当なし。
+予定message「PortとStudioのAuthority統合基盤を整備」は未使用。
+`git diff --check`を確認し、終了時のHEAD / origin / remote一致、ahead/behind、staged空を最終応答で報告する。
+既存untracked2ディレクトリは変更しない。再現テストはFAILのまま未stageで保持する。
+
+## 判定と次工程（60–65）
+
+- B1-6隔離統合: 未完了。B1全体: 未解消。production shared write: 解禁不可。
+- Blocker: 開始時Account / membership generationをcutover ledger・D1 transition・evidenceへ束縛する契約が未成立。
+- 次Phase: この世代検証を先に修正し、新規4件をPASSにする。operator認可・identity・epoch・migrationIdとともに
+  generationを固定し、同じD1 transactionで比較する。古いclaimのgenerationを現在値へ無条件retagしない。
+- 事前SELECTだけの修正では、batch直前注入2件を解消できない。response-loss retry / restart / stale evidenceにも適用し、
+  世代不一致を明示的な再認可・復旧へ送る。既存ledgerの移行方法を別途検討する。
+- その修正の全回帰後に、B1-6 Phase AからHost・operator・migration/fence結合を再開する。
+- モデル適性: 当初推奨Astra / 中は横断境界の調査に妥当。原因が明確になった限定修正はSol / 高が候補。
+  停止理由は依頼に明記された安全条件違反であり、能力不足や時間切れではない。
+
+---
+
 # Asset Cleanup vs Reference Addition Race — 修正結果
 
 2026-10-12。前回の停止報告は下部に原文を保持する。
