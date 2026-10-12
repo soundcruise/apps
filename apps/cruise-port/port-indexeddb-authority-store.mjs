@@ -2,8 +2,8 @@
 // a database. No Repository adapter, boot hook, migration, Sync or Pro runtime.
 import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, COMMIT_STORES, AUTHORIZATION_MARGIN_MS,
     PORT_DATASET_KEYS, PORT_DELETE_INTENTS, identifier, fail, frozen, canonical, equal, digest,
-    validateDataset, assertRetainedFields, validateControl, assertWritableControl, validateHead,
-    validateManifest, validateRecord, validateOplog, assertJSONEvidence, inferredDependencies, mergeDeleteIntents } from './port-idb-authority-contract.mjs';
+    validateDataset, assertPortReferentialIntegrity, assertRetainedFields, validateControl, assertWritableControl, validateHead,
+    validateManifest, validateRecord, validateOplog, assertJSONEvidence, inferredDependencies, fingerprintDependencies, mergeDeleteIntents } from './port-idb-authority-contract.mjs';
 import { safeEvidence, MIGRATION_STATES } from './port-migration-contract.mjs';
 export { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, AUTHORIZATION_MARGIN_MS };
 const scopes = new WeakMap();
@@ -116,7 +116,10 @@ function makeStore(db,env,lifecycle) {
             if(head.generation!==generation||control.generation!==generation||head.controlEpoch>control.epoch||control.identity.partitionId!==env.partitionId)throw fail('recovery-required');
             ctx.request(ctx.store('manifests').get([generation,head.manifestId]),manifest=>{
                 if(!manifest)throw fail('recovery-required');validateManifest(manifest,head);
-                readManifestValues(ctx,generation,manifest,values=>done(frozen({generation,head,control,manifest,values,versions:{...manifest.versions}})));
+                readManifestValues(ctx,generation,manifest,values=>{
+                    assertPortReferentialIntegrity(values);
+                    done(frozen({generation,head,control,manifest,values,versions:{...manifest.versions}}));
+                });
             });
         }));
     }
@@ -166,7 +169,7 @@ function makeStore(db,env,lifecycle) {
         const draft=b?{...b.values,...c}:c;validateDataset(draft);
         if(b)assertRetainedFields(b.values,draft,keys);
         const body={schemaVersion:1,generation,operationId,action,base:b?{manifestId:b.head.manifestId,seq:b.head.seq,
-            versions:b.versions,control:b.control}:null,changes:c,dependencyKeys:dependencies,acknowledgements:a,initialControl:initialControl||null};
+            versions:b.versions,control:b.control}:null,changes:c,dependencyKeys:[...new Set([...dependencyKeys,...fingerprintDependencies(keys)])],acknowledgements:a,initialControl:initialControl||null};
         const value=frozen({generation,operationId,action,base:b,changes:c,dependencyKeys:dependencies,acknowledgements:a,
             initialControl:initialControl&&structuredClone(initialControl),fingerprint:digest(body)});
         const handle=Object.freeze({generation,operationId});prepared.set(handle,{...value,authorizationContext});return handle;
@@ -211,6 +214,9 @@ function makeStore(db,env,lifecycle) {
                     assertRetainedFields(before,values,Object.keys(p.changes));
                 }
                 validateDataset(values);
+                // Validate the merged latest head, not the caller's old cache.
+                // All-or-nothing rejection happens before any record publication.
+                assertPortReferentialIntegrity(values,current?.values);
                 const seq=(current?.head.seq||0)+1;if(!Number.isSafeInteger(seq))throw fail('sequence-exhausted');
                 const manifestId=identifier(env.token()),revision=identifier(env.token()),versions={...current?.versions},recordDigests={...current?.manifest.recordDigests};
                 if(!current)ctx.request(ctx.store('control').add(control));

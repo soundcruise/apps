@@ -1,5 +1,5 @@
-import { createPortDataHost } from './host.mjs?v=0.26.4';
-import { connectPortReadOnly } from './connection.mjs?v=0.26.4';
+import { createPortDataHost } from './host.mjs?v=0.26.5';
+import { connectPortReadOnly } from './connection.mjs?v=0.26.5';
 const CS = globalThis.CruiseStudio;
 let host = createPortDataHost({ connect: connectPortReadOnly, schema: CS.metronomeSchema });
 CS.portDataHost = host;

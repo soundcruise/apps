@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { PortDatasetRepository, PORT_DATASET_KEYS, PORT_DELETE_INTENTS } from '../port-dataset-repository.js';
 import { createIsolatedIDBAuthorityScope } from '../port-indexeddb-authority-store.mjs';
 import { openIsolatedIDBRepositoryBackend } from '../port-indexeddb-repository-backend.mjs';
-import { registerPortRepository, readPortStore, writePortStore } from '../port-dataset-storage.js?v=1.22.10';
+import { registerPortRepository, readPortStore, writePortStore } from '../port-dataset-storage.js?v=1.22.11';
 import { values, control } from './authority-store/fixture.mjs';
 import { loadSettings, saveSettings } from '../settings-store.js';
 import { loadMetronomeSettings, saveMetronomeSettings } from '../metronome-store.js';

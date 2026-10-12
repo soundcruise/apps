@@ -1,5 +1,17 @@
 # Cruise Studio Project State
 
+## L2b-fix（2026-10-13・現行）
+
+Port1.22.11 / Studio0.26.5 / schema1。承認済みbaseline6a057e6055d252a459a4fcb60c07a53ee6557ccb、NEWS commit保持。
+[参照整合性契約](../../cruise-port/docs/PORT_REFERENTIAL_INTEGRITY.md)で、旧L2b監査Cの添付intent欠落/write skewを修正する。
+最新candidateのStore transaction内validation、generation付き個別/owner-set intent、旧ACK/recreateを隔離検証。
+許容されるmissing My App/Practice set/履歴/cacheを削除・再作成しない。添付owner deleteは同一writerで関連metadataも明示削除する。
+Node35追加、Port/shared1975、Worker760/Other186/workerd8。Studio314はcommit後clean guard込み315で確認。
+Native新63round＋failure4、既存54round＋7/L2a14、Port browser72/Studio97+Host10を確認して限定commit/通常pushする。
+Production legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false。
+L3/L4/L5/B1-6未着手/保留。次は独立fix再レビュー、その後L3着手判断。次frame Loupe focusは既存別課題で製品UI不変更。
+以下は各工程当時の履歴。
+
 ## L2b Repository接続（2026-10-13・現行）
 
 Port **1.22.10** / Studio **0.26.4 / schema1**。内部adapter/cache readerのpatch。通常UI・保存先は変更しない。
@@ -343,7 +355,7 @@ Core完了をStudio Host接続やM3製品統合完了とは扱わない。
 
 ### Studio Shell v1（0.23.0・完了／push済み、前工程の履歴）
 
-- 開始時HEAD = origin/main = remote main: `7b4d5b75b181a4bad8b19721e4303c43cae80842`。
+- 開始時HEAD = origin/main = remote main: `7b4d5b75b181a4bad8b19751e4303c43cae80842`。
   tracked clean / staged空 / ahead 0・behind 0。既存untracked 2件は不触。
 - `js/shell.js`と`shell.css`を追加。Navigation / Main / Right pane / Dockの4領域。
   Home / Structure / Pre-DTM / 既存Appsをhostする。新しいglobal Headerは追加しない。
@@ -411,7 +423,7 @@ Core完了をStudio Host接続やM3製品統合完了とは扱わない。
   Feature MetadataへのTheme追加なし。Theme単体配信はMetadataのPort ESM隣接配信条件と独立。
 - 開始時HEAD = origin/main = remote mainは`3879b26ac63891908954618a056a0bdd7a2e361d`。
   tracked clean / staged空 / ahead 0・behind 0。既存`.claude/` / worker node_modules不触。
-  `7b4d5b75b181a4bad8b19721e4303c43cae80842`としてcommit / push済み。
+  `7b4d5b75b181a4bad8b19751e4303c43cae80842`としてcommit / push済み。
 - 次工程はStudio Shell v1。本工程ではShell / theme selector UIを実装していない。
   Port / 他apps / shared / Worker / Account / Pro / Syncは不触。
 

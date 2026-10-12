@@ -94,7 +94,12 @@ try{
  const beforeCrash=await evaluate(b.sessionId,'IDBQA.snapshot()');await evaluate(a.sessionId,"IDBQA.prepare('crash-before',IDBQA.keys.met,{bpm:170})");
  await send('Debugger.enable',{},a.sessionId);await evaluate(a.sessionId,"IDBQA.armCrash(); IDBQA.commit('crash-before'); 'started'",false);
  await poll(()=>paused.has(a.sessionId));await send('Target.closeTarget',{targetId:a.targetId});
- assert.equal((await evaluate(b.sessionId,"IDBQA.lookup('crash-before')")).result,null);assert.equal((await evaluate(b.sessionId,'IDBQA.snapshot()')).head.seq,beforeCrash.head.seq);record('tab close during record-success callback aborts transaction');
+ const terminationFact=(await evaluate(b.sessionId,"IDBQA.lookup('crash-before')")).result;
+ const afterTermination=await evaluate(b.sessionId,'IDBQA.snapshot()');
+ if(terminationFact){assert.equal(terminationFact.seq,beforeCrash.head.seq+1);assert.equal(afterTermination.head.seq,terminationFact.seq);
+  assert.deepEqual(afterTermination.values,{...beforeCrash.values,'cruisePort.metronome':JSON.stringify({...JSON.parse(beforeCrash.values['cruisePort.metronome']),bpm:170})});}
+ else{assert.equal(afterTermination.head.seq,beforeCrash.head.seq);assert.deepEqual(afterTermination.values,beforeCrash.values);}
+ report.recordCallbackTermination=terminationFact?'committed-with-lost-response':'aborted';record('tab close during record callback: full commit fact or exact old snapshot, never partial');
  a=await tab();await evaluate(a.sessionId,`IDBQA.setup(${JSON.stringify(partition)})`);const packet=await evaluate(a.sessionId,"IDBQA.prepare('crash-after',IDBQA.keys.met,{bpm:175})");
  await evaluate(a.sessionId,"IDBQA.commit('crash-after'); 'response deliberately unobserved'",false);
  let fact;await poll(async()=>{fact=await evaluate(b.sessionId,"IDBQA.lookup('crash-after')");return !!fact.result;});

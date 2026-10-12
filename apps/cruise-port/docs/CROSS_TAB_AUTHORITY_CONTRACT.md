@@ -1,5 +1,17 @@
 # Cross-tab Authority Contract v1（L1）
 
+## L2b-fix Referential Integrity（2026-10-13・現行）
+
+Port1.22.11 / Studio0.26.5 / schema1。[参照整合性契約](PORT_REFERENTIAL_INTEGRITY.md)を現在の正式契約とする。
+承認済み開始baseline6a057e6055d252a459a4fcb60c07a53ee6557ccb（NEWS commit保持）。
+旧L2b監査Cのattachment/owner-set intent欠落とmenu-delete/attachment-add write skewをNode/nativeで再現して修正。
+添付intentは最新headから世代付きmerge。Storeの同一transaction内でmerge後candidateのhard owner/source参照を検証する。
+添付↔menuの一律key依存に代えて両方向candidate検査を採用し、無関係menu/keyの並行保存を維持する。
+許容されるmissing My App・Practice set/history/cumulative/cache参照は保持する。owner deleteは明示coordinated writer。
+Node35件/native63round＋添付failure4項目、既存L2b54round＋7/L2a14を回帰確認。
+Production legacy / Worker ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false。
+L2b-fixの完了範囲は論理参照とintent。L3/L4/L5/B1-6には進まない。以下は各工程当時の履歴。
+
 ## L2b Repository接続（2026-10-13・現行）
 
 Port **1.22.10** / Studio **0.26.4 / schema1**。内部adapter/cache readerのpatch。通常UI・保存先は変更しない。

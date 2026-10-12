@@ -1,4 +1,4 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.10';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.11';
 
 export const SYNC_OPERATION_SELECTOR = [
     '#sync-center-port-connect-open', '#sync-center-port-connect-confirm',

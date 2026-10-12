@@ -3,6 +3,7 @@ import { PortDatasetRepository, PORT_DATASET_KEYS } from '../../port-dataset-rep
 import { createIsolatedIDBAuthorityScope } from '../../port-indexeddb-authority-store.mjs';
 import { openIsolatedIDBRepositoryBackend } from '../../port-indexeddb-repository-backend.mjs';
 import { values, control } from '../authority-store/fixture.mjs';
+import { referenceValues, REF_KEYS, attachment, danglingAttachments } from '../authority-store/reference-fixture.mjs';
 import { KEYS, CONTROL_SCENARIOS, counterLoop, deleteLoop, seedDeleteCollections } from './cross-tab-scenarios.mjs';
 let token, scope, generation, backend, repository;
 const handles=new Map();
@@ -12,12 +13,12 @@ function assertFixture() {
 async function snapshot() { await backend.hydrate(); return backend.store.hydrate(generation).then(r=>{if(!r.ok)throw Error(r.reason);return r.snapshot;}); }
 window.crossTab={
  claim(id) { if(token&&token!==id)throw Error('different fixture owner');if(typeof id!=='string'||id.length<16)throw Error('driver token');token=id;assertFixture();return true; },
- async prepare({scenario,role,iterations,generation:gen}) {
+ async prepare({scenario,role,iterations,generation:gen,reference=false,attached=false,payload=0}) {
   assertFixture();backend?.dispose();generation=gen;
   scope=createIsolatedIDBAuthorityScope({indexedDB,partitionId:token,name:'sound-cruise-port-authority-v1-fixture-'+token});
   backend=await openIsolatedIDBRepositoryBackend({scope,generation,channelFactory:()=>null});
   if(role==='primary') {
-   let v=values();if(scenario==='delete-intent')v=seedDeleteCollections(v,iterations);
+   let v=reference?referenceValues({attached,payload}):values();if(scenario==='delete-intent')v=seedDeleteCollections(v,iterations);
    const seeded=await backend.store.initialize({generation,control:control(generation,token),values:v,operationId:'seed-'+generation});
    if(!seeded.ok)throw Error(seeded.reason);
   }
@@ -61,6 +62,34 @@ window.crossTab={
  async upgrade(){return new Promise((ok,no)=>{const r=indexedDB.open(scope.name,2);r.onupgradeneeded=()=>r.result.createObjectStore('future');r.onsuccess=()=>{r.result.close();ok(backend.store.status);};r.onerror=()=>no(r.error);});},
  async futureOpen(){try{await openIsolatedIDBRepositoryBackend({scope,generation,channelFactory:()=>null});return {ok:true};}catch(e){return {ok:false,reason:e.code};}},
  status:()=>backend.store.status,
+ async referencePrepare({id,kind,owner='menu-0',attachmentId='attachment-a',acknowledgements=[],dependencyKeys=[]}) {
+  const keys=kind==='menu-delete'||kind==='menu-edit'||kind==='my-app-link'?[REF_KEYS.menus]:kind.startsWith('my-app')?[REF_KEYS.apps]:
+   kind==='coordinated-delete'?[REF_KEYS.menus,REF_KEYS.assets]:kind==='old-ack'?[]:[REF_KEYS.assets];
+  const s=repository.inspect();let release;
+  const promise=repository.runWrite({operationId:id,expectedValues:Object.fromEntries(keys.map(k=>[k,s.values[k]])),acknowledgements,dependencyKeys},async d=>{
+   await new Promise(r=>release=r);
+   const mutate=(key,fn)=>{const v=JSON.parse(d.getItem(key));fn(v);d.setItem(key,JSON.stringify(v));};
+   if(kind==='menu-delete'||kind==='coordinated-delete')mutate(REF_KEYS.menus,v=>v.items=v.items.filter(m=>m.id!==owner));
+   if(kind==='coordinated-delete')mutate(REF_KEYS.assets,v=>{for(const [id,e]of Object.entries(v.attachments))if(e.practiceId===owner)delete v.attachments[id];});
+   if(kind==='menu-edit')mutate(REF_KEYS.menus,v=>{v.items.find(m=>m.id===owner).memo=id;});
+   if(kind==='my-app-delete')mutate(REF_KEYS.apps,v=>v.items=[]);
+   if(kind==='my-app-link')mutate(REF_KEYS.menus,v=>v.items[0].appId='myapp:'+JSON.parse(s.values[REF_KEYS.apps]).items[0].id);
+   if(kind==='attachment-add')mutate(REF_KEYS.assets,v=>v.attachments[attachmentId]=attachment(owner,attachmentId));
+   if(kind==='attachment-delete')mutate(REF_KEYS.assets,v=>delete v.attachments[attachmentId]);
+   return {ok:true};
+  });
+  while(!release)await new Promise(r=>setTimeout(r,0));
+  handles.set(id,{release,promise});return true;
+ },
+ referenceCommit(id){const p=handles.get(id);p.release();return p.promise;},
+ async referenceFailure(id,kind){
+  const add=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(...args){
+   if(this.name==='records'){if(kind==='quota')throw new DOMException('full','QuotaExceededError');this.transaction.abort();}
+   return add.apply(this,args);
+  };
+  try{return await crossTab.referenceCommit(id);}finally{IDBObjectStore.prototype.add=add;}
+ },
+ async referenceObserve(){const s=await snapshot();return {values:s.values,versions:s.versions,seq:s.head.seq,dangling:danglingAttachments(s.values)};},
  async integrity(){
   const s=await snapshot();
   const db=await new Promise((ok,no)=>{const r=indexedDB.open(scope.name,1);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});

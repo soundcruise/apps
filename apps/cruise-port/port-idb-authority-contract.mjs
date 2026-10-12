@@ -3,6 +3,7 @@ import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, PORT_DE
     assertPortForwardCompatible, preservePortFields } from './port-dataset-repository.js';
 import { AUTHORITY_WRITER_PROTOCOL } from '../shared/sync-account/writer-authority.mjs';
 import { canonical, equal, safeEvidence } from './port-migration-contract.mjs';
+export { assertPortReferentialIntegrity } from './port-referential-integrity.mjs';
 export { PORT_DATASET_KEYS, PORT_DELETE_INTENTS, canonical, equal };
 export const AUTHORITY_DB_NAME = 'sound-cruise-port-authority-v1';
 export const AUTHORITY_DB_VERSION = 1;
@@ -130,12 +131,18 @@ export function validateOplog(log, generation, operationId) {
     if (log.result.operationId !== operationId || log.result.generation !== generation || log.result.publish !== false) throw fail('oplog-invalid');
     safeEvidence(log);
 }
-export const inferredDependencies = keys => [...new Set(keys.flatMap(k=>({
+// Keep the original fingerprint inference/order so a response-loss request from
+// L2b can still replay after this fix. CAS and payload identity are distinct.
+export const fingerprintDependencies = keys => [...new Set(keys.flatMap(k=>({
     'cruisePort.practiceMenus':['cruisePort.practiceMenuSets'],
     'cruisePort.practiceMenuSets':['cruisePort.practiceMenus'],
     'cruisePort.syncAssetMetadata':['cruisePort.gearList','cruisePort.myApps','cruisePort.practiceMenus'],
     'cruisePort.gearList':['cruisePort.syncAssetMetadata'], 'cruisePort.myApps':['cruisePort.syncAssetMetadata']
 }[k] || [])))];
+// Attachment/menu edges are validated on the current merged candidate in both
+// directions. Explicit caller/read dependencies are never removed.
+export const inferredDependencies = keys => [...new Set(keys.flatMap(key=>fingerprintDependencies([key])
+    .filter(dependency=>key!=='cruisePort.syncAssetMetadata'||dependency!=='cruisePort.practiceMenus')))];
 export function mergeDeleteIntents(before, next, requested, base, acknowledgements, generation) {
     const merged = structuredClone(intents(before[PORT_DELETE_INTENTS]));
     if (requested !== undefined) {
@@ -162,6 +169,15 @@ export function mergeDeleteIntents(before, next, requested, base, acknowledgemen
             const a = prior.some(r=>r.status===status), b = rows.some(r=>r.status===status);
             if (a && !b) remove(`gear_order/${status}`); else if (!a && b) delete merged[`gear_order/${status}`];
         }
+    }
+    const assetKey='cruisePort.syncAssetMetadata';
+    if(before[assetKey]!==next[assetKey]) {
+        const old=JSON.parse(before[assetKey]||'null')?.attachments||{}, rows=JSON.parse(next[assetKey]||'null')?.attachments||{};
+        for(const id of Object.keys(rows)) if(!Object.hasOwn(old,id)) delete merged[`practice_attachment/${id}`];
+        for(const id of Object.keys(old)) if(!Object.hasOwn(rows,id)) remove(`practice_attachment/${id}`);
+        const oldOwners=new Set(Object.values(old).map(e=>e.practiceId)), owners=new Set(Object.values(rows).map(e=>e.practiceId));
+        for(const owner of oldOwners) if(!owners.has(owner)) remove(`practice_attachment_set/${owner}`);
+        for(const owner of owners) if(!oldOwners.has(owner)) delete merged[`practice_attachment_set/${owner}`];
     }
     return merged;
 }

@@ -18,6 +18,7 @@ import { join, resolve, extname, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
+import { runReferentialSuite, runReferentialFailures } from './referential-suite.mjs';
 import { SCENARIOS, CONTROL_SCENARIOS, PAYLOADS, classifySameKey, classifyDifferentKeys,
     classifyDeleteIntents, classifyControl, verdict } from './cross-tab-scenarios.mjs';
 
@@ -68,10 +69,11 @@ for (let i = 0; i < 150 && !existsSync(portFile); i++) await new Promise(r => se
 const [port, path] = readFileSync(portFile, 'utf8').trim().split('\n');
 const ws = new WebSocket(`ws://127.0.0.1:${port}${path}`);
 await new Promise((ok, fail) => { ws.addEventListener('open', ok, { once: true }); ws.addEventListener('error', fail, { once: true }); });
-let nextId = 0; const pending = new Map(), paused = new Set(), errors = [], missing = [], networkWrites = [], traces = [];
+let nextId = 0; const pending = new Map(), paused = new Set(), crashed = new Set(), errors = [], missing = [], networkWrites = [], traces = [];
 let traceComplete = false;
 ws.addEventListener('message', e => { const m = JSON.parse(e.data); if (m.id && pending.has(m.id)) { pending.get(m.id)(m); pending.delete(m.id); }
     if (m.method === 'Debugger.paused') paused.add(m.sessionId);
+    if (m.method === 'Inspector.targetCrashed') crashed.add(m.sessionId);
     if (m.method === 'Tracing.dataCollected') traces.push(...m.params.value);
     if (m.method === 'Tracing.tracingComplete') traceComplete = true;
     if (m.method === 'Runtime.exceptionThrown') errors.push(m.params.exceptionDetails.text);
@@ -127,7 +129,35 @@ try {
         if (report.targetRendererPids.some(p=>!Number.isInteger(p)) || new Set(report.targetRendererPids).size!==2)
             throw Error('trace did not prove distinct target renderer processes');
     }
-    for (const scenario of scenarios) for (const payload of payloads) {
+    if (args.suite === 'referential') {
+        if (backend !== 'indexeddb-authority') throw Error('referential suite requires isolated IDB');
+        report.results = await runReferentialSuite({ evaluate, primary, peer, rounds, payloads, reproduction: mode === 'characterization' });
+        if (mode === 'acceptance') {
+            const failure = await runReferentialFailures({ evaluate, send, openTab, primaryTab, peerTab, token });
+            primaryTab = failure.primaryTab; primary = primaryTab.session;
+            for (let i=0;i<200&&!paused.has(primary);i++) await new Promise(r=>setTimeout(r,25));
+            assert(paused.has(primary), 'attachment crash checkpoint not reached');
+            const beforeCrash = failure.beforeCrash;
+            await send('Inspector.enable', {}, primary);
+            await Promise.race([send('Page.crash', {}, primary), new Promise(r=>setTimeout(r,500))]);
+            for (let i=0;i<100&&!crashed.has(primary);i++) await new Promise(r=>setTimeout(r,25));
+            assert(crashed.has(primary), 'native renderer crash not observed');
+            await send('Target.closeTarget', { targetId: primaryTab.target });
+            const crashFact=(await evaluate(peer, "crossTab.lookup('attachment-renderer-crash')")).result;
+            const afterCrash=await evaluate(peer,'crossTab.referenceObserve()');
+            assert.equal(afterCrash.seq,beforeCrash.seq+(crashFact?1:0));
+            assert.deepEqual(afterCrash.values,crashFact?{...beforeCrash.values,
+                'cruisePort.syncAssetMetadata':failure.crashPacket.changes['cruisePort.syncAssetMetadata'],
+                'cruisePort.syncDeletionIntent.v1':'{}'}:beforeCrash.values);
+            report.referenceCrashOutcome=crashFact?'committed-with-lost-response':'aborted';
+            primaryTab=await openTab();primary=primaryTab.session;
+            await evaluate(primary, `crossTab.claim(${JSON.stringify(token)})`);
+            await evaluate(primary, `crossTab.prepare(${JSON.stringify({reference:true,generation:failure.generation,role:'peer'})})`);
+            assert.deepEqual((await evaluate(primary,'crossTab.referenceObserve()')).values, afterCrash.values);
+            report.referenceFailures=[...failure.results,{name:'native Page.crash in attachment callback: exact committed/aborted snapshot and reopen',pass:true}];
+        }
+    }
+    for (const scenario of args.suite === 'referential' ? [] : scenarios) for (const payload of payloads) {
         const aggregate = { scenario, payload, rounds: 0, violations: 0, inconclusiveRounds: 0, details: [] };
         for (let round = 0; round < rounds; round++) {
             const generation = randomUUID();
@@ -191,9 +221,12 @@ try {
         await send('Debugger.enable',{},primary);
         await send('Runtime.evaluate',{expression:"crossTab.armCrash();crossTab.commitPacket('terminated-before');'started'",returnByValue:true},primary);
         await poll(()=>paused.has(primary));await send('Target.closeTarget',{targetId:primaryTab.target});
-        assert.equal((await evaluate(peer,"crossTab.lookup('terminated-before')")).result,null);
-        assert.equal((await evaluate(peer,'crossTab.snapshot()')).head.seq,fact.result.seq);
-        const merged=await evaluate(peer,"crossTab.commitPacket('unrelated-during-crash')");assert.equal(merged.ok,true);record('renderer termination in record callback aborts; interrupted different-key save succeeds');
+        const terminationFact=(await evaluate(peer,"crossTab.lookup('terminated-before')")).result;
+        const afterTermination=await evaluate(peer,'crossTab.snapshot()');
+        assert.equal(afterTermination.head.seq,fact.result.seq+(terminationFact?1:0));
+        assert.equal(afterTermination.values['cruisePort.metronome'],(terminationFact?crashPacket:packet).changes['cruisePort.metronome']);
+        report.recordCallbackTermination=terminationFact?'committed-with-lost-response':'aborted';
+        const merged=await evaluate(peer,"crossTab.commitPacket('unrelated-during-crash')");assert.equal(merged.ok,true);record('renderer termination has atomic committed/aborted outcome; interrupted different-key save succeeds');
         primaryTab=await openTab();primary=primaryTab.session;
         await evaluate(primary,`crossTab.claim(${JSON.stringify(token)})`);await evaluate(primary,`crossTab.prepare(${options('peer')})`);
         const resumed=await evaluate(primary,`crossTab.retryPacket(${JSON.stringify(crashPacket)})`);assert.equal(resumed.ok,true);
