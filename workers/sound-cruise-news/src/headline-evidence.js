@@ -2,6 +2,8 @@
 // are used to guess a type. Source text is transient; only bounded enums are saved.
 import {parseDocument,DomUtils} from 'htmlparser2';
 import {optOut} from './policy.js';
+import {subjectProductTypes,hasProductSubject,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
+export const HEADLINE_EVIDENCE_PARSER='headline-evidence-2';
 const types=[
  ['voicebank','音声合成ソフト',/ボイスバンク|音声合成ソフト/],
  ['signal_buffer','バッファー',/バッファ[ーァ]|\bsignal buffer\b/i],
@@ -16,7 +18,7 @@ const types=[
  ['distortion_pedal','歪みペダル',/(?:オーバードライブ\s*[／/]\s*ディストーション|ディストーション|歪み)[・ ]?ペダル/],
  ['bass_effect_pedal','ベース用エフェクター',/ベース(?:用|専用|に特化した)[・ ]?(?:エフェクター|エフェクトペダル)/],
  ['octave_pedal','オクターブペダル',/オクターブ[・ ]?ペダル|オクターバー/],
- ['power_distribution','電源タップ',/電源タップ|電源プロテクター/],
+ ['power_distribution','電源タップ',POWER_DISTRIBUTION_PATTERN],
  ['effect_pedal','エフェクター',/エフェクター|エフェクトペダル/],
  ['guitar_amp','ギターアンプ',/ギターアンプ/],
  ['acoustic_guitar','アコースティックギター',/アコースティックギター/],
@@ -65,7 +67,7 @@ function dateText(t){
  if(!m)return null;const day=`${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
  return Number.isFinite(Date.parse(day))&&new Date(day).toISOString().slice(0,10)===day?day:null;
 }
-export function enrichHeadlineFacts(f,{title='',statements=[],releaseDates=[],publishedAt,basis='explicit_primary_title'}={}){
+export function enrichHeadlineFacts(f,{title='',statements=[],releaseDates=[],publishedAt,basis='explicit_primary_title',confirmPastRelease=false}={}){
  if(!f?.product||!['explicit_primary_title','verified_primary_article'].includes(basis))return f;
  const primary=[title,...statements].filter(s=>typeof s==='string'&&s.length<=1500);
  if(unsafe.test(title))return f;
@@ -74,12 +76,13 @@ export function enrichHeadlineFacts(f,{title='',statements=[],releaseDates=[],pu
  // use a shortened family name. No related cards/spec tables enter this scope.
  const models=f.models||f.product.split(/\s*\/\s*/);
  const common=models.length>1?models[0].split(/[^A-Za-z0-9-]+/).filter(t=>t.length>=3&&!/^(?:silver|limited|edition|power|special|model|new)$/i.test(t)&&models.every(m=>m.split(/[^A-Za-z0-9-]+/).includes(t))):[];
- const safeTypeStatement=s=>!unsafe.test(s)&&!/(?:対応|接続|使用|比較|関連|付属|取り付け)(?:する|した|できる|可能|用)|(?:用|対応)の?(?:ケース|スタンド|アーム|ホルダー|ケーブル|カバー|アクセサリ)|関連(?:商品|製品)|参考製品|比較対象|付属品|例えば/.test(s);
+ const safeTypeStatement=s=>!unsafe.test(s)&&!/(?:用|対応)の?(?:ケース|スタンド|アーム|ホルダー|ケーブル|カバー|アクセサリ)|関連(?:商品|製品)|参考製品|比較対象|付属品|例えば/.test(s);
+ const subjectBound=s=>hasProductSubject(s,models)||!models.some(m=>norm(s).includes(norm(m)));
  const typeScope=basis==='verified_primary_article'?[
-  ...(safeTypeStatement(title)&&(norm(title).includes(norm(f.product))||f.brand&&norm(title).includes(norm(f.brand)))?[title]:[]),
-  ...statements.flatMap(s=>String(s).split(/[。!?！？]/)).filter(s=>safeTypeStatement(s)&&(norm(s).includes(norm(f.product))||common.some(t=>norm(s).includes(norm(t)))))
- ]:bound.filter(safeTypeStatement);
- const matches=types.filter(([, ,re])=>typeScope.some(s=>re.test(s)));
+  ...(safeTypeStatement(title)&&subjectBound(title)&&(norm(title).includes(norm(f.product))||f.brand&&norm(title).includes(norm(f.brand)))?[title]:[]),
+  ...statements.flatMap(s=>String(s).split(/[。!?！？]/)).filter(s=>safeTypeStatement(s)&&subjectBound(s)&&(norm(s).includes(norm(f.product))||common.some(t=>norm(s).includes(norm(t)))))
+ ]:bound.filter(s=>safeTypeStatement(s)&&subjectBound(s));
+ const matches=subjectProductTypes(typeScope,types);
  const specific=matches.filter(([t])=>!matches.some(([x])=>parents[x]===t));
  let result={...f};
  if(specific.length===1)result={...result,productType:specific[0][0],productTypeEvidence:{product:f.product,basis}};
@@ -90,6 +93,9 @@ export function enrichHeadlineFacts(f,{title='',statements=[],releaseDates=[],pu
  let action=actions.includes('release_delay')?'release_delay':actions.length===1?actions[0]:null;
  const dates=[...new Set((releaseDates.length?releaseDates:action?eventScope.filter(s=>explicitReleaseAction(s)===action):[]).map(dateText).filter(Boolean))];
  if(!action&&dates.length===1&&Number.isFinite(Date.parse(publishedAt))&&Date.parse(dates[0]+'T00:00:00+09:00')>Date.parse(publishedAt)&&eventScope.some(s=>/発売します|発売予定/.test(s)))action='scheduled_release';
+ // Only an explicitly authorized correction can confirm a past release from
+ // the article's release-date field; routine discovery semantics stay unchanged.
+ if(!action&&confirmPastRelease&&dates.length===1&&Number.isFinite(Date.parse(publishedAt))&&Date.parse(dates[0]+'T00:00:00+09:00')<=Date.parse(publishedAt)&&eventScope.some(s=>/登場|発表|発売/.test(s)))action='release';
  if(action){
   const date=dates.length===1?dates[0]:action==='release_delay'?/(20\d{2})年の予定/.exec(eventScope.join(' '))?.[1]:undefined;
   result.releaseEvent={action,basis,...(date?{date}:{}),...(action==='release_delay'&&/再設計/.test(eventScope.join(' '))?{reason:'redesign'}:{})};
@@ -118,7 +124,7 @@ export function releaseDateFields(root){
  }
  return dates;
 }
-export function articleHeadlineFacts(html,f,row,source){
+export function articleHeadlineFacts(html,f,row,source,{confirmPastRelease=false}={}){
  if(!['shimamura','ikebe','zoom'].includes(source?.id)||row.source_id!==source.id||typeof html!=='string'||new TextEncoder().encode(html).length>512000)throw Error('headline_evidence_scope');
  const doc=parseDocument(html);
  if(find(doc,n=>n.name==='meta'&&/robots/i.test(n.attribs.name||'')&&optOut(n.attribs.content||'')).length)throw Error('headline_evidence_optout');
@@ -128,7 +134,20 @@ export function articleHeadlineFacts(html,f,row,source){
  const titleNodes=find(doc,n=>n.name==='h1'&&(source.id==='shimamura'?cls(n.parent,'mb-80'):source.id==='ikebe'?cls(n.parent,'blog_title')||cls(n.parent?.parent,'blog_title'):n.attribs.id==='page-headline'));
  if(titleNodes.length!==1)throw Error('headline_evidence_structure');
  const title=plain(titleNodes[0]),root=roots[0],heads=find(root,n=>/^h[1-3]$/.test(n.name)).map(plain);
- const identity=norm([title,...heads].join(' '));
+ // Shimamura sometimes shortens model names in the title/headings. Its
+ // article-scoped JAN product rows corroborate the exact retained identities;
+ // unrelated cards, links and prose cannot supply missing model names.
+ const productInfo=n=>{
+  let block=n;while(block.parent&&block.parent!==root)block=block.parent;
+  if(block.parent!==root)return false;
+  for(let previous=block.prev;previous;previous=previous.prev){
+   if(/^h[1-3]$/.test(previous.name)&&/関連|参考|比較|旧製品/.test(plain(previous)))return false;
+   if(/^h[12]$/.test(previous.name))return /^(商品情報|製品情報|製品仕様)$/.test(plain(previous));
+  }
+  return false;
+ };
+ const productRows=source.id==='shimamura'?find(root,n=>n.name==='tr'&&find(n,x=>x.name==='td').length&&/JANコード/.test(plain(n))&&productInfo(n)).map(plain):[];
+ const identity=norm([title,...heads,...productRows].join(' '));
  if(source.id!=='zoom'&&f.brand&&!identity.includes(norm(f.brand)))throw Error('headline_evidence_identity');
  if(!(f.models||f.product.split(/\s*\/\s*/)).every(m=>identity.includes(norm(m))))throw Error('headline_evidence_identity');
  const times=find(doc,n=>n.name==='time'&&(source.id==='shimamura'?plain(n.parent).startsWith('公開：'):source.id==='ikebe'?cls(n,'sub_info_date'):cls(n,'hero-eyebrow')));
@@ -138,6 +157,6 @@ export function articleHeadlineFacts(html,f,row,source){
  const releaseDates=releaseDateFields(root);
  // Official hero alt is a first-party, model-bound type declaration, not a related image.
  const hero=source.id==='zoom'?find(doc,n=>n.name==='img'&&cls(n.parent?.parent,'hero')&&norm(n.attribs.alt||'').includes(norm(f.product))).map(n=>n.attribs.alt.split('を取り付け')[0]):[];
- const result=enrichHeadlineFacts(f,{title,statements:[...paragraphs,...hero],releaseDates,publishedAt:row.published_at,basis:'verified_primary_article'});
+ const result=enrichHeadlineFacts(f,{title,statements:[...paragraphs,...hero],releaseDates,publishedAt:row.published_at,basis:'verified_primary_article',confirmPastRelease});
  if(!validHeadlineEvidence(result))throw Error('headline_evidence_invalid');return result;
 }

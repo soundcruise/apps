@@ -3,8 +3,9 @@ import {readFile,writeFile} from 'node:fs/promises';
 import {checkedConfig,remoteSql,sqlLiteral as q} from './remote-db.mjs';
 import {runtimeSources} from '../src/runtime.js';
 import {legalGate} from '../src/registry.js';
-import {boundedFetch,robotsPolicy,BOT,hash,optOut,sourceUrl} from '../src/policy.js';
-import {verifiedHeadlineCorrection,headlineCorrectionStatements} from '../src/headline-correction.js';
+import {boundedFetch,BOT,hash,optOut,sourceUrl} from '../src/policy.js';
+import {verifiedHeadlineCorrection,headlineCorrectionStatements,verifiedCorrectionRobots} from '../src/headline-correction.js';
+import {HEADLINE_EVIDENCE_PARSER} from '../src/headline-evidence.js';
 const [mode,...urls]=process.argv.slice(2),now=Date.now();
 const path=new URL('../.local/headline-quality-correction.json',import.meta.url);
 if(!['plan','apply'].includes(mode))throw Error('plan <explicit article URLs> | apply');
@@ -20,15 +21,15 @@ if(mode==='plan'){
   const matches=rows.filter(r=>r.source_url===url);if(matches.length!==1)throw Error('headline_target_ambiguous');
   const row=matches[0],source=gate(row);
   if(!robots.has(source.id)){
-   const r=await boundedFetch(source.robotsUrl,{maxBytes:512000}),rp=robotsPolicy(r.text,source,r.status),state=states.find(s=>s.source_id===source.id);
-   if(state?.robots_hash&&state.robots_hash!==await hash(r.text))throw Error('headline_robots_changed');robots.set(source.id,rp);
+   const r=await boundedFetch(source.robotsUrl,{maxBytes:512000}),state=states.find(s=>s.source_id===source.id);
+   robots.set(source.id,await verifiedCorrectionRobots(r.text,source,state?.robots_hash,r.status));
   }
   const rp=robots.get(source.id);if(rp.isAllowed(url,BOT)!==true)throw Error('headline_robots_disallow');
   const delay=Math.max(1200,(rp.getCrawlDelay(BOT)||0)*1000);if(delay>10000)throw Error('headline_crawl_delay_review');await new Promise(r=>setTimeout(r,delay));
   const response=await boundedFetch(url,{maxBytes:512000});
   if(response.status!==200||!/text\/html/i.test(response.headers.get('content-type')||'')||optOut(response.headers.get('x-robots-tag')||''))throw Error('headline_article_unavailable');
   const result=verifiedHeadlineCorrection(response.text,row,source),responseHash=await hash(response.text);response.text='';
-  const proof={sourceId:source.id,sourceUrl:url,verifiedAt:now,extractionMethod:'authorized_primary_headline_correction',parserVersion:'headline-evidence-1',responseHash,factField:'headlineEvidence'};
+  const proof={sourceId:source.id,sourceUrl:url,verifiedAt:now,extractionMethod:'authorized_primary_headline_correction',parserVersion:HEADLINE_EVIDENCE_PARSER,responseHash,factField:'headlineEvidence'};
   plans.push({before:row,...result,provenance:[...JSON.parse(row.facts_provenance||'[]'),proof],at:now,requestId:crypto.randomUUID()});
  }
  const body={at:now,plans};await writeFile(path,JSON.stringify({...body,digest:await hash(JSON.stringify(body))}),{mode:0o600});
