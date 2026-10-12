@@ -1,5 +1,27 @@
 # Sync Writer Authority — B1-5
 
+## Asset cleanup / reference race修正（2026-10-12・現行）
+
+詳細は[Asset Lifecycle契約](ASSET_LIFECYCLE.md)。B1-6停止時の再現2件を保持して修正した。
+0036のD1 triggerにより、全Port record INSERT/UPDATEのassetId参照とcleanup予約が相互排他となる。
+legacy ACCEPT_COMPATでも有効なasset safetyであり、writerProtocol/epoch enforcementを有効化するものではない。
+参照が先ならclaim不可、claimが先なら後続参照は409（既存enforced guardの先行拒否は従来code）。
+
+追加ledgerへclaim UUID、Account/membership/userと各generation/epoch、object key/version/hashを固定する。
+deleting / recovery-required / deletedを保持し、R2結果不明でも期限解除しない。
+固定identity・現在世代・live refsを再照合した同claimだけretryする。R2成功後のfinalize batchで
+asset deletedとAccount claim解除を確定する。永久tombstoneによりID/key再利用と古いcleanupによる新object削除を防ぐ。
+B1-5のidentity不明な旧claim、世代不一致は自動回復せず保持する。遅いuploadは未公開orphanとして封じ込める。
+
+B1-5 Account/AppDevice/Pro/epoch/CAS/dedupe/50 operations/256KiBの契約は維持。
+ledger付きAccountのcleanup保留、cutoverと未完了claimの排他も維持。
+通常Port/Studio Hostへのmigration/fence統合は進めていない。
+
+Port **1.22.6**（隔離migration inventoryのcleanup証拠保持・stage拒否とcache同期）、Studio **0.26.1 / schema1**。
+production **ACCEPT_COMPAT / legacy / enforcement OFF / shared write OFF / canWrite=false**。
+Worker deploy、本番0036適用、本番cutoverなし。B1-6未完了、B1未解消。
+以下のB1-5節は当時の履歴。cleanup claim解除・復旧については本節とAsset Lifecycle契約を優先する。
+
 ## B1-5 Worker Transaction Fence + Cutover Barrier（2026-10-12・現行）
 
 Port **1.22.5**（asset authority拒否後の再試行停止・cache整合のpatch）、Studio **0.26.1 / schema1**。

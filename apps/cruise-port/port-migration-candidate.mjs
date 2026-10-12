@@ -36,7 +36,7 @@ function refs(values, assets) {
     }
     return found;
 }
-export async function binaryManifest(values, assets) {
+export async function binaryManifest(values, assets, { captureUnsafe = false } = {}) {
     const references=refs(values,assets), seen=new Map(), manifest=[];
     const menus=new Set((JSON.parse(values['cruisePort.practiceMenus']||'null')?.items||[]).map(v=>v.id));
     for(const a of assets){
@@ -52,7 +52,16 @@ export async function binaryManifest(values, assets) {
             if(owners.some(id=>id!==m.practiceId))throw fail('binary-owner-mismatch');
             if(menus.has(m.practiceId))owners=[m.practiceId];
         }else if(!['source','final'].includes(m.kind)||!['image/png','image/webp'].includes(mime)||!Number.isInteger(m.width)||m.width<1||!Number.isInteger(m.height)||m.height<1)throw fail('binary-metadata-invalid');
-        manifest.push({kind:a.kind,id:a.id,hash:a.hash,size:a.blob.size,mime,metadataHash:await digest(m),owners,deletionState:m.deleted===true?'deleted':owners.length?'referenced':'orphan'});
+        // Optional read-only server lifecycle evidence. Absence is not cloud eligibility proof.
+        const cleanup=m.cleanup;
+        if(cleanup!=null){
+            safeEvidence(cleanup);
+            if(!['available','cleanup-claimed','deleting','recovery-required','deleted'].includes(cleanup.state))throw fail('binary-cleanup-state-invalid');
+            if(cleanup.state!=='available'&&!captureUnsafe)throw fail('binary-cleanup-unavailable');
+        }
+        manifest.push({kind:a.kind,id:a.id,hash:a.hash,size:a.blob.size,mime,metadataHash:await digest(m),owners,
+            ...(cleanup!=null?{cleanup:clone(cleanup)}:{}),
+            deletionState:cleanup&&cleanup.state!=='available'?cleanup.state:m.deleted===true?'deleted':owners.length?'referenced':'orphan'});
     }
     return manifest.sort((a,b)=>`${a.kind}:${a.id}`.localeCompare(`${b.kind}:${b.id}`));
 }
@@ -89,13 +98,14 @@ export async function captureMigrationCandidate({storage,provenance,readAssets=a
             }
         }catch(e){issue(e);if(e.code==='migration-secret-forbidden')c.syncInventory={inspected:false,redacted:true};}
         try{new PortDatasetRepository({storage:{getItem:k=>k===PORT_DATASET_META?c.repositoryMetadata:c.values[k]??null},locks:null}).inspect();
-            c.binaryManifest=await binaryManifest(c.values,c.assets);
+            c.binaryManifest=await binaryManifest(c.values,c.assets,{captureUnsafe:true});
+            if(c.binaryManifest.some(m=>m.cleanup&&m.cleanup.state!=='available'))c.issues.push('binary-cleanup-unavailable');
             c.assets=[...new Map(c.assets.map(a=>[`${a.kind}:${a.id}`,a])).values()];
             await validatePortAuthorityCandidate(c);c.records=await recordsFor(c.values);
         }catch(e){issue(e);}
         try{
             const assetsAfter=await readAssets(),syncAfter=await readSyncInventory();
-            const bAfter=await binaryManifest(c.values,assetsAfter);
+            const bAfter=await binaryManifest(c.values,assetsAfter,{captureUnsafe:true});
             const sAfter={inspected:syncAfter.inspected,provenance:syncAfter.provenance||null,meta:syncAfter.meta||{},outbox:syncAfter.outbox||[],shadow:syncAfter.shadow||[],conflicts:syncAfter.conflicts||[],keys:syncAfter.keys||null};
             if(!equal(bAfter,c.binaryManifest)||!equal(sAfter,c.syncInventory)||!equal(raw(),{values:c.values,repositoryMetadata:c.repositoryMetadata}))throw fail('legacy-changing');
         }catch(e){issue(e);}

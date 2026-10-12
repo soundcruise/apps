@@ -152,7 +152,9 @@ test('old unreference and removal-safety cannot change new authority; failed upl
 
 test('cleanup claim blocks cutover; prepared/enforced assets retained including unpublished orphans',async t=>{
  const f=fixture(t),a=await asset(f);await a.prepare();const repo=createD1AssetRepository(f.db),row=f.db.raw.prepare('SELECT * FROM sync_assets').get();
- assert.equal(await repo.claimCleanup(row,Date.now()),true);await assert.rejects(f.transition('prepared'));await repo.releaseCleanup(row);await f.enforce();assert.equal(await repo.claimCleanup(row,Date.now()),false);
+ assert.equal(await repo.claimCleanup(row,Date.now()),true);await assert.rejects(f.transition('prepared'));await repo.releaseCleanup(row);await assert.rejects(f.transition('prepared'));
+ const {recoverAssetDeletion}=await import('../src/asset-deletion.js');
+ assert.equal(await recoverAssetDeletion(repo,f.r2,await repo.getCleanupClaim(row.asset_id)), 'deleted');await f.enforce();assert.equal(await repo.claimCleanup(row,Date.now()),false);
 });
 
 test('Account and app scope: another Port account and Chord do not inherit the barrier',async t=>{

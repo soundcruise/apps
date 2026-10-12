@@ -12,6 +12,8 @@ export class WriterFenceError extends Error {
     : code.startsWith('pro_') ? 403 : code === 'dataset_authority_unavailable' ? 503 : 409; }
 }
 export function translateFenceError(error) {
+  const asset = String(error?.message || '').match(/\b(asset_reference_unavailable|asset_cleanup_conflict)\b/);
+  if (asset) return new WriterFenceError(asset[1]);
   const match = String(error?.message || '').match(/b15_(dataset_authority_unavailable|writer_protocol_required|writer_protocol_outdated|dataset_epoch_stale|invalid_credential|account_membership_required|pro_required|pro_reauth_required|pro_revalidation_required)\b/);
   return match ? new WriterFenceError(match[1]) : error;
 }

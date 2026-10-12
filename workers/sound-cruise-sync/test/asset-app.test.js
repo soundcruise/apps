@@ -324,7 +324,7 @@ test('scheduled cleanup respects grace, preserves deleting Accounts, and removes
   await handleScheduled({}, environment(db, r2), cleanupDependencies);
   assert.equal(r2.objects.has(objectKey), true, 'Account delete grace preserves available assets');
 
-  db.raw.prepare("UPDATE sync_assets SET account_id = 'purged-account' WHERE asset_id = ?").run(assetId);
+  db.raw.prepare("DELETE FROM sync_accounts WHERE id = 'account-a'").run();
   await handleScheduled({}, environment(db, r2), cleanupDependencies);
   assert.equal(r2.objects.has(objectKey), false, 'an asset whose Account was purged is eventually removed');
   assert.equal(db.raw.prepare('SELECT state FROM sync_assets WHERE asset_id = ?').get(assetId).state, 'deleted');

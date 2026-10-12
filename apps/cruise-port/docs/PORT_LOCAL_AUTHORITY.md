@@ -1,5 +1,15 @@
 # B1-2 + B1-3 Authority Preparation
 
+## Asset cleanup競合修正（2026-10-12・現行）
+
+Port1.22.6 / Studio0.26.1。詳細は[Asset Lifecycle契約](../../../workers/sound-cruise-sync/ASSET_LIFECYCLE.md)。
+Workerの参照追加と削除予約をD1 transactionで相互排他にし、固定claim/object identityでR2失敗から回復する。
+Portの隔離migration candidateはmetadata.cleanupをmanifest/source hashへ保持する。
+cleanup-claimed / deleting / recovery-required / deletedは救出証拠として残し、stage / sealを拒否する。
+証拠欠落をcloud参照資格と扱わず、本番fresh evidence接続はB1-6の残工程。
+本番Worker deploy / D1適用 / cutoverなし、legacy / ACCEPT_COMPAT / enforcement OFF、Studio canWrite=false。
+以下の版番号・検証件数は前工程の履歴。
+
 ## B1-5 transaction fenceとの境界（2026-10-12・現行）
 
 Port1.22.5 / Studio0.26.1 / Studio schema1。[Workerの正式契約](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を参照。

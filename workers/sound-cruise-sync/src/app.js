@@ -1,3 +1,4 @@
+import { recoverAssetDeletion } from './asset-deletion.js';
 import { WriterFenceError } from './writer-fence.js';
 import { readAuthorityEvidence } from './authority-cutover.js';
 import { admitWriter, writerMutationDatabase } from './writer-admission.js';
@@ -1198,19 +1199,20 @@ export async function handleScheduled(_event, env = {}, dependencies = {}) {
     try {
       const assets = (dependencies.createAssetRepository || createD1AssetRepository)(env.SYNC_DB);
       const now = Date.now();
-      const candidates = await assets.cleanupCandidates(
-        now, 30 * 24 * 60 * 60 * 1000, 24 * 60 * 60 * 1000, 100
-      );
+      // Recover durable reservations first. Unresolved B1-5 claims without an identity
+      // ledger remain blocked; they are never guessed, timed out, or auto-cancelled.
+      const attempted = new Set();
+      for (const claim of await assets.cleanupReservations(100)) {
+        attempted.add(claim.asset_id);
+        await recoverAssetDeletion(assets, env.SYNC_ASSETS, claim, now);
+      }
+      const graceMs = 30 * 24 * 60 * 60 * 1000, preparedMs = 24 * 60 * 60 * 1000;
+      const candidates = await assets.cleanupCandidates(now, graceMs, preparedMs, 100);
       for (const asset of candidates) {
-        if (assets.claimCleanup && !await assets.claimCleanup(asset, now)) continue;
-        if (asset.state === 'unreferenced' && await assets.isReferenced(asset)) {
-          await assets.restoreReferenced(asset.asset_id, now);
-        } else {
-          await env.SYNC_ASSETS.delete(asset.object_key);
-          await assets.markDeleted(asset.asset_id, now);
-        }
-        // Unknown R2 outcome/crash retains the claim for explicit recovery.
-        await assets.releaseCleanup?.(asset);
+        if (attempted.has(asset.asset_id)) continue;
+        if (!await assets.claimCleanup(asset, now, { graceMs, preparedMs })) continue;
+        const claim = await assets.getCleanupClaim(asset.asset_id);
+        if (claim) await recoverAssetDeletion(assets, env.SYNC_ASSETS, claim, now);
       }
     } catch {
       // Asset cleanup is eventual and must never interrupt established D1 cleanup.

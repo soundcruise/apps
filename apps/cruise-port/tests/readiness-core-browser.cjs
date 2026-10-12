@@ -63,6 +63,37 @@ const output = process.argv[3] || '/private/tmp/port-readiness-core-browser.json
   await go('#my-apps/new','#my-apps-form-view');await page.locator('#my-apps-name').fill('Core My App');await page.locator('#my-apps-other-urls summary').click();await page.locator('#my-apps-web-url').fill('https://example.invalid/core');await page.locator('#my-apps-form').evaluate(f=>f.requestSubmit());
   await page.waitForFunction(()=>JSON.parse(localStorage.getItem('cruisePort.myApps')||'{}').items?.some(i=>i.name==='Core My App'));
   result.cases.push({width,case:'My Apps save',pass:true});
+  const binary = await page.evaluate(async menuId=>{
+   const [G,I,A,L,M]=await Promise.all([import('../gear-photo-store.js?v=1.22.6'),import('../my-apps-icon-store.js?v=1.22.6'),import('../practice-menu-attachment-store.js?v=1.22.6'),import('../gear-list-store.js?v=1.22.6'),import('../my-apps-store.js?v=1.22.6')]);
+   const canvas=document.createElement('canvas');canvas.width=canvas.height=2;canvas.getContext('2d').fillRect(0,0,2,2);
+   const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));
+   const g=await G.createGearPhotoStore({canWrite:()=>true}).savePhoto(blob,{kind:'final',width:2,height:2});
+   const source=await G.createGearPhotoStore({canWrite:()=>true}).savePhoto(blob,{kind:'source',width:2,height:2});
+   const i=await I.createMyAppsIconStore({canWrite:()=>true}).saveIcon(blob);
+   const a=await A.createPracticeAttachmentStore({canWrite:()=>true}).addAttachment(menuId,new Blob(['asset lifecycle regression'],{type:'text/plain'}),{fileName:'lifecycle.txt'});
+   if(!g.ok||!source.ok||!i.ok||!a.ok)throw Error('binary fixture save failed');
+   const gear=L.loadGearList(localStorage);Object.assign(gear.items.find(x=>x.name==='Core Gear'),{photoId:g.record.id,photoSourceId:source.record.id,photoCrop:{x:0,y:0,size:1}});
+   const apps=M.loadMyApps(localStorage);const app=apps.items.find(x=>x.name==='Core My App');app.iconId=i.record.id;app.iconPresetKey=null;
+   const gearSaved=await L.saveGearList(gear.items,localStorage),appSaved=await M.saveMyApps(apps.items,localStorage);
+   if(!gearSaved.ok||!appSaved.ok)throw Error('owner reference save failed '+JSON.stringify({gear:gearSaved.reason,app:appSaved.reason}));
+   return {gear:g.record.id,icon:i.record.id,attachment:a.record.id,bytes:Array.from(new Uint8Array(await blob.arrayBuffer()))};
+  },menuId);
+  await page.reload({waitUntil:'networkidle'});
+  await go('#wishlist','#wishlist-view');
+  await page.waitForFunction(()=>[...document.querySelectorAll('#wishlist-view img[src^="blob:"]')].some(i=>i.complete&&i.naturalWidth===2));
+  result.cases.push({width,case:'Gear image reference survives reload',pass:true});
+  await go('#my-apps/manage','#my-apps-manage-view');
+  await page.waitForFunction(()=>[...document.querySelectorAll('#my-apps-manage-view img[src^="blob:"]')].some(i=>i.complete&&i.naturalWidth===2));
+  result.cases.push({width,case:'My Apps icon reference survives reload',pass:true});
+  await go('#practice-menu/'+menuId,'#practice-detail-view');
+  await page.locator('#practice-attachments-list').getByText('lifecycle.txt',{exact:true}).waitFor();
+  const preserved=await page.evaluate(async ids=>{
+   const [G,I,A]=await Promise.all([import('../gear-photo-store.js?v=1.22.6'),import('../my-apps-icon-store.js?v=1.22.6'),import('../practice-menu-attachment-store.js?v=1.22.6')]);
+   const g=await G.createGearPhotoStore().getPhoto(ids.gear),i=await I.createMyAppsIconStore().getIcon(ids.icon),a=await A.createPracticeAttachmentStore().getAttachment(ids.attachment);
+   return {gear:Array.from(new Uint8Array(await g.record.blob.arrayBuffer())),icon:Array.from(new Uint8Array(await i.record.blob.arrayBuffer())),attachment:await a.record.blob.text()};
+  },binary);
+  assert.deepEqual(preserved,{gear:binary.bytes,icon:binary.bytes,attachment:'asset lifecycle regression'});
+  result.cases.push({width,case:'Practice attachment owner and all binary bytes preserved',pass:true});
   await go('#settings','#settings-view');for(const theme of ['light','gray','charcoal','dark']) {await page.locator(`[data-theme-choice="${theme}"]`).click();await saved('cruisePort.settings','theme',theme);}
   result.cases.push({width,case:'Settings / Theme save',pass:true});
   await page.evaluate(async()=>{

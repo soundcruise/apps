@@ -1,3 +1,4 @@
+import { createAssetDeletionRepository } from './asset-deletion.js';
 import { WriterFenceError } from './writer-fence.js';
 import {
   ASSET_QUOTA, ASSET_STORAGE_CATEGORY, GLOBAL_ASSET_QUOTA, GLOBAL_STORAGE_GUARDS,
@@ -30,6 +31,13 @@ function globalStorageGuard(totalBytes) {
 export function createD1AssetRepository(db) {
   if (!db?.prepare || !db?.batch) throw new Error('D1 asset session is unavailable');
 
+  async function assertAssetMutable(assetId) {
+    const blocked = await db.prepare(`SELECT 1 AS blocked FROM sync_assets a WHERE a.asset_id=? AND
+      (a.state='deleted' OR EXISTS (SELECT 1 FROM sync_authority_cleanup_claims c WHERE c.asset_id=a.asset_id)
+        OR EXISTS (SELECT 1 FROM sync_asset_deletions d WHERE d.asset_id=a.asset_id))`).bind(assetId).first();
+    if (blocked) throw new WriterFenceError('asset_reference_unavailable');
+  }
+
   async function operation(operationId) {
     return db.prepare(`
       SELECT o.operation_id, o.request_fingerprint, o.account_id, o.sync_user_id,
@@ -42,9 +50,11 @@ export function createD1AssetRepository(db) {
     const previous = await operation(input.operationId);
     if (previous) {
       await db.assertWriter?.({ operationId: input.operationId });
-      return previous.account_id === authority.accountId && previous.sync_user_id === identity.userId &&
-        previous.app_device_id === identity.deviceId && previous.request_fingerprint === input.fingerprint &&
-        previous.asset_id === input.assetId ? { status: previous.state, asset: publicAsset(previous) } : { status: 'conflict' };
+      if (previous.account_id !== authority.accountId || previous.sync_user_id !== identity.userId ||
+        previous.app_device_id !== identity.deviceId || previous.request_fingerprint !== input.fingerprint ||
+        previous.asset_id !== input.assetId) return { status: 'conflict' };
+      await assertAssetMutable(previous.asset_id);
+      return { status: previous.state, asset: publicAsset(previous) };
     }
     const collision = await db.prepare('SELECT account_id, sync_user_id FROM sync_assets WHERE asset_id = ?')
       .bind(input.assetId).first();
@@ -162,8 +172,9 @@ export function createD1AssetRepository(db) {
       if (error instanceof WriterFenceError) throw error;
       const raced = await operation(input.operationId);
       if (raced && raced.request_fingerprint === input.fingerprint && raced.asset_id === input.assetId &&
-          raced.account_id === authority.accountId && raced.sync_user_id === identity.userId) {
+          raced.account_id === authority.accountId && raced.sync_user_id === identity.userId && raced.app_device_id === identity.deviceId) {
         await db.assertWriter?.({ operationId: input.operationId });
+        await assertAssetMutable(raced.asset_id);
         return { status: raced.state, asset: publicAsset(raced) };
       }
       throw error;
@@ -177,6 +188,7 @@ export function createD1AssetRepository(db) {
     if (!row || row.asset_id !== assetId || row.account_id !== authority.accountId ||
         row.sync_user_id !== identity.userId || row.app_device_id !== identity.deviceId) return null;
     await db.assertWriter?.({ operationId });
+    await assertAssetMutable(row.asset_id);
     return row;
   }
 
@@ -186,6 +198,7 @@ export function createD1AssetRepository(db) {
       updated_at = ? WHERE asset_id = ? AND state IN ('prepared', 'uploaded')`)
       .bind(now, now, row.asset_id).run();
     if (result?.success === false) throw new Error('asset_upload_state_failed');
+    if (changes(result) !== 1) await assertAssetMutable(row.asset_id);
     return { status: 'uploaded', asset: publicAsset({ ...row, state: 'uploaded' }) };
   }
 
@@ -228,17 +241,6 @@ export function createD1AssetRepository(db) {
     return results.reduce((total, result) => total + changes(result), 0);
   }
 
-  async function claimCleanup(row, now) {
-    const result = await db.prepare(`INSERT INTO sync_authority_cleanup_claims(account_id,asset_id,created_at)
-      SELECT ?,?,? WHERE NOT EXISTS (SELECT 1 FROM sync_authority_cutovers WHERE account_id=?)
-      ON CONFLICT(account_id) DO NOTHING`).bind(row.account_id,row.asset_id,now,row.account_id).run();
-    return changes(result) === 1;
-  }
-  async function releaseCleanup(row) {
-    await db.prepare('DELETE FROM sync_authority_cleanup_claims WHERE account_id=? AND asset_id=?')
-      .bind(row.account_id,row.asset_id).run();
-  }
-
   async function cleanupCandidates(now, graceMs, preparedMs, limit) {
     return (await db.prepare(`SELECT a.* FROM sync_assets a
       WHERE ((a.state = 'unreferenced' AND a.unreferenced_at <= ?)
@@ -270,7 +272,7 @@ export function createD1AssetRepository(db) {
   }
 
   return Object.freeze({ prepare, uploadTarget, markUploaded, commit, available, unreference,
-    cleanupCandidates, isReferenced, restoreReferenced, markDeleted, claimCleanup, releaseCleanup });
+    cleanupCandidates, isReferenced, restoreReferenced, markDeleted, ...createAssetDeletionRepository(db) });
 }
 
 export { publicAsset, dayKey, globalStorageGuard };
