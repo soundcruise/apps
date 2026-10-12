@@ -1,10 +1,10 @@
+import { checkFence, fenceQuery, clearAssertions, translateFenceError, policyAllows } from './writer-fence.js';
 import { parseWriterFields } from '../../../apps/shared/sync-account/writer-authority.mjs';
 
-// Deliberately NOT an environment/client flag. Enforcing requires B1-5 code and
-// its acceptance gates. Metadata alone cannot turn enforcement on in B1-1.
+// Production default. Only a branded code capability or a durable cutover ledger activates the fence.
 export const WRITER_ADMISSION_MODE = 'ACCEPT_COMPAT';
 
-export async function admitWriter(db, identity, input, authority) {
+export async function admitWriter(db, identity, input, authority, options = {}) {
   const parsed = parseWriterFields(input);
   if (!parsed.ok) return { error: parsed.code, status: parsed.status };
   if (!identity?.deviceId || !identity?.userId || !identity?.appId)
@@ -23,14 +23,20 @@ export async function admitWriter(db, identity, input, authority) {
   } else if (identity.appId === 'port' && Object.keys(parsed.value).length) {
     return { error: 'account_membership_required', status: 409 };
   }
-  return Object.freeze({ mode: WRITER_ADMISSION_MODE, fields: parsed.value,
+  // Direct repository fixtures have no HTTP verifier; only their branded capability may capture test proofs.
+  if (policyAllows(options.policy, authority?.accountId)) {
+    options = { ...options,
+      deviceVerifier: options.deviceVerifier ?? (await db.prepare('SELECT credential_verifier FROM sync_devices WHERE id=?').bind(identity.deviceId).first())?.credential_verifier,
+      proVerifier: options.proVerifier ?? (await db.prepare('SELECT verifier FROM pro_credentials WHERE id=?').bind(options.proCredentialId || '').first())?.verifier };
+  }
+  const admission = Object.freeze({ deviceVerifier: options.deviceVerifier, proVerifier: options.proVerifier, policy: options.policy, proCredentialId: options.proCredentialId, mode: WRITER_ADMISSION_MODE, fields: parsed.value,
     identity: Object.freeze({ ...identity }), authority: authority && Object.freeze({ ...authority }),
     metadata: metadata && Object.freeze({ ...metadata }) });
+  if (!options.defer) await checkFence(db, admission);
+  return admission;
 }
 
-// A transaction-local observation, not an HTTP-only preflight. B1-1 always
-// accepts the current metadata regardless of minimum/epoch/state. B1-5 must
-// replace this SELECT with a rejecting SQL predicate/guard in the SAME batch.
+// The default compatibility observation remains for non-Port apps.
 export function writerObservation(db, admission) {
   return db.prepare(`SELECT minimum_writer_protocol, write_epoch, authority_state
     FROM sync_account_memberships WHERE id = ? AND account_id = ? AND app_id = ? AND sync_user_id = ?`)
@@ -38,19 +44,27 @@ export function writerObservation(db, admission) {
       admission.identity.appId, admission.identity.userId);
 }
 
-// Keep the observation and all mutations in a single D1 batch. No statements
-// are removed or split, and callers see the original result shape.
-export function writerMutationDatabase(db, admission) {
+export function writerMutationDatabase(db, admission, constraints = {}) {
   if (!admission) return db;
-  const batch = async statements => (await db.batch([writerObservation(db, admission), ...statements])).slice(1);
+  const batch = async statements => {
+    const port = admission.identity.appId === 'port';
+    const q = port && fenceQuery(admission, constraints);
+    const guard = port ? db.prepare(`INSERT INTO sync_writer_fence_assertion(code) ${q.sql}`).bind(...q.values)
+      : writerObservation(db, admission);
+    try {
+      const results = await db.batch([guard, ...statements, ...(port ? [clearAssertions(db)] : [])]);
+      return port ? results.slice(1, -1) : results.slice(1);
+    } catch (error) { throw translateFenceError(error); }
+  };
   return {
+    assertWriter: extra => checkFence(db, admission, { ...constraints, ...extra }),
+    withWriterConstraints: extra => writerMutationDatabase(db, admission, { ...constraints, ...extra }),
     prepare(sql) {
       const wrap = statement => ({
         bind(...values) { return wrap(statement.bind(...values)); },
         first(...args) { return statement.first(...args); },
         all(...args) { return statement.all(...args); },
         async run() { return (await batch([statement]))[0]; },
-        // batch receives the native prepared statement, not this view.
         writerNativeStatement: statement
       });
       return wrap(db.prepare(sql));

@@ -112,7 +112,8 @@ async function bearer(request, pepper, cryptoImpl) {
 
 // Read-only Pro check for other Worker routes (AI support beta): the same token parsing, verifier
 // compare, scope, revocation and generation rules as GET /v2/pro-auth/session, with SELECTs only.
-// Returns { ok: true } or { ok: false, code }. Throws only when the Pro store is unavailable.
+// Returns { ok: true } or { ok: false, code }; optional internal writer proof never leaves the server.
+// Throws only when the Pro store is unavailable.
 export async function inspectProCredentialReadOnly(headerValue, env, dependencies = {}) {
   if (typeof env.PRO_CREDENTIAL_PEPPER !== 'string' || env.PRO_CREDENTIAL_PEPPER.length < 32) {
     throw new Error('Pro verification unavailable');
@@ -124,7 +125,8 @@ export async function inspectProCredentialReadOnly(headerValue, env, dependencie
   const row = await credential(session, parsed);
   if (!row || row.scope !== 'global_pro' || row.revoked_at !== null) return { ok: false, code: 'pro_required' };
   if (row.generation !== current.generation) return { ok: false, code: 'pro_reauth_required' };
-  return backendSessionDecision(row, current, dependencies.now ? dependencies.now() : Date.now());
+  const decision = backendSessionDecision(row, current, dependencies.now ? dependencies.now() : Date.now());
+  return decision.ok && dependencies.includeWriterProof ? { ...decision, writerProof: { id: parsed.id, verifier: parsed.verifier } } : decision;
 }
 
 async function credential(session, parsed) {

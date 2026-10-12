@@ -1,5 +1,5 @@
-import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.22.4';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.4';
+import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.22.5';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.5';
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';
@@ -207,6 +207,8 @@ export class PortAssetSync {
     }
 
     schedule(reason) {
+        if (this.blockedAuthority && this.blockedAuthority.owner === this.controller?.runtime)
+            return Promise.resolve({ ok: false, code: this.blockedAuthority.code });
         if (!this.canSync()) return Promise.resolve({ ok: false, code: 'pro_required' });
         if (this.disposed || !this.controller?.runtime) return Promise.resolve({ ok: false, code: 'activation_required' });
 
@@ -304,7 +306,20 @@ export class PortAssetSync {
         return headers;
     }
 
+    assertMutationAuthority() {
+        if (this.blockedAuthority && this.blockedAuthority.owner === this.controller?.runtime)
+            throw new Error(this.blockedAuthority.code);
+    }
+
+    rejectMutationAuthority(code, owner) {
+        if (/^(?:writer_protocol_|sync_protocol_|dataset_epoch_)/.test(code || '') ||
+            ['dataset_authority_unavailable', 'legacy_outbox_needs_migration'].includes(code)) {
+            this.blockedAuthority = { owner, code };
+        }
+    }
+
     async json(path, body) {
+        this.assertMutationAuthority();
         const runtimeOwner = this.controller?.runtime;
 
         if (!this.canSync()) throw new Error('pro_required');
@@ -317,6 +332,7 @@ export class PortAssetSync {
         const payload = await this.wait(async () => (response.json().catch(() => null)), runtimeOwner);
         if (!response.ok || payload?.ok !== true) {
             globalThis.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(payload?.code, headers);
+            this.rejectMutationAuthority(payload?.code, runtimeOwner);
             throw new Error(payload?.code || 'asset_request_failed');
         }
         return payload;
@@ -337,6 +353,7 @@ export class PortAssetSync {
     }
 
     async upload(record, kind, pending = null, owner = null) {
+        this.assertMutationAuthority();
         const runtimeOwner = this.controller?.runtime;
 
         if (!this.canSync()) throw new Error('pro_required');
@@ -372,6 +389,7 @@ export class PortAssetSync {
                 const payload = await this.wait(async () => (response.json().catch(() => null)), runtimeOwner);
                 if (!response.ok || payload?.ok !== true) {
                     globalThis.SoundCruiseProBackendEntitlement?.rejectProAuthorization?.(payload?.code, headers);
+                    this.rejectMutationAuthority(payload?.code, runtimeOwner);
                     throw new Error(payload?.code || 'asset_upload_failed');
                 }
             }

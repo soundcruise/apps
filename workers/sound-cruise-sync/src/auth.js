@@ -39,7 +39,7 @@ export async function authenticateDevice(db, authorization, expectedAppId, peppe
   return inspected?.identity || null;
 }
 
-export async function inspectDeviceCredential(db, authorization, expectedAppId, pepper) {
+export async function inspectDeviceCredential(db, authorization, expectedAppId, pepper, includeWriterProof = false) {
   if (!db || typeof db.prepare !== 'function' || typeof authorization !== 'string' ||
       !authorization.startsWith('Bearer ') || typeof pepper !== 'string') return null;
   const credential = authorization.slice(7);
@@ -91,7 +91,7 @@ export async function inspectDeviceCredential(db, authorization, expectedAppId, 
   } catch {
     throw new Error('Device authentication database failure');
   }
-  return Object.freeze({ identity: {
+  return Object.freeze({ ...(includeWriterProof ? { writerVerifier: calculated } : {}), identity: {
     userId: row.user_id, deviceId: row.device_id, appId: row.app_id, userState: row.user_state
   } });
 }

@@ -67,11 +67,11 @@ const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   await hash('#practice-menu/new');assert.notEqual(new URL(page.url()).hash,'#practice-menu/new');assert(await page.locator('.port-pro-prompt').isVisible());await page.keyboard.press('Escape');assert(await page.locator('.port-pro-prompt').isHidden());
   await hash('#my-apps/new');assert.notEqual(new URL(page.url()).hash,'#my-apps/new');assert(await page.locator('.port-pro-prompt').isVisible());await page.keyboard.press('Escape');
   const denial=await page.evaluate(async()=>{
-   const caps=(await import('./cruise-port-capabilities.js?v=1.22.4')).getCapabilities();
-   const {createGearPhotoStore}=await import('./gear-photo-store.js?v=1.22.4');
-   const {createMyAppsIconStore}=await import('./my-apps-icon-store.js?v=1.22.4');
-   const {createPracticeAttachmentStore}=await import('./practice-menu-attachment-store.js?v=1.22.4');
-   const {createMyAppEntry}=await import('./my-apps-icon-workflow.js?v=1.22.4');
+   const caps=(await import('./cruise-port-capabilities.js?v=1.22.5')).getCapabilities();
+   const {createGearPhotoStore}=await import('./gear-photo-store.js?v=1.22.5');
+   const {createMyAppsIconStore}=await import('./my-apps-icon-store.js?v=1.22.5');
+   const {createPracticeAttachmentStore}=await import('./practice-menu-attachment-store.js?v=1.22.5');
+   const {createMyAppEntry}=await import('./my-apps-icon-workflow.js?v=1.22.5');
    const r=await createMyAppEntry({items:[],values:{name:'denied',url:'https://example.invalid/'}});
    return {caps,results:await Promise.all([createGearPhotoStore().savePhoto(new Blob()),createMyAppsIconStore().saveIcon(new Blob()),createPracticeAttachmentStore().addAttachment('x',new Blob()),Promise.resolve(r)])};
   });assert.equal(denial.caps.tunerCapo,false);assert.deepEqual(denial.results.map(r=>r.reason),['pro-required','pro-required','pro-required','creation-blocked']);
@@ -83,7 +83,7 @@ const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
    if(['invalid','generation'].includes(mode)){
     assert(await page.locator('#pro-gate-overlay').isVisible());
     assert.equal(await page.locator('.port-app-version-display').first().textContent(),'');
-    assert.equal(await page.evaluate(async()=> (await import('../cruise-port-capabilities.js?v=1.22.4')).getCapabilities().gearPhotoWrite),false);
+    assert.equal(await page.evaluate(async()=> (await import('../cruise-port-capabilities.js?v=1.22.5')).getCapabilities().gearPhotoWrite),false);
    }else{
     await page.locator('.port-app-version-display').first().filter({hasText:'Ver 1.18.0'}).waitFor();
     await hash('#tuner');

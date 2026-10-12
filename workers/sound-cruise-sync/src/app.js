@@ -1,3 +1,5 @@
+import { WriterFenceError } from './writer-fence.js';
+import { readAuthorityEvidence } from './authority-cutover.js';
 import { admitWriter, writerMutationDatabase } from './writer-admission.js';
 import { WRITER_FIELDS, WRITER_HEADERS, writerFieldsFromHeaders } from '../../../apps/shared/sync-account/writer-authority.mjs';
 /* Copyright (c) 2026 SOUND CRUISE. Operator-owned code: proprietary.
@@ -204,15 +206,17 @@ async function authenticatedContext(request, env, appId, dependencies, writerInp
   if (!env.SYNC_CREDENTIAL_PEPPER || !env.SYNC_DB) return { error: 'server_unavailable', status: 503 };
   const session = createSession(env, request);
   if (!session) return { error: 'invalid_bookmark', status: 400 };
-  let identity;
+  let identity, deviceVerifier;
   if (dependencies.authenticateDevice) {
     identity = await dependencies.authenticateDevice(
       session, request.headers.get('Authorization'), appId, env.SYNC_CREDENTIAL_PEPPER
     );
+    if (identity?.appId === 'port') deviceVerifier = (await session.prepare('SELECT credential_verifier FROM sync_devices WHERE id=?').bind(identity.deviceId).first())?.credential_verifier;
   } else {
     const inspected = await inspectDeviceCredential(
-      session, request.headers.get('Authorization'), appId, env.SYNC_CREDENTIAL_PEPPER
+      session, request.headers.get('Authorization'), appId, env.SYNC_CREDENTIAL_PEPPER, true
     );
+    deviceVerifier = inspected?.writerVerifier;
     if (inspected?.error) return { error: inspected.error, status: 410 };
     identity = inspected?.identity || null;
   }
@@ -270,7 +274,7 @@ async function authenticatedContext(request, env, appId, dependencies, writerInp
     accountState: managed.account_state, membershipState: managed.membership_state,
     datasetState: managed.dataset_state
   }) : null;
-  const writerAdmission = writerInput === null ? null : await admitWriter(session, identity, writerInput, authority);
+  const writerAdmission = writerInput === null ? null : await admitWriter(session, identity, writerInput, authority, { policy: dependencies.writerPolicy, proCredentialId: dependencies.verifiedProId, proVerifier: dependencies.verifiedProVerifier, deviceVerifier, defer: new URL(request.url).pathname === '/v1/sync/bootstrap' });
   if (writerAdmission?.error) return writerAdmission;
   const mutationSession = writerMutationDatabase(session, writerAdmission);
   const createRepository = dependencies.createRepository || createD1SyncRepository;
@@ -323,7 +327,7 @@ async function handleAssetPrepare(request, env, origin, route, dependencies) {
   const input = validateAssetPrepare(parsed.value);
   if (!input) return errorResponse(400, 'asset_invalid', origin, route);
   let context;
-  try { context = await assetContext(request, env, dependencies, parsed.value); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { context = await assetContext(request, env, dependencies, parsed.value); } catch (error) { return mutationErrorResponse(error, origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   try {
     const result = await assetRepository(context, dependencies).prepare(context.identity, context.authority, {
@@ -342,7 +346,7 @@ async function handleAssetPrepare(request, env, origin, route, dependencies) {
     return jsonResponse(result.status === 'prepared' ? 201 : 200, {
       ok: true, phase: result.status, asset: result.asset, storageGuard: result.storageGuard || 'normal'
     }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
-  } catch { return errorResponse(503, 'server_error', origin, route); }
+  } catch (error) { return mutationErrorResponse(error, origin, route); }
 }
 
 async function handleAssetUpload(request, env, origin, route, dependencies, assetId) {
@@ -352,7 +356,7 @@ async function handleAssetUpload(request, env, origin, route, dependencies, asse
   const operationId = request.headers.get('X-Sound-Cruise-Operation-Id');
   const claimedHash = request.headers.get('X-Content-SHA256');
   let context;
-  try { context = await assetContext(request, env, dependencies, writerFieldsFromHeaders(request.headers)); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { context = await assetContext(request, env, dependencies, writerFieldsFromHeaders(request.headers)); } catch (error) { return mutationErrorResponse(error, origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   if (!env.SYNC_ASSETS?.put) return errorResponse(503, 'asset_storage_unavailable', origin, route);
   try {
@@ -383,8 +387,8 @@ async function handleAssetUpload(request, env, origin, route, dependencies, asse
     const result = await repository.markUploaded(target, Date.now());
     return jsonResponse(200, { ok: true, phase: result.status, asset: result.asset }, origin, route,
       { 'X-D1-Bookmark': sessionBookmark(context.session) });
-  } catch {
-    return errorResponse(503, 'server_error', origin, route);
+  } catch (error) {
+    return mutationErrorResponse(error, origin, route);
   }
 }
 
@@ -397,7 +401,7 @@ async function handleAssetCommit(request, env, origin, route, dependencies) {
   const input = validateAssetCommit(parsed.value);
   if (!input) return errorResponse(400, 'asset_invalid', origin, route);
   let context;
-  try { context = await assetContext(request, env, dependencies, parsed.value); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { context = await assetContext(request, env, dependencies, parsed.value); } catch (error) { return mutationErrorResponse(error, origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   if (!env.SYNC_ASSETS?.head) return errorResponse(503, 'asset_storage_unavailable', origin, route);
   try {
@@ -414,7 +418,7 @@ async function handleAssetCommit(request, env, origin, route, dependencies) {
     if (result.status !== 'available') return errorResponse(409, `asset_${result.status}`, origin, route);
     return jsonResponse(200, { ok: true, phase: 'available', asset: result.asset }, origin, route,
       { 'X-D1-Bookmark': sessionBookmark(context.session) });
-  } catch { return errorResponse(503, 'server_error', origin, route); }
+  } catch (error) { return mutationErrorResponse(error, origin, route); }
 }
 
 async function handleAssetDownload(request, env, origin, route, dependencies, assetId) {
@@ -454,7 +458,7 @@ async function handleAssetUnreference(request, env, origin, route, dependencies)
   const input = validateAssetUnreference(parsed.value);
   if (!input) return errorResponse(400, 'asset_invalid', origin, route);
   let context;
-  try { context = await assetContext(request, env, dependencies, parsed.value); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { context = await assetContext(request, env, dependencies, parsed.value); } catch (error) { return mutationErrorResponse(error, origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   try {
     const changed = await assetRepository(context, dependencies).unreference(
@@ -462,7 +466,7 @@ async function handleAssetUnreference(request, env, origin, route, dependencies)
     );
     return jsonResponse(200, { ok: true, unreferenced: changed }, origin, route,
       { 'X-D1-Bookmark': sessionBookmark(context.session) });
-  } catch { return errorResponse(503, 'server_error', origin, route); }
+  } catch (error) { return mutationErrorResponse(error, origin, route); }
 }
 
 async function legacyGuard(session, userId, operation, dependencies) {
@@ -485,8 +489,8 @@ async function handleBootstrap(request, env, origin, route, dependencies) {
   let context;
   try {
     context = await authenticatedContext(request, env, validation.value.appId, dependencies, validation.value);
-  } catch {
-    return errorResponse(503, 'server_error', origin, route);
+  } catch (error) {
+    return mutationErrorResponse(error, origin, route);
   }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   try {
@@ -500,8 +504,8 @@ async function handleBootstrap(request, env, origin, route, dependencies) {
       schemaVersion: Number(result.dataset.schema_version),
       alreadyCreated: result.alreadyCreated
     }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
-  } catch {
-    return errorResponse(503, 'server_error', origin, route);
+  } catch (error) {
+    return mutationErrorResponse(error, origin, route);
   }
 }
 
@@ -928,13 +932,12 @@ async function handleWriterAuthority(request, env, origin, route, dependencies, 
   if (url.searchParams.get('appId') !== 'port' || [...url.searchParams.keys()].some(key => key !== 'appId'))
     return errorResponse(400, 'invalid_request', origin, route);
   try {
-    const context = await authenticatedContext(request, env, 'port', dependencies, {});
+    const context = await authenticatedContext(request, env, 'port', dependencies);
     if (context.error) return errorResponse(context.status, context.error, origin, route);
     if (!context.authority || context.authority.accountState !== 'active' || context.authority.membershipState !== 'active')
       return errorResponse(409, 'account_membership_required', origin, route);
-    const meta = context.writerAdmission.metadata;
-    return jsonResponse(200, { ok: true, authority: { accountId: context.authority.accountId, appId: 'port',
-      writeEpoch: meta.write_epoch, minimumWriterProtocol: meta.minimum_writer_protocol, state: meta.authority_state } }, origin, route);
+    const authority = await readAuthorityEvidence(env.SYNC_DB.withSession?.('first-primary') || context.session, context.authority);
+    return jsonResponse(200, { ok: true, authority }, origin, route);
   } catch { return errorResponse(503, 'dataset_authority_unavailable', origin, route); }
 }
 
@@ -944,10 +947,10 @@ async function handlePush(request, env, origin, route, dependencies) {
   const validation = await validatePushPayload(parsed.value, env);
   if (!validation.ok) return errorResponse(validation.status || 400, validation.code || 'invalid_request', origin, route);
   let context;
-  try { context = await authenticatedContext(request, env, validation.value.appId, dependencies, validation.value); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { context = await authenticatedContext(request, env, validation.value.appId, dependencies, validation.value); } catch (error) { return mutationErrorResponse(error, origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   let dataset;
-  try { dataset = await context.repository.getDataset(context.identity.userId, context.identity.appId); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { dataset = await context.repository.getDataset(context.identity.userId, context.identity.appId); } catch (error) { return mutationErrorResponse(error, origin, route); }
   if (!dataset) return errorResponse(409, 'dataset_missing', origin, route);
   if (dataset.state === 'initializing' && validation.value.mode !== 'migration') {
     return errorResponse(409, 'migration_required', origin, route);
@@ -969,8 +972,8 @@ async function handlePush(request, env, origin, route, dependencies) {
         record: publicRecord(await visibleRecordView(context.identity.appId, result.record, validation.value.capabilities))
       });
     }
-  } catch {
-    return errorResponse(503, 'server_error', origin, route);
+  } catch (error) {
+    return mutationErrorResponse(error, origin, route);
   }
   return jsonResponse(200, { ok: true, appId: context.identity.appId, results }, origin, route, {
     'X-D1-Bookmark': sessionBookmark(context.session)
@@ -1060,14 +1063,14 @@ async function handleRemovalSafety(request, env, origin, route, dependencies) {
     return errorResponse(400, 'invalid_request', origin, route);
   }
   let context;
-  try { context = await authenticatedContext(request, env, value.appId, dependencies, value); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { context = await authenticatedContext(request, env, value.appId, dependencies, value); } catch (error) { return mutationErrorResponse(error, origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   try {
     const result = await context.repository.reportRemovalSafety(context.identity, context.authority,
       value.state, value.state === 'attention' ? value.attentionCount || 0 : 0);
     if (result.status !== 'reported') return errorResponse(409, 'sync_safety_unavailable', origin, route);
     return jsonResponse(200, { ok: true }, origin, route, { 'X-D1-Bookmark': sessionBookmark(context.session) });
-  } catch { return errorResponse(503, 'server_error', origin, route); }
+  } catch (error) { return mutationErrorResponse(error, origin, route); }
 }
 
 async function handleMigrationComplete(request, env, origin, route, dependencies) {
@@ -1076,10 +1079,10 @@ async function handleMigrationComplete(request, env, origin, route, dependencies
   const validation = validateMigrationCompletePayload(parsed.value, env);
   if (!validation.ok) return errorResponse(validation.status || 400, validation.code || 'invalid_request', origin, route);
   let context;
-  try { context = await authenticatedContext(request, env, validation.value.appId, dependencies, validation.value); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { context = await authenticatedContext(request, env, validation.value.appId, dependencies, validation.value); } catch (error) { return mutationErrorResponse(error, origin, route); }
   if (context.error) return errorResponse(context.status, context.error, origin, route);
   let result;
-  try { result = await context.repository.completeMigration(context.identity, validation.value); } catch { return errorResponse(503, 'server_error', origin, route); }
+  try { result = await context.repository.completeMigration(context.identity, validation.value); } catch (error) { return mutationErrorResponse(error, origin, route); }
   if (result.status === 'mismatch') {
     return jsonResponse(409, {
       ok: false,
@@ -1151,7 +1154,7 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
     let entitlement;
     try {
       entitlement = await (dependencies.inspectProCredentialReadOnly || inspectProCredentialReadOnly)(
-        request.headers.get(PRO_HEADER), env, dependencies
+        request.headers.get(PRO_HEADER), env, { ...dependencies, includeWriterProof: true }
       );
     } catch {
       return errorResponse(503, 'pro_auth_unavailable', origin, route);
@@ -1159,6 +1162,8 @@ export async function handleRequest(request, env = {}, _ctx, dependencies = {}) 
     if (entitlement?.ok !== true) {
       return errorResponse(403, entitlement?.code || 'pro_required', origin, route);
     }
+    // Extract only AFTER the existing verifier/scope/generation/session check succeeded.
+    dependencies = { ...dependencies, verifiedProId: entitlement.writerProof?.id || request.headers.get(PRO_HEADER)?.match(/^Bearer scp1\.([^.]+)\./)?.[1] || null, verifiedProVerifier: entitlement.writerProof?.verifier };
   }
   if (url.pathname === '/v1/sync/start') return handleStart(request, env, origin, route, dependencies, runtimeControl);
   if (url.pathname === '/v1/sync/bootstrap') return handleBootstrap(request, env, origin, route, dependencies);
@@ -1197,12 +1202,15 @@ export async function handleScheduled(_event, env = {}, dependencies = {}) {
         now, 30 * 24 * 60 * 60 * 1000, 24 * 60 * 60 * 1000, 100
       );
       for (const asset of candidates) {
+        if (assets.claimCleanup && !await assets.claimCleanup(asset, now)) continue;
         if (asset.state === 'unreferenced' && await assets.isReferenced(asset)) {
           await assets.restoreReferenced(asset.asset_id, now);
-          continue;
+        } else {
+          await env.SYNC_ASSETS.delete(asset.object_key);
+          await assets.markDeleted(asset.asset_id, now);
         }
-        await env.SYNC_ASSETS.delete(asset.object_key);
-        await assets.markDeleted(asset.asset_id, now);
+        // Unknown R2 outcome/crash retains the claim for explicit recovery.
+        await assets.releaseCleanup?.(asset);
       }
     } catch {
       // Asset cleanup is eventual and must never interrupt established D1 cleanup.
@@ -1212,4 +1220,9 @@ export async function handleScheduled(_event, env = {}, dependencies = {}) {
   await repository.cleanup(Date.now());
   try { await cleanupProLockouts(env.SYNC_DB, Date.now()); }
   catch { /* Lockout retention must not interrupt established sync cleanup. */ }
+}
+
+function mutationErrorResponse(error, origin, route) {
+  return error instanceof WriterFenceError ? errorResponse(error.status, error.code, origin, route)
+    : errorResponse(503, 'server_error', origin, route);
 }

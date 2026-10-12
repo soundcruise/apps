@@ -1,5 +1,26 @@
 # Port Authority Migration & Cutover Engine v1 — B1-4
 
+## B1-5 server fence接続契約（2026-10-12・現行）
+
+Port1.22.5 / Studio0.26.1 / Studio schema1。[Workerの正式契約](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を参照。
+D1同一batchのabort guard、Account+Portのprepared→paused→enforced、固定migrationId/operationIdとepoch一回更新、
+paused snapshot checkpoint、asset prepare epochと公開時再照合、cleanup retention/claim、rollback downgrade拒否を実装。
+AppDevice/Proの資格・失効・verifierをtransaction内でも確認し、CAS/tombstone/change log/aggregateの原子性を維持する。
+HTTP入口だけの判定ではない。metadataのenforced表示だけを実効fenceの証明と扱わない。
+
+B1-4の接続は隔離fixtureだけ。実ledger/evidenceと完全cloud snapshotのhash/sequenceを照合し、
+同epoch/generation/checkpointのbranded ticketでready-to-publishまで検証する。本番engine/active pointerは接続しない。
+checkpointはcutover時点で固定。cloudが進んだ場合は明示reconciliationを要し、旧outboxやasset operationをretagしない。
+Port asset clientはauthority拒否を同runtimeに保持し、自動再試行・release/discard再送を停止する（1.22.5 patch）。
+
+本番Worker ACCEPT_COMPAT / authority legacy / enforcement OFF、Studio shared write OFF / PortDataHost.canWrite=false。
+Worker deploy・本番D1適用・Port migration/cutover・本番epoch/minimum変更なし。B1は未解消、shared write解禁不可。
+次はB1-6 Port/Studio Authority Integration。operator認可・cleanup crash claim回収・local legacy writer停止・
+reconciliation UX・実partition/rollback/deployのacceptance gateを別途満たす。rollback先はfence対応版限定。
+B1-5実測: Worker672 + local workerd1 / Port・shared1583 / 他app85 / Studio機能314 PASS。
+Studio315全件はcommit後のGit clean guard込みで確認する。ChromeはStudio97+Host10、Port既存6 suiteと新HTTP10項目がPASS。
+以下のB1-1〜4記述と検証件数は各工程時点の履歴。
+
 2026-10-12。Port 1.22.4 / Studio 0.26.1。保存domain schema不変更、Migration Journal schemaVersion=1。
 **隔離実装専用。production default legacy / Worker ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false / B1未解消。**
 本番migration、pointer公開、cutover、Worker deploy、D1適用は行わない。

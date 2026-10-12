@@ -998,3 +998,14 @@ test('authority asset wire pins prepare/upload/commit context and leaves downloa
 });
 
 test('B1-2 asset pending context cannot be downgraded or retagged on retry',async()=>{const host=controller(),wire=createWriterWireContext({expectedWriteEpoch:7,accountId:'A',appId:'port',localAuthorityGeneration:'g1',authorityState:'authority-prepared'});Object.assign(host.runtime,{writerWireContext:wire,writerEnvelope:body=>wire.envelope(body),writerHeaders:()=>wire.headers()});const api=assetApi(),sync=new PortAssetSync({controller:host,storage:storage(),fetchImpl:api.fetch,canSync:()=>true}),record={id:'image-context',blob:new Blob(['image'],{type:'image/webp'}),mimeType:'image/webp',width:512,height:512};const result=await sync.upload(record,'gear_photo_final');assert.equal(result.operation.authorityContext.accountId,'A');const id=result.operation.operationId;host.runtime.writerWireContext=null;await assert.rejects(sync.upload(record,'gear_photo_final',result.operation),/legacy_outbox_needs_migration/);assert.equal(result.operation.operationId,id);assert.equal(result.operation.writerAuthority.expectedWriteEpoch,7);});
+
+for (const code of ['writer_protocol_outdated','dataset_epoch_stale','dataset_authority_unavailable']) {
+ test(`B1-5 asset ${code} blocks automatic mutation retry and preserves pending identity`,async()=>{
+  const host=controller(),local=storage(),pending={operationId:'pending-operation',assetId:'pending-asset',writerAuthority:{writerProtocol:2,syncProtocol:1,expectedWriteEpoch:7}};
+  local.setItem('cruisePort.syncAssetMetadata',JSON.stringify({pending}));const before=local.getItem('cruisePort.syncAssetMetadata');let calls=0;
+  const sync=new PortAssetSync({controller:host,storage:local,canSync:()=>true,fetchImpl:async()=>{calls++;return Response.json({ok:false,code},{status:503});}});
+  await assert.rejects(sync.json('/v1/sync/assets/unreference',{appId:'port',assetIds:['held']}),new RegExp(code));
+  assert.deepEqual(await sync.schedule('online'),{ok:false,code});await assert.rejects(sync.json('/v1/sync/assets/prepare',pending),new RegExp(code));
+  assert.equal(calls,1);assert.equal(local.getItem('cruisePort.syncAssetMetadata'),before);assert.equal(pending.operationId,'pending-operation');assert.equal(pending.writerAuthority.expectedWriteEpoch,7);
+ });
+}

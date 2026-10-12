@@ -186,7 +186,7 @@ export function createD1SyncRepository(db, clock = Date.now) {
       identity.userId, identity.appId, identity.userId, identity.appId,
       operation.operationId
     );
-    const batch = await db.batch([upsert, insertChange, updateDataset]);
+    const batch = await (db.withWriterConstraints?.({ payload: operation.payload }) || db).batch([upsert, insertChange, updateDataset]);
     if (!successfulBatch(batch, 3)) throw new Error('D1 operation transaction failed');
     const applied = await getChangeByOperation(identity.userId, identity.appId, operation.operationId);
     if (applied) {

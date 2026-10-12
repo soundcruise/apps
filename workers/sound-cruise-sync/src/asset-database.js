@@ -1,3 +1,4 @@
+import { WriterFenceError } from './writer-fence.js';
 import {
   ASSET_QUOTA, ASSET_STORAGE_CATEGORY, GLOBAL_ASSET_QUOTA, GLOBAL_STORAGE_GUARDS,
   PRACTICE_ATTACHMENT_QUOTA
@@ -40,6 +41,7 @@ export function createD1AssetRepository(db) {
   async function prepare(identity, authority, input) {
     const previous = await operation(input.operationId);
     if (previous) {
+      await db.assertWriter?.({ operationId: input.operationId });
       return previous.account_id === authority.accountId && previous.sync_user_id === identity.userId &&
         previous.app_device_id === identity.deviceId && previous.request_fingerprint === input.fingerprint &&
         previous.asset_id === input.assetId ? { status: previous.state, asset: publicAsset(previous) } : { status: 'conflict' };
@@ -157,9 +159,11 @@ export function createD1AssetRepository(db) {
       const results = await db.batch(statements);
       if (results.some((result) => result?.success === false || changes(result) !== 1)) throw new Error('asset_prepare_failed');
     } catch (error) {
+      if (error instanceof WriterFenceError) throw error;
       const raced = await operation(input.operationId);
       if (raced && raced.request_fingerprint === input.fingerprint && raced.asset_id === input.assetId &&
           raced.account_id === authority.accountId && raced.sync_user_id === identity.userId) {
+        await db.assertWriter?.({ operationId: input.operationId });
         return { status: raced.state, asset: publicAsset(raced) };
       }
       throw error;
@@ -172,11 +176,13 @@ export function createD1AssetRepository(db) {
     const row = await operation(operationId);
     if (!row || row.asset_id !== assetId || row.account_id !== authority.accountId ||
         row.sync_user_id !== identity.userId || row.app_device_id !== identity.deviceId) return null;
+    await db.assertWriter?.({ operationId });
     return row;
   }
 
   async function markUploaded(row, now) {
-    const result = await db.prepare(`UPDATE sync_assets SET state = 'uploaded', uploaded_at = COALESCE(uploaded_at, ?),
+    const guarded = db.withWriterConstraints?.({ operationId: row.operation_id }) || db;
+    const result = await guarded.prepare(`UPDATE sync_assets SET state = 'uploaded', uploaded_at = COALESCE(uploaded_at, ?),
       updated_at = ? WHERE asset_id = ? AND state IN ('prepared', 'uploaded')`)
       .bind(now, now, row.asset_id).run();
     if (result?.success === false) throw new Error('asset_upload_state_failed');
@@ -196,8 +202,12 @@ export function createD1AssetRepository(db) {
       if (!owner) return { status: 'relation_missing' };
     }
     const now = input.now;
-    const result = await db.prepare(`UPDATE sync_assets SET state = 'available', committed_at = COALESCE(committed_at, ?),
-      unreferenced_at = NULL, updated_at = ? WHERE asset_id = ? AND state = 'uploaded' AND content_hash = ?`)
+    const guarded = db.withWriterConstraints?.({ operationId: row.operation_id }) || db;
+    const result = await guarded.prepare(`UPDATE sync_assets SET state = 'available', committed_at = COALESCE(committed_at, ?),
+      unreferenced_at = NULL, updated_at = ? WHERE asset_id = ? AND state = 'uploaded' AND content_hash = ?
+      AND (storage_category<>'practice_attachment' OR EXISTS (SELECT 1 FROM sync_records r
+        WHERE r.user_id=sync_assets.sync_user_id AND r.app_id='port' AND r.record_type='practice_menu'
+          AND r.record_id=sync_assets.owner_record_id AND r.deleted_at IS NULL))`)
       .bind(now, now, input.assetId, input.hash).run();
     if (result?.success === false || changes(result) !== 1) return { status: 'retry' };
     return { status: 'available', asset: publicAsset({ ...row, state: 'available' }) };
@@ -218,11 +228,24 @@ export function createD1AssetRepository(db) {
     return results.reduce((total, result) => total + changes(result), 0);
   }
 
+  async function claimCleanup(row, now) {
+    const result = await db.prepare(`INSERT INTO sync_authority_cleanup_claims(account_id,asset_id,created_at)
+      SELECT ?,?,? WHERE NOT EXISTS (SELECT 1 FROM sync_authority_cutovers WHERE account_id=?)
+      ON CONFLICT(account_id) DO NOTHING`).bind(row.account_id,row.asset_id,now,row.account_id).run();
+    return changes(result) === 1;
+  }
+  async function releaseCleanup(row) {
+    await db.prepare('DELETE FROM sync_authority_cleanup_claims WHERE account_id=? AND asset_id=?')
+      .bind(row.account_id,row.asset_id).run();
+  }
+
   async function cleanupCandidates(now, graceMs, preparedMs, limit) {
     return (await db.prepare(`SELECT a.* FROM sync_assets a
-      WHERE (a.state = 'unreferenced' AND a.unreferenced_at <= ?)
+      WHERE ((a.state = 'unreferenced' AND a.unreferenced_at <= ?)
          OR (a.state IN ('prepared', 'uploaded') AND a.updated_at <= ?)
-         OR (a.state <> 'deleted' AND NOT EXISTS (SELECT 1 FROM sync_accounts x WHERE x.id = a.account_id))
+         OR (a.state <> 'deleted' AND NOT EXISTS (SELECT 1 FROM sync_accounts x WHERE x.id = a.account_id)))
+        AND NOT EXISTS (SELECT 1 FROM sync_authority_cutovers c WHERE c.account_id=a.account_id)
+        AND NOT EXISTS (SELECT 1 FROM sync_authority_cleanup_claims c WHERE c.account_id=a.account_id)
       ORDER BY a.updated_at ASC LIMIT ${Number(limit)}`)
       .bind(now - graceMs, now - preparedMs).all()).results || [];
   }
@@ -247,7 +270,7 @@ export function createD1AssetRepository(db) {
   }
 
   return Object.freeze({ prepare, uploadTarget, markUploaded, commit, available, unreference,
-    cleanupCandidates, isReferenced, restoreReferenced, markDeleted });
+    cleanupCandidates, isReferenced, restoreReferenced, markDeleted, claimCleanup, releaseCleanup });
 }
 
 export { publicAsset, dayKey, globalStorageGuard };

@@ -1,6 +1,25 @@
 # Cruise Studio Project State
 
-## B1-4 Migration & Cutover Engine v1（2026-10-12・現行）
+## B1-5 Worker Transaction Fence + Cutover Barrier（2026-10-12・現行）
+
+Port1.22.5 / Studio0.26.1 / Studio schema1。[Workerの正式契約](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を参照。
+D1同一batchのabort guard、Account+Portのprepared→paused→enforced、固定migrationId/operationIdとepoch一回更新、
+paused snapshot checkpoint、asset prepare epochと公開時再照合、cleanup retention/claim、rollback downgrade拒否を実装。
+AppDevice/Proの資格・失効・verifierをtransaction内でも確認し、CAS/tombstone/change log/aggregateの原子性を維持する。
+HTTP入口だけの判定ではない。metadataのenforced表示だけを実効fenceの証明と扱わない。
+
+B1-4の接続は隔離fixtureだけ。実ledger/evidenceと完全cloud snapshotのhash/sequenceを照合し、
+同epoch/generation/checkpointのbranded ticketでready-to-publishまで検証する。本番engine/active pointerは接続しない。
+checkpointはcutover時点で固定。cloudが進んだ場合は明示reconciliationを要し、旧outboxやasset operationをretagしない。
+Port asset clientはauthority拒否を同runtimeに保持し、自動再試行・release/discard再送を停止する（1.22.5 patch）。
+
+本番Worker ACCEPT_COMPAT / authority legacy / enforcement OFF、Studio shared write OFF / PortDataHost.canWrite=false。
+Worker deploy・本番D1適用・Port migration/cutover・本番epoch/minimum変更なし。B1は未解消、shared write解禁不可。
+次はB1-6 Port/Studio Authority Integration。operator認可・cleanup crash claim回収・local legacy writer停止・
+reconciliation UX・実partition/rollback/deployのacceptance gateを別途満たす。rollback先はfence対応版限定。
+以下のB1-1〜4記述と検証件数は各工程時点の履歴。
+
+## B1-4 Migration & Cutover Engine v1（2026-10-12・履歴）
 
 開始HEAD=origin/main=remote mainは87f85503e238214ae159f2ca04b30b95246af599。tracked clean/staged空/ahead・behind0/0を実測。
 Port1.22.4 / Studio0.26.1 / domain schema不変更 / journal schema1。[Migration契約](../../cruise-port/docs/PORT_AUTHORITY_MIGRATION.md)。
@@ -10,7 +29,7 @@ production default legacy、Worker ACCEPT_COMPAT/enforcement OFF、Studio shared
 本番migration/cutover/deploy/D1適用なし。次はB1-5実効server transaction fence/cutover barrier。その後B1-6の製品統合を判断する。
 個別stage・限定commit・通常pushは全検証/remote一致後に実施し、hashと最終Git状態は完了報告で実測する。以下は前工程の履歴。
 
-## B1-2 + B1-3 Authority Preparation（2026-10-12・最新）
+## B1-2 + B1-3 Authority Preparation（2026-10-12・履歴）
 
 開始HEAD/origin/main/remoteはb4f22ba9bbe4c7ea13e866075992bd37cf985a79、tracked clean/staged空/ahead・behind0/0。
 Port1.22.3（内部patch）/ Studio0.26.1 / schema1。[Local Authority契約](../../cruise-port/docs/PORT_LOCAL_AUTHORITY.md)を現在の正式契約とする。
