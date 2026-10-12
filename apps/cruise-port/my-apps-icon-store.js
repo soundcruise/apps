@@ -1,5 +1,5 @@
-import { createSecureId } from './my-apps-store.js?v=1.22.6';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.6';
+import { createSecureId } from './my-apps-store.js?v=1.22.7';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.7';
 
 export const MY_APPS_ICON_DB_NAME = 'cruisePortMyApps';
 export const MY_APPS_ICON_DB_VERSION = 1;

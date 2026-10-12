@@ -5,6 +5,7 @@ import { authorityPhysicalKey, authorityMarkerKey, authorityLockName, PORT_AUTHO
 import { candidateHash, digest, binaryManifest, verifyDestination, recordsFor, migrationAdapter } from './port-migration-candidate.mjs';
 import { planPortMigration } from './port-migration-planner.mjs';
 import { MIGRATION_SCHEMA, MIGRATION_STATES, clone, equal, fail, safeEvidence, assertIdentity, assertSyncProvenance, deleted, recordKey, sameRecord } from './port-migration-contract.mjs';
+import { authorityWriteControlKey, readWriteControl, publishWriteControl, initializeWriteControl, assertIdentitySnapshot } from './port-authority-write-control.mjs';
 const scopes=new WeakMap(),fences=new WeakMap();
 const prefix='soundCruise.portMigration.v1.';
 const id=value=>{if(typeof value!=='string'||!/^[A-Za-z0-9_-]{1,128}$/.test(value))throw fail('migration-id-invalid');return value;};
@@ -12,11 +13,11 @@ function isolatedHost(){
     // Uses actual execution context, never a caller-supplied origin/debug flag.
     if(globalThis.location&&!['127.0.0.1','localhost','[::1]'].includes(globalThis.location.hostname))throw fail('production-publication-disabled');
 }
-export function createIsolatedMigrationScope({storage,partitionId,locks,getIdentity,binaryStoreFactory,syncStoreFactory,readSource,checkpoint=async()=>{}}={}){
+export function createIsolatedMigrationScope({storage,partitionId,locks,getIdentity,readIdentity,setIdentity,binaryStoreFactory,syncStoreFactory,readSource,checkpoint=async()=>{}}={}){
     isolatedHost();
     if(!storage||!partitionId||!locks?.request||!getIdentity||!binaryStoreFactory||!readSource)throw fail('migration-dependencies-required');
     const scope=Object.freeze({kind:'isolated-migration-scope'});
-    scopes.set(scope,{storage,partitionId,locks,getIdentity,binaryStoreFactory,syncStoreFactory,readSource,checkpoint});
+    scopes.set(scope,{storage,partitionId,locks,getIdentity,readIdentity,setIdentity,binaryStoreFactory,syncStoreFactory,readSource,checkpoint});
     return scope;
 }
 export function issueIsolatedFence(scope,evidence){
@@ -25,7 +26,36 @@ export function issueIsolatedFence(scope,evidence){
         !Number.isSafeInteger(evidence.epoch)||evidence.epoch<1||!evidence.generation||!evidence.accountId)throw fail('fence-evidence-invalid');
     const ticket=Object.freeze({kind:'isolated-fence'});fences.set(ticket,{scope,evidence:clone(evidence)});return ticket;
 }
-export function revokeIsolatedFence(ticket){fences.delete(ticket);}
+export function revokeIsolatedFence(ticket){
+    const f=fences.get(ticket);fences.delete(ticket); // immediately reject this context's ticket
+    if(!f)return Promise.resolve();
+    const env=scopes.get(f.scope),generation=f.evidence.generation;
+    const pending=env.locks.request(authorityLockName(generation),{mode:'exclusive'},()=>{
+        const raw=env.storage.getItem(PORT_AUTHORITY_POINTER);if(!raw)return;
+        const p=JSON.parse(raw);if(p.generation!==generation)return;
+        const control=readWriteControl(env.storage,generation,p.migrationId);
+        if(equal(control.fence,f.evidence))publishWriteControl(env.storage,generation,{...control,fenceRevoked:true});
+    });
+    // Existing callers may request revocation without awaiting it. Completion
+    // means the shared epoch has linearized; write failures remain fail-closed locally.
+    void pending.catch(()=>{});return pending;
+}
+export async function changeIsolatedIdentity(scope,next){
+    isolatedHost();const env=scopes.get(scope);if(!env||typeof env.setIdentity!=='function')throw fail('authority-identity-unavailable');
+    assertIdentity(next);
+    return env.locks.request(`sound-cruise:port:migration:v1:${env.partitionId}`,{mode:'exclusive'},async()=>{
+        const raw=env.storage.getItem(PORT_AUTHORITY_POINTER),p=raw&&JSON.parse(raw);
+        const update=()=>{
+            if(env.storage.getItem(PORT_AUTHORITY_POINTER)!==raw)throw fail('stale-authority-handle');
+            if(p){const control=readWriteControl(env.storage,p.generation,p.migrationId);
+                publishWriteControl(env.storage,p.generation,{...control,identityInvalidated:true});}
+            // A synchronous owner source is required. The durable invalidation
+            // is published first, so a source failure cannot reopen the old gate.
+            const result=env.setIdentity(clone(next));if(result?.then)throw fail('authority-identity-unavailable');
+        };
+        return p?env.locks.request(authorityLockName(p.generation),{mode:'exclusive'},update):update();
+    });
+}
 export function createPortMigrationEngine({scope,migrationId,generation}={}){
     if(!scopes.has(scope))throw fail('production-publication-disabled');isolatedHost();id(migrationId);id(generation);
     const env=scopes.get(scope),{storage,locks}=env,journalKey=prefix+migrationId;
@@ -226,6 +256,7 @@ export function createPortMigrationEngine({scope,migrationId,generation}={}){
             if(j.identity.ownership==='bound-account')validateFence(fence,j,j.cloudCheckpoint);
             // No await from the last revision/identity check through the pointer write.
             if(repo().inspect().revision!==j.sealedManifest.repositoryRevision||pointer())throw fail('stale-publication');
+            initializeWriteControl(storage,j);
             storage.setItem(PORT_AUTHORITY_POINTER,JSON.stringify(expectedPointer(j)));
             await step('after-pointer',j);j.state='active';await save(j);return {status:'published',generation};
         });
@@ -255,13 +286,61 @@ export function createPortMigrationEngine({scope,migrationId,generation}={}){
             const packet=JSON.parse(storage.getItem(journalKey)||'null');if(packet?.value?.state!=='active')throw fail('recovery-required');
             if(!storage.getItem(authorityMarkerKey(generation))||!view.getItem(PORT_DATASET_META))throw fail('recovery-required');};
         const writable=()=>{guard();if(j.identity.ownership==='bound-account')validateFence(fence,j,j.cloudCheckpoint);if(JSON.parse(storage.getItem(journalKey)).value.writeDisabled)throw fail('authority-write-disabled');};
-        const provider={storage:view,lockName:authorityLockName(generation),assertReadable:guard,assertWritable:writable};
+        const capture=()=>{writable();return {control:clone(readWriteControl(storage,generation,migrationId)),journalRaw:null};};
+        const validate=async context=>{
+            const raw=storage.getItem(journalKey),live=await readJournal();
+            if(raw!==storage.getItem(journalKey)||live?.state!=='active'||!equal(live.identity,j.identity))throw fail('recovery-required');
+            context.journalRaw=raw;
+        };
+        const final=context=>{
+            writable();assertIdentitySnapshot(env,j.identity);
+            const control=readWriteControl(storage,generation,migrationId);
+            if(control.suspended)throw fail('authority-write-disabled');
+            if(control.fenceRevoked)throw fail('cloud-fence-required');
+            if(control.identityInvalidated||!equal(control.identity,j.identity))throw fail('migration-account-changed');
+            if(!equal(control,context.control)||context.journalRaw!==storage.getItem(journalKey))throw fail('authority-context-stale');
+            if(j.identity.ownership==='bound-account'){
+                const proof=validateFence(fence,j,j.cloudCheckpoint);
+                if(!equal(proof,control.fence)||proof.accountGeneration!==j.identity.accountGeneration||
+                    proof.membershipGeneration!==j.identity.membershipGeneration||proof.membershipId!==j.identity.membershipId)
+                    throw fail('cloud-fence-required');
+            }
+            const meta=JSON.parse(view.getItem(PORT_DATASET_META)||'null');
+            if(meta?.generation!==generation||meta.protocol!==1)throw fail('stale-authority-handle');
+            const marker=JSON.parse(storage.getItem(authorityMarkerKey(generation))||'null');
+            if(marker?.schemaVersion!==1||marker.generation!==generation||marker.migrationId!==migrationId||
+                marker.state!=='sealed'||marker.sealHash!==j.sealHash)throw fail('recovery-required');
+            return Object.freeze({generation,migrationId,controlEpoch:control.epoch,identity:Object.freeze(clone(j.identity)),
+                fenceEpoch:control.fence?.epoch??null});
+        };
+        const provider={storage:view,lockName:authorityLockName(generation),assertReadable:guard,assertWritable:writable,
+            captureCommitContext:capture,validateCommitContext:validate,assertCommitCurrent:final};
         const active=new PortDatasetRepository({authorityProvider:provider,locks});
         const write=active.runWrite.bind(active);
-        active.runWrite=async(options,writer)=>{await current(j);return write({...options,assertCurrent:async()=>{await current(j);writable();await options?.assertCurrent?.();}},writer);};
+        active.runWrite=(options,writer)=>write({...options,assertCurrent:async()=>{await current(j);writable();await options?.assertCurrent?.();}},writer);
         return active;
     }
-    async function suspendWrites(){return task(async()=>{const j=await readJournal();await current(j);j.writeDisabled=true;await save(j);return {writeEnabled:false};});}
+    async function setWrites(suspended,{fence=currentFence}={}){return task(async()=>{
+        const j=await readJournal();await current(j);j.writeDisabled=suspended;safeEvidence(j);
+        const packet=JSON.stringify({value:clone(j),hash:await digest(j)});
+        return locks.request(authorityLockName(generation),{mode:'exclusive'},()=>{
+            check();assertIdentitySnapshot(env,j.identity);
+            if(storage.getItem(authorityWriteControlKey(generation))===null){
+                if(!suspended||pointer())throw fail('recovery-required');
+                storage.setItem(journalKey,packet);return {writeEnabled:false};
+            }
+            const control=readWriteControl(storage,generation,migrationId);
+            if(!suspended){
+                if(j.state!=='active'||!equal(pointer(),expectedPointer(j))||control.identityInvalidated||control.fenceRevoked)throw fail('recovery-required');
+                if(j.identity.ownership==='bound-account')validateFence(fence,j,j.cloudCheckpoint);
+                storage.setItem(journalKey,packet); // old suspended control still closes writes
+            }
+            publishWriteControl(storage,generation,{...control,suspended});
+            if(suspended)storage.setItem(journalKey,packet);
+            return {writeEnabled:!suspended};
+        });
+    });}
+    const suspendWrites=()=>setWrites(true),resumeWrites=options=>setWrites(false,options);
     async function abandon(){return task(async()=>{const j=await readJournal();if(pointer()||j.fenceEvidence)throw fail('rollback-forbidden');j.state='review-required';j.writeDisabled=true;j.error='stage-abandoned';await save(j);return clone(j);});}
     async function rescue(candidate){return task(async()=>{const j=await readJournal();if(!pointer()||j.state!=='active')throw fail('active-required');await current(j);
         if(!equal(candidate.provenance,j.identity)||candidate.sourceHash!==await candidateHash(candidate))throw fail('migration-source-or-owner-changed');
@@ -270,6 +349,6 @@ export function createPortMigrationEngine({scope,migrationId,generation}={}){
         if(!j.rescues.some(r=>r.rescueId===rescueId))j.rescues.push({rescueId,candidate:evidence(candidate),changedKeys,status:'review-required',targetRevision:repo().inspect().revision,imported:false});
         await save(j);return clone(j.rescues.find(r=>r.rescueId===rescueId));
     });}
-    return Object.freeze({begin,stage,acknowledgeSource,reconcile,seal,publish,recover,preparedRepository,activeRepository,suspendWrites,abandon,rescue,
+    return Object.freeze({begin,stage,acknowledgeSource,reconcile,seal,publish,recover,preparedRepository,activeRepository,suspendWrites,resumeWrites,abandon,rescue,
         inspect:readJournal,exportEvidence:readJournal,dispose(){disposed=true;binary.dispose?.();sync?.dispose?.();}});
 }

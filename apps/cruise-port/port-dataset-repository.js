@@ -118,13 +118,15 @@ export class PortDatasetRepository {
         if (!this.sharedWriteCapable) return this.inspect();
         return this.locks.request(this.lockName, { mode: 'shared' }, () => this.inspect());
     }
-    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {} } = {}, writer) {
+    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {}, operationId } = {}, writer) {
         if (!this.sharedWriteCapable) return { ok: false, status: 'rejected', reason: 'locks-unavailable' };
         try {
-            return await this.locks.request(this.lockName, { mode: 'exclusive' }, async () => {
+            const guarded = typeof this.authorityProvider?.captureCommitContext === 'function';
+            const context = this.authorityProvider?.captureCommitContext?.();
+            const prepare = async () => {
                 this.authorityProvider?.assertWritable();
                 await assertCurrent();
-                const before = this.inspect();
+                const before = guarded ? await this.readDatasetState() : this.inspect();
                 if (expectedRevision === undefined && expectedValues === undefined) throw error('base-required');
                 if (expectedRevision !== undefined && expectedRevision !== before.revision) throw error('stale');
                 for (const [key, raw] of Object.entries(expectedValues || {})) {
@@ -136,7 +138,11 @@ export class PortDatasetRepository {
                 const draft = memory(before.values);
                 const result = await writer(draft);
                 await assertCurrent();
-                if (result?.ok === false) return { ...result, status: 'rejected' };
+                if (result?.ok === false) return { rejected: { ...result, status: 'rejected' } };
+                await this.authorityProvider?.validateCommitContext?.(context);
+                if (Object.keys(draft.values).length !== PORT_DATASET_KEYS.length || PORT_DATASET_KEYS.some(key =>
+                    !Object.hasOwn(draft.values, key) || draft.values[key] !== null && typeof draft.values[key] !== 'string'))
+                    throw error('invalid-dataset');
                 assertPortForwardCompatible(draft.values);
                 for (const key of Object.keys(PORT_DATASET_CATALOG)) {
                     if (preserveUnknown && draft.values[key] !== null && before.values[key] !== null && draft.values[key] !== before.values[key]) {
@@ -146,11 +152,21 @@ export class PortDatasetRepository {
                 const generation = this.token();
                 if (source === 'local') this.coordinateDeletes(before.values, draft.values, generation);
                 const changed = PORT_DATASET_KEYS.filter(key => draft.values[key] !== before.values[key]);
-                if (!changed.length) return { ...result, ok: true, status: 'unchanged', revision: before.revision, state: before };
-                // No await between final base check, WAL, data writes and metadata publication.
-                if (this.inspect().revision !== before.revision) throw error('stale');
+                Object.freeze(draft.values); // caller cannot mutate a validated draft while commit lock is queued
+                return { before, draft, result, changed };
+            };
+            const commit = prepared => {
+                if (prepared.rejected) return prepared.rejected;
+                const { before, draft, result, changed } = prepared;
                 const metaBefore = this.storage.getItem(PORT_DATASET_META);
-                const meta = { protocol: PORT_DATASET_PROTOCOL, generation: before.generation || this.token(), revision: this.token(), keyRevisions: { ...before.keyRevisions, ...Object.fromEntries(changed.map(key => [key, this.token()])) } };
+                const meta = !changed.length ? null : { protocol: PORT_DATASET_PROTOCOL, generation: before.generation || this.token(), revision: this.token(), keyRevisions: { ...before.keyRevisions, ...Object.fromEntries(changed.map(key => [key, this.token()])) } };
+                // Final synchronous boundary: no caller await after these checks.
+                if (this.inspect().revision !== before.revision) throw error('stale');
+                this.authorityProvider?.assertWritable();
+                const authorityContext = this.authorityProvider?.assertCommitCurrent?.(context);
+                if (authorityContext?.then) throw error('authority-commit-guard-async');
+                if (!changed.length) return { ...result, ok: true, status: 'unchanged', revision: before.revision, state: before,
+                    ...(guarded ? { authorityContext, publish: false, operationId } : {}) };
                 let rollback = 'succeeded';
                 try {
                     this.storage.setItem(PORT_DATASET_META, JSON.stringify({ ...meta, pending: { before: before.values, metaBefore } }));
@@ -160,14 +176,27 @@ export class PortDatasetRepository {
                     for (const key of changed) { try { this.writeRaw(key, before.values[key]); } catch { rollback = 'failed'; } }
                     if (rollback === 'succeeded') { try { this.writeRaw(PORT_DATASET_META, metaBefore); } catch { rollback = 'failed'; } }
                     if (rollback === 'failed') this.degraded = true;
-                    return { ok: false, status: rollback === 'failed' ? 'recovery-required' : 'rolled-back', reason: 'write-failed', rollback };
+                    return { ok: false, status: rollback === 'failed' ? 'recovery-required' : 'rolled-back', reason: 'write-failed', rollback, ...(operationId === undefined ? {} : { operationId }) };
                 }
-                const state = this.inspect();
-                const event = Object.freeze({ revision: state.revision, generation: state.generation, keys: Object.freeze(changed), source });
+                // Publication already succeeded. Return that historical fact even
+                // if a subscriber subsequently changes Account/pointer/gate.
+                const state = Object.freeze({ protocol: PORT_DATASET_PROTOCOL, generation: meta.generation,
+                    revision: JSON.stringify([JSON.stringify(meta), draft.values]), values: Object.freeze({ ...draft.values }),
+                    keyRevisions: Object.freeze({ ...meta.keyRevisions }), sharedWriteCapable: this.sharedWriteCapable });
+                const event = Object.freeze({ revision: state.revision, generation: state.generation, keys: Object.freeze(changed), source,
+                    ...(guarded ? { authorityContext, publish: false, operationId } : {}) });
                 for (const fn of [this.notify, ...this.listeners]) { try { fn(event); } catch { /* A subscriber cannot undo a committed write. */ } }
-                return { ...result, ok: true, status: 'committed', revision: state.revision, state };
-            });
-        } catch (e) { return { ok: false, status: e.code === 'recovery-required' ? 'recovery-required' : 'rejected', reason: e.code || 'read-failed' }; }
+                return { ...result, ok: true, status: 'committed', revision: state.revision, state,
+                    ...(guarded ? { authorityContext, publish: false, operationId } : {}) };
+            };
+            if (guarded) {
+                // Private async preparation never monopolizes the commit lock.
+                const prepared = await prepare();
+                return await this.locks.request(this.lockName, { mode: 'exclusive' }, () => commit(prepared));
+            }
+            return await this.locks.request(this.lockName, { mode: 'exclusive' }, async () => commit(await prepare()));
+        } catch (e) { return { ok: false, status: e.code === 'recovery-required' ? 'recovery-required' : 'rejected', reason: e.code || 'read-failed',
+            ...(operationId === undefined ? {} : { operationId }) }; }
     }
     writeRaw(key, value) { if (value === null) this.storage.removeItem(key); else this.storage.setItem(key, value); }
     coordinateDeletes(before, after, generation) {

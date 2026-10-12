@@ -1,5 +1,29 @@
 # Port Authority Migration & Cutover Engine v1 — B1-4
 
+## Local Final Commit Race修正後のEngine境界（2026-10-12・現行）
+
+Port1.22.7 / Studio0.26.1。[Local Authority契約](PORT_LOCAL_AUTHORITY.md)を優先する。
+activeRepositoryは同期commit guardを持つAuthority providerを注入する。
+callerの最後の非同期検証より後でも、同期owner snapshot・shared control epoch・fence ticket・
+active pointer・journal raw/hash・sealed marker・Repository revisionを同dataset lock内で確認する。
+非同期準備中はdataset lockを保持しない。最終WAL/metadata区間にawaitを挟まない。
+
+publishは隔離controlをpointer前に初期化する。既存controlのretry/recoveryで失効状態を上書きしない。
+旧control欠落はwriteをfail-closedにし、本番新namespace採用や旧データの自動補完はしない。
+suspend/resume、fence revoke、協調identity changeが同じdataset lock/epochに参加する。
+失効が先に確定ならpending save拒否、save確定が先なら保存事実を残す。
+revokeのPromise完了をcross-context失効確定と扱う。realm内ticketは直ちに無効化する。
+resumeはAccount/fence失効やrecoveryを解消する認可APIではない。
+
+scopeのreadIdentityは同期snapshot source、setIdentityは同期更新sourceとして明示注入する。
+bound AccountはAccount/membership generationを固定。local-onlyに資格を必須化しない。
+製品側の正式source・remote fresh evidence bridge・operator recoveryは未接続、B1-6の残gate。
+response-loss retryは元baseとcontextを維持しCAS/失効で拒否、新Accountへretagしない。
+成功receiptはhistorical commit fact / publish=falseであり、fresh authorizationではない。
+
+本番deploy / D1 / cutoverなし、legacy / ACCEPT_COMPAT / enforcement OFF、
+Studio shared write OFF / canWrite=false。B1-6未完了、B1未解消。以下は履歴。
+
 ## Generation Race修正後の接続境界（2026-10-12・現行）
 
 [Workerの正式契約](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を優先する。

@@ -1,5 +1,72 @@
 # B1-2 + B1-3 Authority Preparation
 
+## Local Authority Final Commit Race修正（2026-10-12・現行）
+
+Port **1.22.7**（内部安全修正のpatchとPort module graph/cache同期）、Studio **0.26.1 / schema1**。
+修正はRepository、dormant Migration Engineと新`port-authority-write-control.mjs`に限定する。
+既存の最終await競合は対照3 PASS / 再現3 FAIL → **6 PASS**。元テストを変更せず保持する。
+
+### 線形化と共有control
+
+active Authorityだけ、private draft作成・callerの非同期readiness/Account/fence検証・journal hash検証を
+commit lock外で行い、最後に既存`authorityLockName(generation)`のexclusive lockを取得する。
+そのcallbackにはawaitを置かない。全inventory/schema検証済みdraftはlock待機前にfreezeする。
+同callbackでproviderの同期commit guard、完全Repository revision CAS、WAL、変更key、final metadataを扱う。
+**saveの線形化点はpendingなしのfinal metadataのsetItem成功**。multi-key StorageをDB transactionと扱わず、
+既存WAL/rollback/recoveryを維持する。commit後のsubscriber失敗・Account変更で成功事実を取り消さない。
+
+新control keyは`<generation marker key>.writeControl`。protocol1 / migrationId / Authority generation /
+monotonic epoch / 固定identity / fence evidence / suspended / fenceRevoked / identityInvalidatedを保持する。
+秘密資格や万能registryは持たない。保存開始のcaptureでcontrol snapshotを固定し、最後に完全一致を要求する。
+停止→再開やAccount A→B→Aでもepochを戻さず、古い保存contextを復活させない。
+control欠落・未知protocol・不正値はrecovery-required。旧active namespaceへ自動補完しない。
+
+`suspendWrites` / `resumeWrites`は既存partition migration lock→Authority dataset lockの順で更新する。
+停止の線形化点はdataset lock内のcontrol publication、完了応答時にはjournal.writeDisabledも永続化済み。
+非同期save準備はこのlockを保持しないため、停止が検証待ちsaveの終了を待つことはない。
+pre-publicationの停止はjournalを閉じ、active control/pointerを作らない。
+resumeは明示操作だけ。active pointer/current identity/fence有効時のみ、epochを増やす。
+Account/fence失効をresumeで再認可せず、authorized recoveryへ残す。
+
+`revokeIsolatedFence`は当該realmのticketを即時無効化し、同dataset lockでshared epoch/失効を永続化する。
+返すPromiseの完了が**cross-contextの失効確定**。別realmのWeakMapやstorageイベントを共有と仮定しない。
+`changeIsolatedIdentity`はpartition migration→datasetの順で、旧Authorityを永続失効させてから
+同期owner sourceを更新する。callbackを非同期にするsourceは非対応でfail-closed。
+Repositoryは上位migration/activation/Sync lockを取得せず、**activation→Sync execution→dataset**の逆順を追加しない。
+
+### 最終commit条件とAccount source
+
+writeDisabled/suspended=false、active journal（hash検証済みrawと最終一致）、sealed marker、
+active pointer/namespace、Authority generation、control epoch、protocol、fence ticket/evidence/epoch、
+固定Account/membership IDとそれぞれのgeneration、Repository revision、no pending/recovery/future schemaを検査する。
+Account検証はasync結果だけでなく、**同期readIdentity snapshot**を同commit callbackで照合する。
+bound-accountはAccount/membership generation不明ならread-only。fixtureのgeneration=1は隔離seedであり、
+製品sourceの推測値ではない。unbound-localはAccount/membershipを要求しない。
+
+同期source変更を同realmで観測できても、別contextの所有変更は協調APIによるshared control更新が必要。
+Web LocksだけでAccount切替・server revokeを自動検知しない。remote fresh evidence→local invalidationの
+製品bridgeはB1-6残工程。static isolated ticketを本番認可と扱わない。
+
+### 失敗・応答喪失・公開境界
+
+拒否は既存authority-write-disabled / cloud-fence-required / migration-account-changed / recovery-required等、
+ABA/epoch違いはauthority-context-stale。network retryと混同せず、draft/元data/journalを保持する。
+Repository callerが渡すoperationIdは成功/Authority拒否/write failure応答へ保持し、勝手に発行・retagしない。
+RepositoryはCAS APIであり、同operationIdだけで新baseを採用するdedupe APIではない。
+response loss時も元base/contextで再送し、stale/失効を拒否する。新しいbaseで旧操作を自動rebaseしない。
+過去の保存内容/revisionは旧namespaceから確認でき、現在の認可とは別物。
+
+active Authorityの成功結果/通知は固定authorityContext（identity / generation / controlEpoch / fenceEpoch）と
+publish=falseを持つ。commit factで新AccountのSync queueへ送らない。cloud publishは依然未接続。
+future ownerはoutbox生成・送信前にも正式generation/Pro/AppDevice/epochを再検証する。
+legacy Repositoryの保存順は維持し、Authority専用opt-inのasync準備だけをlock外へ移す。
+
+追加Node **51 PASS**、native Chrome **12ケースPASS**（二tab競合6・reload5・lock grant順1）。
+通常旧buildのlegacy namespaceと新Authorityは分離。新Authorityへの協調writerが今回の保護対象で、
+非協調コードの新namespace直接書込や本番旧writer排除全体を解消済みとは扱わない。
+production **legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false**。
+Worker deploy / D1適用 / 本番cutoverなし。**B1-6未完了 / B1未解消**。以下は履歴。
+
 ## Asset cleanup競合修正（2026-10-12・現行）
 
 Port1.22.6 / Studio0.26.1。詳細は[Asset Lifecycle契約](../../../workers/sound-cruise-sync/ASSET_LIFECYCLE.md)。

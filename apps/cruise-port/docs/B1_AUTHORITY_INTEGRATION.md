@@ -1,3 +1,226 @@
+# Local Authority Final Commit Race — 限定修正完了
+
+2026-10-12。B1-6全体の製品統合へは戻らず、Local Authority保存確定の競合だけを修正した。
+既存の再現テストと停止報告を保持。本節の下に停止報告原文をそのまま残す。
+commit/push hash・最終Git状態は作業完了報告で実測提示する。
+
+## 開始・再現・根本原因
+
+開始HEAD / origin/main / remote main: `aa24087db85303af55bae82f13097ba5bb5fbc17`。
+main、ahead/behind0/0、staged空。既存未commitは本停止報告とauthority-final-await-race.test.mjs。
+既存untracked .claude/ と workers/sound-cruise-sync/node_modules/は不触・stage対象外。
+
+元6ケースは、修正前 **対照3 PASS / 再現3 FAIL**、修正後 **6 PASS**。
+初期/最終検証でsuspendWrites、ticket revoke、Account A→Bを確定させる。元assertionは変更していない。
+根本原因は、最後のcaller await後にreadability/revisionだけを確認してWALへ進み、
+停止/journal/fence/Account sourceがdataset lockに参加せず、旧検証結果を使っていたこと。
+
+実装はRepository・dormant Migration Engine・write controlの3ファイル。
+残りの実コード差分はPort1.22.7のversion/cache graph同期。sharedの変更はtest importer URLだけ。
+Studio / Worker / 他アプリ実コード・D1 schema・backend policyは変更しない。
+
+## 実効境界と失敗意味
+
+正式契約: [PORT_LOCAL_AUTHORITY](PORT_LOCAL_AUTHORITY.md)、[Repository](PORT_DATASET_REPOSITORY.md)、
+[Migration Engine](PORT_AUTHORITY_MIGRATION.md)、[Readiness](PORT_WRITE_READINESS.md)。
+
+| 論点 | 修正・実証 |
+|---|---|
+| 線形化 | save=同dataset lock内のfinal metadata setItem成功。状態変更=同lock内のshared control publication |
+| Lock | Authorityだけasync準備をlock外へ分離、final callbackは同期。既存activation→Sync→dataset順を維持 |
+| State change | suspend/resume・ticket revoke・協調identity変更が既存dataset lock/共有epochへ参加 |
+| Suspension | 停止完了が先ならpending保存拒否。停止→resumeでも古いcontextを復活させない |
+| Fence | realm-local WeakMap＋shared durable fenceRevoked/epoch。revoke Promise完了をcross-context失効確定とする |
+| Account | 同期readIdentityで固定Account/membership IDと別々のgenerationを照合。A→B/A→B→Aでretagしない |
+| Authority/pointer | generation/migrationId/active pointer/namespace/sealed marker一致。旧prepared handleはread-only |
+| Journal | hash検証済みrawを最後の同期guardで再照合。unknown/control欠落/recovery stateは拒否 |
+| CAS/full data | full base/revision/key revision/forward/unknown fields/delete intent維持。全inventoryを検証しdraft freeze |
+| WAL | partial failureは元rawへrollback。rollback失敗ならpending WAL/recovery-requiredを保持 |
+| Async gaps | 初回/最終caller validation、writer、最後のjournal/hash awaitを故障注入。CAS読取後のsource変化も拒否 |
+| Post-commit | 保存事実を取り消さず、固定old context＋publish=falseを返す。新Accountへ送信しない |
+| Response loss | 元base/context/operationIdのretryをCAS/失効で拒否。data/revision保持、二重commitなし |
+| Draft | authority拒否でprivate draftを保持、永続dataを置換・破壊しない。勝手なoperationId更新なし |
+| Two contexts | shared storage/epochでsave/save、save/stop/revoke/Account切替を検証。storage event cacheは不要 |
+| Old build | 通常legacy writerはnamespace分離。新Authorityの協調writerが対象で、本番旧writer排除全体は未解消 |
+
+async readinessのbooleanだけで最終保存を許可しない。bound ownerにgeneration不明ならwrite不可。
+local-onlyはAccount/membership不要。readIdentity/setIdentityは同期sourceとして明示注入し、
+別realmのAccount source変更はshared controlへの協調更新を要求する。
+server revoke/fresh evidenceを自動検知するbridgeは未接続で、B1-6残gate。
+RepositoryはCAS APIであり、optional operationIdのみで新baseを採用する新dedupe APIではない。
+response lossから新Account/新baseへ旧操作を自動rebaseしない。
+
+## 検証結果
+
+| suite | 今回実測 |
+|---|---:|
+| 修正前baseline Worker / Port・shared / Other Sync | 760 / 1588 / 85 PASS |
+| Studio作業中baseline | 314 PASS。clean guardはcommit後の315全件で確認 |
+| 元Local race | 修正前3 PASS / 3 FAIL → 修正後6 PASS |
+| 新規Node競合/失敗/CAS/WAL | 51 PASS |
+| Port/shared全階層 | 1645 PASS（1588＋元6＋追加51） |
+| Worker/Account | 760 PASS |
+| Other apps従来Sync範囲 | 85 PASS |
+| Studio作業中 | 314 PASS、commit後Git clean込み315全件を別途確認 |
+| workerd/D1/R2 | 8 PASS |
+| 元Asset Cleanup race | 2 PASS（単独再確認も実施） |
+| 元server Generation race | 4 PASS（単独再確認も実施） |
+| 新native Chrome race | 12 PASS。二tab6競合＋reload後失効5＋native lock grant順1 |
+| Port desktop/mobile | 18経路＋readiness26ケースPASS |
+| Port migration/native Storage/IDB | 18項目PASS |
+| Studio read-only Host | 10ケースPASS、canWrite=false、API副作用0 |
+| Studio Metronome M1/M2＋Structure Editing Session | 76 PASS（M1/M2 53＋Editing Session23、Pre-DTMも既存ケースで確認） |
+| Console/404/unhandled | 0。migration suiteの外部stylesheet1 requestはstub応答、意図しないnetwork mutationなし |
+
+ブラウザーは隔離Chrome profile、loopback fixtureだけ。Web Locks・shared localStorage・native IDBを使用する。
+保存開始時刻/Promise resolve順ではなく、実lock grant順とcontrol epochで確定順序を検証した。
+Safari/PWA実機、OS sleep/wake、BFCache、別partition、Port/Studio本格同時UI統合は今回の完了範囲に含めない。
+
+## Production・Version・次工程
+
+Port **1.22.7**（内部安全patch＋必要なcache graph/test reference更新）。Studio **0.26.1 / schema1**維持。
+通常Portはlegacyで起動し、migration/controlを自動生成しない。通常Studioはread-only Hostのまま。
+本番Worker deploy / D1適用 / cutover / active pointer公開は実施なし。
+production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / PortDataHost.canWrite=false**。
+新stage/commit/pushは指定対象の個別stage・限定commit・通常pushのみ、禁止Git操作は使用しない。
+
+限定Local Final Commit Raceは解消。**B1-6未完了 / B1全体未解消 / shared write解禁不可**。
+次はB1-6安全監査と正式Source/fresh evidence/operation contextの製品接続。
+残Blocker: remote evidence→local control bridge、operator/authorized recovery、旧controlの扱い、
+local legacy writer停止、Account/AppDevice/Proを含むqueue/publish境界、reconciliation UX、
+Port/Studio同時UI、実機/partition、cleanup crash回収・fence対応rollback/deploy acceptance gate。
+今回の適性はAstra・中（排他設計・複数状態・長い制約の判断）。cache同期は機械作業として軽量モデル適性。
+実際のモデル設定を変更したという意味ではない。
+
+---
+
+以下はB1-6 v3停止報告の原文（本修正前の履歴）。
+
+# B1-6 Authority Integration v3 — Local Authority最終await競合による停止
+
+2026-10-12。**Phase Aで新たな重大なAuthority write fence競合を再現し、停止。B1-6未完了、commit / pushなし。**
+依頼の「新重大競合を再現した場合は再現テストを作成して停止」に従う。
+製品コードは変更しない。これまでの修正・停止報告は本節より下に原文のまま保持する。
+
+## 開始状態・修正済み競合の回帰（報告項目1、3–4、32–36）
+
+開始HEAD / origin/main / remote mainはすべて`aa24087db85303af55bae82f13097ba5bb5fbc17`。
+main、tracked clean、staged空。既存untrackedは`.claude/`と`workers/sound-cruise-sync/node_modules/`のみ。
+remote実値を読み取り確認してから監査を開始した。禁止された旧repo / migration bundleは使用していない。
+
+| 今回実測したbaseline | 結果 |
+|---|---:|
+| Worker / Account | 760 PASS |
+| Port / shared（全階層test.js / test.mjs） | 1588 PASS |
+| Other apps（従来Sync範囲） | 85 PASS |
+| Studio（作業差分追加前、Git clean guard込み） | 315 PASS |
+| 隔離workerd / D1 / R2 | 8 PASS |
+| 元Asset race | 2 PASS。Worker全件内と単独再確認 |
+| 元Generation race | 4 PASS。Worker全件内と単独再確認 |
+| 新規Local Authority最終await競合 | **3 PASS / 3 FAIL** |
+
+workerdは既存のtransaction fence1、Asset lifecycle3、generation race4をローカル実行した。
+新規6ケースのうち、初回検証中の無効化は3件とも拒否されるが、最終検証中では3件とも保存が成立する。
+元のAsset / server Generation raceの再発ではない。
+
+## 再現・原因・影響範囲（2、10–16、21、58）
+
+再現テスト: `apps/cruise-port/tests/authority-final-await-race.test.mjs`。
+
+```sh
+node --test apps/cruise-port/tests/authority-final-await-race.test.mjs
+```
+
+既存Migration EngineでAccount Aにboundしたfull datasetをstage / seal / publishし、active Repositoryを取得する。
+同じfixture lock managerを使用し、保存はAuthority datasetのexclusive lock内で実行する。
+private draftにBPM166を設定し、commit直前の2回目の`assertCurrent()`でawaitを止める。
+別の制御処理として次のいずれかを完了させてから、awaitを再開する。
+
+| 完了した無効化 | 期待 | 実測 |
+|---|---|---|
+| `await engine.suspendWrites()`、journal.writeDisabled=true | pending保存を拒否、元dataset保持 | ok=true / committed、dataset変更 |
+| `revokeIsolatedFence(fence)` | 失効ticketのpending保存を拒否 | 同上 |
+| Account identity A→B | Aの古い操作のcommitを拒否 | 同上（Aのnamespaceが更新される） |
+
+同じ無効化を1回目の検証中に行う対照ケースはすべて拒否される。
+この違いにより、単にgateが実装されていない問題ではなく、最終await後の検証漏れと特定できる。
+
+原因:
+
+1. `port-authority-migration.mjs:261`のactive Repository wrapperは
+   `await current(j) → writable() → await options.assertCurrent()`の順で検証する。
+2. 最後のcaller検証を待つ間、migration journalのwriteDisabled、fence ticket、Account identityが変更できる。
+3. `port-dataset-repository.js:138`のawait終了後は、schema・raw値・revisionを比較してWAL / data / metadataを書き込む。
+4. この直前の`inspect()`はreadabilityを確認するだけで、writeDisabled / ticket失効 / Account bindingを再確認しない。
+5. `suspendWrites()`のmigration lockと保存のAuthority dataset lockは別であり、停止完了がpending保存を直列化しない。
+
+影響は隔離active Authority Repositoryを利用するlocal mutationの認可境界。
+この状態でdormant Facadeを接続すると、RepositoryのCASが成功しても「現在write可能」を保証できない。
+旧Accountのnamespaceへのstale commitを実証したが、Account Bのdatasetへの混入・cloud送信・lost update・本番事故を実証したわけではない。
+WorkerのD1 guard、R2 cleanup契約、通常Studio UIのread-only gateを迂回したとの主張もしない。
+本番migration / active Repositoryは接続しておらず、今回も接続していない。
+
+再現はmemory storageと既存FIFO lock fixtureでの決定的な非同期境界検証であり、native Chrome Web Locks実測ではない。
+callerのassertCurrentには検証遅延だけを注入し、その外側から停止・失効・Account変更を実行した。
+依頼が要求する保存停止・Account bindingの最終認可に関わるため、小さな表示や契約文言の不整合として処理しない。
+
+## 横断監査の到達点（2、5–23）
+
+| 接続点 | 今回の確認と未完了範囲 |
+|---|---|
+| Account / membership generation | 0037のserver取得・ledger固定・D1内比較・stale read拒否を確認。旧4件PASS。local final awaitは上記Blocker |
+| local Authority generation | pointer / journal / namespaceの固定とactive handle guardを確認。最終write認可に未保護区間あり |
+| writerProtocol / syncProtocol / writeEpoch | server既存guardの回帰PASS。Facadeの新Authority operation context結合は未実装 |
+| Repository revision | 同lockでbase / key revision / 最終raw比較。ただしrevision一致はwrite資格の有効性を証明しない |
+| Migration Journal | hash検証・migration lock・suspendWritesの永続化を確認。停止完了後にpending saveが通ることを再現 |
+| Cloud checkpoint / Cutover ledger | 既存B1-5と0037の固定・retry / recoveryを確認。v3のfresh evidence→pointer結合は未実装 |
+| Asset cleanup claim | 0036排他・immutable identity / retryを変更せず、既存Node / workerd回帰PASS |
+| Operator authorization | 現在はcode-branded隔離capability、production routeなし。v3の正式な隔離operator flowは未実装 |
+| Sync Execution Lock | 既存Account+app排他とdataset lock順の契約・runtime接続点を調査。新Authority runtime接続は未実装 |
+| Studio PortDataHost | read-only / dormant Facade / operation boundaryを調査。通常Host canWrite=falseを維持、新Authority未接続 |
+
+指定契約の全件精読・統合設計・Phase B以降の実装は停止により未完了。
+既存のallWritersCompatible fixtureを製品認可へ昇格していない。Pro資格を表示用cacheへ置き換えていない。
+Standard / Pro別操作readinessの新接続、membershipを含むoperation contextの完成、full snapshot/runtime結合は未実証。
+Studio独自dataset / outbox、Metronome専用runtime、partial snapshot送信は追加していない。
+遅延uploadの未公開orphan追加回収も未実装。前回の永久tombstone・結果不明時の保持を維持する。
+
+## 同時動作・ブラウザー・実機（24–31、37–38）
+
+Phase FのPort/Studio同一origin・partitionによるtwo-tab検証は未実装・未実行。
+settings / presets / delete-edit / offline-reconnect / Account switch / Pro失効 / external Syncの統合成功を主張しない。
+Port desktop/mobileとStudioの既存browser suiteも今回未実行。console / app404 / unexpected network mutationは未測定。
+前回のbrowser結果を今回の実測として流用しない。
+
+Safari/macOS、iPhone Safari、PWA、BFCache、sleep/wake、storage partitionは本番acceptanceの未確認項目として残す。
+Chrome viewportで実機確認を代用しない。新規重大競合の解消とChrome統合が完了しても、別途実機gateが必要。
+
+## Production・version・Git（39–54）
+
+製品コード・version・schema・設定は変更なし。Port1.22.6 / Studio0.26.1 / Studio schemaVersion1を維持。
+本番Worker deploy、D1 migration、cutover、active pointer公開、epoch/minimum更新、旧writer拒否は実施なし。
+ACCEPT_COMPAT / legacy / enforcement OFF / Studio shared write OFF / PortDataHost.canWrite=falseを変更していない。
+live production状態を再監査したとの主張はしない。
+
+差分は本報告と新規再現テストのみ。既存履歴・旧再現を保持。その他の指定文書更新は停止により未実施。
+各ファイルは未stageで保持し、commit / pushを行わない。新commit hash / commit files / push結果は該当なし。
+予定message「PortとStudioのAuthority統合基盤を整備」は未使用。
+終了時のHEAD / origin/main / remote main一致、ahead/behind、staged空、diff --checkは最終応答で実測報告する。
+既存untracked2ディレクトリは未変更・未stage。
+
+## 完了判定・次工程（55–60）
+
+- B1-6隔離統合: 未完了。B1全体: 未解消。shared write: 解禁不可。
+- Blocker: Local Authorityの停止・ticket失効・Account変更が、最終await中の保存を止められない。
+- 次Phase: 最終mutationと同じ実効境界へwrite gate / Account bindingを結び付ける限定修正を先行する。
+  asyncの取得・検証と、awaitを挟まない最終commit guardを区別し、suspend / revokeとの順序を定義する。
+- caller検証の順番を変えるだけでは、他のawait境界も含む保証の再確認が必要。
+  dataset CASを維持し、停止完了後のpending commitを拒否するか、既にcommit済みだった事実と停止の順序を明示する。
+- 修正後は本6ケース、Account/membership/Pro/dispose、native lock / two-tab、全baselineを確認してからv3統合を再開する。
+- モデル適性: 横断監査はAstra / 中が妥当。限定修正はSol / 高を候補とし、非同期認可とlock順の設計が広がる場合はAstra / 中を優先。
+
+---
+
 # Migration / Cutover Generation Race — 限定修正完了
 
 2026-10-12。B1-6全体の製品統合へは戻らず、世代競合だけを修正した。

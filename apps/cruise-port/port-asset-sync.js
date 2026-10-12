@@ -1,5 +1,5 @@
-import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.22.6';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.6';
+import { usesPortRepository, portRepository } from './port-dataset-storage.js?v=1.22.7';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.7';
 const METADATA_KEY = 'cruisePort.syncAssetMetadata';
 const GEAR_KEY = 'cruisePort.gearList';
 const MY_APPS_KEY = 'cruisePort.myApps';

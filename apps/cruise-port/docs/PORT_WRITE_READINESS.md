@@ -1,5 +1,17 @@
 # Port/shared Write Gate Prerequisites v1
 
+## Local Authority final commit接続境界（2026-10-12・現行）
+
+Port1.22.7 / Studio0.26.1。[Local Authority契約](PORT_LOCAL_AUTHORITY.md)を参照。
+async readinessは準備段階の検証であり、そのbooleanだけでWALを確定しない。
+active Authority Repositoryは同dataset lock内の同期source/epoch/fence/Account/CAS guardを最後に実行する。
+停止/resume/revoke/identity changeも同じ共有controlに参加し、確定済み失効をpending writerへ強制する。
+
+dormant FacadeのAccount/Pro/action/publication guardとproduction old-build-unknownを維持する。
+本修正でFacadeやHostを製品writeへ接続せず、Studio canWrite=false/shared write OFF。
+commit結果は旧contextのlocal save事実であり、新Accountのqueue/publish許可ではない。
+remote fresh evidenceと正式Account sourceをlocal controlへ接続する作業はB1-6残工程。
+
 ## B1-5実装後のreadiness境界（2026-10-12・現行）
 
 Port1.22.5 / Studio0.26.1 / Studio schema1。[Workerの正式契約](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を参照。

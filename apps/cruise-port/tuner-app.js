@@ -10,7 +10,7 @@ import {
     loadTunerSettings,
     saveTunerSettings,
     thresholdDbToRms
-} from './tuner-store.js?v=1.22.6';
+} from './tuner-store.js?v=1.22.7';
 import {
     TUNER_CAPO_MAX,
     TUNER_CAPO_MIN,
@@ -389,8 +389,8 @@ function diagnosticDeviceLabel(navigatorObject) {
     return 'Browser';
 }
 
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.6';
-import { effectiveCapo, requestToolPro } from './tool-capabilities.js?v=1.22.6';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.7';
+import { effectiveCapo, requestToolPro } from './tool-capabilities.js?v=1.22.7';
 
 export function initTuner(root, {
     capabilities = getCapabilities(),

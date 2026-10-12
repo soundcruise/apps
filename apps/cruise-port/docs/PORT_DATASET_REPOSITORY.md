@@ -1,5 +1,27 @@
 # Port Dataset Readiness Core v1
 
+## Authority final commit boundary（2026-10-12・現行）
+
+Port1.22.7 / Studio0.26.1。[Local Authority契約](PORT_LOCAL_AUTHORITY.md)を参照。
+legacyは従来どおりexclusive lock内でprivate writerを実行する。
+active AuthorityのcaptureCommitContextを持つproviderだけ、async preparationをlock外へ分ける。
+readDatasetStateでfull baseを取得し、caller検証/writer/journal検証後に全inventoryを検証・freezeする。
+最後のexclusive callbackは同期で、current provider guard / full revision CAS / WAL / data / final metadataを行う。
+caller/identityのasync booleanだけをcommit条件にしない。
+
+save線形化点はpendingなしのmetadata publication。state変更は同lockのshared control publication。
+待機順は開始時刻やPromise resolve順ではなく、lock取得とepochによって決まる。
+Repositoryからactivation / Sync lockを逆取得しない。network待機をdataset lock内へ追加しない。
+検証済みprivate draftはlock待機中に変更できず、partial/非文字列datasetの保存も拒否する。
+CAS / expected key revisions / delete intent / forward guard / unknown field保持を維持。
+
+commit後のstateをimmutable draftと確定metaから構成し、late invalidationやsubscriber例外で
+committedをrejectedへ変えない。Authority結果/通知は固定contextとpublish=falseを付ける。
+optional operationIdはcaller値を保持。durable operation-ID dedupe ledgerを追加したという意味ではなく、
+response-loss再送は元base CASを使う。旧operationを新base/new Accountへ自動移送しない。
+WAL失敗はrollback成功ならrolled-back、失敗ならpending WAL/recovery-requiredを保持する。
+本文下部の既存inventory/full snapshot/partial failure契約を弱めない。
+
 ## B1-3 Local Authority（2026-10-12・現行）
 
 Port1.22.3 / Studio0.26.1。[PORT_LOCAL_AUTHORITY](PORT_LOCAL_AUTHORITY.md)が正式staging契約。
