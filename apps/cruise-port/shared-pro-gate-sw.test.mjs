@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import { webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 const shared = readFileSync(new URL('../shared/pro-gate.js', import.meta.url), 'utf8');
@@ -80,7 +81,7 @@ function fixture({ values = new Map(), policy = true, session = { status: 200, b
       return offlineGrant ? { ok: true, offline: true, generation: existing.generation, offlineRemainingMs: 60000 } : { ok: false };
     }
   }) };
-  const context = vm.createContext({ window, document, location, localStorage: storage, fetch, URL, AbortController,
+  const context = vm.createContext({ window, document, location, localStorage: storage, fetch, URL, AbortController, crypto: webcrypto,
     setTimeout, clearTimeout, setInterval: () => 1, history: { replaceState() {} }, Date, console,
     MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame() { return 1; },
     cancelAnimationFrame() {}, getComputedStyle() { return { visibility: 'visible' }; } });
@@ -188,9 +189,9 @@ test('old HTML with new JS ignores old hash and loads Turnstile; new HTML with c
         'fretboard_cruise': 'pro_a9f4k7q2m8z', 'rhythm-cruise': 'pro_r4m8k7n2q9x',
         'chord-cruise': 'pro_k7m4q9v2x8' })[name] + '/index.html', 'utf8');
     assert.doesNotMatch(html, /passwordHash/);
-    if (name === 'pitch-cruise') assert.match(html, /shared\/pro-gate\.js\?v=30/);
+    if (name === 'pitch-cruise') assert.match(html, /shared\/pro-gate\.js\?v=31/);
   }
   assert.doesNotMatch(pitch, /passwordHash|sha256|AUTH_TOKEN/);
-  assert.match(pitch, /shared\/pro-device-session\.js\?v=2/);
-  assert.match(pitch, /shared\/pro-gate\.js\?v=30/);
+  assert.match(pitch, /shared\/pro-device-session\.js\?v=4/);
+  assert.match(pitch, /shared\/pro-gate\.js\?v=31/);
 });

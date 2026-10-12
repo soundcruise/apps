@@ -18,6 +18,7 @@
     const MIGRATED_KEY = 'soundCruiseProAuthMigrated';
     const RETIRED_KEY = 'soundCruiseProLegacyRetired';
     const PENDING_KEY = 'soundCruiseProRevokePending';
+    const OPERATION_EPOCH_KEY = 'soundCruiseProOperationEpoch';
     const LEGACY_COOKIE = 'soundcruise_pro_gate_rid';
     const TOKEN_RE = /^scp1\.[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.[A-Za-z0-9_-]{43}$/;
     let overlay;
@@ -37,8 +38,19 @@
     let gateMessage;
 
     function get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
-    function put(key, value) { try { localStorage.setItem(key, value); return true; } catch (_) { return false; } }
-    function remove(key) { try { localStorage.removeItem(key); } catch (_) { /* storage unavailable */ } }
+    function authIdentity(raw) {
+        try { const a=JSON.parse(raw||'null'); return JSON.stringify([a?.credential,a?.generation,a?.sessionVersion]); }
+        catch (_) { return 'invalid'; }
+    }
+    function put(key, value) { try {
+        if (key===AUTH_KEY && authIdentity(get(key))!==authIdentity(value))
+            localStorage.setItem(OPERATION_EPOCH_KEY, crypto.randomUUID());
+        localStorage.setItem(key, value); return true;
+    } catch (_) { return false; } }
+    function remove(key) {
+        if(key===AUTH_KEY && get(key)!==null) { try { localStorage.setItem(OPERATION_EPOCH_KEY,crypto.randomUUID()); } catch (_) { /* deletion still closes the source */ } }
+        try { localStorage.removeItem(key); } catch (_) { /* storage unavailable */ }
+    }
     function auth() {
         try {
             const value = JSON.parse(get(AUTH_KEY) || 'null');
@@ -85,6 +97,23 @@
         if (!sessionClient) throw Error('Pro session helper unavailable');
         return sessionClient;
     }
+    // Formal operation source, separate from accessGranted/DOM/cache badges.
+    // Reading creates no keys, receipt, client, request or renewal.
+    window.SoundCruiseProOperationSource = Object.freeze({
+        read() {
+            try {
+                const current=auth(), pending=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
+                if(!Array.isArray(pending))return {auth:null,revoked:true};
+                return {auth:current,revoked:resetInFlight||!current||pending.includes(current.credential),
+                    revision:JSON.stringify([localStorage.getItem(OPERATION_EPOCH_KEY),authEpoch,resetInFlight])};
+            } catch (_) { return {auth:null,revoked:true}; }
+        },
+        async validate(existing) {
+            const current=auth();
+            if(resetInFlight||!current||current.credential!==existing.credential||current.generation!==existing.generation)return {ok:false,stale:true};
+            return deviceSession().validate(existing,{force:false});
+        }
+    });
     async function forget(existing) {
         try { if (existing) await deviceSession().forget(existing); } catch (_) { /* failed storage never grants access */ }
     }

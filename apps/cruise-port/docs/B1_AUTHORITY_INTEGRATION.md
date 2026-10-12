@@ -1,3 +1,164 @@
+# B1-6 Authority Integration v4 — Pro認可と最終commitの接続競合で停止
+
+## Pro Final Commit Race限定修正（2026-10-12・現行）
+
+Port1.22.8 / Studio0.26.2。[Operation Commit Guard契約](OPERATION_COMMIT_GUARD.md)を参照。
+OpusのTOCTOU/ABA/責務分散指摘に対し、既存Repositoryへ同期operation guardとprivate固定contextを追加。
+元の再現8件は変更前2 PASS/6 FAIL→8 PASS。元のassertion/checkpointと以下の停止報告は保持する。
+本番Port advanced save/preset create/advanced applyとdormant Facadeを同境界へ接続し、Standard対照を維持する。
+追加148 matrix、native2-tabおよび実Port Pro UIの成功/拒否対照を確認する。
+未通知server revokeとPro sourceのcross-tab可視化/完全同lock線形化は未保証。cloud backend再認可は維持。
+B1-6は未完了。次はfresh server fenceと正式Account/control接続、operator/cleanup回収、old writer排除、
+reconciliation/partition/rollback acceptanceの独立再監査。Studio shared write解禁不可。
+Production Authority legacy / Worker ACCEPT_COMPAT / enforcement OFF / Host canWrite=false。
+今回deploy/D1適用/cutoverなし。以下のv4停止報告を含む記述は当時の監査記録。
+
+検証実測: Worker/Account760 PASS、Port/shared1801 PASS（baseline1645＋元Pro8＋追加matrix148）、
+Other apps Sync85 PASS / 変更cache参照を含む全186 PASS、Studio314 PASS（commit前clean guardのみ除外）。
+commit後はStudio全315件を除外なしで実行してからpushする。native workerd/D1/R2は8 PASS。
+既存Asset2 / Generation4 / Local final-await6（最終await3＋初回3）すべてPASS。
+Chrome: 新認可10、Port Standard18 routes＋4Themes、正式Pro26項目、runtime safety10、Migration18、
+Studio Host10＋Metronome/Editing Session76 PASS。console/page error/404なし、意図しないSync/network writeなし。
+Shared Pro helperの変更に伴い全readerのcache keyを更新。他アプリdomain/versionは不変更。
+
+
+2026-10-12。**Phase Aで新しいPro認可競合を再現し、指定の停止条件に従って停止。B1-6未完了、commit / pushなし。**
+既存3修正を作り直さず、dormant Studio Facadeと修正済みactive Port Repositoryの接続を監査した。
+製品コードは変更していない。以下の過去報告は原文を保持する。
+
+## 開始時Gitとbaseline（最終報告1、3–5、34–38）
+
+開始HEAD / origin/main / remote mainはすべて`c417a9e1806756af5dec9a3362ae16c7bf2683d9`。
+main、tracked clean、staged空。remote実値も読み取り確認した。
+既存untrackedは`.claude/`、`workers/sound-cruise-sync/node_modules/`のみで、変更・stageしない。
+禁止された旧repo / migration bundleは使用していない。
+
+| 今回の実測 | 結果 |
+|---|---:|
+| Worker / Account | 760 PASS |
+| Port / shared（全階層test.js / test.mjs） | 1645 PASS |
+| Other apps（従来Sync範囲） | 85 PASS |
+| Studio（差分追加前、Git clean guardを含む） | 315 PASS |
+| 隔離workerd / D1 / R2 | 8 PASS |
+| 元Asset race | 2 PASS |
+| 元server Generation race | 4 PASS |
+| 元Local final-commit race | 再現3＋対照3＝6 PASS |
+| 新規Pro final-commit接続テスト | **対照2 PASS / 再現6 FAIL** |
+
+既存3競合はbaseline内に加えて、合計12件を単独再確認してPASS。
+workerdは既存transaction fence1、Asset lifecycle3、generation race4をローカル実行した。
+新規Pro再現追加後の全suite再実行・ブラウザー実行は、停止条件により行っていない。
+
+## 再現した重大問題（2、14–16、60）
+
+ファイル: `apps/cruise-port/tests/authority-pro-final-commit-race.test.mjs`。
+
+```sh
+node --test apps/cruise-port/tests/authority-pro-final-commit-race.test.mjs
+```
+
+既存Migration Engineで隔離Account-bound Authorityをstage / seal / publishし、active Repositoryを取得。
+既存`createPortMetronomeFacade`のfixtureExecutorへそのRepositoryを接続する。
+認可は既存`createProOperationResolver`を使い、検証client / clock / 資格状態だけを隔離fixtureへ置き換える。
+本番network、実資格、実ユーザーデータは使用しない。
+
+順序:
+
+1. Pro有効時にadvanced saveまたはpreset createを開始する。
+2. operational Pro resolverが成功し、operationへgeneration / credential identity / validUntilを固定する。
+3. callerの非同期assertCurrentとAuthority journal検証を通過する。
+4. 同じdataset lockを競合holderが取得し、保存の最終exclusive lockを待たせる。
+5. lease期限切れ、既知の失効、またはPro generation変更を確定する。
+6. lockを解放すると、変更済み資格でもlocal commitが成立する。
+7. Facadeの保存後検証は失効を検出するが、既に保存済みなのでlocal-saved / sync-unconfirmed / publish=falseを返す。
+
+| 操作 | lock待機中の変化 | 期待 | 実測 |
+|---|---|---|---|
+| advanced save | 期限切れ / 既知の失効 / generation変更 | 拒否、dataset不変 | 3件とも保存成立 |
+| preset create | 同上 | 拒否、dataset不変 | 3件とも保存成立 |
+| 両操作の対照 | 資格変更なし | 保存成功 | 2件ともPASS |
+
+失敗6件の共通結果は`ok=true`、dataset revision変更、localStatus=local-saved、syncStatus=sync-unconfirmed。
+新しいAPIを作って迂回したテストではなく、既存Facade・Pro resolver・active Repositoryの組合せで再現した。
+FIFO lock fixtureへ競合holderを挿入し、同じlockのgrant順で境界を固定したNode検証。
+実ChromeのNative Web Locks / 実Proサーバーとの通信を検証したとの主張はしない。
+
+## 原因と影響範囲
+
+- `metronome-facade.mjs:40–44`は、操作のPro検証をRepositoryのasync `assertCurrent`として渡す。
+- 修正済みAuthority Repositoryではasync prepareをlock外で完了し、その後に最終exclusive lockを取得する
+  （`port-dataset-repository.js:192–195`）。これは前回の正しいAuthority線形化契約であり、元へ戻さない。
+- 同期commitではAuthority Providerのsuspension / ticket / Account / generation / control / journal / CASを確認する。
+  しかしFacade操作のPro proof / expiry / known revocation / credential generationはその同期guardへ渡されていない。
+- Facadeの保存後検証（46–47行）は保存事実を正しく返しているが、commit前の認可漏れを防ぐ役割にはならない。
+
+問題は「修正済みLocal Authority guard」と「Pro-only操作認可」の未接続境界。
+元のsuspend / fence / Account final-await race、Asset race、server Generation raceの再発とは区別する。
+advanced設定のlocal保存とpreset作成を実証した。cloud publish、Worker側Pro admission回避、Account混入、binary削除は実証していない。
+production Studio UIはfixtureExecutorを渡さずread-onlyのままで、本番でのPro制限解除を確認したとの主張もしない。
+このまま隔離製品統合を完成扱いすると「Pro資格有効時のみ保存」の要件を満たせないため、重大競合として停止する。
+
+## 横断監査・Source接続の到達点（2、6–25）
+
+| 接続点 | 今回の確認と残工程 |
+|---|---|
+| Account Source | 正式Account storageのgetAccount / getGeneration / subscribeAccount、Port runtime activationを調査。新しいSource bridgeは未実装 |
+| membership Source | 認証済みWorker evidenceのmembership ID / generationが必要。表示用runtime statusを認可として採用していない |
+| Authority Source / Fresh evidence | Local Providerの同期identity/control guardとWorker ledger証拠を確認。remote証拠からlocal controlへの接続は未実装 |
+| Cached status分離 | 通常Hostの表示cacheをwrite権限へ変更していない。テストも既存operational Pro resolverを経由 |
+| Port / Studio Host | 同じPort-owned Repositoryとdormant Facadeを隔離テスト内で接続した段階で上記問題を発見。製品SourceやUIへの新接続なし |
+| Read-only副作用 | 製品起動経路は不変更。今回の新規browser副作用測定は未実施 |
+| Standard / Pro / readiness | 既存操作別policyを調査。Pro-only操作の最終mutation認可にBlocker。Standard動作を変更していない |
+| Operation context | async boundaryにはPro proofが固定されるが、Authorityの同期最終guardに含まれない。全Source接続は未完成 |
+| Migration / Fence / Cutover recovery | 既存回帰を確認。v4でのfresh evidence→final reconciliation→pointerの新規結合実証は未実施 |
+| Operator / recovery | 既存はcode-branded隔離capability、production routeなし。管理方式調査・隔離operator flowの完成には未到達 |
+| Asset lifecycle / orphan | 既存Nodeとworkerd回帰PASS。永久tombstone・不明時保持を変更せず、追加orphan回収は未実装 |
+| Account binding / Sync Runtime / full snapshot | 既存ownership・15 key / 18 type・lock順・full snapshotを不変更。新しいqueue/publish接続は未実装 |
+
+指定契約すべての精読・更新と残る製品統合は停止により未完了。
+Studio独自dataset / outbox、Metronome専用runtime、partial Sync送信は追加していない。
+既存基盤を再設計した変更もない。
+
+## Browser・実機（26–33、39–40）
+
+Port/Studio実UI two-tab統合、settings / preset / delete-edit競合、offline/reconnect、Account切替、
+Pro expiry、external Sync、dirty/base/playback保護の新規ブラウザー検証は未実施。
+今回のPro競合はNodeで再現したものとして区別する。
+Port desktop/mobileとStudioの既存browser suiteも今回未実行。console / application404 / unexpected mutationは未測定。
+前回のbrowser実績を今回の結果として流用しない。
+
+Safari/macOS、iPhone Safari、iPhone PWA、BFCache、sleep/wake、storage partition、offline/reconnectは
+本番Acceptance Gateの未確認項目。Chrome viewport変更による代用はしない。
+
+## Production・version・Git（41–56）
+
+本番Worker deploy / D1 migration / cutover / active pointer公開 / epoch・minimum変更 / 旧writer拒否は実施なし。
+既存Portユーザーデータの移行・削除も行っていない。
+製品コード・設定は不変更で、legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF /
+PortDataHost.canWrite=falseを維持する。live production状態を再監査したとの主張はしない。
+Port1.22.7 / Studio0.26.1 / Studio schemaVersion1を据え置く。
+
+差分は本報告と新規Pro再現テストのみ。過去報告を原文保持し、他の指定文書更新は未実施。
+未stageのまま保持し、commit / pushなし。新hash・commit files・push結果は該当なし。
+予定message「PortとStudioのAuthority統合基盤を整備」は未使用。
+終了時のdiff --check、HEAD / origin / remote一致、ahead/behind、staged空は最終応答で実測報告する。
+既存untracked2ディレクトリは変更・stageしない。
+
+## 判定・次工程（57–62）
+
+- B1-6隔離統合は未完了。B1全体は未解消。shared writeは解禁不可。
+- BlockerはPro-only操作の認可が最終Authority commitへ接続されていないこと。
+- 次は固定operationのPro proof / expiry / known revocation / generationを、awaitを挟まない最終commit guardへ
+  接続する限定修正。cached statusのbooleanや保存後rollbackで代用しない。
+- 同期guardへ渡す正式Sourceと無効化の線形化を定義し、既存Authority lock / suspension / CASを維持する。
+  commit後に失効した場合のlocal-savedという正しい履歴報告とは区別する。
+- 本8ケースに加えStandard操作、advanced preset apply、dispose、Account/membership変更、実lock待機、
+  cloud側Pro admissionを回帰してからv4のSource / Host / operator統合へ戻る。
+- モデル適性: 横断接続監査にはAstra / 中が妥当。限定修正はSol / 高が候補。
+  正式Source・同期失効・cross-context認可の設計が広がる場合はAstra / 中を優先する。
+
+---
+
 # Local Authority Final Commit Race — 限定修正完了
 
 2026-10-12。B1-6全体の製品統合へは戻らず、Local Authority保存確定の競合だけを修正した。

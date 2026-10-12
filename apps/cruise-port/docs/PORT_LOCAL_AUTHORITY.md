@@ -1,5 +1,15 @@
 # B1-2 + B1-3 Authority Preparation
 
+## Operation認可とAuthorityの合成（2026-10-12・現行）
+
+Port1.22.8 / Studio0.26.2。[共通認可契約](OPERATION_COMMIT_GUARD.md)を参照。
+既存Authority final guard/control epoch/fence/Account bindingを保持し、同dataset lockへoperation guardを追加した。
+Pro device資格はAccountに従属しない。Account切替はAuthority ownership条件として拒否し、Proを無条件に失効させない。
+guard前のasync検証を最終認可と扱わず、WAL前・final metadata前に同期条件を確認する。
+metadata成功後は旧contextのcommit事実を保持し、cloud publish=false。新Account/資格へretagしない。
+同lock参加のAuthority mutatorと異なりshared Pro/localStorageの完全cross-tab線形化は保証しない。
+本番legacy/ACCEPT_COMPAT/enforcement OFF、B1-6未完了。以下は元のAuthority修正履歴を保持する。
+
 ## Local Authority Final Commit Race修正（2026-10-12・現行）
 
 Port **1.22.7**（内部安全修正のpatchとPort module graph/cache同期）、Studio **0.26.1 / schema1**。

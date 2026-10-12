@@ -1,5 +1,5 @@
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.7';
-import { loadMyApps } from './my-apps-store.js?v=1.22.7';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.8';
+import { loadMyApps } from './my-apps-store.js?v=1.22.8';
 
 export function canCreateMyApp(items, capabilities = getCapabilities()) {
     return items.length < capabilities.myAppsCreateLimit;

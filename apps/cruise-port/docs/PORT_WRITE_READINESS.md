@@ -1,5 +1,15 @@
 # Port/shared Write Gate Prerequisites v1
 
+## Operation Authorization Context v1（2026-10-12・現行）
+
+Port1.22.8 / Studio0.26.2。[共通認可契約](OPERATION_COMMIT_GUARD.md)を参照。
+async readinessだけで保存確定せず、同期readContextSync/readAuthSyncと正式Device Session proofを最終guardに渡す。
+wall/monotonic期限、5分rollback、高水位、credential/generation/epoch/既知revoke、固定target/baseを照合する。
+Standard BPM/list/apply/deleteはPro不要、unbound-localはAccount不要。Account-bound ownershipは独立条件。
+UI badgeは認可に使わず、status-onlyはsource読取りだけ。cloudは既存server再認可を必要とする。
+本番Port Pro Metronome保存へ接続。Studio Facadeはdormant、Host canWrite=false/shared write OFF。
+以下の既存工程記述は履歴。B1-6未完了、cross-tab可視化・未通知server revokeの限界は共通契約に明記する。
+
 ## Local Authority final commit接続境界（2026-10-12・現行）
 
 Port1.22.7 / Studio0.26.1。[Local Authority契約](PORT_LOCAL_AUTHORITY.md)を参照。

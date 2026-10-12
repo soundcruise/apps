@@ -1,6 +1,6 @@
 // Dormant Port-backed boundary. Production calls only the existing read host.
 // A repository executor is injected solely by isolated integration fixtures.
-import { createOperationBoundary } from '../../../cruise-port/port-write-readiness.mjs';
+import { createOperationBoundary } from '../../../cruise-port/port-write-readiness.mjs?v=1.22.8';
 import { saveMetronomeSettings, METRONOME_DEFAULTS, METRONOME_STORAGE_KEY } from '../../../cruise-port/metronome-store.js?v=1.22.4';
 import { createMetronomePreset, deleteMetronomePreset, loadMetronomePresets,
     METRONOME_PRESETS_STORAGE_KEY, settingsFromMetronomePreset } from '../../../cruise-port/metronome-presets-store.js?v=1.22.4';
@@ -35,19 +35,21 @@ export function createPortMetronomeFacade({ host, fixtureExecutor = null }) {
         try {
             const current = await executor.readContext();
             if (['generation', 'accountGeneration', 'accountId', 'repositoryEpoch'].some(key => current[key] !== bound.context[key])) return fail('account-generation-changed');
-            const operation = await boundary.begin(action, bound.base);
+            const operation = await boundary.begin(action, bound.base, { targetKeys: keys });
             await boundary.assertCurrent(operation);
             const result = await executor.repository.runWrite({
                 expectedValues: Object.fromEntries(keys.map(key => [key, bound.base.values[key]])),
                 expectedKeyRevisions: Object.fromEntries(keys.map(key => [key, bound.base.keyRevisions[key] ?? null])),
+                operationId: operation.operationId, authorizationContext: operation,
+                commitGuard: (context, details) => boundary.commitGuard(context, details),
                 assertCurrent: () => boundary.assertCurrent(operation)
             }, writer);
             if (!result.ok) return fail(result.reason);
             try { await boundary.assertCurrent(operation, { committed: true }); }
-            catch (_) { return { ok: true, localStatus: 'local-saved', syncStatus: 'sync-unconfirmed', publish: false }; }
+            catch (_) { return { ok: true, localStatus: 'local-saved', syncStatus: 'sync-unconfirmed', publish: false, operationId: operation.operationId }; }
             // No direct outbox API and no partial Sync snapshot. A future owner
             // receives only the fact that this full repository changed.
-            return { ok: true, localStatus: result.status === 'unchanged' ? 'unchanged' : 'local-saved', syncStatus: 'sync-unconfirmed' };
+            return { ok: true, localStatus: result.status === 'unchanged' ? 'unchanged' : 'local-saved', syncStatus: 'sync-unconfirmed', publish: false, operationId: operation.operationId };
         } catch (error) { return fail(error.code || error.message); }
     }
     return Object.freeze({

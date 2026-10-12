@@ -1,4 +1,4 @@
-import { PortDatasetRepository, PORT_DATASET_KEYS } from './port-dataset-repository.js?v=1.22.7';
+import { PortDatasetRepository, PORT_DATASET_KEYS } from './port-dataset-repository.js?v=1.22.8';
 const repositories = new WeakMap();
 const bases = new WeakMap();
 export function registerPortRepository(storage, repository) { repositories.set(storage, repository); bases.set(storage, new Map()); }
@@ -7,9 +7,9 @@ export function usesPortRepository(storage) {
     return !!storage && (repositories.has(storage) || (typeof globalThis.Storage === 'function' && storage instanceof globalThis.Storage));
 }
 export function portRepository(storage = globalThis.localStorage) {
-    if (!repositories.has(storage)) registerPortRepository(storage, new PortDatasetRepository({ storage, notify(detail) {
+    if (!repositories.has(storage)) registerPortRepository(storage, new PortDatasetRepository({ storage, notify(detail, operationIsCurrent = () => true) {
         globalThis.dispatchEvent?.(new CustomEvent('cruise-port-local-data-changed', { detail }));
-        if (detail.source === 'local') globalThis.SoundCruiseMultiAppSync?.notifyLocalSave?.('port');
+        if (detail.source === 'local' && detail.operationAuthorized !== false && operationIsCurrent()) globalThis.SoundCruiseMultiAppSync?.notifyLocalSave?.('port');
     } }));
     return repositories.get(storage);
 }
@@ -25,7 +25,7 @@ export function readPortStore(storage = globalThis.localStorage, reader) {
     for (const key of reads) bases.get(storage).set(key, { raw: values[key] ?? null, revision: state.keyRevisions[key] ?? null, blocked: result?.ok === false && values[key] != null });
     return result;
 }
-export async function writePortStore(storage = globalThis.localStorage, keys, writer) {
+export async function writePortStore(storage = globalThis.localStorage, keys, writer, writeOptions = {}) {
     const repo = portRepository(storage);
     let state;
     try { state = repo.inspect(); } catch (e) { return { ok: false, reason: e.code || 'read-failed' }; }
@@ -33,7 +33,7 @@ export async function writePortStore(storage = globalThis.localStorage, keys, wr
     if (keys.some(key => base.get(key)?.blocked)) return { ok: false, readOnly: true, reason: 'forward-incompatible' };
     const expectedValues = Object.fromEntries(keys.map(key => [key, base.has(key) ? base.get(key).raw : state.values[key]]));
     const expectedKeyRevisions = Object.fromEntries(keys.map(key => [key, base.has(key) ? base.get(key).revision : state.keyRevisions[key] ?? null]));
-    const result = await repo.runWrite({ expectedValues, expectedKeyRevisions }, writer);
+    const result = await repo.runWrite({ ...writeOptions, expectedValues, expectedKeyRevisions }, writer);
     if (result.ok) {
         // Use the state we committed, never a newer queued writer's state.
         const next = result.state;

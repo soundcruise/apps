@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
+import { createProOperationResolver } from '../../cruise-port/port-write-readiness.mjs';
 import { createPortMetronomeFacade } from '../js/port-data/metronome-facade.mjs';
 import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
 import { createPortDataHost } from '../js/port-data/host.mjs';
@@ -14,7 +15,10 @@ function fixture() {
     const repo=new PortDatasetRepository({storage:{getItem:key=>values.get(key)??null,setItem:(key,value)=>values.set(key,value),removeItem:key=>values.delete(key)},
         locks:{async request(_name,options,work){if(options.mode==='exclusive'&&wait)await wait;return work();}},token:()=>`r${++sequence}`});
     const host={subscribe:()=>()=>{}};
-    const facade=createPortMetronomeFacade({host,fixtureExecutor:{repository:repo,readContext:async()=>context,resolvePro:async()=>context.pro,
+    const facade=createPortMetronomeFacade({host,fixtureExecutor:{repository:repo,readContext:async()=>context,readContextSync:()=>context,
+        resolvePro:createProOperationResolver({readAuth:async()=>({credential:'fixture',generation:context.pro.generation}),
+            readAuthSync:()=>({credential:'fixture',generation:context.pro.generation}),knownRevoked:()=>context.pro.allowed!==true,
+            now:()=>100,client:{validate:async()=>({ok:context.pro.allowed===true,offlineRemainingMs:(context.pro.validUntil||0)-100})}}),
         allWritersCompatible:true,now:()=>100,id:()=>`op${++sequence}`}});
     return {facade,repo,values,get context(){return context;},set context(value){context=value;},hold(){let release;wait=new Promise(r=>release=r);return release;}};
 }

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
+import { webcrypto } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 
 // Boot sequence of the shared Pro gate: nothing protected and no passcode is shown until access is decided.
@@ -72,7 +73,7 @@ function boot({ values = new Map(), readyState = 'loading', offlineGrant = false
       return offlineGrant ? { ok: true, offline: true, generation: existing.generation, offlineRemainingMs: 60000 } : { ok: false };
     }, ...sessionOverrides
   }) };
-  const context = vm.createContext({ window, document, location, localStorage: storage, fetch, URL, AbortController,
+  const context = vm.createContext({ window, document, location, localStorage: storage, fetch, URL, AbortController, crypto: webcrypto,
     setTimeout, clearTimeout, setInterval: (fn, ms) => { intervals.push({ fn, ms }); return 1; }, history: { replaceState() {} }, Date, console,
     MutationObserver: class { observe() {} disconnect() {} }, requestAnimationFrame() { return 1; },
     cancelAnimationFrame() {}, getComputedStyle() { return { visibility: 'visible' }; } });

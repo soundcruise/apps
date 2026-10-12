@@ -231,7 +231,11 @@
                 }
                 return inflight.get(auth.credential);
             },
-            async forget(auth) { await store.write(await receiptKey(auth), null); }
+            async forget(auth) {
+                // Invalidate outstanding operation proofs before async IDB deletion.
+                try { global.localStorage?.setItem('soundCruiseProOperationEpoch', cryptoImpl.randomUUID()); } catch (_) { /* source reads/credential deletion remain fail-closed */ }
+                await store.write(await receiptKey(auth), null);
+            }
         });
     }
     global.SoundCruiseProDeviceSession = Object.freeze({ createClient, createReadOnlyClient: options => createClient({ ...options, readOnly: true }) });

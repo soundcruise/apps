@@ -1,11 +1,11 @@
-import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.22.7';
+import { usesPortRepository, readPortStore, writePortStore } from './port-dataset-storage.js?v=1.22.8';
 import { readStorageValue, assertStorageUnchanged, acceptStorageValues } from './storage-conflict.js?v=0.59.3';
 import {
     METRONOME_RETIRED_SOUNDS,
     METRONOME_SCHEMA_VERSION,
     migrateMetronomeSound,
     normalizeMetronomeSettings
-} from './metronome-store.js?v=1.22.7';
+} from './metronome-store.js?v=1.22.8';
 
 export const METRONOME_PRESETS_STORAGE_KEY = 'cruisePort.metronomePresets';
 export const METRONOME_PRESETS_SCHEMA_VERSION = 1;
@@ -150,9 +150,10 @@ export function createMetronomePreset({
     settings,
     storage,
     idFactory = defaultId,
+    writeOptions,
     now = Date.now()
 }) {
-    if (usesPortRepository(storage)) return writePortStore(storage, [METRONOME_PRESETS_STORAGE_KEY], tx => createMetronomePreset({ presets, name, settings, storage: tx, idFactory, now }));
+    if (usesPortRepository(storage)) return writePortStore(storage, [METRONOME_PRESETS_STORAGE_KEY], tx => createMetronomePreset({ presets, name, settings, storage: tx, idFactory, now }), writeOptions);
     const normalizedPresets = validatePresetList(presets);
     if (!normalizedPresets) return { ok: false, reason: 'invalid-data' };
     const normalizedName = normalizeName(name);

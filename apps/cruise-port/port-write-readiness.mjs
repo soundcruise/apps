@@ -32,23 +32,49 @@ export function evaluateWriteReadiness(context, action, { allWritersCompatible =
 // Uses the existing operational device-session client, not a display badge.
 // validate(false) honors the existing cached/offline lease and renewal policy.
 // Never called by cached readiness or by a production-blocked write.
-export function createProOperationResolver({ readAuth, client, now = Date.now, knownRevoked = () => false }) {
-    return async action => {
+export function createProOperationResolver({ readAuth, readAuthSync, client, now = Date.now,
+    monotonicNow = () => globalThis.performance?.now?.(), knownRevoked = () => false }) {
+    const proofs = new WeakMap();
+    const fingerprint = auth => JSON.stringify([auth?.credential, auth?.generation, auth?.operationRevision, auth?.sessionVersion]);
+    const resolver = async action => {
         if (!proActions.has(action)) return { allowed: true, generation: null, validUntil: null };
-        const auth = await readAuth();
-        if (!auth || knownRevoked(auth)) return { allowed: false, generation: auth?.generation ?? null };
+        const sourceAuth = await readAuth();
+        const auth = sourceAuth && { ...sourceAuth }, wall = now(), mono = monotonicNow();
+        if (!auth || typeof auth.credential !== 'string' || !auth.credential || !Number.isSafeInteger(auth.generation) || auth.generation < 1 || knownRevoked(auth)) return { allowed: false, generation: auth?.generation ?? null };
         const result = await client.validate(auth, { force: false });
         const current = await readAuth();
-        if (!result.ok || current?.credential !== auth.credential || current?.generation !== auth.generation || knownRevoked(auth))
-            return { allowed: false, generation: auth.generation };
-        return { allowed: true, generation: auth.generation, credentialIdentity: auth.credential,
-            validUntil: Number.isFinite(result.offlineRemainingMs) ? now() + result.offlineRemainingMs : now(), offline: result.offline === true };
+        if (!result.ok || fingerprint(current) !== fingerprint(auth) || knownRevoked(auth) ||
+            !Number.isFinite(result.offlineRemainingMs) || result.offlineRemainingMs <= 0 || result.offlineRemainingMs > 7 * 86400000 ||
+            !Number.isFinite(wall) || wall < 0 || !Number.isFinite(mono) || mono < 0 ||
+            !Number.isFinite(wall + result.offlineRemainingMs) || !Number.isFinite(mono + result.offlineRemainingMs)) return { allowed: false, generation: auth.generation };
+        // Anchor before validation: processing time can shorten, never extend, the lease.
+        const proof = Object.freeze({ allowed: true, generation: auth.generation, credentialIdentity: auth.credential,
+            validUntil: wall + result.offlineRemainingMs, offline: result.offline === true });
+        proofs.set(proof, { fingerprint: fingerprint(auth), wallDeadline: proof.validUntil,
+            monoDeadline: mono + result.offlineRemainingMs, wallHigh: wall, monoHigh: mono,
+            wallAnchor: wall, monoAnchor: mono, blocked: false });
+        return proof;
     };
+    resolver.assertCommit = proof => {
+        const record = proofs.get(proof);
+        if (!record || typeof readAuthSync !== 'function') throw failure('pro-proof-unavailable');
+        const auth = readAuthSync();
+        if (auth?.then || !auth || fingerprint(auth) !== record.fingerprint || knownRevoked(auth)) throw failure('pro-required');
+        const wall = now(), mono = monotonicNow();
+        if (!Number.isFinite(wall) || !Number.isFinite(mono) || mono < record.monoHigh) record.blocked = true;
+        const high = Math.max(record.wallHigh, wall, record.wallAnchor + Math.max(0, mono - record.monoAnchor));
+        // Same five-minute rollback tolerance as Pro Device Session; the independent
+        // monotonic deadline still prevents extending a lease by a small rollback.
+        if (wall < high - 300000 || wall >= record.wallDeadline || mono >= record.monoDeadline) record.blocked = true;
+        record.wallHigh = high; record.monoHigh = Math.max(record.monoHigh, mono);
+        if (record.blocked) throw failure('pro-required');
+    };
+    return Object.freeze(resolver);
 }
 
 // Dependency injection is for isolated integration tests / future owner wiring.
 // Production Studio never passes compatible-writer evidence or a write executor.
-export function createOperationBoundary({ readContext, resolvePro, allWritersCompatible = false, now = Date.now, id = () => crypto.randomUUID() }) {
+export function createOperationBoundary({ readContext, readContextSync, resolvePro, allWritersCompatible = false, now = Date.now, id = () => crypto.randomUUID() }) {
     let disposed = false;
     const operations = new WeakMap();
     async function inspect(action, authorize = false) {
@@ -63,27 +89,56 @@ export function createOperationBoundary({ readContext, resolvePro, allWritersCom
     }
     return Object.freeze({
         async check(action) { return (await inspect(action)).readiness; },
-        async begin(action, base) {
+        async begin(action, base, { targetKeys = [] } = {}) {
             const { context, readiness } = await inspect(action, true);
             if (!readiness.allowed) throw failure(readiness.reason);
             const token = Object.freeze({ operationId: id(), action });
-            operations.set(token, { context, base });
+            operations.set(token, { context: frozen({ ...structuredClone({ ...context, pro: undefined }), pro: context.pro }),
+                base: frozen(structuredClone(base)), targetKeys: Object.freeze([...targetKeys]) });
             return token;
         },
         async assertCurrent(token, { committed = false } = {}) {
             const original = operations.get(token);
             if (!original || disposed) throw failure('operation-invalid');
-            const { context, readiness } = await inspect(token.action);
-            const same = ['generation', 'accountGeneration', 'accountId', 'repositoryEpoch', 'writerProtocol']
+            const { context } = await inspect(token.action);
+            const same = ['generation','accountGeneration','accountId','membershipId','membershipGeneration','authorityGeneration','repositoryEpoch','writerProtocol','repositoryProtocol']
                 .every(key => context[key] === original.context[key]);
             if (!same) throw failure(committed ? 'local-saved-sync-unconfirmed' : 'account-generation-changed');
-            if (!readiness.allowed) throw failure(readiness.reason);
             if (proActions.has(token.action)) {
                 const proof = original.context.pro;
-                if (!proof?.allowed || !Number.isFinite(proof.validUntil) || now() >= proof.validUntil || context.pro?.generation !== proof.generation ||
+                if (!proof?.allowed || !Number.isFinite(proof.validUntil) || now() >= proof.validUntil ||
+                    (context.pro?.generation !== undefined && context.pro.generation !== proof.generation) ||
                     (context.pro?.credentialIdentity !== undefined && context.pro.credentialIdentity !== proof.credentialIdentity)) throw failure('pro-required');
+                resolvePro.assertCommit?.(proof);
             }
+            const readiness = evaluateWriteReadiness({ ...context,
+                pro: proActions.has(token.action) ? original.context.pro : context.pro }, token.action, { allWritersCompatible });
+            if (!readiness.allowed) throw failure(readiness.reason);
             return original.base;
+        },
+        commitGuard(token, details = {}) {
+            const original = operations.get(token);
+            if (!original || disposed) throw failure('operation-invalid');
+            if (typeof readContextSync !== 'function') throw failure('operation-source-unavailable');
+            const current = readContextSync();
+            if (!current || current.then) throw failure('operation-source-unavailable');
+            for (const key of ['generation','accountId','accountGeneration','membershipId','membershipGeneration',
+                'authorityGeneration','repositoryEpoch','writerProtocol','repositoryProtocol'])
+                if (current[key] !== original.context[key]) throw failure('account-generation-changed');
+            if (details.operationId !== undefined && details.operationId !== token.operationId) throw failure('operation-invalid');
+            if (details.changedKeys?.some(key => key !== 'cruisePort.syncDeletionIntent.v1' && !original.targetKeys.includes(key)))
+                throw failure('operation-target-changed');
+            for (const key of original.targetKeys) {
+                if (details.before && (details.before.values[key] !== original.base.values?.[key] ||
+                    (details.before.keyRevisions[key] ?? null) !== (original.base.keyRevisions?.[key] ?? null))) throw failure('stale');
+            }
+            if (proActions.has(token.action)) {
+                if (typeof resolvePro.assertCommit !== 'function') throw failure('pro-proof-unavailable');
+                resolvePro.assertCommit(original.context.pro);
+            }
+            const readiness = evaluateWriteReadiness({ ...current, disposed,
+                pro: proActions.has(token.action) ? original.context.pro : current.pro }, token.action, { allWritersCompatible });
+            if (!readiness.allowed) throw failure(readiness.reason);
         },
         dispose() { disposed = true; }
     });

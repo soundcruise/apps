@@ -1,5 +1,19 @@
 # Cruise Studio Project State
 
+## Pro Final Commit Race修正（2026-10-12・現行）
+
+Port1.22.8 / Studio0.26.2 / domain schema不変更。
+[Operation Commit Guard契約](../../cruise-port/docs/OPERATION_COMMIT_GUARD.md)を現在の認可境界とする。
+元Pro再現2 PASS/6 FAIL→8 PASS。追加148 matrix、native2-tab6条件、実Port Pro UIの成功/失効拒否4条件を確認。
+既存Authority guard/CAS/WALに同期operation guardを合成し、正式Device Session・wall/mono期限・credential/gen/epoch/revokeを固定。
+Facadeと本番Port Pro Metronome保存へ接続。Standard BPM/list/apply/delete、Account独立Pro、確定後の旧commit事実を維持。
+保証外は未通知server revoke、shared Pro source/localStorageのcross-tab可視化と完全同lock線形化、非協調old build。
+全回帰件数とcommit/pushの実測結果は今回完了報告とPort B1 Integrationの最新節に記録する。
+B1-6未完了 / B1未解消 / Studio shared write OFF / canWrite=false。
+Production Authority legacy、Worker ACCEPT_COMPAT、enforcement OFF。本番deploy/D1/cutoverなし。
+次はB1-6残gateの独立監査・製品Account/control/fresh fence接続を検討する。shared write解禁工程には進まない。
+以下の既存節は各工程時点の履歴。
+
 ## B1-5 Worker Transaction Fence + Cutover Barrier（2026-10-12・現行）
 
 Port1.22.5 / Studio0.26.1 / Studio schema1。[Workerの正式契約](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を参照。

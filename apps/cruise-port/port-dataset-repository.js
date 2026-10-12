@@ -118,7 +118,7 @@ export class PortDatasetRepository {
         if (!this.sharedWriteCapable) return this.inspect();
         return this.locks.request(this.lockName, { mode: 'shared' }, () => this.inspect());
     }
-    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {}, operationId } = {}, writer) {
+    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {}, operationId, commitGuard, authorizationContext } = {}, writer) {
         if (!this.sharedWriteCapable) return { ok: false, status: 'rejected', reason: 'locks-unavailable' };
         try {
             const guarded = typeof this.authorityProvider?.captureCommitContext === 'function';
@@ -165,18 +165,36 @@ export class PortDatasetRepository {
                 this.authorityProvider?.assertWritable();
                 const authorityContext = this.authorityProvider?.assertCommitCurrent?.(context);
                 if (authorityContext?.then) throw error('authority-commit-guard-async');
+                const assertOperation = () => {
+                    if (authorizationContext !== undefined && typeof commitGuard !== 'function') throw error('operation-commit-guard-required');
+                    if (commitGuard !== undefined) {
+                        if (typeof commitGuard !== 'function') throw error('operation-commit-guard-invalid');
+                        const verdict = commitGuard(authorizationContext, Object.freeze({ operationId, source, before,
+                            changedKeys: Object.freeze([...changed]) }));
+                        if (verdict?.then) {
+                            verdict.catch?.(() => {}); // fail-closed without an unhandled rejected Promise
+                            throw error('operation-commit-guard-async');
+                        }
+                        if (verdict === false || verdict?.ok === false || verdict?.allowed === false)
+                            throw error(verdict?.reason || 'operation-authorization-rejected');
+                    }
+                };
+                assertOperation();
                 if (!changed.length) return { ...result, ok: true, status: 'unchanged', revision: before.revision, state: before,
-                    ...(guarded ? { authorityContext, publish: false, operationId } : {}) };
+                    ...(guarded || commitGuard ? { authorityContext, authorizationContext, publish: false, operationId } : {}) };
                 let rollback = 'succeeded';
                 try {
                     this.storage.setItem(PORT_DATASET_META, JSON.stringify({ ...meta, pending: { before: before.values, metaBefore } }));
                     for (const key of changed) this.writeRaw(key, draft.values[key]);
+                    // Time/revoke can change during synchronous storage I/O too.
+                    // Reject/rollback before the final publication if it is now invalid.
+                    assertOperation();
                     this.storage.setItem(PORT_DATASET_META, JSON.stringify(meta));
-                } catch {
+                } catch (failure) {
                     for (const key of changed) { try { this.writeRaw(key, before.values[key]); } catch { rollback = 'failed'; } }
                     if (rollback === 'succeeded') { try { this.writeRaw(PORT_DATASET_META, metaBefore); } catch { rollback = 'failed'; } }
                     if (rollback === 'failed') this.degraded = true;
-                    return { ok: false, status: rollback === 'failed' ? 'recovery-required' : 'rolled-back', reason: 'write-failed', rollback, ...(operationId === undefined ? {} : { operationId }) };
+                    return { ok: false, status: rollback === 'failed' ? 'recovery-required' : 'rolled-back', reason: failure.code || 'write-failed', rollback, ...(operationId === undefined ? {} : { operationId }) };
                 }
                 // Publication already succeeded. Return that historical fact even
                 // if a subscriber subsequently changes Account/pointer/gate.
@@ -184,10 +202,16 @@ export class PortDatasetRepository {
                     revision: JSON.stringify([JSON.stringify(meta), draft.values]), values: Object.freeze({ ...draft.values }),
                     keyRevisions: Object.freeze({ ...meta.keyRevisions }), sharedWriteCapable: this.sharedWriteCapable });
                 const event = Object.freeze({ revision: state.revision, generation: state.generation, keys: Object.freeze(changed), source,
-                    ...(guarded ? { authorityContext, publish: false, operationId } : {}) });
-                for (const fn of [this.notify, ...this.listeners]) { try { fn(event); } catch { /* A subscriber cannot undo a committed write. */ } }
-                return { ...result, ok: true, status: 'committed', revision: state.revision, state,
-                    ...(guarded ? { authorityContext, publish: false, operationId } : {}) };
+                    ...(guarded || commitGuard ? { authorityContext, authorizationContext, publish: false, operationId } : {}) });
+                // A listener may invalidate an operation after publication. Keep
+                // the fact, but do not wake Sync for a known invalid old context.
+                if (commitGuard) for (const fn of this.listeners) { try { fn(event); } catch {} }
+                let operationAuthorized = true;
+                if (commitGuard) { try { assertOperation(); } catch { operationAuthorized = false; } }
+                const notification=Object.freeze({...event,...(commitGuard?{operationAuthorized}:{})});
+                for (const fn of commitGuard ? [this.notify] : [this.notify, ...this.listeners]) { try { fn(notification, () => { try { assertOperation(); return true; } catch { return false; } }); } catch {} }
+                return { ...result, ok: true, status: 'committed', revision: state.revision, state, ...(commitGuard?{operationAuthorized}:{}),
+                    ...(guarded || commitGuard ? { authorityContext, authorizationContext, publish: false, operationId } : {}) };
             };
             if (guarded) {
                 // Private async preparation never monopolizes the commit lock.

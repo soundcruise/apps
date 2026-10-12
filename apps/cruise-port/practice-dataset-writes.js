@@ -1,7 +1,7 @@
-import { writePortStore } from './port-dataset-storage.js?v=1.22.7';
-import { savePracticeProgress } from './practice-menu-progress-store.js?v=1.22.7';
-import { savePracticeHistory } from './practice-menu-history-store.js?v=1.22.7';
-import { savePracticeMenus } from './practice-menu-store.js?v=1.22.7';
+import { writePortStore } from './port-dataset-storage.js?v=1.22.8';
+import { savePracticeProgress } from './practice-menu-progress-store.js?v=1.22.8';
+import { savePracticeHistory } from './practice-menu-history-store.js?v=1.22.8';
+import { savePracticeMenus } from './practice-menu-store.js?v=1.22.8';
 
 export function commitPracticeActivity(progress, history, storage) {
     return writePortStore(storage, ['cruisePort.practiceProgress', 'cruisePort.practiceHistory'], tx => {

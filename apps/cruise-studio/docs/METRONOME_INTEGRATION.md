@@ -1,5 +1,14 @@
 # Metronome統合契約 — M2（0.25.1）
 
+## Pro Final Commit Guard v1（2026-10-12・現行）
+
+Port1.22.8 / Studio0.26.2。[共通認可契約](../../cruise-port/docs/OPERATION_COMMIT_GUARD.md)を参照。
+Facade advanced save/create/advanced applyは操作開始時の正式proofとtarget/baseを固定し、Repository同期guardへ参加。
+Standard BPM/list/Standard-effective apply/deleteはPro不要。UI cached statusだけで権限を付与しない。
+pre-commit認可拒否をcatchで成功へ変換せず、post-commitの事実/旧operationId/publish=falseを保持する。
+本番PortのPro保存も同guardへ接続したが、Studio M1/M2とPort Hostは従来どおりread-only/隔離repository。
+M3製品統合・shared writeは未解禁、B1-6未完了。以下は工程履歴。
+
 2026-10-11。Shell Contract v2.1のM1 / M2 / M3分離に従う。
 M2は保存契約の内部実証完了。正式Port data・製品統合はM3。
 

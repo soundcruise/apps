@@ -1,5 +1,15 @@
 # Port Dataset Readiness Core v1
 
+## Operation-specific Commit Guard v1（2026-10-12・現行）
+
+Port1.22.8 / Studio0.26.2。[共通認可契約](OPERATION_COMMIT_GUARD.md)を正式契約とする。
+runWriteにoperationId/opaque authorizationContext/同期commitGuardを限定追加。
+既存CAS→Authority final guard→operation guard→WAL/data→guard再確認→final metadataを同dataset lockで実行する。
+最終guardからpublicationにawaitなし。Promise/thenable/拒否/例外はfail-closed、途中失効はWAL rollback。
+保存確定後の失効はcommit事実を保持し、旧context/publish=falseを返す。資格はdurable datasetへ出さない。
+通常Sync wakeと既存full inventory/unknown/CAS/delete intent/Authority制約を維持する。
+以下は工程ごとの履歴であり、新しいoperation契約は上記を優先する。
+
 ## Authority final commit boundary（2026-10-12・現行）
 
 Port1.22.7 / Studio0.26.1。[Local Authority契約](PORT_LOCAL_AUTHORITY.md)を参照。

@@ -1,5 +1,15 @@
 # Studio Read-only Port Data Host v1
 
+## Operation guard接続準備（2026-10-12・現行）
+
+Port1.22.8 / Studio0.26.2。[共通認可契約](../../cruise-port/docs/OPERATION_COMMIT_GUARD.md)を参照。
+dormant Facadeの固定operation contextと同期guardをPort Repositoryへ渡す。正式Pro Device Session proof、
+wall/monotonic期限とsync資格/epoch/失効sourceを使用し、表示cached statusを認可と扱わない。
+製品Hostはread-only、executorなし、canWrite=false/shared write OFF。badge表示でensure/renewしない。
+確定前の拒否は失敗、確定後は旧operationIdのlocal-saved/sync-unconfirmed/publish=falseを保持する。
+Account ownershipとPro device資格は別条件。Standard操作はPro失効だけで止めない。
+B1-6未完了、cross-tab可視化/未通知server revokeの限界は共通契約に明記。以下は工程履歴。
+
 ## B1-5 Worker fenceとread-only Host（2026-10-12・現行）
 
 Port1.22.5 / Studio0.26.1 / Studio schema1。[Workerの正式契約](../../../workers/sound-cruise-sync/SYNC_WRITER_AUTHORITY.md)を参照。
