@@ -1,5 +1,15 @@
 # B1-2 + B1-3 Authority Preparation
 
+## L2a IndexedDB Authority Store v1（2026-10-12・現行）
+
+Port1.22.9 / Studio0.26.3。[独立Store契約](INDEXEDDB_AUTHORITY_STORE.md)を参照。
+新正本の独立Storeをrecords/manifests/head/control/journal/oplog/rootsの7 store、physical version1で実装。
+IDB transaction completeが成立点で、control/key CAS/guard/intent/records/manifest/head/oplogを1 transactionに含める。
+fixtureでのみopen/initialize/updateControlを実行。既存Local Authority Providerや製品mutatorへは接続しない。
+正式Pro/Account/migration/Sync/pointer/sentinel/GCは未接続。legacy本番のcross-tabリスクはL1記録のまま。
+L2b正式Repository acceptance→L3→L4→L5の完了までB1-6再開不可、shared write OFF/canWrite=false。
+以下は過去工程の記録。L1のcross-tab保証訂正を引き続き優先する。
+
 ## L1 cross-tab訂正（2026-10-12・現行）
 
 [Cross-tab Authority Contract](CROSS_TAB_AUTHORITY_CONTRACT.md)を正式契約とする。製品コードは不変更。

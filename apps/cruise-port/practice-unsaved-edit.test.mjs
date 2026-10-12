@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import * as menus from './practice-menu-store.js';
 import { commitPracticeItemsAndProgress } from './practice-dataset-writes.js';
 import { PortDatasetRepository, PORT_DATASET_META, PORT_DELETE_INTENTS } from './port-dataset-repository.js';
-import { registerPortRepository } from './port-dataset-storage.js?v=1.22.8';
+import { registerPortRepository } from './port-dataset-storage.js?v=1.22.9';
 import * as progress from './practice-menu-progress-store.js';
 
 const source = readFileSync(new URL('./practice-menu-app.js', import.meta.url), 'utf8');

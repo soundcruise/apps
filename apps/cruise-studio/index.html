@@ -7,18 +7,18 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.26.2"></script>
+    <script src="js/core/color-theme.js?v=0.26.3"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.26.2">
+    <link rel="stylesheet" href="theme-projection.css?v=0.26.3">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.26.2">
-    <link rel="stylesheet" href="shell.css?v=0.26.2">
+    <link rel="stylesheet" href="theme.css?v=0.26.3">
+    <link rel="stylesheet" href="shell.css?v=0.26.3">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.26.2" media="print">
+    <link rel="stylesheet" href="print.css?v=0.26.3" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -53,7 +53,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.26.2</span>
+                <span class="studio-version" id="studio-version">v0.26.3</span>
             </header>
 
             <section class="module-section">
@@ -465,30 +465,30 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.26.2"></script>
-    <script src="js/core/song-model.js?v=0.26.2"></script>
-    <script src="js/core/storage.js?v=0.26.2"></script>
-    <script src="js/core/editing-session.js?v=0.26.2"></script>
-    <script src="js/core/project-repository.js?v=0.26.2"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.26.2"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.26.2"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.26.2"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.26.2"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.26.2"></script>
-    <script src="js/core/command-router.js?v=0.26.2"></script>
-    <script src="js/core/focus-routing.js?v=0.26.2"></script>
-    <script src="js/core/keyboard-router.js?v=0.26.2"></script>
-    <script src="js/core/modal-manager.js?v=0.26.2"></script>
-    <script src="js/shell.js?v=0.26.2"></script>
-    <script src="js/core/audio-coordinator.js?v=0.26.2"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.26.2"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.26.2"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.26.2"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.26.2"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.26.2"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.26.2"></script>
-    <script src="js/app.js?v=0.26.2"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.26.2"></script>
+    <script src="js/core/music-theory.js?v=0.26.3"></script>
+    <script src="js/core/song-model.js?v=0.26.3"></script>
+    <script src="js/core/storage.js?v=0.26.3"></script>
+    <script src="js/core/editing-session.js?v=0.26.3"></script>
+    <script src="js/core/project-repository.js?v=0.26.3"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.26.3"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.26.3"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.26.3"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.26.3"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.26.3"></script>
+    <script src="js/core/command-router.js?v=0.26.3"></script>
+    <script src="js/core/focus-routing.js?v=0.26.3"></script>
+    <script src="js/core/keyboard-router.js?v=0.26.3"></script>
+    <script src="js/core/modal-manager.js?v=0.26.3"></script>
+    <script src="js/shell.js?v=0.26.3"></script>
+    <script src="js/core/audio-coordinator.js?v=0.26.3"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.26.3"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.26.3"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.26.3"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.26.3"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.26.3"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.26.3"></script>
+    <script src="js/app.js?v=0.26.3"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.26.3"></script>
 </body>
 
 </html>

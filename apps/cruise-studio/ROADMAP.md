@@ -1,5 +1,14 @@
 # クルーズスタジオ — ロードマップ
 
+## L2a独立Store完了範囲（2026-10-12・現行）
+
+Port1.22.9 / Studio0.26.3 / Studio schema1。[Store契約](../cruise-port/docs/INDEXEDDB_AUTHORITY_STORE.md)。
+Port-owned IDB Storeのschema/open/lifecycle、fixture atomic commit/hydrate/CAS/oplog、control/journal/root保存を追加。
+StudioはPort version/import cacheのreader更新だけ。独自Authority DB/書込みexecutor/製品接続を作らない。
+次はL2b Repository IDB backend/Feature Store hydration＋L1 driver正式acceptance。
+その後L3 formal control/Pro/Account、L4 migration/recovery/GC/binary、L5実機gate。B1-6再開はL5後。
+Production Authority legacy / Worker ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=falseを維持。
+
 ## Cross-tab Authority L1完了後の次工程（2026-10-12・現行）
 
 [Cross-tab Authority Contract](../cruise-port/docs/CROSS_TAB_AUTHORITY_CONTRACT.md)に従い、B1-6より前に新Authority正本をIndexedDBへ移す。

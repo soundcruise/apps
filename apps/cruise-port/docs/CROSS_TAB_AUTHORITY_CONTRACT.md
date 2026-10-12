@@ -1,5 +1,19 @@
 # Cross-tab Authority Contract v1（L1）
 
+## L2a実装追記（2026-10-12・現行）
+
+Port1.22.9 / Studio0.26.3。[IndexedDB Authority Store v1](INDEXEDDB_AUTHORITY_STORE.md)を独立実装。
+DB名major1 / physical version1 / 7 store / key構造は§4に一致。Store内部のfixture logical commit/hydrate/CAS/oplogを実装した。
+Node88件とChrome/CDP14項目で原子性/abort/再送/2-renderer/別partition/versionchangeを検証する。
+これはL2a primitiveの実証であり、製品Repositoryのcross-tab acceptanceではない。
+§15の設計/未完は正式製品gateの状態であり、今回のfixture PASSで完了へ更新しない。
+既存L1 driverのindexeddb-authority backendは未接続・acceptance不合格を維持する。
+Pro marginはguard interfaceへ30秒を渡す。正式Pro判定・Account協調・製品controlはL3。
+L2a oplogはcommittedのみ永続化する。guard拒否は全transaction abortのためrejected rowを別transactionで保存しない。
+root pin保存まで、GC/実migration/boot sentinel切替は未実装。L2b→L3→L4→L5後にB1-6再開を判定する。
+Production Authority legacy / Worker ACCEPT_COMPAT / enforcement OFF / Studio read-only/canWrite=false。
+以下のL1反例・契約・未完gateは保持する。
+
 2026-10-12。Port **1.22.8** / Studio **0.26.2 / schema1**。L1は契約と反例固定だけで、製品の保存方式は変更しない。
 本番Authority legacy / Worker ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / PortDataHost.canWrite=false。
 本契約は新Port-owned AuthorityのL2以降の実装境界であり、B1-6製品統合やshared write解禁を意味しない。
@@ -213,7 +227,7 @@ cacheが古くてもcommit時CASが正本で判定し、staleは拒否→再hydr
 
 ## 16. 実装工程とcommit境界
 
-- **L2a** Authority store（schema、open/versionchange、fake IDB単体）。dormantのまま commit/push可。
+- **L2a** Authority store（schema、open/versionchange、fixture atomic commit/hydrate/CAS/oplog、fake IDB単体＋native integration）。独立Storeとして実装済、dormant。正式Repository接続/acceptanceはL2b。
 - **L2b** Repository IDB backend（hydrate、CAS、manifest、head、oplog）。driverへ`indexeddb-authority`接続、
   Chrome acceptance（save/save・delete intent）PASSで commit/push。
 - **L3** control・Operation Guard（margin）・Account coordination。control系acceptance PASSで commit/push。

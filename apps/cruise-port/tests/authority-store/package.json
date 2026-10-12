@@ -1,0 +1,7 @@
+{
+  "name": "cruise-port-authority-store-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test ../idb-authority-store.test.mjs" },
+  "devDependencies": { "fake-indexeddb": "6.2.5" }
+}

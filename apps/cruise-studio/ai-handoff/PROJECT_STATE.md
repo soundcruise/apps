@@ -1,5 +1,19 @@
 # Cruise Studio Project State
 
+## L2a IndexedDB Authority Store v1（2026-10-12・現行）
+
+開始HEAD/origin/main/remote=`2c11f02c7e597955d7efd79eadce0f6d5a4b1ff2`、tracked/staged空、ahead/behind0/0。
+Port1.22.9（dormant内部patch）/ Studio0.26.3 / domain schema不変更。
+[Store契約](../../cruise-port/docs/INDEXEDDB_AUTHORITY_STORE.md)と[Cross-tab契約](../../cruise-port/docs/CROSS_TAB_AUTHORITY_CONTRACT.md)を参照。
+7 store、IDB physical version1、immutable raw/version、complete manifest、head/control/oplogのatomic transactionを実装。
+Node88件、native Chrome14項目。同partition2-renderer CASと別BrowserContextのpartition分離を確認する。
+通常Port/Studio起動で新DB作成なし。既存Repository/Feature Store/Hostは未接続、Studio独自DBなし。
+Proはfixture同期guard interfaceと30秒marginを渡す境界まで。正式資格・Account協調はL3、migration/GCはL4。
+L1 acceptance driverはbackend-unavailableを維持し、L2b正式接続までStore integrationを製品acceptanceと扱わない。
+B1-6再開不可（L5前）/ B1未解消 / Studio shared write OFF / canWrite=false。
+Production Authority legacy / Worker ACCEPT_COMPAT / enforcement OFF。本番deploy/D1/cutoverなし。
+最終全回帰/限定commit/通常pushの実測は今回完了報告を参照。以下は各工程の履歴。
+
 ## L1 Cross-tab Authority Contract（2026-10-12・現行）
 
 Port1.22.8 / Studio0.26.2 / domain schema不変更。製品コード不変更（テスト・文書のみ）。

@@ -1,5 +1,14 @@
 # Port Dataset Readiness Core v1
 
+## L2a独立IDB Store（2026-10-12・現行）
+
+Port1.22.9 / Studio0.26.3。[IndexedDB Authority Store](INDEXEDDB_AUTHORITY_STORE.md)を追加。
+fixture logical commit/hydrateでfull manifest、immutable key version、control epoch、delete intent merge、oplog retryを検証。
+同一keyはstale拒否、無関係なkeyは現在headへmerge。IDB abortでは全storeが旧状態を保つ。
+**PortDatasetRepositoryのbackend/Feature Store/製品UIは切替えない**。legacyのWAL/localStorage経路はそのまま。
+L1 driverの新backend acceptanceはbackend-unavailableを維持。正式接続/acceptanceはL2b。
+L2aはStoreに必要なprimitiveの完了であり、cross-tab製品acceptanceやB1-6/shared write解禁の完了ではない。
+
 ## L1 cross-tab境界（2026-10-12・現行）
 
 [Cross-tab Authority Contract](CROSS_TAB_AUTHORITY_CONTRACT.md)を参照。Repositoryの実装は不変更。
