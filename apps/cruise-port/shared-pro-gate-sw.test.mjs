@@ -189,9 +189,9 @@ test('old HTML with new JS ignores old hash and loads Turnstile; new HTML with c
         'fretboard_cruise': 'pro_a9f4k7q2m8z', 'rhythm-cruise': 'pro_r4m8k7n2q9x',
         'chord-cruise': 'pro_k7m4q9v2x8' })[name] + '/index.html', 'utf8');
     assert.doesNotMatch(html, /passwordHash/);
-    if (name === 'pitch-cruise') assert.match(html, /shared\/pro-gate\.js\?v=31/);
+    if (name === 'pitch-cruise') assert.match(html, /shared\/pro-gate\.js\?v=32/);
   }
   assert.doesNotMatch(pitch, /passwordHash|sha256|AUTH_TOKEN/);
-  assert.match(pitch, /shared\/pro-device-session\.js\?v=4/);
-  assert.match(pitch, /shared\/pro-gate\.js\?v=31/);
+  assert.match(pitch, /shared\/pro-device-session\.js\?v=5/);
+  assert.match(pitch, /shared\/pro-gate\.js\?v=32/);
 });

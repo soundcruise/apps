@@ -10,7 +10,7 @@ import { actionPolicy, assertActionSemantics, AUTHORITY_ACTION_POLICY_VERSION } 
 import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation, fenceLifetimeSnapshot, observeFenceLifetime } from './port-authority-capabilities.mjs';
 import {CONTROL_OPERATIONS,stoppingControl,captureControlRequest,controlFingerprint,transitionControl,validateControlFact,controlReadiness} from './port-authority-control.mjs';
 import {evidenceLifetimeKey,evidenceLifetimeRow,validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
-import {describeTrustedProContext,captureTrustedProContext,verifyTrustedProGuard} from './port-authority-pro-device-adapter.mjs';
+import {describeTrustedProContext,captureTrustedProContext,verifyTrustedProGuard,invalidateTrustedProClock} from './port-authority-pro-device-adapter.mjs';
 export { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, AUTHORIZATION_MARGIN_MS };
 const scopes = new WeakMap();
 // Explicit isolated adapter access; neither lease objects nor issuer authority escape.
@@ -412,7 +412,9 @@ function makeStore(db,env,lifecycle,lease) {
                     if(p.policy!==actionPolicy(p.action,env.testProvider?.fixtureMutations===true))throw fail('authorization-policy-changed');
                     assertActionSemantics(p,before,p.capability);
                 }
-                const authorizedAt=env.now();if(!Number.isFinite(authorizedAt)||authorizedAt<0)throw fail('authorization-time-invalid');
+                let authorizedAt;
+                try{authorizedAt=env.now();if(!Number.isFinite(authorizedAt)||authorizedAt<0)throw fail('authorization-time-invalid');}
+                catch(e){invalidateTrustedProClock(env.scope,p.authorizationContext);throw e;}
                 if((p.policy==='pro'||p.authorizationContext!==undefined)&&typeof commitGuard!=='function')throw fail('operation-commit-guard-required');
                 if(p.policy==='pro'&&!verifyTrustedProGuard(env.scope,p.authorizationContext,commitGuard,p)&&!env.testProvider?.verify(p.authorizationContext,commitGuard,p))throw fail('operation-guard-untrusted');
                 if(commitGuard!==undefined){

@@ -31,7 +31,7 @@ export async function connectPortReadOnly(onChange, environment = globalThis) {
     ]) { if (!exists()) await import(new URL('sync-account/' + file, shared)); }
     if (!g.SoundCruisePortSync?.PortSyncAdapter) await import(new URL('port-sync-adapter.js', port));
     if (!g.SoundCruisePortSync?.createPortSyncReader) await import(new URL('port-sync-controller.js', port));
-    if (!g.SoundCruiseProDeviceSession) await import(new URL('pro-device-session.js?v=4', shared));
+    if (!g.SoundCruiseProDeviceSession) await import(new URL('pro-device-session.js?v=5', shared));
     const { PortDatasetRepository } = await import(new URL('port-dataset-repository.js', port));
     let consumer = null, closed = false, offStatus = () => {};
     const reader = () => {

@@ -4,7 +4,7 @@
     const fail = () => { document.body.classList.add('pro-gate-active'); };
     function startGate() {
         const script = document.createElement('script');
-        script.src = '../../shared/pro-gate.js?v=31';
+        script.src = '../../shared/pro-gate.js?v=32';
         script.onerror = fail;
         document.head.appendChild(script);
     }
@@ -18,7 +18,7 @@
     }
     if (window.SoundCruiseProDeviceSession) { loadGate(); return; }
     const helper = document.createElement('script');
-    helper.src = '../../shared/pro-device-session.js?v=4';
+    helper.src = '../../shared/pro-device-session.js?v=5';
     helper.onload = loadGate;
     helper.onerror = fail;
     document.head.appendChild(helper);

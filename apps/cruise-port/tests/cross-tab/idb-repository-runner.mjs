@@ -137,10 +137,15 @@ window.crossTab={
   return store.publish({generation:gen,migrationId,operationId,capability:cap,attestation,expectedPointerEpoch,expectedControlEpoch:journal.publication?.request?.operationId===operationId?journal.publication.request.expectedControlEpoch:h.snapshot.control.epoch});
  },
  evidenceClockSet(clock){testClock={...testClock,...clock};return true;},
- async proBoot(primary=false){
-  proAdapter?.dispose();const {installFormalProFixture}=await import('./pro-device-native-fixture.mjs');await installFormalProFixture(()=>testClock||{}, {primary});
+ async proBoot(options=false){
+  proAdapter?.dispose();const {installFormalProFixture}=await import('./pro-device-native-fixture.mjs');await installFormalProFixture(()=>testClock||{},typeof options==='boolean'?{primary:options}:options);
   const {createAuthorityProDeviceAdapter}=await import('../../port-authority-pro-device-adapter.mjs');proAdapter=await createAuthorityProDeviceAdapter({scope});return true;
  },
+ async proReady(){return window.__soundCruiseEnsureProSession();},
+ async proFreshAdapter(){proAdapter?.dispose();const {createAuthorityProDeviceAdapter}=await import('../../port-authority-pro-device-adapter.mjs');proAdapter=await createAuthorityProDeviceAdapter({scope});return true;},
+ async proServer(mode){const f=await import('./pro-device-native-fixture.mjs');return f.proServerMode(mode);},
+ async proServerState(){const f=await import('./pro-device-native-fixture.mjs');return f.proServerState();},
+ async proServerRelease(){const f=await import('./pro-device-native-fixture.mjs');return f.proServerRelease();},
  async proPacket({id='advanced',action='saveAdvanced',volume=85,expectedIdentity}){
   try{const auth=action==='saveBpm'?null:await proAdapter.authorize({generation,operationId:id,action,expectedIdentity}),base=(await backend.store.hydrate(generation)).snapshot;
    const handle=backend.store.prepare({base,operationId:id,action,changes:{'cruisePort.metronome':JSON.stringify({...JSON.parse(base.values['cruisePort.metronome']),...(action==='saveBpm'?{bpm:145}:{volume})})},authorizationContext:auth?.authorizationContext});

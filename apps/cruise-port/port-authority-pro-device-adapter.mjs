@@ -22,6 +22,7 @@ function receiptReader(indexedDB){
 }
 
 export function describeTrustedProContext(scope,token){const c=contexts.get(token);return c?.scope===scope?c.identity:null;}
+export function invalidateTrustedProClock(scope,token){const c=contexts.get(token);if(c?.scope===scope)c.blocked=true;}
 export function captureTrustedProContext(scope,token,p){
  const c=contexts.get(token);if(!c)return;
  if(c.scope!==scope||p.policy!=='pro'||c.generation!==p.generation||c.operationId!==p.operationId||c.action!==p.action||!equal(c.identity,p.authorizationIdentity))throw fail('pro-operation-binding-changed');

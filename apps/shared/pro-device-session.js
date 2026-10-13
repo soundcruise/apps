@@ -49,6 +49,17 @@
             compareAndSwap: (key, expected, value) => transaction(key, value, false, true, expected) };
     }
 
+    // Identity hashing is neither password verification nor a qualification grant.
+    async function operationIdentity(auth, cryptoImpl = global.crypto) {
+        const hash = await cryptoImpl.subtle.digest('SHA-256', encoder.encode(auth.credential));
+        const revision = typeof auth.operationRevision === 'string'
+            ? await cryptoImpl.subtle.digest('SHA-256', encoder.encode(auth.operationRevision)) : null;
+        const hex = bytes => [...new Uint8Array(bytes)].map(b => b.toString(16).padStart(2, '0')).join('');
+        return Object.freeze({ credentialFingerprint: hex(hash), receiptIdentity: 'receipt:' + encode(hash),
+            generation: auth.generation, sessionVersion: auth.sessionVersion ?? null,
+            operationRevisionFingerprint: revision ? hex(revision) : null });
+    }
+
     function createClient({ store, cryptoImpl = global.crypto,
         now = () => Date.now(), monotonicNow = () => global.performance?.now?.() ?? now(),
         request, isCurrent = () => true, readOnly = false } = {}) {
@@ -183,16 +194,28 @@
             return { ok: false };
         }
         async function validateOnce(auth, force) {
+            auth = Object.freeze({ ...auth });
+            const validationId = cryptoImpl.randomUUID();
+            let pinnedIdentity;
+            async function denial(response, endpoint) {
+                const codes = ['invalid_credential', 'reauth_required'];
+                if (response.status !== 401 || response.body?.ok !== false || !codes.includes(response.body.code))
+                    return { ok: false, terminal: false, ambiguous: true };
+                return { ok: false, terminal: true, denial: Object.freeze({ reason: response.body.code, endpoint, validationId,
+                    ...pinnedIdentity }) };
+            }
             if (!force) {
                 const grant = await allowance(auth);
                 if (grant.ok && grant.revalidateInMs > 0) return { ...grant, cached: true };
             }
+            // Bind before the request; a recognized denial needs no asynchronous hashing.
+            pinnedIdentity = await operationIdentity(auth, cryptoImpl);
             try {
                 const publicKey = (await material()).publicKey;
                 const headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + auth.credential };
                 const challenge = await request('/device-session/challenge', { method: 'POST', headers,
                     body: JSON.stringify({ publicKey }) });
-                if (!isCurrent(auth)) return { ok: false, stale: true };
+                if (!isCurrent(auth)) return { ...await denial(challenge, 'challenge'), stale: true };
                 // Additive rollout: an old Worker may still validate real v2
                 // tokens online. It cannot issue an offline grant.
                 if (challenge.status === 404) {
@@ -200,24 +223,24 @@
                     if (old.status === 200 && old.body?.ok && old.body.generation === auth.generation && !old.body.deviceSessionRequired) {
                         return { ok: true, online: true, compatibility: true, generation: auth.generation };
                     }
-                    return { ok: false, terminal: old.status === 401 };
+                    return denial(old, 'session');
                 }
                 if (challenge.status !== 200 || !challenge.body?.ok || typeof challenge.body.message !== 'string') {
                     if (challenge.status >= 500 || challenge.status === 429) return allowance(auth);
-                    return { ok: false, terminal: challenge.status === 401 };
+                    return denial(challenge, 'challenge');
                 }
                 const signature = await cryptoImpl.subtle.sign({ name: 'ECDSA', hash: 'SHA-256' },
                     (await material()).privateKey, encoder.encode(challenge.body.message));
                 const renewed = await request('/device-session/renew', { method: 'POST', headers,
                     body: JSON.stringify({ publicKey, challenge: challenge.body.challenge, mac: challenge.body.mac,
                         signature: encode(signature) }) });
-                if (!isCurrent(auth)) return { ok: false, stale: true };
+                if (!isCurrent(auth)) return { ...await denial(renewed, 'renew'), stale: true };
                 if (renewed.status === 200 && renewed.body?.ok && renewed.body.generation === auth.generation) {
                     if (!await accept(auth, renewed.body.session)) return { ok: false, stale: true };
                     return { ...(await allowance(auth)), offline: false, online: true };
                 }
                 if (renewed.status >= 500 || renewed.status === 429) return allowance(auth);
-                return { ok: false, terminal: renewed.status === 401 };
+                return denial(renewed, 'renew');
             } catch (_) { return allowance(auth); }
         }
         // Inspection has no key/session creation, high-water persistence or network
@@ -225,18 +248,19 @@
         if (readOnly) return Object.freeze({ allowance });
         return Object.freeze({ publicKey: async () => (await material()).publicKey, accept, allowance,
             validate(auth, { force = true } = {}) {
-                if (!inflight.has(auth.credential)) {
-                    const pending = validateOnce(auth, force).finally(() => inflight.delete(auth.credential));
-                    inflight.set(auth.credential, pending);
+                const identity = JSON.stringify([auth.credential, auth.generation, auth.sessionVersion ?? null, auth.operationRevision ?? null]);
+                if (!inflight.has(identity)) {
+                    const pending = validateOnce(auth, force).finally(() => inflight.delete(identity));
+                    inflight.set(identity, pending);
                 }
-                return inflight.get(auth.credential);
+                return inflight.get(identity);
             },
-            async forget(auth) {
+            async forget(auth, { advanceOperationRevision = true } = {}) {
                 // Invalidate outstanding operation proofs before async IDB deletion.
-                try { global.localStorage?.setItem('soundCruiseProOperationEpoch', cryptoImpl.randomUUID()); } catch (_) { /* source reads/credential deletion remain fail-closed */ }
+                if (advanceOperationRevision) try { global.localStorage?.setItem('soundCruiseProOperationEpoch', cryptoImpl.randomUUID()); } catch (_) { /* source reads/credential deletion remain fail-closed */ }
                 await store.write(await receiptKey(auth), null);
             }
         });
     }
-    global.SoundCruiseProDeviceSession = Object.freeze({ createClient, createReadOnlyClient: options => createClient({ ...options, readOnly: true }) });
+    global.SoundCruiseProDeviceSession = Object.freeze({ operationIdentity, createClient, createReadOnlyClient: options => createClient({ ...options, readOnly: true }) });
 })(window);

@@ -6,14 +6,14 @@
  * Third-party licenses and legally permitted uses remain unaffected.
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
-import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.22.17';
+import { commitPracticeActivity, commitPracticeItemsAndProgress } from './practice-dataset-writes.js?v=1.22.18';
 import './feature-help.js?v=1.21.2';
-import { bindSyncProLock } from './sync-pro-lock.js?v=1.22.17';
+import { bindSyncProLock } from './sync-pro-lock.js?v=1.22.18';
 import { getPracticeCrossDayNotice } from './practice-cross-day-display.js?v=1.2.1';
-import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.22.17';
-import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.22.17';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.17';
-import { requestToolPro } from './tool-capabilities.js?v=1.22.17';
+import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js?v=1.22.18';
+import { canCreateMyApp, checkMyAppsCreation } from './my-apps-capabilities.js?v=1.22.18';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.18';
+import { requestToolPro } from './tool-capabilities.js?v=1.22.18';
 import {
     LIMITS,
     createPracticeMenu,
@@ -23,7 +23,7 @@ import {
     movePracticeMenu,
     savePracticeMenus,
     updatePracticeMenu
-} from './practice-menu-store.js?v=1.22.17';
+} from './practice-menu-store.js?v=1.22.18';
 import {
     PRACTICE_NAME_PRESET_CUSTOM,
     PRACTICE_NAME_PRESETS,
@@ -36,18 +36,18 @@ import {
     SYNC_CENTER_ROUTE,
     createSyncCenterController,
     readSyncCenterConfig
-} from './sync-center-controller.js?v=1.22.17';
-import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.22.17';
-import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.22.17';
-import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.22.17';
-import { createAiSupportPanel } from './ai-support-ui.js?v=1.22.17';
-import { createPortSyncStatus } from './port-sync-status.js?v=1.22.17';
-import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.22.17';
+} from './sync-center-controller.js?v=1.22.18';
+import { bindSyncCenterActions, markAppRowsChecking, renderSyncCenter } from './sync-center-ui.js?v=1.22.18';
+import { bindSyncCenterReturnRefresh, createSnapshotMismatchRetry } from './sync-center-refresh.js?v=1.22.18';
+import { createAiSupportClient, readAiSupportConfig } from './ai-support-client.js?v=1.22.18';
+import { createAiSupportPanel } from './ai-support-ui.js?v=1.22.18';
+import { createPortSyncStatus } from './port-sync-status.js?v=1.22.18';
+import { createSyncCenterOrchestrator } from './sync-center-orchestrator.js?v=1.22.18';
 import {
     openSyncCenter,
     restoreInitialSyncCenterRoute,
     returnToSyncCenterSource
-} from './sync-center-navigation.js?v=1.22.17';
+} from './sync-center-navigation.js?v=1.22.18';
 import {
     PRACTICE_COMPLETION_TYPE,
     beginPracticeCompletion,
@@ -61,7 +61,7 @@ import {
     savePracticeProgress,
     setPracticeChecked,
     startNextPracticeCycle
-} from './practice-menu-progress-store.js?v=1.22.17';
+} from './practice-menu-progress-store.js?v=1.22.18';
 import {
     PRACTICE_HISTORY_EVENT_TYPE,
     appendPracticeHistoryEvent,
@@ -81,7 +81,7 @@ import {
     savePracticeHistory,
     toLocalDateKey,
     updatePracticeHistoryRecord
-} from './practice-menu-history-store.js?v=1.22.17';
+} from './practice-menu-history-store.js?v=1.22.18';
 import { createPracticeCalendarKeyboard } from './practice-calendar-keyboard.js?v=0.25.0';
 import {
     PRACTICE_CALENDAR_DEFAULT_ICON,
@@ -96,7 +96,7 @@ import {
     loadPracticeCalendar,
     savePracticeCalendar,
     updatePracticeCalendarNote
-} from './practice-menu-calendar-store.js?v=1.22.17';
+} from './practice-menu-calendar-store.js?v=1.22.18';
 import {
     formatPracticeSessionDuration,
     formatPracticeTimerDuration,
@@ -113,12 +113,12 @@ import {
     PRACTICE_ATTACHMENT_LIMITS,
     createPracticeAttachmentStore,
     isSafePracticeAttachmentInlineOpen
-} from './practice-menu-attachment-store.js?v=1.22.17';
+} from './practice-menu-attachment-store.js?v=1.22.18';
 import {
     appendPendingPracticeAttachments,
     savePendingPracticeAttachments,
     validatePendingPracticeAttachment
-} from './practice-menu-pending-attachments.js?v=1.22.17';
+} from './practice-menu-pending-attachments.js?v=1.22.18';
 import {
     navigatePreparedPracticeFileWindow,
     preparePracticeFileWindow
@@ -129,7 +129,7 @@ import {
     createPracticeAppOptionGroups,
     isSelectablePracticeAppId,
     resolvePracticeMenuApp
-} from './practice-menu-app-resolver.js?v=1.22.17';
+} from './practice-menu-app-resolver.js?v=1.22.18';
 import {
     HOME_HISTORY_MODE,
     PRACTICE_ROUTE_KIND,
@@ -144,7 +144,7 @@ import {
     normalizeMyAppUrl,
     saveMyApps,
     validateMyAppValues
-} from './my-apps-store.js?v=1.22.17';
+} from './my-apps-store.js?v=1.22.18';
 import {
     getKnownApp,
     recognizeKnownAppUrl,
@@ -165,7 +165,7 @@ import {
     shouldShowCustomLaunchSettings,
     updateCustomLaunchTestTarget
 } from './my-apps-launch-form-state.js?v=1.1.0';
-import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.22.17';
+import { createMyAppsIconStore } from './my-apps-icon-store.js?v=1.22.18';
 import {
     encodePreparedMyAppIcon,
     prepareMyAppEditorSource,
@@ -183,22 +183,22 @@ import {
     createMyAppEntry,
     deleteMyAppEntry,
     updateMyAppEntry
-} from './my-apps-icon-workflow.js?v=1.22.17';
+} from './my-apps-icon-workflow.js?v=1.22.18';
 import {
     MY_APPS_ICON_PRESETS,
     createMyAppsPresetGraphic,
     getMyAppsIconPreset
 } from './my-apps-icon-presets.js?v=1.0.4';
 import { getMyAppHomeIconKind } from './my-apps-icon-scale-classifier.js?v=1.0.0';
-import { initMetronome } from './metronome-app.js?v=1.22.17';
+import { initMetronome } from './metronome-app.js?v=1.22.18';
 import {
     applyVersionDisplay,
     normalizeInitialHome,
     reloadAppWithCacheBust
-} from './app-version.js?v=1.22.17';
-import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.22.17';
-import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.22.17';
-import { initTuner } from './tuner-app.js?v=1.22.17';
+} from './app-version.js?v=1.22.18';
+import { applyHomeDisplaySize, applyHomeSectionOrder } from './home-display.js?v=1.22.18';
+import { DEFAULT_SETTINGS, DEFAULT_THEME, THEME_META_COLORS, moveHomeSection, clearRetiredIconScalePreviewKeys, loadSettings, resolveTheme, saveSettings } from './settings-store.js?v=1.22.18';
+import { initTuner } from './tuner-app.js?v=1.22.18';
 import {
     clearGearPhotoReferences,
     createGearItem,
@@ -216,7 +216,7 @@ import {
     setGearPhotoReferences,
     updateGearItem,
     validateGearValues
-} from './gear-list-store.js?v=1.22.17';
+} from './gear-list-store.js?v=1.22.18';
 import { gearCardLabel, gearGridColumns, saveGearGridColumns, gearItemsForExport, gearListCsv } from './gear-list-ux.js?v=0.59.3';
 import { createGearCardPng, shareGearCardPng } from './gear-card-export.js?v=0.59.3';
 import { createGearListPng } from './gear-list-image-export.js?v=0.59.3';
@@ -228,10 +228,10 @@ import {
     loadGearCategories,
     renameGearCategory,
     saveGearCategories
-} from './gear-category-store.js?v=1.22.17';
-import { createGearPhotoStore } from './gear-photo-store.js?v=1.22.17';
-import { PortAssetSync } from './port-asset-sync.js?v=1.22.17';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.17';
+} from './gear-category-store.js?v=1.22.18';
+import { createGearPhotoStore } from './gear-photo-store.js?v=1.22.18';
+import { PortAssetSync } from './port-asset-sync.js?v=1.22.18';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.18';
 import {
     ALL_PRACTICE_MENUS_SET_ID,
     addPracticeMenuToSets,
@@ -246,7 +246,7 @@ import {
     reorderPracticeMenuSet,
     savePracticeMenuSets,
     updatePracticeMenuSet
-} from './practice-menu-sets-store.js?v=1.22.17';
+} from './practice-menu-sets-store.js?v=1.22.18';
 import {
     encodePreparedGearPhoto,
     prepareGearPhotoSource
@@ -255,7 +255,7 @@ import {
     commitGearItemDeletion,
     commitGearPhotoChange,
     commitGearPhotoRemoval
-} from './gear-photo-workflow.js?v=1.22.17';
+} from './gear-photo-workflow.js?v=1.22.18';
 import {
     GEAR_ROUTE_KIND,
     parseGearRoute,

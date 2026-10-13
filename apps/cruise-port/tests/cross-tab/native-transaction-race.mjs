@@ -17,8 +17,10 @@ export async function observedTransactionRace({call,primary,peer,first,second,be
    if(b.gate?.active&&!a.gate?.active)throw Error('inconclusive: requested order not established');return a.gate?.active&&[a,b];});
   assert(!firstStarted[1].events.some(e=>e.phase==='request-started'),'second transaction remains blocked by first actual transaction');
   await call(first.actor,'raceGateRelease');
-  const secondStarted=await poll(async()=>{const a=await call(first.actor,'raceState'),b=await call(second.actor,'raceState');return b.gate?.active&&[a,b];});
-  assert(secondStarted[0].events.some(e=>e.id===firstStarted[0].gate.id&&['completed','aborted'].includes(e.phase)),'first transaction ended before second request');
+  const secondStarted=await poll(async()=>{const b=await call(second.actor,'raceState');return b.gate?.active&&b;});
+  const firstEnded=await call(first.actor,'raceState');
+  if(!firstEnded.events.some(e=>e.id===firstStarted[0].gate.id&&['completed','aborted'].includes(e.phase)))throw Error('inconclusive: first completion not observed after second request');
+  assert(firstEnded.events.some(e=>e.id===firstStarted[0].gate.id&&['completed','aborted'].includes(e.phase)),'first transaction ended before second request');
   await call(second.actor,'raceGateRelease');
   const after=await poll(async()=>{const a=await call(first.actor,'raceState'),b=await call(second.actor,'raceState');return a.results[first.id]&&!a.results[first.id].pending&&b.results[second.id]&&!b.results[second.id].pending&&[a,b];});
   assert(!after.some(s=>s.events.some(e=>e.phase==='gate-expired'||e.phase==='barrier-expired')));

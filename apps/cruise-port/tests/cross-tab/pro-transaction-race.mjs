@@ -12,7 +12,10 @@ export async function observedProTransactionRace({call,primary,peer,first,second
   assert(!queued.gate?.active);assert(!queued.events.some(e=>e.phase==='request-started'),'second real transaction waits behind first mutation');
   if(beforeRelease)await beforeRelease();
   await call(first.actor,'raceGateRelease');
-  await poll(async()=>{const a=await call(first.actor,'raceState'),b=await call(second.actor,'raceState');if(!b.gate?.active)return false;assert(a.events.some(e=>e.id===admitted.gate.id&&['completed','aborted'].includes(e.phase)));return true;});
+  await poll(async()=>{const b=await call(second.actor,'raceState');return b.gate?.active;});
+  const firstEnded=await call(first.actor,'raceState');
+  if(!firstEnded.events.some(e=>e.id===admitted.gate.id&&['completed','aborted'].includes(e.phase)))throw Error('inconclusive: first Pro completion not observed after second request');
+  assert(firstEnded.events.some(e=>e.id===admitted.gate.id&&['completed','aborted'].includes(e.phase)));
   await call(second.actor,'raceGateRelease');
   const after=await poll(async()=>{const a=await call(first.actor,'raceState'),b=await call(second.actor,'raceState');return a.results[first.id]&&!a.results[first.id].pending&&b.results[second.id]&&!b.results[second.id].pending&&[a,b];});
   assert(!after.some(s=>s.events.some(e=>e.phase==='gate-expired'||e.phase==='barrier-expired')));

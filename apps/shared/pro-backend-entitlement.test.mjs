@@ -151,7 +151,7 @@ test('all five Pro entry points load credential forwarding before their sync cli
     const html = read(`../${path}/index.html`);
     assert.ok(html.indexOf('pro-backend-entitlement.js?v=3') >= 0, path);
     assert.ok(html.indexOf('pro-backend-entitlement.js?v=3') < html.indexOf('sync-account-client.js'), path);
-    assert.match(html, /pro-gate\.js\?v=31/);
-    assert.ok(html.indexOf('pro-device-session.js?v=4') < html.indexOf('pro-gate.js?v=31'), path);
+    assert.match(html, /pro-gate\.js\?v=32/);
+    assert.ok(html.indexOf('pro-device-session.js?v=5') < html.indexOf('pro-gate.js?v=32'), path);
   }
 });

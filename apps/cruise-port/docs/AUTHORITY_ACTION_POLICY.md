@@ -1,6 +1,29 @@
 # IndexedDB Authority Action Authorization Policy v1 — L3a
 
-## L3c Trusted Pro Device Session Integration（2026-10-13・現行）
+## L3c Observed Revocation Safety Fix（2026-10-13・現行）
+
+開始HEAD/origin/main/remote main=`a6b5bcd988995585f2ed80e40175f3924e1b0d6f`、tracked/staged空、ahead/behind0/0。
+Port **1.22.18** / Studio **0.26.12** / Studio schema1 / Authority physical schema2・9 stores。
+[観測済み失効の正式契約](PRO_TERMINAL_DENIAL_CONTRACT.md)を参照。限定対象はterminal伝播・不正clockのsticky拒否・fresh native oracle。
+
+正式challenge/renew/sessionの401＋ok=false＋invalid_credential/reauth_requiredだけを対象資格terminalとする。
+device/proof mismatch、未知401/403・不正bodyは新規認可を拒否し、503/429/network/timeoutは既存bounded grantだけを維持。
+検証request identity、credential/receipt指紋、Pro generation/sessionVersion、開始operation revisionを固定。
+既存shared sourceへ同期ラッチ→pending revoke→同一資格auth除去/revision更新→対象receipt forgetを反映し、完了をawaitする。
+同資格の途中revision更新はterminalを解除しない。別資格Bのauth/epoch/receiptを旧Aの応答で変更しない。
+更新失敗はpropagationFailed、旧handle・offline・別Adapter/renderer・reopenを拒否。別DBの原子性は主張しない。
+未確定retryは現資格で元identityへ再認可。確定replayは履歴のみ、publish=false。
+非有限wall/mono・provider例外・origin異常は旧proofへstickyに保持し、正常な5分wall補正は維持する。
+後続request開始を観測した後に先行snapshotを再取得し、completion欠落はinconclusive。round/assertionを減らさない。
+
+修正前反例Node3/native3を保持。新規Node39＋oracle4、native Observed Revocation13＋7を正式追加。
+required回帰の実測・故障回復条件・fixture修正理由は上記契約の検証記録へ集約する。
+Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**。
+通常bootへ新Authority/Adapterを接続しない。本番deploy/D1/cutoverなし。
+L3d以降未着手。次は限定独立安全監査、B1-6再開/shared write解禁不可。
+以下は各工程時点の履歴。
+
+## L3c Trusted Pro Device Session Integration（2026-10-13・履歴）
 
 Port **1.22.17** / Studio **0.26.11** / Studio schema1 / Authority physical schema2・9 stores。
 開始HEAD/origin/main/remote main=`cb1ce792675d0d67ed095ccbacfe2ad1c77db54b`、tracked/staged空、ahead/behind0/0。

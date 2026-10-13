@@ -36,6 +36,8 @@
     let lastHandledCredential = null;
     let bootValidation;
     let gateMessage;
+    const observedTerminalCredentials = new Set();
+    const terminalProcessing = new Map();
 
     function get(key) { try { return localStorage.getItem(key); } catch (_) { return null; } }
     function authIdentity(raw) {
@@ -49,7 +51,7 @@
     } catch (_) { return false; } }
     function remove(key) {
         if(key===AUTH_KEY && get(key)!==null) { try { localStorage.setItem(OPERATION_EPOCH_KEY,crypto.randomUUID()); } catch (_) { /* deletion still closes the source */ } }
-        try { localStorage.removeItem(key); } catch (_) { /* storage unavailable */ }
+        try { localStorage.removeItem(key); return get(key) === null; } catch (_) { return false; }
     }
     function auth() {
         try {
@@ -77,7 +79,7 @@
         try { pending = JSON.parse(get(PENDING_KEY) || '[]'); } catch (_) { /* malformed queue */ }
         if (!Array.isArray(pending)) pending = [];
         if (!pending.includes(token)) pending.push(token);
-        put(PENDING_KEY, JSON.stringify(pending));
+        return put(PENDING_KEY, JSON.stringify(pending));
     }
     async function request(path, options = {}) {
         const controller = new AbortController();
@@ -104,18 +106,47 @@
             try {
                 const current=auth(), pending=JSON.parse(localStorage.getItem(PENDING_KEY)||'[]');
                 if(!Array.isArray(pending))return {auth:null,revoked:true};
-                return {auth:current,revoked:resetInFlight||!current||pending.includes(current.credential),
+                return {auth:current,revoked:resetInFlight||!current||pending.includes(current.credential)||observedTerminalCredentials.has(current.credential),
                     revision:JSON.stringify([localStorage.getItem(OPERATION_EPOCH_KEY),authEpoch,resetInFlight])};
             } catch (_) { return {auth:null,revoked:true}; }
         },
         async validate(existing) {
             const current=auth();
-            if(resetInFlight||!current||current.credential!==existing.credential||current.generation!==existing.generation)return {ok:false,stale:true};
-            return deviceSession().validate(existing,{force:false});
+            const pending=window.SoundCruiseProOperationSource.read();
+            if(pending.revoked||!current||current.credential!==existing.credential||current.generation!==existing.generation||
+                (current.sessionVersion??null)!==(existing.sessionVersion??null))return {ok:false,stale:true};
+            const revision=pending.revision;
+            const target=Object.freeze({...current,operationRevision:revision});
+            const identity=await window.SoundCruiseProDeviceSession.operationIdentity(target);
+            const result=await deviceSession().validate(target,{force:false});
+            if(result.terminal!==true)return result;
+            const d=result.denial;
+            if(!d||d.generation!==target.generation||d.sessionVersion!==(target.sessionVersion??null)||
+                d.credentialFingerprint!==identity.credentialFingerprint||d.operationRevisionFingerprint!==identity.operationRevisionFingerprint||
+                d.receiptIdentity!==identity.receiptIdentity||
+                typeof d.validationId!=='string'||!d.validationId)return {ok:false,ambiguous:true};
+            if(!terminalProcessing.has(d.validationId))terminalProcessing.set(d.validationId,(async()=>{
+                // The synchronous latch closes existing operations before awaited receipt cleanup.
+                observedTerminalCredentials.add(target.credential);
+                let marked=queuePending(target.credential);
+                // A revision change cannot revive the same revoked qualification.
+                // A different qualification (B) remains untouched.
+                const live=auth();
+                if(live&&live.credential===target.credential&&live.generation===target.generation&&
+                    (live.sessionVersion??null)===(target.sessionVersion??null)){
+                    if(remove(AUTH_KEY)){authEpoch++;if(!marked)marked=queuePending(target.credential);}
+                    accessGranted=false;clearTimeout(expiryTimer);
+                }
+                const forgotten=await forget(target,{advanceOperationRevision:false});
+                let recorded=false;try{recorded=JSON.parse(get(PENDING_KEY)||'[]').includes(target.credential);}catch{ /* fail closed */ }
+                return marked&&recorded&&forgotten;
+            })());
+            const propagated=await terminalProcessing.get(d.validationId);
+            return {...result,propagated,propagationFailed:!propagated};
         }
     });
-    async function forget(existing) {
-        try { if (existing) await deviceSession().forget(existing); } catch (_) { /* failed storage never grants access */ }
+    async function forget(existing, options) {
+        try { if (existing) await deviceSession().forget(existing, options); return true; } catch (_) { return false; }
     }
     function scheduleExpiry(result) {
         clearTimeout(expiryTimer);
