@@ -1,5 +1,30 @@
 # IndexedDB Authority Control — L3b-2
 
+## L3b-2 Evidence Lifetime Safety Fix（2026-10-13・現行）
+
+Port **1.22.16** / Studio **0.26.10** / Studio schema1 / Authority physical schema2・9 stores。
+開始HEAD/origin/main/remote main=`3007e79dba2d98fa97a841433bf43d633f6b9d03`、tracked/staged空、ahead/behind0/0。
+[証拠寿命契約](AUTHORITY_EVIDENCE_LIFETIME.md)をControl契約と合わせて参照する。
+修正前はresume/renewの期限切れ→wall rollback→同じprepared handle成功をNode2件・native2件で再現した。
+
+証拠私有contextはwall expiry・monotonic deadline・clock origin・観測高水位・expired/invalidatedを保持する。
+いずれか残予算30000ms未満または時計逆行/不正/origin変更で不可逆失効。30秒ちょうどは既存契約どおり許可。
+同じevidenceIdの再attestでcontext/deadlineを再初期化せず、異payload再発行を拒否する。
+
+reservationsのevidence-lifetime rowはprovider＋evidenceId/generation、digest/issuer/runtime/clock所有を固定。
+別renderer/reload/reopenは既存証拠を再所有できず、新しいprovider証拠identityと新operationを要する。
+monotonic値を異runtime間で比較しない。BroadcastChannelは正本ではない。
+最終admissionと失効row更新・Control/fact更新は同じ8-store RW transaction。
+拒否時は失効rowだけをcompleteして返す。abortでも私有ラッチと既存durable所有が残り、時計rollbackで復活しない。
+旧未確定予約に寿命証拠が無ければ現在clockから補完しない。確定replay/lookupは過去factだけで制限を解除しない。
+
+cross-tab JSONはstdout flush callbackを待って終了し、>64KiBのpipe出力をparseして検証する。
+round/assertion/transaction gateは減らさない。通常scope/bootへprovider/Control/Authority DBを接続しない。
+Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**。
+L3c以降は未着手、B1-6再開/shared write解禁不可。本番deploy/D1/cutoverなし。
+最新回帰結果は証拠寿命契約の検証記録と完了報告を参照。以下は各工程時点の履歴。
+
+
 2026-10-13。Port **1.22.15** / Studio **0.26.9** / Studio schema1 / Authority physical schema2・9 stores。
 開始HEAD/origin/main/remote main=`378866071929f761e4c9ad66ce21addfe0fbb7fd`、tracked clean・staged空・ahead/behind0/0。
 L3b-1 Safety Fix監査A（Blocker/Major0）を前提とし、Pointer provenance/current integrity/Action Policyを維持する。
@@ -92,7 +117,7 @@ loopbackでもPort/Studio通常routeはtest providerをinstallできない。通
 
 証拠はprivate WeakMap brandを持ち、scope/runtime/generationへ束縛する。
 固定snapshotはsource=isolated-server/evidenceId/generation/pointerEpoch/controlEpoch/完全identity/fenceEpoch/issuedAt/expiresAtだけ。
-有効期間は最大60秒、transaction admission時の残期限30秒以上、future issuedAtを拒否する。
+有効期間は最大60秒。wall/同runtime monotonicの両残期限30秒以上、不可逆失効・origin/lifecycle・共有所有を最新の寿命契約に従って検証する。future issuedAtも拒否する。
 証拠のcontrolEpochも現在Controlと完全一致。revoke前の証拠をrevoke後の新requestへretagできない。
 resume boundは現在fenceEpochと一致、renewはstrict monotonic increase。Account/membershipの両generationも完全一致。
 raw `{fresh:true,valid:true,epoch:999}`、clone、期限切れ・旧Control epochのtoken、異scope/identity/pointerは証拠にならない。

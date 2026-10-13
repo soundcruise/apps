@@ -7,8 +7,9 @@ import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, V1_STORE_KEYS, COM
     inferredDependencies, fingerprintDependencies, mergeDeleteIntents } from './port-idb-authority-contract.mjs';
 import { safeEvidence, MIGRATION_STATES } from './port-migration-contract.mjs';
 import { actionPolicy, assertActionSemantics, AUTHORITY_ACTION_POLICY_VERSION } from './port-authority-action-policy.mjs';
-import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation } from './port-authority-capabilities.mjs';
+import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation, fenceLifetimeSnapshot, observeFenceLifetime } from './port-authority-capabilities.mjs';
 import {CONTROL_OPERATIONS,stoppingControl,captureControlRequest,controlFingerprint,transitionControl,validateControlFact,controlReadiness} from './port-authority-control.mjs';
+import {evidenceLifetimeKey,evidenceLifetimeRow,validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
 export { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, AUTHORIZATION_MARGIN_MS };
 const scopes = new WeakMap();
 // Port-owned capability issuer for a registered isolated scope (one claimant per
@@ -28,18 +29,18 @@ export function installIsolatedAuthorityTestProvider(scope, provider) {
 }
 const corrupt = new Set(['recovery-required','head-invalid','control-invalid','control-identity-invalid','manifest-invalid',
     'manifest-digest-invalid','head-manifest-mismatch','manifest-intent-mismatch','record-invalid','oplog-invalid','journal-invalid','root-invalid','non-json-evidence',
-    'pointer-invalid','pointer-head-mismatch','pointer-control-mismatch','pointer-generation-missing','fixture-pointer-untrusted','reservation-invalid','pointer-provenance-missing','pointer-provenance-mismatch','pointer-missing','namespace-invalid','namespace-provenance-missing','namespace-schema-unsupported','publication-fact-invalid','publication-identity-conflict','control-fact-invalid']);
+    'pointer-invalid','pointer-head-mismatch','pointer-control-mismatch','pointer-generation-missing','fixture-pointer-untrusted','reservation-invalid','pointer-provenance-missing','pointer-provenance-mismatch','pointer-missing','namespace-invalid','namespace-provenance-missing','namespace-schema-unsupported','publication-fact-invalid','publication-identity-conflict','control-fact-invalid','evidence-lifetime-invalid']);
 const rejected = reason => ({ok:false,status:corrupt.has(reason)?'recovery-required':'rejected',reason});
 const positive = n => Number.isSafeInteger(n) && n > 0;
 const errorCode = error => typeof error?.code==='string' ? error.code : (error?.name === 'QuotaExceededError' ? 'quota-exceeded' : 'idb-error');
 const checkKeys = keys => { if (!Array.isArray(keys) || keys.some(k=>!PORT_DATASET_KEYS.includes(k)) || new Set(keys).size!==keys.length) throw fail('invalid-target-keys'); };
 export function createIsolatedIDBAuthorityScope({indexedDB, name=AUTHORITY_DB_NAME, partitionId,
-    now=Date.now, token=()=>globalThis.crypto.randomUUID(), onLifecycle=()=>{}}={}) {
+    now=Date.now,monotonicNow=()=>performance.now(),clockIdentity=()=>performance.timeOrigin, token=()=>globalThis.crypto.randomUUID(), onLifecycle=()=>{}}={}) {
     if (typeof window !== 'undefined' && !['localhost','127.0.0.1','::1','[::1]'].includes(window.location.hostname)) throw fail('isolated-scope-required');
-    if (!indexedDB?.open || typeof partitionId !== 'string' || !partitionId || typeof now!=='function' || typeof token!=='function' ||
+    if (!indexedDB?.open || typeof partitionId !== 'string' || !partitionId || typeof now!=='function' || typeof token!=='function' || typeof monotonicNow!=='function'||typeof clockIdentity!=='function'||
         !(name===AUTHORITY_DB_NAME || /^sound-cruise-port-authority-v1-fixture-[A-Za-z0-9_-]+$/.test(name))) throw fail('isolated-scope-required');
-    const scope=Object.freeze({name,partitionId}),env={scope,indexedDB,name,partitionId,now,token,onLifecycle,lease:{active:true}};scopes.set(scope,env);
-    registerCapabilityScope(scope,()=>env.lease,()=>!!env.testProvider);return scope;
+    const scope=Object.freeze({name,partitionId}),env={scope,indexedDB,name,partitionId,now,monotonicNow,clockIdentity,token,onLifecycle,lease:{active:true,id:globalThis.crypto.randomUUID()}};scopes.set(scope,env);
+    registerCapabilityScope(scope,()=>env.lease,()=>!!env.testProvider,()=>({wall:env.now(),mono:env.monotonicNow(),origin:env.clockIdentity()}));return scope;
 }
 const object = value => !!value && Object.getPrototypeOf(value) === Object.prototype;
 function assertStoreShape(tx,inventory) {
@@ -95,7 +96,7 @@ function validateSchema(db) {
 }
 export function openIDBAuthorityStore(scope) {
     const env=scopes.get(scope);if(!env)return Promise.reject(fail('isolated-scope-required'));
-    if(!env.lease.active)env.lease={active:true};
+    if(!env.lease.active)env.lease={active:true,id:globalThis.crypto.randomUUID()};
     const lease=env.lease;
     return new Promise((resolve,reject)=>{
         let request,settled=false,upgradeFailure=null;
@@ -467,11 +468,17 @@ function makeStore(db,env,lifecycle,lease) {
             }
         });}));
     }
+    function checkLifetimeOwner(row,lifetime){
+        const p=row.evidenceLifetime;
+        if(row.fingerprint!==digest(lifetime.evidence))throw fail('control-evidence-identity-conflict');
+        if(p.runtimeId!==lifetime.runtimeId||p.issuerId!==lifetime.issuerId||p.clockId!==lifetime.clockId)throw fail('control-evidence-runtime-mismatch');
+        if(!equal({...p,lastObservedWall:0,lastObservedMonotonic:0,expired:false,invalidated:false},{...lifetime,lastObservedWall:0,lastObservedMonotonic:0,expired:false,invalidated:false}))throw fail('evidence-lifetime-invalid');
+    }
     const controlHandles=new WeakMap();
     function captureControl(action,input){
         const capability=input.capability;verifyCapability(capability,{scope:env.scope,lease,purpose:CONTROL_OPERATIONS[action],generation:input.generation});
         const evidence=input.evidence===undefined?null:readFenceAttestation(input.evidence,{scope:env.scope,lease,generation:input.generation});
-        return {request:captureControlRequest(action,input,evidence),capability};
+        return {request:captureControlRequest(action,input,evidence),capability,evidenceToken:input.evidence};
     }
     async function prepareControlOperation(action,input={}){
         const p=captureControl(action,input),q=p.request,fingerprint=controlFingerprint(q);
@@ -486,7 +493,16 @@ function makeStore(db,env,lifecycle,lease) {
                 ctx.request(ctx.store('reservations').get([q.generation,q.operationId]),old=>{
                     if(old){validateReservation(old,q.generation,q.operationId);
                         if(old.kind!=='control'||old.fingerprint!==fingerprint)throw fail('operation-id-payload-conflict');validateControlFact(old);
-                    }else ctx.request(ctx.store('reservations').add(row));ctx.done({ok:true});
+                        if(old.control.result){ctx.done({ok:true});return;}
+                    }else ctx.request(ctx.store('reservations').add(row));
+                    if(!q.evidence){ctx.done({ok:true});return;}
+                    const lifetime=fenceLifetimeSnapshot(p.evidenceToken,{scope:env.scope,generation:q.generation,lease});
+                    ctx.request(ctx.store('reservations').get([q.generation,evidenceLifetimeKey(q.evidence)]),previous=>{
+                        if(previous){validateEvidenceLifetimeRow(previous);checkLifetimeOwner(previous,lifetime);}
+                        else if(old)throw fail('control-evidence-unregistered');
+                        else ctx.request(ctx.store('reservations').add(evidenceLifetimeRow(lifetime)));
+                        ctx.done({ok:true});
+                    });
                 });
             });
         });
@@ -494,10 +510,10 @@ function makeStore(db,env,lifecycle,lease) {
         const handle=Object.freeze({action,generation:q.generation,operationId:q.operationId});controlHandles.set(handle,p);return handle;
     }
     async function controlOperation(action,input={}){
-        let request,capability;
+        let request,capability,evidenceToken;
         try{
             const handle=controlHandles.has(input)?input:await prepareControlOperation(action,input),p=controlHandles.get(handle);
-            if(handle.action!==action)throw fail('capability-invalid');({request,capability}=p);
+            if(handle.action!==action)throw fail('capability-invalid');({request,capability,evidenceToken}=p);
         }catch(e){return rejected(errorCode(e));}
         const fingerprint=controlFingerprint(request);
         return transact(COMMIT_STORES,'readwrite',ctx=>{
@@ -511,7 +527,7 @@ function makeStore(db,env,lifecycle,lease) {
                         validateControlFact(reserved);if(reserved.control.result){ctx.done({...reserved.control.result,replayed:true});return;}
                     }
                     if(!reserved)throw fail('control-reservation-missing');
-                    readPointer(ctx,pointer=>{
+                    const inspectControl=()=>readPointer(ctx,pointer=>{
                         if(pointer?.activeGeneration!==request.generation)throw fail('generation-not-active');
                         ctx.request(ctx.store('control').get(request.generation),old=>{
                             validateControl(old);
@@ -526,12 +542,14 @@ function makeStore(db,env,lifecycle,lease) {
                                     if(action==='resumeWrites'&&old.fenceRevoked)throw fail('fence-revoked');
                                     const e=request.evidence;
                                     if(action==='renewFence'||old.identity.ownership==='bound-account'){
-                                        const now=env.now();
-                                        if(!e||e.controlEpoch!==old.epoch||!Number.isSafeInteger(now)||e.issuedAt>now||e.expiresAt-now<AUTHORIZATION_MARGIN_MS)throw fail('control-evidence-stale');
+                                        if(!e||e.controlEpoch!==old.epoch)throw fail('control-evidence-stale');
                                         if(!equal(e.identity,old.identity)||e.generation!==old.generation||e.pointerEpoch!==pointer.pointerEpoch)throw fail('control-evidence-identity-mismatch');
                                         if(action==='renewFence'?e.fenceEpoch<=old.fenceEpoch:e.fenceEpoch!==old.fenceEpoch)throw fail('control-fence-stale');
                                     }else if(e!==null)throw fail('control-evidence-unexpected');
                                 }
+                                if(request.evidence)inspectLifetime(commitControl,true);else commitControl();
+                            };
+                            function commitControl(){
                                 const {next,changed}=transitionControl(old,request);
                                 const result={ok:true,status:'control-committed',generation:request.generation,operationId:request.operationId,action,
                                     controlEpoch:next.epoch,changed,publish:false,operationAuthorized:false,historical:true};
@@ -541,12 +559,23 @@ function makeStore(db,env,lifecycle,lease) {
                                 validateReservation(row,request.generation,request.operationId);validateControlFact(row);
                                 if(changed)ctx.request(ctx.store('control').put(next));
                                 ctx.request(ctx.store('reservations').put(row));ctx.done(result);
-                            };
+                            }
                             // Stopping a damaged current dataset must not depend on head health.
                             // Lowering restrictions requires a healthy full current snapshot in this tx.
                             if(stoppingControl(action))finish();else readGenerationSnapshot(ctx,request.generation,pointer,finish);
                         });
                     });
+                    function inspectLifetime(done,persistAlive){
+                        const own=fenceLifetimeSnapshot(evidenceToken,{scope:env.scope,generation:request.generation,lease});
+                        ctx.request(ctx.store('reservations').get([request.generation,evidenceLifetimeKey(request.evidence)]),row=>{
+                            if(!row)throw fail('control-evidence-unregistered');validateEvidenceLifetimeRow(row);checkLifetimeOwner(row,own);
+                            const observed=observeFenceLifetime(evidenceToken,{scope:env.scope,generation:request.generation,lease,persisted:row.evidenceLifetime});
+                            if(!observed.ok||persistAlive)ctx.request(ctx.store('reservations').put(evidenceLifetimeRow(observed.lifetime)));
+                            if(!observed.ok){ctx.done(rejected('control-evidence-stale'));return;}done();
+                        });
+                    }
+                    // Observe expiry even when a later Control CAS will reject; recheck at final admission.
+                    if(request.evidence)inspectLifetime(inspectControl,false);else inspectControl();
                 });
             });
         });

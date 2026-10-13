@@ -1,3 +1,5 @@
+import {writeJSONReport} from './report-output.mjs';
+import {runEvidenceReproduction,runEvidenceSuite} from './evidence-lifetime-suite.mjs';
 import {runControlSuite} from './control-suite.mjs';
 import {runPointerSafetySuite} from './pointer-safety-suite.mjs';
 // L1 cross-tab race driver: real Chrome, two tabs in separate windows (separate
@@ -133,6 +135,8 @@ try {
         if (report.targetRendererPids.some(p=>!Number.isInteger(p)) || new Set(report.targetRendererPids).size!==2)
             throw Error('trace did not prove distinct target renderer processes');
     }
+    if(args.suite==='evidence-reproduction'){report.evidenceReproduction=await runEvidenceReproduction({evaluate,primary});report.results=[{scenario:'known-evidence-counterexample',rounds:2,violations:2,inconclusiveRounds:0}];}
+    if(args.suite==='evidence'){report.evidenceCases=await runEvidenceSuite({evaluate,primary,peer});report.results=[{scenario:'evidence-lifetime',rounds:report.evidenceCases.length,violations:0,inconclusiveRounds:0}];}
     if(args.suite==='control'){report.controlCases=await runControlSuite({evaluate,primary,peer,rounds});report.results=[{scenario:'formal-control',rounds:rounds*16,violations:0,inconclusiveRounds:0}];}
     if (args.suite === 'policy') {
         if(backend!=='indexeddb-authority')throw Error('policy suite requires isolated IDB');
@@ -177,7 +181,7 @@ try {
             report.referenceFailures=[...failure.results,{name:'native Page.crash in attachment callback: exact committed/aborted snapshot and reopen',pass:true}];
         }
     }
-    for (const scenario of ['referential','policy','pointer','pointer-safety','control'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
+    for (const scenario of ['referential','policy','pointer','pointer-safety','control','evidence-reproduction','evidence'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
         const aggregate = { scenario, payload, rounds: 0, violations: 0, inconclusiveRounds: 0, details: [] };
         for (let round = 0; round < rounds; round++) {
             const generation = randomUUID();
@@ -267,7 +271,7 @@ try {
 }
 report.verdict = verdict(mode, report.results);
 if (report.harnessError) report.verdict.pass = false;
-console.log(JSON.stringify(report, null, 1));
+await writeJSONReport(report);
 ws.close();
 cleanup();
 process.exit(report.harnessError ? 2 : report.verdict.pass ? 0 : 1);

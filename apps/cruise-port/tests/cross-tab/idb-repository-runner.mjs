@@ -9,7 +9,7 @@ import { referenceValues, REF_KEYS, attachment, danglingAttachments } from '../a
 import { KEYS, CONTROL_SCENARIOS, counterLoop, deleteLoop, seedDeleteCollections } from './cross-tab-scenarios.mjs';
 import { claimPortAuthorityIssuer, openIDBAuthorityStore } from '../../port-indexeddb-authority-store.mjs';
 import { AUTHORITY_DB_VERSION, V1_STORE_KEYS, POINTER_KEY, reservationKey } from '../../port-idb-authority-contract.mjs';
-let token, scope, generation, backend, repository;
+let token, scope, generation, backend, repository,testClock=null;
 let publicationPackets=new Map(),controlPackets=new Map();
 let proValid=true;const authorizations=new Map();
 const handles=new Map();
@@ -20,9 +20,9 @@ async function snapshot() { await backend.hydrate(); return backend.store.hydrat
 window.crossTab={
  ...pointerRaceHooks({name:()=>scope.name,commitOld:id=>controlPackets.has('dataset-'+id)?backend.store.commit(handles.get(id)):backend.commitPreparedWrite(handles.get(id)),commitPublication:id=>backend.store.publish(publicationPackets.get(id)),commitControl:id=>{const p=controlPackets.get(id);return backend.store[p.action](p.request);}}),
  claim(id) { if(token&&token!==id)throw Error('different fixture owner');if(typeof id!=='string'||id.length<16)throw Error('driver token');token=id;assertFixture();return true; },
- async prepare({scenario,role,iterations,generation:gen,reference=false,attached=false,payload=0,policy=false,controlBound=false}) {
-  assertFixture();backend?.dispose();generation=gen;
-  scope=createIsolatedIDBAuthorityScope({indexedDB,partitionId:token,name:'sound-cruise-port-authority-v1-fixture-'+token},{fixtureMutations:!policy});
+ async prepare({scenario,role,iterations,generation:gen,reference=false,attached=false,payload=0,policy=false,controlBound=false,clock=null}) {
+  assertFixture();backend?.dispose();generation=gen;testClock=clock&&{...clock};
+  scope=createIsolatedIDBAuthorityScope({indexedDB,partitionId:token,now:()=>testClock?.wall??Date.now(),monotonicNow:()=>testClock?.mono??performance.now(),clockIdentity:()=>testClock?.origin??performance.timeOrigin,name:'sound-cruise-port-authority-v1-fixture-'+token},{fixtureMutations:!policy});
   backend=await openIsolatedIDBRepositoryBackend({scope,generation,channelFactory:()=>null});
   if(role==='primary') {
    let v=reference?referenceValues({attached,payload}):values();if(scenario==='delete-intent')v=seedDeleteCollections(v,iterations);
@@ -134,6 +134,27 @@ window.crossTab={
   const attestation=issuer().attestFixtureEvidence({generation:gen,migrationId,sealHash:journal.sealHash,
    binary:{manifestDigest:'a'.repeat(64),assetCount:0},sync:{checkpointDigest:'b'.repeat(64),outboxPending:0}});
   return store.publish({generation:gen,migrationId,operationId,capability:cap,attestation,expectedPointerEpoch,expectedControlEpoch:journal.publication?.request?.operationId===operationId?journal.publication.request.expectedControlEpoch:h.snapshot.control.epoch});
+ },
+ evidenceClockSet(clock){testClock={...testClock,...clock};return true;},
+ async evidencePacket({id,action='renewFence',packet=null}){
+  try{
+   const s=(await backend.store.hydrate(generation)).snapshot;
+   const evidence=packet??{source:'isolated-server',evidenceId:id,generation,pointerEpoch:s.pointer.pointerEpoch,controlEpoch:s.control.epoch,
+    identity:s.control.identity,fenceEpoch:s.control.fenceEpoch+(action==='renewFence'?1:0),issuedAt:testClock?.wall??Date.now(),expiresAt:(testClock?.wall??Date.now())+60000};
+   const token=issuer().attestFixtureFence(evidence),capability=issuer().issue(CONTROL_OPERATIONS[action],{generation});
+   const request={generation,operationId:id,identity:evidence.identity,expectedEpoch:evidence.controlEpoch,expectedPointerEpoch:evidence.pointerEpoch,capability,evidence:token};
+   const handle=await backend.store.prepareControlOperation(action,request);controlPackets.set(id,{action,request:handle,raw:request});
+   return {ok:true,packet:evidence};
+  }catch(e){return {ok:false,reason:e.code||String(e)};}
+ },
+ evidenceClone(id){const p=controlPackets.get(id);return backend.store[p.action](structuredClone(p.request));},
+ evidenceCloneToken(id){const p=controlPackets.get(id);return backend.store[p.action]({...p.raw,evidence:structuredClone(p.raw.evidence)});},
+ evidenceForgedClone(evidence){return backend.store.renewFence({generation,operationId:'clone-'+crypto.randomUUID(),capability:issuer().issue(CONTROL_OPERATIONS.renewFence,{generation}),evidence:structuredClone(evidence)});},
+ evidenceTokenClone(id){return structuredClone(controlPackets.get(id).raw.evidence);},
+ async evidenceAbort(id){
+  const original=IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put=function(value,...args){if(value.kind==='evidence-lifetime'&&value.evidenceLifetime.expired){this.transaction.abort();throw Error('injected lifetime abort');}return original.call(this,value,...args);};
+  try{return await window.crossTab.controlPacketCommit(id);}finally{IDBObjectStore.prototype.put=original;}
  },
  async controlPacket({id,action,expectedEpoch}){
   const s=(await backend.store.hydrate(generation)).snapshot;

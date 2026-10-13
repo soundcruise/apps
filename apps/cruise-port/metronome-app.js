@@ -5,14 +5,14 @@ import {
     defaultAccentsForMeter,
     loadMetronomeSettings,
     saveMetronomeSettings
-} from './metronome-store.js?v=1.22.15';
+} from './metronome-store.js?v=1.22.16';
 import {
     METRONOME_PRESET_LIMITS,
     createMetronomePreset,
     deleteMetronomePreset,
     loadMetronomePresets,
     settingsFromMetronomePreset
-} from './metronome-presets-store.js?v=1.22.15';
+} from './metronome-presets-store.js?v=1.22.16';
 import {
     beatsForMeter,
     compatibleRhythm,
@@ -22,7 +22,7 @@ import {
     meterLabel,
     scheduleEventsUntil,
     secondsPerBeat
-} from './metronome-timing.js?v=1.22.15';
+} from './metronome-timing.js?v=1.22.16';
 
 export const METRONOME_SCHEDULER_INTERVAL_MS = 25;
 export const METRONOME_SCHEDULE_AHEAD_SEC = 0.1;
@@ -417,10 +417,10 @@ export function createMetronomeAudioEngine(onVisualEvent = () => {}, environment
     };
 }
 
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.15';
-import { effectiveMetronome, requestToolPro } from './tool-capabilities.js?v=1.22.15';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.16';
+import { effectiveMetronome, requestToolPro } from './tool-capabilities.js?v=1.22.16';
 
-import { createPortMetronomeAuthorization } from './port-metronome-authorization.mjs?v=1.22.15';
+import { createPortMetronomeAuthorization } from './port-metronome-authorization.mjs?v=1.22.16';
 export function initMetronome(root, { capabilities = getCapabilities(), requestPro = requestToolPro } = {}) {
     const authorization = createPortMetronomeAuthorization();
     const elements = {

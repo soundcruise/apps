@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 // Explicit transaction gates prove order even when timestamps are equal.
-export async function observedTransactionRace({call,primary,peer,first,second}){
+export async function observedTransactionRace({call,primary,peer,first,second,beforeRelease}){
  const poll=async fn=>{for(let n=0;n<250;n++){const r=await fn();if(r)return r;await new Promise(r=>setTimeout(r,5));}throw Error('inconclusive: transaction checkpoint missing');};
  for(const actor of [primary,peer])await call(actor,'raceReset');
  await call(primary,'raceHold');
@@ -11,6 +11,7 @@ export async function observedTransactionRace({call,primary,peer,first,second}){
   await call(second.actor,'raceDispatch',{kind:second.kind,id:second.id});await poll(async()=>queued(await call(second.actor,'raceState')).length);
   const before=[await call(primary,'raceState'),await call(peer,'raceState')];assert(before.every(s=>queued(s).length));
   assert(before.every(s=>!s.events.some(e=>e.phase==='request-started')),'both real transactions must be queued behind barrier');
+  if(beforeRelease)await beforeRelease();
   assert.equal(await call(primary,'raceRelease'),true);
   const firstStarted=await poll(async()=>{const a=await call(first.actor,'raceState'),b=await call(second.actor,'raceState');
    if(b.gate?.active&&!a.gate?.active)throw Error('inconclusive: requested order not established');return a.gate?.active&&[a,b];});

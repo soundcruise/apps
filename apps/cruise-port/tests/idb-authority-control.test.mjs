@@ -1,3 +1,4 @@
+import {validateEvidenceLifetimeRow} from '../port-authority-evidence-lifetime.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {fixture,raw,dump,patchPointer,stage,bpmHandle,IDBObjectStore,IDBFactory} from './authority-store/pointer-fixture.mjs';
@@ -20,12 +21,13 @@ async function request(x,action,id=action,overrides={}){
 }
 const run=async(x,action,id,overrides)=>x.store[action](await request(x,action,id,overrides));
 async function evidence(x,{fenceEpoch=2,now=Date.now(),...extra}={}){
- const current=(await x.store.hydrate('g1')).snapshot;return x.issuer.attestFixtureFence({controlEpoch:current.control.epoch,source:'isolated-server',evidenceId:'server-'+fenceEpoch,generation:'g1',pointerEpoch:1,
+ const current=(await x.store.hydrate('g1')).snapshot;return x.issuer.attestFixtureFence({controlEpoch:current.control.epoch,source:'isolated-server',evidenceId:'server-'+fenceEpoch+'-'+crypto.randomUUID(),generation:'g1',pointerEpoch:1,
   identity:boundIdentity,fenceEpoch,issuedAt:now,expiresAt:now+60000,...extra});
 }
 async function assertDenied(x,before,id){
  const after=await dump(x);for(const name of Object.keys(before).filter(n=>n!=='reservations'))assert.deepEqual(after[name],before[name]);
- const old=before.reservations.filter(r=>r.operationId!==id),kept=after.reservations.filter(r=>r.operationId!==id);assert.deepEqual(kept,old);
+ for(const r of after.reservations.filter(r=>r.kind==='evidence-lifetime'))validateEvidenceLifetimeRow(r);
+ const old=before.reservations.filter(r=>r.operationId!==id&&r.kind!=='evidence-lifetime'),kept=after.reservations.filter(r=>r.operationId!==id&&r.kind!=='evidence-lifetime');assert.deepEqual(kept,old);
  const row=after.reservations.find(r=>r.operationId===id);if(row){assert.equal(row.kind,'control');assert.equal(row.control.result,null);}
 }
 for(const [action,flag] of [['suspendWrites','suspended'],['revokeFence','fenceRevoked'],['invalidateIdentity','identityInvalidated'],['markRecoveryRequired','recoveryRequired']]){
