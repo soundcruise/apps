@@ -1,6 +1,26 @@
 # IndexedDB Authority Action Authorization Policy v1 — L3a
 
-## L3b-2 Evidence Lifetime Safety Fix（2026-10-13・現行）
+## L3c Trusted Pro Device Session Integration（2026-10-13・現行）
+
+Port **1.22.17** / Studio **0.26.11** / Studio schema1 / Authority physical schema2・9 stores。
+開始HEAD/origin/main/remote main=`cb1ce792675d0d67ed095ccbacfe2ad1c77db54b`、tracked/staged空、ahead/behind0/0。
+[正式Pro Adapter契約](AUTHORITY_PRO_DEVICE_ADAPTER.md)を参照。正式SoundCruiseProOperationSource、Device Session receipt、既存操作resolverを使う。
+任意source/client/boolean/guardを受け付けず、正式read-only receipt検証を通したprivate contextだけをStoreへ接続。
+scope/Authority generation/operationId/action/payload/targetとPro generation/sessionVersion/operation revision/credential指紋を固定。
+raw credential/key/receiptはAuthority・通知・reportへ保存しない。Control capability/evidenceとPro proofは別brand・別契約。
+
+最終transaction内で同期assertCommitと両clockの30秒marginを確認。Proの5分補正許容を維持する。
+観測済みsource失効・期限不足・clock origin変更は旧proofへstickyに保持。新しい非同期検証を要する。
+未確定retryは元identityへ再認可、資格変更retag禁止。replayは過去factだけで現在のPro/cloud許可ではない。
+Standard BPM/delete/applyはPro/Account不要、raw advanced値を保持。local ProにもAccount/AppDeviceを追加要求しない。
+
+隔離fixtureのみ接続。既存legacy保存/製品Pro判定の挙動、Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**を維持。
+通常Port/Studio bootによる新Authority DB/Adapter writeなし。本番deploy/D1 migration/cutoverなし。
+L3d以降未着手、B1-6再開/shared write解禁不可。最終回帰はAdapter契約の検証記録と完了報告を参照。
+以下は各工程時点の履歴。
+
+
+## L3b-2 Evidence Lifetime Safety Fix（2026-10-13・履歴）
 
 Port **1.22.16** / Studio **0.26.10** / Studio schema1 / Authority physical schema2・9 stores。
 開始HEAD/origin/main/remote main=`3007e79dba2d98fa97a841433bf43d633f6b9d03`、tracked/staged空、ahead/behind0/0。
@@ -143,10 +163,10 @@ true/undefinedだけでは正式proof resultにならない。任意callerの()=
 固定operation contextはprivate WeakMap brandでscope・operationId・action・credential identity・prepared payload fingerprintへ結び付ける。
 raw資格/proofはrequest・journal・oplog・datasetへ保存しない。
 
-現在のtrusted providerは**隔離test resolverだけ**。Store installerはbrowserのloopbackかつ/apps/cruise-port/tests/ routeだけで利用できる。
+L3a時点のtrusted providerは**隔離test resolverだけ**だった。L3cでは正式Device Session Adapterのprivate brandを追加した。Store installerはbrowserのloopbackかつ/apps/cruise-port/tests/ routeだけで利用できる。
 Nodeでは明示test harnessが供給する。通常Port/Studio boot graphはtest module/installerをimport・実行しない。
 既存Store scopeとtest authorityは別brand。fixtureは敵対的な任意JavaScriptに対するsecurity sandboxではない。
-製品routeのUIや任意commitGuardをtrusted providerへ格上げしない。正式Pro Device Sessionとの接続はL3c。
+製品routeのUIや任意commitGuardをtrusted providerへ格上げしない。正式Pro Device Sessionとの隔離接続はL3c Adapterに従う。
 
 L3c向け同期結果契約:
 
@@ -162,7 +182,7 @@ L3c向け同期結果契約:
 既存createProOperationResolverはcredential/generation/operationRevision/sessionVersionをprivate fingerprintに固定し、
 Device Session validate(force:false)のofflineRemainingMs（最大7日）からvalidation前wall/mono anchorの期限を固定する。
 sticky rollback/reset/revoke検査とrealm固有proofを維持して、残marginを正式sourceから同期で計算する必要がある。
-現helperのassertCommitはresultを公開していないため、L3cでこのtrusted resultへ接続する。L3aでUI badge/任意値を代用しない。
+assertCommitの既存return契約は維持し、L3cはcommitMarginsでprivate budgetを取得してこのtrusted resultへ接続する。L3aでUI badge/任意値を代用しない。
 30秒は工学的余裕であり、IDB completeまでの数学的な期限保証ではない。未通知server revokeの検知保証も増やさない。
 
 ## Identity reservation、retry、replay

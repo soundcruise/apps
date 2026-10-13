@@ -11,6 +11,7 @@ import { claimPortAuthorityIssuer, openIDBAuthorityStore } from '../../port-inde
 import { AUTHORITY_DB_VERSION, V1_STORE_KEYS, POINTER_KEY, reservationKey } from '../../port-idb-authority-contract.mjs';
 let token, scope, generation, backend, repository,testClock=null;
 let publicationPackets=new Map(),controlPackets=new Map();
+let proAdapter,proPackets=new Map();
 let proValid=true;const authorizations=new Map();
 const handles=new Map();
 function assertFixture() {
@@ -18,7 +19,7 @@ function assertFixture() {
 }
 async function snapshot() { await backend.hydrate(); return backend.store.hydrate(generation).then(r=>{if(!r.ok)throw Error(r.reason);return r.snapshot;}); }
 window.crossTab={
- ...pointerRaceHooks({name:()=>scope.name,commitOld:id=>controlPackets.has('dataset-'+id)?backend.store.commit(handles.get(id)):backend.commitPreparedWrite(handles.get(id)),commitPublication:id=>backend.store.publish(publicationPackets.get(id)),commitControl:id=>{const p=controlPackets.get(id);return backend.store[p.action](p.request);}}),
+ ...pointerRaceHooks({name:()=>scope.name,commitOld:id=>controlPackets.has('dataset-'+id)?backend.store.commit(handles.get(id)):backend.commitPreparedWrite(handles.get(id)),commitPublication:id=>backend.store.publish(publicationPackets.get(id)),commitControl:id=>{const p=controlPackets.get(id);return backend.store[p.action](p.request);},commitPro:id=>window.crossTab.proCommit(id)}),
  claim(id) { if(token&&token!==id)throw Error('different fixture owner');if(typeof id!=='string'||id.length<16)throw Error('driver token');token=id;assertFixture();return true; },
  async prepare({scenario,role,iterations,generation:gen,reference=false,attached=false,payload=0,policy=false,controlBound=false,clock=null}) {
   assertFixture();backend?.dispose();generation=gen;testClock=clock&&{...clock};
@@ -136,6 +137,26 @@ window.crossTab={
   return store.publish({generation:gen,migrationId,operationId,capability:cap,attestation,expectedPointerEpoch,expectedControlEpoch:journal.publication?.request?.operationId===operationId?journal.publication.request.expectedControlEpoch:h.snapshot.control.epoch});
  },
  evidenceClockSet(clock){testClock={...testClock,...clock};return true;},
+ async proBoot(primary=false){
+  proAdapter?.dispose();const {installFormalProFixture}=await import('./pro-device-native-fixture.mjs');await installFormalProFixture(()=>testClock||{}, {primary});
+  const {createAuthorityProDeviceAdapter}=await import('../../port-authority-pro-device-adapter.mjs');proAdapter=await createAuthorityProDeviceAdapter({scope});return true;
+ },
+ async proPacket({id='advanced',action='saveAdvanced',volume=85,expectedIdentity}){
+  try{const auth=action==='saveBpm'?null:await proAdapter.authorize({generation,operationId:id,action,expectedIdentity}),base=(await backend.store.hydrate(generation)).snapshot;
+   const handle=backend.store.prepare({base,operationId:id,action,changes:{'cruisePort.metronome':JSON.stringify({...JSON.parse(base.values['cruisePort.metronome']),...(action==='saveBpm'?{bpm:145}:{volume})})},authorizationContext:auth?.authorizationContext});
+   const r=await backend.store.reserveOperation(handle);if(!r.ok)return r;proPackets.set(id,{handle,auth});return {ok:true,identity:backend.store.preparedIdentity(handle).authorizationIdentity};
+  }catch(e){return {ok:false,reason:e.code||e.name};}
+ },
+ proCommit(id){const p=proPackets.get(id);return backend.store.commit(p.handle,{commitGuard:p.auth?.commitGuard});},
+ async proAbort(id){const add=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(...a){if(this.name==='records')this.transaction.abort();return add.apply(this,a);};try{return await window.crossTab.proCommit(id);}finally{IDBObjectStore.prototype.add=add;}},
+ proFact:id=>backend.store.lookupOperation(generation,id),
+ proChange(kind){const key='soundCruiseProAuth',a=JSON.parse(localStorage.getItem(key));
+  if(kind==='generation')localStorage.setItem(key,JSON.stringify({...a,generation:a.generation+1}));
+  else if(kind==='revision')localStorage.setItem('soundCruiseProOperationEpoch',crypto.randomUUID());
+  else if(kind==='credential')localStorage.setItem(key,JSON.stringify({...a,credential:a.credential.slice(0,-1)+'B'}));
+  else if(kind==='pending')localStorage.setItem('soundCruiseProRevokePending',JSON.stringify([a.credential]));
+  else if(kind==='reset')localStorage.removeItem(key);return true;
+ },
  async evidencePacket({id,action='renewFence',packet=null}){
   try{
    const s=(await backend.store.hydrate(generation)).snapshot;

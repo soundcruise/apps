@@ -1,6 +1,26 @@
 # Cruise Studio Project State
 
-## L3b-2 Evidence Lifetime Safety Fix（2026-10-13・現行）
+## L3c Trusted Pro Device Session Integration（2026-10-13・現行）
+
+Port **1.22.17** / Studio **0.26.11** / Studio schema1 / Authority physical schema2・9 stores。
+開始HEAD/origin/main/remote main=`cb1ce792675d0d67ed095ccbacfe2ad1c77db54b`、tracked/staged空、ahead/behind0/0。
+[正式Pro Adapter契約](../../cruise-port/docs/AUTHORITY_PRO_DEVICE_ADAPTER.md)を参照。正式SoundCruiseProOperationSource、Device Session receipt、既存操作resolverを使う。
+任意source/client/boolean/guardを受け付けず、正式read-only receipt検証を通したprivate contextだけをStoreへ接続。
+scope/Authority generation/operationId/action/payload/targetとPro generation/sessionVersion/operation revision/credential指紋を固定。
+raw credential/key/receiptはAuthority・通知・reportへ保存しない。Control capability/evidenceとPro proofは別brand・別契約。
+
+最終transaction内で同期assertCommitと両clockの30秒marginを確認。Proの5分補正許容を維持する。
+観測済みsource失効・期限不足・clock origin変更は旧proofへstickyに保持。新しい非同期検証を要する。
+未確定retryは元identityへ再認可、資格変更retag禁止。replayは過去factだけで現在のPro/cloud許可ではない。
+Standard BPM/delete/applyはPro/Account不要、raw advanced値を保持。local ProにもAccount/AppDeviceを追加要求しない。
+
+隔離fixtureのみ接続。既存legacy保存/製品Pro判定の挙動、Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**を維持。
+通常Port/Studio bootによる新Authority DB/Adapter writeなし。本番deploy/D1 migration/cutoverなし。
+L3d以降未着手、B1-6再開/shared write解禁不可。最終回帰はAdapter契約の検証記録と完了報告を参照。
+以下は各工程時点の履歴。
+
+
+## L3b-2 Evidence Lifetime Safety Fix（2026-10-13・履歴）
 
 Port **1.22.16** / Studio **0.26.10** / Studio schema1 / Authority physical schema2・9 stores。
 開始HEAD/origin/main/remote main=`3007e79dba2d98fa97a841433bf43d633f6b9d03`、tracked/staged空、ahead/behind0/0。

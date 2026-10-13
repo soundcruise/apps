@@ -69,6 +69,14 @@ export function createProOperationResolver({ readAuth, readAuthSync, client, now
         record.wallHigh = high; record.monoHigh = Math.max(record.monoHigh, mono);
         if (record.blocked) throw failure('pro-required');
     };
+    // Read-only view of the existing private operation budget, for the dormant
+    // Authority adapter. Legacy guards retain their existing return contract.
+    resolver.commitMargins = proof => {
+        resolver.assertCommit(proof);
+        const record = proofs.get(proof);
+        return Object.freeze({ wallMarginMs: record.wallDeadline - record.wallHigh,
+            monoMarginMs: record.monoDeadline - record.monoHigh });
+    };
     return Object.freeze(resolver);
 }
 

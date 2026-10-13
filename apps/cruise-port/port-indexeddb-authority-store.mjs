@@ -10,8 +10,15 @@ import { actionPolicy, assertActionSemantics, AUTHORITY_ACTION_POLICY_VERSION } 
 import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation, fenceLifetimeSnapshot, observeFenceLifetime } from './port-authority-capabilities.mjs';
 import {CONTROL_OPERATIONS,stoppingControl,captureControlRequest,controlFingerprint,transitionControl,validateControlFact,controlReadiness} from './port-authority-control.mjs';
 import {evidenceLifetimeKey,evidenceLifetimeRow,validateEvidenceLifetimeRow} from './port-authority-evidence-lifetime.mjs';
+import {describeTrustedProContext,captureTrustedProContext,verifyTrustedProGuard} from './port-authority-pro-device-adapter.mjs';
 export { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, AUTHORIZATION_MARGIN_MS };
 const scopes = new WeakMap();
+// Explicit isolated adapter access; neither lease objects nor issuer authority escape.
+export function authorityProEnvironment(scope){
+    const env=scopes.get(scope);if(!env)throw fail('isolated-scope-required');const lease=env.lease;
+    return Object.freeze({now:env.now,monotonicNow:env.monotonicNow,clockIdentity:env.clockIdentity,
+        assertLive(){if(env.lease!==lease||!lease.active)throw fail('pro-operation-disposed');}});
+}
 // Port-owned capability issuer for a registered isolated scope (one claimant per
 // scope). Product boot does not import this module or call this function.
 export function claimPortAuthorityIssuer(scope) {
@@ -318,7 +325,7 @@ function makeStore(db,env,lifecycle,lease) {
         const draft=b?{...b.values,...c}:c;validateDataset(draft);
         if(b)assertRetainedFields(b.values,draft,keys);
         const policy=initialControl?'isolated-initialize':actionPolicy(action,env.testProvider?.fixtureMutations===true);
-        const identity=authorizationIdentity??(policy==='pro'?env.testProvider?.describe(authorizationContext)??null:null);
+        const identity=authorizationIdentity??(policy==='pro'?describeTrustedProContext(env.scope,authorizationContext)??env.testProvider?.describe(authorizationContext)??null:null);
         const policyIdentity={version:AUTHORITY_ACTION_POLICY_VERSION,policy};
         if(authorizationPolicy!==undefined&&!equal(authorizationPolicy,policyIdentity))throw fail('authorization-policy-changed');
         const body={schemaVersion:1,generation,operationId,action,base:b?{manifestId:b.head.manifestId,seq:b.head.seq,
@@ -329,6 +336,7 @@ function makeStore(db,env,lifecycle,lease) {
         const value=frozen({generation,operationId,action,base:b,changes:c,dependencyKeys:dependencies,acknowledgements:a,
             policy,operationData:structuredClone(operationData),authorizationIdentity:structuredClone(identity),authorizationPolicy:policyIdentity,
             initialControl:initialControl&&structuredClone(initialControl),fingerprint:digest(body)});
+        captureTrustedProContext(env.scope,authorizationContext,value);
         const handle=Object.freeze({generation,operationId});prepared.set(handle,{...value,authorizationContext,
             capability:env.testProvider?.capture(value,systemCapability,authorizationContext)});return handle;
     }
@@ -406,7 +414,7 @@ function makeStore(db,env,lifecycle,lease) {
                 }
                 const authorizedAt=env.now();if(!Number.isFinite(authorizedAt)||authorizedAt<0)throw fail('authorization-time-invalid');
                 if((p.policy==='pro'||p.authorizationContext!==undefined)&&typeof commitGuard!=='function')throw fail('operation-commit-guard-required');
-                if(p.policy==='pro'&&!env.testProvider?.verify(p.authorizationContext,commitGuard,p))throw fail('operation-guard-untrusted');
+                if(p.policy==='pro'&&!verifyTrustedProGuard(env.scope,p.authorizationContext,commitGuard,p)&&!env.testProvider?.verify(p.authorizationContext,commitGuard,p))throw fail('operation-guard-untrusted');
                 if(commitGuard!==undefined){
                     if(typeof commitGuard!=='function')throw fail('operation-commit-guard-invalid');
                     const verdict=commitGuard(p.authorizationContext,frozen({operationId:p.operationId,action:p.action,generation:p.generation,
@@ -414,7 +422,8 @@ function makeStore(db,env,lifecycle,lease) {
                     if(verdict?.then){verdict.catch?.(()=>{});throw fail('operation-commit-guard-async');}
                     if(verdict===false||verdict?.ok===false||verdict?.allowed===false)throw fail('operation-authorization-rejected');
                     if(p.policy==='pro') {
-                        if(!verdict || verdict.ok!==true || verdict.policy!=='pro' || !equal({generation:verdict.generation,credentialFingerprint:verdict.credentialFingerprint},p.authorizationIdentity) ||
+                        const identity=verdict&&Object.fromEntries(Object.keys(p.authorizationIdentity||{}).map(k=>[k,verdict[k]]));
+                        if(!verdict || verdict.ok!==true || verdict.policy!=='pro' || !equal(identity,p.authorizationIdentity) ||
                             !Number.isSafeInteger(verdict.generation)||verdict.generation<1||!/^[a-f0-9]{64}$/.test(verdict.credentialFingerprint))throw fail('pro-proof-result-invalid');
                         if(!Number.isFinite(verdict.wallMarginMs)||!Number.isFinite(verdict.monoMarginMs)||
                             verdict.wallMarginMs<AUTHORIZATION_MARGIN_MS||verdict.monoMarginMs<AUTHORIZATION_MARGIN_MS)throw fail('pro-proof-margin-insufficient');
