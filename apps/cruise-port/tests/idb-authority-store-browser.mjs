@@ -73,7 +73,8 @@ try{
  await send('Target.closeTarget',{targetId:normal.targetId});record('normal Port / Studio read-only start creates no new Authority DB');
  await evaluate(a.sessionId,`IDBQA.setup(${JSON.stringify(partition)})`);await evaluate(b.sessionId,`IDBQA.setup(${JSON.stringify(partition)})`);
  const checksum=await evaluate(a.sessionId,'IDBQA.checksum()');assert.equal(checksum.ours,checksum.native);record('native creation / hydration / SubtleCrypto digest match');
- const counts=await evaluate(a.sessionId,'IDBQA.counts()');assert.equal(counts.head,1);assert.equal(counts.manifests,1);assert.equal(counts.records,14);record('exact seven stores / full initial head / explicit absence');
+ const counts=await evaluate(a.sessionId,'IDBQA.counts()');assert.equal(counts.head,1);assert.equal(counts.manifests,1);assert.equal(counts.records,14);assert.equal(counts.pointer,1);assert.equal(counts.reservations,0);
+ assert.deepEqual(Object.keys(counts).sort(),['control','head','journal','manifests','oplog','pointer','records','reservations','roots']);record('exact nine v2 stores / one fixture pointer / full initial head / explicit absence');
  report.rendererProcesses=(await send('SystemInfo.getProcessInfo')).processInfo.filter(p=>p.type==='renderer').length;
  assert(report.rendererProcesses>=2);
  await Promise.all([evaluate(a.sessionId,"IDBQA.prepare('same-a',IDBQA.keys.met,{bpm:141})"),evaluate(b.sessionId,"IDBQA.prepare('same-b',IDBQA.keys.met,{bpm:142})")]);

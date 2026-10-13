@@ -5,6 +5,8 @@ import { openIsolatedIDBRepositoryBackend } from '../../port-indexeddb-repositor
 import { values, control } from '../authority-store/fixture.mjs';
 import { referenceValues, REF_KEYS, attachment, danglingAttachments } from '../authority-store/reference-fixture.mjs';
 import { KEYS, CONTROL_SCENARIOS, counterLoop, deleteLoop, seedDeleteCollections } from './cross-tab-scenarios.mjs';
+import { claimPortAuthorityIssuer, openIDBAuthorityStore } from '../../port-indexeddb-authority-store.mjs';
+import { AUTHORITY_DB_VERSION, V1_STORE_KEYS, POINTER_KEY, reservationKey } from '../../port-idb-authority-contract.mjs';
 let token, scope, generation, backend, repository;
 let proValid=true;const authorizations=new Map();
 const handles=new Map();
@@ -74,7 +76,7 @@ window.crossTab={
   const add=IDBObjectStore.prototype.add;IDBObjectStore.prototype.add=function(...args){if(this.name==='records')this.transaction.abort();return add.apply(this,args);};
   try{return await backend.commitPreparedWrite(handles.get(id));}finally{IDBObjectStore.prototype.add=add;}
  },
- async upgrade(){return new Promise((ok,no)=>{const r=indexedDB.open(scope.name,2);r.onupgradeneeded=()=>r.result.createObjectStore('future');r.onsuccess=()=>{r.result.close();ok(backend.store.status);};r.onerror=()=>no(r.error);});},
+ async upgrade(){return new Promise((ok,no)=>{const r=indexedDB.open(scope.name,AUTHORITY_DB_VERSION+1);r.onupgradeneeded=()=>r.result.createObjectStore('future');r.onsuccess=()=>{r.result.close();ok(backend.store.status);};r.onerror=()=>no(r.error);});},
  async futureOpen(){try{await openIsolatedIDBRepositoryBackend({scope,generation,channelFactory:()=>null});return {ok:true};}catch(e){return {ok:false,reason:e.code};}},
  status:()=>backend.store.status,
  async referencePrepare({id,kind,owner='menu-0',attachmentId='attachment-a',acknowledgements=[],dependencyKeys=[]}) {
@@ -107,10 +109,72 @@ window.crossTab={
  async referenceObserve(){const s=await snapshot();return {values:s.values,versions:s.versions,seq:s.head.seq,dangling:danglingAttachments(s.values)};},
  async integrity(){
   const s=await snapshot();
-  const db=await new Promise((ok,no)=>{const r=indexedDB.open(scope.name,1);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+  const db=await new Promise((ok,no)=>{const r=indexedDB.open(scope.name);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
   try{return await new Promise((ok,no)=>{const tx=db.transaction(['oplog','manifests'],'readonly'),r=tx.objectStore('oplog').getAll(),m=tx.objectStore('manifests').getAll();
    tx.oncomplete=()=>{const logs=r.result.filter(l=>l.generation===generation),manifests=m.result.filter(v=>v.generation===generation);
     ok({seq:s.head.seq,logs:logs.length,unique:new Set(logs.map(l=>l.operationId)).size,partial:manifests.filter(v=>Object.keys(v.versions).length!==15).length});};tx.onabort=()=>no(tx.error);});}finally{db.close();}
  },
- release(){backend?.dispose();return true;}
+ release(){backend?.dispose();v1Connection?.close();return true;},
+ // ---- L3b-1 pointer / publication / schema v2 (isolated fixture names only) ----
+ async pointerStage({generation:gen,migrationId}) {
+  assertFixture();const store=backend.store,c={...control(gen,token),state:'prepared'};
+  const seeded=await store.initialize({generation:gen,control:c,values:values(),operationId:'stage-'+gen});if(!seeded.ok)throw Error(seeded.reason);
+  const j=await store.writeJournal({schemaVersion:1,migrationId,generation:gen,revision:1,state:'prepared',identity:c.identity});if(!j.ok)throw Error(j.reason);
+  const sealed=await store.seal({generation:gen,migrationId,capability:issuer().issue('migration-publication',{generation:gen})});if(!sealed.ok)throw Error(sealed.reason);
+  return {sealHash:sealed.sealHash,controlEpoch:sealed.controlEpoch};
+ },
+ async pointerPublish({generation:gen,migrationId,operationId,expectedPointerEpoch=null}) {
+  assertFixture();const store=backend.store,journal=(await store.readJournal(migrationId)).journal,h=await store.hydrate(gen);
+  if(!journal||!h.ok)return {ok:false,reason:'stage-missing'};
+  const cap=issuer().issue('migration-publication',{generation:gen});
+  const attestation=issuer().attestFixtureEvidence({generation:gen,migrationId,sealHash:journal.sealHash,
+   binary:{manifestDigest:'a'.repeat(64),assetCount:0},sync:{checkpointDigest:'b'.repeat(64),outboxPending:0}});
+  return store.publish({generation:gen,migrationId,operationId,capability:cap,attestation,expectedPointerEpoch,expectedControlEpoch:h.snapshot.control.epoch});
+ },
+ async pointerState(gen) {
+  const p=await backend.store.readPointer(),h=gen?await backend.store.hydrate(gen):null;
+  return {pointer:p.pointer??null,pointerStatus:p.ok?'ok':p.status,pointerReason:p.reason??null,
+   hydrate:h&&{status:h.status,activity:h.activity??null,readOnly:h.readOnly??null,reason:h.reason??null,state:h.snapshot?.control.state??null,epoch:h.snapshot?.control.epoch??null}};
+ },
+ async pointerPrepareOld(id) {
+  await backend.hydrate();const s=repository.inspect(),key=KEYS.a;
+  handles.set(id,await backend.prepareWrite({operationId:id,expectedValues:{[key]:s.values[key]}},d=>d.setItem(key,JSON.stringify({...JSON.parse(d.getItem(key)),bpm:133}))));
+  return true;
+ },
+ pointerCommitOld:id=>backend.commitPreparedWrite(handles.get(id)),
+ pointerArmCrash(){const put=IDBObjectStore.prototype.put;IDBObjectStore.prototype.put=function(...args){const r=put.apply(this,args);if(this.name==='pointer')r.addEventListener('success',()=>{debugger;},{once:true});return r;};return true;},
+ async pointerRaw(kind) {
+  const db=await new Promise((ok,no)=>{const r=indexedDB.open(scope.name);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+  try{return await new Promise((ok,no)=>{const tx=db.transaction(['pointer'],'readwrite'),store=tx.objectStore('pointer');let saved;tx.oncomplete=()=>ok(saved);tx.onabort=()=>no(tx.error);
+   const r=store.get(POINTER_KEY);r.onsuccess=()=>{saved=r.result;
+    if(kind==='corrupt')store.put({...r.result,pointerEpoch:0});else if(kind==='delete')store.delete(POINTER_KEY);else if(kind?.key===POINTER_KEY)store.put(kind);};});}
+  finally{db.close();}
+ },
+ async v1Create({name,handler}) {
+  assertFixture();if(!/^sound-cruise-port-authority-v1-fixture-[A-Za-z0-9_-]+$/.test(name))throw Error('fixture name required');
+  v1Events=[];v1Connection=await new Promise((ok,no)=>{const r=indexedDB.open(name,1);
+   r.onupgradeneeded=()=>{for(const [n,k] of Object.entries(V1_STORE_KEYS))r.result.createObjectStore(n,{keyPath:k});
+    const j=r.transaction.objectStore('journal');
+    j.add({migrationId:reservationKey('g1','pending'),kind:'operation-identity',schemaVersion:1,generation:'g1',operationId:'pending',fingerprint:'c'.repeat(64)});
+    j.add({migrationId:'m-keep',schemaVersion:1,generation:'g1',revision:1,state:'prepared'});
+    r.transaction.objectStore('roots').add({generation:'g1',rootId:'r-keep',schemaVersion:1,kind:'recovery',manifestIds:[],recordRefs:[],journalIds:[]});};
+   r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+  if(handler)v1Connection.onversionchange=()=>{v1Events.push('versionchange');v1Connection.close();};
+  return {version:v1Connection.version};
+ },
+ v1Close(){v1Connection?.close();v1Connection=null;return true;},
+ v1Events:()=>v1Events,
+ async v1Open(name) {
+  const s=createIsolatedIDBAuthorityScope({indexedDB,partitionId:token,name});
+  try{const store=await openIDBAuthorityStore(s);store.dispose();}catch(e){return {ok:false,reason:e.code};}
+  return {ok:true};
+ },
+ async v1Inspect(name) {
+  const db=await new Promise((ok,no)=>{const r=indexedDB.open(name);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+  try{const names=[...db.objectStoreNames];return await new Promise((ok,no)=>{const tx=db.transaction(names,'readonly'),out={version:db.version,stores:names.sort()};let pending=names.length;
+   tx.onabort=()=>no(tx.error);for(const n of names){const r=tx.objectStore(n).getAll();r.onsuccess=()=>{out[n]=r.result;if(!--pending)ok(out);};}});}
+  finally{db.close();}
+ }
 };
+let v1Connection=null,v1Events=[];const issuers=new WeakMap();
+function issuer(){if(!issuers.has(scope))issuers.set(scope,claimPortAuthorityIssuer(scope));return issuers.get(scope);}

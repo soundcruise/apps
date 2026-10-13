@@ -6,13 +6,19 @@ import { canonical, equal, safeEvidence } from './port-migration-contract.mjs';
 export { assertPortReferentialIntegrity } from './port-referential-integrity.mjs';
 export { PORT_DATASET_KEYS, PORT_DELETE_INTENTS, canonical, equal };
 export const AUTHORITY_DB_NAME = 'sound-cruise-port-authority-v1';
-export const AUTHORITY_DB_VERSION = 1;
+// Physical schema inside the v1 major DB. Upgrades are additive whitelisted steps only.
+export const AUTHORITY_DB_VERSION = 2;
 export const AUTHORITY_STORE_SCHEMA = 1;
 export const AUTHORIZATION_MARGIN_MS = 30000;
-export const STORE_KEYS = Object.freeze({ records: Object.freeze(['generation','logicalKey','version']),
+export const V1_STORE_KEYS = Object.freeze({ records: Object.freeze(['generation','logicalKey','version']),
     manifests: Object.freeze(['generation','manifestId']), head: 'generation', control: 'generation',
     journal: 'migrationId', oplog: Object.freeze(['generation','operationId']), roots: Object.freeze(['generation','rootId']) });
-export const COMMIT_STORES = Object.freeze(['head','control','manifests','records','oplog']);
+// v2: one partition-wide active pointer, and operation reservations separated from migration journals.
+export const STORE_KEYS = Object.freeze({ ...V1_STORE_KEYS, pointer: 'key', reservations: Object.freeze(['generation','operationId']) });
+export const COMMIT_STORES = Object.freeze(['pointer','head','control','manifests','records','oplog']);
+export const POINTER_KEY = 'active';
+export const CONTROL_STATES = Object.freeze(['staging','prepared','sealed','active','superseded','recovery-required']);
+export const RESERVED_JOURNAL_PREFIX = 'operation-';
 export const fail = code => Object.assign(new Error(code), { code });
 export const frozen = value => { if (value && typeof value === 'object') { Object.values(value).forEach(frozen); Object.freeze(value); } return value; };
 export const identifier = value => { if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) throw fail('invalid-identity'); return value; };
@@ -84,7 +90,7 @@ export function assertRetainedFields(before, after, keys) {
 export function validateControl(c) {
     assertJSONEvidence(c);
     if (!object(c) || c.schemaVersion !== 1 || c.repositoryProtocol !== PORT_DATASET_PROTOCOL || c.writerProtocol !== AUTHORITY_WRITER_PROTOCOL ||
-        !positive(c.epoch) || !positive(c.fenceEpoch) || !['prepared','active','superseded','recovery-required'].includes(c.state) ||
+        !positive(c.epoch) || !positive(c.fenceEpoch) || !CONTROL_STATES.includes(c.state) ||
         ['suspended','fenceRevoked','identityInvalidated','recoveryRequired'].some(k=>typeof c[k] !== 'boolean')) throw fail('control-invalid');
     identifier(c.generation);
     const i = c.identity;
@@ -105,6 +111,33 @@ export function validateHead(head) {
     if (!exactKeys(head,['schemaVersion','repositoryProtocol','writerProtocol','generation','seq','manifestId','revision','operationId','controlEpoch']) || head.schemaVersion !== 1 || head.repositoryProtocol !== PORT_DATASET_PROTOCOL || head.writerProtocol !== AUTHORITY_WRITER_PROTOCOL ||
         !positive(head.seq) || !positive(head.controlEpoch)) throw fail('head-invalid');
     for (const field of ['generation','manifestId','revision','operationId']) identifier(head[field]);
+}
+// The single partition-wide statement of which generation is the Port authority.
+// A localStorage sentinel or a control row saying "active" never substitutes for it.
+export function validatePointer(p) {
+    assertJSONEvidence(p);
+    if (!exactKeys(p,['key','schemaVersion','partitionId','pointerEpoch','activeGeneration','namespaceVersion','repositoryProtocol',
+        'writerProtocol','migrationId','publication','previousGeneration','operationId']) || p.key !== POINTER_KEY || p.schemaVersion !== 1 ||
+        typeof p.partitionId !== 'string' || !p.partitionId || !positive(p.pointerEpoch) || p.namespaceVersion !== 1 ||
+        p.repositoryProtocol !== PORT_DATASET_PROTOCOL || p.writerProtocol !== AUTHORITY_WRITER_PROTOCOL ||
+        !exactKeys(p.publication,['kind','manifestId','headSeq','sealHash','controlEpoch']) ||
+        !['migration','isolated-fixture'].includes(p.publication.kind) || !positive(p.publication.headSeq) ||
+        !positive(p.publication.controlEpoch) || !/^[a-f0-9]{64}$/.test(p.publication.sealHash)) throw fail('pointer-invalid');
+    for (const field of ['activeGeneration','migrationId','operationId']) identifier(p[field]);
+    identifier(p.publication.manifestId);
+    if (p.previousGeneration !== null) identifier(p.previousGeneration);
+    if (p.previousGeneration === p.activeGeneration) throw fail('pointer-invalid');
+}
+export const reservationKey = (generation, operationId) => RESERVED_JOURNAL_PREFIX + digest([generation, operationId]);
+export function validateReservation(r, generation, operationId) {
+    assertJSONEvidence(r);
+    if (!exactKeys(r,['generation','operationId','schemaVersion','kind','fingerprint','action','policy','targetKeys','origin']) ||
+        r.schemaVersion !== 1 || r.generation !== generation || r.operationId !== operationId ||
+        !['operation-identity','publication','seal'].includes(r.kind) || !/^[a-f0-9]{64}$/.test(r.fingerprint) ||
+        !['v2','v1-journal'].includes(r.origin) || (r.origin === 'v1-journal' ? r.kind !== 'operation-identity' ||
+        r.action !== null || r.policy !== null || r.targetKeys !== null : typeof r.action !== 'string' || typeof r.policy !== 'string' ||
+        !Array.isArray(r.targetKeys) || r.targetKeys.some(k => typeof k !== 'string'))) throw fail('reservation-invalid');
+    identifier(r.generation); identifier(r.operationId);
 }
 export function validateManifest(m, head) {
     assertJSONEvidence(m);

@@ -1,6 +1,6 @@
 import { createTestAuthorityScope as createIsolatedIDBAuthorityScope } from './test-authority.mjs';
 import { openIDBAuthorityStore, AUTHORITY_DB_NAME } from '../../port-indexeddb-authority-store.mjs';
-import { STORE_KEYS, PORT_DELETE_INTENTS, hashText } from '../../port-idb-authority-contract.mjs';
+import { STORE_KEYS, PORT_DELETE_INTENTS, hashText, AUTHORITY_DB_VERSION } from '../../port-idb-authority-contract.mjs';
 import { values, control, patch } from './fixture.mjs';
 let scope,store,partitionId;const packets=new Map(),handles=new Map(),events=[];
 const met='cruisePort.metronome',tuner='cruisePort.tuner';
@@ -24,7 +24,7 @@ window.IDBQA={
  commit(id){return store.commit(handles.get(id));},lookup:id=>store.lookupOperation('g1',id),
  async reopen(){store.dispose();store=await openIDBAuthorityStore(scope);return snapshot();},
  async counts(){
-  const db=await new Promise((ok,no)=>{const r=indexedDB.open(AUTHORITY_DB_NAME,1);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+  const db=await new Promise((ok,no)=>{const r=indexedDB.open(AUTHORITY_DB_NAME,AUTHORITY_DB_VERSION);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
   try{return await new Promise((ok,no)=>{const tx=db.transaction(Object.keys(STORE_KEYS),'readonly'),result={};tx.oncomplete=()=>ok(result);tx.onabort=()=>no(tx.error);
    for(const key of Object.keys(STORE_KEYS)){const r=tx.objectStore(key).count();r.onsuccess=()=>{result[key]=r.result;};}
   });}finally{db.close();}
@@ -39,7 +39,7 @@ window.IDBQA={
   };
  },
  async upgrade(){
-  return new Promise((ok,no)=>{const r=indexedDB.open(AUTHORITY_DB_NAME,2);r.onupgradeneeded=()=>r.result.createObjectStore('future');r.onsuccess=()=>{r.result.close();ok({events:[...events],status:store.status});};r.onerror=()=>no(r.error);});
+  return new Promise((ok,no)=>{const r=indexedDB.open(AUTHORITY_DB_NAME,AUTHORITY_DB_VERSION+1);r.onupgradeneeded=()=>r.result.createObjectStore('future');r.onsuccess=()=>{r.result.close();ok({events:[...events],status:store.status});};r.onerror=()=>no(r.error);});
  },
  async futureOpen(){try{await openIDBAuthorityStore(scope);return {ok:true};}catch(e){return {ok:false,reason:e.code};}},
  async checksum(){const text='あ😀'+('x'.repeat(65)),bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));return {ours:hashText(text),native:[...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('')};},

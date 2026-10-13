@@ -4,8 +4,9 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { PortDatasetRepository, PORT_DATASET_KEYS, PORT_DELETE_INTENTS } from '../port-dataset-repository.js';
 import { openIsolatedIDBRepositoryBackend } from '../port-indexeddb-repository-backend.mjs';
-import { registerPortRepository, readPortStore, writePortStore } from '../port-dataset-storage.js?v=1.22.12';
+import { registerPortRepository, readPortStore, writePortStore } from '../port-dataset-storage.js?v=1.22.13';
 import { values, control } from './authority-store/fixture.mjs';
+import { AUTHORITY_DB_VERSION, V1_STORE_KEYS } from '../port-idb-authority-contract.mjs';
 import { loadSettings, saveSettings } from '../settings-store.js';
 import { loadMetronomeSettings, saveMetronomeSettings } from '../metronome-store.js';
 import { loadMetronomePresets, saveMetronomePresets } from '../metronome-presets-store.js';
@@ -161,14 +162,14 @@ test('notifications are hints; a delayed refresh cannot replace the exact commit
  assert.equal((await writePortStore(storage,[met],d=>d.setItem(met,JSON.stringify({...JSON.parse(d.getItem(met)),bpm:142})))).reason,'stale');
 });
 test('versionchange closes both backend connections / future DB is preserved',async t=>{
- const x=await setup(t);const upgraded=await new Promise((ok,no)=>{const r=x.factory.open(x.scope.name,2);r.onupgradeneeded=()=>r.result.createObjectStore('future');r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+ const x=await setup(t);const upgraded=await new Promise((ok,no)=>{const r=x.factory.open(x.scope.name,AUTHORITY_DB_VERSION+1);r.onupgradeneeded=()=>r.result.createObjectStore("future");r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
  assert.throws(()=>x.ra.inspect(),/versionchange/);assert.equal((await bumpSafe(x.ra)).ok,false);
  await assert.rejects(openIsolatedIDBRepositoryBackend({scope:x.scope,generation:'g1',channelFactory:()=>null}),/future-schema/);assert(upgraded.objectStoreNames.contains('future'));upgraded.close();
 });
 async function bumpSafe(repo){try{return await bump(repo);}catch(e){return {ok:false,reason:e.code};}}
 for(const kind of ['corrupt head','missing record'])test('Repository hydration fails closed without legacy fallback: '+kind,async t=>{
  const x=await setup(t),s=(await x.a.store.hydrate('g1')).snapshot;
- const db=await new Promise(ok=>{const r=x.factory.open(x.scope.name,1);r.onsuccess=()=>ok(r.result);});
+ const db=await new Promise(ok=>{const r=x.factory.open(x.scope.name,AUTHORITY_DB_VERSION);r.onsuccess=()=>ok(r.result);});
  await new Promise((ok,no)=>{const tx=db.transaction(['head','records'],'readwrite');tx.oncomplete=ok;tx.onabort=no;
   if(kind==='corrupt head')tx.objectStore('head').put({...s.head,manifestId:'missing'});else tx.objectStore('records').delete(['g1',met,s.versions[met]]);
  });db.close();await assert.rejects(x.a.hydrate());assert.throws(()=>x.ra.inspect());assert.equal(x.ra.sharedWriteCapable,false);
@@ -198,9 +199,9 @@ test('unavailable notification channel never becomes a lock or leaks a failed op
  const repo=new PortDatasetRepository({backend:b,locks:null});assert.equal((await bump(repo)).ok,true);
 });
 test('blocked backend open cannot return display/cache or fall back to legacy',async()=>{
- const factory=new IDBFactory(),scope=createIsolatedIDBAuthorityScope({indexedDB:factory,partitionId:'fixture-partition'}),b=await openIsolatedIDBRepositoryBackend({scope,generation:'g1',channelFactory:()=>null});b.dispose();
- const blocker=await new Promise(ok=>{const r=factory.open(scope.name,1);r.onsuccess=()=>ok(r.result);});
- const blockedScope=createIsolatedIDBAuthorityScope({indexedDB:{open:name=>factory.open(name,2)},partitionId:'fixture-partition'});
- await assert.rejects(openIsolatedIDBRepositoryBackend({scope:blockedScope,generation:'g1',channelFactory:()=>null}),/open-blocked/);blocker.close();
- await new Promise(r=>setTimeout(r,10));const db=await new Promise(ok=>{const r=factory.open(scope.name,1);r.onsuccess=()=>ok(r.result);});assert.equal(db.version,1);db.close();
+ // An existing v1 connection without a versionchange handler blocks the v1->v2 upgrade.
+ const factory=new IDBFactory(),scope=createIsolatedIDBAuthorityScope({indexedDB:factory,partitionId:'fixture-partition'});
+ const blocker=await new Promise(ok=>{const r=factory.open(scope.name,1);r.onupgradeneeded=()=>Object.entries(V1_STORE_KEYS).forEach(([name,keyPath])=>r.result.createObjectStore(name,{keyPath}));r.onsuccess=()=>ok(r.result);});
+ await assert.rejects(openIsolatedIDBRepositoryBackend({scope,generation:'g1',channelFactory:()=>null}),/open-blocked/);blocker.close();
+ await new Promise(r=>setTimeout(r,10));const db=await new Promise(ok=>{const r=factory.open(scope.name);r.onsuccess=()=>ok(r.result);});assert.equal(db.version,1);db.close();
 });

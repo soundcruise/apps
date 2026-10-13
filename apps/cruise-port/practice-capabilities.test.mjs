@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { canCreatePractice, checkPracticeCreation } from './practice-capabilities.js';
-import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.12';
-import { createPracticeMenu, loadPracticeMenus, savePracticeMenus } from './practice-menu-store.js?v=1.22.12';
+import { getCapabilities } from './cruise-port-capabilities.js?v=1.22.13';
+import { createPracticeMenu, loadPracticeMenus, savePracticeMenus } from './practice-menu-store.js?v=1.22.13';
 
 const standard = getCapabilities('standard');
 const pro = getCapabilities('pro');

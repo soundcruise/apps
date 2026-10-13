@@ -5,12 +5,12 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { openIDBAuthorityStore } from '../port-indexeddb-authority-store.mjs';
-import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, PORT_DATASET_KEYS, PORT_DELETE_INTENTS, hashText, digest, canonical } from '../port-idb-authority-contract.mjs';
+import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, V1_STORE_KEYS, PORT_DATASET_KEYS, PORT_DELETE_INTENTS, hashText, digest, canonical } from '../port-idb-authority-contract.mjs';
 import { values, control, patch } from './authority-store/fixture.mjs';
 const require=createRequire(new URL('./authority-store/package.json',import.meta.url));
 const {IDBFactory,IDBObjectStore,forceCloseDatabase}=require('fake-indexeddb');
 const met='cruisePort.metronome',tuner='cruisePort.tuner',presets='cruisePort.metronomePresets';
-const openRaw=(factory,name=AUTHORITY_DB_NAME,version=1,upgrade=()=>{})=>new Promise((ok,no)=>{
+const openRaw=(factory,name=AUTHORITY_DB_NAME,version=AUTHORITY_DB_VERSION,upgrade=()=>{})=>new Promise((ok,no)=>{
  const r=factory.open(name,version);r.onupgradeneeded=()=>upgrade(r.result,r.transaction);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);
 });
 async function raw(factory,stores,mode,build){const db=await openRaw(factory);try{return await new Promise((ok,no)=>{
@@ -45,33 +45,33 @@ test('fresh DB / exact store inventory / key structure / physical version',async
  db.close();assert.equal((await x.store.hydrate('g1')).status,'absent');
 });
 test('unsupported future physical version remains untouched',async()=>{
- const f=new IDBFactory(),db=await openRaw(f,AUTHORITY_DB_NAME,2,d=>d.createObjectStore('future'));db.close();
+ const f=new IDBFactory(),db=await openRaw(f,AUTHORITY_DB_NAME,AUTHORITY_DB_VERSION+1,d=>d.createObjectStore('future'));db.close();
  const scope=createIsolatedIDBAuthorityScope({indexedDB:f,partitionId:'fixture'});
- await assert.rejects(openIDBAuthorityStore(scope),/future-schema/);const after=await openRaw(f,AUTHORITY_DB_NAME,2);assert.deepEqual([...after.objectStoreNames],['future']);after.close();
+ await assert.rejects(openIDBAuthorityStore(scope),/future-schema/);const after=await openRaw(f,AUTHORITY_DB_NAME,AUTHORITY_DB_VERSION+1);assert.deepEqual([...after.objectStoreNames],['future']);after.close();
 });
 for(const corruption of ['missing store','wrong key','auto increment','unexpected index','extra store'])test('corrupt physical schema rejected: '+corruption,async()=>{
  const f=new IDBFactory(),db=await openRaw(f,AUTHORITY_DB_NAME,1,d=>{
-  for(const [name,keyPath]of Object.entries(STORE_KEYS)){
+  for(const [name,keyPath]of Object.entries(V1_STORE_KEYS)){
    if(corruption==='missing store'&&name==='roots')continue;
    const s=d.createObjectStore(name,{keyPath:corruption==='wrong key'&&name==='head'?'wrong':keyPath,autoIncrement:corruption==='auto increment'&&name==='head'});
    if(corruption==='unexpected index'&&name==='head')s.createIndex('unknown','seq');
   }
   if(corruption==='extra store')d.createObjectStore('unknown');
  });db.close();const scope=createIsolatedIDBAuthorityScope({indexedDB:f,partitionId:'fixture'});
- await assert.rejects(openIDBAuthorityStore(scope),/schema-invalid/);const after=await openRaw(f);assert.equal(after.version,1);after.close();
+ await assert.rejects(openIDBAuthorityStore(scope),/schema-invalid/);const after=await openRaw(f,AUTHORITY_DB_NAME,1);assert.equal(after.version,1);after.close();
 });
 test('blocked open rejects promptly and late success cannot leak/modify schema',async()=>{
  const f=new IDBFactory();
  // IndexedDB version must be an integer; use a proxy to expose the native blocked
  // path at requested version2 while this v1 connection remains open.
- const blocker=await openRaw(f,AUTHORITY_DB_NAME,1,d=>Object.entries(STORE_KEYS).forEach(([name,keyPath])=>d.createObjectStore(name,{keyPath})));
+ const blocker=await openRaw(f,AUTHORITY_DB_NAME,1,d=>Object.entries(V1_STORE_KEYS).forEach(([name,keyPath])=>d.createObjectStore(name,{keyPath})));
  const factory={open(name){return f.open(name,2);}},events=[];
  const scope=createIsolatedIDBAuthorityScope({indexedDB:factory,partitionId:'fixture',onLifecycle:e=>events.push(e)});
  await assert.rejects(openIDBAuthorityStore(scope),/open-blocked/);assert.deepEqual(events,['blocked']);blocker.close();
- await new Promise(r=>setTimeout(r,20));const after=await openRaw(f);assert.equal(after.version,1);after.close();
+ await new Promise(r=>setTimeout(r,20));const after=await openRaw(f,AUTHORITY_DB_NAME,1);assert.equal(after.version,1);after.close();
 });
 test('versionchange closes old connection and old handle refuses operations',async t=>{
- const x=await setup(t);const upgraded=await openRaw(x.factory,AUTHORITY_DB_NAME,2);
+ const x=await setup(t);const upgraded=await openRaw(x.factory,AUTHORITY_DB_NAME,AUTHORITY_DB_VERSION+1);
  assert.equal(x.store.status,'versionchange');assert.equal((await x.store.hydrate('g1')).ok,false);assert.deepEqual(x.events,['versionchange']);upgraded.close();
 });
 test('unexpected close / unavailable connection fail closed',async t=>{
@@ -216,7 +216,10 @@ test('response loss and reopen retry from serialized original request never comm
 });
 for(const patchValue of [{suspended:true},{fenceRevoked:true},{identityInvalidated:true},{state:'superseded'},{recoveryRequired:true}])test('control transition fences old handle: '+canonical(patchValue),async t=>{
  const x=await setup(t),base=await load(x.store),h=prepare(x.store,base,'old');assert((await x.store.updateControl('g1',{expectedEpoch:1,patch:patchValue})).ok);
- assert.equal((await x.store.commit(h)).ok,false);assert.equal((await x.store.hydrate('g1')).readOnly,true);
+ assert.equal((await x.store.commit(h)).ok,false);const after=await x.store.hydrate('g1');
+ // v2: a control row superseded outside publication while the pointer still names it is inconsistent.
+ if(patchValue.state==='superseded')assert.deepEqual([after.status,after.reason],['recovery-required','pointer-control-mismatch']);
+ else assert.equal(after.readOnly,true);
 });
 test('control suspend/resume ABA increases epoch; binding never retags',async t=>{
  const x=await setup(t),base=await load(x.store),h=prepare(x.store,base,'aba');

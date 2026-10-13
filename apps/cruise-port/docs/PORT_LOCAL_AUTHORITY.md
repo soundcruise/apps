@@ -1,5 +1,20 @@
 # B1-2 + B1-3 Authority Preparation
 
+## L3b-1 Active Pointer & Schema v2（2026-10-13・現行）
+
+Port1.22.13 / Studio0.26.7 / Studio schema1 / Authority DB physical schema2。[Pointer契約](AUTHORITY_POINTER_SCHEMA_V2.md)が正式契約。
+v1→v2はadditive（pointer/reservations追加、既存7 store不変更）。L3aのjournal予約行はversionchange内で全件検証・複写・読戻し後に
+reservationsへ移し、1件でも不整合ならupgrade全体をabort。`operation-`prefixのmigrationIdは拒否しL4 journalと分離する。
+partition唯一のpointer(`active`)が正本、sentinelはhint。破損/generation欠落はrecovery-required、不在はread-only。
+state: staging/prepared/sealed/active/superseded/recovery-required。seal後、pointer CAS・evidence・fence検証付きの1 transactionで
+旧control superseded＋新control active＋pointer＋journal＋publication予約を公開。同migrationIdはalready-active、異migrationIdはpointer-stale/conflict。
+通常commitはpointer/control/headを同transactionで再確認し、切替後のold handle/旧baseはgeneration-not-active/pointer-staleで拒否。
+capabilityはscope/purpose/generation束縛のbrand object、L3b-1発行はmigration-publicationのみ。publish中crashは全abortまたは完全公開でretry1回。
+Port/Studio boot graphはStore/capability/IDB backendをimportせず、通常UIはDB作成・publish・control変更不可。
+Node pointer33＋store88/backend46/参照35/policy57、Port/shared2065 / Worker760 / Other186 / workerd8 / Studio315（commit後clean guard込み）。
+Native A–F（別renderer）、CAS54round＋7、参照63round＋failure4、L2a14、CDP製品回帰（Port 1280/393・Studio 1440/393）全PASS。console/404/unexpected write0。
+Production legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false。L3b-2（正式Control操作）/L3c/L3d/L4/B1-6は未着手。
+
 ## L2b-fix Referential Integrity（2026-10-13・現行）
 
 Port1.22.11 / Studio0.26.5 / schema1。[参照整合性契約](PORT_REFERENTIAL_INTEGRITY.md)を現在の正式契約とする。

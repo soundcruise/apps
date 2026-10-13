@@ -1,6 +1,21 @@
 # IndexedDB Authority Store v1 — L2a
 
-## L3a Action Authorization Policy（2026-10-13・現行）
+## L3b-1 Active Pointer & Schema v2（2026-10-13・現行）
+
+Port1.22.13 / Studio0.26.7 / Studio schema1 / Authority DB physical schema2。[Pointer契約](AUTHORITY_POINTER_SCHEMA_V2.md)が正式契約。
+v1→v2はadditive（pointer/reservations追加、既存7 store不変更）。L3aのjournal予約行はversionchange内で全件検証・複写・読戻し後に
+reservationsへ移し、1件でも不整合ならupgrade全体をabort。`operation-`prefixのmigrationIdは拒否しL4 journalと分離する。
+partition唯一のpointer(`active`)が正本、sentinelはhint。破損/generation欠落はrecovery-required、不在はread-only。
+state: staging/prepared/sealed/active/superseded/recovery-required。seal後、pointer CAS・evidence・fence検証付きの1 transactionで
+旧control superseded＋新control active＋pointer＋journal＋publication予約を公開。同migrationIdはalready-active、異migrationIdはpointer-stale/conflict。
+通常commitはpointer/control/headを同transactionで再確認し、切替後のold handle/旧baseはgeneration-not-active/pointer-staleで拒否。
+capabilityはscope/purpose/generation束縛のbrand object、L3b-1発行はmigration-publicationのみ。publish中crashは全abortまたは完全公開でretry1回。
+Port/Studio boot graphはStore/capability/IDB backendをimportせず、通常UIはDB作成・publish・control変更不可。
+Node pointer33＋store88/backend46/参照35/policy57、Port/shared2065 / Worker760 / Other186 / workerd8 / Studio315（commit後clean guard込み）。
+Native A–F（別renderer）、CAS54round＋7、参照63round＋failure4、L2a14、CDP製品回帰（Port 1280/393・Studio 1440/393）全PASS。console/404/unexpected write0。
+Production legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false。L3b-2（正式Control操作）/L3c/L3d/L4/B1-6は未着手。
+
+## L3a Action Authorization Policy（2026-10-13）
 
 Port1.22.12 / Studio0.26.6 / schema1。[Action Policy](AUTHORITY_ACTION_POLICY.md)が新Authorityの正式操作契約。
 requiresAuthorization自己申告の迂回を再現し、Store RW transaction内のaction/targets/raw mutation/guard検証で拒否する。
@@ -12,7 +27,7 @@ identity予約はbackend.prepare返却前・直接Store.commit前に既存journa
 Production legacy / Worker ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=falseを維持。
 Node policy57＋既存169、Port/shared2032 / Worker760 / Other186 / workerd8。Studioはcommit後clean guard込み315で確認。
 Native policy9 / L2a14 / L2b54round＋7 / 参照63round＋failure4、Port72 / Studio97＋Host10、全PASS。console/404/unexpected network mutation0。
-次はL3a独立確認、その後L3b。L3b以降/B1-6/shared write/deploy/cutoverは実施しない。以下は各工程時点の履歴。
+L3a当時の次工程: L3a独立確認、その後L3b。L3b以降/B1-6/shared write/deploy/cutoverは実施しない。以下は各工程時点の履歴。
 
 ## L2b-fix Referential Integrity（2026-10-13・現行）
 
@@ -125,7 +140,8 @@ L1のsentinel・boot fail-closed切替はL2b/L4以降。通常起動で新DBが�
 
 ## Database schema
 
-DB名major1: **`sound-cruise-port-authority-v1`**、IDB physical version **1**、packet schemaVersion **1**。
+DB名major1: **`sound-cruise-port-authority-v1`**、IDB physical version **2**（L3b-1。L2a当時は1）、packet schemaVersion **1**。
+v2はpointer（key=`active`）とreservations（`[generation, operationId]`）を追加した9 store。詳細は[Pointer契約](AUTHORITY_POINTER_SCHEMA_V2.md)。
 repository protocol **1** / Authority writer protocol **2**、Migration journal envelope schemaVersion **1**。
 これらをappVersionやnamespace generationと混同しない。fixture用明示suffix名も同schemaに限定する。
 
@@ -140,7 +156,7 @@ repository protocol **1** / Authority writer protocol **2**、Migration journal 
 | roots | `[generation, rootId]` | kind、manifestIds、recordRefs、journalIds。pinのみ、rootIdはimmutable |
 
 index/autoIncrementなし。store inventory/keyPath/index/versionを厳密に検証する。
-future physical versionはopen(name,1)のVersionErrorで拒否。不正schemaをupgrade/recreate/deleteで修復しない。
+future physical versionは現行version指定openのVersionErrorで拒否（L2a当時はopen(name,1)）。不正schemaをupgrade/recreate/deleteで修復しない。
 未理解のhead/manifest/record fieldsは読取り拒否してdiskに保持する。dataset内のunknown fieldとは区別する。
 control/journal/rootのJSON evidenceは保持するが、credentials/secretやBlob等のbinaryをpacketへ保存しない。
 
@@ -227,7 +243,7 @@ disposeはidempotent。future schemaは保持しreload/対応readerを必要と�
 
 control更新は同DBのcontrol readwrite transaction。expectedEpoch CAS、epoch+1、binding immutable、fenceEpoch逆行拒否。
 commit scopeと重なりIDBで直列化される。fixture suspension/revoke/invalidation/active/superseded/recovery状態を表現する。
-正式suspendWrites/resumeWrites/fence/Account source/pointer publicationはL3以降。
+pointer publication/supersessionはL3b-1で実装済み。正式suspendWrites/resumeWrites/fence/Account sourceはL3b-2以降。
 
 journalはB1-4 state/schema1/JSON evidenceを保持し、revision CASを行う。migrationIdを別generationへ再帰属しない。
 journalと必要rootの保存は同transactionで原子的。sealHash/binary manifestはmetadataだけで、実legacy migration/copy/reconcileは行わない。

@@ -20,6 +20,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { runReferentialSuite, runReferentialFailures } from './referential-suite.mjs';
 import { runActionPolicySuite } from './action-policy-suite.mjs';
+import { runPointerSuite } from './pointer-suite.mjs';
 import { SCENARIOS, CONTROL_SCENARIOS, PAYLOADS, classifySameKey, classifyDifferentKeys,
     classifyDeleteIntents, classifyControl, verdict } from './cross-tab-scenarios.mjs';
 
@@ -135,6 +136,12 @@ try {
         report.actionPolicy=await runActionPolicySuite({evaluate,primary,peer});
         report.results=[{scenario:'action-policy',rounds:1,violations:0,inconclusiveRounds:0}];
     }
+    if (args.suite === 'pointer') {
+        if (backend !== 'indexeddb-authority') throw Error('pointer suite requires isolated IDB');
+        const pointer = await runPointerSuite({ evaluate, send, openTab, primaryTab, peerTab, token, paused, crashed, rounds });
+        primaryTab = pointer.primaryTab; primary = primaryTab.session; report.pointerCases = pointer.results;
+        report.results = [{ scenario: 'pointer-publication', rounds, violations: 0, inconclusiveRounds: 0 }];
+    }
     if (args.suite === 'referential') {
         if (backend !== 'indexeddb-authority') throw Error('referential suite requires isolated IDB');
         report.results = await runReferentialSuite({ evaluate, primary, peer, rounds, payloads, reproduction: mode === 'characterization' });
@@ -163,7 +170,7 @@ try {
             report.referenceFailures=[...failure.results,{name:'native Page.crash in attachment callback: exact committed/aborted snapshot and reopen',pass:true}];
         }
     }
-    for (const scenario of ['referential','policy'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
+    for (const scenario of ['referential','policy','pointer'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
         const aggregate = { scenario, payload, rounds: 0, violations: 0, inconclusiveRounds: 0, details: [] };
         for (let round = 0; round < rounds; round++) {
             const generation = randomUUID();

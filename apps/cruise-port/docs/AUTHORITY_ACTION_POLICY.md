@@ -1,5 +1,22 @@
 # IndexedDB Authority Action Authorization Policy v1 — L3a
 
+## L3b-1 Active Pointer & Schema v2（2026-10-13・現行）
+
+Port1.22.13 / Studio0.26.7 / Studio schema1 / Authority DB physical schema2。[Pointer契約](AUTHORITY_POINTER_SCHEMA_V2.md)が正式契約。
+v1→v2はadditive（pointer/reservations追加、既存7 store不変更）。L3aのjournal予約行はversionchange内で全件検証・複写・読戻し後に
+reservationsへ移し、1件でも不整合ならupgrade全体をabort。`operation-`prefixのmigrationIdは拒否しL4 journalと分離する。
+partition唯一のpointer(`active`)が正本、sentinelはhint。破損/generation欠落はrecovery-required、不在はread-only。
+state: staging/prepared/sealed/active/superseded/recovery-required。seal後、pointer CAS・evidence・fence検証付きの1 transactionで
+旧control superseded＋新control active＋pointer＋journal＋publication予約を公開。同migrationIdはalready-active、異migrationIdはpointer-stale/conflict。
+通常commitはpointer/control/headを同transactionで再確認し、切替後のold handle/旧baseはgeneration-not-active/pointer-staleで拒否。
+capabilityはscope/purpose/generation束縛のbrand object、L3b-1発行はmigration-publicationのみ。publish中crashは全abortまたは完全公開でretry1回。
+Port/Studio boot graphはStore/capability/IDB backendをimportせず、通常UIはDB作成・publish・control変更不可。
+Node pointer33＋store88/backend46/参照35/policy57、Port/shared2065 / Worker760 / Other186 / workerd8 / Studio315（commit後clean guard込み）。
+Native A–F（別renderer）、CAS54round＋7、参照63round＋failure4、L2a14、CDP製品回帰（Port 1280/393・Studio 1440/393）全PASS。console/404/unexpected write0。
+Production legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false。L3b-2（正式Control操作）/L3c/L3d/L4/B1-6は未着手。
+
+## L3a本文（2026-10-13・action policyは現行、予約保存先はL3b-1で変更）
+
 2026-10-13。Port **1.22.12** / Studio **0.26.6** / Studio schemaVersion **1**。
 開始HEAD/origin/main/remote mainは`a8104706ddd6c7c926a7676862b4f1d25c6bcf16`で一致。
 本契約がL2a/L2b当時の「caller contextがあればguard必須」「generic local書込み」の新Authority契約を置き換える。
@@ -87,7 +104,8 @@ backend.prepareWriteは返却前にStore.reserveOperationでimmutable operation 
 直接Store.prepareは同期のprivate captureなので、durable予約が必要なcallerはreserveOperationを待つ。
 直接Store.commit/retry相当もpublication前に予約を強制する。異なるpayloadの先行予約を上書きしない。
 
-予約は既存journal storeの`operation-<sha256(generation,operationId)>`に、kind=operation-identity / schemaVersion1 /
+L3b-1以降、予約はschema v2の`reservations` store（`[generation, operationId]`）へ保存し、L3a期のjournal行はv2 upgradeで移行済み。
+L3a当時: 予約は既存journal storeの`operation-<sha256(generation,operationId)>`に、kind=operation-identity / schemaVersion1 /
 generation / operationId / fingerprintだけを追加する。migration journalと区別し、rootへのmigration証拠として参照不可。
 同じキーが既に別内容なら拒否。writeJournalも既存rowのmigration validationが失敗するため予約を上書きできない。
 IDB physical version1・7 storesを維持する。reservation transactionはdataset/control/head/oplogを書かず、commit事実でも認可grantでもない。

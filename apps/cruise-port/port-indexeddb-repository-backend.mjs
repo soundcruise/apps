@@ -1,11 +1,11 @@
 // L2b isolated adapter. Explicit scope/open only; no product boot or cloud publish.
-import { registerIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.12';
+import { registerIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.13';
 import { openIDBAuthorityStore } from './port-indexeddb-authority-store.mjs';
-import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.22.12';
+import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.22.13';
 import { frozen, fail, identifier, validateDataset } from './port-idb-authority-contract.mjs';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.12';
-import { loadMetronomeSettings } from './metronome-store.js?v=1.22.12';
-import { loadTunerSettings } from './tuner-store.js?v=1.22.12';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.13';
+import { loadMetronomeSettings } from './metronome-store.js?v=1.22.13';
+import { loadTunerSettings } from './tuner-store.js?v=1.22.13';
 const rejected = e => ({ ok: false, status: 'rejected', reason: e.code || 'read-failed' });
 function validateDomainValues(values) {
     validateDataset(values);
@@ -29,7 +29,8 @@ export async function openIsolatedIDBRepositoryBackend({ scope, generation, toke
     function inspect() {
         if (disposed || store.status !== 'open') throw fail(disposed ? 'disposed' : store.status);
         if (issue || !snapshot) throw fail(issue || 'authority-hydrating');
-        return stateOf(snapshot, !snapshot.control.suspended && !snapshot.control.fenceRevoked &&
+        // Writable only when the partition pointer names this generation (schema v2).
+        return stateOf(snapshot, snapshot.active === true && !snapshot.control.suspended && !snapshot.control.fenceRevoked &&
             !snapshot.control.identityInvalidated && !snapshot.control.recoveryRequired && snapshot.control.state === 'active');
     }
     async function hydrate() {
