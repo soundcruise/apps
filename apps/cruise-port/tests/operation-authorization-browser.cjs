@@ -61,7 +61,7 @@ const origin=process.argv[2]||'http://127.0.0.1:8766';
    });
    try{
     await p.goto(origin+'/apps/cruise-port/pro_9a3943176561/');await p.waitForFunction(()=>!!SoundCruiseProOperationSource&&!document.querySelector('#pro-gate-overlay'));
-    await p.locator('.port-app-version-display').filter({hasText:'1.22.13'}).first().waitFor({state:'visible'});
+    await p.locator('.port-app-version-display').filter({hasText:'1.22.14'}).first().waitFor({state:'visible'});
     await p.evaluate(()=>location.hash='#metronome');await p.locator('#metronome-view').waitFor({state:'visible'});
     if(action==='advanced save') {
      await p.evaluate(()=>{const input=document.querySelector('#metronome-volume');input.value='25';input.dispatchEvent(new Event('input',{bubbles:true}));input.dispatchEvent(new Event('change',{bubbles:true}));});

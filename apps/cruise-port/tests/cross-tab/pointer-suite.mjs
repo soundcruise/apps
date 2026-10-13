@@ -18,8 +18,8 @@ export async function runPointerSuite({ evaluate, send, openTab, primaryTab, pee
         await fresh();
         const ga = id('ga'), ma = id('ma'), before = await epoch();
         await call(primary, 'pointerStage', { generation: ga, migrationId: ma });
-        const a = await Promise.all([call(primary, 'pointerPublish', { generation: ga, migrationId: ma, operationId: id('pa'), expectedPointerEpoch: before }),
-            call(peer, 'pointerPublish', { generation: ga, migrationId: ma, operationId: id('pb'), expectedPointerEpoch: before })]);
+        const a = await Promise.all([call(primary, 'pointerPublish', { generation: ga, migrationId: ma, operationId: 'same-'+ma, expectedPointerEpoch: before }),
+            call(peer, 'pointerPublish', { generation: ga, migrationId: ma, operationId: 'same-'+ma, expectedPointerEpoch: before })]);
         assert.deepEqual(a.map(r => r.status).sort(), ['already-active', 'published']);
         assert.equal(await epoch(), before + 1);
         // B: different migrationIds race from the same expected pointer.
@@ -67,7 +67,7 @@ export async function runPointerSuite({ evaluate, send, openTab, primaryTab, pee
     primaryTab = await openTab(); primary = primaryTab.session;
     await call(primary, 'claim', token);
     await call(primary, 'prepare', { scenario: 'save-save-same-key', role: 'peer', iterations: 1, generation: gd });
-    const retry = await call(primary, 'pointerPublish', { generation: gd, migrationId: md, operationId: 'crash-retry', expectedPointerEpoch: d0 });
+    const retry = await call(primary, 'pointerPublish', { generation: gd, migrationId: md, operationId: 'crash-publish', expectedPointerEpoch: d0 });
     assert.equal(retry.status, committed ? 'already-active' : 'published');
     assert.equal((await call(peer, 'pointerState')).pointer.pointerEpoch, d0 + 1);
     record('D renderer crash inside publication: atomic committed/aborted, retry publishes once', { outcome: committed ? 'committed-with-lost-response' : 'aborted' });
@@ -78,7 +78,7 @@ export async function runPointerSuite({ evaluate, send, openTab, primaryTab, pee
     assert.deepEqual(await call(peer, 'v1Events'), ['versionchange']);
     const up = await call(primary, 'v1Inspect', upgraded);
     assert.equal(up.version, 2); assert.deepEqual(up.journal.map(j => j.migrationId), ['m-keep']); assert.equal(up.roots.length, 1);
-    assert.deepEqual(up.reservations.map(r => [r.operationId, r.origin]), [['pending', 'v1-journal']]); assert.deepEqual(up.pointer, []);
+    assert.deepEqual(up.reservations.map(r => [r.operationId, r.origin]), [['pending', 'v1-journal']]); assert.deepEqual(up.pointer.map(p=>[p.key,p.pointerEpoch]), [['namespace',0]]);
     await call(peer, 'v1Create', { name: blocked, handler: false });
     assert.equal((await call(primary, 'v1Open', blocked)).reason, 'open-blocked');
     await call(peer, 'v1Close'); await new Promise(r => setTimeout(r, 100));
@@ -90,10 +90,9 @@ export async function runPointerSuite({ evaluate, send, openTab, primaryTab, pee
     const corrupt = await call(peer, 'pointerState', gf); assert.deepEqual([corrupt.pointerStatus, corrupt.hydrate.status], ['recovery-required', 'recovery-required']);
     assert.equal((await call(peer, 'pointerCommitOld', 'before-corruption')).reason, 'pointer-invalid');
     await call(primary, 'pointerRaw', 'delete');
-    const missing = await call(peer, 'pointerState', gf); assert.deepEqual([missing.pointer, missing.hydrate.activity, missing.hydrate.readOnly], [null, 'inactive', true]);
-    await call(peer, 'pointerPrepareOld', 'no-pointer');
-    assert.equal((await call(peer, 'pointerCommitOld', 'no-pointer')).reason, 'generation-not-active');
+    const missing = await call(peer, 'pointerState', gf); assert.deepEqual([missing.pointer, missing.hydrate.status, missing.hydrate.readOnly], [null, 'recovery-required', true]);
+    assert.equal((await call(peer, 'pointerCommitOld', 'before-corruption')).reason, 'pointer-missing');
     await call(primary, 'pointerRaw', saved);
-    record('F corrupt pointer is recovery-required; missing pointer is read-only with writes rejected');
+    record('F corrupt pointer is recovery-required; missing published pointer is recovery-required with old writes rejected');
     return { results, primaryTab };
 }

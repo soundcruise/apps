@@ -1,7 +1,7 @@
-# IndexedDB Authority Active Pointer & Schema v2 — L3b-1
+# IndexedDB Authority Active Pointer & Schema v2 — L3b-1 Safety Fix Completion
 
-2026-10-13。Port **1.22.13** / Studio **0.26.7** / Studio schemaVersion **1** / Authority DB physical schema **2**。
-開始HEAD/origin/main/remote mainは`57cdd150`で一致。本書がL2a/L3aの「physical version1・7 stores」
+2026-10-13。Port **1.22.14** / Studio **0.26.8** / Studio schemaVersion **1** / Authority DB physical schema **2**。
+開始HEAD/origin/main/remote mainは`58b21a4263b3d689afde712e59f86d5c8068b174`で一致。本書がL2a/L3aの「physical version1・7 stores」
 「予約はjournal store」「active controlのgenerationは書込み可」を置き換える正式契約。
 Production Authority **legacy** / Worker **ACCEPT_COMPAT** / enforcement **OFF** / Studio shared write **OFF** /
 PortDataHost.canWrite=**false**。product boot接続、Worker/D1 deploy、D1 migration、cutoverは行わない。
@@ -23,7 +23,7 @@ DB名major1`sound-cruise-port-authority-v1`を維持し、physical version **1�
 
 | Store | keyPath | 内容 |
 |---|---|---|
-| pointer | `key`（唯一の正式key=`active`） | partition単位の唯一のactive pointer |
+| pointer | `key`（`active` / `namespace`） | 唯一のactive pointerと同transactionのnamespace marker |
 | reservations | `[generation, operationId]` | operation identity / publication予約 |
 
 既存7 store（records/manifests/head/control/journal/oplog/roots）はkeyPath・内容とも不変更で再作成しない。
@@ -48,7 +48,7 @@ pointerがPort-owned Authorityの正本。localStorage sentinelは補助hint、l
 読取り時に厳密検証し、破損・partition不一致は`pointer-invalid`→recovery-required。pointerが指すgenerationの
 head/control欠落は`pointer-generation-missing`、control非active/epoch逆行は`pointer-control-mismatch`、
 published manifestのseq/digestとheadSeq/sealHash不一致は`pointer-head-mismatch`。いずれもlegacyへsilent fallbackしない。
-pointer不在は「新Authority未公開」でありread-only（書込みは`generation-not-active`）。
+pointer不在を未公開と扱うのはnamespace epoch0かつpublication履歴なしの場合だけ。公開済みmarkerまたはreservations/journalに公開事実が残れば`pointer-missing`→recovery-required。未公開はread-only（書込みは`generation-not-active`）。
 `publication.kind`は`migration`/`isolated-fixture`。fixture pointerはprivileged test provider付きscopeでだけ信頼し、
 それ以外では`fixture-pointer-untrusted`でrecovery-required。`migration`発行はL4 evidence未接続のため現時点で不可。
 
@@ -64,12 +64,13 @@ control.state=active、suspend/revoke/invalidated/recoveryRequired無しの場�
 control→sealed(epoch+1)、journal→ready-to-publish（sealHash=head manifest digest、sealManifestId、sealHeadSeq）。
 再実行は`already-sealed`、公開後は`already-published`。
 `publish({...,expectedPointerEpoch,expectedControlEpoch})`は pointer/head/control/manifests/records/oplog/journal/
-reservations を1つのreadwrite transactionで扱う。pointerが既に同generation＋同migrationIdなら`already-active`
-（epoch不変）、別migrationIdなら`publication-conflict`。それ以外はpointerEpoch CAS（`pointer-stale`）、
+reservations を1つのreadwrite transactionで扱う。すべての成功経路でまず現在のactive integrityを検証する。
+同generation＋同migrationIdのretryは元operationId・元request/precondition・元evidenceのfingerprint一致に限り`already-active`（epoch不変）。
+新operationIdなら`publication-operation-conflict`、別migrationIdなら`publication-conflict`。それ以外はpointerEpoch CAS（`pointer-stale`）、
 publication予約の再利用拒否（`publication-superseded`/`operation-id-payload-conflict`）、sealed・epoch・無効化flag・
 journal ready-to-publish・seal一致・evidence attestation（`publication-evidence-unavailable`/`-invalid`）・
 bound Accountのfence identity一致（`cloud-fence-required`）を検証する。成功時に同transactionで
-旧control→superseded、新control→active、pointer(epoch+1)、journal→active(publishedPointerEpoch)、publication予約を書く。
+旧control→superseded、新control→active、pointer(epoch+1)＋namespace、journal→active(publishedPointerEpoch＋publication fact)、publication予約＋factを書く。
 線形化点はtransaction `complete`。途中失敗・crashはIDB abortで全storeが旧状態のまま（partial publicationなし）。
 
 ## Supersession / old handle / repository guard
@@ -91,7 +92,7 @@ scope/generation/migrationId/sealHashへ束縛されたbrand objectで、L4の�
 ## Crash / recovery
 
 publish transaction途中のrenderer crash（Page.crash、別renderer）は旧pointer/旧controlのまま（aborted）または
-完全公開のどちらかで、retryは同migrationIdで1回だけpublished/already-activeになる。公開後のreopenは同じpointerを読み、
+完全公開のどちらかで、retryは元migrationId/operationId/precondition/evidenceを保持して1回だけpublished/already-activeになる。公開後のreopenは同じpointerを読み、
 pointer破損・欠損・generation欠落はrecovery-required/read-onlyで自動修復・自動削除・legacy復帰をしない。
 
 ## Production isolation
@@ -100,21 +101,103 @@ pointer破損・欠損・generation欠落はrecovery-required/read-onlyで自動
 control mutationを行えない。Store/capability/IDB backendはboot graphに無く、isolated scope以外は`isolated-scope-required`。
 隔離CDP回帰でPort desktop/mobile・Pro gate・Studio起動後もAuthority DB/pointerが作成されないことを確認した。
 
+## Safety Fix: provenance / current integrity / operation identity
+
+`readPointer`はPointerの全fields（migrationId/operationId/previousGeneration/pointerEpochを含む）を
+reservationsの`publication={schemaVersion:1,pointer,identity,request,evidence}`と完全一致で照合する。
+formal publishはjournalのidentity/state/seal/公開epoch/factとも照合し、同IDのdataset oplogがあれば拒否。
+isolated initializerは`fixture-initialize` operation予約・oplogと結び付けた初期公開factを同じtransactionで保存する。
+これは初期fixture専用であり、そのIDを後のformal publicationへ流用できない。
+保存evidenceはbinary/sync/fence等の安全なsnapshotだけで、capability/attestation tokenを永続化しない。
+
+`namespace={key:'namespace',schemaVersion:1,partitionId,pointerEpoch,namespaceVersion:1,repositoryProtocol:1,writerProtocol:2}`。
+新規作成/v1 upgrade時にepoch0を追加し、publish/fixture initialization時にpointerと一緒に更新する。
+markerの未来schema・protocol/partition/shape不一致は上書きせず拒否。marker削除・pointer欠損を自動修復しない。
+epoch0へ戻されてもreservations/journalの公開事実が残っていれば未公開とは扱わない。
+旧v2 preparedはnamespaceなしでもcandidate表示だけ可（inactive/read-only）、publishは証拠不足で拒否。
+旧v2 activeのprovenanceを自動生成して正当化しない。全証拠の同時消去を検出する外部tamper-proof保証ではない。
+
+current active integrityはhead/control存在、generation/identity/epoch整合、full manifest/digest、
+全record/checksum/参照、headが指すoplogのseq/manifest/revisionを検証する。
+publish（already-activeを含む）と新generation公開は同じ8-store readwrite transaction内でこの検証を先行する。
+成功結果の`currentAuthorityVerified=true`は構造上の健全性だけで、正式Pro/Accountやwrite認可を表さない（`publish=false`）。
+
+oplogとreservationsはgeneration＋operationIdの共通衝突領域。初期dataset operationにも予約を作り、
+dataset→publication、publication→dataset、未commit Pro予約→publicationの流用を拒否する。
+正常retryは同一ID＋固定request/evidence fingerprintのみ。superseded公開のretryは`publication-superseded`。
+
+`lookupPublication(generation,operationId)`はimmutable公開manifest/records/参照・独立factを検証する過去照会。
+現在headが破損しても過去公開が健全なら返せるが、`historical=true/publish=false/currentAuthorityVerified=false`。
+dataset operationのIDならresult=null。過去lookup/replay成功を現在hydrate/publish/write readinessへ流用しない。
+
 ## Acceptance
 
-Node pointer33件（要求1–38＋bound fence/publication予約/boot graph）、既存store88/backend46/referential35/policy57。
-Native cross-process（別renderer PID）: A同migrationId並行publish / B異migrationId CAS / C切替vs old handle両順序×3round、
-D publish中crash、E v1接続中upgrade（handler有=移行、無=blocked維持）、F pointer破損/欠損、全PASS。
-既存CAS54round＋7・参照63round＋failure4・policy native・L2a native14を回帰。Port/shared2065 / Worker760 /
-Other186 / workerd8 / Studioはcommit後clean guard込み315。Playwrightが環境に無いため既存`*-browser.cjs`は実行できず、
-同等範囲を使い捨てCDP scriptで確認（Port 1280/393: Home/Metronome/Presets/Tuner/Practice/Calendar/Gear/My Apps/
-Settings/Account・Sync/Pro/4 themes、Studio 1440/393: read-only Host/M1・M2/Structure/Editing Session/Pre-DTM/4 themes/Print）。
-console/404/unexpected network write 0。
+最終回帰結果は下記Completion検証記録に記す。旧L3b-1時点の2065件とCDP代替結果ではなく、
+正規Playwright 1.62.1とnative Chromeを使用する。package/lockfileは変更せず8765の利用者serverも維持する。
 
 ## L3b-1完了範囲と残件
 
 完了: schema v2、予約移行、pointer、sealed/supersededを含むstate machine、atomic publish/supersession、
-commit guard、capability基盤、production isolation。
+commit guard、capability基盤、production isolation、Pointer provenance/current active integrity/operationId collisionのSafety Fix。
 残件: L3b-2正式Control操作（suspend/resume/fence/recovery capability開放）、L3c正式Pro Device Session provider、
 L3d Account協調、L4 migration evidence（binary/sync/cloud fence）と`migration` publication・GC・reservation retention、
 L5実機stress、B1-6製品入口。shared write解禁・product boot接続・cutoverはいずれも未実施。
+
+## Completion検証記録（2026-10-13）
+
+開始時は58b21a4263b3d689afde712e59f86d5c8068b174、staged空、ahead/behind=0/0。
+変更前に4危険シナリオを再現済み。保持した安全修正のNode追加39件、関連Authority Node合計298件がPASS。
+全Node requiredはWorker/Account760、Port/shared2104（baseline2065＋39）、Other186、workerd/D1/R2 8、全PASS。
+Studioはdirty状態でclean guardを含まない314件PASS。commit後にclean guard込み315件を除外なしで実行し、
+PASS後だけ通常pushする（commit後の実測結果とcommit hashは完了報告に記録）。
+
+Chrome155.0.8059.40/native IndexedDB（別renderer・notification dropped・Web Locksなし）:
+
+| Suite | 結果 | 対象renderer PID |
+|---|---|---|
+| Pointer Safety | 15項目＋追加7、PASS。旧save先/公開先/同一公開の3順序×3回すべてnative RW待機を証明 | 28632 / 28634 |
+| Pointer A–F | A/B/C各3round＋D/E/F、追加7、PASS | 28654 / 28656 |
+| CAS | 54round＋追加7、PASS | 28928 / 28938 |
+| Referential | 63round＋障害4＋追加7、PASS | 28864 / 28866 |
+| Action Policy | 9項目＋追加7、PASS | 28905 / 28911 |
+| L2a | native14項目、PASS | 2独立context |
+
+新Safety試験は既存transactionでpointer readを保持し、両rendererのRW transaction提出と
+barrier解放前のrequest未開始、解放後の開始/complete/abort/resultを記録する。
+待機が成立しないroundはinconclusiveでFAIL。今回違反0・判定不能0・unexercised0、oplog重複/partial manifest0。
+
+正規Playwright **1.62.1**（既存runtime、package install/lockfile編集なし、使い捨てChrome、隔離8766）:
+
+| Port required suite | 結果 |
+|---|---|
+| runtime-regression | 18 routes PASS |
+| readiness-core | 26項目 PASS |
+| runtime-safety | 10項目 PASS |
+| authority-migration | 18項目 PASS |
+| standard-readiness | subset＋全6suite最終runでPASS。4幅・認証4mode・保存/データ保持assertionを維持 |
+| operation-authorization | 10項目 PASS |
+
+Studio5suite: Keyboard21 / Editing Session23 / M1 29 / M2 24（計97）、Host10、全PASS。
+CDP製品隔離13項目もPASS（Port1280/393・Studio1440/393）、通常起動によるAuthority DB未作成・canWrite=falseを確認。
+application console/unhandled error0、application404 0、unexpected network mutation0。
+standard-readinessの意図した401とoffline abortによるresource error各1は期待した障害として別記録し、
+予期しないconsole errorを除外しない。すべて外部requestをinterceptし、本番Workerへのrequest0。
+
+### standard-readiness fixture原因と修正
+
+正式app-version.js/Standard・Pro HTML/cache keyは1.22.14で一致、既存version/cache Node11件PASS。
+fixtureだけが4箇所でVer1.18.0を待っていた。正式CRUISE_PORT_APP_VERSIONから期待値を導出し、
+visible待機に加えて実textContent完全一致をassertする。locked gate中の空version assertionも維持する。
+
+さらにfixtureの古い認証応答にはDevice Session v3/challenge/renewがなく、実Pro gateが正当に解除を拒否していた。
+実requestのpublic keyへ束縛したsessionを返し、実鍵生成・署名・AES-GCM保存を通す。
+各negative/offline modeの前に正式mockで検証済みreceiptを作り、revalidateAfter=nowでnetwork検証が実行されたこともassert。
+invalid/generationは拒否、offlineは直前に検証した有効receiptだけを許可する。製品gateの変更・bypassは行わない。
+
+bootstrap前の代表データは明示localStorage fixtureへ既存storeのschema validatorを通して保存し、成功をassertする。
+暗黙repositoryを呼びPromiseを同期結果と誤認していたfixtureを修正したもので、製品保存は実UI経由で検証する。
+認証resetは次のmain-frame navigation開始を待ってからnetworkidleとgateを確認し、旧documentとのraceを解消する。
+version/assertion削除・偽表示・skip/only・timeout延長・catch PASSはなく、無関係suiteの動作は変更しない。
+
+L3b-1 Safety Fixの実装・検証範囲は完了。L3b-2正式Control、L3c正式Pro provider、L3d Account協調、
+L4 migration evidence、B1-6製品入口、shared write解禁は未実施で、このfixture PASSを解禁根拠にしない。

@@ -1,3 +1,4 @@
+import {pointerRaceHooks} from './pointer-race-hooks.mjs';
 import { createTestAuthorityScope as createIsolatedIDBAuthorityScope, testProAuthorization } from '../authority-store/test-authority.mjs';
 // Real Repository + real L2a Store, native IDB, no locks or delivery hints.
 import { PortDatasetRepository, PORT_DATASET_KEYS } from '../../port-dataset-repository.js';
@@ -8,6 +9,7 @@ import { KEYS, CONTROL_SCENARIOS, counterLoop, deleteLoop, seedDeleteCollections
 import { claimPortAuthorityIssuer, openIDBAuthorityStore } from '../../port-indexeddb-authority-store.mjs';
 import { AUTHORITY_DB_VERSION, V1_STORE_KEYS, POINTER_KEY, reservationKey } from '../../port-idb-authority-contract.mjs';
 let token, scope, generation, backend, repository;
+let publicationPackets=new Map();
 let proValid=true;const authorizations=new Map();
 const handles=new Map();
 function assertFixture() {
@@ -15,6 +17,7 @@ function assertFixture() {
 }
 async function snapshot() { await backend.hydrate(); return backend.store.hydrate(generation).then(r=>{if(!r.ok)throw Error(r.reason);return r.snapshot;}); }
 window.crossTab={
+ ...pointerRaceHooks({name:()=>scope.name,commitOld:id=>backend.commitPreparedWrite(handles.get(id)),commitPublication:id=>backend.store.publish(publicationPackets.get(id))}),
  claim(id) { if(token&&token!==id)throw Error('different fixture owner');if(typeof id!=='string'||id.length<16)throw Error('driver token');token=id;assertFixture();return true; },
  async prepare({scenario,role,iterations,generation:gen,reference=false,attached=false,payload=0,policy=false}) {
   assertFixture();backend?.dispose();generation=gen;
@@ -129,8 +132,26 @@ window.crossTab={
   const cap=issuer().issue('migration-publication',{generation:gen});
   const attestation=issuer().attestFixtureEvidence({generation:gen,migrationId,sealHash:journal.sealHash,
    binary:{manifestDigest:'a'.repeat(64),assetCount:0},sync:{checkpointDigest:'b'.repeat(64),outboxPending:0}});
-  return store.publish({generation:gen,migrationId,operationId,capability:cap,attestation,expectedPointerEpoch,expectedControlEpoch:h.snapshot.control.epoch});
+  return store.publish({generation:gen,migrationId,operationId,capability:cap,attestation,expectedPointerEpoch,expectedControlEpoch:journal.publication?.request?.operationId===operationId?journal.publication.request.expectedControlEpoch:h.snapshot.control.epoch});
  },
+ async pointerPacket({id,generation:gen,migrationId,operationId,expectedPointerEpoch=null}) {
+  const j=(await backend.store.readJournal(migrationId)).journal,h=await backend.store.hydrate(gen);
+  if(!j||!h.ok)throw Error('packet stage missing');
+  const request={generation:gen,migrationId,operationId,expectedPointerEpoch,
+   expectedControlEpoch:j.publication?.request?.operationId===operationId?j.publication.request.expectedControlEpoch:h.snapshot.control.epoch,
+   capability:issuer().issue('migration-publication',{generation:gen}),
+   attestation:issuer().attestFixtureEvidence({generation:gen,migrationId,sealHash:j.sealHash,binary:{manifestDigest:'a'.repeat(64),assetCount:0},sync:{checkpointDigest:'b'.repeat(64),outboxPending:0}})};
+  publicationPackets.set(id,request);return true;
+ },
+ pointerPacketCommit:id=>backend.store.publish(publicationPackets.get(id)),
+ pointerFact:({generation:gen,operationId})=>backend.store.lookupPublication(gen,operationId),
+ async pointerDamage({store,key,patch,remove=false}) {
+  const db=await new Promise((ok,no)=>{const r=indexedDB.open(scope.name);r.onsuccess=()=>ok(r.result);r.onerror=()=>no(r.error);});
+  try{return await new Promise((ok,no)=>{const tx=db.transaction(store,'readwrite'),st=tx.objectStore(store);tx.oncomplete=()=>ok(true);tx.onabort=()=>no(tx.error);
+   if(remove)st.delete(key);else {const r=st.get(key);r.onsuccess=()=>st.put({...r.result,...patch});}
+  });}finally{db.close();}
+ },
+ pointerSnapshot:gen=>backend.store.hydrate(gen),
  async pointerState(gen) {
   const p=await backend.store.readPointer(),h=gen?await backend.store.hydrate(gen):null;
   return {pointer:p.pointer??null,pointerStatus:p.ok?'ok':p.status,pointerReason:p.reason??null,

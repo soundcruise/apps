@@ -15,8 +15,17 @@ export const V1_STORE_KEYS = Object.freeze({ records: Object.freeze(['generation
     journal: 'migrationId', oplog: Object.freeze(['generation','operationId']), roots: Object.freeze(['generation','rootId']) });
 // v2: one partition-wide active pointer, and operation reservations separated from migration journals.
 export const STORE_KEYS = Object.freeze({ ...V1_STORE_KEYS, pointer: 'key', reservations: Object.freeze(['generation','operationId']) });
-export const COMMIT_STORES = Object.freeze(['pointer','head','control','manifests','records','oplog']);
+export const COMMIT_STORES = Object.freeze(['pointer','head','control','manifests','records','oplog','journal','reservations']);
 export const POINTER_KEY = 'active';
+export const NAMESPACE_KEY = 'namespace';
+export const namespaceState = (partitionId,pointerEpoch=0) => ({key:NAMESPACE_KEY,schemaVersion:1,partitionId,pointerEpoch,
+    namespaceVersion:1,repositoryProtocol:PORT_DATASET_PROTOCOL,writerProtocol:AUTHORITY_WRITER_PROTOCOL});
+export function validateNamespace(n) {
+    if(n?.schemaVersion>1)throw fail('namespace-schema-unsupported');
+    if(!exactKeys(n,['key','schemaVersion','partitionId','pointerEpoch','namespaceVersion','repositoryProtocol','writerProtocol']) ||
+        n.key!==NAMESPACE_KEY||n.schemaVersion!==1||typeof n.partitionId!=='string'||!n.partitionId||!Number.isSafeInteger(n.pointerEpoch)||n.pointerEpoch<0||
+        n.namespaceVersion!==1||n.repositoryProtocol!==PORT_DATASET_PROTOCOL||n.writerProtocol!==AUTHORITY_WRITER_PROTOCOL)throw fail('namespace-invalid');
+}
 export const CONTROL_STATES = Object.freeze(['staging','prepared','sealed','active','superseded','recovery-required']);
 export const RESERVED_JOURNAL_PREFIX = 'operation-';
 export const fail = code => Object.assign(new Error(code), { code });
@@ -131,13 +140,35 @@ export function validatePointer(p) {
 export const reservationKey = (generation, operationId) => RESERVED_JOURNAL_PREFIX + digest([generation, operationId]);
 export function validateReservation(r, generation, operationId) {
     assertJSONEvidence(r);
-    if (!exactKeys(r,['generation','operationId','schemaVersion','kind','fingerprint','action','policy','targetKeys','origin']) ||
+    const keys=['generation','operationId','schemaVersion','kind','fingerprint','action','policy','targetKeys','origin'];
+    if (!(exactKeys(r,keys)||exactKeys(r,[...keys,'publication'])) ||
         r.schemaVersion !== 1 || r.generation !== generation || r.operationId !== operationId ||
         !['operation-identity','publication','seal'].includes(r.kind) || !/^[a-f0-9]{64}$/.test(r.fingerprint) ||
         !['v2','v1-journal'].includes(r.origin) || (r.origin === 'v1-journal' ? r.kind !== 'operation-identity' ||
         r.action !== null || r.policy !== null || r.targetKeys !== null : typeof r.action !== 'string' || typeof r.policy !== 'string' ||
         !Array.isArray(r.targetKeys) || r.targetKeys.some(k => typeof k !== 'string'))) throw fail('reservation-invalid');
     identifier(r.generation); identifier(r.operationId);
+    if(r.publication!==undefined)validatePublicationFact(r);
+}
+export function validatePublicationFact(r) {
+    const f=r.publication;
+    if(!exactKeys(f,['schemaVersion','pointer','identity','request','evidence'])||f.schemaVersion!==1)throw fail('publication-fact-invalid');
+    validatePointer(f.pointer);
+    const p=f.pointer;
+    if(p.activeGeneration!==r.generation||p.operationId!==r.operationId)throw fail('publication-fact-invalid');
+    validateControl({schemaVersion:1,generation:r.generation,repositoryProtocol:p.repositoryProtocol,writerProtocol:p.writerProtocol,
+        epoch:p.publication.controlEpoch,fenceEpoch:1,state:'active',suspended:false,fenceRevoked:false,identityInvalidated:false,recoveryRequired:false,identity:f.identity});
+    if(f.identity.partitionId!==p.partitionId)throw fail('publication-fact-invalid');
+    if(r.kind==='publication') {
+        const q=f.request;
+        if(r.action!=='publish'||r.policy!=='migration-publication'||!equal(r.targetKeys,[])||r.origin!=='v2'||
+            !exactKeys(q,['generation','migrationId','operationId','expectedPointerEpoch','expectedControlEpoch'])||
+            q.generation!==r.generation||q.migrationId!==p.migrationId||q.operationId!==r.operationId||
+            q.expectedPointerEpoch!==null&&!positive(q.expectedPointerEpoch)||!positive(q.expectedControlEpoch)||
+            p.pointerEpoch!==(q.expectedPointerEpoch||0)+1||p.publication.controlEpoch!==q.expectedControlEpoch+1||
+            !f.evidence||f.evidence.kind!==p.publication.kind||f.evidence.sealHash!==p.publication.sealHash||r.fingerprint!==digest({kind:'publication',...q,evidence:f.evidence}))throw fail('publication-fact-invalid');
+    } else if(r.kind!=='operation-identity'||r.action!=='fixture-initialize'||r.policy!=='isolated-initialize'||f.request!==null||f.evidence!==null||
+        p.migrationId!==r.operationId||p.publication.kind!=='isolated-fixture'||r.origin!=='v2')throw fail('publication-fact-invalid');
 }
 export function validateManifest(m, head) {
     assertJSONEvidence(m);

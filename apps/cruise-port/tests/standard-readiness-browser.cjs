@@ -8,26 +8,44 @@ const out=process.argv[3]||'/tmp/port-standard-readiness';
 const root='/apps/cruise-port/',pro=root+'pro_9a3943176561/';
 const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
 (async()=>{
+ const {CRUISE_PORT_APP_VERSION}=await import('../app-version.js');
+ const expectedVersionText=`Ver ${CRUISE_PORT_APP_VERSION}`;
+ async function expectCurrentVersion(){const display=page.locator('.port-app-version-display').first();await display.filter({hasText:expectedVersionText}).waitFor({state:'visible'});assert.equal(await display.textContent(),expectedVersionText);}
  fs.mkdirSync(out,{recursive:true});
  const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
  const context=await browser.newContext({viewport:{width:393,height:852},reducedMotion:'reduce'});
- const page=await context.newPage();const errors=[],external=[];let authMode='valid';
+ const page=await context.newPage();const errors=[],missing=[],expectedAuthErrors=[],external=[];let authMode='valid';
  page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.accept());
+ page.on('response',r=>{if(r.status()===404&&new URL(r.url()).origin===base)missing.push(r.url());});
+ page.on('console',m=>{if(m.type()!=='error')return;const url=m.location().url||'';
+  if(url.includes('/v2/pro-auth/')&&['invalid','offline'].includes(authMode)&&m.text().startsWith('Failed to load resource:'))expectedAuthErrors.push({mode:authMode,url,message:m.text()});
+  else errors.push(m.text());
+ });
  await context.route('**/*',async route=>{
   const u=route.request().url();if(u.includes('/__cruise_preview/news'))return route.fulfill({contentType:'application/json',body:JSON.stringify({contractVersion:1,items:[],nextOffset:null})});if(new URL(u).origin===base)return route.continue();
   external.push({url:u,method:route.request().method()});
   if(u.includes('/v2/pro-auth/')){
    if(authMode==='offline')return route.abort();
-   return route.fulfill({status:authMode==='invalid'?401:u.endsWith('/verify')?201:200,contentType:'application/json',body:JSON.stringify({ok:authMode!=='invalid',generation:authMode==='generation'?2:1,legacyCompatibilityEnabled:false,credential})});
+   const body={ok:authMode!=='invalid',generation:authMode==='generation'?2:1,legacyCompatibilityEnabled:false,credential};
+   if(u.endsWith('/challenge'))Object.assign(body,{message:'isolated local challenge',challenge:'fixture',mac:'fixture'});
+   if(u.endsWith('/verify')||u.endsWith('/renew')){
+    const now=Date.now(),day=86400000,request=route.request().postDataJSON();
+    body.session={version:3,devicePublicKey:request.devicePublicKey||request.publicKey,
+     serverTime:now,issuedAt:now,boundAt:now,lastValidatedAt:now,
+     inactiveExpiresAt:now+90*day,accessExpiresAt:now+7*day,offlineUntil:now+7*day,
+     // Exercise revalidation on each boot, including terminal/generation/offline responses.
+     revalidateAfter:now};
+   }
+   return route.fulfill({status:authMode==='invalid'?401:u.endsWith('/verify')?201:200,contentType:'application/json',body:JSON.stringify(body)});
   }
   if(u.includes('/v1/news'))return route.fulfill({contentType:'application/json',body:JSON.stringify({contractVersion:1,items:[],nextOffset:null})});
   return route.fulfill({status:503,contentType:'application/json',body:'{"ok":false,"error":"isolated-local-test"}'});
  });
- async function ready(path=root){await page.goto(base+path,{waitUntil:'networkidle'});await page.locator('.port-app-version-display').first().filter({hasText:'Ver 1.18.0'}).waitFor();}
+ async function ready(path=root){await page.goto(base+path,{waitUntil:'networkidle'});await expectCurrentVersion();}
  async function hash(h){await page.evaluate(h=>location.hash=h,h);await page.waitForTimeout(70);}
  async function overflow(){assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),page.url()+' overflow');}
  async function shot(name,width){await overflow();await page.screenshot({path:out+'/'+name+'-'+width+'.png',fullPage:true});}
- async function seedAuth(){await page.evaluate(credential=>localStorage.setItem('soundCruiseProAuth',JSON.stringify({v:2,credential,generation:1,validatedAt:Date.now()})),credential);}
+ async function seedAuth(){await page.evaluate(credential=>localStorage.setItem('soundCruiseProAuth',JSON.stringify({v:2,credential,generation:1,sessionVersion:3,validatedAt:Date.now()})),credential);}
  try{
   // Fresh isolated browser has no prior Pro credential: boot stays locked until verification.
   await page.goto(base+pro,{waitUntil:'networkidle'});
@@ -35,7 +53,7 @@ const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   assert.equal(await page.locator('.port-app-version-display').first().textContent(),'');
   await page.evaluate(()=>{window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__={getToken:async()=> 'synthetic-local-token'};});
   await page.locator('#pro-gate-input').fill('0000');await page.locator('#pro-gate-submit').click();
-  await page.locator('.port-app-version-display').first().filter({hasText:'Ver 1.18.0'}).waitFor();
+  await expectCurrentVersion();
   assert.equal(await page.locator('#pro-gate-overlay').count(),0);
   await ready(pro);assert.equal(await page.locator('#pro-gate-overlay').count(),0);
   await ready();
@@ -45,9 +63,9 @@ const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   const snapshot=await page.evaluate(async()=>{
    const pm=await import('./practice-menu-store.js');const ma=await import('./my-apps-store.js');
    const menus=[];for(let i=0;i<5;i++)menus.push(pm.createPracticeMenu({...pm.INITIAL_PRACTICE_MENU_VALUES,name:'Local QA '+i,memo:'preserve me'},menus));
-   assertResult(pm.savePracticeMenus(menus));
-   const apps=[];for(let i=0;i<5;i++){const r=ma.createMyApp({name:'Local app '+i,url:'https://example.invalid/'+i},apps);assertResult(r);apps.push(r.item);}assertResult(ma.saveMyApps(apps));
-   const tuner=await import('./tuner-store.js');assertResult(tuner.saveTunerSettings({...tuner.TUNER_DEFAULTS,capo:4}));
+   assertResult(await pm.savePracticeMenus(menus,localStorage));
+   const apps=[];for(let i=0;i<5;i++){const r=ma.createMyApp({name:'Local app '+i,url:'https://example.invalid/'+i},apps);assertResult(r);apps.push(r.item);}assertResult(await ma.saveMyApps(apps,localStorage));
+   const tuner=await import('./tuner-store.js');assertResult(await tuner.saveTunerSettings({...tuner.TUNER_DEFAULTS,capo:4},localStorage));
    function assertResult(r){if(!r.ok)throw new Error(JSON.stringify(r));}
    return {menus:localStorage.getItem('cruisePort.practiceMenus'),apps:localStorage.getItem('cruisePort.myApps'),tuner:localStorage.getItem('cruisePort.tuner')};
   });
@@ -67,11 +85,11 @@ const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   await hash('#practice-menu/new');assert.notEqual(new URL(page.url()).hash,'#practice-menu/new');assert(await page.locator('.port-pro-prompt').isVisible());await page.keyboard.press('Escape');assert(await page.locator('.port-pro-prompt').isHidden());
   await hash('#my-apps/new');assert.notEqual(new URL(page.url()).hash,'#my-apps/new');assert(await page.locator('.port-pro-prompt').isVisible());await page.keyboard.press('Escape');
   const denial=await page.evaluate(async()=>{
-   const caps=(await import('./cruise-port-capabilities.js?v=1.22.13')).getCapabilities();
-   const {createGearPhotoStore}=await import('./gear-photo-store.js?v=1.22.13');
-   const {createMyAppsIconStore}=await import('./my-apps-icon-store.js?v=1.22.13');
-   const {createPracticeAttachmentStore}=await import('./practice-menu-attachment-store.js?v=1.22.13');
-   const {createMyAppEntry}=await import('./my-apps-icon-workflow.js?v=1.22.13');
+   const caps=(await import('./cruise-port-capabilities.js?v=1.22.14')).getCapabilities();
+   const {createGearPhotoStore}=await import('./gear-photo-store.js?v=1.22.14');
+   const {createMyAppsIconStore}=await import('./my-apps-icon-store.js?v=1.22.14');
+   const {createPracticeAttachmentStore}=await import('./practice-menu-attachment-store.js?v=1.22.14');
+   const {createMyAppEntry}=await import('./my-apps-icon-workflow.js?v=1.22.14');
    const r=await createMyAppEntry({items:[],values:{name:'denied',url:'https://example.invalid/'}});
    return {caps,results:await Promise.all([createGearPhotoStore().savePhoto(new Blob()),createMyAppsIconStore().saveIcon(new Blob()),createPracticeAttachmentStore().addAttachment('x',new Blob()),Promise.resolve(r)])};
   });assert.equal(denial.caps.tunerCapo,false);assert.deepEqual(denial.results.map(r=>r.reason),['pro-required','pro-required','pro-required','creation-blocked']);
@@ -79,13 +97,16 @@ const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   // Invalid session / generation are rejected; previously validated offline access is intentionally retained.
   for(const mode of ['invalid','generation','offline','valid']){
    console.log('Checking auth mode:',mode);
-   await page.goto(base+root+'pro-access.html',{waitUntil:'networkidle'});await seedAuth();authMode=mode;await page.goto(base+pro+'#tuner',{waitUntil:'networkidle'});
+   await page.goto(base+root+'pro-access.html',{waitUntil:'networkidle'});
+   authMode='valid';await seedAuth();await ready(pro+'#tuner');
+   const before=external.length;authMode=mode;await page.reload({waitUntil:'networkidle'});
+   assert(external.slice(before).some(r=>r.url.endsWith('/device-session/challenge')),'auth mode must exercise online validation');
    if(['invalid','generation'].includes(mode)){
     assert(await page.locator('#pro-gate-overlay').isVisible());
     assert.equal(await page.locator('.port-app-version-display').first().textContent(),'');
-    assert.equal(await page.evaluate(async()=> (await import('../cruise-port-capabilities.js?v=1.22.13')).getCapabilities().gearPhotoWrite),false);
+    assert.equal(await page.evaluate(async()=> (await import('../cruise-port-capabilities.js?v=1.22.14')).getCapabilities().gearPhotoWrite),false);
    }else{
-    await page.locator('.port-app-version-display').first().filter({hasText:'Ver 1.18.0'}).waitFor();
+    await expectCurrentVersion();
     await hash('#tuner');
     assert.equal(await page.locator('#pro-gate-overlay').count(),0);assert(await page.locator('#tuner-capo-lock').isHidden());assert(await page.locator('#tuner-capo-up').isVisible());
    }
@@ -100,11 +121,11 @@ const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   await hash('#practice-menu/new');assert.equal(new URL(page.url()).hash,'#practice-menu/new');assert(await page.locator('#practice-name').isVisible());
   await page.locator('#practice-name-preset').selectOption('custom');await page.locator('#practice-name').fill('Local QA sixth');await page.locator('#practice-menu-form').evaluate(f=>f.requestSubmit());await page.waitForTimeout(120);
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length),6);
-  await hash('#settings');await page.locator('#settings-pro-auth-reset').click();await page.waitForLoadState('networkidle');await page.locator('#pro-gate-overlay').waitFor();
+  await hash('#settings');await Promise.all([page.waitForEvent('framenavigated',{predicate:frame=>frame===page.mainFrame()}),page.locator('#settings-pro-auth-reset').click()]);await page.waitForLoadState('networkidle');await page.locator('#pro-gate-overlay').waitFor();
   assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length),6);
   await page.evaluate(()=>{window.__SOUND_CRUISE_ACCOUNT_TURNSTILE__={getToken:async()=> 'synthetic-local-token'};});
   await page.locator('#pro-gate-input').fill('0000');await page.locator('#pro-gate-submit').click();
-  await page.locator('.port-app-version-display').first().filter({hasText:'Ver 1.18.0'}).waitFor();assert.equal(await page.locator('#pro-gate-overlay').count(),0);
+  await expectCurrentVersion();assert.equal(await page.locator('#pro-gate-overlay').count(),0);
   await ready();await hash('#practice-menu/new');assert(await page.locator('.port-pro-prompt').isVisible());await page.keyboard.press('Escape');
   await page.reload({waitUntil:'networkidle'});assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('cruisePort.practiceMenus')).items.length),6);
   // Existing tools, NEWS (internal article), calendar, Settings and Account UI continue to render.
@@ -113,9 +134,9 @@ const credential='scp1.00000000-0000-4000-8000-000000000000.'+'A'.repeat(43);
   // Series design comparison, rendered at mobile width.
   await page.setViewportSize({width:393,height:852});
   for(const app of ['pitch-cruise','fretboard_cruise','rhythm-cruise','chord-cruise']){await page.goto(base+'/apps/'+app+'/pro-access.html',{waitUntil:'networkidle'});await page.screenshot({path:out+'/'+app+'-access-393.png',fullPage:true});}
-  assert.deepEqual(errors,[]);
+  assert.deepEqual(errors,[]);assert.deepEqual(missing,[]);
   assert(external.every(r=>r.method==='GET'||r.url.includes('/v2/pro-auth/')));
-  const result={result:'PASS',widths:[375,393,768,1280],standardCapAndWriteGuards:true,lockedProBoot:true,invalidAndGenerationRejected:true,offlinePolicyPreserved:true,transitionStoragePreserved:true,authResetPreservesData:true,proSixthMenuCreated:true,standardReadsSixButCannotAdd:true,proUpgradeCTAHidden:true,seriesDesignRendered:true,newsAndToolsRegression:true,pageErrors:errors,externalRequestsIntercepted:external.length,productionRequests:0};
+  const result={result:'PASS',widths:[375,393,768,1280],standardCapAndWriteGuards:true,lockedProBoot:true,invalidAndGenerationRejected:true,offlinePolicyPreserved:true,transitionStoragePreserved:true,authResetPreservesData:true,proSixthMenuCreated:true,standardReadsSixButCannotAdd:true,proUpgradeCTAHidden:true,seriesDesignRendered:true,newsAndToolsRegression:true,pageErrors:errors,application404:missing,expectedAuthErrors,externalRequestsIntercepted:external.length,productionRequests:0};
   fs.writeFileSync(out+'/result.json',JSON.stringify(result,null,2));console.log(JSON.stringify(result));
  }catch(error){console.error({url:page.url(),errors,auth:await page.evaluate(()=>localStorage.getItem('soundCruiseProAuth')),body:await page.locator('body').innerText(),gate:await page.locator('body').getAttribute('class')});throw error;}finally{await context.close();await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

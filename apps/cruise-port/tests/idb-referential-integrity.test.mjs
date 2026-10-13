@@ -121,13 +121,13 @@ test('accepted old-schema but invalid reference head is blocked on hydrate, neve
  const {digest}=await import('../port-idb-authority-contract.mjs');const x=await setup(t,{attached:true});
  // Schema v2 pins the published manifest through the pointer seal. The simulated older
  // writer therefore corrupts a later head manifest (after one benign commit), not the seal.
- assert.equal((await x.ra.runWrite({expectedValues:{'cruisePort.metronome':x.ra.inspect().values['cruisePort.metronome']}},d=>{d.setItem('cruisePort.metronome',JSON.stringify({...JSON.parse(d.getItem('cruisePort.metronome')),bpm:131}));})).ok,true);
+ assert.equal((await x.ra.runWrite({expectedValues:{[K.menus]:x.ra.inspect().values[K.menus]}},d=>{const v=JSON.parse(d.getItem(K.menus));v.items[0].memo='valid later head';d.setItem(K.menus,JSON.stringify(v));})).ok,true);
  const s=(await x.a.store.hydrate('g1')).snapshot,headManifestId=s.head.manifestId;
  // Corrupt referential content while keeping all physical digest evidence valid.
  const invalid=JSON.parse(s.values[K.menus]);removeMenu(invalid);const raw=JSON.stringify(invalid),version=s.versions[K.menus];
  // Inject through fake IDB request hooks only, simulating an older buggy writer.
  const {IDBObjectStore}=createRequire(new URL('./authority-store/package.json',import.meta.url))('fake-indexeddb'),get=IDBObjectStore.prototype.get;
- IDBObjectStore.prototype.get=function(key){const r=get.call(this,key);const isRecord=this.name==='records'&&Array.isArray(key)&&key[1]===K.menus;
+ IDBObjectStore.prototype.get=function(key){const r=get.call(this,key);const isRecord=this.name==='records'&&Array.isArray(key)&&key[1]===K.menus&&key[2]===version;
   if(isRecord)r.addEventListener('success',()=>{Object.defineProperty(r,'result',{value:{...r.result,raw,digest:digest({generation:'g1',logicalKey:K.menus,version,raw})}});},{once:true});
   if(this.name==='manifests'&&Array.isArray(key)&&key[1]===headManifestId)r.addEventListener('success',()=>{const m=structuredClone(r.result);m.recordDigests[K.menus]=digest({generation:'g1',logicalKey:K.menus,version,raw});const {digest:old,...body}=m;m.digest=digest(body);Object.defineProperty(r,'result',{value:m});},{once:true});
   return r;

@@ -292,7 +292,8 @@ test('oplog result must reference an existing matching immutable manifest',async
  await raw(x.factory,['oplog'],'readwrite',tx=>{const r=tx.objectStore('oplog').get(['g1','initial']);r.onsuccess=()=>tx.objectStore('oplog').put({...r.result,result:{...r.result.result,seq:999}});});
  assert.equal((await x.store.lookupOperation('g1','initial')).status,'recovery-required');
  assert.equal((await x.store.initialize({generation:'g1',control:control(),values:x.initialValues,operationId:'initial'})).ok,false);
- assert.equal((await load(x.store)).head.seq,s.head.seq);
+ assert.equal((await x.store.hydrate('g1')).status,'recovery-required');
+ assert.equal((await allRows(x.factory)).head[0].seq,s.head.seq);
 });
 test('oplog-only orphan is recovery-required and never silently reseeded',async t=>{
  const x=await setup(t);

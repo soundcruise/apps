@@ -53,8 +53,10 @@ const evidence = (x, generation, migrationId, sealHash, fence = null) => x.issue
     binary: { manifestDigest: 'a'.repeat(64), assetCount: 0 }, sync: { checkpointDigest: 'b'.repeat(64), outboxPending: 0 }, fence });
 async function publish(x, generation, migrationId, { expectedPointerEpoch = null, operationId = 'publish-' + generation, fence = null, attestation, capability } = {}) {
     const sealed = await seal(x, generation, migrationId);
+    const j=(await x.store.readJournal(migrationId)).journal;
+    const fixedEpoch=j?.publication?.pointer.operationId===operationId?j.publication.request.expectedControlEpoch:sealed.controlEpoch;
     return x.store.publish({ generation, migrationId, operationId, capability: capability ?? sealed.capability,
-        attestation: attestation ?? evidence(x, generation, migrationId, sealed.sealHash, fence), expectedPointerEpoch, expectedControlEpoch: sealed.controlEpoch });
+        attestation: attestation ?? evidence(x, generation, migrationId, sealed.sealHash, fence), expectedPointerEpoch, expectedControlEpoch: fixedEpoch });
 }
 const hydrate = async (store, generation = 'g1') => store.hydrate(generation);
 const save = (store, snapshot, id, fields = { bpm: 150 }) => store.commit(store.prepare({ base: snapshot, operationId: id, changes: patch(snapshot, met, fields) }));
@@ -99,7 +101,7 @@ test('2-9 existing v1 -> v2 keeps every row and moves reservations out of the jo
     assert.deepEqual(after.journal, v1.rows.journal.filter(row => row.kind !== 'operation-identity'));
     assert.deepEqual(after.reservations.map(r => [r.generation, r.operationId, r.fingerprint, r.kind, r.origin]).sort(),
         v1.journal.map(r => [r.generation, r.operationId, r.fingerprint, 'operation-identity', 'v1-journal']).sort());
-    assert.deepEqual(after.pointer, [], 'an old active control is never silently promoted');
+    assert.deepEqual(after.pointer.map(p=>[p.key,p.pointerEpoch]), [['namespace',0]], 'namespace is explicitly unpublished; an old active control is never silently promoted');
     const h = await hydrate(store); assert.equal(h.activity, 'inactive'); assert.equal(h.readOnly, true);
     assert.equal((await save(store, h.snapshot, 'after-upgrade')).reason, 'generation-not-active');
 });
@@ -151,7 +153,7 @@ test('15/21 publish prepared -> sealed -> active writes one pointer and activate
     const p = await pointer(x.store), rows = await dump(x.factory, ['control', 'journal', 'reservations']);
     assert.deepEqual([p.key, p.activeGeneration, p.migrationId, p.previousGeneration, p.publication.kind, p.operationId], [POINTER_KEY, 'g2', migrationId, null, 'isolated-fixture', 'publish-g2']);
     assert.equal(rows.control[0].state, 'active'); assert.equal(rows.journal[0].state, 'active'); assert.equal(rows.journal[0].publishedPointerEpoch, 1);
-    assert.deepEqual(rows.reservations.map(r => [r.kind, r.operationId]), [['publication', 'publish-g2']]);
+    assert.deepEqual(rows.reservations.map(r => [r.kind, r.operationId]), [['publication', 'publish-g2'],['operation-identity','stage-g2']]);
     const h = await hydrate(x.store, 'g2'); assert.equal(h.activity, 'active'); assert.equal(h.readOnly, false);
     assert.equal((await save(x.store, h.snapshot, 'active-save')).ok, true);
 });
@@ -169,7 +171,7 @@ test('19-20 prepared and sealed generations are not active; publish requires a s
 test('22 the same migration retried is already-active and never advances the pointer twice', async t => {
     const x = await setup(t, { seed: false }), migrationId = await stage(x, 'g2');
     assert.equal((await publish(x, 'g2', migrationId)).status, 'published');
-    const again = await publish(x, 'g2', migrationId, { operationId: 'retry' }); assert.equal(again.status, 'already-active'); assert.equal(again.pointerEpoch, 1);
+    const again = await publish(x, 'g2', migrationId, { operationId: 'publish-g2' }); assert.equal(again.status, 'already-active'); assert.equal(again.pointerEpoch, 1);
     assert.equal((await pointer(x.store)).pointerEpoch, 1);
 });
 
@@ -219,9 +221,9 @@ for (const [name, mutate, reason] of [
     ['corrupt pointer field', p => ({ ...p, pointerEpoch: 0 }), 'pointer-invalid'],
     ['unknown pointer field', p => ({ ...p, future: true }), 'pointer-invalid'],
     ['foreign partition', p => ({ ...p, partitionId: 'other' }), 'pointer-invalid'],
-    ['missing generation', p => ({ ...p, activeGeneration: 'g9', previousGeneration: null }), 'pointer-generation-missing'],
-    ['pointer/head mismatch', p => ({ ...p, publication: { ...p.publication, sealHash: 'f'.repeat(64) } }), 'pointer-head-mismatch'],
-    ['publication ahead of head', p => ({ ...p, publication: { ...p.publication, headSeq: 99 } }), 'pointer-head-mismatch']
+    ['missing generation', p => ({ ...p, activeGeneration: 'g9', previousGeneration: null }), 'pointer-provenance-missing'],
+    ['pointer/head mismatch', p => ({ ...p, publication: { ...p.publication, sealHash: 'f'.repeat(64) } }), 'pointer-provenance-mismatch'],
+    ['publication ahead of head', p => ({ ...p, publication: { ...p.publication, headSeq: 99 } }), 'pointer-provenance-mismatch']
 ]) test('16-18/26 pointer fails closed: ' + name, async t => {
     const x = await setup(t), before = (await hydrate(x.store)).snapshot;
     await rawTx(x.factory, ['pointer'], 'readwrite', tx => { const r = tx.objectStore('pointer').get(POINTER_KEY); r.onsuccess = () => tx.objectStore('pointer').put(mutate(r.result)); });

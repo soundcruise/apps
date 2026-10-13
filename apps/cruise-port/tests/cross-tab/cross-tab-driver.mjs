@@ -1,3 +1,4 @@
+import {runPointerSafetySuite} from './pointer-safety-suite.mjs';
 // L1 cross-tab race driver: real Chrome, two tabs in separate windows (separate
 // renderer processes verified with Chrome trace for IDB), one loopback origin.
 // Current mode uses Web Locks/localStorage; isolated L2b uses real Repository/IDB.
@@ -136,6 +137,10 @@ try {
         report.actionPolicy=await runActionPolicySuite({evaluate,primary,peer});
         report.results=[{scenario:'action-policy',rounds:1,violations:0,inconclusiveRounds:0}];
     }
+    if(args.suite==='pointer-safety'){
+        report.pointerSafetyCases=await runPointerSafetySuite({evaluate,primary,peer,rounds});
+        report.results=[{scenario:'pointer-safety',rounds,violations:0,inconclusiveRounds:0}];
+    }
     if (args.suite === 'pointer') {
         if (backend !== 'indexeddb-authority') throw Error('pointer suite requires isolated IDB');
         const pointer = await runPointerSuite({ evaluate, send, openTab, primaryTab, peerTab, token, paused, crashed, rounds });
@@ -170,7 +175,7 @@ try {
             report.referenceFailures=[...failure.results,{name:'native Page.crash in attachment callback: exact committed/aborted snapshot and reopen',pass:true}];
         }
     }
-    for (const scenario of ['referential','policy','pointer'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
+    for (const scenario of ['referential','policy','pointer','pointer-safety'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
         const aggregate = { scenario, payload, rounds: 0, violations: 0, inconclusiveRounds: 0, details: [] };
         for (let round = 0; round < rounds; round++) {
             const generation = randomUUID();

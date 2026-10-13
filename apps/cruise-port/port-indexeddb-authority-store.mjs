@@ -1,9 +1,9 @@
 // L2a dormant Port-owned store. Only explicitly branded isolated scopes can open
 // a database. No Repository adapter, boot hook, migration, Sync or Pro runtime.
 import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, V1_STORE_KEYS, COMMIT_STORES, AUTHORIZATION_MARGIN_MS,
-    POINTER_KEY, RESERVED_JOURNAL_PREFIX, PORT_DATASET_KEYS, PORT_DELETE_INTENTS, identifier, fail, frozen, canonical, equal, digest,
+    POINTER_KEY, NAMESPACE_KEY, namespaceState, validateNamespace, RESERVED_JOURNAL_PREFIX, PORT_DATASET_KEYS, PORT_DELETE_INTENTS, identifier, fail, frozen, canonical, equal, digest,
     validateDataset, assertPortReferentialIntegrity, assertRetainedFields, validateControl, assertWritableControl, validateHead,
-    validateManifest, validateRecord, validateOplog, validatePointer, validateReservation, reservationKey, assertJSONEvidence,
+    validateManifest, validateRecord, validateOplog, validatePointer, validateReservation, validatePublicationFact, reservationKey, assertJSONEvidence,
     inferredDependencies, fingerprintDependencies, mergeDeleteIntents } from './port-idb-authority-contract.mjs';
 import { safeEvidence, MIGRATION_STATES } from './port-migration-contract.mjs';
 import { actionPolicy, assertActionSemantics, AUTHORITY_ACTION_POLICY_VERSION } from './port-authority-action-policy.mjs';
@@ -27,7 +27,7 @@ export function installIsolatedAuthorityTestProvider(scope, provider) {
 }
 const corrupt = new Set(['recovery-required','head-invalid','control-invalid','control-identity-invalid','manifest-invalid',
     'manifest-digest-invalid','head-manifest-mismatch','manifest-intent-mismatch','record-invalid','oplog-invalid','journal-invalid','root-invalid','non-json-evidence',
-    'pointer-invalid','pointer-head-mismatch','pointer-control-mismatch','pointer-generation-missing','fixture-pointer-untrusted','reservation-invalid']);
+    'pointer-invalid','pointer-head-mismatch','pointer-control-mismatch','pointer-generation-missing','fixture-pointer-untrusted','reservation-invalid','pointer-provenance-missing','pointer-provenance-mismatch','pointer-missing','namespace-invalid','namespace-provenance-missing','namespace-schema-unsupported','publication-fact-invalid','publication-identity-conflict']);
 const rejected = reason => ({ok:false,status:corrupt.has(reason)?'recovery-required':'rejected',reason});
 const positive = n => Number.isSafeInteger(n) && n > 0;
 const errorCode = error => typeof error?.code==='string' ? error.code : (error?.name === 'QuotaExceededError' ? 'quota-exceeded' : 'idb-error');
@@ -60,10 +60,11 @@ function validateV1Reservation(row) {
 // inventory, add pointer/reservations, copy every L3a operation reservation out
 // of the migration journal, read each copy back, and only then delete originals.
 // Any doubt aborts the whole upgrade, leaving the v1 database untouched.
-function upgradeFromV1(db,tx,abort) {
+function upgradeFromV1(db,tx,abort,partitionId) {
     if (!equal([...db.objectStoreNames].sort(),Object.keys(V1_STORE_KEYS).sort())) throw fail('schema-invalid');
     assertStoreShape(tx,V1_STORE_KEYS);
     createStores(db,{pointer:STORE_KEYS.pointer,reservations:STORE_KEYS.reservations});
+    tx.objectStore('pointer').add(namespaceState(partitionId));
     const journal=tx.objectStore('journal'),reservations=tx.objectStore('reservations'),oplog=tx.objectStore('oplog'),rows=[];
     const guard=fn=>(...args)=>{try{fn(...args);}catch(e){abort(e.code||'reservation-migration-failed');}};
     const request=(r,success,code='reservation-migration-failed')=>{r.onerror=event=>{event?.preventDefault?.();abort(code);};r.onsuccess=guard(()=>success(r.result));return r;};
@@ -105,8 +106,8 @@ export function openIDBAuthorityStore(scope) {
             const abort=code=>{upgradeFailure||=code;try{tx.abort();}catch{}};
             if(settled){abort('open-blocked');return;}
             try{
-                if(event.oldVersion===0)createStores(request.result,STORE_KEYS);
-                else if(event.oldVersion===1)upgradeFromV1(request.result,tx,abort);
+                if(event.oldVersion===0){createStores(request.result,STORE_KEYS);tx.objectStore('pointer').add(namespaceState(env.partitionId));}
+                else if(event.oldVersion===1)upgradeFromV1(request.result,tx,abort,env.partitionId);
                 else abort('schema-upgrade-unsupported');
             }catch(e){abort(e.code||'schema-upgrade-failed');}
         };
@@ -173,51 +174,94 @@ function makeStore(db,env,lifecycle) {
     }
     // The pointer is the only statement of which generation is active. A fixture
     // publication is never trusted by a scope without the privileged test provider.
-    function readPointer(ctx,done) {
-        ctx.request(ctx.store('pointer').get(POINTER_KEY),pointer=>{
-            if(pointer){
+    function readPointer(ctx,done,{allowUnpublishedRead=false}={}) {
+        ctx.request(ctx.store('pointer').get(NAMESPACE_KEY),namespace=>{
+            if(!namespace&&!allowUnpublishedRead)throw fail('namespace-provenance-missing');
+            if(namespace){validateNamespace(namespace);if(namespace.partitionId!==env.partitionId)throw fail('namespace-invalid');}
+            ctx.request(ctx.store('pointer').get(POINTER_KEY),pointer=>{
+                if(!pointer){
+                    if(namespace&&namespace.pointerEpoch!==0)throw fail('pointer-missing');
+                    // A zero marker is not enough if independent publication facts survive.
+                    let pending=2;
+                    for(const name of ['reservations','journal'])ctx.request(ctx.store(name).openCursor(),cursor=>{
+                        if(cursor){const v=cursor.value;if(v.publication!==undefined||v.kind==='publication'||positive(v.publishedPointerEpoch))throw fail('pointer-missing');cursor.continue();}
+                        else if(!--pending)done(null);
+                    });return;
+                }
+                if(!namespace)throw fail('namespace-provenance-missing');
                 validatePointer(pointer);
                 if(pointer.partitionId!==env.partitionId)throw fail('pointer-invalid');
+                if(namespace.pointerEpoch!==pointer.pointerEpoch)throw fail('pointer-provenance-mismatch');
                 if(pointer.publication.kind==='isolated-fixture'&&!env.testProvider)throw fail('fixture-pointer-untrusted');
-            }
-            done(pointer||null);
+                ctx.request(ctx.store('reservations').get([pointer.activeGeneration,pointer.operationId]),row=>{
+                    if(!row?.publication)throw fail('pointer-provenance-missing');
+                    validateReservation(row,pointer.activeGeneration,pointer.operationId);
+                    if(!equal(row.publication.pointer,pointer))throw fail('pointer-provenance-mismatch');
+                    verifyPublicationFact(ctx,row,()=>done(pointer));
+                });
+            });
         });
     }
-    function readSnapshot(ctx,generation,done) {
-        readPointer(ctx,pointer=>ctx.request(ctx.store('head').get(generation),head=>ctx.request(ctx.store('control').get(generation),control=>{
+    function verifyPublicationFact(ctx,row,done) {
+        validatePublicationFact(row);const f=row.publication,p=f.pointer;
+        ctx.request(ctx.store('manifests').get([row.generation,p.publication.manifestId]),manifest=>{
+            if(!manifest)throw fail('pointer-head-mismatch');validateManifest(manifest);
+            if(manifest.generation!==row.generation||manifest.manifestId!==p.publication.manifestId||manifest.seq!==p.publication.headSeq||manifest.digest!==p.publication.sealHash)throw fail('pointer-head-mismatch');
+            const finish=()=>readManifestValues(ctx,row.generation,manifest,values=>{assertPortReferentialIntegrity(values);done();});
+            ctx.request(ctx.store('oplog').get([row.generation,row.operationId]),log=>{
+                if(row.kind==='operation-identity') {
+                    if(!log)throw fail('pointer-provenance-missing');validateOplog(log,row.generation,row.operationId);
+                    if(log.fingerprint!==row.fingerprint||log.result.manifestId!==manifest.manifestId||log.result.seq!==manifest.seq)throw fail('publication-identity-conflict');finish();return;
+                }
+                if(log)throw fail('publication-identity-conflict');
+                ctx.request(ctx.store('journal').get(p.migrationId),j=>{
+                    if(!j)throw fail('pointer-provenance-missing');validateJournal(j);
+                    if(j.generation!==row.generation||j.state!=='active'||!equal(j.identity,f.identity)||!equal(j.publication,f)||
+                        j.publishedPointerEpoch!==p.pointerEpoch||j.sealManifestId!==manifest.manifestId||j.sealHeadSeq!==manifest.seq||j.sealHash!==manifest.digest)throw fail('pointer-provenance-mismatch');finish();
+                });
+            });
+        });
+    }
+    function readGenerationSnapshot(ctx,generation,pointer,done) {
+        ctx.request(ctx.store('head').get(generation),head=>ctx.request(ctx.store('control').get(generation),control=>{
             const target=pointer?.activeGeneration===generation;
             if(!head&&!control){
                 if(target)throw fail('pointer-generation-missing');
-                // Missing both pointers is not a fresh generation if orphaned
-                // immutable data / commit facts survive. Never silently reseed it.
                 let pending=3;
                 for(const name of ['records','manifests','oplog'])ctx.request(ctx.store(name).openCursor(),cursor=>{
                     if(cursor){if(cursor.value.generation===generation)throw fail('recovery-required');cursor.continue();}
                     else if(!--pending)done(null,pointer);
-                });
-                return;
+                });return;
             }
             if(!head||!control)throw fail(target?'pointer-generation-missing':'recovery-required');
             validateHead(head);validateControl(control);
             if(head.generation!==generation||control.generation!==generation||head.controlEpoch>control.epoch||control.identity.partitionId!==env.partitionId)throw fail('recovery-required');
             const read=()=>ctx.request(ctx.store('manifests').get([generation,head.manifestId]),manifest=>{
                 if(!manifest)throw fail('recovery-required');validateManifest(manifest,head);
-                readManifestValues(ctx,generation,manifest,values=>{
-                    assertPortReferentialIntegrity(values);
-                    done(frozen({generation,head,control,manifest,values,versions:{...manifest.versions},pointer,active:target}),pointer);
-                });
+                readManifestValues(ctx,generation,manifest,values=>{assertPortReferentialIntegrity(values);
+                    ctx.request(ctx.store('oplog').get([generation,head.operationId]),log=>{
+                        if(!log)throw fail('oplog-invalid');validateOplog(log,generation,head.operationId);
+                        if(log.result.seq!==head.seq||log.result.manifestId!==head.manifestId||log.result.revision!==head.revision)throw fail('oplog-invalid');
+                        done(frozen({generation,head,control,manifest,values,versions:{...manifest.versions},pointer,active:target}),pointer);
+                    });});
             });
             if(!target){read();return;}
-            // Pointer, control and the published manifest must agree; a head may
-            // only have advanced past the publication point by later commits.
             if(control.state!=='active')throw fail('pointer-control-mismatch');
             if(pointer.publication.controlEpoch>control.epoch||pointer.publication.headSeq>head.seq)throw fail('pointer-head-mismatch');
-            ctx.request(ctx.store('manifests').get([generation,pointer.publication.manifestId]),published=>{
-                if(!published)throw fail('pointer-head-mismatch');validateManifest(published);
-                if(published.seq!==pointer.publication.headSeq||published.digest!==pointer.publication.sealHash)throw fail('pointer-head-mismatch');
-                read();
+            ctx.request(ctx.store('reservations').get([generation,pointer.operationId]),row=>{
+                if(!row?.publication||!equal(row.publication.identity,control.identity))throw fail('pointer-provenance-mismatch');read();
             });
-        })));
+        }));
+    }
+    function readSnapshot(ctx,generation,done) {readPointer(ctx,pointer=>readGenerationSnapshot(ctx,generation,pointer,(snapshot,p)=>{
+        if(!p&&snapshot?.control.state==='active')ctx.request(ctx.store('pointer').get(NAMESPACE_KEY),namespace=>{if(!namespace)throw fail('namespace-provenance-missing');done(snapshot,p);});
+        else done(snapshot,p);
+    }),{allowUnpublishedRead:true});}
+    function readActive(ctx,done) {readPointer(ctx,pointer=>pointer?readGenerationSnapshot(ctx,pointer.activeGeneration,pointer,current=>done(pointer,current)):done(null,null));}
+    function publicationEvidence(token,r,sealHash) {
+        const e=readAttestation(token,{scope:env.scope,generation:r.generation,migrationId:r.migrationId,sealHash});
+        if(e.kind!=='isolated-fixture'||!env.testProvider)throw fail('publication-evidence-unavailable');
+        return frozen({kind:e.kind,sealHash:e.sealHash,binary:{...e.binary},sync:{...e.sync},fence:e.fence&&{...e.fence}});
     }
     function checkRootReferences(ctx,root,done) {
         let count=root.manifestIds.length+root.recordRefs.length+root.journalIds.length;
@@ -312,7 +356,9 @@ function makeStore(db,env,lifecycle) {
     async function commit(handle,{commitGuard}={}) {
         const p=prepared.get(handle);if(!p)return rejected('prepared-handle-invalid');
         const reservation=await reserveOperation(handle);if(!reservation.ok)return reservation;
-        return transact(COMMIT_STORES,'readwrite',ctx=>ctx.request(ctx.store('oplog').get([p.generation,p.operationId]),old=>{
+        return transact(COMMIT_STORES,'readwrite',ctx=>ctx.request(ctx.store('reservations').get([p.generation,p.operationId]),reserved=>{
+            if(reserved){validateReservation(reserved,p.generation,p.operationId);if(reserved.kind!=='operation-identity'||reserved.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');}
+            ctx.request(ctx.store('oplog').get([p.generation,p.operationId]),old=>{
             if(old){
                 validateOplog(old,p.generation,p.operationId);
                 if(old.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');
@@ -324,12 +370,8 @@ function makeStore(db,env,lifecycle) {
                     // Only an isolated fixture may create an already-active generation;
                     // it publishes the pointer and supersedes the previous one atomically.
                     if(p.initialControl.state!=='active'){write(null,null);return;}
-                    if(!pointer){write(null,{previous:null,oldControl:null});return;}
-                    ctx.request(ctx.store('control').get(pointer.activeGeneration),old=>{
-                        if(!old)throw fail('pointer-generation-missing');validateControl(old);
-                        if(old.state!=='active')throw fail('pointer-control-mismatch');
-                        write(null,{previous:pointer,oldControl:old});
-                    });
+                    if(!pointer){readActive(ctx,()=>write(null,{previous:null,oldControl:null}));return;}
+                    readGenerationSnapshot(ctx,pointer.activeGeneration,pointer,active=>write(null,{previous:pointer,oldControl:active.control}));
                     return;
                 }
                 if(!p.base||p.initialControl)throw fail('generation-already-exists');
@@ -409,11 +451,17 @@ function makeStore(db,env,lifecycle) {
                         migrationId:p.operationId,publication:{kind:'isolated-fixture',manifestId,headSeq:seq,sealHash:manifest.digest,controlEpoch:control.epoch},
                         previousGeneration:previous?.activeGeneration??null,operationId:p.operationId};
                     validatePointer(next);ctx.request(ctx.store('pointer').put(next));
+                    ctx.request(ctx.store('pointer').put(namespaceState(env.partitionId,next.pointerEpoch)));
+                    const row={generation:p.generation,operationId:p.operationId,schemaVersion:1,kind:'operation-identity',fingerprint:p.fingerprint,
+                        action:p.action,policy:p.policy,targetKeys:Object.keys(p.changes).sort(),origin:'v2',
+                        publication:{schemaVersion:1,pointer:next,identity:control.identity,request:null,evidence:null}};
+                    validateReservation(row,p.generation,p.operationId);ctx.request(ctx.store('reservations').add(row));
                 }
+                if(p.initialControl&&!publication){const row={generation:p.generation,operationId:p.operationId,schemaVersion:1,kind:'operation-identity',fingerprint:p.fingerprint,action:p.action,policy:p.policy,targetKeys:Object.keys(p.changes).sort(),origin:'v2'};validateReservation(row,p.generation,p.operationId);ctx.request(ctx.store('reservations').add(row));}
                 ctx.request(ctx.store('oplog').add(log),()=>ctx.tx.commit?.());
                 ctx.done(result);
             }
-        }));
+        });}));
     }
     return Object.freeze({
         get status(){return state;},
@@ -423,17 +471,17 @@ function makeStore(db,env,lifecycle) {
             return transact(COMMIT_STORES,'readonly',ctx=>readSnapshot(ctx,generation,snapshot=>ctx.done(snapshot?
                 {ok:true,status:'hydrated',snapshot,activity:snapshot.active?'active':'inactive',
                     readOnly:!snapshot.active||snapshot.control.state!=='active'||snapshot.control.suspended||snapshot.control.fenceRevoked||snapshot.control.identityInvalidated||snapshot.control.recoveryRequired}:
-                {ok:true,status:'absent',snapshot:null}))).then(result=>result.ok?result:{...result,status:'recovery-required'});
+                {ok:true,status:'absent',snapshot:null}))).then(result=>result.ok?result:{...result,status:'recovery-required',readOnly:true,activity:'unknown'});
         },
         readPointer(){
-            return transact(['pointer'],'readonly',ctx=>readPointer(ctx,pointer=>ctx.done({ok:true,pointer}))).then(result=>result.ok?result:{...result,status:'recovery-required'});
+            return transact(COMMIT_STORES,'readonly',ctx=>readActive(ctx,pointer=>ctx.done({ok:true,pointer}))).then(result=>result.ok?result:{...result,status:'recovery-required'});
         },
         // prepared -> sealed. Requires the Port-owned publication capability for
         // this generation. Seals the current head; the journal records its digest.
         seal({generation,migrationId,capability}={}){
             try{identifier(generation);identifier(migrationId);verifyCapability(capability,{scope:env.scope,purpose:'migration-publication',generation});}
             catch(e){return Promise.resolve(rejected(errorCode(e)));}
-            return transact([...COMMIT_STORES,'journal'],'readwrite',ctx=>readSnapshot(ctx,generation,current=>{
+            return transact(COMMIT_STORES,'readwrite',ctx=>readSnapshot(ctx,generation,current=>{
                 if(!current)throw fail('generation-missing');
                 ctx.request(ctx.store('journal').get(migrationId),j=>{
                     if(!j)throw fail('journal-missing');validateJournal(j);
@@ -466,56 +514,69 @@ function makeStore(db,env,lifecycle) {
                 if(r.expectedPointerEpoch!==null&&!positive(r.expectedPointerEpoch)||!positive(r.expectedControlEpoch))throw fail('publication-request-invalid');
                 verifyCapability(request.capability,{scope:env.scope,purpose:'migration-publication',generation:r.generation});
             }catch(e){return Promise.resolve(rejected(errorCode(e)));}
-            const fingerprint=digest({kind:'publication',...r});
-            return transact([...COMMIT_STORES,'journal','reservations'],'readwrite',ctx=>readPointer(ctx,pointer=>{
-                if(pointer?.activeGeneration===r.generation){
-                    // Same migration retried: one pointer epoch, no second switch.
-                    if(pointer.migrationId!==r.migrationId)throw fail('publication-conflict');
-                    ctx.done({ok:true,status:'already-active',generation:r.generation,pointerEpoch:pointer.pointerEpoch});return;
-                }
-                if((pointer?.pointerEpoch??null)!==r.expectedPointerEpoch)throw fail('pointer-stale');
-                ctx.request(ctx.store('reservations').get([r.generation,r.operationId]),reserved=>{
-                    if(reserved){validateReservation(reserved,r.generation,r.operationId);
-                        throw fail(reserved.fingerprint===fingerprint&&reserved.kind==='publication'?'publication-superseded':'operation-id-payload-conflict');}
-                    readSnapshot(ctx,r.generation,current=>{
-                        if(!current)throw fail('generation-missing');
-                        const c=current.control;
-                        if(c.state!=='sealed')throw fail('publication-state-invalid');
-                        if(c.epoch!==r.expectedControlEpoch)throw fail('control-stale');
-                        if(c.suspended||c.fenceRevoked||c.identityInvalidated||c.recoveryRequired)throw fail('authority-invalidated');
-                        ctx.request(ctx.store('journal').get(r.migrationId),j=>{
-                            if(!j)throw fail('journal-missing');validateJournal(j);
-                            if(j.generation!==r.generation||j.state!=='ready-to-publish'||!equal(j.identity,c.identity))throw fail('publication-state-invalid');
-                            if(j.sealHash!==current.manifest.digest||j.sealManifestId!==current.head.manifestId||j.sealHeadSeq!==current.head.seq)throw fail('seal-mismatch');
-                            const evidence=readAttestation(request.attestation,{scope:env.scope,generation:r.generation,migrationId:r.migrationId,sealHash:j.sealHash});
-                            // L4 evidence is not connected: only an isolated fixture can model it.
-                            if(evidence.kind!=='isolated-fixture'||!env.testProvider)throw fail('publication-evidence-unavailable');
-                            const f=evidence.fence;
-                            if(c.identity.ownership==='bound-account'?!f||f.accountId!==c.identity.accountId||f.membershipId!==c.identity.membershipId||
-                                f.accountGeneration!==c.identity.accountGeneration||f.membershipGeneration!==c.identity.membershipGeneration:f!==null)throw fail('cloud-fence-required');
-                            const apply=oldControl=>{
-                                if(oldControl)ctx.request(ctx.store('control').put({...oldControl,state:'superseded',epoch:oldControl.epoch+1}));
+            return transact(COMMIT_STORES,'readwrite',ctx=>readActive(ctx,(pointer,active)=>{
+                // Every success path first verifies the current active head, all
+                // records, control, and independent publication provenance.
+                ctx.request(ctx.store('oplog').get([r.generation,r.operationId]),log=>{
+                    if(log){validateOplog(log,r.generation,r.operationId);throw fail('operation-id-payload-conflict');}
+                    ctx.request(ctx.store('reservations').get([r.generation,r.operationId]),reserved=>{
+                        if(reserved)validateReservation(reserved,r.generation,r.operationId);
+                        if(pointer?.activeGeneration===r.generation){
+                            if(pointer.migrationId!==r.migrationId)throw fail('publication-conflict');
+                            if(pointer.operationId!==r.operationId)throw fail('publication-operation-conflict');
+                            if(!reserved?.publication||reserved.kind!=='publication')throw fail('publication-identity-conflict');
+                            const evidence=publicationEvidence(request.attestation,r,reserved.publication.pointer.publication.sealHash);
+                            if(reserved.fingerprint!==digest({kind:'publication',...r,evidence}))throw fail('operation-id-payload-conflict');
+                            ctx.done({ok:true,status:'already-active',generation:r.generation,operationId:r.operationId,pointerEpoch:pointer.pointerEpoch,
+                                publish:false,currentAuthorityVerified:true});return;
+                        }
+                        if(reserved)throw fail(reserved.kind==='publication'&&equal(reserved.publication?.request,r)?'publication-superseded':'operation-id-payload-conflict');
+                        if((pointer?.pointerEpoch??null)!==r.expectedPointerEpoch)throw fail('pointer-stale');
+                        readGenerationSnapshot(ctx,r.generation,pointer,current=>{
+                            if(!current)throw fail('generation-missing');const c=current.control;
+                            if(c.state!=='sealed')throw fail('publication-state-invalid');
+                            if(c.epoch!==r.expectedControlEpoch)throw fail('control-stale');
+                            if(c.suspended||c.fenceRevoked||c.identityInvalidated||c.recoveryRequired)throw fail('authority-invalidated');
+                            ctx.request(ctx.store('journal').get(r.migrationId),j=>{
+                                if(!j)throw fail('journal-missing');validateJournal(j);
+                                if(j.generation!==r.generation||j.state!=='ready-to-publish'||!equal(j.identity,c.identity))throw fail('publication-state-invalid');
+                                if(j.sealHash!==current.manifest.digest||j.sealManifestId!==current.head.manifestId||j.sealHeadSeq!==current.head.seq)throw fail('seal-mismatch');
+                                const evidence=publicationEvidence(request.attestation,r,j.sealHash),f=evidence.fence;
+                                if(c.identity.ownership==='bound-account'?!f||f.accountId!==c.identity.accountId||f.membershipId!==c.identity.membershipId||
+                                    f.accountGeneration!==c.identity.accountGeneration||f.membershipGeneration!==c.identity.membershipGeneration:f!==null)throw fail('cloud-fence-required');
+                                if(active)ctx.request(ctx.store('control').put({...active.control,state:'superseded',epoch:active.control.epoch+1}));
                                 const control={...c,state:'active',epoch:c.epoch+1};validateControl(control);
                                 const next={key:POINTER_KEY,schemaVersion:1,partitionId:env.partitionId,pointerEpoch:(pointer?.pointerEpoch||0)+1,
                                     activeGeneration:r.generation,namespaceVersion:1,repositoryProtocol:control.repositoryProtocol,writerProtocol:control.writerProtocol,
                                     migrationId:r.migrationId,publication:{kind:evidence.kind,manifestId:current.head.manifestId,headSeq:current.head.seq,
                                         sealHash:j.sealHash,controlEpoch:control.epoch},previousGeneration:pointer?.activeGeneration??null,operationId:r.operationId};
                                 validatePointer(next);
-                                const journal={...j,state:'active',revision:j.revision+1,publishedPointerEpoch:next.pointerEpoch};validateJournal(journal);
-                                const reservation={generation:r.generation,operationId:r.operationId,schemaVersion:1,kind:'publication',fingerprint,
-                                    action:'publish',policy:'migration-publication',targetKeys:[],origin:'v2'};validateReservation(reservation,r.generation,r.operationId);
+                                const fact={schemaVersion:1,pointer:next,identity:control.identity,request:r,evidence};
+                                const journal={...j,state:'active',revision:j.revision+1,publishedPointerEpoch:next.pointerEpoch,publication:fact};validateJournal(journal);
+                                const reservation={generation:r.generation,operationId:r.operationId,schemaVersion:1,kind:'publication',
+                                    fingerprint:digest({kind:'publication',...r,evidence}),action:'publish',policy:'migration-publication',targetKeys:[],origin:'v2',publication:fact};
+                                validateReservation(reservation,r.generation,r.operationId);
                                 ctx.request(ctx.store('control').put(control));ctx.request(ctx.store('journal').put(journal));
-                                ctx.request(ctx.store('pointer').put(next));ctx.request(ctx.store('reservations').add(reservation),()=>ctx.tx.commit?.());
-                                ctx.done({ok:true,status:'published',generation:r.generation,pointerEpoch:next.pointerEpoch,previousGeneration:next.previousGeneration});
-                            };
-                            if(!pointer){apply(null);return;}
-                            ctx.request(ctx.store('control').get(pointer.activeGeneration),old=>{
-                                if(!old)throw fail('pointer-generation-missing');validateControl(old);
-                                if(old.state!=='active')throw fail('pointer-control-mismatch');apply(old);
+                                ctx.request(ctx.store('pointer').put(next));ctx.request(ctx.store('pointer').put(namespaceState(env.partitionId,next.pointerEpoch)));
+                                ctx.request(ctx.store('reservations').add(reservation),()=>ctx.tx.commit?.());
+                                ctx.done({ok:true,status:'published',generation:r.generation,operationId:r.operationId,pointerEpoch:next.pointerEpoch,
+                                    previousGeneration:next.previousGeneration,publish:false,currentAuthorityVerified:true});
                             });
                         });
                     });
                 });
+            }));
+        },
+        // Historical publication lookup never asserts current active integrity or
+        // write readiness. It remains readable after current head corruption.
+        lookupPublication(generation,operationId){
+            try{identifier(generation);identifier(operationId);}catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            return transact(COMMIT_STORES,'readonly',ctx=>ctx.request(ctx.store('reservations').get([generation,operationId]),row=>{
+                if(!row||row.kind!=='publication'){ctx.done({ok:true,result:null});return;}
+                validateReservation(row,generation,operationId);
+                if(!row.publication)throw fail('pointer-provenance-missing');
+                verifyPublicationFact(ctx,row,()=>ctx.done({ok:true,result:{generation,operationId,migrationId:row.publication.pointer.migrationId,
+                    pointerEpoch:row.publication.pointer.pointerEpoch,status:'published',historical:true,publish:false,currentAuthorityVerified:false}}));
             }));
         },
         prepare({base,operationId,action='fixture-save',changes,dependencyKeys,acknowledgements,authorizationContext,operationData,authorizationIdentity,authorizationPolicy,systemCapability}){

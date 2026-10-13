@@ -1,19 +1,33 @@
 # Cruise Studio Project State
 
-## L3b-1 Active Pointer & Schema v2（2026-10-13・現行）
+## L3b-1 Safety Fix Completion（2026-10-13・現行）
 
-Port1.22.13 / Studio0.26.7 / Studio schema1 / Authority DB physical schema2。[Pointer契約](../../cruise-port/docs/AUTHORITY_POINTER_SCHEMA_V2.md)が正式契約。
-v1→v2はadditive（pointer/reservations追加、既存7 store不変更）。L3aのjournal予約行はversionchange内で全件検証・複写・読戻し後に
-reservationsへ移し、1件でも不整合ならupgrade全体をabort。`operation-`prefixのmigrationIdは拒否しL4 journalと分離する。
-partition唯一のpointer(`active`)が正本、sentinelはhint。破損/generation欠落はrecovery-required、不在はread-only。
-state: staging/prepared/sealed/active/superseded/recovery-required。seal後、pointer CAS・evidence・fence検証付きの1 transactionで
-旧control superseded＋新control active＋pointer＋journal＋publication予約を公開。同migrationIdはalready-active、異migrationIdはpointer-stale/conflict。
-通常commitはpointer/control/headを同transactionで再確認し、切替後のold handle/旧baseはgeneration-not-active/pointer-staleで拒否。
-capabilityはscope/purpose/generation束縛のbrand object、L3b-1発行はmigration-publicationのみ。publish中crashは全abortまたは完全公開でretry1回。
-Port/Studio boot graphはStore/capability/IDB backendをimportせず、通常UIはDB作成・publish・control変更不可。
-Node pointer33＋store88/backend46/参照35/policy57、Port/shared2065 / Worker760 / Other186 / workerd8 / Studio315（commit後clean guard込み）。
-Native A–F（別renderer）、CAS54round＋7、参照63round＋failure4、L2a14、CDP製品回帰（Port 1280/393・Studio 1440/393）全PASS。console/404/unexpected write0。
-Production legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false。L3b-2（正式Control操作）/L3c/L3d/L4/B1-6は未着手。
+Port **1.22.14** / Studio **0.26.8** / Studio schema **1** / Authority DB physical schema **2**・9 stores。
+開始HEAD/origin/main/remote main=`58b21a4263b3d689afde712e59f86d5c8068b174`。前回の91ファイル差分を保持。
+[Pointer正式契約](../../cruise-port/docs/AUTHORITY_POINTER_SCHEMA_V2.md)にprovenance/current integrity/collision/retry/historyの詳細を定義する。
+
+Pointer識別情報全体をreservations内の独立publication factと照合し、公開manifest/recordsとjournal/oplogの整合も検証。
+`pointer` storeの`namespace`行はpartition/protocol/schema/最後のpointerEpochを保持し、公開後のpointer欠損を未公開と誤認しない。
+現在のactive head/control/full manifest/全records/参照/current head oplogを同じnative transactionで検証する。
+破損activeからのduplicate publish・別generation publish・通常saveを拒否し、hydrateはrecovery-required/read-only。
+
+同migrationIdのretryは元operationId・元precondition・元evidenceとfingerprintが一致する場合だけalready-active。
+operation identityはgeneration＋operationIdでdataset/publicationを横断し、oplogとreservationsの混用・異payloadを拒否する。
+`lookupPublication`の過去確定事実は`historical=true/publish=false/currentAuthorityVerified=false`で、現在のwrite/publish認可ではない。
+v1→v2は既存7 storeを再作成せず、予約移行とnamespace epoch0追加を同じversionchange transactionで実行する。
+旧v2のnamespace/publication factを自動補完しない。旧未公開candidateはread-only表示、証拠のないactiveはfail-closed。
+
+Production Authority **legacy** / Worker **ACCEPT_COMPAT** / enforcement **OFF** /
+Studio shared write **OFF** / PortDataHost.canWrite=**false**を維持。
+通常bootへ新Authority/providerを接続せず、本番deploy/D1 migration/cutover/active pointer公開は行わない。
+L3b-2/L3c/L3d/L4/B1-6製品入口は未着手。shared write解禁不可。
+検証: Pointer Safety15（native待機証明9）＋7、Pointer A–F＋7、CAS54＋7、参照63＋障害4＋7、native policy9＋7、L2a14、全PASS。
+Node: Worker760 / Port/shared2104 / Other186 / workerd8 / Studio dirty314、全PASS。commit後Studio315を除外なしで実行する。
+正規Playwright1.62.1: Port6suite（18/26/10/18/standard-readiness/10）、Studio5suite（21/23/29/24/Host10）、全PASS。
+CDP製品隔離13もPASS。application error/404/unexpected network mutation0、期待した認証401/offline errorだけ別記録。
+standard-readinessのVer1.18.0期待を正式定数由来の可視・完全一致assertionへ修正し、現行Device Session応答/初期fixture保存/reset navigation同期を合わせた。
+package/lockfileと利用者8765 serverは不変更。詳細・PID・fixture修正理由はPointer契約のCompletion検証記録を参照。
+以下の各工程の本文・検証数は履歴であり、この現行契約に従う。
 
 ## L3a Action Authorization Policy（2026-10-13）
 
