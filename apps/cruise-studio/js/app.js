@@ -255,6 +255,8 @@
         preDtm.init();
         shellHost = CS.shell.init(CS);
         CS.shellHost = shellHost;
+        CS.practiceView = CS.practice.init({ document: document, shell: shellHost });
+        CS.practice.attachHost(CS.portDataHost || null);
         CS.audio = CS.audioCoordinator.createCoordinator();
         CS.metronomeMemoryStore = CS.metronomeStore.createMemoryStore({ schema: CS.metronomeSchema });
         CS.metronomeSettingsController = CS.metronomeSettings.createController({ schema: CS.metronomeSchema, store: CS.metronomeMemoryStore });

@@ -1,5 +1,21 @@
 /* Shell v1. All chrome colors come from Theme Contract v1. Paper/Loupe keep their domain. */
 body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
+.practice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.practice-card { min-width: 0; padding: 18px; border: 1px solid var(--studio-border-default); border-radius: 8px; background: var(--studio-surface); }
+.practice-card h2 { font-size: 17px; margin-bottom: 12px; }
+.practice-card h3 { font-size: 16px; }
+.practice-card p, .practice-card li, .practice-workspace > p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.practice-card :is(ol, ul) { padding-left: 22px; }
+.practice-card li { margin: 8px 0; }
+.practice-calendar { grid-column: 1 / -1; }
+.practice-workspace button { font: inherit; text-align: left; max-width: 100%; overflow-wrap: anywhere; padding: 9px 12px; min-height: 38px; border: 1px solid var(--studio-border-default); border-radius: 6px; background: var(--studio-control); color: var(--studio-text-primary); cursor: pointer; }
+.practice-workspace button:hover { background: var(--studio-control-hover); }
+.practice-workspace button[aria-pressed="true"] { color: var(--studio-selected-text); border-color: var(--studio-selected-border); background: var(--studio-selected-bg); }
+.practice-workspace button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+.practice-workspace button:disabled { opacity: .6; cursor: default; }
+.practice-workspace [data-practice-state], .practice-workspace [data-practice-attachments] { color: var(--studio-text-muted); font-size: 13px; }
+.practice-workspace[data-stale="true"] [data-practice-status], .practice-workspace[data-status="error"] [data-practice-status] { color: var(--studio-warning); }
+@media (max-width: 1050px) { .practice-grid { grid-template-columns: minmax(0, 1fr); } }
 #studio-shell {
     display: grid;
     grid-template-columns: 176px minmax(0, 1fr);

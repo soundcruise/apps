@@ -1,4 +1,4 @@
-export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.28.0';
+export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.29.0';
 
 function freeze(value) {
     if (value && typeof value === 'object') {
@@ -47,7 +47,7 @@ const features = freeze([
         }
     }),
     feature('port.practice', 'cruise-port', ['main', 'separate-workspace'], {
-        ...portData,
+        ...portData, implementedPresentations: ['main'],
         actionCapabilityRequirements: {
             createMenu: [portPolicy('practiceMenuCreateLimit')],
             attachFile: [portPolicy('practiceFileWrite')]

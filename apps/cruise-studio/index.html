@@ -7,18 +7,18 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.28.0"></script>
+    <script src="js/core/color-theme.js?v=0.29.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.28.0">
+    <link rel="stylesheet" href="theme-projection.css?v=0.29.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.28.0">
-    <link rel="stylesheet" href="shell.css?v=0.28.0">
+    <link rel="stylesheet" href="theme.css?v=0.29.0">
+    <link rel="stylesheet" href="shell.css?v=0.29.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.28.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.29.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -34,6 +34,7 @@
                 <button type="button" data-workspace="sheetCruise">Structure<span>コード譜を編集</span></button>
                 <button type="button" data-workspace="preDtm">Pre-DTM<span>伴奏を組み立てる</span></button>
                 <button type="button" data-workspace="series">Apps<span>既存アプリを開く</span></button>
+                <button type="button" data-workspace="practice">Practice<span>練習データを閲覧</span></button>
             </div>
             <div class="studio-nav-utilities">
                 <button type="button" id="shell-inspector" aria-controls="studio-right-pane" aria-expanded="false">Inspector</button>
@@ -53,7 +54,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.28.0</span>
+                <span class="studio-version" id="studio-version">v0.29.0</span>
             </header>
 
             <section class="module-section">
@@ -433,6 +434,22 @@
 
         </section>
 
+        <section id="screen-practice" class="screen hidden practice-workspace" hidden inert tabindex="-1" aria-label="Practice">
+            <header class="screen-header"><h1 class="screen-title">Practice</h1><p class="screen-subcopy">Portの練習データ · 閲覧専用</p></header>
+            <p>このブラウザに保存されたPortデータを読み取ります。作成・編集・保存・同期は行いません。</p>
+            <button type="button" id="practice-read">ローカル保存値を確認</button>
+            <p data-practice-status role="status" aria-live="polite"></p>
+            <div class="practice-grid">
+                <section class="practice-card"><h2>練習メニュー</h2><p data-practice-state="menus"></p><ol data-practice-list="menus"></ol><button type="button" data-practice-more="menus" hidden>メニューをさらに表示</button></section>
+                <section class="practice-card" aria-label="選択メニューの詳細"><h2>メニュー詳細</h2><div data-practice-detail="menus"></div></section>
+                <section class="practice-card"><h2>練習セット</h2><p data-practice-state="sets"></p><ol data-practice-list="sets"></ol><button type="button" data-practice-more="sets" hidden>セットをさらに表示</button></section>
+                <section class="practice-card" aria-label="選択セットの詳細"><h2>セット内容</h2><div data-practice-detail="sets"></div></section>
+                <section class="practice-card"><h2>進捗</h2><p data-practice-state="progress"></p><p data-practice-cycle></p><ul data-practice-list="progress"></ul><button type="button" data-practice-more="progress" hidden>進捗をさらに表示</button></section>
+                <section class="practice-card"><h2>最近の練習履歴</h2><p data-practice-state="history"></p><ol data-practice-list="history"></ol><button type="button" data-practice-more="history" hidden>履歴をさらに表示</button></section>
+                <section class="practice-card practice-calendar"><h2>Calendar · 練習記録 / 予定</h2><p data-practice-state="calendar"></p><ol data-practice-list="calendar"></ol><button type="button" data-practice-more="calendar" hidden>Calendarをさらに表示</button></section>
+            </div>
+            <section class="practice-card"><h2>添付metadata</h2><p data-practice-attachments></p><p data-practice-state="attachments"></p><ul data-practice-list="attachments"></ul><button type="button" data-practice-more="attachments" hidden>metadataをさらに表示</button></section>
+        </section>
         <footer class="studio-footer">Sound Cruise Series</footer>
             </div>
         </main>
@@ -483,34 +500,35 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.28.0"></script>
+    <script src="js/core/music-theory.js?v=0.29.0"></script>
     <script src="../chord-cruise/js/core/music-theory.js?v=1.20.1"></script>
     <script src="../chord-cruise/js/core/chord-model.js?v=1.20.1"></script>
-    <script src="js/modules/chord/read-model.js?v=0.28.0"></script>
-    <script src="js/modules/chord/inspector.js?v=0.28.0"></script>
-    <script src="js/core/song-model.js?v=0.28.0"></script>
-    <script src="js/core/storage.js?v=0.28.0"></script>
-    <script src="js/core/editing-session.js?v=0.28.0"></script>
-    <script src="js/core/project-repository.js?v=0.28.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.28.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.28.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.28.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.28.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.28.0"></script>
-    <script src="js/core/command-router.js?v=0.28.0"></script>
-    <script src="js/core/focus-routing.js?v=0.28.0"></script>
-    <script src="js/core/keyboard-router.js?v=0.28.0"></script>
-    <script src="js/core/modal-manager.js?v=0.28.0"></script>
-    <script src="js/shell.js?v=0.28.0"></script>
-    <script src="js/core/audio-coordinator.js?v=0.28.0"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.28.0"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.28.0"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.28.0"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.28.0"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.28.0"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.28.0"></script>
-    <script src="js/app.js?v=0.28.0"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.28.0"></script>
+    <script src="js/modules/chord/read-model.js?v=0.29.0"></script>
+    <script src="js/modules/chord/inspector.js?v=0.29.0"></script>
+    <script src="js/core/song-model.js?v=0.29.0"></script>
+    <script src="js/core/storage.js?v=0.29.0"></script>
+    <script src="js/core/editing-session.js?v=0.29.0"></script>
+    <script src="js/core/project-repository.js?v=0.29.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.29.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.29.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.29.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.29.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.29.0"></script>
+    <script src="js/core/command-router.js?v=0.29.0"></script>
+    <script src="js/core/focus-routing.js?v=0.29.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.29.0"></script>
+    <script src="js/core/modal-manager.js?v=0.29.0"></script>
+    <script src="js/shell.js?v=0.29.0"></script>
+    <script src="js/modules/practice/workspace.js?v=0.29.0"></script>
+    <script src="js/core/audio-coordinator.js?v=0.29.0"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.29.0"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.29.0"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.29.0"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.29.0"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.29.0"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.29.0"></script>
+    <script src="js/app.js?v=0.29.0"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.29.0"></script>
 </body>
 
 </html>

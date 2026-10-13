@@ -1,3 +1,4 @@
+import { PRACTICE_KEYS } from './practice-projection.mjs?v=0.29.0';
 // All I/O is deferred until explicit local inspection. No writer is exported.
 const port = new URL('../../../cruise-port/', import.meta.url);
 const shared = new URL('../../../shared/', import.meta.url);
@@ -102,7 +103,8 @@ export async function connectPortReadOnly(onChange, environment = globalThis) {
             const parse = key => { try { return JSON.parse(raw[key] || 'null'); } catch { return null; } };
             const presets = parse('cruisePort.metronomePresets');
             const digest = await g.crypto.subtle.digest('SHA-256', new TextEncoder().encode(snapshot.revision));
-            return { revision: Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join(''), generation: snapshot.generation,
+            const practiceValues = Object.fromEntries(PRACTICE_KEYS.map(key => [key, raw[key] ?? null]));
+            return { revision: Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join(''), generation: snapshot.generation, practiceValues,
                 state, presetsSchema: presets?.version ?? null, metronome: parse('cruisePort.metronome'), presets: Array.isArray(presets?.items) ? presets.items : [] };
         },
         pro: readPro,

@@ -1,6 +1,28 @@
 # クルーズスタジオ — ロードマップ
 
-## Studio Chord Standard PC Presentation v1（2026-10-14・現行）
+## Studio Practice Read-only PC Workspace v1（2026-10-14・現行）
+
+Studio **0.29.0** / Port **1.22.18** / Chord **1.20.1**。Studio schema **1** / Authority physical schema **2**維持。
+開始HEAD / origin/main / remoteは`c2fcfef56f48fd575b88e523b70d168113bb8e09`、tracked/staged空・ahead/behind0/0。
+既存PortDataHostから同一snapshotのPractice読み取り専用投影を追加し、ShellにPractice workspaceと正式Navigationを接続。
+メニュー/詳細、セット/順序付き参照、全進捗、最近の履歴、Calendarの練習記録/予定、添付metadataを表示する。
+Portが所有者。Studio保存済みdataset/Editing Session/write APIを作らず、canWrite=falseを維持する。
+削除済み参照と履歴の過去名を保持し、future/invalidを削除扱いにしない。外部更新はstable ID選択を保持し、確定削除だけで解除。
+loading/error/stale/absent/empty/非対応形式を区別。添付本体DBは開かず、local-only添付の有無は未確認と明示する。
+4 Themes、広い画面の一覧+詳細、狭い画面の1列、native keyboard、既存IME/Modal/Escape/focus ownershipに従う。
+既存譜面専用Printの対象にPracticeを含めない。50件ずつUI表示し、history8101/Calendar1501の全modelを保持。
+
+検証: Studio Node420 PASS（381 baseline+39追加、clean guard含む）、既存Chrome6 suite154 PASS、Practice20 PASS、Host10ケースPASS。
+Port関連6ファイル68 PASS。readerのPort/IDB/Practice/Authority/Account/Pro Device/Sync-outbox/Worker/Cloud/binary write・取得0。
+console/app404/unhandled rejection0、画面/source0.29.0一致。隔離8766/使い捨てChromeのみ、既存8765不触。
+契約・正式schema・未接続境界は[Practice PC契約](docs/PRACTICE_PC_PRESENTATION.md)を参照。
+Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**を維持。
+L3c未解決/Daybreak待機を維持し、新規security probe・本番deployなし。通常PC UI gateをAuthority安全性承認やM3解禁と扱わない。
+次はPractice実機確認とPC機能優先度整理。編集/添付本体/正式共有write/Account/Syncは別工程。
+以下のversion・件数は各工程時点の履歴。
+
+
+## Studio Chord Standard PC Presentation v1（2026-10-14・履歴）
 
 Studio **0.28.0** / Chord **1.20.1** / Port **1.22.18** / Studio schemaVersion **1**。
 開始HEAD / origin/main / remote=`590c3cd0a926bd7201f42144f41b13692d460bc3`、tracked/staged空・ahead/behind0/0。

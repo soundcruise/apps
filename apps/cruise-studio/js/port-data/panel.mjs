@@ -1,9 +1,10 @@
-import { createPortDataHost } from './host.mjs?v=0.28.0';
-import { connectPortReadOnly } from './connection.mjs?v=0.28.0';
-import { describeRead, findPreset, standardBpm, copyStandardBpm } from './presentation.mjs?v=0.28.0';
+import { createPortDataHost } from './host.mjs?v=0.29.0';
+import { connectPortReadOnly } from './connection.mjs?v=0.29.0';
+import { describeRead, findPreset, standardBpm, copyStandardBpm } from './presentation.mjs?v=0.29.0';
 const CS = globalThis.CruiseStudio;
 let host = createPortDataHost({ connect: connectPortReadOnly, schema: CS.metronomeSchema });
 CS.portDataHost = host;
+CS.practice.attachHost(host);
 const panel = document.querySelector('#studio-port-data');
 const button = panel.querySelector('#studio-port-read');
 let selectedId = null, requested = false, loading = false, hadData = false, lifecycle = 0;
@@ -65,6 +66,6 @@ function copy(presetId = null) {
 }
 panel.querySelector('#studio-port-copy-bpm').addEventListener('click', () => copy());
 panel.querySelector('#studio-port-copy-preset').addEventListener('click', () => { if (selectedId !== null) copy(selectedId); });
-const dispose = () => { lifecycle++; loading = false; requested = false; hadData = false; selectedId = null; button.disabled = false; window.removeEventListener('pagehide', dispose); off(); host.dispose(); };
-window.addEventListener('pageshow', event => { if (event.persisted) { host = createPortDataHost({ connect: connectPortReadOnly, schema: CS.metronomeSchema }); CS.portDataHost = host; off = host.subscribe(render); render(host.getCachedStatus()); window.addEventListener('pagehide', dispose, { once: true }); } });
+const dispose = () => { lifecycle++; loading = false; requested = false; hadData = false; selectedId = null; button.disabled = false; window.removeEventListener('pagehide', dispose); CS.practice.attachHost(null); off(); host.dispose(); };
+window.addEventListener('pageshow', event => { if (event.persisted) { host = createPortDataHost({ connect: connectPortReadOnly, schema: CS.metronomeSchema }); CS.portDataHost = host; CS.practice.attachHost(host); off = host.subscribe(render); render(host.getCachedStatus()); window.addEventListener('pagehide', dispose, { once: true }); } });
 window.addEventListener('pagehide', dispose, { once: true });
