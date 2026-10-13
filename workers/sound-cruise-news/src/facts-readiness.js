@@ -58,7 +58,7 @@ export function recoveryAssessment(row,validation,surface,last,cached){
 }
 
 export function recoveryCacheKey(row,source,surface,{serverRepair=false}={}){
- return ['explicit_source_policy_fields','explicit_product_article_fields','targeted_explicit_primary_fields','explicit_ikebe_product_fields','explicit_agm_article_fields','explicit_shimamura_product_fields','explicit_named_workshop_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
+ return ['explicit_guitar_exhibition_fields','explicit_source_policy_fields','explicit_product_article_fields','targeted_explicit_primary_fields','explicit_ikebe_product_fields','explicit_agm_article_fields','explicit_shimamura_product_fields','explicit_named_workshop_fields'].includes(surface.method)?source.id+':'+surface.parser+':'+row.id+(serverRepair?':server-repair-1':''):surface.method==='existing_listing_parser'?source.id+':'+surface.parser:source.id;
 }
 
 // Preserve supported listing extraction; escalate only after that evidence was insufficient,

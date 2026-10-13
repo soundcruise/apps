@@ -5,6 +5,7 @@ import {optOut} from './policy.js';
 import {subjectProductTypes,hasProductSubject,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
 export const HEADLINE_EVIDENCE_PARSER='headline-evidence-2';
 const types=[
+ ['contact_cleaner','接点復活剤',/接点復活剤/],
  ['voicebank','音声合成ソフト',/ボイスバンク|音声合成ソフト/],
  ['signal_buffer','バッファー',/バッファ[ーァ]|\bsignal buffer\b/i],
  ['wireless_headphone','ワイヤレスヘッドフォン',/ワイヤレスヘッド[フホ][ォオ]ン|Bluetooth(?:ワイヤレス)?ヘッド[フホ][ォオ]ン/i],

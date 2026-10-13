@@ -1,3 +1,4 @@
+import {structuredIkebeEvidence} from './ikebe-structured-recovery.js';
 import {recoverOfficialIdentity,validOfficialIdentity} from './official-identity.js';
 import {parseShimamuraReviewEvidence} from './shimamura-review-evidence.js';
 import {parseSourcePolicyEvidence} from './source-policy-evidence.js';
@@ -78,13 +79,13 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
      // Preserve the established event route using the same bounded response. A launch
      // can never become an informational article merely because it failed validation.
      if(error.message!=='facts_scope_uncertain'||row.event_type==='product_article')throw error;
-     parsed=parseIkebeProductEvidence(response.text,source,row);
+     try{parsed=parseIkebeProductEvidence(response.text,source,row);}catch(error){if(!['facts_scope_uncertain','facts_identity_changed'].includes(error.message))throw error;parsed=structuredIkebeEvidence(response.text,row);}
      proof.extractionMethod='explicit_ikebe_product_fields';proof.parserVersion=IKEBE_PRODUCT_PARSER;
     }
     items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
     }
    }
-   else if(surface.method==='explicit_ikebe_product_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseIkebeProductEvidence(response.text,source,row)}];
+   else if(surface.method==='explicit_ikebe_product_fields'){let parsed;try{parsed=parseIkebeProductEvidence(response.text,source,row);}catch(error){if(!['facts_scope_uncertain','facts_identity_changed'].includes(error.message))throw error;parsed=structuredIkebeEvidence(response.text,row);}items=[{id:row.id,sourceUrl:row.source_url,...parsed}];}
    else if(surface.method==='explicit_guitar_exhibition_fields')items=[{id:row.id,sourceUrl:row.source_url,...parseGuitarExhibition(response.text,source,row)}];
    else if(surface.method==='explicit_event_fields')items=[{id:row.id,sourceUrl:row.source_url,publishedAt:row.published_at,eventType:'guitar_event',productFacts:parseEventArticle(response.text,source,row.source_url)}];
    else{

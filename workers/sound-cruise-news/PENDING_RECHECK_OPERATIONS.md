@@ -104,3 +104,35 @@ not approve, relax publication criteria, or create a human teacher signal.
   validators. If an approved duplicate exists, the authorized maintenance resolution
   uses `system_policy / duplicate`, stops recheck and leaves human Ledger/feedback
   and the published original untouched.
+
+## Morning facts recovery and bounded scheduling (2026-10-14)
+
+NEWS 0.26.5 / Operator 0.25.6 preserve the publication, permission, robots,
+response-size and source/day acquisition boundaries. Ikebe's structured product
+sections can corroborate explicitly realized custom colours across distinct pedal
+models and a contact-cleaner's printed model code. Type/edition evidence requires
+current parser-bound provenance at publication validation. Unrelated devices,
+accessories, uncertain purpose and historical/review contexts cannot supply facts.
+A positively identified outdoor/party playback-only portable Bluetooth speaker can
+supply source-policy evidence; this is not a general speaker, audio or brand ban.
+Authenticated maintenance resolution uses the existing guarded system-policy helper,
+without Decision Ledger or human feedback. Scheduler records an objective policy block
+without repeatedly fetching the publisher; it does not perform human decisions.
+
+AGM tour recovery requires a named grammatical artist subject, matching introduction,
+acoustic relevance and an independently repeated tour name in the article's event
+information. No product-release date is inferred from article publication. Kikutani
+exhibitions may provide date/venue in separate labeled primary fields before the
+product catalogue. Conflicts, hidden/related text and invalid dates remain held.
+Parser-versioned per-candidate exhibition cache prevents sharing another exhibition's
+facts or replaying obsolete extraction across parser updates.
+
+Hourly batches give another source a slot before a second uncached candidate from
+the same source, while preserving operator interest priority and the four-candidate
+batch bound. Source/day acquisition is unchanged. Budget deferrals follow the stored
+budget expiry and do not increment failed recovery attempts or exponential backoff.
+Several new candidates from one source can therefore still require multiple days;
+this is a bounded acquisition trade-off, not evidence of low publication value.
+The separately authorized five-candidate maintenance catch-up calls the same facts
+recheck/provenance/CAS path as ordinary scheduled recovery. READY remains pending
+until the owner decides. No evidence-shortage deletion rule was added.

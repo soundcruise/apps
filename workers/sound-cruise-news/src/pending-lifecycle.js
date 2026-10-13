@@ -1,3 +1,4 @@
+import {sourcePolicyReason} from './source-policy-evidence.js';
 import {DAY} from './policy.js';
 import {DECISION_POLICY_VERSION,publicationValidation} from './decision-policy.js';
 import {recheckFacts} from './facts-recheck.js';
@@ -12,7 +13,7 @@ export function objectiveBlock(row,validation,now){
  if(validation.errors.includes('candidate_takedown'))return 'TAKEDOWN_CONFIRMED';
  if(row.expires_at<=now||[row.sale_ends_at,row.event_ends_at].some(d=>Number.isSafeInteger(d)&&d<now))return 'EXPIRED_CONFIRMED';
  if(validation.errors.includes('duplicate'))return 'DUPLICATE_CONFIRMED';
- if(validation.errors.includes('publication_policy_rejected'))return 'POLICY_BLOCK_CONFIRMED';
+ if(validation.errors.includes('publication_policy_rejected')||sourcePolicyReason(row,now))return 'POLICY_BLOCK_CONFIRMED';
  return null;
 }
 export function nextRecheck(row,attempt,now){
@@ -60,8 +61,13 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
  const rows=(await store.db.prepare(`SELECT c.*,l.next_recheck_at,l.user_publish_interest,l.recheck_attempt_count FROM candidate_items c JOIN news_pending_lifecycle l ON c.id=l.candidate_id WHERE c.review_status IN ('pending','reopened') AND c.origin<>'legacy_fixture_backfill' AND l.next_recheck_at<=? AND l.lease_until<=? AND NOT EXISTS(SELECT 1 FROM source_state s WHERE s.source_id=c.source_id AND s.disabled=1)`).bind(now,now).all()).results;
  const prepared=[];for(const joined of rows){const row=await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(joined.id).first();if(!pending(row))continue;const validation=await publicationValidation(store,row,now,registry,pepper);prepared.push({row,validation,joined});}
  prepared.sort((a,b)=>b.joined.user_publish_interest-a.joined.user_publish_interest||deadline(a.row)-deadline(b.row)||missingFacts(a.row,a.validation.facts,a.validation).length-missingFacts(b.row,b.validation.facts,b.validation).length||a.joined.next_recheck_at-b.joined.next_recheck_at);
+ // One scarce uncached recovery per source before a second candidate from it.
+ // Ready/blocked checks and shared verified cache reuse do not consume this slot.
+ const first=[],later=[],seen=new Set();
+ for(const item of prepared){const key=item.row.source_id;if(!item.validation.valid&&!objectiveBlock(item.row,item.validation,now)){if(seen.has(key)){later.push(item);continue;}seen.add(key);}first.push(item);}
+ const ordered=[...first,...later].sort((a,b)=>b.joined.user_publish_interest-a.joined.user_publish_interest);
  report.due=prepared.length;
- for(const {row,validation:before} of prepared.slice(0,limit)){
+ for(const {row,validation:before} of ordered.slice(0,limit)){
   const token=crypto.randomUUID(),claim=await store.db.prepare('UPDATE news_pending_lifecycle SET lease_token=?,lease_until=? WHERE candidate_id=? AND next_recheck_at<=? AND lease_until<=? AND NOT EXISTS(SELECT 1 FROM candidate_items c JOIN source_state s ON s.source_id=c.source_id WHERE c.id=candidate_id AND s.disabled=1)').bind(token,now+5*60000,row.id,now,now).run();if(claim.meta.changes!==1)continue;
   let result=null,validation=before,status=objectiveBlock(row,before,now),current=row;
   try{
@@ -84,10 +90,12 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
   const blocked=['DUPLICATE_CONFIRMED','EXPIRED_CONFIRMED','POLICY_BLOCK_CONFIRMED','TAKEDOWN_CONFIRMED'].includes(status),ready=status==='RECOVERED_READY';
   // PERMANENT_INVALID is diagnostic only: a single 404 does not prove permanent removal.
   const state=await store.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(row.id).first();
-  const next=status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:nextRecheck(current,state.recheck_attempt_count+1,now);
-  const columns=Object.keys(current),saved=await store.db.prepare(`UPDATE news_pending_lifecycle SET last_rechecked_at=?,next_recheck_at=?,assessed_revision=?,recheck_attempt_count=recheck_attempt_count+1,recheck_status=?,unresolved_reason=?,last_recheck_result=?,recheck_policy_version=?,history_json=?,lease_until=0
+  const deferred=result?.outcome==='facts_daily_budget_deferred';
+  const budget=deferred?await store.db.prepare('SELECT MAX(checked_at) AS at FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>?').bind(current.source_id,current.source_id+':',now-DAY).first():null;
+  const next=status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:deferred?Math.max(now+1,(budget?.at||now)+DAY+1):nextRecheck(current,state.recheck_attempt_count+1,now);
+  const columns=Object.keys(current),saved=await store.db.prepare(`UPDATE news_pending_lifecycle SET last_rechecked_at=?,next_recheck_at=?,assessed_revision=?,recheck_attempt_count=recheck_attempt_count+?,recheck_status=?,unresolved_reason=?,last_recheck_result=?,recheck_policy_version=?,history_json=?,lease_until=0
  WHERE candidate_id=? AND lease_token=? AND history_json=? AND EXISTS(SELECT 1 FROM candidate_items WHERE ${columns.map(k=>k+' IS ?').join(' AND ')})`)
- .bind(now,next,current.review_revision,status,validation.errors.join(','),result?.outcome||status,RECHECK_POLICY,history(state,{at:now,actor:'system_recheck',result:status,outcome:result?.outcome||status,revision:current.review_revision,publicationPolicy:DECISION_POLICY_VERSION}),row.id,token,state.history_json,...columns.map(k=>current[k])).run();
+ .bind(now,next,current.review_revision,deferred?0:1,status,validation.errors.join(','),result?.outcome||status,RECHECK_POLICY,history(state,{at:now,actor:'system_recheck',result:status,outcome:result?.outcome||status,revision:current.review_revision,publicationPolicy:DECISION_POLICY_VERSION}),row.id,token,state.history_json,...columns.map(k=>current[k])).run();
   if(saved.meta.changes!==1){await store.db.prepare('UPDATE news_pending_lifecycle SET lease_until=0 WHERE candidate_id=? AND lease_token=?').bind(row.id,token).run();report.failure++;continue;}
   report.recovered+=result?.recovered?1:0;report.newlyReady+=ready&&!before.valid?1:0;report.autoBlocked+=blocked?1:0;report.noEvidence+=status==='NO_NEW_EVIDENCE'?1:0;report.failure+=status==='TEMPORARY_FETCH_FAILURE'?1:0;
   report.items.push({id:row.id,result:status,nextRecheckAt:next});

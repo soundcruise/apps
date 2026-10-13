@@ -7,7 +7,7 @@ const text=n=>!n||hidden(n)?'':n.type==='text'?n.data:(n.children||[]).map(text)
 const plain=n=>text(n).replace(/\s+/g,' ').trim();
 const find=(n,p)=>DomUtils.findAll(x=>!!x.name&&!hidden(x)&&p(x),n.children||[]);
 const urlOK=u=>typeof u==='string'&&/^https:\/\/www\.kikutani\.co\.jp\/news\/[a-z0-9-]+\/$/.test(u);
-export function guitarExhibitionSurface(row,source){return source?.id==='kikutani'&&source.baseUrl==='https://www.kikutani.co.jp/'&&row.source_id===source.id&&urlOK(row.source_url)&&['pending','reopened'].includes(row.review_status)?{url:row.source_url,method:'explicit_guitar_exhibition_fields',parser:'guitar-exhibition-fields-1'}:null;}
+export function guitarExhibitionSurface(row,source){return source?.id==='kikutani'&&source.baseUrl==='https://www.kikutani.co.jp/'&&row.source_id===source.id&&urlOK(row.source_url)&&['pending','reopened'].includes(row.review_status)?{url:row.source_url,method:'explicit_guitar_exhibition_fields',parser:'guitar-exhibition-fields-2'}:null;}
 
 const field=s=>typeof s==='string'&&s.length>=2&&s.length<=100&&!/[<>\x00-\x1f]/.test(s);
 const day=(year,month,date)=>{const s=`${year}-${String(month).padStart(2,'0')}-${String(date).padStart(2,'0')}`;return Number.isFinite(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s?s:null;};
@@ -28,10 +28,24 @@ export function parseGuitarExhibition(html,source,row){
   const title=plain(titles[0]),paras=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).slice(0,2),lead=plain(paras[0]),brandsParagraph=paras[1];
   if(/中止|延期|過去|昨年|レビュー|比較|再入荷/.test(title+' '+lead)||!/(?:出展|展示)/.test(title)||!/エフェクター|ギター|ペダル/.test(title+' '+lead+' '+plain(brandsParagraph)))throw Error('facts_scope_uncertain');
   const eventName=title.replace(/\s*(?:へ)?出展.*$/,'').trim();
-  const venue=/「([^」]{2,100})」にて開催/.exec(lead)?.[1],eventBound=lead.includes('「'+eventName+'」')&&/」に(?:弊社が)?出展(?:します|いたします)/.test(lead);
-  const dates=/(20\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日(?:[（(][^）)]{0,4}[）)])?\s*[、,〜～－-]\s*(?:(\d{1,2})月)?\s*(\d{1,2})日/.exec(lead);
-  if(!venue||!eventBound||!dates||!/(展示|出展|弊社取り扱い製品)/.test(plain(brandsParagraph)))throw Error('facts_scope_uncertain');
-  const brands=find(brandsParagraph,n=>n.name==='a'&&/^\/brands\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).map(plain);
+  const originalVenue=/「([^」]{2,100})」にて開催/.exec(lead)?.[1];
+  const eventBound=lead.includes('「'+eventName+'」')&&/」に(?:弊社が)?出展(?:します|いたします)/.test(lead);
+  let venue=originalVenue,dates=/(20\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日(?:[（(][^）)]{0,4}[）)])?\s*[、,〜～－-]\s*(?:(\d{1,2})月)?\s*(\d{1,2})日/.exec(lead);
+  let brands=find(brandsParagraph,n=>n.name==='a'&&/^\/brands\/[a-z0-9-]+\/$/.test(n.attribs.href||'')).map(plain);
+  if(!venue||!dates||!eventBound||!brands.length){
+   // Read separately labeled fields before the product catalogue, never dates
+   // or venues borrowed from related cards or individual product promotions.
+   const introNodes=[];for(const n of root.children){if(/^h[23]$/.test(n.name||'')&&/出展予定商品|商品一覧|関連/.test(plain(n)))break;if(n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n))introNodes.push(n);}
+   const paragraphs=introNodes.map(plain),dateFields=paragraphs.filter(v=>/^(?:📅\s*)?開催日程[:：]/.test(v)),venueFields=paragraphs.filter(v=>/^(?:📍\s*)?会場[:：]/.test(v));
+   const subject=lead.match(/「([^」]{2,90})」に(?:初)?出展いたします/)?.[1];
+   const stripped=eventName.replace(/20\d{2}$/,'').trim();
+   if(!subject||subject!==stripped||!lead.includes('キクタニ')||!/(?:ギター|エフェクター).{0,30}(?:展示|出展)/.test(plain(brandsParagraph))||dateFields.length!==1||venueFields.length!==1)throw Error('facts_scope_uncertain');
+   dates=/(20\d{2})年\s*(\d{1,2})月\s*(\d{1,2})日(?:[（(][^）)]{0,4}[）)])?\s*[、,〜～－-]\s*(?:(\d{1,2})月)?\s*(\d{1,2})日/.exec(dateFields[0]);
+   venue=venueFields[0].replace(/^(?:📍\s*)?会場[:：]\s*/,'').split(/[（(〒]/)[0].trim();
+   const catalogue=find(root,n=>/^h[23]$/.test(n.name)&&/^🎸/.test(plain(n))).map(n=>plain(n).replace(/^🎸\s*/,''));
+   brands=[...new Set(catalogue)];
+  }
+  if(!venue||!dates||!brands.length)throw Error('facts_scope_uncertain');
   const facts={kind:'guitar_event',category:'live_guitar',evidence:'guitar_exhibition_article_v1',eventType:'exhibition',eventName,event:eventName,eventDate:day(dates[1],dates[2],dates[3]),endDate:day(dates[1],dates[4]||dates[2],dates[5]),venue,exhibitor:source.name,brands,listingSource:source.id,articleUrl:row.source_url};
   if(!guitarExhibitionLabel(facts))throw Error('facts_scope_uncertain');
   return {productFacts:facts,eventType:'guitar_event',publishedAt:row.published_at};

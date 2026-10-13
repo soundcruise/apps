@@ -4,7 +4,7 @@ import {optOut} from './policy.js';
 import {calendarDate} from './legacy-listing.js';
 import {explicitProductAction,validatedProductEvent} from './product-event.js';
 import {productSubject,enrichHeadlineFacts,validHeadlineEvidence} from './headline-evidence.js';
-export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-6';
+export const IKEBE_PRODUCT_PARSER='ikebe-product-fields-7';
 const cls=(n,c)=>(n.attribs?.class||'').split(/\s+/).includes(c);
 const hidden=n=>{for(let p=n;p;p=p.parent)if(['script','style','nav','header','footer','template','noscript','aside'].includes(p.name)||p.attribs?.hidden!==undefined||p.attribs?.['aria-hidden']==='true'||/display\s*:\s*none|visibility\s*:\s*hidden/i.test(p.attribs?.style||''))return true;return false;};
 const text=n=>hidden(n)?'':n.type==='text'?n.data:n.name==='br'?'\n':(n.children||[]).map(text).join('');
@@ -20,6 +20,7 @@ const nameOK=s=>asciiName(s)||typeof s==='string'&&s.length<=100&&/^([A-Za-z0-9]
 const modelOK=s=>nameOK(s)&&s.length<=100&&(/限定カラー/.test(s)||/\d/.test(s)||/\b[A-Z]{2,}\b/.test(s)||/^[A-Z][a-z]+(?:[A-Z][a-z]+)+$|^[A-Z][a-z]+(?: [A-Z][a-z]+){1,5}$/.test(s));
 const denied=/再入荷|入荷情報|再入荷予定|在庫|セール|特価|値下げ|クーポン|キャンペーン|中古|比較|レビュー|使い方|紹介します|旧製品|発売済み|以前|かつて|過去|他社|例えば|発売しない|発売していません|登場しない|登場していません|ではない|かもしれ|予定|\b(?:restock|sale|review|comparison|previous|not|might)\b/i;
 const types=[
+ ['contact_cleaner','electric_guitar_bass','guitar',/接点復活剤/],
  ['signal_buffer','amps_effects','effector',/バッファ[ーァ]|\bsignal buffer\b/i],
  ['effect_pedal','amps_effects','effector',/エフェクター|ペダル|ファズ|\b(?:effects? pedal|overdrive|distortion pedal)\b/i],
  ['guitar_amp','amps_effects','amplifier',/ギターアンプ|ギタ(?:ー|リスト)[^。]{0,400}アンプ|アンプ[^。]{0,400}ギタ(?:ー|リスト)|\bguitar amplifier\b/i],
@@ -35,8 +36,9 @@ const types=[
  ['studio_monitor','recording_audio','recording-pa',/スタジオモニター|モニタースピーカー|\bstudio monitor\b/i]
 ];
 export function validatedIkebeProductFacts(f){
+ const edition=f?.editionEvidence?.basis==='verified_primary_article'&&f.editionEvidence.subject==='explicit_custom_colour_sections'&&JSON.stringify(f.editionEvidence.models)===JSON.stringify(f.models)&&f.productEvent?.action==='limited_edition'&&f.productEvent.signal==='explicit_limited_color'&&f.productType==='effect_pedal';
  const parent={distortion_pedal:'effect_pedal',bass_effect_pedal:'effect_pedal',octave_pedal:'effect_pedal',usb_microphone:'microphone',wireless_microphone:'microphone',wireless_headphone:'headphone'};
- return !!f&&validHeadlineEvidence(f)&&f.identifierBasis==='explicit_article_product_fields'&&f.listingSource==='ikebe'&&urlOK(f.articleUrl)&&nameOK(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(modelOK)&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.product.length<=110&&f.version===null&&types.some(([t,c])=>(t===f.productType||f.productTypeEvidence&&t===parent[f.productType])&&c===f.category)&&(!f.productEvent||validatedProductEvent(f.productEvent))&&(f.signatureModel===undefined||f.signatureModel===true&&['electric_guitar','guitar_amp'].includes(f.productType))&&(f.stringsCount===undefined||f.stringsCount===12&&f.productType==='electric_guitar')&&(f.limitedReissue===undefined||f.limitedReissue===true&&f.productEvent?.action==='reissue')&&(!f.editionMarket||f.editionMarket==='Japan'&&f.productEvent?.action==='limited_edition');
+ return !!f&&validHeadlineEvidence(f)&&f.identifierBasis==='explicit_article_product_fields'&&f.listingSource==='ikebe'&&urlOK(f.articleUrl)&&nameOK(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(m=>modelOK(m)||edition&&nameOK(m))&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.product.length<=110&&f.version===null&&types.some(([t,c])=>(t===f.productType||f.productTypeEvidence&&t===parent[f.productType])&&c===f.category)&&(!f.productEvent||validatedProductEvent(f.productEvent))&&(f.signatureModel===undefined||f.signatureModel===true&&['electric_guitar','guitar_amp'].includes(f.productType))&&(f.stringsCount===undefined||f.stringsCount===12&&f.productType==='electric_guitar')&&(f.limitedReissue===undefined||f.limitedReissue===true&&f.productEvent?.action==='reissue')&&(!f.editionMarket||f.editionMarket==='Japan'&&f.productEvent?.action==='limited_edition');
 }
 export function ikebeProductLabel(f,eventType){
  if(!validatedIkebeProductFacts(f)||!['new_product','release'].includes(eventType))return null;
@@ -79,7 +81,7 @@ export function parseIkebeProductEvidence(html,source,row){
   let typeMatches=types.filter(([t, ,tag,re])=>(find(header,n=>n.name==='li'&&cls(n,'cate-'+tag)).length||tag==='recording-pa'&&find(header,n=>n.name==='li'&&cls(n,'cate-dtm')).length||tag==='effector'&&find(header,n=>n.name==='li'&&cls(n,'cate-bass')).length&&/歪みペダル/.test(title))&&(re.test(title+' '+primary)||t==='electric_guitar'&&find(header,n=>n.name==='li'&&cls(n,'cate-'+tag)).some(n=>/エレキギター/.test(plain(n)))&&blocks.every((b,i)=>modelBound(b,models[i])&&!denied.test(b))));
   // An explicitly named buffer is not an amplifier/pedal merely because its
   // signal chain mentions an amp or pedalboard. Require model-bound proof.
-  if(typeMatches.some(([t])=>t==='signal_buffer')&&types[0][3].test(title)&&blocks.every((b,i)=>b.split(/[。!?！？]/).some(v=>modelBound(v,models[i])&&types[0][3].test(v)&&!denied.test(v))))typeMatches=typeMatches.filter(([t])=>!['guitar_amp','effect_pedal'].includes(t));
+  if(typeMatches.some(([t])=>t==='signal_buffer')&&types.find(([t])=>t==='signal_buffer')[3].test(title)&&blocks.every((b,i)=>b.split(/[。!?！？]/).some(v=>modelBound(v,models[i])&&types.find(([t])=>t==='signal_buffer')[3].test(v)&&!denied.test(v))))typeMatches=typeMatches.filter(([t])=>!['guitar_amp','effect_pedal'].includes(t));
   if(typeMatches.length!==1)throw Error('facts_scope_uncertain');
   // Launches require a product-bound editorial title and corroborating article fields.
   // Facts-only extraction may retain 'other'; publication still rejects missing events.

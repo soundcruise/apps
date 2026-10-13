@@ -1,3 +1,4 @@
+import {IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {optOut} from './policy.js';
 export const SOURCE_POLICY_PARSER='kikutani-promotion-policy-1';
@@ -5,6 +6,7 @@ const urlOK=u=>/^https:\/\/www\.kikutani\.co\.jp\/news\/[a-z0-9-]+\/$/.test(u||'
 export function sourcePolicySurface(row,source){return source?.id==='kikutani'&&row.source_id==='kikutani'&&row.event_type==='sale'&&urlOK(row.source_url)?{url:row.source_url,method:'explicit_source_policy_fields',parser:SOURCE_POLICY_PARSER}:null;}
 export function sourcePolicyReason(row,now){
  let f,p;try{f=JSON.parse(row.product_facts);p=JSON.parse(row.facts_provenance);}catch{return null;}
+ if(row.source_id==='ikebe'&&f?.kind==='source_policy_evidence'&&f.subjectType==='consumer_portable_speaker'&&f.usage==='outdoor_party_playback'&&f.identifierBasis==='verified_source_policy_article_fields'&&f.listingSource===row.source_id&&f.articleUrl===row.source_url&&Array.isArray(p)&&['subjectType','usage','models','event_type'].every(field=>p.some(e=>e.factField===field&&e.sourceId===row.source_id&&e.sourceUrl===row.source_url&&e.parserVersion===IKEBE_PRODUCT_PARSER&&e.extractionMethod==='explicit_ikebe_product_fields'&&Number.isSafeInteger(e.verifiedAt)&&e.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(e.responseHash||''))))return 'not_relevant';
  return row.source_id==='kikutani'&&row.event_type==='sale'&&urlOK(row.source_url)&&f?.category===row.category&&Array.isArray(p)&&f?.kind==='source_policy_evidence'&&f.articleUrl===row.source_url&&f.listingSource===row.source_id&&f.identifierBasis==='verified_source_policy_article_fields'&&f.subjectType==='woodwind_instrument'&&f.promotionType==='purchase_gift'&&['subjectType','promotionType','event_type'].every(field=>p?.some(e=>e.factField===field&&e.sourceId===row.source_id&&e.sourceUrl===row.source_url&&e.parserVersion===SOURCE_POLICY_PARSER&&e.extractionMethod==='explicit_source_policy_fields'&&Number.isSafeInteger(e.verifiedAt)&&e.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(e.responseHash||'')))?'not_relevant':null;
 }
 export function parseSourcePolicyEvidence(html,source,row){

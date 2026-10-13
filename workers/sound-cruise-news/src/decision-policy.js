@@ -1,3 +1,4 @@
+import {IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
 import {validOfficialIdentity} from './official-identity.js';
 import {SHIMAMURA_PRODUCT_PARSER} from './shimamura-product-evidence.js';
 import {SHIMAMURA_REVIEW_PARSER,validatedShimamuraReview} from './shimamura-review-evidence.js';
@@ -62,6 +63,9 @@ export async function publicationValidation(store,row,now,registry,pepper){
  }
  if(facts?.kind==='product_article'&&(row.event_type!=='product_article'||!['ikebe','shimamura'].includes(row.source_id)||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
  if(facts?.identifierBasis==='explicit_article_product_fields'&&(row.source_id!=='ikebe'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
+ if(facts?.editionEvidence||facts?.productType==='contact_cleaner'){let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
+  if(!Array.isArray(proof)||!['brand','models','productType','event_type',...(facts.editionEvidence?['editionEvidence','productEvent']:[])].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.parserVersion===IKEBE_PRODUCT_PARSER&&p.extractionMethod==='explicit_ikebe_product_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
+ }
  if(facts?.identifierBasis==='explicit_shimamura_product_fields'&&(row.source_id!=='shimamura'||facts.articleUrl!==row.source_url)||facts?.evidence==='explicit_named_workshop_v1'&&(row.source_id!=='ikebe-event'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
  if(facts?.officialIdentity){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}

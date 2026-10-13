@@ -10,7 +10,7 @@ const skip=n=>['script','style','nav','footer','aside','figure','iframe','templa
 function clean(n){for(const child of [...n.children||[]]){if(skip(child))D.removeElement(child);else clean(child);}}
 export function agmRecoverySurface(row,source){
  if(source?.id!=='agm'||!source.agmSections||source.permissionRef!==AGM_PERMISSION_REF||!source.explicitAutomationPermission)return null;
- const section=AGM_SECTIONS.find(s=>agmArticleUrl(row.source_url,s));return section?{url:row.source_url,method:'explicit_agm_article_fields',parser:'agm-article-2'}:null;
+ const section=AGM_SECTIONS.find(s=>agmArticleUrl(row.source_url,s));return section?{url:row.source_url,method:'explicit_agm_article_fields',parser:'agm-article-3'}:null;
 }
 function articleMetadata(html,url,section){
  if(section==='news')return agmArticleMetadata(html,url);
@@ -24,6 +24,8 @@ function articleMetadata(html,url,section){
  return {title,date:dates.length?new Date(dates[0]).toISOString():null};
 }
 function nameFrom(title,intro,tags,old){
+ const named=title.match(/^(?:ギタリスト|シンガー[・]?ソングライター|アーティスト)(?:の)?([^が、。の]{2,35})(?:が|、)/)?.[1];
+ if(factName(named)&&intro.includes(named))return named;
  const candidates=[old,...tags];
  for(const v of candidates)if(factName(v)&&v.length<=35&&title.includes(v)&&intro.includes(v)&&!/(ギター|アコギ|グラミー|コンクール|ピックアップ|インタビュー)/.test(v))return v;
  // Only subject-bearing headline positions corroborated by the article introduction.
@@ -66,10 +68,12 @@ export function parseAgmArticleEvidence(html,source,row){
    f.person=intro.match(/シンガー[・]?ソングライターの([^が、。]{2,35})が/)?.[1]||f.person;
    const first=ps.map(text).find(t=>/リリースする/.test(t));const works=first?[...first.matchAll(/『([^』]{2,60})』/g)].map(m=>m[1]):[];
    if(works.length>=1&&works.length<=2&&/EP|アルバム/.test(first)){f.action='music_release';f.works=works;f.releaseType=/EP/.test(first)?'EP':'アルバム';}
-  }else if(/ツアー|コンサート/.test(title)&&/開催されることが決定|ツアー.{0,20}開催/.test(intro)){
-   const subject=title.match(/(?:シンガー[・]?ソングライター|アーティスト)[、の]([^、。の]{2,35})の/)?.[1];
+  }else if(!/中止|延期|昨年|過去|開催済み/.test(title+' '+intro)&&/ツアー|コンサート/.test(title)&&/開催されることが決定|ツアー.{0,20}開催|ツアー[“「][^”」]{2,70}[”」]が[^。]{0,80}公演(?:行なわれる|行われる)/.test(intro)){
+   const subject=title.match(/(?:シンガー[・]?ソングライター|アーティスト)[、の]([^、。の]{2,35})の/)?.[1]||person;
    const names=[...title.matchAll(/[“「]([^”」]{2,70})[”」]/g)].map(m=>m[1]);
-   const concert=names.find(n=>/コンサート|ツアー/.test(n)),family=concert?.replace(/20\d{2}$/,'');
+   const introNames=[...intro.matchAll(/ツアー[“「]([^”」]{2,70})[”」]/g)].map(m=>m[1]);
+   const corroborated=introNames.filter(n=>ps.slice(2,5).some(p=>text(p).includes(subject||'\0')&&/LIVE TOUR|ツアー|コンサート/.test(text(p))&&text(p).includes(n)));
+   const concert=names.find(n=>/コンサート|ツアー/.test(n))||(new Set(corroborated).size===1?corroborated[0]:null),family=concert?.replace(/20\d{2}$/,'');
    if(subject&&intro.includes(subject)&&concert&&intro.includes(family)&&/アコースティック[・ ]?ギター|弾き語り/.test(intro)){f.person=subject;f.action='tour';f.eventName=concert;}
   }else if(/アコギ・マガジン|アコースティック・ギター・マガジン/.test(title)&&/パーラー/.test(title)&&/発売/.test(title)){
    const issue=intro.match(/アコースティック・ギター・マガジン[^』。]{0,50}(Vol\.\d{1,3})/)?.[1];if(issue){f.articleType='publication';f.category='media_other';f.topic='parlor_guitar';f.issue=issue;delete f.person;}
