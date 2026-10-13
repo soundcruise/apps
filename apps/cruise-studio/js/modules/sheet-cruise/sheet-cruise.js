@@ -88,6 +88,23 @@
         dirty: { get: function () { return !!(state.session && state.session.dirty); } }
     });
     var projectViews = new Map();
+    var selectionListeners = new Set(), selectionDeleted = false, selectionSignature = null;
+    // Read projection of Structure's existing single-bar selection and session draft.
+    function getSelectionSnapshot() {
+        var bar = getSelectedBar(), session = state.session;
+        return Object.freeze({ active: state.active, sessionId: session ? session.sessionId : null,
+            barNumbers: Object.freeze(state.selectedBarNumber ? [state.selectedBarNumber] : []),
+            chords: Object.freeze((bar ? bar.chords : []).map(function (chord) { return Object.freeze({ tick: chord.tick, symbol: chord.symbol }); })),
+            editing: !!(session && session.inputPending), dirty: !!(session && session.dirty),
+            externalUpdatePending: !!(session && session.externalUpdatePending),
+            deleted: selectionDeleted || !!(state.selectedBarNumber && !bar) || !!(session && session.conflict && session.conflict.deleted) });
+    }
+    function publishSelection() {
+        var snapshot = getSelectionSnapshot(), signature = JSON.stringify(snapshot);
+        if (signature === selectionSignature) return;
+        selectionSignature = signature;
+        selectionListeners.forEach(function (fn) { try { fn(snapshot); } catch (_) { /* readers cannot corrupt Structure */ } });
+    }
     var compositionOwners = new WeakMap();
     var els = {};
     var resizeObserver = null;
@@ -210,7 +227,7 @@
         else if (local && focused.dataset.overlayField) selector = '[data-overlay-field="' + focused.dataset.overlayField + '"]';
         var start = local ? focused.selectionStart : null, end = local ? focused.selectionEnd : null;
         var scroll = CS().scroll ? CS().scroll.getPosition('sheetCruise') : null;
-        if (state.selectedBarNumber && !getSelectedBar()) state.selectedBarNumber = null;
+        if (state.selectedBarNumber && !getSelectedBar()) { state.selectedBarNumber = null; selectionDeleted = true; }
         renderAll();
         var restored = selector ? els.root.querySelector(selector) : null;
         if (restored && !restored.disabled) {
@@ -246,6 +263,7 @@
             scroll: CS().scroll ? CS().scroll.getPosition('sheetCruise') : null
         });
         state.session = session;
+        selectionDeleted = false;
         CS().sessions.activateSession(session);
         var view = projectViews.get(session.sessionId);
         state.selectedBarNumber = view ? view.selectedBarNumber : null;
@@ -606,6 +624,7 @@
     function deselectBar() {
         if (!state.selectedBarNumber) return;
         state.selectedBarNumber = null;
+        selectionDeleted = false;
         state.overlayWarnings = {};
         state.overlayBulkMessage = null;
         syncSheetSelection();
@@ -2623,10 +2642,12 @@
         });
         if (state.selectedBarNumber && !selectedExists) {
             state.selectedBarNumber = null;
+            selectionDeleted = true;
         }
         renderSlotOverlayContent();
         positionSlotOverlay();
         maybeAutoScrollToSelection();
+        publishSelection();
     }
 
     /**
@@ -2700,6 +2721,7 @@
             state.overlayBulkMessage = null;
         }
         state.selectedBarNumber = barNumber;
+        selectionDeleted = false;
         syncSheetSelection();
     }
 
@@ -2840,6 +2862,7 @@
     // 表示の切替はhostが担当。activateはstorageを読まず、保持したdraftのgeometryを復帰する。
     function activate() {
         state.active = true;
+        publishSelection();
         if (state.workspaceScroll && CS().scroll) {
             CS().scroll.restorePosition('sheetCruise', state.workspaceScroll);
         }
@@ -2855,6 +2878,7 @@
         var focused = document.activeElement;
         state.workspaceFocus = els.root && els.root.contains(focused) ? focused : null;
         state.active = false;
+        publishSelection();
         if (state.overlayFrame) window.cancelAnimationFrame(state.overlayFrame);
         state.overlayFrame = null;
         state.overlayRefreshRequested = false;
@@ -2916,6 +2940,7 @@
             if (state.session !== session) return;
             if (['external-adopt', 'cancel', 'replace'].includes(kind)) redrawSession();
             refreshSessionStatus();
+            publishSelection();
         });
         q('sc-adopt-external').addEventListener('click', function () {
             var session = state.session;
@@ -2970,6 +2995,8 @@
         handleEscape: handleEscape,
         setEscapeRouter: function (router) { escapeRouter = router; },
         getSession: function () { return state.session; },
+        getSelectionSnapshot: getSelectionSnapshot,
+        subscribeSelection: function (fn) { selectionListeners.add(fn); return function () { selectionListeners.delete(fn); }; },
         commitSession: commitSession,
         canLeave: canLeave
     };

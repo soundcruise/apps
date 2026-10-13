@@ -1,6 +1,31 @@
 # クルーズスタジオ — ロードマップ
 
-## Studio Metronome PC Presentation v1（2026-10-14・現行）
+## Studio Chord Standard PC Presentation v1（2026-10-14・現行）
+
+Studio **0.28.0** / Chord **1.20.1** / Port **1.22.18** / Studio schemaVersion **1**。
+開始HEAD / origin/main / remote=`590c3cd0a926bd7201f42144f41b13692d460bc3`、tracked/staged空・ahead/behind0/0。
+前回Studio commit `174dad81`の後に正式NEWS commitが1件あり、3 refs一致とStudio/Port不変更を確認した。
+
+Structureの現在の単一小節選択とEditing Session draftを、読み取り専用Inspectorへ接続。
+major / minor / 7 / maj7(M7) / m7 / sus4 / add9 / slashの入力コード名・構成音・音名・root基準度数・bassを表示する。
+Chord Cruiseのpure theory/modelを実sourceから再利用し、Studio既存記号parserからの狭いsyntax bridgeだけを追加。
+未対応/曖昧/advanced表記を自動変換せず、未選択/空/入力中/複数/削除/別workspaceでは古い解析詳細を解除する。
+IME中は既存Structure draftを変更せず、partial記号を解析しない。dirty external updateはdraft/baseを維持する。
+
+Inspectorから選択・project・draft・Chord保存値を変更しない。入力/shortcut/Save/apply/指板操作を持たない。
+現行Chord policyと今回の指示の指板表示境界差を棚卸しし、今回の指示どおり指板/CAGED/運指/ライブラリを未接続とした。
+高度分析・Pro保存・認証/認可・共有保存・Account/Sync/Authorityは接続しない。metadataはauthorizationではない。
+既存Shellのpane/keyboard/Modal/focus/Loupeへ従い、4 Themes・Print・workspace/resize/reload・購読解除を確認する。
+
+検証: Studio Node381 PASS（追加41）、正規Chrome6 suite154 PASS（親6含む）、Host10ケースPASS、Chord pure/policy13ファイルPASS。
+No write各項目0 / console error・app404・unhandled rejection0。独立8766でsource/display v0.28.0一致、既存8765不触。
+契約・11機能のStandard/Pro分類・API・検証結果は[Chord PC Presentation契約](docs/CHORD_PC_PRESENTATION.md)を参照。
+Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**を維持。
+L3c未解決問題とDaybreak待機に触れず、新規セキュリティprobeなし。Authority安全性承認やM3解禁ではない。
+次は通常PC機能の優先度整理（Practice read-only等）。正式共有write/B1-6再開は保留する。
+以下のversion・件数は各工程時点の履歴。
+
+## Studio Metronome PC Presentation v1（2026-10-14・履歴）
 
 開始HEAD / origin/main / remote mainは`9a1e77e146947bfaabe8abec2ef450b793952257`。
 Studio **0.27.0**（PC UI追加によるminor）/ Port **1.22.18**（不変更）/ Studio schemaVersion **1**。

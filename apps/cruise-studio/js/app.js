@@ -262,6 +262,8 @@
             feature: CS.metronomeMetadata, settingsSource: CS.metronomeSettingsController, environment: { windowObject: window, document: document, mediaDevices: navigator.mediaDevices } });
         CS.metronomeView = CS.metronome.mount({ runtime: CS.metronomeM1, shell: shellHost, document: document });
         CS.metronomeSettingsController.load();
+        CS.chordInspector = CS.chordPresentation.mount({ document: document, window: window, selection: sheetCruise,
+            adapter: CS.chordReadModel.createAdapter({ chordTheory: window.ChordCruise.theory, chordModel: window.ChordCruise.chordModel, studioTheory: CS.theory }) });
         CS.sessions.subscribe(function (session) {
             if (CS.sessions.getActiveSession() !== session) return;
             shellHost.setCommandTarget('editingSession', session);

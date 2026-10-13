@@ -1,4 +1,4 @@
-export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.27.0';
+export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.28.0';
 
 function freeze(value) {
     if (value && typeof value === 'object') {
@@ -63,7 +63,7 @@ const features = freeze([
         syncOwner: 'port', actionCapabilityRequirements: { syncOperations: [portPolicy('cloudSyncOperations')] }
     }),
     feature('chord.main', 'chord-cruise', ['inspector', 'tool-pane', 'separate-workspace'], {
-        dataOwner: 'chord', syncOwner: 'chord',
+        dataOwner: 'chord', syncOwner: 'chord', implementedPresentations: ['inspector'],
         actionCapabilityRequirements: {
             advancedQuality: [chordPolicy('advancedQuality')],
             advancedCaged: [chordPolicy('advancedCaged')],

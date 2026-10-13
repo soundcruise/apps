@@ -6,8 +6,8 @@ import { fileURLToPath } from 'node:url';
 import {
     getComponentMetadata, getAppVersion, listComponents,
     getFeatureMetadata, listFeatures
-} from '../js/core/feature-registry.mjs?v=0.27.0';
-import { extractAppVersion, verifyComponentVersion } from '../js/core/version-reader.mjs?v=0.27.0';
+} from '../js/core/feature-registry.mjs?v=0.28.0';
+import { extractAppVersion, verifyComponentVersion } from '../js/core/version-reader.mjs?v=0.28.0';
 
 const root = new URL('../../../', import.meta.url);
 const readSource = path => readFileSync(new URL(path, root), 'utf8');
@@ -75,7 +75,7 @@ test('known owners/version references and supported vs implemented presentations
         assert.equal(new Set(feature.supportedPresentations).size, feature.supportedPresentations.length);
         feature.supportedPresentations.forEach(value => assert.ok(allowed.has(value), value));
         feature.implementedPresentations.forEach(value => assert.ok(feature.supportedPresentations.includes(value)));
-        assert.deepEqual(feature.implementedPresentations, feature.featureId === 'port.metronome' ? ['dock'] : feature.ownerApp === 'cruise-studio' ? ['main'] : []);
+        assert.deepEqual(feature.implementedPresentations, feature.featureId === 'port.metronome' ? ['dock'] : feature.featureId === 'chord.main' ? ['inspector'] : feature.ownerApp === 'cruise-studio' ? ['main'] : []);
     }
 });
 
@@ -89,7 +89,7 @@ test('all version projections and the imported Port value equal current source t
         assert.throws(() => verifyComponentVersion({ ...component, appVersion: '999.0.0' }, readSource(component.versionSource.path)));
     }
     assert.equal(getComponentMetadata('cruise-port').versionSource.type, 'esm-import');
-    assert.equal(getAppVersion('cruise-studio'), '0.27.0');
+    assert.equal(getAppVersion('cruise-studio'), '0.28.0');
 });
 
 test('literal extraction rejects execution, ambiguity, missing rules and quoted/comment decoys', () => {
@@ -226,7 +226,7 @@ test('critical presentation contracts include selected-bar Chord Inspector and e
     const presentations = {
         'port.metronome': [['dock', 'drawer'], ['dock']],
         'port.tuner': [['dock', 'drawer', 'separate-workspace'], []],
-        'chord.main': [['inspector', 'tool-pane', 'separate-workspace'], []],
+        'chord.main': [['inspector', 'tool-pane', 'separate-workspace'], ['inspector']],
         'chord.library': [['tool-pane', 'separate-workspace'], []],
         'studio.structure': [['main'], ['main']],
         'studio.preDtm': [['main'], ['main']]
@@ -242,7 +242,7 @@ test('critical presentation contracts include selected-bar Chord Inspector and e
 test('storage schema refs are distinct from app versions, cache keys, Sync/API/build versions', () => {
     const model = readSource('apps/cruise-studio/js/core/song-model.js');
     assert.match(model, /var SCHEMA_VERSION = 1;/);
-    assert.match(model, /var APP_VERSION = '0\.27\.0';/);
+    assert.match(model, /var APP_VERSION = '0\.28\.0';/);
     const schema = getFeatureMetadata('studio.structure').schemaRef;
     assert.equal(schema.kind, 'storage-schema');
     assert.equal(schema.symbol, 'SCHEMA_VERSION');
@@ -335,8 +335,8 @@ test('unknown and prototype-like IDs are safe and return null', () => {
 });
 
 test('fresh import uses no DOM, storage, permission, audio, network or timers; adds no globals', () => {
-    const url = new URL('../js/core/feature-registry.mjs?v=0.27.0', import.meta.url).href;
-    const reader = new URL('../js/core/version-reader.mjs?v=0.27.0', import.meta.url).href;
+    const url = new URL('../js/core/feature-registry.mjs?v=0.28.0', import.meta.url).href;
+    const reader = new URL('../js/core/version-reader.mjs?v=0.28.0', import.meta.url).href;
     execFileSync(process.execPath, ['--input-type=module', '-e', `
         import assert from 'node:assert/strict';
         for (const key of ['window', 'document', 'localStorage', 'sessionStorage', 'navigator',
