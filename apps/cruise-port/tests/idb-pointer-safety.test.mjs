@@ -52,7 +52,9 @@ test('first publication and formal same-ID retry are atomic and idempotent',asyn
  assert.equal((await x.store.publish(r)).status,'published');const disk=await dump(x);
  assert.equal((await x.store.publish(r)).status,'already-active');assert.deepEqual(await dump(x),disk);
  x.store.dispose();x.store=await openIDBAuthorityStore(x.scope);t.after(()=>x.store.dispose());
- assert.equal((await x.store.publish(r)).status,'already-active');assert.equal((await x.store.lookupPublication('g2',r.operationId)).result.historical,true);
+ assert.equal((await x.store.publish(r)).reason,'capability-invalid','closed runtime must not inherit publication authority');
+ const fresh={...r,capability:x.issuer.issue('migration-publication',{generation:r.generation}),attestation:x.issuer.attestFixtureEvidence({generation:r.generation,migrationId:r.migrationId,sealHash:(await x.store.readJournal(r.migrationId)).journal.sealHash,binary:{manifestDigest:'a'.repeat(64),assetCount:0},sync:{checkpointDigest:'b'.repeat(64),outboxPending:0}})};
+ assert.equal((await x.store.publish(fresh)).status,'already-active');assert.equal((await x.store.lookupPublication('g2',r.operationId)).result.historical,true);
 });
 for(const mode of ['pointer deleted','namespace deleted','marker reset','journal reset','reservation reset'])test('missing pointer is not a new initial publication: '+mode,async t=>{
  const x=await published(t),next=await stage(x,{generation:'g3',migrationId:'m-g3',operationId:'pub-g3',expectedPointerEpoch:null});

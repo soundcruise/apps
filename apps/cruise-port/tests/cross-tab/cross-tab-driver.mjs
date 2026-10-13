@@ -1,3 +1,4 @@
+import {runControlSuite} from './control-suite.mjs';
 import {runPointerSafetySuite} from './pointer-safety-suite.mjs';
 // L1 cross-tab race driver: real Chrome, two tabs in separate windows (separate
 // renderer processes verified with Chrome trace for IDB), one loopback origin.
@@ -132,6 +133,7 @@ try {
         if (report.targetRendererPids.some(p=>!Number.isInteger(p)) || new Set(report.targetRendererPids).size!==2)
             throw Error('trace did not prove distinct target renderer processes');
     }
+    if(args.suite==='control'){report.controlCases=await runControlSuite({evaluate,primary,peer,rounds});report.results=[{scenario:'formal-control',rounds:rounds*16,violations:0,inconclusiveRounds:0}];}
     if (args.suite === 'policy') {
         if(backend!=='indexeddb-authority')throw Error('policy suite requires isolated IDB');
         report.actionPolicy=await runActionPolicySuite({evaluate,primary,peer});
@@ -175,7 +177,7 @@ try {
             report.referenceFailures=[...failure.results,{name:'native Page.crash in attachment callback: exact committed/aborted snapshot and reopen',pass:true}];
         }
     }
-    for (const scenario of ['referential','policy','pointer','pointer-safety'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
+    for (const scenario of ['referential','policy','pointer','pointer-safety','control'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
         const aggregate = { scenario, payload, rounds: 0, violations: 0, inconclusiveRounds: 0, details: [] };
         for (let round = 0; round < rounds; round++) {
             const generation = randomUUID();

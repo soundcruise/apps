@@ -141,14 +141,15 @@ export const reservationKey = (generation, operationId) => RESERVED_JOURNAL_PREF
 export function validateReservation(r, generation, operationId) {
     assertJSONEvidence(r);
     const keys=['generation','operationId','schemaVersion','kind','fingerprint','action','policy','targetKeys','origin'];
-    if (!(exactKeys(r,keys)||exactKeys(r,[...keys,'publication'])) ||
+    if (!(exactKeys(r,keys)||exactKeys(r,[...keys,'publication'])||exactKeys(r,[...keys,'control'])) ||
         r.schemaVersion !== 1 || r.generation !== generation || r.operationId !== operationId ||
-        !['operation-identity','publication','seal'].includes(r.kind) || !/^[a-f0-9]{64}$/.test(r.fingerprint) ||
+        !['operation-identity','publication','seal','control'].includes(r.kind) || !/^[a-f0-9]{64}$/.test(r.fingerprint) ||
         !['v2','v1-journal'].includes(r.origin) || (r.origin === 'v1-journal' ? r.kind !== 'operation-identity' ||
         r.action !== null || r.policy !== null || r.targetKeys !== null : typeof r.action !== 'string' || typeof r.policy !== 'string' ||
         !Array.isArray(r.targetKeys) || r.targetKeys.some(k => typeof k !== 'string'))) throw fail('reservation-invalid');
     identifier(r.generation); identifier(r.operationId);
     if(r.publication!==undefined)validatePublicationFact(r);
+    if((r.kind==='control')!==(r.control!==undefined)||r.kind==='control'&&(!object(r.control)||r.publication!==undefined))throw fail('reservation-invalid');
 }
 export function validatePublicationFact(r) {
     const f=r.publication;

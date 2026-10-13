@@ -1,11 +1,12 @@
 // L2b isolated adapter. Explicit scope/open only; no product boot or cloud publish.
-import { registerIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.14';
+import {controlReadiness} from './port-authority-control.mjs';
+import { registerIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.15';
 import { openIDBAuthorityStore } from './port-indexeddb-authority-store.mjs';
-import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.22.14';
+import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.22.15';
 import { frozen, fail, identifier, validateDataset } from './port-idb-authority-contract.mjs';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.14';
-import { loadMetronomeSettings } from './metronome-store.js?v=1.22.14';
-import { loadTunerSettings } from './tuner-store.js?v=1.22.14';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.15';
+import { loadMetronomeSettings } from './metronome-store.js?v=1.22.15';
+import { loadTunerSettings } from './tuner-store.js?v=1.22.15';
 const rejected = e => ({ ok: false, status: 'rejected', reason: e.code || 'read-failed' });
 function validateDomainValues(values) {
     validateDataset(values);
@@ -16,7 +17,7 @@ function validateDomainValues(values) {
 const stateOf = (snapshot, capable) => frozen({ protocol: PORT_DATASET_PROTOCOL, generation: snapshot.generation,
     revision: snapshot.head?.revision || snapshot.result.revision, values: { ...snapshot.values },
     keyRevisions: { ...snapshot.versions }, sharedWriteCapable: capable,
-    cache: 'hydrated-display', seq: snapshot.head?.seq || snapshot.result.seq });
+    cache: 'hydrated-display', readiness:snapshot.control?controlReadiness(snapshot):'historical',exportable:true, seq: snapshot.head?.seq || snapshot.result.seq });
 
 export async function openIsolatedIDBRepositoryBackend({ scope, generation, token = () => crypto.randomUUID(),
     channelFactory = name => typeof BroadcastChannel === 'function' ? new BroadcastChannel(name) : null } = {}) {
@@ -124,6 +125,7 @@ export async function openIsolatedIDBRepositoryBackend({ scope, generation, toke
     }
     const backend = {
         kind: 'indexeddb-authority', store,
+        get readiness(){return disposed?'disposed':store.status!=='open'?'hydrating':issue==='authority-absent'?'inactive':issue==='authority-hydrating'?'hydrating':issue?'recovery-required':snapshot?controlReadiness(snapshot):'hydrating';},
         get sharedWriteCapable() { try { return inspect().sharedWriteCapable; } catch { return false; } },
         inspect, hydrate, prepareWrite, commitPreparedWrite,
         async runWrite(options, writer, notify) {

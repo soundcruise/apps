@@ -7,7 +7,8 @@ import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, V1_STORE_KEYS, COM
     inferredDependencies, fingerprintDependencies, mergeDeleteIntents } from './port-idb-authority-contract.mjs';
 import { safeEvidence, MIGRATION_STATES } from './port-migration-contract.mjs';
 import { actionPolicy, assertActionSemantics, AUTHORITY_ACTION_POLICY_VERSION } from './port-authority-action-policy.mjs';
-import { claimCapabilityIssuer, verifyCapability, readAttestation } from './port-authority-capabilities.mjs';
+import { claimCapabilityIssuer, verifyCapability, readAttestation, registerCapabilityScope, readFenceAttestation } from './port-authority-capabilities.mjs';
+import {CONTROL_OPERATIONS,stoppingControl,captureControlRequest,controlFingerprint,transitionControl,validateControlFact,controlReadiness} from './port-authority-control.mjs';
 export { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, AUTHORIZATION_MARGIN_MS };
 const scopes = new WeakMap();
 // Port-owned capability issuer for a registered isolated scope (one claimant per
@@ -27,7 +28,7 @@ export function installIsolatedAuthorityTestProvider(scope, provider) {
 }
 const corrupt = new Set(['recovery-required','head-invalid','control-invalid','control-identity-invalid','manifest-invalid',
     'manifest-digest-invalid','head-manifest-mismatch','manifest-intent-mismatch','record-invalid','oplog-invalid','journal-invalid','root-invalid','non-json-evidence',
-    'pointer-invalid','pointer-head-mismatch','pointer-control-mismatch','pointer-generation-missing','fixture-pointer-untrusted','reservation-invalid','pointer-provenance-missing','pointer-provenance-mismatch','pointer-missing','namespace-invalid','namespace-provenance-missing','namespace-schema-unsupported','publication-fact-invalid','publication-identity-conflict']);
+    'pointer-invalid','pointer-head-mismatch','pointer-control-mismatch','pointer-generation-missing','fixture-pointer-untrusted','reservation-invalid','pointer-provenance-missing','pointer-provenance-mismatch','pointer-missing','namespace-invalid','namespace-provenance-missing','namespace-schema-unsupported','publication-fact-invalid','publication-identity-conflict','control-fact-invalid']);
 const rejected = reason => ({ok:false,status:corrupt.has(reason)?'recovery-required':'rejected',reason});
 const positive = n => Number.isSafeInteger(n) && n > 0;
 const errorCode = error => typeof error?.code==='string' ? error.code : (error?.name === 'QuotaExceededError' ? 'quota-exceeded' : 'idb-error');
@@ -37,7 +38,8 @@ export function createIsolatedIDBAuthorityScope({indexedDB, name=AUTHORITY_DB_NA
     if (typeof window !== 'undefined' && !['localhost','127.0.0.1','::1','[::1]'].includes(window.location.hostname)) throw fail('isolated-scope-required');
     if (!indexedDB?.open || typeof partitionId !== 'string' || !partitionId || typeof now!=='function' || typeof token!=='function' ||
         !(name===AUTHORITY_DB_NAME || /^sound-cruise-port-authority-v1-fixture-[A-Za-z0-9_-]+$/.test(name))) throw fail('isolated-scope-required');
-    const scope=Object.freeze({name,partitionId});scopes.set(scope,{scope,indexedDB,name,partitionId,now,token,onLifecycle});return scope;
+    const scope=Object.freeze({name,partitionId}),env={scope,indexedDB,name,partitionId,now,token,onLifecycle,lease:{active:true}};scopes.set(scope,env);
+    registerCapabilityScope(scope,()=>env.lease,()=>!!env.testProvider);return scope;
 }
 const object = value => !!value && Object.getPrototypeOf(value) === Object.prototype;
 function assertStoreShape(tx,inventory) {
@@ -93,9 +95,11 @@ function validateSchema(db) {
 }
 export function openIDBAuthorityStore(scope) {
     const env=scopes.get(scope);if(!env)return Promise.reject(fail('isolated-scope-required'));
+    if(!env.lease.active)env.lease={active:true};
+    const lease=env.lease;
     return new Promise((resolve,reject)=>{
         let request,settled=false,upgradeFailure=null;
-        const stop=code=>{if(!settled){settled=true;reject(fail(code));}};
+        const stop=code=>{if(!settled){settled=true;lease.active=false;reject(fail(code));}};
         const lifecycle=event=>{try{env.onLifecycle(event);}catch{}};
         try{request=env.indexedDB.open(env.name,AUTHORITY_DB_VERSION);}catch{stop('database-unavailable');return;}
         request.onblocked=()=>{lifecycle('blocked');stop('open-blocked');};
@@ -115,7 +119,7 @@ export function openIDBAuthorityStore(scope) {
         request.onsuccess=()=>{
             const db=request.result;if(settled){db.close();return;}
             try{validateSchema(db);}catch(e){db.close();stop(e.code||'schema-invalid');return;}
-            settled=true;resolve(makeStore(db,env,lifecycle));
+            settled=true;resolve(makeStore(db,env,lifecycle,lease));
         };
     });
 }
@@ -132,14 +136,14 @@ function validateRoot(root) {
     for(const ref of root.recordRefs)if(!PORT_DATASET_KEYS.includes(ref.logicalKey)||!positive(ref.version))throw fail('root-invalid');
     assertJSONEvidence(root);safeEvidence(root);
 }
-function makeStore(db,env,lifecycle) {
+function makeStore(db,env,lifecycle,lease) {
     let state='open';const prepared=new WeakMap();
-    db.onversionchange=()=>{state='versionchange';db.close();lifecycle('versionchange');};
-    db.onclose=()=>{if(state==='open'){state='connection-lost';lifecycle('unexpected-close');}};
+    db.onversionchange=()=>{state='versionchange';lease.active=false;db.close();lifecycle('versionchange');};
+    db.onclose=()=>{if(state==='open'){state='connection-lost';lease.active=false;lifecycle('unexpected-close');}};
     // Only IDB requests and synchronous callbacks run in this transaction. The
     // enclosing Promise is completed by complete/abort, never by request success.
     function transact(names,mode,build) {
-        if(state!=='open')return Promise.resolve(rejected(state));
+        if(state!=='open'||!lease.active)return Promise.resolve(rejected(state==='open'?'scope-runtime-inactive':state));
         return new Promise(resolve=>{
             let tx,reason,output;
             try{tx=db.transaction(names,mode,{durability:'strict'});}catch(e){resolve(rejected(errorCode(e)));return;}
@@ -246,7 +250,7 @@ function makeStore(db,env,lifecycle) {
                     });});
             });
             if(!target){read();return;}
-            if(control.state!=='active')throw fail('pointer-control-mismatch');
+            if(control.state!=='active'&&!(control.state==='recovery-required'&&control.recoveryRequired))throw fail('pointer-control-mismatch');
             if(pointer.publication.controlEpoch>control.epoch||pointer.publication.headSeq>head.seq)throw fail('pointer-head-mismatch');
             ctx.request(ctx.store('reservations').get([generation,pointer.operationId]),row=>{
                 if(!row?.publication||!equal(row.publication.identity,control.identity))throw fail('pointer-provenance-mismatch');read();
@@ -259,7 +263,7 @@ function makeStore(db,env,lifecycle) {
     }),{allowUnpublishedRead:true});}
     function readActive(ctx,done) {readPointer(ctx,pointer=>pointer?readGenerationSnapshot(ctx,pointer.activeGeneration,pointer,current=>done(pointer,current)):done(null,null));}
     function publicationEvidence(token,r,sealHash) {
-        const e=readAttestation(token,{scope:env.scope,generation:r.generation,migrationId:r.migrationId,sealHash});
+        const e=readAttestation(token,{scope:env.scope,lease,generation:r.generation,migrationId:r.migrationId,sealHash});
         if(e.kind!=='isolated-fixture'||!env.testProvider)throw fail('publication-evidence-unavailable');
         return frozen({kind:e.kind,sealHash:e.sealHash,binary:{...e.binary},sync:{...e.sync},fence:e.fence&&{...e.fence}});
     }
@@ -463,13 +467,97 @@ function makeStore(db,env,lifecycle) {
             }
         });}));
     }
+    const controlHandles=new WeakMap();
+    function captureControl(action,input){
+        const capability=input.capability;verifyCapability(capability,{scope:env.scope,lease,purpose:CONTROL_OPERATIONS[action],generation:input.generation});
+        const evidence=input.evidence===undefined?null:readFenceAttestation(input.evidence,{scope:env.scope,lease,generation:input.generation});
+        return {request:captureControlRequest(action,input,evidence),capability};
+    }
+    async function prepareControlOperation(action,input={}){
+        const p=captureControl(action,input),q=p.request,fingerprint=controlFingerprint(q);
+        const row={schemaVersion:1,generation:q.generation,operationId:q.operationId,kind:'control',fingerprint,
+            action,policy:CONTROL_OPERATIONS[action],targetKeys:['control'],origin:'v2',
+            control:{schemaVersion:1,request:q,before:null,after:null,result:null}};
+        validateReservation(row,q.generation,q.operationId);validateControlFact(row);
+        const reserved=await transact(['reservations','oplog'],'readwrite',ctx=>{
+            verifyCapability(p.capability,{scope:env.scope,lease,purpose:CONTROL_OPERATIONS[action],generation:q.generation});
+            ctx.request(ctx.store('oplog').get([q.generation,q.operationId]),log=>{
+                if(log)throw fail('operation-id-payload-conflict');
+                ctx.request(ctx.store('reservations').get([q.generation,q.operationId]),old=>{
+                    if(old){validateReservation(old,q.generation,q.operationId);
+                        if(old.kind!=='control'||old.fingerprint!==fingerprint)throw fail('operation-id-payload-conflict');validateControlFact(old);
+                    }else ctx.request(ctx.store('reservations').add(row));ctx.done({ok:true});
+                });
+            });
+        });
+        if(!reserved.ok)throw fail(reserved.reason);
+        const handle=Object.freeze({action,generation:q.generation,operationId:q.operationId});controlHandles.set(handle,p);return handle;
+    }
+    async function controlOperation(action,input={}){
+        let request,capability;
+        try{
+            const handle=controlHandles.has(input)?input:await prepareControlOperation(action,input),p=controlHandles.get(handle);
+            if(handle.action!==action)throw fail('capability-invalid');({request,capability}=p);
+        }catch(e){return rejected(errorCode(e));}
+        const fingerprint=controlFingerprint(request);
+        return transact(COMMIT_STORES,'readwrite',ctx=>{
+            verifyCapability(capability,{scope:env.scope,lease,purpose:CONTROL_OPERATIONS[action],generation:request.generation});
+            ctx.request(ctx.store('oplog').get([request.generation,request.operationId]),log=>{
+                if(log)throw fail('operation-id-payload-conflict');
+                ctx.request(ctx.store('reservations').get([request.generation,request.operationId]),reserved=>{
+                    if(reserved){
+                        validateReservation(reserved,request.generation,request.operationId);
+                        if(reserved.kind!=='control'||reserved.fingerprint!==fingerprint)throw fail('operation-id-payload-conflict');
+                        validateControlFact(reserved);if(reserved.control.result){ctx.done({...reserved.control.result,replayed:true});return;}
+                    }
+                    if(!reserved)throw fail('control-reservation-missing');
+                    readPointer(ctx,pointer=>{
+                        if(pointer?.activeGeneration!==request.generation)throw fail('generation-not-active');
+                        ctx.request(ctx.store('control').get(request.generation),old=>{
+                            validateControl(old);
+                            if(!equal(old.identity,request.identity)||old.identity.partitionId!==env.partitionId)throw fail('control-identity-mismatch');
+                            if(old.state!=='active'&&!(old.state==='recovery-required'&&old.recoveryRequired))throw fail('control-state-invalid');
+                            const finish=()=>{
+                                verifyCapability(capability,{scope:env.scope,lease,purpose:CONTROL_OPERATIONS[action],generation:request.generation});
+                                if(!stoppingControl(action)){
+                                    if(old.epoch!==request.expectedEpoch)throw fail('control-stale');
+                                    if(pointer.pointerEpoch!==request.expectedPointerEpoch)throw fail('pointer-stale');
+                                    if(old.identityInvalidated||old.recoveryRequired||old.state==='recovery-required')throw fail('authority-invalidated');
+                                    if(action==='resumeWrites'&&old.fenceRevoked)throw fail('fence-revoked');
+                                    const e=request.evidence;
+                                    if(action==='renewFence'||old.identity.ownership==='bound-account'){
+                                        const now=env.now();
+                                        if(!e||e.controlEpoch!==old.epoch||!Number.isSafeInteger(now)||e.issuedAt>now||e.expiresAt-now<AUTHORIZATION_MARGIN_MS)throw fail('control-evidence-stale');
+                                        if(!equal(e.identity,old.identity)||e.generation!==old.generation||e.pointerEpoch!==pointer.pointerEpoch)throw fail('control-evidence-identity-mismatch');
+                                        if(action==='renewFence'?e.fenceEpoch<=old.fenceEpoch:e.fenceEpoch!==old.fenceEpoch)throw fail('control-fence-stale');
+                                    }else if(e!==null)throw fail('control-evidence-unexpected');
+                                }
+                                const {next,changed}=transitionControl(old,request);
+                                const result={ok:true,status:'control-committed',generation:request.generation,operationId:request.operationId,action,
+                                    controlEpoch:next.epoch,changed,publish:false,operationAuthorized:false,historical:true};
+                                const row={schemaVersion:1,generation:request.generation,operationId:request.operationId,kind:'control',fingerprint,
+                                    action,policy:CONTROL_OPERATIONS[action],targetKeys:['control'],origin:'v2',
+                                    control:{schemaVersion:1,request,before:old,after:next,result}};
+                                validateReservation(row,request.generation,request.operationId);validateControlFact(row);
+                                if(changed)ctx.request(ctx.store('control').put(next));
+                                ctx.request(ctx.store('reservations').put(row));ctx.done(result);
+                            };
+                            // Stopping a damaged current dataset must not depend on head health.
+                            // Lowering restrictions requires a healthy full current snapshot in this tx.
+                            if(stoppingControl(action))finish();else readGenerationSnapshot(ctx,request.generation,pointer,finish);
+                        });
+                    });
+                });
+            });
+        });
+    }
     return Object.freeze({
-        get status(){return state;},
-        dispose(){if(state==='open'){state='disposed';db.close();lifecycle('disposed');}},
+        get status(){return state==='open'&&!lease.active?'scope-runtime-inactive':state;},
+        dispose(){if(state==='open'){state='disposed';lease.active=false;db.close();lifecycle('disposed');}},
         hydrate(generation){
             try{identifier(generation);}catch(e){return Promise.resolve(rejected(e.code));}
             return transact(COMMIT_STORES,'readonly',ctx=>readSnapshot(ctx,generation,snapshot=>ctx.done(snapshot?
-                {ok:true,status:'hydrated',snapshot,activity:snapshot.active?'active':'inactive',
+                {ok:true,status:'hydrated',snapshot,activity:snapshot.active?'active':'inactive',readiness:controlReadiness(snapshot),exportable:true,
                     readOnly:!snapshot.active||snapshot.control.state!=='active'||snapshot.control.suspended||snapshot.control.fenceRevoked||snapshot.control.identityInvalidated||snapshot.control.recoveryRequired}:
                 {ok:true,status:'absent',snapshot:null}))).then(result=>result.ok?result:{...result,status:'recovery-required',readOnly:true,activity:'unknown'});
         },
@@ -479,9 +567,10 @@ function makeStore(db,env,lifecycle) {
         // prepared -> sealed. Requires the Port-owned publication capability for
         // this generation. Seals the current head; the journal records its digest.
         seal({generation,migrationId,capability}={}){
-            try{identifier(generation);identifier(migrationId);verifyCapability(capability,{scope:env.scope,purpose:'migration-publication',generation});}
+            try{identifier(generation);identifier(migrationId);verifyCapability(capability,{scope:env.scope,lease,purpose:'migration-publication',generation});}
             catch(e){return Promise.resolve(rejected(errorCode(e)));}
             return transact(COMMIT_STORES,'readwrite',ctx=>readSnapshot(ctx,generation,current=>{
+                verifyCapability(capability,{scope:env.scope,lease,purpose:'migration-publication',generation});
                 if(!current)throw fail('generation-missing');
                 ctx.request(ctx.store('journal').get(migrationId),j=>{
                     if(!j)throw fail('journal-missing');validateJournal(j);
@@ -512,9 +601,11 @@ function makeStore(db,env,lifecycle) {
                     expectedPointerEpoch:request.expectedPointerEpoch??null,expectedControlEpoch:request.expectedControlEpoch};
                 identifier(r.generation);identifier(r.migrationId);identifier(r.operationId);
                 if(r.expectedPointerEpoch!==null&&!positive(r.expectedPointerEpoch)||!positive(r.expectedControlEpoch))throw fail('publication-request-invalid');
-                verifyCapability(request.capability,{scope:env.scope,purpose:'migration-publication',generation:r.generation});
+                verifyCapability(request.capability,{scope:env.scope,lease,purpose:'migration-publication',generation:r.generation});
             }catch(e){return Promise.resolve(rejected(errorCode(e)));}
             return transact(COMMIT_STORES,'readwrite',ctx=>readActive(ctx,(pointer,active)=>{
+                verifyCapability(request.capability,{scope:env.scope,lease,purpose:'migration-publication',generation:r.generation});
+                if(active&&(active.control.recoveryRequired||active.control.identityInvalidated||active.control.state==='recovery-required'))throw fail('authority-invalidated');
                 // Every success path first verifies the current active head, all
                 // records, control, and independent publication provenance.
                 ctx.request(ctx.store('oplog').get([r.generation,r.operationId]),log=>{
@@ -608,6 +699,15 @@ function makeStore(db,env,lifecycle) {
             return transact(['oplog','manifests'],'readonly',ctx=>ctx.request(ctx.store('oplog').get([generation,operationId]),log=>{
                 if(!log){ctx.done({ok:true,result:null});return;}
                 validateOplog(log,generation,operationId);checkCommittedFact(ctx,log,()=>ctx.done({ok:true,result:log.result}));
+            }));
+        },
+        prepareControlOperation,
+        ...Object.fromEntries(Object.keys(CONTROL_OPERATIONS).map(action=>[action,input=>controlOperation(action,input)])),
+        lookupControlOperation(generation,operationId){
+            try{identifier(generation);identifier(operationId);}catch(e){return Promise.resolve(rejected(errorCode(e)));}
+            return transact(['reservations'],'readonly',ctx=>ctx.request(ctx.store('reservations').get([generation,operationId]),row=>{
+                if(!row||row.kind!=='control'){ctx.done({ok:true,result:null});return;}
+                validateReservation(row,generation,operationId);validateControlFact(row);ctx.done({ok:true,result:row.control.result,pending:row.control.result===null});
             }));
         },
         updateControl(generation,{expectedEpoch,patch}){

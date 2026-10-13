@@ -1,3 +1,4 @@
+import {CONTROL_OPERATIONS} from '../../port-authority-control.mjs';
 import {pointerRaceHooks} from './pointer-race-hooks.mjs';
 import { createTestAuthorityScope as createIsolatedIDBAuthorityScope, testProAuthorization } from '../authority-store/test-authority.mjs';
 // Real Repository + real L2a Store, native IDB, no locks or delivery hints.
@@ -9,7 +10,7 @@ import { KEYS, CONTROL_SCENARIOS, counterLoop, deleteLoop, seedDeleteCollections
 import { claimPortAuthorityIssuer, openIDBAuthorityStore } from '../../port-indexeddb-authority-store.mjs';
 import { AUTHORITY_DB_VERSION, V1_STORE_KEYS, POINTER_KEY, reservationKey } from '../../port-idb-authority-contract.mjs';
 let token, scope, generation, backend, repository;
-let publicationPackets=new Map();
+let publicationPackets=new Map(),controlPackets=new Map();
 let proValid=true;const authorizations=new Map();
 const handles=new Map();
 function assertFixture() {
@@ -17,15 +18,15 @@ function assertFixture() {
 }
 async function snapshot() { await backend.hydrate(); return backend.store.hydrate(generation).then(r=>{if(!r.ok)throw Error(r.reason);return r.snapshot;}); }
 window.crossTab={
- ...pointerRaceHooks({name:()=>scope.name,commitOld:id=>backend.commitPreparedWrite(handles.get(id)),commitPublication:id=>backend.store.publish(publicationPackets.get(id))}),
+ ...pointerRaceHooks({name:()=>scope.name,commitOld:id=>controlPackets.has('dataset-'+id)?backend.store.commit(handles.get(id)):backend.commitPreparedWrite(handles.get(id)),commitPublication:id=>backend.store.publish(publicationPackets.get(id)),commitControl:id=>{const p=controlPackets.get(id);return backend.store[p.action](p.request);}}),
  claim(id) { if(token&&token!==id)throw Error('different fixture owner');if(typeof id!=='string'||id.length<16)throw Error('driver token');token=id;assertFixture();return true; },
- async prepare({scenario,role,iterations,generation:gen,reference=false,attached=false,payload=0,policy=false}) {
+ async prepare({scenario,role,iterations,generation:gen,reference=false,attached=false,payload=0,policy=false,controlBound=false}) {
   assertFixture();backend?.dispose();generation=gen;
   scope=createIsolatedIDBAuthorityScope({indexedDB,partitionId:token,name:'sound-cruise-port-authority-v1-fixture-'+token},{fixtureMutations:!policy});
   backend=await openIsolatedIDBRepositoryBackend({scope,generation,channelFactory:()=>null});
   if(role==='primary') {
    let v=reference?referenceValues({attached,payload}):values();if(scenario==='delete-intent')v=seedDeleteCollections(v,iterations);
-   const seeded=await backend.store.initialize({generation,control:control(generation,token),values:v,operationId:'seed-'+generation});
+   const seeded=await backend.store.initialize({generation,control:{...control(generation,token),...(controlBound?{identity:{...control(generation,token).identity,ownership:'bound-account',accountId:'fixture-A',accountGeneration:2,membershipId:'fixture-member',membershipGeneration:3}}:{})},values:v,operationId:'seed-'+generation});
    if(!seeded.ok)throw Error(seeded.reason);
   }
   await backend.hydrate();repository=new PortDatasetRepository({backend,locks:null,
@@ -134,6 +135,20 @@ window.crossTab={
    binary:{manifestDigest:'a'.repeat(64),assetCount:0},sync:{checkpointDigest:'b'.repeat(64),outboxPending:0}});
   return store.publish({generation:gen,migrationId,operationId,capability:cap,attestation,expectedPointerEpoch,expectedControlEpoch:journal.publication?.request?.operationId===operationId?journal.publication.request.expectedControlEpoch:h.snapshot.control.epoch});
  },
+ async controlPacket({id,action,expectedEpoch}){
+  const s=(await backend.store.hydrate(generation)).snapshot;
+  const request={generation,operationId:id,identity:s.control.identity,expectedEpoch:expectedEpoch??s.control.epoch,expectedPointerEpoch:s.pointer.pointerEpoch,
+   capability:issuer().issue(CONTROL_OPERATIONS[action],{generation})};
+  if(action==='renewFence'||action==='resumeWrites'&&s.control.identity.ownership==='bound-account'){
+   const now=Date.now();request.evidence=issuer().attestFixtureFence({controlEpoch:s.control.epoch,source:'isolated-server',evidenceId:id+'-server',generation,pointerEpoch:s.pointer.pointerEpoch,
+    identity:s.control.identity,fenceEpoch:s.control.fenceEpoch+(action==='renewFence'?1:0),issuedAt:now,expiresAt:now+60000});
+  }
+  controlPackets.set(id,{action,request:await backend.store.prepareControlOperation(action,request)});return {expectedEpoch:request.expectedEpoch};
+ },
+ controlPacketCommit:id=>{const p=controlPackets.get(id);return backend.store[p.action](p.request);},
+ controlFact:id=>backend.store.lookupControlOperation(generation,id),
+ async controlSavePacket(id){controlPackets.set('dataset-'+id,{});const s=(await backend.store.hydrate(generation)).snapshot;handles.set(id,backend.store.prepare({base:s,operationId:id,action:'fixture-save',changes:{'cruisePort.metronome':JSON.stringify({...JSON.parse(s.values['cruisePort.metronome']),bpm:145})}}));return true;},
+ controlRead:()=>backend.store.hydrate(generation),
  async pointerPacket({id,generation:gen,migrationId,operationId,expectedPointerEpoch=null}) {
   const j=(await backend.store.readJournal(migrationId)).journal,h=await backend.store.hydrate(gen);
   if(!j||!h.ok)throw Error('packet stage missing');

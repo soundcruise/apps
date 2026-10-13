@@ -300,8 +300,7 @@ test('31-35 capability forgery, clone, scope, generation and purpose are rejecte
     assert.throws(() => verifyCapability(sealed.capability, { scope: x.scope, purpose: 'authority-control', generation: 'g2' }), /capability-invalid/);
     assert.throws(() => claimPortAuthorityIssuer(x.scope), /capability-issuer-unavailable/);
     assert.throws(() => claimPortAuthorityIssuer(Object.freeze({ name: AUTHORITY_DB_NAME, partitionId: 'fixture-partition' })), /isolated-scope-required/);
-    const foreign = claimCapabilityIssuer(Object.freeze({})).issue('migration-publication', { generation: 'g2' });
-    assert.equal((await request(foreign)).reason, 'capability-invalid');
+    assert.throws(() => claimCapabilityIssuer(Object.freeze({})), /capability-issuer-unavailable/);
     // Evidence is branded and bound to scope, generation, migration and seal.
     const bad = attestation => x.store.publish({ generation: 'g2', migrationId, operationId: 'att', capability: sealed.capability, attestation, expectedControlEpoch: sealed.controlEpoch });
     assert.equal((await bad({ kind: 'isolated-fixture', generation: 'g2', migrationId })).reason, 'publication-evidence-invalid');

@@ -1,3 +1,4 @@
+import {observedTransactionRace} from './native-transaction-race.mjs';
 import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 export async function runPointerSafetySuite({evaluate,primary,peer,rounds=3}) {
@@ -36,33 +37,13 @@ export async function runPointerSafetySuite({evaluate,primary,peer,rounds=3}) {
   await packet(peer,{id:'peer-pub',generation:g,migrationId:m,operationId:op});
   if(scenario==='same-publication')await packet(primary,{id:'primary-pub',generation:g,migrationId:m,operationId:op});
   else await call(primary,'pointerPrepareOld','primary-old');
-  await call(primary,'raceHold');await call(primary,'raceTrace');await call(peer,'raceTrace');
-  const a={kind:scenario==='same-publication'?'publication':'old',id:scenario==='same-publication'?'primary-pub':'primary-old'},b={kind:'publication',id:'peer-pub'};
-  const first=scenario==='publish-first'?[peer,b]:[primary,a],second=scenario==='publish-first'?[primary,a]:[peer,b];
-  await call(first[0],'raceDispatch',first[1]);await call(second[0],'raceDispatch',second[1]);
-  let before;
-  for(let n=0;n<100;n++) {before=[await call(primary,'raceState'),await call(peer,'raceState')];
-   if(before.every(s=>s.events.some(e=>e.phase==='queued'&&e.mode==='readwrite'&&e.stores.includes('pointer'))))break;
-   await new Promise(r=>setTimeout(r,10));}
-  const queued=before.map(s=>s.events.filter(e=>e.phase==='queued'&&e.mode==='readwrite'&&e.stores.includes('pointer')));
-  if(queued.some(q=>!q.length)||before.some(s=>s.events.some(e=>e.phase==='request-started'))) {
-   await call(primary,'raceRelease');throw Error('inconclusive: both Store transactions were not blocked/queued');
-  }
-  assert.equal(await call(primary,'raceRelease'),true);
-  let after;
-  for(let n=0;n<200;n++){after=[await call(primary,'raceState'),await call(peer,'raceState')];
-   if(after[0].results[a.id]&&!after[0].results[a.id].pending&&after[1].results[b.id]&&!after[1].results[b.id].pending)break;await new Promise(r=>setTimeout(r,10));}
-  const av=after[0].results[a.id],bv=after[1].results[b.id];assert(av&&!av.pending&&!av.error);assert(bv&&!bv.pending&&!bv.error);
-  for(let realm=0;realm<2;realm++)for(const q of queued[realm]) {
-   assert(after[realm].events.some(e=>e.id===q.id&&e.phase==='request-started'));
-   assert(after[realm].events.some(e=>e.id===q.id&&['completed','aborted'].includes(e.phase)));
-  }
-  if(scenario==='same-publication')assert.deepEqual([av.status,bv.status].sort(),['already-active','published']);
-  else {assert.equal(bv.status,'published');assert(av.ok||av.reason==='generation-not-active');
-   // Queue order is observed, not assumed from Promise dispatch ordering.
-   const starts=after.map((s,i)=>s.events.find(e=>e.id===queued[i][0].id&&e.phase==='request-started').at);
-   if(starts[0]<starts[1])assert.equal(av.ok,true);if(starts[1]<starts[0])assert.equal(av.reason,'generation-not-active');}
-  record((scenario==='same-publication'?'F':'E')+' '+scenario+' native transaction contention',{round,queuedWhileBarrierHeld:queued,trace:after.map(s=>s.events),outcomes:[av.status??av.reason,bv.status??bv.reason],inconclusive:false});
+  const a={actor:primary,kind:scenario==='same-publication'?'publication':'old',id:scenario==='same-publication'?'primary-pub':'primary-old'},b={actor:peer,kind:'publication',id:'peer-pub'};
+  const first=scenario==='publish-first'?b:a,second=scenario==='publish-first'?a:b;
+  const r=await observedTransactionRace({call,primary,peer,first,second});
+  if(scenario==='same-publication')assert.deepEqual([r.first.status,r.second.status],['published','already-active']);
+  else if(scenario==='old-first'){assert.equal(r.first.ok,true);assert.equal(r.second.status,'published');}
+  else{assert.equal(r.first.status,'published');assert.equal(r.second.reason,'generation-not-active');}
+  record((scenario==='same-publication'?'F':'E')+' '+scenario+' native transaction contention',{round,...r,outcomes:[r.first.status??r.first.reason,r.second.status??r.second.reason]});
   await call(primary,'raceReset');await call(peer,'raceReset');
  }
  return results;
