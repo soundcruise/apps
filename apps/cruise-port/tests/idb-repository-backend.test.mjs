@@ -1,10 +1,10 @@
+import { createTestAuthorityScope as createIsolatedIDBAuthorityScope } from './authority-store/test-authority.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { PortDatasetRepository, PORT_DATASET_KEYS, PORT_DELETE_INTENTS } from '../port-dataset-repository.js';
-import { createIsolatedIDBAuthorityScope } from '../port-indexeddb-authority-store.mjs';
 import { openIsolatedIDBRepositoryBackend } from '../port-indexeddb-repository-backend.mjs';
-import { registerPortRepository, readPortStore, writePortStore } from '../port-dataset-storage.js?v=1.22.11';
+import { registerPortRepository, readPortStore, writePortStore } from '../port-dataset-storage.js?v=1.22.12';
 import { values, control } from './authority-store/fixture.mjs';
 import { loadSettings, saveSettings } from '../settings-store.js';
 import { loadMetronomeSettings, saveMetronomeSettings } from '../metronome-store.js';
@@ -151,7 +151,7 @@ test('fixed authorization context reference is preserved; replay does not requir
  const r=await bump(x.ra,met,{operationId:'guarded',authorizationContext:context,commitGuard:(ctx,details)=>{seen=ctx;assert(Object.isFrozen(details));assert.equal(details.authorizationMarginMs,30000);return true;}});
  assert.equal(r.ok,true);assert.equal(seen,context);assert.equal(r.retryRequest.requiresAuthorization,true);
  const replay=await x.b.retryWrite(r.retryRequest,{authorizationContext:context,commitGuard:()=>false});assert.equal(replay.replayed,true);
- assert.equal((await x.b.retryWrite(r.retryRequest)).reason,'operation-context-invalid');
+ assert.equal((await x.b.retryWrite(r.retryRequest)).replayed,true);
 });
 test('notifications are hints; a delayed refresh cannot replace the exact commit state',async t=>{
  const x=await setup(t),storage={};registerPortRepository(storage,x.ra);

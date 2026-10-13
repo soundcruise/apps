@@ -1,9 +1,10 @@
+import { createTestAuthorityScope as createIsolatedIDBAuthorityScope } from './authority-store/test-authority.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { createIsolatedIDBAuthorityScope, openIDBAuthorityStore } from '../port-indexeddb-authority-store.mjs';
+import { openIDBAuthorityStore } from '../port-indexeddb-authority-store.mjs';
 import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, PORT_DATASET_KEYS, PORT_DELETE_INTENTS, hashText, digest, canonical } from '../port-idb-authority-contract.mjs';
 import { values, control, patch } from './authority-store/fixture.mjs';
 const require=createRequire(new URL('./authority-store/package.json',import.meta.url));

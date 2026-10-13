@@ -1,6 +1,6 @@
 // Dormant Port-backed boundary. Production calls only the existing read host.
 // A repository executor is injected solely by isolated integration fixtures.
-import { createOperationBoundary } from '../../../cruise-port/port-write-readiness.mjs?v=1.22.11';
+import { createOperationBoundary } from '../../../cruise-port/port-write-readiness.mjs?v=1.22.12';
 import { saveMetronomeSettings, METRONOME_DEFAULTS, METRONOME_STORAGE_KEY } from '../../../cruise-port/metronome-store.js?v=1.22.4';
 import { createMetronomePreset, deleteMetronomePreset, loadMetronomePresets,
     METRONOME_PRESETS_STORAGE_KEY, settingsFromMetronomePreset } from '../../../cruise-port/metronome-presets-store.js?v=1.22.4';

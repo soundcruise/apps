@@ -5,8 +5,18 @@ import { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, COMMIT_STORES, AUT
     validateDataset, assertPortReferentialIntegrity, assertRetainedFields, validateControl, assertWritableControl, validateHead,
     validateManifest, validateRecord, validateOplog, assertJSONEvidence, inferredDependencies, fingerprintDependencies, mergeDeleteIntents } from './port-idb-authority-contract.mjs';
 import { safeEvidence, MIGRATION_STATES } from './port-migration-contract.mjs';
+import { actionPolicy, assertActionSemantics, AUTHORITY_ACTION_POLICY_VERSION } from './port-authority-action-policy.mjs';
 export { AUTHORITY_DB_NAME, AUTHORITY_DB_VERSION, STORE_KEYS, AUTHORIZATION_MARGIN_MS };
 const scopes = new WeakMap();
+// Test injection is a separate privileged, explicit fixture setup step. A normal
+// Port/Studio route cannot install it, even when served on localhost. Not a JS sandbox.
+export function installIsolatedAuthorityTestProvider(scope, provider) {
+    const env=scopes.get(scope);
+    if(!env || typeof window!=='undefined' && (!['localhost','127.0.0.1','[::1]'].includes(location.hostname) ||
+        !location.pathname.startsWith('/apps/cruise-port/tests/')) || !Object.isFrozen(provider) ||
+        ['capture','describe','verify'].some(k=>typeof provider[k]!=='function') || env.testProvider) throw fail('test-provider-isolation-required');
+    env.testProvider=provider;
+}
 const corrupt = new Set(['recovery-required','head-invalid','control-invalid','control-identity-invalid','manifest-invalid',
     'manifest-digest-invalid','head-manifest-mismatch','manifest-intent-mismatch','record-invalid','oplog-invalid','journal-invalid','root-invalid','non-json-evidence']);
 const rejected = reason => ({ok:false,status:corrupt.has(reason)?'recovery-required':'rejected',reason});
@@ -150,7 +160,8 @@ function makeStore(db,env,lifecycle) {
             done();
         });
     }
-    function capture({generation,operationId,action,base,changes,dependencyKeys=[],acknowledgements=[],authorizationContext,initialControl}) {
+    function capture({generation,operationId,action,base,changes,dependencyKeys=[],acknowledgements=[],authorizationContext,initialControl,
+        operationData=null,authorizationIdentity,authorizationPolicy,systemCapability}) {
         identifier(generation);identifier(operationId);identifier(action);
         if(!changes||Object.getPrototypeOf(changes)!==Object.prototype)throw fail('invalid-draft');
         const keys=Object.keys(changes);checkKeys(keys);checkKeys(dependencyKeys);
@@ -168,14 +179,45 @@ function makeStore(db,env,lifecycle) {
         }else if(!initialControl)throw fail('base-required');
         const draft=b?{...b.values,...c}:c;validateDataset(draft);
         if(b)assertRetainedFields(b.values,draft,keys);
+        const policy=initialControl?'isolated-initialize':actionPolicy(action,env.testProvider?.fixtureMutations===true);
+        const identity=authorizationIdentity??(policy==='pro'?env.testProvider?.describe(authorizationContext)??null:null);
+        const policyIdentity={version:AUTHORITY_ACTION_POLICY_VERSION,policy};
+        if(authorizationPolicy!==undefined&&!equal(authorizationPolicy,policyIdentity))throw fail('authorization-policy-changed');
         const body={schemaVersion:1,generation,operationId,action,base:b?{manifestId:b.head.manifestId,seq:b.head.seq,
             versions:b.versions,control:b.control}:null,changes:c,dependencyKeys:[...new Set([...dependencyKeys,...fingerprintDependencies(keys)])],acknowledgements:a,initialControl:initialControl||null};
+        // Legacy fixture fingerprints remain historical; formal policy identities
+        // include policy version, operation semantics and pinned credential identity.
+        if(policy!=='isolated-fixture'&&policy!=='isolated-initialize')Object.assign(body,{authorizationPolicy:policyIdentity,operationData,authorizationIdentity:identity});
         const value=frozen({generation,operationId,action,base:b,changes:c,dependencyKeys:dependencies,acknowledgements:a,
+            policy,operationData:structuredClone(operationData),authorizationIdentity:structuredClone(identity),authorizationPolicy:policyIdentity,
             initialControl:initialControl&&structuredClone(initialControl),fingerprint:digest(body)});
-        const handle=Object.freeze({generation,operationId});prepared.set(handle,{...value,authorizationContext});return handle;
+        const handle=Object.freeze({generation,operationId});prepared.set(handle,{...value,authorizationContext,
+            capability:env.testProvider?.capture(value,systemCapability,authorizationContext)});return handle;
     }
-    function commit(handle,{commitGuard}={}) {
+    async function reserveOperation(handle) {
         const p=prepared.get(handle);if(!p)return Promise.resolve(rejected('prepared-handle-invalid'));
+        // Reserve the immutable identity even when authorization later rejects.
+        // This transaction publishes no dataset, control, head or commit fact.
+        // The journal row is not a migration journal/root and cannot authorize writes.
+        if(!p.policy.startsWith('isolated-')) {
+            const reservation=await transact(['journal','oplog'],'readwrite',ctx=>{
+                const key='operation-'+digest([p.generation,p.operationId]);
+                ctx.request(ctx.store('oplog').get([p.generation,p.operationId]),log=>{
+                    if(log){validateOplog(log,p.generation,p.operationId);if(log.fingerprint!==p.fingerprint)throw fail('operation-id-payload-conflict');ctx.done({ok:true});return;}
+                    ctx.request(ctx.store('journal').get(key),old=>{
+                        const row={migrationId:key,kind:'operation-identity',schemaVersion:1,generation:p.generation,operationId:p.operationId,fingerprint:p.fingerprint};
+                        if(old){if(!equal(old,row))throw fail('operation-id-payload-conflict');}
+                        else ctx.request(ctx.store('journal').add(row));ctx.done({ok:true});
+                    });
+                });
+            });
+            if(!reservation.ok)return reservation;
+        }
+        return {ok:true};
+    }
+    async function commit(handle,{commitGuard}={}) {
+        const p=prepared.get(handle);if(!p)return rejected('prepared-handle-invalid');
+        const reservation=await reserveOperation(handle);if(!reservation.ok)return reservation;
         return transact(COMMIT_STORES,'readwrite',ctx=>ctx.request(ctx.store('oplog').get([p.generation,p.operationId]),old=>{
             if(old){
                 validateOplog(old,p.generation,p.operationId);
@@ -199,14 +241,26 @@ function makeStore(db,env,lifecycle) {
                 assertWritableControl(control,p.base?.control||control);
                 const empty=Object.fromEntries(PORT_DATASET_KEYS.map(k=>[k,null])),before=current?.values||empty;
                 const values={...before,...p.changes};
+                if(p.initialControl) { if(!p.capability?.initialize)throw fail('initialize-capability-required'); }
+                else {
+                    if(p.policy!==actionPolicy(p.action,env.testProvider?.fixtureMutations===true))throw fail('authorization-policy-changed');
+                    assertActionSemantics(p,before,p.capability);
+                }
                 const authorizedAt=env.now();if(!Number.isFinite(authorizedAt)||authorizedAt<0)throw fail('authorization-time-invalid');
-                if(p.authorizationContext!==undefined&&typeof commitGuard!=='function')throw fail('operation-commit-guard-required');
+                if((p.policy==='pro'||p.authorizationContext!==undefined)&&typeof commitGuard!=='function')throw fail('operation-commit-guard-required');
+                if(p.policy==='pro'&&!env.testProvider?.verify(p.authorizationContext,commitGuard,p))throw fail('operation-guard-untrusted');
                 if(commitGuard!==undefined){
                     if(typeof commitGuard!=='function')throw fail('operation-commit-guard-invalid');
                     const verdict=commitGuard(p.authorizationContext,frozen({operationId:p.operationId,action:p.action,generation:p.generation,
                         head:current?.head||null,control,authorizedAt,authorizationMarginMs:AUTHORIZATION_MARGIN_MS,targetKeys:Object.keys(p.changes),dependencyKeys:p.dependencyKeys}));
                     if(verdict?.then){verdict.catch?.(()=>{});throw fail('operation-commit-guard-async');}
                     if(verdict===false||verdict?.ok===false||verdict?.allowed===false)throw fail('operation-authorization-rejected');
+                    if(p.policy==='pro') {
+                        if(!verdict || verdict.ok!==true || verdict.policy!=='pro' || !equal({generation:verdict.generation,credentialFingerprint:verdict.credentialFingerprint},p.authorizationIdentity) ||
+                            !Number.isSafeInteger(verdict.generation)||verdict.generation<1||!/^[a-f0-9]{64}$/.test(verdict.credentialFingerprint))throw fail('pro-proof-result-invalid');
+                        if(!Number.isFinite(verdict.wallMarginMs)||!Number.isFinite(verdict.monoMarginMs)||
+                            verdict.wallMarginMs<AUTHORIZATION_MARGIN_MS||verdict.monoMarginMs<AUTHORIZATION_MARGIN_MS)throw fail('pro-proof-margin-insufficient');
+                    }
                 }
                 if(current){
                     const merged=mergeDeleteIntents(before,values,p.changes[PORT_DELETE_INTENTS],p.base.values,p.acknowledgements,p.operationId);
@@ -250,9 +304,11 @@ function makeStore(db,env,lifecycle) {
                 {ok:true,status:'hydrated',snapshot,readOnly:snapshot.control.state!=='active'||snapshot.control.suspended||snapshot.control.fenceRevoked||snapshot.control.identityInvalidated||snapshot.control.recoveryRequired}:
                 {ok:true,status:'absent',snapshot:null}))).then(result=>result.ok?result:{...result,status:'recovery-required'});
         },
-        prepare({base,operationId,action='fixture-save',changes,dependencyKeys,acknowledgements,authorizationContext}){
-            if(state!=='open')throw fail(state);return capture({generation:base?.generation,base,operationId,action,changes,dependencyKeys,acknowledgements,authorizationContext});
+        prepare({base,operationId,action='fixture-save',changes,dependencyKeys,acknowledgements,authorizationContext,operationData,authorizationIdentity,authorizationPolicy,systemCapability}){
+            if(state!=='open')throw fail(state);return capture({generation:base?.generation,base,operationId,action,changes,dependencyKeys,acknowledgements,authorizationContext,operationData,authorizationIdentity,authorizationPolicy,systemCapability});
         },
+        preparedIdentity(handle){const p=prepared.get(handle);if(!p)throw fail('prepared-handle-invalid');return frozen({authorizationPolicy:p.authorizationPolicy,authorizationIdentity:p.authorizationIdentity});},
+        reserveOperation,
         initialize({generation,control,values,operationId}){
             try{validateControl(control);const handle=capture({generation,operationId,action:'fixture-initialize',changes:values,initialControl:control});return commit(handle);}
             catch(e){return Promise.resolve(rejected(errorCode(e)));}
@@ -280,6 +336,7 @@ function makeStore(db,env,lifecycle) {
             }));
         },
         updateControl(generation,{expectedEpoch,patch}){
+            if(!env.testProvider)return Promise.resolve(rejected('fixture-control-capability-required'));
             try{identifier(generation);if(!patch||Object.keys(patch).some(k=>!['state','suspended','fenceRevoked','identityInvalidated','recoveryRequired','fenceEpoch','fenceEvidence'].includes(k)))throw fail('control-patch-invalid');}
             catch(e){return Promise.resolve(rejected(errorCode(e)));}
             const nextPatch=structuredClone(patch);
@@ -295,6 +352,7 @@ function makeStore(db,env,lifecycle) {
             return transact(['journal'],'readonly',ctx=>ctx.request(ctx.store('journal').get(migrationId),j=>{if(j)validateJournal(j);ctx.done({ok:true,journal:j||null});}));
         },
         writeJournal(journal,{expectedRevision=null,roots=[]}={}){
+            if(!env.testProvider)return Promise.resolve(rejected('fixture-journal-capability-required'));
             let j,r;try{j=structuredClone(journal);validateJournal(j);r=structuredClone(roots);r.forEach(validateRoot);if(j.revision!==(expectedRevision||0)+1)throw fail('journal-stale');}
             catch(e){return Promise.resolve(rejected(errorCode(e)));}
             return transact(['journal','roots','manifests','records'],'readwrite',ctx=>ctx.request(ctx.store('journal').get(j.migrationId),old=>{
@@ -306,6 +364,7 @@ function makeStore(db,env,lifecycle) {
             }));
         },
         writeRoot(root){
+            if(!env.testProvider)return Promise.resolve(rejected('fixture-root-capability-required'));
             let r;try{r=structuredClone(root);validateRoot(r);}catch(e){return Promise.resolve(rejected(errorCode(e)));}
             return transact(['roots','manifests','records','journal'],'readwrite',ctx=>storeRoot(ctx,r,()=>ctx.done({ok:true,root:r})));
         },

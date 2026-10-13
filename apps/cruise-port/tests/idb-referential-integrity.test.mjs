@@ -1,8 +1,8 @@
+import { createTestAuthorityScope as createIsolatedIDBAuthorityScope } from './authority-store/test-authority.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { PortDatasetRepository } from '../port-dataset-repository.js';
-import { createIsolatedIDBAuthorityScope } from '../port-indexeddb-authority-store.mjs';
 import { openIsolatedIDBRepositoryBackend } from '../port-indexeddb-repository-backend.mjs';
 import { createFixtureLocks } from '../../shared/sync-account/test-fixtures/web-locks.mjs';
 import { control } from './authority-store/fixture.mjs';

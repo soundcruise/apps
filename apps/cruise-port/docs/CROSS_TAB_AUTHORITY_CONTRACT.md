@@ -1,5 +1,19 @@
 # Cross-tab Authority Contract v1（L1）
 
+## L3a Action Authorization Policy（2026-10-13・現行）
+
+Port1.22.12 / Studio0.26.6 / schema1。[Action Policy](AUTHORITY_ACTION_POLICY.md)が新Authorityの正式操作契約。
+requiresAuthorization自己申告の迂回を再現し、Store RW transaction内のaction/targets/raw mutation/guard検証で拒否する。
+Standard BPM・preset delete/Standard applyはPro/Account不要。advanced save/create/advanced applyはtrusted同期guardと両30秒marginが必要。
+identity予約はbackend.prepare返却前・直接Store.commit前に既存journalへ固定し、未確定retryのaction/payload/policy/target差替えを拒否。
+確定replayは過去の事実だけ、publish=false/Sync wakeなし。system ACKは固定intent generationと内部capabilityのみ。
+未知/未対応featureの新Authority mutationはblocked。物理安全回帰のgeneric writerは明示privileged test scopeに限定する。
+正式Device Session/providerはL3c、Control/Account協調はL3b未接続。通常product routeからtest providerを生成/使用しない。
+Production legacy / Worker ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=falseを維持。
+Node policy57＋既存169、Port/shared2032 / Worker760 / Other186 / workerd8。Studioはcommit後clean guard込み315で確認。
+Native policy9 / L2a14 / L2b54round＋7 / 参照63round＋failure4、Port72 / Studio97＋Host10、全PASS。console/404/unexpected network mutation0。
+次はL3a独立確認、その後L3b。L3b以降/B1-6/shared write/deploy/cutoverは実施しない。以下は各工程時点の履歴。
+
 ## L2b-fix Referential Integrity（2026-10-13・現行）
 
 Port1.22.11 / Studio0.26.5 / schema1。[参照整合性契約](PORT_REFERENTIAL_INTEGRITY.md)を現在の正式契約とする。

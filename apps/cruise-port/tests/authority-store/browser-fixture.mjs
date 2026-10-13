@@ -1,4 +1,5 @@
-import { createIsolatedIDBAuthorityScope, openIDBAuthorityStore, AUTHORITY_DB_NAME } from '../../port-indexeddb-authority-store.mjs';
+import { createTestAuthorityScope as createIsolatedIDBAuthorityScope } from './test-authority.mjs';
+import { openIDBAuthorityStore, AUTHORITY_DB_NAME } from '../../port-indexeddb-authority-store.mjs';
 import { STORE_KEYS, PORT_DELETE_INTENTS, hashText } from '../../port-idb-authority-contract.mjs';
 import { values, control, patch } from './fixture.mjs';
 let scope,store,partitionId;const packets=new Map(),handles=new Map(),events=[];

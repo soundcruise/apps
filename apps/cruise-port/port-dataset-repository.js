@@ -1,5 +1,5 @@
 // Port owns this dataset. This module has no Account, Pro, audio or network side effects.
-import { isIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.11';
+import { isIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.12';
 export const PORT_DATASET_PROTOCOL = 1;
 export const PORT_DATASET_LOCK = 'sound-cruise:port:dataset:v1';
 export const PORT_DATASET_META = 'cruisePort.datasetRepository.v1';
@@ -123,9 +123,9 @@ export class PortDatasetRepository {
         if (!this.sharedWriteCapable) return this.inspect();
         return this.locks.request(this.lockName, { mode: 'shared' }, () => this.inspect());
     }
-    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {}, operationId, commitGuard, authorizationContext, dependencyKeys = [], acknowledgements = [] } = {}, writer) {
+    async runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local', preserveUnknown = true, assertCurrent = () => {}, operationId, commitGuard, authorizationContext, dependencyKeys = [], acknowledgements = [], operationData = null } = {}, writer) {
         if (this.backend) return this.backend.runWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source,
-            preserveUnknown, assertCurrent, operationId, commitGuard, authorizationContext, dependencyKeys, acknowledgements }, writer, event => {
+            preserveUnknown, assertCurrent, operationId, commitGuard, authorizationContext, dependencyKeys, acknowledgements, operationData }, writer, event => {
             for (const listener of this.listeners) { try { listener(event); } catch {} }
             // Isolated Authority commits never wake the production Sync runtime.
             try { this.notify(event, () => false); } catch {}
@@ -279,7 +279,7 @@ export class PortDatasetRepository {
             let matched;
             try { matched = parseJournal(this.inspect().values[PORT_DELETE_INTENTS])[key]?.generation === generation; }
             catch (e) { return { ok: false, status: 'rejected', reason: e.code || 'read-failed' }; }
-            return this.runWrite({ expectedRevision, source: 'ack', assertCurrent,
+            return this.runWrite({ expectedRevision, source: 'ackDelete', assertCurrent,
                 acknowledgements: [{ key, generation }] }, () => ({ matched }));
         }
         return this.runWrite({ expectedRevision, source: 'ack', assertCurrent }, draft => {

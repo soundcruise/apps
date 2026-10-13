@@ -7,7 +7,7 @@
  * See ../../LICENSE and ../../SECURITY-AND-AI-POLICY.md (repository-relative).
  */
 import { getEdition } from './cruise-port-edition.js?v=0.27.0';
-import { MY_APPS_LIMITS } from './my-apps-store.js?v=1.22.11';
+import { MY_APPS_LIMITS } from './my-apps-store.js?v=1.22.12';
 
 // Creation/write policy only. Never pass product limits into store validation.
 // SP1 defines policy; feature-specific enforcement follows in SP3–SP5.

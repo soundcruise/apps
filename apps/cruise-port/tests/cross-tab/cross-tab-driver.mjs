@@ -19,6 +19,7 @@ import { randomUUID } from 'node:crypto';
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { runReferentialSuite, runReferentialFailures } from './referential-suite.mjs';
+import { runActionPolicySuite } from './action-policy-suite.mjs';
 import { SCENARIOS, CONTROL_SCENARIOS, PAYLOADS, classifySameKey, classifyDifferentKeys,
     classifyDeleteIntents, classifyControl, verdict } from './cross-tab-scenarios.mjs';
 
@@ -129,6 +130,11 @@ try {
         if (report.targetRendererPids.some(p=>!Number.isInteger(p)) || new Set(report.targetRendererPids).size!==2)
             throw Error('trace did not prove distinct target renderer processes');
     }
+    if (args.suite === 'policy') {
+        if(backend!=='indexeddb-authority')throw Error('policy suite requires isolated IDB');
+        report.actionPolicy=await runActionPolicySuite({evaluate,primary,peer});
+        report.results=[{scenario:'action-policy',rounds:1,violations:0,inconclusiveRounds:0}];
+    }
     if (args.suite === 'referential') {
         if (backend !== 'indexeddb-authority') throw Error('referential suite requires isolated IDB');
         report.results = await runReferentialSuite({ evaluate, primary, peer, rounds, payloads, reproduction: mode === 'characterization' });
@@ -157,7 +163,7 @@ try {
             report.referenceFailures=[...failure.results,{name:'native Page.crash in attachment callback: exact committed/aborted snapshot and reopen',pass:true}];
         }
     }
-    for (const scenario of args.suite === 'referential' ? [] : scenarios) for (const payload of payloads) {
+    for (const scenario of ['referential','policy'].includes(args.suite) ? [] : scenarios) for (const payload of payloads) {
         const aggregate = { scenario, payload, rounds: 0, violations: 0, inconclusiveRounds: 0, details: [] };
         for (let round = 0; round < rounds; round++) {
             const generation = randomUUID();

@@ -1,11 +1,12 @@
+import { createTestAuthorityScope as createIsolatedIDBAuthorityScope, testProAuthorization } from '../authority-store/test-authority.mjs';
 // Real Repository + real L2a Store, native IDB, no locks or delivery hints.
 import { PortDatasetRepository, PORT_DATASET_KEYS } from '../../port-dataset-repository.js';
-import { createIsolatedIDBAuthorityScope } from '../../port-indexeddb-authority-store.mjs';
 import { openIsolatedIDBRepositoryBackend } from '../../port-indexeddb-repository-backend.mjs';
 import { values, control } from '../authority-store/fixture.mjs';
 import { referenceValues, REF_KEYS, attachment, danglingAttachments } from '../authority-store/reference-fixture.mjs';
 import { KEYS, CONTROL_SCENARIOS, counterLoop, deleteLoop, seedDeleteCollections } from './cross-tab-scenarios.mjs';
 let token, scope, generation, backend, repository;
+let proValid=true;const authorizations=new Map();
 const handles=new Map();
 function assertFixture() {
  if(!token || !['127.0.0.1','localhost','[::1]'].includes(location.hostname))throw Error('driver isolation required');
@@ -13,9 +14,9 @@ function assertFixture() {
 async function snapshot() { await backend.hydrate(); return backend.store.hydrate(generation).then(r=>{if(!r.ok)throw Error(r.reason);return r.snapshot;}); }
 window.crossTab={
  claim(id) { if(token&&token!==id)throw Error('different fixture owner');if(typeof id!=='string'||id.length<16)throw Error('driver token');token=id;assertFixture();return true; },
- async prepare({scenario,role,iterations,generation:gen,reference=false,attached=false,payload=0}) {
+ async prepare({scenario,role,iterations,generation:gen,reference=false,attached=false,payload=0,policy=false}) {
   assertFixture();backend?.dispose();generation=gen;
-  scope=createIsolatedIDBAuthorityScope({indexedDB,partitionId:token,name:'sound-cruise-port-authority-v1-fixture-'+token});
+  scope=createIsolatedIDBAuthorityScope({indexedDB,partitionId:token,name:'sound-cruise-port-authority-v1-fixture-'+token},{fixtureMutations:!policy});
   backend=await openIsolatedIDBRepositoryBackend({scope,generation,channelFactory:()=>null});
   if(role==='primary') {
    let v=reference?referenceValues({attached,payload}):values();if(scenario==='delete-intent')v=seedDeleteCollections(v,iterations);
@@ -51,6 +52,20 @@ window.crossTab={
  },
  commitPacket:id=>backend.commitPreparedWrite(handles.get(id)),
  retryPacket:request=>backend.retryWrite(request),
+ async policyPrepare({id,action='saveAdvanced',fields={volume:95}}) {
+  await backend.hydrate();const s=repository.inspect(),key='cruisePort.metronome';
+  const auth=action==='saveAdvanced'?testProAuthorization(scope,{operationId:id,action,resolve:()=>proValid?
+   {ok:true,policy:'pro',generation:1,credentialFingerprint:'a'.repeat(64),wallMarginMs:31000,monoMarginMs:31000}:false,credentialFingerprint:'a'.repeat(64)}):{};
+  authorizations.set(id,auth);const p=await backend.prepareWrite({operationId:id,source:action,expectedValues:{[key]:s.values[key]},...auth},d=>d.setItem(key,JSON.stringify({...JSON.parse(s.values[key]),...fields})));
+  handles.set(id,p);return p.request;
+ },
+ policyCommit:(id,guard=true)=>backend.commitPreparedWrite(handles.get(id),guard?authorizations.get(id):{}),
+ policyRetry(request,{authorized=false}={}) {
+  const auth=authorized?testProAuthorization(scope,{operationId:request.operationId,action:request.action,credentialFingerprint:'a'.repeat(64),resolve:()=>proValid?
+   {ok:true,policy:'pro',generation:1,credentialFingerprint:'a'.repeat(64),wallMarginMs:31000,monoMarginMs:31000}:false}):{};
+  return backend.retryWrite(request,auth);
+ },
+ policyRevoke:()=>{proValid=false;return true;},
  lookup:id=>backend.lookupOperation(id),
  snapshot,
  async reopen(){backend.dispose();backend=await openIsolatedIDBRepositoryBackend({scope,generation,channelFactory:()=>null});repository=new PortDatasetRepository({backend,locks:null});await backend.hydrate();return snapshot();},

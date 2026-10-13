@@ -1,11 +1,11 @@
 // L2b isolated adapter. Explicit scope/open only; no product boot or cloud publish.
-import { registerIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.11';
+import { registerIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.12';
 import { openIDBAuthorityStore } from './port-indexeddb-authority-store.mjs';
-import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.22.11';
+import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.22.12';
 import { frozen, fail, identifier, validateDataset } from './port-idb-authority-contract.mjs';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.11';
-import { loadMetronomeSettings } from './metronome-store.js?v=1.22.11';
-import { loadTunerSettings } from './tuner-store.js?v=1.22.11';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.12';
+import { loadMetronomeSettings } from './metronome-store.js?v=1.22.12';
+import { loadTunerSettings } from './tuner-store.js?v=1.22.12';
 const rejected = e => ({ ok: false, status: 'rejected', reason: e.code || 'read-failed' });
 function validateDomainValues(values) {
     validateDataset(values);
@@ -45,22 +45,22 @@ export async function openIsolatedIDBRepositoryBackend({ scope, generation, toke
     // Missing notifications affect display freshness only. Writes always use the
     // Store's current head in its transaction, never a channel message/cache CAS.
     if (channel) channel.onmessage = () => { hydrate().catch(() => {}); };
-    function captureRequest(request, authorizationContext) {
-        const fixed = frozen(structuredClone(request));
+    function captureRequest(request, authorizationContext, systemCapability) {
+        let fixed = frozen(structuredClone(request));
         if (fixed.base?.generation !== generation) throw fail('base-generation-mismatch');
         validateDomainValues({ ...fixed.base.values, ...fixed.changes });
-        if (fixed.requiresAuthorization && (!authorizationContext || !Object.isFrozen(authorizationContext))) throw fail('operation-context-invalid');
-        const handle = store.prepare({ ...fixed, authorizationContext });
+        const handle = store.prepare({ ...fixed, authorizationContext, systemCapability });
+        fixed=frozen({...fixed,...store.preparedIdentity(handle)});
         const opaque = Object.freeze({ operationId: fixed.operationId, request: fixed });
         prepared.set(opaque, { handle, request: fixed, authorizationContext });
         return opaque;
     }
     async function prepareWrite({ expectedRevision, expectedValues, expectedKeyRevisions, source = 'local',
         preserveUnknown = true, assertCurrent = () => {}, operationId = token(), authorizationContext,
-        dependencyKeys = [], acknowledgements = [] } = {}, writer) {
+        dependencyKeys = [], acknowledgements = [], operationData = null, systemCapability } = {}, writer) {
         inspect(); // no fallback before hydration / after lifecycle failure
         const base = snapshot; // fixed before any caller await or notification
-        const fixedDependencies = structuredClone(dependencyKeys), fixedAcknowledgements = structuredClone(acknowledgements);
+        const fixedDependencies = structuredClone(dependencyKeys), fixedAcknowledgements = structuredClone(acknowledgements),fixedOperationData=structuredClone(operationData);
         const expectedVersionKeys = Object.keys(expectedKeyRevisions || {});
         if (expectedRevision === undefined && expectedValues === undefined) throw fail('base-required');
         if (expectedRevision !== undefined && expectedRevision !== base.head.revision) throw fail('stale');
@@ -91,8 +91,10 @@ export async function openIsolatedIDBRepositoryBackend({ scope, generation, toke
         const request = { base, operationId, action: source, changes,
             dependencyKeys: [...new Set([...fixedDependencies, ...reads, ...expectedVersionKeys,
                 ...(expectedRevision !== undefined ? PORT_DATASET_KEYS : [])])], acknowledgements: fixedAcknowledgements,
-            requiresAuthorization: authorizationContext !== undefined };
-        const handle = captureRequest(request, authorizationContext);
+            operationData:fixedOperationData,requiresAuthorization: authorizationContext !== undefined };
+        const handle = captureRequest(request, authorizationContext, systemCapability);
+        const reservation=await store.reserveOperation(prepared.get(handle).handle);
+        if(!reservation.ok)return {rejected:reservation};
         prepared.get(handle).writerResult = result;
         return handle;
     }
@@ -130,8 +132,8 @@ export async function openIsolatedIDBRepositoryBackend({ scope, generation, toke
         },
         // Reopen/response-loss retry requires the original serialized request.
         // No new base, context retag, or writer execution is inferred from an ID.
-        async retryWrite(request, { authorizationContext, commitGuard } = {}) {
-            try { return await commitPreparedWrite(captureRequest(request, authorizationContext), { commitGuard }); }
+        async retryWrite(request, { authorizationContext, commitGuard, systemCapability } = {}) {
+            try { return await commitPreparedWrite(captureRequest(request, authorizationContext, systemCapability), { commitGuard }); }
             catch (e) { return rejected(e); }
         },
         lookupOperation: operationId => store.lookupOperation(generation, operationId),
