@@ -6,11 +6,11 @@
     'use strict';
     function createRuntime(options) {
         var core = options.core, coordinator = options.coordinator, env = options.environment || {};
-        var bpm = core.defaults.bpm, status = 'idle', error = null, generation = 0, run = null, disposed = false, destroyed = false;
+        var bpm = core.defaults.bpm, status = 'idle', error = null, generation = 0, run = null, disposed = false, destroyed = false, beat = null;
         var listeners = new Set(), pendingCloses = new Set(), failedCloses = new Set(), bindings = [];
         var settingsSource = options.settingsSource || null;
         var offSettings = null;
-        function snapshot() { return Object.freeze({ bpm: bpm, status: status, running: status === 'running', error: error,
+        function snapshot() { return Object.freeze({ bpm: bpm, status: status, running: status === 'running', error: error, beat: beat,
             sessionId: handle.sessionId, pendingCloseCount: pendingCloses.size + failedCloses.size, engine: run ? run.engine.snapshot() : null,
             settings: settingsSource ? settingsSource.snapshot() : null }); }
         function publish() { listeners.forEach(function (fn) { try { fn(snapshot()); } catch (_) { /* isolate UI */ } }); }
@@ -35,7 +35,7 @@
         }
         function stop(reason) {
             generation++;
-            var old = run; run = null;
+            var old = run; run = null; beat = null;
             if (old) old.engine.stop(); // synchronous cancellation, including pending start
             status = disposed ? 'disposed' : (reason === 'interrupted' ? 'interrupted' : 'idle');
             publish();
@@ -73,7 +73,7 @@
             if (disposed || (settingsSource && (!settingsSource.snapshot().loaded || settingsSource.snapshot().saveStatus === 'loading'))) return Promise.resolve(false);
             if (run) return run.promise || Promise.resolve(status === 'running');
             if (pendingCloses.size || failedCloses.size) return Promise.resolve(false);
-            error = null;
+            error = null; beat = null;
             var lease;
             try { lease = coordinator.request(handle, 'audio-output/session'); }
             catch (e) { error = String(e.message || e); }
@@ -81,7 +81,12 @@
             var token = ++generation;
             var owned = { lease: lease, context: null, engine: null, promise: null, closing: null };
             run = owned; status = 'starting';
-            owned.engine = core.createMetronomeAudioEngine(function () {}, Object.assign({}, env, {
+            // The engine's visual queue follows AudioContext time; no second beat clock.
+            owned.engine = core.createMetronomeAudioEngine(function (event) {
+                if (disposed || run !== owned || generation !== token || !coordinator.isLeaseCurrent(handle, lease) || !event.isMainBeat) return;
+                beat = Object.freeze({ index: event.beatIndex, when: event.when });
+                publish(); // Observer failures are isolated; the audio scheduler never awaits UI.
+            }, Object.assign({}, env, {
                 onContext: function (context) {
                     owned.context = context; coordinator.ownContext(handle, lease, context);
                     owned.stateListener = function () {
@@ -100,10 +105,10 @@
                 if (started && run === owned && generation === token && coordinator.grant(handle, lease)) {
                     status = 'running'; publish(); return true;
                 }
-                if (run === owned) { run = null; status = 'failed'; error = '音声を開始できませんでした'; publish(); }
+                if (run === owned) { run = null; beat = null; status = 'failed'; error = '音声を開始できませんでした'; publish(); }
                 await closeRun(owned); return false;
             }, async function (e) {
-                if (run === owned) { run = null; status = 'failed'; error = String(e.message || e); publish(); }
+                if (run === owned) { run = null; beat = null; status = 'failed'; error = String(e.message || e); publish(); }
                 await closeRun(owned); return false;
             });
             return owned.promise;
@@ -142,6 +147,8 @@
         var summary = doc.getElementById('shell-metronome-running'), summaryStop = doc.getElementById('shell-metronome-stop');
         var off = [], renderedBpm = null;
         var saveIndicator = doc.getElementById('studio-metronome-save-status');
+        var toggle = doc.getElementById('studio-metronome-toggle'), bpmDisplay = doc.getElementById('studio-metronome-current-bpm');
+        var beats = Array.from(root.querySelectorAll('[data-metronome-beat]'));
         function listen(target, type, handler) { target.addEventListener(type, handler); off.push(function () { target.removeEventListener(type, handler); }); }
         function render(state) {
             // Async save notifications must not replace an uncommitted number input.
@@ -155,6 +162,15 @@
                 saveIndicator.dataset.status = settingsState.saveStatus;
             }
             root.dataset.status = state.status;
+            bpmDisplay.textContent = String(state.bpm);
+            beats.forEach(function (element, index) {
+                var active = state.beat !== null && state.beat.index === index && (state.running || state.status === 'starting');
+                element.dataset.active = String(active);
+                element.setAttribute('aria-current', active ? 'step' : 'false');
+            });
+            toggle.textContent = state.running || state.status === 'starting' ? 'Stop' : 'Start';
+            toggle.setAttribute('aria-pressed', String(state.running || state.status === 'starting'));
+            toggle.disabled = !!loading || (!(state.running || state.status === 'starting') && state.pendingCloseCount > 0);
             start.disabled = !!loading || state.status === 'starting' || state.running || state.pendingCloseCount > 0;
             stop.disabled = !(state.running || state.status === 'starting' || state.pendingCloseCount > 0);
             if (start.disabled && doc.activeElement === start) stop.focus({ preventScroll: true });
@@ -168,17 +184,27 @@
         }
         listen(input, 'change', function () { runtime.setBpm(input.value); input.value = String(runtime.snapshot().bpm); });
         listen(input, 'keydown', function (event) {
-            if (event.defaultPrevented || input.closest('[hidden], [inert]') || options.shell.keyboard.isIMEBlocked(event)) return;
+            if (event.defaultPrevented || input.closest('[hidden], [inert]') || options.shell.getCommandContext().activeModal || options.shell.keyboard.isIMEBlocked(event)) return;
             if (event.key === 'Enter') {
                 event.preventDefault(); runtime.setBpm(input.value);
-                input.value = String(runtime.snapshot().bpm); input.blur(); return;
+                input.value = String(runtime.snapshot().bpm); return;
             }
             if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 's')
                 options.shell.keyboard.localCommand(event, 'studio.save', 'sheetCruise');
         });
-        listen(start, 'click', function () { runtime.setBpm(input.value); runtime.start(); });
-        listen(stop, 'click', function () { runtime.stop(); });
+        listen(start, 'click', function () { if (options.shell.getCommandContext().activeModal || start.closest('[hidden], [inert]') || options.shell.keyboard.isIMEBlocked({})) return; runtime.setBpm(input.value); runtime.start(); });
+        listen(stop, 'click', function () { if (options.shell.getCommandContext().activeModal || stop.closest('[hidden], [inert]') || options.shell.keyboard.isIMEBlocked({})) return; runtime.stop(); });
         listen(summaryStop, 'click', function () { runtime.stop(); });
+        // Native button Space/Enter activation, scoped to this explicit control only.
+        [toggle, start, stop].forEach(function (control) { listen(control, 'keydown', function (event) {
+            if ((event.key === ' ' || event.key === 'Enter') && (event.repeat || options.shell.keyboard.isIMEBlocked(event) ||
+                options.shell.getCommandContext().activeModal || control.closest('[hidden], [inert]'))) event.preventDefault();
+        }); });
+        listen(toggle, 'click', function () {
+            if (toggle.closest('[hidden], [inert]') || options.shell.getCommandContext().activeModal || options.shell.keyboard.isIMEBlocked({})) return;
+            if (runtime.snapshot().running || runtime.snapshot().status === 'starting') runtime.stop();
+            else { runtime.setBpm(input.value); runtime.start(); }
+        });
         off.push(runtime.subscribe(render)); render(runtime.snapshot());
         return Object.freeze({ dispose: function () { off.splice(0).forEach(function (dispose) { dispose(); }); } });
     }

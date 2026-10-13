@@ -1,4 +1,45 @@
-# Metronome統合契約 — M2（0.25.1）
+# Metronome統合契約
+
+## Studio Metronome PC Presentation v1（2026-10-14・現行）
+
+開始HEAD / origin/main / remote mainは`9a1e77e146947bfaabe8abec2ef450b793952257`。
+Studio **0.27.0**（PC UI追加によるminor）/ Port **1.22.18**（不変更）/ Studio schemaVersion **1**。
+
+Dockに大きな現在BPM、Start/Stopトグル、4拍の現在拍表示、Standard実効設定と一時設定の説明を追加。
+従来の個別Start/Stopも維持する。トグルのSpace/Enterはそのボタンだけが所有し、IME/just-composed、repeat、Modal、hidden/inertを拒否。
+BPM Enterは確定後も入力focusを保持。Cmd/Ctrl+Sは既存Structure Saveの対象を維持する。
+
+拍表示は既存M1 engineの`onVisualEvent`（AudioContext時刻で排出するvisual queue）からだけ更新する。
+独立timer・第2拍時計・新engineは追加しない。run identity / generation / leaseで旧通知を拒否し、Stop時にbeatを同期消去。
+BPM変更は既存reschedule、Start失敗/遅延取消/再Start/Coordinator cleanupは既存ownerの停止・close・lease解放を使う。
+workspace移動、Dock折畳み、Theme、visibility通知は自動停止/開始しない。折畳み中はNavigationのStopへ到達できる。
+view disposeで購読とcontrol listenerを解除し、runtime disposeで既存page/visibility/device listenerと資源を解放する。
+
+Tool paneは既存PortDataHostの凍結read modelだけを表示する。保存設定、順序付きpreset一覧、stable IDによる選択、名前/BPM/形式/Standard情報の詳細を追加。
+保存BPMまたは選択presetの対応形式のBPMだけを、**明示操作**でM2のStudio memoryへ反映できる。
+これはPortへの正式preset applyではなく、advanced値を反映せず、Port datasetを複製/保存しない。
+Host自身・connection・資格判定を変更せず、canWrite=false、全write capability=falseを維持する。
+外部更新は閲覧modelだけを更新し、dirty Structure、M2 memory、再生状態を無断変更しない。
+
+未確認/正常読込/保存データなし/読込中/stale/読込失敗/invalid/futureを区別する。
+future値は既知BPMの閲覧のみで一時反映不可。失敗時は原保存値を変更せず、明示再試行を案内する。
+stale中は古い値を操作可能な現行値として扱わない。Hostのgeneration無効化に従い旧modelを解除する。
+pagehideでHost購読/consumerを解放し、BFCache復帰では未確認Hostを再生成する。memoryはreloadで120へ戻り、自動再生しない。
+
+検証: 変更前Studio Node **315 PASS**、追加25件を含む全 **340 PASS**。
+既存正規Chrome4 suite **97 PASS**（親container4含む）、read-only Host **10ケースPASS**、PC Presentation **26 PASS**（親container1含む）。
+計128独立browserケース。1440/1024/1920/680px、4 Themes、keyboard/focus/IME、現在拍、BPM変更、Start/Stop反復、遅延resume取消、
+workspace/Dock/resize/reload/visibility、read delay/stale/失敗/retry/future、Structure dirty共存、A4 Printを確認。
+新PC suiteのfixture投入後のapp操作: Port localStorage / Port IDB / Authority DB create / Pro Device Session / Account / Sync outbox /
+Worker mutation / cloud publish **0**。console error / app404 / unhandled rejection **0**。
+独立loopback8766は正式repoを配信し、表示v0.27.0とsource一致。使い捨てChromeを使用、旧8765（調査時v0.22.4）は不触。
+変更した旧テスト期待値はStudio version、追加toggle数、Dock高さ上限のみ。主要controlの画面内到達性・音声・IME・無書込み検査を維持。
+
+**未接続**: 正式preset apply/CRUD、advanced renderer、Pro write、Account/Sync操作、共有保存、Transport同期、mic。
+Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**を維持。
+L3cの独立安全監査とDaybreakを待機し、今回新規認証競合/攻撃probeを実施しない。本工程の完了はAuthority安全性承認ではない。
+次は通常PC機能の優先度整理（Chord Standard Inspector / Practice read-only等）。M3 write解禁・B1-6再開は保留する。
+本番deploy / cutover / D1操作は行わない。以下のversion・件数・完了表記は各工程時点の履歴。
 
 ## Pro Final Commit Guard v1（2026-10-12・現行）
 

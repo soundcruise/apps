@@ -7,18 +7,18 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.26.12"></script>
+    <script src="js/core/color-theme.js?v=0.27.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.26.12">
+    <link rel="stylesheet" href="theme-projection.css?v=0.27.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.26.12">
-    <link rel="stylesheet" href="shell.css?v=0.26.12">
+    <link rel="stylesheet" href="theme.css?v=0.27.0">
+    <link rel="stylesheet" href="shell.css?v=0.27.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.26.12" media="print">
+    <link rel="stylesheet" href="print.css?v=0.27.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -53,7 +53,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.26.12</span>
+                <span class="studio-version" id="studio-version">v0.27.0</span>
             </header>
 
             <section class="module-section">
@@ -443,9 +443,17 @@
                 <h3 id="studio-port-data-title">Portデータ <small>読み取り専用</small></h3>
                 <p>このサイトに保存されたPortの値を確認します。DockのメモリBPMとは独立しています。</p>
                 <button type="button" id="studio-port-read">ローカル保存値を確認</button>
+                <p id="studio-port-read-status" role="status" aria-live="polite">未確認・読み取り専用</p>
                 <dl aria-live="polite"><dt>Port保存BPM</dt><dd data-port-bpm>未取得</dd><dt>有効設定</dt><dd data-port-effective>未確認</dd>
                 <dt>データ形式</dt><dd data-port-schema>未確認</dd><dt>Sync</dt><dd data-port-sync>未確認</dd><dt>Pro</dt><dd data-port-pro>未確認</dd><dt>Account</dt><dd data-port-account>未確認</dd></dl>
+                <button type="button" id="studio-port-copy-bpm" disabled>保存BPMを一時設定へ</button>
                 <h4>保存済みプリセット</h4><p data-port-empty>未取得 / プリセットなし</p><ol aria-label="Port保存済みプリセット"></ol>
+                <section id="studio-port-preset-detail" aria-label="プリセット詳細" hidden>
+                    <h4 data-preset-name></h4><p data-preset-detail></p>
+                    <p>Standardで利用するのはBPMのみです。詳細設定は反映しません。</p>
+                    <button type="button" id="studio-port-copy-preset" disabled>このBPMを一時設定へ</button>
+                </section>
+                <p id="studio-port-copy-status" role="status" aria-live="polite"></p>
                 <p><a href="../cruise-port/" target="_blank" rel="noopener">Account / SyncはPortで管理 ↗</a></p>
                 </section></div>
         </aside>
@@ -453,6 +461,11 @@
             <div data-dock-slot="transport"><h2>Transport</h2><p>再生コントロールは準備中です。</p></div>
             <div data-dock-slot="auxiliary" id="studio-metronome" data-feature-id="port.metronome">
                 <h2>Metronome</h2>
+                <div class="studio-metronome-readout"><strong id="studio-metronome-current-bpm">120</strong><span>BPM</span>
+                    <button type="button" id="studio-metronome-toggle" aria-label="Metronome Start / Stop（Space・Enter）" aria-pressed="false">Start</button>
+                    <ol class="studio-metronome-beats" aria-label="現在拍（4/4）"><li data-metronome-beat="0">1</li><li data-metronome-beat="1">2</li><li data-metronome-beat="2">3</li><li data-metronome-beat="3">4</li></ol>
+                </div>
+                <p>Studio一時設定 · 4/4 · 四分音符 · 電子音 · 音量70 · 1拍目アクセント<br>再読込で初期化。Port保存値とは独立しています。</p>
                 <div class="studio-metronome-controls">
                     <label for="studio-metronome-bpm">BPM</label><input id="studio-metronome-bpm" type="number" min="30" max="240" step="1" value="120" inputmode="numeric">
                     <button type="button" id="studio-metronome-start" aria-label="Metronomeを開始" aria-pressed="false">Start</button>
@@ -465,30 +478,30 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.26.12"></script>
-    <script src="js/core/song-model.js?v=0.26.12"></script>
-    <script src="js/core/storage.js?v=0.26.12"></script>
-    <script src="js/core/editing-session.js?v=0.26.12"></script>
-    <script src="js/core/project-repository.js?v=0.26.12"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.26.12"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.26.12"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.26.12"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.26.12"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.26.12"></script>
-    <script src="js/core/command-router.js?v=0.26.12"></script>
-    <script src="js/core/focus-routing.js?v=0.26.12"></script>
-    <script src="js/core/keyboard-router.js?v=0.26.12"></script>
-    <script src="js/core/modal-manager.js?v=0.26.12"></script>
-    <script src="js/shell.js?v=0.26.12"></script>
-    <script src="js/core/audio-coordinator.js?v=0.26.12"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.26.12"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.26.12"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.26.12"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.26.12"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.26.12"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.26.12"></script>
-    <script src="js/app.js?v=0.26.12"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.26.12"></script>
+    <script src="js/core/music-theory.js?v=0.27.0"></script>
+    <script src="js/core/song-model.js?v=0.27.0"></script>
+    <script src="js/core/storage.js?v=0.27.0"></script>
+    <script src="js/core/editing-session.js?v=0.27.0"></script>
+    <script src="js/core/project-repository.js?v=0.27.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.27.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.27.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.27.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.27.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.27.0"></script>
+    <script src="js/core/command-router.js?v=0.27.0"></script>
+    <script src="js/core/focus-routing.js?v=0.27.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.27.0"></script>
+    <script src="js/core/modal-manager.js?v=0.27.0"></script>
+    <script src="js/shell.js?v=0.27.0"></script>
+    <script src="js/core/audio-coordinator.js?v=0.27.0"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.27.0"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.27.0"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.27.0"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.27.0"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.27.0"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.27.0"></script>
+    <script src="js/app.js?v=0.27.0"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.27.0"></script>
 </body>
 
 </html>

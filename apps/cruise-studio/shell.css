@@ -179,3 +179,31 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 #studio-port-data button, #studio-port-data a { color: var(--studio-text-primary); }
 #studio-port-data button { background: var(--studio-panel); border: 1px solid var(--studio-border-default); border-radius: .4rem; padding: .5rem; }
 #studio-port-data dl, #studio-port-data ol { font-size: .8125rem; line-height: 1.6; }
+
+/* PC Metronome: existing semantic tokens, no animation or independent clock. */
+.studio-metronome-readout { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 6px; }
+#studio-metronome-current-bpm { font-size: 32px; line-height: 1; font-variant-numeric: tabular-nums; color: var(--studio-text-primary); }
+.studio-metronome-readout > span { font-size: 11px; color: var(--studio-text-muted); }
+#studio-metronome-toggle, #studio-port-data button { min-height: 36px; padding: 6px 12px; font: inherit; font-size: 12px; border: 1px solid var(--studio-field-border); border-radius: 5px; background: var(--studio-control); color: var(--studio-text-primary); cursor: pointer; }
+#studio-metronome-toggle { min-width: 80px; font-weight: 600; }
+#studio-metronome-toggle[aria-pressed="true"] { background: var(--studio-selected-bg); border-color: var(--studio-selected-border); color: var(--studio-selected-text); }
+#studio-port-data button:hover, #studio-metronome-toggle:hover { background: var(--studio-control-hover); }
+#studio-port-data button:disabled, #studio-metronome-toggle:disabled { opacity: .5; cursor: default; }
+#studio-port-data button:focus-visible, #studio-metronome-toggle:focus-visible, .studio-metronome-controls :is(button,input):focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+.studio-metronome-beats { display: flex; gap: 6px; padding: 0; margin: 0; list-style: none; }
+.studio-metronome-beats li { display: grid; place-items: center; width: 30px; height: 30px; border: 1px solid var(--studio-border-default); border-radius: 4px; color: var(--studio-text-muted); }
+.studio-metronome-beats li[data-active="true"] { border-color: var(--studio-selected-border); background: var(--studio-selected-bg); color: var(--studio-selected-text); font-weight: 700; }
+#studio-metronome-status { color: var(--studio-text-primary); }
+#studio-metronome[data-status="failed"] #studio-metronome-status { color: var(--studio-danger); }
+#studio-port-data ol { padding-left: 18px; margin-block: 12px; }
+#studio-port-data li { margin-block: 8px; }
+#studio-port-data li small { display: block; color: var(--studio-text-muted); font-size: 11px; margin-top: 3px; overflow-wrap: anywhere; }
+#studio-port-data li button { width: 100%; text-align: left; overflow-wrap: anywhere; }
+#studio-port-data li button[aria-pressed="true"] { border-color: var(--studio-selected-border); background: var(--studio-selected-bg); }
+#studio-port-preset-detail { padding-block: 10px; border-top: 1px solid var(--studio-border-default); }
+#studio-port-data dd, #studio-port-preset-detail h4 { overflow-wrap: anywhere; }
+#studio-port-read-status[data-status="error"], #studio-port-read-status[data-status="invalid"] { color: var(--studio-danger); }
+.studio-dock { grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr); max-height: 32dvh; }
+.studio-metronome-controls { row-gap: 4px; }
+#studio-metronome-save-status { flex-basis: 100%; }
+@media (max-width: 800px) { .studio-dock { grid-template-columns: minmax(100px, 1fr) minmax(0, 3fr); gap: 12px; padding: 12px; } }

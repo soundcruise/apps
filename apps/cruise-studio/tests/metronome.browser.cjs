@@ -57,7 +57,7 @@ test('Audio Coordinator + Metronome M1 real Chrome',async t=>{
   function lum(rgb){const v=rgb.match(/[\d.]+/g).slice(0,3).map(x=>Number(x)/255).map(x=>x<=.04045?x/12.92:((x+.055)/1.055)**2.4);return .2126*v[0]+.7152*v[1]+.0722*v[2];}
   report.themes=[];const dir=process.env.QA_ARTIFACT_DIR;if(dir)fs.mkdirSync(dir,{recursive:true});
   for(const theme of ['dark','charcoal','gray','light']){await p.evaluate(id=>CruiseStudio.colorTheme.applyColorTheme(id),theme);assert.equal((await runtime()).running,true);
-   const styles=await p.locator('#studio-metronome-bpm').evaluate(e=>({color:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor,outline:getComputedStyle(e).outlineColor,height:document.querySelector('#studio-dock').getBoundingClientRect().height}));const [a,b]=[lum(styles.color),lum(styles.bg)].sort((a,b)=>b-a);assert((a+.05)/(b+.05)>=4.5);assert(styles.height<=120);report.themes.push({theme,contrast:(a+.05)/(b+.05),height:styles.height});
+   const styles=await p.locator('#studio-metronome-bpm').evaluate(e=>({color:getComputedStyle(e).color,bg:getComputedStyle(e).backgroundColor,outline:getComputedStyle(e).outlineColor,height:document.querySelector('#studio-dock').getBoundingClientRect().height}));const [a,b]=[lum(styles.color),lum(styles.bg)].sort((a,b)=>b-a);assert((a+.05)/(b+.05)>=4.5);assert(styles.height<=900*.32);report.themes.push({theme,contrast:(a+.05)/(b+.05),height:styles.height});
    if(dir)await p.screenshot({path:`${dir}/metronome-${theme}.png`});
   }
  });
