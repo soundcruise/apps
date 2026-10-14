@@ -49,6 +49,8 @@ function dashboardView(data){
  $('dashboard').replaceChildren();for(const [key,label]of [['published','公開'],['pending','保留'],['approvable','掲載可'],['humanDecisions','人間判断']]){const block=el('div',undefined,'summary-count');block.append(el('span',label),el('strong',key==='approvable'?items.filter(row=>row.validation?.valid===true).length:data[key]));$('dashboard').append(block);}
  $('dashboard').append(el('p',`再確認待ち ${items.filter(r=>r.lifecycle?.next_recheck_at).length} · 掲載希望 ${items.filter(r=>r.lifecycle?.user_publish_interest).length} · 長期保留 ${items.filter(r=>r.lifecycle?.longPending).length}`,'meta'));
  $('rejected-count').textContent='却下 '+data.rejected+'件';
+ const diagnostic=data.parserDiagnostics,diagnosticLabels={not_instrumented:'次回定時収集後に計測します',ok:'計測済み',sparse_listing:'説明候補が少ない一覧です',insufficient_sample:'品質判定の対象候補が少ないため保留中です',parser_quality_warning:'解析品質の確認が必要です（通信障害とは別の診断）',provenance_invalid:'診断の取得証拠を確認できません'};
+ const diagnosticText=$('parser-diagnostics');if(diagnosticText){diagnosticText.hidden=!diagnostic||diagnostic.status==='paused';diagnosticText.textContent=diagnosticLabels[diagnostic?.status]?'Morris Guitars 解析診断：'+diagnosticLabels[diagnostic.status]+'。':'';}
  $('dashboard').append(el('p','公開は掲載承認済みの件数。人間判断は直近365日の確定履歴です。','meta summary-note'));
 }
 function shadowView(data){

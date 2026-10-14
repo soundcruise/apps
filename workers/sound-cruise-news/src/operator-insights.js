@@ -1,6 +1,7 @@
 import {DAY,hash} from './policy.js';
 import {DECISION_POLICY_VERSION,parseFacts} from './decision-policy.js';
 import {validatedProductEvent} from './product-event.js';
+import {morrisDiagnosticsHealth} from './morris-diagnostics.js';
 export const INSIGHTS_VERSION='structured-human-v1';
 export const MINIMUM_EVIDENCE=5;
 // No older policy is declared compatible without an explicit, reviewed mapping.
@@ -54,7 +55,7 @@ export async function similarDecisions(store,row,validation,now){return evaluate
 export async function dashboardSummary(store,now){
  const rows=(await store.db.prepare('SELECT review_status,COUNT(*) AS n FROM candidate_items GROUP BY review_status').all()).results,counts=Object.fromEntries(rows.map(r=>[r.review_status,r.n]));
  const human=await store.db.prepare("SELECT COUNT(*) AS n FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? AND decided_at<=?").bind(now-365*DAY,now).first();
- return {published:counts.approved||0,pending:(counts.pending||0)+(counts.reopened||0),rejected:counts.rejected||0,humanDecisions:human.n,generatedAt:now,publishedBasis:'approved_status',humanRetentionDays:365};
+ return {published:counts.approved||0,pending:(counts.pending||0)+(counts.reopened||0),rejected:counts.rejected||0,humanDecisions:human.n,generatedAt:now,publishedBasis:'approved_status',humanRetentionDays:365,parserDiagnostics:await morrisDiagnosticsHealth(store,now)};
 }
 export async function humanDecisionHistory(store,now,{offset=0}={}){
  const rows=(await store.db.prepare("SELECT decision_id,candidate_id,source_id,category,verdict,reason,decided_at,policy_version FROM news_decision_ledger WHERE actor_type='human_operator' AND success_state='committed' AND created_at>? AND decided_at<=? ORDER BY decided_at DESC,decision_id DESC LIMIT 51 OFFSET ?").bind(now-365*DAY,now,offset).all()).results;

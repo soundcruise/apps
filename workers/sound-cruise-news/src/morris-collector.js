@@ -5,6 +5,7 @@ import {MORRIS_PERMISSION,MORRIS_LISTING,MORRIS_PARSER,MORRIS_FRESH_MS,morrisDay
 import {parseMorrisListing,parseMorrisArticle,morrisLabel,MORRIS_LISTING_PARSER} from './morris-evidence.js';
 import {eventEndsAt} from './event.js';
 import {healthForOutcome} from './source-health.js';
+import {summarizeMorrisDiagnostics} from './morris-diagnostics.js';
 const activeSQL="EXISTS(SELECT 1 FROM news_controls WHERE id=1 AND collection_enabled=1) AND EXISTS(SELECT 1 FROM source_state WHERE source_id='morris' AND disabled=0 AND takedown=0 AND publication_blocked=0)";
 export async function morrisReceipt(store,url){return await store.db.prepare("SELECT * FROM news_morris_acquisition WHERE scope='article' AND source_url=?").bind(url).first();}
 // A verified listing is a primary surface. Its stored URL/day/facts/proof must
@@ -64,6 +65,8 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    if(previous.outcome!=='verified'||previous.permission_ref!==MORRIS_PERMISSION)return report;
    // Same-day replay processes only stored bounded facts; no publisher requests.
    entries=JSON.parse(previous.entries_json||'[]');report.cachedListing=true;
+   let diagnosticProof=null;try{diagnosticProof=JSON.parse(previous.proof_json);}catch{}
+   report.parserDiagnostics=summarizeMorrisDiagnostics(entries,diagnosticProof);
   }else if(await reserve(store,{key,scope:'listing',url:MORRIS_LISTING,now})){
    let rr=await request(source.robotsUrl,key,'robots');
    // Reviewed 404. A newly installed robots policy is a change requiring review.
@@ -72,6 +75,7 @@ export async function collectMorris(store,{source,now,mode,registry,pepper,fetch
    if(listing.status!==200||!/text\/html/i.test(listing.headers.get('content-type')||''))throw Error('discovery_unavailable');
    const responseHash=await hash(listing.text);try{entries=await parseMorrisListing(listing.text,pepper,{verifiedAt:now});}finally{listing.text='';listing=null;}
    const listingProof={sourceId:'morris',sourceUrl:MORRIS_LISTING,verifiedAt:now,responseHash,parserVersion:MORRIS_LISTING_PARSER,permissionRef:MORRIS_PERMISSION,canonicalBasis:'canonical',entryCount:entries.length};
+   listingProof.diagnostics=summarizeMorrisDiagnostics(entries,listingProof);report.parserDiagnostics=listingProof.diagnostics;
    await store.db.prepare("UPDATE news_morris_acquisition SET outcome='verified',response_hash=?,entries_json=?,proof_json=? WHERE request_key=? AND outcome='reserved' AND actual_requests=2 AND attempted_at=? AND permission_ref=?").bind(responseHash,JSON.stringify(entries),JSON.stringify(listingProof),key,now,MORRIS_PERMISSION).run();
   }else return report;
   if(!Array.isArray(entries)||entries.length>100)throw Error('listing_structure_changed');

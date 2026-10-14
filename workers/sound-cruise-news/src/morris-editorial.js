@@ -9,9 +9,11 @@ export function morrisEditorialLabel(f,eventType){
  const required={craftsmanship:'guitar_making',feature:'guitar_structure',support:'guitar_maintenance'}[f.articleType];
  return f.topic===required?`Morris Guitars、${topics[f.topic]}${types[f.articleType]}`:null;
 }
-export function extractMorrisEditorial(title,descriptions){
+export function extractMorrisEditorial(title,descriptions,trace=null){
  const lead=descriptions.join(' ');
- if(!lead||!/Morris|モーリス/i.test(lead)||!/アコースティックギター|アコギ|フィンガーピッキング/.test(title+' '+lead)||/予定|計画|検討|予告|公開します|開催予定|開催します|開催いたします|参加募集|エントリー|出展します|発売予定|発売決定|発売|新製品|セール|再入荷|比較|受付停止|中止|延期/.test(title+' '+lead))return null;
+ const manufacturer=/Morris|モーリス/i.test(lead),relevant=/アコースティックギター|アコギ|フィンガーピッキング/.test(title+' '+lead),excluded=/予定|計画|検討|予告|公開します|開催予定|開催します|開催いたします|参加募集|エントリー|出展します|発売予定|発売決定|発売|新製品|セール|再入荷|比較|受付停止|中止|延期/.test(title+' '+lead);
+ if(trace){trace.editorialGuardPassed=!!lead&&manufacturer&&relevant&&!excluded;trace.relevance=relevant;if(!trace.modelCandidate&&!trace.eventCandidate)trace.branch='editorial_guard';}
+ if(!lead||!manufacturer||!relevant||excluded)return null;
  let articleType,subject,topic;
  const named=[...title.matchAll(/「([^」]{2,70})」/g)].map(m=>m[1]).filter(v=>lead.includes('「'+v+'」'));
  if(named.length===1&&/開催レポート/.test(title)&&/開催レポート|開催を振り返/.test(lead)){articleType='event_report';subject=named[0];}
