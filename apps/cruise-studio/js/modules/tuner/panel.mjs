@@ -1,4 +1,4 @@
-import { createRuntime } from './runtime.mjs?v=0.31.0';
+import { createRuntime } from './runtime.mjs?v=0.31.1';
 const CS = globalThis.CruiseStudio;
 function initialize() {
     CS.tunerRuntime = createRuntime({ coordinator: CS.audio });

@@ -1,6 +1,31 @@
 # Cruise Studio Project State
 
-## Studio Gear & My Apps Read-only PC Workspace v1（2026-10-14・現行）
+## Structure / Pre-DTM Active Document Alignment v1（2026-10-14・現行）
+
+Studio **0.31.1**（対象曲ずれのbug fix）/ Port **1.22.18** / Chord **1.20.1**。
+開始HEAD / origin/main / remote main=`171f31fa7dcc851d055554666c3ae48f3bd910c7`、tracked/staged空、ahead/behind0/0。
+Studio schema **1** / Authority physical schema **2**維持。
+
+既存registryのactive Structure sessionを唯一のdocument正本にし、Pre-DTM selectorも正式ownerへ委譲。
+A→Pre-DTM→新規dirty B→Pre-DTMで古いAを出力する反例を正式browser試験に追加し、修正前FAILを確認。
+修正後はBのJSON/MIDIとdraft/base/dirty保持。同じ曲のworkspace復帰はreloadせず、A/B/Aも個別sessionを保持。
+出力は開始時のimmutable working snapshot・設定へ固定。旧完了statusとFileReaderは対象世代が変われば適用しない。
+保存待ち・IME未確定・dirty external conflict・削除・future/invalid・読取不能・対象なしではPre-DTM出力をblock。
+新規/未保存/保存済み/削除draft/対象なしを表示。表示/出力によるproject自動保存なし。
+伴奏設定はADR-014どおり全曲共通appSettings。曲別設定mapや新schemaは作らず、明示設定変更だけを保存する。
+
+検証: baseline Studio Node497 PASS → 新規32を含む**529 PASS**（clean guard含む）。
+Chrome: 既存正規9 suite**219 PASS**＋新Active Document**14 PASS**、計**233 PASS**（親10含む）。
+A〜E、保存/reload/外部更新/削除/future/空、旧FileReader、出力中切替、draft/focus、4テーマ×390/768/1024/1440/1920、Printを確認。
+No-write各項目0、console/app404/unhandled rejection0、画面/source0.31.1一致。
+正式repo rootの隔離8766 / 使い捨てChrome / 合成micのみ。既存8765・利用者profile不触。
+
+Port/Shared/Worker製品コード不変更。Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**。
+Daybreak待機/L3c境界維持、新規動的認証probe・deploy・D1・cutoverなし。
+次はWorkspace Focus Restoration。一覧focus復帰、390px toolbar/Loupe overflow、Dock密度、domain Undoは未修正。
+詳細は[Active Document契約](../docs/ACTIVE_DOCUMENT_ALIGNMENT.md)を参照。以下は各工程時点の履歴。
+
+## Studio Gear & My Apps Read-only PC Workspace v1（2026-10-14・履歴）
 
 Studio **0.31.0** / Port **1.22.18** / Chord **1.20.1**。Studio schema **1** / Authority physical schema **2**維持。
 開始HEAD / origin/main / remoteは`f859b9c968e2e19b5c454201bab01b6be0d5cadb`、tracked/staged空・ahead/behind0/0。

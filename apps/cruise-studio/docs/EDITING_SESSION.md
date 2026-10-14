@@ -1,5 +1,13 @@
 # Structure Editing Session v1
 
+## Active Document Alignment（0.31.1・現行）
+
+[Active Document契約](ACTIVE_DOCUMENT_ALIGNMENT.md)が、以下のPre-DTM独立選択・saved fallbackの旧実装境界を更新する。
+registryのactive Structure sessionを唯一の対象正本とし、両selectorを同じownerへ接続。
+未保存draftはworking snapshotとして出力し、dirty/base/savedを維持する。
+external pending・削除・未確定入力・保存待ち・future/invalidではPre-DTM出力を止め、draftを保持する。
+既存commit/CAS/履歴/Printの保存契約は変更しない。以下のバージョン・検証・未接続記述は各工程時点の履歴。
+
 APP_VERSION 0.24.0 / schemaVersion 1。責務の正本は[Shell Contract v2.1](SHELL_CONTRACT.md)、
 本書はStructureへの実装境界と検証・制約を記録する。
 
@@ -129,8 +137,8 @@ focusがNavigationへ移ってもtargetを消さない。workspace非activeで�
 text controlの通常shortcut除外は維持し、Structure adapterがSaveだけを`keyboard.localCommand`へ委譲する。
 IME・modal・hidden / inert・処理済みeventはgateする。Studioが消費したSaveだけpreventDefaultする。
 
-app.jsのsource providerは、Pre-DTMの選択projectIdがactive Structure sessionと一致する場合だけworkingを返す。
-別projectはsavedを返し、非activeなcached dirty sessionを誤使用しない。選択UIの一本化は未実装。
+app.jsのsource providerはactive Structure sessionのworkingだけを返す。
+Pre-DTMの別project選択も正式ownerで同じsessionへ切り替える。独立したsaved fallbackは使わない。
 Pre-DTM activate / 明示入力再読込 / JSON・MIDI exportで選択sourceを更新する。
 activateはloadを呼ばず、伴奏設定や選択を初期化しない。dirty working使用時は小さく未保存由来を表示する。
 新規未保存projectも同じ入口で読める。実再生・自動playback更新はない。

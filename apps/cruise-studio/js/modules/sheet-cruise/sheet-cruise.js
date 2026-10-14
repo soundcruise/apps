@@ -245,6 +245,9 @@
     function refreshSessionStatus() {
         var session = state.session;
         if (!session) return;
+        var selected = els.projectSelect.selectedOptions[0];
+        if (selected && selected.value === session.target.projectId) selected.textContent = (session.draft.songInfo.title || '無題') +
+            (session.conflict && session.conflict.deleted ? '（削除・draft保持）' : session.baseRevision === null ? '（新規・未保存）' : session.dirty ? '（未保存）' : '');
         els.saveBtn.disabled = !session.canCommit();
         var adopt = q('sc-adopt-external');
         if (adopt) { adopt.hidden = !session.externalUpdatePending; adopt.disabled = session.commitInFlight || !!(session.conflict && session.conflict.deleted); }
@@ -265,6 +268,7 @@
         state.session = session;
         selectionDeleted = false;
         CS().sessions.activateSession(session);
+        if (CS().documents) CS().documents.bind(session);
         var view = projectViews.get(session.sessionId);
         state.selectedBarNumber = view ? view.selectedBarNumber : null;
         state.dockManualRes = view ? view.dockManualRes : {};
@@ -272,7 +276,7 @@
         if (view) state.loupe = Object.assign({}, view.loupe);
         state.dockBulkOpen = false;
         state.workspaceFocus = null; state.workspaceScroll = view ? view.scroll : null;
-        CS().storage.setCurrentProjectId(session.target.projectId);
+        if (CS().storage.getCurrentProjectId() !== session.target.projectId) CS().storage.setCurrentProjectId(session.target.projectId);
         if (CS().shellHost) {
             CS().shellHost.setCommandTarget('editingSession', session);
             CS().shellHost.setCommandTarget('activeDocument', session.target);
@@ -2801,7 +2805,9 @@
         event.target.value = '';
         if (!file) return;
         var reader = new FileReader();
+        var intent = CS().documents.ticket();
         reader.onload = function () {
+            if (!CS().documents.isSelected(intent)) { setSaveStatus('対象の曲が変わったため読み込みを中止しました', true); return; }
             var res = CS().storage.importProjectJson(String(reader.result));
             if (!res.ok) {
                 setSaveStatus(res.error, true);
@@ -2995,6 +3001,7 @@
         handleEscape: handleEscape,
         setEscapeRouter: function (router) { escapeRouter = router; },
         getSession: function () { return state.session; },
+        openProject: openProject,
         getSelectionSnapshot: getSelectionSnapshot,
         subscribeSelection: function (fn) { selectionListeners.add(fn); return function () { selectionListeners.delete(fn); }; },
         commitSession: commitSession,

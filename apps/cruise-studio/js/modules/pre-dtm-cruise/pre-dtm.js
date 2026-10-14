@@ -21,9 +21,9 @@
 
     var els = {};
     var projectSourceProvider = null;
+    var documentHost = null, ensureDocument = null, active = false, refreshing = false;
 
-    // 同期provider(projectId) -> {ok, project, error}。既存hostは保存済みprojectを読む。
-    // 将来のworking snapshotも複製して固定し、発行元draftとmutable objectを共有しない。
+    // Synchronous active-document provider. No selected-ID or saved fallback here.
     function freezeSnapshot(value) {
         if (value && typeof value === 'object') {
             Object.keys(value).forEach(function (key) { freezeSnapshot(value[key]); });
@@ -32,8 +32,8 @@
         return value;
     }
 
-    function readProjectSource(projectId) {
-        var res = projectSourceProvider ? projectSourceProvider(projectId) : CS().storage.loadProject(projectId);
+    function readProjectSource() {
+        var res = projectSourceProvider ? projectSourceProvider() : { ok: false, error: '対象の曲を確認できません。' };
         if (!res.ok) return res;
         return Object.assign({}, res, { ok: true, project: freezeSnapshot(JSON.parse(JSON.stringify(res.project))) });
     }
@@ -44,6 +44,8 @@
         }
         projectSourceProvider = provider; // 次の明示読込で使用。現在のsnapshotは交換しない。
     }
+
+    function setDocumentHost(host, ensure) { documentHost = host; ensureDocument = ensure; }
 
     function q(id) { return document.getElementById(id); }
 
@@ -125,7 +127,7 @@
     function onSettingChange() {
         readSettingsFromUI();
         saveSettings();
-        if (state.project) {
+        if (refreshSource() === true) {
             regenerate();
             setStatus('設定を反映して再生成しました');
         }
@@ -137,28 +139,38 @@
         var storage = CS().storage;
         var projects = storage.listProjects();
         els.projectSelect.innerHTML = '';
+        var session = documentHost && documentHost.getSession();
+        var identity = session ? session.target.projectId : null;
+        CS().sessions.listSessions().filter(function (s) { return s.domain === 'structure'; }).forEach(function (s) {
+            var index = projects.findIndex(function (p) { return p.projectId === s.target.projectId; });
+            var label = (s.draft.songInfo.title || '無題') + (s.conflict && s.conflict.deleted ? '（削除・draft保持）' :
+                s.baseRevision === null ? '（新規・未保存）' : s.dirty ? '（未保存）' : '');
+            var meta = { projectId: s.target.projectId, title: label, artist: '' };
+            if (index < 0) projects.push(meta); else projects[index] = meta;
+        });
+        if (!identity) {
+            var none = document.createElement('option'); none.value = ''; none.textContent = '対象なし'; els.projectSelect.appendChild(none);
+        }
         projects.forEach(function (meta) {
             var opt = document.createElement('option');
             opt.value = meta.projectId;
             opt.textContent = meta.title + (meta.artist ? ' / ' + meta.artist : '');
             els.projectSelect.appendChild(opt);
         });
-        if (state.project) {
-            if (!projects.some(function (meta) { return meta.projectId === state.project.projectId; })) {
-                var draftOption = document.createElement('option'); draftOption.value = state.project.projectId;
-                draftOption.textContent = state.project.songInfo.title + '（未保存）'; els.projectSelect.appendChild(draftOption);
-            }
-            els.projectSelect.value = state.project.projectId;
-        }
+        els.projectSelect.value = identity || '';
     }
 
-    function showEmptyState() {
+    function showEmptyState(error) {
         state.project = null; state.source = null;
         els.sourceNotice.textContent = '';
         state.arrangement = null;
         els.empty.classList.remove('hidden');
         els.content.classList.add('hidden');
-        setStatus('');
+        els.exportJsonBtn.disabled = els.exportMidiBtn.disabled = true;
+        els.empty.querySelector('.pd-empty-title').textContent = error ? 'この曲を出力できません' : 'まだプロジェクトがありません';
+        els.empty.querySelector('.pd-empty-note').textContent = error || 'Structureで曲を作成してください。';
+        els.emptyGotoSheet.textContent = error ? 'Structureで確認する' : '譜面クルーズで曲をつくる';
+        setStatus(error || '', !!error);
     }
 
     function regenerate() {
@@ -166,60 +178,39 @@
         renderAll();
     }
 
-    function loadAndRender(projectId) {
-        var storage = CS().storage;
-        var res = readProjectSource(projectId);
-        if (!res.ok) {
-            setStatus(res.error, true);
-            return false;
-        }
-        state.project = res.project; state.source = res;
-        storage.setCurrentProjectId(res.project.projectId); // 譜面クルーズと共有
-        els.empty.classList.add('hidden');
-        els.content.classList.remove('hidden');
-        regenerate();
-        setStatus('「' + res.project.songInfo.title + '」から伴奏イベントを生成しました');
-        return true;
-    }
-
     /**
      * 画面に入る。currentProjectId（譜面クルーズと共通）→ 保存済み先頭 の順で読み込む。
      * どちらもなければ空状態（譜面クルーズでの作成を案内）。
      */
     function load() {
-        loadSettings();
-        syncSettingsUI();
-        var storage = CS().storage;
-        refreshProjectSelect();
-        var currentId = storage.getCurrentProjectId();
-        if (currentId && loadAndRender(currentId)) {
-            refreshProjectSelect();
-            return;
-        }
-        var first = storage.listProjects()[0];
-        if (first && loadAndRender(first.projectId)) {
-            refreshProjectSelect();
-            return;
-        }
-        showEmptyState();
+        if (ensureDocument) ensureDocument();
+        refreshSource();
     }
 
     // Refresh only the selected source; activation does not reload settings or reset selection.
     function refreshSource() {
-        if (!state.project) return;
-        var result = readProjectSource(state.project.projectId);
-        if (!result.ok) { setStatus(result.error, true); return false; }
-        if (state.source && result.version !== undefined && result.version === state.source.version && result.source === state.source.source) return true;
-        state.project = result.project; state.source = result; regenerate(); return true;
+        if (refreshing) return false;
+        refreshing = true;
+        try {
+            var result = readProjectSource();
+            refreshProjectSelect();
+            if (!result.ok) { showEmptyState(result.code === 'no-document' ? '' : result.error); return false; }
+            if (!documentHost.isCurrent(result)) { showEmptyState('対象の曲が変わりました。入力を確認してください。'); return false; }
+            els.exportJsonBtn.disabled = els.exportMidiBtn.disabled = false;
+            els.empty.classList.add('hidden'); els.content.classList.remove('hidden');
+            if (state.source && result.version === state.source.version && result.project.projectId === state.project.projectId) return true;
+            state.project = result.project; state.source = result; regenerate(); setStatus(''); return true;
+        } finally { refreshing = false; }
     }
-    function activate() { refreshSource(); }
-    function deactivate() {}
+    function activate() { active = true; refreshSource(); }
+    function deactivate() { active = false; }
     function enter() { load(); activate(); } // Legacy explicit reload entry.
 
     /* ══════════ 描画 ══════════ */
 
     function renderAll() {
-        els.sourceNotice.textContent = state.source && state.source.dirty ? '未保存の変更を含む — JSON / MIDIにも反映されます' : '';
+        els.sourceNotice.textContent = state.source && state.source.isNew ? '新規・未保存 — JSON / MIDIにも反映されます' :
+            state.source && state.source.dirty ? '未保存の変更を含む — JSON / MIDIにも反映されます' : '保存済みの曲';
         renderSongInfo();
         renderParts();
         renderWarnings();
@@ -426,7 +417,9 @@
     function exportArrangementJson() {
         if (refreshSource() === false) return;
         if (!state.arrangement || !state.project) return;
-        var arr = state.arrangement;
+        var output = documentHost.captureOutput(state.settings, CS().arrangement.generateArrangement);
+        if (!output.ok) { showEmptyState(output.error); return; }
+        var arr = output.arrangement;
         var flat = CS().arrangement.flattenEvents(arr);
         var payload = {
             type: 'cruise-studio-arrangement',
@@ -453,7 +446,7 @@
         };
         var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         downloadBlob(blob, safeFileName(arr.meta.title, '_arrangement.json'));
-        setStatus('伴奏イベントをJSONファイルへ書き出しました');
+        if (documentHost.isCurrent(output.source)) setStatus('伴奏イベントをJSONファイルへ書き出しました');
     }
 
     /**
@@ -462,10 +455,12 @@
     function exportMidi() {
         if (refreshSource() === false) return;
         if (!state.arrangement || !state.project) return;
+        var output = documentHost.captureOutput(state.settings, CS().arrangement.generateArrangement);
+        if (!output.ok) { showEmptyState(output.error); return; }
         var midi = CS().midi;
-        var result = midi.buildMidiFile(state.arrangement);
+        var result = midi.buildMidiFile(output.arrangement);
         if (!result.ok) {
-            setStatus(result.error, true);
+            if (documentHost.isCurrent(output.source)) setStatus(result.error, true);
             return;
         }
         // 自己検証: 生成バイト列の構造チェック
@@ -475,8 +470,8 @@
             return;
         }
         var blob = new Blob([result.bytes], { type: 'audio/midi' });
-        downloadBlob(blob, safeFileName(state.arrangement.meta.title, '.mid'));
-        setStatus('.mid を書き出しました（' + result.stats.tracks + 'トラック / ベース' +
+        downloadBlob(blob, safeFileName(output.arrangement.meta.title, '.mid'));
+        if (documentHost.isCurrent(output.source)) setStatus('.mid を書き出しました（' + result.stats.tracks + 'トラック / ベース' +
             result.stats.bassNotes + '音 / ドラム' + result.stats.drumNotes + '音）');
     }
 
@@ -500,10 +495,11 @@
         });
 
         els.projectSelect.addEventListener('change', function () {
-            loadAndRender(els.projectSelect.value);
+            if (!documentHost.select(els.projectSelect.value)) { refreshProjectSelect(); setStatus('対象の曲を変更できません。入力・形式を確認してください。', true); return; }
+            refreshSource();
         });
         els.reloadBtn.addEventListener('click', function () {
-            enter();
+            refreshSource();
         });
         els.exportJsonBtn.addEventListener('click', exportArrangementJson);
         els.exportMidiBtn.addEventListener('click', exportMidi);
@@ -515,6 +511,7 @@
         };
         els.gotoSheetBtn.addEventListener('click', goSheet);
         els.emptyGotoSheet.addEventListener('click', goSheet);
+        documentHost.subscribe(function () { if (active) refreshSource(); });
     }
 
     window.CruiseStudio = window.CruiseStudio || {};
@@ -524,6 +521,7 @@
         load: load,
         activate: activate,
         deactivate: deactivate,
-        setProjectSourceProvider: setProjectSourceProvider
+        setProjectSourceProvider: setProjectSourceProvider,
+        setDocumentHost: setDocumentHost
     };
 })();

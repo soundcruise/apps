@@ -1,5 +1,8 @@
 # Cruise Studio Shell Contract v2.1
 
+現行Active Document実装境界は[Active Document Alignment v1](ACTIVE_DOCUMENT_ALIGNMENT.md)を参照。
+0.31.1でStructure / Pre-DTMの対象正本とselectorを一本化し、§32の独立選択・saved fallback未解決境界を更新する。
+
 - 状態: 正式採用（設計契約。実装完了・動作合格・公開を意味しない）
 - 採用日: 2026-10-10
 - 対象: 未リリースのCruise Studio PC統合アーキテクチャ

@@ -21,18 +21,15 @@
     });
     CS.sessions = CS.editing.createRegistry({ repository: CS.repository, validate: model.validateProject });
     CS.repository.attach();
-    function workingSource(projectId) {
-        var session = CS.sessions.getActiveSession();
-        if (!session || session.domain !== 'structure' || session.target.projectId !== projectId) return null;
-        return { ok: true, project: session.workingSnapshot(), source: 'working', dirty: session.dirty,
-            version: session.snapshotVersion, sessionId: session.sessionId };
+    function projectSource() {
+        return CS.documents.capture();
     }
-    function projectSource(projectId) {
-        var working = workingSource(projectId);
-        if (working) return working;
-        var saved = CS.repository.read({ type: 'project', projectId: projectId });
-        return saved.ok && saved.exists ? { ok: true, project: saved.snapshot, source: 'saved', dirty: false, version: saved.revision } :
-            { ok: false, error: saved.error || 'プロジェクトが見つかりません' };
+    function ensureDocument() {
+        if (CS.documents.getSession()) return;
+        var id = storage.getCurrentProjectId(), projects = storage.listProjects();
+        if (!id && projects.length) id = projects[0].projectId;
+        // A failed/unknown target is not replaced with a different song.
+        if (id) CS.documents.select(id);
     }
 
     // 既存hostはwindow。ShellはworkspaceごとにMain要素を注入できる。
@@ -166,6 +163,7 @@
     }
 
     async function onCreateSample() {
+        var intent = CS.documents.ticket();
         var project = model.createSampleProject();
         var check = model.validateProject(project);
         if (!check.ok) {
@@ -173,7 +171,7 @@
             return;
         }
         var res = await CS.repository.save({ target: { type: 'project', projectId: project.projectId }, snapshot: project, baseRevision: null });
-        if (res.ok) storage.setCurrentProjectId(project.projectId);
+        if (res.ok && CS.documents.isSelected(intent) && !CS.documents.getSession()) storage.setCurrentProjectId(project.projectId);
         if (!res.ok) {
             setStatus(res.error, true);
             return;
@@ -188,7 +186,9 @@
         event.target.value = '';
         if (!file) return;
         var reader = new FileReader();
+        var intent = CS.documents.ticket();
         reader.onload = async function () {
+            if (!CS.documents.isSelected(intent)) { setStatus('対象の曲が変わったため読み込みを中止しました', true); return; }
             var res = storage.importProjectJson(String(reader.result));
             if (!res.ok) {
                 setStatus(res.error, true);
@@ -198,7 +198,7 @@
             var before = CS.repository.read(target);
             if (!before.ok) { setStatus(before.error, true); return; }
             var saved = await CS.repository.save({ target: target, snapshot: res.project, baseRevision: before.revision });
-            if (saved.ok) storage.setCurrentProjectId(res.project.projectId);
+            if (saved.ok && CS.documents.isSelected(intent) && !CS.documents.getSession()) storage.setCurrentProjectId(res.project.projectId);
             if (!saved.ok) {
                 setStatus(saved.error, true);
                 return;
@@ -250,8 +250,13 @@
         };
 
         // 画面遷移
+        CS.documents = CS.activeDocument.createOwner({ registry: CS.sessions, repository: CS.repository,
+            validate: model.validateProject, snapshot: CS.editing.snapshot, openProject: sheetCruise.openProject,
+            canSelect: function () { return !shellHost || (!shellHost.getCommandContext().activeModal && !shellHost.keyboard.isIMEBlocked({})); }
+        });
         sheetCruise.init();
         preDtm.setProjectSourceProvider(projectSource);
+        preDtm.setDocumentHost(CS.documents, ensureDocument);
         preDtm.init();
         shellHost = CS.shell.init(CS);
         CS.shellHost = shellHost;
