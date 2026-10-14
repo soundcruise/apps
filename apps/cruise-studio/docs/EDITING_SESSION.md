@@ -1,5 +1,15 @@
 # Structure Editing Session v1
 
+## Domain History Core（0.33.0・現行）
+
+[Domain History Core契約](DOMAIN_HISTORY_CORE.md)を本書の履歴API・保存境界の正式補足とする。
+Editing Sessionがprivate staging operationとimmutable before/after履歴を所有し、確定した内容だけを公開する。
+saved/base/revision/identity/metadataは履歴で変更しない。未知field、semantic dirty、発行元commit tokenを維持する。
+通常保存・dirty external pendingで履歴保持。adopt/cancel/replace/destroyでreset、削除で履歴操作停止。
+未接続Structureの実際の直接変更はhistory barrier。memory-only 100件/8MiB、巨大操作overflowを明示する。
+以下の「domain history未実装」は各工程時点の履歴。現在Coreのみ実装済みで、Structure/UI/Keyboardは未接続。
+
+
 ## Active Document Alignment（0.31.1・現行）
 
 [Active Document契約](ACTIVE_DOCUMENT_ALIGNMENT.md)が、以下のPre-DTM独立選択・saved fallbackの旧実装境界を更新する。

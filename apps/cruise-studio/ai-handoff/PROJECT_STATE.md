@@ -1,6 +1,50 @@
 # Cruise Studio Project State
 
-## PC Shell / Dock / Narrow Layout Polish v1（2026-10-14・現行）
+## Editing Session Domain History Core v1（2026-10-14・現行）
+
+Studio **0.33.0**（domain履歴Core APIの新機能によるminor。Undo UIは未公開）/ Port **1.22.18** / Chord **1.20.1**。
+開始HEAD / origin/main / remote main=`5b990d3e28ed0b9099bbe4f68cd462964d6dba49`、tracked/staged空、ahead/behind0/0。
+Studio schema **1** / Authority physical schema **2**維持。
+
+Editing Sessionごとのepoch / immutable before-after entries / cursor / openGroupを追加。
+同期begin/commit/cancelOperationとrunOperation、undo/redo、canUndo/canRedo、getHistory、clearHistoryを公開する。
+操作はprivate staging draftへ書き、既存draft/working/playback/dirtyは確定まで維持する。
+検証と次trackerの準備を済ませてから内容を1回だけ公開。no-op / cancel / 例外はentryもRedo破棄も起こさない。
+projectId / schemaVersion / createdAt / appVersion / updatedAtは履歴payloadから分離して保護し、未知fieldを保持する。
+内容変更時はsnapshotVersionを進め、Undoで古いtokenへ戻さない。
+
+履歴未接続の既存Structure編集は継続。実際の直接変更は古い履歴/openGroupをinvalidateし、現在draftを保持。
+Undo/Redoとoperation確定前には期待内容・identityを照合し、通知を迂回したdriftもfail-closedで拒否する。
+通常保存成功は履歴保持、dirtyは現在baseとの差分で再計算。保存中Undo/Redo拒否、追加編集・発行元へのACKは維持。
+clean再保存failureのmetadata-only新revisionでbase/history/errorを消す反例を正式Nodeで修正前FAIL確認。
+failure currentはpendingへ置き、明示採用までbase/history/errorを保持する。Repository書込方式と成功ACKの意味は不変更。
+dirty external pendingではbase/draft/history/conflictを保持。Undoでcleanでもconflictを解除しない。
+clean adoption / 明示採用 / cancel / 同project replaceDraft / destroyは履歴reset。外部削除はdraft/history保持・Undo/Redo停止。
+A/B/Aはsessionごとに独立し、reloadで履歴は復元しない。
+
+予算はsessionごとに**100 entries / 8MiB UTF-8 before-after payload**。labelは120 UTF-16 code unitsまで。
+規模調査の合成同一小節project: 16/64/256/1024 bars = 12,251 / 45,515 / 178,728 / 711,745 bytes。
+件数/bytes超過は古いcomplete entryから退去。単一巨大操作はvalid draftを公開し、古い全branchを捨ててoverflowを明示。
+draft/base/savedを削除せず、記録不能な操作をcanUndo=trueと表示しない。これはJS heap総量・crash復旧保証ではない。
+
+検証: baseline Node **580 PASS** → 新規history **74 PASS**、全 **654 PASS**（clean guard含む）。
+正式Chrome12 suite **270 PASS**。最終ソースの回帰記録とno-write各項目0をrequired gateとする。
+隔離8767 / disposable Chrome / synthetic micのみ。source/display0.33.0一致、console/app404/unhandled0。
+Coreによるrepository write0。Port/Authority/ProDevice/Account/Sync/outbox/Worker/cloud mutation0。
+既存Studio明示保存、Active Document、Pre-DTM working/JSON/MIDI、Audio、focus/Modal/IME、4 Themes/Printを維持。
+
+**未接続**: Structure各編集経路、再描画adapter、native Undo統合、Undo/Redoボタン、Cmd+Z/Cmd+Shift+Z。
+次はStructure Operation Adapter。離散操作から段階接続し、未接続操作のhistory barrierを維持。
+FileReader / RAFのcontent token・focus owner検査、IME操作単位とnative履歴、再描画通知は接続工程の必須条件。
+UIは全対応済みと誤表示せず、Core完成をStructure Undo製品完成と扱わない。
+
+Port/Shared/Worker製品コード不変更。Host等はStudio import cache query更新のみ。
+Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**、Daybreak待機/L3c境界維持。
+既存8765/8766・PID25543・利用者profile・untracked不触。認証probe・本番deploy・D1・cutoverなし。
+詳細は[Domain History Core契約](../docs/DOMAIN_HISTORY_CORE.md)参照。以下は各工程時点の履歴。
+
+
+## PC Shell / Dock / Narrow Layout Polish v1（2026-10-14・履歴）
 
 Studio **0.32.0**（Navigation・Dock詳細のUI変更によるminor）/ Port **1.22.18** / Chord **1.20.1**。
 開始HEAD / origin/main / remote main=`a4f053cf90e28bbef947e8fe8f66f79d82113053`、tracked/staged空、ahead/behind0/0。
@@ -738,7 +782,7 @@ Core完了をStudio Host接続やM3製品統合完了とは扱わない。
 - Pre-DTMは保存済みprojectの初回 / 明示再読込 / 明示選択を維持。working snapshotは未接続。
   別projectを選んでも保持中のStructure draftを暗黙交換しない。リンクはStructureへ戻る導線とし、
   未保存変更が自動反映されないことを画面へ明記。active document一本化はEditing Session工程。
-- Node: Shell 19 + Theme 32 + Metadata 22 = 73 PASS。
+- Node: Shell 19 + Theme 32 + Metadata 22 = 74 PASS。
   隔離Chrome: Dark 1600×900 / 1440×900 / 1280×800 / 1024×768 / 900×700 / 800×700 / 680×700、
   Charcoal / Gray / Lightは1440×900 / 1024×768 / 800×700。加えて1440×600 / 1024×500 / 680×450。
   Loupe / toolbar / Dock境界、紙面縮尺、横overflow、非active Tab除外、pane focus復帰、Theme失敗を確認。

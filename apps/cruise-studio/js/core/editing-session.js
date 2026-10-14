@@ -21,11 +21,32 @@
     }
     function at(value, path) { return path.reduce(function (v, key) { return v == null ? undefined : v[key]; }, value); }
     var METADATA = new Set(['appVersion', 'updatedAt']);
+    var HISTORY_FIXED = new Set(['projectId', 'schemaVersion', 'createdAt', 'appVersion', 'updatedAt']);
+    var HISTORY_LIMITS = Object.freeze({ maxEntries: 100, maxBytes: 8 * 1024 * 1024 });
+    function contentSnapshot(value) {
+        var copy = clone(value);
+        HISTORY_FIXED.forEach(function (key) { delete copy[key]; });
+        return freeze(copy);
+    }
+    function restoreContent(content, current) {
+        var copy = clone(content);
+        HISTORY_FIXED.forEach(function (key) { if (Object.hasOwn(current, key)) copy[key] = clone(current[key]); });
+        return copy;
+    }
+    function byteSize(value) {
+        var text = JSON.stringify(value), bytes = 0;
+        for (var i = 0; i < text.length; i++) {
+            var code = text.codePointAt(i);
+            bytes += code < 128 ? 1 : code < 2048 ? 2 : code < 65536 ? 3 : 4;
+            if (code > 65535) i++;
+        }
+        return bytes;
+    }
     function createDraft(value, getBase, changed) {
         var raw = clone(value), touched = new Map(), proxies = new WeakMap(), originals = new WeakMap(), version = 0;
-        function note(path) {
+        function note(path, semantic) {
             if (!METADATA.has(path[0])) touched.set(JSON.stringify(path), path);
-            version++; changed();
+            version++; changed(path, semantic);
         }
         function wrap(object, path) {
             if (!object || typeof object !== 'object') return object;
@@ -37,10 +58,11 @@
                     var unwrapped = originals.get(incoming) || incoming;
                     if (o[property] === unwrapped) return true;
                     // Own assigned values: callers cannot mutate an untracked external alias later.
+                    var semantic = !equal(o[property], unwrapped);
                     o[property] = unwrapped && typeof unwrapped === 'object' ? clone(unwrapped) : unwrapped;
-                    note(path.concat(String(property))); return true;
+                    note(path.concat(String(property)), semantic); return true;
                 },
-                deleteProperty: function (o, property) { if (Object.hasOwn(o, property)) { delete o[property]; note(path.concat(String(property))); } return true; }
+                deleteProperty: function (o, property) { if (Object.hasOwn(o, property)) { delete o[property]; note(path.concat(String(property)), true); } return true; }
             });
             byPath.set(key, proxy); originals.set(proxy, object); return proxy;
         }
@@ -63,6 +85,8 @@
     }
     function createRegistry(options) {
         var repository = options.repository, sessions = new Map(), byTarget = new Map(), listeners = new Set(), active = null, sequence = 0;
+        var limits = Object.freeze(Object.assign({}, HISTORY_LIMITS, options.historyLimits || {}));
+        if (!Number.isSafeInteger(limits.maxEntries) || limits.maxEntries < 1 || !Number.isSafeInteger(limits.maxBytes) || limits.maxBytes < 1) throw new TypeError('Invalid history limits');
         var id = options.idFactory || function () { sequence++; return 'session-' + sequence; };
         function key(domain, target) { return JSON.stringify([domain, target.type, target.projectId]); }
         function emit(session, kind) { listeners.forEach(function (fn) { try { fn(session, kind); } catch (_) { /* subscribers cannot corrupt ownership */ } }); }
@@ -72,24 +96,74 @@
             var exists = record.exists, deleted = false, destroyed = false, closing = false, pending = null, conflict = null, inputPending = false;
             var validation = freeze({ ok: true, errors: [], warnings: [] }), commitError = record.error || null, flight = null, commitSequence = 0;
             var tracker, changeSerial = 0;
-            function changed() { changeSerial++; emit(session, 'draft'); }
-            function resetDraft(value) { if (tracker) tracker.detach(); tracker = createDraft(value, function () { return base; }, changed); }
+            var history = { epoch: 0, entries: [], cursor: 0, bytes: 0, status: 'empty', reason: null, evicted: 0 };
+            var openGroup = null, operationSequence = 0, entrySequence = 0;
+            function abandonGroup() { if (openGroup) openGroup.tracker.detach(); openGroup = null; }
+            function resetHistory(reason, status) {
+                abandonGroup(); history.epoch++; history.entries = []; history.cursor = history.bytes = 0;
+                history.status = status || 'empty'; history.reason = reason; history.evicted = 0;
+            }
+            function changed(path, semantic) {
+                changeSerial++;
+                // Existing editors remain usable. Their real direct edits are a history barrier, not an operation.
+                if (semantic && !METADATA.has(path[0]) && (history.entries.length || openGroup)) resetHistory('out-of-band', 'invalidated');
+                emit(session, 'draft');
+            }
+            function resetDraft(value) {
+                var next = createDraft(value, function () { return base; }, changed);
+                if (tracker) tracker.detach(); tracker = next;
+            }
             function dirty() { return !exists || tracker.dirty(); }
+            function historyBlocked() { return destroyed ? 'destroyed' : closing ? 'closing' : inputPending ? 'input-pending' : deleted ? 'deleted' : null; }
+            function reject(code) { return { ok: false, code: code }; }
+            function prepareContent(content) {
+                try {
+                    var value = restoreContent(content, tracker.raw), check = snapshot(options.validate(snapshot(value)));
+                    if (!check.ok) return { ok: false, code: 'validation', error: (check.errors || []).join(' / ') };
+                    var next = createDraft(value, function () { return base; }, changed); next.rebase();
+                    return { ok: true, tracker: next, validation: check };
+                } catch (error) { return { ok: false, code: 'validation', error: error.message || String(error) }; }
+            }
+            function publishContent(prepared, kind) {
+                tracker.detach(); tracker = prepared.tracker; changeSerial++;
+                // Saved/base/conflict and metadata are deliberately not touched here.
+                validation = prepared.validation; emit(session, kind);
+            }
+            function expected(entry, side) {
+                return tracker.raw.projectId === target.projectId && tracker.raw.schemaVersion === base.schemaVersion &&
+                    entry.epoch === history.epoch && entry.sessionId === sessionId && equal(contentSnapshot(tracker.raw), entry[side]);
+            }
+            function moveHistory(direction) {
+                var blocked = historyBlocked();
+                if (blocked || flight || openGroup) return reject(blocked || 'busy');
+                var index = direction < 0 ? history.cursor - 1 : history.cursor, entry = history.entries[index];
+                if (!entry) return reject('empty-history');
+                if (!expected(entry, direction < 0 ? 'after' : 'before')) {
+                    tracker.rebase(); changeSerial++;
+                    resetHistory('stale-history', 'invalidated'); emit(session, 'history-invalidated'); return reject('stale-history');
+                }
+                var prepared = prepareContent(direction < 0 ? entry.before : entry.after);
+                if (!prepared.ok) return prepared;
+                history.cursor += direction;
+                publishContent(prepared, direction < 0 ? 'undo' : 'redo');
+                return { ok: true, entryId: entry.entryId };
+            }
             function validIncoming(update) {
                 return update.target && key(domain, update.target) === key(domain, target) &&
                     (update.deleted || (update.snapshot && update.snapshot.projectId === target.projectId && typeof update.revision === 'string'));
             }
             function adopt(update, kind) {
+                resetHistory(kind || 'adopt');
                 generation++; changeSerial++; base = snapshot(update.snapshot); revision = update.revision; exists = true; deleted = false;
                 resetDraft(base); pending = conflict = commitError = null;
                 validation = freeze({ ok: true, errors: [], warnings: [] }); emit(session, kind || 'adopt');
             }
-            function applyExternal(update) {
+            function applyExternal(update, holdBase) {
                 if (destroyed || !validIncoming(update)) return false;
                 if (flight && update.sessionId === sessionId && update.commitId === flight.token.commitId) return true;
                 if (!update.deleted && update.revision === revision) return true;
                 var incoming = snapshot(update);
-                if (update.deleted || dirty() || flight || inputPending) {
+                if (holdBase || update.deleted || dirty() || flight || inputPending || openGroup) {
                     pending = incoming; deleted = !!update.deleted;
                     conflict = freeze({ incomingRevision: update.revision, incomingSnapshot: incoming.snapshot || null, source: update.source, deleted: deleted });
                     emit(session, 'external-pending');
@@ -105,7 +179,7 @@
                     if (!latest.ok) return { ok: false, error: latest.error };
                     if (!latest.exists) return { ok: false, error: '削除された対象のdraftを保持しています', code: 'deleted' };
                     adopt(Object.assign({}, latest, { target: target }), 'cancel');
-                } else { generation++; resetDraft(base); commitError = null; emit(session, 'cancel'); }
+                } else { resetHistory('cancel'); generation++; changeSerial++; resetDraft(base); commitError = null; emit(session, 'cancel'); }
                 return { ok: true };
             }
             var session = {};
@@ -122,7 +196,84 @@
                 inputPending: { get: function () { return inputPending; }, enumerable: true }
             });
             Object.assign(session, {
-                canCommit: function () { return !destroyed && !closing && !flight && !deleted && !pending && !inputPending && repository.canWrite(); },
+                canCommit: function () { return !destroyed && !closing && !flight && !deleted && !pending && !inputPending && !openGroup && repository.canWrite(); },
+                getHistory: function () {
+                    return Object.freeze({ epoch: history.epoch, entries: Object.freeze(history.entries.slice()), cursor: history.cursor,
+                        openGroup: openGroup ? openGroup.handle.operationId : null, bytes: history.bytes, limits: limits,
+                        status: history.status, reason: history.reason, evictedCount: history.evicted });
+                },
+                beginOperation: function (label) {
+                    var blocked = historyBlocked();
+                    if (blocked || openGroup) return reject(blocked || 'busy');
+                    if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion) return reject('invalid-target');
+                    try {
+                        var check = prepareContent(contentSnapshot(tracker.raw)); if (!check.ok) return check;
+                        var staged = createDraft(tracker.raw, function () { return base; }, function () {});
+                        var handle = Object.freeze({ operationId: sessionId + ':operation-' + (++operationSequence), sessionId: sessionId,
+                            historyEpoch: history.epoch, contentVersion: session.snapshotVersion, draft: staged.draft });
+                        openGroup = { handle: handle, tracker: staged, before: contentSnapshot(tracker.raw), fixed: snapshot(tracker.raw), label: String(label || '編集').slice(0, 120) };
+                        return { ok: true, operation: handle };
+                    } catch (error) { return { ok: false, code: 'operation-failed', error: error.message || String(error) }; }
+                },
+                commitOperation: function (handle) {
+                    if (!openGroup || openGroup.handle !== handle) return reject('invalid-operation');
+                    var group = openGroup, blocked = historyBlocked();
+                    if (blocked) return reject(blocked);
+                    if (handle.contentVersion !== session.snapshotVersion || handle.historyEpoch !== history.epoch) return reject('stale-operation');
+                    // Final content check also catches drift that bypassed a Proxy notification.
+                    if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion || !equal(contentSnapshot(tracker.raw), group.before)) {
+                        tracker.rebase(); changeSerial++;
+                        resetHistory('stale-operation', 'invalidated'); emit(session, 'history-invalidated'); return reject('stale-operation');
+                    }
+                    if (Array.from(HISTORY_FIXED).some(function (key) { return !equal(group.tracker.raw[key], group.fixed[key]); })) return reject('protected-field');
+                    var after = contentSnapshot(group.tracker.raw);
+                    if (equal(group.before, after)) { abandonGroup(); return { ok: true, recorded: false }; }
+                    var prepared = prepareContent(after); if (!prepared.ok) return prepared;
+                    var bytes = byteSize(group.before) + byteSize(after);
+                    abandonGroup();
+                    if (bytes > limits.maxBytes) {
+                        resetHistory('operation-too-large', 'overflow');
+                        publishContent(prepared, 'operation'); return { ok: true, recorded: false, code: 'history-overflow' };
+                    }
+                    history.entries = history.entries.slice(0, history.cursor);
+                    history.entries.push(Object.freeze({ entryId: sessionId + ':history-' + (++entrySequence), sessionId: sessionId,
+                        epoch: history.epoch, label: group.label, before: group.before, after: after, bytes: bytes }));
+                    history.bytes = history.entries.reduce(function (sum, entry) { return sum + entry.bytes; }, 0);
+                    history.cursor = history.entries.length;
+                    while (history.entries.length > limits.maxEntries || history.bytes > limits.maxBytes) {
+                        history.bytes -= history.entries.shift().bytes; history.cursor--; history.evicted++;
+                    }
+                    history.status = 'ready'; history.reason = null;
+                    publishContent(prepared, 'operation'); return { ok: true, recorded: true };
+                },
+                cancelOperation: function (handle) {
+                    if (!openGroup || openGroup.handle !== handle) return reject('invalid-operation');
+                    abandonGroup(); return { ok: true };
+                },
+                runOperation: function (label, edit) {
+                    var begun = session.beginOperation(label); if (!begun.ok) return begun;
+                    try {
+                        var result = edit(begun.operation.draft);
+                        if (result && typeof result.then === 'function') {
+                            session.cancelOperation(begun.operation);
+                            Promise.resolve(result).catch(function () {}); // reject unsupported async, contain its detached late failure
+                            return reject('async-operation');
+                        }
+                        var committed = session.commitOperation(begun.operation);
+                        if (!committed.ok) session.cancelOperation(begun.operation);
+                        return committed;
+                    } catch (error) {
+                        session.cancelOperation(begun.operation); return { ok: false, code: 'operation-failed', error: error.message || String(error) };
+                    }
+                },
+                undo: function () { return moveHistory(-1); }, redo: function () { return moveHistory(1); },
+                canUndo: function () { return !historyBlocked() && !flight && !openGroup && history.cursor > 0; },
+                canRedo: function () { return !historyBlocked() && !flight && !openGroup && history.cursor < history.entries.length; },
+                clearHistory: function () {
+                    if (destroyed) return reject('destroyed');
+                    if (openGroup) return reject('busy');
+                    resetHistory('explicit-clear'); emit(session, 'history-cleared'); return { ok: true };
+                },
                 setInputPending: function (value) { if (!destroyed && inputPending !== !!value) { inputPending = !!value; emit(session, 'input'); } },
                 workingSnapshot: function () { return snapshot(tracker.raw); },
                 playbackSnapshot: function () { return snapshot(tracker.raw); },
@@ -131,7 +282,7 @@
                 adoptExternal: function () { return flight ? Promise.resolve({ ok: false, code: 'busy' }) : Promise.resolve(cancelNow()); },
                 replaceDraft: function (value) {
                     if (destroyed || flight || inputPending || value.projectId !== target.projectId) throw new Error('Cannot replace this draft');
-                    generation++; resetDraft(value); tracker.rebase(); emit(session, 'replace');
+                    resetHistory('replace'); generation++; changeSerial++; resetDraft(value); tracker.rebase(); emit(session, 'replace');
                 },
                 commit: function () {
                     if (!session.canCommit()) return Promise.resolve({ ok: false, code: deleted ? 'deleted' : pending ? 'conflict' : 'unavailable', error: '現在は保存できません' });
@@ -159,7 +310,8 @@
                             emit(session, 'commit-success');
                         } else {
                             commitError = result.error || '保存に失敗しました';
-                            if (result.current && result.current.ok) applyExternal(Object.assign({}, result.current, { target: target, deleted: !result.current.exists, source: 'repository' }));
+                            // A failed/unknown write is not formal base adoption, even if draft was clean.
+                            if (result.current && result.current.ok) applyExternal(Object.assign({}, result.current, { target: target, deleted: !result.current.exists, source: 'repository' }), true);
                             emit(session, 'commit-failure');
                         }
                         return result;
@@ -178,8 +330,8 @@
                     if (destroyed) return Promise.resolve({ ok: true });
                     var wait = flight ? flight.promise : Promise.resolve({ ok: true }); closing = true;
                     return wait.then(function (result) {
-                        if (inputPending || !result.ok || (dirty() && !(config && config.discard))) return { ok: false, error: '未保存draftまたは保存結果を解決してください' };
-                        destroyed = true; generation++; tracker.detach(); sessions.delete(sessionId); byTarget.delete(key(domain, target));
+                        if (inputPending || !result.ok || ((dirty() || openGroup) && !(config && config.discard))) return { ok: false, error: '未保存draftまたは保存結果を解決してください' };
+                        resetHistory('destroy'); destroyed = true; generation++; tracker.detach(); sessions.delete(sessionId); byTarget.delete(key(domain, target));
                         if (active === sessionId) active = null; emit(session, 'destroy'); return { ok: true };
                     }).finally(function () { closing = false; });
                 }
@@ -210,5 +362,5 @@
             dispose: function () { unsubscribe(); listeners.clear(); } // does not pretend dirty documents were cancelled
         });
     }
-    return Object.freeze({ createRegistry: createRegistry, snapshot: snapshot, equal: equal });
+    return Object.freeze({ createRegistry: createRegistry, snapshot: snapshot, equal: equal, HISTORY_LIMITS: HISTORY_LIMITS });
 });
