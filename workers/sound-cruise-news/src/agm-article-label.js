@@ -1,9 +1,11 @@
 // Labels contain bounded identifiers and controlled themes, never source sentences.
+import {agmPerformanceLabel} from './agm-performance-evidence.js';
 export const ARTICLE_TOPICS=Object.freeze({chord_progression:'コード進行',headphone:'ヘッドホン',acoustic:'アコースティック・ギター',singing:'ギター弾き語り',songwriting:'作曲とアコースティック・ギター',guitar_roots:'ギターを始めた経緯',solo:'ソロ・ギター',guitar_career:'ギタリストとしての歩み',fingerstyle:'フィンガーピッキング',rhythm:'リズム',home_recording:'自宅での音楽制作'});
 export const factName=v=>typeof v==='string'&&v.trim()===v&&v.length>=2&&v.length<=80&&!/[<>\x00-\x1f]/.test(v);
 export function agmArticleLabel(f,event){
  if(event!=='agm_editorial'||f?.kind!=='agm_editorial'||f.evidence!=='agm_explicit_article_v1'||!['beginners','lesson','gears','interview','news','column'].includes(f.section)||!/^https:\/\/acousticguitarmagazine\.jp\//.test(f.articleUrl||''))return null;
  const type=f.articleType,person=f.person,topic=ARTICLE_TOPICS[f.topic];
+ if(type==='performance_event')return agmPerformanceLabel(f);
  if(person!==undefined&&!factName(person))return null;
  const expected=['interview','equipment','artist_news'].includes(type)?'artist_guitar':'media_other';if(f.category!==expected)return null;
  if(['interview','equipment','artist_news'].includes(type)&&!person)return null;

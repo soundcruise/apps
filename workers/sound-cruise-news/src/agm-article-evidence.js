@@ -1,4 +1,6 @@
 import {parseDocument,DomUtils as D} from 'htmlparser2';
+import {performanceFields} from './agm-performance-evidence.js';
+export const AGM_ARTICLE_PARSER='agm-article-4';
 import {agmArticleUrl,agmArticleMetadata,AGM_SECTIONS,AGM_PERMISSION_REF} from './agm-sections.js';
 import {agmArticleLabel,factName} from './agm-article-label.js';
 import {validLabel} from './metadata.js';
@@ -10,7 +12,7 @@ const skip=n=>['script','style','nav','footer','aside','figure','iframe','templa
 function clean(n){for(const child of [...n.children||[]]){if(skip(child))D.removeElement(child);else clean(child);}}
 export function agmRecoverySurface(row,source){
  if(source?.id!=='agm'||!source.agmSections||source.permissionRef!==AGM_PERMISSION_REF||!source.explicitAutomationPermission)return null;
- const section=AGM_SECTIONS.find(s=>agmArticleUrl(row.source_url,s));return section?{url:row.source_url,method:'explicit_agm_article_fields',parser:'agm-article-3'}:null;
+ const section=AGM_SECTIONS.find(s=>agmArticleUrl(row.source_url,s));return section?{url:row.source_url,method:'explicit_agm_article_fields',parser:AGM_ARTICLE_PARSER}:null;
 }
 function articleMetadata(html,url,section){
  if(section==='news')return agmArticleMetadata(html,url);
@@ -45,7 +47,10 @@ export function parseAgmArticleEvidence(html,source,row){
  const articles=find(doc,n=>n.name==='article'&&n.parent?.name==='main'&&classes(n.parent).includes('post-item'));if(articles.length!==1)throw Error('facts_article_structure');
  const article=articles[0];clean(article);
  const ps=find(article,n=>n.name==='p'),hs=find(article,n=>/^h[2-4]$/.test(n.name));
- const intro=ps.slice(0,4).map(text).join(' ').slice(0,2200),headings=hs.map(text),title=meta.title;
+ // JSON-LD can retain HTML entities while the visible introduction is decoded.
+ // Decode text only; actual markup in a metadata headline is not accepted.
+ if(/[<>]/.test(meta.title))throw Error('facts_article_structure');
+ const intro=ps.slice(0,4).map(text).join(' ').slice(0,2200),headings=hs.map(text),title=D.textContent(parseDocument(meta.title));
  const tags=find(doc,n=>n.name==='a'&&/^https:\/\/acousticguitarmagazine\.jp\/tag\//.test(n.attribs.href||'')).map(text);
  let old={};try{old=JSON.parse(row.product_facts)||{};}catch{}
  let person=nameFrom(title,intro,tags,old.person),type=old.articleType||({beginners:'beginner',lesson:'lesson',column:'column',interview:'interview'}[section]);
@@ -61,7 +66,9 @@ export function parseAgmArticleEvidence(html,source,row){
  if(section==='lesson'){const song=headings.map(h=>h.match(/^「([^」]{2,60})」について$/)?.[1]).find(Boolean);if(song&&title.includes(song))f.song=song;}
  if(section==='news'){
   f.articleType='artist_news';f.category='artist_guitar';
-  if(/受賞/.test(title)&&/受賞した/.test(intro)){
+  const performance=performanceFields({title,intro,article,find,text});
+  if(performance){Object.assign(f,performance,{articleType:'performance_event',category:'live_guitar'});delete f.person;}
+  else if(/受賞/.test(title)&&/受賞した/.test(intro)){
    f.person=intro.match(/ギタリストの([^が、。]{2,35})が/)?.[1]||f.person;
    const award=intro.match(/[“「]([^”」]{2,65}コンクール)[”」]/)?.[1],work=intro.match(/作曲した「([^」]{2,75})」/)?.[1];if(award&&work){f.action='award';f.award=award;f.work=work;}
   }else if(/リリース/.test(title)&&/リリースする/.test(intro)){

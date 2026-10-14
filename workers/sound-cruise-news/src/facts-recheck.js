@@ -1,3 +1,4 @@
+import {parseProductFamilyEvidence,PRODUCT_FAMILY_PARSER} from './product-family-evidence.js';
 import {validatedFingerprint} from './fingerprint.js';
 import {morrisEvidenceReceipt} from './morris-collector.js';
 import {structuredIkebeEvidence} from './ikebe-structured-recovery.js';
@@ -101,6 +102,11 @@ async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fet
     try{for(const entry of entries){const {item}=await candidateFrom(entry,source,robots,now,pepper);if(item)items.push({id:item.id,sourceUrl:item.sourceUrl,publishedAt:item.publishedAt,category:item.category,eventType:item.eventType,productFacts:item.productFacts?{...item.productFacts,...(['relevance_uncertain','category_mismatch'].includes(item.decisionReason)?{scopeUncertain:true}:{})}:null});}}
     finally{for(const e of entries){e.title='';e.eventTitle='';}entries.length=0;}
    }
+  }catch(error){
+   if(!['facts_scope_uncertain','facts_identity_changed','facts_event_missing','facts_parser_failure'].includes(error.message)||!['ikebe','shimamura'].includes(source.id))throw error;
+   const parsed=parseProductFamilyEvidence(response.text,source,row);
+   items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
+   proof.extractionMethod='explicit_product_family_fields';proof.parserVersion=PRODUCT_FAMILY_PARSER;
   }finally{response.text='';response=null;}
   outcome='verified_surface';
  }catch(error){

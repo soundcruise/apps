@@ -1,3 +1,6 @@
+import {PRODUCT_FAMILY_PARSER,validProductFamily} from './product-family-evidence.js';
+import {AGM_ARTICLE_PARSER} from './agm-article-evidence.js';
+import {validAgmPerformance} from './agm-performance-evidence.js';
 import {morrisProofValid} from './morris-collector.js';
 import {IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
 import {validOfficialIdentity} from './official-identity.js';
@@ -20,6 +23,19 @@ export const parseFacts=row=>{try{return JSON.parse(row.product_facts);}catch{re
 export function duplicatePredicate(row,facts,alias='d'){
  const paths=independentTopicUrls(row),j=key=>`json_extract(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.${key}')`;
  const clauses=[`${alias}.topic_key=?`,`${alias}.normalized_url=?`,`${alias}.source_url=?`],args=[row.topic_key,row.normalized_url,row.source_url];
+ if(facts?.kind==='product_family'){
+  const familyClauses=[`${alias}.normalized_url=?`,`${alias}.source_url=?`];
+  const familyArgs=[row.normalized_url,row.source_url];
+  if(validProductFamily(facts)){
+   familyClauses.push(`(${j('brand')}=? AND ${alias}.category=? AND COALESCE(${j('version')},'')='' AND ${j('productEvent')} IS NULL AND ${alias}.event_type IN ('new_product','release') AND EXISTS(SELECT 1 FROM json_each(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.models') member WHERE member.value IN (${facts.models.map(()=>'?').join(',')})))`);
+   familyArgs.push(facts.brand,row.category,...facts.models);
+  }
+  return {sql:`${alias}.review_status='approved' AND ${alias}.id<>? AND (${familyClauses.join(' OR ')})`,args:[row.id,...familyArgs]};
+ }
+ if(validAgmPerformance(facts)){
+  clauses.push(`(${j('kind')}='agm_editorial' AND ${j('articleType')}='performance_event' AND ${j('eventName')}=? AND ${j('eventDate')}=? AND ${j('performer')}=? AND ${j('venues')}=?)`);
+  args.push(facts.eventName,facts.eventDate,facts.performer,JSON.stringify(facts.venues));
+ }
  if(paths.length){clauses.push(`${alias}.source_url IN (${paths.map(()=>'?').join(',')})`);args.push(...paths);}
  if(facts?.product&&facts.kind!=='product_article'&&facts.evidence!=='morris_explicit_article_v1'){clauses.push(`((? IS NULL OR ${j('brand')}=? OR (?='official_manufacturer_model' AND ${j('brand')} IS NULL AND ${j('identifierBasis')}='distinctive_software_model')) AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(${j('version')},'')=? AND (${alias}.event_type=? OR ${alias}.event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`);args.push(facts.brand||null,facts.brand||null,facts.identifierBasis||'',row.category,facts.product,facts.version||'',row.event_type,row.event_type);}
  if(facts?.evidence==='morris_explicit_article_v1'&&facts.kind==='product'){
@@ -67,6 +83,14 @@ export async function publicationValidation(store,row,now,registry,pepper){
  if(facts?.evidence==='assessed_domestic_acoustic_interview'&&source?.id!=='agm'||facts?.evidence==='assessed_named_guitar_event'&&source?.id!=='ikebe-event'||facts?.identifierBasis==='assessed_recording_listing'&&source?.id!=='at-distribution'||facts?.manufacturerSource&&facts.manufacturerSource!==row.source_id||facts?.listingSource&&facts.listingSource!==row.source_id)errors.push('facts_provenance_invalid');
  if(facts?.evidence==='guitar_exhibition_article_v1'&&(row.source_id!=='kikutani'||facts.articleUrl!==row.source_url||facts.listingSource!==row.source_id))errors.push('facts_provenance_invalid');
  if(facts?.kind==='agm_editorial'&&(row.source_id!=='agm'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
+ if(facts?.articleType==='performance_event'){
+  let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
+  if(!validAgmPerformance(facts)||!Array.isArray(proof)||!['eventName','eventDate','performer','venues','performanceEvidence'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.parserVersion===AGM_ARTICLE_PARSER&&p.extractionMethod==='explicit_agm_article_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
+ }
+ if(facts?.kind==='product_family'){
+  let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
+  if(!validProductFamily(facts)||facts.listingSource!==row.source_id||facts.articleUrl!==row.source_url||row.event_type!=='new_product'||!Array.isArray(proof)||!['brand','family','models','familyEvidence','event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.parserVersion===PRODUCT_FAMILY_PARSER&&p.extractionMethod==='explicit_product_family_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');
+ }
  if(row.source_id==='morris'&&!await morrisProofValid(store,row,now)||facts?.evidence==='morris_explicit_article_v1'&&row.source_id!=='morris')errors.push('facts_provenance_invalid');
  if(facts?.kind==='morris_editorial'&&(row.source_id!=='morris'||row.event_type!=='morris_editorial'))errors.push('facts_provenance_invalid');
  if(facts?.kind==='product_article'){

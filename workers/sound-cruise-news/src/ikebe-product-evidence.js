@@ -107,7 +107,7 @@ export function parseIkebeProductEvidence(html,source,row){
    ...(refinement?.action==='limited_edition'&&/日本限定/.test(title)&&/日本限定/.test(primary)?{editionMarket:'Japan'}:{})};
   const facts=enrichHeadlineFacts(base,{title,statements:paras.slice(0,4),publishedAt:row.published_at,basis:'verified_primary_article'});
   if(!validatedIkebeProductFacts(facts))throw Error('facts_identity_changed');
-  return {productFacts:facts,eventType,publishedAt:row.published_at};
+  return {productFacts:facts,eventType:facts.releaseEvent?'release':eventType,publishedAt:row.published_at};
  }finally{doc=null;}
 }
 
