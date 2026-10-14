@@ -27,6 +27,11 @@
         var doc = options.document, shell = options.shell, kind = options.kind, filterItems = options.filterItems;
         var node = doc.getElementById(kind === 'gear' ? 'screen-gear' : 'screen-my-apps'), state = createViewState(kind), host = null, off = null, disposed = false, epoch = 0, limit = 50;
         var query = node.querySelector('[data-library-search]'), status = node.querySelector('[data-library-filter="status"]'), category = node.querySelector('[data-library-filter="category"]'), button = node.querySelector('[data-library-read]');
+        var focus = (options.focus || CS.focusRouting).createWorkspaceFocus({ document: doc, node: node, workspaceId: kind, shell: shell, getFallback: function () { return button; } });
+        focus.mark(button, 'controls', 'read', 'control'); focus.mark(query, 'controls', 'query', 'search');
+        if (status) focus.mark(status, 'controls', 'status', 'filter');
+        if (category) focus.mark(category, 'controls', 'category', 'filter');
+        focus.mark(node.querySelector('[data-library-more]'), 'items', 'more', 'control');
         var labels = { unknown: '未確認。ローカル保存値を確認してください。', loading: '読み込み中', ready: 'ローカル保存値を閲覧中', legacy: '旧形式を閲覧（補正・保存なし）', empty: 'データなし', absent: '保存値なし', stale: '更新を確認中。前回の値を表示しています。', error: '読込失敗。保存データは変更していません。', future: '非対応の新しいschema。閲覧できません。', unsupported: '非対応の旧形式。Portでの正式な移行は別工程です。', invalid: '形式を確認できません。' };
         function q(selector) { return node.querySelector(selector); }
         function el(tag, text) { var e = doc.createElement(tag); if (text !== undefined) e.textContent = text; return e; }
@@ -43,7 +48,7 @@
         function render() {
             if (disposed) return;
             var s = state.snapshot(), section = s.model?.[kind], list = q('[data-library-list]'), detail = q('[data-library-detail]');
-            var focusedId = node.contains(doc.activeElement) ? doc.activeElement?.dataset.libraryId : null;
+            var record = focus.beforeRender();
             node.dataset.status = s.state; node.dataset.stale = String(s.stale);
             q('[data-library-status]').textContent = labels[s.state] + (s.stale && s.state !== 'stale' ? ' 前回の値（stale）です。' : '');
             button.disabled = s.state === 'loading' || !host;
@@ -57,7 +62,7 @@
             }
             var filtered = filterItems(s.model, kind, s.filters); q('[data-library-count]').textContent = section && usable(section.state) ? filtered.length + ' / ' + section.items.length + '件' : '件数未確認';
             list.replaceChildren();
-            filtered.slice(0, limit).forEach(function (x) { var li = el('li'), select = el('button', kind === 'gear' ? [x.manufacturer, x.name].filter(Boolean).join(' / ') + ' · ' + x.statusLabel : x.name + ' · ' + x.typeLabel + ' / icon: ' + x.iconKind); select.type = 'button'; select.dataset.libraryId = x.id; select.setAttribute('aria-pressed', String(s.selectedId === x.id)); li.append(select); list.append(li); });
+            filtered.slice(0, limit).forEach(function (x) { var li = el('li'), select = el('button', kind === 'gear' ? [x.manufacturer, x.name].filter(Boolean).join(' / ') + ' · ' + x.statusLabel : x.name + ' · ' + x.typeLabel + ' / icon: ' + x.iconKind); select.type = 'button'; select.dataset.libraryId = x.id; select.setAttribute('aria-pressed', String(s.selectedId === x.id)); focus.mark(select, 'items', x.id, 'item'); li.append(select); list.append(li); });
             q('[data-library-more]').hidden = filtered.length <= limit;
             q('[data-library-no-matches]').hidden = !section || !usable(section.state) || filtered.length > 0;
             detail.replaceChildren(); var selected = section?.items.find(function (x) { return x.id === s.selectedId; });
@@ -84,10 +89,7 @@
                 line(detail, '作成: ' + (selected.createdAt || '未確認') + ' / 更新: ' + (selected.updatedAt || '未確認')); imageDetail(detail, selected.image);
                 selected.warnings.forEach(function (warning) { line(detail, '未対応の保存項目: ' + warning); });
             }
-            if (focusedId) {
-                var replacement = Array.from(list.querySelectorAll('button')).find(function (x) { return x.dataset.libraryId === focusedId; });
-                (replacement || button).focus({ preventScroll: true });
-            }
+            focus.afterRender(record);
         }
         function allowed() { return !node.closest('[hidden], [inert]') && !shell.getCommandContext().activeModal; }
         async function read() {
@@ -110,10 +112,12 @@
         node.addEventListener('click', click); node.addEventListener('input', filter); node.addEventListener('change', filter);
         function attachHost(value) { if (disposed) return; epoch++; off?.(); off = null; host = value; state.reset(); limit = 50; if (host) { state.ingest(host.getCachedStatus()); off = host.subscribe(function (next) { state.ingest(next); render(); }); } render(); }
         render();
-        return Object.freeze({ attachHost: attachHost, snapshot: state.snapshot, load: function () {}, activate: render, deactivate: function () {}, dispose: function () { if (disposed) return; epoch++; off?.(); off = null; host = null; state.reset(); node.removeEventListener('click', click); node.removeEventListener('input', filter); node.removeEventListener('change', filter); disposed = true; } });
+        return Object.freeze({ attachHost: attachHost, snapshot: state.snapshot, captureFocus: focus.capture, resolveFocus: focus.resolve, getFocusFallback: focus.fallback,
+            load: function () {}, activate: render, deactivate: function () {}, dispose: function () { if (disposed) return; epoch++; off?.(); off = null; host = null; state.reset(); node.removeEventListener('click', click); node.removeEventListener('input', filter); node.removeEventListener('change', filter); focus.dispose(); disposed = true; } });
     }
     CS.libraryPresentation = { mount: mount, createViewState: createViewState };
     CS.library = { init: function (options) { if (views) Object.values(views).forEach(v => v.dispose()); views = { gear: mount({ ...options, kind: 'gear' }), myApps: mount({ ...options, kind: 'myApps' }) }; return views; }, attachHost: function (host) { if (views) Object.values(views).forEach(v => v.attachHost(host)); } };
     ['gear', 'myApps'].forEach(function (kind) { CS[kind] = { load: function () {}, activate: function () { views?.[kind].activate(); }, deactivate: function () {} }; });
+    ['gear', 'myApps'].forEach(function (kind) { ['captureFocus', 'resolveFocus', 'getFocusFallback'].forEach(function (name) { CS[kind][name] = function (value) { return views?.[kind][name](value); }; }); });
     if (typeof module !== 'undefined' && module.exports) module.exports = CS.libraryPresentation;
 })(typeof window !== 'undefined' ? window : globalThis);

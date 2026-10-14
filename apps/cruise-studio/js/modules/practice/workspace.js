@@ -31,6 +31,9 @@
         var labels = { unknown: '未確認。ローカル保存値を確認するとPortの練習データを閲覧できます。', loading: '読み込み中', error: '読込失敗。保存データは変更していません。', stale: '更新を確認中。前回の値を表示しています。', future: '一部に非対応の新しい形式があります。対応する項目だけを表示します。', ready: 'ローカル保存値を閲覧中' };
         var formats = { absent: '保存値なし', empty: 'データなし', ready: '保存値を閲覧', legacy: '旧形式を閲覧（変換保存なし）', invalid: '形式を確認できません', future: '非対応の新しい形式', unsupported: '非対応の形式' };
         var q = function (selector) { return node.querySelector(selector); };
+        var focus = (options.focus || CS.focusRouting).createWorkspaceFocus({ document: doc, node: node, workspaceId: 'practice', shell: shell, getFallback: function () { return q('#practice-read'); } });
+        focus.mark(q('#practice-read'), 'controls', 'read', 'control');
+        Object.keys(limit).forEach(function (kind) { focus.mark(q('[data-practice-more="' + kind + '"]'), kind, 'more', 'control'); });
         function el(tag, text) { var element = doc.createElement(tag); if (text !== undefined) element.textContent = text; return element; }
         function line(target, text) { target.append(el('p', text)); }
         function itemText(item) { return item.name + (item.hidden ? '（非表示設定）' : '') + (item.missing ? ' [' + item.id + ']' : ''); }
@@ -40,19 +43,19 @@
             var entries = section?.items || [];
             if (kind === 'history') entries = entries.slice().sort(function (a, b) { return b.timestamp.localeCompare(a.timestamp); });
             if (kind === 'calendar') entries = entries.slice().sort(function (a, b) { return b.localDate.localeCompare(a.localDate); });
-            entries.slice(0, limit[kind]).forEach(function (x) { var li = el('li'); row(li, x); box.append(li); });
+            entries.slice(0, limit[kind]).forEach(function (x) { var li = el('li'); row(li, x); if (kind === 'history') { li.tabIndex = 0; focus.mark(li, kind, x.id, 'item'); } box.append(li); });
             q('[data-practice-more="' + kind + '"]').hidden = entries.length <= limit[kind];
         }
         function render() {
             if (disposed) return;
-            var focused = doc.activeElement, focusKey = node.contains(focused) ? focused?.dataset.practiceKey : null;
+            var record = focus.beforeRender();
             var s = view.snapshot(), model = s.model;
             node.dataset.status = s.state; node.dataset.stale = String(s.stale);
             q('[data-practice-status]').textContent = labels[s.state] + (s.stale && s.state !== 'stale' ? ' 前回の値（stale）です。' : '');
             q('#practice-read').disabled = s.state === 'loading' || !host;
             ['menus', 'sets'].forEach(function (kind) {
                 list(kind, model?.[kind], function (li, x) {
-                    var button = el('button', itemText(x)); button.type = 'button'; button.dataset.practiceSelect = kind; button.dataset.practiceId = x.id; button.dataset.practiceKey = kind + ':' + x.id; button.setAttribute('aria-pressed', String(s.selected[kind] === x.id)); li.append(button);
+                    var button = el('button', itemText(x)); button.type = 'button'; button.dataset.practiceSelect = kind; button.dataset.practiceId = x.id; button.dataset.practiceKey = kind + ':' + x.id; button.setAttribute('aria-pressed', String(s.selected[kind] === x.id)); focus.mark(button, kind, x.id, 'item'); li.append(button);
                 });
                 var detail = q('[data-practice-detail="' + kind + '"]'); detail.replaceChildren();
                 var selected = model?.[kind].items.find(function (x) { return x.id === s.selected[kind]; });
@@ -80,11 +83,7 @@
             if (model && !usable(model.history.state)) q('[data-practice-state="calendar"]').textContent += ' / 練習記録: ' + formats[model.history.state];
             list('attachments', model?.attachments, function (li, x) { li.textContent = x.fileName + ' · ' + (x.byteSize == null ? 'サイズ未確認' : x.byteSize + ' bytes') + ' · ' + (x.reference ? itemText(x.reference) : 'メニュー参照未確認') + (x.state === 'invalid' ? ' · metadata不備' : ''); });
             q('[data-practice-attachments]').textContent = model ? '添付metadata: ' + formats[model.attachments.state] + ' · ' + model.attachments.items.length + '件（全体） / binary未接続。ローカル専用添付は未確認。' : '添付metadata未確認 / binary未接続';
-            if (focusKey) {
-                var replacement = Array.from(node.querySelectorAll('[data-practice-key]')).find(function (x) { return x.dataset.practiceKey === focusKey; });
-                if (replacement) replacement.focus({ preventScroll: true });
-                else q('#practice-read').focus({ preventScroll: true });
-            }
+            focus.afterRender(record);
         }
         async function read() {
             if (!host || disposed || view.snapshot().state === 'loading' || node.hidden || shell.getCommandContext().activeModal) return;
@@ -109,10 +108,12 @@
             render();
         }
         render();
-        return Object.freeze({ attachHost: attachHost, snapshot: view.snapshot, load: function () {}, activate: render, deactivate: function () {}, dispose: function () { if (disposed) return; epoch++; off?.(); off = null; host = null; view.reset(); node.removeEventListener('click', click); disposed = true; } });
+        return Object.freeze({ attachHost: attachHost, snapshot: view.snapshot, captureFocus: focus.capture, resolveFocus: focus.resolve, getFocusFallback: focus.fallback,
+            load: function () {}, activate: render, deactivate: function () {}, dispose: function () { if (disposed) return; epoch++; off?.(); off = null; host = null; view.reset(); node.removeEventListener('click', click); focus.dispose(); disposed = true; } });
     }
     var instance = null;
     CS.practice = { init: function (options) { instance?.dispose(); instance = mount(options); return instance; }, attachHost: function (host) { instance?.attachHost(host); }, load: function () {}, activate: function () { instance?.activate(); }, deactivate: function () {} };
+    ['captureFocus', 'resolveFocus', 'getFocusFallback'].forEach(function (name) { CS.practice[name] = function (value) { return instance?.[name](value); }; });
     CS.practicePresentation = { mount: mount, createViewState: createViewState };
     if (typeof module !== 'undefined' && module.exports) module.exports = CS.practicePresentation;
 })(typeof window !== 'undefined' ? window : globalThis);

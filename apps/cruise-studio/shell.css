@@ -43,6 +43,7 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 .practice-workspace button:hover { background: var(--studio-control-hover); }
 .practice-workspace button[aria-pressed="true"] { color: var(--studio-selected-text); border-color: var(--studio-selected-border); background: var(--studio-selected-bg); }
 .practice-workspace button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+.practice-workspace [data-focus-list="history"]:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; border-radius: 4px; }
 .practice-workspace button:disabled { opacity: .6; cursor: default; }
 .practice-workspace [data-practice-state], .practice-workspace [data-practice-attachments] { color: var(--studio-text-muted); font-size: 13px; }
 .practice-workspace[data-stale="true"] [data-practice-status], .practice-workspace[data-status="error"] [data-practice-status] { color: var(--studio-warning); }

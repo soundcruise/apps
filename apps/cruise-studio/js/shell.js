@@ -57,11 +57,20 @@
         var nodes = {};
         var focusRouting = CS.focusRouting.createFocusRouting(doc, function () { return nodes[host.getActive()]; }, function () {
             return doc.querySelector('.studio-nav [aria-current="page"]');
+        }, function (element) {
+            var id = host.getActive(), saved = focus[id], adapter = adapters[id];
+            if (saved && saved.element === element && saved.identity && adapter.resolveFocus) {
+                return adapter.resolveFocus(saved.identity) || adapter.getFocusFallback();
+            }
+            return element;
         });
         Object.keys(WORKSPACES).forEach(function (id) {
             nodes[id] = doc.getElementById(WORKSPACES[id]);
             CS.scroll.setRoot(id, main);
-            nodes[id].addEventListener('focusin', function (event) { focus[id] = event.target; });
+            nodes[id].addEventListener('focusin', function (event) {
+                if (doc.activeElement !== event.target) return;
+                focus[id] = { element: event.target, identity: adapters[id].captureFocus ? adapters[id].captureFocus(event.target) : null };
+            });
         });
         var host = createWorkspaceHost(adapters, {
             show: function (id, previous) {
@@ -82,7 +91,9 @@
             restore: function (id) {
                 var pos = positions[id];
                 if (pos) main.scrollTo(pos.x, pos.y);
-                var target = focus[id];
+                var saved = focus[id], adapter = adapters[id];
+                var target = saved && saved.identity && adapter.resolveFocus ? adapter.resolveFocus(saved.identity) : saved && saved.element;
+                if (!focusRouting.valid(target) && saved && saved.identity && adapter.getFocusFallback) target = adapter.getFocusFallback();
                 if (focusRouting.valid(target)) target.focus({ preventScroll: true });
                 else nodes[id].focus({ preventScroll: true });
                 refreshGeometry();

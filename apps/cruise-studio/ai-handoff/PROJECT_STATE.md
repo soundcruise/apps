@@ -1,6 +1,31 @@
 # Cruise Studio Project State
 
-## Structure / Pre-DTM Active Document Alignment v1（2026-10-14・現行）
+## Workspace Focus Restoration v1（2026-10-14・現行）
+
+Studio **0.31.2**（focus復帰のbug fix）/ Port **1.22.18** / Chord **1.20.1**。
+開始HEAD / origin/main / remote main=`c0f32687f0998c3a19870327d42a59c73e60f1ff`、tracked/staged空、ahead/behind0/0。
+Studio schema **1** / Authority physical schema **2**維持。
+
+Practice / Gear / My Appsのactivate再描画でDOM参照が失効する反例を正式browserへ追加し、修正前3 FAILを確認。
+既存focus routingへworkspace/list/item ID/roleによるopt-in復元を追加し、現在のDOMへ戻す。
+Practice menu/set/history、Gear/My Apps item、検索・caret・filter・read/moreを区別。historyはnative Tab到達可能なreadonly行。
+focusだけでselection/query/filter/order/detail/Port値を変更しない。削除・非表示・futureはread→rootの安全fallback。
+現在workspace / Modal / IME / 新input ownerを確認し、旧read結果がfocusを奪わない。Modal終了も再生成triggerをIDで解決。
+新timer/listener/observer/shortcutなし。既存Structure/LoupeとActive Documentの復帰経路を維持する。
+
+検証: baseline Studio Node529 PASS → 追加31を含む**560 PASS**（clean guard含む）。
+Chrome: 新規focus **19 PASS**＋既存正規10 suite **233 PASS**、計**252 PASS**（親11含む）。
+正式repoの独立8766 / 使い捨てChrome、4 Themes×390/768/1024/1440/1920、選択分離、外部rename/delete/stale/error/future、
+Modal/IME、高速往復・遅延read、Structure/Loupe/Print/reload/50 disposeを確認。画面/source0.31.2一致。
+禁止write・binary/Authority作成・予期しないproject dirty・console/app404/unhandled rejection **0**。
+Port/Shared/Worker製品コード不変更。Studio Host等はimport cache ?v=の更新のみ。
+Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**、Daybreak待機/L3c境界維持。
+既存8765 / 利用者profile / untracked不触。新規動的認証probe・deploy・D1・cutoverなし。
+
+次はPC Shell / Dock / Narrow Layout Polish。390px toolbar/Loupe overflow、Dock密度、domain Undo、実機確認は残る。
+詳細は[Focus復帰契約](../docs/WORKSPACE_FOCUS_RESTORATION.md)を参照。以下は各工程時点の履歴。
+
+## Structure / Pre-DTM Active Document Alignment v1（2026-10-14・履歴）
 
 Studio **0.31.1**（対象曲ずれのbug fix）/ Port **1.22.18** / Chord **1.20.1**。
 開始HEAD / origin/main / remote main=`171f31fa7dcc851d055554666c3ae48f3bd910c7`、tracked/staged空、ahead/behind0/0。

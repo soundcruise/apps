@@ -1,0 +1,51 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+import { readFileSync } from 'node:fs';
+const require = createRequire(import.meta.url), F = require('../js/core/focus-routing.js');
+function fixture(workspaceId = 'practice') {
+    const doc = { activeElement: null, defaultView: { getComputedStyle: e => ({ visibility: e.visibility || 'visible' }) } };
+    class Element {
+        constructor(parent = null) { this.ownerDocument = doc; this.parent = parent; this.isConnected = true; this.dataset = {}; this.disabled = false; this.hidden = false; this.inert = false; }
+        matches() { return this.disabled; }
+        closest(selector) { if (selector === '.screen') return this.parent || this; return this.hidden || this.inert || this.parent?.hidden || this.parent?.inert ? {} : null; }
+        getClientRects() { return this.hidden ? [] : [{}]; }
+        focus() { doc.activeElement = this; }
+        contains(e) { return e === this || e?.parent === this; }
+        querySelectorAll() { return items.filter(e => e.isConnected && e.dataset.focusRole); }
+    }
+    const node = new Element(), body = new Element(), items = []; doc.body = body; doc.activeElement = body;
+    const context = { activeWorkspaceId: workspaceId, activeModal: null }; let ime = false;
+    const shell = { getCommandContext: () => context, keyboard: { isIMEBlocked: () => ime } };
+    const helper = F.createWorkspaceFocus({ document: doc, node, workspaceId, shell, getFallback: () => read });
+    const add = (list, id, role = 'item') => { const e = new Element(node); helper.mark(e, list, id, role); items.push(e); return e; };
+    const read = add('controls', 'read', 'control');
+    const remove = e => { e.isConnected = false; e.parent = null; if (doc.activeElement === e) doc.activeElement = body; };
+    return { doc, node, body, context, helper, read, add, remove, ime: v => ime = v };
+}
+for (const [workspace, list, id, role] of [['practice','menus','m1','item'], ['practice','sets','s1','item'], ['practice','history','h1','item'], ['gear','items','g1','item'], ['myApps','items','a1','item'], ['myApps','controls','query','search'], ['gear','controls','status','filter'], ['gear','controls','category','filter']]) {
+    test(`${workspace}/${list}/${role}: resolve replacement by formal identity`, () => { const f = fixture(workspace), old = f.add(list, id, role), token = f.helper.capture(old); old.focus(); f.remove(old); const replacement = f.add(list, id, role); assert.equal(f.helper.resolve(token), replacement); replacement.focus(); assert.equal(f.doc.activeElement, replacement); });
+}
+test('capture is immutable and includes workspace/list/item/role, no DOM/name/index/selection', () => { const f = fixture(), e = f.add('menus','m1'), t = f.helper.capture(e); assert.deepEqual(t, { workspaceId:'practice',listId:'menus',itemId:'m1',role:'item' }); assert(Object.isFrozen(t)); assert.throws(() => t.itemId = 'm2', TypeError); });
+test('same IDs in different lists and workspaces cannot collide', () => { const f = fixture(), a = f.add('menus','id'), b = f.add('sets','id'), t = f.helper.capture(a); assert.equal(f.helper.resolve(t), a); assert.notEqual(f.helper.resolve(t), b); assert.equal(f.helper.resolve({ ...t, workspaceId:'gear' }), null); });
+test('duplicate display names/order changes do not affect ID resolution', () => { const f = fixture(), a = f.add('menus','a'), b = f.add('menus','b'); a.name = b.name = 'same'; const t = f.helper.capture(b); f.remove(b); const replacement = f.add('menus','b'); replacement.name = 'renamed'; assert.equal(f.helper.resolve(t), replacement); });
+test('ambiguous duplicate formal identity fails closed', () => { const f = fixture(), e = f.add('menus','x'), t = f.helper.capture(e); f.add('menus','x'); assert.equal(f.helper.resolve(t), null); });
+test('synchronous rerender restores only the removed live focus', () => { const f = fixture(), e = f.add('menus','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); const n = f.add('menus','x'); assert(f.helper.afterRender(r)); assert.equal(f.doc.activeElement, n); });
+test('confirmed deletion falls back to read control', () => { const f = fixture(), e = f.add('menus','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); assert(f.helper.afterRender(r)); assert.equal(f.doc.activeElement, f.read); });
+test('filter-hidden target cannot receive focus', () => { const f = fixture('gear'), e = f.add('items','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); f.add('items','x').hidden = true; assert(f.helper.afterRender(r)); assert.equal(f.doc.activeElement, f.read); });
+test('disabled read control during loading falls back to workspace root', () => { const f = fixture(), e = f.add('menus','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); f.read.disabled = true; assert(f.helper.afterRender(r)); assert.equal(f.doc.activeElement, f.node); });
+test('external rename replacement restores same ID without using old text', () => { const f = fixture('gear'), e = f.add('items','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); const n = f.add('items','x'); n.name = 'new'; assert(f.helper.afterRender(r)); assert.equal(f.doc.activeElement, n); });
+test('stale visible rows remain resolvable, future removed rows do not', () => { const f = fixture(), e = f.add('menus','x'), t = f.helper.capture(e); f.node.dataset.stale = 'true'; assert.equal(f.helper.resolve(t), e); f.remove(e); f.node.dataset.status = 'future'; assert.equal(f.helper.resolve(t), null); });
+test('old render callback after workspace switch cannot steal focus', () => { const f = fixture(), e = f.add('menus','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); f.add('menus','x'); f.context.activeWorkspaceId = 'gear'; assert.equal(f.helper.afterRender(r), false); assert.equal(f.doc.activeElement, f.body); });
+test('rapid A/B/A rejects old render if user has a newer input owner', () => { const f = fixture(), e = f.add('menus','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); f.add('menus','x'); f.context.activeWorkspaceId = 'gear'; f.context.activeWorkspaceId = 'practice'; const input = f.add('controls','query','search'); input.focus(); assert.equal(f.helper.afterRender(r), false); assert.equal(f.doc.activeElement, input); });
+test('Modal owns focus throughout background snapshot replacement', () => { const f = fixture(), e = f.add('menus','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); f.add('menus','x'); f.context.activeModal = {}; const dialogInput = { isConnected:true }; f.doc.activeElement = dialogInput; assert.equal(f.helper.resolve(r.identity), null); assert.equal(f.helper.afterRender(r), false); assert.equal(f.doc.activeElement, dialogInput); });
+test('IME and just-composed prevent restoration; no retry timer steals focus later', () => { const f = fixture(), e = f.add('menus','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); f.add('menus','x'); f.ime(true); assert.equal(f.helper.afterRender(r), false); assert.equal(f.doc.activeElement, f.body); });
+test('connected search/filter input keeps its focus through render', () => { const f = fixture('gear'), e = f.add('controls','query','search'); e.focus(); const r = f.helper.beforeRender(); f.add('items','x'); assert(f.helper.afterRender(r)); assert.equal(f.doc.activeElement, e); });
+test('hidden/inert/disabled/non-visible candidates never restore', () => { for (const state of ['hidden','inert','disabled','visibility']) { const f = fixture(), e = f.add('menus','x'), t = f.helper.capture(e); e[state] = state === 'visibility' ? 'hidden' : true; assert.equal(f.helper.resolve(t), null); } });
+test('focus does not mutate selection/query/filter/data owner state', () => { const f = fixture('gear'), model = { selected:'other',query:'q',filter:'owned',order:['y','x'] }, bytes = JSON.stringify(model), e = f.add('items','x'); e.focus(); const r = f.helper.beforeRender(); f.remove(e); f.add('items','x'); f.helper.afterRender(r); assert.equal(JSON.stringify(model), bytes); });
+test('unmarked/foreign elements keep legacy routing and cannot become list identity', () => { const f = fixture(); assert.equal(f.helper.capture(f.body), null); assert.equal(f.helper.capture(f.node), null); });
+test('dispose invalidates old descriptors and callbacks without registering timers/listeners', () => { const f = fixture(), e = f.add('menus','x'); e.focus(); const r = f.helper.beforeRender(); f.helper.dispose(); assert.equal(f.helper.resolve(r.identity), null); assert.equal(f.helper.afterRender(r), false); assert.equal(f.helper.fallback(), null); assert.equal(f.helper.capture(e), null); });
+test('Modal return routing can resolve a replaced trigger with existing fallback contract', () => { const f = fixture(), old = f.add('menus','x'), token = f.helper.capture(old); f.remove(old); const replacement = f.add('menus','x'); const routing = F.createFocusRouting(f.doc, () => f.node, () => f.read, e => e === old ? f.helper.resolve(token) : e); assert(routing.restore(old)); assert.equal(f.doc.activeElement, replacement); });
+test('existing Structure/Loupe DOM focus path remains valid without adapter', () => { const f = fixture('sheetCruise'), input = f.add('legacy','chord','legacy'); const routing = F.createFocusRouting(f.doc, () => f.node, () => f.read); assert(routing.restore(input)); assert.equal(f.doc.activeElement, input); });
+test('helper owns no shortcuts, storage, network, timers or theme state', () => { const source = readFileSync(new URL('../js/core/focus-routing.js', import.meta.url),'utf8'); assert.doesNotMatch(source,/localStorage|indexedDB|fetch\(|setTimeout|setInterval|addEventListener|keydown|selectionId/); });
+test('history uses actual record ID and native focus-visible, while Escape/Save stay router-owned', () => { const source = readFileSync(new URL('../js/modules/practice/workspace.js', import.meta.url),'utf8'), css = readFileSync(new URL('../shell.css',import.meta.url),'utf8'); assert.match(source,/li\.tabIndex = 0; focus\.mark\(li, kind, x\.id, 'item'\)/); assert.match(css,/\[data-focus-list="history"\]:focus-visible.*var\(--studio-focus\)/); assert.doesNotMatch(source,/keydown|commands\.register/); });
