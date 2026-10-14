@@ -1,6 +1,37 @@
 # Cruise Studio Project State
 
-## Structure Text Input History & IME v1（2026-10-14・現行）
+## Structure Domain Undo/Redo UI & Keyboard v1（2026-10-14・現行）
+
+Studio **0.36.0**（製品Undo/Redo UI/shortcut追加のminor）/ Port **1.22.18** / Chord **1.20.1**。
+指定基点7318efcaの後のNEWS-only 2 commitを祖先・変更範囲で確認し保持。
+実測HEAD / origin/main / remote main=`41567bb52ffd92d9056ed173adecda4b779c2099`、tracked/staged空・ahead/behind0/0。
+Studio schema **1** / Authority physical **2**維持。
+
+Structure toolbarへ「元に戻す」「やり直す」を追加し、既存Coreのundo/redoへ正式command routerで接続。
+Cmd/Ctrl+Z・Shift+Zはactive Structure非入力領域だけ。input/textarea/select/contenteditable/readonly等はnative owner。
+strum buttonの局所keydownだけ明示委譲。native/domain同時発火なし、別workspace/Modal/IME/just-composed/flight/deleted/recoveryを拒否。
+pointerdownは先行blurを抑え、live groupと未確定section名を正式確定してから実行。disabledと実行APIに同じeligibilityを使う。
+ARIA/title/shortcut案内、既存semantic tokens、390px action strip、Print除外。
+
+新編集/履歴/group/Save/external/project/workspace/Modal/IME通知でUI同期。古いsession通知は無視。
+非構造で現在field/caret/scrollを復帰、構造ではstable bar IDが無いため選択/Loupe解除。
+正式反例で、重複Loupe RAFによるfocus喪失とDOM removal中の旧section change再適用を修正。
+section controlのcontent frameを最終照合し、同じ反例で名前/cursor/focus復帰を確認。
+Core意味/stack/payload/capacityは不変更。saved/base/revision不変、dirty/競合保持、Pre-DTM current JSON/MIDI・不変出力を維持。
+
+検証: baseline Node **721 PASS** → 新規command/UI **57 PASS**、全Node **778 PASS**。
+Browser結果: 既存14 suite **353 PASS**＋新規UI **53 PASS**（親含む）、全15 suite **406 PASS**。
+実native Cmd+Z/Shift+Z、button/shortcut A–H、4 Themes×390–1920/Print/Audio/read-only Hostを確認。
+Undo/Redo repository write0、Port/Authority/ProDevice/Account/Sync/outbox/Worker/cloud mutation0。
+console/app404/unhandled/禁止通信0。source/display0.36.0一致。正式repo独立8767/disposable Chrome/synthetic micのみ。
+
+製品domain Undo/Redoを公開。native履歴の統合やreload/crash復旧は未対応。実OS IME/Safari/他OS/プリンター/DAWは未検証。
+既存popover pointer配置・Transport等は別工程。次は実機受入と残るStructure PC操作課題の選定。
+Port/Shared/Worker/NEWS製品コード不変更。Production **legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false**。
+Daybreak待機/L3c境界維持。既存8765/8766/PID25543/profile/untracked不触。probe/deploy/D1/cutoverなし。
+詳細は[Undo/Redo正式契約](../docs/DOMAIN_UNDO_REDO_UI.md)。以下は各工程時点の履歴。
+
+## Structure Text Input History & IME v1（2026-10-14・履歴）
 
 Studio **0.35.0**（文字入力・IME履歴接続機能のminor）/ Port **1.22.18** / Chord **1.20.1**。
 開始HEAD / origin/main / remote main=`119fec5777c9855e39d311323caf747d4df24372`、tracked/staged空、ahead/behind0/0。

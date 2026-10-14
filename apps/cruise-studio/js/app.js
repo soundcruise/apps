@@ -283,6 +283,7 @@
         shellHost.keyboard.bind({ scope: 'shell', commandId: 'studio.save', matches: function (key) {
             return key.primary && !key.alt && !key.shift && key.key.toLowerCase() === 's';
         } });
+        sheetCruise.connectHistoryCommands(shellHost);
         var openSheetBtn = document.getElementById('open-sheet-cruise');
         if (openSheetBtn) openSheetBtn.addEventListener('click', enterSheetCruise);
         var openPreDtmBtn = document.getElementById('open-pre-dtm');

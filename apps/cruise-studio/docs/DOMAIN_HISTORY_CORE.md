@@ -1,5 +1,13 @@
 # Editing Session Domain History Core v1
 
+## Domain Undo/Redo製品UI補足（0.36.0・現行）
+
+[Undo/Redo正式契約](DOMAIN_UNDO_REDO_UI.md)が製品button/shortcut未公開の旧境界を更新する。
+Structure toolbarとactive workspaceのCmd/Ctrl+Z・Shift+Zを既存Coreへ接続。入力欄はnative owner。
+IME/just-composed/Modal/flight/deleted/recovery/別target拒否、live group確定、saved/base/競合保持。
+非構造focus/caret復帰、構造選択解除、旧section change/content guard、Pre-DTM current workingを維持。
+以下の未公開・未接続・version・検証件数は各工程時点の履歴。今回の結果はROADMAP / PROJECT_STATE参照。
+
 ## Text / IME補足（0.35.0・現行）
 
 [Text正式契約](STRUCTURE_TEXT_HISTORY.md)が連続入力・IME・native ownerの未接続境界を更新する。

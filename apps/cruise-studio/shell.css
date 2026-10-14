@@ -338,3 +338,8 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
     #studio-metronome-toggle { min-width: 72px; padding-inline: 8px; }
 }
 @media screen and (max-width: 600px) { .studio-dock { padding-block: 6px; row-gap: 4px; } }
+
+/* Domain history uses existing semantic button tokens; announcements do not occupy toolbar space. */
+.studio-main :is(#sc-undo, #sc-redo):disabled { opacity: .5; cursor: default; }
+.studio-main :is(#sc-undo, #sc-redo):disabled:hover { background: var(--studio-control); }
+.studio-history-announcement { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }

@@ -1,5 +1,13 @@
 # Structure Text Input History & IME v1
 
+## Domain Undo/Redo製品UI補足（0.36.0・現行）
+
+[Undo/Redo正式契約](DOMAIN_UNDO_REDO_UI.md)が製品button/shortcut未公開の旧境界を更新する。
+Structure toolbarとactive workspaceのCmd/Ctrl+Z・Shift+Zを既存Coreへ接続。入力欄はnative owner。
+IME/just-composed/Modal/flight/deleted/recovery/別target拒否、live group確定、saved/base/競合保持。
+非構造focus/caret復帰、構造選択解除、旧section change/content guard、Pre-DTM current workingを維持。
+以下の未公開・未接続・version・検証件数は各工程時点の履歴。今回の結果はROADMAP / PROJECT_STATE参照。
+
 Studio 0.35.0 / Port 1.22.18 / Studio schema1 / Authority physical2。
 基点 `119fec5777c9855e39d311323caf747d4df24372`。
 [Core契約](DOMAIN_HISTORY_CORE.md)、[離散操作](STRUCTURE_OPERATION_HISTORY.md)、

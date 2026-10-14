@@ -128,8 +128,48 @@
             callback();
         });
     }
+    var historyController = null;
+    function refreshHistoryControls() {
+        if (!els.undoBtn || !els.redoBtn) return;
+        els.undoBtn.disabled = !historyController || !historyController.can('undo');
+        els.redoBtn.disabled = !historyController || !historyController.can('redo');
+    }
+    function connectHistoryCommands(host) {
+        historyController = CS().domainHistoryCommands.create({
+            getSession: function () { return state.session; }, getContext: host.getCommandContext,
+            isIMEBlocked: function () { return !operationEligible(); },
+            settleInput: function (session) {
+                if (session !== state.session) return;
+                var input = document.activeElement;
+                if (input && els.root.contains(input) && input.classList.contains('section-name-input')) {
+                    input.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            },
+            onResult: function (direction, result, session, event) {
+                if (session !== state.session) return;
+                refreshHistoryControls();
+                els.historyStatus.textContent = result.ok ? (direction === 'undo' ? '元に戻しました' : 'やり直しました') :
+                    '履歴を適用できませんでした。現在の編集内容を保持しています';
+                // Keep a restored editor focus; offer the next toolbar action if its old button is disabled.
+                var focused = document.activeElement;
+                if (result.ok && (focused === document.body || (focused && focused.disabled &&
+                    (focused === els.undoBtn || focused === els.redoBtn)))) {
+                    var next = direction === 'undo' ? els.redoBtn : els.undoBtn;
+                    (next.disabled ? els.projectSelect : next).focus({ preventScroll: true });
+                }
+            }
+        });
+        var off = historyController.attach(host.commands, host.keyboard);
+        refreshHistoryControls(); return off;
+    }
+    function routeLocalHistory(event) {
+        if (!(event.metaKey || event.ctrlKey) || event.altKey || event.key.toLowerCase() !== 'z' ||
+            CS().keyboard.isTextControl(event.target) || CS().keyboard.isTextControl(document.activeElement)) return false;
+        return !!(els.root.contains(event.target) && CS().shellHost &&
+            CS().shellHost.keyboard.localCommand(event, event.shiftKey ? 'studio.redo' : 'studio.undo', 'sheetCruise'));
+    }
     var textAdapter = null, textControls = new WeakMap();
-    function finishTextInputs() { if (state.session) state.session.finishTextGroup(); }
+    function finishTextInputs() { if (state.session) state.session.finishTextGroup(); refreshHistoryControls(); }
     function wireTextControl(input, target, update, reusable) {
         var info = { session: reusable ? null : state.session, target: target, composing: false,
             justComposed: false, compositionValue: null, native: false };
@@ -211,6 +251,7 @@
         els.timeSig = q('sc-time-sig');
         els.keyCheck = q('sc-key-check');
         els.saveBtn = q('sc-save');
+        els.undoBtn = q('sc-undo'); els.redoBtn = q('sc-redo'); els.historyStatus = q('sc-history-status');
         els.saveStatus = q('sc-save-status');
         els.printBtn = q('sc-print');
         els.exportBtn = q('sc-export-json');
@@ -300,17 +341,24 @@
         refreshProjectSelect();
     }
 
-    function redrawSession() {
+    function redrawSession(structureChanged) {
         var focused = state.active ? document.activeElement : state.workspaceFocus;
         var local = focused && els.root.contains(focused), selector = null;
         if (local && focused.id) selector = '#' + focused.id;
-        else if (local && focused.classList.contains('dock-lyrics-cell')) selector = '.dock-lyrics-cell[data-slot-tick="' + focused.dataset.slotTick + '"]';
-        else if (local && focused.classList.contains('dock-strum-cell')) selector = '.dock-strum-cell[data-cell-index="' + focused.dataset.cellIndex + '"]';
-        else if (local && focused.dataset.overlayField) selector = '[data-overlay-field="' + focused.dataset.overlayField + '"]';
+        else if (local && focused.dataset.sectionId) selector = '.' +
+            (focused.classList.contains('section-name-input') ? 'section-name-input' : 'section-bar-count') +
+            '[data-section-id="' + window.CSS.escape(focused.dataset.sectionId) + '"]';
+        else if (local && !structureChanged && focused.dataset.historyBar) selector = '.' +
+            (focused.classList.contains('bar-chord-input') ? 'bar-chord-input' : 'bar-doremi-input') +
+            '[data-history-bar="' + focused.dataset.historyBar + '"]';
+        else if (local && !structureChanged && focused.classList.contains('dock-lyrics-cell')) selector = '.dock-lyrics-cell[data-slot-tick="' + focused.dataset.slotTick + '"]';
+        else if (local && !structureChanged && focused.classList.contains('dock-strum-cell')) selector = '.dock-strum-cell[data-cell-index="' + focused.dataset.cellIndex + '"]';
+        else if (local && !structureChanged && focused.dataset.overlayField) selector = '[data-overlay-field="' + focused.dataset.overlayField + '"]';
         var start = local ? focused.selectionStart : null, end = local ? focused.selectionEnd : null;
         var scroll = CS().scroll ? CS().scroll.getPosition('sheetCruise') : null;
         if (state.selectedBarNumber && !getSelectedBar()) { state.selectedBarNumber = null; selectionDeleted = true; }
         renderAll();
+        state.overlayRefreshRequested = false; // Already rebuilt from the current snapshot; keep restored editor DOM.
         var restored = selector ? els.root.querySelector(selector) : null;
         if (restored && !restored.disabled) {
             state.workspaceFocus = restored;
@@ -325,6 +373,7 @@
     }
 
     function refreshSessionStatus() {
+        refreshHistoryControls();
         var session = state.session;
         if (!session) return;
         var selected = els.projectSelect.selectedOptions[0];
@@ -473,12 +522,16 @@
 
             var nameInput = document.createElement('input');
             nameInput.type = 'text';
-            nameInput.className = 'section-name-input';
+            nameInput.className = 'section-name-input'; nameInput.dataset.sectionId = sec.id;
             nameInput.value = sec.name;
             nameInput.setAttribute('aria-label', 'セクション名');
+            var nameFrame = CS().structureOperations.capture(state.session);
+            ['focus', 'input'].forEach(function (kind) { nameInput.addEventListener(kind, function () { nameFrame = CS().structureOperations.capture(state.session); }); });
             nameInput.addEventListener('change', function () {
+                if (!nameInput.isConnected || !CS().structureOperations.isCurrent(nameFrame, state.session)) return;
                 if (!runStructureOperation('renameSection', { sectionId: sec.id, name: nameInput.value }).ok) return;
                 nameInput.value = state.project.sections.filter(function (s) { return s.id === sec.id; })[0].name;
+                nameFrame = CS().structureOperations.capture(state.session);
                 markDirty();
                 renderBarGrid();
                 renderPreview();
@@ -490,14 +543,18 @@
             countLabel.textContent = '小節';
             var countInput = document.createElement('input');
             countInput.type = 'number';
-            countInput.className = 'section-bar-count';
+            countInput.className = 'section-bar-count'; countInput.dataset.sectionId = sec.id;
             countInput.min = '1';
             countInput.max = '64';
             countInput.step = '1';
             countInput.value = model.getSectionBarCount(state.project, sec.id);
+            var countFrame = CS().structureOperations.capture(state.session);
+            ['focus', 'input'].forEach(function (kind) { countInput.addEventListener(kind, function () { countFrame = CS().structureOperations.capture(state.session); }); });
             countInput.addEventListener('change', function () {
+                if (!countInput.isConnected || !CS().structureOperations.isCurrent(countFrame, state.session)) return;
                 if (!runStructureOperation('barCount', { sectionId: sec.id, count: parseInt(countInput.value, 10) }).ok) { countInput.value = model.getSectionBarCount(state.project, sec.id); return; }
                 countInput.value = model.getSectionBarCount(state.project, sec.id); // クランプ結果を反映
+                countFrame = CS().structureOperations.capture(state.session);
                 markDirty();
                 renderBarGrid();
                 renderPreview();
@@ -590,7 +647,7 @@
 
                 var chordInput = document.createElement('input');
                 chordInput.type = 'text';
-                chordInput.className = 'bar-chord-input';
+                chordInput.className = 'bar-chord-input'; chordInput.dataset.historyBar = String(bar.barNumber);
                 chordInput.placeholder = 'コード';
                 chordInput.setAttribute('aria-label', bar.barNumber + '小節目のコード');
                 chordInput.value = (bar.chords[0] && bar.chords[0].symbol) || '';
@@ -618,7 +675,7 @@
 
                 var doremiInput = document.createElement('input');
                 doremiInput.type = 'text';
-                doremiInput.className = 'bar-doremi-input';
+                doremiInput.className = 'bar-doremi-input'; doremiInput.dataset.historyBar = String(bar.barNumber);
                 doremiInput.placeholder = 'ドレミ';
                 doremiInput.setAttribute('aria-label', bar.barNumber + '小節目のドレミ');
                 doremiInput.value = CS().model.getBarDoremiText(bar);
@@ -1253,6 +1310,7 @@
     }
 
     function onStrumCellKeydown(event, bar, res, index, currentAction) {
+        if (routeLocalHistory(event)) return;
         if (routeLocalSave(event) || routeLocalEscape(event)) return;
         if (event.isComposing) return;
         var key = event.key;
@@ -2924,6 +2982,7 @@
     // 表示の切替はhostが担当。activateはstorageを読まず、保持したdraftのgeometryを復帰する。
     function activate() {
         state.active = true;
+        refreshHistoryControls();
         publishSelection();
         if (state.workspaceScroll && CS().scroll) {
             CS().scroll.restorePosition('sheetCruise', state.workspaceScroll);
@@ -2941,6 +3000,7 @@
         var focused = document.activeElement;
         state.workspaceFocus = els.root && els.root.contains(focused) ? focused : null;
         state.active = false;
+        refreshHistoryControls();
         publishSelection();
         if (state.overlayFrame) window.cancelAnimationFrame(state.overlayFrame);
         state.overlayFrame = null;
@@ -2990,6 +3050,15 @@
 
         els.addSectionBtn.addEventListener('click', onAddSection);
         els.saveBtn.addEventListener('click', save);
+        [els.undoBtn, els.redoBtn].forEach(function (button) {
+            button.addEventListener('pointerdown', function (event) {
+                if (event.button === 0) event.preventDefault(); // explicit domain button does not blur the editor first
+            });
+            button.addEventListener('click', function (event) {
+                if (CS().shellHost) CS().shellHost.commands.execute(button === els.undoBtn ? 'studio.undo' : 'studio.redo', event);
+                refreshHistoryControls();
+            });
+        });
         els.root.addEventListener('keydown', routeLocalSave);
         document.addEventListener('focusin', function () { focusEpoch++; finishTextInputs(); }, true);
         // An IME buffer is not a semantic draft edit yet. Hold external adoption until it settles.
@@ -2998,12 +3067,18 @@
         }, true);
         els.root.addEventListener('compositionend', function (event) {
             var owner = compositionOwners.get(event.target);
-            if (owner) { compositionOwners.delete(event.target); owner.setInputPending(false); }
+            if (owner) {
+                compositionOwners.delete(event.target); owner.setInputPending(false);
+                var ticket = CS().documents.ticket();
+                window.setTimeout(function () {
+                    if (state.session === owner && CS().documents.isSelected(ticket)) refreshHistoryControls();
+                }, 0); // UI eligibility refresh only; never defer an Undo action
+            }
         });
         CS().sessions.subscribe(function (session, kind) {
             if (state.session !== session) return;
-            var nextStructure = CS().structureOperations.structureKey(session.draft);
-            if (structureIdentity !== nextStructure) {
+            var nextStructure = CS().structureOperations.structureKey(session.draft), structureChanged = structureIdentity !== nextStructure;
+            if (structureChanged) {
                 // barNumber is not stable: never carry a Loupe into a different bar after renumbering.
                 selectionDeleted = !!(state.selectedBarNumber && !getSelectedBar());
                 state.selectedBarNumber = null; state.dockManualRes = {}; state.overlayWarnings = {};
@@ -3019,7 +3094,7 @@
             }
             publishedBars = session.draft.bars;
             structureIdentity = nextStructure;
-            if (['external-adopt', 'cancel', 'replace', 'undo', 'redo'].includes(kind)) redrawSession();
+            if (['external-adopt', 'cancel', 'replace', 'undo', 'redo'].includes(kind)) redrawSession(structureChanged);
             refreshSessionStatus();
             publishSelection();
         });
@@ -3066,6 +3141,7 @@
     window.CruiseStudio = window.CruiseStudio || {};
     window.CruiseStudio.sheetCruise = {
         init: init,
+        connectHistoryCommands: connectHistoryCommands,
         enter: enter,
         load: load,
         activate: activate,
