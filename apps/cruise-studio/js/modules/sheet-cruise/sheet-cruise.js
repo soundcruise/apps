@@ -104,6 +104,7 @@
             state.lyricComposingTick === null && !state.lyricJustComposed;
     }
     function runStructureOperation(kind, args, expected) {
+        finishTextInputs();
         if (!operationAdapter) operationAdapter = CS().structureOperations.create({ model: CS().model,
             getSession: function () { return state.session; }, isEligible: operationEligible });
         var result = operationAdapter.execute(kind, args, expected);
@@ -126,6 +127,47 @@
             if (!currentFrame(frame) || !operationEligible() || epoch !== focusEpoch || (active !== focused && !replacedControl)) return;
             callback();
         });
+    }
+    var textAdapter = null, textControls = new WeakMap();
+    function finishTextInputs() { if (state.session) state.session.finishTextGroup(); }
+    function wireTextControl(input, target, update, reusable) {
+        var info = { session: reusable ? null : state.session, target: target, composing: false,
+            justComposed: false, compositionValue: null, native: false };
+        textControls.set(input, info);
+        input.addEventListener('beforeinput', function (event) {
+            info.native = event.inputType === 'historyUndo' || event.inputType === 'historyRedo';
+            if (info.native) finishTextInputs();
+        });
+        input.addEventListener('compositionstart', function () {
+            info.composing = true; info.justComposed = false; info.compositionOwner = state.session;
+            info.compositionTicket = CS().documents.ticket(); finishTextInputs();
+        });
+        input.addEventListener('compositionend', function () {
+            info.composing = false; info.justComposed = true; info.compositionValue = input.value;
+            if (info.compositionOwner === state.session && CS().documents.isSelected(info.compositionTicket)) update({ target: input, composition: true });
+            window.setTimeout(function () { info.justComposed = false; }, 0);
+        });
+        input.addEventListener('input', function (event) {
+            if (event.isComposing || info.composing) return;
+            if (info.justComposed && input.value === info.compositionValue) return;
+            update(event); info.native = false;
+        });
+        input.addEventListener('blur', finishTextInputs);
+        input.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' && !event.isComposing && !info.composing && !info.justComposed) finishTextInputs();
+        });
+    }
+    function applyTextInput(input, event) {
+        var info = textControls.get(input);
+        if (!info || !input.isConnected || (info.session && info.session !== state.session) ||
+            info.composing || (event && event.isComposing)) return { ok: true, deferred: true, warnings: [] };
+        if (!textAdapter) textAdapter = CS().structureText.create({ model: CS().model,
+            getSession: function () { return state.session; },
+            isEligible: function () { return state.active && !(CS().shellHost && CS().shellHost.getCommandContext().activeModal); } });
+        var mode = event && event.composition ? 'composition' : info.native ? 'native' : input.tagName === 'SELECT' ? 'discrete' : null;
+        var result = textAdapter.apply(info.target, input.value, mode);
+        if (!result.ok) setSaveStatus(result.error || '入力を適用できませんでした。入力内容を保持しています', true);
+        return result;
     }
     var selectionListeners = new Set(), selectionDeleted = false, selectionSignature = null;
     // Read projection of Structure's existing single-bar selection and session draft.
@@ -301,6 +343,7 @@
     }
 
     function showSession(session, message) {
+        finishTextInputs();
         if (state.session) projectViews.set(state.session.sessionId, {
             selectedBarNumber: state.selectedBarNumber, structureIdentity: structureIdentity, loupe: Object.assign({}, state.loupe),
             dockManualRes: state.dockManualRes, overlayWarnings: state.overlayWarnings,
@@ -371,43 +414,25 @@
         updateKeyCheck();
     }
 
-    function readFormIntoProject() {
-        var si = state.project.songInfo;
-        si.title = els.title.value.trim() || '無題のプロジェクト';
-        si.artist = els.artist.value.trim();
-        si.originalKey = els.originalKey.value;
-        si.playKey = els.playKey.value;
+    function readFormIntoProject() { finishTextInputs(); } // DOM is not the content owner.
 
-        var capo = parseInt(els.capo.value, 10);
-        si.capo = (isNaN(capo) ? 0 : Math.min(11, Math.max(0, capo)));
-
-        var bpm = parseInt(els.bpm.value, 10);
-        si.bpm = (isNaN(bpm) ? 100 : Math.min(400, Math.max(20, bpm)));
-
-        var sig = (els.timeSig.value || '4/4').split('/');
-        si.timeSignature = {
-            beats: parseInt(sig[0], 10) || 4,
-            beatUnit: parseInt(sig[1], 10) || 4
-        };
-    }
-
-    function onFieldChange() {
-        readFormIntoProject();
-        markDirty();
-        updateKeyCheck();
-        renderPreview();
+    function onFieldChange(event) {
+        var result = applyTextInput(event.target, event);
+        if (!result.ok || result.deferred) return;
+        markDirty(); updateKeyCheck(); renderPreview(true);
     }
 
     /**
      * 基本ストローク入力（R1）。記号をslotsへ正規化して strumPatterns に保存する。
      * 入力欄の値は打鍵中には書き換えない（次の renderForm 時に正規化表示される）。
      */
-    function onBasicStrumInput() {
-        var res = CS().model.setBasicStrumText(state.project, els.basicStrum.value);
+    function onBasicStrumInput(event) {
+        var res = applyTextInput(els.basicStrum, event);
+        if (!res.ok || res.deferred) return;
         els.basicStrum.classList.toggle('is-invalid', res.warnings.length > 0);
         els.basicStrum.title = res.warnings.join(' / ');
         markDirty();
-        renderPreview();
+        renderPreview(true);
     }
 
     /**
@@ -570,11 +595,9 @@
                 chordInput.setAttribute('aria-label', bar.barNumber + '小節目のコード');
                 chordInput.value = (bar.chords[0] && bar.chords[0].symbol) || '';
                 validateChordInput(chordInput);
-                chordInput.addEventListener('input', function () {
-                    CS().model.setBarChord(state.project, bar.barNumber, chordInput.value);
-                    validateChordInput(chordInput);
-                    markDirty();
-                    renderPreview();
+                wireTextControl(chordInput, { kind: 'chord', barNumber: bar.barNumber }, function (event) {
+                    var res = applyTextInput(chordInput, event); if (!res.ok || res.deferred) return;
+                    validateChordInput(chordInput); markDirty(); renderPreview(true);
                 });
 
                 // F2a: 歌詞は小節ルーペのセル編集へ移行。このinputは表示専用（readonly）にし、
@@ -599,12 +622,10 @@
                 doremiInput.placeholder = 'ドレミ';
                 doremiInput.setAttribute('aria-label', bar.barNumber + '小節目のドレミ');
                 doremiInput.value = CS().model.getBarDoremiText(bar);
-                doremiInput.addEventListener('input', function () {
-                    var res = CS().model.setBarDoremiText(state.project, bar.barNumber, doremiInput.value);
+                wireTextControl(doremiInput, { kind: 'doremi', barNumber: bar.barNumber }, function (event) {
+                    var res = applyTextInput(doremiInput, event); if (!res.ok || res.deferred) return;
                     doremiInput.classList.toggle('is-invalid', res.warnings.length > 0);
-                    doremiInput.title = res.warnings.join(' / ');
-                    markDirty();
-                    renderPreview();
+                    doremiInput.title = res.warnings.join(' / '); markDirty(); renderPreview(true);
                 });
 
                 cell.appendChild(num);
@@ -621,12 +642,13 @@
 
     /* ══════════ A4紙面プレビュー（sheet-renderer.js が紙面DOMを構築。ADR-016） ══════════ */
 
-    function renderPreview() {
+    function renderPreview(preserveInputs) {
+        if (preserveInputs) state.overlayRefreshRequested = false;
         CS().sheetRenderer.render(state.project, els.scaleBox);
         updateSheetScale();
-        syncSheetSelection();
+        syncSheetSelection(preserveInputs);
         // 画面切替直後は clientWidth が 0 のことがあるため、表示後にもう一度合わせる
-        scheduleOverlayPosition();
+        scheduleOverlayPosition(!preserveInputs);
     }
 
     /**
@@ -671,6 +693,7 @@
      * （紙面の小節を再クリックすれば同じ小節がまた選択され、ドックも再表示される）。
      */
     function deselectBar() {
+        finishTextInputs();
         if (!state.selectedBarNumber) return;
         state.selectedBarNumber = null;
         selectionDeleted = false;
@@ -768,14 +791,15 @@
         var isComposing = options && options.composing;
         var skipRender = options && options.skipRender;
         var warnings = [];
+        var applied = applyTextInput(input, options && options.event);
+        if (!applied.ok || applied.deferred) return;
 
         if (rowId === 'chord') {
-            CS().model.setBarChord(state.project, bar.barNumber, input.value);
             validateChordInput(input);
             state.overlayWarnings[rowId] = input.classList.contains('is-invalid') ?
                 [input.title] : [];
         } else if (rowId === 'doremi') {
-            warnings = CS().model.setBarDoremiText(state.project, bar.barNumber, input.value).warnings;
+            warnings = applied.warnings;
             state.overlayWarnings[rowId] = warnings;
             input.classList.toggle('is-invalid', warnings.length > 0);
             input.title = warnings.join(' / ');
@@ -787,9 +811,7 @@
         syncBarGridInput(rowId, bar.barNumber, input.value, warnings);
         if (isComposing || skipRender) return;
 
-        var snapshot = captureOverlayFocus(rowId, input);
-        renderPreview();
-        restoreOverlayFocusAfterRender(snapshot);
+        renderPreview(true);
     }
 
     function buildOverlayInput(rowDef, bar) {
@@ -808,17 +830,8 @@
             input.title = warnings.join(' / ');
         }
 
-        input.addEventListener('compositionstart', function () {
-            state.overlayComposingRowId = rowDef.id;
-        });
-        input.addEventListener('compositionend', function () {
-            state.overlayComposingRowId = null;
-            applyOverlayFieldChange(rowDef.id, input);
-        });
-        input.addEventListener('input', function (event) {
-            applyOverlayFieldChange(rowDef.id, input, {
-                composing: !!(event.isComposing || state.overlayComposingRowId === rowDef.id)
-            });
+        wireTextControl(input, { kind: rowDef.id, barNumber: bar.barNumber }, function (event) {
+            applyOverlayFieldChange(rowDef.id, input, { event: event });
         });
         input.addEventListener('keydown', function (event) {
             if (routeLocalSave(event) || routeLocalEscape(event)) return;
@@ -876,6 +889,7 @@
     }
 
     function moveSelectedBar(delta, options) {
+        finishTextInputs();
         var target = getMoveTarget(delta);
         if (!target || target.barNumber === state.selectedBarNumber) return;
         state.selectedBarNumber = target.barNumber;
@@ -1515,10 +1529,11 @@
         var changed = inputEl.value !== inputEl._initialValue;
 
         if (changed) {
-            model.setBarLyricSlot(state.project, bar.barNumber, slotTick, slotTicks, inputEl.value);
+            var result = applyTextInput(inputEl, opts.event);
+            if (!result.ok || result.deferred) return;
             inputEl._initialValue = inputEl.value;
             markDirty();
-            syncBarGridInput('lyrics', bar.barNumber, model.getBarLyricsText(bar), []);
+            syncBarGridInput('lyrics', bar.barNumber, model.getBarLyricsText(getSelectedBar()), []);
         }
 
         if (opts.skipRender) return;
@@ -1532,7 +1547,7 @@
 
         var snapshot = captureLyricCellFocus(slotTick, inputEl);
         var expectedBarNumber = bar.barNumber;
-        renderPreview();
+        renderPreview(true);
         if (typeof focusTick === 'number' && focusTick !== slotTick) {
             queueEditorFrame(function () {
                 if (state.selectedBarNumber !== expectedBarNumber) return;
@@ -1678,32 +1693,27 @@
             input.title = cellInfo.text;
         }
 
-        input.addEventListener('compositionstart', function () {
-            state.lyricComposingTick = slotTick;
-            input.classList.add('is-composing');
+        wireTextControl(input, { kind: 'lyrics', barNumber: bar.barNumber, tick: slotTick, ticks: slotTicks }, function (event) {
+            commitLyricCell(bar, input, slotTick, { event: event });
         });
+        input.addEventListener('compositionstart', function () { state.lyricComposingTick = slotTick; input.classList.add('is-composing'); });
         input.addEventListener('compositionend', function () {
-            input.classList.remove('is-composing');
-            state.lyricComposingTick = null;
-            state.lyricJustComposed = true;
+            input.classList.remove('is-composing'); state.lyricComposingTick = null; state.lyricJustComposed = true;
             window.setTimeout(function () { state.lyricJustComposed = false; }, 0);
-            commitLyricCell(bar, input, slotTick);
-        });
-        input.addEventListener('input', function (event) {
-            if (event.isComposing || state.lyricComposingTick === slotTick) return;
-            commitLyricCell(bar, input, slotTick);
         });
         input.addEventListener('keydown', function (event) {
             onLyricCellKeydown(event, bar);
         });
         input.addEventListener('blur', function () {
             if (state.lyricComposingTick === slotTick) return;
+            var frame = contentFrame();
             window.setTimeout(function () {
                 // Tab/Enter/矢印等の明示操作が既にこのセルをcommitして再描画済みなら
                 // このinputはDOMから外れている（多重commit・再描画によるフォーカス
                 // 奪還を防ぐ）。
-                if (!input.isConnected) return;
+                if (!input.isConnected || !currentFrame(frame)) return;
                 commitLyricCell(bar, input);
+                finishTextInputs();
             }, 0);
         });
         input.addEventListener('click', function (event) { event.stopPropagation(); });
@@ -2676,7 +2686,7 @@
         applyLoupeGeometry();
     }
 
-    function syncSheetSelection() {
+    function syncSheetSelection(preserveInputs) {
         if (!els.scaleBox) return;
         var selectedExists = false;
         Array.prototype.forEach.call(els.scaleBox.querySelectorAll('.sheet-bar[data-bar-number]'), function (cell) {
@@ -2690,7 +2700,7 @@
             state.selectedBarNumber = null;
             selectionDeleted = true;
         }
-        renderSlotOverlayContent();
+        if (!preserveInputs) renderSlotOverlayContent();
         positionSlotOverlay();
         maybeAutoScrollToSelection();
         publishSelection();
@@ -2758,6 +2768,7 @@
     }
 
     function selectSheetBar(barNumber) {
+        finishTextInputs();
         if (!state.project || !barNumber) return;
         var exists = state.project.bars.some(function (bar) {
             return bar.barNumber === barNumber;
@@ -2874,6 +2885,7 @@
     function save(event) { if (CS().shellHost) CS().shellHost.commands.execute('studio.save', event); }
 
     function commitSession(session) {
+        session.finishTextGroup();
         // UI mutations already write to the session; never read another document's form here.
         return session.commit().then(function (result) {
             if (state.session === session) {
@@ -2924,6 +2936,7 @@
 
     function deactivate() {
         if (!state.active) return;
+        finishTextInputs();
         state.workspaceScroll = CS().scroll ? CS().scroll.getPosition('sheetCruise') : null;
         var focused = document.activeElement;
         state.workspaceFocus = els.root && els.root.contains(focused) ? focused : null;
@@ -2968,17 +2981,17 @@
         });
         els.newProjectBtn.addEventListener('click', createNewProject);
 
-        [els.title, els.artist, els.capo, els.bpm].forEach(function (el) {
-            el.addEventListener('input', onFieldChange);
+        [[els.title, 'title'], [els.artist, 'artist'], [els.capo, 'capo'], [els.bpm, 'bpm'],
+         [els.originalKey, 'originalKey'], [els.playKey, 'playKey'], [els.timeSig, 'timeSignature']].forEach(function (pair) {
+            wireTextControl(pair[0], { kind: 'song', field: pair[1] }, onFieldChange, true);
+            if (pair[0].tagName === 'SELECT') pair[0].addEventListener('change', onFieldChange);
         });
-        [els.originalKey, els.playKey, els.timeSig].forEach(function (el) {
-            el.addEventListener('change', onFieldChange);
-        });
+        wireTextControl(els.basicStrum, { kind: 'basicStrum' }, onBasicStrumInput, true);
 
         els.addSectionBtn.addEventListener('click', onAddSection);
         els.saveBtn.addEventListener('click', save);
         els.root.addEventListener('keydown', routeLocalSave);
-        document.addEventListener('focusin', function () { focusEpoch++; }, true);
+        document.addEventListener('focusin', function () { focusEpoch++; finishTextInputs(); }, true);
         // An IME buffer is not a semantic draft edit yet. Hold external adoption until it settles.
         els.root.addEventListener('compositionstart', function (event) {
             if (state.session) { compositionOwners.set(event.target, state.session); state.session.setInputPending(true); }
@@ -3019,7 +3032,6 @@
         els.exportBtn.addEventListener('click', downloadCurrentProjectJson);
         els.importInput.addEventListener('change', onImportJsonFile);
 
-        els.basicStrum.addEventListener('input', onBasicStrumInput);
 
         [els.showChords, els.showStrum, els.showLyrics, els.showDoremi,
          els.showGrid, els.gridResolution].forEach(function (el) {

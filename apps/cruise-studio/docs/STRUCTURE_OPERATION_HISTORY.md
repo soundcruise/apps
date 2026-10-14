@@ -1,5 +1,13 @@
 # Structure Operation Adapter v1
 
+## Text / IME補足（0.35.0・現行）
+
+[Text正式契約](STRUCTURE_TEXT_HISTORY.md)が連続入力・IME・native ownerの未接続境界を更新する。
+Core内のlive text groupだけで合体し、第二stackなし。blur/field/target/workspace/Save/ACK/IME/native/別操作で終了。
+IME途中はbuffer保持、確定1entry。native Undoの実inputは新規domain編集、製品Undo UI/shortcutは未公開。
+通常text描画で入力DOMを保持し、saved/base/dirty/conflict/外部採用の契約を維持。
+以下の工程別version・検証件数・未接続記述は各時点の履歴。今回の結果はROADMAP / PROJECT_STATE参照。
+
 Studio 0.34.0 / Port 1.22.18 / Studio schema1 / Authority physical2。
 基点 `a6a12cb833fbd55c486067f1452c5f3fcd20d567`。履歴記録経路の接続であり、製品Undo UIの完成ではない。
 [Domain History Core](DOMAIN_HISTORY_CORE.md)、[Editing Session](EDITING_SESSION.md)、

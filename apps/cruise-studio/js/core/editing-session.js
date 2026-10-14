@@ -98,9 +98,11 @@
             var tracker, changeSerial = 0;
             var history = { epoch: 0, entries: [], cursor: 0, bytes: 0, status: 'empty', reason: null, evicted: 0 };
             var openGroup = null, operationSequence = 0, entrySequence = 0;
+            var textGroup = null, textInvocation = false, compositionText = false;
+            function finishTextGroup() { textGroup = null; return { ok: true }; }
             function abandonGroup() { if (openGroup) openGroup.tracker.detach(); openGroup = null; }
             function resetHistory(reason, status) {
-                abandonGroup(); history.epoch++; history.entries = []; history.cursor = history.bytes = 0;
+                abandonGroup(); finishTextGroup(); history.epoch++; history.entries = []; history.cursor = history.bytes = 0;
                 history.status = status || 'empty'; history.reason = reason; history.evicted = 0;
             }
             function changed(path, semantic) {
@@ -127,7 +129,7 @@
             function publishContent(prepared, kind) {
                 tracker.detach(); tracker = prepared.tracker; changeSerial++;
                 // Saved/base/conflict and metadata are deliberately not touched here.
-                validation = prepared.validation; emit(session, kind);
+                validation = prepared.validation; textInvocation = compositionText = false; emit(session, kind);
             }
             function expected(entry, side) {
                 return tracker.raw.projectId === target.projectId && tracker.raw.schemaVersion === base.schemaVersion &&
@@ -136,6 +138,7 @@
             function moveHistory(direction) {
                 var blocked = historyBlocked();
                 if (blocked || flight || openGroup) return reject(blocked || 'busy');
+                finishTextGroup();
                 var index = direction < 0 ? history.cursor - 1 : history.cursor, entry = history.entries[index];
                 if (!entry) return reject('empty-history');
                 if (!expected(entry, direction < 0 ? 'after' : 'before')) {
@@ -165,6 +168,7 @@
                 var incoming = snapshot(update);
                 if (holdBase || update.deleted || dirty() || flight || inputPending || openGroup) {
                     pending = incoming; deleted = !!update.deleted;
+                    if (deleted) finishTextGroup();
                     conflict = freeze({ incomingRevision: update.revision, incomingSnapshot: incoming.snapshot || null, source: update.source, deleted: deleted });
                     emit(session, 'external-pending');
                 } else adopt(incoming, 'external-adopt');
@@ -199,11 +203,14 @@
                 canCommit: function () { return !destroyed && !closing && !flight && !deleted && !pending && !inputPending && !openGroup && repository.canWrite(); },
                 getHistory: function () {
                     return Object.freeze({ epoch: history.epoch, entries: Object.freeze(history.entries.slice()), cursor: history.cursor,
-                        openGroup: openGroup ? openGroup.handle.operationId : null, bytes: history.bytes, limits: limits,
+                        openGroup: openGroup ? openGroup.handle.operationId : null,
+                        textGroup: textGroup ? Object.freeze({ key: textGroup.key, entryId: textGroup.entryId }) : null, bytes: history.bytes, limits: limits,
                         status: history.status, reason: history.reason, evictedCount: history.evicted });
                 },
                 beginOperation: function (label) {
+                    if (!textInvocation) finishTextGroup();
                     var blocked = historyBlocked();
+                    if (compositionText && blocked === 'input-pending') blocked = deleted ? 'deleted' : null;
                     if (blocked || openGroup) return reject(blocked || 'busy');
                     if (tracker.raw.projectId !== target.projectId || tracker.raw.schemaVersion !== base.schemaVersion) return reject('invalid-target');
                     try {
@@ -218,6 +225,7 @@
                 commitOperation: function (handle) {
                     if (!openGroup || openGroup.handle !== handle) return reject('invalid-operation');
                     var group = openGroup, blocked = historyBlocked();
+                    if (compositionText && blocked === 'input-pending') blocked = deleted ? 'deleted' : null;
                     if (blocked) return reject(blocked);
                     if (handle.contentVersion !== session.snapshotVersion || handle.historyEpoch !== history.epoch) return reject('stale-operation');
                     // Final content check also catches drift that bypassed a Proxy notification.
@@ -229,22 +237,28 @@
                     var after = contentSnapshot(group.tracker.raw);
                     if (equal(group.before, after)) { abandonGroup(); return { ok: true, recorded: false }; }
                     var prepared = prepareContent(after); if (!prepared.ok) return prepared;
-                    var bytes = byteSize(group.before) + byteSize(after);
+                    var merging = textInvocation && textGroup && textGroup.entryId && history.cursor === history.entries.length &&
+                        history.entries.length && history.entries[history.cursor - 1].entryId === textGroup.entryId;
+                    var before = merging ? history.entries[history.cursor - 1].before : group.before;
+                    var bytes = byteSize(before) + byteSize(after);
                     abandonGroup();
                     if (bytes > limits.maxBytes) {
                         resetHistory('operation-too-large', 'overflow');
                         publishContent(prepared, 'operation'); return { ok: true, recorded: false, code: 'history-overflow' };
                     }
                     history.entries = history.entries.slice(0, history.cursor);
-                    history.entries.push(Object.freeze({ entryId: sessionId + ':history-' + (++entrySequence), sessionId: sessionId,
-                        epoch: history.epoch, label: group.label, before: group.before, after: after, bytes: bytes }));
+                    var entryId = merging ? history.entries.pop().entryId : sessionId + ':history-' + (++entrySequence);
+                    var netChange = !equal(before, after);
+                    if (netChange) history.entries.push(Object.freeze({ entryId: entryId, sessionId: sessionId,
+                        epoch: history.epoch, label: group.label, before: before, after: after, bytes: bytes }));
+                    if (textInvocation && textGroup) textGroup.entryId = netChange ? entryId : null;
                     history.bytes = history.entries.reduce(function (sum, entry) { return sum + entry.bytes; }, 0);
                     history.cursor = history.entries.length;
                     while (history.entries.length > limits.maxEntries || history.bytes > limits.maxBytes) {
                         history.bytes -= history.entries.shift().bytes; history.cursor--; history.evicted++;
                     }
-                    history.status = 'ready'; history.reason = null;
-                    publishContent(prepared, 'operation'); return { ok: true, recorded: true };
+                    history.status = history.entries.length ? 'ready' : 'empty'; history.reason = null;
+                    publishContent(prepared, 'operation'); return { ok: true, recorded: netChange };
                 },
                 cancelOperation: function (handle) {
                     if (!openGroup || openGroup.handle !== handle) return reject('invalid-operation');
@@ -266,6 +280,31 @@
                         session.cancelOperation(begun.operation); return { ok: false, code: 'operation-failed', error: error.message || String(error) };
                     }
                 },
+                // Each text update is a validated synchronous publication; only the Core coalesces entries.
+                runTextOperation: function (key, label, edit) {
+                    var blocked = historyBlocked();
+                    if (compositionText && blocked === 'input-pending') blocked = deleted ? 'deleted' : null;
+                    if (blocked || openGroup || textInvocation) return reject(blocked || 'busy');
+                    if (typeof key !== 'string' || !key || key.length > 1024) return reject('invalid-text-target');
+                    if (textGroup && textGroup.entryId) {
+                        var last = history.entries[history.cursor - 1];
+                        if (!last || last.entryId !== textGroup.entryId || !expected(last, 'after')) {
+                            tracker.rebase(); changeSerial++; resetHistory('stale-text', 'invalidated');
+                            emit(session, 'history-invalidated'); return reject('stale-history');
+                        }
+                    }
+                    if (!textGroup || textGroup.key !== key) textGroup = { key: key, entryId: null };
+                    textInvocation = true;
+                    try { return session.runOperation(label, edit); }
+                    finally { textInvocation = false; }
+                },
+                runCompositionTextOperation: function (key, label, edit) {
+                    if (!inputPending || compositionText) return reject('invalid-composition');
+                    compositionText = true;
+                    try { return session.runTextOperation(key, label, edit); }
+                    finally { compositionText = false; finishTextGroup(); }
+                },
+                finishTextGroup: finishTextGroup,
                 undo: function () { return moveHistory(-1); }, redo: function () { return moveHistory(1); },
                 canUndo: function () { return !historyBlocked() && !flight && !openGroup && history.cursor > 0; },
                 canRedo: function () { return !historyBlocked() && !flight && !openGroup && history.cursor < history.entries.length; },
@@ -274,7 +313,7 @@
                     if (openGroup) return reject('busy');
                     resetHistory('explicit-clear'); emit(session, 'history-cleared'); return { ok: true };
                 },
-                setInputPending: function (value) { if (!destroyed && inputPending !== !!value) { inputPending = !!value; emit(session, 'input'); } },
+                setInputPending: function (value) { if (!destroyed && inputPending !== !!value) { if (value) finishTextGroup(); inputPending = !!value; emit(session, 'input'); } },
                 workingSnapshot: function () { return snapshot(tracker.raw); },
                 playbackSnapshot: function () { return snapshot(tracker.raw); },
                 applyExternalSnapshot: applyExternal,
@@ -285,6 +324,7 @@
                     resetHistory('replace'); generation++; changeSerial++; resetDraft(value); tracker.rebase(); emit(session, 'replace');
                 },
                 commit: function () {
+                    if (!inputPending) finishTextGroup();
                     if (!session.canCommit()) return Promise.resolve({ ok: false, code: deleted ? 'deleted' : pending ? 'conflict' : 'unavailable', error: '現在は保存できません' });
                     var fixed = snapshot(tracker.raw);
                     try { validation = snapshot(options.validate(fixed)); }
@@ -299,7 +339,7 @@
                         if (destroyed || flight !== current || generation !== token.generation) return { ok: false, code: 'stale-result' };
                         if (result.ok && (result.sessionId !== token.sessionId || result.commitId !== token.commitId || result.generation !== token.generation)) result = { ok: false, code: 'stale-result', error: '保存結果のsessionが一致しません' };
                         if (result.ok && (!result.snapshot || result.snapshot.projectId !== target.projectId || typeof result.revision !== 'string')) result = { ok: false, code: 'invalid-result', error: '保存結果の対象が一致しません' };
-                        flight = null;
+                        flight = null; finishTextGroup();
                         if (result.ok) {
                             base = snapshot(result.snapshot); revision = result.revision; exists = true;
                             tracker.raw.updatedAt = base.updatedAt; tracker.raw.appVersion = base.appVersion;
@@ -316,7 +356,7 @@
                         }
                         return result;
                     }).catch(function (error) {
-                        if (flight === current) { flight = null; commitError = error.message || String(error); emit(session, 'commit-failure'); }
+                        if (flight === current) { flight = null; finishTextGroup(); commitError = error.message || String(error); emit(session, 'commit-failure'); }
                         return { ok: false, error: error.message || String(error) };
                     });
                     return current.promise;
@@ -354,8 +394,8 @@
             getSession: function (domain, target) { return sessions.get(byTarget.get(key(domain, target))) || null; },
             listSessions: function () { return Array.from(sessions.values()); },
             getActiveSession: function () { return sessions.get(active) || null; },
-            activateSession: function (session) { if (session && sessions.get(session.sessionId) !== session) throw new Error('Unknown session'); active = session ? session.sessionId : null; },
-            deactivateSession: function () { /* workspace deactivation retains the active document/session reference */ },
+            activateSession: function (session) { if (session && sessions.get(session.sessionId) !== session) throw new Error('Unknown session'); var previous = sessions.get(active); if (previous && previous !== session) previous.finishTextGroup(); active = session ? session.sessionId : null; },
+            deactivateSession: function () { var previous = sessions.get(active); if (previous) previous.finishTextGroup(); /* retains active document */ },
             destroySession: function (session, config) { return session.destroy(config); },
             applyExternalSnapshot: function (update) { sessions.forEach(function (session) { session.applyExternalSnapshot(update); }); },
             subscribe: function (fn) { listeners.add(fn); return function () { listeners.delete(fn); }; },

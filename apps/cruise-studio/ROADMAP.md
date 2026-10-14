@@ -1,6 +1,36 @@
 # クルーズスタジオ — ロードマップ
 
-## Structure Operation Adapter v1（2026-10-14・現行）
+## Structure Text Input History & IME v1（2026-10-14・現行）
+
+Studio **0.35.0**（文字入力・IME履歴接続機能のminor）/ Port **1.22.18** / Chord **1.20.1**。
+開始HEAD / origin/main / remote main=`119fec5777c9855e39d311323caf747d4df24372`、tracked/staged空、ahead/behind0/0。
+Studio schema **1** / Authority physical **2**維持。
+
+曲名/artist/capo/BPM/key/拍子、grid/Loupeコード・ドレミ、歌詞tick、基本strumをEditing Session Coreへ接続。
+同一field/論理targetの連続入力をCore内で1entryへ合体し、最新draftは入力ごとにatomic公開。
+blur/Enter/focus/field/project/workspace/Save/ACK/IME/native履歴/別操作でgroup終了。第二stackなし。
+section名は既存change離散確定を維持。no-op/branch/capacity/out-of-band/保存・競合のCore契約を維持する。
+
+IME途中はDOM bufferのみ、確定時1entry。旧Loupeの途中draft直接更新を明示的に置換し、Inspectorは既存draft＋editingを表示。
+composition後の同値input二重記録なし、just-composed/229/保存・出力block維持。
+native Cmd+Z/Shift+Zはbrowser ownerへ渡し、実inputを新しいdomain編集として同期。domain Undoは同時に呼ばない。
+通常入力でLoupe/grid/form DOMを保持し、caret/focus/scroll・native履歴を不要に失わない。
+FileReader/RAF/遅延blur/IME owner ticketをguard、A/B/Pre-DTM workingとimmutable出力を維持。
+
+検証: baseline Node **683 PASS** → 追加text **38 PASS**、全 **721 PASS**。
+Browser結果: 正規13 suite **315 PASS**＋新規text **38 PASS**（親含む）、全14 suite **353 PASS**。
+実native Undo/Redo/clipboard paste、保存後dirty/clean、IME模擬/取消、4 Themes/390–1920/Printを確認。
+入力履歴repository write0、Port/Authority/ProDevice/Account/Sync/outbox/Worker/cloud mutation0。
+console/app404/unhandled/禁止通信0。既存明示Saveは維持。source/display0.35.0一致。
+
+製品Undo button/global shortcut未公開。明示対象/構造/表示/range/adopt等のDOM再構築後はnative履歴継続を保証せず、
+終了したdomain entryを保持。実OS IME/Safari/他OS/プリンター/DAWは未検証。
+次はDomain Undo/Redo UI/Keyboard readiness。既存popover pointer配置・crash復旧等は別工程。
+Port/Shared/Worker製品コード不変更。Production **legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false**。
+8765/8766/profile/既存untracked不触。動的probe/deploy/D1/cutoverなし。Daybreak待機/L3c境界維持。
+詳細は[Text正式契約](docs/STRUCTURE_TEXT_HISTORY.md)。以下は各工程時点の履歴。
+
+## Structure Operation Adapter v1（2026-10-14・履歴）
 
 Studio **0.34.0**（離散操作の履歴接続機能によるminor）/ Port **1.22.18** / Chord **1.20.1**。
 開始HEAD / origin/main / remote main=`a6a12cb833fbd55c486067f1452c5f3fcd20d567`、tracked/staged空・ahead/behind0/0。
