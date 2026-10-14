@@ -1,4 +1,4 @@
-export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.30.0';
+export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.31.0';
 
 function freeze(value) {
     if (value && typeof value === 'object') {
@@ -28,7 +28,7 @@ function feature(featureId, ownerApp, supportedPresentations, extra = {}) {
 const features = freeze([
     feature('port.home', 'cruise-port', ['main']),
     feature('port.myApps', 'cruise-port', ['main', 'separate-workspace'], {
-        ...portData,
+        ...portData, implementedPresentations: ['separate-workspace'],
         actionCapabilityRequirements: {
             createApp: [portPolicy('myAppsCreateLimit')],
             writeCustomIcon: [portPolicy('customMyAppIconWrite')]
@@ -55,7 +55,7 @@ const features = freeze([
     }),
     feature('port.calendar', 'cruise-port', ['main', 'separate-workspace'], portData),
     feature('port.gear', 'cruise-port', ['main', 'inspector'], {
-        ...portData, actionCapabilityRequirements: { writePhoto: [portPolicy('gearPhotoWrite')] }
+        ...portData, implementedPresentations: ['main'], actionCapabilityRequirements: { writePhoto: [portPolicy('gearPhotoWrite')] }
     }),
     feature('port.news', 'cruise-port', ['main', 'separate-workspace']),
     feature('port.settings', 'cruise-port', ['separate-workspace'], portData),

@@ -1,5 +1,6 @@
 // Port owns the data. Only narrow frozen read models cross this boundary.
-import { projectPractice } from './practice-projection.mjs?v=0.30.0';
+import { projectPractice } from './practice-projection.mjs?v=0.31.0';
+import { projectLibrary } from './library-projection.mjs?v=0.31.0';
 const freeze = value => { if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); } return value; };
 const closedCapabilities = freeze({ canSaveBpm: false, canSaveAdvanced: false, canListPresets: true, canApplyPreset: false, canCreatePreset: false, canDeletePreset: false, canQueueSync: false, canPushCloud: false });
 const unknown = generation => freeze({ generation, canRead: true, canWrite: false, account: 'unknown', accountId: null, sync: 'unknown', pro: 'unknown', dataset: null });
@@ -51,7 +52,7 @@ export function createPortDataHost({ connect, schema }) {
             const sync = local.conflictCount ? 'conflict' : local.pendingCount ? 'pending' : local.credentialState === 'usable' ? 'synced' : local.state === 'error' ? 'error' : 'unknown';
             publish({ generation, canRead: true, canWrite: false, account: account?.accountId ? (local.membershipKnown ? 'membership-known' : 'account-known') : 'no-account-known', accountId: account?.accountId || null,
                 runtimeGeneration: source.identity()?.generation ?? null, sync, pro: proState,
-                dataset: { revision: dataset.revision, repositoryGeneration: dataset.generation, state: dataset.state, settings, presets, practice: projectPractice(dataset.practiceValues) } });
+                dataset: { revision: dataset.revision, repositoryGeneration: dataset.generation, state: dataset.state, settings, presets, practice: projectPractice(dataset.practiceValues), library: projectLibrary(dataset.libraryValues) } });
         } catch (_) {
             if (!disposed && epoch === generation && sequence === requestId) publish({ ...unknown(generation), account: 'unavailable', pro: 'unavailable' });
         }

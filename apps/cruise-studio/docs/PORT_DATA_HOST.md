@@ -1,6 +1,28 @@
 # Studio Read-only Port Data Host v1
 
-## Studio Practice Read-only PC Workspace v1（2026-10-14・現行）
+## Studio Gear & My Apps Read-only PC Workspace v1（2026-10-14・現行）
+
+Studio **0.31.0** / Port **1.22.18** / Chord **1.20.1**。Studio schema **1** / Authority physical schema **2**維持。
+開始HEAD / origin/main / remoteは`f859b9c968e2e19b5c454201bab01b6be0d5cadb`、tracked/staged空・ahead/behind0/0。
+既存PortDataHostの同一snapshotからGear/My Appsのimmutable projectionを追加し、2つの正式Shell workspaceへ接続。
+Gear schema5 / categories1の所有状態・保存order・category・manufacturer/name・memo・photo参照を表示。
+Gear schema1–4はmigration-writeを起こさずreadonly unavailable。category欠損はPortのlabel→ID fallback、補修保存なし。
+My Apps schema1–7の保存配列順・旧登録形式・platform URL・preset/custom icon参照・Practice menu/history参照を表示。
+リンクは文字列のみ、launch/外部通信なし。写真/iconはmetadataのみ、binaryの存在を確定しない。
+PortがdataOwner。独立保存dataset/writerなし、canWrite=false。未知field/soft ref/過去履歴を補正・書戻ししない。
+検索/filterは一時状態。外部更新時も選択ID/query/filterを保持し、確定削除のみ解除。stale/error/future/empty等を区別。
+4 Themes・広幅2列/狭幅1列・native keyboard/IME/Modal/focus・既存譜面専用Printに対応。
+
+検証: baseline Node457 → **497 PASS**（追加40、clean guard含む）。既存Chrome8 suite197 PASS、新規22 PASS。
+Port関連4ファイル56 PASS。2001件ずつの全model保持、50回mount/disposeのlistener残存0。
+禁止write/binary DB open/Authority create/object URL/外部通信0、console/app404/unhandled rejection0。
+独立8766/使い捨てChrome、画面/source0.31.0一致、既存8765不触。契約・未接続範囲は[Gear/My Apps PC契約](GEAR_MY_APPS_PC_PRESENTATION.md)を参照。
+Port/Shared/Worker製品コード不変更。Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**維持。
+Daybreak待機/L3c未解決境界を維持し、動的認証probe・本番deployなし。次は実機閲覧確認と通常PC機能の優先度整理。
+以下のversion・件数・未実装記述は各工程時点の履歴。
+
+
+## Studio Practice Read-only PC Workspace v1（2026-10-14・履歴）
 
 Studio **0.29.0** / Port **1.22.18** / Chord **1.20.1**。Studio schema **1** / Authority physical schema **2**維持。
 開始HEAD / origin/main / remoteは`c2fcfef56f48fd575b88e523b70d168113bb8e09`、tracked/staged空・ahead/behind0/0。

@@ -1,5 +1,23 @@
 /* Shell v1. All chrome colors come from Theme Contract v1. Paper/Loupe keep their domain. */
 body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
+.library-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.library-card { min-width: 0; padding: 18px; border: 1px solid var(--studio-border-default); border-radius: 8px; background: var(--studio-surface); }
+.library-card h2 { font-size: 17px; margin-bottom: 12px; }
+.library-card h3 { font-size: 16px; }
+.library-card :is(p, li), .library-workspace > p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.library-card ol { padding-left: 22px; }
+.library-card li { margin: 8px 0; }
+.library-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.library-filters label { flex: 1 1 180px; min-width: 0; max-width: 100%; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.library-filters :is(input, select) { width: 100%; min-width: 0; }
+.library-workspace :is(button, input, select) { font: inherit; min-height: 38px; max-width: 100%; padding: 9px 12px; border: 1px solid var(--studio-border-default); border-radius: 6px; background: var(--studio-control); color: var(--studio-text-primary); }
+.library-workspace button { cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+.library-workspace button:hover { background: var(--studio-control-hover); }
+.library-workspace button[aria-pressed="true"] { color: var(--studio-selected-text); border-color: var(--studio-selected-border); background: var(--studio-selected-bg); }
+.library-workspace :is(button, input, select):focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+.library-workspace button:disabled { opacity: .6; cursor: default; }
+.library-workspace[data-stale="true"] [data-library-status], .library-workspace[data-status="error"] [data-library-status] { color: var(--studio-warning); }
+@media (max-width: 1050px) { .library-grid { grid-template-columns: minmax(0, 1fr); } }
 .tuner-workspace > p { overflow-wrap: anywhere; }
 .tuner-controls { display: flex; flex-wrap: wrap; gap: 12px; }
 .tuner-workspace button { font: inherit; padding: 12px 20px; min-height: 44px; border: 1px solid var(--studio-border-default); border-radius: 6px; background: var(--studio-control); color: var(--studio-text-primary); cursor: pointer; }

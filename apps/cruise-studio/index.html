@@ -7,18 +7,18 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.30.0"></script>
+    <script src="js/core/color-theme.js?v=0.31.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.30.0">
+    <link rel="stylesheet" href="theme-projection.css?v=0.31.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.30.0">
-    <link rel="stylesheet" href="shell.css?v=0.30.0">
+    <link rel="stylesheet" href="theme.css?v=0.31.0">
+    <link rel="stylesheet" href="shell.css?v=0.31.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.30.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.31.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -36,6 +36,8 @@
                 <button type="button" data-workspace="series">Apps<span>既存アプリを開く</span></button>
                 <button type="button" data-workspace="practice">Practice<span>練習データを閲覧</span></button>
                 <button type="button" data-workspace="tuner">Tuner<span>音程を確認</span></button>
+                <button type="button" data-workspace="gear">Gear<span>機材を閲覧</span></button>
+                <button type="button" data-workspace="myApps">My Apps<span>登録アプリを閲覧</span></button>
             </div>
             <div class="studio-nav-utilities">
                 <button type="button" id="shell-inspector" aria-controls="studio-right-pane" aria-expanded="false">Inspector</button>
@@ -56,7 +58,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.30.0</span>
+                <span class="studio-version" id="studio-version">v0.31.0</span>
             </header>
 
             <section class="module-section">
@@ -468,6 +470,20 @@
             <p>表示は実際の検出音名です。調弦の指定音・カポ補正・基準音再生は今回未接続です。</p>
             <p>ブラウザ既定の入力デバイスを使用します。workspaceを離れる、画面を非表示にする、Global Stopで入力を停止します。自動再開はしません。</p>
         </section>
+        <section id="screen-gear" class="screen hidden library-workspace" hidden inert tabindex="-1" aria-label="Gear">
+            <header class="screen-header"><h1 class="screen-title">Gear</h1><p class="screen-subcopy">Portの機材リスト · 閲覧専用</p></header>
+            <p>ローカル保存値の閲覧のみ。追加・編集・並替え・保存・同期は行いません。写真の本体取得は未接続です。</p>
+            <button type="button" data-library-read>ローカル保存値を確認</button><p data-library-status role="status" aria-live="polite"></p>
+            <div class="library-filters"><label>検索<input type="search" data-library-search placeholder="メーカー・名前・memo" autocomplete="off"></label><label>所有状態<select data-library-filter="status"><option value="all">全状態</option><option value="owned">自分の機材</option><option value="sold">手放した機材</option><option value="wishlist">ほしい機材</option><option value="unsupported">非対応の状態</option></select></label><label>カテゴリ<select data-library-filter="category"><option value="all">全カテゴリ</option></select></label></div>
+            <p data-library-count></p><div class="library-grid"><section class="library-card"><h2>機材一覧</h2><ol data-library-list></ol><p data-library-no-matches hidden>現在の検索・filterに該当する機材なし</p><button type="button" data-library-more hidden>さらに表示</button></section><section class="library-card" aria-label="選択機材の詳細"><h2>機材詳細</h2><div data-library-detail></div></section></div>
+        </section>
+        <section id="screen-my-apps" class="screen hidden library-workspace" hidden inert tabindex="-1" aria-label="My Apps">
+            <header class="screen-header"><h1 class="screen-title">My Apps</h1><p class="screen-subcopy">Portの登録アプリ · 閲覧専用</p></header>
+            <p>URLとiconはmetadataのみ。リンク起動・画像取得・登録・編集・保存・同期は行いません。</p>
+            <button type="button" data-library-read>ローカル保存値を確認</button><p data-library-status role="status" aria-live="polite"></p>
+            <div class="library-filters"><label>アプリ名で検索<input type="search" data-library-search placeholder="表示名" autocomplete="off"></label></div>
+            <p data-library-count></p><div class="library-grid"><section class="library-card"><h2>登録アプリ一覧</h2><ol data-library-list></ol><p data-library-no-matches hidden>検索に該当するアプリなし</p><button type="button" data-library-more hidden>さらに表示</button></section><section class="library-card" aria-label="選択アプリの詳細"><h2>アプリ詳細</h2><div data-library-detail></div></section></div>
+        </section>
         <footer class="studio-footer">Sound Cruise Series</footer>
             </div>
         </main>
@@ -518,37 +534,39 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.30.0"></script>
+    <script src="js/core/music-theory.js?v=0.31.0"></script>
     <script src="../chord-cruise/js/core/music-theory.js?v=1.20.1"></script>
     <script src="../chord-cruise/js/core/chord-model.js?v=1.20.1"></script>
-    <script src="js/modules/chord/read-model.js?v=0.30.0"></script>
-    <script src="js/modules/chord/inspector.js?v=0.30.0"></script>
-    <script src="js/core/song-model.js?v=0.30.0"></script>
-    <script src="js/core/storage.js?v=0.30.0"></script>
-    <script src="js/core/editing-session.js?v=0.30.0"></script>
-    <script src="js/core/project-repository.js?v=0.30.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.30.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.30.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.30.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.30.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.30.0"></script>
-    <script src="js/core/command-router.js?v=0.30.0"></script>
-    <script src="js/core/focus-routing.js?v=0.30.0"></script>
-    <script src="js/core/keyboard-router.js?v=0.30.0"></script>
-    <script src="js/core/modal-manager.js?v=0.30.0"></script>
-    <script src="js/shell.js?v=0.30.0"></script>
-    <script src="js/modules/practice/workspace.js?v=0.30.0"></script>
-    <script src="js/modules/tuner/workspace.js?v=0.30.0"></script>
-    <script src="js/core/audio-coordinator.js?v=0.30.0"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.30.0"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.30.0"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.30.0"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.30.0"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.30.0"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.30.0"></script>
-    <script src="js/app.js?v=0.30.0"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.30.0"></script>
-    <script type="module" src="js/modules/tuner/panel.mjs?v=0.30.0"></script>
+    <script src="js/modules/chord/read-model.js?v=0.31.0"></script>
+    <script src="js/modules/chord/inspector.js?v=0.31.0"></script>
+    <script src="js/core/song-model.js?v=0.31.0"></script>
+    <script src="js/core/storage.js?v=0.31.0"></script>
+    <script src="js/core/editing-session.js?v=0.31.0"></script>
+    <script src="js/core/project-repository.js?v=0.31.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.31.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.31.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.31.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.31.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.31.0"></script>
+    <script src="js/core/command-router.js?v=0.31.0"></script>
+    <script src="js/core/focus-routing.js?v=0.31.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.31.0"></script>
+    <script src="js/core/modal-manager.js?v=0.31.0"></script>
+    <script src="js/shell.js?v=0.31.0"></script>
+    <script src="js/modules/practice/workspace.js?v=0.31.0"></script>
+    <script src="js/modules/tuner/workspace.js?v=0.31.0"></script>
+    <script src="js/modules/library/workspace.js?v=0.31.0"></script>
+    <script src="js/core/audio-coordinator.js?v=0.31.0"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.31.0"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.31.0"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.31.0"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.31.0"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.31.0"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.31.0"></script>
+    <script src="js/app.js?v=0.31.0"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.31.0"></script>
+    <script type="module" src="js/modules/tuner/panel.mjs?v=0.31.0"></script>
+    <script type="module" src="js/modules/library/panel.mjs?v=0.31.0"></script>
 </body>
 
 </html>
