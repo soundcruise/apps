@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { releasedBoundaryViolations } from '../scripts/git-safety.mjs';
 import {
     getComponentMetadata, getAppVersion, listComponents,
     getFeatureMetadata, listFeatures
@@ -353,10 +354,11 @@ test('fresh import uses no DOM, storage, permission, audio, network or timers; a
     `], { stdio: 'pipe' });
 });
 
-test('protected released apps/shared/Workers have no tracked modifications', () => {
-    const output = execFileSync('git', ['diff', 'HEAD', '--name-only', '--',
-        'apps/cruise-port/', 'apps/chord-cruise/', 'apps/pitch-cruise/',
-        'apps/fretboard_cruise/', 'apps/rhythm-cruise/', 'apps/shared/', 'workers/'],
-    { cwd: fileURLToPath(root), encoding: 'utf8' });
-    assert.equal(output, '');
+test('released owner boundaries reject other apps/shared/Workers while NEWS develops independently', () => {
+    const names = execFileSync('git', ['diff', 'HEAD', '--name-only', '-z'],
+        { cwd: fileURLToPath(root), encoding: 'utf8' });
+    // The suite protects dependencies, not the operator's exact Studio intent or release cleanliness.
+    // This retains the original tracked-dependency guard. Untracked intent/inventory is
+    // checked separately by the mandatory development/commit gate, never silently staged.
+    assert.deepEqual(releasedBoundaryViolations(names.split('\0').filter(Boolean).map(path => ({ path }))), []);
 });
