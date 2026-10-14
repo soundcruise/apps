@@ -1,3 +1,4 @@
+import {morrisReceipt} from './morris-collector.js';
 import {structuredIkebeEvidence} from './ikebe-structured-recovery.js';
 import {recoverOfficialIdentity,validOfficialIdentity} from './official-identity.js';
 import {parseShimamuraReviewEvidence} from './shimamura-review-evidence.js';
@@ -31,6 +32,10 @@ async function gate(store,source,registry,now,row){
 }
 
 async function verifiedSurface(store,source,registry,row,now,pepper,{fetcher=fetch,sleep=ms=>new Promise(r=>setTimeout(r,ms)),serverRepair=false}={}){
+ if(source.id==='morris'){
+  await gate(store,source,registry,now,row);const receipt=await morrisReceipt(store,row.source_url);
+  return receipt?.outcome==='verified'&&receipt.facts_json?{outcome:'verified_surface',items_json:JSON.stringify([{id:row.id,sourceUrl:row.source_url,publishedAt:receipt.published_at,eventType:row.event_type,productFacts:JSON.parse(receipt.facts_json)}]),proof_json:receipt.proof_json}:{outcome:'facts_not_on_current_surface',items_json:'[]',proof_json:null};
+ }
  const surface=await resolvedRecoverySurface(store,row,source),cacheKey=recoveryCacheKey(row,source,surface,{serverRepair}),previous=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  if(previous?.checked_at>now-DAY){if(previous.lease_until>now)throw Error('facts_recheck_busy');return previous;}
  const token=crypto.randomUUID();

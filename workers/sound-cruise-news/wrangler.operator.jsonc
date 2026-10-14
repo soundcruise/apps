@@ -14,7 +14,7 @@
   "vars": {
     "NEWS_OPERATOR_ORIGIN": "https://sound-cruise-news-operator.cruise-port-requests.workers.dev",
     "NEWS_ACCESS_ISSUER": "https://broken-bonus-ef27.cloudflareaccess.com",
-    "NEWS_SOURCE_IDS": "[\"shimamura\",\"kikutani\",\"sleepfreaks\",\"zoom\",\"amass\",\"ikebe\",\"ik\",\"agm\",\"ikebe-event\",\"at-distribution\"]"
+    "NEWS_SOURCE_IDS": "[\"shimamura\",\"kikutani\",\"sleepfreaks\",\"zoom\",\"amass\",\"ikebe\",\"ik\",\"agm\",\"ikebe-event\",\"at-distribution\",\"morris\"]"
   },
   "d1_databases": [
     {

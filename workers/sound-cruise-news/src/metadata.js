@@ -1,3 +1,4 @@
+import {morrisLabel} from './morris-evidence.js';
 import {productArticleLabel} from './product-article-evidence.js';
 import {validatedShimamuraProductFacts,shimamuraProductLabel} from './shimamura-product-evidence.js';
 import {namedWorkshopLabel} from './named-workshop-evidence.js';
@@ -252,6 +253,7 @@ export function allowedArticlePath(url,source) {
 }
 const actions={other:'の製品情報',new_product:'を発表',release:'を発売',update:'を更新',firmware:'のファームウェア更新',price_change:'の価格改定',discontinued:'の販売終了',recall:'のリコール情報',review:'の製品レビュー'};
 export function factualLabel(facts,eventType){
+ if(facts?.evidence==='morris_explicit_article_v1')return morrisLabel(facts,eventType);
  if(eventType==='product_article')return productArticleLabel(facts);
  if(eventType==='agm_editorial')return agmEditorialLabel(facts,eventType);
  if(eventType==='sale')return saleLabel(facts);

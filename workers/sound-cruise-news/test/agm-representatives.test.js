@@ -44,10 +44,10 @@ test('cross-source duplicate event is refused while same-artist interview is pre
  const controls=await s.controls();assert.equal((await ingestManual(s,items[1],now)).reason,'duplicate_event');assert.deepEqual(await s.controls(),controls);
 });
 test('manual insert is idempotent, visible through real API and never changes Ledger/Shadow/teacher/source state',async()=>{
- const s=await setup();
+ const s=await setup();const sourceStatesBefore=s.db.raw.prepare('SELECT * FROM source_state ORDER BY source_id').all();
  for(const r of AGM_REPRESENTATIVES){const i=await manualCandidate(input(r),now);assert.equal((await ingestManual(s,i,now)).inserted,true);assert.equal((await ingestManual(s,i,now+1)).inserted,false);}
  const data=await (await api(s)).json();assert.equal(data.items.length,4);assert.equal(data.items.filter(i=>i.sourceName==='Acoustic Guitar Magazine').length,4);
- assert.equal(s.db.raw.prepare('SELECT count(*) n FROM news_decision_ledger').get().n,0);assert.equal(s.db.raw.prepare('SELECT count(*) n FROM news_shadow_evaluations').get().n,0);assert.equal(s.db.raw.prepare('SELECT count(*) n FROM source_state').get().n,0);assert.deepEqual(await humanDecisions(s,now),[]);
+ assert.equal(s.db.raw.prepare('SELECT count(*) n FROM news_decision_ledger').get().n,0);assert.equal(s.db.raw.prepare('SELECT count(*) n FROM news_shadow_evaluations').get().n,0);assert.deepEqual(s.db.raw.prepare('SELECT * FROM source_state ORDER BY source_id').all(),sourceStatesBefore);assert.deepEqual(await humanDecisions(s,now),[]);
  assert.equal(s.db.raw.prepare("SELECT count(*) n FROM news_admin_audit WHERE action='manual-add'").get().n,4);
 });
 test('existing collection/publication STOP, manual-source takedown and mutation protection remain enforced',async()=>{

@@ -10,7 +10,7 @@ export async function publishAutomatic(store,source,registry,now,pepper){
  requirePepper(pepper);
  // Resolve the current registry entry, never a stale candidate-time source object.
  source=registry.find(s=>s.id===source?.id);
- if(!source)return 0;
+ if(!source||source.id==='morris')return 0; // Publisher onboarding retains the owner's publication decision.
  if(legalGate(source,{...await store.state(source.id),nextAt:0,lastPublisherRequestAt:0},now,'production',registry))return 0;
  const health=(await store.sourceHealth()).find(s=>s.source_id===source.id);
  if(health?.status!=='healthy'||!Number.isSafeInteger(health.last_successful_run_at)||health.last_successful_run_at>now)return 0;

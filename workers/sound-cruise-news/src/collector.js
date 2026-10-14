@@ -1,3 +1,4 @@
+import {collectMorris} from './morris-collector.js';
 import {parseAgmArticleEvidence} from './agm-article-evidence.js';
 import {AGM_SURFACES,agmArticleUrl,discoverAgm} from './agm-sections.js';
 import {parseOfficialListing} from './official-listing.js';
@@ -15,6 +16,7 @@ export async function collectSource(id,store,{mode='off',now=Date.now(),fetcher=
  const report={sourceId:id,requestMode,startedAt:now,requests:0,candidates:0,pending:0,rejected:0,duplicates:0,outcome:'',durationMs:0,robots:'not_requested',requestCounts:{robots:0,listing:0,feed:0}};
  const gate=legalGate(source,state,now,mode,registry,{requestMode});
  if(gate){report.outcome=gate;if(source&&!['collection_off','not_registry_source','backoff'].includes(gate))await store.recordHealth({sourceId:id,...healthForOutcome(gate,state.failures||0),checkedAt:now,nextEligibleAt:state.nextAt||0,failureCount:state.failures||0});return report;}
+ if(id==='morris')return collectMorris(store,{source,now,mode,registry,pepper,fetcher,sleep,requestMode});
  if(shimListing&&(id!=='shimamura'||source.discoveryUrl!==SHIMAMURA_LISTING_URL)){report.outcome='listing_url_blocked';return report;}
  try{requirePepper(pepper);}catch{report.outcome='headline_pepper_required';await store.recordHealth({sourceId:id,status:'error',reasonCode:report.outcome,checkedAt:now});return report;}
  if(!(await store.controls()).collection_enabled){report.outcome='global_collection_off';await store.recordHealth({sourceId:id,...healthForOutcome(report.outcome),checkedAt:now});return report;}

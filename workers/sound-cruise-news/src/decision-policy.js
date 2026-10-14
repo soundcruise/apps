@@ -1,3 +1,4 @@
+import {morrisProofValid} from './morris-collector.js';
 import {IKEBE_PRODUCT_PARSER} from './ikebe-product-evidence.js';
 import {validOfficialIdentity} from './official-identity.js';
 import {SHIMAMURA_PRODUCT_PARSER} from './shimamura-product-evidence.js';
@@ -20,7 +21,10 @@ export function duplicatePredicate(row,facts,alias='d'){
  const paths=independentTopicUrls(row),j=key=>`json_extract(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.${key}')`;
  const clauses=[`${alias}.topic_key=?`,`${alias}.normalized_url=?`,`${alias}.source_url=?`],args=[row.topic_key,row.normalized_url,row.source_url];
  if(paths.length){clauses.push(`${alias}.source_url IN (${paths.map(()=>'?').join(',')})`);args.push(...paths);}
- if(facts?.product&&facts.kind!=='product_article'){clauses.push(`((? IS NULL OR ${j('brand')}=? OR (?='official_manufacturer_model' AND ${j('brand')} IS NULL AND ${j('identifierBasis')}='distinctive_software_model')) AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(${j('version')},'')=? AND (${alias}.event_type=? OR ${alias}.event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`);args.push(facts.brand||null,facts.brand||null,facts.identifierBasis||'',row.category,facts.product,facts.version||'',row.event_type,row.event_type);}
+ if(facts?.product&&facts.kind!=='product_article'&&facts.evidence!=='morris_explicit_article_v1'){clauses.push(`((? IS NULL OR ${j('brand')}=? OR (?='official_manufacturer_model' AND ${j('brand')} IS NULL AND ${j('identifierBasis')}='distinctive_software_model')) AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(${j('version')},'')=? AND (${alias}.event_type=? OR ${alias}.event_type IN ('other','new_product','release') AND ? IN ('other','new_product','release')))`);args.push(facts.brand||null,facts.brand||null,facts.identifierBasis||'',row.category,facts.product,facts.version||'',row.event_type,row.event_type);}
+ if(facts?.evidence==='morris_explicit_article_v1'&&facts.kind==='product'){
+  clauses.push(`(${j('brand')} IN ('Morris','MORRIS','Morris Guitars','モーリス') AND ${alias}.category=? AND ${j('product')}=? AND COALESCE(CASE WHEN json_type(CASE WHEN json_valid(${alias}.product_facts) THEN ${alias}.product_facts ELSE '{}' END,'$.productEvent')='object' THEN ${j('productEvent.action')} ELSE ${j('productEvent')} END,'')=? AND ${alias}.event_type IN ('new_product','release') AND ? IN ('new_product','release'))`);args.push(row.category,facts.product,facts.productEvent?.action||'',row.event_type);
+ }
  // Informational articles duplicate the same verified subject, article type and theme,
  // never an accessory overlap or an independent launch event about that equipment.
  if(facts?.kind==='product_article'){
@@ -42,7 +46,7 @@ export function duplicatePredicate(row,facts,alias='d'){
   args.push(facts.brand,facts.brand+' Standard Series',row.category,facts.version||'',row.event_type,facts.models.length,...modelArgs);
  }
  if(facts?.kind&&['guitar_artist','guitar_event','artist_live','sale'].includes(facts.kind)){
-  const keys=facts.kind==='sale'?['seller','event','endDate']:['kind','artist','performer','event','venue','eventDate','endDate','eventType','action','topic'];
+  const keys=facts.kind==='sale'?['seller','event','endDate']:['kind','artist','performer','event','venue','eventDate','endDate','eventType','action','topic',...(facts.evidence==='morris_explicit_article_v1'&&facts.exhibitor?['exhibitor']:[])];
   clauses.push(`(${alias}.category=? AND ${alias}.event_type=? AND ${keys.map(k=>`COALESCE(${j(k)},'')=?`).join(' AND ')})`);args.push(row.category,row.event_type,...keys.map(k=>facts[k]||''));
  }
  return {sql:`${alias}.review_status='approved' AND ${alias}.id<>? AND (${clauses.join(' OR ')})`,args:[row.id,...args]};
@@ -57,6 +61,7 @@ export async function publicationValidation(store,row,now,registry,pepper){
  if(facts?.evidence==='assessed_domestic_acoustic_interview'&&source?.id!=='agm'||facts?.evidence==='assessed_named_guitar_event'&&source?.id!=='ikebe-event'||facts?.identifierBasis==='assessed_recording_listing'&&source?.id!=='at-distribution'||facts?.manufacturerSource&&facts.manufacturerSource!==row.source_id||facts?.listingSource&&facts.listingSource!==row.source_id)errors.push('facts_provenance_invalid');
  if(facts?.evidence==='guitar_exhibition_article_v1'&&(row.source_id!=='kikutani'||facts.articleUrl!==row.source_url||facts.listingSource!==row.source_id))errors.push('facts_provenance_invalid');
  if(facts?.kind==='agm_editorial'&&(row.source_id!=='agm'||facts.articleUrl!==row.source_url))errors.push('facts_provenance_invalid');
+ if(row.source_id==='morris'&&!await morrisProofValid(store,row,now)||facts?.evidence==='morris_explicit_article_v1'&&row.source_id!=='morris')errors.push('facts_provenance_invalid');
  if(facts?.kind==='product_article'){
   let proof=[];try{proof=JSON.parse(row.facts_provenance);}catch{}
   if(!Array.isArray(proof)||!['kind','articleType','models','theme','relevance','event_type'].every(field=>proof.some(p=>p.factField===field&&p.sourceId===row.source_id&&p.sourceUrl===row.source_url&&p.parserVersion===(validatedShimamuraReview(facts)?SHIMAMURA_REVIEW_PARSER:PRODUCT_ARTICLE_PARSER)&&p.extractionMethod==='explicit_product_article_fields'&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))))errors.push('facts_provenance_invalid');

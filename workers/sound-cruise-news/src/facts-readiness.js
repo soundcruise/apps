@@ -1,3 +1,4 @@
+import {morrisArticleUrl,morrisPermissionValid,MORRIS_PARSER} from './morris-policy.js';
 import {sourcePolicySurface} from './source-policy-evidence.js';
 import {productArticleSurface} from './product-article-evidence.js';
 import {shimamuraProductSurface} from './shimamura-product-evidence.js';
@@ -23,6 +24,7 @@ export function missingFacts(row,facts,validation){
  return missing;
 }
 export function recoverySurface(row,source,{primaryRecovery=false}={}){
+ if(source?.id==='morris')return morrisPermissionValid(source)&&row.source_id==='morris'&&morrisArticleUrl(row.source_url)?{url:row.source_url,method:'morris_once_only_article',parser:MORRIS_PARSER}:null;
  const policy=sourcePolicySurface(row,source);if(policy)return policy;
  const exhibition=guitarExhibitionSurface(row,source);if(exhibition)return exhibition;
  const agm=agmRecoverySurface(row,source);if(agm)return agm;
@@ -47,6 +49,7 @@ export function recoveryAssessment(row,validation,surface,last,cached){
  if(errors.includes('duplicate'))recoveryClass='DUPLICATE_BLOCKED';
  else if(validation.valid)recoveryClass='READY_FOR_HUMAN_DECISION';
  else if(errors.some(e=>['operator_source_gate','source_url_invalid','publication_policy_rejected','candidate_takedown','expired_candidate','event_validation_failed'].includes(e))||facts?.scope==='expansion'||facts?.kind==='guitar_event'&&facts.artist&&facts.eventType&&facts.eventDate&&facts.venue&&!validation.publishableLabel)recoveryClass='POLICY_BLOCKED';
+ else if(surface?.method==='morris_once_only_article')recoveryClass='NOT_SAFELY_RECOVERABLE';
  else if(!surface||['facts_not_on_current_surface','facts_identity_changed','facts_official_identity_missing','facts_official_identity_conflict','facts_date_changed','facts_event_missing','facts_scope_uncertain'].includes(last?.outcome))recoveryClass='NOT_SAFELY_RECOVERABLE';
  else if(surface.method!=='existing_listing_parser')recoveryClass='RECOVERABLE_FROM_ORIGINAL_SOURCE';
  else {

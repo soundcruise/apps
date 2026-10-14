@@ -92,7 +92,8 @@ export async function runPendingRechecks(store,now,registry,pepper,{limit=4,reco
   const state=await store.db.prepare('SELECT * FROM news_pending_lifecycle WHERE candidate_id=?').bind(row.id).first();
   const deferred=result?.outcome==='facts_daily_budget_deferred';
   const budget=deferred?await store.db.prepare('SELECT MAX(checked_at) AS at FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>?').bind(current.source_id,current.source_id+':',now-DAY).first():null;
-  const next=status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:deferred?Math.max(now+1,(budget?.at||now)+DAY+1):nextRecheck(current,state.recheck_attempt_count+1,now);
+  const onceOnlyExhausted=current.source_id==='morris'&&result?.outcome==='facts_not_on_current_surface';
+  const next=onceOnlyExhausted?null:status==='EXPIRED_CONFIRMED'||status==='TAKEDOWN_CONFIRMED'?null:blocked||ready?now+DAY:deferred?Math.max(now+1,(budget?.at||now)+DAY+1):nextRecheck(current,state.recheck_attempt_count+1,now);
   const columns=Object.keys(current),saved=await store.db.prepare(`UPDATE news_pending_lifecycle SET last_rechecked_at=?,next_recheck_at=?,assessed_revision=?,recheck_attempt_count=recheck_attempt_count+?,recheck_status=?,unresolved_reason=?,last_recheck_result=?,recheck_policy_version=?,history_json=?,lease_until=0
  WHERE candidate_id=? AND lease_token=? AND history_json=? AND EXISTS(SELECT 1 FROM candidate_items WHERE ${columns.map(k=>k+' IS ?').join(' AND ')})`)
  .bind(now,next,current.review_revision,deferred?0:1,status,validation.errors.join(','),result?.outcome||status,RECHECK_POLICY,history(state,{at:now,actor:'system_recheck',result:status,outcome:result?.outcome||status,revision:current.review_revision,publicationPolicy:DECISION_POLICY_VERSION}),row.id,token,state.history_json,...columns.map(k=>current[k])).run();
