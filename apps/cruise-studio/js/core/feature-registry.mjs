@@ -1,4 +1,4 @@
-export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.29.0';
+export { getComponentMetadata, getAppVersion, listComponents } from './component-metadata.mjs?v=0.30.0';
 
 function freeze(value) {
     if (value && typeof value === 'object') {
@@ -35,7 +35,7 @@ const features = freeze([
         }
     }),
     feature('port.tuner', 'cruise-port', ['dock', 'drawer', 'separate-workspace'], {
-        ...portData, requiredPermission: { startCapture: ['microphone'] }, audioRole: ['capture'],
+        ...portData, implementedPresentations: ['separate-workspace'], requiredPermission: { startCapture: ['microphone'] }, audioRole: ['capture'],
         actionCapabilityRequirements: { changeCapo: [portPolicy('tunerCapo')] }
     }),
     feature('port.metronome', 'cruise-port', ['dock', 'drawer'], {

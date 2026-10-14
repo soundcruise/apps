@@ -1,6 +1,28 @@
 # Cruise Studio Project State
 
-## Studio Practice Read-only PC Workspace v1（2026-10-14・現行）
+## Studio Tuner Standard PC v1（2026-10-14・現行）
+
+Studio **0.30.0** / Port **1.22.18** / Chord **1.20.1**。Studio schema **1** / Authority physical schema **2**維持。
+開始HEAD / origin/main / remoteは`6e6bb399cea7c054f408da3397a5befd1983bfdc`、tracked/staged空・ahead/behind0/0。
+Port pure `tuner-engine.js`を直接importし、アルゴリズム複製なしでStandard chromatic検出をPC workspaceへ接続。
+A4=440Hz、70–1400Hz、Port UI既定入力閾値−80dBFS。実音名/octave/Hz/cents/confidenceとmeterを表示、null時は即clear。
+capo・指定調弦・reference preview・設定保存・device選択は未接続。既定入力device、device ID永続化なし。
+既存Coordinatorのmicrophone leaseとcontext ownerを利用し、mic/outputを対称排他にする。
+Metronome→Tunerは同じleaseへの明示確認後だけ停止し、token変更/Global Stop後の古い意図を拒否。自動再開なし。
+Stopは解析と全track/nodeを同期停止し、context close成功後にleaseを解放。失敗は保持して明示retryする。
+古いpermission/resume/stream/rejectを新sessionへ採用しない。workspace離脱/hidden/pagehide/interruption/track-endedで停止する。
+Global Stopは既存stopAll。native keyboard、IME/Modal/focus、4 Themes、390–1920幅、既存譜面専用Printへ対応。
+
+検証: baseline Node420 → **457 PASS**（追加37、clean guard含む）。既存Chrome7 suite174 PASS、Tuner23 PASS。
+Port既存Engine1ファイルPASS。50回native Start/Stopのtrack/context/timer残存0、listener増加0。
+禁止write/DB open/create/network mutation0、console/app404/unhandled rejection0。隔離8766/使い捨てChrome/fake micのみ、既存8765不触。
+実マイク音質・精度/物理device/OS/Safariは未検証。正式契約と未接続事項は[Tuner統合契約](../docs/TUNER_INTEGRATION.md)を参照。
+Port/Shared/Worker製品コード不変更。Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / canWrite=false**維持。
+Daybreak待機/L3c境界を維持し、認証/認可の動的probe・本番deployなし。次は実機Tuner確認と通常PC機能の優先度整理。
+以下のversion・件数・未実装記述は各工程時点の履歴。
+
+
+## Studio Practice Read-only PC Workspace v1（2026-10-14・履歴）
 
 Studio **0.29.0** / Port **1.22.18** / Chord **1.20.1**。Studio schema **1** / Authority physical schema **2**維持。
 開始HEAD / origin/main / remoteは`c2fcfef56f48fd575b88e523b70d168113bb8e09`、tracked/staged空・ahead/behind0/0。

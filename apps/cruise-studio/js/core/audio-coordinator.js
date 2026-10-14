@@ -6,7 +6,14 @@
     'use strict';
     function createCoordinator() {
         var sessions = new Map(), resources = new Map(), contextOwners = new WeakMap();
-        var nextGeneration = 0, stopping = 0;
+        var nextGeneration = 0, stopping = 0, stopGeneration = 0;
+        function conflicts(resourceType) {
+            return Array.from(resources.values()).filter(function (lease) {
+                return lease.resourceType === resourceType ||
+                    (resourceType === 'microphone/session' && lease.resourceType === 'audio-output/session') ||
+                    (resourceType === 'audio-output/session' && lease.resourceType === 'microphone/session');
+            });
+        }
         function current(handle) { return !!handle && sessions.get(handle.sessionId)?.handle === handle; }
         function record(handle) { if (!current(handle)) throw new Error('Stale or disposed audio session'); return sessions.get(handle.sessionId); }
         function release(handle, lease) {
@@ -47,7 +54,7 @@
                 if (!resourceType) throw new TypeError('Missing resource type');
                 if (stopping || s.cleanupPromise) return null;
                 if (s.lease) return s.lease.resourceType === resourceType ? s.lease : null;
-                if (resources.has(resourceType)) return null;
+                if (conflicts(resourceType).length) return null;
                 var lease = Object.freeze({ sessionId: handle.sessionId, ownerFeatureId: s.ownerFeatureId,
                     resourceType: resourceType, generation: ++nextGeneration });
                 s.generation = lease.generation; s.status = 'requesting'; s.lease = lease;
@@ -60,6 +67,8 @@
                 s.status = 'active'; return true;
             },
             isLeaseCurrent: function (handle, lease) { return current(handle) && !!lease && record(handle).lease === lease && record(handle).generation === lease.generation; },
+            getConflictingLeases: function (resourceType) { return Object.freeze(conflicts(resourceType)); },
+            getStopGeneration: function () { return stopGeneration; },
             release: release,
             ownContext: function (handle, lease, context) {
                 var s = record(handle);
@@ -88,6 +97,7 @@
             },
             cleanup: cleanup,
             stopAll: async function () {
+                stopGeneration++;
                 stopping++;
                 try { return await Promise.all(Array.from(sessions.values(), function (s) { return cleanup(s.handle, 'global-stop'); })); }
                 finally { stopping--; }

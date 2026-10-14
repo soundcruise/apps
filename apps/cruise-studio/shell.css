@@ -1,5 +1,18 @@
 /* Shell v1. All chrome colors come from Theme Contract v1. Paper/Loupe keep their domain. */
 body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
+.tuner-workspace > p { overflow-wrap: anywhere; }
+.tuner-controls { display: flex; flex-wrap: wrap; gap: 12px; }
+.tuner-workspace button { font: inherit; padding: 12px 20px; min-height: 44px; border: 1px solid var(--studio-border-default); border-radius: 6px; background: var(--studio-control); color: var(--studio-text-primary); cursor: pointer; }
+.tuner-workspace button:hover { background: var(--studio-control-hover); }
+.tuner-workspace button:disabled { opacity: .6; cursor: default; }
+.tuner-workspace button:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+.tuner-reading { text-align: center; width: 100%; max-width: 720px; padding: 24px; border: 1px solid var(--studio-border-default); border-radius: 8px; background: var(--studio-surface); }
+.tuner-note { font-size: clamp(56px, 9vw, 100px); line-height: 1.3; color: var(--studio-accent-text); }
+.tuner-note small { font-size: .35em; margin-left: 12px; }
+.tuner-reading [data-tuner-frequency], .tuner-reading [data-tuner-cents] { font-size: 24px; font-variant-numeric: tabular-nums; }
+.tuner-meter-labels { display: flex; justify-content: space-between; margin-top: 24px; color: var(--studio-text-muted); font-size: 12px; }
+.tuner-reading meter { width: 100%; height: 26px; }
+.tuner-workspace[data-status="failed"] [data-tuner-status] { color: var(--studio-warning); }
 .practice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .practice-card { min-width: 0; padding: 18px; border: 1px solid var(--studio-border-default); border-radius: 8px; background: var(--studio-surface); }
 .practice-card h2 { font-size: 17px; margin-bottom: 12px; }

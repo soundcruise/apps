@@ -7,18 +7,18 @@
     <title>クルーズスタジオ</title>
     <meta name="theme-color" content="#090806">
     <!-- Same runtime resolver before the first stylesheet; bootstrap never saves settings. -->
-    <script src="js/core/color-theme.js?v=0.29.0"></script>
+    <script src="js/core/color-theme.js?v=0.30.0"></script>
     <script>
         CruiseStudio.colorTheme.applyColorTheme(CruiseStudio.colorTheme.getColorTheme());
     </script>
     <!-- Semantic palette for Shell chrome. Paper keeps its independent color domain. -->
-    <link rel="stylesheet" href="theme-projection.css?v=0.29.0">
+    <link rel="stylesheet" href="theme-projection.css?v=0.30.0">
 
     <!-- shared/ には依存せずStudio専用CSSで構成（PCファースト。ADR-005） -->
-    <link rel="stylesheet" href="theme.css?v=0.29.0">
-    <link rel="stylesheet" href="shell.css?v=0.29.0">
+    <link rel="stylesheet" href="theme.css?v=0.30.0">
+    <link rel="stylesheet" href="shell.css?v=0.30.0">
     <!-- 印刷専用CSS（譜面プレビューのみをA4で印刷する。ADR-010） -->
-    <link rel="stylesheet" href="print.css?v=0.29.0" media="print">
+    <link rel="stylesheet" href="print.css?v=0.30.0" media="print">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;500;700;800&display=swap" rel="stylesheet">
@@ -35,12 +35,14 @@
                 <button type="button" data-workspace="preDtm">Pre-DTM<span>伴奏を組み立てる</span></button>
                 <button type="button" data-workspace="series">Apps<span>既存アプリを開く</span></button>
                 <button type="button" data-workspace="practice">Practice<span>練習データを閲覧</span></button>
+                <button type="button" data-workspace="tuner">Tuner<span>音程を確認</span></button>
             </div>
             <div class="studio-nav-utilities">
                 <button type="button" id="shell-inspector" aria-controls="studio-right-pane" aria-expanded="false">Inspector</button>
                 <button type="button" id="shell-tool" aria-controls="studio-right-pane" aria-expanded="false">Tools</button>
                 <button type="button" id="shell-dock-toggle" aria-controls="studio-dock" aria-expanded="false">Dock</button>
                 <div id="shell-metronome-running" hidden><span>Metronome 再生中</span><button type="button" id="shell-metronome-stop" aria-label="Metronomeを停止">Stop</button></div>
+                <button type="button" id="shell-audio-stop">Global Stop<span>Studioの音声を停止</span></button>
                 <fieldset id="shell-theme" class="studio-theme-control" aria-describedby="shell-theme-status"><legend>テーマ</legend></fieldset>
                 <p id="shell-theme-status" role="status"></p>
             </div>
@@ -54,7 +56,7 @@
             <header class="studio-header">
                 <h1>クルーズスタジオ</h1>
                 <p class="studio-subcopy">コード譜から、曲が動き出す。</p>
-                <span class="studio-version" id="studio-version">v0.29.0</span>
+                <span class="studio-version" id="studio-version">v0.30.0</span>
             </header>
 
             <section class="module-section">
@@ -450,6 +452,22 @@
             </div>
             <section class="practice-card"><h2>添付metadata</h2><p data-practice-attachments></p><p data-practice-state="attachments"></p><ul data-practice-list="attachments"></ul><button type="button" data-practice-more="attachments" hidden>metadataをさらに表示</button></section>
         </section>
+        <section id="screen-tuner" class="screen hidden tuner-workspace" hidden inert tabindex="-1" aria-label="Tuner">
+            <header class="screen-header"><h1 class="screen-title">Tuner</h1><p class="screen-subcopy">Standard · マイクで音程を確認</p></header>
+            <p>Portの音程検出エンジンを使用。A4 = 440 Hz · 検出範囲 70–1400 Hz · 入力閾値 −80 dBFS</p>
+            <p>一時的な入力のみ。音声録音・設定保存・Portデータ更新・同期は行いません。</p>
+            <div class="tuner-controls"><button type="button" id="tuner-start">マイク開始</button><button type="button" id="tuner-stop" disabled>マイク停止</button></div>
+            <p data-tuner-status role="status" aria-live="polite">準備中</p>
+            <section class="tuner-reading" aria-label="検出された音程">
+                <p class="tuner-note"><span data-tuner-note>—</span><small aria-label="オクターブ" data-tuner-octave>—</small></p>
+                <p data-tuner-frequency>— Hz</p><p data-tuner-cents>— cents</p>
+                <p data-tuner-confidence>入力停止</p>
+                <div class="tuner-meter-labels" aria-hidden="true"><span>−50 cents</span><span>0</span><span>+50 cents</span></div>
+                <meter data-tuner-meter min="-50" max="50" value="0" aria-label="検出音のcentsメーター" hidden></meter>
+            </section>
+            <p>表示は実際の検出音名です。調弦の指定音・カポ補正・基準音再生は今回未接続です。</p>
+            <p>ブラウザ既定の入力デバイスを使用します。workspaceを離れる、画面を非表示にする、Global Stopで入力を停止します。自動再開はしません。</p>
+        </section>
         <footer class="studio-footer">Sound Cruise Series</footer>
             </div>
         </main>
@@ -500,35 +518,37 @@
     </div>
 
     <!-- 読み込み順が正: theory → model → storage → modules → app（ADR-007） -->
-    <script src="js/core/music-theory.js?v=0.29.0"></script>
+    <script src="js/core/music-theory.js?v=0.30.0"></script>
     <script src="../chord-cruise/js/core/music-theory.js?v=1.20.1"></script>
     <script src="../chord-cruise/js/core/chord-model.js?v=1.20.1"></script>
-    <script src="js/modules/chord/read-model.js?v=0.29.0"></script>
-    <script src="js/modules/chord/inspector.js?v=0.29.0"></script>
-    <script src="js/core/song-model.js?v=0.29.0"></script>
-    <script src="js/core/storage.js?v=0.29.0"></script>
-    <script src="js/core/editing-session.js?v=0.29.0"></script>
-    <script src="js/core/project-repository.js?v=0.29.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.29.0"></script>
-    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.29.0"></script>
-    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.29.0"></script>
-    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.29.0"></script>
-    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.29.0"></script>
-    <script src="js/core/command-router.js?v=0.29.0"></script>
-    <script src="js/core/focus-routing.js?v=0.29.0"></script>
-    <script src="js/core/keyboard-router.js?v=0.29.0"></script>
-    <script src="js/core/modal-manager.js?v=0.29.0"></script>
-    <script src="js/shell.js?v=0.29.0"></script>
-    <script src="js/modules/practice/workspace.js?v=0.29.0"></script>
-    <script src="js/core/audio-coordinator.js?v=0.29.0"></script>
-    <script src="js/modules/metronome/port-core.js?v=0.29.0"></script>
-    <script src="js/modules/metronome/metadata.js?v=0.29.0"></script>
-    <script src="js/modules/metronome/settings-schema.js?v=0.29.0"></script>
-    <script src="js/modules/metronome/settings-store.js?v=0.29.0"></script>
-    <script src="js/modules/metronome/settings-controller.js?v=0.29.0"></script>
-    <script src="js/modules/metronome/metronome.js?v=0.29.0"></script>
-    <script src="js/app.js?v=0.29.0"></script>
-    <script type="module" src="js/port-data/panel.mjs?v=0.29.0"></script>
+    <script src="js/modules/chord/read-model.js?v=0.30.0"></script>
+    <script src="js/modules/chord/inspector.js?v=0.30.0"></script>
+    <script src="js/core/song-model.js?v=0.30.0"></script>
+    <script src="js/core/storage.js?v=0.30.0"></script>
+    <script src="js/core/editing-session.js?v=0.30.0"></script>
+    <script src="js/core/project-repository.js?v=0.30.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-renderer.js?v=0.30.0"></script>
+    <script src="js/modules/sheet-cruise/sheet-cruise.js?v=0.30.0"></script>
+    <script src="js/modules/pre-dtm-cruise/arrangement-engine.js?v=0.30.0"></script>
+    <script src="js/modules/pre-dtm-cruise/midi-export.js?v=0.30.0"></script>
+    <script src="js/modules/pre-dtm-cruise/pre-dtm.js?v=0.30.0"></script>
+    <script src="js/core/command-router.js?v=0.30.0"></script>
+    <script src="js/core/focus-routing.js?v=0.30.0"></script>
+    <script src="js/core/keyboard-router.js?v=0.30.0"></script>
+    <script src="js/core/modal-manager.js?v=0.30.0"></script>
+    <script src="js/shell.js?v=0.30.0"></script>
+    <script src="js/modules/practice/workspace.js?v=0.30.0"></script>
+    <script src="js/modules/tuner/workspace.js?v=0.30.0"></script>
+    <script src="js/core/audio-coordinator.js?v=0.30.0"></script>
+    <script src="js/modules/metronome/port-core.js?v=0.30.0"></script>
+    <script src="js/modules/metronome/metadata.js?v=0.30.0"></script>
+    <script src="js/modules/metronome/settings-schema.js?v=0.30.0"></script>
+    <script src="js/modules/metronome/settings-store.js?v=0.30.0"></script>
+    <script src="js/modules/metronome/settings-controller.js?v=0.30.0"></script>
+    <script src="js/modules/metronome/metronome.js?v=0.30.0"></script>
+    <script src="js/app.js?v=0.30.0"></script>
+    <script type="module" src="js/port-data/panel.mjs?v=0.30.0"></script>
+    <script type="module" src="js/modules/tuner/panel.mjs?v=0.30.0"></script>
 </body>
 
 </html>

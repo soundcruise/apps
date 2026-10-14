@@ -5,7 +5,7 @@
     else root.CruiseStudio.shell = factory();
 })(typeof globalThis === 'object' ? globalThis : this, function () {
     'use strict';
-    var WORKSPACES = Object.freeze({ home: 'screen-home', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', practice: 'screen-practice' });
+    var WORKSPACES = Object.freeze({ home: 'screen-home', sheetCruise: 'screen-sheet-cruise', preDtm: 'screen-pre-dtm', series: 'screen-series', practice: 'screen-practice', tuner: 'screen-tuner' });
     var PERSISTENT_MIN = 1280;
 
     function createWorkspaceHost(workspaces, view) {
@@ -53,7 +53,7 @@
         var dock = doc.getElementById('studio-dock');
         var layout = createLayoutState(shell.clientWidth);
         var positions = Object.create(null), focus = Object.create(null);
-        var adapters = { home: {}, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, practice: CS.practice };
+        var adapters = { home: {}, sheetCruise: CS.sheetCruise, preDtm: CS.preDtm, series: {}, practice: CS.practice, tuner: CS.tuner };
         var nodes = {};
         var focusRouting = CS.focusRouting.createFocusRouting(doc, function () { return nodes[host.getActive()]; }, function () {
             return doc.querySelector('.studio-nav [aria-current="page"]');

@@ -180,7 +180,8 @@
             if (!(state.running || state.status === 'starting') && summary.contains(doc.activeElement))
                 doc.getElementById('shell-dock-toggle').focus({ preventScroll: true });
             summary.hidden = !(state.running || state.status === 'starting');
-            options.shell.setCommandTarget('audioOwner', state.running ? runtime : null);
+            if (state.running) options.shell.setCommandTarget('audioOwner', runtime);
+            else if (options.shell.getCommandContext().audioOwner === runtime) options.shell.setCommandTarget('audioOwner', null);
         }
         listen(input, 'change', function () { runtime.setBpm(input.value); input.value = String(runtime.snapshot().bpm); });
         listen(input, 'keydown', function (event) {
