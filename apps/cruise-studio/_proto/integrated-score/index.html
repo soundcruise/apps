@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>統合譜面 UIプロトタイプ v1（Cruise Studio）</title>
+    <!--
+        Integrated Score UI Prototype v1
+        独立した静的モック。Studio本体・保存データ・Editing Session・Pro/Account/Authority/Syncへ接続しない。
+        本番画面からリンクされず、製品のmodule graphにも含まれない。外部ネットワークへアクセスしない。
+    -->
+    <link rel="stylesheet" href="prototype.css">
+</head>
+
+<body>
+    <div class="proto-banner" role="note">
+        <span class="proto-banner-badge">UIプロトタイプ v1</span>
+        <span class="proto-banner-text">固定サンプルのみ・保存なし・音楽変換なし。Undo/Redo・印刷・おすすめは画面状態の模擬です。</span>
+        <button type="button" id="verify-toggle" class="proto-banner-button" aria-controls="verify" aria-expanded="false">検証パネル（S01–S24）</button>
+    </div>
+
+    <div id="shell" class="shell" data-inspector="closed">
+        <nav class="nav" aria-label="ワークスペース（モック）">
+            <div class="nav-scroll">
+                <div class="brand">CRUISE<span>STUDIO</span></div>
+                <div class="nav-workspaces">
+                    <button type="button" disabled title="プロトタイプでは無効">Home</button>
+                    <button type="button" class="is-current" aria-current="page">譜面<span>コード・五線・TAB</span></button>
+                    <button type="button" disabled title="プロトタイプでは無効">Pre-DTM<span>伴奏を組み立てる</span></button>
+                    <button type="button" disabled title="プロトタイプでは無効">Apps<span>既存アプリを開く</span></button>
+                    <button type="button" disabled title="プロトタイプでは無効">Practice<span>練習データを閲覧</span></button>
+                    <button type="button" disabled title="プロトタイプでは無効">Tuner<span>音程を確認</span></button>
+                </div>
+                <div class="nav-utilities">
+                    <button type="button" id="nav-inspector" aria-controls="inspector" aria-expanded="false">Inspector<span>詳細と確認一覧</span></button>
+                    <button type="button" disabled title="プロトタイプでは無効">Metronome<span>Dock</span></button>
+                </div>
+            </div>
+            <div class="nav-safety">
+                <button type="button" disabled title="プロトタイプでは音を出しません">Global Stop<span>Studioの音声を停止</span></button>
+            </div>
+        </nav>
+
+        <main id="main" class="main" aria-label="譜面ワークスペース">
+            <div class="toolbar" role="toolbar" aria-label="譜面の操作">
+                <div class="tb-group">
+                    <button type="button" id="song-menu-button" class="tb-button tb-song" aria-haspopup="menu" aria-expanded="false">
+                        <span class="tb-label">曲</span><span id="song-name">朝のひかり</span><span aria-hidden="true">▾</span>
+                    </button>
+                </div>
+                <div class="tb-group" role="group" aria-label="元に戻す・やり直す">
+                    <button type="button" id="undo" class="tb-button tb-icon" aria-label="元に戻す" aria-keyshortcuts="Meta+Z Control+Z" disabled>↶</button>
+                    <button type="button" id="redo" class="tb-button tb-icon" aria-label="やり直す" aria-keyshortcuts="Meta+Shift+Z Control+Shift+Z" disabled>↷</button>
+                </div>
+                <div class="tb-group">
+                    <button type="button" id="style-menu-button" class="tb-button" aria-haspopup="menu" aria-expanded="false">
+                        <span class="tb-label">譜面スタイル</span><span id="style-name">コード譜</span><span aria-hidden="true">▾</span>
+                    </button>
+                </div>
+                <div class="tb-group tb-save">
+                    <span id="save-state" class="save-state">変更なし</span>
+                    <button type="button" id="save" class="tb-button tb-primary">保存</button>
+                </div>
+                <div class="tb-group">
+                    <button type="button" id="output-menu-button" class="tb-button" aria-haspopup="menu" aria-expanded="false">出力<span aria-hidden="true">▾</span></button>
+                </div>
+                <p id="status-msg" class="status-msg" role="status" aria-live="polite"></p>
+            </div>
+
+            <div id="readiness" class="readiness" aria-label="出力の状態"></div>
+            <div id="prompt" class="prompt" hidden></div>
+
+            <div id="stage" class="stage">
+                <div id="paper-box" class="paper-box">
+                    <div id="paper-scale" class="paper-scale"></div>
+                </div>
+
+                <!-- ルーペ: 紙面のDOMの外にある独立した層。紙面を描き直しても入力欄は作り直さない。 -->
+                <section id="loupe" class="loupe" hidden aria-label="小節ルーペ" aria-describedby="loupe-hint">
+                    <header class="loupe-head">
+                        <strong id="loupe-title" class="loupe-title">1小節目</strong>
+                        <span id="loupe-section" class="loupe-chip"></span>
+                        <button type="button" id="loupe-prev" class="lp-button">‹ 前</button>
+                        <button type="button" id="loupe-next" class="lp-button">次 ›</button>
+                        <div class="lp-seg" role="group" aria-label="マス目の細かさ">
+                            <button type="button" data-res="8" class="lp-button" aria-pressed="true">8分</button>
+                            <button type="button" data-res="16" class="lp-button" aria-pressed="false">16分</button>
+                        </div>
+                        <span id="loupe-hint" class="loupe-hint">Alt+←/→ 小節・Alt+↑/↓ 段・Esc 閉じる</span>
+                        <button type="button" id="loupe-close" class="lp-button lp-close" aria-label="ルーペを閉じる">×</button>
+                    </header>
+                    <div id="loupe-grid" class="loupe-grid">
+                        <div class="lg-label">拍</div>
+                        <div class="lg-ruler" id="loupe-ruler" aria-hidden="true"></div>
+
+                        <label class="lg-label" for="lc-0">コード</label>
+                        <div class="lg-row" id="loupe-chords"></div>
+
+                        <div class="lg-label">押さえ方</div>
+                        <div class="lg-row" id="loupe-forms"></div>
+
+                        <div class="lg-label">ストローク<span id="loupe-stroke-state" class="lg-sub"></span></div>
+                        <div class="lg-row" id="loupe-strokes"></div>
+
+                        <div class="lg-label">歌詞</div>
+                        <div class="lg-row" id="loupe-lyrics"></div>
+
+                        <div class="lg-label">メロディ<span id="loupe-dur-state" class="lg-sub"></span></div>
+                        <div class="lg-row lg-melody" id="loupe-melody"></div>
+
+                        <div class="lg-label">音の長さ</div>
+                        <div class="lg-tools" id="loupe-dur-tools" role="group" aria-label="選んだ音の長さ">
+                            <span id="loupe-dur-selected" class="lg-selected">音を選ぶと長さを変えられます</span>
+                            <button type="button" class="lp-button" data-dur="120">16分</button>
+                            <button type="button" class="lp-button" data-dur="240">8分</button>
+                            <button type="button" class="lp-button" data-dur="360">付点8分</button>
+                            <button type="button" class="lp-button" data-dur="480">4分</button>
+                            <button type="button" class="lp-button" data-dur="720">付点4分</button>
+                            <button type="button" class="lp-button" data-dur="960">2分</button>
+                            <button type="button" class="lp-button" id="loupe-rest-confirm">休みとして確定</button>
+                            <button type="button" class="lp-button lp-strong" id="loupe-confirm">この小節の長さを確認</button>
+                        </div>
+
+                        <label class="lg-label" for="loupe-doremi">ドレミ（文字）</label>
+                        <div class="lg-tools"><input id="loupe-doremi" class="lg-doremi" readonly aria-describedby="loupe-doremi-note">
+                            <span id="loupe-doremi-note" class="lg-hint">現行Structureと同じ文字入力。このモックでは読み取り専用</span></div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="zoom" aria-label="表示倍率">
+                <label for="zoom-select">表示</label>
+                <select id="zoom-select">
+                    <option value="fit">幅に合わせる</option>
+                    <option value="0.75">75%</option>
+                    <option value="1">100%</option>
+                    <option value="1.25">125%</option>
+                    <option value="1.5">150%</option>
+                </select>
+            </div>
+        </main>
+
+        <aside id="inspector" class="inspector" aria-label="Inspector" hidden>
+            <div class="insp-head">
+                <h2 id="insp-title">Inspector</h2>
+                <button type="button" id="insp-close" class="lp-button" aria-label="Inspectorを閉じる">×</button>
+            </div>
+            <div id="insp-body" class="insp-body"></div>
+        </aside>
+    </div>
+
+    <div id="menu" class="menu" role="menu" hidden></div>
+    <div id="popover" class="popover" role="dialog" aria-modal="false" hidden></div>
+
+    <div id="print-preview" class="print-preview" hidden role="dialog" aria-modal="false" aria-labelledby="pp-title">
+        <div class="pp-bar">
+            <strong id="pp-title">印刷プレビュー</strong>
+            <span id="pp-kind" class="pp-kind"></span>
+            <span class="pp-note">プロトタイプ上の見た目の確認です。正式なPDF・印刷機能ではありません。</span>
+            <button type="button" id="pp-print" class="tb-button">ブラウザの印刷を開く</button>
+            <button type="button" id="pp-close" class="tb-button">閉じる</button>
+        </div>
+        <div id="pp-pages" class="pp-pages"></div>
+    </div>
+
+    <div id="print-root" class="print-root" aria-hidden="true"></div>
+
+    <aside id="verify" class="verify" hidden aria-label="検証パネル（プロトタイプ専用）">
+        <div class="verify-head">
+            <strong>検証パネル</strong><span class="verify-note">製品UIではありません</span>
+            <button type="button" id="verify-close" class="lp-button" aria-label="検証パネルを閉じる">×</button>
+        </div>
+        <p class="verify-width">現在のウィンドウ幅: <span id="verify-width"></span></p>
+        <div id="verify-list" class="verify-list"></div>
+        <fieldset class="verify-options">
+            <legend>比較用の設定（未決 U1・U2）</legend>
+            <label>1システムの標準小節数
+                <select id="opt-bars"><option value="4">4小節</option><option value="2">2小節</option></select></label>
+            <label>Inspectorの幅
+                <select id="opt-insp"><option value="360">360px</option><option value="320">320px</option></select></label>
+        </fieldset>
+        <div id="verify-extra" class="verify-extra"></div>
+    </aside>
+
+    <script src="fixture.js"></script>
+    <script src="music.js"></script>
+    <script src="model.js"></script>
+    <script src="notation.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
