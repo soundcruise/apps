@@ -154,3 +154,166 @@ test('actual Git reader keeps NEWS hashes and detects rename/index changes in a 
         rejects(evaluateSafety({ current: readGit(root), phase: 'release' }), 'repository-not-clean');
     } finally { rmSync(root, { recursive: true, force: true }); }
 });
+
+// Branch/worktree creation and commits below occur ONLY in this disposable repository.
+// No production repository branches, worktrees, index, remote or protected files are mutated.
+test('W1 worktree contracts: real isolated main/topic checkout, policy counterexamples and integration evidence', async t => {
+    const tmp = mkdtempSync(join(tmpdir(), 'studio-w1-fixture-'));
+    const root = join(tmp, 'main'), studio = join(tmp, 'studio');
+    mkdirSync(root);
+    const git = (cwd, ...args) => execFileSync('git', args, { cwd, encoding: 'utf8', env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' } }).trim();
+    const put = (cwd, path, text) => { mkdirSync(join(cwd, path, '..'), { recursive: true }); writeFileSync(join(cwd, path), text); };
+    const commit = (cwd, message) => git(cwd, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-m', message);
+    const clone = x => structuredClone(x);
+    try {
+        git(root, 'init', '--initial-branch=main');
+        for (const p of [file, 'workers/sound-cruise-news/example.js']) { put(root, p, 'baseline\n'); git(root, 'add', '--', p); }
+        commit(root, 'Fixture base');
+        const base = git(root, 'rev-parse', 'HEAD');
+        git(root, 'remote', 'add', 'origin', join(tmp, 'uncontacted-origin.git'));
+        git(root, 'update-ref', 'refs/remotes/origin/main', base);
+        git(root, 'worktree', 'add', '-b', 'codex/studio-w1', studio, base);
+        const initial = readGit(studio);
+        const registration = (mode, rootPath, branch) => ({ version: 1, mode, root: rootPath, commonDir: initial.commonDir,
+            branch, baseSha: base, remote: 'origin', remoteFetchUrl: initial.remote.fetchUrl,
+            remotePushUrl: initial.remote.pushUrls[0], targetRef: mode === 'topic-development' ? 'refs/heads/' + branch : 'refs/heads/main',
+            ...(mode === 'topic-development' ? { expectedTopicSha: null } : {}) });
+        const topic = registration('topic-development', initial.root, initial.branch);
+        const topicBaseline = readGit(studio, undefined, topic);
+        const mainContract = registration('main-development', readGit(root).root, 'main');
+        const mainBaseline = readGit(root, undefined, mainContract);
+        const observations = { main: { remote: 'origin', ref: 'refs/heads/main', sha: base },
+            topic: { remote: 'origin', ref: topic.targetRef, sha: null } };
+        const options = { baseline: topicBaseline, current: topicBaseline, contract: topic, allowedFiles: [file], observedRemote: observations };
+        const run = patch => evaluateSafety({ ...options, ...patch });
+        await t.test('1 registered main normal and 2 main remote divergence', () => {
+            const opts = { baseline: mainBaseline, current: mainBaseline, contract: mainContract, allowedFiles: [file], observedRemote: observations };
+            assert(evaluateSafety(opts).ok);
+            rejects(evaluateSafety({ ...opts, phase: 'commit', observedRemote: { main: { ...observations.main, sha: next } } }), 'remote-mismatch');
+        });
+        await t.test('3 registered topic starts at known base', () => assert(run().ok));
+        put(root, 'workers/sound-cruise-news/example.js', 'parallel NEWS draft\n');
+        put(root, 'workers/sound-cruise-news/new.js', 'parallel new NEWS\n');
+        const newsBefore = JSON.stringify(readGit(root).changes);
+        await t.test('8 other-worktree NEWS dirty never enters Studio snapshot', () => {
+            const current = readGit(studio, topicBaseline.head, topic);
+            assert.deepEqual(current.changes, []); assert(run({ current }).ok);
+        });
+        await t.test('actual feature-metadata boundary runs against linked topic Git directory', () => {
+            const env = { ...process.env, GIT_DIR: git(studio, 'rev-parse', '--absolute-git-dir'), GIT_WORK_TREE: studio, GIT_OPTIONAL_LOCKS: '0' };
+            delete env.NODE_TEST_CONTEXT;
+            const output = execFileSync(process.execPath, ['--test', fileURLToPath(new URL('./feature-metadata.test.mjs', import.meta.url))], { env, encoding: 'utf8' });
+            assert.match(output, /(?:fail|not ok) 0/);
+            assert.equal(JSON.stringify(readGit(root).changes), newsBefore);
+        });
+        put(studio, file, 'Studio W1 draft\n');
+        await t.test('9 same-worktree NEWS/unknown dirty is rejected', () => {
+            put(studio, 'workers/sound-cruise-news/local.js', 'unexpected\n');
+            rejects(run({ current: readGit(studio, base, topic) }), 'unexpected-owner-change');
+            rmSync(join(studio, 'workers/sound-cruise-news/local.js'));
+        });
+        git(studio, 'add', '--', file);
+        const staged = readGit(studio, base, topic);
+        await t.test('4 topic commit works without requiring HEAD equals changing main', () => {
+            assert(run({ current: staged, phase: 'commit' }).ok);
+            const advance = clone(staged); advance.originMain = next;
+            const r = run({ current: advance, phase: 'commit' }); assert(r.ok); assert.equal(r.notices[0].code, 'remote-main-advanced');
+        });
+        commit(studio, 'Fixture Studio change');
+        const current = readGit(studio, base, topic), topicHead = current.head;
+        const request = { remote: 'origin', sourceRef: 'refs/heads/' + topic.branch, sourceSha: topicHead, targetRef: topic.targetRef, force: false };
+        const pub = { current, phase: 'push', pushRequest: request };
+        await t.test('5 topic postcommit and first publication exact ref pass', () => {
+            assert(run({ current, phase: 'postcommit', commitBase: base }).ok); assert(run(pub).ok);
+        });
+        await t.test('6 unexpected remote topic update rejects; observations are mandatory', () => {
+            rejects(run({ ...pub, observedRemote: { ...observations, topic: { ...observations.topic, sha: topicHead } } }), 'remote-topic-mismatch');
+            rejects(run({ ...pub, observedRemote: undefined }), 'remote-topic-mismatch');
+        });
+        await t.test('7 main advance permits local work/topic publication but never implicitly integrates', () => {
+            const advanced = { main: { ...observations.main, sha: next }, topic: observations.topic };
+            assert(run({ current, observedRemote: advanced }).ok);
+            const r = run({ ...pub, observedRemote: advanced }); assert(r.ok); assert(r.notices.length);
+            rejects(run({ ...pub, contract: { ...topic, mode: 'main-integration', targetRef: 'refs/heads/main' } }), 'integration-not-approved');
+        });
+        const negatives = [
+            ['10 staged NEWS contamination', 'unrelated-staged', o => o.current.changes.push(change('workers/sound-cruise-news/x.js', { staged: true, unstaged: false }))],
+            ['11 shared file', 'unexpected-owner-change', o => o.current.changes.push(change('apps/shared/x.js'))],
+            ['12 duplicate branch ownership', 'branch-ownership', o => o.current.worktrees.push({ root: '/other', branch: 'refs/heads/' + topic.branch, prunable: false })],
+            ['13 base mismatch', 'base-mismatch', o => o.contract.baseSha = next],
+            ['14 root mismatch', 'worktree-root-mismatch', o => o.contract.root = '/other'],
+            ['15 incorrect registered ref', 'remote-ref-mismatch', o => o.contract.targetRef = 'refs/heads/codex/unregistered'],
+            ['16 topic main push', 'push-destination-mismatch', o => o.pushRequest.targetRef = 'refs/heads/main'],
+            ['wrong remote', 'push-destination-mismatch', o => o.pushRequest.remote = 'elsewhere'],
+            ['wrong source ref', 'push-destination-mismatch', o => o.pushRequest.sourceRef = 'refs/heads/main'],
+            ['stale source SHA', 'push-destination-mismatch', o => o.pushRequest.sourceSha = base],
+            ['force request', 'push-destination-mismatch', o => o.pushRequest.force = true],
+            ['unknown mode', 'invalid-contract', o => o.contract.mode = 'anything'],
+            ['branch changed', 'branch-mismatch', o => o.current.branch = 'codex/other'],
+            ['common directory changed', 'common-directory-mismatch', o => o.current.commonDir = '/other/.git'],
+            ['remote URL changed', 'remote-identity-mismatch', o => o.current.remote.pushUrls = ['/elsewhere']],
+            ['multiple push URLs', 'remote-identity-mismatch', o => o.current.remote.pushUrls.push('/elsewhere')],
+            ['merge/rebase operation pending', 'git-operation-pending', o => o.current.operationPending = true],
+            ['base not a commit', 'base-mismatch', o => o.current.base.exists = false],
+            ['lost checkpoint ancestry', 'topic-checkpoint-divergence', o => o.current.history.ancestor = false],
+            ['forbidden file in committed history', 'topic-history-scope', o => o.current.base.history.commits[0].files.push('apps/shared/x.js')],
+            ['unreviewed merge in topic history', 'topic-history-scope', o => o.current.base.history.commits[0].parents.push(next)],
+            ['cross-owner rename', 'unrelated-staged', o => o.current.changes.push(change(file, { staged: true, previousPath: 'apps/shared/x.js' }))],
+            ['missing fresh main observation', 'remote-main-observation-missing', o => delete o.observedRemote.main],
+            ['unknown target observation ref', 'remote-topic-mismatch', o => o.observedRemote.topic.ref = 'refs/heads/main']
+        ];
+        for (const [name, code, mutate] of negatives) await t.test(name, () => {
+            const opts = clone({ ...options, ...pub }); mutate(opts); rejects(evaluateSafety(opts), code);
+        });
+        await t.test('existing topic remote must equal expected SHA and be ancestor', () => {
+            const c = { ...topic, expectedTopicSha: base }, now = readGit(studio, base, c);
+            const o = { main: observations.main, topic: { ...observations.topic, sha: base } };
+            assert(run({ contract: c, current: now, phase: 'push', observedRemote: o, pushRequest: request }).ok);
+            const broken = clone(now); broken.publicationBase.ancestor = false;
+            rejects(run({ contract: c, current: broken, phase: 'push', observedRemote: o, pushRequest: request }), 'publication-not-fast-forward');
+        });
+        await t.test('18 release remains entire current-worktree clean, including approved originals', () => {
+            assert(run({ current, phase: 'release' }).ok);
+            const dirty = clone(current); dirty.changes.push(change('.claude/', { untracked: true, directory: true }));
+            rejects(run({ current: dirty, phase: 'release' }), 'repository-not-clean');
+        });
+        await t.test('20 raw untracked original preservation checks content/state and cannot overlap intent', () => {
+            const path = 'apps/cruise-studio/_proto/integrated-score/index.html';
+            put(root, path, 'readonly mock original\n');
+            const raw = readGit(root, undefined, mainContract), entry = raw.changes.find(x => x.path === path);
+            const c = { ...mainContract, preservedUntracked: [{ path, sha256: entry.signature }] };
+            const opts = { baseline: raw, current: clone(raw), contract: c, allowedFiles: [file] };
+            const before = JSON.stringify(raw); assert(evaluateSafety(opts).ok); assert.equal(JSON.stringify(raw), before);
+            for (const patch of [{ signature: '0'.repeat(64) }, { staged: true, untracked: false }, { untracked: false }]) {
+                const now = clone(raw); Object.assign(now.changes.find(x => x.path === path), patch);
+                rejects(evaluateSafety({ ...opts, current: now }), 'preserved-original-changed');
+            }
+            rejects(evaluateSafety({ ...opts, allowedFiles: [file, path] }), 'invalid-preservation');
+            rejects(evaluateSafety({ ...opts, phase: 'release', observedRemote: observations }), 'repository-not-clean');
+            rejects(evaluateSafety({ ...opts, contract: { ...mainContract } }), 'preexisting-studio-change');
+            assert.equal(readGit(root).changes.find(x => x.path === path).signature, entry.signature);
+            rmSync(join(root, path));
+        });
+        // Build reviewed merge evidence with commit-tree, never run merge or checkout.
+        const tree = git(studio, 'rev-parse', 'HEAD^{tree}');
+        const merged = git(studio, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid',
+            'commit-tree', tree, '-p', base, '-p', topicHead, '-m', 'Reviewed fixture integration');
+        git(studio, 'update-ref', 'refs/heads/' + topic.branch, merged, topicHead);
+        const integration = { ...topic, mode: 'main-integration', targetRef: 'refs/heads/main',
+            integrationApproval: { approvalId: 'fixture-human-review', baseSha: base, topicSha: topicHead, topicBaseSha: base, headSha: merged } };
+        const integrated = readGit(studio, base, integration);
+        const integrate = { baseline: topicBaseline, current: integrated, contract: integration, allowedFiles: [file], phase: 'push',
+            observedRemote: observations, pushRequest: { ...request, sourceSha: merged, targetRef: 'refs/heads/main' } };
+        await t.test('17 only explicit exact reviewed integration result can target main', () => {
+            assert(evaluateSafety(integrate).ok, JSON.stringify(evaluateSafety(integrate)));
+            rejects(evaluateSafety({ ...integrate, contract: { ...integration, integrationApproval: undefined } }), 'integration-not-approved');
+            rejects(evaluateSafety({ ...integrate, phase: 'development' }), 'integration-review-only');
+            rejects(evaluateSafety({ ...integrate, observedRemote: { main: { ...observations.main, sha: next } } }), 'remote-main-mismatch');
+            const wrong = clone(integrate); wrong.contract.integrationApproval.headSha = topicHead;
+            rejects(evaluateSafety(wrong), 'integration-not-approved');
+        });
+        await t.test('other-worktree NEWS bytes/status survive all fixture operations', () => {
+            assert.equal(JSON.stringify(readGit(root).changes), newsBefore);
+        });
+    } finally { rmSync(tmp, { recursive: true, force: true }); }
+});

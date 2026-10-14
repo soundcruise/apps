@@ -22,7 +22,12 @@ export function releasedBoundaryViolations(changes) {
     return changes.flatMap(paths).filter(path => !['studio', 'news'].includes(owner(path)));
 }
 
-export function evaluateSafety({ baseline, current, allowedFiles = [], phase = 'development', remoteHead, commitBase }) {
+export function evaluateSafety(options) {
+    return options.contract === undefined ? evaluateMainSafety(options) : evaluateWorktreeSafety(options);
+}
+
+// Compatibility path: the original main policy is intentionally unchanged.
+function evaluateMainSafety({ baseline, current, allowedFiles = [], phase = 'development', remoteHead, commitBase }) {
     const failures = [];
     const fail = (code, detail) => failures.push({ code, detail });
     if (!['development', 'commit', 'postcommit', 'push', 'release'].includes(phase)) fail('invalid-phase', phase);
@@ -75,8 +80,133 @@ export function evaluateSafety({ baseline, current, allowedFiles = [], phase = '
     return { ok: failures.length === 0, failures };
 }
 
-export function readGit(root, baselineHead) {
-    const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+const sha = value => typeof value === 'string' && /^[a-f0-9]{40,64}$/.test(value);
+const topicBranch = value => typeof value === 'string' && /^codex\/[A-Za-z0-9_-]+(?:\/[A-Za-z0-9_-]+)*$/.test(value);
+
+export function evaluateWorktreeSafety({ baseline, current, contract: c, allowedFiles = [],
+    phase = 'development', commitBase, observedRemote, pushRequest }) {
+    const failures = [], notices = [];
+    const fail = (code, detail) => failures.push({ code, detail });
+    const result = () => ({ ok: failures.length === 0, failures, notices });
+    if (!c || c.version !== 1 || !['main-development', 'topic-development', 'main-integration'].includes(c.mode) ||
+        !['development', 'commit', 'postcommit', 'push', 'release'].includes(phase)) {
+        fail('invalid-contract', c?.mode); return result();
+    }
+    if (!baseline || !current || !Array.isArray(baseline.changes) || !Array.isArray(current.changes) ||
+        baseline.version !== 1 || current.version !== 1) { fail('invalid-snapshot'); return result(); }
+    if (typeof c.root !== 'string' || !c.root.startsWith('/') || typeof c.commonDir !== 'string' || !c.commonDir.startsWith('/'))
+        fail('invalid-registration');
+    for (const s of [baseline, current]) {
+        if (s.root !== c.root) fail('worktree-root-mismatch', s.root);
+        if (s.commonDir !== c.commonDir) fail('common-directory-mismatch', s.commonDir);
+        if (s.branch !== c.branch) fail('branch-mismatch', s.branch);
+        const peers = s.worktrees?.filter(w => w.branch === 'refs/heads/' + c.branch);
+        if (!peers || peers.length !== 1 || peers[0].root !== c.root || peers[0].prunable)
+            fail('branch-ownership', c.branch);
+        if (s.operationPending) fail('git-operation-pending');
+        if (s.remote?.name !== 'origin' || s.remote.fetchUrl !== c.remoteFetchUrl ||
+            s.remote.pushUrls?.length !== 1 || s.remote.pushUrls[0] !== c.remotePushUrl)
+            fail('remote-identity-mismatch');
+        if (s.base?.sha !== c.baseSha || !s.base.exists || !s.base.history?.ancestor) fail('base-mismatch');
+    }
+    if (c.remote !== 'origin' || !c.remoteFetchUrl || !c.remotePushUrl || !sha(c.baseSha)) fail('invalid-registration');
+    const topic = c.mode === 'topic-development', integration = c.mode === 'main-integration';
+    if (topic ? !topicBranch(c.branch) || c.targetRef !== 'refs/heads/' + c.branch :
+        c.targetRef !== 'refs/heads/main' || (integration ? !topicBranch(c.branch) : c.branch !== 'main'))
+        fail('remote-ref-mismatch', c.targetRef);
+    const allowed = new Set(allowedFiles);
+    if (!allowed.size || allowed.size !== allowedFiles.length || allowedFiles.some(p => owner(p) !== 'studio' || p.endsWith('/')))
+        fail('invalid-intent', allowedFiles);
+
+    // Approved readonly originals remain in the raw capture. They can never enter intent/index/history.
+    const preserved = c.preservedUntracked ?? [];
+    if (!Array.isArray(preserved)) { fail('invalid-preservation'); return result(); }
+    const protectedPaths = new Set();
+    for (const p of preserved) {
+        if (!p || owner(p.path) !== 'studio' || p.path.endsWith('/') || !/^[a-f0-9]{64}$/.test(p.sha256 || '') ||
+            protectedPaths.has(p.path) || allowed.has(p.path)) { fail('invalid-preservation', p?.path); continue; }
+        protectedPaths.add(p.path);
+        for (const s of [baseline, current]) {
+            const entry = s.changes.find(x => x.path === p.path);
+            if (!entry || !entry.untracked || entry.staged || entry.unstaged || entry.directory || entry.signature !== p.sha256)
+                fail('preserved-original-changed', p.path);
+        }
+    }
+    const view = s => ({ ...s, changes: s.changes.filter(x => !protectedPaths.has(x.path)) });
+    const b = view(baseline), now = view(current);
+    if (phase === 'release' && current.changes.length) fail('repository-not-clean', current.changes.map(x => x.path));
+
+    if (c.mode === 'main-development') {
+        // All old main checks apply after the separately verified, non-stagable preservation manifest.
+        const legacy = evaluateMainSafety({ baseline: b, current: now, allowedFiles, phase,
+            commitBase, remoteHead: observedRemote?.main?.sha });
+        failures.push(...legacy.failures);
+    } else {
+        // Same-worktree NEWS is not a general exception in a dedicated Studio checkout.
+        if (b.changes.length) fail('topic-baseline-dirty', b.changes.map(x => x.path));
+        for (const entry of now.changes) {
+            if (paths(entry).some(p => !allowed.has(p))) fail('unexpected-owner-change', paths(entry));
+            if (entry.staged && paths(entry).some(p => !allowed.has(p))) fail('unrelated-staged', paths(entry));
+        }
+        if (phase === 'commit' && (!now.changes.length || now.changes.some(x => !x.staged || x.unstaged || x.untracked)))
+            fail('index-not-exact');
+        if (['postcommit', 'push'].includes(phase) && now.changes.length) fail('postcommit-dirty');
+        if (phase === 'postcommit' && (!sha(commitBase) || current.parent !== commitBase || current.head === commitBase))
+            fail('not-direct-child');
+        if (phase === 'postcommit' && (!current.commitFiles?.length || current.commitFiles.some(p => !allowed.has(p))))
+            fail('commit-scope');
+    }
+    if (topic) {
+        for (const s of [baseline, current]) {
+            const h = s.base?.history;
+            if (!h?.ancestor || !Array.isArray(h.commits) || h.commits.some(x => x.parents.length !== 1 ||
+                !x.files.length || x.files.some(p => !allowed.has(p)))) fail('topic-history-scope');
+        }
+        if (current.head !== baseline.head && (!current.history?.ancestor || !current.history.commits?.length ||
+            current.history.commits.some(x => x.parents.length !== 1 || !x.files.length || x.files.some(p => !allowed.has(p)))))
+            fail('topic-checkpoint-divergence');
+        if (current.originMain !== c.baseSha || observedRemote?.main?.sha && observedRemote.main.sha !== c.baseSha)
+            notices.push({ code: 'remote-main-advanced', detail: 'Local topic work may continue; integration requires a separate approval and baseline.' });
+    }
+    if (integration) {
+        const a = c.integrationApproval, e = current.integration;
+        if (!a || typeof a.approvalId !== 'string' || !a.approvalId.trim() || !sha(a.headSha) || !sha(a.topicSha) ||
+            !sha(a.topicBaseSha) || a.baseSha !== c.baseSha || a.headSha !== current.head ||
+            !e || e.topicSha !== a.topicSha || e.topicBaseSha !== a.topicBaseSha ||
+            baseline.head !== c.baseSha || JSON.stringify(e.parents) !== JSON.stringify([c.baseSha, a.topicSha]) ||
+            !e.baseContainsTopicBase || !e.topicHistory?.ancestor || !e.topicHistory.commits?.length ||
+            e.topicHistory.commits.some(x => x.parents.length !== 1 || !x.files.length || x.files.some(p => !allowed.has(p))) ||
+            !e.files?.length || e.files.some(p => !allowed.has(p))) fail('integration-not-approved');
+        if (!['push', 'release'].includes(phase)) fail('integration-review-only');
+        if (current.changes.length) fail('integration-not-clean');
+    }
+    if (['commit', 'postcommit', 'push', 'release'].includes(phase) && !topic) {
+        if (observedRemote?.main?.remote !== 'origin' || observedRemote.main.ref !== 'refs/heads/main' ||
+            !sha(observedRemote.main.sha) || observedRemote.main.sha !== current.originMain ||
+            integration && observedRemote.main.sha !== c.baseSha) fail('remote-main-mismatch');
+    }
+    if (phase === 'push') {
+        if (!pushRequest || pushRequest.remote !== 'origin' || pushRequest.sourceRef !== 'refs/heads/' + c.branch ||
+            pushRequest.sourceSha !== current.head || pushRequest.targetRef !== c.targetRef || pushRequest.force !== false)
+            fail('push-destination-mismatch');
+        if (topic) {
+            const r = observedRemote?.topic;
+            if (observedRemote?.main?.remote !== 'origin' || observedRemote.main.ref !== 'refs/heads/main' || !sha(observedRemote.main.sha))
+                fail('remote-main-observation-missing');
+            if (!Object.hasOwn(c, 'expectedTopicSha') || c.expectedTopicSha !== null && !sha(c.expectedTopicSha) ||
+                !r || r.remote !== 'origin' || r.ref !== c.targetRef || r.sha !== c.expectedTopicSha)
+                fail('remote-topic-mismatch');
+            if (c.expectedTopicSha !== null && (!current.publicationBase?.ancestor || current.publicationBase.sha !== c.expectedTopicSha))
+                fail('publication-not-fast-forward');
+            if (!current.base?.history?.commits?.length) fail('empty-publication');
+        }
+    }
+    return result();
+}
+
+export function readGit(root, baselineHead, contract) {
+    const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8',
+        env: { ...process.env, GIT_OPTIONAL_LOCKS: '0' }, maxBuffer: 32 * 1024 * 1024 });
     const actualRoot = realpathSync(git('rev-parse', '--show-toplevel').trim());
     if (realpathSync(root) !== actualRoot) throw Error('Repository root required');
     const raw = git('status', '--porcelain=v1', '-z', '--untracked-files=normal').split('\0');
@@ -123,15 +253,55 @@ export function readGit(root, baselineHead) {
     const head = git('rev-parse', 'HEAD').trim(), parents = git('show', '-s', '--format=%P', 'HEAD').trim().split(' ').filter(Boolean);
     const result = { version: 1, root: actualRoot, branch: git('symbolic-ref', '--short', 'HEAD').trim(), head, originMain: git('rev-parse', 'origin/main').trim(),
         parent: parents.length === 1 ? parents[0] : null, changes,
-        commitFiles: git('diff-tree', '--root', '--no-commit-id', '--name-only', '-r', '-z', 'HEAD').split('\0').filter(Boolean) };
+        commitFiles: git('diff-tree', '--root', '--no-renames', '--no-commit-id', '--name-only', '-r', '-z', 'HEAD').split('\0').filter(Boolean) };
     if (baselineHead && head !== baselineHead) {
         let ancestor = false;
         try { git('merge-base', '--is-ancestor', baselineHead, head); ancestor = true; } catch (e) { if (e.status !== 1) throw e; }
         const commits = ancestor ? git('rev-list', '--parents', head, '^' + baselineHead).trim().split('\n').filter(Boolean).map(row => {
             const [id, ...parents] = row.split(' ');
-            return { id, parents, files: git('diff-tree', '--no-commit-id', '--name-only', '-r', '-z', id).split('\0').filter(Boolean) };
+            return { id, parents, files: git('diff-tree', '--no-renames', '--no-commit-id', '--name-only', '-r', '-z', id).split('\0').filter(Boolean) };
         }) : [];
         result.history = { ancestor, commits };
+    }
+    const common = git('rev-parse', '--git-common-dir').trim();
+    result.commonDir = realpathSync(resolve(root, common));
+    result.worktrees = git('worktree', 'list', '--porcelain', '-z').split('\0\0').filter(Boolean).map(block => {
+        const fields = block.split('\0').filter(Boolean);
+        return { root: fields.find(x => x.startsWith('worktree '))?.slice(9),
+            branch: fields.find(x => x.startsWith('branch '))?.slice(7),
+            prunable: fields.some(x => x === 'prunable' || x.startsWith('prunable ')) };
+    });
+    let fetchUrl = null, pushUrls = [];
+    if (git('remote').split('\n').includes('origin')) {
+        fetchUrl = git('remote', 'get-url', 'origin').trim();
+        pushUrls = git('remote', 'get-url', '--push', '--all', 'origin').trim().split('\n');
+    }
+    result.remote = { name: 'origin', fetchUrl, pushUrls };
+    result.operationPending = ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply', 'BISECT_LOG']
+        .some(name => { try { lstatSync(resolve(root, git('rev-parse', '--git-path', name).trim())); return true; } catch (e) { if (e.code === 'ENOENT') return false; throw e; } });
+    function historyFrom(base, end = head) {
+        let exists = false, ancestor = false;
+        if (sha(base)) {
+            try { git('cat-file', '-e', base + '^{commit}'); exists = true; } catch (e) { if (![1, 128].includes(e.status)) throw e; }
+            if (exists) try { git('merge-base', '--is-ancestor', base, end); ancestor = true; } catch (e) { if (e.status !== 1) throw e; }
+        }
+        const commits = ancestor ? git('rev-list', '--parents', end, '^' + base).trim().split('\n').filter(Boolean).map(row => {
+            const [id, ...parents] = row.split(' ');
+            return { id, parents, files: git('diff-tree', '--root', '--no-renames', '--no-commit-id', '--name-only', '-r', '-z', id).split('\0').filter(Boolean) };
+        }) : [];
+        return { sha: base, exists, ancestor, commits };
+    }
+    if (contract) {
+        const h = historyFrom(contract.baseSha);
+        result.base = { sha: contract.baseSha, exists: h.exists, history: { ancestor: h.ancestor, commits: h.commits } };
+        if (sha(contract.expectedTopicSha)) result.publicationBase = historyFrom(contract.expectedTopicSha);
+        const a = contract.integrationApproval;
+        if (contract.mode === 'main-integration' && a && sha(a.topicSha) && sha(a.topicBaseSha)) {
+            const th = historyFrom(a.topicBaseSha, a.topicSha), bh = historyFrom(a.topicBaseSha, contract.baseSha);
+            result.integration = { parents, topicSha: a.topicSha, topicBaseSha: a.topicBaseSha,
+                baseContainsTopicBase: bh.ancestor, topicHistory: { ancestor: th.ancestor, commits: th.commits },
+                files: h.ancestor ? git('diff', '--no-renames', '--name-only', '-z', contract.baseSha, head).split('\0').filter(Boolean) : [] };
+        }
     }
     return result;
 }
@@ -142,16 +312,19 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     try {
         const [command, baselinePath, ...rest] = process.argv.slice(2);
         const root = process.cwd();
-        if (command === 'capture') console.log(JSON.stringify(readGit(root), null, 2));
+        if (command === 'capture') {
+            const config = baselinePath ? JSON.parse(readFileSync(baselinePath, 'utf8')) : {};
+            console.log(JSON.stringify(readGit(root, undefined, config.contract), null, 2));
+        }
         else if (command === 'release') {
             const result = evaluateSafety({ current: readGit(root), phase: 'release' });
             console.log(JSON.stringify(result, null, 2)); process.exitCode = result.ok ? 0 : 1;
         } else if (command === 'check') {
             const config = JSON.parse(readFileSync(baselinePath, 'utf8'));
             const phase = rest[0] || 'development', remoteHead = rest[1];
-            const result = evaluateSafety({ baseline: config.baseline, current: readGit(root, config.baseline?.head),
-                allowedFiles: config.allowedFiles, commitBase: config.commitBase, phase, remoteHead });
+            const result = evaluateSafety({ ...config, current: readGit(root, config.baseline?.head, config.contract), phase,
+                remoteHead, observedRemote: remoteHead && config.contract ? JSON.parse(readFileSync(remoteHead, 'utf8')) : undefined });
             console.log(JSON.stringify(result, null, 2)); process.exitCode = result.ok ? 0 : 1;
-        } else throw Error('Usage: git-safety.mjs capture | release | check <plan.json> <phase> [remoteHead]');
+        } else throw Error('Usage: git-safety.mjs capture [plan.json] | release | check <plan.json> <phase> [remote SHA / observations.json]');
     } catch (error) { console.error(error.message); process.exitCode = 1; }
 }
