@@ -1,6 +1,37 @@
 # Cruise Studio Project State
 
-## Editing Session Domain History Core v1（2026-10-14・現行）
+## Structure Operation Adapter v1（2026-10-14・現行）
+
+Studio **0.34.0**（離散操作の履歴接続機能によるminor）/ Port **1.22.18** / Chord **1.20.1**。
+開始HEAD / origin/main / remote main=`a6a12cb833fbd55c486067f1452c5f3fcd20d567`、tracked/staged空・ahead/behind0/0。
+Studio schema **1** / Authority physical schema **2**維持。
+
+既存Editing SessionのrunOperationへStructure離散操作を接続。section追加/削除/確定名変更、section小節数増減、
+strumセル/基本へ戻す、コード/ドレミ一括、譜面表示設定をstaging draftへ適用し、複合setterを1entryで公開する。
+no-opはentryもcontent tokenも進めない。例外/取消は旧draft/historyを保持。独立stack/writerは作らない。
+存在しないbar独立CRUD/strum一括は追加しない。文字入力/IME/native Undo、製品Undo UI/shortcutは未接続。
+実際の直接draft変更はCoreのout-of-band barrierで古い履歴を無効化し、現在内容を保持する。
+
+構造変更時はbarNumber選択/Loupeを解除。inactive projectの構造外部採用も旧番号を復元しない。
+非構造公開では歌詞局所解像度を維持。FileReaderとfocus RAFにsession/content/ticket/selection/focus owner guardを追加。
+DOM置換だけなら必要なfocus復帰を許可し、新inputへ旧valueを戻さない。
+saved/base/revision不変、通常保存成功/失敗・pending/conflictの履歴保持、clean adoption/resetを維持。
+A/B/workspace別のsessionとPre-DTM現在working JSON/MIDIを維持する。
+
+検証: baseline Node **654 PASS**、追加Adapter **29 PASS**、全Node **683 PASS**。
+Browser結果: 正規12 suite **270 PASS**＋新規Adapter **45 PASS**（親を含む）、計 **315 PASS**。
+Adapter repository write0。既存Studio明示保存は維持。Port/Authority/ProDevice/Account/Sync/outbox/Worker/cloud mutation0。
+console/app404/unhandled/禁止network0。4 Themes×390–1920/Print/IME/Modal/focus/Audio/read-only Hostを確認。
+隔離8767 / disposable Chrome / synthetic micのみ、source/display0.34.0一致。
+
+一括popover適用buttonのpointer到達不良は基点でも再現。今回はnative keyboard Enterで実適用を検証し、
+既存pointer配置修正は別UI工程に残す。実OS IME/Safari/プリンター/DAWは実機範囲。
+次は連続入力/IME/native Undo境界の段階接続。製品Undo UIはowner/group/focus条件の検証後。
+Port/Shared/Worker製品コード不変更。Production **legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false**。
+Daybreak待機/L3c境界維持。既存8765/8766/PID25543/profile/untracked不触。probe/deploy/D1/cutoverなし。
+詳細は[Structure Operation契約](../docs/STRUCTURE_OPERATION_HISTORY.md)参照。以下は各工程時点の履歴。
+
+## Editing Session Domain History Core v1（2026-10-14・履歴）
 
 Studio **0.33.0**（domain履歴Core APIの新機能によるminor。Undo UIは未公開）/ Port **1.22.18** / Chord **1.20.1**。
 開始HEAD / origin/main / remote main=`5b990d3e28ed0b9099bbe4f68cd462964d6dba49`、tracked/staged空、ahead/behind0/0。

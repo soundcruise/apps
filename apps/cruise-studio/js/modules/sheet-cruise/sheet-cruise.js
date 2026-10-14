@@ -88,16 +88,56 @@
         dirty: { get: function () { return !!(state.session && state.session.dirty); } }
     });
     var projectViews = new Map();
+    var operationAdapter = null, structureIdentity = null, publishedBars = null, focusEpoch = 0;
+    function contentFrame() {
+        return { content: CS().structureOperations.capture(state.session),
+            ticket: CS().documents.ticket(), barNumber: state.selectedBarNumber };
+    }
+    function currentFrame(frame) {
+        return !!(frame && CS().structureOperations.isCurrent(frame.content, state.session) &&
+            CS().documents.isSelected(frame.ticket) && frame.barNumber === state.selectedBarNumber);
+    }
+    function operationEligible() {
+        return state.active && !(CS().shellHost && CS().shellHost.getCommandContext().activeModal) &&
+            !(CS().shellHost && CS().shellHost.keyboard.isIMEBlocked({})) &&
+            state.overlayComposingRowId === null && !state.overlayBulkComposing &&
+            state.lyricComposingTick === null && !state.lyricJustComposed;
+    }
+    function runStructureOperation(kind, args, expected) {
+        if (!operationAdapter) operationAdapter = CS().structureOperations.create({ model: CS().model,
+            getSession: function () { return state.session; }, isEligible: operationEligible });
+        var result = operationAdapter.execute(kind, args, expected);
+        if (!result.ok) { setSaveStatus(result.error || '編集を適用できませんでした', true); return result; }
+        if (result.code === 'history-overflow') setSaveStatus('編集は反映されましたが、履歴容量を超えたため記録できませんでした', true);
+        return result;
+    }
+    // Deferred focus belongs to the exact document/content/selection and current focus owner.
+    function queueContentFrame(callback) {
+        var frame = contentFrame();
+        return window.requestAnimationFrame(function () {
+            if (currentFrame(frame) && isWorkspaceVisible()) callback();
+        });
+    }
+    function queueEditorFrame(callback) {
+        var frame = contentFrame(), focused = document.activeElement, epoch = focusEpoch;
+        return window.requestAnimationFrame(function () {
+            var active = document.activeElement;
+            var replacedControl = focused && !focused.isConnected && active === document.body && epoch === focusEpoch;
+            if (!currentFrame(frame) || !operationEligible() || epoch !== focusEpoch || (active !== focused && !replacedControl)) return;
+            callback();
+        });
+    }
     var selectionListeners = new Set(), selectionDeleted = false, selectionSignature = null;
     // Read projection of Structure's existing single-bar selection and session draft.
     function getSelectionSnapshot() {
-        var bar = getSelectedBar(), session = state.session;
+        var session = state.session, validSelection = session && structureIdentity === CS().structureOperations.structureKey(session.draft);
+        var selected = validSelection ? state.selectedBarNumber : null, bar = selected ? getSelectedBar() : null;
         return Object.freeze({ active: state.active, sessionId: session ? session.sessionId : null,
-            barNumbers: Object.freeze(state.selectedBarNumber ? [state.selectedBarNumber] : []),
+            barNumbers: Object.freeze(selected ? [selected] : []),
             chords: Object.freeze((bar ? bar.chords : []).map(function (chord) { return Object.freeze({ tick: chord.tick, symbol: chord.symbol }); })),
             editing: !!(session && session.inputPending), dirty: !!(session && session.dirty),
             externalUpdatePending: !!(session && session.externalUpdatePending),
-            deleted: selectionDeleted || !!(state.selectedBarNumber && !bar) || !!(session && session.conflict && session.conflict.deleted) });
+            deleted: selectionDeleted || !!(state.selectedBarNumber && !getSelectedBar()) || !!(session && session.conflict && session.conflict.deleted) });
     }
     function publishSelection() {
         var snapshot = getSelectionSnapshot(), signature = JSON.stringify(snapshot);
@@ -256,23 +296,27 @@
         else if (session.commitError) setSaveStatus(session.commitError, true);
         else if (session.commitInFlight) setSaveStatus('保存中です。追加編集は保持されます');
         else if (!CS().repository.canWrite()) setSaveStatus('この環境では安全な保存を利用できません。JSONへ書き出せます。', true);
+        else if (session.getHistory().status === 'overflow') setSaveStatus('編集は反映されましたが、履歴容量を超えたため記録できませんでした', true);
         else setSaveStatus(session.dirty ? '未保存の変更があります' : '保存済み');
     }
 
     function showSession(session, message) {
         if (state.session) projectViews.set(state.session.sessionId, {
-            selectedBarNumber: state.selectedBarNumber, loupe: Object.assign({}, state.loupe),
+            selectedBarNumber: state.selectedBarNumber, structureIdentity: structureIdentity, loupe: Object.assign({}, state.loupe),
             dockManualRes: state.dockManualRes, overlayWarnings: state.overlayWarnings,
             scroll: CS().scroll ? CS().scroll.getPosition('sheetCruise') : null
         });
         state.session = session;
+        structureIdentity = CS().structureOperations.structureKey(session.draft);
+        publishedBars = session.draft.bars;
         selectionDeleted = false;
         CS().sessions.activateSession(session);
         if (CS().documents) CS().documents.bind(session);
         var view = projectViews.get(session.sessionId);
-        state.selectedBarNumber = view ? view.selectedBarNumber : null;
-        state.dockManualRes = view ? view.dockManualRes : {};
-        state.overlayWarnings = view ? view.overlayWarnings : {};
+        var sameStructure = view && view.structureIdentity === structureIdentity;
+        state.selectedBarNumber = sameStructure ? view.selectedBarNumber : null;
+        state.dockManualRes = sameStructure ? view.dockManualRes : {};
+        state.overlayWarnings = sameStructure ? view.overlayWarnings : {};
         if (view) state.loupe = Object.assign({}, view.loupe);
         state.dockBulkOpen = false;
         state.workspaceFocus = null; state.workspaceScroll = view ? view.scroll : null;
@@ -408,7 +452,7 @@
             nameInput.value = sec.name;
             nameInput.setAttribute('aria-label', 'セクション名');
             nameInput.addEventListener('change', function () {
-                model.renameSection(state.project, sec.id, nameInput.value);
+                if (!runStructureOperation('renameSection', { sectionId: sec.id, name: nameInput.value }).ok) return;
                 nameInput.value = state.project.sections.filter(function (s) { return s.id === sec.id; })[0].name;
                 markDirty();
                 renderBarGrid();
@@ -427,7 +471,7 @@
             countInput.step = '1';
             countInput.value = model.getSectionBarCount(state.project, sec.id);
             countInput.addEventListener('change', function () {
-                model.setSectionBarCount(state.project, sec.id, parseInt(countInput.value, 10));
+                if (!runStructureOperation('barCount', { sectionId: sec.id, count: parseInt(countInput.value, 10) }).ok) { countInput.value = model.getSectionBarCount(state.project, sec.id); return; }
                 countInput.value = model.getSectionBarCount(state.project, sec.id); // クランプ結果を反映
                 markDirty();
                 renderBarGrid();
@@ -441,9 +485,10 @@
             deleteBtn.className = 'btn-mini btn-danger';
             deleteBtn.textContent = '削除';
             deleteBtn.addEventListener('click', function () {
+                var expected = CS().structureOperations.capture(state.session);
                 var barCount = model.getSectionBarCount(state.project, sec.id);
                 if (!window.confirm('セクション「' + sec.name + '」（' + barCount + '小節）を削除しますか？')) return;
-                var res = model.removeSection(state.project, sec.id);
+                var res = runStructureOperation('removeSection', { sectionId: sec.id }, expected);
                 if (!res.ok) {
                     setSaveStatus(res.error, true);
                     return;
@@ -462,7 +507,7 @@
     }
 
     function onAddSection() {
-        CS().model.addSection(state.project, '新しいセクション', 4);
+        if (!runStructureOperation('addSection').ok) return;
         markDirty();
         renderSections();
         renderBarGrid();
@@ -665,6 +710,7 @@
         var active = document.activeElement;
         if (!input || active !== input) return null;
         return {
+            frame: contentFrame(),
             rowId: rowId,
             value: input.value,
             selectionStart: typeof input.selectionStart === 'number' ? input.selectionStart : null,
@@ -673,7 +719,7 @@
     }
 
     function restoreOverlayFocus(snapshot) {
-        if (!snapshot || !els.slotOverlay) return;
+        if (!snapshot || !currentFrame(snapshot.frame) || !els.slotOverlay) return;
         var field = els.slotOverlay.querySelector('[data-overlay-field="' + snapshot.rowId + '"]');
         if (!field) return;
         field.focus({ preventScroll: true });
@@ -689,7 +735,7 @@
 
     function restoreOverlayFocusAfterRender(snapshot) {
         restoreOverlayFocus(snapshot);
-        window.requestAnimationFrame(function () {
+        queueEditorFrame(function () {
             restoreOverlayFocus(snapshot);
         });
     }
@@ -810,7 +856,7 @@
 
     function focusOverlayField(rowId) {
         if (!rowId || !els.slotOverlay) return;
-        window.requestAnimationFrame(function () {
+        queueEditorFrame(function () {
             var field = els.slotOverlay.querySelector('[data-overlay-field="' + rowId + '"]');
             if (!field) return;
             if (rowId === 'strum') {
@@ -1149,7 +1195,7 @@
     }
 
     function focusStrumCellAfterRender(index) {
-        window.requestAnimationFrame(function () {
+        queueEditorFrame(function () {
             if (!els.slotOverlay) return;
             var cell = els.slotOverlay.querySelector('.dock-strum-cell[data-cell-index="' + index + '"]');
             if (cell) cell.focus({ preventScroll: true });
@@ -1176,7 +1222,7 @@
         if (index < 0 || index >= actions.length) return;
         actions[index] = action;
         var slots = buildStrumSlotsFromActions(res, actions);
-        CS().model.setBarStrumSlots(state.project, bar.barNumber, slots);
+        if (!runStructureOperation('strum', { barNumber: bar.barNumber, slots: slots }).ok) return;
         markDirty();
         renderPreview();
         focusStrumCellAfterRender(typeof focusIndex === 'number' ? focusIndex : index);
@@ -1187,7 +1233,7 @@
      * （setBarStrumSlotsに空配列を渡すと override=null になる既存挙動を利用）。
      */
     function resetBarStrumOverride(bar) {
-        CS().model.setBarStrumSlots(state.project, bar.barNumber, []);
+        if (!runStructureOperation('resetStrum', { barNumber: bar.barNumber }).ok) return;
         markDirty();
         renderPreview();
     }
@@ -1383,6 +1429,7 @@
         var active = document.activeElement;
         if (!input || active !== input) return null;
         return {
+            frame: contentFrame(),
             slotTick: slotTick,
             slotTicks: Number(input.dataset.slotTicks), // G4後修正: range幅。restoreLyricCellFocus()の
             // value/selection復元をrange一致セルだけに限定するために保持する（ADR-030後修正参照）。
@@ -1416,7 +1463,7 @@
      * rangeが変わった場合は、再描画済みDOMの値（project由来）を正としてそのまま残す。
      */
     function restoreLyricCellFocus(snapshot, expectedBarNumber) {
-        if (!snapshot || !els.slotOverlay) return;
+        if (!snapshot || !currentFrame(snapshot.frame) || !els.slotOverlay) return;
         if (typeof expectedBarNumber === 'number' && state.selectedBarNumber !== expectedBarNumber) return;
         var cell = findLyricCellByTick(getOrderedLyricCells(), snapshot.slotTick);
         if (!cell) return;
@@ -1436,7 +1483,7 @@
 
     function restoreLyricCellFocusAfterRender(snapshot, expectedBarNumber) {
         restoreLyricCellFocus(snapshot, expectedBarNumber);
-        window.requestAnimationFrame(function () {
+        queueEditorFrame(function () {
             restoreLyricCellFocus(snapshot, expectedBarNumber);
         });
     }
@@ -1487,7 +1534,7 @@
         var expectedBarNumber = bar.barNumber;
         renderPreview();
         if (typeof focusTick === 'number' && focusTick !== slotTick) {
-            window.requestAnimationFrame(function () {
+            queueEditorFrame(function () {
                 if (state.selectedBarNumber !== expectedBarNumber) return;
                 focusLyricCellByTick(focusTick);
             });
@@ -1907,7 +1954,7 @@
         state.lastAutoScrollBar = state.selectedBarNumber;
         if (!state.selectedBarNumber) return;
         var barNumber = state.selectedBarNumber;
-        window.requestAnimationFrame(function () {
+        queueEditorFrame(function () {
             scrollSelectedBarIntoDockView(barNumber);
         });
     }
@@ -2283,20 +2330,15 @@
             warnings.push('小節数を超えた ' + (values.length - available) + '件は反映しませんでした');
         }
 
-        for (var i = 0; i < count; i++) {
-            var barNumber = state.project.bars[start + i].barNumber;
-            var value = values[i];
-            if (kind === 'chord') {
-                CS().model.setBarChord(state.project, barNumber, value);
-                if (String(value || '').trim() && theory.parseBasicChordSymbol(value) === null) {
-                    warnings.push(barNumber + '小節目: 解釈できないコード表記です');
-                }
-            } else if (kind === 'doremi') {
-                CS().model.setBarDoremiText(state.project, barNumber, value).warnings.forEach(function (warning) {
-                    warnings.push(barNumber + '小節目: ' + warning);
-                });
+        var applied = runStructureOperation(kind === 'chord' ? 'bulkChord' : 'bulkDoremi',
+            { barNumber: bar.barNumber, values: values.slice(0, count) });
+        if (!applied.ok) return;
+        warnings = warnings.concat(applied.warnings);
+        if (kind === 'chord') values.slice(0, count).forEach(function (value, i) {
+            if (String(value || '').trim() && theory.parseBasicChordSymbol(value) === null) {
+                warnings.push(state.project.bars[start + i].barNumber + '小節目: 解釈できないコード表記です');
             }
-        }
+        });
 
         markDirty();
         state.overlayBulkMessage = {
@@ -2621,7 +2663,7 @@
 
         if (state.dockBulkOpen) {
             els.slotOverlay.appendChild(buildBulkInputPanel());
-            window.requestAnimationFrame(positionBulkPopover);
+            queueContentFrame(positionBulkPopover);
         }
 
         // F1: 右下ハンドル（比例リサイズ）。狭い画面ではCSS側で非表示にする
@@ -2758,16 +2800,13 @@
     }
 
     function onDisplayToggleChange() {
-        if (!state.project.sheetSettings) {
-            state.project.sheetSettings = CS().model.getDefaultSheetSettings();
-        }
-        state.project.sheetSettings.showChords = els.showChords.checked;
-        state.project.sheetSettings.showStrum = els.showStrum.checked;
-        state.project.sheetSettings.showLyrics = els.showLyrics.checked;
-        state.project.sheetSettings.showDoremi = els.showDoremi.checked;
-        state.project.sheetSettings.showTimingGrid = els.showGrid.checked;
-        state.project.sheetSettings.timingGridResolution =
-            (els.gridResolution.value === '16') ? 16 : 8;
+        var result = runStructureOperation('display', { settings: {
+            showChords: els.showChords.checked, showStrum: els.showStrum.checked,
+            showLyrics: els.showLyrics.checked, showDoremi: els.showDoremi.checked,
+            showTimingGrid: els.showGrid.checked,
+            timingGridResolution: els.gridResolution.value === '16' ? 16 : 8
+        } });
+        if (!result.ok) { renderDisplayToggles(); return; }
         els.gridResolution.disabled = !els.showGrid.checked;
         markDirty();
         renderPreview();
@@ -2805,9 +2844,13 @@
         event.target.value = '';
         if (!file) return;
         var reader = new FileReader();
-        var intent = CS().documents.ticket();
+        var intent = CS().documents.ticket(), importFrame = CS().structureOperations.capture(state.session);
         reader.onload = function () {
-            if (!CS().documents.isSelected(intent)) { setSaveStatus('対象の曲が変わったため読み込みを中止しました', true); return; }
+            if (!CS().documents.isSelected(intent)) {
+                if (CS().structureOperations.isCurrent(importFrame, state.session)) setSaveStatus('対象の曲が変わったため読み込みを中止しました', true);
+                return;
+            }
+            if (!CS().structureOperations.isCurrent(importFrame, state.session)) return;
             var res = CS().storage.importProjectJson(String(reader.result));
             if (!res.ok) {
                 setSaveStatus(res.error, true);
@@ -2820,6 +2863,7 @@
             });
         };
         reader.onerror = function () {
+            if (!CS().documents.isSelected(intent) || !CS().structureOperations.isCurrent(importFrame, state.session)) return;
             setSaveStatus('ファイルの読み取りに失敗しました', true);
         };
         reader.readAsText(file);
@@ -2934,6 +2978,7 @@
         els.addSectionBtn.addEventListener('click', onAddSection);
         els.saveBtn.addEventListener('click', save);
         els.root.addEventListener('keydown', routeLocalSave);
+        document.addEventListener('focusin', function () { focusEpoch++; }, true);
         // An IME buffer is not a semantic draft edit yet. Hold external adoption until it settles.
         els.root.addEventListener('compositionstart', function (event) {
             if (state.session) { compositionOwners.set(event.target, state.session); state.session.setInputPending(true); }
@@ -2944,7 +2989,24 @@
         });
         CS().sessions.subscribe(function (session, kind) {
             if (state.session !== session) return;
-            if (['external-adopt', 'cancel', 'replace'].includes(kind)) redrawSession();
+            var nextStructure = CS().structureOperations.structureKey(session.draft);
+            if (structureIdentity !== nextStructure) {
+                // barNumber is not stable: never carry a Loupe into a different bar after renumbering.
+                selectionDeleted = !!(state.selectedBarNumber && !getSelectedBar());
+                state.selectedBarNumber = null; state.dockManualRes = {}; state.overlayWarnings = {};
+                state.lastAutoScrollBar = null; state.dockBulkOpen = false;
+                syncSheetSelection();
+            }
+            if (kind === 'operation' && structureIdentity === nextStructure && publishedBars) {
+                // Publication replaces proxies. Preserve UI-only beat resolution on unchanged bar layout.
+                publishedBars.forEach(function (bar, i) {
+                    var resolution = state.lyricBeatRes.get(bar);
+                    if (resolution && session.draft.bars[i]) state.lyricBeatRes.set(session.draft.bars[i], resolution);
+                });
+            }
+            publishedBars = session.draft.bars;
+            structureIdentity = nextStructure;
+            if (['external-adopt', 'cancel', 'replace', 'undo', 'redo'].includes(kind)) redrawSession();
             refreshSessionStatus();
             publishSelection();
         });

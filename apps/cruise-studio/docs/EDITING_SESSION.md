@@ -1,5 +1,14 @@
 # Structure Editing Session v1
 
+## Structure Operation Adapter（0.34.0・現行）
+
+[Structure Operation正式契約](STRUCTURE_OPERATION_HISTORY.md)に従い、既存離散操作をsession.runOperationへ接続する。
+section/bar増減、確定名、strumセル/基本へ戻す、コード/ドレミ一括、表示設定を1操作1entryで記録。
+変更はdraftのみ、saved/base/revision/identityは不変。no-op/exception/cancel、save/external/削除のCore契約を維持。
+構造変更の番号選択/Loupe解除、inactive復帰とcontent/focus callback guardを追加。
+曲情報・基本strum文字列・コード/ドレミ/歌詞の連続入力/IMEは未接続でout-of-band barrierを維持する。
+Undo/Redo UIとshortcutは未公開。以下の未接続記述は各工程時点の履歴。
+
 ## Domain History Core（0.33.0・現行）
 
 [Domain History Core契約](DOMAIN_HISTORY_CORE.md)を本書の履歴API・保存境界の正式補足とする。

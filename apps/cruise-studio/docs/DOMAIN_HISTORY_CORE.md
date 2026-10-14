@@ -1,5 +1,14 @@
 # Editing Session Domain History Core v1
 
+## Structure Adapter補足（0.34.0・現行）
+
+[Structure Operation正式契約](STRUCTURE_OPERATION_HISTORY.md)により離散操作だけをrunOperationへ接続。
+Coreのowner/API/atomicity/no-op/out-of-band/save/external/capacity契約は不変更。
+FileReader/RAFとselectionのguardを接続し、製品Undo UI/shortcutと連続入力/IME/native Undoは未接続。
+以下の検証件数・未接続記述は0.33.0工程の履歴。本工程の結果はROADMAP / PROJECT_STATEを参照。
+
+## Core v1工程記録（0.33.0）
+
 Studio 0.33.0 / Port 1.22.18 / Studio schema1 / Authority physical2。
 基点 `5b990d3e28ed0b9099bbe4f68cd462964d6dba49`。本工程はCoreだけであり、製品UIのUndo対応完了ではない。
 
@@ -123,7 +132,7 @@ source/display0.33.0、4 Themes/390–1920/600px/Print/Audio/focus/IME/Modalを�
 Core repository write0、readerのPort/binary/Authority create/ProDevice/Account/Sync-outbox/Worker-cloud mutation0。
 console error/app404/unhandled0。Studio既存明示保存は通常契約のまま。
 
-## Unconnected / next phase
+## Unconnected / next phase（Core工程時点）
 
 Structure handlersはrunOperation未使用。Paper/Loupeのoperation/undo/redo再描画adapter、Undo buttons、Cmd+Z/Shift+Z、
 native Undo、連続入力/IME group、FileReader/RAF content token・focus ownerは未接続。
