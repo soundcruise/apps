@@ -1,0 +1,30 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import vm from 'node:vm';
+const read=p=>readFileSync(new URL(p,import.meta.url),'utf8');
+const sheet=read('../js/modules/sheet-cruise/sheet-cruise.js'),css=read('../shell.css'),html=read('../index.html'),shell=read('../js/shell.js');
+// Exercise actual private geometry functions, not duplicated test implementations.
+const constants=sheet.match(/^    var LOUPE_[^\n]+/gm).join('\n');
+const fn=name=>sheet.slice(sheet.indexOf('    function '+name+'('),sheet.indexOf('\n    }',sheet.indexOf('    function '+name+'('))+6);
+function geometry(area){const x={getLoupeSafeArea:()=>area};vm.runInNewContext(constants+['isNarrowViewport','clampLoupeWidth','clampLoupeX','getLoupeMinTop','clampLoupeY'].map(fn).join('\n'),x);return x;}
+for(const width of [390,480,768,1024,1440,1920])test('Loupe bounds: available width '+width+' (initial/move/resize)',()=>{
+ for(const left of [0,128,176]){const area={width:width-left-15,left,right:width-15,top:180,bottom:500,bottomMargin:8,contain:true},g=geometry(area);
+ for(const request of [undefined,NaN,-100,280,960,10000]){const w=g.clampLoupeWidth(request);assert(w>0&&w<=area.width-16);for(const x of [-10000,0,left+20,10000]){const p=g.clampLoupeX(x,w);assert(p>=left+8&&p+w<=area.right-8);}}
+ for(const y of [-10000,0,240,10000])assert(g.clampLoupeY(y)>=area.top&&g.clampLoupeY(y)+160+8<=area.bottom);
+ }});
+test('a Main narrower than legacy minimum cannot yield negative viewport X',()=>{const g=geometry({width:247,left:128,right:375,top:100,bottom:600,bottomMargin:8,contain:true}),w=g.clampLoupeWidth(960);assert.equal(w,231);assert.equal(g.clampLoupeX(-16,w),136);});
+test('narrow Loupe resize changes width inside current bounds',()=>{const g=geometry({width:375,left:0,right:375,top:100,bottom:600,bottomMargin:8,contain:true});assert.equal(g.clampLoupeWidth(960),359);assert.equal(g.clampLoupeWidth(280),280);});
+test('pane/viewport/activation reclamp existing geometry without replacing input DOM',()=>{assert.match(sheet,/state\.loupe\.width = clampLoupeWidth\(state\.loupe\.width\)/);assert.match(sheet,/state\.loupe\.x = clampLoupeX\(state\.loupe\.x, state\.loupe\.width\)/);assert.match(shell,/setLoupeSafeAreaProvider\(safeArea\)/);assert.match(sheet,/scheduleOverlayPosition\(false\)/);});
+test('low height safe area caps toolbar exclusion before Loupe control reserve',()=>{assert.match(shell,/box\.bottom - 168/);assert.match(sheet,/safeArea\.contain \? 1 : LOUPE_MIN_AVAILABLE_HEIGHT/);});
+test('Structure and Pre-DTM toolbar minimum and grids adapt to Main',()=>{assert.match(css,/sheet-toolbar-project \{ min-width: 0/);assert.match(css,/minmax\(min\(100%, 200px\), 1fr\)/);assert.match(css,/sheet-toolbar-actions \{[^}]*overflow-x: auto/);assert.match(css,/@media screen and \(max-width: 600px\)/);});
+test('narrow Navigation gives Main full width, with local horizontal native scroll',()=>{assert.match(css,/grid-template-columns: minmax\(0, 1fr\); grid-template-rows: auto minmax\(0, 1fr\) auto/);assert.match(css,/studio-nav-workspaces, \.studio-nav-utilities \{[^}]*overflow-x: auto/);});
+test('Global Stop is outside independently scrolling Navigation and uses same owner',()=>{const scroll=html.slice(html.indexOf('<div class="studio-nav-scroll">'),html.indexOf('<div class="studio-nav-safety">'));assert(!scroll.includes('id="shell-audio-stop"'));assert.equal((html.match(/id="shell-audio-stop"/g)||[]).length,1);assert.match(css,/studio-nav-scroll \{[^}]*overflow: auto/);assert.match(read('../js/modules/tuner/workspace.js'),/audio\.stopAll\(\)/);});
+test('Metronome entry controls same Dock, not workspace or second runtime',()=>{assert.match(html,/id="shell-dock-toggle"[^>]*>Metronome/);assert.match(shell,/layout\.toggleDock\(\); renderLayout\(\)/);assert.equal((html.match(/id="studio-metronome"/g)||[]).length,1);assert.doesNotMatch(shell,/AudioContext|createRuntime|stopAll|setBpm/);});
+test('Dock primary BPM/toggle/beats precede optional duplicate actions; status remains outside details',()=>{const dock=html.slice(html.indexOf('id="studio-dock"'));const details=dock.indexOf('id="studio-metronome-details"');for(const id of ['studio-metronome-bpm','studio-metronome-toggle','studio-metronome-current-bpm'])assert(dock.indexOf('id="'+id+'"')<details);assert(dock.indexOf('id="studio-metronome-start"')>details);assert(dock.indexOf('id="studio-metronome-status"')>dock.indexOf('</details>',details));assert.match(dock,/再読込で初期化。Port保存値とは独立/);});
+test('Dock collapsed state has no engine side effect and expanded height is bounded',()=>{assert.match(css,/max-height: 24dvh/);assert.match(shell,/dock\.hidden = s\.dockCollapsed; dock\.inert = s\.dockCollapsed/);assert.doesNotMatch(shell,/\.start\(|\.stop\(|\.setBpm\(/);});
+test('Loupe narrow header controls wrap, with readable title and resize handle',()=>{assert.match(css,/slot-overlay--narrow \.slot-overlay-head-actions \{ flex-wrap: wrap/);assert.match(css,/slot-overlay--narrow \.slot-overlay-title \{ font-size: 14px/);assert.match(css,/slot-overlay--narrow \.slot-overlay-resize-handle \{ display: block/);});
+test('polish uses screen media and semantic colors, Print keeps A4 and hides chrome',()=>{const added=css.slice(css.indexOf('/* PC layout polish'));assert.match(added,/@media screen/);assert.doesNotMatch(added,/#(?:[a-f\d]{3}|[a-f\d]{6})\b|rgba?\(|hsla?\(/i);const print=read('../print.css');assert.match(print,/width: 210mm !important/);for(const cls of ['studio-nav','studio-right-pane','studio-dock','slot-overlay'])assert(print.includes('.'+cls));});
+test('focus/IME/Modal ownership and read-only host boundaries remain connected',()=>{assert.match(shell,/modal\.getActive\(\) \? false : host\.activate/);assert.match(shell,/resolveFocus\(saved\.identity\)/);assert.match(shell,/CS\.keyboard\.createIMEGuard/);assert.match(read('../js/port-data/host.mjs'),/canWrite: false/);});
+
+test('window resize uses geometry-only path, preserving Loupe input and IME DOM',()=>{assert.match(sheet,/window\.addEventListener\('resize', function \(\) \{ scheduleOverlayPosition\(false\); \}\)/);});

@@ -1923,30 +1923,28 @@
     }
 
     /**
-     * ルーペ幅のクランプ。狭い画面（680px未満）では画面幅に合わせた固定幅を強制する
-     * （PCファースト。モバイル最適化は大規模には行わない）。
+     * ルーペ幅のクランプ。ShellではMain実幅の左右余白内に収める。
+     * 280pxの操作幅も可用幅より大きくしない。狭幅でも範囲内でresizeできる。
      */
     function clampLoupeWidth(width) {
-        var vw = getLoupeSafeArea().width;
-        if (isNarrowViewport()) {
-            return Math.max(280, vw - LOUPE_NARROW_MARGIN);
-        }
-        var maxW = Math.min(LOUPE_MAX_WIDTH, vw - LOUPE_MAX_WIDTH_MARGIN);
-        var minW = Math.min(LOUPE_MIN_WIDTH, maxW);
+        var area = getLoupeSafeArea();
+        var vw = area.width;
+        var maxW = Math.max(1, Math.min(LOUPE_MAX_WIDTH, vw - (area.contain ? 16 : LOUPE_MAX_WIDTH_MARGIN)));
+        var minW = Math.min(area.contain ? 280 : LOUPE_MIN_WIDTH, maxW);
         var w = (typeof width === 'number' && isFinite(width)) ? width : LOUPE_DEFAULT_WIDTH;
         return Math.max(minW, Math.min(maxW, w));
     }
 
     /**
-     * 水平位置のクランプ。左右は最低120px程度を画面内へ残せば足り、
-     * 完全に画面外へ出ることだけを防ぐ（タイトルバーの端を掴んで引き戻せる状態を保つ）。
+     * 水平位置のクランプ。Shellのcontain領域では左右をMain境界内に保つ。
+     * standalone fallbackのみ従来の120px可視制約を使う。
      */
     function clampLoupeX(x, width) {
         var vw = getLoupeSafeArea().width;
         var area = getLoupeSafeArea();
         var minX = area.contain ? area.left + 8 : LOUPE_SIDE_VISIBLE - width;
         var maxX = area.contain ? area.right - width - 8 : vw - LOUPE_SIDE_VISIBLE;
-        if (minX > maxX) return Math.round((vw - width) / 2);
+        if (minX > maxX) return Math.round(area.contain ? area.left + (vw - width) / 2 : (vw - width) / 2);
         var v = (typeof x === 'number' && isFinite(x)) ? x : (vw - width) / 2;
         return Math.round(Math.max(minX, Math.min(maxX, v)));
     }
@@ -2084,6 +2082,8 @@
         // app-nav表示状態・viewportに合わせて必ず補正する。ドラッグ・リサイズの
         // 呼び出し元は既にclampLoupeY済みの値を渡すため、ここでの再クランプは
         // 冪等（値が変わらない）で、意図した位置を余分にリセットすることはない。
+        state.loupe.width = clampLoupeWidth(state.loupe.width);
+        state.loupe.x = clampLoupeX(state.loupe.x, state.loupe.width);
         state.loupe.y = clampLoupeY(state.loupe.y);
         els.slotOverlay.style.left = state.loupe.x + 'px';
         els.slotOverlay.style.top = state.loupe.y + 'px';
@@ -2096,12 +2096,12 @@
         // ヘッダー・拍ルーラー等の主要操作部には触れられるようにする。
         var safeArea = getLoupeSafeArea();
         var availableHeight = Math.max(
-            LOUPE_MIN_AVAILABLE_HEIGHT,
+            safeArea.contain ? 1 : LOUPE_MIN_AVAILABLE_HEIGHT,
             safeArea.bottom - state.loupe.y - safeArea.bottomMargin
         );
         els.slotOverlay.style.maxHeight = availableHeight + 'px';
         els.slotOverlay.style.setProperty('--bar-loupe-scale', String(state.loupe.width / LOUPE_BASE_WIDTH));
-        els.slotOverlay.classList.toggle('slot-overlay--narrow', isNarrowViewport());
+        els.slotOverlay.classList.toggle('slot-overlay--narrow', isNarrowViewport() || state.loupe.width < LOUPE_NARROW_BREAKPOINT);
     }
 
     /**
@@ -2965,7 +2965,7 @@
         });
 
         // ペイン幅の変化に合わせてA4紙面のスケールを追従させる
-        window.addEventListener('resize', scheduleOverlayPosition);
+        window.addEventListener('resize', function () { scheduleOverlayPosition(false); });
         observeWorkspaceSize();
         els.preview.addEventListener('click', onPreviewClick);
         els.preview.addEventListener('keydown', onPreviewKeydown);

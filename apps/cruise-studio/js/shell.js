@@ -105,6 +105,7 @@
             var rect = toolbar.getBoundingClientRect();
             var top = box.top + 8;
             if (!nodes.sheetCruise.hidden && rect.height) top = Math.max(top, rect.bottom + 8);
+            top = Math.min(top, Math.max(box.top + 8, box.bottom - 168));
             return { width: main.clientWidth, height: main.clientHeight, left: box.left, right: box.left + main.clientWidth,
                 top: top, bottom: box.bottom, bottomMargin: 8, contain: true };
         }

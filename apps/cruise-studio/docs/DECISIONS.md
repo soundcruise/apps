@@ -718,6 +718,16 @@ Fable5による設計レビューの結果、「選択小節のX線写真」方�
 
 ---
 
+### ADR-027後続補足: PC Shell layout v1（0.32.0 / 2026-10-14）
+
+上記はF1時点の記録。現行Shellでは[PC layout契約](PC_SHELL_LAYOUT.md)を優先する。
+左右120pxだけ残す制約から、実Mainの左右8px内のcontainへ変更。
+狭幅の固定280px floorを可用幅以下に制限し、範囲内resizeと実Loupe幅によるheader折返しを許可する。
+低高さはtoolbar除外を操作reserveまでに制限し、実max-heightと内部scrollでviewport内へ保つ。
+window resizeはgeometry-onlyで入力DOM/focus/IMEを維持。紙面色、編集モデル、選択、appSettings座標の意味は維持する。
+
+---
+
 ## ADR-028: 歌詞はbar.lyricsのtickイベントを正とし、セル単位で編集する（F2a）
 
 - 日付: 2026-07-10 / 状態: 採用

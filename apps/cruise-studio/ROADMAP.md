@@ -1,6 +1,44 @@
 # クルーズスタジオ — ロードマップ
 
-## Workspace Focus Restoration v1（2026-10-14・現行）
+## PC Shell / Dock / Narrow Layout Polish v1（2026-10-14・現行）
+
+Studio **0.32.0**（Navigation・Dock詳細のUI変更によるminor）/ Port **1.22.18** / Chord **1.20.1**。
+開始HEAD / origin/main / remote main=`a4f053cf90e28bbef947e8fe8f66f79d82113053`、tracked/staged空、ahead/behind0/0。
+Studio schema **1** / Authority physical schema **2**維持。
+stage直前に並行NEWS文書commit `0e3dad0d29db276be045b7caa0fb92541eeab993`を検知。
+指定基点のdirect child、NEWS-SOURCE-DECISION-REGISTER.mdのみ、HEAD/origin/remote一致・分岐なし・Studio不変更を確認し、許可された並行commit規則に従ってこの親から継続する。
+
+修正前の正式Chrome反例5件で、390px Structure / Pre-DTMのMain横超過（247→265px）、
+Loupe左端−16px、Dock高さ192px（600pxの32%）、Global Stopの画面外/操作不能を確認した。
+600px以下ではNavigationを上段の局所横scrollへ切替え、Mainの全幅を確保。
+toolbarの固定min-widthとPre-DTMのgrid最小幅を解除。狭幅の操作列のみ局所横scrollし、native Tabで各操作へ到達する。
+Global Stopと再生中StopはNavigation scrollから分離。同じ既存Audio Coordinator.stopAll()を使う。
+
+Loupeは実Main幅内へ左右8pxでcontainし、280px最小幅も可用幅を超えない。
+狭幅でもmove/resizeでき、実Loupe幅でheaderを折返す。低高さでは上端除外を操作reserveまでに制限し、
+残りの実高さで内部scrollする。window resizeもgeometry-onlyへ変更し、入力DOM・focus・IMEを保つ。
+Dockは既存engine一つのままBPM / toggle / 拍 / 状態を優先。個別Start/StopとStandard説明はnative詳細へ整理。
+memory保存状態は閉じた詳細summaryでも可視。未実装Transportは縮小し「準備中」と明示。
+Dock開閉・workspace移動でMetronomeを停止/再開せず、Global Stop後も自動再開しない。
+
+検証: baseline Node **560 PASS** → 新規20件を含む全 **580 PASS**（clean guard含む）。
+Chrome: 既存正規11 suite **252 PASS**、新layout **18 PASS**、計 **270 PASS**（親12含む）。
+正式repo独立8766 / 使い捨てChrome / 合成micのみ。6幅390/480/768/1024/1440/1920 × 高さ600/900 × 4 Themes。
+Loupe drag/resize/keyboard/scroll/selection/pane/復帰、Dock詳細操作・8回開閉・BPM151保持、
+低高さnav scroll中Global Stop・Tuner cleanup・focus/Modal/IME・Pre-DTM JSON/MIDI・A4 PDFを確認。
+スクリーンショット14枚とA4 PDFを作成し、4 Themes、Structure/Loupe、狭幅Pre-DTM/Dock、Printを目視確認。
+禁止write/DB creation/予期しないproject変更/console error/app404/unhandled **0**、画面/source0.32.0一致。
+既存試験の変更はversion、詳細を開く経路、resize後のpane settle。音声・bounds・no-writeのassertionは保持する。
+
+Port/Shared/Worker製品コード不変更。Studio Host等はimport cache ?v=更新のみ。
+Production **legacy / ACCEPT_COMPAT / enforcement OFF / Studio shared write OFF / PortDataHost.canWrite=false**。
+Daybreak待機/L3c境界維持。既存8765・利用者profile・untracked不触、動的認証probe・deploy・D1・cutoverなし。
+Safari / 実OS IME / 実device音声 / 普段の画面倍率の実機確認は未実施。
+次はこのPC layoutの実機操作確認を優先し、その結果から次の通常PC機能を選定する。
+詳細は[PC layout契約](docs/PC_SHELL_LAYOUT.md)参照。以下は各工程時点の履歴。
+
+
+## Workspace Focus Restoration v1（2026-10-14・履歴）
 
 Studio **0.31.2**（focus復帰のbug fix）/ Port **1.22.18** / Chord **1.20.1**。
 開始HEAD / origin/main / remote main=`c0f32687f0998c3a19870327d42a59c73e60f1ff`、tracked/staged空、ahead/behind0/0。

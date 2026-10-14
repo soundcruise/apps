@@ -264,3 +264,77 @@ body { height: 100%; overflow: hidden; background: var(--studio-app-bg); }
 #studio-chord-inspector dt { margin-top: 10px; color: var(--studio-text-muted); }
 #studio-chord-inspector dd { margin: 0; font-size: 14px; line-height: 1.7; overflow-wrap: anywhere; }
 #studio-chord-inspector[data-status="unsupported"] [data-chord-status] { color: var(--studio-warning); }
+
+/* PC layout polish: scrollable navigation and persistent audio safety are separate. */
+@media screen {
+    .studio-nav { overflow: visible; gap: 0; padding: 0; }
+    .studio-nav-scroll { min-height: 0; overflow: auto; flex: 1; padding: 20px 14px; display: flex; flex-direction: column; gap: 20px; }
+    .studio-nav-safety { flex-shrink: 0; padding: 8px 14px; border-top: 1px solid var(--studio-border-default); background: var(--studio-surface); }
+    #shell-audio-stop { width: 100%; border-color: var(--studio-border-strong); }
+    #shell-audio-stop span { font-size: 9px; }
+    .studio-main .sheet-toolbar-project { min-width: 0; max-width: 100%; flex-wrap: wrap; }
+    .studio-main .sheet-toolbar-project select { flex: 1 1 140px; max-width: 100%; }
+    .studio-main .sheet-toolbar-actions { min-width: 0; max-width: 100%; }
+    .studio-main .sheet-toolbar .save-status { min-width: 0; flex: 1 1 140px; overflow-wrap: anywhere; }
+    .studio-main :is(.pd-info-grid, .pd-settings-grid) { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+    .studio-main :is(.pd-setting-group, .pd-info-item) { min-width: 0; overflow-wrap: anywhere; }
+    .studio-main .pd-setting-field select { max-width: 100%; }
+    .studio-dock { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 20px; padding: 10px 18px; min-height: 0; max-height: 24dvh; }
+    .studio-dock [data-dock-slot="auxiliary"] { grid-column: 1; grid-row: 1; min-width: 0; }
+    .studio-dock [data-dock-slot="transport"] { grid-column: 2; grid-row: 1; align-self: start; color: var(--studio-text-muted); font-size: 11px; }
+    .studio-dock summary { cursor: pointer; font-size: 11px; color: var(--studio-text-muted); padding-block: 4px; }
+    .studio-dock summary:focus-visible { outline: 2px solid var(--studio-focus); outline-offset: 2px; }
+    .studio-dock h2 { display: flex; gap: 8px; align-items: baseline; }
+    .studio-dock h2 small { color: var(--studio-text-muted); font-weight: normal; }
+    .studio-metronome-readout { gap: 8px; margin-block: 4px; }
+    #studio-metronome-current-bpm { font-size: 26px; }
+    .studio-metronome-readout label { font-size: 11px; color: var(--studio-text-muted); }
+    #studio-metronome-bpm { width: 68px; min-height: 36px; padding: 6px; font: inherit; font-size: 13px; background: var(--studio-field); color: var(--studio-text-primary); border: 1px solid var(--studio-field-border); border-radius: 5px; }
+    .studio-metronome-beats li { width: 24px; height: 24px; font-size: 11px; }
+    #studio-metronome-details { display: inline-block; margin-right: 12px; }
+    #studio-metronome-details[open] { display: block; }
+    #studio-metronome-status { font-size: 11px; }
+    /* Bounded Loupe may be resized at narrow widths too; retain readable control floors. */
+    .studio-main .slot-overlay--narrow .slot-overlay-resize-handle { display: block; }
+    .studio-main .slot-overlay--narrow .slot-overlay-title { font-size: 14px; }
+    .studio-main .slot-overlay--narrow .slot-overlay-head-actions { flex-wrap: wrap; }
+    .studio-main .slot-overlay--narrow .slot-overlay-head-main { min-width: 0; flex-wrap: wrap; }
+    .studio-main .slot-overlay--narrow .slot-overlay-head { overflow-y: visible; }
+}
+@media screen and (max-width: 600px) {
+    #studio-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto; }
+    .studio-nav { grid-row: 1; grid-column: 1; display: grid; grid-template-columns: minmax(0, 1fr) 94px; border-right: 0; border-bottom: 1px solid var(--studio-border-default); }
+    .studio-nav-scroll { padding: 6px 8px; min-width: 0; overflow: visible; gap: 4px; }
+    .studio-brand, .studio-nav-workspaces button span, #shell-dock-toggle span { display: none; }
+    .studio-nav-workspaces, .studio-nav-utilities { flex-direction: row; overflow-x: auto; gap: 4px; padding: 3px; margin: 0; border: 0; }
+    .studio-nav button { white-space: nowrap; flex-shrink: 0; padding: 6px 8px; min-height: 32px; }
+    .studio-nav-safety { padding: 6px; border-top: 0; border-left: 1px solid var(--studio-border-default); align-self: stretch; display: flex; flex-direction: column; justify-content: center; }
+    #shell-audio-stop { white-space: normal; font-size: 11px; padding: 6px 4px; }
+    #shell-audio-stop span { white-space: normal; }
+    #shell-metronome-running { padding: 2px; }
+    #shell-metronome-running span { font-size: 9px; }
+    .studio-theme-control { display: flex; align-items: center; padding: 0; flex-shrink: 0; }
+    .studio-theme-control legend { float: left; padding: 0 4px; align-self: center; }
+    .studio-theme-option span { padding: 6px; }
+    #shell-theme-status { min-width: 120px; }
+    .studio-main { grid-column: 1; grid-row: 2; }
+    .studio-main .studio-container { padding: 12px; }
+    .studio-main .screen { gap: 12px; }
+    .studio-main .sheet-toolbar { gap: 6px; padding: 8px; }
+    .studio-main .sheet-toolbar-project { flex: 1 1 100%; gap: 6px; }
+    /* Single horizontal toolbar strip: native Tab scrolls every export/print action into view. */
+    .studio-main .sheet-toolbar-actions { flex: 1 1 100%; flex-wrap: nowrap; overflow-x: auto; padding: 3px; }
+    .studio-main .sheet-toolbar-actions > * { flex-shrink: 0; }
+    .studio-main .sheet-toolbar .save-status { flex-basis: 100%; text-align: left; font-size: 11px; }
+    .studio-main .btn-compact { padding: 7px 10px; }
+    #studio-shell[data-pane-mode="overlay"] .studio-right-pane { top: 108px; right: 8px; bottom: 8px; width: min(304px, calc(100vw - 16px)); }
+    .studio-dock { grid-column: 1; grid-row: 3; grid-template-columns: minmax(0, 1fr); padding: 8px 12px; max-height: 24dvh; }
+    .studio-dock [data-dock-slot="transport"] { grid-column: 1; grid-row: 2; }
+    .studio-dock [data-dock-slot="transport"] summary { padding-block: 0; }
+}
+@media screen and (max-width: 600px) {
+    .studio-metronome-beats { gap: 4px; }
+    .studio-metronome-beats li { width: 20px; height: 24px; }
+    #studio-metronome-toggle { min-width: 72px; padding-inline: 8px; }
+}
+@media screen and (max-width: 600px) { .studio-dock { padding-block: 6px; row-gap: 4px; } }

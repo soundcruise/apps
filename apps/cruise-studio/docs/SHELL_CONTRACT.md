@@ -552,3 +552,12 @@ BPM120 / 30〜240、25ms / 100ms / 55ms、running BPM変更のPort rescheduleを
   Save / IME / modal / working sourceを確認。JSONはappVersion差のみ、MIDI / audio稼働中A4ラスタ一致。
 - M2 persistence / Pro、M3 Port dataset / presets / Account / Sync、mic、Transportは未実装。
   schemaVersion1、Port / 他apps / shared / Worker無変更。Safari / 実OS interruption / 聴感検証はpending。
+
+## 34. PC Shell layout v1（0.32.0 / 2026-10-14）
+
+[PC layout契約](PC_SHELL_LAYOUT.md)をUI presentationの現行補足とする。
+600px以下の上段Navigation・固定Global Stop、toolbar局所横scroll、実Main bounds内Loupe、
+compact DockとMetronome導線を追加する。§30の固定rail記録よりこのresponsive補足を優先する。
+低高さではLoupe上端のtoolbar除外を操作reserveまでに制限し、内部scrollを許可する。
+resizeはgeometry-onlyでinput/focus/IMEを保持する。print時はscreen mediaを適用せず既存A4紙面のみ。
+workspace lifecycle / command target / data owner / audio owner / security境界は変更しない。

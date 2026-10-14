@@ -32,7 +32,7 @@ test('Audio Coordinator + Metronome M1 real Chrome',async t=>{
  await p.goto(process.env.STUDIO_URL||'http://127.0.0.1:8765/index.html');
  const runtime=()=>p.evaluate(()=>CruiseStudio.metronomeM1.snapshot());
  const running=async()=>{await p.waitForFunction(()=>CruiseStudio.metronomeM1.snapshot().running);};
- const start=async()=>{await p.click('#studio-metronome-start');await running();};
+ const start=async()=>{await p.locator('#studio-metronome-details').evaluate(e=>e.open=true);await p.click('#studio-metronome-start');await running();};
  const stop=()=>p.evaluate(()=>CruiseStudio.metronomeM1.stop());
  const report={};
  await t.test('default memory-only BPM and Dock Auxiliary Tool ownership',async()=>{assert.equal((await runtime()).bpm,120);assert.equal(await p.locator('[data-dock-slot=auxiliary] #studio-metronome-bpm').count(),1);assert.equal(await p.locator('[data-dock-slot=transport] input').count(),0);await p.click('#shell-dock-toggle');assert(await p.locator('#studio-metronome').isVisible());});

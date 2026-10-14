@@ -1,6 +1,16 @@
 # Metronome統合契約
 
-## Studio Metronome PC Presentation v1（2026-10-14・現行）
+## PC Shell layout補足（0.32.0 / 2026-10-14・現行）
+
+[PC layout契約](PC_SHELL_LAYOUT.md)に従い、同じDock toggleをMetronome導線にする。
+BPM/input/toggle/拍/音声statusを優先し、個別Start/StopとStandard説明をnative detailsへ移す。
+memory保存状態はsummaryに常時表示。Transportは準備中の縮小説明。
+同じengine・Coordinator・settings・visual queue・shortcutを維持し、Dock開閉でaudioを変更しない。
+既存Global Stopと再生中Stopはnav scroll外のsafety領域から操作できる。
+PortDataHost canWrite=false、Port値/memoryの独立、Daybreak待機/正式M3 write未解禁を維持する。
+
+
+## Studio Metronome PC Presentation v1（2026-10-14・履歴）
 
 開始HEAD / origin/main / remote mainは`9a1e77e146947bfaabe8abec2ef450b793952257`。
 Studio **0.27.0**（PC UI追加によるminor）/ Port **1.22.18**（不変更）/ Studio schemaVersion **1**。
