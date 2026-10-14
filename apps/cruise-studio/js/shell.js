@@ -9,7 +9,7 @@
     var PERSISTENT_MIN = 1280;
 
     function createWorkspaceHost(workspaces, view) {
-        var active = null;
+        var active = null, generation = 0;
         var loaded = new Set();
         return Object.freeze({
             activate: function (id) {
@@ -22,11 +22,13 @@
                     loaded.add(id);
                 }
                 active = id;
+                generation++;
                 if (workspaces[id].activate) workspaces[id].activate();
                 view.restore(id);
                 return true;
             },
-            getActive: function () { return active; }
+            getActive: function () { return active; },
+            getGeneration: function () { return generation; }
         });
     }
 
@@ -198,7 +200,7 @@
         host.activate('home');
         return Object.freeze({
             navigate: function (id) { return modal.getActive() ? false : host.activate(id); },
-            getActiveWorkspace: host.getActive, getLayoutState: layout.get,
+            getActiveWorkspace: host.getActive, getWorkspaceGeneration: host.getGeneration, getLayoutState: layout.get,
             getCommandContext: getCommandContext, commands: commands, keyboard: keyboard, modal: modal,
             setCommandTarget: function (name, value) {
                 if (!Object.hasOwn(targets, name)) throw new TypeError('Unknown command target');

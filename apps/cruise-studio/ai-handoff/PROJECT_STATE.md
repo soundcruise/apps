@@ -1,6 +1,37 @@
 # Cruise Studio Project State
 
-## Structure Domain Undo/Redo UI & Keyboard v1（2026-10-14・現行）
+## Common Music Model + Structure Read-only Conversion Core v1（2026-10-14・現行）
+
+Studio **0.37.0**（memory-only変換APIのminor）/ Port **1.22.18** / Chord **1.20.1** / Rhythm **1.19.1**。
+開始HEAD / origin/main / remote main=`126820db055c3db590c6552bcccc0ace1a90c97f`、tracked/staged空、ahead/behind0/0。
+既存`.claude/`・Sync node_modules保持。NEWS差分なし。並行開発Git契約を適用し、全体cleanの旧条件へ戻さない。
+Studio schema **1** / Authority physical **2**維持。
+
+4/4・480 PPQ・1920 ticks/measureだけを受理するpure Common Music Model v1を追加。
+melody/harmony/guitar strokeを分離、綴りはChord pure owner、実音はStudio既存移動ド/カポ規約を再利用。
+C♯/D♭、臨時記号、B♯/C♭のletter octave、カポのoctave carry、実音MIDI0境界を保持。
+小数/不正音高/音価/小節越え/overlap/非4/4を補正せずfatal。未知コードは原文とwarning、欠損コード音価はunresolved。
+voicing/string-fret/使用弦/運指はnull。Rhythm preset/Chord form/五線譜/TAB/保存/Transportは未接続。
+
+正式active Structure sessionのimmutable workingから変換。readRevision追加はgetItemだけで外部raw revisionを比較し、
+保存/JSON解析/採用/通知は行わない。IME/Modal/commit/pending/conflict/deletion/future/unobserved revisionを拒否し、
+base/history/readinessを変えない。既存Pre-DTM capture/JSON/MIDIは不変更。
+source identity・snapshot location・legacy provenance・fatal/warning/unresolvedを保持。
+Shellの既存activate世代だけを公開し、A-B-A/Undo/Redo/workspace往復/外部更新/別service/reloadの旧resultを拒否。
+第二draft/clock/datasetなし。deep immutable・deterministic。2048 bars/展開32768 events/100000 nodes/2Mi chars/depth32の予算を先に確認。
+診断256上限でもfatalを保持する。元projectの自動書換・保存schema変更なし。
+
+検証: baseline Node **806 PASS** → 新規Core **64 PASS**、全Node **870 PASS**。
+正規Browser15 suite **406 PASS**、新規変換API **7 PASS**（親含む）、計 **413 PASS**。
+実MIDI bytes/Pre-DTM意味的JSON、dirty/current/Undo/Redo/A-B/workspace/IME/Modal/focus/4 Themes/Print、
+convert repository write0・外部dataset/Authority/ProDevice/Account/Sync/outbox/Worker mutation0、console/404/unexpected通信0。
+Studio全体version/cache/mirror整合。旧Host単独補助試験はhidden Start既知FAILの別記録を維持し、今回は未実行。
+使い捨てChrome/別8767/合成micのみ。既存8765/8766/profile/既存untracked不触。
+Production **legacy / ACCEPT_COMPAT / enforcement OFF / shared write OFF / canWrite=false**、Daybreak待機維持。
+本番deploy/D1/cutover/新規security probeなし。次はChord推奨フォームadapter、Rhythm import-safe reader、描画の段階設計。
+詳細: [Common Music正式契約](../docs/COMMON_MUSIC_MODEL.md)。以下は各工程時点の履歴。
+
+## Structure Domain Undo/Redo UI & Keyboard v1（2026-10-14・履歴）
 
 Studio **0.36.0**（製品Undo/Redo UI/shortcut追加のminor）/ Port **1.22.18** / Chord **1.20.1**。
 指定基点7318efcaの後のNEWS-only 2 commitを祖先・変更範囲で確認し保持。

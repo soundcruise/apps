@@ -9,6 +9,15 @@
     function createRepository(options) {
         var listeners = new Set(), attached = false;
         function targetValid(target) { return target && target.type === 'project' && typeof target.projectId === 'string' && !!target.projectId; }
+        // Revision-only read lets bounded consumers reject changed/oversized external JSON
+        // without parsing it, adopting it, notifying listeners or invoking any write path.
+        function readRevision(target) {
+            if (!targetValid(target)) return { ok: false, error: '不正なproject参照です' };
+            try {
+                var raw = options.storage.getItem(PROJECT + target.projectId);
+                return { ok: true, exists: raw !== null, revision: raw };
+            } catch (error) { return { ok: false, error: error.message }; }
+        }
         function read(target) {
             if (!targetValid(target)) return { ok: false, error: '不正なproject参照です' };
             try {
@@ -91,7 +100,7 @@
             else if (event.key === null && options.knownTargets) options.knownTargets().forEach(function (target) { notify(target, 'other-tab'); });
         }
         return Object.freeze({
-            read: read, save: save, remove: remove,
+            read: read, readRevision: readRevision, save: save, remove: remove,
             canWrite: function () { return !!(options.storage && options.locks && typeof options.locks.request === 'function'); },
             subscribe: function (fn) { listeners.add(fn); return function () { listeners.delete(fn); }; },
             attach: function () { if (!attached && options.events) { options.events.addEventListener('storage', onStorage); attached = true; } },

@@ -260,6 +260,12 @@
         preDtm.init();
         shellHost = CS.shell.init(CS);
         CS.shellHost = shellHost;
+        CS.musicConversion = CS.structureConversion.createService({ owner: CS.documents, repository: CS.repository,
+            model: CS.commonMusic, converter: CS.commonMusic.createConverter({ studioTheory: CS.theory,
+                chordTheory: window.ChordCruise.theory, validate: model.validateProject }),
+            getContext: function () { return { workspaceId: shellHost.getActiveWorkspace(), generation: shellHost.getWorkspaceGeneration(),
+                blocked: !!shellHost.modal.getActive() || shellHost.keyboard.isIMEBlocked({}) }; }
+        });
         CS.practiceView = CS.practice.init({ document: document, shell: shellHost });
         CS.practice.attachHost(CS.portDataHost || null);
         CS.audio = CS.audioCoordinator.createCoordinator();
