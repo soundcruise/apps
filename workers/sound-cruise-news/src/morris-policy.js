@@ -17,6 +17,6 @@ export const MORRIS_EVIDENCE=Object.freeze({name:'Morris Guitars',discoveryUrl:M
  policyEvidence:'Three verified Gmail messages: initial conditions, actual SENT operating method, affirmative assent. Canonical NEWS-SOURCE-DECISION-REGISTER.md.',lastPolicyReviewAt:'2026-10-14',
  reviewedBy:'operator',reviewedAt:'2026-10-14',robotsReviewedAt:'2026-10-14',discoveryReviewedAt:'2026-10-14',policyDecision:'approved',
  robots404Reviewed:true,robotsValid:true,discoveryValid:true,sourceRulesReviewed:true,crawlIntervalHours:24,
- allowedPaths:['/information/'],deniedPaths:['/products/','/artists/','/feed/','/rss/'],articlePathPattern:'^/information/20[0-9]{2}/[0-9]{4}_[0-9]{2}\\.html$',contentTypes:['product','artist','event'],gearOnly:false,
+ allowedPaths:['/information/'],deniedPaths:['/products/','/artists/','/feed/','/rss/'],articlePathPattern:'^/information/20[0-9]{2}/[0-9]{4}_[0-9]{2}\\.html$',contentTypes:['product','artist','event','editorial'],gearOnly:false,
  notes:'Daily atomic D1 budget; permanent once-only detail receipts; 48h publication freshness; cache-only repair/recheck; human publication decision required.'});
 export function morrisPermissionValid(s){return s?.id==='morris'&&s.name==='Morris Guitars'&&s.permissionRef===MORRIS_PERMISSION&&s.discoveryUrl===MORRIS_LISTING&&s.discoveryType==='morris_listing'&&s.explicitAutomationPermission===true&&s.automationPolicy==='publisher_permission'&&s.crawlIntervalHours>=24&&s.robots404Reviewed===true;}
