@@ -33,7 +33,7 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 | [shimamura](#source-shimamura) | 島村楽器 | ON | ALLOWED WITH BOUNDS |
 | [natalie](#source-natalie) | 音楽ナタリー | OFF／D1 disabled=1・publication_blocked=1・takedown=1 | COLLECTION / PUBLICATION STOPPED — QUALITY / DATE |
 | [skream](#source-skream) | Skream! | OFF | NEEDS EVIDENCE — QUALITY / POLICY SCOPE |
-| [morris](#source-morris) | Morris | OFF | NEEDS EVIDENCE — ROBOTS / POLICY / DISCOVERY |
+| [morris](#source-morris) | Morris Guitars | OFF — activation hold | CONDITIONAL PUBLISHER PERMISSION — LISTING ONLY; IMPLEMENTATION REQUIRED |
 | [deviser](#source-deviser) | Deviser | OFF | BOUNDED ASSESSMENT COMPLETE / TECHNICAL-QUALITY INCOMPLETE |
 | [roland](#source-roland) | Roland / BOSS | OFF | NEEDS EVIDENCE — PARSER / SUPPLY / SCOPE |
 | [audio-technica](#source-audio-technica) | Audio-Technica（日本メーカーサイト） | OFF | NEEDS EVIDENCE — CLIENT METADATA / VALUE |
@@ -141,22 +141,47 @@ OFF／candidate-only行ではこの共通原則が将来利用を承認するも
 
 <a id="source-morris"></a>
 
-## Morris — morris
+## Morris Guitars — morris
 
-| Item | Existing decision record |
+| Item | Current permission / activation record |
 |---|---|
-| Source / Publisher | Morris |
-| Surface | www.morris-guitar.com 公式新着候補、固定discovery未構成 |
-| Current State | OFF |
-| Current Scope | アコギ製品NEWS候補。 |
-| Decision | NEEDS EVIDENCE — ROBOTS / POLICY / DISCOVERY |
-| Why | robots 404のproduction absence review、適用規約、固定metadataが未完。 |
-| Explicit Restriction | 404は明示拒否ではない。具体的な今回方式への禁止は記録未確定。 |
+| Source / Publisher | User-facing attribution must be exactly **Morris Guitars**. Responding company: 株式会社モリダイラ楽器, 情報推進室; the reply states that it sells Morris Guitars and manages the official website. Internal ID remains `morris`. |
+| Surface | Prospective single public listing: https://www.morris-guitar.com/information/ . No configured runtime discovery/parser; not enabled. |
+| Current State | **OFF**. Read-only verification on 2026-10-14: not in the production configuration allowlist; runtime enabled/productionEnabled=false; no Morris source_state, candidate or source_health rows in production D1. |
+| Current Scope | Objective facts relevant to acoustic guitars / singing-and-playing: products, performers, releases, events, fingerpicking, contests and guitar making. Automated checking is restricted to the public listing, not all linked content. Missing facts must stay unpublished; scope does not license copied expression. |
+| Decision | **CONDITIONAL PUBLISHER PERMISSION — LISTING ONLY / ACTIVATION HOLD**. Permission is received, but technical enforcement and listing-only extraction must be verified before enablement. |
+| Why | Publisher reply limits automation to public listing pages, in principle once per day. Existing generic recovery/operator timing controls are not a sufficient Morris-specific enforcement mechanism. |
+| Explicit Restriction | Facts only, exact source name and direct original-article link; no implied official recognition/endorsement or partnership. Images/logos require a separate prior application and are not used under this permission. No automatic article-page, RSS, product-page, PDF, pagination/archive or linked-domain acquisition is authorized by this decision. |
 | Internal Boundaries | 原見出し・本文・画像・OGP・raw HTMLを保存しない。独自facts label＋出典＋直接リンク。固定surfaceを原則1日1回、bounded fetch、robots/access/opt-out、90日retention、kill/takedownを維持。未確認factsはREVIEW。 |
-| Permission Status | UNKNOWN／適用scopeまたは明示許諾の確認は未完。今回の未確認を新たな禁止判断にしない。 |
-| Evidence | [COVERAGE-EXPANSION-PHASE1-REPORT.md](COVERAGE-EXPANSION-PHASE1-REPORT.md)、[BLOCKED-SOURCE-RECOVERY-REPORT.md](BLOCKED-SOURCE-RECOVERY-REPORT.md)、[BLOCKED-SOURCE-RECOVERY-EVIDENCE.json](BLOCKED-SOURCE-RECOVERY-EVIDENCE.json) |
-| Decision Date | 2026-09-30 |
-| Notes | 既存判断の整理のみ。新しい安全性判定・source変更なし。 |
+| Permission Status | Express, conditional permission for the described factual use; **not** unconditional consent, body/image/logo reuse permission, RSS/article-fetch permission or publisher endorsement. Earlier UNKNOWN status is historical. |
+| Evidence | Actual Gmail reply received 2026-10-14 09:24 JST (sender Date: 09:23:30 JST), subject `Morris Guitars公式サイトの情報利用について`, thread/message `1a137cb715dc72cc`. Original 2026-10-09 form inquiry verified from Gmail confirmation thread/message `1a11f440255ebc1d` (ISO-2022-JP decoded). No full email, postal address, phone number or signature copied here. Historical [Phase 1 report](COVERAGE-EXPANSION-PHASE1-REPORT.md) remains evidence of the earlier OFF assessment. |
+| Correction / Deletion / Stop | Respond promptly to requested corrections/deletions. Publisher may require cessation for noncompliance or other reasons it considers necessary. Stop collection and respond to the affected publication scope; do not treat this as a human editorial reject/teacher signal. Existing kill/takedown controls must be operable before activation. |
+| Decision Date | Conditional permission recorded and compatibility audited: 2026-10-14. Previous internal readiness assessment: 2026-09-30 (robots 404 absence review, policy/discovery incomplete); not erased or represented as prior permission. |
+| Formal Launch Status | PERMISSION RECEIVED / CONDITIONS RECORDED / TECHNICAL HOLD. No further permission question is needed for a facts-only listing pilot that skips insufficient evidence. Any future article/RSS automation requires a separate request and affirmative answer before implementation/enablement. |
+| Notes | Documents only. No source registry/config/runtime changes, source activation, DB changes, deploy or version bump. Thank-you/condition-confirmation reply is a Gmail draft only, not sent. |
+
+<a id="morris-permission-20261014"></a>
+
+### 2026-10-14 — Conditions and listing-only compatibility audit
+
+**Primary-email interpretation.** The reply permits factual information such as product names, performer names, release dates and event dates. Independent labels must remain within those facts. It explicitly requires `Morris Guitars` attribution and a direct original-article link, excludes images/logos absent a separate prior application, forbids implied official approval, restricts automated new-information checking to generally public listings in principle **no more than once per day**, and requires prompt response to correction, removal and cessation requests. The original inquiry also proposed RSS and additional checks of new articles; the narrower reply governs. No legal conclusion beyond that recorded scope is asserted.
+
+**Site observation.** One bounded read-only GET of the intended listing on 2026-10-14 returned HTTP 200, 27,962 bytes, with a matching listing canonical, one `main`, repeated `h3.h5.serif` / `div.col-9` items, written dates in `time`, short descriptions and direct `/information/YYYY/MMDD_NN.html` links. It includes a new 10/14 item; the web-search representation was six days old and must not be used as a current discovery baseline. Listing facts can support a subset of short introductions, but do not universally provide complete product identities, event venues, deadlines or release dates. A displayed publication date is **not** a product release/event date. The cached listing also contains a Sound Messe event-year discrepancy; uncertain or conflicting facts must be held/skipped without following a detail link to resolve them automatically. No article page, RSS, image or PDF was fetched/saved for this audit. A separate technical robots check returned HTTP 404 without following redirects; absence is not a denial or permission and requires an explicit reviewed handling decision before production.
+
+| Path / Concern | Current behavior and compatibility finding |
+|---|---|
+| Registry / collection policy | `src/registry.js`, `src/source-policies.js`, `src/runtime.js`: Morris is unconfigured, evidence incomplete and outside the production allowlist. Adding the ID alone cannot enable it. Runtime name is still `Morris`; before activation it must use the exact permitted display name `Morris Guitars` without changing internal IDs. |
+| Listing fetch / extraction | `src/collector.js`, `src/official-listing.js`: existing official-listing collector can restrict request URLs to robots + one listing, but its parser does not support Morris. A dedicated fixed listing extraction route is required; do not copy an article-fetching source's behavior. |
+| Article recovery / autonomous recheck | `src/facts-readiness.js`, `src/facts-recheck.js`, `src/pending-lifecycle.js`: Morris currently has no recovery surface. Preserve this fail-closed boundary; any future recovery may only reuse verified listing facts/cache or the same permitted daily listing request, with no article/official-product/RSS fallback. Cache, retry and parser changes cannot broaden permission. |
+| Once/day / manual Operator | `legalGate`, `NewsStore.lease`, collector and facts recheck have `operator_validation` / scheduled paths that do not enforce the normal `nextAt` / last-request interval in the same way. The recheck budget is separate from collection. `crawlIntervalHours=24` alone cannot guarantee one listing check per day across all paths. A shared atomic Morris-specific daily budget, consumed for attempted listing requests (including errors/304), must cover scheduled/manual/Operator/retry/recovery paths. An Operator click must return cached information or a deferred/no-supported-surface result without extra publisher traffic. |
+| Redirect / canonical | `src/policy.js` blocks redirects before requesting their destination. Keep exact HTTPS listing URL checks before every request. Canonical is validated/recorded, never followed to an article/product/RSS/other host. Reading an item URL for a direct user-facing link does not authorize fetching it. |
+| Duplicate / labels | Existing duplicate checks compare stored structured identities/events; they do not fetch publishers. Use existing validation only when explicit listing facts meet it. Independently generate facts-only labels; missing identity/type/event/date is not an excuse to relax validation or fetch details. |
+| Health | `src/source-health.js` projects stored outcomes; it does not probe publisher URLs. Monitoring must remain DB/cache based, without extra listing/article access. Keep genuine HTTP/parser/robots failures distinct from intentional OFF. Current Morris has no live health row; do not create one merely to represent permission. |
+| Attribution / images / endorsement | Future candidate/API/Port source label must be exactly `Morris Guitars`; current registry name needs a later scoped change. Preserve direct article links, no publisher images/logos/embedded pages and no official-endorsement wording. Permission is not an editorial approve/teacher signal. |
+
+**Activation prerequisites (not implemented here):** fixed listing-only parser and facts provenance; exact attribution; permission/evidence and robots-absence review; shared once/day guard across every request path; zero article/RSS/product/PDF/image/redirect-destination requests; cache-only/deferred Operator and recheck behavior; tests for manual retry, concurrent calls, budget exhaustion, error/304 handling, direct-link/date integrity, duplicates, opt-out, health and publisher stop/correction requests. Explicit activation approval and normal source acceptance remain separate. Until all are satisfied, Morris remains OFF.
+
+**Read-only verification:** seven local assertions passed for production OFF, unconfigured discovery, null recovery surface and unsupported listing parser, with zero publisher fetches in those checks. Production D1 SELECTs returned zero Morris state/candidate/health records and zero writes. Only this canonical register is updated; historical coverage reports and unrelated publishers are unchanged.
 
 <a id="source-deviser"></a>
 
