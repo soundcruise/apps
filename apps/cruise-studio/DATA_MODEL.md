@@ -211,7 +211,7 @@ JSONファイル書き出しは StudioProject をそのまま整形出力する�
 - 変換ロジックは削除しない（過去のどの保存データも開けることを保証する）
 
 
-## 派生Common Music Model v1（Studio 0.37.0）
+## 派生Common Music Model v1（Studio 0.37.1）
 
 [正式契約](docs/COMMON_MUSIC_MODEL.md)。StudioProject schema1は不変更。
 modelVersion1はmemory-only派生モデルの版であり、projectへ新fieldを保存しない。

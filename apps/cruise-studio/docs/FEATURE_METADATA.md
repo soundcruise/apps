@@ -6,7 +6,7 @@
 
 ## 読み取りAPI
 
-`js/core/feature-registry.mjs?v=0.26.1`から次をimportできる。
+`js/core/feature-registry.mjs?v=0.37.1`から次をimportできる。
 
 - `getComponentMetadata(componentId)` / `getAppVersion(componentId)`
 - `getFeatureMetadata(featureId)` / `listFeatures()`
@@ -19,12 +19,14 @@
 
 | componentId | 現行appVersion | repository-relative source / symbol | 読み方 |
 |---|---|---|---|
-| cruise-port | 1.22.3 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
-| chord-cruise | 1.20.1 | apps/chord-cruise/js/app.js / CHORD_CRUISE_APP_VERSION | source-mirror |
-| pitch-cruise | 2.29.1 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
-| fretboard-cruise | 2.24.1 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
-| rhythm-cruise | 1.19.1 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
-| cruise-studio | 0.26.1 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+| cruise-port | 1.23.0 | apps/cruise-port/app-version.js / CRUISE_PORT_APP_VERSION | 元ESM定数import |
+| chord-cruise | 1.21.0 | apps/chord-cruise/js/app.js / CHORD_CRUISE_APP_VERSION | source-mirror |
+| pitch-cruise | 2.30.0 | apps/pitch-cruise/script.js / PITCH_TRAINER_APP_VERSION | source-mirror |
+| fretboard-cruise | 2.25.0 | apps/fretboard_cruise/script.js / FRETBOARD_CRUISE_APP_VERSION | source-mirror |
+| rhythm-cruise | 1.20.0 | apps/rhythm-cruise/script.js / RHYTHM_CRUISE_VERSION | source-mirror |
+| cruise-studio | 0.37.1 | apps/cruise-studio/js/core/song-model.js / APP_VERSION | source-mirror |
+
+Studio 0.37.1のmetadata保守で現行sourceに追従。製品機能・Project schema1は変更しない。
 
 元sourceが正。mirrorのpath・symbol・extraction・expectedValueを保存し、毎回source一致を検証する。
 `version-reader.mjs`は渡されたテキストのliteral宣言だけを抽出する純関数。
@@ -39,10 +41,12 @@ API / backend versionやbuildの推測値は登録しない。独立componentは
 
 ### Importとcache
 
-Studio内部importは現在のmodule cache運用に合わせ`?v=0.26.1`。
-Port元ESMへのStudio側importは現行sourceのcache key `?v=1.22.3`を使う。
-商品versionをcache keyから抽出することはない。既存HTML・mobileの`?v=`は変更しない。
+Studio内部importは現在のmodule cache運用に合わせ`?v=0.37.1`。
+Port元ESMへのStudio側importは現行sourceのcache key `?v=1.23.0`を使う。
+商品versionをcache keyから抽出することはない。他ownerのHTML・mobileの`?v=`は変更しない。
 Portの正式release後はsource照合に加えて、このStudio側参照のcache keyを確認する。
+classic ownerの正式version更新後は、Studio所有のmirrorだけを追従更新し、全6componentを個別に照合する。
+変更を他ownerへ広げず、元sourceのversionを下げたり照合をskipしたりして通さない。
 
 元ESMは隣接する`apps/cruise-port/`への相対importで読むため、検証・将来Shell接続時は
 `apps/`またはrepo rootを公開するHTTP topologyが必要。StudioディレクトリだけをHTTP rootにすると

@@ -1,5 +1,27 @@
 # クルーズスタジオ — ロードマップ
 
+## Integrated Score正式設計文書化（2026-10-15）
+
+Astra Architecture Contract v1全文、Opus最終UX全文、承認済みモック `2b754b0f78b8ba856f9f315e9c76d27420088168` のREADME/HANDOFFを照合し正式docsへ保存。
+[Architecture](docs/INTEGRATED_SCORE_ARCHITECTURE.md) / [UX](docs/INTEGRATED_SCORE_UX.md) / [工程と受入](docs/INTEGRATED_SCORE_IMPLEMENTATION_ROADMAP.md)。
+単一Project/Session/Undo、Hybrid、stable ID、schema2、実音/key/capo、owner API、手動保持、出力別readinessを確定設計として区別。
+Studio0.37.1 / schema1の製品実装は維持。schema2や譜面変換UIは今回未実装。U1〜U8と実OS IME等の未確認を保持。
+metadata修正commit `02a21d74a35e93d94a06b5827e1713fe5ae3efe0` と文書commitを分離し、固定topic・旧候補・原本・他ownerを変更しない。
+統合候補とmain反映可否はGit safetyの別gateであり、本書は統合方式・公開・shared writeを承認しない。
+
+
+## Component version metadata整合（0.37.1・2026-10-15）
+
+main `32f4058c` の各owner正式versionへStudio側mirrorを追従。
+Port1.23.0 / Chord1.21.0 / Pitch2.30.0 / Fretboard2.25.0 / Rhythm1.20.0。
+Port ESM参照cache key、Studio patch・asset/module参照・厳密version試験を整合。
+全component個別照合とPort参照cache key検証を追加。Project schema1・製品機能は維持。
+PR #1の独立モック、既存topic、旧不合格候補、NEWS・他apps・Shared・Workerは変更しない。
+修正は独立保守branch内。統合候補・正式設計文書・公開可否は別gateで判定する。
+今回の再実行: metadata29 / Node916 / 正規Browser15 suite＋Structure conversion413 PASS、FAIL0・skip0。
+合成443Hz・48000Hz/mono/16-bit PCM・3秒を指定。Console/404/禁止通信0、No-write維持。
+
+
 ## Common Music Model + Structure Read-only Conversion Core v1（2026-10-14・現行）
 
 Studio **0.37.0**（memory-only変換APIのminor）/ Port **1.22.18** / Chord **1.20.1** / Rhythm **1.19.1**。
