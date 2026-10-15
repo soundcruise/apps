@@ -241,6 +241,6 @@ test('information pages follow the theme with the app bootstrap; content is unch
     }
   }
   for (const [file, hash] of Object.entries(DARK_PAGES)) {
-    assert.equal(await sha256(read(file).replace('pro-gate.css?v=9', 'pro-gate.css?v=6')), hash, `${file}: Pro acquisition / shared help page stays Dark`);
+    assert.equal(await sha256(read(file).replace('pro-gate.css?v=10', 'pro-gate.css?v=6').replace('pro-gate-help.js?v=4', 'pro-gate-help.js?v=3')), hash, `${file}: Pro acquisition / shared help page stays Dark`);
   }
 });

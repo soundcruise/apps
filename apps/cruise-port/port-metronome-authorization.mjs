@@ -1,6 +1,6 @@
 // Port-owned local operations. No Studio owner acquisition, Sync activation or import-time I/O.
-import { createOperationBoundary, createProOperationResolver } from './port-write-readiness.mjs?v=1.22.18';
-import { portRepository } from './port-dataset-storage.js?v=1.22.18';
+import { createOperationBoundary, createProOperationResolver } from './port-write-readiness.mjs?v=1.23.0';
+import { portRepository } from './port-dataset-storage.js?v=1.23.0';
 export function createPortMetronomeAuthorization({ storage, source = () => globalThis.SoundCruiseProOperationSource,
     now = Date.now, monotonicNow = () => globalThis.performance?.now?.() } = {}) {
     const auth = () => { const value=source()?.read(); return value?.auth && {...value.auth,operationRevision:value.revision}; };

@@ -233,6 +233,38 @@ body.pro-gate-active {
 .pro-post-help-content p { margin: 0 0 12px; }
 .pro-post-help-content ol { margin: 0 0 14px; padding-left: 1.5em; }
 .pro-post-help-content li { margin-bottom: 8px; }
+.pro-number-contact {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 210, 90, 0.18);
+}
+.pro-number-contact .pro-number-contact-title { font-weight: 500; }
+.pro-post-help-content .pro-number-contact-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: 44px;
+    max-width: 100%;
+    padding: 9px 14px;
+    border: 1px solid rgba(255, 210, 90, 0.4);
+    border-radius: 8px;
+    background: transparent;
+    color: rgba(255, 229, 102, 0.92);
+    font-size: 0.83rem;
+    text-decoration: none;
+}
+.pro-post-help-content .pro-number-contact-button:hover {
+    background: rgba(255, 210, 90, 0.06);
+    border-color: rgba(255, 210, 90, 0.65);
+}
+.pro-number-contact .pro-number-contact-address {
+    margin: 8px 0 0;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 0.75rem;
+    user-select: text;
+    overflow-wrap: anywhere;
+}
 .pro-post-copy,
 .pro-post-help-back button {
     max-width: 100%;
@@ -268,6 +300,7 @@ body.pro-gate-active {
     font-size: 16px;
 }
 .pro-post-help summary:focus-visible,
+.pro-number-contact-button:focus-visible,
 .pro-post-copy:focus-visible,
 .pro-post-help-back a:focus-visible,
 .pro-post-help-back button:focus-visible {

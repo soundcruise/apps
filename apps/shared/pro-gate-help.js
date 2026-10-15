@@ -4,6 +4,27 @@
     const POST_URL = 'https://www.youtube.com/post/UgkxGGd0QKGyDd3-mMWvhusmK4ZvqmH8I6Er';
     const bound = new WeakSet();
 
+    function contactMarkup() {
+        // Only a fixed display name from the public app path enters the template.
+        // Query strings, browser/device details and authentication state are never read.
+        const names = {
+            'cruise-port': 'Cruise Port', 'pitch-cruise': '音感クルーズ',
+            'fretboard_cruise': '指板クルーズ', 'rhythm-cruise': 'リズムクルーズ',
+            'chord-cruise': 'コードクルーズ'
+        };
+        const app = /^\/apps\/([^/]+)(?:\/|$)/.exec(root.location?.pathname || '')?.[1];
+        const name = Object.hasOwn(names, app) ? names[app] : 'Cruise apps';
+        const body = 'アプリ名：' + name + '\r\n利用端末：\r\n困っている手順・状況：';
+        const href = 'mailto:soundcruise.inc@gmail.com?subject=' +
+            encodeURIComponent('アプリの4桁番号について') + '&amp;body=' + encodeURIComponent(body);
+        return '<div class="pro-number-contact">' +
+            '<p class="pro-number-contact-title">それでも番号が確認できない場合</p>' +
+            '<p>上記の方法を試しても解決しない場合は、メールでお問い合わせください。</p>' +
+            '<a class="pro-number-contact-button" href="' + href + '">メールで問い合わせる ↗</a>' +
+            '<p class="pro-number-contact-address">soundcruise.inc@gmail.com</p>' +
+            '</div>';
+    }
+
     function contentMarkup() {
         return '<div class="pro-post-help-content">' +
             '<ol class="pro-number-steps"><li class="pro-number-copy-step">' +
@@ -19,6 +40,7 @@
             '<p>YouTubeアプリでは正しい投稿が開かない場合があります。Safari / Chromeなどのブラウザで開いてください。</p>' +
             '<p>ブラウザのYouTubeで、メンバーシップに登録しているGoogleアカウントにログインしていることを確認してください。別のアカウントの場合は、メンバーアカウントへ切り替えてください。</p>' +
             '<p>投稿URLは、ブラウザのアドレス欄へ直接貼り付けてください。</p>' +
+            contactMarkup() +
             '</div></details>' +
             '</div>';
     }

@@ -1,12 +1,12 @@
 // L2b isolated adapter. Explicit scope/open only; no product boot or cloud publish.
 import {controlReadiness} from './port-authority-control.mjs';
-import { registerIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.22.18';
+import { registerIsolatedRepositoryBackend } from './port-repository-backend.mjs?v=1.23.0';
 import { openIDBAuthorityStore } from './port-indexeddb-authority-store.mjs';
-import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.22.18';
+import { PORT_DATASET_KEYS, PORT_DATASET_CATALOG, PORT_DATASET_PROTOCOL, preservePortFields } from './port-dataset-repository.js?v=1.23.0';
 import { frozen, fail, identifier, validateDataset } from './port-idb-authority-contract.mjs';
-import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.22.18';
-import { loadMetronomeSettings } from './metronome-store.js?v=1.22.18';
-import { loadTunerSettings } from './tuner-store.js?v=1.22.18';
+import { validatePortLocalCollections } from './port-sync-local-validation.js?v=1.23.0';
+import { loadMetronomeSettings } from './metronome-store.js?v=1.23.0';
+import { loadTunerSettings } from './tuner-store.js?v=1.23.0';
 const rejected = e => ({ ok: false, status: 'rejected', reason: e.code || 'read-failed' });
 function validateDomainValues(values) {
     validateDataset(values);

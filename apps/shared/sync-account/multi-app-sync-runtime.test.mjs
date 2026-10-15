@@ -1,7 +1,7 @@
 import { createWriterWireContext, AUTHORITY_ERROR_CODES } from './writer-authority.mjs';
 import { createFixtureLocks as fixtureLocks } from './test-fixtures/web-locks.mjs';
 import { PortDatasetRepository } from '../../cruise-port/port-dataset-repository.js';
-import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.22.18';
+import { registerPortRepository, usesPortRepository, portRepository } from '../../cruise-port/port-dataset-storage.js?v=1.23.0';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
