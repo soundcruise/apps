@@ -1,4 +1,5 @@
 import { articlePath } from './news-articles.js?v=1.16.1';
+import { newsOriginalArticleHref } from './news-external-link.js?v=1.23.1';
 import { NEWS_MODE, NEWS_CATEGORIES, NEWS_FILTER_GROUPS, newsFilterGroup, prepareNews, tickerNews, groupNews } from './news-data.js?v=1.17.0';
 import { NEWS_BETA_ITEMS } from './data/news-beta.js?v=1.3.0';
 
@@ -73,7 +74,11 @@ export function renderNews({ documentObject = document, items = NEWS_BETA_ITEMS,
                 for (const item of records) {
                     const link = node('a', undefined, 'news-card');
                     if (item.linkType === 'internal') link.href = articlePath(item.articleId);
-                    else { link.href = item.sourceUrl; link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+                    else {
+                        const href = newsOriginalArticleHref(item);
+                        if (!href) continue;
+                        link.href = href; link.target = '_blank'; link.rel = 'noopener noreferrer';
+                    }
                     link.append(node('span', NEWS_CATEGORIES[item.category], 'news-category'), node('span', item.label, 'news-label'), node('span', newsSourceDisplayName(item), 'news-source'));
                     const time = node('time', day.replaceAll('-', '/')); time.dateTime = item.publishedAt;
                     link.append(time); section.append(link);

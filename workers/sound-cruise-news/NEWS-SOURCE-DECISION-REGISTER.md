@@ -338,7 +338,7 @@ NEWS 0.28.0 / Operator 0.27.0 adds primary listing evidence and bounded article-
 | Why | PBと別scopeでrobots/policy/qualityを確認。阿部学ワークショップは公式facts確認後operator承認。 |
 | Explicit Restriction | generic blog全体・paginationなし。店舗tagだけでは会場確定不可。 |
 | Internal Boundaries | 原見出し・本文・画像・OGP・raw HTMLを保存しない。独自facts label＋出典＋直接リンク。固定surfaceを原則1日1回、bounded fetch、robots/access/opt-out、90日retention、kill/takedownを維持。未確認factsはREVIEW。 |
-| Permission Status | documented silence／明示的automation許諾なし。既存の限定内部判断であり、許諾の不在だけを利用不可の理由にしない。 |
+| Permission Status | **GRANTED WITH CONDITIONS — 2026-10-15**. 株式会社池部楽器店・広報室。Gmail thread `1a13324557722b42`, formal message `1a13e3f7691fbf79`。下記の正式許諾記録と5条件を適用。既存scope・取得頻度は維持。 |
 | Evidence | [src/high-value-evidence.js](src/high-value-evidence.js)、[HIGH-VALUE-COVERAGE-REPORT.md](HIGH-VALUE-COVERAGE-REPORT.md)、[HIGH-VALUE-COVERAGE-EVIDENCE.json](HIGH-VALUE-COVERAGE-EVIDENCE.json)、[HIGH-VALUE-SOURCE-POLICY.md](HIGH-VALUE-SOURCE-POLICY.md) |
 | Decision Date | 2026-10-01 |
 | Notes | manual-ikebe：別途既存承認されたmain-hostの個別Event facts/link scopeも存在。自動化grantと混同しない。 |
@@ -421,7 +421,7 @@ NEWS 0.28.0 / Operator 0.27.0 adds primary listing evidence and bounded article-
 | Why | PB404をhost限定review。親会員／購入規約の適用scopeとPB関係を確認し固定facts/link採用。 |
 | Explicit Restriction | 権利侵害禁止。category/page/sale/used/lesson等を除外。 |
 | Internal Boundaries | 原見出し・本文・画像・OGP・raw HTMLを保存しない。独自facts label＋出典＋直接リンク。固定surfaceを原則1日1回、bounded fetch、robots/access/opt-out、90日retention、kill/takedownを維持。未確認factsはREVIEW。 |
-| Permission Status | documented silence／明示的automation許諾なし。既存の限定内部判断であり、許諾の不在だけを利用不可の理由にしない。 |
+| Permission Status | **GRANTED WITH CONDITIONS — 2026-10-15**. 株式会社池部楽器店・広報室。Gmail thread `1a13324557722b42`, formal message `1a13e3f7691fbf79`。下記の正式許諾記録と5条件を適用。既存scope・取得頻度は維持。 |
 | Evidence | [src/recovery-evidence.js](src/recovery-evidence.js)、[LEGACY-SOURCE-RECOVERY-REPORT.md](LEGACY-SOURCE-RECOVERY-REPORT.md)、[LEGACY-SOURCE-RECOVERY-EVIDENCE.json](LEGACY-SOURCE-RECOVERY-EVIDENCE.json)、[HIGH-VALUE-COVERAGE-REPORT.md](HIGH-VALUE-COVERAGE-REPORT.md)、[HIGH-VALUE-COVERAGE-EVIDENCE.json](HIGH-VALUE-COVERAGE-EVIDENCE.json)、[HIGH-VALUE-SOURCE-POLICY.md](HIGH-VALUE-SOURCE-POLICY.md) |
 | Decision Date | 2026-09-30〜10-01 |
 | Notes | 拡大時contactはRECOMMENDED、確認済み必須条項ではない。Eventは別source。 |
@@ -1041,3 +1041,15 @@ This entry records operational verification, not an expanded publisher permissio
 - Each new daily listing entry stores bounded counts/types of visible description candidates, the actually selected input character count, wider single-article-parent observations, parser branch/candidate flags, missing field codes and one primary plus supporting failure codes. A wider parent is diagnostic only: it must contain one bound article, never contributes facts, and cannot lend another card's text. Ambiguous scope is reported separately. No source HTML, heading, description, body, image, logo, class names or arbitrary attributes are retained by diagnostics.
 - Metadata is additive in existing `entries_json` and listing `proof_json`; no migration or historical receipt rewrite. A summary can report `parser_quality_warning` only for at least three independently described relevant candidates with no recovered facts, excluding explicit policy wording. Sparse/irrelevant/legacy samples remain distinct. This is a read-only parser-quality diagnostic in the authenticated Operator summary, separate from network/source health: it does not disable collection, retry, change publication readiness or mark intentional stops as failures.
 - Today's 14 entries remain uninstrumented; no root cause is inferred retrospectively from their null facts or from synthetic fixtures. No Morris HTTP request, forced collection/recheck, historical detail visit or RSS access is performed for this release. The first expected diagnostic observation is the next regular **2026-10-16 06:00 JST** acquisition. Real article recovery is not a release acceptance criterion; the actual next-run outcome must be checked separately.
+
+
+## 2026-10-16 — Ikebe official permission finalization / outgoing-link tracking
+
+- **Publisher / evidence:** 株式会社池部楽器店・広報室。正式回答は2026-10-15 15:28:24 JST、Gmail message `1a13e3f7691fbf79`, thread `1a13324557722b42`。最初の問い合わせ、10/14の5条件提示（`1a1398ed4b073bc9`）、実際の条件承諾返信（`1a139ff251ae701a`）と最新回答を照合。ISO-2022-JPの最新原文を復元して確認し、メール全文・署名・個人連絡先は保存しない。
+- **Status: GRANTED WITH CONDITIONS.** 最初の問い合わせに明記したPB新製品情報とEventsの両scopeを含む。`ikebe` / `ikebe-event` と既存の承認済みmain-host個別記事（`manual-ikebe`を含む）の紹介リンクが対象。媒体全体の自由な取得、メーカー提供素材の二次利用や自動掲載の許諾ではない。
+- **Five binding conditions:** (1) 出典を明記する。(2) トップページでなく原記事へ直接リンクする。(3) 客観的事実に基づく独自の短い見出し等に限定し、記事本文・画像・動画等を転載しない。(4) 池部楽器店または関係メーカー等からの訂正・削除要請に速やかに対応する。(5) 説明済みの取得方法・頻度を維持し、方法・対象範囲等の変更は事前相談する。
+- **Acquisition unchanged:** PB固定新製品一覧とEvents固定一覧、原則1日1回・毎朝06:00 JSTの既存運用、必要な記事のみ上限付きの事実確認、既存robots/access制限・リトライ制限・source停止制御を維持。説明済みUA `SoundCruiseNewsBot/0.1 (+mailto:soundcruise.inc@gmail.com)`、Cloudflare Workersの非固定送信元IP運用を拡張しない。サイト全体・pagination・別domainへの範囲拡張なし。
+- **Attribution:** 現行表示「池部楽器」「池部楽器 Events」は、当初問い合わせで提示した、情報元の分かる表示として維持。正式回答の例示は厳密な固定表示名指定ではないため、内部source ID・表示名を変更しない。
+- **Required tracking:** exactly `utm_source=soundcruise`, `utm_medium=referral`, `utm_campaign=cruise_port`。Portの `news-external-link.js` で、HTTPS・資格情報なし・標準portの公式PB数値記事URLと公式main-host blog記事URLにのみ適用する。対象の既存UTM値・重複・大小文字variantはこの3指定値へ統一し、他queryとfragmentを保持する。許諾外domain、一覧・商品一覧・トップページには付与しない。
+- **Presentation / preservation:** NEWS一覧のクリック用hrefだけを生成する。既存記事・今後の有効記事に同じ処理を使い、保存source URL/canonical、candidate ID、dedupe、日付、見出し、facts/provenance、掲載状態、人間判断、Ledger/feedback/Shadowは変更しない。Home tickerは従来どおりNEWS一覧へ移動し、そこで原記事リンクに同じ処理を適用する。自社記事詳細の内部リンクには適用しない。target / noopener / noreferrerを維持する。
+- **Verification date:** 2026-10-16。Port通常版/Pro版・既存PB/Events記事・指定UTM・他source不変を本番公開後に確認する。NEWS/Operator Worker、D1、collection scope、schedulerの変更・deployは不要。設定完了のお礼は同スレッドのGmail下書きのみとし送信しない。
