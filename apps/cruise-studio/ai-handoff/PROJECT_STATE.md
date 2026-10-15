@@ -1,5 +1,15 @@
 # Cruise Studio Project State
 
+## Integrated Score正式設計文書化（2026-10-15）
+
+Astra Architecture Contract v1全文、Opus最終UX全文、承認済みモック `2b754b0f78b8ba856f9f315e9c76d27420088168` のREADME/HANDOFFを照合し正式docsへ保存。
+[Architecture](../docs/INTEGRATED_SCORE_ARCHITECTURE.md) / [UX](../docs/INTEGRATED_SCORE_UX.md) / [工程と受入](../docs/INTEGRATED_SCORE_IMPLEMENTATION_ROADMAP.md)。
+単一Project/Session/Undo、Hybrid、stable ID、schema2、実音/key/capo、owner API、手動保持、出力別readinessを確定設計として区別。
+Studio0.37.1 / schema1の製品実装は維持。schema2や譜面変換UIは今回未実装。U1〜U8と実OS IME等の未確認を保持。
+metadata修正commit `02a21d74a35e93d94a06b5827e1713fe5ae3efe0` と文書commitを分離し、固定topic・旧候補・原本・他ownerを変更しない。
+統合候補とmain反映可否はGit safetyの別gateであり、本書は統合方式・公開・shared writeを承認しない。
+
+
 ## Component version metadata整合（0.37.1・2026-10-15）
 
 main `32f4058c` の各owner正式versionへStudio側mirrorを追従。
